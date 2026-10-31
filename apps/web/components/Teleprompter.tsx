@@ -20,6 +20,7 @@ import { engineHeaders, useSession } from "./useSession";
 import { PairPanel } from "./PairPanel";
 import { useScreenSense, type ScreenSource } from "./useScreenSense";
 import { LangSwitch, useUiLang } from "./LangSwitch";
+import { desktopBridge } from "@/lib/sessionUrl";
 
 type BackendChoice = "auto" | SttBackendId;
 
@@ -48,6 +49,10 @@ function TeleprompterInner({ onLang }: { onLang: (l: "en" | "it") => void }) {
   const [lastNotes, setLastNotes] = useState<ScreenNote[]>([]);
   const [importing, setImporting] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [publicLink, setPublicLink] = useState(false);
+  useEffect(() => {
+    setPublicLink(Boolean(desktopBridge()?.remoteShare));
+  }, []);
   const cancelRef = useRef(false);
   const [pendingImport, setPendingImport] = useState<ImportResponse | null>(null);
   const backendRef = useRef<SttBackend | null>(null);
@@ -232,7 +237,12 @@ function TeleprompterInner({ onLang }: { onLang: (l: "en" | "it") => void }) {
         </div>
         <span className="subtitle">{t("app.subtitle")}</span>
         <span className="spacer" />
-        <PairPanel info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} />
+        <PairPanel info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} onNewCode={() => void sessionInfo.newCode()} />
+        {publicLink && (
+          <button className="chip live" title={t("pair.stopPublic")} onClick={() => desktopBridge()?.setRemoteShare?.(false)}>
+            🌐 {t("pair.publicChip")} ✕
+          </button>
+        )}
         {offline && <span className="chip err">{t("app.offline")}</span>}
         {eng.backend && <span className="chip live">● {BACKEND_LABELS[eng.backend]}</span>}
         {screen.status === "watching" && (
@@ -447,6 +457,29 @@ function TeleprompterInner({ onLang }: { onLang: (l: "en" | "it") => void }) {
         </div>
       )}
 
+      {sessionInfo.pairRequests.length > 0 && (
+        <div className="modal-bg">
+          <div className="modal pairmodal">
+            <div className="eyebrow">{t("pair.request")}</div>
+            {sessionInfo.pairRequests.map((r) => (
+              <div key={r.token} className="strip">
+                <div className="label">{r.device || "phone"}</div>
+                <div className="controls">
+                  <button className="btn primary" onClick={() => sessionInfo.decidePair(r.token, "controller")}>
+                    {t("pair.allowControl")}
+                  </button>
+                  <button className="btn" onClick={() => sessionInfo.decidePair(r.token, "viewer")}>
+                    {t("pair.allowView")}
+                  </button>
+                  <button className="btn danger" onClick={() => sessionInfo.decidePair(r.token, "reject")}>
+                    {t("pair.reject")}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {editing && <ScriptEditor initial={scriptText} onCancel={() => setEditing(false)} onSave={saveScript} />}
       {screen.sources && <SourceChooser sources={screen.sources} onPick={(s) => void screen.chooseSource(s)} />}
       {pendingImport && (

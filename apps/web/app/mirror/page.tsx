@@ -29,17 +29,44 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
   const [status, setStatus] = useState<string>("idle");
   const [error, setError] = useState<string | null>(null);
   const serverParam = params.get("server");
+  const [pending, setPending] = useState(false);
+
+  /** ?server= is only trusted when it is this page's own origin; anything else is confirmed first (never auto-connect elsewhere). */
+  const resolveServer = (): string | null => {
+    if (!serverParam) return sessionServerUrl();
+    let host = "";
+    try {
+      const u = new URL(serverParam);
+      if (u.origin === window.location.origin) return u.origin;
+      if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+      host = u.host;
+    } catch {
+      return null;
+    }
+    return window.confirm(t("mirror.foreignServer", { host })) ? serverParam : null;
+  };
 
   const join = async (c: string) => {
     setError(null);
+    const serverUrl = resolveServer();
+    if (!serverUrl) {
+      setStatus("idle");
+      return;
+    }
     setStatus("pairing");
     try {
       const cl = await connect({
-        serverUrl: serverParam ?? sessionServerUrl(),
+        serverUrl,
         code: c,
         onState: setState,
-        onStatus: (s, d) => setStatus(d ? `${s}: ${d}` : s),
+        onStatus: (s, d) => {
+          setStatus(d ? `${s}: ${d}` : s);
+          if (d === "pending") setPending(true);
+          if (s === "closed" && d && /rejected/.test(d)) setError(t("mirror.rejected"));
+        },
+        onRole: () => setPending(false),
       });
+      if (cl.role === "pending") setPending(true);
       setClient(cl);
       try {
         localStorage.setItem("mirror:lastCode", c);
@@ -102,6 +129,18 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
             {status === "pairing" ? t("mirror.pairing") : t("mirror.join")}
           </button>
         </form>
+        {error && <span className="chip err">{error}</span>}
+      </div>
+    );
+  }
+
+  if (pending && !state) {
+    return (
+      <div className="app stage pair">
+        <div className="logo">
+          <span className="dot" /> INTELLIPROMPTER
+        </div>
+        <div className="subtitle">{t("mirror.waiting")}</div>
         {error && <span className="chip err">{error}</span>}
       </div>
     );

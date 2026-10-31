@@ -113,22 +113,29 @@ Desktop sessions are not resumable across app restarts: a new code is issued per
 
 | Endpoint | Auth | Request | Response | Errors |
 |---|---|---|---|---|
-| `POST /api/session` | `X-Access-Password` when `ACCESS_PASSWORD` is set | `{}` | `{id, code, engineToken}` | 401 |
-| `POST /api/session/pair` | none, rate-limited 10/IP/min | `{code}` | `{id, viewToken, role:"controller"}` | 404 unknown code, 429 |
+| `POST /api/session` | `X-Access-Password` when `ACCESS_PASSWORD` is set | `{}` | `{id, code, codeExpiresAt, engineToken}` | 401 |
+| `POST /api/session/pair` | none, rate-limited 10/IP/min and 60/min globally | `{code}` | `{id, viewToken, role:"pending"\|"controller"}` | 404 unknown or expired code, 429 |
+| `POST /api/session/:id/code` | `engineToken` | `{}` | `{code, codeExpiresAt}` fresh single-use code | 401, 404 |
 | `POST /api/session/:id/script` | `engineToken` or `viewToken` with `controller` role | `{text}` | `{ok:true}` → relayed to the engine as `loadScript` | 401, 404 |
 | `DELETE /api/session/:id` | `engineToken` | | `{ok:true}` | |
 
-`id` is a UUID. `code` is 6 digits, unique among live sessions (regenerate on collision). Tokens are 16 random bytes, base64url. Tokens travel only in the first WebSocket message, never in URLs.
+`id` is a UUID. `code` is 6 digits from `crypto.randomInt`, unique among live sessions. Tokens are 16 random bytes, base64url. Tokens travel only in the first WebSocket message, never in URLs.
 
-Lifetimes: a session ends on `DELETE`, or 2 hours after the engine socket closes, or 12 hours after creation, whichever comes first. `code` is valid for the whole session.
+Lifetimes: a session ends on `DELETE`, or 2 hours after the engine socket closes, or 12 hours after creation, whichever comes first. A `code` is valid for 5 minutes and for one pairing; the engine requests a fresh one (`POST /api/session/:id/code` or `{t:"newCode"}`) for the next phone or when the old one ran out.
 
-Roles: `viewer` receives state only; `controller` may send commands. Pairing with a code yields `controller`; the engine can downgrade a connection to `viewer` with `setRole`. `loadScript` and `startTake`/`stopTake` are accepted only from the engine's own UI or a `controller`.
+Roles: `pending` receives nothing; `viewer` receives state only; `controller` may send commands. Pairing yields `pending`, the engine is told `{t:"pairRequest", token, device}` and answers `{t:"pairDecision", token, role:"viewer"|"controller"|"reject"}` (the UI shows the device label with Allow / View only / Reject). With `AUTO_ACCEPT_LAN=1` (desktop LAN mode) a phone whose socket peer is a private address and that did not come through a proxy is admitted as `controller` at once. The engine can change a role later with `setRole`. `loadScript` and `startTake`/`stopTake` are accepted only from the engine's own UI or a `controller`.
+
+Client addresses for the rate limiter come from the socket; `cf-connecting-ip` / `x-forwarded-for` are honoured only with `TRUST_PROXY=1` (behind Caddy on the Debian deploy, or while the desktop app runs its own cloudflared). A phone page uses a `?server=` parameter only when it is its own origin; any other host is confirmed by the user first.
 
 **WebSocket `/ws/session/:id`**, JSON messages:
 
 ```
 client → server   {t:"hello", role:"engine"|"view", token}
 server → client   {t:"welcome", role, version}            | {t:"error", code, message} then close
+server → engine   {t:"pairRequest", token, device}        a pending phone connected
+engine → server   {t:"pairDecision", token, role}         viewer | controller | reject (close 4003)
+server → view     {t:"role", role}                        then the latest state
+engine → server   {t:"newCode"}  → server replies {t:"code", code, codeExpiresAt}
 engine → server   {t:"state", version, state}             full SessionState
 engine → server   {t:"patch", version, ops}               RFC 6902 ops (fast-json-patch), version = previous + 1
 server → views    forwards state and patch unchanged; replays the latest full state to each new view

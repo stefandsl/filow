@@ -1,22 +1,35 @@
 // Session relay. Protocol and lifetimes: ARCHITECTURE.md §5.4.
+//
+// Pairing security (the public link only encrypts; the code is the access control):
+// - codes come from crypto.randomInt, live `codeTtlMs` (5 min) and are single-use;
+//   the engine asks for a fresh one (POST /api/session/:id/code or ws {t:"newCode"});
+// - a paired phone starts as "pending": the engine is told {t:"pairRequest"} and answers
+//   {t:"pairDecision"} with viewer / controller / reject; until then it gets no state.
+//   Peers on the local network can be auto-accepted (autoAcceptLan, desktop LAN mode);
+// - client IPs come from the socket unless trustProxy is on (cf-connecting-ip, then
+//   x-forwarded-for); pairing is limited per IP and globally.
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
+import { isIP } from "node:net";
 import { WebSocketServer, WebSocket } from "ws";
 import { applyPatch, type Operation } from "fast-json-patch";
 import { mintEngineToken, randomToken, verifyEngineToken } from "./auth";
 
-export type Role = "viewer" | "controller";
+export type Role = "viewer" | "controller" | "pending";
 
 type View = { ws: WebSocket; token: string; role: Role; alive: boolean };
 type Session = {
   id: string;
-  code: string;
+  code: string | null;
+  codeExpiresAt: number;
   createdAt: number;
   engineClosedAt: number | null;
   engine: WebSocket | null;
   engineAlive: boolean;
   viewTokens: Map<string, Role>;
   views: Set<View>;
+  /** pair requests waiting for the engine's decision (token -> device label) */
+  pendingPairs: Map<string, string>;
   lastState: unknown | null;
   version: number;
 };
@@ -31,10 +44,17 @@ export type ServerOptions = {
   now?: () => number;
   engineGraceMs?: number; // 2 h
   absoluteTtlMs?: number; // 12 h
-  pairLimitPerMinute?: number; // 10
+  /** How long a pairing code stays valid after it was issued (5 min). */
+  codeTtlMs?: number;
+  pairLimitPerMinute?: number; // 10 per IP
+  pairGlobalLimitPerMinute?: number; // 60 across all IPs
   pingMs?: number; // 15 s
   /** Allowed CORS origins for the HTTP endpoints ("*" by default: the token is the credential). */
   corsOrigin?: string;
+  /** Honour cf-connecting-ip / x-forwarded-for (only behind our own proxy or tunnel). Default: TRUST_PROXY=1. */
+  trustProxy?: boolean;
+  /** Auto-accept phones whose socket peer is a private address and that did not come through a proxy. Default: AUTO_ACCEPT_LAN=1. */
+  autoAcceptLan?: boolean;
 };
 
 export type SessionServer = {
@@ -46,18 +66,32 @@ export type SessionServer = {
   sweep(): void;
 };
 
+/** RFC 1918, link-local, loopback (v4 and v4-mapped v6, ::1). */
+export function isPrivateIp(ip: string | undefined): boolean {
+  if (!ip) return false;
+  const v4 = ip.startsWith("::ffff:") ? ip.slice(7) : ip;
+  if (v4 === "::1") return true;
+  if (isIP(v4) !== 4) return false;
+  return /^(10\.|127\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(v4);
+}
+
 export function createSessionServer(opts: ServerOptions = {}): SessionServer {
   const now = opts.now ?? (() => Date.now());
   const engineGraceMs = opts.engineGraceMs ?? 2 * 60 * 60 * 1000;
   const absoluteTtlMs = opts.absoluteTtlMs ?? 12 * 60 * 60 * 1000;
+  const codeTtlMs = opts.codeTtlMs ?? 5 * 60 * 1000;
   const pairLimit = opts.pairLimitPerMinute ?? 10;
+  const pairGlobalLimit = opts.pairGlobalLimitPerMinute ?? 60;
   const pingMs = opts.pingMs ?? 15000;
   const secret = opts.accessPassword || opts.secret || randomToken();
   const cors = opts.corsOrigin ?? "*";
+  const trustProxy = () => opts.trustProxy ?? process.env.TRUST_PROXY === "1";
+  const autoAcceptLan = opts.autoAcceptLan ?? process.env.AUTO_ACCEPT_LAN === "1";
 
   const sessions = new Map<string, Session>();
   const byCode = new Map<string, Session>();
   const pairAttempts = new Map<string, { count: number; windowStart: number }>();
+  const globalAttempts = { count: 0, windowStart: 0 };
 
   // ---- helpers ---------------------------------------------------------------
   const json = (res: ServerResponse, status: number, body: unknown) => {
@@ -81,16 +115,28 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
         }
       });
     });
-  const newCode = () => {
+  const allocCode = () => {
     for (let i = 0; i < 20; i++) {
-      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const code = String(randomInt(100000, 1000000));
       if (!byCode.has(code)) return code;
     }
     throw new Error("could not allocate a code");
   };
+  /** Issue a fresh single-use code for a session, replacing any unused one. */
+  const issueCode = (s: Session) => {
+    if (s.code) byCode.delete(s.code);
+    s.code = allocCode();
+    s.codeExpiresAt = now() + codeTtlMs;
+    byCode.set(s.code, s);
+    return { code: s.code, codeExpiresAt: s.codeExpiresAt };
+  };
+  const consumeCode = (s: Session) => {
+    if (s.code) byCode.delete(s.code);
+    s.code = null;
+  };
   const destroy = (s: Session, reason: string) => {
     sessions.delete(s.id);
-    byCode.delete(s.code);
+    consumeCode(s);
     for (const v of s.views) v.ws.close(4003, reason);
     s.engine?.close(4003, reason);
   };
@@ -99,11 +145,33 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
     for (const s of [...sessions.values()]) {
       if (t - s.createdAt > absoluteTtlMs) destroy(s, "session expired");
       else if (s.engineClosedAt !== null && t - s.engineClosedAt > engineGraceMs) destroy(s, "engine gone");
+      else if (s.code && t > s.codeExpiresAt) consumeCode(s);
     }
     for (const [ip, a] of pairAttempts) if (t - a.windowStart > 60000) pairAttempts.delete(ip);
   };
-  const ipOf = (req: IncomingMessage) =>
-    (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0].trim() || req.socket.remoteAddress || "?";
+  /** Client address: the socket, unless we sit behind our own proxy / tunnel. */
+  const ipOf = (req: IncomingMessage): string => {
+    if (trustProxy()) {
+      const cf = req.headers["cf-connecting-ip"];
+      if (typeof cf === "string" && cf.trim()) return cf.trim();
+      const xff = req.headers["x-forwarded-for"];
+      if (typeof xff === "string" && xff.trim()) return xff.split(",")[0].trim();
+    }
+    return req.socket.remoteAddress || "?";
+  };
+  /** A phone on the local network, talking to us directly (not through a tunnel or proxy). */
+  const isLocalPeer = (req: IncomingMessage): boolean =>
+    isPrivateIp(req.socket.remoteAddress) && !req.headers["cf-connecting-ip"] && !req.headers["x-forwarded-for"];
+  const bump = (map: Map<string, { count: number; windowStart: number }>, key: string, limit: number) => {
+    const a = map.get(key) ?? { count: 0, windowStart: now() };
+    if (now() - a.windowStart > 60000) {
+      a.count = 0;
+      a.windowStart = now();
+    }
+    a.count++;
+    map.set(key, a);
+    return a.count <= limit;
+  };
 
   // ---- HTTP -----------------------------------------------------------------------
   const httpServer = createServer(async (req, res) => {
@@ -115,35 +183,38 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
         return json(res, 401, { error: "bad access password" });
       }
       const id = randomUUID();
-      const code = newCode();
       const s: Session = {
-        id, code, createdAt: now(), engineClosedAt: now(), engine: null, engineAlive: false,
-        viewTokens: new Map(), views: new Set(), lastState: null, version: 0,
+        id, code: null, codeExpiresAt: 0, createdAt: now(), engineClosedAt: now(), engine: null, engineAlive: false,
+        viewTokens: new Map(), views: new Set(), pendingPairs: new Map(), lastState: null, version: 0,
       };
       sessions.set(id, s);
-      byCode.set(code, s);
-      return json(res, 200, { id, code, engineToken: mintEngineToken(secret, id, absoluteTtlMs, now()) });
+      const { code, codeExpiresAt } = issueCode(s);
+      return json(res, 200, { id, code, codeExpiresAt, codeTtlMs, engineToken: mintEngineToken(secret, id, absoluteTtlMs, now()) });
     }
 
     if (req.method === "POST" && url.pathname === "/api/session/pair") {
-      const ip = ipOf(req);
-      const a = pairAttempts.get(ip) ?? { count: 0, windowStart: now() };
-      if (now() - a.windowStart > 60000) {
-        a.count = 0;
-        a.windowStart = now();
+      // Global cap first: header games or many addresses must not add up to a brute force.
+      if (now() - globalAttempts.windowStart > 60000) {
+        globalAttempts.count = 0;
+        globalAttempts.windowStart = now();
       }
-      a.count++;
-      pairAttempts.set(ip, a);
-      if (a.count > pairLimit) return json(res, 429, { error: "too many attempts" });
+      if (++globalAttempts.count > pairGlobalLimit) return json(res, 429, { error: "too many attempts" });
+      if (!bump(pairAttempts, ipOf(req), pairLimit)) return json(res, 429, { error: "too many attempts" });
       const { code } = await readBody(req);
       const s = byCode.get(String(code ?? ""));
-      if (!s) return json(res, 404, { error: "unknown code" });
+      if (!s || !s.code) return json(res, 404, { error: "unknown code" });
+      if (now() > s.codeExpiresAt) {
+        consumeCode(s);
+        return json(res, 404, { error: "code expired" });
+      }
+      consumeCode(s); // single use
       const viewToken = randomToken();
-      s.viewTokens.set(viewToken, "controller");
-      return json(res, 200, { id: s.id, viewToken, role: "controller" });
+      const role: Role = autoAcceptLan && isLocalPeer(req) ? "controller" : "pending";
+      s.viewTokens.set(viewToken, role);
+      return json(res, 200, { id: s.id, viewToken, role });
     }
 
-    const m = url.pathname.match(/^\/api\/session\/([^/]+)(\/script)?$/);
+    const m = url.pathname.match(/^\/api\/session\/([^/]+)(\/script|\/code)?$/);
     if (m) {
       const s = sessions.get(m[1]);
       if (!s) return json(res, 404, { error: "unknown session" });
@@ -155,7 +226,11 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
         destroy(s, "ended");
         return json(res, 200, { ok: true });
       }
-      if (req.method === "POST" && m[2]) {
+      if (req.method === "POST" && m[2] === "/code") {
+        if (!isEngine) return json(res, 401, { error: "engine token required" });
+        return json(res, 200, issueCode(s));
+      }
+      if (req.method === "POST" && m[2] === "/script") {
         if (!isEngine && role !== "controller") return json(res, 401, { error: "controller token required" });
         const { text } = await readBody(req);
         if (typeof text !== "string") return json(res, 400, { error: "text required" });
@@ -186,10 +261,22 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
       socket.destroy();
       return;
     }
-    wss.handleUpgrade(req, socket, head, (ws) => attach(ws, s));
+    wss.handleUpgrade(req, socket, head, (ws) => attach(ws, s, req));
   });
 
-  function attach(ws: WebSocket, s: Session) {
+  const sendPairRequests = (s: Session) => {
+    if (!s.engine || s.engine.readyState !== WebSocket.OPEN) return;
+    for (const [token, device] of s.pendingPairs) s.engine.send(JSON.stringify({ t: "pairRequest", token, device }));
+  };
+
+  /** Deliver the current state to a view that just became viewer/controller. */
+  const admit = (s: Session, v: View) => {
+    v.ws.send(JSON.stringify({ t: "role", role: v.role }));
+    if (s.lastState) v.ws.send(JSON.stringify({ t: "state", version: s.version, state: s.lastState }));
+    else v.ws.send(JSON.stringify({ t: "engineOffline" }));
+  };
+
+  function attach(ws: WebSocket, s: Session, req: IncomingMessage) {
     let me: View | null = null;
     let isEngine = false;
     const helloTimer = setTimeout(() => ws.close(4002, "hello timeout"), 5000);
@@ -219,7 +306,8 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
           s.engine = ws;
           s.engineAlive = true;
           s.engineClosedAt = null;
-          ws.send(JSON.stringify({ t: "welcome", role: "engine", version: s.version }));
+          ws.send(JSON.stringify({ t: "welcome", role: "engine", version: s.version, code: s.code, codeExpiresAt: s.codeExpiresAt }));
+          sendPairRequests(s);
           return;
         }
         const role = s.viewTokens.get(token);
@@ -227,6 +315,12 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
         me = { ws, token, role, alive: true };
         s.views.add(me);
         ws.send(JSON.stringify({ t: "welcome", role, version: s.version }));
+        if (role === "pending") {
+          const device = String(msg.device ?? "").slice(0, 80) || `phone at ${ipOf(req)}`;
+          s.pendingPairs.set(token, device);
+          sendPairRequests(s);
+          return;
+        }
         if (s.lastState) ws.send(JSON.stringify({ t: "state", version: s.version, state: s.lastState }));
         else ws.send(JSON.stringify({ t: "engineOffline" }));
         return;
@@ -249,16 +343,38 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
             ws.send(JSON.stringify({ t: "resync" })); // ask the engine for a full state
           }
         } else if (msg.t === "ack") {
-          for (const v of s.views) v.ws.send(raw.toString()); // sender filters by id
-        } else if (msg.t === "setRole") {
-          const role = msg.role === "viewer" ? "viewer" : "controller";
-          for (const v of s.views) if (v.token === msg.token) v.role = role;
-          if (typeof msg.token === "string" && s.viewTokens.has(msg.token)) s.viewTokens.set(msg.token, role);
+          for (const v of s.views) if (v.role !== "pending") v.ws.send(raw.toString()); // sender filters by id
+        } else if (msg.t === "newCode") {
+          ws.send(JSON.stringify({ t: "code", ...issueCode(s) }));
+        } else if (msg.t === "setRole" || msg.t === "pairDecision") {
+          const token = typeof msg.token === "string" ? msg.token : "";
+          if (!token) return;
+          if (msg.role === "reject") {
+            s.viewTokens.delete(token);
+            s.pendingPairs.delete(token);
+            for (const v of [...s.views]) if (v.token === token) v.ws.close(4003, "rejected by the presenter");
+            return;
+          }
+          const role: Role = msg.role === "viewer" ? "viewer" : "controller";
+          if (!s.viewTokens.has(token)) return;
+          s.viewTokens.set(token, role);
+          const wasPending = s.pendingPairs.delete(token);
+          for (const v of s.views) {
+            if (v.token !== token) continue;
+            const admitNow = v.role === "pending";
+            v.role = role;
+            if (admitNow || wasPending) admit(s, v);
+            else v.ws.send(JSON.stringify({ t: "role", role }));
+          }
         }
         return;
       }
 
       if (me) {
+        if (me.role === "pending") {
+          if (msg.t === "cmd") ws.send(JSON.stringify({ t: "ack", id: msg.id, ok: false, error: "waiting for the presenter" }));
+          return;
+        }
         if (msg.t === "cmd") {
           if (me.role !== "controller") return ws.send(JSON.stringify({ t: "ack", id: msg.id, ok: false, error: "viewer role" }));
           if (!s.engine || s.engine.readyState !== WebSocket.OPEN)
@@ -277,12 +393,15 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
         s.engineClosedAt = now();
         broadcast(s, JSON.stringify({ t: "engineOffline" }));
       }
-      if (me) s.views.delete(me);
+      if (me) {
+        s.views.delete(me);
+        if (me.role === "pending") s.pendingPairs.delete(me.token);
+      }
     });
   }
 
   function broadcast(s: Session, data: string) {
-    for (const v of s.views) if (v.ws.readyState === WebSocket.OPEN) v.ws.send(data);
+    for (const v of s.views) if (v.role !== "pending" && v.ws.readyState === WebSocket.OPEN) v.ws.send(data);
   }
 
   const pinger = setInterval(() => {

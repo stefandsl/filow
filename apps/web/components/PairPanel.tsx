@@ -6,8 +6,9 @@ import type { SessionInfo } from "./useSession";
 import { desktopBridge, type RemoteStatus } from "@/lib/sessionUrl";
 
 /** Shows the pairing code and a QR for the mirror URL. */
-export function PairPanel({ info, status, error }: { info: SessionInfo | null; status: string; error: string | null }) {
+export function PairPanel({ info, status, error, onNewCode }: { info: SessionInfo | null; status: string; error: string | null; onNewCode?: () => void }) {
   const t = useT();
+  const [now, setNow] = useState(() => Date.now());
   const [qr, setQr] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -23,18 +24,36 @@ export function PairPanel({ info, status, error }: { info: SessionInfo | null; s
   }, []);
   const pending = remote?.state === "downloading" || remote?.state === "connecting";
 
+  // The QR carries the current code; it is rebuilt whenever the code changes.
+  const mirrorUrl = info ? info.mirrorUrl.replace(/code=\d{6}/, `code=${info.code}`) : "";
   useEffect(() => {
     if (!info) return;
     let alive = true;
     import("qrcode").then((QR) =>
-      QR.toDataURL(info.mirrorUrl, { margin: 1, width: 220, color: { dark: "#f2f2f4", light: "#141418" } }).then((u) => {
+      QR.toDataURL(mirrorUrl, { margin: 1, width: 220, color: { dark: "#f2f2f4", light: "#141418" } }).then((u) => {
         if (alive) setQr(u);
       }),
     );
     return () => {
       alive = false;
     };
-  }, [info]);
+  }, [info, mirrorUrl]);
+
+  // Countdown while the dialog is open; a fresh code when the old one runs out.
+  useEffect(() => {
+    if (!open) return;
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(tick);
+  }, [open]);
+  const left = info?.codeExpiresAt ? Math.max(0, Math.floor((info.codeExpiresAt - now) / 1000)) : null;
+  useEffect(() => {
+    if (open && left === 0) onNewCode?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, left === 0]);
+  useEffect(() => {
+    if (open && info?.codeExpiresAt && info.codeExpiresAt < Date.now()) onNewCode?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   if (error)
     return (
@@ -55,8 +74,18 @@ export function PairPanel({ info, status, error }: { info: SessionInfo | null; s
             <div className="eyebrow">{t("pair.title")}</div>
             <div className="bigcode">{info.code}</div>
             {qr && <img src={qr} alt="QR" width={220} height={220} />}
+            <div className="row">
+              {left !== null && (
+                <span className={`chip ${left === 0 ? "err" : ""}`}>{left === 0 ? t("pair.expired") : t("pair.expires", { t: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` })}</span>
+              )}
+              {onNewCode && (
+                <button className="btn" onClick={onNewCode}>
+                  {t("pair.newCode")}
+                </button>
+              )}
+            </div>
             <div className="hint">
-              {t("pair.hint", { url: info.mirrorUrl })}
+              {t("pair.hint", { url: mirrorUrl })} {t("pair.singleUse")}
               {status !== "open" && <> {t("pair.relay", { status })}</>}
             </div>
             <div className={`chip ${publicLink ? "live" : pending ? "busy" : remote?.state === "error" ? "err" : ""}`}>

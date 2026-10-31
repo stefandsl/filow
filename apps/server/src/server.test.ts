@@ -9,7 +9,7 @@ let clock = 1_000_000;
 
 beforeEach(async () => {
   clock = 1_000_000;
-  server = createSessionServer({ now: () => clock, pairLimitPerMinute: 3, pingMs: 60_000 });
+  server = createSessionServer({ now: () => clock, pairLimitPerMinute: 3, pingMs: 60_000, autoAcceptLan: true });
   await new Promise<void>((r) => server.httpServer.listen(0, "127.0.0.1", r));
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -110,7 +110,7 @@ describe("relay", () => {
     await view.next();
     await view.next();
     engine.send({ t: "setRole", token: pair.viewToken, role: "viewer" });
-    await new Promise((r) => setTimeout(r, 30));
+    expect(await view.next()).toMatchObject({ t: "role", role: "viewer" });
     view.send({ t: "cmd", id: "x", cmd: { type: "nextSection" } });
     expect(await view.next()).toMatchObject({ t: "ack", id: "x", ok: false, error: "viewer role" });
     view.send({ t: "resync" });
@@ -141,7 +141,9 @@ describe("lifetimes", () => {
     clock += 3 * 60 * 60 * 1000; // 3 h: a (never had an engine) expires, b (engine connected) stays
     server.sweep();
     expect((await post("/api/session/pair", { code: a.code })).status).toBe(404);
-    expect((await post("/api/session/pair", { code: b.code })).status).toBe(200);
+    // b's original code expired long ago (5 min TTL); the engine asks for a fresh one
+    const fresh = (await (await post(`/api/session/${b.id}/code`, {}, { Authorization: `Bearer ${b.engineToken}` })).json()) as { code: string };
+    expect((await post("/api/session/pair", { code: fresh.code })).status).toBe(200);
     clock += 10 * 60 * 60 * 1000; // 13 h total
     server.sweep();
     expect((await engine.closed).code).toBe(4003);
@@ -166,5 +168,100 @@ describe("late joiners", () => {
     expect(snap.state.script.sections).toHaveLength(1);
     engine.ws.close();
     view.ws.close();
+  });
+});
+
+describe("pairing security", () => {
+  let strict: SessionServer;
+  let sbase: string;
+  beforeEach(async () => {
+    strict = createSessionServer({ now: () => clock, pairLimitPerMinute: 3, pairGlobalLimitPerMinute: 5, codeTtlMs: 300_000, pingMs: 60_000 });
+    await new Promise<void>((r) => strict.httpServer.listen(0, "127.0.0.1", r));
+    sbase = `http://127.0.0.1:${strict.address().port}`;
+  });
+  afterEach(() => strict.close());
+  const spost = (path: string, body: unknown = {}, headers: Record<string, string> = {}) =>
+    fetch(sbase + path, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
+  const sopen = (id: string, hello: Msg) => {
+    const ws = new WebSocket(`${sbase.replace("http", "ws")}/ws/session/${id}`);
+    const inbox: Msg[] = [];
+    const waiters: Array<(m: Msg) => void> = [];
+    ws.on("message", (d) => {
+      const m = JSON.parse(String(d));
+      const w = waiters.shift();
+      if (w) w(m);
+      else inbox.push(m);
+    });
+    const next = () => new Promise<Msg>((r) => (inbox.length ? r(inbox.shift()!) : waiters.push(r)));
+    const closed = new Promise<{ code: number; reason: string }>((r) => ws.on("close", (code, reason) => r({ code, reason: String(reason) })));
+    ws.on("open", () => ws.send(JSON.stringify({ t: "hello", ...hello })));
+    return { ws, next, closed, send: (m: Msg) => ws.send(JSON.stringify(m)) };
+  };
+  const screate = async () => (await (await spost("/api/session")).json()) as { id: string; code: string; codeExpiresAt: number; engineToken: string };
+
+  it("codes are six digits, expire after the window and are single-use; the engine can issue a new one", async () => {
+    const { id, code, codeExpiresAt, engineToken } = await screate();
+    expect(code).toMatch(/^\d{6}$/);
+    expect(codeExpiresAt).toBe(clock + 300_000);
+    clock += 300_001;
+    strict.sweep();
+    const expired = await spost("/api/session/pair", { code });
+    expect(expired.status).toBe(404);
+    const fresh = (await (await spost(`/api/session/${id}/code`, {}, { Authorization: `Bearer ${engineToken}` })).json()) as { code: string };
+    expect(fresh.code).toMatch(/^\d{6}$/);
+    expect(fresh.code).not.toBe(code);
+    expect((await spost("/api/session/pair", { code: fresh.code })).status).toBe(200);
+    expect((await spost("/api/session/pair", { code: fresh.code })).status).toBe(404); // used
+    expect((await spost(`/api/session/${id}/code`)).status).toBe(401);
+  });
+
+  it("a paired phone stays pending until the engine accepts; reject closes it", async () => {
+    const { id, code, engineToken } = await screate();
+    const engine = sopen(id, { role: "engine", token: engineToken });
+    expect((await engine.next()).t).toBe("welcome");
+    engine.send({ t: "state", version: 1, state: { version: 1 } });
+    const pair = (await (await spost("/api/session/pair", { code })).json()) as { viewToken: string; role: string };
+    expect(pair.role).toBe("pending");
+    const view = sopen(id, { role: "view", token: pair.viewToken, device: "iPhone · Safari" });
+    expect(await view.next()).toMatchObject({ t: "welcome", role: "pending" });
+    expect(await engine.next()).toMatchObject({ t: "pairRequest", token: pair.viewToken, device: "iPhone · Safari" });
+    // no state yet, commands refused
+    view.send({ t: "cmd", id: "c1", cmd: { type: "nextSection" } });
+    expect(await view.next()).toMatchObject({ t: "ack", id: "c1", ok: false });
+    engine.send({ t: "pairDecision", token: pair.viewToken, role: "controller" });
+    expect(await view.next()).toMatchObject({ t: "role", role: "controller" });
+    expect(await view.next()).toMatchObject({ t: "state", version: 1 });
+    view.send({ t: "cmd", id: "c2", cmd: { type: "nextSection" } });
+    expect(await engine.next()).toMatchObject({ t: "cmd", id: "c2" });
+
+    const fresh = (await (await spost(`/api/session/${id}/code`, {}, { Authorization: `Bearer ${engineToken}` })).json()) as { code: string };
+    const pair2 = (await (await spost("/api/session/pair", { code: fresh.code })).json()) as { viewToken: string };
+    const view2 = sopen(id, { role: "view", token: pair2.viewToken });
+    await view2.next();
+    expect(await engine.next()).toMatchObject({ t: "pairRequest", token: pair2.viewToken });
+    engine.send({ t: "pairDecision", token: pair2.viewToken, role: "reject" });
+    expect((await view2.closed).code).toBe(4003);
+    engine.ws.close();
+    view.ws.close();
+  });
+
+  it("spoofed x-forwarded-for does not reset the per-IP limiter unless the proxy is trusted; the global cap returns 429", async () => {
+    for (let i = 0; i < 3; i++) await spost("/api/session/pair", { code: "000000" }, { "x-forwarded-for": `10.0.0.${i}` });
+    expect((await spost("/api/session/pair", { code: "000000" }, { "x-forwarded-for": "10.0.0.99" })).status).toBe(429);
+    // global cap: 5/min across everyone, even for a trusted proxy with many addresses
+    const trusted = createSessionServer({ now: () => clock, pairLimitPerMinute: 100, pairGlobalLimitPerMinute: 5, trustProxy: true });
+    await new Promise<void>((r) => trusted.httpServer.listen(0, "127.0.0.1", r));
+    const tb = `http://127.0.0.1:${trusted.address().port}`;
+    const tpost = (xff: string) =>
+      fetch(tb + "/api/session/pair", { method: "POST", headers: { "Content-Type": "application/json", "x-forwarded-for": xff }, body: JSON.stringify({ code: "000000" }) });
+    for (let i = 0; i < 5; i++) expect((await tpost(`203.0.113.${i}`)).status).toBe(404);
+    expect((await tpost("203.0.113.200")).status).toBe(429);
+    await trusted.close();
+  });
+
+  it("auto-accepts only direct local peers, never requests that came through a proxy", async () => {
+    const { code } = await createSession(); // the default server has autoAcceptLan: true
+    const viaProxy = (await (await post("/api/session/pair", { code }, { "cf-connecting-ip": "203.0.113.5" })).json()) as { role: string };
+    expect(viaProxy.role).toBe("pending");
   });
 });

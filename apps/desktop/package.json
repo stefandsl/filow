@@ -1,6 +1,6 @@
 {
   "name": "@intelliprompter/desktop",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "description": "A teleprompter that checks off your talking points as you say them. OpenRouter decisions, live transcription.",
   "author": "Stefan Butnaru",

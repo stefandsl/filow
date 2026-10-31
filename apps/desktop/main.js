@@ -385,6 +385,7 @@ function stopTunnels() {
   tunnels.state = "off";
   delete process.env.INTELLIPROMPTER_PUBLIC_WEB;
   delete process.env.INTELLIPROMPTER_PUBLIC_SESSION;
+  delete process.env.TRUST_PROXY;
 }
 
 /**
@@ -421,6 +422,7 @@ async function setRemoteShare(win, on, { auto = false } = {}) {
         tunnels.session = sess;
         process.env.INTELLIPROMPTER_PUBLIC_WEB = web;
         process.env.INTELLIPROMPTER_PUBLIC_SESSION = sess;
+        process.env.TRUST_PROXY = "1"; // cloudflared sits in front: read the phone's address from cf-connecting-ip
         remoteStatus("on");
       } catch (err) {
         stopTunnels();
@@ -682,6 +684,7 @@ function startServers() {
   if (!hosted) {
     // LAN mode: gate the spend endpoints with a per-launch secret that only this window knows.
     process.env.ACCESS_PASSWORD = crypto.randomBytes(16).toString("base64url");
+    process.env.AUTO_ACCEPT_LAN = "1"; // phones on this Wi-Fi join without a prompt; tunnel peers are asked
     process.env.INTELLIPROMPTER_LAN_IP = lanIp();
   }
   process.env.PORT = String(PORT);

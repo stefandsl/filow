@@ -57,7 +57,9 @@ API keys never reach the browser: the server mints short-lived tokens for the st
 
 ### Phone mirror and remote
 
-The engine (the browser or desktop app with the microphone) creates a **session** on the session relay and shows a 6-digit code in the top bar. Click it for a QR. Any phone on the same network opens the mirror page, enters the code (or scans the QR), and gets the live view with big type plus Prev / Next / Reset / Start / Stop buttons. The mirror is a web page, so nothing to install; on Android or iOS use "Add to Home Screen" for a full-screen app.
+The engine (the browser or desktop app with the microphone) creates a **session** on the session relay and shows a 6-digit code in the top bar. Click it for a QR. A phone opens the mirror page, enters the code (or scans the QR), and gets the live view with big type plus Prev / Next / Reset / Start / Stop buttons. The mirror is a web page, so nothing to install; on Android or iOS use "Add to Home Screen" for a full-screen app.
+
+How pairing is protected: a code works **once** and for **5 minutes** (the dialog shows the countdown and a New code button; a second phone needs a new code). A phone that pairs through the public link is **pending** until you accept it: the app shows the device ("iPhone · Safari") with Allow / View only / Reject, and the phone sees nothing until then. Phones on the same Wi-Fi as the desktop app are let in without the prompt. Pairing attempts are limited per address and globally, and the phone page never connects to a server other than its own without asking you.
 
 - Web mode: the relay is `apps/server` on port 4748, started by `npm run dev` together with the web app.
 - Desktop app: the relay runs inside the app. The QR carries your laptop's LAN address. The first launch triggers one Windows firewall prompt.
@@ -67,7 +69,7 @@ The engine (the browser or desktop app with the microphone) creates a **session*
 
 A phone on mobile data, or on an office Wi-Fi that isolates clients, cannot reach your laptop's address. Three ways, in order of effort:
 
-1. **Public link, on by default** in the desktop app. On first start the app downloads Cloudflare's free `cloudflared` once (about 20 MB, shown as "Setting up the public link…" in the pairing dialog), opens two quick tunnels and refreshes the QR; it then carries random `https://….trycloudflare.com` URLs that work from anywhere, like WhatsApp Web. The pairing dialog says "Works from any network" when it is ready, or why it is not (no internet, download blocked), in which case the QR keeps working on the same Wi-Fi. Turn it off in the dialog ("Back to Wi-Fi only") or in the menu. Pairing still needs the 6-digit code, pairing is rate limited, and the spend endpoints stay behind the engine token. Turn it off from the same menu; the URLs change every time. Not available in Offline mode.
+1. **Public link, on by default** in the desktop app. On first start the app downloads Cloudflare's free `cloudflared` once (about 20 MB, shown as "Setting up the public link…" in the pairing dialog), opens two quick tunnels and refreshes the QR; it then carries random `https://….trycloudflare.com` URLs that work from anywhere, like WhatsApp Web. The pairing dialog says "Works from any network" when it is ready, or why it is not (no internet, download blocked), in which case the QR keeps working on the same Wi-Fi. Turn it off in the dialog ("Back to Wi-Fi only"), with the ✕ on the "public link" chip in the top bar, or in the menu; the tunnel also stops when the app quits. Quick tunnels (`*.trycloudflare.com`) are meant for short tests: no uptime promise, a new URL every start. For talks that matter, run your own server (below) or a [named Cloudflare tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) with Cloudflare Access in front of the mirror page. Pairing still needs the 6-digit code, pairing is rate limited, and the spend endpoints stay behind the engine token. Turn it off from the same menu; the URLs change every time. Not available in Offline mode.
 2. **Same VPN on both**: if the laptop and the phone run the same VPN (Tailscale, Twingate…), pick the VPN address in the menu **Mirror address on this network** and scan again. The app prefers a private LAN address by default, so a VPN address is never chosen automatically.
 3. **Your own server**: deploy the Debian setup below and point the desktop app at it with `INTELLIPROMPTER_SESSION_URL` in `.env`. Permanent URL, your own domain.
 
@@ -269,6 +271,7 @@ EnvironmentFile=/opt/intelliprompter/app/apps/web/.env.local
 Environment=NODE_ENV=production
 Environment=SESSION_PORT=4748
 Environment=SESSION_HOST=127.0.0.1
+Environment=TRUST_PROXY=1
 ExecStart=/usr/bin/node apps/server/dist/bundle.js
 Restart=always
 RestartSec=3

@@ -3,7 +3,10 @@ import { applyPatch, type Operation } from "fast-json-patch";
 import type { Command, SessionState } from "@intelliprompter/core";
 
 export type ClientStatus = "connecting" | "open" | "closed";
-export type Role = "viewer" | "controller" | "engine";
+export type Role = "viewer" | "controller" | "engine" | "pending";
+
+export type PairRequest = { token: string; device: string };
+export type PairDecision = "viewer" | "controller" | "reject";
 
 export type ConnectOptions = {
   /** Session server origin, e.g. "http://192.168.1.10:4748" or "https://prompter.example.com" */
@@ -12,9 +15,15 @@ export type ConnectOptions = {
   code?: string;
   /** ... or connect with an existing token (engine, or a view that already paired). */
   session?: { id: string; token: string; role: Role };
+  /** Shown to the presenter when they must accept this device (views). Defaults to the user agent. */
+  deviceLabel?: string;
   /** Called with the full state after every change. */
   onState?: (state: SessionState) => void;
   onStatus?: (status: ClientStatus, detail?: string) => void;
+  /** Views: the presenter accepted (viewer/controller) or changed the role. */
+  onRole?: (role: Role) => void;
+  /** Engine: a phone paired and waits for a decision. */
+  onPairRequest?: (req: PairRequest) => void;
   /** Reconnect with backoff (default true). */
   reconnect?: boolean;
   fetchImpl?: typeof fetch;
@@ -23,7 +32,7 @@ export type ConnectOptions = {
 
 export type SessionClient = {
   readonly id: string;
-  readonly role: Role;
+  role: Role;
   readonly token: string;
   status: ClientStatus;
   state: SessionState | null;
@@ -38,6 +47,10 @@ export type SessionClient = {
   onCommand(fn: (cmd: Command, ack: (result: { ok: boolean; error?: string }) => void) => void): void;
   /** Engine: the server asks for a full state (it could not apply a patch). */
   onResync(fn: () => void): void;
+  /** Engine: accept (as viewer or controller) or reject a paired phone. */
+  decidePair(token: string, decision: PairDecision): void;
+  /** Engine: ask for a fresh single-use pairing code. */
+  requestCode(): Promise<{ code: string; codeExpiresAt: number }>;
   close(): void;
 };
 
@@ -47,10 +60,21 @@ export async function pair(serverUrl: string, code: string, fetchImpl: typeof fe
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code }),
   });
-  if (res.status === 404) throw new Error("unknown code");
+  if (res.status === 404) {
+    const { error } = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(error === "code expired" ? "code expired, ask for a new one" : "unknown code");
+  }
   if (res.status === 429) throw new Error("too many attempts, wait a minute");
   if (!res.ok) throw new Error(`pair failed (${res.status})`);
-  return (await res.json()) as { id: string; viewToken: string; role: "controller" };
+  return (await res.json()) as { id: string; viewToken: string; role: "controller" | "viewer" | "pending" };
+}
+
+function defaultDeviceLabel(): string {
+  if (typeof navigator === "undefined") return "device";
+  const ua = navigator.userAgent;
+  const os = /iPhone|iPad/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : /Windows/.test(ua) ? "Windows" : /Mac/.test(ua) ? "Mac" : "device";
+  const browser = /CriOS|Chrome/.test(ua) ? "Chrome" : /Safari/.test(ua) ? "Safari" : /Firefox/.test(ua) ? "Firefox" : "";
+  return `${os}${browser ? " · " + browser : ""}`;
 }
 
 export async function connect(opts: ConnectOptions): Promise<SessionClient> {
@@ -68,6 +92,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
 
   const subs = new Set<(s: SessionState) => void>();
   const pending = new Map<string, (r: { ok: boolean; error?: string }) => void>();
+  const codeWaiters: Array<(c: { code: string; codeExpiresAt: number }) => void> = [];
   let commandHandler: ((cmd: Command, ack: (r: { ok: boolean; error?: string }) => void) => void) | null = null;
   let resyncHandler: (() => void) | null = null;
   let ws: WebSocket | null = null;
@@ -109,6 +134,23 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
     onResync(fn) {
       resyncHandler = fn;
     },
+    decidePair(token, decision) {
+      ws?.readyState === 1 && ws.send(JSON.stringify({ t: "pairDecision", token, role: decision }));
+    },
+    requestCode() {
+      return new Promise((resolve, reject) => {
+        if (!ws || ws.readyState !== 1) return reject(new Error("not connected"));
+        codeWaiters.push(resolve);
+        ws.send(JSON.stringify({ t: "newCode" }));
+        setTimeout(() => {
+          const i = codeWaiters.indexOf(resolve);
+          if (i >= 0) {
+            codeWaiters.splice(i, 1);
+            reject(new Error("no code from server"));
+          }
+        }, 5000);
+      });
+    },
     close() {
       closedByUser = true;
       ws?.close(1000, "client closed");
@@ -133,7 +175,10 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
       ws = sock;
       let welcomed = false;
       sock.onopen = () => {
-        sock.send(JSON.stringify({ t: "hello", role: session!.role === "engine" ? "engine" : "view", token: session!.token }));
+        const isEngine = session!.role === "engine";
+        sock.send(
+          JSON.stringify({ t: "hello", role: isEngine ? "engine" : "view", token: session!.token, device: isEngine ? undefined : opts.deviceLabel ?? defaultDeviceLabel() }),
+        );
       };
       sock.onmessage = (ev) => {
         let msg: Record<string, unknown>;
@@ -146,9 +191,20 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
           case "welcome":
             welcomed = true;
             backoff = 500;
-            setStatus("open");
+            if (msg.role === "pending") {
+              client.role = "pending";
+              setStatus("open", "pending");
+            } else setStatus("open");
             resolve();
             break;
+          case "role": {
+            const role = msg.role as Role;
+            client.role = role;
+            session = { ...session!, role };
+            opts.onRole?.(role);
+            setStatus("open");
+            break;
+          }
           case "state":
             emit(msg.state as SessionState);
             break;
@@ -172,6 +228,14 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
             // Server lost sync with our patches (engine side): republish the full state.
             resyncHandler?.();
             break;
+          case "pairRequest":
+            opts.onPairRequest?.({ token: String(msg.token), device: String(msg.device ?? "") });
+            break;
+          case "code": {
+            const fn = codeWaiters.shift();
+            fn?.({ code: String(msg.code), codeExpiresAt: Number(msg.codeExpiresAt) });
+            break;
+          }
           case "ack": {
             const fn = pending.get(String(msg.id));
             if (fn) {
