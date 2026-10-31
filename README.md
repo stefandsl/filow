@@ -63,6 +63,16 @@ The engine (the browser or desktop app with the microphone) creates a **session*
 - Desktop app: the relay runs inside the app. The QR carries your laptop's LAN address. The first launch triggers one Windows firewall prompt.
 - Hosted server: see the Debian section; set `ACCESS_PASSWORD` so strangers cannot spend your credits.
 
+#### Phone on another network
+
+A phone on mobile data, or on an office Wi-Fi that isolates clients, cannot reach your laptop's address. Three ways, in order of effort:
+
+1. **Share to phone on any network** (desktop app menu). The app downloads Cloudflare's free `cloudflared` once (about 20 MB, asked first), opens two quick tunnels and reloads; the QR now carries random `https://….trycloudflare.com` URLs that work from anywhere, like WhatsApp Web. Pairing still needs the 6-digit code, pairing is rate limited, and the spend endpoints stay behind the engine token. Turn it off from the same menu; the URLs change every time. Not available in Offline mode.
+2. **Same VPN on both**: if the laptop and the phone run the same VPN (Tailscale, Twingate…), pick the VPN address in the menu **Mirror address on this network** and scan again. The app prefers a private LAN address by default, so a VPN address is never chosen automatically.
+3. **Your own server**: deploy the Debian setup below and point the desktop app at it with `INTELLIPROMPTER_SESSION_URL` in `.env`. Permanent URL, your own domain.
+
+If the QR shows an address the phone cannot open, check the menu **Mirror address on this network**: the laptop may have several (Wi-Fi, Ethernet, VPN, virtual adapters) and the automatic choice can be wrong.
+
 ---
 
 ## API keys you need

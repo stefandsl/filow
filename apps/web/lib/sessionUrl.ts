@@ -9,6 +9,9 @@ export type DesktopBridge = {
   mode: "lan" | "hosted";
   sessionUrl: string;
   mirrorOrigin: string;
+  /** Relay URL for the phone when it differs from the engine's (public tunnel). */
+  mirrorServerUrl?: string;
+  remoteShare?: boolean;
   accessPassword: string;
 };
 
@@ -30,4 +33,9 @@ export function sessionServerUrl(): string {
 /** Origin a phone should open for /mirror. */
 export function mirrorOrigin(): string {
   return desktopBridge()?.mirrorOrigin ?? window.location.origin;
+}
+
+/** Relay URL the phone should use; the engine's own URL unless the desktop app exposes a public one. */
+export function mirrorServerUrl(): string {
+  return desktopBridge()?.mirrorServerUrl || sessionServerUrl();
 }

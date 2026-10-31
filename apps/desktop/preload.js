@@ -7,7 +7,11 @@ contextBridge.exposeInMainWorld("intelliprompter", {
   desktop: true,
   mode: process.env.INTELLIPROMPTER_SESSION_URL ? "hosted" : "lan",
   sessionUrl: process.env.INTELLIPROMPTER_SESSION_URL || `http://${process.env.INTELLIPROMPTER_LAN_IP || "127.0.0.1"}:${process.env.SESSION_PORT || 4748}`,
-  mirrorOrigin: `http://${process.env.INTELLIPROMPTER_LAN_IP || "127.0.0.1"}:${process.env.PORT || 4747}`,
+  /** What the phone opens: the public tunnel URL while "Share to phone on any network" is on, else the LAN address. */
+  mirrorOrigin: process.env.INTELLIPROMPTER_PUBLIC_WEB || `http://${process.env.INTELLIPROMPTER_LAN_IP || "127.0.0.1"}:${process.env.PORT || 4747}`,
+  /** The relay URL the phone uses (public tunnel while sharing). The engine itself keeps using sessionUrl. */
+  mirrorServerUrl: process.env.INTELLIPROMPTER_PUBLIC_SESSION || "",
+  remoteShare: Boolean(process.env.INTELLIPROMPTER_PUBLIC_WEB),
   accessPassword: process.env.ACCESS_PASSWORD || "",
   offline: process.env.INTELLIPROMPTER_OFFLINE === "1",
   /** Subscribe to the Offline menu toggle. */

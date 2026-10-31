@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { connect, type SessionClient } from "@intelliprompter/client";
 import type { Engine } from "@intelliprompter/core";
-import { desktopBridge, mirrorOrigin, sessionServerUrl } from "@/lib/sessionUrl";
+import { desktopBridge, mirrorOrigin, mirrorServerUrl, sessionServerUrl } from "@/lib/sessionUrl";
 
 export type SessionInfo = {
   id: string;
@@ -60,9 +60,10 @@ export function useSession(engine: Engine) {
         const created = (await res.json()) as { id: string; code: string; engineToken: string };
         if (cancelled) return;
         engineTokenStore.token = created.engineToken;
-        const sameOriginRelay = serverUrl === window.location.origin;
+        const phoneServer = mirrorServerUrl();
+        const sameOriginRelay = phoneServer === mirrorOrigin();
         const mirrorUrl =
-          `${mirrorOrigin()}/mirror?code=${created.code}` + (sameOriginRelay ? "" : `&server=${encodeURIComponent(serverUrl)}`);
+          `${mirrorOrigin()}/mirror?code=${created.code}` + (sameOriginRelay ? "" : `&server=${encodeURIComponent(phoneServer)}`);
         setInfo({ ...created, serverUrl, mirrorUrl });
 
         const client = await connect({

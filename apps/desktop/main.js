@@ -32,7 +32,7 @@ const settingsFile = path.join(userData, "settings.json");
 
 // ---- Screen Sense (ARCHITECTURE.md §6.1): sources, region picker, global hotkey ----
 const DEFAULT_HOTKEY = "CommandOrControl+Shift+Space";
-let settings = { screenHotkey: DEFAULT_HOTKEY, screenSense: true };
+let settings = { screenHotkey: DEFAULT_HOTKEY, screenSense: true, contentProtection: false, remoteShare: false, mirrorHost: "" };
 function loadSettings() {
   try {
     settings = { ...settings, ...JSON.parse(fs.readFileSync(settingsFile, "utf8")) };
@@ -185,11 +185,176 @@ function loadEnv(file) {
 }
 
 function lanIp() {
-  for (const list of Object.values(os.networkInterfaces())) {
-    for (const i of list ?? []) if (i.family === "IPv4" && !i.internal) return i.address;
-  }
-  return "127.0.0.1";
+  const fromEnv = (process.env.INTELLIPROMPTER_MIRROR_HOST || "").trim();
+  if (fromEnv) return fromEnv;
+  if (settings.mirrorHost) return settings.mirrorHost;
+  // Prefer a private LAN address (phones on the same Wi-Fi) over VPN/CGNAT ranges such as Tailscale's 100.64/10.
+  const all = interfaces().map((i) => i.address);
+  const isPrivate = (a) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a);
+  return all.find(isPrivate) || all[0] || "127.0.0.1";
 }
+
+// ---- Phone on another network: Cloudflare quick tunnel (README "Phone on another network") ----
+// `cloudflared tunnel --url` gives a public https URL with no account. One tunnel for the
+// web app (the mirror page) and one for the session relay. The QR then carries public URLs,
+// so a phone on mobile data pairs like WhatsApp Web. Spend endpoints stay behind the engine
+// token; pairing needs the 6-digit code and is rate limited.
+const { spawn, execFileSync } = require("node:child_process");
+const https = require("node:https");
+const tunnels = { procs: [], web: "", session: "" };
+
+function cloudflaredPath() {
+  const bundled = path.join(userData, "bin", process.platform === "win32" ? "cloudflared.exe" : "cloudflared");
+  if (fs.existsSync(bundled)) return bundled;
+  try {
+    const found = execFileSync(process.platform === "win32" ? "where" : "which", ["cloudflared"], { encoding: "utf8" }).split(/\r?\n/)[0].trim();
+    if (found) return found;
+  } catch {
+    /* not on PATH */
+  }
+  return null;
+}
+
+function download(url, dest, hops = 5) {
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, { headers: { "User-Agent": "Intelliprompter" } }, (res) => {
+        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && hops > 0) {
+          res.resume();
+          return download(res.headers.location, dest, hops - 1).then(resolve, reject);
+        }
+        if (res.statusCode !== 200) return reject(new Error(`download failed: HTTP ${res.statusCode}`));
+        const out = fs.createWriteStream(dest);
+        res.pipe(out);
+        out.on("finish", () => out.close(resolve));
+        out.on("error", reject);
+      })
+      .on("error", reject);
+  });
+}
+
+/** Official cloudflared binary from GitHub releases, into <userData>/bin. Asks first. */
+async function ensureCloudflared(win) {
+  const existing = cloudflaredPath();
+  if (existing) return existing;
+  const arch = process.arch === "arm64" ? "arm64" : "amd64";
+  const base = "https://github.com/cloudflare/cloudflared/releases/latest/download/";
+  const asset =
+    process.platform === "win32" ? `cloudflared-windows-${arch}.exe` : process.platform === "darwin" ? `cloudflared-darwin-${arch}.tgz` : `cloudflared-linux-${arch}`;
+  const { response } = await dialog.showMessageBox(win, {
+    type: "question",
+    buttons: ["Download", "Cancel"],
+    defaultId: 0,
+    title: "Share to a phone on another network",
+    message: "This needs Cloudflare's free cloudflared tool (about 20 MB).",
+    detail: `It will be downloaded once from\n${base}${asset}\ninto\n${path.join(userData, "bin")}\n\nWhile sharing is on, the mirror page and the session relay are reachable through random *.trycloudflare.com URLs. Pairing still needs the 6-digit code.`,
+  });
+  if (response !== 0) return null;
+  const bin = path.join(userData, "bin");
+  fs.mkdirSync(bin, { recursive: true });
+  const dest = path.join(bin, process.platform === "win32" ? "cloudflared.exe" : "cloudflared");
+  if (process.platform === "darwin") {
+    const tgz = path.join(bin, asset);
+    await download(base + asset, tgz);
+    execFileSync("tar", ["-xzf", tgz, "-C", bin]);
+    fs.rmSync(tgz, { force: true });
+  } else {
+    await download(base + asset, dest);
+  }
+  if (process.platform !== "win32") fs.chmodSync(dest, 0o755);
+  return dest;
+}
+
+function startTunnel(bin, port) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(bin, ["tunnel", "--url", `http://127.0.0.1:${port}`, "--no-autoupdate"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    tunnels.procs.push(p);
+    let buf = "";
+    const timer = setTimeout(() => reject(new Error(`cloudflared gave no URL for port ${port} within 40 s`)), 40_000);
+    const onData = (d) => {
+      buf += d.toString();
+      const m = buf.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
+      if (m) {
+        clearTimeout(timer);
+        resolve(m[0]);
+      }
+    };
+    p.stdout.on("data", onData);
+    p.stderr.on("data", onData);
+    p.on("exit", (code) => {
+      clearTimeout(timer);
+      reject(new Error(`cloudflared exited (${code})`));
+    });
+    p.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
+
+function stopTunnels() {
+  for (const p of tunnels.procs) {
+    try {
+      p.kill();
+    } catch {
+      /* already gone */
+    }
+  }
+  tunnels.procs = [];
+  tunnels.web = tunnels.session = "";
+  delete process.env.INTELLIPROMPTER_PUBLIC_WEB;
+  delete process.env.INTELLIPROMPTER_PUBLIC_SESSION;
+}
+
+async function setRemoteShare(win, on) {
+  stopTunnels();
+  settings.remoteShare = on;
+  saveSettings();
+  if (on) {
+    try {
+      if (offline) throw new Error("Offline mode is on; sharing needs outbound connections.");
+      if (process.env.INTELLIPROMPTER_SESSION_URL) throw new Error("A hosted session server is configured in .env; its URL is already public.");
+      const bin = await ensureCloudflared(win);
+      if (!bin) {
+        settings.remoteShare = false;
+        saveSettings();
+        buildMenu(win);
+        return;
+      }
+      const [web, sess] = await Promise.all([startTunnel(bin, PORT), startTunnel(bin, SESSION_PORT)]);
+      tunnels.web = web;
+      tunnels.session = sess;
+      process.env.INTELLIPROMPTER_PUBLIC_WEB = web;
+      process.env.INTELLIPROMPTER_PUBLIC_SESSION = sess;
+    } catch (err) {
+      stopTunnels();
+      settings.remoteShare = false;
+      saveSettings();
+      dialog.showErrorBox("Could not share to another network", String(err.message || err));
+    }
+  }
+  buildMenu(win);
+  win.reload(); // the preload re-reads the public URLs; the page creates a fresh session and QR
+}
+
+/** Which address the QR carries on the LAN: auto, one of the interfaces, or INTELLIPROMPTER_MIRROR_HOST from .env. */
+function interfaces() {
+  const out = [];
+  for (const [name, list] of Object.entries(os.networkInterfaces())) {
+    for (const i of list ?? []) if (i.family === "IPv4" && !i.internal) out.push({ name, address: i.address });
+  }
+  return out;
+}
+
+function applyMirrorHost(win, host) {
+  settings.mirrorHost = host;
+  saveSettings();
+  process.env.INTELLIPROMPTER_LAN_IP = host || lanIp();
+  process.env.PUBLIC_ORIGIN = `http://${process.env.INTELLIPROMPTER_LAN_IP}:${PORT}`;
+  buildMenu(win);
+  win.reload();
+}
+
 
 function startServers() {
   const hosted = Boolean(process.env.INTELLIPROMPTER_SESSION_URL);
@@ -259,6 +424,32 @@ function buildMenu(win) {
         { label: "Local models & privacy settings", click: () => win.loadURL(APP_URL + "/settings/local") },
         { label: "Offline mode (local models only, no outbound requests)", type: "checkbox", checked: offline, click: (item) => applyOffline(win, item.checked) },
         { type: "separator" },
+        {
+          label: tunnels.web ? `Share to phone on any network (on: ${tunnels.web.replace("https://", "")})` : "Share to phone on any network (Cloudflare tunnel)",
+          type: "checkbox",
+          checked: settings.remoteShare && Boolean(tunnels.web),
+          click: (item) => void setRemoteShare(win, item.checked),
+        },
+        {
+          label: "Mirror address on this network",
+          submenu: [
+            { label: `Automatic (${lanIp()})`, type: "radio", checked: !settings.mirrorHost, click: () => applyMirrorHost(win, "") },
+            ...interfaces().map((i) => ({ label: `${i.address}  (${i.name})`, type: "radio", checked: settings.mirrorHost === i.address, click: () => applyMirrorHost(win, i.address) })),
+            { type: "separator" },
+            { label: "Custom host: set INTELLIPROMPTER_MIRROR_HOST in .env", enabled: false },
+          ],
+        },
+        {
+          label: "Hide this window from screen recordings and screenshots",
+          type: "checkbox",
+          checked: settings.contentProtection,
+          click: (item) => {
+            settings.contentProtection = item.checked;
+            saveSettings();
+            win.setContentProtection(item.checked);
+          },
+        },
+        { type: "separator" },
         { label: "Reload", accelerator: "CmdOrCtrl+R", click: () => win.reload() },
         { label: "Toggle fullscreen", accelerator: "F11", click: () => win.setFullScreen(!win.isFullScreen()) },
         { label: "Developer tools", accelerator: "CmdOrCtrl+Shift+I", click: () => win.webContents.toggleDevTools() },
@@ -299,7 +490,9 @@ async function main() {
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
   });
   mainWin = win;
-  win.setContentProtection(true); // §6.2: this window never appears in captured frames (Windows/macOS)
+  // §6.2: the window is already filtered out of Screen Sense's own chooser; hiding it from every
+  // capture is opt-in (menu) because it also blanks the user's own screenshots.
+  win.setContentProtection(Boolean(settings.contentProtection));
   buildMenu(win);
   applyOffline(win, offline);
   wireScreenSense();
@@ -314,6 +507,7 @@ async function main() {
     await waitFor(APP_URL + "/api/stt/status");
     if (!process.env.INTELLIPROMPTER_SESSION_URL) await waitFor(`http://127.0.0.1:${SESSION_PORT}/health`);
     await win.loadURL(APP_URL);
+    if (settings.remoteShare) void setRemoteShare(win, true);
     if (!process.env.OPENROUTER_API_KEY) {
       dialog.showMessageBox(win, {
         type: "info",
@@ -330,4 +524,7 @@ async function main() {
 
 app.whenReady().then(main);
 app.on("window-all-closed", () => app.quit());
-app.on("will-quit", () => globalShortcut.unregisterAll());
+app.on("will-quit", () => {
+  globalShortcut.unregisterAll();
+  stopTunnels();
+});
