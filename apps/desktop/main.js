@@ -42,7 +42,17 @@ const MENU_TEXT = {
     shareOn: "Share to phone on any network (on: {url})", mirrorAddress: "Mirror address on this network", automatic: "Automatic ({ip})",
     customHost: "Custom host: set INTELLIPROMPTER_MIRROR_HOST in .env", hideWindow: "Hide this window from screen recordings and screenshots",
     reload: "Reload", fullscreen: "Toggle fullscreen", devtools: "Developer tools", quit: "Quit",
-    pptManifest: "PowerPoint add-in: save manifest…",
+    pptInstall: "Add Intelliprompter to PowerPoint on this PC",
+    pptInstalled: "Done. Restart PowerPoint: Intelliprompter is on the Home tab (Add-ins group; on a Mac under Insert → My Add-ins). It talks to the app running on this PC, so keep Intelliprompter open while you present.",
+    pptInstallFailed: "Could not add the add-in to PowerPoint.",
+    pptRemove: "Remove Intelliprompter from PowerPoint on this PC",
+    pptRemoved: "Removed. Restart PowerPoint.",
+    pptWinOnly: "Automatic install works on Windows and macOS. On Linux there is no PowerPoint; save the manifest for another computer instead.",
+    pptFirstRun: "Add Intelliprompter to PowerPoint?",
+    pptFirstRunDetail: "A certificate for localhost is created and trusted for your user (the system asks once), and the add-in is registered for PowerPoint on this computer. You can undo it from the menu. On a Mac the pane runs in View mode (no microphone in Office for Mac): start the take here or on the phone.",
+    pptYes: "Add to PowerPoint",
+    pptNo: "Not now",
+    pptManifest: "PowerPoint add-in: save manifest for another computer…",
     pptNoOrigin: "PowerPoint only loads add-ins over HTTPS. Turn on “Share to phone on any network” first (the manifest will point at that public URL), or set PUBLIC_ORIGIN=https://your-server in .env for a permanent install.",
     pptSaved: "Manifest saved. Sideload it:\n\n• PowerPoint for the web: Home → Add-ins → More Add-ins → My Add-ins → Upload My Add-in → this file.\n• PowerPoint for Windows: put the file in a shared folder, add that folder under File → Options → Trust Center → Trusted Add-in Catalogs, restart PowerPoint, then Insert → My Add-ins → Shared Folder.\n\nThe pane is served from {origin}. A tunnel URL changes every time sharing restarts; save a new manifest then.",
   },
@@ -52,7 +62,17 @@ const MENU_TEXT = {
     shareOn: "Condividi col telefono su qualsiasi rete (attivo: {url})", mirrorAddress: "Indirizzo del mirror su questa rete", automatic: "Automatico ({ip})",
     customHost: "Host personalizzato: imposta INTELLIPROMPTER_MIRROR_HOST in .env", hideWindow: "Nascondi questa finestra da registrazioni e screenshot",
     reload: "Ricarica", fullscreen: "Schermo intero", devtools: "Strumenti per sviluppatori", quit: "Esci",
-    pptManifest: "Componente aggiuntivo PowerPoint: salva il manifest…",
+    pptInstall: "Aggiungi Intelliprompter a PowerPoint su questo PC",
+    pptInstalled: "Fatto. Riavvia PowerPoint: Intelliprompter è nella scheda Home (gruppo Componenti aggiuntivi; su Mac in Inserisci → I miei componenti). Parla con l'app in esecuzione su questo PC, quindi tieni aperto Intelliprompter mentre presenti.",
+    pptInstallFailed: "Impossibile aggiungere il componente a PowerPoint.",
+    pptRemove: "Rimuovi Intelliprompter da PowerPoint su questo PC",
+    pptRemoved: "Rimosso. Riavvia PowerPoint.",
+    pptWinOnly: "L'installazione automatica funziona su Windows e macOS. Su Linux non c'è PowerPoint; salva il manifest per un altro computer.",
+    pptFirstRun: "Aggiungere Intelliprompter a PowerPoint?",
+    pptFirstRunDetail: "Viene creato un certificato per localhost, considerato attendibile per il tuo utente (il sistema chiede una volta), e il componente viene registrato per PowerPoint su questo computer. Puoi annullare dal menu. Su Mac il pannello funziona in modalità Vista (niente microfono in Office per Mac): avvia la registrazione qui o dal telefono.",
+    pptYes: "Aggiungi a PowerPoint",
+    pptNo: "Non ora",
+    pptManifest: "Componente aggiuntivo PowerPoint: salva il manifest per un altro computer…",
     pptNoOrigin: "PowerPoint carica i componenti aggiuntivi solo via HTTPS. Attiva prima “Condividi col telefono su qualsiasi rete” (il manifest punterà a quell'URL pubblico), oppure imposta PUBLIC_ORIGIN=https://tuo-server in .env per un'installazione permanente.",
     pptSaved: "Manifest salvato. Caricalo in PowerPoint:\n\n• PowerPoint per il web: Home → Componenti aggiuntivi → Altri componenti → I miei componenti → Carica il mio componente → questo file.\n• PowerPoint per Windows: metti il file in una cartella condivisa, aggiungi la cartella in File → Opzioni → Centro protezione → Cataloghi di componenti aggiuntivi attendibili, riavvia PowerPoint, poi Inserisci → I miei componenti → Cartella condivisa.\n\nIl pannello è servito da {origin}. Un URL del tunnel cambia a ogni riavvio della condivisione: salva allora un nuovo manifest.",
   },
@@ -384,6 +404,180 @@ function interfaces() {
   return out;
 }
 
+
+// ---- PowerPoint add-in on this PC (Windows): HTTPS on localhost + Office developer sideload ----
+// Office loads task panes only over HTTPS and only from manifests it knows about. On Windows the
+// supported way to register one without an admin catalog is the WEF\Developer registry key (what
+// office-addin-dev-settings uses). So: a self-signed localhost certificate trusted by the current
+// user, an HTTPS proxy on HTTPS_PORT in front of the two local servers, a manifest in userData,
+// and the registry value. PowerPoint then shows "Intelliprompter" on the Home tab.
+const net = require("node:net");
+const HTTPS_PORT = Number(process.env.INTELLIPROMPTER_HTTPS_PORT || 4749);
+const certDir = path.join(userData, "certs");
+const pfxFile = path.join(certDir, "localhost.pfx");
+const pemKey = path.join(certDir, "localhost-key.pem");
+const pemCert = path.join(certDir, "localhost.pem");
+/** Office for Mac loads manifests dropped here (per user, no admin). */
+const macWefDir = path.join(os.homedir(), "Library", "Containers", "com.microsoft.Powerpoint", "Data", "Documents", "wef");
+const pptManifestFile = path.join(userData, "powerpoint", "manifest.xml");
+let httpsProxy = null;
+
+function runPowerShell(script) {
+  return new Promise((resolve, reject) => {
+    const p = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script], { windowsHide: true });
+    let out = "";
+    let err = "";
+    p.stdout.on("data", (d) => (out += d));
+    p.stderr.on("data", (d) => (err += d));
+    p.on("error", reject);
+    p.on("exit", (code) => (code === 0 ? resolve(out.trim()) : reject(new Error(err.trim() || out.trim() || `powershell exited ${code}`))));
+  });
+}
+
+function runCommand(cmd, args) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(cmd, args, { windowsHide: true });
+    let out = "";
+    let err = "";
+    p.stdout.on("data", (d) => (out += d));
+    p.stderr.on("data", (d) => (err += d));
+    p.on("error", reject);
+    p.on("exit", (code) => (code === 0 ? resolve(out.trim()) : reject(new Error(err.trim() || out.trim() || `${cmd} exited ${code}`))));
+  });
+}
+
+function haveCert() {
+  return process.platform === "win32" ? fs.existsSync(pfxFile) && Boolean(settings.pfxPassword) : fs.existsSync(pemKey) && fs.existsSync(pemCert);
+}
+
+/**
+ * Self-signed certificate for "localhost", trusted for the current user.
+ * Windows: New-SelfSignedCertificate + CurrentUser\Root (one Windows prompt).
+ * macOS: openssl + `security add-trusted-cert` into the login keychain (macOS asks for the password once),
+ * the same thing office-addin-dev-certs does.
+ */
+async function ensureLocalhostCert() {
+  if (haveCert()) return;
+  if (process.platform === "darwin") {
+    fs.mkdirSync(certDir, { recursive: true });
+    await runCommand("openssl", [
+      "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-sha256", "-days", "1825",
+      "-keyout", pemKey, "-out", pemCert, "-subj", "/CN=localhost/O=Intelliprompter",
+      "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1", "-addext", "extendedKeyUsage=serverAuth",
+    ]);
+    const keychain = path.join(os.homedir(), "Library", "Keychains", "login.keychain-db");
+    await runCommand("security", ["add-trusted-cert", "-d", "-r", "trustRoot", "-k", keychain, pemCert]);
+    return;
+  }
+  fs.mkdirSync(certDir, { recursive: true });
+  settings.pfxPassword = crypto.randomBytes(12).toString("base64url");
+  saveSettings();
+  const ps = `
+$ErrorActionPreference = 'Stop'
+$cert = New-SelfSignedCertificate -DnsName 'localhost','127.0.0.1' -CertStoreLocation 'Cert:\\CurrentUser\\My' -FriendlyName 'Intelliprompter localhost' -NotAfter (Get-Date).AddYears(5) -KeyExportPolicy Exportable -KeyAlgorithm RSA -KeyLength 2048
+$pwd = ConvertTo-SecureString -String '${settings.pfxPassword}' -Force -AsPlainText
+Export-PfxCertificate -Cert $cert -FilePath '${pfxFile.replace(/'/g, "''")}' -Password $pwd | Out-Null
+Export-Certificate -Cert $cert -FilePath '${path.join(certDir, "localhost.cer").replace(/'/g, "''")}' | Out-Null
+Import-Certificate -FilePath '${path.join(certDir, "localhost.cer").replace(/'/g, "''")}' -CertStoreLocation 'Cert:\\CurrentUser\\Root' | Out-Null
+Write-Output $cert.Thumbprint`;
+  await runPowerShell(ps);
+}
+
+/** HTTPS → the local servers. /api/session* and /ws go to the relay; everything else to the web app.
+ *  Only 127.0.0.1 can connect, so the LAN access password is added for the pane (it runs the engine). */
+function startHttpsProxy() {
+  if (httpsProxy || !haveCert()) return false;
+  const relay = (url) => url.startsWith("/ws/") || url.startsWith("/api/session");
+  const hosted = Boolean(process.env.INTELLIPROMPTER_SESSION_URL);
+  const tls = process.platform === "win32" ? { pfx: fs.readFileSync(pfxFile), passphrase: settings.pfxPassword } : { key: fs.readFileSync(pemKey), cert: fs.readFileSync(pemCert) };
+  const server = https.createServer(tls, (req, res) => {
+    const toRelay = relay(req.url) && !hosted;
+    const headers = { ...req.headers, host: `127.0.0.1:${toRelay ? SESSION_PORT : PORT}` };
+    if (toRelay && process.env.ACCESS_PASSWORD && !headers["x-access-password"]) headers["x-access-password"] = process.env.ACCESS_PASSWORD;
+    const up = http.request({ host: "127.0.0.1", port: toRelay ? SESSION_PORT : PORT, method: req.method, path: req.url, headers }, (r) => {
+      res.writeHead(r.statusCode, r.headers);
+      r.pipe(res);
+    });
+    up.on("error", () => {
+      res.statusCode = 502;
+      res.end("upstream unavailable");
+    });
+    req.pipe(up);
+  });
+  server.on("upgrade", (req, socket, head) => {
+    const port = relay(req.url) && !hosted ? SESSION_PORT : PORT;
+    const up = net.connect(port, "127.0.0.1", () => {
+      let raw = `${req.method} ${req.url} HTTP/1.1\r\n`;
+      for (let i = 0; i < req.rawHeaders.length; i += 2) raw += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
+      up.write(raw + "\r\n");
+      if (head.length) up.write(head);
+      socket.pipe(up).pipe(socket);
+    });
+    up.on("error", () => socket.destroy());
+    socket.on("error", () => up.destroy());
+  });
+  server.on("error", (err) => console.warn("https proxy:", err.message));
+  server.listen(HTTPS_PORT, "127.0.0.1");
+  httpsProxy = server;
+  return true;
+}
+
+function writeLocalPptManifest() {
+  const modulePath = packaged ? path.join(resources, "powerpoint-manifest.js") : path.join(resources, "powerpoint", "scripts", "manifest.js");
+  const { buildManifest } = require(modulePath);
+  if (!settings.manifestId) settings.manifestId = crypto.randomUUID();
+  saveSettings();
+  fs.mkdirSync(path.dirname(pptManifestFile), { recursive: true });
+  fs.writeFileSync(pptManifestFile, buildManifest(`https://localhost:${HTTPS_PORT}`, { id: settings.manifestId }));
+}
+
+/** Registers the manifest with Office for the current user: HKCU key on Windows, the wef folder on macOS. */
+async function registerPptManifest() {
+  if (process.platform === "darwin") {
+    fs.mkdirSync(macWefDir, { recursive: true });
+    fs.copyFileSync(pptManifestFile, path.join(macWefDir, "intelliprompter.manifest.xml"));
+    return;
+  }
+  const key = "HKCU\\Software\\Microsoft\\Office\\16.0\\WEF\\Developer";
+  await runPowerShell(`New-Item -Path 'Registry::${key}' -Force | Out-Null; New-ItemProperty -Path 'Registry::${key}' -Name 'Intelliprompter' -Value '${pptManifestFile.replace(/'/g, "''")}' -PropertyType String -Force | Out-Null`);
+}
+
+async function installPowerPointAddin(win, { silent = false } = {}) {
+  if (process.platform !== "win32" && process.platform !== "darwin") {
+    if (!silent) dialog.showMessageBox(win, { type: "info", title: "PowerPoint", message: mt("pptWinOnly") });
+    return false;
+  }
+  try {
+    await ensureLocalhostCert();
+    startHttpsProxy();
+    writeLocalPptManifest();
+    await registerPptManifest();
+    settings.pptInstalled = true;
+    saveSettings();
+    buildMenu(win);
+    if (!silent) dialog.showMessageBox(win, { type: "info", title: "PowerPoint", message: mt("pptInstalled") });
+    return true;
+  } catch (err) {
+    settings.pptInstalled = false;
+    saveSettings();
+    if (!silent) dialog.showErrorBox("PowerPoint", `${mt("pptInstallFailed")}\n\n${String(err.message || err)}`);
+    return false;
+  }
+}
+
+async function uninstallPowerPointAddin(win) {
+  try {
+    if (process.platform === "darwin") fs.rmSync(path.join(macWefDir, "intelliprompter.manifest.xml"), { force: true });
+    else await runPowerShell(`Remove-ItemProperty -Path 'Registry::HKCU\\Software\\Microsoft\\Office\\16.0\\WEF\\Developer' -Name 'Intelliprompter' -ErrorAction SilentlyContinue`);
+  } catch {
+    /* already gone */
+  }
+  settings.pptInstalled = false;
+  saveSettings();
+  buildMenu(win);
+  dialog.showMessageBox(win, { type: "info", title: "PowerPoint", message: mt("pptRemoved") });
+}
+
 /** Writes an Office manifest for the public HTTPS origin the pane is reachable at (README "PowerPoint add-in"). */
 async function savePowerPointManifest(win) {
   const fromEnv = (process.env.PUBLIC_ORIGIN || "").trim();
@@ -471,6 +665,7 @@ function applyOffline(win, value) {
       }
     })();
     const local = host === "127.0.0.1" || host === "localhost" || host === "::1" || host === process.env.INTELLIPROMPTER_LAN_IP;
+    // (the HTTPS proxy on localhost:HTTPS_PORT is covered by "localhost")
     callback({ cancel: !local });
   });
   win?.webContents.send("offline", offline);
@@ -501,6 +696,9 @@ function buildMenu(win) {
             { label: mt("customHost"), enabled: false },
           ],
         },
+        settings.pptInstalled
+          ? { label: mt("pptRemove"), click: () => void uninstallPowerPointAddin(win) }
+          : { label: mt("pptInstall"), click: () => void installPowerPointAddin(win) },
         { label: mt("pptManifest"), click: () => void savePowerPointManifest(win) },
         {
           label: mt("hideWindow"),
@@ -571,6 +769,24 @@ async function main() {
     if (!process.env.INTELLIPROMPTER_SESSION_URL) await waitFor(`http://127.0.0.1:${SESSION_PORT}/health`);
     await win.loadURL(APP_URL);
     if (settings.remoteShare) void setRemoteShare(win, true);
+    if (process.platform === "win32" || process.platform === "darwin") {
+      if (settings.pptInstalled) {
+        startHttpsProxy();
+        if (!fs.existsSync(pptManifestFile)) writeLocalPptManifest();
+      } else if (!settings.pptAsked) {
+        settings.pptAsked = true;
+        saveSettings();
+        const { response } = await dialog.showMessageBox(win, {
+          type: "question",
+          buttons: [mt("pptYes"), mt("pptNo")],
+          defaultId: 0,
+          title: "PowerPoint",
+          message: mt("pptFirstRun"),
+          detail: mt("pptFirstRunDetail"),
+        });
+        if (response === 0) await installPowerPointAddin(win);
+      }
+    }
     if (!process.env.OPENROUTER_API_KEY) {
       dialog.showMessageBox(win, {
         type: "info",
@@ -590,4 +806,5 @@ app.on("window-all-closed", () => app.quit());
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
   stopTunnels();
+  if (httpsProxy) httpsProxy.close();
 });
