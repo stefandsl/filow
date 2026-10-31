@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   // Monorepo: trace files from the repo root so workspace packages are included.
   outputFileTracingRoot: path.join(__dirname, "../.."),
   // Workspace packages ship TypeScript source; Next compiles them.
-  transpilePackages: ["@intelliprompter/core", "@intelliprompter/stt", "@intelliprompter/client"],
+  transpilePackages: ["@intelliprompter/core", "@intelliprompter/stt", "@intelliprompter/client", "@intelliprompter/ui"],
 };
 
 export default nextConfig;

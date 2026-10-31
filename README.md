@@ -52,6 +52,14 @@ Transcription backends (pick in the dropdown, or leave on **Auto**):
 
 API keys never reach the browser: the server mints short-lived tokens for the streaming backends and calls OpenRouter itself.
 
+### Phone mirror and remote
+
+The engine (the browser or desktop app with the microphone) creates a **session** on the session relay and shows a 6-digit code in the top bar. Click it for a QR. Any phone on the same network opens the mirror page, enters the code (or scans the QR), and gets the live view with big type plus Prev / Next / Reset / Start / Stop buttons. The mirror is a web page, so nothing to install; on Android or iOS use "Add to Home Screen" for a full-screen app.
+
+- Web mode: the relay is `apps/server` on port 4748, started by `npm run dev` together with the web app.
+- Desktop app: the relay runs inside the app. The QR carries your laptop's LAN address. The first launch triggers one Windows firewall prompt.
+- Hosted server: see the Debian section; set `ACCESS_PASSWORD` so strangers cannot spend your credits.
+
 ---
 
 ## API keys you need
@@ -110,7 +118,7 @@ cd intelliprompter
 npm ci
 Copy-Item apps/web/.env.example apps/web/.env.local
 notepad apps/web/.env.local      # paste your keys, save
-npm run dev             # development server with hot reload
+npm run dev             # web app (4747) + session relay (4748), hot reload
 ```
 
 Open http://localhost:4747 in Chrome or Edge and allow the microphone.
@@ -123,7 +131,7 @@ cd intelliprompter
 npm ci
 cp apps/web/.env.example apps/web/.env.local
 nano apps/web/.env.local         # paste your keys, save with Ctrl+O, Enter, Ctrl+X
-npm run dev
+npm run dev             # web app (4747) + session relay (4748)
 ```
 
 Open http://localhost:4747 in Chrome or Edge.
@@ -235,11 +243,34 @@ RestartSec=3
 [Install]
 WantedBy=multi-user.target
 EOF
+sudo tee /etc/systemd/system/intelliprompter-session.service >/dev/null <<'EOF'
+[Unit]
+Description=Intelliprompter session relay
+After=network.target
+
+[Service]
+Type=simple
+User=prompter
+WorkingDirectory=/opt/intelliprompter/app
+EnvironmentFile=/opt/intelliprompter/app/apps/web/.env.local
+Environment=NODE_ENV=production
+Environment=SESSION_PORT=4748
+Environment=SESSION_HOST=127.0.0.1
+ExecStart=/usr/bin/node apps/server/dist/bundle.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
 sudo systemctl daemon-reload
-sudo systemctl enable --now intelliprompter
-sudo systemctl status intelliprompter --no-pager
+sudo systemctl enable --now intelliprompter intelliprompter-session
+sudo systemctl status intelliprompter intelliprompter-session --no-pager
 curl -s http://127.0.0.1:4747/api/stt/status
+curl -s http://127.0.0.1:4748/health
 ```
+
+Set `ACCESS_PASSWORD=<something long>` and `NEXT_PUBLIC_SESSION_URL=` (empty, meaning same origin) in `apps/web/.env.local` **before** `npm run build`: on a public server the password is what stops strangers from using your API keys. The web app asks for it once and remembers it in the browser.
 
 The last command should print something like `{"elevenlabs":true,"openai":false}`.
 
@@ -255,7 +286,15 @@ sudo apt update && sudo apt -y install caddy
 ```bash
 sudo tee /etc/caddy/Caddyfile >/dev/null <<'EOF'
 prompter.example.com {
-    reverse_proxy 127.0.0.1:4747
+    handle /ws/* {
+        reverse_proxy 127.0.0.1:4748
+    }
+    handle /api/session* {
+        reverse_proxy 127.0.0.1:4748
+    }
+    handle {
+        reverse_proxy 127.0.0.1:4747
+    }
 }
 EOF
 sudo systemctl reload caddy
@@ -288,7 +327,15 @@ prompter.example.com {
     basicauth {
         stefan <PASTE_HASH_HERE>
     }
-    reverse_proxy 127.0.0.1:4747
+    handle /ws/* {
+        reverse_proxy 127.0.0.1:4748
+    }
+    handle /api/session* {
+        reverse_proxy 127.0.0.1:4748
+    }
+    handle {
+        reverse_proxy 127.0.0.1:4747
+    }
 }
 EOF
 sudo systemctl reload caddy
@@ -301,13 +348,14 @@ cd /opt/intelliprompter/app
 sudo -u prompter git pull
 sudo -u prompter npm ci
 sudo -u prompter npm run build
-sudo systemctl restart intelliprompter
+sudo systemctl restart intelliprompter intelliprompter-session
 ```
 
 ### Logs
 
 ```bash
 sudo journalctl -u intelliprompter -f
+sudo journalctl -u intelliprompter-session -f
 sudo journalctl -u caddy -f
 ```
 
@@ -345,9 +393,11 @@ Now open http://localhost:4747 on your laptop. Edits on the server reload live.
 Useful commands:
 
 ```bash
-npm run typecheck      # TypeScript check
-npm run build          # production build (also prepares .next/standalone)
-npm run start:server   # run the standalone build the same way systemd does
+npm run typecheck      # TypeScript check, all workspaces
+npm test               # engine, prompt and relay tests (vitest)
+npm run build          # production build: web standalone + relay bundle
+npm run start:server   # run the standalone web build the way systemd does
+npm run start:session  # run the relay
 ```
 
 Working with VS Code: install the **Remote - SSH** extension, connect to the server, open `~/intelliprompter`. The port is forwarded automatically when you run `npm run dev` in the integrated terminal.
@@ -374,21 +424,16 @@ Web mode reads `script.md` in the project folder. The desktop app reads it from 
 ## Project layout
 
 ```
-app/
-  page.tsx, layout.tsx, globals.css     UI shell and theme
-  api/decide/route.ts                   OpenRouter call and the classifier prompt
-  api/script/route.ts                   read/write the talking points
-  api/stt/status/route.ts               which transcription keys are present
-  api/stt/elevenlabs-token/route.ts     mints single-use ElevenLabs tokens
-  api/stt/openai-token/route.ts         mints ephemeral OpenAI client secrets
-components/Teleprompter.tsx             UI and the 500 ms decision loop
-lib/script.ts                           Markdown script parser
-lib/stt/                                browser.ts, elevenlabs.ts, openai.ts, mic.ts (AudioWorklet),
-                                        index.ts (Auto mode: startAuto)
-electron/main.js                        desktop shell: runs the standalone server, opens a window
-scripts/prepare-standalone.js           copies static assets into .next/standalone after build
-scripts/make-icon.js                    regenerates build/icon.png
-.github/workflows/desktop.yml           Windows / macOS / Linux installer builds
+apps/web/                 Next.js app: UI, /mirror PWA, API routes (decide, stt tokens, script)
+apps/server/              session relay (ws): pairing codes, roles, fan-out. Bundled to dist/bundle.js
+apps/desktop/             Electron shell: runs both servers in-process, LAN or hosted mode
+packages/core/            types, script parser, decision prompt, Engine class (+ tests)
+packages/stt/             browser transcription backends and Auto selection
+packages/client/          session client for views and engines (browser + React Native)
+packages/ui/              StageView and friends (web only)
+scripts/                  prepare-standalone.js, make-icon.js
+docs/reviews/             EGM goldfish review reports
+ARCHITECTURE.md           the design: session protocol, Screen Sense, add-ins, mobile, roadmap
 ```
 
 ---

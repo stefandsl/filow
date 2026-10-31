@@ -16,15 +16,18 @@ export const BACKEND_LABELS: Record<SttBackendId, string> = {
 export type BackendOptions = {
   /** Origin of the Next.js API that mints tokens, e.g. "https://prompter.example.com". Default: same origin. */
   baseUrl?: string;
+  /** Extra headers for the token requests (the engine token when ACCESS_PASSWORD is set). */
+  headers?: Record<string, string>;
 };
 
 export function createBackend(id: SttBackendId, opts: BackendOptions = {}): SttBackend {
   const base = opts.baseUrl ?? "";
+  const headers = opts.headers ?? {};
   switch (id) {
     case "elevenlabs":
-      return new ElevenLabsStt(base);
+      return new ElevenLabsStt(base, headers);
     case "openai":
-      return new OpenAiStt(base);
+      return new OpenAiStt(base, headers);
     case "browser":
       return new BrowserStt();
   }

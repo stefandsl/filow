@@ -36,6 +36,8 @@ export type SessionClient = {
   publishPatch(version: number, ops: Operation[]): void;
   /** Engine: handle incoming commands. */
   onCommand(fn: (cmd: Command, ack: (result: { ok: boolean; error?: string }) => void) => void): void;
+  /** Engine: the server asks for a full state (it could not apply a patch). */
+  onResync(fn: () => void): void;
   close(): void;
 };
 
@@ -67,6 +69,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
   const subs = new Set<(s: SessionState) => void>();
   const pending = new Map<string, (r: { ok: boolean; error?: string }) => void>();
   let commandHandler: ((cmd: Command, ack: (r: { ok: boolean; error?: string }) => void) => void) | null = null;
+  let resyncHandler: (() => void) | null = null;
   let ws: WebSocket | null = null;
   let closedByUser = false;
   let backoff = 500;
@@ -102,6 +105,9 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
     },
     onCommand(fn) {
       commandHandler = fn;
+    },
+    onResync(fn) {
+      resyncHandler = fn;
     },
     close() {
       closedByUser = true;
@@ -162,6 +168,10 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
             commandHandler?.(msg.cmd as Command, (r) => sock.send(JSON.stringify({ t: "ack", id, ...r })));
             break;
           }
+          case "resync":
+            // Server lost sync with our patches (engine side): republish the full state.
+            resyncHandler?.();
+            break;
           case "ack": {
             const fn = pending.get(String(msg.id));
             if (fn) {

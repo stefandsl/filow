@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Engine, type DecideRequest, type DecideResponse, type SessionState } from "@intelliprompter/core";
+import { engineHeaders } from "./useSession";
 
 /** Decide through the Next.js API route on the same origin. */
 async function decideViaApi(req: DecideRequest): Promise<DecideResponse> {
   const res = await fetch("/api/decide", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...engineHeaders() },
     body: JSON.stringify(req),
   });
   if (!res.ok) {

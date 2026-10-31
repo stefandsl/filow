@@ -11,11 +11,14 @@ import {
   type SttBackend,
 } from "@intelliprompter/stt";
 import { useEngine } from "./useEngine";
+import { engineHeaders, useSession } from "./useSession";
+import { PairPanel } from "./PairPanel";
 
 type BackendChoice = "auto" | SttBackendId;
 
 export default function Teleprompter() {
   const { engine, state } = useEngine();
+  const sessionInfo = useSession(engine);
   const [scriptText, setScriptText] = useState("");
   const [sttStatus, setSttStatus] = useState<SttStatus>({ elevenlabs: false, openai: false });
   // Resolved on the client only, so server and first client render agree.
@@ -83,14 +86,17 @@ export default function Teleprompter() {
     try {
       if (choice === "auto") {
         const candidates = availableBackends(sttStatus, hasWebSpeech);
-        const { backend } = await startAuto(candidates, handlers, (id, note) =>
-          pushLog(`${BACKEND_LABELS[id]}: ${note}`),
+        const { backend } = await startAuto(
+          candidates,
+          handlers,
+          (id, note) => pushLog(`${BACKEND_LABELS[id]}: ${note}`),
+          { headers: engineHeaders() },
         );
         backendRef.current = backend;
         engine.setBackend(backend.id);
       } else {
         // Explicit choice: never fall back silently.
-        const backend = createBackend(choice);
+        const backend = createBackend(choice, { headers: engineHeaders() });
         await backend.start(handlers);
         backendRef.current = backend;
         engine.setBackend(backend.id);
@@ -126,6 +132,7 @@ export default function Teleprompter() {
         </div>
         <span className="subtitle">/ live talking points</span>
         <span className="spacer" />
+        <PairPanel info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} />
         {eng.backend && <span className="chip live">● {BACKEND_LABELS[eng.backend]}</span>}
         {error && <span className="chip err">{error}</span>}
       </header>

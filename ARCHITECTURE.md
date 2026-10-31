@@ -102,7 +102,7 @@ Consequences:
 
 The desktop app has two connection modes, chosen in Settings:
 
-- **LAN mode (default, zero setup)**: Electron binds the session server to `0.0.0.0:4748` and the QR encodes `http://<lan-ip>:4747/mirror?code=…`. Views on the same Wi-Fi work over plain HTTP because views never use the microphone. The Next server stays on 127.0.0.1; only the relay is exposed, and only with a valid pairing code. Windows will show one firewall prompt the first time.
+- **LAN mode (default, zero setup)**: Electron binds both the Next server (it serves the `/mirror` page) and the relay to `0.0.0.0`, and the QR encodes `http://<lan-ip>:4747/mirror?code=…&server=http://<lan-ip>:4748`. Views on the same Wi-Fi work over plain HTTP because views never use the microphone. The spend endpoints are gated by a per-launch random `ACCESS_PASSWORD` that only the Electron window receives (through the preload bridge), so another device on the Wi-Fi can pair with a code but cannot mint STT tokens or call the decision model. Windows will show one firewall prompt the first time.
 - **Hosted mode**: the engine connects outbound to a public session server (the Debian deploy). Required for the PowerPoint and Slides add-ins, which must load from HTTPS. API keys live on the hosted server; the desktop app sends its `ACCESS_PASSWORD` once and receives an engine token.
 
 Desktop sessions are not resumable across app restarts: a new code is issued per launch.

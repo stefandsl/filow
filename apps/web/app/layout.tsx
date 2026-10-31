@@ -4,6 +4,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Intelliprompter",
   description: "A teleprompter that checks off your talking points as you say them.",
+  manifest: "/manifest.webmanifest",
+  icons: "/icon.png",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

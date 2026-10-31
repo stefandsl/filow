@@ -22,10 +22,11 @@
     "appId": "com.intelliprompter.app",
     "productName": "Intelliprompter",
     "directories": { "output": "../../release", "buildResources": "build" },
-    "files": ["main.js", "build/icon.png", "package.json"],
+    "files": ["main.js", "preload.js", "build/icon.png", "package.json"],
     "asar": true,
     "extraResources": [
       { "from": "../web/.next/standalone", "to": "app", "filter": ["**/*", "!**/.env*"] },
+      { "from": "../server/dist/bundle.js", "to": "server/bundle.js" },
       { "from": "../web/.env.example", "to": ".env.example" },
       { "from": "../web/script.md", "to": "script.md" }
     ],

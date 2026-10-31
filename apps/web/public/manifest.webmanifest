@@ -1,0 +1,10 @@
+{
+  "name": "Intelliprompter Mirror",
+  "short_name": "Prompter",
+  "start_url": "/mirror",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0b0d",
+  "theme_color": "#0b0b0d",
+  "icons": [{ "src": "/icon.png", "sizes": "512x512", "type": "image/png" }]
+}

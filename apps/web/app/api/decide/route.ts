@@ -1,3 +1,4 @@
+import { requireEngine } from "@/lib/engineAuth";
 import { NextResponse } from "next/server";
 import {
   SYSTEM_PROMPT,
@@ -12,6 +13,8 @@ import {
  * packages/core/src/prompt.ts so they can be tested without a server.
  */
 export async function POST(req: Request) {
+  const denied = requireEngine(req);
+  if (denied) return denied;
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     return NextResponse.json(

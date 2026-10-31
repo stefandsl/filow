@@ -11,8 +11,9 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "allowImportingTsExtensions": false,
-    "types": ["node"]
+    "types": ["node", "react"],
+    "jsx": "preserve"
   },
-  "include": ["packages/*/src/**/*.ts"],
+  "include": ["packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"],
   "exclude": ["node_modules", "**/*.test.ts"]
 }

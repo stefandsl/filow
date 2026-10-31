@@ -12,13 +12,13 @@ const SAMPLE_RATE = 24000;
 export class OpenAiStt implements SttBackend {
   readonly id = "openai" as const;
   readonly label = "OpenAI gpt-live-transcribe";
-  constructor(private readonly baseUrl: string = "") {}
+  constructor(private readonly baseUrl: string = "", private readonly headers: Record<string, string> = {}) {}
   private ws: WebSocket | null = null;
   private mic: MicCapture | null = null;
   private commitTimer: number | null = null;
 
   async start(h: SttHandlers) {
-    const tokenRes = await fetch(`${this.baseUrl}/api/stt/openai-token`, { method: "POST" });
+    const tokenRes = await fetch(`${this.baseUrl}/api/stt/openai-token`, { method: "POST", headers: this.headers });
     if (!tokenRes.ok) throw new Error((await tokenRes.json()).error ?? "token request failed");
     const { value } = (await tokenRes.json()) as { value: string };
 

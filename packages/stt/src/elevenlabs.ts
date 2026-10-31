@@ -7,12 +7,12 @@ const SAMPLE_RATE = 16000;
 export class ElevenLabsStt implements SttBackend {
   readonly id = "elevenlabs" as const;
   readonly label = "ElevenLabs Scribe v2";
-  constructor(private readonly baseUrl: string = "") {}
+  constructor(private readonly baseUrl: string = "", private readonly headers: Record<string, string> = {}) {}
   private ws: WebSocket | null = null;
   private mic: MicCapture | null = null;
 
   async start(h: SttHandlers) {
-    const tokenRes = await fetch(`${this.baseUrl}/api/stt/elevenlabs-token`, { method: "POST" });
+    const tokenRes = await fetch(`${this.baseUrl}/api/stt/elevenlabs-token`, { method: "POST", headers: this.headers });
     if (!tokenRes.ok) throw new Error((await tokenRes.json()).error ?? "token request failed");
     const { token } = (await tokenRes.json()) as { token: string };
 
