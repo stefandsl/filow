@@ -1,6 +1,6 @@
 {
   "name": "@intelliprompter/desktop",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "private": true,
   "description": "A teleprompter that checks off your talking points as you say them. OpenRouter decisions, live transcription.",
   "author": "Stefan Butnaru",
@@ -13,11 +13,18 @@
     "dist:win": "electron-builder --win --publish never",
     "dist:mac": "electron-builder --mac --publish never",
     "dist:linux": "electron-builder --linux --publish never",
-    "icon": "node ../../scripts/make-icon.js"
+    "icon": "node ../../scripts/make-icon.js",
+    "vendor": "esbuild ../../node_modules/electron-updater/out/main.js --bundle --platform=node --target=node20 --format=cjs --external:electron --outfile=vendor/electron-updater.js",
+    "predist": "npm run vendor",
+    "predist:win": "npm run vendor",
+    "predist:mac": "npm run vendor",
+    "predist:linux": "npm run vendor"
   },
   "devDependencies": {
     "electron": "33.4.11",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "electron-updater": "^6.8.11",
+    "esbuild": "*"
   },
   "build": {
     "appId": "com.intelliprompter.app",
@@ -25,30 +32,88 @@
     "npmRebuild": false,
     "artifactName": "Intelliprompter-${version}-${os}-${arch}.${ext}",
     "productName": "Intelliprompter",
-    "directories": { "output": "../../release", "buildResources": "build" },
-    "files": ["main.js", "preload.js", "picker.html", "picker-preload.js", "build/icon.png", "package.json"],
+    "directories": {
+      "output": "../../release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "vendor/*.js",
+      "picker.html",
+      "picker-preload.js",
+      "build/icon.png",
+      "package.json"
+    ],
     "asar": true,
     "extraResources": [
-      { "from": "../web/.next/standalone", "to": "app", "filter": ["**/*", "!**/.env*"] },
-      { "from": "../server/dist/bundle.js", "to": "server/bundle.js" },
-      { "from": "../powerpoint/scripts/manifest.js", "to": "powerpoint-manifest.js" },
-      { "from": "../web/.env.example", "to": ".env.example" },
-      { "from": "../web/script.md", "to": "script.md" }
+      {
+        "from": "../web/.next/standalone",
+        "to": "app",
+        "filter": [
+          "**/*",
+          "!**/.env*"
+        ]
+      },
+      {
+        "from": "../server/dist/bundle.js",
+        "to": "server/bundle.js"
+      },
+      {
+        "from": "../powerpoint/scripts/manifest.js",
+        "to": "powerpoint-manifest.js"
+      },
+      {
+        "from": "../web/.env.example",
+        "to": ".env.example"
+      },
+      {
+        "from": "../web/script.md",
+        "to": "script.md"
+      }
     ],
-    "win": { "target": ["nsis", "portable"], "icon": "build/icon.png" },
-    "portable": { "artifactName": "Intelliprompter-${version}-win-x64-portable.${ext}" },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "perMachine": false },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.png"
+    },
+    "portable": {
+      "artifactName": "Intelliprompter-${version}-win-x64-portable.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    },
     "mac": {
-      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
       "icon": "build/icon.png",
       "category": "public.app-category.productivity",
       "identity": null
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "icon": "build/icon.png",
       "category": "AudioVideo",
       "maintainer": "Stefan Butnaru"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "stefandsl",
+      "repo": "intelliprompter-releases"
     }
   }
 }

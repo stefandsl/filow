@@ -15,6 +15,15 @@ contextBridge.exposeInMainWorld("intelliprompter", {
   /** Turn the public link (Cloudflare tunnel) on or off; the app reloads with new pairing URLs. */
   setRemoteShare: (on) => ipcRenderer.send("remote:set", Boolean(on)),
   remoteStatus: () => ipcRenderer.invoke("remote:status"),
+  /** Auto-update state (installed app only): idle | checking | downloading | downloaded | none | error. */
+  updateStatus: () => ipcRenderer.invoke("update:status"),
+  checkForUpdates: () => ipcRenderer.send("update:check"),
+  installUpdate: () => ipcRenderer.send("update:install"),
+  onUpdateStatus: (fn) => {
+    const h = (_e, v) => fn(v);
+    ipcRenderer.on("update:status", h);
+    return () => ipcRenderer.removeListener("update:status", h);
+  },
   onRemoteStatus: (fn) => {
     const h = (_e, v) => fn(v);
     ipcRenderer.on("remote:status", h);

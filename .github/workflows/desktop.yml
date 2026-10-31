@@ -19,7 +19,11 @@ jobs:
             script: desktop:build:linux
     runs-on: ${{ matrix.os }}
     env:
+      # macOS: no Apple identity on the runner. Windows signing happens automatically when the
+      # WIN_CSC_LINK (base64 .pfx) and WIN_CSC_KEY_PASSWORD secrets exist; see README "Code signing".
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+      WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,6 +41,8 @@ jobs:
             release/*.dmg
             release/*.AppImage
             release/*.deb
+            release/*.yml
+            release/*.blockmap
           if-no-files-found: error
 
   release:
@@ -45,6 +51,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -54,3 +62,15 @@ jobs:
         with:
           files: artifacts/*
           generate_release_notes: true
+      # Auto-update feed: the same files on the PUBLIC releases repo (this repo is private, and an
+      # installed app cannot read private releases). Needs the RELEASES_TOKEN secret; see README.
+      - name: Publish to the public releases repo
+        if: env.RELEASES_TOKEN != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: stefandsl/intelliprompter-releases
+          token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: ${{ github.ref_name }}
+          name: Intelliprompter ${{ github.ref_name }}
+          body: "Installers for Windows, macOS and Linux. Source: github.com/stefandsl/intelliprompter (private). The desktop app updates itself from here."
+          files: artifacts/*

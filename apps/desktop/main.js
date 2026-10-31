@@ -53,6 +53,17 @@ const MENU_TEXT = {
     pptYes: "Add to PowerPoint",
     pptNo: "Not now",
     pptManifest: "PowerPoint add-in: save manifest for another computer…",
+    updateCheck: "Check for updates…",
+    updateChecking: "Checking for updates…",
+    updateDownloading: "Downloading update {version}…",
+    updateInstall: "Restart to install {version}",
+    updateReady: "Intelliprompter {version} is ready.",
+    updateReadyDetail: "Restart now to install it, or it installs itself the next time you quit.",
+    updateRestart: "Restart now",
+    updateLater: "Later",
+    updateNone: "You have the latest version ({version}).",
+    updateFailed: "Could not check for updates.",
+    updateOffline: "Offline mode is on; updates need an internet connection.",
     pptNoOrigin: "PowerPoint only loads add-ins over HTTPS. Turn on “Share to phone on any network” first (the manifest will point at that public URL), or set PUBLIC_ORIGIN=https://your-server in .env for a permanent install.",
     pptSaved: "Manifest saved. Sideload it:\n\n• PowerPoint for the web: Home → Add-ins → More Add-ins → My Add-ins → Upload My Add-in → this file.\n• PowerPoint for Windows: put the file in a shared folder, add that folder under File → Options → Trust Center → Trusted Add-in Catalogs, restart PowerPoint, then Insert → My Add-ins → Shared Folder.\n\nThe pane is served from {origin}. A tunnel URL changes every time sharing restarts; save a new manifest then.",
   },
@@ -73,6 +84,17 @@ const MENU_TEXT = {
     pptYes: "Aggiungi a PowerPoint",
     pptNo: "Non ora",
     pptManifest: "Componente aggiuntivo PowerPoint: salva il manifest per un altro computer…",
+    updateCheck: "Controlla aggiornamenti…",
+    updateChecking: "Controllo aggiornamenti…",
+    updateDownloading: "Scaricamento aggiornamento {version}…",
+    updateInstall: "Riavvia per installare {version}",
+    updateReady: "Intelliprompter {version} è pronto.",
+    updateReadyDetail: "Riavvia ora per installarlo, oppure si installa da solo alla prossima chiusura.",
+    updateRestart: "Riavvia ora",
+    updateLater: "Più tardi",
+    updateNone: "Hai già l'ultima versione ({version}).",
+    updateFailed: "Impossibile controllare gli aggiornamenti.",
+    updateOffline: "La modalità offline è attiva; gli aggiornamenti richiedono internet.",
     pptNoOrigin: "PowerPoint carica i componenti aggiuntivi solo via HTTPS. Attiva prima “Condividi col telefono su qualsiasi rete” (il manifest punterà a quell'URL pubblico), oppure imposta PUBLIC_ORIGIN=https://tuo-server in .env per un'installazione permanente.",
     pptSaved: "Manifest salvato. Caricalo in PowerPoint:\n\n• PowerPoint per il web: Home → Componenti aggiuntivi → Altri componenti → I miei componenti → Carica il mio componente → questo file.\n• PowerPoint per Windows: metti il file in una cartella condivisa, aggiungi la cartella in File → Opzioni → Centro protezione → Cataloghi di componenti aggiuntivi attendibili, riavvia PowerPoint, poi Inserisci → I miei componenti → Cartella condivisa.\n\nIl pannello è servito da {origin}. Un URL del tunnel cambia a ogni riavvio della condivisione: salva allora un nuovo manifest.",
   },
@@ -203,6 +225,9 @@ function wireScreenSense() {
   ipcMain.on("remote:set", (_e, on) => {
     if (mainWin && !mainWin.isDestroyed()) void setRemoteShare(mainWin, Boolean(on));
   });
+  ipcMain.handle("update:status", () => ({ ...updateState, current: app.getVersion() }));
+  ipcMain.on("update:check", () => void checkForUpdates({ manual: true }));
+  ipcMain.on("update:install", () => loadUpdater() && updateState.status === "downloaded" && updater.quitAndInstall());
   ipcMain.handle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
   ipcMain.on("ui:lang", (_e, lang) => {
     if (lang !== "en" && lang !== "it") return;
@@ -644,6 +669,80 @@ async function uninstallPowerPointAddin(win) {
   dialog.showMessageBox(win, { type: "info", title: "PowerPoint", message: mt("pptRemoved") });
 }
 
+
+// ---- Automatic updates (README "Automatic updates") ----
+// electron-updater is bundled into vendor/electron-updater.js (workspace hoisting keeps it out of
+// the asar otherwise). The feed is a PUBLIC GitHub repo that holds only the installers, because an
+// app cannot read a private repo's releases without shipping a token. Checks run at start-up and
+// from the menu; the download happens in the background and the user chooses when to restart.
+let updater = null;
+let updateState = { status: "idle", version: "", error: "" }; // idle | checking | available | downloading | downloaded | none | error
+
+function loadUpdater() {
+  if (updater !== null) return updater;
+  try {
+    const mod = require(path.join(__dirname, "vendor", "electron-updater.js"));
+    updater = mod.autoUpdater;
+    updater.autoDownload = true;
+    updater.autoInstallOnAppQuit = true;
+    updater.logger = null;
+    updater.on("checking-for-update", () => setUpdateState({ status: "checking" }));
+    updater.on("update-available", (info) => setUpdateState({ status: "downloading", version: info.version }));
+    updater.on("update-not-available", () => setUpdateState({ status: "none" }));
+    updater.on("error", (err) => setUpdateState({ status: "error", error: String((err && err.message) || err).slice(0, 200) }));
+    updater.on("update-downloaded", (info) => {
+      setUpdateState({ status: "downloaded", version: info.version });
+      if (mainWin && !mainWin.isDestroyed()) {
+        dialog
+          .showMessageBox(mainWin, {
+            type: "info",
+            buttons: [mt("updateRestart"), mt("updateLater")],
+            defaultId: 0,
+            title: "Intelliprompter",
+            message: mt("updateReady", { version: info.version }),
+            detail: mt("updateReadyDetail"),
+          })
+          .then(({ response }) => {
+            if (response === 0) updater.quitAndInstall();
+          });
+      }
+    });
+  } catch (err) {
+    updater = false;
+    setUpdateState({ status: "error", error: String(err.message || err) });
+  }
+  return updater;
+}
+
+function setUpdateState(next) {
+  updateState = { ...updateState, ...next };
+  if (mainWin && !mainWin.isDestroyed()) {
+    mainWin.webContents.send("update:status", { ...updateState, current: app.getVersion() });
+    buildMenu(mainWin);
+  }
+}
+
+async function checkForUpdates({ manual = false } = {}) {
+  if (!packaged) {
+    if (manual) dialog.showMessageBox(mainWin, { type: "info", title: "Intelliprompter", message: "Updates only work in the installed app." });
+    return;
+  }
+  if (offline) {
+    if (manual) dialog.showMessageBox(mainWin, { type: "info", title: "Intelliprompter", message: mt("updateOffline") });
+    return;
+  }
+  const u = loadUpdater();
+  if (!u) return;
+  try {
+    const r = await u.checkForUpdates();
+    if (manual && r && r.updateInfo && r.updateInfo.version === app.getVersion()) {
+      dialog.showMessageBox(mainWin, { type: "info", title: "Intelliprompter", message: mt("updateNone", { version: app.getVersion() }) });
+    }
+  } catch (err) {
+    if (manual) dialog.showMessageBox(mainWin, { type: "warning", title: "Intelliprompter", message: mt("updateFailed"), detail: String(err.message || err) });
+  }
+}
+
 /** Writes an Office manifest for the public HTTPS origin the pane is reachable at (README "PowerPoint add-in"). */
 async function savePowerPointManifest(win) {
   const fromEnv = (process.env.PUBLIC_ORIGIN || "").trim();
@@ -778,6 +877,14 @@ function buildMenu(win) {
           },
         },
         { type: "separator" },
+        updateState.status === "downloaded"
+          ? { label: mt("updateInstall", { version: updateState.version }), click: () => loadUpdater() && updater.quitAndInstall() }
+          : updateState.status === "downloading"
+            ? { label: mt("updateDownloading", { version: updateState.version }), enabled: false }
+            : updateState.status === "checking"
+              ? { label: mt("updateChecking"), enabled: false }
+              : { label: mt("updateCheck"), click: () => void checkForUpdates({ manual: true }) },
+        { type: "separator" },
         { label: mt("reload"), accelerator: "CmdOrCtrl+R", click: () => win.reload() },
         { label: mt("fullscreen"), accelerator: "F11", click: () => win.setFullScreen(!win.isFullScreen()) },
         { label: mt("devtools"), accelerator: "CmdOrCtrl+Shift+I", click: () => win.webContents.toggleDevTools() },
@@ -836,6 +943,7 @@ async function main() {
     if (!process.env.INTELLIPROMPTER_SESSION_URL) await waitFor(`http://127.0.0.1:${SESSION_PORT}/health`);
     await win.loadURL(APP_URL);
     if (settings.remoteShare) void setRemoteShare(win, true, { auto: true });
+    setTimeout(() => void checkForUpdates(), 8000); // after the servers and the tunnel; silent unless an update lands
     if (process.platform === "win32" || process.platform === "darwin") {
       if (settings.pptInstalled) {
         startHttpsProxy();

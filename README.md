@@ -1,11 +1,67 @@
-# Intelliprompter
+<p align="center">
+  <img src="apps/desktop/build/icon.png" width="128" alt="Intelliprompter" />
+</p>
 
-A teleprompter for people who don't read scripts. You write talking points, start a take, and each point gets checked off the moment you *start* covering its idea (paraphrases count). Skipped points pile up in a "Missed" tray so you can circle back.
+<h1 align="center">Intelliprompter</h1>
 
-This version uses an **OpenRouter** model for the per-point yes/no decisions instead of Jev.
+<p align="center"><strong>A teleprompter for people who don't read scripts.</strong><br/>
+Write talking points. Start talking. Each point checks itself off the moment you start making it.</p>
 
-- **Desktop app** for Windows, macOS and Linux (Electron, built by GitHub Actions)
-- **Web app** you can run on any machine with Node, or host on a Debian server behind HTTPS
+<p align="center">
+  <a href="https://github.com/stefandsl/intelliprompter/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/stefandsl/intelliprompter?display_name=tag&label=download&color=f0a53a" /></a>
+  <a href=".github/workflows/desktop.yml"><img alt="Desktop builds" src="https://img.shields.io/github/actions/workflow/status/stefandsl/intelliprompter/desktop.yml?label=build" /></a>
+  <img alt="Platforms" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-desktop-141418" />
+  <img alt="Phone mirror" src="https://img.shields.io/badge/Android%20%7C%20iOS-phone%20mirror-141418" />
+  <img alt="PowerPoint" src="https://img.shields.io/badge/PowerPoint-add--in-b7472a" />
+  <img alt="Languages" src="https://img.shields.io/badge/UI-English%20%7C%20Italiano-4ad67a" />
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-8d8d99" /></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/stefandsl/intelliprompter/releases/latest">Download</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#screen-sense">Screen Sense</a> ·
+  <a href="#phone-mirror-and-remote">Phone mirror</a> ·
+  <a href="#powerpoint-add-in">PowerPoint</a> ·
+  <a href="#local-mode-privacy">Privacy</a> ·
+  <a href="ARCHITECTURE.md">Architecture</a>
+</p>
+
+---
+
+## The problem: scripts make you sound like you are reading
+
+A classic teleprompter scrolls text at a fixed speed and you chase it. The moment you improvise, tell a story or answer a question, the prompter and you drift apart, and the rest of the talk is spent finding your place. The alternative, bullet points on a card, keeps you natural but gives you no feedback: you only discover the point you skipped when the talk is over.
+
+Intelliprompter keeps the bullet points and adds the feedback. It listens, and twice a second a small model answers one question per open point: *has the speaker started talking about this?* Paraphrases, examples and translations count; "I'll get to that later" does not. Points flip to **started** as you cover them, and the ones you skip pile up in a **Missed** tray so you can circle back before the end.
+
+## What it does
+
+| | |
+|---|---|
+| ✅ **Live check-off** | Points turn green as you cover them, judged by idea, not wording. Confidence shown per point. |
+| ⚠️ **Missed tray** | Everything you jumped over, one click to re-open. |
+| 👁 **Screen Sense** | Watches your slides or any window and tells you what is on screen, which facts you have not said yet, and when a slide contradicts your script. |
+| 📱 **Phone mirror** | Scan a QR and your phone shows the live view with Prev / Next / Stop. Works from any network by default; you approve each phone. |
+| 🖥 **PowerPoint add-in** | One click adds Intelliprompter to PowerPoint on this PC or Mac. Your speaker notes become the script. |
+| 📄 **Import** | PDF, PPTX, DOCX, TXT or Markdown become talking points, one section per slide or page. |
+| 🔒 **Privacy modes** | On-device Whisper, a local decision model via Ollama, a PII guard before any cloud call, and a full offline mode. |
+| 🌍 **English and Italian UI** | One toggle, remembered per browser; the desktop menu follows. |
+| 🔄 **Self-updating** | The desktop app checks GitHub and installs new versions itself. |
+
+## Quick start
+
+1. **Download** the installer for your OS from the [latest release](https://github.com/stefandsl/intelliprompter/releases/latest) (`-win-x64.exe`, `-mac-arm64.dmg` / `-mac-x64.dmg`, `-linux-x86_64.AppImage` / `.deb`). Windows shows a SmartScreen warning because the build is not code-signed yet; see [Code signing](#code-signing-and-the-smartscreen-warning).
+2. **Add your key**: menu → *Edit API keys (.env)* → paste an [OpenRouter](https://openrouter.ai/keys) key (a few cents per talk) → restart.
+3. **Write points**: *Edit points*, or *Import document*, or just *Watch screen…* and let Screen Sense build a section per slide.
+4. **Start take**, talk, watch the points check themselves off. Click the pairing code to put the same view on your phone.
+
+## Why this is different
+
+- **It judges ideas, not keywords.** The decision model gets the open points, the points already covered, the next section and what is on screen, and must prefer a false "not started" over a wrong check-off. Two confident calls in a row, or one very confident one, flip a point.
+- **One engine, many views.** The laptop runs the microphone and the decisions; the phone, the PowerPoint pane and any browser are views of the same session through a small relay. Nothing is installed on the phone.
+- **Your data stays yours by default.** Frames from Screen Sense live in memory and go once to the vision model; personal data is replaced by placeholders before any cloud call; speech and decisions can run entirely on your machine; offline mode blocks every outbound request.
+- **No account, no server required.** Everything runs inside the desktop app, including the relay and, for pairing from other networks, a free Cloudflare quick tunnel. A Debian deployment is there when you want a permanent address.
 
 ---
 
@@ -16,14 +72,16 @@ This version uses an **OpenRouter** model for the per-point yes/no decisions ins
 3. [Desktop app: install and run](#desktop-app-install-and-run)
 4. [Run from source on any machine (Windows, macOS, Linux)](#run-from-source-on-any-machine)
 5. [Build the desktop installers yourself](#build-the-desktop-installers-yourself)
-6. [Deploy on a Debian server](#deploy-on-a-debian-server)
-7. [Develop on a Debian server](#develop-on-a-debian-server)
-8. [Local mode (privacy)](#local-mode-privacy)
-9. [Screen Sense](#screen-sense)
-10. [PowerPoint add-in](#powerpoint-add-in)
-11. [Script format](#script-format)
-12. [Project layout](#project-layout)
-13. [Troubleshooting](#troubleshooting)
+6. [Automatic updates](#automatic-updates)
+7. [Code signing and the SmartScreen warning](#code-signing-and-the-smartscreen-warning)
+8. [Deploy on a Debian server](#deploy-on-a-debian-server)
+9. [Develop on a Debian server](#develop-on-a-debian-server)
+10. [Local mode (privacy)](#local-mode-privacy)
+11. [Screen Sense](#screen-sense)
+12. [PowerPoint add-in](#powerpoint-add-in)
+13. [Script format](#script-format)
+14. [Project layout](#project-layout)
+15. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -179,7 +237,7 @@ git push origin v0.1.0
 
 Or run it by hand: GitHub → **Actions → Desktop builds → Run workflow**. The installers appear as downloadable artifacts on the run page (and as a Release when triggered by a tag).
 
-Installers are unsigned. To sign them later, add `CSC_LINK` / `CSC_KEY_PASSWORD` (and Apple notarization secrets) to the repo and remove `CSC_IDENTITY_AUTO_DISCOVERY: "false"` from `.github/workflows/desktop.yml`.
+Installers are unsigned unless you add a certificate; see [Code signing](#code-signing-and-the-smartscreen-warning).
 
 ### Option B: build locally
 
@@ -193,6 +251,50 @@ npm run desktop:build:linux    # on Linux    → release/*.AppImage, release/*.d
 ```
 
 Output lands in `release/`.
+
+---
+
+## Automatic updates
+
+The installed desktop app checks for a new version a few seconds after start-up and from the menu (*Check for updates…*). The update downloads in the background; you get "Restart now / Later", and an update you postpone installs itself the next time you quit. Windows and Linux (AppImage) update in place; macOS needs a signed and notarized build for in-place updates, so on a Mac the app only tells you a new version exists until that is set up.
+
+The feed is a **public** GitHub repository that holds only the installers, because this source repository is private and an installed app cannot read private releases without shipping a secret. One-time setup, from a machine where `gh` is logged in:
+
+```bash
+gh repo create stefandsl/intelliprompter-releases --public --description "Intelliprompter installers (auto-update feed)"
+```
+
+Create a fine-grained personal access token on GitHub (Settings → Developer settings → Personal access tokens) with **Contents: read and write** on `intelliprompter-releases` only, then store it as a secret of this repository:
+
+```bash
+gh secret set RELEASES_TOKEN --repo stefandsl/intelliprompter
+```
+
+From the next tag on, the release job publishes the same installers plus the update metadata (`latest*.yml`, `*.blockmap`) to the public repo, and installed apps pick them up. Nothing from the source leaves the private repo.
+
+## Code signing and the SmartScreen warning
+
+Windows shows "Microsoft Defender SmartScreen couldn't verify this file" for any installer that is not code-signed and not yet downloaded by many people. The warning cannot be removed by changing the installer; it goes away when the build is signed with a certificate that Windows trusts:
+
+| Option | Cost | SmartScreen reputation | Notes |
+|---|---|---|---|
+| **Azure Trusted Signing** | about 10 €/month | immediate | Needs an Azure account and identity validation (individuals accepted). Recommended. |
+| **EV code-signing certificate** | 300–500 €/year | immediate | Hardware token or cloud HSM; the CI needs a signing service. |
+| **OV code-signing certificate** | 100–250 €/year | builds over weeks of downloads | Simplest to wire: a `.pfx` file. |
+
+For a `.pfx` certificate, the workflow is already prepared: store the file and its password as repository secrets and every tagged build is signed.
+
+```bash
+base64 -w0 your-certificate.pfx | gh secret set WIN_CSC_LINK --repo stefandsl/intelliprompter
+```
+
+```bash
+gh secret set WIN_CSC_KEY_PASSWORD --repo stefandsl/intelliprompter
+```
+
+For Azure Trusted Signing, add to `apps/desktop/package.json` under `build.win` an `azureSignOptions` block with your `publisherName`, `endpoint`, `certificateProfileName` and `codeSigningAccountName`, and the secrets `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` as workflow env; electron-builder signs with them. Set `build.win.publisherName` to the exact name on the certificate so the updater can verify downloaded installers.
+
+On macOS the equivalent is an Apple Developer ID certificate plus notarization (`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`) and removing `CSC_IDENTITY_AUTO_DISCOVERY: "false"` from the workflow.
 
 ---
 
