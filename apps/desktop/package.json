@@ -23,6 +23,7 @@
     "appId": "com.intelliprompter.app",
     "electronVersion": "33.4.11",
     "npmRebuild": false,
+    "artifactName": "Intelliprompter-${version}-${os}-${arch}.${ext}",
     "productName": "Intelliprompter",
     "directories": { "output": "../../release", "buildResources": "build" },
     "files": ["main.js", "preload.js", "build/icon.png", "package.json"],

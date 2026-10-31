@@ -81,9 +81,9 @@ Download the file for your OS from the **Releases** page of this repo (built aut
 
 | OS | File | Notes |
 |---|---|---|
-| Windows | `Intelliprompter Setup x.y.z.exe` or `Intelliprompter x.y.z.exe` (portable) | Unsigned: SmartScreen shows "unknown publisher". Click **More info → Run anyway**. |
-| macOS | `Intelliprompter-x.y.z-arm64.dmg` (Apple Silicon) or `-x64.dmg` (Intel) | Unsigned: first launch is blocked. Run once in Terminal: `xattr -dr com.apple.quarantine /Applications/Intelliprompter.app` |
-| Linux | `Intelliprompter-x.y.z.AppImage` or `.deb` | AppImage: `chmod +x` then run. Deb: `sudo apt install ./intelliprompter_x.y.z_amd64.deb` |
+| Windows | `Intelliprompter-x.y.z-win-x64.exe` (the NSIS installer; the portable build has the same name pattern) | Unsigned: SmartScreen shows "unknown publisher". Click **More info → Run anyway**. |
+| macOS | `Intelliprompter-x.y.z-mac-arm64.dmg` (Apple Silicon) or `-mac-x64.dmg` (Intel) | Unsigned: first launch is blocked. Run once in Terminal: `xattr -dr com.apple.quarantine /Applications/Intelliprompter.app` |
+| Linux | `Intelliprompter-x.y.z-linux-x64.AppImage` or `.deb` | AppImage: `chmod +x` then run. Deb: `sudo apt install ./intelliprompter_x.y.z_amd64.deb` |
 
 ### First start
 
