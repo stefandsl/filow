@@ -32,7 +32,7 @@ const settingsFile = path.join(userData, "settings.json");
 
 // ---- Screen Sense (ARCHITECTURE.md §6.1): sources, region picker, global hotkey ----
 const DEFAULT_HOTKEY = "CommandOrControl+Shift+Space";
-let settings = { screenHotkey: DEFAULT_HOTKEY, screenSense: true, contentProtection: false, remoteShare: false, mirrorHost: "", lang: "" };
+let settings = { screenHotkey: DEFAULT_HOTKEY, screenSense: true, contentProtection: false, remoteShare: true, mirrorHost: "", lang: "" };
 
 // Menu strings. The page owns the choice (Settings / EN-IT switch) and tells us over IPC; "" = system locale.
 const MENU_TEXT = {
@@ -196,6 +196,7 @@ function wireScreenSense() {
   ipcMain.on("remote:set", (_e, on) => {
     if (mainWin && !mainWin.isDestroyed()) void setRemoteShare(mainWin, Boolean(on));
   });
+  ipcMain.handle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
   ipcMain.on("ui:lang", (_e, lang) => {
     if (lang !== "en" && lang !== "it") return;
     settings.lang = lang;
@@ -263,7 +264,14 @@ function lanIp() {
 // token; pairing needs the 6-digit code and is rate limited.
 const { spawn, execFileSync } = require("node:child_process");
 const https = require("node:https");
-const tunnels = { procs: [], web: "", session: "" };
+const tunnels = { procs: [], web: "", session: "", state: "off", error: "" };
+
+/** Public-link state for the pairing dialog: off | downloading | connecting | on | error. */
+function remoteStatus(state, error = "") {
+  tunnels.state = state;
+  tunnels.error = error;
+  for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send("remote:status", { state, url: tunnels.web, error });
+}
 
 function cloudflaredPath() {
   const bundled = path.join(userData, "bin", process.platform === "win32" ? "cloudflared.exe" : "cloudflared");
@@ -296,22 +304,25 @@ function download(url, dest, hops = 5) {
 }
 
 /** Official cloudflared binary from GitHub releases, into <userData>/bin. Asks first. */
-async function ensureCloudflared(win) {
+async function ensureCloudflared(win, { silent = false } = {}) {
   const existing = cloudflaredPath();
   if (existing) return existing;
   const arch = process.arch === "arm64" ? "arm64" : "amd64";
   const base = "https://github.com/cloudflare/cloudflared/releases/latest/download/";
   const asset =
     process.platform === "win32" ? `cloudflared-windows-${arch}.exe` : process.platform === "darwin" ? `cloudflared-darwin-${arch}.tgz` : `cloudflared-linux-${arch}`;
-  const { response } = await dialog.showMessageBox(win, {
-    type: "question",
-    buttons: ["Download", "Cancel"],
-    defaultId: 0,
-    title: "Share to a phone on another network",
-    message: "This needs Cloudflare's free cloudflared tool (about 20 MB).",
-    detail: `It will be downloaded once from\n${base}${asset}\ninto\n${path.join(userData, "bin")}\n\nWhile sharing is on, the mirror page and the session relay are reachable through random *.trycloudflare.com URLs. Pairing still needs the 6-digit code.`,
-  });
-  if (response !== 0) return null;
+  if (!silent) {
+    const { response } = await dialog.showMessageBox(win, {
+      type: "question",
+      buttons: ["Download", "Cancel"],
+      defaultId: 0,
+      title: "Share to a phone on another network",
+      message: "This needs Cloudflare's free cloudflared tool (about 20 MB).",
+      detail: `It will be downloaded once from\n${base}${asset}\ninto\n${path.join(userData, "bin")}\n\nWhile sharing is on, the mirror page and the session relay are reachable through random *.trycloudflare.com URLs. Pairing still needs the 6-digit code.`,
+    });
+    if (response !== 0) return null;
+  }
+  remoteStatus("downloading");
   const bin = path.join(userData, "bin");
   fs.mkdirSync(bin, { recursive: true });
   const dest = path.join(bin, process.platform === "win32" ? "cloudflared.exe" : "cloudflared");
@@ -364,40 +375,63 @@ function stopTunnels() {
   }
   tunnels.procs = [];
   tunnels.web = tunnels.session = "";
+  tunnels.state = "off";
   delete process.env.INTELLIPROMPTER_PUBLIC_WEB;
   delete process.env.INTELLIPROMPTER_PUBLIC_SESSION;
 }
 
-async function setRemoteShare(win, on) {
+/**
+ * The public link is on by default (WhatsApp-style pairing: the QR works from any network).
+ * `auto` = at start-up: no dialogs, failures only show in the pairing dialog and the app keeps
+ * working on the LAN. From the menu or the dialog the user gets the download question and errors.
+ */
+let remoteBusy = false;
+async function setRemoteShare(win, on, { auto = false } = {}) {
+  if (remoteBusy) return;
+  remoteBusy = true;
   stopTunnels();
   settings.remoteShare = on;
   saveSettings();
-  if (on) {
-    try {
-      if (offline) throw new Error("Offline mode is on; sharing needs outbound connections.");
-      if (process.env.INTELLIPROMPTER_SESSION_URL) throw new Error("A hosted session server is configured in .env; its URL is already public.");
-      const bin = await ensureCloudflared(win);
-      if (!bin) {
-        settings.remoteShare = false;
-        saveSettings();
-        buildMenu(win);
-        win.reload(); // the pairing dialog is waiting for a reload either way
-        return;
+  try {
+    if (on) {
+      try {
+        if (offline) throw new Error("Offline mode is on; the public link needs outbound connections.");
+        if (process.env.INTELLIPROMPTER_SESSION_URL) throw new Error("A hosted session server is configured in .env; its URL is already public.");
+        remoteStatus("connecting");
+        const bin = await ensureCloudflared(win, { silent: auto });
+        if (!bin) {
+          settings.remoteShare = false;
+          saveSettings();
+          remoteStatus("off");
+          buildMenu(win);
+          win.reload();
+          return;
+        }
+        remoteStatus("connecting");
+        const [web, sess] = await Promise.all([startTunnel(bin, PORT), startTunnel(bin, SESSION_PORT)]);
+        tunnels.web = web;
+        tunnels.session = sess;
+        process.env.INTELLIPROMPTER_PUBLIC_WEB = web;
+        process.env.INTELLIPROMPTER_PUBLIC_SESSION = sess;
+        remoteStatus("on");
+      } catch (err) {
+        stopTunnels();
+        remoteStatus("error", String(err.message || err));
+        if (!auto) {
+          settings.remoteShare = false;
+          saveSettings();
+          dialog.showErrorBox("Could not share to another network", String(err.message || err));
+        }
+        // auto: stay "wanted" so the next launch retries; the LAN QR keeps working meanwhile
       }
-      const [web, sess] = await Promise.all([startTunnel(bin, PORT), startTunnel(bin, SESSION_PORT)]);
-      tunnels.web = web;
-      tunnels.session = sess;
-      process.env.INTELLIPROMPTER_PUBLIC_WEB = web;
-      process.env.INTELLIPROMPTER_PUBLIC_SESSION = sess;
-    } catch (err) {
-      stopTunnels();
-      settings.remoteShare = false;
-      saveSettings();
-      dialog.showErrorBox("Could not share to another network", String(err.message || err));
+    } else {
+      remoteStatus("off");
     }
+    buildMenu(win);
+    win.reload(); // the preload re-reads the public URLs; the page creates a fresh session and QR
+  } finally {
+    remoteBusy = false;
   }
-  buildMenu(win);
-  win.reload(); // the preload re-reads the public URLs; the page creates a fresh session and QR
 }
 
 /** Which address the QR carries on the LAN: auto, one of the interfaces, or INTELLIPROMPTER_MIRROR_HOST from .env. */
@@ -706,7 +740,7 @@ function buildMenu(win) {
         {
           label: tunnels.web ? mt("shareOn", { url: tunnels.web.replace("https://", "") }) : mt("share"),
           type: "checkbox",
-          checked: settings.remoteShare && Boolean(tunnels.web),
+          checked: Boolean(settings.remoteShare),
           click: (item) => void setRemoteShare(win, item.checked),
         },
         {
@@ -790,7 +824,7 @@ async function main() {
     await waitFor(APP_URL + "/api/stt/status");
     if (!process.env.INTELLIPROMPTER_SESSION_URL) await waitFor(`http://127.0.0.1:${SESSION_PORT}/health`);
     await win.loadURL(APP_URL);
-    if (settings.remoteShare) void setRemoteShare(win, true);
+    if (settings.remoteShare) void setRemoteShare(win, true, { auto: true });
     if (process.platform === "win32" || process.platform === "darwin") {
       if (settings.pptInstalled) {
         startHttpsProxy();

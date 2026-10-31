@@ -14,6 +14,12 @@ contextBridge.exposeInMainWorld("intelliprompter", {
   remoteShare: Boolean(process.env.INTELLIPROMPTER_PUBLIC_WEB),
   /** Turn the public link (Cloudflare tunnel) on or off; the app reloads with new pairing URLs. */
   setRemoteShare: (on) => ipcRenderer.send("remote:set", Boolean(on)),
+  remoteStatus: () => ipcRenderer.invoke("remote:status"),
+  onRemoteStatus: (fn) => {
+    const h = (_e, v) => fn(v);
+    ipcRenderer.on("remote:status", h);
+    return () => ipcRenderer.removeListener("remote:status", h);
+  },
   accessPassword: process.env.ACCESS_PASSWORD || "",
   offline: process.env.INTELLIPROMPTER_OFFLINE === "1",
   /** Subscribe to the Offline menu toggle. */

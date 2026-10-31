@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useT } from "@intelliprompter/ui";
 import type { SessionInfo } from "./useSession";
-import { desktopBridge } from "@/lib/sessionUrl";
+import { desktopBridge, type RemoteStatus } from "@/lib/sessionUrl";
 
 /** Shows the pairing code and a QR for the mirror URL. */
 export function PairPanel({ info, status, error }: { info: SessionInfo | null; status: string; error: string | null }) {
@@ -11,8 +11,17 @@ export function PairPanel({ info, status, error }: { info: SessionInfo | null; s
   const [qr, setQr] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [remote, setRemote] = useState<RemoteStatus | null>(null);
   const bridge = desktopBridge();
   const publicLink = Boolean(bridge?.remoteShare);
+
+  useEffect(() => {
+    if (!bridge?.remoteStatus) return;
+    void bridge.remoteStatus().then(setRemote);
+    return bridge.onRemoteStatus?.(setRemote);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const pending = remote?.state === "downloading" || remote?.state === "connecting";
 
   useEffect(() => {
     if (!info) return;
@@ -37,8 +46,8 @@ export function PairPanel({ info, status, error }: { info: SessionInfo | null; s
 
   return (
     <>
-      <button className="chip code" onClick={() => setOpen((o) => !o)} title={t("pair.showQr")}>
-        {t("app.pair")} {info.code} {status === "open" ? "●" : "○"}
+      <button className={`chip code ${pending ? "busy" : ""}`} onClick={() => setOpen((o) => !o)} title={t("pair.showQr")}>
+        {t("app.pair")} {info.code} {pending ? "…" : status === "open" ? "●" : "○"}
       </button>
       {open && (
         <div className="modal-bg" onClick={() => setOpen(false)}>
@@ -50,8 +59,20 @@ export function PairPanel({ info, status, error }: { info: SessionInfo | null; s
               {t("pair.hint", { url: info.mirrorUrl })}
               {status !== "open" && <> {t("pair.relay", { status })}</>}
             </div>
-            <div className={`chip ${publicLink ? "live" : ""}`}>{bridge ? (publicLink ? t("pair.reachPublic") : t("pair.reachLan")) : t("pair.webHint")}</div>
-            {bridge?.setRemoteShare && (
+            <div className={`chip ${publicLink ? "live" : pending ? "busy" : remote?.state === "error" ? "err" : ""}`}>
+              {!bridge
+                ? t("pair.webHint")
+                : publicLink
+                  ? t("pair.reachPublic")
+                  : remote?.state === "downloading"
+                    ? t("pair.downloading")
+                    : remote?.state === "connecting"
+                      ? t("pair.connecting")
+                      : remote?.state === "error"
+                        ? t("pair.linkError", { error: remote.error })
+                        : t("pair.reachLan")}
+            </div>
+            {bridge?.setRemoteShare && !pending && (
               <div className="hint">
                 <button
                   className={`btn ${publicLink ? "" : "primary"}`}
@@ -62,9 +83,8 @@ export function PairPanel({ info, status, error }: { info: SessionInfo | null; s
                     bridge.setRemoteShare?.(!publicLink);
                   }}
                 >
-                  {switching ? "…" : publicLink ? t("pair.disablePublic") : t("pair.enablePublic")}
+                  {switching ? "…" : publicLink ? t("pair.disablePublic") : remote?.state === "error" ? t("pair.retry") : t("pair.enablePublic")}
                 </button>
-                {!publicLink && <> {t("pair.enablePublicHint")}</>}
               </div>
             )}
             <button className="btn" onClick={() => setOpen(false)}>

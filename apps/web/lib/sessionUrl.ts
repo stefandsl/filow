@@ -13,7 +13,16 @@ export type DesktopBridge = {
   mirrorServerUrl?: string;
   remoteShare?: boolean;
   setRemoteShare?: (on: boolean) => void;
+  remoteStatus?: () => Promise<RemoteStatus>;
+  onRemoteStatus?: (fn: (s: RemoteStatus) => void) => () => void;
   accessPassword: string;
+};
+
+export type RemoteStatus = {
+  state: "off" | "downloading" | "connecting" | "on" | "error";
+  url: string;
+  error: string;
+  wanted?: boolean;
 };
 
 export function desktopBridge(): DesktopBridge | null {
