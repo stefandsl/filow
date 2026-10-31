@@ -2,9 +2,9 @@
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { connect, type SessionClient } from "@intelliprompter/client";
-import { Engine, parseScript, type Command, type DecideRequest, type DecideResponse, type SessionState, type SttStatus } from "@intelliprompter/core";
+import { Engine, isLang, langFromLocale, LANGS, parseScript, type Command, type DecideRequest, type DecideResponse, type Lang, type SessionState, type SttStatus } from "@intelliprompter/core";
 import { availableBackends, BACKEND_LABELS, createBackend, startAuto, type SttBackend } from "@intelliprompter/stt";
-import { StageView } from "@intelliprompter/ui";
+import { LangProvider, StageView, useT } from "@intelliprompter/ui";
 import { getSelectedSlide, hostInfo, onSelectionChange, readNotesAsScript, selectSlide, supportsNotes } from "./office";
 import { attachSlideImages, mintEngineToken, readSlidesForGeneration, requestGeneration } from "./generate";
 import "./taskpane.css";
@@ -31,10 +31,34 @@ const store = {
 /** Served by the desktop app's HTTPS proxy on this PC: the pane should mirror that app, not run its own engine. */
 const ON_DESKTOP_APP = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
 
+function officeLang(): Lang {
+  const stored = store.get("lang");
+  if (isLang(stored)) return stored;
+  let locale = "";
+  try {
+    locale = String(Office.context.displayLanguage || Office.context.contentLanguage || "");
+  } catch {
+    /* outside Office */
+  }
+  return langFromLocale(locale || (typeof navigator !== "undefined" ? navigator.language : ""));
+}
+
 function App() {
+  const [lang, setLang] = useState<Lang>(() => officeLang());
+  useEffect(() => store.set("lang", lang), [lang]);
+  return (
+    <LangProvider lang={lang}>
+      <AppInner lang={lang} onLang={setLang} />
+    </LangProvider>
+  );
+}
+
+function AppInner({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
+  const t = useT();
   const host = hostInfo();
-  const [mode, setMode] = useState<Mode>(() => (store.get("mode") as Mode) || (ON_DESKTOP_APP ? "view" : host.canUseMic ? "engine" : "view"));
-  useEffect(() => store.set("mode", mode), [mode]);
+  // "mode2": the default changed in 0.6.0 (follow the app on this PC); older stored choices are ignored once.
+  const [mode, setMode] = useState<Mode>(() => (store.get("mode2") as Mode) || (ON_DESKTOP_APP ? "view" : host.canUseMic ? "engine" : "view"));
+  useEffect(() => store.set("mode2", mode), [mode]);
   return (
     <div className="pane">
       <header className="topbar">
@@ -42,17 +66,22 @@ function App() {
           <span className="dot" /> INTELLIPROMPTER
         </div>
         <span className="spacer" />
-        <select className="btn" value={mode} onChange={(e) => setMode(e.target.value as Mode)} title="Engine mode runs the microphone here; View mode mirrors a session from another device">
+        <span className="langswitch">
+          {LANGS.map((l) => (
+            <button key={l} className={`chip ${lang === l ? "code" : ""}`} onClick={() => onLang(l)}>
+              {l.toUpperCase()}
+            </button>
+          ))}
+        </span>
+        <select className="btn" value={mode} onChange={(e) => setMode(e.target.value as Mode)} title={t("ppt.modeTitle")}>
           <option value="engine" disabled={!host.canUseMic}>
-            Engine (mic here){host.canUseMic ? "" : " · not on this host"}
+            {host.canUseMic ? t("ppt.modeEngine") : t("ppt.modeEngineNo")}
           </option>
-          <option value="view">View (pair by code)</option>
+          <option value="view">{t("ppt.modeView")}</option>
         </select>
       </header>
       {mode === "engine" ? <EnginePane webSpeech={host.webSpeech} /> : <ViewPane />}
-      <footer className="help">
-        Live presenting: PowerPoint hides task panes in Slide Show, and its API cannot follow the show. Use the phone mirror or the desktop app on stage; this pane loads the script and follows the selected slide while editing.
-      </footer>
+      <footer className="help">{t("ppt.help")}</footer>
     </div>
   );
 }
@@ -77,6 +106,7 @@ function useSlideSync(state: SessionState | null, send: (cmd: Command) => void) 
 }
 
 function LoadNotesButton({ onText }: { onText: (text: string) => Promise<void> | void }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const notesOk = supportsNotes();
@@ -93,7 +123,7 @@ function LoadNotesButton({ onText }: { onText: (text: string) => Promise<void> |
             const parsed = parseScript(text);
             await onText(text);
             const n = parsed.sections.reduce((a, s) => a + s.bullets.length, 0);
-            setMsg(`${parsed.sections.length} slides, ${n} points` + (notesOk ? "" : " · this PowerPoint cannot expose speaker notes; add - lines to notes in PowerPoint for the web or Microsoft 365"));
+            setMsg(t("ppt.loaded", { slides: parsed.sections.length, points: n }) + (notesOk ? "" : " " + t("ppt.noNotes")));
           } catch (err) {
             setMsg((err as Error).message);
           } finally {
@@ -101,7 +131,7 @@ function LoadNotesButton({ onText }: { onText: (text: string) => Promise<void> |
           }
         }}
       >
-        {busy ? "Reading…" : "Load script from notes"}
+        {busy ? t("ppt.reading") : t("ppt.loadNotes")}
       </button>
       {msg && <span className="hint">{msg}</span>}
     </span>
@@ -114,20 +144,21 @@ function LoadNotesButton({ onText }: { onText: (text: string) => Promise<void> |
  * asks the relay for a short-lived one (view mode, controllers only).
  */
 function GenerateButton({ getToken, onText }: { getToken: () => Promise<string>; onText: (text: string) => Promise<void> | void }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const run = async () => {
     setBusy(true);
-    setMsg("Reading slides…");
+    setMsg(t("ppt.readingSlides"));
     try {
       const slides = await readSlidesForGeneration();
       const images = await attachSlideImages(slides);
-      setMsg(`0 / ${slides.length}${images ? ` · ${images} slide images` : ""}`);
+      setMsg(`0 / ${slides.length}${images ? ` · ${images} ${t("ppt.slideImages")}` : ""}`);
       const token = await getToken();
       const out = await requestGeneration(ORIGIN, token, slides, undefined, (p) => setMsg(`${p.done} / ${p.total} · ${p.title}`));
       setPreview(out.text);
-      setMsg(`Done with ${out.model}${out.cost ? ` · $${out.cost.toFixed(4)}` : ""}. Review, then load.`);
+      setMsg(t("ppt.doneWith", { model: out.model + (out.cost ? ` · $${out.cost.toFixed(4)}` : "") }));
     } catch (err) {
       setMsg((err as Error).message);
     } finally {
@@ -136,14 +167,14 @@ function GenerateButton({ getToken, onText }: { getToken: () => Promise<string>;
   };
   return (
     <span className="row">
-      <button className="btn" disabled={busy} onClick={() => void run()} title="Writes 3-5 spoken points per slide from the slide text (and images where needed). Speaker notes win where present.">
-        {busy ? "Generating…" : "Generate script from slides"}
+      <button className="btn" disabled={busy} onClick={() => void run()} title={t("ppt.generateTitle")}>
+        {busy ? t("ppt.generating") : t("ppt.generate")}
       </button>
       {msg && <span className="hint">{msg}</span>}
       {preview !== null && (
         <div className="modal-bg" onClick={() => setPreview(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="eyebrow">Generated script · review before loading</div>
+            <div className="eyebrow">{t("ppt.reviewTitle")}</div>
             <textarea value={preview} onChange={(e) => setPreview(e.target.value)} spellCheck={false} />
             <div className="controls">
               <button
@@ -152,17 +183,17 @@ function GenerateButton({ getToken, onText }: { getToken: () => Promise<string>;
                   try {
                     await onText(preview);
                     const parsed = parseScript(preview);
-                    setMsg(`${parsed.sections.length} slides, ${parsed.sections.reduce((a, x) => a + x.bullets.length, 0)} points loaded`);
+                    setMsg(t("ppt.pointsLoaded", { slides: parsed.sections.length, points: parsed.sections.reduce((a, x) => a + x.bullets.length, 0) }));
                     setPreview(null);
                   } catch (err) {
                     setMsg((err as Error).message);
                   }
                 }}
               >
-                Load into session
+                {t("ppt.loadIntoSession")}
               </button>
               <button className="btn" onClick={() => setPreview(null)}>
-                Cancel
+                {t("common.cancel")}
               </button>
             </div>
           </div>
@@ -174,6 +205,7 @@ function GenerateButton({ getToken, onText }: { getToken: () => Promise<string>;
 
 // ---- engine mode ----------------------------------------------------------------------
 function EnginePane({ webSpeech }: { webSpeech: boolean }) {
+  const t = useT();
   const [password, setPassword] = useState(() => store.get("password"));
   const [token, setToken] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
@@ -212,7 +244,7 @@ function EnginePane({ webSpeech }: { webSpeech: boolean }) {
     store.set("password", password);
     try {
       const res = await fetch(`${ORIGIN}/api/session`, { method: "POST", headers: password ? { "X-Access-Password": password } : {} });
-      if (res.status === 401) return setError("wrong access password");
+      if (res.status === 401) return setError(t("ppt.wrongPassword"));
       if (!res.ok) throw new Error(`session create failed (${res.status})`);
       const created = (await res.json()) as { id: string; code: string; engineToken: string };
       setToken(created.engineToken);
@@ -276,14 +308,14 @@ function EnginePane({ webSpeech }: { webSpeech: boolean }) {
   if (!code) {
     return (
       <div className="setup">
-        <div className="eyebrow">Engine mode</div>
-        <p className="hint">This pane will run the microphone and the decision loop, and publish a session other devices can mirror.</p>
+        <div className="eyebrow">{t("ppt.engineMode")}</div>
+        <p className="hint">{t("ppt.engineHint")}</p>
         <label className="hint">
-          Access password (only if the server has one)
+          {t("ppt.password")}
           <input className="btn" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
         <button className="btn primary" onClick={() => void startSession()}>
-          Start session
+          {t("ppt.startSession")}
         </button>
         {error && <span className="chip err">{error}</span>}
       </div>
@@ -306,6 +338,7 @@ function EnginePane({ webSpeech }: { webSpeech: boolean }) {
 
 // ---- view mode -------------------------------------------------------------------------
 function ViewPane() {
+  const t = useT();
   const [code, setCode] = useState(() => store.get("code"));
   const [client, setClient] = useState<SessionClient | null>(null);
   const [state, setState] = useState<SessionState | null>(null);
@@ -357,14 +390,8 @@ function ViewPane() {
   if (!client) {
     return (
       <div className="setup">
-        <div className="eyebrow">View mode</div>
-        <p className="hint">
-          {ON_DESKTOP_APP
-            ? localCode
-              ? "Joining the Intelliprompter app running on this PC…"
-              : "Open the Intelliprompter app on this PC and this pane joins it by itself; or enter a code from another device."
-            : "Mirror a session running on your laptop or phone. Enter the 6-digit code it shows."}
-        </p>
+        <div className="eyebrow">{t("ppt.viewMode")}</div>
+        <p className="hint">{ON_DESKTOP_APP ? (localCode ? t("ppt.joining") : t("ppt.openApp")) : t("ppt.mirrorHint")}</p>
         <form
           className="row"
           onSubmit={(e) => {
@@ -374,7 +401,7 @@ function ViewPane() {
         >
           <input className="btn code-input" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="123456" />
           <button className="btn primary" type="submit" disabled={code.length !== 6 || status === "pairing"}>
-            {status === "pairing" ? "Pairing…" : "Join"}
+            {status === "pairing" ? t("mirror.pairing") : t("mirror.join")}
           </button>
         </form>
         {error && <span className="chip err">{error}</span>}
@@ -407,7 +434,7 @@ function ViewPane() {
           }}
         />
       </div>
-      {state ? <StageView state={state} onCommand={send} banner={status.startsWith("connecting") ? "engine offline" : error} /> : <div className="hint">Waiting for the engine…</div>}
+      {state ? <StageView state={state} onCommand={send} banner={status.startsWith("connecting") ? t("ppt.engineOffline") : error} /> : <div className="hint">{t("ppt.waitingEngine")}</div>}
     </>
   );
 }

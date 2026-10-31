@@ -4,8 +4,8 @@
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { connect, type SessionClient } from "@intelliprompter/client";
-import { parseScript, slideNeedsImage, type Command, type GenerateProgress, type ScreenMode, type SessionState, type SlideInput, type VisionResponse } from "@intelliprompter/core";
-import { LangProvider, StageView } from "@intelliprompter/ui";
+import { langFromLocale, LANGS, parseScript, slideNeedsImage, type Command, type GenerateProgress, type Lang, type ScreenMode, type SessionState, type SlideInput, type VisionResponse } from "@intelliprompter/core";
+import { LangProvider, StageView, useT } from "@intelliprompter/ui";
 import type { SlideInfo } from "./adapters";
 import "./sidepanel.css";
 
@@ -27,6 +27,25 @@ async function mintEngineToken(server: string, id: string, viewToken: string): P
 }
 
 function App() {
+  const [lang, setLang] = useState<Lang>(() => langFromLocale(navigator.language));
+  useEffect(() => {
+    void storage.get<Lang | "">("lang", "").then((l) => l && setLang(l));
+  }, []);
+  return (
+    <LangProvider lang={lang}>
+      <Panel
+        lang={lang}
+        onLang={(l) => {
+          setLang(l);
+          void storage.set("lang", l);
+        }}
+      />
+    </LangProvider>
+  );
+}
+
+function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
+  const t = useT();
   const [server, setServer] = useState("http://127.0.0.1:4748");
   const [appServer, setAppServer] = useState("http://127.0.0.1:4747");
   const [code, setCode] = useState("");
@@ -128,7 +147,7 @@ function App() {
     const cl = clientRef.current;
     if (!cl) return;
     setError(null);
-    setProgress("Reading the deck…");
+    setProgress(t("ext.reading"));
     try {
       const first = await toContent<{ ok: boolean; info?: SlideInfo }>({ t: "probe" });
       if (!first.ok || !first.info) throw new Error("attach the deck tab first");
@@ -146,7 +165,7 @@ function App() {
           if (cap.ok && cap.dataUrl) slide.imageBase64 = cap.dataUrl.replace(/^data:image\/\w+;base64,/, "");
         }
         slides.push(slide);
-        setProgress(`Collected ${slides.length}${info.total ? ` / ${info.total}` : ""}…`);
+        setProgress(t("ext.collected", { n: `${slides.length}${info.total ? ` / ${info.total}` : ""}` }));
         const n = await toContent<{ ok: boolean; info?: SlideInfo }>({ t: "next" });
         if (!n.ok || !n.info) break;
         info = n.info;
@@ -178,7 +197,7 @@ function App() {
       }
       if (text === null) throw new Error("stream ended early");
       setPreview(text);
-      setProgress("Review the script, then load it.");
+      setProgress(t("ext.review"));
     } catch (err) {
       setError((err as Error).message);
       setProgress(null);
@@ -204,26 +223,33 @@ function App() {
   }, []);
 
   return (
-    <LangProvider lang="en">
+    <>
       <div className="pane">
         <header className="topbar">
           <div className="logo">
             <span className="dot" /> INTELLIPROMPTER
           </div>
           <span className="spacer" />
-          {client && <span className="chip live">{status === "open" ? "● paired" : status}</span>}
+          <span className="langswitch">
+            {LANGS.map((l) => (
+              <button key={l} className={`chip ${lang === l ? "code" : ""}`} onClick={() => onLang(l)}>
+                {l.toUpperCase()}
+              </button>
+            ))}
+          </span>
+          {client && <span className="chip live">{status === "open" ? "●" : status}</span>}
         </header>
 
         {!client ? (
           <div className="setup">
-            <div className="eyebrow">Pair with your session</div>
-            <p className="hint">Open Intelliprompter (desktop app or server), click its pairing code, and enter it here. The desktop app on this PC is the default.</p>
+            <div className="eyebrow">{t("ext.pairTitle")}</div>
+            <p className="hint">{t("ext.pairHint")}</p>
             <label className="hint">
-              Session server (relay)
+              {t("ext.relay")}
               <input className="btn" value={server} onChange={(e) => setServer(e.target.value)} placeholder="http://127.0.0.1:4748" />
             </label>
             <label className="hint">
-              App server (API)
+              {t("ext.api")}
               <input className="btn" value={appServer} onChange={(e) => setAppServer(e.target.value)} placeholder="http://127.0.0.1:4747" />
             </label>
             <form
@@ -235,7 +261,7 @@ function App() {
             >
               <input className="btn code-input" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="123456" />
               <button className="btn primary" type="submit" disabled={code.length !== 6 || status === "pairing"}>
-                {status === "pairing" ? "Pairing…" : "Join"}
+                {status === "pairing" ? t("mirror.pairing") : t("mirror.join")}
               </button>
             </form>
             {error && <span className="chip err">{error}</span>}
@@ -244,13 +270,13 @@ function App() {
           <>
             <div className="controls">
               <button className="btn" onClick={() => void attach()}>
-                {attached ? `Deck: ${attached.adapter}` : "Use this tab as the deck"}
+                {attached ? t("ext.deck", { adapter: attached.adapter ?? "" }) : t("ext.useTab")}
               </button>
               <button className="btn primary" disabled={!attached} onClick={() => void generate()}>
-                Generate script from this deck
+                {t("ext.generate")}
               </button>
               <label className={`btn choice ${follow ? "primary" : ""}`}>
-                <input type="checkbox" checked={follow} disabled={!attached} onChange={(e) => setFollow(e.target.checked)} /> Follow
+                <input type="checkbox" checked={follow} disabled={!attached} onChange={(e) => setFollow(e.target.checked)} /> {t("ext.follow")}
               </label>
               <select
                 className="btn"
@@ -261,37 +287,37 @@ function App() {
                 }}
                 title="Vision for image-only slides while following"
               >
-                <option value="off">Vision off</option>
-                <option value="slide-change">Vision on slide change</option>
-                <option value="balanced">Vision balanced</option>
-                <option value="realtime">Vision real-time</option>
+                <option value="off">{t("ext.visionOff")}</option>
+                <option value="slide-change">{t("ext.visionChange")}</option>
+                <option value="balanced">{t("ext.visionBalanced")}</option>
+                <option value="realtime">{t("ext.visionRealtime")}</option>
               </select>
               {progress && <span className="hint">{progress}</span>}
               {error && <span className="chip err">{error}</span>}
             </div>
-            {state ? <StageView state={state} onCommand={send} banner={status.startsWith("connecting") ? "engine offline" : null} /> : <div className="hint">Waiting for the engine…</div>}
+            {state ? <StageView state={state} onCommand={send} banner={status.startsWith("connecting") ? t("ppt.engineOffline") : null} /> : <div className="hint">{t("ppt.waitingEngine")}</div>}
           </>
         )}
 
         {preview !== null && (
           <div className="modal-bg" onClick={() => setPreview(null)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
-              <div className="eyebrow">Generated script · review before loading</div>
+              <div className="eyebrow">{t("ppt.reviewTitle")}</div>
               <textarea value={preview} onChange={(e) => setPreview(e.target.value)} spellCheck={false} />
               <div className="controls">
                 <button className="btn primary" onClick={() => void loadScript(preview).catch((e) => setError((e as Error).message))}>
-                  Load into session
+                  {t("ppt.loadIntoSession")}
                 </button>
                 <button className="btn" onClick={() => setPreview(null)}>
-                  Cancel
+                  {t("common.cancel")}
                 </button>
               </div>
             </div>
           </div>
         )}
-        <footer className="help">Page text is treated as data, never as instructions. Frames for image slides are captured only when you generate or follow, and are not stored.</footer>
+        <footer className="help">{t("ext.help")}</footer>
       </div>
-    </LangProvider>
+    </>
   );
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "@intelliprompter/browser",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "private": true,
   "description": "Browser extension (Chrome, Edge, Brave, Opera, Arc; Firefox via polyfill): side panel that follows HTML slide decks and generates the script from them.",
   "scripts": {
