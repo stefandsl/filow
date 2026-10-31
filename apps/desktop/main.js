@@ -478,9 +478,25 @@ $cert = New-SelfSignedCertificate -DnsName 'localhost','127.0.0.1' -CertStoreLoc
 $pwd = ConvertTo-SecureString -String '${settings.pfxPassword}' -Force -AsPlainText
 Export-PfxCertificate -Cert $cert -FilePath '${pfxFile.replace(/'/g, "''")}' -Password $pwd | Out-Null
 Export-Certificate -Cert $cert -FilePath '${path.join(certDir, "localhost.cer").replace(/'/g, "''")}' | Out-Null
-Import-Certificate -FilePath '${path.join(certDir, "localhost.cer").replace(/'/g, "''")}' -CertStoreLocation 'Cert:\\CurrentUser\\Root' | Out-Null
 Write-Output $cert.Thumbprint`;
   await runPowerShell(ps);
+}
+
+/**
+ * Trust the certificate for the current user. Adding to CurrentUser\Root always goes through a Windows
+ * confirmation dialog, which PowerShell -NonInteractive refuses ("user interface not allowed"); certutil
+ * shows the dialog itself. Tracked separately so a retry never skips it.
+ */
+async function ensureCertTrusted() {
+  if (process.platform !== "win32" || settings.certTrusted) return;
+  const cer = path.join(certDir, "localhost.cer");
+  if (!fs.existsSync(cer)) {
+    // cer missing but pfx present (older install): re-export it from the user store
+    await runPowerShell(`$c = Get-ChildItem Cert:\\CurrentUser\\My | Where-Object { $_.FriendlyName -eq 'Intelliprompter localhost' } | Select-Object -First 1; if (-not $c) { throw 'certificate not found' }; Export-Certificate -Cert $c -FilePath '${cer.replace(/'/g, "''")}' | Out-Null`);
+  }
+  await runCommand("certutil.exe", ["-user", "-addstore", "Root", cer]);
+  settings.certTrusted = true;
+  saveSettings();
 }
 
 /** HTTPS → the local servers. /api/session* and /ws go to the relay; everything else to the web app.
@@ -549,6 +565,7 @@ async function installPowerPointAddin(win, { silent = false } = {}) {
   }
   try {
     await ensureLocalhostCert();
+    await ensureCertTrusted();
     startHttpsProxy();
     writeLocalPptManifest();
     await registerPptManifest();
