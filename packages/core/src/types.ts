@@ -31,7 +31,7 @@ export type PointState = {
 /** @deprecated use PointState */
 export type BulletState = PointState;
 
-export type SttBackendId = "browser" | "elevenlabs" | "openai";
+export type SttBackendId = "browser" | "elevenlabs" | "openai" | "whisper";
 
 export type ScreenSummary = {
   at: number;

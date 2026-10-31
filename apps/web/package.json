@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 4747",
-    "build": "next build && node ../../scripts/prepare-standalone.js",
+    "build": "node ../../scripts/copy-ort.js && next build && node ../../scripts/prepare-standalone.js",
     "start": "next start -p 4747",
     "start:server": "node .next/standalone/apps/web/server.js",
     "typecheck": "tsc --noEmit"

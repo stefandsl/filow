@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import os from "node:os";
 import { OLLAMA_URL } from "@/lib/decide/clef";
 import { LOCAL_MODELS, fits, versionAtLeast } from "@/lib/localModels";
+import { PII_SERVER_URL, piiMode, rizzoReachable } from "@/lib/pii/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +26,12 @@ export async function GET() {
   const models = LOCAL_MODELS.map((m) => ({
     ...m,
     fit: fits(ramGb, m),
-    installed: installed.some((i) => i.name === m.name || i.name.startsWith(`${m.name}:`)),
-    ollamaOk: m.minOllama && version ? versionAtLeast(version, m.minOllama) : Boolean(version),
+    installed: m.runtime === "ollama" && installed.some((i) => i.name === m.name || i.name.startsWith(`${m.name}:`)),
+    ollamaOk: m.runtime === "browser" ? true : m.minOllama && version ? versionAtLeast(version, m.minOllama) : Boolean(version),
   }));
+  const pii = { mode: piiMode(), serverUrl: PII_SERVER_URL(), serverReachable: await rizzoReachable() };
   return NextResponse.json({
+    pii,
     ollama: { url: base, reachable: version !== null, version, minimum: "0.35.1", ok: version ? versionAtLeast(version, "0.35.1") : false },
     machine: { ramGb, platform: process.platform, arch: process.arch },
     offline: process.env.INTELLIPROMPTER_OFFLINE === "1",

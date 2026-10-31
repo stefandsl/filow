@@ -312,7 +312,7 @@ Requirement from the owner: run fully on-device on Windows, Linux and macOS by d
 | Capability | Cloud | Local | Where |
 |---|---|---|---|
 | decision | OpenRouter JSON classifier; Clef on Workers AI | **Clef via Ollama** (`packages/core/src/clef.ts` builds one `noul` question per open point and one per on-screen fact; the probability is the confidence, no JSON parsing) | `apps/web/lib/decide/*`, `/api/decide` |
-| stt | ElevenLabs, OpenAI, Web Speech | local Whisper (whisper.cpp streaming, planned next pass; ggml base/small/medium in app data) | `packages/stt` |
+| stt | ElevenLabs, OpenAI, Web Speech | **Whisper on-device** via transformers.js in a Web Worker (ONNX, WebGPU or WebAssembly; `onnx-community/whisper-base` or `-small`, downloaded from the Hub into the browser cache, ORT runtime served by the app from `/ort/`); 4 s windows, committed per window. Chosen over whisper.cpp because it needs no per-platform binary and runs identically in the web app, Electron and the PowerPoint pane | `packages/stt/src/whisper.ts` |
 | vision (Screen Sense) | OpenRouter multimodal | Ollama vision model (qwen3-vl or similar), or Clef 27B for the yes/no gates | with Screen Sense |
 | tts (v2) | cloud | Piper / Kokoro | v2 |
 
@@ -322,7 +322,7 @@ Rule kept from STT: an explicit provider choice never silently falls back to ano
 
 **Offline mode** (built): the desktop menu toggle forces local providers (`INTELLIPROMPTER_OFFLINE=1`) and blocks every renderer request whose host is not this machine (`session.webRequest.onBeforeRequest`), with an OFFLINE chip in the top bar and zero cost in the footer. The web deploy honours the same env variable and can point `OLLAMA_URL` at an Ollama on the server.
 
-**PII guard** (next pass): Rizzo-PII runs locally and anonymises the transcript window, the script and screen summaries before any cloud call, keeps the reversible map in memory, and restores placeholders in results. Toggle "Anonymise personal data before cloud calls", on by default in the Italian locale. Implementation options: ONNX export run with `onnxruntime-node` in the Electron main process, or the repo's local server as a managed sidecar. A regex layer (emails, phones, IBANs, card numbers) covers other languages.
+**PII guard** (built, `apps/web/lib/pii/guard.ts`): before a cloud decision provider is called, every text field of the request (transcript window, point texts, covered, upcoming, on-screen facts) is anonymised with one shared in-memory map and placeholders are restored in the answer's `unmentioned` facts. Two layers: the **Rizzo-PII local server** (`POST /analyze` on `PII_SERVER_URL`, default `127.0.0.1:5005`, run from the repo's Docker image; response keys read defensively since only the README was available) when reachable, plus a **regex layer** always (emails, phones, IBANs, Luhn-valid card numbers, Italian codice fiscale). Modes: `PII_GUARD=on` (default), `strict` (refuse cloud calls without Rizzo-PII), `off`. Local providers skip the guard. The footer shows `pii rizzo+regex (n)` when placeholders were used.
 
 **Config**: `DECISION_PROVIDER=openrouter|clef-local|clef-cloudflare`, `OLLAMA_URL`, `CLEF_MODEL`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `CLEF_CLOUDFLARE_MODEL`, `INTELLIPROMPTER_OFFLINE`; later `STT_PROVIDER`, `VISION_PROVIDER`, `PII_GUARD`.
 
@@ -420,6 +420,7 @@ Runner: vitest, tests beside sources in `packages/*/src/**.test.ts`; Playwright 
 | 2026-10-31 | Drawing and speaking (Clicky-style) is version 2, specified in §6.9, not built in the current pass | owner's request via side session |
 | 2026-10-31 | Phase 3 PowerPoint add-in built (apps/powerpoint) | this repo |
 | 2026-10-31 | Local mode is v1: Clef via Ollama as the local decision model, Settings page, offline switch built; local Whisper and the PII guard next | owner's request via side session |
+| 2026-10-31 | On-device Whisper via transformers.js (not whisper.cpp) and the PII guard (Rizzo-PII sidecar + regex) built | this repo |
 
 ## 14. Roadmap
 
@@ -430,7 +431,7 @@ Estimates assume one engineer, include tests, exclude store review and code sign
 | 1 | Monorepo split per §5.7; `Engine` class with flip rule, per-call timeout and cost cap; engine tests; web and desktop unchanged for users | 3 |
 | 2 | `apps/server` relay with pairing, roles, TTLs, rate limits and tests; engine token gating on the Next API; desktop LAN and hosted modes; `/mirror` PWA; Caddy and systemd docs | 4 |
 | L1 | Local mode (§6.10): provider layer, Clef via Ollama, Settings > Local models, offline switch | done |
-| L2 | Local Whisper streaming backend with model download; PII guard (Rizzo-PII + regex) before cloud calls | 4 |
+| L2 | On-device Whisper backend with in-app model download; PII guard (Rizzo-PII + regex) before cloud calls | done |
 | 6a | Screen Sense on desktop: always-on capture with dedup and cap, ON SCREEN strip, cost dial, Forget button | 4 |
 | 6b | Document import; hotkey region picker; gap detector; live notes export | 4 |
 | 3 | PowerPoint: one-day spike (mic on WebView2 and web, selection sync), then notes → script, editor sync, slide text to Screen Sense | 1 + 4 |

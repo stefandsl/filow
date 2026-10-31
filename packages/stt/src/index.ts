@@ -3,14 +3,17 @@ import type { SttBackend, SttHandlers } from "./types";
 import { BrowserStt } from "./browser";
 import { ElevenLabsStt } from "./elevenlabs";
 import { OpenAiStt } from "./openai";
+import { LocalWhisperStt } from "./whisper";
 
 export type { SttBackend, SttHandlers, TranscriptEvent } from "./types";
 export { browserSupported } from "./browser";
+export * from "./whisperModels";
 
 export const BACKEND_LABELS: Record<SttBackendId, string> = {
   elevenlabs: "ElevenLabs Scribe v2",
   openai: "OpenAI gpt-live-transcribe",
   browser: "Browser (Web Speech)",
+  whisper: "Whisper on this device",
 };
 
 export type BackendOptions = {
@@ -18,6 +21,10 @@ export type BackendOptions = {
   baseUrl?: string;
   /** Extra headers for the token requests (the engine token when ACCESS_PASSWORD is set). */
   headers?: Record<string, string>;
+  /** Whisper model id (transformers.js). Default: the one chosen in Settings. */
+  whisperModel?: string;
+  /** Language hint for Whisper, e.g. "it". */
+  language?: string;
 };
 
 export function createBackend(id: SttBackendId, opts: BackendOptions = {}): SttBackend {
@@ -30,15 +37,29 @@ export function createBackend(id: SttBackendId, opts: BackendOptions = {}): SttB
       return new OpenAiStt(base, headers);
     case "browser":
       return new BrowserStt();
+    case "whisper":
+      return new LocalWhisperStt(opts.whisperModel, opts.language);
   }
 }
 
-/** Backends that can run right now, best first. */
-export function availableBackends(status: SttStatus, webSpeech: boolean): SttBackendId[] {
+export type Availability = {
+  webSpeech: boolean;
+  /** Whisper can run (Web Workers + WebAssembly present). */
+  whisper?: boolean;
+  /** Offline: only on-device backends are offered. */
+  offline?: boolean;
+};
+
+/** Backends that can run right now, best first. Cloud first, then free browser STT, then on-device Whisper. */
+export function availableBackends(status: SttStatus, webSpeech: boolean | Availability): SttBackendId[] {
+  const a: Availability = typeof webSpeech === "boolean" ? { webSpeech } : webSpeech;
+  const whisper = a.whisper ?? (typeof Worker !== "undefined" && typeof WebAssembly !== "undefined");
+  if (a.offline) return whisper ? ["whisper"] : [];
   const out: SttBackendId[] = [];
   if (status.elevenlabs) out.push("elevenlabs");
   if (status.openai) out.push("openai");
-  if (webSpeech) out.push("browser");
+  if (a.webSpeech) out.push("browser");
+  if (whisper) out.push("whisper");
   return out;
 }
 
@@ -59,9 +80,10 @@ export async function startAuto(
   onAttempt: (id: SttBackendId, note: string) => void,
   opts: BackendOptions & { probeMs?: number } = {},
 ): Promise<AutoResult> {
-  const probeMs = opts.probeMs ?? 8000;
   let lastError = "no transcription backend available";
   for (const id of candidates) {
+    // Whisper needs a few seconds to load and then a full window before its first words.
+    const probeMs = opts.probeMs ?? (id === "whisper" ? 30000 : 8000);
     const backend = createBackend(id, opts);
     const t0 = performance.now();
     onAttempt(id, "connecting");

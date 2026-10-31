@@ -94,7 +94,7 @@ export default function Teleprompter() {
     };
     try {
       if (choice === "auto") {
-        const candidates = availableBackends(sttStatus, hasWebSpeech);
+        const candidates = availableBackends(sttStatus, { webSpeech: hasWebSpeech, offline });
         const { backend } = await startAuto(
           candidates,
           handlers,
@@ -130,7 +130,7 @@ export default function Teleprompter() {
   }, [eng.recording]);
 
   const tail = state.transcriptTail;
-  const availability = availableBackends(sttStatus, hasWebSpeech);
+  const availability = availableBackends(sttStatus, { webSpeech: hasWebSpeech, whisper: hasWebSpeech || typeof window !== "undefined", offline });
   const costLabel = stats.costUsd === null ? "n/a" : `$${stats.costUsd.toFixed(6)}`;
 
   return (

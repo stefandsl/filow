@@ -3,16 +3,18 @@ import type { DecideRequest, DecideResponse, DecisionProviderId } from "@intelli
 import { requireEngine } from "@/lib/engineAuth";
 import { decideOpenRouter } from "@/lib/decide/openrouter";
 import { decideClefCloudflare, decideClefLocal } from "@/lib/decide/clef";
+import { anonymizeRequest, piiMode, restore } from "@/lib/pii/guard";
 
 /**
  * One call per engine tick. The provider comes from the request (chosen in
  * Settings), else DECISION_PROVIDER, else openrouter. In offline mode only
- * local providers are allowed.
+ * local providers are allowed. Cloud providers get an anonymised request
+ * (PII guard) and placeholders are restored in the answer.
  */
-const PROVIDERS: Record<DecisionProviderId, (b: DecideRequest) => Promise<DecideResponse>> = {
-  openrouter: decideOpenRouter,
-  "clef-local": decideClefLocal,
-  "clef-cloudflare": decideClefCloudflare,
+const PROVIDERS: Record<DecisionProviderId, { run: (b: DecideRequest) => Promise<DecideResponse>; cloud: boolean }> = {
+  openrouter: { run: decideOpenRouter, cloud: true },
+  "clef-local": { run: decideClefLocal, cloud: false },
+  "clef-cloudflare": { run: decideClefCloudflare, cloud: true },
 };
 
 function resolveProvider(requested?: string): DecisionProviderId {
@@ -32,7 +34,15 @@ export async function POST(req: Request) {
     return NextResponse.json<DecideResponse>({ decisions: [], latencyMs: 0, cost: 0, model: provider });
   }
   try {
-    return NextResponse.json<DecideResponse>(await PROVIDERS[provider](body));
+    const { run, cloud } = PROVIDERS[provider];
+    if (!cloud || piiMode() === "off") return NextResponse.json<DecideResponse>(await run(body));
+    const { req: safe, map, layers } = await anonymizeRequest(body);
+    const out = await run(safe);
+    return NextResponse.json<DecideResponse>({
+      ...out,
+      unmentioned: out.unmentioned?.map((f) => restore(f, map)),
+      model: map.size ? `${out.model} · pii ${layers.join("+")} (${map.size})` : out.model,
+    });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 });
   }

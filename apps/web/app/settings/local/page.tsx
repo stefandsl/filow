@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { DecisionProviderId } from "@intelliprompter/core";
+import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, whisperCached } from "@intelliprompter/stt";
 import { engineHeaders } from "@/components/useSession";
 import { getDecisionProvider, PROVIDER_LABELS, setDecisionProvider } from "@/lib/prefs";
 
 type Status = {
+  pii: { mode: "off" | "on" | "strict"; serverUrl: string; serverReachable: boolean };
   ollama: { url: string; reachable: boolean; version: string | null; minimum: string; ok: boolean };
   machine: { ramGb: number; platform: string; arch: string };
   offline: boolean;
@@ -15,7 +17,7 @@ type Status = {
   cloudflareKey: boolean;
   recommendation: string | null;
   models: Array<{
-    name: string; kind: string; label: string; description: string; downloadGb: number; ramGb: number;
+    name: string; kind: string; runtime: "ollama" | "browser"; label: string; description: string; downloadGb: number; ramGb: number;
     status: "available" | "planned"; fit: "fits" | "tight" | "too big"; installed: boolean; ollamaOk: boolean;
   }>;
 };
@@ -26,16 +28,40 @@ export default function LocalModelsPage() {
   const [progress, setProgress] = useState<Record<string, string>>({});
   const [testResult, setTestResult] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [whisperModel, setWhisperModel] = useState("");
+  const [cached, setCached] = useState<Record<string, boolean>>({});
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/local/status", { cache: "no-store" });
-    setStatus((await res.json()) as Status);
+    const s = (await res.json()) as Status;
+    setStatus(s);
+    const c: Record<string, boolean> = {};
+    for (const m of s.models) if (m.runtime === "browser") c[m.name] = await whisperCached(m.name);
+    setCached(c);
   }, []);
 
   useEffect(() => {
     setProvider(getDecisionProvider() ?? "");
+    setWhisperModel(selectedWhisperModel());
     void refresh();
   }, [refresh]);
+
+  const download = async (name: string) => {
+    setError(null);
+    setProgress((p) => ({ ...p, [name]: "starting…" }));
+    try {
+      const device = await preloadWhisper(name, (p) => {
+        const pct = p.progress !== undefined ? ` ${Math.round(p.progress)}%` : "";
+        setProgress((pr) => ({ ...pr, [name]: `${p.status}${p.file ? " " + p.file.split("/").pop() : ""}${pct}` }));
+      });
+      setTestResult((t) => ({ ...t, [name]: `ready on ${device}` }));
+      setCached((c) => ({ ...c, [name]: true }));
+    } catch (err) {
+      setError(`Whisper: ${(err as Error).message}`);
+    } finally {
+      setProgress((p) => ({ ...p, [name]: "" }));
+    }
+  };
 
   const pull = async (name: string) => {
     setError(null);
@@ -160,14 +186,33 @@ export default function LocalModelsPage() {
                 <div>
                   <strong>{m.label}</strong> <span className="chip">{m.kind}</span>{" "}
                   <span className={`chip ${m.fit === "fits" ? "live" : m.fit === "tight" ? "" : "err"}`}>{m.fit}</span>
-                  {m.installed && <span className="chip live">installed</span>}
+                  {(m.installed || cached[m.name]) && <span className="chip live">installed</span>}
+                  {m.runtime === "browser" && whisperModel === m.name && <span className="chip">selected for Whisper</span>}
                   {m.status === "planned" && <span className="chip">planned</span>}
                   <div className="hint">
                     {m.description} Download ≈ {m.downloadGb} GB, needs ≈ {m.ramGb} GB RAM.
                   </div>
                 </div>
                 <div className="row">
-                  {m.status === "available" && !m.installed && (
+                  {m.status === "available" && m.runtime === "browser" && (
+                    <>
+                      <button className="btn primary" disabled={Boolean(progress[m.name])} onClick={() => void download(m.name)}>
+                        {progress[m.name] ? progress[m.name] : cached[m.name] ? "Re-check" : "Download"}
+                      </button>
+                      {whisperModel !== m.name && (
+                        <button
+                          className="btn"
+                          onClick={() => {
+                            setSelectedWhisperModel(m.name);
+                            setWhisperModel(m.name);
+                          }}
+                        >
+                          Use for Whisper
+                        </button>
+                      )}
+                    </>
+                  )}
+                  {m.status === "available" && m.runtime === "ollama" && !m.installed && (
                     <button className="btn primary" disabled={!m.ollamaOk || Boolean(progress[m.name])} onClick={() => void pull(m.name)}>
                       {progress[m.name] ? progress[m.name] : "Pull"}
                     </button>
@@ -177,7 +222,7 @@ export default function LocalModelsPage() {
                       Test
                     </button>
                   )}
-                  {m.installed && (
+                  {m.installed && m.runtime === "ollama" && (
                     <button className="btn danger" onClick={() => void remove(m.name)}>
                       Delete
                     </button>
@@ -190,9 +235,26 @@ export default function LocalModelsPage() {
 
           <section className="strip">
             <div className="label">Privacy</div>
+            <div className="row">
+              <span className={`chip ${status.pii.mode === "off" ? "err" : "live"}`}>PII guard: {status.pii.mode}</span>
+              <span className={`chip ${status.pii.serverReachable ? "live" : ""}`}>
+                Rizzo-PII server {status.pii.serverReachable ? "● running" : "○ not running (regex layer only)"}
+              </span>
+              <span className="hint">{status.pii.serverUrl}</span>
+            </div>
             <div className="hint">
-              Offline mode (desktop app menu → Offline) forces local providers and blocks every request that is not to this machine.
-              The PII guard (Rizzo-PII anonymisation before cloud calls) is specified in ARCHITECTURE.md §6.10 and lands in the next pass.
+              Before any cloud call, personal data in the transcript, the points and the screen facts is replaced by placeholders
+              (emails, phones, IBANs, card numbers, codice fiscale always; names, addresses and 22 Italian categories when the
+              Rizzo-PII server runs). The map stays in memory and is dropped after the call. Local providers never need it.
+              Set <code>PII_GUARD=strict</code> to refuse cloud calls without the server, <code>off</code> to disable.
+            </div>
+            {!status.pii.serverReachable && (
+              <div className="hint">
+                Start Rizzo-PII locally (Docker): <code>git clone https://github.com/Rizzo-AI-Academy/rizzo-pii && cd rizzo-pii && docker build -t rizzo-pii . && docker run -p 127.0.0.1:5005:5005 rizzo-pii</code>
+              </div>
+            )}
+            <div className="hint">
+              Offline mode (desktop app menu → Offline) forces local providers, on-device Whisper, and blocks every request that is not to this machine.
             </div>
           </section>
           {error && <span className="chip err">{error}</span>}
