@@ -91,6 +91,13 @@ function loadSettings() {
   } catch {
     /* first run */
   }
+  // 0.4.0 made the public link the default. Settings written by older versions carry
+  // remoteShare:false without the user ever choosing it; switch them once.
+  if (!settings.remoteShareChosen) {
+    settings.remoteShare = true;
+    settings.remoteShareChosen = true;
+    saveSettings();
+  }
 }
 function saveSettings() {
   fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
@@ -391,6 +398,7 @@ async function setRemoteShare(win, on, { auto = false } = {}) {
   remoteBusy = true;
   stopTunnels();
   settings.remoteShare = on;
+  if (!auto) settings.remoteShareChosen = true;
   saveSettings();
   try {
     if (on) {
