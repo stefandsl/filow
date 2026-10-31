@@ -301,6 +301,23 @@ Jev remains a candidate behind the same `decide` interface for the yes/no gates 
 
 ---
 
+### 6.9 Version 2: real-time drawing and speaking (not in the current pass)
+
+Source: Farza's HeyClicky stream "we shipped something new" (youtube xOkfw1_ePhg; drawing at 15:00–24:50 and 28:50–38:20). Observed behaviour: voice first, a status chip cycling Listening / Thinking / Speaking; answers are spoken while drawings appear on floating cream "paper" cards with a small title, hand-drawn style type, boxes, arrows, grids and icons, revealed progressively with an orange pen marker in sync with the sentence being spoken; "point at" draws an orange rounded highlight around a real on-screen element; a native 3D engine renders labelled models (out of scope here). Lessons stated on stream: one strong model for voice, screen and routing beat a small router in front of a big model (the router misrouted and was slower); hide the model's thinking; a minimal agent harness beat a bloated one on speed and cost.
+
+Design for our stack (the Electron desktop app owns it; phone and add-ins receive text plus a static image of each card):
+
+1. **Overlay**: one transparent, always-on-top, click-through `BrowserWindow` per display (`setIgnoreMouseEvents`, no frame, no shadow), excluded from our own screen capture. It renders cards and highlights. A card is an SVG/canvas "paper" component with a handwriting-style font and rough.js-style strokes.
+2. **Draw DSL** streamed from the model as newline-delimited JSON ops, executed as they arrive: `card(id,title,anchor)`, `text(card,x,y,str)`, `box(card,x,y,w,h,label)`, `arrow(card,from,to)`, `grid(card,rows,cols,values)`, `icon(card,name)`, `highlight(bbox | elementText)`, `pointer(x,y)`, `clear(card)`, interleaved with `say(text)`. The renderer animates each op over ~300 ms with the pen marker and advances only when the matching `say()` has started playing, so audio and drawing stay in sync.
+3. **Speaking**: streaming TTS (ElevenLabs streaming or OpenAI realtime voice) fed sentence by sentence from the `say()` ops; barge-in cancels playback and pending ops when the user speaks. Status chip in the top bar.
+4. **Pointing at the screen**: the current frame goes to the multimodal model with a numbered grid overlay (or normalised 0–1000 coordinates); it returns a bbox for `highlight()`. Fallback: text search in the OCR summary when the model cannot localise.
+5. **One brain**: one strong multimodal model via OpenRouter receives the voice transcript, the frame and the session state and emits the op stream. No separate router model. The cheap per-tick classifier for talking points stays unchanged.
+6. **Modes in the teleprompter**: (a) rehearsal coach: "explain this slide with a drawing" yields a card you can keep as a speaker note; (b) live silent mode: only `highlight()` and `pointer()` ops, no speech, used by the gap detector to point at the figure not yet mentioned; (c) Q&A mode after the talk: full voice and drawing.
+7. **Privacy and cost**: Screen Sense rules apply (frames memory-only, text kept, cost dial); voice and drawing calls are on demand only, never on the tick loop.
+8. **Not copied**: the native 3D engine and the agent / computer-use system.
+
+Rough effort: overlay + DSL renderer 3 days, TTS sync + barge-in 2 days, pointing 1 day, modes and UI 2 days.
+
 ## 7. PowerPoint add-in (phase 3, spike first)
 
 **What works**: a task pane that shows the Intelliprompter view, reads speaker notes as the script (one slide = one section, `-` lines = points), follows the *selected slide in Normal view* both ways, and feeds slide text to Screen Sense without screenshots.
@@ -375,6 +392,8 @@ Runner: vitest, tests beside sources in `packages/*/src/**.test.ts`; Playwright 
 | 2026-10-31 | Slides add-on is export + editor mirror only | platform limit, accepted by owner |
 | 2026-10-31 | Screen Sense: always-on + hotkey region, memory-only frames, cost dial, document import | owner's requests via side session |
 | 2026-10-31 | D1–D9 above | this document |
+| 2026-10-31 | Drawing and speaking (Clicky-style) is version 2, specified in §6.9, not built in the current pass | owner's request via side session |
+| 2026-10-31 | Phase 3 PowerPoint add-in built (apps/powerpoint) | this repo |
 
 ## 14. Roadmap
 
@@ -390,6 +409,7 @@ Estimates assume one engineer, include tests, exclude store review and code sign
 | 4 | Expo app: Pair, Stage, Remote, Settings; EAS builds | 5 |
 | 5 | Google Slides: export, editor mirror, internal listing | 3 |
 | 7 | Model routing, auto-advance suggestion, post-talk report, local-first tier | later |
+| v2 | Real-time drawing and speaking (§6.9): overlay, draw DSL, synced TTS with barge-in, screen pointing, three modes | 8 |
 
 Phases 3, 4 and 5 are independent once phase 2 exists and can run in parallel; 6a and 6b depend on phase 1 only.
 
