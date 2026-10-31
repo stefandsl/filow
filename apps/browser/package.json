@@ -1,0 +1,28 @@
+{
+  "name": "@intelliprompter/browser",
+  "version": "0.6.0",
+  "private": true,
+  "description": "Browser extension (Chrome, Edge, Brave, Opera, Arc; Firefox via polyfill): side panel that follows HTML slide decks and generates the script from them.",
+  "scripts": {
+    "build": "node scripts/theme.js && vite build && node scripts/pack.js",
+    "dev": "vite build --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@intelliprompter/client": "*",
+    "@intelliprompter/core": "*",
+    "@intelliprompter/ui": "*",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "webextension-polyfill": "^0.12.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "@types/react": "19.1.6",
+    "@types/react-dom": "19.1.5",
+    "@types/webextension-polyfill": "^0.12.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "5.8.3",
+    "vite": "^6.3.5"
+  }
+}

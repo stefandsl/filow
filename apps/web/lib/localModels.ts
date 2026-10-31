@@ -1,7 +1,7 @@
 // Catalog of local models the Settings page can install, with hardware hints.
 export type LocalModel = {
   name: string; // Ollama tag, or transformers.js model id for runtime "browser"
-  kind: "decision" | "vision" | "stt";
+  kind: "decision" | "vision" | "stt" | "generate";
   runtime: "ollama" | "browser";
   label: string;
   description: string;
@@ -51,6 +51,46 @@ export const LOCAL_MODELS: LocalModel[] = [
     label: "Whisper small (on-device speech-to-text)",
     description: "Better accuracy; needs a GPU for comfortable latency.",
     downloadGb: 0.5,
+    ramGb: 4,
+    status: "available",
+  },
+  {
+    name: "gemma4:e2b",
+    kind: "generate",
+    runtime: "ollama",
+    label: "Gemma 4 E2B (script from slides, text + images)",
+    description: "Default local model for 'Generate script from slides': reads slide text and slide images, Italian included. Fits 8 GB RAM.",
+    downloadGb: 6,
+    ramGb: 8,
+    status: "available",
+  },
+  {
+    name: "gemma4:e4b",
+    kind: "generate",
+    runtime: "ollama",
+    label: "Gemma 4 E4B (script from slides, better)",
+    description: "Same job with better wording and chart reading. Pick it on a 16 GB machine; set GENERATE_LOCAL_MODEL=gemma4:e4b.",
+    downloadGb: 9,
+    ramGb: 16,
+    status: "available",
+  },
+  {
+    name: "qwen3-vl:2b",
+    kind: "generate",
+    runtime: "ollama",
+    label: "Qwen3-VL 2B (script from slides, light)",
+    description: "Light fallback for small machines; weaker on long slides. Set GENERATE_LOCAL_MODEL=qwen3-vl:2b.",
+    downloadGb: 2,
+    ramGb: 6,
+    status: "available",
+  },
+  {
+    name: "lfm2.5-vl",
+    kind: "generate",
+    runtime: "ollama",
+    label: "Liquid LFM2.5-VL (ultra light, English)",
+    description: "Optional ultra-light vision model. Italian is not among its listed languages; use it for English decks only.",
+    downloadGb: 1.5,
     ramGb: 4,
     status: "available",
   },

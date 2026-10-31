@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld("intelliprompter", {
   setLang: (lang) => ipcRenderer.send("ui:lang", lang),
   /** system | light | dark; the shell colours (title bar, dialogs, splash) follow. */
   setTheme: (theme) => ipcRenderer.send("ui:theme", theme),
+  reportSession: (info) => ipcRenderer.send("session:report", info),
   /** Screen Sense (ARCHITECTURE.md §6.1): sources, region picker, hotkey. Frames stay in memory. */
   screen: {
     sources: () => ipcRenderer.invoke("screen:sources"),

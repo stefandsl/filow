@@ -6,6 +6,7 @@ import { Engine, parseScript, type Command, type DecideRequest, type DecideRespo
 import { availableBackends, BACKEND_LABELS, createBackend, startAuto, type SttBackend } from "@intelliprompter/stt";
 import { StageView } from "@intelliprompter/ui";
 import { getSelectedSlide, hostInfo, onSelectionChange, readNotesAsScript, selectSlide, supportsNotes } from "./office";
+import { attachSlideImages, mintEngineToken, readSlidesForGeneration, requestGeneration } from "./generate";
 import "./taskpane.css";
 
 type Mode = "engine" | "view";
@@ -27,9 +28,12 @@ const store = {
   },
 };
 
+/** Served by the desktop app's HTTPS proxy on this PC: the pane should mirror that app, not run its own engine. */
+const ON_DESKTOP_APP = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+
 function App() {
   const host = hostInfo();
-  const [mode, setMode] = useState<Mode>(() => (store.get("mode") as Mode) || (host.canUseMic ? "engine" : "view"));
+  const [mode, setMode] = useState<Mode>(() => (store.get("mode") as Mode) || (ON_DESKTOP_APP ? "view" : host.canUseMic ? "engine" : "view"));
   useEffect(() => store.set("mode", mode), [mode]);
   return (
     <div className="pane">
@@ -100,6 +104,70 @@ function LoadNotesButton({ onText }: { onText: (text: string) => Promise<void> |
         {busy ? "Reading…" : "Load script from notes"}
       </button>
       {msg && <span className="hint">{msg}</span>}
+    </span>
+  );
+}
+
+/**
+ * "Generate script from slides" (ARCHITECTURE.md §7.4). Notes win per slide; the server's model
+ * writes points for the slides without notes. `getToken` returns an engine token (engine mode) or
+ * asks the relay for a short-lived one (view mode, controllers only).
+ */
+function GenerateButton({ getToken, onText }: { getToken: () => Promise<string>; onText: (text: string) => Promise<void> | void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const run = async () => {
+    setBusy(true);
+    setMsg("Reading slides…");
+    try {
+      const slides = await readSlidesForGeneration();
+      const images = await attachSlideImages(slides);
+      setMsg(`0 / ${slides.length}${images ? ` · ${images} slide images` : ""}`);
+      const token = await getToken();
+      const out = await requestGeneration(ORIGIN, token, slides, undefined, (p) => setMsg(`${p.done} / ${p.total} · ${p.title}`));
+      setPreview(out.text);
+      setMsg(`Done with ${out.model}${out.cost ? ` · $${out.cost.toFixed(4)}` : ""}. Review, then load.`);
+    } catch (err) {
+      setMsg((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <span className="row">
+      <button className="btn" disabled={busy} onClick={() => void run()} title="Writes 3-5 spoken points per slide from the slide text (and images where needed). Speaker notes win where present.">
+        {busy ? "Generating…" : "Generate script from slides"}
+      </button>
+      {msg && <span className="hint">{msg}</span>}
+      {preview !== null && (
+        <div className="modal-bg" onClick={() => setPreview(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="eyebrow">Generated script · review before loading</div>
+            <textarea value={preview} onChange={(e) => setPreview(e.target.value)} spellCheck={false} />
+            <div className="controls">
+              <button
+                className="btn primary"
+                onClick={async () => {
+                  try {
+                    await onText(preview);
+                    const parsed = parseScript(preview);
+                    setMsg(`${parsed.sections.length} slides, ${parsed.sections.reduce((a, x) => a + x.bullets.length, 0)} points loaded`);
+                    setPreview(null);
+                  } catch (err) {
+                    setMsg((err as Error).message);
+                  }
+                }}
+              >
+                Load into session
+              </button>
+              <button className="btn" onClick={() => setPreview(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </span>
   );
 }
@@ -227,6 +295,7 @@ function EnginePane({ webSpeech }: { webSpeech: boolean }) {
       <div className="controls">
         <span className="chip code">pair {code} {status === "open" ? "●" : "○"}</span>
         <LoadNotesButton onText={(text) => engineRef.current?.loadScript(parseScript(text))} />
+        <GenerateButton getToken={async () => token ?? ""} onText={(text) => engineRef.current?.loadScript(parseScript(text))} />
         {state?.engine.backend && <span className="chip live">● {BACKEND_LABELS[state.engine.backend]}</span>}
         {error && <span className="chip err">{error}</span>}
       </div>
@@ -243,19 +312,39 @@ function ViewPane() {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState<string | null>(null);
 
-  const join = async () => {
+  const [localCode, setLocalCode] = useState<string | null>(null);
+
+  const join = async (c: string = code) => {
     setError(null);
     setStatus("pairing");
     try {
-      const cl = await connect({ serverUrl: ORIGIN, code, onState: setState, onStatus: (s, d) => setStatus(d ? `${s}: ${d}` : s) });
+      const cl = await connect({ serverUrl: ORIGIN, code: c, deviceLabel: "PowerPoint pane", onState: setState, onStatus: (s, d) => setStatus(d ? `${s}: ${d}` : s) });
       setClient(cl);
-      store.set("code", code);
+      store.set("code", c);
     } catch (err) {
       setError((err as Error).message);
       setStatus("idle");
     }
   };
   useEffect(() => () => client?.close(), [client]);
+
+  // On this PC the desktop app publishes its current session; join it without typing anything.
+  useEffect(() => {
+    if (!ON_DESKTOP_APP || client) return;
+    let cancelled = false;
+    fetch(`${ORIGIN}/api/local/current-session`)
+      .then((r) => r.json())
+      .then((j: { code?: string }) => {
+        if (cancelled || !j.code) return;
+        setLocalCode(j.code);
+        void join(j.code);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client]);
 
   const send = useCallback(
     (cmd: Command) => {
@@ -269,12 +358,18 @@ function ViewPane() {
     return (
       <div className="setup">
         <div className="eyebrow">View mode</div>
-        <p className="hint">Mirror a session running on your laptop or phone. Enter the 6-digit code it shows.</p>
+        <p className="hint">
+          {ON_DESKTOP_APP
+            ? localCode
+              ? "Joining the Intelliprompter app running on this PC…"
+              : "Open the Intelliprompter app on this PC and this pane joins it by itself; or enter a code from another device."
+            : "Mirror a session running on your laptop or phone. Enter the 6-digit code it shows."}
+        </p>
         <form
           className="row"
           onSubmit={(e) => {
             e.preventDefault();
-            void join();
+            void join(code);
           }}
         >
           <input className="btn code-input" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="123456" />
@@ -291,6 +386,17 @@ function ViewPane() {
     <>
       <div className="controls">
         <LoadNotesButton
+          onText={async (text) => {
+            const res = await fetch(`${ORIGIN}/api/session/${client.id}/script`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${client.token}` },
+              body: JSON.stringify({ text }),
+            });
+            if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `upload failed (${res.status})`);
+          }}
+        />
+        <GenerateButton
+          getToken={() => mintEngineToken(ORIGIN, client.id, client.token)}
           onText={async (text) => {
             const res = await fetch(`${ORIGIN}/api/session/${client.id}/script`, {
               method: "POST",

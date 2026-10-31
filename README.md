@@ -43,7 +43,8 @@ Intelliprompter keeps the bullet points and adds the feedback. It listens, and t
 | ⚠️ **Missed tray** | Everything you jumped over, one click to re-open. |
 | 👁 **Screen Sense** | Watches your slides or any window and tells you what is on screen, which facts you have not said yet, and when a slide contradicts your script. |
 | 📱 **Phone mirror** | Scan a QR and your phone shows the live view with Prev / Next / Stop. Works from any network by default; you approve each phone. |
-| 🖥 **PowerPoint add-in** | One click adds Intelliprompter to PowerPoint on this PC or Mac. Your speaker notes become the script. |
+| 🖥 **PowerPoint add-in** | One click adds Intelliprompter to PowerPoint on this PC or Mac. Your speaker notes become the script, or the script is generated from the slides. |
+| 🧩 **Browser extension** | reveal.js, Slidev, Marp, Canva, Pitch: generate the script from the deck and follow the live slide. |
 | 📄 **Import** | PDF, PPTX, DOCX, TXT or Markdown become talking points, one section per slide or page. |
 | 🔒 **Privacy modes** | On-device Whisper, a local decision model via Ollama, a PII guard before any cloud call, and a full offline mode. |
 | 🌍 **English and Italian UI** | One toggle, remembered per browser; the desktop menu follows. |
@@ -555,6 +556,14 @@ A task pane for PowerPoint lives in [apps/powerpoint](apps/powerpoint/README.md)
 **Windows and macOS, one click.** On first start the desktop app asks "Add Intelliprompter to PowerPoint?". Yes creates a certificate for localhost and trusts it for your user (Windows: one confirmation dialog; macOS: the login-keychain password once), starts an HTTPS proxy on port 4749 in front of the app, and registers the add-in for PowerPoint: through Office's developer sideload key on Windows (HKCU, no admin) or the `wef` folder of the PowerPoint container on macOS. Restart PowerPoint and Intelliprompter is on the Home tab (Mac: Insert → My Add-ins). The pane talks to the app on this computer, so keep Intelliprompter running while you present; on a Mac the pane is a view (Office for Mac gives add-ins no microphone), so start the take in the app or from the phone. The menu has "Remove Intelliprompter from PowerPoint on this PC" to undo it, and the install item if you said "Not now".
 
 **Other computers.** PowerPoint only loads add-ins over HTTPS and never shows one by itself: it needs a manifest file. From the desktop app: turn on **Share to phone on any network**, then menu → **PowerPoint add-in: save manifest for another computer…**; the file points at the public tunnel URL. Sideload it in PowerPoint for the web (Home → Add-ins → More Add-ins → My Add-ins → Upload My Add-in) or, on Windows, through a trusted shared folder (steps in the add-in README). The tunnel URL changes each time sharing restarts, so this is for trying it out; for a permanent install deploy on your server with HTTPS, set `PUBLIC_ORIGIN=https://your-domain` in `.env`, and the same menu item writes a manifest for that domain.
+
+### Script from slides without notes
+
+In the pane, **Generate script from slides** reads every slide (titles, text, tables, alt text, notes where the host exposes them) and asks the server for 3–5 spoken points per slide; slides with notes keep the notes. Slides with little text or a picture also send a small slide image so charts and numbers are read. You review the result in an editor before it replaces the script. Online it uses Gemini through OpenRouter (text through the PII guard); with Offline mode or `GENERATE_PROVIDER=ollama` it uses Gemma 4 E2B through Ollama (pull it in Settings > Local models; E4B on 16 GB, Qwen3-VL 2B as the light option). On this PC the pane joins the desktop app's session by itself; on another computer enter the pairing code.
+
+## Browser extension (HTML slide decks)
+
+For reveal.js, Slidev, Marp, impress.js, Canva and Pitch decks in the browser: the extension's side panel pairs with your Intelliprompter session, **generates the script from the deck** (it steps through the slides for you) and **follows** the live slide so the prompter, the phone and the check-off stay in sync. Install: download `Intelliprompter-extension-<version>.zip` from the release, unzip it, open `chrome://extensions` (or `edge://extensions`), turn on Developer mode, **Load unpacked** → the unzipped folder. Firefox: `about:debugging` → This Firefox → Load Temporary Add-on → `manifest.json`. Click the toolbar icon, enter the pairing code shown by the app (defaults point at the desktop app on this PC), then "Use this tab as the deck". No API keys live in the extension.
 
 ## Script format
 

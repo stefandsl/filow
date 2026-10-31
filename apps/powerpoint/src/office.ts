@@ -3,6 +3,7 @@
 // of this runs during an actual presentation (ARCHITECTURE.md §7).
 /* global Office, PowerPoint */
 import { notesToScript, pickTitle, type SlideNotes } from "./notes";
+import { readAllSlideShapes, readNotesTexts } from "./shapes";
 
 export type SlidePos = { index: number; total: number; title?: string };
 
@@ -10,100 +11,23 @@ export type SlidePos = { index: number; total: number; title?: string };
 export async function readNotesAsScript(): Promise<string> {
   const slides: SlideNotes[] = [];
   await PowerPoint.run(async (ctx) => {
-    const all = ctx.presentation.slides;
-    all.load("items");
-    await ctx.sync();
-    const loaded = all.items.map((slide) => {
-      const shapes = slide.shapes;
-      shapes.load("items/name,items/textFrame/textRange/text,items/textFrame/hasText");
-      return { slide, shapes };
-    });
-    await ctx.sync();
-    for (const { shapes } of loaded) {
-      const texts: string[] = [];
-      let notes = "";
-      for (const sh of shapes.items) {
-        let text = "";
-        try {
-          text = sh.textFrame?.hasText ? sh.textFrame.textRange.text : "";
-        } catch {
-          /* shape without text frame */
-        }
-        if (!text) continue;
-        texts.push(text);
-      }
-      // Notes come from the notes page's body placeholder; load it separately below.
-      slides.push({ title: pickTitle(titleFirst(shapes.items, texts)), notes });
+    const perSlide = await readAllSlideShapes(ctx);
+    for (const shapes of perSlide) {
+      const titled = shapes.filter((x) => x.text && x.name.toLowerCase().includes("title")).map((x) => x.text);
+      const texts = shapes.filter((x) => x.text && !x.name.toLowerCase().includes("title")).map((x) => x.text);
+      slides.push({ title: pickTitle([...titled, ...texts]), notes: "" });
     }
   });
-  // Speaker notes: PowerPointApi 1.7+ exposes slide.notesSlide? No. Use the Common API fallback:
-  // Office.context.document.getSelectedDataAsync cannot read notes either. The supported path is
-  // slide.shapes on the notes master via `slide.getNotes?` (not available). We therefore read notes
-  // through the OOXML of each slide, which every PowerPoint host supports.
-  const notesByIndex = await readNotesViaOoxml(slides.length);
-  slides.forEach((s, i) => (s.notes = notesByIndex[i] ?? ""));
-  return notesToScript(slides);
-}
-
-function titleFirst(shapes: PowerPoint.Shape[], texts: string[]): string[] {
-  const titled: string[] = [];
-  shapes.forEach((sh) => {
-    const name = (sh.name ?? "").toLowerCase();
-    let text = "";
-    try {
-      text = sh.textFrame?.hasText ? sh.textFrame.textRange.text : "";
-    } catch {
-      /* ignore */
-    }
-    if (text && name.includes("title")) titled.push(text);
-  });
-  return [...titled, ...texts];
-}
-
-/**
- * Speaker notes are not exposed by the PowerPoint API object model in released requirement sets,
- * but the slide OOXML is. Select each slide and read its XML; notes live in a `p:notes` part
- * only when fetched through the Common API's getFileAsync... which is too heavy per slide.
- * Practical approach used here: Office exposes `Office.context.document.getSelectedDataAsync`
- * with `CoercionType.SlideRange` only for ids. So we ask PowerPoint.run for each slide's
- * `notesSlide` where the host supports it (PowerPoint on the web and Microsoft 365 builds that
- * implement PowerPointApi 1.8 `NotesSlide`), and fall back to empty notes elsewhere.
- */
-async function readNotesViaOoxml(count: number): Promise<string[]> {
-  const out: string[] = new Array(count).fill("");
+  let notes: string[] = [];
   try {
     await PowerPoint.run(async (ctx) => {
-      const all = ctx.presentation.slides;
-      all.load("items");
-      await ctx.sync();
-      const loads = all.items.map((slide) => {
-        const anySlide = slide as unknown as { notesSlide?: { shapes: PowerPoint.ShapeCollection } };
-        if (!anySlide.notesSlide) return null;
-        const shapes = anySlide.notesSlide.shapes;
-        shapes.load("items/name,items/textFrame/textRange/text,items/textFrame/hasText");
-        return shapes;
-      });
-      await ctx.sync();
-      loads.forEach((shapes, i) => {
-        if (!shapes) return;
-        const parts: string[] = [];
-        for (const sh of shapes.items) {
-          const name = (sh.name ?? "").toLowerCase();
-          // The notes body placeholder is usually named "Notes Placeholder N"; skip slide image / footer.
-          if (!name.includes("notes") && !name.includes("placeholder")) continue;
-          try {
-            if (sh.textFrame?.hasText) parts.push(sh.textFrame.textRange.text);
-          } catch {
-            /* ignore */
-          }
-        }
-        out[i] = parts.join("\n");
-      });
+      notes = await readNotesTexts(ctx);
     });
   } catch {
     /* host without notesSlide: leave notes empty */
   }
-  return out;
+  slides.forEach((s, i) => (s.notes = notes[i] ?? ""));
+  return notesToScript(slides);
 }
 
 /** Whether this host can read speaker notes (PowerPointApi 1.8 NotesSlide). */

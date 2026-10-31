@@ -51,6 +51,7 @@ export function useSession(engine: Engine) {
     try {
       const { code, codeExpiresAt } = await c.requestCode();
       setInfo((i) => (i ? { ...i, code, codeExpiresAt } : i));
+      desktopBridge()?.reportSession?.({ id: c.id, code });
     } catch {
       /* relay unreachable; the old code stays on screen */
     }
@@ -85,6 +86,7 @@ export function useSession(engine: Engine) {
         const mirrorUrl =
           `${mirrorOrigin()}/mirror?code=${created.code}` + (sameOriginRelay ? "" : `&server=${encodeURIComponent(phoneServer)}`);
         setInfo({ ...created, codeExpiresAt: created.codeExpiresAt ?? 0, serverUrl, mirrorUrl });
+        desktopBridge()?.reportSession?.({ id: created.id, code: created.code });
 
         const client = await connect({
           serverUrl,

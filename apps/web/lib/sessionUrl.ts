@@ -13,6 +13,8 @@ export type DesktopBridge = {
   mirrorServerUrl?: string;
   remoteShare?: boolean;
   setRemoteShare?: (on: boolean) => void;
+  /** The engine page tells the shell its session so local views (PowerPoint pane) can join it. */
+  reportSession?: (info: { id: string; code: string }) => void;
   remoteStatus?: () => Promise<RemoteStatus>;
   onRemoteStatus?: (fn: (s: RemoteStatus) => void) => () => void;
   accessPassword: string;

@@ -229,6 +229,9 @@ function wireScreenSense() {
   ipcMain.on("update:check", () => void checkForUpdates({ manual: true }));
   ipcMain.on("update:install", () => loadUpdater() && updateState.status === "downloaded" && updater.quitAndInstall());
   ipcMain.handle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
+  ipcMain.on("session:report", (_e, info) => {
+    if (info && typeof info.code === "string" && typeof info.id === "string") currentSession = { id: info.id, code: info.code };
+  });
   ipcMain.on("ui:theme", (_e, theme) => {
     if (theme !== "system" && theme !== "light" && theme !== "dark") return;
     settings.theme = theme;
@@ -503,6 +506,8 @@ const pemCert = path.join(certDir, "localhost.pem");
 const macWefDir = path.join(os.homedir(), "Library", "Containers", "com.microsoft.Powerpoint", "Data", "Documents", "wef");
 const pptManifestFile = path.join(userData, "powerpoint", "manifest.xml");
 let httpsProxy = null;
+/** The engine page's current session (id + pairing code), served to local views over the HTTPS proxy. */
+let currentSession = null;
 
 function runPowerShell(script) {
   return new Promise((resolve, reject) => {
@@ -589,6 +594,12 @@ function startHttpsProxy() {
   const hosted = Boolean(process.env.INTELLIPROMPTER_SESSION_URL);
   const tls = process.platform === "win32" ? { pfx: fs.readFileSync(pfxFile), passphrase: settings.pfxPassword } : { key: fs.readFileSync(pemKey), cert: fs.readFileSync(pemCert) };
   const server = https.createServer(tls, (req, res) => {
+    if (req.url === "/api/local/current-session") {
+      // Only reachable from this machine (the proxy listens on 127.0.0.1): the PowerPoint pane joins the app's session.
+      res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+      res.end(JSON.stringify(currentSession ?? {}));
+      return;
+    }
     const toRelay = relay(req.url) && !hosted;
     const headers = { ...req.headers, host: `127.0.0.1:${toRelay ? SESSION_PORT : PORT}` };
     if (toRelay && process.env.ACCESS_PASSWORD && !headers["x-access-password"]) headers["x-access-password"] = process.env.ACCESS_PASSWORD;

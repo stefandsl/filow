@@ -119,6 +119,23 @@ describe("relay", () => {
     view.ws.close();
   });
 
+  it("controllers can mint a short-lived engine token; viewers and strangers cannot", async () => {
+    const { id, code, engineToken } = await createSession();
+    const engine = open(id, { role: "engine", token: engineToken });
+    await engine.next();
+    expect((await post(`/api/session/${id}/engine-token`)).status).toBe(401);
+    const pair = (await (await post("/api/session/pair", { code })).json()) as { viewToken: string };
+    const r = await post(`/api/session/${id}/engine-token`, {}, { Authorization: `Bearer ${pair.viewToken}` });
+    expect(r.status).toBe(200);
+    const { engineToken: minted } = (await r.json()) as { engineToken: string };
+    expect(verifyEngineToken(server.secret, minted, clock)?.sessionId).toBe(id);
+    expect(verifyEngineToken(server.secret, minted, clock + 16 * 60 * 1000)).toBeNull();
+    engine.send({ t: "setRole", token: pair.viewToken, role: "viewer" });
+    await new Promise((r) => setTimeout(r, 30));
+    expect((await post(`/api/session/${id}/engine-token`, {}, { Authorization: `Bearer ${pair.viewToken}` })).status).toBe(401);
+    engine.ws.close();
+  });
+
   it("script upload is relayed as loadScript and needs a controller token", async () => {
     const { id, code, engineToken } = await createSession();
     const engine = open(id, { role: "engine", token: engineToken });

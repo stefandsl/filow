@@ -214,7 +214,7 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
       return json(res, 200, { id: s.id, viewToken, role });
     }
 
-    const m = url.pathname.match(/^\/api\/session\/([^/]+)(\/script|\/code)?$/);
+    const m = url.pathname.match(/^\/api\/session\/([^/]+)(\/script|\/code|\/engine-token)?$/);
     if (m) {
       const s = sessions.get(m[1]);
       if (!s) return json(res, 404, { error: "unknown session" });
@@ -225,6 +225,12 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
         if (!isEngine) return json(res, 401, { error: "engine token required" });
         destroy(s, "ended");
         return json(res, 200, { ok: true });
+      }
+      // An accepted controller (PowerPoint pane in View mode, browser extension) may run the
+      // one-shot spend endpoints (script generation, vision) through a short-lived engine token.
+      if (req.method === "POST" && m[2] === "/engine-token") {
+        if (!isEngine && role !== "controller") return json(res, 401, { error: "controller token required" });
+        return json(res, 200, { engineToken: mintEngineToken(secret, s.id, 15 * 60 * 1000, now()), expiresInMs: 15 * 60 * 1000 });
       }
       if (req.method === "POST" && m[2] === "/code") {
         if (!isEngine) return json(res, 401, { error: "engine token required" });

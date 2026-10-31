@@ -367,6 +367,12 @@ Rough effort: overlay + DSL renderer 3 days, TTS sync + barge-in 2 days, pointin
 
 Files: `apps/powerpoint/manifest.xml` (requirement set `PowerPointApi 1.4`, permission `ReadDocument`, served from the hosted HTTPS origin), `src/taskpane.tsx`, `src/office.ts` (`readNotesAsScript`, `onSelectionChange`, `selectSlide`). Distribution: trusted-catalog sideload on Windows desktop, "Upload my add-in" on the web, or Microsoft 365 admin centralized deployment.
 
+### 7.4 Script from slides without notes (shipped)
+
+`POST /api/script/generate` (engine token, or a short-lived engine token that the relay mints for an accepted controller via `POST /api/session/:id/engine-token`) takes `{ language?, slides: [{ index, title?, text, notes?, imageBase64?, hasPicture? }] }` and streams NDJSON: one `{progress}` per slide, then `{done, text, script, model, cost, perSlide}`. The pure part lives in `packages/core/src/generate.ts`: notes win per slide (`- ` lines verbatim, prose split by sentence), the model fills the rest with 3–5 spoken claims plus an italic transition line, and the output is script.md with the slides marker and `<!-- slide: n -->` comments so Follow mode maps slide → section. A slide gets an image only when it has little text (< 40 chars) or a picture, and only if the caller attached one. Providers: OpenRouter `google/gemini-2.5-flash-lite` (text) / `gemini-2.5-flash` (image slides); offline or `GENERATE_PROVIDER=ollama`: Ollama `gemma4:e2b` by default (`gemma4:e4b` on 16 GB, `qwen3-vl:2b` light, `lfm2.5-vl` English-only), listed in Settings > Local models. Cloud calls go through the PII guard. The PowerPoint pane collects slide text (shapes, tables, alt text, notes via a two-phase load that never touches text frames of pictures) and `getImageAsBase64` where the host has PowerPointApi 1.8; the pane never holds keys. This is a one-shot pre-talk job and never touches the 500 ms live loop.
+
+On the desktop app the pane is served from `https://localhost:4749/powerpoint/` and joins the app's own session automatically: the engine page reports its session code to the shell, the HTTPS proxy answers `/api/local/current-session` only on 127.0.0.1, and the pane in View mode pairs with it (auto-accepted as a local peer).
+
 ## 8. Google Slides add-on (phase 5)
 
 Speaker notes are the script. Constraints: the Slides API cannot drive or observe Present mode; HtmlService sidebars get no microphone; there is no selection-change event, only polling through `google.script.run` (1 s interval, rehearsal-length budgets fit daily quotas; no `UrlFetchApp` per poll).
@@ -374,6 +380,10 @@ Speaker notes are the script. Constraints: the Slides API cannot drive or observ
 The add-on does two jobs: **Export** notes as a Script to the session server (one `UrlFetchApp` call, through `/api/session/:id/script` with a controller token obtained by code), and **Mirror in the editor** by nesting the hosted `/mirror` page in an iframe and bridging the selected slide index with `postMessage`. Live presenting is not a sidebar feature; the phone or desktop app is the live view.
 
 Files: `apps/gslides/appsscript.json`, `Code.gs`, `Sidebar.html`. Deploy with `clasp`; internal Workspace listing.
+
+### 8.3 Browser extension for HTML decks (apps/browser, shipped)
+
+Manifest V3, one codebase for Chrome, Edge, Brave, Opera and Arc; Firefox through `webextension-polyfill` (`sidebar_action`); Safari later with `xcrun safari-web-extension-converter`. The side panel pairs with a session by server URL and code (controller after the presenter accepts), shows `StageView`, and drives the deck tab through a content script injected on demand (`activeTab` + `scripting`; host permission only for the configured servers, requested at pairing). Adapters: reveal.js, Slidev, Marp, impress.js, and a generic one that reads the text intersecting the viewport (Canva and Pitch present pages). Slide changes: `hashchange`, `popstate`, `fullscreenchange`, reveal's `slidechanged`, and a `MutationObserver` debounced at 300 ms. Two modes: **Generate script from this deck** steps through the slides (adapter `next()` or ArrowRight), collects text and, for image slides, a `captureVisibleTab` frame, calls `/api/script/generate` and loads the result into the session; **Follow** sends `slideChanged` on every change and, for image-only slides, a frame to `/api/vision` under the cost dial. Page text is untrusted data. Store listing needs a privacy policy page; until then the zip in the release is loaded unpacked.
 
 ## 9. Phone app (phase 2 as PWA, phase 4 as Expo)
 

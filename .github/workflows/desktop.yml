@@ -43,6 +43,7 @@ jobs:
             release/*.deb
             release/*.yml
             release/*.blockmap
+            release/*.zip
             !release/builder-debug.yml
           if-no-files-found: error
 
