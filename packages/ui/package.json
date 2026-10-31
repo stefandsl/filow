@@ -1,6 +1,6 @@
 {
   "name": "@intelliprompter/ui",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "type": "module",
   "description": "Web-only React views shared by the web app, the PWA mirror and the add-ins.",
