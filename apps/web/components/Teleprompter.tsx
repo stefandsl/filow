@@ -26,7 +26,16 @@ export default function Teleprompter() {
   const [choice, setChoice] = useState<BackendChoice>("auto");
   const [log, setLog] = useState<string[]>([]);
   const [editing, setEditing] = useState(false);
+  const [offline, setOffline] = useState(false);
   const backendRef = useRef<SttBackend | null>(null);
+
+  // Offline mode is owned by the desktop shell (menu toggle); the web deploy reads INTELLIPROMPTER_OFFLINE.
+  useEffect(() => {
+    const bridge = (globalThis as { intelliprompter?: { offline?: boolean; onOffline?: (fn: (v: boolean) => void) => void } }).intelliprompter;
+    if (bridge?.offline !== undefined) setOffline(bridge.offline);
+    bridge?.onOffline?.(setOffline);
+    if (!bridge) void fetch("/api/local/status").then((r) => r.json()).then((s: { offline?: boolean }) => setOffline(Boolean(s.offline))).catch(() => undefined);
+  }, []);
 
   const { script, sectionIdx, points, stats, engine: eng } = state;
   const section = script.sections[sectionIdx];
@@ -133,6 +142,7 @@ export default function Teleprompter() {
         <span className="subtitle">/ live talking points</span>
         <span className="spacer" />
         <PairPanel info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} />
+        {offline && <span className="chip err">OFFLINE</span>}
         {eng.backend && <span className="chip live">● {BACKEND_LABELS[eng.backend]}</span>}
         {error && <span className="chip err">{error}</span>}
       </header>
@@ -249,6 +259,9 @@ export default function Teleprompter() {
         <button className="btn" onClick={loadScript}>
           Reload script
         </button>
+        <a className="btn" href="/settings/local" title="Local models, decision provider, privacy">
+          Settings
+        </a>
       </div>
 
       <div className="footer">

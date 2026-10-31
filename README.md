@@ -404,6 +404,12 @@ Working with VS Code: install the **Remote - SSH** extension, connect to the ser
 
 ---
 
+## Local mode (privacy)
+
+Open **Settings** in the app (or `/settings/local`). You can run the decision model on your own machine with [Cloudflare Clef](https://ollama.com/library/clef-flash) through Ollama: install Ollama 0.35.1 or newer, press **Pull** next to Clef Flash (about 6 GB, needs 16 GB RAM; Clef 27B needs 32 GB), press **Test**, then choose "Clef on this machine" as the decision provider. Nothing leaves the computer for the decisions. The desktop app also has an **Offline mode** menu toggle that blocks every outbound request and forces local providers. Local speech-to-text (Whisper) and the PII guard that anonymises personal data before any cloud call are the next pieces; see ARCHITECTURE.md §6.10.
+
+On a Debian server, run Ollama on the same box and set `OLLAMA_URL=http://127.0.0.1:11434` and `DECISION_PROVIDER=clef-local` in `apps/web/.env.local`.
+
 ## PowerPoint add-in
 
 A task pane for PowerPoint lives in [apps/powerpoint](apps/powerpoint/README.md). Your speaker notes become the script (one slide per section, `-` lines are points), the pane follows the selected slide while you edit, and it runs the microphone itself on Windows and PowerPoint for the web or mirrors a session by code elsewhere. PowerPoint hides panes during a slide show and offers no API to follow one, so on stage the phone mirror or the desktop app is the live view. Build with `npm run build -w apps/powerpoint`; the pane is then served by the web app under `/powerpoint/`.

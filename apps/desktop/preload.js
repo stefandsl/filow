@@ -1,7 +1,7 @@
 // Exposes desktop-only settings to the page. Nothing here is a secret the page
 // does not already need: the LAN access password gates the spend endpoints
 // against other devices on the Wi-Fi, and the page is the engine.
-const { contextBridge } = require("electron");
+const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("intelliprompter", {
   desktop: true,
@@ -9,4 +9,7 @@ contextBridge.exposeInMainWorld("intelliprompter", {
   sessionUrl: process.env.INTELLIPROMPTER_SESSION_URL || `http://${process.env.INTELLIPROMPTER_LAN_IP || "127.0.0.1"}:${process.env.SESSION_PORT || 4748}`,
   mirrorOrigin: `http://${process.env.INTELLIPROMPTER_LAN_IP || "127.0.0.1"}:${process.env.PORT || 4747}`,
   accessPassword: process.env.ACCESS_PASSWORD || "",
+  offline: process.env.INTELLIPROMPTER_OFFLINE === "1",
+  /** Subscribe to the Offline menu toggle. */
+  onOffline: (fn) => ipcRenderer.on("offline", (_e, v) => fn(Boolean(v))),
 });

@@ -20,7 +20,11 @@ export type DecideRequest = {
   onScreen?: string[];
   /** Optional language hint, e.g. "it" or "en". */
   language?: string;
+  /** Which decision provider to use; the server falls back to its configured default. */
+  provider?: DecisionProviderId;
 };
+
+export type DecisionProviderId = "openrouter" | "clef-local" | "clef-cloudflare";
 
 export type DecideResponse = {
   decisions: Decision[];

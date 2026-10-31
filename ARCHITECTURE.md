@@ -301,6 +301,31 @@ Jev remains a candidate behind the same `decide` interface for the yes/no gates 
 
 ---
 
+### 6.10 Local mode (v1): on-device models for privacy
+
+Requirement from the owner: run fully on-device on Windows, Linux and macOS by downloading local models from inside the app; substitutes for the cloud decision model (Cloudflare Clef instead of Jev or OpenRouter), for speech-to-text, and a PII guard (Rizzo-PII) for anything that still goes to the cloud.
+
+**Verified facts (2026-10-31, ollama.com/library/clef-flash)**: Clef (27B, multimodal, ~32 GB RAM) and Clef Flash (9B, ~16 GB RAM) are Apache 2.0 decision models from Cloudflare. On Ollama ≥ 0.35.1: `ollama pull clef-flash`, then `POST http://localhost:11434/v1/systemone` with `{model, state, questions: {id: {type: "noul", instructions, criteria}}}` returning `answers.<id>.noul` as a calibrated probability (1 to 64 questions per call, ~40 ms median for Flash on a GPU). Also hosted on Workers AI as `@cf/cloudflare/clef-flash`. Rizzo-PII (`rizzoaiacademy/rizzo-pii-0.3B`, ModernBERT token classification, 22 Italian PII categories) does reversible anonymise → cloud → de-anonymise; the reference implementation is Python (github.com/Rizzo-AI-Academy/rizzo-pii).
+
+**Provider layer** (built): one function per capability on the server side, selected per request from Settings, with the env default as fallback.
+
+| Capability | Cloud | Local | Where |
+|---|---|---|---|
+| decision | OpenRouter JSON classifier; Clef on Workers AI | **Clef via Ollama** (`packages/core/src/clef.ts` builds one `noul` question per open point and one per on-screen fact; the probability is the confidence, no JSON parsing) | `apps/web/lib/decide/*`, `/api/decide` |
+| stt | ElevenLabs, OpenAI, Web Speech | local Whisper (whisper.cpp streaming, planned next pass; ggml base/small/medium in app data) | `packages/stt` |
+| vision (Screen Sense) | OpenRouter multimodal | Ollama vision model (qwen3-vl or similar), or Clef 27B for the yes/no gates | with Screen Sense |
+| tts (v2) | cloud | Piper / Kokoro | v2 |
+
+Rule kept from STT: an explicit provider choice never silently falls back to another provider; the UI shows the error.
+
+**Settings > Local models** (built, `apps/web/app/settings/local`): detects Ollama (version ≥ 0.35.1, install link), shows RAM and a fits / tight / too big label per model, Pull with streamed progress from Ollama `/api/pull`, Delete, Test (one real decision with latency and the two probabilities), and the decision provider choice. Recommends clef-flash on 16 GB machines and clef on 32 GB+. Whisper and the vision model are listed as planned.
+
+**Offline mode** (built): the desktop menu toggle forces local providers (`INTELLIPROMPTER_OFFLINE=1`) and blocks every renderer request whose host is not this machine (`session.webRequest.onBeforeRequest`), with an OFFLINE chip in the top bar and zero cost in the footer. The web deploy honours the same env variable and can point `OLLAMA_URL` at an Ollama on the server.
+
+**PII guard** (next pass): Rizzo-PII runs locally and anonymises the transcript window, the script and screen summaries before any cloud call, keeps the reversible map in memory, and restores placeholders in results. Toggle "Anonymise personal data before cloud calls", on by default in the Italian locale. Implementation options: ONNX export run with `onnxruntime-node` in the Electron main process, or the repo's local server as a managed sidecar. A regex layer (emails, phones, IBANs, card numbers) covers other languages.
+
+**Config**: `DECISION_PROVIDER=openrouter|clef-local|clef-cloudflare`, `OLLAMA_URL`, `CLEF_MODEL`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `CLEF_CLOUDFLARE_MODEL`, `INTELLIPROMPTER_OFFLINE`; later `STT_PROVIDER`, `VISION_PROVIDER`, `PII_GUARD`.
+
 ### 6.9 Version 2: real-time drawing and speaking (not in the current pass)
 
 Source: Farza's HeyClicky stream "we shipped something new" (youtube xOkfw1_ePhg; drawing at 15:00–24:50 and 28:50–38:20). Observed behaviour: voice first, a status chip cycling Listening / Thinking / Speaking; answers are spoken while drawings appear on floating cream "paper" cards with a small title, hand-drawn style type, boxes, arrows, grids and icons, revealed progressively with an orange pen marker in sync with the sentence being spoken; "point at" draws an orange rounded highlight around a real on-screen element; a native 3D engine renders labelled models (out of scope here). Lessons stated on stream: one strong model for voice, screen and routing beat a small router in front of a big model (the router misrouted and was slower); hide the model's thinking; a minimal agent harness beat a bloated one on speed and cost.
@@ -394,6 +419,7 @@ Runner: vitest, tests beside sources in `packages/*/src/**.test.ts`; Playwright 
 | 2026-10-31 | D1–D9 above | this document |
 | 2026-10-31 | Drawing and speaking (Clicky-style) is version 2, specified in §6.9, not built in the current pass | owner's request via side session |
 | 2026-10-31 | Phase 3 PowerPoint add-in built (apps/powerpoint) | this repo |
+| 2026-10-31 | Local mode is v1: Clef via Ollama as the local decision model, Settings page, offline switch built; local Whisper and the PII guard next | owner's request via side session |
 
 ## 14. Roadmap
 
@@ -403,6 +429,8 @@ Estimates assume one engineer, include tests, exclude store review and code sign
 |---|---|---|
 | 1 | Monorepo split per §5.7; `Engine` class with flip rule, per-call timeout and cost cap; engine tests; web and desktop unchanged for users | 3 |
 | 2 | `apps/server` relay with pairing, roles, TTLs, rate limits and tests; engine token gating on the Next API; desktop LAN and hosted modes; `/mirror` PWA; Caddy and systemd docs | 4 |
+| L1 | Local mode (§6.10): provider layer, Clef via Ollama, Settings > Local models, offline switch | done |
+| L2 | Local Whisper streaming backend with model download; PII guard (Rizzo-PII + regex) before cloud calls | 4 |
 | 6a | Screen Sense on desktop: always-on capture with dedup and cap, ON SCREEN strip, cost dial, Forget button | 4 |
 | 6b | Document import; hotkey region picker; gap detector; live notes export | 4 |
 | 3 | PowerPoint: one-day spike (mic on WebView2 and web, selection sync), then notes → script, editor sync, slide text to Screen Sense | 1 + 4 |

@@ -90,6 +90,31 @@ function waitFor(url, tries = 100) {
   });
 }
 
+/**
+ * Offline mode: every provider becomes local and the renderer can only reach this
+ * machine (the local servers and Ollama). Toggled from the menu; the server-side
+ * provider resolution reads the same flag through process.env.
+ */
+let offline = process.env.INTELLIPROMPTER_OFFLINE === "1";
+function applyOffline(win, value) {
+  offline = value;
+  process.env.INTELLIPROMPTER_OFFLINE = value ? "1" : "";
+  const filter = { urls: ["*://*/*", "ws://*/*", "wss://*/*"] };
+  session.defaultSession.webRequest.onBeforeRequest(filter, (details, callback) => {
+    if (!offline) return callback({});
+    const host = (() => {
+      try {
+        return new URL(details.url).hostname;
+      } catch {
+        return "";
+      }
+    })();
+    const local = host === "127.0.0.1" || host === "localhost" || host === "::1" || host === process.env.INTELLIPROMPTER_LAN_IP;
+    callback({ cancel: !local });
+  });
+  win?.webContents.send("offline", offline);
+}
+
 function buildMenu(win) {
   const template = [
     {
@@ -97,6 +122,8 @@ function buildMenu(win) {
       submenu: [
         { label: "Open config folder (keys + script)", click: () => shell.openPath(userData) },
         { label: "Edit API keys (.env)", click: () => shell.openPath(envFile) },
+        { label: "Local models & privacy settings", click: () => win.loadURL(URL + "/settings/local") },
+        { label: "Offline mode (local models only, no outbound requests)", type: "checkbox", checked: offline, click: (item) => applyOffline(win, item.checked) },
         { type: "separator" },
         { label: "Reload", accelerator: "CmdOrCtrl+R", click: () => win.reload() },
         { label: "Toggle fullscreen", accelerator: "F11", click: () => win.setFullScreen(!win.isFullScreen()) },
@@ -137,6 +164,7 @@ async function main() {
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
   });
   buildMenu(win);
+  applyOffline(win, offline);
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };

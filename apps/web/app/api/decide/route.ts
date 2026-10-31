@@ -1,66 +1,39 @@
-import { requireEngine } from "@/lib/engineAuth";
 import { NextResponse } from "next/server";
-import {
-  SYSTEM_PROMPT,
-  buildUserPrompt,
-  parseDecisions,
-  type DecideRequest,
-  type DecideResponse,
-} from "@intelliprompter/core";
+import type { DecideRequest, DecideResponse, DecisionProviderId } from "@intelliprompter/core";
+import { requireEngine } from "@/lib/engineAuth";
+import { decideOpenRouter } from "@/lib/decide/openrouter";
+import { decideClefCloudflare, decideClefLocal } from "@/lib/decide/clef";
 
 /**
- * One OpenRouter call per engine tick. Prompt and parser live in
- * packages/core/src/prompt.ts so they can be tested without a server.
+ * One call per engine tick. The provider comes from the request (chosen in
+ * Settings), else DECISION_PROVIDER, else openrouter. In offline mode only
+ * local providers are allowed.
  */
+const PROVIDERS: Record<DecisionProviderId, (b: DecideRequest) => Promise<DecideResponse>> = {
+  openrouter: decideOpenRouter,
+  "clef-local": decideClefLocal,
+  "clef-cloudflare": decideClefCloudflare,
+};
+
+function resolveProvider(requested?: string): DecisionProviderId {
+  const offline = process.env.INTELLIPROMPTER_OFFLINE === "1";
+  const fallback = (process.env.DECISION_PROVIDER as DecisionProviderId) || "openrouter";
+  const id = (requested && requested in PROVIDERS ? requested : fallback) as DecisionProviderId;
+  if (offline && id !== "clef-local") return "clef-local";
+  return id;
+}
+
 export async function POST(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "OPENROUTER_API_KEY is not set. Copy .env.example to .env.local." },
-      { status: 500 },
-    );
-  }
-  const model = process.env.OPENROUTER_DECISION_MODEL || "google/gemini-2.5-flash-lite";
-
   const body = (await req.json()) as DecideRequest;
+  const provider = resolveProvider(body.provider);
   if (!body?.bullets?.length) {
-    return NextResponse.json<DecideResponse>({ decisions: [], latencyMs: 0, cost: 0, model });
+    return NextResponse.json<DecideResponse>({ decisions: [], latencyMs: 0, cost: 0, model: provider });
   }
-
-  const started = Date.now();
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.PUBLIC_ORIGIN || "http://localhost:4747",
-      "X-Title": "Intelliprompter",
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0,
-      max_tokens: 500,
-      response_format: { type: "json_object" },
-      usage: { include: true },
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: buildUserPrompt(body) },
-      ],
-    }),
-  });
-  const latencyMs = Date.now() - started;
-
-  if (!res.ok) {
-    const text = await res.text();
-    return NextResponse.json({ error: `OpenRouter ${res.status}: ${text}` }, { status: 502 });
+  try {
+    return NextResponse.json<DecideResponse>(await PROVIDERS[provider](body));
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
   }
-
-  const json = await res.json();
-  const content: string = json?.choices?.[0]?.message?.content ?? "";
-  const cost: number | null = typeof json?.usage?.cost === "number" ? json.usage.cost : null;
-
-  const { decisions, unmentioned } = parseDecisions(content, body.bullets.map((b) => b.id));
-  return NextResponse.json<DecideResponse>({ decisions, unmentioned, latencyMs, cost, model });
 }

@@ -94,3 +94,14 @@ button.chip.code { color: var(--accent); border-color: #4a3a1a; }
 .strip.onscreen { border-color: #3a2a10; }
 .strip.onscreen .hint { font-size: 14px; color: var(--text); margin-bottom: 6px; }
 @media (max-width: 600px) { .point { grid-template-columns: 22px 1fr; } .point .status { display: none; } .footer .transcript { display: none; } }
+
+/* ---- settings / local models ---- */
+.settings .strip { display: flex; flex-direction: column; gap: 8px; }
+.settings .model { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--border); }
+.settings .model:first-of-type { border-top: none; }
+.settings .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.settings .choice { display: inline-flex; gap: 6px; align-items: center; text-transform: none; letter-spacing: 0; }
+.settings .choice input { accent-color: var(--accent); }
+.settings a { color: var(--accent); }
+.settings code { font-family: var(--mono); }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }
