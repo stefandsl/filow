@@ -3,6 +3,7 @@
 import type { Command, SessionState } from "@intelliprompter/core";
 import { missedPoints } from "@intelliprompter/core";
 import { OnScreenStrip } from "./OnScreenStrip";
+import { useT } from "./lang";
 
 export type StageViewProps = {
   state: SessionState;
@@ -16,6 +17,7 @@ export type StageViewProps = {
 
 /** The live view: section, points, next strip, missed tray, on-screen strip, remote buttons. Uses the app's CSS classes. */
 export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
+  const t = useT();
   const { script, sectionIdx, points, stats, engine, screen } = state;
   const section = script.sections[sectionIdx];
   const nextSection = script.sections[sectionIdx + 1];
@@ -31,8 +33,8 @@ export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
         <>
           <div>
             <div className="section-count">
-              Section {sectionIdx + 1} / {script.sections.length}
-              {state.slide ? ` · slide ${state.slide.index + 1}/${state.slide.total}` : ""}
+              {t("stage.section", { n: sectionIdx + 1, total: script.sections.length })}
+              {state.slide ? ` · ${t("stage.slide", { n: state.slide.index + 1, total: state.slide.total })}` : ""}
             </div>
             <h1 className="section-title">{section.title}</h1>
           </div>
@@ -60,7 +62,7 @@ export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
                 >
                   <span className="mark">{started ? "✓" : ""}</span>
                   <span className="status">
-                    {st.status}
+                    {t(`status.${st.status}`)}
                     {!started && <span className="pct">· {Math.round(st.confidence * 100)}%</span>}
                   </span>
                   <span className="text">{b.text}</span>
@@ -71,7 +73,7 @@ export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
 
           {nextSection && (
             <div className="strip">
-              <div className="label">Next / {nextSection.title}</div>
+              <div className="label">{t("stage.next", { title: nextSection.title })}</div>
               <div className="row">
                 {nextSection.bullets.map((b) => (
                   <span key={b.id} className={`next-item ${points[b.id]?.status === "started" ? "done" : ""}`}>
@@ -84,11 +86,11 @@ export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
 
           {missed.length > 0 && (
             <div className="strip">
-              <div className="label">▾ ! Missed {missed.length}</div>
+              <div className="label">{t("stage.missed", { n: missed.length })}</div>
               <div className="row scroll">
                 {missed.map((b) => (
                   <span key={b.id} className="missed-item" onClick={can ? () => send({ type: "reopen", id: b.id }) : undefined}>
-                    ! MISSED · {b.text}
+                    {t("stage.missedItem", { text: b.text })}
                   </span>
                 ))}
               </div>
@@ -97,29 +99,29 @@ export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
         </>
       ) : (
         <div className="strip">
-          <div className="label">No script</div>
-          <div>Waiting for the engine to load a script.</div>
+          <div className="label">{t("stage.noScript")}</div>
+          <div>{t("stage.waitingEngine")}</div>
         </div>
       )}
 
       {can && (
         <div className="controls">
           <button className="btn" onClick={() => send({ type: "prevSection" })} disabled={sectionIdx === 0}>
-            ← Prev
+            {t("ctl.prevShort")}
           </button>
           <button className="btn primary" onClick={() => send({ type: "nextSection" })} disabled={!nextSection}>
-            Next →
+            {t("ctl.nextShort")}
           </button>
           <button className="btn" onClick={() => send({ type: "resetSection" })}>
-            Reset
+            {t("ctl.resetShort")}
           </button>
           {engine.recording ? (
             <button className="btn danger" onClick={() => send({ type: "stopTake" })}>
-              Stop take
+              {t("ctl.stop")}
             </button>
           ) : (
             <button className="btn" onClick={() => send({ type: "startTake" })}>
-              Start take
+              {t("ctl.start")}
             </button>
           )}
         </div>
@@ -127,8 +129,8 @@ export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
 
       <div className="footer">
         <span>
-          {engine.recording ? "● live" : "○ idle"} · Calls {stats.calls} · Avg {stats.avgMs} ms · Cost{" "}
-          {stats.costUsd === null ? "n/a" : `$${stats.costUsd.toFixed(4)}`}
+          {engine.recording ? t("stage.live") : t("stage.idle")} ·{" "}
+          {t("footer.stats", { calls: stats.calls, avg: stats.avgMs, cost: stats.costUsd === null ? "n/a" : `$${stats.costUsd.toFixed(4)}` })}
         </span>
         <span className="transcript">
           <span>{state.transcriptTail || "…"}</span>

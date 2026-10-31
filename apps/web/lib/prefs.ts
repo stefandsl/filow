@@ -1,5 +1,5 @@
 // Per-browser preferences (not secrets). Server-side defaults come from env.
-import type { DecisionProviderId, ScreenMode } from "@intelliprompter/core";
+import { isLang, langFromLocale, type DecisionProviderId, type Lang, type ScreenMode } from "@intelliprompter/core";
 
 const KEY = "prefs:decisionProvider";
 
@@ -45,4 +45,27 @@ export function setScreenMode(mode: ScreenMode): void {
   } catch {
     /* ignore */
   }
+}
+
+// ---- UI language ----
+const LANG_KEY = "prefs:lang";
+
+/** Stored choice, else the browser locale. */
+export function getLang(): Lang {
+  try {
+    const v = localStorage.getItem(LANG_KEY);
+    if (isLang(v)) return v;
+  } catch {
+    /* ignore */
+  }
+  return typeof navigator !== "undefined" ? langFromLocale(navigator.language) : "en";
+}
+
+export function setLang(lang: Lang): void {
+  try {
+    localStorage.setItem(LANG_KEY, lang);
+  } catch {
+    /* ignore */
+  }
+  (globalThis as { intelliprompter?: { setLang?: (l: Lang) => void } }).intelliprompter?.setLang?.(lang);
 }

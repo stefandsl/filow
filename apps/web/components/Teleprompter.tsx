@@ -1,24 +1,39 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { missedPoints, notesToMarkdown, parseScript, SCREEN_MODE_LABELS, type ImportResponse, type ScreenMode, type ScreenNote, type Script, type SttBackendId, type SttStatus } from "@intelliprompter/core";
-import { OnScreenStrip } from "@intelliprompter/ui";
 import {
-  availableBackends,
-  BACKEND_LABELS,
-  browserSupported,
-  createBackend,
-  startAuto,
-  type SttBackend,
-} from "@intelliprompter/stt";
+  missedPoints,
+  notesToMarkdown,
+  parseScript,
+  SCREEN_MODE_LABELS,
+  type ImportResponse,
+  type ScreenMode,
+  type ScreenNote,
+  type Script,
+  type SttBackendId,
+  type SttStatus,
+} from "@intelliprompter/core";
+import { LangProvider, OnScreenStrip, useLang, useT } from "@intelliprompter/ui";
+import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, startAuto, type SttBackend } from "@intelliprompter/stt";
 import { useEngine } from "./useEngine";
 import { engineHeaders, useSession } from "./useSession";
 import { PairPanel } from "./PairPanel";
 import { useScreenSense, type ScreenSource } from "./useScreenSense";
+import { LangSwitch, useUiLang } from "./LangSwitch";
 
 type BackendChoice = "auto" | SttBackendId;
 
 export default function Teleprompter() {
+  const [lang, setLang] = useUiLang();
+  return (
+    <LangProvider lang={lang}>
+      <TeleprompterInner onLang={setLang} />
+    </LangProvider>
+  );
+}
+
+function TeleprompterInner({ onLang }: { onLang: (l: "en" | "it") => void }) {
+  const t = useT();
   const { engine, state } = useEngine();
   const sessionInfo = useSession(engine);
   const [scriptText, setScriptText] = useState("");
@@ -137,12 +152,7 @@ export default function Teleprompter() {
     try {
       if (choice === "auto") {
         const candidates = availableBackends(sttStatus, { webSpeech: hasWebSpeech, offline });
-        const { backend } = await startAuto(
-          candidates,
-          handlers,
-          (id, note) => pushLog(`${BACKEND_LABELS[id]}: ${note}`),
-          { headers: engineHeaders() },
-        );
+        const { backend } = await startAuto(candidates, handlers, (id, note) => pushLog(`${BACKEND_LABELS[id]}: ${note}`), { headers: engineHeaders() });
         backendRef.current = backend;
         engine.setBackend(backend.id);
       } else {
@@ -174,6 +184,7 @@ export default function Teleprompter() {
   const tail = state.transcriptTail;
   const availability = availableBackends(sttStatus, { webSpeech: hasWebSpeech, whisper: mounted, offline });
   const costLabel = stats.costUsd === null ? "n/a" : `$${stats.costUsd.toFixed(6)}`;
+  const lang = useLang();
 
   return (
     <div className="app">
@@ -181,22 +192,23 @@ export default function Teleprompter() {
         <div className="logo">
           <span className="dot" /> INTELLIPROMPTER
         </div>
-        <span className="subtitle">/ live talking points</span>
+        <span className="subtitle">{t("app.subtitle")}</span>
         <span className="spacer" />
         <PairPanel info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} />
-        {offline && <span className="chip err">OFFLINE</span>}
+        {offline && <span className="chip err">{t("app.offline")}</span>}
         {eng.backend && <span className="chip live">● {BACKEND_LABELS[eng.backend]}</span>}
-        {screen.status === "watching" && <span className={`chip ${state.screenStats?.analysing ? "busy" : "live"}`}>👁 {state.screenStats?.analysing ? "analysing…" : screen.label}</span>}
+        {screen.status === "watching" && (
+          <span className={`chip ${state.screenStats?.analysing ? "busy" : "live"}`}>👁 {state.screenStats?.analysing ? t("app.analysing") : screen.label}</span>
+        )}
         {error && <span className="chip err">{error}</span>}
+        <LangSwitch lang={lang} onChange={onLang} />
       </header>
 
       {section ? (
         <>
           <div>
-            <div className="eyebrow">02 / Your points</div>
-            <div className="section-count">
-              Section {sectionIdx + 1} / {script.sections.length}
-            </div>
+            <div className="eyebrow">{t("stage.eyebrow")}</div>
+            <div className="section-count">{t("stage.section", { n: sectionIdx + 1, total: script.sections.length })}</div>
             <h1 className="section-title">{section.title}</h1>
           </div>
 
@@ -214,11 +226,11 @@ export default function Teleprompter() {
                   key={b.id}
                   className={`point ${started ? "started" : ""} ${hot ? "hot" : ""}`}
                   onDoubleClick={() => engine.dispatch(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id })}
-                  title="Double-click to toggle"
+                  title={t("stage.toggle")}
                 >
                   <span className="mark">{started ? "✓" : ""}</span>
                   <span className="status">
-                    {st.status}
+                    {t(`status.${st.status}`)}
                     {!started && <span className="pct">· {Math.round(st.confidence * 100)}%</span>}
                   </span>
                   <span className="text">{b.text}</span>
@@ -229,7 +241,7 @@ export default function Teleprompter() {
 
           {nextSection && (
             <div className="strip">
-              <div className="label">Next / {nextSection.title}</div>
+              <div className="label">{t("stage.next", { title: nextSection.title })}</div>
               <div className="row">
                 {nextSection.bullets.map((b) => (
                   <span key={b.id} className={`next-item ${points[b.id]?.status === "started" ? "done" : ""}`}>
@@ -242,16 +254,11 @@ export default function Teleprompter() {
 
           {missed.length > 0 && (
             <div className="strip">
-              <div className="label">▾ ! Missed {missed.length}</div>
+              <div className="label">{t("stage.missed", { n: missed.length })}</div>
               <div className="row scroll">
                 {missed.map((b) => (
-                  <span
-                    key={b.id}
-                    className="missed-item"
-                    title="Click to re-open this point"
-                    onClick={() => engine.dispatch({ type: "reopen", id: b.id })}
-                  >
-                    ! MISSED · {b.text}
+                  <span key={b.id} className="missed-item" title={t("stage.reopen")} onClick={() => engine.dispatch({ type: "reopen", id: b.id })}>
+                    {t("stage.missedItem", { text: b.text })}
                   </span>
                 ))}
               </div>
@@ -262,10 +269,8 @@ export default function Teleprompter() {
         <>
           {state.screen && <OnScreenStrip screen={state.screen} unmentioned={state.unmentioned} analysing={state.screenStats?.analysing} onLookNow={screen.lookNow} onForget={screen.forget} />}
           <div className="strip">
-            <div className="label">No script</div>
-            <div>
-              Add sections and bullets in <code>script.md</code>, click Edit points, import a document, or just watch your screen: Screen Sense builds a section per slide.
-            </div>
+            <div className="label">{t("stage.noScript")}</div>
+            <div>{t("stage.noScriptHint")}</div>
           </div>
         </>
       )}
@@ -273,21 +278,15 @@ export default function Teleprompter() {
       <div className="controls">
         {eng.recording ? (
           <button className="btn danger" onClick={stopTake}>
-            Stop take
+            {t("ctl.stop")}
           </button>
         ) : (
           <button className="btn primary" onClick={startTake} disabled={!section || availability.length === 0}>
-            Start take
+            {t("ctl.start")}
           </button>
         )}
-        <select
-          className="btn"
-          value={choice}
-          disabled={eng.recording}
-          onChange={(e) => setChoice(e.target.value as BackendChoice)}
-          title="Transcription backend"
-        >
-          <option value="auto">Auto (fastest available)</option>
+        <select className="btn" value={choice} disabled={eng.recording} onChange={(e) => setChoice(e.target.value as BackendChoice)} title={t("ctl.backend")}>
+          <option value="auto">{t("ctl.auto")}</option>
           {availability.map((id) => (
             <option key={id} value={id}>
               {BACKEND_LABELS[id]}
@@ -295,65 +294,81 @@ export default function Teleprompter() {
           ))}
         </select>
         <button className="btn" onClick={() => setEditing(true)}>
-          Edit points
+          {t("ctl.edit")}
         </button>
         <button className="btn" onClick={() => engine.dispatch({ type: "prevSection" })} disabled={sectionIdx === 0}>
-          ← Prev section
+          {t("ctl.prev")}
         </button>
         <button className="btn" onClick={() => engine.dispatch({ type: "nextSection" })} disabled={!nextSection}>
-          Next section →
+          {t("ctl.next")}
         </button>
         <button className="btn" onClick={() => engine.dispatch({ type: "resetSection" })}>
-          Reset section
+          {t("ctl.reset")}
         </button>
         <button className="btn" onClick={loadScript}>
-          Reload script
+          {t("ctl.reload")}
         </button>
-        <button className="btn" onClick={() => fileRef.current?.click()} disabled={importing} title="PDF, PPTX, DOCX, TXT or MD → talking points">
-          {importing ? "Importing…" : "Import document"}
+        <button className="btn" onClick={() => fileRef.current?.click()} disabled={importing} title={t("ctl.importTitle")}>
+          {importing ? t("ctl.importing") : t("ctl.import")}
         </button>
-        <input ref={fileRef} type="file" accept=".pdf,.pptx,.docx,.txt,.md,.markdown" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && void importDocument(e.target.files[0])} />
-        <a className="btn" href="/settings/local" title="Local models, decision provider, privacy, Screen Sense">
-          Settings
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".pdf,.pptx,.docx,.txt,.md,.markdown"
+          style={{ display: "none" }}
+          onChange={(e) => e.target.files?.[0] && void importDocument(e.target.files[0])}
+        />
+        <a className="btn" href="/settings/local" title={t("ctl.settingsTitle")}>
+          {t("ctl.settings")}
         </a>
       </div>
 
       {screen.status !== "unsupported" && (
         <div className="controls">
           <div className="group">
-            <span className="label">Screen Sense</span>
+            <span className="label">{t("screen.label")}</span>
             {screen.status === "watching" ? (
               <button className="btn danger" onClick={screen.stopWatching}>
-                Stop watching
+                {t("screen.stopWatching")}
               </button>
             ) : (
-              <button className="btn primary" onClick={() => void screen.watchScreen()} disabled={offline || !screen.enabled} title={offline ? "Frames would leave this machine; off in offline mode" : "Pick a screen or window to watch"}>
-                Watch screen…
+              <button
+                className="btn primary"
+                onClick={() => void screen.watchScreen()}
+                disabled={offline || !screen.enabled}
+                title={offline ? t("screen.watchOffline") : t("screen.watchTitle")}
+              >
+                {t("screen.watch")}
               </button>
             )}
-            <select className="btn" value={screen.mode} onChange={(e) => screen.setMode(e.target.value as ScreenMode)} title="Cost dial: when a frame goes to the vision model">
+            <select className="btn" value={screen.mode} onChange={(e) => screen.setMode(e.target.value as ScreenMode)} title={t("screen.modeTitle")}>
               {(Object.keys(SCREEN_MODE_LABELS) as ScreenMode[]).map((m) => (
                 <option key={m} value={m}>
-                  {SCREEN_MODE_LABELS[m]}
+                  {t(`mode.${m}`)}
                 </option>
               ))}
             </select>
-            <button className="btn" onClick={screen.lookNow} disabled={offline || (screen.status !== "watching" && !screen.desktop)} title={screen.desktop && screen.status !== "watching" ? "Drag a region of the screen to send" : "Send the current frame now"}>
-              Look now
+            <button
+              className="btn"
+              onClick={screen.lookNow}
+              disabled={offline || (screen.status !== "watching" && !screen.desktop)}
+              title={screen.desktop && screen.status !== "watching" ? t("screen.lookNowRegion") : t("screen.lookNowFrame")}
+            >
+              {t("screen.lookNow")}
             </button>
             {screen.desktop && (
-              <button className="btn" onClick={() => void screen.captureRegion()} disabled={offline} title="Drag a rectangle; also on the global hotkey">
-                Region…
+              <button className="btn" onClick={() => void screen.captureRegion()} disabled={offline} title={t("screen.regionTitle")}>
+                {t("screen.region")}
               </button>
             )}
             {state.screen && (
               <button className="btn" onClick={screen.forget}>
-                Forget
+                {t("screen.forget")}
               </button>
             )}
             {lastNotes.length > 0 && (
-              <button className="btn" onClick={exportNotes} title="Markdown: one entry per slide with what was on screen and what you said">
-                Export notes ({lastNotes.length})
+              <button className="btn" onClick={exportNotes} title={t("screen.exportTitle")}>
+                {t("screen.exportNotes", { n: lastNotes.length })}
               </button>
             )}
           </div>
@@ -362,12 +377,16 @@ export default function Teleprompter() {
 
       <div className="footer">
         <span>
-          Calls {stats.calls} · Avg {stats.avgMs} ms · Cost {costLabel}
+          {t("footer.stats", { calls: stats.calls, avg: stats.avgMs, cost: costLabel })}
           {stats.model ? ` · ${stats.model}` : ""}
-          {state.screenStats?.frames ? ` · Screen ${state.screenStats.frames} frames${state.screenStats.costUsd === null ? "" : ` $${state.screenStats.costUsd.toFixed(4)}`}` : ""}
+          {state.screenStats?.frames
+            ? ` · ${t("footer.screen", { n: state.screenStats.frames })}${state.screenStats.costUsd === null ? "" : ` $${state.screenStats.costUsd.toFixed(4)}`}`
+            : ""}
         </span>
         <span className="transcript">
-          <span>Transcript / {tail || "…"}</span>
+          <span>
+            {t("footer.transcript")} {tail || "…"}
+          </span>
         </span>
       </div>
 
@@ -384,12 +403,12 @@ export default function Teleprompter() {
       {pendingImport && (
         <ScriptEditor
           initial={pendingImport.text}
-          title={`Imported ${pendingImport.script.sections.length} sections`}
+          title={t("editor.imported", { n: pendingImport.script.sections.length })}
           warnings={pendingImport.warnings}
           onCancel={() => setPendingImport(null)}
-          onSave={(t) => {
+          onSave={(txt) => {
             setPendingImport(null);
-            void saveScript(t);
+            void saveScript(txt);
           }}
         />
       )}
@@ -399,17 +418,18 @@ export default function Teleprompter() {
 
 /** Desktop-only chooser: screens and windows minus this app (ARCHITECTURE.md §6.2). */
 function SourceChooser({ sources, onPick }: { sources: ScreenSource[]; onPick: (s: ScreenSource | null) => void }) {
+  const t = useT();
   return (
     <div className="modal-bg" onClick={() => onPick(null)}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="eyebrow">Watch which screen or window?</div>
-        <div className="hint">Frames stay in memory and go once to the vision model when the content changes. This window is excluded.</div>
-        {sources.length === 0 && <div className="hint">No capturable screens or windows found.</div>}
+        <div className="eyebrow">{t("screen.chooserTitle")}</div>
+        <div className="hint">{t("screen.chooserHint")}</div>
+        {sources.length === 0 && <div className="hint">{t("screen.chooserEmpty")}</div>}
         <div className="sources">
           {sources.map((s) => (
             <button key={s.id} className="source" onClick={() => onPick(s)}>
               {s.thumbnail ? <img src={s.thumbnail} alt="" /> : <div style={{ aspectRatio: "16/9", background: "#000" }} />}
-              <span className="kind">{s.kind}</span>
+              <span className="kind">{t(`screen.kind.${s.kind}`)}</span>
               <span className="name" title={s.name}>
                 {s.name}
               </span>
@@ -418,7 +438,7 @@ function SourceChooser({ sources, onPick }: { sources: ScreenSource[]; onPick: (
         </div>
         <div className="controls">
           <button className="btn" onClick={() => onPick(null)}>
-            Cancel
+            {t("common.cancel")}
           </button>
         </div>
       </div>
@@ -430,7 +450,7 @@ function ScriptEditor({
   initial,
   onSave,
   onCancel,
-  title = "Edit points",
+  title,
   warnings = [],
 }: {
   initial: string;
@@ -439,29 +459,26 @@ function ScriptEditor({
   title?: string;
   warnings?: string[];
 }) {
+  const t = useT();
   const [text, setText] = useState(initial);
   const preview = parseScript(text);
   return (
     <div className="modal-bg" onClick={onCancel}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="eyebrow">{title}</div>
+        <div className="eyebrow">{title ?? t("editor.title")}</div>
         {warnings.map((w, i) => (
           <span key={i} className="chip err">
             {w}
           </span>
         ))}
-        <div className="hint">
-          One <code># Section title</code> line per section, then <code>- bullet</code> lines. Saved to{" "}
-          <code>script.md</code>. Parsed: {preview.sections.length} sections,{" "}
-          {preview.sections.reduce((n, s) => n + s.bullets.length, 0)} points.
-        </div>
+        <div className="hint">{t("editor.hint", { sections: preview.sections.length, points: preview.sections.reduce((n, s) => n + s.bullets.length, 0) })}</div>
         <textarea value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} />
         <div className="controls">
           <button className="btn primary" onClick={() => onSave(text)}>
-            Save
+            {t("common.save")}
           </button>
           <button className="btn" onClick={onCancel}>
-            Cancel
+            {t("common.cancel")}
           </button>
         </div>
       </div>

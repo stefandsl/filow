@@ -121,3 +121,5 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .controls .group { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 6px 10px; border: 1px dashed var(--border); border-radius: 6px; }
 .controls .group .label { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
 input.btn { text-transform: none; letter-spacing: 0; font-family: var(--mono); }
+.langswitch { display: inline-flex; gap: 4px; }
+.langswitch .chip { padding: 3px 8px; }

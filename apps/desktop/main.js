@@ -32,7 +32,33 @@ const settingsFile = path.join(userData, "settings.json");
 
 // ---- Screen Sense (ARCHITECTURE.md §6.1): sources, region picker, global hotkey ----
 const DEFAULT_HOTKEY = "CommandOrControl+Shift+Space";
-let settings = { screenHotkey: DEFAULT_HOTKEY, screenSense: true, contentProtection: false, remoteShare: false, mirrorHost: "" };
+let settings = { screenHotkey: DEFAULT_HOTKEY, screenSense: true, contentProtection: false, remoteShare: false, mirrorHost: "", lang: "" };
+
+// Menu strings. The page owns the choice (Settings / EN-IT switch) and tells us over IPC; "" = system locale.
+const MENU_TEXT = {
+  en: {
+    configFolder: "Open config folder (keys + script)", editEnv: "Edit API keys (.env)", settings: "Local models & privacy settings",
+    offline: "Offline mode (local models only, no outbound requests)", share: "Share to phone on any network (Cloudflare tunnel)",
+    shareOn: "Share to phone on any network (on: {url})", mirrorAddress: "Mirror address on this network", automatic: "Automatic ({ip})",
+    customHost: "Custom host: set INTELLIPROMPTER_MIRROR_HOST in .env", hideWindow: "Hide this window from screen recordings and screenshots",
+    reload: "Reload", fullscreen: "Toggle fullscreen", devtools: "Developer tools", quit: "Quit",
+  },
+  it: {
+    configFolder: "Apri la cartella di configurazione (chiavi + copione)", editEnv: "Modifica le chiavi API (.env)", settings: "Modelli locali e privacy",
+    offline: "Modalità offline (solo modelli locali, nessuna richiesta in uscita)", share: "Condividi col telefono su qualsiasi rete (tunnel Cloudflare)",
+    shareOn: "Condividi col telefono su qualsiasi rete (attivo: {url})", mirrorAddress: "Indirizzo del mirror su questa rete", automatic: "Automatico ({ip})",
+    customHost: "Host personalizzato: imposta INTELLIPROMPTER_MIRROR_HOST in .env", hideWindow: "Nascondi questa finestra da registrazioni e screenshot",
+    reload: "Ricarica", fullscreen: "Schermo intero", devtools: "Strumenti per sviluppatori", quit: "Esci",
+  },
+};
+function menuLang() {
+  if (settings.lang === "it" || settings.lang === "en") return settings.lang;
+  return app.getLocale().toLowerCase().startsWith("it") ? "it" : "en";
+}
+function mt(key, vars) {
+  const text = MENU_TEXT[menuLang()][key] || MENU_TEXT.en[key] || key;
+  return vars ? text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : text;
+}
 function loadSettings() {
   try {
     settings = { ...settings, ...JSON.parse(fs.readFileSync(settingsFile, "utf8")) };
@@ -139,6 +165,12 @@ function wireScreenSense() {
     const picked = await pickRegion();
     if (!picked) return null;
     return { image: await captureRegion(picked.display, picked.rect), width: picked.rect.width, height: picked.rect.height };
+  });
+  ipcMain.on("ui:lang", (_e, lang) => {
+    if (lang !== "en" && lang !== "it") return;
+    settings.lang = lang;
+    saveSettings();
+    if (mainWin && !mainWin.isDestroyed()) buildMenu(mainWin);
   });
   ipcMain.handle("screen:settings", () => ({ hotkey: settings.screenHotkey, enabled: settings.screenSense }));
   ipcMain.handle("screen:setSettings", (_e, next) => {
@@ -419,28 +451,28 @@ function buildMenu(win) {
     {
       label: "Intelliprompter",
       submenu: [
-        { label: "Open config folder (keys + script)", click: () => shell.openPath(userData) },
-        { label: "Edit API keys (.env)", click: () => shell.openPath(envFile) },
-        { label: "Local models & privacy settings", click: () => win.loadURL(APP_URL + "/settings/local") },
-        { label: "Offline mode (local models only, no outbound requests)", type: "checkbox", checked: offline, click: (item) => applyOffline(win, item.checked) },
+        { label: mt("configFolder"), click: () => shell.openPath(userData) },
+        { label: mt("editEnv"), click: () => shell.openPath(envFile) },
+        { label: mt("settings"), click: () => win.loadURL(APP_URL + "/settings/local") },
+        { label: mt("offline"), type: "checkbox", checked: offline, click: (item) => applyOffline(win, item.checked) },
         { type: "separator" },
         {
-          label: tunnels.web ? `Share to phone on any network (on: ${tunnels.web.replace("https://", "")})` : "Share to phone on any network (Cloudflare tunnel)",
+          label: tunnels.web ? mt("shareOn", { url: tunnels.web.replace("https://", "") }) : mt("share"),
           type: "checkbox",
           checked: settings.remoteShare && Boolean(tunnels.web),
           click: (item) => void setRemoteShare(win, item.checked),
         },
         {
-          label: "Mirror address on this network",
+          label: mt("mirrorAddress"),
           submenu: [
-            { label: `Automatic (${lanIp()})`, type: "radio", checked: !settings.mirrorHost, click: () => applyMirrorHost(win, "") },
+            { label: mt("automatic", { ip: lanIp() }), type: "radio", checked: !settings.mirrorHost, click: () => applyMirrorHost(win, "") },
             ...interfaces().map((i) => ({ label: `${i.address}  (${i.name})`, type: "radio", checked: settings.mirrorHost === i.address, click: () => applyMirrorHost(win, i.address) })),
             { type: "separator" },
-            { label: "Custom host: set INTELLIPROMPTER_MIRROR_HOST in .env", enabled: false },
+            { label: mt("customHost"), enabled: false },
           ],
         },
         {
-          label: "Hide this window from screen recordings and screenshots",
+          label: mt("hideWindow"),
           type: "checkbox",
           checked: settings.contentProtection,
           click: (item) => {
@@ -450,11 +482,11 @@ function buildMenu(win) {
           },
         },
         { type: "separator" },
-        { label: "Reload", accelerator: "CmdOrCtrl+R", click: () => win.reload() },
-        { label: "Toggle fullscreen", accelerator: "F11", click: () => win.setFullScreen(!win.isFullScreen()) },
-        { label: "Developer tools", accelerator: "CmdOrCtrl+Shift+I", click: () => win.webContents.toggleDevTools() },
+        { label: mt("reload"), accelerator: "CmdOrCtrl+R", click: () => win.reload() },
+        { label: mt("fullscreen"), accelerator: "F11", click: () => win.setFullScreen(!win.isFullScreen()) },
+        { label: mt("devtools"), accelerator: "CmdOrCtrl+Shift+I", click: () => win.webContents.toggleDevTools() },
         { type: "separator" },
-        { role: "quit" },
+        { label: mt("quit"), role: "quit" },
       ],
     },
     { role: "editMenu" },

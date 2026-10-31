@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import type { DecisionProviderId } from "@intelliprompter/core";
+import { LANG_LABELS, LANGS, SCREEN_MODE_LABELS, type DecisionProviderId, type Lang, type ScreenMode } from "@intelliprompter/core";
 import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, whisperCached } from "@intelliprompter/stt";
+import { LangProvider, useT } from "@intelliprompter/ui";
 import { engineHeaders } from "@/components/useSession";
-import { getDecisionProvider, getScreenMode, PROVIDER_LABELS, setDecisionProvider, setScreenMode } from "@/lib/prefs";
-import { SCREEN_MODE_LABELS, type ScreenMode } from "@intelliprompter/core";
+import { LangSwitch, useUiLang } from "@/components/LangSwitch";
+import { getDecisionProvider, getScreenMode, setDecisionProvider, setScreenMode } from "@/lib/prefs";
 import { screenBridge } from "@/lib/screen/watcher";
 
 type Status = {
@@ -25,6 +26,16 @@ type Status = {
 };
 
 export default function LocalModelsPage() {
+  const [lang, setLang] = useUiLang();
+  return (
+    <LangProvider lang={lang}>
+      <SettingsInner lang={lang} onLang={setLang} />
+    </LangProvider>
+  );
+}
+
+function SettingsInner({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
+  const t = useT();
   const [status, setStatus] = useState<Status | null>(null);
   const [provider, setProvider] = useState<DecisionProviderId | "">("");
   const [progress, setProgress] = useState<Record<string, string>>({});
@@ -65,18 +76,18 @@ export default function LocalModelsPage() {
     const r = await bridge.setSettings(next);
     setHotkey({ hotkey: r.hotkey, enabled: r.enabled });
     setHotkeyDraft(r.hotkey);
-    setHotkeyMsg(r.ok ? "saved" : r.error ?? "could not register");
+    setHotkeyMsg(r.ok ? t("settings.saved") : r.error ?? t("settings.hotkeyFailed"));
   };
 
   const download = async (name: string) => {
     setError(null);
-    setProgress((p) => ({ ...p, [name]: "starting…" }));
+    setProgress((p) => ({ ...p, [name]: t("settings.starting") }));
     try {
       const device = await preloadWhisper(name, (p) => {
         const pct = p.progress !== undefined ? ` ${Math.round(p.progress)}%` : "";
         setProgress((pr) => ({ ...pr, [name]: `${p.status}${p.file ? " " + p.file.split("/").pop() : ""}${pct}` }));
       });
-      setTestResult((t) => ({ ...t, [name]: `ready on ${device}` }));
+      setTestResult((r) => ({ ...r, [name]: t("settings.readyOn", { device }) }));
       setCached((c) => ({ ...c, [name]: true }));
     } catch (err) {
       setError(`Whisper: ${(err as Error).message}`);
@@ -87,7 +98,7 @@ export default function LocalModelsPage() {
 
   const pull = async (name: string) => {
     setError(null);
-    setProgress((p) => ({ ...p, [name]: "starting…" }));
+    setProgress((p) => ({ ...p, [name]: t("settings.starting") }));
     const res = await fetch("/api/local/pull", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ name }) });
     if (!res.ok || !res.body) {
       const { error } = (await res.json().catch(() => ({ error: `pull failed (${res.status})` }))) as { error?: string };
@@ -121,20 +132,20 @@ export default function LocalModelsPage() {
   };
 
   const remove = async (name: string) => {
-    if (!confirm(`Delete ${name} from Ollama?`)) return;
+    if (!confirm(t("settings.deleteConfirm", { name }))) return;
     await fetch("/api/local/pull", { method: "DELETE", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ name }) });
     void refresh();
   };
 
   const test = async (name: string) => {
-    setTestResult((t) => ({ ...t, [name]: "running…" }));
+    setTestResult((r) => ({ ...r, [name]: t("settings.running") }));
     const res = await fetch("/api/local/test", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ model: name }) });
     const j = (await res.json()) as { ok: boolean; latencyMs?: number; error?: string; decisions?: Array<{ id: string; confidence: number }> };
-    setTestResult((t) => ({
-      ...t,
+    setTestResult((r) => ({
+      ...r,
       [name]: j.ok
         ? `${j.latencyMs} ms · welcome ${Math.round((j.decisions?.[0]?.confidence ?? 0) * 100)}% · pricing ${Math.round((j.decisions?.[1]?.confidence ?? 0) * 100)}%`
-        : `failed: ${j.error}`,
+        : t("settings.failed", { error: j.error ?? "" }),
     }));
   };
 
@@ -143,40 +154,56 @@ export default function LocalModelsPage() {
     setDecisionProvider(id);
   };
 
+  const providerLabel = (id: string) => (id === "openrouter" || id === "clef-local" || id === "clef-cloudflare" ? t(`provider.${id}`) : id);
+
   return (
     <div className="app settings">
       <header className="topbar">
         <div className="logo">
           <span className="dot" /> INTELLIPROMPTER
         </div>
-        <span className="subtitle">/ settings / local models</span>
+        <span className="subtitle">{t("settings.subtitle")}</span>
         <span className="spacer" />
-        {status?.offline && <span className="chip err">OFFLINE</span>}
+        {status?.offline && <span className="chip err">{t("app.offline")}</span>}
+        <LangSwitch lang={lang} onChange={onLang} />
         <Link className="btn" href="/">
-          ← Back
+          {t("common.back")}
         </Link>
       </header>
 
+      <section className="strip">
+        <div className="label">{t("common.language")}</div>
+        <div className="row">
+          {LANGS.map((l) => (
+            <label key={l} className={`btn choice ${lang === l ? "primary" : ""}`}>
+              <input type="radio" name="lang" checked={lang === l} onChange={() => onLang(l)} /> {LANG_LABELS[l]}
+            </label>
+          ))}
+        </div>
+        <div className="hint">{t("settings.languageHint")}</div>
+      </section>
+
       {!status ? (
-        <div className="hint">Loading…</div>
+        <div className="hint">{t("common.loading")}</div>
       ) : (
         <>
           <section className="strip">
-            <div className="label">Decision provider</div>
-            <div className="hint">Who answers “has the speaker started this point?” twice a second. Local keeps everything on this machine.</div>
+            <div className="label">{t("settings.provider")}</div>
+            <div className="hint">{t("settings.providerHint")}</div>
             <div className="row">
               {(["openrouter", "clef-local", "clef-cloudflare"] as DecisionProviderId[]).map((id) => {
                 const disabled =
                   (id === "openrouter" && (!status.openrouterKey || status.offline)) ||
                   (id === "clef-cloudflare" && (!status.cloudflareKey || status.offline));
                 return (
-                  <label key={id} className={`btn choice ${provider === id ? "primary" : ""}`} title={disabled ? "not configured on the server, or offline mode" : ""}>
-                    <input type="radio" name="provider" checked={provider === id} disabled={disabled} onChange={() => choose(id)} /> {PROVIDER_LABELS[id]}
+                  <label key={id} className={`btn choice ${provider === id ? "primary" : ""}`} title={disabled ? t("settings.notConfigured") : ""}>
+                    <input type="radio" name="provider" checked={provider === id} disabled={disabled} onChange={() => choose(id)} /> {t(`provider.${id}`)}
                   </label>
                 );
               })}
               <label className={`btn choice ${provider === "" ? "primary" : ""}`}>
-                <input type="radio" name="provider" checked={provider === ""} onChange={() => choose("")} /> Server default ({PROVIDER_LABELS[status.defaultProvider as DecisionProviderId] ?? status.defaultProvider})
+                <input type="radio" name="provider" checked={provider === ""} onChange={() => choose("")} />{" "}
+                {t("settings.serverDefault", { name: providerLabel(status.defaultProvider) })}
               </label>
             </div>
           </section>
@@ -185,41 +212,43 @@ export default function LocalModelsPage() {
             <div className="label">Ollama</div>
             <div className="row">
               <span className={`chip ${status.ollama.ok ? "live" : "err"}`}>
-                {status.ollama.reachable ? `● ${status.ollama.version}${status.ollama.ok ? "" : ` (need ${status.ollama.minimum}+)`}` : "○ not running"}
+                {status.ollama.reachable ? `● ${status.ollama.version}${status.ollama.ok ? "" : ` ${t("settings.ollamaNeed", { v: status.ollama.minimum })}`}` : t("settings.ollamaNotRunning")}
               </span>
               <span className="hint">{status.ollama.url}</span>
               <span className="hint">
-                This machine: {status.machine.ramGb} GB RAM · {status.machine.platform}/{status.machine.arch}
-                {status.recommendation ? ` · recommended: ${status.recommendation}` : " · too little RAM for Clef; use a cloud provider"}
+                {t("settings.machine", { ram: status.machine.ramGb, platform: status.machine.platform, arch: status.machine.arch })}{" "}
+                {status.recommendation ? t("settings.recommended", { name: status.recommendation }) : t("settings.tooLittleRam")}
               </span>
             </div>
             {!status.ollama.ok && (
               <div className="hint">
-                Install or update Ollama from <a href="https://ollama.com/download" target="_blank" rel="noreferrer">ollama.com/download</a> (version {status.ollama.minimum} or newer), start it, then reload this page.
-                On a Debian server, point <code>OLLAMA_URL</code> at it.
+                {t("settings.installOllama", { v: status.ollama.minimum })}{" "}
+                <a href="https://ollama.com/download" target="_blank" rel="noreferrer">
+                  ollama.com/download
+                </a>
               </div>
             )}
           </section>
 
           <section className="strip">
-            <div className="label">Models</div>
+            <div className="label">{t("settings.models")}</div>
             {status.models.map((m) => (
               <div key={m.name} className="model">
                 <div>
                   <strong>{m.label}</strong> <span className="chip">{m.kind}</span>{" "}
-                  <span className={`chip ${m.fit === "fits" ? "live" : m.fit === "tight" ? "" : "err"}`}>{m.fit}</span>
-                  {(m.installed || cached[m.name]) && <span className="chip live">installed</span>}
-                  {m.runtime === "browser" && whisperModel === m.name && <span className="chip">selected for Whisper</span>}
-                  {m.status === "planned" && <span className="chip">planned</span>}
+                  <span className={`chip ${m.fit === "fits" ? "live" : m.fit === "tight" ? "" : "err"}`}>{t(`fit.${m.fit}`)}</span>
+                  {(m.installed || cached[m.name]) && <span className="chip live">{t("settings.installed")}</span>}
+                  {m.runtime === "browser" && whisperModel === m.name && <span className="chip">{t("settings.selectedWhisper")}</span>}
+                  {m.status === "planned" && <span className="chip">{t("settings.planned")}</span>}
                   <div className="hint">
-                    {m.description} Download ≈ {m.downloadGb} GB, needs ≈ {m.ramGb} GB RAM.
+                    {m.description} {t("settings.sizes", { dl: m.downloadGb, ram: m.ramGb })}
                   </div>
                 </div>
                 <div className="row">
                   {m.status === "available" && m.runtime === "browser" && (
                     <>
                       <button className="btn primary" disabled={Boolean(progress[m.name])} onClick={() => void download(m.name)}>
-                        {progress[m.name] ? progress[m.name] : cached[m.name] ? "Re-check" : "Download"}
+                        {progress[m.name] ? progress[m.name] : cached[m.name] ? t("settings.recheck") : t("settings.download")}
                       </button>
                       {whisperModel !== m.name && (
                         <button
@@ -229,24 +258,24 @@ export default function LocalModelsPage() {
                             setWhisperModel(m.name);
                           }}
                         >
-                          Use for Whisper
+                          {t("settings.useWhisper")}
                         </button>
                       )}
                     </>
                   )}
                   {m.status === "available" && m.runtime === "ollama" && !m.installed && (
                     <button className="btn primary" disabled={!m.ollamaOk || Boolean(progress[m.name])} onClick={() => void pull(m.name)}>
-                      {progress[m.name] ? progress[m.name] : "Pull"}
+                      {progress[m.name] ? progress[m.name] : t("settings.pull")}
                     </button>
                   )}
                   {m.installed && m.kind === "decision" && (
                     <button className="btn" onClick={() => void test(m.name)}>
-                      Test
+                      {t("settings.test")}
                     </button>
                   )}
                   {m.installed && m.runtime === "ollama" && (
                     <button className="btn danger" onClick={() => void remove(m.name)}>
-                      Delete
+                      {t("settings.delete")}
                     </button>
                   )}
                   {testResult[m.name] && <span className="hint">{testResult[m.name]}</span>}
@@ -257,11 +286,7 @@ export default function LocalModelsPage() {
 
           <section className="strip">
             <div className="label">Screen Sense</div>
-            <div className="hint">
-              Watches the screen, window or region you pick and turns each new slide into cues, facts and a gap check. Frames stay in memory, go once to the
-              vision model on OpenRouter (<code>OPENROUTER_VISION_MODEL</code>, default google/gemini-2.5-flash) and are dropped; only the returned text is kept
-              for the session. Views and phones only ever receive that text. Off in offline mode.
-            </div>
+            <div className="hint">{t("settings.screenHint")}</div>
             <div className="row">
               {(Object.keys(SCREEN_MODE_LABELS) as ScreenMode[]).map((m) => (
                 <label key={m} className={`btn choice ${screenMode === m ? "primary" : ""}`}>
@@ -274,51 +299,42 @@ export default function LocalModelsPage() {
                       setScreenMode(m);
                     }}
                   />{" "}
-                  {SCREEN_MODE_LABELS[m]}
+                  {t(`mode.${m}`)}
                 </label>
               ))}
             </div>
-            <div className="hint">On slide change = one call per changed frame (16×16 mean difference, max 20 frames a minute). Balanced adds presenter cues (“as you can see”, “in questa slide”…). Real-time keeps calling every few seconds while the content keeps changing, for demos.</div>
+            <div className="hint">{t("settings.screenModes")}</div>
             {hotkey ? (
               <div className="row">
                 <label className={`btn choice ${hotkey.enabled ? "primary" : ""}`}>
-                  <input type="checkbox" checked={hotkey.enabled} onChange={(e) => void saveHotkey({ enabled: e.target.checked })} /> Enabled (global hotkey registered)
+                  <input type="checkbox" checked={hotkey.enabled} onChange={(e) => void saveHotkey({ enabled: e.target.checked })} /> {t("settings.hotkeyEnabled")}
                 </label>
-                <input className="btn" value={hotkeyDraft} onChange={(e) => setHotkeyDraft(e.target.value)} placeholder="CommandOrControl+Shift+Space" title="Electron accelerator, e.g. CommandOrControl+Shift+Space or Alt+PrintScreen" />
+                <input className="btn" value={hotkeyDraft} onChange={(e) => setHotkeyDraft(e.target.value)} placeholder="CommandOrControl+Shift+Space" title={t("settings.hotkeyTitle")} />
                 <button className="btn" onClick={() => void saveHotkey({ hotkey: hotkeyDraft })}>
-                  Save hotkey
+                  {t("settings.saveHotkey")}
                 </button>
                 {hotkeyMsg && <span className="hint">{hotkeyMsg}</span>}
-                <span className="hint">The hotkey dims the screen; drag a rectangle and only that region is sent. Works outside a take too.</span>
+                <span className="hint">{t("settings.hotkeyHint")}</span>
               </div>
             ) : (
-              <div className="hint">In the browser, Screen Sense shares a screen or window through the browser’s own picker. The region hotkey needs the desktop app.</div>
+              <div className="hint">{t("settings.browserScreen")}</div>
             )}
           </section>
 
           <section className="strip">
-            <div className="label">Privacy</div>
+            <div className="label">{t("settings.privacy")}</div>
             <div className="row">
-              <span className={`chip ${status.pii.mode === "off" ? "err" : "live"}`}>PII guard: {status.pii.mode}</span>
-              <span className={`chip ${status.pii.serverReachable ? "live" : ""}`}>
-                Rizzo-PII server {status.pii.serverReachable ? "● running" : "○ not running (regex layer only)"}
-              </span>
+              <span className={`chip ${status.pii.mode === "off" ? "err" : "live"}`}>{t("settings.piiGuard", { mode: status.pii.mode })}</span>
+              <span className={`chip ${status.pii.serverReachable ? "live" : ""}`}>{status.pii.serverReachable ? t("settings.rizzoRunning") : t("settings.rizzoNotRunning")}</span>
               <span className="hint">{status.pii.serverUrl}</span>
             </div>
-            <div className="hint">
-              Before any cloud call, personal data in the transcript, the points and the screen facts is replaced by placeholders
-              (emails, phones, IBANs, card numbers, codice fiscale always; names, addresses and 22 Italian categories when the
-              Rizzo-PII server runs). The map stays in memory and is dropped after the call. Local providers never need it.
-              Set <code>PII_GUARD=strict</code> to refuse cloud calls without the server, <code>off</code> to disable.
-            </div>
+            <div className="hint">{t("settings.piiHint")}</div>
             {!status.pii.serverReachable && (
               <div className="hint">
-                Start Rizzo-PII locally (Docker): <code>git clone https://github.com/Rizzo-AI-Academy/rizzo-pii && cd rizzo-pii && docker build -t rizzo-pii . && docker run -p 127.0.0.1:5005:5005 rizzo-pii</code>
+                {t("settings.rizzoStart")} <code>git clone https://github.com/Rizzo-AI-Academy/rizzo-pii && cd rizzo-pii && docker build -t rizzo-pii . && docker run -p 127.0.0.1:5005:5005 rizzo-pii</code>
               </div>
             )}
-            <div className="hint">
-              Offline mode (desktop app menu → Offline) forces local providers, on-device Whisper, and blocks every request that is not to this machine.
-            </div>
+            <div className="hint">{t("settings.offlineHint")}</div>
           </section>
           {error && <span className="chip err">{error}</span>}
         </>

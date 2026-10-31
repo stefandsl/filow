@@ -4,19 +4,24 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { connect, type SessionClient } from "@intelliprompter/client";
 import type { Command, SessionState } from "@intelliprompter/core";
-import { StageView } from "@intelliprompter/ui";
+import { LangProvider, StageView, useT } from "@intelliprompter/ui";
 import { sessionServerUrl } from "@/lib/sessionUrl";
+import { LangSwitch, useUiLang } from "@/components/LangSwitch";
 
 /** PWA mirror: pair with a code, show the live state, send remote commands. ARCHITECTURE.md §5.8 */
 export default function MirrorPage() {
+  const [lang, setLang] = useUiLang();
   return (
     <Suspense fallback={null}>
-      <Mirror />
+      <LangProvider lang={lang}>
+        <Mirror lang={lang} onLang={setLang} />
+      </LangProvider>
     </Suspense>
   );
 }
 
-function Mirror() {
+function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") => void }) {
+  const t = useT();
   const params = useSearchParams();
   const [code, setCode] = useState(params.get("code") ?? "");
   const [client, setClient] = useState<SessionClient | null>(null);
@@ -72,8 +77,10 @@ function Mirror() {
       <div className="app stage pair">
         <div className="logo">
           <span className="dot" /> INTELLIPROMPTER
+          <span className="spacer" />
+          <LangSwitch lang={lang} onChange={onLang} />
         </div>
-        <div className="subtitle">mirror · enter the 6-digit code shown on the engine</div>
+        <div className="subtitle">{t("mirror.enterCode")}</div>
         <form
           className="controls"
           onSubmit={(e) => {
@@ -92,7 +99,7 @@ function Mirror() {
             autoFocus
           />
           <button className="btn primary" type="submit" disabled={code.length !== 6 || status === "pairing"}>
-            {status === "pairing" ? "Pairing…" : "Join"}
+            {status === "pairing" ? t("mirror.pairing") : t("mirror.join")}
           </button>
         </form>
         {error && <span className="chip err">{error}</span>}
@@ -101,14 +108,7 @@ function Mirror() {
   }
 
   const offline = status.startsWith("connecting") || !state;
-  return (
-    <StageView
-      state={state ?? emptyState(client.id)}
-      onCommand={onCommand}
-      stage
-      banner={error ?? (offline ? "engine offline — showing last known state" : null)}
-    />
-  );
+  return <StageView state={state ?? emptyState(client.id)} onCommand={onCommand} stage banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
 }
 
 function emptyState(id: string): SessionState {
