@@ -15,7 +15,7 @@ export type Section = {
 export type Script = {
   sections: Section[];
   /** "slides" when built from a deck, so slide index == section index. */
-  source?: "markdown" | "slides" | "import";
+  source?: "markdown" | "slides" | "import" | "screen";
 };
 
 export type PointStatus = "waiting" | "started" | "missed";
@@ -69,6 +69,10 @@ export type SessionState = {
   engine: { backend: SttBackendId | null; recording: boolean; error?: string };
   slide?: { index: number; total: number; title?: string };
   screen?: ScreenSummary | null;
+  /** On-screen facts the decision model says were not said yet (gap detector). */
+  unmentioned?: string[];
+  /** Vision calls and their cost, counted in stats.costUsd too. */
+  screenStats?: { frames: number; costUsd: number | null; analysing: boolean };
 };
 
 export type Command =

@@ -5,7 +5,9 @@ import Link from "next/link";
 import type { DecisionProviderId } from "@intelliprompter/core";
 import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, whisperCached } from "@intelliprompter/stt";
 import { engineHeaders } from "@/components/useSession";
-import { getDecisionProvider, PROVIDER_LABELS, setDecisionProvider } from "@/lib/prefs";
+import { getDecisionProvider, getScreenMode, PROVIDER_LABELS, setDecisionProvider, setScreenMode } from "@/lib/prefs";
+import { SCREEN_MODE_LABELS, type ScreenMode } from "@intelliprompter/core";
+import { screenBridge } from "@/lib/screen/watcher";
 
 type Status = {
   pii: { mode: "off" | "on" | "strict"; serverUrl: string; serverReachable: boolean };
@@ -30,6 +32,10 @@ export default function LocalModelsPage() {
   const [error, setError] = useState<string | null>(null);
   const [whisperModel, setWhisperModel] = useState("");
   const [cached, setCached] = useState<Record<string, boolean>>({});
+  const [screenMode, setScreenModeState] = useState<ScreenMode>("balanced");
+  const [hotkey, setHotkey] = useState<{ hotkey: string; enabled: boolean } | null>(null);
+  const [hotkeyDraft, setHotkeyDraft] = useState("");
+  const [hotkeyMsg, setHotkeyMsg] = useState("");
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/local/status", { cache: "no-store" });
@@ -43,8 +49,24 @@ export default function LocalModelsPage() {
   useEffect(() => {
     setProvider(getDecisionProvider() ?? "");
     setWhisperModel(selectedWhisperModel());
+    setScreenModeState(getScreenMode());
+    void screenBridge()
+      ?.getSettings()
+      .then((h) => {
+        setHotkey(h);
+        setHotkeyDraft(h.hotkey);
+      });
     void refresh();
   }, [refresh]);
+
+  const saveHotkey = async (next: { hotkey?: string; enabled?: boolean }) => {
+    const bridge = screenBridge();
+    if (!bridge) return;
+    const r = await bridge.setSettings(next);
+    setHotkey({ hotkey: r.hotkey, enabled: r.enabled });
+    setHotkeyDraft(r.hotkey);
+    setHotkeyMsg(r.ok ? "saved" : r.error ?? "could not register");
+  };
 
   const download = async (name: string) => {
     setError(null);
@@ -231,6 +253,47 @@ export default function LocalModelsPage() {
                 </div>
               </div>
             ))}
+          </section>
+
+          <section className="strip">
+            <div className="label">Screen Sense</div>
+            <div className="hint">
+              Watches the screen, window or region you pick and turns each new slide into cues, facts and a gap check. Frames stay in memory, go once to the
+              vision model on OpenRouter (<code>OPENROUTER_VISION_MODEL</code>, default google/gemini-2.5-flash) and are dropped; only the returned text is kept
+              for the session. Views and phones only ever receive that text. Off in offline mode.
+            </div>
+            <div className="row">
+              {(Object.keys(SCREEN_MODE_LABELS) as ScreenMode[]).map((m) => (
+                <label key={m} className={`btn choice ${screenMode === m ? "primary" : ""}`}>
+                  <input
+                    type="radio"
+                    name="screenMode"
+                    checked={screenMode === m}
+                    onChange={() => {
+                      setScreenModeState(m);
+                      setScreenMode(m);
+                    }}
+                  />{" "}
+                  {SCREEN_MODE_LABELS[m]}
+                </label>
+              ))}
+            </div>
+            <div className="hint">On slide change = one call per changed frame (16×16 mean difference, max 20 frames a minute). Balanced adds presenter cues (“as you can see”, “in questa slide”…). Real-time keeps calling every few seconds while the content keeps changing, for demos.</div>
+            {hotkey ? (
+              <div className="row">
+                <label className={`btn choice ${hotkey.enabled ? "primary" : ""}`}>
+                  <input type="checkbox" checked={hotkey.enabled} onChange={(e) => void saveHotkey({ enabled: e.target.checked })} /> Enabled (global hotkey registered)
+                </label>
+                <input className="btn" value={hotkeyDraft} onChange={(e) => setHotkeyDraft(e.target.value)} placeholder="CommandOrControl+Shift+Space" title="Electron accelerator, e.g. CommandOrControl+Shift+Space or Alt+PrintScreen" />
+                <button className="btn" onClick={() => void saveHotkey({ hotkey: hotkeyDraft })}>
+                  Save hotkey
+                </button>
+                {hotkeyMsg && <span className="hint">{hotkeyMsg}</span>}
+                <span className="hint">The hotkey dims the screen; drag a rectangle and only that region is sent. Works outside a take too.</span>
+              </div>
+            ) : (
+              <div className="hint">In the browser, Screen Sense shares a screen or window through the browser’s own picker. The region hotkey needs the desktop app.</div>
+            )}
           </section>
 
           <section className="strip">

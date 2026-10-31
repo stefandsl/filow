@@ -59,7 +59,7 @@ export const LOCAL_MODELS: LocalModel[] = [
     kind: "vision",
     runtime: "ollama",
     label: "Qwen3-VL (vision)",
-    description: "Local slide summaries for Screen Sense. Wired when Screen Sense ships.",
+    description: "Local slide summaries for Screen Sense. Screen Sense uses the OpenRouter vision model until this is wired (ARCHITECTURE.md §6.7).",
     downloadGb: 6,
     ramGb: 12,
     status: "planned",

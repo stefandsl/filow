@@ -26,7 +26,7 @@
     "artifactName": "Intelliprompter-${version}-${os}-${arch}.${ext}",
     "productName": "Intelliprompter",
     "directories": { "output": "../../release", "buildResources": "build" },
-    "files": ["main.js", "preload.js", "build/icon.png", "package.json"],
+    "files": ["main.js", "preload.js", "picker.html", "picker-preload.js", "build/icon.png", "package.json"],
     "asar": true,
     "extraResources": [
       { "from": "../web/.next/standalone", "to": "app", "filter": ["**/*", "!**/.env*"] },

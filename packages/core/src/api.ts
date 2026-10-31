@@ -1,5 +1,5 @@
 // HTTP contracts between an engine and the Next.js API routes.
-import type { Bullet } from "./types";
+import type { Bullet, Script, ScreenSummary } from "./types";
 
 export type Decision = {
   id: string;
@@ -39,4 +39,33 @@ export type DecideResponse = {
 export type SttStatus = {
   elevenlabs: boolean;
   openai: boolean;
+};
+
+// ---- Screen Sense (§6) --------------------------------------------------------------
+
+export type VisionRequest = {
+  /** JPEG or PNG as a data URL. Sent once, never stored. */
+  image: string;
+  source: "screen" | "window" | "region";
+  /** what the presenter planned to say here, for the mismatch check */
+  context?: { sectionTitle?: string; points?: string[] };
+  /** a spoken question that came with a hotkey capture */
+  question?: string;
+};
+
+export type VisionResponse = {
+  summary: ScreenSummary;
+  latencyMs: number;
+  cost: number | null;
+  model: string;
+};
+
+/** POST /api/import: the file becomes a Script in script.md format. */
+export type ImportResponse = {
+  text: string;
+  script: Script;
+  /** "pdf" | "pptx" | "docx" | "text" */
+  kind: string;
+  pages: number;
+  warnings: string[];
 };

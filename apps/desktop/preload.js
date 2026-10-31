@@ -12,4 +12,13 @@ contextBridge.exposeInMainWorld("intelliprompter", {
   offline: process.env.INTELLIPROMPTER_OFFLINE === "1",
   /** Subscribe to the Offline menu toggle. */
   onOffline: (fn) => ipcRenderer.on("offline", (_e, v) => fn(Boolean(v))),
+  /** Screen Sense (ARCHITECTURE.md §6.1): sources, region picker, hotkey. Frames stay in memory. */
+  screen: {
+    sources: () => ipcRenderer.invoke("screen:sources"),
+    select: (id) => ipcRenderer.invoke("screen:select", id),
+    pickRegion: () => ipcRenderer.invoke("screen:pickRegion"),
+    onHotkey: (fn) => ipcRenderer.on("screen:hotkey", () => fn()),
+    getSettings: () => ipcRenderer.invoke("screen:settings"),
+    setSettings: (next) => ipcRenderer.invoke("screen:setSettings", next),
+  },
 });

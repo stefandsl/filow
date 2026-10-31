@@ -3,6 +3,7 @@
 import { compare, type Operation } from "fast-json-patch";
 import type { DecideRequest, DecideResponse } from "./api";
 import { parseScript } from "./script";
+import { isScreenScript, sectionFromSummary, type ScreenNote } from "./screen";
 import type { Command, CommandResult, PointState, ScreenSummary, Script, SessionState, SttBackendId } from "./types";
 
 export type TranscriptEvent = { committed?: string; partial?: string };
@@ -46,6 +47,8 @@ export class Engine {
   private streak: Record<string, number> = {};
   private subs = new Set<Subscriber>();
   private unmentioned: string[] = [];
+  private notes: ScreenNote[] = [];
+  private lookNowSubs = new Set<() => void>();
 
   constructor(opts: EngineOptions) {
     this.o = {
@@ -71,6 +74,8 @@ export class Engine {
       stats: { calls: 0, totalMs: 0, avgMs: 0, costUsd: 0, model: "" },
       engine: { backend: null, recording: false },
       screen: null,
+      unmentioned: [],
+      screenStats: { frames: 0, costUsd: 0, analysing: false },
     };
   }
 
@@ -84,6 +89,15 @@ export class Engine {
   /** On-screen facts the model says were not mentioned yet (gap detector). */
   getUnmentioned(): string[] {
     return this.unmentioned;
+  }
+  /** One note per screen summary received during the take (§6.4 live notes). */
+  getNotes(): ScreenNote[] {
+    return this.notes;
+  }
+  /** Surfaces that own a capture subscribe here; `lookNow` from any view calls them. */
+  onLookNow(fn: () => void): () => void {
+    this.lookNowSubs.add(fn);
+    return () => this.lookNowSubs.delete(fn);
   }
   subscribe(fn: Subscriber): () => void {
     this.subs.add(fn);
@@ -113,8 +127,43 @@ export class Engine {
     if (tail !== this.state.transcriptTail) this.update((s) => (s.transcriptTail = tail));
   }
 
-  feedScreen(summary: ScreenSummary | null): void {
-    this.update((s) => (s.screen = summary));
+  /**
+   * A new screen summary. Cost is added to the session total (same cap as decisions).
+   * With no script loaded, each readable summary becomes a section (§6.3) and the
+   * engine moves to it. A note is kept for the live-notes export.
+   */
+  feedScreen(summary: ScreenSummary | null, cost: number | null = 0): void {
+    const s = this.state;
+    if (summary && !summary.unavailable) {
+      this.notes.push({ at: summary.at, summary, transcriptTail: s.transcriptTail, sectionTitle: s.script.sections[s.sectionIdx]?.title });
+    }
+    const grow = summary && !summary.unavailable && isScreenScript(s.script) && (summary.pointsToMake.length || summary.facts.length);
+    this.update((st) => {
+      st.screen = summary;
+      st.unmentioned = [];
+      const ss = st.screenStats ?? { frames: 0, costUsd: 0, analysing: false };
+      ss.analysing = false;
+      if (summary) ss.frames += 1;
+      ss.costUsd = cost === null || ss.costUsd === null ? null : ss.costUsd + cost;
+      st.screenStats = ss;
+      if (cost && st.stats.costUsd !== null) st.stats.costUsd += cost;
+      if (grow && summary) {
+        const section = sectionFromSummary(summary, st.script.sections.length);
+        st.script = { sections: [...st.script.sections, section], source: "screen" };
+        st.sectionIdx = st.script.sections.length - 1;
+      }
+    });
+    this.unmentioned = [];
+    if (grow) this.lastSent = "";
+    this.checkCap();
+  }
+
+  /** Shows the "analysing" badge while a frame is at the vision model. */
+  setAnalysing(on: boolean): void {
+    if ((this.state.screenStats?.analysing ?? false) === on) return;
+    this.update((st) => {
+      st.screenStats = { ...(st.screenStats ?? { frames: 0, costUsd: 0, analysing: false }), analysing: on };
+    });
   }
 
   setBackend(id: SttBackendId | null): void {
@@ -167,10 +216,15 @@ export class Engine {
       }
       case "forgetScreen":
         this.unmentioned = [];
-        this.update((st) => (st.screen = null));
+        this.notes = [];
+        this.update((st) => {
+          st.screen = null;
+          st.unmentioned = [];
+        });
         return { ok: true };
       case "lookNow":
-        // Capture is owned by the surface; the engine only records the request.
+        // Capture is owned by the surface (desktop / web); the engine relays the request.
+        for (const fn of this.lookNowSubs) fn();
         return { ok: true };
     }
   }
@@ -208,6 +262,7 @@ export class Engine {
   start(): void {
     if (this.timer) return;
     this.lastSent = "";
+    this.notes = [];
     this.update((s) => {
       s.engine.recording = true;
       s.engine.error = undefined;
@@ -260,6 +315,7 @@ export class Engine {
     this.unmentioned = data.unmentioned ?? [];
     this.update((st) => {
       st.engine.error = undefined;
+      st.unmentioned = data.unmentioned ?? [];
       const calls = st.stats.calls + 1;
       const totalMs = st.stats.totalMs + data.latencyMs;
       const costUsd =
@@ -279,9 +335,13 @@ export class Engine {
           : { status: "waiting", confidence: d.confidence };
       }
     });
+    this.checkCap();
+  }
+
+  private checkCap(): void {
     const cap = this.o.costCapUsd;
     const cost = this.state.stats.costUsd;
-    if (cap !== null && cost !== null && cost >= cap) {
+    if (cap !== null && cost !== null && cost >= cap && this.state.engine.recording) {
       this.stop();
       this.update((st) => (st.engine.error = `cost cap of $${cap} reached; take stopped`));
     }

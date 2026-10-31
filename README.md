@@ -18,9 +18,12 @@ Inspired by the demo in NetworkChuck's decision-model video. This version uses a
 5. [Build the desktop installers yourself](#build-the-desktop-installers-yourself)
 6. [Deploy on a Debian server](#deploy-on-a-debian-server)
 7. [Develop on a Debian server](#develop-on-a-debian-server)
-8. [Script format](#script-format)
-9. [Project layout](#project-layout)
-10. [Troubleshooting](#troubleshooting)
+8. [Local mode (privacy)](#local-mode-privacy)
+9. [Screen Sense](#screen-sense)
+10. [PowerPoint add-in](#powerpoint-add-in)
+11. [Script format](#script-format)
+12. [Project layout](#project-layout)
+13. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -48,7 +51,7 @@ Transcription backends (pick in the dropdown, or leave on **Auto**):
 | ElevenLabs Scribe v2 Realtime | `ELEVENLABS_API_KEY` | everywhere. Same as the original demo. |
 | OpenAI gpt-live-transcribe | `OPENAI_API_KEY` | everywhere. |
 
-**Auto** tries ElevenLabs, then OpenAI, then the browser. A backend that errors or gives no words within 8 s is skipped. The log at the bottom shows each attempt and the time to first words, so you can see which one is actually fastest for you.
+**Auto** tries ElevenLabs, then OpenAI, then the browser, then on-device Whisper. A backend that errors or gives no words within 8 s is skipped. The log at the bottom shows each attempt and the time to first words, so you can see which one is actually fastest for you.
 
 API keys never reach the browser: the server mints short-lived tokens for the streaming backends and calls OpenRouter itself.
 
@@ -406,9 +409,24 @@ Working with VS Code: install the **Remote - SSH** extension, connect to the ser
 
 ## Local mode (privacy)
 
-Open **Settings** in the app (or `/settings/local`). You can run the decision model on your own machine with [Cloudflare Clef](https://ollama.com/library/clef-flash) through Ollama: install Ollama 0.35.1 or newer, press **Pull** next to Clef Flash (about 6 GB, needs 16 GB RAM; Clef 27B needs 32 GB), press **Test**, then choose "Clef on this machine" as the decision provider. Nothing leaves the computer for the decisions. The desktop app also has an **Offline mode** menu toggle that blocks every outbound request and forces local providers. Speech can also stay on the device: pick **Whisper on this device** in the transcription dropdown after downloading a Whisper model in Settings (150 MB for base, cached by the browser; WebGPU when available). Before any cloud call, the **PII guard** replaces emails, phones, IBANs, card numbers and codice fiscale with placeholders, and names, addresses and 22 Italian categories too when the [Rizzo-PII](https://github.com/Rizzo-AI-Academy/rizzo-pii) server runs locally (`docker run -p 127.0.0.1:5005:5005 rizzo-pii`). See ARCHITECTURE.md �6.10.
+Open **Settings** in the app (or `/settings/local`). You can run the decision model on your own machine with [Cloudflare Clef](https://ollama.com/library/clef-flash) through Ollama: install Ollama 0.35.1 or newer, press **Pull** next to Clef Flash (about 6 GB, needs 16 GB RAM; Clef 27B needs 32 GB), press **Test**, then choose "Clef on this machine" as the decision provider. Nothing leaves the computer for the decisions. The desktop app also has an **Offline mode** menu toggle that blocks every outbound request and forces local providers. Speech can also stay on the device: pick **Whisper on this device** in the transcription dropdown after downloading a Whisper model in Settings (150 MB for base, cached by the browser; WebGPU when available). Before any cloud call, the **PII guard** replaces emails, phones, IBANs, card numbers and codice fiscale with placeholders, and names, addresses and 22 Italian categories too when the [Rizzo-PII](https://github.com/Rizzo-AI-Academy/rizzo-pii) server runs locally (`docker run -p 127.0.0.1:5005:5005 rizzo-pii`). See ARCHITECTURE.md §6.10.
 
 On a Debian server, run Ollama on the same box and set `OLLAMA_URL=http://127.0.0.1:11434` and `DECISION_PROVIDER=clef-local` in `apps/web/.env.local`.
+
+## Screen Sense
+
+Screen Sense lets the engine see what the audience sees (ARCHITECTURE.md §6). Press **Watch screen…** and pick a screen or a window (PowerPoint, a browser, a PDF). Once a second a 16×16 thumbnail is compared with the last frame sent; only a real change (new slide, new page) sends one full frame to a multimodal model on OpenRouter (`OPENROUTER_VISION_MODEL`, default `google/gemini-2.5-flash`), at most 20 frames a minute. The answer appears in the **ON SCREEN** strip: what the slide shows, up to three points to make, the numbers and names visible, and a mismatch warning when the slide contradicts your script. Facts you have not said yet are highlighted (the decision model sees them as a fourth list and reports what is still unmentioned). With no script loaded, each slide becomes a section with its points, so you can present from the slides alone.
+
+- **Cost dial** (dropdown next to the button, or Settings): Off, On slide change, Balanced (also when you say "as you can see", "in questa slide", "en esta diapositiva"…), Real-time (every few seconds while the content keeps changing, for demos). The footer shows the frames sent and their cost; they count against the same $1 session cap as decisions.
+- **Look now** sends the current frame at once. From the phone mirror it does the same.
+- **Region… / hotkey** (desktop app only): `Ctrl+Shift+Space` (change it in Settings) dims the screen; drag a rectangle and only that region is sent. Works outside a take too.
+- **Forget** drops every screen summary and note for this session.
+- **Export notes** appears after Stop take: a Markdown file with one entry per slide, what was on screen and what you were saying at the time.
+- **Import document** turns a PDF, PPTX, DOCX, TXT or MD file into talking points: one section per slide or page, PPTX speaker notes become the points and slide titles the section titles. You review the result before it replaces `script.md`. Scanned PDF pages have no text and are reported as warnings; add those points by hand.
+
+Privacy: frames live in memory only, go once over HTTPS to the vision model and are dropped; nothing is written to disk or logged. Only the returned text is kept for the session, and the phone mirror and the PowerPoint pane receive that text, never images. The Intelliprompter window is excluded from the source list. In **Offline mode** Screen Sense is disabled (no local vision model ships yet). Screen content is untrusted: the prompt tells the model to treat text on the slide as data, never as instructions.
+
+In the browser (not the desktop app) the browser's own share picker is used, and there is no region hotkey.
 
 ## PowerPoint add-in
 

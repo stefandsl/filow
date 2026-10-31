@@ -5,7 +5,7 @@
 //     the mirror; the spend endpoints are gated by a per-launch random password.
 //   Hosted mode: INTELLIPROMPTER_SESSION_URL (+ ACCESS_PASSWORD) in .env points the
 //     engine at a public session server; local servers stay on 127.0.0.1.
-const { app, BrowserWindow, Menu, shell, session, dialog } = require("electron");
+const { app, BrowserWindow, Menu, shell, session, dialog, desktopCapturer, globalShortcut, ipcMain, screen } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -28,6 +28,132 @@ const seedDir = packaged ? resources : path.join(resources, "web");
 const userData = app.getPath("userData");
 const envFile = path.join(userData, ".env");
 const scriptFile = path.join(userData, "script.md");
+const settingsFile = path.join(userData, "settings.json");
+
+// ---- Screen Sense (ARCHITECTURE.md §6.1): sources, region picker, global hotkey ----
+const DEFAULT_HOTKEY = "CommandOrControl+Shift+Space";
+let settings = { screenHotkey: DEFAULT_HOTKEY, screenSense: true };
+function loadSettings() {
+  try {
+    settings = { ...settings, ...JSON.parse(fs.readFileSync(settingsFile, "utf8")) };
+  } catch {
+    /* first run */
+  }
+}
+function saveSettings() {
+  fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+  fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+}
+
+let mainWin = null;
+let selectedSourceId = null;
+let pickerWin = null;
+
+/** Screens and windows the user may watch, minus this app's own window. Thumbnails are small previews for the chooser. */
+async function listSources() {
+  const sources = await desktopCapturer.getSources({ types: ["screen", "window"], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: false });
+  const self = mainWin ? mainWin.getMediaSourceId() : "";
+  return sources
+    .filter((s) => s.id !== self && !/^Intelliprompter\b/.test(s.name))
+    .map((s) => ({ id: s.id, name: s.name, kind: s.id.startsWith("screen") ? "screen" : "window", thumbnail: s.thumbnail.isEmpty() ? "" : s.thumbnail.toDataURL() }));
+}
+
+/** Transparent full-display window; resolves to { display, rect } in display-relative CSS px, or null. */
+function pickRegion() {
+  if (pickerWin) return Promise.resolve(null);
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  return new Promise((resolve) => {
+    const { x, y, width, height } = display.bounds;
+    pickerWin = new BrowserWindow({
+      x, y, width, height,
+      frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true, resizable: false, movable: false,
+      hasShadow: false, enableLargerThanScreen: true, fullscreenable: false, show: false,
+      webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "picker-preload.js") },
+    });
+    const finish = (rect) => {
+      ipcMain.removeAllListeners("picker:done");
+      ipcMain.removeAllListeners("picker:cancel");
+      const w = pickerWin;
+      pickerWin = null;
+      if (w && !w.isDestroyed()) w.close();
+      resolve(rect ? { display, rect } : null);
+    };
+    ipcMain.once("picker:done", (_e, rect) => finish(rect));
+    ipcMain.once("picker:cancel", () => finish(null));
+    pickerWin.on("closed", () => {
+      if (pickerWin) finish(null);
+    });
+    pickerWin.setAlwaysOnTop(true, "screen-saver");
+    pickerWin.loadFile(path.join(__dirname, "picker.html")).then(() => {
+      if (!pickerWin) return;
+      pickerWin.show();
+      pickerWin.focus();
+    });
+  });
+}
+
+/** Grabs the display at native resolution and crops the chosen rect. JPEG data URL, memory only. */
+async function captureRegion(display, rect) {
+  const sf = display.scaleFactor || 1;
+  const sources = await desktopCapturer.getSources({
+    types: ["screen"],
+    thumbnailSize: { width: Math.round(display.size.width * sf), height: Math.round(display.size.height * sf) },
+  });
+  const src = sources.find((s) => String(s.display_id) === String(display.id)) || sources[0];
+  if (!src || src.thumbnail.isEmpty()) throw new Error("could not capture the display");
+  const img = src.thumbnail;
+  const { width: iw, height: ih } = img.getSize();
+  const kx = iw / display.size.width;
+  const ky = ih / display.size.height;
+  const crop = {
+    x: Math.max(0, Math.round(rect.x * kx)),
+    y: Math.max(0, Math.round(rect.y * ky)),
+    width: Math.max(1, Math.min(iw, Math.round(rect.width * kx))),
+    height: Math.max(1, Math.min(ih, Math.round(rect.height * ky))),
+  };
+  return "data:image/jpeg;base64," + img.crop(crop).toJPEG(85).toString("base64");
+}
+
+function registerHotkey() {
+  globalShortcut.unregisterAll();
+  if (!settings.screenSense || !settings.screenHotkey) return { ok: true };
+  try {
+    const ok = globalShortcut.register(settings.screenHotkey, () => mainWin && mainWin.webContents.send("screen:hotkey"));
+    return ok ? { ok: true } : { ok: false, error: `hotkey ${settings.screenHotkey} is taken by another app` };
+  } catch (err) {
+    return { ok: false, error: String(err.message || err) };
+  }
+}
+
+function wireScreenSense() {
+  ipcMain.handle("screen:sources", () => listSources());
+  ipcMain.handle("screen:select", (_e, id) => {
+    selectedSourceId = typeof id === "string" ? id : null;
+  });
+  ipcMain.handle("screen:pickRegion", async () => {
+    const picked = await pickRegion();
+    if (!picked) return null;
+    return { image: await captureRegion(picked.display, picked.rect), width: picked.rect.width, height: picked.rect.height };
+  });
+  ipcMain.handle("screen:settings", () => ({ hotkey: settings.screenHotkey, enabled: settings.screenSense }));
+  ipcMain.handle("screen:setSettings", (_e, next) => {
+    if (typeof next.hotkey === "string") settings.screenHotkey = next.hotkey.trim();
+    if (typeof next.enabled === "boolean") settings.screenSense = next.enabled;
+    saveSettings();
+    return { ...registerHotkey(), hotkey: settings.screenHotkey, enabled: settings.screenSense };
+  });
+  // getDisplayMedia() in the page resolves to the source chosen in the app's own picker (no Chromium chooser).
+  session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
+    if (!selectedSourceId) return callback({});
+    desktopCapturer
+      .getSources({ types: ["screen", "window"], thumbnailSize: { width: 0, height: 0 } })
+      .then((sources) => {
+        const src = sources.find((s) => s.id === selectedSourceId);
+        callback(src ? { video: src } : {});
+      })
+      .catch(() => callback({}));
+  });
+}
 
 function seed(file, fromName) {
   if (fs.existsSync(file)) return;
@@ -142,6 +268,7 @@ async function main() {
     seed(envFile, ".env.example");
     seed(scriptFile, "script.md");
     loadEnv(envFile);
+    loadSettings();
     startServers();
   } catch (err) {
     dialog.showErrorBox("Intelliprompter failed to start", String(err && err.stack ? err.stack : err));
@@ -163,8 +290,12 @@ async function main() {
     icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
   });
+  mainWin = win;
   buildMenu(win);
   applyOffline(win, offline);
+  wireScreenSense();
+  const hk = registerHotkey();
+  if (!hk.ok) console.warn("Screen Sense hotkey:", hk.error);
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
@@ -190,3 +321,4 @@ async function main() {
 
 app.whenReady().then(main);
 app.on("window-all-closed", () => app.quit());
+app.on("will-quit", () => globalShortcut.unregisterAll());

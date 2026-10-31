@@ -105,3 +105,19 @@ button.chip.code { color: var(--accent); border-color: #4a3a1a; }
 .settings a { color: var(--accent); }
 .settings code { font-family: var(--mono); }
 a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+
+/* Screen Sense (ARCHITECTURE.md §6) */
+.strip.onscreen .fact { color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; font-size: 13px; }
+.strip.onscreen .fact.unsaid { color: var(--accent); border-color: #4a3a1a; }
+.strip.onscreen .row.actions { gap: 8px; margin-top: 6px; }
+.chip.busy { color: var(--accent); border-color: #4a3a1a; animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.45; } }
+.sources { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; max-height: 60vh; overflow-y: auto; }
+.source { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; cursor: pointer; text-align: left; color: var(--text); display: flex; flex-direction: column; gap: 6px; }
+.source:hover { border-color: var(--accent); }
+.source img { width: 100%; aspect-ratio: 16/9; object-fit: contain; background: #000; border-radius: 4px; }
+.source .name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.source .kind { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.controls .group { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 6px 10px; border: 1px dashed var(--border); border-radius: 6px; }
+.controls .group .label { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+input.btn { text-transform: none; letter-spacing: 0; font-family: var(--mono); }

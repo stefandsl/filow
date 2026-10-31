@@ -291,6 +291,13 @@ Settings: **Off / On slide change / Balanced / Real-time**, mirroring claude-vid
 
 `POST /api/import` (engine only) accepts PDF, PPTX, DOCX, TXT, MD and returns a Script: one section per slide or page; PPTX speaker notes become points, slide titles become section titles; scanned PDF pages go through the vision model. Libraries: `pdf-parse`, `jszip` + XML for PPTX/DOCX. Available to every surface through the engine.
 
+### 6.6.1 Implementation notes (phase 6a/6b, shipped)
+
+- Policy is pure and tested in `packages/core/src/screen.ts`: `frameDiff` (16×16 RGBA mean difference, threshold 10), `FrameBudget` (sliding 20/min), `hasPresenterCue` (en/it/es/fr/de), `shouldCapture` (the cost dial), `parseScreenSummary`, `sectionFromSummary`, `notesToMarkdown`. The Engine owns `feedScreen` (adds vision cost to the session total, grows a `source: "screen"` script when none is loaded, keeps live notes), `setAnalysing`, `onLookNow`; `SessionState` gained `unmentioned` and `screenStats` so views can render the gap flags and the badge without any image.
+- Capture lives in the surface: `apps/web/lib/screen/watcher.ts` samples a `getDisplayMedia` stream at 1 fps and grabs a ≤1280 px JPEG on demand; `useScreenSense` runs the loop and the hotkey flow. On desktop the app's own chooser (`desktopCapturer.getSources`, own window filtered out) feeds `setDisplayMediaRequestHandler`, so the page still calls plain `getDisplayMedia`; the region picker is a transparent always-on-top window on the display under the cursor and the crop happens in the main process at native resolution.
+- `/api/vision` (engine-only) forwards one data-URL image to OpenRouter (`OPENROUTER_VISION_MODEL`); the route never logs the body and answers `unavailable: "disabled"` in offline mode. `/api/import` (engine-only) uses `unpdf` for PDF text and `jszip` + regex XML walkers for PPTX/DOCX; the result is reviewed in the script editor before it is saved.
+- Not shipped from §6.1/§6.6: push-to-talk spoken question on the hotkey (Electron's `globalShortcut` has no key-up event), OCR of scanned PDF pages (no renderer without native dependencies; pages are flagged instead), the PowerPoint pane's slide text as a `slide-text` source (phase 3 follow-up).
+
 ### 6.7 Local-first tier (later)
 
 Local Whisper for speech and a local vision model via Ollama for frames, chosen in an onboarding wizard with a plain consent screen stating what leaves the machine. Not in the first six phases.
@@ -432,8 +439,8 @@ Estimates assume one engineer, include tests, exclude store review and code sign
 | 2 | `apps/server` relay with pairing, roles, TTLs, rate limits and tests; engine token gating on the Next API; desktop LAN and hosted modes; `/mirror` PWA; Caddy and systemd docs | 4 |
 | L1 | Local mode (§6.10): provider layer, Clef via Ollama, Settings > Local models, offline switch | done |
 | L2 | On-device Whisper backend with in-app model download; PII guard (Rizzo-PII + regex) before cloud calls | done |
-| 6a | Screen Sense on desktop: always-on capture with dedup and cap, ON SCREEN strip, cost dial, Forget button | 4 |
-| 6b | Document import; hotkey region picker; gap detector; live notes export | 4 |
+| 6a | Screen Sense on desktop: always-on capture with dedup and cap, ON SCREEN strip, cost dial, Forget button | done |
+| 6b | Document import; hotkey region picker; gap detector; live notes export | done (push-to-talk question and scanned-PDF OCR deferred) |
 | 3 | PowerPoint: one-day spike (mic on WebView2 and web, selection sync), then notes → script, editor sync, slide text to Screen Sense | 1 + 4 |
 | 4 | Expo app: Pair, Stage, Remote, Settings; EAS builds | 5 |
 | 5 | Google Slides: export, editor mirror, internal listing | 3 |

@@ -2,6 +2,7 @@
 
 import type { Command, SessionState } from "@intelliprompter/core";
 import { missedPoints } from "@intelliprompter/core";
+import { OnScreenStrip } from "./OnScreenStrip";
 
 export type StageViewProps = {
   state: SessionState;
@@ -37,29 +38,13 @@ export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
           </div>
 
           {screen && (
-            <div className="strip onscreen">
-              <div className="label">On screen{screen.title ? ` / ${screen.title}` : ""}</div>
-              {screen.unavailable ? (
-                <div className="hint">{screenUnavailable(screen.unavailable)}</div>
-              ) : (
-                <>
-                  <div className="hint">{screen.shows}</div>
-                  <div className="row">
-                    {screen.pointsToMake.map((p, i) => (
-                      <span key={i} className="next-item">▸ {p}</span>
-                    ))}
-                  </div>
-                  {screen.facts.length > 0 && (
-                    <div className="row">
-                      {screen.facts.map((f, i) => (
-                        <span key={i} className="missed-item">{f}</span>
-                      ))}
-                    </div>
-                  )}
-                  {screen.mismatch && <div className="chip err">{screen.mismatch}</div>}
-                </>
-              )}
-            </div>
+            <OnScreenStrip
+              screen={screen}
+              unmentioned={state.unmentioned}
+              analysing={state.screenStats?.analysing}
+              onLookNow={can ? () => send({ type: "lookNow" }) : undefined}
+              onForget={can ? () => send({ type: "forgetScreen" }) : undefined}
+            />
           )}
 
           <div className="points">
@@ -151,19 +136,4 @@ export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
       </div>
     </div>
   );
-}
-
-function screenUnavailable(reason: NonNullable<SessionState["screen"]>["unavailable"]) {
-  switch (reason) {
-    case "no-screen-selected":
-      return "No screen selected. Pick a screen, window or region to watch.";
-    case "could-not-read":
-      return "Could not read the slide.";
-    case "capped":
-      return "Frame cap reached for this minute.";
-    case "disabled":
-      return "Screen Sense is off.";
-    default:
-      return "";
-  }
 }
