@@ -143,7 +143,7 @@ export class Engine {
       st.unmentioned = [];
       const ss = st.screenStats ?? { frames: 0, costUsd: 0, analysing: false };
       ss.analysing = false;
-      if (summary) ss.frames += 1;
+      if (summary && !summary.unavailable) ss.frames += 1;
       ss.costUsd = cost === null || ss.costUsd === null ? null : ss.costUsd + cost;
       st.screenStats = ss;
       if (cost && st.stats.costUsd !== null) st.stats.costUsd += cost;

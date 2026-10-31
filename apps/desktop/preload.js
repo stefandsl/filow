@@ -17,7 +17,16 @@ contextBridge.exposeInMainWorld("intelliprompter", {
     sources: () => ipcRenderer.invoke("screen:sources"),
     select: (id) => ipcRenderer.invoke("screen:select", id),
     pickRegion: () => ipcRenderer.invoke("screen:pickRegion"),
-    onHotkey: (fn) => ipcRenderer.on("screen:hotkey", () => fn()),
+    onHotkey: (fn) => {
+      const h = () => fn();
+      ipcRenderer.on("screen:hotkey", h);
+      return () => ipcRenderer.removeListener("screen:hotkey", h);
+    },
+    onSettings: (fn) => {
+      const h = (_e, v) => fn(v);
+      ipcRenderer.on("screen:settings", h);
+      return () => ipcRenderer.removeListener("screen:settings", h);
+    },
     getSettings: () => ipcRenderer.invoke("screen:settings"),
     setSettings: (next) => ipcRenderer.invoke("screen:setSettings", next),
   },

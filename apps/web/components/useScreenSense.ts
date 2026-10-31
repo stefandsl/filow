@@ -32,6 +32,7 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
   const [label, setLabel] = useState<string>("");
   const [sources, setSources] = useState<ScreenSource[] | null>(null); // non-null = chooser open
   const [enabled, setEnabled] = useState(true);
+  const [desktop, setDesktop] = useState(false);
   const watcher = useRef<ScreenWatcher | null>(null);
   const bridge = useRef<ScreenBridge | null>(null);
   const budget = useRef(new FrameBudget(20));
@@ -44,10 +45,27 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
   const modeRef = useRef(mode);
   modeRef.current = mode;
 
+  const stopWatching = useCallback(() => {
+    watcher.current?.stop();
+    watcher.current = null;
+    lastThumb.current = null;
+    void bridge.current?.select(null);
+    setStatus((s) => (s === "unsupported" ? s : "idle"));
+    setLabel("");
+  }, []);
+
   useEffect(() => {
     setMode(getScreenMode());
     bridge.current = screenBridge();
-    if (bridge.current) void bridge.current.getSettings().then((s) => setEnabled(s.enabled));
+    setDesktop(Boolean(bridge.current));
+    if (bridge.current) {
+      void bridge.current.getSettings().then((s) => setEnabled(s.enabled));
+      return bridge.current.onSettings((s) => {
+        setEnabled(s.enabled);
+        if (!s.enabled) stopWatching();
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     if (typeof navigator !== "undefined" && !navigator.mediaDevices?.getDisplayMedia && !bridge.current) setStatus("unsupported");
   }, []);
 
@@ -58,13 +76,13 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
 
   /** One frame → /api/vision → engine. The image is not kept after the call. */
   const send = useCallback(
-    async (image: string, source: VisionRequest["source"], why: string) => {
-      if (inFlight.current) return;
+    async (image: string, source: VisionRequest["source"], why: string): Promise<boolean> => {
+      if (inFlight.current) return false;
       const now = Date.now();
       if (!budget.current.take(now)) {
         if (!stateRef.current.screen) engine.feedScreen({ at: now, source, shows: "", pointsToMake: [], facts: [], unavailable: "capped" }, 0);
         log("Screen Sense: frame cap reached for this minute");
-        return;
+        return false;
       }
       inFlight.current = true;
       lastSentAt.current = now;
@@ -85,10 +103,16 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
         const out = (await res.json()) as VisionResponse;
         engine.feedScreen(out.summary, out.cost);
         log(`Screen Sense (${why}): ${out.summary.unavailable ?? out.summary.shows.slice(0, 80)} · ${out.latencyMs} ms`);
+        return true;
       } catch (err) {
-        const summary: ScreenSummary = { at: now, source, shows: "", pointsToMake: [], facts: [], unavailable: "could-not-read" };
-        engine.feedScreen(summary, 0);
+        // Keep the last good summary; forget the thumbnail so the loop retries this frame next tick.
+        if (!stateRef.current.screen) {
+          const summary: ScreenSummary = { at: now, source, shows: "", pointsToMake: [], facts: [], unavailable: "could-not-read" };
+          engine.feedScreen(summary, 0);
+        }
+        lastThumb.current = null;
         log(`Screen Sense error: ${(err as Error).message}`);
+        return false;
       } finally {
         engine.setAnalysing(false);
         inFlight.current = false;
@@ -96,15 +120,6 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
     },
     [engine, log],
   );
-
-  const stopWatching = useCallback(() => {
-    watcher.current?.stop();
-    watcher.current = null;
-    lastThumb.current = null;
-    void bridge.current?.select(null);
-    setStatus((s) => (s === "unsupported" ? s : "idle"));
-    setLabel("");
-  }, []);
 
   /** Start watching a stream the browser (or the desktop chooser) handed us. */
   const watchStream = useCallback(
@@ -123,12 +138,7 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
       setLabel(name);
       cueCursor.current = engine.transcript.length;
       log(`Screen Sense: watching ${name}`);
-      // First frame right away so the strip is never blank.
-      setTimeout(() => {
-        const img = w.grab();
-        if (img) void send(img, kind, "first frame");
-        lastThumb.current = w.sample();
-      }, 400);
+      // lastThumb is null, so the loop's next tick sends the first frame.
     },
     [engine, log, send, stopWatching],
   );
@@ -178,10 +188,8 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
     const w = watcher.current;
     if (w) {
       const img = w.grab();
-      if (img) {
-        lastThumb.current = w.sample();
-        void send(img, w.kind, "look now");
-      }
+      const thumb = w.sample();
+      if (img) void send(img, w.kind, "look now").then((sent) => sent && (lastThumb.current = thumb));
       return;
     }
     if (bridge.current) void captureRegion();
@@ -190,9 +198,7 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
 
   // Look now from any view (mirror, PowerPoint pane) and the desktop hotkey.
   useEffect(() => engine.onLookNow(lookNow), [engine, lookNow]);
-  useEffect(() => {
-    bridge.current?.onHotkey(() => void captureRegion());
-  }, [captureRegion]);
+  useEffect(() => bridge.current?.onHotkey(() => void captureRegion()), [captureRegion]);
 
   // The 1 fps loop: dedup, cues, cost dial, cap.
   useEffect(() => {
@@ -208,8 +214,11 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
       if (!shouldCapture({ mode: modeRef.current, changed, cue, forced: false, now: Date.now(), lastSentAt: lastSentAt.current })) return;
       const img = w.grab();
       if (!img) return;
+      const why = lastThumb.current === null ? "first frame" : changed ? "slide changed" : "presenter cue";
       lastThumb.current = thumb;
-      void send(img, w.kind, changed ? "slide changed" : "presenter cue");
+      void send(img, w.kind, why).then((sent) => {
+        if (!sent) lastThumb.current = null;
+      });
     }, 1000);
     return () => clearInterval(t);
   }, [engine, send]);
@@ -222,7 +231,7 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
     status,
     label,
     enabled,
-    desktop: Boolean(bridge.current),
+    desktop,
     sources,
     watchScreen,
     chooseSource,

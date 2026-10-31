@@ -12,11 +12,14 @@ import type { Script, Section } from "./types";
  */
 /** A script exported from a slide deck carries this marker so `slideChanged` can navigate it. */
 export const SLIDES_MARKER = "<!-- source: slides -->";
+/** A script built by /api/import carries this marker. Slides win when both are present. */
+export const IMPORT_MARKER = "<!-- source: import -->";
 
 export function parseScript(text: string): Script {
   const sections: Section[] = [];
   let current: Section | null = null;
   const fromSlides = text.includes(SLIDES_MARKER);
+  const fromImport = text.includes(IMPORT_MARKER);
 
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim();
@@ -42,7 +45,7 @@ export function parseScript(text: string): Script {
     }
   }
 
-  return fromSlides ? { sections, source: "slides" } : { sections };
+  return fromSlides ? { sections, source: "slides" } : fromImport ? { sections, source: "import" } : { sections };
 }
 
 export function serializeScript(script: Script): string {

@@ -14,7 +14,7 @@ const crypto = require("node:crypto");
 
 const PORT = Number(process.env.INTELLIPROMPTER_PORT || 4747);
 const SESSION_PORT = Number(process.env.INTELLIPROMPTER_SESSION_PORT || 4748);
-const URL = `http://127.0.0.1:${PORT}`;
+const APP_URL = `http://127.0.0.1:${PORT}`;
 
 const packaged = app.isPackaged;
 // Packaged: resources/app/apps/web/server.js and resources/server/bundle.js.
@@ -75,8 +75,11 @@ function pickRegion() {
       ipcMain.removeAllListeners("picker:cancel");
       const w = pickerWin;
       pickerWin = null;
-      if (w && !w.isDestroyed()) w.close();
-      resolve(rect ? { display, rect } : null);
+      if (w && !w.isDestroyed()) {
+        w.hide(); // the overlay must be gone before the display is grabbed
+        w.close();
+      }
+      setTimeout(() => resolve(rect ? { display, rect } : null), 120);
     };
     ipcMain.once("picker:done", (_e, rect) => finish(rect));
     ipcMain.once("picker:cancel", () => finish(null));
@@ -99,7 +102,7 @@ async function captureRegion(display, rect) {
     types: ["screen"],
     thumbnailSize: { width: Math.round(display.size.width * sf), height: Math.round(display.size.height * sf) },
   });
-  const src = sources.find((s) => String(s.display_id) === String(display.id)) || sources[0];
+  const src = sources.find((s) => String(s.display_id) === String(display.id)) || (sources.length === 1 ? sources[0] : null);
   if (!src || src.thumbnail.isEmpty()) throw new Error("could not capture the display");
   const img = src.thumbnail;
   const { width: iw, height: ih } = img.getSize();
@@ -118,7 +121,7 @@ function registerHotkey() {
   globalShortcut.unregisterAll();
   if (!settings.screenSense || !settings.screenHotkey) return { ok: true };
   try {
-    const ok = globalShortcut.register(settings.screenHotkey, () => mainWin && mainWin.webContents.send("screen:hotkey"));
+    const ok = globalShortcut.register(settings.screenHotkey, () => mainWin && !mainWin.isDestroyed() && mainWin.webContents.send("screen:hotkey"));
     return ok ? { ok: true } : { ok: false, error: `hotkey ${settings.screenHotkey} is taken by another app` };
   } catch (err) {
     return { ok: false, error: String(err.message || err) };
@@ -126,11 +129,13 @@ function registerHotkey() {
 }
 
 function wireScreenSense() {
-  ipcMain.handle("screen:sources", () => listSources());
+  const off = () => new Error("Screen Sense is disabled in Settings");
+  ipcMain.handle("screen:sources", () => (settings.screenSense ? listSources() : Promise.reject(off())));
   ipcMain.handle("screen:select", (_e, id) => {
-    selectedSourceId = typeof id === "string" ? id : null;
+    selectedSourceId = settings.screenSense && typeof id === "string" ? id : null;
   });
   ipcMain.handle("screen:pickRegion", async () => {
+    if (!settings.screenSense) throw off();
     const picked = await pickRegion();
     if (!picked) return null;
     return { image: await captureRegion(picked.display, picked.rect), width: picked.rect.width, height: picked.rect.height };
@@ -140,11 +145,14 @@ function wireScreenSense() {
     if (typeof next.hotkey === "string") settings.screenHotkey = next.hotkey.trim();
     if (typeof next.enabled === "boolean") settings.screenSense = next.enabled;
     saveSettings();
-    return { ...registerHotkey(), hotkey: settings.screenHotkey, enabled: settings.screenSense };
+    if (!settings.screenSense) selectedSourceId = null;
+    const result = { ...registerHotkey(), hotkey: settings.screenHotkey, enabled: settings.screenSense };
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send("screen:settings", { hotkey: settings.screenHotkey, enabled: settings.screenSense });
+    return result;
   });
   // getDisplayMedia() in the page resolves to the source chosen in the app's own picker (no Chromium chooser).
   session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
-    if (!selectedSourceId) return callback({});
+    if (!settings.screenSense || !selectedSourceId) return callback({});
     desktopCapturer
       .getSources({ types: ["screen", "window"], thumbnailSize: { width: 0, height: 0 } })
       .then((sources) => {
@@ -248,7 +256,7 @@ function buildMenu(win) {
       submenu: [
         { label: "Open config folder (keys + script)", click: () => shell.openPath(userData) },
         { label: "Edit API keys (.env)", click: () => shell.openPath(envFile) },
-        { label: "Local models & privacy settings", click: () => win.loadURL(URL + "/settings/local") },
+        { label: "Local models & privacy settings", click: () => win.loadURL(APP_URL + "/settings/local") },
         { label: "Offline mode (local models only, no outbound requests)", type: "checkbox", checked: offline, click: (item) => applyOffline(win, item.checked) },
         { type: "separator" },
         { label: "Reload", accelerator: "CmdOrCtrl+R", click: () => win.reload() },
@@ -291,6 +299,7 @@ async function main() {
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
   });
   mainWin = win;
+  win.setContentProtection(true); // §6.2: this window never appears in captured frames (Windows/macOS)
   buildMenu(win);
   applyOffline(win, offline);
   wireScreenSense();
@@ -302,9 +311,9 @@ async function main() {
   });
 
   try {
-    await waitFor(URL + "/api/stt/status");
+    await waitFor(APP_URL + "/api/stt/status");
     if (!process.env.INTELLIPROMPTER_SESSION_URL) await waitFor(`http://127.0.0.1:${SESSION_PORT}/health`);
-    await win.loadURL(URL);
+    await win.loadURL(APP_URL);
     if (!process.env.OPENROUTER_API_KEY) {
       dialog.showMessageBox(win, {
         type: "info",

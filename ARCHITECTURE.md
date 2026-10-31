@@ -246,9 +246,9 @@ Screen Sense lets the engine see what the audience sees and turn it into cues, g
 
 ### 6.1 Two capture modes
 
-**Mode 1, always-on watch (default during a take).** At Start take the user picks a screen, a window (for example PowerPoint) or a region drawn ShareX-style; the choice is remembered per presentation. A 1 fps thumbnail is compared with the last *sent* frame using a 16×16 RGB mean-difference (the claude-video dedup). Only on a real change (new slide, new page) does a full-resolution frame go to the vision model. Hard cap: 20 frames per minute. Presenter cues in the transcript ("as you can see", "on this slide", "here", and their translations) trigger an immediate capture. A **Look now** button forces one.
+**Mode 1, always-on watch (default during a take).** At Start take the user picks a screen, a window (for example PowerPoint) or a region drawn ShareX-style; the choice is remembered per presentation (later; today it lasts for the app session). A 1 fps thumbnail is compared with the last *sent* frame using a 16×16 RGB mean-difference (the claude-video dedup). Only on a real change (new slide, new page) does a full-resolution frame go to the vision model. Hard cap: 20 frames per minute. Presenter cues in the transcript ("as you can see", "on this slide", "here", and their translations) trigger an immediate capture. A **Look now** button forces one.
 
-**Mode 2, hotkey region capture.** A configurable global hotkey (Settings UI like ShareX; default Ctrl+Shift+Space) dims the screen, the user drags a rectangle, and only that region is sent, optionally with a spoken question (hold the hotkey for push-to-talk). Works outside a take too.
+**Mode 2, hotkey region capture.** A configurable global hotkey (Settings UI like ShareX; default Ctrl+Shift+Space) dims the screen, the user drags a rectangle, and only that region is sent, optionally with a spoken question (hold the hotkey for push-to-talk; later, `globalShortcut` has no key-up event). Works outside a take too.
 
 Electron: `globalShortcut`, a transparent fullscreen `BrowserWindow` for the picker, `desktopCapturer` for frames. Web: `getDisplayMedia` (screen or window only; no region picker, no global hotkey). PowerPoint add-in: slide text and notes through Office.js instead of pixels. Phone: never captures.
 
@@ -256,7 +256,7 @@ Electron: `globalShortcut`, a transparent fullscreen `BrowserWindow` for the pic
 
 - Frames live in memory only, sent once over HTTPS to a multimodal model via OpenRouter (default `google/gemini-2.5-flash`), then dropped. No disk, no cache, no image bytes in logs.
 - Only the returned text (`ScreenSummary`) is kept, per session, with a **Forget screen context** button. Summaries are gone when the session ends unless the user exports notes.
-- The Intelliprompter window itself is excluded from capture.
+- The Intelliprompter window itself is excluded from capture (`setContentProtection(true)` on Windows/macOS, plus filtered out of the chooser).
 - Views receive only `ScreenSummary` text, never frames.
 - A visible badge shows while a frame is being analysed; a Settings toggle disables the feature and unregisters the hotkey.
 - Screen content, slide text and OCR are untrusted evidence, never instructions. The vision prompt says so; the gap detector emits tips, never actions.
@@ -289,7 +289,7 @@ Settings: **Off / On slide change / Balanced / Real-time**, mirroring claude-vid
 
 ### 6.6 Document import
 
-`POST /api/import` (engine only) accepts PDF, PPTX, DOCX, TXT, MD and returns a Script: one section per slide or page; PPTX speaker notes become points, slide titles become section titles; scanned PDF pages go through the vision model. Libraries: `pdf-parse`, `jszip` + XML for PPTX/DOCX. Available to every surface through the engine.
+`POST /api/import` (engine only) accepts PDF, PPTX, DOCX, TXT, MD and returns a Script: one section per slide or page; PPTX speaker notes become points, slide titles become section titles; scanned PDF pages go through the vision model. Libraries: `unpdf` for PDF text, `jszip` + XML for PPTX/DOCX. Scanned pages are flagged in `warnings` for now (no OCR without native dependencies). Available to every surface through the engine.
 
 ### 6.6.1 Implementation notes (phase 6a/6b, shipped)
 

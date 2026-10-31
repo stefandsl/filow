@@ -3,9 +3,7 @@
 // pure functions so they can be tested on strings; the zip handling lives in
 // `importFile`.
 import JSZip from "jszip";
-import { parseScript, SLIDES_MARKER, type Script } from "@intelliprompter/core";
-
-export const IMPORT_MARKER = "<!-- source: import -->";
+import { IMPORT_MARKER, parseScript, SLIDES_MARKER, type Script } from "@intelliprompter/core";
 
 export type Imported = { text: string; script: Script; kind: string; pages: number; warnings: string[] };
 
@@ -125,21 +123,26 @@ export function pagesToText(pages: string[], warnings: string[]): string {
     }
     const title = rows[0].length <= 90 ? rows[0] : `Page ${i + 1}`;
     const rest = rows[0].length <= 90 ? rows.slice(1) : rows;
-    const points = rest.join(" ").split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý0-9])/).map((s) => s.trim()).filter((s) => s.length > 8).slice(0, 8);
+    const points = sentences(rest.join(" ")).filter((s) => s.length > 8).slice(0, 8);
     lines.push("", `# ${title}`, ...points.map((p) => `- ${p}`));
   });
   return lines.join("\n");
 }
 
-/** Splits prose into sentences (max 3 per paragraph), keeps short lines whole. */
+/** Prose → sentences. */
+function sentences(text: string): string[] {
+  return text
+    .trim()
+    .split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý0-9"“])/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 3);
+}
+
+/** Splits long prose into sentences (max 3 per paragraph), keeps short lines whole. */
 function sentenceOrLine(text: string): string[] {
   const t = text.trim();
   if (t.length <= 140) return [t];
-  return t
-    .split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý0-9"“])/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 3)
-    .slice(0, 3);
+  return sentences(t).slice(0, 3);
 }
 
 // ---- entry point ----------------------------------------------------------------------------

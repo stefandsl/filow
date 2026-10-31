@@ -10,7 +10,8 @@ export type ScreenBridge = {
   sources: () => Promise<Array<{ id: string; name: string; kind: ScreenSourceKind; thumbnail: string }>>;
   select: (id: string | null) => Promise<void>;
   pickRegion: () => Promise<{ image: string; width: number; height: number } | null>;
-  onHotkey: (fn: () => void) => void;
+  onHotkey: (fn: () => void) => () => void;
+  onSettings: (fn: (s: { hotkey: string; enabled: boolean }) => void) => () => void;
   getSettings: () => Promise<{ hotkey: string; enabled: boolean }>;
   setSettings: (next: { hotkey?: string; enabled?: boolean }) => Promise<{ ok: boolean; error?: string; hotkey: string; enabled: boolean }>;
 };

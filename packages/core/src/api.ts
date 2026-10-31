@@ -44,7 +44,7 @@ export type SttStatus = {
 // ---- Screen Sense (§6) --------------------------------------------------------------
 
 export type VisionRequest = {
-  /** JPEG or PNG as a data URL. Sent once, never stored. */
+  /** JPEG, PNG or WebP as a data URL. Sent once, never stored. */
   image: string;
   source: "screen" | "window" | "region";
   /** what the presenter planned to say here, for the mismatch check */
