@@ -1,0 +1,16 @@
+{
+  "name": "@intelliprompter/stt",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser-side speech-to-text backends (Web Speech, ElevenLabs realtime, OpenAI realtime) and Auto selection.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./browser": "./src/browser.ts"
+  },
+  "dependencies": {
+    "@intelliprompter/core": "*"
+  }
+}

@@ -1,47 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Bullet, BulletState, DecideResponse, Script, SttBackendId, SttStatus } from "@/lib/types";
-import { parseScript } from "@/lib/script";
-import { availableBackends, BACKEND_LABELS, createBackend, startAuto, type SttBackend } from "@/lib/stt";
-import { browserSupported } from "@/lib/stt/browser";
-
-const TICK_MS = 500; // how often we ask the model, like the original
-const START_THRESHOLD = 0.7; // matches the rubric in app/api/decide/route.ts // confidence needed to flip a point to "started"
-const TRANSCRIPT_WINDOW = 900; // characters of recent speech sent per tick
-const STICKY_MS = 1500; // after a flip, ignore contradicting answers for a bit
+import { useCallback, useEffect, useRef, useState } from "react";
+import { missedPoints, parseScript, type Script, type SttBackendId, type SttStatus } from "@intelliprompter/core";
+import {
+  availableBackends,
+  BACKEND_LABELS,
+  browserSupported,
+  createBackend,
+  startAuto,
+  type SttBackend,
+} from "@intelliprompter/stt";
+import { useEngine } from "./useEngine";
 
 type BackendChoice = "auto" | SttBackendId;
 
 export default function Teleprompter() {
-  const [script, setScript] = useState<Script>({ sections: [] });
+  const { engine, state } = useEngine();
   const [scriptText, setScriptText] = useState("");
-  const [sectionIdx, setSectionIdx] = useState(0);
-  const [states, setStates] = useState<Record<string, BulletState>>({});
-  const [missed, setMissed] = useState<Bullet[]>([]);
-
-  const [recording, setRecording] = useState(false);
-  const [committed, setCommitted] = useState("");
-  const [partial, setPartial] = useState("");
-
   const [sttStatus, setSttStatus] = useState<SttStatus>({ elevenlabs: false, openai: false });
   // Resolved on the client only, so server and first client render agree.
   const [hasWebSpeech, setHasWebSpeech] = useState(false);
   const [choice, setChoice] = useState<BackendChoice>("auto");
-  const [activeBackend, setActiveBackend] = useState<SttBackendId | null>(null);
   const [log, setLog] = useState<string[]>([]);
-
-  const [stats, setStats] = useState({ calls: 0, totalMs: 0, cost: 0, model: "" });
   const [editing, setEditing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const backendRef = useRef<SttBackend | null>(null);
-  const inFlight = useRef(false);
-  const lastSent = useRef("");
-  const flippedAt = useRef<Record<string, number>>({});
 
+  const { script, sectionIdx, points, stats, engine: eng } = state;
   const section = script.sections[sectionIdx];
   const nextSection = script.sections[sectionIdx + 1];
+  const missed = missedPoints(state);
+  const error = eng.error ?? null;
 
   const pushLog = useCallback((line: string) => {
     setLog((l) => [...l.slice(-30), `${new Date().toLocaleTimeString()}  ${line}`]);
@@ -52,12 +40,8 @@ export default function Teleprompter() {
     const res = await fetch("/api/script");
     const { text, script } = (await res.json()) as { text: string; script: Script };
     setScriptText(text);
-    setScript(script);
-    setStates({});
-    setMissed([]);
-    setSectionIdx(0);
-    flippedAt.current = {};
-  }, []);
+    engine.loadScript(script);
+  }, [engine]);
 
   useEffect(() => {
     setHasWebSpeech(browserSupported());
@@ -75,7 +59,7 @@ export default function Teleprompter() {
     });
     const { script } = (await res.json()) as { script: Script };
     setScriptText(text);
-    setScript(script);
+    engine.loadScript(script);
     setEditing(false);
   };
 
@@ -83,23 +67,16 @@ export default function Teleprompter() {
   const stopTake = useCallback(() => {
     backendRef.current?.stop();
     backendRef.current = null;
-    setRecording(false);
-    setActiveBackend(null);
-  }, []);
+    engine.stop();
+  }, [engine]);
 
   const startTake = async () => {
-    setError(null);
-    setCommitted("");
-    setPartial("");
-    lastSent.current = "";
+    engine.setError(undefined);
     const handlers = {
-      onTranscript: (e: { committed?: string; partial?: string }) => {
-        if (e.committed) setCommitted((c) => (c + e.committed).slice(-6000));
-        if (e.partial !== undefined) setPartial(e.partial);
-      },
+      onTranscript: (e: { committed?: string; partial?: string }) => engine.feed(e),
       onError: (m: string) => {
         pushLog(`error: ${m}`);
-        setError(m);
+        engine.setError(m);
       },
       onReady: () => pushLog("transcription ready"),
     };
@@ -110,17 +87,18 @@ export default function Teleprompter() {
           pushLog(`${BACKEND_LABELS[id]}: ${note}`),
         );
         backendRef.current = backend;
-        setActiveBackend(backend.id);
+        engine.setBackend(backend.id);
       } else {
+        // Explicit choice: never fall back silently.
         const backend = createBackend(choice);
         await backend.start(handlers);
         backendRef.current = backend;
-        setActiveBackend(backend.id);
+        engine.setBackend(backend.id);
         pushLog(`${BACKEND_LABELS[choice]}: live`);
       }
-      setRecording(true);
+      engine.start();
     } catch (err) {
-      setError((err as Error).message);
+      engine.setError((err as Error).message);
       pushLog(`could not start transcription: ${(err as Error).message}`);
       stopTake();
     }
@@ -128,101 +106,17 @@ export default function Teleprompter() {
 
   useEffect(() => () => backendRef.current?.stop(), []);
 
-  // ---- decision loop ---------------------------------------------------
-  const transcript = useMemo(() => (committed + " " + partial).trim(), [committed, partial]);
-
+  // When the engine stops itself (cost cap), release the microphone too.
   useEffect(() => {
-    if (!recording || !section) return;
-    const timer = window.setInterval(async () => {
-      if (inFlight.current) return;
-      const windowText = transcript.slice(-TRANSCRIPT_WINDOW);
-      if (!windowText || windowText === lastSent.current) return;
-      const open = section.bullets.filter((b) => states[b.id]?.status !== "started");
-      if (!open.length) return;
-
-      inFlight.current = true;
-      lastSent.current = windowText;
-      try {
-        const res = await fetch("/api/decide", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            transcript: windowText,
-            bullets: open,
-            sectionTitle: section.title,
-            covered: section.bullets.filter((b) => states[b.id]?.status === "started").map((b) => b.text),
-            upcoming: script?.sections[sectionIdx + 1]?.bullets.map((b) => b.text) ?? [],
-          }),
-        });
-        if (!res.ok) {
-          const { error } = (await res.json()) as { error?: string };
-          setError(error ?? `decide failed (${res.status})`);
-          return;
-        }
-        const data = (await res.json()) as DecideResponse;
-        setError(null);
-        setStats((s) => ({
-          calls: s.calls + 1,
-          totalMs: s.totalMs + data.latencyMs,
-          cost: s.cost + data.cost,
-          model: data.model,
-        }));
-        const now = Date.now();
-        setStates((prev) => {
-          const next = { ...prev };
-          for (const d of data.decisions) {
-            const cur = next[d.id] ?? { status: "waiting" as const, confidence: 0 };
-            if (cur.status === "started") continue;
-            const recentlyFlipped = now - (flippedAt.current[d.id] ?? 0) < STICKY_MS;
-            const started = d.started && d.confidence >= START_THRESHOLD && !recentlyFlipped;
-            next[d.id] = started
-              ? { status: "started", confidence: d.confidence, startedAt: now }
-              : { status: "waiting", confidence: d.confidence };
-            if (started) flippedAt.current[d.id] = now;
-          }
-          return next;
-        });
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        inFlight.current = false;
-      }
-    }, TICK_MS);
-    return () => window.clearInterval(timer);
-  }, [recording, section, states, transcript]);
-
-  // ---- navigation ------------------------------------------------------
-  const goTo = (idx: number) => {
-    if (!section) return;
-    if (idx > sectionIdx) {
-      // Everything still open in the sections we skip past becomes "missed".
-      const skipped = script.sections
-        .slice(sectionIdx, idx)
-        .flatMap((s) => s.bullets)
-        .filter((b) => states[b.id]?.status !== "started");
-      setMissed((m) => [...m, ...skipped.filter((b) => !m.some((x) => x.id === b.id))]);
+    if (!eng.recording && backendRef.current) {
+      backendRef.current.stop();
+      backendRef.current = null;
     }
-    setSectionIdx(Math.max(0, Math.min(script.sections.length - 1, idx)));
-    lastSent.current = "";
-  };
+  }, [eng.recording]);
 
-  const resetSection = () => {
-    if (!section) return;
-    setStates((prev) => {
-      const next = { ...prev };
-      for (const b of section.bullets) delete next[b.id];
-      return next;
-    });
-    for (const b of section.bullets) delete flippedAt.current[b.id];
-    lastSent.current = "";
-  };
-
-  const clearMissed = (id: string) => setMissed((m) => m.filter((b) => b.id !== id));
-
-  const avgMs = stats.calls ? Math.round(stats.totalMs / stats.calls) : 0;
-  const tail = transcript.slice(-160);
-
+  const tail = state.transcriptTail;
   const availability = availableBackends(sttStatus, hasWebSpeech);
+  const costLabel = stats.costUsd === null ? "n/a" : `$${stats.costUsd.toFixed(6)}`;
 
   return (
     <div className="app">
@@ -232,7 +126,7 @@ export default function Teleprompter() {
         </div>
         <span className="subtitle">/ live talking points</span>
         <span className="spacer" />
-        {activeBackend && <span className="chip live">● {BACKEND_LABELS[activeBackend]}</span>}
+        {eng.backend && <span className="chip live">● {BACKEND_LABELS[eng.backend]}</span>}
         {error && <span className="chip err">{error}</span>}
       </header>
 
@@ -248,14 +142,19 @@ export default function Teleprompter() {
 
           <div className="points">
             {section.bullets.map((b) => {
-              const st = states[b.id] ?? { status: "waiting", confidence: 0 };
+              const st = points[b.id] ?? { status: "waiting", confidence: 0 };
               const started = st.status === "started";
               const hot = !started && st.confidence >= 0.3;
               return (
-                <div key={b.id} className={`point ${started ? "started" : ""} ${hot ? "hot" : ""}`}>
+                <div
+                  key={b.id}
+                  className={`point ${started ? "started" : ""} ${hot ? "hot" : ""}`}
+                  onDoubleClick={() => engine.dispatch(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id })}
+                  title="Double-click to toggle"
+                >
                   <span className="mark">{started ? "✓" : ""}</span>
                   <span className="status">
-                    {started ? "started" : "waiting"}
+                    {st.status}
                     {!started && <span className="pct">· {Math.round(st.confidence * 100)}%</span>}
                   </span>
                   <span className="text">{b.text}</span>
@@ -269,7 +168,7 @@ export default function Teleprompter() {
               <div className="label">Next / {nextSection.title}</div>
               <div className="row">
                 {nextSection.bullets.map((b) => (
-                  <span key={b.id} className={`next-item ${states[b.id]?.status === "started" ? "done" : ""}`}>
+                  <span key={b.id} className={`next-item ${points[b.id]?.status === "started" ? "done" : ""}`}>
                     ○ {b.text}
                   </span>
                 ))}
@@ -282,7 +181,12 @@ export default function Teleprompter() {
               <div className="label">▾ ! Missed {missed.length}</div>
               <div className="row scroll">
                 {missed.map((b) => (
-                  <span key={b.id} className="missed-item" title="Click to dismiss" onClick={() => clearMissed(b.id)}>
+                  <span
+                    key={b.id}
+                    className="missed-item"
+                    title="Click to re-open this point"
+                    onClick={() => engine.dispatch({ type: "reopen", id: b.id })}
+                  >
                     ! MISSED · {b.text}
                   </span>
                 ))}
@@ -300,7 +204,7 @@ export default function Teleprompter() {
       )}
 
       <div className="controls">
-        {recording ? (
+        {eng.recording ? (
           <button className="btn danger" onClick={stopTake}>
             Stop take
           </button>
@@ -312,7 +216,7 @@ export default function Teleprompter() {
         <select
           className="btn"
           value={choice}
-          disabled={recording}
+          disabled={eng.recording}
           onChange={(e) => setChoice(e.target.value as BackendChoice)}
           title="Transcription backend"
         >
@@ -326,13 +230,13 @@ export default function Teleprompter() {
         <button className="btn" onClick={() => setEditing(true)}>
           Edit points
         </button>
-        <button className="btn" onClick={() => goTo(sectionIdx - 1)} disabled={sectionIdx === 0}>
+        <button className="btn" onClick={() => engine.dispatch({ type: "prevSection" })} disabled={sectionIdx === 0}>
           ← Prev section
         </button>
-        <button className="btn" onClick={() => goTo(sectionIdx + 1)} disabled={!nextSection}>
+        <button className="btn" onClick={() => engine.dispatch({ type: "nextSection" })} disabled={!nextSection}>
           Next section →
         </button>
-        <button className="btn" onClick={resetSection}>
+        <button className="btn" onClick={() => engine.dispatch({ type: "resetSection" })}>
           Reset section
         </button>
         <button className="btn" onClick={loadScript}>
@@ -342,7 +246,7 @@ export default function Teleprompter() {
 
       <div className="footer">
         <span>
-          Calls {stats.calls} · Avg {avgMs} ms · Cost ${stats.cost.toFixed(6)}
+          Calls {stats.calls} · Avg {stats.avgMs} ms · Cost {costLabel}
           {stats.model ? ` · ${stats.model}` : ""}
         </span>
         <span className="transcript">
@@ -358,13 +262,7 @@ export default function Teleprompter() {
         </div>
       )}
 
-      {editing && (
-        <ScriptEditor
-          initial={scriptText}
-          onCancel={() => setEditing(false)}
-          onSave={saveScript}
-        />
-      )}
+      {editing && <ScriptEditor initial={scriptText} onCancel={() => setEditing(false)} onSave={saveScript} />}
     </div>
   );
 }

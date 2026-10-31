@@ -1,25 +1,5 @@
-export type Bullet = {
-  id: string;
-  text: string;
-};
-
-export type Section = {
-  id: string;
-  title: string;
-  bullets: Bullet[];
-};
-
-export type Script = {
-  sections: Section[];
-};
-
-export type BulletStatus = "waiting" | "started" | "missed";
-
-export type BulletState = {
-  status: BulletStatus;
-  confidence: number; // 0..1, last reported by the decision model
-  startedAt?: number;
-};
+// HTTP contracts between an engine and the Next.js API routes.
+import type { Bullet } from "./types";
 
 export type Decision = {
   id: string;
@@ -36,18 +16,21 @@ export type DecideRequest = {
   covered?: string[];
   /** Points of the next section (context so the model can tell "moved on" from "covering"). */
   upcoming?: string[];
-  /** Optional language hint, e.g. "it" or "en". Transcript and points may be in any language. */
+  /** Facts currently visible on screen (Screen Sense), context only. */
+  onScreen?: string[];
+  /** Optional language hint, e.g. "it" or "en". */
   language?: string;
 };
 
 export type DecideResponse = {
   decisions: Decision[];
+  /** On-screen facts the speaker has not mentioned yet (gap detector). */
+  unmentioned?: string[];
   latencyMs: number;
-  cost: number; // USD, 0 when the provider does not report it
+  /** USD; null when the provider does not report usage.cost */
+  cost: number | null;
   model: string;
 };
-
-export type SttBackendId = "browser" | "elevenlabs" | "openai";
 
 export type SttStatus = {
   elevenlabs: boolean;

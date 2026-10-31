@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { parseScript } from "@/lib/script";
+import { parseScript } from "@intelliprompter/core";
 
 /** Where the talking points live. The desktop app points this at its user-data folder. */
 const SCRIPT_PATH = process.env.INTELLIPROMPTER_SCRIPT || path.join(process.cwd(), "script.md");

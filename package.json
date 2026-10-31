@@ -1,61 +1,28 @@
 {
-  "name": "intelliprompter",
+  "name": "intelliprompter-monorepo",
   "version": "0.1.0",
-  "description": "A teleprompter that checks off your talking points as you say them. OpenRouter decisions, live transcription.",
+  "private": true,
+  "description": "Intelliprompter: a teleprompter that checks off your talking points as you say them.",
   "author": "Stefan Butnaru",
   "license": "MIT",
-  "private": true,
-  "main": "electron/main.js",
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "next dev -p 4747",
-    "build": "next build && node scripts/prepare-standalone.js",
-    "start": "next start -p 4747",
-    "start:server": "node .next/standalone/server.js",
-    "typecheck": "tsc --noEmit",
-    "icon": "node scripts/make-icon.js",
-    "desktop": "npm run build && electron .",
-    "desktop:build": "npm run build && electron-builder --publish never",
-    "desktop:build:win": "npm run build && electron-builder --win --publish never",
-    "desktop:build:mac": "npm run build && electron-builder --mac --publish never",
-    "desktop:build:linux": "npm run build && electron-builder --linux --publish never"
-  },
-  "dependencies": {
-    "next": "15.3.3",
-    "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "dev": "npm run dev -w apps/web",
+    "build": "npm run build -w apps/web",
+    "start": "npm run start -w apps/web",
+    "start:server": "npm run start:server -w apps/web",
+    "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck -w apps/web",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "desktop": "npm run build -w apps/web && npm run start -w apps/desktop",
+    "desktop:build": "npm run build -w apps/web && npm run dist -w apps/desktop",
+    "desktop:build:win": "npm run build -w apps/web && npm run dist:win -w apps/desktop",
+    "desktop:build:mac": "npm run build -w apps/web && npm run dist:mac -w apps/desktop",
+    "desktop:build:linux": "npm run build -w apps/web && npm run dist:linux -w apps/desktop"
   },
   "devDependencies": {
     "@types/node": "22.15.21",
-    "@types/react": "19.1.6",
-    "@types/react-dom": "19.1.5",
-    "electron": "^33.2.1",
-    "electron-builder": "^25.1.8",
-    "typescript": "5.8.3"
-  },
-  "build": {
-    "appId": "com.intelliprompter.app",
-    "productName": "Intelliprompter",
-    "directories": { "output": "release" },
-    "files": ["electron/**/*", "build/icon.png", "package.json"],
-    "asar": true,
-    "extraResources": [
-      { "from": ".next/standalone", "to": "app", "filter": ["**/*", "!.env*"] },
-      { "from": ".env.example", "to": ".env.example" },
-      { "from": "script.md", "to": "script.md" }
-    ],
-    "win": { "target": ["nsis", "portable"], "icon": "build/icon.png" },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "perMachine": false },
-    "mac": {
-      "target": [{ "target": "dmg", "arch": ["x64", "arm64"] }],
-      "icon": "build/icon.png",
-      "category": "public.app-category.productivity",
-      "identity": null
-    },
-    "linux": {
-      "target": ["AppImage", "deb"],
-      "icon": "build/icon.png",
-      "category": "AudioVideo",
-      "maintainer": "Stefan Butnaru"
-    }
+    "typescript": "5.8.3",
+    "vitest": "^3.1.4"
   }
 }

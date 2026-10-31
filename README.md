@@ -108,8 +108,8 @@ Prerequisites: **Node.js 22** (https://nodejs.org) and **git**. Chrome or Edge i
 git clone https://github.com/<you>/intelliprompter.git
 cd intelliprompter
 npm ci
-Copy-Item .env.example .env.local
-notepad .env.local      # paste your keys, save
+Copy-Item apps/web/.env.example apps/web/.env.local
+notepad apps/web/.env.local      # paste your keys, save
 npm run dev             # development server with hot reload
 ```
 
@@ -121,8 +121,8 @@ Open http://localhost:4747 in Chrome or Edge and allow the microphone.
 git clone https://github.com/<you>/intelliprompter.git
 cd intelliprompter
 npm ci
-cp .env.example .env.local
-nano .env.local         # paste your keys, save with Ctrl+O, Enter, Ctrl+X
+cp apps/web/.env.example apps/web/.env.local
+nano apps/web/.env.local         # paste your keys, save with Ctrl+O, Enter, Ctrl+X
 npm run dev
 ```
 
@@ -206,8 +206,8 @@ sudo -u prompter git clone https://<you>:<TOKEN>@github.com/<you>/intelliprompte
 
 ```bash
 cd /opt/intelliprompter/app
-sudo -u prompter cp .env.example .env.local
-sudo -u prompter nano .env.local        # paste keys, Ctrl+O, Enter, Ctrl+X
+sudo -u prompter cp apps/web/.env.example apps/web/.env.local
+sudo -u prompter nano apps/web/.env.local        # paste keys, Ctrl+O, Enter, Ctrl+X
 sudo -u prompter npm ci
 sudo -u prompter npm run build
 ```
@@ -224,11 +224,11 @@ After=network.target
 Type=simple
 User=prompter
 WorkingDirectory=/opt/intelliprompter/app
-EnvironmentFile=/opt/intelliprompter/app/.env.local
+EnvironmentFile=/opt/intelliprompter/app/apps/web/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=4747
 Environment=HOSTNAME=127.0.0.1
-ExecStart=/usr/bin/node .next/standalone/server.js
+ExecStart=/usr/bin/node apps/web/.next/standalone/apps/web/server.js
 Restart=always
 RestartSec=3
 
@@ -324,8 +324,8 @@ sudo apt -y install nodejs
 git clone https://github.com/<you>/intelliprompter.git ~/intelliprompter
 cd ~/intelliprompter
 npm ci
-cp .env.example .env.local
-nano .env.local
+cp apps/web/.env.example apps/web/.env.local
+nano apps/web/.env.local
 ```
 
 Run the dev server, then reach it through an **SSH tunnel** so the browser sees it as `localhost` (microphone works without HTTPS that way):

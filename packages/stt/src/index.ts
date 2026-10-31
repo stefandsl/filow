@@ -1,10 +1,11 @@
-import type { SttBackendId, SttStatus } from "@/lib/types";
+import type { SttBackendId, SttStatus } from "@intelliprompter/core";
 import type { SttBackend, SttHandlers } from "./types";
 import { BrowserStt } from "./browser";
 import { ElevenLabsStt } from "./elevenlabs";
 import { OpenAiStt } from "./openai";
 
 export type { SttBackend, SttHandlers, TranscriptEvent } from "./types";
+export { browserSupported } from "./browser";
 
 export const BACKEND_LABELS: Record<SttBackendId, string> = {
   elevenlabs: "ElevenLabs Scribe v2",
@@ -12,12 +13,18 @@ export const BACKEND_LABELS: Record<SttBackendId, string> = {
   browser: "Browser (Web Speech)",
 };
 
-export function createBackend(id: SttBackendId): SttBackend {
+export type BackendOptions = {
+  /** Origin of the Next.js API that mints tokens, e.g. "https://prompter.example.com". Default: same origin. */
+  baseUrl?: string;
+};
+
+export function createBackend(id: SttBackendId, opts: BackendOptions = {}): SttBackend {
+  const base = opts.baseUrl ?? "";
   switch (id) {
     case "elevenlabs":
-      return new ElevenLabsStt();
+      return new ElevenLabsStt(base);
     case "openai":
-      return new OpenAiStt();
+      return new OpenAiStt(base);
     case "browser":
       return new BrowserStt();
   }
@@ -40,24 +47,25 @@ export type AutoResult = {
 
 /**
  * "Auto" mode: starts the best available backend; if it errors or produces no
- * transcript within `probeMs`, stops it and tries the next one. Measures time
- * to first transcript so the UI can show which backend was actually fastest.
+ * transcript within `probeMs`, stops it and tries the next one. An explicit
+ * backend choice must NOT go through here: it never falls back silently.
  */
 export async function startAuto(
   candidates: SttBackendId[],
   handlers: SttHandlers,
   onAttempt: (id: SttBackendId, note: string) => void,
-  probeMs = 8000,
+  opts: BackendOptions & { probeMs?: number } = {},
 ): Promise<AutoResult> {
+  const probeMs = opts.probeMs ?? 8000;
   let lastError = "no transcription backend available";
   for (const id of candidates) {
-    const backend = createBackend(id);
+    const backend = createBackend(id, opts);
     const t0 = performance.now();
     onAttempt(id, "connecting");
     try {
       const firstWordMs = await new Promise<number>((resolve, reject) => {
         let settled = false;
-        const timer = window.setTimeout(() => {
+        const timer = setTimeout(() => {
           if (!settled) {
             settled = true;
             reject(new Error(`no transcript within ${probeMs / 1000}s`));
@@ -70,14 +78,14 @@ export async function startAuto(
               handlers.onError(m);
               if (!settled) {
                 settled = true;
-                window.clearTimeout(timer);
+                clearTimeout(timer);
                 reject(new Error(m));
               }
             },
             onTranscript: (e) => {
               if (!settled && (e.partial || e.committed)) {
                 settled = true;
-                window.clearTimeout(timer);
+                clearTimeout(timer);
                 resolve(performance.now() - t0);
               }
               handlers.onTranscript(e);
@@ -86,7 +94,7 @@ export async function startAuto(
           .catch((err: Error) => {
             if (!settled) {
               settled = true;
-              window.clearTimeout(timer);
+              clearTimeout(timer);
               reject(err);
             }
           });

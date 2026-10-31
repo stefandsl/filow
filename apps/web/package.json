@@ -1,0 +1,26 @@
+{
+  "name": "@intelliprompter/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 4747",
+    "build": "next build && node ../../scripts/prepare-standalone.js",
+    "start": "next start -p 4747",
+    "start:server": "node .next/standalone/apps/web/server.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@intelliprompter/core": "*",
+    "@intelliprompter/stt": "*",
+    "@intelliprompter/client": "*",
+    "next": "15.3.3",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.21",
+    "@types/react": "19.1.6",
+    "@types/react-dom": "19.1.5",
+    "typescript": "5.8.3"
+  }
+}

@@ -10,8 +10,12 @@ const HOST = "127.0.0.1";
 const URL = `http://${HOST}:${PORT}`;
 
 const packaged = app.isPackaged;
-const resources = packaged ? process.resourcesPath : path.join(__dirname, "..");
-const serverDir = packaged ? path.join(resources, "app") : path.join(resources, ".next", "standalone");
+// Packaged: resources/app/apps/web/server.js (standalone output traced from the repo root).
+// Dev: ../web/.next/standalone/apps/web/server.js after `npm run build`.
+const resources = packaged ? process.resourcesPath : path.join(__dirname, "..", "web");
+const serverDir = packaged
+  ? path.join(resources, "app", "apps", "web")
+  : path.join(resources, ".next", "standalone", "apps", "web");
 const userData = app.getPath("userData");
 const envFile = path.join(userData, ".env");
 const scriptFile = path.join(userData, "script.md");
@@ -107,7 +111,7 @@ async function main() {
     height: 820,
     backgroundColor: "#0b0b0d",
     title: "Intelliprompter",
-    icon: path.join(__dirname, "..", "build", "icon.png"),
+    icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   });
   buildMenu(win);
