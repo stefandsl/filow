@@ -4,7 +4,7 @@
   "private": true,
   "description": "A teleprompter that checks off your talking points as you say them. OpenRouter decisions, live transcription.",
   "author": "VoidExploit",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "homepage": "https://github.com/stefandsl/intelliprompter",
   "main": "main.js",
   "scripts": {

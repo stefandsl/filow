@@ -14,8 +14,10 @@ Write talking points. Start talking. Each point checks itself off the moment you
   <img alt="Phone mirror" src="https://img.shields.io/badge/Android%20%7C%20iOS-phone%20mirror-141418" />
   <img alt="PowerPoint" src="https://img.shields.io/badge/PowerPoint-add--in-b7472a" />
   <img alt="Languages" src="https://img.shields.io/badge/UI-English%20%7C%20Italiano-4ad67a" />
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-8d8d99" /></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-proprietary-8d8d99" /></a>
 </p>
+
+<p align="center"><sub>Proprietary software, © 2026 Stefan Butnaru (VoidExploit), all rights reserved. Installers up to v0.6.0 still show the earlier MIT text in their licence page; from the next tag the installer carries the proprietary notice.</sub></p>
 
 <p align="center">
   <a href="https://github.com/stefandsl/intelliprompter/releases/latest">Download</a> ·
@@ -162,7 +164,7 @@ Download the file for your OS from the **Releases** page of this repo (built aut
 
 ### The Windows installer
 
-A step-by-step wizard in the language of your Windows (English, Italian, German, French, Spanish, Portuguese, Dutch, Polish, Russian, Japanese, Chinese; the custom pages are in English and Italian): welcome, licence (© VoidExploit, MIT), install folder, a **Local models and API keys** page where you tick the models to download on first start (Whisper base is preselected; Whisper small; Clef Flash via Ollama) and read that cloud decisions need an OpenRouter key, then the finish page with **Run Intelliprompter** and **Create a desktop shortcut**. The app opens with a splash screen (logo, progress bar, "Local models · data stays on this PC · GDPR" when it runs locally, "PII guard on · GDPR" otherwise) while the servers and the public link start, then goes to Settings to fetch the models you ticked.
+A step-by-step wizard in the language of your Windows (English, Italian, German, French, Spanish, Portuguese, Dutch, Polish, Russian, Japanese, Chinese; the custom pages are in English and Italian): welcome, licence (proprietary, © VoidExploit), install folder, a **Local models and API keys** page where you tick the models to download on first start (Whisper base is preselected; Whisper small; Clef Flash via Ollama) and read that cloud decisions need an OpenRouter key, then the finish page with **Run Intelliprompter** and **Create a desktop shortcut**. The app opens with a splash screen (logo, progress bar, "Local models · data stays on this PC · GDPR" when it runs locally, "PII guard on · GDPR" otherwise) while the servers and the public link start, then goes to Settings to fetch the models you ticked.
 
 ### First start
 

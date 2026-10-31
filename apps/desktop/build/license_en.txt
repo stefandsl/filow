@@ -1,27 +1,16 @@
-﻿Intelliprompter
-Copyright (c) 2026 VoidExploit
+Intelliprompter
+Copyright (c) 2026 Stefan Butnaru (VoidExploit). All rights reserved.
 
-MIT License
+This software is proprietary. By installing it you agree that:
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+- you may install and use it on your own devices under the terms agreed at
+  purchase or licensing;
+- you may not copy, redistribute, sell, sublicense, modify, decompile or
+  reverse engineer it, in whole or in part, without written permission;
+- it is provided "as is", without warranty of any kind; the copyright holder is
+  not liable for damages arising from its use.
 
 Privacy: speech and screen frames are processed by the services you configure
 (OpenRouter, ElevenLabs, OpenAI) or entirely on this computer when you choose
 the local models. Personal data is replaced by placeholders before any cloud
-call. See the README for details.
+call. Third-party components keep their own licences.

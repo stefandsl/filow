@@ -14,5 +14,6 @@
   },
   "dependencies": {
     "@intelliprompter/core": "*"
-  }
+  },
+  "license": "UNLICENSED"
 }

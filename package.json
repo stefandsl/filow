@@ -4,8 +4,11 @@
   "private": true,
   "description": "Intelliprompter: a teleprompter that checks off your talking points as you say them.",
   "author": "Stefan Butnaru",
-  "license": "MIT",
-  "workspaces": ["apps/*", "packages/*"],
+  "license": "UNLICENSED",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "concurrently -n web,session -c cyan,magenta \"npm run dev -w apps/web\" \"npm run dev -w apps/server\"",
     "dev:web": "npm run dev -w apps/web",
