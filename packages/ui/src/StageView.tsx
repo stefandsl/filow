@@ -13,10 +13,12 @@ export type StageViewProps = {
   banner?: string | null;
   /** Big-type stage mode (phone / mirror). */
   stage?: boolean;
+  /** Overlay mode: title, points and the next title only; no controls, no footer. */
+  compact?: boolean;
 };
 
 /** The live view: section, points, next strip, missed tray, on-screen strip, remote buttons. Uses the app's CSS classes. */
-export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
+export function StageView({ state, onCommand, banner, stage, compact }: StageViewProps) {
   const t = useT();
   const { script, sectionIdx, points, stats, engine, screen } = state;
   const section = script.sections[sectionIdx];
@@ -26,7 +28,7 @@ export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
   const can = Boolean(onCommand);
 
   return (
-    <div className={`app ${stage ? "stage" : ""}`}>
+    <div className={`app ${stage ? "stage" : ""} ${compact ? "compact" : ""}`}>
       {banner && <div className="chip err banner">{banner}</div>}
 
       {section ? (
@@ -39,7 +41,7 @@ export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
             <h1 className="section-title">{section.title}</h1>
           </div>
 
-          {screen && (
+          {screen && !compact && (
             <OnScreenStrip
               screen={screen}
               unmentioned={state.unmentioned}
@@ -84,7 +86,7 @@ export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
             </div>
           )}
 
-          {missed.length > 0 && (
+          {missed.length > 0 && !compact && (
             <div className="strip">
               <div className="label">{t("stage.missed", { n: missed.length })}</div>
               <div className="row scroll">
@@ -104,7 +106,7 @@ export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
         </div>
       )}
 
-      {can && (
+      {can && !compact && (
         <div className="controls">
           <button className="btn" onClick={() => send({ type: "prevSection" })} disabled={sectionIdx === 0}>
             {t("ctl.prevShort")}
@@ -127,6 +129,7 @@ export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
         </div>
       )}
 
+      {!compact && (
       <div className="footer">
         <span>
           {engine.recording ? t("stage.live") : t("stage.idle")} ·{" "}
@@ -136,6 +139,7 @@ export function StageView({ state, onCommand, banner, stage }: StageViewProps) {
           <span>{state.transcriptTail || "…"}</span>
         </span>
       </div>
+      )}
     </div>
   );
 }

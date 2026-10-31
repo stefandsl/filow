@@ -117,6 +117,15 @@ Transcription backends (pick in the dropdown, or leave on **Auto**):
 
 API keys never reach the browser: the server mints short-lived tokens for the streaming backends and calls OpenRouter itself.
 
+### Presenting with PowerPoint (desktop app)
+
+PowerPoint hides task panes during a slide show and its add-in API cannot see the show, so the desktop app does two things on its own:
+
+- **It follows the show.** On Windows the app asks PowerPoint over COM (the channel Presenter View uses) which slide is on screen, every 0.4 s; on macOS the same through AppleScript. When the show starts, the current section jumps to the slide and keeps following; a "📽 slide n/m" chip shows in the top bar. The script must come from the slides (speaker notes or **Generate script from slides** in the pane) so slide and section numbers line up.
+- **It shows a presenter overlay.** A small always-on-top window with the slide's title and its points, checked off as you say them, plus the next slide's title. It opens by itself when a show starts and closes when it ends (menu: *Presenter overlay*, *Open the overlay automatically*). Drag it anywhere, usually on the laptop screen next to Presenter View; *Hide the overlay from screen recordings and shares* keeps it out of Teams or OBS. The overlay is a compact view of the app's own session, so what you see on it is exactly what the phone sees.
+
+Linux has no PowerPoint; there the phone mirror is the live view.
+
 ### Phone mirror and remote
 
 The engine (the browser or desktop app with the microphone) creates a **session** on the session relay and shows a 6-digit code in the top bar. Click it for a QR. A phone opens the mirror page, enters the code (or scans the QR), and gets the live view with big type plus Prev / Next / Reset / Start / Stop buttons. The mirror is a web page, so nothing to install; on Android or iOS use "Add to Home Screen" for a full-screen app.

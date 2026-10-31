@@ -149,3 +149,14 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 input.btn { text-transform: none; letter-spacing: 0; font-family: var(--mono); }
 .langswitch { display: inline-flex; gap: 4px; }
 .langswitch .chip { padding: 3px 8px; }
+
+/* Presenter overlay (desktop window on top of the slide show) */
+.overlay { display: flex; flex-direction: column; min-height: 100vh; }
+.overlay-bar { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 11px; letter-spacing: 0.14em; color: var(--muted); -webkit-app-region: drag; user-select: none; }
+.overlay-bar .chip { -webkit-app-region: no-drag; cursor: pointer; padding: 2px 8px; }
+.app.compact { padding: 10px 14px; gap: 10px; min-height: 0; }
+.app.compact .section-count { font-size: 11px; }
+.app.compact h1.section-title { font-size: 20px; margin: 2px 0 6px; }
+.app.compact .point { font-size: 17px; padding: 8px 10px; grid-template-columns: 22px 1fr; }
+.app.compact .point .status { display: none; }
+.app.compact .strip .row { font-size: 13px; }

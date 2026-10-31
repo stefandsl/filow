@@ -38,6 +38,14 @@ contextBridge.exposeInMainWorld("intelliprompter", {
   /** system | light | dark; the shell colours (title bar, dialogs, splash) follow. */
   setTheme: (theme) => ipcRenderer.send("ui:theme", theme),
   reportSession: (info) => ipcRenderer.send("session:report", info),
+  /** Live slide show (PowerPoint via COM / AppleScript): {running, index, total, title}. */
+  slideshowState: () => ipcRenderer.invoke("slideshow:state"),
+  onSlideshow: (fn) => {
+    const h = (_e, v) => fn(v);
+    ipcRenderer.on("slideshow", h);
+    return () => ipcRenderer.removeListener("slideshow", h);
+  },
+  closeOverlay: () => ipcRenderer.send("overlay:close"),
   /** Screen Sense (ARCHITECTURE.md §6.1): sources, region picker, hotkey. Frames stay in memory. */
   screen: {
     sources: () => ipcRenderer.invoke("screen:sources"),

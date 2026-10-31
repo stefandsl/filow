@@ -30,6 +30,8 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
   const [status, setStatus] = useState<string>("idle");
   const [error, setError] = useState<string | null>(null);
   const serverParam = params.get("server");
+  const compact = params.get("compact") === "1";
+  const overlay = params.get("overlay") === "1";
   const [pending, setPending] = useState(false);
 
   /** ?server= is only trusted when it is this page's own origin; anything else is confirmed first (never auto-connect elsewhere). */
@@ -148,7 +150,21 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
   }
 
   const offline = status.startsWith("connecting") || !state;
-  return <StageView state={state ?? emptyState(client.id)} onCommand={onCommand} stage banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
+  if (overlay) {
+    const bridge = (globalThis as { intelliprompter?: { closeOverlay?: () => void } }).intelliprompter;
+    return (
+      <div className="overlay">
+        <div className="overlay-bar">
+          <span className="drag">⋮⋮ INTELLIPROMPTER</span>
+          <button className="chip" onClick={() => bridge?.closeOverlay?.()} title={t("overlay.close")}>
+            ✕
+          </button>
+        </div>
+        <StageView state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact banner={error ?? (offline ? t("stage.engineOffline") : null)} />
+      </div>
+    );
+  }
+  return <StageView state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact={compact} banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
 }
 
 function emptyState(id: string): SessionState {

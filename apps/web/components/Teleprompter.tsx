@@ -51,6 +51,17 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const [importing, setImporting] = useState(false);
   const [starting, setStarting] = useState(false);
   const [publicLink, setPublicLink] = useState(false);
+  const [show, setShow] = useState<{ running: boolean; index: number; total: number } | null>(null);
+  useEffect(() => {
+    const bridge = desktopBridge();
+    if (!bridge?.onSlideshow) return;
+    const apply = (st: { running: boolean; index: number; total: number; title: string }) => {
+      setShow(st.running ? st : null);
+      if (st.running && st.index >= 0) engine.dispatch({ type: "slideChanged", index: st.index, total: st.total, title: st.title || undefined });
+    };
+    void bridge.slideshowState?.().then(apply);
+    return bridge.onSlideshow(apply);
+  }, [engine]);
   useEffect(() => {
     setPublicLink(Boolean(desktopBridge()?.remoteShare));
   }, []);
@@ -239,6 +250,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         <span className="subtitle">{t("app.subtitle")}</span>
         <span className="spacer" />
         <PairPanel info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} onNewCode={() => void sessionInfo.newCode()} />
+        {show && <span className="chip live">📽 {t("stage.slide", { n: show.index + 1, total: show.total })}</span>}
         {publicLink && (
           <button className="chip live" title={t("pair.stopPublic")} onClick={() => desktopBridge()?.setRemoteShare?.(false)}>
             🌐 {t("pair.publicChip")} ✕

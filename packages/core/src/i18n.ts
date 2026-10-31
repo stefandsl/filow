@@ -137,6 +137,8 @@ const en = {
 
   // mirror
   "mirror.enterCode": "mirror · enter the 6-digit code shown on the engine",
+  "overlay.close": "Close overlay",
+  "overlay.waiting": "Start a slide show in PowerPoint; the points of each slide appear here.",
   "mirror.join": "Join",
   "mirror.pairing": "Pairing…",
 
@@ -384,6 +386,8 @@ const it: Partial<Record<I18nKey, string>> = {
   "editor.hint": "Una riga “# Titolo sezione” per sezione, poi righe “- punto”. Salvato in script.md. Riconosciute: {sections} sezioni, {points} punti.",
 
   "mirror.enterCode": "mirror · inserisci il codice a 6 cifre mostrato sul motore",
+  "overlay.close": "Chiudi overlay",
+  "overlay.waiting": "Avvia una presentazione in PowerPoint; qui compaiono i punti di ogni slide.",
   "mirror.join": "Entra",
   "mirror.pairing": "Abbinamento…",
 

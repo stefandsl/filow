@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Intelliprompter",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "Your talking points next to any HTML slide deck: generate the script from the slides and keep the prompter in sync while you present.",
   "icons": { "128": "icon.png", "48": "icon.png", "16": "icon.png" },
   "action": { "default_title": "Open Intelliprompter" },

@@ -373,6 +373,10 @@ Files: `apps/powerpoint/manifest.xml` (requirement set `PowerPointApi 1.4`, perm
 
 On the desktop app the pane is served from `https://localhost:4749/powerpoint/` and joins the app's own session automatically: the engine page reports its session code to the shell, the HTTPS proxy answers `/api/local/current-session` only on 127.0.0.1, and the pane in View mode pairs with it (auto-accepted as a local peer).
 
+### 7.5 Following the live show and the presenter overlay (desktop, shipped)
+
+The JavaScript API cannot see a running show, but desktop automation can: `apps/desktop/slideshow.js` polls `PowerPoint.Application.SlideShowWindows(1).View.Slide` through COM in a Windows PowerShell 5.1 helper (GetActiveObject needs the .NET Framework runtime) and `slide show view of slide show window 1` through AppleScript on macOS, 400–500 ms, one JSON line per change. The shell forwards `{running, index, total, title}` to the engine page, which dispatches `slideChanged`; sections follow when the script came from slides. The presenter overlay is a frameless always-on-top `BrowserWindow` loading `/mirror?compact=1&overlay=1&code=<current code>`: a compact `StageView` (title, points, next title) joined to the app's own session as a local peer, opened and closed with the show, position remembered, optional `setContentProtection` to stay out of recordings.
+
 ## 8. Google Slides add-on (phase 5)
 
 Speaker notes are the script. Constraints: the Slides API cannot drive or observe Present mode; HtmlService sidebars get no microphone; there is no selection-change event, only polling through `google.script.run` (1 s interval, rehearsal-length budgets fit daily quotas; no `UrlFetchApp` per poll).

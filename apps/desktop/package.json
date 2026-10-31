@@ -1,6 +1,6 @@
 {
   "name": "@intelliprompter/desktop",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "private": true,
   "description": "A teleprompter that checks off your talking points as you say them. OpenRouter decisions, live transcription.",
   "author": "VoidExploit",
@@ -38,6 +38,7 @@
     },
     "files": [
       "main.js",
+      "slideshow.js",
       "preload.js",
       "splash.html",
       "vendor/*.js",

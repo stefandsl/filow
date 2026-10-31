@@ -32,7 +32,7 @@ const settingsFile = path.join(userData, "settings.json");
 
 // ---- Screen Sense (ARCHITECTURE.md §6.1): sources, region picker, global hotkey ----
 const DEFAULT_HOTKEY = "CommandOrControl+Shift+Space";
-let settings = { screenHotkey: DEFAULT_HOTKEY, screenSense: true, contentProtection: false, remoteShare: true, mirrorHost: "", lang: "", theme: "system" };
+let settings = { screenHotkey: DEFAULT_HOTKEY, screenSense: true, contentProtection: false, remoteShare: true, mirrorHost: "", lang: "", theme: "system", overlayAuto: true, overlayHidden: false, overlayOpacity: 0.94 };
 
 // Menu strings. The page owns the choice (Settings / EN-IT switch) and tells us over IPC; "" = system locale.
 const MENU_TEXT = {
@@ -53,6 +53,9 @@ const MENU_TEXT = {
     pptYes: "Add to PowerPoint",
     pptNo: "Not now",
     pptManifest: "PowerPoint add-in: save manifest for another computer…",
+    overlayShow: "Presenter overlay (points on top of the slide show)",
+    overlayAuto: "Open the overlay automatically when a slide show starts",
+    overlayHidden: "Hide the overlay from screen recordings and shares",
     updateCheck: "Check for updates…",
     updateChecking: "Checking for updates…",
     updateDownloading: "Downloading update {version}…",
@@ -84,6 +87,9 @@ const MENU_TEXT = {
     pptYes: "Aggiungi a PowerPoint",
     pptNo: "Non ora",
     pptManifest: "Componente aggiuntivo PowerPoint: salva il manifest per un altro computer…",
+    overlayShow: "Overlay relatore (punti sopra la presentazione)",
+    overlayAuto: "Apri l'overlay da solo quando parte una presentazione",
+    overlayHidden: "Nascondi l'overlay da registrazioni e condivisioni dello schermo",
     updateCheck: "Controlla aggiornamenti…",
     updateChecking: "Controllo aggiornamenti…",
     updateDownloading: "Scaricamento aggiornamento {version}…",
@@ -230,7 +236,11 @@ function wireScreenSense() {
   ipcMain.on("update:install", () => loadUpdater() && updateState.status === "downloaded" && updater.quitAndInstall());
   ipcMain.handle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
   ipcMain.on("session:report", (_e, info) => {
-    if (info && typeof info.code === "string" && typeof info.id === "string") currentSession = { id: info.id, code: info.code };
+    if (info && typeof info.code === "string" && typeof info.id === "string") {
+      const changedSession = !currentSession || currentSession.id !== info.id;
+      currentSession = { id: info.id, code: info.code };
+      if (changedSession && overlayWin && !overlayWin.isDestroyed()) overlayWin.loadURL(overlayUrl());
+    }
   });
   ipcMain.on("ui:theme", (_e, theme) => {
     if (theme !== "system" && theme !== "light" && theme !== "dark") return;
@@ -812,6 +822,75 @@ function readInstallChoices() {
   }
 }
 
+
+// ---- Presenting: follow the slide show and show the presenter overlay ----
+const { watchSlideShow } = require("./slideshow");
+let overlayWin = null;
+let stopSlideShowWatch = null;
+let slideShow = { running: false, index: -1, total: 0, title: "" };
+
+function overlayUrl() {
+  // The overlay is a compact phone-mirror view of the app's own session: nothing to pair, auto-accepted as a local peer.
+  const code = currentSession ? currentSession.code : "";
+  return `${APP_URL}/mirror?compact=1&overlay=1${code ? `&code=${code}` : ""}`;
+}
+
+function showOverlay() {
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    overlayWin.show();
+    overlayWin.loadURL(overlayUrl());
+    return;
+  }
+  const b = settings.overlayBounds || {};
+  overlayWin = new BrowserWindow({
+    width: b.width || 440,
+    height: b.height || 360,
+    x: b.x,
+    y: b.y,
+    frame: false,
+    transparent: false,
+    alwaysOnTop: true,
+    resizable: true,
+    minimizable: false,
+    skipTaskbar: true,
+    hasShadow: true,
+    opacity: settings.overlayOpacity || 0.94,
+    backgroundColor: uiTheme() === "dark" ? "#0b0b0d" : "#f7f7f8",
+    title: "Intelliprompter overlay",
+    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
+  });
+  overlayWin.setAlwaysOnTop(true, "screen-saver");
+  overlayWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  overlayWin.setContentProtection(Boolean(settings.overlayHidden));
+  overlayWin.loadURL(overlayUrl());
+  const remember = () => {
+    if (!overlayWin || overlayWin.isDestroyed()) return;
+    settings.overlayBounds = overlayWin.getBounds();
+    saveSettings();
+  };
+  overlayWin.on("moved", remember);
+  overlayWin.on("resized", remember);
+  overlayWin.on("closed", () => (overlayWin = null));
+  buildMenu(mainWin);
+}
+
+function hideOverlay() {
+  if (overlayWin && !overlayWin.isDestroyed()) overlayWin.close();
+  overlayWin = null;
+  buildMenu(mainWin);
+}
+
+function startSlideShowWatch() {
+  if (stopSlideShowWatch) return;
+  stopSlideShowWatch = watchSlideShow((s) => {
+    const wasRunning = slideShow.running;
+    slideShow = { running: Boolean(s.running), index: typeof s.index === "number" ? s.index : -1, total: Number(s.total || 0), title: String(s.title || "") };
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send("slideshow", slideShow);
+    if (slideShow.running && !wasRunning && settings.overlayAuto !== false) showOverlay();
+    if (!slideShow.running && wasRunning && settings.overlayAuto !== false) hideOverlay();
+  });
+}
+
 /** Writes an Office manifest for the public HTTPS origin the pane is reachable at (README "PowerPoint add-in"). */
 async function savePowerPointManifest(win) {
   const fromEnv = (process.env.PUBLIC_ORIGIN || "").trim();
@@ -935,6 +1014,32 @@ function buildMenu(win) {
           ? { label: mt("pptRemove"), click: () => void uninstallPowerPointAddin(win) }
           : { label: mt("pptInstall"), click: () => void installPowerPointAddin(win) },
         { label: mt("pptManifest"), click: () => void savePowerPointManifest(win) },
+        { type: "separator" },
+        {
+          label: mt("overlayShow"),
+          type: "checkbox",
+          checked: Boolean(overlayWin && !overlayWin.isDestroyed()),
+          click: (item) => (item.checked ? showOverlay() : hideOverlay()),
+        },
+        {
+          label: mt("overlayAuto"),
+          type: "checkbox",
+          checked: settings.overlayAuto !== false,
+          click: (item) => {
+            settings.overlayAuto = item.checked;
+            saveSettings();
+          },
+        },
+        {
+          label: mt("overlayHidden"),
+          type: "checkbox",
+          checked: Boolean(settings.overlayHidden),
+          click: (item) => {
+            settings.overlayHidden = item.checked;
+            saveSettings();
+            if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setContentProtection(item.checked);
+          },
+        },
         {
           label: mt("hideWindow"),
           type: "checkbox",
@@ -1007,6 +1112,9 @@ async function main() {
   buildMenu(win);
   applyOffline(win, offline);
   wireScreenSense();
+  startSlideShowWatch();
+  ipcMain.handle("slideshow:state", () => slideShow);
+  ipcMain.on("overlay:close", () => hideOverlay());
   const hk = registerHotkey();
   if (!hk.ok) console.warn("Screen Sense hotkey:", hk.error);
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -1082,4 +1190,5 @@ app.on("will-quit", () => {
   globalShortcut.unregisterAll();
   stopTunnels();
   if (httpsProxy) httpsProxy.close();
+  if (stopSlideShowWatch) stopSlideShowWatch();
 });

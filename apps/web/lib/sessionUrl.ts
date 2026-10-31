@@ -15,10 +15,15 @@ export type DesktopBridge = {
   setRemoteShare?: (on: boolean) => void;
   /** The engine page tells the shell its session so local views (PowerPoint pane) can join it. */
   reportSession?: (info: { id: string; code: string }) => void;
+  slideshowState?: () => Promise<SlideShowState>;
+  onSlideshow?: (fn: (s: SlideShowState) => void) => () => void;
+  closeOverlay?: () => void;
   remoteStatus?: () => Promise<RemoteStatus>;
   onRemoteStatus?: (fn: (s: RemoteStatus) => void) => () => void;
   accessPassword: string;
 };
+
+export type SlideShowState = { running: boolean; index: number; total: number; title: string };
 
 export type RemoteStatus = {
   state: "off" | "downloading" | "connecting" | "on" | "error";
