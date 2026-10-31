@@ -1,9 +1,9 @@
 {
   "name": "@intelliprompter/desktop",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "A teleprompter that checks off your talking points as you say them. OpenRouter decisions, live transcription.",
-  "author": "Stefan Butnaru",
+  "author": "VoidExploit",
   "license": "MIT",
   "homepage": "https://github.com/stefandsl/intelliprompter",
   "main": "main.js",
@@ -39,6 +39,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "splash.html",
       "vendor/*.js",
       "picker.html",
       "picker-preload.js",
@@ -85,7 +86,26 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "perMachine": false
+      "perMachine": false,
+      "include": "build/installer.nsh",
+      "createDesktopShortcut": false,
+      "runAfterFinish": true,
+      "multiLanguageInstaller": true,
+      "installerLanguages": [
+        "en_US",
+        "it_IT",
+        "de_DE",
+        "fr_FR",
+        "es_ES",
+        "pt_BR",
+        "nl_NL",
+        "pl_PL",
+        "ru_RU",
+        "ja_JP",
+        "zh_CN"
+      ],
+      "displayLanguageSelector": false,
+      "shortcutName": "Intelliprompter"
     },
     "mac": {
       "target": [
@@ -114,6 +134,7 @@
       "provider": "github",
       "owner": "stefandsl",
       "repo": "intelliprompter-releases"
-    }
+    },
+    "copyright": "Copyright © 2026 VoidExploit"
   }
 }

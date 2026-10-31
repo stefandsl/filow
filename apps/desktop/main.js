@@ -5,7 +5,7 @@
 //     the mirror; the spend endpoints are gated by a per-launch random password.
 //   Hosted mode: INTELLIPROMPTER_SESSION_URL (+ ACCESS_PASSWORD) in .env points the
 //     engine at a public session server; local servers stay on 127.0.0.1.
-const { app, BrowserWindow, Menu, shell, session, dialog, desktopCapturer, globalShortcut, ipcMain, screen } = require("electron");
+const { app, BrowserWindow, Menu, shell, session, dialog, desktopCapturer, globalShortcut, ipcMain, screen, nativeTheme } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -32,7 +32,7 @@ const settingsFile = path.join(userData, "settings.json");
 
 // ---- Screen Sense (ARCHITECTURE.md §6.1): sources, region picker, global hotkey ----
 const DEFAULT_HOTKEY = "CommandOrControl+Shift+Space";
-let settings = { screenHotkey: DEFAULT_HOTKEY, screenSense: true, contentProtection: false, remoteShare: true, mirrorHost: "", lang: "" };
+let settings = { screenHotkey: DEFAULT_HOTKEY, screenSense: true, contentProtection: false, remoteShare: true, mirrorHost: "", lang: "", theme: "system" };
 
 // Menu strings. The page owns the choice (Settings / EN-IT switch) and tells us over IPC; "" = system locale.
 const MENU_TEXT = {
@@ -229,6 +229,12 @@ function wireScreenSense() {
   ipcMain.on("update:check", () => void checkForUpdates({ manual: true }));
   ipcMain.on("update:install", () => loadUpdater() && updateState.status === "downloaded" && updater.quitAndInstall());
   ipcMain.handle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
+  ipcMain.on("ui:theme", (_e, theme) => {
+    if (theme !== "system" && theme !== "light" && theme !== "dark") return;
+    settings.theme = theme;
+    saveSettings();
+    nativeTheme.themeSource = theme;
+  });
   ipcMain.on("ui:lang", (_e, lang) => {
     if (lang !== "en" && lang !== "it") return;
     settings.lang = lang;
@@ -302,6 +308,8 @@ const tunnels = { procs: [], web: "", session: "", state: "off", error: "" };
 function remoteStatus(state, error = "") {
   tunnels.state = state;
   tunnels.error = error;
+  ipcMain.emit("remote:status:internal", null, { state, url: tunnels.web, error });
+  if (state === "downloading") splashStatus(st("download"));
   for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send("remote:status", { state, url: tunnels.web, error });
 }
 
@@ -743,6 +751,56 @@ async function checkForUpdates({ manual = false } = {}) {
   }
 }
 
+
+// ---- Splash screen and first-start choices from the installer ----
+let splash = null;
+function uiTheme() {
+  const t = settings.theme === "light" || settings.theme === "dark" ? settings.theme : null;
+  return t || (nativeTheme.shouldUseDarkColors ? "dark" : "light");
+}
+function showSplash() {
+  const local = offline || (process.env.DECISION_PROVIDER || "").startsWith("clef-local");
+  splash = new BrowserWindow({
+    width: 460, height: 440, frame: false, resizable: false, show: false, alwaysOnTop: false, skipTaskbar: false,
+    backgroundColor: uiTheme() === "dark" ? "#0b0b0d" : "#f7f7f8", title: "Intelliprompter",
+    icon: path.join(__dirname, "build", "icon.png"),
+    webPreferences: { contextIsolation: true, nodeIntegration: false },
+  });
+  const q = new URLSearchParams({ v: app.getVersion(), theme: uiTheme(), local: local ? "1" : "0", lang: menuLang() });
+  splash.loadFile(path.join(__dirname, "splash.html"), { search: q.toString() }).then(() => splash && splash.show()).catch(() => undefined);
+  splash.on("closed", () => (splash = null));
+}
+function splashStatus(text, done = false) {
+  if (!splash || splash.isDestroyed()) return;
+  splash.webContents.executeJavaScript(`window.setStatus && window.setStatus(${JSON.stringify(text)}, ${done ? "true" : "false"})`).catch(() => undefined);
+}
+function closeSplash() {
+  if (splash && !splash.isDestroyed()) splash.close();
+  splash = null;
+}
+const SPLASH_TEXT = {
+  en: { servers: "Starting the local servers…", link: "Preparing the public link for your phone…", download: "Downloading the link tool (one time)…", ready: "Ready" },
+  it: { servers: "Avvio dei server locali…", link: "Preparazione del link pubblico per il telefono…", download: "Download dello strumento per il link (una tantum)…", ready: "Pronto" },
+};
+const st = (key) => (SPLASH_TEXT[menuLang()] || SPLASH_TEXT.en)[key];
+
+/** install-choices.json is written by the Windows installer (build/installer.nsh): language and models to fetch. */
+function readInstallChoices() {
+  const file = path.join(userData, "install-choices.json");
+  try {
+    if (!fs.existsSync(file)) return null;
+    const choices = JSON.parse(fs.readFileSync(file, "utf8"));
+    fs.rmSync(file, { force: true });
+    if (choices.lang === "it" || choices.lang === "en") {
+      settings.lang = choices.lang;
+      saveSettings();
+    }
+    return choices;
+  } catch {
+    return null;
+  }
+}
+
 /** Writes an Office manifest for the public HTTPS origin the pane is reachable at (README "PowerPoint add-in"). */
 async function savePowerPointManifest(win) {
   const fromEnv = (process.env.PUBLIC_ORIGIN || "").trim();
@@ -898,13 +956,18 @@ function buildMenu(win) {
 }
 
 async function main() {
+  let choices = null;
   try {
     seed(envFile, ".env.example");
     seed(scriptFile, "script.md");
     loadEnv(envFile);
     loadSettings();
+    choices = readInstallChoices();
+    showSplash();
+    splashStatus(st("servers"));
     startServers();
   } catch (err) {
+    closeSplash();
     dialog.showErrorBox("Intelliprompter failed to start", String(err && err.stack ? err.stack : err));
     app.quit();
     return;
@@ -921,10 +984,12 @@ async function main() {
     height: 820,
     backgroundColor: "#0b0b0d",
     title: "Intelliprompter",
+    show: false,
     icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
   });
   mainWin = win;
+  nativeTheme.themeSource = settings.theme === "light" || settings.theme === "dark" ? settings.theme : "system";
   // §6.2: the window is already filtered out of Screen Sense's own chooser; hiding it from every
   // capture is opt-in (menu) because it also blanks the user's own screenshots.
   win.setContentProtection(Boolean(settings.contentProtection));
@@ -941,8 +1006,31 @@ async function main() {
   try {
     await waitFor(APP_URL + "/api/stt/status");
     if (!process.env.INTELLIPROMPTER_SESSION_URL) await waitFor(`http://127.0.0.1:${SESSION_PORT}/health`);
-    await win.loadURL(APP_URL);
-    if (settings.remoteShare) void setRemoteShare(win, true, { auto: true });
+    const firstPage = choices && Array.isArray(choices.models) && choices.models.length ? `${APP_URL}/settings/local?auto=${encodeURIComponent(choices.models.join(","))}` : APP_URL;
+    await win.loadURL(firstPage);
+    if (settings.remoteShare && !offline && !process.env.INTELLIPROMPTER_SESSION_URL) {
+      // Hold the splash until the public link is up (or 45 s), so the first QR already works from anywhere.
+      splashStatus(cloudflaredPath() ? st("link") : st("download"));
+      const linkUp = new Promise((resolve) => {
+        const done = () => resolve();
+        const timer = setTimeout(done, 45000);
+        const h = (_e, v) => {
+          if (v.state === "on" || v.state === "error" || v.state === "off") {
+            clearTimeout(timer);
+            ipcMain.removeListener("remote:status:internal", h);
+            done();
+          }
+        };
+        ipcMain.on("remote:status:internal", h);
+      });
+      void setRemoteShare(win, true, { auto: true });
+      await linkUp;
+    }
+    splashStatus(st("ready"), true);
+    setTimeout(() => {
+      closeSplash();
+      if (!win.isDestroyed()) win.show();
+    }, 400);
     setTimeout(() => void checkForUpdates(), 8000); // after the servers and the tunnel; silent unless an update lands
     if (process.platform === "win32" || process.platform === "darwin") {
       if (settings.pptInstalled) {
@@ -971,6 +1059,7 @@ async function main() {
       });
     }
   } catch (err) {
+    closeSplash();
     dialog.showErrorBox("Intelliprompter failed to start", String(err));
     app.quit();
   }

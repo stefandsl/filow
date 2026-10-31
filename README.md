@@ -47,6 +47,7 @@ Intelliprompter keeps the bullet points and adds the feedback. It listens, and t
 | 📄 **Import** | PDF, PPTX, DOCX, TXT or Markdown become talking points, one section per slide or page. |
 | 🔒 **Privacy modes** | On-device Whisper, a local decision model via Ollama, a PII guard before any cloud call, and a full offline mode. |
 | 🌍 **English and Italian UI** | One toggle, remembered per browser; the desktop menu follows. |
+| 🌗 **Light and dark theme** | ☀ / ◐ / ☾ toggle; "system" follows Windows or macOS. |
 | 🔄 **Self-updating** | The desktop app checks GitHub and installs new versions itself. |
 
 ## Quick start
@@ -157,6 +158,10 @@ Download the file for your OS from the **Releases** page of this repo (built aut
 | Windows | `Intelliprompter-x.y.z-win-x64.exe` (the NSIS installer; the portable build has the same name pattern) | Unsigned: SmartScreen shows "unknown publisher". Click **More info → Run anyway**. |
 | macOS | `Intelliprompter-x.y.z-mac-arm64.dmg` (Apple Silicon) or `-mac-x64.dmg` (Intel) | Unsigned: first launch is blocked. Run once in Terminal: `xattr -dr com.apple.quarantine /Applications/Intelliprompter.app` |
 | Linux | `Intelliprompter-x.y.z-linux-x64.AppImage` or `.deb` | AppImage: `chmod +x` then run. Deb: `sudo apt install ./intelliprompter_x.y.z_amd64.deb` |
+
+### The Windows installer
+
+A step-by-step wizard in the language of your Windows (English, Italian, German, French, Spanish, Portuguese, Dutch, Polish, Russian, Japanese, Chinese; the custom pages are in English and Italian): welcome, licence (© VoidExploit, MIT), install folder, a **Local models and API keys** page where you tick the models to download on first start (Whisper base is preselected; Whisper small; Clef Flash via Ollama) and read that cloud decisions need an OpenRouter key, then the finish page with **Run Intelliprompter** and **Create a desktop shortcut**. The app opens with a splash screen (logo, progress bar, "Local models · data stays on this PC · GDPR" when it runs locally, "PII guard on · GDPR" otherwise) while the servers and the public link start, then goes to Settings to fetch the models you ticked.
 
 ### First start
 

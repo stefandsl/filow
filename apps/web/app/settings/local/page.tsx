@@ -6,7 +6,7 @@ import { LANG_LABELS, LANGS, SCREEN_MODE_LABELS, type DecisionProviderId, type L
 import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, whisperCached } from "@intelliprompter/stt";
 import { LangProvider, useT } from "@intelliprompter/ui";
 import { engineHeaders } from "@/components/useSession";
-import { LangSwitch, useUiLang } from "@/components/LangSwitch";
+import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
 import { getDecisionProvider, getScreenMode, setDecisionProvider, setScreenMode } from "@/lib/prefs";
 import { screenBridge } from "@/lib/screen/watcher";
 
@@ -27,14 +27,15 @@ type Status = {
 
 export default function LocalModelsPage() {
   const [lang, setLang] = useUiLang();
+  const [theme, setTheme] = useUiTheme();
   return (
     <LangProvider lang={lang}>
-      <SettingsInner lang={lang} onLang={setLang} />
+      <SettingsInner lang={lang} onLang={setLang} theme={theme} onTheme={setTheme} />
     </LangProvider>
   );
 }
 
-function SettingsInner({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
+function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (l: Lang) => void; theme: "system" | "light" | "dark"; onTheme: (t: "system" | "light" | "dark") => void }) {
   const t = useT();
   const [status, setStatus] = useState<Status | null>(null);
   const [provider, setProvider] = useState<DecisionProviderId | "">("");
@@ -149,6 +150,32 @@ function SettingsInner({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void
     }));
   };
 
+  // ?auto=whisper-base,whisper-small,clef-flash : written by the Windows installer's "models" page.
+  const [autoDone, setAutoDone] = useState(false);
+  useEffect(() => {
+    if (!status || autoDone) return;
+    const auto = new URLSearchParams(window.location.search).get("auto");
+    if (!auto) return;
+    setAutoDone(true);
+    const wanted = auto.split(",").map((x) => x.trim()).filter(Boolean);
+    (async () => {
+      for (const w of wanted) {
+        if (w === "whisper-base" || w === "whisper-small") {
+          const name = `onnx-community/${w}`;
+          if (!(await whisperCached(name))) await download(name);
+          if (w === "whisper-base") {
+            setSelectedWhisperModel(name);
+            setWhisperModel(name);
+          }
+        } else if (w === "clef-flash" || w === "clef") {
+          const m = status.models.find((x) => x.name === w);
+          if (m && m.ollamaOk && !m.installed) await pull(w);
+        }
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
   const choose = (id: DecisionProviderId | "") => {
     setProvider(id);
     setDecisionProvider(id);
@@ -165,6 +192,7 @@ function SettingsInner({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void
         <span className="subtitle">{t("settings.subtitle")}</span>
         <span className="spacer" />
         {status?.offline && <span className="chip err">{t("app.offline")}</span>}
+        <ThemeSwitch pref={theme} onChange={onTheme} />
         <LangSwitch lang={lang} onChange={onLang} />
         <Link className="btn" href="/">
           {t("common.back")}

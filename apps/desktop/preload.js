@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld("intelliprompter", {
   onOffline: (fn) => ipcRenderer.on("offline", (_e, v) => fn(Boolean(v))),
   /** The page tells the shell which UI language it uses, so the menu follows. */
   setLang: (lang) => ipcRenderer.send("ui:lang", lang),
+  /** system | light | dark; the shell colours (title bar, dialogs, splash) follow. */
+  setTheme: (theme) => ipcRenderer.send("ui:theme", theme),
   /** Screen Sense (ARCHITECTURE.md §6.1): sources, region picker, hotkey. Frames stay in memory. */
   screen: {
     sources: () => ipcRenderer.invoke("screen:sources"),

@@ -1,0 +1,27 @@
+﻿Intelliprompter
+Copyright (c) 2026 VoidExploit
+
+Licenza MIT
+
+È concesso gratuitamente a chiunque ottenga una copia di questo software e dei
+file di documentazione associati (il "Software") il permesso di usarlo senza
+restrizioni, inclusi senza limitazione i diritti di usare, copiare, modificare,
+unire, pubblicare, distribuire, concedere in sublicenza e/o vendere copie del
+Software, e di permettere alle persone a cui il Software è fornito di fare lo
+stesso, alle seguenti condizioni:
+
+L'avviso di copyright qui sopra e questo avviso di permesso devono essere
+inclusi in tutte le copie o porzioni sostanziali del Software.
+
+IL SOFTWARE È FORNITO "COSÌ COM'È", SENZA GARANZIA DI ALCUN TIPO, ESPRESSA O
+IMPLICITA, INCLUSE MA NON LIMITATE ALLE GARANZIE DI COMMERCIABILITÀ, IDONEITÀ
+A UNO SCOPO PARTICOLARE E NON VIOLAZIONE. IN NESSUN CASO GLI AUTORI O I
+TITOLARI DEL COPYRIGHT SARANNO RESPONSABILI PER QUALSIASI RECLAMO, DANNO O
+ALTRA RESPONSABILITÀ, SIA IN UN'AZIONE CONTRATTUALE, ILLECITA O ALTRO,
+DERIVANTE DA, O IN CONNESSIONE CON IL SOFTWARE O L'USO O ALTRE OPERAZIONI NEL
+SOFTWARE. (Testo di cortesia: fa fede la versione inglese della licenza MIT.)
+
+Privacy: voce e fotogrammi dello schermo vengono elaborati dai servizi che
+configuri (OpenRouter, ElevenLabs, OpenAI) oppure interamente su questo
+computer se scegli i modelli locali. I dati personali vengono sostituiti da
+segnaposto prima di ogni chiamata al cloud. Dettagli nel README.

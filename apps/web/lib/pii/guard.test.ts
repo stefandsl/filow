@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { anonymizeRequest, regexAnonymize, restore, type PiiMap } from "./guard";
 
+// The regex-only expectations must not depend on a Rizzo-PII sidecar that happens to run on this machine.
+process.env.PII_SERVER_URL = "http://127.0.0.1:9";
+
 describe("regexAnonymize", () => {
   it("replaces emails, IBANs, codice fiscale, phones and card numbers with stable placeholders", () => {
     const map: PiiMap = new Map();

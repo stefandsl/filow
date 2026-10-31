@@ -6,11 +6,12 @@ import { connect, type SessionClient } from "@intelliprompter/client";
 import type { Command, SessionState } from "@intelliprompter/core";
 import { LangProvider, StageView, useT } from "@intelliprompter/ui";
 import { sessionServerUrl } from "@/lib/sessionUrl";
-import { LangSwitch, useUiLang } from "@/components/LangSwitch";
+import { LangSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
 
 /** PWA mirror: pair with a code, show the live state, send remote commands. ARCHITECTURE.md §5.8 */
 export default function MirrorPage() {
   const [lang, setLang] = useUiLang();
+  useUiTheme();
   return (
     <Suspense fallback={null}>
       <LangProvider lang={lang}>

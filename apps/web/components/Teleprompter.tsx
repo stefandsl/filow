@@ -19,21 +19,22 @@ import { useEngine } from "./useEngine";
 import { engineHeaders, useSession } from "./useSession";
 import { PairPanel } from "./PairPanel";
 import { useScreenSense, type ScreenSource } from "./useScreenSense";
-import { LangSwitch, useUiLang } from "./LangSwitch";
+import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "./LangSwitch";
 import { desktopBridge } from "@/lib/sessionUrl";
 
 type BackendChoice = "auto" | SttBackendId;
 
 export default function Teleprompter() {
   const [lang, setLang] = useUiLang();
+  const [theme, setTheme] = useUiTheme();
   return (
     <LangProvider lang={lang}>
-      <TeleprompterInner onLang={setLang} />
+      <TeleprompterInner onLang={setLang} theme={theme} onTheme={setTheme} />
     </LangProvider>
   );
 }
 
-function TeleprompterInner({ onLang }: { onLang: (l: "en" | "it") => void }) {
+function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it") => void; theme: "system" | "light" | "dark"; onTheme: (t: "system" | "light" | "dark") => void }) {
   const t = useT();
   const { engine, state } = useEngine();
   const sessionInfo = useSession(engine);
@@ -249,6 +250,7 @@ function TeleprompterInner({ onLang }: { onLang: (l: "en" | "it") => void }) {
           <span className={`chip ${state.screenStats?.analysing ? "busy" : "live"}`}>👁 {state.screenStats?.analysing ? t("app.analysing") : screen.label}</span>
         )}
         {error && <span className="chip err">{error}</span>}
+        <ThemeSwitch pref={theme} onChange={onTheme} />
         <LangSwitch lang={lang} onChange={onLang} />
       </header>
 

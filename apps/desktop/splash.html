@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Intelliprompter</title>
+    <style>
+      :root { --bg: #0b0b0d; --panel: #141418; --border: #2a2a33; --text: #f2f2f4; --muted: #8d8d99; --accent: #f0a53a; --ok: #4ad67a; }
+      :root[data-theme="light"] { --bg: #f7f7f8; --panel: #ffffff; --border: #dcdce2; --text: #141418; --muted: #5f5f6b; --accent: #c7801a; --ok: #1f8a46; }
+      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; -webkit-app-region: drag; user-select: none; }
+      .wrap { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; box-sizing: border-box; text-align: center; }
+      .badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; background: var(--panel); border: 1px solid var(--border); font-size: 13px; font-weight: 600; }
+      .badge .flag { width: 20px; height: 14px; border-radius: 2px; background: #003399; display: inline-grid; place-items: center; color: #ffcc00; font-size: 8px; letter-spacing: -1px; }
+      .badge .gdpr { color: var(--ok); }
+      .logo { width: 112px; height: 112px; border-radius: 28px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 25%, transparent); margin-top: 10px; }
+      h1 { margin: 10px 0 0; font-size: 26px; letter-spacing: 0.08em; font-weight: 800; }
+      .bar { width: 200px; height: 5px; border-radius: 999px; background: var(--border); overflow: hidden; }
+      .bar i { display: block; height: 100%; width: 40%; background: var(--accent); border-radius: 999px; animation: slide 1.4s ease-in-out infinite; }
+      .bar.done i { width: 100%; animation: none; background: var(--ok); }
+      @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+      .status { color: var(--muted); font-size: 13px; line-height: 1.5; min-height: 40px; }
+      .version { color: var(--muted); font-size: 12px; opacity: 0.8; margin-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="badge"><span class="flag">★★★</span><span id="badge">Modello locale · <span class="gdpr">GDPR</span></span></div>
+      <img class="logo" id="logo" src="build/icon.png" alt="" />
+      <h1>INTELLIPROMPTER</h1>
+      <div class="bar" id="bar"><i></i></div>
+      <div class="status" id="status">Avvio in corso…</div>
+      <div class="version" id="version"></div>
+    </div>
+    <script>
+      const q = new URLSearchParams(location.search);
+      document.documentElement.dataset.theme = q.get("theme") || "dark";
+      document.getElementById("version").textContent = "v" + (q.get("v") || "");
+      const local = q.get("local") === "1";
+      const it = (q.get("lang") || "en") === "it";
+      document.getElementById("badge").innerHTML = local
+        ? (it ? "Modelli locali · dati su questo PC · " : "Local models · data stays on this PC · ") + '<span class="gdpr">GDPR</span>'
+        : (it ? "PII guard attivo · " : "PII guard on · ") + '<span class="gdpr">GDPR</span>';
+      window.setStatus = (text, done) => {
+        document.getElementById("status").textContent = text;
+        document.getElementById("bar").classList.toggle("done", Boolean(done));
+      };
+    </script>
+  </body>
+</html>

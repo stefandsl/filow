@@ -12,8 +12,34 @@
   --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
 }
 
+/* Light theme ("black and white"): same tokens, different values. Picked by the toggle
+   (prefs:theme = system | light | dark) and, for "system", by prefers-color-scheme. */
+:root[data-theme="light"] {
+  --bg: #f7f7f8;
+  --panel: #ffffff;
+  --panel-2: #f0f0f3;
+  --border: #d8d8df;
+  --text: #141418;
+  --muted: #5f5f6b;
+  --accent: #c7801a;
+  --ok: #1f8a46;
+  --warn: #c0392b;
+}
+:root[data-theme="light"] .logo .dot { box-shadow: 0 0 0 3px #f3dfbf; }
+:root[data-theme="light"] .chip.live { border-color: #bfe6cc; }
+:root[data-theme="light"] .chip.err { border-color: #f1c6c0; }
+:root[data-theme="light"] .btn.primary { color: #fff; }
+:root[data-theme="light"] .strip.onscreen { border-color: #e7d1ad; }
+:root[data-theme="light"] .point.started { background: #eaf7ee; }
+:root[data-theme="light"] .point.hot { background: #fff5e3; }
+:root[data-theme="light"] .modal-bg { background: rgba(20, 20, 24, 0.35); }
+:root[data-theme="light"] .source img { background: #eee; }
+.themeswitch { display: inline-flex; gap: 4px; }
+.themeswitch .chip { padding: 3px 8px; cursor: pointer; }
+
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); color-scheme: dark; }
+:root[data-theme="light"] body { color-scheme: light; }
 button { font: inherit; }
 
 .app { display: flex; flex-direction: column; min-height: 100vh; padding: 20px 28px; gap: 16px; }

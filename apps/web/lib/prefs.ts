@@ -69,3 +69,31 @@ export function setLang(lang: Lang): void {
   }
   (globalThis as { intelliprompter?: { setLang?: (l: Lang) => void } }).intelliprompter?.setLang?.(lang);
 }
+
+// ---- Theme: system | light | dark ----
+export type ThemePref = "system" | "light" | "dark";
+const THEME_KEY = "prefs:theme";
+
+export function getThemePref(): ThemePref {
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    return v === "light" || v === "dark" || v === "system" ? v : "system";
+  } catch {
+    return "system";
+  }
+}
+
+export function setThemePref(t: ThemePref): void {
+  try {
+    localStorage.setItem(THEME_KEY, t);
+  } catch {
+    /* ignore */
+  }
+  (globalThis as { intelliprompter?: { setTheme?: (t: ThemePref) => void } }).intelliprompter?.setTheme?.(t);
+}
+
+/** The theme actually shown for a preference, following the OS for "system". */
+export function resolveTheme(t: ThemePref): "light" | "dark" {
+  if (t !== "system") return t;
+  return typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
