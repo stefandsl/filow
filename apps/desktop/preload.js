@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld("intelliprompter", {
   /** The relay URL the phone uses (public tunnel while sharing). The engine itself keeps using sessionUrl. */
   mirrorServerUrl: process.env.INTELLIPROMPTER_PUBLIC_SESSION || "",
   remoteShare: Boolean(process.env.INTELLIPROMPTER_PUBLIC_WEB),
+  /** Turn the public link (Cloudflare tunnel) on or off; the app reloads with new pairing URLs. */
+  setRemoteShare: (on) => ipcRenderer.send("remote:set", Boolean(on)),
   accessPassword: process.env.ACCESS_PASSWORD || "",
   offline: process.env.INTELLIPROMPTER_OFFLINE === "1",
   /** Subscribe to the Offline menu toggle. */

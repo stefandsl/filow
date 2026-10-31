@@ -3,12 +3,16 @@
 import { useEffect, useState } from "react";
 import { useT } from "@intelliprompter/ui";
 import type { SessionInfo } from "./useSession";
+import { desktopBridge } from "@/lib/sessionUrl";
 
 /** Shows the pairing code and a QR for the mirror URL. */
 export function PairPanel({ info, status, error }: { info: SessionInfo | null; status: string; error: string | null }) {
   const t = useT();
   const [qr, setQr] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const bridge = desktopBridge();
+  const publicLink = Boolean(bridge?.remoteShare);
 
   useEffect(() => {
     if (!info) return;
@@ -46,6 +50,23 @@ export function PairPanel({ info, status, error }: { info: SessionInfo | null; s
               {t("pair.hint", { url: info.mirrorUrl })}
               {status !== "open" && <> {t("pair.relay", { status })}</>}
             </div>
+            <div className={`chip ${publicLink ? "live" : ""}`}>{bridge ? (publicLink ? t("pair.reachPublic") : t("pair.reachLan")) : t("pair.webHint")}</div>
+            {bridge?.setRemoteShare && (
+              <div className="hint">
+                <button
+                  className={`btn ${publicLink ? "" : "primary"}`}
+                  disabled={switching}
+                  title={publicLink ? "" : t("pair.enablePublicHint")}
+                  onClick={() => {
+                    setSwitching(true);
+                    bridge.setRemoteShare?.(!publicLink);
+                  }}
+                >
+                  {switching ? "…" : publicLink ? t("pair.disablePublic") : t("pair.enablePublic")}
+                </button>
+                {!publicLink && <> {t("pair.enablePublicHint")}</>}
+              </div>
+            )}
             <button className="btn" onClick={() => setOpen(false)}>
               {t("common.close")}
             </button>

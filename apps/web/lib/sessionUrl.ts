@@ -12,6 +12,7 @@ export type DesktopBridge = {
   /** Relay URL for the phone when it differs from the engine's (public tunnel). */
   mirrorServerUrl?: string;
   remoteShare?: boolean;
+  setRemoteShare?: (on: boolean) => void;
   accessPassword: string;
 };
 

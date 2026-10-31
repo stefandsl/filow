@@ -192,6 +192,10 @@ function wireScreenSense() {
     if (!picked) return null;
     return { image: await captureRegion(picked.display, picked.rect), width: picked.rect.width, height: picked.rect.height };
   });
+  // The pairing dialog can switch the public link on/off; the window reloads with the new URLs.
+  ipcMain.on("remote:set", (_e, on) => {
+    if (mainWin && !mainWin.isDestroyed()) void setRemoteShare(mainWin, Boolean(on));
+  });
   ipcMain.on("ui:lang", (_e, lang) => {
     if (lang !== "en" && lang !== "it") return;
     settings.lang = lang;
@@ -377,6 +381,7 @@ async function setRemoteShare(win, on) {
         settings.remoteShare = false;
         saveSettings();
         buildMenu(win);
+        win.reload(); // the pairing dialog is waiting for a reload either way
         return;
       }
       const [web, sess] = await Promise.all([startTunnel(bin, PORT), startTunnel(bin, SESSION_PORT)]);
