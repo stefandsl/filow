@@ -37,7 +37,7 @@ mic ──► transcription backend ──► rolling transcript
                  { decisions: [{ id, started, confidence }] }
                                        │
                                        ▼
-          point flips to STARTED when started && confidence ≥ 0.6
+          point flips to STARTED when started && confidence ≥ 0.7
 ```
 
 Transcription backends (pick in the dropdown, or leave on **Auto**):

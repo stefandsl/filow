@@ -1,202 +1,399 @@
 # Intelliprompter architecture
 
-Where the project is, and the plan to turn it into a multi-surface product: web, desktop, **PowerPoint add-in**, **Google Slides add-on**, and **Android / iOS companion apps** that mirror the live session on a phone.
+| | |
+|---|---|
+| Status | Draft v2, after one EGM goldfish review round (reports in `docs/reviews/`) |
+| Date | 2026-10-31 |
+| Applies to | repository version 0.1.0 |
+| Owner | Stefan Butnaru |
 
 ---
 
-## 1. Today (v0.1)
+## 1. Problem statement
 
-One Next.js app. Browser captures the mic, streams it to a transcription backend, and every 500 ms posts the transcript plus the open talking points to `/api/decide`, which asks an OpenRouter model which points have been started. All state lives in one React component.
+A presenter has talking points, not a word-for-word script. On stage they cannot see the laptop that runs the teleprompter, they lose track of which points they have made, and when they skip one they only notice afterwards. If slides are involved, the slide deck and the talking points live in different places and drift apart.
+
+Today's Intelliprompter solves the first part on one laptop: it listens, and ticks off a point the moment the presenter starts making it. This document extends that to the places a presenter actually looks (a phone on the lectern, the PowerPoint window) and to what is on the screen behind them (Screen Sense).
+
+## 2. Goals and non-goals
+
+**Goals**
+
+- G1. The live state (which points are done, what is next, what was missed) is visible on a phone held by the presenter, with remote Next / Prev / Reset controls.
+- G2. Slide speaker notes can be the script, so PowerPoint and Google Slides users maintain one artifact.
+- G3. The app can watch the presenter's screen and give slide-specific cues and gap warnings, with frames never written to disk.
+- G4. Keys stay on the server the presenter controls. Nothing goes to third parties except the chosen model and transcription providers.
+- G5. The engine (the decision loop) is one TypeScript class, tested without a browser, reused by every surface.
+
+**Non-goals (v1)**
+
+- No user accounts; pairing codes only.
+- No multi-speaker or multi-engine sessions.
+- No transcript or screenshot storage; nothing persists past the session except the user's own script and exported notes.
+- No control of Google Slides Present mode and no control of a running PowerPoint slide show from the task pane (the platform APIs do not exist; see §7 and §8).
+- No AppSource or Workspace Marketplace public listing; sideload and internal listings only.
+- No "phone as microphone" in v1 (needs a native audio module; deferred, see §9).
+
+## 3. Glossary
+
+- **Point**: one talking point. In code the type is still called `Bullet` (kept for compatibility with `lib/types.ts`); the UI says "point".
+- **Section**: a group of points under a `#` heading; with slides, one slide = one section.
+- **Script**: the ordered sections. Markdown in `script.md`, or imported from a document.
+- **Take**: one recording run from Start take to Stop take.
+- **Tick**: one iteration of the decision loop. The timer fires every 500 ms, but a call to the model is made only when the transcript window changed and no call is in flight, so the real call rate is bounded by the transcription update rate and model latency (observed 1 to 2 calls per second with ElevenLabs, fewer with Web Speech).
+- **Point status**: `waiting` (not yet made), `started` (the model saw the presenter begin this idea with confidence ≥ 0.70), `missed` (the section was left while the point was still waiting, or the user marked it). `started` is never un-set by the engine; the user can reset a section.
+- **Covered**: the set of points in the current section with status `started`. Not a fourth status, a derived list used in the prompt.
+- **Missed tray**: the UI strip listing missed points; tapping one re-opens it as `waiting` in its section.
+- **Next strip**: the UI strip previewing the next section's points.
+- **Engine**: the one process in a session that holds the microphone, runs transcription and the decision loop, and owns the state.
+- **View**: any other client of the session; it displays state and may send commands.
+- **Session server**: the relay between the engine and its views.
+- **STT**: speech-to-text. Backends: `elevenlabs` (Scribe v2 Realtime), `openai` (gpt-live-transcribe), `browser` (Web Speech, Chrome/Edge only, free).
+
+## 4. Today (v0.1)
 
 ```
-┌────────────── browser / Electron window ──────────────┐
-│ mic ─► STT backend ─► transcript ─► 500 ms tick ──────┼─► /api/decide ─► OpenRouter
-│                                       ▲               │
-│  Teleprompter.tsx (all state, all UI) ┘               │
-└───────────────────────────────────────────────────────┘
+┌─────────── browser or Electron window ───────────┐        ┌──── Next.js (port 4747) ────┐
+│ mic ─► STT backend ─► transcript ─► tick ────────┼──POST──► /api/decide ─► OpenRouter   │
+│                                      ▲           │        │ /api/stt/*-token (mint STT   │
+│  Teleprompter.tsx (all state, all UI)┘           │◄───────┤   tokens, unauthenticated)   │
+│                                                  │        │ /api/script  (read/write md) │
+└──────────────────────────────────────────────────┘        └──────────────────────────────┘
 ```
 
-Works, but every new surface (a PowerPoint task pane, a phone) would have to re-implement the mic, the loop and the state. That is the thing to fix first.
+One React component owns state and loop. Desktop is Electron running the same server bound to 127.0.0.1. Everything that follows keeps this working at every phase.
 
----
+## 5. Target architecture
 
-## 2. Target architecture
-
-**One session, many views.** The laptop that captures audio runs the *engine*. Every other surface is a *view* of that session over a WebSocket. Views send commands (next section, reset, mark missed) and receive state (points, confidence, transcript tail, stats).
+### 5.1 One engine, many views
 
 ```
-                 ┌──────────────────────── Session server (Next.js) ────────────────────────┐
-                 │  /api/decide          OpenRouter decisions                                │
-                 │  /api/stt/*           token minting for ElevenLabs / OpenAI               │
-                 │  /api/session/*       create session, 6-digit pair code, QR               │
-                 │  /ws/session/:id      fan-out of SessionState, fan-in of commands         │
-                 └───────────┬───────────────────────────────┬──────────────────────────────┘
-                             │                               │
-          engine (exactly one per session)                   │ views (any number)
-┌────────────────────────────┴──────────────┐   ┌────────────┴──────────────────────────────┐
-│ Web app / Desktop app (captures mic,      │   │ Phone app (Android / iOS)   mirror + remote│
-│ runs STT, runs the 500 ms decision loop,  │   │ PowerPoint add-in task pane mirror + slide │
-│ publishes SessionState)                   │   │ Google Slides add-on sidebar  sync         │
-└───────────────────────────────────────────┘   │ Second browser tab / OBS overlay           │
-                                                └───────────────────────────────────────────┘
+                 ┌──────────── apps/web  Next.js, port 4747 ────────────┐  ┌── apps/server  Node + ws, port 4748 ──┐
+                 │ /api/decide            OpenRouter decisions          │  │ POST /api/session        create        │
+                 │ /api/stt/*-token       mint STT tokens               │  │ POST /api/session/pair   code → token  │
+                 │ /api/vision            Screen Sense frame analysis   │  │ /ws/session/:id          relay         │
+                 │ /api/import            PDF/PPTX/DOCX/TXT → script    │  │ in-memory session store, TTLs          │
+                 │ /mirror                PWA view                      │  └──────────────────┬─────────────────────┘
+                 └──────────────────────────────────────────────────────┘                     │
+                                 ▲ HTTPS (engine only)                                        │ WebSocket
+                 engine (exactly one per session)                                              views (any number)
+┌────────────────┴────────────────────────────────┐              ┌────────────────────────────┴───────────────────┐
+│ Web app or Desktop app: mic, STT, Screen Sense  │              │ Phone (PWA now, Expo later)   mirror + remote   │
+│ capture, Engine class, publishes SessionState   │              │ PowerPoint task pane          mirror + notes    │
+└─────────────────────────────────────────────────┘              │ Google Slides sidebar         export + mirror   │
+                                                                 │ second browser tab, OBS overlay                  │
+                                                                 └──────────────────────────────────────────────────┘
 ```
 
-### 2.1 Shared packages (monorepo)
+Only the engine talks to `/api/decide`, `/api/stt/*` and `/api/vision`. Views never hold API keys or STT tokens and only ever receive text.
+
+### 5.2 Process model (decision D1)
+
+The WebSocket relay is a **separate Node process**, `apps/server`, using the `ws` package on `http.createServer`, port 4748. It does not run inside Next.js: App Router route handlers are request/response functions and the standalone `server.js` does not expose its `http.Server`. Keeping `output: "standalone"` keeps the desktop packaging and the Debian deploy unchanged.
+
+Consequences:
+
+- **Caddy**: `handle /ws/*` and `handle /api/session/*` → `reverse_proxy 127.0.0.1:4748`; everything else → 4747. WebSockets pass through `reverse_proxy` without extra config.
+- **systemd**: a second unit `intelliprompter-session.service`, `ExecStart=/usr/bin/node apps/server/dist/index.js`.
+- **Electron**: `main.js` requires `apps/server/dist/index.js` after the Next server and waits for both ports in `waitForServer()`.
+- **CI**: unchanged shape, `npm run -w apps/desktop desktop:build:*`.
+
+### 5.3 Desktop topology (decision D2)
+
+The desktop app has two connection modes, chosen in Settings:
+
+- **LAN mode (default, zero setup)**: Electron binds the session server to `0.0.0.0:4748` and the QR encodes `http://<lan-ip>:4747/mirror?code=…`. Views on the same Wi-Fi work over plain HTTP because views never use the microphone. The Next server stays on 127.0.0.1; only the relay is exposed, and only with a valid pairing code. Windows will show one firewall prompt the first time.
+- **Hosted mode**: the engine connects outbound to a public session server (the Debian deploy). Required for the PowerPoint and Slides add-ins, which must load from HTTPS. API keys live on the hosted server; the desktop app sends its `ACCESS_PASSWORD` once and receives an engine token.
+
+Desktop sessions are not resumable across app restarts: a new code is issued per launch.
+
+### 5.4 Session server contract
+
+**HTTP (apps/server)**
+
+| Endpoint | Auth | Request | Response | Errors |
+|---|---|---|---|---|
+| `POST /api/session` | `X-Access-Password` when `ACCESS_PASSWORD` is set | `{}` | `{id, code, engineToken}` | 401 |
+| `POST /api/session/pair` | none, rate-limited 10/IP/min | `{code}` | `{id, viewToken, role:"controller"}` | 404 unknown code, 429 |
+| `POST /api/session/:id/script` | `engineToken` or `viewToken` with `controller` role | `{text}` | `{ok:true}` → relayed to the engine as `loadScript` | 401, 404 |
+| `DELETE /api/session/:id` | `engineToken` | | `{ok:true}` | |
+
+`id` is a UUID. `code` is 6 digits, unique among live sessions (regenerate on collision). Tokens are 16 random bytes, base64url. Tokens travel only in the first WebSocket message, never in URLs.
+
+Lifetimes: a session ends on `DELETE`, or 2 hours after the engine socket closes, or 12 hours after creation, whichever comes first. `code` is valid for the whole session.
+
+Roles: `viewer` receives state only; `controller` may send commands. Pairing with a code yields `controller`; the engine can downgrade a connection to `viewer` with `setRole`. `loadScript` and `startTake`/`stopTake` are accepted only from the engine's own UI or a `controller`.
+
+**WebSocket `/ws/session/:id`**, JSON messages:
 
 ```
-packages/
-  core/        pure TypeScript, no DOM, no React
-               - types.ts            Script, Section, Bullet, SessionState, Command
-               - script.ts           Markdown parser (exists today in lib/)
-               - engine.ts           the decision loop as a class: feed(transcript) → emits state
-               - prompt.ts           the classifier prompt + request builder (today in /api/decide)
-  stt/         browser-side transcription backends (exists today in lib/stt/)
-  ui/          React components shared by web, desktop, add-ins: PointList, SectionHeader, MissedTray
-  client/      tiny WebSocket client: connect(code) → state stream + sendCommand()
-apps/
-  web/         the Next.js app (also the session server)        ← today's repo root
-  desktop/     Electron shell                                   ← today's electron/
-  powerpoint/  Office.js add-in (task pane)
-  gslides/     Google Workspace add-on (Apps Script + HTML sidebar)
-  mobile/      Expo (React Native) app for Android + iOS
+client → server   {t:"hello", role:"engine"|"view", token}
+server → client   {t:"welcome", role, version}            | {t:"error", code, message} then close
+engine → server   {t:"state", version, state}             full SessionState
+engine → server   {t:"patch", version, ops}               RFC 6902 ops (fast-json-patch), version = previous + 1
+server → views    forwards state and patch unchanged; replays the latest full state to each new view
+view → server     {t:"cmd", id, cmd: Command}
+server → engine   forwards cmd (only from controller role)
+engine → server   {t:"ack", id, ok, error?}  → forwarded to the sender
+view → server     {t:"resync"}  when it sees a version gap → server replies with the latest full state
+either            {t:"ping"} / {t:"pong"}  every 15 s, close after 2 missed
 ```
 
-Tooling: npm workspaces + Turborepo. Nothing exotic.
+Close codes: 4001 engine already connected, 4002 bad token, 4003 session expired, 4004 role not allowed.
 
-### 2.2 SessionState and Command (the contract everything speaks)
+The server is a relay. It stores only the latest full state per session (for replay) and never applies commands itself; the engine is the single writer. When the engine reconnects it sends a fresh `state` and the server re-creates the session under the same `id` and `code` if it still exists.
+
+**Types (packages/core)**
 
 ```ts
+type PointStatus = "waiting" | "started" | "missed";
+
 type SessionState = {
-  id: string; version: number;              // version increments on every change
-  script: Script;                           // sections and points
+  id: string; version: number;
+  script: Script;                       // sections[].bullets[] (Bullet = point)
   sectionIdx: number;
-  points: Record<string, { status: "waiting"|"started"|"missed"; confidence: number; startedAt?: number }>;
-  missed: string[];                         // point ids
-  transcriptTail: string;                   // last ~200 chars
-  stats: { calls: number; avgMs: number; cost: number; model: string };
+  points: Record<string, { status: PointStatus; confidence: number; startedAt?: number }>;
+  // no separate `missed` array: missed = points with status "missed", resolved against script
+  transcriptTail: string;               // last 160 chars
+  stats: { calls: number; totalMs: number; avgMs: number; costUsd: number | null; model: string };
+  //                                   costUsd is null when the provider reports no usage.cost
   engine: { backend: SttBackendId | null; recording: boolean; error?: string };
-  slide?: { index: number; total: number; title?: string };   // set by PowerPoint / Slides when linked
+  slide?: { index: number; total: number; title?: string };
+  screen?: ScreenSummary | null;        // see §6
 };
 
 type Command =
   | { type: "nextSection" } | { type: "prevSection" } | { type: "goToSection"; idx: number }
-  | { type: "resetSection" } | { type: "clearMissed" } | { type: "markStarted"; id: string }
+  | { type: "resetSection" }
+  | { type: "markStarted"; id: string } | { type: "markMissed"; id: string } | { type: "reopen"; id: string }
   | { type: "startTake" } | { type: "stopTake" }
   | { type: "loadScript"; text: string }
-  | { type: "slideChanged"; index: number; total: number; title?: string };   // from PowerPoint / Slides
+  | { type: "slideChanged"; index: number; total: number; title?: string }
+  | { type: "lookNow" } | { type: "forgetScreen" };
 ```
 
-Transport: plain WebSocket. The engine sends the full state on connect, then deltas (`{version, patch}`) on every change. Views are stateless and can reconnect at any time.
+Navigation rule: `nextSection`, `goToSection(idx > current)` and `slideChanged` to a later slide mark every `waiting` point of the sections being passed as `missed`. Moving backwards marks nothing. `slideChanged` maps slide index to section index only when the script was built from slides (`script.source === "slides"`); for a hand-written script it only updates `state.slide`.
 
-Pairing: the engine shows a **6-digit code and QR**. A view enters the code (or scans) and gets a short-lived session token. No accounts needed for a single user. Sessions expire 2 h after the engine disconnects.
+### 5.5 Engine class (packages/core)
 
-### 2.3 Decision engine improvements (shipped in this commit)
-
-The classifier prompt now receives three lists instead of one:
-
-| List | Purpose |
-|---|---|
-| OPEN POINTS | the only ones it decides on |
-| COVERED POINTS | so speech about an already-checked point is not credited to a lookalike open point |
-| UPCOMING POINTS | so "moving on to the next section" is not read as covering the current one |
-
-Plus a confidence rubric (0.70 = started), explicit rules for announcements ("I'll talk about X" is not a start), shared-keyword false positives, and multilingual speech. Next steps for the engine, in order of payoff:
-
-1. **Hysteresis per point**: require two consecutive ticks ≥ 0.70, or one tick ≥ 0.90, before flipping. Cuts flicker from partial transcripts.
-2. **Section auto-advance**: when all open points are started, or the transcript matches ≥ 2 upcoming points at ≥ 0.80, suggest "Next section" (phone vibrates, add-in highlights the button).
-3. **Model routing**: cheap model for the per-tick check, a stronger one only when the cheap model returns 0.40–0.69 on a point for 3+ ticks. This is the small/medium/large router from the video, done with OpenRouter.
-4. **Cost cap**: per-session budget in the engine, visible in every view.
-
----
-
-## 3. PowerPoint add-in (Office.js)
-
-**What the presenter gets:** a task pane inside PowerPoint that shows the Intelliprompter view for the *current slide*, follows along as they speak, and advances slides when they tell it to (or automatically when a section completes).
-
-**Key design decision: talking points live in the slide notes.** Each slide's notes become one section; lines starting with `-` become its points. No separate script to maintain. "Reload script" re-reads the notes.
-
-```
-PowerPoint ──Office.js──► task pane (React, packages/ui)
-   │  slide notes  ─────► Script (one section per slide)
-   │  SlideSelectionChanged ─► Command slideChanged ─► engine jumps to that section
-   ◄─ goToSlide(n)  ◄─────── engine: section advanced (manual or auto)
+```ts
+export class Engine {
+  constructor(opts: {
+    decide: (r: DecideRequest) => Promise<DecideResponse>;   // injected; core has no fetch, no DOM
+    vision?: (r: VisionRequest) => Promise<VisionResponse>;  // Screen Sense, optional
+    now?: () => number; tickMs?: number /*500*/; threshold?: number /*0.7*/;
+    confirmTicks?: number /*2*/; window?: number /*900*/;
+  });
+  loadScript(script: Script): void;        // resets points, sectionIdx, counters
+  feed(e: TranscriptEvent): void;          // same shape as lib/stt/types.ts
+  feedScreen(s: ScreenSummary): void;      // from the capture pipeline, text only
+  dispatch(cmd: Command): CommandResult;   // one switch; semantics from Teleprompter.tsx goTo/resetSection
+  start(): void; stop(): void;             // owns the interval
+  getState(): SessionState;
+  subscribe(fn: (state: SessionState, ops: Operation[]) => void): () => void;
+}
 ```
 
-Components:
+Flip rule (replaces the old `STICKY_MS`, which never did anything because `started` is never un-set): a point flips to `started` when it scores ≥ 0.70 on two consecutive **calls** (not timer ticks, since calls are gated on transcript change), or ≥ 0.90 on one call. `confirmTicks` is configurable.
 
-- `apps/powerpoint/manifest.xml` – add-in manifest (task pane, `ReadWriteDocument` permission; served over HTTPS from the session server, e.g. `https://prompter.example.com/powerpoint/`).
-- `apps/powerpoint/src/taskpane.tsx` – React task pane. Two modes:
-  - **Engine mode** (laptop runs PowerPoint and has the mic): the task pane *is* the engine. Mic + STT run inside the pane (Office.js task panes are Edge WebView2 / Safari web views, `getUserMedia` works on Windows and Mac desktop PowerPoint; browser PowerPoint also works).
-  - **View mode**: PowerPoint is on a different machine (e.g. the venue PC); the pane pairs with the engine by code and only mirrors + syncs slides.
-- `apps/powerpoint/src/office.ts` – thin wrappers: `readNotesAsScript()`, `onSlideChange(cb)`, `goToSlide(n)` (`PowerPoint.run` + `context.presentation.getSelectedSlides()`; in slide show mode uses `SlideShow` APIs where available, falls back to keyboard-free "selected slide" sync in Normal view).
-- Web Speech is not available inside Office web views; the add-in uses ElevenLabs or OpenAI STT (same as desktop).
+The React component becomes a thin `useEngine()` hook; all logic now in `Teleprompter.tsx` lines 131–220 moves into `Engine` verbatim, then gets tests.
 
-Distribution: sideload for yourself (`manifest.xml` → Insert → Add-ins → Upload my add-in), or **Microsoft 365 admin centralized deployment** for a company. Public AppSource listing is optional and needs a Partner Center account.
+### 5.6 Decision prompt (implemented in v0.1.0, `app/api/decide/route.ts`)
 
----
+The classifier receives four lists: OPEN POINTS (decided on), COVERED POINTS (context), UPCOMING POINTS (context), and, when Screen Sense is on, ON SCREEN FACTS (context, see §6.4). It has a confidence rubric (0.70 = started), rules for announcements ("I will talk about X" is not a start), shared-keyword false positives, and multilingual speech.
 
-## 4. Google Slides add-on (Google Workspace add-on)
+Cost model, measured with `google/gemini-2.5-flash-lite`: about 700 input and 60 output tokens per call, 1 to 2 calls per second while speaking, roughly $0.03 to $0.06 per 30-minute talk. Shown live in the footer. A **cost cap** per session (default $1) stops the loop with a visible error. Where the provider does not report `usage.cost`, the cap uses a token-based estimate and the footer says "est.".
 
-Same idea: **speaker notes are the script**. Constraints are tighter than PowerPoint:
+Model routing (later): the cheap model handles every call; when a point sits at 0.40 to 0.69 for three consecutive calls, that single point is re-asked to a stronger model. Section auto-advance needs its own output field (`upcomingHit: string[]`), because the prompt forbids deciding on upcoming points; it only *suggests* advancing (phone vibrates, Next button highlights). It never advances by itself.
 
-- Apps Script sidebars can read notes and the *currently selected slide in the editor*, but the **Slides API cannot drive or observe the live presentation (Present mode)**. There is no "advance slide" API.
-- The sidebar is an iframe (`HtmlService`) with a strict sandbox; `getUserMedia` does work in the sidebar iframe, but Web Speech does not.
+### 5.7 Monorepo layout and migration (phase 1)
 
-So the add-on does two jobs well and does not pretend to do the third:
+```
+packages/core     TS, no DOM: types.ts, script.ts, prompt.ts (SYSTEM_PROMPT, buildUserPrompt, parseDecisions), engine.ts, patch.ts
+packages/stt      browser-only: the three backends, mic.ts, startAuto; createBackend(id, { baseUrl })
+packages/client   connect({serverUrl, code|token}) → { subscribe, send, close, status }; uses global WebSocket (works in RN)
+packages/ui       web-only React: PointList, SectionHeader, NextStrip, MissedTray, OnScreenStrip, StageView
+apps/web          today's Next app (also serves /mirror)
+apps/server       ws relay
+apps/desktop      electron/ + electron-builder config
+apps/powerpoint   phase 3      apps/gslides   phase 5      apps/mobile   phase 4
+```
 
-1. **Export**: one click turns the deck's speaker notes into an Intelliprompter script (one section per slide) and pushes it to the session server (`POST /api/session/:id/script`). The web app, desktop app or phone then runs the take.
-2. **Mirror in the editor**: while rehearsing in the editor (not Present mode), the sidebar pairs with the engine by code and shows the live view; selecting a slide sends `slideChanged`.
-3. **Live presenting**: use the phone app or the desktop app as the view; the laptop in Present mode just shows slides. Honest limitation, documented in the add-on's help.
+Move table:
 
-Files: `apps/gslides/appsscript.json`, `Code.gs` (menu, `getNotesAsScript()`, `onSelectionChange` polling), `Sidebar.html` (loads the shared React view from the session server by URL so the UI is not duplicated). Deploy with `clasp push`; install for your account as a test deployment, or publish to the Workspace Marketplace (internal-only listings are free for a Workspace domain).
-
----
-
-## 5. Android / iOS companion app
-
-**Purpose:** the phone is the thing you actually look at while on stage. Big type, current section, points flipping live, a vibrate when a section completes, and remote buttons (Next / Prev / Reset / Missed). It also works as a **second mic**: if the laptop is far away, the phone can be the engine.
-
-Stack: **Expo (React Native) + TypeScript**, reusing `packages/core` and `packages/client` directly. One codebase, both stores, EAS Build does the signing. Expo modules used: `expo-av` (mic, as engine), `expo-haptics`, `expo-barcode-scanner` (pair by QR), `expo-keep-awake`, `react-native-reanimated` (confidence bars).
-
-Screens:
-
-1. **Pair** – scan QR or enter 6-digit code. Remembers the last server URL.
-2. **Stage** – landscape-friendly, dark, huge type. Section title, points with WAITING % / STARTED, Next strip, Missed tray as a swipe-up sheet. Tap a missed point to re-open it. Volume keys = prev/next section (optional).
-3. **Remote** – minimal: Next / Prev / Reset / Start take / Stop take, for when the phone is in a pocket.
-4. **Settings** – server URL, haptics, font size, "use this phone as microphone".
-
-Why not a PWA? A PWA mirror is a two-day job and worth shipping first (the web app already resizes; add a `/mirror/:code` route). But store apps are what you asked for, and they add haptics, keep-awake, reliable background WebSocket and a camera QR scanner. Plan: PWA mirror in phase 2 as the fallback for everyone, Expo app in phase 4.
-
----
-
-## 6. Security and privacy
-
-- API keys stay on the session server. Views never get them. Engine gets short-lived STT tokens only.
-- Sessions are pairing-code scoped; tokens are random 128-bit, expire with the session. Rate-limit pairing attempts.
-- Transcripts are not stored. The server holds the last state in memory only (Redis later if you run more than one server).
-- Add-ins and mobile talk only to *your* session server. Nothing goes to a third party except OpenRouter and the chosen STT provider.
-- Optional: an `ACCESS_PASSWORD` the engine must present to create a session, so a public server cannot be used by strangers to burn your credits.
-
----
-
-## 7. Roadmap
-
-| Phase | Deliverable | Effort |
+| From | To | Note |
 |---|---|---|
-| 1 | Monorepo split: `packages/core`, `packages/stt`, `packages/ui`; engine as a class; web app unchanged for users | 2 days |
-| 2 | Session server (`/ws/session`), pairing codes + QR, **PWA mirror** at `/mirror`; desktop app publishes sessions | 3 days |
-| 3 | **PowerPoint add-in**: notes → script, slide sync both ways, engine mode and view mode; sideload instructions | 4 days |
-| 4 | **Expo mobile app**: Pair, Stage, Remote screens; EAS Build for Android APK/AAB and iOS TestFlight | 5 days |
-| 5 | **Google Slides add-on**: export notes, editor mirror, Marketplace internal listing | 3 days |
-| 6 | Engine v2: hysteresis, auto-advance, model routing, cost cap | 2 days |
+| `lib/types.ts` | `packages/core/src/types.ts` + `api.ts` | `DecideRequest/Response`, `SttStatus` go to `api.ts` |
+| `lib/script.ts` | `packages/core/src/script.ts` | |
+| `app/api/decide/route.ts` prompt + `parseDecisions` | `packages/core/src/prompt.ts` | route becomes a 20-line wrapper; parametrize `HTTP-Referer` |
+| `lib/stt/**` | `packages/stt/src/**` | add `baseUrl` option, replace `@/lib/types` imports |
+| `components/Teleprompter.tsx` logic | `packages/core/src/engine.ts` | UI stays, calls `useEngine` |
+| `electron/`, builder config | `apps/desktop/` | `extraResources.from: ../web/.next/standalone` |
 
-Phases 3, 4 and 5 are independent once phase 2 exists and can run in parallel.
+Tooling: npm workspaces only (no Turborepo for five packages). Packages are `"type": "module"`, built with `tsc -b`; `apps/web/next.config.ts` adds `transpilePackages` for the three packages and `outputFileTracingRoot: path.join(__dirname, "../..")`. CI runs `npm ci` at root and `npm run -w apps/desktop desktop:build:<os>`.
+
+Phase 1 is done when `npm run typecheck`, `npm run build`, `npm run desktop` pass from the new root, the UI is unchanged, and the engine tests in §11 pass.
+
+### 5.8 PWA mirror (phase 2)
+
+`apps/web/app/mirror/page.tsx` (client component): reads `?code`, calls pair, connects with `packages/client`, renders `<StageView state onCommand>` from `packages/ui`. Big type, dark, landscape-friendly, remote buttons (Prev / Next / Reset / Start / Stop), Missed tray as a bottom sheet, ON SCREEN strip. No service worker (live-only view). `public/manifest.webmanifest` with `display: standalone`, theme `#0b0b0d`. Reconnect with exponential backoff 0.5 s → 8 s; while disconnected it shows the last state dimmed with an "engine offline" banner. Requests `navigator.wakeLock` on first tap (HTTPS or LAN HTTP on Android; iOS Safari ≥ 16.4).
 
 ---
 
-## 8. Open decisions
+## 6. Screen Sense
 
-1. **Mobile first as PWA or go straight to the store apps?** Recommendation: PWA in phase 2 (cheap, instant), Expo app in phase 4.
-2. **Google Slides without live Present-mode control is acceptable?** There is no API for it; the phone or desktop app is the live view.
-3. **Hosting for the session server**: the Debian box from the README works as is (WebSockets pass through Caddy). Needs a public HTTPS URL for the add-ins.
-4. **Accounts**: none for v1 (pairing codes). Add sign-in only if several people share one server.
+Screen Sense lets the engine see what the audience sees and turn it into cues, gap warnings and notes. Inspired by Clicky (heyclicky.com, github.com/farzaa/clicky), whose open-source version captures only on a hotkey; the always-on mode here is our own, and the region picker comes from ShareX. Frame selection borrows from bradautomates/claude-video, the pipeline behind the /watch skill.
+
+### 6.1 Two capture modes
+
+**Mode 1, always-on watch (default during a take).** At Start take the user picks a screen, a window (for example PowerPoint) or a region drawn ShareX-style; the choice is remembered per presentation. A 1 fps thumbnail is compared with the last *sent* frame using a 16×16 RGB mean-difference (the claude-video dedup). Only on a real change (new slide, new page) does a full-resolution frame go to the vision model. Hard cap: 20 frames per minute. Presenter cues in the transcript ("as you can see", "on this slide", "here", and their translations) trigger an immediate capture. A **Look now** button forces one.
+
+**Mode 2, hotkey region capture.** A configurable global hotkey (Settings UI like ShareX; default Ctrl+Shift+Space) dims the screen, the user drags a rectangle, and only that region is sent, optionally with a spoken question (hold the hotkey for push-to-talk). Works outside a take too.
+
+Electron: `globalShortcut`, a transparent fullscreen `BrowserWindow` for the picker, `desktopCapturer` for frames. Web: `getDisplayMedia` (screen or window only; no region picker, no global hotkey). PowerPoint add-in: slide text and notes through Office.js instead of pixels. Phone: never captures.
+
+### 6.2 Privacy rules
+
+- Frames live in memory only, sent once over HTTPS to a multimodal model via OpenRouter (default `google/gemini-2.5-flash`), then dropped. No disk, no cache, no image bytes in logs.
+- Only the returned text (`ScreenSummary`) is kept, per session, with a **Forget screen context** button. Summaries are gone when the session ends unless the user exports notes.
+- The Intelliprompter window itself is excluded from capture.
+- Views receive only `ScreenSummary` text, never frames.
+- A visible badge shows while a frame is being analysed; a Settings toggle disables the feature and unregisters the hotkey.
+- Screen content, slide text and OCR are untrusted evidence, never instructions. The vision prompt says so; the gap detector emits tips, never actions.
+
+### 6.3 Output
+
+```ts
+type ScreenSummary = {
+  at: number; source: "screen" | "window" | "region" | "slide-text";
+  title?: string; shows: string;            // one sentence
+  pointsToMake: string[];                   // max 3
+  facts: string[];                          // numbers, names, visible text worth saying
+  mismatch?: string;                        // vs the script, e.g. "slide says 2025, script says 2024"
+  unavailable?: "no-screen-selected" | "could-not-read" | "capped" | "disabled";
+};
+```
+
+The ON SCREEN strip shows `shows`, `pointsToMake` and `facts`, or the `unavailable` reason instead of staying blank. With no script loaded, `pointsToMake` become the talking points of an auto-created section per slide.
+
+### 6.4 Uses
+
+1. **Cues**: the ON SCREEN strip above the points.
+2. **Gap detector**: `facts` go into the decide prompt as a fourth list, ON SCREEN FACTS, and the model returns `unmentioned: string[]` so the UI can flag a number on the slide the presenter has not said.
+3. **Live notes**: one `ScreenSummary` per slide plus the transcript tail at that time, exportable as Markdown at Stop take.
+4. **Post-talk report (optional)**: the take can be recorded locally and run through the claude-video Python pipeline unchanged to produce time per slide, drift from script, and what was on screen when. Local only, opt-in.
+
+### 6.5 Cost dial
+
+Settings: **Off / On slide change / Balanced / Real-time**, mirroring claude-video's detail presets. On slide change = one call per changed frame; Balanced = also on presenter cues; Real-time = a call every few seconds while content keeps changing (demos). Saved once, changeable mid-talk, live cost in the footer, counted against the same session cost cap.
+
+### 6.6 Document import
+
+`POST /api/import` (engine only) accepts PDF, PPTX, DOCX, TXT, MD and returns a Script: one section per slide or page; PPTX speaker notes become points, slide titles become section titles; scanned PDF pages go through the vision model. Libraries: `pdf-parse`, `jszip` + XML for PPTX/DOCX. Available to every surface through the engine.
+
+### 6.7 Local-first tier (later)
+
+Local Whisper for speech and a local vision model via Ollama for frames, chosen in an onboarding wizard with a plain consent screen stating what leaves the machine. Not in the first six phases.
+
+### 6.8 Optional decision model
+
+Jev remains a candidate behind the same `decide` interface for the yes/no gates ("is the speaker talking about what is on screen?", "suggest advancing?"). OpenRouter is the default by the owner's choice.
+
+---
+
+## 7. PowerPoint add-in (phase 3, spike first)
+
+**What works**: a task pane that shows the Intelliprompter view, reads speaker notes as the script (one slide = one section, `-` lines = points), follows the *selected slide in Normal view* both ways, and feeds slide text to Screen Sense without screenshots.
+
+**What does not exist in the platform**: the PowerPoint JavaScript API has no slide-show navigation and no slide-change event during a running show, and the task pane is not visible in Slide Show or Presenter View. So during the actual presentation the live view is the phone or the desktop app, exactly like Google Slides. The pane is for rehearsal in Normal view and for loading the script.
+
+**Engine mode vs view mode**: the pane can be the engine (mic + STT inside the pane) only where the runtime is WebView2 (Windows, Microsoft 365 Current Channel) or PowerPoint for the web; detected via `navigator.mediaDevices` and `Office.context.diagnostics`. Everywhere else, including Mac (WKWebView blocks microphone prompts), the pane is a view and pairs by code. The spike at the start of phase 3 verifies mic capture on Windows and web before the rest is built. Web Speech is unavailable in WebView2 but present in PowerPoint for the web (Chrome); `browserSupported()` gains Office detection.
+
+Files: `apps/powerpoint/manifest.xml` (requirement set `PowerPointApi 1.4`, permission `ReadDocument`, served from the hosted HTTPS origin), `src/taskpane.tsx`, `src/office.ts` (`readNotesAsScript`, `onSelectionChange`, `selectSlide`). Distribution: trusted-catalog sideload on Windows desktop, "Upload my add-in" on the web, or Microsoft 365 admin centralized deployment.
+
+## 8. Google Slides add-on (phase 5)
+
+Speaker notes are the script. Constraints: the Slides API cannot drive or observe Present mode; HtmlService sidebars get no microphone; there is no selection-change event, only polling through `google.script.run` (1 s interval, rehearsal-length budgets fit daily quotas; no `UrlFetchApp` per poll).
+
+The add-on does two jobs: **Export** notes as a Script to the session server (one `UrlFetchApp` call, through `/api/session/:id/script` with a controller token obtained by code), and **Mirror in the editor** by nesting the hosted `/mirror` page in an iframe and bridging the selected slide index with `postMessage`. Live presenting is not a sidebar feature; the phone or desktop app is the live view.
+
+Files: `apps/gslides/appsscript.json`, `Code.gs`, `Sidebar.html`. Deploy with `clasp`; internal Workspace listing.
+
+## 9. Phone app (phase 2 as PWA, phase 4 as Expo)
+
+Expo SDK 52+, TypeScript, reusing `packages/core` and `packages/client`. UI is re-implemented in React Native (packages/ui is web-only). Modules: `expo-camera` (QR, `CameraView` barcode scanning), `expo-haptics`, `expo-keep-awake`, `react-native-reanimated`. Screens: Pair, Stage, Remote, Settings.
+
+iOS suspends background sockets within seconds of screen lock, so the "remote in a pocket" use case is screen-on only; the app reconnects on foreground. "Phone as microphone" needs raw 16 kHz PCM, which `expo-audio` does not give; it requires a native module and an EAS dev client, and is deferred.
+
+## 10. Risks and mitigations
+
+| Area | Risk | Mitigation | Phase |
+|---|---|---|---|
+| Security | Public server: anyone can mint STT tokens or call `/api/decide` and burn credit | `ACCESS_PASSWORD` mandatory when the server is not bound to localhost; `/api/decide`, `/api/stt/*`, `/api/vision`, `/api/import` require an engine token; STT minting bound to a session id with a per-session quota | 2 |
+| Security | 6-digit code brute force | 10 pair attempts per IP per minute, codes unique among live sessions, sessions capped at 12 h, `viewer`/`controller` roles, `loadScript` controller-only | 2 |
+| Security | Screen frames leak | memory-only, no logs, window excluded, text-only to views, visible badge, kill switch | 6 |
+| Availability | Engine laptop loses Wi-Fi mid-talk | views keep last state dimmed with "engine offline"; engine reconnects and resends full state; session survives 2 h | 2 |
+| Availability | Relay process crashes | engine reconnect re-creates the session with the same id and code; views resync | 2 |
+| Availability | OpenRouter 5xx or slow | per-call timeout 2.5 s, skip the call, keep last confidences, error chip; cost cap stops runaway | 1 |
+| Availability | STT provider fails mid-take | Auto mode falls back to the next backend; an explicit backend choice never silently falls back, it shows an error | done |
+| Scalability | In-memory store, one process | fine for one presenter; Redis adapter behind the same store interface if several people share a server | later |
+| Platform | Office.js and Apps Script limits (§7, §8) | spikes before building; features scoped to what the APIs do today | 3, 5 |
+| Platform | iOS background sockets | screen-on remote only, reconnect on foreground | 4 |
+| Cost | Screen Sense calls add up in Real-time mode | cost dial, 20 frames/min cap, same session cost cap | 6 |
+
+## 11. Test plan
+
+Runner: vitest, tests beside sources in `packages/*/src/**.test.ts`; Playwright in `apps/web/e2e`.
+
+- `core/engine`: flips at 0.70 after two confirming calls, flips at 0.90 on one; `nextSection` marks waiting points missed; `prevSection` marks nothing; `resetSection` clears only the current section; `reopen` returns a missed point to waiting; cost cap stops the loop; version increments once per emitted patch; `parseScript` ids are stable across re-parses.
+- `core/prompt`: `parseDecisions` handles fences, missing ids, out-of-range confidence.
+- `server`: two views receive identical patch sequences; second engine closed with 4001; bad code 404; 11th pair attempt 429; expiry at 2 h after engine close and at 12 h absolute with fake timers; `resync` returns full state.
+- e2e: open `/` as engine with a mock `decide`, open `/mirror?code=` in a second context, send `nextSection` from the mirror, assert the engine's section changes and the mirror shows the new section.
+- Screen Sense: dedup rejects an identical frame and accepts a changed one; cap enforced; `unavailable` reasons rendered.
+
+## 12. Alternatives considered
+
+| Decision | Chosen | Rejected | Why |
+|---|---|---|---|
+| D1 Relay process | separate `ws` process | custom Next server; SSE + POST; WebRTC data channel; hosted pub/sub (PartyKit, Liveblocks) | custom server breaks standalone output; SSE needs a second channel for commands; WebRTC adds signalling for no benefit on a relay; hosted pub/sub adds a third party for a one-user tool |
+| D2 Desktop topology | LAN relay by default, hosted optional | always hosted; always LAN | always hosted forces a server for a single-laptop user; always LAN cannot serve add-ins |
+| D3 State sync | full state + RFC 6902 patches | full state every change; custom merge | full state at 2 Hz is fine on LAN but wasteful on mobile data; custom merge is one more thing to get wrong |
+| D4 Pairing | 6-digit code + QR, roles | accounts; magic links | accounts are a non-goal; links alone cannot be typed from a phone |
+| D5 Monorepo | npm workspaces, no Turborepo | single package with aliases; pnpm + Turbo | aliases cannot be consumed by Expo or the add-ins; Turbo adds nothing for five packages |
+| D6 Mobile | PWA first, then Expo | Expo first; Capacitor; Flutter | PWA ships in a day and is the fallback for everyone; Capacitor and Flutter cannot reuse `core` and `client` as directly |
+| D7 PowerPoint | Office.js task pane, editor-view sync | Windows COM/Interop overlay | COM would allow slide-show control but is Windows-only, needs an installer, and cannot ship to Mac or web |
+| D8 Screen capture | always-on with change detection + hotkey region | hotkey-only (Clicky); fixed interval | hotkey-only misses the "watch my slides" case the owner asked for; fixed interval wastes calls on static slides |
+| D9 Vision model | OpenRouter multimodal (Gemini Flash) | local model | local is the later tier; the owner's cost dial needs the cloud path first |
+
+## 13. Decision log
+
+| Date | Decision | Rationale |
+|---|---|---|
+| 2026-10-31 | OpenRouter for decisions, no Jev by default | owner's choice |
+| 2026-10-31 | All three STT backends with Auto selection; explicit choice never falls back silently | owner's choice; claude-video policy |
+| 2026-10-31 | PWA mirror before store apps | owner's choice |
+| 2026-10-31 | Slides add-on is export + editor mirror only | platform limit, accepted by owner |
+| 2026-10-31 | Screen Sense: always-on + hotkey region, memory-only frames, cost dial, document import | owner's requests via side session |
+| 2026-10-31 | D1–D9 above | this document |
+
+## 14. Roadmap
+
+Estimates assume one engineer, include tests, exclude store review and code signing.
+
+| Phase | Deliverable | Days |
+|---|---|---|
+| 1 | Monorepo split per §5.7; `Engine` class with flip rule, per-call timeout and cost cap; engine tests; web and desktop unchanged for users | 3 |
+| 2 | `apps/server` relay with pairing, roles, TTLs, rate limits and tests; engine token gating on the Next API; desktop LAN and hosted modes; `/mirror` PWA; Caddy and systemd docs | 4 |
+| 6a | Screen Sense on desktop: always-on capture with dedup and cap, ON SCREEN strip, cost dial, Forget button | 4 |
+| 6b | Document import; hotkey region picker; gap detector; live notes export | 4 |
+| 3 | PowerPoint: one-day spike (mic on WebView2 and web, selection sync), then notes → script, editor sync, slide text to Screen Sense | 1 + 4 |
+| 4 | Expo app: Pair, Stage, Remote, Settings; EAS builds | 5 |
+| 5 | Google Slides: export, editor mirror, internal listing | 3 |
+| 7 | Model routing, auto-advance suggestion, post-talk report, local-first tier | later |
+
+Phases 3, 4 and 5 are independent once phase 2 exists and can run in parallel; 6a and 6b depend on phase 1 only.
+
+## 15. Open decisions
+
+1. Default vision model and whether Real-time mode is enabled by default (cost).
+2. Whether the hosted server should offer sign-in once more than one presenter shares it (currently a non-goal).
