@@ -1,6 +1,6 @@
 {
   "name": "intelliprompter-monorepo",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "description": "Intelliprompter: a teleprompter that checks off your talking points as you say them.",
   "author": "Stefan Butnaru",

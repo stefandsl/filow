@@ -47,6 +47,8 @@ function TeleprompterInner({ onLang }: { onLang: (l: "en" | "it") => void }) {
   const [offline, setOffline] = useState(false);
   const [lastNotes, setLastNotes] = useState<ScreenNote[]>([]);
   const [importing, setImporting] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const cancelRef = useRef(false);
   const [pendingImport, setPendingImport] = useState<ImportResponse | null>(null);
   const backendRef = useRef<SttBackend | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -138,9 +140,31 @@ function TeleprompterInner({ onLang }: { onLang: (l: "en" | "it") => void }) {
     if (engine.getNotes().length) setLastNotes([...engine.getNotes()]);
   }, [engine]);
 
+  /** Open the microphone once up front: a clear message beats five backends failing in a row. */
+  const probeMic = async (): Promise<boolean> => {
+    pushLog(t("mic.checking"));
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      for (const track of stream.getTracks()) track.stop();
+      return true;
+    } catch (err) {
+      const name = (err as DOMException).name;
+      const msg = name === "NotFoundError" || name === "OverconstrainedError" ? t("mic.notFound") : name === "NotAllowedError" || name === "SecurityError" ? t("mic.denied") : `${t("mic.busy")} (${(err as Error).message})`;
+      engine.setError(msg);
+      pushLog(msg);
+      return false;
+    }
+  };
+
   const startTake = async () => {
     engine.setError(undefined);
     setLastNotes([]);
+    cancelRef.current = false;
+    setStarting(true);
+    if (!(await probeMic())) {
+      setStarting(false);
+      return;
+    }
     const handlers = {
       onTranscript: (e: { committed?: string; partial?: string }) => engine.feed(e),
       onError: (m: string) => {
@@ -163,12 +187,26 @@ function TeleprompterInner({ onLang }: { onLang: (l: "en" | "it") => void }) {
         engine.setBackend(backend.id);
         pushLog(`${BACKEND_LABELS[choice]}: live`);
       }
+      if (cancelRef.current) {
+        stopTake();
+        return;
+      }
       engine.start();
     } catch (err) {
-      engine.setError((err as Error).message);
-      pushLog(`could not start transcription: ${(err as Error).message}`);
+      if (!cancelRef.current) {
+        engine.setError((err as Error).message);
+        pushLog(`could not start transcription: ${(err as Error).message}`);
+      }
       stopTake();
+    } finally {
+      setStarting(false);
     }
+  };
+
+  const cancelStart = () => {
+    cancelRef.current = true;
+    stopTake();
+    setStarting(false);
   };
 
   useEffect(() => () => backendRef.current?.stop(), []);
@@ -280,6 +318,15 @@ function TeleprompterInner({ onLang }: { onLang: (l: "en" | "it") => void }) {
           <button className="btn danger" onClick={stopTake}>
             {t("ctl.stop")}
           </button>
+        ) : starting ? (
+          <>
+            <button className="btn primary" disabled>
+              {t("ctl.starting")}
+            </button>
+            <button className="btn danger" onClick={cancelStart}>
+              {t("ctl.cancel")}
+            </button>
+          </>
         ) : (
           <button className="btn primary" onClick={startTake} disabled={!section || availability.length === 0}>
             {t("ctl.start")}
@@ -322,6 +369,8 @@ function TeleprompterInner({ onLang }: { onLang: (l: "en" | "it") => void }) {
           {t("ctl.settings")}
         </a>
       </div>
+
+      {error && !eng.recording && <div className="chip err banner">{error}</div>}
 
       {screen.status !== "unsupported" && (
         <div className="controls">
