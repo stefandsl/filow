@@ -6,13 +6,14 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
-const origin = (process.argv[2] || "https://localhost:3000").replace(/\/$/, "");
-const dev = !process.argv[2];
-const base = dev ? `${origin}` : `${origin}/powerpoint`;
-const idFile = path.join(__dirname, "..", ".manifest-id");
-const id = fs.existsSync(idFile) ? fs.readFileSync(idFile, "utf8").trim() : (() => { const v = randomUUID(); fs.writeFileSync(idFile, v); return v; })();
-
-const xml = `<?xml version="1.0" encoding="UTF-8"?>
+/**
+ * Manifest XML for an origin. `dev` = the Vite dev server serves the pane at the root;
+ * otherwise the web app serves it under /powerpoint/. `id` keeps the add-in identity stable.
+ */
+function buildManifest(origin, { dev = false, id = randomUUID() } = {}) {
+  origin = origin.replace(/\/$/, "");
+  const base = dev ? `${origin}` : `${origin}/powerpoint`;
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
@@ -105,7 +106,16 @@ const xml = `<?xml version="1.0" encoding="UTF-8"?>
   </VersionOverrides>
 </OfficeApp>
 `;
+}
 
+module.exports = { buildManifest };
+if (require.main !== module) return;
+
+const origin = (process.argv[2] || "https://localhost:3000").replace(/\/$/, "");
+const dev = !process.argv[2];
+const idFile = path.join(__dirname, "..", ".manifest-id");
+const id = fs.existsSync(idFile) ? fs.readFileSync(idFile, "utf8").trim() : (() => { const v = randomUUID(); fs.writeFileSync(idFile, v); return v; })();
+const xml = buildManifest(origin, { dev, id });
 const out = dev ? path.join(__dirname, "..", "manifest.xml") : path.join(__dirname, "..", "dist", `manifest.${origin.replace(/^https?:\/\//, "").replace(/[^a-z0-9.-]/gi, "_")}.xml`);
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, xml);

@@ -42,6 +42,9 @@ const MENU_TEXT = {
     shareOn: "Share to phone on any network (on: {url})", mirrorAddress: "Mirror address on this network", automatic: "Automatic ({ip})",
     customHost: "Custom host: set INTELLIPROMPTER_MIRROR_HOST in .env", hideWindow: "Hide this window from screen recordings and screenshots",
     reload: "Reload", fullscreen: "Toggle fullscreen", devtools: "Developer tools", quit: "Quit",
+    pptManifest: "PowerPoint add-in: save manifest…",
+    pptNoOrigin: "PowerPoint only loads add-ins over HTTPS. Turn on “Share to phone on any network” first (the manifest will point at that public URL), or set PUBLIC_ORIGIN=https://your-server in .env for a permanent install.",
+    pptSaved: "Manifest saved. Sideload it:\n\n• PowerPoint for the web: Home → Add-ins → More Add-ins → My Add-ins → Upload My Add-in → this file.\n• PowerPoint for Windows: put the file in a shared folder, add that folder under File → Options → Trust Center → Trusted Add-in Catalogs, restart PowerPoint, then Insert → My Add-ins → Shared Folder.\n\nThe pane is served from {origin}. A tunnel URL changes every time sharing restarts; save a new manifest then.",
   },
   it: {
     configFolder: "Apri la cartella di configurazione (chiavi + copione)", editEnv: "Modifica le chiavi API (.env)", settings: "Modelli locali e privacy",
@@ -49,6 +52,9 @@ const MENU_TEXT = {
     shareOn: "Condividi col telefono su qualsiasi rete (attivo: {url})", mirrorAddress: "Indirizzo del mirror su questa rete", automatic: "Automatico ({ip})",
     customHost: "Host personalizzato: imposta INTELLIPROMPTER_MIRROR_HOST in .env", hideWindow: "Nascondi questa finestra da registrazioni e screenshot",
     reload: "Ricarica", fullscreen: "Schermo intero", devtools: "Strumenti per sviluppatori", quit: "Esci",
+    pptManifest: "Componente aggiuntivo PowerPoint: salva il manifest…",
+    pptNoOrigin: "PowerPoint carica i componenti aggiuntivi solo via HTTPS. Attiva prima “Condividi col telefono su qualsiasi rete” (il manifest punterà a quell'URL pubblico), oppure imposta PUBLIC_ORIGIN=https://tuo-server in .env per un'installazione permanente.",
+    pptSaved: "Manifest salvato. Caricalo in PowerPoint:\n\n• PowerPoint per il web: Home → Componenti aggiuntivi → Altri componenti → I miei componenti → Carica il mio componente → questo file.\n• PowerPoint per Windows: metti il file in una cartella condivisa, aggiungi la cartella in File → Opzioni → Centro protezione → Cataloghi di componenti aggiuntivi attendibili, riavvia PowerPoint, poi Inserisci → I miei componenti → Cartella condivisa.\n\nIl pannello è servito da {origin}. Un URL del tunnel cambia a ogni riavvio della condivisione: salva allora un nuovo manifest.",
   },
 };
 function menuLang() {
@@ -378,6 +384,30 @@ function interfaces() {
   return out;
 }
 
+/** Writes an Office manifest for the public HTTPS origin the pane is reachable at (README "PowerPoint add-in"). */
+async function savePowerPointManifest(win) {
+  const fromEnv = (process.env.PUBLIC_ORIGIN || "").trim();
+  const origin = tunnels.web || (fromEnv.startsWith("https://") ? fromEnv : "");
+  if (!origin) {
+    dialog.showMessageBox(win, { type: "info", title: "PowerPoint", message: mt("pptNoOrigin") });
+    return;
+  }
+  if (!settings.manifestId) {
+    settings.manifestId = crypto.randomUUID();
+    saveSettings();
+  }
+  const modulePath = packaged ? path.join(resources, "powerpoint-manifest.js") : path.join(resources, "powerpoint", "scripts", "manifest.js");
+  const { buildManifest } = require(modulePath);
+  const { filePath } = await dialog.showSaveDialog(win, {
+    title: mt("pptManifest"),
+    defaultPath: path.join(app.getPath("documents"), "Intelliprompter.manifest.xml"),
+    filters: [{ name: "Office manifest", extensions: ["xml"] }],
+  });
+  if (!filePath) return;
+  fs.writeFileSync(filePath, buildManifest(origin, { id: settings.manifestId }));
+  dialog.showMessageBox(win, { type: "info", title: "PowerPoint", message: mt("pptSaved", { origin }) });
+}
+
 function applyMirrorHost(win, host) {
   settings.mirrorHost = host;
   saveSettings();
@@ -471,6 +501,7 @@ function buildMenu(win) {
             { label: mt("customHost"), enabled: false },
           ],
         },
+        { label: mt("pptManifest"), click: () => void savePowerPointManifest(win) },
         {
           label: mt("hideWindow"),
           type: "checkbox",

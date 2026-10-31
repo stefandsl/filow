@@ -31,6 +31,7 @@
     "extraResources": [
       { "from": "../web/.next/standalone", "to": "app", "filter": ["**/*", "!**/.env*"] },
       { "from": "../server/dist/bundle.js", "to": "server/bundle.js" },
+      { "from": "../powerpoint/scripts/manifest.js", "to": "powerpoint-manifest.js" },
       { "from": "../web/.env.example", "to": ".env.example" },
       { "from": "../web/script.md", "to": "script.md" }
     ],

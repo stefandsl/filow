@@ -442,6 +442,8 @@ In the browser (not the desktop app) the browser's own share picker is used, and
 
 A task pane for PowerPoint lives in [apps/powerpoint](apps/powerpoint/README.md). Your speaker notes become the script (one slide per section, `-` lines are points), the pane follows the selected slide while you edit, and it runs the microphone itself on Windows and PowerPoint for the web or mirrors a session by code elsewhere. PowerPoint hides panes during a slide show and offers no API to follow one, so on stage the phone mirror or the desktop app is the live view. Build with `npm run build -w apps/powerpoint`; the pane is then served by the web app under `/powerpoint/`.
 
+PowerPoint only loads add-ins over HTTPS and never shows one by itself: it needs a manifest file. Quickest path from the desktop app: turn on **Share to phone on any network**, then menu → **PowerPoint add-in: save manifest…**; the file points at the public tunnel URL. Sideload it in PowerPoint for the web (Home → Add-ins → More Add-ins → My Add-ins → Upload My Add-in) or, on Windows, through a trusted shared folder (steps in the add-in README). The tunnel URL changes each time sharing restarts, so this is for trying it out; for a permanent install deploy on your server with HTTPS, set `PUBLIC_ORIGIN=https://your-domain` in `.env`, and the same menu item writes a manifest for that domain.
+
 ## Script format
 
 `script.md` (also editable from the **Edit points** button in the app):
