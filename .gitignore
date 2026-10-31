@@ -10,3 +10,4 @@ dist
 next-env.d.ts
 .DS_Store
 Thumbs.db
+apps/web/public/powerpoint

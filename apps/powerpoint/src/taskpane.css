@@ -1,0 +1,14 @@
+/* The task pane reuses the app's dark theme classes (copied from apps/web/app/globals.css) and adds pane-specific sizing. */
+@import url("./theme.css");
+
+.pane { display: flex; flex-direction: column; min-height: 100vh; padding: 10px 12px; gap: 10px; }
+.pane .app { padding: 0; min-height: 0; gap: 10px; }
+.pane .point { font-size: 15px; padding: 6px 10px; grid-template-columns: 18px 60px 1fr; }
+.pane h1.section-title { font-size: 18px; margin: 4px 0 6px; }
+.pane .topbar .logo { font-size: 14px; }
+.pane .controls .btn { padding: 7px 10px; font-size: 11px; }
+.pane .setup { display: flex; flex-direction: column; gap: 10px; }
+.pane .setup input { width: 100%; text-transform: none; letter-spacing: 0; }
+.pane .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pane .help { font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); padding-top: 8px; margin-top: auto; }
+.pane .code-input { width: 140px; font-size: 20px; }

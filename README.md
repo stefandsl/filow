@@ -404,6 +404,10 @@ Working with VS Code: install the **Remote - SSH** extension, connect to the ser
 
 ---
 
+## PowerPoint add-in
+
+A task pane for PowerPoint lives in [apps/powerpoint](apps/powerpoint/README.md). Your speaker notes become the script (one slide per section, `-` lines are points), the pane follows the selected slide while you edit, and it runs the microphone itself on Windows and PowerPoint for the web or mirrors a session by code elsewhere. PowerPoint hides panes during a slide show and offers no API to follow one, so on stage the phone mirror or the desktop app is the live view. Build with `npm run build -w apps/powerpoint`; the pane is then served by the web app under `/powerpoint/`.
+
 ## Script format
 
 `script.md` (also editable from the **Edit points** button in the app):

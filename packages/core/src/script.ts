@@ -10,13 +10,17 @@ import type { Script, Section } from "./types";
  * Blank lines and anything else are ignored. IDs are stable per position so
  * state survives a reload of an unchanged script.
  */
+/** A script exported from a slide deck carries this marker so `slideChanged` can navigate it. */
+export const SLIDES_MARKER = "<!-- source: slides -->";
+
 export function parseScript(text: string): Script {
   const sections: Section[] = [];
   let current: Section | null = null;
+  const fromSlides = text.includes(SLIDES_MARKER);
 
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim();
-    if (!line) continue;
+    if (!line || line.startsWith("<!--")) continue;
 
     const heading = line.match(/^#+\s*(.+)$/);
     if (heading) {
@@ -38,7 +42,7 @@ export function parseScript(text: string): Script {
     }
   }
 
-  return { sections };
+  return fromSlides ? { sections, source: "slides" } : { sections };
 }
 
 export function serializeScript(script: Script): string {
