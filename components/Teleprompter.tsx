@@ -7,7 +7,7 @@ import { availableBackends, BACKEND_LABELS, createBackend, startAuto, type SttBa
 import { browserSupported } from "@/lib/stt/browser";
 
 const TICK_MS = 500; // how often we ask the model, like the original
-const START_THRESHOLD = 0.6; // confidence needed to flip a point to "started"
+const START_THRESHOLD = 0.7; // matches the rubric in app/api/decide/route.ts // confidence needed to flip a point to "started"
 const TRANSCRIPT_WINDOW = 900; // characters of recent speech sent per tick
 const STICKY_MS = 1500; // after a flip, ignore contradicting answers for a bit
 
@@ -146,7 +146,13 @@ export default function Teleprompter() {
         const res = await fetch("/api/decide", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transcript: windowText, bullets: open, sectionTitle: section.title }),
+          body: JSON.stringify({
+            transcript: windowText,
+            bullets: open,
+            sectionTitle: section.title,
+            covered: section.bullets.filter((b) => states[b.id]?.status === "started").map((b) => b.text),
+            upcoming: script?.sections[sectionIdx + 1]?.bullets.map((b) => b.text) ?? [],
+          }),
         });
         if (!res.ok) {
           const { error } = (await res.json()) as { error?: string };

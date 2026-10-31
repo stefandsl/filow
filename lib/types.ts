@@ -29,8 +29,15 @@ export type Decision = {
 
 export type DecideRequest = {
   transcript: string;
+  /** Points still open in the current section: the ones to decide on. */
   bullets: Bullet[];
   sectionTitle: string;
+  /** Points of this section already marked started (context only, not decided again). */
+  covered?: string[];
+  /** Points of the next section (context so the model can tell "moved on" from "covering"). */
+  upcoming?: string[];
+  /** Optional language hint, e.g. "it" or "en". Transcript and points may be in any language. */
+  language?: string;
 };
 
 export type DecideResponse = {
