@@ -5,7 +5,7 @@
 //     the mirror; the spend endpoints are gated by a per-launch random password.
 //   Hosted mode: FILOW_SESSION_URL (+ ACCESS_PASSWORD) in .env points the
 //     engine at a public session server; local servers stay on 127.0.0.1.
-const { app, BrowserWindow, Menu, shell, session, dialog, desktopCapturer, globalShortcut, ipcMain, screen, nativeTheme } = require("electron");
+const { app, BrowserWindow, Menu, shell, session, dialog, desktopCapturer, globalShortcut, ipcMain, screen, nativeTheme, Notification } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -774,6 +774,21 @@ function loadUpdater() {
     updater.on("error", (err) => setUpdateState({ status: "error", error: String((err && err.message) || err).slice(0, 200) }));
     updater.on("update-downloaded", (info) => {
       setUpdateState({ status: "downloaded", version: info.version });
+      // System notification as well, for when the app sits behind other windows.
+      try {
+        if (Notification.isSupported()) {
+          const n = new Notification({ title: mt("updateReady", { version: info.version }), body: mt("updateReadyDetail"), icon: path.join(__dirname, "build", "icon.png") });
+          n.on("click", () => {
+            if (mainWin && !mainWin.isDestroyed()) {
+              mainWin.show();
+              mainWin.focus();
+            }
+          });
+          n.show();
+        }
+      } catch {
+        /* no notification support */
+      }
       if (mainWin && !mainWin.isDestroyed()) {
         dialog
           .showMessageBox(mainWin, {
@@ -798,6 +813,7 @@ function loadUpdater() {
 
 function setUpdateState(next) {
   updateState = { ...updateState, ...next };
+  logLine(`update: ${updateState.status}${updateState.version ? " " + updateState.version : ""}${updateState.error ? " " + updateState.error : ""}`);
   if (mainWin && !mainWin.isDestroyed()) {
     mainWin.webContents.send("update:status", { ...updateState, current: app.getVersion() });
     buildMenu(mainWin);
@@ -1267,6 +1283,7 @@ async function main() {
   }
 }
 
+app.setAppUserModelId("com.intelliprompter.app");
 app.whenReady().then(main);
 app.on("window-all-closed", () => app.quit());
 app.on("will-quit", () => {

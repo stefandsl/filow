@@ -20,7 +20,7 @@ import { engineHeaders, useSession } from "./useSession";
 import { PairPanel } from "./PairPanel";
 import { useScreenSense, type ScreenSource } from "./useScreenSense";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "./LangSwitch";
-import { desktopBridge } from "@/lib/sessionUrl";
+import { desktopBridge, type UpdateStatus } from "@/lib/sessionUrl";
 
 type BackendChoice = "auto" | SttBackendId;
 
@@ -52,6 +52,14 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const [starting, setStarting] = useState(false);
   const [publicLink, setPublicLink] = useState(false);
   const [show, setShow] = useState<{ running: boolean; index: number; total: number } | null>(null);
+  const [update, setUpdate] = useState<UpdateStatus | null>(null);
+  const [updateDismissed, setUpdateDismissed] = useState(false);
+  useEffect(() => {
+    const bridge = desktopBridge();
+    if (!bridge?.onUpdateStatus) return;
+    void bridge.updateStatus?.().then(setUpdate);
+    return bridge.onUpdateStatus(setUpdate);
+  }, []);
   useEffect(() => {
     const bridge = desktopBridge();
     if (!bridge?.onSlideshow) return;
@@ -251,6 +259,10 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         <span className="spacer" />
         <PairPanel info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} onNewCode={() => void sessionInfo.newCode()} />
         {show && <span className="chip live">📽 {t("stage.slide", { n: show.index + 1, total: show.total })}</span>}
+        {update?.status === "checking" && <span className="chip busy">{t("update.checking")}</span>}
+        {update?.status === "downloading" && <span className="chip busy">⬇ {t("update.downloading", { version: update.version })}</span>}
+        {update?.status === "downloaded" && <span className="chip live" title={t("update.ready", { version: update.version })}>⬆ {update.version}</span>}
+        {update?.status === "error" && <span className="chip err" title={update.error}>{t("update.error", { error: update.error.slice(0, 40) })}</span>}
         {publicLink && (
           <button className="chip live" title={t("pair.stopPublic")} onClick={() => desktopBridge()?.setRemoteShare?.(false)}>
             🌐 {t("pair.publicChip")} ✕
@@ -394,6 +406,17 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         </a>
       </div>
 
+      {update?.status === "downloaded" && !updateDismissed && (
+        <div className="update-banner">
+          <span>⬆ {t("update.ready", { version: update.version })}</span>
+          <button className="btn primary" onClick={() => desktopBridge()?.installUpdate?.()}>
+            {t("update.restart")}
+          </button>
+          <button className="btn" onClick={() => setUpdateDismissed(true)}>
+            {t("update.later")}
+          </button>
+        </div>
+      )}
       {error && !eng.recording && <div className="chip err banner">{error}</div>}
 
       {screen.status !== "unsupported" && (

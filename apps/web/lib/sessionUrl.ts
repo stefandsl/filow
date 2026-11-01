@@ -18,10 +18,17 @@ export type DesktopBridge = {
   slideshowState?: () => Promise<SlideShowState>;
   onSlideshow?: (fn: (s: SlideShowState) => void) => () => void;
   closeOverlay?: () => void;
+  /** Auto-update (installed app): state, manual check, install when downloaded. */
+  updateStatus?: () => Promise<UpdateStatus>;
+  onUpdateStatus?: (fn: (s: UpdateStatus) => void) => () => void;
+  checkForUpdates?: () => void;
+  installUpdate?: () => void;
   remoteStatus?: () => Promise<RemoteStatus>;
   onRemoteStatus?: (fn: (s: RemoteStatus) => void) => () => void;
   accessPassword: string;
 };
+
+export type UpdateStatus = { status: "idle" | "checking" | "downloading" | "downloaded" | "none" | "error"; version: string; error: string; current: string };
 
 export type SlideShowState = { running: boolean; index: number; total: number; title: string };
 

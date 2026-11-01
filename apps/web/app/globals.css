@@ -160,3 +160,7 @@ input.btn { text-transform: none; letter-spacing: 0; font-family: var(--mono); }
 .app.compact .point { font-size: 17px; padding: 8px 10px; grid-template-columns: 22px 1fr; }
 .app.compact .point .status { display: none; }
 .app.compact .strip .row { font-size: 13px; }
+
+/* Update ready */
+.update-banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border: 1px solid #1f4a2d; border-radius: 6px; background: var(--panel); font-size: 14px; }
+.update-banner span { flex: 1; min-width: 200px; }
