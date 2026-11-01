@@ -1,5 +1,5 @@
 // Per-browser preferences (not secrets). Server-side defaults come from env.
-import { isLang, langFromLocale, type DecisionProviderId, type Lang, type ScreenMode } from "@intelliprompter/core";
+import { isLang, langFromLocale, type DecisionProviderId, type Lang, type ScreenMode } from "@filow/core";
 
 const KEY = "prefs:decisionProvider";
 
@@ -67,7 +67,7 @@ export function setLang(lang: Lang): void {
   } catch {
     /* ignore */
   }
-  (globalThis as { intelliprompter?: { setLang?: (l: Lang) => void } }).intelliprompter?.setLang?.(lang);
+  (globalThis as { filow?: { setLang?: (l: Lang) => void } }).filow?.setLang?.(lang);
 }
 
 // ---- Theme: system | light | dark ----
@@ -89,7 +89,7 @@ export function setThemePref(t: ThemePref): void {
   } catch {
     /* ignore */
   }
-  (globalThis as { intelliprompter?: { setTheme?: (t: ThemePref) => void } }).intelliprompter?.setTheme?.(t);
+  (globalThis as { filow?: { setTheme?: (t: ThemePref) => void } }).filow?.setTheme?.(t);
 }
 
 /** The theme actually shown for a preference, following the OS for "system". */

@@ -1,6 +1,6 @@
 {
-  "name": "@intelliprompter/browser",
-  "version": "0.7.1",
+  "name": "@filow/browser",
+  "version": "0.8.0",
   "private": true,
   "description": "Browser extension (Chrome, Edge, Brave, Opera, Arc; Firefox via polyfill): side panel that follows HTML slide decks and generates the script from them.",
   "scripts": {
@@ -9,9 +9,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@intelliprompter/client": "*",
-    "@intelliprompter/core": "*",
-    "@intelliprompter/ui": "*",
+    "@filow/client": "*",
+    "@filow/core": "*",
+    "@filow/ui": "*",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "webextension-polyfill": "^0.12.0"

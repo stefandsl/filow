@@ -12,9 +12,9 @@ import {
   type Script,
   type SttBackendId,
   type SttStatus,
-} from "@intelliprompter/core";
-import { LangProvider, OnScreenStrip, useLang, useT } from "@intelliprompter/ui";
-import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, startAuto, type SttBackend } from "@intelliprompter/stt";
+} from "@filow/core";
+import { LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
+import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, startAuto, type SttBackend } from "@filow/stt";
 import { useEngine } from "./useEngine";
 import { engineHeaders, useSession } from "./useSession";
 import { PairPanel } from "./PairPanel";
@@ -70,9 +70,9 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const backendRef = useRef<SttBackend | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  // Offline mode is owned by the desktop shell (menu toggle); the web deploy reads INTELLIPROMPTER_OFFLINE.
+  // Offline mode is owned by the desktop shell (menu toggle); the web deploy reads FILOW_OFFLINE.
   useEffect(() => {
-    const bridge = (globalThis as { intelliprompter?: { offline?: boolean; onOffline?: (fn: (v: boolean) => void) => void } }).intelliprompter;
+    const bridge = (globalThis as { filow?: { offline?: boolean; onOffline?: (fn: (v: boolean) => void) => void } }).filow;
     if (bridge?.offline !== undefined) setOffline(bridge.offline);
     bridge?.onOffline?.(setOffline);
     if (!bridge) void fetch("/api/local/status").then((r) => r.json()).then((s: { offline?: boolean }) => setOffline(Boolean(s.offline))).catch(() => undefined);
@@ -114,7 +114,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     const blob = new Blob([md], { type: "text/markdown" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `intelliprompter-notes-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.md`;
+    a.download = `filow-notes-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.md`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
@@ -245,9 +245,9 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     <div className="app">
       <header className="topbar">
         <div className="logo">
-          <span className="dot" /> INTELLIPROMPTER
+          <span className="dot" /> FILOW
         </div>
-        <span className="subtitle">{t("app.subtitle")}</span>
+        <span className="subtitle">{t("app.tagline")}</span>
         <span className="spacer" />
         <PairPanel info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} onNewCode={() => void sessionInfo.newCode()} />
         {show && <span className="chip live">📽 {t("stage.slide", { n: show.index + 1, total: show.total })}</span>}

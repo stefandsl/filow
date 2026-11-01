@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LANGS, type Lang } from "@intelliprompter/core";
+import { LANGS, type Lang } from "@filow/core";
 import { getLang, getThemePref, resolveTheme, setLang as saveLang, setThemePref, type ThemePref } from "@/lib/prefs";
 
 /** Language state for a page: English on the server render, the stored choice after mount. */

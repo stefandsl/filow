@@ -1,6 +1,6 @@
 {
-  "name": "@intelliprompter/web",
-  "version": "0.7.1",
+  "name": "@filow/web",
+  "version": "0.8.0",
   "private": true,
   "scripts": {
     "dev": "next dev -p 4747",
@@ -10,10 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@intelliprompter/client": "*",
-    "@intelliprompter/core": "*",
-    "@intelliprompter/stt": "*",
-    "@intelliprompter/ui": "*",
+    "@filow/client": "*",
+    "@filow/core": "*",
+    "@filow/stt": "*",
+    "@filow/ui": "*",
     "jszip": "^3.10.2",
     "next": "15.3.3",
     "qrcode": "^1.5.4",

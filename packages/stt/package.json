@@ -1,6 +1,6 @@
 {
-  "name": "@intelliprompter/stt",
-  "version": "0.7.1",
+  "name": "@filow/stt",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "description": "Browser-side speech-to-text backends (Web Speech, ElevenLabs realtime, OpenAI realtime, on-device Whisper) and Auto selection.",
@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.2",
-    "@intelliprompter/core": "*"
+    "@filow/core": "*"
   },
   "license": "UNLICENSED"
 }

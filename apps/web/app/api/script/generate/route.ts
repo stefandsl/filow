@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateScript, parseScript, slideNeedsImage, type GenerateRequest, type SlideInput } from "@intelliprompter/core";
+import { generateScript, parseScript, slideNeedsImage, type GenerateRequest, type SlideInput } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
 import { anonymizeRequest, piiMode, restore } from "@/lib/pii/guard";
 import { generateSlideOllama, generateSlideOpenRouter, resolveGenerateProvider } from "@/lib/generate/providers";

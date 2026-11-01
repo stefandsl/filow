@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
-import { t as translate, type I18nKey, type Lang } from "@intelliprompter/core";
+import { t as translate, type I18nKey, type Lang } from "@filow/core";
 
 const LangContext = createContext<Lang>("en");
 

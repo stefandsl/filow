@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Intelliprompter",
-  "version": "0.7.1",
+  "name": "Filow",
+  "version": "0.8.0",
   "description": "Your talking points next to any HTML slide deck: generate the script from the slides and keep the prompter in sync while you present.",
   "icons": { "128": "icon.png", "48": "icon.png", "16": "icon.png" },
-  "action": { "default_title": "Open Intelliprompter" },
+  "action": { "default_title": "Open Filow" },
   "side_panel": { "default_path": "sidepanel.html" },
-  "sidebar_action": { "default_panel": "sidepanel.html", "default_title": "Intelliprompter", "default_icon": "icon.png" },
+  "sidebar_action": { "default_panel": "sidepanel.html", "default_title": "Filow", "default_icon": "icon.png" },
   "background": { "service_worker": "background.js", "type": "module", "scripts": ["background.js"] },
   "permissions": ["activeTab", "sidePanel", "storage", "scripting"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
-  "browser_specific_settings": { "gecko": { "id": "intelliprompter@voidexploit", "strict_min_version": "121.0" } }
+  "browser_specific_settings": { "gecko": { "id": "filow@voidexploit", "strict_min_version": "121.0" } }
 }

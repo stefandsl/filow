@@ -1,6 +1,6 @@
-# Intelliprompter for PowerPoint
+# Filow for PowerPoint
 
-A task pane add-in. Your **speaker notes become the script**: one slide = one section, and every note line starting with `-` is a talking point. While you edit, the pane follows the selected slide and the engine follows the pane; with a slide-sourced script, moving to the next section in Intelliprompter selects the next slide.
+A task pane add-in. Your **speaker notes become the script**: one slide = one section, and every note line starting with `-` is a talking point. While you edit, the pane follows the selected slide and the engine follows the pane; with a slide-sourced script, moving to the next section in Filow selects the next slide.
 
 ## What it can and cannot do
 
@@ -42,7 +42,7 @@ Microsoft's full sideload guide: https://learn.microsoft.com/office/dev/add-ins/
 
 ## Production
 
-The pane is static files served by the Intelliprompter web app under `/powerpoint/`, so it shares the origin with the API and the relay (no CORS, keys never leave the server).
+The pane is static files served by the Filow web app under `/powerpoint/`, so it shares the origin with the API and the relay (no CORS, keys never leave the server).
 
 ```bash
 npm run build -w apps/powerpoint                      # → apps/web/public/powerpoint/

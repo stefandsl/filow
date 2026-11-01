@@ -1,4 +1,4 @@
-import type { SttBackendId, SttStatus } from "@intelliprompter/core";
+import type { SttBackendId, SttStatus } from "@filow/core";
 import type { SttBackend, SttHandlers } from "./types";
 import { BrowserStt } from "./browser";
 import { ElevenLabsStt } from "./elevenlabs";

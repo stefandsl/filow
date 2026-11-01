@@ -1,6 +1,6 @@
 {
-  "name": "@intelliprompter/powerpoint",
-  "version": "0.7.1",
+  "name": "@filow/powerpoint",
+  "version": "0.8.0",
   "private": true,
   "description": "PowerPoint task pane add-in: speaker notes become the script, the pane follows the selected slide.",
   "scripts": {
@@ -12,10 +12,10 @@
     "validate": "office-addin-manifest validate manifest.xml"
   },
   "dependencies": {
-    "@intelliprompter/client": "*",
-    "@intelliprompter/core": "*",
-    "@intelliprompter/stt": "*",
-    "@intelliprompter/ui": "*",
+    "@filow/client": "*",
+    "@filow/core": "*",
+    "@filow/stt": "*",
+    "@filow/ui": "*",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },

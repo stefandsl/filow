@@ -1,6 +1,6 @@
 // Per-slide generators for /api/script/generate: OpenRouter (cloud) and Ollama (local).
 // Both return the same shape; the route picks one and wraps it with the PII guard.
-import { buildGenerateUserPrompt, GENERATE_SYSTEM_PROMPT, parseGenerated, type GeneratedSlide, type SlideInput } from "@intelliprompter/core";
+import { buildGenerateUserPrompt, GENERATE_SYSTEM_PROMPT, parseGenerated, type GeneratedSlide, type SlideInput } from "@filow/core";
 import { OLLAMA_URL } from "@/lib/decide/clef";
 
 export type SlideResult = { generated: GeneratedSlide; cost: number | null; model: string };
@@ -29,7 +29,7 @@ export async function generateSlideOpenRouter(slide: SlideInput, opts: { languag
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
       "HTTP-Referer": process.env.PUBLIC_ORIGIN || "http://localhost:4747",
-      "X-Title": "Intelliprompter",
+      "X-Title": "Filow",
     },
     body: JSON.stringify({
       model,
@@ -84,7 +84,7 @@ export type GenerateProviderId = "openrouter" | "ollama";
 
 /** Offline switch forces Ollama; otherwise the request's choice, else GENERATE_PROVIDER, else OpenRouter. */
 export function resolveGenerateProvider(requested?: string): GenerateProviderId {
-  if (process.env.INTELLIPROMPTER_OFFLINE === "1") return "ollama";
+  if (process.env.FILOW_OFFLINE === "1") return "ollama";
   if (requested === "ollama" || requested === "openrouter") return requested;
   const env = process.env.GENERATE_PROVIDER;
   if (env === "ollama" || env === "openrouter") return env;

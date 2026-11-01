@@ -1,7 +1,7 @@
 // The classifier prompt and its parser. Used by the /api/decide route and by tests.
 import type { DecideRequest, Decision } from "./api";
 
-export const SYSTEM_PROMPT = `You are a strict real-time classifier inside a teleprompter. You are called up to twice a second.
+export const SYSTEM_PROMPT = `You are a strict real-time classifier inside a live speaking companion (Filow). You are called up to twice a second.
 
 INPUT
 - A live speech transcript: the last ~900 characters, most recent at the end. It contains recognition errors, filler words, restarts and sometimes wrong word boundaries. The speaker may talk in any language; the talking points may be in a different language than the speech.

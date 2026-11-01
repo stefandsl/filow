@@ -1,11 +1,11 @@
-// Side panel: pairs with an Intelliprompter session (server URL + 6-digit code), shows the live
+// Side panel: pairs with an Filow session (server URL + 6-digit code), shows the live
 // view, and drives the deck tab through the content script: "Generate script from this deck"
 // and "Follow" (slide changes -> slideChanged commands). No keys here: the server runs models.
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { connect, type SessionClient } from "@intelliprompter/client";
-import { langFromLocale, LANGS, parseScript, slideNeedsImage, type Command, type GenerateProgress, type Lang, type ScreenMode, type SessionState, type SlideInput, type VisionResponse } from "@intelliprompter/core";
-import { LangProvider, StageView, useT } from "@intelliprompter/ui";
+import { connect, type SessionClient } from "@filow/client";
+import { langFromLocale, LANGS, parseScript, slideNeedsImage, type Command, type GenerateProgress, type Lang, type ScreenMode, type SessionState, type SlideInput, type VisionResponse } from "@filow/core";
+import { LangProvider, StageView, useT } from "@filow/ui";
 import type { SlideInfo } from "./adapters";
 import "./sidepanel.css";
 
@@ -227,7 +227,7 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
       <div className="pane">
         <header className="topbar">
           <div className="logo">
-            <span className="dot" /> INTELLIPROMPTER
+            <span className="dot" /> FILOW
           </div>
           <span className="spacer" />
           <span className="langswitch">

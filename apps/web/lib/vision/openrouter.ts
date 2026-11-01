@@ -1,6 +1,6 @@
 // One frame → ScreenSummary through an OpenRouter multimodal model. The image is
 // forwarded once as a data URL and never logged or stored (ARCHITECTURE.md §6.2).
-import { buildVisionUserPrompt, parseScreenSummary, VISION_SYSTEM_PROMPT, type VisionRequest, type VisionResponse } from "@intelliprompter/core";
+import { buildVisionUserPrompt, parseScreenSummary, VISION_SYSTEM_PROMPT, type VisionRequest, type VisionResponse } from "@filow/core";
 
 export const DEFAULT_VISION_MODEL = "google/gemini-2.5-flash";
 
@@ -25,7 +25,7 @@ export async function describeFrame(body: VisionRequest): Promise<VisionResponse
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
       "HTTP-Referer": process.env.PUBLIC_ORIGIN || "http://localhost:4747",
-      "X-Title": "Intelliprompter",
+      "X-Title": "Filow",
     },
     body: JSON.stringify({
       model,

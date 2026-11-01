@@ -1,16 +1,16 @@
 /* global Office */
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { connect, type SessionClient } from "@intelliprompter/client";
-import { Engine, isLang, langFromLocale, LANGS, parseScript, type Command, type DecideRequest, type DecideResponse, type Lang, type SessionState, type SttStatus } from "@intelliprompter/core";
-import { availableBackends, BACKEND_LABELS, createBackend, startAuto, type SttBackend } from "@intelliprompter/stt";
-import { LangProvider, StageView, useT } from "@intelliprompter/ui";
+import { connect, type SessionClient } from "@filow/client";
+import { Engine, isLang, langFromLocale, LANGS, parseScript, type Command, type DecideRequest, type DecideResponse, type Lang, type SessionState, type SttStatus } from "@filow/core";
+import { availableBackends, BACKEND_LABELS, createBackend, startAuto, type SttBackend } from "@filow/stt";
+import { LangProvider, StageView, useT } from "@filow/ui";
 import { getSelectedSlide, hostInfo, onSelectionChange, readNotesAsScript, selectSlide, supportsNotes } from "./office";
 import { attachSlideImages, mintEngineToken, readSlidesForGeneration, requestGeneration } from "./generate";
 import "./taskpane.css";
 
 type Mode = "engine" | "view";
-const ORIGIN = window.location.origin; // the pane is served by the Intelliprompter server (or the Vite dev proxy)
+const ORIGIN = window.location.origin; // the pane is served by the Filow server (or the Vite dev proxy)
 const store = {
   get: (k: string) => {
     try {
@@ -63,7 +63,7 @@ function AppInner({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
     <div className="pane">
       <header className="topbar">
         <div className="logo">
-          <span className="dot" /> INTELLIPROMPTER
+          <span className="dot" /> FILOW
         </div>
         <span className="spacer" />
         <span className="langswitch">

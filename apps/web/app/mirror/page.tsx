@@ -2,9 +2,9 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { connect, type SessionClient } from "@intelliprompter/client";
-import type { Command, SessionState } from "@intelliprompter/core";
-import { LangProvider, StageView, useT } from "@intelliprompter/ui";
+import { connect, type SessionClient } from "@filow/client";
+import type { Command, SessionState } from "@filow/core";
+import { LangProvider, StageView, useT } from "@filow/ui";
 import { sessionServerUrl } from "@/lib/sessionUrl";
 import { LangSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
 
@@ -106,7 +106,7 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
     return (
       <div className="app stage pair">
         <div className="logo">
-          <span className="dot" /> INTELLIPROMPTER
+          <span className="dot" /> FILOW
           <span className="spacer" />
           <LangSwitch lang={lang} onChange={onLang} />
         </div>
@@ -141,7 +141,7 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
     return (
       <div className="app stage pair">
         <div className="logo">
-          <span className="dot" /> INTELLIPROMPTER
+          <span className="dot" /> FILOW
         </div>
         <div className="subtitle">{t("mirror.waiting")}</div>
         {error && <span className="chip err">{error}</span>}
@@ -151,11 +151,11 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
 
   const offline = status.startsWith("connecting") || !state;
   if (overlay) {
-    const bridge = (globalThis as { intelliprompter?: { closeOverlay?: () => void } }).intelliprompter;
+    const bridge = (globalThis as { filow?: { closeOverlay?: () => void } }).filow;
     return (
       <div className="overlay">
         <div className="overlay-bar">
-          <span className="drag">⋮⋮ INTELLIPROMPTER</span>
+          <span className="drag">⋮⋮ FILOW</span>
           <button className="chip" onClick={() => bridge?.closeOverlay?.()} title={t("overlay.close")}>
             ✕
           </button>

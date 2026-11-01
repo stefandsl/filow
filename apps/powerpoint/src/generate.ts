@@ -3,7 +3,7 @@
 // keys), and stream progress. Slides with little text or a picture also get a slide image when
 // the host supports getImageAsBase64 (PowerPointApi 1.8).
 /* global Office, PowerPoint */
-import { slideNeedsImage, type GenerateProgress, type SlideInput } from "@intelliprompter/core";
+import { slideNeedsImage, type GenerateProgress, type SlideInput } from "@filow/core";
 import { pickTitle } from "./notes";
 import { readAllSlideShapes, readNotesTexts } from "./shapes";
 

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Intelliprompter",
-  description: "A teleprompter that checks off your talking points as you say them.",
+  title: "Filow",
+  description: "Speak freely. Stay on point. Filow listens as you present, checks off your talking points as you cover them and shows what you missed.",
   manifest: "/manifest.webmanifest",
   icons: "/icon.png",
 };

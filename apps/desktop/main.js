@@ -3,7 +3,7 @@
 // points in <userData>/script.md. Topology: ARCHITECTURE.md §5.3.
 //   LAN mode (default): both servers bind 0.0.0.0 so a phone on the Wi-Fi can open
 //     the mirror; the spend endpoints are gated by a per-launch random password.
-//   Hosted mode: INTELLIPROMPTER_SESSION_URL (+ ACCESS_PASSWORD) in .env points the
+//   Hosted mode: FILOW_SESSION_URL (+ ACCESS_PASSWORD) in .env points the
 //     engine at a public session server; local servers stay on 127.0.0.1.
 const { app, BrowserWindow, Menu, shell, session, dialog, desktopCapturer, globalShortcut, ipcMain, screen, nativeTheme } = require("electron");
 const path = require("node:path");
@@ -12,8 +12,8 @@ const os = require("node:os");
 const http = require("node:http");
 const crypto = require("node:crypto");
 
-const PORT = Number(process.env.INTELLIPROMPTER_PORT || 4747);
-const SESSION_PORT = Number(process.env.INTELLIPROMPTER_SESSION_PORT || 4748);
+const PORT = Number(process.env.FILOW_PORT || 4747);
+const SESSION_PORT = Number(process.env.FILOW_SESSION_PORT || 4748);
 const APP_URL = `http://127.0.0.1:${PORT}`;
 
 const packaged = app.isPackaged;
@@ -29,6 +29,58 @@ const userData = app.getPath("userData");
 const envFile = path.join(userData, ".env");
 const scriptFile = path.join(userData, "script.md");
 const settingsFile = path.join(userData, "settings.json");
+// ---- Rebrand compatibility (Intelliprompter -> Filow, 0.8.0) ----
+// Installed copies keep working: the profile folder moves once, legacy FILOW_* / INTELLIPROMPTER_*
+// environment names are both accepted, the NSIS appId is unchanged so upgrades replace the old
+// install, and the PowerPoint registration is rewritten to the new manifest path.
+const LEGACY_PROFILE_DIRS = [path.join(app.getPath("appData"), "@intelliprompter", "desktop"), path.join(app.getPath("appData"), "Intelliprompter")];
+const LEGACY_ENV_PREFIX = "INTELLIPROMPTER_";
+
+function aliasLegacyEnv() {
+  for (const [k, v] of Object.entries(process.env)) {
+    if (k.startsWith(LEGACY_ENV_PREFIX) && v !== undefined) {
+      const nk = "FILOW_" + k.slice(LEGACY_ENV_PREFIX.length);
+      if (!(nk in process.env)) process.env[nk] = v;
+    }
+  }
+}
+
+/** Copies settings, keys, script, certificates, add-in files and the tunnel tool from the old profile, once. */
+function migrateLegacyProfile() {
+  if (fs.existsSync(settingsFile) || fs.existsSync(envFile)) return false;
+  const src = LEGACY_PROFILE_DIRS.find((d) => fs.existsSync(path.join(d, "settings.json")) || fs.existsSync(path.join(d, ".env")));
+  if (!src) return false;
+  fs.mkdirSync(userData, { recursive: true });
+  for (const entry of ["settings.json", ".env", "script.md", "install-choices.json", "certs", "powerpoint", "bin"]) {
+    const from = path.join(src, entry);
+    if (!fs.existsSync(from)) continue;
+    try {
+      fs.cpSync(from, path.join(userData, entry), { recursive: true });
+    } catch (err) {
+      logLine(`migration: could not copy ${entry}: ${err.message}`);
+    }
+  }
+  logLine(`migrated profile from ${src}`);
+  return true;
+}
+
+/** After a profile move the Office registration points at the old manifest path; rewrite it. */
+async function refreshPptRegistrationAfterMigration() {
+  if (!settings.pptInstalled) return;
+  try {
+    writeLocalPptManifest();
+    await registerPptManifest();
+    if (process.platform === "win32") {
+      await runPowerShell(`Remove-ItemProperty -Path 'Registry::HKCU\\Software\\Microsoft\\Office\\16.0\\WEF\\Developer' -Name 'Intelliprompter' -ErrorAction SilentlyContinue`);
+    } else if (process.platform === "darwin") {
+      fs.rmSync(path.join(macWefDir, "intelliprompter.manifest.xml"), { force: true });
+    }
+    logLine("PowerPoint registration refreshed after migration");
+  } catch (err) {
+    logLine(`PowerPoint registration refresh failed: ${err.message}`);
+  }
+}
+
 
 // ---- Screen Sense (ARCHITECTURE.md §6.1): sources, region picker, global hotkey ----
 const DEFAULT_HOTKEY = "CommandOrControl+Shift+Space";
@@ -40,15 +92,15 @@ const MENU_TEXT = {
     configFolder: "Open config folder (keys + script)", editEnv: "Edit API keys (.env)", settings: "Local models & privacy settings",
     offline: "Offline mode (local models only, no outbound requests)", share: "Share to phone on any network (Cloudflare tunnel)",
     shareOn: "Share to phone on any network (on: {url})", mirrorAddress: "Mirror address on this network", automatic: "Automatic ({ip})",
-    customHost: "Custom host: set INTELLIPROMPTER_MIRROR_HOST in .env", hideWindow: "Hide this window from screen recordings and screenshots",
+    customHost: "Custom host: set FILOW_MIRROR_HOST in .env", hideWindow: "Hide this window from screen recordings and screenshots",
     reload: "Reload", fullscreen: "Toggle fullscreen", devtools: "Developer tools", quit: "Quit",
-    pptInstall: "Add Intelliprompter to PowerPoint on this PC",
-    pptInstalled: "Done. Restart PowerPoint: Intelliprompter is on the Home tab (Add-ins group; on a Mac under Insert → My Add-ins). It talks to the app running on this PC, so keep Intelliprompter open while you present.",
+    pptInstall: "Add Filow to PowerPoint on this PC",
+    pptInstalled: "Done. Restart PowerPoint: Filow is on the Home tab (Add-ins group; on a Mac under Insert → My Add-ins). It talks to the app running on this PC, so keep Filow open while you present.",
     pptInstallFailed: "Could not add the add-in to PowerPoint.",
-    pptRemove: "Remove Intelliprompter from PowerPoint on this PC",
+    pptRemove: "Remove Filow from PowerPoint on this PC",
     pptRemoved: "Removed. Restart PowerPoint.",
     pptWinOnly: "Automatic install works on Windows and macOS. On Linux there is no PowerPoint; save the manifest for another computer instead.",
-    pptFirstRun: "Add Intelliprompter to PowerPoint?",
+    pptFirstRun: "Add Filow to PowerPoint?",
     pptFirstRunDetail: "A certificate for localhost is created and trusted for your user (the system asks once), and the add-in is registered for PowerPoint on this computer. You can undo it from the menu. On a Mac the pane runs in View mode (no microphone in Office for Mac): start the take here or on the phone.",
     pptYes: "Add to PowerPoint",
     pptNo: "Not now",
@@ -60,7 +112,7 @@ const MENU_TEXT = {
     updateChecking: "Checking for updates…",
     updateDownloading: "Downloading update {version}…",
     updateInstall: "Restart to install {version}",
-    updateReady: "Intelliprompter {version} is ready.",
+    updateReady: "Filow {version} is ready.",
     updateReadyDetail: "Restart now to install it, or it installs itself the next time you quit.",
     updateRestart: "Restart now",
     updateLater: "Later",
@@ -74,15 +126,15 @@ const MENU_TEXT = {
     configFolder: "Apri la cartella di configurazione (chiavi + copione)", editEnv: "Modifica le chiavi API (.env)", settings: "Modelli locali e privacy",
     offline: "Modalità offline (solo modelli locali, nessuna richiesta in uscita)", share: "Condividi col telefono su qualsiasi rete (tunnel Cloudflare)",
     shareOn: "Condividi col telefono su qualsiasi rete (attivo: {url})", mirrorAddress: "Indirizzo del mirror su questa rete", automatic: "Automatico ({ip})",
-    customHost: "Host personalizzato: imposta INTELLIPROMPTER_MIRROR_HOST in .env", hideWindow: "Nascondi questa finestra da registrazioni e screenshot",
+    customHost: "Host personalizzato: imposta FILOW_MIRROR_HOST in .env", hideWindow: "Nascondi questa finestra da registrazioni e screenshot",
     reload: "Ricarica", fullscreen: "Schermo intero", devtools: "Strumenti per sviluppatori", quit: "Esci",
-    pptInstall: "Aggiungi Intelliprompter a PowerPoint su questo PC",
-    pptInstalled: "Fatto. Riavvia PowerPoint: Intelliprompter è nella scheda Home (gruppo Componenti aggiuntivi; su Mac in Inserisci → I miei componenti). Parla con l'app in esecuzione su questo PC, quindi tieni aperto Intelliprompter mentre presenti.",
+    pptInstall: "Aggiungi Filow a PowerPoint su questo PC",
+    pptInstalled: "Fatto. Riavvia PowerPoint: Filow è nella scheda Home (gruppo Componenti aggiuntivi; su Mac in Inserisci → I miei componenti). Parla con l'app in esecuzione su questo PC, quindi tieni aperto Filow mentre presenti.",
     pptInstallFailed: "Impossibile aggiungere il componente a PowerPoint.",
-    pptRemove: "Rimuovi Intelliprompter da PowerPoint su questo PC",
+    pptRemove: "Rimuovi Filow da PowerPoint su questo PC",
     pptRemoved: "Rimosso. Riavvia PowerPoint.",
     pptWinOnly: "L'installazione automatica funziona su Windows e macOS. Su Linux non c'è PowerPoint; salva il manifest per un altro computer.",
-    pptFirstRun: "Aggiungere Intelliprompter a PowerPoint?",
+    pptFirstRun: "Aggiungere Filow a PowerPoint?",
     pptFirstRunDetail: "Viene creato un certificato per localhost, considerato attendibile per il tuo utente (il sistema chiede una volta), e il componente viene registrato per PowerPoint su questo computer. Puoi annullare dal menu. Su Mac il pannello funziona in modalità Vista (niente microfono in Office per Mac): avvia la registrazione qui o dal telefono.",
     pptYes: "Aggiungi a PowerPoint",
     pptNo: "Non ora",
@@ -94,7 +146,7 @@ const MENU_TEXT = {
     updateChecking: "Controllo aggiornamenti…",
     updateDownloading: "Scaricamento aggiornamento {version}…",
     updateInstall: "Riavvia per installare {version}",
-    updateReady: "Intelliprompter {version} è pronto.",
+    updateReady: "Filow {version} è pronto.",
     updateReadyDetail: "Riavvia ora per installarlo, oppure si installa da solo alla prossima chiusura.",
     updateRestart: "Riavvia ora",
     updateLater: "Più tardi",
@@ -141,7 +193,7 @@ async function listSources() {
   const sources = await desktopCapturer.getSources({ types: ["screen", "window"], thumbnailSize: { width: 320, height: 180 }, fetchWindowIcons: false });
   const self = mainWin ? mainWin.getMediaSourceId() : "";
   return sources
-    .filter((s) => s.id !== self && !/^Intelliprompter\b/.test(s.name))
+    .filter((s) => s.id !== self && !/^Filow\b/.test(s.name))
     .map((s) => ({ id: s.id, name: s.name, kind: s.id.startsWith("screen") ? "screen" : "window", thumbnail: s.thumbnail.isEmpty() ? "" : s.thumbnail.toDataURL() }));
 }
 
@@ -299,7 +351,7 @@ function loadEnv(file) {
 }
 
 function lanIp() {
-  const fromEnv = (process.env.INTELLIPROMPTER_MIRROR_HOST || "").trim();
+  const fromEnv = (process.env.FILOW_MIRROR_HOST || "").trim();
   if (fromEnv) return fromEnv;
   if (settings.mirrorHost) return settings.mirrorHost;
   // Prefer a private LAN address (phones on the same Wi-Fi) over VPN/CGNAT ranges such as Tailscale's 100.64/10.
@@ -342,7 +394,7 @@ function cloudflaredPath() {
 function download(url, dest, hops = 5) {
   return new Promise((resolve, reject) => {
     https
-      .get(url, { headers: { "User-Agent": "Intelliprompter" } }, (res) => {
+      .get(url, { headers: { "User-Agent": "Filow" } }, (res) => {
         if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && hops > 0) {
           res.resume();
           return download(res.headers.location, dest, hops - 1).then(resolve, reject);
@@ -430,8 +482,8 @@ function stopTunnels() {
   tunnels.procs = [];
   tunnels.web = tunnels.session = "";
   tunnels.state = "off";
-  delete process.env.INTELLIPROMPTER_PUBLIC_WEB;
-  delete process.env.INTELLIPROMPTER_PUBLIC_SESSION;
+  delete process.env.FILOW_PUBLIC_WEB;
+  delete process.env.FILOW_PUBLIC_SESSION;
   delete process.env.TRUST_PROXY;
 }
 
@@ -452,7 +504,7 @@ async function setRemoteShare(win, on, { auto = false } = {}) {
     if (on) {
       try {
         if (offline) throw new Error("Offline mode is on; the public link needs outbound connections.");
-        if (process.env.INTELLIPROMPTER_SESSION_URL) throw new Error("A hosted session server is configured in .env; its URL is already public.");
+        if (process.env.FILOW_SESSION_URL) throw new Error("A hosted session server is configured in .env; its URL is already public.");
         remoteStatus("connecting");
         const bin = await ensureCloudflared(win, { silent: auto });
         if (!bin) {
@@ -467,8 +519,8 @@ async function setRemoteShare(win, on, { auto = false } = {}) {
         const [web, sess] = await Promise.all([startTunnel(bin, PORT), startTunnel(bin, SESSION_PORT)]);
         tunnels.web = web;
         tunnels.session = sess;
-        process.env.INTELLIPROMPTER_PUBLIC_WEB = web;
-        process.env.INTELLIPROMPTER_PUBLIC_SESSION = sess;
+        process.env.FILOW_PUBLIC_WEB = web;
+        process.env.FILOW_PUBLIC_SESSION = sess;
         process.env.TRUST_PROXY = "1"; // cloudflared sits in front: read the phone's address from cf-connecting-ip
         remoteStatus("on");
       } catch (err) {
@@ -491,7 +543,7 @@ async function setRemoteShare(win, on, { auto = false } = {}) {
   }
 }
 
-/** Which address the QR carries on the LAN: auto, one of the interfaces, or INTELLIPROMPTER_MIRROR_HOST from .env. */
+/** Which address the QR carries on the LAN: auto, one of the interfaces, or FILOW_MIRROR_HOST from .env. */
 function interfaces() {
   const out = [];
   for (const [name, list] of Object.entries(os.networkInterfaces())) {
@@ -506,9 +558,9 @@ function interfaces() {
 // supported way to register one without an admin catalog is the WEF\Developer registry key (what
 // office-addin-dev-settings uses). So: a self-signed localhost certificate trusted by the current
 // user, an HTTPS proxy on HTTPS_PORT in front of the two local servers, a manifest in userData,
-// and the registry value. PowerPoint then shows "Intelliprompter" on the Home tab.
+// and the registry value. PowerPoint then shows "Filow" on the Home tab.
 const net = require("node:net");
-const HTTPS_PORT = Number(process.env.INTELLIPROMPTER_HTTPS_PORT || 4749);
+const HTTPS_PORT = Number(process.env.FILOW_HTTPS_PORT || 4749);
 const certDir = path.join(userData, "certs");
 const pfxFile = path.join(certDir, "localhost.pfx");
 const pemKey = path.join(certDir, "localhost-key.pem");
@@ -560,7 +612,7 @@ async function ensureLocalhostCert() {
     fs.mkdirSync(certDir, { recursive: true });
     await runCommand("openssl", [
       "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-sha256", "-days", "1825",
-      "-keyout", pemKey, "-out", pemCert, "-subj", "/CN=localhost/O=Intelliprompter",
+      "-keyout", pemKey, "-out", pemCert, "-subj", "/CN=localhost/O=Filow",
       "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1", "-addext", "extendedKeyUsage=serverAuth",
     ]);
     const keychain = path.join(os.homedir(), "Library", "Keychains", "login.keychain-db");
@@ -572,7 +624,7 @@ async function ensureLocalhostCert() {
   saveSettings();
   const ps = `
 $ErrorActionPreference = 'Stop'
-$cert = New-SelfSignedCertificate -DnsName 'localhost','127.0.0.1' -CertStoreLocation 'Cert:\\CurrentUser\\My' -FriendlyName 'Intelliprompter localhost' -NotAfter (Get-Date).AddYears(5) -KeyExportPolicy Exportable -KeyAlgorithm RSA -KeyLength 2048
+$cert = New-SelfSignedCertificate -DnsName 'localhost','127.0.0.1' -CertStoreLocation 'Cert:\\CurrentUser\\My' -FriendlyName 'Filow localhost' -NotAfter (Get-Date).AddYears(5) -KeyExportPolicy Exportable -KeyAlgorithm RSA -KeyLength 2048
 $pwd = ConvertTo-SecureString -String '${settings.pfxPassword}' -Force -AsPlainText
 Export-PfxCertificate -Cert $cert -FilePath '${pfxFile.replace(/'/g, "''")}' -Password $pwd | Out-Null
 Export-Certificate -Cert $cert -FilePath '${path.join(certDir, "localhost.cer").replace(/'/g, "''")}' | Out-Null
@@ -590,7 +642,7 @@ async function ensureCertTrusted() {
   const cer = path.join(certDir, "localhost.cer");
   if (!fs.existsSync(cer)) {
     // cer missing but pfx present (older install): re-export it from the user store
-    await runPowerShell(`$c = Get-ChildItem Cert:\\CurrentUser\\My | Where-Object { $_.FriendlyName -eq 'Intelliprompter localhost' } | Select-Object -First 1; if (-not $c) { throw 'certificate not found' }; Export-Certificate -Cert $c -FilePath '${cer.replace(/'/g, "''")}' | Out-Null`);
+    await runPowerShell(`$c = Get-ChildItem Cert:\\CurrentUser\\My | Where-Object { $_.FriendlyName -eq 'Filow localhost' -or $_.FriendlyName -eq 'Intelliprompter localhost' } | Select-Object -First 1; if (-not $c) { throw 'certificate not found' }; Export-Certificate -Cert $c -FilePath '${cer.replace(/'/g, "''")}' | Out-Null`);
   }
   await runCommand("certutil.exe", ["-user", "-addstore", "Root", cer]);
   settings.certTrusted = true;
@@ -602,7 +654,7 @@ async function ensureCertTrusted() {
 function startHttpsProxy() {
   if (httpsProxy || !haveCert()) return false;
   const relay = (url) => url.startsWith("/ws/") || url.startsWith("/api/session");
-  const hosted = Boolean(process.env.INTELLIPROMPTER_SESSION_URL);
+  const hosted = Boolean(process.env.FILOW_SESSION_URL);
   const tls = process.platform === "win32" ? { pfx: fs.readFileSync(pfxFile), passphrase: settings.pfxPassword } : { key: fs.readFileSync(pemKey), cert: fs.readFileSync(pemCert) };
   const server = https.createServer(tls, (req, res) => {
     if (req.url === "/api/local/current-session") {
@@ -655,11 +707,11 @@ function writeLocalPptManifest() {
 async function registerPptManifest() {
   if (process.platform === "darwin") {
     fs.mkdirSync(macWefDir, { recursive: true });
-    fs.copyFileSync(pptManifestFile, path.join(macWefDir, "intelliprompter.manifest.xml"));
+    fs.copyFileSync(pptManifestFile, path.join(macWefDir, "filow.manifest.xml"));
     return;
   }
   const key = "HKCU\\Software\\Microsoft\\Office\\16.0\\WEF\\Developer";
-  await runPowerShell(`New-Item -Path 'Registry::${key}' -Force | Out-Null; New-ItemProperty -Path 'Registry::${key}' -Name 'Intelliprompter' -Value '${pptManifestFile.replace(/'/g, "''")}' -PropertyType String -Force | Out-Null`);
+  await runPowerShell(`New-Item -Path 'Registry::${key}' -Force | Out-Null; New-ItemProperty -Path 'Registry::${key}' -Name 'Filow' -Value '${pptManifestFile.replace(/'/g, "''")}' -PropertyType String -Force | Out-Null`);
 }
 
 async function installPowerPointAddin(win, { silent = false } = {}) {
@@ -688,8 +740,8 @@ async function installPowerPointAddin(win, { silent = false } = {}) {
 
 async function uninstallPowerPointAddin(win) {
   try {
-    if (process.platform === "darwin") fs.rmSync(path.join(macWefDir, "intelliprompter.manifest.xml"), { force: true });
-    else await runPowerShell(`Remove-ItemProperty -Path 'Registry::HKCU\\Software\\Microsoft\\Office\\16.0\\WEF\\Developer' -Name 'Intelliprompter' -ErrorAction SilentlyContinue`);
+    if (process.platform === "darwin") fs.rmSync(path.join(macWefDir, "filow.manifest.xml"), { force: true });
+    else await runPowerShell(`Remove-ItemProperty -Path 'Registry::HKCU\\Software\\Microsoft\\Office\\16.0\\WEF\\Developer' -Name 'Filow' -ErrorAction SilentlyContinue`);
   } catch {
     /* already gone */
   }
@@ -728,7 +780,7 @@ function loadUpdater() {
             type: "info",
             buttons: [mt("updateRestart"), mt("updateLater")],
             defaultId: 0,
-            title: "Intelliprompter",
+            title: "Filow",
             message: mt("updateReady", { version: info.version }),
             detail: mt("updateReadyDetail"),
           })
@@ -754,11 +806,11 @@ function setUpdateState(next) {
 
 async function checkForUpdates({ manual = false } = {}) {
   if (!packaged) {
-    if (manual) dialog.showMessageBox(mainWin, { type: "info", title: "Intelliprompter", message: "Updates only work in the installed app." });
+    if (manual) dialog.showMessageBox(mainWin, { type: "info", title: "Filow", message: "Updates only work in the installed app." });
     return;
   }
   if (offline) {
-    if (manual) dialog.showMessageBox(mainWin, { type: "info", title: "Intelliprompter", message: mt("updateOffline") });
+    if (manual) dialog.showMessageBox(mainWin, { type: "info", title: "Filow", message: mt("updateOffline") });
     return;
   }
   const u = loadUpdater();
@@ -766,10 +818,10 @@ async function checkForUpdates({ manual = false } = {}) {
   try {
     const r = await u.checkForUpdates();
     if (manual && r && r.updateInfo && r.updateInfo.version === app.getVersion()) {
-      dialog.showMessageBox(mainWin, { type: "info", title: "Intelliprompter", message: mt("updateNone", { version: app.getVersion() }) });
+      dialog.showMessageBox(mainWin, { type: "info", title: "Filow", message: mt("updateNone", { version: app.getVersion() }) });
     }
   } catch (err) {
-    if (manual) dialog.showMessageBox(mainWin, { type: "warning", title: "Intelliprompter", message: mt("updateFailed"), detail: String(err.message || err) });
+    if (manual) dialog.showMessageBox(mainWin, { type: "warning", title: "Filow", message: mt("updateFailed"), detail: String(err.message || err) });
   }
 }
 
@@ -777,7 +829,7 @@ async function checkForUpdates({ manual = false } = {}) {
 // ---- Splash screen and first-start choices from the installer ----
 let splash = null;
 let splashShownAt = 0;
-const SPLASH_MIN_MS = Number(process.env.INTELLIPROMPTER_SPLASH_MIN_MS || 1800);
+const SPLASH_MIN_MS = Number(process.env.FILOW_SPLASH_MIN_MS || 1800);
 /** Plain-text startup log in userData (startup.log): which step ran, and any error the splash or link hit. */
 function logLine(msg) {
   try {
@@ -795,7 +847,7 @@ function showSplash() {
   const local = offline || (process.env.DECISION_PROVIDER || "").startsWith("clef-local");
   splash = new BrowserWindow({
     width: 460, height: 440, frame: false, resizable: false, show: false, alwaysOnTop: false, skipTaskbar: false,
-    backgroundColor: uiTheme() === "dark" ? "#0b0b0d" : "#f7f7f8", title: "Intelliprompter",
+    backgroundColor: uiTheme() === "dark" ? "#0b0b0d" : "#f7f7f8", title: "Filow",
     icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   });
@@ -877,7 +929,7 @@ function showOverlay() {
     hasShadow: true,
     opacity: settings.overlayOpacity || 0.94,
     backgroundColor: uiTheme() === "dark" ? "#0b0b0d" : "#f7f7f8",
-    title: "Intelliprompter overlay",
+    title: "Filow overlay",
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
   });
   overlayWin.setAlwaysOnTop(true, "screen-saver");
@@ -928,7 +980,7 @@ async function savePowerPointManifest(win) {
   const { buildManifest } = require(modulePath);
   const { filePath } = await dialog.showSaveDialog(win, {
     title: mt("pptManifest"),
-    defaultPath: path.join(app.getPath("documents"), "Intelliprompter.manifest.xml"),
+    defaultPath: path.join(app.getPath("documents"), "Filow.manifest.xml"),
     filters: [{ name: "Office manifest", extensions: ["xml"] }],
   });
   if (!filePath) return;
@@ -939,29 +991,29 @@ async function savePowerPointManifest(win) {
 function applyMirrorHost(win, host) {
   settings.mirrorHost = host;
   saveSettings();
-  process.env.INTELLIPROMPTER_LAN_IP = host || lanIp();
-  process.env.PUBLIC_ORIGIN = `http://${process.env.INTELLIPROMPTER_LAN_IP}:${PORT}`;
+  process.env.FILOW_LAN_IP = host || lanIp();
+  process.env.PUBLIC_ORIGIN = `http://${process.env.FILOW_LAN_IP}:${PORT}`;
   buildMenu(win);
   win.reload();
 }
 
 
 function startServers() {
-  const hosted = Boolean(process.env.INTELLIPROMPTER_SESSION_URL);
+  const hosted = Boolean(process.env.FILOW_SESSION_URL);
   const bind = hosted ? "127.0.0.1" : "0.0.0.0";
   if (!hosted) {
     // LAN mode: gate the spend endpoints with a per-launch secret that only this window knows.
     process.env.ACCESS_PASSWORD = crypto.randomBytes(16).toString("base64url");
     process.env.AUTO_ACCEPT_LAN = "1"; // phones on this Wi-Fi join without a prompt; tunnel peers are asked
-    process.env.INTELLIPROMPTER_LAN_IP = lanIp();
+    process.env.FILOW_LAN_IP = lanIp();
   }
   process.env.PORT = String(PORT);
   process.env.HOSTNAME = bind;
   process.env.SESSION_PORT = String(SESSION_PORT);
   process.env.SESSION_HOST = bind;
   process.env.NODE_ENV = "production";
-  process.env.INTELLIPROMPTER_SCRIPT = scriptFile;
-  process.env.PUBLIC_ORIGIN = `http://${process.env.INTELLIPROMPTER_LAN_IP || "127.0.0.1"}:${PORT}`;
+  process.env.FILOW_SCRIPT = scriptFile;
+  process.env.PUBLIC_ORIGIN = `http://${process.env.FILOW_LAN_IP || "127.0.0.1"}:${PORT}`;
   require(webServer); // Next's standalone server starts listening when required
   if (!hosted) require(sessionServer); // relay in-process; hosted mode uses the remote one
 }
@@ -985,10 +1037,10 @@ function waitFor(url, tries = 100) {
  * machine (the local servers and Ollama). Toggled from the menu; the server-side
  * provider resolution reads the same flag through process.env.
  */
-let offline = process.env.INTELLIPROMPTER_OFFLINE === "1";
+let offline = process.env.FILOW_OFFLINE === "1";
 function applyOffline(win, value) {
   offline = value;
-  process.env.INTELLIPROMPTER_OFFLINE = value ? "1" : "";
+  process.env.FILOW_OFFLINE = value ? "1" : "";
   const filter = { urls: ["*://*/*", "ws://*/*", "wss://*/*"] };
   session.defaultSession.webRequest.onBeforeRequest(filter, (details, callback) => {
     if (!offline) return callback({});
@@ -999,7 +1051,7 @@ function applyOffline(win, value) {
         return "";
       }
     })();
-    const local = host === "127.0.0.1" || host === "localhost" || host === "::1" || host === process.env.INTELLIPROMPTER_LAN_IP;
+    const local = host === "127.0.0.1" || host === "localhost" || host === "::1" || host === process.env.FILOW_LAN_IP;
     // (the HTTPS proxy on localhost:HTTPS_PORT is covered by "localhost")
     callback({ cancel: !local });
   });
@@ -1009,7 +1061,7 @@ function applyOffline(win, value) {
 function buildMenu(win) {
   const template = [
     {
-      label: "Intelliprompter",
+      label: "Filow",
       submenu: [
         { label: mt("configFolder"), click: () => shell.openPath(userData) },
         { label: mt("editEnv"), click: () => shell.openPath(envFile) },
@@ -1095,17 +1147,20 @@ function buildMenu(win) {
 async function main() {
   let choices = null;
   try {
-    seed(envFile, ".env.example");
     seed(scriptFile, "script.md");
+    const migrated = migrateLegacyProfile();
+    seed(envFile, ".env.example");
     loadEnv(envFile);
+    aliasLegacyEnv();
     loadSettings();
+    if (migrated) settings.profileMigrated = true;
     choices = readInstallChoices();
     showSplash();
     splashStatus(st("servers"));
     startServers();
   } catch (err) {
     closeSplash();
-    dialog.showErrorBox("Intelliprompter failed to start", String(err && err.stack ? err.stack : err));
+    dialog.showErrorBox("Filow failed to start", String(err && err.stack ? err.stack : err));
     app.quit();
     return;
   }
@@ -1120,7 +1175,7 @@ async function main() {
     width: 1280,
     height: 820,
     backgroundColor: "#0b0b0d",
-    title: "Intelliprompter",
+    title: "Filow",
     show: false,
     icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
@@ -1138,6 +1193,11 @@ async function main() {
   ipcMain.on("overlay:close", () => hideOverlay());
   const hk = registerHotkey();
   if (!hk.ok) console.warn("Screen Sense hotkey:", hk.error);
+  if (settings.profileMigrated) {
+    delete settings.profileMigrated;
+    saveSettings();
+    void refreshPptRegistrationAfterMigration();
+  }
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
@@ -1145,10 +1205,10 @@ async function main() {
 
   try {
     await waitFor(APP_URL + "/api/stt/status");
-    if (!process.env.INTELLIPROMPTER_SESSION_URL) await waitFor(`http://127.0.0.1:${SESSION_PORT}/health`);
+    if (!process.env.FILOW_SESSION_URL) await waitFor(`http://127.0.0.1:${SESSION_PORT}/health`);
     const firstPage = choices && Array.isArray(choices.models) && choices.models.length ? `${APP_URL}/settings/local?auto=${encodeURIComponent(choices.models.join(","))}` : APP_URL;
     await win.loadURL(firstPage);
-    if (settings.remoteShare && !offline && !process.env.INTELLIPROMPTER_SESSION_URL) {
+    if (settings.remoteShare && !offline && !process.env.FILOW_SESSION_URL) {
       // Hold the splash until the public link is up (or 45 s), so the first QR already works from anywhere.
       splashStatus(cloudflaredPath() ? st("link") : st("download"));
       const linkUp = new Promise((resolve) => {
@@ -1202,7 +1262,7 @@ async function main() {
     }
   } catch (err) {
     closeSplash();
-    dialog.showErrorBox("Intelliprompter failed to start", String(err));
+    dialog.showErrorBox("Filow failed to start", String(err));
     app.quit();
   }
 }

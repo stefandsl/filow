@@ -1,6 +1,6 @@
 "use client";
 
-import type { ScreenSummary } from "@intelliprompter/core";
+import type { ScreenSummary } from "@filow/core";
 import { useT } from "./lang";
 
 export type OnScreenStripProps = {

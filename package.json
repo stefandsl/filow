@@ -1,8 +1,8 @@
 {
-  "name": "intelliprompter-monorepo",
-  "version": "0.7.1",
+  "name": "filow-monorepo",
+  "version": "0.8.0",
   "private": true,
-  "description": "Intelliprompter: a teleprompter that checks off your talking points as you say them.",
+  "description": "Filow: a live speaking companion that listens as you present, checks off your talking points as you cover them and shows what you missed.",
   "author": "Stefan Butnaru",
   "license": "UNLICENSED",
   "workspaces": [

@@ -1,15 +1,15 @@
 <p align="center">
-  <img src="apps/desktop/build/icon.png" width="128" alt="Intelliprompter" />
+  <img src="apps/desktop/build/icon.png" width="128" alt="Filow" />
 </p>
 
-<h1 align="center">Intelliprompter</h1>
+<h1 align="center">Filow</h1>
 
-<p align="center"><strong>A teleprompter for people who don't read scripts.</strong><br/>
-Write talking points. Start talking. Each point checks itself off the moment you start making it.</p>
+<p align="center"><strong>Speak freely. Stay on point.</strong><br/>
+Filow is a live speaking companion: it listens as you present, checks off your talking points as you cover them, and shows what you missed. Not a scrolling teleprompter.</p>
 
 <p align="center">
-  <a href="https://github.com/stefandsl/intelliprompter/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/stefandsl/intelliprompter?display_name=tag&label=download&color=f0a53a" /></a>
-  <a href=".github/workflows/desktop.yml"><img alt="Desktop builds" src="https://img.shields.io/github/actions/workflow/status/stefandsl/intelliprompter/desktop.yml?label=build" /></a>
+  <a href="https://github.com/stefandsl/filow/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/stefandsl/filow?display_name=tag&label=download&color=f0a53a" /></a>
+  <a href=".github/workflows/desktop.yml"><img alt="Desktop builds" src="https://img.shields.io/github/actions/workflow/status/stefandsl/filow/desktop.yml?label=build" /></a>
   <img alt="Platforms" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-desktop-141418" />
   <img alt="Phone mirror" src="https://img.shields.io/badge/Android%20%7C%20iOS-phone%20mirror-141418" />
   <img alt="PowerPoint" src="https://img.shields.io/badge/PowerPoint-add--in-b7472a" />
@@ -20,7 +20,7 @@ Write talking points. Start talking. Each point checks itself off the moment you
 <p align="center"><sub>Proprietary software, © 2026 Stefan Butnaru (VoidExploit), all rights reserved. Installers up to v0.6.0 still show the earlier MIT text in their licence page; from the next tag the installer carries the proprietary notice.</sub></p>
 
 <p align="center">
-  <a href="https://github.com/stefandsl/intelliprompter/releases/latest">Download</a> ·
+  <a href="https://github.com/stefandsl/filow/releases/latest">Download</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#screen-sense">Screen Sense</a> ·
   <a href="#phone-mirror-and-remote">Phone mirror</a> ·
@@ -31,11 +31,13 @@ Write talking points. Start talking. Each point checks itself off the moment you
 
 ---
 
+> **Renamed from Intelliprompter in 0.8.0.** Existing installations keep working: the app moves its profile (keys, script, certificates, add-in files) to the new folder on first start, accepts the old `INTELLIPROMPTER_*` environment names, upgrades over the old install, and re-registers the PowerPoint add-in. The old GitHub URLs redirect to the new ones. On a Debian server rename the systemd units at your convenience (see the deploy section); the old unit names keep running.
+
 ## The problem: scripts make you sound like you are reading
 
 A classic teleprompter scrolls text at a fixed speed and you chase it. The moment you improvise, tell a story or answer a question, the prompter and you drift apart, and the rest of the talk is spent finding your place. The alternative, bullet points on a card, keeps you natural but gives you no feedback: you only discover the point you skipped when the talk is over.
 
-Intelliprompter keeps the bullet points and adds the feedback. It listens, and twice a second a small model answers one question per open point: *has the speaker started talking about this?* Paraphrases, examples and translations count; "I'll get to that later" does not. Points flip to **started** as you cover them, and the ones you skip pile up in a **Missed** tray so you can circle back before the end.
+Filow keeps the bullet points and adds the feedback. It listens, and twice a second a small model answers one question per open point: *has the speaker started talking about this?* Paraphrases, examples and translations count; "I'll get to that later" does not. Points flip to **started** as you cover them, and the ones you skip pile up in a **Missed** tray so you can circle back before the end.
 
 ## What it does
 
@@ -45,7 +47,7 @@ Intelliprompter keeps the bullet points and adds the feedback. It listens, and t
 | ⚠️ **Missed tray** | Everything you jumped over, one click to re-open. |
 | 👁 **Screen Sense** | Watches your slides or any window and tells you what is on screen, which facts you have not said yet, and when a slide contradicts your script. |
 | 📱 **Phone mirror** | Scan a QR and your phone shows the live view with Prev / Next / Stop. Works from any network by default; you approve each phone. |
-| 🖥 **PowerPoint add-in** | One click adds Intelliprompter to PowerPoint on this PC or Mac. Your speaker notes become the script, or the script is generated from the slides. |
+| 🖥 **PowerPoint add-in** | One click adds Filow to PowerPoint on this PC or Mac. Your speaker notes become the script, or the script is generated from the slides. |
 | 🧩 **Browser extension** | reveal.js, Slidev, Marp, Canva, Pitch: generate the script from the deck and follow the live slide. |
 | 📄 **Import** | PDF, PPTX, DOCX, TXT or Markdown become talking points, one section per slide or page. |
 | 🔒 **Privacy modes** | On-device Whisper, a local decision model via Ollama, a PII guard before any cloud call, and a full offline mode. |
@@ -55,7 +57,7 @@ Intelliprompter keeps the bullet points and adds the feedback. It listens, and t
 
 ## Quick start
 
-1. **Download** the installer for your OS from the [latest release](https://github.com/stefandsl/intelliprompter/releases/latest) (`-win-x64.exe`, `-mac-arm64.dmg` / `-mac-x64.dmg`, `-linux-x86_64.AppImage` / `.deb`). Windows shows a SmartScreen warning because the build is not code-signed yet; see [Code signing](#code-signing-and-the-smartscreen-warning).
+1. **Download** the installer for your OS from the [latest release](https://github.com/stefandsl/filow/releases/latest) (`-win-x64.exe`, `-mac-arm64.dmg` / `-mac-x64.dmg`, `-linux-x86_64.AppImage` / `.deb`). Windows shows a SmartScreen warning because the build is not code-signed yet; see [Code signing](#code-signing-and-the-smartscreen-warning).
 2. **Add your key**: menu → *Edit API keys (.env)* → paste an [OpenRouter](https://openrouter.ai/keys) key (a few cents per talk) → restart.
 3. **Write points**: *Edit points*, or *Import document*, or just *Watch screen…* and let Screen Sense build a section per slide.
 4. **Start take**, talk, watch the points check themselves off. Click the pairing code to put the same view on your phone.
@@ -142,7 +144,7 @@ A phone on mobile data, or on an office Wi-Fi that isolates clients, cannot reac
 
 1. **Public link, on by default** in the desktop app. On first start the app downloads Cloudflare's free `cloudflared` once (about 20 MB, shown as "Setting up the public link…" in the pairing dialog), opens two quick tunnels and refreshes the QR; it then carries random `https://….trycloudflare.com` URLs that work from anywhere, like WhatsApp Web. The pairing dialog says "Works from any network" when it is ready, or why it is not (no internet, download blocked), in which case the QR keeps working on the same Wi-Fi. Turn it off in the dialog ("Back to Wi-Fi only"), with the ✕ on the "public link" chip in the top bar, or in the menu; the tunnel also stops when the app quits. Quick tunnels (`*.trycloudflare.com`) are meant for short tests: no uptime promise, a new URL every start. For talks that matter, run your own server (below) or a [named Cloudflare tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) with Cloudflare Access in front of the mirror page. Pairing still needs the 6-digit code, pairing is rate limited, and the spend endpoints stay behind the engine token. Turn it off from the same menu; the URLs change every time. Not available in Offline mode.
 2. **Same VPN on both**: if the laptop and the phone run the same VPN (Tailscale, Twingate…), pick the VPN address in the menu **Mirror address on this network** and scan again. The app prefers a private LAN address by default, so a VPN address is never chosen automatically.
-3. **Your own server**: deploy the Debian setup below and point the desktop app at it with `INTELLIPROMPTER_SESSION_URL` in `.env`. Permanent URL, your own domain.
+3. **Your own server**: deploy the Debian setup below and point the desktop app at it with `FILOW_SESSION_URL` in `.env`. Permanent URL, your own domain.
 
 If the QR shows an address the phone cannot open, check the menu **Mirror address on this network**: the laptop may have several (Wi-Fi, Ethernet, VPN, virtual adapters) and the automatic choice can be wrong.
 
@@ -167,18 +169,18 @@ Download the file for your OS from the **Releases** page of this repo (built aut
 
 | OS | File | Notes |
 |---|---|---|
-| Windows | `Intelliprompter-x.y.z-win-x64.exe` (the NSIS installer; the portable build has the same name pattern) | Unsigned: SmartScreen shows "unknown publisher". Click **More info → Run anyway**. |
-| macOS | `Intelliprompter-x.y.z-mac-arm64.dmg` (Apple Silicon) or `-mac-x64.dmg` (Intel) | Unsigned: first launch is blocked. Run once in Terminal: `xattr -dr com.apple.quarantine /Applications/Intelliprompter.app` |
-| Linux | `Intelliprompter-x.y.z-linux-x64.AppImage` or `.deb` | AppImage: `chmod +x` then run. Deb: `sudo apt install ./intelliprompter_x.y.z_amd64.deb` |
+| Windows | `Filow-x.y.z-win-x64.exe` (the NSIS installer; the portable build has the same name pattern) | Unsigned: SmartScreen shows "unknown publisher". Click **More info → Run anyway**. |
+| macOS | `Filow-x.y.z-mac-arm64.dmg` (Apple Silicon) or `-mac-x64.dmg` (Intel) | Unsigned: first launch is blocked. Run once in Terminal: `xattr -dr com.apple.quarantine /Applications/Filow.app` |
+| Linux | `Filow-x.y.z-linux-x64.AppImage` or `.deb` | AppImage: `chmod +x` then run. Deb: `sudo apt install ./filow_x.y.z_amd64.deb` |
 
 ### The Windows installer
 
-A step-by-step wizard in the language of your Windows (English, Italian, German, French, Spanish, Portuguese, Dutch, Polish, Russian, Japanese, Chinese; the custom pages are in English and Italian): welcome, licence (proprietary, © VoidExploit), install folder, a **Local models and API keys** page where you tick the models to download on first start (Whisper base is preselected; Whisper small; Clef Flash via Ollama) and read that cloud decisions need an OpenRouter key, then the finish page with **Run Intelliprompter** and **Create a desktop shortcut**. The app opens with a splash screen (logo, progress bar, "Local models · data stays on this PC · GDPR" when it runs locally, "PII guard on · GDPR" otherwise) while the servers and the public link start, then goes to Settings to fetch the models you ticked.
+A step-by-step wizard in the language of your Windows (English, Italian, German, French, Spanish, Portuguese, Dutch, Polish, Russian, Japanese, Chinese; the custom pages are in English and Italian): welcome, licence (proprietary, © VoidExploit), install folder, a **Local models and API keys** page where you tick the models to download on first start (Whisper base is preselected; Whisper small; Clef Flash via Ollama) and read that cloud decisions need an OpenRouter key, then the finish page with **Run Filow** and **Create a desktop shortcut**. The app opens with a splash screen (logo, progress bar, "Local models · data stays on this PC · GDPR" when it runs locally, "PII guard on · GDPR" otherwise) while the servers and the public link start, then goes to Settings to fetch the models you ticked.
 
 ### First start
 
 1. Launch the app. It shows a notice that no OpenRouter key is set.
-2. Menu **Intelliprompter → Open config folder**. You get a folder with two files:
+2. Menu **Filow → Open config folder**. You get a folder with two files:
    - `.env` – paste your keys here (same format as `.env.example`)
    - `script.md` – your talking points (also editable from **Edit points** inside the app)
 3. Save `.env`, quit and relaunch the app.
@@ -188,9 +190,9 @@ Config folder locations:
 
 | OS | Path |
 |---|---|
-| Windows | `%APPDATA%\Intelliprompter\` |
-| macOS | `~/Library/Application Support/Intelliprompter/` |
-| Linux | `~/.config/Intelliprompter/` |
+| Windows | `%APPDATA%\Filow\` |
+| macOS | `~/Library/Application Support/Filow/` |
+| Linux | `~/.config/Filow/` |
 
 The desktop app has no Web Speech backend (Electron's Chromium ships without it), so set `ELEVENLABS_API_KEY` or `OPENAI_API_KEY`.
 
@@ -203,8 +205,8 @@ Prerequisites: **Node.js 22** (https://nodejs.org) and **git**. Chrome or Edge i
 ### Windows (PowerShell)
 
 ```powershell
-git clone https://github.com/<you>/intelliprompter.git
-cd intelliprompter
+git clone https://github.com/<you>/filow.git
+cd filow
 npm ci
 Copy-Item apps/web/.env.example apps/web/.env.local
 notepad apps/web/.env.local      # paste your keys, save
@@ -216,8 +218,8 @@ Open http://localhost:4747 in Chrome or Edge and allow the microphone.
 ### macOS / Linux
 
 ```bash
-git clone https://github.com/<you>/intelliprompter.git
-cd intelliprompter
+git clone https://github.com/<you>/filow.git
+cd filow
 npm ci
 cp apps/web/.env.example apps/web/.env.local
 nano apps/web/.env.local         # paste your keys, save with Ctrl+O, Enter, Ctrl+X
@@ -278,13 +280,13 @@ The installed desktop app checks for a new version a few seconds after start-up 
 The feed is a **public** GitHub repository that holds only the installers, because this source repository is private and an installed app cannot read private releases without shipping a secret. One-time setup, from a machine where `gh` is logged in:
 
 ```bash
-gh repo create stefandsl/intelliprompter-releases --public --description "Intelliprompter installers (auto-update feed)"
+gh repo create stefandsl/filow-releases --public --description "Filow installers (auto-update feed)"
 ```
 
-Create a fine-grained personal access token on GitHub (Settings → Developer settings → Personal access tokens) with **Contents: read and write** on `intelliprompter-releases` only, then store it as a secret of this repository:
+Create a fine-grained personal access token on GitHub (Settings → Developer settings → Personal access tokens) with **Contents: read and write** on `filow-releases` only, then store it as a secret of this repository:
 
 ```bash
-gh secret set RELEASES_TOKEN --repo stefandsl/intelliprompter
+gh secret set RELEASES_TOKEN --repo stefandsl/filow
 ```
 
 From the next tag on, the release job publishes the same installers plus the update metadata (`latest*.yml`, `*.blockmap`) to the public repo, and installed apps pick them up. Nothing from the source leaves the private repo.
@@ -302,11 +304,11 @@ Windows shows "Microsoft Defender SmartScreen couldn't verify this file" for any
 For a `.pfx` certificate, the workflow is already prepared: store the file and its password as repository secrets and every tagged build is signed.
 
 ```bash
-base64 -w0 your-certificate.pfx | gh secret set WIN_CSC_LINK --repo stefandsl/intelliprompter
+base64 -w0 your-certificate.pfx | gh secret set WIN_CSC_LINK --repo stefandsl/filow
 ```
 
 ```bash
-gh secret set WIN_CSC_KEY_PASSWORD --repo stefandsl/intelliprompter
+gh secret set WIN_CSC_KEY_PASSWORD --repo stefandsl/filow
 ```
 
 For Azure Trusted Signing, add to `apps/desktop/package.json` under `build.win` an `azureSignOptions` block with your `publisherName`, `endpoint`, `certificateProfileName` and `codeSigningAccountName`, and the secrets `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` as workflow env; electron-builder signs with them. Set `build.win.publisherName` to the exact name on the certificate so the updater can verify downloaded installers.
@@ -334,20 +336,20 @@ node -v && npm -v
 ### 2. A dedicated user and the code
 
 ```bash
-sudo useradd -r -m -d /opt/intelliprompter -s /usr/sbin/nologin prompter
-sudo -u prompter git clone https://github.com/<you>/intelliprompter.git /opt/intelliprompter/app
+sudo useradd -r -m -d /opt/filow -s /usr/sbin/nologin prompter
+sudo -u prompter git clone https://github.com/<you>/filow.git /opt/filow/app
 ```
 
 Private repo? Create a fine-grained **read-only** personal access token on GitHub and clone with it instead:
 
 ```bash
-sudo -u prompter git clone https://<you>:<TOKEN>@github.com/<you>/intelliprompter.git /opt/intelliprompter/app
+sudo -u prompter git clone https://<you>:<TOKEN>@github.com/<you>/filow.git /opt/filow/app
 ```
 
 ### 3. Keys and build
 
 ```bash
-cd /opt/intelliprompter/app
+cd /opt/filow/app
 sudo -u prompter cp apps/web/.env.example apps/web/.env.local
 sudo -u prompter nano apps/web/.env.local        # paste keys, Ctrl+O, Enter, Ctrl+X
 sudo -u prompter npm ci
@@ -357,16 +359,16 @@ sudo -u prompter npm run build
 ### 4. systemd service (starts on boot, restarts on crash)
 
 ```bash
-sudo tee /etc/systemd/system/intelliprompter.service >/dev/null <<'EOF'
+sudo tee /etc/systemd/system/filow.service >/dev/null <<'EOF'
 [Unit]
-Description=Intelliprompter (Next.js)
+Description=Filow (Next.js)
 After=network.target
 
 [Service]
 Type=simple
 User=prompter
-WorkingDirectory=/opt/intelliprompter/app
-EnvironmentFile=/opt/intelliprompter/app/apps/web/.env.local
+WorkingDirectory=/opt/filow/app
+EnvironmentFile=/opt/filow/app/apps/web/.env.local
 Environment=NODE_ENV=production
 Environment=PORT=4747
 Environment=HOSTNAME=127.0.0.1
@@ -377,16 +379,16 @@ RestartSec=3
 [Install]
 WantedBy=multi-user.target
 EOF
-sudo tee /etc/systemd/system/intelliprompter-session.service >/dev/null <<'EOF'
+sudo tee /etc/systemd/system/filow-session.service >/dev/null <<'EOF'
 [Unit]
-Description=Intelliprompter session relay
+Description=Filow session relay
 After=network.target
 
 [Service]
 Type=simple
 User=prompter
-WorkingDirectory=/opt/intelliprompter/app
-EnvironmentFile=/opt/intelliprompter/app/apps/web/.env.local
+WorkingDirectory=/opt/filow/app
+EnvironmentFile=/opt/filow/app/apps/web/.env.local
 Environment=NODE_ENV=production
 Environment=SESSION_PORT=4748
 Environment=SESSION_HOST=127.0.0.1
@@ -399,8 +401,8 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 sudo systemctl daemon-reload
-sudo systemctl enable --now intelliprompter intelliprompter-session
-sudo systemctl status intelliprompter intelliprompter-session --no-pager
+sudo systemctl enable --now filow filow-session
+sudo systemctl status filow filow-session --no-pager
 curl -s http://127.0.0.1:4747/api/stt/status
 curl -s http://127.0.0.1:4748/health
 ```
@@ -476,21 +478,43 @@ EOF
 sudo systemctl reload caddy
 ```
 
+### Upgrading a server that was deployed as Intelliprompter
+
+The old unit names, folder and `.env.local` keep working (the app reads both `INTELLIPROMPTER_*` and `FILOW_*` names). To align the names with the new ones:
+
+```bash
+sudo systemctl disable --now intelliprompter intelliprompter-session
+```
+
+```bash
+sudo mv /opt/intelliprompter /opt/filow && sudo mv /etc/systemd/system/intelliprompter.service /etc/systemd/system/filow.service && sudo mv /etc/systemd/system/intelliprompter-session.service /etc/systemd/system/filow-session.service
+```
+
+```bash
+sudo sed -i 's#/opt/intelliprompter#/opt/filow#g; s/INTELLIPROMPTER_/FILOW_/g' /etc/systemd/system/filow.service /etc/systemd/system/filow-session.service /opt/filow/app/apps/web/.env.local
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now filow filow-session
+```
+
+Then pull from the renamed repository (`git remote set-url origin https://github.com/stefandsl/filow.git`; the old URL redirects anyway) and rebuild.
+
 ### Update to a new version
 
 ```bash
-cd /opt/intelliprompter/app
+cd /opt/filow/app
 sudo -u prompter git pull
 sudo -u prompter npm ci
 sudo -u prompter npm run build
-sudo systemctl restart intelliprompter intelliprompter-session
+sudo systemctl restart filow filow-session
 ```
 
 ### Logs
 
 ```bash
-sudo journalctl -u intelliprompter -f
-sudo journalctl -u intelliprompter-session -f
+sudo journalctl -u filow -f
+sudo journalctl -u filow-session -f
 sudo journalctl -u caddy -f
 ```
 
@@ -504,8 +528,8 @@ For hacking on the code on a remote Debian box with hot reload, instead of (or n
 sudo apt update && sudo apt -y install git curl
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt -y install nodejs
-git clone https://github.com/<you>/intelliprompter.git ~/intelliprompter
-cd ~/intelliprompter
+git clone https://github.com/<you>/filow.git ~/filow
+cd ~/filow
 npm ci
 cp apps/web/.env.example apps/web/.env.local
 nano apps/web/.env.local
@@ -535,7 +559,7 @@ npm run start:server   # run the standalone web build the way systemd does
 npm run start:session  # run the relay
 ```
 
-Working with VS Code: install the **Remote - SSH** extension, connect to the server, open `~/intelliprompter`. The port is forwarded automatically when you run `npm run dev` in the integrated terminal.
+Working with VS Code: install the **Remote - SSH** extension, connect to the server, open `~/filow`. The port is forwarded automatically when you run `npm run dev` in the integrated terminal.
 
 ---
 
@@ -556,7 +580,7 @@ Screen Sense lets the engine see what the audience sees (ARCHITECTURE.md §6). P
 - **Export notes** appears after Stop take: a Markdown file with one entry per slide, what was on screen and what you were saying at the time.
 - **Import document** turns a PDF, PPTX, DOCX, TXT or MD file into talking points: one section per slide or page, PPTX speaker notes become the points and slide titles the section titles. You review the result before it replaces `script.md`. Scanned PDF pages have no text and are reported as warnings; add those points by hand.
 
-Privacy: frames live in memory only, go once over HTTPS to the vision model and are dropped; nothing is written to disk or logged. Only the returned text is kept for the session, and the phone mirror and the PowerPoint pane receive that text, never images. The Intelliprompter window is excluded from the source list. In **Offline mode** Screen Sense is disabled (no local vision model ships yet). Screen content is untrusted: the prompt tells the model to treat text on the slide as data, never as instructions.
+Privacy: frames live in memory only, go once over HTTPS to the vision model and are dropped; nothing is written to disk or logged. Only the returned text is kept for the session, and the phone mirror and the PowerPoint pane receive that text, never images. The Filow window is excluded from the source list. In **Offline mode** Screen Sense is disabled (no local vision model ships yet). Screen content is untrusted: the prompt tells the model to treat text on the slide as data, never as instructions.
 
 In the browser (not the desktop app) the browser's own share picker is used, and there is no region hotkey.
 
@@ -564,7 +588,7 @@ In the browser (not the desktop app) the browser's own share picker is used, and
 
 A task pane for PowerPoint lives in [apps/powerpoint](apps/powerpoint/README.md). Your speaker notes become the script (one slide per section, `-` lines are points), the pane follows the selected slide while you edit, and it runs the microphone itself on Windows and PowerPoint for the web or mirrors a session by code elsewhere. PowerPoint hides panes during a slide show and offers no API to follow one, so on stage the phone mirror or the desktop app is the live view. Build with `npm run build -w apps/powerpoint`; the pane is then served by the web app under `/powerpoint/`.
 
-**Windows and macOS, one click.** On first start the desktop app asks "Add Intelliprompter to PowerPoint?". Yes creates a certificate for localhost and trusts it for your user (Windows: one confirmation dialog; macOS: the login-keychain password once), starts an HTTPS proxy on port 4749 in front of the app, and registers the add-in for PowerPoint: through Office's developer sideload key on Windows (HKCU, no admin) or the `wef` folder of the PowerPoint container on macOS. Restart PowerPoint and Intelliprompter is on the Home tab (Mac: Insert → My Add-ins). The pane talks to the app on this computer, so keep Intelliprompter running while you present; on a Mac the pane is a view (Office for Mac gives add-ins no microphone), so start the take in the app or from the phone. The menu has "Remove Intelliprompter from PowerPoint on this PC" to undo it, and the install item if you said "Not now".
+**Windows and macOS, one click.** On first start the desktop app asks "Add Filow to PowerPoint?". Yes creates a certificate for localhost and trusts it for your user (Windows: one confirmation dialog; macOS: the login-keychain password once), starts an HTTPS proxy on port 4749 in front of the app, and registers the add-in for PowerPoint: through Office's developer sideload key on Windows (HKCU, no admin) or the `wef` folder of the PowerPoint container on macOS. Restart PowerPoint and Filow is on the Home tab (Mac: Insert → My Add-ins). The pane talks to the app on this computer, so keep Filow running while you present; on a Mac the pane is a view (Office for Mac gives add-ins no microphone), so start the take in the app or from the phone. The menu has "Remove Filow from PowerPoint on this PC" to undo it, and the install item if you said "Not now".
 
 **Other computers.** PowerPoint only loads add-ins over HTTPS and never shows one by itself: it needs a manifest file. From the desktop app: turn on **Share to phone on any network**, then menu → **PowerPoint add-in: save manifest for another computer…**; the file points at the public tunnel URL. Sideload it in PowerPoint for the web (Home → Add-ins → More Add-ins → My Add-ins → Upload My Add-in) or, on Windows, through a trusted shared folder (steps in the add-in README). The tunnel URL changes each time sharing restarts, so this is for trying it out; for a permanent install deploy on your server with HTTPS, set `PUBLIC_ORIGIN=https://your-domain` in `.env`, and the same menu item writes a manifest for that domain.
 
@@ -574,7 +598,7 @@ In the pane, **Generate script from slides** reads every slide (titles, text, ta
 
 ## Browser extension (HTML slide decks)
 
-For reveal.js, Slidev, Marp, impress.js, Canva and Pitch decks in the browser: the extension's side panel pairs with your Intelliprompter session, **generates the script from the deck** (it steps through the slides for you) and **follows** the live slide so the prompter, the phone and the check-off stay in sync. Install: download `Intelliprompter-extension-<version>.zip` from the release, unzip it, open `chrome://extensions` (or `edge://extensions`), turn on Developer mode, **Load unpacked** → the unzipped folder. Firefox: `about:debugging` → This Firefox → Load Temporary Add-on → `manifest.json`. Click the toolbar icon, enter the pairing code shown by the app (defaults point at the desktop app on this PC), then "Use this tab as the deck". No API keys live in the extension.
+For reveal.js, Slidev, Marp, impress.js, Canva and Pitch decks in the browser: the extension's side panel pairs with your Filow session, **generates the script from the deck** (it steps through the slides for you) and **follows** the live slide so the prompter, the phone and the check-off stay in sync. Install: download `Filow-extension-<version>.zip` from the release, unzip it, open `chrome://extensions` (or `edge://extensions`), turn on Developer mode, **Load unpacked** → the unzipped folder. Firefox: `about:debugging` → This Firefox → Load Temporary Add-on → `manifest.json`. Click the toolbar icon, enter the pairing code shown by the app (defaults point at the desktop app on this PC), then "Use this tab as the deck". No API keys live in the extension.
 
 ## Script format
 
@@ -589,7 +613,7 @@ For reveal.js, Slidev, Marp, impress.js, Canva and Pitch decks in the browser: t
 - another point
 ```
 
-Web mode reads `script.md` in the project folder. The desktop app reads it from its config folder. Override with the `INTELLIPROMPTER_SCRIPT` environment variable (absolute path).
+Web mode reads `script.md` in the project folder. The desktop app reads it from its config folder. Override with the `FILOW_SCRIPT` environment variable (absolute path).
 
 ---
 
@@ -622,6 +646,6 @@ ARCHITECTURE.md           the design: session protocol, Screen Sense, add-ins, m
 
 **Points never flip to STARTED** – check the footer: `CALLS` should be climbing. If it is 0, the decide route is failing; the error chip at the top shows why. If calls climb but nothing flips, say the idea more directly or lower `START_THRESHOLD` in `components/Teleprompter.tsx`.
 
-**Port 4747 already in use** – web: change `-p 4747` in `package.json` scripts. Desktop: set the environment variable `INTELLIPROMPTER_PORT` before launching.
+**Port 4747 already in use** – web: change `-p 4747` in `package.json` scripts. Desktop: set the environment variable `FILOW_PORT` before launching.
 
 **Windows SmartScreen / macOS Gatekeeper blocks the app** – the builds are unsigned. See the notes in [Desktop app: install and run](#desktop-app-install-and-run).

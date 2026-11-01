@@ -3,7 +3,7 @@
 // pure functions so they can be tested on strings; the zip handling lives in
 // `importFile`.
 import JSZip from "jszip";
-import { IMPORT_MARKER, parseScript, SLIDES_MARKER, type Script } from "@intelliprompter/core";
+import { IMPORT_MARKER, parseScript, SLIDES_MARKER, type Script } from "@filow/core";
 
 export type Imported = { text: string; script: Script; kind: string; pages: number; warnings: string[] };
 

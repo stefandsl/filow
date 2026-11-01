@@ -1,4 +1,4 @@
-import { SYSTEM_PROMPT, buildUserPrompt, parseDecisions, type DecideRequest, type DecideResponse } from "@intelliprompter/core";
+import { SYSTEM_PROMPT, buildUserPrompt, parseDecisions, type DecideRequest, type DecideResponse } from "@filow/core";
 
 /** Cloud decisions through an OpenRouter chat model answering JSON. */
 export async function decideOpenRouter(body: DecideRequest): Promise<DecideResponse> {
@@ -12,7 +12,7 @@ export async function decideOpenRouter(body: DecideRequest): Promise<DecideRespo
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
       "HTTP-Referer": process.env.PUBLIC_ORIGIN || "http://localhost:4747",
-      "X-Title": "Intelliprompter",
+      "X-Title": "Filow",
     },
     body: JSON.stringify({
       model,

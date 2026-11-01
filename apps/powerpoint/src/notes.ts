@@ -1,7 +1,7 @@
-// Pure conversion: slide titles + speaker notes → Intelliprompter script text.
+// Pure conversion: slide titles + speaker notes → Filow script text.
 // One slide = one section. Note lines starting with - * • become points; other
 // note lines are ignored (they are the presenter's prose, not checklist items).
-import { SLIDES_MARKER } from "@intelliprompter/core";
+import { SLIDES_MARKER } from "@filow/core";
 
 export type SlideNotes = { title?: string; notes: string };
 

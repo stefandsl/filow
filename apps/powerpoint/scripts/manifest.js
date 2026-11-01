@@ -21,9 +21,9 @@ function buildManifest(origin, { dev = false, id = randomUUID() } = {}) {
   xsi:type="TaskPaneApp">
   <Id>${id}</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>Intelliprompter</ProviderName>
+  <ProviderName>Filow</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="Intelliprompter"/>
+  <DisplayName DefaultValue="Filow"/>
   <Description DefaultValue="Your speaker notes become live talking points that get checked off as you say them."/>
   <IconUrl DefaultValue="${base}/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="${base}/assets/icon-64.png"/>
@@ -54,14 +54,14 @@ function buildManifest(origin, { dev = false, id = randomUUID() } = {}) {
           </GetStarted>
           <ExtensionPoint xsi:type="PrimaryCommandSurface">
             <OfficeTab id="TabHome">
-              <Group id="Intelliprompter.Group">
+              <Group id="Filow.Group">
                 <Label resid="Group.Label"/>
                 <Icon>
                   <bt:Image size="16" resid="Icon.16"/>
                   <bt:Image size="32" resid="Icon.32"/>
                   <bt:Image size="80" resid="Icon.80"/>
                 </Icon>
-                <Control xsi:type="Button" id="Intelliprompter.Open">
+                <Control xsi:type="Button" id="Filow.Open">
                   <Label resid="Open.Label"/>
                   <Supertip>
                     <Title resid="Open.Label"/>
@@ -73,7 +73,7 @@ function buildManifest(origin, { dev = false, id = randomUUID() } = {}) {
                     <bt:Image size="80" resid="Icon.80"/>
                   </Icon>
                   <Action xsi:type="ShowTaskpane">
-                    <TaskpaneId>Intelliprompter.Pane</TaskpaneId>
+                    <TaskpaneId>Filow.Pane</TaskpaneId>
                     <SourceLocation resid="Taskpane.Url"/>
                   </Action>
                 </Control>
@@ -94,12 +94,12 @@ function buildManifest(origin, { dev = false, id = randomUUID() } = {}) {
         <bt:Url id="Taskpane.Url" DefaultValue="${base}/index.html"/>
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GetStarted.Title" DefaultValue="Intelliprompter"/>
-        <bt:String id="Group.Label" DefaultValue="Intelliprompter"/>
-        <bt:String id="Open.Label" DefaultValue="Open Intelliprompter"/>
+        <bt:String id="GetStarted.Title" DefaultValue="Filow"/>
+        <bt:String id="Group.Label" DefaultValue="Filow"/>
+        <bt:String id="Open.Label" DefaultValue="Open Filow"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="Open the Intelliprompter pane, load your notes, and rehearse."/>
+        <bt:String id="GetStarted.Description" DefaultValue="Open the Filow pane, load your notes, and rehearse."/>
         <bt:String id="Open.Tooltip" DefaultValue="Speaker notes become live talking points."/>
       </bt:LongStrings>
     </Resources>

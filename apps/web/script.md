@@ -16,7 +16,7 @@
 - Your AI agent only needs to understand it, you don't
 - Model routing: small, medium or large model picked in milliseconds
 
-# Demo - The teleprompter
+# Demo - Filow
 - Live transcription, checked every half second
 - It checks the idea, not the exact words
 - Cost is basically nothing

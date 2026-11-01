@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useT } from "@intelliprompter/ui";
+import { useT } from "@filow/ui";
 import type { SessionInfo } from "./useSession";
 import { desktopBridge, type RemoteStatus } from "@/lib/sessionUrl";
 

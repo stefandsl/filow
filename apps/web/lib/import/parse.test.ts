@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseScript } from "@intelliprompter/core";
+import { parseScript } from "@filow/core";
 import { detectKind, docxParagraphs, pagesToText, paragraphsToText, pptxBody, pptxNotes, pptxTitle, slidesToText } from "./parse";
 
 const slideXml = `<p:sld><p:cSld><p:spTree>

@@ -1,4 +1,4 @@
-import type { SttBackendId } from "@intelliprompter/core";
+import type { SttBackendId } from "@filow/core";
 
 export type TranscriptEvent = {
   /** Text that will not change again. Append it to the running transcript. */

@@ -1,11 +1,11 @@
 {
-  "name": "@intelliprompter/desktop",
-  "version": "0.7.1",
+  "name": "@filow/desktop",
+  "version": "0.8.0",
   "private": true,
-  "description": "A teleprompter that checks off your talking points as you say them. OpenRouter decisions, live transcription.",
+  "description": "Filow desktop app: listens as you present, checks off your talking points as you cover them, shows what you missed. OpenRouter or local models, live transcription.",
   "author": "VoidExploit",
   "license": "UNLICENSED",
-  "homepage": "https://github.com/stefandsl/intelliprompter",
+  "homepage": "https://github.com/stefandsl/filow",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -30,8 +30,8 @@
     "appId": "com.intelliprompter.app",
     "electronVersion": "33.4.11",
     "npmRebuild": false,
-    "artifactName": "Intelliprompter-${version}-${os}-${arch}.${ext}",
-    "productName": "Intelliprompter",
+    "artifactName": "Filow-${version}-${os}-${arch}.${ext}",
+    "productName": "Filow",
     "directories": {
       "output": "../../release",
       "buildResources": "build"
@@ -82,7 +82,7 @@
       "icon": "build/icon.png"
     },
     "portable": {
-      "artifactName": "Intelliprompter-${version}-win-x64-portable.${ext}"
+      "artifactName": "Filow-${version}-win-x64-portable.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -106,7 +106,7 @@
         "zh_CN"
       ],
       "displayLanguageSelector": false,
-      "shortcutName": "Intelliprompter"
+      "shortcutName": "Filow"
     },
     "mac": {
       "target": [
@@ -134,7 +134,7 @@
     "publish": {
       "provider": "github",
       "owner": "stefandsl",
-      "repo": "intelliprompter-releases"
+      "repo": "filow-releases"
     },
     "copyright": "Copyright © 2026 VoidExploit"
   }

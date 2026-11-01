@@ -1,4 +1,4 @@
-Intelliprompter
+Filow
 Copyright (c) 2026 Stefan Butnaru (VoidExploit). All rights reserved.
 
 This software is proprietary. By installing it you agree that:

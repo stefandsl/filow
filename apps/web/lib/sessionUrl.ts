@@ -1,6 +1,6 @@
 /**
  * Where the session server lives, as seen from the browser.
- * 1. Desktop app: window.intelliprompter.sessionUrl (LAN relay or hosted server).
+ * 1. Desktop app: window.filow.sessionUrl (LAN relay or hosted server).
  * 2. NEXT_PUBLIC_SESSION_URL set at build time: use it ("" = same origin, hosted mode behind Caddy).
  * 3. Otherwise: same host, port 4748 (dev).
  */
@@ -33,7 +33,7 @@ export type RemoteStatus = {
 };
 
 export function desktopBridge(): DesktopBridge | null {
-  return (globalThis as { intelliprompter?: DesktopBridge }).intelliprompter ?? null;
+  return (globalThis as { filow?: DesktopBridge }).filow ?? null;
 }
 
 export function sessionServerUrl(): string {

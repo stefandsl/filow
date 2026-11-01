@@ -3,15 +3,15 @@
 // against other devices on the Wi-Fi, and the page is the engine.
 const { contextBridge, ipcRenderer } = require("electron");
 
-contextBridge.exposeInMainWorld("intelliprompter", {
+contextBridge.exposeInMainWorld("filow", {
   desktop: true,
-  mode: process.env.INTELLIPROMPTER_SESSION_URL ? "hosted" : "lan",
-  sessionUrl: process.env.INTELLIPROMPTER_SESSION_URL || `http://${process.env.INTELLIPROMPTER_LAN_IP || "127.0.0.1"}:${process.env.SESSION_PORT || 4748}`,
+  mode: process.env.FILOW_SESSION_URL ? "hosted" : "lan",
+  sessionUrl: process.env.FILOW_SESSION_URL || `http://${process.env.FILOW_LAN_IP || "127.0.0.1"}:${process.env.SESSION_PORT || 4748}`,
   /** What the phone opens: the public tunnel URL while "Share to phone on any network" is on, else the LAN address. */
-  mirrorOrigin: process.env.INTELLIPROMPTER_PUBLIC_WEB || `http://${process.env.INTELLIPROMPTER_LAN_IP || "127.0.0.1"}:${process.env.PORT || 4747}`,
+  mirrorOrigin: process.env.FILOW_PUBLIC_WEB || `http://${process.env.FILOW_LAN_IP || "127.0.0.1"}:${process.env.PORT || 4747}`,
   /** The relay URL the phone uses (public tunnel while sharing). The engine itself keeps using sessionUrl. */
-  mirrorServerUrl: process.env.INTELLIPROMPTER_PUBLIC_SESSION || "",
-  remoteShare: Boolean(process.env.INTELLIPROMPTER_PUBLIC_WEB),
+  mirrorServerUrl: process.env.FILOW_PUBLIC_SESSION || "",
+  remoteShare: Boolean(process.env.FILOW_PUBLIC_WEB),
   /** Turn the public link (Cloudflare tunnel) on or off; the app reloads with new pairing URLs. */
   setRemoteShare: (on) => ipcRenderer.send("remote:set", Boolean(on)),
   remoteStatus: () => ipcRenderer.invoke("remote:status"),
@@ -30,7 +30,7 @@ contextBridge.exposeInMainWorld("intelliprompter", {
     return () => ipcRenderer.removeListener("remote:status", h);
   },
   accessPassword: process.env.ACCESS_PASSWORD || "",
-  offline: process.env.INTELLIPROMPTER_OFFLINE === "1",
+  offline: process.env.FILOW_OFFLINE === "1",
   /** Subscribe to the Offline menu toggle. */
   onOffline: (fn) => ipcRenderer.on("offline", (_e, v) => fn(Boolean(v))),
   /** The page tells the shell which UI language it uses, so the menu follows. */

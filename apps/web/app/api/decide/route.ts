@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { DecideRequest, DecideResponse, DecisionProviderId } from "@intelliprompter/core";
+import type { DecideRequest, DecideResponse, DecisionProviderId } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
 import { decideOpenRouter } from "@/lib/decide/openrouter";
 import { decideClefCloudflare, decideClefLocal } from "@/lib/decide/clef";
@@ -18,7 +18,7 @@ const PROVIDERS: Record<DecisionProviderId, { run: (b: DecideRequest) => Promise
 };
 
 function resolveProvider(requested?: string): DecisionProviderId {
-  const offline = process.env.INTELLIPROMPTER_OFFLINE === "1";
+  const offline = process.env.FILOW_OFFLINE === "1";
   const fallback = (process.env.DECISION_PROVIDER as DecisionProviderId) || "openrouter";
   const id = (requested && requested in PROVIDERS ? requested : fallback) as DecisionProviderId;
   if (offline && id !== "clef-local") return "clef-local";

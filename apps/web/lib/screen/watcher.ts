@@ -1,11 +1,11 @@
 // Browser side of Screen Sense (ARCHITECTURE.md §6.1): samples a display stream at
 // 1 fps into a 16×16 thumbnail for change detection and grabs a full frame on demand.
 // Frames never leave this module except through `grab()`, which the caller sends once.
-import { THUMB_SIZE } from "@intelliprompter/core";
+import { THUMB_SIZE } from "@filow/core";
 
 export type ScreenSourceKind = "screen" | "window";
 
-/** What the desktop preload exposes as window.intelliprompter.screen. */
+/** What the desktop preload exposes as window.filow.screen. */
 export type ScreenBridge = {
   sources: () => Promise<Array<{ id: string; name: string; kind: ScreenSourceKind; thumbnail: string }>>;
   select: (id: string | null) => Promise<void>;
@@ -17,7 +17,7 @@ export type ScreenBridge = {
 };
 
 export function screenBridge(): ScreenBridge | null {
-  return (globalThis as { intelliprompter?: { screen?: ScreenBridge } }).intelliprompter?.screen ?? null;
+  return (globalThis as { filow?: { screen?: ScreenBridge } }).filow?.screen ?? null;
 }
 
 export function displayCaptureSupported(): boolean {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { SttStatus } from "@intelliprompter/core";
+import type { SttStatus } from "@filow/core";
 
 /** Tells the client which keyed transcription backends are configured. Never returns the keys. */
 export async function GET() {

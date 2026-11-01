@@ -1,4 +1,4 @@
-# Intelliprompter architecture
+# Filow architecture
 
 | | |
 |---|---|
@@ -13,7 +13,7 @@
 
 A presenter has talking points, not a word-for-word script. On stage they cannot see the laptop that runs the teleprompter, they lose track of which points they have made, and when they skip one they only notice afterwards. If slides are involved, the slide deck and the talking points live in different places and drift apart.
 
-Today's Intelliprompter solves the first part on one laptop: it listens, and ticks off a point the moment the presenter starts making it. This document extends that to the places a presenter actually looks (a phone on the lectern, the PowerPoint window) and to what is on the screen behind them (Screen Sense).
+Today's Filow solves the first part on one laptop: it listens, and ticks off a point the moment the presenter starts making it. This document extends that to the places a presenter actually looks (a phone on the lectern, the PowerPoint window) and to what is on the screen behind them (Screen Sense).
 
 ## 2. Goals and non-goals
 
@@ -94,7 +94,7 @@ The WebSocket relay is a **separate Node process**, `apps/server`, using the `ws
 Consequences:
 
 - **Caddy**: `handle /ws/*` and `handle /api/session/*` → `reverse_proxy 127.0.0.1:4748`; everything else → 4747. WebSockets pass through `reverse_proxy` without extra config.
-- **systemd**: a second unit `intelliprompter-session.service`, `ExecStart=/usr/bin/node apps/server/dist/index.js`.
+- **systemd**: a second unit `filow-session.service`, `ExecStart=/usr/bin/node apps/server/dist/index.js`.
 - **Electron**: `main.js` requires `apps/server/dist/index.js` after the Next server and waits for both ports in `waitForServer()`.
 - **CI**: unchanged shape, `npm run -w apps/desktop desktop:build:*`.
 
@@ -263,7 +263,7 @@ Electron: `globalShortcut`, a transparent fullscreen `BrowserWindow` for the pic
 
 - Frames live in memory only, sent once over HTTPS to a multimodal model via OpenRouter (default `google/gemini-2.5-flash`), then dropped. No disk, no cache, no image bytes in logs.
 - Only the returned text (`ScreenSummary`) is kept, per session, with a **Forget screen context** button. Summaries are gone when the session ends unless the user exports notes.
-- The Intelliprompter window itself is excluded from capture (`setContentProtection(true)` on Windows/macOS, plus filtered out of the chooser).
+- The Filow window itself is excluded from capture (`setContentProtection(true)` on Windows/macOS, plus filtered out of the chooser).
 - Views receive only `ScreenSummary` text, never frames.
 - A visible badge shows while a frame is being analysed; a Settings toggle disables the feature and unregisters the hotkey.
 - Screen content, slide text and OCR are untrusted evidence, never instructions. The vision prompt says so; the gap detector emits tips, never actions.
@@ -334,11 +334,11 @@ Rule kept from STT: an explicit provider choice never silently falls back to ano
 
 **Settings > Local models** (built, `apps/web/app/settings/local`): detects Ollama (version ≥ 0.35.1, install link), shows RAM and a fits / tight / too big label per model, Pull with streamed progress from Ollama `/api/pull`, Delete, Test (one real decision with latency and the two probabilities), and the decision provider choice. Recommends clef-flash on 16 GB machines and clef on 32 GB+. Whisper and the vision model are listed as planned.
 
-**Offline mode** (built): the desktop menu toggle forces local providers (`INTELLIPROMPTER_OFFLINE=1`) and blocks every renderer request whose host is not this machine (`session.webRequest.onBeforeRequest`), with an OFFLINE chip in the top bar and zero cost in the footer. The web deploy honours the same env variable and can point `OLLAMA_URL` at an Ollama on the server.
+**Offline mode** (built): the desktop menu toggle forces local providers (`FILOW_OFFLINE=1`) and blocks every renderer request whose host is not this machine (`session.webRequest.onBeforeRequest`), with an OFFLINE chip in the top bar and zero cost in the footer. The web deploy honours the same env variable and can point `OLLAMA_URL` at an Ollama on the server.
 
 **PII guard** (built, `apps/web/lib/pii/guard.ts`): before a cloud decision provider is called, every text field of the request (transcript window, point texts, covered, upcoming, on-screen facts) is anonymised with one shared in-memory map and placeholders are restored in the answer's `unmentioned` facts. Two layers: the **Rizzo-PII local server** (`POST /analyze` on `PII_SERVER_URL`, default `127.0.0.1:5005`, run from the repo's Docker image; response keys read defensively since only the README was available) when reachable, plus a **regex layer** always (emails, phones, IBANs, Luhn-valid card numbers, Italian codice fiscale). Modes: `PII_GUARD=on` (default), `strict` (refuse cloud calls without Rizzo-PII), `off`. Local providers skip the guard. The footer shows `pii rizzo+regex (n)` when placeholders were used.
 
-**Config**: `DECISION_PROVIDER=openrouter|clef-local|clef-cloudflare`, `OLLAMA_URL`, `CLEF_MODEL`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `CLEF_CLOUDFLARE_MODEL`, `INTELLIPROMPTER_OFFLINE`; later `STT_PROVIDER`, `VISION_PROVIDER`, `PII_GUARD`.
+**Config**: `DECISION_PROVIDER=openrouter|clef-local|clef-cloudflare`, `OLLAMA_URL`, `CLEF_MODEL`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `CLEF_CLOUDFLARE_MODEL`, `FILOW_OFFLINE`; later `STT_PROVIDER`, `VISION_PROVIDER`, `PII_GUARD`.
 
 ### 6.9 Version 2: real-time drawing and speaking (not in the current pass)
 
@@ -359,7 +359,7 @@ Rough effort: overlay + DSL renderer 3 days, TTS sync + barge-in 2 days, pointin
 
 ## 7. PowerPoint add-in (phase 3, spike first)
 
-**What works**: a task pane that shows the Intelliprompter view, reads speaker notes as the script (one slide = one section, `-` lines = points), follows the *selected slide in Normal view* both ways, and feeds slide text to Screen Sense without screenshots.
+**What works**: a task pane that shows the Filow view, reads speaker notes as the script (one slide = one section, `-` lines = points), follows the *selected slide in Normal view* both ways, and feeds slide text to Screen Sense without screenshots.
 
 **What does not exist in the platform**: the PowerPoint JavaScript API has no slide-show navigation and no slide-change event during a running show, and the task pane is not visible in Slide Show or Presenter View. So during the actual presentation the live view is the phone or the desktop app, exactly like Google Slides. The pane is for rehearsal in Normal view and for loading the script.
 

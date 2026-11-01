@@ -1,6 +1,6 @@
 {
-  "name": "@intelliprompter/server",
-  "version": "0.7.1",
+  "name": "@filow/server",
+  "version": "0.8.0",
   "private": true,
   "description": "Session relay: pairing codes, roles, WebSocket fan-out between one engine and its views.",
   "main": "dist/index.js",

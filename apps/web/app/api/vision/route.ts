@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { VisionRequest, VisionResponse } from "@intelliprompter/core";
+import type { VisionRequest, VisionResponse } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
 import { dataUrlBytes, describeFrame, MAX_IMAGE_BYTES } from "@/lib/vision/openrouter";
 import { anonymizeRequest, piiMode, restore } from "@/lib/pii/guard";
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
   const source = body?.source === "window" || body?.source === "region" ? body.source : "screen";
-  if (process.env.INTELLIPROMPTER_OFFLINE === "1") {
+  if (process.env.FILOW_OFFLINE === "1") {
     return NextResponse.json<VisionResponse>({
       summary: { at, source, shows: "", pointsToMake: [], facts: [], unavailable: "disabled" },
       latencyMs: 0,

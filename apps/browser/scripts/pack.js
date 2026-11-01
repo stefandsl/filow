@@ -20,7 +20,7 @@ fs.copyFileSync(path.join(root, "..", "desktop", "build", "icon.png"), path.join
 // (Firefox warns on unknown keys but loads; keeping both keys in one zip is fine for unpacked use).
 const zips = path.join(root, "..", "..", "release");
 fs.mkdirSync(zips, { recursive: true });
-const name = `Intelliprompter-extension-${manifest.version}`;
+const name = `Filow-extension-${manifest.version}`;
 try {
   if (process.platform === "win32") {
     execFileSync("powershell.exe", ["-NoProfile", "-Command", `Compress-Archive -Path '${dist}\\*' -DestinationPath '${path.join(zips, name)}.zip' -Force`], { stdio: "inherit" });

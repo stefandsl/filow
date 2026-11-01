@@ -1,7 +1,7 @@
 "use client";
 
-import type { Command, SessionState } from "@intelliprompter/core";
-import { missedPoints } from "@intelliprompter/core";
+import type { Command, SessionState } from "@filow/core";
+import { missedPoints } from "@filow/core";
 import { OnScreenStrip } from "./OnScreenStrip";
 import { useT } from "./lang";
 

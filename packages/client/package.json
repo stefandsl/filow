@@ -1,6 +1,6 @@
 {
-  "name": "@intelliprompter/client",
-  "version": "0.7.1",
+  "name": "@filow/client",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "description": "Session client for views: pair by code, receive state, send commands. Uses the global WebSocket (browser and React Native).",
@@ -10,7 +10,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@intelliprompter/core": "*",
+    "@filow/core": "*",
     "fast-json-patch": "^3.1.1"
   },
   "license": "UNLICENSED"

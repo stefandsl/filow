@@ -1,10 +1,17 @@
 {
-  "name": "Intelliprompter Mirror",
+  "name": "Filow Mirror",
   "short_name": "Prompter",
   "start_url": "/mirror",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0b0b0d",
   "theme_color": "#0b0b0d",
-  "icons": [{ "src": "/icon.png", "sizes": "512x512", "type": "image/png" }]
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "description": "Speak freely. Stay on point. Filow listens as you present and checks off your talking points."
 }

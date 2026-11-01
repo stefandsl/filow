@@ -13,7 +13,7 @@ import {
   type SessionState,
   type VisionRequest,
   type VisionResponse,
-} from "@intelliprompter/core";
+} from "@filow/core";
 import { engineHeaders } from "./useSession";
 import { getScreenMode, setScreenMode as saveScreenMode } from "@/lib/prefs";
 import { openDisplayStream, screenBridge, ScreenWatcher, streamLabel, type ScreenBridge, type ScreenSourceKind } from "@/lib/screen/watcher";
@@ -24,7 +24,7 @@ export type ScreenSenseStatus = "idle" | "watching" | "unsupported";
 
 /**
  * Owns the capture loop (§6.1), the cost dial (§6.5) and the hotkey region flow.
- * Policy lives in @intelliprompter/core; this hook only moves frames and state.
+ * Policy lives in @filow/core; this hook only moves frames and state.
  */
 export function useScreenSense(engine: Engine, state: SessionState, log: (line: string) => void) {
   const [mode, setMode] = useState<ScreenMode>("balanced");

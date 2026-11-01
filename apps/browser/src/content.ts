@@ -4,13 +4,13 @@ import { pickAdapter, type SlideInfo } from "./adapters";
 
 declare global {
   interface Window {
-    __intelliprompter?: boolean;
+    __filow?: boolean;
   }
 }
 
 (() => {
-  if (window.__intelliprompter) return; // injected twice
-  window.__intelliprompter = true;
+  if (window.__filow) return; // injected twice
+  window.__filow = true;
 
   let adapter = pickAdapter();
   let last = "";

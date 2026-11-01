@@ -1,4 +1,4 @@
-import { buildClefRequest, parseClefAnswers, type ClefResponse, type DecideRequest, type DecideResponse } from "@intelliprompter/core";
+import { buildClefRequest, parseClefAnswers, type ClefResponse, type DecideRequest, type DecideResponse } from "@filow/core";
 
 export const OLLAMA_URL = () => (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
 export const CLEF_LOCAL_MODEL = () => process.env.CLEF_MODEL || "clef-flash";

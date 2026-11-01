@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Engine, type DecideRequest, type DecideResponse, type SessionState } from "@intelliprompter/core";
+import { Engine, type DecideRequest, type DecideResponse, type SessionState } from "@filow/core";
 import { engineHeaders } from "./useSession";
 import { getDecisionProvider } from "@/lib/prefs";
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseScript, SLIDES_MARKER } from "@intelliprompter/core";
+import { parseScript, SLIDES_MARKER } from "@filow/core";
 import { notesToScript, pickTitle } from "./notes";
 
 describe("notesToScript", () => {

@@ -34,7 +34,7 @@ export async function GET() {
     pii,
     ollama: { url: base, reachable: version !== null, version, minimum: "0.35.1", ok: version ? versionAtLeast(version, "0.35.1") : false },
     machine: { ramGb, platform: process.platform, arch: process.arch },
-    offline: process.env.INTELLIPROMPTER_OFFLINE === "1",
+    offline: process.env.FILOW_OFFLINE === "1",
     defaultProvider: process.env.DECISION_PROVIDER || "openrouter",
     openrouterKey: Boolean(process.env.OPENROUTER_API_KEY),
     cloudflareKey: Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN),

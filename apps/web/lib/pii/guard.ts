@@ -2,7 +2,7 @@
 // Two layers: Rizzo-PII (local HTTP sidecar, 22 Italian categories) when reachable,
 // plus a regex layer for emails, phones, IBANs, card numbers and Italian codice fiscale.
 // ARCHITECTURE.md §6.10. The map lives in memory for one request chain only.
-import type { DecideRequest } from "@intelliprompter/core";
+import type { DecideRequest } from "@filow/core";
 
 export type PiiMap = Map<string, string>; // placeholder -> original value
 

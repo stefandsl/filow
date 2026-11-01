@@ -1,6 +1,6 @@
 // Session client. Protocol: ARCHITECTURE.md §5.4.
 import { applyPatch, type Operation } from "fast-json-patch";
-import type { Command, SessionState } from "@intelliprompter/core";
+import type { Command, SessionState } from "@filow/core";
 
 export type ClientStatus = "connecting" | "open" | "closed";
 export type Role = "viewer" | "controller" | "engine" | "pending";

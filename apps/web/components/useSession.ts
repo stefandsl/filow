@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { connect, type PairDecision, type PairRequest, type SessionClient } from "@intelliprompter/client";
-import type { Engine } from "@intelliprompter/core";
+import { connect, type PairDecision, type PairRequest, type SessionClient } from "@filow/client";
+import type { Engine } from "@filow/core";
 import { desktopBridge, mirrorOrigin, mirrorServerUrl, sessionServerUrl } from "@/lib/sessionUrl";
 
 export type SessionInfo = {

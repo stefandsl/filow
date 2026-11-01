@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { ImportResponse } from "@intelliprompter/core";
+import type { ImportResponse } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
 import { importFile } from "@/lib/import/parse";
 

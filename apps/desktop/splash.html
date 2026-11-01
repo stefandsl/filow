@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Intelliprompter</title>
+    <title>Filow</title>
     <style>
       :root { --bg: #0b0b0d; --panel: #141418; --border: #2a2a33; --text: #f2f2f4; --muted: #8d8d99; --accent: #f0a53a; --ok: #4ad67a; }
       :root[data-theme="light"] { --bg: #f7f7f8; --panel: #ffffff; --border: #dcdce2; --text: #141418; --muted: #5f5f6b; --accent: #c7801a; --ok: #1f8a46; }
@@ -19,13 +19,15 @@
       @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
       .status { color: var(--muted); font-size: 13px; line-height: 1.5; min-height: 40px; }
       .version { color: var(--muted); font-size: 12px; opacity: 0.8; margin-top: 8px; }
+      .tagline { color: var(--muted); font-size: 13px; letter-spacing: 0.04em; margin-top: -6px; }
     </style>
   </head>
   <body>
     <div class="wrap">
       <div class="badge"><span class="flag">★★★</span><span id="badge">Modello locale · <span class="gdpr">GDPR</span></span></div>
       <img class="logo" id="logo" src="build/icon.png" alt="" />
-      <h1>INTELLIPROMPTER</h1>
+      <h1>FILOW</h1>
+      <div class="tagline" id="tagline">Speak freely. Stay on point.</div>
       <div class="bar" id="bar"><i></i></div>
       <div class="status" id="status">Avvio in corso…</div>
       <div class="version" id="version"></div>
@@ -36,6 +38,7 @@
       document.getElementById("version").textContent = "v" + (q.get("v") || "");
       const local = q.get("local") === "1";
       const it = (q.get("lang") || "en") === "it";
+      document.getElementById("tagline").textContent = it ? "Parla a braccio. Resta sul punto." : "Speak freely. Stay on point.";
       document.getElementById("badge").innerHTML = local
         ? (it ? "Modelli locali · dati su questo PC · " : "Local models · data stays on this PC · ") + '<span class="gdpr">GDPR</span>'
         : (it ? "PII guard attivo · " : "PII guard on · ") + '<span class="gdpr">GDPR</span>';
