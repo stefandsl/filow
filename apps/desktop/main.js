@@ -321,6 +321,7 @@ const tunnels = { procs: [], web: "", session: "", state: "off", error: "" };
 function remoteStatus(state, error = "") {
   tunnels.state = state;
   tunnels.error = error;
+  logLine(`public link: ${state}${error ? " " + error : ""}`);
   ipcMain.emit("remote:status:internal", null, { state, url: tunnels.web, error });
   if (state === "downloading") splashStatus(st("download"));
   for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send("remote:status", { state, url: tunnels.web, error });
@@ -775,6 +776,17 @@ async function checkForUpdates({ manual = false } = {}) {
 
 // ---- Splash screen and first-start choices from the installer ----
 let splash = null;
+let splashShownAt = 0;
+const SPLASH_MIN_MS = Number(process.env.INTELLIPROMPTER_SPLASH_MIN_MS || 1800);
+/** Plain-text startup log in userData (startup.log): which step ran, and any error the splash or link hit. */
+function logLine(msg) {
+  try {
+    fs.appendFileSync(path.join(userData, "startup.log"), `${new Date().toISOString()} ${msg}
+`);
+  } catch {
+    /* ignore */
+  }
+}
 function uiTheme() {
   const t = settings.theme === "light" || settings.theme === "dark" ? settings.theme : null;
   return t || (nativeTheme.shouldUseDarkColors ? "dark" : "light");
@@ -788,7 +800,16 @@ function showSplash() {
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   });
   const q = new URLSearchParams({ v: app.getVersion(), theme: uiTheme(), local: local ? "1" : "0", lang: menuLang() });
-  splash.loadFile(path.join(__dirname, "splash.html"), { search: q.toString() }).then(() => splash && splash.show()).catch(() => undefined);
+  splashShownAt = Date.now();
+  splash
+    .loadFile(path.join(__dirname, "splash.html"), { query: Object.fromEntries(q) })
+    .then(() => {
+      if (splash && !splash.isDestroyed()) {
+        splash.show();
+        logLine("splash shown");
+      }
+    })
+    .catch((err) => logLine(`splash failed: ${err && err.message ? err.message : err}`));
   splash.on("closed", () => (splash = null));
 }
 function splashStatus(text, done = false) {
@@ -1146,10 +1167,12 @@ async function main() {
       await linkUp;
     }
     splashStatus(st("ready"), true);
+    const wait = Math.max(400, SPLASH_MIN_MS - (Date.now() - splashShownAt));
     setTimeout(() => {
       closeSplash();
       if (!win.isDestroyed()) win.show();
-    }, 400);
+      logLine("main window shown");
+    }, wait);
     setTimeout(() => void checkForUpdates(), 8000); // after the servers and the tunnel; silent unless an update lands
     if (process.platform === "win32" || process.platform === "darwin") {
       if (settings.pptInstalled) {
