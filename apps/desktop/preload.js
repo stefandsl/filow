@@ -46,6 +46,12 @@ contextBridge.exposeInMainWorld("filow", {
     return () => ipcRenderer.removeListener("slideshow", h);
   },
   closeOverlay: () => ipcRenderer.send("overlay:close"),
+  /** Phone on this network: which adapter/IP the QR uses, the Windows Firewall state, and fixes. */
+  net: {
+    status: () => ipcRenderer.invoke("net:status"),
+    allowFirewall: () => ipcRenderer.invoke("net:allowFirewall"),
+    useInterface: (address) => ipcRenderer.invoke("net:useInterface", address),
+  },
   /** Local AI setup: hardware scan + recommendation, unattended Ollama install with progress. */
   localAi: {
     status: () => ipcRenderer.invoke("localai:status"),

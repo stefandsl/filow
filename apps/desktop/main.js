@@ -92,7 +92,7 @@ const MENU_TEXT = {
     configFolder: "Open config folder (keys + script)", editEnv: "Edit API keys (.env)", settings: "Local models & privacy settings",
     offline: "Offline mode (local models only, no outbound requests)", share: "Share to phone on any network (Cloudflare tunnel)",
     shareOn: "Share to phone on any network (on: {url})", mirrorAddress: "Mirror address on this network", automatic: "Automatic ({ip})",
-    customHost: "Custom host: set FILOW_MIRROR_HOST in .env", hideWindow: "Hide this window from screen recordings and screenshots",
+    customHost: "Custom host: set FILOW_MIRROR_HOST in .env", virtualIface: "  · virtual, not for phones", firewall: "Allow Filow in Windows Firewall (phone on the Wi-Fi)…", hideWindow: "Hide this window from screen recordings and screenshots",
     reload: "Reload", fullscreen: "Toggle fullscreen", devtools: "Developer tools", quit: "Quit",
     pptInstall: "Add Filow to PowerPoint on this PC",
     pptInstalled: "Done. Restart PowerPoint: Filow is on the Home tab (Add-ins group; on a Mac under Insert → My Add-ins). It talks to the app running on this PC, so keep Filow open while you present.",
@@ -126,7 +126,7 @@ const MENU_TEXT = {
     configFolder: "Apri la cartella di configurazione (chiavi + copione)", editEnv: "Modifica le chiavi API (.env)", settings: "Modelli locali e privacy",
     offline: "Modalità offline (solo modelli locali, nessuna richiesta in uscita)", share: "Condividi col telefono su qualsiasi rete (tunnel Cloudflare)",
     shareOn: "Condividi col telefono su qualsiasi rete (attivo: {url})", mirrorAddress: "Indirizzo del mirror su questa rete", automatic: "Automatico ({ip})",
-    customHost: "Host personalizzato: imposta FILOW_MIRROR_HOST in .env", hideWindow: "Nascondi questa finestra da registrazioni e screenshot",
+    customHost: "Host personalizzato: imposta FILOW_MIRROR_HOST in .env", virtualIface: "  · virtuale, non per i telefoni", firewall: "Consenti Filow nel firewall di Windows (telefono sul Wi-Fi)…", hideWindow: "Nascondi questa finestra da registrazioni e screenshot",
     reload: "Ricarica", fullscreen: "Schermo intero", devtools: "Strumenti per sviluppatori", quit: "Esci",
     pptInstall: "Aggiungi Filow a PowerPoint su questo PC",
     pptInstalled: "Fatto. Riavvia PowerPoint: Filow è nella scheda Home (gruppo Componenti aggiuntivi; su Mac in Inserisci → I miei componenti). Parla con l'app in esecuzione su questo PC, quindi tieni aperto Filow mentre presenti.",
@@ -298,6 +298,16 @@ function wireScreenSense() {
   ipcMain.on("update:install", () => loadUpdater() && updateState.status === "downloaded" && updater.quitAndInstall());
   ipcMain.handle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
   ipcMain.handle("localai:status", () => localAiState);
+  ipcMain.handle("net:status", () => {
+    const ranked = rankedInterfaces();
+    const chosen = ranked.find((i) => i.address === (process.env.FILOW_LAN_IP || lanIp())) || ranked[0] || null;
+    return { ip: process.env.FILOW_LAN_IP || lanIp(), iface: chosen ? chosen.name : "", virtual: Boolean(chosen && chosen.score < 0), firewall: firewallStatus(), interfaces: ranked.map((i) => ({ name: i.name, address: i.address, virtual: i.score < 0 })) };
+  });
+  ipcMain.handle("net:allowFirewall", () => allowFirewall());
+  ipcMain.handle("net:useInterface", (_e, address) => {
+    if (mainWin && !mainWin.isDestroyed()) applyMirrorHost(mainWin, typeof address === "string" ? address : "");
+    return true;
+  });
   ipcMain.handle("localai:hardware", () => localAiInfo());
   ipcMain.on("localai:install", () => void startOllamaInstall());
   ipcMain.on("session:report", (_e, info) => {
@@ -363,14 +373,99 @@ function loadEnv(file) {
   }
 }
 
+/** Adapter names that never carry the phone's Wi-Fi: VMs, Hyper-V/WSL switches, VPNs, Bluetooth. */
+const VIRTUAL_IFACE = /virtual|vmware|vmnet|vethernet|hyper-v|wsl|docker|tailscale|zerotier|hamachi|loopback|bluetooth|npcap|host-only|virtualbox|vbox|tun|tap|wireguard|openvpn|cisco|anyconnect|globalprotect|fortissl|pulse/i;
+const CGNAT_OR_VBOX = /^(100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|192\.168\.56\.|169\.254\.)/;
+
+/** Name of the interface that carries the default route (where the Wi-Fi usually is); "" when unknown. */
+let defaultIfaceCache = null;
+function defaultIface() {
+  if (defaultIfaceCache !== null) return defaultIfaceCache;
+  try {
+    if (process.platform === "win32") {
+      const out = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "Get-NetRoute -DestinationPrefix 0.0.0.0/0 -ErrorAction SilentlyContinue | Where-Object { $_.NextHop -ne '0.0.0.0' } | Sort-Object RouteMetric, InterfaceMetric | Select-Object -First 1 -ExpandProperty InterfaceAlias"], { encoding: "utf8", timeout: 5000, windowsHide: true });
+      defaultIfaceCache = out.trim();
+    } else if (process.platform === "darwin") {
+      const out = execFileSync("route", ["-n", "get", "default"], { encoding: "utf8", timeout: 3000 });
+      defaultIfaceCache = (out.match(/interface:\s*(\S+)/) || [])[1] || "";
+    } else {
+      const out = execFileSync("sh", ["-c", "ip route show default 2>/dev/null | head -1"], { encoding: "utf8", timeout: 3000 });
+      defaultIfaceCache = (out.match(/dev\s+(\S+)/) || [])[1] || "";
+    }
+  } catch {
+    defaultIfaceCache = "";
+  }
+  return defaultIfaceCache;
+}
+
+/** Interfaces ranked for the phone: default-route adapter first, Wi-Fi next, real Ethernet, then the rest; virtual ones last. */
+function rankedInterfaces() {
+  const def = defaultIface();
+  const isPrivate = (a) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a);
+  const score = (i) => {
+    let s = 0;
+    if (def && i.name === def) s += 100;
+    if (/wi-?fi|wlan|wireless|en0/i.test(i.name)) s += 40;
+    else if (/^ethernet\b|^eth|^en\d/i.test(i.name)) s += 20;
+    if (isPrivate(i.address)) s += 10;
+    if (VIRTUAL_IFACE.test(i.name) || CGNAT_OR_VBOX.test(i.address)) s -= 200;
+    return s;
+  };
+  return interfaces()
+    .map((i) => ({ ...i, score: score(i) }))
+    .sort((a, b) => b.score - a.score);
+}
+
 function lanIp() {
   const fromEnv = (process.env.FILOW_MIRROR_HOST || "").trim();
   if (fromEnv) return fromEnv;
   if (settings.mirrorHost) return settings.mirrorHost;
-  // Prefer a private LAN address (phones on the same Wi-Fi) over VPN/CGNAT ranges such as Tailscale's 100.64/10.
-  const all = interfaces().map((i) => i.address);
-  const isPrivate = (a) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a);
-  return all.find(isPrivate) || all[0] || "127.0.0.1";
+  const ranked = rankedInterfaces();
+  return ranked[0]?.address || "127.0.0.1";
+}
+
+// ---- Windows Firewall: the phone on the Wi-Fi can only reach the local servers (which run inside this
+// process) when Filow.exe is allowed in. Adding the rule needs an administrator prompt, once.
+const FIREWALL_RULE = "Filow";
+function firewallStatus() {
+  if (process.platform !== "win32") return "n/a";
+  try {
+    const out = execFileSync("netsh", ["advfirewall", "firewall", "show", "rule", `name=${FIREWALL_RULE}`], { encoding: "utf8", timeout: 5000, windowsHide: true });
+    return /Filow/.test(out) && !/No rules match/i.test(out) ? "ok" : "missing";
+  } catch {
+    return "missing";
+  }
+}
+function allowFirewall() {
+  if (process.platform !== "win32") return Promise.resolve("n/a");
+  const exe = process.execPath.replace(/'/g, "''");
+  const args = `advfirewall firewall add rule name="${FIREWALL_RULE}" dir=in action=allow program="${exe}" enable=yes profile=any description="Filow: phone mirror and PowerPoint add-in on the local network"`;
+  return new Promise((resolve) => {
+    const p = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `Start-Process -FilePath netsh -ArgumentList '${args.replace(/'/g, "''")}' -Verb RunAs -Wait -WindowStyle Hidden`], { windowsHide: true, stdio: "ignore" });
+    p.on("exit", () => {
+      const st = firewallStatus();
+      logLine(`firewall rule: ${st}`);
+      resolve(st);
+    });
+    p.on("error", () => resolve(firewallStatus()));
+  });
+}
+const NET_TEXT = {
+  en: { title: "Let your phone reach Filow on this network?", message: "Phones on the same Wi-Fi can only open the mirror if Windows Firewall lets Filow accept connections.", detail: "Filow adds one rule for its own program (incoming, all profiles). Windows will ask for administrator confirmation.", allow: "Allow", later: "Not now" },
+  it: { title: "Permettere al telefono di raggiungere Filow su questa rete?", message: "I telefoni sullo stesso Wi-Fi possono aprire il mirror solo se Windows Firewall lascia che Filow accetti connessioni.", detail: "Filow aggiunge una regola per il proprio programma (in entrata, tutti i profili). Windows chiederà la conferma dell'amministratore.", allow: "Consenti", later: "Non ora" },
+};
+function rebuildMenu(win) {
+  try {
+    buildMenu(win);
+  } catch {
+    /* menu rebuild is cosmetic */
+  }
+}
+async function offerFirewall(win) {
+  if (process.platform !== "win32" || firewallStatus() === "ok") return;
+  const tx = NET_TEXT[menuLang()] || NET_TEXT.en;
+  const { response } = await dialog.showMessageBox(win, { type: "question", title: tx.title, message: tx.message, detail: tx.detail, buttons: [tx.allow, tx.later], defaultId: 0, cancelId: 1, noLink: true });
+  if (response === 0) await allowFirewall();
 }
 
 // ---- Phone on another network: Cloudflare quick tunnel (README "Phone on another network") ----
@@ -1167,11 +1262,12 @@ function buildMenu(win) {
           label: mt("mirrorAddress"),
           submenu: [
             { label: mt("automatic", { ip: lanIp() }), type: "radio", checked: !settings.mirrorHost, click: () => applyMirrorHost(win, "") },
-            ...interfaces().map((i) => ({ label: `${i.address}  (${i.name})`, type: "radio", checked: settings.mirrorHost === i.address, click: () => applyMirrorHost(win, i.address) })),
+            ...rankedInterfaces().map((i) => ({ label: `${i.address}  (${i.name})${i.score < 0 ? mt("virtualIface") : ""}`, type: "radio", checked: settings.mirrorHost === i.address, click: () => applyMirrorHost(win, i.address) })),
             { type: "separator" },
             { label: mt("customHost"), enabled: false },
           ],
         },
+        ...(process.platform === "win32" ? [{ label: mt("firewall"), click: () => void allowFirewall().then(() => rebuildMenu(win)) }] : []),
         settings.pptInstalled
           ? { label: mt("pptRemove"), click: () => void uninstallPowerPointAddin(win) }
           : { label: mt("pptInstall"), click: () => void installPowerPointAddin(win) },
@@ -1298,6 +1394,11 @@ async function main() {
     if (!settings.localAiOffered) {
       settings.localAiOffered = true;
       saveSettings();
+    }
+    if (!settings.firewallOffered) {
+      settings.firewallOffered = true;
+      saveSettings();
+      await offerFirewall(win);
     }
     if (choices && choices.ollama) void startOllamaInstall();
     const firstPage =

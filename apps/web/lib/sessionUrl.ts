@@ -25,6 +25,12 @@ export type DesktopBridge = {
   installUpdate?: () => void;
   remoteStatus?: () => Promise<RemoteStatus>;
   onRemoteStatus?: (fn: (s: RemoteStatus) => void) => () => void;
+  /** Phone on this network (desktop app): adapter and firewall diagnostics with one-click fixes. */
+  net?: {
+    status: () => Promise<NetStatus>;
+    allowFirewall: () => Promise<"ok" | "missing" | "n/a">;
+    useInterface: (address: string) => Promise<boolean>;
+  };
   /** Local AI setup (desktop app): hardware scan, recommendation and the unattended Ollama install. */
   localAi?: {
     status: () => Promise<LocalAiStatus>;
@@ -34,6 +40,8 @@ export type DesktopBridge = {
   };
   accessPassword: string;
 };
+
+export type NetStatus = { ip: string; iface: string; virtual: boolean; firewall: "ok" | "missing" | "n/a"; interfaces: Array<{ name: string; address: string; virtual: boolean }> };
 
 export type LocalAiStatus = { state: "idle" | "checking" | "downloading" | "installing" | "starting" | "ready" | "manual" | "error"; pct: number; error: string; version: string; command: string };
 export type LocalAiHardware = {

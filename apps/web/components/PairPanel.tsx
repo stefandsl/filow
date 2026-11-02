@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useT } from "@filow/ui";
 import type { SessionInfo } from "./useSession";
-import { desktopBridge, type RemoteStatus } from "@/lib/sessionUrl";
+import { desktopBridge, type NetStatus, type RemoteStatus } from "@/lib/sessionUrl";
 
 /** Shows the pairing code and a QR for the mirror URL. */
 export function PairPanel({ info, status, error, onNewCode }: { info: SessionInfo | null; status: string; error: string | null; onNewCode?: () => void }) {
@@ -13,6 +13,8 @@ export function PairPanel({ info, status, error, onNewCode }: { info: SessionInf
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [remote, setRemote] = useState<RemoteStatus | null>(null);
+  const [net, setNet] = useState<NetStatus | null>(null);
+  const [netBusy, setNetBusy] = useState(false);
   const bridge = desktopBridge();
   const publicLink = Boolean(bridge?.remoteShare);
 
@@ -22,6 +24,11 @@ export function PairPanel({ info, status, error, onNewCode }: { info: SessionInf
     return bridge.onRemoteStatus?.(setRemote);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    if (!open || !bridge?.net) return;
+    void bridge.net.status().then(setNet);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   const pending = remote?.state === "downloading" || remote?.state === "connecting";
 
   // The QR carries the current code; it is rebuilt whenever the code changes.
@@ -101,6 +108,47 @@ export function PairPanel({ info, status, error, onNewCode }: { info: SessionInf
                         ? t("pair.linkError", { error: remote.error })
                         : t("pair.reachLan")}
             </div>
+            {net && !publicLink && (
+              <div className="hint netline">
+                <div>
+                  {t("pair.netIface", { ip: net.ip, iface: net.iface || "?" })}
+                  {net.virtual && <span className="chip err"> {t("pair.netVirtual")}</span>}
+                  {net.firewall === "missing" && <span className="chip err"> {t("pair.firewallMissing")}</span>}
+                  {net.firewall === "ok" && <span className="chip live"> {t("pair.firewallOk")}</span>}
+                </div>
+                <div className="row">
+                  {net.interfaces.length > 1 && (
+                    <select
+                      className="btn"
+                      value={net.ip}
+                      onChange={(e) => {
+                        void bridge?.net?.useInterface(e.target.value);
+                      }}
+                      title={t("pair.netPickTitle")}
+                    >
+                      {net.interfaces.map((i) => (
+                        <option key={i.address} value={i.address}>
+                          {i.address} · {i.name}
+                          {i.virtual ? ` · ${t("pair.netVirtual")}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {net.firewall === "missing" && (
+                    <button
+                      className="btn primary"
+                      disabled={netBusy}
+                      onClick={() => {
+                        setNetBusy(true);
+                        void bridge?.net?.allowFirewall().then(() => bridge?.net?.status().then(setNet)).finally(() => setNetBusy(false));
+                      }}
+                    >
+                      {netBusy ? "…" : t("pair.firewallAllow")}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
             {bridge?.setRemoteShare && !pending && (
               <div className="hint">
                 <button
