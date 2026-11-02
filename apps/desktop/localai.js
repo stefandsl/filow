@@ -14,7 +14,7 @@ const OLLAMA_URL = () => process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 const CATALOG = {
   "whisper-base": { dl: 0.15, ram: 2, ollama: false, label: "Whisper base" },
   "whisper-small": { dl: 0.5, ram: 4, ollama: false, label: "Whisper small" },
-  "clef-flash": { dl: 6, ram: 16, ollama: true, label: "Clef Flash (local decisions)" },
+  "clef-flash": { dl: 11, ram: 16, ollama: true, label: "Clef Flash (local decisions)" },
   clef: { dl: 17, ram: 32, ollama: true, label: "Clef 27B (local decisions)" },
   "gemma4:e2b": { dl: 6, ram: 8, ollama: true, label: "Gemma 4 E2B (script from slides)" },
   "gemma4:e4b": { dl: 9, ram: 16, ollama: true, label: "Gemma 4 E4B (script from slides)" },

@@ -22,8 +22,8 @@ type Status = {
   cloudflareKey: boolean;
   recommendation: string | null;
   models: Array<{
-    name: string; kind: string; runtime: "ollama" | "browser"; label: string; description: string; downloadGb: number; ramGb: number;
-    status: "available" | "planned"; fit: "fits" | "tight" | "too big"; installed: boolean; ollamaOk: boolean;
+    name: string; kind: string; runtime: "ollama" | "browser"; label: string; description: string; downloadGb: number; loadedGb: number; ramGb: number; vramGb?: number;
+    status: "available" | "planned"; fit: "fits" | "tight" | "too big"; installed: boolean; installedSizeGb: number | null; ollamaOk: boolean;
   }>;
 };
 
@@ -397,8 +397,21 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                     })()}
                   {m.runtime === "browser" && whisperModel === m.name && <span className="chip">{t("settings.selectedWhisper")}</span>}
                   {m.status === "planned" && <span className="chip">{t("settings.planned")}</span>}
-                  <div className="hint">
-                    {describe(m)} {t("settings.sizes", { dl: m.downloadGb, ram: m.ramGb })}
+                  <div className="hint">{describe(m)}</div>
+                  <div className="hint memline">
+                    <span>{t("mem.download", { dl: m.installedSizeGb ?? m.downloadGb })}</span>
+                    {m.runtime === "ollama" ? (
+                      <>
+                        <span>{m.vramGb ? t("mem.gpu", { vram: m.loadedGb, min: m.vramGb }) : t("mem.gpuNone")}</span>
+                        <span>{t("mem.cpu", { ram: m.loadedGb, min: m.ramGb })}</span>
+                      </>
+                    ) : (
+                      <span>{t("mem.browser", { ram: m.loadedGb, min: m.ramGb })}</span>
+                    )}
+                    {(() => {
+                      const l = res?.loaded.find((x) => x.name === m.name || x.name.startsWith(`${m.name}:`));
+                      return l ? <span className="chip live">{t("mem.now", { total: l.sizeGb, vram: l.vramGb, pct: l.gpuPct })}</span> : null;
+                    })()}
                   </div>
                 </div>
                 <div className="row">

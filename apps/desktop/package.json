@@ -1,6 +1,6 @@
 {
   "name": "@filow/desktop",
-  "version": "0.8.15",
+  "version": "0.8.16",
   "private": true,
   "description": "Filow desktop app: listens as you present, checks off your talking points as you cover them, shows what you missed. OpenRouter or local models, live transcription.",
   "author": "VoidExploit",

@@ -28,6 +28,7 @@ export async function GET() {
     ...m,
     fit: fits(ramGb, m),
     installed: m.runtime === "ollama" && installed.some((i) => i.name === m.name || i.name.startsWith(`${m.name}:`)),
+    installedSizeGb: installed.find((i) => i.name === m.name || i.name.startsWith(`${m.name}:`))?.sizeGb ?? null,
     ollamaOk: m.runtime === "browser" ? true : m.minOllama && version ? versionAtLeast(version, m.minOllama) : Boolean(version),
   }));
   const pii = { mode: piiMode(), serverUrl: PII_SERVER_URL(), serverReachable: await rizzoReachable() };
