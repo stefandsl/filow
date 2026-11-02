@@ -1,6 +1,6 @@
 {
   "name": "@filow/powerpoint",
-  "version": "0.9.14",
+  "version": "0.9.15",
   "private": true,
   "description": "PowerPoint task pane add-in: speaker notes become the script, the pane follows the selected slide.",
   "scripts": {

@@ -74,18 +74,22 @@ function writeIco(dest, entries) {
 
 const small = path.join(brand, "windows-small", "png");
 const micro = (variant, size) => fs.readFileSync(path.join(small, `filow-micro-${variant}-${size}.png`));
-const tile = async (size) => sharp(path.join(icons, "filow-app-1024.png")).resize(size, size).png().toBuffer();
+// The compact mark at every size (owner's choice, 0.9.15): the same picture on the desktop shortcut,
+// the taskbar, the Start tile, the tray, macOS/Linux, the browser tab and the extension, whatever
+// size the shell asks for. The full "Fi" tile stays in brand/ for marketing material.
+const microSvg = path.join(brand, "windows-small", "svg", "filow-micro-gradient.svg");
+const mark = async (size) => (fs.existsSync(path.join(small, `filow-micro-gradient-${size}.png`)) ? micro("gradient", size) : sharp(microSvg, { density: Math.ceil((size / 64) * 96) }).resize(size, size).png().toBuffer());
 
 async function hybridIco(dest, variant, smallSizes, bigSizes) {
   const entries = [];
   for (const s of smallSizes) entries.push(await dibEntry(micro(variant, s)));
-  for (const s of bigSizes) entries.push(s >= 256 ? { size: s, blob: await tile(s) } : await dibEntry(await tile(s)));
+  for (const s of bigSizes) entries.push(s >= 256 ? { size: s, blob: await mark(s) } : await dibEntry(await mark(s)));
   writeIco(dest, entries);
 }
 
 async function main() {
   // Desktop app: PNG for macOS/Linux (electron-builder makes the .icns), hybrid .ico for Windows.
-  cp(path.join(icons, "filow-app-512.png"), path.join(root, "apps", "desktop", "build", "icon.png"));
+  fs.writeFileSync(path.join(root, "apps", "desktop", "build", "icon.png"), await mark(512));
   await hybridIco(path.join(root, "apps", "desktop", "build", "icon.ico"), "gradient", [16, 20, 24, 32, 40, 48], [64, 128, 256]);
   // Browser tab: the compact mark at 16/32, the tile above.
   await hybridIco(path.join(root, "apps", "web", "public", "favicon.ico"), "gradient", [16, 32], [48, 64]);
@@ -105,7 +109,7 @@ async function main() {
   // Browser extension: Chrome wants 16/48/128.
   const ext = path.join(root, "apps", "browser", "icons");
   cp(path.join(small, "filow-micro-gradient-16.png"), path.join(ext, "icon-16.png"));
-  for (const s of [48, 128]) cp(path.join(icons, `filow-app-${s}.png`), path.join(ext, `icon-${s}.png`));
+  for (const s of [48, 128]) cp(path.join(small, `filow-micro-gradient-${s}.png`), path.join(ext, `icon-${s}.png`));
   // PowerPoint add-in: Office wants 16/32/64/80 (80 is not in the kit; resized from the 1024 tile).
   const ppt = path.join(root, "apps", "powerpoint", "public", "assets");
   fs.mkdirSync(ppt, { recursive: true });

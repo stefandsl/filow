@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.14)
+## Where it stands (v0.9.15)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,10 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.15: one icon everywhere: the compact "O + cradle" mark at every size (ico 16-256, icon.png 512
+    for macOS/Linux, favicon, extension 48/128), owner's choice after two PCs showed different icons
+    (the ico mixed the mark below 64 px with the full tile above). `node scripts/make-icon.js`
+    (there is no `npm run icon` script despite AGENTS.md).
   - 0.9.14: diagnostics. Crashes (main uncaught/unhandled, renderer or child process gone) are written
     to `startup.log` with a CRASH marker. Help > "Report a problem…" (also a button on the take log)
     opens a prefilled issue on the PUBLIC repo stefandsl/filow-releases with version, OS, CPU/RAM/GPU,

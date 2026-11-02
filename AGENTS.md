@@ -18,7 +18,7 @@ npm workspaces monorepo, Node 22, TypeScript 5.8, scope `@filow/*`:
 | `packages/core` | Engine, prompts, parsers, `i18n.ts` (flat EN/IT dictionary, keys like `settings.*`, `model.*`) |
 | `packages/ui` | Shared React views (`StageView`, `OnScreenStrip`, `Wordmark`, `BrandIcon`, `LangProvider`) |
 | `packages/stt`, `packages/client` | On-device Whisper (transformers.js) and the session client |
-| `brand/` | Brand kit; `npm run icon` copies icons/wordmark into every app |
+| `brand/` | Brand kit; `node scripts/make-icon.js` copies icons/wordmark into every app |
 
 ## Commands
 
