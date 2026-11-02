@@ -175,3 +175,16 @@ a row also stop the run.
 4. The rejected list: what was refuted or failed the gates, and why, so it is not retried.
 5. The measurements still needed before a final choice.
 6. If no stack passed: the best failing stack per tier with its fix note and the cost to get there.
+
+## Lap 2 queue (added 2026-11-02 after the owner's question about Laya)
+
+- **Laya** (Convai Innovations, Apache 2.0): 421M ModernBERT decision head, same question/answer API
+  as Clef (`/v1/systemone`). Lap 1 refuted the Ollama route (`laya:421m-english-bf16`, English only;
+  `laya:322m-multilingual-bf16` has no published decision accuracy; bf16 tags are slow on CPU; the
+  authors' CPU figure is 193–464 ms per decision, a 4-vCPU test gave tens of seconds; zero-shot typed
+  decisions 0.362, below the majority baseline; the model card calls it "a fast base to specialise,
+  not a zero-shot decision engine"). Re-enter it in lap 2 as `onnx-community/laya-multilingual-ONNX`
+  (int8 if available) running in the Electron worker, **fine-tuned on the Round 0 corpus**, judged on
+  T1 and T4 like every other candidate. Without the corpus it stays refuted.
+- **d1-omni 600M** via Ollama (GGUF q8): one harness run, catalogue entry only if p95 ≤ 250 ms and
+  Italian false-start rate ≈ 0.
