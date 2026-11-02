@@ -19,8 +19,17 @@ export async function POST(req: Request) {
     // The page's Cancel button aborts its request; passing the signal on makes Ollama stop too.
     signal: req.signal,
   }).catch(() => null);
-  if (!upstream || !upstream.ok || !upstream.body) {
-    return new Response(JSON.stringify({ error: `Ollama not reachable at ${OLLAMA_URL()}` }), { status: 502 });
+  if (!upstream) return new Response(JSON.stringify({ error: `Ollama not reachable at ${OLLAMA_URL()}` }), { status: 502 });
+  if (!upstream.ok || !upstream.body) {
+    // Ollama answers 4xx/5xx with {"error": "..."} (unknown model, registry down): pass it on as is.
+    const text = await upstream.text().catch(() => "");
+    let message = text;
+    try {
+      message = (JSON.parse(text) as { error?: string }).error ?? text;
+    } catch {
+      /* plain text */
+    }
+    return new Response(JSON.stringify({ error: message || `Ollama answered ${upstream.status}` }), { status: 502 });
   }
   return new Response(upstream.body, { headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store" } });
 }
