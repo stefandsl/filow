@@ -1,6 +1,6 @@
 {
   "name": "@filow/server",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "private": true,
   "description": "Session relay: pairing codes, roles, WebSocket fan-out between one engine and its views.",
   "main": "dist/index.js",
