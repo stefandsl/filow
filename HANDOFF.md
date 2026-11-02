@@ -24,7 +24,7 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
-  - Phone on the Wi-Fi: fixed and confirmed by the owner (0.8.14): the QR used a VirtualBox adapter;
+  - Phone on the Wi-Fi: fixed and confirmed by the owner (0.8.14, Windows only): the QR used a VirtualBox adapter;
     interfaces are now ranked (default route first, virtual ones last), Windows Firewall rule offered
     at first start and from the pairing dialog, adapter picker there too.
   - Local-mode latency: gauntlet brief v2 (`docs/local-latency-gauntlet.md`, after an EGM review) and
@@ -70,6 +70,13 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
     updates", `startup.log` in the profile folder).
   - CI attaches installers straight to the release from each OS job (artifact storage quota hit
     twice before); artifacts only for manual runs.
+
+## Field-tested so far: Windows only
+
+Every real-machine test to date (Wi-Fi pairing, installer, Ollama install, PowerPoint add-in, updates)
+was done on Windows. macOS and Linux builds exist and pass CI but nobody has run them end to end:
+the first-start local-AI dialog, the Ollama.app unzip, the adapter ranking (`route -n get default`),
+notifications and the region picker on those platforms are unverified.
 
 ## Pending (ask the owner before starting the big ones)
 
