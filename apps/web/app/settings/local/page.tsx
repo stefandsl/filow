@@ -28,6 +28,32 @@ type Status = {
   }>;
 };
 
+/** Electron accelerator → the keys a person reads: CommandOrControl+Shift+Space → Ctrl, Shift, Space (⌘ on a Mac). */
+function prettyHotkey(acc: string): string[] {
+  const mac = typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
+  const names: Record<string, string> = {
+    commandorcontrol: mac ? "⌘" : "Ctrl",
+    cmdorctrl: mac ? "⌘" : "Ctrl",
+    command: "⌘",
+    cmd: "⌘",
+    control: "Ctrl",
+    ctrl: "Ctrl",
+    alt: mac ? "⌥" : "Alt",
+    option: "⌥",
+    shift: mac ? "⇧" : "Shift",
+    super: mac ? "⌘" : "Win",
+    meta: mac ? "⌘" : "Win",
+    printscreen: "Print Screen",
+    space: "Space",
+    plus: "+",
+  };
+  return acc
+    .split("+")
+    .map((k) => k.trim())
+    .filter(Boolean)
+    .map((k) => names[k.toLowerCase()] ?? (k.length === 1 ? k.toUpperCase() : k));
+}
+
 export default function LocalModelsPage() {
   const [lang, setLang] = useUiLang();
   const [theme, setTheme] = useUiTheme();
@@ -577,7 +603,12 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                 <label className={`btn choice ${hotkey.enabled ? "primary" : ""}`}>
                   <input type="checkbox" checked={hotkey.enabled} onChange={(e) => void saveHotkey({ enabled: e.target.checked })} /> {t("settings.hotkeyEnabled")}
                 </label>
-                <input className="btn" value={hotkeyDraft} onChange={(e) => setHotkeyDraft(e.target.value)} placeholder="CommandOrControl+Shift+Space" title={t("settings.hotkeyTitle")} />
+                <span className="keys" title={t("settings.hotkeyTitle")}>
+                  {prettyHotkey(hotkeyDraft || "CommandOrControl+Shift+Space").map((k, i) => (
+                    <kbd key={i}>{k}</kbd>
+                  ))}
+                </span>
+                <input className="btn hotkey" value={hotkeyDraft} onChange={(e) => setHotkeyDraft(e.target.value)} placeholder="CommandOrControl+Shift+Space" title={t("settings.hotkeyTitle")} spellCheck={false} />
                 <button className="btn" onClick={() => void saveHotkey({ hotkey: hotkeyDraft })}>
                   {t("settings.saveHotkey")}
                 </button>
