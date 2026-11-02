@@ -14,15 +14,18 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.8.6)
+## Where it stands (v0.8.7)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
   (folder still has the old name on purpose).
-- v0.8.6 was tagged on 2026-11-02; CI run 41457427351. v0.8.5's public release is missing the
-  Windows assets (its installer script failed on CI); 0.8.6 fixes that. If 0.8.6 is not in the feed
-  yet, follow "Release" in `AGENTS.md`.
+- v0.8.7 was tagged on 2026-11-02 (CI run 41458509342); 0.8.6 is in the public feed. The public
+  v0.8.5 release was deleted (no Windows assets: its installer script failed on CI, which made
+  installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
+  without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - Installer custom pages in all 11 installer languages (auto-detected from Windows, no chooser),
+    a reason on every model line (recommended / RAM / disk / GPU), cumulative disk rule.
   - Local AI chosen from the hardware: NSIS page scans RAM / GPU / free disk and preselects models,
     `apps/desktop/localai.js` scans + recommends + installs Ollama unattended (Windows silent
     `OllamaSetup.exe`, macOS `Ollama.app`), first-start dialog on macOS/Linux/portable, Settings page
