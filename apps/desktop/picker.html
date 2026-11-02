@@ -4,49 +4,185 @@
     <meta charset="utf-8" />
     <title>Pick a region</title>
     <style>
-      html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; cursor: crosshair; user-select: none; }
-      #dim { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.38); }
-      #box { position: fixed; border: 2px solid #ffb600; background: rgba(255, 182, 0, 0.08); display: none; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.38); }
-      #hint { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); color: #f7f7f5; background: #13151a; border: 1px solid #292c34; border-radius: 999px; padding: 8px 16px; font: 13px system-ui, sans-serif; letter-spacing: 0.04em; }
-      #size { position: fixed; color: #f7f7f5; background: #13151a; border-radius: 4px; padding: 2px 6px; font: 12px ui-monospace, monospace; display: none; }
+      html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #000; cursor: none; user-select: none; }
+      canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+      #hint { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); color: #f7f7f5; background: rgba(19, 21, 26, 0.92); border: 1px solid #292c34; border-radius: 999px; padding: 8px 16px; font: 13px system-ui, sans-serif; letter-spacing: 0.04em; pointer-events: none; }
     </style>
   </head>
   <body>
-    <div id="dim"></div>
-    <div id="box"></div>
-    <div id="size"></div>
-    <div id="hint">Drag a rectangle to send to Screen Sense · Esc to cancel</div>
+    <canvas id="c"></canvas>
+    <div id="hint"></div>
     <script>
-      const dim = document.getElementById("dim");
-      const box = document.getElementById("box");
-      const size = document.getElementById("size");
+      // Region picker in the style of classic screenshot tools: the screen is frozen (the shell
+      // grabbed it before this window opened), dimmed, with a full-width crosshair, a magnifier
+      // next to the cursor and the size of the selection. Own implementation; no third-party code.
+      const q = new URLSearchParams(location.search);
+      const it = q.get("lang") === "it";
+      const T = it
+        ? { hint: "Trascina un rettangolo da mandare a Screen Sense · Invio = tutto lo schermo · Esc annulla", size: (w, h) => `${w} × ${h}` }
+        : { hint: "Drag a rectangle to send to Screen Sense · Enter = whole screen · Esc to cancel", size: (w, h) => `${w} × ${h}` };
+      document.getElementById("hint").textContent = T.hint;
+
+      const canvas = document.getElementById("c");
+      const ctx = canvas.getContext("2d");
+      const dpr = window.devicePixelRatio || 1;
+      let frame = null; // HTMLImageElement of the frozen screen (native pixels)
+      let mouse = { x: -1, y: -1 };
       let start = null;
-      const rect = (e) => {
-        const x = Math.min(start.x, e.clientX), y = Math.min(start.y, e.clientY);
-        return { x, y, width: Math.abs(e.clientX - start.x), height: Math.abs(e.clientY - start.y) };
-      };
-      window.addEventListener("mousedown", (e) => {
-        start = { x: e.clientX, y: e.clientY };
-        dim.style.display = "none";
-        box.style.display = "block";
-        size.style.display = "block";
-      });
+      let sel = null;
+      const AMBER = "#ffb600";
+      const LOUPE = 150; // css px, square
+      const ZOOM = 4;
+
+      function resize() {
+        canvas.width = Math.round(innerWidth * dpr);
+        canvas.height = Math.round(innerHeight * dpr);
+        draw();
+      }
+
+      function selectionRect() {
+        if (!start) return sel;
+        const x = Math.min(start.x, mouse.x), y = Math.min(start.y, mouse.y);
+        return { x, y, width: Math.abs(mouse.x - start.x), height: Math.abs(mouse.y - start.y) };
+      }
+
+      function draw() {
+        const W = innerWidth, H = innerHeight;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, W, H);
+        if (frame) ctx.drawImage(frame, 0, 0, frame.width, frame.height, 0, 0, W, H);
+        // dim everything but the selection
+        ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+        const r = selectionRect();
+        if (r && r.width > 0 && r.height > 0) {
+          ctx.fillRect(0, 0, W, r.y);
+          ctx.fillRect(0, r.y + r.height, W, H - r.y - r.height);
+          ctx.fillRect(0, r.y, r.x, r.height);
+          ctx.fillRect(r.x + r.width, r.y, W - r.x - r.width, r.height);
+          ctx.strokeStyle = AMBER;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.width - 1, r.height - 1);
+          // corner handles
+          ctx.fillStyle = AMBER;
+          for (const [hx, hy] of [[r.x, r.y], [r.x + r.width, r.y], [r.x, r.y + r.height], [r.x + r.width, r.y + r.height]]) ctx.fillRect(hx - 3, hy - 3, 6, 6);
+          // size label
+          const label = T.size(r.width, r.height);
+          ctx.font = "12px ui-monospace, Consolas, monospace";
+          const tw = ctx.measureText(label).width + 12;
+          let lx = r.x, ly = r.y - 24;
+          if (ly < 4) ly = r.y + r.height + 6;
+          if (lx + tw > W - 4) lx = W - 4 - tw;
+          ctx.fillStyle = "rgba(19, 21, 26, 0.92)";
+          ctx.fillRect(lx, ly, tw, 18);
+          ctx.fillStyle = "#f7f7f5";
+          ctx.fillText(label, lx + 6, ly + 13);
+        } else {
+          ctx.fillRect(0, 0, W, H);
+        }
+        if (mouse.x < 0) return;
+        // crosshair across the whole screen
+        ctx.strokeStyle = "rgba(255, 182, 0, 0.85)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(mouse.x + 0.5, 0);
+        ctx.lineTo(mouse.x + 0.5, H);
+        ctx.moveTo(0, mouse.y + 0.5);
+        ctx.lineTo(W, mouse.y + 0.5);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        drawLoupe(W, H);
+      }
+
+      function drawLoupe(W, H) {
+        if (!frame) return;
+        const kx = frame.width / W, ky = frame.height / H;
+        let lx = mouse.x + 24, ly = mouse.y + 24;
+        if (lx + LOUPE > W - 8) lx = mouse.x - 24 - LOUPE;
+        if (ly + LOUPE + 20 > H - 8) ly = mouse.y - 24 - LOUPE - 20;
+        const srcW = LOUPE / ZOOM, srcH = LOUPE / ZOOM;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(lx, ly, LOUPE, LOUPE);
+        ctx.clip();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(frame, (mouse.x - srcW / 2) * kx, (mouse.y - srcH / 2) * ky, srcW * kx, srcH * ky, lx, ly, LOUPE, LOUPE);
+        // pixel grid
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i <= LOUPE; i += ZOOM) {
+          ctx.moveTo(lx + i + 0.5, ly);
+          ctx.lineTo(lx + i + 0.5, ly + LOUPE);
+          ctx.moveTo(lx, ly + i + 0.5);
+          ctx.lineTo(lx + LOUPE, ly + i + 0.5);
+        }
+        ctx.stroke();
+        // centre cross
+        ctx.strokeStyle = AMBER;
+        ctx.beginPath();
+        ctx.moveTo(lx + LOUPE / 2 + 0.5, ly);
+        ctx.lineTo(lx + LOUPE / 2 + 0.5, ly + LOUPE);
+        ctx.moveTo(lx, ly + LOUPE / 2 + 0.5);
+        ctx.lineTo(lx + LOUPE, ly + LOUPE / 2 + 0.5);
+        ctx.stroke();
+        ctx.restore();
+        ctx.strokeStyle = AMBER;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(lx, ly, LOUPE, LOUPE);
+        // coordinates under the loupe
+        ctx.fillStyle = "rgba(19, 21, 26, 0.92)";
+        ctx.fillRect(lx, ly + LOUPE, LOUPE, 20);
+        ctx.fillStyle = "#f7f7f5";
+        ctx.font = "12px ui-monospace, Consolas, monospace";
+        ctx.fillText(`${Math.round(mouse.x)}, ${Math.round(mouse.y)}`, lx + 6, ly + LOUPE + 14);
+      }
+
+      window.addEventListener("resize", resize);
       window.addEventListener("mousemove", (e) => {
-        if (!start) return;
-        const r = rect(e);
-        Object.assign(box.style, { left: r.x + "px", top: r.y + "px", width: r.width + "px", height: r.height + "px" });
-        size.textContent = `${r.width} × ${r.height}`;
-        Object.assign(size.style, { left: r.x + "px", top: Math.max(0, r.y - 22) + "px" });
+        mouse = { x: e.clientX, y: e.clientY };
+        draw();
+      });
+      window.addEventListener("mouseleave", () => {
+        mouse = { x: -1, y: -1 };
+        draw();
+      });
+      window.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return;
+        start = { x: e.clientX, y: e.clientY };
+        sel = null;
+        draw();
       });
       window.addEventListener("mouseup", (e) => {
-        if (!start) return;
-        const r = rect(e);
+        if (e.button !== 0 || !start) return;
+        mouse = { x: e.clientX, y: e.clientY };
+        const r = selectionRect();
         start = null;
-        if (r.width < 8 || r.height < 8) return window.picker.cancel();
-        window.picker.done(r);
+        if (r.width < 8 || r.height < 8) {
+          sel = null;
+          draw();
+          return;
+        }
+        window.picker.done({ x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) });
+      });
+      window.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        window.picker.cancel();
       });
       window.addEventListener("keydown", (e) => {
         if (e.key === "Escape") window.picker.cancel();
+        if (e.key === "Enter") window.picker.done({ x: 0, y: 0, width: innerWidth, height: innerHeight });
+      });
+
+      resize();
+      window.picker.frame().then((f) => {
+        if (!f || !f.dataUrl) return;
+        const img = new Image();
+        img.onload = () => {
+          frame = img;
+          draw();
+        };
+        img.src = f.dataUrl;
       });
     </script>
   </body>

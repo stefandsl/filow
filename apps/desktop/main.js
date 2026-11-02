@@ -197,45 +197,8 @@ async function listSources() {
     .map((s) => ({ id: s.id, name: s.name, kind: s.id.startsWith("screen") ? "screen" : "window", thumbnail: s.thumbnail.isEmpty() ? "" : s.thumbnail.toDataURL() }));
 }
 
-/** Transparent full-display window; resolves to { display, rect } in display-relative CSS px, or null. */
-function pickRegion() {
-  if (pickerWin) return Promise.resolve(null);
-  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  return new Promise((resolve) => {
-    const { x, y, width, height } = display.bounds;
-    pickerWin = new BrowserWindow({
-      x, y, width, height,
-      frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true, resizable: false, movable: false,
-      hasShadow: false, enableLargerThanScreen: true, fullscreenable: false, show: false,
-      webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "picker-preload.js") },
-    });
-    const finish = (rect) => {
-      ipcMain.removeAllListeners("picker:done");
-      ipcMain.removeAllListeners("picker:cancel");
-      const w = pickerWin;
-      pickerWin = null;
-      if (w && !w.isDestroyed()) {
-        w.hide(); // the overlay must be gone before the display is grabbed
-        w.close();
-      }
-      setTimeout(() => resolve(rect ? { display, rect } : null), 120);
-    };
-    ipcMain.once("picker:done", (_e, rect) => finish(rect));
-    ipcMain.once("picker:cancel", () => finish(null));
-    pickerWin.on("closed", () => {
-      if (pickerWin) finish(null);
-    });
-    pickerWin.setAlwaysOnTop(true, "screen-saver");
-    pickerWin.loadFile(path.join(__dirname, "picker.html")).then(() => {
-      if (!pickerWin) return;
-      pickerWin.show();
-      pickerWin.focus();
-    });
-  });
-}
-
-/** Grabs the display at native resolution and crops the chosen rect. JPEG data URL, memory only. */
-async function captureRegion(display, rect) {
+/** The display at native resolution as a NativeImage (memory only). */
+async function grabDisplay(display) {
   const sf = display.scaleFactor || 1;
   const sources = await desktopCapturer.getSources({
     types: ["screen"],
@@ -243,7 +206,54 @@ async function captureRegion(display, rect) {
   });
   const src = sources.find((s) => String(s.display_id) === String(display.id)) || (sources.length === 1 ? sources[0] : null);
   if (!src || src.thumbnail.isEmpty()) throw new Error("could not capture the display");
-  const img = src.thumbnail;
+  return src.thumbnail;
+}
+
+/**
+ * Region picker: the display is frozen first (grabbed before the overlay opens, like classic
+ * screenshot tools), then shown dimmed with a crosshair, a magnifier and the selection size.
+ * Resolves to { display, rect, image } in display-relative CSS px, or null.
+ */
+async function pickRegion() {
+  if (pickerWin) return null;
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  const image = await grabDisplay(display);
+  const frameUrl = "data:image/jpeg;base64," + image.toJPEG(92).toString("base64");
+  return new Promise((resolve) => {
+    const { x, y, width, height } = display.bounds;
+    pickerWin = new BrowserWindow({
+      x, y, width, height,
+      frame: false, alwaysOnTop: true, skipTaskbar: true, resizable: false, movable: false,
+      hasShadow: false, enableLargerThanScreen: true, fullscreenable: false, show: false, backgroundColor: "#000000",
+      webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "picker-preload.js") },
+    });
+    ipcMain.handle("picker:frame", () => ({ dataUrl: frameUrl }));
+    const finish = (rect) => {
+      ipcMain.removeAllListeners("picker:done");
+      ipcMain.removeAllListeners("picker:cancel");
+      ipcMain.removeHandler("picker:frame");
+      const w = pickerWin;
+      pickerWin = null;
+      if (w && !w.isDestroyed()) w.close();
+      resolve(rect ? { display, rect, image } : null);
+    };
+    ipcMain.once("picker:done", (_e, rect) => finish(rect));
+    ipcMain.once("picker:cancel", () => finish(null));
+    pickerWin.on("closed", () => {
+      if (pickerWin) finish(null);
+    });
+    pickerWin.setAlwaysOnTop(true, "screen-saver");
+    pickerWin.loadFile(path.join(__dirname, "picker.html"), { query: { lang: menuLang() } }).then(() => {
+      if (!pickerWin) return;
+      pickerWin.show();
+      pickerWin.focus();
+    });
+  });
+}
+
+/** Crops the chosen rect out of the frozen display (or a fresh grab). JPEG data URL, memory only. */
+async function captureRegion(display, rect, image) {
+  const img = image || (await grabDisplay(display));
   const { width: iw, height: ih } = img.getSize();
   const kx = iw / display.size.width;
   const ky = ih / display.size.height;
@@ -277,7 +287,7 @@ function wireScreenSense() {
     if (!settings.screenSense) throw off();
     const picked = await pickRegion();
     if (!picked) return null;
-    return { image: await captureRegion(picked.display, picked.rect), width: picked.rect.width, height: picked.rect.height };
+    return { image: await captureRegion(picked.display, picked.rect, picked.image), width: picked.rect.width, height: picked.rect.height };
   });
   // The pairing dialog can switch the public link on/off; the window reloads with the new URLs.
   ipcMain.on("remote:set", (_e, on) => {

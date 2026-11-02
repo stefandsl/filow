@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.8.8)
+## Where it stands (v0.8.11)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,13 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - Region picker rewritten in the style of classic screenshot tools (Greenshot is GPL-3.0, so no
+    code was taken): the display is grabbed first, shown frozen and dimmed, full-screen crosshair,
+    4x magnifier with pixel grid and coordinates, size label, Enter = whole screen, Esc / right
+    click cancel. The crop comes from the same frozen frame (`apps/desktop/picker.html`,
+    `pickRegion` / `captureRegion` in `main.js`).
+  - Cancel button on a running pull; Liquid vision model renamed to `lfm3-vl`; Ollama pull errors
+    shown as they are.
   - Installer page: intro gets three lines (it overlapped the list), detects an existing Ollama
     (`%LOCALAPPDATA%\Programs\Ollama`, Program Files) and already-pulled models
     (`~/.ollama/models/manifests/.../library/<model>/<tag>`): those lines say "already installed",
