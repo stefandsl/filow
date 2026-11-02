@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.11)
+## Where it stands (v0.9.12)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,10 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.12: owner's PC: capture starts after 14 s whatever the sample rate, then "no audio ... track
+    ended" (also in local mode). Diagnosis: Chromium's out-of-process audio service hangs and restarts,
+    ending every capture track. `main.js` now passes `--disable-features=AudioServiceOutOfProcess`;
+    mic.ts logs the peak level after 3 s and reports a track "ended" event at once. To verify on that PC.
   - 0.9.11: the acrylic window of 0.9.9 removed (a transparent-background window cannot maximize or go
     full screen on Windows; the owner hit it). The glass look stays in CSS; `--filow-glass` is no
     longer passed, so `data-glass` is never set (the CSS rule is harmless and kept).

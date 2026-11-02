@@ -137,6 +137,7 @@ export async function startMic(
   }
   URL.revokeObjectURL(url);
   const track = stream.getAudioTracks()[0];
+  track?.addEventListener("ended", () => onNoAudio?.("the microphone track ended (the device was taken by another app, unplugged, or the audio service restarted)"), { once: true });
   onLog?.(`microphone: ${track?.label || "default"}${reused ? " (kept from the check)" : ""} in ${Date.now() - t0} ms, audio context ${ctx.state}, ${ctx.sampleRate} Hz → ${sampleRate} Hz`);
 
   const source = ctx.createMediaStreamSource(stream);
@@ -147,11 +148,29 @@ export async function startMic(
     if (got) return;
     onNoAudio?.(`no audio from the microphone in ${NO_AUDIO_MS / 1000} s (audio context ${ctx.state}, track ${track?.readyState ?? "none"}${track?.muted ? ", muted" : ""})`);
   }, NO_AUDIO_MS);
+  // Level report after 3 s of audio: silence with a live track means the wrong device, an exclusive-mode
+  // app, or Windows microphone privacy; without this line the log looked fine while nothing was heard.
+  let peak = 0;
+  let chunks = 0;
+  let levelTimer: ReturnType<typeof setTimeout> | null = null;
   node.port.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
     if (!got) {
       got = true;
       if (watchdog) clearTimeout(watchdog);
       watchdog = null;
+      levelTimer = setTimeout(() => {
+        levelTimer = null;
+        const pct = Math.round((peak / 32768) * 100);
+        onLog?.(`audio level after 3 s: peak ${pct}% over ${chunks} chunks${pct < 1 ? " (SILENCE: check the input device, exclusive mode and Windows microphone privacy)" : ""}`);
+      }, 3000);
+    }
+    if (levelTimer) {
+      const pcm = new Int16Array(ev.data);
+      for (let i = 0; i < pcm.length; i += 4) {
+        const v = pcm[i] < 0 ? -pcm[i] : pcm[i];
+        if (v > peak) peak = v;
+      }
+      chunks++;
     }
     onChunk(ev.data);
   };
@@ -165,6 +184,8 @@ export async function startMic(
     stop() {
       if (watchdog) clearTimeout(watchdog);
       watchdog = null;
+      if (levelTimer) clearTimeout(levelTimer);
+      levelTimer = null;
       node.port.onmessage = null;
       node.disconnect();
       source.disconnect();
