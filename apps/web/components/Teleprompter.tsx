@@ -14,7 +14,8 @@ import {
   type SttStatus,
 } from "@filow/core";
 import { LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
-import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, startAuto, type SttBackend } from "@filow/stt";
+import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, startAuto, whisperCached, type SttBackend } from "@filow/stt";
+import { getStartMode, setDecisionProvider, setStartMode, type StartMode } from "@/lib/prefs";
 import { useEngine } from "./useEngine";
 import { engineHeaders, useSession } from "./useSession";
 import { PairPanel } from "./PairPanel";
@@ -44,6 +45,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const [hasWebSpeech, setHasWebSpeech] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [choice, setChoice] = useState<BackendChoice>("auto");
+  const [startDialog, setStartDialog] = useState(false);
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [editing, setEditing] = useState(false);
   const [offline, setOffline] = useState(false);
@@ -181,11 +184,53 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     }
   };
 
-  const startTake = async () => {
+  /** What each mode needs, read fresh every time the dialog opens. */
+  const loadReadiness = async (): Promise<Readiness> => {
+    const [stt, local, whisper] = await Promise.all([
+      fetch("/api/stt/status").then((r) => r.json()).catch(() => ({ elevenlabs: false, openai: false })) as Promise<SttStatus>,
+      fetch("/api/local/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null) as Promise<{ openrouterKey?: boolean; ollama?: { ok: boolean }; models?: Array<{ name: string; installed: boolean }> } | null>,
+      whisperCached(selectedWhisperModel()).catch(() => false),
+    ]);
+    setSttStatus(stt);
+    return {
+      openrouterKey: Boolean(local?.openrouterKey),
+      sttKey: Boolean(stt.elevenlabs || stt.openai),
+      whisper,
+      clef: Boolean(local?.ollama?.ok && local?.models?.some((m) => m.name.startsWith("clef") && m.installed)),
+      stt,
+    };
+  };
+
+  /** Start button: ask Cloud / Local unless a choice is remembered. */
+  const requestStart = async () => {
+    const mode = getStartMode();
+    const r = await loadReadiness();
+    setReadiness(r);
+    if (mode === "ask" || (mode === "cloud" && !(r.openrouterKey && r.sttKey)) || (mode === "local" && !(r.whisper && r.clef))) {
+      setStartDialog(true);
+      return;
+    }
+    await startTake(mode, r);
+  };
+
+  const startTake = async (mode: "cloud" | "local", r: Readiness) => {
     engine.setError(undefined);
     setLastNotes([]);
     cancelRef.current = false;
     setStarting(true);
+    // The mode decides the provider and the transcription backend; no silent fallback to the other side.
+    setDecisionProvider(mode === "local" ? "clef-local" : "openrouter");
+    let backend: BackendChoice = choice;
+    if (backend === "auto") {
+      if (mode === "local") backend = "whisper";
+      else backend = r.stt.elevenlabs ? "elevenlabs" : r.stt.openai ? "openai" : hasWebSpeech ? "browser" : "auto";
+    }
+    if (backend === "auto") {
+      engine.setError(t("start.notReadyCloud"));
+      setStarting(false);
+      return;
+    }
+    pushLog(`${mode === "local" ? t("start.local") : t("start.cloud")} · ${BACKEND_LABELS[backend]}`);
     if (!(await probeMic())) {
       setStarting(false);
       return;
@@ -199,18 +244,13 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       onReady: () => pushLog("transcription ready"),
     };
     try {
-      if (choice === "auto") {
-        const candidates = availableBackends(sttStatus, { webSpeech: hasWebSpeech, offline });
-        const { backend } = await startAuto(candidates, handlers, (id, note) => pushLog(`${BACKEND_LABELS[id]}: ${note}`), { headers: engineHeaders() });
-        backendRef.current = backend;
-        engine.setBackend(backend.id);
-      } else {
-        // Explicit choice: never fall back silently.
-        const backend = createBackend(choice, { headers: engineHeaders() });
-        await backend.start(handlers);
-        backendRef.current = backend;
-        engine.setBackend(backend.id);
-        pushLog(`${BACKEND_LABELS[choice]}: live`);
+      {
+        // Explicit backend from the chosen mode: never fall back silently.
+        const b = createBackend(backend, { headers: engineHeaders() });
+        await b.start(handlers);
+        backendRef.current = b;
+        engine.setBackend(b.id);
+        pushLog(`${BACKEND_LABELS[backend]}: live`);
       }
       if (cancelRef.current) {
         stopTake();
@@ -364,7 +404,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
             </button>
           </>
         ) : (
-          <button className="btn primary" onClick={startTake} disabled={!section || availability.length === 0}>
+          <button className="btn primary" onClick={() => void requestStart()} disabled={!section || availability.length === 0}>
             {t("ctl.start")}
           </button>
         )}
@@ -517,6 +557,17 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
           </div>
         </div>
       )}
+      {startDialog && readiness && (
+        <StartModeDialog
+          readiness={readiness}
+          onCancel={() => setStartDialog(false)}
+          onPick={(mode, remember) => {
+            setStartDialog(false);
+            setStartMode(remember ? mode : "ask");
+            void startTake(mode, readiness);
+          }}
+        />
+      )}
       {editing && <ScriptEditor initial={scriptText} onCancel={() => setEditing(false)} onSave={saveScript} />}
       {screen.sources && <SourceChooser sources={screen.sources} onPick={(s) => void screen.chooseSource(s)} />}
       {pendingImport && (
@@ -531,6 +582,61 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
           }}
         />
       )}
+    </div>
+  );
+}
+
+type Readiness = { openrouterKey: boolean; sttKey: boolean; whisper: boolean; clef: boolean; stt: SttStatus };
+
+/** Cloud or Local for this take, with what each needs and whether it is there. */
+function StartModeDialog({ readiness, onPick, onCancel }: { readiness: Readiness; onPick: (mode: "cloud" | "local", remember: boolean) => void; onCancel: () => void }) {
+  const t = useT();
+  const [remember, setRemember] = useState(false);
+  const cloudOk = readiness.openrouterKey && readiness.sttKey;
+  const localOk = readiness.whisper && readiness.clef;
+  const Line = ({ ok, label }: { ok: boolean; label: string }) => (
+    <div className={`check ${ok ? "ok" : "missing"}`}>
+      {ok ? "✓" : "✗"} {label} <span className="hint">· {ok ? t("start.ready") : t("start.missing")}</span>
+    </div>
+  );
+  return (
+    <div className="modal-bg" onClick={onCancel}>
+      <div className="modal startmode" onClick={(e) => e.stopPropagation()}>
+        <div className="eyebrow">{t("start.title")}</div>
+        <div className="modes">
+          <div className={`mode ${cloudOk ? "" : "notready"}`}>
+            <h3>☁ {t("start.cloud")}</h3>
+            <p className="hint">{t("start.cloudHint")}</p>
+            <Line ok={readiness.openrouterKey} label={t("start.keyOpenRouter")} />
+            <Line ok={readiness.sttKey} label={t("start.keyStt")} />
+            {!cloudOk && <p className="hint">{t("start.notReadyCloud")}</p>}
+            <button className="btn primary" disabled={!cloudOk} onClick={() => onPick("cloud", remember)}>
+              {t("ctl.start")} · {t("start.cloud")}
+            </button>
+          </div>
+          <div className={`mode ${localOk ? "" : "notready"}`}>
+            <h3>💻 {t("start.local")}</h3>
+            <p className="hint">{t("start.localHint")}</p>
+            <Line ok={readiness.whisper} label={t("start.whisper")} />
+            <Line ok={readiness.clef} label={t("start.clef")} />
+            {!localOk && <p className="hint">{t("start.notReadyLocal")}</p>}
+            <button className="btn primary" disabled={!localOk} onClick={() => onPick("local", remember)}>
+              {t("ctl.start")} · {t("start.local")}
+            </button>
+          </div>
+        </div>
+        <div className="controls">
+          <label className="btn choice">
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> {t("start.remember")}
+          </label>
+          <a className="btn" href="/settings/local">
+            {t("start.fix")}
+          </a>
+          <button className="btn" onClick={onCancel}>
+            {t("common.cancel")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -97,3 +97,25 @@ export function resolveTheme(t: ThemePref): "light" | "dark" {
   if (t !== "system") return t;
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
+
+// ---- Start mode: ask every time, or always cloud / always local ----
+export type StartMode = "ask" | "cloud" | "local";
+const START_KEY = "prefs:startMode";
+
+export function getStartMode(): StartMode {
+  try {
+    const v = localStorage.getItem(START_KEY);
+    return v === "cloud" || v === "local" ? v : "ask";
+  } catch {
+    return "ask";
+  }
+}
+
+export function setStartMode(m: StartMode): void {
+  try {
+    if (m === "ask") localStorage.removeItem(START_KEY);
+    else localStorage.setItem(START_KEY, m);
+  } catch {
+    /* ignore */
+  }
+}

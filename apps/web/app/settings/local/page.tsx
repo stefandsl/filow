@@ -7,7 +7,7 @@ import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, whisperC
 import { LangProvider, useT } from "@filow/ui";
 import { engineHeaders } from "@/components/useSession";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
-import { getDecisionProvider, getScreenMode, setDecisionProvider, setScreenMode } from "@/lib/prefs";
+import { getDecisionProvider, getScreenMode, getStartMode, setDecisionProvider, setScreenMode, setStartMode, type StartMode } from "@/lib/prefs";
 import { screenBridge } from "@/lib/screen/watcher";
 
 type Status = {
@@ -45,6 +45,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const [whisperModel, setWhisperModel] = useState("");
   const [cached, setCached] = useState<Record<string, boolean>>({});
   const [screenMode, setScreenModeState] = useState<ScreenMode>("balanced");
+  const [startMode, setStartModeState] = useState<StartMode>("ask");
   const [hotkey, setHotkey] = useState<{ hotkey: string; enabled: boolean } | null>(null);
   const [hotkeyDraft, setHotkeyDraft] = useState("");
   const [hotkeyMsg, setHotkeyMsg] = useState("");
@@ -62,6 +63,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     setProvider(getDecisionProvider() ?? "");
     setWhisperModel(selectedWhisperModel());
     setScreenModeState(getScreenMode());
+    setStartModeState(getStartMode());
     void screenBridge()
       ?.getSettings()
       .then((h) => {
@@ -215,6 +217,26 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
         <div className="hint">{t("common.loading")}</div>
       ) : (
         <>
+          <section className="strip">
+            <div className="label">{t("start.modeLabel")}</div>
+            <div className="row">
+              {(["ask", "cloud", "local"] as StartMode[]).map((m) => (
+                <label key={m} className={`btn choice ${startMode === m ? "primary" : ""}`}>
+                  <input
+                    type="radio"
+                    name="startMode"
+                    checked={startMode === m}
+                    onChange={() => {
+                      setStartModeState(m);
+                      setStartMode(m);
+                    }}
+                  />{" "}
+                  {m === "ask" ? t("start.modeAsk") : m === "cloud" ? t("start.modeCloud") : t("start.modeLocal")}
+                </label>
+              ))}
+            </div>
+          </section>
+
           <section className="strip">
             <div className="label">{t("settings.provider")}</div>
             <div className="hint">{t("settings.providerHint")}</div>
