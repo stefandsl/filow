@@ -77,3 +77,22 @@ with 138 result events. English with the synthetic "Zira" voice was poor ("A spe
 Listens…"): to be re-measured with real speech. T2 (sentence end → committed text) is now bounded by
 the endpoint rule (1.2 s of trailing silence) plus one chunk: about 1.3–1.8 s, against ≥ 4 s before.
 Tokens include <en-US>, <it-IT>, <ro-RO>, <ru-RU>: all four target languages.
+
+## 2026-11-02 · cloud decision models and provider routing (owner reported "slow model: 1956 ms per call")
+
+Same corpus, one run each, OpenRouter. The current model is already the fastest and the most accurate
+of the four; provider routing by throughput trims the tail.
+
+| model / routing | p50 | p95 | correct | miss | recall |
+|---|---|---|---|---|---|
+| google/gemini-2.5-flash-lite (current) | 1.4 s | 3.5 s | 7 | 2 | 0.78 |
+| google/gemini-2.0-flash-001 | 1.9 s | 3.6 s | 6 | 3 | 0.67 |
+| openai/gpt-4.1-nano | 2.1 s | 3.4 s | 6 | 3 | 0.67 |
+| openai/gpt-4o-mini | 2.4 s | 3.1 s | 6 | 3 | 0.67 |
+| flash-lite + provider sort "latency" | 1.6 s | 5.3 s | 7 | 2 | 0.78 |
+| **flash-lite + provider sort "throughput" (new default)** | **1.3 s** | **1.9 s** | 7 | 2 | 0.78 |
+
+Still open for the cloud path: the request is about 600 tokens of system prompt + the window and a
+JSON answer of up to 500 tokens; a shorter answer format (ids and confidences only) is the next lever
+(Step 3 territory). The 2 s figure the owner saw is this model's normal cloud latency, reported by
+the new "slow model" chip (the engine paces itself to it; nothing is lost).

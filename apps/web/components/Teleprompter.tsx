@@ -256,7 +256,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     try {
       {
         // Explicit backend from the chosen mode: never fall back silently.
-        const b = createBackend(backend, { headers: engineHeaders(), language: backend === "sherpa" ? getSpeechLang() : getSpeechLang() === "auto" ? lang : getSpeechLang() });
+        const b = createBackend(backend, { headers: engineHeaders(), language: backend === "whisper" && getSpeechLang() === "auto" ? lang : getSpeechLang() });
         await b.start(handlers);
         backendRef.current = b;
         engine.setBackend(b.id);

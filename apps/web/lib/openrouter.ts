@@ -32,7 +32,14 @@ export async function openRouterChat(model: string, kind: "text" | "vision", pay
         "HTTP-Referer": process.env.PUBLIC_ORIGIN || "http://localhost:4747",
         "X-Title": "Filow",
       },
-      body: JSON.stringify({ model: models[0], models, usage: { include: true }, ...payload }),
+      body: JSON.stringify({
+        model: models[0],
+        models,
+        usage: { include: true },
+        // Route to the fastest provider of each model (OPENROUTER_PROVIDER_SORT=latency|throughput|price; empty = OpenRouter's default).
+        ...(process.env.OPENROUTER_PROVIDER_SORT !== "" ? { provider: { sort: process.env.OPENROUTER_PROVIDER_SORT || "throughput" } } : {}),
+        ...payload,
+      }),
     });
     if (res.ok) {
       const json = (await res.json()) as Record<string, unknown>;

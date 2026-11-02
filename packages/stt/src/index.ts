@@ -35,7 +35,7 @@ export function createBackend(id: SttBackendId, opts: BackendOptions = {}): SttB
   const headers = opts.headers ?? {};
   switch (id) {
     case "elevenlabs":
-      return new ElevenLabsStt(base, headers);
+      return new ElevenLabsStt(base, headers, opts.language);
     case "openai":
       return new OpenAiStt(base, headers);
     case "browser":
