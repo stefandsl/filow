@@ -71,12 +71,14 @@ function recommend(hw) {
   else models = ["whisper-base"];
   const total = (list) => list.reduce((s, n) => s + (CATALOG[n]?.dl || 0), 0);
   if (hw.freeGb >= 0) {
-    while (models.length > 1 && total(models) + 3 > hw.freeGb) {
-      const biggest = [...models].filter((n) => CATALOG[n]?.ollama).sort((a, b) => CATALOG[b].dl - CATALOG[a].dl)[0];
-      if (!biggest) break;
-      models = models.filter((n) => n !== biggest);
-      // the big slide model goes first; its small sibling still fits most disks
-      if (biggest === "gemma4:e4b" && !models.includes("gemma4:e2b")) models.splice(1, 0, "gemma4:e2b");
+    // Drop order: big slide model (its small sibling steps in), small slide model, then Clef:
+    // decisions are the core feature, so they go last. Keep 3 GB spare after the downloads.
+    const spare = 3 + 1; // + ~1 GB for Ollama itself
+    for (const drop of ["gemma4:e4b", "gemma4:e2b", "clef", "clef-flash"]) {
+      if (total(models) + spare <= hw.freeGb) break;
+      if (!models.includes(drop)) continue;
+      models = models.filter((n) => n !== drop);
+      if (drop === "gemma4:e4b" && !models.includes("gemma4:e2b")) models.splice(1, 0, "gemma4:e2b");
     }
   }
   return { models, ollama: models.some((n) => CATALOG[n]?.ollama), downloadGb: Math.round(total(models) * 10) / 10, labels: models.map((n) => CATALOG[n]?.label || n) };
