@@ -75,6 +75,8 @@ function recommend(hw) {
       const biggest = [...models].filter((n) => CATALOG[n]?.ollama).sort((a, b) => CATALOG[b].dl - CATALOG[a].dl)[0];
       if (!biggest) break;
       models = models.filter((n) => n !== biggest);
+      // the big slide model goes first; its small sibling still fits most disks
+      if (biggest === "gemma4:e4b" && !models.includes("gemma4:e2b")) models.splice(1, 0, "gemma4:e2b");
     }
   }
   return { models, ollama: models.some((n) => CATALOG[n]?.ollama), downloadGb: Math.round(total(models) * 10) / 10, labels: models.map((n) => CATALOG[n]?.label || n) };

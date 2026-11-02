@@ -6,8 +6,6 @@
 !include nsDialogs.nsh
 !include LogicLib.nsh
 !include FileFunc.nsh
-!include StrFunc.nsh
-${Using:StrFunc} StrStr
 
 ; Installer pass only: the uninstaller never sets them and makensis treats unused variables as errors here.
 !ifndef BUILD_UNINSTALLER
@@ -45,20 +43,62 @@ Var GpuName
 Var GpuOk
 !endif
 
+; ${FilowContains} out haystack needle : out = 1 when needle occurs in haystack (case-sensitive), else 0.
+!macro _FilowContains out hay needle
+  Push "${hay}"
+  Push "${needle}"
+  Call FilowContains
+  Pop ${out}
+!macroend
+!define FilowContains "!insertmacro _FilowContains"
+!ifndef BUILD_UNINSTALLER
+Function FilowContains
+  Exch $1 ; needle
+  Exch
+  Exch $0 ; haystack
+  Push $2
+  Push $3
+  Push $4
+  Push $5
+  StrLen $2 $1
+  StrLen $3 $0
+  IntOp $3 $3 - $2
+  StrCpy $4 0
+  StrCpy $5 0
+  ${If} $2 > 0
+    ${DoWhile} $4 <= $3
+      StrCpy $R9 $0 $2 $4
+      ${If} $R9 == $1
+        StrCpy $5 1
+        ${ExitDo}
+      ${EndIf}
+      IntOp $4 $4 + 1
+    ${Loop}
+  ${EndIf}
+  StrCpy $0 $5
+  Pop $5
+  Pop $4
+  Pop $3
+  Pop $2
+  Pop $1
+  Exch $0
+FunctionEnd
+!endif
+
 ; ---- Quick hardware scan: RAM (GlobalMemoryStatusEx), free space on the profile drive, first GPU name from the registry.
 !macro FilowHardwareScan
   System::Alloc 64
-  Pop $R0
-  System::Call "*$R0(i 64)"
-  System::Call "kernel32::GlobalMemoryStatusEx(i R0)"
-  System::Call "*$R0(i, i, l .R1)"
-  System::Free $R0
-  System::Int64Op $R1 / 1073741824
+  Pop $1
+  System::Call "*$1(i 64)"
+  System::Call "Kernel32::GlobalMemoryStatusEx(i r1)"
+  System::Call "*$1(i.r2, i.r3, l.r4, l.r5, l.r6, l.r7, l.r8, l.r9)"
+  System::Free $1
+  System::Int64Op $4 / 1073741824
   Pop $RamGb
-  ; round up: 31.4 GB sticks read as 32
-  System::Int64Op $R1 % 1073741824
+  ; round up like the app does (Math.ceil): 31.4 GB reported by Windows is a 32 GB machine
+  System::Int64Op $4 % 1073741824
   Pop $R2
-  ${If} $R2 > 536870912
+  ${If} $R2 > 0
     IntOp $RamGb $RamGb + 1
   ${EndIf}
   ${GetRoot} "$PROFILE" $R3
@@ -71,10 +111,10 @@ Var GpuOk
     ${If} $R6 == ""
       ${ExitDo}
     ${EndIf}
-    ${StrStr} $R7 $R6 "Remote"
-    ${StrStr} $R8 $R6 "Basic"
-    ${If} $R7 == ""
-    ${AndIf} $R8 == ""
+    ${FilowContains} $R7 $R6 "Remote"
+    ${FilowContains} $R8 $R6 "Basic"
+    ${If} $R7 == 0
+    ${AndIf} $R8 == 0
       StrCpy $GpuName $R6
       ${ExitDo}
     ${EndIf}
@@ -85,20 +125,20 @@ Var GpuOk
   ${Loop}
   ; "GPU ok" = something that runs WebGPU Whisper small comfortably: NVIDIA, Radeon, Arc or Iris Xe.
   StrCpy $GpuOk 0
-  ${StrStr} $R7 $GpuName "NVIDIA"
-  ${If} $R7 != ""
+  ${FilowContains} $R7 $GpuName "NVIDIA"
+  ${If} $R7 == 1
     StrCpy $GpuOk 1
   ${EndIf}
-  ${StrStr} $R7 $GpuName "Radeon"
-  ${If} $R7 != ""
+  ${FilowContains} $R7 $GpuName "Radeon"
+  ${If} $R7 == 1
     StrCpy $GpuOk 1
   ${EndIf}
-  ${StrStr} $R7 $GpuName "Arc"
-  ${If} $R7 != ""
+  ${FilowContains} $R7 $GpuName "Arc"
+  ${If} $R7 == 1
     StrCpy $GpuOk 1
   ${EndIf}
-  ${StrStr} $R7 $GpuName "Iris"
-  ${If} $R7 != ""
+  ${FilowContains} $R7 $GpuName "Iris"
+  ${If} $R7 == 1
     StrCpy $GpuOk 1
   ${EndIf}
   ${If} $GpuName == ""
@@ -130,7 +170,9 @@ Var GpuOk
   ${EndIf}
   ; disk: keep 3 GB free after the downloads; drop the biggest Ollama models first
   ${If} $FreeGb < 15
+  ${AndIf} $StGemmaBig == ${BST_CHECKED}
     StrCpy $StGemmaBig ${BST_UNCHECKED}
+    StrCpy $StGemmaSmall ${BST_CHECKED}
   ${EndIf}
   ${If} $FreeGb < 12
     StrCpy $StClef ${BST_UNCHECKED}

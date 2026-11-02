@@ -23,6 +23,25 @@ export function engineHeaders(): Record<string, string> {
   return engineTokenStore.token ? { Authorization: `Bearer ${engineTokenStore.token}` } : {};
 }
 
+/**
+ * Pages that are not the prompter (Settings) have no session, hence no engine token, and the
+ * spend/local endpoints answer 401 while ACCESS_PASSWORD is set (always, in the desktop app).
+ * Mint one by creating a session the same way the prompter does.
+ */
+export async function ensureEngineToken(): Promise<string | null> {
+  if (engineTokenStore.token) return engineTokenStore.token;
+  const password = storedPassword();
+  try {
+    const res = await fetch(`${sessionServerUrl()}/api/session`, { method: "POST", headers: password ? { "X-Access-Password": password } : {} });
+    if (!res.ok) return null;
+    const created = (await res.json()) as { engineToken?: string };
+    engineTokenStore.token = created.engineToken ?? null;
+  } catch {
+    return null;
+  }
+  return engineTokenStore.token;
+}
+
 function storedPassword(): string {
   const bridge = desktopBridge();
   if (bridge?.accessPassword) return bridge.accessPassword;

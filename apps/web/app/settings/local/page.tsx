@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { LANG_LABELS, LANGS, SCREEN_MODE_LABELS, type DecisionProviderId, type Lang, type ScreenMode } from "@filow/core";
+import { LANG_LABELS, LANGS, SCREEN_MODE_LABELS, type DecisionProviderId, type I18nKey, type Lang, type ScreenMode } from "@filow/core";
 import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, whisperCached } from "@filow/stt";
 import { Wordmark, LangProvider, useT } from "@filow/ui";
-import { engineHeaders } from "@/components/useSession";
+import { engineHeaders, ensureEngineToken } from "@/components/useSession";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
 import { getDecisionProvider, getScreenMode, getStartMode, setDecisionProvider, setScreenMode, setStartMode, type StartMode } from "@/lib/prefs";
 import { screenBridge } from "@/lib/screen/watcher";
@@ -55,6 +55,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const [autoList, setAutoList] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
+    await ensureEngineToken();
     const res = await fetch("/api/local/status", { cache: "no-store" });
     const s = (await res.json()) as Status;
     setStatus(s);
@@ -227,6 +228,13 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     setDecisionProvider(id);
   };
 
+  /** Model descriptions live in the dictionary (model.<name>); the catalogue text is the English fallback. */
+  const describe = (m: { name: string; description: string }) => {
+    const key = `model.${m.name}` as I18nKey;
+    const text = t(key);
+    return text === key ? m.description : text;
+  };
+
   const providerLabel = (id: string) => (id === "openrouter" || id === "clef-local" || id === "clef-cloudflare" ? t(`provider.${id}`) : id);
 
   return (
@@ -351,6 +359,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
 
           <section className="strip">
             <div className="label">{t("settings.models")}</div>
+            <div className="hint">{t("settings.ramNote")}</div>
             {status.models.map((m) => (
               <div key={m.name} className="model">
                 <div>
@@ -360,7 +369,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                   {m.runtime === "browser" && whisperModel === m.name && <span className="chip">{t("settings.selectedWhisper")}</span>}
                   {m.status === "planned" && <span className="chip">{t("settings.planned")}</span>}
                   <div className="hint">
-                    {m.description} {t("settings.sizes", { dl: m.downloadGb, ram: m.ramGb })}
+                    {describe(m)} {t("settings.sizes", { dl: m.downloadGb, ram: m.ramGb })}
                   </div>
                 </div>
                 <div className="row">
