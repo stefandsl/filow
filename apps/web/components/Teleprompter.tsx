@@ -99,7 +99,11 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const error = eng.error ?? null;
 
   const pushLog = useCallback((line: string) => {
-    setLog((l) => [...l.slice(-30), `${new Date().toLocaleTimeString()}  ${line}`]);
+    setLog((l) => {
+      const next = [...l.slice(-30), `${new Date().toLocaleTimeString()}  ${line}`];
+      desktopBridge()?.takeLog?.(next.join("\n")); // kept by the desktop shell for "Report a problem"
+      return next;
+    });
   }, []);
 
   // ---- Screen Sense (ARCHITECTURE.md §6) --------------------------------
@@ -578,6 +582,11 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
 
       {log.length > 0 && (
         <div className="log">
+          {desktopBridge()?.reportProblem && (
+            <button type="button" className="btn small" style={{ float: "right" }} onClick={() => desktopBridge()?.reportProblem?.()}>
+              {t("log.report")}
+            </button>
+          )}
           {log.map((l, i) => (
             <div key={i}>{l}</div>
           ))}

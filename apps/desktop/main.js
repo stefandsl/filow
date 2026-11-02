@@ -5,7 +5,7 @@
 //     the mirror; the spend endpoints are gated by a per-launch random password.
 //   Hosted mode: FILOW_SESSION_URL (+ ACCESS_PASSWORD) in .env points the
 //     engine at a public session server; local servers stay on 127.0.0.1.
-const { app, BrowserWindow, Menu, shell, session, dialog, desktopCapturer, globalShortcut, ipcMain, screen, nativeTheme, Notification } = require("electron");
+const { app, BrowserWindow, Menu, shell, session, dialog, desktopCapturer, globalShortcut, ipcMain, screen, nativeTheme, Notification, clipboard } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -109,6 +109,7 @@ const MENU_TEXT = {
     overlayAuto: "Open the overlay automatically when a slide show starts",
     overlayHidden: "Hide the overlay from screen recordings and shares",
     updateCheck: "Check for updates…",
+    report: "Report a problem…",
     updateChecking: "Checking for updates…",
     updateDownloading: "Downloading update {version}…",
     updateInstall: "Restart to install {version}",
@@ -143,6 +144,7 @@ const MENU_TEXT = {
     overlayAuto: "Apri l'overlay da solo quando parte una presentazione",
     overlayHidden: "Nascondi l'overlay da registrazioni e condivisioni dello schermo",
     updateCheck: "Controlla aggiornamenti…",
+    report: "Segnala un problema…",
     updateChecking: "Controllo aggiornamenti…",
     updateDownloading: "Scaricamento aggiornamento {version}…",
     updateInstall: "Riavvia per installare {version}",
@@ -1298,6 +1300,59 @@ function applyOffline(win, value) {
   win?.webContents.send("offline", offline);
 }
 
+// ---- Diagnostics: crashes go to startup.log; "Report a problem" opens a prefilled GitHub issue ----
+// Nothing is sent by itself. The issue page opens in the browser with the text below; the user reads
+// it and submits (public repo stefandsl/filow-releases, so the owner sees every report on GitHub).
+process.on("uncaughtException", (err) => logLine(`CRASH main: ${err && err.stack ? err.stack : err}`));
+process.on("unhandledRejection", (err) => logLine(`CRASH main (promise): ${err && err.stack ? err.stack : err}`));
+app.on("render-process-gone", (_e, _wc, d) => logLine(`CRASH renderer: ${d.reason} (exit ${d.exitCode})`));
+app.on("child-process-gone", (_e, d) => logLine(`CRASH child ${d.type}${d.name ? " " + d.name : ""}: ${d.reason} (exit ${d.exitCode})`));
+
+let lastTakeLog = "";
+ipcMain.on("diag:takeLog", (_e, text) => {
+  lastTakeLog = String(text || "").slice(-4000);
+});
+ipcMain.on("diag:report", () => void reportProblem(mainWin));
+
+function tailOf(file, maxChars) {
+  try {
+    const s = fs.readFileSync(file, "utf8");
+    return s.length > maxChars ? s.slice(-maxChars) : s;
+  } catch {
+    return "(no log)";
+  }
+}
+
+async function reportProblem(win) {
+  let gpu = "";
+  try {
+    const g = await app.getGPUInfo("basic");
+    gpu = (g.gpuDevice || []).map((d) => d.deviceString || `${d.vendorId}:${d.deviceId}`).filter(Boolean).join(", ");
+  } catch {
+    /* no gpu info */
+  }
+  const head = [
+    `Filow ${app.getVersion()} · Electron ${process.versions.electron} · ${process.platform} ${os.release()} ${process.arch}`,
+    `${os.cpus()[0] ? os.cpus()[0].model : "cpu?"} · ${Math.round(os.totalmem() / 1024 ** 3)} GB RAM · GPU ${gpu || "?"}`,
+    `settings: theme ${settings.theme || "system"}, lang ${menuLang()}, local AI ${settings.localAi ? "on" : "off"}`,
+  ].join("\n");
+  const body = [
+    "**What happened**", "", "(describe here)", "",
+    "**System**", "```", head, "```",
+    "**Take log**", "```", lastTakeLog || "(no take yet)", "```",
+    "**startup.log (tail)**", "```", tailOf(path.join(userData, "startup.log"), 3000), "```",
+  ].join("\n");
+  const title = `[${app.getVersion()}] problem on ${process.platform}`;
+  const url = `https://github.com/stefandsl/filow-releases/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+  logLine(`report: opening issue form (${body.length} chars)`);
+  await shell.openExternal(url.length > 7800 ? url.slice(0, 7800) : url);
+  if (url.length > 7800 && win && !win.isDestroyed()) {
+    // The browser cuts long URLs: the full text goes to the clipboard so the user can paste it.
+    clipboard.writeText(body);
+    void dialog.showMessageBox(win, { type: "info", message: menuLang() === "it" ? "Il testo completo del report è negli appunti: incollalo nella segnalazione." : "The full report text is on the clipboard: paste it into the issue." });
+  }
+}
+
 function buildMenu(win) {
   const template = [
     {
@@ -1372,6 +1427,7 @@ function buildMenu(win) {
             : updateState.status === "checking"
               ? { label: mt("updateChecking"), enabled: false }
               : { label: mt("updateCheck"), click: () => void checkForUpdates({ manual: true }) },
+        { label: mt("report"), click: () => void reportProblem(win) },
         { type: "separator" },
         { label: mt("reload"), accelerator: "CmdOrCtrl+R", click: () => win.reload() },
         { label: mt("fullscreen"), accelerator: "F11", click: () => win.setFullScreen(!win.isFullScreen()) },

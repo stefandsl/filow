@@ -19,6 +19,9 @@ contextBridge.exposeInMainWorld("filow", {
   remoteStatus: () => ipcRenderer.invoke("remote:status"),
   /** Auto-update state (installed app only): idle | checking | downloading | downloaded | none | error. */
   updateStatus: () => ipcRenderer.invoke("update:status"),
+  /** Diagnostics: the page keeps the main process informed of its take log; "report" opens the issue form. */
+  takeLog: (text) => ipcRenderer.send("diag:takeLog", text),
+  reportProblem: () => ipcRenderer.send("diag:report"),
   checkForUpdates: () => ipcRenderer.send("update:check"),
   installUpdate: () => ipcRenderer.send("update:install"),
   onUpdateStatus: (fn) => {

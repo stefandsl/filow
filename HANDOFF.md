@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.13)
+## Where it stands (v0.9.14)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,12 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.14: diagnostics. Crashes (main uncaught/unhandled, renderer or child process gone) are written
+    to `startup.log` with a CRASH marker. Help > "Report a problem…" (also a button on the take log)
+    opens a prefilled issue on the PUBLIC repo stefandsl/filow-releases with version, OS, CPU/RAM/GPU,
+    the take log (the page sends it to main over `diag:takeLog`) and the tail of startup.log; the
+    user reviews and submits in the browser, nothing is sent automatically. Over ~7800 chars the
+    body goes to the clipboard instead (browser URL limit). Not tested in a packaged build yet.
   - 0.9.13: ROLLBACK of the microphone capture to the 0.9.6 code (owner: "roll back to the last time
     it worked") and the Electron audio switch removed; everything else (gate, unload, ElevenLabs
     error reporting, glass CSS) stays. The 0.9.7–0.9.12 capture is in git history (`git show

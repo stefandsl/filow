@@ -21,6 +21,8 @@ export type DesktopBridge = {
   closeOverlay?: () => void;
   /** Auto-update (installed app): state, manual check, install when downloaded. */
   updateStatus?: () => Promise<UpdateStatus>;
+  takeLog?: (text: string) => void;
+  reportProblem?: () => void;
   onUpdateStatus?: (fn: (s: UpdateStatus) => void) => () => void;
   checkForUpdates?: () => void;
   installUpdate?: () => void;
