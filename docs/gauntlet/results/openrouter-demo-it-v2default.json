@@ -1,0 +1,96 @@
+{
+  "provider": "openrouter",
+  "variant": "v2default",
+  "engine": {
+    "timeoutMs": 2500
+  },
+  "machine": {
+    "cpu": "Intel(R) Core(TM) Ultra 7 155H",
+    "ramGb": 31,
+    "platform": "win32"
+  },
+  "at": "2026-11-02T17:58:35.439Z",
+  "corpus": "demo-it",
+  "calls": 16,
+  "latencyMs": {
+    "p50": 2031,
+    "p95": 4382,
+    "max": 4382,
+    "avg": 2312
+  },
+  "timeouts": 0,
+  "points": [
+    {
+      "pointId": "s0b0",
+      "labelSec": 10,
+      "flippedSec": 15,
+      "outcome": "correct",
+      "delaySec": 5
+    },
+    {
+      "pointId": "s0b1",
+      "labelSec": 15,
+      "flippedSec": 15,
+      "outcome": "correct",
+      "delaySec": 0
+    },
+    {
+      "pointId": "s0b2",
+      "labelSec": 46,
+      "flippedSec": null,
+      "outcome": "miss",
+      "delaySec": null
+    },
+    {
+      "pointId": "s1b0",
+      "labelSec": 27,
+      "flippedSec": null,
+      "outcome": "miss",
+      "delaySec": null
+    },
+    {
+      "pointId": "s1b1",
+      "labelSec": 39,
+      "flippedSec": 46,
+      "outcome": "late",
+      "delaySec": 7
+    },
+    {
+      "pointId": "s1b2",
+      "labelSec": 53,
+      "flippedSec": 60,
+      "outcome": "late",
+      "delaySec": 7
+    },
+    {
+      "pointId": "s2b0",
+      "labelSec": 64,
+      "flippedSec": 64,
+      "outcome": "correct",
+      "delaySec": 0
+    },
+    {
+      "pointId": "s2b1",
+      "labelSec": 71,
+      "flippedSec": 85,
+      "outcome": "late",
+      "delaySec": 14
+    },
+    {
+      "pointId": "s2b2",
+      "labelSec": 78,
+      "flippedSec": 85,
+      "outcome": "late",
+      "delaySec": 7
+    }
+  ],
+  "falseStarts": 0,
+  "misses": 2,
+  "correct": 7,
+  "delaySec": {
+    "p50": 7,
+    "p95": 14
+  },
+  "precision": 1,
+  "recall": 0.778
+}

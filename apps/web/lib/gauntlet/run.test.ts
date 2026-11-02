@@ -68,10 +68,18 @@ describe.skipIf(!on)("gauntlet (real providers)", () => {
     const lines: string[] = [`env: ${envFile ?? "shell only"} · model ${process.env.OPENROUTER_DECISION_MODEL ?? "default"} / ${process.env.CLEF_MODEL ?? "clef-flash"} · ${os.cpus()[0]?.model} · ${Math.round(os.totalmem() / 1024 ** 3)} GB`];
     for (const provider of wanted) {
       for (const corpus of corpora) {
-        const r = await replay(corpus, { decide: PROVIDERS[provider], engine: { timeoutMs: Number(process.env.GAUNTLET_TIMEOUT_MS || 2500) } });
-        const out = { provider, machine: { cpu: os.cpus()[0]?.model, ramGb: Math.round(os.totalmem() / 1024 ** 3), platform: process.platform }, at: new Date().toISOString(), ...r };
-        fs.writeFileSync(path.join(RESULTS_DIR, `${provider}-${corpus.name}.json`), JSON.stringify(out, null, 2));
-        lines.push(line(r, provider));
+        const engine = {
+          timeoutMs: Number(process.env.GAUNTLET_TIMEOUT_MS || 2500),
+          ...(process.env.GAUNTLET_CONFIRM ? { confirmCalls: Number(process.env.GAUNTLET_CONFIRM) } : {}),
+          ...(process.env.GAUNTLET_SURE ? { sureThreshold: Number(process.env.GAUNTLET_SURE) } : {}),
+          ...(process.env.GAUNTLET_WINDOW ? { window: Number(process.env.GAUNTLET_WINDOW) } : {}),
+          ...(process.env.GAUNTLET_REASK ? { reaskOnPending: process.env.GAUNTLET_REASK === "1" } : {}),
+        };
+        const variant = process.env.GAUNTLET_VARIANT || "default";
+        const r = await replay(corpus, { decide: PROVIDERS[provider], engine });
+        const out = { provider, variant, engine, machine: { cpu: os.cpus()[0]?.model, ramGb: Math.round(os.totalmem() / 1024 ** 3), platform: process.platform }, at: new Date().toISOString(), ...r };
+        fs.writeFileSync(path.join(RESULTS_DIR, `${provider}-${corpus.name}${variant === "default" ? "" : `-${variant}`}.json`), JSON.stringify(out, null, 2));
+        lines.push(line(r, `${provider}${variant === "default" ? "" : `/${variant}`}`));
       }
     }
     // eslint-disable-next-line no-console

@@ -18,7 +18,7 @@ export type EngineOptions = {
   threshold?: number;
   /** consecutive confirming calls needed below `sureThreshold` (default 2) */
   confirmCalls?: number;
-  /** a single call at or above this flips immediately (default 0.9) */
+  /** a single call at or above this flips immediately (default 0.85; measured: no false starts, flips a segment earlier) */
   sureThreshold?: number;
   /** characters of recent transcript sent per call */
   window?: number;
@@ -28,6 +28,12 @@ export type EngineOptions = {
   timeoutMs?: number;
   /** at most this many open points per call; the rest rotate in on later calls (default 4) */
   maxQuestions?: number;
+  /**
+   * While a point has one confirming answer and waits for the second, ask once more on the next tick
+   * even if the transcript did not change, instead of waiting for the next transcript segment
+   * (default true). Costs one extra call per pending confirmation; cuts the flip delay by a segment.
+   */
+  reaskOnPending?: boolean;
   sessionId?: string;
   /** Timer injection for tests. Defaults to the global timers. */
   setInterval?: (fn: () => void, ms: number) => unknown;
@@ -48,6 +54,7 @@ export class Engine {
   private inFlight = false;
   private lastCallAt = -Infinity;
   private qCursor = 0;
+  private reasked = false;
   private timer: unknown = null;
   private streak: Record<string, number> = {};
   private subs = new Set<Subscriber>();
@@ -62,11 +69,12 @@ export class Engine {
       tickMs: opts.tickMs ?? 500,
       threshold: opts.threshold ?? 0.7,
       confirmCalls: opts.confirmCalls ?? 2,
-      sureThreshold: opts.sureThreshold ?? 0.9,
+      sureThreshold: opts.sureThreshold ?? 0.85,
       window: opts.window ?? 900,
       costCapUsd: opts.costCapUsd === undefined ? 1 : opts.costCapUsd,
       timeoutMs: opts.timeoutMs ?? 2500,
       maxQuestions: opts.maxQuestions ?? 4,
+      reaskOnPending: opts.reaskOnPending ?? true,
       setInterval: opts.setInterval ?? ((fn, ms) => globalThis.setInterval(fn, ms)),
       clearInterval: opts.clearInterval ?? ((t) => globalThis.clearInterval(t as ReturnType<typeof setInterval>)),
     };
@@ -296,9 +304,17 @@ export class Engine {
     const avg = s.stats.avgMs;
     if (avg > this.o.tickMs && now - this.lastCallAt < Math.round(avg * 1.2)) return;
     const windowText = this.transcript.slice(-this.o.window);
-    if (!windowText || windowText === this.lastSent) return;
+    if (!windowText) return;
     const allOpen = section.bullets.filter((b) => (s.points[b.id]?.status ?? "waiting") === "waiting");
     if (!allOpen.length) return;
+    if (windowText === this.lastSent) {
+      // Same text as last time: only worth a call when a point is one confirmation away, and only once.
+      const pending = allOpen.some((b) => (this.streak[b.id] ?? 0) > 0 && (this.streak[b.id] ?? 0) < this.o.confirmCalls);
+      if (!this.o.reaskOnPending || !pending || this.reasked) return;
+      this.reasked = true;
+    } else {
+      this.reasked = false;
+    }
     // Question cap: the next few open points in script order, rotating so every point gets its turn.
     let open = allOpen;
     if (allOpen.length > this.o.maxQuestions) {

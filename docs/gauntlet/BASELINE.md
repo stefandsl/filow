@@ -30,3 +30,30 @@ What this already says, before any model change:
 
 Next measurements: Clef on a machine with Ollama ≥ 0.35 (the owner's desktop, RTX 3070), the same
 corpus with `confirmCalls: 1` and `sureThreshold: 0.85`, and a real recorded talk instead of the seed.
+
+## 2026-11-02 · confirm-rule variants (T3), same corpus, OpenRouter gemini-2.5-flash-lite
+
+One run each; the cloud model is not deterministic and the corpus is tiny, so differences under
+about 2 points of recall are noise. `GAUNTLET_VARIANT` names the result file.
+
+| variant | calls | p50 | p95 | correct | false | miss | recall | delay p50 |
+|---|---|---|---|---|---|---|---|---|
+| defaults before (confirm 2, sure 0.90, window 900, no re-ask) | 15 | 1.5 s | 2.7 s | 7 | 0 | 2 | 0.78 | 7 s |
+| confirm 1 | 15 | 1.7 s | 4.2 s | 5 | 0 | 4 | 0.56 | 0 s |
+| sure 0.85 | 14 | 1.4 s | 1.8 s | 7 | 0 | 2 | 0.78 | 0 s |
+| window 400 | 15 | 1.9 s | 3.4 s | 5 | 0 | 4 | 0.56 | 7 s |
+| **new defaults: sure 0.85 + re-ask once while a point awaits its 2nd confirmation** | 20 | 2.0 s | 4.9 s | 7 | 0 | 2 | 0.78 | **2 s** |
+
+Confidence trails of the last run (label → flip, every answer as `sec:confidence`):
+`s1b1 39 → 41: 33s:0.35 39s:0.75 41s:0.75` (the re-ask at 41 s supplied the second confirmation, 2 s
+instead of a whole segment); `s2b1 71 → 73: 73s:0.70 73s:0.85`; `s1b0 miss: 27s:0.13 33s:0.11 …
+60s:0.80` (the model does not take "presentare con lo script davanti e sembrare che stesse leggendo"
+as the point "Le presentazioni con lo script fanno sembrare che stai leggendo" until it is too late: a
+paraphrase miss, the kind the embedding gate of Step 3 should catch); `s0b2 miss` by design (announced
+at 21 s, actually started at 46 s after the presenter left the section: it goes to the missed list).
+
+Decision: `sureThreshold` 0.90 → 0.85 and the re-ask rule become engine defaults (0.8.18). `confirmCalls`
+stays 2 and the window stays 900 (both variants lost points). Expected on real talks with 4 s Whisper
+windows: median flip delay drops from one or two windows to about one pacing gap (1–2 s on a slow
+model, 0.5 s on a fast one) for confident points. To be re-checked on a real recorded corpus and on
+Clef (whose `noul` probabilities are calibrated differently from the cloud model's confidence).

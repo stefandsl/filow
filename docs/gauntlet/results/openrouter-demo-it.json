@@ -1,34 +1,38 @@
 {
   "provider": "openrouter",
+  "variant": "default",
+  "engine": {
+    "timeoutMs": 2500
+  },
   "machine": {
     "cpu": "Intel(R) Core(TM) Ultra 7 155H",
     "ramGb": 31,
     "platform": "win32"
   },
-  "at": "2026-11-02T17:52:42.799Z",
+  "at": "2026-11-02T17:55:37.063Z",
   "corpus": "demo-it",
   "calls": 15,
   "latencyMs": {
-    "p50": 1477,
-    "p95": 2746,
-    "max": 2746,
-    "avg": 1617
+    "p50": 1562,
+    "p95": 3532,
+    "max": 3532,
+    "avg": 1743
   },
   "timeouts": 0,
   "points": [
     {
       "pointId": "s0b0",
       "labelSec": 10,
-      "flippedSec": 10,
+      "flippedSec": 15,
       "outcome": "correct",
-      "delaySec": 0
+      "delaySec": 5
     },
     {
       "pointId": "s0b1",
       "labelSec": 15,
-      "flippedSec": 21,
-      "outcome": "late",
-      "delaySec": 6
+      "flippedSec": 15,
+      "outcome": "correct",
+      "delaySec": 0
     },
     {
       "pointId": "s0b2",

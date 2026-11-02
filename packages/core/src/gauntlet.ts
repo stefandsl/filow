@@ -39,6 +39,8 @@ export type ReplayOptions = {
 
 export type PointResult = {
   pointId: string;
+  /** Every confidence the model returned for this point, with the talk time, so thresholds can be tuned offline. */
+  trail: Array<{ sec: number; confidence: number; started: boolean }>;
   labelSec: number | null;
   flippedSec: number | null;
   outcome: "correct" | "late" | "false-start" | "miss" | "never-started-ok" | "never-started-flipped";
@@ -72,11 +74,16 @@ export async function replay(corpus: Corpus, opts: ReplayOptions): Promise<Repla
   let nowSec = 0;
   const latencies: number[] = [];
   let timeouts = 0;
+  const trails = new Map<string, Array<{ sec: number; confidence: number; started: boolean }>>();
   const decide: EngineOptions["decide"] = async (r: DecideRequest, signal?: AbortSignal) => {
     const t0 = Date.now();
     try {
       const out: DecideResponse = await opts.decide(r, signal);
       latencies.push(Date.now() - t0);
+      for (const d of out.decisions) {
+        if (!trails.has(d.id)) trails.set(d.id, []);
+        trails.get(d.id)!.push({ sec: nowSec, confidence: Math.round(d.confidence * 100) / 100, started: d.started });
+      }
       return out;
     } catch (err) {
       if ((err as Error).name === "AbortError" || /timed out/.test(String((err as Error).message))) timeouts++;
@@ -114,6 +121,10 @@ export async function replay(corpus: Corpus, opts: ReplayOptions): Promise<Repla
     }
     engine.feed({ committed: seg.committed.endsWith(" ") ? seg.committed : `${seg.committed} ` });
     await engine.tick();
+    // The app keeps ticking between segments; a second tick 2 s later (past the pacing gap of a slow
+    // model) lets the re-ask-on-pending rule act. Flips it causes are stamped at that later time.
+    nowSec += 2;
+    await engine.tick();
     if (advance === "auto") {
       const s = engine.getState();
       const section = s.script.sections[s.sectionIdx];
@@ -144,7 +155,7 @@ export async function replay(corpus: Corpus, opts: ReplayOptions): Promise<Repla
         outcome = "late";
       }
       if (!never.has(b.id) && labelSec === null && flippedSec !== null) outcome = "never-started-flipped";
-      points.push({ pointId: b.id, labelSec, flippedSec, outcome, delaySec: labelSec !== null && flippedSec !== null ? Math.round((flippedSec - labelSec) * 10) / 10 : null });
+      points.push({ pointId: b.id, trail: trails.get(b.id) ?? [], labelSec, flippedSec, outcome, delaySec: labelSec !== null && flippedSec !== null ? Math.round((flippedSec - labelSec) * 10) / 10 : null });
     }
   }
   const falseStarts = points.filter((p) => p.outcome === "false-start" || p.outcome === "never-started-flipped").length;
