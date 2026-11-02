@@ -147,6 +147,9 @@ notifications and the region picker on those platforms are unverified.
    recordings (demo-it is synthetic); segments with ids/revisions so an STT correction can retract a
    provisional mark (VoiceCue's partial-vs-final pattern, see REUSE.md); a provisional ("possible
    match") state in the UI before the confirmed tick; measuring the 4-question rotation delay.
+   From Priler's two Jarvis videos (`docs/gauntlet/VIDEO-NOTES.md`): per-point alias lists for names,
+   acronyms and loanwords generated at prep time and scored lexically next to the embedding; a short
+   follow-up window after a hit that keeps the next point in every call.
    Then the gate vs direct comparison with Clef on the RTX 3070 PC
    (`GAUNTLET=1 GAUNTLET_GATE=1 GAUNTLET_PROVIDERS=clef-local npx vitest run apps/web/lib/gauntlet`).
 
