@@ -188,7 +188,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const loadReadiness = async (): Promise<Readiness> => {
     const [stt, local, whisper] = await Promise.all([
       fetch("/api/stt/status").then((r) => r.json()).catch(() => ({ elevenlabs: false, openai: false })) as Promise<SttStatus>,
-      fetch("/api/local/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null) as Promise<{ openrouterKey?: boolean; ollama?: { ok: boolean }; models?: Array<{ name: string; installed: boolean }> } | null>,
+      fetch("/api/local/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null) as Promise<{ openrouterKey?: boolean; ollama?: { ok: boolean }; models?: Array<{ name: string; installed: boolean }>; advice?: { local: boolean; reason: "gpu" | "ram" | "none" }; gpu?: { name: string } } | null>,
       whisperCached(selectedWhisperModel()).catch(() => false),
     ]);
     setSttStatus(stt);
@@ -198,14 +198,17 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       whisper,
       clef: Boolean(local?.ollama?.ok && local?.models?.some((m) => m.name.startsWith("clef") && m.installed)),
       stt,
+      advice: local?.advice ?? { local: false, reason: "none" },
+      gpuName: local?.gpu?.name ?? "",
     };
   };
 
   /** Start button: ask Cloud / Local unless a choice is remembered. */
   const requestStart = async () => {
-    const mode = getStartMode();
+    let mode = getStartMode();
     const r = await loadReadiness();
     setReadiness(r);
+    if (mode === "auto") mode = autoPick(r) ?? "ask";
     if (mode === "ask" || (mode === "cloud" && !(r.openrouterKey && r.sttKey)) || (mode === "local" && !(r.whisper && r.clef))) {
       setStartDialog(true);
       return;
@@ -568,9 +571,9 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         <StartModeDialog
           readiness={readiness}
           onCancel={() => setStartDialog(false)}
-          onPick={(mode, remember) => {
+          onPick={(mode, remember, auto) => {
             setStartDialog(false);
-            setStartMode(remember ? mode : "ask");
+            setStartMode(remember ? (auto ? "auto" : mode) : "ask");
             void startTake(mode, readiness);
           }}
         />
@@ -593,14 +596,24 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   );
 }
 
-type Readiness = { openrouterKey: boolean; sttKey: boolean; whisper: boolean; clef: boolean; stt: SttStatus };
+type Readiness = { openrouterKey: boolean; sttKey: boolean; whisper: boolean; clef: boolean; stt: SttStatus; advice: { local: boolean; reason: "gpu" | "ram" | "none" }; gpuName: string };
 
 /** Cloud or Local for this take, with what each needs and whether it is there. */
-function StartModeDialog({ readiness, onPick, onCancel }: { readiness: Readiness; onPick: (mode: "cloud" | "local", remember: boolean) => void; onCancel: () => void }) {
+/** "Auto": local when the models are there and the machine can run them well (GPU first, else enough RAM), otherwise cloud. */
+function autoPick(r: Readiness): "cloud" | "local" | null {
+  if (r.whisper && r.clef && r.advice.local) return "local";
+  if (r.openrouterKey && r.sttKey) return "cloud";
+  if (r.whisper && r.clef) return "local";
+  return null;
+}
+
+function StartModeDialog({ readiness, onPick, onCancel }: { readiness: Readiness; onPick: (mode: "cloud" | "local", remember: boolean, auto?: boolean) => void; onCancel: () => void }) {
   const t = useT();
   const [remember, setRemember] = useState(false);
   const cloudOk = readiness.openrouterKey && readiness.sttKey;
   const localOk = readiness.whisper && readiness.clef;
+  const auto = autoPick(readiness);
+  const autoWhy = auto === "local" ? t(readiness.advice.reason === "gpu" ? "start.autoGpu" : "start.autoRam", { gpu: readiness.gpuName }) : auto === "cloud" ? t("start.autoCloud") : "";
   const Line = ({ ok, label }: { ok: boolean; label: string }) => (
     <div className={`check ${ok ? "ok" : "missing"}`}>
       {ok ? "✓" : "✗"} {label} <span className="hint">· {ok ? t("start.ready") : t("start.missing")}</span>
@@ -610,6 +623,16 @@ function StartModeDialog({ readiness, onPick, onCancel }: { readiness: Readiness
     <div className="modal-bg" onClick={onCancel}>
       <div className="modal startmode" onClick={(e) => e.stopPropagation()}>
         <div className="eyebrow">{t("start.title")}</div>
+        {auto && (
+          <div className="strip autopick">
+            <div>
+              <strong>{t("start.autoTitle")}</strong> {t("start.autoPick", { mode: auto === "local" ? t("start.local") : t("start.cloud") })} <span className="hint">{autoWhy}</span>
+            </div>
+            <button className="btn primary" onClick={() => onPick(auto, remember, true)}>
+              {t("ctl.start")} · {t("start.autoBtn")}
+            </button>
+          </div>
+        )}
         <div className="modes">
           <div className={`mode ${cloudOk ? "" : "notready"}`}>
             <h3>☁ {t("start.cloud")}</h3>

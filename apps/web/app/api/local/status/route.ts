@@ -3,6 +3,7 @@ import os from "node:os";
 import { OLLAMA_URL } from "@/lib/decide/clef";
 import { LOCAL_MODELS, fits, versionAtLeast } from "@/lib/localModels";
 import { PII_SERVER_URL, piiMode, rizzoReachable } from "@/lib/pii/guard";
+import { gpuInfo, localAdvice } from "@/lib/sysinfo";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,8 @@ export async function GET() {
     ollamaOk: m.runtime === "browser" ? true : m.minOllama && version ? versionAtLeast(version, m.minOllama) : Boolean(version),
   }));
   const pii = { mode: piiMode(), serverUrl: PII_SERVER_URL(), serverReachable: await rizzoReachable() };
+  const gpu = await gpuInfo();
+  const advice = localAdvice(gpu, ramGb);
   return NextResponse.json({
     pii,
     ollama: { url: base, reachable: version !== null, version, minimum: "0.35.1", ok: version ? versionAtLeast(version, "0.35.1") : false },
@@ -41,5 +44,7 @@ export async function GET() {
     models,
     installed,
     recommendation: ramGb >= 32 ? "clef" : ramGb >= 16 ? "clef-flash" : null,
+    gpu: { name: gpu.name, kind: gpu.kind, vramTotalGb: gpu.vramTotalGb },
+    advice,
   });
 }

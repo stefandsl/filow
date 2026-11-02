@@ -99,13 +99,13 @@ export function resolveTheme(t: ThemePref): "light" | "dark" {
 }
 
 // ---- Start mode: ask every time, or always cloud / always local ----
-export type StartMode = "ask" | "cloud" | "local";
+export type StartMode = "ask" | "auto" | "cloud" | "local";
 const START_KEY = "prefs:startMode";
 
 export function getStartMode(): StartMode {
   try {
     const v = localStorage.getItem(START_KEY);
-    return v === "cloud" || v === "local" ? v : "ask";
+    return v === "cloud" || v === "local" || v === "auto" ? v : "ask";
   } catch {
     return "ask";
   }

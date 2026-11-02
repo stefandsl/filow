@@ -145,6 +145,13 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .chip.busy { color: var(--accent); border-color: var(--accent-ring); animation: pulse 1s ease-in-out infinite; }
 .chip.rec { color: #fff; background: #c0392b; border-color: #c0392b; font-weight: 700; animation: pulse 1.4s ease-in-out infinite; }
 .btn.small { padding: 4px 10px; font-size: 11px; }
+.meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.meter-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+.meter-bar { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.meter-bar i { display: block; height: 100%; background: var(--brand-gradient); border-radius: 999px; transition: width 0.6s ease; }
+.meter-bar i.warm { background: linear-gradient(90deg, #ffb600, #ff6500); }
+.meter-bar i.hot { background: var(--warn); }
+.strip.autopick { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-color: var(--accent-ring); }
 .btn.danger.small { background: rgba(192, 57, 43, 0.12); }
 @keyframes pulse { 50% { opacity: 0.45; } }
 .sources { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; max-height: 60vh; overflow-y: auto; }
