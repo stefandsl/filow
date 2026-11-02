@@ -9,6 +9,7 @@ import { engineHeaders } from "@/components/useSession";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
 import { getDecisionProvider, getScreenMode, getStartMode, setDecisionProvider, setScreenMode, setStartMode, type StartMode } from "@/lib/prefs";
 import { screenBridge } from "@/lib/screen/watcher";
+import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/sessionUrl";
 
 type Status = {
   pii: { mode: "off" | "on" | "strict"; serverUrl: string; serverReachable: boolean };
@@ -49,6 +50,9 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const [hotkey, setHotkey] = useState<{ hotkey: string; enabled: boolean } | null>(null);
   const [hotkeyDraft, setHotkeyDraft] = useState("");
   const [hotkeyMsg, setHotkeyMsg] = useState("");
+  const [ai, setAi] = useState<LocalAiStatus | null>(null);
+  const [hw, setHw] = useState<LocalAiHardware | null>(null);
+  const [autoList, setAutoList] = useState<string[]>([]);
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/local/status", { cache: "no-store" });
@@ -71,7 +75,35 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
         setHotkeyDraft(h.hotkey);
       });
     void refresh();
+    const la = desktopBridge()?.localAi;
+    if (!la) return;
+    void la.status().then(setAi);
+    void la.hardware().then(setHw);
+    const off = la.onStatus((s) => {
+      setAi(s);
+      if (s.state === "ready") void refresh();
+    });
+    return off;
   }, [refresh]);
+
+  const aiText = (s: LocalAiStatus) =>
+    s.state === "idle" ? "" : t(`settings.ai.${s.state}`, { pct: s.pct, v: s.version, error: s.error });
+
+  /** Ask the desktop shell to install Ollama and resolve once it answers (or give up after 30 minutes). */
+  const ensureOllama = async (): Promise<boolean> => {
+    const la = desktopBridge()?.localAi;
+    if (!la) return false;
+    const now = await la.status();
+    if (now.state !== "downloading" && now.state !== "installing" && now.state !== "starting" && now.state !== "checking") la.install();
+    const until = Date.now() + 30 * 60_000;
+    while (Date.now() < until) {
+      const s = await la.status();
+      if (s.state === "ready") return true;
+      if (s.state === "error" || s.state === "manual") return false;
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    return false;
+  };
 
   const saveHotkey = async (next: { hotkey?: string; enabled?: boolean }) => {
     const bridge = screenBridge();
@@ -160,20 +192,32 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     if (!auto) return;
     setAutoDone(true);
     const wanted = auto.split(",").map((x) => x.trim()).filter(Boolean);
+    setAutoList(wanted);
     (async () => {
       for (const w of wanted) {
         if (w === "whisper-base" || w === "whisper-small") {
           const name = `onnx-community/${w}`;
           if (!(await whisperCached(name))) await download(name);
-          if (w === "whisper-base") {
+          if (!selectedWhisperModel() || w === "whisper-small") {
             setSelectedWhisperModel(name);
             setWhisperModel(name);
           }
-        } else if (w === "clef-flash" || w === "clef") {
-          const m = status.models.find((x) => x.name === w);
-          if (m && m.ollamaOk && !m.installed) await pull(w);
         }
       }
+      const ollamaWanted = wanted.filter((w) => status.models.some((m) => m.name === w && m.runtime === "ollama" && m.status === "available"));
+      if (ollamaWanted.length) {
+        let reachable = status.ollama.reachable;
+        if (!reachable) reachable = await ensureOllama();
+        if (reachable) {
+          const fresh = (await fetch("/api/local/status", { cache: "no-store" }).then((r) => r.json())) as Status;
+          for (const w of ollamaWanted) {
+            const m = fresh.models.find((x) => x.name === w);
+            if (m && m.ollamaOk && !m.installed) await pull(w);
+          }
+        }
+      }
+      setAutoList([]);
+      await refresh();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
@@ -270,6 +314,31 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                 {status.recommendation ? t("settings.recommended", { name: status.recommendation }) : t("settings.tooLittleRam")}
               </span>
             </div>
+            {hw && (
+              <div className="hint">
+                {t("settings.hardware", { gpu: hw.gpu || "—", free: hw.freeGb })}
+                {hw.recommended.models.length > 0 && <> · {t("settings.recommendedList", { list: hw.recommended.labels.join(", "), gb: hw.recommended.downloadGb })}</>}
+              </div>
+            )}
+            {autoList.length > 0 && <div className="hint">{t("settings.autoSetup", { list: autoList.join(", ") })}</div>}
+            {!status.ollama.ok && desktopBridge()?.localAi && (
+              <div className="row">
+                <button
+                  className="btn primary"
+                  disabled={Boolean(ai && ["checking", "downloading", "installing", "starting"].includes(ai.state))}
+                  onClick={() => desktopBridge()?.localAi?.install()}
+                >
+                  {t("settings.aiInstallBtn")}
+                </button>
+                {ai && ai.state !== "idle" && <span className={`chip ${ai.state === "error" ? "err" : ai.state === "ready" ? "live" : "busy"}`}>{aiText(ai)}</span>}
+                <span className="hint">{t("settings.aiHint")}</span>
+              </div>
+            )}
+            {ai?.state === "manual" && (
+              <div className="hint">
+                {t("settings.ai.manual")} <code>{ai.command}</code>
+              </div>
+            )}
             {!status.ollama.ok && (
               <div className="hint">
                 {t("settings.installOllama", { v: status.ollama.minimum })}{" "}

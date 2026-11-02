@@ -25,7 +25,20 @@ export type DesktopBridge = {
   installUpdate?: () => void;
   remoteStatus?: () => Promise<RemoteStatus>;
   onRemoteStatus?: (fn: (s: RemoteStatus) => void) => () => void;
+  /** Local AI setup (desktop app): hardware scan, recommendation and the unattended Ollama install. */
+  localAi?: {
+    status: () => Promise<LocalAiStatus>;
+    hardware: () => Promise<LocalAiHardware>;
+    install: () => void;
+    onStatus: (fn: (s: LocalAiStatus) => void) => () => void;
+  };
   accessPassword: string;
+};
+
+export type LocalAiStatus = { state: "idle" | "checking" | "downloading" | "installing" | "starting" | "ready" | "manual" | "error"; pct: number; error: string; version: string; command: string };
+export type LocalAiHardware = {
+  ramGb: number; gpu: string; gpuClass: "discrete" | "integrated" | "unknown"; freeGb: number; cpu: string; cores: number; platform: string; arch: string;
+  recommended: { models: string[]; ollama: boolean; downloadGb: number; labels: string[] };
 };
 
 export type UpdateStatus = { status: "idle" | "checking" | "downloading" | "downloaded" | "none" | "error"; version: string; error: string; current: string };

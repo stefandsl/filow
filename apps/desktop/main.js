@@ -287,6 +287,9 @@ function wireScreenSense() {
   ipcMain.on("update:check", () => void checkForUpdates({ manual: true }));
   ipcMain.on("update:install", () => loadUpdater() && updateState.status === "downloaded" && updater.quitAndInstall());
   ipcMain.handle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
+  ipcMain.handle("localai:status", () => localAiState);
+  ipcMain.handle("localai:hardware", () => localAiInfo());
+  ipcMain.on("localai:install", () => void startOllamaInstall());
   ipcMain.on("session:report", (_e, info) => {
     if (info && typeof info.code === "string" && typeof info.id === "string") {
       const changedSession = !currentSession || currentSession.id !== info.id;
@@ -914,6 +917,66 @@ function readInstallChoices() {
 
 // ---- Presenting: follow the slide show and show the presenter overlay ----
 const { watchSlideShow } = require("./slideshow");
+
+// ---- Local AI: hardware scan, recommendation, unattended Ollama install (localai.js) ----
+const localAi = require("./localai");
+let localAiState = { state: "idle", pct: 0, error: "", version: "", command: "" };
+let localAiHardware = null;
+let localAiInstalling = null;
+function localAiInfo() {
+  if (!localAiHardware) {
+    const hw = localAi.hardwareScan();
+    localAiHardware = { ...hw, recommended: localAi.recommend(hw) };
+  }
+  return localAiHardware;
+}
+function setLocalAi(s) {
+  localAiState = s;
+  logLine(`local AI: ${s.state}${s.pct ? ` ${s.pct}%` : ""}${s.error ? ` ${s.error}` : ""}`);
+  for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send("localai:status", s);
+}
+function startOllamaInstall() {
+  if (localAiInstalling) return localAiInstalling;
+  localAiInstalling = localAi.installOllama(path.join(userData, "bin"), setLocalAi).finally(() => {
+    localAiInstalling = null;
+  });
+  return localAiInstalling;
+}
+const LOCAL_AI_TEXT = {
+  en: {
+    title: "Run AI on this computer?",
+    install: "Install now",
+    later: "Not now",
+    message: (hw, rec) => `Filow can transcribe and decide on this ${hw.platform === "darwin" ? "Mac" : "PC"} without any cloud. Install the recommended local models now (about ${rec.downloadGb} GB)?`,
+    detail: (hw, rec) => `This computer: ${hw.ramGb} GB RAM${hw.gpu ? ` · ${hw.gpu}` : ""}${hw.freeGb >= 0 ? ` · ${hw.freeGb} GB free` : ""}\n\nRecommended: ${rec.labels.join(", ")}${rec.ollama ? "\nOllama (the local model runner) is installed in the background." : ""}\n\nDownloads run while you use the app; you can change everything later in Settings.`,
+  },
+  it: {
+    title: "Eseguire l'AI su questo computer?",
+    install: "Installa ora",
+    later: "Non ora",
+    message: (hw, rec) => `Filow può trascrivere e decidere su questo ${hw.platform === "darwin" ? "Mac" : "PC"} senza alcun cloud. Installare ora i modelli locali consigliati (circa ${rec.downloadGb} GB)?`,
+    detail: (hw, rec) => `Questo computer: ${hw.ramGb} GB di RAM${hw.gpu ? ` · ${hw.gpu}` : ""}${hw.freeGb >= 0 ? ` · ${hw.freeGb} GB liberi` : ""}\n\nConsigliati: ${rec.labels.join(", ")}${rec.ollama ? "\nOllama (il motore dei modelli locali) viene installato in background." : ""}\n\nI download proseguono mentre usi l'app; puoi cambiare tutto in Impostazioni.`,
+  },
+};
+/** First start without installer choices (macOS, Linux, portable): offer the hardware-based setup. */
+async function offerLocalAi() {
+  const info = localAiInfo();
+  const rec = info.recommended;
+  if (!rec.models.length) return null;
+  const tx = LOCAL_AI_TEXT[menuLang()] || LOCAL_AI_TEXT.en;
+  const { response } = await dialog.showMessageBox({
+    type: "question",
+    title: tx.title,
+    message: tx.message(info, rec),
+    detail: tx.detail(info, rec),
+    buttons: [tx.install, tx.later],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  });
+  return response === 0 ? { models: rec.models, ollama: rec.ollama } : null;
+}
+
 let overlayWin = null;
 let stopSlideShowWatch = null;
 let slideShow = { running: false, index: -1, total: 0, title: "" };
@@ -1222,7 +1285,16 @@ async function main() {
   try {
     await waitFor(APP_URL + "/api/stt/status");
     if (!process.env.FILOW_SESSION_URL) await waitFor(`http://127.0.0.1:${SESSION_PORT}/health`);
-    const firstPage = choices && Array.isArray(choices.models) && choices.models.length ? `${APP_URL}/settings/local?auto=${encodeURIComponent(choices.models.join(","))}` : APP_URL;
+    if (!choices && !settings.localAiOffered) choices = await offerLocalAi();
+    if (!settings.localAiOffered) {
+      settings.localAiOffered = true;
+      saveSettings();
+    }
+    if (choices && choices.ollama) void startOllamaInstall();
+    const firstPage =
+      choices && Array.isArray(choices.models) && choices.models.length
+        ? `${APP_URL}/settings/local?auto=${encodeURIComponent(choices.models.join(","))}${choices.ollama ? "&ollama=1" : ""}`
+        : APP_URL;
     await win.loadURL(firstPage);
     if (settings.remoteShare && !offline && !process.env.FILOW_SESSION_URL) {
       // Hold the splash until the public link is up (or 45 s), so the first QR already works from anywhere.

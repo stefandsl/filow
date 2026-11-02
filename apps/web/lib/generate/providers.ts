@@ -2,6 +2,7 @@
 // Both return the same shape; the route picks one and wraps it with the PII guard.
 import { buildGenerateUserPrompt, GENERATE_SYSTEM_PROMPT, parseGenerated, type GeneratedSlide, type SlideInput } from "@filow/core";
 import { OLLAMA_URL } from "@/lib/decide/clef";
+import { openRouterChat } from "@/lib/openrouter";
 
 export type SlideResult = { generated: GeneratedSlide; cost: number | null; model: string };
 
@@ -23,31 +24,16 @@ export async function generateSlideOpenRouter(slide: SlideInput, opts: { languag
         { type: "image_url", image_url: { url: `data:image/jpeg;base64,${slide.imageBase64}` } },
       ]
     : text;
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.PUBLIC_ORIGIN || "http://localhost:4747",
-      "X-Title": "Filow",
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.3,
-      max_tokens: 500,
-      response_format: { type: "json_object" },
-      usage: { include: true },
-      messages: [
-        { role: "system", content: GENERATE_SYSTEM_PROMPT },
-        { role: "user", content },
-      ],
-    }),
+  const { content: answer, cost, model: used } = await openRouterChat(model, slide.imageBase64 ? "vision" : "text", {
+    temperature: 0.3,
+    max_tokens: 500,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: GENERATE_SYSTEM_PROMPT },
+      { role: "user", content },
+    ],
   });
-  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const json = await res.json();
-  const answer: string = json?.choices?.[0]?.message?.content ?? "";
-  const cost: number | null = typeof json?.usage?.cost === "number" ? json.usage.cost : null;
-  return { generated: parseGenerated(answer, fallbackTitle(slide)), cost, model };
+  return { generated: parseGenerated(answer, fallbackTitle(slide)), cost, model: used };
 }
 
 /**

@@ -46,6 +46,17 @@ contextBridge.exposeInMainWorld("filow", {
     return () => ipcRenderer.removeListener("slideshow", h);
   },
   closeOverlay: () => ipcRenderer.send("overlay:close"),
+  /** Local AI setup: hardware scan + recommendation, unattended Ollama install with progress. */
+  localAi: {
+    status: () => ipcRenderer.invoke("localai:status"),
+    hardware: () => ipcRenderer.invoke("localai:hardware"),
+    install: () => ipcRenderer.send("localai:install"),
+    onStatus: (fn) => {
+      const h = (_e, v) => fn(v);
+      ipcRenderer.on("localai:status", h);
+      return () => ipcRenderer.removeListener("localai:status", h);
+    },
+  },
   /** Screen Sense (ARCHITECTURE.md §6.1): sources, region picker, hotkey. Frames stay in memory. */
   screen: {
     sources: () => ipcRenderer.invoke("screen:sources"),

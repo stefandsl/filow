@@ -177,7 +177,20 @@ Download the file for your OS from the **Releases** page of this repo (built aut
 
 ### The Windows installer
 
-A step-by-step wizard in the language of your Windows (English, Italian, German, French, Spanish, Portuguese, Dutch, Polish, Russian, Japanese, Chinese; the custom pages are in English and Italian): welcome, licence (proprietary, © VoidExploit), install folder, a **Local models and API keys** page where you tick the models to download on first start (Whisper base is preselected; Whisper small; Clef Flash via Ollama) and read that cloud decisions need an OpenRouter key, then the finish page with **Run Filow** and **Create a desktop shortcut**. The app opens with a splash screen (logo, progress bar, "Local models · data stays on this PC · GDPR" when it runs locally, "PII guard on · GDPR" otherwise) while the servers and the public link start, then goes to Settings to fetch the models you ticked.
+A step-by-step wizard in the language of your Windows (English, Italian, German, French, Spanish, Portuguese, Dutch, Polish, Russian, Japanese, Chinese; the custom pages are in English and Italian): welcome, licence (proprietary, © VoidExploit), install folder, a **Local AI on this PC** page (see below), then the finish page with **Run Filow** and **Create a desktop shortcut**. The app opens with a splash screen (logo, progress bar, "Local models · data stays on this PC · GDPR" when it runs locally, "PII guard on · GDPR" otherwise) while the servers and the public link start, then goes to Settings to fetch the models you ticked.
+
+#### Local AI chosen from your hardware
+
+The installer runs a quick scan (RAM, GPU name, free disk on your profile drive) and preselects the models that run well on that machine; the page shows the scan result and lets you tick or untick anything, so nothing is forced:
+
+| This PC | Preselected |
+|---|---|
+| 32 GB RAM or more | Whisper small, Clef Flash (local decisions), Gemma 4 E4B (script from slides) |
+| 16 GB | Whisper small on a real GPU (NVIDIA, Radeon, Arc, Iris Xe) else Whisper base, Clef Flash, Gemma 4 E2B |
+| 8 GB | Whisper base, Gemma 4 E2B |
+| less | Whisper base |
+
+The biggest Ollama models are dropped when the disk would end up with less than 3 GB free. **Install Ollama in the background** is ticked whenever a Clef or Gemma model is: on first start the app downloads the official Ollama installer (about 1 GB), runs it silently, starts it, then pulls the chosen models while you use the app. The Settings page shows every step (downloading Ollama 42 % → installing → starting → ready → model pulls) and has the same **Install Ollama automatically** button for later. On macOS and Linux, or with the portable build, the app asks the same question in a dialog on first start (macOS: Ollama.app is unzipped into `~/Applications`; Linux: the official one-line install script is shown, since it needs sudo).
 
 ### First start
 

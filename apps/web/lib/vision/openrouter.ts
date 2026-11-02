@@ -1,6 +1,7 @@
 // One frame → ScreenSummary through an OpenRouter multimodal model. The image is
 // forwarded once as a data URL and never logged or stored (ARCHITECTURE.md §6.2).
 import { buildVisionUserPrompt, parseScreenSummary, VISION_SYSTEM_PROMPT, type VisionRequest, type VisionResponse } from "@filow/core";
+import { openRouterChat } from "@/lib/openrouter";
 
 export const DEFAULT_VISION_MODEL = "google/gemini-2.5-flash";
 
@@ -19,36 +20,21 @@ export async function describeFrame(body: VisionRequest): Promise<VisionResponse
   const model = process.env.OPENROUTER_VISION_MODEL || DEFAULT_VISION_MODEL;
   const started = Date.now();
   const text = buildVisionUserPrompt(body.context) + (body.question ? `\n\nPRESENTER'S QUESTION: ${body.question}` : "");
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.PUBLIC_ORIGIN || "http://localhost:4747",
-      "X-Title": "Filow",
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0,
-      max_tokens: 600,
-      response_format: { type: "json_object" },
-      usage: { include: true },
-      messages: [
-        { role: "system", content: VISION_SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: [
-            { type: "text", text },
-            { type: "image_url", image_url: { url: body.image } },
-          ],
-        },
-      ],
-    }),
+  const { content, cost, model: used } = await openRouterChat(model, "vision", {
+    temperature: 0,
+    max_tokens: 600,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: VISION_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: [
+          { type: "text", text },
+          { type: "image_url", image_url: { url: body.image } },
+        ],
+      },
+    ],
   });
   const latencyMs = Date.now() - started;
-  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const json = await res.json();
-  const content: string = json?.choices?.[0]?.message?.content ?? "";
-  const cost: number | null = typeof json?.usage?.cost === "number" ? json.usage.cost : null;
-  return { summary: parseScreenSummary(content, body.source, Date.now()), latencyMs, cost, model };
+  return { summary: parseScreenSummary(content, body.source, Date.now()), latencyMs, cost, model: used };
 }

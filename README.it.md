@@ -177,7 +177,20 @@ Scarica il file per il tuo sistema dalla pagina **Releases** di questo repositor
 
 ### L'installer per Windows
 
-Una procedura guidata passo per passo nella lingua del tuo Windows (inglese, italiano, tedesco, francese, spagnolo, portoghese, olandese, polacco, russo, giapponese, cinese; le pagine personalizzate sono in inglese e italiano): benvenuto, licenza (proprietaria, © VoidExploit), cartella di installazione, una pagina **Modelli locali e chiavi API** dove spunti i modelli da scaricare al primo avvio (Whisper base è preselezionato; Whisper small; Clef Flash tramite Ollama) e leggi che le decisioni in cloud richiedono una chiave OpenRouter, poi la pagina finale con **Esegui Filow** e **Crea un collegamento sul desktop**. L'app si apre con una schermata iniziale (logo, barra di avanzamento, "Modelli locali · i dati restano su questo PC · GDPR" quando gira in locale, "Filtro PII attivo · GDPR" altrimenti) mentre i server e il link pubblico partono, poi va alle Impostazioni per scaricare i modelli che hai spuntato.
+Una procedura guidata passo per passo nella lingua del tuo Windows (inglese, italiano, tedesco, francese, spagnolo, portoghese, olandese, polacco, russo, giapponese, cinese; le pagine personalizzate sono in inglese e italiano): benvenuto, licenza (proprietaria, © VoidExploit), cartella di installazione, una pagina **AI in locale su questo PC** (vedi sotto), poi la pagina finale con **Esegui Filow** e **Crea un collegamento sul desktop**. L'app si apre con una schermata iniziale (logo, barra di avanzamento, "Modelli locali · i dati restano su questo PC · GDPR" quando gira in locale, "Filtro PII attivo · GDPR" altrimenti) mentre i server e il link pubblico partono, poi va alle Impostazioni per scaricare i modelli che hai spuntato.
+
+#### AI locale scelta in base all'hardware
+
+L'installer esegue una scansione rapida (RAM, nome della GPU, spazio libero sul disco del profilo) e preseleziona i modelli che girano bene su quella macchina; la pagina mostra il risultato della scansione e lascia spuntare o togliere qualsiasi voce, quindi nulla è imposto:
+
+| Questo PC | Preselezionati |
+|---|---|
+| 32 GB di RAM o più | Whisper small, Clef Flash (decisioni in locale), Gemma 4 E4B (copione dalle slide) |
+| 16 GB | Whisper small con una vera GPU (NVIDIA, Radeon, Arc, Iris Xe) altrimenti Whisper base, Clef Flash, Gemma 4 E2B |
+| 8 GB | Whisper base, Gemma 4 E2B |
+| meno | Whisper base |
+
+I modelli Ollama più grandi vengono tolti se il disco resterebbe con meno di 3 GB liberi. **Installa Ollama in background** è spuntato ogni volta che lo è un modello Clef o Gemma: al primo avvio l'app scarica l'installer ufficiale di Ollama (circa 1 GB), lo esegue in silenzio, lo avvia e poi scarica i modelli scelti mentre usi l'app. La pagina Impostazioni mostra ogni passo (download di Ollama 42 % → installazione → avvio → pronto → download dei modelli) e ha lo stesso pulsante **Installa Ollama automaticamente** per dopo. Su macOS e Linux, o con la versione portable, l'app pone la stessa domanda in una finestra al primo avvio (macOS: Ollama.app viene estratta in `~/Applications`; Linux: viene mostrato lo script ufficiale di una riga, perché richiede sudo).
 
 ### Primo avvio
 

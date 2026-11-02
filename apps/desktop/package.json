@@ -1,6 +1,6 @@
 {
   "name": "@filow/desktop",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "private": true,
   "description": "Filow desktop app: listens as you present, checks off your talking points as you cover them, shows what you missed. OpenRouter or local models, live transcription.",
   "author": "VoidExploit",
@@ -39,6 +39,7 @@
     "files": [
       "main.js",
       "slideshow.js",
+      "localai.js",
       "preload.js",
       "splash.html",
       "vendor/*.js",
