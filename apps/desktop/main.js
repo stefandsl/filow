@@ -1524,9 +1524,6 @@ async function main() {
 }
 
 app.setAppUserModelId("com.intelliprompter.app");
-// Audio in the main browser process: on some Windows PCs the out-of-process audio service took 14 s to
-// start the capture context and then delivered silence (owner's USB microphone, 2026-11-02).
-app.commandLine.appendSwitch("disable-features", "AudioServiceOutOfProcess");
 app.whenReady().then(main);
 app.on("window-all-closed", () => app.quit());
 app.on("will-quit", () => {

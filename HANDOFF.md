@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.12)
+## Where it stands (v0.9.13)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,13 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.13: ROLLBACK of the microphone capture to the 0.9.6 code (owner: "roll back to the last time
+    it worked") and the Electron audio switch removed; everything else (gate, unload, ElevenLabs
+    error reporting, glass CSS) stays. The 0.9.7–0.9.12 capture is in git history (`git show
+    v0.9.12:packages/stt/src/mic.ts`). Open question: on the owner's PC the mic track ends 4 s after
+    start in every backend; the capture code was identical from 0.9.1 (when it transcribed) to 0.9.6,
+    so the cause may be on that PC (exclusive-mode app, driver, Windows privacy). Next step there:
+    test with "Browser (Web Speech)" (no AudioContext) and check Windows Sound > mic > Advanced.
   - 0.9.12: owner's PC: capture starts after 14 s whatever the sample rate, then "no audio ... track
     ended" (also in local mode). Diagnosis: Chromium's out-of-process audio service hangs and restarts,
     ending every capture track. `main.js` now passes `--disable-features=AudioServiceOutOfProcess`;
