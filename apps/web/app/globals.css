@@ -13,6 +13,14 @@
   --accent-ring: rgba(255, 182, 0, 0.35);
   --ok: #4ad67a;
   --warn: #ff6b6b;
+  /* Frosted glass: panels are translucent and blur what is behind them (a soft brand glow on the
+     page; the desktop's acrylic/vibrancy window when [data-glass] is set by the desktop shell). */
+  --glass: rgba(19, 21, 26, 0.62);
+  --glass-2: rgba(27, 30, 38, 0.66);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-blur: saturate(140%) blur(18px);
+  --glow-a: rgba(255, 182, 0, 0.10);
+  --glow-b: rgba(255, 101, 0, 0.07);
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
 }
@@ -31,6 +39,11 @@
   --accent-ring: rgba(255, 182, 0, 0.45);
   --ok: #1f8a46;
   --warn: #c0392b;
+  --glass: rgba(255, 255, 255, 0.62);
+  --glass-2: rgba(238, 240, 244, 0.7);
+  --glass-border: rgba(8, 9, 11, 0.08);
+  --glow-a: rgba(255, 182, 0, 0.16);
+  --glow-b: rgba(255, 101, 0, 0.08);
 }
 :root[data-theme="light"] .chip.live { border-color: #bfe6cc; }
 :root[data-theme="light"] .chip.err { border-color: #f1c6c0; }
@@ -45,6 +58,24 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); color-scheme: dark; }
+body {
+  background-image: radial-gradient(900px 600px at 12% -10%, var(--glow-a), transparent 60%),
+    radial-gradient(800px 520px at 100% 110%, var(--glow-b), transparent 60%);
+  background-attachment: fixed;
+}
+/* Desktop shell on Windows 11 / macOS: the window itself is acrylic / vibrancy, so the page lets it through. */
+:root[data-glass] html, :root[data-glass] body { background-color: transparent; }
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .point, .strip, .btn, select.btn, .modal, .missed-item, .source {
+    background-color: var(--glass); border-color: var(--glass-border);
+    -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur);
+  }
+  .point.started, .missed-item { background-color: var(--glass-2); }
+  .btn.primary { background-color: transparent; }
+  .modal-bg { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  .point, .strip, .modal { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 8px 30px rgba(0, 0, 0, 0.18); }
+  :root[data-theme="light"] .point, :root[data-theme="light"] .strip, :root[data-theme="light"] .modal { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 8px 30px rgba(8, 9, 11, 0.06); }
+}
 :root[data-theme="light"] body { color-scheme: light; }
 button { font: inherit; }
 

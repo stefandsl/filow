@@ -1411,14 +1411,19 @@ async function main() {
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(allowed(permission)));
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed(permission));
 
+  // Frosted glass: Windows 11 (build 22000+) gets an acrylic window, macOS the under-window vibrancy;
+  // the page is told through --filow-glass and makes its own background transparent (globals.css).
+  const glass = (process.platform === "win32" && Number(os.release().split(".")[2] || 0) >= 22000) || process.platform === "darwin";
   const win = new BrowserWindow({
     width: 1280,
     height: 820,
-    backgroundColor: "#08090b",
+    backgroundColor: glass ? "#00000000" : "#08090b",
+    ...(glass && process.platform === "win32" ? { backgroundMaterial: "acrylic" } : {}),
+    ...(glass && process.platform === "darwin" ? { vibrancy: "under-window", visualEffectState: "active" } : {}),
     title: "Filow",
     show: false,
     icon: appIcon(),
-    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js"), additionalArguments: glass ? ["--filow-glass"] : [] },
   });
   mainWin = win;
   nativeTheme.themeSource = settings.theme === "light" || settings.theme === "dark" ? settings.theme : "system";

@@ -1,5 +1,6 @@
 "use client";
 
+import { desktopBridge } from "@/lib/sessionUrl";
 import { useEffect, useState } from "react";
 import { LANGS, type Lang } from "@filow/core";
 import { getLang, getThemePref, resolveTheme, setLang as saveLang, setThemePref, type ThemePref } from "@/lib/prefs";
@@ -42,6 +43,7 @@ export function useUiTheme(): [ThemePref, (t: ThemePref) => void] {
   useEffect(() => {
     const apply = () => {
       document.documentElement.dataset.theme = resolveTheme(pref);
+      if (desktopBridge()?.glass) document.documentElement.dataset.glass = "1";
     };
     apply();
     const mq = window.matchMedia?.("(prefers-color-scheme: light)");

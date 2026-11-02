@@ -5,6 +5,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("filow", {
   desktop: true,
+  /** The window is acrylic (Windows 11) or vibrancy (macOS): the page keeps its background transparent. */
+  glass: process.argv.includes("--filow-glass"),
   mode: process.env.FILOW_SESSION_URL ? "hosted" : "lan",
   sessionUrl: process.env.FILOW_SESSION_URL || `http://${process.env.FILOW_LAN_IP || "127.0.0.1"}:${process.env.SESSION_PORT || 4748}`,
   /** What the phone opens: the public tunnel URL while "Share to phone on any network" is on, else the LAN address. */

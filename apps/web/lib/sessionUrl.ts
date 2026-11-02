@@ -6,6 +6,7 @@
  */
 export type DesktopBridge = {
   desktop: true;
+  glass?: boolean;
   mode: "lan" | "hosted";
   sessionUrl: string;
   mirrorOrigin: string;
