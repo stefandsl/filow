@@ -195,19 +195,35 @@ N=%LOCALAPPDATA%/electron-builder/Cache/nsis/nsis-3.0.4.1
 "$N/Bin/makensis.exe" //NOCD "//X!addincludedir $N\Include" "//X!addplugindir $N\Plugins\x86-unicode" C:/Temp/nsis-check.nsi
 ```
 
-## Continuing with Codex (OpenAI subscription) instead of Claude
+## Continuing with Cursor or Codex (OpenAI subscription) instead of Claude
 
-1. Install the CLI: `npm i -g @openai/codex`, then `codex login` (uses the ChatGPT subscription; no
-   API credits needed).
-2. In the repo folder run `codex` and start with:
-   "Read AGENTS.md and HANDOFF.md, then tell me where the project stands and what is pending."
-   Codex reads `AGENTS.md` automatically; `HANDOFF.md` is the state.
-3. Keep the same loop: change, `npm run typecheck && npm test`, look at the page, commit with a
+From 2026-11-02 the owner moves day-to-day coding to Cursor and Codex to cut token cost, with the
+**ponytail** ruleset (github.com/DietrichGebert/ponytail, MIT: smallest change that fully solves
+the task, reuse before writing, a test for risky logic). What is already set up on the owner's PC:
+
+- Checkout at `~/ponytail`; its Cursor hooks are installed in `~/.cursor/hooks.json`
+  (`sessionStart` + `beforeSubmitPrompt`), so a new Cursor chat gets the ruleset. Switch level with
+  a plain message `/ponytail lite|full|ultra|off`. Do not add `.cursor/rules/ponytail.mdc` as well:
+  the rule file and the hooks are alternatives.
+- Claude Code: the six skills are copied into `~/.claude/skills/` (`/ponytail`, `/ponytail-review`,
+  `/ponytail-audit`, ...). The full plugin (band, hooks) would need the two `/plugin` commands from
+  ponytail's INSTALL.md in an interactive `claude` terminal.
+- Codex: not installed yet. After `npm i -g @openai/codex` and `codex login`, run
+  `codex plugin marketplace add DietrichGebert/ponytail` and `codex plugin add ponytail@ponytail`,
+  then trust its two hooks under `/hooks`.
+
+Start every new agent with: "Read AGENTS.md and HANDOFF.md, then tell me where the project stands
+and what is pending." The next work items are in "Pending", item 8, in the plan's order.
+
+
+1. Codex reads `AGENTS.md` automatically; `HANDOFF.md` is the state. Cursor reads `AGENTS.md`
+   when asked (add it to the chat context once).
+2. Keep the same loop: change, `npm run typecheck && npm test`, look at the page, commit with a
    descriptive message, tag + push when the owner says "tag vX.Y.Z", copy the release to
    `filow-releases` (see `AGENTS.md`), check `latest.yml`.
-4. The owner writes in Italian or English, short messages, often a screenshot of the problem; answer
+3. The owner writes in Italian or English, short messages, often a screenshot of the problem; answer
    in the language they used, give the outcome first, keep the Italian UI strings natural.
-5. Before ending a session, update "Where it stands" and "Pending" above and commit the file.
+4. Before ending a session, update "Where it stands" and "Pending" above and commit the file.
 
 The same two files work for Claude Code (`CLAUDE.md` is not needed; it reads `AGENTS.md` too when
 asked) and for any other agent.
