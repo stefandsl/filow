@@ -9,7 +9,8 @@ import type { Command, CommandResult, PointState, ScreenSummary, Script, Session
 export type TranscriptEvent = { committed?: string; partial?: string };
 
 export type EngineOptions = {
-  decide: (r: DecideRequest) => Promise<DecideResponse>;
+  /** The decision call. `signal` aborts it when the engine gives up (timeout), so a slow model does not pile up requests. */
+  decide: (r: DecideRequest, signal?: AbortSignal) => Promise<DecideResponse>;
   now?: () => number;
   /** timer period; a model call happens only when the transcript changed */
   tickMs?: number;
@@ -23,8 +24,10 @@ export type EngineOptions = {
   window?: number;
   /** stop the take when accumulated cost reaches this (USD); null disables */
   costCapUsd?: number | null;
-  /** per-call timeout */
+  /** per-call timeout; the call is aborted and the engine reports "slow" instead of an error */
   timeoutMs?: number;
+  /** at most this many open points per call; the rest rotate in on later calls (default 4) */
+  maxQuestions?: number;
   sessionId?: string;
   /** Timer injection for tests. Defaults to the global timers. */
   setInterval?: (fn: () => void, ms: number) => unknown;
@@ -43,6 +46,8 @@ export class Engine {
   private partial = "";
   private lastSent = "";
   private inFlight = false;
+  private lastCallAt = -Infinity;
+  private qCursor = 0;
   private timer: unknown = null;
   private streak: Record<string, number> = {};
   private subs = new Set<Subscriber>();
@@ -61,6 +66,7 @@ export class Engine {
       window: opts.window ?? 900,
       costCapUsd: opts.costCapUsd === undefined ? 1 : opts.costCapUsd,
       timeoutMs: opts.timeoutMs ?? 2500,
+      maxQuestions: opts.maxQuestions ?? 4,
       setInterval: opts.setInterval ?? ((fn, ms) => globalThis.setInterval(fn, ms)),
       clearInterval: opts.clearInterval ?? ((t) => globalThis.clearInterval(t as ReturnType<typeof setInterval>)),
     };
@@ -285,13 +291,25 @@ export class Engine {
     const s = this.state;
     const section = s.script.sections[s.sectionIdx];
     if (!section) return;
+    // Adaptive pace: a model slower than the tick is asked no more often than it can answer.
+    const now = this.o.now();
+    const avg = s.stats.avgMs;
+    if (avg > this.o.tickMs && now - this.lastCallAt < Math.round(avg * 1.2)) return;
     const windowText = this.transcript.slice(-this.o.window);
     if (!windowText || windowText === this.lastSent) return;
-    const open = section.bullets.filter((b) => (s.points[b.id]?.status ?? "waiting") === "waiting");
-    if (!open.length) return;
+    const allOpen = section.bullets.filter((b) => (s.points[b.id]?.status ?? "waiting") === "waiting");
+    if (!allOpen.length) return;
+    // Question cap: the next few open points in script order, rotating so every point gets its turn.
+    let open = allOpen;
+    if (allOpen.length > this.o.maxQuestions) {
+      const start = this.qCursor % allOpen.length;
+      open = [...allOpen.slice(start), ...allOpen.slice(0, start)].slice(0, this.o.maxQuestions);
+      this.qCursor = start + this.o.maxQuestions;
+    }
 
     this.inFlight = true;
     this.lastSent = windowText;
+    this.lastCallAt = now;
     const req: DecideRequest = {
       transcript: windowText,
       bullets: open,
@@ -300,11 +318,21 @@ export class Engine {
       upcoming: s.script.sections[s.sectionIdx + 1]?.bullets.map((b) => b.text) ?? [],
       onScreen: s.screen?.facts?.length ? s.screen.facts : undefined,
     };
+    const ctl = new AbortController();
     try {
-      const data = await withTimeout(this.o.decide(req), this.o.timeoutMs);
+      const data = await withTimeout(this.o.decide(req, ctl.signal), this.o.timeoutMs, ctl);
       this.apply(data, open.map((b) => b.id));
     } catch (err) {
-      this.update((st) => (st.engine.error = (err as Error).message));
+      if (err instanceof TimeoutError) {
+        // Slow, not broken: the request was aborted, the next tick asks again with fresher text.
+        this.lastSent = "";
+        this.update((st) => {
+          st.engine.slowMs = this.o.timeoutMs;
+          st.engine.error = undefined;
+        });
+      } else {
+        this.update((st) => (st.engine.error = (err as Error).message));
+      }
     } finally {
       this.inFlight = false;
     }
@@ -315,6 +343,7 @@ export class Engine {
     this.unmentioned = data.unmentioned ?? [];
     this.update((st) => {
       st.engine.error = undefined;
+      st.engine.slowMs = data.latencyMs > this.o.tickMs * 2 ? data.latencyMs : undefined;
       st.unmentioned = data.unmentioned ?? [];
       const calls = st.stats.calls + 1;
       const totalMs = st.stats.totalMs + data.latencyMs;
@@ -359,9 +388,14 @@ export class Engine {
   }
 }
 
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+export class TimeoutError extends Error {}
+
+function withTimeout<T>(p: Promise<T>, ms: number, ctl?: AbortController): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`decision timed out after ${ms} ms`)), ms);
+    const t = setTimeout(() => {
+      ctl?.abort();
+      reject(new TimeoutError(`decision timed out after ${ms} ms`));
+    }, ms);
     p.then(
       (v) => {
         clearTimeout(t);

@@ -11,7 +11,7 @@ import { anonymizeRequest, piiMode, restore } from "@/lib/pii/guard";
  * local providers are allowed. Cloud providers get an anonymised request
  * (PII guard) and placeholders are restored in the answer.
  */
-const PROVIDERS: Record<DecisionProviderId, { run: (b: DecideRequest) => Promise<DecideResponse>; cloud: boolean }> = {
+const PROVIDERS: Record<DecisionProviderId, { run: (b: DecideRequest, signal?: AbortSignal) => Promise<DecideResponse>; cloud: boolean }> = {
   openrouter: { run: decideOpenRouter, cloud: true },
   "clef-local": { run: decideClefLocal, cloud: false },
   "clef-cloudflare": { run: decideClefCloudflare, cloud: true },
@@ -35,9 +35,10 @@ export async function POST(req: Request) {
   }
   try {
     const { run, cloud } = PROVIDERS[provider];
-    if (!cloud || piiMode() === "off") return NextResponse.json<DecideResponse>(await run(body));
+    // When the engine gives up on a slow call the page aborts it; the abort is passed on to the model.
+    if (!cloud || piiMode() === "off") return NextResponse.json<DecideResponse>(await run(body, req.signal));
     const { req: safe, map, layers } = await anonymizeRequest(body);
-    const out = await run(safe);
+    const out = await run(safe, req.signal);
     return NextResponse.json<DecideResponse>({
       ...out,
       unmentioned: out.unmentioned?.map((f) => restore(f, map)),

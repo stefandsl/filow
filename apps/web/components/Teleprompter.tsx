@@ -224,6 +224,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     setStarting(true);
     // The mode decides the provider and the transcription backend; no silent fallback to the other side.
     setDecisionProvider(mode === "local" ? "clef-local" : "openrouter");
+    if (mode === "local") void fetch("/api/local/warmup", { method: "POST" }).catch(() => undefined);
     let backend: BackendChoice = choice;
     if (backend === "auto") {
       if (mode === "local") backend = "whisper";
@@ -250,7 +251,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     try {
       {
         // Explicit backend from the chosen mode: never fall back silently.
-        const b = createBackend(backend, { headers: engineHeaders() });
+        const b = createBackend(backend, { headers: engineHeaders(), language: lang });
         await b.start(handlers);
         backendRef.current = b;
         engine.setBackend(b.id);
@@ -314,6 +315,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         )}
         {offline && <span className="chip err">{t("app.offline")}</span>}
         {eng.backend && <span className="chip live">● {BACKEND_LABELS[eng.backend]}</span>}
+        {eng.slowMs && <span className="chip err" title={t("app.slowTitle")}>⏱ {t("app.slow", { ms: eng.slowMs })}</span>}
         {screen.status === "watching" && (
           <>
             <span className="chip rec" title={t("screen.recTitle", { label: screen.label })}>

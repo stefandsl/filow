@@ -17,7 +17,7 @@ const SCRIPT = parseScript(`# Intro
 
 type Answer = Record<string, number>; // id -> confidence
 
-function makeEngine(answers: Answer[] = [], cost: number | null = 0.001) {
+function makeEngine(answers: Answer[] = [], cost: number | null = 0.001, extra: Partial<ConstructorParameters<typeof Engine>[0]> = {}) {
   const calls: DecideRequest[] = [];
   let i = 0;
   const decide = async (r: DecideRequest): Promise<DecideResponse> => {
@@ -30,10 +30,95 @@ function makeEngine(answers: Answer[] = [], cost: number | null = 0.001) {
       model: "test",
     };
   };
-  const e = new Engine({ decide, now: () => 1000, setInterval: () => 0, clearInterval: () => {} });
+  const e = new Engine({ decide, now: () => 1000, setInterval: () => 0, clearInterval: () => {}, ...extra });
   e.loadScript(SCRIPT);
   return { e, calls };
 }
+
+const BIG = parseScript(`# One
+- p1
+- p2
+- p3
+- p4
+- p5
+- p6
+`);
+
+describe("Engine pacing (Step 1 hygiene)", () => {
+  it("caps the questions per call and rotates through the open points", async () => {
+    const { e, calls } = makeEngine([], 0, { maxQuestions: 4 });
+    e.loadScript(BIG);
+    e.feed({ committed: "a " });
+    await e.tick();
+    e.feed({ committed: "b " });
+    await e.tick();
+    e.feed({ committed: "c " });
+    await e.tick();
+    expect(calls[0].bullets.map((b) => b.text)).toEqual(["p1", "p2", "p3", "p4"]);
+    expect(calls[1].bullets.map((b) => b.text)).toEqual(["p5", "p6", "p1", "p2"]);
+    expect(calls[2].bullets.map((b) => b.text)).toEqual(["p3", "p4", "p5", "p6"]);
+  });
+
+  it("aborts a slow call, reports slow instead of an error, and asks again next tick", async () => {
+    let aborted = false;
+    const decide = (_r: DecideRequest, signal?: AbortSignal) =>
+      new Promise<DecideResponse>((_res, rej) => {
+        signal?.addEventListener("abort", () => {
+          aborted = true;
+          rej(new Error("aborted"));
+        });
+      });
+    const e = new Engine({ decide, now: () => 1000, setInterval: () => 0, clearInterval: () => {}, timeoutMs: 20 });
+    e.loadScript(SCRIPT);
+    e.feed({ committed: "hello" });
+    await e.tick();
+    expect(aborted).toBe(true);
+    expect(e.getState().engine.slowMs).toBe(20);
+    expect(e.getState().engine.error).toBeUndefined();
+    // the same transcript is sent again: lastSent was cleared by the timeout
+    let calls = 0;
+    const e2 = new Engine({
+      decide: async (r) => {
+        calls++;
+        return { decisions: r.bullets.map((b) => ({ id: b.id, confidence: 0, started: false })), latencyMs: 1, cost: 0, model: "t" };
+      },
+      now: () => 1000,
+      setInterval: () => 0,
+      clearInterval: () => {},
+    });
+    e2.loadScript(SCRIPT);
+    e2.feed({ committed: "x" });
+    await e2.tick();
+    await e2.tick();
+    expect(calls).toBe(1);
+  });
+
+  it("paces calls to the model's own speed when it is slower than the tick", async () => {
+    let t = 1000;
+    const calls: number[] = [];
+    const e = new Engine({
+      decide: async (r) => {
+        calls.push(t);
+        return { decisions: r.bullets.map((b) => ({ id: b.id, confidence: 0, started: false })), latencyMs: 2000, cost: 0, model: "t" };
+      },
+      now: () => t,
+      setInterval: () => 0,
+      clearInterval: () => {},
+      tickMs: 500,
+    });
+    e.loadScript(SCRIPT);
+    e.feed({ committed: "a" });
+    await e.tick(); // first call: avg becomes 2000 ms
+    t += 500;
+    e.feed({ committed: "b" });
+    await e.tick(); // too soon: 500 < 2400
+    t += 2000;
+    e.feed({ committed: "c" });
+    await e.tick(); // 2500 >= 2400: allowed
+    expect(calls).toEqual([1000, 3500]);
+    expect(e.getState().engine.slowMs).toBe(2000);
+  });
+});
 
 describe("Engine flip rule", () => {
   it("flips at >= 0.70 only after two confirming calls", async () => {

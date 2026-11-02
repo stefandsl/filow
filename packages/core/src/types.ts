@@ -66,7 +66,7 @@ export type SessionState = {
   /** last 160 chars of the transcript */
   transcriptTail: string;
   stats: SessionStats;
-  engine: { backend: SttBackendId | null; recording: boolean; error?: string };
+  engine: { backend: SttBackendId | null; recording: boolean; error?: string; /** set while the decision model answers slower than the tick (ms per call) */ slowMs?: number };
   slide?: { index: number; total: number; title?: string };
   screen?: ScreenSummary | null;
   /** On-screen facts the decision model says were not said yet (gap detector). */

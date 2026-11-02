@@ -7,9 +7,7 @@
 export function fallbackModels(kind: "text" | "vision"): string[] {
   const env = process.env.OPENROUTER_FALLBACK_MODELS;
   if (env !== undefined) return env.split(",").map((s) => s.trim()).filter(Boolean);
-  return kind === "vision"
-    ? ["google/gemini-2.5-flash", "google/gemini-2.0-flash-001", "openai/gpt-4o-mini"]
-    : ["google/gemini-2.0-flash-001", "openai/gpt-4o-mini", "meta-llama/llama-3.3-70b-instruct"];
+  return kind === "vision" ? ["google/gemini-2.5-flash", "openai/gpt-4o-mini"] : ["google/gemini-2.0-flash-001", "openai/gpt-4o-mini"];
 }
 
 export type OpenRouterResult = { json: Record<string, unknown>; content: string; cost: number | null; model: string };
@@ -21,7 +19,8 @@ export type OpenRouterResult = { json: Record<string, unknown>; content: string;
 export async function openRouterChat(model: string, kind: "text" | "vision", payload: Record<string, unknown>, opts: { retries?: number } = {}): Promise<OpenRouterResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set.");
-  const models = [model, ...fallbackModels(kind).filter((m) => m !== model)];
+  // OpenRouter accepts at most 3 entries in `models` (primary + 2 fallbacks); more is a 400.
+  const models = [model, ...fallbackModels(kind).filter((m) => m !== model)].slice(0, 3);
   const retries = opts.retries ?? 2;
   let lastError = "";
   for (let attempt = 0; attempt <= retries; attempt++) {

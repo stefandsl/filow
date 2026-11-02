@@ -4,7 +4,7 @@ export const OLLAMA_URL = () => (process.env.OLLAMA_URL || "http://127.0.0.1:114
 export const CLEF_LOCAL_MODEL = () => process.env.CLEF_MODEL || "clef-flash";
 
 /** Local decisions: Cloudflare Clef through Ollama's System One endpoint. Nothing leaves the machine. */
-export async function decideClefLocal(body: DecideRequest): Promise<DecideResponse> {
+export async function decideClefLocal(body: DecideRequest, signal?: AbortSignal): Promise<DecideResponse> {
   const model = CLEF_LOCAL_MODEL();
   const started = Date.now();
   let res: Response;
@@ -13,8 +13,10 @@ export async function decideClefLocal(body: DecideRequest): Promise<DecideRespon
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildClefRequest(body, model)),
+      signal,
     });
-  } catch {
+  } catch (err) {
+    if ((err as Error).name === "AbortError") throw err;
     throw new Error(`Ollama not reachable at ${OLLAMA_URL()}. Start Ollama (0.35.1+) and pull ${model} in Settings > Local models.`);
   }
   const latencyMs = Date.now() - started;
@@ -22,6 +24,28 @@ export async function decideClefLocal(body: DecideRequest): Promise<DecideRespon
   if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
   const { decisions, unmentioned } = parseClefAnswers((await res.json()) as ClefResponse, body);
   return { decisions, unmentioned, latencyMs, cost: 0, model: `${model} (local)` };
+}
+
+/**
+ * Keep the local decision model resident and warm: Ollama loads a model on `/api/generate` with no
+ * prompt, and `keep_alive: -1` stops it from unloading after the default five minutes. Called at
+ * take start (local mode) so the first real decision is not a cold load. Returns the load time.
+ */
+export async function warmClefLocal(): Promise<{ ok: boolean; model: string; ms: number; error?: string }> {
+  const model = CLEF_LOCAL_MODEL();
+  const started = Date.now();
+  try {
+    const res = await fetch(`${OLLAMA_URL()}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, keep_alive: -1 }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!res.ok) return { ok: false, model, ms: Date.now() - started, error: `Ollama ${res.status}: ${(await res.text()).slice(0, 200)}` };
+    return { ok: true, model, ms: Date.now() - started };
+  } catch (err) {
+    return { ok: false, model, ms: Date.now() - started, error: (err as Error).message };
+  }
 }
 
 /**
