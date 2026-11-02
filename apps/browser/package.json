@@ -1,6 +1,6 @@
 {
   "name": "@filow/browser",
-  "version": "0.8.14",
+  "version": "0.8.15",
   "private": true,
   "description": "Browser extension (Chrome, Edge, Brave, Opera, Arc; Firefox via polyfill): side panel that follows HTML slide decks and generates the script from them.",
   "scripts": {

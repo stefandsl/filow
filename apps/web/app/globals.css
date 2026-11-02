@@ -151,6 +151,12 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .meter-bar i { display: block; height: 100%; background: var(--brand-gradient); border-radius: 999px; transition: width 0.6s ease; }
 .meter-bar i.warm { background: linear-gradient(90deg, #ffb600, #ff6500); }
 .meter-bar i.hot { background: var(--warn); }
+.strip.resources.compact { padding: 8px 14px; gap: 6px; }
+.strip.resources.compact .meters { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.strip.resources.compact .meter-head { font-size: 10px; }
+.strip.resources.compact .meter-bar { height: 6px; }
+.label.linkish { background: none; border: none; color: var(--muted); cursor: pointer; padding: 0; text-align: left; font: inherit; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700; }
+.label.linkish:hover { color: var(--accent); }
 .netline { display: flex; flex-direction: column; gap: 6px; text-align: left; width: 100%; }
 .netline select.btn { max-width: 100%; }
 .strip.autopick { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-color: var(--accent-ring); }

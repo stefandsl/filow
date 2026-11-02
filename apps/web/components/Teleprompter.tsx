@@ -21,6 +21,7 @@ import { engineHeaders, useSession } from "./useSession";
 import { PairPanel } from "./PairPanel";
 import { useScreenSense, type ScreenSource } from "./useScreenSense";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "./LangSwitch";
+import { ResourcesPanel } from "./ResourcesPanel";
 import { desktopBridge, type UpdateStatus } from "@/lib/sessionUrl";
 
 type BackendChoice = "auto" | SttBackendId;
@@ -520,6 +521,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
           </div>
         </div>
       )}
+
+      <ResourcesPanel compact />
 
       <div className="footer">
         <span>

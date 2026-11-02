@@ -10,6 +10,7 @@ import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/Lan
 import { getDecisionProvider, getScreenMode, getStartMode, setDecisionProvider, setScreenMode, setStartMode, type StartMode } from "@/lib/prefs";
 import { screenBridge } from "@/lib/screen/watcher";
 import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/sessionUrl";
+import { placementText, ResourcesPanel, useResources } from "@/components/ResourcesPanel";
 
 type Status = {
   pii: { mode: "off" | "on" | "strict"; serverUrl: string; serverReachable: boolean };
@@ -25,29 +26,6 @@ type Status = {
     status: "available" | "planned"; fit: "fits" | "tight" | "too big"; installed: boolean; ollamaOk: boolean;
   }>;
 };
-
-type Resources = {
-  cpu: { pct: number; cores: number; model: string };
-  ram: { usedGb: number; totalGb: number };
-  gpu: { name: string; kind: "discrete" | "integrated" | "unified" | "none"; vramTotalGb: number | null; vramUsedGb: number | null; sharedUsedGb: number | null; utilPct: number | null };
-  loaded: Array<{ name: string; sizeGb: number; vramGb: number; gpuPct: number; where: "gpu" | "cpu" | "mixed" }>;
-  advice: { local: boolean; reason: "gpu" | "ram" | "none" };
-};
-
-function Meter({ name, pct, text }: { name: string; pct: number; text: string }) {
-  const p = Math.max(0, Math.min(100, pct || 0));
-  return (
-    <div className="meter">
-      <div className="meter-head">
-        <span>{name}</span>
-        <span className="hint">{text}</span>
-      </div>
-      <div className="meter-bar">
-        <i style={{ width: `${p}%` }} className={p > 90 ? "hot" : p > 70 ? "warm" : ""} />
-      </div>
-    </div>
-  );
-}
 
 export default function LocalModelsPage() {
   const [lang, setLang] = useUiLang();
@@ -78,26 +56,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const [ai, setAi] = useState<LocalAiStatus | null>(null);
   const [hw, setHw] = useState<LocalAiHardware | null>(null);
   const [autoList, setAutoList] = useState<string[]>([]);
-  const [res, setRes] = useState<Resources | null>(null);
-
-  // Live resources every 3 s while the page is open.
-  useEffect(() => {
-    let stop = false;
-    const tick = async () => {
-      try {
-        const r = (await fetch("/api/local/resources", { cache: "no-store" }).then((x) => x.json())) as Resources;
-        if (!stop) setRes(r);
-      } catch {
-        /* keep the last reading */
-      }
-    };
-    void tick();
-    const id = setInterval(() => void tick(), 3000);
-    return () => {
-      stop = true;
-      clearInterval(id);
-    };
-  }, []);
+  const res = useResources();
 
   const refresh = useCallback(async () => {
     await ensureEngineToken();
@@ -332,47 +291,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
         <div className="hint">{t("common.loading")}</div>
       ) : (
         <>
-          <section className="strip resources">
-            <div className="label">{t("res.label")}</div>
-            {!res ? (
-              <div className="hint">{t("common.loading")}</div>
-            ) : (
-              <>
-                <div className="meters">
-                  <Meter name={t("res.cpu")} pct={res.cpu.pct} text={`${res.cpu.pct}% · ${res.cpu.cores} ${t("res.cores")}`} />
-                  <Meter name={t("res.ram")} pct={Math.round((res.ram.usedGb / res.ram.totalGb) * 100)} text={`${res.ram.usedGb} / ${res.ram.totalGb} GB`} />
-                  {res.gpu.kind !== "none" && (
-                    <Meter
-                      name={res.gpu.kind === "discrete" ? t("res.vram") : t("res.gpuShared")}
-                      pct={res.gpu.vramTotalGb && res.gpu.vramUsedGb !== null ? Math.round((res.gpu.vramUsedGb / res.gpu.vramTotalGb) * 100) : res.gpu.utilPct ?? 0}
-                      text={
-                        res.gpu.vramTotalGb && res.gpu.vramUsedGb !== null
-                          ? `${res.gpu.vramUsedGb} / ${res.gpu.vramTotalGb} GB${res.gpu.sharedUsedGb ? ` · +${res.gpu.sharedUsedGb} GB ${t("res.sharedRam")}` : ""}`
-                          : res.gpu.sharedUsedGb !== null
-                            ? `${res.gpu.sharedUsedGb} GB ${t("res.sharedRam")}`
-                            : "—"
-                      }
-                    />
-                  )}
-                  {res.gpu.utilPct !== null && <Meter name={t("res.gpuLoad")} pct={res.gpu.utilPct} text={`${res.gpu.utilPct}%`} />}
-                </div>
-                <div className="hint">
-                  {res.gpu.kind === "none" ? t("res.noGpu") : `${res.gpu.name} · ${t(`res.kind.${res.gpu.kind}`)}`}
-                  {" · "}
-                  {res.advice.local ? t(res.advice.reason === "gpu" ? "res.adviceGpu" : "res.adviceRam") : t("res.adviceCloud")}
-                </div>
-                <div className="hint">
-                  {res.loaded.length === 0
-                    ? t("res.nothingLoaded")
-                    : res.loaded.map((m) => (
-                        <span key={m.name} className={`chip ${m.where === "gpu" ? "live" : m.where === "cpu" ? "err" : ""}`} style={{ marginRight: 6 }}>
-                          {m.name} · {m.where === "gpu" ? t("res.onGpu") : m.where === "cpu" ? t("res.onCpu") : t("res.mixed", { pct: m.gpuPct })} · {m.sizeGb} GB
-                        </span>
-                      ))}
-                </div>
-              </>
-            )}
-          </section>
+          <ResourcesPanel />
 
           <section className="strip">
             <div className="label">{t("start.modeLabel")}</div>
@@ -474,7 +393,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                   {res?.loaded.some((l) => l.name === m.name || l.name.startsWith(`${m.name}:`)) &&
                     (() => {
                       const l = res.loaded.find((x) => x.name === m.name || x.name.startsWith(`${m.name}:`))!;
-                      return <span className={`chip ${l.where === "gpu" ? "live" : l.where === "cpu" ? "err" : ""}`}>{l.where === "gpu" ? t("res.onGpu") : l.where === "cpu" ? t("res.onCpu") : t("res.mixed", { pct: l.gpuPct })}</span>;
+                      return <span className={`chip ${l.where === "gpu" ? "live" : l.where === "cpu" ? "err" : ""}`}>{placementText(t, l)}</span>;
                     })()}
                   {m.runtime === "browser" && whisperModel === m.name && <span className="chip">{t("settings.selectedWhisper")}</span>}
                   {m.status === "planned" && <span className="chip">{t("settings.planned")}</span>}
