@@ -14,10 +14,40 @@ const cp = (from, to) => {
 };
 
 /**
- * Windows .ico: an ICO container of PNG entries (Vista+). Small sizes use the compact "O + cradle"
- * mark from brand/windows-small (the full Fi tile is unreadable under 32 px), larger sizes the full tile.
- * Windows picks the entry by requested physical size, so both live in one file.
+ * Windows .ico. Entries up to 48 px are classic 32-bit DIBs (BGRA + AND mask): the shell, the
+ * installer and rcedit (which stamps the exe) all read those; PNG-compressed entries are only safe
+ * at 256 px. A PNG-only .ico shipped in 0.9.2 left the desktop shortcut with a blank icon.
+ * Small sizes use the compact "O + cradle" mark from brand/windows-small (the full Fi tile is
+ * unreadable under 32 px), larger sizes the full tile. Windows picks the entry by requested size.
  */
+async function dibEntry(png) {
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const w = info.width, h = info.height;
+  const rowBytes = w * 4;
+  const maskRow = Math.ceil(w / 32) * 4;
+  const header = Buffer.alloc(40);
+  header.writeUInt32LE(40, 0);
+  header.writeInt32LE(w, 4);
+  header.writeInt32LE(h * 2, 8);
+  header.writeUInt16LE(1, 12);
+  header.writeUInt16LE(32, 14);
+  header.writeUInt32LE(0, 16);
+  header.writeUInt32LE(rowBytes * h + maskRow * h, 20);
+  const xor = Buffer.alloc(rowBytes * h);
+  for (let y = 0; y < h; y++) {
+    const src = (h - 1 - y) * rowBytes; // bottom-up
+    for (let x = 0; x < w; x++) {
+      const i = src + x * 4, o = y * rowBytes + x * 4;
+      xor[o] = data[i + 2]; // B
+      xor[o + 1] = data[i + 1]; // G
+      xor[o + 2] = data[i]; // R
+      xor[o + 3] = data[i + 3]; // A
+    }
+  }
+  const and = Buffer.alloc(maskRow * h); // alpha carries transparency; mask all opaque
+  return { size: w, blob: Buffer.concat([header, xor, and]), bpp: 32 };
+}
+
 function writeIco(dest, entries) {
   const dir = Buffer.alloc(6 + 16 * entries.length);
   dir.writeUInt16LE(0, 0);
@@ -25,7 +55,7 @@ function writeIco(dest, entries) {
   dir.writeUInt16LE(entries.length, 4);
   let offset = dir.length;
   const blobs = [];
-  entries.forEach(({ size, png }, i) => {
+  entries.forEach(({ size, blob }, i) => {
     const o = 6 + i * 16;
     dir[o] = size >= 256 ? 0 : size;
     dir[o + 1] = size >= 256 ? 0 : size;
@@ -33,10 +63,10 @@ function writeIco(dest, entries) {
     dir[o + 3] = 0;
     dir.writeUInt16LE(1, o + 4);
     dir.writeUInt16LE(32, o + 6);
-    dir.writeUInt32LE(png.length, o + 8);
+    dir.writeUInt32LE(blob.length, o + 8);
     dir.writeUInt32LE(offset, o + 12);
-    offset += png.length;
-    blobs.push(png);
+    offset += blob.length;
+    blobs.push(blob);
   });
   fs.writeFileSync(dest, Buffer.concat([dir, ...blobs]));
   console.log("wrote", path.relative(root, dest), entries.map((e) => e.size).join("/"));
@@ -48,8 +78,8 @@ const tile = async (size) => sharp(path.join(icons, "filow-app-1024.png")).resiz
 
 async function hybridIco(dest, variant, smallSizes, bigSizes) {
   const entries = [];
-  for (const s of smallSizes) entries.push({ size: s, png: micro(variant, s) });
-  for (const s of bigSizes) entries.push({ size: s, png: await tile(s) });
+  for (const s of smallSizes) entries.push(await dibEntry(micro(variant, s)));
+  for (const s of bigSizes) entries.push(s >= 256 ? { size: s, blob: await tile(s) } : await dibEntry(await tile(s)));
   writeIco(dest, entries);
 }
 
