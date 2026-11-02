@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.7)
+## Where it stands (v0.9.8)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,12 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.8: the take hung in "Starting" after "transcription ready" on the owner's PC: the mic probe
+    opened and closed the device, then the capture opened it again and that second open never
+    returned. `preopenMic()` (packages/stt/src/mic.ts) opens once at the check and the capture reuses
+    the stream; every step (open, audio context resume, worklet load) has a timeout with a message.
+    Not reproduced here (no such driver); verify on the 3070 PC. Owner's wish noted: a translucent
+    "frosted glass" look for the UI (not started).
   - 0.9.7: "Unload from memory" for a loaded Ollama model (`/api/local/unload`, keep_alive 0) in
     Settings and as a cross on the dashboard chip (the owner's 3070 PC sat at 7.5/8 GB VRAM).
     ElevenLabs: every error/warning message (`message` field: auth_error, quota_exceeded_error,

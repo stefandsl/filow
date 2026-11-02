@@ -41,6 +41,58 @@ export type MicCapture = {
 };
 
 const NO_AUDIO_MS = 4000;
+const OPEN_MS = 10000;
+const STEP_MS = 5000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${what} did not finish in ${ms / 1000} s`)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
+let preopened: MediaStream | null = null;
+
+/**
+ * Opens the microphone once, ahead of the take (the "checking the microphone" probe), and keeps the
+ * stream for the capture that follows. Opening the device a second time right after closing it hung
+ * forever on a Windows PC (the take sat in "Starting"), so the probe and the capture now share one open.
+ */
+export async function preopenMic(): Promise<MediaStream> {
+  releasePreopenedMic();
+  const stream = await withTimeout(
+    navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } }).catch(() =>
+      navigator.mediaDevices.getUserMedia({ audio: true }),
+    ),
+    OPEN_MS,
+    "opening the microphone",
+  );
+  preopened = stream;
+  return stream;
+}
+
+export function releasePreopenedMic(): void {
+  if (!preopened) return;
+  for (const t of preopened.getTracks()) t.stop();
+  preopened = null;
+}
+
+function takePreopened(): MediaStream | null {
+  const s = preopened;
+  preopened = null;
+  if (s && s.getAudioTracks().some((t) => t.readyState === "live")) return s;
+  if (s) for (const t of s.getTracks()) t.stop();
+  return null;
+}
 
 /**
  * `onNoAudio` fires once if no PCM chunk arrives within 4 s of starting: a suspended audio context
@@ -54,16 +106,21 @@ export async function startMic(
   onLog?: (line: string) => void,
 ): Promise<MicCapture> {
   const t0 = Date.now();
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
-  });
+  const reused = takePreopened();
+  const stream = reused ?? (await preopenMic().then(takePreopened))!;
   const ctx = new AudioContext({ sampleRate });
-  if (ctx.state !== "running") await ctx.resume().catch(() => undefined);
+  if (ctx.state !== "running") await withTimeout(ctx.resume(), STEP_MS, "starting the audio context").catch((e: Error) => onLog?.(e.message));
   const url = URL.createObjectURL(new Blob([WORKLET_SOURCE], { type: "application/javascript" }));
-  await ctx.audioWorklet.addModule(url);
+  try {
+    await withTimeout(ctx.audioWorklet.addModule(url), STEP_MS, "loading the audio worklet");
+  } catch (err) {
+    for (const t of stream.getTracks()) t.stop();
+    void ctx.close();
+    throw err;
+  }
   URL.revokeObjectURL(url);
   const track = stream.getAudioTracks()[0];
-  onLog?.(`microphone: ${track?.label || "default"} in ${Date.now() - t0} ms, audio context ${ctx.state}, ${ctx.sampleRate} Hz`);
+  onLog?.(`microphone: ${track?.label || "default"}${reused ? " (kept from the check)" : ""} in ${Date.now() - t0} ms, audio context ${ctx.state}, ${ctx.sampleRate} Hz`);
 
   const source = ctx.createMediaStreamSource(stream);
   const node = new AudioWorkletNode(ctx, "pcm-chunker");

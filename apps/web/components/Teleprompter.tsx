@@ -15,7 +15,7 @@ import {
   type SttStatus,
 } from "@filow/core";
 import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
-import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, startAuto, whisperCached, type SttBackend } from "@filow/stt";
+import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, startAuto, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
 import { getSpeechLang, getStartMode, setDecisionProvider, setStartMode, type StartMode } from "@/lib/prefs";
 import { useEngine } from "./useEngine";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
@@ -166,6 +166,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const stopTake = useCallback(() => {
     backendRef.current?.stop();
     backendRef.current = null;
+    releasePreopenedMic(); // the check's stream, if no backend took it (Web Speech, or a failed start)
     engine.stop();
     // Live notes (§6.4) are offered for export until the next take starts.
     if (engine.getNotes().length) setLastNotes([...engine.getNotes()]);
@@ -175,8 +176,9 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const probeMic = async (): Promise<boolean> => {
     pushLog(t("mic.checking"));
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      for (const track of stream.getTracks()) track.stop();
+      // Opened once and kept for the capture: a second open right after a close hung on a Windows PC.
+      const stream = await preopenMic();
+      pushLog(`${t("mic.checking")} ${stream.getAudioTracks()[0]?.label || "ok"}`);
       return true;
     } catch (err) {
       const name = (err as DOMException).name;

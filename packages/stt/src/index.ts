@@ -7,6 +7,7 @@ import { LocalWhisperStt } from "./whisper";
 
 export type { SttBackend, SttHandlers, TranscriptEvent } from "./types";
 export { browserSupported } from "./browser";
+export { preopenMic, releasePreopenedMic } from "./mic";
 export * from "./whisperModels";
 export { SherpaStt, sherpaBridge, type SherpaBridge } from "./sherpa";
 import { SherpaStt } from "./sherpa";
