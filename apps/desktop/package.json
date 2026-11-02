@@ -1,8 +1,8 @@
 {
   "name": "@filow/desktop",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "private": true,
-  "description": "Filow desktop app: listens as you present, checks off your talking points as you cover them, shows what you missed. OpenRouter or local models, live transcription.",
+  "description": "Filow: the live speaking companion",
   "author": "VoidExploit",
   "license": "UNLICENSED",
   "homepage": "https://github.com/stefandsl/filow",

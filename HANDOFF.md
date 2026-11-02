@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.0)
+## Where it stands (v0.9.3)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,13 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - Model router (0.9.3): `apps/web/lib/router.ts` (pure, unit-tested) + `/api/local/plan` (inventory,
+    hardware, one measured call per candidate) + `lib/plan.ts`. Start mode Auto runs it at every
+    Start and starts with its picks (STT backend + decision provider; slide generation applied
+    server-side via GENERATE_PROVIDER/GENERATE_LOCAL_MODEL env). Settings "Automatic setup" panel
+    with reasons and "Measure now". Also: model extraction moved off the main thread (the app showed
+    "not responding" while unpacking the 475 MB Nemotron archive), small icons (0.9.2), ElevenLabs
+    language + reconnect and OpenRouter throughput routing (0.9.1).
   - Step 2 (0.9.0): streaming STT in the desktop app. `apps/desktop/stt.js` downloads the Nemotron
     3.5 streaming int8 archive (475 MB, GitHub k2-fsa/sherpa-onnx "asr-models") into
     userData/models and runs it with `sherpa-onnx-node` in a worker thread (`stt-worker.js`,

@@ -599,6 +599,17 @@ Privacy: i fotogrammi vivono solo in memoria, vanno una sola volta via HTTPS al 
 
 Nel browser (non nell'app desktop) si usa il selettore di condivisione del browser stesso e non c'è la scorciatoia per la regione.
 
+### Setup automatico (router dei modelli)
+
+La modalità di avvio **Auto** interroga il router a ogni Avvia: guarda i modelli installati, ciò che
+la macchina regge (memoria GPU, RAM) e le chiavi configurate, esegue una decisione vera su ogni
+candidato (Clef locale, OpenRouter) e sceglie il setup a latenza più bassa per ogni compito: voce
+(Nemotron in streaming sul PC, ElevenLabs, OpenAI, Whisper, browser), decisioni (Clef sul PC o cloud;
+il locale vince se misurato entro il 20 % del cloud), generazione del copione (il modello di visione
+locale più grande che ci sta, altrimenti cloud) e Screen Sense. Le Impostazioni mostrano il piano
+attuale con il motivo di ogni scelta, la latenza misurata e il tempo atteso da "detto" a "spuntato";
+**Misura adesso** ripete le misure. Un chip in alto mostra cosa sta usando la sessione.
+
 ### Trascrizione in streaming su questo PC (app desktop)
 
 Nelle Impostazioni trovi **Nemotron 3.5 trascrizione in streaming** (NVIDIA, download di 450 MB):

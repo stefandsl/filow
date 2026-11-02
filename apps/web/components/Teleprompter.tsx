@@ -6,6 +6,7 @@ import {
   notesToMarkdown,
   parseScript,
   SCREEN_MODE_LABELS,
+  type DecisionProviderId,
   type ImportResponse,
   type ScreenMode,
   type ScreenNote,
@@ -17,6 +18,7 @@ import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui"
 import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, startAuto, whisperCached, type SttBackend } from "@filow/stt";
 import { getSpeechLang, getStartMode, setDecisionProvider, setStartMode, type StartMode } from "@/lib/prefs";
 import { useEngine } from "./useEngine";
+import { fetchPlan, type PlanResponse } from "@/lib/plan";
 import { engineHeaders, useSession } from "./useSession";
 import { PairPanel } from "./PairPanel";
 import { useScreenSense, type ScreenSource } from "./useScreenSense";
@@ -210,11 +212,30 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   };
 
   /** Start button: ask Cloud / Local unless a choice is remembered. */
+  const [plan, setPlan] = useState<PlanResponse | null>(null);
+
   const requestStart = async () => {
     let mode = getStartMode();
     const r = await loadReadiness();
     setReadiness(r);
-    if (mode === "auto") mode = autoPick(r) ?? "ask";
+    if (mode === "auto") {
+      // The router measures one call per candidate and picks the lowest-latency setup for each task.
+      setStarting(true);
+      try {
+        const p = await fetchPlan({ probe: true, apply: true });
+        setPlan(p);
+        if (p.decision.provider && p.stt.backend) {
+          pushLog(`auto: ${p.stt.backend} · ${p.decision.provider}${p.decision.measuredMs ? ` ${p.decision.measuredMs} ms` : ""} · ${p.generate.provider}${p.generate.model ? ` ${p.generate.model}` : ""}`);
+          const m: "cloud" | "local" = p.decision.provider === "clef-local" ? "local" : "cloud";
+          await startTake(m, r, { provider: p.decision.provider, backend: p.stt.backend });
+          return;
+        }
+      } catch (err) {
+        pushLog(`auto: router failed (${(err as Error).message}); asking`);
+      }
+      setStarting(false);
+      mode = autoPick(r) ?? "ask";
+    }
     if (mode === "ask" || (mode === "cloud" && !(r.openrouterKey && r.sttKey)) || (mode === "local" && !(r.whisper && r.clef))) {
       setStartDialog(true);
       return;
@@ -222,15 +243,15 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     await startTake(mode, r);
   };
 
-  const startTake = async (mode: "cloud" | "local", r: Readiness) => {
+  const startTake = async (mode: "cloud" | "local", r: Readiness, pick?: { provider: DecisionProviderId; backend: SttBackendId }) => {
     engine.setError(undefined);
     setLastNotes([]);
     cancelRef.current = false;
     setStarting(true);
     // The mode decides the provider and the transcription backend; no silent fallback to the other side.
-    setDecisionProvider(mode === "local" ? "clef-local" : "openrouter");
-    if (mode === "local") void fetch("/api/local/warmup", { method: "POST" }).catch(() => undefined);
-    let backend: BackendChoice = choice;
+    setDecisionProvider(pick?.provider ?? (mode === "local" ? "clef-local" : "openrouter"));
+    if ((pick?.provider ?? (mode === "local" ? "clef-local" : "")) === "clef-local") void fetch("/api/local/warmup", { method: "POST" }).catch(() => undefined);
+    let backend: BackendChoice = pick?.backend ?? choice;
     if (backend === "auto") {
       if (mode === "local") backend = r.sherpa ? "sherpa" : "whisper";
       else backend = r.stt.elevenlabs ? "elevenlabs" : r.stt.openai ? "openai" : hasWebSpeech ? "browser" : "auto";
@@ -321,6 +342,12 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         {offline && <span className="chip err">{t("app.offline")}</span>}
         {eng.backend && <span className="chip live">● {BACKEND_LABELS[eng.backend]}</span>}
         {eng.slowMs && <span className="chip err" title={t("app.slowTitle")}>⏱ {t("app.slow", { ms: eng.slowMs })}</span>}
+        {plan && eng.recording && (
+          <span className="chip" title={t("plan.chipTitle")}>
+            ⚙ {t(`plan.stt.${plan.stt.backend ?? "none"}`)} · {t(`plan.decision.${plan.decision.provider ?? "none"}`)}
+            {plan.decision.measuredMs ? ` ${plan.decision.measuredMs} ms` : ""}
+          </span>
+        )}
         {screen.status === "watching" && (
           <>
             <span className="chip rec" title={t("screen.recTitle", { label: screen.label })}>

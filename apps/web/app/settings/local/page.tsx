@@ -11,6 +11,7 @@ import { getDecisionProvider, getScreenMode, getSpeechLang, getStartMode, SPEECH
 import { screenBridge } from "@/lib/screen/watcher";
 import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/sessionUrl";
 import { placementText, ResourcesPanel, useResources } from "@/components/ResourcesPanel";
+import { fetchPlan, type PlanResponse } from "@/lib/plan";
 
 type Status = {
   pii: { mode: "off" | "on" | "strict"; serverUrl: string; serverReachable: boolean };
@@ -58,6 +59,21 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const [hw, setHw] = useState<LocalAiHardware | null>(null);
   const [autoList, setAutoList] = useState<string[]>([]);
   const res = useResources();
+  const [plan, setPlan] = useState<PlanResponse | null>(null);
+  const [planBusy, setPlanBusy] = useState(false);
+  const loadPlan = async (probe: boolean) => {
+    setPlanBusy(true);
+    try {
+      setPlan(await fetchPlan({ probe }));
+    } catch {
+      /* shown as missing */
+    } finally {
+      setPlanBusy(false);
+    }
+  };
+  useEffect(() => {
+    void loadPlan(false);
+  }, []);
   const [sherpa, setSherpa] = useState<{ model: string; pct: number; error?: string; running?: boolean } | null>(null);
   useEffect(() => {
     const b = sherpaBridge();
@@ -306,6 +322,26 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
       ) : (
         <>
           <ResourcesPanel />
+
+          <section className="strip">
+            <div className="label">{t("plan.label")}</div>
+            <div className="hint">{t("plan.hint")}</div>
+            {plan && (
+              <div className="planrows">
+                <div><strong>{t("plan.task.stt")}</strong> {t(`plan.stt.${plan.stt.backend ?? "none"}`)} <span className="hint">· {t(`plan.reason.${plan.stt.reason}` as I18nKey)}</span></div>
+                <div><strong>{t("plan.task.decision")}</strong> {t(`plan.decision.${plan.decision.provider ?? "none"}`)}{plan.decision.measuredMs ? ` · ${plan.decision.measuredMs} ms` : ""} <span className="hint">· {t(`plan.reason.${plan.decision.reason}` as I18nKey)}</span></div>
+                <div><strong>{t("plan.task.generate")}</strong> {plan.generate.provider === "ollama" ? plan.generate.model : t(`plan.decision.${plan.generate.provider === "openrouter" ? "openrouter" : "none"}`)} <span className="hint">· {t(`plan.reason.${plan.generate.reason}` as I18nKey)}</span></div>
+                <div><strong>{t("plan.task.vision")}</strong> {t(`plan.decision.${plan.vision.provider === "openrouter" ? "openrouter" : "none"}`)}</div>
+                {plan.expectedTickMs !== null && <div className="hint">{t("plan.expected", { s: (plan.expectedTickMs / 1000).toFixed(1) })}</div>}
+              </div>
+            )}
+            <div className="row">
+              <button className="btn primary" disabled={planBusy} onClick={() => void loadPlan(true)}>
+                {planBusy ? t("settings.running") : t("plan.measure")}
+              </button>
+              <span className="hint">{t("plan.measureHint")}</span>
+            </div>
+          </section>
 
           <section className="strip">
             <div className="label">{t("speech.label")}</div>

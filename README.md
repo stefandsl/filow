@@ -599,6 +599,17 @@ Privacy: frames live in memory only, go once over HTTPS to the vision model and 
 
 In the browser (not the desktop app) the browser's own share picker is used, and there is no region hotkey.
 
+### Automatic setup (model router)
+
+Start mode **Auto** asks the router at every Start: it looks at the models installed, what the
+machine can hold (GPU memory, RAM) and the keys configured, runs one real decision call on each
+candidate (local Clef, OpenRouter) and picks the lowest-latency setup per task: speech
+(Nemotron streaming on the PC, ElevenLabs, OpenAI, Whisper, browser), decisions (Clef on the PC or
+cloud; local wins when measured within 20 % of the cloud), script generation (the biggest local
+vision model that fits, else cloud) and Screen Sense. Settings shows the current plan with the
+reason for each choice, the measured latency and the expected "said to ticked" time; **Measure now**
+re-runs the probes. A chip in the top bar shows what the take is using.
+
 ### Streaming speech-to-text on this PC (desktop app)
 
 Settings lists **Nemotron 3.5 streaming speech-to-text** (NVIDIA, 450 MB download): the desktop app

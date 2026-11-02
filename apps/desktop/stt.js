@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const https = require("node:https");
-const { execFileSync } = require("node:child_process");
+const { execFile } = require("node:child_process");
 const { Worker } = require("node:worker_threads");
 
 const MODEL = {
@@ -49,10 +49,12 @@ function downloadWithProgress(url, dest, onPct, hops = 5) {
   });
 }
 
-/** Windows ships bsdtar as tar.exe (bzip2 built in); macOS and Linux have tar with -j. */
+/** Windows ships bsdtar as tar.exe (bzip2 built in); macOS and Linux have tar with -j. Runs as a child process: a 475 MB bzip2 takes tens of seconds and must not block the app. */
 function extract(archive, into) {
   const tar = process.platform === "win32" ? path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe") : "tar";
-  execFileSync(tar, ["-xjf", archive, "-C", into], { stdio: "ignore", timeout: 10 * 60_000 });
+  return new Promise((resolve, reject) => {
+    execFile(tar, ["-xjf", archive, "-C", into], { timeout: 15 * 60_000, windowsHide: true, maxBuffer: 1 << 20 }, (err) => (err ? reject(err) : resolve()));
+  });
 }
 
 /** Downloads and unpacks the model into userData/models; onStatus gets {state, pct}. */
@@ -65,7 +67,7 @@ async function ensureModel(userData, onStatus) {
     onStatus({ state: "downloading", pct: 0 });
     await downloadWithProgress(MODEL.url, archive, (pct) => onStatus({ state: "downloading", pct }));
     onStatus({ state: "extracting", pct: 99 });
-    extract(archive, models);
+    await extract(archive, models);
     const extracted = path.join(models, MODEL.archive);
     if (fs.existsSync(modelDir(userData))) fs.rmSync(modelDir(userData), { recursive: true, force: true });
     fs.renameSync(extracted, modelDir(userData));
