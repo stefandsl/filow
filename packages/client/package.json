@@ -1,6 +1,6 @@
 {
   "name": "@filow/client",
-  "version": "0.8.7",
+  "version": "0.8.8",
   "private": true,
   "type": "module",
   "description": "Session client for views: pair by code, receive state, send commands. Uses the global WebSocket (browser and React Native).",

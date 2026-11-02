@@ -1,6 +1,6 @@
 {
   "name": "@filow/stt",
-  "version": "0.8.7",
+  "version": "0.8.8",
   "private": true,
   "type": "module",
   "description": "Browser-side speech-to-text backends (Web Speech, ElevenLabs realtime, OpenAI realtime, on-device Whisper) and Auto selection.",

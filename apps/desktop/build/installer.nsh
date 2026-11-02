@@ -46,6 +46,12 @@ Var SfxRam8
 Var SfxRam16
 Var SfxDisk
 Var SfxGpu
+Var SfxHave
+Var LblOllamaHave
+Var OllamaFound
+Var HaveClef
+Var HaveGemmaSmall
+Var HaveGemmaBig
 !endif
 
 ; ${FilowContains} out haystack needle : out = 1 when needle occurs in haystack (case-sensitive), else 0.
@@ -149,6 +155,24 @@ FunctionEnd
   ${If} $GpuName == ""
     StrCpy $GpuName "GPU ?"
   ${EndIf}
+  ; Already here? Ollama's executable and the manifests of the models it has pulled.
+  StrCpy $OllamaFound 0
+  ${If} ${FileExists} "$LOCALAPPDATA\Programs\Ollama\ollama.exe"
+  ${OrIf} ${FileExists} "$PROGRAMFILES64\Ollama\ollama.exe"
+    StrCpy $OllamaFound 1
+  ${EndIf}
+  StrCpy $HaveClef 0
+  StrCpy $HaveGemmaSmall 0
+  StrCpy $HaveGemmaBig 0
+  ${If} ${FileExists} "$PROFILE\.ollama\models\manifests\registry.ollama.ai\library\clef-flash\latest"
+    StrCpy $HaveClef 1
+  ${EndIf}
+  ${If} ${FileExists} "$PROFILE\.ollama\models\manifests\registry.ollama.ai\library\gemma4\e2b"
+    StrCpy $HaveGemmaSmall 1
+  ${EndIf}
+  ${If} ${FileExists} "$PROFILE\.ollama\models\manifests\registry.ollama.ai\library\gemma4\e4b"
+    StrCpy $HaveGemmaBig 1
+  ${EndIf}
 !macroend
 
 ; ---- Recommendation from the scan (mirrors apps/desktop/localai.js recommend()).
@@ -200,10 +224,22 @@ FunctionEnd
       ${ExitDo}
     ${EndIf}
   ${Loop}
+  ${If} $HaveClef == 1
+    StrCpy $StClef ${BST_UNCHECKED}
+  ${EndIf}
+  ${If} $HaveGemmaSmall == 1
+    StrCpy $StGemmaSmall ${BST_UNCHECKED}
+  ${EndIf}
+  ${If} $HaveGemmaBig == 1
+    StrCpy $StGemmaBig ${BST_UNCHECKED}
+  ${EndIf}
   StrCpy $StOllama ${BST_UNCHECKED}
-  ${If} $StClef == ${BST_CHECKED}
-  ${OrIf} $StGemmaSmall == ${BST_CHECKED}
-  ${OrIf} $StGemmaBig == ${BST_CHECKED}
+  ${If} $OllamaFound == 0
+  ${AndIf} $StClef == ${BST_CHECKED}
+  ${OrIf} $OllamaFound == 0
+  ${AndIf} $StGemmaSmall == ${BST_CHECKED}
+  ${OrIf} $OllamaFound == 0
+  ${AndIf} $StGemmaBig == ${BST_CHECKED}
     StrCpy $StOllama ${BST_CHECKED}
   ${EndIf}
 !macroend
@@ -221,26 +257,35 @@ FunctionEnd
   ${ElseIf} $RamGb < 16
     StrCpy $LblWhisperSmall "$LblWhisperSmall$SfxRam16"
   ${EndIf}
-  ${If} $StClef == ${BST_CHECKED}
+  ${If} $HaveClef == 1
+    StrCpy $LblClef "$LblClef$SfxHave"
+  ${ElseIf} $StClef == ${BST_CHECKED}
     StrCpy $LblClef "$LblClef$SfxRec"
   ${ElseIf} $RamGb < 16
     StrCpy $LblClef "$LblClef$SfxRam16"
   ${Else}
     StrCpy $LblClef "$LblClef$SfxDisk"
   ${EndIf}
-  ${If} $StGemmaSmall == ${BST_CHECKED}
+  ${If} $HaveGemmaSmall == 1
+    StrCpy $LblGemmaSmall "$LblGemmaSmall$SfxHave"
+  ${ElseIf} $StGemmaSmall == ${BST_CHECKED}
     StrCpy $LblGemmaSmall "$LblGemmaSmall$SfxRec"
   ${ElseIf} $RamGb < 8
     StrCpy $LblGemmaSmall "$LblGemmaSmall$SfxRam8"
   ${Else}
     StrCpy $LblGemmaSmall "$LblGemmaSmall$SfxDisk"
   ${EndIf}
-  ${If} $StGemmaBig == ${BST_CHECKED}
+  ${If} $HaveGemmaBig == 1
+    StrCpy $LblGemmaBig "$LblGemmaBig$SfxHave"
+  ${ElseIf} $StGemmaBig == ${BST_CHECKED}
     StrCpy $LblGemmaBig "$LblGemmaBig$SfxRec"
   ${ElseIf} $RamGb < 16
     StrCpy $LblGemmaBig "$LblGemmaBig$SfxRam16"
   ${Else}
     StrCpy $LblGemmaBig "$LblGemmaBig$SfxDisk"
+  ${EndIf}
+  ${If} $OllamaFound == 1
+    StrCpy $LblOllama "$LblOllamaHave"
   ${EndIf}
 !macroend
 
@@ -268,6 +313,8 @@ FunctionEnd
     StrCpy $SfxRam16 " – servono 16 GB di RAM"
     StrCpy $SfxDisk " – spazio su disco insufficiente"
     StrCpy $SfxGpu " – serve una GPU"
+    StrCpy $SfxHave " – già installato"
+    StrCpy $LblOllamaHave "Ollama è già installato su questo PC: per lui non c'è nulla da scaricare"
   ${ElseIf} $LANGUAGE == 1031
     StrCpy $WelcomeTitle "Willkommen bei Filow"
     StrCpy $WelcomeText "Sprich frei. Bleib auf den Punkt.$\r$\n$\r$\nDieser Assistent installiert Filow auf dem Computer: den Vortragsbegleiter, der zuhört, deine Stichpunkte abhakt, sobald du sie ansprichst, und zeigt, was du ausgelassen hast – mit Spiegel auf dem Telefon, Screen Sense und dem PowerPoint-Add-in.$\r$\n$\r$\nSchließe vor dem Fortfahren andere Anwendungen.$\r$\n$\r$\n© VoidExploit. Klicke auf 'Weiter', um fortzufahren."
@@ -289,6 +336,8 @@ FunctionEnd
     StrCpy $SfxRam16 " – braucht 16 GB RAM"
     StrCpy $SfxDisk " – zu wenig freier Speicherplatz"
     StrCpy $SfxGpu " – braucht eine GPU"
+    StrCpy $SfxHave " – bereits installiert"
+    StrCpy $LblOllamaHave "Ollama ist auf diesem PC bereits installiert: dafür ist nichts mehr zu laden"
   ${ElseIf} $LANGUAGE == 1036
     StrCpy $WelcomeTitle "Bienvenue dans Filow"
     StrCpy $WelcomeText "Parlez librement. Restez sur le point.$\r$\n$\r$\nCet assistant installe Filow sur l'ordinateur : le compagnon de présentation qui vous écoute, coche vos points à mesure que vous les abordez et montre ce que vous avez sauté, avec miroir sur le téléphone, Screen Sense et le complément PowerPoint.$\r$\n$\r$\nFermez les autres applications avant de continuer.$\r$\n$\r$\n© VoidExploit. Cliquez sur « Suivant » pour continuer."
@@ -310,6 +359,8 @@ FunctionEnd
     StrCpy $SfxRam16 " – nécessite 16 Go de RAM"
     StrCpy $SfxDisk " – espace disque insuffisant"
     StrCpy $SfxGpu " – nécessite un GPU"
+    StrCpy $SfxHave " – déjà installé"
+    StrCpy $LblOllamaHave "Ollama est déjà installé sur ce PC : rien à télécharger pour lui"
   ${ElseIf} $LANGUAGE == 1034
     StrCpy $WelcomeTitle "Bienvenido a Filow"
     StrCpy $WelcomeText "Habla con libertad. No pierdas el hilo.$\r$\n$\r$\nEste asistente instala Filow en el equipo: el compañero de presentación que te escucha, marca tus puntos a medida que los tratas y muestra lo que te has saltado, con espejo en el teléfono, Screen Sense y el complemento de PowerPoint.$\r$\n$\r$\nCierra las demás aplicaciones antes de continuar.$\r$\n$\r$\n© VoidExploit. Pulsa 'Siguiente' para continuar."
@@ -331,6 +382,8 @@ FunctionEnd
     StrCpy $SfxRam16 " – necesita 16 GB de RAM"
     StrCpy $SfxDisk " – no hay suficiente espacio en disco"
     StrCpy $SfxGpu " – necesita GPU"
+    StrCpy $SfxHave " – ya instalado"
+    StrCpy $LblOllamaHave "Ollama ya está instalado en este PC: no hay nada más que descargar para él"
   ${ElseIf} $LANGUAGE == 1046
     StrCpy $WelcomeTitle "Bem-vindo ao Filow"
     StrCpy $WelcomeText "Fale livremente. Mantenha o foco.$\r$\n$\r$\nEste assistente instala o Filow no computador: o companheiro de apresentação que escuta você, marca seus pontos conforme você os aborda e mostra o que ficou de fora, com espelho no celular, Screen Sense e o suplemento do PowerPoint.$\r$\n$\r$\nFeche os outros aplicativos antes de continuar.$\r$\n$\r$\n© VoidExploit. Clique em 'Avançar' para continuar."
@@ -352,6 +405,8 @@ FunctionEnd
     StrCpy $SfxRam16 " – precisa de 16 GB de RAM"
     StrCpy $SfxDisk " – espaço em disco insuficiente"
     StrCpy $SfxGpu " – precisa de GPU"
+    StrCpy $SfxHave " – já instalado"
+    StrCpy $LblOllamaHave "O Ollama já está instalado neste PC: nada mais a baixar para ele"
   ${ElseIf} $LANGUAGE == 1043
     StrCpy $WelcomeTitle "Welkom bij Filow"
     StrCpy $WelcomeText "Spreek vrijuit. Blijf bij de kern.$\r$\n$\r$\nDeze wizard installeert Filow op de computer: de presentatiehulp die meeluistert, je punten afvinkt zodra je ze behandelt en laat zien wat je hebt overgeslagen, met spiegel op de telefoon, Screen Sense en de PowerPoint-invoegtoepassing.$\r$\n$\r$\nSluit andere toepassingen voordat je verdergaat.$\r$\n$\r$\n© VoidExploit. Klik op 'Volgende' om door te gaan."
@@ -373,6 +428,8 @@ FunctionEnd
     StrCpy $SfxRam16 " – vereist 16 GB RAM"
     StrCpy $SfxDisk " – te weinig vrije schijfruimte"
     StrCpy $SfxGpu " – vereist een GPU"
+    StrCpy $SfxHave " – al geïnstalleerd"
+    StrCpy $LblOllamaHave "Ollama is al op deze pc geïnstalleerd: daarvoor hoeft niets meer te worden gedownload"
   ${ElseIf} $LANGUAGE == 1045
     StrCpy $WelcomeTitle "Witamy w Filow"
     StrCpy $WelcomeText "Mów swobodnie. Trzymaj się tematu.$\r$\n$\r$\nTen kreator zainstaluje Filow na komputerze: towarzysza prezentacji, który słucha, odhacza Twoje punkty, gdy je omawiasz, i pokazuje, co pominąłeś, z lustrem na telefonie, Screen Sense i dodatkiem do PowerPointa.$\r$\n$\r$\nPrzed kontynuowaniem zamknij inne aplikacje.$\r$\n$\r$\n© VoidExploit. Kliknij „Dalej”, aby kontynuować."
@@ -394,6 +451,8 @@ FunctionEnd
     StrCpy $SfxRam16 " – wymaga 16 GB RAM"
     StrCpy $SfxDisk " – za mało wolnego miejsca na dysku"
     StrCpy $SfxGpu " – wymaga GPU"
+    StrCpy $SfxHave " – już zainstalowane"
+    StrCpy $LblOllamaHave "Ollama jest już zainstalowana na tym komputerze: nie trzeba nic więcej pobierać"
   ${ElseIf} $LANGUAGE == 1049
     StrCpy $WelcomeTitle "Добро пожаловать в Filow"
     StrCpy $WelcomeText "Говорите свободно. Держитесь сути.$\r$\n$\r$\nЭтот мастер установит Filow на компьютер: помощника для выступлений, который слушает вас, отмечает тезисы по мере их раскрытия и показывает, что вы пропустили, с зеркалом на телефоне, Screen Sense и надстройкой для PowerPoint.$\r$\n$\r$\nПеред продолжением закройте другие приложения.$\r$\n$\r$\n© VoidExploit. Нажмите «Далее», чтобы продолжить."
@@ -415,6 +474,8 @@ FunctionEnd
     StrCpy $SfxRam16 " – нужно 16 ГБ ОЗУ"
     StrCpy $SfxDisk " – мало свободного места на диске"
     StrCpy $SfxGpu " – нужна GPU"
+    StrCpy $SfxHave " – уже установлено"
+    StrCpy $LblOllamaHave "Ollama уже установлена на этом ПК: для неё ничего загружать не нужно"
   ${ElseIf} $LANGUAGE == 1041
     StrCpy $WelcomeTitle "Filow へようこそ"
     StrCpy $WelcomeText "自由に話す。要点を外さない。$\r$\n$\r$\nこのウィザードは Filow をコンピューターにインストールします。発表を聞きながら、話した要点にチェックを付け、抜けた点を示すプレゼンの相棒です。スマートフォンのミラー、Screen Sense、PowerPoint アドインを備えています。$\r$\n$\r$\n続行する前に他のアプリケーションを閉じてください。$\r$\n$\r$\n© VoidExploit。続行するには「次へ」をクリックしてください。"
@@ -436,6 +497,8 @@ FunctionEnd
     StrCpy $SfxRam16 " – RAM 16 GB が必要"
     StrCpy $SfxDisk " – ディスクの空き容量が不足"
     StrCpy $SfxGpu " – GPU が必要"
+    StrCpy $SfxHave " – インストール済み"
+    StrCpy $LblOllamaHave "Ollama はこの PC にインストール済みです。追加のダウンロードは不要です"
   ${ElseIf} $LANGUAGE == 2052
     StrCpy $WelcomeTitle "欢迎使用 Filow"
     StrCpy $WelcomeText "畅所欲言，不离要点。$\r$\n$\r$\n此向导将在计算机上安装 Filow：一位演讲伙伴，边听边为你勾掉已讲到的要点，并提示遗漏的内容，支持手机镜像、Screen Sense 和 PowerPoint 加载项。$\r$\n$\r$\n继续之前请关闭其他应用程序。$\r$\n$\r$\n© VoidExploit。点击“下一步”继续。"
@@ -457,6 +520,8 @@ FunctionEnd
     StrCpy $SfxRam16 " – 需要 16 GB 内存"
     StrCpy $SfxDisk " – 磁盘可用空间不足"
     StrCpy $SfxGpu " – 需要 GPU"
+    StrCpy $SfxHave " – 已安装"
+    StrCpy $LblOllamaHave "本机已安装 Ollama：无需再为其下载任何内容"
   ${Else}
     StrCpy $WelcomeTitle "Welcome to Filow"
     StrCpy $WelcomeText "Speak freely. Stay on point.$\r$\n$\r$\nThis wizard installs Filow on your computer: the live speaking companion that listens as you present, checks off your talking points as you cover them and shows what you missed, with a phone mirror, Screen Sense and the PowerPoint add-in.$\r$\n$\r$\nClose other applications before continuing.$\r$\n$\r$\n© VoidExploit. Click Next to continue."
@@ -478,6 +543,8 @@ FunctionEnd
     StrCpy $SfxRam16 " – needs 16 GB RAM"
     StrCpy $SfxDisk " – not enough free disk"
     StrCpy $SfxGpu " – needs a GPU"
+    StrCpy $SfxHave " – already installed"
+    StrCpy $LblOllamaHave "Ollama is already installed on this PC: nothing more to download for it"
   ${EndIf}
   !insertmacro FilowAnnotate
 !macroend
@@ -500,27 +567,30 @@ Function ModelsPageCreate
   ${EndIf}
   ${NSD_CreateLabel} 0 0 100% 10u "$HwLine"
   Pop $0
-  ${NSD_CreateLabel} 0 11u 100% 20u "$ModelsIntro"
+  ${NSD_CreateLabel} 0 11u 100% 30u "$ModelsIntro"
   Pop $0
-  ${NSD_CreateCheckbox} 0 33u 100% 10u "$LblWhisperBase"
+  ${NSD_CreateCheckbox} 0 43u 100% 10u "$LblWhisperBase"
   Pop $CbWhisperBase
   ${NSD_SetState} $CbWhisperBase $StWhisperBase
-  ${NSD_CreateCheckbox} 0 44u 100% 10u "$LblWhisperSmall"
+  ${NSD_CreateCheckbox} 0 54u 100% 10u "$LblWhisperSmall"
   Pop $CbWhisperSmall
   ${NSD_SetState} $CbWhisperSmall $StWhisperSmall
-  ${NSD_CreateCheckbox} 0 55u 100% 10u "$LblClef"
+  ${NSD_CreateCheckbox} 0 65u 100% 10u "$LblClef"
   Pop $CbClef
   ${NSD_SetState} $CbClef $StClef
-  ${NSD_CreateCheckbox} 0 66u 100% 10u "$LblGemmaSmall"
+  ${NSD_CreateCheckbox} 0 76u 100% 10u "$LblGemmaSmall"
   Pop $CbGemmaSmall
   ${NSD_SetState} $CbGemmaSmall $StGemmaSmall
-  ${NSD_CreateCheckbox} 0 77u 100% 10u "$LblGemmaBig"
+  ${NSD_CreateCheckbox} 0 87u 100% 10u "$LblGemmaBig"
   Pop $CbGemmaBig
   ${NSD_SetState} $CbGemmaBig $StGemmaBig
-  ${NSD_CreateCheckbox} 0 91u 100% 10u "$LblOllama"
+  ${NSD_CreateCheckbox} 0 100u 100% 10u "$LblOllama"
   Pop $CbOllama
   ${NSD_SetState} $CbOllama $StOllama
-  ${NSD_CreateLabel} 0 106u 100% 30u "$ApiNote"
+  ${If} $OllamaFound == 1
+    EnableWindow $CbOllama 0
+  ${EndIf}
+  ${NSD_CreateLabel} 0 114u 100% 26u "$ApiNote"
   Pop $0
   nsDialogs::Show
 FunctionEnd

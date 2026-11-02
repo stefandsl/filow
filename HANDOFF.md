@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.8.7)
+## Where it stands (v0.8.8)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,10 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - Installer page: intro gets three lines (it overlapped the list), detects an existing Ollama
+    (`%LOCALAPPDATA%\Programs\Ollama`, Program Files) and already-pulled models
+    (`~/.ollama/models/manifests/.../library/<model>/<tag>`): those lines say "already installed",
+    are unticked, and the Ollama box is greyed out with a "nothing to download" label.
   - Installer custom pages in all 11 installer languages (auto-detected from Windows, no chooser),
     a reason on every model line (recommended / RAM / disk / GPU), cumulative disk rule.
   - Local AI chosen from the hardware: NSIS page scans RAM / GPU / free disk and preselects models,
