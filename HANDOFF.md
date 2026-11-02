@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.8.13)
+## Where it stands (v0.8.16)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,17 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - Phone on the Wi-Fi: fixed and confirmed by the owner (0.8.14): the QR used a VirtualBox adapter;
+    interfaces are now ranked (default route first, virtual ones last), Windows Firewall rule offered
+    at first start and from the pairing dialog, adapter picker there too.
+  - Local-mode latency: gauntlet brief v2 (`docs/local-latency-gauntlet.md`, after an EGM review) and
+    the lap-1 council report (`docs/gauntlet/REPORT-lap1.md`). Finding: the 4 s Whisper windows and the
+    two-call confirm rule dominate latency (9–12 s mouth-to-tick), not the model. Recommended stack
+    for low-spec: Nemotron 3.5 streaming STT via sherpa-onnx + MiniLM embedding gate + NLI verifier;
+    nothing implemented yet. Next: Step 0 (test corpus + benchmark harness) and Step 1 (hygiene:
+    keep_alive, non-blocking decision calls, question cap, catalogue sizes).
+  - Settings: explicit memory per model (download, VRAM, RAM, measured when loaded); Clef Flash is
+    11 GB. Dashboard also on the prompter page. Cancel button on pulls. Liquid model is lfm3-vl.
   - Settings dashboard (`/api/local/resources`, `apps/web/lib/sysinfo.ts`): live CPU, RAM, GPU
     memory/load (nvidia-smi, Windows GPU counters, Apple unified), which Ollama models are loaded and
     whether they sit on the GPU or in RAM (`/api/ps` size_vram), best-option advice. Start mode
