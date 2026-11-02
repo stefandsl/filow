@@ -143,6 +143,9 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .strip.onscreen .fact.unsaid { color: var(--accent); border-color: var(--accent-ring); }
 .strip.onscreen .row.actions { gap: 8px; margin-top: 6px; }
 .chip.busy { color: var(--accent); border-color: var(--accent-ring); animation: pulse 1s ease-in-out infinite; }
+.chip.rec { color: #fff; background: #c0392b; border-color: #c0392b; font-weight: 700; animation: pulse 1.4s ease-in-out infinite; }
+.btn.small { padding: 4px 10px; font-size: 11px; }
+.btn.danger.small { background: rgba(192, 57, 43, 0.12); }
 @keyframes pulse { 50% { opacity: 0.45; } }
 .sources { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; max-height: 60vh; overflow-y: auto; }
 .source { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; cursor: pointer; text-align: left; color: var(--text); display: flex; flex-direction: column; gap: 6px; }

@@ -311,7 +311,14 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         {offline && <span className="chip err">{t("app.offline")}</span>}
         {eng.backend && <span className="chip live">● {BACKEND_LABELS[eng.backend]}</span>}
         {screen.status === "watching" && (
-          <span className={`chip ${state.screenStats?.analysing ? "busy" : "live"}`}>👁 {state.screenStats?.analysing ? t("app.analysing") : screen.label}</span>
+          <>
+            <span className="chip rec" title={t("screen.recTitle", { label: screen.label })}>
+              ● {t("screen.rec")} · {state.screenStats?.analysing ? t("app.analysing") : screen.label}
+            </span>
+            <button className="btn danger small" onClick={screen.stopWatching} title={t("screen.stopWatching")}>
+              ■ {t("screen.stop")}
+            </button>
+          </>
         )}
         {error && <span className="chip err">{error}</span>}
         <ThemeSwitch pref={theme} onChange={onTheme} />

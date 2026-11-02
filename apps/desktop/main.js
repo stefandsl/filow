@@ -1255,10 +1255,9 @@ async function main() {
   }
 
   // Microphone and screen capture for the engine.
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
-    callback(permission === "media" || permission === "display-capture");
-  });
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === "media" || permission === "display-capture");
+  const allowed = (permission) => permission === "media" || permission === "display-capture" || permission === "notifications";
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(allowed(permission)));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed(permission));
 
   const win = new BrowserWindow({
     width: 1280,

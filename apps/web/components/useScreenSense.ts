@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useT } from "@filow/ui";
+import { notifyUser } from "@/lib/notify";
 import {
   CHANGE_THRESHOLD,
   FrameBudget,
@@ -28,6 +30,7 @@ export type ScreenSenseStatus = "idle" | "watching" | "unsupported";
  */
 export function useScreenSense(engine: Engine, state: SessionState, log: (line: string) => void) {
   const [mode, setMode] = useState<ScreenMode>("balanced");
+  const t = useT();
   const [status, setStatus] = useState<ScreenSenseStatus>("idle");
   const [label, setLabel] = useState<string>("");
   const [sources, setSources] = useState<ScreenSource[] | null>(null); // non-null = chooser open
@@ -46,13 +49,15 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
   modeRef.current = mode;
 
   const stopWatching = useCallback(() => {
+    const wasWatching = watcher.current !== null;
     watcher.current?.stop();
     watcher.current = null;
     lastThumb.current = null;
     void bridge.current?.select(null);
     setStatus((s) => (s === "unsupported" ? s : "idle"));
     setLabel("");
-  }, []);
+    if (wasWatching) notifyUser(t("screen.notifyOff"), t("screen.notifyOffBody"));
+  }, [t]);
 
   useEffect(() => {
     setMode(getScreenMode());
@@ -138,9 +143,10 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
       setLabel(name);
       cueCursor.current = engine.transcript.length;
       log(`Screen Sense: watching ${name}`);
+      notifyUser(t("screen.notifyOn", { label: name }), t("screen.notifyOnBody"));
       // lastThumb is null, so the loop's next tick sends the first frame.
     },
-    [engine, log, send, stopWatching],
+    [engine, log, send, stopWatching, t],
   );
 
   /** Web: browser chooser. Desktop: our own chooser (sources state), then getDisplayMedia resolves to it. */
