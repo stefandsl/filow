@@ -1,0 +1,22 @@
+FILOW / WINDOWS COMPACT ICON ADD-ON
+
+Use O + dot-ended curly cradle for small Windows surfaces, as selected by the customer.
+The full FI icon remains the larger identity mark.
+
+EXPORTS
+SVG: editable 32-unit master and a separately adjusted 16px master.
+PNG and ICO: 16,20,24,30,32,36,40,48,60,64,72,96,128,256 px.
+White and black versions: transparent tray assets for dark/light surfaces.
+Amber and gradient: optional transparent app/taskbar assets.
+
+The 16px drawing uses stronger cradle strokes and adjusted dots/gaps.
+Larger outputs follow the same silhouette. ICOs contain all listed physical sizes.
+Use the mono resource in the actual tray code; it is separate from the application's desktop icon resource.
+Changing a desktop shortcut icon does not necessarily update the application's taskbar or tray icon.
+Windows chooses icon resources by requested physical size and DPI, not by our filename.
+Have the app load the corresponding tray and application assets; packaging, existing icon resources and caching can also affect the installed result.
+These files have been rendered and previewed but have not been installed into the application.
+
+Sources:
+https://learn.microsoft.com/en-us/windows/apps/design/iconography/app-icon-construction
+https://learn.microsoft.com/en-us/windows/win32/shell/notification-area

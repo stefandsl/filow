@@ -44,3 +44,7 @@ FI inside the icon is 8% smaller for improved negative space.
 Symmetric dot-to-head gaps and precise corner geometry.
 The O and cradle have dedicated space between l and w; O baseline matches the letters.
 Lighter enclosing frames are used throughout this selected master.
+
+ADD-ON: brand/windows-small (compact "O + cradle" mark for small sizes)
+Used by scripts/make-icon.js: Windows .ico (16-48 px compact, 64-256 px full tile), favicon.ico/.svg,
+PowerPoint ribbon 16/32, browser extension 16. The full Fi tile stays the identity at larger sizes.

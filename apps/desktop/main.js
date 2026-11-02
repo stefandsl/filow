@@ -886,7 +886,7 @@ function loadUpdater() {
       // System notification as well, for when the app sits behind other windows.
       try {
         if (Notification.isSupported()) {
-          const n = new Notification({ title: mt("updateReady", { version: info.version }), body: mt("updateReadyDetail"), icon: path.join(__dirname, "build", "icon.png") });
+          const n = new Notification({ title: mt("updateReady", { version: info.version }), body: mt("updateReadyDetail"), icon: appIcon() });
           n.on("click", () => {
             if (mainWin && !mainWin.isDestroyed()) {
               mainWin.show();
@@ -973,7 +973,7 @@ function showSplash() {
   splash = new BrowserWindow({
     width: 460, height: 440, frame: false, resizable: false, show: false, alwaysOnTop: false, skipTaskbar: false,
     backgroundColor: uiTheme() === "dark" ? "#08090b" : "#f7f7f5", title: "Filow",
-    icon: path.join(__dirname, "build", "icon.png"),
+    icon: appIcon(),
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   });
   const q = new URLSearchParams({ v: app.getVersion(), theme: uiTheme(), local: local ? "1" : "0", lang: menuLang() });
@@ -1023,6 +1023,11 @@ function readInstallChoices() {
 
 // ---- Presenting: follow the slide show and show the presenter overlay ----
 const { watchSlideShow } = require("./slideshow");
+
+/** Window/taskbar icon: on Windows the multi-size .ico (compact mark at small sizes), elsewhere the PNG. */
+function appIcon() {
+  return path.join(__dirname, "build", process.platform === "win32" ? "icon.ico" : "icon.png");
+}
 
 // ---- Streaming speech-to-text on this PC (stt.js + stt-worker.js) ----
 const sttLocal = require("./stt");
@@ -1412,7 +1417,7 @@ async function main() {
     backgroundColor: "#08090b",
     title: "Filow",
     show: false,
-    icon: path.join(__dirname, "build", "icon.png"),
+    icon: appIcon(),
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
   });
   mainWin = win;
