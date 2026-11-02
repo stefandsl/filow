@@ -1,35 +1,52 @@
 /**
- * Captures the microphone as 16-bit mono PCM at a chosen sample rate and
- * hands out ~100 ms chunks. Shared by the ElevenLabs and OpenAI backends.
+ * Captures the microphone as 16-bit mono PCM at a chosen sample rate and hands out ~100 ms chunks.
+ * The audio context runs at the device's own rate and the worklet resamples: asking Windows for a
+ * 16 kHz context on a USB microphone (native 48 kHz) blocked the whole app for 14 s on the owner's PC.
  */
 
 const WORKLET_SOURCE = `
 class PcmChunker extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
-    this.chunk = Math.round(sampleRate * 0.1);
+    this.target = (options.processorOptions && options.processorOptions.targetRate) || sampleRate;
+    this.ratio = sampleRate / this.target;
+    this.pos = 0; // read position in the input, in input samples, carried across blocks
+    this.last = 0; // previous input sample, for interpolation across block boundaries
+    this.chunk = Math.round(this.target * 0.1);
     this.buf = new Float32Array(this.chunk);
     this.fill = 0;
+  }
+  push(v) {
+    this.buf[this.fill++] = v;
+    if (this.fill === this.chunk) {
+      const out = new Int16Array(this.chunk);
+      for (let j = 0; j < this.chunk; j++) {
+        const s = Math.max(-1, Math.min(1, this.buf[j]));
+        out[j] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+      this.port.postMessage(out.buffer, [out.buffer]);
+      this.fill = 0;
+    }
   }
   process(inputs) {
     const ch = inputs[0] && inputs[0][0];
     if (!ch) return true;
-    let i = 0;
-    while (i < ch.length) {
-      const n = Math.min(ch.length - i, this.chunk - this.fill);
-      this.buf.set(ch.subarray(i, i + n), this.fill);
-      this.fill += n;
-      i += n;
-      if (this.fill === this.chunk) {
-        const out = new Int16Array(this.chunk);
-        for (let j = 0; j < this.chunk; j++) {
-          const s = Math.max(-1, Math.min(1, this.buf[j]));
-          out[j] = s < 0 ? s * 0x8000 : s * 0x7fff;
-        }
-        this.port.postMessage(out.buffer, [out.buffer]);
-        this.fill = 0;
-      }
+    if (this.ratio === 1) {
+      for (let i = 0; i < ch.length; i++) this.push(ch[i]);
+      return true;
     }
+    // linear interpolation between consecutive input samples; pos is relative to index -1 = this.last
+    let pos = this.pos;
+    while (pos < ch.length) {
+      const i = Math.floor(pos);
+      const frac = pos - i;
+      const a = i < 0 ? this.last : ch[i];
+      const b = i + 1 < ch.length ? ch[i + 1] : ch[ch.length - 1];
+      this.push(a + (b - a) * frac);
+      pos += this.ratio;
+    }
+    this.pos = pos - ch.length;
+    this.last = ch[ch.length - 1];
     return true;
   }
 }
@@ -108,7 +125,7 @@ export async function startMic(
   const t0 = Date.now();
   const reused = takePreopened();
   const stream = reused ?? (await preopenMic().then(takePreopened))!;
-  const ctx = new AudioContext({ sampleRate });
+  const ctx = new AudioContext(); // device rate; the worklet resamples to sampleRate
   if (ctx.state !== "running") await withTimeout(ctx.resume(), STEP_MS, "starting the audio context").catch((e: Error) => onLog?.(e.message));
   const url = URL.createObjectURL(new Blob([WORKLET_SOURCE], { type: "application/javascript" }));
   try {
@@ -120,10 +137,10 @@ export async function startMic(
   }
   URL.revokeObjectURL(url);
   const track = stream.getAudioTracks()[0];
-  onLog?.(`microphone: ${track?.label || "default"}${reused ? " (kept from the check)" : ""} in ${Date.now() - t0} ms, audio context ${ctx.state}, ${ctx.sampleRate} Hz`);
+  onLog?.(`microphone: ${track?.label || "default"}${reused ? " (kept from the check)" : ""} in ${Date.now() - t0} ms, audio context ${ctx.state}, ${ctx.sampleRate} Hz → ${sampleRate} Hz`);
 
   const source = ctx.createMediaStreamSource(stream);
-  const node = new AudioWorkletNode(ctx, "pcm-chunker");
+  const node = new AudioWorkletNode(ctx, "pcm-chunker", { processorOptions: { targetRate: sampleRate } });
   let got = false;
   let watchdog: ReturnType<typeof setTimeout> | null = setTimeout(() => {
     watchdog = null;
