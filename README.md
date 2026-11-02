@@ -1,3 +1,4 @@
+<p align="right"><strong>English</strong> · <a href="README.it.md">Italiano</a></p>
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="brand/png/filow-primary-light.png" />

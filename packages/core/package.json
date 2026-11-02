@@ -1,6 +1,6 @@
 {
   "name": "@filow/core",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "private": true,
   "type": "module",
   "description": "Types, script parser, decision prompt and the Engine. No DOM, no network.",
