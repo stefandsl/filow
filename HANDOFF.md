@@ -172,6 +172,13 @@ notifications and the region picker on those platforms are unverified.
 6. **Mascot icon**: a mascot variant was explored (`design/`, git-ignored); the brand kit icon won.
    Nothing to do unless the owner asks.
 7. **Ollama on Linux** is manual (the official script needs sudo); fine for now.
+7b. **Updates leave stale files on the owner's 3070 PC** (2026-11-02): a fresh 0.9.13 install works on
+   another PC while the updated one hangs 14 s at take start and the mic track ends. Suspect: the
+   per-user install dir `%LOCALAPPDATA%\Programs\Filowesources` (app.asar + app.asar.unpacked with
+   sherpa-onnx native modules) not fully replaced by the NSIS update. To do once confirmed: make the
+   installer remove `$INSTDIResources` before extracting (electron-builder hook order must be checked
+   with a makensis harness, see above), and have the app log the versions of app.asar and the unpacked
+   sherpa module at startup so a mismatch is visible in startup.log.
 8. **Plan steps not done yet** (owner's "piano operativo", in its order): pipeline timing marks at
    each boundary (audio → text → engine wait → model → UI) with one shared id; a corpus with real
    recordings (demo-it is synthetic); segments with ids/revisions so an STT correction can retract a
