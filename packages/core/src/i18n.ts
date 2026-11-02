@@ -290,7 +290,7 @@ export type I18nKey = keyof typeof en;
 
 const it: Partial<Record<I18nKey, string>> = {
   "app.subtitle": "/ punti in tempo reale",
-  "app.tagline": "Parla a braccio. Resta sul punto.",
+  "app.tagline": "Parla liberamente. Resta sul punto.",
   "update.checking": "Controllo aggiornamenti…",
   "update.downloading": "Scaricamento di Filow {version}…",
   "update.ready": "Filow {version} è pronto da installare.",

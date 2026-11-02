@@ -13,7 +13,7 @@ import {
   type SttBackendId,
   type SttStatus,
 } from "@filow/core";
-import { LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
+import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
 import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, startAuto, whisperCached, type SttBackend } from "@filow/stt";
 import { getStartMode, setDecisionProvider, setStartMode, type StartMode } from "@/lib/prefs";
 import { useEngine } from "./useEngine";
@@ -293,7 +293,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     <div className="app">
       <header className="topbar">
         <div className="logo">
-          <span className="dot" /> FILOW
+          <Wordmark height={28} />
         </div>
         <span className="subtitle">{t("app.tagline")}</span>
         <span className="spacer" />

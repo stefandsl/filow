@@ -30,7 +30,7 @@ export function PairPanel({ info, status, error, onNewCode }: { info: SessionInf
     if (!info) return;
     let alive = true;
     import("qrcode").then((QR) =>
-      QR.toDataURL(mirrorUrl, { margin: 1, width: 220, color: { dark: "#f2f2f4", light: "#141418" } }).then((u) => {
+      QR.toDataURL(mirrorUrl, { margin: 1, width: 220, color: { dark: "#f7f7f5", light: "#13151a" } }).then((u) => {
         if (alive) setQr(u);
       }),
     );

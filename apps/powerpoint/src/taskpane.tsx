@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { connect, type SessionClient } from "@filow/client";
 import { Engine, isLang, langFromLocale, LANGS, parseScript, type Command, type DecideRequest, type DecideResponse, type Lang, type SessionState, type SttStatus } from "@filow/core";
 import { availableBackends, BACKEND_LABELS, createBackend, startAuto, type SttBackend } from "@filow/stt";
-import { LangProvider, StageView, useT } from "@filow/ui";
+import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
 import { getSelectedSlide, hostInfo, onSelectionChange, readNotesAsScript, selectSlide, supportsNotes } from "./office";
 import { attachSlideImages, mintEngineToken, readSlidesForGeneration, requestGeneration } from "./generate";
 import "./taskpane.css";
@@ -63,7 +63,7 @@ function AppInner({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
     <div className="pane">
       <header className="topbar">
         <div className="logo">
-          <span className="dot" /> FILOW
+          <Wordmark height={28} />
         </div>
         <span className="spacer" />
         <span className="langswitch">

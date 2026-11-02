@@ -1,17 +1,18 @@
 <p align="center">
-  <img src="apps/desktop/build/icon.png" width="128" alt="Filow" />
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="brand/png/filow-primary-light.png" />
+    <img src="brand/png/filow-primary-dark.png" width="520" alt="Filow" />
+  </picture>
 </p>
-
-<h1 align="center">Filow</h1>
 
 <p align="center"><strong>Speak freely. Stay on point.</strong><br/>
 Filow is a live speaking companion: it listens as you present, checks off your talking points as you cover them, and shows what you missed. Not a scrolling teleprompter.</p>
 
 <p align="center">
-  <a href="https://github.com/stefandsl/filow/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/stefandsl/filow?display_name=tag&label=download&color=f0a53a" /></a>
+  <a href="https://github.com/stefandsl/filow/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/stefandsl/filow?display_name=tag&label=download&color=FFB600" /></a>
   <a href=".github/workflows/desktop.yml"><img alt="Desktop builds" src="https://img.shields.io/github/actions/workflow/status/stefandsl/filow/desktop.yml?label=build" /></a>
-  <img alt="Platforms" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-desktop-141418" />
-  <img alt="Phone mirror" src="https://img.shields.io/badge/Android%20%7C%20iOS-phone%20mirror-141418" />
+  <img alt="Platforms" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-desktop-08090B" />
+  <img alt="Phone mirror" src="https://img.shields.io/badge/Android%20%7C%20iOS-phone%20mirror-08090B" />
   <img alt="PowerPoint" src="https://img.shields.io/badge/PowerPoint-add--in-b7472a" />
   <img alt="Languages" src="https://img.shields.io/badge/UI-English%20%7C%20Italiano-4ad67a" />
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-proprietary-8d8d99" /></a>
@@ -627,6 +628,7 @@ packages/core/            types, script parser, decision prompt, Engine class (+
 packages/stt/             browser transcription backends and Auto selection
 packages/client/          session client for views and engines (browser + React Native)
 packages/ui/              StageView and friends (web only)
+brand/                    brand kit (icon, wordmark, palette); `npm run icon` copies it into the apps
 scripts/                  prepare-standalone.js, make-icon.js
 docs/reviews/             EGM goldfish review reports
 ARCHITECTURE.md           the design: session protocol, Screen Sense, add-ins, mobile, roadmap

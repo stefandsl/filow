@@ -1,11 +1,16 @@
 :root {
-  --bg: #0b0b0d;
-  --panel: #141418;
-  --panel-2: #1b1b21;
-  --border: #2a2a33;
-  --text: #f2f2f4;
-  --muted: #8d8d99;
-  --accent: #f0a53a;
+  /* Filow brand kit: ink #08090B, white, warm gradient gold #FFE000 -> amber #FFB600 -> orange #FF6500. */
+  --bg: #08090b;
+  --panel: #13151a;
+  --panel-2: #1b1e26;
+  --border: #292c34;
+  --text: #f7f7f5;
+  --muted: #a4a8b3;
+  --accent: #ffb600;
+  --accent-2: #ff6500;
+  --gold: #ffe000;
+  --brand-gradient: linear-gradient(135deg, #ffe000 0%, #ffb600 48%, #ff6500 100%);
+  --accent-ring: rgba(255, 182, 0, 0.35);
   --ok: #4ad67a;
   --warn: #ff6b6b;
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -15,23 +20,24 @@
 /* Light theme ("black and white"): same tokens, different values. Picked by the toggle
    (prefs:theme = system | light | dark) and, for "system", by prefers-color-scheme. */
 :root[data-theme="light"] {
-  --bg: #f7f7f8;
+  --bg: #f7f7f5;
   --panel: #ffffff;
-  --panel-2: #f0f0f3;
-  --border: #d8d8df;
-  --text: #141418;
-  --muted: #5f5f6b;
-  --accent: #c7801a;
+  --panel-2: #eef0f4;
+  --border: #d8deea;
+  --text: #08090b;
+  --muted: #555e73;
+  --accent: #c27f00;
+  --accent-2: #e05a00;
+  --accent-ring: rgba(255, 182, 0, 0.45);
   --ok: #1f8a46;
   --warn: #c0392b;
 }
-:root[data-theme="light"] .logo .dot { box-shadow: 0 0 0 3px #f3dfbf; }
 :root[data-theme="light"] .chip.live { border-color: #bfe6cc; }
 :root[data-theme="light"] .chip.err { border-color: #f1c6c0; }
-:root[data-theme="light"] .btn.primary { color: #fff; }
-:root[data-theme="light"] .strip.onscreen { border-color: #e7d1ad; }
+:root[data-theme="light"] .btn.primary { color: #08090b; }
+:root[data-theme="light"] .strip.onscreen { border-color: #f3dca3; }
 :root[data-theme="light"] .point.started { background: #eaf7ee; }
-:root[data-theme="light"] .point.hot { background: #fff5e3; }
+:root[data-theme="light"] .point.hot { background: #fff6dc; }
 :root[data-theme="light"] .modal-bg { background: rgba(20, 20, 24, 0.35); }
 :root[data-theme="light"] .source img { background: #eee; }
 .themeswitch { display: inline-flex; gap: 4px; }
@@ -45,8 +51,7 @@ button { font: inherit; }
 .app { display: flex; flex-direction: column; min-height: 100vh; padding: 20px 28px; gap: 16px; }
 
 .topbar { display: flex; align-items: baseline; gap: 14px; }
-.logo { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 0.12em; font-size: 22px; }
-.logo .dot { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px #3a2a10; }
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 0.12em; font-size: 22px; color: var(--text); }
 .subtitle { font-size: 11px; letter-spacing: 0.18em; color: var(--muted); text-transform: uppercase; }
 .topbar .spacer { flex: 1; }
 .chip { font-size: 11px; letter-spacing: 0.08em; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; }
@@ -87,7 +92,8 @@ h1.section-title { font-size: 26px; margin: 6px 0 10px; font-weight: 700; }
   padding: 9px 14px; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; cursor: pointer;
 }
 .btn:hover { border-color: var(--accent); }
-.btn.primary { background: var(--accent); color: #1a1206; border-color: var(--accent); }
+.btn.primary { background: var(--brand-gradient); color: #08090b; border-color: transparent; }
+.btn.primary:hover { filter: brightness(1.06); border-color: transparent; }
 .btn.danger { border-color: #5a2626; color: var(--warn); }
 .btn:disabled { opacity: 0.5; cursor: default; }
 select.btn { text-transform: none; letter-spacing: 0; }
@@ -105,7 +111,7 @@ select.btn { text-transform: none; letter-spacing: 0; }
 
 /* ---- phase 2: pairing + mirror ---- */
 button.chip { background: transparent; cursor: pointer; font: inherit; font-size: 11px; letter-spacing: 0.08em; }
-button.chip.code { color: var(--accent); border-color: #4a3a1a; }
+button.chip.code { color: var(--accent); border-color: var(--accent-ring); }
 .chip.banner { align-self: flex-start; }
 .pairmodal { width: min(420px, 92vw); align-items: center; text-align: center; }
 .pairmodal img { border-radius: 8px; }
@@ -117,7 +123,7 @@ button.chip.code { color: var(--accent); border-color: #4a3a1a; }
 .app.stage .controls .btn { padding: 14px 18px; font-size: 14px; flex: 1; }
 .app.stage .footer { flex-wrap: wrap; }
 .app.pair { align-items: center; justify-content: center; text-align: center; }
-.strip.onscreen { border-color: #3a2a10; }
+.strip.onscreen { border-color: var(--accent-ring); }
 .strip.onscreen .hint { font-size: 14px; color: var(--text); margin-bottom: 6px; }
 @media (max-width: 600px) { .point { grid-template-columns: 22px 1fr; } .point .status { display: none; } .footer .transcript { display: none; } }
 
@@ -134,9 +140,9 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 
 /* Screen Sense (ARCHITECTURE.md §6) */
 .strip.onscreen .fact { color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; font-size: 13px; }
-.strip.onscreen .fact.unsaid { color: var(--accent); border-color: #4a3a1a; }
+.strip.onscreen .fact.unsaid { color: var(--accent); border-color: var(--accent-ring); }
 .strip.onscreen .row.actions { gap: 8px; margin-top: 6px; }
-.chip.busy { color: var(--accent); border-color: #4a3a1a; animation: pulse 1s ease-in-out infinite; }
+.chip.busy { color: var(--accent); border-color: var(--accent-ring); animation: pulse 1s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.45; } }
 .sources { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; max-height: 60vh; overflow-y: auto; }
 .source { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; cursor: pointer; text-align: left; color: var(--text); display: flex; flex-direction: column; gap: 6px; }

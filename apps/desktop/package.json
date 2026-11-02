@@ -45,6 +45,8 @@
       "picker.html",
       "picker-preload.js",
       "build/icon.png",
+      "build/wordmark-white.svg",
+      "build/wordmark-black.svg",
       "package.json"
     ],
     "asar": true,

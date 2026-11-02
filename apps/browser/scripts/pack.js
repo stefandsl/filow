@@ -14,7 +14,7 @@ execFileSync(esbuild, ["src/content.ts", "--bundle", "--format=iife", "--target=
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
 manifest.version = require(path.join(root, "package.json")).version;
 fs.writeFileSync(path.join(dist, "manifest.json"), JSON.stringify(manifest, null, 2));
-fs.copyFileSync(path.join(root, "..", "desktop", "build", "icon.png"), path.join(dist, "icon.png"));
+fs.cpSync(path.join(root, "icons"), path.join(dist, "icons"), { recursive: true });
 
 // Chromium family: one zip. Firefox: same files, manifest without the Chrome-only "side_panel" key
 // (Firefox warns on unknown keys but loads; keeping both keys in one zip is fine for unpacked use).

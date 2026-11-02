@@ -1,0 +1,46 @@
+FILOW BRAND KIT
+
+Master: A / Balanced master, selected by the customer.
+SVG files contain actual editable Bezier paths, not embedded raster images.
+The custom wordmark and taglines are outlined: no font installation is required.
+These are logo letters, not a complete installable typeface.
+The FI and custom F/i/l/w contours come from the approved design. The A master uses native vector frames, circular rings, symmetric microphone supports and the selected spacing refinements.
+
+START HERE
+Filow-Recommended-Brand-Palette.html - customer presentation, opens locally in a browser.
+presentation/ - four client presentation boards as SVG and PNG, plus PDF.
+svg/ - separate icon, microphone symbol, framed wordmark and full signatures.
+png/ - large transparent variants and light/dark full signatures.
+icons/ - dark app tiles, 16-1024px PNGs, and multi-resolution favicon.ico.
+
+USE
+Gradient and white variants are intended for dark surfaces; black lettering is for light surfaces.
+SVG artwork is transparent unless the filename says primary-dark, primary-light or app-tile.
+App tile has a full square black background; platform applies its own corner mask.
+Keep the approved framed icon intact for the main app identity.
+Unframed microphone symbol is a secondary product/avatar mark.
+The 16px and 24px exports are supplied for compatibility; the detailed icon reads better from 32px.
+Do not stretch artwork, change relative spacing or add effects.
+Suggested clear space: at least 1/8 of icon width. This is a working brand recommendation, not a platform requirement.
+Small printed use, embroidery, engraving and process-color printing need supplier proofing.
+Use the one-color SVG for single-ink or etched production; gradients are RGB digital artwork.
+
+COLOR
+Golden yellow #FFE000 -> amber #FFB600 -> orange #FF6500
+Ink #08090B / white #FFFFFF
+
+SVGs contain editable native shapes and outlined custom lettering. The gradient is continuous across each full icon.
+Product screen examples in the presentation are illustrative placements, not a shipped software interface.
+
+ADDITIONAL SOFTWARE ASSETS
+CurrentColor SVGs inherit text color in software when used inline.
+SVG favicon and multi-size ICO are supplied in icons/.
+site.webmanifest references the supplied 192/512px PWA icons.
+Maskable PNGs use a deliberately smaller mark inside a full opaque background; retain the extra safe area.
+Adjust the manifest start_url to your deployed application path.
+
+SELECTED DIRECTION / A
+FI inside the icon is 8% smaller for improved negative space.
+Symmetric dot-to-head gaps and precise corner geometry.
+The O and cradle have dedicated space between l and w; O baseline matches the letters.
+Lighter enclosing frames are used throughout this selected master.

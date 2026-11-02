@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { connect, type SessionClient } from "@filow/client";
 import type { Command, SessionState } from "@filow/core";
-import { LangProvider, StageView, useT } from "@filow/ui";
+import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
 import { sessionServerUrl } from "@/lib/sessionUrl";
 import { LangSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
 
@@ -106,7 +106,7 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
     return (
       <div className="app stage pair">
         <div className="logo">
-          <span className="dot" /> FILOW
+          <Wordmark height={44} />
           <span className="spacer" />
           <LangSwitch lang={lang} onChange={onLang} />
         </div>
@@ -141,7 +141,7 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
     return (
       <div className="app stage pair">
         <div className="logo">
-          <span className="dot" /> FILOW
+          <Wordmark height={44} />
         </div>
         <div className="subtitle">{t("mirror.waiting")}</div>
         {error && <span className="chip err">{error}</span>}

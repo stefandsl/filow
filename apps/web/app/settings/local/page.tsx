@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { LANG_LABELS, LANGS, SCREEN_MODE_LABELS, type DecisionProviderId, type Lang, type ScreenMode } from "@filow/core";
 import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, whisperCached } from "@filow/stt";
-import { LangProvider, useT } from "@filow/ui";
+import { Wordmark, LangProvider, useT } from "@filow/ui";
 import { engineHeaders } from "@/components/useSession";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
 import { getDecisionProvider, getScreenMode, getStartMode, setDecisionProvider, setScreenMode, setStartMode, type StartMode } from "@/lib/prefs";
@@ -189,7 +189,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     <div className="app settings">
       <header className="topbar">
         <div className="logo">
-          <span className="dot" /> FILOW
+          <Wordmark height={28} />
         </div>
         <span className="subtitle">{t("settings.subtitle")}</span>
         <span className="spacer" />

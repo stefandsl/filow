@@ -1,16 +1,33 @@
 {
   "name": "Filow Mirror",
-  "short_name": "Prompter",
+  "short_name": "Filow",
   "start_url": "/mirror",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0b0b0d",
-  "theme_color": "#0b0b0d",
+  "background_color": "#08090b",
+  "theme_color": "#08090b",
   "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
     {
       "src": "/icon.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "description": "Speak freely. Stay on point. Filow listens as you present and checks off your talking points."

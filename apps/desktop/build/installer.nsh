@@ -33,7 +33,7 @@ Var ModelsDlg
   StrCpy $StClef ${BST_UNCHECKED}
   ${If} $LANGUAGE == 1040
     StrCpy $WelcomeTitle "Benvenuto in Filow"
-    StrCpy $WelcomeText "Parla a braccio. Resta sul punto.$\r$\n$\r$\nQuesta procedura installerà Filow nel computer: il compagno di presentazione che ti ascolta, spunta i tuoi punti mentre li dici e ti mostra cosa hai saltato, con mirror sul telefono, Screen Sense e il componente per PowerPoint.$\r$\n$\r$\nSi consiglia di chiudere le altre applicazioni prima di continuare.$\r$\n$\r$\n© VoidExploit. Per proseguire, seleziona 'Avanti'."
+    StrCpy $WelcomeText "Parla liberamente. Resta sul punto.$\r$\n$\r$\nQuesta procedura installerà Filow nel computer: il compagno di presentazione che ti ascolta, spunta i tuoi punti mentre li dici e ti mostra cosa hai saltato, con mirror sul telefono, Screen Sense e il componente per PowerPoint.$\r$\n$\r$\nSi consiglia di chiudere le altre applicazioni prima di continuare.$\r$\n$\r$\n© VoidExploit. Per proseguire, seleziona 'Avanti'."
     StrCpy $ModelsTitle "Modelli locali e chiavi API"
     StrCpy $ModelsSub "Scegli cosa scaricare al primo avvio"
     StrCpy $ModelsIntro "Filow può lavorare interamente su questo PC. Seleziona i modelli da scaricare al primo avvio (puoi cambiare idea in Impostazioni):"

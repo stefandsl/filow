@@ -5,7 +5,7 @@
 .pane .app { padding: 0; min-height: 0; gap: 10px; }
 .pane .point { font-size: 15px; padding: 6px 10px; grid-template-columns: 18px 60px 1fr; }
 .pane h1.section-title { font-size: 18px; margin: 4px 0 6px; }
-.pane .topbar .logo { font-size: 14px; }
+.pane .topbar .logo svg { height: 22px; width: auto; }
 .pane .controls .btn { padding: 7px 10px; font-size: 11px; }
 .pane .setup { display: flex; flex-direction: column; gap: 10px; }
 .pane .setup input { width: 100%; text-transform: none; letter-spacing: 0; }
