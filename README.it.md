@@ -621,6 +621,19 @@ oppure segue l'impostazione **Lingua parlata**. Misurato su un portatile Core Ul
 locale lo sceglie da sola quando è scaricato; Whisper resta il ripiego e l'unica opzione nel browser
 e nel riquadro di PowerPoint.
 
+### Pre-filtro prima del modello (gate a embedding)
+
+Nelle Impostazioni c'è **Pre-filtro prima del modello**, spento di default. Acceso, un piccolo
+modello multilingue di frasi (paraphrase-multilingual-MiniLM, 120 MB, scaricato una volta nella
+cache del browser) confronta ogni punto aperto con gli ultimi secondi di parlato, su questo PC, in
+pochi millisecondi. Il modello di decisione riceve solo i punti plausibili (al massimo quattro) e non
+viene chiamato quando nulla corrisponde. I vettori dei punti si preparano quando carichi un copione e
+restano in cache per quel copione. Misurato sul corpus demo con un modello cloud, due corse ciascuno:
+3 chiamate su 17 evitate, richiamo uguale o migliore, nessun falso avvio in entrambi i casi; il
+guadagno di latenza è rimasto entro la variabilità del fornitore, quindi il beneficio si aspetta
+soprattutto in modalità locale, dove ogni chiamata al modello è la parte costosa. Dettagli e come
+ripetere il confronto: `docs/gauntlet/BASELINE.md`.
+
 ## Add-in per PowerPoint
 
 Un riquadro attività per PowerPoint vive in [apps/powerpoint](apps/powerpoint/README.md). Le note del relatore diventano lo script (una slide per sezione, le righe `-` sono i punti), il riquadro segue la slide selezionata mentre modifichi, e gestisce da sé il microfono su Windows e in PowerPoint per il web, oppure altrove rispecchia una sessione tramite codice. PowerPoint nasconde i riquadri durante una presentazione e non offre un'API per seguirla, quindi sul palco la vista dal vivo è il mirror sul telefono o l'app desktop. Compila con `npm run build -w apps/powerpoint`; il riquadro viene poi servito dall'app web sotto `/powerpoint/`.

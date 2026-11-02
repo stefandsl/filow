@@ -620,6 +620,18 @@ Italian, Romanian and Russian (and more) and detects the language by itself, or 
 of speech on 4 threads (RTF 0.19), 2 s to load. Local mode picks it automatically when it is
 downloaded; Whisper stays the fallback and the only option in the browser and the PowerPoint pane.
 
+### Pre-filter before the model (embedding gate)
+
+Settings has **Pre-filter before the model**, off by default. On, a small multilingual sentence
+model (paraphrase-multilingual-MiniLM, 120 MB, downloaded once into the browser cache) scores every
+open point against the last few seconds of speech, on this PC, in a few milliseconds. The decision
+model is then asked only about the plausible points (at most four) and not at all when nothing
+matches. Point vectors are prepared when a script loads and cached per script. Measured on the demo
+corpus with a cloud model, two runs each: 3 of 17 model calls skipped, recall equal or better, no
+false starts either way; the latency gain was within the provider's own variance, so expect the
+benefit mainly in local mode, where each model call is the expensive part. Details and how to
+rerun the comparison: `docs/gauntlet/BASELINE.md`.
+
 ## PowerPoint add-in
 
 A task pane for PowerPoint lives in [apps/powerpoint](apps/powerpoint/README.md). Your speaker notes become the script (one slide per section, `-` lines are points), the pane follows the selected slide while you edit, and it runs the microphone itself on Windows and PowerPoint for the web or mirrors a session by code elsewhere. PowerPoint hides panes during a slide show and offers no API to follow one, so on stage the phone mirror or the desktop app is the live view. Build with `npm run build -w apps/powerpoint`; the pane is then served by the web app under `/powerpoint/`.

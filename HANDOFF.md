@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.3)
+## Where it stands (v0.9.6)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,21 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - Step 3 + state validity (0.9.6): embedding gate `packages/core/src/gate.ts` (pattern from
+    Priler/jarvis, no code copied; MiniLM multilingual through transformers.js: Node embedder
+    `apps/web/lib/gate/embedder.ts` for the gauntlet, Web Worker `lib/gate/embed.worker.ts` +
+    `lib/gate/client.ts` with a per-script vector cache in localStorage for the app). Settings
+    "Pre-filter before the model", off by default; `useEngine` wraps the decide call when on.
+    Gauntlet `GAUNTLET_GATE=1`; numbers in `docs/gauntlet/BASELINE.md` (3/17 calls skipped,
+    recall equal or better, latency within cloud variance: measure with Clef on the 3070 PC
+    before making it the default). Engine epoch guard: replies from before a script reload,
+    section change, reset, manual mark or start/stop are dropped and the in-flight call aborted
+    (`engine.ts`, six tests). `docs/gauntlet/REUSE.md`: licence/strategy table for the reference
+    repos (Jarvis, VoiceCue (unlicensed), my-prompter, moves-cli, prompter, promptme-ai,
+    SallyZhou9527/prompter, STT-Presentation-Review). The owner's two plan documents (Nov 2 2026)
+    set the order: measures and state correctness → less redundant work → EN/IT quality → hardware
+    profiles; ro/ru stay roadmap (the Spoken-language setting already lists them for the STT only).
+  - 0.9.4–0.9.5: Windows .ico fix (DIB entries below 256 px), hotkey shown as key caps.
   - Model router (0.9.3): `apps/web/lib/router.ts` (pure, unit-tested) + `/api/local/plan` (inventory,
     hardware, one measured call per candidate) + `lib/plan.ts`. Start mode Auto runs it at every
     Start and starts with its picks (STT backend + decision provider; slide generation applied
@@ -119,6 +134,13 @@ notifications and the region picker on those platforms are unverified.
 6. **Mascot icon**: a mascot variant was explored (`design/`, git-ignored); the brand kit icon won.
    Nothing to do unless the owner asks.
 7. **Ollama on Linux** is manual (the official script needs sudo); fine for now.
+8. **Plan steps not done yet** (owner's "piano operativo", in its order): pipeline timing marks at
+   each boundary (audio → text → engine wait → model → UI) with one shared id; a corpus with real
+   recordings (demo-it is synthetic); segments with ids/revisions so an STT correction can retract a
+   provisional mark (VoiceCue's partial-vs-final pattern, see REUSE.md); a provisional ("possible
+   match") state in the UI before the confirmed tick; measuring the 4-question rotation delay.
+   Then the gate vs direct comparison with Clef on the RTX 3070 PC
+   (`GAUNTLET=1 GAUNTLET_GATE=1 GAUNTLET_PROVIDERS=clef-local npx vitest run apps/web/lib/gauntlet`).
 
 ## Known gaps and traps
 

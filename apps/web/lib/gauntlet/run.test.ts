@@ -1,5 +1,8 @@
 // Gauntlet runner (docs/local-latency-gauntlet.md, Round 0). Opt-in: it calls real models.
 //   GAUNTLET=1 GAUNTLET_PROVIDERS=openrouter,clef-local npx vitest run apps/web/lib/gauntlet
+// GAUNTLET_GATE=1 puts the embedding gate (packages/core/src/gate.ts) in front of every provider:
+// the model is asked only about the points whose similarity to the transcript tail is >= GAUNTLET_GATE_LOW
+// (default 0.3), and not at all when no point passes. Variant name becomes "gate".
 // Reads every corpus under docs/gauntlet/corpus/<name>/ (script.md, transcript.json, labels.json),
 // replays it through the Engine with each provider, prints a table and writes
 // docs/gauntlet/results/<provider>-<corpus>.json. Keys come from the desktop profile's .env
@@ -8,7 +11,8 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { replay, type Corpus, type ReplayResult } from "@filow/core";
+import { DEFAULT_GATE, embedPoints, gatedDecide, parseScript, replay, type Corpus, type GateThresholds, type ReplayResult } from "@filow/core";
+import { loadEmbedder } from "@/lib/gate/embedder";
 import { decideOpenRouter } from "@/lib/decide/openrouter";
 import { decideClefLocal } from "@/lib/decide/clef";
 
@@ -75,11 +79,25 @@ describe.skipIf(!on)("gauntlet (real providers)", () => {
           ...(process.env.GAUNTLET_WINDOW ? { window: Number(process.env.GAUNTLET_WINDOW) } : {}),
           ...(process.env.GAUNTLET_REASK ? { reaskOnPending: process.env.GAUNTLET_REASK === "1" } : {}),
         };
-        const variant = process.env.GAUNTLET_VARIANT || "default";
-        const r = await replay(corpus, { decide: PROVIDERS[provider], engine });
-        const out = { provider, variant, engine, machine: { cpu: os.cpus()[0]?.model, ramGb: Math.round(os.totalmem() / 1024 ** 3), platform: process.platform }, at: new Date().toISOString(), ...r };
+        let variant = process.env.GAUNTLET_VARIANT || "default";
+        let decide = PROVIDERS[provider];
+        const gateStats = { calls: 0, skipped: 0, candidates: 0, embedLoadMs: 0 };
+        if (process.env.GAUNTLET_GATE === "1") {
+          variant = variant === "default" ? "gate" : `${variant}-gate`;
+          const { embed, loadMs } = await loadEmbedder();
+          gateStats.embedLoadMs = loadMs;
+          const th: GateThresholds = { ...DEFAULT_GATE, low: Number(process.env.GAUNTLET_GATE_LOW || DEFAULT_GATE.low) };
+          const pv = await embedPoints(embed, parseScript(corpus.script).sections.flatMap((sec) => sec.bullets), corpus.language);
+          decide = gatedDecide(PROVIDERS[provider], embed, () => pv, th, (o) => {
+            gateStats.calls++;
+            if (o.skipped) gateStats.skipped++;
+            else gateStats.candidates += o.candidates.length;
+          });
+        }
+        const r = await replay(corpus, { decide, engine });
+        const out = { provider, variant, engine, gate: process.env.GAUNTLET_GATE === "1" ? gateStats : undefined, machine: { cpu: os.cpus()[0]?.model, ramGb: Math.round(os.totalmem() / 1024 ** 3), platform: process.platform }, at: new Date().toISOString(), ...r };
         fs.writeFileSync(path.join(RESULTS_DIR, `${provider}-${corpus.name}${variant === "default" ? "" : `-${variant}`}.json`), JSON.stringify(out, null, 2));
-        lines.push(line(r, `${provider}${variant === "default" ? "" : `/${variant}`}`));
+        lines.push(line(r, `${provider}${variant === "default" ? "" : `/${variant}`}`) + (process.env.GAUNTLET_GATE === "1" ? `  gate: ${gateStats.skipped}/${gateStats.calls} model calls skipped, ${gateStats.candidates} candidates asked` : ""));
       }
     }
     // eslint-disable-next-line no-console

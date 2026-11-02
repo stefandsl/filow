@@ -1,6 +1,6 @@
 {
   "name": "@filow/web",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "private": true,
   "scripts": {
     "dev": "next dev -p 4747",
@@ -14,6 +14,7 @@
     "@filow/core": "*",
     "@filow/stt": "*",
     "@filow/ui": "*",
+    "@huggingface/transformers": "^4.3.2",
     "jszip": "^3.10.2",
     "next": "15.3.3",
     "qrcode": "^1.5.4",

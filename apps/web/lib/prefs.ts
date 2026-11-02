@@ -148,3 +148,24 @@ export function setStartMode(m: StartMode): void {
     /* ignore */
   }
 }
+
+// ---- Gate: embedding pre-filter in front of the decision model (packages/core/src/gate.ts) ----
+export type GateMode = "off" | "on";
+const GATE_KEY = "prefs:gate";
+
+export function getGateMode(): GateMode {
+  try {
+    return localStorage.getItem(GATE_KEY) === "on" ? "on" : "off";
+  } catch {
+    return "off";
+  }
+}
+
+export function setGateMode(m: GateMode): void {
+  try {
+    if (m === "off") localStorage.removeItem(GATE_KEY);
+    else localStorage.setItem(GATE_KEY, m);
+  } catch {
+    /* ignore */
+  }
+}

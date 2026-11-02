@@ -7,7 +7,8 @@ import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, sherpaBr
 import { Wordmark, LangProvider, useT } from "@filow/ui";
 import { engineHeaders, ensureEngineToken } from "@/components/useSession";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
-import { getDecisionProvider, getScreenMode, getSpeechLang, getStartMode, SPEECH_LANGS, setDecisionProvider, setScreenMode, setSpeechLang, setStartMode, type SpeechLang, type StartMode } from "@/lib/prefs";
+import { getDecisionProvider, getGateMode, getScreenMode, getSpeechLang, getStartMode, SPEECH_LANGS, setDecisionProvider, setGateMode, setScreenMode, setSpeechLang, setStartMode, type GateMode, type SpeechLang, type StartMode } from "@/lib/prefs";
+import { loadGate } from "@/lib/gate/client";
 import { screenBridge } from "@/lib/screen/watcher";
 import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/sessionUrl";
 import { placementText, ResourcesPanel, useResources } from "@/components/ResourcesPanel";
@@ -78,6 +79,9 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const [screenMode, setScreenModeState] = useState<ScreenMode>("balanced");
   const [startMode, setStartModeState] = useState<StartMode>("ask");
   const [speechLang, setSpeechLangState] = useState<SpeechLang>("auto");
+  const [gateMode, setGateModeState] = useState<GateMode>("off");
+  const [gateStatus, setGateStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [gatePct, setGatePct] = useState<number | null>(null);
   const [hotkey, setHotkey] = useState<{ hotkey: string; enabled: boolean } | null>(null);
   const [hotkeyDraft, setHotkeyDraft] = useState("");
   const [hotkeyMsg, setHotkeyMsg] = useState("");
@@ -124,6 +128,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     setScreenModeState(getScreenMode());
     setStartModeState(getStartMode());
     setSpeechLangState(getSpeechLang());
+    setGateModeState(getGateMode());
     void screenBridge()
       ?.getSettings()
       .then((h) => {
@@ -388,6 +393,40 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               ))}
             </div>
             <div className="hint">{t("speech.hint")}</div>
+          </section>
+
+          <section className="strip">
+            <div className="label">{t("gate.label")}</div>
+            <div className="row">
+              {(["off", "on"] as GateMode[]).map((m) => (
+                <label key={m} className={`btn choice ${gateMode === m ? "primary" : ""}`}>
+                  <input
+                    type="radio"
+                    name="gateMode"
+                    checked={gateMode === m}
+                    onChange={() => {
+                      setGateModeState(m);
+                      setGateMode(m);
+                    }}
+                  />{" "}
+                  {t(`gate.${m}`)}
+                </label>
+              ))}
+              <button
+                className="btn"
+                disabled={gateStatus === "loading" || gateStatus === "ready"}
+                onClick={() => {
+                  setGateStatus("loading");
+                  loadGate((p) => setGatePct(p.progress ?? null)).then(
+                    () => setGateStatus("ready"),
+                    () => setGateStatus("error"),
+                  );
+                }}
+              >
+                {gateStatus === "ready" ? t("gate.ready") : gateStatus === "loading" ? `${t("settings.running")}${gatePct !== null ? ` ${Math.round(gatePct)}%` : ""}` : t("gate.download")}
+              </button>
+            </div>
+            <div className="hint">{t("gate.hint")}</div>
           </section>
 
           <section className="strip">

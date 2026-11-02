@@ -9,26 +9,65 @@
     "ramGb": 31,
     "platform": "win32"
   },
-  "at": "2026-11-02T17:55:37.063Z",
+  "at": "2026-11-02T20:01:24.992Z",
   "corpus": "demo-it",
   "calls": 15,
   "latencyMs": {
-    "p50": 1562,
-    "p95": 3532,
-    "max": 3532,
-    "avg": 1743
+    "p50": 2277,
+    "p95": 3555,
+    "max": 3555,
+    "avg": 2087
   },
   "timeouts": 0,
   "points": [
     {
       "pointId": "s0b0",
+      "trail": [
+        {
+          "sec": 2,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 6,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 10,
+          "confidence": 0.95,
+          "started": true
+        }
+      ],
       "labelSec": 10,
-      "flippedSec": 15,
+      "flippedSec": 10,
       "outcome": "correct",
-      "delaySec": 5
+      "delaySec": 0
     },
     {
       "pointId": "s0b1",
+      "trail": [
+        {
+          "sec": 2,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 6,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 10,
+          "confidence": 0.15,
+          "started": false
+        },
+        {
+          "sec": 15,
+          "confidence": 0.85,
+          "started": true
+        }
+      ],
       "labelSec": 15,
       "flippedSec": 15,
       "outcome": "correct",
@@ -36,6 +75,38 @@
     },
     {
       "pointId": "s0b2",
+      "trail": [
+        {
+          "sec": 2,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 6,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 10,
+          "confidence": 0.05,
+          "started": false
+        },
+        {
+          "sec": 15,
+          "confidence": 0.05,
+          "started": false
+        },
+        {
+          "sec": 23,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 23,
+          "confidence": 0,
+          "started": false
+        }
+      ],
       "labelSec": 46,
       "flippedSec": null,
       "outcome": "miss",
@@ -43,6 +114,38 @@
     },
     {
       "pointId": "s1b0",
+      "trail": [
+        {
+          "sec": 27,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 39,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 46,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 53,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 60,
+          "confidence": 0.8,
+          "started": true
+        },
+        {
+          "sec": 60,
+          "confidence": 0.11,
+          "started": false
+        }
+      ],
       "labelSec": 27,
       "flippedSec": null,
       "outcome": "miss",
@@ -50,20 +153,91 @@
     },
     {
       "pointId": "s1b1",
+      "trail": [
+        {
+          "sec": 27,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 39,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 46,
+          "confidence": 0.8,
+          "started": true
+        },
+        {
+          "sec": 53,
+          "confidence": 0.8,
+          "started": true
+        },
+        {
+          "sec": 60,
+          "confidence": 0.8,
+          "started": true
+        },
+        {
+          "sec": 60,
+          "confidence": 0.75,
+          "started": true
+        }
+      ],
       "labelSec": 39,
-      "flippedSec": 46,
-      "outcome": "late",
-      "delaySec": 7
+      "flippedSec": null,
+      "outcome": "miss",
+      "delaySec": null
     },
     {
       "pointId": "s1b2",
+      "trail": [
+        {
+          "sec": 27,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 39,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 46,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 53,
+          "confidence": 0,
+          "started": false
+        },
+        {
+          "sec": 60,
+          "confidence": 0.9,
+          "started": true
+        },
+        {
+          "sec": 60,
+          "confidence": 0.71,
+          "started": true
+        }
+      ],
       "labelSec": 53,
-      "flippedSec": 60,
-      "outcome": "late",
-      "delaySec": 7
+      "flippedSec": null,
+      "outcome": "miss",
+      "delaySec": null
     },
     {
       "pointId": "s2b0",
+      "trail": [
+        {
+          "sec": 64,
+          "confidence": 0.95,
+          "started": true
+        }
+      ],
       "labelSec": 64,
       "flippedSec": 64,
       "outcome": "correct",
@@ -71,6 +245,23 @@
     },
     {
       "pointId": "s2b1",
+      "trail": [
+        {
+          "sec": 64,
+          "confidence": 0.05,
+          "started": false
+        },
+        {
+          "sec": 71,
+          "confidence": 0.8,
+          "started": true
+        },
+        {
+          "sec": 78,
+          "confidence": 0.75,
+          "started": true
+        }
+      ],
       "labelSec": 71,
       "flippedSec": 78,
       "outcome": "late",
@@ -78,19 +269,36 @@
     },
     {
       "pointId": "s2b2",
+      "trail": [
+        {
+          "sec": 64,
+          "confidence": 0.05,
+          "started": false
+        },
+        {
+          "sec": 71,
+          "confidence": 0.75,
+          "started": true
+        },
+        {
+          "sec": 78,
+          "confidence": 0.85,
+          "started": true
+        }
+      ],
       "labelSec": 78,
-      "flippedSec": 85,
-      "outcome": "late",
-      "delaySec": 7
+      "flippedSec": 78,
+      "outcome": "correct",
+      "delaySec": 0
     }
   ],
   "falseStarts": 0,
-  "misses": 2,
-  "correct": 7,
+  "misses": 4,
+  "correct": 5,
   "delaySec": {
-    "p50": 7,
+    "p50": 0,
     "p95": 7
   },
   "precision": 1,
-  "recall": 0.778
+  "recall": 0.556
 }

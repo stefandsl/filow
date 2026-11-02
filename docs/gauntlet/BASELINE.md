@@ -96,3 +96,37 @@ Still open for the cloud path: the request is about 600 tokens of system prompt 
 JSON answer of up to 500 tokens; a shorter answer format (ids and confidences only) is the next lever
 (Step 3 territory). The 2 s figure the owner saw is this model's normal cloud latency, reported by
 the new "slow model" chip (the engine paces itself to it; nothing is lost).
+
+## Step 3: embedding gate in front of the model (2026-11-02)
+
+`packages/core/src/gate.ts`, pattern adapted from Jarvis' embedding intent classifier (vectors prepared
+ahead, cached under a content hash, cosine at query time; CC BY-NC-SA, no code copied). Model
+`Xenova/paraphrase-multilingual-MiniLM-L12-v2` (q8, 384 dims) through transformers.js: Node for the
+gauntlet, a Web Worker in the app. On this PC (Core Ultra 7 155H, CPU): load 1.1–4.5 s, 5–7 ms per
+transcript tail, 21 ms for three points. Cross-lingual check: an Italian window scores 0.79 on its English
+point, an English window 0.84 on its Italian point, an unrelated sentence 0.16 at most. Gate: `low` 0.3,
+at most 4 candidates, tail 320 chars; no candidate → no model call, answered locally.
+
+Same corpus (demo-it), same cloud model (google/gemini-2.5-flash-lite), two runs each, same hour:
+
+| variant | calls | p50 | p95 | correct | false | miss | recall | model calls skipped |
+|---|---|---|---|---|---|---|---|---|
+| direct, run 1 | 15 | 2277 ms | 3555 ms | 5 | 0 | 4 | 0.556 | – |
+| direct, run 2 | 17 | 1278 ms | 1688 ms | 7 | 0 | 2 | 0.778 | – |
+| gate, run 1 | 16 | 1275 ms | 6479 ms | 7 | 0 | 2 | 0.778 | 3 / 17 |
+| gate, run 2 | 17 | 1419 ms | 6773 ms | 8 | 0 | 1 | 0.889 | 3 / 17 |
+
+Reading: precision 1 in every run; recall is equal or better with the gate (the model gets 1–2 focused
+questions instead of 4, and the three windows with no plausible point cost nothing); the p50 difference
+between the two direct runs (1 s) is larger than any gate effect, so no latency claim is made from these
+runs. The p95 outliers in the gate runs are single slow provider answers, not the embedder. Files:
+`docs/gauntlet/results/openrouter-demo-it{,-direct2,-gate,-run2-gate}.json`. Run it with
+`GAUNTLET=1 GAUNTLET_GATE=1 GAUNTLET_PROVIDERS=openrouter npx vitest run apps/web/lib/gauntlet`
+(`GAUNTLET_GATE_LOW` overrides the threshold). The gate is a Settings option ("Pre-filter before the
+model"), off by default until it is measured with Clef on the RTX 3070 PC, where the model call is the
+expensive part and the skipped calls should show in the delay.
+
+Also in this step: the engine now drops decision replies from a previous epoch (script reload, section
+change, reset, manual mark, start/stop) and aborts the in-flight call on those commands
+(`packages/core/src/engine.ts`, six regression tests). Before, bullet ids being positional (`s0b1`), a
+reply to an old script could mark a point of the newly loaded one.

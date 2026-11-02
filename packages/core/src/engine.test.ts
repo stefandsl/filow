@@ -120,6 +120,89 @@ describe("Engine pacing (Step 1 hygiene)", () => {
   });
 });
 
+describe("Engine stale replies (plan step 3: state validity)", () => {
+  /** A decide whose reply is released by the test, so a command can land while the call is in flight. */
+  function slowEngine(conf = 0.95) {
+    let release: (() => void) | null = null;
+    let aborted = 0;
+    let started = 0;
+    const decide = (r: DecideRequest, signal?: AbortSignal) =>
+      new Promise<DecideResponse>((res) => {
+        started++;
+        signal?.addEventListener("abort", () => aborted++);
+        release = () => res({ decisions: r.bullets.map((b) => ({ id: b.id, confidence: conf, started: true })), latencyMs: 50, cost: 0.01, model: "t" });
+      });
+    const e = new Engine({ decide, now: () => 1000, setInterval: () => 0, clearInterval: () => {} });
+    e.loadScript(SCRIPT);
+    e.feed({ committed: "hello everyone, what we build today" });
+    const pending = e.tick();
+    return { e, pending, release: () => release!(), aborted: () => aborted, started: () => started };
+  }
+
+  it("a reply that lands after the script was reloaded does not mark points of the new script", async () => {
+    const { e, pending, release, aborted } = slowEngine();
+    e.loadScript(parseScript(["# Other", "- a different point", "- and another"].join("\n")));
+    expect(aborted()).toBe(1);
+    release();
+    await pending;
+    expect(e.getState().points).toEqual({});
+    expect(e.getState().stats.calls).toBe(0);
+    expect(e.getState().engine.error).toBeUndefined();
+  });
+
+  it("a reply that lands after stopTake changes nothing", async () => {
+    const { e, pending, release } = slowEngine();
+    e.dispatch({ type: "startTake" });
+    e.dispatch({ type: "stopTake" });
+    release();
+    await pending;
+    expect(e.getState().points).toEqual({});
+    expect(e.getState().stats.costUsd).toBe(0);
+  });
+
+  it("a reply that lands after a section change or a reset does not resurrect the old section", async () => {
+    const { e, pending, release } = slowEngine();
+    e.dispatch({ type: "nextSection" });
+    release();
+    await pending;
+    expect(e.getState().points["s0b0"]?.status).toBe("missed");
+    expect(e.getState().points["s0b1"]?.status).toBe("missed");
+
+    const r = slowEngine();
+    r.e.dispatch({ type: "resetSection" });
+    r.release();
+    await r.pending;
+    expect(r.e.getState().points).toEqual({});
+  });
+
+  it("a reply that lands after a manual mark does not override it", async () => {
+    const { e, pending, release } = slowEngine();
+    e.dispatch({ type: "markMissed", id: "s0b0" });
+    release();
+    await pending;
+    expect(e.getState().points["s0b0"]?.status).toBe("missed");
+    expect(e.getState().points["s0b1"]).toBeUndefined();
+  });
+
+  it("the engine is free to ask again right after an invalidated call", async () => {
+    const { e, pending, release, started } = slowEngine();
+    e.dispatch({ type: "nextSection" });
+    release();
+    await pending;
+    e.feed({ committed: " and now the decision model" });
+    void e.tick();
+    expect(started()).toBe(2);
+    release();
+  });
+
+  it("a reply from the same epoch still applies", async () => {
+    const { e, pending, release } = slowEngine();
+    release();
+    await pending;
+    expect(e.getState().points["s0b0"]?.status).toBe("started");
+  });
+});
+
 describe("Engine flip rule", () => {
   it("flips at >= 0.70 only after two confirming calls", async () => {
     const { e } = makeEngine([{ s0b0: 0.75 }, { s0b0: 0.8 }]);

@@ -52,6 +52,9 @@ export class Engine {
   private partial = "";
   private lastSent = "";
   private inFlight = false;
+  /** Bumped by every command that changes what a decision is about (script, section, points, take). A reply from an older epoch is dropped. */
+  private epoch = 0;
+  private ctl: AbortController | null = null;
   private lastCallAt = -Infinity;
   private qCursor = 0;
   private reasked = false;
@@ -120,6 +123,7 @@ export class Engine {
 
   // ---- script ---------------------------------------------------------------
   loadScript(script: Script): void {
+    this.invalidate();
     this.committed = "";
     this.partial = "";
     this.lastSent = "";
@@ -206,6 +210,7 @@ export class Engine {
         });
         for (const b of section.bullets) delete this.streak[b.id];
         this.lastSent = "";
+        this.invalidate();
         return { ok: true };
       }
       case "markStarted":
@@ -248,6 +253,7 @@ export class Engine {
     if (!known) return { ok: false, error: `unknown point ${id}` };
     this.update((st) => (st.points[id] = state));
     delete this.streak[id];
+    this.invalidate();
     return { ok: true };
   }
 
@@ -269,12 +275,14 @@ export class Engine {
       st.sectionIdx = target;
     });
     this.lastSent = "";
+    if (target !== s.sectionIdx) this.invalidate();
     return { ok: true };
   }
 
   // ---- loop ---------------------------------------------------------------------
   start(): void {
     if (this.timer) return;
+    this.invalidate();
     this.lastSent = "";
     this.notes = [];
     this.update((s) => {
@@ -287,10 +295,21 @@ export class Engine {
   stop(): void {
     if (this.timer) this.o.clearInterval(this.timer);
     this.timer = null;
+    this.invalidate();
     this.update((s) => {
       s.engine.recording = false;
       s.engine.backend = null;
     });
+  }
+
+  /**
+   * The world a pending decision was asked about no longer exists: abort the call and make
+   * sure its reply, should it still arrive, changes nothing. Called by every command that
+   * changes the script, the section, a point or the take.
+   */
+  private invalidate(): void {
+    this.epoch++;
+    this.ctl?.abort();
   }
 
   /** One iteration. Public so tests and surfaces can drive it without timers. */
@@ -335,10 +354,14 @@ export class Engine {
       onScreen: s.screen?.facts?.length ? s.screen.facts : undefined,
     };
     const ctl = new AbortController();
+    this.ctl = ctl;
+    const epoch = this.epoch;
     try {
       const data = await withTimeout(this.o.decide(req, ctl.signal), this.o.timeoutMs, ctl);
+      if (epoch !== this.epoch) return; // stale: the script, section, points or take changed meanwhile
       this.apply(data, open.map((b) => b.id));
     } catch (err) {
+      if (epoch !== this.epoch) return; // aborted by invalidate(): not an error, nothing to report
       if (err instanceof TimeoutError) {
         // Slow, not broken: the request was aborted, the next tick asks again with fresher text.
         this.lastSent = "";
@@ -351,6 +374,7 @@ export class Engine {
       }
     } finally {
       this.inFlight = false;
+      if (this.ctl === ctl) this.ctl = null;
     }
   }
 
