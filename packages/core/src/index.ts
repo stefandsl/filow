@@ -7,3 +7,4 @@ export * from "./screen";
 export * from "./generate";
 export * from "./i18n";
 export * from "./engine";
+export * from "./gauntlet";

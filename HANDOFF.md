@@ -24,6 +24,12 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - Gauntlet Step 0 and Step 1 done (0.8.17): replay harness (`packages/core/src/gauntlet.ts`, runner
+    `apps/web/lib/gauntlet/run.test.ts`, seed corpus `docs/gauntlet/corpus/demo-it`, first baseline in
+    `docs/gauntlet/BASELINE.md`: OpenRouter p50 1.5 s/call, precision 1.0, recall 0.78, median delay
+    7 s = the two-call confirm rule). Engine: aborts slow calls and reports "slow model" instead of an
+    error, paces to the model's speed, max 4 questions per call; Clef warm-up with keep_alive -1;
+    Whisper language hint and whisper-tiny. Also fixed: OpenRouter 400 (models list capped at 3).
   - Phone on the Wi-Fi: fixed and confirmed by the owner (0.8.14, Windows only): the QR used a VirtualBox adapter;
     interfaces are now ranked (default route first, virtual ones last), Windows Firewall rule offered
     at first start and from the pairing dialog, adapter picker there too.

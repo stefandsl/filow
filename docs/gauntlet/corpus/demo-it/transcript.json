@@ -1,0 +1,20 @@
+{
+  "note": "SYNTHETIC seed corpus, written by hand to exercise the harness and the traps (announcement, shared keyword, skipped point, out-of-order point). Replace with real recordings: see docs/local-latency-gauntlet.md Round 0.",
+  "segments": [
+    { "sec": 2, "committed": "Buongiorno a tutti e grazie di essere qui oggi." },
+    { "sec": 6, "committed": "Prima di cominciare, due parole su di noi." },
+    { "sec": 10, "committed": "Siamo una piccola realtà di Bassano del Grappa, nata nel duemilaquattordici." },
+    { "sec": 15, "committed": "Da allora seguiamo soprattutto le piccole e medie imprese del Veneto, ormai da una decina d'anni." },
+    { "sec": 21, "committed": "Vi dico subito che più avanti parlerò anche del nostro team, ma prima il problema." },
+    { "sec": 27, "committed": "Quante volte avete visto qualcuno presentare con lo script davanti e sembrare che stesse leggendo?" },
+    { "sec": 33, "committed": "La voce diventa piatta, il pubblico se ne accorge, e il messaggio si perde." },
+    { "sec": 39, "committed": "Il contrario però è peggio: senza niente davanti si saltano i punti importanti, e te ne accorgi tornando a casa." },
+    { "sec": 46, "committed": "A proposito di team: siamo in quattro, tre tecnici e un commerciale, e ci alterniamo sul palco." },
+    { "sec": 53, "committed": "Il gobbo classico, quello che scorre, non risolve: va alla sua velocità, non alla tua, e tu lo insegui." },
+    { "sec": 60, "committed": "Ecco perché abbiamo costruito Filow." },
+    { "sec": 64, "committed": "Filow ti ascolta mentre parli e spunta da solo i punti che hai già coperto, uno dopo l'altro." },
+    { "sec": 71, "committed": "Quando stai per cambiare sezione ti mostra i punti che hai saltato, così li recuperi al volo." },
+    { "sec": 78, "committed": "E tutto questo gira in locale sul vostro computer: nessun dato finisce nel cloud se non volete." },
+    { "sec": 85, "committed": "Grazie, sono qui per le domande." }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "note": "Ground truth for demo-it. Traps: s0b2 is announced at 21 s ('parlerò anche del nostro team') but only started at 46 s, out of order after section 2 began; s1b1 shares the words 'script'/'punti' with its siblings.",
+  "labels": [
+    { "pointId": "s0b0", "startedAtSec": 10 },
+    { "pointId": "s0b1", "startedAtSec": 15 },
+    { "pointId": "s0b2", "startedAtSec": 46 },
+    { "pointId": "s1b0", "startedAtSec": 27 },
+    { "pointId": "s1b1", "startedAtSec": 39 },
+    { "pointId": "s1b2", "startedAtSec": 53 },
+    { "pointId": "s2b0", "startedAtSec": 64 },
+    { "pointId": "s2b1", "startedAtSec": 71 },
+    { "pointId": "s2b2", "startedAtSec": 78 }
+  ],
+  "neverStarted": []
+}
