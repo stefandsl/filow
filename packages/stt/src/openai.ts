@@ -83,7 +83,7 @@ export class OpenAiStt implements SttBackend {
       if (ws.readyState !== WebSocket.OPEN) return;
       ws.send(JSON.stringify({ type: "input_audio_buffer.append", audio: toBase64(pcm) }));
       sentSinceCommit += pcm.byteLength;
-    });
+    }, (detail) => h.onError(detail), h.onLog);
     this.commitTimer = window.setInterval(() => {
       // Commit only if we actually sent audio (>= 100 ms) since the last commit.
       if (ws.readyState === WebSocket.OPEN && sentSinceCommit >= SAMPLE_RATE * 2 * 0.1) {

@@ -46,7 +46,7 @@ export class SherpaStt implements SttBackend {
       const f32 = new Float32Array(i16.length);
       for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 0x8000;
       bridge.feed(f32);
-    });
+    }, (detail) => h.onError(detail), h.onLog);
   }
 
   stop(): void {

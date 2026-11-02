@@ -273,6 +273,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         engine.setError(m);
       },
       onReady: () => pushLog("transcription ready"),
+      onLog: (line: string) => pushLog(line),
     };
     try {
       {

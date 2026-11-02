@@ -40,21 +40,47 @@ export type MicCapture = {
   stop: () => void;
 };
 
+const NO_AUDIO_MS = 4000;
+
+/**
+ * `onNoAudio` fires once if no PCM chunk arrives within 4 s of starting: a suspended audio context
+ * (autoplay policy, a start that took too long after the click), a muted or busy device. Without
+ * it the take looked "live" while nothing was being sent.
+ */
 export async function startMic(
   sampleRate: number,
   onChunk: (pcm16: ArrayBuffer) => void,
+  onNoAudio?: (detail: string) => void,
+  onLog?: (line: string) => void,
 ): Promise<MicCapture> {
+  const t0 = Date.now();
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
   });
   const ctx = new AudioContext({ sampleRate });
+  if (ctx.state !== "running") await ctx.resume().catch(() => undefined);
   const url = URL.createObjectURL(new Blob([WORKLET_SOURCE], { type: "application/javascript" }));
   await ctx.audioWorklet.addModule(url);
   URL.revokeObjectURL(url);
+  const track = stream.getAudioTracks()[0];
+  onLog?.(`microphone: ${track?.label || "default"} in ${Date.now() - t0} ms, audio context ${ctx.state}, ${ctx.sampleRate} Hz`);
 
   const source = ctx.createMediaStreamSource(stream);
   const node = new AudioWorkletNode(ctx, "pcm-chunker");
-  node.port.onmessage = (ev: MessageEvent<ArrayBuffer>) => onChunk(ev.data);
+  let got = false;
+  let watchdog: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+    watchdog = null;
+    if (got) return;
+    onNoAudio?.(`no audio from the microphone in ${NO_AUDIO_MS / 1000} s (audio context ${ctx.state}, track ${track?.readyState ?? "none"}${track?.muted ? ", muted" : ""})`);
+  }, NO_AUDIO_MS);
+  node.port.onmessage = (ev: MessageEvent<ArrayBuffer>) => {
+    if (!got) {
+      got = true;
+      if (watchdog) clearTimeout(watchdog);
+      watchdog = null;
+    }
+    onChunk(ev.data);
+  };
   source.connect(node);
   // Keep the graph alive without producing audible output.
   const mute = ctx.createGain();
@@ -63,6 +89,8 @@ export async function startMic(
 
   return {
     stop() {
+      if (watchdog) clearTimeout(watchdog);
+      watchdog = null;
       node.port.onmessage = null;
       node.disconnect();
       source.disconnect();

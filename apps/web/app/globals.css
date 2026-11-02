@@ -57,6 +57,8 @@ button { font: inherit; }
 .chip { font-size: 11px; letter-spacing: 0.08em; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; }
 .chip.live { color: var(--ok); border-color: #1f4a2d; }
 .chip.err { color: var(--warn); border-color: #4a1f1f; }
+.chip .linkbtn { background: none; border: 0; color: inherit; cursor: pointer; font: inherit; padding: 0 2px; opacity: 0.7; }
+.chip .linkbtn:hover { opacity: 1; }
 
 .eyebrow { font-size: 11px; letter-spacing: 0.2em; color: var(--accent); text-transform: uppercase; font-weight: 700; }
 .section-count { font-size: 11px; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; margin-top: 4px; }

@@ -251,6 +251,11 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     void refresh();
   };
 
+  const unload = async (name: string) => {
+    await fetch("/api/local/unload", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ name }) });
+    void refresh();
+  };
+
   const test = async (name: string) => {
     setTestResult((r) => ({ ...r, [name]: t("settings.running") }));
     const res = await fetch("/api/local/test", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ model: name }) });
@@ -604,6 +609,11 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                   {m.installed && m.kind === "decision" && (
                     <button className="btn" onClick={() => void test(m.name)}>
                       {t("settings.test")}
+                    </button>
+                  )}
+                  {m.runtime === "ollama" && res?.loaded.some((l) => l.name === m.name || l.name.startsWith(`${m.name}:`)) && (
+                    <button className="btn" onClick={() => void unload(res.loaded.find((l) => l.name === m.name || l.name.startsWith(`${m.name}:`))!.name)}>
+                      {t("settings.unload")}
                     </button>
                   )}
                   {m.installed && m.runtime === "ollama" && (

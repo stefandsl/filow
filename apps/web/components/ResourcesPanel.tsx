@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useT } from "@filow/ui";
+import { engineHeaders, ensureEngineToken } from "@/components/useSession";
 
 /** Shape of /api/local/resources. */
 export type Resources = {
@@ -94,9 +95,16 @@ export function ResourcesPanel({ compact = false }: { compact?: boolean }) {
         ? `${res.gpu.sharedUsedGb} GB ${t("res.sharedRam")}`
         : "—";
   const advice = res.advice.local ? t(res.advice.reason === "gpu" ? "res.adviceGpu" : "res.adviceRam") : t("res.adviceCloud");
+  const unload = async (name: string) => {
+    await ensureEngineToken();
+    await fetch("/api/local/unload", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ name }) });
+  };
   const loaded = res.loaded.map((m) => (
     <span key={m.name} className={`chip ${m.where === "gpu" ? "live" : m.where === "cpu" ? "err" : ""}`} style={{ marginRight: 6 }}>
-      {m.name} · {placementText(t, m)} · {m.sizeGb} GB
+      {m.name} · {placementText(t, m)} · {m.sizeGb} GB{" "}
+      <button type="button" className="linkbtn" title={t("settings.unload")} aria-label={t("settings.unload")} onClick={() => void unload(m.name)}>
+        ✕
+      </button>
     </span>
   ));
 

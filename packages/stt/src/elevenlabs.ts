@@ -43,7 +43,7 @@ export class ElevenLabsStt implements SttBackend {
       ws.onerror = () => reject(new Error("ElevenLabs WebSocket failed to open"));
     });
     ws.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data as string) as { message_type: string; text?: string; error?: string };
+      const msg = JSON.parse(ev.data as string) as { message_type: string; text?: string; message?: string; error?: string };
       switch (msg.message_type) {
         case "session_started":
           this.reconnects = 0;
@@ -55,8 +55,20 @@ export class ElevenLabsStt implements SttBackend {
         case "committed_transcript":
           if (msg.text) h.onTranscript({ committed: msg.text + " ", partial: "" });
           break;
+        case "committed_transcript_with_timestamps":
+        case "committed_transcript_entities":
+        case "edited_transcript":
+          break; // variants of a commit already delivered
+        case "warning":
+          h.onLog?.(`ElevenLabs warning: ${msg.message ?? ""}`);
+          break;
         default:
-          if (msg.error) h.onError(`ElevenLabs ${msg.message_type}: ${msg.error}`);
+          // Every error type (auth_error, quota_exceeded_error, input_error, insufficient_audio_activity_error,
+          // transcriber_error, ...) carries its text in `message`. Before, these were dropped and the take
+          // looked live while nothing was transcribed.
+          if (msg.message_type === "error" || msg.message_type.endsWith("_error") || msg.error)
+            h.onError(`ElevenLabs ${msg.message_type}: ${msg.message ?? msg.error ?? ""}`);
+          else h.onLog?.(`ElevenLabs ${msg.message_type}`);
       }
     };
     ws.onclose = (ev) => {
@@ -84,18 +96,23 @@ export class ElevenLabsStt implements SttBackend {
     this.running = true;
     this.reconnects = 0;
     this.ws = await this.connect(h);
-    this.mic = await startMic(SAMPLE_RATE, (pcm) => {
-      const ws = this.ws;
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      ws.send(
-        JSON.stringify({
-          message_type: "input_audio_chunk",
-          audio_base_64: toBase64(pcm),
-          commit: false,
-          sample_rate: SAMPLE_RATE,
-        }),
-      );
-    });
+    this.mic = await startMic(
+      SAMPLE_RATE,
+      (pcm) => {
+        const ws = this.ws;
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(
+          JSON.stringify({
+            message_type: "input_audio_chunk",
+            audio_base_64: toBase64(pcm),
+            commit: false,
+            sample_rate: SAMPLE_RATE,
+          }),
+        );
+      },
+      (detail) => h.onError(detail),
+      h.onLog,
+    );
   }
 
   stop() {

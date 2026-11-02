@@ -12,6 +12,8 @@ export type SttHandlers = {
   onError: (message: string) => void;
   /** Fired once, when the backend is connected and listening. */
   onReady?: () => void;
+  /** Diagnostics worth a line in the take log (warnings, timings); never an error. */
+  onLog?: (line: string) => void;
 };
 
 export interface SttBackend {

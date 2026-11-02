@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.6)
+## Where it stands (v0.9.7)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,14 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.7: "Unload from memory" for a loaded Ollama model (`/api/local/unload`, keep_alive 0) in
+    Settings and as a cross on the dashboard chip (the owner's 3070 PC sat at 7.5/8 GB VRAM).
+    ElevenLabs: every error/warning message (`message` field: auth_error, quota_exceeded_error,
+    input_error, insufficient_audio_activity_error, ...) now reaches the take log; before, they were
+    dropped and a take looked live with no transcript. Mic capture resumes a suspended AudioContext,
+    logs device + setup time, and reports "no audio from the microphone" after 4 s without PCM.
+    The owner's report (ElevenLabs live after 33 s, nothing transcribed) is not reproduced here:
+    the next take log on that PC will say which of the two it was.
   - Step 3 + state validity (0.9.6): embedding gate `packages/core/src/gate.ts` (pattern from
     Priler/jarvis, no code copied; MiniLM multilingual through transformers.js: Node embedder
     `apps/web/lib/gate/embedder.ts` for the gauntlet, Web Worker `lib/gate/embed.worker.ts` +
