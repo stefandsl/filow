@@ -1411,19 +1411,16 @@ async function main() {
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(allowed(permission)));
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed(permission));
 
-  // Frosted glass: Windows 11 (build 22000+) gets an acrylic window, macOS the under-window vibrancy;
-  // the page is told through --filow-glass and makes its own background transparent (globals.css).
-  const glass = (process.platform === "win32" && Number(os.release().split(".")[2] || 0) >= 22000) || process.platform === "darwin";
+  // The frosted-glass look lives in the page (globals.css). A window material (acrylic/vibrancy with a
+  // transparent background, tried in 0.9.9) cost maximize and full screen on Windows: not used.
   const win = new BrowserWindow({
     width: 1280,
     height: 820,
-    backgroundColor: glass ? "#00000000" : "#08090b",
-    ...(glass && process.platform === "win32" ? { backgroundMaterial: "acrylic" } : {}),
-    ...(glass && process.platform === "darwin" ? { vibrancy: "under-window", visualEffectState: "active" } : {}),
+    backgroundColor: "#08090b",
     title: "Filow",
     show: false,
     icon: appIcon(),
-    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js"), additionalArguments: glass ? ["--filow-glass"] : [] },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
   });
   mainWin = win;
   nativeTheme.themeSource = settings.theme === "light" || settings.theme === "dark" ? settings.theme : "system";

@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.10)
+## Where it stands (v0.9.11)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,9 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.11: the acrylic window of 0.9.9 removed (a transparent-background window cannot maximize or go
+    full screen on Windows; the owner hit it). The glass look stays in CSS; `--filow-glass` is no
+    longer passed, so `data-glass` is never set (the CSS rule is harmless and kept).
   - 0.9.10: the audio context opens at the device's own rate and the worklet resamples to 16 kHz
     (linear interpolation, checked in Node: 48 kHz → exactly 16000 samples/s, pitch kept). Asking
     Windows for a 16 kHz context on the owner's USB mic (C-Media 0d8c:016c, native 48 kHz) blocked
