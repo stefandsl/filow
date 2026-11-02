@@ -16,6 +16,8 @@ export async function POST(req: Request) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model: name, stream: true }),
+    // The page's Cancel button aborts its request; passing the signal on makes Ollama stop too.
+    signal: req.signal,
   }).catch(() => null);
   if (!upstream || !upstream.ok || !upstream.body) {
     return new Response(JSON.stringify({ error: `Ollama not reachable at ${OLLAMA_URL()}` }), { status: 502 });

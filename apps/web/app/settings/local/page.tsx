@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { LANG_LABELS, LANGS, SCREEN_MODE_LABELS, type DecisionProviderId, type I18nKey, type Lang, type ScreenMode } from "@filow/core";
 import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, whisperCached } from "@filow/stt";
@@ -41,6 +41,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const [status, setStatus] = useState<Status | null>(null);
   const [provider, setProvider] = useState<DecisionProviderId | "">("");
   const [progress, setProgress] = useState<Record<string, string>>({});
+  /** One AbortController per running pull, so a pull started by mistake can be stopped. */
+  const pulls = useRef<Record<string, AbortController>>({});
   const [testResult, setTestResult] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [whisperModel, setWhisperModel] = useState("");
@@ -135,36 +137,54 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const pull = async (name: string) => {
     setError(null);
     setProgress((p) => ({ ...p, [name]: t("settings.starting") }));
-    const res = await fetch("/api/local/pull", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ name }) });
-    if (!res.ok || !res.body) {
-      const { error } = (await res.json().catch(() => ({ error: `pull failed (${res.status})` }))) as { error?: string };
-      setError(error ?? "pull failed");
-      setProgress((p) => ({ ...p, [name]: "" }));
-      return;
-    }
-    const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    let buf = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop() ?? "";
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const j = JSON.parse(line) as { status?: string; total?: number; completed?: number; error?: string };
-          if (j.error) setError(j.error);
-          const pct = j.total && j.completed ? ` ${Math.round((j.completed / j.total) * 100)}%` : "";
-          setProgress((p) => ({ ...p, [name]: `${j.status ?? ""}${pct}` }));
-        } catch {
-          /* partial line */
+    const ctl = new AbortController();
+    pulls.current[name] = ctl;
+    try {
+      const res = await fetch("/api/local/pull", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...engineHeaders() },
+        body: JSON.stringify({ name }),
+        signal: ctl.signal,
+      });
+      if (!res.ok || !res.body) {
+        const { error } = (await res.json().catch(() => ({ error: `pull failed (${res.status})` }))) as { error?: string };
+        setError(error ?? "pull failed");
+        return;
+      }
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const j = JSON.parse(line) as { status?: string; total?: number; completed?: number; error?: string };
+            if (j.error) setError(j.error);
+            const pct = j.total && j.completed ? ` ${Math.round((j.completed / j.total) * 100)}%` : "";
+            setProgress((p) => ({ ...p, [name]: `${j.status ?? ""}${pct}` }));
+          } catch {
+            /* partial line */
+          }
         }
       }
+    } catch (err) {
+      // Cancelled by the user: closing the request makes Ollama stop the download; partial blobs
+      // are resumed by a later pull or cleaned up by Ollama.
+      if (!(err instanceof DOMException && err.name === "AbortError")) setError(String(err));
+    } finally {
+      delete pulls.current[name];
+      setProgress((p) => ({ ...p, [name]: "" }));
+      void refresh();
     }
-    setProgress((p) => ({ ...p, [name]: "" }));
-    void refresh();
+  };
+
+  const cancelPull = (name: string) => {
+    pulls.current[name]?.abort();
   };
 
   const remove = async (name: string) => {
@@ -392,9 +412,16 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                     </>
                   )}
                   {m.status === "available" && m.runtime === "ollama" && !m.installed && (
-                    <button className="btn primary" disabled={!m.ollamaOk || Boolean(progress[m.name])} onClick={() => void pull(m.name)}>
-                      {progress[m.name] ? progress[m.name] : t("settings.pull")}
-                    </button>
+                    <>
+                      <button className="btn primary" disabled={!m.ollamaOk || Boolean(progress[m.name])} onClick={() => void pull(m.name)}>
+                        {progress[m.name] ? progress[m.name] : t("settings.pull")}
+                      </button>
+                      {progress[m.name] && (
+                        <button className="btn danger" title={t("settings.cancelPullHint")} onClick={() => cancelPull(m.name)}>
+                          {t("settings.cancelPull")}
+                        </button>
+                      )}
+                    </>
                   )}
                   {m.installed && m.kind === "decision" && (
                     <button className="btn" onClick={() => void test(m.name)}>
