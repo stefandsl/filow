@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { LANG_LABELS, LANGS, SCREEN_MODE_LABELS, type DecisionProviderId, type I18nKey, type Lang, type ScreenMode } from "@filow/core";
-import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, whisperCached } from "@filow/stt";
+import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, sherpaBridge, whisperCached } from "@filow/stt";
 import { Wordmark, LangProvider, useT } from "@filow/ui";
 import { engineHeaders, ensureEngineToken } from "@/components/useSession";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
-import { getDecisionProvider, getScreenMode, getStartMode, setDecisionProvider, setScreenMode, setStartMode, type StartMode } from "@/lib/prefs";
+import { getDecisionProvider, getScreenMode, getSpeechLang, getStartMode, SPEECH_LANGS, setDecisionProvider, setScreenMode, setSpeechLang, setStartMode, type SpeechLang, type StartMode } from "@/lib/prefs";
 import { screenBridge } from "@/lib/screen/watcher";
 import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/sessionUrl";
 import { placementText, ResourcesPanel, useResources } from "@/components/ResourcesPanel";
@@ -22,7 +22,7 @@ type Status = {
   cloudflareKey: boolean;
   recommendation: string | null;
   models: Array<{
-    name: string; kind: string; runtime: "ollama" | "browser"; label: string; description: string; downloadGb: number; loadedGb: number; ramGb: number; vramGb?: number;
+    name: string; kind: string; runtime: "ollama" | "browser" | "sherpa"; label: string; description: string; downloadGb: number; loadedGb: number; ramGb: number; vramGb?: number;
     status: "available" | "planned"; fit: "fits" | "tight" | "too big"; installed: boolean; installedSizeGb: number | null; ollamaOk: boolean;
   }>;
 };
@@ -50,6 +50,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const [cached, setCached] = useState<Record<string, boolean>>({});
   const [screenMode, setScreenModeState] = useState<ScreenMode>("balanced");
   const [startMode, setStartModeState] = useState<StartMode>("ask");
+  const [speechLang, setSpeechLangState] = useState<SpeechLang>("auto");
   const [hotkey, setHotkey] = useState<{ hotkey: string; enabled: boolean } | null>(null);
   const [hotkeyDraft, setHotkeyDraft] = useState("");
   const [hotkeyMsg, setHotkeyMsg] = useState("");
@@ -57,6 +58,13 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const [hw, setHw] = useState<LocalAiHardware | null>(null);
   const [autoList, setAutoList] = useState<string[]>([]);
   const res = useResources();
+  const [sherpa, setSherpa] = useState<{ model: string; pct: number; error?: string; running?: boolean } | null>(null);
+  useEffect(() => {
+    const b = sherpaBridge();
+    if (!b) return;
+    void b.status().then(setSherpa);
+    return b.onStatus((s) => setSherpa(s));
+  }, []);
 
   const refresh = useCallback(async () => {
     await ensureEngineToken();
@@ -73,6 +81,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     setWhisperModel(selectedWhisperModel());
     setScreenModeState(getScreenMode());
     setStartModeState(getStartMode());
+    setSpeechLangState(getSpeechLang());
     void screenBridge()
       ?.getSettings()
       .then((h) => {
@@ -218,6 +227,11 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     setAutoList(wanted);
     (async () => {
       for (const w of wanted) {
+        if (w === "nemotron-streaming") {
+          const b = sherpaBridge();
+          if (b && (await b.status()).model === "missing") b.download();
+          continue;
+        }
         if (w === "whisper-base" || w === "whisper-small") {
           const name = `onnx-community/${w}`;
           if (!(await whisperCached(name))) await download(name);
@@ -292,6 +306,27 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
       ) : (
         <>
           <ResourcesPanel />
+
+          <section className="strip">
+            <div className="label">{t("speech.label")}</div>
+            <div className="row">
+              {SPEECH_LANGS.map((l) => (
+                <label key={l} className={`btn choice ${speechLang === l ? "primary" : ""}`}>
+                  <input
+                    type="radio"
+                    name="speechLang"
+                    checked={speechLang === l}
+                    onChange={() => {
+                      setSpeechLangState(l);
+                      setSpeechLang(l);
+                    }}
+                  />{" "}
+                  {t(`speech.${l}`)}
+                </label>
+              ))}
+            </div>
+            <div className="hint">{t("speech.hint")}</div>
+          </section>
 
           <section className="strip">
             <div className="label">{t("start.modeLabel")}</div>
@@ -389,7 +424,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                 <div>
                   <strong>{m.label}</strong> <span className="chip">{m.kind}</span>{" "}
                   <span className={`chip ${m.fit === "fits" ? "live" : m.fit === "tight" ? "" : "err"}`}>{t(`fit.${m.fit}`)}</span>
-                  {(m.installed || cached[m.name]) && <span className="chip live">{t("settings.installed")}</span>}
+                  {m.runtime !== "sherpa" && (m.installed || cached[m.name]) && <span className="chip live">{t("settings.installed")}</span>}
                   {res?.loaded.some((l) => l.name === m.name || l.name.startsWith(`${m.name}:`)) &&
                     (() => {
                       const l = res.loaded.find((x) => x.name === m.name || x.name.startsWith(`${m.name}:`))!;
@@ -433,6 +468,26 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                       )}
                     </>
                   )}
+                  {m.runtime === "sherpa" &&
+                    (sherpaBridge() ? (
+                      <>
+                        {sherpa?.model === "ready" ? (
+                          <>
+                            <span className="chip live">{t("settings.installed")}</span>
+                            <button className="btn" onClick={() => void sherpaBridge()?.remove()}>
+                              {t("settings.delete")}
+                            </button>
+                          </>
+                        ) : (
+                          <button className="btn primary" disabled={sherpa?.model === "downloading" || sherpa?.model === "extracting"} onClick={() => sherpaBridge()?.download()}>
+                            {sherpa?.model === "downloading" ? `${t("settings.download")} ${sherpa.pct}%` : sherpa?.model === "extracting" ? t("settings.starting") : t("settings.download")}
+                          </button>
+                        )}
+                        {sherpa?.model === "error" && <span className="chip err">{sherpa.error}</span>}
+                      </>
+                    ) : (
+                      <span className="hint">{t("settings.sherpaDesktopOnly")}</span>
+                    ))}
                   {m.status === "available" && m.runtime === "ollama" && !m.installed && (
                     <>
                       <button className="btn primary" disabled={!m.ollamaOk || Boolean(progress[m.name])} onClick={() => void pull(m.name)}>

@@ -8,12 +8,15 @@ import { LocalWhisperStt } from "./whisper";
 export type { SttBackend, SttHandlers, TranscriptEvent } from "./types";
 export { browserSupported } from "./browser";
 export * from "./whisperModels";
+export { SherpaStt, sherpaBridge, type SherpaBridge } from "./sherpa";
+import { SherpaStt } from "./sherpa";
 
 export const BACKEND_LABELS: Record<SttBackendId, string> = {
   elevenlabs: "ElevenLabs Scribe v2",
   openai: "OpenAI gpt-live-transcribe",
   browser: "Browser (Web Speech)",
   whisper: "Whisper on this device",
+  sherpa: "Streaming on this device (Nemotron)",
 };
 
 export type BackendOptions = {
@@ -39,6 +42,8 @@ export function createBackend(id: SttBackendId, opts: BackendOptions = {}): SttB
       return new BrowserStt();
     case "whisper":
       return new LocalWhisperStt(opts.whisperModel, opts.language);
+    case "sherpa":
+      return new SherpaStt(opts.language);
   }
 }
 
@@ -46,6 +51,8 @@ export type Availability = {
   webSpeech: boolean;
   /** Whisper can run (Web Workers + WebAssembly present). */
   whisper?: boolean;
+  /** Streaming on-device model present in the desktop app. */
+  sherpa?: boolean;
   /** Offline: only on-device backends are offered. */
   offline?: boolean;
 };
@@ -54,11 +61,12 @@ export type Availability = {
 export function availableBackends(status: SttStatus, webSpeech: boolean | Availability): SttBackendId[] {
   const a: Availability = typeof webSpeech === "boolean" ? { webSpeech } : webSpeech;
   const whisper = a.whisper ?? (typeof Worker !== "undefined" && typeof WebAssembly !== "undefined");
-  if (a.offline) return whisper ? ["whisper"] : [];
+  if (a.offline) return [...(a.sherpa ? ["sherpa" as const] : []), ...(whisper ? ["whisper" as const] : [])];
   const out: SttBackendId[] = [];
   if (status.elevenlabs) out.push("elevenlabs");
   if (status.openai) out.push("openai");
   if (a.webSpeech) out.push("browser");
+  if (a.sherpa) out.push("sherpa");
   if (whisper) out.push("whisper");
   return out;
 }

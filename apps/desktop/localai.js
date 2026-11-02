@@ -12,6 +12,7 @@ const OLLAMA_URL = () => process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 
 /** Catalogue mirrored from apps/web/lib/localModels.ts (sizes in GB) for the first-start recommendation. */
 const CATALOG = {
+  "nemotron-streaming": { dl: 0.45, ram: 3, ollama: false, label: "Nemotron streaming speech-to-text" },
   "whisper-base": { dl: 0.15, ram: 2, ollama: false, label: "Whisper base" },
   "whisper-small": { dl: 0.5, ram: 4, ollama: false, label: "Whisper small" },
   "clef-flash": { dl: 11, ram: 16, ollama: true, label: "Clef Flash (local decisions)" },
@@ -65,10 +66,10 @@ function hardwareScan() {
 /** What this machine can run comfortably. Keeps 3 GB of disk headroom; drops the biggest Ollama model first. */
 function recommend(hw) {
   let models;
-  if (hw.ramGb >= 32) models = ["whisper-small", "clef-flash", "gemma4:e4b"];
-  else if (hw.ramGb >= 16) models = [hw.gpuClass === "unknown" ? "whisper-base" : "whisper-small", "clef-flash", "gemma4:e2b"];
-  else if (hw.ramGb >= 8) models = ["whisper-base", "gemma4:e2b"];
-  else models = ["whisper-base"];
+  if (hw.ramGb >= 32) models = ["nemotron-streaming", "whisper-small", "clef-flash", "gemma4:e4b"];
+  else if (hw.ramGb >= 16) models = ["nemotron-streaming", hw.gpuClass === "unknown" ? "whisper-base" : "whisper-small", "clef-flash", "gemma4:e2b"];
+  else if (hw.ramGb >= 8) models = ["nemotron-streaming", "whisper-base", "gemma4:e2b"];
+  else models = ["nemotron-streaming", "whisper-base"];
   const total = (list) => list.reduce((s, n) => s + (CATALOG[n]?.dl || 0), 0);
   if (hw.freeGb >= 0) {
     // Drop order: big slide model (its small sibling steps in), small slide model, then Clef:

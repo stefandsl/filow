@@ -599,6 +599,17 @@ Privacy: i fotogrammi vivono solo in memoria, vanno una sola volta via HTTPS al 
 
 Nel browser (non nell'app desktop) si usa il selettore di condivisione del browser stesso e non c'è la scorciatoia per la regione.
 
+### Trascrizione in streaming su questo PC (app desktop)
+
+Nelle Impostazioni trovi **Nemotron 3.5 trascrizione in streaming** (NVIDIA, download di 450 MB):
+l'app desktop lo esegue con sherpa-onnx in un thread separato, così le parole compaiono mentre le
+dici e una frase viene confermata circa 1,2 s dopo una pausa, invece delle finestre di 4 secondi di
+Whisper. Copre inglese, italiano, romeno e russo (e altre lingue) e riconosce la lingua da solo,
+oppure segue l'impostazione **Lingua parlata**. Misurato su un portatile Core Ultra 7, solo CPU:
+105 ms di lavoro ogni 560 ms di parlato su 4 thread (RTF 0,19), 2 s per caricarsi. La modalità
+locale lo sceglie da sola quando è scaricato; Whisper resta il ripiego e l'unica opzione nel browser
+e nel riquadro di PowerPoint.
+
 ## Add-in per PowerPoint
 
 Un riquadro attività per PowerPoint vive in [apps/powerpoint](apps/powerpoint/README.md). Le note del relatore diventano lo script (una slide per sezione, le righe `-` sono i punti), il riquadro segue la slide selezionata mentre modifichi, e gestisce da sé il microfono su Windows e in PowerPoint per il web, oppure altrove rispecchia una sessione tramite codice. PowerPoint nasconde i riquadri durante una presentazione e non offre un'API per seguirla, quindi sul palco la vista dal vivo è il mirror sul telefono o l'app desktop. Compila con `npm run build -w apps/powerpoint`; il riquadro viene poi servito dall'app web sotto `/powerpoint/`.

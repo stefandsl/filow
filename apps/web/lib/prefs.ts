@@ -102,6 +102,35 @@ export function resolveTheme(t: ThemePref): "light" | "dark" {
 export type StartMode = "ask" | "auto" | "cloud" | "local";
 const START_KEY = "prefs:startMode";
 
+// ---- Speech language: what the speaker talks, independent of the interface language ----
+export type SpeechLang = "auto" | "en" | "it" | "ro" | "ru";
+export const SPEECH_LANGS: SpeechLang[] = ["auto", "en", "it", "ro", "ru"];
+const SPEECH_KEY = "prefs:speechLang";
+
+export function getSpeechLang(): SpeechLang {
+  try {
+    const v = localStorage.getItem(SPEECH_KEY);
+    return (SPEECH_LANGS as string[]).includes(v ?? "") ? (v as SpeechLang) : "auto";
+  } catch {
+    return "auto";
+  }
+}
+
+export function setSpeechLang(l: SpeechLang): void {
+  try {
+    if (l === "auto") localStorage.removeItem(SPEECH_KEY);
+    else localStorage.setItem(SPEECH_KEY, l);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** The hint handed to the transcription backends: the explicit speech language, else the UI language. */
+export function speechLangFor(uiLang: string): string {
+  const s = getSpeechLang();
+  return s === "auto" ? uiLang : s;
+}
+
 export function getStartMode(): StartMode {
   try {
     const v = localStorage.getItem(START_KEY);

@@ -57,3 +57,23 @@ stays 2 and the window stays 900 (both variants lost points). Expected on real t
 windows: median flip delay drops from one or two windows to about one pacing gap (1–2 s on a slow
 model, 0.5 s on a fast one) for confident points. To be re-checked on a real recorded corpus and on
 Clef (whose `noul` probabilities are calibrated differently from the cloud model's confidence).
+
+## 2026-11-02 · streaming STT measured (Step 2)
+
+Nemotron 3.5 ASR streaming 0.6B, int8 export `sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11`
+(475 MB archive, 680 MB on disk), sherpa-onnx-node 2.0.1 (onnxruntime 1.28.2), CPU, this laptop
+(Core Ultra 7 155H). Synthetic Italian speech (Windows "Elsa" voice, 13.6 s):
+
+| threads | per-chunk p50 | p95 | RTF | load |
+|---|---|---|---|---|
+| 4 | 105 ms | 116 ms | 0.19 | 1.8 s |
+| 2 | 131 ms | 145 ms | 0.23 | |
+
+Transcript: "Buongiorno a tutti siamo una piccola realtà di bassano del grappa e da dieci anni seguiamo
+le piccole e medie imprese del Veneto. Il Gob classico scorre alla sua velocità, non alla tua"
+("gobbo" → "Gob" on the synthetic voice). Partial words appear with every 560 ms chunk. The worker
+path (apps/desktop/stt.js, 100 ms chunks like the microphone) fed 13.6 s of audio in 3.8 s wall time
+with 138 result events. English with the synthetic "Zira" voice was poor ("A speaking campaign Dead
+Listens…"): to be re-measured with real speech. T2 (sentence end → committed text) is now bounded by
+the endpoint rule (1.2 s of trailing silence) plus one chunk: about 1.3–1.8 s, against ≥ 4 s before.
+Tokens include <en-US>, <it-IT>, <ro-RO>, <ru-RU>: all four target languages.

@@ -14,8 +14,8 @@ import {
   type SttStatus,
 } from "@filow/core";
 import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
-import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, startAuto, whisperCached, type SttBackend } from "@filow/stt";
-import { getStartMode, setDecisionProvider, setStartMode, type StartMode } from "@/lib/prefs";
+import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, startAuto, whisperCached, type SttBackend } from "@filow/stt";
+import { getSpeechLang, getStartMode, setDecisionProvider, setStartMode, type StartMode } from "@/lib/prefs";
 import { useEngine } from "./useEngine";
 import { engineHeaders, useSession } from "./useSession";
 import { PairPanel } from "./PairPanel";
@@ -187,16 +187,21 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
 
   /** What each mode needs, read fresh every time the dialog opens. */
   const loadReadiness = async (): Promise<Readiness> => {
-    const [stt, local, whisper] = await Promise.all([
+    const [stt, local, whisper, sherpa] = await Promise.all([
       fetch("/api/stt/status").then((r) => r.json()).catch(() => ({ elevenlabs: false, openai: false })) as Promise<SttStatus>,
       fetch("/api/local/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null) as Promise<{ openrouterKey?: boolean; ollama?: { ok: boolean }; models?: Array<{ name: string; installed: boolean }>; advice?: { local: boolean; reason: "gpu" | "ram" | "none" }; gpu?: { name: string } } | null>,
       whisperCached(selectedWhisperModel()).catch(() => false),
+      sherpaBridge()
+        ?.status()
+        .then((s) => s.model === "ready")
+        .catch(() => false) ?? Promise.resolve(false),
     ]);
     setSttStatus(stt);
     return {
       openrouterKey: Boolean(local?.openrouterKey),
       sttKey: Boolean(stt.elevenlabs || stt.openai),
-      whisper,
+      whisper: whisper || sherpa,
+      sherpa,
       clef: Boolean(local?.ollama?.ok && local?.models?.some((m) => m.name.startsWith("clef") && m.installed)),
       stt,
       advice: local?.advice ?? { local: false, reason: "none" },
@@ -227,7 +232,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     if (mode === "local") void fetch("/api/local/warmup", { method: "POST" }).catch(() => undefined);
     let backend: BackendChoice = choice;
     if (backend === "auto") {
-      if (mode === "local") backend = "whisper";
+      if (mode === "local") backend = r.sherpa ? "sherpa" : "whisper";
       else backend = r.stt.elevenlabs ? "elevenlabs" : r.stt.openai ? "openai" : hasWebSpeech ? "browser" : "auto";
     }
     if (backend === "auto") {
@@ -251,7 +256,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     try {
       {
         // Explicit backend from the chosen mode: never fall back silently.
-        const b = createBackend(backend, { headers: engineHeaders(), language: lang });
+        const b = createBackend(backend, { headers: engineHeaders(), language: backend === "sherpa" ? getSpeechLang() : getSpeechLang() === "auto" ? lang : getSpeechLang() });
         await b.start(handlers);
         backendRef.current = b;
         engine.setBackend(b.id);
@@ -290,7 +295,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   }, [eng.recording]);
 
   const tail = state.transcriptTail;
-  const availability = availableBackends(sttStatus, { webSpeech: hasWebSpeech, whisper: mounted, offline });
+  const availability = availableBackends(sttStatus, { webSpeech: hasWebSpeech, whisper: mounted, sherpa: readiness?.sherpa ?? false, offline });
   const costLabel = stats.costUsd === null ? "n/a" : `$${stats.costUsd.toFixed(6)}`;
   const lang = useLang();
 
@@ -601,7 +606,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   );
 }
 
-type Readiness = { openrouterKey: boolean; sttKey: boolean; whisper: boolean; clef: boolean; stt: SttStatus; advice: { local: boolean; reason: "gpu" | "ram" | "none" }; gpuName: string };
+type Readiness = { openrouterKey: boolean; sttKey: boolean; whisper: boolean; sherpa: boolean; clef: boolean; stt: SttStatus; advice: { local: boolean; reason: "gpu" | "ram" | "none" }; gpuName: string };
 
 /** Cloud or Local for this take, with what each needs and whether it is there. */
 /** "Auto": local when the models are there and the machine can run them well (GPU first, else enough RAM), otherwise cloud. */

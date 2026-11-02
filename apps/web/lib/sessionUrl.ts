@@ -25,6 +25,8 @@ export type DesktopBridge = {
   installUpdate?: () => void;
   remoteStatus?: () => Promise<RemoteStatus>;
   onRemoteStatus?: (fn: (s: RemoteStatus) => void) => () => void;
+  /** Streaming speech-to-text on this PC (desktop app); see packages/stt SherpaBridge. */
+  stt?: import("@filow/stt").SherpaBridge;
   /** Phone on this network (desktop app): adapter and firewall diagnostics with one-click fixes. */
   net?: {
     status: () => Promise<NetStatus>;

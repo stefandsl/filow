@@ -27,8 +27,10 @@ Targets (p50/p95 on M2 unless stated):
 - T3 mic-to-tick: ground-truth point start to `status === "started"` on screen, including the
   500 ms tick and the confirm rule: p50 ≤ 2.0 s, p95 ≤ 3.5 s. `confirmCalls` and `WINDOW_S` are in
   scope for change and dominate T3.
-- T4 accuracy on the test set: false-start rate ≤ 3 % of points, miss rate ≤ 10 %, Italian and
-  English (language known per take; one code-switching talk).
+- T4 accuracy on the test set: false-start rate ≤ 3 % of points, miss rate ≤ 10 %. Languages, in
+  priority order: English and Italian first, then Romanian and Russian; every candidate (speech and
+  decision, including the embedding gate) must cover all four or say which it drops. Language known
+  per take, plus one code-switching talk.
 
 All on device; cloud mode is out of scope. T1–T4 must pass on M2 for the 8 GB tier; the 16 GB tier
 may use a larger model; M3 (discrete GPU) keeps Clef Flash.

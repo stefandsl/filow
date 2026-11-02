@@ -297,6 +297,7 @@ function wireScreenSense() {
   ipcMain.on("update:check", () => void checkForUpdates({ manual: true }));
   ipcMain.on("update:install", () => loadUpdater() && updateState.status === "downloaded" && updater.quitAndInstall());
   ipcMain.handle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
+  wireStt();
   ipcMain.handle("localai:status", () => localAiState);
   ipcMain.handle("net:status", () => {
     const ranked = rankedInterfaces();
@@ -1022,6 +1023,56 @@ function readInstallChoices() {
 
 // ---- Presenting: follow the slide show and show the presenter overlay ----
 const { watchSlideShow } = require("./slideshow");
+
+// ---- Streaming speech-to-text on this PC (stt.js + stt-worker.js) ----
+const sttLocal = require("./stt");
+let sttSession = null;
+let sttModelState = { state: "idle", pct: 0, error: "" };
+function sttStatus() {
+  const ready = sttLocal.modelReady(userData);
+  const model = ready ? "ready" : sttModelState.state === "downloading" || sttModelState.state === "extracting" || sttModelState.state === "error" ? sttModelState.state : "missing";
+  return { model, pct: sttModelState.pct, error: sttModelState.error || undefined, running: Boolean(sttSession && sttSession.ready) };
+}
+function sttBroadcast(channel, payload) {
+  for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(channel, payload);
+}
+let sttDownloading = null;
+function sttDownload() {
+  if (sttDownloading) return sttDownloading;
+  sttDownloading = sttLocal
+    .ensureModel(userData, (s) => {
+      sttModelState = { state: s.state, pct: s.pct, error: s.error || "" };
+      logLine(`stt model: ${s.state}${s.pct ? ` ${s.pct}%` : ""}${s.error ? ` ${s.error}` : ""}`);
+      sttBroadcast("stt:status", sttStatus());
+    })
+    .finally(() => {
+      sttDownloading = null;
+    });
+  return sttDownloading;
+}
+function wireStt() {
+  ipcMain.handle("stt:status", () => sttStatus());
+  ipcMain.on("stt:download", () => void sttDownload());
+  ipcMain.handle("stt:remove", () => {
+    if (sttSession) sttSession.dispose();
+    sttSession = null;
+    sttLocal.removeModel(userData);
+    sttBroadcast("stt:status", sttStatus());
+  });
+  ipcMain.handle("stt:start", async (e, language) => {
+    if (!sttSession) sttSession = new sttLocal.SttSession(userData, logLine);
+    const wc = e.sender;
+    sttSession.onResult = (r) => !wc.isDestroyed() && wc.send("stt:result", { partial: r.partial, committed: r.committed });
+    sttSession.onError = (m) => !wc.isDestroyed() && wc.send("stt:result", { partial: "", committed: "", error: m });
+    const out = await sttSession.start(typeof language === "string" ? language : "auto");
+    sttBroadcast("stt:status", sttStatus());
+    return out;
+  });
+  ipcMain.on("stt:feed", (_e, samples) => {
+    if (sttSession) sttSession.feed(samples instanceof Float32Array ? samples : new Float32Array(samples));
+  });
+  ipcMain.on("stt:stop", () => sttSession && sttSession.stop());
+}
 
 // ---- Local AI: hardware scan, recommendation, unattended Ollama install (localai.js) ----
 const localAi = require("./localai");

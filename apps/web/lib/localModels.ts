@@ -2,7 +2,7 @@
 export type LocalModel = {
   name: string; // Ollama tag, or transformers.js model id for runtime "browser"
   kind: "decision" | "vision" | "stt" | "generate";
-  runtime: "ollama" | "browser";
+  runtime: "ollama" | "browser" | "sherpa";
   label: string;
   description: string;
   downloadGb: number;
@@ -17,6 +17,17 @@ export type LocalModel = {
 };
 
 export const LOCAL_MODELS: LocalModel[] = [
+  {
+    name: "nemotron-3.5-asr-streaming-0.6b",
+    kind: "stt",
+    runtime: "sherpa",
+    label: "Nemotron 3.5 streaming speech-to-text (on this PC)",
+    description: "NVIDIA's streaming recogniser run by sherpa-onnx inside the desktop app: words appear as you say them, Italian and English. Measured on a Core Ultra 7 laptop: 105 ms of CPU per 560 ms of speech on 4 threads.",
+    downloadGb: 0.45,
+    loadedGb: 1.2,
+    ramGb: 3,
+    status: "available",
+  },
   {
     name: "clef-flash",
     kind: "decision",

@@ -46,6 +46,25 @@ contextBridge.exposeInMainWorld("filow", {
     return () => ipcRenderer.removeListener("slideshow", h);
   },
   closeOverlay: () => ipcRenderer.send("overlay:close"),
+  /** Streaming speech-to-text on this PC (sherpa-onnx + Nemotron in a worker thread of the shell). */
+  stt: {
+    status: () => ipcRenderer.invoke("stt:status"),
+    download: () => ipcRenderer.send("stt:download"),
+    remove: () => ipcRenderer.invoke("stt:remove"),
+    start: (language) => ipcRenderer.invoke("stt:start", language),
+    feed: (samples) => ipcRenderer.send("stt:feed", samples),
+    stop: () => ipcRenderer.send("stt:stop"),
+    onResult: (fn) => {
+      const h = (_e, v) => fn(v);
+      ipcRenderer.on("stt:result", h);
+      return () => ipcRenderer.removeListener("stt:result", h);
+    },
+    onStatus: (fn) => {
+      const h = (_e, v) => fn(v);
+      ipcRenderer.on("stt:status", h);
+      return () => ipcRenderer.removeListener("stt:status", h);
+    },
+  },
   /** Phone on this network: which adapter/IP the QR uses, the Windows Firewall state, and fixes. */
   net: {
     status: () => ipcRenderer.invoke("net:status"),

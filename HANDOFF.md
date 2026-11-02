@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.8.16)
+## Where it stands (v0.9.0)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,16 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - Step 2 (0.9.0): streaming STT in the desktop app. `apps/desktop/stt.js` downloads the Nemotron
+    3.5 streaming int8 archive (475 MB, GitHub k2-fsa/sherpa-onnx "asr-models") into
+    userData/models and runs it with `sherpa-onnx-node` in a worker thread (`stt-worker.js`,
+    unpacked from asar). `packages/stt/src/sherpa.ts` is the page-side backend ("sherpa"): mic PCM
+    over IPC, partials + committed sentences back. Local mode prefers it when the model is present.
+    New "Spoken language" setting (auto/en/it/ro/ru). Measured 105 ms per 560 ms chunk on this
+    laptop's CPU. Target languages are now en, it, ro, ru (brief updated). Not yet: installer page
+    checkbox for the model (first-start auto list handles "nemotron-streaming"), Intel-Mac addon in the
+    x64 dmg built on an arm64 runner (falls back to Whisper), a real-speech English check.
+  - Step 1 + confirm rule (0.8.17/0.8.18): see BASELINE.md.
   - Gauntlet Step 0 and Step 1 done (0.8.17): replay harness (`packages/core/src/gauntlet.ts`, runner
     `apps/web/lib/gauntlet/run.test.ts`, seed corpus `docs/gauntlet/corpus/demo-it`, first baseline in
     `docs/gauntlet/BASELINE.md`: OpenRouter p50 1.5 s/call, precision 1.0, recall 0.78, median delay

@@ -599,6 +599,16 @@ Privacy: frames live in memory only, go once over HTTPS to the vision model and 
 
 In the browser (not the desktop app) the browser's own share picker is used, and there is no region hotkey.
 
+### Streaming speech-to-text on this PC (desktop app)
+
+Settings lists **Nemotron 3.5 streaming speech-to-text** (NVIDIA, 450 MB download): the desktop app
+runs it with sherpa-onnx in a worker thread, so words appear as you say them and a sentence is
+committed about 1.2 s after you pause, instead of Whisper's 4-second windows. It covers English,
+Italian, Romanian and Russian (and more) and detects the language by itself, or follows the
+**Spoken language** setting. Measured on a Core Ultra 7 laptop, CPU only: 105 ms of work per 560 ms
+of speech on 4 threads (RTF 0.19), 2 s to load. Local mode picks it automatically when it is
+downloaded; Whisper stays the fallback and the only option in the browser and the PowerPoint pane.
+
 ## PowerPoint add-in
 
 A task pane for PowerPoint lives in [apps/powerpoint](apps/powerpoint/README.md). Your speaker notes become the script (one slide per section, `-` lines are points), the pane follows the selected slide while you edit, and it runs the microphone itself on Windows and PowerPoint for the web or mirrors a session by code elsewhere. PowerPoint hides panes during a slide show and offers no API to follow one, so on stage the phone mirror or the desktop app is the live view. Build with `npm run build -w apps/powerpoint`; the pane is then served by the web app under `/powerpoint/`.
