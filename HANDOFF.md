@@ -16,6 +16,14 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.22)
 
+- Operate polish (2026-11-03): plain EN/IT labels, shared SVG icons, consistent control states,
+  fixed rem scale and tabular numerals, 4px spacing and token browser surfaces across prompter,
+  settings, welcome and mirror/overlay. Point size/weight preserved. Typecheck, 196 tests
+  (1 existing skip), web and welcome builds pass. Dark/light browser checks cover all surfaces;
+  dock has no orphan at 1024/1280 in EN/IT. Detector returned no findings using the installed
+  `.agents` copy because the requested `.claude` path is absent. Rule evidence and limitations:
+  `docs/superpowers/plans/2026-11-03-liquid-glass-polish.md`. Native/package/FPS acceptance remains pending.
+
 - Independent remaining-glass review (2026-11-03): fixed splash motion/opacity/token duplication and restored border space with padding. Both border mutations failed; typecheck, 193 tests and web/welcome builds passed. Isolated Electron welcome loaded without captured errors; review processes killed. See docs/superpowers/plans/2026-11-03-liquid-glass-rest-review.md. Native visual, layout and FPS acceptance remain pending.
 
 - Remaining liquid-glass surfaces (2026-11-03): settings panels/resources/Automatic setup
