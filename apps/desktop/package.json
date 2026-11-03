@@ -1,6 +1,6 @@
 {
   "name": "@filow/desktop",
-  "version": "0.9.19",
+  "version": "0.9.20",
   "private": true,
   "description": "Filow: the live speaking companion",
   "author": "VoidExploit",
@@ -70,6 +70,10 @@
           "**/*",
           "!**/.env*"
         ]
+      },
+      {
+        "from": "../web/.next/standalone/node_modules",
+        "to": "app/node_modules"
       },
       {
         "from": "../server/dist/bundle.js",

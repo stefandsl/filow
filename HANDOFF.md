@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.19)
+## Where it stands (v0.9.20)
 
 - Independent Welcome review (2026-11-03, no commit): fixed false success when Windows leaves
   an externally disabled startup entry registered after an off request; added the desktop check
@@ -45,6 +45,16 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.20 (hotfix for 0.9.19, which did not start when installed: "Cannot find module 'next'"):
+    electron-builder 26 drops a root `node_modules` folder from any `extraResources` source
+    (app-builder-lib/out/util/filter.js line 43, unconditional), so the Next standalone shipped
+    without its dependencies. The standalone's node_modules is now a second extraResources entry
+    (`from ../web/.next/standalone/node_modules, to app/node_modules`); verified with
+    `electron-builder --win --dir` (node_modules/next present) and a launch of the packaged
+    Filow.exe on a throwaway profile. Also: the welcome window's "Run at startup" always failed
+    ("Impossibile modificare l'avvio automatico") because Electron 45 on Windows reports
+    `openAtLogin: false` even right after a successful registration under a custom name (probed);
+    the readback now trusts the launch-item list and executableWillLaunchAtLogin.
   - 0.9.19: the acrylic window is back. On Electron 45 / Windows 11 26300 a
     `backgroundMaterial: "acrylic"` window with `backgroundColor: "#00000000"` maximizes and goes full
     screen (measured with a probe: only `transparent: true` windows cannot), so the 0.9.11 reason is

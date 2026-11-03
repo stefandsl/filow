@@ -24,14 +24,17 @@ function createUiPreferences({ app, nativeTheme, systemPreferences, platform, ex
       const os = app.getLoginItemSettings(loginOptions);
       // A disabled Windows entry can still be registered. Off must remove it,
       // not merely observe that Windows currently prevents it from launching.
-      if (platform === "win32" && disabling && os.openAtLogin) throw new Error("Still registered");
+      // Electron 45 on Windows reports openAtLogin=false even right after a successful registration
+      // under a custom `name` (measured 2026-11-03): the launch item list and executableWillLaunchAtLogin
+      // are the truth, openAtLogin is not consulted.
+      const ours = (os.launchItems || []).filter(item => item.path && item.path.toLowerCase() === execPath.toLowerCase() && (item.args || []).length === 0);
+      if (platform === "win32" && disabling && (ours.length > 0 || os.executableWillLaunchAtLogin)) throw new Error("Still registered");
       if (platform === "darwin") {
         const status = os.status === "requires-approval" ? "requires-approval" : os.status === "enabled" ? "enabled" : "disabled";
         return { supported: true, requested, enabled: status === "enabled", status };
       }
-      const entries = (os.launchItems || []).filter(item => item.name === "Filow" && item.path.toLowerCase() === execPath.toLowerCase() && item.args.length === 0);
-      const enabled = os.openAtLogin === true && entries.some(item => item.enabled);
-      return { supported: true, requested, enabled, status: enabled ? "enabled" : entries.some(item => !item.enabled) ? "blocked" : "disabled" };
+      const enabled = ours.some(item => item.enabled) || (ours.length === 0 && os.executableWillLaunchAtLogin === true);
+      return { supported: true, requested, enabled, status: enabled ? "enabled" : ours.some(item => !item.enabled) ? "blocked" : "disabled" };
     } catch (error) { if (strict) throw error; return { supported: true, requested, enabled: false, status: "blocked" }; }
   }
   function snapshot() {
