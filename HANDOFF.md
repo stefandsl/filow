@@ -76,6 +76,14 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - unreleased (after 0.9.21), glass on the rest: settings page, mirror/overlay, welcome window and
+    splash on the same tokens (Codex 9878589, 03ec21e, 92aa91e + review 1004355; 193 tests); the welcome
+    window gets the main window's acrylic/vibrancy options. Checked on screen in dark: prompter, settings,
+    welcome. Open question: a fresh dev profile (FILOW_USER_DATA_DIR) ended with welcomeCompleted=true
+    without the welcome being shown or clicked (startup.log has no welcome line); only
+    ui-preferences.js complete() writes that flag, so find who called it. The "Run at startup" row is
+    hidden in dev on purpose (startupSupported needs app.isPackaged). Still to do before a tag:
+    wallpaper-matrix screenshots, fps check during a take, packaged build.
   - unreleased (after 0.9.21): liquid glass UI on the prompter page. Design
     `docs/superpowers/specs/2026-11-03-liquid-glass-ui-design.md`, plan and reviewer's evidence under
     `docs/superpowers/plans/`. Three depths (raised / sheet / flat) as tokens in `theme-tokens.css`,
