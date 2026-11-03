@@ -399,7 +399,7 @@ iOS suspends background sockets within seconds of screen lock, so the "remote in
 
 | Area | Risk | Mitigation | Phase |
 |---|---|---|---|
-| Security | Public server: anyone can mint STT tokens or call `/api/decide` and burn credit | `ACCESS_PASSWORD` mandatory when the server is not bound to localhost; `/api/decide`, `/api/stt/*`, `/api/vision`, `/api/import` require an engine token; STT minting bound to a session id with a per-session quota | 2 |
+| Security | Public server: anyone can mint STT tokens or call `/api/decide` and burn credit | `ACCESS_PASSWORD` mandatory when the server is not bound to localhost; `/api/decide`, `/api/stt/*`, `/api/vision`, `/api/import`, `/api/script` (PUT), `/api/script/*`, `/api/local/{plan,pull,test,unload}` require an engine token; STT minting bound to a session id with a per-session quota | 2 |
 | Security | 6-digit code brute force | 10 pair attempts per IP per minute, codes unique among live sessions, sessions capped at 12 h, `viewer`/`controller` roles, `loadScript` controller-only | 2 |
 | Security | Screen frames leak | memory-only, no logs, window excluded, text-only to views, visible badge, kill switch | 6 |
 | Availability | Engine laptop loses Wi-Fi mid-talk | views keep last state dimmed with "engine offline"; engine reconnects and resends full state; session survives 2 h | 2 |

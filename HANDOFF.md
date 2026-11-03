@@ -24,6 +24,11 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - unreleased (after 0.9.17): `PUT /api/script` and `POST /api/local/plan` now require the engine
+    token while `ACCESS_PASSWORD` is set (first item of the bug-hunt handoff). Reproduced on the dev
+    server first: an anonymous caller overwrote the script file and ran the plan with `apply`.
+    The prompter's save and `fetchPlan` (prompter Auto start and Settings) now send the token;
+    `PUT` also answers 400 instead of crashing on invalid JSON. Route tests added for both.
   - 0.9.17: "Translate to" in the points editor: `POST /api/script/translate` (engine token,
     OpenRouter, GENERATE model) rewrites the "# / -" script in en/it/ro/ru/de/fr/es keeping the
     structure; the editor shows the result and a status line (model, section/point count, mismatch
@@ -199,9 +204,11 @@ notifications and the region picker on those platforms are unverified.
 7. **Ollama on Linux** is manual (the official script needs sudo); fine for now.
 7b. **Updates leave stale files on the owner's 3070 PC** (2026-11-02): a fresh 0.9.13 install works on
    another PC while the updated one hangs 14 s at take start and the mic track ends. Suspect: the
-   per-user install dir `%LOCALAPPDATA%\Programs\Filowesources` (app.asar + app.asar.unpacked with
+   per-user install dir `%LOCALAPPDATA%\Programs\Filow
+esources` (app.asar + app.asar.unpacked with
    sherpa-onnx native modules) not fully replaced by the NSIS update. To do once confirmed: make the
-   installer remove `$INSTDIResources` before extracting (electron-builder hook order must be checked
+   installer remove `$INSTDIR
+esources` before extracting (electron-builder hook order must be checked
    with a makensis harness, see above), and have the app log the versions of app.asar and the unpacked
    sherpa module at startup so a mismatch is visible in startup.log.
 8. **Plan steps not done yet** (owner's "piano operativo", in its order): pipeline timing marks at

@@ -3,6 +3,7 @@ import os from "node:os";
 import { OLLAMA_URL, decideClefLocal } from "@/lib/decide/clef";
 import { decideOpenRouter } from "@/lib/decide/openrouter";
 import { gpuInfo } from "@/lib/sysinfo";
+import { requireEngine } from "@/lib/engineAuth";
 import { buildPlan, type Plan, type PlanInput } from "@/lib/router";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,10 @@ async function timed(fn: () => Promise<unknown>, timeoutMs: number): Promise<num
  * latency; `apply` makes the server use the plan's slide-generation choice for this run.
  */
 export async function POST(req: Request) {
+  // Engine token required while ACCESS_PASSWORD is set: `probe` spends one OpenRouter call and
+  // `apply` changes the server's slide-generation provider for everyone.
+  const denied = requireEngine(req);
+  if (denied) return denied;
   const body = (await req.json().catch(() => ({}))) as { probe?: boolean; sherpaReady?: boolean; whisperCached?: boolean; webSpeech?: boolean; apply?: boolean };
   const base = OLLAMA_URL();
   let ollamaOk = false;

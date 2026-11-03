@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { parseScript } from "@filow/core";
+import { requireEngine } from "@/lib/engineAuth";
 
 /** Where the talking points live. The desktop app points this at its user-data folder. */
 const SCRIPT_PATH = process.env.FILOW_SCRIPT || path.join(process.cwd(), "script.md");
@@ -31,8 +32,16 @@ export async function GET() {
   return NextResponse.json({ text, script: parseScript(text) });
 }
 
+/** Saves the talking points. Engine token required while ACCESS_PASSWORD is set: anyone reaching a public server could otherwise replace the speaker's script mid-talk. */
 export async function PUT(req: Request) {
-  const { text } = (await req.json()) as { text?: string };
+  const denied = requireEngine(req);
+  if (denied) return denied;
+  let text: unknown;
+  try {
+    ({ text } = (await req.json()) as { text?: unknown });
+  } catch {
+    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+  }
   if (typeof text !== "string") {
     return NextResponse.json({ error: "text is required" }, { status: 400 });
   }

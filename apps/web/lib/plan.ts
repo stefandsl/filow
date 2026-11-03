@@ -2,6 +2,7 @@
 
 import { selectedWhisperModel, sherpaBridge, whisperCached, browserSupported } from "@filow/stt";
 import type { Plan } from "./router";
+import { engineHeaders, ensureEngineToken } from "@/components/useSession";
 
 export type PlanResponse = Plan & { machine: { gpu: string; gpuKind: string; vramTotalGb: number | null; ramGb: number }; installed: string[]; ollamaOk: boolean; keys: Record<string, boolean>; offline: boolean };
 
@@ -14,9 +15,10 @@ export async function fetchPlan(opts: { probe: boolean; apply?: boolean }): Prom
       .catch(() => false) ?? Promise.resolve(false),
     whisperCached(selectedWhisperModel()).catch(() => false),
   ]);
+  await ensureEngineToken();
   const res = await fetch("/api/local/plan", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...engineHeaders() },
     body: JSON.stringify({ probe: opts.probe, apply: opts.apply ?? false, sherpaReady, whisperCached: cached, webSpeech: browserSupported() }),
   });
   if (!res.ok) throw new Error(`plan failed (${res.status})`);

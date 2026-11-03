@@ -155,9 +155,10 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   }, [loadScript]);
 
   const saveScript = async (text: string) => {
+    await ensureEngineToken();
     const res = await fetch("/api/script", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...engineHeaders() },
       body: JSON.stringify({ text }),
     });
     const { script } = (await res.json()) as { script: Script };
