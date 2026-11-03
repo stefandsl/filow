@@ -59,7 +59,7 @@ const PROVIDERS: Record<string, (r: Parameters<typeof decideOpenRouter>[0], sign
 };
 
 function line(r: ReplayResult, provider: string): string {
-  return `${provider.padEnd(12)} ${r.corpus.padEnd(10)} calls ${String(r.calls).padStart(3)}  p50 ${String(r.latencyMs.p50).padStart(5)} ms  p95 ${String(r.latencyMs.p95).padStart(5)} ms  timeouts ${r.timeouts}  correct ${r.correct}  false ${r.falseStarts}  miss ${r.misses}  precision ${r.precision ?? "-"}  recall ${r.recall ?? "-"}  delay p50 ${r.delaySec.p50 ?? "-"} s`;
+  return `${provider.padEnd(12)} ${r.corpus.padEnd(10)} calls ${String(r.calls).padStart(3)}  p50 ${String(r.latencyMs.p50).padStart(5)} ms  p95 ${String(r.latencyMs.p95).padStart(5)} ms  timeouts ${r.timeouts}  correct ${r.correct}  late ${r.late}  false ${r.falseStarts}  miss ${r.misses}  precision ${r.precision ?? "-"}  recall ${r.recall ?? "-"}  delay p50 ${r.delaySec.p50 ?? "-"} s`;
 }
 
 describe.skipIf(!on)("gauntlet (real providers)", () => {

@@ -27,6 +27,22 @@ while ($true) {
 `;
 
 const MAC_SCRIPT = `
+on esc(x)
+  set o to ""
+  repeat with c in (characters of x)
+    set c to c as text
+    if c is "\\\\" then
+      set o to o & "\\\\\\\\"
+    else if c is "\\"" then
+      set o to o & "\\\\\\""
+    else if c is return or c is linefeed or c is (ASCII character 11) then
+      set o to o & " "
+    else
+      set o to o & c
+    end if
+  end repeat
+  return o
+end esc
 tell application "System Events"
   if not (exists process "Microsoft PowerPoint") then return "{\\"running\\":false}"
 end tell
@@ -41,7 +57,7 @@ tell application "Microsoft PowerPoint"
     try
       set t to content of text range of text frame of (title shape of s)
     end try
-    return "{\\"running\\":true,\\"index\\":" & idx & ",\\"total\\":" & total & ",\\"title\\":\\"" & t & "\\"}"
+    return "{\\"running\\":true,\\"index\\":" & idx & ",\\"total\\":" & total & ",\\"title\\":\\"" & my esc(t) & "\\"}"
   on error
     return "{\\"running\\":false}"
   end try

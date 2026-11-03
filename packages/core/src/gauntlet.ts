@@ -50,6 +50,8 @@ export type PointResult = {
 export type ReplayResult = {
   corpus: string;
   calls: number;
+  /** flips after the label plus the tolerance: not counted in `correct`, included in `delaySec` */
+  late: number;
   latencyMs: { p50: number; p95: number; max: number; avg: number };
   timeouts: number;
   points: PointResult[];
@@ -160,13 +162,17 @@ export async function replay(corpus: Corpus, opts: ReplayOptions): Promise<Repla
   }
   const falseStarts = points.filter((p) => p.outcome === "false-start" || p.outcome === "never-started-flipped").length;
   const misses = points.filter((p) => p.outcome === "miss").length;
-  const correct = points.filter((p) => p.outcome === "correct" || p.outcome === "late").length;
+  const correct = points.filter((p) => p.outcome === "correct").length;
+  const late = points.filter((p) => p.outcome === "late").length;
+  // Delay is measured over every flip that happened after its label, late ones included: a late flip is
+  // precisely the delay this harness exists to show. Recall counts only flips within the tolerance.
   const delays = points.filter((p) => p.outcome === "correct" || p.outcome === "late").map((p) => p.delaySec as number);
   const labelled = points.filter((p) => p.labelSec !== null).length;
-  const flips = correct + falseStarts;
+  const flips = correct + late + falseStarts;
   void endSec;
   return {
     corpus: corpus.name,
+    late,
     calls: latencies.length,
     latencyMs: { p50: pct(latencies, 50), p95: pct(latencies, 95), max: latencies.length ? Math.max(...latencies) : 0, avg: latencies.length ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0 },
     timeouts,

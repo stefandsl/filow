@@ -49,6 +49,7 @@ export function PairPanel({ info, status, error, onNewCode }: { info: SessionInf
   // Countdown while the dialog is open; a fresh code when the old one runs out.
   useEffect(() => {
     if (!open) return;
+    setNow(Date.now());
     const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(tick);
   }, [open]);
@@ -57,10 +58,6 @@ export function PairPanel({ info, status, error, onNewCode }: { info: SessionInf
     if (open && left === 0) onNewCode?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, left === 0]);
-  useEffect(() => {
-    if (open && info?.codeExpiresAt && info.codeExpiresAt < Date.now()) onNewCode?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
 
   if (error)
     return (

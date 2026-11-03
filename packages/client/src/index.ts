@@ -97,6 +97,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
   let resyncHandler: (() => void) | null = null;
   let ws: WebSocket | null = null;
   let closedByUser = false;
+  let everWelcomed = false;
   let backoff = 500;
   let seq = 0;
 
@@ -190,6 +191,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
         switch (msg.t) {
           case "welcome":
             welcomed = true;
+            everWelcomed = true;
             backoff = 500;
             if (msg.role === "pending") {
               client.role = "pending";
@@ -259,7 +261,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
       sock.onclose = (ev) => {
         const fatal = ev.code >= 4000 && ev.code < 5000; // protocol refusals: do not retry
         if (!welcomed) reject(new Error(ev.reason || `closed (${ev.code})`));
-        if (closedByUser || fatal || opts.reconnect === false) {
+        if (closedByUser || fatal || opts.reconnect === false || !everWelcomed) {
           setStatus("closed", ev.reason || undefined);
           return;
         }

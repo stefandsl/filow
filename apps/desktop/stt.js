@@ -124,12 +124,15 @@ class SttSession {
       worker.on("message", onMsg);
       worker.on("error", (err) => {
         this.log(`stt worker crashed: ${err.message}`);
+        if (this.worker !== worker) return reject(err);
+        const wasReady = this.ready;
         this.ready = false;
         this.worker = null;
-        if (!this.ready) reject(err);
+        if (!wasReady) reject(err);
         this.onError(err.message);
       });
       worker.on("exit", () => {
+        if (this.worker !== worker) return;
         this.ready = false;
         this.worker = null;
       });

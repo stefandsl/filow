@@ -130,3 +130,10 @@ Also in this step: the engine now drops decision replies from a previous epoch (
 change, reset, manual mark, start/stop) and aborts the in-flight call on those commands
 (`packages/core/src/engine.ts`, six regression tests). Before, bullet ids being positional (`s0b1`), a
 reply to an old script could mark a point of the newly loaded one.
+
+## Metric change (2026-11-03, bug hunt #35)
+
+`correct` and `recall` now count only flips within the tolerance of the label; flips after that are
+reported as `late` (new field) and no longer inflate recall. `delaySec` still includes late flips, since
+a late flip is the delay this harness measures. Numbers in the tables above were computed with late
+flips counted as correct and are not directly comparable with new runs.

@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.15)
+## Where it stands (v0.9.16)
 
 - Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,17 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.16: 33 fixes from an external bug hunt (report and its handoff in `docs/bughunt/`), applied
+    as one patch: PII map collision, PowerPoint pane recreating its engine, auto-start probe fooled by
+    the "…" placeholder and leaking a mic/socket on timeout, ElevenLabs reconnect after stop,
+    download hanging on a dropped connection, extension script skipping slides before the current one,
+    `parseDecisions` accepting "false", list-marker stripping eating leading numbers, CARD regex,
+    notes placeholders, gauntlet late flips, current-session origin check, and smaller ones. Typecheck
+    and the 107 tests pass. Gauntlet metric: `correct`/recall now exclude late flips (new `late`
+    field); delays still include them (my change on top of the hunt's). The hunt's 96 unverified
+    suspicions are listed in `docs/bughunt/2026-11-03-handoff.md`; the ones worth doing first are the
+    unauthenticated `PUT /api/script` and `POST /api/local/plan`, cancel during the mic probe, and
+    the committed-segment join without a space in `engine.ts`.
   - 0.9.15: one icon everywhere: the compact "O + cradle" mark at every size (ico 16-256, icon.png 512
     for macOS/Linux, favicon, extension 48/128), owner's choice after two PCs showed different icons
     (the ico mixed the mark below 64 px with the full tile above). `node scripts/make-icon.js`

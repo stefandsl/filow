@@ -155,6 +155,12 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
       const seen = new Set<string>();
       let info = first.info;
       const limit = info.total || 150;
+      // Rewind to the first slide so the script covers the whole deck, not just from the current slide on.
+      for (let k = 0; k < limit; k++) {
+        const p = await toContent<{ ok: boolean; info?: SlideInfo }>({ t: "prev" });
+        if (!p.ok || !p.info || p.info.index === info.index) break;
+        info = p.info;
+      }
       for (let i = 0; i < limit; i++) {
         const sig = `${info.index}|${info.text.slice(0, 120)}`;
         if (seen.has(sig)) break; // wrapped or stuck at the end

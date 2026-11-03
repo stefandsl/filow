@@ -89,7 +89,7 @@ export async function readNotesTexts(ctx: PowerPoint.RequestContext): Promise<st
           .filter((sh) => {
             const name = (sh.name ?? "").toLowerCase();
             const type = String((sh as { type?: string }).type ?? "");
-            return !TEXTLESS.has(type) && (name.includes("notes") || name.includes("placeholder"));
+            return !TEXTLESS.has(type) && name.includes("notes");
           })
           .map((sh) => {
             try {

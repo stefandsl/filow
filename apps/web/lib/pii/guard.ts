@@ -20,7 +20,7 @@ const PATTERNS: Array<{ tag: string; re: RegExp; check?: (s: string) => boolean 
   { tag: "EMAIL", re: /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g },
   { tag: "IBAN", re: /\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){3,7}(?:\s?[A-Z0-9]{1,4})?\b/g, check: (s) => s.replace(/\s/g, "").length >= 15 },
   { tag: "CODICE_FISCALE", re: /\b[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]\b/g },
-  { tag: "CARD", re: /\b(?:\d[ -]?){13,19}\b/g, check: (s) => luhn(s.replace(/\D/g, "")) },
+  { tag: "CARD", re: /\b\d(?:[ -]?\d){12,18}\b/g, check: (s) => luhn(s.replace(/\D/g, "")) },
   { tag: "PHONE", re: /(?:\+\d{1,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?)\d{3}[\s.-]?\d{3,4}\b/g, check: (s) => s.replace(/\D/g, "").length >= 9 },
 ];
 
@@ -90,13 +90,19 @@ export async function rizzoAnonymize(text: string, map: PiiMap, timeoutMs = 4000
     return null;
   }
   if (!res.ok) return null;
-  const json = (await res.json()) as RizzoResponse;
+  let json: RizzoResponse;
+  try {
+    json = (await res.json()) as RizzoResponse;
+  } catch {
+    return null;
+  }
   const anonymized = firstString(json, ["anonymized", "anonymized_text", "anonymised", "output", "result", "text"]);
   if (!anonymized) return null;
+  const local: PiiMap = new Map();
   const mapping = json.mapping ?? json.map ?? json.dictionary;
   if (mapping && typeof mapping === "object") {
     for (const [k, v] of Object.entries(mapping as Record<string, unknown>)) {
-      if (typeof v === "string") map.set(k.startsWith("[") ? k : `[${k}]`, v);
+      if (typeof v === "string") local.set(k.startsWith("[") ? k : `[${k}]`, v);
     }
   }
   const entities = json.entities ?? json.spans;
@@ -104,10 +110,17 @@ export async function rizzoAnonymize(text: string, map: PiiMap, timeoutMs = 4000
     for (const e of entities as Array<Record<string, unknown>>) {
       const ph = firstString(e, ["placeholder", "id", "label_id"]);
       const original = firstString(e, ["t", "text", "value"]);
-      if (ph && original) map.set(ph.startsWith("[") ? ph : `[${ph}]`, original);
+      if (ph && original) local.set(ph.startsWith("[") ? ph : `[${ph}]`, original);
     }
   }
-  return anonymized;
+  let result = anonymized;
+  for (const [ph, v] of local) {
+    if (map.get(ph) === v) continue;
+    const tag = ph.slice(1, ph.lastIndexOf("_")) || ph.slice(1, -1);
+    const fresh = map.has(ph) ? placeholderFor(v, tag, map) : (map.set(ph, v), ph);
+    if (fresh !== ph) result = result.split(ph).join(fresh);
+  }
+  return result;
 }
 
 function firstString(o: Record<string, unknown>, keys: string[]): string | undefined {

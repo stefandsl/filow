@@ -32,7 +32,7 @@ export function parseScript(text: string): Script {
       continue;
     }
 
-    const bullet = line.match(/^[-*•]\s*(.+)$/);
+    const bullet = line.match(/^[-*•]\s+(.+)$/);
     if (bullet) {
       if (!current) {
         current = { id: `s${sections.length}`, title: "Untitled", bullets: [] };
@@ -49,7 +49,8 @@ export function parseScript(text: string): Script {
 }
 
 export function serializeScript(script: Script): string {
-  return script.sections
+  const marker = script.source === "slides" ? SLIDES_MARKER + "\n" : script.source === "import" ? IMPORT_MARKER + "\n" : "";
+  return marker + script.sections
     .map((s) => [`# ${s.title}`, ...s.bullets.map((b) => `- ${b.text}`)].join("\n"))
     .join("\n\n");
 }

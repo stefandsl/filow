@@ -17,6 +17,7 @@ export async function loadEmbedder(model = GATE_MODEL): Promise<{ embed: Embedde
       const fe = (await pipeline("feature-extraction", model, { dtype: "q8" })) as unknown as FeatureExtractor;
       return fe;
     })();
+    loading.catch(() => { loading = null; });
   }
   const fe = await loading;
   const loadMs = Date.now() - t0;

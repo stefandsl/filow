@@ -87,7 +87,7 @@ export function ResourcesPanel({ compact = false }: { compact?: boolean }) {
       </section>
     );
   }
-  const gpuPct = res.gpu.vramTotalGb && res.gpu.vramUsedGb !== null ? Math.round((res.gpu.vramUsedGb / res.gpu.vramTotalGb) * 100) : (res.gpu.utilPct ?? 0);
+  const gpuPct = res.gpu.vramTotalGb && res.gpu.vramUsedGb !== null ? Math.round((res.gpu.vramUsedGb / res.gpu.vramTotalGb) * 100) : res.gpu.sharedUsedGb !== null ? Math.round((res.gpu.sharedUsedGb / res.ram.totalGb) * 100) : 0;
   const gpuText =
     res.gpu.vramTotalGb && res.gpu.vramUsedGb !== null
       ? `${res.gpu.vramUsedGb} / ${res.gpu.vramTotalGb} GB${res.gpu.sharedUsedGb ? ` · +${res.gpu.sharedUsedGb} GB ${t("res.sharedRam")}` : ""}`

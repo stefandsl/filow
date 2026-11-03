@@ -16,7 +16,7 @@ export function gateAvailable(): boolean {
 /** Loads the model (first time: a download of ~120 MB, then the browser cache). Resolves when ready. */
 export function loadGate(progress?: (p: { status: string; file?: string; progress?: number }) => void): Promise<void> {
   if (!gateAvailable()) return Promise.reject(new Error("no worker support"));
-  onProgress = progress ?? null;
+  if (progress) onProgress = progress;
   if (ready) return ready;
   worker = new Worker(new URL("./embed.worker.ts", import.meta.url), { type: "module" });
   ready = new Promise<void>((resolve, reject) => {
@@ -36,7 +36,15 @@ export function loadGate(progress?: (p: { status: string; file?: string; progres
         } else reject(new Error(m.message));
       }
     };
-    worker!.onerror = (e) => reject(new Error(e.message));
+    worker!.onerror = (e) => {
+      const err = new Error(e.message);
+      for (const p of pending.values()) p.reject(err);
+      pending.clear();
+      worker?.terminate();
+      worker = null;
+      ready = null;
+      reject(err);
+    };
     worker!.postMessage({ type: "load", model: GATE_MODEL });
   });
   ready.catch(() => {

@@ -217,7 +217,10 @@ function EnginePane({ webSpeech }: { webSpeech: boolean }) {
   const clientRef = useRef<SessionClient | null>(null);
   const backendRef = useRef<SttBackend | null>(null);
 
-  const headers = useCallback((): Record<string, string> => (token ? { Authorization: `Bearer ${token}` } : {}), [token]);
+  // Read the token through a ref so `headers` keeps one identity and the engine effect doesn't recreate the Engine mid-session.
+  const tokenRef = useRef<string | null>(null);
+  tokenRef.current = token;
+  const headers = useCallback((): Record<string, string> => (tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {}), []);
 
   // Engine with decide through the server.
   useEffect(() => {
@@ -247,6 +250,7 @@ function EnginePane({ webSpeech }: { webSpeech: boolean }) {
       if (res.status === 401) return setError(t("ppt.wrongPassword"));
       if (!res.ok) throw new Error(`session create failed (${res.status})`);
       const created = (await res.json()) as { id: string; code: string; engineToken: string };
+      tokenRef.current = created.engineToken;
       setToken(created.engineToken);
       setCode(created.code);
       const client = await connect({ serverUrl: ORIGIN, session: { id: created.id, token: created.engineToken, role: "engine" }, onStatus: (s, d) => setStatus(d ? `${s}: ${d}` : s) });

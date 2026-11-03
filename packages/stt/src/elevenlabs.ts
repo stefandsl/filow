@@ -81,6 +81,7 @@ export class ElevenLabsStt implements SttBackend {
           if (!this.running) return;
           this.connect(h)
             .then((next) => {
+              if (!this.running) return next.close(1000);
               this.ws = next;
             })
             .catch((err) => h.onError(`ElevenLabs reconnect failed: ${(err as Error).message}`));

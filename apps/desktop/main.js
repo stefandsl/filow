@@ -189,6 +189,7 @@ function saveSettings() {
 let mainWin = null;
 let selectedSourceId = null;
 let pickerWin = null;
+let picking = false;
 
 /** Screens and windows the user may watch, minus this app's own window. Thumbnails are small previews for the chooser. */
 async function listSources() {
@@ -217,9 +218,15 @@ async function grabDisplay(display) {
  * Resolves to { display, rect, image } in display-relative CSS px, or null.
  */
 async function pickRegion() {
-  if (pickerWin) return null;
-  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  const image = await grabDisplay(display);
+  if (pickerWin || picking) return null;
+  picking = true;
+  let display, image;
+  try {
+    display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    image = await grabDisplay(display);
+  } finally {
+    picking = false;
+  }
   const frameUrl = "data:image/jpeg;base64," + image.toJPEG(92).toString("base64");
   return new Promise((resolve) => {
     const { x, y, width, height } = display.bounds;
@@ -441,7 +448,7 @@ function firewallStatus() {
 }
 function allowFirewall() {
   if (process.platform !== "win32") return Promise.resolve("n/a");
-  const exe = process.execPath.replace(/'/g, "''");
+  const exe = process.execPath;
   const args = `advfirewall firewall add rule name="${FIREWALL_RULE}" dir=in action=allow program="${exe}" enable=yes profile=any description="Filow: phone mirror and PowerPoint add-in on the local network"`;
   return new Promise((resolve) => {
     const p = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `Start-Process -FilePath netsh -ArgumentList '${args.replace(/'/g, "''")}' -Verb RunAs -Wait -WindowStyle Hidden`], { windowsHide: true, stdio: "ignore" });
@@ -512,9 +519,12 @@ function download(url, dest, hops = 5) {
         }
         if (res.statusCode !== 200) return reject(new Error(`download failed: HTTP ${res.statusCode}`));
         const out = fs.createWriteStream(dest);
+        const fail = (e) => { out.destroy(); fs.rm(dest, { force: true }, () => reject(e)); };
+        res.on("error", fail);
+        res.on("aborted", () => fail(new Error("download aborted")));
+        out.on("error", fail);
         res.pipe(out);
         out.on("finish", () => out.close(resolve));
-        out.on("error", reject);
       })
       .on("error", reject);
   });
@@ -726,12 +736,13 @@ async function ensureLocalhostCert() {
       "-keyout", pemKey, "-out", pemCert, "-subj", "/CN=localhost/O=Filow",
       "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1", "-addext", "extendedKeyUsage=serverAuth",
     ]);
-    const keychain = path.join(os.homedir(), "Library", "Keychains", "login.keychain-db");
-    await runCommand("security", ["add-trusted-cert", "-d", "-r", "trustRoot", "-k", keychain, pemCert]);
+    settings.certTrusted = false;
+    saveSettings();
     return;
   }
   fs.mkdirSync(certDir, { recursive: true });
   settings.pfxPassword = crypto.randomBytes(12).toString("base64url");
+  settings.certTrusted = false;
   saveSettings();
   const ps = `
 $ErrorActionPreference = 'Stop'
@@ -749,7 +760,15 @@ Write-Output $cert.Thumbprint`;
  * shows the dialog itself. Tracked separately so a retry never skips it.
  */
 async function ensureCertTrusted() {
-  if (process.platform !== "win32" || settings.certTrusted) return;
+  if (settings.certTrusted) return;
+  if (process.platform === "darwin") {
+    const keychain = path.join(os.homedir(), "Library", "Keychains", "login.keychain-db");
+    await runCommand("security", ["add-trusted-cert", "-d", "-r", "trustRoot", "-k", keychain, pemCert]);
+    settings.certTrusted = true;
+    saveSettings();
+    return;
+  }
+  if (process.platform !== "win32") return;
   const cer = path.join(certDir, "localhost.cer");
   if (!fs.existsSync(cer)) {
     // cer missing but pfx present (older install): re-export it from the user store
@@ -770,7 +789,9 @@ function startHttpsProxy() {
   const server = https.createServer(tls, (req, res) => {
     if (req.url === "/api/local/current-session") {
       // Only reachable from this machine (the proxy listens on 127.0.0.1): the PowerPoint pane joins the app's session.
-      res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+      const o = req.headers.origin;
+      if (o && !/^https:\/\/localhost(:\d+)?$/.test(o)) { res.writeHead(403); res.end(); return; }
+      res.writeHead(200, { "Content-Type": "application/json", ...(o ? { "Access-Control-Allow-Origin": o, Vary: "Origin" } : {}) });
       res.end(JSON.stringify(currentSession ?? {}));
       return;
     }

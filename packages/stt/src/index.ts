@@ -96,6 +96,7 @@ export async function startAuto(
     const backend = createBackend(id, opts);
     const t0 = performance.now();
     onAttempt(id, "connecting");
+    let started: Promise<void> = Promise.resolve();
     try {
       const firstWordMs = await new Promise<number>((resolve, reject) => {
         let settled = false;
@@ -105,8 +106,7 @@ export async function startAuto(
             reject(new Error(`no transcript within ${probeMs / 1000}s`));
           }
         }, probeMs);
-        void backend
-          .start({
+        started = backend.start({
             onReady: handlers.onReady,
             onError: (m) => {
               handlers.onError(m);
@@ -117,15 +117,16 @@ export async function startAuto(
               }
             },
             onTranscript: (e) => {
-              if (!settled && (e.partial || e.committed)) {
+              const placeholder = !!e.partial && /^(…|\(.*…\))$/.test(e.partial.trim());
+              if (!settled && (e.committed || (e.partial && !placeholder))) {
                 settled = true;
                 clearTimeout(timer);
                 resolve(performance.now() - t0);
               }
               handlers.onTranscript(e);
             },
-          })
-          .catch((err: Error) => {
+          });
+        started.catch((err: Error) => {
             if (!settled) {
               settled = true;
               clearTimeout(timer);
@@ -139,6 +140,8 @@ export async function startAuto(
       lastError = (err as Error).message;
       onAttempt(id, `skipped: ${lastError}`);
       backend.stop();
+      // start() may still be pending: stop again once it settles so nothing it opens stays live.
+      void started.then(() => backend.stop(), () => backend.stop());
     }
   }
   throw new Error(lastError);

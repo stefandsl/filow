@@ -97,7 +97,7 @@ export function parseGenerated(content: string, fallbackTitle: string): Generate
   const points = Array.isArray(parsed?.points) ? (parsed!.points as unknown[]).filter((p): p is string => typeof p === "string" && p.trim().length > 0).map((p) => p.trim()).slice(0, 5) : [];
   if (!parsed) {
     // Plain-text answer: take non-empty lines as points.
-    const lines = cleaned.split(/\r?\n/).map((l) => l.replace(/^[-*•\d.)\s]+/, "").trim()).filter((l) => l.length > 3).slice(0, 5);
+    const lines = cleaned.split(/\r?\n/).map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)](?=\s))\s*/, "").trim()).filter((l) => l.length > 3).slice(0, 5);
     return { title: fallbackTitle, points: lines };
   }
   return { title: str(parsed.title) || fallbackTitle, points, transition: str(parsed.transition) || undefined };

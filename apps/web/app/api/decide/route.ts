@@ -20,7 +20,7 @@ const PROVIDERS: Record<DecisionProviderId, { run: (b: DecideRequest, signal?: A
 function resolveProvider(requested?: string): DecisionProviderId {
   const offline = process.env.FILOW_OFFLINE === "1";
   const fallback = (process.env.DECISION_PROVIDER as DecisionProviderId) || "openrouter";
-  const id = (requested && requested in PROVIDERS ? requested : fallback) as DecisionProviderId;
+  const id = (requested && Object.hasOwn(PROVIDERS, requested) ? requested : fallback) as DecisionProviderId;
   if (offline && id !== "clef-local") return "clef-local";
   return id;
 }
@@ -28,8 +28,8 @@ function resolveProvider(requested?: string): DecisionProviderId {
 export async function POST(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
-  const body = (await req.json()) as DecideRequest;
-  const provider = resolveProvider(body.provider);
+  const body = (await req.json().catch(() => null)) as DecideRequest | null;
+  const provider = resolveProvider(body?.provider);
   if (!body?.bullets?.length) {
     return NextResponse.json<DecideResponse>({ decisions: [], latencyMs: 0, cost: 0, model: provider });
   }

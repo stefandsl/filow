@@ -64,7 +64,7 @@ export function parseDecisions(content: string, ids: string[]): ParsedDecisions 
   const cleaned = content.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
   let parsed: { decisions?: unknown; unmentioned?: unknown } = {};
   try {
-    parsed = JSON.parse(cleaned);
+    parsed = JSON.parse(cleaned) ?? {};
   } catch {
     const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) {
@@ -82,7 +82,7 @@ export function parseDecisions(content: string, ids: string[]): ParsedDecisions 
       const id = String(d.id ?? "");
       if (!ids.includes(id)) continue;
       const confidence = clamp(Number(d.confidence));
-      byId.set(id, { id, started: Boolean(d.started), confidence });
+      byId.set(id, { id, started: (d.started === true || d.started === "true") && confidence >= 0.7, confidence });
     }
   }
   const decisions = ids.map((id) => byId.get(id) ?? { id, started: false, confidence: 0 });

@@ -13,10 +13,11 @@ function devCerts() {
   return fs.existsSync(key) && fs.existsSync(cert) ? { key: fs.readFileSync(key), cert: fs.readFileSync(cert) } : undefined;
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
   // Production: served by apps/web at /powerpoint/ (same origin as the API and relay).
-  base: "/powerpoint/",
+  // Dev: served at the root, as the dev manifest (scripts/manifest.js) expects.
+  base: command === "build" ? "/powerpoint/" : "/",
   build: { outDir: path.resolve(__dirname, "../web/public/powerpoint"), emptyOutDir: true },
   server: {
     port: 3000,
@@ -28,4 +29,4 @@ export default defineConfig({
       "/api": { target: "http://127.0.0.1:4747", changeOrigin: true },
     },
   },
-});
+}));
