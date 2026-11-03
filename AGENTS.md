@@ -57,7 +57,7 @@ To syntax-check `installer.nsh` locally, compile a small Unicode harness with th
 1. Bump the version in every `package.json` + `apps/browser/manifest.json`, `npm install --package-lock-only --ignore-scripts`.
 2. Commit, `git tag vX.Y.Z`, `git push origin main vX.Y.Z`.
 3. CI (`.github/workflows/desktop.yml`) builds Windows, macOS, Linux and attaches installers to the
-   GitHub release on the private repo `stefandsl/filow`.
+   GitHub release on the source repo `stefandsl/filow` (public since 2026-11-03).
 4. The installed apps update from the PUBLIC repo `stefandsl/filow-releases`. Until the
    `RELEASES_TOKEN` secret exists, copy the assets by hand:
    ```bash

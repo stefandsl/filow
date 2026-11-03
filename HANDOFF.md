@@ -16,7 +16,7 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.16)
 
-- Repos: source `stefandsl/filow` (private, branch `main`), update feed `stefandsl/filow-releases`
+- Repos: source `stefandsl/filow` (PUBLIC since 2026-11-03: the owner made it public so CI runs on free Actions minutes after a billing block; never commit keys, `.env` stays ignored; branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
   (folder still has the old name on purpose).
 - v0.8.7 was tagged on 2026-11-02 (CI run 41458509342); 0.8.6 is in the public feed. The public
