@@ -16,3 +16,4 @@ apps/desktop/vendor
 apps/browser/dist
 apps/browser/src/theme.css
 design/
+.claude/
