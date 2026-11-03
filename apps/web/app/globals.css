@@ -61,7 +61,7 @@ h1.section-title { font-size: var(--type-2xl); margin: 16px 0 8px; font-weight: 
   padding: 8px 16px; font-size: var(--type-sm); letter-spacing: 0; text-transform: none; font-weight: 700; cursor: pointer;
 }
 .btn.primary { background: var(--action-background); color: var(--action-foreground); }
-.btn.danger { color: var(--text); outline: 1px solid var(--warn); }
+.btn.danger:not(:focus-visible) { color: var(--text); outline: 1px solid var(--warn); }
 .btn:disabled { opacity: 0.5; cursor: default; }
 select.btn { text-transform: none; letter-spacing: 0; }
 select.btn option { background: var(--panel); color: var(--text); }
@@ -79,7 +79,7 @@ select.btn option { background: var(--panel); color: var(--text); }
 
 /* ---- phase 2: pairing + mirror ---- */
 button.chip { background: var(--glass-flat); cursor: pointer; font: inherit; font-size: var(--type-xs); letter-spacing: 0; }
-button.chip.code { color: var(--text); outline: 1px solid var(--accent-ring); }
+button.chip.code:not(:focus-visible) { color: var(--text); outline: 1px solid var(--accent-ring); }
 .chip.banner { align-self: flex-start; }
 .pairmodal { width: min(420px, 92vw); align-items: center; text-align: center; }
 .pairmodal img { border-radius: var(--glass-radius); }
@@ -209,7 +209,7 @@ input.btn.hotkey { width: min(100%, 320px); }
 /* In-flow controls retain the existing flex/wrap layout. Effects never touch labels. */
 .dock {
   position: relative; isolation: isolate; padding: 8px 12px;
-  background: var(--panel); border-width: 0; border-radius: var(--glass-radius-pill);
+  background: var(--panel); border-width: 0; border-radius: var(--glass-radius);
   box-shadow: inset 0 1px 1px var(--glass-highlight), var(--glass-shadow);
   --mx: -200px; --my: -200px;
 }

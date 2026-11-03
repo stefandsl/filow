@@ -101,7 +101,7 @@ export function ResourcesPanel({ compact = false }: { compact?: boolean }) {
     await fetch("/api/local/unload", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ name }) });
   };
   const loaded = res.loaded.map((m) => (
-    <span key={m.name} className={`chip ${m.where === "gpu" ? "live" : m.where === "cpu" ? "err" : ""}`} style={{ marginRight: 6 }}>
+    <span key={m.name} className={`chip ${m.where === "gpu" ? "live" : m.where === "cpu" ? "err" : ""}`} style={{ marginRight: 8 }}>
       {m.name} · {placementText(t, m)} · {m.sizeGb} GB{" "}
       <button type="button" className="linkbtn" title={t("settings.unload")} aria-label={t("settings.unload")} onClick={() => void unload(m.name)}>
         <Icon name="close" />
