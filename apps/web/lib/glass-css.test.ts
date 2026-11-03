@@ -4,6 +4,18 @@ import postcss from 'postcss';
 
 const css = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
 const sheet = postcss.parse(css);
+it('uses quiet labels, keyboard focus and bounded control transitions', () => {
+  sheet.walkDecls('text-transform', d => { expect(d.value).not.toBe('uppercase'); });
+  for (const source of [css, readFileSync(new URL('../../desktop/welcome.css', import.meta.url), 'utf8')]) {
+    expect(source).toContain('outline: 2px solid var(--accent); outline-offset: 2px');
+    expect(source).toContain('opacity: 0.5; cursor: default');
+    postcss.parse(source).walkDecls('transition', d => {
+      if (d.value.startsWith('none')) return;
+      for (const part of d.value.split(',')) expect(part.trim()).toMatch(/^(background|box-shadow|transform|opacity) 1[5-9]0ms ease-out$/);
+    });
+    expect(source).not.toContain('animation: pulse');
+  }
+});
 it('uses shadows instead of drawn borders on glass layers', () => {
   sheet.walkRules(rule => {
     if (rule.selectors.some(selector => /(?:^|\s)(?:[\w-]+)?\.(?:glass-raised|glass-sheet|glass-flat|point|strip|chip|modal|btn|dock|source|footer|missed-item)(?:[.:][\w()-]+)*$/.test(selector))) {

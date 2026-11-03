@@ -31,10 +31,12 @@
   --glass-highlight-sheet: rgba(255, 255, 255, 0.07);
   --glass-edge: rgba(255, 255, 255, 0.08);
   --glass-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  --glass-shadow-sheet: 0 2px 8px rgba(0, 0, 0, 0.10);
+  --control-hover: #292d38;
   --glass-radius: 12px;
   --glass-radius-pill: 999px;
-  --glow-a: rgba(255, 182, 0, 0.10);
-  --glow-b: rgba(255, 101, 0, 0.07);
+  --unused: transparent;
+  --unused: transparent;
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
 }
@@ -65,10 +67,12 @@
   --glass-highlight-sheet: rgba(255, 255, 255, 0.45);
   --glass-edge: rgba(8, 9, 11, 0.08);
   --glass-shadow: 0 8px 30px rgba(8, 9, 11, 0.06);
+  --glass-shadow-sheet: 0 2px 8px rgba(8, 9, 11, 0.06);
+  --control-hover: #e4e7ed;
   --glass-radius: 12px;
   --glass-radius-pill: 999px;
-  --glow-a: rgba(255, 182, 0, 0.16);
-  --glow-b: rgba(255, 101, 0, 0.08);
+  --unused: transparent;
+  --unused: transparent;
 }
 
 /* Bound glass compositing so system-accent text remains readable over any desktop. */
