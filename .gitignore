@@ -17,3 +17,5 @@ apps/browser/dist
 apps/browser/src/theme.css
 design/
 .claude/
+.playwright-cli/
+.claude/
