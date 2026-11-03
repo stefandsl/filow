@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.18)
+## Where it stands (v0.9.19)
 
 - Independent Welcome review (2026-11-03, no commit): fixed false success when Windows leaves
   an externally disabled startup entry registered after an off request; added the desktop check
@@ -43,7 +43,7 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
-  - unreleased (after 0.9.18): the acrylic window is back. On Electron 45 / Windows 11 26300 a
+  - 0.9.19: the acrylic window is back. On Electron 45 / Windows 11 26300 a
     `backgroundMaterial: "acrylic"` window with `backgroundColor: "#00000000"` maximizes and goes full
     screen (measured with a probe: only `transparent: true` windows cannot), so the 0.9.11 reason is
     gone; macOS gets `vibrancy: "under-window"`. The 0.9.9 CSS had a bug that made it invisible: the
