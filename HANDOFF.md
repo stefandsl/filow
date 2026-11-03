@@ -93,6 +93,14 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - unreleased (after 0.9.22): polish pass in "Operate" mode from the impeccable / ui-ux-pro-max /
+    taste rules (Codex 9c123e6..c9eff8d + review 8e56101; 198 tests; detector clean). Decorative
+    uppercase-tracked labels removed ("Section 1 of 4" plain, "Next: ..." plain), accent reserved for
+    primary action and real state, unified hover/focus-visible/active/disabled states, SVG icon set in
+    apps/web/components/icons.tsx replacing unicode glyphs, tabular numerals on live numbers,
+    ::selection / caret / scrollbar per theme, EN+IT copy audited (no em dashes), no layout change.
+    Checked in the browser (no native material) in dark and light at 1280 px. Not yet done before a
+    tag: packaged Windows build + launch, icon count, on-screen check in the desktop app.
   - 0.9.22, glass on the rest: settings page, mirror/overlay, welcome window and
     splash on the same tokens (Codex 9878589, 03ec21e, 92aa91e + review 1004355; 193 tests); the welcome
     window gets the main window's acrylic/vibrancy options. Checked on screen in dark: prompter, settings,
