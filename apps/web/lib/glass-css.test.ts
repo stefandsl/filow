@@ -25,7 +25,7 @@ it('keeps opaque raised and sheet fallbacks outside feature queries', () => {
   }
 });
 it('limits blur to the point budget, preview, Screen Sense, footer and dock or modal', () => {
-  const allowed = ['.glass-raised', '.point:not(.far)', '.modal', '.glass-sheet', '.strip.preview', '.strip.onscreen', '.footer', '.dock'];
+  const allowed = ['.glass-raised', '.point:not(.far)', '.modal', '.glass-sheet', '.strip.preview', '.strip.onscreen', '.footer', '.dock', '.settings .strip', '.settings input.btn', '.settings select.btn'];
   sheet.walkDecls(/backdrop-filter$/, declaration => {
     const rule = declaration.parent;
     expect(rule?.type).toBe('rule');
@@ -33,6 +33,17 @@ it('limits blur to the point budget, preview, Screen Sense, footer and dock or m
   });
   expect(css).toContain('.app > .modal-bg:has(~ .modal-bg) { display: none; }');
   expect(css).toContain('.app:has(> .modal-bg) > .topbar .modal-bg { display: none; }');
+});
+it('keeps settings panels, model lists and controls borderless', () => {
+  sheet.walkRules(rule => {
+    if (!rule.selectors.some(s => s.includes('.settings') || s.includes('.keys kbd'))) return;
+    rule.walkDecls(/^border(?:-(?:top|right|bottom|left))?$/, d => {
+      expect.fail(`Settings layer ${rule.selector} declares ${d.toString()}`);
+    });
+  });
+  const page = readFileSync(new URL('../app/settings/local/page.tsx', import.meta.url), 'utf8');
+  const resources = readFileSync(new URL('../components/ResourcesPanel.tsx', import.meta.url), 'utf8');
+  expect(page + resources).not.toMatch(/border\s*:\s*["']?1px solid/);
 });
 it('puts displacement only on decorative pseudo-elements and removes both effects for reduced motion', () => {
   sheet.walkDecls('filter', declaration => {

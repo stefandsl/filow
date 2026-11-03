@@ -105,8 +105,7 @@ button.chip.code { color: var(--text); box-shadow: 0 0 0 1px var(--accent-ring);
 
 /* ---- settings / local models ---- */
 .settings .strip { display: flex; flex-direction: column; gap: 8px; }
-.settings .model { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--border); }
-.settings .model:first-of-type { border-top: none; }
+.settings .model { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 10px 0; }
 .settings .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .settings .choice { display: inline-flex; gap: 6px; align-items: center; text-transform: none; letter-spacing: 0; }
 .settings .choice input { accent-color: var(--accent); }
@@ -152,7 +151,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 input.btn { text-transform: none; letter-spacing: 0; font-family: var(--mono); }
 input.btn.hotkey { width: min(100%, 320px); }
 .keys { display: inline-flex; gap: 4px; align-items: center; }
-.keys kbd { font: 12px/1 var(--mono); padding: 5px 8px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; background: var(--panel-2); color: var(--text); }
+.keys kbd { font: 12px/1 var(--mono); padding: 5px 8px; border-width: 0; border-radius: var(--glass-radius); background: var(--glass-flat); color: var(--text); }
 .langswitch { display: inline-flex; gap: 4px; }
 .langswitch .chip { padding: 3px 8px; }
 
@@ -185,16 +184,17 @@ input.btn.hotkey { width: min(100%, 320px); }
 :focus-visible { outline: 3px solid var(--accent-ring); outline-offset: 3px; }
 
 /* Shared material layers. Opaque fallbacks are overridden only when blur is supported. */
-.glass-raised, .point, .modal {
+.glass-raised, .point, .modal, .settings .strip {
   background: var(--panel); border-width: 0; border-radius: var(--glass-radius);
   box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--glass-edge), var(--glass-shadow);
 }
-.glass-sheet, .strip, .footer {
+.glass-sheet, .strip, .footer, .settings input.btn, .settings select.btn {
   background: var(--panel-2); border-width: 0; border-radius: var(--glass-radius);
   box-shadow: inset 0 1px 0 var(--glass-highlight-sheet), 0 0 0 1px var(--glass-edge);
 }
 .glass-flat, .chip, .strip.onscreen .fact, .modal textarea, .modal .hint, .source,
-.missed-item, .footer .transcript, .controls .group, .log, .section-count, .subtitle {
+.missed-item, .footer .transcript, .controls .group, .log, .section-count, .subtitle,
+.settings .model, .settings > .hint {
   background: var(--glass-flat); border-width: 0; box-shadow: none; border-radius: var(--glass-radius);
 }
 .chip { border-radius: var(--glass-radius-pill); }
@@ -203,16 +203,18 @@ input.btn.hotkey { width: min(100%, 320px); }
 .point.started { background: var(--panel-2); }
 .point.far.started { background: var(--glass-flat); }
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-  .glass-raised, .point:not(.far), .modal {
+  .glass-raised, .point:not(.far), .modal, .settings .strip {
     background: var(--glass-raised);
     -webkit-backdrop-filter: var(--glass-blur-raised); backdrop-filter: var(--glass-blur-raised);
   }
-  .glass-sheet, .strip.preview, .strip.onscreen, .footer {
+  .glass-sheet, .strip.preview, .strip.onscreen, .footer, .settings input.btn, .settings select.btn {
     background: var(--glass-sheet);
     -webkit-backdrop-filter: var(--glass-blur-sheet); backdrop-filter: var(--glass-blur-sheet);
   }
   .point.started:not(.far) { background: var(--glass-sheet); }
 }
+/* Resource readings and setup status remain still beside settings text. */
+.settings .chip, .settings .meter-bar i { animation: none; transition: none; }
 /* In-flow controls retain the existing flex/wrap layout. Effects never touch labels. */
 .dock {
   position: relative; isolation: isolate; padding: 8px 10px;
