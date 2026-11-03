@@ -389,7 +389,6 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       {section ? (
         <>
           <div>
-            <div className="label">{t("stage.eyebrow")}</div>
             <div className="section-count">{t("stage.section", { n: sectionIdx + 1, total: script.sections.length })}</div>
             <h1 className="section-title">{section.title}</h1>
           </div>

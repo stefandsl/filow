@@ -4,6 +4,27 @@ import postcss from 'postcss';
 
 const css = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
 const sheet = postcss.parse(css);
+it('uses a fixed rem scale, tabular readings and token browser surfaces', () => {
+  const tokens = readFileSync(new URL('../app/theme-tokens.css', import.meta.url), 'utf8');
+  const sizes = [...tokens.matchAll(/--type-[\w]+:\s*([\d.]+)rem/g)].map(m => Number(m[1]));
+  expect(sizes.length).toBeGreaterThan(5);
+  for (let i = 1; i < sizes.length; i++) {
+    expect(sizes[i] / sizes[i - 1]).toBeGreaterThanOrEqual(1.125);
+    expect(sizes[i] / sizes[i - 1]).toBeLessThanOrEqual(1.2);
+  }
+  for (const source of [css, readFileSync(new URL('../../desktop/welcome.css', import.meta.url), 'utf8')]) {
+    expect(source).toContain('font-variant-numeric: tabular-nums');
+    expect(source).toContain('caret-color: var(--accent)');
+    expect(source).toContain('scrollbar-color: var(--muted) var(--panel)');
+    expect(source).toContain('::selection');
+    postcss.parse(source).walkDecls('letter-spacing', d => {
+      if (d.value.endsWith('em')) expect(parseFloat(d.value)).toBeGreaterThanOrEqual(-0.03);
+    });
+  }
+  expect(css).toContain('font-size: 1.375rem; font-weight: 700');
+  const component = readFileSync(new URL('../components/Teleprompter.tsx', import.meta.url), 'utf8');
+  expect(component).not.toContain('t("stage.eyebrow")');
+});
 it('uses quiet labels, keyboard focus and bounded control transitions', () => {
   sheet.walkDecls('text-transform', d => { expect(d.value).not.toBe('uppercase'); });
   for (const source of [css, readFileSync(new URL('../../desktop/welcome.css', import.meta.url), 'utf8')]) {

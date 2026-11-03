@@ -1,4 +1,16 @@
 :root {
+  /* Fixed rem scale, ratio 1.16. Point sizes are separately protected. */
+  --type-xs: 0.7004rem;
+  --type-sm: 0.8125rem;
+  --type-base: 0.9425rem;
+  --type-md: 1.0933rem;
+  --type-lg: 1.2682rem;
+  --type-xl: 1.4711rem;
+  --type-2xl: 1.7065rem;
+  --type-3xl: 1.9795rem;
+  --type-4xl: 2.2962rem;
+  --type-5xl: 2.6636rem;
+  --type-6xl: 3.0898rem;
   /* Filow brand kit: ink #08090B, white, warm gradient gold #FFE000 -> amber #FFB600 -> orange #FF6500. */
   --bg: #08090b;
   --panel: #13151a;
