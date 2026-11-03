@@ -20,8 +20,11 @@ describe('glass contrast gate', () => {
           const block = css.slice(css.indexOf(`${theme.selector} {`)).match(/\{([^}]+)\}/)![1];
           const value = block.match(new RegExp(`--glass-${layer}:\\s*([^;]+);`))![1];
           const background = compositeOver(parseRgba(value), rgb(backdrop));
-          expect(contrastRatio(rgb(theme.text), background)).toBeGreaterThanOrEqual(7);
-          expect(contrastRatio(rgb(theme.muted), background)).toBeGreaterThanOrEqual(4.5);
+          const token = (name: string) => block.match(new RegExp(`--${name}:\\s*(#[a-fA-F0-9]{6});`))![1];
+          expect(token('text')).toBe(theme.text);
+          expect(token('muted')).toBe(theme.muted);
+          expect(contrastRatio(rgb(token('text')), background)).toBeGreaterThanOrEqual(7);
+          expect(contrastRatio(rgb(token('muted')), background)).toBeGreaterThanOrEqual(4.5);
         });
       }
     }

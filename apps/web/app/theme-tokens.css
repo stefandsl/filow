@@ -26,8 +26,9 @@
   --glass-sheet: rgba(27, 30, 38, 0.92);
   --glass-flat: rgba(27, 30, 38, 0.92);
   --glass-blur-raised: saturate(140%) blur(22px);
-  --glass-blur-sheet: saturate(130%) blur(16px);
+  --glass-blur-sheet: saturate(140%) blur(22px);
   --glass-highlight: rgba(255, 255, 255, 0.14);
+  --glass-highlight-sheet: rgba(255, 255, 255, 0.07);
   --glass-edge: rgba(255, 255, 255, 0.08);
   --glass-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
   --glass-radius: 12px;
@@ -59,8 +60,9 @@
   --glass-sheet: rgba(255, 255, 255, 0.92);
   --glass-flat: rgba(255, 255, 255, 0.92);
   --glass-blur-raised: saturate(140%) blur(22px);
-  --glass-blur-sheet: saturate(130%) blur(16px);
+  --glass-blur-sheet: saturate(140%) blur(22px);
   --glass-highlight: rgba(255, 255, 255, 0.90);
+  --glass-highlight-sheet: rgba(255, 255, 255, 0.45);
   --glass-edge: rgba(8, 9, 11, 0.08);
   --glass-shadow: 0 8px 30px rgba(8, 9, 11, 0.06);
   --glass-radius: 12px;

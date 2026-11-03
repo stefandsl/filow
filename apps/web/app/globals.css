@@ -24,10 +24,10 @@ button { font: inherit; }
 .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 0.12em; font-size: 22px; color: var(--text); }
 .subtitle { font-size: 11px; letter-spacing: 0.18em; color: var(--muted); text-transform: uppercase; }
 .topbar .spacer { flex: 1; }
-.chip { font-size: 11px; letter-spacing: 0.08em; color: var(--muted); border: 0; border-radius: 999px; padding: 4px 10px; }
+.chip { font-size: 11px; letter-spacing: 0.08em; color: var(--muted); border-width: 0; border-radius: 999px; padding: 4px 10px; }
 .chip.live { color: var(--ok); border-color: #1f4a2d; }
 .chip.err { color: var(--warn); border-color: #4a1f1f; }
-.chip .linkbtn { background: none; border: 0; color: inherit; cursor: pointer; font: inherit; padding: 0 2px; opacity: 0.7; }
+.chip .linkbtn { background: none; border-width: 0; color: inherit; cursor: pointer; font: inherit; padding: 0 2px; opacity: 0.7; }
 .chip .linkbtn:hover { opacity: 1; }
 
 .eyebrow { font-size: 11px; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; font-weight: 700; }
@@ -37,7 +37,7 @@ h1.section-title { font-size: 26px; margin: 6px 0 10px; font-weight: 700; }
 .points { display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .point {
   display: grid; grid-template-columns: 26px 76px 1fr; align-items: center; gap: 12px;
-  padding: 7px 12px; border: 0; border-radius: 6px; background: var(--panel);
+  padding: 7px 12px; border-width: 0; border-radius: 6px; background: var(--panel);
   font-size: 22px; font-weight: 700;
 }
 .point.started { background: var(--panel-2); color: var(--muted); }
@@ -49,18 +49,18 @@ h1.section-title { font-size: 26px; margin: 6px 0 10px; font-weight: 700; }
 .point .status .pct { font-size: 10px; color: var(--muted); letter-spacing: 0.04em; }
 .point.started .status { color: var(--ok); }
 
-.strip { border: 0; border-radius: 6px; background: var(--panel); padding: 10px 14px; }
+.strip { border-width: 0; border-radius: 6px; background: var(--panel); padding: 10px 14px; }
 .strip .label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
 .strip .row { display: flex; gap: 18px; flex-wrap: wrap; font-size: 14px; }
 .strip .row.scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
 .strip .next-item { color: var(--text); }
 .strip .next-item.done { color: var(--muted); text-decoration: line-through; }
-.missed-item { white-space: nowrap; border: 0; border-radius: 4px; padding: 4px 8px; font-size: 12px; font-weight: 700; cursor: pointer; background: var(--panel-2); }
-.missed-item:hover { border-color: var(--accent); }
+.missed-item { white-space: nowrap; border-width: 0; border-radius: 4px; padding: 4px 8px; font-size: 12px; font-weight: 700; cursor: pointer; background: var(--panel-2); }
+.missed-item:hover { box-shadow: 0 0 0 1px var(--accent-ring); }
 
 .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .btn {
-  background: var(--glass-flat); color: var(--text); border: 0; border-radius: var(--glass-radius-pill);
+  background: var(--glass-flat); color: var(--text); border-width: 0; border-radius: var(--glass-radius-pill);
   position: relative; isolation: isolate;
   box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--glass-edge);
   padding: 9px 14px; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; cursor: pointer;
@@ -81,8 +81,8 @@ select.btn option { background: var(--panel); color: var(--text); }
 .log { font-family: var(--mono); font-size: 11px; color: var(--muted); max-height: 70px; overflow: auto; }
 
 .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 10; }
-.modal { background: var(--panel); border: 0; border-radius: 8px; width: min(900px, 92vw); padding: 18px; display: flex; flex-direction: column; gap: 12px; }
-.modal textarea { width: 100%; height: 60vh; background: var(--bg); color: var(--text); border: 0; border-radius: 6px; padding: 12px; font-family: var(--mono); font-size: 13px; resize: vertical; }
+.modal { background: var(--panel); border-width: 0; border-radius: 8px; width: min(900px, 92vw); padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.modal textarea { width: 100%; height: 60vh; background: var(--bg); color: var(--text); border-width: 0; border-radius: 6px; padding: 12px; font-family: var(--mono); font-size: 13px; resize: vertical; }
 .modal .hint { font-size: 12px; color: var(--muted); }
 
 /* ---- phase 2: pairing + mirror ---- */
@@ -99,7 +99,7 @@ button.chip.code { color: var(--text); box-shadow: 0 0 0 1px var(--accent-ring);
 .app.stage .controls .btn { padding: 14px 18px; font-size: 14px; flex: 1; }
 .app.stage .footer { flex-wrap: wrap; }
 .app.pair { align-items: center; justify-content: center; text-align: center; }
-.strip.onscreen { box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--accent-ring); }
+.strip.onscreen { box-shadow: inset 0 1px 0 var(--glass-highlight-sheet), 0 0 0 1px var(--accent-ring); }
 .strip.onscreen .hint { font-size: 14px; color: var(--text); margin-bottom: 6px; }
 @media (max-width: 600px) { .point { grid-template-columns: 22px 1fr; } .point .status { display: none; } .footer .transcript { display: none; } }
 
@@ -110,12 +110,12 @@ button.chip.code { color: var(--text); box-shadow: 0 0 0 1px var(--accent-ring);
 .settings .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .settings .choice { display: inline-flex; gap: 6px; align-items: center; text-transform: none; letter-spacing: 0; }
 .settings .choice input { accent-color: var(--accent); }
-.settings a { color: var(--accent); }
+.settings a { color: var(--text); }
 .settings code { font-family: var(--mono); }
 a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 
 /* Screen Sense (ARCHITECTURE.md §6) */
-.strip.onscreen .fact { color: var(--text); border: 0; border-radius: 4px; padding: 2px 8px; font-size: 13px; }
+.strip.onscreen .fact { color: var(--text); border-width: 0; border-radius: 4px; padding: 2px 8px; font-size: 13px; }
 .strip.onscreen .fact.unsaid { color: var(--text); box-shadow: 0 0 0 1px var(--accent-ring); }
 .strip.onscreen .row.actions { gap: 8px; margin-top: 6px; }
 .chip.busy { color: var(--text); box-shadow: 0 0 0 1px var(--accent-ring); animation: pulse 1s ease-in-out infinite; }
@@ -132,7 +132,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .strip.resources.compact .meter-head { font-size: 10px; }
 .strip.resources.compact .meter-bar { height: 6px; }
 .label.linkish { background: none; border: none; color: var(--muted); cursor: pointer; padding: 0; text-align: left; font: inherit; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700; }
-.label.linkish:hover { color: var(--accent); }
+.label.linkish:hover { color: var(--text); }
 .planrows { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .planrows strong { display: inline-block; min-width: 150px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; font-size: 11px; color: var(--muted); }
 .memline { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-family: var(--mono); font-size: 11.5px; }
@@ -142,12 +142,12 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .btn.danger.small { background: var(--glass-flat); }
 @keyframes pulse { 50% { opacity: 0.45; } }
 .sources { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; max-height: 60vh; overflow-y: auto; }
-.source { background: var(--bg); border: 0; border-radius: 6px; padding: 8px; cursor: pointer; text-align: left; color: var(--text); display: flex; flex-direction: column; gap: 6px; }
-.source:hover { border-color: var(--accent); }
+.source { background: var(--bg); border-width: 0; border-radius: 6px; padding: 8px; cursor: pointer; text-align: left; color: var(--text); display: flex; flex-direction: column; gap: 6px; }
+.source:hover { box-shadow: 0 0 0 1px var(--accent-ring); }
 .source img { width: 100%; aspect-ratio: 16/9; object-fit: contain; background: #000; border-radius: 4px; }
 .source .name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .source .kind { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
-.controls .group { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 6px 10px; border: 0; border-radius: 6px; }
+.controls .group { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 6px 10px; border-width: 0; border-radius: 6px; }
 .controls .group .label { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
 input.btn { text-transform: none; letter-spacing: 0; font-family: var(--mono); }
 input.btn.hotkey { width: min(100%, 320px); }
@@ -186,16 +186,16 @@ input.btn.hotkey { width: min(100%, 320px); }
 
 /* Shared material layers. Opaque fallbacks are overridden only when blur is supported. */
 .glass-raised, .point, .modal {
-  background: var(--panel); border: 0; border-radius: var(--glass-radius);
+  background: var(--panel); border-width: 0; border-radius: var(--glass-radius);
   box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--glass-edge), var(--glass-shadow);
 }
 .glass-sheet, .strip, .footer {
-  background: var(--panel-2); border: 0; border-radius: var(--glass-radius);
-  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--glass-edge);
+  background: var(--panel-2); border-width: 0; border-radius: var(--glass-radius);
+  box-shadow: inset 0 1px 0 var(--glass-highlight-sheet), 0 0 0 1px var(--glass-edge);
 }
 .glass-flat, .chip, .strip.onscreen .fact, .modal textarea, .modal .hint, .source,
-.missed-item, .footer .transcript, .controls .group {
-  background: var(--glass-flat); border: 0; box-shadow: none; border-radius: var(--glass-radius);
+.missed-item, .footer .transcript, .controls .group, .log, .section-count, .subtitle {
+  background: var(--glass-flat); border-width: 0; box-shadow: none; border-radius: var(--glass-radius);
 }
 .chip { border-radius: var(--glass-radius-pill); }
 .point.far { background: var(--glass-flat); box-shadow: none; }
@@ -207,17 +207,16 @@ input.btn.hotkey { width: min(100%, 320px); }
     background: var(--glass-raised);
     -webkit-backdrop-filter: var(--glass-blur-raised); backdrop-filter: var(--glass-blur-raised);
   }
-  .glass-sheet, .strip, .footer {
+  .glass-sheet, .strip.preview, .strip.onscreen, .footer {
     background: var(--glass-sheet);
     -webkit-backdrop-filter: var(--glass-blur-sheet); backdrop-filter: var(--glass-blur-sheet);
   }
   .point.started:not(.far) { background: var(--glass-sheet); }
-  .modal-bg { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 }
 /* In-flow controls retain the existing flex/wrap layout. Effects never touch labels. */
 .dock {
   position: relative; isolation: isolate; padding: 8px 10px;
-  background: var(--panel); border: 0; border-radius: var(--glass-radius-pill);
+  background: var(--panel); border-width: 0; border-radius: var(--glass-radius-pill);
   box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--glass-edge), var(--glass-shadow);
   --mx: -200px; --my: -200px;
 }
@@ -241,3 +240,10 @@ input.btn.hotkey { width: min(100%, 320px); }
   .dock::before { filter: none; background-image: none; }
   .app *, .modal-bg * { animation: none !important; transition: none !important; }
 }
+
+/* Only the topmost dialog paints a material; pending dialogs keep their state. */
+.app > .modal-bg:has(~ .modal-bg) { display: none; }
+.app:has(> .modal-bg) > .topbar .modal-bg { display: none; }
+/* Bare title/eyebrow text needs an edge over white native wallpaper in dark mode. */
+:root:not([data-theme="light"]) .app > div > .eyebrow,
+:root:not([data-theme="light"]) h1.section-title { text-shadow: 0 1px 1px #000; }

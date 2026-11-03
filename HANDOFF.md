@@ -16,6 +16,13 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.21)
 
+- Independent liquid-glass review (2026-11-03): fixed literal border shorthand, accent text,
+  exposed metadata/log text, sheet highlights/blur and excess blurred strips/modal layers;
+  strengthened CSS and foreground-token tests. Independent contrast calculations and all three
+  requested source mutations passed their gates. See
+  `docs/superpowers/plans/2026-11-03-liquid-glass-ui-review.md` for rule-by-rule evidence.
+  Owner-only on-screen, package and FPS acceptance remains pending (Task 4).
+
 - Unreleased liquid-glass prompter Tasks 1-3 (2026-11-03): contrast-gated raised/sheet/flat
   tokens in both themes, borderless material layers, flat rows from index 10, and an in-flow
   controls dock with background-only sheen/refraction. Reduced motion disables the effects

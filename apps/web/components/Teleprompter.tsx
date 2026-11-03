@@ -421,7 +421,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
           </div>
 
           {nextSection && (
-            <div className="strip">
+            <div className="strip preview">
               <div className="label">{t("stage.next", { title: nextSection.title })}</div>
               <div className="row">
                 {nextSection.bullets.map((b) => (
