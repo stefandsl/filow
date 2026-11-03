@@ -25,7 +25,7 @@ it('keeps opaque raised and sheet fallbacks outside feature queries', () => {
   }
 });
 it('limits blur to the point budget, preview, Screen Sense, footer and dock or modal', () => {
-  const allowed = ['.glass-raised', '.point:not(.far)', '.modal', '.glass-sheet', '.strip.preview', '.strip.onscreen', '.footer', '.dock', '.settings .strip', '.settings input.btn', '.settings select.btn'];
+  const allowed = ['.glass-raised', '.point:not(.far)', '.modal', '.glass-sheet', '.strip.preview', '.strip.onscreen', '.footer', '.dock', '.settings .strip', '.settings input.btn', '.settings select.btn', '.code-input', '.overlay-bar'];
   sheet.walkDecls(/backdrop-filter$/, declaration => {
     const rule = declaration.parent;
     expect(rule?.type).toBe('rule');
@@ -83,4 +83,18 @@ it('keeps far rows flat and excludes them from blurred selectors', () => {
 });
 it('disables control refraction for reduced motion', () => {
   expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.dock \.btn::before\s*\{[^}]*filter:\s*none/);
+});
+it('keeps mirror controls borderless and overlay points on the protected material', () => {
+  sheet.walkRules(rule => {
+    if (!rule.selectors.some(s => /\.(?:overlay|stage|compact|pair|code-input)/.test(s))) return;
+    rule.walkDecls(/^border(?:-(?:top|right|bottom|left))?$/, d => {
+      expect.fail(`Mirror layer ${rule.selector} declares ${d.toString()}`);
+    });
+    rule.walkDecls('opacity', d => { expect(d.value).toBe('1'); });
+  });
+  const stage = readFileSync(new URL('../../../packages/ui/src/StageView.tsx', import.meta.url), 'utf8');
+  expect(stage).toContain('i >= 10 && !compact ? "far"');
+  expect(stage).toContain('className="strip preview"');
+  const mirror = readFileSync(new URL('../app/mirror/page.tsx', import.meta.url), 'utf8');
+  expect(mirror).not.toMatch(/border\s*:\s*["']?1px solid|opacity\s*:/);
 });

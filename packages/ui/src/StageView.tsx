@@ -52,14 +52,14 @@ export function StageView({ state, onCommand, banner, stage, compact }: StageVie
           )}
 
           <div className="points">
-            {section.bullets.map((b) => {
+            {section.bullets.map((b, i) => {
               const st = points[b.id] ?? { status: "waiting", confidence: 0 };
               const started = st.status === "started";
               const hot = !started && st.confidence >= 0.3;
               return (
                 <div
                   key={b.id}
-                  className={`point ${started ? "started" : ""} ${hot ? "hot" : ""}`}
+                  className={`point ${i >= 10 && !compact ? "far" : ""} ${started ? "started" : ""} ${hot ? "hot" : ""}`}
                   onDoubleClick={can ? () => send(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id }) : undefined}
                 >
                   <span className="mark">{started ? "✓" : ""}</span>
@@ -74,7 +74,7 @@ export function StageView({ state, onCommand, banner, stage, compact }: StageVie
           </div>
 
           {nextSection && (
-            <div className="strip">
+            <div className="strip preview">
               <div className="label">{t("stage.next", { title: nextSection.title })}</div>
               <div className="row">
                 {nextSection.bullets.map((b) => (
