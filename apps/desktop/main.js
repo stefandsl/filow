@@ -281,7 +281,7 @@ function createWelcomeWindow() {
     y: area.y + Math.max(0, Math.floor((area.height - 720) / 2)),
     title: "Filow", icon: appIcon(), show: false, resizable: true,
     ...(mainWin && !mainWin.isDestroyed() ? { parent: mainWin, modal: false } : {}),
-    backgroundColor: glass ? "#00000000" : uiTheme() === "dark" ? "#08090b" : "#f7f7f5",
+    backgroundColor: glass ? "#00000000" : "#08090b",
     ...(glass && process.platform === "win32" ? { backgroundMaterial: "acrylic" } : {}),
     ...(glass && process.platform === "darwin" ? { vibrancy: "under-window", visualEffectState: "active" } : {}),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true,

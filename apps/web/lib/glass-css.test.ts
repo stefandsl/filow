@@ -98,3 +98,19 @@ it('keeps mirror controls borderless and overlay points on the protected materia
   const mirror = readFileSync(new URL('../app/mirror/page.tsx', import.meta.url), 'utf8');
   expect(mirror).not.toMatch(/border\s*:\s*["']?1px solid|opacity\s*:/);
 });
+it('keeps welcome materials borderless and ships shared splash tokens', () => {
+  const welcome = readFileSync(new URL('../../desktop/welcome.css', import.meta.url), 'utf8');
+  postcss.parse(welcome).walkDecls(/^border(?:-(?:top|right|bottom|left))?$/, d => {
+    expect.fail(`Welcome layer declares ${d.toString()}`);
+  });
+  expect(welcome).toContain('background: var(--glass-raised)');
+  expect(welcome).toContain('background: var(--glass-sheet)');
+  expect(welcome).not.toMatch(/var\(--glass(?:-blur)?\)/);
+  const splash = readFileSync(new URL('../../desktop/splash.html', import.meta.url), 'utf8');
+  expect(splash).toContain('href="vendor/theme-tokens.css"');
+  expect(splash).toContain('background: var(--glass-sheet)');
+  expect(splash).not.toMatch(/border:\s*1px solid/);
+  const pkg = JSON.parse(readFileSync(new URL('../../desktop/package.json', import.meta.url), 'utf8'));
+  expect(pkg.scripts['build:welcome']).toContain('--outfile=vendor/theme-tokens.css');
+  expect(pkg.build.files).toContain('vendor/*.css');
+});

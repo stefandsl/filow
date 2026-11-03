@@ -16,6 +16,20 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.21)
 
+- Remaining liquid-glass surfaces (2026-11-03): settings panels/resources/Automatic setup
+  use raised layers, fields use sheets, model rows/keycaps use flat layers. Mirror pairing
+  and overlay drag bar use sheets; the shared StageView preview uses the existing preview
+  material. Full mirror rows after ten go flat; compact overlay rows retain the protected
+  point material without extra page opacity. Welcome panes and controls now use the same
+  tokens, with opaque fallbacks; splash badge uses the shared sheet tint. The welcome
+  native acrylic/vibrancy condition was already present; its fallback background now
+  exactly matches the main window. Shared splash tokens are bundled into vendor CSS.
+  Verification: workspace typecheck, 192 tests passed / 1 skipped, welcome bundle and
+  production web build passed. Browser screenshots in `output/playwright/` cover dark/light
+  settings, model lists, paired phone, compact overlay, welcome and splash. Welcome used
+  a test preferences bridge; mirror used a synthetic local session. Native material,
+  window opacity, packaged launch and hardware FPS acceptance remain unverified.
+
 - Independent liquid-glass review (2026-11-03): fixed literal border shorthand, accent text,
   exposed metadata/log text, sheet highlights/blur and excess blurred strips/modal layers;
   strengthened CSS and foreground-token tests. Independent contrast calculations and all three
@@ -68,8 +82,9 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
     refraction off. Readability gate: `apps/web/lib/glass-contrast.test.ts` reads the tokens and fails
     below 7:1 (text) / 4.5:1 (muted) over white and black; tints settled at alpha .90-.92 to pass it.
     Built by Codex from the plan (3 commits) + review fixes; checked on screen in dark and light over the
-    owner's wallpaper. Not yet done: settings pages, overlay and welcome window on the same tokens
-    (design scope steps 2-4), wallpaper-matrix screenshots, fps check, packaged build.
+    owner's wallpaper. Settings pages, overlay, phone mirror, welcome and splash now share
+    the tokens (see above). Still pending: native wallpaper-matrix screenshots, fps check,
+    packaged build.
   - 0.9.21: the NSIS installer and the portable exe of 0.9.19/0.9.20 had NO icon resource (generic
     icon in the browser's download list and in Explorer; the installed Filow.exe was fine). The NSIS
     bundled with electron-builder 26 silently drops a PNG-compressed .ico entry, and build/icon.ico
