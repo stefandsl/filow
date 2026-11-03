@@ -16,7 +16,7 @@
     "@filow/ui": "*",
     "@huggingface/transformers": "^4.3.2",
     "jszip": "^3.10.2",
-    "next": "15.3.3",
+    "next": "15.5.28",
     "qrcode": "^1.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
