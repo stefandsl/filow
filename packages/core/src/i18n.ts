@@ -247,6 +247,12 @@ const en = {
 
   // editor
   "editor.title": "Edit points",
+  "editor.translateTo": "Translate to",
+  "editor.translate": "Translate",
+  "editor.translating": "Translating…",
+  "editor.translated": "Translated with {model}: {sections} sections, {points} points. Check it, then Save.",
+  "editor.translateMismatch": "The translation has {got} points instead of {expected}: compare before saving.",
+  "editor.translateFailed": "Translation failed: {error}",
   "editor.imported": "Imported {n} sections",
   "editor.hint": "One “# Section title” line per section, then “- bullet” lines. Saved to script.md. Parsed: {sections} sections, {points} points.",
 
@@ -645,6 +651,12 @@ const it: Partial<Record<I18nKey, string>> = {
   "mode.realtime": "Tempo reale (ogni pochi secondi mentre cambia)",
 
   "editor.title": "Modifica punti",
+  "editor.translateTo": "Traduci in",
+  "editor.translate": "Traduci",
+  "editor.translating": "Traduzione in corso…",
+  "editor.translated": "Tradotto con {model}: {sections} sezioni, {points} punti. Controlla, poi Salva.",
+  "editor.translateMismatch": "La traduzione ha {got} punti invece di {expected}: confronta prima di salvare.",
+  "editor.translateFailed": "Traduzione non riuscita: {error}",
   "editor.imported": "Importate {n} sezioni",
   "editor.hint": "Una riga “# Titolo sezione” per sezione, poi righe “- punto”. Salvato in script.md. Riconosciute: {sections} sezioni, {points} punti.",
 

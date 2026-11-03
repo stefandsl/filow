@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.16)
+## Where it stands (v0.9.17)
 
 - Repos: source `stefandsl/filow` (PUBLIC since 2026-11-03: the owner made it public so CI runs on free Actions minutes after a billing block; never commit keys, `.env` stays ignored; branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,6 +24,10 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.17: "Translate to" in the points editor: `POST /api/script/translate` (engine token,
+    OpenRouter, GENERATE model) rewrites the "# / -" script in en/it/ro/ru/de/fr/es keeping the
+    structure; the editor shows the result and a status line (model, section/point count, mismatch
+    warning); saving stays manual. Checked in the dev server: IT → EN, 4 sections, 15 points.
   - 0.9.16: 33 fixes from an external bug hunt (report and its handoff in `docs/bughunt/`), applied
     as one patch: PII map collision, PowerPoint pane recreating its engine, auto-start probe fooled by
     the "…" placeholder and leaking a mic/socket on timeout, ElevenLabs reconnect after stop,

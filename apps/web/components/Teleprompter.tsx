@@ -19,7 +19,7 @@ import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, sel
 import { getSpeechLang, getStartMode, setDecisionProvider, setStartMode, type StartMode } from "@/lib/prefs";
 import { useEngine } from "./useEngine";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
-import { engineHeaders, useSession } from "./useSession";
+import { engineHeaders, ensureEngineToken, useSession } from "./useSession";
 import { PairPanel } from "./PairPanel";
 import { useScreenSense, type ScreenSource } from "./useScreenSense";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "./LangSwitch";
@@ -765,7 +765,30 @@ function ScriptEditor({
 }) {
   const t = useT();
   const [text, setText] = useState(initial);
+  const [to, setTo] = useState("en");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
   const preview = parseScript(text);
+  const translate = async () => {
+    setBusy(true);
+    setNote(t("editor.translating"));
+    try {
+      await ensureEngineToken();
+      const res = await fetch("/api/script/translate", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ text, to }) });
+      const j = (await res.json()) as { text?: string; model?: string; structureKept?: boolean; expected?: { points: number }; got?: { sections: number; points: number }; error?: string };
+      if (!res.ok || !j.text) throw new Error(j.error ?? `HTTP ${res.status}`);
+      setText(j.text);
+      setNote(
+        j.structureKept
+          ? t("editor.translated", { model: j.model ?? "", sections: j.got?.sections ?? 0, points: j.got?.points ?? 0 })
+          : t("editor.translateMismatch", { got: j.got?.points ?? 0, expected: j.expected?.points ?? 0 }),
+      );
+    } catch (err) {
+      setNote(t("editor.translateFailed", { error: (err as Error).message }));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="modal-bg" onClick={onCancel}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -784,7 +807,19 @@ function ScriptEditor({
           <button className="btn" onClick={onCancel}>
             {t("common.cancel")}
           </button>
+          <span className="hint" style={{ marginLeft: "auto" }}>{t("editor.translateTo")}</span>
+          <select className="btn" value={to} onChange={(e) => setTo(e.target.value)} disabled={busy}>
+            {[["en", "English"], ["it", "Italiano"], ["ro", "Română"], ["ru", "Русский"], ["de", "Deutsch"], ["fr", "Français"], ["es", "Español"]].map(([k, l]) => (
+              <option key={k} value={k}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <button className="btn" disabled={busy || !text.trim()} onClick={() => void translate()}>
+            {busy ? t("editor.translating") : t("editor.translate")}
+          </button>
         </div>
+        {note && <div className="hint">{note}</div>}
       </div>
     </div>
   );

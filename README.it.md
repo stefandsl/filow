@@ -621,6 +621,14 @@ oppure segue l'impostazione **Lingua parlata**. Misurato su un portatile Core Ul
 locale lo sceglie da sola quando è scaricato; Whisper resta il ripiego e l'unica opzione nel browser
 e nel riquadro di PowerPoint.
 
+### Tradurre i punti
+
+In **Modifica punti**, scegli una lingua (English, Italiano, Română, Русский, Deutsch, Français,
+Español) e premi **Traduci**: tutto il copione torna in quella lingua con le stesse sezioni e gli
+stessi punti, nell'editor, e nulla viene salvato finché non premi Salva. La riga di stato indica il
+modello e avvisa se il numero di punti è cambiato. Usa la chiave OpenRouter (stesso modello della
+generazione dalle slide).
+
 ### Pre-filtro prima del modello (gate a embedding)
 
 Nelle Impostazioni c'è **Pre-filtro prima del modello**, spento di default. Acceso, un piccolo

@@ -620,6 +620,13 @@ Italian, Romanian and Russian (and more) and detects the language by itself, or 
 of speech on 4 threads (RTF 0.19), 2 s to load. Local mode picks it automatically when it is
 downloaded; Whisper stays the fallback and the only option in the browser and the PowerPoint pane.
 
+### Translate the points
+
+In **Edit points**, pick a language (English, Italiano, Română, Русский, Deutsch, Français, Español)
+and press **Translate**: the whole script comes back in that language with the same sections and
+points, in the editor, and nothing is saved until you press Save. The status line names the model
+and warns if the point count changed. It uses the OpenRouter key (same model as slide generation).
+
 ### Pre-filter before the model (embedding gate)
 
 Settings has **Pre-filter before the model**, off by default. On, a small multilingual sentence
