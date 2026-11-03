@@ -489,7 +489,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
             </div>
             {hw && (
               <div className="hint">
-                {t("settings.hardware", { gpu: hw.gpu || "—", free: hw.freeGb })}
+                {t("settings.hardware", { gpu: hw.gpu || "-", free: hw.freeGb })}
                 {hw.recommended.models.length > 0 && <> · {t("settings.recommendedList", { list: hw.recommended.labels.join(", "), gb: hw.recommended.downloadGb })}</>}
               </div>
             )}

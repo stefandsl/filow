@@ -388,7 +388,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       {section ? (
         <>
           <div>
-            <div className="eyebrow">{t("stage.eyebrow")}</div>
+            <div className="label">{t("stage.eyebrow")}</div>
             <div className="section-count">{t("stage.section", { n: sectionIdx + 1, total: script.sections.length })}</div>
             <h1 className="section-title">{section.title}</h1>
           </div>
@@ -619,7 +619,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       {sessionInfo.pairRequests.length > 0 && (
         <div className="modal-bg">
           <div className="modal pairmodal">
-            <div className="eyebrow">{t("pair.request")}</div>
+            <div className="label">{t("pair.request")}</div>
             {sessionInfo.pairRequests.map((r) => (
               <div key={r.token} className="strip">
                 <div className="label">{r.device || "phone"}</div>
@@ -694,7 +694,7 @@ function StartModeDialog({ readiness, onPick, onCancel }: { readiness: Readiness
   return (
     <div className="modal-bg" onClick={onCancel}>
       <div className="modal startmode" onClick={(e) => e.stopPropagation()}>
-        <div className="eyebrow">{t("start.title")}</div>
+        <div className="label">{t("start.title")}</div>
         {auto && (
           <div className="strip autopick">
             <div>
@@ -749,7 +749,7 @@ function SourceChooser({ sources, onPick }: { sources: ScreenSource[]; onPick: (
   return (
     <div className="modal-bg" onClick={() => onPick(null)}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="eyebrow">{t("screen.chooserTitle")}</div>
+        <div className="label">{t("screen.chooserTitle")}</div>
         <div className="hint">{t("screen.chooserHint")}</div>
         {sources.length === 0 && <div className="hint">{t("screen.chooserEmpty")}</div>}
         <div className="sources">
@@ -815,7 +815,7 @@ function ScriptEditor({
   return (
     <div className="modal-bg" onClick={onCancel}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="eyebrow">{title ?? t("editor.title")}</div>
+        <div className="label">{title ?? t("editor.title")}</div>
         {warnings.map((w, i) => (
           <span key={i} className="chip err">
             {w}

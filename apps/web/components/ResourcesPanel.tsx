@@ -93,7 +93,7 @@ export function ResourcesPanel({ compact = false }: { compact?: boolean }) {
       ? `${res.gpu.vramUsedGb} / ${res.gpu.vramTotalGb} GB${res.gpu.sharedUsedGb ? ` · +${res.gpu.sharedUsedGb} GB ${t("res.sharedRam")}` : ""}`
       : res.gpu.sharedUsedGb !== null
         ? `${res.gpu.sharedUsedGb} GB ${t("res.sharedRam")}`
-        : "—";
+        : "-";
   const advice = res.advice.local ? t(res.advice.reason === "gpu" ? "res.adviceGpu" : "res.adviceRam") : t("res.adviceCloud");
   const unload = async (name: string) => {
     await ensureEngineToken();
