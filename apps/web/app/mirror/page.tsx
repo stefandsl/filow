@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "@/components/icons";
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -126,6 +127,7 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
             placeholder="123456"
+            aria-label={t("mirror.enterCode")}
             autoFocus
           />
           <button className="btn primary" type="submit" disabled={code.length !== 6 || status === "pairing"}>
@@ -155,16 +157,16 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
     return (
       <div className="overlay">
         <div className="overlay-bar">
-          <span className="drag">⋮⋮ FILOW</span>
-          <button className="chip" onClick={() => bridge?.closeOverlay?.()} title={t("overlay.close")}>
-            ✕
+          <span className="drag"><Icon name="grip" /> Filow</span>
+          <button className="chip" onClick={() => bridge?.closeOverlay?.()} title={t("overlay.close")} aria-label={t("overlay.close")}>
+            <Icon name="close" />
           </button>
         </div>
-        <StageView state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact banner={error ?? (offline ? t("stage.engineOffline") : null)} />
+        <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact banner={error ?? (offline ? t("stage.engineOffline") : null)} />
       </div>
     );
   }
-  return <StageView state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact={compact} banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
+  return <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact={compact} banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
 }
 
 function emptyState(id: string): SessionState {

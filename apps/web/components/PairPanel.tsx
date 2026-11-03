@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "./icons";
 
 import { useEffect, useState } from "react";
 import { useT } from "@filow/ui";
@@ -70,7 +71,7 @@ export function PairPanel({ info, status, error, onNewCode }: { info: SessionInf
   return (
     <>
       <button className={`chip code ${pending ? "busy" : ""}`} onClick={() => setOpen((o) => !o)} title={t("pair.showQr")}>
-        {t("app.pair")} {info.code} {pending ? "…" : status === "open" ? "●" : "○"}
+        {t("app.pair")} {info.code} {pending ? "…" : <Icon name="circle" />}
       </button>
       {open && (
         <div className="modal-bg" onClick={() => setOpen(false)}>

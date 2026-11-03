@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { Command, SessionState } from "@filow/core";
 import { missedPoints } from "@filow/core";
 import { OnScreenStrip } from "./OnScreenStrip";
@@ -7,6 +8,8 @@ import { useT } from "./lang";
 
 export type StageViewProps = {
   state: SessionState;
+  pointMark?: ReactNode;
+  previewMark?: ReactNode;
   /** Omit to render a read-only view. */
   onCommand?: (cmd: Command) => void;
   /** "engine offline" and similar, rendered as a banner. */
@@ -18,7 +21,7 @@ export type StageViewProps = {
 };
 
 /** The live view: section, points, next strip, missed tray, on-screen strip, remote buttons. Uses the app's CSS classes. */
-export function StageView({ state, onCommand, banner, stage, compact }: StageViewProps) {
+export function StageView({ state, onCommand, banner, stage, compact, pointMark = "✓", previewMark = "○" }: StageViewProps) {
   const t = useT();
   const { script, sectionIdx, points, stats, engine, screen } = state;
   const section = script.sections[sectionIdx];
@@ -62,7 +65,7 @@ export function StageView({ state, onCommand, banner, stage, compact }: StageVie
                   className={`point ${i >= 10 && !compact ? "far" : ""} ${started ? "started" : ""} ${hot ? "hot" : ""}`}
                   onDoubleClick={can ? () => send(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id }) : undefined}
                 >
-                  <span className="mark">{started ? "✓" : ""}</span>
+                  <span className="mark">{started ? pointMark : null}</span>
                   <span className="status">
                     {t(`status.${st.status}`)}
                     {!started && <span className="pct">· {Math.round(st.confidence * 100)}%</span>}
@@ -79,7 +82,7 @@ export function StageView({ state, onCommand, banner, stage, compact }: StageVie
               <div className="row">
                 {nextSection.bullets.map((b) => (
                   <span key={b.id} className={`next-item ${points[b.id]?.status === "started" ? "done" : ""}`}>
-                    ○ {b.text}
+                    {previewMark} {b.text}
                   </span>
                 ))}
               </div>

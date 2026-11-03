@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "./icons";
 
 import { useEffect, useState } from "react";
 import { useT } from "@filow/ui";
@@ -103,7 +104,7 @@ export function ResourcesPanel({ compact = false }: { compact?: boolean }) {
     <span key={m.name} className={`chip ${m.where === "gpu" ? "live" : m.where === "cpu" ? "err" : ""}`} style={{ marginRight: 6 }}>
       {m.name} · {placementText(t, m)} · {m.sizeGb} GB{" "}
       <button type="button" className="linkbtn" title={t("settings.unload")} aria-label={t("settings.unload")} onClick={() => void unload(m.name)}>
-        ✕
+        <Icon name="close" />
       </button>
     </span>
   ));
@@ -112,7 +113,7 @@ export function ResourcesPanel({ compact = false }: { compact?: boolean }) {
     return (
       <section className="strip resources compact">
         <button className="label linkish" onClick={toggle} title={t("res.expand")}>
-          ▸ {t("res.label")} · CPU {res.cpu.pct}% · RAM {res.ram.usedGb}/{res.ram.totalGb} GB
+          <Icon name="chevronRight" /> {t("res.label")} · CPU {res.cpu.pct}% · RAM {res.ram.usedGb}/{res.ram.totalGb} GB
           {res.gpu.kind !== "none" ? ` · GPU ${gpuPct}%` : ""}
           {res.loaded.length ? ` · ${res.loaded.map((m) => `${m.name} ${placementText(t, m)}`).join(", ")}` : ""}
         </button>
@@ -123,7 +124,7 @@ export function ResourcesPanel({ compact = false }: { compact?: boolean }) {
     <section className={`strip resources ${compact ? "compact" : ""}`}>
       {compact ? (
         <button className="label linkish" onClick={toggle} title={t("res.collapse")}>
-          ▾ {t("res.label")}
+          <Icon name="chevronDown" /> {t("res.label")}
         </button>
       ) : (
         <div className="label">{t("res.label")}</div>

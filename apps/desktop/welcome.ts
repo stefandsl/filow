@@ -1,8 +1,10 @@
+import { mountIcons } from "../web/components/icons";
 import { t, LANG_LABELS, acceptUiSnapshot, themeFollowing, type I18nKey, type UiBridge, type UiPatch, type UiSnapshot, type UiResult } from "../../packages/core/src/index";
 import { applyUiPreferences } from "../web/lib/applyUiPreferences";
 import "./welcome.css";
 
 declare global { interface Window { filowWelcome: UiBridge & { complete: () => Promise<UiResult> } } }
+mountIcons(document);
 const bridge = window.filowWelcome;
 const language = document.querySelector<HTMLSelectElement>("#language")!;
 const theme = document.querySelector<HTMLSelectElement>("#theme")!;

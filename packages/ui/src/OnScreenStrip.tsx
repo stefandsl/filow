@@ -31,7 +31,7 @@ export function OnScreenStrip({ screen, unmentioned = [], analysing, onLookNow, 
             <div className="row">
               {screen.pointsToMake.map((p, i) => (
                 <span key={i} className="next-item">
-                  ▸ {p}
+                  {p}
                 </span>
               ))}
             </div>

@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "./icons";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -351,32 +352,32 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         <span className="subtitle">{t("app.tagline")}</span>
         <span className="spacer" />
         <PairPanel info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} onNewCode={() => void sessionInfo.newCode()} />
-        {show && <span className="chip live">📽 {t("stage.slide", { n: show.index + 1, total: show.total })}</span>}
+        {show && <span className="chip live"><Icon name="slides" /> {t("stage.slide", { n: show.index + 1, total: show.total })}</span>}
         {update?.status === "checking" && <span className="chip busy">{t("update.checking")}</span>}
-        {update?.status === "downloading" && <span className="chip busy">⬇ {t("update.downloading", { version: update.version })}</span>}
-        {update?.status === "downloaded" && <span className="chip live" title={t("update.ready", { version: update.version })}>⬆ {update.version}</span>}
+        {update?.status === "downloading" && <span className="chip busy"><Icon name="down" /> {t("update.downloading", { version: update.version })}</span>}
+        {update?.status === "downloaded" && <span className="chip live" title={t("update.ready", { version: update.version })}><Icon name="up" /> {update.version}</span>}
         {update?.status === "error" && <span className="chip err" title={update.error}>{t("update.error", { error: update.error.slice(0, 40) })}</span>}
         {publicLink && (
           <button className="chip live" title={t("pair.stopPublic")} onClick={() => desktopBridge()?.setRemoteShare?.(false)}>
-            🌐 {t("pair.publicChip")} ✕
+            <Icon name="globe" /> {t("pair.publicChip")} <Icon name="close" />
           </button>
         )}
         {offline && <span className="chip err">{t("app.offline")}</span>}
-        {eng.backend && <span className="chip live">● {BACKEND_LABELS[eng.backend]}</span>}
-        {eng.slowMs && <span className="chip err" title={t("app.slowTitle")}>⏱ {t("app.slow", { ms: eng.slowMs })}</span>}
+        {eng.backend && <span className="chip live"><Icon name="circle" /> {BACKEND_LABELS[eng.backend]}</span>}
+        {eng.slowMs && <span className="chip err" title={t("app.slowTitle")}><Icon name="clock" /> {t("app.slow", { ms: eng.slowMs })}</span>}
         {plan && eng.recording && (
           <span className="chip" title={t("plan.chipTitle")}>
-            ⚙ {t(`plan.stt.${plan.stt.backend ?? "none"}`)} · {t(`plan.decision.${plan.decision.provider ?? "none"}`)}
+            <Icon name="sliders" /> {t(`plan.stt.${plan.stt.backend ?? "none"}`)} · {t(`plan.decision.${plan.decision.provider ?? "none"}`)}
             {plan.decision.measuredMs ? ` ${plan.decision.measuredMs} ms` : ""}
           </span>
         )}
         {screen.status === "watching" && (
           <>
             <span className="chip rec" title={t("screen.recTitle", { label: screen.label })}>
-              ● {t("screen.rec")} · {state.screenStats?.analysing ? t("app.analysing") : screen.label}
+              <Icon name="circle" /> {t("screen.rec")} · {state.screenStats?.analysing ? t("app.analysing") : screen.label}
             </span>
             <button className="btn danger small" onClick={screen.stopWatching} title={t("screen.stopWatching")}>
-              ■ {t("screen.stop")}
+              <Icon name="stop" /> {t("screen.stop")}
             </button>
           </>
         )}
@@ -409,7 +410,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
                   onDoubleClick={() => engine.dispatch(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id })}
                   title={t("stage.toggle")}
                 >
-                  <span className="mark">{started ? "✓" : ""}</span>
+                  <span className="mark">{started ? <Icon name="check" /> : null}</span>
                   <span className="status">
                     {t(`status.${st.status}`)}
                     {!started && <span className="pct">· {Math.round(st.confidence * 100)}%</span>}
@@ -426,7 +427,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
               <div className="row">
                 {nextSection.bullets.map((b) => (
                   <span key={b.id} className={`next-item ${points[b.id]?.status === "started" ? "done" : ""}`}>
-                    ○ {b.text}
+                    <Icon name="circle" /> {b.text}
                   </span>
                 ))}
               </div>
@@ -523,7 +524,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
 
       {update?.status === "downloaded" && !updateDismissed && (
         <div className="update-banner">
-          <span>⬆ {t("update.ready", { version: update.version })}</span>
+          <span><Icon name="up" /> {t("update.ready", { version: update.version })}</span>
           <button className="btn primary" onClick={() => desktopBridge()?.installUpdate?.()}>
             {t("update.restart")}
           </button>
@@ -688,7 +689,7 @@ function StartModeDialog({ readiness, onPick, onCancel }: { readiness: Readiness
   const autoWhy = auto === "local" ? t(readiness.advice.reason === "gpu" ? "start.autoGpu" : "start.autoRam", { gpu: readiness.gpuName }) : auto === "cloud" ? t("start.autoCloud") : "";
   const Line = ({ ok, label }: { ok: boolean; label: string }) => (
     <div className={`check ${ok ? "ok" : "missing"}`}>
-      {ok ? "✓" : "✗"} {label} <span className="hint">· {ok ? t("start.ready") : t("start.missing")}</span>
+      <Icon name={ok ? "check" : "close"} /> {label} <span className="hint">· {ok ? t("start.ready") : t("start.missing")}</span>
     </div>
   );
   return (

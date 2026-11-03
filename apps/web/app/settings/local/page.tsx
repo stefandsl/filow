@@ -479,7 +479,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
             <div className="label">Ollama</div>
             <div className="row">
               <span className={`chip ${status.ollama.ok ? "live" : "err"}`}>
-                {status.ollama.reachable ? `● ${status.ollama.version}${status.ollama.ok ? "" : ` ${t("settings.ollamaNeed", { v: status.ollama.minimum })}`}` : t("settings.ollamaNotRunning")}
+                {status.ollama.reachable ? `${status.ollama.version}${status.ollama.ok ? "" : ` ${t("settings.ollamaNeed", { v: status.ollama.minimum })}`}` : t("settings.ollamaNotRunning")}
               </span>
               <span className="hint">{status.ollama.url}</span>
               <span className="hint">
