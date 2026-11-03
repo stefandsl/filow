@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { UiPreferencesProvider } from "../components/UiPreferencesProvider";
 
 export const metadata: Metadata = {
   title: "Filow",
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><UiPreferencesProvider>{children}</UiPreferencesProvider></body>
     </html>
   );
 }

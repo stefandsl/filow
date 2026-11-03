@@ -1,53 +1,8 @@
-:root {
-  /* Filow brand kit: ink #08090B, white, warm gradient gold #FFE000 -> amber #FFB600 -> orange #FF6500. */
-  --bg: #08090b;
-  --panel: #13151a;
-  --panel-2: #1b1e26;
-  --border: #292c34;
-  --text: #f7f7f5;
-  --muted: #a4a8b3;
-  --accent: #ffb600;
-  --accent-2: #ff6500;
-  --gold: #ffe000;
-  --brand-gradient: linear-gradient(135deg, #ffe000 0%, #ffb600 48%, #ff6500 100%);
-  --accent-ring: rgba(255, 182, 0, 0.35);
-  --ok: #4ad67a;
-  --warn: #ff6b6b;
-  /* Frosted glass: panels are translucent and blur what is behind them (a soft brand glow on the
-     page; the desktop's acrylic/vibrancy window when [data-glass] is set by the desktop shell). */
-  --glass: rgba(19, 21, 26, 0.62);
-  --glass-2: rgba(27, 30, 38, 0.66);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-blur: saturate(140%) blur(18px);
-  --glow-a: rgba(255, 182, 0, 0.10);
-  --glow-b: rgba(255, 101, 0, 0.07);
-  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
-}
+@import "./theme-tokens.css";
 
-/* Light theme ("black and white"): same tokens, different values. Picked by the toggle
-   (prefs:theme = system | light | dark) and, for "system", by prefers-color-scheme. */
-:root[data-theme="light"] {
-  --bg: #f7f7f5;
-  --panel: #ffffff;
-  --panel-2: #eef0f4;
-  --border: #d8deea;
-  --text: #08090b;
-  --muted: #555e73;
-  --accent: #c27f00;
-  --accent-2: #e05a00;
-  --accent-ring: rgba(255, 182, 0, 0.45);
-  --ok: #1f8a46;
-  --warn: #c0392b;
-  --glass: rgba(255, 255, 255, 0.62);
-  --glass-2: rgba(238, 240, 244, 0.7);
-  --glass-border: rgba(8, 9, 11, 0.08);
-  --glow-a: rgba(255, 182, 0, 0.16);
-  --glow-b: rgba(255, 101, 0, 0.08);
-}
 :root[data-theme="light"] .chip.live { border-color: #bfe6cc; }
 :root[data-theme="light"] .chip.err { border-color: #f1c6c0; }
-:root[data-theme="light"] .btn.primary { color: #08090b; }
+:root[data-theme="light"] .btn.primary { color: var(--action-foreground); }
 :root[data-theme="light"] .strip.onscreen { border-color: #f3dca3; }
 :root[data-theme="light"] .point.started { background: #eaf7ee; }
 :root[data-theme="light"] .point.hot { background: #fff6dc; }
@@ -125,8 +80,9 @@ h1.section-title { font-size: 26px; margin: 6px 0 10px; font-weight: 700; }
   padding: 9px 14px; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; cursor: pointer;
 }
 .btn:hover { border-color: var(--accent); }
-.btn.primary { background: var(--brand-gradient); color: #08090b; border-color: transparent; }
+.btn.primary { background: var(--action-background); color: var(--action-foreground); border-color: transparent; }
 .btn.primary:hover { filter: brightness(1.06); border-color: transparent; }
+:root[data-system-accent] .btn.primary:hover { filter: none; box-shadow: 0 0 0 2px var(--accent-ring); }
 .btn.danger { border-color: #5a2626; color: var(--warn); }
 .btn:disabled { opacity: 0.5; cursor: default; }
 select.btn { text-transform: none; letter-spacing: 0; }
@@ -238,3 +194,5 @@ input.btn.hotkey { width: min(100%, 320px); }
 .startmode .check.ok { color: var(--ok); }
 .startmode .check.missing { color: var(--warn); }
 .startmode .mode .btn { margin-top: auto; }
+
+:focus-visible { outline: 3px solid var(--accent-ring); outline-offset: 3px; }

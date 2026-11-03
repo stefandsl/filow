@@ -53,9 +53,31 @@ Filow keeps the bullet points and adds the feedback. It listens, and twice a sec
 | 🧩 **Browser extension** | reveal.js, Slidev, Marp, Canva, Pitch: generate the script from the deck and follow the live slide. |
 | 📄 **Import** | PDF, PPTX, DOCX, TXT or Markdown become talking points, one section per slide or page. |
 | 🔒 **Privacy modes** | On-device Whisper, a local decision model via Ollama, a PII guard before any cloud call, and a full offline mode. |
-| 🌍 **English and Italian UI** | One toggle, remembered per browser; the desktop menu follows. |
+| 🌍 **English and Italian UI** | Automatic / English / Italiano; desktop windows and menus share one preference, browsers keep their own. |
 | 🌗 **Light and dark theme** | ☀ / ◐ / ☾ toggle; "system" follows Windows or macOS. |
 | 🔄 **Self-updating** | The desktop app checks GitHub and installs new versions itself. |
+
+## First-run welcome
+
+The desktop app opens **Welcome** before loading the main app or offering local AI setup.
+Choose Automatic (OS language, Italian or English fallback), English, or Italiano; system theme
+is on and system accent following is off by default. Turning system theme off keeps the current
+appearance and reveals Light/Dark choices. Accent following uses your OS color with contrasting
+text; off restores Filow yellow. Changes apply immediately to all desktop windows, independently
+of the spoken-language setting. Browser and phone preferences remain separate.
+
+**Get started** or the title-bar X saves completion once per profile. Reopen all four options from
+**Filow > Welcome...** without interrupting a take. The startup switch is available in installed
+Windows/macOS builds, never enables itself, and reflects OS startup settings; macOS may require
+Login Items approval. Startup is hidden in development/Windows portable builds and on Linux;
+Linux also hides system accent following. macOS login/accent behavior still needs real-device QA.
+
+For isolated source testing, set `FILOW_USER_DATA_DIR` to an absolute path, for example
+`G:\FILOW\tmp\welcome-qa`; both Electron userData and sessionData use it, with no legacy profile
+import. Set TEMP/TMP and tool caches inside that QA folder too. Build with
+`npm run build` and `npm run build:welcome -w apps/desktop`, then run `npx electron .` in
+`apps/desktop`. `npm run start -w apps/desktop` rebuilds Welcome automatically. The flag is
+`welcomeCompleted` in the profile's `settings.json`; an absent/false flag shows Welcome.
 
 ## Quick start
 

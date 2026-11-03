@@ -1,5 +1,56 @@
 // Per-browser preferences (not secrets). Server-side defaults come from env.
 import { isLang, langFromLocale, type DecisionProviderId, type Lang, type ScreenMode } from "@filow/core";
+import { acceptUiSnapshot, type UiLanguage, type UiSnapshot, type UiPatch } from "@filow/core";
+import { desktopBridge, type DesktopBridge } from "./sessionUrl";
+
+let desktopState: UiSnapshot | null = null;
+let uiError: "ui.saveError" | "ui.startupError" | null = null;
+const uiListeners = new Set<() => void>();
+export function subscribeUiPreferences(fn: () => void) { uiListeners.add(fn); return () => { uiListeners.delete(fn); }; }
+export function notifyUiPreferences() { uiListeners.forEach(fn => fn()); }
+export function getDesktopPreferences() { return desktopState; }
+export function getUiError() { return uiError; }
+export function receiveUiPreferences(next: UiSnapshot) {
+  const accepted = acceptUiSnapshot(desktopState, next);
+  if (accepted === desktopState) return;
+  desktopState = accepted;
+  try {
+    if (accepted.lang) localStorage.setItem("prefs:lang", accepted.lang);
+    else localStorage.removeItem("prefs:lang");
+    localStorage.setItem("prefs:theme", accepted.theme);
+  } catch { /* persistence in the desktop profile is authoritative */ }
+  notifyUiPreferences();
+}
+export function legacyUiPreferences(storage: Pick<Storage, "getItem">): UiPatch {
+  const lang = storage.getItem("prefs:lang"), theme = storage.getItem("prefs:theme");
+  return { ...(isLang(lang) ? { lang } : {}), ...(theme === "light" || theme === "dark" || theme === "system" ? { theme } : {}) };
+}
+/** One subscription per root; cancellation also ignores outstanding initial IPC replies. */
+export function connectDesktopPreferences(bridge: Pick<DesktopBridge, "getPreferences" | "onPreferencesChanged" | "migrateUiPreferences">, ready: () => void, failure: () => void): () => void {
+  let active = true;
+  let legacy: UiPatch = {};
+  try { legacy = legacyUiPreferences(localStorage); } catch { /* browser storage may be disabled */ }
+  const unsubscribe = bridge.onPreferencesChanged?.(state => { if (active) receiveUiPreferences(state); });
+  void (async () => {
+    try {
+      if (bridge.migrateUiPreferences) {
+        const result = await bridge.migrateUiPreferences(legacy);
+        if (active) { uiError = result.ok ? null : result.code; receiveUiPreferences(result.state); }
+      }
+      const initial = await bridge.getPreferences!();
+      if (active) { receiveUiPreferences(initial); ready(); }
+    } catch { if (active) failure(); }
+  })();
+  return () => { active = false; unsubscribe?.(); };
+}
+async function updateDesktopPreferences(patch: UiPatch) {
+  try {
+    const result = await desktopBridge()!.updatePreferences!(patch);
+    uiError = result.ok ? null : result.code;
+    receiveUiPreferences(result.state);
+  } catch { uiError = "ui.saveError"; }
+  notifyUiPreferences();
+}
 
 const KEY = "prefs:decisionProvider";
 
@@ -52,6 +103,7 @@ const LANG_KEY = "prefs:lang";
 
 /** Stored choice, else the browser locale. */
 export function getLang(): Lang {
+  if (desktopState) return desktopState.resolvedLang;
   try {
     const v = localStorage.getItem(LANG_KEY);
     if (isLang(v)) return v;
@@ -61,13 +113,20 @@ export function getLang(): Lang {
   return typeof navigator !== "undefined" ? langFromLocale(navigator.language) : "en";
 }
 
-export function setLang(lang: Lang): void {
+export function getLanguagePref(): UiLanguage {
+  if (desktopState) return desktopState.lang;
+  try { const value = localStorage.getItem(LANG_KEY); return isLang(value) ? value : ""; } catch { return ""; }
+}
+export function setLang(lang: UiLanguage): void {
+  if (desktopBridge()?.updatePreferences) { void updateDesktopPreferences({ lang }); return; }
   try {
-    localStorage.setItem(LANG_KEY, lang);
+    if (lang) localStorage.setItem(LANG_KEY, lang);
+    else localStorage.removeItem(LANG_KEY);
   } catch {
     /* ignore */
   }
-  (globalThis as { filow?: { setLang?: (l: Lang) => void } }).filow?.setLang?.(lang);
+  desktopBridge()?.setLang?.(lang);
+  notifyUiPreferences();
 }
 
 // ---- Theme: system | light | dark ----
@@ -75,6 +134,7 @@ export type ThemePref = "system" | "light" | "dark";
 const THEME_KEY = "prefs:theme";
 
 export function getThemePref(): ThemePref {
+  if (desktopState) return desktopState.theme;
   try {
     const v = localStorage.getItem(THEME_KEY);
     return v === "light" || v === "dark" || v === "system" ? v : "system";
@@ -84,12 +144,14 @@ export function getThemePref(): ThemePref {
 }
 
 export function setThemePref(t: ThemePref): void {
+  if (desktopBridge()?.updatePreferences) { void updateDesktopPreferences({ theme: t }); return; }
   try {
     localStorage.setItem(THEME_KEY, t);
   } catch {
     /* ignore */
   }
-  (globalThis as { filow?: { setTheme?: (t: ThemePref) => void } }).filow?.setTheme?.(t);
+  desktopBridge()?.setTheme?.(t);
+  notifyUiPreferences();
 }
 
 /** The theme actually shown for a preference, following the OS for "system". */

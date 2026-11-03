@@ -14,11 +14,14 @@
     "dist:mac": "electron-builder --mac --publish never",
     "dist:linux": "electron-builder --linux --publish never",
     "icon": "node ../../scripts/make-icon.js",
-    "vendor": "esbuild ../../node_modules/electron-updater/out/main.js --bundle --platform=node --target=node20 --format=cjs --external:electron --outfile=vendor/electron-updater.js",
+    "vendor": "esbuild ../../node_modules/electron-updater/out/main.js --bundle --platform=node --target=node20 --format=cjs --external:electron --outfile=vendor/electron-updater.js && npm run build:welcome",
     "predist": "npm run vendor",
     "predist:win": "npm run vendor",
     "predist:mac": "npm run vendor",
-    "predist:linux": "npm run vendor"
+    "predist:linux": "npm run vendor",
+    "build:welcome": "esbuild welcome.ts --bundle --platform=browser --target=chrome130 --outfile=vendor/welcome.js && esbuild ../../packages/core/src/i18n.ts ../../packages/core/src/ui-preferences.ts --bundle --platform=node --format=cjs --outdir=vendor",
+    "prestart": "npm run build:welcome",
+    "typecheck": "tsc --noEmit --strict --skipLibCheck --target es2022 --moduleResolution bundler --module esnext welcome.ts"
   },
   "devDependencies": {
     "electron": "45.2.1",
@@ -52,7 +55,11 @@
       "build/icon.ico",
       "build/wordmark-white.svg",
       "build/wordmark-black.svg",
-      "package.json"
+      "package.json",
+      "welcome.html",
+      "welcome-preload.js",
+      "ui-preferences.js",
+      "vendor/*.css"
     ],
     "asar": true,
     "extraResources": [

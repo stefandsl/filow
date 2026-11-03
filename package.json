@@ -17,7 +17,7 @@
     "start": "npm run start -w apps/web",
     "start:server": "npm run start:server -w apps/web",
     "start:session": "npm run start -w apps/server",
-    "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck -w apps/web && npm run typecheck -w apps/server && npm run typecheck -w apps/powerpoint && npm run typecheck -w apps/browser",
+    "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck -w apps/web && npm run typecheck -w apps/server && npm run typecheck -w apps/powerpoint && npm run typecheck -w apps/browser && npm run typecheck -w apps/desktop",
     "test": "vitest run",
     "test:watch": "vitest",
     "desktop": "npm run build && npm run start -w apps/desktop",

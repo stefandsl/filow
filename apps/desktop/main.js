@@ -5,7 +5,7 @@
 //     the mirror; the spend endpoints are gated by a per-launch random password.
 //   Hosted mode: FILOW_SESSION_URL (+ ACCESS_PASSWORD) in .env points the
 //     engine at a public session server; local servers stay on 127.0.0.1.
-const { app, BrowserWindow, Menu, shell, session, dialog, desktopCapturer, globalShortcut, ipcMain, screen, nativeTheme, Notification, clipboard } = require("electron");
+const { app, BrowserWindow, Menu, shell, session, dialog, desktopCapturer, globalShortcut, ipcMain, screen, nativeTheme, systemPreferences, Notification, clipboard } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -25,6 +25,13 @@ const webServer = packaged
   : path.join(resources, "web", ".next", "standalone", "apps", "web", "server.js");
 const sessionServer = packaged ? path.join(resources, "server", "bundle.js") : path.join(resources, "server", "dist", "bundle.js");
 const seedDir = packaged ? resources : path.join(resources, "web");
+// Isolated QA profile; must be set before any profile or Chromium cache access.
+if (process.env.FILOW_USER_DATA_DIR) {
+  if (!path.isAbsolute(process.env.FILOW_USER_DATA_DIR)) throw new Error("FILOW_USER_DATA_DIR must be absolute");
+  fs.mkdirSync(process.env.FILOW_USER_DATA_DIR, { recursive: true });
+  app.setPath("userData", process.env.FILOW_USER_DATA_DIR);
+  app.setPath("sessionData", process.env.FILOW_USER_DATA_DIR);
+}
 const userData = app.getPath("userData");
 const envFile = path.join(userData, ".env");
 const scriptFile = path.join(userData, "script.md");
@@ -47,6 +54,7 @@ function aliasLegacyEnv() {
 
 /** Copies settings, keys, script, certificates, add-in files and the tunnel tool from the old profile, once. */
 function migrateLegacyProfile() {
+  if (process.env.FILOW_USER_DATA_DIR) return false;
   if (fs.existsSync(settingsFile) || fs.existsSync(envFile)) return false;
   const src = LEGACY_PROFILE_DIRS.find((d) => fs.existsSync(path.join(d, "settings.json")) || fs.existsSync(path.join(d, ".env")));
   if (!src) return false;
@@ -167,9 +175,14 @@ function mt(key, vars) {
   const text = MENU_TEXT[menuLang()][key] || MENU_TEXT.en[key] || key;
   return vars ? text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : text;
 }
+let initialUiSettings = {};
 function loadSettings() {
   try {
-    settings = { ...settings, ...JSON.parse(fs.readFileSync(settingsFile, "utf8")) };
+    const loaded = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
+    if (loaded && typeof loaded === "object" && !Array.isArray(loaded)) {
+      initialUiSettings = { ...loaded };
+      settings = { ...settings, ...loaded };
+    }
   } catch {
     /* first run */
   }
@@ -181,12 +194,110 @@ function loadSettings() {
     saveSettings();
   }
 }
-function saveSettings() {
+function saveSettings(candidate = settings) {
   fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
-  fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+  const temporary = settingsFile + ".tmp";
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(candidate, null, 2));
+    fs.renameSync(temporary, settingsFile);
+    settings = candidate;
+  } catch (error) {
+    try { fs.rmSync(temporary, { force: true }); } catch { /* original error wins */ }
+    throw error;
+  }
 }
 
 let mainWin = null;
+const { t: sharedText } = require("./vendor/i18n");
+const { createUiPreferences, trustedUiSender, createWelcomeController } = require("./ui-preferences");
+const { pathToFileURL } = require("node:url");
+const welcomeFile = path.join(__dirname, "welcome.html");
+const welcomeUrl = pathToFileURL(welcomeFile).href;
+let uiPreferences, welcomeController, welcomeWin = null;
+let startupTransition = false, quitting = false;
+let welcomeHydrationTimer;
+
+function uiSender(event, welcomeOnly = false) {
+  return trustedUiSender(event, {
+    welcome: welcomeWin?.webContents,
+    pages: [mainWin?.webContents, overlayWin?.webContents].filter(Boolean),
+    welcomeUrl, appUrl: APP_URL,
+  }, welcomeOnly);
+}
+function initializeUiPreferences() {
+  uiPreferences = createUiPreferences({
+    app, nativeTheme, systemPreferences, platform: process.platform, execPath: process.execPath,
+    portable: !!(process.env.PORTABLE_EXECUTABLE_FILE || process.env.PORTABLE_EXECUTABLE_DIR),
+    read: () => settings, save: saveSettings, initial: initialUiSettings,
+    canComplete: () => !quitting && !!welcomeWin && !welcomeWin.isDestroyed(),
+  });
+  welcomeController = createWelcomeController({
+    createWindow: createWelcomeWindow,
+    complete: () => uiPreferences.complete(),
+    isQuitting: () => quitting,
+    onFocus: () => uiPreferences.refresh(),
+    onFailure: () => {
+      clearTimeout(welcomeHydrationTimer);
+      dialog.showErrorBox("Filow", sharedText("welcome.loadError", menuLang()));
+      app.quit();
+    },
+    onSaveFailure: result => {
+      if (welcomeWin && !welcomeWin.isDestroyed()) void dialog.showMessageBox(welcomeWin, { type: "error", title: "Filow", message: sharedText(result.code, menuLang()) });
+    },
+    onClosed: () => {
+      clearTimeout(welcomeHydrationTimer); welcomeWin = null;
+      if (mainWin && !mainWin.isDestroyed() && !quitting) mainWin.focus();
+    },
+  });
+  uiPreferences.subscribe(state => {
+    for (const win of [mainWin, overlayWin, welcomeWin]) {
+      if (!win || win.isDestroyed()) continue;
+      const wc = win.webContents;
+      if (uiSender({ sender: wc, senderFrame: wc.mainFrame })) wc.send("ui:preferencesChanged", state);
+    }
+    if (mainWin && !mainWin.isDestroyed()) buildMenu(mainWin);
+  });
+  ipcMain.handle("ui:getPreferences", event => { if (!uiSender(event)) throw new Error("Denied"); return uiPreferences.get(); });
+  ipcMain.handle("ui:updatePreferences", (event, patch) => { if (!uiSender(event)) throw new Error("Denied"); return uiPreferences.update(patch); });
+  ipcMain.handle("ui:migratePreferences", (event, patch) => { if (!uiSender(event) || event.sender === welcomeWin?.webContents) throw new Error("Denied"); return uiPreferences.migrateLegacy(patch); });
+  for (const key of ["lang", "theme"]) ipcMain.on(`ui:${key}`, (event, value) => {
+    if (uiSender(event)) void uiPreferences.update({ [key]: value });
+  });
+  ipcMain.handle("welcome:complete", event => { if (!uiSender(event, true)) throw new Error("Denied"); return welcomeController.finish(); });
+  ipcMain.on("welcome:ready", event => {
+    if (!uiSender(event, true) || quitting) return;
+    clearTimeout(welcomeHydrationTimer);
+    welcomeWin.show();
+  });
+}
+function showWelcome() { return welcomeController.show(); }
+function createWelcomeWindow() {
+  const glass = (process.platform === "win32" && Number(os.release().split(".")[2] || 0) >= 22000) || process.platform === "darwin";
+  const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  const win = new BrowserWindow({
+    width: Math.min(1000, area.width), height: Math.min(720, area.height),
+    minWidth: Math.min(760, area.width), minHeight: Math.min(540, area.height),
+    x: area.x + Math.max(0, Math.floor((area.width - 1000) / 2)),
+    y: area.y + Math.max(0, Math.floor((area.height - 720) / 2)),
+    title: "Filow", icon: appIcon(), show: false, resizable: true,
+    ...(mainWin && !mainWin.isDestroyed() ? { parent: mainWin, modal: false } : {}),
+    backgroundColor: glass ? "#00000000" : uiTheme() === "dark" ? "#08090b" : "#f7f7f5",
+    ...(glass && process.platform === "win32" ? { backgroundMaterial: "acrylic" } : {}),
+    ...(glass && process.platform === "darwin" ? { vibrancy: "under-window", visualEffectState: "active" } : {}),
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true,
+      preload: path.join(__dirname, "welcome-preload.js"), additionalArguments: glass ? ["--filow-glass"] : [] },
+  });
+  welcomeWin = win;
+  win.setMenu(null);
+  const fail = () => welcomeController.fail();
+  win.webContents.on("will-navigate", event => event.preventDefault());
+  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  win.webContents.on("render-process-gone", fail);
+  win.webContents.on("did-fail-load", fail);
+  welcomeHydrationTimer = setTimeout(fail, 15000);
+  void win.loadFile(welcomeFile).catch(fail);
+  return win;
+}
 let selectedSourceId = null;
 let pickerWin = null;
 let picking = false;
@@ -326,18 +437,6 @@ function wireScreenSense() {
       currentSession = { id: info.id, code: info.code };
       if (changedSession && overlayWin && !overlayWin.isDestroyed()) overlayWin.loadURL(overlayUrl());
     }
-  });
-  ipcMain.on("ui:theme", (_e, theme) => {
-    if (theme !== "system" && theme !== "light" && theme !== "dark") return;
-    settings.theme = theme;
-    saveSettings();
-    nativeTheme.themeSource = theme;
-  });
-  ipcMain.on("ui:lang", (_e, lang) => {
-    if (lang !== "en" && lang !== "it") return;
-    settings.lang = lang;
-    saveSettings();
-    if (mainWin && !mainWin.isDestroyed()) buildMenu(mainWin);
   });
   ipcMain.handle("screen:settings", () => ({ hotkey: settings.screenHotkey, enabled: settings.screenSense }));
   ipcMain.handle("screen:setSettings", (_e, next) => {
@@ -1033,10 +1132,7 @@ function readInstallChoices() {
     if (!fs.existsSync(file)) return null;
     const choices = JSON.parse(fs.readFileSync(file, "utf8"));
     fs.rmSync(file, { force: true });
-    if (choices.lang === "it" || choices.lang === "en") {
-      settings.lang = choices.lang;
-      saveSettings();
-    }
+    // Installer locale is inferred, not an explicit UI language preference.
     return choices;
   } catch {
     return null;
@@ -1196,6 +1292,7 @@ function showOverlay() {
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
   });
   overlayWin.setAlwaysOnTop(true, "screen-saver");
+  overlayWin.on("focus", () => uiPreferences?.refresh());
   overlayWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   overlayWin.setContentProtection(Boolean(settings.overlayHidden));
   overlayWin.loadURL(overlayUrl());
@@ -1379,6 +1476,7 @@ function buildMenu(win) {
     {
       label: "Filow",
       submenu: [
+        { label: sharedText("menu.welcome", menuLang()), click: () => void showWelcome() },
         { label: mt("configFolder"), click: () => shell.openPath(userData) },
         { label: mt("editEnv"), click: () => shell.openPath(envFile) },
         { label: mt("settings"), click: () => win.loadURL(APP_URL + "/settings/local") },
@@ -1473,7 +1571,14 @@ async function main() {
     loadSettings();
     if (migrated) settings.profileMigrated = true;
     choices = readInstallChoices();
+    initializeUiPreferences();
+    if (settings.welcomeCompleted !== true) {
+      startupTransition = true;
+      await showWelcome();
+      if (quitting) return;
+    }
     showSplash();
+    startupTransition = false;
     splashStatus(st("servers"));
     startServers();
   } catch (err) {
@@ -1507,6 +1612,8 @@ async function main() {
     webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js"), additionalArguments: glass ? ["--filow-glass"] : [] },
   });
   mainWin = win;
+  win.on("focus", () => uiPreferences?.refresh());
+  win.on("closed", () => { mainWin = null; });
   nativeTheme.themeSource = settings.theme === "light" || settings.theme === "dark" ? settings.theme : "system";
   // §6.2: the window is already filtered out of Screen Sense's own chooser; hiding it from every
   // capture is opt-in (menu) because it also blanks the user's own screenshots.
@@ -1609,7 +1716,8 @@ async function main() {
 
 app.setAppUserModelId("com.intelliprompter.app");
 app.whenReady().then(main);
-app.on("window-all-closed", () => app.quit());
+app.on("window-all-closed", () => { if (!startupTransition) app.quit(); });
+app.on("before-quit", () => { quitting = true; uiPreferences?.dispose(); });
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
   stopTunnels();

@@ -53,9 +53,33 @@ Filow tiene i punti elenco e aggiunge il riscontro. Ascolta e, due volte al seco
 | 🧩 **Estensione per il browser** | reveal.js, Slidev, Marp, Canva, Pitch: genera lo script dal deck e segue la slide dal vivo. |
 | 📄 **Importazione** | PDF, PPTX, DOCX, TXT o Markdown diventano punti, una sezione per slide o pagina. |
 | 🔒 **Modalità privacy** | Whisper sul dispositivo, un modello di decisione locale tramite Ollama, un filtro PII prima di ogni chiamata cloud e una modalità offline completa. |
-| 🌍 **Interfaccia in inglese e italiano** | Un interruttore, ricordato per browser; il menu desktop lo segue. |
+| 🌍 **Interfaccia in inglese e italiano** | Automatico / English / Italiano; finestre e menu desktop condividono la preferenza, i browser hanno la propria. |
 | 🌗 **Tema chiaro e scuro** | Interruttore ☀ / ◐ / ☾; "sistema" segue Windows o macOS. |
 | 🔄 **Aggiornamento automatico** | L'app desktop controlla GitHub e installa da sola le nuove versioni. |
+
+## Finestra di benvenuto
+
+L'app desktop apre **Benvenuto** prima di caricare l'app principale o proporre la configurazione
+dell'AI locale. Scegli Automatico (lingua del sistema, italiano oppure inglese come ripiego), English
+o Italiano; il tema di sistema è attivo e il colore principale di sistema è disattivato per
+impostazione predefinita. Disattivando il tema di sistema si mantiene l'aspetto corrente e compaiono
+le scelte Chiaro/Scuro. Il colore di sistema usa testo a contrasto; disattivandolo torna il giallo
+Filow. Le modifiche sono immediate in tutte le finestre desktop e indipendenti dalla lingua parlata.
+Le preferenze di browser e telefono rimangono separate.
+
+**Inizia** o la X della finestra salva il completamento una volta per profilo. Riapri tutte e quattro
+le opzioni da **Filow > Benvenuto...** senza interrompere la registrazione. L'avvio automatico è
+disponibile nelle versioni installate Windows/macOS, non si attiva da solo e riflette le impostazioni
+del sistema; macOS può richiedere l'approvazione negli elementi di login. L'opzione è nascosta nelle
+versioni di sviluppo, in Windows portable e su Linux; Linux nasconde anche il colore di sistema.
+Avvio automatico e colore su macOS richiedono ancora una verifica su un dispositivo reale.
+
+Per test isolati dai sorgenti, imposta `FILOW_USER_DATA_DIR` su un percorso assoluto, ad esempio
+`G:\FILOW\tmp\welcome-qa`: userData e sessionData di Electron usano entrambi questa cartella, senza
+importare il vecchio profilo. Imposta anche TEMP/TMP e le cache degli strumenti nella cartella QA.
+Esegui `npm run build` e `npm run build:welcome -w apps/desktop`, poi `npx electron .` in
+`apps/desktop`. `npm run start -w apps/desktop` ricompila automaticamente Benvenuto. Il flag è
+`welcomeCompleted` in `settings.json` del profilo; se assente o falso, Benvenuto compare.
 
 ## Avvio rapido
 

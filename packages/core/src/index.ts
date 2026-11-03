@@ -9,3 +9,4 @@ export * from "./i18n";
 export * from "./engine";
 export * from "./gauntlet";
 export * from "./gate";
+export * from "./ui-preferences";

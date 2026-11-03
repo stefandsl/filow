@@ -6,6 +6,12 @@
  */
 export type DesktopBridge = {
   desktop: true;
+  getPreferences?: import("@filow/core").UiBridge["getPreferences"];
+  updatePreferences?: import("@filow/core").UiBridge["updatePreferences"];
+  onPreferencesChanged?: import("@filow/core").UiBridge["onPreferencesChanged"];
+  migrateUiPreferences?: (patch: import("@filow/core").UiPatch) => Promise<import("@filow/core").UiResult>;
+  setLang?: (lang: import("@filow/core").UiLanguage) => void;
+  setTheme?: (theme: import("@filow/core").UiTheme) => void;
   glass?: boolean;
   mode: "lan" | "hosted";
   sessionUrl: string;

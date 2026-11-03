@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Filow</title>
+  <link rel="stylesheet" href="vendor/welcome.css">
+  <script defer src="vendor/welcome.js"></script>
+</head>
+<body>
+  <main class="welcome">
+    <section class="brand" aria-labelledby="welcome-title">
+      <img class="wordmark white" src="build/wordmark-white.svg" alt="Filow" width="180">
+      <img class="wordmark black" src="build/wordmark-black.svg" alt="Filow" width="180">
+      <div class="brand-copy">
+        <p class="eyebrow" id="welcome-title" data-i18n="welcome.title"></p>
+        <h1 data-i18n="app.tagline"></h1>
+        <ul>
+          <li><span aria-hidden="true">✓</span><span data-i18n="welcome.featurePoints"></span></li>
+          <li><span aria-hidden="true">▤</span><span data-i18n="welcome.featureSlides"></span></li>
+          <li><span aria-hidden="true">▯</span><span data-i18n="welcome.featurePhone"></span></li>
+        </ul>
+      </div>
+      <footer data-i18n="welcome.footer"></footer>
+    </section>
+    <section class="options" aria-labelledby="personalize">
+      <header><h2 id="personalize" data-i18n="welcome.personalize"></h2><p data-i18n="welcome.subtitle"></p></header>
+      <div class="rows">
+        <div class="option-row"><label for="language" data-i18n="common.language"></label><select id="language"><option value="" data-i18n="ui.automatic"></option><option value="en"></option><option value="it"></option></select></div>
+        <div class="option-row" id="startup-row"><label for="startup" id="startup-label" data-i18n="ui.startupWindows"></label><input type="checkbox" role="switch" id="startup"><p id="startup-status" class="detail" aria-live="polite"></p></div>
+        <div class="option-row"><label for="follow-theme" data-i18n="ui.followTheme"></label><input type="checkbox" role="switch" id="follow-theme"><div id="explicit-theme" class="detail"><label for="theme" data-i18n="ui.theme"></label><select id="theme"><option value="light" data-i18n="ui.light"></option><option value="dark" data-i18n="ui.dark"></option></select></div></div>
+        <div class="option-row" id="accent-row"><label for="accent" data-i18n="ui.followAccent"></label><input type="checkbox" role="switch" id="accent"><p id="accent-status" class="detail" aria-live="polite"></p></div>
+      </div>
+      <p class="note" data-i18n="welcome.note"></p>
+      <p id="error" role="alert" aria-live="assertive"></p>
+      <div class="actions"><button id="start" class="primary"><span data-i18n="welcome.getStarted"></span><span aria-hidden="true"> →</span></button></div>
+    </section>
+  </main>
+</body>
+</html>

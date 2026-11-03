@@ -5,6 +5,14 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("filow", {
   desktop: true,
+  getPreferences: () => ipcRenderer.invoke("ui:getPreferences"),
+  updatePreferences: patch => ipcRenderer.invoke("ui:updatePreferences", patch),
+  migrateUiPreferences: patch => ipcRenderer.invoke("ui:migratePreferences", patch),
+  onPreferencesChanged: fn => {
+    const listener = (_event, state) => fn(state);
+    ipcRenderer.on("ui:preferencesChanged", listener);
+    return () => ipcRenderer.removeListener("ui:preferencesChanged", listener);
+  },
   /** The window is acrylic (Windows 11) or vibrancy (macOS): the page keeps its background transparent. */
   glass: process.argv.includes("--filow-glass"),
   mode: process.env.FILOW_SESSION_URL ? "hosted" : "lan",
