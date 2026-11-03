@@ -4,7 +4,7 @@
   "private": true,
   "description": "Filow: a live speaking companion that listens as you present, checks off your talking points as you cover them and shows what you missed.",
   "author": "Stefan Butnaru",
-  "license": "UNLICENSED",
+  "license": "GPL-3.0-or-later",
   "workspaces": [
     "apps/*",
     "packages/*"

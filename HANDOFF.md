@@ -8,7 +8,7 @@ end of every working session: "Where it stands", "Pending" and "Known gaps" are 
 
 A live speaking companion, not a scrolling teleprompter: it listens while you present, ticks off your
 talking points as you cover them and shows what you skipped. Tagline "Speak freely. Stay on point." /
-"Parla liberamente. Resta sul punto." Proprietary, © VoidExploit (Stefan Butnaru). Surfaces: Windows /
+"Parla liberamente. Resta sul punto." GPL-3.0-or-later since 0.9.18 (was proprietary), © VoidExploit (Stefan Butnaru). Surfaces: Windows /
 macOS / Linux desktop app (Electron), phone mirror (QR pairing, Cloudflare quick tunnel for any
 network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues from the screen),
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
@@ -24,6 +24,9 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.18, licence: relicensed from proprietary to GPL-3.0-or-later at the owner's request
+    (LICENSE = SPDX text, package.json `license` fields, README badges, installer licence pages
+    `apps/desktop/build/license_*.txt` = short notice + privacy paragraph + full GPL text).
   - 0.9.18, dependencies: `npm audit` went from 40 findings (4 critical) to 15
     moderate. Bumped next 15.3.3 → 15.5.28, vitest 3 → 5.1.0, electron 33.4.11 → 45.2.1 (also
     `build.electronVersion`), electron-builder 25 → 26.18.0, office-addin-manifest/dev-certs 1 → 3;

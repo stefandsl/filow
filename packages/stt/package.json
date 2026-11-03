@@ -14,5 +14,5 @@
     "@huggingface/transformers": "^4.3.2",
     "@filow/core": "*"
   },
-  "license": "UNLICENSED"
+  "license": "GPL-3.0-or-later"
 }

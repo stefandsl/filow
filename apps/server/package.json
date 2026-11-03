@@ -20,5 +20,5 @@
     "tsx": "^4.19.2",
     "typescript": "5.8.3"
   },
-  "license": "UNLICENSED"
+  "license": "GPL-3.0-or-later"
 }

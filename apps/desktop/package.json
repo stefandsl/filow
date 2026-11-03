@@ -4,7 +4,7 @@
   "private": true,
   "description": "Filow: the live speaking companion",
   "author": "VoidExploit",
-  "license": "UNLICENSED",
+  "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/stefandsl/filow",
   "main": "main.js",
   "scripts": {

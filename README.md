@@ -16,10 +16,10 @@ Filow is a live speaking companion: it listens as you present, checks off your t
   <img alt="Phone mirror" src="https://img.shields.io/badge/Android%20%7C%20iOS-phone%20mirror-08090B" />
   <img alt="PowerPoint" src="https://img.shields.io/badge/PowerPoint-add--in-b7472a" />
   <img alt="Languages" src="https://img.shields.io/badge/UI-English%20%7C%20Italiano-4ad67a" />
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-proprietary-8d8d99" /></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0-4ad67a" /></a>
 </p>
 
-<p align="center"><sub>Proprietary software, © 2026 Stefan Butnaru (VoidExploit), all rights reserved. Installers up to v0.6.0 still show the earlier MIT text in their licence page; from the next tag the installer carries the proprietary notice.</sub></p>
+<p align="center"><sub>Free software, © 2026 Stefan Butnaru (VoidExploit), released under the <a href="LICENSE">GNU General Public License v3.0 or later</a>. Installers before v0.9.18 still show the earlier proprietary (or, up to v0.6.0, MIT) text in their licence page; from v0.9.18 the installer carries the GPL notice.</sub></p>
 
 <p align="center">
   <a href="https://github.com/stefandsl/filow/releases/latest">Download</a> ·

@@ -29,5 +29,5 @@
     "typescript": "5.8.3",
     "vite": "^6.3.5"
   },
-  "license": "UNLICENSED"
+  "license": "GPL-3.0-or-later"
 }

@@ -12,5 +12,5 @@
   "dependencies": {
     "fast-json-patch": "^3.1.1"
   },
-  "license": "UNLICENSED"
+  "license": "GPL-3.0-or-later"
 }
