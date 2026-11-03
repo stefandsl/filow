@@ -21,14 +21,14 @@
     "predist:linux": "npm run vendor"
   },
   "devDependencies": {
-    "electron": "33.4.11",
-    "electron-builder": "^25.1.8",
+    "electron": "45.2.1",
+    "electron-builder": "^26.18.0",
     "electron-updater": "^6.8.11",
     "esbuild": "*"
   },
   "build": {
     "appId": "com.intelliprompter.app",
-    "electronVersion": "33.4.11",
+    "electronVersion": "45.2.1",
     "npmRebuild": false,
     "artifactName": "Filow-${version}-${os}-${arch}.${ext}",
     "productName": "Filow",
@@ -142,7 +142,7 @@
       "owner": "stefandsl",
       "repo": "filow-releases"
     },
-    "copyright": "Copyright \u00a9 2026 VoidExploit",
+    "copyright": "Copyright © 2026 VoidExploit",
     "asarUnpack": [
       "stt-worker.js",
       "node_modules/sherpa-onnx-node/**",

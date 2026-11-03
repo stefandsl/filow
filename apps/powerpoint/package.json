@@ -24,8 +24,8 @@
     "@types/react": "19.1.6",
     "@types/react-dom": "19.1.5",
     "@vitejs/plugin-react": "^4.3.4",
-    "office-addin-dev-certs": "^1.13.0",
-    "office-addin-manifest": "^1.13.0",
+    "office-addin-dev-certs": "^3.0.1",
+    "office-addin-manifest": "^3.0.1",
     "typescript": "5.8.3",
     "vite": "^6.3.5"
   },

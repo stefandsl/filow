@@ -24,6 +24,19 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - unreleased (after 0.9.17), dependencies: `npm audit` went from 40 findings (4 critical) to 15
+    moderate. Bumped next 15.3.3 → 15.5.28, vitest 3 → 5.1.0, electron 33.4.11 → 45.2.1 (also
+    `build.electronVersion`), electron-builder 25 → 26.18.0, office-addin-manifest/dev-certs 1 → 3;
+    root `overrides` pin sharp ^0.35.5 and postcss ^8.5.32 (next and transformers pulled vulnerable
+    copies; sharp is now an optional dependency of apps/web so npm keeps it installed). Verified:
+    110 tests, typecheck, web build, PowerPoint build + manifest validate, `desktop:build:win`
+    (installer + portable + latest.yml) and a 25 s launch of the app on Electron 45 (no
+    deprecation warnings). The 15 left are minimatch < 11 (globparts DoS) and rimraf/temp under
+    electron-builder's own tree: minimatch 11 dropped the CommonJS default export that glob 7 and
+    @electron/asar 3 call, and no release of those packages uses it yet, so they cannot be cleared
+    without breaking the packager. Build tooling only, nothing shipped. Re-check after the next
+    electron-builder release. The build rewrites `apps/powerpoint/manifest.xml` (new Id) and adds a
+    BOM to `apps/desktop/build/license_*.txt`: revert those before committing.
   - unreleased (after 0.9.17): `PUT /api/script` and `POST /api/local/plan` now require the engine
     token while `ACCESS_PASSWORD` is set (first item of the bug-hunt handoff). Reproduced on the dev
     server first: an anonymous caller overwrote the script file and ran the plan with `apply`.
