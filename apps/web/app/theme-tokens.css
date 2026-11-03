@@ -21,6 +21,17 @@
   --glass-2: rgba(27, 30, 38, 0.66);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-blur: saturate(140%) blur(18px);
+  /* Opacity is gated against white and black, including muted text and flat rows. */
+  --glass-raised: rgba(19, 21, 26, 0.90);
+  --glass-sheet: rgba(27, 30, 38, 0.92);
+  --glass-flat: rgba(27, 30, 38, 0.92);
+  --glass-blur-raised: saturate(140%) blur(22px);
+  --glass-blur-sheet: saturate(130%) blur(16px);
+  --glass-highlight: rgba(255, 255, 255, 0.14);
+  --glass-edge: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+  --glass-radius: 12px;
+  --glass-radius-pill: 999px;
   --glow-a: rgba(255, 182, 0, 0.10);
   --glow-b: rgba(255, 101, 0, 0.07);
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -44,6 +55,16 @@
   --glass: rgba(255, 255, 255, 0.62);
   --glass-2: rgba(238, 240, 244, 0.7);
   --glass-border: rgba(8, 9, 11, 0.08);
+  --glass-raised: rgba(255, 255, 255, 0.92);
+  --glass-sheet: rgba(255, 255, 255, 0.92);
+  --glass-flat: rgba(255, 255, 255, 0.92);
+  --glass-blur-raised: saturate(140%) blur(22px);
+  --glass-blur-sheet: saturate(130%) blur(16px);
+  --glass-highlight: rgba(255, 255, 255, 0.90);
+  --glass-edge: rgba(8, 9, 11, 0.08);
+  --glass-shadow: 0 8px 30px rgba(8, 9, 11, 0.06);
+  --glass-radius: 12px;
+  --glass-radius-pill: 999px;
   --glow-a: rgba(255, 182, 0, 0.16);
   --glow-b: rgba(255, 101, 0, 0.08);
 }
@@ -53,6 +74,10 @@
 :root[data-system-accent][data-theme="light"] { --glass: rgba(255,255,255,.92); --glass-2: rgba(238,240,244,.96); }
 :root[data-system-accent][data-glass] body { background-color: var(--glass); }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :root, :root[data-theme="light"] {
+    --glass-raised: var(--panel); --glass-sheet: var(--panel-2); --glass-flat: var(--panel-2);
+    --glass-blur-raised: none; --glass-blur-sheet: none;
+  }
   :root { --glass: var(--panel); --glass-2: var(--panel-2); --glass-blur: none; }
   :root[data-glass], :root[data-glass] body { background-color: var(--bg) !important; }
 }
