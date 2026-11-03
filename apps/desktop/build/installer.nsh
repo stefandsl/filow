@@ -641,6 +641,10 @@ FunctionEnd
   FileOpen $0 "$APPDATA\@filow\desktop\install-choices.json" w
   FileWrite $0 '{"models":[$1],"lang":"$2","ollama":$3,"hardware":{"ramGb":$RamGb,"freeGb":$FreeGb,"gpu":"$GpuName"}}'
   FileClose $0
+  ; The executable's icon changed in 0.9.15 and Explorer kept showing a stale (blank) icon on the
+  ; desktop shortcut after updates: tell the shell its associations changed so it rebuilds the icon
+  ; cache for our shortcuts (SHCNE_ASSOCCHANGED = 0x08000000).
+  System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 !macroend
 
 ; Only in the installer pass: $launchLink does not exist while the uninstaller is compiled.

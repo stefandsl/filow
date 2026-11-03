@@ -64,7 +64,7 @@ body {
   background-attachment: fixed;
 }
 /* Desktop shell on Windows 11 / macOS: the window itself is acrylic / vibrancy, so the page lets it through. */
-:root[data-glass] html, :root[data-glass] body { background-color: transparent; }
+:root[data-glass], :root[data-glass] body { background-color: transparent; }
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
   .point, .strip, .btn, select.btn, .modal, .missed-item, .source {
     background-color: var(--glass); border-color: var(--glass-border);

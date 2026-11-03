@@ -1488,16 +1488,23 @@ async function main() {
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(allowed(permission)));
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed(permission));
 
-  // The frosted-glass look lives in the page (globals.css). A window material (acrylic/vibrancy with a
-  // transparent background, tried in 0.9.9) cost maximize and full screen on Windows: not used.
+  // Frosted glass: Windows 11 (build 22000+) gets an acrylic window, macOS the under-window vibrancy; the
+  // page is told through --filow-glass and keeps its own background transparent (globals.css), so the
+  // desktop shows through the panels in the dark, light and system themes (the material follows
+  // nativeTheme). 0.9.9 had this and 0.9.11 dropped it because the window could not maximize or go full
+  // screen on Electron 33; measured again on Electron 45 (Windows 11 26300): acrylic + alpha-0 background
+  // maximizes and goes full screen (only `transparent: true` windows cannot, and that is not used here).
+  const glass = (process.platform === "win32" && Number(os.release().split(".")[2] || 0) >= 22000) || process.platform === "darwin";
   const win = new BrowserWindow({
     width: 1280,
     height: 820,
-    backgroundColor: "#08090b",
+    backgroundColor: glass ? "#00000000" : "#08090b",
+    ...(glass && process.platform === "win32" ? { backgroundMaterial: "acrylic" } : {}),
+    ...(glass && process.platform === "darwin" ? { vibrancy: "under-window", visualEffectState: "active" } : {}),
     title: "Filow",
     show: false,
     icon: appIcon(),
-    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js"), additionalArguments: glass ? ["--filow-glass"] : [] },
   });
   mainWin = win;
   nativeTheme.themeSource = settings.theme === "light" || settings.theme === "dark" ? settings.theme : "system";

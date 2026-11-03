@@ -32,6 +32,7 @@
     "npmRebuild": false,
     "artifactName": "Filow-${version}-${os}-${arch}.${ext}",
     "productName": "Filow",
+    "executableName": "Filow",
     "directories": {
       "output": "../../release",
       "buildResources": "build"

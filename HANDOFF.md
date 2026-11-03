@@ -24,6 +24,20 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - unreleased (after 0.9.18): the acrylic window is back. On Electron 45 / Windows 11 26300 a
+    `backgroundMaterial: "acrylic"` window with `backgroundColor: "#00000000"` maximizes and goes full
+    screen (measured with a probe: only `transparent: true` windows cannot), so the 0.9.11 reason is
+    gone; macOS gets `vibrancy: "under-window"`. The 0.9.9 CSS had a bug that made it invisible: the
+    selector `:root[data-glass] html` never matches (html is :root), so the root kept painting
+    `--bg` over the material; now `:root[data-glass], :root[data-glass] body` are transparent.
+    Verified on screen in light, dark and system (the material follows nativeTheme, which the page
+    sets through `ui:theme`). Also: `build.executableName: "Filow"` (electron-builder 26 derived
+    `@filowdesktop` from the package name and refused the Linux AppImage: v0.9.18 has Windows and
+    macOS assets only and was NOT copied to filow-releases; the next tag supersedes it), and the
+    installer calls SHChangeNotify(SHCNE_ASSOCCHANGED) after install because the owner's desktop
+    shortcut showed a blank icon after the 0.9.15 icon change (stale Explorer icon cache; the exe's
+    icon extracts fine). Wanted next (owner): a ShareX-style first-run welcome window (language,
+    run at Windows start, follow system theme, follow system accent colour), to be built by Codex.
   - 0.9.18, licence: relicensed from proprietary to GPL-3.0-or-later at the owner's request
     (LICENSE = SPDX text, package.json `license` fields, README badges, installer licence pages
     `apps/desktop/build/license_*.txt` = short notice + privacy paragraph + full GPL text).
