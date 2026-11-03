@@ -84,7 +84,7 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
         /* unsupported or denied */
       }
     } catch (err) {
-      setError((err as Error).message);
+      setError(t("mirror.connectionError", { error: (err as Error).message }));
       setStatus("idle");
     }
   };
@@ -98,7 +98,7 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
 
   const onCommand = (cmd: Command) => {
     void client?.send(cmd).then((r) => {
-      if (!r.ok) setError(r.error ?? "command failed");
+      if (!r.ok) setError(t("mirror.commandError", { error: r.error ?? "" }));
       else setError(null);
     });
   };
