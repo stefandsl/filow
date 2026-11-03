@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.20)
+## Where it stands (v0.9.21)
 
 - Independent Welcome review (2026-11-03, no commit): fixed false success when Windows leaves
   an externally disabled startup entry registered after an off request; added the desktop check
@@ -45,6 +45,15 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.21: the NSIS installer and the portable exe of 0.9.19/0.9.20 had NO icon resource (generic
+    icon in the browser's download list and in Explorer; the installed Filow.exe was fine). The NSIS
+    bundled with electron-builder 26 silently drops a PNG-compressed .ico entry, and build/icon.ico
+    had its 256 px entry as PNG. `scripts/make-icon.js` now writes every entry as a DIB (381 KB
+    .ico) and icon.ico is regenerated; checked with ExtractIconEx: installer, portable and app all
+    report one icon group and the extracted icon is the mark. RULE (paid twice today): before tagging,
+    build the Windows package locally (`electron-builder --win`), count icon groups and launch the
+    packaged Filow.exe on a throwaway profile with welcomeCompleted=true; the dev launch proves nothing
+    about packaging.
   - 0.9.20 (hotfix for 0.9.19, which did not start when installed: "Cannot find module 'next'"):
     electron-builder 26 drops a root `node_modules` folder from any `extraResources` source
     (app-builder-lib/out/util/filter.js line 43, unconditional), so the Next standalone shipped

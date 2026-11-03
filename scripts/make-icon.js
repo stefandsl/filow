@@ -15,8 +15,8 @@ const cp = (from, to) => {
 
 /**
  * Windows .ico. Entries up to 48 px are classic 32-bit DIBs (BGRA + AND mask): the shell, the
- * installer and rcedit (which stamps the exe) all read those; PNG-compressed entries are only safe
- * at 256 px. A PNG-only .ico shipped in 0.9.2 left the desktop shortcut with a blank icon.
+ * installer and rcedit (which stamps the exe) all read those; since 0.9.21 the 256 px entry is a DIB
+ * too (the NSIS in electron-builder 26 drops PNG entries). A PNG-only .ico shipped in 0.9.2 left the desktop shortcut with a blank icon.
  * Small sizes use the compact "O + cradle" mark from brand/windows-small (the full Fi tile is
  * unreadable under 32 px), larger sizes the full tile. Windows picks the entry by requested size.
  */
@@ -83,7 +83,9 @@ const mark = async (size) => (fs.existsSync(path.join(small, `filow-micro-gradie
 async function hybridIco(dest, variant, smallSizes, bigSizes) {
   const entries = [];
   for (const s of smallSizes) entries.push(await dibEntry(micro(variant, s)));
-  for (const s of bigSizes) entries.push(s >= 256 ? { size: s, blob: await mark(s) } : await dibEntry(await mark(s)));
+  // Every entry is a DIB, 256 px included: the NSIS bundled with electron-builder 26 silently drops a
+  // PNG-compressed entry and the installer / portable exe shipped with no icon at all (0.9.19).
+  for (const s of bigSizes) entries.push(await dibEntry(await mark(s)));
   writeIco(dest, entries);
 }
 
