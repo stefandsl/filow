@@ -384,14 +384,14 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
           )}
 
           <div className="points">
-            {section.bullets.map((b) => {
+            {section.bullets.map((b, i) => {
               const st = points[b.id] ?? { status: "waiting", confidence: 0 };
               const started = st.status === "started";
               const hot = !started && st.confidence >= 0.3;
               return (
                 <div
                   key={b.id}
-                  className={`point ${started ? "started" : ""} ${hot ? "hot" : ""}`}
+                  className={`point ${i >= 10 ? "far" : ""} ${started ? "started" : ""} ${hot ? "hot" : ""}`}
                   onDoubleClick={() => engine.dispatch(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id })}
                   title={t("stage.toggle")}
                 >
