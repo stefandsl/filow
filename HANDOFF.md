@@ -38,8 +38,9 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 - Repos: source `stefandsl/filow` (PUBLIC since 2026-11-03: the owner made it public so CI runs on free Actions minutes after a billing block; never commit keys, `.env` stays ignored; branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
   (folder still has the old name on purpose).
-- v0.9.19 was tagged on 2026-11-03 (CI run 41668909503, all three platforms green) and copied to the
-  public feed (latest.yml / latest-mac.yml / latest-linux.yml all say 0.9.19). v0.9.18 exists on the
+- v0.9.21 is the current public release (2026-11-03, CI run 41687452972, all three platforms green,
+  feed manifests say 0.9.21). 0.9.19 and 0.9.20 were published to the feed the same day and superseded
+  within hours (0.9.19 did not start when installed; 0.9.20 had no installer icon). v0.9.18 exists on the
   source repo only (no Linux assets). Before that: v0.8.7 was tagged on 2026-11-02 (CI run 41458509342); 0.8.6 was in the public feed. The public
   v0.8.5 release was deleted (no Windows assets: its installer script failed on CI, which made
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
