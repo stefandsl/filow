@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import postcss from 'postcss';
+import ts from 'typescript';
 
 const css = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
 const sheet = postcss.parse(css);
@@ -26,8 +27,8 @@ it('uses a fixed rem scale, tabular readings and token browser surfaces', () => 
   expect(component).not.toContain('t("stage.eyebrow")');
 });
 it('uses quiet labels, keyboard focus and bounded control transitions', () => {
-  sheet.walkDecls('text-transform', d => { expect(d.value).not.toBe('uppercase'); });
   for (const source of [css, readFileSync(new URL('../../desktop/welcome.css', import.meta.url), 'utf8')]) {
+    postcss.parse(source).walkDecls('text-transform', d => { expect(d.value.toLowerCase()).not.toBe('uppercase'); });
     expect(source).toContain('outline: 2px solid var(--accent); outline-offset: 2px');
     expect(source).toContain('opacity: 0.5; cursor: default');
     postcss.parse(source).walkDecls('transition', d => {
@@ -36,6 +37,21 @@ it('uses quiet labels, keyboard focus and bounded control transitions', () => {
     });
     expect(source).not.toContain('animation: pulse');
   }
+});
+it('uses drawn icons and plain visible strings across all polish surfaces', () => {
+  const paths = ['../components/Teleprompter.tsx', '../components/LangSwitch.tsx', '../components/ResourcesPanel.tsx', '../components/PairPanel.tsx', '../app/settings/local/page.tsx', '../app/mirror/page.tsx', '../../../packages/ui/src/StageView.tsx', '../../../packages/ui/src/OnScreenStrip.tsx'];
+  for (const path of paths) {
+    const source = readFileSync(new URL(path, import.meta.url), 'utf8');
+    const ast = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const visit = (node: ts.Node) => {
+      if (ts.isJsxText(node) || ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
+        expect(node.text, `${path}: ${node.getStart(ast)}`).not.toMatch(/[☀◐☾✓✕×→←—]/u);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(ast);
+  }
+  expect(readFileSync(new URL('../../desktop/welcome.html', import.meta.url), 'utf8')).not.toMatch(/[☀◐☾✓✕×→←—]/u);
 });
 it('uses shadows instead of drawn borders on glass layers', () => {
   sheet.walkRules(rule => {

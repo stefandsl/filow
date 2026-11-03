@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { Icon } from "../../../apps/web/components/icons";
 import type { Command, SessionState } from "@filow/core";
 import { missedPoints } from "@filow/core";
 import { OnScreenStrip } from "./OnScreenStrip";
@@ -21,7 +22,7 @@ export type StageViewProps = {
 };
 
 /** The live view: section, points, next strip, missed tray, on-screen strip, remote buttons. Uses the app's CSS classes. */
-export function StageView({ state, onCommand, banner, stage, compact, pointMark = "✓", previewMark = "○" }: StageViewProps) {
+export function StageView({ state, onCommand, banner, stage, compact, pointMark = <Icon name="check" />, previewMark = <Icon name="circle" /> }: StageViewProps) {
   const t = useT();
   const { script, sectionIdx, points, stats, engine, screen } = state;
   const section = script.sections[sectionIdx];
@@ -64,6 +65,15 @@ export function StageView({ state, onCommand, banner, stage, compact, pointMark 
                   key={b.id}
                   className={`point ${i >= 10 && !compact ? "far" : ""} ${started ? "started" : ""} ${hot ? "hot" : ""}`}
                   onDoubleClick={can ? () => send(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id }) : undefined}
+                  role={can ? "button" : undefined}
+                  tabIndex={can ? 0 : undefined}
+                  aria-pressed={can ? started : undefined}
+                  onKeyDown={can ? (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      send(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id });
+                    }
+                  } : undefined}
                 >
                   <span className="mark">{started ? pointMark : null}</span>
                   <span className="status">
@@ -94,7 +104,11 @@ export function StageView({ state, onCommand, banner, stage, compact, pointMark 
               <div className="label">{t("stage.missed", { n: missed.length })}</div>
               <div className="row scroll">
                 {missed.map((b) => (
-                  <span key={b.id} className="missed-item" onClick={can ? () => send({ type: "reopen", id: b.id }) : undefined}>
+                  <span key={b.id} className="missed-item" onClick={can ? () => send({ type: "reopen", id: b.id }) : undefined}
+                    role={can ? "button" : undefined} tabIndex={can ? 0 : undefined}
+                    onKeyDown={can ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); send({ type: "reopen", id: b.id }); }
+                    } : undefined}>
                     {t("stage.missedItem", { text: b.text })}
                   </span>
                 ))}

@@ -13,10 +13,11 @@ html, body { font-variant-numeric: tabular-nums; caret-color: var(--accent); scr
 :root[data-glass], :root[data-glass] body { background-color: transparent; }
 :root[data-theme="light"] body { color-scheme: light; }
 button { font: inherit; }
+body { font-size: var(--type-base); }
 
 .app { display: flex; flex-direction: column; min-height: 100vh; padding: 20px 28px; gap: 16px; }
 
-.topbar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 16px; }
+.topbar { display: flex; align-items: baseline; gap: 16px; }
 .logo { display: flex; align-items: center; gap: 12px; font-weight: 800; letter-spacing: 0; font-size: var(--type-lg); color: var(--text); }
 .subtitle { font-size: var(--type-xs); letter-spacing: 0; color: var(--muted); text-transform: none; }
 .topbar .spacer { flex: 1; }
@@ -38,7 +39,7 @@ h1.section-title { font-size: var(--type-2xl); margin: 16px 0 8px; font-weight: 
 }
 .point.started { background: var(--panel-2); color: var(--muted); }
 .point.started .text { text-decoration: line-through; }
-.point.hot { outline: 1px solid var(--accent-ring); }
+.point.hot:not(:focus-visible) { outline: 1px solid var(--accent-ring); }
 .point .mark { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--muted); display: inline-block; }
 .point.started .mark { border: none; color: var(--ok); font-size: 1.375rem; line-height: 22px; text-align: center; }
 .point .status { display: flex; flex-direction: column; font-size: var(--type-xs); letter-spacing: 0; text-transform: none; color: var(--muted); font-weight: 700; }
@@ -109,8 +110,8 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .strip.onscreen .fact { color: var(--text); border-width: 0; border-radius: var(--glass-radius); padding: 4px 8px; font-size: var(--type-sm); }
 .strip.onscreen .fact.unsaid { color: var(--text); outline: 1px solid var(--accent-ring); }
 .strip.onscreen .row.actions { gap: 8px; margin-top: 8px; }
-.chip.busy { color: var(--text); outline: 1px solid var(--accent-ring);  }
-.chip.rec { color: #fff; background: #c0392b; border-color: #c0392b; font-weight: 700;  }
+.chip.busy:not(:focus-visible) { color: var(--text); outline: 1px solid var(--accent-ring);  }
+.chip.rec { color: #fff; background: #942a20; font-weight: 700;  }
 .btn.small { padding: 4px 12px; font-size: var(--type-xs); }
 .meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .meter-head { display: flex; justify-content: space-between; font-size: var(--type-sm); font-weight: 700; letter-spacing: 0; text-transform: none; margin-bottom: 4px; }
@@ -165,7 +166,7 @@ input.btn.hotkey { width: min(100%, 320px); }
 .modal.startmode { width: min(760px, 94vw); }
 .startmode .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
 .startmode .mode { border-width: 0; border-radius: var(--glass-radius); padding: 16px; display: flex; flex-direction: column; gap: 8px; background: var(--bg); }
-.startmode .mode.notready { opacity: 0.75; }
+.startmode .mode.notready { opacity: 1; }
 .startmode .mode h3 { margin: 0; font-size: var(--type-md); }
 .startmode .check { font-size: var(--type-sm); }
 .startmode .check.ok { color: var(--ok); }
@@ -190,7 +191,7 @@ input.btn.hotkey { width: min(100%, 320px); }
 }
 .chip { border-radius: var(--glass-radius-pill); }
 .point.far { background: var(--glass-flat); box-shadow: none; }
-.point.far.hot { outline: 1px solid var(--accent-ring); }
+.point.far.hot:not(:focus-visible) { outline: 1px solid var(--accent-ring); }
 .point.started { background: var(--panel-2); }
 .point.far.started { background: var(--glass-flat); }
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
@@ -247,7 +248,7 @@ input.btn.hotkey { width: min(100%, 320px); }
   transition: background 180ms ease-out, box-shadow 180ms ease-out, transform 180ms ease-out, opacity 180ms ease-out;
 }
 :where(button, select, a.btn, label.btn, .source, .missed-item):not(:disabled):not(:has(input:disabled)):hover { background: var(--control-hover); }
-.btn.primary:not(:disabled):not(:has(input:disabled)):hover { background: color-mix(in srgb, var(--accent) 85%, var(--panel)); }
+.btn.primary:not(:disabled):not(:has(input:disabled)):hover { background: var(--control-hover); color: var(--text); }
 :where(button, select, a, label.btn, [role="button"]):not(:disabled):not(:has(input:disabled)):active { transform: translateY(1px); }
 :where(button, select, input, textarea):disabled, label:has(input:disabled), [aria-disabled="true"] { opacity: 0.5; cursor: default; }
 label:has(input:disabled) input { opacity: 1; }
@@ -256,7 +257,7 @@ input:not([type="checkbox"]):not([type="radio"]), textarea { cursor: text; }
 
 .icon { display: inline-block; width: 1.25rem; height: 1.25rem; vertical-align: middle; flex-shrink: 0; }
 
-::selection { background: var(--accent); color: var(--action-foreground); }
+::selection { background: var(--text); color: var(--bg); }
 * { scrollbar-color: var(--muted) var(--panel); }
 .section-count, .strip .label, .label.linkish, .controls .group .label, .footer { font-size: var(--type-sm); font-weight: 400; }
 .dock > .btn { padding: 8px 4px; flex-shrink: 0; }
@@ -267,3 +268,10 @@ input:not([type="checkbox"]):not([type="radio"]), textarea { cursor: text; }
 }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Preserve native field typography and numeric metrics after UA font shorthands. */
+button, input, select, textarea { font-family: var(--font); font-variant-numeric: tabular-nums; }
+::placeholder { color: var(--muted); opacity: 1; }
+:where(input, textarea, a, label, [role="button"]):not(:disabled):not(:has(input:disabled)):hover { background: var(--control-hover); }
+/* Point text stays still, including while its keyboard control is pressed. */
+.point[role="button"]:active { transform: none; }

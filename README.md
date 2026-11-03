@@ -43,6 +43,8 @@ Filow keeps the bullet points and adds the feedback. It listens, and twice a sec
 
 ## What it does
 
+In the prompter and a controllable mirror, Tab focuses points and missed items. Press Enter or Space to toggle a point or reopen a missed item. Double-clicking a point still works.
+
 | | |
 |---|---|
 | ✅ **Live check-off** | Points turn green as you cover them, judged by idea, not wording. Confidence shown per point. |

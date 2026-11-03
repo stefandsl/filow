@@ -408,6 +408,15 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
                   className={`point ${i >= 10 ? "far" : ""} ${started ? "started" : ""} ${hot ? "hot" : ""}`}
                   onDoubleClick={() => engine.dispatch(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id })}
                   title={t("stage.toggle")}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={started}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      engine.dispatch(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id });
+                    }
+                  }}
                 >
                   <span className="mark">{started ? <Icon name="check" /> : null}</span>
                   <span className="status">
@@ -438,7 +447,11 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
               <div className="label">{t("stage.missed", { n: missed.length })}</div>
               <div className="row scroll">
                 {missed.map((b) => (
-                  <span key={b.id} className="missed-item" title={t("stage.reopen")} onClick={() => engine.dispatch({ type: "reopen", id: b.id })}>
+                  <span key={b.id} className="missed-item" title={t("stage.reopen")} onClick={() => engine.dispatch({ type: "reopen", id: b.id })}
+                    role="button" tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); engine.dispatch({ type: "reopen", id: b.id }); }
+                    }}>
                     {t("stage.missedItem", { text: b.text })}
                   </span>
                 ))}

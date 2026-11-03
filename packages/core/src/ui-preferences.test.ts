@@ -48,6 +48,7 @@ describe("accent contrast", () => {
       const p = accentPalette(color, theme), dark = theme === "dark";
       expect(p["--system-accent"]).toBe(color);
       expect(contrast(color, p["--action-foreground"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(p["--action-background"], p["--action-foreground"])).toBeGreaterThanOrEqual(7);
       const surfaces = [dark ? "#08090b" : "#f7f7f5", dark ? "#1b1e26" : "#eef0f4"];
       for (const backdrop of ["#000000", "#ffffff", color]) surfaces.push(mixColor(dark ? "#13151a" : "#ffffff", backdrop, .08));
       surfaces.push(...surfaces.map(surface => mixColor(surface, color, .1)));

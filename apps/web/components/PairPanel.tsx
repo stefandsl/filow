@@ -76,7 +76,7 @@ export function PairPanel({ info, status, error, onNewCode }: { info: SessionInf
       {open && (
         <div className="modal-bg" onClick={() => setOpen(false)}>
           <div className="modal pairmodal" onClick={(e) => e.stopPropagation()}>
-            <div className="eyebrow">{t("pair.title")}</div>
+            <div className="label">{t("pair.title")}</div>
             <div className="bigcode">{info.code}</div>
             {qr && <img src={qr} alt="QR" width={220} height={220} />}
             <div className="row">

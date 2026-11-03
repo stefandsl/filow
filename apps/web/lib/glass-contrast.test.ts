@@ -25,8 +25,23 @@ describe('glass contrast gate', () => {
           expect(token('muted')).toBe(theme.muted);
           expect(contrastRatio(rgb(token('text')), background)).toBeGreaterThanOrEqual(7);
           expect(contrastRatio(rgb(token('muted')), background)).toBeGreaterThanOrEqual(4.5);
+          for (const name of ['ok', 'warn']) expect(contrastRatio(rgb(token(name)), background), name).toBeGreaterThanOrEqual(7);
         });
       }
     }
   }
+  it('protects hover, selection, fallback panels and primary gradient text', () => {
+    for (const theme of themes) {
+      const block = css.slice(css.indexOf(`${theme.selector} {`)).match(/\{([^}]+)\}/)![1];
+      const token = (name: string) => block.match(new RegExp(`--${name}:\\s*(#[a-fA-F0-9]{6});`))![1];
+      for (const surface of ['control-hover', 'panel', 'panel-2', 'bg']) {
+        expect(contrastRatio(rgb(token('text')), rgb(token(surface)))).toBeGreaterThanOrEqual(7);
+        expect(contrastRatio(rgb(token('muted')), rgb(token(surface)))).toBeGreaterThanOrEqual(4.5);
+        for (const name of ['ok', 'warn']) expect(contrastRatio(rgb(token(name)), rgb(token(surface))), `${name} on ${surface}`).toBeGreaterThanOrEqual(7);
+      }
+    }
+    const action = css.match(/--action-background:\s*([^;]+);/)![1];
+    for (const stop of action.match(/#[a-fA-F0-9]{6}/g)!) expect(contrastRatio(rgb('#08090b'), rgb(stop))).toBeGreaterThanOrEqual(7);
+    expect(contrastRatio(rgb('#ffffff'), rgb('#942a20'))).toBeGreaterThanOrEqual(7);
+  });
 });

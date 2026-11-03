@@ -16,6 +16,14 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.22)
 
+- Independent polish review (2026-11-03): fixed keyboard access/ring precedence, shared glyph
+  fallback, state/action contrast, hover/selection pairing, native-control numeric typography,
+  residual pairing label and unintended topbar wrapping. Both source mutations fail as expected;
+  typecheck, 198 tests (1 existing skip), web and welcome builds pass. Baseline/final SSR fixtures
+  preserve content element order in EN/IT and both themes; computed focus/spacing checks pass.
+  Exact requested detector path is absent; installed `.agents` detector reports no findings.
+  Evidence and owner-only native/visual limits: `docs/superpowers/plans/2026-11-03-liquid-glass-polish-review.md`.
+
 - Operate polish (2026-11-03): plain EN/IT labels, shared SVG icons, consistent control states,
   fixed rem scale and tabular numerals, 4px spacing and token browser surfaces across prompter,
   settings, welcome and mirror/overlay. Point size/weight preserved. Typecheck, 196 tests

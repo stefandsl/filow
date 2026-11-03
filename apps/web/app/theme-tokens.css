@@ -21,12 +21,12 @@
   --accent: #ffb600;
   --accent-2: #ff6500;
   --gold: #ffe000;
-  --action-background: var(--brand-gradient);
+  --action-background: linear-gradient(135deg, #ffe000 0%, #ffb600 48%, #ff7000 100%);
   --action-foreground: #08090b;
   --brand-gradient: linear-gradient(135deg, #ffe000 0%, #ffb600 48%, #ff6500 100%);
   --accent-ring: rgba(255, 182, 0, 0.35);
   --ok: #4ad67a;
-  --warn: #ff6b6b;
+  --warn: #ffa6a6;
   /* Frosted glass: panels are translucent and blur what is behind them (a soft brand glow on the
      page; the desktop's acrylic/vibrancy window when [data-glass] is set by the desktop shell). */
   --glass: rgba(19, 21, 26, 0.62);
@@ -47,8 +47,6 @@
   --control-hover: #292d38;
   --glass-radius: 12px;
   --glass-radius-pill: 999px;
-  --unused: transparent;
-  --unused: transparent;
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
 }
@@ -65,8 +63,8 @@
   --accent: #c27f00;
   --accent-2: #e05a00;
   --accent-ring: rgba(255, 182, 0, 0.45);
-  --ok: #1f8a46;
-  --warn: #c0392b;
+  --ok: #14562b;
+  --warn: #87281e;
   --glass: rgba(255, 255, 255, 0.62);
   --glass-2: rgba(238, 240, 244, 0.7);
   --glass-border: rgba(8, 9, 11, 0.08);
@@ -83,8 +81,6 @@
   --control-hover: #e4e7ed;
   --glass-radius: 12px;
   --glass-radius-pill: 999px;
-  --unused: transparent;
-  --unused: transparent;
 }
 
 /* Bound glass compositing so system-accent text remains readable over any desktop. */

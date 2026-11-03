@@ -71,10 +71,11 @@ export function accentPalette(color: string | null, theme: "light" | "dark"): Re
   const base = dark ? "#08090b" : "#f7f7f5";
   const surfaces = [base, dark ? "#1b1e26" : "#eef0f4", mixColor(dark ? "#13151a" : "#ffffff", dark ? "#ffffff" : "#000000", .08)];
   surfaces.push(...surfaces.map(surface => mixColor(surface, color, .1)));
+  const actionForeground = contrast(color, "#000000") >= contrast(color, "#ffffff") ? "#000000" : "#ffffff";
   return {
     "--system-accent": color,
-    "--action-background": color,
-    "--action-foreground": contrast(color, "#000000") >= contrast(color, "#ffffff") ? "#000000" : "#ffffff",
+    "--action-background": readableAccent(color, [actionForeground], actionForeground === "#000000", 7),
+    "--action-foreground": actionForeground,
     "--accent": readableAccent(color, surfaces, dark, 4.5),
     "--accent-2": readableAccent(color, surfaces, dark, 4.5),
     "--accent-ring": readableAccent(color, surfaces, dark, 3),

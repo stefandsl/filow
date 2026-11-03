@@ -43,6 +43,8 @@ Filow tiene i punti elenco e aggiunge il riscontro. Ascolta e, due volte al seco
 
 ## Cosa fa
 
+Nel prompter e nel mirror con controllo, Tab seleziona i punti e gli elementi saltati. Premi Invio o Spazio per cambiare lo stato di un punto o riaprire un elemento saltato. Il doppio clic su un punto continua a funzionare.
+
 | | |
 |---|---|
 | ✅ **Spunta dal vivo** | I punti diventano verdi man mano che li tratti, giudicati per idea, non per parole. Confidenza mostrata per ogni punto. |

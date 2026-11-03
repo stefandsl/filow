@@ -54,7 +54,7 @@ select option { background: var(--panel); color: var(--text); }
 
 button, select, input[role="switch"] { cursor: pointer; transition: background 180ms ease-out, box-shadow 180ms ease-out, transform 180ms ease-out, opacity 180ms ease-out; }
 button:not(:disabled):hover, select:not(:disabled):hover, input[role="switch"]:not(:disabled):hover { background: var(--control-hover); }
-.primary:not(:disabled):hover { background: color-mix(in srgb, var(--accent) 85%, var(--panel)); }
+.primary:not(:disabled):hover { background: var(--control-hover); color: var(--text); }
 button:not(:disabled):active, select:not(:disabled):active, input[role="switch"]:not(:disabled):active { transform: translateY(1px); }
 button:disabled, select:disabled, input:disabled { opacity: 0.5; cursor: default; }
 
@@ -62,7 +62,9 @@ button:disabled, select:disabled, input:disabled { opacity: 0.5; cursor: default
 
 html { font-variant-numeric: tabular-nums; caret-color: var(--accent); }
 * { scrollbar-color: var(--muted) var(--panel); }
-::selection { background: var(--accent); color: var(--action-foreground); }
+::selection { background: var(--text); color: var(--bg); }
 @media (prefers-reduced-motion: reduce) { :active { transform: none !important; } }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+button, input, select { font-family: var(--font); font-variant-numeric: tabular-nums; }
