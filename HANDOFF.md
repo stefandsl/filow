@@ -16,6 +16,13 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.21)
 
+- Unreleased liquid-glass prompter Tasks 1-3 (2026-11-03): contrast-gated raised/sheet/flat
+  tokens in both themes, borderless material layers, flat rows from index 10, and an in-flow
+  controls dock with background-only sheen/refraction. Reduced motion disables the effects
+  and pointer listener; raised/sheet surfaces retain opaque fallbacks. Automated checks:
+  185 tests passed, 1 skipped; all workspace typechecks passed. Task 4 (visual, package,
+  wallpaper and FPS acceptance) is explicitly reserved for the owner and was not run.
+
 - Independent Welcome review (2026-11-03, no commit): fixed false success when Windows leaves
   an externally disabled startup entry registered after an off request; added the desktop check
   to root typecheck. Final checks: 166 tests passed, 1 skipped; typecheck and web build passed.
@@ -256,6 +263,9 @@ the first-start local-AI dialog, the Ollama.app unzip, the adapter ranking (`rou
 notifications and the region picker on those platforms are unverified.
 
 ## Pending (ask the owner before starting the big ones)
+
+- Liquid-glass acceptance: owner to execute Task 4 of
+  `docs/superpowers/plans/2026-11-03-liquid-glass-ui.md`; no on-screen or FPS claims yet.
 
 - Welcome acceptance: Windows visual controls/maximize/acrylic QA is pending computer-access
   approval for Electron. Packaged Windows startup registration/sign-in/update/path-with-spaces,

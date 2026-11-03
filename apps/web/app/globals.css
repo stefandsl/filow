@@ -60,16 +60,19 @@ h1.section-title { font-size: 26px; margin: 6px 0 10px; font-weight: 700; }
 
 .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .btn {
-  background: var(--panel); color: var(--text); border: 0; border-radius: 6px;
+  background: var(--glass-flat); color: var(--text); border: 0; border-radius: var(--glass-radius-pill);
+  position: relative; isolation: isolate;
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--glass-edge);
   padding: 9px 14px; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; cursor: pointer;
 }
-.btn:hover { border-color: var(--accent); }
-.btn.primary { background: var(--action-background); color: var(--action-foreground); border-color: transparent; }
-.btn.primary:hover { filter: brightness(1.06); border-color: transparent; }
+.btn:hover { box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--accent-ring); }
+.btn.primary { background: var(--action-background); color: var(--action-foreground); }
+.btn.primary:hover { box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 2px var(--accent-ring); }
 :root[data-system-accent] .btn.primary:hover { filter: none; box-shadow: 0 0 0 2px var(--accent-ring); }
-.btn.danger { border-color: #5a2626; color: var(--warn); }
+.btn.danger { color: var(--text); box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--warn); }
 .btn:disabled { opacity: 0.5; cursor: default; }
 select.btn { text-transform: none; letter-spacing: 0; }
+select.btn option { background: var(--panel); color: var(--text); }
 
 .footer { display: flex; gap: 20px; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 700; align-items: baseline; }
 .footer .transcript { flex: 1; text-align: right; text-transform: none; letter-spacing: 0; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; }
@@ -136,7 +139,7 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .netline { display: flex; flex-direction: column; gap: 6px; text-align: left; width: 100%; }
 .netline select.btn { max-width: 100%; }
 .strip.autopick { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-color: var(--accent-ring); }
-.btn.danger.small { background: rgba(192, 57, 43, 0.12); }
+.btn.danger.small { background: var(--glass-flat); }
 @keyframes pulse { 50% { opacity: 0.45; } }
 .sources { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; max-height: 60vh; overflow-y: auto; }
 .source { background: var(--bg); border: 0; border-radius: 6px; padding: 8px; cursor: pointer; text-align: left; color: var(--text); display: flex; flex-direction: column; gap: 6px; }
@@ -186,12 +189,12 @@ input.btn.hotkey { width: min(100%, 320px); }
   background: var(--panel); border: 0; border-radius: var(--glass-radius);
   box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--glass-edge), var(--glass-shadow);
 }
-.glass-sheet, .strip {
+.glass-sheet, .strip, .footer {
   background: var(--panel-2); border: 0; border-radius: var(--glass-radius);
   box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--glass-edge);
 }
 .glass-flat, .chip, .strip.onscreen .fact, .modal textarea, .modal .hint, .source,
-.missed-item, .footer, .controls .group {
+.missed-item, .footer .transcript, .controls .group {
   background: var(--glass-flat); border: 0; box-shadow: none; border-radius: var(--glass-radius);
 }
 .chip { border-radius: var(--glass-radius-pill); }
@@ -204,14 +207,37 @@ input.btn.hotkey { width: min(100%, 320px); }
     background: var(--glass-raised);
     -webkit-backdrop-filter: var(--glass-blur-raised); backdrop-filter: var(--glass-blur-raised);
   }
-  .glass-sheet, .strip {
+  .glass-sheet, .strip, .footer {
     background: var(--glass-sheet);
     -webkit-backdrop-filter: var(--glass-blur-sheet); backdrop-filter: var(--glass-blur-sheet);
   }
   .point.started:not(.far) { background: var(--glass-sheet); }
   .modal-bg { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 }
+/* In-flow controls retain the existing flex/wrap layout. Effects never touch labels. */
+.dock {
+  position: relative; isolation: isolate; padding: 8px 10px;
+  background: var(--panel); border: 0; border-radius: var(--glass-radius-pill);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 0 0 1px var(--glass-edge), var(--glass-shadow);
+  --mx: -200px; --my: -200px;
+}
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .dock {
+    background: var(--glass-raised);
+    -webkit-backdrop-filter: var(--glass-blur-raised); backdrop-filter: var(--glass-blur-raised);
+  }
+}
+.dock::before, .dock .btn::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  pointer-events: none; z-index: -1;
+  background-image: radial-gradient(120px circle at var(--mx) var(--my), rgba(255,255,255,0.18), transparent 70%);
+}
+@supports (filter: url("#filow-glass-filter")) {
+  .dock::before, .dock .btn::before { filter: url(#filow-glass-filter); }
+}
+#filow-glass-filter { color-interpolation-filters: sRGB; }
 @media (prefers-reduced-motion: reduce) {
   .dock .btn::before { filter: none; background-image: none; }
+  .dock::before { filter: none; background-image: none; }
   .app *, .modal-bg * { animation: none !important; transition: none !important; }
 }
