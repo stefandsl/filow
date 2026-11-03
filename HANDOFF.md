@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.17)
+## Where it stands (v0.9.18)
 
 - Repos: source `stefandsl/filow` (PUBLIC since 2026-11-03: the owner made it public so CI runs on free Actions minutes after a billing block; never commit keys, `.env` stays ignored; branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
@@ -24,7 +24,7 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
-  - unreleased (after 0.9.17), dependencies: `npm audit` went from 40 findings (4 critical) to 15
+  - 0.9.18, dependencies: `npm audit` went from 40 findings (4 critical) to 15
     moderate. Bumped next 15.3.3 → 15.5.28, vitest 3 → 5.1.0, electron 33.4.11 → 45.2.1 (also
     `build.electronVersion`), electron-builder 25 → 26.18.0, office-addin-manifest/dev-certs 1 → 3;
     root `overrides` pin sharp ^0.35.5 and postcss ^8.5.32 (next and transformers pulled vulnerable
@@ -37,7 +37,7 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
     without breaking the packager. Build tooling only, nothing shipped. Re-check after the next
     electron-builder release. The build rewrites `apps/powerpoint/manifest.xml` (new Id) and adds a
     BOM to `apps/desktop/build/license_*.txt`: revert those before committing.
-  - unreleased (after 0.9.17): `PUT /api/script` and `POST /api/local/plan` now require the engine
+  - 0.9.18: `PUT /api/script` and `POST /api/local/plan` now require the engine
     token while `ACCESS_PASSWORD` is set (first item of the bug-hunt handoff). Reproduced on the dev
     server first: an anonymous caller overwrote the script file and ran the plan with `apply`.
     The prompter's save and `fetchPlan` (prompter Auto start and Settings) now send the token;
