@@ -16,6 +16,8 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.21)
 
+- Independent remaining-glass review (2026-11-03): fixed splash motion/opacity/token duplication and restored border space with padding. Both border mutations failed; typecheck, 193 tests and web/welcome builds passed. Isolated Electron welcome loaded without captured errors; review processes killed. See docs/superpowers/plans/2026-11-03-liquid-glass-rest-review.md. Native visual, layout and FPS acceptance remain pending.
+
 - Remaining liquid-glass surfaces (2026-11-03): settings panels/resources/Automatic setup
   use raised layers, fields use sheets, model rows/keycaps use flat layers. Mirror pairing
   and overlay drag bar use sheets; the shared StageView preview uses the existing preview

@@ -114,3 +114,13 @@ it('keeps welcome materials borderless and ships shared splash tokens', () => {
   expect(pkg.scripts['build:welcome']).toContain('--outfile=vendor/theme-tokens.css');
   expect(pkg.build.files).toContain('vendor/*.css');
 });
+it('keeps splash text opaque and nearby loading graphics still', () => {
+  const splash = readFileSync(new URL('../../desktop/splash.html', import.meta.url), 'utf8');
+  const styles = postcss.parse(splash.match(/<style>([\s\S]*?)<\/style>/)![1]);
+  styles.walkDecls('animation', d => { expect(d.value).toBe('none'); });
+  styles.walkRules('.version', rule => {
+    rule.walkDecls('opacity', d => { expect(d.value).toBe('1'); });
+  });
+  expect(splash).toContain('prefers-reduced-motion: reduce');
+  expect(splash).not.toContain('--bg:');
+});
