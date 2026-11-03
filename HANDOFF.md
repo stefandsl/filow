@@ -60,6 +60,16 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - unreleased (after 0.9.21): liquid glass UI on the prompter page. Design
+    `docs/superpowers/specs/2026-11-03-liquid-glass-ui-design.md`, plan and reviewer's evidence under
+    `docs/superpowers/plans/`. Three depths (raised / sheet / flat) as tokens in `theme-tokens.css`,
+    no borders on glass layers, the controls row is one pill dock with a pointer sheen and a light SVG
+    refraction on `::before` only, rows from the eleventh go flat, reduced-motion turns sheen and
+    refraction off. Readability gate: `apps/web/lib/glass-contrast.test.ts` reads the tokens and fails
+    below 7:1 (text) / 4.5:1 (muted) over white and black; tints settled at alpha .90-.92 to pass it.
+    Built by Codex from the plan (3 commits) + review fixes; checked on screen in dark and light over the
+    owner's wallpaper. Not yet done: settings pages, overlay and welcome window on the same tokens
+    (design scope steps 2-4), wallpaper-matrix screenshots, fps check, packaged build.
   - 0.9.21: the NSIS installer and the portable exe of 0.9.19/0.9.20 had NO icon resource (generic
     icon in the browser's download list and in Explorer; the installed Filow.exe was fine). The NSIS
     bundled with electron-builder 26 silently drops a PNG-compressed .ico entry, and build/icon.ico
