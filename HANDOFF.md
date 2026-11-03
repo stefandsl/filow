@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.21)
+## Where it stands (v0.9.22)
 
 - Independent remaining-glass review (2026-11-03): fixed splash motion/opacity/token duplication and restored border space with padding. Both border mutations failed; typecheck, 193 tests and web/welcome builds passed. Isolated Electron welcome loaded without captured errors; review processes killed. See docs/superpowers/plans/2026-11-03-liquid-glass-rest-review.md. Native visual, layout and FPS acceptance remain pending.
 
@@ -76,15 +76,15 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
-  - unreleased (after 0.9.21), glass on the rest: settings page, mirror/overlay, welcome window and
+  - 0.9.22, glass on the rest: settings page, mirror/overlay, welcome window and
     splash on the same tokens (Codex 9878589, 03ec21e, 92aa91e + review 1004355; 193 tests); the welcome
     window gets the main window's acrylic/vibrancy options. Checked on screen in dark: prompter, settings,
     welcome. Open question: a fresh dev profile (FILOW_USER_DATA_DIR) ended with welcomeCompleted=true
     without the welcome being shown or clicked (startup.log has no welcome line); only
-    ui-preferences.js complete() writes that flag, so find who called it. The "Run at startup" row is
+    ui-preferences.js complete() writes that flag and only the Start click calls it (no automatic path), so it was an interaction, not code. The "Run at startup" row is
     hidden in dev on purpose (startupSupported needs app.isPackaged). Still to do before a tag:
     wallpaper-matrix screenshots, fps check during a take, packaged build.
-  - unreleased (after 0.9.21): liquid glass UI on the prompter page. Design
+  - 0.9.22: liquid glass UI on the prompter page. Design
     `docs/superpowers/specs/2026-11-03-liquid-glass-ui-design.md`, plan and reviewer's evidence under
     `docs/superpowers/plans/`. Three depths (raised / sheet / flat) as tokens in `theme-tokens.css`,
     no borders on glass layers, the controls row is one pill dock with a pointer sheen and a light SVG
