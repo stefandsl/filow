@@ -41,6 +41,7 @@ import { ImportError } from "./prompter/ImportError";
 import { LogPanel } from "./prompter/LogPanel";
 import { pointState } from "@/lib/pointState";
 import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
+import { RailSplitter } from "./prompter/RailSplitter";
 
 type BackendChoice = "auto" | SttBackendId;
 
@@ -445,6 +446,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
 
 
       </main>
+      <RailSplitter />
       <aside className="prompter-aside">
         {nextSection && <NextSection layout={layout} title={nextSection.title} points={nextSection.bullets.map(b => b.text)} completed={nextSection.bullets.map(b => points[b.id]?.status === "started")} />}
         {screen.status !== "unsupported" && <ScreenSensePanel layout={layout} active={screen.status === "watching"}>

@@ -227,7 +227,13 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .nav-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .nav-heading, .sidebar-only { display: none; }
 .prompter-main { grid-area: main; min-width: 0; padding: 24px; }
-.prompter-aside { grid-area: aside; min-width: 0; padding: 24px; border-left: 1px solid var(--border); }
+.prompter-aside { grid-area: aside; min-width: 0; padding: 24px; }
+.rail-splitter { grid-area: splitter; position: relative; cursor: col-resize; touch-action: none; }
+.rail-splitter::before { content: ""; position: absolute; inset: 0 3px; background: var(--border); transition: background 150ms ease-out; }
+.rail-splitter:hover::before, .rail-splitter:focus-visible::before, .resizing-rail .rail-splitter::before { background: var(--accent); }
+.rail-splitter:focus-visible { outline: none; }
+.resizing-rail, .resizing-rail * { cursor: col-resize !important; user-select: none; }
+[data-layout="sidebar"] .rail-splitter { display: none; }
 [data-layout="sidebar"] .section-nav { flex-direction: column; padding: 24px 16px; border-right: 1px solid var(--border); background: var(--sidebar); }
 [data-layout="sidebar"] .nav-heading { display: flex; flex-direction: column; gap: 8px; }
 [data-layout="sidebar"] .section-nav-list { flex-direction: column; max-height: calc(100vh - 280px); }
@@ -336,7 +342,7 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 
 /* Keep actions visible while the presentation area scrolls vertically. */
 .prompter { height: 100dvh; min-height: 0; grid-template-columns: minmax(0, 1fr); grid-template-areas: "topbar" "nav" "content" "actions" "status"; grid-template-rows: auto auto minmax(0,1fr) auto auto; }
-.prompter-content { grid-area: content; min-width: 0; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: minmax(0,1fr) 420px; grid-template-areas: "main aside"; align-content: start; }
+.prompter-content { grid-area: content; min-width: 0; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: minmax(0,1fr) 8px var(--rail-width, 420px); grid-template-areas: "main splitter aside"; align-content: start; }
 [data-layout="sidebar"] .prompter { grid-template-columns: 260px minmax(0,1fr); grid-template-areas: "topbar topbar" "nav content" "nav actions" "status status"; grid-template-rows: auto minmax(0,1fr) auto auto; }
 [data-layout="sidebar"] .prompter-content { display: flex; flex-direction: column; }
 [data-layout="sidebar"] .section-nav { min-height: 0; }
@@ -344,7 +350,7 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .status-details { max-height: 35vh; overflow-y: auto; }
 @media (max-width: 999px) {
  [data-layout="rail"] .prompter { grid-template-areas: "topbar" "nav" "content" "actions" "status"; }
- [data-layout="rail"] .prompter-content { display: flex; flex-direction: column; }
+ [data-layout="rail"] .prompter-content { display: flex; flex-direction: column; } [data-layout="rail"] .rail-splitter { display: none; }
 }
 @media (max-width: 899px) { [data-layout="sidebar"] .prompter { grid-template-columns: 56px minmax(0,1fr); } }
 
