@@ -239,6 +239,7 @@ const en = {
   "ctl.import": "Import document",
   "ctl.importing": "Importing…",
   "ctl.importTitle": "PDF, PPTX, DOCX, TXT or MD > talking points",
+  "import.failed": "Could not import the document: {error}",
   "ctl.settings": "Settings",
   "ctl.settingsTitle": "Local models, decision provider, privacy, Screen Sense",
 
@@ -700,6 +701,7 @@ const it: Partial<Record<I18nKey, string>> = {
   "ctl.import": "Importa documento",
   "ctl.importing": "Importazione…",
   "ctl.importTitle": "PDF, PPTX, DOCX, TXT o MD > punti da dire",
+  "import.failed": "Impossibile importare il documento: {error}",
   "ctl.settings": "Impostazioni",
   "ctl.settingsTitle": "Modelli locali, provider delle decisioni, privacy, Screen Sense",
 

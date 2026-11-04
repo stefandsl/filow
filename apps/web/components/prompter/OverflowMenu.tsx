@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useT } from "@filow/ui";
 import { Icon } from "../icons";
 export function handleMenuKey(event: { key: string; preventDefault(): void }, index: number, count: number, focus: (index: number) => void, close: (restore: boolean) => void) {
@@ -8,7 +8,7 @@ export function handleMenuKey(event: { key: string; preventDefault(): void }, in
     focus(event.key === "Home" ? 0 : event.key === "End" ? count - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + count) % count);
   }
 }
-export function OverflowMenu({items}: {items: {id: string; label: string; onSelect(): void; icon?: ReactNode}[]}) {
+export function OverflowMenu({items, triggerRef}: {items: {id: string; label: string; onSelect(): void; icon?: ReactNode}[]; triggerRef?: RefObject<HTMLButtonElement | null>}) {
   const t = useT(), id = useId();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null), trigger = useRef<HTMLButtonElement>(null);
@@ -23,7 +23,7 @@ export function OverflowMenu({items}: {items: {id: string; label: string; onSele
     return () => document.removeEventListener("pointerdown", outside);
   }, [open]);
   return <div className="overflow-menu" ref={root} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false); }}>
-    <button type="button" className="btn" ref={trigger} aria-haspopup="menu" aria-expanded={open} aria-controls={id} aria-label={t("ctl.more")}
+    <button type="button" className="btn" ref={element => { trigger.current = element; if (triggerRef) triggerRef.current = element; }} aria-haspopup="menu" aria-expanded={open} aria-controls={id} aria-label={t("ctl.more")}
       onClick={() => { initial.current = 0; setOpen(!open); }}
       onKeyDown={event => {
         if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); initial.current = event.key === "ArrowUp" ? items.length - 1 : 0; setOpen(true); }

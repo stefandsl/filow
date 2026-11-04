@@ -5,6 +5,21 @@ import ts from 'typescript';
 
 const css = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
 const sheet = postcss.parse(css);
+it('keeps a usable presentation area and page scrolling in short zoomed viewports', () => {
+  const short = sheet.nodes.find(node => node.type === 'atrule' && node.name === 'media' && node.params === '(max-height: 500px)');
+  expect(short?.toString()).toContain('height: auto');
+  expect(short?.toString()).toContain('min-height: 100dvh');
+  expect(short?.toString()).toContain('grid-template-rows: auto auto minmax(240px, auto) auto auto');
+  expect(short?.toString()).toContain('[data-layout="sidebar"] .prompter { grid-template-rows: auto minmax(240px, auto) auto auto; }');
+  expect(short?.toString()).toContain('.prompter-content { min-height: 240px; overflow: visible; }');
+  expect(short?.toString()).toContain('.section-nav-list { max-height: none; }');
+});
+it('opens the dark Screen Sense menu into the available content width', () => {
+  const rule = sheet.nodes.find(node => node.type === 'rule' && node.selector === '[data-layout="rail"] .screen-controls .overflow-popover');
+  expect(rule?.toString()).toContain('left: 0; right: auto');
+  expect(rule?.toString()).toContain('min-width: min(240px, calc(100vw - 32px))');
+  expect(rule?.toString()).toContain('max-width: min(360px, calc(100vw - 32px))');
+});
 it('uses a fixed rem scale, tabular readings and token browser surfaces', () => {
   const tokens = readFileSync(new URL('../app/theme-tokens.css', import.meta.url), 'utf8');
   const sizes = [...tokens.matchAll(/--type-[\w]+:\s*([\d.]+)rem/g)].map(m => Number(m[1]));

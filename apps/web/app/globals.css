@@ -302,6 +302,8 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .prompter :where(button, select, input, textarea):disabled { color: var(--muted); background: var(--surface-2); cursor: default; }
 .prompter .modal-bg { background: var(--bg); padding: 16px; overflow-y: auto; }
 .prompter .modal { max-height: calc(100vh - 32px); overflow-y: auto; flex-shrink: 0; }
+.prompter .accessible-dialog { margin: 0; width: 100%; height: 100%; max-width: none; max-height: none; border: 0; color: var(--text); }
+.prompter .accessible-dialog:not([open]) { display: none; }
 .prompter .subtitle { background: var(--bg); }
 .prompter .section-count { background: var(--bg); }
 .prompter .btn.primary { background: var(--accent); color: var(--on-accent); }
@@ -343,6 +345,17 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
  [data-layout="rail"] .prompter-content { display: flex; flex-direction: column; }
 }
 @media (max-width: 899px) { [data-layout="sidebar"] .prompter { grid-template-columns: 56px minmax(0,1fr); } }
+
+/* At high zoom, let the page grow instead of squeezing the points out of view. */
+@media (max-height: 500px) {
+  .prompter { height: auto; min-height: 100dvh; grid-template-rows: auto auto minmax(240px, auto) auto auto; }
+  [data-layout="sidebar"] .prompter { grid-template-rows: auto minmax(240px, auto) auto auto; }
+  .prompter-content { min-height: 240px; overflow: visible; }
+  [data-layout="sidebar"] .section-nav-list { max-height: none; }
+}
+
+/* The dark rail puts this trigger at the start of a new row. */
+[data-layout="rail"] .screen-controls .overflow-popover { left: 0; right: auto; min-width: min(240px, calc(100vw - 32px)); max-width: min(360px, calc(100vw - 32px)); }
 
 /* Mockup alignment: compact labels, flat light rows, and one Screen Sense row. */
 [data-layout="sidebar"] .section-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }

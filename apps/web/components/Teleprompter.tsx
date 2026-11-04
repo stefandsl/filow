@@ -1,7 +1,7 @@
 "use client";
 import { Icon } from "./icons";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import {
   missedPoints,
   notesToMarkdown,
@@ -36,7 +36,11 @@ import { ScreenSensePanel } from "./prompter/ScreenSensePanel";
 import { ActionBar } from "./prompter/ActionBar";
 import { StatusStrip } from "./prompter/StatusStrip";
 import { OverflowMenu } from "./prompter/OverflowMenu";
+import { Dialog } from "./prompter/Dialog";
+import { ImportError } from "./prompter/ImportError";
+import { LogPanel } from "./prompter/LogPanel";
 import { pointState } from "@/lib/pointState";
+import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
 
 type BackendChoice = "auto" | SttBackendId;
 
@@ -55,8 +59,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const layout = usePrompterLayout();
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
-  const logRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (logOpen) logRef.current?.focus(); }, [logOpen]);
+  const actionMenuRef = useRef<HTMLButtonElement>(null);
   const { engine, state } = useEngine();
   const sessionInfo = useSession(engine);
   const [scriptText, setScriptText] = useState("");
@@ -72,7 +75,9 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const [offline, setOffline] = useState(false);
   const [lastNotes, setLastNotes] = useState<ScreenNote[]>([]);
   const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const startButtonRef = useRef<HTMLButtonElement>(null);
   const [publicLink, setPublicLink] = useState(false);
   const [show, setShow] = useState<{ running: boolean; index: number; total: number } | null>(null);
   const [update, setUpdate] = useState<UpdateStatus | null>(null);
@@ -96,7 +101,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   useEffect(() => {
     setPublicLink(Boolean(desktopBridge()?.remoteShare));
   }, []);
-  const cancelRef = useRef(false);
+  const startAttempts = useRef(new StartAttempts());
   const [pendingImport, setPendingImport] = useState<ImportResponse | null>(null);
   const backendRef = useRef<SttBackend | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -127,6 +132,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
 
   const importDocument = async (file: File) => {
     setImporting(true);
+    setImportError(null);
     try {
       const form = new FormData();
       form.append("file", file);
@@ -136,6 +142,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       setPendingImport(out);
       pushLog(`Imported ${file.name}: ${out.script.sections.length} sections from ${out.pages} ${out.kind === "pptx" ? "slides" : "pages"}`);
     } catch (err) {
+      setImportError((err as Error).message);
       pushLog(`Import: ${(err as Error).message}`);
     } finally {
       setImporting(false);
@@ -194,14 +201,15 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   }, [engine]);
 
   /** Open the microphone once up front: a clear message beats five backends failing in a row. */
-  const probeMic = async (): Promise<boolean> => {
+  const probeMic = async (attempt: StartAttempt): Promise<boolean> => {
     pushLog(t("mic.checking"));
     try {
       // Opened once and kept for the capture: a second open right after a close hung on a Windows PC.
-      const stream = await preopenMic();
+      const stream = await attempt.wait(preopenMic());
       pushLog(`${t("mic.checking")} ${stream.getAudioTracks()[0]?.label || "ok"}`);
       return true;
     } catch (err) {
+      if (err instanceof CancelledStart) throw err;
       const name = (err as DOMException).name;
       const msg = name === "NotFoundError" || name === "OverconstrainedError" ? t("mic.notFound") : name === "NotAllowedError" || name === "SecurityError" ? t("mic.denied") : `${t("mic.busy")} (${(err as Error).message})`;
       engine.setError(msg);
@@ -221,7 +229,6 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         .then((s) => s.model === "ready")
         .catch(() => false) ?? Promise.resolve(false),
     ]);
-    setSttStatus(stt);
     return {
       openrouterKey: Boolean(local?.openrouterKey),
       sttKey: Boolean(stt.elevenlabs || stt.openai),
@@ -238,98 +245,111 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const [plan, setPlan] = useState<PlanResponse | null>(null);
 
   const requestStart = async () => {
-    let mode = getStartMode();
-    const r = await loadReadiness();
-    setReadiness(r);
-    if (mode === "auto") {
-      // The router measures one call per candidate and picks the lowest-latency setup for each task.
-      setStarting(true);
-      try {
-        const p = await fetchPlan({ probe: true, apply: true });
-        setPlan(p);
-        if (p.decision.provider && p.stt.backend) {
-          pushLog(`auto: ${p.stt.backend} · ${p.decision.provider}${p.decision.measuredMs ? ` ${p.decision.measuredMs} ms` : ""} · ${p.generate.provider}${p.generate.model ? ` ${p.generate.model}` : ""}`);
-          const m: "cloud" | "local" = p.decision.provider === "clef-local" ? "local" : "cloud";
-          await startTake(m, r, { provider: p.decision.provider, backend: p.stt.backend });
-          return;
+    const attempt = startAttempts.current.begin();
+    setStarting(true);
+    try {
+      let mode = getStartMode();
+      const r = await attempt.wait(loadReadiness());
+      setSttStatus(r.stt);
+      setReadiness(r);
+      if (mode === "auto") {
+        // The router measures one call per candidate and picks the lowest-latency setup for each task.
+        setStarting(true);
+        try {
+          const p = await attempt.wait(fetchPlan({ probe: true, apply: true }));
+          setPlan(p);
+          if (p.decision.provider && p.stt.backend) {
+            pushLog(`auto: ${p.stt.backend} · ${p.decision.provider}${p.decision.measuredMs ? ` ${p.decision.measuredMs} ms` : ""} · ${p.generate.provider}${p.generate.model ? ` ${p.generate.model}` : ""}`);
+            const m: "cloud" | "local" = p.decision.provider === "clef-local" ? "local" : "cloud";
+            await attempt.wait(startTake(m, r, attempt, { provider: p.decision.provider, backend: p.stt.backend }));
+            return;
+          }
+        } catch (err) {
+          if (err instanceof CancelledStart) throw err;
+          pushLog(`auto: router failed (${(err as Error).message}); asking`);
         }
-      } catch (err) {
-        pushLog(`auto: router failed (${(err as Error).message}); asking`);
+        setStarting(false);
+        mode = autoPick(r) ?? "ask";
       }
-      setStarting(false);
-      mode = autoPick(r) ?? "ask";
+      if (mode === "ask" || (mode === "cloud" && !(r.openrouterKey && r.sttKey)) || (mode === "local" && !(r.whisper && r.clef))) {
+        setStartDialog(true);
+        return;
+      }
+      await attempt.wait(startTake(mode, r, attempt));
+    } catch (err) {
+      if (!(err instanceof CancelledStart)) {
+        engine.setError((err as Error).message);
+        pushLog(`could not start: ${(err as Error).message}`);
+      }
+    } finally {
+      if (attempt.isCurrent()) setStarting(false);
     }
-    if (mode === "ask" || (mode === "cloud" && !(r.openrouterKey && r.sttKey)) || (mode === "local" && !(r.whisper && r.clef))) {
-      setStartDialog(true);
-      return;
-    }
-    await startTake(mode, r);
   };
 
-  const startTake = async (mode: "cloud" | "local", r: Readiness, pick?: { provider: DecisionProviderId; backend: SttBackendId }) => {
-    engine.setError(undefined);
-    setLastNotes([]);
-    cancelRef.current = false;
-    setStarting(true);
-    // The mode decides the provider and the transcription backend; no silent fallback to the other side.
-    setDecisionProvider(pick?.provider ?? (mode === "local" ? "clef-local" : "openrouter"));
-    if ((pick?.provider ?? (mode === "local" ? "clef-local" : "")) === "clef-local") void fetch("/api/local/warmup", { method: "POST" }).catch(() => undefined);
-    let backend: BackendChoice = pick?.backend ?? choice;
-    if (backend === "auto") {
-      if (mode === "local") backend = r.sherpa ? "sherpa" : "whisper";
-      else backend = r.stt.elevenlabs ? "elevenlabs" : r.stt.openai ? "openai" : hasWebSpeech ? "browser" : "auto";
-    }
-    if (backend === "auto") {
-      engine.setError(t("start.notReadyCloud"));
-      setStarting(false);
-      return;
-    }
-    pushLog(`${mode === "local" ? t("start.local") : t("start.cloud")} · ${BACKEND_LABELS[backend]}`);
-    if (!(await probeMic())) {
-      setStarting(false);
-      return;
-    }
-    const handlers = {
-      onTranscript: (e: { committed?: string; partial?: string }) => engine.feed(e),
-      onError: (m: string) => {
-        pushLog(`error: ${m}`);
-        engine.setError(m);
-      },
-      onReady: () => pushLog("transcription ready"),
-      onLog: (line: string) => pushLog(line),
-    };
+  const startTake = async (mode: "cloud" | "local", r: Readiness, attempt: StartAttempt, pick?: { provider: DecisionProviderId; backend: SttBackendId }) => {
+    if (!attempt.isCurrent()) return;
+    let pendingBackend: SttBackend | null = null;
     try {
+      engine.setError(undefined);
+      setLastNotes([]);
+      setStarting(true);
+      // The mode decides the provider and the transcription backend; no silent fallback to the other side.
+      setDecisionProvider(pick?.provider ?? (mode === "local" ? "clef-local" : "openrouter"));
+      if ((pick?.provider ?? (mode === "local" ? "clef-local" : "")) === "clef-local") void fetch("/api/local/warmup", { method: "POST" }).catch(() => undefined);
+      let backend: BackendChoice = pick?.backend ?? choice;
+      if (backend === "auto") {
+        if (mode === "local") backend = r.sherpa ? "sherpa" : "whisper";
+        else backend = r.stt.elevenlabs ? "elevenlabs" : r.stt.openai ? "openai" : hasWebSpeech ? "browser" : "auto";
+      }
+      if (backend === "auto") {
+        engine.setError(t("start.notReadyCloud"));
+        setStarting(false);
+        return;
+      }
+      pushLog(`${mode === "local" ? t("start.local") : t("start.cloud")} · ${BACKEND_LABELS[backend]}`);
+      if (!(await attempt.wait(probeMic(attempt)))) {
+        setStarting(false);
+        return;
+      }
+      const handlers = {
+        onTranscript: (e: { committed?: string; partial?: string }) => { if (attempt.isCurrent()) engine.feed(e); },
+        onError: (m: string) => {
+          if (!attempt.isCurrent()) return;
+          pushLog(`error: ${m}`);
+          engine.setError(m);
+        },
+        onReady: () => { if (attempt.isCurrent()) pushLog("transcription ready"); },
+        onLog: (line: string) => { if (attempt.isCurrent()) pushLog(line); },
+      };
       {
         // Explicit backend from the chosen mode: never fall back silently.
         const b = createBackend(backend, { headers: engineHeaders(), language: backend === "whisper" && getSpeechLang() === "auto" ? lang : getSpeechLang() });
-        await b.start(handlers);
+        pendingBackend = b;
+        await attempt.wait(b.start(handlers));
         backendRef.current = b;
         engine.setBackend(b.id);
         pushLog(`${BACKEND_LABELS[backend]}: live`);
       }
-      if (cancelRef.current) {
-        stopTake();
-        return;
-      }
       engine.start();
     } catch (err) {
-      if (!cancelRef.current) {
+      pendingBackend?.stop();
+      if (attempt.isCurrent()) {
         engine.setError((err as Error).message);
         pushLog(`could not start transcription: ${(err as Error).message}`);
+        stopTake();
       }
-      stopTake();
     } finally {
-      setStarting(false);
+      if (attempt.isCurrent()) setStarting(false);
     }
   };
 
   const cancelStart = () => {
-    cancelRef.current = true;
+    startAttempts.current.cancel();
     stopTake();
     setStarting(false);
   };
 
-  useEffect(() => () => backendRef.current?.stop(), []);
+  useEffect(() => () => { startAttempts.current.cancel(); backendRef.current?.stop(); }, []);
 
   // When the engine stops itself (cost cap), release the microphone too.
   useEffect(() => {
@@ -378,6 +398,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         </div>
       )}
       {error && <div className="chip err banner">{error}</div>}
+      {importError !== null && <ImportError error={importError} />}
 
 
         <div className="section-heading">
@@ -410,8 +431,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
 
         <Transcript text={tail} open={transcriptOpen} onToggle={() => setTranscriptOpen(v => !v)} />
       {logOpen && (
-        <div className="log" ref={logRef} tabIndex={-1} aria-label={t("ctl.logReport")}>
-          <button type="button" className="btn small" onClick={() => setLogOpen(false)} aria-label={t("common.close")}><Icon name="close" /></button>
+        <LogPanel triggerRef={actionMenuRef} onClose={() => setLogOpen(false)}>
           {desktopBridge()?.reportProblem && (
             <button type="button" className="btn small" style={{ float: "right" }} onClick={() => desktopBridge()?.reportProblem?.()}>
               {t("log.report")}
@@ -420,7 +440,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
           {log.map((l, i) => (
             <div key={i}>{l}</div>
           ))}
-        </div>
+        </LogPanel>
       )}
 
 
@@ -478,19 +498,13 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
           <button className="btn primary" onClick={stopTake}>
             <Icon name="stop" /> {t("ctl.stop")}
           </button>
-        ) : starting ? (
-          <>
-            <button className="btn primary" disabled>
-              {t("ctl.starting")}
-            </button>
-            <button className="btn danger" onClick={cancelStart}>
-              {t("ctl.cancel")}
-            </button>
-          </>
         ) : (
-          <button className="btn primary" onClick={() => void requestStart()} disabled={!section || availability.length === 0}>
-            <Icon name="play" /> {t("ctl.start")}
-          </button>
+          <>
+            <button ref={startButtonRef} className="btn primary" onClick={() => void requestStart()} disabled={starting || !section || availability.length === 0}>
+              {starting ? t("ctl.starting") : <><Icon name="play" /> {t("ctl.start")}</>}
+            </button>
+            {starting && <button className="btn danger" onClick={cancelStart}>{t("ctl.cancel")}</button>}
+          </>
         )}
 </>} mode={<label className="backend-choice"><span>{t("ctl.mode")}</span>
         <select className="btn" value={choice} disabled={eng.recording} onChange={(e) => setChoice(e.target.value as BackendChoice)} title={choice === "auto" ? t("ctl.auto") : BACKEND_LABELS[choice]} aria-label={t("ctl.backend")}>
@@ -505,10 +519,10 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         prev={<button type="button" className="btn" onClick={() => engine.dispatch({type:"prevSection"})} disabled={sectionIdx === 0}><Icon name="left" /> {t("ctl.prev")}</button>}
         next={<button type="button" className="btn" onClick={() => engine.dispatch({type:"nextSection"})} disabled={!nextSection}>{t("ctl.next")} <Icon name="right" /></button>}
         transcriptToggle={<button type="button" className="btn" aria-expanded={transcriptOpen} aria-controls="prompter-transcript-text" onClick={() => setTranscriptOpen(v => !v)}>{t("footer.transcript")}</button>}
-        overflow={<OverflowMenu items={[
+        overflow={<OverflowMenu triggerRef={actionMenuRef} items={[
           ...(layout === "rail" ? [{id:"reload",label:t("ctl.reload"),onSelect:() => { void loadScript(); },icon:<Icon name="reload" />}] : []),
           {id:"reset",label:t("ctl.reset"),onSelect:() => engine.dispatch({type:"resetSection"})},
-          {id:"log",label:t("ctl.logReport"),onSelect:() => { setLogOpen(true); logRef.current?.focus(); }},
+          {id:"log",label:t("ctl.logReport"),onSelect:() => { setLogOpen(true); }},
           ...(desktopBridge()?.reportProblem ? [{id:"report",label:t("log.report"),onSelect:() => { desktopBridge()?.reportProblem?.(); }}] : []),
         ]} />} />
       <StatusStrip summary={t("status.thisComputer")} details={<><div className="status-metadata">
@@ -564,11 +578,12 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       {startDialog && readiness && (
         <StartModeDialog
           readiness={readiness}
-          onCancel={() => setStartDialog(false)}
+          returnFocusRef={startButtonRef}
+          onCancel={() => { startAttempts.current.cancel(); setStartDialog(false); }}
           onPick={(mode, remember, auto) => {
             setStartDialog(false);
             setStartMode(remember ? (auto ? "auto" : mode) : "ask");
-            void startTake(mode, readiness);
+            void startTake(mode, readiness, startAttempts.current.begin());
           }}
         />
       )}
@@ -601,7 +616,7 @@ function autoPick(r: Readiness): "cloud" | "local" | null {
   return null;
 }
 
-function StartModeDialog({ readiness, onPick, onCancel }: { readiness: Readiness; onPick: (mode: "cloud" | "local", remember: boolean, auto?: boolean) => void; onCancel: () => void }) {
+export function StartModeDialog({ readiness, onPick, onCancel, returnFocusRef }: { readiness: Readiness; onPick: (mode: "cloud" | "local", remember: boolean, auto?: boolean) => void; onCancel: () => void; returnFocusRef?: RefObject<HTMLElement | null> }) {
   const t = useT();
   const [remember, setRemember] = useState(false);
   const cloudOk = readiness.openrouterKey && readiness.sttKey;
@@ -614,9 +629,7 @@ function StartModeDialog({ readiness, onPick, onCancel }: { readiness: Readiness
     </div>
   );
   return (
-    <div className="modal-bg" onClick={onCancel}>
-      <div className="modal startmode" onClick={(e) => e.stopPropagation()}>
-        <div className="label">{t("start.title")}</div>
+    <Dialog title={t("start.title")} onClose={onCancel} className="startmode" returnFocusRef={returnFocusRef}>
         {auto && (
           <div className="strip autopick">
             <div>
@@ -660,18 +673,15 @@ function StartModeDialog({ readiness, onPick, onCancel }: { readiness: Readiness
             {t("common.cancel")}
           </button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 
 /** Desktop-only chooser: screens and windows minus this app (ARCHITECTURE.md §6.2). */
-function SourceChooser({ sources, onPick }: { sources: ScreenSource[]; onPick: (s: ScreenSource | null) => void }) {
+export function SourceChooser({ sources, onPick }: { sources: ScreenSource[]; onPick: (s: ScreenSource | null) => void }) {
   const t = useT();
   return (
-    <div className="modal-bg" onClick={() => onPick(null)}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="label">{t("screen.chooserTitle")}</div>
+    <Dialog title={t("screen.chooserTitle")} onClose={() => onPick(null)}>
         <div className="hint">{t("screen.chooserHint")}</div>
         {sources.length === 0 && <div className="hint">{t("screen.chooserEmpty")}</div>}
         <div className="sources">
@@ -690,12 +700,11 @@ function SourceChooser({ sources, onPick }: { sources: ScreenSource[]; onPick: (
             {t("common.cancel")}
           </button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 
-function ScriptEditor({
+export function ScriptEditor({
   initial,
   onSave,
   onCancel,
@@ -735,9 +744,7 @@ function ScriptEditor({
     }
   };
   return (
-    <div className="modal-bg" onClick={onCancel}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="label">{title ?? t("editor.title")}</div>
+    <Dialog title={title ?? t("editor.title")} onClose={onCancel}>
         {warnings.map((w, i) => (
           <span key={i} className="chip err">
             {w}
@@ -765,7 +772,6 @@ function ScriptEditor({
           </button>
         </div>
         {note && <div className="hint">{note}</div>}
-      </div>
-    </div>
+    </Dialog>
   );
 }
