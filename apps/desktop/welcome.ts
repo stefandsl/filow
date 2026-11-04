@@ -18,7 +18,7 @@ let errorKey: I18nKey | null = null;
 
 function render(next: UiSnapshot) {
   state = acceptUiSnapshot(state, next);
-  applyUiPreferences(state, !!bridge.glass);
+  applyUiPreferences(state);
   document.querySelectorAll<HTMLElement>("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n as I18nKey, state!.resolvedLang); });
   language.options[1].textContent = LANG_LABELS.en;
   language.options[2].textContent = LANG_LABELS.it;

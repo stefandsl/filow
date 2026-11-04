@@ -26,7 +26,6 @@ import { useScreenSense, type ScreenSource } from "./useScreenSense";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "./LangSwitch";
 import { ResourcesPanel } from "./ResourcesPanel";
 import { desktopBridge, type UpdateStatus } from "@/lib/sessionUrl";
-import { attachSheen } from "@/lib/glass-sheen";
 
 type BackendChoice = "auto" | SttBackendId;
 
@@ -85,20 +84,6 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const [pendingImport, setPendingImport] = useState<ImportResponse | null>(null);
   const backendRef = useRef<SttBackend | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const dockRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const dock = dockRef.current;
-    if (!dock) return;
-    const motion = matchMedia("(prefers-reduced-motion: reduce)");
-    let detach = attachSheen(dock, { reducedMotion: motion.matches });
-    const sync = () => {
-      detach();
-      detach = attachSheen(dock, { reducedMotion: motion.matches });
-    };
-    motion.addEventListener("change", sync);
-    return () => { detach(); motion.removeEventListener("change", sync); };
-  }, []);
-
   // Offline mode is owned by the desktop shell (menu toggle); the web deploy reads FILOW_OFFLINE.
   useEffect(() => {
     const bridge = (globalThis as { filow?: { offline?: boolean; onOffline?: (fn: (v: boolean) => void) => void } }).filow;
@@ -469,15 +454,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         </>
       )}
 
-      <svg width="0" height="0" aria-hidden="true" focusable="false" style={{ position: "absolute" }}>
-        <defs>
-          <filter id="filow-glass-filter" x="-10%" y="-10%" width="120%" height="120%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" result="noise" />
-            <feDisplacementMap in="SourceGraphic" in2="noise" scale="8" xChannelSelector="R" yChannelSelector="G" />
-          </filter>
-        </defs>
-      </svg>
-      <div className="controls dock" ref={dockRef}>
+      <div className="controls dock">
         {eng.recording ? (
           <button className="btn danger" onClick={stopTake}>
             {t("ctl.stop")}

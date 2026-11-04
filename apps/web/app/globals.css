@@ -1,7 +1,7 @@
 @import "./theme-tokens.css";
 
 :root[data-theme="light"] .btn.primary { color: var(--action-foreground); }
-:root[data-theme="light"] .modal-bg { background: rgba(20, 20, 24, 0.35); }
+:root[data-theme="light"] .modal-bg { background: var(--bg); }
 :root[data-theme="light"] .source img { background: #eee; }
 .themeswitch { display: inline-flex; gap: 4px; }
 .themeswitch .chip { padding: 4px 8px; cursor: pointer; }
@@ -9,8 +9,6 @@
 * { box-sizing: border-box; }
 html, body { font-variant-numeric: tabular-nums; caret-color: var(--accent); scrollbar-color: var(--muted) var(--panel); margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); color-scheme: dark; }
 
-/* Desktop shell on Windows 11 / macOS: the window itself is acrylic / vibrancy, so the page lets it through. */
-:root[data-glass], :root[data-glass] body { background-color: transparent; }
 :root[data-theme="light"] body { color-scheme: light; }
 button { font: inherit; }
 body { font-size: var(--type-base); }
@@ -34,7 +32,7 @@ h1.section-title { font-size: var(--type-2xl); margin: 16px 0 8px; font-weight: 
 .points { display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .point {
   display: grid; grid-template-columns: 26px 76px 1fr; align-items: center; gap: 12px;
-  padding: 8px 12px; border-width: 0; border-radius: var(--glass-radius); background: var(--panel);
+  padding: 8px 12px; border-width: 0; border-radius: var(--radius); background: var(--panel);
   font-size: 1.375rem; font-weight: 700;
 }
 .point.started { background: var(--panel-2); color: var(--muted); }
@@ -46,17 +44,17 @@ h1.section-title { font-size: var(--type-2xl); margin: 16px 0 8px; font-weight: 
 .point .status .pct { font-size: var(--type-xs); color: var(--muted); letter-spacing: 0; }
 .point.started .status { color: var(--ok); }
 
-.strip { border-width: 0; border-radius: var(--glass-radius); background: var(--panel); padding: 12px 16px; }
+.strip { border-width: 0; border-radius: var(--radius); background: var(--panel); padding: 12px 16px; }
 .strip .label { font-size: var(--type-sm); letter-spacing: 0; text-transform: none; color: var(--muted); font-weight: 400; margin-bottom: 8px; }
 .strip .row { display: flex; gap: 20px; flex-wrap: wrap; font-size: var(--type-base); }
 .strip .row.scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
 .strip .next-item { color: var(--text); }
 .strip .next-item.done { color: var(--muted); text-decoration: line-through; }
-.missed-item { white-space: nowrap; border-width: 0; border-radius: var(--glass-radius); padding: 4px 8px; font-size: var(--type-sm); font-weight: 700; cursor: pointer; background: var(--panel-2); }
+.missed-item { white-space: nowrap; border-width: 0; border-radius: var(--radius); padding: 4px 8px; font-size: var(--type-sm); font-weight: 700; cursor: pointer; background: var(--panel-2); }
 
 .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .btn {
-  background: var(--glass-flat); color: var(--text); border-width: 0; border-radius: var(--glass-radius-pill);
+  background: var(--surface-2); color: var(--text); border-width: 0; border-radius: var(--radius);
   position: relative; isolation: isolate;
   box-shadow: none;
   padding: 8px 16px; font-size: var(--type-sm); letter-spacing: 0; text-transform: none; font-weight: 700; cursor: pointer;
@@ -73,17 +71,17 @@ select.btn option { background: var(--panel); color: var(--text); }
 
 .log { font-family: var(--font); font-size: var(--type-xs); color: var(--muted); max-height: 70px; overflow: auto; }
 
-.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 10; }
-.modal { background: var(--panel); border-width: 0; border-radius: var(--glass-radius); width: min(900px, 92vw); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-.modal textarea { width: 100%; height: 60vh; background: var(--bg); color: var(--text); border-width: 0; border-radius: var(--glass-radius); padding: 12px; font-family: var(--font); font-size: var(--type-sm); resize: vertical; }
+.modal-bg { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 10; }
+.modal { background: var(--panel); border-width: 0; border-radius: var(--radius); width: min(900px, 92vw); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.modal textarea { width: 100%; height: 60vh; background: var(--bg); color: var(--text); border-width: 0; border-radius: var(--radius); padding: 12px; font-family: var(--font); font-size: var(--type-sm); resize: vertical; }
 .modal .hint { font-size: var(--type-sm); color: var(--muted); }
 
 /* ---- phase 2: pairing + mirror ---- */
-button.chip { background: var(--glass-flat); cursor: pointer; font: inherit; font-size: var(--type-xs); letter-spacing: 0; }
+button.chip { background: var(--surface-2); cursor: pointer; font: inherit; font-size: var(--type-xs); letter-spacing: 0; }
 button.chip.code:not(:focus-visible) { color: var(--text); outline: 1px solid var(--accent-ring); }
 .chip.banner { align-self: flex-start; }
 .pairmodal { width: min(420px, 92vw); align-items: center; text-align: center; }
-.pairmodal img { border-radius: var(--glass-radius); }
+.pairmodal img { border-radius: var(--radius); }
 .bigcode { font-family: var(--font); font-size: var(--type-6xl); letter-spacing: 0; font-weight: 800; }
 .code-input { font-family: var(--font); font-size: var(--type-2xl); letter-spacing: 0; text-align: center; width: 220px; text-transform: none; }
 .app.stage { padding: 16px 16px; gap: 12px; }
@@ -107,7 +105,7 @@ button.chip.code:not(:focus-visible) { color: var(--text); outline: 1px solid va
 a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 
 /* Screen Sense (ARCHITECTURE.md §6) */
-.strip.onscreen .fact { color: var(--text); border-width: 0; border-radius: var(--glass-radius); padding: 4px 8px; font-size: var(--type-sm); }
+.strip.onscreen .fact { color: var(--text); border-width: 0; border-radius: var(--radius); padding: 4px 8px; font-size: var(--type-sm); }
 .strip.onscreen .fact.unsaid { color: var(--text); outline: 1px solid var(--accent-ring); }
 .strip.onscreen .row.actions { gap: 8px; margin-top: 8px; }
 .chip.busy:not(:focus-visible) { color: var(--text); outline: 1px solid var(--accent-ring);  }
@@ -131,19 +129,19 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .netline { display: flex; flex-direction: column; gap: 8px; text-align: left; width: 100%; }
 .netline select.btn { max-width: 100%; }
 .strip.autopick { display: flex; align-items: center; justify-content: space-between; gap: 12px;  }
-.btn.danger.small { background: var(--glass-flat); }
+.btn.danger.small { background: var(--surface-2); }
 
 .sources { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; max-height: 60vh; overflow-y: auto; }
-.source { background: var(--bg); border-width: 0; border-radius: var(--glass-radius); padding: 8px; cursor: pointer; text-align: left; color: var(--text); display: flex; flex-direction: column; gap: 8px; }
-.source img { width: 100%; aspect-ratio: 16/9; object-fit: contain; background: #000; border-radius: var(--glass-radius); }
+.source { background: var(--bg); border-width: 0; border-radius: var(--radius); padding: 8px; cursor: pointer; text-align: left; color: var(--text); display: flex; flex-direction: column; gap: 8px; }
+.source img { width: 100%; aspect-ratio: 16/9; object-fit: contain; background: #000; border-radius: var(--radius); }
 .source .name { font-size: var(--type-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .source .kind { font-size: var(--type-xs); letter-spacing: 0; text-transform: none; color: var(--muted); }
-.controls .group { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 8px 12px; border-width: 0; border-radius: var(--glass-radius); }
+.controls .group { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 8px 12px; border-width: 0; border-radius: var(--radius); }
 .controls .group .label { font-size: var(--type-xs); letter-spacing: 0; text-transform: none; color: var(--muted); font-weight: 700; }
 input.btn { text-transform: none; letter-spacing: 0; font-family: var(--font); }
 input.btn.hotkey { width: min(100%, 320px); }
 .keys { display: inline-flex; gap: 4px; align-items: center; }
-.keys kbd { font: var(--type-sm)/1 var(--font); padding: 8px 8px 8px; border-width: 0; border-radius: var(--glass-radius); background: var(--glass-flat); color: var(--text); }
+.keys kbd { font: var(--type-sm)/1 var(--font); padding: 8px 8px 8px; border-width: 0; border-radius: var(--radius); background: var(--surface-2); color: var(--text); }
 .langswitch { display: inline-flex; gap: 4px; }
 .langswitch .chip { padding: 4px 8px; }
 
@@ -159,13 +157,13 @@ input.btn.hotkey { width: min(100%, 320px); }
 .app.compact .strip .row { font-size: var(--type-sm); }
 
 /* Update ready */
-.update-banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-width: 0; border-radius: var(--glass-radius); background: var(--panel); font-size: var(--type-base); }
+.update-banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-width: 0; border-radius: var(--radius); background: var(--panel); font-size: var(--type-base); }
 .update-banner span { flex: 1; min-width: 200px; }
 
 /* Start mode dialog */
 .modal.startmode { width: min(760px, 94vw); }
 .startmode .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-.startmode .mode { border-width: 0; border-radius: var(--glass-radius); padding: 16px; display: flex; flex-direction: column; gap: 8px; background: var(--bg); }
+.startmode .mode { border-width: 0; border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 8px; background: var(--bg); }
 .startmode .mode.notready { opacity: 1; }
 .startmode .mode h3 { margin: 0; font-size: var(--type-md); }
 .startmode .check { font-size: var(--type-sm); }
@@ -175,72 +173,10 @@ input.btn.hotkey { width: min(100%, 320px); }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* Shared material layers. Opaque fallbacks are overridden only when blur is supported. */
-.glass-raised, .point, .modal, .settings .strip {
-  background: var(--panel); border-width: 0; border-radius: var(--glass-radius);
-  box-shadow: inset 0 1px 1px var(--glass-highlight), var(--glass-shadow);
-}
-.glass-sheet, .strip, .footer, .settings input.btn, .settings select.btn, .code-input, .overlay-bar {
-  background: var(--panel-2); border-width: 0; border-radius: var(--glass-radius);
-  box-shadow: inset 0 1px 1px var(--glass-highlight-sheet), var(--glass-shadow-sheet);
-}
-.glass-flat, .chip, .strip.onscreen .fact, .modal textarea, .modal .hint, .source,
-.missed-item, .footer .transcript, .controls .group, .log, .section-count, .subtitle,
-.settings .model, .settings > .hint {
-  background: var(--glass-flat); border-width: 0; box-shadow: none; border-radius: var(--glass-radius);
-}
-.chip { border-radius: var(--glass-radius-pill); }
-.point.far { background: var(--glass-flat); box-shadow: none; }
-.point.far.hot:not(:focus-visible) { outline: 1px solid var(--accent-ring); }
-.point.started { background: var(--panel-2); }
-.point.far.started { background: var(--glass-flat); }
-@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-  .glass-raised, .point:not(.far), .modal, .settings .strip {
-    background: var(--glass-raised);
-    -webkit-backdrop-filter: var(--glass-blur-raised); backdrop-filter: var(--glass-blur-raised);
-  }
-  .glass-sheet, .strip.preview, .strip.onscreen, .footer, .settings input.btn, .settings select.btn, .code-input, .overlay-bar {
-    background: var(--glass-sheet);
-    -webkit-backdrop-filter: var(--glass-blur-sheet); backdrop-filter: var(--glass-blur-sheet);
-  }
-  .point.started:not(.far) { background: var(--glass-sheet); }
-}
-/* Resource readings and setup status remain still beside settings text. */
-.settings .chip, .settings .meter-bar i { animation: none; transition: none; }
-/* In-flow controls retain the existing flex/wrap layout. Effects never touch labels. */
-.dock {
-  position: relative; isolation: isolate; padding: 8px 12px;
-  background: var(--panel); border-width: 0; border-radius: var(--glass-radius);
-  box-shadow: inset 0 1px 1px var(--glass-highlight), var(--glass-shadow);
-  --mx: -200px; --my: -200px;
-}
-@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-  .dock {
-    background: var(--glass-raised);
-    -webkit-backdrop-filter: var(--glass-blur-raised); backdrop-filter: var(--glass-blur-raised);
-  }
-}
-.dock::before, .dock .btn::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit;
-  pointer-events: none; z-index: -1;
-  background-image: radial-gradient(120px circle at var(--mx) var(--my), rgba(255,255,255,0.18), transparent 70%);
-}
-@supports (filter: url("#filow-glass-filter")) {
-  .dock::before, .dock .btn::before { filter: url(#filow-glass-filter); }
-}
-#filow-glass-filter { color-interpolation-filters: sRGB; }
-@media (prefers-reduced-motion: reduce) {
-  .dock .btn::before { filter: none; background-image: none; }
-  .dock::before { filter: none; background-image: none; }
-  .app *, .modal-bg * { animation: none !important; transition: none !important; }
-}
-
+.point, .modal, .strip, .chip, .btn, .source, .dock { border: 1px solid var(--border); box-shadow: none; }
 /* Only the topmost dialog paints a material; pending dialogs keep their state. */
 .app > .modal-bg:has(~ .modal-bg) { display: none; }
 .app:has(> .modal-bg) > .topbar .modal-bg { display: none; }
-/* Bare title/eyebrow text needs an edge over white native wallpaper in dark mode. */
-:root:not([data-theme="light"]) .app > div > .label,
-:root:not([data-theme="light"]) h1.section-title { text-shadow: 0 1px 1px #000; }
 
 /* One state vocabulary for native controls, links and actionable rows. */
 :where(button, select, a, label, [role="button"], input[type="checkbox"], input[type="radio"]), .point[title], .missed-item { cursor: pointer; }

@@ -272,7 +272,6 @@ function initializeUiPreferences() {
 }
 function showWelcome() { return welcomeController.show(); }
 function createWelcomeWindow() {
-  const glass = (process.platform === "win32" && Number(os.release().split(".")[2] || 0) >= 22000) || process.platform === "darwin";
   const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
   const win = new BrowserWindow({
     width: Math.min(1000, area.width), height: Math.min(720, area.height),
@@ -281,11 +280,9 @@ function createWelcomeWindow() {
     y: area.y + Math.max(0, Math.floor((area.height - 720) / 2)),
     title: "Filow", icon: appIcon(), show: false, resizable: true,
     ...(mainWin && !mainWin.isDestroyed() ? { parent: mainWin, modal: false } : {}),
-    backgroundColor: glass ? "#00000000" : "#08090b",
-    ...(glass && process.platform === "win32" ? { backgroundMaterial: "acrylic" } : {}),
-    ...(glass && process.platform === "darwin" ? { vibrancy: "under-window", visualEffectState: "active" } : {}),
+    backgroundColor: uiTheme() === "dark" ? "#121212" : "#f6f7f9",
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true,
-      preload: path.join(__dirname, "welcome-preload.js"), additionalArguments: glass ? ["--filow-glass"] : [] },
+      preload: path.join(__dirname, "welcome-preload.js") },
   });
   welcomeWin = win;
   win.setMenu(null);
@@ -1593,23 +1590,14 @@ async function main() {
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(allowed(permission)));
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed(permission));
 
-  // Frosted glass: Windows 11 (build 22000+) gets an acrylic window, macOS the under-window vibrancy; the
-  // page is told through --filow-glass and keeps its own background transparent (globals.css), so the
-  // desktop shows through the panels in the dark, light and system themes (the material follows
-  // nativeTheme). 0.9.9 had this and 0.9.11 dropped it because the window could not maximize or go full
-  // screen on Electron 33; measured again on Electron 45 (Windows 11 26300): acrylic + alpha-0 background
-  // maximizes and goes full screen (only `transparent: true` windows cannot, and that is not used here).
-  const glass = (process.platform === "win32" && Number(os.release().split(".")[2] || 0) >= 22000) || process.platform === "darwin";
   const win = new BrowserWindow({
     width: 1280,
     height: 820,
-    backgroundColor: glass ? "#00000000" : "#08090b",
-    ...(glass && process.platform === "win32" ? { backgroundMaterial: "acrylic" } : {}),
-    ...(glass && process.platform === "darwin" ? { vibrancy: "under-window", visualEffectState: "active" } : {}),
+    backgroundColor: uiTheme() === "dark" ? "#121212" : "#f6f7f9",
     title: "Filow",
     show: false,
     icon: appIcon(),
-    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js"), additionalArguments: glass ? ["--filow-glass"] : [] },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
   });
   mainWin = win;
   win.on("focus", () => uiPreferences?.refresh());

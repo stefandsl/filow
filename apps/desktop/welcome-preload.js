@@ -1,6 +1,5 @@
 const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("filowWelcome", {
-  glass: process.argv.includes("--filow-glass"),
   getPreferences: () => ipcRenderer.invoke("ui:getPreferences"),
   updatePreferences: patch => ipcRenderer.invoke("ui:updatePreferences", patch),
   onPreferencesChanged: fn => {

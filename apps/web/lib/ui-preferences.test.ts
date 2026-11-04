@@ -31,13 +31,13 @@ it("does not optimistically commit rejected desktop preferences", async () => {
   const p = await import("./prefs"); p.receiveUiPreferences(state); p.setLang("it"); await Promise.resolve(); await Promise.resolve();
   expect(p.getLang()).toBe("en"); expect(p.getUiError()).toBe("ui.saveError"); expect(updatePreferences).toHaveBeenCalledWith({ lang: "it" });
 });
-it("applies language/theme/glass and removes every accent override on off", () => {
+it("applies language/theme and removes every accent override on off", () => {
   const vars = new Map<string, string>(), attrs = new Map<string, boolean>();
   const root = { lang: "", dataset: {} as Record<string, string>, toggleAttribute: (key: string, value: boolean) => attrs.set(key, value), style: { setProperty: (k: string, v: string) => vars.set(k, v), removeProperty: (k: string) => vars.delete(k) } };
   vi.stubGlobal("document", { documentElement: root });
-  applyUiPreferences({ resolvedLang: "it", resolvedTheme: "light", accentColor: "#000000" }, true);
-  expect(root.lang).toBe("it"); expect(root.dataset.theme).toBe("light"); expect(attrs.get("data-glass")).toBe(true); expect(vars.get("--action-foreground")).toBe("#ffffff");
-  applyUiPreferences({ resolvedLang: "en", resolvedTheme: "dark", accentColor: null }, false);
+  applyUiPreferences({ resolvedLang: "it", resolvedTheme: "light", accentColor: "#000000" });
+  expect(root.lang).toBe("it"); expect(root.dataset.theme).toBe("light"); expect(vars.get("--action-foreground")).toBe("#ffffff");
+  applyUiPreferences({ resolvedLang: "en", resolvedTheme: "dark", accentColor: null });
   expect(vars.size).toBe(0); expect(attrs.get("data-system-accent")).toBe(false);
 });
 it("subscribes before get, ignores a late initial response and cleans up", async () => {

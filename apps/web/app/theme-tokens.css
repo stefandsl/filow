@@ -11,88 +11,44 @@
   --type-4xl: 2.2962rem;
   --type-5xl: 2.6636rem;
   --type-6xl: 3.0898rem;
-  /* Filow brand kit: ink #08090B, white, warm gradient gold #FFE000 -> amber #FFB600 -> orange #FF6500. */
-  --bg: #08090b;
-  --panel: #13151a;
-  --panel-2: #1b1e26;
-  --border: #292c34;
-  --text: #f7f7f5;
-  --muted: #a4a8b3;
+  --bg: #121212;
+  --surface: #1a1a1a;
+  --surface-2: #222222;
+  --sidebar: #1a1a1a;
+  --row-current: #222222;
+  --border: #2c2c2c;
+  --text: #f3f3f1;
+  --muted: #a3a3a3;
   --accent: #ffb600;
+  --on-accent: #111111;
+  --panel: var(--surface);
+  --panel-2: var(--surface-2);
+  --action-background: var(--accent);
+  --action-foreground: var(--on-accent);
+  --accent-ring: #ffb600;
   --accent-2: #ff6500;
   --gold: #ffe000;
-  --action-background: linear-gradient(135deg, #ffe000 0%, #ffb600 48%, #ff7000 100%);
-  --action-foreground: #08090b;
   --brand-gradient: linear-gradient(135deg, #ffe000 0%, #ffb600 48%, #ff6500 100%);
-  --accent-ring: rgba(255, 182, 0, 0.35);
   --ok: #4ad67a;
   --warn: #ffa6a6;
-  /* Frosted glass: panels are translucent and blur what is behind them (a soft brand glow on the
-     page; the desktop's acrylic/vibrancy window when [data-glass] is set by the desktop shell). */
-  --glass: rgba(19, 21, 26, 0.62);
-  --glass-2: rgba(27, 30, 38, 0.66);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-blur: saturate(140%) blur(18px);
-  /* Opacity is gated against white and black, including muted text and flat rows. */
-  --glass-raised: rgba(19, 21, 26, 0.90);
-  --glass-sheet: rgba(27, 30, 38, 0.92);
-  --glass-flat: rgba(27, 30, 38, 0.92);
-  --glass-blur-raised: saturate(140%) blur(22px);
-  --glass-blur-sheet: saturate(140%) blur(22px);
-  --glass-highlight: rgba(255, 255, 255, 0.14);
-  --glass-highlight-sheet: rgba(255, 255, 255, 0.07);
-  --glass-edge: rgba(255, 255, 255, 0.08);
-  --glass-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
-  --glass-shadow-sheet: 0 2px 8px rgba(0, 0, 0, 0.10);
-  --control-hover: #292d38;
-  --glass-radius: 12px;
-  --glass-radius-pill: 999px;
+  --control-hover: #2c2c2c;
+  --radius: 10px;
+  --radius-badge: 8px;
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
 }
-
-/* Light theme ("black and white"): same tokens, different values. Picked by the toggle
-   (prefs:theme = system | light | dark) and, for "system", by prefers-color-scheme. */
 :root[data-theme="light"] {
-  --bg: #f7f7f5;
-  --panel: #ffffff;
-  --panel-2: #eef0f4;
-  --border: #d8deea;
-  --text: #08090b;
-  --muted: #555e73;
-  --accent: #c27f00;
-  --accent-2: #e05a00;
-  --accent-ring: rgba(255, 182, 0, 0.45);
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --sidebar: #eef1f5;
+  --row-current: #fff8e1;
+  --border: #e2e5ea;
+  --text: #111318;
+  --muted: #5c6270;
+  --accent: #ffb600;
+  --on-accent: #111111;
   --ok: #14562b;
   --warn: #87281e;
-  --glass: rgba(255, 255, 255, 0.62);
-  --glass-2: rgba(238, 240, 244, 0.7);
-  --glass-border: rgba(8, 9, 11, 0.08);
-  --glass-raised: rgba(255, 255, 255, 0.92);
-  --glass-sheet: rgba(255, 255, 255, 0.92);
-  --glass-flat: rgba(255, 255, 255, 0.92);
-  --glass-blur-raised: saturate(140%) blur(22px);
-  --glass-blur-sheet: saturate(140%) blur(22px);
-  --glass-highlight: rgba(255, 255, 255, 0.90);
-  --glass-highlight-sheet: rgba(255, 255, 255, 0.45);
-  --glass-edge: rgba(8, 9, 11, 0.08);
-  --glass-shadow: 0 8px 30px rgba(8, 9, 11, 0.06);
-  --glass-shadow-sheet: 0 2px 8px rgba(8, 9, 11, 0.06);
-  --control-hover: #e4e7ed;
-  --glass-radius: 12px;
-  --glass-radius-pill: 999px;
+  --control-hover: #e2e5ea;
 }
-
-/* Bound glass compositing so system-accent text remains readable over any desktop. */
-:root[data-system-accent] { --glass: rgba(19,21,26,.92); --glass-2: rgba(27,30,38,.96); }
-:root[data-system-accent][data-theme="light"] { --glass: rgba(255,255,255,.92); --glass-2: rgba(238,240,244,.96); }
-:root[data-system-accent][data-glass] body { background-color: var(--glass); }
-@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  :root, :root[data-theme="light"] {
-    --glass-raised: var(--panel); --glass-sheet: var(--panel-2); --glass-flat: var(--panel-2);
-    --glass-blur-raised: none; --glass-blur-sheet: none;
-  }
-  :root { --glass: var(--panel); --glass-2: var(--panel-2); --glass-blur: none; }
-  :root[data-glass], :root[data-glass] body { background-color: var(--bg) !important; }
-}
-@media (forced-colors: active) { :root[data-glass], :root[data-glass] body { background-color: Canvas !important; } }

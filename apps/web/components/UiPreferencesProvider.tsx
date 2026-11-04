@@ -14,7 +14,7 @@ export function UiPreferencesProvider({ children }: { children: ReactNode }) {
     const apply = () => {
       if (!active) return;
       const state = getDesktopPreferences();
-      applyUiPreferences(state ?? { resolvedLang: getLang(), resolvedTheme: resolveTheme(getThemePref()), accentColor: null }, !!bridge?.glass);
+      applyUiPreferences(state ?? { resolvedLang: getLang(), resolvedTheme: resolveTheme(getThemePref()), accentColor: null });
       const code = getUiError();
       setError(code ? t(code, getLang()) : null);
     };
