@@ -80,3 +80,13 @@ it('retires all glass effects and uses opaque desktop windows', () => {
 it('keeps the light transcript heading hidden after general button styling', () => {
   expect(css).toContain('[data-layout="sidebar"] .prompter .transcript-heading { display: none; }');
 });
+
+it('shows the done tick in a clearly visible green', () => {
+  const rule = (selector: string) => sheet.nodes.find(node => node.type === 'rule' && (node as { selector: string }).selector === selector)?.toString() ?? '';
+  expect(rule('.point-row.done .point-state')).toContain('color: var(--ok)');
+  const tick = rule('.point-row.done .point-state [data-icon="check"] svg');
+  expect(tick).toContain('color: var(--ok)');
+  expect(tick).toMatch(/width: (2[0-9]|3[0-9])px/);
+  expect(tick).toMatch(/stroke-width: (2\.5|3)/);
+  expect(rule('.point-row.done .point-progress i')).toContain('background: var(--ok)');
+});

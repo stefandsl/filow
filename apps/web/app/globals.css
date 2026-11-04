@@ -262,7 +262,9 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .point-row.active .point-number { color: var(--on-accent); background: var(--accent); border-radius: var(--radius-badge); padding: 8px 0; }
 .prompter .point-row.done { color: var(--muted); background: var(--surface-2); }
 .point-row.done .point-text, .next-section .done { text-decoration: line-through; }
-.point-row.done .point-progress i { background: var(--muted); }
+.point-row.done .point-progress i { background: var(--ok); }
+.point-row.done .point-state { color: var(--ok); font-weight: 600; }
+.point-row.done .point-state [data-icon="check"] svg { color: var(--ok); width: 24px; height: 24px; stroke-width: 3; }
 [data-layout="sidebar"] .point-number { border: 1px solid var(--border); border-radius: var(--radius-badge); padding: 8px 0; }
 [data-layout="sidebar"] .point-state { border-left: 0; }
 .next-section { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
