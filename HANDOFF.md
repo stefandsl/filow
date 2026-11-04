@@ -125,14 +125,11 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 - Repos: source `stefandsl/filow` (PUBLIC since 2026-11-03: the owner made it public so CI runs on free Actions minutes after a billing block; never commit keys, `.env` stays ignored; branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
   (folder still has the old name on purpose).
-- v0.9.24 (flat redesign) is the current public release on the feed (2026-11-04, CI run 41850084155,
-  feed manifests say 0.9.24). v0.9.25 (six review fixes) is tagged and built for Windows and Linux,
-  but its macOS job was cancelled twice by GitHub ("not acquired by Runner ... capacity constraints"
-  on macOS arm64 runners): it is NOT on the feed. To finish: `gh run rerun 41855168600 --repo
-  stefandsl/filow --failed` until macOS succeeds (or switch the matrix runner in
-  .github/workflows/desktop.yml from macos-latest to macos-13, which builds both dmg arches, and tag
-  0.9.26), then publish with the release gate below. Never publish a release without all three
-  latest*.yml.
+- v0.9.25 is the current public release (2026-11-04; macOS job needed a third rerun of CI run
+  41855168600 because GitHub had no macOS arm64 runner; feed manifests say 0.9.25). If macOS runners
+  keep failing, rerun with `gh run rerun <id> --repo stefandsl/filow --failed` later; never publish
+  without all three latest*.yml.
+- Before that: v0.9.24 (flat redesign).
 - Before that: v0.9.23 was the public release (2026-11-03, CI run 41728198913, feed manifests say 0.9.23,
   packaged-build gate and icon count run before the tag). Before that: v0.9.22 (2026-11-03, CI run 41720898785, feed manifests say 0.9.22; packaged
   Windows build launched on a clean profile and icon groups counted before tagging). Before that: v0.9.21 (2026-11-03, CI run 41687452972, all three platforms green,
