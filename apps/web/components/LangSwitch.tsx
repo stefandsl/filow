@@ -20,9 +20,10 @@ export function useUiTheme(): [ThemePref, (theme: ThemePref) => void] {
 }
 export function ThemeSwitch({ pref, onChange }: { pref: ThemePref; onChange: (t: ThemePref) => void }) {
   const [lang] = useUiLang();
-  const items: Array<[ThemePref, IconName]> = [["light", "sun"], ["system", "system"], ["dark", "moon"]];
+  const icons: Record<ThemePref, IconName> = { light: "sun", dark: "moon", system: "system" };
+  const next: Record<ThemePref, ThemePref> = { light: "dark", dark: "system", system: "light" };
   return <span className="themeswitch" role="group" aria-label={t("ui.theme", lang)}>
-    {items.map(([theme, icon]) => <button key={theme} className={`chip ${pref === theme ? "code" : ""}`} onClick={() => onChange(theme)} aria-pressed={pref === theme} aria-label={t(`ui.${theme}`, lang)} title={t(`ui.${theme}`, lang)}><Icon name={icon} /></button>)}
+    <button type="button" className="btn" onClick={() => onChange(next[pref])} aria-label={`${t("ui.theme", lang)}: ${t(`ui.${pref}`, lang)}`} title={t(`ui.${pref}`, lang)}><Icon name={icons[pref]} /></button>
   </span>;
 }
 

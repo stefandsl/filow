@@ -60,25 +60,27 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, left === 0]);
 
-  if (error)
+  if (error && !prompter)
     return (
       <span className="chip err" title={error}>
         {t("app.mirrorOff")}
       </span>
     );
-  if (!info) return <span className="chip">{t("app.session")}</span>;
+  if (!info && !prompter) return <span className="chip">{t("app.session")}</span>;
 
   return (
     <>
-      <button className={`chip code ${pending ? "busy" : ""}`} onClick={() => setOpen((o) => !o)} title={t("pair.showQr")}>
-        {prompter && <Icon name="system" />} {t("app.pair")} <span className="pair-code">{info.code}</span> {pending ? "\u2026" : !prompter && <Icon name="circle" />}
+      <button className={`${prompter ? "btn" : "chip code"} ${pending ? "busy" : ""}`} onClick={() => setOpen((o) => !o)} title={t("pair.showQr")}>
+        {prompter && <Icon name="system" />} {t(prompter ? "pair.device" : "app.pair")} {!prompter && info && <span className="pair-code">{info.code}</span>} {pending ? "\u2026" : !prompter && <Icon name="circle" />}
       </button>
+      {prompter && info && <button className="chip code" onClick={() => setOpen(true)} title={t("pair.showQr")}>{info.code}</button>}
       {open && (
         <div className="modal-bg" onClick={() => setOpen(false)}>
           <div className="modal pairmodal" onClick={(e) => e.stopPropagation()}>
             <div className="label">{t("pair.title")}</div>
-            <div className="bigcode">{info.code}</div>
-            {qr && <img src={qr} alt="QR" width={220} height={220} />}
+            {error && <p className="hint" role="status">{t("app.mirrorOff")}: {error}</p>}
+            {info && <div className="bigcode">{info.code}</div>}
+            {info && qr && <img src={qr} alt="QR" width={220} height={220} />}
             <div className="row">
               {left !== null && (
                 <span className={`chip ${left === 0 ? "err" : ""}`}>{left === 0 ? t("pair.expired") : t("pair.expires", { t: `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` })}</span>
@@ -90,7 +92,7 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false }: 
               )}
             </div>
             <div className="hint">
-              {t("pair.hint", { url: mirrorUrl })} {t("pair.singleUse")}
+              {info && <>{t("pair.hint", { url: mirrorUrl })} {t("pair.singleUse")}</>}
               {status !== "open" && <> {t("pair.relay", { status })}</>}
             </div>
             <div className={`chip ${publicLink ? "live" : pending ? "busy" : remote?.state === "error" ? "err" : ""}`}>

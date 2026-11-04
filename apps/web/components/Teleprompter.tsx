@@ -28,6 +28,7 @@ import { ResourcesPanel } from "./ResourcesPanel";
 import { desktopBridge, type UpdateStatus } from "@/lib/sessionUrl";
 
 import { SectionNav } from "./prompter/SectionNav";
+import { sectionLabel } from "./prompter/sectionLabel";
 import { PointsList } from "./prompter/PointsList";
 import { NextSection } from "./prompter/NextSection";
 import { Transcript } from "./prompter/Transcript";
@@ -381,7 +382,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
 
         <div className="section-heading">
           {section ? <><div className="section-count">{t("section.counter", {n: sectionIdx + 1, m: script.sections.length})}</div>
-            <h1 className="section-title">{section.title}</h1><span className="label">{t("section.points", {n: section.bullets.length})}</span></>
+            <h1 className="section-title">{sectionLabel(section.title).title}</h1><span className="label">{sectionLabel(section.title).label && `${sectionLabel(section.title).label} - `}{t("section.points", {n: section.bullets.length})}</span></>
             : <><h1 className="section-title">{t("stage.noScript")}</h1><p>{t("stage.noScriptHint")}</p></>}
           <button type="button" className="btn edit-points" onClick={() => setEditing(true)}><Icon name="edit" /> {t("ctl.edit")}</button>
         </div>
@@ -441,30 +442,33 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
                 {t("screen.watch")}
               </button>
             )}
-            <select className="btn" value={screen.mode} onChange={(e) => screen.setMode(e.target.value as ScreenMode)} title={t("screen.modeTitle")} aria-label={t("screen.modeTitle")}>
+            <select className="btn" value={screen.mode} onChange={(e) => screen.setMode(e.target.value as ScreenMode)} title={t(`mode.${screen.mode}`)} aria-label={t("screen.modeTitle")}>
               {(Object.keys(SCREEN_MODE_LABELS) as ScreenMode[]).map((m) => (
-                <option key={m} value={m}>
-                  {t(`mode.${m}`)}
+                <option key={m} value={m} title={t(`mode.${m}`)}>
+                  {t(`mode.${m}.short`)}
                 </option>
               ))}
             </select>
+            {(layout === "sidebar" || state.screen || lastNotes.length > 0) && <OverflowMenu items={[
+              ...(layout === "sidebar" && screen.desktop ? [{id:"region",label:t("screen.region"),onSelect:() => { if (!offline) void screen.captureRegion(); }}] : []),
+              {id:"screenSettings",label:t("ctl.settings"),onSelect:() => { window.location.href = "/settings/local"; }},
+              ...(state.screen ? [{id:"forget",label:t("screen.forget"),onSelect:screen.forget}] : []),
+              ...(lastNotes.length > 0 ? [{id:"export",label:t("screen.exportNotes", {n:lastNotes.length}),onSelect:exportNotes}] : []),
+            ]} />}
+
             <button
-              className="btn"
+              className="btn screen-scan"
               onClick={screen.lookNow}
               disabled={offline || (screen.status !== "watching" && !screen.desktop)}
               title={screen.desktop && screen.status !== "watching" ? t("screen.lookNowRegion") : t("screen.lookNowFrame")}
             >
-              {t("screen.lookNow")}
+              <Icon name="play" /> {t(layout === "sidebar" ? "screen.scan" : "screen.lookNow")}
             </button>
-            {screen.desktop && (
+            {screen.desktop && layout === "rail" && (
               <button className="btn" onClick={() => void screen.captureRegion()} disabled={offline} title={t("screen.regionTitle")}>
                 {t("screen.region")}
               </button>
             )}
-            {(state.screen || lastNotes.length > 0) && <OverflowMenu items={[
-              ...(state.screen ? [{id:"forget",label:t("screen.forget"),onSelect:screen.forget}] : []),
-              ...(lastNotes.length > 0 ? [{id:"export",label:t("screen.exportNotes", {n:lastNotes.length}),onSelect:exportNotes}] : []),
-            ]} />}
           {screen.status === "watching" && <span className="chip rec" title={t("screen.recTitle", {label:screen.label})}><Icon name="circle" /> {t("screen.rec")} {"\u00b7"} {state.screenStats?.analysing ? t("app.analysing") : screen.label}</span>}
         </ScreenSensePanel>}
       </aside>
@@ -489,11 +493,11 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
           </button>
         )}
 </>} mode={<label className="backend-choice"><span>{t("ctl.mode")}</span>
-        <select className="btn" value={choice} disabled={eng.recording} onChange={(e) => setChoice(e.target.value as BackendChoice)} title={t("ctl.backend")} aria-label={t("ctl.backend")}>
-          <option value="auto">{t("ctl.auto")}</option>
+        <select className="btn" value={choice} disabled={eng.recording} onChange={(e) => setChoice(e.target.value as BackendChoice)} title={choice === "auto" ? t("ctl.auto") : BACKEND_LABELS[choice]} aria-label={t("ctl.backend")}>
+          <option value="auto" title={t("ctl.auto")}>{t("ctl.auto.short")}</option>
           {availability.map((id) => (
-            <option key={id} value={id}>
-              {BACKEND_LABELS[id]}
+            <option key={id} value={id} title={BACKEND_LABELS[id]}>
+              {t(`ctl.backend.${id}.short`)}
             </option>
           ))}
         </select>

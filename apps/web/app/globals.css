@@ -221,7 +221,9 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .section-number { display: inline-grid; place-items: center; min-width: 32px; height: 32px; border: 1px solid var(--border); border-radius: var(--radius-badge); }
 .section-link[aria-current] { font-weight: 700; color: var(--text); background: var(--row-current); }
 .section-link[aria-current] .section-number { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
-.section-name { overflow-wrap: anywhere; min-width: 0; max-width: 20ch; }
+.section-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 20ch; }
+.section-number { flex-shrink: 0; }
+[data-layout="rail"] .section-link { min-width: 0; max-width: 240px; border-color: transparent; background: transparent; }
 .nav-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .nav-heading, .sidebar-only { display: none; }
 .prompter-main { grid-area: main; min-width: 0; padding: 24px; }
@@ -341,3 +343,43 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
  [data-layout="rail"] .prompter-content { display: flex; flex-direction: column; }
 }
 @media (max-width: 899px) { [data-layout="sidebar"] .prompter { grid-template-columns: 56px minmax(0,1fr); } }
+
+/* Mockup alignment: compact labels, flat light rows, and one Screen Sense row. */
+[data-layout="sidebar"] .section-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+[data-layout="sidebar"] .section-heading .section-count,
+[data-layout="sidebar"] .section-heading h1 { grid-column: 1 / -1; }
+[data-layout="sidebar"] .prompter-main { padding-bottom: 16px; gap: 12px; }
+[data-layout="sidebar"] .prompter .point-row { padding-top: 12px; padding-bottom: 12px; }
+[data-layout="sidebar"] .next-section { padding: 16px; }
+[data-layout="sidebar"] .next-section h2 { margin-bottom: 12px; }
+[data-layout="sidebar"] .next-section li { padding: 3px; }
+[data-layout="rail"] .next-section { padding: 0; border: 0; background: transparent; }
+[data-layout="sidebar"] .prompter .edit-points { margin: 0; }
+[data-layout="sidebar"] .section-number { background: transparent; color: var(--text); border-color: transparent; }
+[data-layout="sidebar"] .section-link[aria-current] .section-number { background: transparent; color: var(--text); border-color: transparent; }
+[data-layout="sidebar"] .prompter .point-row { grid-template-columns: 40px minmax(0, 1fr) 88px; border-radius: 0; border-width: 0 0 1px; background: transparent; }
+[data-layout="sidebar"] .prompter .point-row.active { border-left: 3px solid var(--accent); background: var(--row-current); }
+[data-layout="sidebar"] .point-state { padding-left: 0; }
+[data-layout="sidebar"] .point-state .icon,
+[data-layout="sidebar"] .point-progress { display: none; }
+[data-layout="sidebar"] .prompter-transcript:has(p[hidden]) { display: none; }
+[data-layout="sidebar"] .screen-sense { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+[data-layout="sidebar"] .screen-heading { margin: 0; gap: 12px; }
+[data-layout="sidebar"] .screen-controls { flex: 1; gap: 8px; }
+[data-layout="sidebar"] .screen-controls .screen-scan { order: 2; margin-left: auto; }
+[data-layout="sidebar"] .backend-choice > span { display: none; }
+.screen-controls select { width: 164px; flex-shrink: 0; }
+.action-bar select { width: 144px; }
+[data-layout="rail"] .screen-controls select { width: 100%; }
+[data-layout="sidebar"] .action-bar { gap: 8px; padding: 16px; }
+[data-layout="sidebar"] .action-bar .btn { padding: 8px 10px; }
+[data-layout="sidebar"] .action-navigation { flex: 1; }
+[data-layout="sidebar"] .action-navigation > .sidebar-only { margin-right: auto; }
+@media (max-width: 1100px) {
+  [data-layout="sidebar"] .action-navigation { flex-basis: 100%; }
+}
+@media (max-width: 899px) {
+  [data-layout="sidebar"] .section-heading { gap: 8px; }
+  [data-layout="sidebar"] .screen-heading { width: 100%; }
+  .prompter .topbar { flex-wrap: wrap; }
+}

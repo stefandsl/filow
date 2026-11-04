@@ -2,7 +2,7 @@ import { createElement } from "react";
 
 /** Filow's UI symbols: a single 24-unit, 1.5px stroke set for web and welcome. */
 export const iconPaths = {
-  more: "M5 12h.01M12 12h.01M19 12h.01",
+  more: "M6 12a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM13 12a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM20 12a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z",
   play: "m8 4 12 8-12 8Z",
   edit: "m4 16 12-12 4 4-12 12H4Zm10-10 4 4",
   reload: "M20 7v5h-5M20 12a8 8 0 1 0-2 5",

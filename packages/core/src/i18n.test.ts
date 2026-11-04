@@ -1,6 +1,14 @@
 import { expect, it } from "vitest";
 import { DICTIONARIES } from "./i18n";
 const labels = {
+ "pair.device": ["Pair device", "Abbina dispositivo"],
+ "footer.transcript": ["Transcript", "Trascrizione"],
+ "ctl.auto.short": ["Automatic", "Automatico"],
+ "mode.off.short": ["Off", "Spento"],
+ "mode.slide-change.short": ["Slide change", "Cambio slide"],
+ "mode.balanced.short": ["Balanced", "Bilanciato"],
+ "mode.realtime.short": ["Real-time", "Tempo reale"],
+ "screen.scan": ["Scan", "Scansiona"],
  "ctl.mode": ["Mode", "Modalità"],
  "ctl.more": ["More", "Altro"], "ctl.logReport": ["Log and report a problem", "Registro e segnalazione"],
  "nav.scriptTitle": ["The script", "Il copione"], "nav.sections": ["{n} sections", "{n} sezioni"],
