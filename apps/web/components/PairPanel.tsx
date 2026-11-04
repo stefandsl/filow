@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useT } from "@filow/ui";
 import type { SessionInfo } from "./useSession";
 import { desktopBridge, type NetStatus, type RemoteStatus } from "@/lib/sessionUrl";
+import { consumeReopenPairing, markReopenPairing } from "@/lib/pairReopen";
 
 /** Shows the pairing code and a QR for the mirror URL. */
 export function PairPanel({ info, status, error, onNewCode, prompter = false }: { info: SessionInfo | null; status: string; error: string | null; onNewCode?: () => void; prompter?: boolean }) {
@@ -12,6 +13,10 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false }: 
   const [now, setNow] = useState(() => Date.now());
   const [qr, setQr] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  // Reopen after the reload that switching the public link triggers.
+  useEffect(() => {
+    if (consumeReopenPairing()) setOpen(true);
+  }, []);
   const [switching, setSwitching] = useState(false);
   const [remote, setRemote] = useState<RemoteStatus | null>(null);
   const [net, setNet] = useState<NetStatus | null>(null);
@@ -157,6 +162,7 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false }: 
                   title={publicLink ? "" : t("pair.enablePublicHint")}
                   onClick={() => {
                     setSwitching(true);
+                    markReopenPairing();
                     bridge.setRemoteShare?.(!publicLink);
                   }}
                 >
