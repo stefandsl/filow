@@ -4,8 +4,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   // The web app imports its own modules as "@/…" (tsconfig paths); vitest needs the same alias.
   resolve: { alias: { "@": path.resolve(__dirname, "apps/web") } },
+  esbuild: { jsx: "automatic" },
   test: {
-    include: ["apps/desktop/**/*.test.ts", "packages/*/src/**/*.test.ts", "apps/server/src/**/*.test.ts", "apps/powerpoint/src/**/*.test.ts", "apps/web/lib/**/*.test.ts", "apps/web/app/**/*.test.ts"],
+    include: ["apps/web/components/**/*.test.tsx", "apps/desktop/**/*.test.ts", "packages/*/src/**/*.test.ts", "apps/server/src/**/*.test.ts", "apps/powerpoint/src/**/*.test.ts", "apps/web/lib/**/*.test.ts", "apps/web/app/**/*.test.ts"],
     environment: "node",
   },
 });
