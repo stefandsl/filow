@@ -143,6 +143,11 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - unreleased (after 0.9.25 tag): large green tick + green "Detto" label and bar on done points
+    (8ef6679); pairing panel reopens after the reload that switching the public link triggers
+    (e47bae1, sessionStorage flag in apps/web/lib/pairReopen.ts); resizable next-section rail in the
+    dark layout (114c943, RailSplitter + apps/web/lib/railWidth.ts, saved in localStorage
+    `prefs:railWidth`). Ship them as 0.9.26 with the release gate; 0.9.26 also contains 0.9.25's fixes.
   - 0.9.25: six fixes from a high-reasoning read-only Codex review of 0.9.24 (c9e8b69): short
     viewports and 200 percent zoom scroll instead of clipping, Screen Sense menus open inward at
     760 px, cancelling a start invalidates the pending async steps, dialogs trap focus / close on
