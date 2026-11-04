@@ -47,6 +47,8 @@ Il prompter usa superfici opache, schede delle sezioni e un pannello destro nel 
 
 Nel prompter e nel mirror con controllo, Tab seleziona i punti e gli elementi saltati. Premi Invio o Spazio per cambiare lo stato di un punto o riaprire un elemento saltato. Il doppio clic su un punto continua a funzionare.
 
+Con zoom elevato o una finestra bassa, la pagina scorre per mantenere punti e comandi raggiungibili. Le finestre di avvio, scelta della sorgente e modifica del copione mantengono il focus della tastiera al loro interno; Esc le chiude e riporta il focus al comando di apertura. Chiudere il registro riporta il focus ad Altro. Annulla interrompe anche le verifiche automatiche di avvio ancora in corso. Gli errori di importazione compaiono subito sopra i punti e vengono annunciati dal lettore di schermo.
+
 | | |
 |---|---|
 | ✅ **Spunta dal vivo** | I punti vengono spuntati man mano che li tratti, giudicati per idea, non per parole. Confidenza mostrata per ogni punto. |

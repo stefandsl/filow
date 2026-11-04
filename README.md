@@ -47,6 +47,8 @@ The flat prompter uses section tabs and a right rail in dark mode, and a section
 
 In the prompter and a controllable mirror, Tab focuses points and missed items. Press Enter or Space to toggle a point or reopen a missed item. Double-clicking a point still works.
 
+At high zoom or in a short window, the page scrolls to keep points and controls reachable. Start, screen-source and script-editor dialogs keep keyboard focus inside; Escape closes them and returns focus to the opener. Closing the log returns focus to More. Cancel also cancels pending automatic startup checks. Import failures appear immediately as an announced error above the points.
+
 | | |
 |---|---|
 | ✅ **Live check-off** | Points are checked off as you cover them, judged by idea, not wording. Confidence shown per point. |

@@ -16,6 +16,15 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.24)
 
+- Unreleased release-review fixes (2026-11-04): all six findings in
+  `tmp/codex/run-13-last.md` addressed. Short viewports scroll without collapsing points;
+  the dark Screen Sense menu opens inward; cancelled startup cannot resume; Start/source/editor
+  dialogs contain and restore keyboard focus; import failures are visible alerts; log close
+  returns focus to the action overflow. Typecheck, 200 tests (1 existing skip) and web build
+  pass. Production browser checks cover both themes, minimum and zoom-equivalent viewports,
+  dialog traversal, log focus, failed import and delayed model-plan cancellation. Evidence:
+  `docs/superpowers/plans/2026-11-04-flat-layout-review-fixes.md`. No tag or release.
+
 - Flat mockup corrections (2026-11-04): visible overflow dots, bilingual short mode
   labels/tooltips, clean transcript label, single-line tabs, pairing button and one
   cycling theme button. Light sidebar, points, next card and Screen Sense row aligned.
@@ -374,6 +383,9 @@ notifications and the region picker on those platforms are unverified.
 
 ## Pending (ask the owner before starting the big ones)
 
+- The six release-review findings are closed in source. Native/live acceptance remains pending;
+  the new evidence document distinguishes mocked browser checks from hardware verification.
+
 - Flat redesign acceptance: owner to run Task 6 of
   `docs/superpowers/plans/2026-11-04-flat-layout-redesign.md` (mockup comparison and window-size
   screenshots). Independent review fixes and evidence are recorded in the sibling
@@ -424,6 +436,10 @@ esources` before extracting (electron-builder hook order must be checked
    (`GAUNTLET=1 GAUNTLET_GATE=1 GAUNTLET_PROVIDERS=clef-local npx vitest run apps/web/lib/gauntlet`).
 
 ## Known gaps and traps
+
+- Release-review focus checks use Chromium and native HTML dialogs with explicit Tab wrapping.
+  OS screen-reader speech, packaged Electron and real microphone/backend cancellation were not
+  exercised; startup identity guards and delayed-plan browser checks cover the reported race.
 
 - Flat layout screenshot comparison is now recorded in the 2026-11-04 evidence document.
   Native/package and live microphone/vision acceptance remain pending; renderer state
@@ -506,6 +522,10 @@ they wrote (usually Italian), outcome first, short.
   under `G:/FILOW/tmp`, npm cache `--cache G:/caches/npm`.
 
 ### Codex: next task (finish the flat redesign, plan Task 6)
+
+Follow-up 2026-11-04: all six findings from the final read-only release review are fixed and
+tested; see `2026-11-04-flat-layout-review-fixes.md` in the plans directory. Next work remains
+owner acceptance and native/live verification, with release only when explicitly requested.
 
 Update 2026-11-04: the corrections and browser screenshot work listed below are complete.
 See the evidence document above for final captures and limits. Next: owner acceptance,
