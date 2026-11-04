@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.23)
+## Where it stands (v0.9.24)
 
 - Flat mockup corrections (2026-11-04): visible overflow dots, bilingual short mode
   labels/tooltips, clean transcript label, single-line tabs, pairing button and one
@@ -126,14 +126,16 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
-  - unreleased (after 0.9.23), IN PROGRESS: flat layout redesign of the prompter to the owner's two
+  - 0.9.24: flat layout redesign of the prompter to the owner's two
     mockups (`docs/superpowers/specs/mockups/2026-11-04-prompter-{dark,light}.webp`). Owner's calls:
     BOTH layouts, one per theme (dark = section tabs on top + right rail with next section and Screen
     Sense; light = left sidebar), and FLAT material (glass and window acrylic retired). Design
     `docs/superpowers/specs/2026-11-04-flat-layout-redesign-design.md`, plan
     `docs/superpowers/plans/2026-11-04-flat-layout-redesign.md`. Tasks 1-5 done by Codex
     (adc4cad..0801b69) + review fixes 2d8b764: 186 tests, every old action reachable in two clicks,
-    contrast passes. Task 6 (screenshot comparison) is the NEXT STEP, see "Codex: next task" below.
+    contrast passes. Fixes acfa66e (overflow icon, short select labels, transcript label, one-line
+    tabs, Abbina dispositivo button, single theme toggle, light layout to its mockup); both layouts
+    checked on screen against the mockups and the packaged Windows build launched before the tag.
   - 0.9.23: polish pass in "Operate" mode from the impeccable / ui-ux-pro-max /
     taste rules (Codex 9c123e6..c9eff8d + review 8e56101; 198 tests; detector clean). Decorative
     uppercase-tracked labels removed ("Section 1 of 4" plain, "Next: ..." plain), accent reserved for
