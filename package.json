@@ -1,6 +1,6 @@
 {
   "name": "filow-monorepo",
-  "version": "0.9.24",
+  "version": "0.9.25",
   "private": true,
   "description": "Filow: a live speaking companion that listens as you present, checks off your talking points as you cover them and shows what you missed.",
   "author": "Stefan Butnaru",

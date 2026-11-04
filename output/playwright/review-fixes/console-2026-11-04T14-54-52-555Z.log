@@ -1,0 +1,15 @@
+[     288ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:4748/api/session:0
+[   23879ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:4748/api/session:0
+[   69558ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://127.0.0.1:4799/api/session:0
+[   69575ms] TypeError: Cannot read properties of undefined (reading 'vramTotalGb')
+    at h (http://127.0.0.1:4799/_next/static/chunks/971-decd99bc87ef3e94.js:1:20458)
+    at l9 (http://127.0.0.1:4799/_next/static/chunks/87c73c54-24122e7b92478d00.js:1:51124)
+    at o_ (http://127.0.0.1:4799/_next/static/chunks/87c73c54-24122e7b92478d00.js:1:70984)
+    at oq (http://127.0.0.1:4799/_next/static/chunks/87c73c54-24122e7b92478d00.js:1:82014)
+    at ik (http://127.0.0.1:4799/_next/static/chunks/87c73c54-24122e7b92478d00.js:1:114676)
+    at http://127.0.0.1:4799/_next/static/chunks/87c73c54-24122e7b92478d00.js:1:114521
+    at ib (http://127.0.0.1:4799/_next/static/chunks/87c73c54-24122e7b92478d00.js:1:114529)
+    at iu (http://127.0.0.1:4799/_next/static/chunks/87c73c54-24122e7b92478d00.js:1:111612)
+    at iX (http://127.0.0.1:4799/_next/static/chunks/87c73c54-24122e7b92478d00.js:1:132928)
+    at MessagePort.w (http://127.0.0.1:4799/_next/static/chunks/18-8a0e9dadb94224f5.js:1:141430)
+[   83069ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://127.0.0.1:4799/api/session:0

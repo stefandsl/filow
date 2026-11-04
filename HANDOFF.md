@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.24)
+## Where it stands (v0.9.25)
 
 - Unreleased release-review fixes (2026-11-04): all six findings in
   `tmp/codex/run-13-last.md` addressed. Short viewports scroll without collapsing points;
@@ -135,6 +135,11 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.25: six fixes from a high-reasoning read-only Codex review of 0.9.24 (c9e8b69): short
+    viewports and 200 percent zoom scroll instead of clipping, Screen Sense menus open inward at
+    760 px, cancelling a start invalidates the pending async steps, dialogs trap focus / close on
+    Escape / restore focus, import failures show as an EN/IT error (not only in the log), closing the
+    log returns focus to the overflow button. 200 tests; packaged Windows build launched before the tag.
   - 0.9.24: flat layout redesign of the prompter to the owner's two
     mockups (`docs/superpowers/specs/mockups/2026-11-04-prompter-{dark,light}.webp`). Owner's calls:
     BOTH layouts, one per theme (dark = section tabs on top + right rail with next section and Screen
