@@ -7,6 +7,21 @@ export const LANGS: Lang[] = ["en", "it"];
 export const LANG_LABELS: Record<Lang, string> = { en: "English", it: "Italiano" };
 
 const en = {
+  "ctl.more": "More",
+  "ctl.logReport": "Log and report a problem",
+  "nav.scriptTitle": "The script",
+  "nav.sections": "{n} sections",
+  "section.counter": "Section {n} of {m}",
+  "section.points": "{n} points to cover",
+  "next.label": "Next section",
+  "state.waiting": "Waiting",
+  "state.active": "In progress",
+  "state.done": "Said",
+  "status.thisComputer": "This computer",
+  "screen.inactive": "Not active",
+  "screen.active": "Active",
+  "ctl.mode": "Mode",
+
   "menu.welcome": "Welcome...",
   "welcome.title": "Welcome to Filow",
   "welcome.personalize": "Make Filow yours",
@@ -444,6 +459,21 @@ const en = {
 export type I18nKey = keyof typeof en;
 
 const it: Partial<Record<I18nKey, string>> = {
+  "ctl.more": "Altro",
+  "ctl.logReport": "Registro e segnalazione",
+  "nav.scriptTitle": "Il copione",
+  "nav.sections": "{n} sezioni",
+  "section.counter": "Sezione {n} di {m}",
+  "section.points": "{n} punti da trattare",
+  "next.label": "Prossima sezione",
+  "state.waiting": "In attesa",
+  "state.active": "In corso",
+  "state.done": "Detto",
+  "status.thisComputer": "Questo computer",
+  "screen.inactive": "Non attivo",
+  "screen.active": "Attivo",
+  "ctl.mode": "Modalità",
+
   "menu.welcome": "Benvenuto...",
   "welcome.title": "Benvenuto in Filow",
   "welcome.personalize": "Personalizza Filow",

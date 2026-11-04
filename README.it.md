@@ -43,11 +43,13 @@ Filow tiene i punti elenco e aggiunge il riscontro. Ascolta e, due volte al seco
 
 ## Cosa fa
 
+Il prompter usa superfici opache, schede delle sezioni e un pannello destro nel tema scuro, e una barra laterale delle sezioni nel tema chiaro. Sistema segue il tema e la disposizione del sistema operativo. I punti mostrano In attesa, In corso o Detto con icona, testo e barra di avanzamento; i punti completati sono barrati. Importa si trova nella navigazione, Modifica punti sotto il titolo e Avvia/Ferma nella barra inferiore. Altro contiene Azzera, Registro e segnalazione e Ricarica (nel tema chiaro Ricarica si trova nella barra laterale). Espandi Questo computer per risorse e diagnostica dei modelli. La trascrizione si espande sotto i punti, con il comando nella barra inferiore nel tema chiaro. Il mirror sul telefono mantiene la propria disposizione.
+
 Nel prompter e nel mirror con controllo, Tab seleziona i punti e gli elementi saltati. Premi Invio o Spazio per cambiare lo stato di un punto o riaprire un elemento saltato. Il doppio clic su un punto continua a funzionare.
 
 | | |
 |---|---|
-| ✅ **Spunta dal vivo** | I punti diventano verdi man mano che li tratti, giudicati per idea, non per parole. Confidenza mostrata per ogni punto. |
+| ✅ **Spunta dal vivo** | I punti vengono spuntati man mano che li tratti, giudicati per idea, non per parole. Confidenza mostrata per ogni punto. |
 | ⚠️ **Vassoio Saltati** | Tutto quello che hai scavalcato, un clic per riaprirlo. |
 | 👁 **Screen Sense** | Osserva le tue slide o qualsiasi finestra e ti dice cosa c'è sullo schermo, quali fatti non hai ancora detto e quando una slide contraddice il tuo script. |
 | 📱 **Mirror sul telefono** | Inquadra un QR e il telefono mostra la vista dal vivo con Prec / Succ / Stop. Funziona da qualsiasi rete per impostazione predefinita; approvi ogni telefono. |

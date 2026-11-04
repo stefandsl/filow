@@ -61,3 +61,7 @@ it('retires all glass effects and uses opaque desktop windows', () => {
   expect(main).not.toMatch(/backgroundMaterial|vibrancy|--filow-glass/);
   expect(main.match(/backgroundColor: uiTheme\(\) === "dark" \? "#121212" : "#f6f7f9"/g)?.length).toBeGreaterThanOrEqual(2);
 });
+
+it('keeps the light transcript heading hidden after general button styling', () => {
+  expect(css).toContain('[data-layout="sidebar"] .prompter .transcript-heading { display: none; }');
+});

@@ -8,8 +8,8 @@ export function SectionNav({ sections, current, onSelect, layout, importAction, 
   const t = useT();
   const active = useRef<HTMLButtonElement>(null);
   useEffect(() => { active.current?.scrollIntoView({ block: "nearest", inline: "nearest" }); }, [current, layout]);
-  return <nav className="section-nav" aria-label={t("editor.title")}>
-    <div className="nav-heading"><strong>{t("editor.title")}</strong><span>{t("stage.section", {n: current + 1, total: sections.length})}</span></div>
+  return <nav className="section-nav" aria-label={t("nav.scriptTitle")}>
+    <div className="nav-heading"><strong>{t("nav.scriptTitle")}</strong><span>{t("nav.sections", {n: sections.length})}</span></div>
     <div className="section-nav-list">
       {sections.map((section, index) => <button type="button" key={section.id} data-section-index={index}
         ref={index === current ? active : undefined} aria-current={index === current ? "true" : undefined}

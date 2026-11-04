@@ -16,6 +16,20 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.23)
 
+- Unreleased flat prompter (2026-11-04): Tasks 1-5 of
+  `docs/superpowers/plans/2026-11-04-flat-layout-redesign.md` implemented test-first in five commits.
+  Shared component tree uses resolved-theme `data-layout`: dark tabs/right rail, light sidebar.
+  Flat tokens replace glass; main and welcome native materials removed; mirror layout retained.
+  Three point states preserve point size/weight, full text, double-click and keyboard toggles.
+  All original callbacks retained, including pairing, import/editor, start/cancel/stop, screen
+  controls, notes export, reset/reload, update, resources/unload and log/report.
+  Final workspace typecheck, 186 tests (1 existing skip), web and welcome builds passed.
+  Browser smoke verified theme switching and menu Escape/focus return without screenshots.
+  Local relay pairing returned 401 (access password required), so pairing was source-checked only.
+  Detector run once: two side-tab warnings for the specified sidebar/current-point accent rules;
+  retained as intentional design. Task 6 screenshot comparison belongs to the owner and was not run.
+  Retired glass-specific tests explain the changed test count from the 198-test baseline.
+
 - Independent polish review (2026-11-03): fixed keyboard access/ring precedence, shared glyph
   fallback, state/action contrast, hover/selection pairing, native-control numeric typography,
   residual pairing label and unintended topbar wrapping. Both source mutations fail as expected;
@@ -332,6 +346,10 @@ notifications and the region picker on those platforms are unverified.
 
 ## Pending (ask the owner before starting the big ones)
 
+- Flat redesign acceptance: owner to run Task 6 of
+  `docs/superpowers/plans/2026-11-04-flat-layout-redesign.md` (mockup comparison and window-size
+  screenshots). No screenshot or packaged/native acceptance claims from this implementation.
+
 - Liquid-glass acceptance: owner to execute Task 4 of
   `docs/superpowers/plans/2026-11-03-liquid-glass-ui.md`; no on-screen or FPS claims yet.
 
@@ -377,6 +395,9 @@ esources` before extracting (electron-builder hook order must be checked
    (`GAUNTLET=1 GAUNTLET_GATE=1 GAUNTLET_PROVIDERS=clef-local npx vitest run apps/web/lib/gauntlet`).
 
 ## Known gaps and traps
+
+- The flat redesign has automated and browser interaction checks; screenshot comparison remains
+  pending. The local browser smoke session could not pair with the existing password-protected relay.
 
 - `npm run desktop:build:win` on the owner's PC fails in electron-builder's winCodeSign extraction
   (symbolic links need Developer Mode); CI is the way to build installers.

@@ -23,9 +23,19 @@ import { fetchPlan, type PlanResponse } from "@/lib/plan";
 import { engineHeaders, ensureEngineToken, useSession } from "./useSession";
 import { PairPanel } from "./PairPanel";
 import { useScreenSense, type ScreenSource } from "./useScreenSense";
-import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "./LangSwitch";
+import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme, usePrompterLayout } from "./LangSwitch";
 import { ResourcesPanel } from "./ResourcesPanel";
 import { desktopBridge, type UpdateStatus } from "@/lib/sessionUrl";
+
+import { SectionNav } from "./prompter/SectionNav";
+import { PointsList } from "./prompter/PointsList";
+import { NextSection } from "./prompter/NextSection";
+import { Transcript } from "./prompter/Transcript";
+import { ScreenSensePanel } from "./prompter/ScreenSensePanel";
+import { ActionBar } from "./prompter/ActionBar";
+import { StatusStrip } from "./prompter/StatusStrip";
+import { OverflowMenu } from "./prompter/OverflowMenu";
+import { pointState } from "@/lib/pointState";
 
 type BackendChoice = "auto" | SttBackendId;
 
@@ -41,6 +51,11 @@ export default function Teleprompter() {
 
 function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it") => void; theme: "system" | "light" | "dark"; onTheme: (t: "system" | "light" | "dark") => void }) {
   const t = useT();
+  const layout = usePrompterLayout();
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
+  const logRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (logOpen) logRef.current?.focus(); }, [logOpen]);
   const { engine, state } = useEngine();
   const sessionInfo = useSession(engine);
   const [scriptText, setScriptText] = useState("");
@@ -329,104 +344,52 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const lang = useLang();
 
   return (
-    <div className="app">
+    <div className="app prompter">
       <header className="topbar">
-        <div className="logo">
-          <Wordmark height={28} />
-        </div>
-        <span className="subtitle">{t("app.tagline")}</span>
-        <span className="spacer" />
-        <PairPanel info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} onNewCode={() => void sessionInfo.newCode()} />
-        {show && <span className="chip live"><Icon name="slides" /> {t("stage.slide", { n: show.index + 1, total: show.total })}</span>}
-        {update?.status === "checking" && <span className="chip busy">{t("update.checking")}</span>}
-        {update?.status === "downloading" && <span className="chip busy"><Icon name="down" /> {t("update.downloading", { version: update.version })}</span>}
-        {update?.status === "downloaded" && <span className="chip live" title={t("update.ready", { version: update.version })}><Icon name="up" /> {update.version}</span>}
-        {update?.status === "error" && <span className="chip err" title={update.error}>{t("update.error", { error: update.error.slice(0, 40) })}</span>}
-        {publicLink && (
-          <button className="chip live" title={t("pair.stopPublic")} onClick={() => desktopBridge()?.setRemoteShare?.(false)}>
-            <Icon name="globe" /> {t("pair.publicChip")} <Icon name="close" />
-          </button>
-        )}
-        {offline && <span className="chip err">{t("app.offline")}</span>}
-        {eng.backend && <span className="chip live"><Icon name="circle" /> {BACKEND_LABELS[eng.backend]}</span>}
-        {eng.slowMs && <span className="chip err" title={t("app.slowTitle")}><Icon name="clock" /> {t("app.slow", { ms: eng.slowMs })}</span>}
-        {plan && eng.recording && (
-          <span className="chip" title={t("plan.chipTitle")}>
-            <Icon name="sliders" /> {t(`plan.stt.${plan.stt.backend ?? "none"}`)} · {t(`plan.decision.${plan.decision.provider ?? "none"}`)}
-            {plan.decision.measuredMs ? ` ${plan.decision.measuredMs} ms` : ""}
-          </span>
-        )}
-        {screen.status === "watching" && (
-          <>
-            <span className="chip rec" title={t("screen.recTitle", { label: screen.label })}>
-              <Icon name="circle" /> {t("screen.rec")} · {state.screenStats?.analysing ? t("app.analysing") : screen.label}
-            </span>
-            <button className="btn danger small" onClick={screen.stopWatching} title={t("screen.stopWatching")}>
-              <Icon name="stop" /> {t("screen.stop")}
-            </button>
-          </>
-        )}
-        {error && <span className="chip err">{error}</span>}
-        <ThemeSwitch pref={theme} onChange={onTheme} />
-        <LangSwitch lang={lang} onChange={onLang} />
+        <div className="logo"><Wordmark height={28} /></div>
+        <span className="subtitle">{t("app.tagline")}</span><span className="spacer" />
+        <PairPanel prompter info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} onNewCode={() => void sessionInfo.newCode()} />
+        <LangSwitch lang={lang} onChange={onLang} /><ThemeSwitch pref={theme} onChange={onTheme} />
+        <a className="btn settings-link" href="/settings/local" aria-label={t("ctl.settings")} title={t("ctl.settingsTitle")}><Icon name="settings" /></a>
       </header>
+      <SectionNav layout={layout} sections={script.sections} current={sectionIdx} onSelect={idx => engine.dispatch({type:"goToSection", idx})}
+        importAction={<button type="button" className="btn" onClick={() => fileRef.current?.click()} disabled={importing} aria-label={t("ctl.import")} title={t("ctl.importTitle")}><Icon name="up" /><span className="action-label">{importing ? t("ctl.importing") : t("ctl.import")}</span></button>}
+        reloadAction={<button type="button" className="btn" onClick={loadScript} aria-label={t("ctl.reload")}><Icon name="reload" /><span className="action-label">{t("ctl.reload")}</span></button>} />
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".pdf,.pptx,.docx,.txt,.md,.markdown"
+          style={{ display: "none" }}
+          onChange={(e) => e.target.files?.[0] && void importDocument(e.target.files[0])}
+        />
 
-      {section ? (
-        <>
-          <div>
-            <div className="section-count">{t("stage.section", { n: sectionIdx + 1, total: script.sections.length })}</div>
-            <h1 className="section-title">{section.title}</h1>
-          </div>
+      <div className="prompter-content">
+      <main className="prompter-main">
+      {update?.status === "downloaded" && !updateDismissed && (
+        <div className="update-banner">
+          <span><Icon name="up" /> {t("update.ready", { version: update.version })}</span>
+          <button className="btn primary" onClick={() => desktopBridge()?.installUpdate?.()}>
+            {t("update.restart")}
+          </button>
+          <button className="btn" onClick={() => setUpdateDismissed(true)}>
+            {t("update.later")}
+          </button>
+        </div>
+      )}
+      {error && <div className="chip err banner">{error}</div>}
 
-          {state.screen && (
-            <OnScreenStrip screen={state.screen} unmentioned={state.unmentioned} analysing={state.screenStats?.analysing} onLookNow={screen.lookNow} onForget={screen.forget} />
-          )}
 
-          <div className="points">
-            {section.bullets.map((b, i) => {
-              const st = points[b.id] ?? { status: "waiting", confidence: 0 };
-              const started = st.status === "started";
-              const hot = !started && st.confidence >= 0.3;
-              return (
-                <div
-                  key={b.id}
-                  className={`point ${i >= 10 ? "far" : ""} ${started ? "started" : ""} ${hot ? "hot" : ""}`}
-                  onDoubleClick={() => engine.dispatch(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id })}
-                  title={t("stage.toggle")}
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={started}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      engine.dispatch(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id });
-                    }
-                  }}
-                >
-                  <span className="mark">{started ? <Icon name="check" /> : null}</span>
-                  <span className="status">
-                    {t(`status.${st.status}`)}
-                    {!started && <span className="pct">· {Math.round(st.confidence * 100)}%</span>}
-                  </span>
-                  <span className="text">{b.text}</span>
-                </div>
-              );
-            })}
-          </div>
-
-          {nextSection && (
-            <div className="strip preview">
-              <div className="label">{t("stage.next", { title: nextSection.title })}</div>
-              <div className="row">
-                {nextSection.bullets.map((b) => (
-                  <span key={b.id} className={`next-item ${points[b.id]?.status === "started" ? "done" : ""}`}>
-                    <Icon name="circle" /> {b.text}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
+        <div className="section-heading">
+          {section ? <><div className="section-count">{t("section.counter", {n: sectionIdx + 1, m: script.sections.length})}</div>
+            <h1 className="section-title">{section.title}</h1><span className="label">{t("section.points", {n: section.bullets.length})}</span></>
+            : <><h1 className="section-title">{t("stage.noScript")}</h1><p>{t("stage.noScriptHint")}</p></>}
+          <button type="button" className="btn edit-points" onClick={() => setEditing(true)}><Icon name="edit" /> {t("ctl.edit")}</button>
+        </div>
+        {section && <PointsList layout={layout} points={section.bullets.map(b => {
+          const st = points[b.id] ?? {status: "waiting", confidence: 0};
+          return {id:b.id, text:b.text, confidence:st.confidence, state:pointState({started:st.status === "started",confidence:st.confidence},st.confidence >= 0.3)};
+        })} onToggle={id => engine.dispatch(points[id]?.status === "started" ? {type:"reopen",id} : {type:"markStarted",id})} />}
+        {state.screen && <OnScreenStrip screen={state.screen} unmentioned={state.unmentioned} analysing={state.screenStats?.analysing} onLookNow={screen.lookNow} onForget={screen.forget} />}
           {missed.length > 0 && (
             <div className="strip">
               <div className="label">{t("stage.missed", { n: missed.length })}</div>
@@ -443,98 +406,34 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
               </div>
             </div>
           )}
-        </>
-      ) : (
-        <>
-          {state.screen && <OnScreenStrip screen={state.screen} unmentioned={state.unmentioned} analysing={state.screenStats?.analysing} onLookNow={screen.lookNow} onForget={screen.forget} />}
-          <div className="strip">
-            <div className="label">{t("stage.noScript")}</div>
-            <div>{t("stage.noScriptHint")}</div>
-          </div>
-        </>
-      )}
 
-      <div className="controls dock">
-        {eng.recording ? (
-          <button className="btn danger" onClick={stopTake}>
-            {t("ctl.stop")}
-          </button>
-        ) : starting ? (
-          <>
-            <button className="btn primary" disabled>
-              {t("ctl.starting")}
+        <Transcript text={tail} open={transcriptOpen} onToggle={() => setTranscriptOpen(v => !v)} />
+      {logOpen && (
+        <div className="log" ref={logRef} tabIndex={-1} aria-label={t("ctl.logReport")}>
+          <button type="button" className="btn small" onClick={() => setLogOpen(false)} aria-label={t("common.close")}><Icon name="close" /></button>
+          {desktopBridge()?.reportProblem && (
+            <button type="button" className="btn small" style={{ float: "right" }} onClick={() => desktopBridge()?.reportProblem?.()}>
+              {t("log.report")}
             </button>
-            <button className="btn danger" onClick={cancelStart}>
-              {t("ctl.cancel")}
-            </button>
-          </>
-        ) : (
-          <button className="btn primary" onClick={() => void requestStart()} disabled={!section || availability.length === 0}>
-            {t("ctl.start")}
-          </button>
-        )}
-        <select className="btn" value={choice} disabled={eng.recording} onChange={(e) => setChoice(e.target.value as BackendChoice)} title={t("ctl.backend")}>
-          <option value="auto">{t("ctl.auto")}</option>
-          {availability.map((id) => (
-            <option key={id} value={id}>
-              {BACKEND_LABELS[id]}
-            </option>
+          )}
+          {log.map((l, i) => (
+            <div key={i}>{l}</div>
           ))}
-        </select>
-        <button className="btn" onClick={() => setEditing(true)}>
-          {t("ctl.edit")}
-        </button>
-        <button className="btn" onClick={() => engine.dispatch({ type: "prevSection" })} disabled={sectionIdx === 0}>
-          {t("ctl.prev")}
-        </button>
-        <button className="btn" onClick={() => engine.dispatch({ type: "nextSection" })} disabled={!nextSection}>
-          {t("ctl.next")}
-        </button>
-        <button className="btn" onClick={() => engine.dispatch({ type: "resetSection" })}>
-          {t("ctl.reset")}
-        </button>
-        <button className="btn" onClick={loadScript}>
-          {t("ctl.reload")}
-        </button>
-        <button className="btn" onClick={() => fileRef.current?.click()} disabled={importing} title={t("ctl.importTitle")}>
-          {importing ? t("ctl.importing") : t("ctl.import")}
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".pdf,.pptx,.docx,.txt,.md,.markdown"
-          style={{ display: "none" }}
-          onChange={(e) => e.target.files?.[0] && void importDocument(e.target.files[0])}
-        />
-        <a className="btn" href="/settings/local" title={t("ctl.settingsTitle")}>
-          {t("ctl.settings")}
-        </a>
-      </div>
-
-      {update?.status === "downloaded" && !updateDismissed && (
-        <div className="update-banner">
-          <span><Icon name="up" /> {t("update.ready", { version: update.version })}</span>
-          <button className="btn primary" onClick={() => desktopBridge()?.installUpdate?.()}>
-            {t("update.restart")}
-          </button>
-          <button className="btn" onClick={() => setUpdateDismissed(true)}>
-            {t("update.later")}
-          </button>
         </div>
       )}
-      {error && !eng.recording && <div className="chip err banner">{error}</div>}
 
-      {screen.status !== "unsupported" && (
-        <div className="controls">
-          <div className="group">
-            <span className="label">{t("screen.label")}</span>
+
+      </main>
+      <aside className="prompter-aside">
+        {nextSection && <NextSection layout={layout} title={nextSection.title} points={nextSection.bullets.map(b => b.text)} completed={nextSection.bullets.map(b => points[b.id]?.status === "started")} />}
+        {screen.status !== "unsupported" && <ScreenSensePanel layout={layout} active={screen.status === "watching"}>
             {screen.status === "watching" ? (
-              <button className="btn danger" onClick={screen.stopWatching}>
+              <button className="btn primary" onClick={screen.stopWatching}>
                 {t("screen.stopWatching")}
               </button>
             ) : (
               <button
-                className="btn primary"
+                className="btn"
                 onClick={() => void screen.watchScreen()}
                 disabled={offline || !screen.enabled}
                 title={offline ? t("screen.watchOffline") : t("screen.watchTitle")}
@@ -542,7 +441,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
                 {t("screen.watch")}
               </button>
             )}
-            <select className="btn" value={screen.mode} onChange={(e) => screen.setMode(e.target.value as ScreenMode)} title={t("screen.modeTitle")}>
+            <select className="btn" value={screen.mode} onChange={(e) => screen.setMode(e.target.value as ScreenMode)} title={t("screen.modeTitle")} aria-label={t("screen.modeTitle")}>
               {(Object.keys(SCREEN_MODE_LABELS) as ScreenMode[]).map((m) => (
                 <option key={m} value={m}>
                   {t(`mode.${m}`)}
@@ -562,50 +461,78 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
                 {t("screen.region")}
               </button>
             )}
-            {state.screen && (
-              <button className="btn" onClick={screen.forget}>
-                {t("screen.forget")}
-              </button>
-            )}
-            {lastNotes.length > 0 && (
-              <button className="btn" onClick={exportNotes} title={t("screen.exportTitle")}>
-                {t("screen.exportNotes", { n: lastNotes.length })}
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      <ResourcesPanel compact />
-
-      <div className="footer">
-        <span>
+            {(state.screen || lastNotes.length > 0) && <OverflowMenu items={[
+              ...(state.screen ? [{id:"forget",label:t("screen.forget"),onSelect:screen.forget}] : []),
+              ...(lastNotes.length > 0 ? [{id:"export",label:t("screen.exportNotes", {n:lastNotes.length}),onSelect:exportNotes}] : []),
+            ]} />}
+          {screen.status === "watching" && <span className="chip rec" title={t("screen.recTitle", {label:screen.label})}><Icon name="circle" /> {t("screen.rec")} {"\u00b7"} {state.screenStats?.analysing ? t("app.analysing") : screen.label}</span>}
+        </ScreenSensePanel>}
+      </aside>
+      </div>
+      <ActionBar start={<>
+        {eng.recording ? (
+          <button className="btn primary" onClick={stopTake}>
+            <Icon name="stop" /> {t("ctl.stop")}
+          </button>
+        ) : starting ? (
+          <>
+            <button className="btn primary" disabled>
+              {t("ctl.starting")}
+            </button>
+            <button className="btn danger" onClick={cancelStart}>
+              {t("ctl.cancel")}
+            </button>
+          </>
+        ) : (
+          <button className="btn primary" onClick={() => void requestStart()} disabled={!section || availability.length === 0}>
+            <Icon name="play" /> {t("ctl.start")}
+          </button>
+        )}
+</>} mode={<label className="backend-choice"><span>{t("ctl.mode")}</span>
+        <select className="btn" value={choice} disabled={eng.recording} onChange={(e) => setChoice(e.target.value as BackendChoice)} title={t("ctl.backend")} aria-label={t("ctl.backend")}>
+          <option value="auto">{t("ctl.auto")}</option>
+          {availability.map((id) => (
+            <option key={id} value={id}>
+              {BACKEND_LABELS[id]}
+            </option>
+          ))}
+        </select>
+</label>}
+        prev={<button type="button" className="btn" onClick={() => engine.dispatch({type:"prevSection"})} disabled={sectionIdx === 0}><Icon name="left" /> {t("ctl.prev")}</button>}
+        next={<button type="button" className="btn" onClick={() => engine.dispatch({type:"nextSection"})} disabled={!nextSection}>{t("ctl.next")} <Icon name="right" /></button>}
+        transcriptToggle={<button type="button" className="btn" aria-expanded={transcriptOpen} aria-controls="prompter-transcript-text" onClick={() => setTranscriptOpen(v => !v)}>{t("footer.transcript")}</button>}
+        overflow={<OverflowMenu items={[
+          ...(layout === "rail" ? [{id:"reload",label:t("ctl.reload"),onSelect:() => { void loadScript(); },icon:<Icon name="reload" />}] : []),
+          {id:"reset",label:t("ctl.reset"),onSelect:() => engine.dispatch({type:"resetSection"})},
+          {id:"log",label:t("ctl.logReport"),onSelect:() => { setLogOpen(true); logRef.current?.focus(); }},
+        ]} />} />
+      <StatusStrip summary={t("status.thisComputer")} details={<><div className="status-metadata">
+        {show && <span className="chip live"><Icon name="slides" /> {t("stage.slide", { n: show.index + 1, total: show.total })}</span>}
+        {update?.status === "checking" && <span className="chip busy">{t("update.checking")}</span>}
+        {update?.status === "downloading" && <span className="chip busy"><Icon name="down" /> {t("update.downloading", { version: update.version })}</span>}
+        {update?.status === "downloaded" && <span className="chip live" title={t("update.ready", { version: update.version })}><Icon name="up" /> {update.version}</span>}
+        {update?.status === "error" && <span className="chip err" title={update.error}>{t("update.error", { error: update.error.slice(0, 40) })}</span>}
+        {publicLink && (
+          <button className="chip live" title={t("pair.stopPublic")} onClick={() => desktopBridge()?.setRemoteShare?.(false)}>
+            <Icon name="globe" /> {t("pair.publicChip")} <Icon name="close" />
+          </button>
+        )}
+        {offline && <span className="chip err">{t("app.offline")}</span>}
+        {eng.backend && <span className="chip live"><Icon name="circle" /> {BACKEND_LABELS[eng.backend]}</span>}
+        {eng.slowMs && <span className="chip err" title={t("app.slowTitle")}><Icon name="clock" /> {t("app.slow", { ms: eng.slowMs })}</span>}
+        {plan && eng.recording && (
+          <span className="chip" title={t("plan.chipTitle")}>
+            <Icon name="sliders" /> {t(`plan.stt.${plan.stt.backend ?? "none"}`)} · {t(`plan.decision.${plan.decision.provider ?? "none"}`)}
+            {plan.decision.measuredMs ? ` ${plan.decision.measuredMs} ms` : ""}
+          </span>
+        )}
+</div><ResourcesPanel compact /></>} stats={<>
           {t("footer.stats", { calls: stats.calls, avg: stats.avgMs, cost: costLabel })}
           {stats.model ? ` · ${stats.model}` : ""}
           {state.screenStats?.frames
             ? ` · ${t("footer.screen", { n: state.screenStats.frames })}${state.screenStats.costUsd === null ? "" : ` $${state.screenStats.costUsd.toFixed(4)}`}`
             : ""}
-        </span>
-        <span className="transcript">
-          <span>
-            {t("footer.transcript")} {tail || "…"}
-          </span>
-        </span>
-      </div>
-
-      {log.length > 0 && (
-        <div className="log">
-          {desktopBridge()?.reportProblem && (
-            <button type="button" className="btn small" style={{ float: "right" }} onClick={() => desktopBridge()?.reportProblem?.()}>
-              {t("log.report")}
-            </button>
-          )}
-          {log.map((l, i) => (
-            <div key={i}>{l}</div>
-          ))}
-        </div>
-      )}
-
+</>} />
       {sessionInfo.pairRequests.length > 0 && (
         <div className="modal-bg">
           <div className="modal pairmodal">

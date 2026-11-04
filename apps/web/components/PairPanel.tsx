@@ -7,7 +7,7 @@ import type { SessionInfo } from "./useSession";
 import { desktopBridge, type NetStatus, type RemoteStatus } from "@/lib/sessionUrl";
 
 /** Shows the pairing code and a QR for the mirror URL. */
-export function PairPanel({ info, status, error, onNewCode }: { info: SessionInfo | null; status: string; error: string | null; onNewCode?: () => void }) {
+export function PairPanel({ info, status, error, onNewCode, prompter = false }: { info: SessionInfo | null; status: string; error: string | null; onNewCode?: () => void; prompter?: boolean }) {
   const t = useT();
   const [now, setNow] = useState(() => Date.now());
   const [qr, setQr] = useState<string | null>(null);
@@ -71,7 +71,7 @@ export function PairPanel({ info, status, error, onNewCode }: { info: SessionInf
   return (
     <>
       <button className={`chip code ${pending ? "busy" : ""}`} onClick={() => setOpen((o) => !o)} title={t("pair.showQr")}>
-        {t("app.pair")} {info.code} {pending ? "…" : <Icon name="circle" />}
+        {prompter && <Icon name="system" />} {t("app.pair")} <span className="pair-code">{info.code}</span> {pending ? "\u2026" : !prompter && <Icon name="circle" />}
       </button>
       {open && (
         <div className="modal-bg" onClick={() => setOpen(false)}>

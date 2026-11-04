@@ -23,13 +23,13 @@ export function OverflowMenu({items}: {items: {id: string; label: string; onSele
     return () => document.removeEventListener("pointerdown", outside);
   }, [open]);
   return <div className="overflow-menu" ref={root} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false); }}>
-    <button type="button" className="btn" ref={trigger} aria-haspopup="menu" aria-expanded={open} aria-controls={id} aria-label={t("ctl.settings")}
+    <button type="button" className="btn" ref={trigger} aria-haspopup="menu" aria-expanded={open} aria-controls={id} aria-label={t("ctl.more")}
       onClick={() => { initial.current = 0; setOpen(!open); }}
       onKeyDown={event => {
         if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); initial.current = event.key === "ArrowUp" ? items.length - 1 : 0; setOpen(true); }
         else if (event.key === "Escape") close(true);
       }}><Icon name="more" /></button>
-    <div id={id} role="menu" hidden={!open} aria-label={t("ctl.settings")} className="overflow-popover">
+    <div id={id} role="menu" hidden={!open} aria-label={t("ctl.more")} className="overflow-popover">
       {items.map((item,index) => <button type="button" role="menuitem" tabIndex={-1} key={item.id} ref={element => { buttons.current[index] = element; }}
         onKeyDown={event => handleMenuKey(event,index,items.length,i => buttons.current[i]?.focus(),close)}
         onClick={() => { close(true); item.onSelect(); }}>{item.icon}{item.label}</button>)}

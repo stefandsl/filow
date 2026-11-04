@@ -43,11 +43,13 @@ Filow keeps the bullet points and adds the feedback. It listens, and twice a sec
 
 ## What it does
 
+The flat prompter uses section tabs and a right rail in dark mode, and a section sidebar in light mode. System follows the OS theme and layout. Points show Waiting, In progress, or Said with an icon, label, and progress bar; completed points are struck through. Import is in the navigation, Edit points under the title, and Start/Stop in the bottom action bar. More contains Reset, Log and report a problem, and Reload (Reload is in the sidebar in light mode). Expand This computer for resources and model diagnostics. Transcript expands below the points, with its toggle in the light action bar. The phone mirror keeps its layout.
+
 In the prompter and a controllable mirror, Tab focuses points and missed items. Press Enter or Space to toggle a point or reopen a missed item. Double-clicking a point still works.
 
 | | |
 |---|---|
-| ✅ **Live check-off** | Points turn green as you cover them, judged by idea, not wording. Confidence shown per point. |
+| ✅ **Live check-off** | Points are checked off as you cover them, judged by idea, not wording. Confidence shown per point. |
 | ⚠️ **Missed tray** | Everything you jumped over, one click to re-open. |
 | 👁 **Screen Sense** | Watches your slides or any window and tells you what is on screen, which facts you have not said yet, and when a slide contradicts your script. |
 | 📱 **Phone mirror** | Scan a QR and your phone shows the live view with Prev / Next / Stop. Works from any network by default; you approve each phone. |
