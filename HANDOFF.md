@@ -16,6 +16,15 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.23)
 
+- Flat mockup corrections (2026-11-04): visible overflow dots, bilingual short mode
+  labels/tooltips, clean transcript label, single-line tabs, pairing button and one
+  cycling theme button. Light sidebar, points, next card and Screen Sense row aligned.
+  Production Chromium captures inspected in both themes at 1280x820, 760x540 and
+  1920x1080, including scrolled minimum-size controls and three-state renderer fixtures.
+  Typecheck, 186 tests (one existing skip), and web build pass. Evidence:
+  `docs/superpowers/plans/2026-11-04-flat-layout-redesign-evidence.md`.
+  Live speech/vision, phone pairing and native packaged acceptance remain unverified.
+
 - Independent flat review (2026-11-04): restored two-click reporting and model unload even with
   saved resource-collapse preferences; constrained the Italian Screen Sense select to its rail;
   added missing ctl.mode bilingual test coverage. Full action inventory and file/line evidence:
@@ -414,8 +423,12 @@ esources` before extracting (electron-builder hook order must be checked
 
 ## Known gaps and traps
 
-- The flat redesign has automated and browser interaction checks; screenshot comparison remains
-  pending. The local browser smoke session could not pair with the existing password-protected relay.
+- Flat layout screenshot comparison is now recorded in the 2026-11-04 evidence document.
+  Native/package and live microphone/vision acceptance remain pending; renderer state
+  fixtures are explicitly separate from a live take.
+
+- The flat redesign has automated checks, browser interactions and screenshot comparison.
+  Live pairing with the existing password-protected relay remains unverified.
 
 - `npm run desktop:build:win` on the owner's PC fails in electron-builder's winCodeSign extraction
   (symbolic links need Developer Mode); CI is the way to build installers.
@@ -491,6 +504,11 @@ they wrote (usually Italian), outcome first, short.
   under `G:/FILOW/tmp`, npm cache `--cache G:/caches/npm`.
 
 ### Codex: next task (finish the flat redesign, plan Task 6)
+
+Update 2026-11-04: the corrections and browser screenshot work listed below are complete.
+See the evidence document above for final captures and limits. Next: owner acceptance,
+then native/live verification before any explicitly requested release. The following
+original checklist is retained as task context.
 
 1. `npm run build -w apps/web`, then launch the desktop app on a throwaway profile:
    `cd apps/desktop && FILOW_USER_DATA_DIR=G:/FILOW/tmp/pkg-qa FILOW_PORT=4797 FILOW_SESSION_PORT=4798 FILOW_OFFLINE=1 npx electron .`
