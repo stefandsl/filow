@@ -117,6 +117,14 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - unreleased (after 0.9.23), IN PROGRESS: flat layout redesign of the prompter to the owner's two
+    mockups (`docs/superpowers/specs/mockups/2026-11-04-prompter-{dark,light}.webp`). Owner's calls:
+    BOTH layouts, one per theme (dark = section tabs on top + right rail with next section and Screen
+    Sense; light = left sidebar), and FLAT material (glass and window acrylic retired). Design
+    `docs/superpowers/specs/2026-11-04-flat-layout-redesign-design.md`, plan
+    `docs/superpowers/plans/2026-11-04-flat-layout-redesign.md`. Tasks 1-5 done by Codex
+    (adc4cad..0801b69) + review fixes 2d8b764: 186 tests, every old action reachable in two clicks,
+    contrast passes. Task 6 (screenshot comparison) is the NEXT STEP, see "Codex: next task" below.
   - 0.9.23: polish pass in "Operate" mode from the impeccable / ui-ux-pro-max /
     taste rules (Codex 9c123e6..c9eff8d + review 8e56101; 198 tests; detector clean). Decorative
     uppercase-tracked labels removed ("Section 1 of 4" plain, "Next: ..." plain), accent reserved for
@@ -461,35 +469,76 @@ N=%LOCALAPPDATA%/electron-builder/Cache/nsis/nsis-3.0.4.1
 "$N/Bin/makensis.exe" //NOCD "//X!addincludedir $N\Include" "//X!addplugindir $N\Plugins\x86-unicode" C:/Temp/nsis-check.nsi
 ```
 
-## Continuing with Cursor or Codex (OpenAI subscription) instead of Claude
+## Continuing with Codex (owner's OpenAI subscription)
 
-From 2026-11-02 the owner moves day-to-day coding to Cursor and Codex to cut token cost, with the
-**ponytail** ruleset (github.com/DietrichGebert/ponytail, MIT: smallest change that fully solves
-the task, reuse before writing, a test for risky logic). What is already set up on the owner's PC:
+From 2026-11-04 the owner's Claude credits are low: Codex does the work. Start every Codex session
+with: "Read AGENTS.md and HANDOFF.md, then do 'Codex: next task'." Answer the owner in the language
+they wrote (usually Italian), outcome first, short.
 
-- Checkout at `~/ponytail`; its Cursor hooks are installed in `~/.cursor/hooks.json`
-  (`sessionStart` + `beforeSubmitPrompt`), so a new Cursor chat gets the ruleset. Switch level with
-  a plain message `/ponytail lite|full|ultra|off`. Do not add `.cursor/rules/ponytail.mdc` as well:
-  the rule file and the hooks are alternatives.
-- Claude Code: the six skills are copied into `~/.claude/skills/` (`/ponytail`, `/ponytail-review`,
-  `/ponytail-audit`, ...). The full plugin (band, hooks) would need the two `/plugin` commands from
-  ponytail's INSTALL.md in an interactive `claude` terminal.
-- Codex: not installed yet. After `npm i -g @openai/codex` and `codex login`, run
-  `codex plugin marketplace add DietrichGebert/ponytail` and `codex plugin add ponytail@ponytail`,
-  then trust its two hooks under `/hooks`.
+### How Codex is run on this PC
 
-Start every new agent with: "Read AGENTS.md and HANDOFF.md, then tell me where the project stands
-and what is pending." The next work items are in "Pending", item 8, in the plan's order.
+- Binary `~/.local/bin/codex.exe` (codex-cli 0.156.1, ChatGPT account). Model `gpt-6-astra` (from
+  `~/.codex/config.toml`). The Miniconda `codex` on PATH is the wrong one.
+- Non-interactive run that works (prompt from a file on stdin, workspace-write sandbox with automatic
+  approval review, final message to a file):
+  `~/.local/bin/codex.exe exec -m gpt-6-astra --approve-for-me -C G:/FILOW --output-last-message G:/FILOW/tmp/codex/run-N-last.md - < G:/FILOW/tmp/codex/brief-N.md`
+  `--full-auto` and `-s workspace-write --approve-for-me` together are rejected by this version.
+- One run at a time (parallel runs hit 429). Pattern that worked all day: brief -> implement agent ->
+  independent review agent that re-checks and fixes -> a human look at the screen.
+- Every Codex run appends a `claude-mem` block to `AGENTS.md`: always `git checkout -- AGENTS.md`
+  after a run and never commit that file's change.
+- Briefs and logs live in `G:/FILOW/tmp/codex/` (gitignored). Disk policy: nothing on C:, temp files
+  under `G:/FILOW/tmp`, npm cache `--cache G:/caches/npm`.
 
+### Codex: next task (finish the flat redesign, plan Task 6)
 
-1. Codex reads `AGENTS.md` automatically; `HANDOFF.md` is the state. Cursor reads `AGENTS.md`
-   when asked (add it to the chat context once).
-2. Keep the same loop: change, `npm run typecheck && npm test`, look at the page, commit with a
-   descriptive message, tag + push when the owner says "tag vX.Y.Z", copy the release to
-   `filow-releases` (see `AGENTS.md`), check `latest.yml`.
-3. The owner writes in Italian or English, short messages, often a screenshot of the problem; answer
-   in the language they used, give the outcome first, keep the Italian UI strings natural.
-4. Before ending a session, update "Where it stands" and "Pending" above and commit the file.
+1. `npm run build -w apps/web`, then launch the desktop app on a throwaway profile:
+   `cd apps/desktop && FILOW_USER_DATA_DIR='G:\FILOW	mp\pkg-qa' FILOW_PORT=4797 FILOW_SESSION_PORT=4798 FILOW_OFFLINE=1 npx electron .`
+   (that profile has `welcomeCompleted: true`). Or serve the web build alone:
+   `set PORT=4790&& set FILOW_SCRIPT=G:\FILOW	mp\pkg-qa\script.md&& node apps\web\.next\standalonepps\web\server.js`
+2. Compare 1280 x 820 captures with the two mockups and fix. Differences already seen in the DARK
+   layout on 2026-11-04 (fix these first):
+   - the overflow "..." button at the right of the action bar renders EMPTY (icon missing);
+   - the Screen Sense mode select in the right rail is clipped ("Bilanciato (cambio slide + frasi...")
+     and the action-bar "Modalita" select is truncated ("Automatico (il piu ve"): show the short
+     label (e.g. "Bilanciato", "Automatico") in the control, full description in the option list or
+     a tooltip;
+   - the transcript toggle reads "Trascrizione /" with a stray slash;
+   - section tabs wrap long titles onto two lines; the mockup shows one line per tab: one line with
+     ellipsis on the TAB only (never on points), full title in `title`;
+   - the top bar shows a "mirror spento" chip where the mockup has an "Abbina dispositivo" button
+     with a monitor icon; the theme control is three buttons where the mockup has one sun/moon
+     toggle; keep every function, match the mockup's form.
+3. The LIGHT layout was NOT verified: the page's saved theme preference ("dark") overrides the
+   browser's colour-scheme emulation. Switch with the in-app theme control (or clear localStorage
+   key used by `getThemePref` in `apps/web/lib/prefs.ts`) and compare with the light mockup: left
+   sidebar 260 px with "Il copione / 4 sezioni", current section on a tinted row with a 3 px accent
+   rule, Importa documento and Ricarica copione at the bottom of the sidebar, next-section card under
+   the points (two columns above 1100 px), Screen Sense as one row above the action bar.
+4. Also capture 760 x 540 and 1920 x 1080 in both themes: nothing clipped, no truncated points, all
+   actions reachable. Capture the three point states (waiting, active, done).
+5. Write `docs/superpowers/plans/2026-11-04-flat-layout-redesign-evidence.md` (captures + remaining
+   differences), commit. Keep: typecheck, `npx vitest run --root G:/FILOW`, web build green.
+6. Release only when the owner says so, with the gate below.
 
-The same two files work for Claude Code (`CLAUDE.md` is not needed; it reads `AGENTS.md` too when
-asked) and for any other agent.
+### Release gate (paid for twice on 2026-11-03: never skip)
+
+1. `npm run build`, then `cd apps/desktop && npx electron-builder --win`.
+2. Launch `release/win-unpacked/Filow.exe` on the throwaway profile; `startup.log` in that profile
+   must reach "main window shown"; `release/win-unpacked/resources/app/node_modules/next` must exist.
+3. Count icon groups (PowerShell `ExtractIconEx(path, -1, ...)`) on the installer and the portable:
+   both must be 1.
+4. Revert build side effects: `git checkout -- apps/desktop/build/license_en.txt apps/desktop/build/license_it.txt apps/powerpoint/manifest.xml`.
+5. Bump every `package.json` + `apps/browser/manifest.json`, `npm install --package-lock-only --ignore-scripts`,
+   commit, `git tag vX.Y.Z`, `git push origin main vX.Y.Z`, wait for CI (all three platforms).
+6. `gh release download vX.Y.Z --repo stefandsl/filow -D tmp/assets`, delete `builder-debug.yml`,
+   count icons again on the CI files, then `gh release create vX.Y.Z --repo stefandsl/filow-releases ...`
+   and check that `latest.yml`, `latest-mac.yml`, `latest-linux.yml` on the feed say the new version.
+
+### Other open items
+
+- Code signing (SmartScreen / Gatekeeper warnings): needs an Azure Trusted Signing account or a
+  certificate from the owner; then add signing to `.github/workflows/desktop.yml` gated on secrets.
+- 15 moderate npm audit findings inside electron-builder's own tree (minimatch < 11): re-check at the
+  next electron-builder release.
+- Before ending a session, update "Where it stands" and this section, and commit HANDOFF.md.
