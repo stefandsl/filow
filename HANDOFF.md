@@ -493,9 +493,9 @@ they wrote (usually Italian), outcome first, short.
 ### Codex: next task (finish the flat redesign, plan Task 6)
 
 1. `npm run build -w apps/web`, then launch the desktop app on a throwaway profile:
-   `cd apps/desktop && FILOW_USER_DATA_DIR='G:\FILOW	mp\pkg-qa' FILOW_PORT=4797 FILOW_SESSION_PORT=4798 FILOW_OFFLINE=1 npx electron .`
+   `cd apps/desktop && FILOW_USER_DATA_DIR=G:/FILOW/tmp/pkg-qa FILOW_PORT=4797 FILOW_SESSION_PORT=4798 FILOW_OFFLINE=1 npx electron .`
    (that profile has `welcomeCompleted: true`). Or serve the web build alone:
-   `set PORT=4790&& set FILOW_SCRIPT=G:\FILOW	mp\pkg-qa\script.md&& node apps\web\.next\standalonepps\web\server.js`
+   `set PORT=4790&& set FILOW_SCRIPT=G:/FILOW/tmp/pkg-qa/script.md&& node apps/web/.next/standalone/apps/web/server.js`
 2. Compare 1280 x 820 captures with the two mockups and fix. Differences already seen in the DARK
    layout on 2026-11-04 (fix these first):
    - the overflow "..." button at the right of the action bar renders EMPTY (icon missing);
