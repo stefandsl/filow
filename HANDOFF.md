@@ -16,6 +16,15 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.23)
 
+- Independent flat review (2026-11-04): restored two-click reporting and model unload even with
+  saved resource-collapse preferences; constrained the Italian Screen Sense select to its rail;
+  added missing ctl.mode bilingual test coverage. Full action inventory and file/line evidence:
+  `docs/superpowers/plans/2026-11-04-flat-layout-redesign-review.md`. All three requested mutations
+  fail their assertions and were restored; typecheck, 186 tests (1 skip) and web build pass.
+  Static contrast passes in both themes; the detector's two accent-rule warnings match the spec.
+  Browser theme/system/menu/point checks and mocked report/resources checks pass. Owner screenshot
+  comparison and native/package acceptance remain pending; relay pairing requires a password.
+
 - Unreleased flat prompter (2026-11-04): Tasks 1-5 of
   `docs/superpowers/plans/2026-11-04-flat-layout-redesign.md` implemented test-first in five commits.
   Shared component tree uses resolved-theme `data-layout`: dark tabs/right rail, light sidebar.
@@ -348,7 +357,8 @@ notifications and the region picker on those platforms are unverified.
 
 - Flat redesign acceptance: owner to run Task 6 of
   `docs/superpowers/plans/2026-11-04-flat-layout-redesign.md` (mockup comparison and window-size
-  screenshots). No screenshot or packaged/native acceptance claims from this implementation.
+  screenshots). Independent review fixes and evidence are recorded in the sibling
+  `2026-11-04-flat-layout-redesign-review.md`; no screenshot or packaged/native acceptance claims.
 
 - Liquid-glass acceptance: owner to execute Task 4 of
   `docs/superpowers/plans/2026-11-03-liquid-glass-ui.md`; no on-screen or FPS claims yet.

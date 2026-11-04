@@ -505,6 +505,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
           ...(layout === "rail" ? [{id:"reload",label:t("ctl.reload"),onSelect:() => { void loadScript(); },icon:<Icon name="reload" />}] : []),
           {id:"reset",label:t("ctl.reset"),onSelect:() => engine.dispatch({type:"resetSection"})},
           {id:"log",label:t("ctl.logReport"),onSelect:() => { setLogOpen(true); logRef.current?.focus(); }},
+          ...(desktopBridge()?.reportProblem ? [{id:"report",label:t("log.report"),onSelect:() => { desktopBridge()?.reportProblem?.(); }}] : []),
         ]} />} />
       <StatusStrip summary={t("status.thisComputer")} details={<><div className="status-metadata">
         {show && <span className="chip live"><Icon name="slides" /> {t("stage.slide", { n: show.index + 1, total: show.total })}</span>}
@@ -526,7 +527,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
             {plan.decision.measuredMs ? ` ${plan.decision.measuredMs} ms` : ""}
           </span>
         )}
-</div><ResourcesPanel compact /></>} stats={<>
+</div><ResourcesPanel compact embedded /></>} stats={<>
           {t("footer.stats", { calls: stats.calls, avg: stats.avgMs, cost: costLabel })}
           {stats.model ? ` · ${stats.model}` : ""}
           {state.screenStats?.frames

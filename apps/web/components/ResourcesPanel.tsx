@@ -60,7 +60,7 @@ export function placementText(t: ReturnType<typeof useT>, m: Resources["loaded"]
  * Live machine dashboard: CPU, RAM, GPU memory and load, where each loaded model runs, best option.
  * `compact` is the one-row version for the prompter page; it can be collapsed to a single line.
  */
-export function ResourcesPanel({ compact = false }: { compact?: boolean }) {
+export function ResourcesPanel({ compact = false, embedded = false }: { compact?: boolean; embedded?: boolean }) {
   const t = useT();
   const res = useResources(compact ? 4000 : 3000);
   const [collapsed, setCollapsed] = useState(() => {
@@ -109,7 +109,7 @@ export function ResourcesPanel({ compact = false }: { compact?: boolean }) {
     </span>
   ));
 
-  if (compact && collapsed) {
+  if (compact && collapsed && !embedded) {
     return (
       <section className="strip resources compact">
         <button className="label linkish" onClick={toggle} title={t("res.expand")}>
@@ -122,7 +122,7 @@ export function ResourcesPanel({ compact = false }: { compact?: boolean }) {
   }
   return (
     <section className={`strip resources ${compact ? "compact" : ""}`}>
-      {compact ? (
+      {compact && !embedded ? (
         <button className="label linkish" onClick={toggle} title={t("res.collapse")}>
           <Icon name="chevronDown" /> {t("res.label")}
         </button>

@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import { DICTIONARIES } from "./i18n";
 const labels = {
+ "ctl.mode": ["Mode", "Modalità"],
  "ctl.more": ["More", "Altro"], "ctl.logReport": ["Log and report a problem", "Registro e segnalazione"],
  "nav.scriptTitle": ["The script", "Il copione"], "nav.sections": ["{n} sections", "{n} sezioni"],
  "section.counter": ["Section {n} of {m}", "Sezione {n} di {m}"], "section.points": ["{n} points to cover", "{n} punti da trattare"],
