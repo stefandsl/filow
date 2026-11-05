@@ -179,7 +179,8 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 - Repos: source `stefandsl/filow` (PUBLIC since 2026-11-03: the owner made it public so CI runs on free Actions minutes after a billing block; never commit keys, `.env` stays ignored; branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
   (folder still has the old name on purpose).
-- v0.9.28 (mic picker + offline leak fixes + audit steps 1-4) is the current public release (2026-11-05,
+- v0.9.29 (phone sync fixes + stop flush + overlay close button) is the current public release (2026-11-05,
+  CI run 42098611434, feed manifests say 0.9.29). Before it: v0.9.28 (mic picker + offline leak fixes + audit steps 1-4) (2026-11-05,
   CI run 42067234678, all three platforms first try, feed manifests say 0.9.28). Before it: v0.9.27
   (one sidebar layout for both themes) (2026-11-05, CI run
   41994059664, all three platforms first try, feed manifests say 0.9.27). Before it: v0.9.26 and
