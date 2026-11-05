@@ -46,6 +46,7 @@
       "localai.js",
       "stt-worker.js",
       "stt.js",
+      "stt-download.js",
       "preload.js",
       "splash.html",
       "vendor/*.js",

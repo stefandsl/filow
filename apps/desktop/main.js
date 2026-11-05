@@ -1163,7 +1163,7 @@ function sttDownload() {
   sttDownloading = sttLocal
     .ensureModel(userData, (s) => {
       sttModelState = { state: s.state, pct: s.pct, error: s.error || "" };
-      logLine(`stt model: ${s.state}${s.pct ? ` ${s.pct}%` : ""}${s.error ? ` ${s.error}` : ""}`);
+      logLine(`stt model: ${s.state}${s.pct ? ` ${s.pct}%` : ""}${s.message ? ` ${s.message}` : ""}${s.error ? ` ${s.error}` : ""}`);
       sttBroadcast("stt:status", sttStatus());
     })
     .finally(() => {

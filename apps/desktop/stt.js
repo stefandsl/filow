@@ -7,6 +7,7 @@ const path = require("node:path");
 const https = require("node:https");
 const { execFile } = require("node:child_process");
 const { Worker } = require("node:worker_threads");
+const { idleTimeout, receiveArchive, retryDownload } = require("./stt-download");
 
 const MODEL = {
   id: "nemotron-3.5-asr-streaming-0.6b",
@@ -27,25 +28,32 @@ function modelReady(userData) {
 
 function downloadWithProgress(url, dest, onPct, hops = 5) {
   return new Promise((resolve, reject) => {
-    https
-      .get(url, { headers: { "User-Agent": "Filow" } }, (res) => {
+    let response;
+    let req;
+    const idle = idleTimeout(err => req?.destroy(err));
+    try {
+      req = https.get(url, { headers: { "User-Agent": "Filow" } }, (res) => {
+        idle.stop();
         if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && hops > 0) {
-          res.resume();
-          return downloadWithProgress(res.headers.location, dest, onPct, hops - 1).then(resolve, reject);
+          res.destroy();
+          try { return downloadWithProgress(new URL(res.headers.location, url).href, dest, onPct, hops - 1).then(resolve, reject); }
+          catch (err) { return reject(err); }
         }
-        if (res.statusCode !== 200) return reject(new Error(`download failed: HTTP ${res.statusCode}`));
-        const total = Number(res.headers["content-length"] || MODEL.sizeBytes);
-        let got = 0;
-        const out = fs.createWriteStream(dest);
-        res.on("data", (c) => {
-          got += c.length;
-          if (total) onPct(Math.min(99, Math.round((got / total) * 100)));
-        });
-        res.pipe(out);
-        out.on("finish", () => out.close(resolve));
-        out.on("error", reject);
+        if (res.statusCode !== 200) {
+          res.destroy();
+          return reject(new Error(`download failed: HTTP ${res.statusCode}`));
+        }
+        response = res;
+        receiveArchive(res, fs.createWriteStream(dest), {
+          contentLength: res.headers["content-length"], fallbackSize: MODEL.sizeBytes, onPct,
+        }).then(resolve, reject);
       })
-      .on("error", reject);
+      .on("error", err => {
+        idle.stop();
+        // Once writing, settle through pipeline so Windows can delete the closed file.
+        if (response) response.destroy(err); else reject(err);
+      });
+    } catch (err) { idle.stop(); reject(err); }
   });
 }
 
@@ -61,22 +69,31 @@ function extract(archive, into) {
 async function ensureModel(userData, onStatus) {
   if (modelReady(userData)) return onStatus({ state: "ready", pct: 100 });
   const models = path.join(userData, "models");
-  fs.mkdirSync(models, { recursive: true });
   const archive = path.join(models, `${MODEL.archive}.tar.bz2`);
   try {
-    onStatus({ state: "downloading", pct: 0 });
-    await downloadWithProgress(MODEL.url, archive, (pct) => onStatus({ state: "downloading", pct }));
-    onStatus({ state: "extracting", pct: 99 });
-    await extract(archive, models);
-    const extracted = path.join(models, MODEL.archive);
-    if (fs.existsSync(modelDir(userData))) fs.rmSync(modelDir(userData), { recursive: true, force: true });
-    fs.renameSync(extracted, modelDir(userData));
-    fs.rmSync(archive, { force: true });
-    if (!modelReady(userData)) throw new Error("archive did not contain the expected files");
+    fs.mkdirSync(models, { recursive: true });
+    await retryDownload(async () => {
+      // Never resume an archive whose integrity is unknown, including leftovers from a crash.
+      fs.rmSync(archive, { force: true });
+      try {
+        await downloadWithProgress(MODEL.url, archive, (pct) => onStatus({ state: "downloading", pct }));
+        onStatus({ state: "extracting", pct: 99 });
+        const extracted = path.join(models, MODEL.archive);
+        // A failed extraction must not contribute stale files to a later attempt.
+        fs.rmSync(extracted, { recursive: true, force: true });
+        await extract(archive, models);
+        if (!MODEL.files.every(f => fs.existsSync(path.join(extracted, f)))) throw new Error("archive did not contain the expected files");
+        if (fs.existsSync(modelDir(userData))) fs.rmSync(modelDir(userData), { recursive: true, force: true });
+        fs.renameSync(extracted, modelDir(userData));
+      } finally { fs.rmSync(archive, { force: true }); }
+    }, attempt => onStatus({ state: "downloading", pct: 0, message: `download attempt ${attempt}/4` }),
+    (attempt, delay, err) => onStatus({ state: "downloading", pct: 0, message: `attempt ${attempt} failed: ${err.message}; retry in ${delay / 1000} s` }));
     onStatus({ state: "ready", pct: 100 });
   } catch (err) {
-    fs.rmSync(archive, { force: true });
-    onStatus({ state: "error", pct: 0, error: String((err && err.message) || err) });
+    let error = String((err && err.message) || err);
+    try { fs.rmSync(archive, { force: true }); }
+    catch (cleanup) { error += `; partial archive cleanup failed: ${cleanup.message}`; }
+    onStatus({ state: "error", pct: 0, error });
   }
 }
 
