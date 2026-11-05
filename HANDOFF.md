@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.26)
+## Where it stands (v0.9.27)
 
 - Unreleased single layout (2026-11-05, owner's reversal): both themes now use the left
   sidebar with identical controls. Layout switching, right panel, width splitter and obsolete
@@ -150,11 +150,11 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
-  - unreleased (after 0.9.26): ONE layout for both themes (owner's call 2026-11-05, reversing "one
+  - 0.9.27: ONE layout for both themes (owner's call 2026-11-05, reversing "one
     layout per theme"): the left-sidebar layout in dark and light (Codex 9fbbbc0, rail code and the
     rail splitter removed); the next-section card is resizable in height (drag its bottom edge,
     arrows, double click resets, saved in `prefs:nextHeight`); Screen Sense row sticky above the
-    action bar. Checked on screen in both themes at 1280 x 820. Release as 0.9.27 with the gate.
+    action bar. Checked on screen in both themes at 1280 x 820; packaged Windows build launched before the tag.
   - 0.9.26: large green tick + green "Detto" label and bar on done points
     (8ef6679); pairing panel reopens after the reload that switching the public link triggers
     (e47bae1, sessionStorage flag in apps/web/lib/pairReopen.ts); resizable next-section rail in the
