@@ -9,18 +9,12 @@ it('keeps a usable presentation area and page scrolling in short zoomed viewport
   const short = sheet.nodes.find(node => node.type === 'atrule' && node.name === 'media' && node.params === '(max-height: 500px)');
   expect(short?.toString()).toContain('height: auto');
   expect(short?.toString()).toContain('min-height: 100dvh');
-  expect(short?.toString()).toContain('grid-template-rows: auto auto minmax(240px, auto) auto auto');
-  expect(short?.toString()).toContain('[data-layout="sidebar"] .prompter { grid-template-rows: auto minmax(240px, auto) auto auto; }');
+  expect(short?.toString()).toContain('grid-template-rows: auto minmax(240px, auto) auto auto;');
   expect(short?.toString()).toContain('.prompter-content { min-height: 240px; overflow: visible; }');
   expect(short?.toString()).toContain('.section-nav-list { max-height: none; }');
 });
-it('opens the dark Screen Sense menu into the available content width', () => {
-  const rule = sheet.nodes.find(node => node.type === 'rule' && node.selector === '[data-layout="rail"] .screen-controls .overflow-popover');
-  expect(rule?.toString()).toContain('left: 0; right: auto');
-  expect(rule?.toString()).toContain('min-width: min(240px, calc(100vw - 32px))');
-  expect(rule?.toString()).toContain('max-width: min(360px, calc(100vw - 32px))');
-});
 it('uses a fixed rem scale, tabular readings and token browser surfaces', () => {
+  expect(sheet.nodes.some(node => node.type === 'atrule' && node.name === 'import' && node.params === '"./theme-tokens.css"')).toBe(true);
   const tokens = readFileSync(new URL('../app/theme-tokens.css', import.meta.url), 'utf8');
   const sizes = [...tokens.matchAll(/--type-[\w]+:\s*([\d.]+)rem/g)].map(m => Number(m[1]));
   expect(sizes.length).toBeGreaterThan(5);
@@ -77,9 +71,7 @@ it('retires all glass effects and uses opaque desktop windows', () => {
   expect(main.match(/backgroundColor: uiTheme\(\) === "dark" \? "#121212" : "#f6f7f9"/g)?.length).toBeGreaterThanOrEqual(2);
 });
 
-it('keeps the light transcript heading hidden after general button styling', () => {
-  expect(css).toContain('[data-layout="sidebar"] .prompter .transcript-heading { display: none; }');
-});
+
 
 it('shows the done tick in a clearly visible green', () => {
   const rule = (selector: string) => sheet.nodes.find(node => node.type === 'rule' && (node as { selector: string }).selector === selector)?.toString() ?? '';

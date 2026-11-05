@@ -1,6 +1,6 @@
 # Filow hand-off
 
-Last updated 2026-11-02 by the Claude Code session that built versions 0.2 to 0.8.6. Written so that
+Last updated 2026-11-05 for the single-sidebar prompter. Written so that
 another agent (Codex, Claude, a human) can continue without the chat history. Update this file at the
 end of every working session: "Where it stands", "Pending" and "Known gaps" are the parts that rot.
 
@@ -15,6 +15,16 @@ slide-to-script generator, on-device Whisper, local decisions through Ollama (Cl
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.26)
+
+- Unreleased single layout (2026-11-05, owner's reversal): both themes now use the left
+  sidebar with identical controls. Layout switching, right panel, width splitter and obsolete
+  plumbing/tests/strings removed. Next-section card height uses a bottom pointer/keyboard
+  handle, 120 px to 70 percent of content height, default 240 px, `prefs:nextHeight`, and
+  saved-preference re-clamping. Green done tick/progress and pairing reopen retained.
+  Typecheck, 204 tests (1 existing skip), standalone web build and production browser checks
+  pass at 1280x820 and 760x540 in both themes. Two-click function inventory and limits:
+  `docs/superpowers/plans/2026-11-05-one-layout-evidence.md`. Welcome/mirror out of scope.
+  No version bump, tag or release.
 
 - Unreleased release-review fixes (2026-11-04): all six findings in
   `tmp/codex/run-13-last.md` addressed. Short viewports scroll without collapsing points;
@@ -398,6 +408,10 @@ notifications and the region picker on those platforms are unverified.
 
 ## Pending (ask the owner before starting the big ones)
 
+- The 2026-11-05 single-sidebar change is ready in source. Native/live acceptance and any
+  release remain separate work; the browser evidence includes mock desktop callbacks, not
+  real inference, phone pairing, tunnel changes or update installation.
+
 - The six release-review findings are closed in source. Native/live acceptance remains pending;
   the new evidence document distinguishes mocked browser checks from hardware verification.
 
@@ -451,6 +465,11 @@ esources` before extracting (electron-builder hook order must be checked
    (`GAUNTLET=1 GAUNTLET_GATE=1 GAUNTLET_PROVIDERS=clef-local npx vitest run apps/web/lib/gauntlet`).
 
 ## Known gaps and traps
+
+- Prompter theme now changes tokens only. Do not restore the historical dark right panel
+  from the 2026-11-04 instructions below. The owner's 2026-11-05 amendment and one-layout
+  evidence supersede that layout decision. Very short content areas prioritize the 120 px
+  next-card minimum; its contents and the presentation remain independently scrollable.
 
 - Release-review focus checks use Chromium and native HTML dialogs with explicit Tab wrapping.
   OS screen-reader speech, packaged Electron and real microphone/backend cancellation were not
@@ -537,6 +556,10 @@ they wrote (usually Italian), outcome first, short.
   under `G:/FILOW/tmp`, npm cache `--cache G:/caches/npm`.
 
 ### Codex: next task (finish the flat redesign, plan Task 6)
+
+Historical task: superseded for layout by the owner's 2026-11-05 single-sidebar request.
+The two required themes and window sizes have now been inspected in production Chromium;
+see `docs/superpowers/plans/2026-11-05-one-layout-evidence.md` for the current acceptance record.
 
 Follow-up 2026-11-04: all six findings from the final read-only release review are fixed and
 tested; see `2026-11-04-flat-layout-review-fixes.md` in the plans directory. Next work remains

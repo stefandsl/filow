@@ -1,10 +1,9 @@
 import { useT } from "@filow/ui";
 import { Icon } from "../icons";
-import type { PrompterLayout } from "../../lib/layout";
 import type { PointState } from "../../lib/pointState";
 export function PointsList({ points, onToggle }: {
   points: {id: string; text: string; state: PointState; confidence: number}[];
-  layout: PrompterLayout; onToggle?(id: string): void;
+  onToggle?(id: string): void;
 }) {
   const t = useT();
   return <div className="points prompter-points">{points.map((point, i) => {

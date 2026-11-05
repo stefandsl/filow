@@ -23,7 +23,7 @@ import { fetchPlan, type PlanResponse } from "@/lib/plan";
 import { engineHeaders, ensureEngineToken, useSession } from "./useSession";
 import { PairPanel } from "./PairPanel";
 import { useScreenSense, type ScreenSource } from "./useScreenSense";
-import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme, usePrompterLayout } from "./LangSwitch";
+import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "./LangSwitch";
 import { ResourcesPanel } from "./ResourcesPanel";
 import { desktopBridge, type UpdateStatus } from "@/lib/sessionUrl";
 
@@ -41,7 +41,6 @@ import { ImportError } from "./prompter/ImportError";
 import { LogPanel } from "./prompter/LogPanel";
 import { pointState } from "@/lib/pointState";
 import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
-import { RailSplitter } from "./prompter/RailSplitter";
 
 type BackendChoice = "auto" | SttBackendId;
 
@@ -57,7 +56,6 @@ export default function Teleprompter() {
 
 function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it") => void; theme: "system" | "light" | "dark"; onTheme: (t: "system" | "light" | "dark") => void }) {
   const t = useT();
-  const layout = usePrompterLayout();
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const actionMenuRef = useRef<HTMLButtonElement>(null);
@@ -374,7 +372,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         <LangSwitch lang={lang} onChange={onLang} /><ThemeSwitch pref={theme} onChange={onTheme} />
         <a className="btn settings-link" href="/settings/local" aria-label={t("ctl.settings")} title={t("ctl.settingsTitle")}><Icon name="settings" /></a>
       </header>
-      <SectionNav layout={layout} sections={script.sections} current={sectionIdx} onSelect={idx => engine.dispatch({type:"goToSection", idx})}
+      <SectionNav sections={script.sections} current={sectionIdx} onSelect={idx => engine.dispatch({type:"goToSection", idx})}
         importAction={<button type="button" className="btn" onClick={() => fileRef.current?.click()} disabled={importing} aria-label={t("ctl.import")} title={t("ctl.importTitle")}><Icon name="up" /><span className="action-label">{importing ? t("ctl.importing") : t("ctl.import")}</span></button>}
         reloadAction={<button type="button" className="btn" onClick={loadScript} aria-label={t("ctl.reload")}><Icon name="reload" /><span className="action-label">{t("ctl.reload")}</span></button>} />
         <input
@@ -408,7 +406,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
             : <><h1 className="section-title">{t("stage.noScript")}</h1><p>{t("stage.noScriptHint")}</p></>}
           <button type="button" className="btn edit-points" onClick={() => setEditing(true)}><Icon name="edit" /> {t("ctl.edit")}</button>
         </div>
-        {section && <PointsList layout={layout} points={section.bullets.map(b => {
+        {section && <PointsList points={section.bullets.map(b => {
           const st = points[b.id] ?? {status: "waiting", confidence: 0};
           return {id:b.id, text:b.text, confidence:st.confidence, state:pointState({started:st.status === "started",confidence:st.confidence},st.confidence >= 0.3)};
         })} onToggle={id => engine.dispatch(points[id]?.status === "started" ? {type:"reopen",id} : {type:"markStarted",id})} />}
@@ -430,7 +428,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
             </div>
           )}
 
-        <Transcript text={tail} open={transcriptOpen} onToggle={() => setTranscriptOpen(v => !v)} />
+        <Transcript text={tail} open={transcriptOpen} />
       {logOpen && (
         <LogPanel triggerRef={actionMenuRef} onClose={() => setLogOpen(false)}>
           {desktopBridge()?.reportProblem && (
@@ -444,12 +442,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         </LogPanel>
       )}
 
-
-      </main>
-      <RailSplitter />
-      <aside className="prompter-aside">
-        {nextSection && <NextSection layout={layout} title={nextSection.title} points={nextSection.bullets.map(b => b.text)} completed={nextSection.bullets.map(b => points[b.id]?.status === "started")} />}
-        {screen.status !== "unsupported" && <ScreenSensePanel layout={layout} active={screen.status === "watching"}>
+        {nextSection && <NextSection title={nextSection.title} points={nextSection.bullets.map(b => b.text)} completed={nextSection.bullets.map(b => points[b.id]?.status === "started")} />}
+        {screen.status !== "unsupported" && <ScreenSensePanel active={screen.status === "watching"}>
             {screen.status === "watching" ? (
               <button className="btn primary" onClick={screen.stopWatching}>
                 {t("screen.stopWatching")}
@@ -471,12 +465,12 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
                 </option>
               ))}
             </select>
-            {(layout === "sidebar" || state.screen || lastNotes.length > 0) && <OverflowMenu items={[
-              ...(layout === "sidebar" && screen.desktop ? [{id:"region",label:t("screen.region"),onSelect:() => { if (!offline) void screen.captureRegion(); }}] : []),
+            <OverflowMenu items={[
+              ...(screen.desktop ? [{id:"region",label:t("screen.region"),onSelect:() => { if (!offline) void screen.captureRegion(); }}] : []),
               {id:"screenSettings",label:t("ctl.settings"),onSelect:() => { window.location.href = "/settings/local"; }},
               ...(state.screen ? [{id:"forget",label:t("screen.forget"),onSelect:screen.forget}] : []),
               ...(lastNotes.length > 0 ? [{id:"export",label:t("screen.exportNotes", {n:lastNotes.length}),onSelect:exportNotes}] : []),
-            ]} />}
+            ]} />
 
             <button
               className="btn screen-scan"
@@ -484,16 +478,11 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
               disabled={offline || (screen.status !== "watching" && !screen.desktop)}
               title={screen.desktop && screen.status !== "watching" ? t("screen.lookNowRegion") : t("screen.lookNowFrame")}
             >
-              <Icon name="play" /> {t(layout === "sidebar" ? "screen.scan" : "screen.lookNow")}
+              <Icon name="play" /> {t("screen.scan")}
             </button>
-            {screen.desktop && layout === "rail" && (
-              <button className="btn" onClick={() => void screen.captureRegion()} disabled={offline} title={t("screen.regionTitle")}>
-                {t("screen.region")}
-              </button>
-            )}
           {screen.status === "watching" && <span className="chip rec" title={t("screen.recTitle", {label:screen.label})}><Icon name="circle" /> {t("screen.rec")} {"\u00b7"} {state.screenStats?.analysing ? t("app.analysing") : screen.label}</span>}
         </ScreenSensePanel>}
-      </aside>
+      </main>
       </div>
       <ActionBar start={<>
         {eng.recording ? (
@@ -522,7 +511,6 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         next={<button type="button" className="btn" onClick={() => engine.dispatch({type:"nextSection"})} disabled={!nextSection}>{t("ctl.next")} <Icon name="right" /></button>}
         transcriptToggle={<button type="button" className="btn" aria-expanded={transcriptOpen} aria-controls="prompter-transcript-text" onClick={() => setTranscriptOpen(v => !v)}>{t("footer.transcript")}</button>}
         overflow={<OverflowMenu triggerRef={actionMenuRef} items={[
-          ...(layout === "rail" ? [{id:"reload",label:t("ctl.reload"),onSelect:() => { void loadScript(); },icon:<Icon name="reload" />}] : []),
           {id:"reset",label:t("ctl.reset"),onSelect:() => engine.dispatch({type:"resetSection"})},
           {id:"log",label:t("ctl.logReport"),onSelect:() => { setLogOpen(true); }},
           ...(desktopBridge()?.reportProblem ? [{id:"report",label:t("log.report"),onSelect:() => { desktopBridge()?.reportProblem?.(); }}] : []),

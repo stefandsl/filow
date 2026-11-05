@@ -1,14 +1,13 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useT } from "@filow/ui";
-import type { PrompterLayout } from "../../lib/layout";
 import { sectionLabel } from "./sectionLabel";
-export function SectionNav({ sections, current, onSelect, layout, importAction, reloadAction }: {
+export function SectionNav({ sections, current, onSelect, importAction, reloadAction }: {
   sections: { id: string; title: string }[]; current: number; onSelect(index: number): void;
-  layout: PrompterLayout; importAction: ReactNode; reloadAction?: ReactNode;
+  importAction: ReactNode; reloadAction?: ReactNode;
 }) {
   const t = useT();
   const active = useRef<HTMLButtonElement>(null);
-  useEffect(() => { active.current?.scrollIntoView({ block: "nearest", inline: "nearest" }); }, [current, layout]);
+  useEffect(() => { active.current?.scrollIntoView({ block: "nearest", inline: "nearest" }); }, [current]);
   return <nav className="section-nav" aria-label={t("nav.scriptTitle")}>
     <div className="nav-heading"><strong>{t("nav.scriptTitle")}</strong><span>{t("nav.sections", {n: sections.length})}</span></div>
     <div className="section-nav-list">
@@ -18,6 +17,6 @@ export function SectionNav({ sections, current, onSelect, layout, importAction, 
         <span className="section-number">{String(index + 1).padStart(2, "0")}</span><span className="section-name">{sectionLabel(section.title).label || section.title}</span>
       </button>)}
     </div>
-    <div className="nav-actions">{importAction}<span className="sidebar-only">{reloadAction}</span></div>
+    <div className="nav-actions">{importAction}{reloadAction}</div>
   </nav>;
 }

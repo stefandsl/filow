@@ -1,8 +1,6 @@
-﻿"use client";
+"use client";
 import { Icon, type IconName } from "./icons";
 import { useSyncExternalStore } from "react";
-import { layoutForTheme } from "../lib/layout";
-import { getDesktopPreferences, resolveTheme } from "../lib/prefs";
 import { LANGS, t, type Lang } from "@filow/core";
 import { getLang, getThemePref, setLang, setThemePref, subscribeUiPreferences, type ThemePref } from "@/lib/prefs";
 
@@ -25,15 +23,4 @@ export function ThemeSwitch({ pref, onChange }: { pref: ThemePref; onChange: (t:
   return <span className="themeswitch" role="group" aria-label={t("ui.theme", lang)}>
     <button type="button" className="btn" onClick={() => onChange(next[pref])} aria-label={`${t("ui.theme", lang)}: ${t(`ui.${pref}`, lang)}`} title={t(`ui.${pref}`, lang)}><Icon name={icons[pref]} /></button>
   </span>;
-}
-
-function subscribeResolvedTheme(listener: () => void) {
-  const unsubscribe = subscribeUiPreferences(listener);
-  const media = window.matchMedia("(prefers-color-scheme: light)");
-  media.addEventListener("change", listener);
-  return () => { unsubscribe(); media.removeEventListener("change", listener); };
-}
-export function usePrompterLayout() {
-  return useSyncExternalStore(subscribeResolvedTheme,
-    () => layoutForTheme(getDesktopPreferences()?.resolvedTheme ?? resolveTheme(getThemePref())), () => "rail" as const);
 }

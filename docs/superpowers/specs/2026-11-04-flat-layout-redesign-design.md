@@ -1,5 +1,16 @@
 # Flat layout redesign of the prompter: design
 
+## Owner amendment, 2026-11-05
+
+The owner superseded the theme-dependent layout decision below: use ONE left-sidebar layout
+in both themes, matching the light mockup's structure and using the selected theme's tokens.
+Keep the same buttons and functions, accessible within two clicks. Remove the old layout
+switch, tabs, right panel and width splitter. The next-section card below the points instead
+resizes vertically from its bottom edge: pointer drag, ArrowUp/ArrowDown by 16 px, double click
+to reset, 120 px minimum and 70 percent of content height maximum, with `prefs:nextHeight`
+stored per viewer and re-clamped on window resize. Welcome and mirror are out of scope.
+The remainder records the original 2026-11-04 design; this amendment takes precedence.
+
 Date: 2026-11-04. Owner: Stefan Butnaru. Source: the owner's brief and two mockup images he supplied, kept at `docs/superpowers/specs/mockups/2026-11-04-prompter-dark.webp` and `...-light.webp`; his two decisions in conversation are marked "owner's call". Everything marked "my call" is the author's and can be overruled.
 
 ## Intent
