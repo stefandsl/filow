@@ -45,7 +45,7 @@ export type SessionClient = {
   publishPatch(version: number, ops: Operation[]): void;
   /** Engine: handle incoming commands. */
   onCommand(fn: (cmd: Command, ack: (result: { ok: boolean; error?: string }) => void) => void): void;
-  /** Engine: the server asks for a full state (it could not apply a patch). */
+  /** Engine: send a full state after reconnect or when the server cannot apply a patch. */
   onResync(fn: () => void): void;
   /** Engine: accept (as viewer or controller) or reject a paired phone. */
   decidePair(token: string, decision: PairDecision): void;
@@ -197,6 +197,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
               client.role = "pending";
               setStatus("open", "pending");
             } else setStatus("open");
+            if (client.role === "engine") resyncHandler?.();
             resolve();
             break;
           case "role": {

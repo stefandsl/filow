@@ -130,7 +130,7 @@ describe("Step 4 relay/client seams", () => {
     expect(f.phone.state).toMatchObject({ version: 2, sectionIdx: 2 });
   });
   // Contract: ARCHITECTURE.md §5.4/§10: engine reconnect sends fresh full state; Q2 missed patches converge.
-  it.fails("engine reconnect must resend state changed while disconnected", async () => {
+  it("engine reconnect must resend state changed while disconnected", async () => {
     const engine = new Engine({ decide: async () => ({ decisions: [], latencyMs: 0, cost: 0, model: "fake" }) });
     useSession(engine); await settle();
     const socket = runtime.clients[0] as FakeSocket;
