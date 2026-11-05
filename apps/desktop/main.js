@@ -1398,6 +1398,7 @@ let offline = process.env.FILOW_OFFLINE === "1";
 function applyOffline(win, value = process.env.FILOW_OFFLINE === "1") {
   offline = value;
   process.env.FILOW_OFFLINE = value ? "1" : "";
+  if (offline) stopTunnels();
   const filter = { urls: ["*://*/*", "ws://*/*", "wss://*/*"] };
   session.defaultSession.webRequest.onBeforeRequest(filter, (details, callback) => {
     if (!offline) return callback({});

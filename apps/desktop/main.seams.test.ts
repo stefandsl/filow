@@ -76,11 +76,14 @@ describe("Step 4 desktop offline seams", () => {
     expect(f.blocked("https://cloud.invalid/upload")).toBe(false);
   });
   // Contract: main.js offline menu: "no outbound requests"; ARCHITECTURE.md §6.10.
-  it.fails("enabling offline must stop an already running public tunnel", () => {
+  it("enabling offline must stop an already running public tunnel", () => {
     const f = fixture(); const kill = vi.fn();
     f.api.tunnels.procs.push({ kill }); f.api.tunnels.web = "https://fake.trycloudflare.com";
     f.api.applyOffline(null, true);
     expect(kill, "offline transition must stop existing cloudflared transport").toHaveBeenCalledOnce();
+    expect(f.api.tunnels.procs).toHaveLength(0);
+    expect(f.api.tunnels.web).toBe("");
+    expect(f.api.tunnels.state).toBe("off");
   });
   // Contract: main.js offline menu: "no outbound requests" (includes main-process setup downloads).
   it.fails("offline must block the desktop STT model downloader", async () => {
