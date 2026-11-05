@@ -227,3 +227,84 @@ Command: `npm.cmd 'test' '--' 'apps/server/src/seams.test.ts' '-t' 'engine recon
 
 Exit code: 0
 ```
+
+### B04 — Fail before: relay must request full state when engine skips a patch version
+
+Command: `npm.cmd 'test' '--' 'apps/server/src/seams.test.ts' '-t' 'relay must request full state when engine skips a patch version'`
+
+```text
+
+> filow-monorepo@0.9.28 test
+> vitest run apps/server/src/seams.test.ts -t relay must request full state when engine skips a patch version
+
+
+ RUN  v5.1.0 G:/FILOW
+
+ ❯ apps/server/src/seams.test.ts (7 tests | 1 failed | 6 skipped) 21ms
+   ❯ Step 4 relay/client seams (7)
+     × relay must request full state when engine skips a patch version 20ms
+System.Management.Automation.RemoteException
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+System.Management.Automation.RemoteException
+ FAIL  apps/server/src/seams.test.ts > Step 4 relay/client seams > relay must request full state when engine skips a patch version
+AssertionError: relay must request the missing base instead of blessing an incomplete snapshot: expected "vi.fn()" to be called once, but got 0 times
+ ❯ apps/server/src/seams.test.ts:149:102
+    147|     const f = await fixture(); const resync = vi.fn(); f.engine.onResy…
+    148|     patch(f.engine, 2, 2); await settle();
+    149|     expect(resync, "relay must request the missing base instead of ble…
+       |                                                                                                      ^
+    150|   });
+    151|   it("characterizes a fresh relay: the prior process's pairing code no…
+System.Management.Automation.RemoteException
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+System.Management.Automation.RemoteException
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 skipped (7)
+   Start at  19:48:03
+   Duration  221ms (transform 44%, import 36%, tests 17%, worker 3%)
+
+Exit code: 1
+```
+
+### Pass after B04
+
+Command: `npm.cmd 'test' '--' 'apps/server/src/seams.test.ts' '-t' 'relay must request full state when engine skips a patch version'`
+
+```text
+
+> filow-monorepo@0.9.28 test
+> vitest run apps/server/src/seams.test.ts -t relay must request full state when engine skips a patch version
+
+
+ RUN  v5.1.0 G:/FILOW
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 6 skipped (7)
+   Start at  19:48:24
+   Duration  261ms (transform 48%, import 38%, tests 12%, worker 2%)
+
+Exit code: 0
+```
+
+### Sync regression checks after B04
+
+Command: `npm.cmd 'test' '--' 'apps/server/src/seams.test.ts' 'apps/server/src/server.test.ts' 'packages/client'`
+
+```text
+
+> filow-monorepo@0.9.28 test
+> vitest run apps/server/src/seams.test.ts apps/server/src/server.test.ts packages/client
+
+
+ RUN  v5.1.0 G:/FILOW
+
+
+ Test Files  2 passed (2)
+      Tests  20 passed (20)
+   Start at  19:48:32
+   Duration  444ms (tests 62%, import 24%, transform 13%, worker 1%)
+
+Exit code: 0
+```

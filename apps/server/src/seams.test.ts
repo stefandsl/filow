@@ -143,10 +143,16 @@ describe("Step 4 relay/client seams", () => {
       "reconnect must publish the current transcript without waiting for another change").toBe("missed during disconnect");
   });
   // Contract: ARCHITECTURE.md §5.4 contiguous versions and Q2 convergence after missed engine patches.
-  it.fails("relay must request full state when engine skips a patch version", async () => {
+  it("relay must request full state when engine skips a patch version", async () => {
     const f = await fixture(); const resync = vi.fn(); f.engine.onResync(resync);
     patch(f.engine, 2, 2); await settle();
     expect(resync, "relay must request the missing base instead of blessing an incomplete snapshot").toHaveBeenCalledOnce();
+    expect(f.phone.state).toMatchObject({ version: 0, sectionIdx: 0 });
+    f.phoneSocket.send(JSON.stringify({ t: "resync" })); await settle();
+    expect(f.phone.state).toMatchObject({ version: 0, sectionIdx: 0 });
+    f.engine.publishState({ ...f.state, version: 2, sectionIdx: 2, transcriptTail: "missing base restored" });
+    await settle(); patch(f.engine, 3, 3); await settle();
+    expect(f.phone.state).toMatchObject({ version: 3, sectionIdx: 3, transcriptTail: "missing base restored" });
   });
   it("characterizes a fresh relay: the prior process's pairing code no longer exists", async () => {
     const created = await (await fakeFetch("http://relay.invalid/api/session", { method: "POST" })).json();

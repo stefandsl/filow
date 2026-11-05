@@ -338,13 +338,14 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
           s.version = Number(msg.version ?? 0);
           broadcast(s, raw.toString());
         } else if (msg.t === "patch") {
-          if (s.lastState && Number(msg.version) <= s.version) return;
+          const version = Number(msg.version);
+          if (s.lastState && version <= s.version) return;
           // Fold the patch into the stored state so late joiners get a current snapshot.
           try {
-            if (!s.lastState) throw new Error("no base state");
+            if (!s.lastState || version !== s.version + 1) throw new Error("missing patch base");
             s.lastState = applyPatch(s.lastState, msg.ops as Operation[], false, false).newDocument;
-            (s.lastState as { version: number }).version = Number(msg.version);
-            s.version = Number(msg.version ?? s.version + 1);
+            (s.lastState as { version: number }).version = version;
+            s.version = version;
             broadcast(s, raw.toString());
           } catch {
             ws.send(JSON.stringify({ t: "resync" })); // ask the engine for a full state
