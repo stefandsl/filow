@@ -1395,7 +1395,7 @@ function waitFor(url, tries = 100) {
  * provider resolution reads the same flag through process.env.
  */
 let offline = process.env.FILOW_OFFLINE === "1";
-function applyOffline(win, value) {
+function applyOffline(win, value = process.env.FILOW_OFFLINE === "1") {
   offline = value;
   process.env.FILOW_OFFLINE = value ? "1" : "";
   const filter = { urls: ["*://*/*", "ws://*/*", "wss://*/*"] };
@@ -1606,8 +1606,8 @@ async function main() {
   // §6.2: the window is already filtered out of Screen Sense's own chooser; hiding it from every
   // capture is opt-in (menu) because it also blanks the user's own screenshots.
   win.setContentProtection(Boolean(settings.contentProtection));
+  applyOffline(win);
   buildMenu(win);
-  applyOffline(win, offline);
   wireScreenSense();
   startSlideShowWatch();
   ipcMain.handle("slideshow:state", () => slideShow);

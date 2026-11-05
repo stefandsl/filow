@@ -38,8 +38,8 @@ function fixture(initialEnv: Record<string, string> = {}) {
     modules[`./${name}`] = module.exports;
   }
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
-    ;({ applyOffline, loadEnv, sttDownload, startOllamaInstall, reportProblem, checkForUpdates,
-       startupOffline: () => applyOffline(null, offline), tunnels, setLog: text => { lastTakeLog = text; } });`, {
+    ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, startOllamaInstall, reportProblem, checkForUpdates,
+       startupOffline: () => applyOffline(null), tunnels, setLog: text => { lastTakeLog = text; } });`, {
     require: (id: string) => {
       if (id.endsWith("electron-updater.js")) return { autoUpdater: { on() {}, checkForUpdates } };
       if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`);
@@ -60,12 +60,20 @@ describe("Step 4 desktop offline seams", () => {
     await f.api.checkForUpdates(); expect(f.checkForUpdates).not.toHaveBeenCalled();
   });
   // Contract: ARCHITECTURE.md §6.10 FILOW_OFFLINE; main.js loads profile .env for app configuration.
-  it.fails("profile env offline must survive desktop startup", () => {
+  it("profile env offline must survive desktop startup", () => {
     const f = fixture(); f.api.loadEnv("G:/fake/.env");
     expect(f.env.FILOW_OFFLINE).toBe("1");
-    // Same call/order as main(): loadEnv at 1566, applyOffline(win, offline) at 1610.
+    // Startup reads the loaded/aliased env; explicit menu toggles still pass a boolean.
     f.api.startupOffline();
     expect(f.env.FILOW_OFFLINE, "startup must retain FILOW_OFFLINE=1 loaded from profile").toBe("1");
+    expect(f.blocked("https://cloud.invalid/upload")).toBe(true);
+  });
+  it("legacy offline env survives startup and explicit toggles can disable it", () => {
+    const f = fixture({ INTELLIPROMPTER_OFFLINE: "1" }); f.api.aliasLegacyEnv(); f.api.startupOffline();
+    expect(f.env.FILOW_OFFLINE).toBe("1");
+    f.api.applyOffline(null, false);
+    expect(f.env.FILOW_OFFLINE).toBe("");
+    expect(f.blocked("https://cloud.invalid/upload")).toBe(false);
   });
   // Contract: main.js offline menu: "no outbound requests"; ARCHITECTURE.md §6.10.
   it.fails("enabling offline must stop an already running public tunnel", () => {
