@@ -1197,7 +1197,7 @@ function wireStt() {
   ipcMain.on("stt:feed", (_e, samples) => {
     if (sttSession) sttSession.feed(samples instanceof Float32Array ? samples : new Float32Array(samples));
   });
-  ipcMain.on("stt:stop", () => sttSession && sttSession.stop());
+  ipcMain.handle("stt:stop", () => sttSession?.stop());
 }
 
 // ---- Local AI: hardware scan, recommendation, unattended Ollama install (localai.js) ----

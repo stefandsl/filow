@@ -1,7 +1,7 @@
 // Worker thread: streaming speech-to-text with sherpa-onnx (Nemotron 3.5 ASR streaming, int8, CPU).
 // Runs off the main thread so a 100 ms decode never stalls the window. Protocol (parentPort):
 //   in : { type: "init", dir, threads, language } | { type: "feed", samples: Float32Array } | { type: "stop" }
-//   out: { type: "ready", loadMs } | { type: "result", partial, committed } | { type: "error", message }
+//   out: { type: "ready", loadMs } | { type: "result", partial, committed } | { type: "error", message } | { type: "stopped" }
 // `committed` is non-empty only when the endpoint detector closed a segment; `partial` is the live text.
 const { parentPort } = require("node:worker_threads");
 const path = require("node:path");
@@ -76,9 +76,10 @@ parentPort.on("message", (msg) => {
         if (r.text) parentPort.postMessage({ type: "result", partial: "", committed: r.text.trim() });
         newStream();
       }
-      parentPort.postMessage({ type: "stopped" });
     }
   } catch (err) {
     parentPort.postMessage({ type: "error", message: String((err && err.message) || err) });
+  } finally {
+    if (msg.type === "stop") parentPort.postMessage({ type: "stopped" });
   }
 });

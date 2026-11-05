@@ -64,7 +64,7 @@ contextBridge.exposeInMainWorld("filow", {
     remove: () => ipcRenderer.invoke("stt:remove"),
     start: (language) => ipcRenderer.invoke("stt:start", language),
     feed: (samples) => ipcRenderer.send("stt:feed", samples),
-    stop: () => ipcRenderer.send("stt:stop"),
+    stop: () => ipcRenderer.invoke("stt:stop"),
     onResult: (fn) => {
       const h = (_e, v) => fn(v);
       ipcRenderer.on("stt:result", h);

@@ -10,7 +10,7 @@ export type SherpaBridge = {
   remove: () => Promise<void>;
   start: (language: string) => Promise<{ loadMs: number }>;
   feed: (samples: Float32Array) => void;
-  stop: () => void;
+  stop: () => Promise<void>;
   onResult: (fn: (r: { partial: string; committed: string }) => void) => () => void;
   onStatus: (fn: (s: { model: string; pct: number; error?: string }) => void) => () => void;
 };
@@ -27,10 +27,12 @@ export class SherpaStt implements SttBackend {
   readonly label = "Streaming on this device (Nemotron)";
   private mic: MicCapture | null = null;
   private off: (() => void) | null = null;
+  private stopping: Promise<void> = Promise.resolve();
 
   constructor(private readonly language?: string) {}
 
   async start(h: SttHandlers): Promise<void> {
+    await this.stopping;
     const bridge = sherpaBridge();
     if (!bridge) throw new Error("streaming transcription needs the desktop app");
     const st = await bridge.status();
@@ -52,8 +54,10 @@ export class SherpaStt implements SttBackend {
   stop(): void {
     this.mic?.stop();
     this.mic = null;
-    this.off?.();
+    const off = this.off;
     this.off = null;
-    sherpaBridge()?.stop();
+    if (!off) return;
+    // Keep receiving the final commitment until the worker has acknowledged its flush.
+    this.stopping = Promise.resolve(sherpaBridge()?.stop()).then(off, off);
   }
 }

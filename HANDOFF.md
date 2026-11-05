@@ -16,6 +16,13 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.28)
 
+- Sync/stop audit fixes (2026-11-05, `fix/sync-and-stop`): B01-B05 fixed in five
+  separate commits. Relay and phone drop old/duplicate patches; gaps request full state;
+  engine reconnect invokes its full-state callback. Sherpa keeps the result subscription
+  until the worker's flush acknowledgement crosses IPC, including asynchronous stop/restart.
+  Ordinary-test failure/pass output is in `docs/audit/sync-fixes.md`. No push or release;
+  real phone/network and native microphone/Sherpa acceptance remain pending.
+
 - Offline audit fixes (2026-11-05, `audit/baseline`): B06-B14 from Step 4 are fixed
   in seven commits, with ordinary-test failure/pass output for each bug. Translation
   refuses offline and uses the shared PII guard online; cloud STT tokens refuse offline.
@@ -460,8 +467,8 @@ notifications and the region picker on those platforms are unverified.
 ## Pending (ask the owner before starting the big ones)
 
 - Offline fixes still need native acceptance: real tunnel termination, download refusal,
-  and the EN/IT clipboard report dialog. Phone-sync and Sherpa-stop seam failures remain
-  out of scope. No real providers, audio capture or packet inspection ran in this fix pass.
+  and the EN/IT clipboard report dialog. Phone-sync and Sherpa-stop seam failures are
+  fixed in source; real phone/network, native audio and packet inspection remain unverified.
 
 - Verify the new picker on the owner's USB/C920 setup in packaged Electron and exercise a
   stalled model download there. Browser QA uses simulated devices/capture; download tests use

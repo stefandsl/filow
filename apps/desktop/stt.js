@@ -108,6 +108,7 @@ class SttSession {
     this.log = log || (() => {});
     this.worker = null;
     this.ready = false;
+    this.stopping = null;
     this.onResult = () => {};
     this.onError = () => {};
   }
@@ -117,6 +118,7 @@ class SttSession {
   }
 
   async start(language) {
+    await this.stopping;
     if (!modelReady(this.userData)) throw new Error("model not downloaded");
     if (this.worker && this.ready) {
       this.worker.postMessage({ type: "language", language });
@@ -162,7 +164,27 @@ class SttSession {
   }
 
   stop() {
-    if (this.worker && this.ready) this.worker.postMessage({ type: "stop" });
+    if (this.stopping) return this.stopping;
+    const worker = this.worker;
+    if (!worker || !this.ready) return Promise.resolve();
+    this.stopping = new Promise((resolve) => {
+      const finish = () => {
+        worker.off("message", onMessage);
+        worker.off("error", finish);
+        worker.off("exit", finish);
+        resolve();
+      };
+      const onMessage = (m) => {
+        if (m.type === "stopped") finish();
+      };
+      worker.on("message", onMessage);
+      worker.once("error", finish);
+      worker.once("exit", finish);
+      // The worker sends its final result before this acknowledgement.
+      try { worker.postMessage({ type: "stop" }); }
+      catch (err) { finish(); this.onError(err.message); }
+    }).finally(() => { this.stopping = null; });
+    return this.stopping;
   }
 
   dispose() {

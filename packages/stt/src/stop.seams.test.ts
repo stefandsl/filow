@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { EventEmitter } from "node:events";
 import { runInNewContext } from "node:vm";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -31,9 +32,27 @@ beforeEach(() => {
 });
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
+function desktopSession() {
+  class Worker extends EventEmitter {
+    postMessage = vi.fn((m: { type: string }) => {
+      if (m.type === "init") queueMicrotask(() => this.emit("message", { type: "ready", loadMs: 0 }));
+    });
+  }
+  const module = { exports: {} as any };
+  const modules: Record<string, unknown> = {
+    "node:fs": { existsSync: () => true }, "node:os": { cpus: () => [0, 1, 2, 3] },
+    "node:path": path, "node:https": {}, "node:child_process": {},
+    "node:worker_threads": { Worker }, "./stt-download": {},
+  };
+  runInNewContext(readFileSync(new URL("../../../apps/desktop/stt.js", import.meta.url), "utf8"), {
+    require: (id: string) => modules[id], module, __dirname: "G:/fake",
+  });
+  return new module.exports.SttSession("G:/fake");
+}
+
 describe("Step 4 stop seams", () => {
   // Contract: apps/desktop/stt-worker.js stop branch: "flush what is still in the stream"; Q3.
-  it.fails("Sherpa stop must deliver the worker's final committed utterance", async () => {
+  it("Sherpa stop must deliver the worker's final committed utterance", async () => {
     const listeners = new Set<(r: any) => void>();
     let receive!: (m: unknown) => void;
     const posted: any[] = [];
@@ -58,6 +77,65 @@ describe("Step 4 stop seams", () => {
     expect(posted).toContainEqual({ type: "result", partial: "", committed: "last utterance" });
     expect(transcript, "worker flush must reach the take before the result subscription is removed")
       .toHaveBeenCalledWith({ committed: "last utterance ", partial: "" });
+    await Promise.resolve();
+    expect(listeners.size).toBe(0);
+    inputFinished.mockImplementationOnce(() => { throw new Error("fake flush error"); });
+    receive({ type: "stop" });
+    expect(posted.slice(-2)).toEqual([{ type: "error", message: "fake flush error" }, { type: "stopped" }]);
+  });
+  it("Sherpa keeps its subscription through asynchronous desktop flush and drains before restarting", async () => {
+    const session = desktopSession();
+    const listeners = new Set<(r: any) => void>();
+    session.onResult = (r: any) => { for (const fn of listeners) fn(r); };
+    const stop = vi.fn(() => session.stop());
+    vi.stubGlobal("filow", { stt: {
+      status: async () => ({ model: "ready" }), start: (language: string) => session.start(language), stop, feed() {},
+      onResult: (fn: (r: any) => void) => { listeners.add(fn); return () => listeners.delete(fn); },
+    } });
+    const backend = new SherpaStt(); const transcript = vi.fn(); const nextTranscript = vi.fn();
+    await backend.start({ onTranscript: transcript, onError: vi.fn() });
+    const worker = session.worker;
+    backend.stop(); backend.stop();
+    expect(stop).toHaveBeenCalledOnce();
+    expect(listeners.size).toBe(1);
+    const restarting = backend.start({ onTranscript: nextTranscript, onError: vi.fn() });
+    await Promise.resolve();
+    expect(worker.postMessage.mock.calls.map(([m]: any[]) => m.type)).toEqual(["init", "stop"]);
+    // Separate worker/IPC turns: the stop request cannot acknowledge the flush yet.
+    worker.emit("message", { type: "result", partial: "", committed: "last utterance" });
+    expect(transcript).toHaveBeenCalledWith({ committed: "last utterance ", partial: "" });
+    expect(nextTranscript).not.toHaveBeenCalled();
+    expect(listeners.size).toBe(1);
+    worker.emit("message", { type: "stopped" });
+    await restarting;
+    worker.emit("message", { type: "result", partial: "", committed: "new take" });
+    expect(transcript).toHaveBeenCalledTimes(1);
+    expect(nextTranscript).toHaveBeenCalledWith({ committed: "new take ", partial: "" });
+    expect(listeners.size).toBe(1);
+    backend.stop(); worker.emit("message", { type: "stopped" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(listeners.size).toBe(0);
+  });
+  it.each(["stopped", "error", "exit", "crash"])("desktop stop settles and removes temporary listeners on %s", async (event) => {
+    const session = desktopSession();
+    await session.stop(); // no running worker
+    await session.start("auto");
+    const worker = session.worker;
+    const counts = ["message", "error", "exit"].map(e => worker.listenerCount(e));
+    const stopping = session.stop();
+    expect(session.stop()).toBe(stopping);
+    if (event === "exit") worker.emit("exit", 1);
+    else if (event === "crash") worker.emit("error", new Error("fake crash"));
+    else {
+      if (event === "error") {
+        worker.emit("message", { type: "error", message: "fake error" });
+        // A queued feed error is not a stop acknowledgement.
+        expect(worker.listenerCount("message")).toBe(counts[0] + 1);
+      }
+      worker.emit("message", { type: "stopped" });
+    }
+    await stopping;
+    expect(["message", "error", "exit"].map(e => worker.listenerCount(e))).toEqual(counts);
   });
   it("characterizes Whisper stop: buffered PCM and in-flight recognition are discarded", async () => {
     const posted: any[] = []; const terminate = vi.fn();
