@@ -70,9 +70,10 @@ describe("Step 4 provider boundaries", () => {
   });
   for (const [name, handler] of [["ElevenLabs", eleven], ["OpenAI", openai]] as const) {
     // Contract: ARCHITECTURE.md §6.10 and main.js menu: offline = no outbound requests.
-    it.fails(`offline ${name} token minting must not contact the cloud`, async () => {
-      await handler(request({}));
+    it(`offline ${name} token minting must not contact the cloud`, async () => {
+      const res = await handler(request({}));
       expect(outbound, "offline token minting must make no cloud request").not.toHaveBeenCalled();
+      expect(await res.json()).toMatchObject({ unavailable: "disabled" });
     });
   }
   it("local decision selection does not select local vision or translation", async () => {

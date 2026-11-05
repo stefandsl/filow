@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 export async function POST(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
+  if (process.env.FILOW_OFFLINE === "1") return NextResponse.json({ unavailable: "disabled" });
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "OPENAI_API_KEY not set" }, { status: 500 });
 
