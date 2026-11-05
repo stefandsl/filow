@@ -1,0 +1,93 @@
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { EventEmitter } from "node:events";
+import { describe, expect, it, vi } from "vitest";
+
+/** Evaluate untouched main.js, with startup held and all effects replaced in-process. */
+function fixture(initialEnv: Record<string, string> = {}) {
+  const env = { ...initialEnv };
+  let requestFilter!: (details: { url: string }, cb: (r: unknown) => void) => void;
+  const outbound = vi.fn(() => { throw new Error("fake network boundary: no bytes sent"); });
+  const openExternal = vi.fn(async () => {}), checkForUpdates = vi.fn(async () => null);
+  const modules: Record<string, any> = {
+    electron: {
+      app: { isPackaged: true, getPath: () => "G:/fake", on() {}, setAppUserModelId() {},
+        whenReady: () => ({ then() {} }), getLocale: () => "en", getVersion: () => "test", getGPUInfo: async () => ({}) },
+      ipcMain: { on() {} }, BrowserWindow: { getAllWindows: () => [] },
+      session: { defaultSession: { webRequest: { onBeforeRequest: (_filter: unknown, cb: typeof requestFilter) => { requestFilter = cb; } } } },
+      shell: { openExternal }, dialog: { showMessageBox: vi.fn() },
+    },
+    "node:path": path, "node:url": { pathToFileURL },
+    "node:fs": { readFileSync: () => "FILOW_OFFLINE=1", appendFileSync() {}, existsSync: () => false, mkdirSync() {}, rmSync() {} },
+    "node:os": { homedir: () => "G:/fake", cpus: () => [{ model: "fake" }], totalmem: () => 0, release: () => "fake" },
+    "node:http": { get: () => { const req = new EventEmitter(); queueMicrotask(() => req.emit("error", new Error("Ollama absent"))); return req; } },
+    "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": {},
+    "node:worker_threads": {},
+    "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
+    "./vendor/i18n": {}, "./ui-preferences": {}, "./slideshow": {},
+  };
+  // Real downloader orchestration, absent installation/model, fake disk and network.
+  for (const name of ["stt", "localai"]) {
+    const module = { exports: {} };
+    runInNewContext(readFileSync(new URL(`./${name}.js`, import.meta.url), "utf8"), {
+      require: (id: string) => { if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`); return modules[id]; },
+      module, process: { env, platform: "win32" }, URL,
+    });
+    modules[`./${name}`] = module.exports;
+  }
+  const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
+    ;({ applyOffline, loadEnv, sttDownload, startOllamaInstall, reportProblem, checkForUpdates,
+       startupOffline: () => applyOffline(null, offline), tunnels, setLog: text => { lastTakeLog = text; } });`, {
+    require: (id: string) => {
+      if (id.endsWith("electron-updater.js")) return { autoUpdater: { on() {}, checkForUpdates } };
+      if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`);
+      return modules[id];
+    },
+    __dirname: "G:/fake", process: { env, platform: "win32", arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {} },
+    URL, URLSearchParams, console,
+  });
+  return { api, env, outbound, openExternal, checkForUpdates,
+    blocked: (url: string) => { let result: any; requestFilter({ url }, r => { result = r; }); return result.cancel === true; } };
+}
+
+describe("Step 4 desktop offline seams", () => {
+  it("process-level offline blocks new renderer cloud requests and update checks", async () => {
+    const f = fixture({ FILOW_OFFLINE: "1" }); f.api.startupOffline();
+    expect(f.blocked("https://cloud.invalid/upload")).toBe(true);
+    expect(f.blocked("http://127.0.0.1:4747/api/decide")).toBe(false);
+    await f.api.checkForUpdates(); expect(f.checkForUpdates).not.toHaveBeenCalled();
+  });
+  // Contract: ARCHITECTURE.md §6.10 FILOW_OFFLINE; main.js loads profile .env for app configuration.
+  it.fails("profile env offline must survive desktop startup", () => {
+    const f = fixture(); f.api.loadEnv("G:/fake/.env");
+    expect(f.env.FILOW_OFFLINE).toBe("1");
+    // Same call/order as main(): loadEnv at 1566, applyOffline(win, offline) at 1610.
+    f.api.startupOffline();
+    expect(f.env.FILOW_OFFLINE, "startup must retain FILOW_OFFLINE=1 loaded from profile").toBe("1");
+  });
+  // Contract: main.js offline menu: "no outbound requests"; ARCHITECTURE.md §6.10.
+  it.fails("enabling offline must stop an already running public tunnel", () => {
+    const f = fixture(); const kill = vi.fn();
+    f.api.tunnels.procs.push({ kill }); f.api.tunnels.web = "https://fake.trycloudflare.com";
+    f.api.applyOffline(null, true);
+    expect(kill, "offline transition must stop existing cloudflared transport").toHaveBeenCalledOnce();
+  });
+  // Contract: main.js offline menu: "no outbound requests" (includes main-process setup downloads).
+  it.fails("offline must block the desktop STT model downloader", async () => {
+    const f = fixture({ FILOW_OFFLINE: "1" }); await f.api.sttDownload();
+    expect(f.outbound, "offline must not enter the network model downloader").not.toHaveBeenCalled();
+  });
+  // Contract: main.js offline menu: "no outbound requests" (includes main-process setup downloads).
+  it.fails("offline must block the Ollama installer downloader", async () => {
+    const f = fixture({ FILOW_OFFLINE: "1" }); await f.api.startOllamaInstall();
+    expect(f.outbound, "offline must not enter the network installer").not.toHaveBeenCalled();
+  });
+  // Contract: main.js offline menu: "no outbound requests"; Q4 text egress includes diagnostics.
+  it.fails("offline report must not place take log text in an external browser URL", async () => {
+    const f = fixture({ FILOW_OFFLINE: "1" }); f.api.setLog("synthetic private take log");
+    await f.api.reportProblem(null);
+    expect(f.openExternal, "offline report must not hand private log text to an external URL").not.toHaveBeenCalled();
+  });
+});
