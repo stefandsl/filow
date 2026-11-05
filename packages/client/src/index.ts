@@ -212,7 +212,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
             break;
           case "patch": {
             const version = msg.version as number;
-            if (client.state && version < client.state.version) break;
+            if (client.state && version <= client.state.version) break;
             if (!client.state || version !== client.state.version + 1) {
               sock.send(JSON.stringify({ t: "resync" }));
               break;

@@ -83,3 +83,80 @@ Command: `npm.cmd 'test' '--' 'apps/server/src/seams.test.ts' '-t' 'stale relay 
 
 Exit code: 0
 ```
+
+### B02 — Fail before: duplicate non-idempotent patch must not be applied twice by relay
+
+Command: `npm.cmd 'test' '--' 'apps/server/src/seams.test.ts' '-t' 'duplicate non-idempotent patch must not be applied twice by relay'`
+
+```text
+
+> filow-monorepo@0.9.28 test
+> vitest run apps/server/src/seams.test.ts -t duplicate non-idempotent patch must not be applied twice by relay
+
+
+ RUN  v5.1.0 G:/FILOW
+
+ ❯ apps/server/src/seams.test.ts (7 tests | 1 failed | 6 skipped) 26ms
+   ❯ Step 4 relay/client seams (7)
+     × duplicate non-idempotent patch must not be applied twice by relay 25ms
+npm.cmd : 
+In riga:2 car:212
++ ... $captured = & npm.cmd 'test' '--' 'apps/server/src/seams.test.ts' '-t ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  apps/server/src/seams.test.ts > Step 4 relay/client seams > duplicate non-idempotent patch must not be applied 
+twice by relay
+AssertionError: one version must append the fact once: expected [ 'one fact', 'one fact' ] to deeply equal [ 'one 
+fact' ]
+
+- Expected
++ Received
+
+  [
+    "one fact",
++   "one fact",
+  ]
+
+ ❯ apps/server/src/seams.test.ts:118:81
+    116|     expect(f.phone.state?.unmentioned).toEqual(["one fact"]);
+    117|     f.engine.publishPatch(1, ops); await settle();
+    118|     expect(f.phone.state?.unmentioned, "one version must append the fa…
+       |                                                                                 ^
+    119|   });
+    120|   it("a phone-only reconnect replays missed patches folded into a full…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 skipped (7)
+   Start at  19:46:48
+   Duration  256ms (transform 45%, import 35%, tests 17%, worker 2%)
+
+Exit code: 1
+```
+
+### Pass after B02
+
+Command: `npm.cmd 'test' '--' 'apps/server/src/seams.test.ts' '-t' 'duplicate non-idempotent patch must not be applied twice by relay'`
+
+```text
+
+> filow-monorepo@0.9.28 test
+> vitest run apps/server/src/seams.test.ts -t duplicate non-idempotent patch must not be applied twice by relay
+
+
+ RUN  v5.1.0 G:/FILOW
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 6 skipped (7)
+   Start at  19:47:03
+   Duration  259ms (transform 45%, import 41%, tests 11%, worker 2%)
+
+Exit code: 0
+```

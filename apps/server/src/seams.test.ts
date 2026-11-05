@@ -109,13 +109,19 @@ describe("Step 4 relay/client seams", () => {
     expect(f.phone.state).toMatchObject({ version: 2, sectionIdx: 2 });
   });
   // Contract: ARCHITECTURE.md §5.4 version = previous + 1; duplicate application is not a new revision.
-  it.fails("duplicate non-idempotent patch must not be applied twice by relay", async () => {
+  it("duplicate non-idempotent patch must not be applied twice by relay", async () => {
     const f = await fixture();
     const ops = [{ op: "add" as const, path: "/unmentioned/-", value: "one fact" }];
     f.engine.publishPatch(1, ops); await settle();
     expect(f.phone.state?.unmentioned).toEqual(["one fact"]);
     f.engine.publishPatch(1, ops); await settle();
     expect(f.phone.state?.unmentioned, "one version must append the fact once").toEqual(["one fact"]);
+    const sent = f.phoneSocket.sent.length;
+    f.phoneSocket.onmessage!({ data: JSON.stringify({ t: "patch", version: 1, ops }) });
+    expect(f.phone.state?.unmentioned).toEqual(["one fact"]);
+    expect(f.phoneSocket.sent).toHaveLength(sent); // duplicates need no resync
+    f.phoneSocket.send(JSON.stringify({ t: "resync" })); await settle();
+    expect(f.phone.state?.unmentioned).toEqual(["one fact"]);
   });
   it("a phone-only reconnect replays missed patches folded into a full snapshot", async () => {
     const f = await fixture(); f.phoneSocket.close(1006);
