@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Engine, missedPoints } from "./engine";
 import { parseScript } from "./script";
 import type { DecideRequest, DecideResponse } from "./api";
@@ -43,6 +43,227 @@ const BIG = parseScript(`# One
 - p5
 - p6
 `);
+
+describe("Engine regression audit (Step 2)", () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const cleanup of cleanups.splice(0)) await cleanup();
+  });
+
+  // Drain decide -> withTimeout -> tick continuations without advancing wall time.
+  async function settle() {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+
+  function harness(extra: Partial<ConstructorParameters<typeof Engine>[0]> = {}) {
+    let time = 1000;
+    let interval: { fn: () => void; ms: number } | undefined;
+    const calls: Array<{
+      request: DecideRequest;
+      signal?: AbortSignal;
+      resolve: (response: DecideResponse) => void;
+    }> = [];
+    const clearInterval = vi.fn(() => { interval = undefined; });
+    const e = new Engine({
+      ...extra,
+      now: () => time,
+      setInterval: (fn, ms) => (interval = { fn, ms }),
+      clearInterval,
+      // Deliberately ignore abort: the provider can still deliver a late reply.
+      decide: (request, signal) => new Promise<DecideResponse>((resolve) => {
+        calls.push({ request, signal, resolve });
+      }),
+    });
+    function resolve(index: number, confidence = 0) {
+      const call = calls[index];
+      call.resolve({
+        decisions: call.request.bullets.map((b) => ({ id: b.id, confidence, started: confidence >= 0.7 })),
+        latencyMs: 50,
+        cost: 0.001,
+        model: "regression",
+      });
+    }
+    cleanups.push(async () => {
+      e.stop();
+      calls.forEach((_, index) => resolve(index));
+      await settle();
+    });
+    e.loadScript(SCRIPT);
+    e.start();
+    return {
+      e, calls, clearInterval,
+      now: () => time,
+      advance: (ms: number) => { time += ms; },
+      pulse: async () => {
+        if (!interval) throw new Error("engine interval is not running");
+        time += interval.ms;
+        interval.fn();
+        await settle();
+      },
+      reply: async (index: number, confidence = 0) => {
+        resolve(index, confidence);
+        await settle();
+      },
+    };
+  }
+
+  it("engine regression 1: stop during decide drops a late reply without changing points", async () => {
+    const h = harness();
+    h.e.feed({ committed: "hello everyone" });
+    await h.pulse();
+    expect(h.calls).toHaveLength(1);
+    expect(h.calls[0].signal?.aborted).toBe(false);
+    h.e.stop();
+    const stopped = structuredClone(h.e.getState());
+    expect(stopped.engine.recording).toBe(false);
+    expect(h.clearInterval).toHaveBeenCalledOnce();
+    expect(h.calls[0].signal?.aborted).toBe(true);
+    await h.reply(0, 0.95);
+    expect(h.e.getState().points).toEqual({});
+    expect(h.e.getState()).toEqual(stopped);
+  });
+
+  it.each(["reopen", "markMissed"] as const)(
+    "engine regression 2: manual %s wins over an in-flight reply",
+    async (type) => {
+      const h = harness();
+      h.e.feed({ committed: "hello everyone" });
+      await h.pulse();
+      await h.reply(0, 0.75); // One confirmation is pending; the point is still open.
+      await h.pulse();
+      expect(h.calls).toHaveLength(2);
+      expect(h.e.dispatch({ type, id: "s0b0" })).toEqual({ ok: true });
+      const corrected = structuredClone(h.e.getState());
+      await h.reply(1, 0.95);
+      expect(h.e.getState().points.s0b0.status).toBe(type === "reopen" ? "waiting" : "missed");
+      // Also reject changes to other points and stats from that stale reply.
+      expect(h.e.getState()).toEqual(corrected);
+    },
+  );
+
+  it("engine regression 3: loadScript drops an in-flight reply even when point ids are reused", async () => {
+    const h = harness();
+    h.e.feed({ committed: "hello everyone" });
+    await h.pulse();
+    const replacement = parseScript("# Replacement\n- unrelated point\n- another new point");
+    expect(replacement.sections[0].bullets[0].id).toBe(h.calls[0].request.bullets[0].id);
+    h.e.loadScript(replacement);
+    const loaded = structuredClone(h.e.getState());
+    await h.reply(0, 0.95);
+    expect(h.e.getState().points).toEqual({});
+    expect(h.e.getState()).toEqual(loaded);
+  });
+
+  it("engine regression 4: revised partials are replaced by committed text without duplication", async () => {
+    const h = harness();
+    h.e.feed({ committed: "Welcome. ", partial: "hello every" });
+    await h.pulse();
+    await h.reply(0);
+    h.e.feed({ partial: "hello everyone" });
+    await h.pulse();
+    await h.reply(1);
+    // ARCHITECTURE.md:195 delegates to the STT event shape. Backends clear partial
+    // explicitly on commit (e.g. packages/stt/src/sherpa.ts and elevenlabs.ts).
+    h.e.feed({ committed: "hello everyone ", partial: "" });
+    expect(h.e.transcript).toBe("Welcome. hello everyone");
+    expect(h.e.getState().transcriptTail).toBe("Welcome. hello everyone");
+    await h.pulse();
+    // Joining committed/partial text inserts a space, so committing can change
+    // the exact window's whitespace and legitimately trigger another call.
+    expect(h.calls).toHaveLength(3);
+    await h.reply(2);
+    h.e.feed({ partial: "what we build today" });
+    await h.pulse();
+    expect(h.calls.map((c) => c.request.transcript)).toEqual([
+      "Welcome.  hello every",
+      "Welcome.  hello everyone",
+      "Welcome. hello everyone",
+      "Welcome. hello everyone  what we build today",
+    ]);
+    await h.reply(3);
+  });
+
+  it("engine regression 5: timeout reports slow without an error and retries with fresher text", async () => {
+    // EngineOptions injects interval/now but has no timeout scheduler. Capture only
+    // the private timeout callback; no real wait and no vi.useFakeTimers.
+    let expire: (() => void) | undefined;
+    const timeout = vi.spyOn(globalThis, "setTimeout").mockImplementation((fn) => {
+      expire = () => fn();
+      return 1 as unknown as ReturnType<typeof setTimeout>;
+    });
+    const clearTimeout = vi.spyOn(globalThis, "clearTimeout").mockImplementation(() => {});
+    try {
+      const h = harness({ timeoutMs: 2500 });
+      h.e.feed({ partial: "hello" });
+      await h.pulse();
+      expect(timeout).toHaveBeenCalledWith(expect.any(Function), 2500);
+      h.e.feed({ partial: "hello everyone, what we build today" });
+      h.advance(2500);
+      expire!();
+      await settle();
+      expect(h.calls[0].signal?.aborted).toBe(true);
+      expect(h.e.getState().engine.slowMs).toBe(2500);
+      expect(h.e.getState().engine.error).toBeUndefined();
+      expect(h.e.getState().stats.calls).toBe(0);
+      await h.pulse();
+      expect(h.calls.map((c) => c.request.transcript)).toEqual([
+        "hello", "hello everyone, what we build today",
+      ]);
+      await h.reply(0, 0.95); // Even an abort-ignoring provider cannot apply after timeout.
+      expect(h.e.getState().points).toEqual({});
+      await h.reply(1, 0.95);
+      expect(h.e.getState().points.s0b0).toEqual({ status: "started", confidence: 0.95, startedAt: h.now() });
+      expect(h.e.getState().stats.calls).toBe(1);
+      expect(h.e.getState().engine.slowMs).toBeUndefined();
+      expect(h.e.getState().engine.error).toBeUndefined();
+    } finally {
+      timeout.mockRestore();
+      clearTimeout.mockRestore();
+    }
+  });
+
+  it("engine regression 6: the default four-question cap eventually asks every open point", async () => {
+    const h = harness();
+    h.e.loadScript(BIG);
+    const asked = new Set<string>();
+    // Fresh text is required: rotation alone must not bypass the transcript gate.
+    for (let i = 0; i < Math.ceil(BIG.sections[0].bullets.length / 4); i++) {
+      h.e.feed({ committed: `segment ${i} ` });
+      await h.pulse();
+      expect(h.calls).toHaveLength(i + 1);
+      expect(h.calls[i].request.bullets).toHaveLength(4);
+      h.calls[i].request.bullets.forEach((b) => asked.add(b.id));
+      await h.reply(i); // No point closes, so later points cannot advance by removal.
+    }
+    expect([...asked].sort()).toEqual(BIG.sections[0].bullets.map((b) => b.id).sort());
+  });
+
+  it.each([2, 3])("engine regression 7: an identical window gets only one re-ask (confirmCalls=%i)", async (confirmCalls) => {
+    const h = harness({ confirmCalls });
+    h.e.feed({ committed: "hello everyone" });
+    await h.pulse();
+    await h.reply(0, 0.75);
+    expect(h.e.getState().points.s0b0.status).toBe("waiting");
+    await h.pulse();
+    expect(h.calls).toHaveLength(2);
+    expect(h.calls[1].request.transcript).toBe(h.calls[0].request.transcript);
+    await h.reply(1, 0.75);
+    expect(h.e.getState().points.s0b0.status).toBe(confirmCalls === 2 ? "started" : "waiting");
+    // With three confirmations required, pending remains true: this tests the
+    // one-re-ask limit itself, rather than merely running out of open points.
+    for (let i = 0; i < 4; i++) await h.pulse();
+    expect(h.calls).toHaveLength(2);
+    if (confirmCalls === 3) {
+      h.e.feed({ committed: " and welcome" });
+      await h.pulse();
+      expect(h.calls).toHaveLength(3);
+      await h.reply(2, 0.75);
+      expect(h.e.getState().points.s0b0.status).toBe("started");
+    }
+  });
+});
 
 describe("Engine pacing (Step 1 hygiene)", () => {
   it("caps the questions per call and rotates through the open points", async () => {
