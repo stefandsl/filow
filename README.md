@@ -89,6 +89,16 @@ import. Set TEMP/TMP and tool caches inside that QA folder too. Build with
 
 ## Quick start
 
+Choose **Microphone** in Settings beside the spoken language, or in the take action bar.
+Grant microphone permission once to see device names. System default is the first option;
+an unavailable saved device falls back to it and is noted in the take log. Changes during a
+take apply at the next start. Web Speech always uses the system default.
+Four seconds of digital silence or an ended input track shows an inline warning with a
+microphone chooser, without stopping the take. Audio recovery clears the warning. Slow audio
+context opening (over five seconds) is also reported with its measured time.
+Streaming model downloads abort after 30 seconds without data, discard partial archives and
+retry three times after 5, 15 and 45 seconds. A final failure is shown in Settings and startup.log.
+
 1. **Download** the installer for your OS from the [latest release](https://github.com/stefandsl/filow/releases/latest) (`-win-x64.exe`, `-mac-arm64.dmg` / `-mac-x64.dmg`, `-linux-x86_64.AppImage` / `.deb`). Windows shows a SmartScreen warning because the build is not code-signed yet; see [Code signing](#code-signing-and-the-smartscreen-warning).
 2. **Add your key**: menu → *Edit API keys (.env)* → paste an [OpenRouter](https://openrouter.ai/keys) key (a few cents per talk) → restart.
 3. **Write points**: *Edit points*, or *Import document*, or just *Watch screen…* and let Screen Sense build a section per slide.

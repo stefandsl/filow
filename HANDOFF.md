@@ -16,6 +16,19 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.27)
 
+- Unreleased microphone/download fixes (2026-11-05): shared Settings/action-bar microphone
+  picker, `prefs:micDeviceId`, real-default marking, devicechange refresh and logged fallback
+  when a saved input disappears. Every PCM backend and the permission probe use the selection;
+  Web Speech explicitly uses the system default. The 0.9.6 fixed-rate graph/conversion remains.
+  Worklet peaks and track-ended events drive a recoverable inline alert; four seconds at or
+  below 1e-4 warns, audio clears it, and AudioContext construction over five seconds logs its
+  measured duration. No capture-health event automatically stops a take.
+  Streaming downloads have a 30 s idle deadline (including waiting for headers), response/error
+  and size checks, partial-archive cleanup, and three retries after 5/15/45 s. Attempt messages
+  reach startup.log. Typecheck, 230 tests (1 existing skip), production web build and mocked
+  browser capture checks pass. Evidence/limits: `docs/microphone-fixes-2026-11-05.md`.
+  No version bump, tag or release.
+
 - Unreleased single layout (2026-11-05, owner's reversal): both themes now use the left
   sidebar with identical controls. Layout switching, right panel, width splitter and obsolete
   plumbing/tests/strings removed. Next-section card height uses a bottom pointer/keyboard
@@ -415,6 +428,10 @@ notifications and the region picker on those platforms are unverified.
 
 ## Pending (ask the owner before starting the big ones)
 
+- Verify the new picker on the owner's USB/C920 setup in packaged Electron and exercise a
+  stalled model download there. Browser QA uses simulated devices/capture; download tests use
+  fake streams, not the network. Source fixes are complete, native acceptance remains pending.
+
 - The 2026-11-05 single-sidebar change is ready in source. Native/live acceptance and any
   release remain separate work; the browser evidence includes mock desktop callbacks, not
   real inference, phone pairing, tunnel changes or update installation.
@@ -451,15 +468,12 @@ notifications and the region picker on those platforms are unverified.
 6. **Mascot icon**: a mascot variant was explored (`design/`, git-ignored); the brand kit icon won.
    Nothing to do unless the owner asks.
 7. **Ollama on Linux** is manual (the official script needs sudo); fine for now.
-7b. **Updates leave stale files on the owner's 3070 PC** (2026-11-02): a fresh 0.9.13 install works on
-   another PC while the updated one hangs 14 s at take start and the mic track ends. Suspect: the
-   per-user install dir `%LOCALAPPDATA%\Programs\Filow
-esources` (app.asar + app.asar.unpacked with
-   sherpa-onnx native modules) not fully replaced by the NSIS update. To do once confirmed: make the
-   installer remove `$INSTDIR
-esources` before extracting (electron-builder hook order must be checked
-   with a makensis harness, see above), and have the app log the versions of app.asar and the unpacked
-   sherpa module at startup so a mismatch is visible in startup.log.
+7b. **Microphone diagnosis updated (2026-11-05):** the default USB Advanced Audio Device
+   (0d8c:016c) gives digital silence and AudioContext opening blocks 10 to 15 s, while selecting
+   the C920 by deviceId gives real audio and opens immediately. The earlier stale-install-files
+   theory was not confirmed; do not change installer deletion behavior on that basis. The new
+   microphone picker and capture-health warnings address this diagnosis without changing the
+   0.9.6 capture graph. Native owner verification remains pending.
 8. **Plan steps not done yet** (owner's "piano operativo", in its order): pipeline timing marks at
    each boundary (audio → text → engine wait → model → UI) with one shared id; a corpus with real
    recordings (demo-it is synthetic); segments with ids/revisions so an STT correction can retract a
@@ -472,6 +486,11 @@ esources` before extracting (electron-builder hook order must be checked
    (`GAUNTLET=1 GAUNTLET_GATE=1 GAUNTLET_PROVIDERS=clef-local npx vitest run apps/web/lib/gauntlet`).
 
 ## Known gaps and traps
+
+- Web Speech exposes no PCM graph or input track to Filow, so device selection and level/track
+  diagnostics apply to PCM backends only. Its system-default limitation is shown in the picker.
+  AudioContext construction is synchronous: if the driver blocks JavaScript, the duration
+  warning can only render after the constructor returns. It does not interrupt that driver call.
 
 - Prompter theme now changes tokens only. Do not restore the historical dark right panel
   from the 2026-11-04 instructions below. The owner's 2026-11-05 amendment and one-layout

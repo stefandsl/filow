@@ -91,6 +91,17 @@ Esegui `npm run build` e `npm run build:welcome -w apps/desktop`, poi `npx elect
 
 ## Avvio rapido
 
+Scegli **Microfono** nelle Impostazioni accanto alla lingua parlata, oppure nella barra della
+sessione. Consenti il microfono una volta per vedere i nomi. Predefinito di sistema è la prima
+opzione; se il dispositivo salvato non è disponibile viene usato il predefinito e il log lo segnala.
+Le modifiche durante una sessione si applicano al prossimo avvio. Web Speech usa sempre il predefinito.
+Quattro secondi di silenzio digitale o la fine della traccia mostrano un avviso con il pulsante
+per scegliere un microfono, senza fermare la sessione. L'avviso scompare quando arriva audio.
+Anche un'apertura audio oltre cinque secondi viene segnalata con il tempo misurato.
+Il download del modello in streaming si interrompe dopo 30 secondi senza dati, elimina gli
+archivi parziali e riprova tre volte dopo 5, 15 e 45 secondi. L'errore finale appare nelle
+Impostazioni e in startup.log.
+
 1. **Scarica** l'installer per il tuo sistema dall'[ultima release](https://github.com/stefandsl/filow/releases/latest) (`-win-x64.exe`, `-mac-arm64.dmg` / `-mac-x64.dmg`, `-linux-x86_64.AppImage` / `.deb`). Windows mostra un avviso SmartScreen perché la build non è ancora firmata; vedi [Firma del codice](#firma-del-codice-e-lavviso-smartscreen).
 2. **Aggiungi la tua chiave**: menu → *Edit API keys (.env)* → incolla una chiave [OpenRouter](https://openrouter.ai/keys) (pochi centesimi a intervento) → riavvia.
 3. **Scrivi i punti**: *Modifica punti*, oppure *Importa documento*, oppure semplicemente *Osserva schermo…* e lascia che Screen Sense costruisca una sezione per slide.
