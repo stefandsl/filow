@@ -42,10 +42,11 @@ describe("Step 4 provider boundaries", () => {
     expect(outbound.mock.calls.map(c => c[0])).toEqual(["http://127.0.0.1:11434/api/chat"]);
   });
   // Contract: ARCHITECTURE.md §6.10 offline forces local providers; Q4 prohibits offline text upload.
-  it.fails("offline translation must not upload the script to OpenRouter", async () => {
+  it("offline translation must not upload the script to OpenRouter", async () => {
     const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it" }));
     expect(res.status).toBe(200);
     expect(outbound, "offline translation must make no cloud request").not.toHaveBeenCalled();
+    expect(await res.json()).toMatchObject({ unavailable: "disabled", model: "offline" });
   });
   // Contract: guard.ts:1 and ARCHITECTURE.md §6.10: PII guard for text leaving for cloud.
   it.fails("strict PII translation must not send unguarded personal text", async () => {

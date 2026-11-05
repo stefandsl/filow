@@ -18,6 +18,7 @@ const MAX_CHARS = 20000;
 export async function POST(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
+  if (process.env.FILOW_OFFLINE === "1") return NextResponse.json({ unavailable: "disabled", model: "offline", cost: 0 });
   let body: { text?: string; to?: string };
   try {
     body = (await req.json()) as { text?: string; to?: string };
