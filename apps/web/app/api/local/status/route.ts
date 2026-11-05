@@ -31,7 +31,7 @@ export async function GET() {
     installedSizeGb: installed.find((i) => i.name === m.name || i.name.startsWith(`${m.name}:`))?.sizeGb ?? null,
     ollamaOk: m.runtime !== "ollama" ? true : m.minOllama && version ? versionAtLeast(version, m.minOllama) : Boolean(version),
   }));
-  const pii = { mode: piiMode(), serverUrl: PII_SERVER_URL(), serverReachable: await rizzoReachable() };
+  const pii = { mode: piiMode(), serverUrl: PII_SERVER_URL(), serverReachable: process.env.FILOW_OFFLINE !== "1" && await rizzoReachable() };
   const gpu = await gpuInfo();
   const advice = localAdvice(gpu, ramGb);
   return NextResponse.json({

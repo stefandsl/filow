@@ -6,6 +6,8 @@ import { POST as generate } from "./script/generate/route";
 import { POST as eleven } from "./stt/elevenlabs-token/route";
 import { POST as openai } from "./stt/openai-token/route";
 import { POST as pull } from "./local/pull/route";
+import { GET as localStatus } from "./local/status/route";
+import * as sysinfo from "@/lib/sysinfo";
 
 const request = (body: unknown) => new Request("http://unit.invalid/api", { method: "POST", body: JSON.stringify(body) });
 const privateText = "Contact audit@example.invalid";
@@ -23,10 +25,18 @@ beforeEach(() => {
       choices: [{ message: { content: "# A\n- B" } }], model: "fake" });
   });
   vi.stubGlobal("fetch", outbound);
+  vi.spyOn(sysinfo, "gpuInfo").mockResolvedValue({ name: "", kind: "none", vramTotalGb: null, vramUsedGb: null, sharedUsedGb: null, utilPct: null, source: "none" });
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("Step 4 provider boundaries", () => {
+  it("offline local status must not probe a remote PII server", async () => {
+    const res = await localStatus();
+    expect(res.status).toBe(200);
+    expect(outbound.mock.calls.filter(c => !c[0].startsWith("http://127.0.0.1:11434/")),
+      "offline status must not contact the remote PII sidecar").toHaveLength(0);
+    expect(await res.json()).toMatchObject({ offline: true, pii: { serverReachable: false } });
+  });
   it("offline decide forces Ollama and bypasses even a strict unavailable PII sidecar", async () => {
     expect((await decide(request({ provider: "openrouter", transcript: privateText, sectionTitle: "A", bullets: [{ id: "b", text: "B" }] }))).status).toBe(200);
     expect(outbound.mock.calls.map(c => c[0])).toEqual(["http://127.0.0.1:11434/v1/systemone"]);
