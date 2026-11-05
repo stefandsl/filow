@@ -96,11 +96,17 @@ describe("Step 4 relay/client seams", () => {
     expect(f.phone.state?.version).toBe(0);
   });
   // Contract: ARCHITECTURE.md §5.4 version = previous + 1; Q1 older patches must not overwrite newer state.
-  it.fails("stale relay patch must not roll the phone back through resync", async () => {
+  it("stale relay patch must not roll the phone back through resync", async () => {
     const f = await fixture(); patch(f.engine, 1, 1); patch(f.engine, 2, 2); await settle();
     expect(f.phone.state?.sectionIdx).toBe(2);
     patch(f.engine, 1, 1); await settle();
     expect(f.phone.state?.sectionIdx, "stale patch must preserve section 2").toBe(2);
+    const sent = f.phoneSocket.sent.length;
+    f.phoneSocket.onmessage!({ data: JSON.stringify({ t: "patch", version: 1, ops: [{ op: "replace", path: "/sectionIdx", value: 1 }] }) });
+    expect(f.phone.state?.sectionIdx).toBe(2);
+    expect(f.phoneSocket.sent).toHaveLength(sent); // older patches are dropped, not resynced
+    f.phoneSocket.send(JSON.stringify({ t: "resync" })); await settle();
+    expect(f.phone.state).toMatchObject({ version: 2, sectionIdx: 2 });
   });
   // Contract: ARCHITECTURE.md §5.4 version = previous + 1; duplicate application is not a new revision.
   it.fails("duplicate non-idempotent patch must not be applied twice by relay", async () => {

@@ -338,6 +338,7 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
           s.version = Number(msg.version ?? 0);
           broadcast(s, raw.toString());
         } else if (msg.t === "patch") {
+          if (s.lastState && Number(msg.version) < s.version) return;
           // Fold the patch into the stored state so late joiners get a current snapshot.
           try {
             if (!s.lastState) throw new Error("no base state");
