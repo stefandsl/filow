@@ -1,0 +1,13 @@
+{
+  "note": "SYNTHETIC deterministic regression, not speech-quality evidence. Test controls: stop before 10 s mid-section; restart before 18 s; nextSection before 34 s; reopen the earlier owner point s0b1 before 42 s for a follow-up (leave it waiting). The 42 s general mention must leave both specific backup points open. Commands live in gauntlet.test.ts because Corpus/replay has no command timeline; plain replay cannot reproduce these controls or report the final reopened state.",
+  "segments": [
+    { "sec": 2, "committed": "Good morning, here is our plan for the service desk." },
+    { "sec": 6, "committed": "The Bristol pilot will start with one small customer group." },
+    { "sec": 10, "committed": "One moment while I reconnect the projector." },
+    { "sec": 18, "committed": "Thanks, we are back. Our support owner is Maya, who will coordinate the rota." },
+    { "sec": 26, "committed": "The launch date is Monday, giving us the weekend to finish preparation." },
+    { "sec": 34, "committed": "For service continuity, a weekly review will track incidents and actions." },
+    { "sec": 42, "committed": "We do backups." },
+    { "sec": 50, "committed": "I have reopened the earlier responsibility item for a follow-up. Thank you for your time." }
+  ]
+}

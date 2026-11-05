@@ -16,6 +16,21 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.27)
 
+- Audit Step 3 (2026-11-05, `audit/baseline`): added synthetic EN/IT presentation
+  journeys under `docs/gauntlet/corpus/journey-en` and `journey-it`, using the existing
+  script/transcript/labels format. Two deterministic keyword-overlap tests cover ordered
+  flips, manual reopen preserved in the final state, stop/restart mid-section, and a
+  general backup mention leaving retention/restore points open. No production changes
+  or speech-quality claims. Replay has no command timeline or final-state result, so
+  the tests drive Engine commands and its injected clock/interval directly; automatic
+  semantic correction/retraction remains unverified. `npm.cmd test -- packages/core/src/gauntlet.test.ts`:
+  5 passed; `npm.cmd test`: 241 passed, 1 existing opt-in skip; `npm.cmd run typecheck`:
+  all six checks passed. All exit 0, with `GAUNTLET=0` and temp/npm cache paths on G:.
+  The initial `npm test -- packages/core/src/gauntlet.test.ts` exited 1 before running
+  tests because PowerShell blocks npm.ps1; npm.cmd used without changing execution policy.
+  No contract failures or `it.fails` added. No push or release; real speech/model and
+  native/UI acceptance remain separate work.
+
 - Unreleased microphone/download fixes (2026-11-05): shared Settings/action-bar microphone
   picker, `prefs:micDeviceId`, real-default marking, devicechange refresh and logged fallback
   when a saved input disappears. Every PCM backend and the permission probe use the selection;

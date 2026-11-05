@@ -1,0 +1,10 @@
+{
+  "note": "First starts during the active take, in order. s0b1 is manually reopened at 42 s and must finish waiting; labels record first starts, not final states. Both specific backup points remain waiting despite the general mention.",
+  "labels": [
+    { "pointId": "s0b0", "startedAtSec": 6 },
+    { "pointId": "s0b1", "startedAtSec": 18 },
+    { "pointId": "s0b2", "startedAtSec": 26 },
+    { "pointId": "s1b0", "startedAtSec": 34 }
+  ],
+  "neverStarted": ["s1b1", "s1b2"]
+}

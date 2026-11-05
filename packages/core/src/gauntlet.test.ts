@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { oracleDecide, replay, type Corpus } from "./gauntlet";
+import { Engine, type EngineOptions } from "./engine";
+import { parseScript } from "./script";
 
 const CORPUS: Corpus = {
   name: "unit",
@@ -63,5 +66,145 @@ describe("gauntlet replay", () => {
     const r = await replay(CORPUS, { decide: oracleDecide({ s0b0: "who we are" }) });
     expect(r.misses).toBe(2);
     expect(r.latencyMs.p95).toBeGreaterThanOrEqual(r.latencyMs.p50);
+  });
+});
+
+// Synthetic state regressions only: keyword overlap is not a speech-quality oracle.
+function loadJourney(language: Corpus["language"]): Corpus {
+  const dir = new URL(`../../../docs/gauntlet/corpus/journey-${language}/`, import.meta.url);
+  const transcript = JSON.parse(readFileSync(new URL("transcript.json", dir), "utf8"));
+  const labels = JSON.parse(readFileSync(new URL("labels.json", dir), "utf8"));
+  return {
+    name: `journey-${language}`, language,
+    script: readFileSync(new URL("script.md", dir), "utf8"),
+    transcript: transcript.segments, labels: labels.labels, neverStarted: labels.neverStarted,
+  };
+}
+
+const words = (text: string) => new Set(text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
+const keywordDecide: EngineOptions["decide"] = async (request) => {
+  const spoken = words(request.transcript);
+  return {
+    decisions: request.bullets.map((point) => {
+      const keywords = [...words(point.text)];
+      const overlap = keywords.filter((word) => spoken.has(word)).length / keywords.length;
+      // Full point vocabulary gets one-call confidence; partial overlap stays below
+      // the 0.70 flip threshold. No point IDs, labels or timeline drive the answers.
+      const confidence = overlap === 1 ? 0.95 : overlap * 0.6;
+      return { id: point.id, confidence, started: confidence >= 0.7 };
+    }),
+    latencyMs: 1, cost: 0, model: "test-keyword-overlap",
+  };
+};
+
+async function checkJourney(language: Corpus["language"]) {
+  const corpus = loadJourney(language);
+  const script = parseScript(corpus.script);
+  const ids = script.sections.flatMap((section) => section.bullets.map((point) => point.id));
+  expect(script.sections.map((section) => section.bullets.length)).toEqual([3, 3]);
+  expect(ids).toEqual(["s0b0", "s0b1", "s0b2", "s1b0", "s1b1", "s1b2"]);
+  expect(corpus.neverStarted).toEqual(["s1b1", "s1b2"]);
+
+  let nowSec = 0;
+  let interval: (() => void) | undefined;
+  let pendingTick: Promise<void> | undefined;
+  let calls = 0;
+  const engine = new Engine({
+    now: () => nowSec * 1000,
+    decide: (request, signal) => { calls++; return keywordDecide(request, signal); },
+    setInterval: (fn) => { interval = fn; return 1; },
+    clearInterval: () => { interval = undefined; },
+  });
+  // Capture the public tick promise so injected interval callbacks can be awaited
+  // exactly, without wall-clock sleeps or assumptions about microtask counts.
+  const tick = engine.tick.bind(engine);
+  engine.tick = () => (pendingTick = tick());
+  const pulse = async () => {
+    pendingTick = undefined;
+    interval?.();
+    await pendingTick;
+  };
+  const statuses = () => ids.map((id) => engine.getState().points[id]?.status ?? "waiting");
+  const flips: Array<{ pointId: string; startedAtSec: number }> = [];
+  const unsubscribe = engine.subscribe((state) => {
+    for (const id of ids) {
+      if (state.points[id]?.status === "started" && !flips.some((flip) => flip.pointId === id)) {
+        flips.push({ pointId: id, startedAtSec: nowSec });
+      }
+    }
+  });
+  engine.loadScript(script);
+  engine.dispatch({ type: "startTake" });
+  try {
+    // Corpus/replay has only committed segments and first-start labels: no command
+    // events, transcript retractions or final states. Keep its file schema intact;
+    // enact the documented controls here via ARCHITECTURE.md §5.4 Command.
+    // Manual reopen is the supported correction, not semantic error detection.
+    for (const segment of corpus.transcript) {
+      nowSec = segment.sec;
+      if (nowSec === 10) {
+        expect(statuses()).toEqual(["started", "waiting", "waiting", "waiting", "waiting", "waiting"]);
+        expect(engine.dispatch({ type: "stopTake" })).toEqual({ ok: true });
+        expect(engine.getState().engine.recording).toBe(false);
+        expect(interval).toBeUndefined();
+      }
+      if (nowSec === 18) {
+        expect(engine.dispatch({ type: "startTake" })).toEqual({ ok: true });
+        expect(engine.getState().engine.recording).toBe(true);
+        expect(interval).toBeTypeOf("function");
+        expect(engine.getState().sectionIdx).toBe(0);
+      }
+      if (nowSec === 34) {
+        expect(statuses().slice(0, 3)).toEqual(["started", "started", "started"]);
+        expect(engine.dispatch({ type: "nextSection" })).toEqual({ ok: true });
+      }
+      if (nowSec === 42) {
+        expect(statuses()).toEqual(["started", "started", "started", "started", "waiting", "waiting"]);
+        // The presenter reopens the earlier owner point for a later follow-up.
+        expect(engine.dispatch({ type: "reopen", id: "s0b1" })).toEqual({ ok: true });
+        expect(engine.getState().points.s0b1).toEqual({ status: "waiting", confidence: 0 });
+      }
+      const before = structuredClone(engine.getState().points);
+      const statusesBefore = statuses();
+      const callsBefore = calls;
+      const flipsBefore = [...flips];
+      engine.feed({ committed: `${segment.committed} ` });
+      await pulse();
+      nowSec += 2; // Same second pulse as replay(), including pending confirmations.
+      await pulse();
+      if (segment.sec === 10) {
+        // stop() owns the interval (§5.5); tick() is also a public offline driver,
+        // so deliberately calling tick() while stopped would not simulate a take.
+        expect(engine.getState().points).toEqual(before);
+        expect(calls).toBe(callsBefore);
+        expect(engine.getState().sectionIdx).toBe(0);
+      }
+      if (segment.sec === 42) {
+        expect(segment.committed).toBe(language === "en" ? "We do backups." : "Facciamo i backup.");
+        expect(calls).toBeGreaterThan(callsBefore); // The fake actually evaluated the trap.
+        expect(statuses()).toEqual(statusesBefore);
+        expect(flips).toEqual(flipsBefore);
+      }
+      // Exact checkpoints catch early, out-of-order and stopped-take flips.
+      expect(flips).toEqual(corpus.labels.filter((label) => label.startedAtSec <= segment.sec));
+    }
+    expect(statuses()).toEqual(["started", "waiting", "started", "started", "waiting", "waiting"]);
+    expect(engine.getState().points.s0b1).toEqual({ status: "waiting", confidence: 0 });
+    expect(engine.getState().sectionIdx).toBe(1);
+    expect(engine.getState().engine.recording).toBe(true);
+    expect(engine.getState().stats.costUsd).toBe(0);
+    expect(engine.getState().engine.error).toBeUndefined();
+  } finally {
+    engine.stop();
+    unsubscribe();
+  }
+}
+
+describe("presentation journey regressions (synthetic, no speech-quality claims)", () => {
+  it("journey EN: ordered coverage, manual correction, stop/restart and a general backup mention", async () => {
+    await checkJourney("en");
+  });
+  it("journey IT: ordered coverage, manual correction, stop/restart and a general backup mention", async () => {
+    await checkJourney("it");
   });
 });
