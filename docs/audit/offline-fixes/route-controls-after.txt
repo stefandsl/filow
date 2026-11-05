@@ -1,0 +1,14 @@
+
+> filow-monorepo@0.9.27 test
+> vitest run apps/web/app/api/seams.test.ts -t offline generation|offline document import|offline planning|offline decide overrides
+
+
+ RUN  v5.1.0 G:/FILOW
+
+
+ Test Files  1 passed (1)
+      Tests  5 passed | 14 skipped (19)
+   Start at  17:23:18
+   Duration  356ms (import 57%, transform 34%, tests 8%, worker 1%)
+
+Exit code: 0

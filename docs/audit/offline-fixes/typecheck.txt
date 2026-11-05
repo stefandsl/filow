@@ -1,0 +1,25 @@
+
+> filow-monorepo@0.9.27 typecheck
+> tsc --noEmit -p tsconfig.json && npm run typecheck -w apps/web && npm run typecheck -w apps/server && npm run typecheck -w apps/powerpoint && npm run typecheck -w apps/browser && npm run typecheck -w apps/desktop
+
+
+> @filow/web@0.9.27 typecheck
+> tsc --noEmit
+
+
+> @filow/server@0.9.27 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+> @filow/powerpoint@0.9.27 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+> @filow/browser@0.9.27 typecheck
+> tsc --noEmit -p tsconfig.json
+
+
+> @filow/desktop@0.9.27 typecheck
+> tsc --noEmit --strict --skipLibCheck --target es2022 --moduleResolution bundler --module esnext --jsx react-jsx welcome.ts
+
+Exit code: 0

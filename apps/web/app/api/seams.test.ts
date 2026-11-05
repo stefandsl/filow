@@ -8,6 +8,8 @@ import { POST as openai } from "./stt/openai-token/route";
 import { POST as pull } from "./local/pull/route";
 import { GET as localStatus } from "./local/status/route";
 import * as sysinfo from "@/lib/sysinfo";
+import { POST as importDocument } from "./import/route";
+import { POST as plan } from "./local/plan/route";
 
 const request = (body: unknown) => new Request("http://unit.invalid/api", { method: "POST", body: JSON.stringify(body) });
 const privateText = "Contact audit@example.invalid";
@@ -50,6 +52,33 @@ describe("Step 4 provider boundaries", () => {
     const res = await generate(request({ provider: "openrouter", slides: [{ index: 0, text: privateText, hasPicture: true, imageBase64: "YQ==" }] }));
     expect(await res.text()).toContain('"done":true');
     expect(outbound.mock.calls.map(c => c[0])).toEqual(["http://127.0.0.1:11434/api/chat"]);
+  });
+  it("offline generation never falls back to cloud when Ollama is unavailable", async () => {
+    outbound.mockRejectedValue(new Error("Ollama unavailable"));
+    const res = await generate(request({ provider: "openrouter", slides: [{ index: 0, text: privateText }] }));
+    expect(await res.text()).toContain('"error":');
+    expect(outbound.mock.calls.map(c => c[0])).toEqual(["http://127.0.0.1:11434/api/chat"]);
+  });
+  it("offline document import parses private text without network requests", async () => {
+    const form = new FormData();
+    form.set("file", new File([`# A\n- ${privateText}`], "script.md", { type: "text/markdown" }));
+    const res = await importDocument(new Request("http://unit.invalid/api/import", { method: "POST", body: form }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).text).toContain(privateText);
+    expect(outbound).not.toHaveBeenCalled();
+  });
+  it("offline planning probes only local Ollama even with a cloud key", async () => {
+    outbound.mockImplementation(async () => Response.json({ version: "0.35.1", models: [{ name: "clef-flash" }], answers: {} }));
+    const res = await plan(request({ probe: true }));
+    expect(res.status).toBe(200);
+    expect(outbound.mock.calls.map(c => c[0])).toEqual([
+      "http://127.0.0.1:11434/api/version", "http://127.0.0.1:11434/api/tags", "http://127.0.0.1:11434/v1/systemone",
+    ]);
+  });
+  it("offline decide overrides an explicit Cloudflare provider", async () => {
+    const res = await decide(request({ provider: "clef-cloudflare", transcript: privateText, sectionTitle: "A", bullets: [{ id: "b", text: "B" }] }));
+    expect(res.status).toBe(200);
+    expect(outbound.mock.calls.map(c => c[0])).toEqual(["http://127.0.0.1:11434/v1/systemone"]);
   });
   // Contract: ARCHITECTURE.md §6.10 offline forces local providers; Q4 prohibits offline text upload.
   it("offline translation must not upload the script to OpenRouter", async () => {

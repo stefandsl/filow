@@ -1,0 +1,14 @@
+
+> filow-monorepo@0.9.27 test
+> vitest run
+
+
+ RUN  v5.1.0 G:/FILOW
+
+
+ Test Files  43 passed | 1 skipped (44)
+      Tests  277 passed | 5 expected fail | 1 skipped (283)
+   Start at  17:24:23
+   Duration  1.18s (transform 49%, import 27%, tests 21%, worker 3%)
+
+Exit code: 0

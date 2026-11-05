@@ -16,6 +16,15 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Where it stands (v0.9.27)
 
+- Offline audit fixes (2026-11-05, `audit/baseline`): B06-B14 from Step 4 are fixed
+  in seven commits, with ordinary-test failure/pass output for each bug. Translation
+  refuses offline and uses the shared PII guard online; cloud STT tokens refuse offline.
+  Desktop preserves profile offline state, stops existing tunnels, refuses setup downloads,
+  and offers a local clipboard report. An additional status-route PII health probe leak
+  is fixed separately (B15). See `docs/audit/offline-fixes.md` and its output directory.
+  Full test run: 277 passed, 5 out-of-scope expected failures, 1 existing opt-in skip;
+  all six typechecks passed (both commands exit 0). README EN/IT updated; no release/push.
+
 - Audit Step 3 (2026-11-05, `audit/baseline`): added synthetic EN/IT presentation
   journeys under `docs/gauntlet/corpus/journey-en` and `journey-it`, using the existing
   script/transcript/labels format. Two deterministic keyword-overlap tests cover ordered
@@ -443,6 +452,10 @@ notifications and the region picker on those platforms are unverified.
 
 ## Pending (ask the owner before starting the big ones)
 
+- Offline fixes still need native acceptance: real tunnel termination, download refusal,
+  and the EN/IT clipboard report dialog. Phone-sync and Sherpa-stop seam failures remain
+  out of scope. No real providers, audio capture or packet inspection ran in this fix pass.
+
 - Verify the new picker on the owner's USB/C920 setup in packaged Electron and exercise a
   stalled model download there. Browser QA uses simulated devices/capture; download tests use
   fake streams, not the network. Source fixes are complete, native acceptance remains pending.
@@ -501,6 +514,12 @@ notifications and the region picker on those platforms are unverified.
    (`GAUNTLET=1 GAUNTLET_GATE=1 GAUNTLET_PROVIDERS=clef-local npx vitest run apps/web/lib/gauntlet`).
 
 ## Known gaps and traps
+
+- The offline audit uses local `OLLAMA_URL`; configured remote Ollama remains an explicit
+  destination, and the local daemon's own model-pull networking is not intercepted by Filow.
+  In-flight cloud requests/downloads and already-open sockets were not cancellation-tested.
+  An external memory hook appended to AGENTS.md during the fix pass; it was left unstaged
+  and untouched. Existing tmp files were preserved; all new test logs/cache/temp are on G:.
 
 - Web Speech exposes no PCM graph or input track to Filow, so device selection and level/track
   diagnostics apply to PCM backends only. Its system-default limitation is shown in the picker.
