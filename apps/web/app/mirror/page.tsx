@@ -1,5 +1,6 @@
 "use client";
 import { Icon } from "@/components/icons";
+import { OverlayFrame } from "@/components/OverlayFrame";
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -33,6 +34,7 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
   const serverParam = params.get("server");
   const compact = params.get("compact") === "1";
   const overlay = params.get("overlay") === "1";
+  const closeOverlay = () => (globalThis as { filow?: { closeOverlay?: () => void } }).filow?.closeOverlay?.();
   const [pending, setPending] = useState(false);
 
   /** ?server= is only trusted when it is this page's own origin; anything else is confirmed first (never auto-connect elsewhere). */
@@ -105,6 +107,7 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
 
   if (!client) {
     return (
+      <OverlayFrame overlay={overlay} onClose={closeOverlay}>
       <div className="app stage pair">
         <div className="logo">
           <Wordmark height={44} />
@@ -136,11 +139,13 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
         </form>
         {error && <span className="chip err">{error}</span>}
       </div>
+      </OverlayFrame>
     );
   }
 
   if (pending && !state) {
     return (
+      <OverlayFrame overlay={overlay} onClose={closeOverlay}>
       <div className="app stage pair">
         <div className="logo">
           <Wordmark height={44} />
@@ -148,22 +153,16 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
         <div className="subtitle">{t("mirror.waiting")}</div>
         {error && <span className="chip err">{error}</span>}
       </div>
+      </OverlayFrame>
     );
   }
 
   const offline = status.startsWith("connecting") || !state;
   if (overlay) {
-    const bridge = (globalThis as { filow?: { closeOverlay?: () => void } }).filow;
     return (
-      <div className="overlay">
-        <div className="overlay-bar">
-          <span className="drag"><Icon name="grip" /> Filow</span>
-          <button className="chip" onClick={() => bridge?.closeOverlay?.()} title={t("overlay.close")} aria-label={t("overlay.close")}>
-            <Icon name="close" />
-          </button>
-        </div>
+      <OverlayFrame overlay={overlay} onClose={closeOverlay}>
         <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact banner={error ?? (offline ? t("stage.engineOffline") : null)} />
-      </div>
+      </OverlayFrame>
     );
   }
   return <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact={compact} banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
