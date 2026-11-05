@@ -14,6 +14,8 @@ export type SttHandlers = {
   onReady?: () => void;
   /** Diagnostics worth a line in the take log (warnings, timings); never an error. */
   onLog?: (line: string) => void;
+  /** Capture health is recoverable and must not stop the take. null clears the warning. */
+  onMicWarning?: (warning: import("./silence").MicWarning | null) => void;
 };
 
 export interface SttBackend {

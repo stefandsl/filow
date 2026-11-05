@@ -111,7 +111,7 @@ export class ElevenLabsStt implements SttBackend {
           }),
         );
       },
-      (detail) => h.onError(detail),
+      h.onMicWarning,
       h.onLog,
     );
   }

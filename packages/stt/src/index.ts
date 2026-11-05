@@ -8,6 +8,8 @@ import { LocalWhisperStt } from "./whisper";
 export type { SttBackend, SttHandlers, TranscriptEvent } from "./types";
 export { browserSupported } from "./browser";
 export { preopenMic, releasePreopenedMic } from "./mic";
+export * from "./micDevice";
+export type { MicWarning } from "./silence";
 export * from "./whisperModels";
 export { SherpaStt, sherpaBridge, type SherpaBridge } from "./sherpa";
 import { SherpaStt } from "./sherpa";
@@ -107,6 +109,8 @@ export async function startAuto(
           }
         }, probeMs);
         started = backend.start({
+            onLog: handlers.onLog,
+            onMicWarning: handlers.onMicWarning,
             onReady: handlers.onReady,
             onError: (m) => {
               handlers.onError(m);

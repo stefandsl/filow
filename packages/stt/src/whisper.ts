@@ -55,7 +55,7 @@ export class LocalWhisperStt implements SttBackend {
       for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 0x8000;
       this.buf.push(f32);
       this.bufLen += f32.length;
-    }, (detail) => h.onError(detail), h.onLog);
+    }, h.onMicWarning, h.onLog);
     this.timer = window.setInterval(() => this.flush(h), WINDOW_S * 1000);
   }
 

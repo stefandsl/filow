@@ -13,6 +13,7 @@ import { screenBridge } from "@/lib/screen/watcher";
 import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/sessionUrl";
 import { placementText, ResourcesPanel, useResources } from "@/components/ResourcesPanel";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
+import { MicrophoneSelect } from "@/components/MicrophoneSelect";
 
 type Status = {
   pii: { mode: "off" | "on" | "strict"; serverUrl: string; serverReachable: boolean };
@@ -398,6 +399,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               ))}
             </div>
             <div className="hint">{t("speech.hint")}</div>
+            <MicrophoneSelect webSpeech />
           </section>
 
           <section className="strip">

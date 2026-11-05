@@ -276,6 +276,11 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .action-bar { grid-area: actions; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; min-height: 72px; padding: 16px 24px; background: var(--surface); border-top: 1px solid var(--border); }
 .action-start, .action-navigation { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .action-bar select { max-width: 200px; }
+.microphone-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; margin-top: 12px; }
+.microphone-picker select { max-width: min(100%, 420px); min-width: 0; text-overflow: ellipsis; }
+.microphone-picker.compact { margin-top: 0; font-size: 13px; max-width: min(100%, 320px); }
+.microphone-note { flex-basis: 100%; }
+.mic-warning { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; white-space: normal; font-size: 14px; line-height: 1.4; border-radius: var(--radius); }
 .status-strip { grid-area: status; min-width: 0; display: grid; grid-template-columns: minmax(180px, 1fr) minmax(0, 2fr); gap: 16px; align-items: start; min-height: 40px; padding: 12px 24px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .status-strip summary { cursor: pointer; }
 .status-strip:has(details[open]) { grid-template-columns: minmax(0, 1fr); }
@@ -363,7 +368,7 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .action-bar select { width: 144px; }
 .action-bar { gap: 8px; padding: 16px; }
 .action-bar .btn { padding: 8px 10px; }
-.action-navigation { flex: 1; }
+.action-navigation { flex: 1 1 auto; }
 @media (max-width: 1100px) {
   .action-navigation { flex-basis: 100%; }
 }

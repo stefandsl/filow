@@ -1,5 +1,7 @@
 "use client";
 import { Icon } from "./icons";
+import { MicrophoneSelect } from "./MicrophoneSelect";
+import type { MicWarning } from "@filow/stt";
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import {
@@ -76,6 +78,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [micWarning, setMicWarning] = useState<MicWarning | null>(null);
+  const microphoneRef = useRef<HTMLSelectElement>(null);
   const startButtonRef = useRef<HTMLButtonElement>(null);
   const [publicLink, setPublicLink] = useState(false);
   const [show, setShow] = useState<{ running: boolean; index: number; total: number } | null>(null);
@@ -191,6 +195,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
 
   // ---- transcription ---------------------------------------------------
   const stopTake = useCallback(() => {
+    setMicWarning(null);
     backendRef.current?.stop();
     backendRef.current = null;
     releasePreopenedMic(); // the check's stream, if no backend took it (Web Speech, or a failed start)
@@ -203,8 +208,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const probeMic = async (attempt: StartAttempt): Promise<boolean> => {
     pushLog(t("mic.checking"));
     try {
-      // Opened once and kept for the capture: a second open right after a close hung on a Windows PC.
-      const stream = await attempt.wait(preopenMic());
+      // The 0.9.6 probe opens and stops the stream before backend capture.
+      const stream = await attempt.wait(preopenMic(pushLog));
       pushLog(`${t("mic.checking")} ${stream.getAudioTracks()[0]?.label || "ok"}`);
       return true;
     } catch (err) {
@@ -290,6 +295,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     let pendingBackend: SttBackend | null = null;
     try {
       engine.setError(undefined);
+      setMicWarning(null);
       setLastNotes([]);
       setStarting(true);
       // The mode decides the provider and the transcription backend; no silent fallback to the other side.
@@ -306,7 +312,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         return;
       }
       pushLog(`${mode === "local" ? t("start.local") : t("start.cloud")} · ${BACKEND_LABELS[backend]}`);
-      if (!(await attempt.wait(probeMic(attempt)))) {
+      // Web Speech owns its input and always uses the system default.
+      if (backend !== "browser" && !(await attempt.wait(probeMic(attempt)))) {
         setStarting(false);
         return;
       }
@@ -319,6 +326,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         },
         onReady: () => { if (attempt.isCurrent()) pushLog("transcription ready"); },
         onLog: (line: string) => { if (attempt.isCurrent()) pushLog(line); },
+        onMicWarning: (warning: MicWarning | null) => { if (attempt.isCurrent()) setMicWarning(warning); },
       };
       {
         // Explicit backend from the chosen mode: never fall back silently.
@@ -497,7 +505,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
             {starting && <button className="btn danger" onClick={cancelStart}>{t("ctl.cancel")}</button>}
           </>
         )}
-</>} mode={<label className="backend-choice"><span>{t("ctl.mode")}</span>
+</>} mode={<><label className="backend-choice"><span>{t("ctl.mode")}</span>
         <select className="btn" value={choice} disabled={eng.recording} onChange={(e) => setChoice(e.target.value as BackendChoice)} title={choice === "auto" ? t("ctl.auto") : BACKEND_LABELS[choice]} aria-label={t("ctl.backend")}>
           <option value="auto" title={t("ctl.auto")}>{t("ctl.auto.short")}</option>
           {availability.map((id) => (
@@ -506,7 +514,15 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
             </option>
           ))}
         </select>
-</label>}
+</label><MicrophoneSelect compact webSpeech={(eng.recording ? eng.backend : choice) === "browser"} selectRef={microphoneRef} /></>}
+        warning={micWarning && <div className="mic-warning chip err" role="alert">
+          <span>{t(micWarning.kind === "slow-context" ? "mic.slowContext" : "mic.noAudio", { label: micWarning.label || t("mic.systemDefault"), ms: micWarning.elapsedMs ?? 0 })}</span>
+          <button type="button" className="btn" onClick={() => {
+            const select = microphoneRef.current;
+            select?.focus();
+            try { select?.showPicker(); } catch { /* Keyboard focus works on older hosts. */ }
+          }}>{t("mic.chooseAnother")}</button>
+        </div>}
         prev={<button type="button" className="btn" onClick={() => engine.dispatch({type:"prevSection"})} disabled={sectionIdx === 0}><Icon name="left" /> {t("ctl.prev")}</button>}
         next={<button type="button" className="btn" onClick={() => engine.dispatch({type:"nextSection"})} disabled={!nextSection}>{t("ctl.next")} <Icon name="right" /></button>}
         transcriptToggle={<button type="button" className="btn" aria-expanded={transcriptOpen} aria-controls="prompter-transcript-text" onClick={() => setTranscriptOpen(v => !v)}>{t("footer.transcript")}</button>}

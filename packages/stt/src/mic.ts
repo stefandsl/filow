@@ -3,6 +3,9 @@
  * hands out ~100 ms chunks. Shared by the ElevenLabs and OpenAI backends.
  */
 
+import { audioConstraints } from "./micDevice";
+import { detectSilence, type MicWarning } from "./silence";
+
 const WORKLET_SOURCE = `
 class PcmChunker extends AudioWorkletProcessor {
   constructor() {
@@ -22,11 +25,13 @@ class PcmChunker extends AudioWorkletProcessor {
       i += n;
       if (this.fill === this.chunk) {
         const out = new Int16Array(this.chunk);
+        let peak = 0;
         for (let j = 0; j < this.chunk; j++) {
           const s = Math.max(-1, Math.min(1, this.buf[j]));
+          peak = Math.max(peak, Math.abs(s));
           out[j] = s < 0 ? s * 0x8000 : s * 0x7fff;
         }
-        this.port.postMessage(out.buffer, [out.buffer]);
+        this.port.postMessage({ pcm: out.buffer, peak }, [out.buffer]);
         this.fill = 0;
       }
     }
@@ -40,11 +45,10 @@ export type MicCapture = {
   stop: () => void;
 };
 
-/** Rolled back to the 0.9.6 capture at the owner's request (2026-11-02): the 0.9.7–0.9.12 changes
- *  (kept probe stream, timeouts, device-rate context, level/track diagnostics) did not fix the
- *  "track ended" on their PC. The extra parameters stay so the backends compile; they do nothing. */
-export async function preopenMic(): Promise<MediaStream> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+/** Keep the 0.9.6 open/stop probe and fixed-rate capture graph. Only device selection and
+ *  passive health diagnostics are added; no device-rate context or resampling. */
+export async function preopenMic(onLog?: (line: string) => void): Promise<MediaStream> {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: await audioConstraints({}, onLog) });
   for (const t of stream.getTracks()) t.stop();
   return stream;
 }
@@ -53,36 +57,72 @@ export function releasePreopenedMic(): void {}
 export async function startMic(
   sampleRate: number,
   onChunk: (pcm16: ArrayBuffer) => void,
-  _onNoAudio?: (detail: string) => void,
+  onWarning?: (warning: MicWarning | null) => void,
   onLog?: (line: string) => void,
 ): Promise<MicCapture> {
   onLog?.("microphone capture: 0.9.6 code path");
   const stream = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+    audio: await audioConstraints({ channelCount: 1, echoCancellation: true, noiseSuppression: true }, onLog),
   });
-  const ctx = new AudioContext({ sampleRate });
-  const url = URL.createObjectURL(new Blob([WORKLET_SOURCE], { type: "application/javascript" }));
-  await ctx.audioWorklet.addModule(url);
-  URL.revokeObjectURL(url);
-
-  const source = ctx.createMediaStreamSource(stream);
-  const node = new AudioWorkletNode(ctx, "pcm-chunker");
-  node.port.onmessage = (ev: MessageEvent<ArrayBuffer>) => onChunk(ev.data);
-  source.connect(node);
-  // Keep the graph alive without producing audible output.
-  const mute = ctx.createGain();
-  mute.gain.value = 0;
-  node.connect(mute).connect(ctx.destination);
-
-  return {
-    stop() {
-      node.port.onmessage = null;
-      node.disconnect();
-      source.disconnect();
-      stream.getTracks().forEach((t) => t.stop());
-      void ctx.close();
-    },
+  const track = stream.getAudioTracks()[0];
+  const label = track?.label || "";
+  let health = { lastAudioAt: performance.now(), silent: false };
+  let warning: MicWarning | null = null;
+  const report = (next: MicWarning | null) => {
+    if (warning?.kind === next?.kind) return;
+    warning = next;
+    onLog?.(next ? `microphone ${next.kind}: ${label}${next.elapsedMs !== undefined ? ` (${next.elapsedMs} ms)` : ""}` : `microphone audio recovered: ${label}`);
+    onWarning?.(next);
   };
+  const ended = () => report({ kind: "ended", label });
+  track?.addEventListener("ended", ended);
+  const level = (peak: number) => {
+    health = detectSilence(health, peak, performance.now());
+    if (peak > 1e-4) report(null);
+    else if (health.silent && warning?.kind !== "ended") report({ kind: "silence", label });
+  };
+  const timer = setInterval(() => level(0), 250);
+  let ctx: AudioContext | undefined;
+  let node: AudioWorkletNode | undefined;
+  let source: MediaStreamAudioSourceNode | undefined;
+  let mute: GainNode | undefined;
+  const stop = () => {
+    clearInterval(timer);
+    track?.removeEventListener("ended", ended);
+    if (node) { node.port.onmessage = null; node.disconnect(); }
+    source?.disconnect();
+    mute?.disconnect();
+    stream.getTracks().forEach(t => t.stop());
+    if (ctx) void ctx.close().catch(() => undefined);
+  };
+  try {
+    const openedAt = performance.now();
+    try { ctx = new AudioContext({ sampleRate }); }
+    finally {
+      const elapsedMs = Math.round(performance.now() - openedAt);
+      onLog?.(`microphone AudioContext opened in ${elapsedMs} ms`);
+      // A synchronous constructor can block timers. Measure immediately on returning.
+      if (elapsedMs > 5000) report({ kind: "slow-context", label, elapsedMs });
+    }
+    if (track?.readyState === "ended") ended();
+    const url = URL.createObjectURL(new Blob([WORKLET_SOURCE], { type: "application/javascript" }));
+    try { await ctx.audioWorklet.addModule(url); }
+    finally { URL.revokeObjectURL(url); }
+
+    source = ctx.createMediaStreamSource(stream);
+    node = new AudioWorkletNode(ctx, "pcm-chunker");
+    node.port.onmessage = (ev: MessageEvent<{ pcm: ArrayBuffer; peak: number }>) => {
+      level(ev.data.peak);
+      onChunk(ev.data.pcm);
+    };
+    source.connect(node);
+    // Keep the graph alive without producing audible output.
+    mute = ctx.createGain();
+    mute.gain.value = 0;
+    node.connect(mute).connect(ctx.destination);
+
+    return { stop };
+  } catch (err) { stop(); throw err; }
 }
 
 export function toBase64(buf: ArrayBuffer): string {

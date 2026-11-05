@@ -34,7 +34,7 @@ it("does not report a late failure from a cancelled attempt", async () => {
 
 it("guards every startup boundary and only cleans up the obsolete backend", () => {
   const source = readFileSync(new URL('../components/Teleprompter.tsx', import.meta.url), 'utf8');
-  for (const operation of ['loadReadiness()', 'fetchPlan({ probe: true, apply: true })', 'preopenMic()', 'probeMic(attempt)', 'b.start(handlers)']) {
+  for (const operation of ['loadReadiness()', 'fetchPlan({ probe: true, apply: true })', 'preopenMic(pushLog)', 'probeMic(attempt)', 'b.start(handlers)']) {
     expect(source).toContain(`await attempt.wait(${operation})`);
   }
   expect(source).toContain('pendingBackend?.stop();');
