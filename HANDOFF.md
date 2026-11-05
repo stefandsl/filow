@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.27)
+## Where it stands (v0.9.28)
 
 - Offline audit fixes (2026-11-05, `audit/baseline`): B06-B14 from Step 4 are fixed
   in seven commits, with ordinary-test failure/pass output for each bug. Translation
@@ -189,6 +189,11 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.28: microphone picker + silence warning + model download timeout/retry (dfb5597, 94a784c;
+    diagnosis: this PC's default USB mic 0d8c:016c delivers digital silence, the C920 works), and the
+    audit branch merged: steps 1-4 (docs/audit/) plus eight offline-mode leak fixes (b6df634..d21f834).
+    Still open from step 4: 4 phone-sync bugs and the Sherpa stop flush, kept as it.fails in
+    apps/server/src/seams.test.ts and packages/stt/src/stop.seams.test.ts. Next audit step: 5.
   - 0.9.27: ONE layout for both themes (owner's call 2026-11-05, reversing "one
     layout per theme"): the left-sidebar layout in dark and light (Codex 9fbbbc0, rail code and the
     rail splitter removed); the next-section card is resizable in height (drag its bottom edge,
