@@ -208,3 +208,50 @@ describe("presentation journey regressions (synthetic, no speech-quality claims)
     await checkJourney("it");
   });
 });
+
+// The keyword fake above answers 0 for "we do backups" (no shared words), so the journeys alone
+// cannot show that the ENGINE refuses a vague mention. Here the decider is deliberately unsure
+// (0.6, started false) on both specific points, window after window: only the engine's confirmation
+// rule (one answer >= 0.85, or two consecutive started answers >= 0.7) keeps them open.
+describe("general mention against the engine's confirmation rule", () => {
+  for (const [language, mention, script] of [
+    ["en", "We do backups.", "# Backups\n- Retention policy for every snapshot\n- Restore test every quarter\n"],
+    ["it", "Facciamo i backup.", "# Backup\n- Politica di conservazione per ogni snapshot\n- Test di ripristino ogni trimestre\n"],
+  ] as const) {
+    it(`journey ${language.toUpperCase()}: repeated unsure answers about a general backup mention flip nothing`, async () => {
+      let nowSec = 0;
+      let interval: (() => void) | undefined;
+      let pendingTick: Promise<void> | undefined;
+      let calls = 0;
+      const engine = new Engine({
+        now: () => nowSec * 1000,
+        decide: async (request) => {
+          calls++;
+          return {
+            decisions: request.bullets.map((point) => ({ id: point.id, confidence: 0.6, started: false })),
+            latencyMs: 1, cost: 0, model: "test-unsure",
+          };
+        },
+        setInterval: (fn) => { interval = fn; return 1; },
+        clearInterval: () => { interval = undefined; },
+      });
+      const tick = engine.tick.bind(engine);
+      engine.tick = () => (pendingTick = tick());
+      const pulse = async () => { pendingTick = undefined; interval?.(); await pendingTick; };
+      engine.loadScript(parseScript(script));
+      engine.dispatch({ type: "startTake" });
+      try {
+        for (let i = 0; i < 6; i++) {
+          nowSec += 2;
+          engine.feed({ committed: `${mention} ` });
+          await pulse();
+        }
+        expect(calls).toBeGreaterThan(1);
+        expect(engine.getState().points.s0b0?.status ?? "waiting").toBe("waiting");
+        expect(engine.getState().points.s0b1?.status ?? "waiting").toBe("waiting");
+      } finally {
+        engine.stop();
+      }
+    });
+  }
+});
