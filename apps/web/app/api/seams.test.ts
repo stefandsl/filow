@@ -49,11 +49,24 @@ describe("Step 4 provider boundaries", () => {
     expect(await res.json()).toMatchObject({ unavailable: "disabled", model: "offline" });
   });
   // Contract: guard.ts:1 and ARCHITECTURE.md §6.10: PII guard for text leaving for cloud.
-  it.fails("strict PII translation must not send unguarded personal text", async () => {
+  it("strict PII translation must not send unguarded personal text", async () => {
     vi.stubEnv("FILOW_OFFLINE", "");
-    await translate(request({ text: `# A\n- ${privateText}`, to: "it" }));
+    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it" }));
     const cloudCalls = outbound.mock.calls.filter(c => c[0].includes("openrouter.ai"));
     expect(cloudCalls, "strict PII must refuse cloud translation when Rizzo is unavailable").toHaveLength(0);
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toContain("PII guard is strict");
+  });
+  it("cloud translation redacts personal text and restores placeholders in the result", async () => {
+    vi.stubEnv("FILOW_OFFLINE", ""); vi.stubEnv("PII_GUARD", "on");
+    outbound.mockImplementation(async (url: string) => url.endsWith("/health")
+      ? new Response("unavailable", { status: 503 })
+      : Response.json({ choices: [{ message: { content: "# A\n- Contatta [EMAIL_1]" } }] }));
+    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it" }));
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(outbound.mock.calls[1])).not.toContain("audit@example.invalid");
+    expect(JSON.stringify(outbound.mock.calls[1])).toContain("[EMAIL_1]");
+    expect((await res.json()).text).toContain("audit@example.invalid");
   });
   for (const [name, handler] of [["ElevenLabs", eleven], ["OpenAI", openai]] as const) {
     // Contract: ARCHITECTURE.md §6.10 and main.js menu: offline = no outbound requests.

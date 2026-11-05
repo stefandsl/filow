@@ -3,6 +3,7 @@ import { parseScript, serializeScript } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
 import { openRouterChat } from "@/lib/openrouter";
 import { GENERATE_TEXT_MODEL } from "@/lib/generate/providers";
+import { anonymizeRequest, restore } from "@/lib/pii/guard";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -40,15 +41,16 @@ export async function POST(req: Request) {
     "Output only the translated Markdown, no commentary, no code fences.",
   ].join(" ");
   try {
+    const { req: safe, map } = await anonymizeRequest({ transcript: text, sectionTitle: "", bullets: [] });
     const { content, cost, model } = await openRouterChat(GENERATE_TEXT_MODEL(), "text", {
       temperature: 0.2,
       max_tokens: 4000,
       messages: [
         { role: "system", content: system },
-        { role: "user", content: text },
+        { role: "user", content: safe.transcript },
       ],
     });
-    const cleaned = content.replace(/^```(?:markdown|md)?\s*/i, "").replace(/```\s*$/, "").trim();
+    const cleaned = restore(content, map).replace(/^```(?:markdown|md)?\s*/i, "").replace(/```\s*$/, "").trim();
     const out = parseScript(cleaned);
     const got = { sections: out.sections.length, points: out.sections.reduce((n, s) => n + s.bullets.length, 0) };
     const structureKept = got.sections === counts.sections && got.points === counts.points;
