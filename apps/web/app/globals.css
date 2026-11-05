@@ -271,12 +271,8 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 @media (min-width: 1101px) { .next-section ul { columns: 2; column-gap: 32px; } }
 @media (max-width: 899px) { .prompter .point-row { grid-template-columns: 32px minmax(0,1fr) 112px; gap: 12px; padding: 12px; } }
 
-.screen-sense { padding-top: 24px; margin-top: 24px; border-top: 1px solid var(--border); }
-.screen-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 16px; }
 .screen-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .screen-controls select { min-width: 0; max-width: 100%; }
-.screen-sense { padding: 16px 0 0; margin-top: 16px; }
-.screen-heading { justify-content: flex-start; }
 .action-bar { grid-area: actions; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; min-height: 72px; padding: 16px 24px; background: var(--surface); border-top: 1px solid var(--border); }
 .action-start, .action-navigation { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .action-bar select { max-width: 200px; }
@@ -358,8 +354,8 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .prompter .point-row { grid-template-columns: 40px minmax(0, 1fr) 88px; border-radius: 0; border-width: 0 0 1px; background: transparent; }
 .prompter .point-row.active { border-left: 3px solid var(--accent); background: var(--row-current); }
 .point-state { padding-left: 0; }
-.screen-sense { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
-.screen-heading { margin: 0; gap: 12px; }
+.screen-sense { position: sticky; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.screen-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 12px; margin: 0; }
 .screen-controls { flex: 1; gap: 8px; }
 .screen-controls .screen-scan { order: 2; margin-left: auto; }
 .backend-choice > span { display: none; }

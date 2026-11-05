@@ -82,3 +82,13 @@ it('shows the done tick in a clearly visible green', () => {
   expect(tick).toMatch(/stroke-width: (2\.5|3)/);
   expect(rule('.point-row.done .point-progress i')).toContain('background: var(--ok)');
 });
+
+it('keeps Screen Sense visible above the action bar and declares it once', () => {
+  const rules = (selector: string) => sheet.nodes.filter(node => node.type === 'rule' && (node as { selector: string }).selector === selector);
+  expect(rules('.screen-sense')).toHaveLength(1);
+  expect(rules('.screen-heading')).toHaveLength(1);
+  const ss = rules('.screen-sense')[0].toString();
+  expect(ss).toContain('position: sticky');
+  expect(ss).toContain('bottom: 0');
+  expect(ss).toContain('background: var(--surface)');
+});
