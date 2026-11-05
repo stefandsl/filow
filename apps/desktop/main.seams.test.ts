@@ -12,13 +12,14 @@ function fixture(initialEnv: Record<string, string> = {}) {
   let requestFilter!: (details: { url: string }, cb: (r: unknown) => void) => void;
   const outbound = vi.fn(() => { throw new Error("fake network boundary: no bytes sent"); });
   const openExternal = vi.fn(async () => {}), checkForUpdates = vi.fn(async () => null);
+  const writeText = vi.fn(), showMessageBox = vi.fn(async () => ({ response: 0 }));
   const modules: Record<string, any> = {
     electron: {
       app: { isPackaged: true, getPath: () => "G:/fake", on() {}, setAppUserModelId() {},
         whenReady: () => ({ then() {} }), getLocale: () => "en", getVersion: () => "test", getGPUInfo: async () => ({}) },
       ipcMain: { on() {} }, BrowserWindow: { getAllWindows: () => [] },
       session: { defaultSession: { webRequest: { onBeforeRequest: (_filter: unknown, cb: typeof requestFilter) => { requestFilter = cb; } } } },
-      shell: { openExternal }, dialog: { showMessageBox: vi.fn() },
+      shell: { openExternal }, dialog: { showMessageBox }, clipboard: { writeText },
     },
     "node:path": path, "node:url": { pathToFileURL },
     "node:fs": { readFileSync: () => "FILOW_OFFLINE=1", appendFileSync() {}, existsSync: () => false, mkdirSync() {}, rmSync() {} },
@@ -49,7 +50,7 @@ function fixture(initialEnv: Record<string, string> = {}) {
     __dirname: "G:/fake", process: { env, platform: "win32", arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {} },
     URL, URLSearchParams, console,
   });
-  return { api, env, outbound, openExternal, checkForUpdates,
+  return { api, env, outbound, openExternal, checkForUpdates, writeText, showMessageBox,
     blocked: (url: string) => { let result: any; requestFilter({ url }, r => { result = r; }); return result.cancel === true; } };
 }
 
@@ -99,9 +100,19 @@ describe("Step 4 desktop offline seams", () => {
     expect(f.api.localAiStatus()).toMatchObject({ state: "error", error: t("offline.downloadDisabled", "en") });
   });
   // Contract: main.js offline menu: "no outbound requests"; Q4 text egress includes diagnostics.
-  it.fails("offline report must not place take log text in an external browser URL", async () => {
+  it("offline report must not place take log text in an external browser URL", async () => {
     const f = fixture({ FILOW_OFFLINE: "1" }); f.api.setLog("synthetic private take log");
     await f.api.reportProblem(null);
     expect(f.openExternal, "offline report must not hand private log text to an external URL").not.toHaveBeenCalled();
+    expect(f.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
+      message: t("offline.reportCopyPrompt", "en"), buttons: [t("offline.copyReport", "en"), t("common.cancel", "en")],
+    }));
+    expect(f.writeText).toHaveBeenCalledWith(expect.stringContaining("synthetic private take log"));
+  });
+  it("offline report cancellation leaves the clipboard unchanged", async () => {
+    const f = fixture({ FILOW_OFFLINE: "1" }); f.showMessageBox.mockResolvedValue({ response: 1 });
+    await f.api.reportProblem(null);
+    expect(f.writeText).not.toHaveBeenCalled();
+    expect(f.openExternal).not.toHaveBeenCalled();
   });
 });

@@ -1468,6 +1468,15 @@ async function reportProblem(win) {
     "**startup.log (tail)**", "```", tailOf(path.join(userData, "startup.log"), 3000), "```",
   ].join("\n");
   const title = `[${app.getVersion()}] problem on ${process.platform}`;
+  if (process.env.FILOW_OFFLINE === "1") {
+    const { response } = await dialog.showMessageBox({
+      type: "info", title: "Filow", message: sharedText("offline.reportCopyPrompt", menuLang()),
+      buttons: [sharedText("offline.copyReport", menuLang()), sharedText("common.cancel", menuLang())],
+      defaultId: 0, cancelId: 1,
+    });
+    if (response === 0) clipboard.writeText(body);
+    return;
+  }
   const url = `https://github.com/stefandsl/filow-releases/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
   logLine(`report: opening issue form (${body.length} chars)`);
   await shell.openExternal(url.length > 7800 ? url.slice(0, 7800) : url);
