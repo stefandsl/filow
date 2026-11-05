@@ -4,6 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
+import { t } from "@filow/core";
 
 /** Evaluate untouched main.js, with startup held and all effects replaced in-process. */
 function fixture(initialEnv: Record<string, string> = {}) {
@@ -26,7 +27,7 @@ function fixture(initialEnv: Record<string, string> = {}) {
     "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": {},
     "node:worker_threads": {},
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
-    "./vendor/i18n": {}, "./ui-preferences": {}, "./slideshow": {},
+    "./vendor/i18n": { t }, "./ui-preferences": {}, "./slideshow": {},
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
   for (const name of ["stt", "localai"]) {
@@ -38,7 +39,7 @@ function fixture(initialEnv: Record<string, string> = {}) {
     modules[`./${name}`] = module.exports;
   }
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
-    ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, startOllamaInstall, reportProblem, checkForUpdates,
+    ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, setLog: text => { lastTakeLog = text; } });`, {
     require: (id: string) => {
       if (id.endsWith("electron-updater.js")) return { autoUpdater: { on() {}, checkForUpdates } };
@@ -86,14 +87,16 @@ describe("Step 4 desktop offline seams", () => {
     expect(f.api.tunnels.state).toBe("off");
   });
   // Contract: main.js offline menu: "no outbound requests" (includes main-process setup downloads).
-  it.fails("offline must block the desktop STT model downloader", async () => {
+  it("offline must block the desktop STT model downloader", async () => {
     const f = fixture({ FILOW_OFFLINE: "1" }); await f.api.sttDownload();
     expect(f.outbound, "offline must not enter the network model downloader").not.toHaveBeenCalled();
+    expect(f.api.sttStatus()).toMatchObject({ model: "error", error: t("offline.downloadDisabled", "en") });
   });
   // Contract: main.js offline menu: "no outbound requests" (includes main-process setup downloads).
-  it.fails("offline must block the Ollama installer downloader", async () => {
+  it("offline must block the Ollama installer downloader", async () => {
     const f = fixture({ FILOW_OFFLINE: "1" }); await f.api.startOllamaInstall();
     expect(f.outbound, "offline must not enter the network installer").not.toHaveBeenCalled();
+    expect(f.api.localAiStatus()).toMatchObject({ state: "error", error: t("offline.downloadDisabled", "en") });
   });
   // Contract: main.js offline menu: "no outbound requests"; Q4 text egress includes diagnostics.
   it.fails("offline report must not place take log text in an external browser URL", async () => {

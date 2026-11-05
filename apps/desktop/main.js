@@ -1159,6 +1159,11 @@ function sttBroadcast(channel, payload) {
 }
 let sttDownloading = null;
 function sttDownload() {
+  if (process.env.FILOW_OFFLINE === "1") {
+    sttModelState = { state: "error", pct: 0, error: sharedText("offline.downloadDisabled", menuLang()) };
+    sttBroadcast("stt:status", sttStatus());
+    return Promise.resolve();
+  }
   if (sttDownloading) return sttDownloading;
   sttDownloading = sttLocal
     .ensureModel(userData, (s) => {
@@ -1213,6 +1218,10 @@ function setLocalAi(s) {
   for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send("localai:status", s);
 }
 function startOllamaInstall() {
+  if (process.env.FILOW_OFFLINE === "1") {
+    setLocalAi({ ...localAiState, state: "error", pct: 0, error: sharedText("offline.downloadDisabled", menuLang()) });
+    return Promise.resolve();
+  }
   if (localAiInstalling) return localAiInstalling;
   localAiInstalling = localAi.installOllama(path.join(userData, "bin"), setLocalAi).finally(() => {
     localAiInstalling = null;
