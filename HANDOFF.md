@@ -14,7 +14,7 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.28)
+## Where it stands (v0.9.29)
 
 - Sync/stop audit fixes (2026-11-05, `fix/sync-and-stop`): B01-B05 fixed in five
   separate commits. Relay and phone drop old/duplicate patches; gaps request full state;
@@ -198,6 +198,11 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
 - Recent work, newest first:
+  - 0.9.29: the four phone-sync bugs from audit step 4 fixed (507023a, 92b97b0, a61fdbc, 0a5b569:
+    version-checked patches, duplicates dropped, full resend on engine reconnect, full-state request
+    on a version gap), the Sherpa stop flush (f1d716c), and the presenter overlay can be closed and
+    moved before pairing (f43f0dc, OverlayFrame). Evidence in docs/audit/sync-fixes.md. No expected
+    failures left in the suite. Next audit step: 5 (manual local tasks).
   - 0.9.28: microphone picker + silence warning + model download timeout/retry (dfb5597, 94a784c;
     diagnosis: this PC's default USB mic 0d8c:016c delivers digital silence, the C920 works), and the
     audit branch merged: steps 1-4 (docs/audit/) plus eight offline-mode leak fixes (b6df634..d21f834).
