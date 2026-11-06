@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Filow",
-  "version": "0.9.29",
+  "version": "0.9.30",
   "description": "Your talking points next to any HTML slide deck: generate the script from the slides and keep the prompter in sync while you present.",
   "icons": {
     "16": "icons/icon-16.png",
