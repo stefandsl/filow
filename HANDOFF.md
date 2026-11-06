@@ -687,7 +687,8 @@ original checklist is retained as task context.
 3. Count icon groups (PowerShell `ExtractIconEx(path, -1, ...)`) on the installer and the portable:
    both must be 1.
 4. Revert build side effects: `git checkout -- apps/desktop/build/license_en.txt apps/desktop/build/license_it.txt apps/powerpoint/manifest.xml`.
-5. Bump every `package.json` + `apps/browser/manifest.json`, `npm install --package-lock-only --ignore-scripts`,
+5. Add the release to the "What's new" list in `apps/desktop/build/info_en.txt` and `info_it.txt` (the
+   installer's Information page; keep the UTF-8 BOM and CRLF). Bump every `package.json` + `apps/browser/manifest.json`, `npm install --package-lock-only --ignore-scripts`,
    commit, `git tag vX.Y.Z`, `git push origin main vX.Y.Z`, wait for CI (all three platforms).
 6. `gh release download vX.Y.Z --repo stefandsl/filow -D tmp/assets`, delete `builder-debug.yml`,
    count icons again on the CI files, then `gh release create vX.Y.Z --repo stefandsl/filow-releases ...`

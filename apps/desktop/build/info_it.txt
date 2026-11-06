@@ -1,0 +1,61 @@
+﻿Filow: il compagno di presentazione che ti ascolta.
+Carica il tuo copione, parla liberamente: Filow spunta i punti mentre li dici e ti mostra cosa hai saltato. Mirror sul telefono, Screen Sense e componente per PowerPoint.
+
+AI in locale o nel cloud: nella pagina successiva scegli i modelli da scaricare al primo avvio. Senza modelli locali Filow usa il cloud: serve una chiave OpenRouter (pochi centesimi per intervento), che incolli nel file .env aperto al primo avvio. La modalità offline non invia nulla in rete.
+
+
+NOVITÀ
+
+Tutte le versioni: https://github.com/stefandsl/filow-releases/releases
+Segnalazioni: https://github.com/stefandsl/filow-releases/issues
+
+# Filow 0.9.30
+
+* Installer: pagina Informazioni con le novità e pagina Selezione componenti con dimensioni e tipo di installazione (consigliata per questo PC, completa, minima).
+
+# Filow 0.9.29
+
+* Sincronizzazione col telefono: aggiornamenti doppi o vecchi ignorati, stato completo dopo una perdita o una riconnessione.
+* Fermare la registrazione non perde più le ultime parole.
+* La finestra sovrapposta del relatore ha una barra per spostarla e la X per chiuderla.
+
+# Filow 0.9.28
+
+* Scelta del microfono accanto ad Avvia e in Impostazioni, con avviso se il microfono scelto non invia audio.
+* Lo scaricamento del modello vocale locale riprova invece di bloccarsi.
+* Modalità offline: traduzione, token di trascrizione, download dei modelli, tunnel pubblico e segnalazione problemi non usano più la rete.
+
+# Filow 0.9.27
+
+* Un solo layout, uguale nel tema scuro e nel chiaro: sezioni nella barra laterale, prossima sezione sotto i punti, Screen Sense sopra la barra di Avvia.
+
+# Filow 0.9.26
+
+* Spunta verde ben visibile sui punti detti.
+* La finestra di abbinamento resta aperta quando passi al link pubblico.
+* Il pannello Prossima sezione si ridimensiona trascinando il bordo.
+
+# Filow 0.9.25
+
+* Finestra piccola e zoom al 200% scorrono invece di tagliare; i menu di Screen Sense restano nello schermo; annullare l'avvio interrompe tutto; errori di importazione visibili.
+
+# Filow 0.9.24
+
+* Nuovo design con superfici piatte e stati dei punti distinti con icona e testo.
+
+# Filow 0.9.23
+
+* Interfaccia più calma e coerente: stessi stati di passaggio, focus e pressione su ogni controllo, icone nitide, numeri che non saltano durante la registrazione.
+
+# Filow 0.9.22
+
+* Vetro liquido su punti, controlli, barre, impostazioni, finestra sovrapposta e benvenuto, nel tema scuro e nel chiaro.
+
+# Filow 0.9.21
+
+* L'installer e l'app portatile hanno di nuovo la loro icona.
+
+# Filow 0.9.20
+
+* L'app si avvia di nuovo dopo l'installazione; corretto l'interruttore Avvia all'accensione.
+* Finestra di benvenuto, finestra in vetro smerigliato, licenza GPL v3, aggiornamenti di sicurezza.

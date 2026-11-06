@@ -1,0 +1,61 @@
+﻿Filow: the speaking companion that listens as you present.
+Load your script and speak freely: Filow checks off your points as you cover them and shows what you missed. Phone mirror, Screen Sense and the PowerPoint add-in.
+
+Local or cloud AI: on the next page, choose the models to download on first start. Without local models Filow uses the cloud: an OpenRouter API key (a few cents per talk), pasted into the .env file the app opens on first start. Offline mode sends nothing over the network.
+
+
+WHAT'S NEW
+
+All versions: https://github.com/stefandsl/filow-releases/releases
+Report a problem: https://github.com/stefandsl/filow-releases/issues
+
+# Filow 0.9.30
+
+* Installer: an Information page with what's new and a Select Components page with sizes and setup types (recommended for this PC, full, minimal).
+
+# Filow 0.9.29
+
+* Phone sync: duplicate and stale updates are ignored; full state after a gap or a reconnect.
+* Stopping a take no longer loses the last words.
+* The presenter overlay has a bar to drag it and an X to close it.
+
+# Filow 0.9.28
+
+* Microphone picker next to Start and in Settings, with a warning when the chosen microphone sends no audio.
+* The local speech model download retries instead of hanging.
+* Offline mode: translation, transcription tokens, model downloads, the public tunnel and problem reports no longer use the network.
+
+# Filow 0.9.27
+
+* One layout for dark and light theme: sections in the sidebar, next section under the points, Screen Sense above the Start bar.
+
+# Filow 0.9.26
+
+* A clearly visible green tick on covered points.
+* The pairing window stays open when you switch to the public link.
+* The Next section panel resizes by dragging its edge.
+
+# Filow 0.9.25
+
+* Small windows and 200% zoom scroll instead of clipping; Screen Sense menus stay on screen; cancelling Start stops everything; import errors are visible.
+
+# Filow 0.9.24
+
+* New design with flat surfaces and point states shown with icon and text.
+
+# Filow 0.9.23
+
+* A quieter, more consistent interface: the same hover, focus and pressed states on every control, crisp icons, numbers that do not jitter during a take.
+
+# Filow 0.9.22
+
+* Liquid glass on points, controls, bars, settings, the overlay and the welcome window, in dark and light theme.
+
+# Filow 0.9.21
+
+* The installer and the portable app have their icon again.
+
+# Filow 0.9.20
+
+* The app starts again after installation; the Run at startup switch is fixed.
+* Welcome window, frosted glass window, GPL v3 licence, security updates.

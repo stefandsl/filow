@@ -1,6 +1,7 @@
 ; Filow Windows installer pages (electron-builder "nsis.include").
-; Pages: welcome, licence (build/license_*.txt), directory, "local AI" (this file: a quick hardware
-; scan, the models recommended for this PC, Ollama in the background), install, finish with
+; Pages: welcome, information (build/info_*.txt: what Filow is and what's new), licence (build/license_*.txt),
+; directory, components (Filow plus the local AI models with sizes and setup types; "recommended" comes
+; from a quick hardware scan), install, finish with
 ; "Run now" and "Create desktop shortcut". Strings are set at run time from $LANGUAGE: Italian and
 ; English; other installer languages fall back to English.
 !include nsDialogs.nsh
@@ -21,22 +22,14 @@ Var LblClef
 Var LblGemmaSmall
 Var LblGemmaBig
 Var LblOllama
-Var ApiNote
 Var RunText
 Var ShortcutText
-Var CbWhisperBase
-Var CbWhisperSmall
-Var CbClef
-Var CbGemmaSmall
-Var CbGemmaBig
-Var CbOllama
 Var StWhisperBase
 Var StWhisperSmall
 Var StClef
 Var StGemmaSmall
 Var StGemmaBig
 Var StOllama
-Var ModelsDlg
 Var RamGb
 Var FreeGb
 Var GpuName
@@ -48,6 +41,14 @@ Var SfxDisk
 Var SfxGpu
 Var SfxHave
 Var LblOllamaHave
+Var LblApp
+Var LblGroupAI
+Var TypeRec
+Var TypeFull
+Var TypeMin
+Var InfoTitle
+Var InfoSub
+Var InfoTop
 Var OllamaFound
 Var HaveClef
 Var HaveGemmaSmall
@@ -289,6 +290,92 @@ FunctionEnd
   ${EndIf}
 !macroend
 
+; Setup types: 1 = recommended for this PC (set at run time), 2 = full, 3 = minimal (Filow only).
+; The model sections are empty: customInstall turns the selection into install-choices.json.
+!ifndef BUILD_UNINSTALLER
+InstType "Recommended"
+InstType "Full"
+InstType "Minimal"
+SectionGroup /e "Local AI" SecAI
+  Section /o "Whisper base" SecWhisperBase
+    AddSize 153600
+  SectionEnd
+  Section /o "Whisper small" SecWhisperSmall
+    AddSize 512000
+  SectionEnd
+  Section /o "Clef Flash" SecClef
+    AddSize 11534336
+  SectionEnd
+  Section /o "Gemma 4 E2B" SecGemmaSmall
+    AddSize 6291456
+  SectionEnd
+  Section /o "Gemma 4 E4B" SecGemmaBig
+    AddSize 9437184
+  SectionEnd
+SectionGroupEnd
+Section /o "Ollama" SecOllama
+  AddSize 1048576
+SectionEnd
+!endif
+
+!macro _FilowSection sec st lbl
+  SectionSetText ${sec} "${lbl}"
+  ${If} ${st} == ${BST_CHECKED}
+    SectionSetInstTypes ${sec} 3
+    SectionSetFlags ${sec} ${SF_SELECTED}
+  ${Else}
+    SectionSetInstTypes ${sec} 2
+    SectionSetFlags ${sec} 0
+  ${EndIf}
+!macroend
+
+; Names, setup types and the recommended selection from the hardware scan. electron-builder's own
+; "install" section is declared after this file, so it is found by name and shown as Filow (required).
+!macro FilowSections
+  InstTypeSetText 0 "$TypeRec"
+  InstTypeSetText 1 "$TypeFull"
+  InstTypeSetText 2 "$TypeMin"
+  SectionSetText ${SecAI} "$LblGroupAI"
+  !insertmacro _FilowSection ${SecWhisperBase} $StWhisperBase "$LblWhisperBase"
+  !insertmacro _FilowSection ${SecWhisperSmall} $StWhisperSmall "$LblWhisperSmall"
+  !insertmacro _FilowSection ${SecClef} $StClef "$LblClef"
+  !insertmacro _FilowSection ${SecGemmaSmall} $StGemmaSmall "$LblGemmaSmall"
+  !insertmacro _FilowSection ${SecGemmaBig} $StGemmaBig "$LblGemmaBig"
+  !insertmacro _FilowSection ${SecOllama} $StOllama "$LblOllama"
+  ${If} $OllamaFound == 1
+    SectionSetFlags ${SecOllama} ${SF_RO}
+  ${EndIf}
+  StrCpy $0 0
+  ${DoWhile} $0 < 32
+    SectionGetText $0 $1
+    ${If} $1 == "install"
+      SectionSetText $0 "$LblApp"
+      SectionSetInstTypes $0 7
+      SectionSetFlags $0 17
+      ${ExitDo}
+    ${EndIf}
+    IntOp $0 $0 + 1
+  ${Loop}
+  SetCurInstType 0
+!macroend
+
+!macro _FilowReadSection sec st
+  ${If} ${SectionIsSelected} ${sec}
+    StrCpy ${st} ${BST_CHECKED}
+  ${Else}
+    StrCpy ${st} ${BST_UNCHECKED}
+  ${EndIf}
+!macroend
+
+!macro FilowReadSections
+  !insertmacro _FilowReadSection ${SecWhisperBase} $StWhisperBase
+  !insertmacro _FilowReadSection ${SecWhisperSmall} $StWhisperSmall
+  !insertmacro _FilowReadSection ${SecClef} $StClef
+  !insertmacro _FilowReadSection ${SecGemmaSmall} $StGemmaSmall
+  !insertmacro _FilowReadSection ${SecGemmaBig} $StGemmaBig
+  !insertmacro _FilowReadSection ${SecOllama} $StOllama
+!macroend
+
 !macro customInit
   !insertmacro FilowHardwareScan
   !insertmacro FilowRecommend
@@ -305,7 +392,6 @@ FunctionEnd
     StrCpy $LblGemmaSmall "Gemma 4 E2B: copione dalle slide (6 GB, 8 GB di RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: copione dalle slide, migliore (9 GB, 16 GB di RAM)"
     StrCpy $LblOllama "Installa Ollama in background (motore dei modelli locali, 1 GB; serve per Clef e Gemma)"
-    StrCpy $ApiNote "Senza modelli locali Filow usa il cloud: serve una chiave OpenRouter (pochi centesimi per intervento), che incolli nel file .env aperto al primo avvio."
     StrCpy $RunText "Esegui Filow"
     StrCpy $ShortcutText "Crea collegamento sul desktop"
     StrCpy $SfxRec " – consigliato"
@@ -315,6 +401,14 @@ FunctionEnd
     StrCpy $SfxGpu " – serve una GPU"
     StrCpy $SfxHave " – già installato"
     StrCpy $LblOllamaHave "Ollama è già installato su questo PC: per lui non c'è nulla da scaricare"
+    StrCpy $LblApp "Filow (richiesto)"
+    StrCpy $LblGroupAI "AI in locale (scaricata al primo avvio)"
+    StrCpy $TypeRec "Consigliata per questo PC"
+    StrCpy $TypeFull "Completa"
+    StrCpy $TypeMin "Minima (solo Filow)"
+    StrCpy $InfoTitle "Informazioni"
+    StrCpy $InfoSub "Prima di procedere leggi le importanti informazioni che seguono."
+    StrCpy $InfoTop "Quando sei pronto per proseguire, seleziona 'Avanti'."
   ${ElseIf} $LANGUAGE == 1031
     StrCpy $WelcomeTitle "Willkommen bei Filow"
     StrCpy $WelcomeText "Sprich frei. Bleib auf den Punkt.$\r$\n$\r$\nDieser Assistent installiert Filow auf dem Computer: den Vortragsbegleiter, der zuhört, deine Stichpunkte abhakt, sobald du sie ansprichst, und zeigt, was du ausgelassen hast – mit Spiegel auf dem Telefon, Screen Sense und dem PowerPoint-Add-in.$\r$\n$\r$\nSchließe vor dem Fortfahren andere Anwendungen.$\r$\n$\r$\n© VoidExploit. Klicke auf 'Weiter', um fortzufahren."
@@ -328,7 +422,6 @@ FunctionEnd
     StrCpy $LblGemmaSmall "Gemma 4 E2B: Skript aus den Folien (6 GB, 8 GB RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: Skript aus den Folien, besser (9 GB, 16 GB RAM)"
     StrCpy $LblOllama "Ollama im Hintergrund installieren (Laufzeit für lokale Modelle, 1 GB; nötig für Clef und Gemma)"
-    StrCpy $ApiNote "Ohne lokale Modelle nutzt Filow die Cloud: ein OpenRouter-API-Schlüssel (wenige Cent pro Vortrag), eingefügt in die .env-Datei, die die App beim ersten Start öffnet."
     StrCpy $RunText "Filow starten"
     StrCpy $ShortcutText "Desktop-Verknüpfung erstellen"
     StrCpy $SfxRec " – empfohlen"
@@ -338,6 +431,14 @@ FunctionEnd
     StrCpy $SfxGpu " – braucht eine GPU"
     StrCpy $SfxHave " – bereits installiert"
     StrCpy $LblOllamaHave "Ollama ist auf diesem PC bereits installiert: dafür ist nichts mehr zu laden"
+    StrCpy $LblApp "Filow (erforderlich)"
+    StrCpy $LblGroupAI "Lokale KI (beim ersten Start geladen)"
+    StrCpy $TypeRec "Empfohlen für diesen PC"
+    StrCpy $TypeFull "Vollständig"
+    StrCpy $TypeMin "Minimal (nur Filow)"
+    StrCpy $InfoTitle "Informationen"
+    StrCpy $InfoSub "Bitte lies die folgenden wichtigen Informationen, bevor du fortfährst."
+    StrCpy $InfoTop "Klicke auf 'Weiter', wenn du bereit bist fortzufahren."
   ${ElseIf} $LANGUAGE == 1036
     StrCpy $WelcomeTitle "Bienvenue dans Filow"
     StrCpy $WelcomeText "Parlez librement. Restez sur le point.$\r$\n$\r$\nCet assistant installe Filow sur l'ordinateur : le compagnon de présentation qui vous écoute, coche vos points à mesure que vous les abordez et montre ce que vous avez sauté, avec miroir sur le téléphone, Screen Sense et le complément PowerPoint.$\r$\n$\r$\nFermez les autres applications avant de continuer.$\r$\n$\r$\n© VoidExploit. Cliquez sur « Suivant » pour continuer."
@@ -351,7 +452,6 @@ FunctionEnd
     StrCpy $LblGemmaSmall "Gemma 4 E2B : script à partir des diapositives (6 Go, 8 Go de RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B : script à partir des diapositives, meilleur (9 Go, 16 Go de RAM)"
     StrCpy $LblOllama "Installer Ollama en arrière-plan (moteur des modèles locaux, 1 Go ; requis par Clef et Gemma)"
-    StrCpy $ApiNote "Sans modèles locaux, Filow utilise le cloud : une clé API OpenRouter (quelques centimes par intervention), collée dans le fichier .env que l'application ouvre au premier démarrage."
     StrCpy $RunText "Lancer Filow"
     StrCpy $ShortcutText "Créer un raccourci sur le bureau"
     StrCpy $SfxRec " – recommandé"
@@ -361,7 +461,15 @@ FunctionEnd
     StrCpy $SfxGpu " – nécessite un GPU"
     StrCpy $SfxHave " – déjà installé"
     StrCpy $LblOllamaHave "Ollama est déjà installé sur ce PC : rien à télécharger pour lui"
-  ${ElseIf} $LANGUAGE == 1034
+    StrCpy $LblApp "Filow (requis)"
+    StrCpy $LblGroupAI "IA locale (téléchargée au premier démarrage)"
+    StrCpy $TypeRec "Recommandée pour ce PC"
+    StrCpy $TypeFull "Complète"
+    StrCpy $TypeMin "Minimale (Filow seul)"
+    StrCpy $InfoTitle "Informations"
+    StrCpy $InfoSub "Veuillez lire les informations importantes suivantes avant de continuer."
+    StrCpy $InfoTop "Lorsque vous êtes prêt à continuer, cliquez sur Suivant."
+  ${ElseIf} $LANGUAGE == 3082
     StrCpy $WelcomeTitle "Bienvenido a Filow"
     StrCpy $WelcomeText "Habla con libertad. No pierdas el hilo.$\r$\n$\r$\nEste asistente instala Filow en el equipo: el compañero de presentación que te escucha, marca tus puntos a medida que los tratas y muestra lo que te has saltado, con espejo en el teléfono, Screen Sense y el complemento de PowerPoint.$\r$\n$\r$\nCierra las demás aplicaciones antes de continuar.$\r$\n$\r$\n© VoidExploit. Pulsa 'Siguiente' para continuar."
     StrCpy $ModelsTitle "IA local en este PC"
@@ -374,7 +482,6 @@ FunctionEnd
     StrCpy $LblGemmaSmall "Gemma 4 E2B: guion a partir de las diapositivas (6 GB, 8 GB de RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: guion a partir de las diapositivas, mejor (9 GB, 16 GB de RAM)"
     StrCpy $LblOllama "Instalar Ollama en segundo plano (motor de modelos locales, 1 GB; necesario para Clef y Gemma)"
-    StrCpy $ApiNote "Sin modelos locales Filow usa la nube: una clave API de OpenRouter (unos céntimos por charla), pegada en el archivo .env que la app abre al primer inicio."
     StrCpy $RunText "Ejecutar Filow"
     StrCpy $ShortcutText "Crear un acceso directo en el escritorio"
     StrCpy $SfxRec " – recomendado"
@@ -384,6 +491,14 @@ FunctionEnd
     StrCpy $SfxGpu " – necesita GPU"
     StrCpy $SfxHave " – ya instalado"
     StrCpy $LblOllamaHave "Ollama ya está instalado en este PC: no hay nada más que descargar para él"
+    StrCpy $LblApp "Filow (obligatorio)"
+    StrCpy $LblGroupAI "IA local (se descarga al primer inicio)"
+    StrCpy $TypeRec "Recomendada para este PC"
+    StrCpy $TypeFull "Completa"
+    StrCpy $TypeMin "Mínima (solo Filow)"
+    StrCpy $InfoTitle "Información"
+    StrCpy $InfoSub "Lee la siguiente información importante antes de continuar."
+    StrCpy $InfoTop "Cuando estés listo para continuar, haz clic en Siguiente."
   ${ElseIf} $LANGUAGE == 1046
     StrCpy $WelcomeTitle "Bem-vindo ao Filow"
     StrCpy $WelcomeText "Fale livremente. Mantenha o foco.$\r$\n$\r$\nEste assistente instala o Filow no computador: o companheiro de apresentação que escuta você, marca seus pontos conforme você os aborda e mostra o que ficou de fora, com espelho no celular, Screen Sense e o suplemento do PowerPoint.$\r$\n$\r$\nFeche os outros aplicativos antes de continuar.$\r$\n$\r$\n© VoidExploit. Clique em 'Avançar' para continuar."
@@ -397,7 +512,6 @@ FunctionEnd
     StrCpy $LblGemmaSmall "Gemma 4 E2B: roteiro a partir dos slides (6 GB, 8 GB de RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: roteiro a partir dos slides, melhor (9 GB, 16 GB de RAM)"
     StrCpy $LblOllama "Instalar o Ollama em segundo plano (motor dos modelos locais, 1 GB; necessário para Clef e Gemma)"
-    StrCpy $ApiNote "Sem modelos locais o Filow usa a nuvem: uma chave de API do OpenRouter (alguns centavos por apresentação), colada no arquivo .env que o app abre na primeira execução."
     StrCpy $RunText "Executar o Filow"
     StrCpy $ShortcutText "Criar atalho na área de trabalho"
     StrCpy $SfxRec " – recomendado"
@@ -407,6 +521,14 @@ FunctionEnd
     StrCpy $SfxGpu " – precisa de GPU"
     StrCpy $SfxHave " – já instalado"
     StrCpy $LblOllamaHave "O Ollama já está instalado neste PC: nada mais a baixar para ele"
+    StrCpy $LblApp "Filow (obrigatório)"
+    StrCpy $LblGroupAI "IA local (baixada na primeira execução)"
+    StrCpy $TypeRec "Recomendada para este PC"
+    StrCpy $TypeFull "Completa"
+    StrCpy $TypeMin "Mínima (somente Filow)"
+    StrCpy $InfoTitle "Informações"
+    StrCpy $InfoSub "Leia as informações importantes a seguir antes de continuar."
+    StrCpy $InfoTop "Quando estiver pronto para continuar, clique em Avançar."
   ${ElseIf} $LANGUAGE == 1043
     StrCpy $WelcomeTitle "Welkom bij Filow"
     StrCpy $WelcomeText "Spreek vrijuit. Blijf bij de kern.$\r$\n$\r$\nDeze wizard installeert Filow op de computer: de presentatiehulp die meeluistert, je punten afvinkt zodra je ze behandelt en laat zien wat je hebt overgeslagen, met spiegel op de telefoon, Screen Sense en de PowerPoint-invoegtoepassing.$\r$\n$\r$\nSluit andere toepassingen voordat je verdergaat.$\r$\n$\r$\n© VoidExploit. Klik op 'Volgende' om door te gaan."
@@ -420,7 +542,6 @@ FunctionEnd
     StrCpy $LblGemmaSmall "Gemma 4 E2B: script uit de dia's (6 GB, 8 GB RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: script uit de dia's, beter (9 GB, 16 GB RAM)"
     StrCpy $LblOllama "Ollama op de achtergrond installeren (runtime voor lokale modellen, 1 GB; nodig voor Clef en Gemma)"
-    StrCpy $ApiNote "Zonder lokale modellen gebruikt Filow de cloud: een OpenRouter-API-sleutel (enkele centen per presentatie), geplakt in het .env-bestand dat de app bij de eerste start opent."
     StrCpy $RunText "Filow starten"
     StrCpy $ShortcutText "Snelkoppeling op het bureaublad maken"
     StrCpy $SfxRec " – aanbevolen"
@@ -430,6 +551,14 @@ FunctionEnd
     StrCpy $SfxGpu " – vereist een GPU"
     StrCpy $SfxHave " – al geïnstalleerd"
     StrCpy $LblOllamaHave "Ollama is al op deze pc geïnstalleerd: daarvoor hoeft niets meer te worden gedownload"
+    StrCpy $LblApp "Filow (vereist)"
+    StrCpy $LblGroupAI "Lokale AI (gedownload bij de eerste start)"
+    StrCpy $TypeRec "Aanbevolen voor deze pc"
+    StrCpy $TypeFull "Volledig"
+    StrCpy $TypeMin "Minimaal (alleen Filow)"
+    StrCpy $InfoTitle "Informatie"
+    StrCpy $InfoSub "Lees de volgende belangrijke informatie voordat je verdergaat."
+    StrCpy $InfoTop "Klik op Volgende als je klaar bent om verder te gaan."
   ${ElseIf} $LANGUAGE == 1045
     StrCpy $WelcomeTitle "Witamy w Filow"
     StrCpy $WelcomeText "Mów swobodnie. Trzymaj się tematu.$\r$\n$\r$\nTen kreator zainstaluje Filow na komputerze: towarzysza prezentacji, który słucha, odhacza Twoje punkty, gdy je omawiasz, i pokazuje, co pominąłeś, z lustrem na telefonie, Screen Sense i dodatkiem do PowerPointa.$\r$\n$\r$\nPrzed kontynuowaniem zamknij inne aplikacje.$\r$\n$\r$\n© VoidExploit. Kliknij „Dalej”, aby kontynuować."
@@ -443,7 +572,6 @@ FunctionEnd
     StrCpy $LblGemmaSmall "Gemma 4 E2B: skrypt ze slajdów (6 GB, 8 GB RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: skrypt ze slajdów, lepszy (9 GB, 16 GB RAM)"
     StrCpy $LblOllama "Zainstaluj Ollama w tle (silnik modeli lokalnych, 1 GB; potrzebny dla Clef i Gemma)"
-    StrCpy $ApiNote "Bez modeli lokalnych Filow korzysta z chmury: klucz API OpenRouter (kilka centów za wystąpienie), wklejony do pliku .env, który aplikacja otwiera przy pierwszym uruchomieniu."
     StrCpy $RunText "Uruchom Filow"
     StrCpy $ShortcutText "Utwórz skrót na pulpicie"
     StrCpy $SfxRec " – zalecane"
@@ -453,6 +581,14 @@ FunctionEnd
     StrCpy $SfxGpu " – wymaga GPU"
     StrCpy $SfxHave " – już zainstalowane"
     StrCpy $LblOllamaHave "Ollama jest już zainstalowana na tym komputerze: nie trzeba nic więcej pobierać"
+    StrCpy $LblApp "Filow (wymagany)"
+    StrCpy $LblGroupAI "Lokalna AI (pobierana przy pierwszym uruchomieniu)"
+    StrCpy $TypeRec "Zalecana dla tego komputera"
+    StrCpy $TypeFull "Pełna"
+    StrCpy $TypeMin "Minimalna (tylko Filow)"
+    StrCpy $InfoTitle "Informacje"
+    StrCpy $InfoSub "Przed kontynuowaniem przeczytaj poniższe ważne informacje."
+    StrCpy $InfoTop "Gdy zechcesz kontynuować, kliknij Dalej."
   ${ElseIf} $LANGUAGE == 1049
     StrCpy $WelcomeTitle "Добро пожаловать в Filow"
     StrCpy $WelcomeText "Говорите свободно. Держитесь сути.$\r$\n$\r$\nЭтот мастер установит Filow на компьютер: помощника для выступлений, который слушает вас, отмечает тезисы по мере их раскрытия и показывает, что вы пропустили, с зеркалом на телефоне, Screen Sense и надстройкой для PowerPoint.$\r$\n$\r$\nПеред продолжением закройте другие приложения.$\r$\n$\r$\n© VoidExploit. Нажмите «Далее», чтобы продолжить."
@@ -466,7 +602,6 @@ FunctionEnd
     StrCpy $LblGemmaSmall "Gemma 4 E2B: сценарий из слайдов (6 ГБ, 8 ГБ ОЗУ)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: сценарий из слайдов, лучше (9 ГБ, 16 ГБ ОЗУ)"
     StrCpy $LblOllama "Установить Ollama в фоне (среда для локальных моделей, 1 ГБ; нужна для Clef и Gemma)"
-    StrCpy $ApiNote "Без локальных моделей Filow использует облако: ключ API OpenRouter (несколько центов за выступление), вставленный в файл .env, который приложение открывает при первом запуске."
     StrCpy $RunText "Запустить Filow"
     StrCpy $ShortcutText "Создать ярлык на рабочем столе"
     StrCpy $SfxRec " – рекомендуется"
@@ -476,6 +611,14 @@ FunctionEnd
     StrCpy $SfxGpu " – нужна GPU"
     StrCpy $SfxHave " – уже установлено"
     StrCpy $LblOllamaHave "Ollama уже установлена на этом ПК: для неё ничего загружать не нужно"
+    StrCpy $LblApp "Filow (обязательно)"
+    StrCpy $LblGroupAI "Локальный ИИ (загружается при первом запуске)"
+    StrCpy $TypeRec "Рекомендуемая для этого ПК"
+    StrCpy $TypeFull "Полная"
+    StrCpy $TypeMin "Минимальная (только Filow)"
+    StrCpy $InfoTitle "Информация"
+    StrCpy $InfoSub "Прочтите следующую важную информацию перед продолжением."
+    StrCpy $InfoTop "Когда будете готовы продолжить, нажмите «Далее»."
   ${ElseIf} $LANGUAGE == 1041
     StrCpy $WelcomeTitle "Filow へようこそ"
     StrCpy $WelcomeText "自由に話す。要点を外さない。$\r$\n$\r$\nこのウィザードは Filow をコンピューターにインストールします。発表を聞きながら、話した要点にチェックを付け、抜けた点を示すプレゼンの相棒です。スマートフォンのミラー、Screen Sense、PowerPoint アドインを備えています。$\r$\n$\r$\n続行する前に他のアプリケーションを閉じてください。$\r$\n$\r$\n© VoidExploit。続行するには「次へ」をクリックしてください。"
@@ -489,7 +632,6 @@ FunctionEnd
     StrCpy $LblGemmaSmall "Gemma 4 E2B: スライドから原稿を生成 (6 GB、RAM 8 GB)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: スライドから原稿を生成、高品質 (9 GB、RAM 16 GB)"
     StrCpy $LblOllama "Ollama をバックグラウンドでインストール (ローカルモデルの実行環境、1 GB。Clef と Gemma に必要)"
-    StrCpy $ApiNote "ローカルモデルがない場合 Filow はクラウドを使います。OpenRouter の API キー (1 回の発表で数セント) を、初回起動時に開く .env ファイルに貼り付けてください。"
     StrCpy $RunText "Filow を起動"
     StrCpy $ShortcutText "デスクトップにショートカットを作成"
     StrCpy $SfxRec " – 推奨"
@@ -499,6 +641,14 @@ FunctionEnd
     StrCpy $SfxGpu " – GPU が必要"
     StrCpy $SfxHave " – インストール済み"
     StrCpy $LblOllamaHave "Ollama はこの PC にインストール済みです。追加のダウンロードは不要です"
+    StrCpy $LblApp "Filow (必須)"
+    StrCpy $LblGroupAI "ローカル AI (初回起動時にダウンロード)"
+    StrCpy $TypeRec "この PC に推奨"
+    StrCpy $TypeFull "完全"
+    StrCpy $TypeMin "最小 (Filow のみ)"
+    StrCpy $InfoTitle "情報"
+    StrCpy $InfoSub "続行する前に、以下の重要な情報をお読みください。"
+    StrCpy $InfoTop "続行する準備ができたら「次へ」をクリックしてください。"
   ${ElseIf} $LANGUAGE == 2052
     StrCpy $WelcomeTitle "欢迎使用 Filow"
     StrCpy $WelcomeText "畅所欲言，不离要点。$\r$\n$\r$\n此向导将在计算机上安装 Filow：一位演讲伙伴，边听边为你勾掉已讲到的要点，并提示遗漏的内容，支持手机镜像、Screen Sense 和 PowerPoint 加载项。$\r$\n$\r$\n继续之前请关闭其他应用程序。$\r$\n$\r$\n© VoidExploit。点击“下一步”继续。"
@@ -512,7 +662,6 @@ FunctionEnd
     StrCpy $LblGemmaSmall "Gemma 4 E2B：从幻灯片生成讲稿 (6 GB，需 8 GB 内存)"
     StrCpy $LblGemmaBig "Gemma 4 E4B：从幻灯片生成讲稿，效果更好 (9 GB，需 16 GB 内存)"
     StrCpy $LblOllama "在后台安装 Ollama（本地模型运行环境，1 GB；Clef 和 Gemma 需要）"
-    StrCpy $ApiNote "没有本地模型时 Filow 使用云端：需要 OpenRouter API 密钥（每次演讲几美分），粘贴到应用首次启动时打开的 .env 文件中。"
     StrCpy $RunText "运行 Filow"
     StrCpy $ShortcutText "创建桌面快捷方式"
     StrCpy $SfxRec " – 推荐"
@@ -522,6 +671,14 @@ FunctionEnd
     StrCpy $SfxGpu " – 需要 GPU"
     StrCpy $SfxHave " – 已安装"
     StrCpy $LblOllamaHave "本机已安装 Ollama：无需再为其下载任何内容"
+    StrCpy $LblApp "Filow（必需）"
+    StrCpy $LblGroupAI "本地 AI（首次启动时下载）"
+    StrCpy $TypeRec "本机推荐"
+    StrCpy $TypeFull "完全"
+    StrCpy $TypeMin "最小（仅 Filow）"
+    StrCpy $InfoTitle "信息"
+    StrCpy $InfoSub "继续之前，请阅读以下重要信息。"
+    StrCpy $InfoTop "准备好继续时，请点击“下一步”。"
   ${Else}
     StrCpy $WelcomeTitle "Welcome to Filow"
     StrCpy $WelcomeText "Speak freely. Stay on point.$\r$\n$\r$\nThis wizard installs Filow on your computer: the live speaking companion that listens as you present, checks off your talking points as you cover them and shows what you missed, with a phone mirror, Screen Sense and the PowerPoint add-in.$\r$\n$\r$\nClose other applications before continuing.$\r$\n$\r$\n© VoidExploit. Click Next to continue."
@@ -535,7 +692,6 @@ FunctionEnd
     StrCpy $LblGemmaSmall "Gemma 4 E2B: script from slides (6 GB, 8 GB RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: script from slides, better (9 GB, 16 GB RAM)"
     StrCpy $LblOllama "Install Ollama in the background (local model runner, 1 GB; needed by Clef and Gemma)"
-    StrCpy $ApiNote "Without local models Filow uses the cloud: an OpenRouter API key (a few cents per talk), pasted into the .env file the app opens on first start."
     StrCpy $RunText "Run Filow"
     StrCpy $ShortcutText "Create a desktop shortcut"
     StrCpy $SfxRec " – recommended"
@@ -545,8 +701,17 @@ FunctionEnd
     StrCpy $SfxGpu " – needs a GPU"
     StrCpy $SfxHave " – already installed"
     StrCpy $LblOllamaHave "Ollama is already installed on this PC: nothing more to download for it"
+    StrCpy $LblApp "Filow (required)"
+    StrCpy $LblGroupAI "Local AI (downloaded on first start)"
+    StrCpy $TypeRec "Recommended for this PC"
+    StrCpy $TypeFull "Full"
+    StrCpy $TypeMin "Minimal (Filow only)"
+    StrCpy $InfoTitle "Information"
+    StrCpy $InfoSub "Please read the following important information before continuing."
+    StrCpy $InfoTop "When you are ready to continue, click Next."
   ${EndIf}
   !insertmacro FilowAnnotate
+  !insertmacro FilowSections
 !macroend
 
 !macro customWelcomePage
@@ -554,60 +719,54 @@ FunctionEnd
   !define MUI_WELCOMEPAGE_TITLE_3LINES
   !define MUI_WELCOMEPAGE_TEXT "$WelcomeText"
   !insertmacro MUI_PAGE_WELCOME
+  ; Information page (like Greenshot's): what Filow is and what's new, from build/info_*.txt.
+  LicenseLangString FilowInfo 1040 "${BUILD_RESOURCES_DIR}\info_it.txt"
+  LicenseLangString FilowInfo 1033 "${BUILD_RESOURCES_DIR}\info_en.txt"
+  LicenseLangString FilowInfo 1031 "${BUILD_RESOURCES_DIR}\info_en.txt"
+  LicenseLangString FilowInfo 1036 "${BUILD_RESOURCES_DIR}\info_en.txt"
+  LicenseLangString FilowInfo 3082 "${BUILD_RESOURCES_DIR}\info_en.txt"
+  LicenseLangString FilowInfo 1046 "${BUILD_RESOURCES_DIR}\info_en.txt"
+  LicenseLangString FilowInfo 1043 "${BUILD_RESOURCES_DIR}\info_en.txt"
+  LicenseLangString FilowInfo 1045 "${BUILD_RESOURCES_DIR}\info_en.txt"
+  LicenseLangString FilowInfo 1049 "${BUILD_RESOURCES_DIR}\info_en.txt"
+  LicenseLangString FilowInfo 1041 "${BUILD_RESOURCES_DIR}\info_en.txt"
+  LicenseLangString FilowInfo 2052 "${BUILD_RESOURCES_DIR}\info_en.txt"
+  !define MUI_PAGE_HEADER_TEXT "$InfoTitle"
+  !define MUI_PAGE_HEADER_SUBTEXT "$InfoSub"
+  !define MUI_LICENSEPAGE_TEXT_TOP "$InfoTop"
+  !define MUI_LICENSEPAGE_TEXT_BOTTOM " "
+  !define MUI_LICENSEPAGE_BUTTON "$(^NextBtn)"
+  !insertmacro MUI_PAGE_LICENSE "$(FilowInfo)"
 !macroend
 
-; Defined here, after MUI's page macros exist (MUI_HEADER_TEXT is only available from then on).
+; Components page (like Greenshot's): Filow itself (read-only) plus the local AI models and Ollama,
+; with sizes and setup types. Skipped on updates, like the directory page.
 !macro customPageAfterChangeDir
-Function ModelsPageCreate
-  !insertmacro MUI_HEADER_TEXT "$ModelsTitle" "$ModelsSub"
-  nsDialogs::Create 1018
-  Pop $ModelsDlg
-  ${If} $ModelsDlg == error
-    Abort
-  ${EndIf}
-  ${NSD_CreateLabel} 0 0 100% 10u "$HwLine"
-  Pop $0
-  ${NSD_CreateLabel} 0 11u 100% 30u "$ModelsIntro"
-  Pop $0
-  ${NSD_CreateCheckbox} 0 43u 100% 10u "$LblWhisperBase"
-  Pop $CbWhisperBase
-  ${NSD_SetState} $CbWhisperBase $StWhisperBase
-  ${NSD_CreateCheckbox} 0 54u 100% 10u "$LblWhisperSmall"
-  Pop $CbWhisperSmall
-  ${NSD_SetState} $CbWhisperSmall $StWhisperSmall
-  ${NSD_CreateCheckbox} 0 65u 100% 10u "$LblClef"
-  Pop $CbClef
-  ${NSD_SetState} $CbClef $StClef
-  ${NSD_CreateCheckbox} 0 76u 100% 10u "$LblGemmaSmall"
-  Pop $CbGemmaSmall
-  ${NSD_SetState} $CbGemmaSmall $StGemmaSmall
-  ${NSD_CreateCheckbox} 0 87u 100% 10u "$LblGemmaBig"
-  Pop $CbGemmaBig
-  ${NSD_SetState} $CbGemmaBig $StGemmaBig
-  ${NSD_CreateCheckbox} 0 100u 100% 10u "$LblOllama"
-  Pop $CbOllama
-  ${NSD_SetState} $CbOllama $StOllama
-  ${If} $OllamaFound == 1
-    EnableWindow $CbOllama 0
-  ${EndIf}
-  ${NSD_CreateLabel} 0 114u 100% 26u "$ApiNote"
-  Pop $0
-  nsDialogs::Show
-FunctionEnd
-
-Function ModelsPageLeave
-  ${NSD_GetState} $CbWhisperBase $StWhisperBase
-  ${NSD_GetState} $CbWhisperSmall $StWhisperSmall
-  ${NSD_GetState} $CbClef $StClef
-  ${NSD_GetState} $CbGemmaSmall $StGemmaSmall
-  ${NSD_GetState} $CbGemmaBig $StGemmaBig
-  ${NSD_GetState} $CbOllama $StOllama
-FunctionEnd
-  Page custom ModelsPageCreate ModelsPageLeave
+  ; The template has already defined the install page's PRE callback (instFilesPre): park it, give this
+  ; page its own (skip on updates), then restore it for the install page.
+  !ifdef MUI_PAGE_CUSTOMFUNCTION_PRE
+    !undef MUI_PAGE_CUSTOMFUNCTION_PRE
+    !define FILOW_RESTORE_INSTFILES_PRE
+  !endif
+  Function FilowComponentsPre
+    ${If} ${isUpdated}
+      Abort
+    ${EndIf}
+  FunctionEnd
+  !define MUI_PAGE_CUSTOMFUNCTION_PRE FilowComponentsPre
+  !define MUI_PAGE_HEADER_TEXT "$ModelsTitle"
+  !define MUI_PAGE_HEADER_SUBTEXT "$ModelsSub"
+  !define MUI_COMPONENTSPAGE_TEXT_TOP "$HwLine$\r$\n$ModelsIntro"
+  !define MUI_COMPONENTSPAGE_NODESC
+  !insertmacro MUI_PAGE_COMPONENTS
+  !ifdef FILOW_RESTORE_INSTFILES_PRE
+    !define MUI_PAGE_CUSTOMFUNCTION_PRE instFilesPre
+  !endif
 !macroend
 
 ; The app reads this file once at first start, installs Ollama if asked, downloads the chosen models and deletes it.
 !macro customInstall
+  !insertmacro FilowReadSections
   CreateDirectory "$APPDATA\@filow\desktop"
   StrCpy $1 ""
   ${If} $StWhisperBase == ${BST_CHECKED}
