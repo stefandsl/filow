@@ -54,6 +54,9 @@ describe("claim guard: true points pass", () => {
     ok("Keep all customer data on our own servers", "All customer data stays on our own servers, nothing goes to a third party cloud.");
     ok("Non usiamo il cloud: i dati restano in azienda", "Non usiamo nessun servizio cloud esterno: tutti i dati restano nei nostri server in azienda.");
     ok("We cut the onboarding time", "Not only did we cut the onboarding time, we halved it.");
+    // demo-it, 39 s: "senza niente" is "without anything", not a denial (a guard false positive in the first run)
+    ok("Senza script si saltano punti importanti", "Il contrario però è peggio: senza niente davanti si saltano i punti importanti.");
+    ok("Without a script you skip key points", "Without any notes at all you skip key points.");
   });
 
   it("years are not compared (a comparison year is not a wrong year)", () => {

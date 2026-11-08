@@ -34,6 +34,9 @@ function negates(toks: Token[], i: number): boolean {
   const t = toks[i].norm;
   if (!NEGATIONS.has(t)) return false;
   const next = toks[i + 1]?.norm ?? "";
+  // "senza niente", "senza nessun aiuto", "without any": the preposition already says "without"
+  const prev = toks[i - 1]?.norm ?? "";
+  if (prev === "senza" || prev === "without") return false;
   if ((t === "non" && (next === "solo" || next === "soltanto")) || (t === "not" && (next === "only" || next === "just"))) return false;
   if ((t === "no" || t === "nessun") && (next === "doubt" || next === "dubbio")) return false;
   return true;
