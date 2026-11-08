@@ -137,3 +137,58 @@ reply to an old script could mark a point of the newly loaded one.
 reported as `late` (new field) and no longer inflate recall. `delaySec` still includes late flips, since
 a late flip is the delay this harness measures. Numbers in the tables above were computed with late
 flips counted as correct and are not directly comparable with new runs.
+
+## P1 baseline (2026-11-08): trap corpora, local Clef, engine before P1
+
+Two new SYNTHETIC trap corpora (docs/PRODUCTION-PLAN.md, P1 step 1), written by hand in the existing
+format. `transcript.json` segments may now carry only `partial` (a streaming STT hypothesis that the
+next committed segment replaces), which the replay feeds as a partial; committed segments clear it.
+
+- `traps-it` (12 points, 5 labelled): contradiction ("aumentati del trenta per cento" against "calati
+  del 30%", corrected 6 s later), negation ("non abbiamo tagliato"), wrong number (21% against 12%),
+  wrong unit (two days against 2 hours), announcement only, partial STT revision ("Apriremo una sede a
+  Milano" partial, "Non apriremo" committed), out-of-order points, a true point with a spelled-out
+  number, a negated point said with a negation.
+- `traps-en` (11 points, 4 labelled): contradiction ("rose thirty percent" against "fell 30%"),
+  negation ("did not cut"), wrong number (fourteen against 4%), wrong unit (four days against 4
+  hours), announcement only, two partial revisions ("will raise" to "will not raise", "fifty" to
+  "fifteen"), out-of-order points, true points with spelled-out numbers and an unrelated "nothing".
+
+Machine: Intel Core Ultra 7 155H, 32 GB, RTX 3070 8 GB, Ollama 0.40.13, `clef-flash` (Q8, 9.1B; 15 GB
+resident, 64% CPU / 36% GPU). Engine defaults (window 900, confirm 2, sure 0.85, re-ask on, timeout
+2500 ms, max 4 questions). Clef answers the same request with the same probability, and the replay
+clock is the transcript's, so a run is reproducible; one run per variant.
+
+The runner now warms Clef before replaying: a cold load takes about 16 s, and calls aborted at the
+2.5 s timeout never let it finish (a first probe without warm-up timed out on all 59 calls). The same
+cause broke the app's warm-up: `warmClefLocal` posted to `/api/generate`, which Ollama refuses for
+Clef ("does not support generate"); it now loads the model with a one-question `/v1/systemone` call
+and `keep_alive: -1`.
+
+Run: `GAUNTLET=1 GAUNTLET_PROVIDERS=clef-local GAUNTLET_VARIANT=baseline [GAUNTLET_GATE=1] npx vitest run apps/web/lib/gauntlet`
+
+| corpus | variant | calls | p50 | p95 | correct | late | false | miss | precision | recall |
+|---|---|---|---|---|---|---|---|---|---|---|
+| demo-it | direct | 15 | 909 ms | 936 ms | 7 | 1 | 0 | 1 | 0.875 | 0.778 |
+| journey-en | direct | 10 | 881 ms | 917 ms | 1 | 1 | 0 | 2 | 0.5 | 0.25 |
+| journey-it | direct | 9 | 862 ms | 960 ms | 2 | 1 | 0 | 1 | 0.667 | 0.5 |
+| traps-en | direct | 17 | 860 ms | 988 ms | 4 | 0 | **1** | 0 | 0.8 | 1 |
+| traps-it | direct | 16 | 887 ms | 2441 ms | 5 | 0 | 0 | 0 | 1 | 1 |
+| **all 5** | **direct** | 67 | | | **19 / 26** | 3 | **1** | 4 | | **0.731** |
+| demo-it | gate | 14 (2 skipped) | 756 ms | 983 ms | 7 | 1 | 0 | 1 | 0.875 | 0.778 |
+| journey-en | gate | 10 (1 skipped) | 748 ms | 822 ms | 1 | 1 | 0 | 2 | 0.5 | 0.25 |
+| journey-it | gate | 9 (0 skipped) | 698 ms | 781 ms | 2 | 1 | 0 | 1 | 0.667 | 0.5 |
+| traps-en | gate | 17 (2 skipped) | 827 ms | 1015 ms | 2 | 2 | 0 | 0 | 0.5 | 0.5 |
+| traps-it | gate | 17 (1 skipped) | 874 ms | 959 ms | 4 | 1 | 0 | 0 | 0.8 | 0.8 |
+| **all 5** | **gate** | 67 (6 skipped) | | | **16 / 26** | 6 | 0 | 4 | | **0.615** |
+
+What this says:
+- Local Clef already respects the semantic traps: contradiction, negation, wrong number, wrong unit
+  and the announcement stay open (confidence 0.01 to 0.3).
+- The one false completion is the partial revision: at 68 s the partial "We ship the mobile app to
+  fifty pilot" is in the window and Clef answers 0.88 for "Ship the mobile app to 50 pilot customers";
+  the committed text 4 s later says "fifteen". Partial text can flip a point today (step 4).
+- p95 stays under the 2.5 s timeout once Clef is warm (one 2.4 s outlier).
+- With the gate, three true points of the trap corpora flip a whole segment late (s1b0, s1b3 in
+  traps-en, s2b2 in traps-it): the gate's candidate order changes which points are asked in the
+  call where the evidence appears.

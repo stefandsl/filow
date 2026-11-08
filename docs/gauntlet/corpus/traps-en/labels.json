@@ -1,0 +1,10 @@
+{
+  "note": "Ground truth for traps-en. s0b0 contradiction: 'rose thirty percent' against 'fell 30%', never corrected. s0b1 negation: 'did not cut'. s0b2 wrong number: fourteen against 4%. s0b3 true point with a spelled-out number and a second, older number in the same sentence. s1b3 is said before s1b0 (out of order). s1b1 wrong unit: four days against 4 hours. s1b2 announcement only. s2b0 partial STT revision: partial 'We will raise prices', committed 'We will not raise prices'. s2b1 partial STT revision of a number: partial 'fifty', committed 'fifteen'. s2b2 true point whose sentence contains an unrelated 'nothing' (the guard must not block it).",
+  "labels": [
+    { "pointId": "s0b3", "startedAtSec": 26 },
+    { "pointId": "s1b3", "startedAtSec": 32 },
+    { "pointId": "s1b0", "startedAtSec": 38 },
+    { "pointId": "s2b2", "startedAtSec": 56 }
+  ],
+  "neverStarted": ["s0b0", "s0b1", "s0b2", "s1b1", "s1b2", "s2b0", "s2b1"]
+}

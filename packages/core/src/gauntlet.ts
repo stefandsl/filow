@@ -7,8 +7,12 @@ import { Engine, type EngineOptions } from "./engine";
 import { parseScript } from "./script";
 import type { DecideRequest, DecideResponse } from "./api";
 
-/** One committed transcript segment at `sec` seconds from the start of the talk. */
-export type Segment = { sec: number; committed: string };
+/**
+ * One transcript event at `sec` seconds from the start of the talk: committed text (final, as the STT
+ * sends it at a sentence end) or, with only `partial`, a streaming hypothesis that the next committed
+ * segment replaces and may revise (e.g. "we will raise" becomes "we will not raise").
+ */
+export type Segment = { sec: number; committed?: string; partial?: string };
 /** Ground truth: when the speaker really started each point. */
 export type Label = { pointId: string; startedAtSec: number };
 
@@ -121,7 +125,8 @@ export async function replay(corpus: Corpus, opts: ReplayOptions): Promise<Repla
       for (let k = target + 1; k < sectionStart.length; k++) if (sectionStart[k] <= nowSec) target = k;
       if (target !== engine.getState().sectionIdx) engine.dispatch({ type: "goToSection", idx: target });
     }
-    engine.feed({ committed: seg.committed.endsWith(" ") ? seg.committed : `${seg.committed} ` });
+    if (seg.committed !== undefined) engine.feed({ committed: seg.committed.endsWith(" ") ? seg.committed : `${seg.committed} `, partial: "" });
+    else if (seg.partial !== undefined) engine.feed({ partial: seg.partial });
     await engine.tick();
     // The app keeps ticking between segments; a second tick 2 s later (past the pacing gap of a slow
     // model) lets the re-ask-on-pending rule act. Flips it causes are stamped at that later time.

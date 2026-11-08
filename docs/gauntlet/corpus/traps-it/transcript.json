@@ -1,0 +1,20 @@
+{
+  "note": "SYNTHETIC trap corpus (P1, docs/PRODUCTION-PLAN.md), written by hand. Segments with only `partial` are streaming STT hypotheses that are later revised by the committed text that follows. Traps per point are listed in labels.json.",
+  "segments": [
+    { "sec": 2, "committed": "Buonasera a tutti, vi presento i numeri dell'anno." },
+    { "sec": 8, "committed": "Partiamo dai costi: nel 2025 i costi operativi sono aumentati del trenta per cento." },
+    { "sec": 14, "committed": "Anzi, scusate, ho sbagliato: i costi operativi sono calati del trenta per cento rispetto al 2024." },
+    { "sec": 20, "committed": "Sui tempi di consegna invece no: non abbiamo tagliato i tempi di consegna, sono rimasti quelli dell'anno scorso." },
+    { "sec": 26, "committed": "Il fatturato è cresciuto del ventuno per cento, trainato dall'estero." },
+    { "sec": 32, "committed": "Passiamo ai clienti. Oggi abbiamo quattrocentocinquanta clienti attivi in tutta Italia." },
+    { "sec": 38, "committed": "Il tempo medio di risposta al cliente è di due giorni lavorativi." },
+    { "sec": 44, "committed": "Tra poco vi parlerò anche del nuovo portale clienti, ma prima i prossimi passi." },
+    { "sec": 48, "committed": "Per i prossimi passi: entro giugno assumeremo due tecnici di supporto." },
+    { "sec": 52, "partial": "Apriremo una sede" },
+    { "sec": 53, "partial": "Apriremo una sede a Milano" },
+    { "sec": 56, "committed": "Non apriremo una sede a Milano quest'anno, restiamo concentrati su Bassano." },
+    { "sec": 62, "committed": "In autunno lanceremo l'app mobile per i clienti, già in prova con dieci aziende." },
+    { "sec": 68, "committed": "Per finire, non usiamo nessun servizio cloud esterno: tutti i dati restano nei nostri server in azienda." },
+    { "sec": 74, "committed": "Grazie a tutti, ci sono domande?" }
+  ]
+}

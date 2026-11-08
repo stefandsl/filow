@@ -1,0 +1,11 @@
+{
+  "note": "Ground truth for traps-it. s0b0 contradiction: 'aumentati del trenta per cento' at 8 s against a point that says they fell; the speaker corrects it at 14 s (a flip before 9 s is a false start). s0b1 negation: 'non abbiamo tagliato'. s0b2 wrong number: 21% against 12%. s1b0 is a true point with a spelled-out number (the guard must not block it). s1b1 wrong unit: two days against 2 hours. s1b2 announcement only. s2b0 partial STT revision: the partials say 'Apriremo una sede a Milano', the committed text says 'Non apriremo'. s2b2 is said before s2b1 (out of order). s2b3 is a negated point said with a negation (must flip).",
+  "labels": [
+    { "pointId": "s0b0", "startedAtSec": 14 },
+    { "pointId": "s1b0", "startedAtSec": 32 },
+    { "pointId": "s2b2", "startedAtSec": 48 },
+    { "pointId": "s2b1", "startedAtSec": 62 },
+    { "pointId": "s2b3", "startedAtSec": 68 }
+  ],
+  "neverStarted": ["s0b1", "s0b2", "s1b1", "s1b2", "s2b0"]
+}

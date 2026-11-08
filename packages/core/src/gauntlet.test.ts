@@ -255,3 +255,24 @@ describe("general mention against the engine's confirmation rule", () => {
     });
   }
 });
+
+describe("streaming partials in the replay", () => {
+  it("feeds partial-only segments as STT hypotheses, and committed text replaces them", async () => {
+    const seen: string[] = [];
+    const corpus: Corpus = {
+      name: "partials",
+      language: "en",
+      script: "# A\n- who we are\n",
+      transcript: [
+        { sec: 2, partial: "who we" },
+        { sec: 4, committed: "who we are, a small team." },
+      ],
+      labels: [{ pointId: "s0b0", startedAtSec: 4 }],
+    };
+    const oracle = oracleDecide({ s0b0: "who we are" });
+    const r = await replay(corpus, { decide: (req, signal) => (seen.push(req.transcript), oracle(req, signal)) });
+    expect(seen[0]).toBe("who we");
+    expect(seen.at(-1)).toBe("who we are, a small team.");
+    expect(r.points[0].outcome).toBe("correct");
+  });
+});

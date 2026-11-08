@@ -1,0 +1,214 @@
+{
+  "provider": "clef-local",
+  "variant": "baseline-gate",
+  "engine": {
+    "timeoutMs": 2500
+  },
+  "gate": {
+    "calls": 9,
+    "skipped": 0,
+    "candidates": 10,
+    "embedLoadMs": 0
+  },
+  "machine": {
+    "cpu": "13th Gen Intel(R) Core(TM) i9-13900KF",
+    "ramGb": 128,
+    "platform": "win32"
+  },
+  "at": "2026-11-08T20:54:17.096Z",
+  "corpus": "journey-it",
+  "late": 1,
+  "calls": 9,
+  "latencyMs": {
+    "p50": 698,
+    "p95": 781,
+    "max": 781,
+    "avg": 720
+  },
+  "timeouts": 0,
+  "points": [
+    {
+      "pointId": "s0b0",
+      "trail": [
+        {
+          "sec": 2,
+          "confidence": 0.16,
+          "started": false
+        },
+        {
+          "sec": 6,
+          "confidence": 0.45,
+          "started": false
+        },
+        {
+          "sec": 10,
+          "confidence": 0.49,
+          "started": false
+        },
+        {
+          "sec": 18,
+          "confidence": 0.77,
+          "started": true
+        },
+        {
+          "sec": 20,
+          "confidence": 0.87,
+          "started": true
+        }
+      ],
+      "labelSec": 6,
+      "flippedSec": 20,
+      "outcome": "late",
+      "delaySec": 14
+    },
+    {
+      "pointId": "s0b1",
+      "trail": [
+        {
+          "sec": 2,
+          "confidence": 0.16,
+          "started": false
+        },
+        {
+          "sec": 6,
+          "confidence": 0.17,
+          "started": false
+        },
+        {
+          "sec": 10,
+          "confidence": 0.17,
+          "started": false
+        },
+        {
+          "sec": 18,
+          "confidence": 0.94,
+          "started": true
+        }
+      ],
+      "labelSec": 18,
+      "flippedSec": 18,
+      "outcome": "correct",
+      "delaySec": 0
+    },
+    {
+      "pointId": "s0b2",
+      "trail": [
+        {
+          "sec": 2,
+          "confidence": 0.05,
+          "started": false
+        },
+        {
+          "sec": 6,
+          "confidence": 0.15,
+          "started": false
+        },
+        {
+          "sec": 10,
+          "confidence": 0.17,
+          "started": false
+        },
+        {
+          "sec": 18,
+          "confidence": 0.16,
+          "started": false
+        },
+        {
+          "sec": 20,
+          "confidence": 0.16,
+          "started": false
+        },
+        {
+          "sec": 26,
+          "confidence": 0.87,
+          "started": true
+        }
+      ],
+      "labelSec": 26,
+      "flippedSec": 26,
+      "outcome": "correct",
+      "delaySec": 0
+    },
+    {
+      "pointId": "s1b0",
+      "trail": [
+        {
+          "sec": 34,
+          "confidence": 0.19,
+          "started": false
+        },
+        {
+          "sec": 42,
+          "confidence": 0.45,
+          "started": false
+        },
+        {
+          "sec": 50,
+          "confidence": 0.27,
+          "started": false
+        }
+      ],
+      "labelSec": 34,
+      "flippedSec": null,
+      "outcome": "miss",
+      "delaySec": null
+    },
+    {
+      "pointId": "s1b1",
+      "trail": [
+        {
+          "sec": 34,
+          "confidence": 0.11,
+          "started": false
+        },
+        {
+          "sec": 42,
+          "confidence": 0.14,
+          "started": false
+        },
+        {
+          "sec": 50,
+          "confidence": 0.18,
+          "started": false
+        }
+      ],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s1b2",
+      "trail": [
+        {
+          "sec": 34,
+          "confidence": 0.08,
+          "started": false
+        },
+        {
+          "sec": 42,
+          "confidence": 0.11,
+          "started": false
+        },
+        {
+          "sec": 50,
+          "confidence": 0.13,
+          "started": false
+        }
+      ],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    }
+  ],
+  "falseStarts": 0,
+  "misses": 1,
+  "correct": 2,
+  "delaySec": {
+    "p50": 0,
+    "p95": 14
+  },
+  "precision": 0.667,
+  "recall": 0.5
+}

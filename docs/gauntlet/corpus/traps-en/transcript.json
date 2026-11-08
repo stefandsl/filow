@@ -1,0 +1,21 @@
+{
+  "note": "SYNTHETIC trap corpus (P1, docs/PRODUCTION-PLAN.md), written by hand. Segments with only `partial` are streaming STT hypotheses that are later revised by the committed text that follows. Traps per point are listed in labels.json.",
+  "segments": [
+    { "sec": 2, "committed": "Good afternoon, let's go through the quarter." },
+    { "sec": 8, "committed": "Support costs rose thirty percent this quarter, mostly because of overtime." },
+    { "sec": 14, "committed": "We did not cut the onboarding time; it is still two weeks for a new client." },
+    { "sec": 20, "committed": "Churn dropped to fourteen percent, which is not where we want it." },
+    { "sec": 26, "committed": "Our net promoter score is now sixty-two, up from fifty-five last quarter." },
+    { "sec": 32, "committed": "On the team side, good news first: the London office opens in May." },
+    { "sec": 38, "committed": "We hired three engineers in July, all of them in support." },
+    { "sec": 44, "committed": "Average response time is four days, and that is our biggest problem." },
+    { "sec": 50, "committed": "Later I will also cover the new pricing model, but first the next steps." },
+    { "sec": 56, "committed": "Next steps. All customer data stays on our own servers, nothing goes to a third party cloud." },
+    { "sec": 61, "partial": "We will raise prices in January" },
+    { "sec": 64, "committed": "We will not raise prices in January, we hold them until spring." },
+    { "sec": 68, "partial": "We ship the mobile app to fifty pilot" },
+    { "sec": 69, "partial": "We ship the mobile app to fifty pilot customers" },
+    { "sec": 72, "committed": "We ship the mobile app to fifteen pilot customers first, then to everyone." },
+    { "sec": 78, "committed": "That's all from me, thank you." }
+  ]
+}

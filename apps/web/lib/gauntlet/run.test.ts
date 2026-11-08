@@ -14,7 +14,7 @@ import os from "node:os";
 import { DEFAULT_GATE, embedPoints, gatedDecide, parseScript, replay, type Corpus, type GateThresholds, type ReplayResult } from "@filow/core";
 import { loadEmbedder } from "@/lib/gate/embedder";
 import { decideOpenRouter } from "@/lib/decide/openrouter";
-import { decideClefLocal } from "@/lib/decide/clef";
+import { decideClefLocal, warmClefLocal } from "@/lib/decide/clef";
 
 const ROOT = path.resolve(__dirname, "../../../..");
 const CORPUS_DIR = path.join(ROOT, "docs", "gauntlet", "corpus");
@@ -71,6 +71,11 @@ describe.skipIf(!on)("gauntlet (real providers)", () => {
     fs.mkdirSync(RESULTS_DIR, { recursive: true });
     const lines: string[] = [`env: ${envFile ?? "shell only"} · model ${process.env.OPENROUTER_DECISION_MODEL ?? "default"} / ${process.env.CLEF_MODEL ?? "clef-flash"} · ${os.cpus()[0]?.model} · ${Math.round(os.totalmem() / 1024 ** 3)} GB`];
     for (const provider of wanted) {
+      if (provider === "clef-local") {
+        // A cold Clef load takes ~16 s; calls aborted at the timeout never let it finish, so warm it first.
+        const w = await warmClefLocal();
+        lines.push(`clef-local warm-up: ${w.ok ? "ok" : `failed (${w.error})`} in ${w.ms} ms`);
+      }
       for (const corpus of corpora) {
         const engine = {
           timeoutMs: Number(process.env.GAUNTLET_TIMEOUT_MS || 2500),
