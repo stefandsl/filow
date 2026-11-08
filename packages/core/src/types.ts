@@ -27,6 +27,11 @@ export type PointState = {
   /** 0..1, last reported by the decision model */
   confidence: number;
   startedAt?: number;
+  /**
+   * The speech in progress (partial STT text, not yet committed) seems to be about this point. A hint
+   * for the UI only: partial text never flips a point. Cleared by the model's next answer about it.
+   */
+  active?: boolean;
 };
 /** @deprecated use PointState */
 export type BulletState = PointState;

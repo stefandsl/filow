@@ -2,6 +2,7 @@
 // Semantics follow ARCHITECTURE.md §5.4–5.5.
 import { compare, type Operation } from "fast-json-patch";
 import type { DecideRequest, DecideResponse } from "./api";
+import { lexicalScores } from "./gate";
 import { checkClaim, type ClaimCheck } from "./guard";
 import { parseScript } from "./script";
 import { isScreenScript, sectionFromSummary, type ScreenNote } from "./screen";
@@ -52,6 +53,8 @@ export type Subscriber = (state: SessionState, ops: Operation[]) => void;
 
 const TAIL = 160;
 const COMMITTED_CAP = 6000;
+/** lexical score (gate.ts) a partial hypothesis needs to mark a point "active" */
+const PARTIAL_ACTIVE = 0.5;
 
 export class Engine {
   private readonly o: Required<Omit<EngineOptions, "sessionId" | "onGuard">> & Pick<EngineOptions, "onGuard">;
@@ -153,6 +156,27 @@ export class Engine {
     if (e.partial !== undefined) this.partial = e.partial;
     const tail = this.transcript.slice(-TAIL);
     if (tail !== this.state.transcriptTail) this.update((s) => (s.transcriptTail = tail));
+    if (e.partial) this.hintFromPartial();
+  }
+
+  /**
+   * Partial text is a hypothesis the STT may still revise ("we will raise" becomes "we will not
+   * raise"), so it never reaches the decision model and can never flip a point. It may only mark an
+   * open point of this section "active" when its words match; the model's next answer about that
+   * point, made on committed text, replaces the hint.
+   */
+  private hintFromPartial(): void {
+    const s = this.state;
+    const section = s.script.sections[s.sectionIdx];
+    if (!section) return;
+    const open = section.bullets.filter((b) => (s.points[b.id]?.status ?? "waiting") === "waiting" && !s.points[b.id]?.active);
+    if (!open.length) return;
+    const lex = lexicalScores(this.partial, open);
+    const hot = open.filter((b) => (lex.get(b.id) ?? 0) >= PARTIAL_ACTIVE).map((b) => b.id);
+    if (!hot.length) return;
+    this.update((st) => {
+      for (const id of hot) st.points[id] = { ...(st.points[id] ?? { status: "waiting", confidence: 0 }), active: true };
+    });
   }
 
   /**
@@ -332,7 +356,8 @@ export class Engine {
     const now = this.o.now();
     const avg = s.stats.avgMs;
     if (avg > this.o.tickMs && now - this.lastCallAt < Math.round(avg * 1.2)) return;
-    const windowText = this.transcript.slice(-this.o.window);
+    // Decisions, and so flips, are made on committed text only (P1 step 4): see hintFromPartial().
+    const windowText = this.committed.trim().slice(-this.o.window);
     if (!windowText) return;
     const allOpen = section.bullets.filter((b) => (s.points[b.id]?.status ?? "waiting") === "waiting");
     if (!allOpen.length) return;

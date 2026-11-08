@@ -257,7 +257,7 @@ describe("general mention against the engine's confirmation rule", () => {
 });
 
 describe("streaming partials in the replay", () => {
-  it("feeds partial-only segments as STT hypotheses, and committed text replaces them", async () => {
+  it("feeds partial-only segments as STT hypotheses; only committed text is decided on", async () => {
     const seen: string[] = [];
     const corpus: Corpus = {
       name: "partials",
@@ -271,8 +271,51 @@ describe("streaming partials in the replay", () => {
     };
     const oracle = oracleDecide({ s0b0: "who we are" });
     const r = await replay(corpus, { decide: (req, signal) => (seen.push(req.transcript), oracle(req, signal)) });
-    expect(seen[0]).toBe("who we");
-    expect(seen.at(-1)).toBe("who we are, a small team.");
+    // partial text reaches the engine (prompter) but never the decision model (P1 step 4)
+    expect(seen).toEqual(["who we are, a small team."]);
     expect(r.points[0].outcome).toBe("correct");
   });
+});
+
+// A model that falls for every surface match (numbers, negation and partial text included) but, like
+// the real decision models' rubric, not for an explicit announcement. With the guard and committed-only
+// flips, the trap corpora must give no false completion and still find every true point.
+function loadCorpus(name: string): Corpus {
+  const dir = new URL(`../../../docs/gauntlet/corpus/${name}/`, import.meta.url);
+  const transcript = JSON.parse(readFileSync(new URL("transcript.json", dir), "utf8"));
+  const labels = JSON.parse(readFileSync(new URL("labels.json", dir), "utf8"));
+  return { name, language: name.endsWith("-en") ? "en" : "it", script: readFileSync(new URL("script.md", dir), "utf8"), transcript: transcript.segments, labels: labels.labels, neverStarted: labels.neverStarted };
+}
+const ANNOUNCE = /\b(parler[oò]|vi parlo|tra poco|più avanti|later i will|i will also cover|i'll (also )?(talk|cover))\b/i;
+const stems = (t: string) => new Set((t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").match(/\p{L}{4,}/gu) ?? []).map((w) => w.slice(0, 5)));
+const gullibleDecide: EngineOptions["decide"] = async (r) => {
+  const last = r.transcript.split(/(?<=[.!?])\s+/).filter((s) => !ANNOUNCE.test(s)).join(" ");
+  const heard = stems(last);
+  return {
+    decisions: r.bullets.map((b) => {
+      const ws = [...stems(b.text)];
+      const share = ws.filter((w) => heard.has(w)).length / Math.max(1, ws.length);
+      return { id: b.id, started: share >= 0.6, confidence: share >= 0.6 ? 0.95 : 0.1 };
+    }),
+    latencyMs: 1,
+    cost: 0,
+    model: "gullible",
+  };
+};
+
+describe("trap corpora with a gullible model", () => {
+  for (const name of ["traps-it", "traps-en"]) {
+    it(`${name}: no false completion, every true point found`, async () => {
+      const r = await replay(loadCorpus(name), { decide: gullibleDecide });
+      const wrong = r.points.filter((p) => p.outcome === "false-start" || p.outcome === "never-started-flipped").map((p) => p.pointId);
+      expect(wrong).toEqual([]);
+      expect(r.recall).toBe(1);
+      expect(r.guarded).toBeGreaterThan(0);
+    });
+
+    it(`${name}: without the guard the same model is fooled (the corpus really has traps)`, async () => {
+      const r = await replay(loadCorpus(name), { decide: gullibleDecide, engine: { guard: false } });
+      expect(r.falseStarts).toBeGreaterThanOrEqual(3);
+    });
+  }
 });

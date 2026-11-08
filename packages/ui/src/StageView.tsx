@@ -59,7 +59,7 @@ export function StageView({ state, onCommand, banner, stage, compact, pointMark 
             {section.bullets.map((b, i) => {
               const st = points[b.id] ?? { status: "waiting", confidence: 0 };
               const started = st.status === "started";
-              const hot = !started && st.confidence >= 0.3;
+              const hot = !started && (st.confidence >= 0.3 || st.active === true);
               return (
                 <div
                   key={b.id}

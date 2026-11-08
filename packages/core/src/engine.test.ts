@@ -156,33 +156,25 @@ describe("Engine regression audit (Step 2)", () => {
     expect(h.e.getState()).toEqual(loaded);
   });
 
-  it("engine regression 4: revised partials are replaced by committed text without duplication", async () => {
+  it("engine regression 4: revised partials are replaced by committed text without duplication, and never sent", async () => {
     const h = harness();
     h.e.feed({ committed: "Welcome. ", partial: "hello every" });
+    expect(h.e.getState().transcriptTail).toBe("Welcome.  hello every"); // the prompter shows the partial
     await h.pulse();
     await h.reply(0);
     h.e.feed({ partial: "hello everyone" });
     await h.pulse();
-    await h.reply(1);
+    expect(h.calls).toHaveLength(1); // a revised partial is not a reason to ask (P1 step 4)
     // ARCHITECTURE.md:195 delegates to the STT event shape. Backends clear partial
     // explicitly on commit (e.g. packages/stt/src/sherpa.ts and elevenlabs.ts).
     h.e.feed({ committed: "hello everyone ", partial: "" });
     expect(h.e.transcript).toBe("Welcome. hello everyone");
     expect(h.e.getState().transcriptTail).toBe("Welcome. hello everyone");
     await h.pulse();
-    // Joining committed/partial text inserts a space, so committing can change
-    // the exact window's whitespace and legitimately trigger another call.
-    expect(h.calls).toHaveLength(3);
-    await h.reply(2);
+    await h.reply(1);
     h.e.feed({ partial: "what we build today" });
     await h.pulse();
-    expect(h.calls.map((c) => c.request.transcript)).toEqual([
-      "Welcome.  hello every",
-      "Welcome.  hello everyone",
-      "Welcome. hello everyone",
-      "Welcome. hello everyone  what we build today",
-    ]);
-    await h.reply(3);
+    expect(h.calls.map((c) => c.request.transcript)).toEqual(["Welcome.", "Welcome. hello everyone"]);
   });
 
   it("engine regression 5: timeout reports slow without an error and retries with fresher text", async () => {
@@ -196,10 +188,10 @@ describe("Engine regression audit (Step 2)", () => {
     const clearTimeout = vi.spyOn(globalThis, "clearTimeout").mockImplementation(() => {});
     try {
       const h = harness({ timeoutMs: 2500 });
-      h.e.feed({ partial: "hello" });
+      h.e.feed({ committed: "hello " });
       await h.pulse();
       expect(timeout).toHaveBeenCalledWith(expect.any(Function), 2500);
-      h.e.feed({ partial: "hello everyone, what we build today" });
+      h.e.feed({ committed: "everyone, what we build today " });
       h.advance(2500);
       expire!();
       await settle();
@@ -629,5 +621,64 @@ describe("Engine claim guard (P1 step 2)", () => {
     await e.tick();
     expect(e.getState().points.s0b0.status).toBe("started");
     expect(guarded).toEqual([]);
+  });
+});
+
+describe("Engine: flips only from committed text (P1 step 4)", () => {
+  const PRICES = parseScript(`# Next steps
+- We will raise prices in January
+- Ship the mobile app to 50 pilot customers
+`);
+  function sure() {
+    const calls: DecideRequest[] = [];
+    const e = new Engine({
+      decide: async (r) => {
+        calls.push(r);
+        return { decisions: r.bullets.map((b) => ({ id: b.id, started: true, confidence: 0.95 })), latencyMs: 1, cost: 0, model: "sure" };
+      },
+      now: () => 1000,
+      setInterval: () => 0,
+      clearInterval: () => {},
+    });
+    e.loadScript(PRICES);
+    return { e, calls };
+  }
+
+  it("the model is never asked about partial text", async () => {
+    const { e, calls } = sure();
+    e.feed({ partial: "We ship the mobile app to fifty pilot customers" });
+    await e.tick();
+    expect(calls).toEqual([]);
+    e.feed({ committed: "Next steps. ", partial: "We ship the mobile app to fifty pilot customers" });
+    await e.tick();
+    expect(calls.map((c) => c.transcript)).toEqual(["Next steps."]);
+    expect(e.getState().transcriptTail).toContain("fifty pilot customers"); // the prompter still shows it
+  });
+
+  it("a partial hypothesis can only make a point active; the committed revision decides", async () => {
+    const { e } = sure();
+    e.feed({ partial: "We ship the mobile app to fifty pilot customers" });
+    await e.tick();
+    expect(e.getState().points.s0b1).toMatchObject({ status: "waiting", active: true });
+    e.feed({ committed: "We ship the mobile app to fifteen pilot customers first. ", partial: "" });
+    await e.tick();
+    expect(e.getState().points.s0b1.status).toBe("waiting"); // guarded: fifteen is not 50
+  });
+
+  it("a partial that drops a negation does not flip; the model's answer clears the active hint", async () => {
+    const { e } = sure();
+    e.feed({ partial: "We will raise prices in January" });
+    await e.tick();
+    expect(e.getState().points.s0b0.active).toBe(true);
+    e.feed({ committed: "We will not raise prices in January, we hold them. ", partial: "" });
+    await e.tick();
+    expect(e.getState().points.s0b0.status).toBe("waiting");
+    expect(e.getState().points.s0b0.active).toBeUndefined();
+  });
+
+  it("partial text that matches nothing marks nothing", async () => {
+    const { e } = sure();
+    e.feed({ partial: "good afternoon everyone" });
+    expect(e.getState().points).toEqual({});
   });
 });
