@@ -5,6 +5,9 @@ export type Decision = {
   id: string;
   started: boolean;
   confidence: number;
+  /** pre-filter scores of the transcript tail for this point, when the gate ran (gate.ts) */
+  gate?: number;
+  lexical?: number;
 };
 
 export type DecideRequest = {

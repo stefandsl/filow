@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { embedPoints, gate, gateCacheKey, gatedDecide, prepareWindowText, scorePoints, type Embedder } from "./gate";
+import { DEFAULT_GATE, embedPoints, gate, gateCacheKey, gatedDecide, lexicalScores, prepareWindowText, scorePoints, type Embedder } from "./gate";
 import type { DecideRequest } from "./api";
 
 // A toy embedder: bag of lowercase words (4+ letters, so "the"/"was" do not count) hashed into 256 dims.
@@ -60,5 +60,66 @@ describe("embedding gate", () => {
     expect(hit.decisions.find((d) => d.id === "b")?.started).toBe(true);
     expect(hit.decisions.find((d) => d.id === "a")?.started).toBe(false);
     expect(hit.model).toContain("gate 1/3");
+  });
+});
+
+describe("lexical stage (P1 step 3)", () => {
+  const points = [
+    { id: "s1b0", text: "Abbiamo 450 clienti attivi" },
+    { id: "s1b1", text: "Il tempo medio di risposta è di 2 ore" },
+    { id: "s1b2", text: "Il nuovo portale clienti" },
+  ];
+
+  it("scores names, terms and spelled-out numbers the speech shares with a point, 0..1", () => {
+    const lex = lexicalScores("Oggi abbiamo quattrocentocinquanta clienti attivi in tutta Italia.", points);
+    expect(lex.get("s1b0")).toBeGreaterThan(0.9);
+    expect(lex.get("s1b1")).toBe(0);
+    // "clienti" is in two points: alone it is worth less than a word only one point has
+    expect(lex.get("s1b2")!).toBeLessThan(0.5);
+    expect(lexicalScores("parliamo del nuovo portale", points).get("s1b2")).toBeGreaterThan(0.6);
+  });
+
+  it("matches inflected forms fuzzily", () => {
+    const lex = lexicalScores("abbiamo tagliato di molto i tempi della consegna", [{ id: "a", text: "Tagliati i tempi di consegna" }]);
+    expect(lex.get("a")).toBeGreaterThan(0.9);
+  });
+
+  // An embedder that finds nothing similar: only the lexical stage can make a candidate.
+  const blind: Embedder = async (texts) => texts.map((t, i) => {
+    const v = new Float32Array(8);
+    v[t.startsWith("§") ? 0 : 1 + (i % 7)] = 1;
+    return v;
+  });
+
+  it("a point the embedding misses but the words match is still asked; with neither, the model is skipped", async () => {
+    const pv = { key: "k", ids: points.map((p) => p.id), vectors: points.map(() => (() => { const v = new Float32Array(8); v[0] = 1; return v; })()) };
+    const calls: DecideRequest[] = [];
+    const seen: Array<{ skipped: boolean; lexicalOnly: number }> = [];
+    const decide = gatedDecide(
+      async (r) => {
+        calls.push(r);
+        return { decisions: r.bullets.map((b) => ({ id: b.id, started: true, confidence: 0.9 })), latencyMs: 5, cost: 0, model: "m" };
+      },
+      blind,
+      () => pv,
+      { ...DEFAULT_GATE, low: 0.3, lexicalLow: 0.5 },
+      (o) => seen.push({ skipped: o.skipped, lexicalOnly: o.lexicalOnly }),
+    );
+    const hit = await decide({ transcript: "Oggi abbiamo quattrocentocinquanta clienti attivi.", bullets: points, sectionTitle: "Clienti" });
+    expect(calls.map((c) => c.bullets.map((b) => b.id))).toEqual([["s1b0"]]);
+    expect(seen[0]).toEqual({ skipped: false, lexicalOnly: 1 });
+    const d = hit.decisions.find((x) => x.id === "s1b0")!;
+    expect(d.lexical).toBeGreaterThan(0.9);
+    expect(d.gate).toBeTypeOf("number");
+
+    await decide({ transcript: "Il tempo oggi è bello.", bullets: points.slice(2), sectionTitle: "Clienti" });
+    expect(calls).toHaveLength(1);
+    expect(seen[1].skipped).toBe(true);
+  });
+
+  it("with lexicalLow off, the gate behaves as before (embedding only)", () => {
+    const scores = [{ id: "s1b0", similarity: 0.1, lexical: 1 }];
+    expect(gate(scores, points, { ...DEFAULT_GATE, lexicalLow: Infinity }).skipped).toBe(true);
+    expect(gate(scores, points, { ...DEFAULT_GATE, lexicalLow: 0.5 }).candidates.map((b) => b.id)).toEqual(["s1b0"]);
   });
 });

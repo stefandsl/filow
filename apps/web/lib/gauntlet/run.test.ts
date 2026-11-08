@@ -2,7 +2,8 @@
 //   GAUNTLET=1 GAUNTLET_PROVIDERS=openrouter,clef-local npx vitest run apps/web/lib/gauntlet
 // GAUNTLET_GATE=1 puts the embedding gate (packages/core/src/gate.ts) in front of every provider:
 // the model is asked only about the points whose similarity to the transcript tail is >= GAUNTLET_GATE_LOW
-// (default 0.3), and not at all when no point passes. Variant name becomes "gate".
+// (default 0.3) or whose lexical score (BM25-weighted fuzzy word match) is >= GAUNTLET_LEX_LOW (default
+// 0.5, "off" disables the lexical stage), and not at all when no point passes. Variant name becomes "gate".
 // Reads every corpus under docs/gauntlet/corpus/<name>/ (script.md, transcript.json, labels.json),
 // replays it through the Engine with each provider, prints a table and writes
 // docs/gauntlet/results/<provider>-<corpus>.json. Keys come from the desktop profile's .env
@@ -87,23 +88,25 @@ describe.skipIf(!on)("gauntlet (real providers)", () => {
         };
         let variant = process.env.GAUNTLET_VARIANT || "default";
         let decide = PROVIDERS[provider];
-        const gateStats = { calls: 0, skipped: 0, candidates: 0, embedLoadMs: 0 };
+        const gateStats = { calls: 0, skipped: 0, candidates: 0, lexicalOnly: 0, embedLoadMs: 0 };
         if (process.env.GAUNTLET_GATE === "1") {
           variant = variant === "default" ? "gate" : `${variant}-gate`;
           const { embed, loadMs } = await loadEmbedder();
           gateStats.embedLoadMs = loadMs;
-          const th: GateThresholds = { ...DEFAULT_GATE, low: Number(process.env.GAUNTLET_GATE_LOW || DEFAULT_GATE.low) };
+          const lexEnv = process.env.GAUNTLET_LEX_LOW;
+          const th: GateThresholds = { ...DEFAULT_GATE, low: Number(process.env.GAUNTLET_GATE_LOW || DEFAULT_GATE.low), lexicalLow: lexEnv === "off" ? Infinity : Number(lexEnv || DEFAULT_GATE.lexicalLow) };
           const pv = await embedPoints(embed, parseScript(corpus.script).sections.flatMap((sec) => sec.bullets), corpus.language);
           decide = gatedDecide(PROVIDERS[provider], embed, () => pv, th, (o) => {
             gateStats.calls++;
             if (o.skipped) gateStats.skipped++;
             else gateStats.candidates += o.candidates.length;
+            gateStats.lexicalOnly += o.lexicalOnly;
           });
         }
         const r = await replay(corpus, { decide, engine });
         const out = { provider, variant, engine, gate: process.env.GAUNTLET_GATE === "1" ? gateStats : undefined, machine: { cpu: os.cpus()[0]?.model, ramGb: Math.round(os.totalmem() / 1024 ** 3), platform: process.platform }, at: new Date().toISOString(), ...r };
         fs.writeFileSync(path.join(RESULTS_DIR, `${provider}-${corpus.name}${variant === "default" ? "" : `-${variant}`}.json`), JSON.stringify(out, null, 2));
-        lines.push(line(r, `${provider}${variant === "default" ? "" : `/${variant}`}`) + (process.env.GAUNTLET_GATE === "1" ? `  gate: ${gateStats.skipped}/${gateStats.calls} model calls skipped, ${gateStats.candidates} candidates asked` : ""));
+        lines.push(line(r, `${provider}${variant === "default" ? "" : `/${variant}`}`) + (process.env.GAUNTLET_GATE === "1" ? `  gate: ${gateStats.skipped}/${gateStats.calls} model calls skipped, ${gateStats.candidates} candidates asked (${gateStats.lexicalOnly} by the lexical stage only)` : ""));
       }
     }
     // eslint-disable-next-line no-console
