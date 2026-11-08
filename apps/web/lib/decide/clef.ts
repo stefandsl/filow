@@ -27,18 +27,24 @@ export async function decideClefLocal(body: DecideRequest, signal?: AbortSignal)
 }
 
 /**
- * Keep the local decision model resident and warm: Ollama loads a model on `/api/generate` with no
- * prompt, and `keep_alive: -1` stops it from unloading after the default five minutes. Called at
- * take start (local mode) so the first real decision is not a cold load. Returns the load time.
+ * Keep the local decision model resident and warm. Clef has no "generate" capability (Ollama 0.40
+ * answers 400 to `/api/generate` for it), so the model is loaded with a one-question System One call;
+ * `keep_alive: -1` stops Ollama from unloading it after the default five minutes. Called at take
+ * start (local mode) so the first real decision is not a cold load. Returns the load time.
  */
 export async function warmClefLocal(): Promise<{ ok: boolean; model: string; ms: number; error?: string }> {
   const model = CLEF_LOCAL_MODEL();
   const started = Date.now();
   try {
-    const res = await fetch(`${OLLAMA_URL()}/api/generate`, {
+    const res = await fetch(`${OLLAMA_URL()}/v1/systemone`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, keep_alive: -1 }),
+      body: JSON.stringify({
+        model,
+        keep_alive: -1,
+        state: { transcript_most_recent_last: "warm-up" },
+        questions: { warmup: { type: "noul", instructions: "Is this a warm-up request?" } },
+      }),
       signal: AbortSignal.timeout(120_000),
     });
     if (!res.ok) return { ok: false, model, ms: Date.now() - started, error: `Ollama ${res.status}: ${(await res.text()).slice(0, 200)}` };
