@@ -2,6 +2,7 @@
 // Semantics follow ARCHITECTURE.md §5.4–5.5.
 import { compare, type Operation } from "fast-json-patch";
 import type { DecideRequest, DecideResponse } from "./api";
+import { checkClaim, type ClaimCheck } from "./guard";
 import { parseScript } from "./script";
 import { isScreenScript, sectionFromSummary, type ScreenNote } from "./screen";
 import type { Command, CommandResult, PointState, ScreenSummary, Script, SessionState, SttBackendId } from "./types";
@@ -34,6 +35,13 @@ export type EngineOptions = {
    * (default true). Costs one extra call per pending confirmation; cuts the flip delay by a segment.
    */
   reaskOnPending?: boolean;
+  /**
+   * Claim guard (guard.ts, default true): a confirming answer whose point is contradicted by what was
+   * said (numbers, units, direction, negation) does not count, so a contradiction never flips a point.
+   */
+  guard?: boolean;
+  /** Called for every confirming answer the guard rejected (diagnostics, gauntlet). */
+  onGuard?: (pointId: string, check: ClaimCheck) => void;
   sessionId?: string;
   /** Timer injection for tests. Defaults to the global timers. */
   setInterval?: (fn: () => void, ms: number) => unknown;
@@ -46,7 +54,7 @@ const TAIL = 160;
 const COMMITTED_CAP = 6000;
 
 export class Engine {
-  private readonly o: Required<Omit<EngineOptions, "sessionId">>;
+  private readonly o: Required<Omit<EngineOptions, "sessionId" | "onGuard">> & Pick<EngineOptions, "onGuard">;
   private state: SessionState;
   private committed = "";
   private partial = "";
@@ -78,6 +86,8 @@ export class Engine {
       timeoutMs: opts.timeoutMs ?? 2500,
       maxQuestions: opts.maxQuestions ?? 4,
       reaskOnPending: opts.reaskOnPending ?? true,
+      guard: opts.guard ?? true,
+      onGuard: opts.onGuard,
       setInterval: opts.setInterval ?? ((fn, ms) => globalThis.setInterval(fn, ms)),
       clearInterval: opts.clearInterval ?? ((t) => globalThis.clearInterval(t as ReturnType<typeof setInterval>)),
     };
@@ -359,7 +369,7 @@ export class Engine {
     try {
       const data = await withTimeout(this.o.decide(req, ctl.signal), this.o.timeoutMs, ctl);
       if (epoch !== this.epoch) return; // stale: the script, section, points or take changed meanwhile
-      this.apply(data, open.map((b) => b.id));
+      this.apply(data, req);
     } catch (err) {
       if (epoch !== this.epoch) return; // aborted by invalidate(): not an error, nothing to report
       if (err instanceof TimeoutError) {
@@ -378,8 +388,22 @@ export class Engine {
     }
   }
 
-  private apply(data: DecideResponse, askedIds: string[]): void {
+  private apply(data: DecideResponse, req: DecideRequest): void {
     const now = this.o.now();
+    const asked = new Map(req.bullets.map((b) => [b.id, b]));
+    // The guard runs outside the state update: it reads only the request and the answer.
+    const rejected = new Set<string>();
+    if (this.o.guard) {
+      for (const d of data.decisions) {
+        const b = asked.get(d.id);
+        if (!b || !d.started || d.confidence < this.o.threshold) continue;
+        const check = checkClaim(b.text, req.transcript);
+        if (!check.ok) {
+          rejected.add(d.id);
+          this.o.onGuard?.(d.id, check);
+        }
+      }
+    }
     this.unmentioned = data.unmentioned ?? [];
     this.update((st) => {
       st.engine.error = undefined;
@@ -392,10 +416,10 @@ export class Engine {
       st.stats = { calls, totalMs, avgMs: Math.round(totalMs / calls), costUsd, model: data.model };
 
       for (const d of data.decisions) {
-        if (!askedIds.includes(d.id)) continue;
+        if (!asked.has(d.id)) continue;
         const cur = st.points[d.id] ?? { status: "waiting" as const, confidence: 0 };
         if (cur.status !== "waiting") continue;
-        const confirming = d.started && d.confidence >= this.o.threshold;
+        const confirming = d.started && d.confidence >= this.o.threshold && !rejected.has(d.id);
         this.streak[d.id] = confirming ? (this.streak[d.id] ?? 0) + 1 : 0;
         const flip =
           confirming && (d.confidence >= this.o.sureThreshold || this.streak[d.id] >= this.o.confirmCalls);

@@ -59,6 +59,8 @@ export type ReplayResult = {
   latencyMs: { p50: number; p95: number; max: number; avg: number };
   timeouts: number;
   points: PointResult[];
+  /** confirming answers the claim guard rejected (guard.ts) */
+  guarded: number;
   falseStarts: number;
   misses: number;
   correct: number;
@@ -96,8 +98,13 @@ export async function replay(corpus: Corpus, opts: ReplayOptions): Promise<Repla
       throw err;
     }
   };
+  let guarded = 0;
   const engine = new Engine({
     ...opts.engine,
+    onGuard: (id, check) => {
+      guarded++;
+      opts.engine?.onGuard?.(id, check);
+    },
     decide,
     now: () => Math.round(nowSec * 1000),
     setInterval: () => 0,
@@ -182,6 +189,7 @@ export async function replay(corpus: Corpus, opts: ReplayOptions): Promise<Repla
     latencyMs: { p50: pct(latencies, 50), p95: pct(latencies, 95), max: latencies.length ? Math.max(...latencies) : 0, avg: latencies.length ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0 },
     timeouts,
     points,
+    guarded,
     falseStarts,
     misses,
     correct,

@@ -557,3 +557,77 @@ describe("Engine stats and cost cap", () => {
     expect(versions).toEqual([versions[0], versions[0] + 1]);
   });
 });
+
+describe("Engine claim guard (P1 step 2)", () => {
+  const COSTS = parseScript(`# Results
+- Support costs fell 30% this quarter
+- We cut the onboarding time
+`);
+  // A model that is sure about everything it is asked: only the guard stands between it and a flip.
+  function gullible(extra: Partial<ConstructorParameters<typeof Engine>[0]> = {}) {
+    const guarded: Array<{ id: string; kind?: string }> = [];
+    const e = new Engine({
+      decide: async (r) => ({ decisions: r.bullets.map((b) => ({ id: b.id, started: true, confidence: 0.95 })), latencyMs: 1, cost: 0, model: "gullible" }),
+      now: () => 1000,
+      setInterval: () => 0,
+      clearInterval: () => {},
+      onGuard: (id, check) => guarded.push({ id, kind: check.conflict?.kind }),
+      ...extra,
+    });
+    e.loadScript(COSTS);
+    return { e, guarded };
+  }
+
+  it("a sure answer on a contradicted point never flips it", async () => {
+    const { e, guarded } = gullible();
+    e.feed({ committed: "Support costs rose thirty percent this quarter. We did not cut the onboarding time. " });
+    for (let i = 0; i < 3; i++) {
+      await e.tick();
+      e.feed({ committed: "Let me think. " });
+    }
+    expect(e.getState().points.s0b0.status).toBe("waiting");
+    expect(e.getState().points.s0b1.status).toBe("waiting");
+    expect(guarded).toContainEqual({ id: "s0b0", kind: "direction" });
+    expect(guarded).toContainEqual({ id: "s0b1", kind: "negation" });
+  });
+
+  it("a guarded answer does not count as a confirmation either", async () => {
+    let n = 0;
+    const answers = [0.75, 0.75];
+    const e = new Engine({
+      decide: async (r) => ({ decisions: r.bullets.map((b) => ({ id: b.id, started: true, confidence: answers[Math.min(n, 1)] })), latencyMs: 1, cost: 0, model: "m" }),
+      now: () => 1000,
+      setInterval: () => 0,
+      clearInterval: () => {},
+    });
+    e.loadScript(COSTS);
+    e.feed({ committed: "Support costs rose thirty percent this quarter. " });
+    await e.tick();
+    n++;
+    e.feed({ committed: "Sorry: support costs fell thirty percent this quarter. " });
+    await e.tick();
+    // first answer was guarded (streak 0), second is the first real confirmation: still waiting
+    expect(e.getState().points.s0b0.status).toBe("waiting");
+    e.feed({ committed: "That is a big change. " });
+    await e.tick();
+    expect(e.getState().points.s0b0.status).toBe("started");
+  });
+
+  it("the correction flips the point", async () => {
+    const { e } = gullible();
+    e.feed({ committed: "Support costs rose thirty percent this quarter. " });
+    await e.tick();
+    expect(e.getState().points.s0b0.status).toBe("waiting");
+    e.feed({ committed: "Sorry, I misread: support costs fell thirty percent this quarter. " });
+    await e.tick();
+    expect(e.getState().points.s0b0.status).toBe("started");
+  });
+
+  it("can be turned off for measurements", async () => {
+    const { e, guarded } = gullible({ guard: false });
+    e.feed({ committed: "Support costs rose thirty percent this quarter. " });
+    await e.tick();
+    expect(e.getState().points.s0b0.status).toBe("started");
+    expect(guarded).toEqual([]);
+  });
+});
