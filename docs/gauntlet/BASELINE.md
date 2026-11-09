@@ -246,3 +246,28 @@ answers 0.65 to 0.75 on "Bristol pilot", "Launch date Monday" and the backup poi
 sure threshold and not confirmed twice before the label tolerance), and demo-it s0b2 (by design, see
 the first section) and s1b0 (paraphrase, one segment late). These are threshold and paraphrase
 questions for the decision model, not trap failures.
+
+## P1 after the independent review (2026-11-09): final numbers
+
+An independent Claude review of the branch ran 30 adversarial sentences against the guard and found
+27 wrong verdicts in both directions (contradictions after a topic sentence passed; "1.200 clienti",
+"two thousand five hundred", "dal 20 al 25 per cento", "Don't forget we cut..." were blocked), plus
+an "active" hint that flickered, a decision window that could start mid-word, gate scores fused on
+two scales, a per-call idf recomputation, and a "Why?" button nested inside the row that toggles the
+point. All fixed with the review's cases as tests (`guard.test.ts`, `text.test.ts`,
+`engine.test.ts`, `gate.test.ts`, `PointsList.test.tsx`). The first gauntlet run of the reviewed
+guard blocked two true points (a contrast tail ", non alla tua" read as a negated claim; "dieci
+aziende" compared with "450 clienti"); both fixed and re-run. Checked offline on all five corpora: the
+guard blocks every number, negation and contradiction trap point at the moment its trap sentence is
+said, and no true point. Result files: `clef-local-<corpus>-final*.json`.
+
+| variant | false completions | recall (correct / 26) | late | model calls | gate skipped | p95 (worst corpus) |
+|---|---|---|---|---|---|---|
+| baseline, direct (before P1) | 1 | 19 (0.731) | 3 | 67 | - | 2441 ms |
+| **P1 final, direct (the app's default)** | **0** | **19 (0.731)** | 3 | **62** | - | **781 ms** |
+| P1 final, gate skip-only (the gate's mode for local Clef) | 0 | 19 (0.731) | 3 | 58 | 4 | 1024 ms |
+| P1 final, gate narrowed (other providers) | 0 | 17 (0.654) | 5 | 60 | 4 | 820 ms |
+
+P1 exit, on these numbers: 0 false completions on every corpus (traps included), recall equal to
+the baseline (19 / 26, same points per corpus), local p95 decision latency 781 ms against the 2500 ms
+timeout, no timeouts.
