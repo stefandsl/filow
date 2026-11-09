@@ -379,3 +379,11 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 }
 
 .action-navigation > .transcript-toggle { margin-right: auto; }
+
+/* "Why is this done?" on a done point (P1 step 5): a quiet link in the state column, the evidence below the point. */
+.point-why-btn { align-self: flex-start; padding: 2px 0; font: inherit; font-size: 12px; font-weight: 600; color: var(--muted); background: none; border: 0; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.point-why-btn:hover, .point-why-btn[aria-expanded="true"] { color: var(--text); }
+.point-why-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.prompter .point-row .point-why { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 4px; padding: 12px; font-size: 14px; font-weight: 400; line-height: 1.4; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-badge); cursor: auto; }
+.point-why q { font-style: italic; overflow-wrap: anywhere; }
+.point-why span { color: var(--muted); font-variant-numeric: tabular-nums; }

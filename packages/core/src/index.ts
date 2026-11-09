@@ -10,4 +10,5 @@ export * from "./engine";
 export * from "./gauntlet";
 export * from "./gate";
 export * from "./guard";
+export * from "./evidence";
 export * from "./ui-preferences";

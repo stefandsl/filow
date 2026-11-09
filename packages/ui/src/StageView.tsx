@@ -3,9 +3,9 @@
 import type { ReactNode } from "react";
 import { Icon } from "../../../apps/web/components/icons";
 import type { Command, SessionState } from "@filow/core";
-import { missedPoints } from "@filow/core";
+import { evidenceSummary, missedPoints } from "@filow/core";
 import { OnScreenStrip } from "./OnScreenStrip";
-import { useT } from "./lang";
+import { useLang, useT } from "./lang";
 
 export type StageViewProps = {
   state: SessionState;
@@ -24,6 +24,7 @@ export type StageViewProps = {
 /** The live view: section, points, next strip, missed tray, on-screen strip, remote buttons. Uses the app's CSS classes. */
 export function StageView({ state, onCommand, banner, stage, compact, pointMark = <Icon name="check" />, previewMark = <Icon name="circle" /> }: StageViewProps) {
   const t = useT();
+  const lang = useLang();
   const { script, sectionIdx, points, stats, engine, screen } = state;
   const section = script.sections[sectionIdx];
   const nextSection = script.sections[sectionIdx + 1];
@@ -68,6 +69,7 @@ export function StageView({ state, onCommand, banner, stage, compact, pointMark 
                   role={can ? "button" : undefined}
                   tabIndex={can ? 0 : undefined}
                   aria-pressed={can ? started : undefined}
+                  title={started && st.evidence ? evidenceSummary(st.evidence, lang) : undefined}
                   onKeyDown={can ? (e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
