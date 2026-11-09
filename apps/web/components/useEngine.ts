@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Engine, gatedDecide, type DecideRequest, type DecideResponse, type PointVectors, type SessionState } from "@filow/core";
+import { Engine, gatedDecide, gateThresholdsFor, type DecideRequest, type DecideResponse, type PointVectors, type SessionState } from "@filow/core";
 import { useLang } from "@filow/ui";
 import { engineHeaders } from "./useSession";
 import { getDecisionProvider, getGateMode } from "@/lib/prefs";
@@ -31,8 +31,13 @@ async function decideViaApi(req: DecideRequest, signal?: AbortSignal): Promise<D
 export function useEngine() {
   const points = useRef<PointVectors | null>(null);
   const engine = useMemo(() => {
-    const gated = gatedDecide(decideViaApi, browserEmbed, () => points.current);
-    const decide = (r: DecideRequest, signal?: AbortSignal) => (getGateMode() === "on" && gateAvailable() ? gated(r, signal) : decideViaApi(r, signal));
+    // The gate's mode follows the provider chosen at take start (gateThresholdsFor: local Clef only skips calls).
+    const narrowed = gatedDecide(decideViaApi, browserEmbed, () => points.current, gateThresholdsFor(undefined));
+    const skipOnly = gatedDecide(decideViaApi, browserEmbed, () => points.current, gateThresholdsFor("clef-local"));
+    const decide = (r: DecideRequest, signal?: AbortSignal) => {
+      if (getGateMode() !== "on" || !gateAvailable()) return decideViaApi(r, signal);
+      return (gateThresholdsFor(getDecisionProvider()).narrow === false ? skipOnly : narrowed)(r, signal);
+    };
     return new Engine({ decide });
   }, []);
   const [state, setState] = useState<SessionState>(engine.getState());

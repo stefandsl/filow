@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_GATE, embedPoints, gate, gateCacheKey, gatedDecide, lexicalScores, prepareWindowText, scorePoints, type Embedder } from "./gate";
+import { DEFAULT_GATE, embedPoints, gate, gateCacheKey, gatedDecide, gateThresholdsFor, lexicalScores, prepareWindowText, scorePoints, type Embedder } from "./gate";
 import type { DecideRequest } from "./api";
 
 // A toy embedder: bag of lowercase words (4+ letters, so "the"/"was" do not count) hashed into 256 dims.
@@ -142,5 +142,14 @@ describe("gate modes", () => {
     const out = await decide({ transcript: "let me tell you about the pricing of the product", bullets, sectionTitle: "s" });
     expect(calls[0].bullets.map((b) => b.id)).toEqual(["a", "b", "c"]);
     expect(out.decisions.every((d) => typeof d.gate === "number")).toBe(true);
+  });
+});
+
+describe("gate thresholds per provider", () => {
+  it("local Clef gets the skip-only gate; other providers keep the narrowed gate", () => {
+    expect(gateThresholdsFor("clef-local").narrow).toBe(false);
+    expect(gateThresholdsFor("openrouter").narrow).not.toBe(false);
+    expect(gateThresholdsFor(undefined).narrow).not.toBe(false);
+    expect(gateThresholdsFor("clef-local").lexicalLow).toBe(DEFAULT_GATE.lexicalLow);
   });
 });

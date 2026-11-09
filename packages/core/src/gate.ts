@@ -4,7 +4,7 @@
 // explicit "no match" that answers without calling the decision model at all.
 // Pure: the embedder is injected (transformers.js in a Web Worker in the app, Node in the harness).
 import type { Bullet } from "./types";
-import type { DecideRequest, DecideResponse, Decision } from "./api";
+import type { DecideRequest, DecideResponse, Decision, DecisionProviderId } from "./api";
 import { contentTokens, FUZZY_MIN, quantitiesFromTokens, sameQuantity, similarity, tokenize, type Quantity } from "./text";
 
 export type Embedder = (texts: string[]) => Promise<Float32Array[]>;
@@ -33,6 +33,16 @@ export type GateThresholds = {
   narrow?: boolean;
 };
 export const DEFAULT_GATE: GateThresholds = { low: 0.3, maxCandidates: 4, tailChars: 320, lexicalLow: 0.5 };
+
+/**
+ * The gate for a decision provider. Local Clef answers all its questions in one pass, and asking it
+ * about fewer points changes its answers: on the P1 gauntlet (docs/gauntlet/BASELINE.md) the
+ * narrowed gate cost it 2 of 26 true points, the skip-only gate none. Other providers keep the
+ * narrowed gate measured in Step 3.
+ */
+export function gateThresholdsFor(provider: DecisionProviderId | undefined): GateThresholds {
+  return provider === "clef-local" ? { ...DEFAULT_GATE, narrow: false } : DEFAULT_GATE;
+}
 
 export type PointVectors = { key: string; ids: string[]; vectors: Float32Array[] };
 
