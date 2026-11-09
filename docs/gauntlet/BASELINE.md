@@ -192,3 +192,57 @@ What this says:
 - With the gate, three true points of the trap corpora flip a whole segment late (s1b0, s1b3 in
   traps-en, s2b2 in traps-it): the gate's candidate order changes which points are asked in the
   call where the evidence appears.
+
+## P1 results (2026-11-09): guard, lexical stage, committed-only flips, evidence
+
+Same machine, model and corpora as the P1 baseline above; one run per variant (reproducible, see
+above). Totals over the five corpora (26 labelled true points; 12 trap points in `traps-*` that must
+stay open). "Model calls" excludes the calls the gate answered locally. Result files:
+`docs/gauntlet/results/clef-local-<corpus>-<variant>.json`.
+
+| variant | false completions | recall (correct / 26) | late | model calls | gate skipped | p95 (worst corpus) |
+|---|---|---|---|---|---|---|
+| baseline, direct (before P1) | **1** | 19 (0.731) | 3 | 67 | - | 2441 ms |
+| baseline, gate (before P1) | 0 | 16 (0.615) | 6 | 61 | 6 | 1015 ms |
+| + guard (step 2), direct | 1 | 19 | 3 | 67 | - | 887 ms |
+| + guard, gate with the lexical stage off | 0 | 16 | 6 | 61 | 6 | 1010 ms |
+| + lexical stage (step 3), gate low 0.3 / lexical 0.5 | 0 | 18 (0.692) | 4 | 65 | 4 | 1035 ms |
+| + lexical stage, gate low 0.4 | 0 | 18 | 4 | 60 | 7 | 1033 ms |
+| + lexical stage, gate low 0.5 | 0 | 18 | 4 | 58 | 8 | 989 ms |
+| **+ committed-only flips (step 4) + evidence (step 5), direct = P1 default** | **0** | **19 (0.731)** | 3 | **62** | - | **874 ms** |
+| P1, gate narrowed (low 0.3 / lexical 0.5) | 0 | 17 (0.654) | 5 | 60 | 4 | 909 ms |
+| **P1, gate skip-only (now the gate's mode for local Clef)** | **0** | **19 (0.731)** | 3 | **58** | 4 | 1033 ms |
+| P1, gate skip-only, low 0.4 | 0 | 19 | 3 | 55 | 7 | 1399 ms |
+
+Exit criteria, P1 default (direct, the app's default since the gate is off by default):
+- 0 false completions on both trap corpora and on the three older corpora (baseline: 1).
+- Recall 19 / 26, equal to the baseline; per corpus identical (demo-it 7/9, journey-en 1/4,
+  journey-it 2/4, traps-en 4/4, traps-it 5/5).
+- Local decision latency p95 at most 874 ms per corpus, under the 2500 ms timeout; no timeouts.
+- 5 fewer model calls (67 to 62): partial text no longer triggers calls.
+
+What each step did, measured:
+- Step 2, guard. Local Clef already rejects the semantic traps on its own, so with real Clef the guard
+  never fired in the direct runs and rejected one confirming answer per gate run on traps-en. Its
+  value is as a floor under any model: `packages/core/src/gauntlet.test.ts` replays both trap corpora
+  with a deliberately gullible model (sure about every surface match, numbers and negation included).
+  Without the guard it completes at least 3 trap points per corpus; with the guard and committed-only
+  flips it completes none and still finds every true point. The first guard run blocked one true
+  point (demo-it, "senza niente davanti si saltano i punti importanti" read as a denial); fixed
+  ("senza"/"without" + negation word is not a denial) and re-run, the table shows the fixed run.
+- Step 3, lexical stage. With the narrowed gate it brings back 2 true points the embedding gate lost
+  (traps-en recall 0.5 to 1.0), at the cost of 2 fewer skipped calls. A stricter embedding threshold
+  (0.4 or 0.5) with the lexical stage as the safety net skips more calls at the same recall.
+- Step 4, committed-only flips. Removes the one false completion of the baseline (the partial
+  "fifty" later committed as "fifteen") and the calls partial text used to trigger.
+- Gate mode. Asking Clef about fewer points changes its answers: with the narrowed gate two true
+  points flip a segment late (traps-en s2b2 0.67 then 0.94; traps-it s2b2 0.62 then 0.72), with
+  every open point asked they flip on time. The gate now only skips calls when the provider is local
+  Clef (`gateThresholdsFor`), which keeps the full recall and saves 4 of 62 calls; other providers
+  keep the narrowed gate measured in Step 3 (not re-measured here: no paid calls).
+
+Still open, not P1 regressions (identical before and after): journey-en and journey-it recall (Clef
+answers 0.65 to 0.75 on "Bristol pilot", "Launch date Monday" and the backup point, under the 0.85
+sure threshold and not confirmed twice before the label tolerance), and demo-it s0b2 (by design, see
+the first section) and s1b0 (paraphrase, one segment late). These are threshold and paraphrase
+questions for the decision model, not trap failures.

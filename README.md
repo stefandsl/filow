@@ -49,6 +49,8 @@ The Next section card below the points has a resize handle along its bottom edge
 
 In the prompter and a controllable mirror, Tab focuses points and missed items. Press Enter or Space to toggle a point or reopen a missed item. Double-clicking a point still works.
 
+A point is ticked only on what the speech-to-text has committed (a finished sentence), never on the words still being recognised: those can change ("we will raise prices" becoming "we will not raise prices"), so while they match an open point it only shows In progress. Before a point is ticked, its numbers, units, direction words and negation are compared with what you said: "costs rose 30%" never ticks "costs fell 30%", nor does "we did not cut costs", 21% for 12%, or days for hours. A done point has a **Why?** link (hover it, or click to open it under the point): the sentence it rests on, when it was heard, the model and how sure it was, and how many of the point's words were heard, or that you marked it by hand.
+
 At high zoom or in a short window, the page scrolls to keep points and controls reachable. Start, screen-source and script-editor dialogs keep keyboard focus inside; Escape closes them and returns focus to the opener. Closing the log returns focus to More. Cancel also cancels pending automatic startup checks. Import failures appear immediately as an announced error above the points.
 
 | | |
@@ -675,7 +677,10 @@ Settings has **Pre-filter before the model**, off by default. On, a small multil
 model (paraphrase-multilingual-MiniLM, 120 MB, downloaded once into the browser cache) scores every
 open point against the last few seconds of speech, on this PC, in a few milliseconds. The decision
 model is then asked only about the plausible points (at most four) and not at all when nothing
-matches. Point vectors are prepared when a script loads and cached per script. Measured on the demo
+matches. A lexical stage runs alongside it: names, numbers (said or written) and rare words of a point
+heard in the speech make it a candidate even when the sentence model misses it. With the local model
+(Clef) the pre-filter only decides whether to call the model, and then asks about every open point:
+asking Clef about fewer points changed its answers and cost recall in the P1 gauntlet. Point vectors are prepared when a script loads and cached per script. Measured on the demo
 corpus with a cloud model, two runs each: 3 of 17 model calls skipped, recall equal or better, no
 false starts either way; the latency gain was within the provider's own variance, so expect the
 benefit mainly in local mode, where each model call is the expensive part. Details and how to

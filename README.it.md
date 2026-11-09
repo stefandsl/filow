@@ -49,6 +49,8 @@ La scheda Prossima sezione sotto i punti ha una maniglia sul bordo inferiore. Tr
 
 Nel prompter e nel mirror con controllo, Tab seleziona i punti e gli elementi saltati. Premi Invio o Spazio per cambiare lo stato di un punto o riaprire un elemento saltato. Il doppio clic su un punto continua a funzionare.
 
+Un punto viene spuntato solo su ciò che la trascrizione ha confermato (una frase finita), mai sulle parole ancora in riconoscimento: possono cambiare ("alzeremo i prezzi" che diventa "non alzeremo i prezzi"), quindi finché corrispondono a un punto aperto lo mostrano solo In corso. Prima di spuntare un punto, numeri, unità, parole di direzione e negazioni vengono confrontati con ciò che hai detto: "i costi sono aumentati del 30%" non spunta mai "i costi sono calati del 30%", e nemmeno "non abbiamo tagliato i costi", 21% al posto di 12% o giorni al posto di ore. Un punto detto ha il link **Perché?** (passaci sopra, o fai clic per aprirlo sotto il punto): la frase su cui si basa, quando è stata sentita, il modello e quanto era sicuro, quante parole del punto sono state sentite, oppure che l'hai segnato a mano.
+
 Con zoom elevato o una finestra bassa, la pagina scorre per mantenere punti e comandi raggiungibili. Le finestre di avvio, scelta della sorgente e modifica del copione mantengono il focus della tastiera al loro interno; Esc le chiude e riporta il focus al comando di apertura. Chiudere il registro riporta il focus ad Altro. Annulla interrompe anche le verifiche automatiche di avvio ancora in corso. Gli errori di importazione compaiono subito sopra i punti e vengono annunciati dal lettore di schermo.
 
 | | |
@@ -680,7 +682,11 @@ Nelle Impostazioni c'è **Pre-filtro prima del modello**, spento di default. Acc
 modello multilingue di frasi (paraphrase-multilingual-MiniLM, 120 MB, scaricato una volta nella
 cache del browser) confronta ogni punto aperto con gli ultimi secondi di parlato, su questo PC, in
 pochi millisecondi. Il modello di decisione riceve solo i punti plausibili (al massimo quattro) e non
-viene chiamato quando nulla corrisponde. I vettori dei punti si preparano quando carichi un copione e
+viene chiamato quando nulla corrisponde. Accanto lavora uno stadio lessicale: nomi, numeri (detti o
+scritti) e parole rare di un punto sentiti nel parlato lo rendono candidato anche quando il modello di
+frasi non lo coglie. Con il modello locale (Clef) il pre-filtro decide solo se chiamare il modello, e
+poi chiede di tutti i punti aperti: chiedere a Clef meno punti cambiava le sue risposte e costava
+richiamo nel gauntlet P1. I vettori dei punti si preparano quando carichi un copione e
 restano in cache per quel copione. Misurato sul corpus demo con un modello cloud, due corse ciascuno:
 3 chiamate su 17 evitate, richiamo uguale o migliore, nessun falso avvio in entrambi i casi; il
 guadagno di latenza è rimasto entro la variabilità del fornitore, quindi il beneficio si aspetta
