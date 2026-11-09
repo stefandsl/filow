@@ -70,6 +70,7 @@ export function StageView({ state, onCommand, banner, stage, compact, pointMark 
                   tabIndex={can ? 0 : undefined}
                   aria-pressed={can ? started : undefined}
                   title={started && st.evidence ? evidenceSummary(st.evidence, lang) : undefined}
+                  aria-description={started && st.evidence ? evidenceSummary(st.evidence, lang) : undefined}
                   onKeyDown={can ? (e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();

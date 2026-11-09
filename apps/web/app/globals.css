@@ -380,10 +380,16 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 
 .action-navigation > .transcript-toggle { margin-right: auto; }
 
-/* "Why is this done?" on a done point (P1 step 5): a quiet link in the state column, the evidence below the point. */
-.point-why-btn { align-self: flex-start; padding: 2px 0; font: inherit; font-size: 12px; font-weight: 600; color: var(--muted); background: none; border: 0; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+/* "Why is this done?" on a done point (P1 step 5): a quiet link under the point text and the evidence
+   below it. Both are siblings of the row (the row toggles the point), drawn as one block with it. */
+.prompter .point-item.has-why { background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.prompter .point-item.has-why > .point-row { background: transparent; border-bottom-color: transparent; padding-bottom: 4px; }
+.point-why-bar { padding: 0 16px 12px 72px; }
+.point-why-btn { padding: 2px 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); background: none; border: 0; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .point-why-btn:hover, .point-why-btn[aria-expanded="true"] { color: var(--text); }
 .point-why-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
-.prompter .point-row .point-why { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 4px; padding: 12px; font-size: 14px; font-weight: 400; line-height: 1.4; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-badge); cursor: auto; }
+.point-item > .point-why { display: flex; flex-direction: column; gap: 4px; margin: 0 16px 12px 72px; padding: 12px; font-size: 14px; font-weight: 400; line-height: 1.4; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-badge); }
+.point-item > .point-why[hidden] { display: none; }
+@media (max-width: 899px) { .point-why-bar { padding: 0 12px 12px 64px; } .point-item > .point-why { margin: 0 12px 12px 64px; } }
 .point-why q { font-style: italic; overflow-wrap: anywhere; }
 .point-why span { color: var(--muted); font-variant-numeric: tabular-nums; }

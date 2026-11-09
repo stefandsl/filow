@@ -125,27 +125,51 @@ export function lexicalScores(tail: string, bullets: Bullet[]): Map<string, numb
   const toks = tokenize(tail);
   const words = [...new Set(toks.map((t) => t.norm).filter((w) => /^\p{L}{2,}$/u.test(w)))];
   const qtys = quantitiesFromTokens(toks);
-  const terms = bullets.map((b) => pointTerms(b.text));
-  const n = bullets.length;
+  const prepared = preparedTerms(bullets);
   const out = new Map<string, number>();
   bullets.forEach((b, i) => {
     let num = 0;
     let den = 0;
-    for (const t of terms[i]) {
-      // document frequency: points that have this term too (fuzzily, or the same quantity)
-      const df = terms.filter((other) => other.some((o) => (t.qty ? o.qty && sameQuantity(t.qty, o.qty) : o.word && similarity(t.word!, o.word) >= FUZZY_MIN))).length;
-      const idf = Math.log(1 + (n - df + 0.5) / (df + 0.5));
+    for (const { term, idf } of prepared[i]) {
       den += idf;
-      num += idf * termMatch(t, words, qtys);
+      num += idf * termMatch(term, words, qtys);
     }
     out.set(b.id, den > 0 ? Math.round((num / den) * 1000) / 1000 : 0);
   });
   return out;
 }
 
-/** The fused score a point is ranked by: the better of the two stages. */
+/**
+ * The terms of each point with their BM25 idf, computed once per set of points (the engine asks on
+ * every partial transcript event, the gate on every call): only the match against the tail is per call.
+ */
+const termCache = new Map<string, Array<Array<{ term: Term; idf: number }>>>();
+function preparedTerms(bullets: Bullet[]): Array<Array<{ term: Term; idf: number }>> {
+  const key = bullets.map((b) => `${b.id}\u0000${b.text}`).join("\u0001");
+  const hit = termCache.get(key);
+  if (hit) return hit;
+  const terms = bullets.map((b) => pointTerms(b.text));
+  const n = bullets.length;
+  const prepared = terms.map((own) =>
+    own.map((t) => {
+      // document frequency: points that have this term too (fuzzily, or the same quantity)
+      const df = terms.filter((other) => other.some((o) => (t.qty ? o.qty && sameQuantity(t.qty, o.qty) : o.word && similarity(t.word!, o.word) >= FUZZY_MIN))).length;
+      return { term: t, idf: Math.log(1 + (n - df + 0.5) / (df + 0.5)) };
+    }),
+  );
+  if (termCache.size >= 32) termCache.delete(termCache.keys().next().value!);
+  termCache.set(key, prepared);
+  return prepared;
+}
+
+/** The better of the two stages, each as a 0..1 score (the gate's local "not started" answers use it). */
 export function fusedScore(s: GateScore): number {
   return Math.max(s.similarity, s.lexical ?? 0);
+}
+
+/** Rank of a point in the gate: each stage's score over its own threshold, so the two scales compare. */
+export function gateRank(s: GateScore, th: GateThresholds): number {
+  return Math.max(s.similarity / th.low, Number.isFinite(th.lexicalLow) ? (s.lexical ?? 0) / th.lexicalLow : 0);
 }
 
 /** Similarity of the transcript tail to every point, best first. */
@@ -173,7 +197,7 @@ export function gate(scores: GateScore[], bullets: Bullet[], th: GateThresholds 
   const lexLow = th.lexicalLow ?? Infinity;
   const passed = scores
     .filter((s) => s.similarity >= th.low || (s.lexical ?? 0) >= lexLow)
-    .sort((a, b) => fusedScore(b) - fusedScore(a))
+    .sort((a, b) => gateRank(b, th) - gateRank(a, th))
     .slice(0, th.maxCandidates);
   const candidates = passed.map((s) => byId.get(s.id)!).filter(Boolean);
   const lexicalOnly = passed.filter((s) => s.similarity < th.low).length;

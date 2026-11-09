@@ -153,3 +153,18 @@ describe("gate thresholds per provider", () => {
     expect(gateThresholdsFor("clef-local").lexicalLow).toBe(DEFAULT_GATE.lexicalLow);
   });
 });
+
+describe("gate fusion (P1 review)", () => {
+  it("ranks each stage's score against its own threshold", () => {
+    const pts = [{ id: "emb", text: "x" }, { id: "lex", text: "y" }];
+    // 0.36 is 1.2x the embedding threshold; 0.55 only 1.1x the lexical one
+    const out = gate([{ id: "lex", similarity: 0.1, lexical: 0.55 }, { id: "emb", similarity: 0.36, lexical: 0 }], pts, { ...DEFAULT_GATE, maxCandidates: 1 });
+    expect(out.candidates.map((b) => b.id)).toEqual(["emb"]);
+  });
+  it("the lexical scores of a script's points are prepared once and reused", () => {
+    const pts = Array.from({ length: 40 }, (_, i) => ({ id: `p${i}`, text: `Punto numero ${i} sui clienti attivi e i tempi di consegna ${i * 7}` }));
+    const t0 = performance.now();
+    for (let k = 0; k < 50; k++) lexicalScores("abbiamo ridotto i tempi di consegna per i clienti attivi", pts);
+    expect((performance.now() - t0) / 50).toBeLessThan(5);
+  });
+});

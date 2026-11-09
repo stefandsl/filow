@@ -751,3 +751,59 @@ describe("Engine evidence per flip (P1 step 5)", () => {
     expect(e.getState().points.s0b1.evidence).toBeUndefined();
   });
 });
+
+describe("Engine: active hint and window edges (P1 review)", () => {
+  const PRICES = parseScript(`# Next steps
+- We will raise prices in January
+- Ship the mobile app to 50 pilot customers
+
+# Later
+- Hire two engineers
+`);
+  function unsure() {
+    const calls: DecideRequest[] = [];
+    const e = new Engine({
+      decide: async (r) => {
+        calls.push(r);
+        return { decisions: r.bullets.map((b) => ({ id: b.id, started: false, confidence: 0.2 })), latencyMs: 1, cost: 0, model: "unsure" };
+      },
+      now: () => 1000,
+      setInterval: () => 0,
+      clearInterval: () => {},
+      window: 40,
+    });
+    e.loadScript(PRICES);
+    return { e, calls };
+  }
+
+  it("a non-confirming answer keeps the hint while the partial still matches (no flicker)", async () => {
+    const { e } = unsure();
+    e.feed({ committed: "Next steps. ", partial: "we will raise prices in" });
+    expect(e.getState().points.s0b0.active).toBe(true);
+    await e.tick();
+    expect(e.getState().points.s0b0.active).toBe(true);
+  });
+
+  it("the hint goes when the partial is revised away from the point", () => {
+    const { e } = unsure();
+    e.feed({ partial: "we will raise prices in" });
+    expect(e.getState().points.s0b0.active).toBe(true);
+    e.feed({ partial: "we will rent a bigger office" });
+    expect(e.getState().points.s0b0.active).toBeUndefined();
+  });
+
+  it("a section change clears the hints", () => {
+    const { e } = unsure();
+    e.feed({ partial: "we will raise prices in" });
+    e.dispatch({ type: "nextSection" });
+    expect(e.getState().points.s0b0.active).toBeUndefined();
+  });
+
+  it("the decision window never starts in the middle of a word", async () => {
+    const { e, calls } = unsure();
+    e.feed({ committed: "Oggi abbiamo quattrocentocinquanta clienti attivi in Italia. " });
+    await e.tick();
+    const first = calls[0].transcript.split(" ")[0];
+    expect("Oggi abbiamo quattrocentocinquanta clienti attivi in Italia.".split(" ")).toContain(first);
+  });
+});

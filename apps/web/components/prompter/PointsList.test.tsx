@@ -35,7 +35,7 @@ it("offers 'why is this done?' on a done point with evidence, with a hover summa
  expect(html.match(/class="point-why-btn"/g)).toHaveLength(1);
  expect(html).toContain('aria-expanded="false"');
  expect(html).toMatch(/title="[^"]*We hired three engineers in July\.[^"]*clef-flash \(local\)[^"]*"/);
- expect(html).not.toContain('class="point-why"'); // collapsed until asked
+ expect(html).toMatch(/class="point-why"[^>]*hidden=""/); // collapsed until asked, but present for aria-controls
 });
 
 it("explains a model flip: quote, time range, model, confidence and scores, in both languages", () => {
@@ -54,4 +54,25 @@ it("explains a manual mark", () => {
  const html = renderToStaticMarkup(<WhyDone evidence={{ source: "manual", fromMs: 0, toMs: 0 }} />);
  expect(html).toContain("Marked by hand");
  expect(html).not.toContain("%");
+});
+
+/** The outer HTML of the first element carrying role="button", found by counting nested divs. */
+function toggleRow(html: string): string {
+ const start = html.lastIndexOf("<div", html.indexOf('role="button"'));
+ let depth = 0;
+ for (const m of html.slice(start).matchAll(/<div\b|<\/div>/g)) {
+  depth += m[0] === "<div" ? 1 : -1;
+  if (depth === 0) return html.slice(start, start + (m.index ?? 0) + 6);
+ }
+ return html.slice(start);
+}
+
+it("keeps the Why? button and its panel outside the toggle row (no nested interactive elements)", () => {
+ const html = renderToStaticMarkup(<PointsList onToggle={() => {}} points={[{id:"s0b0",text:"We hired 3 engineers",state:"done",confidence:0.91,evidence:MODEL_EVIDENCE}]} />);
+ const row = toggleRow(html);
+ expect(row).toContain("We hired 3 engineers");
+ expect(row).not.toContain("<button");
+ expect(row).not.toContain("point-why");
+ expect(html).toContain('aria-controls="why-s0b0"');
+ expect(html).toMatch(/<div[^>]*id="why-s0b0"[^>]*hidden=""|<div[^>]*hidden=""[^>]*id="why-s0b0"/);
 });

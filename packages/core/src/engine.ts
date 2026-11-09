@@ -7,7 +7,7 @@ import { checkClaim, type ClaimCheck } from "./guard";
 import { sentences } from "./text";
 import { parseScript } from "./script";
 import { isScreenScript, sectionFromSummary, type ScreenNote } from "./screen";
-import type { Command, CommandResult, Evidence, PointState, ScreenSummary, Script, SessionState, SttBackendId } from "./types";
+import type { Bullet, Command, CommandResult, Evidence, PointState, ScreenSummary, Script, SessionState, SttBackendId } from "./types";
 
 export type TranscriptEvent = { committed?: string; partial?: string };
 
@@ -181,14 +181,23 @@ export class Engine {
     const s = this.state;
     const section = s.script.sections[s.sectionIdx];
     if (!section) return;
-    const open = section.bullets.filter((b) => (s.points[b.id]?.status ?? "waiting") === "waiting" && !s.points[b.id]?.active);
+    const open = section.bullets.filter((b) => (s.points[b.id]?.status ?? "waiting") === "waiting");
     if (!open.length) return;
-    const lex = lexicalScores(this.partial, open);
-    const hot = open.filter((b) => (lex.get(b.id) ?? 0) >= PARTIAL_ACTIVE).map((b) => b.id);
-    if (!hot.length) return;
+    const hot = this.partialMatches(open);
+    const on = open.filter((b) => hot.has(b.id) && !s.points[b.id]?.active).map((b) => b.id);
+    const off = open.filter((b) => !hot.has(b.id) && s.points[b.id]?.active).map((b) => b.id);
+    if (!on.length && !off.length) return;
     this.update((st) => {
-      for (const id of hot) st.points[id] = { ...(st.points[id] ?? { status: "waiting", confidence: 0 }), active: true };
+      for (const id of on) st.points[id] = { ...(st.points[id] ?? { status: "waiting", confidence: 0 }), active: true };
+      for (const id of off) delete st.points[id].active;
     });
+  }
+
+  /** Points the current partial text is about (lexical stage, gate.ts). */
+  private partialMatches(points: Bullet[]): Set<string> {
+    if (!this.partial.trim() || !points.length) return new Set();
+    const lex = lexicalScores(this.partial, points);
+    return new Set(points.filter((b) => (lex.get(b.id) ?? 0) >= PARTIAL_ACTIVE).map((b) => b.id));
   }
 
   /**
@@ -320,6 +329,7 @@ export class Engine {
           }
         }
       }
+      for (const p of Object.values(st.points)) delete p.active;
       st.sectionIdx = target;
     });
     this.lastSent = "";
@@ -374,6 +384,8 @@ export class Engine {
     const raw = this.committed;
     const end = raw.trimEnd().length;
     let startIdx = Math.max(0, end - this.o.window);
+    // start at a word boundary: "quattrocentocinquanta" must not become "centocinquanta"
+    if (startIdx > 0 && !/\s/.test(raw[startIdx - 1])) while (startIdx < end && !/\s/.test(raw[startIdx])) startIdx++;
     while (startIdx < end && /\s/.test(raw[startIdx])) startIdx++;
     const windowText = raw.slice(startIdx, end);
     /** offset of the window in the whole committed stream, to date the evidence of a flip */
@@ -439,6 +451,8 @@ export class Engine {
     // The claim check runs outside the state update: it reads only the request and the answer. It
     // finds the sentence a confirming answer rests on (the evidence) and, with the guard on, rejects
     // the answer when every sentence about the point contradicts it.
+    // an answer that does not flip a point keeps its "active" hint while the partial still matches it
+    const stillHot = this.partialMatches(req.bullets);
     const checks = new Map<string, ClaimCheck>();
     const rejected = new Set<string>();
     for (const d of data.decisions) {
@@ -472,7 +486,7 @@ export class Engine {
           confirming && (d.confidence >= this.o.sureThreshold || this.streak[d.id] >= this.o.confirmCalls);
         st.points[d.id] = flip
           ? { status: "started", confidence: d.confidence, startedAt: now, evidence: this.evidenceFor(checks.get(d.id)!, req.transcript, windowAbs, d, data.model) }
-          : { status: "waiting", confidence: d.confidence };
+          : { status: "waiting", confidence: d.confidence, ...(cur.active && stillHot.has(d.id) ? { active: true } : {}) };
       }
     });
     this.checkCap();
