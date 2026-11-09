@@ -123,3 +123,24 @@ describe("lexical stage (P1 step 3)", () => {
     expect(gate(scores, points, { ...DEFAULT_GATE, lexicalLow: 0.5 }).candidates.map((b) => b.id)).toEqual(["s1b0"]);
   });
 });
+
+describe("gate modes", () => {
+  it("narrow: false keeps the skip but asks about every open point once any point passes", async () => {
+    const pv = await embedPoints(toyEmbed, bullets, "en");
+    const calls: DecideRequest[] = [];
+    const decide = gatedDecide(
+      async (r) => {
+        calls.push(r);
+        return { decisions: r.bullets.map((b) => ({ id: b.id, started: false, confidence: 0.2 })), latencyMs: 5, cost: 0, model: "m" };
+      },
+      toyEmbed,
+      () => pv,
+      { ...DEFAULT_GATE, narrow: false },
+    );
+    await decide({ transcript: "the weather in the mountains was lovely yesterday", bullets, sectionTitle: "s" });
+    expect(calls).toHaveLength(0);
+    const out = await decide({ transcript: "let me tell you about the pricing of the product", bullets, sectionTitle: "s" });
+    expect(calls[0].bullets.map((b) => b.id)).toEqual(["a", "b", "c"]);
+    expect(out.decisions.every((d) => typeof d.gate === "number")).toBe(true);
+  });
+});

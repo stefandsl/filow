@@ -25,6 +25,12 @@ export type GateThresholds = {
    * is a candidate even when the embedding missed it. Infinity turns the stage off.
    */
   lexicalLow: number;
+  /**
+   * true (default): the model is asked only about the candidates. false: the gate only decides
+   * whether to call the model; once any point passes, every open point is asked, as without the gate
+   * (measured on local Clef, P1: a narrower question set changes its answers and costs recall).
+   */
+  narrow?: boolean;
 };
 export const DEFAULT_GATE: GateThresholds = { low: 0.3, maxCandidates: 4, tailChars: 320, lexicalLow: 0.5 };
 
@@ -195,8 +201,9 @@ export function gatedDecide(
     if (out.skipped) {
       return { decisions: r.bullets.map(local), latencyMs: Date.now() - t0, cost: 0, model: "gate (no candidate)" };
     }
-    const asked = new Set(out.candidates.map((b) => b.id));
-    const res = await decide({ ...r, bullets: out.candidates }, signal);
+    const ask = th.narrow === false ? r.bullets : out.candidates;
+    const asked = new Set(ask.map((b) => b.id));
+    const res = await decide({ ...r, bullets: ask }, signal);
     const answered = new Map(res.decisions.map((d) => [d.id, d]));
     return {
       ...res,

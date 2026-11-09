@@ -4,6 +4,7 @@
 // the model is asked only about the points whose similarity to the transcript tail is >= GAUNTLET_GATE_LOW
 // (default 0.3) or whose lexical score (BM25-weighted fuzzy word match) is >= GAUNTLET_LEX_LOW (default
 // 0.5, "off" disables the lexical stage), and not at all when no point passes. Variant name becomes "gate".
+// GAUNTLET_GATE_NARROW=0: the gate only skips calls; when any point passes, every open point is asked.
 // Reads every corpus under docs/gauntlet/corpus/<name>/ (script.md, transcript.json, labels.json),
 // replays it through the Engine with each provider, prints a table and writes
 // docs/gauntlet/results/<provider>-<corpus>.json. Keys come from the desktop profile's .env
@@ -94,7 +95,7 @@ describe.skipIf(!on)("gauntlet (real providers)", () => {
           const { embed, loadMs } = await loadEmbedder();
           gateStats.embedLoadMs = loadMs;
           const lexEnv = process.env.GAUNTLET_LEX_LOW;
-          const th: GateThresholds = { ...DEFAULT_GATE, low: Number(process.env.GAUNTLET_GATE_LOW || DEFAULT_GATE.low), lexicalLow: lexEnv === "off" ? Infinity : Number(lexEnv || DEFAULT_GATE.lexicalLow) };
+          const th: GateThresholds = { ...DEFAULT_GATE, low: Number(process.env.GAUNTLET_GATE_LOW || DEFAULT_GATE.low), lexicalLow: lexEnv === "off" ? Infinity : Number(lexEnv || DEFAULT_GATE.lexicalLow), narrow: process.env.GAUNTLET_GATE_NARROW !== "0" };
           const pv = await embedPoints(embed, parseScript(corpus.script).sections.flatMap((sec) => sec.bullets), corpus.language);
           decide = gatedDecide(PROVIDERS[provider], embed, () => pv, th, (o) => {
             gateStats.calls++;
