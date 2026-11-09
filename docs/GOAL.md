@@ -49,13 +49,28 @@ not "the config exists".
 1. **Measure**: score.mjs plus the e2e probes (tools/autoloop/e2e). Pick the highest-value failing
    or missing row of the scorecard below.
 2. **Reproduce**: show the gap in the packaged app (or the closest real setting).
-3. **Build** the smallest change that closes it, with tests that fail without it (mutation).
-4. **Verify** end to end on a packaged build; record numbers, not adjectives.
-5. **Review**: an independent agent tries to break it (fresh context, given the code not the
-   conclusion). Fix what survives review.
-6. **Keep or discard**: keep only if every gate passes and the score does not drop; journal either way.
-7. Repeat. A scheduled daily run (filow-autoloop) keeps going until the scorecard has nothing left
+3. **Align** (anything larger than one scorecard row): before code, write the brief - the owner's
+   words, what is in and out of scope, acceptance criteria a script or a click can check - and
+   cut it into slices that each end in something a user can see. A question only the owner can
+   answer goes to docs/OWNER-DECISIONS.md; it is never guessed and never blocks the other slices.
+4. **Build** the smallest change that closes it, with tests that fail without it (mutation).
+5. **Verify** end to end on a packaged build; record numbers, not adjectives.
+6. **Review**, by agents with fresh context that get the code, never the author's conclusion:
+   - break it: an adversarial pass on the packaged behaviour;
+   - spec: the reviewer receives the owner's request verbatim and the diff. Any stated intent
+     not met is a finding. The author's summary is not given;
+   - standards: the diff against the Quality bar and the lint rules.
+   Fix what survives review.
+7. **Keep or discard**: keep only if every gate passes and the score does not drop; journal either way.
+8. **Retro** after each merged track: what the brief missed, what broke at merge, what cost a
+   retry. One dated line in docs/autoloop/JOURNAL.md (history, not the present state).
+9. Repeat. A scheduled daily run (filow-autoloop) keeps going until the scorecard has nothing left
    that this machine can verify; what needs the owner is listed, not guessed.
+
+Brakes, so a loop cannot run away: a slice gets at most three rework rounds after review, then it
+stops and goes to the owner with the evidence. The local gate (test, typecheck, lint, score, E2E)
+is one fixed pipeline and is never shortened to save time. New automation (a schedule, a hook, a
+trigger) is added one at a time and watched for a full run before the next.
 
 ## Orchestration
 
@@ -84,8 +99,36 @@ Rules for tracks, learned the hard way:
 - A track's report is a claim, not proof: the orchestrator reruns the gates and the end-to-end
   check on the merged result before anything lands on main.
 
+Rules added 2026-11-09 from the review of Kun Chen's and Matt Pocock's repos (docs/research/):
+- Two task shapes. Ship: changes code in its own worktree. Scout: returns findings only; a
+  finding is evidence, not permission to change code.
+- Every brief has `Owner's intent` (their words, never widened) and `Spec` (in scope, out of
+  scope, acceptance criteria), and names any skill the track must use. Its first step proves
+  isolation: `git rev-parse --show-toplevel` is the track's worktree, not G:/FILOW.
+- Dependencies are declared before launch. Two slices that touch the same file are a blocking
+  edge even with a named seam; only the unblocked frontier starts.
+- Tracks land on an integration branch (`integration/<date>`), the gates and the end-to-end check
+  run there, and main moves only by fast-forward to a green integration branch.
+- Merge what git says is ahead (`git log main..<branch>`), not what the report says was done.
+- Each track keeps a status file, G:/FILOW/tmp/status/<track>.json (state, last step, time), so
+  the orchestrator can tell working from dead without asking.
+- Agents get pointers, not pastes: file paths and the section to read. Installs are frozen
+  (`npm ci`); a dependency is added only with its version pinned.
+- Capacity is measured, not assumed: before launching, check free RAM and commit; a track that
+  loads a model or builds an installer counts double. Stop launching below 16 GB free RAM.
+- Lifecycle: when a track is merged or discarded, the orchestrator removes that track's worktree,
+  profile and release folder - only what this run created, never by pattern.
+- Open decisions are held items in docs/OWNER-DECISIONS.md with a reason and what waits on them.
+
 ## What only the owner can do (listed, never faked)
 
 Code-signing certificates (Windows, Apple), Apple developer and Google Play accounts, a Mac and
 real phones for native checks, store listings, the LAN-mode security decision (SEC-09), and product
-choices such as which Microsoft 365 integration comes next.
+choices such as which Microsoft 365 integration comes next. Also: anything that changes the
+machine outside this repo (git hooks, global tools, installers, settings) and any skill whose
+scan is above LOW. The current list, with what each one blocks, is docs/OWNER-DECISIONS.md.
+
+## Maintaining this file
+
+Only what almost every session needs. Rewrite or prune before appending. A new rule needs
+evidence from two sessions; a rule nobody has needed for a month is removed.
