@@ -127,6 +127,25 @@ describe("claim guard: review findings", () => {
   });
 });
 
+describe("claim guard: counts are compared only for the same counted thing", () => {
+  it("'dieci aziende' is not a wrong number for '450 clienti' (traps-it, a later sentence)", () => {
+    expect(checkClaim("Abbiamo 450 clienti attivi", "Oggi abbiamo quattrocentocinquanta clienti attivi. In autunno lanceremo l'app mobile per i clienti, già in prova con dieci aziende.").ok).toBe(true);
+  });
+  it("the same counted thing with another number still conflicts", () => {
+    expect(checkClaim("Abbiamo 450 clienti attivi", "Abbiamo quaranta clienti attivi.").ok).toBe(false);
+  });
+});
+
+describe("claim guard: contrast tails are not negated claims", () => {
+  it("', non alla tua' after a pause is a contrast (demo-it s1b2, blocked by the first reviewed guard)", () => {
+    expect(checkClaim("Il gobbo tradizionale scorre alla sua velocità, non alla tua", "Il gobbo classico, quello che scorre, non risolve: va alla sua velocità, non alla tua, e tu lo insegui.").ok).toBe(true);
+    expect(checkClaim("Prices follow the market, not our costs", "Our prices follow the market and nothing else.").ok).toBe(true);
+  });
+  it("a point that starts with its negation is still a negated claim", () => {
+    expect(checkClaim("Non usiamo il cloud per i dati", "Usiamo il cloud per i dati, non i server locali.").ok).toBe(false);
+  });
+});
+
 describe("claim guard: the latest sentence that states the claim decides", () => {
   it("a later sentence about another subject with the same verb does not undo a stated claim", () => {
     expect(checkClaim("Il fatturato è cresciuto del 12%", "Il fatturato è cresciuto del 12 per cento. Il margine è cresciuto del 5 per cento.").ok).toBe(true);

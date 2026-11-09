@@ -4,7 +4,7 @@
 // never flips a point, whatever confidence the decision model gave. Conservative by design: it only
 // blocks on an explicit conflict in a sentence about the point; vague or paraphrased speech is left to
 // the model. Pure and language-light (Italian and English word lists), no model.
-import { contentTokens, FUZZY_MIN, NEGATIONS, quantitiesFromTokens, sameQuantity, sentences, similarity, tokenize, type Quantity, type Sentence, type Token } from "./text";
+import { contentTokens, FUZZY_MIN, NEGATIONS, STOP, quantitiesFromTokens, sameQuantity, sentences, similarity, tokenize, type Quantity, type Sentence, type Token } from "./text";
 
 export type GuardConflict = {
   kind: "negation" | "number" | "unit" | "direction";
@@ -102,12 +102,22 @@ function clauses(text: string, toks: Token[]): Token[][] {
 
 const label = (q: Quantity) => `${Number.isInteger(q.raw) ? q.raw : q.raw.toFixed(2)}${q.kind === "percent" ? "%" : q.kind === "duration" ? ` (${+(q.value / 3600).toFixed(2)} h)` : q.kind.startsWith("currency:") ? ` ${q.kind.slice(9)}` : ""}`;
 const klass = (q: Quantity) => (q.kind.startsWith("currency:") ? "currency" : q.kind);
+type Counted = Quantity & { noun: string };
+/** The noun a number counts ("450 clienti", "fifteen pilot customers"): the word right after it, if it is one. */
+function withNouns(toks: Token[], qs: Quantity[]): Counted[] {
+  return qs.map((q) => {
+    const next = toks[q.tokenEnd]?.norm ?? "";
+    return { ...q, noun: /^\p{L}{3,}$/u.test(next) && !STOP.has(next) ? next : "" };
+  });
+}
+/** Two quantities are comparable when they are of one class and, for counts, count the same thing (or either says nothing). */
+const comparable = (a: Counted, b: Counted) => klass(a) === klass(b) && (a.kind !== "count" || !a.noun || !b.noun || similarity(a.noun, b.noun) >= FUZZY_MIN);
 
 type Claim = {
   words: string[];
   /** content words that are not direction words: the point's subject ("costs", "onboarding time") */
   anchors: string[];
-  quantities: Quantity[];
+  quantities: Counted[];
   direction: "up" | "down" | null;
   negated: boolean;
 };
@@ -119,9 +129,10 @@ function claimOf(point: string): Claim {
   return {
     words,
     anchors: words.filter((w) => !UP.test(w) && !DOWN.test(w)),
-    quantities: quantitiesFromTokens(toks).filter((q) => q.kind !== "year"),
+    quantities: withNouns(toks, quantitiesFromTokens(toks).filter((q) => q.kind !== "year")),
     direction: dirs.size === 1 ? [...dirs][0] : null,
-    negated: toks.some((_, i) => negates(toks, i)),
+    // ", non alla tua" / ", not our costs" after a pause is a contrast tail, not a denial of the claim
+    negated: toks.some((_, i) => negates(toks, i) && !(i > 0 && pauseBetween(point, toks[i - 1], toks[i]))),
   };
 }
 
@@ -136,11 +147,16 @@ function read(claim: Claim, sentence: string): Reading {
   const scope = about.length ? about : parts;
 
   // numbers and units, per class: a conflict only when the speech has numbers of a class and none of the point's numbers of that class
-  const sq = quantitiesFromTokens(st).filter((q) => q.kind !== "year");
+  const sq = withNouns(st, quantitiesFromTokens(st).filter((q) => q.kind !== "year"));
   let numberSupport = false;
-  for (const cls of new Set(claim.quantities.map(klass))) {
-    const mine = claim.quantities.filter((q) => klass(q) === cls);
-    const theirs = sq.filter((q) => klass(q) === cls);
+  const groups: Counted[][] = [];
+  for (const q of claim.quantities) {
+    const g = groups.find((x) => comparable(x[0], q) && x[0].noun === q.noun);
+    if (g) g.push(q);
+    else groups.push([q]);
+  }
+  for (const mine of groups) {
+    const theirs = sq.filter((q) => comparable(mine[0], q));
     if (!theirs.length) {
       const other = sq.find((s) => s.kind !== "count" && mine.some((q) => s.raw === q.raw));
       if (other) return { conflict: { kind: "unit", detail: `point says ${mine.map(label).join(", ")}, speech says ${label(other)}` }, carriesClaim: true, anchored };
