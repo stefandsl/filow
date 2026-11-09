@@ -11,7 +11,7 @@ const { spawn } = require("node:child_process");
  * Without a wake word ("ok", "hey", "filow") the word must be followed by a comma or colon, so a
  * question that merely starts with "Agents in this list..." is answered, not run as a job.
  */
-const WOKEN_RE = /^\s*(?:(?:hey|ok|okay)[\s,]+(?:filow[\s,]+)?|filow[\s,]+)(?:agents?|agente|agenti)\b[\s,:.\-]*(.*)$/is;
+const WOKEN_RE = /^\s*(?:(?:hey|ok|okay)[\s,]+(?:filow[\s,]+)?|filow[\s,]+)(?:agents?|agente|agenti)\b[\s,:.-]*(.*)$/is;
 const PLAIN_RE = /^\s*(?:agents?|agente|agenti)\s*[,:]\s*(.*)$/is;
 // Speech-to-text writes no commas: "Agent write a note about rockets". The singular word followed by
 // a request counts; a question ("agent settings, where are they?") does not.

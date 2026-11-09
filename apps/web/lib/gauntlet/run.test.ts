@@ -110,7 +110,6 @@ describe.skipIf(!on)("gauntlet (real providers)", () => {
         lines.push(line(r, `${provider}${variant === "default" ? "" : `/${variant}`}`) + (process.env.GAUNTLET_GATE === "1" ? `  gate: ${gateStats.skipped}/${gateStats.calls} model calls skipped, ${gateStats.candidates} candidates asked (${gateStats.lexicalOnly} by the lexical stage only)` : ""));
       }
     }
-    // eslint-disable-next-line no-console
     console.log("\n" + lines.join("\n") + "\n");
   }, 600_000);
 });

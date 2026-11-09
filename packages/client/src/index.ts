@@ -124,10 +124,10 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
       });
     },
     publishState(state) {
-      ws?.readyState === 1 && ws.send(JSON.stringify({ t: "state", version: state.version, state }));
+      if (ws?.readyState === 1) ws.send(JSON.stringify({ t: "state", version: state.version, state }));
     },
     publishPatch(version, ops) {
-      ws?.readyState === 1 && ws.send(JSON.stringify({ t: "patch", version, ops }));
+      if (ws?.readyState === 1) ws.send(JSON.stringify({ t: "patch", version, ops }));
     },
     onCommand(fn) {
       commandHandler = fn;
@@ -136,7 +136,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
       resyncHandler = fn;
     },
     decidePair(token, decision) {
-      ws?.readyState === 1 && ws.send(JSON.stringify({ t: "pairDecision", token, role: decision }));
+      if (ws?.readyState === 1) ws.send(JSON.stringify({ t: "pairDecision", token, role: decision }));
     },
     requestCode() {
       return new Promise((resolve, reject) => {

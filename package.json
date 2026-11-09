@@ -18,6 +18,7 @@
     "start:server": "npm run start:server -w apps/web",
     "start:session": "npm run start -w apps/server",
     "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck -w apps/web && npm run typecheck -w apps/server && npm run typecheck -w apps/powerpoint && npm run typecheck -w apps/browser && npm run typecheck -w apps/desktop",
+    "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:watch": "vitest",
     "desktop": "npm run build && npm run start -w apps/desktop",
@@ -30,11 +31,17 @@
     "notices": "npm run sbom --silent && node scripts/third-party-notices.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@next/eslint-plugin-next": "15.5.28",
     "@types/node": "22.15.21",
     "@vitest/coverage-v8": "^5.1.0",
     "axe-core": "^4.14.0",
     "concurrently": "^9.1.2",
+    "eslint": "10.13.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.13.0",
     "typescript": "5.8.3",
+    "typescript-eslint": "8.72.0",
     "vitest": "^5.1.0"
   },
   "overrides": {

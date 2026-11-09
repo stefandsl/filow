@@ -1777,7 +1777,7 @@ function installCsp() {
 async function main() {
   killStaleTunnels();
   installCsp();
-  let choices = null;
+  let choices;
   try {
     seed(scriptFile, "script.md");
     const migrated = migrateLegacyProfile();

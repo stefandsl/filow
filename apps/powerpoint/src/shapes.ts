@@ -35,7 +35,7 @@ export async function readAllSlideShapes(ctx: PowerPoint.RequestContext): Promis
   await ctx.sync();
   const ranges: Array<Array<{ sh: PowerPoint.Shape; tr: PowerPoint.TextRange | null }>> = frames.map((list) =>
     list.map(({ sh, tf }) => {
-      let has = false;
+      let has: boolean;
       try {
         has = Boolean(tf && tf.hasText);
       } catch {
@@ -50,7 +50,7 @@ export async function readAllSlideShapes(ctx: PowerPoint.RequestContext): Promis
   await ctx.sync();
   return ranges.map((list) =>
     list.map(({ sh, tr }) => {
-      let text = "";
+      let text: string;
       try {
         text = tr ? tr.text : "";
       } catch {

@@ -3,7 +3,7 @@ import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { connect, type SessionClient } from "@filow/client";
 import { Engine, isLang, langFromLocale, LANGS, parseScript, type Command, type DecideRequest, type DecideResponse, type Lang, type SessionState, type SttStatus } from "@filow/core";
-import { availableBackends, BACKEND_LABELS, createBackend, startAuto, type SttBackend } from "@filow/stt";
+import { availableBackends, BACKEND_LABELS, startAuto, type SttBackend } from "@filow/stt";
 import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
 import { getSelectedSlide, hostInfo, onSelectionChange, readNotesAsScript, selectSlide, supportsNotes } from "./office";
 import { attachSlideImages, mintEngineToken, readSlidesForGeneration, requestGeneration } from "./generate";
@@ -267,7 +267,7 @@ function EnginePane({ webSpeech }: { webSpeech: boolean }) {
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [password]);
+  }, [password, t]);
 
   useEffect(() => () => clientRef.current?.close(), []);
 

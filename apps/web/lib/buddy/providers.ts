@@ -125,7 +125,7 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal): As
     });
   } catch (e) {
     if (signal?.aborted) return;
-    throw new Error(`Ollama is not running on this PC. Install it with the screen helper model (Qwen3-VL) in Settings > Local models, or set "Answers from" to Cloud in the OK Filow panel.`);
+    throw new Error(`Ollama is not running on this PC. Install it with the screen helper model (Qwen3-VL) in Settings > Local models, or set "Answers from" to Cloud in the OK Filow panel.`, { cause: e });
   }
   if (res.status === 404) throw new Error(`The screen helper model (${model}) is not installed. Get it in Settings > Local models, or set "Answers from" to Cloud in the OK Filow panel.`);
   if (!res.ok || !res.body) throw new Error(`Ollama ${res.status}: ${(await res.text()).slice(0, 300)}`);

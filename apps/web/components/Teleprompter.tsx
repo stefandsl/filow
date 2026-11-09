@@ -18,8 +18,8 @@ import {
   type SttStatus,
 } from "@filow/core";
 import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
-import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, startAuto, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
-import { getSpeechLang, getStartMode, setDecisionProvider, setStartMode, type StartMode } from "@/lib/prefs";
+import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
+import { getSpeechLang, getStartMode, setDecisionProvider, setStartMode } from "@/lib/prefs";
 import { useEngine } from "./useEngine";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
 import { engineHeaders, ensureEngineToken, useSession } from "./useSession";

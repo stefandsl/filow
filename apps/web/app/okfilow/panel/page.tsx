@@ -182,7 +182,7 @@ export default function OkFilowPanel() {
     const p = parseBuddyAnswer(await res.text(), shot.screens, shot.screens.find((x) => x.cursor)?.index ?? 1).points[0];
     const d = p && shot.displays.find((x) => x.index === p.screen);
     return p && d ? { ...pointToDisplay(p, d.bounds), label: p.label } : null;
-  }, [engineHeaders, lang]);
+  }, [engineHeaders]);
 
   const ask = useCallback(async (question: string, opts: { typed?: boolean } = {}) => {
     const b = okFilowBridge();
@@ -303,7 +303,7 @@ export default function OkFilowPanel() {
       fail(e instanceof Error ? e.message : String(e));
       if (handsFree.current) setTimeout(() => handsFree.current && listenAgain.current(), 1500);
     }
-  }, [engineHeaders, fail, groundAnswer, lang, setMode, speak, t]);
+  }, [engineHeaders, fail, groundAnswer, setMode, speak, t]);
 
   const startListening = useCallback(async (why: Purpose = "talk") => {
     const b = okFilowBridge();
@@ -363,7 +363,7 @@ export default function OkFilowPanel() {
       void b.stt.stop().catch(() => {});
       fail(e instanceof Error ? e.message : String(e));
     }
-  }, [fail, lang, setMode, stopAudio, t]);
+  }, [fail, setMode, stopAudio, t]);
 
   const stopListening = useCallback(async (send: boolean) => {
     const b = okFilowBridge();
@@ -450,7 +450,7 @@ export default function OkFilowPanel() {
       }),
     ];
     return () => offs.forEach((o) => o());
-  }, [ask, bridge, fail, setHandsFree, startListening, stopListening]);
+  }, [ask, bridge, fail, setHandsFree, setMode, speak, startListening, stopListening, t]);
 
   if (!bridge) return <main className="okf-panel"><p>{t("desktopOnly")}</p></main>;
   const c = status;

@@ -329,7 +329,7 @@ export function quantitiesFromTokens(toks: Token[]): Quantity[] {
   while (i < toks.length) {
     let start = i;
     let currency: string | null = null;
-    let num: { value: number; end: number; plainYearToken: boolean } | null = null;
+    let num: { value: number; end: number; plainYearToken: boolean } | null;
     let approx = false;
     if ((at(i) === "$" || at(i) === "€" || at(i) === "£") && /^\d/.test(at(i + 1))) {
       currency = CURRENCY_WORDS[at(i)];

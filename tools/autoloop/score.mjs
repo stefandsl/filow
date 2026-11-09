@@ -31,7 +31,7 @@ const metrics = {};
   const outFile = path.join(ROOT, "tmp/autoloop/vitest.json");
   fs.mkdirSync(path.dirname(outFile), { recursive: true });
   run(`npx vitest run --reporter=json --outputFile="${outFile}"`);
-  let passed = 0, failed = 0;
+  let passed = 0, failed;
   try {
     const j = JSON.parse(fs.readFileSync(outFile, "utf8"));
     passed = j.numPassedTests; failed = j.numFailedTests + (j.numRuntimeErrorTestSuites || 0) + (j.numFailedTestSuites || 0);
@@ -45,6 +45,14 @@ if (!quick) {
   const t = run("npm run typecheck");
   gates.typecheck = t.code === 0;
   metrics.typeErrors = (t.out.match(/error TS\d+/g) || []).length;
+}
+
+// TST-05: ESLint over the whole repo, 0 errors and 0 warnings (eslint.config.mjs).
+{
+  const l = run("npm run lint");
+  gates.lint = l.code === 0;
+  const m = l.out.match(/(\d+) problems? \((\d+) errors?, (\d+) warnings?\)/);
+  metrics.lintProblems = m ? Number(m[1]) : l.code === 0 ? 0 : -1;
 }
 
 // ---------- scored checks (static, deterministic) ----------

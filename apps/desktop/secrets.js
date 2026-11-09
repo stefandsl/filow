@@ -41,7 +41,7 @@ function extractSecrets(envText) {
  */
 function migrateSecrets({ envFile, storeFile, fsx, crypto, log = () => {} }) {
   if (!crypto.available()) return {};
-  let store = {};
+  let store;
   try { store = JSON.parse(fsx.read(storeFile) || "{}"); } catch { store = {}; }
   const envText = fsx.read(envFile);
   if (envText != null) {

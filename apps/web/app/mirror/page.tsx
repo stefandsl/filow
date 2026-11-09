@@ -40,7 +40,7 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
   /** ?server= is only trusted when it is this page's own origin; anything else is confirmed first (never auto-connect elsewhere). */
   const resolveServer = (): string | null => {
     if (!serverParam) return sessionServerUrl();
-    let host = "";
+    let host: string;
     try {
       const u = new URL(serverParam);
       if (u.origin === window.location.origin) return u.origin;

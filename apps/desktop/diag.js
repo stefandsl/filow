@@ -35,7 +35,7 @@ function escapeRe(s) {
  */
 function issueUrl(base, title, sections, maxUrl = 7800) {
   const build = (logText) => `${base}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(sections.head + logText + sections.tail)}`;
-  let log = sections.log;
+  const log = sections.log;
   let url = build(log);
   if (url.length <= maxUrl) return { url, truncated: false };
   // Binary search the longest suffix of the log that fits.

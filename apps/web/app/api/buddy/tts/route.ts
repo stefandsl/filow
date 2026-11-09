@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   if (process.env.FILOW_OFFLINE === "1") return NextResponse.json({ error: "offline" }, { status: 409 });
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "No ElevenLabs key: add ELEVENLABS_API_KEY, or use the voice of this PC." }, { status: 409 });
-  let text = "";
+  let text: string;
   try {
     text = String(((await req.json()) as { text?: unknown }).text ?? "").trim().slice(0, 1500);
   } catch {

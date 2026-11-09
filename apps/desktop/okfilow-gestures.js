@@ -32,7 +32,7 @@ function createGestures(o) {
   let arming = null; // { kind, timer, since }
   let suppressed = false;
   let ctrlTap = { since: 0, clean: false, last: 0 };
-  let dictTap = { last: 0 };
+  const dictTap = { last: 0 };
 
   const which = () => {
     const d = o.dictate();

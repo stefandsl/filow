@@ -17,7 +17,7 @@ export async function decideClefLocal(body: DecideRequest, signal?: AbortSignal)
     });
   } catch (err) {
     if ((err as Error).name === "AbortError") throw err;
-    throw new Error(`Ollama not reachable at ${OLLAMA_URL()}. Start Ollama (0.35.1+) and pull ${model} in Settings > Local models.`);
+    throw new Error(`Ollama not reachable at ${OLLAMA_URL()}. Start Ollama (0.35.1+) and pull ${model} in Settings > Local models.`, { cause: err });
   }
   const latencyMs = Date.now() - started;
   if (res.status === 404) throw new Error(`Model ${model} not found in Ollama, or Ollama is older than 0.35.1. Pull it in Settings > Local models.`);

@@ -59,6 +59,9 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
     if (wasWatching) notifyUser(t("screen.notifyOff"), t("screen.notifyOffBody"));
   }, [t]);
 
+  const stopWatchingRef = useRef(stopWatching);
+  stopWatchingRef.current = stopWatching;
+
   useEffect(() => {
     setMode(getScreenMode());
     bridge.current = screenBridge();
@@ -67,10 +70,9 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
       void bridge.current.getSettings().then((s) => setEnabled(s.enabled));
       return bridge.current.onSettings((s) => {
         setEnabled(s.enabled);
-        if (!s.enabled) stopWatching();
+        if (!s.enabled) stopWatchingRef.current();
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     if (typeof navigator !== "undefined" && !navigator.mediaDevices?.getDisplayMedia && !bridge.current) setStatus("unsupported");
   }, []);
 
@@ -146,7 +148,7 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
       notifyUser(t("screen.notifyOn", { label: name }), t("screen.notifyOnBody"));
       // lastThumb is null, so the loop's next tick sends the first frame.
     },
-    [engine, log, send, stopWatching, t],
+    [engine, log, stopWatching, t],
   );
 
   /** Web: browser chooser. Desktop: our own chooser (sources state), then getDisplayMedia resolves to it. */

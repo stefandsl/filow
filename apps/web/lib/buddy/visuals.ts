@@ -140,7 +140,7 @@ function takeBlock<T>(body: string, name: string, validate: (raw: unknown) => T 
   if (fence < 0) return { body, value: null };
   const m = new RegExp("```\\s*" + name + "\\s*([\\s\\S]*?)```", "i").exec(body.slice(fence));
   if (!m) return { body: body.slice(0, fence), value: null }; // still streaming
-  let value: T | null = null;
+  let value: T | null;
   try { value = validate(JSON.parse(m[1].trim())); } catch { value = null; }
   return { body: body.slice(0, fence) + body.slice(fence + m.index + m[0].length), value };
 }
