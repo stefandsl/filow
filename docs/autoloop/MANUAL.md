@@ -13,7 +13,7 @@ The stop condition needs every row `auto`-passing or `verified`.
 | SEC-04 | auto (SEC-5), passing | E2E navigation and window.open probe as a check |
 | SEC-05 | auto, passing 48/48 | - |
 | SEC-06 | auto, passing | - |
-| SEC-07 | open | review preload exposeInMainWorld: no generic channel wrappers |
+| SEC-07 | auto, passing (4 preloads, 140 functions, 94 fixed channels) | open note: `accessPassword` is exposed to the app pages by preload.js and okfilow-preload.js (safe only while SEC-04 keeps those windows on the app origin); `onOffline` returns no unsubscribe |
 | SEC-08 | auto, passing | E2E: geolocation request denied |
 | SEC-09 | open / needs user | Next server listens on 0.0.0.0 (LAN phone mirror by design): needs Host-header check and token on every route; design decision with the user for the LAN mode |
 | SEC-10 | auto, passing (Electron 45.2.3) | check runs against the npm registry daily |

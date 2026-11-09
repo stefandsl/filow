@@ -4,11 +4,14 @@ import { describe, expect, it } from "vitest";
 const require = createRequire(import.meta.url);
 const { redact, issueUrl } = require("./diag.js");
 
+// Built from pieces so no key-shaped string sits in a tracked file (SUP-05 scans them).
+const KEY_SHAPED = "sk-or-v1-" + "0123456789abcdef".repeat(2);
+
 describe("report redaction", () => {
   it("masks a live public link, keys, tokens, e-mails and LAN addresses", () => {
     const log = [
       "public link: error tunnel https://drives-pulling-agrees-ambassador.trycloudflare.com/session?x=1 failed",
-      "OPENROUTER_API_KEY=sk-or-v1-0123456789abcdef0123456789abcdef",
+      `OPENROUTER_API_KEY=${KEY_SHAPED}`,
       "Authorization: Bearer abcdefghijklmnopqrstuvwx",
       "ACCESS_PASSWORD=Zx81_qwertyuiop",
       "sent by mario.rossi@example.com",

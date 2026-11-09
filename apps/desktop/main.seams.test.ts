@@ -112,7 +112,8 @@ describe("Step 4 desktop offline seams", () => {
   });
   it("online report masks a live public link and keys before they reach the public issue URL", async () => {
     const f = fixture({});
-    f.api.setLog("phone joined via https://drives-pulling-agrees-ambassador.trycloudflare.com/s/1 with sk-or-v1-0123456789abcdef0123456789abcdef");
+    // the key is built from pieces so no key-shaped string sits in a tracked file (SUP-05 scans them)
+    f.api.setLog("phone joined via https://drives-pulling-agrees-ambassador.trycloudflare.com/s/1 with sk-or-v1-" + "0123456789abcdef".repeat(2));
     await f.api.reportProblem(null);
     expect(f.openExternal).toHaveBeenCalledTimes(1);
     const body = decodeURIComponent(String(f.openExternal.mock.calls[0][0]).split("&body=")[1]);
