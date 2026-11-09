@@ -1314,7 +1314,7 @@ let sttModelState = { state: "idle", pct: 0, error: "" };
 function sttStatus() {
   const ready = sttLocal.modelReady(userData);
   const model = ready ? "ready" : sttModelState.state === "downloading" || sttModelState.state === "extracting" || sttModelState.state === "error" ? sttModelState.state : "missing";
-  return { model, pct: sttModelState.pct, error: sttModelState.error || undefined, running: Boolean(sttSession && sttSession.ready) };
+  return { model, pct: sttModelState.pct, error: sttModelState.error || undefined, running: Boolean(sttSession && sttSession.ready), partial: ready ? 0 : sttLocal.partialPct(userData) };
 }
 function sttBroadcast(channel, payload) {
   for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(channel, payload);

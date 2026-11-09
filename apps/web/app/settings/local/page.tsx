@@ -106,7 +106,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   useEffect(() => {
     void loadPlan(false);
   }, []);
-  const [sherpa, setSherpa] = useState<{ model: string; pct: number; error?: string; running?: boolean } | null>(null);
+  const [sherpa, setSherpa] = useState<{ model: string; pct: number; error?: string; running?: boolean; partial?: number } | null>(null);
   useEffect(() => {
     const b = sherpaBridge();
     if (!b) return;
@@ -589,7 +589,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                           </>
                         ) : (
                           <button className="btn primary" disabled={sherpa?.model === "downloading" || sherpa?.model === "extracting"} onClick={() => sherpaBridge()?.download()}>
-                            {sherpa?.model === "downloading" ? `${t("settings.download")} ${sherpa.pct}%` : sherpa?.model === "extracting" ? t("settings.starting") : t("settings.download")}
+                            {sherpa?.model === "downloading" ? `${t("settings.download")} ${sherpa.pct}%` : sherpa?.model === "extracting" ? t("settings.starting") : sherpa?.partial ? t("settings.resumeDownload", { pct: sherpa.partial }) : t("settings.download")}
                           </button>
                         )}
                         {sherpa?.model === "error" && <span className="chip err">{sherpa.error}</span>}

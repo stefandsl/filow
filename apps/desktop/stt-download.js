@@ -17,10 +17,17 @@ function checkDownloadSize(received, contentLength) {
   }
 }
 
-function receiveArchive(res, out, { contentLength, fallbackSize, onPct }) {
+/** First byte offset of a "Content-Range: bytes 100-199/200" header, or null when absent or malformed. */
+function contentRangeStart(header) {
+  const m = /^bytes (\d+)-\d+\/(\d+|\*)$/.exec(String(header || "").trim());
+  return m ? Number(m[1]) : null;
+}
+
+/** startAt: bytes already on disk when resuming, so progress counts the whole file. */
+function receiveArchive(res, out, { contentLength, fallbackSize, onPct, startAt = 0 }) {
   return new Promise((resolve, reject) => {
     let received = 0;
-    const total = Number(contentLength || fallbackSize);
+    const total = contentLength ? startAt + Number(contentLength) : Number(fallbackSize);
     const idle = idleTimeout(err => res.destroy(err));
     const aborted = () => out.destroy(new Error("download response aborted"));
     res.once("aborted", aborted);
@@ -28,7 +35,7 @@ function receiveArchive(res, out, { contentLength, fallbackSize, onPct }) {
       transform(chunk, _encoding, done) {
         if (chunk.length) idle.reset();
         received += chunk.length;
-        if (total) onPct(Math.min(99, Math.round(received / total * 100)));
+        if (total) onPct(Math.min(99, Math.round((startAt + received) / total * 100)));
         done(null, chunk);
       },
       flush(done) {
@@ -59,4 +66,4 @@ async function retryDownload(operation, onAttempt, onRetry) {
   }
 }
 
-module.exports = { idleTimeout, checkDownloadSize, receiveArchive, retryDownload };
+module.exports = { idleTimeout, checkDownloadSize, contentRangeStart, receiveArchive, retryDownload };

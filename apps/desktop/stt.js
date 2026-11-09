@@ -4,10 +4,11 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const http = require("node:http");
 const https = require("node:https");
 const { execFile } = require("node:child_process");
 const { Worker } = require("node:worker_threads");
-const { idleTimeout, receiveArchive, retryDownload } = require("./stt-download");
+const { idleTimeout, contentRangeStart, receiveArchive, retryDownload } = require("./stt-download");
 
 const MODEL = {
   id: "nemotron-3.5-asr-streaming-0.6b",
@@ -42,26 +43,47 @@ function modelReady(userData) {
   return MODEL.files.every((f) => fs.existsSync(path.join(dir, f)));
 }
 
+/**
+ * Downloads url into dest, resuming from dest's current size with an HTTP Range request when dest
+ * already holds part of the file. Safe because the finished file must match the pinned SHA-256
+ * before it is used: a bad resume costs one fresh download, never a corrupt model.
+ * Only https, or plain http when the first URL is http (local test servers); never https -> http.
+ */
 function downloadWithProgress(url, dest, onPct, hops = 5) {
   return new Promise((resolve, reject) => {
     let response;
     let req;
+    const offset = fs.existsSync(dest) ? fs.statSync(dest).size : 0;
+    const client = new URL(url).protocol === "http:" ? http : https;
+    const headers = { "User-Agent": "Filow" };
+    if (offset > 0) headers.Range = `bytes=${offset}-`;
     const idle = idleTimeout(err => req?.destroy(err));
     try {
-      req = https.get(url, { headers: { "User-Agent": "Filow" } }, (res) => {
+      req = client.get(url, { headers }, (res) => {
         idle.stop();
         if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && hops > 0) {
           res.destroy();
-          try { return downloadWithProgress(new URL(res.headers.location, url).href, dest, onPct, hops - 1).then(resolve, reject); }
+          try {
+            if (new URL(url).protocol === "https:" && new URL(res.headers.location, url).protocol !== "https:") throw new Error("download redirected away from https");
+            return downloadWithProgress(new URL(res.headers.location, url).href, dest, onPct, hops - 1).then(resolve, reject);
+          }
           catch (err) { return reject(err); }
         }
-        if (res.statusCode !== 200) {
+        const resumed = offset > 0 && res.statusCode === 206 && contentRangeStart(res.headers["content-range"]) === offset;
+        if (offset > 0 && (res.statusCode === 416 || (res.statusCode === 206 && !resumed))) {
+          // The part on disk does not line up with the file on the server (changed, or already longer).
+          res.destroy();
+          fs.rmSync(dest, { force: true });
+          return reject(new Error("the partial download did not match the server; starting over"));
+        }
+        if (res.statusCode !== 200 && !resumed) {
           res.destroy();
           return reject(new Error(`download failed: HTTP ${res.statusCode}`));
         }
         response = res;
-        receiveArchive(res, fs.createWriteStream(dest), {
-          contentLength: res.headers["content-length"], fallbackSize: MODEL.sizeBytes, onPct,
+        // 200 to a Range request means the server sent the whole file: write it from the start.
+        receiveArchive(res, fs.createWriteStream(dest, { flags: resumed ? "a" : "w" }), {
+          contentLength: res.headers["content-length"], fallbackSize: MODEL.sizeBytes, onPct, startAt: resumed ? offset : 0,
         }).then(resolve, reject);
       })
       .on("error", err => {
@@ -81,41 +103,71 @@ function extract(archive, into) {
   });
 }
 
-/** Downloads and unpacks the model into userData/models; onStatus gets {state, pct}. */
-async function ensureModel(userData, onStatus) {
-  if (modelReady(userData)) return onStatus({ state: "ready", pct: 100 });
+/** The archive while it downloads; it survives failures and restarts so the next try resumes it. */
+function partFile(userData, spec = MODEL) {
+  return path.join(userData, "models", `${spec.archive}.tar.bz2.part`);
+}
+
+/** How much of the archive is already on disk (0-99), for a "Resume download" label. */
+function partialPct(userData, spec = MODEL) {
+  try {
+    const n = fs.statSync(partFile(userData, spec)).size;
+    return n > 0 ? Math.min(99, Math.floor((n / spec.sizeBytes) * 100)) : 0;
+  } catch { return 0; }
+}
+
+/**
+ * Downloads and unpacks the model into userData/models; onStatus gets {state, pct}. `spec` is MODEL
+ * except in tests. The download resumes from the .part file; the finished archive must match the
+ * pinned SHA-256 before it is unpacked, and a mismatch deletes it so the next try starts clean.
+ */
+async function ensureModel(userData, onStatus, spec = MODEL) {
+  const dir = path.join(userData, "models", spec.id);
+  if (spec.files.every((f) => fs.existsSync(path.join(dir, f)))) return onStatus({ state: "ready", pct: 100 });
   const models = path.join(userData, "models");
-  const archive = path.join(models, `${MODEL.archive}.tar.bz2`);
+  const part = partFile(userData, spec);
   try {
     fs.mkdirSync(models, { recursive: true });
+    // Up to 0.9.30 the archive downloaded under its final name and a failed run left it half written.
+    // Its bytes are a prefix of the same file, so it becomes the part to resume.
+    const legacy = path.join(models, `${spec.archive}.tar.bz2`);
+    if (fs.existsSync(legacy)) {
+      if (fs.existsSync(part)) fs.rmSync(legacy, { force: true });
+      else fs.renameSync(legacy, part);
+    }
     await retryDownload(async () => {
-      // Never resume an archive whose integrity is unknown, including leftovers from a crash.
-      fs.rmSync(archive, { force: true });
+      if (fs.existsSync(part) && fs.statSync(part).size > spec.sizeBytes) fs.rmSync(part, { force: true });
+      if (!(fs.existsSync(part) && fs.statSync(part).size === spec.sizeBytes)) {
+        await downloadWithProgress(spec.url, part, (pct) => onStatus({ state: "downloading", pct }));
+      }
+      onStatus({ state: "extracting", pct: 99 });
+      try { await verifyArchive(part, spec.sha256); }
+      catch (err) { fs.rmSync(part, { force: true }); throw err; }
+      const extracted = path.join(models, spec.archive);
+      // A failed extraction must not contribute stale files to a later attempt.
+      fs.rmSync(extracted, { recursive: true, force: true });
       try {
-        await downloadWithProgress(MODEL.url, archive, (pct) => onStatus({ state: "downloading", pct }));
-        onStatus({ state: "extracting", pct: 99 });
-        const extracted = path.join(models, MODEL.archive);
-        // A failed extraction must not contribute stale files to a later attempt.
+        await extract(part, models);
+        if (!spec.files.every((f) => fs.existsSync(path.join(extracted, f)))) throw new Error("archive did not contain the expected files");
+        fs.rmSync(dir, { recursive: true, force: true });
+        fs.renameSync(extracted, dir);
+      } catch (err) {
         fs.rmSync(extracted, { recursive: true, force: true });
-        await verifyArchive(archive);
-        await extract(archive, models);
-        if (!MODEL.files.every(f => fs.existsSync(path.join(extracted, f)))) throw new Error("archive did not contain the expected files");
-        if (fs.existsSync(modelDir(userData))) fs.rmSync(modelDir(userData), { recursive: true, force: true });
-        fs.renameSync(extracted, modelDir(userData));
-      } finally { fs.rmSync(archive, { force: true }); }
-    }, attempt => onStatus({ state: "downloading", pct: 0, message: `download attempt ${attempt}/4` }),
-    (attempt, delay, err) => onStatus({ state: "downloading", pct: 0, message: `attempt ${attempt} failed: ${err.message}; retry in ${delay / 1000} s` }));
+        throw err;
+      }
+      fs.rmSync(part, { force: true });
+    }, attempt => onStatus({ state: "downloading", pct: partialPct(userData, spec), message: `download attempt ${attempt}/4` }),
+    (attempt, delay, err) => onStatus({ state: "downloading", pct: partialPct(userData, spec), message: `attempt ${attempt} failed: ${err.message}; retry in ${delay / 1000} s` }));
     onStatus({ state: "ready", pct: 100 });
   } catch (err) {
-    let error = String((err && err.message) || err);
-    try { fs.rmSync(archive, { force: true }); }
-    catch (cleanup) { error += `; partial archive cleanup failed: ${cleanup.message}`; }
-    onStatus({ state: "error", pct: 0, error });
+    // The part stays (unless it failed its hash, which deleted it): the next try resumes it.
+    onStatus({ state: "error", pct: partialPct(userData, spec), error: String((err && err.message) || err) });
   }
 }
 
 function removeModel(userData) {
   fs.rmSync(modelDir(userData), { recursive: true, force: true });
+  fs.rmSync(partFile(userData), { force: true });
 }
 
 /** One recognizer worker per app; started on demand, kept across takes (the model load takes ~2 s). */
@@ -211,4 +263,4 @@ class SttSession {
   }
 }
 
-module.exports = { MODEL, modelDir, modelReady, ensureModel, removeModel, SttSession, verifyArchive, sha256File };
+module.exports = { MODEL, modelDir, modelReady, ensureModel, removeModel, partFile, partialPct, downloadWithProgress, SttSession, verifyArchive, sha256File };

@@ -5,14 +5,14 @@ import type { SttBackend, SttHandlers } from "./types";
 import { startMic, type MicCapture } from "./mic";
 
 export type SherpaBridge = {
-  status: () => Promise<{ model: "ready" | "missing" | "downloading" | "extracting" | "error"; pct: number; error?: string; running: boolean }>;
+  status: () => Promise<{ model: "ready" | "missing" | "downloading" | "extracting" | "error"; pct: number; error?: string; running: boolean; partial?: number }>;
   download: () => void;
   remove: () => Promise<void>;
   start: (language: string) => Promise<{ loadMs: number }>;
   feed: (samples: Float32Array) => void;
   stop: () => Promise<void>;
   onResult: (fn: (r: { partial: string; committed: string }) => void) => () => void;
-  onStatus: (fn: (s: { model: string; pct: number; error?: string }) => void) => () => void;
+  onStatus: (fn: (s: { model: string; pct: number; error?: string; partial?: number }) => void) => () => void;
 };
 
 export function sherpaBridge(): SherpaBridge | null {
