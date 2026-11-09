@@ -824,7 +824,7 @@ function stopTunnels() {
  * working on the LAN. From the menu or the dialog the user gets the download question and errors.
  */
 let remoteBusy = false;
-async function setRemoteShare(win, on, { auto = false } = {}) {
+async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
   if (remoteBusy) return;
   remoteBusy = true;
   stopTunnels();
@@ -843,7 +843,7 @@ async function setRemoteShare(win, on, { auto = false } = {}) {
           saveSettings();
           remoteStatus("off");
           buildMenu(win);
-          win.reload();
+          if (reload) win.reload();
           return;
         }
         remoteStatus("connecting");
@@ -868,7 +868,7 @@ async function setRemoteShare(win, on, { auto = false } = {}) {
       remoteStatus("off");
     }
     buildMenu(win);
-    win.reload(); // the preload re-reads the public URLs; the page creates a fresh session and QR
+    if (reload) win.reload(); // the preload re-reads the public URLs; the page creates a fresh session and QR
   } finally {
     remoteBusy = false;
   }
@@ -1846,6 +1846,25 @@ async function main() {
     return { action: "deny" };
   });
 
+  // The public link only needs the two ports, not a loaded page: start it now so it comes up while the
+  // servers warm up. If it is ready before the first page loads, that page already has the public
+  // URLs and no reload is needed; if it comes up later, the page reloads once (as before).
+  const wantLink = settings.remoteShare && !offline && !process.env.FILOW_SESSION_URL;
+  const linkUp = !wantLink
+    ? null
+    : new Promise((resolve) => {
+        const timer = setTimeout(resolve, 45000);
+        const h = (_e, v) => {
+          if (v.state === "on" || v.state === "error" || v.state === "off") {
+            clearTimeout(timer);
+            internalEvents.removeListener("remote:status", h);
+            resolve();
+          }
+        };
+        internalEvents.on("remote:status", h);
+      });
+  if (wantLink) void setRemoteShare(win, true, { auto: true, reload: false });
+
   try {
     stage("waiting for servers");
     await waitFor(APP_URL + "/api/stt/status");
@@ -1867,26 +1886,19 @@ async function main() {
         ? `${APP_URL}/settings/local?auto=${encodeURIComponent(choices.models.join(","))}${choices.ollama ? "&ollama=1" : ""}`
         : APP_URL;
     stage("loading first page");
+    const linkAtLoad = process.env.FILOW_PUBLIC_WEB || "";
     await win.loadURL(firstPage);
     stage("first page loaded");
-    if (settings.remoteShare && !offline && !process.env.FILOW_SESSION_URL) {
+    if (linkUp) {
       stage("waiting for public link");
       // Hold the splash until the public link is up (or 45 s), so the first QR already works from anywhere.
       splashStatus(cloudflaredPath() ? st("link") : st("download"));
-      const linkUp = new Promise((resolve) => {
-        const done = () => resolve();
-        const timer = setTimeout(done, 45000);
-        const h = (_e, v) => {
-          if (v.state === "on" || v.state === "error" || v.state === "off") {
-            clearTimeout(timer);
-            internalEvents.removeListener("remote:status", h);
-            done();
-          }
-        };
-        internalEvents.on("remote:status", h);
-      });
-      void setRemoteShare(win, true, { auto: true });
       await linkUp;
+      if ((process.env.FILOW_PUBLIC_WEB || "") !== linkAtLoad && !win.isDestroyed()) {
+        stage("public link ready after the page, reloading");
+        await win.loadURL(firstPage).catch(() => {});
+      }
+      stage("public link settled");
     }
     splashStatus(st("ready"), true);
     const wait = Math.max(400, SPLASH_MIN_MS - (Date.now() - splashShownAt));
