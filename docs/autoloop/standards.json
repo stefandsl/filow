@@ -1,0 +1,143 @@
+[
+  {
+    "id": "SUP-01",
+    "check": "no * or latest dependency ranges",
+    "weight": 3,
+    "auto": {
+      "type": "cmd",
+      "cmd": "node tools/autoloop/checks/no-star-ranges.mjs"
+    }
+  },
+  {
+    "id": "SEC-13",
+    "check": "QA switches unreachable in packaged builds",
+    "weight": 3,
+    "auto": {
+      "type": "cmd",
+      "cmd": "node tools/autoloop/checks/qa-flag-gated.mjs"
+    }
+  },
+  {
+    "id": "SEC-05",
+    "check": "every IPC handler validates its sender",
+    "weight": 3,
+    "auto": {
+      "type": "cmd",
+      "cmd": "node tools/autoloop/checks/ipc-sender-checked.mjs"
+    }
+  },
+  {
+    "id": "SEC-08",
+    "check": "session permission handlers set",
+    "weight": 2,
+    "auto": {
+      "type": "file-contains",
+      "file": "apps/desktop/main.js",
+      "pattern": "setPermissionRequestHandler[\\s\\S]*setPermissionCheckHandler|setPermissionCheckHandler[\\s\\S]*setPermissionRequestHandler"
+    }
+  },
+  {
+    "id": "SEC-14",
+    "check": "secrets stored with safeStorage",
+    "weight": 3,
+    "auto": {
+      "type": "file-contains",
+      "file": "apps/desktop/main.js",
+      "pattern": "safeStorage"
+    }
+  },
+  {
+    "id": "CR-01",
+    "check": "crash reporter started",
+    "weight": 3,
+    "auto": {
+      "type": "file-contains",
+      "file": "apps/desktop/main.js",
+      "pattern": "crashReporter\\.start"
+    }
+  },
+  {
+    "id": "CR-02",
+    "check": "renderer crash recovery handler",
+    "weight": 3,
+    "auto": {
+      "type": "file-contains",
+      "file": "apps/desktop/main.js",
+      "pattern": "render-process-gone"
+    }
+  },
+  {
+    "id": "TST-01",
+    "check": "coverage thresholds configured",
+    "weight": 2,
+    "auto": {
+      "type": "file-contains",
+      "file": "vitest.config.ts",
+      "pattern": "thresholds"
+    }
+  },
+  {
+    "id": "SUP-04",
+    "check": "SBOM generation script",
+    "weight": 2,
+    "auto": {
+      "type": "file-contains",
+      "file": "package.json",
+      "pattern": "cyclonedx"
+    }
+  },
+  {
+    "id": "TST-04",
+    "check": "corpus regression gate exists",
+    "weight": 3,
+    "auto": {
+      "type": "file-exists",
+      "file": "docs/gauntlet/BASELINE.md"
+    }
+  },
+  {
+    "id": "SEC-16",
+    "check": "no PowerShell commands built by string interpolation",
+    "weight": 2,
+    "auto": {
+      "type": "cmd",
+      "cmd": "node tools/autoloop/checks/no-shell-interpolation.mjs"
+    }
+  },
+  {
+    "id": "SUP-05",
+    "check": "no secrets in tracked files or the packaged app",
+    "weight": 3,
+    "auto": {
+      "type": "cmd",
+      "cmd": "node tools/autoloop/checks/no-secrets.mjs"
+    }
+  },
+  {
+    "id": "SUP-03",
+    "check": "licenses GPL-compatible and third-party notices shipped",
+    "weight": 3,
+    "auto": {
+      "type": "cmd",
+      "cmd": "node tools/autoloop/checks/licenses.mjs"
+    }
+  },
+  {
+    "id": "SEC-10",
+    "check": "Electron on a supported major and its newest patch",
+    "weight": 3,
+    "auto": {
+      "type": "cmd",
+      "cmd": "node tools/autoloop/checks/electron-current.mjs"
+    }
+  },
+  {
+    "id": "SEC-15",
+    "check": "every download verified (pinned hash, published digest or signature)",
+    "weight": 3,
+    "auto": {
+      "type": "cmd",
+      "cmd": "node tools/autoloop/checks/downloads-verified.mjs"
+    }
+  }
+]

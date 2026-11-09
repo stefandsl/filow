@@ -24,10 +24,15 @@
     "desktop:build": "npm run build && npm run dist -w apps/desktop",
     "desktop:build:win": "npm run build && npm run dist:win -w apps/desktop",
     "desktop:build:mac": "npm run build && npm run dist:mac -w apps/desktop",
-    "desktop:build:linux": "npm run build && npm run dist:linux -w apps/desktop"
+    "desktop:build:linux": "npm run build && npm run dist:linux -w apps/desktop",
+    "test:coverage": "vitest run --coverage",
+    "sbom": "npx --yes @cyclonedx/cyclonedx-npm@4 --omit dev --output-file tmp/sbom.cdx.json",
+    "notices": "npm run sbom --silent && node scripts/third-party-notices.mjs"
   },
   "devDependencies": {
     "@types/node": "22.15.21",
+    "@vitest/coverage-v8": "^5.1.0",
+    "axe-core": "^4.14.0",
     "concurrently": "^9.1.2",
     "typescript": "5.8.3",
     "vitest": "^5.1.0"

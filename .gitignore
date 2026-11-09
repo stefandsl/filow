@@ -20,3 +20,5 @@ design/
 .playwright-cli/
 .claude/
 output/
+tmp/
+release-*/

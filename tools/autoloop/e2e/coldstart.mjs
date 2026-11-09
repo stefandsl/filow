@@ -1,0 +1,56 @@
+#!/usr/bin/env node
+// PERF-01 (docs/autoloop/STANDARDS.md): cold start of the packaged app. Launches it N times on its own
+// profile and ports and measures, from process spawn, when startup.log says "splash shown" and "main
+// window shown". Writes tmp/autoloop/coldstart.json (median and p95). Budget: splash <= 0.5 s,
+// main window <= 3 s at the median, on this PC.
+//
+// Usage: node tools/autoloop/e2e/coldstart.mjs [win-unpacked dir] [runs=5]
+import { spawn, execSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+
+const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../../..");
+function newestBuild() {
+  const dirs = fs.readdirSync(ROOT).filter((d) => /^release-autoloop/.test(d) && fs.existsSync(path.join(ROOT, d, "win-unpacked", "Filow.exe")));
+  dirs.sort((a, b) => fs.statSync(path.join(ROOT, b, "win-unpacked", "Filow.exe")).mtimeMs - fs.statSync(path.join(ROOT, a, "win-unpacked", "Filow.exe")).mtimeMs);
+  return path.join(ROOT, dirs[0], "win-unpacked");
+}
+const exeDir = process.argv[2] || newestBuild();
+const runs = Number(process.argv[3] || 5);
+const profile = path.join(ROOT, "tmp", "autoloop-profile");
+const log = path.join(profile, "startup.log");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
+
+const splash = [], main = []; let invalid = 0;
+for (let i = 0; i < runs; i++) {
+  fs.writeFileSync(log, "");
+  const t0 = Date.now();
+  const app = spawn(path.join(exeDir, "Filow.exe"), [], {
+    env: { ...process.env, FILOW_USER_DATA_DIR: profile, FILOW_PORT: "4787", FILOW_SESSION_PORT: "4788" }, stdio: "ignore",
+  });
+  let s = null, m = null;
+  for (let w = 0; w < 120 && m == null; w++) {
+    await sleep(250);
+    const text = fs.readFileSync(log, "utf8");
+    const at = (needle) => { const line = text.split("\n").find((l) => l.includes(needle)); return line ? Date.parse(line.slice(0, 24)) - t0 : null; };
+    s = s ?? at("splash shown");
+    m = at("main window shown");
+  }
+  try { execSync(`taskkill /PID ${app.pid} /T /F`, { stdio: "ignore" }); } catch { /* gone */ }
+  await sleep(3000);
+  // A run whose public link failed ends the tunnel hold early: its main-window time would look better
+  // than a real start, so it does not count (it happens when Cloudflare rate-limits quick tunnels).
+  const tunnelFailed = /public link: error/.test(fs.readFileSync(log, "utf8"));
+  if (s != null) splash.push(s);
+  if (m != null && !tunnelFailed) main.push(m);
+  if (tunnelFailed) invalid++;
+  console.log(`run ${i + 1}: splash ${s} ms, main window ${m} ms${tunnelFailed ? " (public link failed: not counted)" : ""}`);
+}
+const out = {
+  at: new Date().toISOString(), build: exeDir, runs, invalidMainRuns: invalid,
+  splashMedian: splash.length ? pct(splash, 0.5) : null, mainMedian: main.length ? pct(main, 0.5) : null,
+  mainP95: main.length ? pct(main, 0.95) : null, splash, main,
+};
+fs.writeFileSync(path.join(ROOT, "tmp", "autoloop", "coldstart.json"), JSON.stringify(out, null, 2));
+console.log(`splash median ${out.splashMedian} ms, main window median ${out.mainMedian} ms, p95 ${out.mainP95} ms`);
