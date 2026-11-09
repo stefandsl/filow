@@ -74,3 +74,35 @@ describe("text: quantities", () => {
     expect(q("ora abbiamo clienti")).toEqual([]);
   });
 });
+
+describe("text: review findings", () => {
+  const q = (s: string) => quantities(s).map((x) => [x.kind, x.value]);
+  it("does not split sentences inside numbers", () => {
+    expect(sentences("Abbiamo 1.200 clienti. Poi 3.5 punti.").map((s) => s.text)).toEqual(["Abbiamo 1.200 clienti.", "Poi 3.5 punti."]);
+  });
+  it("reads counts in 1900-2100 as counts unless they are said as a year", () => {
+    expect(q("2.000 clienti")).toEqual([["count", 2000]]);
+    expect(q("2,000 users")).toEqual([["count", 2000]]);
+    expect(q("2000 clienti")).toEqual([["count", 2000]]);
+    expect(q("two thousand users")).toEqual([["count", 2000]]);
+    expect(q("nel 2025 i costi")).toEqual([["year", 2025]]);
+    expect(q("since 2019 we grew")).toEqual([["year", 2019]]);
+    expect(q("rispetto al 2024.")).toEqual([["year", 2024]]);
+  });
+  it("reads numbers after a scale, connectors and halves", () => {
+    expect(q("two thousand five hundred users")).toEqual([["count", 2500]]);
+    expect(q("one million two hundred thousand")).toEqual([["count", 1_200_000]]);
+    expect(q("mille e cinquecento clienti")).toEqual([["count", 1500]]);
+    expect(q("due ore e mezza")).toEqual([["duration", 2.5 * 3600]]);
+    expect(q("two and a half hours")).toEqual([["duration", 2.5 * 3600]]);
+    expect(q("un milione di euro")).toEqual([["currency:eur", 1e6]]);
+    expect(q("a million users")).toEqual([["count", 1e6]]);
+    expect(q("€1.2m")).toEqual([["currency:eur", 1.2e6]]);
+    expect(q("tre virgola 05")).toEqual([["count", 3.05]]);
+  });
+  it("carries a unit back across a range", () => {
+    expect(q("dal 20 al 25 per cento")).toEqual([["percent", 20], ["percent", 25]]);
+    expect(q("from 20 to 25 percent")).toEqual([["percent", 20], ["percent", 25]]);
+    expect(q("tra 2 e 3 ore")).toEqual([["duration", 7200], ["duration", 10800]]);
+  });
+});

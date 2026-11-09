@@ -61,7 +61,7 @@ most other some such only own same s t ll re ve d m o y let lets
 export const STOP = new Set(STOP_WORDS.split(/\s+/).filter(Boolean));
 
 /** Words that carry no topic but change truth: kept out of content, read by the guard. */
-export const NEGATIONS = new Set(["non", "mai", "nessun", "nessuno", "nessuna", "niente", "nulla", "not", "no", "never", "none", "nothing", "nobody", "nor", "cannot"]);
+export const NEGATIONS = new Set(["non", "mai", "nessun", "nessuno", "nessuna", "niente", "nulla", "not", "no", "never", "none", "nothing", "nobody", "nor", "cannot", "failed", "fail", "fails", "unable"]);
 
 /** Content tokens of a text: no stop words, no negations, no numbers or number words, at least 2 letters. */
 export function contentTokens(text: string): string[] {
@@ -85,7 +85,9 @@ export function similarity(a: string, b: string): number {
   const lev = 1 - levenshtein(a, b) / Math.max(a.length, b.length);
   let p = 0;
   while (p < a.length && p < b.length && a[p] === b[p]) p++;
-  const stem = p >= 5 ? p / Math.min(a.length, b.length) : 0;
+  // a shared stem of 5+ letters leaving at most 3 letters of ending: "tagliare" ~ "tagliato", "reduce" ~ "reduced"
+  const short = Math.min(a.length, b.length);
+  const stem = p >= 5 ? (short - p <= 3 ? Math.max(0.85, p / short) : p / short) : 0;
   return Math.max(lev, stem);
 }
 
@@ -111,14 +113,19 @@ export type Sentence = { text: string; start: number; end: number };
 const CHUNK_TOKENS = 24;
 
 /**
- * Sentences of a text with their offsets (split after . ! ? ; and line breaks). Unpunctuated text
- * (some STT output) is cut into overlapping chunks of at most 24 tokens, so a claim is never read
- * against a whole minute of speech.
+ * Sentences of a text with their offsets: split after . ! ? ; followed by a space or the end, and at
+ * line breaks, never inside a number ("1.200", "3.5"). Unpunctuated text (some STT output) is cut
+ * into overlapping chunks of at most 24 tokens, so a claim is never read against a whole minute of
+ * speech.
  */
 export function sentences(text: string): Sentence[] {
   const out: Sentence[] = [];
-  const re = /[^.!?;\n]+[.!?;]*/g;
+  const re = /[\s\S]*?(?:[.!?;]+(?=\s|$)|\n|$)/g;
   for (const m of text.matchAll(re)) {
+    if (!m[0]) {
+      if ((m.index ?? 0) >= text.length) break;
+      continue;
+    }
     const raw = m[0];
     const lead = raw.length - raw.trimStart().length;
     const s = (m.index ?? 0) + lead;
@@ -168,7 +175,7 @@ const IT_MORPHEMES = [...Object.keys(IT_UNITS), "cento", "cent", "mille", "mila"
 
 /** Italian number word, compounds included ("quattrocentocinquanta", "duemilaventicinque"). */
 function parseItalianWord(w: string): number | null {
-  if (w === "un" || w === "una" || w === "uno") return null; // articles; only inside compounds ("ventuno")
+  if (!w || w === "un" || w === "una" || w === "uno") return null; // articles; only inside compounds ("ventuno")
   let total = 0;
   let cur = 0;
   let i = 0;
@@ -197,7 +204,7 @@ const EN_SMALL: Record<string, number> = {
 const EN_TENS: Record<string, number> = { twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
 const SCALES: Record<string, number> = {
   hundred: 100, thousand: 1000, million: 1e6, millions: 1e6, billion: 1e9, billions: 1e9,
-  milione: 1e6, milioni: 1e6, miliardo: 1e9, miliardi: 1e9, mila: 1000, k: 1000, mln: 1e6, mld: 1e9, bn: 1e9,
+  milione: 1e6, milioni: 1e6, miliardo: 1e9, miliardi: 1e9, mila: 1000, k: 1000, m: 1e6, mln: 1e6, mld: 1e9, bn: 1e9,
 };
 
 /** "1.200" and "1,200" are 1200; "3,5" and "3.5" are 3.5 (a separator followed by exactly 3 digits groups thousands). */
@@ -241,73 +248,110 @@ export function quantities(text: string): Quantity[] {
   return quantitiesFromTokens(tokenize(text));
 }
 
+/** Words after which a bare 1900-2100 number is a year ("nel 2025", "since 2019", "rispetto al 2024"). */
+const YEAR_PREPS = new Set(["nel", "nell", "dal", "dall", "al", "all", "del", "dell", "entro", "anno", "in", "since", "by", "until", "from", "year", "of"]);
+/** Words between two numbers of a range ("dal 20 al 25%", "from 20 to 25 percent", "tra 2 e 3 ore"). */
+const RANGE_WORDS = new Set(["al", "a", "ai", "alle", "to", "e", "and", "fino", "through"]);
+/** "un milione", "a million", "one hundred": the article stands for 1 before a scale. */
+const ONE_BEFORE_SCALE = new Set(["un", "uno", "una", "a", "an", "one"]);
+/** Scale words that count only written right after the digits ("1.2m", "30k"). */
+const ADJACENT_SCALES = new Set(["m", "k"]);
+
+const isWordNumber = (v: ReturnType<typeof wordValue>) => v !== null && v.kind !== "digits";
+
+/** A number that fits after `cur` in a spoken compound: "twenty two", "two hundred fifty", "mille cinquecento". */
+function fitsAfter(cur: number, v: number): boolean {
+  if (v <= 0 || cur <= 0) return false;
+  const place = 10 ** String(Math.trunc(v)).length;
+  return cur % place === 0;
+}
+
+/**
+ * Reads one number starting at token i: digits or words, compounds ("sixty-two", "two thousand five
+ * hundred", "mille e cinquecento", "one million two hundred thousand"), scales ("tre milioni", "30k"),
+ * halves ("two and a half") and spoken decimals ("tre virgola cinque", "three point 05").
+ */
+function readNumber(toks: Token[], i: number): { value: number; end: number; plainYearToken: boolean } | null {
+  const at = (k: number) => toks[k]?.norm ?? "";
+  let j = i;
+  let total = 0;
+  let cur: number;
+  let words = true;
+  if (ONE_BEFORE_SCALE.has(at(j)) && (at(j + 1) in SCALES || at(j + 1) === "hundred") && !ADJACENT_SCALES.has(at(j + 1))) {
+    cur = 1;
+    j++;
+  } else {
+    const first = wordValue(at(j));
+    if (!first) return null;
+    cur = first.value;
+    words = first.kind !== "digits";
+    j++;
+    if (at(i) === "one" && !(at(j) in SCALES) && at(j) !== "hundred") return null; // "one small group": a pronoun
+  }
+  let lastScale = Infinity;
+  for (;;) {
+    const w = at(j);
+    if (w === "hundred" && words) {
+      cur = (cur || 1) * 100;
+      j++;
+    } else if (w in SCALES && w !== "hundred" && SCALES[w] < lastScale && (!ADJACENT_SCALES.has(w) || toks[j].start === toks[j - 1].end)) {
+      total += (cur || 1) * SCALES[w];
+      lastScale = SCALES[w];
+      cur = 0;
+      j++;
+    } else if ((w === "and" && at(j + 1) === "a" && at(j + 2) === "half") || (w === "e" && (at(j + 1) === "mezzo" || at(j + 1) === "mezza"))) {
+      if (cur === 0 && total === 0) break;
+      cur += 0.5;
+      j += w === "and" ? 3 : 2;
+      break;
+    } else if ((w === "and" || w === "e") && words && isWordNumber(wordValue(at(j + 1))) && (total > 0 || cur >= 100) && (cur === 0 || fitsAfter(cur, wordValue(at(j + 1))!.value))) {
+      j++; // "two hundred and fifty", "mille e cinquecento"
+    } else if (words && isWordNumber(wordValue(w)) && wordValue(w)!.value > 0 && ((cur === 0 && total > 0 && wordValue(w)!.value < lastScale) || fitsAfter(cur, wordValue(w)!.value))) {
+      cur += wordValue(w)!.value;
+      j++;
+    } else break;
+  }
+  let value = total + cur;
+  // decimals said in words: "tre virgola cinque", "three point five", "tre virgola 05"
+  if ((at(j) === "virgola" || at(j) === "point") && wordValue(at(j + 1))) {
+    const d = at(j + 1);
+    value = Number(`${value}.${/^\d+$/.test(d) ? d : wordValue(d)!.value}`);
+    j += 2;
+  }
+  const plainYearToken = j === i + 1 && (/^\d{4}$/.test(at(i)) || !/\d/.test(at(i)));
+  return { value, end: j, plainYearToken };
+}
+
 export function quantitiesFromTokens(toks: Token[]): Quantity[] {
   const out: Quantity[] = [];
-  const n = toks.length;
-  const at = (k: number) => (k >= 0 && k < n ? toks[k].norm : "");
-  const enValue = (w: string) => (w in EN_SMALL ? EN_SMALL[w] : w in EN_TENS ? EN_TENS[w] : null);
+  const at = (k: number) => toks[k]?.norm ?? "";
   let i = 0;
-  while (i < n) {
-    let value: number | null = null;
-    let approx = false;
+  while (i < toks.length) {
     let start = i;
-    let j = i;
     let currency: string | null = null;
+    let num: { value: number; end: number; plainYearToken: boolean } | null = null;
+    let approx = false;
     if ((at(i) === "$" || at(i) === "€" || at(i) === "£") && /^\d/.test(at(i + 1))) {
       currency = CURRENCY_WORDS[at(i)];
-      j = i + 1;
-    }
-    const first = wordValue(at(j));
-    if (first) {
-      j++;
-      let total = 0;
-      let cur = first.value;
-      for (;;) {
-        const w = at(j);
-        const ev = enValue(w);
-        if (first.kind === "en" && ev !== null && ev < 10 && cur % 100 >= 20 && cur % 10 === 0) {
-          cur += ev; // "sixty two", "sixty-two"
-          j++;
-        } else if (first.kind === "en" && ev !== null && cur >= 100 && cur % 100 === 0) {
-          cur += ev; // "two hundred fifty"
-          j++;
-        } else if (first.kind === "en" && w === "and" && enValue(at(j + 1)) !== null && cur >= 100 && cur % 100 === 0) {
-          j++; // "two hundred and fifty"
-        } else if (w === "hundred" && first.kind === "en") {
-          cur *= 100;
-          j++;
-        } else if (w in SCALES && w !== "hundred") {
-          total += cur * SCALES[w]; // "tre milioni", "450 mila", "two thousand"
-          cur = 0;
-          j++;
-        } else break;
-      }
-      value = total + cur;
-      // "one" alone is a pronoun ("one small group"): a number only with a scale or a compound after it
-      if (at(i) === "one" && j === i + 1) value = null;
-      // decimals said in words: "tre virgola cinque", "three point five"
-      const d = (at(j) === "virgola" || at(j) === "point") && wordValue(at(j + 1));
-      if (value !== null && d) {
-        value = Number(`${value}.${d.value}`);
-        j += 2;
-      }
+      num = readNumber(toks, i + 1);
     } else if (at(i) in APPROX_NOUNS && (at(i - 1) === "una" || at(i - 1) === "un" || at(i - 1) === "a")) {
-      value = APPROX_NOUNS[at(i)]; // "una decina", "un centinaio", "a dozen"
+      num = { value: APPROX_NOUNS[at(i)], end: i + 1, plainYearToken: false }; // "una decina", "a dozen"
       approx = true;
       start = i - 1;
-      j = i + 1;
+    } else {
+      num = readNumber(toks, i);
     }
-    if (value === null || !Number.isFinite(value)) {
+    if (!num || !Number.isFinite(num.value)) {
       i++;
       continue;
     }
+    let { value, end: j } = num;
     // hedges right before the number
-    const p1 = at(start - 1);
-    const p2 = `${at(start - 2)} ${at(start - 1)}`;
-    if (HEDGES.has(p1) || HEDGE_PAIRS.has(p2)) approx = true;
-    // unit after the number (skipping "di", "d'", "of", "per")
-    const raw = value;
+    if (HEDGES.has(at(start - 1)) || HEDGE_PAIRS.has(`${at(start - 2)} ${at(start - 1)}`)) approx = true;
+    // unit after the number (skipping "di", "d'", "of")
+    let raw = value;
     let kind: Quantity["kind"] = "count";
+    let factor = 1;
     let k = j;
     if (at(k) === "di" || at(k) === "d" || at(k) === "of") k++;
     const u = at(k);
@@ -326,12 +370,30 @@ export function quantitiesFromTokens(toks: Token[]): Quantity[] {
     } else if (u in CURRENCY_WORDS) {
       kind = `currency:${CURRENCY_WORDS[u]}`;
       j = k + 1;
-    } else if (u in DURATION_UNITS && (u !== "ora" || k === j) && (u !== "h" && u !== "min" && u !== "sec" || k === j)) {
+    } else if (u in DURATION_UNITS && ((u !== "ora" && u !== "h" && u !== "min" && u !== "sec") || k === j)) {
       kind = "duration";
-      value = value * DURATION_UNITS[u];
+      factor = DURATION_UNITS[u];
       j = k + 1;
-    } else if (Number.isInteger(value) && value >= 1900 && value <= 2100) {
+      // "due ore e mezza", "two hours and a half"
+      if (at(j) === "e" && (at(j + 1) === "mezzo" || at(j + 1) === "mezza")) {
+        raw += 0.5;
+        j += 2;
+      } else if (at(j) === "and" && at(j + 1) === "a" && at(j + 2) === "half") {
+        raw += 0.5;
+        j += 3;
+      }
+      value = raw * factor;
+    } else if (num.plainYearToken && Number.isInteger(value) && value >= 1900 && value <= 2100 && (YEAR_PREPS.has(at(start - 1)) || !/^\p{L}/u.test(at(j)))) {
       kind = "year";
+    }
+    // a range takes its unit from its second number: "dal 20 al 25 per cento" is 20% to 25%
+    const prev = out[out.length - 1];
+    if (prev && prev.kind === "count" && kind !== "count" && kind !== "year") {
+      const gap = toks.slice(prev.tokenEnd, start).map((t) => t.norm);
+      if (gap.length >= 1 && gap.length <= 2 && gap.every((g) => RANGE_WORDS.has(g))) {
+        prev.kind = kind;
+        prev.value = prev.raw * factor;
+      }
     }
     out.push({ kind, value, raw, approx, tokenStart: start, tokenEnd: j });
     i = Math.max(j, i + 1);

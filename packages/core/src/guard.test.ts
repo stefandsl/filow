@@ -87,3 +87,53 @@ describe("claim guard: true points pass", () => {
     expect(text.slice(r.evidence!.start, r.evidence!.end)).toBe("We hired three engineers in July.");
   });
 });
+
+// Adversarial cases from the independent review of the P1 branch (all failed before the fix).
+describe("claim guard: review findings", () => {
+  const verdict = (point: string, said: string) => checkClaim(point, said).ok;
+
+  it("blocks contradictions that used to pass", () => {
+    expect(verdict("Support costs fell 30% this quarter", "Let's talk about support costs this quarter. Support costs rose thirty percent.")).toBe(false);
+    expect(verdict("I costi operativi sono calati del 30%", "Parliamo dei costi operativi. I costi operativi sono aumentati del trenta per cento.")).toBe(false);
+    expect(verdict("Support costs fell 30%", "Support costs fell thirty percent. Sorry, I misread: support costs rose thirty percent.")).toBe(false);
+    expect(verdict("Churn dropped to 4.5%", "Churn dropped to 14.5%.")).toBe(false);
+    expect(verdict("Abbiamo 2.000 clienti attivi", "Abbiamo 3.000 clienti attivi.")).toBe(false);
+    expect(verdict("We have 2,000 users", "We have twenty thousand users.")).toBe(false);
+    expect(verdict("Non usiamo il cloud per i dati", "Usiamo il cloud per i dati, non i server locali.")).toBe(false);
+    expect(verdict("Abbiamo tagliato i tempi di consegna", "Non siamo riusciti a tagliare i tempi di consegna.")).toBe(false);
+    expect(verdict("We reduced support costs", "We failed to reduce support costs.")).toBe(false);
+    expect(verdict("We reduced support costs", "We didn't manage to reduce support costs.")).toBe(false);
+  });
+
+  it("passes true points that used to be blocked", () => {
+    expect(verdict("Abbiamo 1.200 clienti attivi", "Abbiamo 1.200 clienti attivi.")).toBe(true);
+    expect(verdict("We have 2,500 users", "We have two thousand five hundred users.")).toBe(true);
+    expect(verdict("Revenue reached 1.2 million euro", "Revenue reached one million two hundred thousand euro.")).toBe(true);
+    expect(verdict("Abbiamo 1500 clienti", "Abbiamo mille e cinquecento clienti.")).toBe(true);
+    expect(verdict("Il tempo medio di risposta è di 2,5 ore", "Il tempo medio di risposta è di due ore e mezza.")).toBe(true);
+    expect(verdict("Il margine è passato dal 20% al 25%", "Il margine è passato dal 20 al 25 per cento.")).toBe(true);
+    expect(verdict("Margin went from 20% to 25%", "Margin went from 20 to 25 percent.")).toBe(true);
+    expect(verdict("Ship the app to 50 pilot customers in 3 cities", "We ship the app to 50 pilot customers.")).toBe(true);
+    expect(verdict("Abbiamo raddoppiato i clienti", "Come mai abbiamo raddoppiato i clienti? Ve lo spiego.")).toBe(true);
+    expect(verdict("Oggi serve investire nella formazione", "Oggi più che mai serve investire nella formazione.")).toBe(true);
+    expect(verdict("We cut the onboarding time", "Don't forget we cut the onboarding time in half.")).toBe(true);
+    expect(verdict("Abbiamo tagliato i tempi di consegna", "Non dimentichiamo che abbiamo tagliato i tempi di consegna.")).toBe(true);
+    expect(verdict("We cut the onboarding time", "Nobody expected us to cut the onboarding time.")).toBe(true);
+    expect(verdict("We cut onboarding time", "We cut onboarding time and no customer complained.")).toBe(true);
+    expect(verdict("Launch the spring sale", "We launch the spring sale and lower prices on old stock.")).toBe(true);
+    expect(verdict("Set up a support team", "We created a support team to cut waiting times.")).toBe(true);
+    expect(verdict("Revenue grew 12%", "Revenue jumped 12 percent while support costs dropped.")).toBe(true);
+    expect(verdict("Non usiamo il cloud", "Lavoriamo senza cloud, tutto in locale.")).toBe(true);
+  });
+});
+
+describe("claim guard: the latest sentence that states the claim decides", () => {
+  it("a later sentence about another subject with the same verb does not undo a stated claim", () => {
+    expect(checkClaim("Il fatturato è cresciuto del 12%", "Il fatturato è cresciuto del 12 per cento. Il margine è cresciuto del 5 per cento.").ok).toBe(true);
+  });
+  it("a topic mention after the claim keeps the claim as evidence", () => {
+    const r = checkClaim("Support costs fell 30% this quarter", "Support costs fell thirty percent this quarter. Support costs are a big topic for us.");
+    expect(r.ok).toBe(true);
+    expect(r.evidence?.text).toBe("Support costs fell thirty percent this quarter.");
+  });
+});
