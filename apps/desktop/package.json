@@ -52,6 +52,7 @@
       "secrets.js",
       "qa.js",
       "integrity.js",
+      "diag.js",
       "preload.js",
       "splash.html",
       "vendor/*.js",

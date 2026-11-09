@@ -1600,6 +1600,7 @@ function applyOffline(win, value = process.env.FILOW_OFFLINE === "1") {
 }
 
 // ---- Diagnostics: crashes go to startup.log; "Report a problem" opens a prefilled GitHub issue ----
+const diag = require("./diag");
 // Nothing is sent by itself. The issue page opens in the browser with the text below; the user reads
 // it and submits (public repo stefandsl/filow-releases, so the owner sees every report on GitHub).
 process.on("uncaughtException", (err) => logLine(`CRASH main: ${err && err.stack ? err.stack : err}`));
@@ -1635,12 +1636,21 @@ async function reportProblem(win) {
     `${os.cpus()[0] ? os.cpus()[0].model : "cpu?"} · ${Math.round(os.totalmem() / 1024 ** 3)} GB RAM · GPU ${gpu || "?"}`,
     `settings: theme ${settings.theme || "system"}, lang ${menuLang()}, local AI ${settings.localAi ? "on" : "off"}`,
   ].join("\n");
-  const body = [
-    "**What happened**", "", "(describe here)", "",
-    "**System**", "```", head, "```",
-    "**Take log**", "```", lastTakeLog || "(no take yet)", "```",
-    "**startup.log (tail)**", "```", tailOf(path.join(userData, "startup.log"), 3000), "```",
-  ].join("\n");
+  // The issue is public: mask live links, keys, addresses and the user's name before it leaves the app.
+  let user = "";
+  try { user = os.userInfo().username; } catch { /* no user info */ }
+  const clean = (text) => diag.redact(text, { home: os.homedir(), user });
+  const sections = {
+    head: [
+      "**What happened**", "", "(describe here)", "",
+      "**System**", "```", head, "```",
+      "**Take log**", "```", clean(lastTakeLog || "(no take yet)"), "```",
+      "**startup.log (tail)**", "```", "",
+    ].join("\n"),
+    log: clean(tailOf(path.join(userData, "startup.log"), 6000)),
+    tail: "\n```",
+  };
+  const body = sections.head + sections.log + sections.tail;
   const title = `[${app.getVersion()}] problem on ${process.platform}`;
   if (process.env.FILOW_OFFLINE === "1") {
     const { response } = await dialog.showMessageBox({
@@ -1651,10 +1661,11 @@ async function reportProblem(win) {
     if (response === 0) clipboard.writeText(body);
     return;
   }
-  const url = `https://github.com/stefandsl/filow-releases/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-  logLine(`report: opening issue form (${body.length} chars)`);
-  await openExternalSafe(url.length > 7800 ? url.slice(0, 7800) : url);
-  if (url.length > 7800 && win && !win.isDestroyed()) {
+  // Browsers and GitHub cut long URLs: the oldest log lines go first, and the full text goes to the clipboard.
+  const { url, truncated } = diag.issueUrl("https://github.com/stefandsl/filow-releases/issues/new", title, sections, 7800);
+  logLine(`report: opening issue form (${body.length} chars${truncated ? ", log shortened" : ""})`);
+  await openExternalSafe(url);
+  if (truncated && win && !win.isDestroyed()) {
     // The browser cuts long URLs: the full text goes to the clipboard so the user can paste it.
     clipboard.writeText(body);
     void dialog.showMessageBox(win, { type: "info", message: menuLang() === "it" ? "Il testo completo del report è negli appunti: incollalo nella segnalazione." : "The full report text is on the clipboard: paste it into the issue." });

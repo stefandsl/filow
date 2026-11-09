@@ -32,7 +32,7 @@ function fixture(initialEnv: Record<string, string> = {}) {
     "./vendor/i18n": { t }, "./ui-preferences": {}, "./slideshow": {},
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
-  for (const name of ["stt", "localai"]) {
+  for (const name of ["stt", "localai", "diag"]) {
     const module = { exports: {} };
     runInNewContext(readFileSync(new URL(`./${name}.js`, import.meta.url), "utf8"), {
       require: (id: string) => { if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`); return modules[id]; },
@@ -109,6 +109,15 @@ describe("Step 4 desktop offline seams", () => {
       message: t("offline.reportCopyPrompt", "en"), buttons: [t("offline.copyReport", "en"), t("common.cancel", "en")],
     }));
     expect(f.writeText).toHaveBeenCalledWith(expect.stringContaining("synthetic private take log"));
+  });
+  it("online report masks a live public link and keys before they reach the public issue URL", async () => {
+    const f = fixture({});
+    f.api.setLog("phone joined via https://drives-pulling-agrees-ambassador.trycloudflare.com/s/1 with sk-or-v1-0123456789abcdef0123456789abcdef");
+    await f.api.reportProblem(null);
+    expect(f.openExternal).toHaveBeenCalledTimes(1);
+    const body = decodeURIComponent(String(f.openExternal.mock.calls[0][0]).split("&body=")[1]);
+    expect(body).toContain("phone joined via <public link> with <key>");
+    expect(body).not.toMatch(/trycloudflare|sk-or-v1-0123/);
   });
   it("offline report cancellation leaves the clipboard unchanged", async () => {
     const f = fixture({ FILOW_OFFLINE: "1" }); f.showMessageBox.mockResolvedValue({ response: 1 });
