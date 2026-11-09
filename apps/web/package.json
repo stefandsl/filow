@@ -15,11 +15,13 @@
     "@filow/stt": "*",
     "@filow/ui": "*",
     "@huggingface/transformers": "^4.3.2",
+    "@types/three": "^0.170.0",
     "jszip": "^3.10.2",
     "next": "15.5.28",
     "qrcode": "^1.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "three": "^0.170.0",
     "unpdf": "^2.1.0"
   },
   "devDependencies": {

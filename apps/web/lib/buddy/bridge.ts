@@ -1,0 +1,143 @@
+// Types for window.okFilow (apps/desktop/okfilow-preload.js).
+import type { BuddyMark } from "./prompt";
+import type { BuddyModel } from "./visuals";
+
+/** A card in global DIP coordinates, with its photo already fetched (data URL or ""). */
+export type OkFilowCard = { x: number; y: number; title: string; text: string; photo: string };
+export type OkFilowMode = "idle" | "listening" | "thinking" | "speaking" | "error";
+
+export type OkFilowStatus = {
+  enabled: boolean;
+  hotkey: string;
+  provider: "local" | "cloud";
+  voice: "system" | "cloud" | "off";
+  showAlways: boolean;
+  dictation: boolean;
+  color: string;
+  speed: number;
+  typedVoice: boolean;
+  allowScreenshots?: boolean;
+  answerDir?: string;
+  answerLog?: boolean;
+  agentCli?: string;
+  onboarded?: boolean;
+  handsFree: boolean;
+  dictateChord: string;
+  hotkeys: string[];
+  offline: boolean;
+  hook: "hold" | "toggle";
+  hookError: string;
+  mode: OkFilowMode;
+};
+
+export type OkFilowCapture = {
+  images: string[];
+  screens: Array<{ index: number; width: number; height: number; cursor?: boolean }>;
+  displays: Array<{ index: number; id: number; bounds: { x: number; y: number; width: number; height: number } }>;
+  /** Highlighter strokes the user drew while asking, on the 0-1000 grid of each screen. */
+  marked: Array<{ screen: number; points: Array<[number, number]> }>;
+  /** Text the user had selected in the focused app when they started talking ("" when none). */
+  selected?: string;
+};
+
+type Off = () => void;
+
+/** A background "agent, ..." job (apps/desktop/okfilow-agents.js). */
+export type OkFilowJob = {
+  id: string;
+  title: string;
+  task: string;
+  cli: "codex" | "claude";
+  dir: string;
+  status: "running" | "done" | "failed" | "stopped";
+  startedAt: string;
+  finishedAt?: string;
+  summary: string;
+  artifacts: string[];
+};
+export type OkFilowBridge = {
+  accessPassword: string;
+  sessionUrl: string;
+  status(): Promise<OkFilowStatus>;
+  configure(patch: Partial<OkFilowStatus>): Promise<OkFilowStatus>;
+  capture(): Promise<OkFilowCapture>;
+  setMode(mode: OkFilowMode, extra?: Record<string, unknown>): Promise<void>;
+  level(v: number): void;
+  text(t: string): void;
+  point(points: Array<{ x: number; y: number; label: string }>): void;
+  /** Marks already in global DIP coordinates; each overlay draws the ones on its display. */
+  draw(marks: BuddyMark[]): void;
+  /** Overlay -> main: one finished highlighter stroke, in overlay-local coordinates. */
+  stroke(points: Array<[number, number]>): void;
+  /** Panel -> overlays: explanation cards (global DIP). */
+  cards(list: OkFilowCard[]): void;
+  /** Panel -> main: open the 3D model window with this model. */
+  showModel(model: BuddyModel): void;
+  /** Model window -> main: loaded, send me the model. */
+  modelReady(): void;
+  /** Overlay -> main: my listeners are registered, send me the current state. */
+  overlayReady(): void;
+  closeModel(): void;
+  /** Model window -> panel (through main): ask OK Filow about a clicked part. */
+  askAbout(text: string): void;
+  /** Types text into the focused app (dictation). Resolves false when it could not. */
+  typeText(text: string): Promise<boolean>;
+  handsFreeOff(): void;
+  agents: {
+    /** Starts a job when the text is an "agent, ..." request; resolves null otherwise. */
+    start(text: string, context?: string): Promise<OkFilowJob | null>;
+    list(): Promise<OkFilowJob[]>;
+    stop(id: string): Promise<OkFilowJob[]>;
+    remove(id: string): Promise<OkFilowJob[]>;
+    open(path: string): Promise<string>;
+    onChange(fn: (jobs: OkFilowJob[]) => void): Off;
+    onDone(fn: (job: OkFilowJob) => void): Off;
+  };
+  hidePanel(): void;
+  clearVisuals(): void;
+  answerLog(entry: { question: string; raw: string; visuals: unknown; images: string[]; svg?: string }): Promise<string>;
+  pickAnswerDir(): Promise<OkFilowStatus>;
+  openAnswers(): Promise<boolean>;
+  deleteAnswers(): Promise<number>;
+  press(): void;
+  release(): void;
+  onPress(fn: (p: { purpose: "talk" | "dictate" } | undefined) => void): Off;
+  onRelease(fn: (p: { purpose: "talk" | "dictate" | null } | undefined) => void): Off;
+  onCancel(fn: (p: { purpose: "talk" | "dictate" | null } | undefined) => void): Off;
+  onConfig(fn: (s: OkFilowStatus) => void): Off;
+  onMode(fn: (s: { mode: OkFilowMode; error?: string }) => void): Off;
+  onState(fn: (s: { mode: OkFilowMode; error?: string; purpose?: string }) => void): Off;
+  onCursor(fn: (p: { x: number; y: number } | null) => void): Off;
+  onLevel(fn: (v: number) => void): Off;
+  onText(fn: (t: string) => void): Off;
+  onPoint(fn: (points: Array<{ x: number; y: number; label: string }>) => void): Off;
+  onDraw(fn: (marks: BuddyMark[]) => void): Off;
+  /** The screen changed under the drawing (click, key, app switch): wipe it. */
+  onClear(fn: () => void): Off;
+  onCards(fn: (list: OkFilowCard[]) => void): Off;
+  onModel(fn: (model: BuddyModel) => void): Off;
+  onAskText(fn: (text: string) => void): Off;
+  /** Main -> overlays: wipe the user's highlighter strokes (cancelled ask). */
+  onStrokes(fn: (s: unknown[]) => void): Off;
+  onHandsFree(fn: (on: boolean) => void): Off;
+  onQuickAsk(fn: () => void): Off;
+  /** First run: where the tray icon is (global DIP), or null. */
+  onWelcome(fn: (tray: { x: number; y: number } | null) => void): Off;
+  stt: {
+    status(): Promise<{ ready: boolean }>;
+    start(language: string): Promise<unknown>;
+    feed(samples: Float32Array): void;
+    stop(): Promise<unknown>;
+    onResult(fn: (r: { partial: string; committed: string; error?: string }) => void): Off;
+  };
+};
+
+export function okFilowBridge(): OkFilowBridge | null {
+  if (typeof window === "undefined") return null;
+  return ((window as unknown as { okFilow?: OkFilowBridge }).okFilow) ?? null;
+}
+
+/** Joins the committed sherpa text and the live partial into the question. */
+export function joinTranscript(committed: string[], partial: string): string {
+  return [...committed, partial].map((s) => s.trim()).filter(Boolean).join(" ").replace(/\s{2,}/g, " ").trim();
+}
