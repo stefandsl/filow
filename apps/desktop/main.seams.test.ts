@@ -15,7 +15,8 @@ function fixture(initialEnv: Record<string, string> = {}) {
   const writeText = vi.fn(), showMessageBox = vi.fn(async () => ({ response: 0 }));
   const modules: Record<string, any> = {
     electron: {
-      app: { isPackaged: true, getPath: () => "G:/fake", on() {}, setAppUserModelId() {},
+      crashReporter: { start() {} },
+      app: { isPackaged: true, getPath: () => "G:/fake", setPath() {}, on() {}, setAppUserModelId() {},
         whenReady: () => ({ then() {} }), getLocale: () => "en", getVersion: () => "test", getGPUInfo: async () => ({}) },
       ipcMain: { on() {} }, BrowserWindow: { getAllWindows: () => [] },
       session: { defaultSession: { webRequest: { onBeforeRequest: (_filter: unknown, cb: typeof requestFilter) => { requestFilter = cb; } } } },
@@ -26,7 +27,7 @@ function fixture(initialEnv: Record<string, string> = {}) {
     "node:os": { homedir: () => "G:/fake", cpus: () => [{ model: "fake" }], totalmem: () => 0, release: () => "fake" },
     "node:http": { get: () => { const req = new EventEmitter(); queueMicrotask(() => req.emit("error", new Error("Ollama absent"))); return req; } },
     "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": {},
-    "node:worker_threads": {},
+    "node:worker_threads": {}, "node:events": EventEmitter,
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
     "./vendor/i18n": { t }, "./ui-preferences": {}, "./slideshow": {},
   };

@@ -974,11 +974,14 @@ const it: Partial<Record<I18nKey, string>> = {
 
 export const DICTIONARIES: Record<Lang, Partial<Record<I18nKey, string>>> = { en, it };
 
+/** A {name} placeholder; shared with the locale parity test so both read placeholders the same way. */
+export const PLACEHOLDER = /\{(\w+)\}/g;
+
 /** Translate `key` with {placeholders}. Unknown language or missing key > English > the key itself. */
 export function t(key: I18nKey, lang: Lang = "en", vars?: Record<string, string | number>): string {
   const text = DICTIONARIES[lang]?.[key] ?? en[key] ?? key;
   if (!vars) return text;
-  return text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+  return text.replace(PLACEHOLDER, (m, k) => (k in vars ? String(vars[k]) : m));
 }
 
 export function isLang(v: unknown): v is Lang {

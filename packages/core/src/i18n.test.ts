@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { DICTIONARIES } from "./i18n";
+import { DICTIONARIES, PLACEHOLDER } from "./i18n";
 const labels = {
  "pair.device": ["Pair device", "Abbina dispositivo"],
  "footer.transcript": ["Transcript", "Trascrizione"],
@@ -21,5 +21,22 @@ it("ships every flat-layout label in English and Italian", () => {
    expect((DICTIONARIES.en as Record<string,string>)[key]).toBe(values[0]);
    expect((DICTIONARIES.it as Record<string,string>)[key]).toBe(values[1]);
    expect(values.join()).not.toContain(String.fromCharCode(0x2014));
+ }
+});
+
+// Scorecard item I18N-01 (docs/autoloop/STANDARDS.md): every translation has every English key, no
+// empty text (t() only falls back to English when a key is absent, so "" would show a blank label),
+// and the same {placeholders} as English, read with the same pattern t() substitutes.
+it("gives every language every key with matching placeholders", () => {
+ // Placeholder names, sorted, duplicates kept: "{n} of {m}" -> "m,n".
+ const placeholders = (s: string) => [...s.matchAll(PLACEHOLDER)].map((m) => m[1]).sort().join(",");
+ const en = DICTIONARIES.en as Record<string, string>;
+ for (const [lang, dict] of Object.entries(DICTIONARIES) as [string, Record<string, string | undefined>][]) {
+   if (lang === "en") continue;
+   expect(Object.keys(en).filter((k) => !(k in dict)), `${lang} is missing keys`).toEqual([]);
+   expect(Object.keys(dict).filter((k) => !(k in en)), `${lang} has keys English lacks`).toEqual([]);
+   expect(Object.keys(dict).filter((k) => !dict[k]?.trim()), `${lang} has empty text`).toEqual([]);
+   const wrong = Object.keys(en).filter((k) => placeholders(en[k]) !== placeholders(dict[k] ?? ""));
+   expect(wrong.map((k) => `${k}: en {${placeholders(en[k])}} vs ${lang} {${placeholders(dict[k] ?? "")}}`), `${lang} placeholders differ`).toEqual([]);
  }
 });

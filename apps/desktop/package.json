@@ -24,14 +24,14 @@
     "typecheck": "tsc --noEmit --strict --skipLibCheck --target es2022 --moduleResolution bundler --module esnext --jsx react-jsx welcome.ts"
   },
   "devDependencies": {
-    "electron": "45.2.1",
-    "electron-builder": "^26.18.0",
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0",
     "electron-updater": "^6.8.11",
-    "esbuild": "*"
+    "esbuild": "0.28.2"
   },
   "build": {
     "appId": "com.intelliprompter.app",
-    "electronVersion": "45.2.1",
+    "electronVersion": "45.2.3",
     "npmRebuild": false,
     "artifactName": "Filow-${version}-${os}-${arch}.${ext}",
     "productName": "Filow",
@@ -47,6 +47,11 @@
       "stt-worker.js",
       "stt.js",
       "stt-download.js",
+      "tunnels.js",
+      "csp.js",
+      "secrets.js",
+      "qa.js",
+      "integrity.js",
       "preload.js",
       "splash.html",
       "vendor/*.js",
@@ -60,7 +65,13 @@
       "welcome.html",
       "welcome-preload.js",
       "ui-preferences.js",
-      "vendor/*.css"
+      "vendor/*.css",
+      "okfilow.js",
+      "okfilow-preload.js",
+      "okfilow-gestures.js",
+      "okfilow-agents.js",
+      "okfilow-selection.js",
+      "okfilow-answers.js"
     ],
     "asar": true,
     "extraResources": [
@@ -91,6 +102,10 @@
       {
         "from": "../web/script.md",
         "to": "script.md"
+      },
+      {
+        "from": "THIRD_PARTY_NOTICES.md",
+        "to": "THIRD_PARTY_NOTICES.md"
       }
     ],
     "win": {
@@ -159,10 +174,21 @@
     "asarUnpack": [
       "stt-worker.js",
       "node_modules/sherpa-onnx-node/**",
-      "node_modules/sherpa-onnx-*/**"
-    ]
+      "node_modules/sherpa-onnx-*/**",
+      "node_modules/uiohook-napi/**"
+    ],
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": true
+    }
   },
   "dependencies": {
-    "sherpa-onnx-node": "^2.0.1"
+    "sherpa-onnx-node": "^2.0.1",
+    "uiohook-napi": "^1.5.5"
   }
 }

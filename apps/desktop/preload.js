@@ -5,6 +5,12 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("filow", {
   desktop: true,
+  /** OK Filow's section in Filow Settings (same settings as its panel). */
+  okFilow: {
+    status: () => ipcRenderer.invoke("okfilow:settings:status"),
+    configure: (patch) => ipcRenderer.invoke("okfilow:settings:configure", patch),
+    openPanel: () => ipcRenderer.send("okfilow:settings:openPanel"),
+  },
   getPreferences: () => ipcRenderer.invoke("ui:getPreferences"),
   updatePreferences: patch => ipcRenderer.invoke("ui:updatePreferences", patch),
   migrateUiPreferences: patch => ipcRenderer.invoke("ui:migratePreferences", patch),

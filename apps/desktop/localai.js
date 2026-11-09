@@ -19,6 +19,9 @@ const CATALOG = {
   clef: { dl: 17, ram: 32, ollama: true, label: "Clef 27B (local decisions)" },
   "gemma4:e2b": { dl: 6, ram: 8, ollama: true, label: "Gemma 4 E2B (script from slides)" },
   "gemma4:e4b": { dl: 9, ram: 16, ollama: true, label: "Gemma 4 E4B (script from slides)" },
+  "qwen3-vl:8b": { dl: 6.1, ram: 16, ollama: true, label: "Qwen3-VL 8B (OK Filow screen helper)" },
+  "qwen3-vl:4b": { dl: 3.3, ram: 8, ollama: true, label: "Qwen3-VL 4B (OK Filow screen helper)" },
+  "qwen3-vl:2b": { dl: 1.9, ram: 6, ollama: true, label: "Qwen3-VL 2B (OK Filow screen helper, fastest)" },
 };
 
 function gpuName() {
@@ -66,20 +69,21 @@ function hardwareScan() {
 /** What this machine can run comfortably. Keeps 3 GB of disk headroom; drops the biggest Ollama model first. */
 function recommend(hw) {
   let models;
-  if (hw.ramGb >= 32) models = ["nemotron-streaming", "whisper-small", "clef-flash", "gemma4:e4b"];
-  else if (hw.ramGb >= 16) models = ["nemotron-streaming", hw.gpuClass === "unknown" ? "whisper-base" : "whisper-small", "clef-flash", "gemma4:e2b"];
-  else if (hw.ramGb >= 8) models = ["nemotron-streaming", "whisper-base", "gemma4:e2b"];
+  if (hw.ramGb >= 32) models = ["nemotron-streaming", "whisper-small", "clef-flash", "gemma4:e4b", "qwen3-vl:2b"];
+  else if (hw.ramGb >= 16) models = ["nemotron-streaming", hw.gpuClass === "unknown" ? "whisper-base" : "whisper-small", "clef-flash", "gemma4:e2b", "qwen3-vl:2b"];
+  else if (hw.ramGb >= 8) models = ["nemotron-streaming", "whisper-base", "gemma4:e2b", "qwen3-vl:2b"];
   else models = ["nemotron-streaming", "whisper-base"];
   const total = (list) => list.reduce((s, n) => s + (CATALOG[n]?.dl || 0), 0);
   if (hw.freeGb >= 0) {
     // Drop order: big slide model (its small sibling steps in), small slide model, then Clef:
     // decisions are the core feature, so they go last. Keep 3 GB spare after the downloads.
     const spare = 3 + 1; // + ~1 GB for Ollama itself
-    for (const drop of ["gemma4:e4b", "gemma4:e2b", "clef", "clef-flash"]) {
+    for (const drop of ["gemma4:e4b", "gemma4:e2b", "qwen3-vl:8b", "qwen3-vl:4b", "clef", "clef-flash"]) {
       if (total(models) + spare <= hw.freeGb) break;
       if (!models.includes(drop)) continue;
       models = models.filter((n) => n !== drop);
       if (drop === "gemma4:e4b" && !models.includes("gemma4:e2b")) models.splice(1, 0, "gemma4:e2b");
+      if (drop === "qwen3-vl:8b" && !models.includes("qwen3-vl:4b")) models.push("qwen3-vl:4b");
     }
   }
   return { models, ollama: models.some((n) => CATALOG[n]?.ollama), downloadGb: Math.round(total(models) * 10) / 10, labels: models.map((n) => CATALOG[n]?.label || n) };
@@ -203,6 +207,13 @@ async function installOllama(binDir, onStatus) {
       const setup = path.join(binDir, "OllamaSetup.exe");
       report({ state: "downloading", pct: 0 });
       await downloadWithProgress("https://ollama.com/download/OllamaSetup.exe", setup, (pct) => report({ state: "downloading", pct }));
+      // SEC-15: run the installer only with a valid Windows signature from Ollama Inc.
+      try {
+        await require("./integrity.js").verifyAuthenticode(setup, "Ollama Inc.");
+      } catch (err) {
+        fs.rmSync(setup, { force: true });
+        throw err;
+      }
       report({ state: "installing", pct: 0 });
       await new Promise((resolve, reject) => {
         const p = spawn(setup, ["/VERYSILENT", "/NORESTART", "/SUPPRESSMSGBOXES"], { stdio: "ignore", windowsHide: true });
@@ -218,6 +229,8 @@ async function installOllama(binDir, onStatus) {
       const apps = path.join(os.homedir(), "Applications");
       fs.mkdirSync(apps, { recursive: true });
       execFileSync("ditto", ["-xk", zip, apps]);
+      // SEC-15: the unpacked app must carry a valid Apple code signature (not tested on macOS yet).
+      execFileSync("codesign", ["--verify", "--deep", "--strict", path.join(apps, "Ollama.app")]);
       fs.rmSync(zip, { force: true });
     }
   } catch (err) {

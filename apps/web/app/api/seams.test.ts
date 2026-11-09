@@ -10,6 +10,9 @@ import { GET as localStatus } from "./local/status/route";
 import * as sysinfo from "@/lib/sysinfo";
 import { POST as importDocument } from "./import/route";
 import { POST as plan } from "./local/plan/route";
+import { POST as buddyAsk } from "./buddy/ask/route";
+import { POST as buddyTts } from "./buddy/tts/route";
+import { GET as buddyPhoto } from "./buddy/photo/route";
 
 const request = (body: unknown) => new Request("http://unit.invalid/api", { method: "POST", body: JSON.stringify(body) });
 const privateText = "Contact audit@example.invalid";
@@ -30,6 +33,20 @@ beforeEach(() => {
   vi.spyOn(sysinfo, "gpuInfo").mockResolvedValue({ name: "", kind: "none", vramTotalGb: null, vramUsedGb: null, sharedUsedGb: null, utilPct: null, source: "none" });
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+
+describe("OK Filow offline boundaries", () => {
+  it("an offline ask that requests the cloud goes only to local Ollama", async () => {
+    const res = await buddyAsk(request({ question: privateText, provider: "cloud", images: ["data:image/jpeg;base64,YQ=="], screens: [{ index: 1, width: 10, height: 10, cursor: true }] }));
+    await res.text();
+    expect(outbound.mock.calls.length).toBeGreaterThan(0);
+    expect(outbound.mock.calls.filter(c => !String(c[0]).startsWith("http://127.0.0.1:11434/"))).toHaveLength(0);
+  });
+  it("offline cloud voice and photos are refused without any network call", async () => {
+    expect((await buddyTts(request({ text: privateText }))).status).toBe(409);
+    expect(await (await buddyPhoto(new Request("http://unit.invalid/api/buddy/photo?q=Piston"))).json()).toMatchObject({ dataUrl: null, reason: "offline" });
+    expect(outbound).not.toHaveBeenCalled();
+  });
+});
 
 describe("Step 4 provider boundaries", () => {
   it("offline local status must not probe a remote PII server", async () => {

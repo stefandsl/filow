@@ -14,8 +14,24 @@ const MODEL = {
   archive: "sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11",
   url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11.tar.bz2",
   sizeBytes: 475271763,
+  // Pinned 2026-11-09; matches the digest GitHub publishes for this release asset (STANDARDS SEC-15).
+  sha256: "c6bf5e0df765f9d5b43bc9e0536d4b4b3e7d40bdf5ecf13e45f134c51c05ae3a",
   files: ["encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx", "tokens.txt"],
 };
+
+/** SHA-256 of a file, streamed (the archive is ~475 MB). */
+function sha256File(file) {
+  return new Promise((resolve, reject) => {
+    const h = require("node:crypto").createHash("sha256");
+    fs.createReadStream(file).on("data", (c) => h.update(c)).on("error", reject).on("end", () => resolve(h.digest("hex")));
+  });
+}
+
+/** Rejects a download whose bytes are not the pinned archive (corrupt, truncated or swapped). */
+async function verifyArchive(file, expected = MODEL.sha256) {
+  const got = await sha256File(file);
+  if (got !== expected) throw new Error(`downloaded model failed its integrity check (sha256 ${got.slice(0, 12)}..., expected ${expected.slice(0, 12)}...)`);
+}
 
 function modelDir(userData) {
   return path.join(userData, "models", MODEL.id);
@@ -81,6 +97,7 @@ async function ensureModel(userData, onStatus) {
         const extracted = path.join(models, MODEL.archive);
         // A failed extraction must not contribute stale files to a later attempt.
         fs.rmSync(extracted, { recursive: true, force: true });
+        await verifyArchive(archive);
         await extract(archive, models);
         if (!MODEL.files.every(f => fs.existsSync(path.join(extracted, f)))) throw new Error("archive did not contain the expected files");
         if (fs.existsSync(modelDir(userData))) fs.rmSync(modelDir(userData), { recursive: true, force: true });
@@ -194,4 +211,4 @@ class SttSession {
   }
 }
 
-module.exports = { MODEL, modelDir, modelReady, ensureModel, removeModel, SttSession };
+module.exports = { MODEL, modelDir, modelReady, ensureModel, removeModel, SttSession, verifyArchive, sha256File };

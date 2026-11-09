@@ -6,6 +6,21 @@
 //   Hosted mode: FILOW_SESSION_URL (+ ACCESS_PASSWORD) in .env points the
 //     engine at a public session server; local servers stay on 127.0.0.1.
 const { app, BrowserWindow, Menu, shell, session, dialog, desktopCapturer, globalShortcut, ipcMain, screen, nativeTheme, systemPreferences, Notification, clipboard } = require("electron");
+
+// Links leave the app only as web or mail addresses: never file:, custom protocols or scripts.
+function openExternalSafe(url) {
+  let u;
+  try { u = new URL(String(url)); } catch { return Promise.resolve(); }
+  if (!["https:", "http:", "mailto:"].includes(u.protocol)) { console.warn(`blocked external link ${u.protocol}`); return Promise.resolve(); }
+  return shell.openExternal(u.toString());
+}
+// Test builds only: FILOW_OKF_FAKE_MIC=<wav> feeds that file to every microphone, so OK Filow's voice
+// paths can be checked end to end without a person talking.
+// QA builds only (apps/desktop/qa.js): never unlocked by a file next to the exe.
+if (process.env.FILOW_OKF_FAKE_MIC && require("./qa.js").isQaBuild(app)) {
+  app.commandLine.appendSwitch("use-fake-device-for-media-stream");
+  app.commandLine.appendSwitch("use-file-for-fake-audio-capture", process.env.FILOW_OKF_FAKE_MIC);
+}
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -33,6 +48,10 @@ if (process.env.FILOW_USER_DATA_DIR) {
   app.setPath("sessionData", process.env.FILOW_USER_DATA_DIR);
 }
 const userData = app.getPath("userData");
+// Native crash dumps (main, renderer, GPU, utility) stay on this PC under userData/Crashpad; nothing
+// is uploaded. A report leaves the PC only through "Send report", which the user starts.
+app.setPath("crashDumps", path.join(userData, "Crashpad"));
+require("electron").crashReporter.start({ uploadToServer: false });
 const envFile = path.join(userData, ".env");
 const scriptFile = path.join(userData, "script.md");
 const settingsFile = path.join(userData, "settings.json");
@@ -114,6 +133,11 @@ const MENU_TEXT = {
     pptNo: "Not now",
     pptManifest: "PowerPoint add-in: save manifest for another computer…",
     overlayShow: "Presenter overlay (points on top of the slide show)",
+    okfOpen: "Open OK Filow",
+    okfShowAlways: "Always show the buddy",
+    okfEnabled: "OK Filow on",
+    okfNoCapture: "Could not take a screenshot of the screens.",
+    okfNoStt: "Downloading speech-to-text for this PC (about 450 MB). Type your question meanwhile, or try again in a few minutes.",
     overlayAuto: "Open the overlay automatically when a slide show starts",
     overlayHidden: "Hide the overlay from screen recordings and shares",
     updateCheck: "Check for updates…",
@@ -149,6 +173,11 @@ const MENU_TEXT = {
     pptNo: "Non ora",
     pptManifest: "Componente aggiuntivo PowerPoint: salva il manifest per un altro computer…",
     overlayShow: "Overlay relatore (punti sopra la presentazione)",
+    okfOpen: "Apri OK Filow",
+    okfShowAlways: "Mostra sempre l'assistente",
+    okfEnabled: "OK Filow attivo",
+    okfNoCapture: "Non sono riuscito a fare lo screenshot degli schermi.",
+    okfNoStt: "Sto scaricando il riconoscimento vocale per questo PC (circa 450 MB). Intanto scrivi la domanda, o riprova tra qualche minuto.",
     overlayAuto: "Apri l'overlay da solo quando parte una presentazione",
     overlayHidden: "Nascondi l'overlay da registrazioni e condivisioni dello schermo",
     updateCheck: "Controlla aggiornamenti…",
@@ -224,6 +253,19 @@ function uiSender(event, welcomeOnly = false) {
     welcomeUrl, appUrl: APP_URL,
   }, welcomeOnly);
 }
+// Every renderer-facing channel checks its sender: only the main window and the overlay on the app's
+// own origin (uiSender). A page that navigated elsewhere, a subframe or another window gets "Denied".
+function appHandle(channel, fn) {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!uiSender(event)) throw new Error("Denied");
+    return fn(event, ...args);
+  });
+}
+function appOn(channel, fn) {
+  ipcMain.on(channel, (event, ...args) => { if (uiSender(event)) fn(event, ...args); });
+}
+// Main-process events that must never be reachable from a renderer.
+const internalEvents = new (require("node:events"))();
 function initializeUiPreferences() {
   uiPreferences = createUiPreferences({
     app, nativeTheme, systemPreferences, platform: process.platform, execPath: process.execPath,
@@ -257,6 +299,10 @@ function initializeUiPreferences() {
     }
     if (mainWin && !mainWin.isDestroyed()) buildMenu(mainWin);
   });
+  // OK Filow's section in Filow Settings: the main window reads and writes the same settings the panel does.
+  ipcMain.handle("okfilow:settings:status", event => { if (!uiSender(event)) throw new Error("Denied"); return okFilow ? okFilow.status() : null; });
+  ipcMain.handle("okfilow:settings:configure", (event, patch) => { if (!uiSender(event)) throw new Error("Denied"); return okFilow && patch && typeof patch === "object" ? okFilow.applyConfig(patch) : null; });
+  ipcMain.on("okfilow:settings:openPanel", event => { if (uiSender(event)) okFilow?.togglePanel(); });
   ipcMain.handle("ui:getPreferences", event => { if (!uiSender(event)) throw new Error("Denied"); return uiPreferences.get(); });
   ipcMain.handle("ui:updatePreferences", (event, patch) => { if (!uiSender(event)) throw new Error("Denied"); return uiPreferences.update(patch); });
   ipcMain.handle("ui:migratePreferences", (event, patch) => { if (!uiSender(event) || event.sender === welcomeWin?.webContents) throw new Error("Denied"); return uiPreferences.migrateLegacy(patch); });
@@ -342,9 +388,9 @@ async function pickRegion() {
       x, y, width, height,
       frame: false, alwaysOnTop: true, skipTaskbar: true, resizable: false, movable: false,
       hasShadow: false, enableLargerThanScreen: true, fullscreenable: false, show: false, backgroundColor: "#000000",
-      webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "picker-preload.js") },
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "picker-preload.js") },
     });
-    ipcMain.handle("picker:frame", () => ({ dataUrl: frameUrl }));
+    ipcMain.handle("picker:frame", (e) => { if (e.sender !== pickerWin?.webContents) throw new Error("Denied"); return { dataUrl: frameUrl }; });
     const finish = (rect) => {
       ipcMain.removeAllListeners("picker:done");
       ipcMain.removeAllListeners("picker:cancel");
@@ -354,8 +400,8 @@ async function pickRegion() {
       if (w && !w.isDestroyed()) w.close();
       resolve(rect ? { display, rect, image } : null);
     };
-    ipcMain.once("picker:done", (_e, rect) => finish(rect));
-    ipcMain.once("picker:cancel", () => finish(null));
+    ipcMain.on("picker:done", (e, rect) => { if (e.sender === pickerWin?.webContents) finish(rect); });
+    ipcMain.on("picker:cancel", (e) => { if (e.sender === pickerWin?.webContents) finish(null); });
     pickerWin.on("closed", () => {
       if (pickerWin) finish(null);
     });
@@ -396,47 +442,47 @@ function registerHotkey() {
 
 function wireScreenSense() {
   const off = () => new Error("Screen Sense is disabled in Settings");
-  ipcMain.handle("screen:sources", () => (settings.screenSense ? listSources() : Promise.reject(off())));
-  ipcMain.handle("screen:select", (_e, id) => {
+  appHandle("screen:sources", () => (settings.screenSense ? listSources() : Promise.reject(off())));
+  appHandle("screen:select", (_e, id) => {
     selectedSourceId = settings.screenSense && typeof id === "string" ? id : null;
   });
-  ipcMain.handle("screen:pickRegion", async () => {
+  appHandle("screen:pickRegion", async () => {
     if (!settings.screenSense) throw off();
     const picked = await pickRegion();
     if (!picked) return null;
     return { image: await captureRegion(picked.display, picked.rect, picked.image), width: picked.rect.width, height: picked.rect.height };
   });
   // The pairing dialog can switch the public link on/off; the window reloads with the new URLs.
-  ipcMain.on("remote:set", (_e, on) => {
+  appOn("remote:set", (_e, on) => {
     if (mainWin && !mainWin.isDestroyed()) void setRemoteShare(mainWin, Boolean(on));
   });
-  ipcMain.handle("update:status", () => ({ ...updateState, current: app.getVersion() }));
-  ipcMain.on("update:check", () => void checkForUpdates({ manual: true }));
-  ipcMain.on("update:install", () => loadUpdater() && updateState.status === "downloaded" && updater.quitAndInstall());
-  ipcMain.handle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
+  appHandle("update:status", () => ({ ...updateState, current: app.getVersion() }));
+  appOn("update:check", () => void checkForUpdates({ manual: true }));
+  appOn("update:install", () => loadUpdater() && updateState.status === "downloaded" && updater.quitAndInstall());
+  appHandle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
   wireStt();
-  ipcMain.handle("localai:status", () => localAiState);
-  ipcMain.handle("net:status", () => {
+  appHandle("localai:status", () => localAiState);
+  appHandle("net:status", () => {
     const ranked = rankedInterfaces();
     const chosen = ranked.find((i) => i.address === (process.env.FILOW_LAN_IP || lanIp())) || ranked[0] || null;
     return { ip: process.env.FILOW_LAN_IP || lanIp(), iface: chosen ? chosen.name : "", virtual: Boolean(chosen && chosen.score < 0), firewall: firewallStatus(), interfaces: ranked.map((i) => ({ name: i.name, address: i.address, virtual: i.score < 0 })) };
   });
-  ipcMain.handle("net:allowFirewall", () => allowFirewall());
-  ipcMain.handle("net:useInterface", (_e, address) => {
+  appHandle("net:allowFirewall", () => allowFirewall());
+  appHandle("net:useInterface", (_e, address) => {
     if (mainWin && !mainWin.isDestroyed()) applyMirrorHost(mainWin, typeof address === "string" ? address : "");
     return true;
   });
-  ipcMain.handle("localai:hardware", () => localAiInfo());
-  ipcMain.on("localai:install", () => void startOllamaInstall());
-  ipcMain.on("session:report", (_e, info) => {
+  appHandle("localai:hardware", () => localAiInfo());
+  appOn("localai:install", () => void startOllamaInstall());
+  appOn("session:report", (_e, info) => {
     if (info && typeof info.code === "string" && typeof info.id === "string") {
       const changedSession = !currentSession || currentSession.id !== info.id;
       currentSession = { id: info.id, code: info.code };
       if (changedSession && overlayWin && !overlayWin.isDestroyed()) overlayWin.loadURL(overlayUrl());
     }
   });
-  ipcMain.handle("screen:settings", () => ({ hotkey: settings.screenHotkey, enabled: settings.screenSense }));
-  ipcMain.handle("screen:setSettings", (_e, next) => {
+  appHandle("screen:settings", () => ({ hotkey: settings.screenHotkey, enabled: settings.screenSense }));
+  appHandle("screen:setSettings", (_e, next) => {
     if (typeof next.hotkey === "string") settings.screenHotkey = next.hotkey.trim();
     if (typeof next.enabled === "boolean") settings.screenSense = next.enabled;
     saveSettings();
@@ -465,6 +511,23 @@ function seed(file, fromName) {
 }
 
 /** Minimal .env parser: KEY=value lines, # comments, optional quotes. */
+// SEC-14: keys typed into .env move to the OS key store (apps/desktop/secrets.js); real environment
+// variables still win, as with .env.
+function loadSecrets() {
+  const { safeStorage } = require("electron");
+  const { migrateSecrets } = require("./secrets.js");
+  const secrets = migrateSecrets({
+    envFile, storeFile: path.join(userData, "secrets.json"), log: logLine,
+    fsx: { read: (p) => (fs.existsSync(p) ? fs.readFileSync(p, "utf8") : null), write: (p, t) => fs.writeFileSync(p, t) },
+    crypto: {
+      available: () => safeStorage.isEncryptionAvailable(),
+      encrypt: (s) => safeStorage.encryptString(s).toString("base64"),
+      decrypt: (b) => safeStorage.decryptString(Buffer.from(b, "base64")),
+    },
+  });
+  for (const [k, v] of Object.entries(secrets)) if (v && !(k in process.env)) process.env[k] = v;
+}
+
 function loadEnv(file) {
   const text = fs.readFileSync(file, "utf8");
   for (const raw of text.split(/\r?\n/)) {
@@ -547,7 +610,11 @@ function allowFirewall() {
   const exe = process.execPath;
   const args = `advfirewall firewall add rule name="${FIREWALL_RULE}" dir=in action=allow program="${exe}" enable=yes profile=any description="Filow: phone mirror and PowerPoint add-in on the local network"`;
   return new Promise((resolve) => {
-    const p = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `Start-Process -FilePath netsh -ArgumentList '${args.replace(/'/g, "''")}' -Verb RunAs -Wait -WindowStyle Hidden`], { windowsHide: true, stdio: "ignore" });
+    // The netsh arguments travel in an environment variable, never spliced into the PowerShell command,
+    // so a quote or $ in the install path cannot become code (STANDARDS SEC-16).
+    const p = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+      "Start-Process -FilePath netsh -ArgumentList $env:FILOW_NETSH_ARGS -Verb RunAs -Wait -WindowStyle Hidden"],
+    { windowsHide: true, stdio: "ignore", env: { ...process.env, FILOW_NETSH_ARGS: args } });
     p.on("exit", () => {
       const st = firewallStatus();
       logLine(`firewall rule: ${st}`);
@@ -579,7 +646,7 @@ async function offerFirewall(win) {
 // web app (the mirror page) and one for the session relay. The QR then carries public URLs,
 // so a phone on mobile data pairs like WhatsApp Web. Spend endpoints stay behind the engine
 // token; pairing needs the 6-digit code and is rate limited.
-const { spawn, execFileSync } = require("node:child_process");
+const { spawn, execFile, execFileSync } = require("node:child_process");
 const https = require("node:https");
 const tunnels = { procs: [], web: "", session: "", state: "off", error: "" };
 
@@ -588,7 +655,7 @@ function remoteStatus(state, error = "") {
   tunnels.state = state;
   tunnels.error = error;
   logLine(`public link: ${state}${error ? " " + error : ""}`);
-  ipcMain.emit("remote:status:internal", null, { state, url: tunnels.web, error });
+  internalEvents.emit("remote:status", null, { state, url: tunnels.web, error });
   if (state === "downloading") splashStatus(st("download"));
   for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send("remote:status", { state, url: tunnels.web, error });
 }
@@ -627,6 +694,17 @@ function download(url, dest, hops = 5) {
 }
 
 /** Official cloudflared binary from GitHub releases, into <userData>/bin. Asks first. */
+// SEC-15: cloudflared is not code-signed, so the download must match the SHA-256 GitHub publishes for
+// that release asset; a mismatch (or no published digest) deletes the file and stops.
+async function verifyDownload(file, asset) {
+  try {
+    await require("./integrity.js").verifyGithubAsset(file, "cloudflare/cloudflared", asset);
+    logLine(`cloudflared: ${asset} verified`);
+  } catch (err) {
+    fs.rmSync(file, { force: true });
+    throw err;
+  }
+}
 async function ensureCloudflared(win, { silent = false } = {}) {
   const existing = cloudflaredPath();
   if (existing) return existing;
@@ -652,17 +730,51 @@ async function ensureCloudflared(win, { silent = false } = {}) {
   if (process.platform === "darwin") {
     const tgz = path.join(bin, asset);
     await download(base + asset, tgz);
+    await verifyDownload(tgz, asset);
     execFileSync("tar", ["-xzf", tgz, "-C", bin]);
     fs.rmSync(tgz, { force: true });
   } else {
     await download(base + asset, dest);
+    await verifyDownload(dest, asset);
   }
   if (process.platform !== "win32") fs.chmodSync(dest, 0o755);
   return dest;
 }
 
+// On Windows the cloudflared we spawn can be a launcher (a Chocolatey or Scoop shim) that starts the
+// real tunnel as its own child: killing only our PID left the tunnel running. Kill the whole tree.
+function killTree(pid) {
+  try {
+    if (process.platform === "win32") execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+    else process.kill(pid);
+    return true;
+  } catch {
+    return false;
+  }
+}
+// A crash or forced close skips will-quit and leaves tunnels to our ports running (tunnels.js).
+// Runs once at startup, before any tunnel of ours exists; the listing command is a fixed string.
+// startTunnel waits for this sweep, so our own new tunnels can never be mistaken for stale ones.
+let tunnelSweep = Promise.resolve();
+function killStaleTunnels() {
+  const { staleTunnelPids } = require("./tunnels.js");
+  tunnelSweep = new Promise((resolve) => {
+    const done = (err, out) => {
+      if (!err) for (const pid of staleTunnelPids(out, [PORT, SESSION_PORT])) if (killTree(pid)) logLine(`tunnel: closed stale cloudflared ${pid}`);
+      resolve();
+    };
+    if (process.platform === "win32") {
+      execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+        "Get-CimInstance Win32_Process -Filter \"name='cloudflared.exe'\" | ForEach-Object { \"$($_.ProcessId)`t$($_.CommandLine)\" }"],
+      { windowsHide: true, encoding: "utf8", timeout: 15000 }, done);
+    } else {
+      execFile("ps", ["-eo", "pid=,args="], { encoding: "utf8" }, (err, out) => done(err, String(out || "").replace(/^\s*(\d+)\s+/gm, "$1\t")));
+    }
+  });
+}
+
 function startTunnel(bin, port) {
-  return new Promise((resolve, reject) => {
+  return tunnelSweep.then(() => new Promise((resolve, reject) => {
     const p = spawn(bin, ["tunnel", "--url", `http://127.0.0.1:${port}`, "--no-autoupdate"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     tunnels.procs.push(p);
     let buf = "";
@@ -685,15 +797,17 @@ function startTunnel(bin, port) {
       clearTimeout(timer);
       reject(err);
     });
-  });
+  }));
 }
 
 function stopTunnels() {
   for (const p of tunnels.procs) {
-    try {
-      p.kill();
-    } catch {
-      /* already gone */
+    if (!p.pid || !killTree(p.pid)) {
+      try {
+        p.kill();
+      } catch {
+        /* already gone */
+      }
     }
   }
   tunnels.procs = [];
@@ -1049,7 +1163,8 @@ function setUpdateState(next) {
 }
 
 async function checkForUpdates({ manual = false } = {}) {
-  if (!packaged) {
+  // Unpacked (--dir) builds ship no update feed: checking would only report an error.
+  if (!packaged || !fs.existsSync(path.join(process.resourcesPath, "app-update.yml"))) {
     if (manual) dialog.showMessageBox(mainWin, { type: "info", title: "Filow", message: "Updates only work in the installed app." });
     return;
   }
@@ -1075,6 +1190,22 @@ let splash = null;
 let splashShownAt = 0;
 const SPLASH_MIN_MS = Number(process.env.FILOW_SPLASH_MIN_MS || 1800);
 /** Plain-text startup log in userData (startup.log): which step ran, and any error the splash or link hit. */
+// A crashed renderer leaves a dead window mid-talk. Reload it; the take's state lives in the main
+// process and the session server, so the page picks it up again. At most 3 reloads a minute per
+// window, so a page that crashes on load does not spin forever.
+function reloadOnCrash(win, name) {
+  const recent = [];
+  win.webContents.on("render-process-gone", (_e, d) => {
+    if (quitting || d.reason === "clean-exit" || win.isDestroyed()) return;
+    const now = Date.now();
+    while (recent.length && now - recent[0] > 60_000) recent.shift();
+    recent.push(now);
+    if (recent.length > 3) return logLine(`CRASH ${name}: ${d.reason} again, not reloading (3 reloads in a minute)`);
+    logLine(`CRASH ${name}: ${d.reason}, reloading`);
+    setTimeout(() => { if (!win.isDestroyed()) win.webContents.reload(); }, 300);
+  });
+}
+
 function logLine(msg) {
   try {
     fs.appendFileSync(path.join(userData, "startup.log"), `${new Date().toISOString()} ${msg}
@@ -1093,20 +1224,27 @@ function showSplash() {
     width: 460, height: 440, frame: false, resizable: false, show: false, alwaysOnTop: false, skipTaskbar: false,
     backgroundColor: uiTheme() === "dark" ? "#08090b" : "#f7f7f5", title: "Filow",
     icon: appIcon(),
-    webPreferences: { contextIsolation: true, nodeIntegration: false },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   const q = new URLSearchParams({ v: app.getVersion(), theme: uiTheme(), local: local ? "1" : "0", lang: menuLang() });
   splashShownAt = Date.now();
-  splash
-    .loadFile(path.join(__dirname, "splash.html"), { query: Object.fromEntries(q) })
-    .then(() => {
-      if (splash && !splash.isDestroyed()) {
-        splash.show();
-        logLine("splash shown");
-      }
-    })
-    .catch((err) => logLine(`splash failed: ${err && err.message ? err.message : err}`));
   splash.on("closed", () => (splash = null));
+  // Shown at first paint (ready-to-show), not after the whole load; resolves once it is on screen.
+  const w = splash;
+  const shown = new Promise((resolve) => {
+    const show = () => {
+      if (!w.isDestroyed() && !w.isVisible()) {
+        w.show();
+        logLine(`splash shown (${Math.round(performance.now())} ms after process start)`);
+      }
+      resolve();
+    };
+    w.once("ready-to-show", show);
+    w.loadFile(path.join(__dirname, "splash.html"), { query: Object.fromEntries(q) })
+      .then(show)
+      .catch((err) => { logLine(`splash failed: ${err && err.message ? err.message : err}`); resolve(); });
+  });
+  return shown;
 }
 function splashStatus(text, done = false) {
   if (!splash || splash.isDestroyed()) return;
@@ -1145,6 +1283,30 @@ function appIcon() {
   return path.join(__dirname, "build", process.platform === "win32" ? "icon.ico" : "icon.png");
 }
 
+// ---- OK Filow: push-to-talk screen helper (okfilow.js, docs/BUDDY-PLAN.md) ----
+let okFilow = null;
+function startOkFilow() {
+  if (okFilow) return;
+  try {
+    okFilow = require("./okfilow").createOkFilow({
+      appUrl: APP_URL,
+      getSettings: () => settings,
+      saveSettings,
+      iconPath: path.join(__dirname, "build", "icon.png"),
+      logLine,
+      sttLocal,
+      userData,
+      menuText: (k) => mt(k),
+      isOffline: () => offline,
+      sttDownload: () => void sttDownload(),
+    });
+    okFilow.start();
+  } catch (err) {
+    okFilow = null;
+    logLine(`okfilow failed to start: ${err && err.stack ? err.stack : err}`);
+  }
+}
+
 // ---- Streaming speech-to-text on this PC (stt.js + stt-worker.js) ----
 const sttLocal = require("./stt");
 let sttSession = null;
@@ -1177,15 +1339,15 @@ function sttDownload() {
   return sttDownloading;
 }
 function wireStt() {
-  ipcMain.handle("stt:status", () => sttStatus());
-  ipcMain.on("stt:download", () => void sttDownload());
-  ipcMain.handle("stt:remove", () => {
+  appHandle("stt:status", () => sttStatus());
+  appOn("stt:download", () => void sttDownload());
+  appHandle("stt:remove", () => {
     if (sttSession) sttSession.dispose();
     sttSession = null;
     sttLocal.removeModel(userData);
     sttBroadcast("stt:status", sttStatus());
   });
-  ipcMain.handle("stt:start", async (e, language) => {
+  appHandle("stt:start", async (e, language) => {
     if (!sttSession) sttSession = new sttLocal.SttSession(userData, logLine);
     const wc = e.sender;
     sttSession.onResult = (r) => !wc.isDestroyed() && wc.send("stt:result", { partial: r.partial, committed: r.committed });
@@ -1194,10 +1356,10 @@ function wireStt() {
     sttBroadcast("stt:status", sttStatus());
     return out;
   });
-  ipcMain.on("stt:feed", (_e, samples) => {
+  appOn("stt:feed", (_e, samples) => {
     if (sttSession) sttSession.feed(samples instanceof Float32Array ? samples : new Float32Array(samples));
   });
-  ipcMain.handle("stt:stop", () => sttSession?.stop());
+  appHandle("stt:stop", () => sttSession?.stop());
 }
 
 // ---- Local AI: hardware scan, recommendation, unattended Ollama install (localai.js) ----
@@ -1295,9 +1457,10 @@ function showOverlay() {
     opacity: settings.overlayOpacity || 0.94,
     backgroundColor: uiTheme() === "dark" ? "#08090b" : "#f7f7f5",
     title: "Filow overlay",
-    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "preload.js") },
   });
   overlayWin.setAlwaysOnTop(true, "screen-saver");
+  reloadOnCrash(overlayWin, "overlay");
   overlayWin.on("focus", () => uiPreferences?.refresh());
   overlayWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   overlayWin.setContentProtection(Boolean(settings.overlayHidden));
@@ -1387,16 +1550,27 @@ function startServers() {
 function waitFor(url, tries = 100) {
   return new Promise((resolve, reject) => {
     const attempt = (n) => {
-      http
-        .get(url, (res) => {
-          res.resume();
-          resolve();
-        })
-        .on("error", () => (n > 0 ? setTimeout(() => attempt(n - 1), 150) : reject(new Error(`server did not start: ${url}`))));
+      const retry = () => (n > 0 ? setTimeout(() => attempt(n - 1), 150) : reject(new Error(`server did not start: ${url}`)));
+      const req = http.get(url, (res) => {
+        res.resume();
+        resolve();
+      });
+      // A socket that connects but never answers would otherwise hold the splash forever.
+      req.setTimeout(3000, () => req.destroy(new Error("timeout")));
+      req.on("error", retry);
     };
     attempt(tries);
   });
 }
+
+// Startup stages go to startup.log so a launch that never shows its window says where it stopped,
+// and a watchdog opens the window anyway instead of leaving the user on the splash.
+let startupStage = "starting";
+function stage(name) {
+  startupStage = name;
+  logLine(`startup: ${name} (${Math.round(performance.now())} ms)`);
+}
+const STARTUP_WATCHDOG_MS = 90000;
 
 /**
  * Offline mode: every provider becomes local and the renderer can only reach this
@@ -1434,10 +1608,10 @@ app.on("render-process-gone", (_e, _wc, d) => logLine(`CRASH renderer: ${d.reaso
 app.on("child-process-gone", (_e, d) => logLine(`CRASH child ${d.type}${d.name ? " " + d.name : ""}: ${d.reason} (exit ${d.exitCode})`));
 
 let lastTakeLog = "";
-ipcMain.on("diag:takeLog", (_e, text) => {
+appOn("diag:takeLog", (_e, text) => {
   lastTakeLog = String(text || "").slice(-4000);
 });
-ipcMain.on("diag:report", () => void reportProblem(mainWin));
+appOn("diag:report", () => void reportProblem(mainWin));
 
 function tailOf(file, maxChars) {
   try {
@@ -1479,7 +1653,7 @@ async function reportProblem(win) {
   }
   const url = `https://github.com/stefandsl/filow-releases/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
   logLine(`report: opening issue form (${body.length} chars)`);
-  await shell.openExternal(url.length > 7800 ? url.slice(0, 7800) : url);
+  await openExternalSafe(url.length > 7800 ? url.slice(0, 7800) : url);
   if (url.length > 7800 && win && !win.isDestroyed()) {
     // The browser cuts long URLs: the full text goes to the clipboard so the user can paste it.
     clipboard.writeText(body);
@@ -1576,13 +1750,29 @@ function buildMenu(win) {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+// SEC-03: our pages get a Content-Security-Policy (apps/desktop/csp.js). FILOW_CSP_REPORT_ONLY=1 only
+// reports violations, for checking a policy change before it is enforced.
+function installCsp() {
+  const { cspHeaders } = require("./csp.js");
+  const ports = [PORT, SESSION_PORT, HTTPS_PORT];
+  const reportOnly = process.env.FILOW_CSP_REPORT_ONLY === "1";
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    // The LAN address can change at runtime (network switch, "use this interface"), so read it per response.
+    const lan = process.env.FILOW_LAN_IP || lanIp();
+    callback({ responseHeaders: cspHeaders(details, ports, reportOnly, lan ? [lan] : []) });
+  });
+}
+
 async function main() {
+  killStaleTunnels();
+  installCsp();
   let choices = null;
   try {
     seed(scriptFile, "script.md");
     const migrated = migrateLegacyProfile();
     seed(envFile, ".env.example");
     loadEnv(envFile);
+    loadSecrets();
     aliasLegacyEnv();
     loadSettings();
     if (migrated) settings.profileMigrated = true;
@@ -1593,9 +1783,12 @@ async function main() {
       await showWelcome();
       if (quitting) return;
     }
-    showSplash();
+    // startServers() loads the Next server on this thread and blocks it for over a second; the splash
+    // could not be shown until then (PERF-01: 1.3 s to splash). Show it first, waiting at most 1.5 s.
+    await Promise.race([showSplash(), new Promise((r) => setTimeout(r, 1500))]);
     startupTransition = false;
     splashStatus(st("servers"));
+    stage("loading servers");
     startServers();
   } catch (err) {
     closeSplash();
@@ -1616,9 +1809,17 @@ async function main() {
     title: "Filow",
     show: false,
     icon: appIcon(),
-    webPreferences: { contextIsolation: true, nodeIntegration: false, preload: path.join(__dirname, "preload.js") },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "preload.js") },
   });
   mainWin = win;
+  const watchdog = setTimeout(() => {
+    if (win.isDestroyed() || win.isVisible()) return;
+    logLine(`startup watchdog: still at "${startupStage}" after ${STARTUP_WATCHDOG_MS / 1000} s, showing the window`);
+    closeSplash();
+    win.show();
+  }, STARTUP_WATCHDOG_MS);
+  win.once("show", () => clearTimeout(watchdog));
+  reloadOnCrash(win, "main");
   win.on("focus", () => uiPreferences?.refresh());
   win.on("closed", () => { mainWin = null; });
   nativeTheme.themeSource = settings.theme === "light" || settings.theme === "dark" ? settings.theme : "system";
@@ -1629,8 +1830,10 @@ async function main() {
   buildMenu(win);
   wireScreenSense();
   startSlideShowWatch();
-  ipcMain.handle("slideshow:state", () => slideShow);
-  ipcMain.on("overlay:close", () => hideOverlay());
+  appHandle("slideshow:state", () => slideShow);
+  appOn("overlay:close", () => hideOverlay());
+  startOkFilow();
+  win.on("closed", () => okFilow?.dispose());
   const hk = registerHotkey();
   if (!hk.ok) console.warn("Screen Sense hotkey:", hk.error);
   if (settings.profileMigrated) {
@@ -1639,13 +1842,15 @@ async function main() {
     void refreshPptRegistrationAfterMigration();
   }
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    openExternalSafe(url);
     return { action: "deny" };
   });
 
   try {
+    stage("waiting for servers");
     await waitFor(APP_URL + "/api/stt/status");
     if (!process.env.FILOW_SESSION_URL) await waitFor(`http://127.0.0.1:${SESSION_PORT}/health`);
+    stage("servers answering");
     if (!choices && !settings.localAiOffered) choices = await offerLocalAi();
     if (!settings.localAiOffered) {
       settings.localAiOffered = true;
@@ -1661,8 +1866,11 @@ async function main() {
       choices && Array.isArray(choices.models) && choices.models.length
         ? `${APP_URL}/settings/local?auto=${encodeURIComponent(choices.models.join(","))}${choices.ollama ? "&ollama=1" : ""}`
         : APP_URL;
+    stage("loading first page");
     await win.loadURL(firstPage);
+    stage("first page loaded");
     if (settings.remoteShare && !offline && !process.env.FILOW_SESSION_URL) {
+      stage("waiting for public link");
       // Hold the splash until the public link is up (or 45 s), so the first QR already works from anywhere.
       splashStatus(cloudflaredPath() ? st("link") : st("download"));
       const linkUp = new Promise((resolve) => {
@@ -1671,11 +1879,11 @@ async function main() {
         const h = (_e, v) => {
           if (v.state === "on" || v.state === "error" || v.state === "off") {
             clearTimeout(timer);
-            ipcMain.removeListener("remote:status:internal", h);
+            internalEvents.removeListener("remote:status", h);
             done();
           }
         };
-        ipcMain.on("remote:status:internal", h);
+        internalEvents.on("remote:status", h);
       });
       void setRemoteShare(win, true, { auto: true });
       await linkUp;
@@ -1685,7 +1893,7 @@ async function main() {
     setTimeout(() => {
       closeSplash();
       if (!win.isDestroyed()) win.show();
-      logLine("main window shown");
+      logLine(`main window shown (${Math.round(performance.now())} ms after process start)`);
     }, wait);
     setTimeout(() => void checkForUpdates(), 8000); // after the servers and the tunnel; silent unless an update lands
     if (process.platform === "win32" || process.platform === "darwin") {
@@ -1724,7 +1932,7 @@ async function main() {
 app.setAppUserModelId("com.intelliprompter.app");
 app.whenReady().then(main);
 app.on("window-all-closed", () => { if (!startupTransition) app.quit(); });
-app.on("before-quit", () => { quitting = true; uiPreferences?.dispose(); });
+app.on("before-quit", () => { quitting = true; uiPreferences?.dispose(); okFilow?.dispose(); });
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
   stopTunnels();

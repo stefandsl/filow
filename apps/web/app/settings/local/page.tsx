@@ -14,6 +14,7 @@ import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/s
 import { placementText, ResourcesPanel, useResources } from "@/components/ResourcesPanel";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
 import { MicrophoneSelect } from "@/components/MicrophoneSelect";
+import { OkFilowSettings } from "@/components/OkFilowSettings";
 
 type Status = {
   pii: { mode: "off" | "on" | "strict"; serverUrl: string; serverReachable: boolean };
@@ -670,6 +671,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               <div className="hint">{t("settings.browserScreen")}</div>
             )}
           </section>
+
+          <OkFilowSettings lang={lang} />
 
           <section className="strip">
             <div className="label">{t("settings.privacy")}</div>
