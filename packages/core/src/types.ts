@@ -32,7 +32,31 @@ export type PointState = {
    * for the UI only: partial text never flips a point. Cleared by the model's next answer about it.
    */
   active?: boolean;
+  /** Why the point is done ("why is this done?" in the UI): set by every flip and manual mark. */
+  evidence?: Evidence;
 };
+
+/**
+ * What a "done" point rests on. Times are on the engine clock (epoch ms in the app, talk time in the
+ * gauntlet): when the STT committed the first and the last words of the quote, or when the presenter
+ * marked the point by hand.
+ */
+export type Evidence =
+  | {
+      source: "model";
+      /** the committed sentence the flip rests on: the one sharing most of the point's words, or the latest segment */
+      quote: string;
+      fromMs: number;
+      toMs: number;
+      /** decision model confidence of the answer that flipped the point */
+      decision: number;
+      /** embedding similarity of the transcript tail, when the pre-filter ran */
+      gate?: number;
+      /** share of the point's words found in the quote (fuzzy), 0..1 */
+      lexical: number;
+      model: string;
+    }
+  | { source: "manual"; fromMs: number; toMs: number };
 /** @deprecated use PointState */
 export type BulletState = PointState;
 

@@ -1,12 +1,13 @@
 // The decision loop as a class. No DOM, no fetch: `decide` is injected.
 // Semantics follow ARCHITECTURE.md §5.4–5.5.
 import { compare, type Operation } from "fast-json-patch";
-import type { DecideRequest, DecideResponse } from "./api";
+import type { DecideRequest, DecideResponse, Decision } from "./api";
 import { lexicalScores } from "./gate";
 import { checkClaim, type ClaimCheck } from "./guard";
+import { sentences } from "./text";
 import { parseScript } from "./script";
 import { isScreenScript, sectionFromSummary, type ScreenNote } from "./screen";
-import type { Command, CommandResult, PointState, ScreenSummary, Script, SessionState, SttBackendId } from "./types";
+import type { Command, CommandResult, Evidence, PointState, ScreenSummary, Script, SessionState, SttBackendId } from "./types";
 
 export type TranscriptEvent = { committed?: string; partial?: string };
 
@@ -71,6 +72,10 @@ export class Engine {
   private reasked = false;
   private timer: unknown = null;
   private streak: Record<string, number> = {};
+  /** length of all committed text ever fed; with `segs`, dates any offset of the committed stream */
+  private committedTotal = 0;
+  /** committed segments still inside `committed`: where each ends in the stream and when it arrived */
+  private segs: Array<{ end: number; at: number }> = [];
   private subs = new Set<Subscriber>();
   private unmentioned: string[] = [];
   private notes: ScreenNote[] = [];
@@ -138,6 +143,7 @@ export class Engine {
   loadScript(script: Script): void {
     this.invalidate();
     this.committed = "";
+    this.segs = [];
     this.partial = "";
     this.lastSent = "";
     this.streak = {};
@@ -152,7 +158,13 @@ export class Engine {
 
   // ---- inputs -----------------------------------------------------------------
   feed(e: TranscriptEvent): void {
-    if (e.committed) this.committed = (this.committed + e.committed).slice(-COMMITTED_CAP);
+    if (e.committed) {
+      this.committed = (this.committed + e.committed).slice(-COMMITTED_CAP);
+      this.committedTotal += e.committed.length;
+      this.segs.push({ end: this.committedTotal, at: this.o.now() });
+      const keepFrom = this.committedTotal - this.committed.length;
+      while (this.segs.length > 1 && this.segs[0].end <= keepFrom) this.segs.shift();
+    }
     if (e.partial !== undefined) this.partial = e.partial;
     const tail = this.transcript.slice(-TAIL);
     if (tail !== this.state.transcriptTail) this.update((s) => (s.transcriptTail = tail));
@@ -247,8 +259,10 @@ export class Engine {
         this.invalidate();
         return { ok: true };
       }
-      case "markStarted":
-        return this.setPoint(cmd.id, { status: "started", confidence: 1, startedAt: this.o.now() });
+      case "markStarted": {
+        const at = this.o.now();
+        return this.setPoint(cmd.id, { status: "started", confidence: 1, startedAt: at, evidence: { source: "manual", fromMs: at, toMs: at } });
+      }
       case "markMissed":
         return this.setPoint(cmd.id, { status: "missed", confidence: this.state.points[cmd.id]?.confidence ?? 0 });
       case "reopen":
@@ -357,7 +371,13 @@ export class Engine {
     const avg = s.stats.avgMs;
     if (avg > this.o.tickMs && now - this.lastCallAt < Math.round(avg * 1.2)) return;
     // Decisions, and so flips, are made on committed text only (P1 step 4): see hintFromPartial().
-    const windowText = this.committed.trim().slice(-this.o.window);
+    const raw = this.committed;
+    const end = raw.trimEnd().length;
+    let startIdx = Math.max(0, end - this.o.window);
+    while (startIdx < end && /\s/.test(raw[startIdx])) startIdx++;
+    const windowText = raw.slice(startIdx, end);
+    /** offset of the window in the whole committed stream, to date the evidence of a flip */
+    const windowAbs = this.committedTotal - raw.length + startIdx;
     if (!windowText) return;
     const allOpen = section.bullets.filter((b) => (s.points[b.id]?.status ?? "waiting") === "waiting");
     if (!allOpen.length) return;
@@ -394,7 +414,7 @@ export class Engine {
     try {
       const data = await withTimeout(this.o.decide(req, ctl.signal), this.o.timeoutMs, ctl);
       if (epoch !== this.epoch) return; // stale: the script, section, points or take changed meanwhile
-      this.apply(data, req);
+      this.apply(data, req, windowAbs);
     } catch (err) {
       if (epoch !== this.epoch) return; // aborted by invalidate(): not an error, nothing to report
       if (err instanceof TimeoutError) {
@@ -413,20 +433,22 @@ export class Engine {
     }
   }
 
-  private apply(data: DecideResponse, req: DecideRequest): void {
+  private apply(data: DecideResponse, req: DecideRequest, windowAbs: number): void {
     const now = this.o.now();
     const asked = new Map(req.bullets.map((b) => [b.id, b]));
-    // The guard runs outside the state update: it reads only the request and the answer.
+    // The claim check runs outside the state update: it reads only the request and the answer. It
+    // finds the sentence a confirming answer rests on (the evidence) and, with the guard on, rejects
+    // the answer when every sentence about the point contradicts it.
+    const checks = new Map<string, ClaimCheck>();
     const rejected = new Set<string>();
-    if (this.o.guard) {
-      for (const d of data.decisions) {
-        const b = asked.get(d.id);
-        if (!b || !d.started || d.confidence < this.o.threshold) continue;
-        const check = checkClaim(b.text, req.transcript);
-        if (!check.ok) {
-          rejected.add(d.id);
-          this.o.onGuard?.(d.id, check);
-        }
+    for (const d of data.decisions) {
+      const b = asked.get(d.id);
+      if (!b || !d.started || d.confidence < this.o.threshold) continue;
+      const check = checkClaim(b.text, req.transcript);
+      checks.set(d.id, check);
+      if (this.o.guard && !check.ok) {
+        rejected.add(d.id);
+        this.o.onGuard?.(d.id, check);
       }
     }
     this.unmentioned = data.unmentioned ?? [];
@@ -449,11 +471,35 @@ export class Engine {
         const flip =
           confirming && (d.confidence >= this.o.sureThreshold || this.streak[d.id] >= this.o.confirmCalls);
         st.points[d.id] = flip
-          ? { status: "started", confidence: d.confidence, startedAt: now }
+          ? { status: "started", confidence: d.confidence, startedAt: now, evidence: this.evidenceFor(checks.get(d.id)!, req.transcript, windowAbs, d, data.model) }
           : { status: "waiting", confidence: d.confidence };
       }
     });
     this.checkCap();
+  }
+
+  /**
+   * The evidence record of a flip: the sentence the claim check found (or, when no sentence shares
+   * the point's words, the window's latest sentence), and when the STT committed its first and last
+   * words, from the committed segments' arrival times.
+   */
+  private evidenceFor(check: ClaimCheck, windowText: string, windowAbs: number, d: Decision, model: string): Evidence {
+    const s = check.evidence ?? sentences(windowText).at(-1) ?? { text: windowText, start: 0, end: windowText.length };
+    const from = windowAbs + s.start;
+    const to = windowAbs + s.end;
+    const segFrom = this.segs.find((g) => g.end > from) ?? this.segs.at(-1);
+    const segTo = this.segs.find((g) => g.end >= to) ?? this.segs.at(-1);
+    const now = this.o.now();
+    return {
+      source: "model",
+      quote: s.text,
+      fromMs: segFrom?.at ?? now,
+      toMs: segTo?.at ?? now,
+      decision: d.confidence,
+      ...(d.gate !== undefined ? { gate: d.gate } : {}),
+      lexical: check.evidence ? check.lexical : 0,
+      model,
+    };
   }
 
   private checkCap(): void {

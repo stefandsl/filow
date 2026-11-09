@@ -206,7 +206,8 @@ describe("Engine regression audit (Step 2)", () => {
       await h.reply(0, 0.95); // Even an abort-ignoring provider cannot apply after timeout.
       expect(h.e.getState().points).toEqual({});
       await h.reply(1, 0.95);
-      expect(h.e.getState().points.s0b0).toEqual({ status: "started", confidence: 0.95, startedAt: h.now() });
+      expect(h.e.getState().points.s0b0).toMatchObject({ status: "started", confidence: 0.95, startedAt: h.now() });
+      expect(h.e.getState().points.s0b0.evidence).toMatchObject({ source: "model", quote: "hello everyone, what we build today", decision: 0.95 });
       expect(h.e.getState().stats.calls).toBe(1);
       expect(h.e.getState().engine.slowMs).toBeUndefined();
       expect(h.e.getState().engine.error).toBeUndefined();
@@ -680,5 +681,73 @@ describe("Engine: flips only from committed text (P1 step 4)", () => {
     const { e } = sure();
     e.feed({ partial: "good afternoon everyone" });
     expect(e.getState().points).toEqual({});
+  });
+});
+
+describe("Engine evidence per flip (P1 step 5)", () => {
+  const TEAM = parseScript(`# Team
+- We hired 3 engineers
+- The London office opens in May
+`);
+  function clocked(answer: (r: DecideRequest) => DecideResponse["decisions"]) {
+    let t = 0;
+    const e = new Engine({
+      decide: async (r) => ({ decisions: answer(r), latencyMs: 1, cost: 0, model: "clef-flash (local)" }),
+      now: () => t,
+      setInterval: () => 0,
+      clearInterval: () => {},
+    });
+    e.loadScript(TEAM);
+    return { e, at: (ms: number) => (t = ms) };
+  }
+
+  it("a flip keeps the quote it rests on, when it was said, the scores and the model", async () => {
+    const { e, at } = clocked((r) => r.bullets.map((b) => ({ id: b.id, started: b.id === "s0b0", confidence: b.id === "s0b0" ? 0.91 : 0.1, gate: 0.62, lexical: 0.8 })));
+    at(10_000);
+    e.feed({ committed: "Good morning. " });
+    at(14_000);
+    e.feed({ committed: "We hired three engineers in July, all in support. " });
+    await e.tick();
+    const p = e.getState().points.s0b0;
+    expect(p.status).toBe("started");
+    expect(p.evidence).toEqual({
+      source: "model",
+      quote: "We hired three engineers in July, all in support.",
+      fromMs: 14_000,
+      toMs: 14_000,
+      decision: 0.91,
+      gate: 0.62,
+      lexical: 1,
+      model: "clef-flash (local)",
+    });
+  });
+
+  it("a quote that spans two committed segments has a time range", async () => {
+    const { e, at } = clocked((r) => r.bullets.map((b) => ({ id: b.id, started: b.id === "s0b1", confidence: b.id === "s0b1" ? 0.95 : 0 })));
+    at(20_000);
+    e.feed({ committed: "The London office " });
+    at(23_500);
+    e.feed({ committed: "opens in May. " });
+    await e.tick();
+    const ev = e.getState().points.s0b1.evidence;
+    expect(ev).toMatchObject({ source: "model", quote: "The London office opens in May.", fromMs: 20_000, toMs: 23_500 });
+    expect(ev && "gate" in ev).toBe(false); // no pre-filter ran
+  });
+
+  it("a flip with no sentence sharing the point's words quotes the latest segment", async () => {
+    const { e, at } = clocked((r) => r.bullets.map((b) => ({ id: b.id, started: b.id === "s0b0", confidence: b.id === "s0b0" ? 0.9 : 0 })));
+    at(5_000);
+    e.feed({ committed: "Three new people joined the support crew. " });
+    await e.tick();
+    expect(e.getState().points.s0b0.evidence).toMatchObject({ quote: "Three new people joined the support crew.", fromMs: 5_000, toMs: 5_000, lexical: 0 });
+  });
+
+  it("a manual mark says so, and reopening drops the evidence", () => {
+    const { e, at } = clocked(() => []);
+    at(42_000);
+    e.dispatch({ type: "markStarted", id: "s0b1" });
+    expect(e.getState().points.s0b1.evidence).toEqual({ source: "manual", fromMs: 42_000, toMs: 42_000 });
+    e.dispatch({ type: "reopen", id: "s0b1" });
+    expect(e.getState().points.s0b1.evidence).toBeUndefined();
   });
 });
