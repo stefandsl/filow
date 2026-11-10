@@ -193,6 +193,24 @@ if (!quick) {
     }
   } catch { /* reported above */ }
   check("A11Y-07 reflow at 320 px", 2, reflowOk, reflowDetail);
+  // A11Y-02 and A11Y-03: the keyboard-only walk of every page (a11y.mjs). It counts only when it saw
+  // the page: the planted control was reported and the main page showed its tab stops. A11Y-02 is
+  // operation (nothing stuck, no trap, Enter, Space and Escape work); A11Y-03 is what a sighted
+  // keyboard user sees and a screen reader says at each stop (a ring, a name, on screen).
+  let opsOk = false, focusOk = false, keyboardDetail = "no keyboard walk in a11y.json";
+  try {
+    const j = JSON.parse(fs.readFileSync(f, "utf8"));
+    const k = j.keyboard;
+    if ((Date.now() - Date.parse(j.at)) / 3.6e6 <= 48 && k && Array.isArray(k.problems)) {
+      const sawThePage = k.controlCaught === true && (k.stops?.["/"] ?? 0) >= 10 && Array.isArray(j.wrongPages) && j.wrongPages.length === 0;
+      const isOperation = (p) => ["stuck", "trap", "keys"].includes(p.kind);
+      opsOk = sawThePage && !k.problems.some(isOperation);
+      focusOk = sawThePage && !k.problems.some((p) => !isOperation(p));
+      keyboardDetail = sawThePage ? k.problems.map((p) => `${p.route} ${p.kind}: ${p.what}`).join("; ") : "the walk did not see the page (planted control missed, too few stops or a wrong page)";
+    }
+  } catch { /* reported above */ }
+  check("A11Y-02 keyboard operation without a trap", 3, opsOk, keyboardDetail);
+  check("A11Y-03 focus visible and named at every stop", 2, focusOk, keyboardDetail);
 }
 
 // PERF-01: cold start of the packaged app (tools/autoloop/e2e/coldstart.mjs). Budgets: splash median
