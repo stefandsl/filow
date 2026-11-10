@@ -482,7 +482,7 @@ function wire(name: string, extra: Record<string, unknown> = {}) {
   });
   const api = tts.wireTts({
     ipcMain: bus,
-    ours: (wc: Sender & { foreign?: boolean }) => !wc.foreign,
+    ours: (event: { sender: Sender & { foreign?: boolean } }) => !event.sender.foreign,
     userData,
     logLine: (l: string) => log.push(l),
     hardware: { cores: 8, memBytes: 16 * GIB },

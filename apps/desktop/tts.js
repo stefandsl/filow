@@ -437,7 +437,7 @@ function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOff
   // The one way a voice channel is registered: only OK Filow's own windows get an answer, and each
   // caller is kept up to date with the voice's status from then on.
   const handle = (channel, fn) => ipcMain.handle(channel, (event, ...args) => {
-    if (!ourSender(event.sender)) throw new Error("Denied");
+    if (!ourSender(event)) throw new Error("Denied");
     watchers.add(event.sender);
     return fn(event, ...args);
   });
@@ -543,7 +543,7 @@ function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOff
 
   // What the panel really played (for the log; nothing leaves this PC).
   ipcMain.on("okfilow:tts:played", (event, info) => {
-    if (!ourSender(event.sender) || !info || typeof info !== "object") return;
+    if (!ourSender(event) || !info || typeof info !== "object") return;
     const line = `tts: played ${Number(info.seconds || 0).toFixed(1)} s of id ${Number(info.id) || 0}${info.interrupted ? " (interrupted)" : ""}, audio ${String(info.state || "").slice(0, 20)}`;
     logLine(line);
     if (qaDir) try { fs.appendFileSync(path.join(qaDir, "played.log"), line + "\n"); } catch { /* test folder gone */ }

@@ -11,6 +11,12 @@ const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agen
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
+const { trustedUiSender } = require("./ui-preferences");
+
+/** An IPC event from the main frame of one of OK Filow's windows (`contents`), on an OK Filow page; never a subframe. */
+function okfilowSender(event, contents, appUrl) {
+  return trustedUiSender(event, { pages: contents, appUrl, pathPrefix: "/okfilow/" });
+}
 
 const DEFAULTS = {
   enabled: true,
@@ -107,12 +113,11 @@ function createOkFilow(deps) {
   const hidden = () => !QA_VISIBLE && !cfg().allowScreenshots;
   const allWindows = () => [panel, modelWin, ...overlays.values()].filter((w) => w && !w.isDestroyed());
   const protectAll = (on) => { for (const w of allWindows()) w.setContentProtection(on); };
-  const ourWindow = (wc) =>
-    (panel && !panel.isDestroyed() && wc === panel.webContents) ||
-    (modelWin && !modelWin.isDestroyed() && wc === modelWin.webContents) ||
-    [...overlays.values()].some((w) => !w.isDestroyed() && w.webContents === wc);
-  /** Our windows, still showing our own pages (they cannot navigate away, but check anyway). */
-  const ourSender = (wc) => ourWindow(wc) && String(wc.getURL()).startsWith(`${appUrl}/okfilow/`);
+  /**
+   * Our windows' main frames, still showing our own pages (they cannot navigate away, but check
+   * anyway). Takes the IPC event, not event.sender: the frame that sent it is checked too.
+   */
+  const ourSender = (event) => okfilowSender(event, allWindows().map((w) => w.webContents), appUrl);
   /** Only a well-formed http(s) URL reaches the system browser (same rule as main.js openExternalSafe). */
   function openWeb(url) {
     let u;
@@ -150,13 +155,13 @@ function createOkFilow(deps) {
       } else if (mode === "idle" || mode === "error") scheduleFade();
     },
   });
-  ipcMain.on("okfilow:outbound:begin", (e, id, kind, names) => { if (ourSender(e.sender)) outbound.begin(`web:${String(id)}`, kind, names); });
-  ipcMain.on("okfilow:outbound:end", (e, id, opts) => { if (ourSender(e.sender)) outbound.end(`web:${String(id)}`, { cancel: Boolean(opts && opts.cancel === true) }); });
+  ipcMain.on("okfilow:outbound:begin", (e, id, kind, names) => { if (ourSender(e)) outbound.begin(`web:${String(id)}`, kind, names); });
+  ipcMain.on("okfilow:outbound:end", (e, id, opts) => { if (ourSender(e)) outbound.end(`web:${String(id)}`, { cancel: Boolean(opts && opts.cancel === true) }); });
   /** A first-send notice is open in the panel: it must be seen and must not vanish on a stray click. */
   let noticeOpen = false;
   let noticeShowedPanel = false;
   ipcMain.on("okfilow:notice:open", (e) => {
-    if (!ourSender(e.sender)) return;
+    if (!ourSender(e)) return;
     const p = buildPanel();
     if (!noticeOpen) noticeShowedPanel = !p.isVisible();
     noticeOpen = true;
@@ -164,7 +169,7 @@ function createOkFilow(deps) {
     logLine("okfilow: first-send notice shown");
   });
   ipcMain.on("okfilow:notice:close", (e) => {
-    if (!ourSender(e.sender) || !noticeOpen) return;
+    if (!ourSender(e) || !noticeOpen) return;
     noticeOpen = false;
     // Opened only for the notice: get out of the way of what the user is asking about.
     if (noticeShowedPanel && panel && !panel.isDestroyed()) panel.hide();
@@ -208,26 +213,26 @@ function createOkFilow(deps) {
     modelWin.once("ready-to-show", () => modelWin && !modelWin.isDestroyed() && modelWin.showInactive());
     modelWin.loadURL(`${appUrl}/okfilow/model`);
   }
-  ipcMain.on("okfilow:model:show", (e, model) => { if (ourSender(e.sender) && model && Array.isArray(model.parts)) showModel(model); });
+  ipcMain.on("okfilow:model:show", (e, model) => { if (ourSender(e) && model && Array.isArray(model.parts)) showModel(model); });
   /** An overlay finished setting up: it missed what was sent while it loaded, so send it now. */
   ipcMain.on("okfilow:overlay:ready", (e) => {
-    if (!ourSender(e.sender)) return;
+    if (!ourSender(e)) return;
     e.sender.send("okfilow:state", { mode, purpose: purpose || "talk" });
     e.sender.send("okfilow:outbound", outbound.snapshot());
     lastCursor = "";
   });
-  ipcMain.on("okfilow:panel:ready", (e) => { if (ourSender(e.sender)) e.sender.send("okfilow:outbound", outbound.snapshot()); });
+  ipcMain.on("okfilow:panel:ready", (e) => { if (ourSender(e)) e.sender.send("okfilow:outbound", outbound.snapshot()); });
   ipcMain.on("okfilow:model:ready", (e) => {
-    if (!ourSender(e.sender) || !currentModel) return;
+    if (!ourSender(e) || !currentModel) return;
     e.sender.send("okfilow:model", currentModel);
     logLine(`okfilow: 3D model shown (${currentModel.parts.length} parts)`);
     qaShot("model", 3000);
   });
-  ipcMain.on("okfilow:model:close", (e) => { if (ourSender(e.sender) && modelWin && !modelWin.isDestroyed()) modelWin.close(); });
-  ipcMain.on("okfilow:askAbout", (e, text) => { if (ourSender(e.sender) && typeof text === "string") sendPanel("okfilow:askText", text.slice(0, 300)); });
+  ipcMain.on("okfilow:model:close", (e) => { if (ourSender(e) && modelWin && !modelWin.isDestroyed()) modelWin.close(); });
+  ipcMain.on("okfilow:askAbout", (e, text) => { if (ourSender(e) && typeof text === "string") sendPanel("okfilow:askText", text.slice(0, 300)); });
   /** Cards (global DIP) go to the overlay of the display they sit on, in its local coordinates. */
   ipcMain.on("okfilow:cards", (e, list) => {
-    if (!ourSender(e.sender) || !Array.isArray(list)) return;
+    if (!ourSender(e) || !Array.isArray(list)) return;
     pinned = true;
     showOverlays();
     for (const w of overlays.values()) {
@@ -721,7 +726,7 @@ function createOkFilow(deps) {
   // ---- IPC (only OK Filow's own windows) ----
   function guard(handler) {
     return (event, ...args) => {
-      if (!ourSender(event.sender)) throw new Error("Denied");
+      if (!ourSender(event)) throw new Error("Denied");
       return handler(...args);
     };
   }
@@ -734,10 +739,10 @@ function createOkFilow(deps) {
     return out;
   }));
   ipcMain.handle("okfilow:setMode", guard((m, extra) => (logLine(`okfilow: mode ${m}${extra && extra.error ? ` (${String(extra.error).slice(0, 200)})` : ""}`), setMode(typeof m === "string" ? m : "idle", extra && typeof extra === "object" ? extra : {}))));
-  ipcMain.on("okfilow:level", (e, level) => ourSender(e.sender) && sendOverlays("okfilow:level", Number(level) || 0));
+  ipcMain.on("okfilow:level", (e, level) => ourSender(e) && sendOverlays("okfilow:level", Number(level) || 0));
   let lastQaText = "";
   ipcMain.on("okfilow:text", (e, text) => {
-    if (!ourSender(e.sender)) return;
+    if (!ourSender(e)) return;
     const t = String(text || "").slice(0, 2000);
     sendOverlays("okfilow:text", t);
     // Test builds log what the bubble shows, so end-to-end runs can be checked from the log.
@@ -745,7 +750,7 @@ function createOkFilow(deps) {
   });
   let qaTextTimer = null;
   /** The panel's Clear button, and every new typed question. */
-  ipcMain.on("okfilow:clearVisuals", (e) => ourSender(e.sender) && clearDrawings());
+  ipcMain.on("okfilow:clearVisuals", (e) => ourSender(e) && clearDrawings());
   let lastAnswerDir = "";
   const answersFallback = () => defaultAnswerDir(require("electron").app.getPath("userData"), process.env, QA_ALLOWED);
   ipcMain.handle("okfilow:answerLog", guard((entry) => {
@@ -773,16 +778,16 @@ function createOkFilow(deps) {
     require("node:fs").mkdirSync(dir, { recursive: true });
     return (await shell.openPath(dir)) === "";
   }));
-  ipcMain.on("okfilow:hidePanel", (e) => ourSender(e.sender) && panel && !panel.isDestroyed() && panel.hide());
-  ipcMain.on("okfilow:press", (e) => ourSender(e.sender) && press("talk"));
-  ipcMain.on("okfilow:release", (e) => ourSender(e.sender) && release());
+  ipcMain.on("okfilow:hidePanel", (e) => ourSender(e) && panel && !panel.isDestroyed() && panel.hide());
+  ipcMain.on("okfilow:press", (e) => ourSender(e) && press("talk"));
+  ipcMain.on("okfilow:release", (e) => ourSender(e) && release());
   /** Dictation result from the panel: typed into whatever app has focus. */
   ipcMain.handle("okfilow:typeText", guard((text) => typeText(typeof text === "string" ? text.slice(0, 20000) : "")));
   /** Hands-free off from the panel (its button or Escape). */
-  ipcMain.on("okfilow:handsfreeOff", (e) => { if (ourSender(e.sender)) { handsFree = false; sendPanel("okfilow:handsfree", false); } });
+  ipcMain.on("okfilow:handsfreeOff", (e) => { if (ourSender(e)) { handsFree = false; sendPanel("okfilow:handsfree", false); } });
   /** Highlighter strokes from an overlay, in its local coordinates; kept in global DIP until the question is sent. */
   ipcMain.on("okfilow:stroke", (e, points) => {
-    if (!ourSender(e.sender) || !held || purpose !== "talk" || !Array.isArray(points)) return;
+    if (!ourSender(e) || !held || purpose !== "talk" || !Array.isArray(points)) return;
     const entry = [...overlays.entries()].find(([, w]) => !w.isDestroyed() && w.webContents === e.sender);
     if (!entry) return;
     const b = entry[1].getBounds();
@@ -792,7 +797,7 @@ function createOkFilow(deps) {
   });
   /** points: [{x, y, label, display: {id, bounds}, image: {width, height}}] already mapped to global DIP by the panel. */
   ipcMain.on("okfilow:point", (e, points) => {
-    if (!ourSender(e.sender) || !Array.isArray(points)) return;
+    if (!ourSender(e) || !Array.isArray(points)) return;
     pinned = true;
     qaShot("point", 2500);
     if (QA_SHOTS) {
@@ -811,7 +816,7 @@ function createOkFilow(deps) {
 
   /** marks: BuddyMark[] in global DIP. Each overlay gets the ones anchored on its display, in local coordinates. */
   ipcMain.on("okfilow:draw", (e, marks) => {
-    if (!ourSender(e.sender) || !Array.isArray(marks)) return;
+    if (!ourSender(e) || !Array.isArray(marks)) return;
     pinned = true;
     showOverlays();
     qaShot("draw");
@@ -826,7 +831,7 @@ function createOkFilow(deps) {
   // Speech-to-text on this PC: its own sherpa session, so it never steals the presenter's.
   ipcMain.handle("okfilow:stt:status", guard(() => ({ ready: sttLocal.modelReady(userData) })));
   ipcMain.handle("okfilow:stt:start", async (event, language) => {
-    if (!ourSender(event.sender)) throw new Error("Denied");
+    if (!ourSender(event)) throw new Error("Denied");
     // First use on a clean PC: start the download instead of only refusing.
     if (!sttLocal.modelReady(userData)) { deps.sttDownload?.(); throw new Error(menuText("okfNoStt")); }
     if (!stt) stt = new sttLocal.SttSession(userData, logLine);
@@ -836,7 +841,7 @@ function createOkFilow(deps) {
     return stt.start(typeof language === "string" ? language : "auto");
   });
   ipcMain.on("okfilow:stt:feed", (e, samples) => {
-    if (ourSender(e.sender) && stt) stt.feed(samples instanceof Float32Array ? samples : new Float32Array(samples));
+    if (ourSender(e) && stt) stt.feed(samples instanceof Float32Array ? samples : new Float32Array(samples));
   });
   ipcMain.handle("okfilow:stt:stop", guard(() => stt?.stop()));
 
@@ -949,4 +954,4 @@ function createOkFilow(deps) {
   return { start, dispose, togglePanel, status, applyConfig };
 }
 
-module.exports = { createOkFilow, hotkeyHeld, HOTKEYS, DEFAULTS };
+module.exports = { createOkFilow, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS };

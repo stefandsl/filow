@@ -1,10 +1,18 @@
 // Electron is injected: this service also runs in Vitest without a desktop session.
 
-function trustedUiSender(event, { welcome, pages, welcomeUrl, appUrl }, welcomeOnly = false) {
-  if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || event.sender.isDestroyed()) return false;
-  if (event.sender === welcome) return event.senderFrame.url === welcomeUrl;
+/**
+ * The IPC sender rule of every app window (main window, welcome, OK Filow): the main frame (never a
+ * subframe) of one of `pages`, not destroyed, on the app's origin; with `pathPrefix`, also on a page
+ * under that path (OK Filow: "/okfilow/").
+ */
+function trustedUiSender(event, { welcome, pages, welcomeUrl, appUrl, pathPrefix = "" }, welcomeOnly = false) {
+  if (!event || !event.sender || !event.senderFrame || event.senderFrame !== event.sender.mainFrame || event.sender.isDestroyed()) return false;
+  if (welcome && event.sender === welcome) return event.senderFrame.url === welcomeUrl;
   if (welcomeOnly || !pages.includes(event.sender)) return false;
-  try { return new URL(event.senderFrame.url).origin === new URL(appUrl).origin; } catch { return false; }
+  try {
+    const url = new URL(event.senderFrame.url);
+    return url.origin === new URL(appUrl).origin && url.pathname.startsWith(pathPrefix);
+  } catch { return false; }
 }
 
 function createUiPreferences({ app, nativeTheme, systemPreferences, platform, execPath, portable = false, read, save, initial = {}, helpers = require("./vendor/ui-preferences"), canComplete = () => true }) {
