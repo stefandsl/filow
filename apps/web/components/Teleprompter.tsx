@@ -52,6 +52,8 @@ import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAtt
 import { decisionRecipient, sttRecipient, takeOutbound } from "@/lib/buddy/outbound";
 import { pageOutbound, usePageOutbound } from "./usePageOutbound";
 import { PageOutboundNotice, PageOutboundSignal, useOkfText } from "./PageOutbound";
+import { useRehearsal } from "./RehearsalPanel";
+import { downloadMarkdown } from "./RehearsalExport";
 
 type BackendChoice = "auto" | SttBackendId;
 
@@ -182,13 +184,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   };
 
   const exportNotes = () => {
-    const md = notesToMarkdown(lastNotes, `Talk notes · ${new Date(lastNotes[0]?.at ?? Date.now()).toLocaleDateString()}`);
-    const blob = new Blob([md], { type: "text/markdown" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `filow-notes-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.md`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    downloadMarkdown(notesToMarkdown(lastNotes, `Talk notes · ${new Date(lastNotes[0]?.at ?? Date.now()).toLocaleDateString()}`), "filow-notes");
   };
 
   // ---- script ----------------------------------------------------------
@@ -220,6 +216,9 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     engine.loadScript(script);
     setEditing(false);
   };
+
+  // Rehearsal report after Stop, talk timer and "Talk length" (RehearsalPanel.tsx).
+  const rehearsal = useRehearsal({ engine, state, scriptText, saveScript, notes: lastNotes });
 
   // ---- transcription ---------------------------------------------------
   const stopTake = useCallback(() => {
@@ -407,7 +406,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         return;
       }
       const handlers = {
-        onTranscript: (e: { committed?: string; partial?: string }) => { if (attempt.isCurrent()) engine.feed(e); },
+        onTranscript: (e: { committed?: string; partial?: string }) => { if (attempt.isCurrent()) { rehearsal.transcript(e); engine.feed(e); } },
         onError: (m: string) => {
           if (!attempt.isCurrent()) return;
           pushLog(`error: ${m}`);
@@ -531,6 +530,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
             : <><h1 className="section-title">{t("stage.noScript")}</h1><p>{t("stage.noScriptHint")}</p></>}
           <button type="button" className="btn edit-points" onClick={() => setEditing(true)}><Icon name="edit" /> {t("ctl.edit")}</button>
         </div>
+        {rehearsal.timer}
         {section && <PointsList points={section.bullets.map(b => {
           const st = points[b.id] ?? {status: "waiting", confidence: 0};
           return {id:b.id, text:b.text, confidence:st.confidence, evidence:st.evidence, state:pointState({started:st.status === "started",confidence:st.confidence},st.confidence >= 0.3 || st.active === true)};
@@ -646,6 +646,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         overflow={<OverflowMenu triggerRef={actionMenuRef} items={[
           {id:"reset",label:t("ctl.reset"),onSelect:() => engine.dispatch({type:"resetSection"})},
           {id:"log",label:t("ctl.logReport"),onSelect:() => { setLogOpen(true); }},
+          ...rehearsal.menu,
           ...(desktopBridge()?.reportProblem ? [{id:"report",label:t("log.report"),onSelect:() => { desktopBridge()?.reportProblem?.(); }}] : []),
         ]} />} />
       <StatusStrip summary={t("status.thisComputer")} details={<><div className="status-metadata">
@@ -716,6 +717,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         />
       )}
       {editing && <ScriptEditor initial={scriptText} onCancel={() => setEditing(false)} onSave={saveScript} />}
+      {rehearsal.dialogs}
       {screen.sources && <SourceChooser sources={screen.sources} onPick={(s) => void screen.chooseSource(s)} />}
       {pendingImport && (
         <ScriptEditor
