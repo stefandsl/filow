@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Filow</title>
+  <link rel="stylesheet" href="vendor/theme-tokens.css">
+  <link rel="stylesheet" href="about.css">
+  <script defer src="about-page.js"></script>
+</head>
+<body>
+  <header class="top">
+    <img class="wordmark white" src="build/wordmark-white.svg" alt="Filow" width="96">
+    <img class="wordmark black" src="build/wordmark-black.svg" alt="Filow" width="96">
+    <nav class="tabs" id="tabs">
+      <button type="button" id="tab-about" data-view="about"></button>
+      <button type="button" id="tab-report" data-view="report"></button>
+    </nav>
+  </header>
+  <main id="main" tabindex="-1"></main>
+</body>
+</html>

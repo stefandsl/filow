@@ -16,6 +16,16 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   // single instance: the order of profile and lock calls, the app's event handlers, exit and start
   const calls: string[] = [], appHandlers: Record<string, (...args: any[]) => void> = {};
   const appExit = vi.fn(), whenReady = vi.fn(() => ({ then() {} }));
+  // windows main.js (and about.js) create, and the ipcMain.handle channels they register
+  const windows: any[] = [], ipcHandlers: Record<string, (event: unknown, ...args: unknown[]) => unknown> = {};
+  class FakeBrowserWindow extends EventEmitter {
+    static getAllWindows() { return []; }
+    webContents = Object.assign(new EventEmitter(), { send: vi.fn(), setWindowOpenHandler: vi.fn() });
+    loaded: unknown[] = [];
+    constructor(public options: unknown) { super(); windows.push(this); }
+    loadFile(file: string, options: unknown) { this.loaded.push([file, options]); return Promise.resolve(); }
+    setMenuBarVisibility() {} isDestroyed() { return false; } isMinimized() { return false; } show() {} focus() {} restore() {} close() {}
+  }
   let requestFilter!: (details: { url: string }, cb: (r: unknown) => void) => void;
   const outbound = vi.fn(() => { throw new Error("fake network boundary: no bytes sent"); });
   const openExternal = vi.fn(async () => {}), checkForUpdates = vi.fn(async () => null);
@@ -29,12 +39,12 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
         on: (event: string, fn: (...args: any[]) => void) => { appHandlers[event] = fn; }, setAppUserModelId() {},
         requestSingleInstanceLock: () => { calls.push("lock"); return !lockHeld; }, exit: appExit,
         whenReady, getLocale: () => "en", getVersion: () => "test", getGPUInfo: async () => ({}) },
-      ipcMain: { on() {} }, BrowserWindow: { getAllWindows: () => [] },
+      ipcMain: { on() {}, handle: (channel: string, fn: (event: unknown, ...args: unknown[]) => unknown) => { ipcHandlers[channel] = fn; } }, BrowserWindow: FakeBrowserWindow,
       session: { defaultSession: { webRequest: { onBeforeRequest: (_filter: unknown, cb: typeof requestFilter) => { requestFilter = cb; } } } },
       shell: { openExternal }, dialog: { showMessageBox }, clipboard: { writeText },
       Menu: { buildFromTemplate: (template: unknown) => template, setApplicationMenu() {} },
       Notification: class { static isSupported() { return true; } on() {} show() { notificationShow(); } },
-      net: { isOnline: () => true },
+      net: { isOnline: () => true }, nativeTheme: { shouldUseDarkColors: true },
     },
     "node:path": path, "node:url": { pathToFileURL },
     "node:fs": { readFileSync: () => "FILOW_OFFLINE=1", appendFileSync() {}, existsSync: (file: string) => updateFeed && String(file).endsWith("app-update.yml"), mkdirSync() {}, rmSync() {}, writeFileSync, renameSync() {} },
@@ -46,7 +56,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "./vendor/i18n": { t }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./ui-preferences": {}, "./slideshow": {},
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
-  for (const name of ["stt", "localai", "diag", "welcome-setup", "single-instance"]) {
+  for (const name of ["stt", "localai", "diag", "welcome-setup", "single-instance", "about"]) {
     const module = { exports: {} };
     runInNewContext(readFileSync(new URL(`./${name}.js`, import.meta.url), "utf8"), {
       require: (id: string) => { if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`); return modules[id]; },
@@ -55,7 +65,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     modules[`./${name}`] = module.exports;
   }
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
-    ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, checkForUpdates,
+    ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, stopTunnels, setLog: text => { lastTakeLog = text; },
        textTables: { MENU_TEXT, NET_TEXT, SPLASH_TEXT, LOCAL_AI_TEXT },
        setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
@@ -71,7 +81,8 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     URL, URLSearchParams, console, setTimeout, clearTimeout,
   });
   return { api, env, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync,
-    calls, appHandlers, appExit, whenReady,
+    calls, appHandlers, appExit, whenReady, windows,
+    ipc: async (channel: string, win: { webContents: unknown }, ...args: unknown[]) => ipcHandlers[channel]({ sender: win.webContents }, ...args),
     blocked: (url: string) => { let result: any; requestFilter({ url }, r => { result = r; }); return result.cancel === true; } };
 }
 
@@ -141,31 +152,39 @@ describe("Step 4 desktop offline seams", () => {
     expect(f.outbound, "offline must not enter the network installer").not.toHaveBeenCalled();
     expect(f.api.localAiStatus()).toMatchObject({ state: "error", error: t("offline.downloadDisabled", "en") });
   });
-  // Contract: main.js offline menu: "no outbound requests"; Q4 text egress includes diagnostics.
-  it("offline report must not place take log text in an external browser URL", async () => {
-    const f = fixture({ FILOW_OFFLINE: "1" }); f.api.setLog("synthetic private take log");
-    await f.api.reportProblem(null);
-    expect(f.openExternal, "offline report must not hand private log text to an external URL").not.toHaveBeenCalled();
-    expect(f.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({
-      message: t("offline.reportCopyPrompt", "en"), buttons: [t("offline.copyReport", "en"), t("common.cancel", "en")],
-    }));
-    expect(f.writeText).toHaveBeenCalledWith(expect.stringContaining("synthetic private take log"));
+  // Contract: "Report a problem" never sends anything (docs/PRIVACY.md); the old path opened a public
+  // GitHub issue with the log in its URL. Online or offline, it now opens the local report window.
+  it.each([{}, { FILOW_OFFLINE: "1" }])("a report opens the local report window and no browser (env %o)", async (env) => {
+    const f = fixture(env); f.api.setLog("synthetic private take log");
+    f.api.reportProblem();
+    expect(f.openExternal, "no report text may leave through a browser URL").not.toHaveBeenCalled();
+    expect(f.windows).toHaveLength(1);
+    expect(f.windows[0].loaded).toEqual([[path.join("G:/fake", "about.html"), { hash: "report" }]]);
+    const r = await f.ipc("report:data", f.windows[0]);
+    expect(r.preview).toContain("synthetic private take log");
+    expect(f.writeText).not.toHaveBeenCalled();
   });
-  it("online report masks a live public link and keys before they reach the public issue URL", async () => {
+  it("the report masks a live public link and keys before the user sees or saves it", async () => {
     const f = fixture({});
     // the key is built from pieces so no key-shaped string sits in a tracked file (SUP-05 scans them)
     f.api.setLog("phone joined via https://drives-pulling-agrees-ambassador.trycloudflare.com/s/1 with sk-or-v1-" + "0123456789abcdef".repeat(2));
-    await f.api.reportProblem(null);
-    expect(f.openExternal).toHaveBeenCalledTimes(1);
-    const body = decodeURIComponent(String(f.openExternal.mock.calls[0][0]).split("&body=")[1]);
-    expect(body).toContain("phone joined via <public link> with <key>");
-    expect(body).not.toMatch(/trycloudflare|sk-or-v1-0123/);
+    f.api.reportProblem();
+    const { preview } = await f.ipc("report:data", f.windows[0]);
+    expect(preview).toContain("phone joined via <public link> with <key>");
+    expect(preview).not.toMatch(/trycloudflare|sk-or-v1-0123/);
+    await f.ipc("report:copy", f.windows[0], "my words");
+    expect(String(f.writeText.mock.calls[0][0])).toMatch(/my words[\s\S]*<public link>/);
   });
-  it("offline report cancellation leaves the clipboard unchanged", async () => {
-    const f = fixture({ FILOW_OFFLINE: "1" }); f.showMessageBox.mockResolvedValue({ response: 1 });
-    await f.api.reportProblem(null);
-    expect(f.writeText).not.toHaveBeenCalled();
-    expect(f.openExternal).not.toHaveBeenCalled();
+  it("answers the report channels only for its own window", async () => {
+    const f = fixture({}); f.api.reportProblem();
+    await expect(f.ipc("report:data", { webContents: {} })).rejects.toThrow("Denied");
+  });
+  it("the menu and Settings open one About and privacy window, reused for the report", () => {
+    const f = fixture({});
+    f.api.openAbout("about"); f.api.reportProblem();
+    expect(f.windows).toHaveLength(1);
+    expect(f.windows[0].loaded).toEqual([[path.join("G:/fake", "about.html"), { hash: "about" }]]);
+    expect(f.windows[0].webContents.send).toHaveBeenCalledWith("about:view", "report");
   });
 });
 

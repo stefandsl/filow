@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { redact, issueUrl } = require("./diag.js");
+const { redact } = require("./diag.js");
 
 // Built from pieces so no key-shaped string sits in a tracked file (SUP-05 scans them).
 const KEY_SHAPED = "sk-or-v1-" + "0123456789abcdef".repeat(2);
@@ -36,25 +36,5 @@ describe("report redaction", () => {
   it("leaves ordinary log lines alone", () => {
     const line = "2026-11-09T13:42:00.651Z startup: servers answering (7750 ms)";
     expect(redact(line, { home: "C:\\Users\\Asus", user: "Asus" })).toBe(line);
-  });
-});
-
-describe("issue URL", () => {
-  const base = "https://github.com/o/r/issues/new";
-  it("keeps short reports whole", () => {
-    const r = issueUrl(base, "t", { head: "h\n", log: "line 1\nline 2\n", tail: "```" });
-    expect(r.truncated).toBe(false);
-    expect(decodeURIComponent(r.url.split("&body=")[1])).toBe("h\nline 1\nline 2\n```");
-  });
-
-  it("cuts the oldest log lines to fit and never ends inside a %-escape", () => {
-    const log = Array.from({ length: 2000 }, (_, i) => `line ${i} àèì "quoted" & more`).join("\n");
-    const r = issueUrl(base, "title", { head: "**startup.log**\n```\n", log, tail: "\n```" }, 7800);
-    expect(r.truncated).toBe(true);
-    expect(r.url.length).toBeLessThanOrEqual(7800);
-    const body = decodeURIComponent(r.url.split("&body=")[1]); // throws on a broken escape
-    expect(body).toMatch(/line 1999/);
-    expect(body).not.toMatch(/line 0 /);
-    expect(body.endsWith("\n```")).toBe(true);
   });
 });

@@ -59,6 +59,11 @@
       "integrity.js",
       "diag.js",
       "single-instance.js",
+      "about.js",
+      "about-preload.js",
+      "about.html",
+      "about-page.js",
+      "about.css",
       "preload.js",
       "splash.html",
       "vendor/*.js",
@@ -115,6 +120,14 @@
       {
         "from": "THIRD_PARTY_NOTICES.md",
         "to": "THIRD_PARTY_NOTICES.md"
+      },
+      {
+        "from": "../../docs/PRIVACY.md",
+        "to": "PRIVACY.md"
+      },
+      {
+        "from": "../../docs/PRIVACY.it.md",
+        "to": "PRIVACY.it.md"
       }
     ],
     "win": {

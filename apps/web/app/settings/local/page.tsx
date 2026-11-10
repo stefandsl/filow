@@ -18,6 +18,7 @@ import { modelLabel } from "@/lib/router";
 import { MicrophoneSelect } from "@/components/MicrophoneSelect";
 import { OkFilowSettings } from "@/components/OkFilowSettings";
 import { SetupPicker } from "./SetupPicker";
+import { AboutPrivacyLink } from "@/components/AboutPrivacyLink";
 
 type Status = {
   pii: { mode: "off" | "on" | "strict"; serverUrl: string; serverReachable: boolean };
@@ -755,6 +756,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               </div>
             )}
             <div className="hint">{t("settings.offlineHint")}</div>
+            <AboutPrivacyLink />
           </section>
           {error && <span className="chip err">{error}</span>}
         </>
