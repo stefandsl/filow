@@ -94,9 +94,9 @@ The WebSocket relay is a **separate Node process**, `apps/server`, using the `ws
 Consequences:
 
 - **Caddy**: `handle /ws/*` and `handle /api/session/*` → `reverse_proxy 127.0.0.1:4748`; everything else → 4747. WebSockets pass through `reverse_proxy` without extra config.
-- **systemd**: a second unit `filow-session.service`, `ExecStart=/usr/bin/node apps/server/dist/index.js`.
-- **Electron**: `main.js` requires `apps/server/dist/index.js` after the Next server and waits for both ports in `waitForServer()`.
-- **CI**: unchanged shape, `npm run -w apps/desktop desktop:build:*`.
+- **systemd**: a second unit `filow-session.service`, `ExecStart=/usr/bin/node apps/server/dist/bundle.js`.
+- **Electron**: `main.js` requires the relay bundle (`apps/server/dist/bundle.js`, packaged as `resources/server/bundle.js`) after the Next server and waits for both ports in `waitFor()`.
+- **CI**: unchanged shape, root scripts `npm run desktop:build:<os>` (they call `dist:<os>` in `apps/desktop`).
 
 ### 5.3 Desktop topology (decision D2)
 
@@ -186,11 +186,13 @@ Navigation rule: `nextSection`, `goToSection(idx > current)` and `slideChanged` 
 ```ts
 export class Engine {
   constructor(opts: {
-    decide: (r: DecideRequest) => Promise<DecideResponse>;   // injected; core has no fetch, no DOM
-    vision?: (r: VisionRequest) => Promise<VisionResponse>;  // Screen Sense, optional
+    decide: (r: DecideRequest, signal?: AbortSignal) => Promise<DecideResponse>;   // injected; core has no fetch, no DOM
     now?: () => number; tickMs?: number /*500*/; threshold?: number /*0.7*/;
-    confirmTicks?: number /*2*/; window?: number /*900*/;
-  });
+    confirmCalls?: number /*2*/; sureThreshold?: number /*0.85*/; window?: number /*900*/;
+    costCapUsd?: number | null /*1*/; timeoutMs?: number /*2500*/; maxQuestions?: number /*4*/;
+    reaskOnPending?: boolean /*true*/; guard?: boolean /*true*/; verify?: boolean /*true*/;
+    // plus verifyThreshold, onGuard, onVerify, sessionId and timer injection: see EngineOptions in engine.ts
+  });                                        // Screen Sense text arrives through feedScreen(), not an option
   loadScript(script: Script): void;        // resets points, sectionIdx, counters
   feed(e: TranscriptEvent): void;          // same shape as lib/stt/types.ts
   feedScreen(s: ScreenSummary): void;      // from the capture pipeline, text only
@@ -201,7 +203,7 @@ export class Engine {
 }
 ```
 
-Flip rule (replaces the old `STICKY_MS`, which never did anything because `started` is never un-set): a point flips to `started` when it scores ≥ 0.70 on two consecutive **calls** (not timer ticks, since calls are gated on transcript change), or ≥ 0.90 on one call. `confirmTicks` is configurable.
+Flip rule (replaces the old `STICKY_MS`, which never did anything because `started` is never un-set): a point flips to `started` when it scores ≥ 0.70 on two consecutive **calls** (not timer ticks, since calls are gated on transcript change), or ≥ 0.85 (`sureThreshold`) on one call. `confirmCalls` and `sureThreshold` are configurable.
 
 The React component becomes a thin `useEngine()` hook; all logic now in `Teleprompter.tsx` lines 131–220 moves into `Engine` verbatim, then gets tests.
 
@@ -237,7 +239,7 @@ Move table:
 | `components/Teleprompter.tsx` logic | `packages/core/src/engine.ts` | UI stays, calls `useEngine` |
 | `electron/`, builder config | `apps/desktop/` | `extraResources.from: ../web/.next/standalone` |
 
-Tooling: npm workspaces only (no Turborepo for five packages). Packages are `"type": "module"`, built with `tsc -b`; `apps/web/next.config.ts` adds `transpilePackages` for the three packages and `outputFileTracingRoot: path.join(__dirname, "../..")`. CI runs `npm ci` at root and `npm run -w apps/desktop desktop:build:<os>`.
+Tooling: npm workspaces only (no Turborepo for five packages). Packages are `"type": "module"` and ship their TypeScript source (`"main": "./src/index.ts"`, no build step); `apps/web/next.config.ts` adds `transpilePackages` for the four packages (core, stt, client, ui) and `outputFileTracingRoot: path.join(__dirname, "../..")`. CI runs `npm ci` at root and the root script `npm run desktop:build:<os>`.
 
 Phase 1 is done when `npm run typecheck`, `npm run build`, `npm run desktop` pass from the new root, the UI is unchanged, and the engine tests in §11 pass.
 
@@ -415,7 +417,7 @@ iOS suspends background sockets within seconds of screen lock, so the "remote in
 
 Runner: vitest, tests beside sources in `packages/*/src/**.test.ts`; Playwright in `apps/web/e2e`.
 
-- `core/engine`: flips at 0.70 after two confirming calls, flips at 0.90 on one; `nextSection` marks waiting points missed; `prevSection` marks nothing; `resetSection` clears only the current section; `reopen` returns a missed point to waiting; cost cap stops the loop; version increments once per emitted patch; `parseScript` ids are stable across re-parses.
+- `core/engine`: flips at 0.70 after two confirming calls, flips at `sureThreshold` (0.85) or more on one; `nextSection` marks waiting points missed; `prevSection` marks nothing; `resetSection` clears only the current section; `reopen` returns a missed point to waiting; cost cap stops the loop; version increments once per emitted patch; `parseScript` ids are stable across re-parses.
 - `core/prompt`: `parseDecisions` handles fences, missing ids, out-of-range confidence.
 - `server`: two views receive identical patch sequences; second engine closed with 4001; bad code 404; 11th pair attempt 429; expiry at 2 h after engine close and at 12 h absolute with fake timers; `resync` returns full state.
 - e2e: open `/` as engine with a mock `decide`, open `/mirror?code=` in a second context, send `nextSection` from the mirror, assert the engine's section changes and the mirror shows the new section.

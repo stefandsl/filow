@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { tmpRoot } from "./test-tmp";
 
 const require = createRequire(import.meta.url);
 const { agentTask, titleOf, pickCli, parseReply, jobPrompt } = require("./okfilow-agents.js");
@@ -52,7 +53,7 @@ describe("OK Filow agents", () => {
 
   it("runs a job end to end with a fake CLI, collects artifacts and survives a restart", async () => {
     const { createAgents } = require("./okfilow-agents.js");
-    const base = fs.mkdtempSync(path.join(process.env.FILOW_TEST_TMP || "G:/FILOW/tmp", "okf-agents-"));
+    const base = tmpRoot("okf-agents");
     const bin = path.join(base, "bin");
     fs.mkdirSync(bin);
     // A stand-in "claude" that writes a file and replies like the real one.

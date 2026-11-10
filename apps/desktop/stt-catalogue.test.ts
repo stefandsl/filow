@@ -4,13 +4,14 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { afterAll, describe, expect, it } from "vitest";
+import { tmpRoot } from "./test-tmp";
 
 const require = createRequire(import.meta.url);
 const stt = require("./stt.js");
 const { CATALOGUE, LANGUAGES, normaliseLanguage, tierFor, chooseModels, pickInstalled, requiredSpecs, recognizerConfig, speechStatus, installedKeys, modelDir } = stt;
 
 // Fake model folders live in the project's own tmp folder (never on C:).
-const root = path.resolve(__dirname, "../../tmp/test-stt-catalogue");
+const root = tmpRoot("stt-catalogue");
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
 /** A userData folder where the given catalogue entries look unpacked. */

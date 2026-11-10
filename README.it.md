@@ -162,7 +162,7 @@ Backend di trascrizione (scegli nel menu a tendina, o lascia su **Auto**):
 | ElevenLabs Scribe v2 Realtime | `ELEVENLABS_API_KEY` | ovunque. Come nella demo originale. |
 | OpenAI gpt-live-transcribe | `OPENAI_API_KEY` | ovunque. |
 
-**Auto** prova ElevenLabs, poi OpenAI, poi il browser, poi Whisper sul dispositivo. Un backend che dà errore o non produce parole entro 8 s viene saltato. Il log in basso mostra ogni tentativo e il tempo fino alle prime parole, così vedi quale è davvero il più veloce per te.
+Con **Auto** decide la modalità di avvio (auto, locale, cloud o chiedi, nelle Impostazioni), e il prompter sceglie un solo backend all'avvio della sessione: una sessione locale usa il modello vocale su questo PC (sherpa), altrimenti Whisper sul dispositivo; una sessione cloud usa ElevenLabs, altrimenti OpenAI, altrimenti il browser. Il prompter non passa a un altro backend durante la sessione; il log in basso indica quello in uso. Solo il pannello di PowerPoint prova i backend uno dopo l'altro, saltando quello che dà errore o non produce parole entro 8 s (30 s per Whisper).
 
 Le chiavi API non arrivano mai al browser: il server emette token a breve scadenza per i backend in streaming e chiama OpenRouter da sé.
 
@@ -337,7 +337,7 @@ Il risultato finisce in `release/`.
 
 L'app desktop installata controlla se c'è una nuova versione pochi secondi dopo l'avvio e dal menu (*Controlla aggiornamenti…*). L'aggiornamento si scarica in background; ricevi "Riavvia ora / Più tardi", e un aggiornamento rimandato si installa da solo alla prossima chiusura. Windows e Linux (AppImage) si aggiornano sul posto; macOS richiede una build firmata e notarizzata per gli aggiornamenti sul posto, quindi su Mac l'app si limita a dirti che esiste una nuova versione finché quello non è configurato.
 
-Il feed è un repository GitHub **pubblico** che contiene solo gli installer, perché questo repository sorgente è privato e un'app installata non può leggere release private senza portarsi dietro un segreto. Configurazione una tantum, da una macchina dove `gh` è autenticato:
+Il feed è un repository GitHub **pubblico** separato che contiene solo gli installer. È nato quando questo repository sorgente era privato (un'app installata non può leggere release private senza portarsi dietro un segreto); il sorgente è pubblico dal 2026-11-03, e il feed resta dove le app installate cercano gli aggiornamenti. Configurazione una tantum, da una macchina dove `gh` è autenticato:
 
 ```bash
 gh repo create stefandsl/filow-releases --public --description "Filow installers (auto-update feed)"
@@ -349,7 +349,7 @@ Crea su GitHub un personal access token a grana fine (Settings → Developer set
 gh secret set RELEASES_TOKEN --repo stefandsl/filow
 ```
 
-Dal tag successivo in poi, il job di release pubblica gli stessi installer più i metadati di aggiornamento (`latest*.yml`, `*.blockmap`) nel repository pubblico, e le app installate li rilevano. Niente del sorgente esce dal repository privato.
+Dal tag successivo in poi, il job di release pubblica gli stessi installer più i metadati di aggiornamento (`latest*.yml`, `*.blockmap`) nel repository pubblico, e le app installate li rilevano.
 
 ## Firma del codice e l'avviso SmartScreen
 
@@ -678,7 +678,9 @@ generazione dalle slide).
 
 ### Pre-filtro prima del modello (gate a embedding)
 
-Nelle Impostazioni c'è **Pre-filtro prima del modello**, spento di default. Acceso, un piccolo
+Nelle Impostazioni, sotto **Altre opzioni**, c'è **Pre-filtro prima del modello**. Per le nuove
+installazioni è acceso di default; un'installazione che usava Filow prima dei profili di
+configurazione mantiene la scelta che aveva (spento, salvo che tu l'abbia acceso). Acceso, un piccolo
 modello multilingue di frasi (paraphrase-multilingual-MiniLM, 120 MB, scaricato una volta nella
 cache del browser) confronta ogni punto aperto con gli ultimi secondi di parlato, su questo PC, in
 pochi millisecondi. Il modello di decisione riceve solo i punti plausibili (al massimo quattro) e non
@@ -692,6 +694,23 @@ restano in cache per quel copione. Misurato sul corpus demo con un modello cloud
 guadagno di latenza è rimasto entro la variabilità del fornitore, quindi il beneficio si aspetta
 soprattutto in modalità locale, dove ogni chiamata al modello è la parte costosa. Dettagli e come
 ripetere il confronto: `docs/gauntlet/BASELINE.md`.
+
+## OK Filow, l'aiutante sullo schermo
+
+OK Filow è un aiutante dell'app desktop che vede lo schermo sotto il mouse e risponde a voce, con un
+puntino che può indicare ciò di cui parla. Gesti (un altro tasto premuto mentre tieni una
+combinazione la annulla):
+
+- **Tieni Ctrl+Alt** e parla per chiedere di ciò che è sullo schermo (la combinazione si cambia nelle sue impostazioni).
+- **Tieni Ctrl+Win** per dettare nel campo attivo, in qualsiasi app; **tocca Ctrl+Win due volte** per il vivavoce.
+- **Tocca Ctrl due volte** per aprire una casella e scrivere la domanda.
+
+Di default le risposte vengono dal modello su questo PC. Nulla esce dal PC senza il tuo sì: la prima
+volta che uno screenshot, la tua voce o le tue parole andrebbero a un servizio, un avviso dice cosa va
+dove, e ogni invio mostra "Esce dal PC" finché dura ([docs/okfilow/OUTBOUND.md](docs/okfilow/OUTBOUND.md)).
+Parla con una voce naturale che gira su questo PC, con la voce di sistema come riserva
+([docs/okfilow/VOICE.md](docs/okfilow/VOICE.md)). Il parlato funziona in inglese, italiano, russo,
+rumeno e giapponese ([docs/stt/LANGUAGES.md](docs/stt/LANGUAGES.md)).
 
 ## Add-in per PowerPoint
 
@@ -754,7 +773,7 @@ ARCHITECTURE.md           the design: session protocol, Screen Sense, add-ins, m
 
 **App desktop: "no transcription backend available"** – aggiungi una chiave ElevenLabs o OpenAI in `.env`. Web Speech non esiste dentro l'app desktop.
 
-**I punti non passano mai a STARTED** – controlla il piè di pagina: `CALLS` dovrebbe salire. Se è 0, la route decide sta fallendo; il chip di errore in alto mostra il perché. Se le chiamate salgono ma nulla scatta, esprimi l'idea in modo più diretto o abbassa `START_THRESHOLD` in `components/Teleprompter.tsx`.
+**I punti non passano mai a STARTED** – controlla il piè di pagina: **Chiamate** dovrebbe salire. Se è 0, la route decide sta fallendo; il chip di errore in alto mostra il perché. Se le chiamate salgono ma nulla scatta, esprimi l'idea in modo più diretto o passa un `threshold` (predefinito 0.7) / `sureThreshold` (predefinito 0.85) più basso dove viene creato l'Engine: `new Engine({ decide })` in `apps/web/components/useEngine.ts` (riga 70), e in `apps/powerpoint/src/taskpane.tsx` per il pannello di PowerPoint.
 
 **Porta 4747 già in uso** – web: cambia `-p 4747` negli script di `package.json`. Desktop: imposta la variabile d'ambiente `FILOW_PORT` prima dell'avvio.
 

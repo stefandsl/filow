@@ -24,11 +24,11 @@ function contentRangeStart(header) {
 }
 
 /** startAt: bytes already on disk when resuming, so progress counts the whole file. */
-function receiveArchive(res, out, { contentLength, fallbackSize, onPct, startAt = 0 }) {
+function receiveArchive(res, out, { contentLength, fallbackSize, onPct, startAt = 0, idleMs }) {
   return new Promise((resolve, reject) => {
     let received = 0;
     const total = contentLength ? startAt + Number(contentLength) : Number(fallbackSize);
-    const idle = idleTimeout(err => res.destroy(err));
+    const idle = idleTimeout(err => res.destroy(err), idleMs);
     const aborted = () => out.destroy(new Error("download response aborted"));
     res.once("aborted", aborted);
     const count = new Transform({

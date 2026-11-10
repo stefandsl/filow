@@ -2,12 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { afterAll, expect, it } from "vitest";
+import { tmpRoot } from "./test-tmp";
 
 const require = createRequire(import.meta.url);
 const { MODEL, verifyArchive, sha256File } = require("./stt.js");
 
 // Test files live in the project's own tmp folder (never on C:).
-const dir = path.resolve(__dirname, "../../tmp/test-stt-integrity");
+const dir = tmpRoot("stt-integrity");
 fs.mkdirSync(dir, { recursive: true });
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 

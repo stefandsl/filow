@@ -9,6 +9,10 @@ adding ru, ro and ja to the interface.
 
 ## How it was measured
 
+Every `G:/FILOW/tmp/...` path in this file (audio and model lists, logs, the VAD bench script) is a
+local bench script or raw data kept on the measuring machine, not in the repo. The paths are kept so
+the owner can find them there.
+
 - Audio: 12 clips per language from Google FLEURS (dev split, CC-BY-4.0), the first 14 MB of each
   language's archive. URLs, sizes and SHA-256 in `G:/FILOW/tmp/t8-audio/audio.tsv`.
 - Models: every candidate from the sherpa-onnx `asr-models` release page, run through
@@ -153,7 +157,7 @@ to pick a matching voice.
 ## Plan for ru, ro and ja in the interface (not done: tracks T2 and T3 are editing the strings)
 
 Where strings live today:
-- `packages/core/src/i18n.ts`: the web app, about 490 keys in `en`, the same in `it` (`Lang = "en" | "it"`).
+- `packages/core/src/i18n.ts`: the web app, about 555 keys in `en`, the same in `it` (`Lang = "en" | "it"`).
 - `apps/desktop/main.js`: four tables, `MENU_TEXT`, `NET_TEXT`, `SPLASH_TEXT`, `LOCAL_AI_TEXT`, en and
   it, picked by `menuLang()`; `apps/desktop/okfilow.js` and the welcome window (`welcome.ts`, T3) have
   their own.

@@ -7,7 +7,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
 import type { OutboundKind } from "@/lib/buddy/outbound";
 import type { PageOutbound } from "@/lib/buddy/outboundPage";
-import { ConsentList, OutboundNoticeModal, OutboundPill } from "@/app/okfilow/outbound-ui";
+import { ConsentList, OutboundNoticeFor, OutboundSignalFor } from "@/app/okfilow/outbound-ui";
 import "@/app/okfilow/outbound.css";
 import "./RemoteOutbound.css";
 
@@ -36,9 +36,7 @@ export function useRemoteOutbound(out: PageOutbound) {
 export function RemoteOutboundNotice({ out, lang, swap }: { out: PageOutbound; lang: string; swap?: TextSwap }) {
   const state = useRemoteOutbound(out);
   const t = remoteText(lang, swap);
-  const n = state.notice;
-  if (!n) return null;
-  return <OutboundNoticeModal key={`${n.kind}:${n.recipient.id}`} notice={n} t={t} more={t("noticeRememberHere")} onDecide={(d) => void out.decide(d)} />;
+  return <OutboundNoticeFor state={state} t={t} more={t("noticeRememberHere")} onDecide={(d) => void out.decide(d)} />;
 }
 
 const KEPT: Partial<Record<OutboundKind, OkfKey>> = { audio: "kept_takeHere", transcript: "kept_takeHere", screen: "kept_screen", script: "kept_script" };
@@ -49,13 +47,7 @@ const KEPT: Partial<Record<OutboundKind, OkfKey>> = { audio: "kept_takeHere", tr
  */
 export function RemoteOutboundSignal({ out, lang, swap }: { out: PageOutbound; lang: string; swap?: TextSwap }) {
   const state = useRemoteOutbound(out);
-  const t = remoteText(lang, swap);
-  const kept = state.kept && !state.snap.active ? KEPT[state.kept] : undefined;
-  return (
-    <div className="okf-out-region okf-out-region--bar" role="status" aria-live="polite">
-      {state.snap.active ? <OutboundPill snap={state.snap} t={t} /> : kept ? <span className="okf-out-kept">{t(kept)}</span> : null}
-    </div>
-  );
+  return <OutboundSignalFor state={state} t={remoteText(lang, swap)} kept={KEPT} className="okf-out-region--bar" />;
 }
 
 /** Every stored choice of this client, each one withdrawable, folded away until opened. */

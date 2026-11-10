@@ -20,10 +20,6 @@ export function screenBridge(): ScreenBridge | null {
   return (globalThis as { filow?: { screen?: ScreenBridge } }).filow?.screen ?? null;
 }
 
-export function displayCaptureSupported(): boolean {
-  return typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getDisplayMedia);
-}
-
 /** Ask the browser (or, on desktop, the app's own chooser result) for a screen/window stream. */
 export async function openDisplayStream(): Promise<MediaStream> {
   return navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 2, max: 5 } }, audio: false });

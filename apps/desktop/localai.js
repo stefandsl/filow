@@ -5,8 +5,8 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const https = require("node:https");
 const { spawn, execFile, execFileSync } = require("node:child_process");
+const { download } = require("./download");
 
 const OLLAMA_URL = () => process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 
@@ -163,30 +163,6 @@ async function ollamaVersion() {
   return v && v.version ? String(v.version) : "";
 }
 
-function downloadWithProgress(url, dest, onPct, hops = 5) {
-  return new Promise((resolve, reject) => {
-    https
-      .get(url, { headers: { "User-Agent": "Filow" } }, (res) => {
-        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && hops > 0) {
-          res.resume();
-          return downloadWithProgress(res.headers.location, dest, onPct, hops - 1).then(resolve, reject);
-        }
-        if (res.statusCode !== 200) return reject(new Error(`download failed: HTTP ${res.statusCode}`));
-        const total = Number(res.headers["content-length"] || 0);
-        let got = 0;
-        const out = fs.createWriteStream(dest);
-        res.on("data", (chunk) => {
-          got += chunk.length;
-          if (total) onPct(Math.min(99, Math.round((got / total) * 100)));
-        });
-        res.pipe(out);
-        out.on("finish", () => out.close(resolve));
-        out.on("error", reject);
-      })
-      .on("error", reject);
-  });
-}
-
 /** Start the Ollama server if it is installed but not answering. */
 function startOllama(exe) {
   try {
@@ -213,6 +189,13 @@ async function waitForOllama(ms = 60_000) {
   }
   return "";
 }
+
+/** Ollama's official installers. */
+const OLLAMA_DOWNLOADS = { win32: "https://ollama.com/download/OllamaSetup.exe", darwin: "https://ollama.com/download/Ollama-darwin.zip" };
+/** The shared downloader already removed the partial file; say what failed in plain words. */
+const downloadFailed = (err) => {
+  throw new Error(`Ollama download failed: ${err && err.message ? err.message : err}`);
+};
 
 /** Ollama's Apple Team ID: the subject.OU of its Developer ID certificate (docs/PLATFORMS.md, macOS). */
 const OLLAMA_MAC_TEAM_ID = "3MU9H2V9Y9";
@@ -256,11 +239,13 @@ function installMacApp(zip, staging, appsDir, run = execFileSync) {
  * Unattended install. onStatus gets {state, pct, error, version, command}:
  * states: checking | downloading | installing | starting | ready | manual | error.
  */
-async function installOllama(binDir, onStatus) {
+async function installOllama(binDir, onStatus, deps = {}) {
+  // deps: test seams only (no installed Ollama, a platform, a local download server, a short idle timeout).
+  const { findExe = ollamaExe, version: probeVersion = ollamaVersion, platform = process.platform, urls = OLLAMA_DOWNLOADS, idleMs } = deps;
   const report = (s) => onStatus({ pct: 0, error: "", version: "", command: "", ...s });
   report({ state: "checking" });
-  let exe = ollamaExe();
-  let version = await ollamaVersion();
+  let exe = findExe();
+  let version = await probeVersion();
   if (version) return report({ state: "ready", version, pct: 100 });
   if (exe) {
     report({ state: "starting" });
@@ -268,15 +253,15 @@ async function installOllama(binDir, onStatus) {
     version = await waitForOllama();
     return version ? report({ state: "ready", version, pct: 100 }) : report({ state: "error", error: "Ollama is installed but did not start; open it once by hand." });
   }
-  if (process.platform === "linux") {
+  if (platform === "linux") {
     return report({ state: "manual", command: "curl -fsSL https://ollama.com/install.sh | sh" });
   }
   fs.mkdirSync(binDir, { recursive: true });
   try {
-    if (process.platform === "win32") {
+    if (platform === "win32") {
       const setup = path.join(binDir, "OllamaSetup.exe");
       report({ state: "downloading", pct: 0 });
-      await downloadWithProgress("https://ollama.com/download/OllamaSetup.exe", setup, (pct) => report({ state: "downloading", pct }));
+      await download(urls.win32, setup, { onPct: (pct) => report({ state: "downloading", pct }), idleMs }).catch(downloadFailed);
       // SEC-15: run the installer only with a valid Windows signature from Ollama Inc.
       try {
         await require("./integrity.js").verifyAuthenticode(setup, "Ollama Inc.");
@@ -295,17 +280,17 @@ async function installOllama(binDir, onStatus) {
       const zip = path.join(binDir, "Ollama-darwin.zip");
       const staging = path.join(binDir, "ollama-staging");
       report({ state: "downloading", pct: 0 });
-      await downloadWithProgress("https://ollama.com/download/Ollama-darwin.zip", zip, (pct) => report({ state: "downloading", pct }));
+      await download(urls.darwin, zip, { onPct: (pct) => report({ state: "downloading", pct }), idleMs }).catch(downloadFailed);
       report({ state: "installing", pct: 0 });
       installMacApp(zip, staging, path.join(os.homedir(), "Applications"));
     }
   } catch (err) {
     return report({ state: "error", error: String(err && err.message ? err.message : err) });
   }
-  exe = ollamaExe();
+  exe = findExe();
   if (!exe) return report({ state: "error", error: "Ollama was installed but its executable was not found." });
   report({ state: "starting" });
-  version = await ollamaVersion();
+  version = await probeVersion();
   if (!version) {
     startOllama(exe);
     version = await waitForOllama(90_000);

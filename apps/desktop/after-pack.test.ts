@@ -2,12 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { afterAll, expect, it } from "vitest";
+import { tmpRoot } from "./test-tmp";
 
 const require = createRequire(import.meta.url);
 const afterPack = require("./after-pack.js");
 const { missingNative } = afterPack;
 
-const dir = path.resolve(__dirname, "../../tmp/test-after-pack");
+const dir = tmpRoot("after-pack");
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 /** A fake resources folder holding the given native files under app.asar.unpacked/node_modules. */

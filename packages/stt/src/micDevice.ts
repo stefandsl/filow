@@ -2,6 +2,23 @@
 const KEY = "prefs:micDeviceId";
 export type Microphone = { deviceId: string; label: string; isDefault: boolean };
 
+/**
+ * Whether this PC has any audio input at all. Also right before the permission: the browser then
+ * still lists each input, only without its id and name (which listMicrophones leaves out). Where the
+ * browser cannot list devices at all (no navigator, or an insecure page) it cannot tell: true, so no
+ * one is told to plug in a microphone they have.
+ */
+export async function hasMicrophone(): Promise<boolean> {
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) return true;
+  return (await navigator.mediaDevices.enumerateDevices()).some(d => d.kind === "audioinput");
+}
+
+/** What a microphone picker shows: no input at all, inputs whose names need the permission, or named inputs. */
+export function micPickerState(anyInput: boolean, devices: Microphone[]): "none" | "ask" | "ready" {
+  if (!anyInput) return "none";
+  return !devices.length || devices.some(d => !d.label) ? "ask" : "ready";
+}
+
 export async function listMicrophones(): Promise<Microphone[]> {
   if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) return [];
   const inputs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audioinput");

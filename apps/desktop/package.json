@@ -25,6 +25,7 @@
     "typecheck": "tsc --noEmit --strict --skipLibCheck --target es2022 --moduleResolution bundler --module esnext --jsx react-jsx welcome.ts"
   },
   "devDependencies": {
+    "@filow/core": "*",
     "electron": "45.2.3",
     "electron-builder": "26.18.0",
     "electron-updater": "^6.8.11",
@@ -53,6 +54,7 @@
       "stt-download.js",
       "dictation.js",
       "dictation-core.js",
+      "download.js",
       "tts.js",
       "tts-worker.js",
       "tunnels.js",

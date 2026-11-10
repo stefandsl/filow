@@ -2,11 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { afterAll, expect, it } from "vitest";
+import { tmpRoot } from "./test-tmp";
 
 const require = createRequire(import.meta.url);
 const { installMacApp } = require("./localai.js");
 
-const dir = path.resolve(__dirname, "../../tmp/test-localai");
+const dir = tmpRoot("localai");
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 /** A download waiting to be installed, and optionally an Ollama.app already in the Applications folder. */

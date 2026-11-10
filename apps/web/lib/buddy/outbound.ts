@@ -27,6 +27,12 @@ export type OutboundSnapshot = { active: boolean; kinds: OutboundKind[]; names: 
 /** Request header carrying the consent key the client holds for this send. */
 export const CONSENT_HEADER = "x-filow-consent";
 
+/**
+ * A send shorter than this still shows the signal this long, so it can be seen and read. The OK Filow
+ * windows' copy is apps/desktop/okfilow-outbound.js MIN_SIGNAL_MS (CommonJS; a test keeps them equal).
+ */
+export const MIN_SIGNAL_MS = 1200;
+
 const VENDORS: Record<string, string> = {
   google: "Google",
   openai: "OpenAI",

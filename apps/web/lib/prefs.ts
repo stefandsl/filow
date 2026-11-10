@@ -72,13 +72,6 @@ export function setDecisionProvider(id: DecisionProviderId | ""): void {
   }
 }
 
-export const PROVIDER_LABELS: Record<DecisionProviderId, string> = {
-  openrouter: "OpenRouter (cloud)",
-  "clef-local": "Clef on this machine (Ollama)",
-  "clef-cloudflare": "Clef on Cloudflare Workers AI",
-  matcher: "On-device matcher (no AI model)",
-};
-
 // ---- Setup profile (P3): "auto" follows the machine (packages/core/src/profile.ts) ----
 const SETUP_KEY = "prefs:setup";
 

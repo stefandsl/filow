@@ -1,24 +1,31 @@
+import fs from "node:fs";
 import path from "node:path";
-import { createRequire } from "node:module";
-import { buildSync } from "esbuild";
+import { runInThisContext } from "node:vm";
+import Module, { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { recommendProfile, setupChoices, sttThreads, type MachineInfo, type ProbeRunner } from "@filow/core";
 import { fixtureRunner, GPU_FIXTURES } from "../../packages/core/src/hardware.fixtures";
-
-// localai.js reads the setup rules and the card detection from vendor/ (packages/core bundled by
-// `npm run build:welcome`); build those two bundles the same way here, so the test runs that code.
-buildSync({
-  entryPoints: ["profile.ts", "hardware.ts"].map((f) => path.resolve(__dirname, "../../packages/core/src", f)),
-  bundle: true,
-  platform: "node",
-  format: "cjs",
-  outdir: path.resolve(__dirname, "vendor"),
-  logLevel: "silent",
-});
+// localai.js reads the setup rules and the card detection from vendor/, a build of these two files
+// (npm run build:welcome) that is the packaging input. The test never writes there: it hands
+// localai.js the sources themselves, as main.seams.test.ts does.
+import * as profileRules from "../../packages/core/src/profile";
+import * as hardwareRules from "../../packages/core/src/hardware";
 
 const require = createRequire(import.meta.url);
+
+/** localai.js, loaded with its two vendor/ bundles replaced by the core sources. */
+function loadLocalai() {
+  const file = path.resolve(__dirname, "localai.js");
+  const own = createRequire(file);
+  const vendor: Record<string, unknown> = { "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules };
+  const mod = { exports: {} as Record<string, unknown> };
+  const wrapped = runInThisContext(Module.wrap(fs.readFileSync(file, "utf8")), { filename: file });
+  wrapped.call(mod.exports, mod.exports, (id: string) => (id in vendor ? vendor[id] : own(id)), mod, file, path.dirname(file));
+  return mod.exports;
+}
+
 type Hw = { ramGb: number; cores: number; gpuKind: string; vramGb: number | null; gpuOllama?: boolean; freeGb: number };
-const { CATALOG, hardwareScan, profileOf, recommend } = require("./localai.js") as {
+const { CATALOG, hardwareScan, profileOf, recommend } = loadLocalai() as {
   CATALOG: Record<string, unknown>;
   hardwareScan: (o?: { refresh?: boolean; run?: ProbeRunner }) => Promise<Hw & { gpu: string }>;
   profileOf: (hw: Hw) => string;

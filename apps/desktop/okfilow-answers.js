@@ -1,14 +1,20 @@
 // OK Filow answer log: one folder per answer with the question, the raw model text, the parsed
-// visuals and the screenshot the model saw. Local disk only, never C: (the system disk is full).
+// visuals and the screenshot the model saw. Local disk only.
 const fs = require("node:fs");
 const path = require("node:path");
 
-const DEV_DIR = "G:\\FILOW\\tmp\\okf-answers";
+/**
+ * The folder used when the user has not picked one: under the app's own data folder. Test builds
+ * (development or a QA package) may point it elsewhere with FILOW_DEV_ANSWERS_DIR.
+ */
+function defaultAnswerDir(userData, env, qaBuild) {
+  const dev = qaBuild && env ? String(env.FILOW_DEV_ANSWERS_DIR || "") : "";
+  return dev || path.join(String(userData || ""), "okfilow-answers");
+}
 
-/** Where answers go: the user's folder, else the dev folder in dev/test builds, else nowhere (""). */
-function answerRoot(userDir, devBuild) {
-  const dir = String(userDir || "") || (devBuild ? DEV_DIR : "");
-  return dir && !/^c:/i.test(path.resolve(dir)) ? dir : "";
+/** Where answers go: the user's folder, else the default folder (see defaultAnswerDir). */
+function answerRoot(userDir, fallbackDir) {
+  return String(userDir || "") || String(fallbackDir || "");
 }
 
 const STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/;
@@ -36,4 +42,4 @@ function writeAnswer(root, entry, now = new Date()) {
   return dir;
 }
 
-module.exports = { answerRoot, writeAnswer, deleteAnswers, DEV_DIR };
+module.exports = { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers };

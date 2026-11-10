@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterAll, expect, it } from "vitest";
-import { PAST_ONBOARDING, seedProfile } from "./profile.mjs";
+import { NO_PUBLIC_LINK, PAST_ONBOARDING, seedProfile } from "./profile.mjs";
+import { tmpRoot } from "../../../apps/desktop/test-tmp";
 
-const root = path.resolve(__dirname, "../../../tmp/test-autoloop-profile");
+const root = tmpRoot("autoloop-profile");
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 const read = (p: string) => JSON.parse(fs.readFileSync(path.join(p, "settings.json"), "utf8"));
 
@@ -20,4 +21,12 @@ it("keeps the settings already there and only turns the onboarding flags on", ()
   fs.writeFileSync(path.join(profile, "settings.json"), JSON.stringify({ remoteShare: true, theme: "light", welcomeCompleted: false }));
   seedProfile(root);
   expect(read(profile)).toMatchObject({ remoteShare: true, theme: "light", welcomeCompleted: true, localAiOffered: true });
+});
+
+it("turns the public link off for probes that are not about it, and keeps it for those that are", () => {
+  const profile = seedProfile(root, NO_PUBLIC_LINK);
+  expect(read(profile)).toMatchObject({ remoteShare: false, theme: "light", welcomeCompleted: true });
+  fs.writeFileSync(path.join(profile, "settings.json"), JSON.stringify({ remoteShare: true }));
+  seedProfile(root);
+  expect(read(profile).remoteShare).toBe(true);
 });

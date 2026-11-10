@@ -4,7 +4,7 @@
 import { useLang } from "@filow/ui";
 import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
 import type { OutboundKind } from "@/lib/buddy/outbound";
-import { OutboundNoticeModal, OutboundPill } from "@/app/okfilow/outbound-ui";
+import { OutboundNoticeFor, OutboundSignalFor } from "@/app/okfilow/outbound-ui";
 import "@/app/okfilow/outbound.css";
 import { usePageOutbound } from "./usePageOutbound";
 
@@ -21,9 +21,7 @@ const KEPT: Partial<Record<OutboundKind, OkfKey>> = { audio: "kept_take", transc
 export function PageOutboundNotice() {
   const { out, state } = usePageOutbound();
   const okt = useOkfText();
-  const n = state.notice;
-  if (!n) return null;
-  return <OutboundNoticeModal key={`${n.kind}:${n.recipient.id}`} notice={n} t={okt} more={okt("noticeRememberTake")} onDecide={(d) => void out.decide(d)} />;
+  return <OutboundNoticeFor state={state} t={okt} more={okt("noticeRememberTake")} onDecide={(d) => void out.decide(d)} />;
 }
 
 /**
@@ -33,10 +31,5 @@ export function PageOutboundNotice() {
 export function PageOutboundSignal({ className = "" }: { className?: string }) {
   const { state } = usePageOutbound();
   const okt = useOkfText();
-  const kept = state.kept && !state.snap.active ? KEPT[state.kept] : undefined;
-  return (
-    <div className={`okf-out-region ${className}`.trim()} role="status" aria-live="polite">
-      {state.snap.active ? <OutboundPill snap={state.snap} t={okt} /> : kept ? <span className="okf-out-kept">{okt(kept)}</span> : null}
-    </div>
-  );
+  return <OutboundSignalFor state={state} t={okt} kept={KEPT} className={className} />;
 }

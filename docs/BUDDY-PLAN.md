@@ -24,7 +24,7 @@ Owner choices (2026-11-06): full Clicky feature set; local AI by default, cloud 
 ## Privacy rules (unchanged Filow rules)
 - Local provider: screenshot, audio and text never leave the PC; Offline mode blocks everything non-local.
 - Cloud provider: explicit opt-in, no silent fallback; on error the bubble shows the error.
-- Screenshots are kept in memory only. The one exception is the answer log, which is opt-in and off by default: it writes to a folder the user picks (never C:), or to G:\FILOW\tmp\okf-answers in test builds, and the panel can delete it. Overlay and panel use content protection so they are not in the screenshot sent to the model.
+- Screenshots are kept in memory only. The one exception is the answer log, which is opt-in and off by default: it writes to a folder the user picks, else to "okfilow-answers" in the app's data folder (test builds may set FILOW_DEV_ANSWERS_DIR instead), and the panel can delete it. Overlay and panel use content protection so they are not in the screenshot sent to the model.
 
 ## Build steps
 1. `apps/desktop/buddy/`: overlay window(s), panel window, tray entry, uiohook push-to-talk, multi-display capture (main process).

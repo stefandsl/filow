@@ -15,7 +15,25 @@ on:
         default: all
 
 jobs:
+  # Lint, types and the unit tests, once, on Windows (where the suite is developed and checked).
+  # No installer is built while they are red.
+  checks:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }} # the same source the build job packages
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
   build:
+    needs: checks
     strategy:
       fail-fast: false
       matrix:
@@ -94,8 +112,8 @@ jobs:
             release/*.zip
             !release/builder-debug.yml
           generate_release_notes: true
-      # Auto-update feed: the same files on the PUBLIC releases repo (this repo is private, and an
-      # installed app cannot read private releases). Needs the RELEASES_TOKEN secret; see README.
+      # Auto-update feed: the same files on the separate releases repo, which the installed apps read
+      # (electron-builder publish config). Needs the RELEASES_TOKEN secret; see README.
       - name: Publish to the public releases repo
         if: env.HERE == 'true' && env.RELEASE_TAG != '' && env.RELEASES_TOKEN != ''
         uses: softprops/action-gh-release@v2
@@ -104,7 +122,7 @@ jobs:
           token: ${{ secrets.RELEASES_TOKEN }}
           tag_name: ${{ env.RELEASE_TAG }}
           name: Filow ${{ env.RELEASE_TAG }}
-          body: "Installers for Windows, macOS and Linux. Source: github.com/stefandsl/filow (private). The desktop app updates itself from here."
+          body: "Installers for Windows, macOS and Linux. Source: github.com/stefandsl/filow. The desktop app updates itself from here."
           files: |
             release/*.exe
             release/*.dmg

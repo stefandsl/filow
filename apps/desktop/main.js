@@ -846,26 +846,8 @@ function cloudflaredPath() {
   return null;
 }
 
-function download(url, dest, hops = 5) {
-  return new Promise((resolve, reject) => {
-    https
-      .get(url, { headers: { "User-Agent": "Filow" } }, (res) => {
-        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && hops > 0) {
-          res.resume();
-          return download(res.headers.location, dest, hops - 1).then(resolve, reject);
-        }
-        if (res.statusCode !== 200) return reject(new Error(`download failed: HTTP ${res.statusCode}`));
-        const out = fs.createWriteStream(dest);
-        const fail = (e) => { out.destroy(); fs.rm(dest, { force: true }, () => reject(e)); };
-        res.on("error", fail);
-        res.on("aborted", () => fail(new Error("download aborted")));
-        out.on("error", fail);
-        res.pipe(out);
-        out.on("finish", () => out.close(resolve));
-      })
-      .on("error", reject);
-  });
-}
+// The shared downloader: redirects, idle timeout, length check, and no partial file left on failure.
+const { download } = require("./download");
 
 /** Official cloudflared binary from GitHub releases, into <userData>/bin. Asks first. */
 // SEC-15: cloudflared is not code-signed, so the download must match the SHA-256 GitHub publishes for
@@ -1025,7 +1007,7 @@ async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
           if (reload) win.reload();
           return;
         }
-        remoteStatus("connecting");
+        if (tunnels.state !== "connecting") remoteStatus("connecting"); // back from "downloading"
         const [web, sess] = await Promise.all([startTunnel(bin, PORT), startTunnel(bin, SESSION_PORT)]);
         tunnels.web = web;
         tunnels.session = sess;

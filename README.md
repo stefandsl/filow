@@ -159,7 +159,7 @@ Transcription backends (pick in the dropdown, or leave on **Auto**):
 | ElevenLabs Scribe v2 Realtime | `ELEVENLABS_API_KEY` | everywhere. Same as the original demo. |
 | OpenAI gpt-live-transcribe | `OPENAI_API_KEY` | everywhere. |
 
-**Auto** tries ElevenLabs, then OpenAI, then the browser, then on-device Whisper. A backend that errors or gives no words within 8 s is skipped. The log at the bottom shows each attempt and the time to first words, so you can see which one is actually fastest for you.
+With **Auto** the start mode (auto, local, cloud or ask, in Settings) decides, and the prompter picks one backend when the take starts: a local take uses the speech model on this PC (sherpa), else on-device Whisper; a cloud take uses ElevenLabs, else OpenAI, else the browser. The prompter does not switch to another backend during a take; the log at the bottom names the one in use. Only the PowerPoint pane tries the backends in turn, skipping one that errors or gives no words within 8 s (30 s for Whisper).
 
 API keys never reach the browser: the server mints short-lived tokens for the streaming backends and calls OpenRouter itself.
 
@@ -334,7 +334,7 @@ Output lands in `release/`.
 
 The installed desktop app checks for a new version a few seconds after start-up and from the menu (*Check for updates…*). The update downloads in the background; you get "Restart now / Later", and an update you postpone installs itself the next time you quit. Windows and Linux (AppImage) update in place; macOS needs a signed and notarized build for in-place updates, so on a Mac the app only tells you a new version exists until that is set up.
 
-The feed is a **public** GitHub repository that holds only the installers, because this source repository is private and an installed app cannot read private releases without shipping a secret. One-time setup, from a machine where `gh` is logged in:
+The feed is a separate **public** GitHub repository that holds only the installers. It was set up while this source repository was private (an installed app cannot read private releases without shipping a secret); the source has been public since 2026-11-03, and the feed stays where installed apps look for updates. One-time setup, from a machine where `gh` is logged in:
 
 ```bash
 gh repo create stefandsl/filow-releases --public --description "Filow installers (auto-update feed)"
@@ -346,7 +346,7 @@ Create a fine-grained personal access token on GitHub (Settings → Developer se
 gh secret set RELEASES_TOKEN --repo stefandsl/filow
 ```
 
-From the next tag on, the release job publishes the same installers plus the update metadata (`latest*.yml`, `*.blockmap`) to the public repo, and installed apps pick them up. Nothing from the source leaves the private repo.
+From the next tag on, the release job publishes the same installers plus the update metadata (`latest*.yml`, `*.blockmap`) to the public repo, and installed apps pick them up.
 
 ## Code signing and the SmartScreen warning
 
@@ -673,7 +673,9 @@ and warns if the point count changed. It uses the OpenRouter key (same model as 
 
 ### Pre-filter before the model (embedding gate)
 
-Settings has **Pre-filter before the model**, off by default. On, a small multilingual sentence
+Settings has **Pre-filter before the model** under **More options**. It is on by default for new
+installs; an install that used Filow before the setup profiles keeps the choice it had (off unless
+you turned it on). On, a small multilingual sentence
 model (paraphrase-multilingual-MiniLM, 120 MB, downloaded once into the browser cache) scores every
 open point against the last few seconds of speech, on this PC, in a few milliseconds. The decision
 model is then asked only about the plausible points (at most four) and not at all when nothing
@@ -685,6 +687,23 @@ corpus with a cloud model, two runs each: 3 of 17 model calls skipped, recall eq
 false starts either way; the latency gain was within the provider's own variance, so expect the
 benefit mainly in local mode, where each model call is the expensive part. Details and how to
 rerun the comparison: `docs/gauntlet/BASELINE.md`.
+
+## OK Filow, the screen helper
+
+OK Filow is a helper in the desktop app that sees the screen under your mouse and answers out loud,
+with a dot that can point at what it talks about. Gestures (any other key while a chord is down
+cancels it):
+
+- **Hold Ctrl+Alt** and speak to ask about what is on screen (the chord can be changed in its settings).
+- **Hold Ctrl+Win** to dictate into the field that has focus, in any app; **tap Ctrl+Win twice** for hands-free.
+- **Tap Ctrl twice** to open a text box and type the question instead.
+
+Answers come from the model on this PC by default. Nothing leaves the PC without your yes: the first
+time a screenshot, your voice or your words would go to a service, a notice says what goes where, and
+every send shows "Going outside" while it lasts ([docs/okfilow/OUTBOUND.md](docs/okfilow/OUTBOUND.md)).
+It speaks with a natural voice that runs on this PC, with the system voice as the fallback
+([docs/okfilow/VOICE.md](docs/okfilow/VOICE.md)). Speech works in English, Italian, Russian, Romanian
+and Japanese ([docs/stt/LANGUAGES.md](docs/stt/LANGUAGES.md)).
 
 ## PowerPoint add-in
 
@@ -747,7 +766,7 @@ ARCHITECTURE.md           the design: session protocol, Screen Sense, add-ins, m
 
 **Desktop app: "no transcription backend available"** – add an ElevenLabs or OpenAI key in `.env`. Web Speech does not exist inside the desktop app.
 
-**Points never flip to STARTED** – check the footer: `CALLS` should be climbing. If it is 0, the decide route is failing; the error chip at the top shows why. If calls climb but nothing flips, say the idea more directly or lower `START_THRESHOLD` in `components/Teleprompter.tsx`.
+**Points never flip to STARTED** – check the footer: **Calls** should be climbing. If it is 0, the decide route is failing; the error chip at the top shows why. If calls climb but nothing flips, say the idea more directly or pass a lower `threshold` (default 0.7) / `sureThreshold` (default 0.85) where the Engine is created: `new Engine({ decide })` in `apps/web/components/useEngine.ts` (line 70), and in `apps/powerpoint/src/taskpane.tsx` for the PowerPoint pane.
 
 **Port 4747 already in use** – web: change `-p 4747` in `package.json` scripts. Desktop: set the environment variable `FILOW_PORT` before launching.
 

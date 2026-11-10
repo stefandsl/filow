@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { audioConstraints, getSelectedMic, listMicrophones, setSelectedMic } from "./micDevice";
+import { audioConstraints, getSelectedMic, hasMicrophone, listMicrophones, micPickerState, setSelectedMic } from "./micDevice";
 
 const device = (deviceId: string, label: string, groupId: string, kind = "audioinput") => ({ deviceId, label, groupId, kind });
 let devices: ReturnType<typeof device>[];
@@ -48,10 +48,23 @@ describe("microphone device preferences", () => {
     devices.push(device("cam-id", "C920", "cam"));
     expect(await audioConstraints()).toEqual({ deviceId: { exact: "cam-id" } });
   });
+  it("tells a PC with no microphone from one whose microphones still need the permission", async () => {
+    // Before the permission the browser lists each input with no id and no name.
+    devices = [device("", "", ""), device("", "", "", "audiooutput")];
+    expect(await hasMicrophone()).toBe(true);
+    expect(micPickerState(true, await listMicrophones())).toBe("ask");
+    devices = [device("", "", "", "audiooutput")];
+    expect(await hasMicrophone()).toBe(false);
+    expect(micPickerState(false, await listMicrophones())).toBe("none");
+    devices = [device("usb-id", "USB", "usb")];
+    expect(micPickerState(await hasMicrophone(), await listMicrophones())).toBe("ready");
+  });
   it("is safe without browser globals or when storage is denied", async () => {
     vi.stubGlobal("navigator", undefined);
     vi.stubGlobal("localStorage", undefined);
     expect(await listMicrophones()).toEqual([]);
+    // Cannot tell: never claims "no microphone".
+    expect(await hasMicrophone()).toBe(true);
     expect(getSelectedMic()).toBeNull();
     expect(() => setSelectedMic("cam")).not.toThrow();
     expect(await audioConstraints()).toEqual({});
