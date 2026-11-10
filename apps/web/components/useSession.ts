@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { connect, type PairDecision, type PairRequest, type SessionClient } from "@filow/client";
 import type { Engine } from "@filow/core";
-import { desktopBridge, mirrorOrigin, mirrorServerUrl, sessionServerUrl } from "@/lib/sessionUrl";
+import { desktopBridge, sessionServerUrl } from "@/lib/sessionUrl";
+import { loadedTargets, phoneLink, phoneTargets } from "@/lib/phoneLink";
+import { useRemoteStatus } from "@/lib/useRemoteStatus";
 
 export type SessionInfo = {
   id: string;
@@ -62,6 +64,17 @@ export function useSession(engine: Engine) {
   const [error, setError] = useState<string | null>(null);
   const [pairRequests, setPairRequests] = useState<PairRequest[]>([]);
   const clientRef = useRef<SessionClient | null>(null);
+  // The public link comes up after the page: the phone link follows it, the session and its code stay.
+  const remote = useRemoteStatus();
+  const remoteRef = useRef(remote);
+  remoteRef.current = remote;
+  useEffect(() => {
+    setInfo((i) => {
+      if (!i) return i;
+      const mirrorUrl = phoneLink(i.code, phoneTargets(loadedTargets(), remote));
+      return mirrorUrl === i.mirrorUrl ? i : { ...i, mirrorUrl };
+    });
+  }, [remote]);
 
   /** Ask the relay for a fresh single-use code (after a phone joined, or when the old one expired). */
   const newCode = useCallback(async () => {
@@ -100,10 +113,7 @@ export function useSession(engine: Engine) {
         const created = (await res.json()) as { id: string; code: string; codeExpiresAt?: number; engineToken: string };
         if (cancelled) return;
         engineTokenStore.token = created.engineToken;
-        const phoneServer = mirrorServerUrl();
-        const sameOriginRelay = phoneServer === mirrorOrigin();
-        const mirrorUrl =
-          `${mirrorOrigin()}/mirror?code=${created.code}` + (sameOriginRelay ? "" : `&server=${encodeURIComponent(phoneServer)}`);
+        const mirrorUrl = phoneLink(created.code, phoneTargets(loadedTargets(), remoteRef.current));
         setInfo({ ...created, codeExpiresAt: created.codeExpiresAt ?? 0, serverUrl, mirrorUrl });
         desktopBridge()?.reportSession?.({ id: created.id, code: created.code });
 

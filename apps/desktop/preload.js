@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld("filow", {
   sessionUrl: process.env.FILOW_SESSION_URL || `http://${process.env.FILOW_LAN_IP || "127.0.0.1"}:${process.env.SESSION_PORT || 4748}`,
   /** What the phone opens: the public tunnel URL while "Share to phone on any network" is on, else the LAN address. */
   mirrorOrigin: process.env.FILOW_PUBLIC_WEB || `http://${process.env.FILOW_LAN_IP || "127.0.0.1"}:${process.env.PORT || 4747}`,
+  /** The address on this network, whatever the public link does: what the QR falls back to when the link goes away. */
+  lanMirrorOrigin: `http://${process.env.FILOW_LAN_IP || "127.0.0.1"}:${process.env.PORT || 4747}`,
   /** The relay URL the phone uses (public tunnel while sharing). The engine itself keeps using sessionUrl. */
   mirrorServerUrl: process.env.FILOW_PUBLIC_SESSION || "",
   remoteShare: Boolean(process.env.FILOW_PUBLIC_WEB),

@@ -4,8 +4,9 @@ import { Icon } from "./icons";
 import { useEffect, useState } from "react";
 import { useT } from "@filow/ui";
 import type { SessionInfo } from "./useSession";
-import { desktopBridge, type NetStatus, type RemoteStatus } from "@/lib/sessionUrl";
+import { desktopBridge, type NetStatus } from "@/lib/sessionUrl";
 import { consumeReopenPairing, markReopenPairing } from "@/lib/pairReopen";
+import { publicLinkOn, useRemoteStatus } from "@/lib/useRemoteStatus";
 
 /** Shows the pairing code and a QR for the mirror URL. */
 export function PairPanel({ info, status, error, onNewCode, prompter = false }: { info: SessionInfo | null; status: string; error: string | null; onNewCode?: () => void; prompter?: boolean }) {
@@ -18,18 +19,12 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false }: 
     if (consumeReopenPairing()) setOpen(true);
   }, []);
   const [switching, setSwitching] = useState(false);
-  const [remote, setRemote] = useState<RemoteStatus | null>(null);
   const [net, setNet] = useState<NetStatus | null>(null);
   const [netBusy, setNetBusy] = useState(false);
   const bridge = desktopBridge();
-  const publicLink = Boolean(bridge?.remoteShare);
-
-  useEffect(() => {
-    if (!bridge?.remoteStatus) return;
-    void bridge.remoteStatus().then(setRemote);
-    return bridge.onRemoteStatus?.(setRemote);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Live: the link comes up after the window opens, and the panel follows it without a reload.
+  const remote = useRemoteStatus();
+  const publicLink = publicLinkOn(remote);
   useEffect(() => {
     if (!open || !bridge?.net) return;
     void bridge.net.status().then(setNet);
