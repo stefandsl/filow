@@ -673,7 +673,9 @@ and warns if the point count changed. It uses the OpenRouter key (same model as 
 
 ### Pre-filter before the model (embedding gate)
 
-Settings has **Pre-filter before the model**, off by default. On, a small multilingual sentence
+Settings has **Pre-filter before the model** under **More options**. It is on by default for new
+installs; an install that used Filow before the setup profiles keeps the choice it had (off unless
+you turned it on). On, a small multilingual sentence
 model (paraphrase-multilingual-MiniLM, 120 MB, downloaded once into the browser cache) scores every
 open point against the last few seconds of speech, on this PC, in a few milliseconds. The decision
 model is then asked only about the plausible points (at most four) and not at all when nothing

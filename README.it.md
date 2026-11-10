@@ -678,7 +678,9 @@ generazione dalle slide).
 
 ### Pre-filtro prima del modello (gate a embedding)
 
-Nelle Impostazioni c'è **Pre-filtro prima del modello**, spento di default. Acceso, un piccolo
+Nelle Impostazioni, sotto **Altre opzioni**, c'è **Pre-filtro prima del modello**. Per le nuove
+installazioni è acceso di default; un'installazione che usava Filow prima dei profili di
+configurazione mantiene la scelta che aveva (spento, salvo che tu l'abbia acceso). Acceso, un piccolo
 modello multilingue di frasi (paraphrase-multilingual-MiniLM, 120 MB, scaricato una volta nella
 cache del browser) confronta ogni punto aperto con gli ultimi secondi di parlato, su questo PC, in
 pochi millisecondi. Il modello di decisione riceve solo i punti plausibili (al massimo quattro) e non
