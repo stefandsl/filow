@@ -4,17 +4,33 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Engine, gatedDecide, gateThresholdsFor, matcherDecide, type DecideRequest, type DecideResponse, type PointVectors, type SessionState } from "@filow/core";
 import { useLang } from "@filow/ui";
 import { engineHeaders } from "./useSession";
+import { pageOutbound } from "./usePageOutbound";
 import { getDecisionProvider, getGateMode } from "@/lib/prefs";
 import { browserEmbed, gateAvailable, preparePoints } from "@/lib/gate/client";
 
-/** Decide through the Next.js API route on the same origin, with the provider chosen in Settings. */
+/**
+ * Decide through the Next.js API route on the same origin, with the provider chosen in Settings.
+ * A cloud decider reads the spoken words: the call carries the consent key the take was given
+ * and shows the going-outside signal while it runs. Without a yes the call goes without the key,
+ * and the server answers a cloud provider with a refusal, so nothing leaves.
+ */
 async function decideViaApi(req: DecideRequest, signal?: AbortSignal): Promise<DecideResponse> {
-  const res = await fetch("/api/decide", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...engineHeaders() },
-    body: JSON.stringify({ ...req, provider: getDecisionProvider() }),
-    signal,
-  });
+  const out = pageOutbound();
+  const to = out.route("transcript");
+  const call = (consent: Record<string, string>) =>
+    fetch("/api/decide", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...engineHeaders(), ...consent },
+      body: JSON.stringify({ ...req, provider: getDecisionProvider() }),
+      signal,
+    });
+  const res = to && Object.keys(out.header("transcript", to)).length
+    ? await out.sending("transcript", to, async (consent, quiet) => {
+        const r = await call(consent);
+        if (r.status === 403) quiet(); // refused here: nothing left this PC
+        return r;
+      })
+    : await call({});
   if (!res.ok) {
     const { error } = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(error ?? `decide failed (${res.status})`);

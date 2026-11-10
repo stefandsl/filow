@@ -10,6 +10,9 @@ import { speechDeadline } from "@/lib/buddy/speech";
 import { markToDisplay, parseBuddyAnswer, pointToDisplay, type BuddyTurn } from "@/lib/buddy/prompt";
 import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
 import { burnStrokes, createVad, describeMarked } from "@/lib/buddy/listen";
+import { askRoute, changesStored, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
+import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
+import { ConsentList, OutboundNotice, OutboundPill } from "../outbound-ui";
 import "../okfilow.css";
 
 const HISTORY_KEY = "okfilow.history.v1";
@@ -62,12 +65,18 @@ export default function OkFilowPanel() {
   const token = useRef<string | null>(null);
   const statusRef = useRef<OkFilowStatus | null>(null);
   statusRef.current = status;
+  // Going outside: the first-send notice on screen, what is in flight right now, who would receive what.
+  const [notice, setNotice] = useState<NoticeRequest | null>(null);
+  const [outSnap, setOutSnap] = useState<OutboundSnapshot>({ active: false, kinds: [], names: [] });
+  const [recipients, setRecipients] = useState<BuddyRecipients | null>(null);
+  const outRef = useRef<OutboundController | null>(null);
 
   useEffect(() => {
     const b = okFilowBridge();
     setBridge(b);
     if (!b) return;
     void b.status().then(setStatus);
+    void outRef.current?.recipients();
     history.current = loadHistory();
     void b.agents.list().then(setJobs).catch(() => {});
     // Load the local model now, so the first question does not wait for it (local only, no content sent).
@@ -77,8 +86,13 @@ export default function OkFilowPanel() {
       }
     });
     void b.stt.status().then((s) => setSttReady(s.ready)).catch(() => setSttReady(false));
-    const offs = [b.onConfig(setStatus), b.onMode((m) => setModeState(m.mode))];
-    return () => offs.forEach((o) => o());
+    const offs = [b.onConfig(setStatus), b.onMode((m) => setModeState(m.mode)), b.outbound?.onChange(setOutSnap)];
+    b.outbound?.ready();
+    return () => {
+      offs.forEach((o) => o?.());
+      // A panel that goes away can no longer be answered: nothing that was waiting may be sent.
+      outRef.current?.dismissAll();
+    };
   }, []);
 
   const setMode = useCallback((m: OkFilowMode, extra?: Record<string, unknown>) => {
@@ -121,13 +135,64 @@ export default function OkFilowPanel() {
   }, []);
   engineHeadersRef.current = engineHeaders;
 
+  // Nothing carrying the user's content leaves this window except through this controller: it asks
+  // before the first send to each recipient, adds the header the server checks, and drives the signal.
+  if (!outRef.current) {
+    outRef.current = createOutboundController({
+      consent: () => statusRef.current?.consent,
+      save: async (_next, also, changes) => {
+        const b = okFilowBridge();
+        if (!b) return false;
+        // Only this window's changes: main merges them into what is stored now.
+        const s = await b.configure({ consentChanges: changes, ...also });
+        statusRef.current = s;
+        setStatus(s);
+        // A yes that main did not store is not a yes.
+        return changesStored(s.consent ?? {}, changes);
+      },
+      fetchRecipients: async () => {
+        const res = await fetch("/api/buddy/recipients", { headers: await engineHeadersRef.current() });
+        const got = res.ok ? ((await res.json()) as BuddyRecipients) : null;
+        if (got) setRecipients(got);
+        return got;
+      },
+      signal: {
+        begin: (id, kind, names) => okFilowBridge()?.outbound?.begin(id, kind, names),
+        end: (id, o) => okFilowBridge()?.outbound?.end(id, o),
+      },
+      onNotice: (head) => {
+        setNotice(head);
+        if (head) okFilowBridge()?.notice?.open();
+        else okFilowBridge()?.notice?.close();
+      },
+    });
+  }
+  const out = outRef.current;
+
+  /**
+   * The cloud voice, behind the notice and the signal. A Blob: play it. "system": the user kept the
+   * voice on this PC. null: the notice was closed without a choice, say nothing.
+   */
+  const cloudVoice = useCallback(async (text: string): Promise<Blob | "system" | null> => {
+    const rec = await out.recipients();
+    if (!rec) throw new Error(t("noticeUnknown"));
+    const decision = await out.allow("voice", rec.voice);
+    if (decision === "declined") { setNote(t("kept_voice")); return "system"; }
+    if (decision !== "granted") return null;
+    return out.sending("voice", rec.voice, async (consent) => {
+      const res = await fetch("/api/buddy/tts", { method: "POST", headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent }, body: JSON.stringify({ text }) });
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `voice ${res.status}`);
+      return res.blob();
+    });
+  }, [engineHeaders, out, t]);
+
   const speak = useCallback(async (text: string, id: number) => {
     const voice = statusRef.current?.voice ?? "system";
     if (!text || voice === "off") return;
-    if (voice === "cloud" && !statusRef.current?.offline) {
-      const res = await fetch("/api/buddy/tts", { method: "POST", headers: { "Content-Type": "application/json", ...(await engineHeaders()) }, body: JSON.stringify({ text }) });
-      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `voice ${res.status}`);
-      const url = URL.createObjectURL(await res.blob());
+    const cloud = voiceRoute(statusRef.current) === "cloud" ? await cloudVoice(text) : "system";
+    if (cloud === null || run.current !== id) return;
+    if (cloud !== "system") {
+      const url = URL.createObjectURL(cloud);
       const el = new Audio(url);
       await new Promise<void>((resolve) => {
         let check: ReturnType<typeof setInterval> | undefined;
@@ -158,38 +223,64 @@ export default function OkFilowPanel() {
       synth.speak(u);
       const check = setInterval(() => { if (run.current !== id) { synth.cancel(); done(); } else if (!synth.speaking && !synth.pending) done(); }, 150);
     });
-  }, [engineHeaders, lang]);
+  }, [cloudVoice, lang]);
 
   // Hands-free: after each answer the mic opens again until it is switched off.
   const listenAgain = useRef<() => void>(() => {});
 
-  /** Second, narrow request: just the point for what the answer described. Null when there is none. */
-  const groundAnswer = useCallback(async (question: string, answer: string, images: string[], shot: OkFilowCapture, signal: AbortSignal) => {
-    const res = await fetch("/api/buddy/ask", {
-      method: "POST",
-      signal,
-      headers: { "Content-Type": "application/json", ...(await engineHeaders()) },
-      body: JSON.stringify({
-        question: `${question}\nYou answered: "${answer.slice(0, 300)}". Reply with only the tag [POINT:x,y:label:screenN] for that thing, on the 0-1000 grid, and nothing else. If it is not visible, reply NONE.`,
-        images,
-        screens: shot.screens,
-        history: [],
-        language: "auto",
-        provider: statusRef.current?.provider ?? "local",
-      }),
-    });
-    if (!res.ok) return null;
-    const p = parseBuddyAnswer(await res.text(), shot.screens, shot.screens.find((x) => x.cursor)?.index ?? 1).points[0];
+  /**
+   * Second, narrow request: just the point for what the answer described. Null when there is none.
+   * `to` is who the question itself went to (null: it stayed on this PC, and so does this one).
+   */
+  const groundAnswer = useCallback(async (question: string, answer: string, images: string[], shot: OkFilowCapture, signal: AbortSignal, to: Recipient | null) => {
+    const send = async (consent: Record<string, string>) => {
+      const res = await fetch("/api/buddy/ask", {
+        method: "POST",
+        signal,
+        headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent },
+        body: JSON.stringify({
+          question: `${question}\nYou answered: "${answer.slice(0, 300)}". Reply with only the tag [POINT:x,y:label:screenN] for that thing, on the 0-1000 grid, and nothing else. If it is not visible, reply NONE.`,
+          images,
+          screens: shot.screens,
+          history: [],
+          language: "auto",
+          provider: to ? "cloud" : "local",
+        }),
+      });
+      return res.ok ? res.text() : null;
+    };
+    const raw = to ? await out.sending("ask", to, send) : await send({});
+    if (raw === null) return null;
+    const p = parseBuddyAnswer(raw, shot.screens, shot.screens.find((x) => x.cursor)?.index ?? 1).points[0];
     const d = p && shot.displays.find((x) => x.index === p.screen);
     return p && d ? { ...pointToDisplay(p, d.bounds), label: p.label } : null;
-  }, [engineHeaders]);
+  }, [engineHeaders, out]);
 
   const ask = useCallback(async (question: string, opts: { typed?: boolean } = {}) => {
     const b = okFilowBridge();
     if (!b) return;
     // "agent, ..." goes to a background job instead of the screen helper.
+    // A new question drops any notice still waiting for the previous one: nothing of it may go out.
+    out.dismissAll();
     try {
-      const job = await b.agents.start(question, history.current.at(-1)?.text ?? "");
+      const lastAnswer = history.current.at(-1)?.text ?? "";
+      let job = await b.agents.start(question, lastAnswer);
+      if (job && "needsConsent" in job) {
+        // The task and the last answer would go to the maker of the coding agent: ask first.
+        const { recipient, cli } = job.needsConsent;
+        setHeard(question);
+        b.text(t("noticeWaiting"));
+        const decision = await out.allow("agent", recipient, cli);
+        b.text("");
+        if (decision === "dismissed") return setMode("idle");
+        if (decision === "declined") {
+          setAnswer(t("kept_agent"));
+          b.text(t("kept_agent"));
+          return setMode("idle");
+        }
+        job = await b.agents.start(question, lastAnswer);
+        if (job && "needsConsent" in job) return fail(t("noticeUnknown"));
+      }
       if (job) {
         const said = t("agentStarted").replace("{title}", job.title);
         setHeard(question);
@@ -223,25 +314,48 @@ export default function OkFilowPanel() {
         ? await Promise.all(shot.images.map((img, i) => burnStrokes(img, marked.filter((m) => m.screen === i + 1), statusRef.current?.color ?? "#ffb600")))
         : shot.images;
       const markedNote = [describeMarked(marked), shot.selected ? `(Text I have selected: "${shot.selected}")` : ""].filter(Boolean).join("\n");
-      const res = await fetch("/api/buddy/ask", {
-        method: "POST",
-        signal: abort.signal,
-        headers: { "Content-Type": "application/json", ...(await engineHeaders()) },
-        body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: "auto", provider: statusRef.current?.provider ?? "local" }),
-      });
-      if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `HTTP ${res.status}`);
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let raw = "";
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        raw += decoder.decode(value, { stream: true });
+      // Local or cloud is decided in one place (askRoute). The screenshot above was taken before the
+      // notice so it shows the screen as it was when the user asked; nothing is sent until they say yes.
+      let route = askRoute(statusRef.current);
+      let to: Recipient | null = null;
+      if (route === "cloud") {
+        const rec = await out.recipients();
+        if (!rec) throw new Error(t("noticeUnknown"));
+        if (out.standing("ask", rec.ask) === "ask") b.text(t("noticeWaiting"));
+        const decision = await out.allow("ask", rec.ask);
         if (run.current !== id) return;
-        const shown = parseBuddyAnswer(raw.split("\n[ERROR]")[0], shot.screens).text;
-        setAnswer(shown);
-        b.text(shown);
+        b.text("");
+        if (decision === "dismissed") return setMode("idle");
+        if (decision === "declined") {
+          route = "local";
+          setNote(t("kept_ask"));
+        } else to = rec.ask;
       }
+      const send = async (consent: Record<string, string>, quiet?: () => void) => {
+        const res = await fetch("/api/buddy/ask", {
+          method: "POST",
+          signal: abort.signal,
+          headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent },
+          body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: "auto", provider: route }),
+        });
+        if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `HTTP ${res.status}`);
+        // The server answered from this PC after all (offline switch): nothing went outside.
+        if (res.headers.get("X-Buddy-Provider") !== "cloud") quiet?.();
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let got = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) return got;
+          got += decoder.decode(value, { stream: true });
+          if (run.current !== id) return null;
+          const shown = parseBuddyAnswer(got.split("\n[ERROR]")[0], shot.screens).text;
+          setAnswer(shown);
+          b.text(shown);
+        }
+      };
+      const raw = to ? await out.sending("ask", to, send) : await send({});
+      if (raw === null) return;
       const [body, err] = raw.split("\n[ERROR] ");
       if (err) throw new Error(err.trim());
       const { text, points, marks, cards, model, drawing } = parseBuddyAnswer(body, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1);
@@ -270,28 +384,44 @@ export default function OkFilowPanel() {
         cards.unshift({ x: 500, y: 250, title: drawing.title, text: "", photo: "", svg: drawingSvg(drawing), screen: s });
       }
       if (cards.length) {
-        // Photos are fetched while the answer is spoken; a card without one still shows its text.
-        void Promise.all(cards.map(async (c) => {
+        // The cards show at once with their text. A picture means sending the card's subject to
+        // Wikipedia, so it is looked up only after a yes, while the answer is spoken.
+        const placed = cards.flatMap((c) => {
           const d = shot.displays.find((x) => x.index === c.screen);
-          if (!d) return null;
+          if (!d) return [];
           const at = pointToDisplay({ x: c.x, y: c.y, label: "", screen: c.screen }, d.bounds);
-          let photo = c.svg ? `data:image/svg+xml;base64,${btoa(c.svg)}` : "";
-          if (c.photo && !statusRef.current?.offline) {
-            const r = await fetch(`/api/buddy/photo?q=${encodeURIComponent(c.photo)}`, { headers: await engineHeaders() }).catch(() => null);
-            photo = (r && r.ok ? ((await r.json()) as { dataUrl?: string | null }).dataUrl : null) ?? "";
-          }
-          return { ...at, title: c.title, text: c.text, photo };
-        })).then((list) => {
-          if (run.current !== id) return;
-          const shown = list.filter((x): x is NonNullable<typeof x> => Boolean(x));
-          if (lastShown.current) lastShown.current.cards = shown;
-          b.cards(shown);
+          return [{ lookup: c.photo, card: { ...at, title: c.title, text: c.text, photo: c.svg ? `data:image/svg+xml;base64,${btoa(c.svg)}` : "" } }];
         });
+        const showCards = (list: Array<(typeof placed)[number]["card"]>) => {
+          if (run.current !== id) return;
+          if (lastShown.current) lastShown.current.cards = list;
+          b.cards(list);
+        };
+        showCards(placed.map((p) => p.card));
+        if (placed.some((p) => p.lookup) && !statusRef.current?.offline) {
+          void (async () => {
+            const rec = await out.recipients();
+            if (!rec) return;
+            const first = out.standing("photo", rec.photo) === "ask";
+            const decision = await out.allow("photo", rec.photo);
+            if (decision === "declined" && first) setNote(t("kept_photo"));
+            if (decision !== "granted" || run.current !== id) return;
+            const withPhotos = await out.sending("photo", rec.photo, async (consent) => {
+              const headers = { ...(await engineHeaders()), ...consent };
+              return Promise.all(placed.map(async (p) => {
+                if (!p.lookup) return p.card;
+                const r = await fetch(`/api/buddy/photo?q=${encodeURIComponent(p.lookup)}`, { headers }).catch(() => null);
+                return { ...p.card, photo: (r && r.ok ? ((await r.json()) as { dataUrl?: string | null }).dataUrl : null) ?? p.card.photo };
+              }));
+            });
+            showCards(withPhotos);
+          })().catch(() => {});
+        }
       }
       // HeyClicky always shows you where. Small local models sometimes answer in words only: then ask
       // once more, narrowly, for the point, while the answer is already being spoken.
       const grounding = !mapped.length && !drawn.length && !cards.length && !model && text
-        ? groundAnswer(question, text, images, shot, abort.signal).then((p) => { if (p && run.current === id) b.point([p]); }).catch(() => {})
+        ? groundAnswer(question, text, images, shot, abort.signal, to).then((p) => { if (p && run.current === id) b.point([p]); }).catch(() => {})
         : Promise.resolve();
       setMode("speaking");
       if (!opts.typed || statusRef.current?.typedVoice) await speak(text, id);
@@ -303,7 +433,7 @@ export default function OkFilowPanel() {
       fail(e instanceof Error ? e.message : String(e));
       if (handsFree.current) setTimeout(() => handsFree.current && listenAgain.current(), 1500);
     }
-  }, [engineHeaders, fail, groundAnswer, setMode, speak, t]);
+  }, [engineHeaders, fail, groundAnswer, out, setMode, speak, t]);
 
   const startListening = useCallback(async (why: Purpose = "talk") => {
     const b = okFilowBridge();
@@ -454,7 +584,11 @@ export default function OkFilowPanel() {
 
   if (!bridge) return <main className="okf-panel"><p>{t("desktopOnly")}</p></main>;
   const c = status;
-  const configure = async (patch: Partial<OkFilowStatus>) => setStatus(await bridge.configure(patch));
+  const configure = async (patch: Partial<OkFilowStatus>) => {
+    setStatus(await bridge.configure(patch));
+    // The recipient follows the settings (provider, model, offline): the notes must name the new one.
+    void outRef.current?.recipients();
+  };
   /** Redraws the last answer's visuals (they may have been cleared with Escape). */
   const replay = () => {
     const last = lastShown.current;
@@ -475,7 +609,13 @@ export default function OkFilowPanel() {
         <button className="okf-x" aria-label={t("close")} title={t("close")} onClick={() => bridge.hidePanel()}>×</button>
       </header>
 
-      <p className="okf-status" role="status">{t(`mode_${mode}` as OkfKey)}</p>
+      {notice && <OutboundNotice notice={notice} t={t} onDecide={(d) => void out.decide(d)} />}
+
+      {/* One live region: the mode and, while something is leaving this PC, who receives it. */}
+      <p className="okf-status" role="status">
+        <span>{t(`mode_${mode}` as OkfKey)}</span>
+        <OutboundPill snap={outSnap} t={t} />
+      </p>
       <p className="okf-hint">
         {c?.hook === "toggle" ? t("hintToggle") : t("hintHold").replace("{key}", hotkey ?? "")}
       </p>
@@ -610,8 +750,10 @@ export default function OkFilowPanel() {
             <button type="button" className="okf-link" onClick={() => void okFilowBridge()?.openAnswers().then((ok) => { if (!ok) setNote(t("answerDirNone")); })}>{t("openAnswers")}</button>
           </div>
           <button type="button" className="okf-link" onClick={() => { history.current = []; saveHistory([]); setNote(t("historyCleared")); }}>{t("clearHistory")}</button>
-          {c.provider === "cloud" && !c.offline && <p className="okf-note">{t("cloudNote")}</p>}
+          {askRoute(c) === "cloud" && recipients && <p className="okf-note">{t("cloudNote").replace("{who}", whoPhrase(recipients.ask, t("outVia"), t("outAnd")))}</p>}
+          {voiceRoute(c) === "cloud" && recipients && <p className="okf-note">{t("voiceNote").replace("{who}", whoPhrase(recipients.voice, t("outVia"), t("outAnd")))}</p>}
           {c.offline && <p className="okf-note">{t("offlineNote")}</p>}
+          <ConsentList consent={c.consent} t={t} onForget={(key) => void out.forget(key)} />
         </section>
       )}
     </main>

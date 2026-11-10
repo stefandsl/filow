@@ -3,11 +3,14 @@
 import { buildGenerateUserPrompt, GENERATE_SYSTEM_PROMPT, parseGenerated, type GeneratedSlide, type SlideInput } from "@filow/core";
 import { OLLAMA_URL } from "@/lib/decide/clef";
 import { openRouterChat } from "@/lib/openrouter";
+import { routerRecipient } from "@/lib/buddy/outbound";
 
 export type SlideResult = { generated: GeneratedSlide; cost: number | null; model: string };
 
 export const GENERATE_TEXT_MODEL = () => process.env.OPENROUTER_GENERATE_MODEL || "google/gemini-2.5-flash-lite";
 export const GENERATE_VISION_MODEL = () => process.env.OPENROUTER_GENERATE_VISION_MODEL || "google/gemini-2.5-flash";
+/** Who receives a script that is written or translated in the cloud: OpenRouter and the makers of both models. */
+export const scriptRecipient = () => routerRecipient([GENERATE_TEXT_MODEL(), GENERATE_VISION_MODEL()]);
 /** Gemma 4 E2B: text + image, Italian included, ~5-7 GB, fits 8 GB RAM. E4B on 16 GB, qwen3-vl:2b as the light fallback. */
 export const GENERATE_LOCAL_MODEL = () => process.env.GENERATE_LOCAL_MODEL || "gemma4:e2b";
 

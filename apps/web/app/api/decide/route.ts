@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import type { DecideRequest, DecideResponse, ServerDecisionProviderId } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
-import { decideOpenRouter } from "@/lib/decide/openrouter";
-import { decideClefCloudflare, decideClefLocal } from "@/lib/decide/clef";
+import { decideOpenRouter, OPENROUTER_DECISION_MODEL } from "@/lib/decide/openrouter";
+import { CLEF_CLOUDFLARE_MODEL, decideClefCloudflare, decideClefLocal } from "@/lib/decide/clef";
+import { consentDenied, decisionRecipient } from "@/lib/buddy/outbound";
 import { anonymizeRequest, piiMode, restore } from "@/lib/pii/guard";
 
 /**
@@ -38,6 +39,12 @@ export async function POST(req: Request) {
   }
   try {
     const { run, cloud } = PROVIDERS[provider];
+    if (cloud) {
+      // The spoken words leave this PC: only with the user's recorded yes for this exact recipient.
+      const recipient = decisionRecipient(provider, { openrouter: OPENROUTER_DECISION_MODEL(), cloudflare: CLEF_CLOUDFLARE_MODEL() });
+      const refused = recipient ? consentDenied(req, "transcript", recipient) : NextResponse.json({ error: "Not sent: Filow cannot tell who would read your words.", code: "consent_required" }, { status: 403 });
+      if (refused) return refused;
+    }
     // When the engine gives up on a slow call the page aborts it; the abort is passed on to the model.
     if (!cloud || piiMode() === "off") return NextResponse.json<DecideResponse>(await run(body, req.signal));
     const { req: safe, map, layers } = await anonymizeRequest(body);

@@ -48,6 +48,9 @@ import { ImportError } from "./prompter/ImportError";
 import { LogPanel } from "./prompter/LogPanel";
 import { pointState } from "@/lib/pointState";
 import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
+import { decisionRecipient, sttRecipient, takeOutbound } from "@/lib/buddy/outbound";
+import { pageOutbound, usePageOutbound } from "./usePageOutbound";
+import { PageOutboundNotice, PageOutboundSignal, useOkfText } from "./PageOutbound";
 
 type BackendChoice = "auto" | SttBackendId;
 
@@ -113,6 +116,17 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const startAttempts = useRef(new StartAttempts());
   const [pendingImport, setPendingImport] = useState<ImportResponse | null>(null);
   const backendRef = useRef<SttBackend | null>(null);
+  // Going outside (docs/okfilow/OUTBOUND.md): the take asks before its first cloud send and shows
+  // the signal for as long as the microphone streams to a cloud speech engine.
+  const { out: outbound, state: outState } = usePageOutbound();
+  const okt = useOkfText();
+  const micSignal = useRef<(() => void) | null>(null);
+  const endOutbound = useCallback(() => {
+    micSignal.current?.();
+    micSignal.current = null;
+    outbound.setRoute("audio", null);
+    outbound.setRoute("transcript", null);
+  }, [outbound]);
   const fileRef = useRef<HTMLInputElement | null>(null);
   // Offline mode is owned by the desktop shell (menu toggle); the web deploy reads FILOW_OFFLINE.
   useEffect(() => {
@@ -211,11 +225,12 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     setMicWarning(null);
     backendRef.current?.stop();
     backendRef.current = null;
+    endOutbound();
     releasePreopenedMic(); // the check's stream, if no backend took it (Web Speech, or a failed start)
     engine.stop();
     // Live notes (§6.4) are offered for export until the next take starts.
     if (engine.getNotes().length) setLastNotes([...engine.getNotes()]);
-  }, [engine]);
+  }, [engine, endOutbound]);
 
   /** Open the microphone once up front: a clear message beats five backends failing in a row. */
   const probeMic = async (attempt: StartAttempt): Promise<boolean> => {
@@ -309,6 +324,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const startTake = async (mode: "cloud" | "local", r: Readiness, attempt: StartAttempt, pick?: { provider: DecisionProviderId; backend: SttBackendId }) => {
     if (!attempt.isCurrent()) return;
     let pendingBackend: SttBackend | null = null;
+    let releaseMic: (() => void) | null = null;
     try {
       engine.setError(undefined);
       setMicWarning(null);
@@ -351,6 +367,26 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         setStarting(false);
         return;
       }
+      // Before anything opens or leaves: who would hear the microphone and who would read the
+      // words, named from the engines picked for this take. A no to either starts nothing.
+      endOutbound();
+      const known = await attempt.wait(outbound.recipients());
+      if (!known && provider === "openrouter") {
+        engine.setError(okt("noticeUnknown"));
+        setStarting(false);
+        return;
+      }
+      const models = known?.decision ?? { openrouter: "", cloudflare: "" };
+      const userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent;
+      const consent = await attempt.wait(outbound.allowAll(takeOutbound({ backend, provider, models, userAgent })));
+      if (!consent.ok) {
+        pushLog(`take not started: ${consent.kind} to ${consent.recipient.names.join(", ")} ${consent.decision}`);
+        setStarting(false);
+        return;
+      }
+      const sttTo = sttRecipient(backend, userAgent);
+      outbound.setRoute("audio", sttTo);
+      outbound.setRoute("transcript", decisionRecipient(provider, models));
       pushLog(`${mode === "local" ? t("start.local") : t("start.cloud")} · ${BACKEND_LABELS[backend]}`);
       // Web Speech owns its input and always uses the system default.
       if (backend !== "browser" && !(await attempt.wait(probeMic(attempt)))) {
@@ -370,8 +406,11 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       };
       {
         // Explicit backend from the chosen mode: never fall back silently.
-        const b = createBackend(backend, { headers: engineHeaders(), language: backend === "whisper" && getSpeechLang() === "auto" ? lang : getSpeechLang() });
+        // A cloud engine's token request carries the consent key; the server refuses it otherwise.
+        const b = createBackend(backend, { headers: { ...engineHeaders(), ...outbound.header("audio", sttTo) }, language: backend === "whisper" && getSpeechLang() === "auto" ? lang : getSpeechLang() });
         pendingBackend = b;
+        // The signal is on from before the first sound can leave until the take ends.
+        if (sttTo) micSignal.current = releaseMic = outbound.hold("audio", sttTo);
         await attempt.wait(b.start(handlers));
         backendRef.current = b;
         engine.setBackend(b.id);
@@ -380,6 +419,9 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       engine.start();
     } catch (err) {
       pendingBackend?.stop();
+      // Only this attempt's own signal: a newer attempt may already be running.
+      releaseMic?.();
+      if (micSignal.current === releaseMic) micSignal.current = null;
       if (attempt.isCurrent()) {
         engine.setError((err as Error).message);
         pushLog(`could not start transcription: ${(err as Error).message}`);
@@ -392,19 +434,39 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
 
   const cancelStart = () => {
     startAttempts.current.cancel();
+    outbound.dismissAll(); // a notice still open for this start sends nothing
     stopTake();
     setStarting(false);
   };
 
-  useEffect(() => () => { startAttempts.current.cancel(); backendRef.current?.stop(); }, []);
+  useEffect(() => () => { startAttempts.current.cancel(); backendRef.current?.stop(); endOutbound(); }, [endOutbound]);
+
+  // A yes withdrawn elsewhere (OK Filow settings) during a take stops it: the stored choices are
+  // read again every two seconds while recording, and a running stream without a yes ends at once.
+  useEffect(() => {
+    if (!eng.recording) return;
+    const timer = setInterval(() => void outbound.load(), 2000);
+    return () => clearInterval(timer);
+  }, [eng.recording, outbound]);
+  useEffect(() => {
+    if (!eng.recording) return;
+    const lost = (["audio", "transcript"] as const).find((kind) => {
+      const to = outbound.route(kind);
+      return to && !Object.keys(outbound.header(kind, to)).length;
+    });
+    if (!lost) return;
+    pushLog(`take stopped: the yes for ${lost} was withdrawn`);
+    stopTake();
+  }, [outState.consent, eng.recording, outbound, pushLog, stopTake]);
 
   // When the engine stops itself (cost cap), release the microphone too.
   useEffect(() => {
     if (!eng.recording && backendRef.current) {
       backendRef.current.stop();
       backendRef.current = null;
+      endOutbound();
     }
-  }, [eng.recording]);
+  }, [eng.recording, endOutbound]);
 
   const tail = state.transcriptTail;
   const availability = availableBackends(sttStatus, { webSpeech: hasWebSpeech, whisper: mounted, sherpa: readiness?.sherpa ?? false, offline });
@@ -431,8 +493,10 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
           onChange={(e) => e.target.files?.[0] && void importDocument(e.target.files[0])}
         />
 
+      <PageOutboundNotice />
       <div className="prompter-content">
       <main className="prompter-main">
+      <PageOutboundSignal className="okf-out-region--bar" />
       {update?.status === "downloaded" && !updateDismissed && !eng.recording && (
         <div className="update-banner">
           <span><Icon name="up" /> {t("update.ready", { version: update.version })}</span>
@@ -789,6 +853,7 @@ export function ScriptEditor({
   warnings?: string[];
 }) {
   const t = useT();
+  const okt = useOkfText();
   const [text, setText] = useState(initial);
   const [to, setTo] = useState("en");
   const [busy, setBusy] = useState(false);
@@ -799,8 +864,14 @@ export function ScriptEditor({
     setNote(t("editor.translating"));
     try {
       await ensureEngineToken();
-      const res = await fetch("/api/script/translate", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ text, to }) });
-      const j = (await res.json()) as { text?: string; model?: string; structureKept?: boolean; expected?: { points: number }; got?: { sections: number; points: number }; error?: string };
+      // The script goes to the cloud model: named first, asked once, shown while it is sent.
+      const done = await pageOutbound().gated("script", (r) => r.script, async (consent, quiet) => {
+        const res = await fetch("/api/script/translate", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders(), ...consent }, body: JSON.stringify({ text, to }) });
+        if (res.status === 403) quiet(); // refused here: nothing left this PC
+        return { res, j: (await res.json()) as { text?: string; model?: string; structureKept?: boolean; expected?: { points: number }; got?: { sections: number; points: number }; error?: string } };
+      });
+      if (!done.sent) { setNote(done.reason === "unknown" ? okt("noticeUnknown") : null); return; }
+      const { res, j } = done.value;
       if (!res.ok || !j.text) throw new Error(j.error ?? `HTTP ${res.status}`);
       setText(j.text);
       setNote(
@@ -822,7 +893,7 @@ export function ScriptEditor({
           </span>
         ))}
         <div className="hint">{t("editor.hint", { sections: preview.sections.length, points: preview.sections.reduce((n, s) => n + s.bullets.length, 0) })}</div>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} />
+        <textarea value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} aria-label={title ?? t("editor.title")} />
         <div className="controls">
           <button className="btn primary" onClick={() => onSave(text)}>
             {t("common.save")}
@@ -831,7 +902,7 @@ export function ScriptEditor({
             {t("common.cancel")}
           </button>
           <span className="hint" style={{ marginLeft: "auto" }}>{t("editor.translateTo")}</span>
-          <select className="btn" value={to} onChange={(e) => setTo(e.target.value)} disabled={busy}>
+          <select className="btn" value={to} onChange={(e) => setTo(e.target.value)} disabled={busy} aria-label={t("editor.translateTo")}>
             {[["en", "English"], ["it", "Italiano"], ["ro", "Română"], ["ru", "Русский"], ["de", "Deutsch"], ["fr", "Français"], ["es", "Español"]].map(([k, l]) => (
               <option key={k} value={k}>
                 {l}
@@ -842,6 +913,7 @@ export function ScriptEditor({
             {busy ? t("editor.translating") : t("editor.translate")}
           </button>
         </div>
+        <PageOutboundSignal />
         {note && <div className="hint">{note}</div>}
     </Dialog>
   );

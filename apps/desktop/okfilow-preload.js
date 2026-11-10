@@ -38,6 +38,18 @@ contextBridge.exposeInMainWorld("okFilow", {
     onChange: on("okfilow:jobs"),
     onDone: on("okfilow:jobDone"),
   },
+  /** "Going outside": the panel reports each send that carries the user's content, main shows it everywhere. */
+  outbound: {
+    begin: (id, kind, names) => ipcRenderer.send("okfilow:outbound:begin", id, kind, names),
+    end: (id, opts) => ipcRenderer.send("okfilow:outbound:end", id, opts),
+    onChange: on("okfilow:outbound"),
+    ready: () => ipcRenderer.send("okfilow:panel:ready"),
+  },
+  /** A first-send notice is open (the panel must be seen and stay) or closed. */
+  notice: {
+    open: () => ipcRenderer.send("okfilow:notice:open"),
+    close: () => ipcRenderer.send("okfilow:notice:close"),
+  },
   hidePanel: () => ipcRenderer.send("okfilow:hidePanel"),
   clearVisuals: () => ipcRenderer.send("okfilow:clearVisuals"),
   answerLog: (entry) => ipcRenderer.invoke("okfilow:answerLog", entry),

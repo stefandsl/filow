@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireEngine } from "@/lib/engineAuth";
+import { consentDenied, voiceRecipient } from "@/lib/buddy/outbound";
 
 export const dynamic = "force-dynamic";
 
-/** OK Filow cloud voice: text in, ElevenLabs MP3 out. Only used when the user picked the cloud voice. */
+/**
+ * OK Filow cloud voice: text in, ElevenLabs MP3 out. Only used when the user picked the cloud voice
+ * and said yes to the answer text going to ElevenLabs (x-filow-consent header); 403 otherwise.
+ */
 export async function POST(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
@@ -17,6 +21,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
   if (!text) return NextResponse.json({ error: "text is empty" }, { status: 400 });
+  const refused = consentDenied(req, "voice", voiceRecipient());
+  if (refused) return refused;
   const voice = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
   const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_64`, {
     method: "POST",

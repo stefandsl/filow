@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireEngine } from "@/lib/engineAuth";
 import { dataUrlBytes, MAX_IMAGE_BYTES } from "@/lib/vision/openrouter";
-import { askBuddy, resolveBuddyProvider, type BuddyAskRequest } from "@/lib/buddy/providers";
+import { CONSENT_HEADER, consentDenied } from "@/lib/buddy/outbound";
+import { askBuddy, buddyCloudRecipient, resolveBuddyProvider, type BuddyAskRequest } from "@/lib/buddy/providers";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,8 @@ export const dynamic = "force-dynamic";
  * (with [POINT] tags, parsed by the client). Images are forwarded once and never logged or stored.
  * The provider used is in the X-Buddy-Provider header; errors after the stream started are sent
  * as a final "\n[ERROR] message" line.
+ * Cloud needs the user's yes for the recipient in use (x-filow-consent header): without it the
+ * answer is 403 and nothing is forwarded.
  */
 export async function POST(req: Request) {
   const denied = requireEngine(req);
@@ -30,13 +33,19 @@ export async function POST(req: Request) {
     if (dataUrlBytes(image) > MAX_IMAGE_BYTES) return NextResponse.json({ error: "image too large" }, { status: 413 });
   }
   const provider = resolveBuddyProvider(body.provider);
+  if (provider === "cloud") {
+    const refused = consentDenied(req, "ask", buddyCloudRecipient());
+    if (refused) return refused;
+  }
+  // Only the header counts: a consent field in the body is never trusted.
+  const consent = req.headers.get(CONSENT_HEADER) ?? undefined;
   const encoder = new TextEncoder();
   const abort = new AbortController();
   req.signal?.addEventListener("abort", () => abort.abort());
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const piece of askBuddy(provider, { ...body, question, images, screens }, abort.signal)) controller.enqueue(encoder.encode(piece));
+        for await (const piece of askBuddy(provider, { ...body, question, images, screens, consent }, abort.signal)) controller.enqueue(encoder.encode(piece));
       } catch (e) {
         if (!abort.signal.aborted) controller.enqueue(encoder.encode(`\n[ERROR] ${e instanceof Error ? e.message : String(e)}`));
       } finally {

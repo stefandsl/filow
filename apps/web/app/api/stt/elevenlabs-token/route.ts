@@ -1,11 +1,18 @@
 import { requireEngine } from "@/lib/engineAuth";
+import { consentDenied, sttRecipient } from "@/lib/buddy/outbound";
 import { NextResponse } from "next/server";
 
-/** Mints a 15-minute single-use token so the browser can open the realtime WebSocket without the API key. */
+/**
+ * Mints a 15-minute single-use token so the browser can open the realtime WebSocket without the API key.
+ * The token is what lets the microphone stream out, so it needs the user's yes for ElevenLabs
+ * (x-filow-consent header): 403 without it, and nothing is requested.
+ */
 export async function POST(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
   if (process.env.FILOW_OFFLINE === "1") return NextResponse.json({ unavailable: "disabled" });
+  const refused = consentDenied(req, "audio", sttRecipient("elevenlabs")!);
+  if (refused) return refused;
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ELEVENLABS_API_KEY not set" }, { status: 500 });
 

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { VisionRequest, VisionResponse } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
-import { dataUrlBytes, describeFrame, MAX_IMAGE_BYTES } from "@/lib/vision/openrouter";
+import { dataUrlBytes, describeFrame, MAX_IMAGE_BYTES, VISION_MODEL } from "@/lib/vision/openrouter";
+import { askRecipient, consentDenied } from "@/lib/buddy/outbound";
 import { anonymizeRequest, piiMode, restore } from "@/lib/pii/guard";
 
 /**
@@ -31,7 +32,10 @@ export async function POST(req: Request) {
       model: "offline",
     });
   }
-  if (typeof body?.image !== "string" || !/^data:image\/(jpeg|png|webp);base64,/.test(body.image)) {
+  // A picture of the screen leaves this PC: only with the user's recorded yes for this exact recipient.
+  const refused = consentDenied(req, "screen", askRecipient(VISION_MODEL()));
+  if (refused) return refused;
+  if (typeof body?.image !== "string"|| !/^data:image\/(jpeg|png|webp);base64,/.test(body.image)) {
     return NextResponse.json({ error: "image must be a JPEG, PNG or WebP data URL" }, { status: 400 });
   }
   if (dataUrlBytes(body.image) > MAX_IMAGE_BYTES) {

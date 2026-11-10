@@ -1,4 +1,5 @@
 // Types for window.okFilow (apps/desktop/okfilow-preload.js).
+import type { ConsentChanges, ConsentMap, OutboundKind, OutboundSnapshot, Recipient } from "./outbound";
 import type { BuddyMark } from "./prompt";
 import type { BuddyModel } from "./visuals";
 
@@ -21,6 +22,8 @@ export type OkFilowStatus = {
   answerLog?: boolean;
   agentCli?: string;
   onboarded?: boolean;
+  /** What the user allowed or refused to send outside, per kind and recipient. */
+  consent?: ConsentMap;
   handsFree: boolean;
   dictateChord: string;
   hotkeys: string[];
@@ -55,11 +58,15 @@ export type OkFilowJob = {
   summary: string;
   artifacts: string[];
 };
+/** The agent was not started: the user has not said yes to the maker of the CLI that would run it. */
+export type OkFilowAgentConsent = { needsConsent: { kind: "agent"; recipient: Recipient; cli: string } };
+/** A settings change. Consent goes as `consentChanges` (merged by main), never as a whole map. */
+export type OkFilowPatch = Partial<Omit<OkFilowStatus, "consent">> & { consentChanges?: ConsentChanges };
 export type OkFilowBridge = {
   accessPassword: string;
   sessionUrl: string;
   status(): Promise<OkFilowStatus>;
-  configure(patch: Partial<OkFilowStatus>): Promise<OkFilowStatus>;
+  configure(patch: OkFilowPatch): Promise<OkFilowStatus>;
   capture(): Promise<OkFilowCapture>;
   setMode(mode: OkFilowMode, extra?: Record<string, unknown>): Promise<void>;
   level(v: number): void;
@@ -84,8 +91,8 @@ export type OkFilowBridge = {
   typeText(text: string): Promise<boolean>;
   handsFreeOff(): void;
   agents: {
-    /** Starts a job when the text is an "agent, ..." request; resolves null otherwise. */
-    start(text: string, context?: string): Promise<OkFilowJob | null>;
+    /** Starts a job when the text is an "agent, ..." request; resolves null otherwise, or needsConsent when the user must agree first. */
+    start(text: string, context?: string): Promise<OkFilowJob | OkFilowAgentConsent | null>;
     list(): Promise<OkFilowJob[]>;
     stop(id: string): Promise<OkFilowJob[]>;
     remove(id: string): Promise<OkFilowJob[]>;
@@ -93,6 +100,16 @@ export type OkFilowBridge = {
     onChange(fn: (jobs: OkFilowJob[]) => void): Off;
     onDone(fn: (job: OkFilowJob) => void): Off;
   };
+  /** "Going outside": report each send carrying the user's content; main shows it on the pointer and the panel. */
+  outbound?: {
+    begin(id: string, kind: OutboundKind, names: string[]): void;
+    end(id: string, opts?: { cancel?: boolean }): void;
+    onChange(fn: (s: OutboundSnapshot) => void): Off;
+    /** Panel -> main: my listener is registered, send me what is going out right now. */
+    ready(): void;
+  };
+  /** A first-send notice is open (main shows the panel and keeps it) or closed. */
+  notice?: { open(): void; close(): void };
   hidePanel(): void;
   clearVisuals(): void;
   answerLog(entry: { question: string; raw: string; visuals: unknown; images: string[]; svg?: string }): Promise<string>;

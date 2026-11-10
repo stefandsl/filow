@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireEngine } from "@/lib/engineAuth";
+import { consentDenied, photoRecipient } from "@/lib/buddy/outbound";
 
 export const dynamic = "force-dynamic";
 
@@ -7,7 +8,8 @@ const MAX_BYTES = 1_500_000;
 
 /**
  * OK Filow cards: a real photo for a subject ("Piston"), from Wikipedia's page summary thumbnail.
- * Only the subject's name leaves the PC, never the screen or the question; offline mode sends nothing.
+ * Only the subject's name leaves the PC, never the screen or the question; offline mode sends nothing,
+ * and neither does a request without the user's yes for Wikipedia (x-filow-consent header): 403.
  * Returns { dataUrl } or { dataUrl: null } when there is no photo.
  */
 export async function GET(req: Request) {
@@ -16,6 +18,8 @@ export async function GET(req: Request) {
   if (process.env.FILOW_OFFLINE === "1") return NextResponse.json({ dataUrl: null, reason: "offline" });
   const q = new URL(req.url).searchParams.get("q")?.trim().slice(0, 80) ?? "";
   if (!q) return NextResponse.json({ dataUrl: null });
+  const refused = consentDenied(req, "photo", photoRecipient());
+  if (refused) return refused;
   try {
     const title = encodeURIComponent(q.replace(/\s+/g, "_"));
     const meta = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}?redirect=true`, {

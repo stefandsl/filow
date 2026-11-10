@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { parseScript, serializeScript } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
 import { openRouterChat } from "@/lib/openrouter";
-import { GENERATE_TEXT_MODEL } from "@/lib/generate/providers";
+import { GENERATE_TEXT_MODEL, scriptRecipient } from "@/lib/generate/providers";
+import { consentDenied } from "@/lib/buddy/outbound";
 import { anonymizeRequest, restore } from "@/lib/pii/guard";
 
 export const runtime = "nodejs";
@@ -30,6 +31,9 @@ export async function POST(req: Request) {
   const text = typeof body.text === "string" ? body.text.trim() : "";
   if (!to || !text) return NextResponse.json({ error: "text and a supported `to` language required" }, { status: 400 });
   if (text.length > MAX_CHARS) return NextResponse.json({ error: `at most ${MAX_CHARS} characters` }, { status: 413 });
+  // The script leaves this PC: only with the user's recorded yes for this exact recipient.
+  const refused = consentDenied(req, "script", scriptRecipient());
+  if (refused) return refused;
 
   const source = parseScript(text);
   const counts = { sections: source.sections.length, points: source.sections.reduce((n, s) => n + s.bullets.length, 0) };
