@@ -162,9 +162,21 @@ describe("gate fusion (P1 review)", () => {
     expect(out.candidates.map((b) => b.id)).toEqual(["emb"]);
   });
   it("the lexical scores of a script's points are prepared once and reused", () => {
-    const pts = Array.from({ length: 40 }, (_, i) => ({ id: `p${i}`, text: `Punto numero ${i} sui clienti attivi e i tempi di consegna ${i * 7}` }));
-    const t0 = performance.now();
-    for (let k = 0; k < 50; k++) lexicalScores("abbiamo ridotto i tempi di consegna per i clienti attivi", pts);
-    expect((performance.now() - t0) / 50).toBeLessThan(5);
+    // Measured against itself, not against a wall-clock budget: "under 5 ms per call" failed on a busy
+    // machine. A prepared set of points costs about a twentieth of a new one (0.7 ms against 14 ms
+    // here); without the reuse the two cost the same, so a factor of 4 separates them under any load.
+    const tail = "abbiamo ridotto i tempi di consegna per i clienti attivi";
+    const points = (salt: string) => Array.from({ length: 40 }, (_, i) => ({ id: `p${i}${salt}`, text: `Punto numero ${i} sui clienti attivi e i tempi di consegna ${i * 7}` }));
+    const time = (fn: () => void) => {
+      const t0 = performance.now();
+      fn();
+      return performance.now() - t0;
+    };
+    const median = (a: number[]) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
+    const same = points("");
+    lexicalScores(tail, same); // prepares this set
+    const reused = median(Array.from({ length: 31 }, () => time(() => lexicalScores(tail, same))));
+    const fresh = median(Array.from({ length: 31 }, (_, k) => time(() => lexicalScores(tail, points(`-${k}`)))));
+    expect(reused).toBeLessThan(fresh / 4);
   });
 });

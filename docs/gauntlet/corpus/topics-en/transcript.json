@@ -1,0 +1,17 @@
+{
+  "note": "SYNTHETIC corpus of short topic labels (TRK-2, 2026-11-09), written by hand BEFORE the new question wording was measured on it, so it is a held-out check and not a tuning set. Points are noun phrases, as people write them on slides. Traps: an announcement only (20 s), an off-topic remark (26 s), a sentence sharing one keyword with a point about something else (44 s), and a sentence that denies the point (62 s).",
+  "segments": [
+    { "sec": 2, "committed": "Hi everyone, three things on money today." },
+    { "sec": 8, "committed": "First the marketing budget: we keep it flat at two hundred thousand." },
+    { "sec": 14, "committed": "Travel is frozen until June, no exceptions without my sign-off." },
+    { "sec": 20, "committed": "I will come to the hiring plan in a minute." },
+    { "sec": 26, "committed": "Quick note, the coffee machine on the second floor is fixed." },
+    { "sec": 32, "committed": "So, hiring: for the second quarter we open four positions, two of them in sales." },
+    { "sec": 38, "committed": "On the product side, dark mode ships next week." },
+    { "sec": 44, "committed": "Our sync with the accounting system is unchanged." },
+    { "sec": 50, "committed": "The pricing page gets a full redesign, with the three plans side by side." },
+    { "sec": 56, "committed": "To wrap up, the customer survey came back: eight out of ten would recommend us." },
+    { "sec": 62, "committed": "We have not set the next meeting yet." },
+    { "sec": 68, "committed": "Thanks, that's all." }
+  ]
+}

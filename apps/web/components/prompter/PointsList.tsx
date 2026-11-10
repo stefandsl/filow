@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { evidenceSummary, explainEvidence, type Evidence } from "@filow/core";
 import { useLang, useT } from "@filow/ui";
 import { Icon } from "../icons";
@@ -16,9 +16,28 @@ export function WhyDone({ evidence, id, hidden }: { evidence: Evidence; id?: str
 }
 
 /**
+ * What a screen reader should hear after the list changed (A11Y-05, WCAG 4.1.3): the points that
+ * turned done, as "Said: <point>". A point that was not on screen before (another section) is not
+ * news. Returns "" when a point was reopened (a region whose text does not change is not read again,
+ * so the same point ticked a second time would stay silent), and
+ * null when nothing changed.
+ */
+export function saidAnnouncement(
+  before: ReadonlyMap<string, PointState> | null,
+  points: readonly { id: string; text: string; state: PointState }[],
+  saidLabel: string,
+): string | null {
+  if (!before) return null;
+  const fresh = points.filter(p => p.state === "done" && before.has(p.id) && before.get(p.id) !== "done");
+  if (fresh.length) return fresh.map(p => `${saidLabel}: ${p.text}`).join(". ");
+  return points.some(p => p.state !== "done" && before.get(p.id) === "done") ? "" : null;
+}
+
+/**
  * The points of the current section. Each point is an item: the row (which toggles the point, so it
  * holds no other control), then, for a done point with evidence, the "Why?" link and its panel as
- * siblings of the row.
+ * siblings of the row. A polite live region, hidden from sight, tells a screen reader which point
+ * was just ticked.
  */
 export function PointsList({ points, onToggle }: {
   points: {id: string; text: string; state: PointState; confidence: number; evidence?: Evidence}[];
@@ -27,7 +46,15 @@ export function PointsList({ points, onToggle }: {
   const t = useT();
   const lang = useLang();
   const [open, setOpen] = useState<string | null>(null);
-  return <div className="points prompter-points">{points.map((point, i) => {
+  const [said, setSaid] = useState("");
+  const before = useRef<Map<string, PointState> | null>(null);
+  const saidLabel = t("state.done");
+  useEffect(() => {
+    const next = saidAnnouncement(before.current, points, saidLabel);
+    before.current = new Map(points.map(p => [p.id, p.state]));
+    if (next !== null) setSaid(next);
+  }, [points, saidLabel]);
+  return <div className="points prompter-points"><div className="sr-only" role="status" aria-live="polite">{said}</div>{points.map((point, i) => {
     const percent = point.state === "done" ? 100 : point.state === "waiting" ? 0 : pct(point.confidence);
     const icon = point.state === "done" ? "check" : point.state === "active" ? "circle" : "clock";
     const label = t(`state.${point.state}`);

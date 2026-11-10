@@ -61,6 +61,9 @@ export type ReplayResult = {
   points: PointResult[];
   /** confirming answers the claim guard rejected (guard.ts) */
   guarded: number;
+  /** ticks the verification let through, and ticks it stopped (engine.ts, verify) */
+  verified: number;
+  vetoed: number;
   falseStarts: number;
   misses: number;
   correct: number;
@@ -99,11 +102,18 @@ export async function replay(corpus: Corpus, opts: ReplayOptions): Promise<Repla
     }
   };
   let guarded = 0;
+  let verified = 0;
+  let vetoed = 0;
   const engine = new Engine({
     ...opts.engine,
     onGuard: (id, check) => {
       guarded++;
       opts.engine?.onGuard?.(id, check);
+    },
+    onVerify: (id, v, ok) => {
+      if (ok) verified++;
+      else vetoed++;
+      opts.engine?.onVerify?.(id, v, ok);
     },
     decide,
     now: () => Math.round(nowSec * 1000),
@@ -190,6 +200,8 @@ export async function replay(corpus: Corpus, opts: ReplayOptions): Promise<Repla
     timeouts,
     points,
     guarded,
+    verified,
+    vetoed,
     falseStarts,
     misses,
     correct,

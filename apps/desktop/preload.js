@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld("filow", {
   /** Diagnostics: the page keeps the main process informed of its take log; "report" opens the issue form. */
   takeLog: (text) => ipcRenderer.send("diag:takeLog", text),
   reportProblem: () => ipcRenderer.send("diag:report"),
+  /** The page says when a take starts and stops: the shell shows no "update ready" prompt meanwhile. */
+  setTakeLive: (on) => ipcRenderer.send("take:live", Boolean(on)),
   checkForUpdates: () => ipcRenderer.send("update:check"),
   installUpdate: () => ipcRenderer.send("update:install"),
   onUpdateStatus: (fn) => {
@@ -48,8 +50,12 @@ contextBridge.exposeInMainWorld("filow", {
   },
   accessPassword: process.env.ACCESS_PASSWORD || "",
   offline: process.env.FILOW_OFFLINE === "1",
-  /** Subscribe to the Offline menu toggle. */
-  onOffline: (fn) => ipcRenderer.on("offline", (_e, v) => fn(Boolean(v))),
+  /** Subscribe to the Offline menu toggle; returns the unsubscribe function (never the ipcRenderer object). */
+  onOffline: (fn) => {
+    const h = (_e, v) => fn(Boolean(v));
+    ipcRenderer.on("offline", h);
+    return () => ipcRenderer.removeListener("offline", h);
+  },
   /** The page tells the shell which UI language it uses, so the menu follows. */
   setLang: (lang) => ipcRenderer.send("ui:lang", lang),
   /** system | light | dark; the shell colours (title bar, dialogs, splash) follow. */

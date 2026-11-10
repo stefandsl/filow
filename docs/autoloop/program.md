@@ -3,44 +3,77 @@
 This is the self-improvement loop for Filow, modelled on karpathy/autoresearch:
 - `tools/autoloop/score.mjs` and `tools/autoloop/checks/` are fixed, like autoresearch's `prepare.py`.
 - The code base is the thing being improved, like `train.py`.
-- `docs/autoloop/STANDARDS.md` is the target.
+- `docs/autoloop/STANDARDS.md` is the target; `docs/GOAL.md` is the north star and the quality bar.
 - This file holds the instructions and is edited by humans (or by the daily review, see section 5).
+
+## 0. Where you work
+
+Never in the main checkout (`G:\FILOW`). One session owns main and merges branches into it at any
+hour; uncommitted edits there block its merges or get lost. Every run, scheduled or not, works in its
+own git worktree on its own branch, cut from local `main`:
+
+```
+git -C G:/FILOW worktree add G:/filow-wt/autoloop-<date> -b autoloop/<date> main
+cd G:/filow-wt/autoloop-<date>
+export npm_config_cache=G:/caches/npm ELECTRON_CACHE=G:/caches/electron electron_config_cache=G:/caches/electron ELECTRON_BUILDER_CACHE=G:/caches/electron-builder
+npm ci                                       # then: node node_modules/electron/install.js if dist is missing
+npm run build                                # every app: PowerPoint pane, web, session server, browser extension
+(cd apps/desktop && npm run vendor)
+```
+
+Build outputs are not in git. A package made after building only the web app has no session server
+and shows "Filow failed to start" at launch; `apps/desktop/before-pack.js` now refuses to package
+when an output is missing or older than its sources. A test app that does not reach "main window
+shown" in its `startup.log` within a minute has failed: the log says why ("startup failed at ...").
+
+Agent worktrees made by the harness are cut from `origin/main`, which is behind local main: check
+`git merge-base --is-ancestor main HEAD` and fast-forward before doing anything.
+
+Untracked state is seeded from the main checkout and never written back, except the results log:
+- `tmp/autoloop/results.tsv`: copy it in at the start, append your new lines to
+  `G:/FILOW/tmp/autoloop/results.tsv` at the end.
+- `tmp/autoloop-profile`: copy `settings.json`, `script.md`, `bin` and `models` from
+  `G:/FILOW/tmp/autoloop-profile` (installed speech model and cloudflared; nothing is downloaded again).
 
 ## 1. The metric
 
 `node tools/autoloop/score.mjs` prints one score (0-100, higher is better) and hard gates.
-- **Gates:** every test passes, and (in full mode) the typecheck is clean. A change that fails a gate is never kept.
+- **Gates:** every test passes (`npm test`), the typecheck is clean (`npm run typecheck`, full mode)
+  and lint is clean (`npm run lint`, 0 errors and 0 warnings). A change that fails a gate is never kept.
 - **Score:** the weighted share of the scorecard checks that pass, with partial credit (for example 5 of 8 windows sandboxed).
-- **Tracking quality:** when a local gauntlet result exists, it feeds TRK-1 and TRK-2.
+- **Tracking quality:** the local gauntlet results feed TRK-1 and TRK-2
+  (`GAUNTLET=1 GAUNTLET_PROVIDERS=clef-local npx vitest run apps/web/lib/gauntlet/run.test.ts`, local model only).
 - **Results log:** every run appends to `tmp/autoloop/results.tsv` (untracked). Read it first: it is the memory of what was already tried.
 
 ## 2. One experiment
 
-1. Read `results.tsv`, the failing checks in the last full score, and `STANDARDS.md`.
+1. Read `results.tsv`, the failing checks in the last full score, `MANUAL.md` (open rows) and `STANDARDS.md`.
 2. Pick **one** improvement, the highest of: weight, then smallest safe diff, then user value (STANDARDS "What users want"). Use the ponytail rule: the smallest change that fully solves it.
 3. Reproduce first. For a bug or a missing behaviour, show it failing end to end (packaged app, CDP probe or a failing test).
-4. Make the change, plus a test that fails without it.
+4. Make the change, plus a test that fails without it (show the mutation).
 5. Run `node tools/autoloop/score.mjs --quick`. Run the full mode before keeping anything that touches the desktop shell, dependencies or the build.
-6. For any change to `apps/desktop`, the build or security: package to `release-autoloop` (`npx electron-builder --win --dir -c.directories.output=G:/FILOW/release-autoloop`), launch it on its own profile and ports (`FILOW_USER_DATA_DIR=G:\FILOW\tmp\autoloop-profile FILOW_PORT=4787 FILOW_SESSION_PORT=4788`, plus `--remote-debugging-port=9333` for CDP probes), and prove the app still works. Stop only that test app afterwards.
-7. Before editing, copy every file you will touch to `tmp/autoloop/backup/<experiment>/` (other sessions have uncommitted work in this folder, so git cannot be the undo).
-8. **Keep** if every gate passes, the score is higher than or equal to the best kept score, and the end-to-end check passed. Equal is allowed only when the change fixes a reproduced bug or adds a missing test. Leave the change in the working tree and list its files in the journal. The user decides when kept work is committed: never commit, push or release on your own.
-9. **Discard** otherwise: restore exactly your files from the backup (never `git checkout .` or `git stash`).
-10. Stop test apps with their whole process tree (`taskkill /PID <pid> /T /F`), never only the main process. Orphaned children (tunnels) lock the release folder and stay online.
-11. Log one line in `docs/autoloop/JOURNAL.md`: date, check id, kept or discarded, score before and after, one sentence on what was learned.
+6. For any change to `apps/desktop`, the build or security: package inside your worktree (`npx electron-builder --win --dir -c.directories.output=<worktree>/release-autoloop-<letter>`), launch it on the worktree's own profile (`FILOW_USER_DATA_DIR=<worktree>/tmp/autoloop-profile FILOW_PORT=4787 FILOW_SESSION_PORT=4788`, plus `--remote-debugging-port=9344`), and prove the app still works. Check with `netstat` that those ports are free first; if another session holds them, wait, then skip the end-to-end step and say so.
+7. Tuning anything against a corpus (prompts, thresholds): keep a held-out corpus you did not tune on, written before you measure, and report both. Never tune on the held-out set.
+8. **Keep** if every gate passes, the score is higher than or equal to the best kept score, and the end-to-end check passed. Equal is allowed only when the change fixes a reproduced bug or adds a missing test. Commit it on your branch with a clear message (no co-author lines, no em dash).
+9. **Discard** otherwise: `git checkout -- <your files>` inside your own worktree.
+10. Stop test apps by their own PID with the whole process tree (`taskkill /PID <pid> /T /F`), never by image name and never only the main process. Orphaned children (tunnels) lock the release folder and stay online.
+11. Log one row in `docs/autoloop/JOURNAL.md`: date, check id, kept or discarded, score before and after, one sentence on what was learned. The file merges with the union driver (`.gitattributes`), so rows from parallel branches never conflict: append rows, never rewrite old ones.
 
 ## 3. Boundaries
 
-- Files owned by other sessions, which you must not edit while those sessions are active: `apps/desktop/okfilow*`, `apps/web/lib/buddy`, `apps/web/app/okfilow` (OK Filow session), and `packages/core/src/engine.ts`, `gate.ts`, `docs/gauntlet/corpus` (P1 tracking session). Put the items you find there into `docs/autoloop/HANDOFF.md` for those sessions instead.
-- Local first: no paid API calls; Ollama models only for AI-assisted checks. Codex credits are nearly gone, so use Claude subagents for reviews.
-- Never write to C:. Never commit `.env` or keys. Never push or release: the user does that. No co-author lines. No em dashes.
+- Files a track owns (table in `docs/GOAL.md`) are off limits while that track's worktree or unmerged branch exists (`git -C G:/FILOW worktree list`, `git branch --no-merged main`). Put what you find there into `docs/autoloop/HANDOFF.md`.
+- Never commit on main, merge, push, tag or release. The orchestrating session or the owner merges your branch after reviewing it.
+- Local first: no paid API calls; Ollama models only for AI-assisted checks; never call `/api/local/plan` (it can make a paid call). Use Claude subagents for reviews, never `codex exec`.
+- Never write to C:. Never commit `.env` or keys. No co-author lines. No em dashes.
 - Never edit `tools/autoloop/score.mjs`, `tools/autoloop/checks/` or `STANDARDS.md` during an experiment. Gaming the metric is a failure.
-- Stop `next build` hangs before they happen: stop any server running from `apps/web/.next` before building.
+- Never start a server from `apps/web/.next`: it makes `next build` hang.
 
-## 4. Reviews (elephant and goldfish)
+## 4. Reviews (elephant and goldfish, and the adversary)
 
 Every 5 kept experiments, or at the end of a daily run:
 - **Goldfish:** an `egm:egm-comprehension` agent with no context reads the diff as a newcomer. Unclear code is a finding.
 - **Elephant:** an `egm:egm-codebase-details` agent checks the diff against the whole code base for reuse, duplication and drift.
+- **Adversary**, for any change to tracking, the guard, security or privacy: a fresh agent is given the code and the claim, not your conclusion, and told to break it with its own cases.
 - Findings that are real become the next experiments.
 
 ## 5. Recursive improvement (the loop improves the loop)
@@ -54,4 +87,8 @@ Once a day, after the experiments:
 
 ## 6. Daily schedule
 
-The scheduled task "filow-autoloop" runs this file once a day: one full score, experiments until about 3 hours have passed or the queue is empty, the reviews, the recursive step, and then a short report in `docs/autoloop/JOURNAL.md`.
+The scheduled task "filow-autoloop" runs this file once a day at 02:01 in a fresh worktree
+(`G:/filow-wt/autoloop-<date>`, branch `autoloop/<date>`): one full score, experiments until about 3
+hours have passed or the queue is empty, the reviews, the recursive step, a summary row in
+`docs/autoloop/JOURNAL.md`, all committed on its branch. It then removes its worktree (the branch
+stays) and reports the branch for the orchestrator or the owner to merge.

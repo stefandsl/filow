@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import { LangProvider } from "@filow/ui";
-import { PointsList, WhyDone } from "./PointsList";
+import { PointsList, WhyDone, saidAnnouncement } from "./PointsList";
 it("keeps full points and three semantic states", () => {
  const long = "A long talking point ".repeat(10);
  const html = renderToStaticMarkup(<PointsList points={(["waiting","active","done"] as const).map((state,i) => ({id:String(i), text:long, state, confidence:0.45}))} />);
@@ -75,4 +75,29 @@ it("keeps the Why? button and its panel outside the toggle row (no nested intera
  expect(row).not.toContain("point-why");
  expect(html).toContain('aria-controls="why-s0b0"');
  expect(html).toMatch(/<div[^>]*id="why-s0b0"[^>]*hidden=""|<div[^>]*hidden=""[^>]*id="why-s0b0"/);
+});
+
+// A11Y-05 (WCAG 4.1.3): ticks are announced through a polite live region.
+it("carries a polite live region that stays readable while hidden from sight", () => {
+ const html = renderToStaticMarkup(<PointsList points={[{id:"a",text:"First",state:"waiting",confidence:0}]} />);
+ expect(html).toMatch(/<div class="sr-only" role="status" aria-live="polite"><\/div>/);
+ const rule = readFileSync(new URL('../../app/globals.css',import.meta.url),'utf8').match(/\.sr-only\s*\{([^}]*)\}/)?.[1] ?? "";
+ expect(rule).toContain("clip-path: inset(50%)");
+ expect(rule, "display none or visibility hidden silences a live region").not.toMatch(/display:\s*none|visibility:\s*hidden/);
+});
+
+it("announces the points that were just ticked, and nothing else", () => {
+ const list = (...states: ("waiting" | "active" | "done")[]) => states.map((state, i) => ({id: `p${i}`, text: `Point ${i + 1}`, state}));
+ const seen = (points: ReturnType<typeof list>) => new Map(points.map(p => [p.id, p.state]));
+ // first render: points already done are not news
+ expect(saidAnnouncement(null, list("done", "waiting"), "Said")).toBeNull();
+ expect(saidAnnouncement(seen(list("waiting", "active")), list("done", "active"), "Said")).toBe("Said: Point 1");
+ expect(saidAnnouncement(seen(list("waiting", "active")), list("done", "done"), "Detto")).toBe("Detto: Point 1. Detto: Point 2");
+ // progress without a tick, and no change at all, say nothing
+ expect(saidAnnouncement(seen(list("waiting", "waiting")), list("active", "waiting"), "Said")).toBeNull();
+ expect(saidAnnouncement(seen(list("done", "waiting")), list("done", "waiting"), "Said")).toBeNull();
+ // another section came on screen with a point already done: not news
+ expect(saidAnnouncement(new Map([["other", "waiting" as const]]), list("done"), "Said")).toBeNull();
+ // a reopened point clears the region, so ticking it again is announced again
+ expect(saidAnnouncement(seen(list("done", "waiting")), list("waiting", "waiting"), "Said")).toBe("");
 });

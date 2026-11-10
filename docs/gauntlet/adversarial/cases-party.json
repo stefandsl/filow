@@ -1,0 +1,885 @@
+{
+  "note": "Party set, written on 2026-11-10 by an independent writer who worked only from a brief and read no source code. The question under test is 'who is it about?'. Each case is one decide request with ONE script point and a spoken transcript of one or two sentences in which the point's own words (or close ones) appear, so that only the party decides. A point is either about the speaker's own side (their company, school, team, club, shop) or about someone else (a competitor, a supplier, a customer, a regulator, a partner, a named person, the market). Convention: a point counts as covered only when the transcript says it of the same party the point means. P001 to P040 should be ticked: own-plain (P001-P010, the point is about the speaker's side and the speaker says it of their side), third-party-point (P011-P020, the point itself names someone else and the transcript says it of that same someone), own-implicit (P021-P030, a bare label with no owner, spoken of with no owner word or in the passive), market-or-general (P031-P040, the point is about a market, a law, a trend or people in general). P041 to P080 must NOT be ticked: supplier-or-partner (P041-P050), competitor (P051-P060), customer-or-other-person (P061-P070), where the point is about the speaker's side and the transcript says it of that other party, and wrong-third-party (P071-P080), where the point names one third party and the transcript says it of a different one. Languages: 30 en, 30 it, 4 each of ro, ru, ja, es, de; point and transcript are in the same language. covered is true, false, or null when two careful listeners could disagree (null is not counted). Labels are one writer's judgement after a second strict pass.",
+  "cases": [
+    {
+      "id": "P001",
+      "set": "party",
+      "language": "en",
+      "category": "own-plain",
+      "section": "Year in review",
+      "points": [
+        { "text": "We hired fourteen new engineers", "covered": true }
+      ],
+      "transcript": "Over the past twelve months we took on fourteen new engineers, most of them straight into the platform team."
+    },
+    {
+      "id": "P002",
+      "set": "party",
+      "language": "en",
+      "category": "own-plain",
+      "section": "Results this year",
+      "points": [
+        { "text": "Brightwell Academy raised its reading scores", "covered": true }
+      ],
+      "transcript": "Here at Brightwell our reading scores went up again, from 71 to 78 percent at the expected level."
+    },
+    {
+      "id": "P003",
+      "set": "party",
+      "language": "en",
+      "category": "own-plain",
+      "section": "Facilities",
+      "points": [
+        { "text": "Our new climbing wall", "covered": true }
+      ],
+      "transcript": "Our new climbing wall opened in the sports hall in September, and it's already booked solid on weekday evenings."
+    },
+    {
+      "id": "P004",
+      "set": "party",
+      "language": "en",
+      "category": "own-plain",
+      "section": "Treasurer's report",
+      "points": [
+        { "text": "The club cleared its debt", "covered": true }
+      ],
+      "transcript": "As a club we finally paid off the last of the boathouse loan in June, so we are debt free for the first time since 2011."
+    },
+    {
+      "id": "P005",
+      "set": "party",
+      "language": "it",
+      "category": "own-plain",
+      "section": "Novità della clinica",
+      "points": [
+        { "text": "Abbiamo aperto il reparto di fisioterapia", "covered": true }
+      ],
+      "transcript": "A marzo abbiamo aperto il nostro reparto di fisioterapia, con tre fisioterapisti a tempo pieno."
+    },
+    {
+      "id": "P006",
+      "set": "party",
+      "language": "it",
+      "category": "own-plain",
+      "section": "Qualità",
+      "points": [
+        { "text": "La nostra certificazione biologica", "covered": true }
+      ],
+      "transcript": "La nostra cantina ha ottenuto la certificazione biologica a gennaio, dopo tre anni di conversione."
+    },
+    {
+      "id": "P007",
+      "set": "party",
+      "language": "it",
+      "category": "own-plain",
+      "section": "Offerta formativa",
+      "points": [
+        { "text": "Il liceo Montalbo apre l'indirizzo sportivo", "covered": true }
+      ],
+      "transcript": "Da settembre la nostra scuola, il Montalbo, avrà anche l'indirizzo sportivo, con due classi prime."
+    },
+    {
+      "id": "P008",
+      "set": "party",
+      "language": "it",
+      "category": "own-plain",
+      "section": "Bilancio",
+      "points": [
+        { "text": "Fatturato della cooperativa in crescita del 9%", "covered": true }
+      ],
+      "transcript": "Quest'anno come cooperativa abbiamo chiuso con un fatturato in crescita del nove per cento."
+    },
+    {
+      "id": "P009",
+      "set": "party",
+      "language": "ro",
+      "category": "own-plain",
+      "section": "Noutăți",
+      "points": [
+        { "text": "Am lansat aplicația de mobil", "covered": true }
+      ],
+      "transcript": "Luna trecută am lansat aplicația noastră de mobil și avem deja peste patru mii de descărcări."
+    },
+    {
+      "id": "P010",
+      "set": "party",
+      "language": "ja",
+      "category": "own-plain",
+      "section": "働き方の見直し",
+      "points": [
+        { "text": "当社は週休三日制を導入しました", "covered": true }
+      ],
+      "transcript": "私たちの会社では、今年の四月から週休三日制を導入しています。"
+    },
+    {
+      "id": "P011",
+      "set": "party",
+      "language": "en",
+      "category": "third-party-point",
+      "section": "Competition",
+      "points": [
+        { "text": "Rival Orrin Freight closed its Leeds depot", "covered": true }
+      ],
+      "transcript": "Orrin Freight shut their Leeds depot back in February, and a lot of their drivers are now looking for work."
+    },
+    {
+      "id": "P012",
+      "set": "party",
+      "language": "en",
+      "category": "third-party-point",
+      "section": "What changed around us",
+      "points": [
+        { "text": "The health inspectorate tightened its hygiene rules", "covered": true }
+      ],
+      "transcript": "The inspectorate has tightened up its hygiene rules this year, so every kitchen in the county is being checked twice."
+    },
+    {
+      "id": "P013",
+      "set": "party",
+      "language": "en",
+      "category": "third-party-point",
+      "section": "Costs",
+      "points": [
+        { "text": "Supplier Calloway's price rise", "covered": true }
+      ],
+      "transcript": "Calloway, who supply all our timber, put their prices up by six percent in the spring."
+    },
+    {
+      "id": "P014",
+      "set": "party",
+      "language": "en",
+      "category": "third-party-point",
+      "section": "Faculty news",
+      "points": [
+        { "text": "Professor Adaeze Okoro won the teaching prize", "covered": true }
+      ],
+      "transcript": "Professor Okoro from the chemistry department won this year's teaching prize, and deservedly so."
+    },
+    {
+      "id": "P015",
+      "set": "party",
+      "language": "it",
+      "category": "third-party-point",
+      "section": "Concorrenza",
+      "points": [
+        { "text": "Il concorrente Velari ha chiuso tre filiali", "covered": true }
+      ],
+      "transcript": "Velari, il nostro principale concorrente, ha chiuso tre filiali in Veneto nell'ultimo anno."
+    },
+    {
+      "id": "P016",
+      "set": "party",
+      "language": "it",
+      "category": "third-party-point",
+      "section": "Il quartiere",
+      "points": [
+        { "text": "Il Comune ha approvato la pista ciclabile", "covered": true }
+      ],
+      "transcript": "Il Comune ha dato il via libera alla pista ciclabile lungo il fiume, i lavori partono a ottobre."
+    },
+    {
+      "id": "P017",
+      "set": "party",
+      "language": "it",
+      "category": "third-party-point",
+      "section": "Problemi di fornitura",
+      "points": [
+        { "text": "Ritardi del fornitore Brentani", "covered": true }
+      ],
+      "transcript": "Brentani ci ha consegnato in ritardo quattro volte su sei, e parliamo del fornitore dei motori."
+    },
+    {
+      "id": "P018",
+      "set": "party",
+      "language": "ru",
+      "category": "third-party-point",
+      "section": "Рынок и конкуренты",
+      "points": [
+        { "text": "Конкурент «Северный лён» запустил интернет-магазин", "covered": true }
+      ],
+      "transcript": "«Северный лён», наш прямой конкурент, в сентябре запустил собственный интернет-магазин."
+    },
+    {
+      "id": "P019",
+      "set": "party",
+      "language": "es",
+      "category": "third-party-point",
+      "section": "Novedades del barrio",
+      "points": [
+        { "text": "El ayuntamiento amplió el horario del mercado", "covered": true }
+      ],
+      "transcript": "El ayuntamiento ha ampliado el horario del mercado, ahora abre también los domingos por la mañana."
+    },
+    {
+      "id": "P020",
+      "set": "party",
+      "language": "de",
+      "category": "third-party-point",
+      "section": "Lieferkette",
+      "points": [
+        { "text": "Lieferant Hartwig & Söhne stellt auf Mehrwegkisten um", "covered": true }
+      ],
+      "transcript": "Unser Lieferant Hartwig und Söhne stellt ab Januar komplett auf Mehrwegkisten um."
+    },
+    {
+      "id": "P021",
+      "set": "party",
+      "language": "en",
+      "category": "own-implicit",
+      "section": "Site notices",
+      "points": [
+        { "text": "Car park resurfacing", "covered": true }
+      ],
+      "transcript": "The car park is being resurfaced over the Easter break, so there's no parking on site for those two weeks."
+    },
+    {
+      "id": "P022",
+      "set": "party",
+      "language": "en",
+      "category": "own-implicit",
+      "section": "Visitor experience",
+      "points": [
+        { "text": "New ticketing system", "covered": true }
+      ],
+      "transcript": "The new ticketing system went live on Monday, and so far the queues at the entrance are about half what they were."
+    },
+    {
+      "id": "P023",
+      "set": "party",
+      "language": "en",
+      "category": "own-implicit",
+      "section": "Staffing",
+      "points": [
+        { "text": "Night shift pilot", "covered": true }
+      ],
+      "transcript": "The night shift pilot started on ward six three weeks ago and is running until the end of the year."
+    },
+    {
+      "id": "P024",
+      "set": "party",
+      "language": "it",
+      "category": "own-implicit",
+      "section": "Lavori estivi",
+      "points": [
+        { "text": "Ristrutturazione della palestra", "covered": true }
+      ],
+      "transcript": "La palestra viene ristrutturata durante l'estate, con il parquet nuovo e gli spogliatoi rifatti."
+    },
+    {
+      "id": "P025",
+      "set": "party",
+      "language": "it",
+      "category": "own-implicit",
+      "section": "Investimenti",
+      "points": [
+        { "text": "Nuova linea di imbottigliamento", "covered": true }
+      ],
+      "transcript": "La nuova linea di imbottigliamento è stata installata a febbraio e fa seimila bottiglie l'ora."
+    },
+    {
+      "id": "P026",
+      "set": "party",
+      "language": "it",
+      "category": "own-implicit",
+      "section": "Avvisi",
+      "points": [
+        { "text": "Orario estivo", "covered": true }
+      ],
+      "transcript": "Dal primo giugno entra in vigore l'orario estivo: si apre alle otto e si chiude alle quattordici."
+    },
+    {
+      "id": "P027",
+      "set": "party",
+      "language": "it",
+      "category": "own-implicit",
+      "section": "Formazione",
+      "points": [
+        { "text": "Corso di primo soccorso", "covered": true }
+      ],
+      "transcript": "Il corso di primo soccorso si è tenuto a novembre, con ventidue partecipanti."
+    },
+    {
+      "id": "P028",
+      "set": "party",
+      "language": "ro",
+      "category": "own-implicit",
+      "section": "Lucrări",
+      "points": [
+        { "text": "Renovarea sălii de lectură", "covered": true }
+      ],
+      "transcript": "Sala de lectură a fost renovată în vară și s-a redeschis pe 15 septembrie."
+    },
+    {
+      "id": "P029",
+      "set": "party",
+      "language": "ja",
+      "category": "own-implicit",
+      "section": "施設の更新",
+      "points": [
+        { "text": "食堂の改装", "covered": true }
+      ],
+      "transcript": "食堂は先月改装されて、座席が八十席から百二十席に増えました。"
+    },
+    {
+      "id": "P030",
+      "set": "party",
+      "language": "de",
+      "category": "own-implicit",
+      "section": "Bauarbeiten",
+      "points": [
+        { "text": "Umbau der Empfangshalle", "covered": true }
+      ],
+      "transcript": "Die Empfangshalle wird im Frühjahr umgebaut, die Arbeiten dauern etwa sechs Wochen."
+    },
+    {
+      "id": "P031",
+      "set": "party",
+      "language": "en",
+      "category": "market-or-general",
+      "section": "Market outlook",
+      "points": [
+        { "text": "The market for used electric cars is growing", "covered": true }
+      ],
+      "transcript": "Used electric cars are selling far better than two years ago, that whole market is growing fast."
+    },
+    {
+      "id": "P032",
+      "set": "party",
+      "language": "en",
+      "category": "market-or-general",
+      "section": "Regulation",
+      "points": [
+        { "text": "New packaging law from 2027", "covered": true }
+      ],
+      "transcript": "From 2027 the new packaging law comes in, and every producer will have to label recycled content."
+    },
+    {
+      "id": "P033",
+      "set": "party",
+      "language": "en",
+      "category": "market-or-general",
+      "section": "Reading habits",
+      "points": [
+        { "text": "People read less on paper", "covered": true }
+      ],
+      "transcript": "People just read less on paper than they used to, and that's true for newspapers and for books."
+    },
+    {
+      "id": "P034",
+      "set": "party",
+      "language": "en",
+      "category": "market-or-general",
+      "section": "Financing",
+      "points": [
+        { "text": "Interest rates have fallen", "covered": true }
+      ],
+      "transcript": "Interest rates have come down three times since last summer, so borrowing is cheaper for everyone."
+    },
+    {
+      "id": "P035",
+      "set": "party",
+      "language": "it",
+      "category": "market-or-general",
+      "section": "Mercato",
+      "points": [
+        { "text": "Il mercato del vino sfuso è in calo", "covered": true }
+      ],
+      "transcript": "Il vino sfuso si vende sempre meno, è un mercato che cala da cinque anni."
+    },
+    {
+      "id": "P036",
+      "set": "party",
+      "language": "it",
+      "category": "market-or-general",
+      "section": "Norme",
+      "points": [
+        { "text": "La nuova norma sugli affitti brevi", "covered": true }
+      ],
+      "transcript": "La nuova norma sugli affitti brevi impone un codice identificativo per ogni appartamento."
+    },
+    {
+      "id": "P037",
+      "set": "party",
+      "language": "it",
+      "category": "market-or-general",
+      "section": "Tendenze",
+      "points": [
+        { "text": "I giovani comprano sempre più usato", "covered": true }
+      ],
+      "transcript": "I ragazzi oggi comprano sempre più capi di seconda mano, è una tendenza che si vede ovunque."
+    },
+    {
+      "id": "P038",
+      "set": "party",
+      "language": "it",
+      "category": "market-or-general",
+      "section": "Costi",
+      "points": [
+        { "text": "Il prezzo dell'energia è sceso", "covered": true }
+      ],
+      "transcript": "Il prezzo dell'energia rispetto all'anno scorso è sceso di circa un quinto."
+    },
+    {
+      "id": "P039",
+      "set": "party",
+      "language": "ru",
+      "category": "market-or-general",
+      "section": "Тенденции",
+      "points": [
+        { "text": "Спрос на онлайн-курсы растёт", "covered": true }
+      ],
+      "transcript": "Спрос на онлайн-курсы растёт уже третий год подряд, особенно среди взрослых."
+    },
+    {
+      "id": "P040",
+      "set": "party",
+      "language": "es",
+      "category": "market-or-general",
+      "section": "Marco legal",
+      "points": [
+        { "text": "La ley obliga a registrar la jornada", "covered": true }
+      ],
+      "transcript": "La ley obliga a todas las empresas a registrar la jornada de cada trabajador, sin excepción."
+    },
+    {
+      "id": "P041",
+      "set": "party",
+      "language": "en",
+      "category": "supplier-or-partner",
+      "section": "Sustainability",
+      "points": [
+        { "text": "We switched our fleet to electric vans", "covered": false }
+      ],
+      "transcript": "Our courier partner, Dashwell, has switched its whole fleet to electric vans, all forty of them."
+    },
+    {
+      "id": "P042",
+      "set": "party",
+      "language": "en",
+      "category": "supplier-or-partner",
+      "section": "Recognition",
+      "points": [
+        { "text": "We won the regional design award", "covered": false }
+      ],
+      "transcript": "The landscape firm we often work with, Marlow Greene, won the regional design award this year, for a school garden they did on their own."
+    },
+    {
+      "id": "P043",
+      "set": "party",
+      "language": "en",
+      "category": "supplier-or-partner",
+      "section": "People",
+      "points": [
+        { "text": "Our new head of sales", "covered": false }
+      ],
+      "transcript": "One of the farms that supplies us, Thornbury, has a new head of sales, a woman called Ines Varga."
+    },
+    {
+      "id": "P044",
+      "set": "party",
+      "language": "en",
+      "category": "supplier-or-partner",
+      "section": "Energy",
+      "points": [
+        { "text": "Our factory now runs on solar power", "covered": false }
+      ],
+      "transcript": "Our frame supplier in Porto now runs its factory entirely on solar power."
+    },
+    {
+      "id": "P045",
+      "set": "party",
+      "language": "it",
+      "category": "supplier-or-partner",
+      "section": "Personale",
+      "points": [
+        { "text": "Abbiamo assunto venti persone", "covered": false }
+      ],
+      "transcript": "Il nostro fornitore di componenti, la Meccanica Rivalta, quest'anno ha assunto venti persone."
+    },
+    {
+      "id": "P046",
+      "set": "party",
+      "language": "it",
+      "category": "supplier-or-partner",
+      "section": "Crescita",
+      "points": [
+        { "text": "Il nostro nuovo stabilimento in Puglia", "covered": false }
+      ],
+      "transcript": "Il nostro partner per la distribuzione, Sudalia, ha inaugurato un nuovo stabilimento in Puglia, vicino a Bari."
+    },
+    {
+      "id": "P047",
+      "set": "party",
+      "language": "it",
+      "category": "supplier-or-partner",
+      "section": "Comunicazione",
+      "points": [
+        { "text": "Abbiamo rinnovato il sito web", "covered": false }
+      ],
+      "transcript": "L'agenzia che ci segue la pubblicità ha rinnovato il proprio sito web, ed è venuto molto bene."
+    },
+    {
+      "id": "P048",
+      "set": "party",
+      "language": "it",
+      "category": "supplier-or-partner",
+      "section": "Sede",
+      "points": [
+        { "text": "Abbiamo cambiato sede", "covered": false }
+      ],
+      "transcript": "Lo studio di commercialisti che ci segue ha cambiato sede, adesso sono in via Carducci."
+    },
+    {
+      "id": "P049",
+      "set": "party",
+      "language": "de",
+      "category": "supplier-or-partner",
+      "section": "Führung",
+      "points": [
+        { "text": "Wir haben einen neuen Geschäftsführer", "covered": false }
+      ],
+      "transcript": "Unser Partner in Österreich, die Firma Kranewitter, hat seit Oktober einen neuen Geschäftsführer."
+    },
+    {
+      "id": "P050",
+      "set": "party",
+      "language": "ja",
+      "category": "supplier-or-partner",
+      "section": "会社のあゆみ",
+      "points": [
+        { "text": "当社は創業五十周年を迎えました", "covered": false }
+      ],
+      "transcript": "部品を納めてくださっている取引先の山吹精機さんが、今年で創業五十周年を迎えられました。"
+    },
+    {
+      "id": "P051",
+      "set": "party",
+      "language": "en",
+      "category": "competitor",
+      "section": "Customer retention",
+      "points": [
+        { "text": "We launched a loyalty card", "covered": false }
+      ],
+      "transcript": "The garden centre across the ring road, Fernleigh, launched a loyalty card in the summer."
+    },
+    {
+      "id": "P052",
+      "set": "party",
+      "language": "en",
+      "category": "competitor",
+      "section": "Season summary",
+      "points": [
+        { "text": "We were promoted to the first division", "covered": false }
+      ],
+      "transcript": "Castleton Rovers, the other club in town, were promoted to the first division in May."
+    },
+    {
+      "id": "P053",
+      "set": "party",
+      "language": "en",
+      "category": "competitor",
+      "section": "Pricing",
+      "points": [
+        { "text": "Our free trial is now thirty days", "covered": false }
+      ],
+      "transcript": "Tallyboard, who are our closest competitor, have stretched their free trial to thirty days."
+    },
+    {
+      "id": "P054",
+      "set": "party",
+      "language": "en",
+      "category": "competitor",
+      "section": "Our offer",
+      "points": [
+        { "text": "Our school opened a sixth form", "covered": false }
+      ],
+      "transcript": "St Oswin's, the school on the other side of the valley, opened a sixth form this September."
+    },
+    {
+      "id": "P055",
+      "set": "party",
+      "language": "it",
+      "category": "competitor",
+      "section": "Gare e appalti",
+      "points": [
+        { "text": "Abbiamo vinto l'appalto per la mensa dell'ospedale", "covered": false }
+      ],
+      "transcript": "L'appalto per la mensa dell'ospedale l'ha vinto la Gustar, il nostro concorrente di Brescia."
+    },
+    {
+      "id": "P056",
+      "set": "party",
+      "language": "it",
+      "category": "competitor",
+      "section": "La stagione",
+      "points": [
+        { "text": "Il nuovo allenatore della nostra squadra", "covered": false }
+      ],
+      "transcript": "La Polisportiva Arcella, i nostri rivali di sempre, ha un nuovo allenatore, che arriva dalla serie B."
+    },
+    {
+      "id": "P057",
+      "set": "party",
+      "language": "it",
+      "category": "competitor",
+      "section": "Servizi",
+      "points": [
+        { "text": "Abbiamo lanciato la consegna a domicilio", "covered": false }
+      ],
+      "transcript": "La libreria Tre Archi, quella in piazza, ha lanciato la consegna a domicilio in tutta la città."
+    },
+    {
+      "id": "P058",
+      "set": "party",
+      "language": "ro",
+      "category": "competitor",
+      "section": "Finanțare",
+      "points": [
+        { "text": "Am primit finanțare europeană", "covered": false }
+      ],
+      "transcript": "Firma concurentă din Brașov, Carpatin Lemn, a primit finanțare europeană pentru utilaje noi."
+    },
+    {
+      "id": "P059",
+      "set": "party",
+      "language": "ru",
+      "category": "competitor",
+      "section": "Экспорт",
+      "points": [
+        { "text": "Мы получили лицензию на экспорт", "covered": false }
+      ],
+      "transcript": "Лицензию на экспорт в этом году получила компания «Волжский мёд», наш конкурент из Самары."
+    },
+    {
+      "id": "P060",
+      "set": "party",
+      "language": "es",
+      "category": "competitor",
+      "section": "Equipo",
+      "points": [
+        { "text": "Hemos duplicado nuestra plantilla", "covered": false }
+      ],
+      "transcript": "La gestoría Albores, nuestra competencia directa, ha duplicado su plantilla en dos años."
+    },
+    {
+      "id": "P061",
+      "set": "party",
+      "language": "en",
+      "category": "customer-or-other-person",
+      "section": "Growth",
+      "points": [
+        { "text": "We moved to bigger premises", "covered": false }
+      ],
+      "transcript": "One of our oldest customers, a printing firm in Hull, has just moved to bigger premises."
+    },
+    {
+      "id": "P062",
+      "set": "party",
+      "language": "en",
+      "category": "customer-or-other-person",
+      "section": "Community",
+      "points": [
+        { "text": "Our team ran the city half marathon", "covered": false }
+      ],
+      "transcript": "One of our patients, a man of seventy-three, ran the city half marathon in October."
+    },
+    {
+      "id": "P063",
+      "set": "party",
+      "language": "en",
+      "category": "customer-or-other-person",
+      "section": "Green measures",
+      "points": [
+        { "text": "Solar panels on our roof", "covered": false }
+      ],
+      "transcript": "The neighbours behind us, the Hartleys, have put solar panels on their roof, you can see them from the waiting room."
+    },
+    {
+      "id": "P064",
+      "set": "party",
+      "language": "it",
+      "category": "customer-or-other-person",
+      "section": "Mezzi",
+      "points": [
+        { "text": "Abbiamo comprato un furgone nuovo", "covered": false }
+      ],
+      "transcript": "Un nostro cliente storico, il signor Baldassarri, ha comprato un furgone nuovo e adesso viene a ritirare la merce da solo."
+    },
+    {
+      "id": "P065",
+      "set": "party",
+      "language": "it",
+      "category": "customer-or-other-person",
+      "section": "Iniziative",
+      "points": [
+        { "text": "La scuola ha organizzato una raccolta di libri", "covered": false }
+      ],
+      "transcript": "Una mamma della terza B, la signora Colonna, ha organizzato per conto suo una raccolta di libri per il quartiere."
+    },
+    {
+      "id": "P066",
+      "set": "party",
+      "language": "it",
+      "category": "customer-or-other-person",
+      "section": "Risparmio",
+      "points": [
+        { "text": "Abbiamo cambiato fornitore di energia", "covered": false }
+      ],
+      "transcript": "Il condominio qui accanto ha cambiato fornitore di energia e dicono di risparmiare parecchio."
+    },
+    {
+      "id": "P067",
+      "set": "party",
+      "language": "it",
+      "category": "customer-or-other-person",
+      "section": "Canali social",
+      "points": [
+        { "text": "Abbiamo aperto un canale YouTube", "covered": false }
+      ],
+      "transcript": "La responsabile dell'ufficio acquisti, Marta Giuliani, ha aperto un canale YouTube tutto suo, dove parla di giardinaggio."
+    },
+    {
+      "id": "P068",
+      "set": "party",
+      "language": "ja",
+      "category": "customer-or-other-person",
+      "section": "メディア掲載",
+      "points": [
+        { "text": "当店はテレビで紹介されました", "covered": false }
+      ],
+      "transcript": "常連のお客様の田所さんが、先週テレビの料理番組で紹介されていました。"
+    },
+    {
+      "id": "P069",
+      "set": "party",
+      "language": "es",
+      "category": "customer-or-other-person",
+      "section": "Reformas",
+      "points": [
+        { "text": "Hemos reformado la cocina", "covered": false }
+      ],
+      "transcript": "Una clienta de toda la vida, doña Remedios, ha reformado la cocina de su casa y nos ha traído las fotos."
+    },
+    {
+      "id": "P070",
+      "set": "party",
+      "language": "de",
+      "category": "customer-or-other-person",
+      "section": "Mobilität",
+      "points": [
+        { "text": "Wir haben ein Lastenrad angeschafft", "covered": false }
+      ],
+      "transcript": "Unser Nachbar, der Herr Brinkmeier, hat sich ein Lastenrad angeschafft und fährt damit jeden Morgen an der Praxis vorbei."
+    },
+    {
+      "id": "P071",
+      "set": "party",
+      "language": "en",
+      "category": "wrong-third-party",
+      "section": "Competitor watch",
+      "points": [
+        { "text": "Rival Pellam Foods recalled its oat bars", "covered": false }
+      ],
+      "transcript": "Dunmore recalled its oat bars last month after the allergen scare."
+    },
+    {
+      "id": "P072",
+      "set": "party",
+      "language": "en",
+      "category": "wrong-third-party",
+      "section": "Suppliers",
+      "points": [
+        { "text": "Supplier Kestrel Glass raised its minimum order", "covered": false }
+      ],
+      "transcript": "Whitcombe, our other glass supplier, raised its minimum order to five hundred units."
+    },
+    {
+      "id": "P073",
+      "set": "party",
+      "language": "en",
+      "category": "wrong-third-party",
+      "section": "People news",
+      "points": [
+        { "text": "Dr Leena Marsh of Elm Road surgery retires in June", "covered": false }
+      ],
+      "transcript": "Dr Patel over at Elm Road is retiring in June after twenty-six years."
+    },
+    {
+      "id": "P074",
+      "set": "party",
+      "language": "en",
+      "category": "wrong-third-party",
+      "section": "Banking",
+      "points": [
+        { "text": "Harrowgate Bank's new branch fees", "covered": false }
+      ],
+      "transcript": "Linden Mutual brought in new branch fees in April, five pounds for every counter visit."
+    },
+    {
+      "id": "P075",
+      "set": "party",
+      "language": "it",
+      "category": "wrong-third-party",
+      "section": "Concorrenza",
+      "points": [
+        { "text": "Il concorrente Ardesia ha licenziato trenta dipendenti", "covered": false }
+      ],
+      "transcript": "La Fonderia Cimatti ha licenziato trenta dipendenti prima dell'estate."
+    },
+    {
+      "id": "P076",
+      "set": "party",
+      "language": "it",
+      "category": "wrong-third-party",
+      "section": "Viabilità",
+      "points": [
+        { "text": "Il Comune di Montefosco ha vietato le auto in centro", "covered": false }
+      ],
+      "transcript": "Il Comune di Rocca San Vito ha vietato le auto in centro dal primo maggio."
+    },
+    {
+      "id": "P077",
+      "set": "party",
+      "language": "it",
+      "category": "wrong-third-party",
+      "section": "Ateneo",
+      "points": [
+        { "text": "La professoressa Lanzi ha vinto il premio di ricerca", "covered": false }
+      ],
+      "transcript": "Il premio di ricerca quest'anno l'ha vinto il professor Storti, del dipartimento di fisica."
+    },
+    {
+      "id": "P078",
+      "set": "party",
+      "language": "it",
+      "category": "wrong-third-party",
+      "section": "Trasporti",
+      "points": [
+        { "text": "Sciopero dei portuali di Genova", "covered": false }
+      ],
+      "transcript": "I portuali di Trieste hanno scioperato per tre giorni la settimana scorsa."
+    },
+    {
+      "id": "P079",
+      "set": "party",
+      "language": "ro",
+      "category": "wrong-third-party",
+      "section": "Furnizori",
+      "points": [
+        { "text": "Furnizorul Dacoterm a întârziat livrările", "covered": false }
+      ],
+      "transcript": "Livrările au fost întârziate de Transilva Instal, celălalt furnizor al nostru, cu aproape trei săptămâni."
+    },
+    {
+      "id": "P080",
+      "set": "party",
+      "language": "ru",
+      "category": "wrong-third-party",
+      "section": "Финансы",
+      "points": [
+        { "text": "Банк «Меридиан» снизил ставку по кредитам", "covered": false }
+      ],
+      "transcript": "Ставку по кредитам для малого бизнеса снизил банк «Ладога», с четырнадцати до двенадцати процентов."
+    }
+  ]
+}
