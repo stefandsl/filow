@@ -395,9 +395,10 @@ function wavBytes(samples, sampleRate) {
 
 /**
  * Registers the okfilow:tts:* channels. `ours(webContents)` says whether a sender is one of
- * OK Filow's windows; `qaDir` (test builds only) gets a WAV and a JSON line per spoken answer.
+ * OK Filow's windows (okfilow.js ourSender); every channel refuses any other sender. `qaDir` (test
+ * builds only) gets a WAV and a JSON line per spoken answer.
  */
-function wireTts({ ipcMain, ours, userData, logLine = () => {}, isOffline = () => false, qaDir = "", hardware, session, download, model = MODEL, onChange = () => {} }) {
+function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOffline = () => false, qaDir = "", hardware, session, download, model = MODEL, onChange = () => {} }) {
   const stt = require("./stt");
   const fetchModel = download || ((onStatus) => stt.ensureModel(userData, onStatus, model));
   const tts = session || new TtsSession(userData, logLine, { model });
@@ -433,19 +434,18 @@ function wireTts({ ipcMain, ours, userData, logLine = () => {}, isOffline = () =
     }
     onChange(s);
   };
-  const watch = (wc) => {
-    if (!ours(wc)) throw new Error("Denied");
-    watchers.add(wc);
-  };
-
-  ipcMain.handle("okfilow:tts:status", (event) => {
-    watch(event.sender);
-    return status();
+  // The one way a voice channel is registered: only OK Filow's own windows get an answer, and each
+  // caller is kept up to date with the voice's status from then on.
+  const handle = (channel, fn) => ipcMain.handle(channel, (event, ...args) => {
+    if (!ourSender(event.sender)) throw new Error("Denied");
+    watchers.add(event.sender);
+    return fn(event, ...args);
   });
 
+  handle("okfilow:tts:status", () => status());
+
   // The click on "Download" is the consent. One download at a time: a second click joins the first.
-  ipcMain.handle("okfilow:tts:download", (event) => {
-    watch(event.sender);
+  handle("okfilow:tts:download", () => {
     if (installed()) return status();
     if (isOffline()) return { ...status(), state: "error", error: "offline" };
     if (!downloading) {
@@ -467,8 +467,7 @@ function wireTts({ ipcMain, ours, userData, logLine = () => {}, isOffline = () =
     return status();
   });
 
-  ipcMain.handle("okfilow:tts:remove", (event) => {
-    watch(event.sender);
+  handle("okfilow:tts:remove", () => {
     if (downloading) return status();
     tts.dispose();
     removeModel(userData, model);
@@ -479,8 +478,7 @@ function wireTts({ ipcMain, ours, userData, logLine = () => {}, isOffline = () =
   });
 
   /** Loads the model ahead of the answer (the panel calls it when a question starts). */
-  ipcMain.handle("okfilow:tts:warm", (event) => {
-    watch(event.sender);
+  handle("okfilow:tts:warm", () => {
     if (profile.mode !== "natural" || !installed()) return false;
     clearTimeout(tts.idle);
     tts.idle = setTimeout(() => tts.stopWorker(), tts.idleMs);
@@ -488,9 +486,8 @@ function wireTts({ ipcMain, ours, userData, logLine = () => {}, isOffline = () =
     return true;
   });
 
-  ipcMain.handle("okfilow:tts:speak", async (event, req) => {
+  handle("okfilow:tts:speak", async (event, req) => {
     const wc = event.sender;
-    watch(wc);
     if (!installed()) return { ok: false, reason: "notInstalled" };
     if (profile.mode !== "natural") return { ok: false, reason: profile.reason };
     const r = req && typeof req === "object" ? req : {};
@@ -540,14 +537,13 @@ function wireTts({ ipcMain, ours, userData, logLine = () => {}, isOffline = () =
   });
 
   // With an id, only that answer is cut: a late "stop" for an old answer never silences the new one.
-  ipcMain.handle("okfilow:tts:cancel", (event, id) => {
-    watch(event.sender);
+  handle("okfilow:tts:cancel", (_event, id) => {
     if (id === undefined || id === null || Number(id) === current) tts.cancel();
   });
 
   // What the panel really played (for the log; nothing leaves this PC).
   ipcMain.on("okfilow:tts:played", (event, info) => {
-    if (!ours(event.sender) || !info || typeof info !== "object") return;
+    if (!ourSender(event.sender) || !info || typeof info !== "object") return;
     const line = `tts: played ${Number(info.seconds || 0).toFixed(1)} s of id ${Number(info.id) || 0}${info.interrupted ? " (interrupted)" : ""}, audio ${String(info.state || "").slice(0, 20)}`;
     logLine(line);
     if (qaDir) try { fs.appendFileSync(path.join(qaDir, "played.log"), line + "\n"); } catch { /* test folder gone */ }
