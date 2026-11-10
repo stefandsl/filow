@@ -12,12 +12,12 @@ npm workspaces monorepo, Node 22, TypeScript 5.8, scope `@filow/*`:
 |---|---|
 | `apps/web` | Next.js 15 app: prompter UI, Settings, API routes (`/api/decide`, `/api/stt/*`, `/api/vision`, `/api/local/*`, `/api/script/generate`) |
 | `apps/server` | WebSocket session relay (pairing codes, engine tokens, phone mirror) |
-| `apps/desktop` | Electron 33 shell: `main.js` (servers, tunnel, updater, PowerPoint install, slideshow follow, local AI), `localai.js`, `slideshow.js`, `splash.html`, `build/installer.nsh` (NSIS pages) |
+| `apps/desktop` | Electron 45 shell: `main.js` (servers, public-link tunnel, updater, PowerPoint install, slideshow follow), `localai.js` (Ollama), `slideshow.js`, `tunnels.js` (stale tunnel cleanup), `stt.js` + `stt-worker.js` + `stt-download.js` (speech on this PC), `tts.js` + `tts-worker.js` (natural voice), `okfilow*.js` (OK Filow screen helper), `welcome*` (first run), `about*`, `secrets.js`, `download.js`, `integrity.js`, `single-instance.js`, `splash.html`, `build/installer.nsh` (NSIS pages) |
 | `apps/powerpoint` | Office.js task pane (Vite), built into `apps/web/public/powerpoint` |
 | `apps/browser` | MV3 browser extension (side panel for HTML slide decks) |
 | `packages/core` | Engine, prompts, parsers, `i18n.ts` (flat EN/IT dictionary, keys like `settings.*`, `model.*`) |
 | `packages/ui` | Shared React views (`StageView`, `OnScreenStrip`, `Wordmark`, `BrandIcon`, `LangProvider`) |
-| `packages/stt`, `packages/client` | On-device Whisper (transformers.js) and the session client |
+| `packages/stt`, `packages/client` | Speech-to-text backends (ElevenLabs, OpenAI, Web Speech, on-device Whisper through transformers.js, the bridge to the desktop's sherpa model) and the session client |
 | `brand/` | Brand kit; `node scripts/make-icon.js` copies icons/wordmark into every app |
 
 ## Commands
@@ -25,7 +25,8 @@ npm workspaces monorepo, Node 22, TypeScript 5.8, scope `@filow/*`:
 ```bash
 npm ci
 npm run typecheck      # all workspaces
-npm test               # vitest, 11 suites
+npm run lint           # eslint, no warnings allowed
+npm test               # vitest (about 110 tracked *.test.* files)
 npm run dev:web        # web app on :4747 (use `npx next dev -p 4799` inside apps/web when 4747 is taken by the installed app)
 npm run build          # powerpoint, web (standalone), server, browser extension
 npm run desktop        # build + start the Electron app from source
@@ -48,8 +49,8 @@ To syntax-check `installer.nsh` locally, compile a small Unicode harness with th
   the API directly from new code.
 - Never commit `.env`, keys, `design/` (ignored), `release/`, `apps/web/public/powerpoint`.
 - Commit messages: imperative title, body with the why; version bumps touch every `package.json`
-  and `apps/browser/manifest.json` (`grep -rl '"0.8.6"'`).
-- Verify before claiming done: `npm run typecheck && npm test`, and look at the page in a browser
+  and `apps/browser/manifest.json` (`grep -rl '"0.9.30"'` with the current version).
+- Verify before claiming done: `npm run typecheck && npm run lint && npm test`, and look at the page in a browser
   for UI work (dark and light theme).
 
 ## Release
