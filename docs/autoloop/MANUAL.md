@@ -30,14 +30,16 @@ The stop condition needs every row `auto`-passing or `verified`.
 | CR-02 | auto (weak check), verified by CDP crash test | stronger check proposed |
 | CR-03 | verified by design | dumps never uploaded; add a consent screen if uploads are ever added |
 | CR-04 | needs user | release health needs real users |
-| PR-01..06 | open | PR-01 firewall-blocked run; PR-03 listening indicator E2E; PR-05 delete-all control |
+| PR-01 | auto (take.mjs --offline), passing | offline take in the packaged app: 0 outbound from the app's process tree and from Ollama (netstat every 500 ms) and 0 external requests or TCP connects in Chromium's net log. Still open: the firewall-blocked 10-minute rehearsal of the standard |
+| PR-02..06 | open | PR-03 listening indicator E2E; PR-05 delete-all control |
 | A11Y-01, 04 | auto, passing | axe-core WCAG 2.2 A+AA over every shipped page (read from apps/web/app) in both themes: 0 violations |
 | A11Y-06 | auto, passing | reduced motion: 0 elements move with the setting, 121 without |
 | A11Y-07 | auto, passing | reflow: 0 pages scroll sideways at 640 and 320 px; the 200 px control overflows on 3 pages |
 | A11Y-02, 03 | auto, passing | keyboard walk in a11y.mjs: 67 tab stops over 6 pages, ring and name at each, no trap, Enter/Space/Escape work. Not measured: Shift+Tab, "not obscured", logical order, the OK Filow windows themselves |
 | A11Y-05 | auto, passing | the points list announces each tick ("Detto: ..."); Narrator by ear is still open, and the phone mirror and PowerPoint pane (packages/ui StageView) tick silently |
 | PERF-01 | auto, failing | splash ~1.0 s (budget 0.5); main window 8-14 s: servers ~6 s, then the public-link hold ~6 s (user decision pending); start the link in parallel with the servers |
-| PERF-02..04 | open | 45-minute memory run weekly; CPU while idle; bundle size |
+| PERF-02 | auto (take.mjs --minutes N), partial | 20-minute looped local take measured; credit scales to the 45-minute standard: run `node tools/autoloop/e2e/take.mjs --minutes 45` weekly |
+| PERF-03..04 | open | CPU while idle; bundle size |
 | STT-01..05 | open | corpus with word timestamps; WER with a jiwer-equivalent in TS |
 | TRK-01 | auto, passing | 0 false completions (P1 merged 2026-11-09) |
 | TRK-02 | auto, failing (recall 0.80) | raise recall to 0.9 without new false completions |
@@ -46,7 +48,7 @@ The stop condition needs every row `auto`-passing or `verified`.
 | I18N-02..03 | open | 2026-11-10: main.js dialogs no longer carry English-only sentences (guard test). Left: okfilow.js, localai.js and stt.js texts, save/open dialogs, the startup failure box; pseudo-locale screenshots; Intl helpers |
 | INST-01..04 | open / needs user | clean-VM installs need a VM; INST-04 silent Ollama install needs a consent dialog |
 | TST-01 | auto, ratchet 38% | raise coverage to 60/75 |
-| TST-02 | open | Playwright `_electron` suite against the packaged exe |
+| TST-02 | auto for the fake-mic take (take.mjs), passing; rest open | onboarding, overlay, slideshow and OK Filow E2E against the packaged exe |
 | TST-03 | open | 20-run flake check weekly |
 | TST-04 | auto (file exists) | wire the gauntlet into the score |
 | TST-05 | auto (gate), passing | eslint.config.mjs: typescript-eslint, react-hooks, Next core-web-vitals; npm run lint at 0 errors, 0 warnings |
