@@ -4,7 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
-import { t } from "@filow/core";
+import { PLACEHOLDER, t } from "@filow/core";
 
 /** Evaluate untouched main.js, with startup held and all effects replaced in-process. */
 function fixture(initialEnv: Record<string, string> = {}) {
@@ -42,7 +42,8 @@ function fixture(initialEnv: Record<string, string> = {}) {
   }
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
     ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, checkForUpdates,
-       startupOffline: () => applyOffline(null), tunnels, setLog: text => { lastTakeLog = text; } });`, {
+       startupOffline: () => applyOffline(null), tunnels, setLog: text => { lastTakeLog = text; },
+       textTables: { MENU_TEXT, NET_TEXT, SPLASH_TEXT, LOCAL_AI_TEXT } });`, {
     require: (id: string) => {
       if (id.endsWith("electron-updater.js")) return { autoUpdater: { on() {}, checkForUpdates } };
       if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`);
@@ -125,5 +126,28 @@ describe("Step 4 desktop offline seams", () => {
     await f.api.reportProblem(null);
     expect(f.writeText).not.toHaveBeenCalled();
     expect(f.openExternal).not.toHaveBeenCalled();
+  });
+});
+
+// I18N-01 for the shell: main.js keeps its own en/it tables (menu, firewall prompt, splash, local AI)
+// outside the core dictionaries, so the core parity test does not see them. mt() falls back to
+// English only when a key is absent, so an empty string would show a blank label.
+describe("desktop shell text tables", () => {
+  type Entry = string | ((hw: object, rec: object) => string);
+  const tables = fixture().api.textTables as Record<string, Record<"en" | "it", Record<string, Entry>>>;
+  const placeholders = (text: string) => [...text.matchAll(PLACEHOLDER)].map(m => m[1]).sort();
+  // LOCAL_AI_TEXT builds two of its texts from the hardware scan: render those with a sample machine.
+  const hw = { platform: "win32", ramGb: 16, gpu: "sample GPU", freeGb: 100 };
+  const rec = { downloadGb: 5, labels: ["sample model"], ollama: true };
+  const text = (entry: Entry) => (typeof entry === "function" ? entry(hw, rec) : entry);
+  it.each(Object.keys(tables))("%s: Italian has the same keys, placeholders and no empty text", name => {
+    const { en, it: italian } = tables[name];
+    expect(Object.keys(italian).sort(), `${name}: keys differ between en and it`).toEqual(Object.keys(en).sort());
+    for (const key of Object.keys(en)) {
+      expect(typeof italian[key], `${name}.${key}: en and it are different kinds of entry`).toBe(typeof en[key]);
+      expect(text(en[key]).trim(), `${name}.en.${key} is empty`).not.toBe("");
+      expect(text(italian[key]).trim(), `${name}.it.${key} is empty`).not.toBe("");
+      expect(placeholders(text(italian[key])), `${name}.${key}: placeholders differ (en "${text(en[key])}", it "${text(italian[key])}")`).toEqual(placeholders(text(en[key])));
+    }
   });
 });
