@@ -21,7 +21,13 @@ function download(url, dest, opts = {}) {
   const run = fetchInto(url, dest, { hops: 5, ...opts });
   if (opts.resume) return run;
   return run.catch((err) => {
-    fs.rmSync(dest, { force: true });
+    // A fresh file can be held a moment by an antivirus scan: retry, and never let a failed delete
+    // hide the download's own error.
+    try {
+      fs.rmSync(dest, { force: true, maxRetries: 5, retryDelay: 200 });
+    } catch {
+      /* the next download writes the file from the start */
+    }
     throw err;
   });
 }

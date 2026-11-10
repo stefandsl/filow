@@ -287,10 +287,10 @@ async function installOllama(binDir, onStatus, deps = {}) {
   } catch (err) {
     return report({ state: "error", error: String(err && err.message ? err.message : err) });
   }
-  exe = ollamaExe();
+  exe = findExe();
   if (!exe) return report({ state: "error", error: "Ollama was installed but its executable was not found." });
   report({ state: "starting" });
-  version = await ollamaVersion();
+  version = await probeVersion();
   if (!version) {
     startOllama(exe);
     version = await waitForOllama(90_000);
