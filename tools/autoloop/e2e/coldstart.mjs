@@ -49,16 +49,17 @@ for (let i = 0; i < runs; i++) {
   }
   try { execSync(`taskkill /PID ${app.pid} /T /F`, { stdio: "ignore" }); } catch { /* gone */ }
   await sleep(3000);
-  // A run whose public link failed ends the tunnel hold early: its main-window time would look better
-  // than a real start, so it does not count (it happens when Cloudflare rate-limits quick tunnels).
+  // Every run counts. The window no longer waits for the public link (owner decision D2), so a link
+  // that failed is a start like any other: the rule that left such runs out hid a 2.5 s freeze in
+  // exactly that case (2026-11-10). The count is kept as information.
   const tunnelFailed = /public link: error/.test(fs.readFileSync(log, "utf8"));
   if (s != null) splash.push(s);
-  if (m != null && !tunnelFailed) main.push(m);
+  if (m != null) main.push(m);
   if (tunnelFailed) invalid++;
-  console.log(`run ${i + 1}: splash ${s} ms, main window ${m} ms${tunnelFailed ? " (public link failed: not counted)" : ""}`);
+  console.log(`run ${i + 1}: splash ${s} ms, main window ${m} ms${tunnelFailed ? " (public link failed)" : ""}`);
 }
 const out = {
-  at: new Date().toISOString(), build: exeDir, runs, invalidMainRuns: invalid,
+  at: new Date().toISOString(), build: exeDir, runs, linkFailedRuns: invalid,
   splashMedian: splash.length ? pct(splash, 0.5) : null, mainMedian: main.length ? pct(main, 0.5) : null,
   mainP95: main.length ? pct(main, 0.95) : null, splash, main,
 };

@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PLACEHOLDER, t } from "@filow/core";
 
 /** Evaluate untouched main.js, with startup held and all effects replaced in-process. */
-function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false } = {}) {
+function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, childProcess = {} as Record<string, unknown> } = {}) {
   const env = { ...initialEnv };
   let requestFilter!: (details: { url: string }, cb: (r: unknown) => void) => void;
   const outbound = vi.fn(() => { throw new Error("fake network boundary: no bytes sent"); });
@@ -29,7 +29,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false }
     "node:fs": { readFileSync: () => "FILOW_OFFLINE=1", appendFileSync() {}, existsSync: (file: string) => updateFeed && String(file).endsWith("app-update.yml"), mkdirSync() {}, rmSync() {} },
     "node:os": { homedir: () => "G:/fake", cpus: () => [{ model: "fake" }], totalmem: () => 0, release: () => "fake", networkInterfaces: () => ({}) },
     "node:http": { get: () => { const req = new EventEmitter(); queueMicrotask(() => req.emit("error", new Error("Ollama absent"))); return req; } },
-    "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": {},
+    "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": childProcess,
     "node:worker_threads": {}, "node:events": EventEmitter,
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
     "./vendor/i18n": { t }, "./ui-preferences": {}, "./slideshow": {},
@@ -45,7 +45,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false }
   }
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
     ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, checkForUpdates,
-       startupOffline: () => applyOffline(null), tunnels, setLog: text => { lastTakeLog = text; },
+       startupOffline: () => applyOffline(null), tunnels, stopTunnels, setLog: text => { lastTakeLog = text; },
        textTables: { MENU_TEXT, NET_TEXT, SPLASH_TEXT, LOCAL_AI_TEXT },
        setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; } });`, {
@@ -98,6 +98,22 @@ describe("Step 4 desktop offline seams", () => {
     expect(f.api.tunnels.procs).toHaveLength(0);
     expect(f.api.tunnels.web).toBe("");
     expect(f.api.tunnels.state).toBe("off");
+  });
+  // taskkill takes up to a second per process and the main process also serves the pages: a start whose
+  // public link failed froze for about 2.5 s while it waited for two of them (measured on the package).
+  it("stopping a tunnel while the app runs does not wait for taskkill; at quit it does", () => {
+    const execFile = vi.fn(), execFileSync = vi.fn();
+    const f = fixture({}, { childProcess: { execFile, execFileSync } });
+    f.api.tunnels.procs.push({ pid: 4321, kill: vi.fn() }, { pid: 4322, kill: vi.fn() });
+    f.api.stopTunnels();
+    expect(execFileSync).not.toHaveBeenCalled();
+    expect(execFile).toHaveBeenCalledTimes(2);
+    expect(execFile.mock.calls[0].slice(0, 2)).toEqual(["taskkill", ["/PID", "4321", "/T", "/F"]]);
+    expect(f.api.tunnels.procs).toHaveLength(0);
+    f.api.tunnels.procs.push({ pid: 4323, kill: vi.fn() });
+    f.api.stopTunnels({ wait: true });
+    expect(execFileSync).toHaveBeenCalledTimes(1);
+    expect(execFileSync.mock.calls[0].slice(0, 2)).toEqual(["taskkill", ["/PID", "4323", "/T", "/F"]]);
   });
   // Contract: main.js offline menu: "no outbound requests" (includes main-process setup downloads).
   it("offline must block the desktop STT model downloader", async () => {

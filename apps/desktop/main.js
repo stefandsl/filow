@@ -793,10 +793,14 @@ async function ensureCloudflared(win, { silent = false } = {}) {
 
 // On Windows the cloudflared we spawn can be a launcher (a Chocolatey or Scoop shim) that starts the
 // real tunnel as its own child: killing only our PID left the tunnel running. Kill the whole tree.
-function killTree(pid) {
+// taskkill takes 0.2 to 1 s per process, and this thread also serves the app's pages: waiting for it
+// froze a start whose public link failed by about 2.5 s (no internet, or Cloudflare refusing). So the
+// kill is started and not waited for, except with `wait` at quit, where the process must not exit first.
+function killTree(pid, { wait = false } = {}) {
   try {
-    if (process.platform === "win32") execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
-    else process.kill(pid);
+    if (process.platform !== "win32") process.kill(pid);
+    else if (wait) execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+    else execFile("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true }, () => {});
     return true;
   } catch {
     return false;
@@ -850,9 +854,10 @@ function startTunnel(bin, port) {
   }));
 }
 
-function stopTunnels() {
+/** `wait` only at quit: see killTree. */
+function stopTunnels({ wait = false } = {}) {
   for (const p of tunnels.procs) {
-    if (!p.pid || !killTree(p.pid)) {
+    if (!p.pid || !killTree(p.pid, { wait })) {
       try {
         p.kill();
       } catch {
@@ -2020,7 +2025,7 @@ app.on("window-all-closed", () => { if (!startupTransition) app.quit(); });
 app.on("before-quit", () => { quitting = true; uiPreferences?.dispose(); okFilow?.dispose(); });
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
-  stopTunnels();
+  stopTunnels({ wait: true });
   if (httpsProxy) httpsProxy.close();
   if (stopSlideShowWatch) stopSlideShowWatch();
 });
