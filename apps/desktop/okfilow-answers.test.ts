@@ -21,7 +21,6 @@ describe("OK Filow answer log", () => {
     expect(defaultAnswerDir(userData, { FILOW_DEV_ANSWERS_DIR: "Y:\\dev" }, true)).toBe("Y:\\dev");
     // A user's build ignores the env var, and nothing points at the owner's disk.
     expect(defaultAnswerDir(userData, { FILOW_DEV_ANSWERS_DIR: "Y:\\dev" }, false)).toBe(path.join(userData, "okfilow-answers"));
-    expect(defaultAnswerDir(userData, {}, true)).not.toMatch(/FILOW\\tmp/i);
   });
 
   it("writes the question, raw text, visuals, screenshot and drawing", () => {

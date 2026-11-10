@@ -54,6 +54,8 @@ const onRect = (x, y, b) => Number.isFinite(x) && Number.isFinite(y) && x >= b.x
 const QA_ALLOWED = require("./qa.js").isQaBuild(require("electron").app);
 const QA_VISIBLE = QA_ALLOWED && process.env.FILOW_OKF_QA === "1";
 const QA_SHOTS = QA_ALLOWED ? process.env.FILOW_OKF_QA_SHOTS || "" : "";
+/** The answer log's folder when the user has not picked one (okfilow-answers.js defaultAnswerDir). */
+const answersFallback = () => defaultAnswerDir(require("electron").app.getPath("userData"), process.env, QA_ALLOWED);
 const HOTKEYS = ["ctrl+alt", "ctrl+shift", "alt+shift", "ctrl+meta"];
 // 1024 wide keeps buttons readable for the model and answers about twice as fast as 1280 on a local GPU.
 const IMAGE_MAX_WIDTH = 1024;
@@ -720,7 +722,8 @@ function createOkFilow(deps) {
   function status() {
     const c = cfg();
     if (!c.voiceChosen && c.voice === "system" && tts?.usable()) c.voice = "natural";
-    return { ...c, hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, mode, handsFree, dictateChord: DICTATE_CHORD };
+    // The folder the log writes to, also when the user has not picked one (the panel shows its name).
+    return { ...c, answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, mode, handsFree, dictateChord: DICTATE_CHORD };
   }
 
   // ---- IPC (only OK Filow's own windows) ----
@@ -752,7 +755,6 @@ function createOkFilow(deps) {
   /** The panel's Clear button, and every new typed question. */
   ipcMain.on("okfilow:clearVisuals", (e) => ourSender(e) && clearDrawings());
   let lastAnswerDir = "";
-  const answersFallback = () => defaultAnswerDir(require("electron").app.getPath("userData"), process.env, QA_ALLOWED);
   ipcMain.handle("okfilow:answerLog", guard((entry) => {
     const root = cfg().answerLog ? answerRoot(cfg().answerDir, answersFallback()) : "";
     if (!root || !entry || typeof entry !== "object") return "";
@@ -774,8 +776,10 @@ function createOkFilow(deps) {
   }));
   ipcMain.handle("okfilow:openAnswers", guard(async () => {
     const dir = lastAnswerDir || answerRoot(cfg().answerDir, answersFallback());
-    if (!dir) return false;
-    require("node:fs").mkdirSync(dir, { recursive: true });
+    const fs = require("node:fs");
+    // With the log off, an answer folder that was never written is not created just to be shown.
+    if (!dir || (!cfg().answerLog && !fs.existsSync(dir))) return false;
+    fs.mkdirSync(dir, { recursive: true });
     return (await shell.openPath(dir)) === "";
   }));
   ipcMain.on("okfilow:hidePanel", (e) => ourSender(e) && panel && !panel.isDestroyed() && panel.hide());
