@@ -687,7 +687,11 @@ describe("okfilow:tts channels", () => {
     expect((await ask(2)).level).toBe("standard");
     expect(panel.sent.filter((s) => s.channel === "okfilow:tts:status").map((s) => (s.payload as Status).level)).toEqual(["light"]);
     expect((await ask(3)).level).toBe("light");
-    expect(workers[0].said[2].steps).toBe(4);
+    // The light setting reloads the model once, on 2 threads, and speaks with 4 steps.
+    expect(workers.length).toBe(2);
+    expect(workers[0].terminated).toBe(true);
+    expect(workers[1].inits[0]).toMatchObject({ threads: 2 });
+    expect(workers[1].said[0].steps).toBe(4);
     expect(await ask(4)).toMatchObject({ ok: true, level: "light" });
     expect(await ask(5)).toEqual({ ok: false, reason: "slow" });
     expect(await bus.invoke("okfilow:tts:status", panel)).toMatchObject({ mode: "system", reason: "slow" });
