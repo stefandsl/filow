@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { askRecipient, CONSENT_HEADER, sttRecipient, withConsent, type BuddyRecipients, type ConsentMap, type Recipient } from "./outbound";
+import { askRecipient, CONSENT_HEADER, sttRecipient, takeOutbound, withConsent, type BuddyRecipients, type ConsentMap, type Recipient } from "./outbound";
 import { NoConsentError } from "./outboundClient";
 import { createPageOutbound } from "./outboundPage";
 
@@ -88,6 +88,49 @@ describe("a take that would send the microphone outside", () => {
     expect(await asked).toBe("dismissed");
     expect(out.header("audio", eleven)).toEqual({});
     expect(() => out.hold("audio", eleven)).toThrow(NoConsentError);
+  });
+
+  it("a take with two recipients asks for each; a no to the second stops before anything is allowed to go", async () => {
+    const { out } = rig();
+    const items = takeOutbound({ backend: "elevenlabs", provider: "openrouter", models: recipients.decision });
+    const asked = out.allowAll(items);
+    await flush();
+    expect(out.getState().notice).toEqual({ kind: "audio", recipient: eleven });
+    await out.decide("granted");
+    await flush();
+    expect(out.getState().notice).toEqual({ kind: "transcript", recipient: google });
+    await out.decide("declined");
+    expect(await asked).toEqual({ ok: false, decision: "declined", kind: "transcript", recipient: google });
+    expect(out.getState().kept).toBe("transcript");
+    expect(out.header("transcript", google)).toEqual({});
+  });
+
+  it("a take that stays on this PC asks nothing and is allowed at once", async () => {
+    const { out } = rig();
+    const items = takeOutbound({ backend: "sherpa", provider: "clef-local", models: recipients.decision });
+    expect(items).toEqual([]);
+    expect(await out.allowAll(items)).toEqual({ ok: true });
+    expect(out.getState().notice).toBeNull();
+  });
+
+  it("the kept message goes away with the next notice and with the next send", async () => {
+    const { out } = rig();
+    const first = out.allow("screen", google);
+    await flush();
+    await out.decide("declined");
+    await first;
+    expect(out.getState().kept).toBe("screen");
+    void out.allow("script", google);
+    await flush();
+    expect(out.getState().kept).toBeNull();
+    await out.decide("granted");
+    const again = out.allow("screen", google);
+    await flush();
+    await out.decide("declined");
+    await again;
+    expect(out.getState().kept).toBe("screen");
+    await out.sending("script", google, async () => "sent");
+    expect(out.getState().kept).toBeNull();
   });
 
   it("a yes for the microphone does not cover the words, or another maker", async () => {

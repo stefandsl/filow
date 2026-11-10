@@ -10,6 +10,7 @@ import {
   type Decision,
   type KeepLocalPatch,
   type NoticeRequest,
+  type OutboundItem,
   type OutboundKind,
   type OutboundSnapshot,
   type Recipient,
@@ -22,7 +23,15 @@ export type ConsentStore = {
   write(next: ConsentMap, also: KeepLocalPatch): Promise<boolean>;
 };
 
-export type PageOutboundState = { notice: NoticeRequest | null; snap: OutboundSnapshot; consent: ConsentMap };
+/**
+ * notice: the question on screen. snap: what is leaving this PC now. consent: the stored choices.
+ * kept: the last "Keep it on this PC" answer, so the page can say what did not happen (cleared by
+ * the next notice or the next send).
+ */
+export type PageOutboundState = { notice: NoticeRequest | null; snap: OutboundSnapshot; consent: ConsentMap; kept: OutboundKind | null };
+
+/** What `allowAll` answers: every item granted, or the first one that was not and how. */
+export type TakeConsent = { ok: true } | { ok: false; decision: "declined" | "dismissed"; kind: OutboundKind; recipient: Recipient };
 
 const IDLE: OutboundSnapshot = { active: false, kinds: [], names: [] };
 /** A send shorter than this still shows the signal this long, so it can be seen and read. */
@@ -43,9 +52,10 @@ export function createPageOutbound(o: {
 
   let consent: ConsentMap = {};
   let notice: NoticeRequest | null = null;
+  let kept: OutboundKind | null = null;
   const flights = new Map<string, { kind: OutboundKind; names: string[]; since: number }>();
   const routes = new Map<OutboundKind, Recipient>();
-  let state: PageOutboundState = { notice, snap: IDLE, consent };
+  let state: PageOutboundState = { notice, snap: IDLE, consent, kept };
   const listeners = new Set<() => void>();
   let holds = 0;
 
@@ -60,13 +70,14 @@ export function createPageOutbound(o: {
     return { active: true, kinds, names };
   };
   const publish = () => {
-    state = { notice, snap: snapshot(), consent };
+    state = { notice, snap: snapshot(), consent, kept };
     for (const fn of [...listeners]) fn();
   };
 
   const signal = {
     begin(id: string, kind: OutboundKind, names: string[]) {
       flights.set(id, { kind, names: [...names], since: now() });
+      kept = null;
       publish();
     },
     end(id: string, opts?: { cancel?: boolean }) {
@@ -89,7 +100,11 @@ export function createPageOutbound(o: {
     },
     fetchRecipients: o.fetchRecipients,
     signal,
-    onNotice: (head) => { notice = head; publish(); },
+    onNotice: (head) => {
+      notice = head;
+      if (head) kept = null;
+      publish();
+    },
   });
 
   /** The stored choices as they are now: another window (the OK Filow panel) may have changed them. */
@@ -101,6 +116,14 @@ export function createPageOutbound(o: {
     return consent;
   };
 
+  /** "granted" only from a stored yes or from the user pressing Send on the notice. */
+  const allow = async (kind: OutboundKind, recipient: Recipient): Promise<Decision> => {
+    await load();
+    const decision = await controller.allow(kind, recipient);
+    if (decision === "declined") { kept = kind; publish(); }
+    return decision;
+  };
+
   const header = (kind: OutboundKind, recipient: Recipient | null | undefined): Record<string, string> =>
     recipient && isGranted(consent, kind, recipient) ? { [CONSENT_HEADER]: consentKey(kind, recipient) } : {};
 
@@ -110,9 +133,17 @@ export function createPageOutbound(o: {
     load,
     recipients: () => controller.recipients(),
     /** "granted" only from a stored yes or from the user pressing Send on the notice. */
-    async allow(kind: OutboundKind, recipient: Recipient): Promise<Decision> {
-      await load();
-      return controller.allow(kind, recipient);
+    allow,
+    /**
+     * Everything a take would send, asked one after the other before anything starts. Stops at the
+     * first item without a yes: the take must then send nothing at all.
+     */
+    async allowAll(items: OutboundItem[]): Promise<TakeConsent> {
+      for (const { kind, recipient } of items) {
+        const decision = await allow(kind, recipient);
+        if (decision !== "granted") return { ok: false, decision, kind, recipient };
+      }
+      return { ok: true };
     },
     decide: (decision: Decision) => controller.decide(decision),
     dismissAll: () => controller.dismissAll(),

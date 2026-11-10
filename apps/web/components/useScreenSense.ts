@@ -17,6 +17,7 @@ import {
   type VisionResponse,
 } from "@filow/core";
 import { engineHeaders } from "./useSession";
+import { pageOutbound } from "./usePageOutbound";
 import { getScreenMode, setScreenMode as saveScreenMode } from "@/lib/prefs";
 import { openDisplayStream, screenBridge, ScreenWatcher, streamLabel, type ScreenBridge, type ScreenSourceKind } from "@/lib/screen/watcher";
 
@@ -92,6 +93,16 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
         return false;
       }
       inFlight.current = true;
+      // The picture goes to the cloud vision model: named first, asked once, shown while it is sent.
+      const out = pageOutbound();
+      const recipient = (await out.recipients())?.screen;
+      const decision = recipient ? await out.allow("screen", recipient) : "dismissed";
+      if (!recipient || decision !== "granted") {
+        inFlight.current = false;
+        stopWatchingRef.current();
+        log(recipient ? `Screen Sense: kept on this PC (${decision}), nothing sent` : "Screen Sense: cannot tell who would read the screen, nothing sent");
+        return false;
+      }
       lastSentAt.current = now;
       engine.setAnalysing(true);
       const s = stateRef.current;
@@ -102,14 +113,16 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
         context: section && s.script.source !== "screen" ? { sectionTitle: section.title, points: section.bullets.map((b) => b.text) } : undefined,
       };
       try {
-        const res = await fetch("/api/vision", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify(body) });
-        if (!res.ok) {
-          const { error } = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(error ?? `vision failed (${res.status})`);
-        }
-        const out = (await res.json()) as VisionResponse;
-        engine.feedScreen(out.summary, out.cost);
-        log(`Screen Sense (${why}): ${out.summary.unavailable ?? out.summary.shows.slice(0, 80)} · ${out.latencyMs} ms`);
+        const seen = await out.sending("screen", recipient, async (consent) => {
+          const res = await fetch("/api/vision", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders(), ...consent }, body: JSON.stringify(body) });
+          if (!res.ok) {
+            const { error } = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(error ?? `vision failed (${res.status})`);
+          }
+          return (await res.json()) as VisionResponse;
+        });
+        engine.feedScreen(seen.summary, seen.cost);
+        log(`Screen Sense (${why}): ${seen.summary.unavailable ?? seen.summary.shows.slice(0, 80)} · ${seen.latencyMs} ms`);
         return true;
       } catch (err) {
         // Keep the last good summary; forget the thumbnail so the loop retries this frame next tick.
