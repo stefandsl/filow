@@ -570,3 +570,69 @@ runs 4 threads (RTF 0.22 here, about 0.55 to 0.65 there). The matcher goes from 
 about 150 ms (budget 250 ms, inside the 500 ms tick). OK Filow on the CPU: see the thread-limited rows
 above; picture answers are not usable on such a machine, which is why Lite answers from the selected
 text. To be re-measured on a real 8 GB / 4-core machine (M2 in docs/local-latency-gauntlet.md).
+
+## Point 3 of the live take (2026-11-10, trk-p3): the gate's tail and the party question
+
+A live local take on the packaged QA build of 5ed82e8 (`take-int-qa.json`) never ticked "Everyone is
+copying it, so it must be good" (local 2/3 in 240 s; offline at 222.6 s) although the recogniser wrote
+its paraphrase word for word. New corpus `take-en`: the take's script and the recogniser's own text,
+two passes of the 51 s loop. Two causes, each measured per call:
+
+- **Gate.** It embedded the 320-character tail as a whole. Nemotron put no full stop between the line
+  before and the paraphrase, so the point scored 0.286 (first pass) and 0.241 (second) against the
+  0.3 line, lexical 0.33 against 0.5: no call to the model at all (the live trace has no call between
+  39 s and 67 s). The paraphrase alone scores 0.551. The gate now also embeds the tail's last three
+  sentences on their own (text.ts `sentences`, overlapping chunks for unpunctuated text) and keeps
+  the best. Three, not all: every phrase of a Japanese tail put traps-ja's p95 at 2425 ms of the
+  2.5 s timeout; with three it is 1087 ms.
+- **Verification.** When asked, the model said yes (0.74 to 0.90) and "same party" vetoed it: 0.40 to
+  0.49 live, 0.4999 in the replay. Its only example was "a point about us said of a competitor", so a
+  point that is itself about others, said of "all the other companies", read as another party. The
+  question now names both directions ("or the point is about others ... and the transcript says it
+  of us. When the point itself is about others, the transcript naming those others is the same
+  party"). No threshold changed.
+
+The replay runner now runs the gate as the app does by default (`gateThresholdsFor`: skip-only for
+local Clef); without it the replay showed the point late (98 s) instead of missed. `GAUNTLET_GATE=0`
+gives the old path, results `*-nogate.json`.
+
+| corpus (local Clef) | before, gate as app | after, gate as app | before, no gate | after, no gate |
+|---|---|---|---|---|
+| take-en (new) | 2/3, miss | **3/3** | 2/3, late 98 s | **3/3** |
+| demo-it | 8/9 (by design) | 8/9 | 8/9 | 8/9 |
+| journey-en, journey-it | 4/4, 4/4 | 4/4, 4/4 | 4/4, 4/4 | 4/4, 4/4 |
+| topics-en, topics-it | 6/6, 6/6 | 6/6, 6/6 | 6/6, 6/6 | 6/6, 6/6 |
+| traps-en, -it, -ja, -ro, -ru | 4, 5, 4, 4, 4 of 4, 5, 4, 4, 4 | same | same | same |
+| total, false completions | 51/53, 0 | **52/53, 0** | 51/53, 0 | **52/53, 0** |
+
+Calls the gate skipped per corpus: 0 to 4 before, 0 to 1 after (it asks the model more often; a
+call costs about 0.8 s here and nothing in money). One intermediate run had topics-en at 5/6 from two
+2.5 s timeouts while the shared Ollama was busy; three reruns and the final run gave 6/6.
+
+Adversarial sets (`GAUNTLET_ADV=1`), false ticks / misses, before -> after:
+
+| set | false ticks | misses |
+|---|---|---|
+| cases.json main (218, 38) | 1 -> 1 (G16, sarcasm) | 1 -> 1 |
+| cases.json other languages (19, 6) | 0 -> 0 | 0 -> 0 |
+| cases-verify.json (148, 61) | 0 -> 0 | 2 -> 2 |
+| cases-party.json (40, 40) | 1 -> 1 (P068, ja) | 0 -> 0 |
+| total of 425 that must stay open | **2 -> 2** | 3 -> 3 |
+| **cases-others.json, new held-out (32, 32)** | 0 -> 0 | **4 -> 0** |
+
+`cases-others.json`: 64 cases by a writer who had not seen the question, about points that are
+themselves about others (everyone, a group, a named party, others acting on us) and their traps
+(said of us, of another group, of another party's customers, of another named party). The old
+wording vetoed 4 true points at 0.37 to 0.50: the take's bug. False points that only the party
+question stops score 0.11 to 0.46; true points that reach verification score 0.64 or more.
+
+Live, packaged QA build release-trkp3-a (d459a25), same probe and profile, point 3 paraphrase heard
+at about 41.5 s: local 49.0 s, **100.1 s**, 48.8 s, 49.9 s; offline 49.1 s. Same party on those calls:
+0.54, 0.49 (vetoed, ticked one loop later at 0.51), 0.54, 0.51, 0.50. In the live takes the recogniser
+wrote "The other companies are making their own version of it", which scores 0.52 on the replayed
+request; "Now all the other companies ..." (the replay corpus) scores 0.61. Six other wordings were
+measured on the captured request and on both party sets (narrowing to the sentence that says the
+point, a two-step question, the inverted question "a different party?", an actor-not-topic hint, and
+averaging two answers): none lifts it above 0.55 without letting false points over 0.5. Lowering the
+0.5 line is not supported: the false points only the party question stops reach 0.46 and the live
+true ones start at 0.49. Still open: this point, said this way, sits on the model's line.
