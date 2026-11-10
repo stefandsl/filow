@@ -10,7 +10,9 @@ Three rules, enforced in code:
    a notice says what goes where, with "Send" and "Keep it on this PC". Nothing is sent before the
    answer. The answer is stored per kind and per recipient (`kind:recipient-id`, for example
    `ask:openrouter/google`) in OK Filow's settings, and is listed in the OK Filow panel's settings,
-   where each one can be withdrawn.
+   where each one can be withdrawn. Windows send only the choices they changed and the main
+   process merges them, so a yes withdrawn in one window is never brought back by another. A take
+   re-reads the choices every two seconds and stops if the yes for its microphone or words is gone.
 2. **A signal every time.** While a request carrying user content is in flight, the OK Filow
    pointer and panel (or the take page) show "Going outside - Sending to <names>". Local answers
    never show it. A streaming microphone shows it for as long as audio streams.
@@ -37,9 +39,9 @@ so both are named ("OpenRouter and then to Google, the maker of the model you ch
 | 8 | Take, Screen Sense (`/api/vision`) | pictures of the shared screen | OpenRouter, then the vision model's maker | `screen` | take-page notice at the first frame (a no stops watching); pill during each frame |
 | 9 | Script editor, Translate (`/api/script/translate`) | the script text | OpenRouter, then the maker (`scriptRecipient`) | `script` | take-page notice inside the editor; pill in the editor |
 | 10 | Script from slides, cloud (`/api/script/generate`) from the PowerPoint add-in and the browser extension | slide text and slide pictures | OpenRouter, then the maker | `script` | **gap**: those clients have no notice yet, so a cloud generate is refused (403) until they do. See "Open" |
-| 11 | PowerPoint add-in take (`/api/decide`, stt token routes) | spoken words, microphone audio | as rows 5 and 7 | `transcript`, `audio` | **gap**: same as row 10 |
+| 11 | PowerPoint add-in take (`/api/decide`, stt token routes, then Web Speech) | spoken words, microphone audio | as rows 5 to 7 | `transcript`, `audio` (Web Speech cannot be gated by the server) | **gap**: no notice. The cloud decider and the ElevenLabs / OpenAI tokens are refused, so the add-in's automatic engine choice moves on to Web Speech where the browser has it (PowerPoint for the web): the microphone then goes to the browser maker with no notice and no signal. This was already so on main for every cloud engine; see "Open" |
 | 12 | Browser extension, Screen Sense (`/api/vision`) | a picture of the tab | as row 8 | `screen` | **gap**: same as row 10 |
-| 13 | Public link (trycloudflare tunnel, `main.js`) | the mirror page and the session relay: script, transcript, slide state | Cloudflare (relay), and whoever opens the link | not content-gated: the user turns it on in a dialog that explains it | the "Public link on" chip on the take page while it runs |
+| 13 | Public link (trycloudflare tunnel, `main.js`) | the mirror page and the session relay: script, transcript, slide state | Cloudflare (relay), and whoever opens the link | not content-gated. **On by default since 0.4.0** and started at launch without a dialog (the download of cloudflared is silent when automatic); the explaining dialog shows only when the user turns it on from the menu | only the "Public link on" chip on the take page; no notice, no per-send signal. See "Open" |
 | 14 | Model router probe (`/api/local/plan` with `probe`) | a fixed sample request, no user content | OpenRouter, then the maker | none needed (no user content) | none |
 | 15 | Downloads (Ollama installer, sherpa model, cloudflared, update check on GitHub) | no user content (the request itself only) | ollama.com, github.com | none needed | the download dialogs |
 
@@ -64,8 +66,19 @@ speech-to-text, the system voice, OK Filow's own speech-to-text (desktop `stt.js
   The pill has its own colour (never the ink of listening, thinking or speaking), its arrow moves
   only without `prefers-reduced-motion`, and it sits in a polite live region.
 
-## Open
+## Open (owner decisions)
 
+- Row 13: the public link is on by default and starts without asking. Script, transcript and slide
+  state then pass through Cloudflare. Either make it opt-in, or show the outbound notice the first
+  time it starts and the pill while it is on.
+- OpenRouter picks the host that serves a model (`provider: { sort: "throughput" }` in
+  `lib/openrouter.ts`). For Google's Gemini models the host is Google, as the notice says; for other
+  makers it can be another company (OpenAI models on Microsoft Azure, open-weight models such as
+  Llama, Qwen or DeepSeek on third-party hosts). The notice names OpenRouter and the maker only.
+  Either pin the host to the maker (`provider.only`), or change the sentence to "OpenRouter and the
+  company it picks to run the model".
+- Coding agents: the recipient is the CLI's maker (OpenAI for Codex, Anthropic for Claude Code). A
+  CLI set up for Bedrock, Vertex or Azure sends elsewhere; Filow cannot see that.
 - Rows 10 to 12: the PowerPoint add-in and the browser extension call gated routes but have no
   notice of their own. Until they get one (or the server learns to read the desktop's stored
   choices), their cloud paths are refused and only their local paths work. They show the server's

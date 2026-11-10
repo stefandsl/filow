@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { askRecipient, CONSENT_HEADER, sttRecipient, takeOutbound, withConsent, type BuddyRecipients, type ConsentMap, type Recipient } from "./outbound";
+import { applyConsentChanges, askRecipient, CONSENT_HEADER, sttRecipient, takeOutbound, withConsent, type BuddyRecipients, type ConsentMap, type Recipient } from "./outbound";
 import { NoConsentError } from "./outboundClient";
 import { createPageOutbound } from "./outboundPage";
 
@@ -13,11 +13,11 @@ function rig(start: ConsentMap = {}, opts: { writeFails?: boolean } = {}) {
   const out = createPageOutbound({
     store: {
       read: async () => world.stored,
-      write: async (next) => {
-        if (opts.writeFails) return false;
-        world.stored = next;
+      write: async (changes) => {
+        if (opts.writeFails) return null;
+        world.stored = applyConsentChanges(world.stored, changes);
         world.writes++;
-        return true;
+        return world.stored;
       },
     },
     fetchRecipients: async () => recipients,
@@ -189,6 +189,44 @@ describe("the signal on the page", () => {
   });
 });
 
+describe("one page action (Translate, a Screen Sense frame)", () => {
+  it("asks, and on Keep it on this PC never runs the send", async () => {
+    const { out } = rig();
+    const run = vi.fn(async () => "sent");
+    const done = out.gated("script", (r) => r.script, run);
+    await flush();
+    expect(out.getState().notice).toEqual({ kind: "script", recipient: google });
+    await out.decide("declined");
+    expect(await done).toEqual({ sent: false, reason: "declined" });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("with a yes, sends with the key and shows the signal", async () => {
+    const { out } = rig(withConsent({}, "screen", google, "granted"));
+    let seen = "";
+    const done = await out.gated("screen", (r) => r.screen, async (headers) => { seen = headers[CONSENT_HEADER]; return out.getState().snap.active; });
+    expect(done).toEqual({ sent: true, value: true });
+    expect(seen).toBe("screen:openrouter/google");
+  });
+
+  it("on an offline PC asks nothing, shows nothing and sends no key", async () => {
+    const offline = { ...recipients, offline: true };
+    const out = createPageOutbound({ store: { read: async () => ({}), write: async () => ({}) }, fetchRecipients: async () => offline });
+    let headers: Record<string, string> | null = null;
+    const done = await out.gated("script", (r) => r.script, async (h) => { headers = h; return out.getState().snap.active; });
+    expect(done).toEqual({ sent: true, value: false });
+    expect(headers).toEqual({});
+    expect(out.getState().notice).toBeNull();
+  });
+
+  it("when the recipient cannot be told, sends nothing", async () => {
+    const out = createPageOutbound({ store: { read: async () => ({}), write: async () => ({}) }, fetchRecipients: async () => null });
+    const run = vi.fn(async () => "sent");
+    expect(await out.gated("script", (r) => r.script, run)).toEqual({ sent: false, reason: "unknown" });
+    expect(run).not.toHaveBeenCalled();
+  });
+});
+
 describe("choices shared with the OK Filow settings", () => {
   it("a yes withdrawn in another window stops the header and brings the notice back", async () => {
     const { out, world } = rig(withConsent({}, "transcript", google, "granted"));
@@ -202,6 +240,19 @@ describe("choices shared with the OK Filow settings", () => {
     void out.allow("transcript", google);
     await flush();
     expect(out.getState().notice).toEqual({ kind: "transcript", recipient: google });
+  });
+
+  it("a yes withdrawn in the panel while this page's notice is open is not brought back by Send here", async () => {
+    const ask = askRecipient("google/gemini-2.5-flash");
+    const { out, world } = rig(withConsent({}, "ask", ask, "granted"));
+    await out.load();
+    const asked = out.allow("audio", eleven);
+    await flush();
+    world.stored = {}; // the OK Filow panel withdrew the yes for questions meanwhile
+    await out.decide("granted");
+    expect(await asked).toBe("granted");
+    expect(Object.keys(world.stored)).toEqual(["audio:elevenlabs"]);
+    expect(out.getState().consent).toEqual(world.stored);
   });
 
   it("the route of a take that stays on this PC carries no header", async () => {

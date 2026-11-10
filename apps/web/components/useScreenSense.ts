@@ -93,18 +93,7 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
         return false;
       }
       inFlight.current = true;
-      // The picture goes to the cloud vision model: named first, asked once, shown while it is sent.
-      const out = pageOutbound();
-      const recipient = (await out.recipients())?.screen;
-      const decision = recipient ? await out.allow("screen", recipient) : "dismissed";
-      if (!recipient || decision !== "granted") {
-        inFlight.current = false;
-        stopWatchingRef.current();
-        log(recipient ? `Screen Sense: kept on this PC (${decision}), nothing sent` : "Screen Sense: cannot tell who would read the screen, nothing sent");
-        return false;
-      }
       lastSentAt.current = now;
-      engine.setAnalysing(true);
       const s = stateRef.current;
       const section = s.script.sections[s.sectionIdx];
       const body: VisionRequest = {
@@ -113,14 +102,23 @@ export function useScreenSense(engine: Engine, state: SessionState, log: (line: 
         context: section && s.script.source !== "screen" ? { sectionTitle: section.title, points: section.bullets.map((b) => b.text) } : undefined,
       };
       try {
-        const seen = await out.sending("screen", recipient, async (consent) => {
+        // The picture goes to the cloud vision model: named first, asked once, shown while it is sent.
+        const done = await pageOutbound().gated("screen", (r) => r.screen, async (consent, quiet) => {
+          engine.setAnalysing(true);
           const res = await fetch("/api/vision", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders(), ...consent }, body: JSON.stringify(body) });
           if (!res.ok) {
+            if (res.status === 403) quiet(); // refused here: nothing left this PC
             const { error } = (await res.json().catch(() => ({}))) as { error?: string };
             throw new Error(error ?? `vision failed (${res.status})`);
           }
           return (await res.json()) as VisionResponse;
         });
+        if (!done.sent) {
+          stopWatchingRef.current();
+          log(done.reason === "unknown" ? "Screen Sense: cannot tell who would read the screen, nothing sent" : `Screen Sense: kept on this PC (${done.reason}), nothing sent`);
+          return false;
+        }
+        const seen = done.value;
         engine.feedScreen(seen.summary, seen.cost);
         log(`Screen Sense (${why}): ${seen.summary.unavailable ?? seen.summary.shows.slice(0, 80)} · ${seen.latencyMs} ms`);
         return true;

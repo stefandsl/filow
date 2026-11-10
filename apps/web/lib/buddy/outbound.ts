@@ -136,6 +136,31 @@ export function withoutConsent(consent: ConsentMap | undefined | null, key: stri
   return next;
 }
 
+/**
+ * One window's change to the stored choices, as a list of keys (null removes the key). Windows send
+ * this, never their whole copy: a copy read before another window withdrew a yes would bring it back.
+ */
+export type ConsentChanges = Record<string, ConsentEntry | null>;
+export function consentChanges(prev: ConsentMap | undefined | null, next: ConsentMap): ConsentChanges {
+  const out: ConsentChanges = {};
+  const before = prev ?? {};
+  for (const [k, v] of Object.entries(next)) if (JSON.stringify(before[k]) !== JSON.stringify(v)) out[k] = v;
+  for (const k of Object.keys(before)) if (!(k in next)) out[k] = null;
+  return out;
+}
+export function applyConsentChanges(base: ConsentMap | undefined | null, changes: ConsentChanges): ConsentMap {
+  const out: ConsentMap = { ...(base ?? {}) };
+  for (const [k, v] of Object.entries(changes)) {
+    if (v === null) delete out[k];
+    else out[k] = v;
+  }
+  return out;
+}
+
+/** True when every change is in the stored map: a yes that was not stored is not a yes. */
+export const changesStored = (stored: ConsentMap, changes: ConsentChanges) =>
+  Object.entries(changes).every(([k, v]) => (v === null ? !(k in stored) : stored[k]?.state === v.state));
+
 /** granted: send. declined: keep it on this PC (remembered). dismissed: closed without choosing. */
 export type Decision = "granted" | "declined" | "dismissed";
 export type GateResult<T> = { sent: true; decision: "granted"; value: T } | { sent: false; decision: "declined" | "dismissed" };
@@ -212,9 +237,10 @@ export type NoticeRequest = { kind: OutboundKind; recipient: Recipient; cli?: st
 type NoticeTextKey = `notice_${OutboundKind}` | "outVia" | "outAnd";
 /** What the notice says: what goes, and to whom, from the recipient actually in use. */
 export function noticeBody(notice: NoticeRequest, t: (key: NoticeTextKey) => string): string {
+  // A sentence may name the recipient or the CLI more than once: every place is filled.
   return t(`notice_${notice.kind}`)
-    .replace("{who}", whoPhrase(notice.recipient, t("outVia"), t("outAnd")))
-    .replace("{cli}", notice.cli ?? "");
+    .split("{who}").join(whoPhrase(notice.recipient, t("outVia"), t("outAnd")))
+    .split("{cli}").join(notice.cli ?? "");
 }
 
 /**

@@ -7,7 +7,7 @@ const { BrowserWindow, Tray, Menu, screen, desktopCapturer, ipcMain, globalShort
 const path = require("node:path");
 const { createGestures, chordHeld } = require("./okfilow-gestures");
 const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
-const { createOutboundState, sanitizeConsent, agentRecipient, agentGranted } = require("./okfilow-outbound");
+const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
 const { answerRoot, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 
@@ -58,7 +58,10 @@ function createOkFilow(deps) {
   const { appUrl, getSettings, saveSettings, iconPath, logLine, sttLocal, userData, menuText, isOffline } = deps;
   const cfg = () => ({ ...DEFAULTS, ...(getSettings().okFilow || {}) });
   const setCfg = (patch) => {
-    const next = { ...cfg(), ...patch };
+    const { consentChanges, ...rest } = patch || {};
+    const next = { ...cfg(), ...rest };
+    // Windows send their consent changes, merged here into what is stored now (okfilow-outbound.js).
+    if (consentChanges !== undefined) next.consent = applyConsentChanges(next.consent, consentChanges);
     if (!HOTKEYS.includes(next.hotkey)) next.hotkey = DEFAULTS.hotkey;
     if (next.provider !== "cloud") next.provider = "local";
     if (next.voice !== "cloud" && next.voice !== "off") next.voice = "system";

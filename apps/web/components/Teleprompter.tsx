@@ -44,7 +44,7 @@ import { LogPanel } from "./prompter/LogPanel";
 import { pointState } from "@/lib/pointState";
 import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
 import { decisionRecipient, sttRecipient, takeOutbound } from "@/lib/buddy/outbound";
-import { pageOutbound } from "./usePageOutbound";
+import { pageOutbound, usePageOutbound } from "./usePageOutbound";
 import { PageOutboundNotice, PageOutboundSignal, useOkfText } from "./PageOutbound";
 
 type BackendChoice = "auto" | SttBackendId;
@@ -112,7 +112,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const backendRef = useRef<SttBackend | null>(null);
   // Going outside (docs/okfilow/OUTBOUND.md): the take asks before its first cloud send and shows
   // the signal for as long as the microphone streams to a cloud speech engine.
-  const outbound = pageOutbound();
+  const { out: outbound, state: outState } = usePageOutbound();
   const okt = useOkfText();
   const micSignal = useRef<(() => void) | null>(null);
   const endOutbound = useCallback(() => {
@@ -408,6 +408,24 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   };
 
   useEffect(() => () => { startAttempts.current.cancel(); backendRef.current?.stop(); endOutbound(); }, [endOutbound]);
+
+  // A yes withdrawn elsewhere (OK Filow settings) during a take stops it: the stored choices are
+  // read again every two seconds while recording, and a running stream without a yes ends at once.
+  useEffect(() => {
+    if (!eng.recording) return;
+    const timer = setInterval(() => void outbound.load(), 2000);
+    return () => clearInterval(timer);
+  }, [eng.recording, outbound]);
+  useEffect(() => {
+    if (!eng.recording) return;
+    const lost = (["audio", "transcript"] as const).find((kind) => {
+      const to = outbound.route(kind);
+      return to && !Object.keys(outbound.header(kind, to)).length;
+    });
+    if (!lost) return;
+    pushLog(`take stopped: the yes for ${lost} was withdrawn`);
+    stopTake();
+  }, [outState.consent, eng.recording, outbound, pushLog, stopTake]);
 
   // When the engine stops itself (cost cap), release the microphone too.
   useEffect(() => {
@@ -790,14 +808,13 @@ export function ScriptEditor({
     try {
       await ensureEngineToken();
       // The script goes to the cloud model: named first, asked once, shown while it is sent.
-      const out = pageOutbound();
-      const recipient = (await out.recipients())?.script;
-      if (!recipient) { setNote(okt("noticeUnknown")); return; }
-      if ((await out.allow("script", recipient)) !== "granted") { setNote(null); return; }
-      const { res, j } = await out.sending("script", recipient, async (consent) => {
+      const done = await pageOutbound().gated("script", (r) => r.script, async (consent, quiet) => {
         const res = await fetch("/api/script/translate", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders(), ...consent }, body: JSON.stringify({ text, to }) });
+        if (res.status === 403) quiet(); // refused here: nothing left this PC
         return { res, j: (await res.json()) as { text?: string; model?: string; structureKept?: boolean; expected?: { points: number }; got?: { sections: number; points: number }; error?: string } };
       });
+      if (!done.sent) { setNote(done.reason === "unknown" ? okt("noticeUnknown") : null); return; }
+      const { res, j } = done.value;
       if (!res.ok || !j.text) throw new Error(j.error ?? `HTTP ${res.status}`);
       setText(j.text);
       setNote(

@@ -30,6 +30,24 @@ function sanitizeConsent(map) {
   return out;
 }
 
+/**
+ * One window's changes ({ key: entry | null }) merged into the stored choices. Windows send only
+ * what they changed: a whole map read before another window withdrew a yes would bring it back.
+ */
+function applyConsentChanges(stored, changes) {
+  const out = { ...sanitizeConsent(stored) };
+  if (!changes || typeof changes !== "object" || Array.isArray(changes)) return out;
+  for (const [key, entry] of Object.entries(changes)) {
+    if (!KEY.test(key)) continue;
+    if (entry === null) delete out[key];
+    else {
+      const clean = sanitizeConsent({ [key]: entry });
+      if (clean[key]) out[key] = clean[key];
+    }
+  }
+  return sanitizeConsent(out);
+}
+
 /** Who a coding agent's CLI talks to. */
 const AGENT_RECIPIENTS = {
   codex: { id: "openai", names: ["OpenAI"], cli: "Codex" },
@@ -108,4 +126,4 @@ function createOutboundState({ onChange, minMs = 1200, lingerMs = 300, now = Dat
   return { begin, end, clear, snapshot, active: () => items.size > 0 };
 }
 
-module.exports = { createOutboundState, sanitizeConsent, cleanNames, agentRecipient, agentConsentKey, agentGranted, AGENT_RECIPIENTS, KINDS };
+module.exports = { createOutboundState, sanitizeConsent, applyConsentChanges, cleanNames, agentRecipient, agentConsentKey, agentGranted, AGENT_RECIPIENTS, KINDS };

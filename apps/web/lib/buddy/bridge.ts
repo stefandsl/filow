@@ -1,5 +1,5 @@
 // Types for window.okFilow (apps/desktop/okfilow-preload.js).
-import type { ConsentMap, OutboundKind, OutboundSnapshot, Recipient } from "./outbound";
+import type { ConsentChanges, ConsentMap, OutboundKind, OutboundSnapshot, Recipient } from "./outbound";
 import type { BuddyMark } from "./prompt";
 import type { BuddyModel } from "./visuals";
 
@@ -60,11 +60,13 @@ export type OkFilowJob = {
 };
 /** The agent was not started: the user has not said yes to the maker of the CLI that would run it. */
 export type OkFilowAgentConsent = { needsConsent: { kind: "agent"; recipient: Recipient; cli: string } };
+/** A settings change. Consent goes as `consentChanges` (merged by main), never as a whole map. */
+export type OkFilowPatch = Partial<Omit<OkFilowStatus, "consent">> & { consentChanges?: ConsentChanges };
 export type OkFilowBridge = {
   accessPassword: string;
   sessionUrl: string;
   status(): Promise<OkFilowStatus>;
-  configure(patch: Partial<OkFilowStatus>): Promise<OkFilowStatus>;
+  configure(patch: OkFilowPatch): Promise<OkFilowStatus>;
   capture(): Promise<OkFilowCapture>;
   setMode(mode: OkFilowMode, extra?: Record<string, unknown>): Promise<void>;
   level(v: number): void;

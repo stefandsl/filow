@@ -10,7 +10,7 @@ import { speechDeadline } from "@/lib/buddy/speech";
 import { markToDisplay, parseBuddyAnswer, pointToDisplay, type BuddyTurn } from "@/lib/buddy/prompt";
 import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
 import { burnStrokes, createVad, describeMarked } from "@/lib/buddy/listen";
-import { askRoute, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
+import { askRoute, changesStored, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
 import { ConsentList, OutboundNotice, OutboundPill } from "../outbound-ui";
 import "../okfilow.css";
@@ -140,14 +140,15 @@ export default function OkFilowPanel() {
   if (!outRef.current) {
     outRef.current = createOutboundController({
       consent: () => statusRef.current?.consent,
-      save: async (next, also) => {
+      save: async (_next, also, changes) => {
         const b = okFilowBridge();
         if (!b) return false;
-        const s = await b.configure({ consent: next, ...also });
+        // Only this window's changes: main merges them into what is stored now.
+        const s = await b.configure({ consentChanges: changes, ...also });
         statusRef.current = s;
         setStatus(s);
         // A yes that main did not store is not a yes.
-        return Object.entries(next).every(([k, v]) => s.consent?.[k]?.state === v.state);
+        return changesStored(s.consent ?? {}, changes);
       },
       fetchRecipients: async () => {
         const res = await fetch("/api/buddy/recipients", { headers: await engineHeadersRef.current() });

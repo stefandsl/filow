@@ -2,10 +2,12 @@
 // page): the same controller as the OK Filow panel, plus the page's own notice and signal state.
 // No React and no DOM, so it is tested with fakes. The wiring to the app is in components/usePageOutbound.ts.
 import {
+  changesStored,
   CONSENT_HEADER,
   consentKey,
   isGranted,
   type BuddyRecipients,
+  type ConsentChanges,
   type ConsentMap,
   type Decision,
   type KeepLocalPatch,
@@ -20,7 +22,8 @@ import { createOutboundController, NoConsentError } from "./outboundClient";
 /** Where the choices are kept: OK Filow's settings on the desktop, the browser's storage elsewhere. */
 export type ConsentStore = {
   read(): Promise<ConsentMap | null>;
-  write(next: ConsentMap, also: KeepLocalPatch): Promise<boolean>;
+  /** Merges this page's changes into what is stored now. The stored map after it, or null on failure. */
+  write(changes: ConsentChanges, also: KeepLocalPatch): Promise<ConsentMap | null>;
 };
 
 /**
@@ -29,6 +32,9 @@ export type ConsentStore = {
  * the next notice or the next send).
  */
 export type PageOutboundState = { notice: NoticeRequest | null; snap: OutboundSnapshot; consent: ConsentMap; kept: OutboundKind | null };
+
+/** What `gated` answers: sent (with the value), or why nothing was sent. */
+export type GatedSend<T> = { sent: true; value: T } | { sent: false; reason: "declined" | "dismissed" | "unknown" };
 
 /** What `allowAll` answers: every item granted, or the first one that was not and how. */
 export type TakeConsent = { ok: true } | { ok: false; decision: "declined" | "dismissed"; kind: OutboundKind; recipient: Recipient };
@@ -92,11 +98,12 @@ export function createPageOutbound(o: {
 
   const controller = createOutboundController({
     consent: () => consent,
-    save: async (next, also) => {
-      if (!(await o.store.write(next, also))) return false;
-      consent = next;
+    save: async (_next, also, changes) => {
+      const stored = await o.store.write(changes, also);
+      if (!stored) return false;
+      consent = stored;
       publish();
-      return true;
+      return changesStored(stored, changes);
     },
     fetchRecipients: o.fetchRecipients,
     signal,
@@ -111,7 +118,7 @@ export function createPageOutbound(o: {
   const load = async (): Promise<ConsentMap> => {
     try {
       const fresh = await o.store.read();
-      if (fresh) { consent = fresh; publish(); }
+      if (fresh && JSON.stringify(fresh) !== JSON.stringify(consent)) { consent = fresh; publish(); }
     } catch { /* keep the last known choices; the server still refuses a send without its key */ }
     return consent;
   };
@@ -172,6 +179,20 @@ export function createPageOutbound(o: {
         released = true;
         signal.end(id);
       };
+    },
+    /**
+     * One send of user content from a page action (Translate, a Screen Sense frame): names the
+     * recipient from the server, asks once, then sends with the header and the signal. On an
+     * offline PC the server answers locally, so nothing is asked or shown and no key is sent.
+     */
+    async gated<T>(kind: OutboundKind, pick: (r: BuddyRecipients) => Recipient, run: (headers: Record<string, string>, quiet: () => void) => Promise<T>): Promise<GatedSend<T>> {
+      const known = await controller.recipients();
+      if (!known) return { sent: false, reason: "unknown" };
+      if (known.offline) return { sent: true, value: await run({}, () => {}) };
+      const to = pick(known);
+      const decision = await allow(kind, to);
+      if (decision !== "granted") return { sent: false, reason: decision };
+      return { sent: true, value: await controller.sending(kind, to, run) };
     },
     /** One request: refuses without a stored yes, carries the header, shows the signal while it runs. */
     sending: <T>(kind: OutboundKind, recipient: Recipient, run: (headers: Record<string, string>, quiet: () => void) => Promise<T>) =>

@@ -3,14 +3,14 @@
 // for the whole page (lib/buddy/outboundPage.ts), wired to where the choices are kept and to the
 // server route that names the recipients.
 import { useEffect, useSyncExternalStore } from "react";
-import type { OkFilowStatus } from "@/lib/buddy/bridge";
-import type { BuddyRecipients, ConsentMap } from "@/lib/buddy/outbound";
+import type { OkFilowPatch, OkFilowStatus } from "@/lib/buddy/bridge";
+import { applyConsentChanges, type BuddyRecipients, type ConsentMap } from "@/lib/buddy/outbound";
 import { createPageOutbound, type ConsentStore, type PageOutbound } from "@/lib/buddy/outboundPage";
 import { engineHeaders, ensureEngineToken } from "./useSession";
 
 type SettingsBridge = {
   status(): Promise<OkFilowStatus | null>;
-  configure(patch: Partial<OkFilowStatus>): Promise<OkFilowStatus | null>;
+  configure(patch: OkFilowPatch): Promise<OkFilowStatus | null>;
 };
 const bridge = () => (globalThis as { filow?: { okFilow?: SettingsBridge } }).filow?.okFilow ?? null;
 
@@ -45,13 +45,15 @@ const store: ConsentStore = {
     }
     return fromStorage();
   },
-  async write(next, also) {
+  async write(changes, also) {
     const b = bridge();
     if (b) {
       const status = await b.status().catch(() => null);
-      if (status) return (await b.configure({ consent: next, ...also }).catch(() => null)) != null;
+      // Main merges the changes into what is stored now (another window may have changed it).
+      if (status) return (await b.configure({ consentChanges: changes, ...also }).catch(() => null))?.consent ?? null;
     }
-    return toStorage(next);
+    const merged = applyConsentChanges(fromStorage(), changes);
+    return toStorage(merged) ? merged : null;
   },
 };
 

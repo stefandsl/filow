@@ -280,10 +280,10 @@ describe("noticeBody: the notice names the recipient actually in use, in both la
 
   it("a cloud question names OpenRouter and the maker of the model chosen", () => {
     expect(noticeBody({ kind: "ask", recipient: askRecipient("google/gemini-2.5-flash") }, en))
-      .toBe("Your question and a screenshot of your screens go to OpenRouter and then to Google, the maker of the model you chose.");
+      .toBe("Your question, a screenshot of your screens, any text you have selected and the earlier questions and answers of this conversation go to OpenRouter and then to Google, the maker of the model you chose.");
     expect(noticeBody({ kind: "ask", recipient: askRecipient("anthropic/claude-sonnet-4") }, en)).toContain("then to Anthropic");
     expect(noticeBody({ kind: "ask", recipient: askRecipient("google/gemini-2.5-flash") }, itText))
-      .toBe("La tua domanda e uno screenshot dei tuoi schermi vanno a OpenRouter e poi a Google, che produce il modello che hai scelto.");
+      .toBe("La tua domanda, uno screenshot dei tuoi schermi, il testo che hai selezionato e le domande e risposte precedenti di questa conversazione vanno a OpenRouter e poi a Google, che produce il modello che hai scelto.");
   });
 
   it("every kind has a sentence in both languages and none leaves a placeholder behind", () => {
@@ -298,7 +298,7 @@ describe("noticeBody: the notice names the recipient actually in use, in both la
 
   it("an agent notice names the CLI the task goes through", () => {
     expect(noticeBody({ kind: "agent", recipient: { id: "openai", names: ["OpenAI"] }, cli: "Codex" }, en))
-      .toBe("Your task and the last OK Filow answer go to OpenAI, through Codex on this PC.");
+      .toBe("Your task and the last OK Filow answer go to OpenAI, through Codex on this PC. While it works, Codex can read files on this PC and send what it reads to OpenAI.");
   });
 });
 

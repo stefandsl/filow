@@ -24,7 +24,13 @@ async function decideViaApi(req: DecideRequest, signal?: AbortSignal): Promise<D
       body: JSON.stringify({ ...req, provider: getDecisionProvider() }),
       signal,
     });
-  const res = to && Object.keys(out.header("transcript", to)).length ? await out.sending("transcript", to, call) : await call({});
+  const res = to && Object.keys(out.header("transcript", to)).length
+    ? await out.sending("transcript", to, async (consent, quiet) => {
+        const r = await call(consent);
+        if (r.status === 403) quiet(); // refused here: nothing left this PC
+        return r;
+      })
+    : await call({});
   if (!res.ok) {
     const { error } = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(error ?? `decide failed (${res.status})`);

@@ -4,9 +4,10 @@ import { describe, expect, it } from "vitest";
 const require = createRequire(import.meta.url);
 type Snapshot = { active: boolean; kinds: string[]; names: string[] };
 type State = { begin(id: string, kind: string, names: unknown): boolean; end(id: string, opts?: { cancel?: boolean }): void; clear(prefix?: string): void; snapshot(): Snapshot; active(): boolean };
-const { createOutboundState, sanitizeConsent, agentRecipient, agentConsentKey, agentGranted } = require("./okfilow-outbound.js") as {
+const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentConsentKey, agentGranted } = require("./okfilow-outbound.js") as {
   createOutboundState(o: Record<string, unknown>): State;
   sanitizeConsent(map: unknown): Record<string, { state: string; at: string; names: string[] }>;
+  applyConsentChanges(stored: unknown, changes: unknown): Record<string, { state: string; at: string; names: string[] }>;
   agentRecipient(cli: string | null): { id: string; names: string[]; cli: string } | null;
   agentConsentKey(cli: string | null): string;
   agentGranted(consent: unknown, cli: string | null): boolean;
@@ -137,6 +138,24 @@ describe("stored consent", () => {
     expect(Object.keys(out)).toHaveLength(50);
     expect(out["ask:r0"].names).toEqual(["A", "B", "C"]);
     expect(out["ask:r0"].at).toBe(new Date(0).toISOString());
+  });
+});
+
+describe("consent changes from two windows", () => {
+  const at = "2026-11-10T08:00:00.000Z";
+  const yes = (names: string[]) => ({ state: "granted", at, names });
+  it("merges one window's change into what is stored now, keeping a withdrawal made by the other", () => {
+    // Stored now: the panel already withdrew ask; the take page adds audio.
+    const stored = { "voice:elevenlabs": yes(["ElevenLabs"]) };
+    const next = applyConsentChanges(stored, { "audio:elevenlabs": yes(["ElevenLabs"]) });
+    expect(Object.keys(next).sort()).toEqual(["audio:elevenlabs", "voice:elevenlabs"]);
+    expect(next["ask:openrouter/google"]).toBeUndefined();
+  });
+  it("null removes a key; junk keys and entries are ignored", () => {
+    const stored = { "ask:openrouter/google": yes(["OpenRouter", "Google"]) };
+    expect(applyConsentChanges(stored, { "ask:openrouter/google": null })).toEqual({});
+    expect(applyConsentChanges(stored, { "bad key!": yes(["X"]), "ask:x": { state: "maybe" } })).toEqual(stored);
+    expect(applyConsentChanges(stored, ["nope"])).toEqual(stored);
   });
 });
 

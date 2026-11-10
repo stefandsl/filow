@@ -2,6 +2,7 @@
 // by the OK Filow panel and by the take page. No React and no DOM, so it is tested with fakes.
 import {
   CONSENT_HEADER,
+  consentChanges,
   consentKey,
   createNoticeQueue,
   isGranted,
@@ -10,6 +11,7 @@ import {
   withConsent,
   withoutConsent,
   type BuddyRecipients,
+  type ConsentChanges,
   type ConsentMap,
   type Decision,
   type KeepLocalPatch,
@@ -21,8 +23,12 @@ import {
 export type OutboundDeps = {
   /** The stored choices, read at the moment of each decision (never a stale copy). */
   consent(): ConsentMap | undefined | null;
-  /** Persists the choices (and, on a "no", the switch to this PC). False when it could not be saved. */
-  save(next: ConsentMap, also: KeepLocalPatch): Promise<boolean>;
+  /**
+   * Persists the choices (and, on a "no", the switch to this PC). False when it could not be saved.
+   * `changes` is only what this window changed: store that, merged into what is stored now, so a
+   * choice another window changed meanwhile is kept. `next` is this window's whole view, for display.
+   */
+  save(next: ConsentMap, also: KeepLocalPatch, changes: ConsentChanges): Promise<boolean>;
   /** GET /api/buddy/recipients: who would receive what, from the providers and models configured now. */
   fetchRecipients(): Promise<BuddyRecipients | null>;
   /** The going-outside signal (main process on the desktop, a local pill on the take page). */
@@ -50,8 +56,9 @@ export function createOutboundController(deps: OutboundDeps) {
   let writes: Promise<unknown> = Promise.resolve();
   const write = (make: () => { next: ConsentMap; also?: KeepLocalPatch }): Promise<boolean> => {
     const run = writes.then(async () => {
+      const prev = deps.consent();
       const { next, also } = make();
-      return (await deps.save(next, also ?? {})) === true;
+      return (await deps.save(next, also ?? {}, consentChanges(prev, next))) === true;
     }).catch(() => false);
     writes = run;
     return run;
