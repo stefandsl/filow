@@ -22,12 +22,16 @@ with `FILOW_OFFLINE=1`. Study of the app this is modelled on: `G:\FILOW\tmp\rese
   `CANDIDATES.questions`: Parakeet for en/it/ru/ro, ReazonSpeech for ja); "Automatic" needs the one
   model that knows all five (Nemotron streaming). Settings says whether a model for it is on the PC.
 - **Where the words go.** "Type them where I am" (default) or "Only copy them, I paste myself".
-- **Filler sounds.** Off by default. When on, sounds like "um", "uh", "ehm", "эээ", "えーと" are taken
+- **Filler sounds.** On by default (issue #3). Sounds like "um", "uh", "ehm", "эээ", "えーと" are taken
   out (never words such as "basically" or "diciamo", which may be meant), and a sentence's capital moves
   to the next word.
-- **Sound.** Off by default: a short quiet tone at start (higher) and stop (lower), for screen reader
-  users or when not looking at the screen. When Chromium detects a running screen reader
+- **Sound.** On by default (issue #3): a short quiet tone at start (higher) and stop (lower), for screen
+  reader users or when not looking at the screen. When Chromium detects a running screen reader
   (`app.isAccessibilitySupportEnabled()`), the tones play whatever this setting says.
+- **Settings never touched follow the defaults.** settings.json keeps only what the user chose
+  (`dictation: { v: 2, ...chosen keys }`), so a later change of a default reaches everyone who never
+  changed that setting. A record saved whole by 0.9.31 (no `v`) loses its `false` for these two on load:
+  that build saved the old default with every change, so it was not a choice.
 
 While recording, OK Filow's overlay shows the "Dictating" pill at the top of the screen with the mouse
 and the bubble with the live level next to the pointer (no movement with reduced motion). A polite
