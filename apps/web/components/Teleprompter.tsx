@@ -122,7 +122,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const missed = missedPoints(state);
   const error = eng.error ?? null;
 
-  // The desktop shell holds its "update ready" prompt while a take is live (SIGN-04).
+  // The desktop shell shows no "update ready" prompt while a take is live (SIGN-04).
   useEffect(() => {
     desktopBridge()?.setTakeLive?.(eng.recording);
     return () => desktopBridge()?.setTakeLive?.(false); // leaving the page ends the take

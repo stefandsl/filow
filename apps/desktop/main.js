@@ -14,6 +14,28 @@ function openExternalSafe(url) {
   if (!["https:", "http:", "mailto:"].includes(u.protocol)) { console.warn(`blocked external link ${u.protocol}`); return Promise.resolve(); }
   return shell.openExternal(u.toString());
 }
+// SEC-04: a window stays on Filow's own pages. Any other navigation is refused and a page cannot open
+// a window; web and mail links go to the system browser instead (openExternalSafe drops the rest).
+// The pages loaded from files (splash, region picker) have nowhere to go at all.
+function isAppPage(url) {
+  try {
+    const u = new URL(String(url));
+    return u.protocol === "http:" && u.origin === APP_URL; // not blob: or data: made by a page
+  } catch {
+    return false;
+  }
+}
+function guardNavigation(win) {
+  win.webContents.on("will-navigate", (event, url) => {
+    if (isAppPage(url)) return;
+    event.preventDefault();
+    void openExternalSafe(url);
+  });
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    void openExternalSafe(url);
+    return { action: "deny" };
+  });
+}
 // Test builds only: FILOW_OKF_FAKE_MIC=<wav> feeds that file to every microphone, so OK Filow's voice
 // paths can be checked end to end without a person talking.
 // QA builds only (apps/desktop/qa.js): never unlocked by a file next to the exe.
@@ -158,6 +180,8 @@ const MENU_TEXT = {
     tunnelMessage: "This needs Cloudflare's free cloudflared tool (about 20 MB).",
     tunnelDetail: "It will be downloaded once from\n{url}\ninto\n{folder}\n\nWhile sharing is on, the mirror page and the session relay are reachable through random *.trycloudflare.com URLs. Pairing still needs the 6-digit code.",
     tunnelFailed: "Could not share to another network",
+    tunnelOffline: "Offline mode is on; the public link needs outbound connections.",
+    tunnelHosted: "A hosted session server is configured in .env; its URL is already public.",
     keyTitle: "Add your OpenRouter key",
     keyMessage: "No OPENROUTER_API_KEY set.",
     keyDetail: "Open the config folder from the menu, put your key in .env, then restart the app.\n\n{file}",
@@ -208,6 +232,8 @@ const MENU_TEXT = {
     tunnelMessage: "Serve cloudflared, lo strumento gratuito di Cloudflare (circa 20 MB).",
     tunnelDetail: "Verrà scaricato una sola volta da\n{url}\nin\n{folder}\n\nMentre la condivisione è attiva, la pagina mirror e il relay della sessione sono raggiungibili tramite indirizzi casuali *.trycloudflare.com. Per l'abbinamento serve comunque il codice a 6 cifre.",
     tunnelFailed: "Impossibile condividere su un'altra rete",
+    tunnelOffline: "La modalità offline è attiva; il link pubblico richiede connessioni in uscita.",
+    tunnelHosted: "Nel file .env è configurato un server di sessione ospitato; il suo indirizzo è già pubblico.",
     keyTitle: "Aggiungi la tua chiave OpenRouter",
     keyMessage: "OPENROUTER_API_KEY non impostata.",
     keyDetail: "Apri la cartella di configurazione dal menu, inserisci la chiave nel file .env e riavvia l'app.\n\n{file}",
@@ -410,6 +436,7 @@ async function pickRegion() {
       hasShadow: false, enableLargerThanScreen: true, fullscreenable: false, show: false, backgroundColor: "#000000",
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "picker-preload.js") },
     });
+    guardNavigation(pickerWin);
     ipcMain.handle("picker:frame", (e) => { if (e.sender !== pickerWin?.webContents) throw new Error("Denied"); return { dataUrl: frameUrl }; });
     const finish = (rect) => {
       ipcMain.removeAllListeners("picker:done");
@@ -855,8 +882,8 @@ async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
   try {
     if (on) {
       try {
-        if (offline) throw new Error("Offline mode is on; the public link needs outbound connections.");
-        if (process.env.FILOW_SESSION_URL) throw new Error("A hosted session server is configured in .env; its URL is already public.");
+        if (offline) throw new Error(mt("tunnelOffline"));
+        if (process.env.FILOW_SESSION_URL) throw new Error(mt("tunnelHosted"));
         remoteStatus("connecting");
         const bin = await ensureCloudflared(win, { silent: auto });
         if (!bin) {
@@ -1123,15 +1150,25 @@ async function uninstallPowerPointAddin(win) {
 let updater = null;
 let updateState = { status: "idle", version: "", error: "" }; // idle | checking | available | downloading | downloaded | none | error
 // An update never interrupts a talk (SIGN-04). The page reports when a take starts and stops. An
-// update that finishes downloading during a take raises no notification and no dialog: the page
-// shows its "restart" banner once the take ends, the menu offers the restart, and the update is
-// installed when the app quits.
+// update that finishes downloading during a take, or while a PowerPoint slideshow runs, raises no
+// notification and no dialog, and they are not shown later either: the page shows its "restart"
+// banner once the take ends, the menu offers the restart, and the update is installed when the app
+// quits.
 let takeLive = false;
 function setTakeLive(on) {
   const live = on === true; // the value comes from a page: anything else is not a take
   if (live === takeLive) return;
   takeLive = live;
   logLine(takeLive ? "take: live" : "take: ended");
+}
+// The page that reported the take is gone (another page loaded, it crashed, the window closed): the
+// take went with it. Without this the flag would stay set and silence update prompts for good.
+function endTakeWithPage(win) {
+  win.webContents.on("did-start-navigation", (details) => {
+    if (details.isMainFrame && !details.isSameDocument) setTakeLive(false);
+  });
+  win.webContents.on("render-process-gone", () => setTakeLive(false));
+  win.on("closed", () => setTakeLive(false));
 }
 
 function loadUpdater() {
@@ -1148,8 +1185,8 @@ function loadUpdater() {
     updater.on("error", (err) => setUpdateState({ status: "error", error: String((err && err.message) || err).slice(0, 200) }));
     updater.on("update-downloaded", (info) => {
       setUpdateState({ status: "downloaded", version: info.version });
-      if (takeLive) {
-        logLine("update: ready, prompt held (a take is live)");
+      if (takeLive || slideShow.running) {
+        logLine("update: ready, no prompt (a take or a slideshow is live)");
         return;
       }
       // System notification as well, for when the app sits behind other windows.
@@ -1264,6 +1301,7 @@ function showSplash() {
   });
   const q = new URLSearchParams({ v: app.getVersion(), theme: uiTheme(), local: local ? "1" : "0", lang: menuLang() });
   splashShownAt = Date.now();
+  guardNavigation(splash);
   splash.on("closed", () => (splash = null));
   // Shown at first paint (ready-to-show), not after the whole load; resolves once it is on screen.
   const w = splash;
@@ -1497,6 +1535,7 @@ function showOverlay() {
   });
   overlayWin.setAlwaysOnTop(true, "screen-saver");
   reloadOnCrash(overlayWin, "overlay");
+  guardNavigation(overlayWin);
   overlayWin.on("focus", () => uiPreferences?.refresh());
   overlayWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   overlayWin.setContentProtection(Boolean(settings.overlayHidden));
@@ -1867,6 +1906,7 @@ async function main() {
   }, STARTUP_WATCHDOG_MS);
   win.once("show", () => clearTimeout(watchdog));
   reloadOnCrash(win, "main");
+  endTakeWithPage(win);
   win.on("focus", () => uiPreferences?.refresh());
   win.on("closed", () => { mainWin = null; });
   nativeTheme.themeSource = settings.theme === "light" || settings.theme === "dark" ? settings.theme : "system";
@@ -1888,10 +1928,7 @@ async function main() {
     saveSettings();
     void refreshPptRegistrationAfterMigration();
   }
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    openExternalSafe(url);
-    return { action: "deny" };
-  });
+  guardNavigation(win);
 
   // The public link only needs the two ports, not a loaded page: start it now so it comes up while the
   // servers warm up. If it is ready before the first page loads, that page already has the public

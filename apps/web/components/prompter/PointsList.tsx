@@ -18,7 +18,8 @@ export function WhyDone({ evidence, id, hidden }: { evidence: Evidence; id?: str
 /**
  * What a screen reader should hear after the list changed (A11Y-05, WCAG 4.1.3): the points that
  * turned done, as "Said: <point>". A point that was not on screen before (another section) is not
- * news. Returns "" when a point was reopened, so saying it again later is announced again, and
+ * news. Returns "" when a point was reopened (a region whose text does not change is not read again,
+ * so the same point ticked a second time would stay silent), and
  * null when nothing changed.
  */
 export function saidAnnouncement(

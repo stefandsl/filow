@@ -196,21 +196,34 @@ if (!quick) {
   // A11Y-02 and A11Y-03: the keyboard-only walk of every page (a11y.mjs). It counts only when it saw
   // the page: the planted control was reported and the main page showed its tab stops. A11Y-02 is
   // operation (nothing stuck, no trap, Enter, Space and Escape work); A11Y-03 is what a sighted
-  // keyboard user sees and a screen reader says at each stop (a ring, a name, on screen).
-  let opsOk = false, focusOk = false, keyboardDetail = "no keyboard walk in a11y.json";
+  // keyboard user sees at each stop (a ring, on screen) and whether the stop has a name.
+  // A11Y-05: in the same walk, ticking a point by keyboard must put "<Said>: <point>" into the polite
+  // live region of the points list, and unticking must clear it.
+  let saidOk = false, saidDetail = "no live-region probe in a11y.json (rerun a11y.mjs)";
+  let opsOk = false, focusOk = false, opsDetail = "no keyboard walk in a11y.json (rerun a11y.mjs)", focusDetail = opsDetail;
   try {
     const j = JSON.parse(fs.readFileSync(f, "utf8"));
     const k = j.keyboard;
-    if ((Date.now() - Date.parse(j.at)) / 3.6e6 <= 48 && k && Array.isArray(k.problems)) {
+    if ((Date.now() - Date.parse(j.at)) / 3.6e6 > 48) opsDetail = focusDetail = "scan older than 48 h";
+    else if (k && Array.isArray(k.problems)) {
+      // The main page has 28 tab stops today; fewer than 10 means the keys never reached the page.
       const sawThePage = k.controlCaught === true && (k.stops?.["/"] ?? 0) >= 10 && Array.isArray(j.wrongPages) && j.wrongPages.length === 0;
       const isOperation = (p) => ["stuck", "trap", "keys"].includes(p.kind);
+      const list = (problems) => problems.map((p) => `${p.route} ${p.kind}: ${p.what}`).join("; ");
+      const blind = "the walk did not see the page (planted control missed, too few stops or a wrong page)";
       opsOk = sawThePage && !k.problems.some(isOperation);
       focusOk = sawThePage && !k.problems.some((p) => !isOperation(p));
-      keyboardDetail = sawThePage ? k.problems.map((p) => `${p.route} ${p.kind}: ${p.what}`).join("; ") : "the walk did not see the page (planted control missed, too few stops or a wrong page)";
+      opsDetail = sawThePage ? list(k.problems.filter(isOperation)) : blind;
+      focusDetail = sawThePage ? list(k.problems.filter((p) => !isOperation(p))) : blind;
+      if ("announcement" in k) {
+        saidOk = sawThePage && k.announced === true;
+        saidDetail = sawThePage ? `after the tick: ${JSON.stringify(k.announcement?.afterTick)}, after the untick: ${JSON.stringify(k.announcement?.afterUntick)}` : blind;
+      }
     }
-  } catch { /* reported above */ }
-  check("A11Y-02 keyboard operation without a trap", 3, opsOk, keyboardDetail);
-  check("A11Y-03 focus visible and named at every stop", 2, focusOk, keyboardDetail);
+  } catch { /* an unreadable a11y.json is reported by the axe check above */ }
+  check("A11Y-02 keyboard operation without a trap", 3, opsOk, opsDetail);
+  check("A11Y-03 focus visible and named at every stop", 2, focusOk, focusDetail);
+  check("A11Y-05 ticks announced in a polite live region", 2, saidOk, saidDetail);
 }
 
 // PERF-01: cold start of the packaged app (tools/autoloop/e2e/coldstart.mjs). Budgets: splash median

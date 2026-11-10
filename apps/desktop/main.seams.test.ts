@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PLACEHOLDER, t } from "@filow/core";
 
 /** Evaluate untouched main.js, with startup held and all effects replaced in-process. */
-function fixture(initialEnv: Record<string, string> = {}) {
+function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false } = {}) {
   const env = { ...initialEnv };
   let requestFilter!: (details: { url: string }, cb: (r: unknown) => void) => void;
   const outbound = vi.fn(() => { throw new Error("fake network boundary: no bytes sent"); });
@@ -26,7 +26,7 @@ function fixture(initialEnv: Record<string, string> = {}) {
       Notification: class { static isSupported() { return true; } on() {} show() { notificationShow(); } },
     },
     "node:path": path, "node:url": { pathToFileURL },
-    "node:fs": { readFileSync: () => "FILOW_OFFLINE=1", appendFileSync() {}, existsSync: () => false, mkdirSync() {}, rmSync() {} },
+    "node:fs": { readFileSync: () => "FILOW_OFFLINE=1", appendFileSync() {}, existsSync: (file: string) => updateFeed && String(file).endsWith("app-update.yml"), mkdirSync() {}, rmSync() {} },
     "node:os": { homedir: () => "G:/fake", cpus: () => [{ model: "fake" }], totalmem: () => 0, release: () => "fake", networkInterfaces: () => ({}) },
     "node:http": { get: () => { const req = new EventEmitter(); queueMicrotask(() => req.emit("error", new Error("Ollama absent"))); return req; } },
     "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": {},
@@ -47,7 +47,8 @@ function fixture(initialEnv: Record<string, string> = {}) {
     ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, setLog: text => { lastTakeLog = text; },
        textTables: { MENU_TEXT, NET_TEXT, SPLASH_TEXT, LOCAL_AI_TEXT },
-       setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; } });`, {
+       setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
+       guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; } });`, {
     require: (id: string) => {
       if (id.endsWith("electron-updater.js")) return { autoUpdater: { on(event: string, fn: (info: { version: string }) => void) { updaterHandlers[event] = fn; }, checkForUpdates, quitAndInstall() {} } };
       if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`);
@@ -62,10 +63,15 @@ function fixture(initialEnv: Record<string, string> = {}) {
 
 describe("Step 4 desktop offline seams", () => {
   it("process-level offline blocks new renderer cloud requests and update checks", async () => {
-    const f = fixture({ FILOW_OFFLINE: "1" }); f.api.startupOffline();
+    // with an update feed, or the check stops at "not an installed app" before it looks at offline
+    const f = fixture({ FILOW_OFFLINE: "1" }, { updateFeed: true }); f.api.startupOffline();
     expect(f.blocked("https://cloud.invalid/upload")).toBe(true);
     expect(f.blocked("http://127.0.0.1:4747/api/decide")).toBe(false);
     await f.api.checkForUpdates(); expect(f.checkForUpdates).not.toHaveBeenCalled();
+  });
+  it("an installed app that is online does ask the update feed", async () => {
+    const f = fixture({}, { updateFeed: true });
+    await f.api.checkForUpdates(); expect(f.checkForUpdates).toHaveBeenCalledOnce();
   });
   // Contract: ARCHITECTURE.md §6.10 FILOW_OFFLINE; main.js loads profile .env for app configuration.
   it("profile env offline must survive desktop startup", () => {
@@ -136,10 +142,10 @@ describe("Step 4 desktop offline seams", () => {
 // SIGN-04: an update never interrupts a live session.
 describe("update ready during a take", () => {
   const withWindow = () => {
-    const f = fixture();
-    f.api.setMainWin({ isDestroyed: () => false, show() {}, focus() {}, webContents: { send() {} } });
+    const f = fixture(), toPage = vi.fn();
+    f.api.setMainWin({ isDestroyed: () => false, show() {}, focus() {}, webContents: { send: toPage } });
     f.api.loadUpdater();
-    return f;
+    return { ...f, toPage };
   };
   it("raises no dialog and no notification while a take is live", () => {
     const f = withWindow();
@@ -147,6 +153,10 @@ describe("update ready during a take", () => {
     f.updaterHandlers["update-downloaded"]({ version: "9.9.9" });
     expect(f.showMessageBox, "a modal dialog would take the focus mid-talk").not.toHaveBeenCalled();
     expect(f.notificationShow, "a system notification would pop over the slides").not.toHaveBeenCalled();
+    // the page still learns the update is ready: it shows its own banner once the take has ended
+    expect(f.toPage).toHaveBeenCalledWith("update:status", expect.objectContaining({ status: "downloaded", version: "9.9.9" }));
+    f.api.setTakeLive(false);
+    expect(f.showMessageBox, "the skipped prompt is not replayed when the take ends").not.toHaveBeenCalled();
   });
   it("prompts as before when no take is running, also after one has ended", () => {
     const f = withWindow();
@@ -155,11 +165,91 @@ describe("update ready during a take", () => {
     expect(f.showMessageBox).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ message: "Filow 9.9.9 is ready." }));
     expect(f.notificationShow).toHaveBeenCalledOnce();
   });
-  it("treats only an explicit true from the page as a live take", () => {
+  it("takes only the boolean true as a live take, whatever a sender puts on the channel", () => {
     const f = withWindow();
     f.api.setTakeLive("yes");
     f.updaterHandlers["update-downloaded"]({ version: "9.9.9" });
     expect(f.showMessageBox).toHaveBeenCalledOnce();
+  });
+  it("stays silent while a PowerPoint slideshow runs", () => {
+    const f = withWindow();
+    f.api.setSlideShowRunning(true);
+    f.updaterHandlers["update-downloaded"]({ version: "9.9.9" });
+    expect(f.showMessageBox).not.toHaveBeenCalled();
+    expect(f.notificationShow).not.toHaveBeenCalled();
+  });
+  it("ends the take when its page goes away, so the flag cannot silence prompts for good", () => {
+    for (const leave of [
+      (win: FakeWindow) => win.webContents.emit("did-start-navigation", { isMainFrame: true, isSameDocument: false }), // Settings from the menu
+      (win: FakeWindow) => win.webContents.emit("render-process-gone", {}, { reason: "crashed" }),
+      (win: FakeWindow) => win.emit("closed"),
+    ]) {
+      const f = withWindow(), win = fakeWindow();
+      f.api.endTakeWithPage(win);
+      f.api.setTakeLive(true);
+      // a hash change or a frame inside the page is not the page going away
+      win.webContents.emit("did-start-navigation", { isMainFrame: true, isSameDocument: true });
+      win.webContents.emit("did-start-navigation", { isMainFrame: false, isSameDocument: false });
+      f.updaterHandlers["update-downloaded"]({ version: "9.9.9" });
+      expect(f.showMessageBox, "the take is still live").not.toHaveBeenCalled();
+      leave(win);
+      f.updaterHandlers["update-downloaded"]({ version: "9.9.9" });
+      expect(f.showMessageBox, "the take ended with its page").toHaveBeenCalledOnce();
+    }
+  });
+});
+
+type FakeWindow = EventEmitter & { webContents: EventEmitter & { setWindowOpenHandler(fn: (details: { url: string }) => { action: string }): void; open?: (details: { url: string }) => { action: string } } };
+function fakeWindow(): FakeWindow {
+  const webContents = Object.assign(new EventEmitter(), {
+    open: undefined as FakeWindow["webContents"]["open"],
+    setWindowOpenHandler(fn: (details: { url: string }) => { action: string }) { webContents.open = fn; },
+  });
+  return Object.assign(new EventEmitter(), { webContents });
+}
+
+// SEC-04: will-navigate allowlist and window.open denied on every window.
+describe("windows stay on Filow's own pages", () => {
+  const guarded = () => {
+    const f = fixture(), win = fakeWindow();
+    f.api.guardNavigation(win);
+    const navigate = (url: string) => { const event = { preventDefault: vi.fn() }; win.webContents.emit("will-navigate", event, url); return event.preventDefault.mock.calls.length > 0; };
+    return { f, win, navigate, app: f.api.APP_URL as string };
+  };
+  it("lets a page move between Filow's own pages", () => {
+    const { f, navigate, app } = guarded();
+    expect(navigate(`${app}/settings/local`)).toBe(false);
+    expect(navigate(`${app}/mirror?compact=1`)).toBe(false);
+    expect(f.openExternal).not.toHaveBeenCalled();
+  });
+  it("refuses every other destination and hands web links to the system browser", () => {
+    const { f, navigate, app } = guarded();
+    expect(navigate("https://evil.test/")).toBe(true);
+    expect(f.openExternal).toHaveBeenCalledExactlyOnceWith("https://evil.test/");
+    for (const url of [`blob:${app}/3f1c`, "file:///C:/Windows/win.ini", "javascript:alert(1)", "data:text/html,x", "ms-msdt:/id", "not a url"]) {
+      expect(navigate(url), url).toBe(true);
+    }
+    expect(f.openExternal, "only web and mail addresses leave the app").toHaveBeenCalledOnce();
+    // look-alikes of the app address are other sites
+    expect(navigate(app.replace("127.0.0.1", "127.0.0.1.evil.test"))).toBe(true);
+    expect(navigate(app.replace(/:\d+$/, ":1"))).toBe(true);
+    expect(navigate(app.replace("http:", "https:"))).toBe(true);
+  });
+  it("never lets a page open a window", () => {
+    const { f, win, app } = guarded();
+    for (const url of ["about:blank", "file:///C:/Windows/win.ini", `${app}/mirror`, "https://docs.example/"]) {
+      expect(win.webContents.open?.({ url }), url).toEqual({ action: "deny" });
+    }
+    expect(f.openExternal.mock.calls.map(c => c[0])).toEqual([`${app}/mirror`, "https://docs.example/"]);
+  });
+  it("guards every window main.js creates", () => {
+    const source = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+    const windows = source.match(/new BrowserWindow\(/g)?.length ?? 0;
+    const guards = (source.match(/^\s+guardNavigation\(/gm)?.length ?? 0)
+      // the welcome window refuses every navigation and every window by itself
+      + (/"will-navigate", event => event\.preventDefault\(\)\);\s+win\.webContents\.setWindowOpenHandler\(\(\) => \(\{ action: "deny" \}\)\);/.test(source) ? 1 : 0);
+    expect(windows).toBeGreaterThanOrEqual(5);
+    expect(guards, "a new window needs guardNavigation(win)").toBe(windows);
   });
 });
 
