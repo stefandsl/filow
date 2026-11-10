@@ -1,0 +1,2 @@
+# Append-only logs: rows added on parallel branches are both kept instead of conflicting.
+docs/autoloop/JOURNAL.md merge=union
