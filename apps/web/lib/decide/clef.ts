@@ -23,7 +23,7 @@ export async function decideClefLocal(body: DecideRequest, signal?: AbortSignal)
   if (res.status === 404) throw new Error(`Model ${model} not found in Ollama, or Ollama is older than 0.35.1. Pull it in Settings > Local models.`);
   if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
   const { decisions, unmentioned } = parseClefAnswers((await res.json()) as ClefResponse, body);
-  return { decisions, unmentioned, latencyMs, cost: 0, model: `${model} (local)` };
+  return { decisions, unmentioned, latencyMs, cost: 0, model: `${model} (local)`, canVerify: true };
 }
 
 /**

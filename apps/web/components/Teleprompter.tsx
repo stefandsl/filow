@@ -110,10 +110,11 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const fileRef = useRef<HTMLInputElement | null>(null);
   // Offline mode is owned by the desktop shell (menu toggle); the web deploy reads FILOW_OFFLINE.
   useEffect(() => {
-    const bridge = (globalThis as { filow?: { offline?: boolean; onOffline?: (fn: (v: boolean) => void) => void } }).filow;
+    const bridge = (globalThis as { filow?: { offline?: boolean; onOffline?: (fn: (v: boolean) => void) => (() => void) | void } }).filow;
     if (bridge?.offline !== undefined) setOffline(bridge.offline);
-    bridge?.onOffline?.(setOffline);
+    const off = bridge?.onOffline?.(setOffline);
     if (!bridge) void fetch("/api/local/status").then((r) => r.json()).then((s: { offline?: boolean }) => setOffline(Boolean(s.offline))).catch(() => undefined);
+    return typeof off === "function" ? off : undefined;
   }, []);
 
   const { script, sectionIdx, points, stats, engine: eng } = state;
@@ -121,6 +122,12 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const nextSection = script.sections[sectionIdx + 1];
   const missed = missedPoints(state);
   const error = eng.error ?? null;
+
+  // The desktop shell shows no "update ready" prompt while a take is live (SIGN-04).
+  useEffect(() => {
+    desktopBridge()?.setTakeLive?.(eng.recording);
+    return () => desktopBridge()?.setTakeLive?.(false); // leaving the page ends the take
+  }, [eng.recording]);
 
   const pushLog = useCallback((line: string) => {
     setLog((l) => {
@@ -393,7 +400,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
 
       <div className="prompter-content">
       <main className="prompter-main">
-      {update?.status === "downloaded" && !updateDismissed && (
+      {update?.status === "downloaded" && !updateDismissed && !eng.recording && (
         <div className="update-banner">
           <span><Icon name="up" /> {t("update.ready", { version: update.version })}</span>
           <button className="btn primary" onClick={() => desktopBridge()?.installUpdate?.()}>

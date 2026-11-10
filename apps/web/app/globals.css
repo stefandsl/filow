@@ -30,6 +30,8 @@ body { font-size: var(--type-base); }
 h1.section-title { font-size: var(--type-2xl); margin: 16px 0 8px; font-weight: 700; }
 
 .points { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+/* Read by screen readers, not shown: display none or visibility hidden would silence it too. */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .point {
   display: grid; grid-template-columns: 26px 76px 1fr; align-items: center; gap: 12px;
   padding: 8px 12px; border-width: 0; border-radius: var(--radius); background: var(--panel);
@@ -48,7 +50,8 @@ h1.section-title { font-size: var(--type-2xl); margin: 16px 0 8px; font-weight: 
 .strip .label { font-size: var(--type-sm); letter-spacing: 0; text-transform: none; color: var(--muted); font-weight: 400; margin-bottom: 8px; }
 .strip .row { display: flex; gap: 20px; flex-wrap: wrap; font-size: var(--type-base); }
 .strip .row.scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
-.strip .next-item { color: var(--text); }
+/* Icon beside the text, so a wrapped line lines up with the text, not under the circle. */
+.strip .next-item { color: var(--text); display: inline-flex; align-items: flex-start; gap: 6px; }
 .strip .next-item.done { color: var(--muted); text-decoration: line-through; }
 .missed-item { white-space: nowrap; border-width: 0; border-radius: var(--radius); padding: 4px 8px; font-size: var(--type-sm); font-weight: 700; cursor: pointer; background: var(--panel-2); }
 

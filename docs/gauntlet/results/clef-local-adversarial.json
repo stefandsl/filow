@@ -1,0 +1,277 @@
+{
+  "at": "2026-11-10T02:20:42.153Z",
+  "model": "clef-flash",
+  "pass": {
+    "real": 0.65,
+    "sameParty": 0.5
+  },
+  "withoutVerification": {
+    "main": {
+      "falseTicks": 11,
+      "expectedNot": 218,
+      "misses": 1,
+      "expectedTicks": 38
+    },
+    "other-languages": {
+      "falseTicks": 2,
+      "expectedNot": 19,
+      "misses": 0,
+      "expectedTicks": 6
+    }
+  },
+  "withVerification": {
+    "main": {
+      "falseTicks": 1,
+      "expectedNot": 218,
+      "misses": 1,
+      "expectedTicks": 38
+    },
+    "other-languages": {
+      "falseTicks": 0,
+      "expectedNot": 19,
+      "misses": 0,
+      "expectedTicks": 6
+    }
+  },
+  "falseTicks": [
+    {
+      "id": "G16",
+      "set": "main",
+      "language": "it",
+      "category": "sarcasm",
+      "point": "Il nuovo gestionale fa risparmiare tempo",
+      "said": "Sì, guarda, il nuovo gestionale ci fa risparmiare un sacco di tempo, come no. Stamattina l'ho riavviato sei volte.",
+      "expected": false,
+      "confidence": 0.96,
+      "guard": "ok",
+      "verification": {
+        "real": 0.92,
+        "sameParty": 0.89
+      },
+      "ticked": true,
+      "tickedWithoutVerification": true
+    }
+  ],
+  "misses": [
+    {
+      "id": "F21",
+      "set": "main",
+      "language": "en",
+      "category": "tp-paraphrase",
+      "point": "Offline sync",
+      "said": "Your notes now update on the plane too, and they merge when you land.",
+      "expected": true,
+      "confidence": 0.39,
+      "guard": "ok",
+      "verification": null,
+      "ticked": false,
+      "tickedWithoutVerification": false
+    }
+  ],
+  "vetoed": [
+    {
+      "id": "E09",
+      "set": "main",
+      "language": "en",
+      "category": "sarcasm",
+      "point": "Customer satisfaction is at a record high",
+      "said": "Oh sure, customer satisfaction is at a record high, and I am the Queen of England. Seriously, look at these reviews, people are furious.",
+      "expected": false,
+      "confidence": 0.87,
+      "guard": "ok",
+      "verification": {
+        "real": 0.18,
+        "sameParty": 0.72
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "E24",
+      "set": "main",
+      "language": "en",
+      "category": "other-sense",
+      "point": "Windows support",
+      "said": "Facilities finally replaced the broken windows on the third floor, and their support was great.",
+      "expected": false,
+      "confidence": 0.84,
+      "guard": "ok",
+      "verification": {
+        "real": 0.93,
+        "sameParty": 0.39
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "E31",
+      "set": "main",
+      "language": "en",
+      "category": "other-company",
+      "point": "We acquired Northwind",
+      "said": "Globex acquired Northwind last week, which changes the market for all of us.",
+      "expected": false,
+      "confidence": 0.92,
+      "guard": "ok",
+      "verification": {
+        "real": 0.96,
+        "sameParty": 0.47
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "I09",
+      "set": "main",
+      "language": "it",
+      "category": "sarcasm",
+      "point": "I clienti sono soddisfatti",
+      "said": "Certo, i clienti sono soddisfattissimi, come no. Guardate queste recensioni: una stella, una stella, una stella.",
+      "expected": false,
+      "confidence": 0.83,
+      "guard": "ok",
+      "verification": {
+        "real": 0.18,
+        "sameParty": 0.79
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "F02",
+      "set": "main",
+      "language": "en",
+      "category": "other-actor",
+      "point": "Our app reached one million downloads",
+      "said": "Their app reached one million downloads in its first week, which nobody in the industry expected.",
+      "expected": false,
+      "confidence": 0.95,
+      "guard": "ok",
+      "verification": {
+        "real": 0.95,
+        "sameParty": 0.27
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "F03",
+      "set": "main",
+      "language": "en",
+      "category": "other-actor",
+      "point": "New office in Dublin",
+      "said": "Our main supplier opened a new office in Dublin, so their response times should improve.",
+      "expected": false,
+      "confidence": 0.94,
+      "guard": "ok",
+      "verification": {
+        "real": 0.96,
+        "sameParty": 0.22
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "F04",
+      "set": "main",
+      "language": "en",
+      "category": "cancelled-plan",
+      "point": "Bonus scheme for sales",
+      "said": "We used to have a bonus scheme for sales. It ended in 2023 and it is not coming back.",
+      "expected": false,
+      "confidence": 0.94,
+      "guard": "ok",
+      "verification": {
+        "real": 0.05,
+        "sameParty": 0.85
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "F05",
+      "set": "main",
+      "language": "en",
+      "category": "cancelled-plan",
+      "point": "Office move in January",
+      "said": "The office move was supposed to happen in January. The landlord pulled out, so we stay where we are.",
+      "expected": false,
+      "confidence": 0.87,
+      "guard": "ok",
+      "verification": {
+        "real": 0.07,
+        "sameParty": 0.82
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "G03",
+      "set": "main",
+      "language": "it",
+      "category": "other-actor",
+      "point": "Nuova sede a Padova",
+      "said": "Il nostro fornitore principale ha aperto una nuova sede a Padova, quindi i tempi di risposta dovrebbero migliorare.",
+      "expected": false,
+      "confidence": 0.94,
+      "guard": "ok",
+      "verification": {
+        "real": 0.97,
+        "sameParty": 0.17
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "G05",
+      "set": "main",
+      "language": "it",
+      "category": "cancelled-plan",
+      "point": "Trasloco a gennaio",
+      "said": "Il trasloco doveva essere a gennaio. Il proprietario si è tirato indietro, quindi restiamo dove siamo.",
+      "expected": false,
+      "confidence": 0.91,
+      "guard": "ok",
+      "verification": {
+        "real": 0.08,
+        "sameParty": 0.76
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "S04",
+      "set": "other-languages",
+      "language": "es",
+      "category": "other-actor",
+      "point": "Nueva oficina en Sevilla",
+      "said": "Nuestro proveedor principal ha abierto una nueva oficina en Sevilla, así que deberían responder más rápido.",
+      "expected": false,
+      "confidence": 0.95,
+      "guard": "ok",
+      "verification": {
+        "real": 0.97,
+        "sameParty": 0.19
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "R04",
+      "set": "other-languages",
+      "language": "fr",
+      "category": "cancelled-plan",
+      "point": "Déménagement en janvier",
+      "said": "Le déménagement devait avoir lieu en janvier. Le propriétaire s'est retiré, donc nous restons où nous sommes.",
+      "expected": false,
+      "confidence": 0.9,
+      "guard": "ok",
+      "verification": {
+        "real": 0.1,
+        "sameParty": 0.78
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "note": "Ground truth for topics-en. s0b2 is announced at 20 s and really starts at 32 s. s1b1 (Offline sync) is never started: 44 s is about a different sync. s2b1 is never started: 62 s says the meeting is not set.",
+  "labels": [
+    { "pointId": "s0b0", "startedAtSec": 8 },
+    { "pointId": "s0b1", "startedAtSec": 14 },
+    { "pointId": "s0b2", "startedAtSec": 32 },
+    { "pointId": "s1b0", "startedAtSec": 38 },
+    { "pointId": "s1b2", "startedAtSec": 50 },
+    { "pointId": "s2b0", "startedAtSec": 56 }
+  ],
+  "neverStarted": ["s1b1", "s2b1"]
+}

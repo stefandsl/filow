@@ -1,7 +1,7 @@
 // The decision loop as a class. No DOM, no fetch: `decide` is injected.
 // Semantics follow ARCHITECTURE.md §5.4–5.5.
 import { compare, type Operation } from "fast-json-patch";
-import type { DecideRequest, DecideResponse, Decision } from "./api";
+import type { DecideRequest, DecideResponse, Decision, Verification } from "./api";
 import { lexicalScores } from "./gate";
 import { checkClaim, type ClaimCheck } from "./guard";
 import { sentences } from "./text";
@@ -44,6 +44,21 @@ export type EngineOptions = {
   guard?: boolean;
   /** Called for every confirming answer the guard rejected (diagnostics, gauntlet). */
   onGuard?: (pointId: string, check: ClaimCheck) => void;
+  /**
+   * Verification (default true, only with a provider that says `canVerify`): a point that is ready to
+   * tick first gets two focused questions in the next call (is it presented as real, is it said of
+   * the same party as the point), and ticks only when both pass. Costs at most one call per tick.
+   */
+  verify?: boolean;
+  /**
+   * Lowest passing answers of the verification. Defaults: real 0.65, same party 0.5. On two case sets
+   * true points answered "real" at 0.81 or more and the false ticks it stops at 0.48 or less, so 0.65
+   * sits in the gap; "same party" has a thinner gap (false up to 0.50, true from 0.52, one third-party
+   * point at 0.42). Numbers in docs/gauntlet/BASELINE.md.
+   */
+  verifyThreshold?: { real: number; sameParty: number };
+  /** Called for every verification that decided a tick: `ok` false means the point stayed open. */
+  onVerify?: (pointId: string, verification: Verification, ok: boolean) => void;
   sessionId?: string;
   /** Timer injection for tests. Defaults to the global timers. */
   setInterval?: (fn: () => void, ms: number) => unknown;
@@ -58,7 +73,7 @@ const COMMITTED_CAP = 6000;
 const PARTIAL_ACTIVE = 0.5;
 
 export class Engine {
-  private readonly o: Required<Omit<EngineOptions, "sessionId" | "onGuard">> & Pick<EngineOptions, "onGuard">;
+  private readonly o: Required<Omit<EngineOptions, "sessionId" | "onGuard" | "onVerify">> & Pick<EngineOptions, "onGuard" | "onVerify">;
   private state: SessionState;
   private committed = "";
   private partial = "";
@@ -72,6 +87,8 @@ export class Engine {
   private reasked = false;
   private timer: unknown = null;
   private streak: Record<string, number> = {};
+  /** points ready to tick that wait for their verification, asked with the next call */
+  private held = new Set<string>();
   /** length of all committed text ever fed; with `segs`, dates any offset of the committed stream */
   private committedTotal = 0;
   /** committed segments still inside `committed`: where each ends in the stream and when it arrived */
@@ -96,6 +113,9 @@ export class Engine {
       reaskOnPending: opts.reaskOnPending ?? true,
       guard: opts.guard ?? true,
       onGuard: opts.onGuard,
+      verify: opts.verify ?? true,
+      verifyThreshold: opts.verifyThreshold ?? { real: 0.65, sameParty: 0.5 },
+      onVerify: opts.onVerify,
       setInterval: opts.setInterval ?? ((fn, ms) => globalThis.setInterval(fn, ms)),
       clearInterval: opts.clearInterval ?? ((t) => globalThis.clearInterval(t as ReturnType<typeof setInterval>)),
     };
@@ -147,6 +167,7 @@ export class Engine {
     this.partial = "";
     this.lastSent = "";
     this.streak = {};
+    this.held.clear();
     this.unmentioned = [];
     this.update((s) => {
       s.script = script;
@@ -263,7 +284,10 @@ export class Engine {
         this.update((st) => {
           for (const b of section.bullets) delete st.points[b.id];
         });
-        for (const b of section.bullets) delete this.streak[b.id];
+        for (const b of section.bullets) {
+          delete this.streak[b.id];
+          this.held.delete(b.id);
+        }
         this.lastSent = "";
         this.invalidate();
         return { ok: true };
@@ -310,6 +334,7 @@ export class Engine {
     if (!known) return { ok: false, error: `unknown point ${id}` };
     this.update((st) => (st.points[id] = state));
     delete this.streak[id];
+    this.held.delete(id);
     this.invalidate();
     return { ok: true };
   }
@@ -370,8 +395,12 @@ export class Engine {
     this.ctl?.abort();
   }
 
-  /** One iteration. Public so tests and surfaces can drive it without timers. */
-  async tick(): Promise<void> {
+  /**
+   * One iteration. Public so tests and surfaces can drive it without timers.
+   * `verifyNow` is the engine's own follow-up call for a point that just became ready to tick: it
+   * skips the pacing and the "same text" rule, which exist to stop idle or piled-up calls, not this one.
+   */
+  async tick(verifyNow = false): Promise<void> {
     if (this.inFlight) return;
     const s = this.state;
     const section = s.script.sections[s.sectionIdx];
@@ -379,7 +408,7 @@ export class Engine {
     // Adaptive pace: a model slower than the tick is asked no more often than it can answer.
     const now = this.o.now();
     const avg = s.stats.avgMs;
-    if (avg > this.o.tickMs && now - this.lastCallAt < Math.round(avg * 1.2)) return;
+    if (!verifyNow && avg > this.o.tickMs && now - this.lastCallAt < Math.round(avg * 1.2)) return;
     // Decisions, and so flips, are made on committed text only (P1 step 4): see hintFromPartial().
     const raw = this.committed;
     const end = raw.trimEnd().length;
@@ -394,9 +423,9 @@ export class Engine {
     const allOpen = section.bullets.filter((b) => (s.points[b.id]?.status ?? "waiting") === "waiting");
     if (!allOpen.length) return;
     if (windowText === this.lastSent) {
-      // Same text as last time: only worth a call when a point is one confirmation away, and only once.
-      const pending = allOpen.some((b) => (this.streak[b.id] ?? 0) > 0 && (this.streak[b.id] ?? 0) < this.o.confirmCalls);
-      if (!this.o.reaskOnPending || !pending || this.reasked) return;
+      // Same text as last time: only worth a call when a point is one confirmation or its verification away, and only once.
+      const pending = allOpen.some((b) => ((this.streak[b.id] ?? 0) > 0 && (this.streak[b.id] ?? 0) < this.o.confirmCalls) || this.held.has(b.id));
+      if (!verifyNow && (!this.o.reaskOnPending || !pending || this.reasked)) return;
       this.reasked = true;
     } else {
       this.reasked = false;
@@ -407,7 +436,12 @@ export class Engine {
       const start = this.qCursor % allOpen.length;
       open = [...allOpen.slice(start), ...allOpen.slice(0, start)].slice(0, this.o.maxQuestions);
       this.qCursor = start + this.o.maxQuestions;
+      // A point waiting for its verification is asked now, whatever the rotation says.
+      const waiting = allOpen.filter((b) => this.held.has(b.id) && !open.includes(b));
+      if (waiting.length) open = [...waiting, ...open].slice(0, this.o.maxQuestions);
     }
+    // Verify in this same call the points that one more answer could tick.
+    const verify = this.o.verify ? open.filter((b) => (this.streak[b.id] ?? 0) > 0 || this.held.has(b.id)).map((b) => b.id) : [];
 
     this.inFlight = true;
     this.lastSent = windowText;
@@ -419,14 +453,20 @@ export class Engine {
       covered: section.bullets.filter((b) => s.points[b.id]?.status === "started").map((b) => b.text),
       upcoming: s.script.sections[s.sectionIdx + 1]?.bullets.map((b) => b.text) ?? [],
       onScreen: s.screen?.facts?.length ? s.screen.facts : undefined,
+      ...(verify.length ? { verify } : {}),
     };
     const ctl = new AbortController();
     this.ctl = ctl;
     const epoch = this.epoch;
+    const heldBefore = this.held.size;
+    let verifyNext = false;
     try {
       const data = await withTimeout(this.o.decide(req, ctl.signal), this.o.timeoutMs, ctl);
       if (epoch !== this.epoch) return; // stale: the script, section, points or take changed meanwhile
       this.apply(data, req, windowAbs);
+      // A point became ready to tick in this answer and waits for its verification: ask now, not on
+      // the next timer tick. Once only, so a provider that never answers cannot loop.
+      verifyNext = !verifyNow && this.held.size > heldBefore;
     } catch (err) {
       if (epoch !== this.epoch) return; // aborted by invalidate(): not an error, nothing to report
       if (err instanceof TimeoutError) {
@@ -443,6 +483,7 @@ export class Engine {
       this.inFlight = false;
       if (this.ctl === ctl) this.ctl = null;
     }
+    if (verifyNext && epoch === this.epoch) await this.tick(true);
   }
 
   private apply(data: DecideResponse, req: DecideRequest, windowAbs: number): void {
@@ -482,8 +523,26 @@ export class Engine {
         if (cur.status !== "waiting") continue;
         const confirming = d.started && d.confidence >= this.o.threshold && !rejected.has(d.id);
         this.streak[d.id] = confirming ? (this.streak[d.id] ?? 0) + 1 : 0;
-        const flip =
+        let flip =
           confirming && (d.confidence >= this.o.sureThreshold || this.streak[d.id] >= this.o.confirmCalls);
+        if (!confirming) this.held.delete(d.id);
+        if (flip && this.o.verify && data.canVerify) {
+          const v = d.verification;
+          if (!v) {
+            // Ready to tick but not verified yet: hold it, the next call asks the two questions.
+            flip = false;
+            this.held.add(d.id);
+          } else {
+            const ok = v.real >= this.o.verifyThreshold.real && v.sameParty >= this.o.verifyThreshold.sameParty;
+            this.held.delete(d.id);
+            this.o.onVerify?.(d.id, v, ok);
+            if (!ok) {
+              // Cancelled, denied, ironic or said of someone else: the point stays open and starts over.
+              flip = false;
+              this.streak[d.id] = 0;
+            }
+          }
+        }
         st.points[d.id] = flip
           ? { status: "started", confidence: d.confidence, startedAt: now, evidence: this.evidenceFor(checks.get(d.id)!, req.transcript, windowAbs, d, data.model) }
           : { status: "waiting", confidence: d.confidence, ...(cur.active && stillHot.has(d.id) ? { active: true } : {}) };
@@ -513,6 +572,7 @@ export class Engine {
       ...(d.gate !== undefined ? { gate: d.gate } : {}),
       lexical: check.evidence ? check.lexical : 0,
       model,
+      ...(d.verification ? { verified: { real: d.verification.real, sameParty: d.verification.sameParty } } : {}),
     };
   }
 

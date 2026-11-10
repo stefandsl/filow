@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contentTokens, fold, quantities, sentences, similarity, tokenize } from "./text";
+import { contentTokens, fold, FUZZY_MIN, quantities, sentences, similarity, tokenize } from "./text";
 
 describe("text: folding and tokens", () => {
   it("folds case and accents and keeps offsets into the original text", () => {
@@ -251,5 +251,19 @@ describe("text: Italian and English are unchanged by the other languages", () =>
     expect(contentTokens("We care about the EU market")).toContain("eu");
     expect(qa("o milioni di euro")).toEqual([]);
     expect(qa("nove clienti")).toEqual([["count", 9]]);
+  });
+});
+
+describe("similarity: verb and noun of the same Latin -d / -s stem (TRK-2)", () => {
+  it("matches chiudere ~ chiusura, decidere ~ decisione, conclude ~ conclusion", () => {
+    for (const [a, b] of [["chiudiamo", "chiusura"], ["chiudere", "chiuso"], ["decidere", "decisione"], ["decide", "decision"], ["conclude", "conclusion"]]) {
+      expect(similarity(a, b), `${a} ~ ${b}`).toBeGreaterThanOrEqual(FUZZY_MIN);
+      expect(similarity(b, a), `${b} ~ ${a}`).toBeGreaterThanOrEqual(FUZZY_MIN);
+    }
+  });
+  it("does not match short words or stems of fewer than 4 letters before the d/s", () => {
+    for (const [a, b] of [["comedy", "comes"], ["prendere", "presentare"], ["credere", "crescere"], ["media", "mesi"], ["programma", "progetto"], ["consegna", "condizione"], ["server", "servizio"]]) {
+      expect(similarity(a, b), `${a} ~ ${b}`).toBeLessThan(FUZZY_MIN);
+    }
   });
 });
