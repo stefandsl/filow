@@ -123,7 +123,8 @@ export function ConsentList({ consent, t, onForget }: { consent: ConsentMap | un
         <ul>
           {entries.map(([key, entry]) => {
             const what = t(`kind_${key.slice(0, key.indexOf(":")) as OutboundKind}` as OkfKey);
-            const to = t("consentTo").replace("{names}", joinNames(entry.names, t("outAnd")));
+            // "@any": OpenRouter picks the company that runs the model, which may not be its maker.
+            const to = t("consentTo").replace("{names}", joinNames(entry.names, t("outAnd"))) + (key.endsWith("@any") ? ` ${t("consentPicked")}` : "");
             const action = entry.state === "granted" ? t("consentWithdraw") : t("consentAskAgain");
             return (
               <li key={key}>

@@ -11,8 +11,12 @@
  *  for writing or translating a script. */
 export type OutboundKind = "ask" | "voice" | "audio" | "photo" | "agent" | "transcript" | "screen" | "script";
 export const OUTBOUND_KINDS: OutboundKind[] = ["ask", "voice", "audio", "photo", "agent", "transcript", "screen", "script"];
-/** names: who receives it, in order (the router first, then the maker of the model). */
-export type Recipient = { id: string; names: string[] };
+/**
+ * names: who receives it, in order (the router first, then the maker of the model).
+ * picked: OpenRouter chooses the company that runs the model, which may not be its maker
+ * (`MAKER_HOSTS` has no host of the maker's own for it), so the notice must say so.
+ */
+export type Recipient = { id: string; names: string[]; picked?: true };
 export type ConsentState = "granted" | "declined";
 export type ConsentEntry = { state: ConsentState; at: string; names: string[] };
 export type ConsentMap = Record<string, ConsentEntry>;
@@ -49,17 +53,44 @@ export function vendorName(vendor: string): string {
   return key.split(/[-_.]/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
 }
 
-/** OpenRouter passes the request on to the maker of the model: both are recipients. */
-export function askRecipient(model: string): Recipient {
-  const at = model.indexOf("/");
-  const vendor = at > 0 ? slug(model.slice(0, at)) : "";
-  if (!vendor) return { id: "openrouter", names: ["OpenRouter"] };
-  return { id: `openrouter/${vendor}`, names: ["OpenRouter", vendorName(vendor)] };
-}
+/**
+ * The makers that run their own models on OpenRouter, as OpenRouter provider slugs
+ * (openrouter.ai/docs, "Provider Routing"). A request for one of their models is pinned to these
+ * hosts (`provider.only`, no fallbacks, see `openRouterProvider` in lib/openrouter.ts), so the
+ * maker named in the notice is the company that runs it. Only makers whose models are hosted by the
+ * maker itself are listed; their open-weight families, which other companies run, are excluded below.
+ */
+export const MAKER_HOSTS: Record<string, string[]> = {
+  google: ["google-vertex", "google-ai-studio"],
+  openai: ["openai"],
+  anthropic: ["anthropic"],
+};
+/** Open-weight models of a listed maker: run by other companies, never by the maker on OpenRouter. */
+const OPEN_WEIGHT = [/^google\/gemma/i, /^openai\/gpt-oss/i];
+
 const makerOf = (model: string) => {
   const at = model.indexOf("/");
   return at > 0 ? slug(model.slice(0, at)) : "";
 };
+
+/** The maker's own OpenRouter hosts for this model, or null when OpenRouter picks who runs it. */
+export function makerHosts(model: string): string[] | null {
+  const hosts = MAKER_HOSTS[makerOf(model)];
+  if (!hosts || OPEN_WEIGHT.some((re) => re.test(model.trim()))) return null;
+  return hosts;
+}
+
+/**
+ * OpenRouter passes the request on to the company that runs the model: the maker itself when the
+ * request is pinned to the maker's hosts, otherwise one OpenRouter picks (then the id says so, and a
+ * yes for a pinned model of the same maker does not cover it).
+ */
+export function askRecipient(model: string): Recipient {
+  const vendor = makerOf(model);
+  if (!vendor) return { id: "openrouter", names: ["OpenRouter"] };
+  if (!makerHosts(model)) return { id: `openrouter/${vendor}@any`, names: ["OpenRouter", vendorName(vendor)], picked: true };
+  return { id: `openrouter/${vendor}`, names: ["OpenRouter", vendorName(vendor)] };
+}
 /** True when two OpenRouter model ids come from the same maker: a yes for one covers the other. */
 export const sameMaker = (a: string, b: string) => makerOf(a) !== "" && makerOf(a) === makerOf(b);
 
@@ -70,7 +101,9 @@ export const sameMaker = (a: string, b: string) => makerOf(a) !== "" && makerOf(
 export function routerRecipient(models: string[]): Recipient {
   const makers = [...new Set(models.map(makerOf).filter(Boolean))].sort();
   if (makers.length === 0) return { id: "openrouter", names: ["OpenRouter"] };
-  return { id: `openrouter/${makers.join("+")}`, names: ["OpenRouter", ...makers.map(vendorName)] };
+  const names = ["OpenRouter", ...makers.map(vendorName)];
+  if (models.some((m) => makerOf(m) && !makerHosts(m))) return { id: `openrouter/${makers.join("+")}@any`, names, picked: true };
+  return { id: `openrouter/${makers.join("+")}`, names };
 }
 export const voiceRecipient = (): Recipient => ({ id: "elevenlabs", names: ["ElevenLabs"] });
 export const photoRecipient = (): Recipient => ({ id: "wikipedia", names: ["Wikipedia"] });
@@ -83,7 +116,8 @@ export function sttRecipient(backend: string, userAgent = ""): Recipient | null 
   // Web Speech sends audio to the browser maker's servers.
   if (/\bEdg\//.test(userAgent)) return { id: "browser/microsoft", names: ["Microsoft"] };
   if (/\bChrome\//.test(userAgent)) return { id: "browser/google", names: ["Google"] };
-  if (/\bSafari\//.test(userAgent)) return { id: "browser/apple", names: ["Apple"] };
+  // Safari, and Apple's web view (Office for Mac), which has no "Safari/" token.
+  if (/\bSafari\//.test(userAgent) || (/AppleWebKit\//.test(userAgent) && /Mac OS X|iPhone|iPad/.test(userAgent))) return { id: "browser/apple", names: ["Apple"] };
   return { id: "browser", names: ["Web Speech"] };
 }
 
@@ -105,15 +139,27 @@ export function takeOutbound(o: { backend: string; provider: string; models: Dec
   return items;
 }
 
+/**
+ * Who the signal names while something is in flight: everyone the content goes to. When OpenRouter
+ * picks the company that runs the model, only OpenRouter is known for sure, so only OpenRouter is
+ * named (the notice and the list of choices say that OpenRouter picks the host).
+ */
+export const signalNames = (recipient: Recipient): string[] => (recipient.picked ? recipient.names.slice(0, 1) : recipient.names);
+
 /** "A", "A and B", "A, B and C". */
 export function joinNames(names: string[], and: string): string {
   if (names.length <= 1) return names[0] ?? "";
   return `${names.slice(0, -1).join(", ")} ${and} ${names[names.length - 1]}`;
 }
 
-/** "OpenRouter and then to Google, the maker of the model you chose", or just the one name. */
-export function whoPhrase(recipient: Recipient, viaTemplate: string, and: string): string {
+/**
+ * "OpenRouter and then to Google, the maker of the model you chose", or just the one name. When
+ * OpenRouter picks the company that runs the model (`picked`), `pickedTemplate` says so, naming
+ * every maker: a notice must never present the maker as the receiver when it may not be.
+ */
+export function whoPhrase(recipient: Recipient, viaTemplate: string, and: string, pickedTemplate: string): string {
   const [a, b] = recipient.names;
+  if (recipient.picked && a && b) return pickedTemplate.split("{a}").join(a).split("{b}").join(joinNames(recipient.names.slice(1), and));
   // Exactly a router and one maker; with more makers every name is listed, none is dropped.
   if (recipient.id.startsWith("openrouter/") && recipient.names.length === 2 && a && b) return viaTemplate.replace("{a}", a).replace("{b}", b);
   return joinNames(recipient.names, and);
@@ -194,6 +240,11 @@ export type BuddyRecipients = {
   screen: Recipient;
   /** Who reads the script and the slide pictures when a script is written or translated in the cloud. */
   script: Recipient;
+  /**
+   * What the server runs when the client does not choose (the PowerPoint add-in and the browser
+   * extension do not): the decision provider and the script writer. Absent on an older server.
+   */
+  defaults?: { decide: string; generate: string };
 };
 
 /**
@@ -234,12 +285,12 @@ export function voiceRoute(status: { voice?: string; offline?: boolean } | null 
 /** One first-send notice: what would go, to whom (and through which CLI, for agents). */
 export type NoticeRequest = { kind: OutboundKind; recipient: Recipient; cli?: string };
 
-type NoticeTextKey = `notice_${OutboundKind}` | "outVia" | "outAnd";
+type NoticeTextKey = `notice_${OutboundKind}` | "outVia" | "outViaPicked" | "outAnd";
 /** What the notice says: what goes, and to whom, from the recipient actually in use. */
 export function noticeBody(notice: NoticeRequest, t: (key: NoticeTextKey) => string): string {
   // A sentence may name the recipient or the CLI more than once: every place is filled.
   return t(`notice_${notice.kind}`)
-    .split("{who}").join(whoPhrase(notice.recipient, t("outVia"), t("outAnd")))
+    .split("{who}").join(whoPhrase(notice.recipient, t("outVia"), t("outAnd"), t("outViaPicked")))
     .split("{cli}").join(notice.cli ?? "");
 }
 
@@ -285,6 +336,7 @@ export function createNoticeQueue(onChange: (head: NoticeRequest | null) => void
  */
 export function consentDenied(req: Request, kind: OutboundKind, recipient: Recipient): Response | null {
   if (req.headers.get(CONSENT_HEADER) === consentKey(kind, recipient)) return null;
-  const error = `Not sent: this would go to ${joinNames(recipient.names, "and")}, and you have not said yes to that here. Use Local mode, or allow it in the Filow window that asks.`;
+  const who = whoPhrase(recipient, "{a} and {b}", "and","{a} and then to a company it picks to run the model by {b}");
+  const error = `Not sent: this would go to ${who}, and you have not said yes to that here. Use Local mode, or allow it in the Filow window that asks.`;
   return Response.json({ error, code: "consent_required", kind, recipient }, { status: 403 });
 }

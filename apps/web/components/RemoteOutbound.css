@@ -1,0 +1,19 @@
+/* The PowerPoint add-in's and the browser extension's list of choices (components/RemoteOutbound.tsx).
+   The notice and the pill come from app/okfilow/outbound.css; the list looks like the one in the OK
+   Filow panel (app/okfilow/okfilow.css), which these clients do not load. */
+.okf-remote-consent { font-size: 13px; }
+.okf-remote-consent summary { cursor: pointer; font-weight: 700; padding: 4px 0; }
+.okf-remote-consent summary:focus-visible { outline: 2px solid var(--okf-out-line); outline-offset: 2px; }
+/* The summary already names the list. */
+.okf-remote-consent .okf-consent h2 { display: none; }
+.okf-remote-consent .okf-consent { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+.okf-remote-consent .okf-consent ul { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.okf-remote-consent .okf-consent li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; line-height: 1.4; }
+.okf-remote-consent .okf-consent-what { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; }
+.okf-remote-consent .okf-consent-to { color: var(--muted); }
+.okf-remote-consent .okf-note { margin: 0; color: var(--muted); }
+.okf-remote-consent .okf-chip { flex: none; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.okf-remote-consent .okf-consent-chip--granted { background: var(--okf-out); color: #08090b; box-shadow: inset 0 0 0 1px var(--okf-out-line); }
+.okf-remote-consent .okf-consent-chip--declined { background: color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); }
+.okf-remote-consent .okf-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+.okf-remote-consent .okf-link:focus-visible { outline: 2px solid var(--okf-out-line); outline-offset: 2px; }

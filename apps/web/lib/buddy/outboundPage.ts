@@ -6,6 +6,7 @@ import {
   CONSENT_HEADER,
   consentKey,
   isGranted,
+  signalNames,
   type BuddyRecipients,
   type ConsentChanges,
   type ConsentMap,
@@ -172,7 +173,7 @@ export function createPageOutbound(o: {
     hold(kind: OutboundKind, recipient: Recipient): () => void {
       if (!isGranted(consent, kind, recipient)) throw new NoConsentError(kind, recipient);
       const id = `hold-${kind}-${++holds}`;
-      signal.begin(id, kind, recipient.names);
+      signal.begin(id, kind, signalNames(recipient));
       let released = false;
       return () => {
         if (released) return;

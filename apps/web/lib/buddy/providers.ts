@@ -4,7 +4,7 @@
 // go back to the bubble.
 import { isSetupPreference, resolveSetup, type ResolvedSetup } from "@filow/core";
 import { OLLAMA_URL } from "@/lib/decide/clef";
-import { openRouterChatUrl } from "@/lib/openrouter";
+import { openRouterChatUrl, withProvider } from "@/lib/openrouter";
 import { askRecipient, consentKey, type Recipient } from "./outbound";
 import { gpuInfo, machineInfo } from "@/lib/sysinfo";
 import { buddySystemPrompt, trimHistory, type BuddyScreen, type BuddyTurn } from "./prompt";
@@ -213,6 +213,8 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal): Async
           content: [{ type: "text", text: req.question }, ...req.images.map((url) => ({ type: "image_url", image_url: { url } }))],
         },
       ],
+      // Only the company the notice named runs the model (lib/openrouter.ts, openRouterProvider).
+      ...withProvider([BUDDY_CLOUD_MODEL()]),
     }),
   });
   if (!res.ok || !res.body) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`);

@@ -6,8 +6,32 @@ import { createRoot } from "react-dom/client";
 import { connect, type SessionClient } from "@filow/client";
 import { langFromLocale, LANGS, parseScript, slideNeedsImage, type Command, type GenerateProgress, type Lang, type ScreenMode, type SessionState, type SlideInput, type VisionResponse } from "@filow/core";
 import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
+import type { BuddyRecipients } from "@/lib/buddy/outbound";
+import { createPageOutbound } from "@/lib/buddy/outboundPage";
+import { kvConsentStore, screenOut, scriptOut } from "@/lib/buddy/outboundRemote";
+import { EXTENSION_TEXT, RemoteConsentList, RemoteOutboundNotice, RemoteOutboundSignal, remoteText } from "@/components/RemoteOutbound";
 import type { SlideInfo } from "./adapters";
 import "./sidepanel.css";
+
+/** The Filow API this panel talks to (set from the "API" field once paired). */
+const api = { origin: "http://127.0.0.1:4747" };
+const CONSENT_KEY = "outboundConsent";
+
+/**
+ * What leaves this PC (docs/okfilow/OUTBOUND.md): nothing without a yes, every send shown. The
+ * extension cannot reach the Filow window's settings, so it keeps its own choices in its own
+ * storage and lists them under "What may leave this PC".
+ */
+const outbound = createPageOutbound({
+  store: kvConsentStore({
+    get: async () => (await chrome.storage.local.get(CONSENT_KEY))[CONSENT_KEY],
+    set: (next) => chrome.storage.local.set({ [CONSENT_KEY]: next }),
+  }),
+  fetchRecipients: async () => {
+    const res = await fetch(`${api.origin}/api/buddy/recipients`, { cache: "no-store" });
+    return res.ok ? ((await res.json()) as BuddyRecipients) : null;
+  },
+});
 
 const storage = {
   async get<T>(k: string, d: T): Promise<T> {
@@ -46,6 +70,7 @@ function App() {
 
 function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
   const t = useT();
+  const okt = remoteText(lang);
   const [server, setServer] = useState("http://127.0.0.1:4748");
   const [appServer, setAppServer] = useState("http://127.0.0.1:4747");
   const [code, setCode] = useState("");
@@ -61,6 +86,8 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
   const followRef = useRef(false);
   const clientRef = useRef<SessionClient | null>(null);
   const lastSlide = useRef(-1);
+  /** The attached deck tab: frames are captured only while it is the visible tab. */
+  const deckTab = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     void (async () => {
@@ -70,6 +97,10 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
       setMode(await storage.get("mode", "slide-change"));
     })();
   }, []);
+
+  useEffect(() => {
+    api.origin = appServer.replace(/\/$/, "");
+  }, [appServer]);
 
   const join = async () => {
     setError(null);
@@ -96,9 +127,10 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
 
   const attach = async () => {
     setError(null);
-    const r = await bg<{ ok: boolean; error?: string; url?: string }>({ t: "attach" });
+    const r = await bg<{ ok: boolean; error?: string; url?: string; tabId?: number }>({ t: "attach" });
     if (!r.ok) return setError(r.error ?? "could not attach");
     const p = await toContent<{ ok: boolean; info?: SlideInfo }>({ t: "probe" });
+    deckTab.current = r.tabId;
     setAttached({ url: r.url, adapter: p.info?.adapter });
   };
 
@@ -126,14 +158,27 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
     const cl = clientRef.current;
     if (!cl) return;
     try {
-      const cap = await bg<{ ok: boolean; dataUrl?: string }>({ t: "capture" });
+      // Before the tab is even captured: who would look at it, and a yes. A no stops watching.
+      const known = await outbound.recipients();
+      if (!known) return;
+      const to = screenOut(known);
+      if (to && (await outbound.allow("screen", to)) !== "granted") {
+        setMode("off");
+        void storage.set("mode", "off");
+        return;
+      }
+      // The notice may have stayed open while the deck moved on: a frame of another slide would carry the wrong title.
+      if (lastSlide.current !== info.index) return;
+      const cap =await bg<{ ok: boolean; dataUrl?: string }>({ t: "capture", tabId: deckTab.current });
       if (!cap.ok || !cap.dataUrl) return;
       const token = await mintEngineToken(server, cl.id, cl.token);
-      const res = await fetch(`${appServer}/api/vision`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ image: cap.dataUrl, source: "window", context: { sectionTitle: info.title } }),
-      });
+      const look = (consent: Record<string, string>) =>
+        fetch(`${appServer}/api/vision`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...consent },
+          body: JSON.stringify({ image: cap.dataUrl, source: "window", context: { sectionTitle: info.title } }),
+        });
+      const res = to ? await outbound.sending("screen", to, look) : await look({});
       if (!res.ok) return;
       const out = (await res.json()) as VisionResponse;
       // The engine owns the ON SCREEN strip; a view cannot feed it directly, so show it locally.
@@ -147,8 +192,14 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
     const cl = clientRef.current;
     if (!cl) return;
     setError(null);
-    setProgress(t("ext.reading"));
+    setProgress(null);
     try {
+      // Before the slides are even read: who would write the script, and a yes if that is not this PC.
+      const known = await outbound.recipients();
+      if (!known) throw new Error(okt("noticeUnknown"));
+      const to = scriptOut(known);
+      if (to && (await outbound.allow("script", to)) !== "granted") return; // the signal line says what was kept
+      setProgress(t("ext.reading"));
       const first = await toContent<{ ok: boolean; info?: SlideInfo }>({ t: "probe" });
       if (!first.ok || !first.info) throw new Error("attach the deck tab first");
       const slides: SlideInput[] = [];
@@ -167,7 +218,7 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
         seen.add(sig);
         const slide: SlideInput = { index: slides.length, title: info.title, text: info.text };
         if (slideNeedsImage(slide)) {
-          const cap = await bg<{ ok: boolean; dataUrl?: string }>({ t: "capture" });
+          const cap = await bg<{ ok: boolean; dataUrl?: string }>({ t: "capture", tabId: deckTab.current });
           if (cap.ok && cap.dataUrl) slide.imageBase64 = cap.dataUrl.replace(/^data:image\/\w+;base64,/, "");
         }
         slides.push(slide);
@@ -177,31 +228,36 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
         info = n.info;
       }
       const token = await mintEngineToken(server, cl.id, cl.token);
-      const res = await fetch(`${appServer}/api/script/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ slides }),
-      });
-      if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `generate failed (${res.status})`);
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let buf = "";
-      let text: string | null = null;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const j = JSON.parse(line) as { progress?: GenerateProgress; done?: boolean; text?: string; error?: string };
-          if (j.error) throw new Error(j.error);
-          if (j.progress) setProgress(`${j.progress.done} / ${j.progress.total} · ${j.progress.title}`);
-          if (j.done) text = j.text ?? "";
+      // The signal stays on for the whole stream: the slides leave until the last answer is in.
+      const write = async (consent: Record<string, string>): Promise<string> => {
+        const res = await fetch(`${appServer}/api/script/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...consent },
+          body: JSON.stringify({ slides }),
+        });
+        if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `generate failed (${res.status})`);
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        let text: string | null = null;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            const j = JSON.parse(line) as { progress?: GenerateProgress; done?: boolean; text?: string; error?: string };
+            if (j.error) throw new Error(j.error);
+            if (j.progress) setProgress(`${j.progress.done} / ${j.progress.total} · ${j.progress.title}`);
+            if (j.done) text = j.text ?? "";
+          }
         }
-      }
-      if (text === null) throw new Error("stream ended early");
+        if (text === null) throw new Error("stream ended early");
+        return text;
+      };
+      const text = to ? await outbound.sending("script", to, write) : await write({});
       setPreview(text);
       setProgress(t("ext.review"));
     } catch (err) {
@@ -232,9 +288,9 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
     <>
       <div className="pane">
         <header className="topbar">
-          <div className="logo">
+          <h1 className="logo">
             <Wordmark height={28} />
-          </div>
+          </h1>
           <span className="spacer" />
           <span className="langswitch">
             {LANGS.map((l) => (
@@ -245,82 +301,88 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
           </span>
           {client && <span className="chip live">{status === "open" ? "●" : status}</span>}
         </header>
+        <main className="pane-main">
+          <RemoteOutboundSignal out={outbound} lang={lang} swap={EXTENSION_TEXT} />
 
-        {!client ? (
-          <div className="setup">
-            <div className="eyebrow">{t("ext.pairTitle")}</div>
-            <p className="hint">{t("ext.pairHint")}</p>
-            <label className="hint">
-              {t("ext.relay")}
-              <input className="btn" value={server} onChange={(e) => setServer(e.target.value)} placeholder="http://127.0.0.1:4748" />
-            </label>
-            <label className="hint">
-              {t("ext.api")}
-              <input className="btn" value={appServer} onChange={(e) => setAppServer(e.target.value)} placeholder="http://127.0.0.1:4747" />
-            </label>
-            <form
-              className="row"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void join();
-              }}
-            >
-              <input className="btn code-input" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="123456" />
-              <button className="btn primary" type="submit" disabled={code.length !== 6 || status === "pairing"}>
-                {status === "pairing" ? t("mirror.pairing") : t("mirror.join")}
-              </button>
-            </form>
-            {error && <span className="chip err">{error}</span>}
-          </div>
-        ) : (
-          <>
-            <div className="controls">
-              <button className="btn" onClick={() => void attach()}>
-                {attached ? t("ext.deck", { adapter: attached.adapter ?? "" }) : t("ext.useTab")}
-              </button>
-              <button className="btn primary" disabled={!attached} onClick={() => void generate()}>
-                {t("ext.generate")}
-              </button>
-              <label className={`btn choice ${follow ? "primary" : ""}`}>
-                <input type="checkbox" checked={follow} disabled={!attached} onChange={(e) => setFollow(e.target.checked)} /> {t("ext.follow")}
+          {!client ? (
+            <div className="setup">
+              <div className="eyebrow">{t("ext.pairTitle")}</div>
+              <p className="hint">{t("ext.pairHint")}</p>
+              <label className="hint">
+                {t("ext.relay")}
+                <input className="btn" value={server} onChange={(e) => setServer(e.target.value)} placeholder="http://127.0.0.1:4748" />
               </label>
-              <select
-                className="btn"
-                value={mode}
-                onChange={(e) => {
-                  setMode(e.target.value as ScreenMode);
-                  void storage.set("mode", e.target.value);
+              <label className="hint">
+                {t("ext.api")}
+                <input className="btn" value={appServer} onChange={(e) => setAppServer(e.target.value)} placeholder="http://127.0.0.1:4747" />
+              </label>
+              <form
+                className="row"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void join();
                 }}
-                title="Vision for image-only slides while following"
               >
-                <option value="off">{t("ext.visionOff")}</option>
-                <option value="slide-change">{t("ext.visionChange")}</option>
-                <option value="balanced">{t("ext.visionBalanced")}</option>
-                <option value="realtime">{t("ext.visionRealtime")}</option>
-              </select>
-              {progress && <span className="hint">{progress}</span>}
+                <input className="btn code-input" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="123456" />
+                <button className="btn primary" type="submit" disabled={code.length !== 6 || status === "pairing"}>
+                  {status === "pairing" ? t("mirror.pairing") : t("mirror.join")}
+                </button>
+              </form>
               {error && <span className="chip err">{error}</span>}
             </div>
-            {state ? <StageView state={state} onCommand={send} banner={status.startsWith("connecting") ? t("ppt.engineOffline") : null} /> : <div className="hint">{t("ppt.waitingEngine")}</div>}
-          </>
-        )}
-
-        {preview !== null && (
-          <div className="modal-bg" onClick={() => setPreview(null)}>
-            <div className="modal" onClick={(e) => e.stopPropagation()}>
-              <div className="eyebrow">{t("ppt.reviewTitle")}</div>
-              <textarea value={preview} onChange={(e) => setPreview(e.target.value)} spellCheck={false} />
+          ) : (
+            <>
               <div className="controls">
-                <button className="btn primary" onClick={() => void loadScript(preview).catch((e) => setError((e as Error).message))}>
-                  {t("ppt.loadIntoSession")}
+                <button className="btn" onClick={() => void attach()}>
+                  {attached ? t("ext.deck", { adapter: attached.adapter ?? "" }) : t("ext.useTab")}
                 </button>
-                <button className="btn" onClick={() => setPreview(null)}>
-                  {t("common.cancel")}
+                <button className="btn primary" disabled={!attached} onClick={() => void generate()}>
+                  {t("ext.generate")}
                 </button>
+                <label className={`btn choice ${follow ? "primary" : ""}`}>
+                  <input type="checkbox" checked={follow} disabled={!attached} onChange={(e) => setFollow(e.target.checked)} /> {t("ext.follow")}
+                </label>
+                <select
+                  className="btn"
+                  value={mode}
+                  onChange={(e) => {
+                    setMode(e.target.value as ScreenMode);
+                    void storage.set("mode", e.target.value);
+                  }}
+                  title="Vision for image-only slides while following"
+                  aria-label="Vision for image-only slides while following"
+                >
+                  <option value="off">{t("ext.visionOff")}</option>
+                  <option value="slide-change">{t("ext.visionChange")}</option>
+                  <option value="balanced">{t("ext.visionBalanced")}</option>
+                  <option value="realtime">{t("ext.visionRealtime")}</option>
+                </select>
+                {progress && <span className="hint">{progress}</span>}
+                {error && <span className="chip err">{error}</span>}
+              </div>
+              {state ? <StageView state={state} onCommand={send} banner={status.startsWith("connecting") ? t("ppt.engineOffline") : null} /> : <div className="hint">{t("ppt.waitingEngine")}</div>}
+            </>
+          )}
+
+          {preview !== null && (
+            <div className="modal-bg" onClick={() => setPreview(null)}>
+              <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <div className="eyebrow">{t("ppt.reviewTitle")}</div>
+                <textarea value={preview} onChange={(e) => setPreview(e.target.value)} spellCheck={false} />
+                <div className="controls">
+                  <button className="btn primary" onClick={() => void loadScript(preview).catch((e) => setError((e as Error).message))}>
+                    {t("ppt.loadIntoSession")}
+                  </button>
+                  <button className="btn" onClick={() => setPreview(null)}>
+                    {t("common.cancel")}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+          <RemoteConsentList out={outbound} lang={lang} swap={EXTENSION_TEXT} />
+          <RemoteOutboundNotice out={outbound} lang={lang} swap={EXTENSION_TEXT} />
+        </main>
         <footer className="help">{t("ext.help")}</footer>
       </div>
     </>

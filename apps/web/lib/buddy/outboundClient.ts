@@ -7,6 +7,7 @@ import {
   createNoticeQueue,
   isGranted,
   keepLocalPatch,
+  signalNames,
   standing,
   withConsent,
   withoutConsent,
@@ -112,7 +113,7 @@ export function createOutboundController(deps: OutboundDeps) {
       if (!isGranted(deps.consent(), kind, recipient)) throw new NoConsentError(kind, recipient);
       const id = `${kind}-${++seq}`;
       let stayed = false;
-      deps.signal?.begin(id, kind, recipient.names);
+      deps.signal?.begin(id, kind, signalNames(recipient));
       try {
         return await run({ [CONSENT_HEADER]: consentKey(kind, recipient) }, () => { stayed = true; });
       } finally {

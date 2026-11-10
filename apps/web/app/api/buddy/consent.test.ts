@@ -117,6 +117,7 @@ describe("recipient names: /api/buddy/recipients", () => {
       screen: { id: "openrouter/google", names: ["OpenRouter", "Google"] },
       script: { id: "openrouter/google", names: ["OpenRouter", "Google"] },
       decision: { openrouter: "google/gemini-2.5-flash-lite", cloudflare: "@cf/cloudflare/clef-flash" },
+      defaults: { decide: "openrouter", generate: "openrouter" },
     });
     // A script that is written by one maker and read by another names both.
     vi.stubEnv("OPENROUTER_VISION_MODEL", "openai/gpt-4o-mini");

@@ -5,6 +5,7 @@ import { decideOpenRouter, OPENROUTER_DECISION_MODEL } from "@/lib/decide/openro
 import { CLEF_CLOUDFLARE_MODEL, decideClefCloudflare, decideClefLocal } from "@/lib/decide/clef";
 import { consentDenied, decisionRecipient } from "@/lib/buddy/outbound";
 import { anonymizeRequest, piiMode, restore } from "@/lib/pii/guard";
+import { resolveDecisionProvider } from "@/lib/decide/resolve";
 
 /**
  * One call per engine tick. The provider comes from the request (chosen in
@@ -18,13 +19,7 @@ const PROVIDERS: Record<ServerDecisionProviderId, { run: (b: DecideRequest, sign
   "clef-cloudflare": { run: decideClefCloudflare, cloud: true },
 };
 
-function resolveProvider(requested?: string): ServerDecisionProviderId {
-  const offline = process.env.FILOW_OFFLINE === "1";
-  const fallback = (process.env.DECISION_PROVIDER as ServerDecisionProviderId) || "openrouter";
-  const id = (requested && Object.hasOwn(PROVIDERS, requested) ? requested : fallback) as ServerDecisionProviderId;
-  if (offline && id !== "clef-local") return "clef-local";
-  return id;
-}
+const resolveProvider = resolveDecisionProvider;
 
 export async function POST(req: Request) {
   const denied = requireEngine(req);

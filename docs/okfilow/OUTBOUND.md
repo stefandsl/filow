@@ -22,8 +22,14 @@ Three rules, enforced in code:
    A changed model (another maker) is another recipient, so it needs a new yes.
 
 Recipient names always come from the provider and model configured right now
-(`GET /api/buddy/recipients`), never from fixed text. OpenRouter forwards to the model's maker,
-so both are named ("OpenRouter and then to Google, the maker of the model you chose").
+(`GET /api/buddy/recipients`), never from fixed text. OpenRouter forwards to the company that runs
+the model. For makers that run their own models (`MAKER_HOSTS` in `outbound.ts`: Google, OpenAI,
+Anthropic, without their open-weight families) every request is pinned to the maker's own hosts
+(`provider: { only: [...] }`, an allowlist: a fallback stays among the maker's hosts; `openRouterProvider` in `lib/openrouter.ts`),
+so both names are true ("OpenRouter and then to Google, the maker of the model you chose"). For any
+other model OpenRouter picks the host, and the recipient says so (`picked`, id `openrouter/<maker>@any`:
+"OpenRouter and then to a company OpenRouter picks to run the model made by Meta (it may be a company
+other than Meta)"); a yes for a pinned model never covers it, and the signal then names OpenRouter only.
 
 ## Inventory
 
@@ -38,9 +44,9 @@ so both are named ("OpenRouter and then to Google, the maker of the model you ch
 | 7 | Take, cloud decider (`/api/decide` with `openrouter` or `clef-cloudflare`) | the words spoken, anonymised by the PII guard | OpenRouter then the maker, or Cloudflare | `transcript` | take-page notice before the take starts; pill during each call |
 | 8 | Take, Screen Sense (`/api/vision`) | pictures of the shared screen | OpenRouter, then the vision model's maker | `screen` | take-page notice at the first frame (a no stops watching); pill during each frame |
 | 9 | Script editor, Translate (`/api/script/translate`) | the script text | OpenRouter, then the maker (`scriptRecipient`) | `script` | take-page notice inside the editor; pill in the editor |
-| 10 | Script from slides, cloud (`/api/script/generate`) from the PowerPoint add-in and the browser extension | slide text and slide pictures | OpenRouter, then the maker | `script` | **gap**: those clients have no notice yet, so a cloud generate is refused (403) until they do. See "Open" |
-| 11 | PowerPoint add-in take (`/api/decide`, stt token routes, then Web Speech) | spoken words, microphone audio | as rows 5 to 7 | `transcript`, `audio` (Web Speech cannot be gated by the server) | **gap**: no notice. The cloud decider and the ElevenLabs / OpenAI tokens are refused, so the add-in's automatic engine choice moves on to Web Speech where the browser has it (PowerPoint for the web): the microphone then goes to the browser maker with no notice and no signal. This was already so on main for every cloud engine; see "Open" |
-| 12 | Browser extension, Screen Sense (`/api/vision`) | a picture of the tab | as row 8 | `screen` | **gap**: same as row 10 |
+| 10 | Script from slides, cloud (`/api/script/generate`) from the PowerPoint add-in and the browser extension | slide text and slide pictures | OpenRouter, then the maker | `script` | the pane's own notice before the slides are read (only when the server would write in the cloud: `defaults.generate` from `/api/buddy/recipients`); pill for the whole stream |
+| 11 | PowerPoint add-in take (`/api/decide`, stt token routes, Web Speech) | spoken words, microphone audio | as rows 5 to 7 | `transcript`, `audio` (Web Speech cannot be gated by the server) | the pane's notice for the server's decider (`defaults.decide`) before the take starts; the automatic engine choice starts an engine on this PC first (`startLocalFirst`), and only when none is available or none could start offers the first cloud or browser-maker engine through the notice. A no starts nothing. Pill for the whole take and during each decide call; a yes withdrawn in the pane's list stops the take |
+| 12 | Browser extension, Screen Sense (`/api/vision`) | a picture of the tab and the slide title | as row 8 | `screen` | the panel's notice at the first frame, before the tab is captured (a no turns vision off); pill during each frame |
 | 13 | Public link (trycloudflare tunnel, `main.js`) | the mirror page and the session relay: script, transcript, slide state | Cloudflare (relay), and whoever opens the link | not content-gated. **On by default since 0.4.0** and started at launch without a dialog (the download of cloudflared is silent when automatic); the explaining dialog shows only when the user turns it on from the menu | only the "Public link on" chip on the take page; no notice, no per-send signal. See "Open" |
 | 14 | Model router probe (`/api/local/plan` with `probe`) | a fixed sample request, no user content | OpenRouter, then the maker | none needed (no user content) | none |
 | 15 | Downloads (Ollama installer, sherpa model, cloudflared, update check on GitHub) | no user content (the request itself only) | ollama.com, github.com | none needed | the download dialogs |
@@ -60,6 +66,12 @@ speech-to-text, the system voice, OK Filow's own speech-to-text (desktop `stt.js
 - `apps/web/lib/buddy/outboundPage.ts` + `components/usePageOutbound.ts` + `components/PageOutbound.tsx`:
   the take page's copy of it (own pill, notice as a modal, choices shared with OK Filow's settings
   through the desktop bridge, or the browser's storage when there is no desktop).
+- `apps/web/lib/buddy/outboundRemote.ts` + `components/RemoteOutbound.tsx`: the same controller for
+  the PowerPoint add-in and the browser extension, which cannot reach the Filow window's settings:
+  they keep their own choices (the pane's localStorage, the extension's `chrome.storage`), list them
+  under "What may leave this PC" in the pane, and learn from `/api/buddy/recipients` (`defaults`)
+  whether the server would decide or write in the cloud. They import these files through an `@`
+  alias to `apps/web` (their `vite.config.ts` and `tsconfig.json`).
 - `apps/desktop/okfilow-outbound.js`: the signal state in the main process (minimum visible time,
   linger), sent to the overlay and the panel.
 - `apps/web/app/okfilow/outbound-ui.tsx`, `outbound.css`: the notice, the pill, the consent list.
@@ -71,16 +83,12 @@ speech-to-text, the system voice, OK Filow's own speech-to-text (desktop `stt.js
 - Row 13: the public link is on by default and starts without asking. Script, transcript and slide
   state then pass through Cloudflare. Either make it opt-in, or show the outbound notice the first
   time it starts and the pill while it is on.
-- OpenRouter picks the host that serves a model (`provider: { sort: "throughput" }` in
-  `lib/openrouter.ts`). For Google's Gemini models the host is Google, as the notice says; for other
-  makers it can be another company (OpenAI models on Microsoft Azure, open-weight models such as
-  Llama, Qwen or DeepSeek on third-party hosts). The notice names OpenRouter and the maker only.
-  Either pin the host to the maker (`provider.only`), or change the sentence to "OpenRouter and the
-  company it picks to run the model".
+- OpenRouter hosts: pinned to the maker for Google, OpenAI and Anthropic models (see above); other
+  makers (Mistral, DeepSeek, Cohere and more run some of their own models too) are not pinned yet
+  because not every one of their models is served by them, and a pinned request for such a model
+  fails. Adding a maker to `MAKER_HOSTS` is one line once its models are checked.
 - Coding agents: the recipient is the CLI's maker (OpenAI for Codex, Anthropic for Claude Code). A
   CLI set up for Bedrock, Vertex or Azure sends elsewhere; Filow cannot see that.
-- Rows 10 to 12: the PowerPoint add-in and the browser extension call gated routes but have no
-  notice of their own. Until they get one (or the server learns to read the desktop's stored
-  choices), their cloud paths are refused and only their local paths work. They show the server's
-  refusal as it is, and it is a sentence that names the recipient and says to use Local mode
-  ("Not sent: this would go to OpenRouter and Google, ...").
+- Rows 10 to 12: the add-in's and the extension's choices are their own, not the ones listed in the
+  OK Filow panel (the pane cannot reach the desktop's settings). A yes given in the Filow window is
+  asked again in the pane, once.

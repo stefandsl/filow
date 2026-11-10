@@ -4,13 +4,30 @@ import { createRoot } from "react-dom/client";
 import { connect, type SessionClient } from "@filow/client";
 import { Engine, isLang, langFromLocale, LANGS, parseScript, type Command, type DecideRequest, type DecideResponse, type Lang, type SessionState, type SttStatus } from "@filow/core";
 import { availableBackends, BACKEND_LABELS, startAuto, type SttBackend } from "@filow/stt";
-import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
+import { Wordmark, LangProvider, StageView, useLang, useT } from "@filow/ui";
+import { isGranted, type BuddyRecipients } from "@/lib/buddy/outbound";
+import { createPageOutbound } from "@/lib/buddy/outboundPage";
+import { decideOut, scriptOut, startLocalFirst, webStorageConsentStore } from "@/lib/buddy/outboundRemote";
+import { RemoteConsentList, RemoteOutboundNotice, RemoteOutboundSignal, remoteText } from "@/components/RemoteOutbound";
 import { getSelectedSlide, hostInfo, onSelectionChange, readNotesAsScript, selectSlide, supportsNotes } from "./office";
 import { attachSlideImages, mintEngineToken, readSlidesForGeneration, requestGeneration } from "./generate";
 import "./taskpane.css";
 
 type Mode = "engine" | "view";
 const ORIGIN = window.location.origin; // the pane is served by the Filow server (or the Vite dev proxy)
+
+/**
+ * What leaves this PC (docs/okfilow/OUTBOUND.md): nothing without a yes, every send shown. The pane
+ * cannot reach the Filow window's settings, so it keeps its own choices in its own storage and
+ * lists them under "What may leave this PC".
+ */
+const outbound = createPageOutbound({
+  store: webStorageConsentStore(() => localStorage, "filow.outbound.consent"),
+  fetchRecipients: async () => {
+    const res = await fetch(`${ORIGIN}/api/buddy/recipients`, { cache: "no-store" });
+    return res.ok ? ((await res.json()) as BuddyRecipients) : null;
+  },
+});
 const store = {
   get: (k: string) => {
     try {
@@ -62,9 +79,9 @@ function AppInner({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
   return (
     <div className="pane">
       <header className="topbar">
-        <div className="logo">
+        <h1 className="logo">
           <Wordmark height={28} />
-        </div>
+        </h1>
         <span className="spacer" />
         <span className="langswitch">
           {LANGS.map((l) => (
@@ -73,14 +90,19 @@ function AppInner({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
             </button>
           ))}
         </span>
-        <select className="btn" value={mode} onChange={(e) => setMode(e.target.value as Mode)} title={t("ppt.modeTitle")}>
+        <select className="btn" value={mode} onChange={(e) => setMode(e.target.value as Mode)} title={t("ppt.modeTitle")} aria-label={t("ppt.modeTitle")}>
           <option value="engine" disabled={!host.canUseMic}>
             {host.canUseMic ? t("ppt.modeEngine") : t("ppt.modeEngineNo")}
           </option>
           <option value="view">{t("ppt.modeView")}</option>
         </select>
       </header>
-      {mode === "engine" ? <EnginePane webSpeech={host.webSpeech} /> : <ViewPane />}
+      <main className="pane-main">
+        <RemoteOutboundSignal out={outbound} lang={lang} />
+        {mode === "engine" ? <EnginePane webSpeech={host.webSpeech} /> : <ViewPane />}
+        <RemoteConsentList out={outbound} lang={lang} />
+        <RemoteOutboundNotice out={outbound} lang={lang} />
+      </main>
       <footer className="help">{t("ppt.help")}</footer>
     </div>
   );
@@ -145,18 +167,26 @@ function LoadNotesButton({ onText }: { onText: (text: string) => Promise<void> |
  */
 function GenerateButton({ getToken, onText }: { getToken: () => Promise<string>; onText: (text: string) => Promise<void> | void }) {
   const t = useT();
+  const okt = remoteText(useLang());
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const run = async () => {
     setBusy(true);
-    setMsg(t("ppt.readingSlides"));
+    setMsg(null);
     try {
+      // Before the slides are even read: who would write the script, and a yes if that is not this PC.
+      const known = await outbound.recipients();
+      if (!known) return setMsg(okt("noticeUnknown"));
+      const to = scriptOut(known);
+      if (to && (await outbound.allow("script", to)) !== "granted") return; // the signal line says what was kept
+      setMsg(t("ppt.readingSlides"));
       const slides = await readSlidesForGeneration();
       const images = await attachSlideImages(slides);
       setMsg(`0 / ${slides.length}${images ? ` · ${images} ${t("ppt.slideImages")}` : ""}`);
       const token = await getToken();
-      const out = await requestGeneration(ORIGIN, token, slides, undefined, (p) => setMsg(`${p.done} / ${p.total} · ${p.title}`));
+      const generate = (headers: Record<string, string>) => requestGeneration(ORIGIN, token, slides, undefined, (p) => setMsg(`${p.done} / ${p.total} · ${p.title}`), headers);
+      const out = to ? await outbound.sending("script", to, generate) : await generate({});
       setPreview(out.text);
       setMsg(t("ppt.doneWith", { model: out.model + (out.cost ? ` · $${out.cost.toFixed(4)}` : "") }));
     } catch (err) {
@@ -216,18 +246,26 @@ function EnginePane({ webSpeech }: { webSpeech: boolean }) {
   const engineRef = useRef<Engine | null>(null);
   const clientRef = useRef<SessionClient | null>(null);
   const backendRef = useRef<SttBackend | null>(null);
+  const releaseRef = useRef<(() => void) | null>(null);
+  const startingRef = useRef(false);
+  const okt = remoteText(useLang());
 
   // Read the token through a ref so `headers` keeps one identity and the engine effect doesn't recreate the Engine mid-session.
   const tokenRef = useRef<string | null>(null);
   tokenRef.current = token;
   const headers = useCallback((): Record<string, string> => (tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {}), []);
 
-  // Engine with decide through the server.
+  // Engine with decide through the server. When the server's decider is in the cloud, each call
+  // carries the consent header and shows the signal while it runs (the route is set at take start).
   useEffect(() => {
     const decide = async (r: DecideRequest): Promise<DecideResponse> => {
-      const res = await fetch(`${ORIGIN}/api/decide`, { method: "POST", headers: { "Content-Type": "application/json", ...headers() }, body: JSON.stringify(r) });
-      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `decide failed (${res.status})`);
-      return (await res.json()) as DecideResponse;
+      const call = async (consent: Record<string, string>) => {
+        const res = await fetch(`${ORIGIN}/api/decide`, { method: "POST", headers: { "Content-Type": "application/json", ...headers(), ...consent }, body: JSON.stringify(r) });
+        if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `decide failed (${res.status})`);
+        return (await res.json()) as DecideResponse;
+      };
+      const to = outbound.route("transcript");
+      return to ? outbound.sending("transcript", to, call) : call({});
     };
     const engine = new Engine({ decide });
     engineRef.current = engine;
@@ -278,26 +316,68 @@ function EnginePane({ webSpeech }: { webSpeech: boolean }) {
 
   const startTake = async () => {
     const engine = engineRef.current;
-    if (!engine) return;
+    if (!engine || startingRef.current || backendRef.current) return;
+    startingRef.current = true;
     const handlers = {
       onTranscript: (e: { committed?: string; partial?: string }) => engine.feed(e),
       onError: (m: string) => engine.setError(m),
     };
     try {
-      const candidates = availableBackends(sttStatus, webSpeech);
-      const { backend } = await startAuto(candidates, handlers, () => undefined, { baseUrl: ORIGIN, headers: headers() });
-      backendRef.current = backend;
-      engine.setBackend(backend.id);
+      // Before anything opens or leaves: who would read the words (the server's decider), then a
+      // speech engine on this PC first. A no to either starts nothing (docs/okfilow/OUTBOUND.md).
+      const known = await outbound.recipients();
+      if (!known) return engine.setError(okt("noticeUnknown"));
+      const words = decideOut(known);
+      if (words && (await outbound.allow("transcript", words)) !== "granted") return;
+      outbound.setRoute("transcript", words);
+      const started = await startLocalFirst({
+        available: availableBackends(sttStatus, webSpeech),
+        userAgent: navigator.userAgent,
+        gate: outbound,
+        start: async (ids, consent) => (await startAuto(ids, handlers, () => undefined, { baseUrl: ORIGIN, headers: { ...headers(), ...consent } })).backend,
+      });
+      if (!started.ok) {
+        outbound.setRoute("transcript", null);
+        if (started.reason === "failed") engine.setError(started.error);
+        return;
+      }
+      backendRef.current = started.backend;
+      releaseRef.current = started.release;
+      outbound.setRoute("audio", started.audio);
+      engine.setBackend(started.backend.id);
       engine.start();
     } catch (err) {
       engine.setError((err as Error).message);
+    } finally {
+      startingRef.current = false;
     }
   };
   const stopTake = () => {
     backendRef.current?.stop();
     backendRef.current = null;
+    releaseRef.current?.();
+    releaseRef.current = null;
+    outbound.setRoute("audio", null);
+    outbound.setRoute("transcript", null);
     engineRef.current?.stop();
   };
+  // A yes withdrawn in the list below stops the take that relies on it, like the take page does.
+  // Leaving engine mode (the mode menu) stops the take too: no microphone streams without its controls.
+  useEffect(() => {
+    const off = outbound.subscribe(() => {
+      if (!backendRef.current) return;
+      const consent = outbound.getState().consent;
+      const gone = (["audio", "transcript"] as const).some((kind) => {
+        const to = outbound.route(kind);
+        return to !== null && !isGranted(consent, kind, to);
+      });
+      if (gone) stopTake();
+    });
+    return () => {
+      off();
+      stopTake();
+    };
+  }, []);
   useEffect(() => {
     if (state && !state.engine.recording && backendRef.current) stopTake();
     // eslint-disable-next-line react-hooks/exhaustive-deps

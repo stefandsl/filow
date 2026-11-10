@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { CLEF_CLOUDFLARE_MODEL } from "@/lib/decide/clef";
 import { OPENROUTER_DECISION_MODEL } from "@/lib/decide/openrouter";
 import { askRecipient, photoRecipient, voiceRecipient, type BuddyRecipients } from "@/lib/buddy/outbound";
-import { scriptRecipient } from "@/lib/generate/providers";
+import { resolveGenerateProvider, scriptRecipient } from "@/lib/generate/providers";
+import { resolveDecisionProvider } from "@/lib/decide/resolve";
 import { VISION_MODEL } from "@/lib/vision/openrouter";
 import { buddyCloudRecipient } from "@/lib/buddy/providers";
 
@@ -21,5 +22,6 @@ export async function GET() {
     screen: askRecipient(VISION_MODEL()),
     script: scriptRecipient(),
     decision: { openrouter: OPENROUTER_DECISION_MODEL(), cloudflare: CLEF_CLOUDFLARE_MODEL() },
+    defaults: { decide: resolveDecisionProvider(), generate: resolveGenerateProvider() },
   });
 }

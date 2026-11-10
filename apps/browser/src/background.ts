@@ -5,7 +5,7 @@ import browser from "webextension-polyfill";
 
 type Msg =
   | { t: "attach" }
-  | { t: "capture" }
+  | { t: "capture"; tabId?: number }
   | { t: "toContent"; tabId?: number; msg: unknown }
   | { t: "activeTab" };
 
@@ -43,6 +43,8 @@ api.runtime.onMessage.addListener((raw: Msg, _sender, sendResponse) => {
       }
       case "capture": {
         if (!tab?.windowId) return { ok: false, error: "no active tab" };
+        // Only the deck tab the panel attached: if the user has moved to another tab, nothing is captured.
+        if (raw.tabId !== undefined && tab.id !== raw.tabId) return { ok: false, error: "the deck tab is not the visible tab" };
         try {
           const dataUrl = await api.tabs.captureVisibleTab(tab.windowId, { format: "jpeg", quality: 80 });
           return { ok: true, dataUrl };

@@ -8,6 +8,8 @@ import path from "node:path";
 // listed as an input with inlineDynamicImports via the manualChunks override below.
 export default defineConfig({
   plugins: [react()],
+  // The outbound notice and signal are the web app's own (apps/web/components/RemoteOutbound.tsx), imported as "@/...".
+  resolve: { alias: [{ find: /^@\//, replacement: `${path.resolve(__dirname, "../web")}/` }], dedupe: ["react", "react-dom"] },
   build: {
     outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
