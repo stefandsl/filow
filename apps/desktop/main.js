@@ -550,7 +550,7 @@ function wireScreenSense() {
   appOn("update:check", () => void checkForUpdates({ manual: true }));
   appOn("update:install", () => loadUpdater() && updateState.status === "downloaded" && updater.quitAndInstall());
   appOn("take:live", (_e, on) => setTakeLive(on));
-  appHandle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
+  appHandle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, session: tunnels.session, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
   wireStt();
   appHandle("localai:status", () => localAiState);
   appHandle("net:status", () => {
@@ -751,9 +751,11 @@ function remoteStatus(state, error = "") {
   tunnels.state = state;
   tunnels.error = error;
   logLine(`public link: ${state}${error ? " " + error : ""}`);
-  internalEvents.emit("remote:status", null, { state, url: tunnels.web, error });
+  // `session` is the relay address a phone uses with `url`: the page needs both to redraw the pairing QR in place.
+  const payload = { state, url: tunnels.web, session: tunnels.session, error };
+  internalEvents.emit("remote:status", null, payload);
   if (state === "downloading") splashStatus(st("download"));
-  for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send("remote:status", { state, url: tunnels.web, error });
+  for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send("remote:status", payload);
 }
 
 function cloudflaredPath() {
@@ -1989,23 +1991,11 @@ async function main() {
   }
   guardNavigation(win);
 
-  // The public link only needs the two ports, not a loaded page: start it now so it comes up while the
-  // servers warm up. If it is ready before the first page loads, that page already has the public
-  // URLs and no reload is needed; if it comes up later, the page reloads once (as before).
+  // The public link starts now and comes up while the app opens: about 6 s, bound by trycloudflare.com
+  // issuing the address. The window does not wait for it and is not reloaded when it arrives: the page
+  // gets the new addresses with the "remote:status" event and redraws the pairing QR in place
+  // (docs/OWNER-DECISIONS.md D2, third option). Until then the QR carries the address on this network.
   const wantLink = settings.remoteShare && !offline && !process.env.FILOW_SESSION_URL;
-  const linkUp = !wantLink
-    ? null
-    : new Promise((resolve) => {
-        const timer = setTimeout(resolve, 45000);
-        const h = (_e, v) => {
-          if (v.state === "on" || v.state === "error" || v.state === "off") {
-            clearTimeout(timer);
-            internalEvents.removeListener("remote:status", h);
-            resolve();
-          }
-        };
-        internalEvents.on("remote:status", h);
-      });
   if (wantLink) void setRemoteShare(win, true, { auto: true, reload: false });
 
   try {
@@ -2029,20 +2019,8 @@ async function main() {
         ? `${APP_URL}/settings/local?auto=${encodeURIComponent(choices.models.join(","))}${choices.ollama ? "&ollama=1" : ""}`
         : APP_URL;
     stage("loading first page");
-    const linkAtLoad = process.env.FILOW_PUBLIC_WEB || "";
     await win.loadURL(firstPage);
     stage("first page loaded");
-    if (linkUp) {
-      stage("waiting for public link");
-      // Hold the splash until the public link is up (or 45 s), so the first QR already works from anywhere.
-      splashStatus(cloudflaredPath() ? st("link") : st("download"));
-      await linkUp;
-      if ((process.env.FILOW_PUBLIC_WEB || "") !== linkAtLoad && !win.isDestroyed()) {
-        stage("public link ready after the page, reloading");
-        await win.loadURL(firstPage).catch(() => {});
-      }
-      stage("public link settled");
-    }
     splashStatus(st("ready"), true);
     const wait = Math.max(400, SPLASH_MIN_MS - (Date.now() - splashShownAt));
     setTimeout(() => {

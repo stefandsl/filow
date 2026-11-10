@@ -32,6 +32,7 @@ import { useScreenSense, type ScreenSource } from "./useScreenSense";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "./LangSwitch";
 import { ResourcesPanel } from "./ResourcesPanel";
 import { desktopBridge, type UpdateStatus } from "@/lib/sessionUrl";
+import { publicLinkOn, useRemoteStatus } from "@/lib/useRemoteStatus";
 
 import { SectionNav } from "./prompter/SectionNav";
 import { sectionLabel } from "./prompter/sectionLabel";
@@ -105,9 +106,10 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     void bridge.slideshowState?.().then(apply);
     return bridge.onSlideshow(apply);
   }, [engine]);
+  const remoteLink = useRemoteStatus();
   useEffect(() => {
-    setPublicLink(Boolean(desktopBridge()?.remoteShare));
-  }, []);
+    setPublicLink(publicLinkOn(remoteLink));
+  }, [remoteLink]);
   const startAttempts = useRef(new StartAttempts());
   const [pendingImport, setPendingImport] = useState<ImportResponse | null>(null);
   const backendRef = useRef<SttBackend | null>(null);
