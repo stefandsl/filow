@@ -112,6 +112,7 @@ describe("recipient names: /api/buddy/recipients", () => {
     expect(await (await recipients()).json()).toEqual({
       offline: false,
       ask: { id: "openrouter/google", names: ["OpenRouter", "Google"] },
+      freellm: { id: "freellmapi", names: ["FreeLLMAPI (a free provider it chooses)"] },
       voice: { id: "elevenlabs", names: ["ElevenLabs"] },
       photo: { id: "wikipedia", names: ["Wikipedia"] },
       screen: { id: "openrouter/google", names: ["OpenRouter", "Google"] },

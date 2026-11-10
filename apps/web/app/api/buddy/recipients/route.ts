@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { CLEF_CLOUDFLARE_MODEL } from "@/lib/decide/clef";
 import { OPENROUTER_DECISION_MODEL } from "@/lib/decide/openrouter";
-import { askRecipient, photoRecipient, voiceRecipient, type BuddyRecipients } from "@/lib/buddy/outbound";
+import { askRecipient, freellmRecipient, photoRecipient, voiceRecipient, type BuddyRecipients } from "@/lib/buddy/outbound";
 import { resolveGenerateProvider, scriptRecipient } from "@/lib/generate/providers";
 import { resolveDecisionProvider } from "@/lib/decide/resolve";
 import { VISION_MODEL } from "@/lib/vision/openrouter";
@@ -17,6 +17,7 @@ export async function GET() {
   return NextResponse.json<BuddyRecipients>({
     offline: process.env.FILOW_OFFLINE === "1",
     ask: buddyCloudRecipient(),
+    freellm: freellmRecipient(),
     voice: voiceRecipient(),
     photo: photoRecipient(),
     screen: askRecipient(VISION_MODEL()),

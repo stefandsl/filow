@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { okFilowBridge, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/bridge";
 import { bezierPoint, bubblePlacement } from "@/lib/buddy/motion";
-import { joinNames, type OutboundSnapshot } from "@/lib/buddy/outbound";
+import { joinNames, localNames, type OutboundSnapshot } from "@/lib/buddy/outbound";
 import type { BuddyMark } from "@/lib/buddy/prompt";
 import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
 import { dictationText } from "@/lib/dictation/text";
@@ -244,7 +244,7 @@ export default function OkFilowOverlay() {
         <div className="okf-notch okf-notch--out">
           <OutboundIcon />
           <strong>{t("outLabel")}</strong>
-          <span>{t("outSending").replace("{names}", joinNames(out.names, t("outAnd")))}</span>
+          <span>{t("outSending").replace("{names}", joinNames(localNames(out.names, t("freeName")), t("outAnd")))}</span>
         </div>
       ) : here && (mode === "listening" || mode === "thinking") && (
         <div className="okf-notch">

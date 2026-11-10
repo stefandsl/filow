@@ -145,6 +145,15 @@ const en = {
   notchDictating: "Dictating",
   notchHandsFree: "Hands-free, listening",
   notchListening: "Listening",
+  // FreeLLMAPI: the user's own router to free cloud models (lib/freellm.ts)
+  brainFree: "FreeLLMAPI (free cloud models through your own router)",
+  freeNote: "FreeLLMAPI: when you ask, your question and a screenshot of your screens go to your FreeLLMAPI router and then to a free provider it chooses, which may keep them or train on them.",
+  freeSetup: "Set up FreeLLMAPI",
+  freeGet: "Get FreeLLMAPI",
+  freeName: "FreeLLMAPI (a free provider it chooses)",
+  outFree: "your FreeLLMAPI router and then to a free AI provider it chooses for each request (Filow cannot know which one in advance)",
+  outFreeWarn: "That provider may keep what it receives or use it to train its models.",
+  liteHint: "This PC is modest, so answers on it are slow or read only the text you select. For answers without a strong PC, choose FreeLLMAPI (free, through your own router) or Cloud (OpenRouter, paid) under \"Answers from\". Both send your question and a screenshot outside this PC, and only after you say yes.",
 };
 export type OkfKey = keyof typeof en;
 const it: Record<OkfKey, string> = {
@@ -291,5 +300,13 @@ const it: Record<OkfKey, string> = {
   notchDictating: "Dettatura",
   notchHandsFree: "Vivavoce, ti ascolto",
   notchListening: "Ti ascolto",
+  brainFree: "FreeLLMAPI (modelli cloud gratuiti tramite il tuo router)",
+  freeNote: "FreeLLMAPI: quando chiedi, la domanda e uno screenshot degli schermi vanno al tuo router FreeLLMAPI e poi a un fornitore gratuito scelto da lui, che può conservarli o usarli per addestrare i suoi modelli.",
+  freeSetup: "Configura FreeLLMAPI",
+  freeGet: "Scarica FreeLLMAPI",
+  freeName: "FreeLLMAPI (un fornitore gratuito scelto da lui)",
+  outFree: "il tuo router FreeLLMAPI e poi a un fornitore di AI gratuito che sceglie lui per ogni richiesta (Filow non può sapere prima quale)",
+  outFreeWarn: "Quel fornitore può conservare ciò che riceve o usarlo per addestrare i suoi modelli.",
+  liteHint: "Questo PC è modesto, quindi qui le risposte sono lente o leggono solo il testo che selezioni. Per avere risposte senza un PC potente, scegli FreeLLMAPI (gratis, tramite il tuo router) o Cloud (OpenRouter, a pagamento) in \"Risposte da\". Entrambi mandano la domanda e uno screenshot fuori da questo PC, e solo dopo il tuo sì.",
 };
 export const OKF_TEXT: Record<"en" | "it", Record<OkfKey, string>> = { en, it };

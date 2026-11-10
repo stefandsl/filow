@@ -10,16 +10,12 @@
 // "auto:*" strategy, or one model id), SCRIPT_CLOUD=freellm (scripts are written and translated
 // through it instead of OpenRouter).
 
-import type { Recipient } from "@/lib/buddy/outbound";
-
 export const FREELLM_DEFAULT_URL = "http://localhost:3001/v1";
 export const FREELLM_DEFAULT_MODEL = "auto";
 export const FREELLM_DOWNLOAD_URL = "https://github.com/tashfeenahmed/freellmapi/releases/latest";
 
-/** The consent id, and the one name the notice, the signal and the list of choices show. */
-export const FREELLM_ID = "freellmapi";
-export const FREELLM_NAME = "FreeLLMAPI (a free provider it chooses)";
-export const freellmRecipient = (): Recipient => ({ id: FREELLM_ID, names: [FREELLM_NAME] });
+/** The consent id, and the one name the notice, the signal and the list of choices show (lib/buddy/outbound.ts). */
+export { FREELLM_ID, FREELLM_NAME, freellmRecipient } from "@/lib/buddy/outbound";
 
 /** Why a FreeLLMAPI request did not get an answer. The message names the next step. */
 export type FreeLlmCode = "offline" | "no_key" | "bad_url" | "not_running" | "bad_key" | "quota" | "no_vision" | "bad_model" | "failed";

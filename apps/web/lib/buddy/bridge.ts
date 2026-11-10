@@ -34,7 +34,8 @@ export type DictationResult = { ok: boolean; action: "paste" | "copy" | "direct"
 export type OkFilowStatus = {
   enabled: boolean;
   hotkey: string;
-  provider: "local" | "cloud";
+  /** Answers from: this PC, OpenRouter, or the user's FreeLLMAPI router (lib/freellm.ts). */
+  provider: "local" | "cloud" | "freellm";
   /** "natural" = the neural voice that runs on this PC (apps/desktop/tts.js). */
   voice: "natural" | "system" | "cloud" | "off";
   /** Which of the natural voices speaks: 0-4 female, 5-9 male. */

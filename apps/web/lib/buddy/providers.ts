@@ -5,11 +5,12 @@
 import { isSetupPreference, resolveSetup, type ResolvedSetup } from "@filow/core";
 import { OLLAMA_URL } from "@/lib/decide/clef";
 import { openRouterChatUrl, withProvider } from "@/lib/openrouter";
-import { askRecipient, consentKey, type Recipient } from "./outbound";
+import { askRecipient, consentKey, freellmRecipient, type Recipient } from "./outbound";
+import { freellmStream, requireFreeLlm } from "@/lib/freellm";
 import { gpuInfo, machineInfo } from "@/lib/sysinfo";
 import { buddySystemPrompt, trimHistory, type BuddyScreen, type BuddyTurn } from "./prompt";
 
-export type BuddyProviderId = "local" | "cloud";
+export type BuddyProviderId = "local" | "cloud" | "freellm";
 
 export type BuddyAskRequest = {
   question: string;
@@ -29,11 +30,11 @@ export type BuddyAskRequest = {
 export type LocalHelper = { model: string; pictures: boolean };
 
 export const NO_LOCAL_HELPER =
-  'This computer has too little memory for OK Filow to answer on this PC. To get answers from online instead, choose Cloud under "Answers from" in the OK Filow panel.';
+  'This computer has too little memory for OK Filow to answer on this PC. To get answers from online instead, choose FreeLLMAPI or Cloud under "Answers from" in the OK Filow panel.';
 export const OLLAMA_TOO_SLOW =
-  'OK Filow got no answer on this PC within 3 minutes: the AI that runs it here is busy, often because the larger AI that checks your points is using the graphics card. Try again after the take, or choose Cloud under "Answers from" in the OK Filow panel.';
+  'OK Filow got no answer on this PC within 3 minutes: the AI that runs it here is busy, often because the larger AI that checks your points is using the graphics card. Try again after the take, or choose FreeLLMAPI or Cloud under "Answers from" in the OK Filow panel.';
 export const NO_LOCAL_HELPER_DISK =
-  'There is not enough free disk space for OK Filow to answer on this PC (it needs about 6 GB free). Free some space, or choose Cloud under "Answers from" in the OK Filow panel to get answers from online.';
+  'There is not enough free disk space for OK Filow to answer on this PC (it needs about 6 GB free). Free some space, or choose FreeLLMAPI or Cloud under "Answers from" in the OK Filow panel to get answers from online.';
 
 /** Drawings and 3D models: the 2B loops and writes broken JSON (measured), so a bigger picture model the user installed draws. */
 export const BUDDY_DRAW_MODELS = ["qwen3-vl:8b", "qwen3-vl:4b", "gemma4:e4b"];
@@ -101,8 +102,13 @@ export async function warmLocalModel(preference?: unknown): Promise<{ model: str
 
 export const BUDDY_CLOUD_MODEL =() => process.env.BUDDY_CLOUD_MODEL || "google/gemini-2.5-flash";
 
-/** Offline mode always means local; otherwise the request's choice, else BUDDY_PROVIDER, else local. */
+/**
+ * Offline mode means local, except that an explicit FreeLLMAPI request stays FreeLLMAPI so it is
+ * refused with a reason (askBuddy) instead of answered somewhere the user did not pick; otherwise
+ * the request's choice, else BUDDY_PROVIDER, else local.
+ */
 export function resolveBuddyProvider(requested?: string): BuddyProviderId {
+  if (requested === "freellm") return "freellm";
   if (process.env.FILOW_OFFLINE === "1") return "local";
   if (requested === "local" || requested === "cloud") return requested;
   return process.env.BUDDY_PROVIDER === "cloud" ? "cloud" : "local";
@@ -169,9 +175,9 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
     if (signal?.aborted) return;
     // the 3-minute limit: Ollama is there but busy (on a small graphics card the larger AI may hold it)
     if (e instanceof Error && e.name === "TimeoutError") throw new Error(OLLAMA_TOO_SLOW, { cause: e });
-    throw new Error(`Ollama, which runs OK Filow's answers on this PC, is not running. Install it in Settings > Local models, or set "Answers from" to Cloud in the OK Filow panel.`, { cause: e });
+    throw new Error(`Ollama, which runs OK Filow's answers on this PC, is not running. Install it in Settings > Local models, or set "Answers from" to FreeLLMAPI or Cloud in the OK Filow panel.`, { cause: e });
   }
-  if (res.status === 404) throw new Error(`The screen helper for this computer's setup is not downloaded yet. Get it in Settings > Local models with "Download now", or set "Answers from" to Cloud in the OK Filow panel.`);
+  if (res.status === 404) throw new Error(`The screen helper for this computer's setup is not downloaded yet. Get it in Settings > Local models with "Download now", or set "Answers from" to FreeLLMAPI or Cloud in the OK Filow panel.`);
   if (!res.ok || !res.body) throw new Error(`Ollama ${res.status}: ${(await res.text()).slice(0, 300)}`);
   for await (const line of lines(res.body)) {
     let json: { message?: { content?: string }; error?: string; done?: boolean };
@@ -233,6 +239,24 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal): Async
   }
 }
 
+/**
+ * Through the user's FreeLLMAPI router: the same question, screenshots and conversation as the
+ * cloud, to the model or `auto:*` strategy set in Settings. Its failures carry their own reason and
+ * next step (lib/freellm.ts); there is never a fallback to another provider.
+ */
+async function* askFreeLlm(req: BuddyAskRequest, signal?: AbortSignal): AsyncGenerator<string> {
+  const history = trimHistory(req.history ?? []).map((t) => ({ role: t.role, content: t.text }));
+  yield* freellmStream({
+    temperature: 0.3,
+    max_tokens: 1500,
+    messages: [
+      { role: "system", content: buddySystemPrompt(req.screens, req.language ?? "") },
+      ...history,
+      { role: "user", content: [{ type: "text", text: req.question }, ...req.images.map((url) => ({ type: "image_url", image_url: { url } }))] },
+    ],
+  }, signal);
+}
+
 /** The cloud was asked for without the user's yes for the recipient in use. Nothing was sent. */
 export class ConsentRequiredError extends Error {
   constructor(readonly recipient: Recipient) {
@@ -249,6 +273,13 @@ export const buddyCloudRecipient = (): Recipient => askRecipient(BUDDY_CLOUD_MOD
  * throws before any network call (the panel asks first, this is the second lock).
  */
 export function askBuddy(provider: BuddyProviderId, req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper): AsyncGenerator<string> {
+  if (provider === "freellm") {
+    // offline, no key or an address outside the user's network: refused before the consent check
+    requireFreeLlm();
+    const recipient = freellmRecipient();
+    if (req.consent !== consentKey("ask", recipient)) throw new ConsentRequiredError(recipient);
+    return askFreeLlm(req, signal);
+  }
   if (provider !== "cloud") return askOllama(req, signal, helper);
   const recipient = buddyCloudRecipient();
   if (req.consent !== consentKey("ask", recipient)) throw new ConsentRequiredError(recipient);
