@@ -227,7 +227,8 @@ const SLOW_STRIKES = 2;
 function nextProfile(profile, rtf, strikes = 0) {
   if (profile.mode !== "natural" || !(rtf > SLOW_RTF)) return { profile, strikes: 0 };
   if (strikes + 1 < SLOW_STRIKES) return { profile, strikes: strikes + 1 };
-  if (profile.level === "standard") return { profile: { ...profile, level: "light", steps: 4 }, strikes: 0 };
+  // The light setting a small PC starts with (pickProfile): 4 steps on 2 threads.
+  if (profile.level === "standard") return { profile: { ...profile, level: "light", steps: 4, threads: 2 }, strikes: 0 };
   return { profile: { mode: "system", reason: "slow" }, strikes: 0 };
 }
 

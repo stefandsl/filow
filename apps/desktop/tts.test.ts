@@ -181,7 +181,10 @@ describe("the setting this PC can carry", () => {
     // A fast answer in between forgives the slow one.
     expect(tts.nextProfile(standard, 0.3, 1)).toEqual({ profile: standard, strikes: 0 });
     const two = tts.nextProfile(one.profile, 1.2, one.strikes);
-    expect(two.profile).toMatchObject({ mode: "natural", level: "light", steps: 4 });
+    // The same light setting a small PC starts with: 4 steps on 2 threads (VOICE.md).
+    expect(standard.threads).toBe(4);
+    expect(two.profile).toEqual(tts.pickProfile({ cores: 4, memBytes: 16 * GIB }));
+    expect(two.profile).toMatchObject({ mode: "natural", level: "light", steps: 4, threads: 2 });
     const three = tts.nextProfile(two.profile, 0.9, two.strikes);
     const four = tts.nextProfile(three.profile, 0.9, three.strikes);
     expect(four.profile).toEqual({ mode: "system", reason: "slow" });
