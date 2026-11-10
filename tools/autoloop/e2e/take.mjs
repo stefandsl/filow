@@ -7,18 +7,28 @@
 // what the model answered, how fast), the take log, the TCP connections of the app's process tree and of
 // every local process it talks to (netstat -ano, from launch to exit), and Chromium's own net log.
 //
+// The main process (which runs the Next server and the session relay in-process) logs every TCP
+// connection it opens (QA builds, FILOW_QA_SOCKET_LOG): the server side is audited per connection, not
+// only per netstat sample.
+//
 // Usage: node tools/autoloop/e2e/take.mjs [--offline] [--minutes N] [--exe <win-unpacked>] [--profile <dir>]
 //   (default)     local take, written under "local" in tmp/autoloop/take.json
 //   --offline     same with FILOW_OFFLINE=1, written under "offline": no connection may leave the PC
-//   --minutes N   long take of N minutes (looped audio; the section is reset each time all its points are
-//                 ticked, so speech and decisions keep running), working set and private bytes of the
-//                 whole tree every 10 s, written under "memory" (PERF-02)
-// Own ports and profile (4801/4802, DevTools 9351, G:\FILOW\tmp\t1-profile); stops only its own processes.
+//   --minutes N   long take of N minutes, written under "memory" (PERF-02): a rehearsal loop. The audio
+//                 loops; each time every point of section 1 is ticked the probe presses Reset, like a
+//                 speaker going over the section again, and the points must tick again from the NEXT
+//                 time each paraphrase is spoken (every pass is checked: "fresh"). Working set and private
+//                 bytes of the whole tree every 10 s.
+//   --probe-outbound  the page (after Start) and the server (once it runs) each open a connection to
+//                 another host, to show the audit catches both (a probe run must fail PR-01)
+// Ports: --port (or FILOW_E2E_PORT, default 4801; the relay gets port + 1), --devtools (or
+// FILOW_E2E_DEVTOOLS, default 9351). Profile G:\FILOW\tmp\t1-profile by default. Stops only its own processes.
 import { spawn, execFile, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { HeardTracker, VOICE, classifyConnections, created, isLoopback, parseNetstat, passFresh, processTree, socketLogAudit, splitAddr } from "./take-lib.mjs";
 
 const run = promisify(execFile);
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../../..");
@@ -31,8 +41,9 @@ const MINUTES = Number(opt("--minutes", 0));
 const PROBE_URL = argv.includes("--probe-outbound") ? "https://www.msftconnecttest.com/connecttest.txt" : null;
 const PROBE_WS = "wss://echo.websocket.org";
 const MODE = (MINUTES > 0 ? "memory" : OFFLINE ? "offline" : "local") + (PROBE_URL ? "-probe" : "");
-const PORT = Number(opt("--port", 4801));
-const DEVTOOLS = Number(opt("--devtools", 9351));
+const PROBE_SERVER = PROBE_URL ? "www.msftconnecttest.com:80" : null;
+const PORT = Number(opt("--port", process.env.FILOW_E2E_PORT || 4801));
+const DEVTOOLS = Number(opt("--devtools", process.env.FILOW_E2E_DEVTOOLS || 9351));
 const PROFILE = path.resolve(opt("--profile", "G:/FILOW/tmp/t1-profile"));
 const WORK = path.resolve(opt("--work", "G:/FILOW/tmp/t1-work"));
 const SOURCE_PROFILE = path.resolve(opt("--source-profile", "G:/FILOW/tmp/autoloop-profile"));
@@ -118,24 +129,14 @@ const wavSeconds = Math.round((wavData(fs.readFileSync(wav)).length / 32000) * 1
 // UI labels, read from the dictionary so the probe follows wording changes in both languages.
 const i18n = fs.readFileSync(path.join(ROOT, "packages", "core", "src", "i18n.ts"), "utf8");
 const labels = (key) => [...i18n.matchAll(new RegExp(`"${key.replace(/\./g, "\\.")}":\\s*"([^"]+)"`, "g"))].map((m) => m[1]);
-const START = labels("ctl.start"), STOP = labels("ctl.stop"), LOG = labels("ctl.logReport"), RESET = labels("ctl.reset");
+const START = labels("ctl.start"), STOP = labels("ctl.stop"), LOG = labels("ctl.logReport"), RESET = labels("ctl.reset"), OFFLINE_CHIP = labels("app.offline");
 
 // ---------- netstat ----------
-const LOOPBACK = (addr) => /^(127\.|\[::1\]|::1|0\.0\.0\.0|\[::\]|\*)/.test(addr);
-// This PC's own addresses: the engine page reaches the in-process session relay over the LAN address
-// (window.filow.sessionUrl), which Windows routes inside the machine. Allowed only when the listener at
-// the other end is one of our processes; listed apart, never hidden.
+// This PC's own addresses (how connections to them are counted: classifyConnections in take-lib.mjs).
 const OWN = new Set(Object.values(os.networkInterfaces()).flat().filter(Boolean).map((i) => (i.family === "IPv6" ? `[${i.address}]` : i.address)));
-const splitAddr = (a) => { const i = a.lastIndexOf(":"); return [a.slice(0, i), a.slice(i + 1)]; };
 async function netstat() {
   const { stdout } = await run("netstat", ["-ano"], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
-  const rows = [];
-  for (const line of stdout.split(/\r?\n/)) {
-    const f = line.trim().split(/\s+/);
-    if (f[0] !== "TCP" && f[0] !== "UDP") continue;
-    rows.push({ proto: f[0], local: f[1], remote: f[2], state: f[0] === "TCP" ? f[3] : "", pid: Number(f[f.length - 1]) });
-  }
-  return rows;
+  return parseNetstat(stdout);
 }
 if (!argv.includes("--no-preflight")) {
   // A take already running on these ports would be driven and audited instead of ours.
@@ -147,8 +148,11 @@ if (!argv.includes("--no-preflight")) {
 const startupLog = path.join(PROFILE, "startup.log");
 const logLinesBefore = fs.existsSync(startupLog) ? fs.readFileSync(startupLog, "utf8").split("\n").length : 0;
 const netLog = path.join(WORK, `netlog-${MODE}.json`);
-const env = { ...process.env, FILOW_USER_DATA_DIR: PROFILE, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(PORT + 1), FILOW_OKF_FAKE_MIC: wav };
+const socketLog = path.join(WORK, `sockets-${MODE}.jsonl`);
+fs.rmSync(socketLog, { force: true });
+const env = { ...process.env, FILOW_USER_DATA_DIR: PROFILE, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(PORT + 1), FILOW_OKF_FAKE_MIC: wav, FILOW_QA_SOCKET_LOG: socketLog };
 if (OFFLINE) env.FILOW_OFFLINE = "1"; else delete env.FILOW_OFFLINE;
+if (PROBE_SERVER) env.FILOW_QA_PROBE_SERVER_OUTBOUND = PROBE_SERVER; else delete env.FILOW_QA_PROBE_SERVER_OUTBOUND;
 const app = spawn(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`, `--log-net-log=${netLog}`], { env, stdio: "ignore", detached: false });
 let stopping = false;
 let tClick = null; // when Start was clicked
@@ -167,19 +171,8 @@ async function refreshTable() {
   const { stdout } = await run("powershell", ["-NoProfile", "-Command",
     "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,WorkingSetSize,PrivatePageCount,CreationDate | ConvertTo-Json -Compress"],
   { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
-  table = JSON.parse(stdout).map((p) => ({ ...p, created: Number(/\d+/.exec(String(p.CreationDate))?.[0] ?? 0) }));
-  // A child counts only if it was created after its parent: Windows keeps a dead parent's PID on its
-  // children, and that PID can be reused by our app.
-  const byPid = new Map(table.map((p) => [p.ProcessId, p]));
-  const root = byPid.get(app.pid);
-  const inTree = new Set(root ? [app.pid] : []);
-  for (let grew = Boolean(root); grew;) {
-    grew = false;
-    for (const p of table) {
-      const parent = byPid.get(p.ParentProcessId);
-      if (!inTree.has(p.ProcessId) && inTree.has(p.ParentProcessId) && parent && p.created >= parent.created) { inTree.add(p.ProcessId); grew = true; }
-    }
-  }
+  table = JSON.parse(stdout).map((p) => ({ ...p, created: created(p.CreationDate) }));
+  const inTree = processTree(table, app.pid);
   treeNow = table.filter((p) => inTree.has(p.ProcessId));
 }
 const net = { samples: 0, processesMax: 0, rows: new Map(), outbound: new Map(), self: new Map(), peers: new Map(), peerOutbound: new Map(), udp: new Map(), devtoolsOwnerOk: null };
@@ -188,38 +181,17 @@ async function auditConnections() {
   const rows = await netstat();
   const tree = new Map(treeNow.map((p) => [p.ProcessId, p.Name]));
   const names = new Map(table.map((p) => [p.ProcessId, p.Name]));
-  const listener = new Map(); // TCP port -> pid listening on it
-  for (const r of rows) if (r.proto === "TCP" && r.state === "LISTENING") listener.set(Number(splitAddr(r.local)[1]), r.pid);
   net.samples++;
   net.processesMax = Math.max(net.processesMax, tree.size);
-  if (net.devtoolsOwnerOk === null && listener.has(DEVTOOLS) && tree.size) net.devtoolsOwnerOk = tree.has(listener.get(DEVTOOLS));
-  const peers = new Set();
-  for (const r of rows) {
-    if (!tree.has(r.pid)) continue;
-    const key = `${r.proto} ${r.local} ${r.remote} ${r.state} ${tree.get(r.pid)}#${r.pid}`;
-    bump(net.rows, key);
-    const [remoteAddr, remotePort] = splitAddr(r.remote);
-    if (r.proto === "UDP") {
-      // UDP has no peer in netstat: list sockets bound to a non-loopback address (QUIC, mDNS, WebRTC).
-      if (!LOOPBACK(splitAddr(r.local)[0])) bump(net.udp, key);
-      continue;
-    }
-    if (r.state === "LISTENING") continue;
-    if (LOOPBACK(remoteAddr) || OWN.has(remoteAddr)) {
-      // On this PC: who listens at the other end? Not ours means a local peer (Ollama, a proxy), whose
-      // own connections are audited too, so a local proxy cannot hide outbound traffic.
-      const owner = listener.get(Number(remotePort));
-      if (owner != null && !tree.has(owner)) { peers.add(owner); bump(net.peers, `${names.get(owner) ?? "?"}#${owner} :${remotePort}`); }
-      if (OWN.has(remoteAddr) && !LOOPBACK(remoteAddr)) bump(net.self, key);
-      continue;
-    }
-    bump(net.outbound, key);
-  }
-  for (const r of rows) {
-    if (!peers.has(r.pid) || r.proto !== "TCP" || r.state === "LISTENING") continue;
-    const [remoteAddr] = splitAddr(r.remote);
-    if (!LOOPBACK(remoteAddr) && !OWN.has(remoteAddr)) bump(net.peerOutbound, `${r.proto} ${r.local} ${r.remote} ${r.state} ${names.get(r.pid) ?? "?"}#${r.pid}`);
-  }
+  const devtools = rows.find((r) => r.proto === "TCP" && r.state === "LISTENING" && Number(splitAddr(r.local)[1]) === DEVTOOLS);
+  if (net.devtoolsOwnerOk === null && devtools && tree.size) net.devtoolsOwnerOk = tree.has(devtools.pid);
+  const c = classifyConnections(rows, tree, names, OWN);
+  for (const k of c.keys) bump(net.rows, k);
+  for (const k of c.outbound) bump(net.outbound, k);
+  for (const k of c.self) bump(net.self, k);
+  for (const k of c.peers) bump(net.peers, k);
+  for (const k of c.peerOutbound) bump(net.peerOutbound, k);
+  for (const k of c.udp) bump(net.udp, k);
 }
 const mem = [];
 let lastMemAt = -Infinity;
@@ -283,7 +255,7 @@ const evaluate = async (expression) => {
 await call("Page.enable"); await call("Runtime.enable");
 
 // Every /api/decide call: what it saw (the transcript window), what the model answered, how fast.
-const decide = { calls: 0, ok: 0, failed: 0, aborted: 0, models: {}, providers: {}, latencies: [], errors: [], firstAtMs: null, trace: [] };
+const decide = { calls: 0, ok: 0, failed: 0, aborted: 0, models: {}, providers: {}, latencies: [], errors: [], firstAtMs: null, lastAtMs: null, trace: [] };
 const reqs = new Map();
 listeners.push(async (d) => {
   if (d.method === "Network.requestWillBeSent" && /\/api\/decide$/.test(d.params.request.url)) {
@@ -295,6 +267,7 @@ listeners.push(async (d) => {
     decide.calls++;
     decide.providers[r.provider] = (decide.providers[r.provider] || 0) + 1;
     if (decide.firstAtMs == null && tClick) decide.firstAtMs = Date.now() - tClick;
+    if (tClick) decide.lastAtMs = Date.now() - tClick;
     const b = await call("Network.getResponseBody", { requestId: d.params.requestId });
     try {
       const j = JSON.parse(b.result?.body || "{}");
@@ -302,7 +275,7 @@ listeners.push(async (d) => {
       decide.ok++;
       decide.models[j.model] = (decide.models[j.model] || 0) + 1;
       if (typeof j.latencyMs === "number") decide.latencies.push(j.latencyMs);
-      if (decide.trace.length < 400) decide.trace.push({ t: r.sentAtMs, latencyMs: j.latencyMs, transcript: r.transcript, decisions: (j.decisions ?? []).map((x) => `${x.id} ${x.started ? "yes" : "no"} ${Math.round(x.confidence * 100) / 100}`) });
+      if (decide.trace.length < 400) decide.trace.push({ t: r.sentAtMs, latencyMs: j.latencyMs, transcript: r.transcript, decisions: (j.decisions ?? []).map((x) => `${x.id} ${x.started ? "yes" : "no"} ${Math.round(x.confidence * 100) / 100}${x.verification ? ` verified real ${x.verification.real} same party ${x.verification.sameParty}` : ""}`) });
     } catch { decide.failed++; }
   } else if (d.method === "Network.loadingFailed" && reqs.has(d.params.requestId)) {
     reqs.delete(d.params.requestId); decide.calls++;
@@ -313,7 +286,9 @@ listeners.push(async (d) => {
 });
 
 // Local mode without the Cloud/Local dialog, English speech; then reload so the page reads them.
-await evaluate(`localStorage.setItem("prefs:startMode", "local"); localStorage.setItem("prefs:speechLang", "en"); true`);
+// --gate-off: no embedding pre-filter in front of the model (a diagnosis switch; the default is the user's default, on).
+const GATE_OFF = argv.includes("--gate-off");
+await evaluate(`localStorage.setItem("prefs:startMode", "local"); localStorage.setItem("prefs:speechLang", "en"); ${GATE_OFF ? `localStorage.setItem("prefs:gate", "off")` : `localStorage.removeItem("prefs:gate")`}; true`);
 await call("Page.reload");
 await sleep(2000);
 await call("Network.enable");
@@ -330,9 +305,12 @@ const readState = `(() => {
   const buttons = [...document.querySelectorAll("button")];
   const start = buttons.find((b) => ${JSON.stringify(START)}.some((s) => b.textContent.includes(s)));
   const stop = buttons.find((b) => ${JSON.stringify(STOP)}.some((s) => b.textContent.includes(s)));
-  const errs = [...document.querySelectorAll(".chip.err, [role=alert]")].map((e) => e.textContent.trim()).filter(Boolean);
+  // Errors on screen; the OFFLINE chip is a status (it is how offline mode shows), read apart.
+  const shown = [...document.querySelectorAll(".chip.err, [role=alert]")].map((e) => e.textContent.trim()).filter(Boolean);
+  const offlineChip = shown.some((s) => ${JSON.stringify(OFFLINE_CHIP)}.includes(s));
+  const errs = shown.filter((s) => !${JSON.stringify(OFFLINE_CHIP)}.includes(s));
   return { rows, transcript: document.getElementById("prompter-transcript-text")?.textContent ?? "",
-    startEnabled: Boolean(start && !start.disabled), recording: Boolean(stop), dialog: Boolean(document.querySelector(".startmode")), errs,
+    startEnabled: Boolean(start && !start.disabled), recording: Boolean(stop), dialog: Boolean(document.querySelector(".startmode")), errs, offlineChip,
     log: [...document.querySelectorAll(".log > div")].map((d) => d.textContent) };
 })()`;
 
@@ -348,6 +326,13 @@ if (!st?.startEnabled) errors.push("Start never became enabled");
 const onScreen = (st?.rows ?? []).map((r) => r.text);
 if (JSON.stringify(onScreen) !== JSON.stringify(section1.points)) errors.push(`points on screen ${JSON.stringify(onScreen)} are not section 1 of script.md`);
 if ((st?.rows ?? []).some((r) => r.state !== "waiting")) errors.push(`points not all waiting before Start: ${(st?.rows ?? []).map((r) => r.state).join(",")}`);
+// Offline mode as the app itself reports it, not as the probe was asked to run: the shell's flag the page
+// reads (preload), the server's flag (/api/local/status) and the OFFLINE chip on screen.
+const offlineSeen = await evaluate(`(async () => ({
+  preload: typeof window.filow?.offline === "boolean" ? window.filow.offline : null,
+  server: await fetch("/api/local/status", { cache: "no-store" }).then((r) => r.json()).then((j) => (typeof j.offline === "boolean" ? j.offline : null), () => null),
+}))()`).catch(() => ({ preload: null, server: null }));
+offlineSeen.chip = Boolean(st?.offlineChip);
 
 // ---------- the take ----------
 await evaluate(clickByText(START)).catch(() => false);
@@ -359,11 +344,15 @@ let probe = null;
 if (PROBE_URL) await evaluate(`window.__takeProbe = new WebSocket(${JSON.stringify(PROBE_WS)}); true`).catch(() => false);
 if (PROBE_URL) probe = await evaluate(`fetch(${JSON.stringify(PROBE_URL)}, { mode: "no-cors", cache: "no-store" }).then((r) => "HTTP " + r.status, (e) => "failed: " + e.message)`).catch((e) => `failed: ${e.message}`);
 
-const fresh = () => section1.points.map((text) => ({ text, activeAtMs: null, doneAtMs: null, state: "waiting", transcriptAtDone: null, why: "" }));
+const fresh = () => section1.points.map((text) => ({ text, activeAtMs: null, doneAtMs: null, state: "waiting", transcriptAtDone: null, ownLineHeardAtMs: null, why: "" }));
 let points = fresh();
 const firstCycle = points; // what the score reads: the first time through section 1
-const cycles = []; // long take: one entry per full tick of section 1
+const cycles = []; // long take: one entry per pass through section 1 (Start or Reset to all ticked)
 let cycleStart = 0, resetPending = false;
+// When each spoken line shows on screen: a point must tick after its own paraphrase, never from the
+// off-topic sentence, and after a Reset only from the paraphrase said again (take-lib.mjs).
+const heard = new HeardTracker(spoken);
+const ownLineHeard = (i, from, to) => heard.edges.find((e) => e.line === VOICE.lineOfPoint[i] && e.atMs >= from && e.atMs <= to)?.atMs ?? null;
 let firstTranscriptMs = null, recordingAtMs = null, logOpened = false, dialogSeen = false;
 const transcripts = [];
 let lastTranscript = "", logLines = [];
@@ -376,6 +365,8 @@ while (Date.now() - tClick < durationMs && !appExit && !wsClosed) {
     if (st.dialog && !dialogSeen) { dialogSeen = true; errors.push("the Cloud/Local dialog opened: local mode was not ready"); }
     if (st.recording && recordingAtMs == null) recordingAtMs = now;
     for (const e of st.errs) pageErrors.add(e.slice(0, 200));
+    if (st.offlineChip) offlineSeen.chip = true;
+    heard.update(st.transcript, now);
     if (st.transcript && st.transcript !== lastTranscript) {
       if (firstTranscriptMs == null) firstTranscriptMs = now;
       lastTranscript = st.transcript;
@@ -388,7 +379,7 @@ while (Date.now() - tClick < durationMs && !appExit && !wsClosed) {
       if (!p || r.text !== p.text) return;
       if (r.state !== "waiting" && p.activeAtMs == null) p.activeAtMs = now;
       if (r.state === "done" && p.doneAtMs == null) {
-        p.doneAtMs = now; p.transcriptAtDone = st.transcript.slice(-240);
+        p.doneAtMs = now; p.transcriptAtDone = st.transcript.slice(-240); p.ownLineHeardAtMs = ownLineHeard(i, cycleStart, now);
         if (points === firstCycle) console.log(`[take] done ${Math.round(now / 100) / 10}s: ${p.text}`);
       }
       p.state = r.state;
@@ -402,7 +393,9 @@ while (Date.now() - tClick < durationMs && !appExit && !wsClosed) {
   if (points.every((p) => p.doneAtMs != null)) {
     if (MODE !== "memory") { await sleep(5000); break; } // a few more seconds of decisions and connections
     // Long take: start section 1 over, like a speaker rehearsing it again, so decisions keep coming.
-    cycles.push({ startMs: cycleStart, allDoneMs: Math.max(...points.map((p) => p.doneAtMs)) });
+    // Each pass records when its points ticked and whether each followed its own paraphrase said again.
+    const pass = { startMs: cycleStart, done: points.map((p) => p.doneAtMs) };
+    cycles.push({ ...pass, allDoneMs: Math.max(...pass.done), ...passFresh(pass, heard.edges) });
     cycleStart = now;
     points = fresh();
     resetPending = true;
@@ -463,7 +456,7 @@ function netLogAudit() {
     const head = JSON.parse(text.slice(0, start).replace(/,\s*$/, "") + "}");
     const type = Object.fromEntries(Object.entries(head.constants.logEventTypes).map(([k, v]) => [v, k]));
     const hostOf = (a) => a.replace(/:\d+$/, "");
-    const isLocal = (host) => host === "localhost" || LOOPBACK(host) || OWN.has(host) || OWN.has(`[${host}]`);
+    const isLocal = (host) => host === "localhost" || isLoopback(host) || OWN.has(host) || OWN.has(`[${host}]`);
     const urls = new Set(), tcp = new Set(), udp = new Set();
     let events = 0;
     for (const line of text.slice(start).split("\n")) {
@@ -488,9 +481,12 @@ const sttBackend = sttLine ? (/sherpa|nemotron/i.test(sttLine) ? "sherpa" : /whi
 const allDone = firstCycle.every((p) => p.doneAtMs != null);
 const result = {
   at: new Date().toISOString(),
-  mode: MODE, offline: OFFLINE, build, probe: PROBE_URL ? { url: PROBE_URL, answer: probe } : undefined,
+  mode: MODE, offline: OFFLINE, gate: GATE_OFF ? "off" : "default", build, probe: PROBE_URL ? { url: PROBE_URL, answer: probe } : undefined,
   commit: (() => { try { return execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim(); } catch { return ""; } })(),
-  audio: { wav, seconds: wavSeconds, spoken },
+  audio: { wav, seconds: wavSeconds, spoken, ...VOICE },
+  offlineSeen,
+  // every time a spoken line showed on screen (index into audio.spoken), and the best share of its words seen
+  heard: { edges: heard.edges.slice(0, 2000), best: heard.best.map((b) => Math.round(b * 100) / 100) },
   startup: { mainWindowShownMs: mainShownMs },
   section: section1,
   stt: { backend: sttBackend, line: sttLine, firstTranscriptMs },
@@ -503,7 +499,7 @@ const result = {
   decide: {
     calls: decide.calls, ok: decide.ok, failed: decide.failed, aborted: decide.aborted, models: decide.models, providers: decide.providers,
     allLocal: decide.ok > 0 && Object.keys(decide.models).every((m) => /\(local\)$/.test(m)),
-    firstAtMs: decide.firstAtMs,
+    firstAtMs: decide.firstAtMs, lastAtMs: decide.lastAtMs,
     latencyMs: { median: quant(decide.latencies, 0.5), p95: quant(decide.latencies, 0.95), max: decide.latencies.length ? Math.max(...decide.latencies) : null },
     errors: decide.errors, trace: decide.trace.slice(0, 120),
   },
@@ -513,7 +509,7 @@ const result = {
   network: {
     samples: net.samples, intervalMs: 500, processesMax: net.processesMax, devtoolsOwnerOk: net.devtoolsOwnerOk,
     ownAddresses: [...OWN],
-    loopbackSeen: [...net.rows.keys()].filter((k) => !net.outbound.has(k) && !net.self.has(k) && !k.startsWith("UDP")).length,
+    loopbackSeen: [...net.rows.keys()].filter((k) => !net.outbound.has(k) && !net.self.has(k) && !k.startsWith("UDP") && !k.includes(" LISTENING ")).length,
     // To this PC's own LAN address (the in-process relay): never leaves the machine.
     selfLan: net.self.size, selfLanSeen: [...net.self.keys()],
     outbound: net.outbound.size, outboundSeen: [...net.outbound.keys()],
@@ -521,6 +517,8 @@ const result = {
     peers: [...net.peers.keys()], peerOutbound: net.peerOutbound.size, peerOutboundSeen: [...net.peerOutbound.keys()],
     udpBound: [...net.udp.keys()],
     netLog: netLogAudit(),
+    // Every TCP connection the main process (Next server, session relay, shell) opened, from its QA socket log.
+    serverSockets: (() => { try { return { file: socketLog, ...socketLogAudit(fs.readFileSync(socketLog, "utf8"), OWN) }; } catch (e) { return { file: socketLog, error: e.message }; } })(),
     connections: [...net.rows.entries()].map(([k, n]) => `${k} x${n}`).slice(0, 150),
   },
   errors,
@@ -546,6 +544,7 @@ if (MODE === "memory") {
   const series = (key) => mem.map((m) => m[key]);
   result.memory = {
     minutes: Math.round((takeMs / 60000) * 10) / 10, intervalS: 10, samples: mem.length, cycles: cycles.length,
+    freshCycles: cycles.filter((c) => c.fresh).length,
     startMB: mem[0]?.wsMB ?? null, endMB: mem.at(-1)?.wsMB ?? null, maxMB: mem.length ? Math.max(...series("wsMB")) : null,
     privateStartMB: mem[0]?.privateMB ?? null, privateEndMB: mem.at(-1)?.privateMB ?? null, privateMaxMB: mem.length ? Math.max(...series("privateMB")) : null,
     slopeMBper10min: slope(mem, "wsMB"), warmupMin: warmupS / 60,
@@ -567,7 +566,9 @@ const n = result.network;
 console.log(`[take] ${MODE}: ${firstCycle.filter((p) => p.doneAtMs != null).length}/${firstCycle.length} done` +
   `${result.timeToAllDoneMs != null ? ` in ${(result.timeToAllDoneMs / 1000).toFixed(1)} s` : ""}; stt ${sttBackend}; decide ${decide.ok} ok / ${decide.failed} failed, models ${JSON.stringify(decide.models)}; ` +
   `${n.samples} netstat samples: outbound ${n.outbound}, to this PC's LAN address ${n.selfLan}, peers ${JSON.stringify(n.peers)} (their outbound ${n.peerOutbound}), UDP bound ${n.udpBound.length}, net log (${n.netLog.events ?? 0} events) external URLs ${JSON.stringify(n.netLog.externalUrls ?? n.netLog.error)} TCP ${JSON.stringify(n.netLog.externalTcp ?? [])}` +
-  `${result.memory ? `; ${result.memory.cycles} cycles; working set ${result.memory.startMB} -> ${result.memory.endMB} MB (max ${result.memory.maxMB}), private ${result.memory.privateStartMB} -> ${result.memory.privateEndMB} MB, growth after warm-up ws ${result.memory.wsGrowthAfterWarmupPct}% private ${result.memory.privateGrowthAfterWarmupPct}%` : ""}`);
+  `; server sockets ${n.serverSockets.lines ?? n.serverSockets.error} (${n.serverSockets.local ?? 0} local, external ${JSON.stringify(n.serverSockets.external ?? [])}); offline seen ${JSON.stringify(offlineSeen)}; page errors ${pageErrors.size}` +
+  `; heard ${heard.edges.length} lines (best ${heard.best.map((b) => b.toFixed(2)).join("/")}), first pass own line before tick: ${firstCycle.map((p) => p.ownLineHeardAtMs != null).join(",")}` +
+  `${result.memory ? `; ${result.memory.cycles} cycles (${result.memory.freshCycles} fresh, durations ${cycles.slice(0, 6).map((c) => ((c.allDoneMs - c.startMs) / 1000).toFixed(1)).join(",")} s); working set ${result.memory.startMB} -> ${result.memory.endMB} MB (max ${result.memory.maxMB}), private ${result.memory.privateStartMB} -> ${result.memory.privateEndMB} MB, growth after warm-up ws ${result.memory.wsGrowthAfterWarmupPct}% private ${result.memory.privateGrowthAfterWarmupPct}%` : ""}`);
 if (errors.length) console.log(`[take] errors: ${errors.join(" | ")}`);
 console.log(`[take] wrote ${OUT} (${((Date.now() - t0wall) / 1000).toFixed(0)} s)`);
 process.exit(allDone && !errors.length ? 0 : 1);
