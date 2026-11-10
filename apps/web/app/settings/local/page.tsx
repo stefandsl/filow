@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { LANG_LABELS, LANGS, SCREEN_MODE_LABELS, type DecisionProviderId, type I18nKey, type Lang, type MachineInfo, type ScreenMode, type SetupModel, type SetupPreference } from "@filow/core";
+import { createDownloadProgress, LANG_LABELS, LANGS, SCREEN_MODE_LABELS, type DecisionProviderId, type I18nKey, type Lang, type MachineInfo, type ScreenMode, type SetupModel, type SetupPreference } from "@filow/core";
 import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, sherpaBridge, whisperCached, type SherpaStatus } from "@filow/stt";
 import { SherpaLanguageNote } from "@/components/SherpaLanguageNote";
 import { Wordmark, LangProvider, useT } from "@filow/ui";
@@ -20,6 +20,7 @@ import { OkFilowSettings } from "@/components/OkFilowSettings";
 import { DictationSettings } from "@/components/DictationSettings";
 import { SetupPicker } from "./SetupPicker";
 import { AboutPrivacyLink } from "@/components/AboutPrivacyLink";
+import { DownloadLabel } from "@/components/DownloadLabel";
 
 type Status = {
   pii: { mode: "off" | "on" | "strict"; serverUrl: string; serverReachable: boolean };
@@ -80,7 +81,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const t = useT();
   const [status, setStatus] = useState<Status | null>(null);
   const [provider, setProvider] = useState<DecisionProviderId | "">("");
-  const [progress, setProgress] = useState<Record<string, string>>({});
+  const [progress, setProgress] = useState<Record<string, ReactNode>>({});
   /** One AbortController per running pull, so a pull started by mistake can be stopped. */
   const pulls = useRef<Record<string, AbortController>>({});
   const [testResult, setTestResult] = useState<Record<string, string>>({});
@@ -194,9 +195,11 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     setError(null);
     setProgress((p) => ({ ...p, [name]: t("settings.starting") }));
     try {
+      // One number for the whole model: its files download in parallel (issue #4).
+      const total = createDownloadProgress();
       const device = await preloadWhisper(name, (p) => {
-        const pct = p.progress !== undefined ? ` ${Math.round(p.progress)}%` : "";
-        setProgress((pr) => ({ ...pr, [name]: `${p.status}${p.file ? " " + p.file.split("/").pop() : ""}${pct}` }));
+        const percent = total.update(p);
+        setProgress((pr) => ({ ...pr, [name]: <DownloadLabel label={t("progress.speechModel")} percent={percent} /> }));
       });
       setTestResult((r) => ({ ...r, [name]: t("settings.readyOn", { device }) }));
       setCached((c) => ({ ...c, [name]: true }));
@@ -227,6 +230,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let buf = "";
+      // Ollama reports each layer (digest) on its own: one number for the whole model (issue #4).
+      const total = createDownloadProgress();
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -236,10 +241,12 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
         for (const line of lines) {
           if (!line.trim()) continue;
           try {
-            const j = JSON.parse(line) as { status?: string; total?: number; completed?: number; error?: string };
+            const j = JSON.parse(line) as { status?: string; digest?: string; total?: number; completed?: number; error?: string };
             if (j.error) setError(j.error);
-            const pct = j.total && j.completed ? ` ${Math.round((j.completed / j.total) * 100)}%` : "";
-            setProgress((p) => ({ ...p, [name]: `${j.status ?? ""}${pct}` }));
+            const percent = total.update({ status: j.status, file: j.digest, loaded: j.completed, total: j.total });
+            const checking = /^(verifying|writing|success)/.test(j.status ?? "");
+            const label = checking ? t("progress.verifying") : percent === null ? t("settings.starting") : <DownloadLabel label={t("progress.ollamaModel")} percent={percent} />;
+            setProgress((p) => ({ ...p, [name]: label }));
           } catch {
             /* partial line */
           }
@@ -508,13 +515,13 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                   disabled={gateStatus === "loading" || gateStatus === "ready"}
                   onClick={() => {
                     setGateStatus("loading");
-                    loadGate((p) => setGatePct(p.progress ?? null)).then(
+                    loadGate((p) => setGatePct(p.percent)).then(
                       () => setGateStatus("ready"),
                       () => setGateStatus("error"),
                     );
                   }}
                 >
-                  {gateStatus === "ready" ? t("gate.ready") : gateStatus === "loading" ? `${t("settings.running")}${gatePct !== null ? ` ${Math.round(gatePct)}%` : ""}` : t("gate.download")}
+                  {gateStatus === "ready" ? t("gate.ready") : gateStatus === "loading" ? <DownloadLabel label={t("progress.gateModel")} percent={gatePct} /> : t("gate.download")}
                 </button>
               </div>
               <div className="hint">{t("gate.hint")}</div>
@@ -652,7 +659,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                           </>
                         ) : (
                           <button className="btn primary" disabled={sherpa?.model === "downloading" || sherpa?.model === "extracting"} onClick={() => sherpaBridge()?.download(speechLang)}>
-                            {sherpa?.model === "downloading" ? `${t("settings.download")} ${sherpa.pct}%` : sherpa?.model === "extracting" ? t("settings.starting") : sherpa?.partial ? t("settings.resumeDownload", { pct: sherpa.partial }) : t("settings.download")}
+                            {sherpa?.model === "downloading" ? <DownloadLabel label={t("progress.speechModel")} percent={sherpa.pct ?? null} /> : sherpa?.model === "extracting" ? t("settings.starting") : sherpa?.partial ? t("settings.resumeDownload", { pct: sherpa.partial }) : t("settings.download")}
                           </button>
                         )}
                         {sherpa?.model !== "ready" && sherpa?.active && (

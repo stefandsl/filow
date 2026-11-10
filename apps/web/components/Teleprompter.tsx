@@ -364,9 +364,9 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         let lastPct = -10;
         try {
           await attempt.wait(loadGate((p) => {
-            // report the big file only: the small ones (config, tokenizer) would restart the percentage
-            const pct = Math.round(p.progress ?? 0);
-            if (p.progress !== undefined && p.file?.endsWith(".onnx") && pct >= lastPct + 10) {
+            // one number for the whole model (all its files), logged every 10%
+            const pct = p.percent ?? -1;
+            if (pct >= lastPct + 10) {
               lastPct = pct;
               pushLog(`${t("start.matcherLoading")} ${pct}%`);
             }

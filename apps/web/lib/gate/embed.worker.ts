@@ -9,7 +9,7 @@ if (env.backends?.onnx?.wasm) env.backends.onnx.wasm.wasmPaths = "/ort/";
 
 type In = { type: "load"; model: string } | { type: "embed"; id: number; texts: string[] };
 type Out =
-  | { type: "progress"; file?: string; progress?: number; status: string }
+  | { type: "progress"; file?: string; progress?: number; loaded?: number; total?: number; status: string }
   | { type: "ready"; model: string; loadMs: number }
   | { type: "vectors"; id: number; dims: number; data: Float32Array }
   | { type: "error"; message: string; id?: number };
@@ -25,7 +25,9 @@ async function load(model: string) {
     const t0 = Date.now();
     fe = (await pipeline("feature-extraction", model, {
       dtype: "q8",
-      progress_callback: (p: { status: string; file?: string; progress?: number }) => post({ type: "progress", file: p.file, progress: p.progress, status: p.status }),
+      // loaded/total per file: client.ts adds them up into one number for the model (issue #4).
+      progress_callback: (p: { status: string; file?: string; progress?: number; loaded?: number; total?: number }) =>
+        post({ type: "progress", file: p.file, progress: p.progress, loaded: p.loaded, total: p.total, status: p.status }),
     })) as FeatureExtractionPipeline;
     post({ type: "ready", model, loadMs: Date.now() - t0 });
   })();
