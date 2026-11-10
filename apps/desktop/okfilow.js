@@ -10,7 +10,7 @@ const { createGestures, chordHeld } = require("./okfilow-gestures");
 const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
-const { answerRoot, writeAnswer, deleteAnswers } = require("./okfilow-answers");
+const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 
 const DEFAULTS = {
   enabled: true,
@@ -35,7 +35,7 @@ const DEFAULTS = {
   allowScreenshots: false,
   /** Answer log (question, raw text, visuals, screenshot per answer): opt-in, the only time a screenshot touches disk. */
   answerLog: false,
-  /** Its folder; empty means G:\FILOW\tmp\okf-answers in test builds, and no log in other builds. */
+  /** Its folder; empty means "okfilow-answers" in the app's data folder (see defaultAnswerDir). */
   answerDir: "",
   /** What the user allowed or refused to send outside, per kind and recipient ("ask:openrouter/google"). */
   consent: {},
@@ -747,8 +747,9 @@ function createOkFilow(deps) {
   /** The panel's Clear button, and every new typed question. */
   ipcMain.on("okfilow:clearVisuals", (e) => ourSender(e.sender) && clearDrawings());
   let lastAnswerDir = "";
+  const answersFallback = () => defaultAnswerDir(require("electron").app.getPath("userData"), process.env, QA_ALLOWED);
   ipcMain.handle("okfilow:answerLog", guard((entry) => {
-    const root = cfg().answerLog ? answerRoot(cfg().answerDir, QA_ALLOWED) : "";
+    const root = cfg().answerLog ? answerRoot(cfg().answerDir, answersFallback()) : "";
     if (!root || !entry || typeof entry !== "object") return "";
     lastAnswerDir = writeAnswer(root, entry);
     logLine(`okfilow: answer saved to ${lastAnswerDir}`);
@@ -758,17 +759,16 @@ function createOkFilow(deps) {
     const { dialog } = require("electron");
     const r = await dialog.showOpenDialog(panel && !panel.isDestroyed() ? panel : undefined, { properties: ["openDirectory", "createDirectory"] });
     if (r.canceled || !r.filePaths[0]) return status();
-    if (!answerRoot(r.filePaths[0], false)) throw new Error("Pick a folder outside drive C:, which is full.");
     return applyConfig({ answerDir: r.filePaths[0] });
   }));
   ipcMain.handle("okfilow:deleteAnswers", guard(() => {
-    const n = deleteAnswers(answerRoot(cfg().answerDir, QA_ALLOWED));
+    const n = deleteAnswers(answerRoot(cfg().answerDir, answersFallback()));
     lastAnswerDir = "";
     logLine(`okfilow: deleted ${n} saved answer(s)`);
     return n;
   }));
   ipcMain.handle("okfilow:openAnswers", guard(async () => {
-    const dir = lastAnswerDir || answerRoot(cfg().answerDir, QA_ALLOWED);
+    const dir = lastAnswerDir || answerRoot(cfg().answerDir, answersFallback());
     if (!dir) return false;
     require("node:fs").mkdirSync(dir, { recursive: true });
     return (await shell.openPath(dir)) === "";
