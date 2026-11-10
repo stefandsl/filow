@@ -11,6 +11,9 @@ export default tseslint.config(
       "**/node_modules/**", "**/.next/**", "**/dist/**", "**/out/**", "**/vendor/**", "**/*.d.ts",
       "apps/web/public/**", "**/*.min.js", "**/*.min.mjs",
       "release*/**", "tmp/**", "output/**", "design/**", "graphify-out/**", "coverage/**",
+      // Agent worktrees live under .claude/worktrees: full copies of the repo with work in progress. Flat
+      // config does not skip dot folders, so without this the gate passed or failed with their half-written files.
+      ".claude/**",
     ],
   },
   js.configs.recommended,
