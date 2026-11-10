@@ -16,6 +16,8 @@ export type DesktopBridge = {
   mode: "lan" | "hosted";
   sessionUrl: string;
   mirrorOrigin: string;
+  /** The address on this network, whatever the public link does (shell 0.9.31+). */
+  lanMirrorOrigin?: string;
   /** Relay URL for the phone when it differs from the engine's (public tunnel). */
   mirrorServerUrl?: string;
   remoteShare?: boolean;
@@ -68,7 +70,10 @@ export type SlideShowState = { running: boolean; index: number; total: number; t
 
 export type RemoteStatus = {
   state: "off" | "downloading" | "connecting" | "on" | "error";
+  /** the public address of the mirror page while the link is on */
   url: string;
+  /** the public address of the session relay that goes with `url` */
+  session?: string;
   error: string;
   wanted?: boolean;
 };
