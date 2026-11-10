@@ -517,7 +517,9 @@ export class Engine {
     this.unmentioned = data.unmentioned ?? [];
     this.update((st) => {
       st.engine.error = undefined;
-      st.engine.slowMs = data.latencyMs > this.o.tickMs * 2 ? data.latencyMs : undefined;
+      // "Slow" means close to the timeout, where answers start being dropped. A model slower than the
+      // tick is normal (a local one takes about 1.1 s): the pacing above already adapts to it.
+      st.engine.slowMs = data.latencyMs > Math.max(this.o.tickMs * 2, this.o.timeoutMs * 0.6) ? data.latencyMs : undefined;
       st.unmentioned = data.unmentioned ?? [];
       const calls = st.stats.calls + 1;
       const totalMs = st.stats.totalMs + data.latencyMs;

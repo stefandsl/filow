@@ -582,7 +582,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         )}
         {offline && <span className="chip err">{t("app.offline")}</span>}
         {eng.backend && <span className="chip live"><Icon name="circle" /> {BACKEND_LABELS[eng.backend]}</span>}
-        {eng.slowMs && <span className="chip err" title={t("app.slowTitle")}><Icon name="clock" /> {t("app.slow", { ms: eng.slowMs })}</span>}
+        {eng.slowMs && <span className="chip" title={t("app.slowTitle")}><Icon name="clock" /> {t("app.slow", { ms: eng.slowMs })}</span>}
         {takeSetup && eng.recording && (
           <a className="chip" href="/settings/local#setup" title={t("setup.label")}>
             <Icon name="sliders" /> {t("setup.inUse", { name: t(`setup.${takeSetup.active}`) })}

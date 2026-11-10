@@ -332,6 +332,25 @@ describe("Engine pacing (Step 1 hygiene)", () => {
     expect(calls).toEqual([1000, 3500]);
     expect(e.getState().engine.slowMs).toBe(2000);
   });
+
+  it("a local model at its normal pace (about 1.1 s a call) is not reported slow; one near the timeout is", async () => {
+    // T1 review finding 6: the packaged local take showed "slow model ~1100 ms" in red on every call.
+    let latencyMs = 1100;
+    const e = new Engine({
+      decide: async (r) => ({ decisions: r.bullets.map((b) => ({ id: b.id, confidence: 0, started: false })), latencyMs, cost: 0, model: "clef-flash (local)" }),
+      now: () => 1000,
+      setInterval: () => 0,
+      clearInterval: () => {},
+    });
+    e.loadScript(SCRIPT);
+    e.feed({ committed: "a " });
+    await e.tick(true);
+    expect(e.getState().engine.slowMs).toBeUndefined();
+    latencyMs = 1600; // over 60% of the 2500 ms timeout: decisions are close to being dropped
+    e.feed({ committed: "b " });
+    await e.tick(true);
+    expect(e.getState().engine.slowMs).toBe(1600);
+  });
 });
 
 describe("Engine stale replies (plan step 3: state validity)", () => {
