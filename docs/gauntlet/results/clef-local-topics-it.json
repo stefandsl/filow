@@ -9,15 +9,15 @@
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T00:12:30.510Z",
+  "at": "2026-11-10T02:04:20.534Z",
   "corpus": "topics-it",
   "late": 0,
-  "calls": 11,
+  "calls": 17,
   "latencyMs": {
-    "p50": 846,
-    "p95": 963,
-    "max": 963,
-    "avg": 844
+    "p50": 793,
+    "p95": 922,
+    "max": 922,
+    "avg": 788
   },
   "timeouts": 0,
   "points": [
@@ -32,6 +32,11 @@
         {
           "sec": 8,
           "confidence": 0.93,
+          "started": true
+        },
+        {
+          "sec": 8,
+          "confidence": 0.95,
           "started": true
         }
       ],
@@ -54,6 +59,11 @@
           "started": false
         },
         {
+          "sec": 8,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
           "sec": 14,
           "confidence": 0.14,
           "started": false
@@ -62,6 +72,16 @@
           "sec": 20,
           "confidence": 0.1,
           "started": false
+        },
+        {
+          "sec": 20,
+          "confidence": 0.09,
+          "started": false
+        },
+        {
+          "sec": 26,
+          "confidence": 0.87,
+          "started": true
         },
         {
           "sec": 26,
@@ -88,6 +108,11 @@
           "started": false
         },
         {
+          "sec": 8,
+          "confidence": 0.02,
+          "started": false
+        },
+        {
           "sec": 14,
           "confidence": 0.03,
           "started": false
@@ -95,6 +120,11 @@
         {
           "sec": 20,
           "confidence": 0.94,
+          "started": true
+        },
+        {
+          "sec": 20,
+          "confidence": 0.95,
           "started": true
         }
       ],
@@ -106,6 +136,11 @@
     {
       "pointId": "s1b0",
       "trail": [
+        {
+          "sec": 38,
+          "confidence": 0.95,
+          "started": true
+        },
         {
           "sec": 38,
           "confidence": 0.95,
@@ -126,8 +161,18 @@
           "started": false
         },
         {
+          "sec": 38,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
           "sec": 44,
           "confidence": 0.89,
+          "started": true
+        },
+        {
+          "sec": 44,
+          "confidence": 0.88,
           "started": true
         }
       ],
@@ -142,6 +187,16 @@
         {
           "sec": 38,
           "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 38,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 44,
+          "confidence": 0.02,
           "started": false
         },
         {
@@ -167,6 +222,11 @@
           "sec": 56,
           "confidence": 0.85,
           "started": true
+        },
+        {
+          "sec": 56,
+          "confidence": 0.81,
+          "started": true
         }
       ],
       "labelSec": 56,
@@ -180,6 +240,11 @@
         {
           "sec": 56,
           "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 56,
+          "confidence": 0.04,
           "started": false
         },
         {
@@ -200,6 +265,8 @@
     }
   ],
   "guarded": 2,
+  "verified": 6,
+  "vetoed": 0,
   "falseStarts": 0,
   "misses": 0,
   "correct": 6,

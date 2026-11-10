@@ -52,3 +52,24 @@ describe("parseClefAnswers", () => {
     expect(out.unmentioned).toEqual([]);
   });
 });
+
+describe("verification questions (TRK-2)", () => {
+  it("adds two questions for each point listed in `verify`, and only for those", () => {
+    const r = buildClefRequest({ ...req, verify: ["s0b1", "unknown"] }, "clef-flash");
+    expect(Object.keys(r.questions)).toEqual(["s0b0", "s0b1", "s0b1__real", "s0b1__party", "fact_0"]);
+    expect(r.questions.s0b1__real.instructions).toContain('"show the demo"');
+    expect(r.questions.s0b1__real.instructions).toMatch(/cancelled/);
+    expect(r.questions.s0b1__party.instructions).toMatch(/same party/);
+  });
+
+  it("reads both answers into `verification`; a point not listed gets none", () => {
+    const out = parseClefAnswers({ answers: { s0b0: { noul: 0.9 }, s0b1: { noul: 0.8 }, s0b1__real: { noul: 0.12 }, s0b1__party: { noul: 0.95 } } }, { ...req, verify: ["s0b1"] });
+    expect(out.decisions[0].verification).toBeUndefined();
+    expect(out.decisions[1].verification).toEqual({ real: 0.12, sameParty: 0.95 });
+  });
+
+  it("a missing verification answer is not a pass: the point stays unverified", () => {
+    const out = parseClefAnswers({ answers: { s0b1: { noul: 0.8 }, s0b1__real: { noul: 0.9 } } }, { ...req, verify: ["s0b1"] });
+    expect(out.decisions[1].verification).toBeUndefined();
+  });
+});

@@ -373,3 +373,78 @@ it blocks are listed in `guard.test.ts` as a ratchet (a change that blocks a fou
    differ in wording. Hosted Cloudflare Clef inherits the new wording unmeasured.
 4. Not covered by any of this: real speech-to-text output of a real talk, transcripts longer than a
    few sentences in the adversarial set, and languages other than Italian and English beyond 12 cases.
+
+## Verification before a tick (2026-11-10)
+
+The 11 false ticks the wording could not remove (another actor, a cancelled plan, sarcasm) are now
+stopped by a second look at a point that is ready to tick. Two experiments, one discarded.
+
+### Discarded: an entailment (NLI) model
+
+PRODUCTION-PLAN asked to measure whether a multilingual NLI model beats the guard and the decision
+model before shipping it. It does not. Two quantized models through transformers.js
+(`onnx-community/multilingual-MiniLMv2-L6-mnli-xnli-ONNX`, 107 MB, 6 ms per pair, and
+`onnx-community/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7-ONNX`, 338 MB, 100 ms per pair) scored
+every point that would tick (13 false, 79 true: adversarial set and corpora) with three hypothesis
+frames, on the whole transcript and on the evidence sentence. No rule on contradiction, entailment or
+their difference blocks a single false tick without losing a true one; the best (mDeBERTa, hypothesis
+"For us, today, this is true: <point>", contradiction >= 0.435) blocks 1 of 13 and loses 1 of 79. The
+models work on plain sentence pairs (a sanity run gave entailment 0.74 and contradiction 0.58 to
+0.97 where expected) but a script point is a label, not a sentence: "New office in Dublin" is
+entailed by "our supplier opened a new office in Dublin". Not shipped; no model download added.
+
+### Kept: two focused questions to the same local model
+
+Clef judges one narrow thing well and a broad criterion badly. The exclusions written into the main
+question's criterion removed 3 of 14 false ticks; asked as two separate questions about a single
+point they remove nearly all:
+- real: "Does the speaker present it as real: something that is true, is happening, or is planned?
+  Answer no when the speaker says it was cancelled, dropped, never happened or will not happen,
+  denies it, only imagines it, or is clearly being ironic."
+- same party: "Compare who it is about. Is the transcript talking about the same party as the script
+  point? Answer no only when the transcript says it of a different party than the point means."
+
+How it runs (`packages/core/src/engine.ts`, option `verify`, default on, only with a provider whose
+answer says `canVerify`): a point that is ready to tick is held; the engine asks again at once with
+`verify: [id]` (the provider adds the two questions for that point to the same call); the point
+ticks only if real >= 0.65 and same party >= 0.5. A point on its second confirming call is verified
+in that call, with no extra one. A veto resets the point: new speech must confirm and verify again.
+Cloud providers do not verify and tick as before.
+
+Thresholds: 0.5 and 0.5 were fixed before the held-out set was run and give the same counts as
+below. "Real" was then moved to 0.65, inside the gap both sets show (true points 0.81 or more, the
+false ticks it stops 0.48 or less). "Same party" has a thin gap: false ticks 0.24 to 0.50, true
+points from 0.52, and a third-party point of my own ("I concorrenti hanno abbassato i prezzi") at 0.42.
+
+### Numbers (local Clef, production path, `GAUNTLET_ADV=1 npx vitest run apps/web/lib/gauntlet/adversarial.test.ts`)
+
+| set | false ticks before -> wording -> verification | misses | true points vetoed |
+|---|---|---|---|
+| adversarial, English and Italian (218 must stay open, 38 true) | 21 -> 11 -> **1** | 6 -> 2 -> 2 | 0 |
+| adversarial, Spanish, German, French (19, 6) | 2 -> 2 -> **0** | 3 -> 0 -> 0 | 0 |
+| **held out**: `cases-verify.json`, 100 cases by an author who had not seen the step (148, 61) | 11 -> **0** | 4 -> 4 | 0 |
+| seven corpora, full engine replay (38 labelled) | 0 -> 0 | 1 -> 1 (by design) | 0 of 37 |
+
+The held-out set has 40 English, 40 Italian and 4 each of Romanian, Russian, Japanese, Spanish and
+German cases; half are traps (other actor, cancelled, never happened, hypothetical, irony, denial,
+quoted without agreeing, question only), half are hard true points (a point about a third party, a
+general fact, an anecdote, a plan, a past result, a negated point, an endorsed quote, a paraphrase,
+another language, an emphatic negation). All 11 would-be false ticks were vetoed: 9 by "real" (0.04
+to 0.48), 2 by "same party" (0.24, 0.38).
+
+Cost: one more call per tick, about 0.65 s here (2 questions), paid only when a point is about to
+tick: 78 -> 115 calls over the seven corpora, worst p95 1082 ms against the 2500 ms timeout. The
+engine makes that call at once instead of waiting for its timer, so the flip delay in the replay
+stays 0 s at the median. Clef's latency grows with the number of questions (1: 578 ms, 4: 720 ms,
+12: 1112 ms), which is why the two questions are asked only for the point about to tick and not for
+every open point on every call.
+
+### Still open
+
+1. One false tick left on the first set: sarcasm in Italian with no cue the model catches ("Il nuovo
+   gestionale fa risparmiare tempo... come no", real 0.92).
+2. Misses that are not about verification: a negated point said without a negation is blocked by the
+   guard (2 of 5 such cases in the held-out set, 1 in the first), and two anecdotes stay under 0.7.
+3. "Same party" needs more third-party true points before its threshold can be trusted.
+4. Not measured: cloud providers (no verification there), real speech-to-text of a real talk, and a
+   slow PC, where one more call per tick costs more than 0.65 s.

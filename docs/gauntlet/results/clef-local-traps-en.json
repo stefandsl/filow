@@ -9,15 +9,15 @@
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T00:12:43.551Z",
+  "at": "2026-11-10T02:04:35.203Z",
   "corpus": "traps-en",
   "late": 0,
-  "calls": 13,
+  "calls": 17,
   "latencyMs": {
-    "p50": 998,
-    "p95": 1093,
-    "max": 1093,
-    "avg": 1002
+    "p50": 899,
+    "p95": 998,
+    "max": 998,
+    "avg": 862
   },
   "timeouts": 0,
   "points": [
@@ -41,6 +41,11 @@
         },
         {
           "sec": 20,
+          "confidence": 0.05,
+          "started": false
+        },
+        {
+          "sec": 26,
           "confidence": 0.05,
           "started": false
         },
@@ -82,6 +87,11 @@
           "sec": 26,
           "confidence": 0.06,
           "started": false
+        },
+        {
+          "sec": 26,
+          "confidence": 0.06,
+          "started": false
         }
       ],
       "labelSec": null,
@@ -115,6 +125,11 @@
         {
           "sec": 26,
           "confidence": 0.14,
+          "started": false
+        },
+        {
+          "sec": 26,
+          "confidence": 0.13,
           "started": false
         }
       ],
@@ -150,6 +165,11 @@
           "sec": 26,
           "confidence": 0.98,
           "started": true
+        },
+        {
+          "sec": 26,
+          "confidence": 0.98,
+          "started": true
         }
       ],
       "labelSec": 26,
@@ -164,6 +184,16 @@
           "sec": 32,
           "confidence": 0.04,
           "started": false
+        },
+        {
+          "sec": 32,
+          "confidence": 0.04,
+          "started": false
+        },
+        {
+          "sec": 38,
+          "confidence": 0.96,
+          "started": true
         },
         {
           "sec": 38,
@@ -181,6 +211,16 @@
       "trail": [
         {
           "sec": 32,
+          "confidence": 0.02,
+          "started": false
+        },
+        {
+          "sec": 32,
+          "confidence": 0.02,
+          "started": false
+        },
+        {
+          "sec": 38,
           "confidence": 0.02,
           "started": false
         },
@@ -214,6 +254,16 @@
           "started": false
         },
         {
+          "sec": 32,
+          "confidence": 0.1,
+          "started": false
+        },
+        {
+          "sec": 38,
+          "confidence": 0.04,
+          "started": false
+        },
+        {
           "sec": 38,
           "confidence": 0.04,
           "started": false
@@ -241,6 +291,11 @@
           "sec": 32,
           "confidence": 0.97,
           "started": true
+        },
+        {
+          "sec": 32,
+          "confidence": 0.98,
+          "started": true
         }
       ],
       "labelSec": 32,
@@ -254,6 +309,11 @@
         {
           "sec": 56,
           "confidence": 0.04,
+          "started": false
+        },
+        {
+          "sec": 56,
+          "confidence": 0.05,
           "started": false
         },
         {
@@ -280,6 +340,11 @@
     {
       "pointId": "s2b1",
       "trail": [
+        {
+          "sec": 56,
+          "confidence": 0.02,
+          "started": false
+        },
         {
           "sec": 56,
           "confidence": 0.02,
@@ -313,6 +378,11 @@
           "sec": 56,
           "confidence": 0.95,
           "started": true
+        },
+        {
+          "sec": 56,
+          "confidence": 0.95,
+          "started": true
         }
       ],
       "labelSec": 56,
@@ -322,6 +392,8 @@
     }
   ],
   "guarded": 0,
+  "verified": 4,
+  "vetoed": 0,
   "falseStarts": 0,
   "misses": 0,
   "correct": 4,

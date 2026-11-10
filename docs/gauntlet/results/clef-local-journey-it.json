@@ -9,15 +9,15 @@
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T00:12:11.218Z",
+  "at": "2026-11-10T02:03:53.057Z",
   "corpus": "journey-it",
   "late": 0,
-  "calls": 8,
+  "calls": 12,
   "latencyMs": {
-    "p50": 873,
-    "p95": 931,
-    "max": 931,
-    "avg": 867
+    "p50": 810,
+    "p95": 918,
+    "max": 918,
+    "avg": 806
   },
   "timeouts": 0,
   "points": [
@@ -32,6 +32,11 @@
         {
           "sec": 6,
           "confidence": 0.92,
+          "started": true
+        },
+        {
+          "sec": 6,
+          "confidence": 0.93,
           "started": true
         }
       ],
@@ -54,6 +59,11 @@
           "started": false
         },
         {
+          "sec": 6,
+          "confidence": 0.02,
+          "started": false
+        },
+        {
           "sec": 10,
           "confidence": 0.08,
           "started": false
@@ -61,6 +71,11 @@
         {
           "sec": 18,
           "confidence": 0.95,
+          "started": true
+        },
+        {
+          "sec": 18,
+          "confidence": 0.94,
           "started": true
         }
       ],
@@ -83,6 +98,11 @@
           "started": false
         },
         {
+          "sec": 6,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
           "sec": 10,
           "confidence": 0.06,
           "started": false
@@ -93,8 +113,18 @@
           "started": false
         },
         {
+          "sec": 18,
+          "confidence": 0.04,
+          "started": false
+        },
+        {
           "sec": 26,
           "confidence": 0.97,
+          "started": true
+        },
+        {
+          "sec": 26,
+          "confidence": 0.95,
           "started": true
         }
       ],
@@ -110,6 +140,11 @@
           "sec": 34,
           "confidence": 0.92,
           "started": true
+        },
+        {
+          "sec": 34,
+          "confidence": 0.89,
+          "started": true
         }
       ],
       "labelSec": 34,
@@ -120,6 +155,11 @@
     {
       "pointId": "s1b1",
       "trail": [
+        {
+          "sec": 34,
+          "confidence": 0.02,
+          "started": false
+        },
         {
           "sec": 34,
           "confidence": 0.02,
@@ -150,6 +190,11 @@
           "started": false
         },
         {
+          "sec": 34,
+          "confidence": 0.02,
+          "started": false
+        },
+        {
           "sec": 42,
           "confidence": 0.07,
           "started": false
@@ -167,6 +212,8 @@
     }
   ],
   "guarded": 0,
+  "verified": 4,
+  "vetoed": 0,
   "falseStarts": 0,
   "misses": 0,
   "correct": 4,

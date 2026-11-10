@@ -1,0 +1,272 @@
+{
+  "at": "2026-11-10T02:00:43.386Z",
+  "model": "clef-flash",
+  "pass": {
+    "real": 0.65,
+    "sameParty": 0.5
+  },
+  "withoutVerification": {
+    "verify": {
+      "falseTicks": 11,
+      "expectedNot": 148,
+      "misses": 4,
+      "expectedTicks": 61
+    }
+  },
+  "withVerification": {
+    "verify": {
+      "falseTicks": 0,
+      "expectedNot": 148,
+      "misses": 4,
+      "expectedTicks": 61
+    }
+  },
+  "falseTicks": [],
+  "misses": [
+    {
+      "id": "V061",
+      "set": "verify",
+      "language": "en",
+      "category": "anecdote",
+      "point": "Double-checking prescriptions prevents errors",
+      "said": "Let me tell you about Tom, a pharmacist I trained with. One evening a second pair of eyes caught that he had bagged a tenfold dose for a child, and that one look saved a family from a disaster.",
+      "expected": true,
+      "confidence": 0.61,
+      "guard": "ok",
+      "verification": null,
+      "ticked": false,
+      "tickedWithoutVerification": false
+    },
+    {
+      "id": "V063",
+      "set": "verify",
+      "language": "it",
+      "category": "anecdote",
+      "point": "Una sola email può bloccare un'azienda",
+      "said": "Vi racconto di Giorgio, un amico che ha una ditta di trasporti. Un lunedì una sua impiegata ha aperto un allegato arrivato per posta elettronica, uno solo, e per nove giorni non è partito nemmeno un camion.",
+      "expected": true,
+      "confidence": 0.6,
+      "guard": "ok",
+      "verification": null,
+      "ticked": false,
+      "tickedWithoutVerification": false
+    },
+    {
+      "id": "V077",
+      "set": "verify",
+      "language": "en",
+      "category": "negated-point",
+      "point": "No branches will close",
+      "said": "Every single one of our branches stays open. I want that to be heard clearly by the staff in this room.",
+      "expected": true,
+      "confidence": 0.94,
+      "guard": "blocked (negation)",
+      "verification": null,
+      "ticked": false,
+      "tickedWithoutVerification": false
+    },
+    {
+      "id": "V079",
+      "set": "verify",
+      "language": "it",
+      "category": "negated-point",
+      "point": "La palestra non chiuderà durante i lavori",
+      "said": "Per tutta la durata del cantiere la palestra resterà aperta e utilizzabile, i lavori si faranno a zone.",
+      "expected": true,
+      "confidence": 0.95,
+      "guard": "blocked (negation)",
+      "verification": null,
+      "ticked": false,
+      "tickedWithoutVerification": false
+    }
+  ],
+  "vetoed": [
+    {
+      "id": "V004",
+      "set": "verify",
+      "language": "it",
+      "category": "other-actor",
+      "point": "Abbiamo assunto due nuovi fisioterapisti",
+      "said": "Il centro medico di via Garibaldi ha assunto due nuovi fisioterapisti e ha già la lista d'attesa piena. Noi per ora restiamo con la squadra che conoscete.",
+      "expected": false,
+      "confidence": 0.93,
+      "guard": "ok",
+      "verification": {
+        "real": 0.94,
+        "sameParty": 0.38
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "V005",
+      "set": "verify",
+      "language": "it",
+      "category": "other-actor",
+      "point": "Nuova linea di verniciatura",
+      "said": "Il nostro fornitore di Brescia ha appena installato una nuova linea di verniciatura, e per noi questo significa consegne più rapide sui telai. Dei nostri investimenti parliamo tra un attimo.",
+      "expected": false,
+      "confidence": 0.81,
+      "guard": "ok",
+      "verification": {
+        "real": 0.97,
+        "sameParty": 0.24
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "V008",
+      "set": "verify",
+      "language": "en",
+      "category": "cancelled",
+      "point": "The science fair takes place on 14 March",
+      "said": "I am sorry to say the science fair on the fourteenth of March is off. The hall is being rewired that week, and we could not find another date.",
+      "expected": false,
+      "confidence": 0.73,
+      "guard": "ok",
+      "verification": {
+        "real": 0.04,
+        "sameParty": 0.96
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "V017",
+      "set": "verify",
+      "language": "it",
+      "category": "never-happened",
+      "point": "Vendiamo il latte direttamente in azienda",
+      "said": "Una volta vendevamo il latte direttamente in azienda, con il distributore sotto il portico. Oggi non è più così, conferiamo tutto al caseificio.",
+      "expected": false,
+      "confidence": 0.88,
+      "guard": "ok",
+      "verification": {
+        "real": 0.15,
+        "sameParty": 0.81
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "V023",
+      "set": "verify",
+      "language": "it",
+      "category": "hypothetical",
+      "point": "Laboratorio di robotica",
+      "said": "Immaginate una scuola con un laboratorio di robotica in ogni plesso: sarebbe bellissimo, vero? Ecco, tenete quell'immagine in testa mentre vi racconto da dove siamo partiti.",
+      "expected": false,
+      "confidence": 0.84,
+      "guard": "ok",
+      "verification": {
+        "real": 0.23,
+        "sameParty": 0.93
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "V026",
+      "set": "verify",
+      "language": "en",
+      "category": "irony",
+      "point": "The migration went smoothly",
+      "said": "Oh yes, the migration went smoothly, if by smoothly you mean eleven hours of outage and a weekend none of us will get back. So let us talk honestly about what broke.",
+      "expected": false,
+      "confidence": 0.82,
+      "guard": "ok",
+      "verification": {
+        "real": 0.15,
+        "sameParty": 0.89
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "V027",
+      "set": "verify",
+      "language": "en",
+      "category": "irony",
+      "point": "The new bus timetable is a success",
+      "said": "The new bus timetable is a tremendous success, as you can tell from the two hundred complaints on my desk. Yes, I am joking, and no, it is not funny for the people waiting at the stops.",
+      "expected": false,
+      "confidence": 0.89,
+      "guard": "ok",
+      "verification": {
+        "real": 0.18,
+        "sameParty": 0.83
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "V028",
+      "set": "verify",
+      "language": "en",
+      "category": "irony",
+      "point": "Changing rooms are in great shape",
+      "said": "Our changing rooms are in great shape, of course, as long as you enjoy cold showers and a door that does not close. Sarcasm aside, they are the first thing we need to fix.",
+      "expected": false,
+      "confidence": 0.86,
+      "guard": "ok",
+      "verification": {
+        "real": 0.1,
+        "sameParty": 0.89
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "V029",
+      "set": "verify",
+      "language": "it",
+      "category": "irony",
+      "point": "I tempi di attesa sono diminuiti",
+      "said": "Certo, come no, i tempi di attesa sono diminuiti, basta non guardare l'orologio. Scherzi a parte, i dati dicono che siamo fermi a quaranta minuti di media, come un anno fa.",
+      "expected": false,
+      "confidence": 0.91,
+      "guard": "ok",
+      "verification": {
+        "real": 0.36,
+        "sameParty": 0.86
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "V030",
+      "set": "verify",
+      "language": "it",
+      "category": "irony",
+      "point": "Il cantiere è in anticipo sui tempi",
+      "said": "Il cantiere è in anticipo sui tempi, sì, e io sono il re di Francia. Siamo indietro di sei settimane, diciamocelo.",
+      "expected": false,
+      "confidence": 0.93,
+      "guard": "ok",
+      "verification": {
+        "real": 0.48,
+        "sameParty": 0.85
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "V031",
+      "set": "verify",
+      "language": "es",
+      "category": "irony",
+      "point": "Los clientes están encantados con la nueva app",
+      "said": "Los clientes están encantados con la nueva app, claro que sí, por eso nos han puesto una estrella y media en la tienda de aplicaciones. Bromas aparte, tenemos que arreglarla ya.",
+      "expected": false,
+      "confidence": 0.9,
+      "guard": "ok",
+      "verification": {
+        "real": 0.19,
+        "sameParty": 0.87
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    }
+  ]
+}
