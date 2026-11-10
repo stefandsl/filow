@@ -162,7 +162,7 @@ Backend di trascrizione (scegli nel menu a tendina, o lascia su **Auto**):
 | ElevenLabs Scribe v2 Realtime | `ELEVENLABS_API_KEY` | ovunque. Come nella demo originale. |
 | OpenAI gpt-live-transcribe | `OPENAI_API_KEY` | ovunque. |
 
-**Auto** prova ElevenLabs, poi OpenAI, poi il browser, poi Whisper sul dispositivo. Un backend che dà errore o non produce parole entro 8 s viene saltato. Il log in basso mostra ogni tentativo e il tempo fino alle prime parole, così vedi quale è davvero il più veloce per te.
+Con **Auto** decide la modalità di avvio (auto, locale, cloud o chiedi, nelle Impostazioni), e il prompter sceglie un solo backend all'avvio della sessione: una sessione locale usa il modello vocale su questo PC (sherpa), altrimenti Whisper sul dispositivo; una sessione cloud usa ElevenLabs, altrimenti OpenAI, altrimenti il browser. Il prompter non passa a un altro backend durante la sessione; il log in basso indica quello in uso. Solo il pannello di PowerPoint prova i backend uno dopo l'altro, saltando quello che dà errore o non produce parole entro 8 s (30 s per Whisper).
 
 Le chiavi API non arrivano mai al browser: il server emette token a breve scadenza per i backend in streaming e chiama OpenRouter da sé.
 

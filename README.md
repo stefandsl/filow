@@ -159,7 +159,7 @@ Transcription backends (pick in the dropdown, or leave on **Auto**):
 | ElevenLabs Scribe v2 Realtime | `ELEVENLABS_API_KEY` | everywhere. Same as the original demo. |
 | OpenAI gpt-live-transcribe | `OPENAI_API_KEY` | everywhere. |
 
-**Auto** tries ElevenLabs, then OpenAI, then the browser, then on-device Whisper. A backend that errors or gives no words within 8 s is skipped. The log at the bottom shows each attempt and the time to first words, so you can see which one is actually fastest for you.
+With **Auto** the start mode (auto, local, cloud or ask, in Settings) decides, and the prompter picks one backend when the take starts: a local take uses the speech model on this PC (sherpa), else on-device Whisper; a cloud take uses ElevenLabs, else OpenAI, else the browser. The prompter does not switch to another backend during a take; the log at the bottom names the one in use. Only the PowerPoint pane tries the backends in turn, skipping one that errors or gives no words within 8 s (30 s for Whisper).
 
 API keys never reach the browser: the server mints short-lived tokens for the streaming backends and calls OpenRouter itself.
 
