@@ -181,9 +181,9 @@ function createAboutPages(deps) {
   let win = null;
   let sections = null; // collected when the report view opens, so the file matches what was shown
   let view = "about"; // the view asked for last: the page reads it at start (a send before load is lost)
-  const own = (event) => Boolean(win && !win.isDestroyed() && event.sender === win.webContents);
+  const ourSender = (event) => Boolean(win && !win.isDestroyed() && event.sender === win.webContents);
   const handle = (channel, fn) => ipcMain.handle(channel, (event, ...args) => {
-    if (!own(event)) throw new Error("Denied");
+    if (!ourSender(event)) throw new Error("Denied");
     return fn(...args);
   });
   // local date and time, as the user reads a clock: 2026-11-10 12:45
