@@ -29,7 +29,7 @@ function fixture(initialEnv: Record<string, string> = {}) {
     "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": {},
     "node:worker_threads": {}, "node:events": EventEmitter,
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
-    "./vendor/i18n": { t }, "./ui-preferences": {}, "./slideshow": {},
+    "./vendor/i18n": { t }, "./ui-preferences": {}, "./welcome-setup": {}, "./slideshow": {},
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
   for (const name of ["stt", "localai", "diag"]) {

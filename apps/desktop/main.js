@@ -245,6 +245,21 @@ const welcomeUrl = pathToFileURL(welcomeFile).href;
 let uiPreferences, welcomeController, welcomeWin = null;
 let startupTransition = false, quitting = false;
 let welcomeHydrationTimer;
+const { probeSetup, setupOffer, setupChoice } = require("./welcome-setup");
+/** shown: the welcome's speech-setup step was answered; choice: that answer (install choices or null). */
+const welcomeSetup = { shown: false, choice: null, offer: null };
+async function welcomeSetupOffer() {
+  if (welcomeSetup.offer) return welcomeSetup.offer;
+  const info = localAiInfo();
+  const ollama = (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
+  const installed = await probeSetup({
+    fetchJson: () => fetch(`${ollama}/api/tags`, { signal: AbortSignal.timeout(1500) }).then((r) => (r.ok ? r.json() : null)),
+    sherpaReady: () => sttLocal.modelReady(userData),
+  });
+  const { net } = require("electron");
+  welcomeSetup.offer = setupOffer({ hw: info, rec: info.recommended, catalog: localAi.CATALOG, installed, online: !offline && net.isOnline(), installerChose: installChoicesFound });
+  return welcomeSetup.offer;
+}
 
 function uiSender(event, welcomeOnly = false) {
   return trustedUiSender(event, {
@@ -310,6 +325,27 @@ function initializeUiPreferences() {
     if (uiSender(event)) void uiPreferences.update({ [key]: value });
   });
   ipcMain.handle("welcome:complete", event => { if (!uiSender(event, true)) throw new Error("Denied"); return welcomeController.finish(); });
+  // First-run guide (docs/welcome/ONBOARDING-V2.md). A first run that reaches the welcome answers the
+  // speech-setup question there (or skips it), so offerLocalAi() shows no dialog later.
+  ipcMain.handle("welcome:context", event => {
+    if (!uiSender(event, true)) throw new Error("Denied");
+    const firstRun = settings.welcomeCompleted !== true;
+    return { firstRun, askSetup: firstRun && !installChoicesFound && !settings.localAiOffered };
+  });
+  ipcMain.handle("welcome:setupOffer", event => { if (!uiSender(event, true)) throw new Error("Denied"); return welcomeSetupOffer(); });
+  ipcMain.handle("welcome:chooseSetup", async (event, accept) => {
+    if (!uiSender(event, true) || typeof accept !== "boolean") throw new Error("Denied");
+    const offer = await welcomeSetupOffer();
+    welcomeSetup.choice = setupChoice(offer, localAiInfo().recommended, accept);
+    welcomeSetup.shown = true; // answered: closing the window before this step still gets the question later
+    logLine(`welcome: speech setup ${accept ? "accepted" : "declined"}${welcomeSetup.choice ? ` (${welcomeSetup.choice.models.join(", ")})` : ", nothing to download"}`);
+    return { ok: true };
+  });
+  ipcMain.on("welcome:openMicSettings", event => {
+    if (!uiSender(event, true)) return;
+    const url = process.platform === "win32" ? "ms-settings:privacy-microphone" : process.platform === "darwin" ? "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone" : "";
+    if (url) void shell.openExternal(url);
+  });
   ipcMain.on("welcome:ready", event => {
     if (!uiSender(event, true) || quitting) return;
     clearTimeout(welcomeHydrationTimer);
@@ -634,8 +670,13 @@ function rebuildMenu(win) {
     /* menu rebuild is cosmetic */
   }
 }
+// V2 onboarding: not asked at first start while the public link is on (the default): phones then reach
+// Filow over that link and the rule is not needed. The pairing panel shows the firewall state and asks in
+// context (pair.firewallAllow), when the user actually pairs over Wi-Fi. This also skips a netsh call
+// (up to 5 s on the main thread) on every first start.
 async function offerFirewall(win) {
-  if (process.platform !== "win32" || firewallStatus() === "ok") return;
+  if (process.platform !== "win32" || settings.remoteShare !== false) { logLine("firewall offer: left to the pairing panel"); return; }
+  if (firewallStatus() === "ok") return;
   const tx = NET_TEXT[menuLang()] || NET_TEXT.en;
   const { response } = await dialog.showMessageBox(win, { type: "question", title: tx.title, message: tx.message, detail: tx.detail, buttons: [tx.allow, tx.later], defaultId: 0, cancelId: 1, noLink: true });
   if (response === 0) await allowFirewall();
@@ -1261,12 +1302,14 @@ const SPLASH_TEXT = {
 const st = (key) => (SPLASH_TEXT[menuLang()] || SPLASH_TEXT.en)[key];
 
 /** install-choices.json is written by the Windows installer (build/installer.nsh): language and models to fetch. */
+let installChoicesFound = false;
 function readInstallChoices() {
   const file = path.join(userData, "install-choices.json");
   try {
     if (!fs.existsSync(file)) return null;
     const choices = JSON.parse(fs.readFileSync(file, "utf8"));
     fs.rmSync(file, { force: true });
+    installChoicesFound = true; // the welcome then skips its speech-setup step: the installer already asked
     // Installer locale is inferred, not an explicit UI language preference.
     return choices;
   } catch {
@@ -1408,11 +1451,18 @@ const LOCAL_AI_TEXT = {
 };
 /** First start without installer choices (macOS, Linux, portable): offer the hardware-based setup. */
 async function offerLocalAi() {
+  // V2 onboarding: the welcome asked in its "This computer" step (or the user skipped it); no second question.
+  if (welcomeSetup.shown) {
+    logLine(`local AI offer: answered in the welcome${welcomeSetup.choice ? "" : " (nothing to download)"}`);
+    return welcomeSetup.choice;
+  }
   const info = localAiInfo();
   const rec = info.recommended;
   if (!rec.models.length) return null;
   const tx = LOCAL_AI_TEXT[menuLang()] || LOCAL_AI_TEXT.en;
-  const { response } = await dialog.showMessageBox({
+  // Owned by the splash when it is up: an unowned box opened behind the splash (seen 2026-11-09).
+  const owner = splash && !splash.isDestroyed() ? splash : null;
+  const options = {
     type: "question",
     title: tx.title,
     message: tx.message(info, rec),
@@ -1421,7 +1471,9 @@ async function offerLocalAi() {
     defaultId: 0,
     cancelId: 1,
     noLink: true,
-  });
+  };
+  const { response } = owner ? await dialog.showMessageBox(owner, options) : await dialog.showMessageBox(options);
+  logLine(`local AI offer: ${response === 0 ? "install" : "not now"}`);
   return response === 0 ? { models: rec.models, ollama: rec.ollama } : null;
 }
 
