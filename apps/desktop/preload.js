@@ -48,8 +48,12 @@ contextBridge.exposeInMainWorld("filow", {
   },
   accessPassword: process.env.ACCESS_PASSWORD || "",
   offline: process.env.FILOW_OFFLINE === "1",
-  /** Subscribe to the Offline menu toggle. */
-  onOffline: (fn) => ipcRenderer.on("offline", (_e, v) => fn(Boolean(v))),
+  /** Subscribe to the Offline menu toggle; returns the unsubscribe function (never the ipcRenderer object). */
+  onOffline: (fn) => {
+    const h = (_e, v) => fn(Boolean(v));
+    ipcRenderer.on("offline", h);
+    return () => ipcRenderer.removeListener("offline", h);
+  },
   /** The page tells the shell which UI language it uses, so the menu follows. */
   setLang: (lang) => ipcRenderer.send("ui:lang", lang),
   /** system | light | dark; the shell colours (title bar, dialogs, splash) follow. */

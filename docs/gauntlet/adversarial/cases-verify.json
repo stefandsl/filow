@@ -1,0 +1,1217 @@
+{
+  "note": "Held-out verification set, written on 2026-11-10 by an independent writer who worked only from a brief and did not see the safety step under test. Each case is one decide request: a script section with its open points, a short spoken transcript, and for each point whether a careful human listener would say the speaker has now covered it (true, false, or null when two careful people could disagree; null is not counted). V001 to V050 each contain a point that must NOT be ticked although the transcript uses its words (other-actor, cancelled, never-happened, hypothetical, irony, denial, quoted-disagree, question-only). V051 to V100 each contain a point that SHOULD be ticked and is hard for a cautious checker (third-party-point, general-fact, anecdote, planned, past-achievement, negated-point, endorsed-quote, paraphrase, other-language, emphatic-negation). Some cases mix a true and a false point on purpose. Convention: a point counts as covered only when the speaker conveys its content as true in their own voice; a claim that is denied, cancelled, imagined, mocked, attributed to someone else without agreement, or only asked about is not covered. In the other-language cases the language field is the language of the transcript and the points are in the other language. Labels are one writer's judgement after a second strict pass.",
+  "cases": [
+    {
+      "id": "V001",
+      "set": "verify",
+      "language": "en",
+      "category": "other-actor",
+      "section": "Our expansion plans",
+      "points": [
+        { "text": "We open a second shop in Harbour Street", "covered": false },
+        { "text": "Sourdough line", "covered": false },
+        { "text": "Saturday opening hours", "covered": false }
+      ],
+      "transcript": "You may have seen that Kettle and Crumb, the bakery two doors down from us, is opening a second shop in Harbour Street next month. Good luck to them, the rents there are brutal."
+    },
+    {
+      "id": "V002",
+      "set": "verify",
+      "language": "en",
+      "category": "other-actor",
+      "section": "Security update",
+      "points": [
+        { "text": "We passed the ISO 27001 audit", "covered": false },
+        { "text": "Two-factor login for all staff", "covered": true },
+        { "text": "Backup restore test", "covered": false }
+      ],
+      "transcript": "Our hosting provider passed its ISO 27001 audit last week, which is reassuring, but that is their certificate, not ours. On our side, every member of staff now logs in with two-factor, no exceptions."
+    },
+    {
+      "id": "V003",
+      "set": "verify",
+      "language": "en",
+      "category": "other-actor",
+      "section": "Our season in review",
+      "points": [
+        { "text": "Our under-16s won the county cup", "covered": false },
+        { "text": "New floodlights", "covered": false }
+      ],
+      "transcript": "Riverside's under-sixteens won the county cup this year, and fair play to them, they knocked us out in the semi-final."
+    },
+    {
+      "id": "V004",
+      "set": "verify",
+      "language": "it",
+      "category": "other-actor",
+      "section": "Novità dell'ambulatorio",
+      "points": [
+        { "text": "Abbiamo assunto due nuovi fisioterapisti", "covered": false },
+        { "text": "Prenotazioni online", "covered": false }
+      ],
+      "transcript": "Il centro medico di via Garibaldi ha assunto due nuovi fisioterapisti e ha già la lista d'attesa piena. Noi per ora restiamo con la squadra che conoscete."
+    },
+    {
+      "id": "V005",
+      "set": "verify",
+      "language": "it",
+      "category": "other-actor",
+      "section": "I nostri investimenti 2027",
+      "points": [
+        { "text": "Nuova linea di verniciatura", "covered": false },
+        { "text": "Impianto fotovoltaico sul tetto", "covered": false },
+        { "text": "Formazione dei capireparto", "covered": false }
+      ],
+      "transcript": "Il nostro fornitore di Brescia ha appena installato una nuova linea di verniciatura, e per noi questo significa consegne più rapide sui telai. Dei nostri investimenti parliamo tra un attimo."
+    },
+    {
+      "id": "V006",
+      "set": "verify",
+      "language": "it",
+      "category": "other-actor",
+      "section": "Tasse e opere pubbliche",
+      "points": [
+        { "text": "Abbiamo ridotto la tassa sui rifiuti del 5%", "covered": false },
+        { "text": "Rifacimento di piazza Mazzini", "covered": true }
+      ],
+      "transcript": "Il comune qui accanto ha ridotto la tassa sui rifiuti del cinque per cento, e i giornali ne hanno parlato parecchio. Noi quest'anno abbiamo scelto di mettere i soldi nel rifacimento di piazza Mazzini, con i lavori che partono a settembre."
+    },
+    {
+      "id": "V007",
+      "set": "verify",
+      "language": "de",
+      "category": "other-actor",
+      "section": "Unser Geschäftsjahr",
+      "points": [
+        { "text": "Wir haben eine Filiale in Leipzig eröffnet", "covered": false },
+        { "text": "Neues Kassensystem", "covered": false }
+      ],
+      "transcript": "Die Kollegen von Möbel Brandt haben im Frühjahr eine Filiale in Leipzig eröffnet, und man hört, dass sie dort gut läuft. Wir selbst sind bei unseren drei Standorten geblieben."
+    },
+    {
+      "id": "V008",
+      "set": "verify",
+      "language": "en",
+      "category": "cancelled",
+      "section": "Spring term events",
+      "points": [
+        { "text": "The science fair takes place on 14 March", "covered": false },
+        { "text": "Parents' evening moved online", "covered": false }
+      ],
+      "transcript": "I am sorry to say the science fair on the fourteenth of March is off. The hall is being rewired that week, and we could not find another date."
+    },
+    {
+      "id": "V009",
+      "set": "verify",
+      "language": "en",
+      "category": "cancelled",
+      "section": "Fleet",
+      "points": [
+        { "text": "12 electric vans join the fleet", "covered": false },
+        { "text": "Driver training completed", "covered": true },
+        { "text": "Charging points at the depot", "covered": null }
+      ],
+      "transcript": "The order for twelve electric vans was dropped in June, the charging quote came back at double what we expected. What did go ahead is the driver training, every driver finished the course by the end of August."
+    },
+    {
+      "id": "V010",
+      "set": "verify",
+      "language": "it",
+      "category": "cancelled",
+      "section": "Stagione teatrale",
+      "points": [
+        { "text": "La tournée in Sicilia parte a ottobre", "covered": false },
+        { "text": "Abbonamenti in vendita da lunedì", "covered": false }
+      ],
+      "transcript": "La tournée in Sicilia purtroppo è saltata. Due teatri su quattro hanno ritirato la disponibilità e non aveva più senso partire a ottobre."
+    },
+    {
+      "id": "V011",
+      "set": "verify",
+      "language": "it",
+      "category": "cancelled",
+      "section": "Sviluppo software",
+      "points": [
+        { "text": "Rilasciamo l'app per Android entro l'anno", "covered": false },
+        { "text": "Integrazione con la fatturazione elettronica", "covered": true }
+      ],
+      "transcript": "L'app per Android l'abbiamo messa nel cassetto, almeno per quest'anno, perché i numeri non la giustificano. Sull'integrazione con la fatturazione elettronica invece siamo andati fino in fondo, ed è in produzione da maggio."
+    },
+    {
+      "id": "V012",
+      "set": "verify",
+      "language": "it",
+      "category": "cancelled",
+      "section": "Calendario della società",
+      "points": [
+        { "text": "Il torneo di Natale si gioca il 20 dicembre", "covered": false },
+        { "text": "Nuove divise", "covered": false }
+      ],
+      "transcript": "Il torneo di Natale quest'anno non si fa, la palestra comunale è chiusa per lavori fino a gennaio. Mi dispiace soprattutto per i più piccoli."
+    },
+    {
+      "id": "V013",
+      "set": "verify",
+      "language": "ro",
+      "category": "cancelled",
+      "section": "Plan de investiții",
+      "points": [
+        { "text": "Cumpărăm un aparat RMN nou", "covered": false },
+        { "text": "Renovarea secției de pediatrie", "covered": false }
+      ],
+      "transcript": "Achiziția aparatului RMN nou a fost anulată, pentru că finanțarea nu a mai venit. Sper să o putem relua anul viitor."
+    },
+    {
+      "id": "V014",
+      "set": "verify",
+      "language": "en",
+      "category": "never-happened",
+      "section": "Service promise",
+      "points": [
+        { "text": "We deliver within 30 minutes", "covered": false },
+        { "text": "New vegan menu", "covered": false }
+      ],
+      "transcript": "We used to deliver within thirty minutes, back when we had our own riders. Since we moved to the platform, I honestly cannot promise that any more."
+    },
+    {
+      "id": "V015",
+      "set": "verify",
+      "language": "en",
+      "category": "never-happened",
+      "section": "Visitor programme",
+      "points": [
+        { "text": "Free entry on Sundays", "covered": false },
+        { "text": "Audio guide in five languages", "covered": true }
+      ],
+      "transcript": "Free entry on Sundays is a thing of the past, I am afraid, it ended when the grant ran out. The audio guide, on the other hand, is now available in five languages."
+    },
+    {
+      "id": "V016",
+      "set": "verify",
+      "language": "en",
+      "category": "never-happened",
+      "section": "Customer meetings",
+      "points": [
+        { "text": "We ran the onboarding workshop with Halden Freight", "covered": false },
+        { "text": "Halden renewal signed", "covered": false }
+      ],
+      "transcript": "The onboarding workshop with Halden Freight never actually took place. They postponed three times and then went quiet."
+    },
+    {
+      "id": "V017",
+      "set": "verify",
+      "language": "it",
+      "category": "never-happened",
+      "section": "La cooperativa oggi",
+      "points": [
+        { "text": "Vendiamo il latte direttamente in azienda", "covered": false },
+        { "text": "Conferimento al caseificio", "covered": true },
+        { "text": "Certificazione biologica", "covered": false }
+      ],
+      "transcript": "Una volta vendevamo il latte direttamente in azienda, con il distributore sotto il portico. Oggi non è più così, conferiamo tutto al caseificio."
+    },
+    {
+      "id": "V018",
+      "set": "verify",
+      "language": "it",
+      "category": "never-happened",
+      "section": "Convegno di giugno",
+      "points": [
+        { "text": "L'incontro con il rettore si è tenuto il 3 giugno", "covered": false },
+        { "text": "Atti pubblicati online", "covered": false }
+      ],
+      "transcript": "L'incontro con il rettore del tre giugno, in realtà, non c'è mai stato. Quella mattina lui era a Roma e nessuno ci aveva avvisati."
+    },
+    {
+      "id": "V019",
+      "set": "verify",
+      "language": "ru",
+      "category": "never-happened",
+      "section": "Наши услуги",
+      "points": [
+        { "text": "Мы работаем круглосуточно", "covered": false },
+        { "text": "Бесплатная парковка для клиентов", "covered": false }
+      ],
+      "transcript": "Раньше мы работали круглосуточно, но с прошлой осени это уже не так. Ночью приходило по два человека, и держать смену не было смысла."
+    },
+    {
+      "id": "V020",
+      "set": "verify",
+      "language": "en",
+      "category": "hypothetical",
+      "section": "Funding",
+      "points": [
+        { "text": "The council approved our grant", "covered": false },
+        { "text": "Reading club for teenagers", "covered": false }
+      ],
+      "transcript": "If the council had approved our grant, we would be standing in a new reading room today. They did not, so let me show you what we did with what we had."
+    },
+    {
+      "id": "V021",
+      "set": "verify",
+      "language": "en",
+      "category": "hypothetical",
+      "section": "Capacity",
+      "points": [
+        { "text": "We are building a rooftop terrace", "covered": false },
+        { "text": "We add 40 new rooms", "covered": false },
+        { "text": "Spa refurbishment finished", "covered": false }
+      ],
+      "transcript": "Picture this hotel with a rooftop terrace and forty new rooms. That is the dream on the architect's wall, not something we have decided or paid for."
+    },
+    {
+      "id": "V022",
+      "set": "verify",
+      "language": "it",
+      "category": "hypothetical",
+      "section": "Vendite online",
+      "points": [
+        { "text": "Offriamo la consegna in 24 ore", "covered": false },
+        { "text": "Reso gratuito", "covered": false }
+      ],
+      "transcript": "Se avessimo la consegna in ventiquattro ore, come i grandi, forse venderemmo il doppio. Ma non ce l'abbiamo, e oggi voglio parlarvi di quello che possiamo fare con i nostri tre giorni."
+    },
+    {
+      "id": "V023",
+      "set": "verify",
+      "language": "it",
+      "category": "hypothetical",
+      "section": "Laboratori",
+      "points": [
+        { "text": "Laboratorio di robotica", "covered": false },
+        { "text": "Corso di teatro in inglese", "covered": false }
+      ],
+      "transcript": "Immaginate una scuola con un laboratorio di robotica in ogni plesso: sarebbe bellissimo, vero? Ecco, tenete quell'immagine in testa mentre vi racconto da dove siamo partiti."
+    },
+    {
+      "id": "V024",
+      "set": "verify",
+      "language": "it",
+      "category": "hypothetical",
+      "section": "Risultati dell'anno",
+      "points": [
+        { "text": "Abbiamo raggiunto i 10.000 clienti", "covered": false }
+      ],
+      "transcript": "Mi piacerebbe potervi dire che abbiamo raggiunto i diecimila clienti. Magari l'anno prossimo, per ora siamo ancora lontani."
+    },
+    {
+      "id": "V025",
+      "set": "verify",
+      "language": "ja",
+      "category": "hypothetical",
+      "section": "設備投資",
+      "points": [
+        { "text": "新工場を建設する", "covered": false },
+        { "text": "検査工程の自動化", "covered": false }
+      ],
+      "transcript": "もし予算が今の倍あれば新工場を建設するところですが、現実にはそうはいきません。今日は、今ある設備で何ができるかをお話しします。"
+    },
+    {
+      "id": "V026",
+      "set": "verify",
+      "language": "en",
+      "category": "irony",
+      "section": "Release quality",
+      "points": [
+        { "text": "The migration went smoothly", "covered": false },
+        { "text": "Zero downtime", "covered": false }
+      ],
+      "transcript": "Oh yes, the migration went smoothly, if by smoothly you mean eleven hours of outage and a weekend none of us will get back. So let us talk honestly about what broke."
+    },
+    {
+      "id": "V027",
+      "set": "verify",
+      "language": "en",
+      "category": "irony",
+      "section": "Transport",
+      "points": [
+        { "text": "The new bus timetable is a success", "covered": false },
+        { "text": "Complaints about the buses", "covered": null },
+        { "text": "Cycle lane on Mill Road", "covered": false }
+      ],
+      "transcript": "The new bus timetable is a tremendous success, as you can tell from the two hundred complaints on my desk. Yes, I am joking, and no, it is not funny for the people waiting at the stops."
+    },
+    {
+      "id": "V028",
+      "set": "verify",
+      "language": "en",
+      "category": "irony",
+      "section": "Facilities",
+      "points": [
+        { "text": "Changing rooms are in great shape", "covered": false },
+        { "text": "Pitch booking system", "covered": false }
+      ],
+      "transcript": "Our changing rooms are in great shape, of course, as long as you enjoy cold showers and a door that does not close. Sarcasm aside, they are the first thing we need to fix."
+    },
+    {
+      "id": "V029",
+      "set": "verify",
+      "language": "it",
+      "category": "irony",
+      "section": "Tempi di attesa",
+      "points": [
+        { "text": "I tempi di attesa sono diminuiti", "covered": false },
+        { "text": "Attesa media di 40 minuti", "covered": true }
+      ],
+      "transcript": "Certo, come no, i tempi di attesa sono diminuiti, basta non guardare l'orologio. Scherzi a parte, i dati dicono che siamo fermi a quaranta minuti di media, come un anno fa."
+    },
+    {
+      "id": "V030",
+      "set": "verify",
+      "language": "it",
+      "category": "irony",
+      "section": "Cantiere di via Roma",
+      "points": [
+        { "text": "Il cantiere è in anticipo sui tempi", "covered": false },
+        { "text": "Zero infortuni in cantiere", "covered": false }
+      ],
+      "transcript": "Il cantiere è in anticipo sui tempi, sì, e io sono il re di Francia. Siamo indietro di sei settimane, diciamocelo."
+    },
+    {
+      "id": "V031",
+      "set": "verify",
+      "language": "es",
+      "category": "irony",
+      "section": "Atención al cliente",
+      "points": [
+        { "text": "Los clientes están encantados con la nueva app", "covered": false },
+        { "text": "Horario ampliado los sábados", "covered": false }
+      ],
+      "transcript": "Los clientes están encantados con la nueva app, claro que sí, por eso nos han puesto una estrella y media en la tienda de aplicaciones. Bromas aparte, tenemos que arreglarla ya."
+    },
+    {
+      "id": "V032",
+      "set": "verify",
+      "language": "en",
+      "category": "denial",
+      "section": "Fees",
+      "points": [
+        { "text": "Prices go up in January", "covered": false },
+        { "text": "New payment plan", "covered": true }
+      ],
+      "transcript": "Let me kill a rumour: prices are not going up in January, or at any point this year. What is new is a payment plan, so you can spread any treatment over six months."
+    },
+    {
+      "id": "V033",
+      "set": "verify",
+      "language": "en",
+      "category": "denial",
+      "section": "Compliance",
+      "points": [
+        { "text": "We hired a data protection officer", "covered": false },
+        { "text": "Staff privacy training", "covered": false }
+      ],
+      "transcript": "We have not hired a data protection officer yet. The post has been open since March and, frankly, the two candidates we liked both turned us down."
+    },
+    {
+      "id": "V034",
+      "set": "verify",
+      "language": "it",
+      "category": "denial",
+      "section": "Catalogo d'autunno",
+      "points": [
+        { "text": "Pubblichiamo il nuovo romanzo di Elena Sarti a ottobre", "covered": false },
+        { "text": "Collana per ragazzi", "covered": false }
+      ],
+      "transcript": "No, non pubblichiamo il nuovo romanzo di Elena Sarti a ottobre, e ci tengo a dirlo chiaramente perché la voce gira. Il manoscritto non è ancora arrivato."
+    },
+    {
+      "id": "V035",
+      "set": "verify",
+      "language": "it",
+      "category": "denial",
+      "section": "Raccolta fondi",
+      "points": [
+        { "text": "Abbiamo superato l'obiettivo dei 50.000 euro", "covered": false },
+        { "text": "Raccolti finora 38.000 euro", "covered": true },
+        { "text": "Cena di beneficenza", "covered": false }
+      ],
+      "transcript": "Non è vero che abbiamo superato l'obiettivo dei cinquantamila euro, anche se l'ho letto in qualche chat. Siamo a trentottomila, e mancano tre settimane."
+    },
+    {
+      "id": "V036",
+      "set": "verify",
+      "language": "de",
+      "category": "denial",
+      "section": "Projektstatus",
+      "points": [
+        { "text": "Die Tests sind abgeschlossen", "covered": false },
+        { "text": "Schulung der Anwender", "covered": false }
+      ],
+      "transcript": "Die Tests sind nicht abgeschlossen, auch wenn das im letzten Protokoll so stand. Uns fehlen noch zwei komplette Durchläufe."
+    },
+    {
+      "id": "V037",
+      "set": "verify",
+      "language": "ja",
+      "category": "denial",
+      "section": "来年度の方針",
+      "points": [
+        { "text": "制服を廃止する", "covered": false },
+        { "text": "給食費の値上げ", "covered": false }
+      ],
+      "transcript": "制服を廃止するという噂が流れていますが、そのような決定はしていません。来年度も今の制服のままです。"
+    },
+    {
+      "id": "V038",
+      "set": "verify",
+      "language": "en",
+      "category": "quoted-disagree",
+      "section": "Store performance",
+      "points": [
+        { "text": "Footfall is recovering", "covered": false },
+        { "text": "Self-checkout tills", "covered": false }
+      ],
+      "transcript": "The landlord's agent keeps telling me footfall is recovering. I have stood at that door with a clicker, and I do not believe it for a second."
+    },
+    {
+      "id": "V039",
+      "set": "verify",
+      "language": "en",
+      "category": "quoted-disagree",
+      "section": "Vendor review",
+      "points": [
+        { "text": "The new platform cuts costs by 30%", "covered": false },
+        { "text": "Three-year contract", "covered": false }
+      ],
+      "transcript": "Their sales rep claims the new platform cuts costs by thirty percent. I have seen no evidence for that number, and I would not put it in any plan of ours."
+    },
+    {
+      "id": "V040",
+      "set": "verify",
+      "language": "en",
+      "category": "quoted-disagree",
+      "section": "Student survey",
+      "points": [
+        { "text": "Students prefer online lectures", "covered": false },
+        { "text": "Library hours extended", "covered": true }
+      ],
+      "transcript": "One columnist wrote last week that students prefer online lectures. Our own survey says nothing of the sort, so please do not repeat it. What I can confirm is that the library now stays open until midnight, two hours longer than before."
+    },
+    {
+      "id": "V041",
+      "set": "verify",
+      "language": "it",
+      "category": "quoted-disagree",
+      "section": "Vendemmia",
+      "points": [
+        { "text": "È stata un'annata eccezionale", "covered": false },
+        { "text": "Danni da grandine", "covered": null },
+        { "text": "Nuova cantina interrata", "covered": false }
+      ],
+      "transcript": "Il consorzio va dicendo che è stata un'annata eccezionale. Io le uve le ho viste, e con tutta quella grandine non sono affatto d'accordo."
+    },
+    {
+      "id": "V042",
+      "set": "verify",
+      "language": "it",
+      "category": "quoted-disagree",
+      "section": "Puntualità del servizio",
+      "points": [
+        { "text": "Il 95% dei treni arriva in orario", "covered": false },
+        { "text": "Nuovi treni regionali", "covered": false }
+      ],
+      "transcript": "Secondo il comunicato dell'azienda, il novantacinque per cento dei treni arriva in orario. Chi prende il regionale delle sette sa che quel numero non sta in piedi, e io non lo sottoscrivo."
+    },
+    {
+      "id": "V043",
+      "set": "verify",
+      "language": "ro",
+      "category": "quoted-disagree",
+      "section": "Stadiul lucrărilor",
+      "points": [
+        { "text": "Blocul va fi gata în decembrie", "covered": false },
+        { "text": "Parcare subterană", "covered": false }
+      ],
+      "transcript": "Constructorul ne tot spune că blocul va fi gata în decembrie. Eu am fost pe șantier săptămâna trecută și nu cred deloc în termenul ăsta."
+    },
+    {
+      "id": "V044",
+      "set": "verify",
+      "language": "es",
+      "category": "quoted-disagree",
+      "section": "Socios del club",
+      "points": [
+        { "text": "El número de socios ha crecido", "covered": false },
+        { "text": "Cuota familiar", "covered": false }
+      ],
+      "transcript": "El anterior presidente va diciendo por ahí que el número de socios ha crecido. No es lo que dicen nuestros registros, y yo no puedo respaldar esa afirmación."
+    },
+    {
+      "id": "V045",
+      "set": "verify",
+      "language": "en",
+      "category": "question-only",
+      "section": "Coming features",
+      "points": [
+        { "text": "Single sign-on", "covered": false },
+        { "text": "Export to spreadsheet", "covered": false }
+      ],
+      "transcript": "There is a question in the chat from Priya: when do we get single sign-on? Let me park that for the end, I want to finish this slide first."
+    },
+    {
+      "id": "V046",
+      "set": "verify",
+      "language": "en",
+      "category": "question-only",
+      "section": "School trip",
+      "points": [
+        { "text": "Trip costs 180 pounds per pupil", "covered": false },
+        { "text": "Departure at 7 am from the main gate", "covered": true },
+        { "text": "Packed lunch required", "covered": false }
+      ],
+      "transcript": "A parent at the back is asking how much the trip costs per pupil. I will get to the money in a minute. First the practical part: the coach leaves from the main gate at seven in the morning, sharp."
+    },
+    {
+      "id": "V047",
+      "set": "verify",
+      "language": "it",
+      "category": "question-only",
+      "section": "Lavori condominiali",
+      "points": [
+        { "text": "Rifacimento del tetto", "covered": false },
+        { "text": "Nuovo amministratore", "covered": false }
+      ],
+      "transcript": "La signora Fabbri mi chiede del rifacimento del tetto. Ci arrivo, signora, ma prima lasciatemi chiudere il discorso sulle spese dell'ascensore."
+    },
+    {
+      "id": "V048",
+      "set": "verify",
+      "language": "it",
+      "category": "question-only",
+      "section": "Campagna vaccinale",
+      "points": [
+        { "text": "Il vaccino antinfluenzale è gratuito per gli over 60", "covered": false },
+        { "text": "Orari del sabato", "covered": false }
+      ],
+      "transcript": "Mi chiedono dalla sala se il vaccino antinfluenzale è gratuito per gli over sessanta. Bella domanda, la tengo per la fine insieme alle altre."
+    },
+    {
+      "id": "V049",
+      "set": "verify",
+      "language": "it",
+      "category": "question-only",
+      "section": "Organizzazione del lavoro",
+      "points": [
+        { "text": "Smart working due giorni a settimana", "covered": false },
+        { "text": "Nuovo orario della mensa", "covered": false }
+      ],
+      "transcript": "Vedo una mano alzata: qualcuno vuole sapere se resta lo smart working due giorni a settimana? Non rispondo adesso, ne parla dopo la collega delle risorse umane."
+    },
+    {
+      "id": "V050",
+      "set": "verify",
+      "language": "ru",
+      "category": "question-only",
+      "section": "Планы на год",
+      "points": [
+        { "text": "Выход на рынок Казахстана", "covered": false },
+        { "text": "Новый раунд инвестиций", "covered": false }
+      ],
+      "transcript": "Из зала спрашивают, когда мы выходим на рынок Казахстана. Давайте я отвечу на это в конце, а сейчас закончу про команду."
+    },
+    {
+      "id": "V051",
+      "set": "verify",
+      "language": "en",
+      "category": "third-party-point",
+      "section": "Market overview",
+      "points": [
+        { "text": "Competitor Norbrew cut its prices", "covered": true },
+        { "text": "We are cutting our own prices", "covered": false },
+        { "text": "Subscription numbers", "covered": false }
+      ],
+      "transcript": "Norbrew, the biggest name we compete with, cut its prices in September, about ten percent across the range. We have not followed them, and we are not going to."
+    },
+    {
+      "id": "V052",
+      "set": "verify",
+      "language": "en",
+      "category": "third-party-point",
+      "section": "Regulation",
+      "points": [
+        { "text": "The regulator requires allergen labels from April", "covered": true },
+        { "text": "Staff training dates", "covered": false },
+        { "text": "New packaging supplier", "covered": false }
+      ],
+      "transcript": "From April, the food standards regulator will require allergen labels on everything sold loose. That is their rule, not our choice, and there are no exceptions."
+    },
+    {
+      "id": "V053",
+      "set": "verify",
+      "language": "it",
+      "category": "third-party-point",
+      "section": "Fornitori",
+      "points": [
+        { "text": "Tessil Nord ha chiuso lo stabilimento di Prato", "covered": true },
+        { "text": "Nuovi campionari", "covered": false }
+      ],
+      "transcript": "Tessil Nord, da cui compriamo il lino, ha chiuso lo stabilimento di Prato a fine luglio. È successo a loro, non a noi, ma le conseguenze arrivano fin qui."
+    },
+    {
+      "id": "V054",
+      "set": "verify",
+      "language": "it",
+      "category": "third-party-point",
+      "section": "Contesto normativo",
+      "points": [
+        { "text": "Il ministero ha rinviato la riforma degli esami", "covered": true },
+        { "text": "Iscrizioni aperte fino al 31 gennaio", "covered": false }
+      ],
+      "transcript": "Il ministero, come avrete letto, ha rinviato di un anno la riforma degli esami. Quindi per i nostri ragazzi di quinta non cambia nulla."
+    },
+    {
+      "id": "V055",
+      "set": "verify",
+      "language": "ro",
+      "category": "third-party-point",
+      "section": "Piața",
+      "points": [
+        { "text": "Concurentul Agromar a deschis un depozit la Cluj", "covered": true },
+        { "text": "Tarifele noastre de livrare", "covered": false }
+      ],
+      "transcript": "Cei de la Agromar, principalul nostru concurent, au deschis luna trecută un depozit la Cluj. E mutarea lor, dar ne afectează direct."
+    },
+    {
+      "id": "V056",
+      "set": "verify",
+      "language": "en",
+      "category": "general-fact",
+      "section": "Why retention matters",
+      "points": [
+        { "text": "Keeping a customer is cheaper than winning a new one", "covered": true },
+        { "text": "Our loyalty card", "covered": false }
+      ],
+      "transcript": "As a rule of thumb in any business, it costs far less to keep a customer you already have than to go out and win a new one."
+    },
+    {
+      "id": "V057",
+      "set": "verify",
+      "language": "en",
+      "category": "general-fact",
+      "section": "Site safety briefing",
+      "points": [
+        { "text": "Most falls happen from low heights", "covered": true },
+        { "text": "Harness inspection schedule", "covered": false }
+      ],
+      "transcript": "People assume the danger is at the top of the scaffold, but on building sites in general most falls happen from under two metres: a ladder, a step, the back of a truck."
+    },
+    {
+      "id": "V058",
+      "set": "verify",
+      "language": "it",
+      "category": "general-fact",
+      "section": "Perché leggere ad alta voce",
+      "points": [
+        { "text": "I bambini imparano le parole ascoltando", "covered": true },
+        { "text": "Orari dell'ora del racconto", "covered": false }
+      ],
+      "transcript": "Vale per tutti i bambini, non solo per quelli che vengono qui: le parole nuove si imparano prima di tutto con le orecchie, sentendole dire da un adulto."
+    },
+    {
+      "id": "V059",
+      "set": "verify",
+      "language": "it",
+      "category": "general-fact",
+      "section": "Principi di manutenzione",
+      "points": [
+        { "text": "La manutenzione preventiva costa meno dei guasti", "covered": true },
+        { "text": "Fermo impianti di agosto", "covered": false }
+      ],
+      "transcript": "In qualsiasi officina vale la stessa regola: fermare una macchina per controllarla costa sempre meno che aspettare che si rompa."
+    },
+    {
+      "id": "V060",
+      "set": "verify",
+      "language": "ru",
+      "category": "general-fact",
+      "section": "Профилактика",
+      "points": [
+        { "text": "Кариес легче предупредить, чем лечить", "covered": true },
+        { "text": "Запись на профилактический осмотр", "covered": false }
+      ],
+      "transcript": "Это общее правило, оно не зависит от клиники: предупредить кариес всегда проще и дешевле, чем потом его лечить."
+    },
+    {
+      "id": "V061",
+      "set": "verify",
+      "language": "en",
+      "category": "anecdote",
+      "section": "Why we check twice",
+      "points": [
+        { "text": "Double-checking prescriptions prevents errors", "covered": true },
+        { "text": "New label printer", "covered": false }
+      ],
+      "transcript": "Let me tell you about Tom, a pharmacist I trained with. One evening a second pair of eyes caught that he had bagged a tenfold dose for a child, and that one look saved a family from a disaster."
+    },
+    {
+      "id": "V062",
+      "set": "verify",
+      "language": "en",
+      "category": "anecdote",
+      "section": "Guest care",
+      "points": [
+        { "text": "Small gestures build loyalty", "covered": true },
+        { "text": "Complaint handling procedure", "covered": false }
+      ],
+      "transcript": "A guest called Mrs Okafor once left her reading glasses in room twelve. Our night porter posted them to her with a handwritten note, and she has booked with us every year since, eleven years now. That is what a stamp and two minutes of kindness buys you."
+    },
+    {
+      "id": "V063",
+      "set": "verify",
+      "language": "it",
+      "category": "anecdote",
+      "section": "Sicurezza informatica",
+      "points": [
+        { "text": "Una sola email può bloccare un'azienda", "covered": true },
+        { "text": "Cambio password ogni 90 giorni", "covered": false }
+      ],
+      "transcript": "Vi racconto di Giorgio, un amico che ha una ditta di trasporti. Un lunedì una sua impiegata ha aperto un allegato arrivato per posta elettronica, uno solo, e per nove giorni non è partito nemmeno un camion."
+    },
+    {
+      "id": "V064",
+      "set": "verify",
+      "language": "it",
+      "category": "anecdote",
+      "section": "Perché fare sport",
+      "points": [
+        { "text": "Lo sport insegna a perdere", "covered": true },
+        { "text": "Quote di iscrizione", "covered": false }
+      ],
+      "transcript": "Ricordo Martina, dieci anni, che dopo la prima sconfitta non voleva più venire in palestra. A fine stagione è andata lei, senza che nessuno glielo chiedesse, a stringere la mano alle avversarie che ci avevano battuto: aveva imparato la cosa più difficile, perdere."
+    },
+    {
+      "id": "V065",
+      "set": "verify",
+      "language": "ja",
+      "category": "anecdote",
+      "section": "報告の大切さ",
+      "points": [
+        { "text": "小さな異常でもすぐ報告する", "covered": true },
+        { "text": "新しい点検表", "covered": false }
+      ],
+      "transcript": "以前、佐藤さんという若い作業員が、機械のかすかな異音に気づいて、すぐ班長に伝えました。調べるとベアリングが割れかけていて、あの一言がなければラインは一週間止まっていたはずです。"
+    },
+    {
+      "id": "V066",
+      "set": "verify",
+      "language": "en",
+      "category": "planned",
+      "section": "Next year",
+      "points": [
+        { "text": "We open a second clinic in Ashby in September", "covered": true },
+        { "text": "Weekend emergency cover", "covered": false }
+      ],
+      "transcript": "It is decided and the lease is signed: in September we open our second clinic, in Ashby."
+    },
+    {
+      "id": "V067",
+      "set": "verify",
+      "language": "en",
+      "category": "planned",
+      "section": "Release plan",
+      "points": [
+        { "text": "Version 5 ships in the second quarter", "covered": true },
+        { "text": "Partner pricing", "covered": false },
+        { "text": "End of support for version 3", "covered": false }
+      ],
+      "transcript": "Version five will ship in the second quarter. That date is committed, the board signed it off last week."
+    },
+    {
+      "id": "V068",
+      "set": "verify",
+      "language": "it",
+      "category": "planned",
+      "section": "Prossimi passi",
+      "points": [
+        { "text": "La nuova scuola materna apre a settembre 2027", "covered": true },
+        { "text": "Bando per la mensa", "covered": false }
+      ],
+      "transcript": "La decisione è presa: a settembre del duemilaventisette apriremo la nuova scuola materna, e i fondi sono già a bilancio."
+    },
+    {
+      "id": "V069",
+      "set": "verify",
+      "language": "it",
+      "category": "planned",
+      "section": "Piano assunzioni",
+      "points": [
+        { "text": "Assumeremo sei infermieri entro marzo", "covered": true },
+        { "text": "Nuovi turni di notte", "covered": false }
+      ],
+      "transcript": "Entro marzo entreranno in servizio sei nuovi infermieri, il concorso è già stato bandito e i posti sono finanziati."
+    },
+    {
+      "id": "V070",
+      "set": "verify",
+      "language": "es",
+      "category": "planned",
+      "section": "Planes para el año que viene",
+      "points": [
+        { "text": "Abriremos una tienda en Valencia en primavera", "covered": true },
+        { "text": "Nuevo catálogo", "covered": false }
+      ],
+      "transcript": "Está decidido: en primavera abrimos tienda en Valencia, y el local ya está alquilado."
+    },
+    {
+      "id": "V071",
+      "set": "verify",
+      "language": "en",
+      "category": "past-achievement",
+      "section": "Track record",
+      "points": [
+        { "text": "We have built 14 schools since 2015", "covered": true },
+        { "text": "Volunteer programme", "covered": false }
+      ],
+      "transcript": "Since two thousand and fifteen we have built fourteen schools, and every one of them is still open and teaching today."
+    },
+    {
+      "id": "V072",
+      "set": "verify",
+      "language": "en",
+      "category": "past-achievement",
+      "section": "About us",
+      "points": [
+        { "text": "Certified carbon neutral since 2022", "covered": true },
+        { "text": "Office move", "covered": false }
+      ],
+      "transcript": "We got our carbon neutral certification back in twenty twenty-two, and we have kept it every year since."
+    },
+    {
+      "id": "V073",
+      "set": "verify",
+      "language": "it",
+      "category": "past-achievement",
+      "section": "La nostra storia",
+      "points": [
+        { "text": "Medaglia d'oro al concorso nazionale nel 2019", "covered": true },
+        { "text": "Visite guidate all'apiario", "covered": false }
+      ],
+      "transcript": "Nel duemiladiciannove il nostro miele di castagno ha vinto la medaglia d'oro al concorso nazionale, e quella medaglia è ancora appesa all'ingresso."
+    },
+    {
+      "id": "V074",
+      "set": "verify",
+      "language": "it",
+      "category": "past-achievement",
+      "section": "Risultati clinici",
+      "points": [
+        { "text": "Abbiamo dimezzato le infezioni post-operatorie", "covered": true },
+        { "text": "Nuova sala operatoria", "covered": false }
+      ],
+      "transcript": "Tre anni fa abbiamo dimezzato le infezioni dopo gli interventi, e da allora il dato non è più risalito."
+    },
+    {
+      "id": "V075",
+      "set": "verify",
+      "language": "de",
+      "category": "past-achievement",
+      "section": "Rückblick des Vorstands",
+      "points": [
+        { "text": "Wir haben 2021 die Halle saniert", "covered": true },
+        { "text": "Mitgliedsbeiträge", "covered": false }
+      ],
+      "transcript": "Zweitausendeinundzwanzig haben wir die Halle komplett saniert, und sie ist bis heute in einwandfreiem Zustand."
+    },
+    {
+      "id": "V076",
+      "set": "verify",
+      "language": "en",
+      "category": "negated-point",
+      "section": "Nursery fees",
+      "points": [
+        { "text": "No fee increase next year", "covered": true },
+        { "text": "Sibling discount", "covered": false }
+      ],
+      "transcript": "Fees stay exactly where they are for the coming year. You will pay what you pay today."
+    },
+    {
+      "id": "V077",
+      "set": "verify",
+      "language": "en",
+      "category": "negated-point",
+      "section": "Branch network",
+      "points": [
+        { "text": "No branches will close", "covered": true },
+        { "text": "New mobile app", "covered": false }
+      ],
+      "transcript": "Every single one of our branches stays open. I want that to be heard clearly by the staff in this room."
+    },
+    {
+      "id": "V078",
+      "set": "verify",
+      "language": "it",
+      "category": "negated-point",
+      "section": "Personale",
+      "points": [
+        { "text": "Nessun taglio agli stipendi", "covered": true },
+        { "text": "Premio di produzione", "covered": false }
+      ],
+      "transcript": "Le buste paga restano quelle di oggi, per tutti, e questo ve lo garantisco personalmente."
+    },
+    {
+      "id": "V079",
+      "set": "verify",
+      "language": "it",
+      "category": "negated-point",
+      "section": "Lavori estivi",
+      "points": [
+        { "text": "La palestra non chiuderà durante i lavori", "covered": true },
+        { "text": "Nuovi spogliatoi", "covered": false }
+      ],
+      "transcript": "Per tutta la durata del cantiere la palestra resterà aperta e utilizzabile, i lavori si faranno a zone."
+    },
+    {
+      "id": "V080",
+      "set": "verify",
+      "language": "ro",
+      "category": "negated-point",
+      "section": "Tarife",
+      "points": [
+        { "text": "Nu scumpim abonamentele anul acesta", "covered": true },
+        { "text": "Rute noi", "covered": false }
+      ],
+      "transcript": "Abonamentele rămân la același preț tot anul. Asta e o promisiune, nu o estimare."
+    },
+    {
+      "id": "V081",
+      "set": "verify",
+      "language": "en",
+      "category": "endorsed-quote",
+      "section": "Audit findings",
+      "points": [
+        { "text": "Our stock records are unreliable", "covered": true },
+        { "text": "New stock software", "covered": false }
+      ],
+      "transcript": "The auditor told us our stock records cannot be trusted. She is right, and I am not going to argue with a word of it."
+    },
+    {
+      "id": "V082",
+      "set": "verify",
+      "language": "en",
+      "category": "endorsed-quote",
+      "section": "Coaching review",
+      "points": [
+        { "text": "The squad lacks fitness", "covered": true },
+        { "text": "Pre-season schedule", "covered": false }
+      ],
+      "transcript": "Our physio said to me in May, this squad is not fit enough to last ninety minutes. I agree with him completely, the second-half numbers prove it."
+    },
+    {
+      "id": "V083",
+      "set": "verify",
+      "language": "it",
+      "category": "endorsed-quote",
+      "section": "Cosa dicono i clienti",
+      "points": [
+        { "text": "Il sito è troppo lento", "covered": true },
+        { "text": "Nuovo sistema di pagamento", "covered": false }
+      ],
+      "transcript": "Una cliente ci ha scritto che il nostro sito è lentissimo e che ha rinunciato all'acquisto. Ha perfettamente ragione, lo abbiamo misurato anche noi."
+    },
+    {
+      "id": "V084",
+      "set": "verify",
+      "language": "it",
+      "category": "endorsed-quote",
+      "section": "Relazione dei revisori",
+      "points": [
+        { "text": "I conti dell'associazione sono in ordine", "covered": true },
+        { "text": "Rinnovo del consiglio", "covered": false }
+      ],
+      "transcript": "I revisori hanno scritto che i conti dell'associazione sono in ordine, e io, che li ho seguiti mese per mese, lo confermo senza riserve."
+    },
+    {
+      "id": "V085",
+      "set": "verify",
+      "language": "ru",
+      "category": "endorsed-quote",
+      "section": "Отзывы клиентов",
+      "points": [
+        { "text": "Доставка стала быстрее", "covered": true },
+        { "text": "Новый склад в Казани", "covered": false }
+      ],
+      "transcript": "Наш крупнейший клиент сказал на прошлой неделе, что доставка стала заметно быстрее. Он прав, и наши цифры это подтверждают."
+    },
+    {
+      "id": "V086",
+      "set": "verify",
+      "language": "en",
+      "category": "paraphrase",
+      "section": "Finance",
+      "points": [
+        { "text": "Revenue doubled", "covered": true },
+        { "text": "Headcount", "covered": false }
+      ],
+      "transcript": "We took in twice as much money this year as we did last year."
+    },
+    {
+      "id": "V087",
+      "set": "verify",
+      "language": "en",
+      "category": "paraphrase",
+      "section": "Staffing",
+      "points": [
+        { "text": "Staff turnover is falling", "covered": true },
+        { "text": "Recruitment fair", "covered": false }
+      ],
+      "transcript": "Fewer and fewer of our people are handing in their notice. Two years ago it was one a week, now it is one a month."
+    },
+    {
+      "id": "V088",
+      "set": "verify",
+      "language": "it",
+      "category": "paraphrase",
+      "section": "Ambiente",
+      "points": [
+        { "text": "Raccolta differenziata in aumento", "covered": true },
+        { "text": "Nuova isola ecologica", "covered": false }
+      ],
+      "transcript": "I cittadini separano i rifiuti sempre meglio: quest'anno carta, vetro e plastica messi insieme pesano un quinto in più dell'anno scorso."
+    },
+    {
+      "id": "V089",
+      "set": "verify",
+      "language": "it",
+      "category": "paraphrase",
+      "section": "Clienti",
+      "points": [
+        { "text": "I clienti sono soddisfatti", "covered": true },
+        { "text": "Nuovo servizio di assistenza", "covered": false }
+      ],
+      "transcript": "Nove persone su dieci, quando chiediamo loro come si trovano con noi, rispondono bene o molto bene."
+    },
+    {
+      "id": "V090",
+      "set": "verify",
+      "language": "ja",
+      "category": "paraphrase",
+      "section": "今年の業績",
+      "points": [
+        { "text": "売上は過去最高", "covered": true },
+        { "text": "新店舗の計画", "covered": false }
+      ],
+      "transcript": "今年の販売額は、創業以来のどの年よりも大きくなりました。"
+    },
+    {
+      "id": "V091",
+      "set": "verify",
+      "language": "en",
+      "category": "other-language",
+      "section": "Sedi estere",
+      "points": [
+        { "text": "Abbiamo aperto un ufficio a Monaco di Baviera", "covered": true },
+        { "text": "Abbiamo aperto un ufficio a Vienna", "covered": false }
+      ],
+      "transcript": "We opened an office in Munich in the spring, and four people already work there. Vienna was on the list as well, but that one fell through."
+    },
+    {
+      "id": "V092",
+      "set": "verify",
+      "language": "en",
+      "category": "other-language",
+      "section": "Formazione",
+      "points": [
+        { "text": "Tutti i docenti hanno completato il corso di primo soccorso", "covered": true },
+        { "text": "Calendario degli esami", "covered": false }
+      ],
+      "transcript": "Every teacher on the staff has now completed the first aid course, the last group finished on Friday."
+    },
+    {
+      "id": "V093",
+      "set": "verify",
+      "language": "it",
+      "category": "other-language",
+      "section": "New model",
+      "points": [
+        { "text": "Battery life improved by 20%", "covered": true },
+        { "text": "New colour options", "covered": false }
+      ],
+      "transcript": "La durata della batteria è migliorata del venti per cento rispetto al modello precedente, e lo abbiamo verificato in laboratorio."
+    },
+    {
+      "id": "V094",
+      "set": "verify",
+      "language": "it",
+      "category": "other-language",
+      "section": "Hiring",
+      "points": [
+        { "text": "We hired a new head of sales", "covered": true },
+        { "text": "Bonus scheme", "covered": false }
+      ],
+      "transcript": "Abbiamo assunto una nuova direttrice commerciale, si chiama Paola Rinaldi e comincia lunedì."
+    },
+    {
+      "id": "V095",
+      "set": "verify",
+      "language": "it",
+      "category": "other-language",
+      "section": "Customer support",
+      "points": [
+        { "text": "Support is now available on weekends", "covered": true },
+        { "text": "Chatbot pilot", "covered": false }
+      ],
+      "transcript": "Da questo mese l'assistenza risponde anche il sabato e la domenica, dalle nove alle diciotto."
+    },
+    {
+      "id": "V096",
+      "set": "verify",
+      "language": "en",
+      "category": "emphatic-negation",
+      "section": "Open day",
+      "points": [
+        { "text": "Record turnout at the open day", "covered": true },
+        { "text": "New prospectus", "covered": false }
+      ],
+      "transcript": "We have never seen so many families at an open day, not once in thirty years."
+    },
+    {
+      "id": "V097",
+      "set": "verify",
+      "language": "en",
+      "category": "emphatic-negation",
+      "section": "Plant safety",
+      "points": [
+        { "text": "Our safest year on record", "covered": true },
+        { "text": "Forklift training", "covered": false }
+      ],
+      "transcript": "There has not been a year with fewer accidents in the whole history of this plant. Nobody here has ever worked a safer twelve months."
+    },
+    {
+      "id": "V098",
+      "set": "verify",
+      "language": "it",
+      "category": "emphatic-negation",
+      "section": "Stagione estiva",
+      "points": [
+        { "text": "Estate da tutto esaurito", "covered": true },
+        { "text": "Nuova piscina", "covered": false }
+      ],
+      "transcript": "Non c'è stata una sola notte, da giugno a settembre, con una camera libera. Non ci era mai successo."
+    },
+    {
+      "id": "V099",
+      "set": "verify",
+      "language": "es",
+      "category": "emphatic-negation",
+      "section": "Campaña de este año",
+      "points": [
+        { "text": "Cosecha récord de aceituna", "covered": true },
+        { "text": "Nuevos socios de la cooperativa", "covered": false }
+      ],
+      "transcript": "Nunca habíamos recogido tanta aceituna como este año, ni de lejos."
+    },
+    {
+      "id": "V100",
+      "set": "verify",
+      "language": "de",
+      "category": "emphatic-negation",
+      "section": "Weihnachtsgeschäft",
+      "points": [
+        { "text": "Rekordumsatz im Dezember", "covered": true },
+        { "text": "Neue Öffnungszeiten", "covered": false }
+      ],
+      "transcript": "So viel wie in diesem Dezember haben wir noch nie verkauft, in keinem Jahr zuvor."
+    }
+  ]
+}

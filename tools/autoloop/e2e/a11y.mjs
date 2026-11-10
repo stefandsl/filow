@@ -21,7 +21,8 @@ function pageRoutes(dir = path.join(ROOT, "apps", "web", "app"), base = "") {
 }
 const ROUTES = pageRoutes();
 const THEMES = ["dark", "light"];
-const PORT = 4787, DEVTOOLS = 9344;
+// Ports can be moved when another session is using the defaults (FILOW_E2E_PORT, FILOW_E2E_DEVTOOLS).
+const PORT = Number(process.env.FILOW_E2E_PORT || 4787), DEVTOOLS = Number(process.env.FILOW_E2E_DEVTOOLS || 9344);
 
 function newestBuild() {
   const dirs = fs.readdirSync(ROOT).filter((d) => /^release-autoloop/.test(d) && fs.existsSync(path.join(ROOT, d, "win-unpacked", "Filow.exe")));
@@ -43,8 +44,15 @@ const stop = () => { try { execSync(`taskkill /PID ${app.pid} /T /F`, { stdio: "
 process.on("exit", stop);
 
 let target;
+// A start that failed says so in startup.log and then sits behind an error box: stop at once, with the reason.
+const startupFailure = () => {
+  const fresh = fs.existsSync(startupLog) ? fs.readFileSync(startupLog, "utf8").split(/\r?\n/).slice(Math.max(0, logLinesBefore - 1)) : [];
+  return fresh.find((l) => l.includes("startup failed")) || null;
+};
 for (let i = 0; i < 60 && !target; i++) {
   await sleep(2000);
+  const failed = startupFailure();
+  if (failed) { console.error("the app failed to start: " + failed.slice(25, 400)); process.exit(2); }
   try { target = (await (await fetch(`http://127.0.0.1:${DEVTOOLS}/json`)).json()).find((t) => t.type === "page" && t.url.startsWith(`http://127.0.0.1:${PORT}/`) && !t.url.includes("/okfilow/")); } catch { /* not up yet */ }
 }
 if (!target) { console.error("app did not come up"); process.exit(2); }

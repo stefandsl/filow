@@ -1,0 +1,2603 @@
+{
+  "note": "Adversarial cases written by an independent reviewer on 2026-11-09 to break the TRK-2 question wording and the claim guard (docs/gauntlet/BASELINE.md). Each case is one decide request: a script section with its open points, a short transcript, and for each point whether a careful human would say the speaker has covered it (true, false, or null when arguable; null is not counted). The labels are one reviewer's judgement. guardProbes are true points said with an unrelated or supporting negation: the guard should let them pass.",
+  "cases": [
+    {
+      "id": "E01",
+      "set": "main",
+      "language": "en",
+      "category": "denial",
+      "section": "Launch",
+      "points": [
+        {
+          "text": "Launch date Monday",
+          "covered": false
+        },
+        {
+          "text": "Beta testers invited",
+          "covered": false
+        },
+        {
+          "text": "Press release ready",
+          "covered": false
+        }
+      ],
+      "transcript": "Let me be clear, we are not launching on Monday. The date is still open."
+    },
+    {
+      "id": "E02",
+      "set": "main",
+      "language": "en",
+      "category": "hypothetical",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Marketing budget",
+          "covered": false
+        },
+        {
+          "text": "Travel freeze",
+          "covered": false
+        },
+        {
+          "text": "New laptops for sales",
+          "covered": false
+        }
+      ],
+      "transcript": "Imagine for a second that we were a company with a huge marketing budget, like our competitors. We are not that company, and that is why I want to start with a story about my first job."
+    },
+    {
+      "id": "E03",
+      "set": "main",
+      "language": "en",
+      "category": "audience-question",
+      "section": "Product",
+      "points": [
+        {
+          "text": "Dark mode",
+          "covered": false
+        },
+        {
+          "text": "Offline sync",
+          "covered": false
+        }
+      ],
+      "transcript": "I see a question in the chat from Maria: when is dark mode coming? Good question, Maria, hold that thought, I will get there in a few minutes."
+    },
+    {
+      "id": "E04",
+      "set": "main",
+      "language": "en",
+      "category": "quote-other",
+      "section": "Results",
+      "points": [
+        {
+          "text": "Support costs fell 30% this quarter",
+          "covered": false
+        },
+        {
+          "text": "Churn is under 2%",
+          "covered": false
+        }
+      ],
+      "transcript": "Our competitor's CEO said on stage last week that their support costs fell 30% this quarter. I honestly do not believe that number."
+    },
+    {
+      "id": "E05",
+      "set": "main",
+      "language": "en",
+      "category": "other-topic",
+      "section": "Pricing",
+      "points": [
+        {
+          "text": "Pricing page redesign",
+          "covered": false
+        },
+        {
+          "text": "Annual plan discount",
+          "covered": false
+        },
+        {
+          "text": "Free tier limits",
+          "covered": false
+        }
+      ],
+      "transcript": "Before pricing, a quick word on the careers page: we redesigned it last month and job applications doubled."
+    },
+    {
+      "id": "E06",
+      "set": "main",
+      "language": "en",
+      "category": "other-sense",
+      "section": "Operations",
+      "points": [
+        {
+          "text": "Bank transfer delays",
+          "covered": false
+        },
+        {
+          "text": "New warehouse in Leeds",
+          "covered": false
+        }
+      ],
+      "transcript": "At the offsite we walked along the river bank, and the transfer from the airport took forever, two hours of delays."
+    },
+    {
+      "id": "E07",
+      "set": "main",
+      "language": "en",
+      "category": "agenda",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Marketing budget",
+          "covered": false
+        },
+        {
+          "text": "Hiring plan",
+          "covered": false
+        },
+        {
+          "text": "Pricing changes",
+          "covered": false
+        }
+      ],
+      "transcript": "Good morning everyone. Today we have three things: budget, hiring, and pricing. Let me first thank you all for coming on such short notice."
+    },
+    {
+      "id": "E08",
+      "set": "main",
+      "language": "en",
+      "category": "cancelled-plan",
+      "section": "Roadmap",
+      "points": [
+        {
+          "text": "Mobile app in March",
+          "covered": false
+        },
+        {
+          "text": "API version 2",
+          "covered": false
+        }
+      ],
+      "transcript": "Last year we planned to ship a mobile app in March. That plan was cancelled in the autumn, and nothing replaces it."
+    },
+    {
+      "id": "E09",
+      "set": "main",
+      "language": "en",
+      "category": "sarcasm",
+      "section": "Quality",
+      "points": [
+        {
+          "text": "Customer satisfaction is at a record high",
+          "covered": false
+        },
+        {
+          "text": "Refund requests are down",
+          "covered": false
+        }
+      ],
+      "transcript": "Oh sure, customer satisfaction is at a record high, and I am the Queen of England. Seriously, look at these reviews, people are furious."
+    },
+    {
+      "id": "E10",
+      "set": "main",
+      "language": "en",
+      "category": "compound-one-item",
+      "section": "Expansion",
+      "points": [
+        {
+          "text": "Offices in Berlin, Madrid and Lisbon",
+          "covered": null
+        },
+        {
+          "text": "Remote work policy",
+          "covered": false
+        }
+      ],
+      "transcript": "We opened the Berlin office in May."
+    },
+    {
+      "id": "E11",
+      "set": "main",
+      "language": "en",
+      "category": "number-differs",
+      "section": "Finance",
+      "points": [
+        {
+          "text": "Revenue grew 18% year over year",
+          "covered": false
+        },
+        {
+          "text": "Gross margin 62%",
+          "covered": false
+        }
+      ],
+      "transcript": "Revenue grew 8% year over year, which is below what we promised."
+    },
+    {
+      "id": "E12",
+      "set": "main",
+      "language": "en",
+      "category": "near-synonym",
+      "section": "People",
+      "points": [
+        {
+          "text": "Hiring freeze",
+          "covered": false
+        },
+        {
+          "text": "Salary review in June",
+          "covered": false
+        }
+      ],
+      "transcript": "We are hiring aggressively: twelve new engineers start next month."
+    },
+    {
+      "id": "E13",
+      "set": "main",
+      "language": "en",
+      "category": "covered-again",
+      "section": "Product",
+      "points": [
+        {
+          "text": "Offline sync",
+          "covered": false
+        },
+        {
+          "text": "Pricing page redesign",
+          "covered": false
+        }
+      ],
+      "transcript": "As I said, dark mode is live for everyone since Tuesday, and people really love dark mode.",
+      "alreadyCovered": [
+        "Dark mode"
+      ]
+    },
+    {
+      "id": "E14",
+      "set": "main",
+      "language": "en",
+      "category": "tp-code-switch",
+      "section": "Team",
+      "points": [
+        {
+          "text": "Weekly review",
+          "covered": true
+        },
+        {
+          "text": "On-call rotation",
+          "covered": false
+        }
+      ],
+      "transcript": "Allora, la weekly review la facciamo ogni lunedì alle dieci, dura mezz'ora."
+    },
+    {
+      "id": "E15",
+      "set": "main",
+      "language": "en",
+      "category": "tp-paraphrase",
+      "section": "Finance",
+      "points": [
+        {
+          "text": "Support costs fell 30% this quarter",
+          "covered": true
+        },
+        {
+          "text": "Hiring freeze",
+          "covered": false
+        }
+      ],
+      "transcript": "We are spending almost a third less on the helpdesk than we did three months ago."
+    },
+    {
+      "id": "E16",
+      "set": "main",
+      "language": "en",
+      "category": "tp-translation",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Travel freeze",
+          "covered": true
+        },
+        {
+          "text": "Marketing budget",
+          "covered": false
+        },
+        {
+          "text": "Hiring plan for Q2",
+          "covered": false
+        }
+      ],
+      "transcript": "Da oggi le trasferte sono bloccate: niente voli e niente hotel fino a nuova comunicazione."
+    },
+    {
+      "id": "E17",
+      "set": "main",
+      "language": "en",
+      "category": "tp-terse",
+      "section": "Wrap-up",
+      "points": [
+        {
+          "text": "Next meeting on Thursday",
+          "covered": true
+        },
+        {
+          "text": "Customer survey results",
+          "covered": false
+        }
+      ],
+      "transcript": "Next meeting: Thursday. Same room."
+    },
+    {
+      "id": "E18",
+      "set": "main",
+      "language": "en",
+      "category": "tp-future",
+      "section": "Rollout",
+      "points": [
+        {
+          "text": "Bristol pilot",
+          "covered": true
+        },
+        {
+          "text": "Training for store managers",
+          "covered": false
+        }
+      ],
+      "transcript": "The pilot will start in Bristol in the first week of May with four stores."
+    },
+    {
+      "id": "E19",
+      "set": "main",
+      "language": "en",
+      "category": "conditional",
+      "section": "Product",
+      "points": [
+        {
+          "text": "Offline sync ships in June",
+          "covered": false
+        },
+        {
+          "text": "Dark mode",
+          "covered": false
+        }
+      ],
+      "transcript": "If offline sync ever ships, it will not be this year."
+    },
+    {
+      "id": "E20",
+      "set": "main",
+      "language": "en",
+      "category": "audience-question",
+      "section": "Finance",
+      "points": [
+        {
+          "text": "Gross margin 62%",
+          "covered": false
+        },
+        {
+          "text": "Cash runway 18 months",
+          "covered": false
+        }
+      ],
+      "transcript": "Someone asked whether our gross margin is 62%. I will answer that at the end, with the real figure."
+    },
+    {
+      "id": "E21",
+      "set": "main",
+      "language": "en",
+      "category": "other-section",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Marketing budget",
+          "covered": false
+        },
+        {
+          "text": "Travel freeze",
+          "covered": false
+        }
+      ],
+      "transcript": "Dark mode shipped yesterday, by the way, congratulations to the team.",
+      "upcoming": [
+        "Dark mode",
+        "Offline sync"
+      ]
+    },
+    {
+      "id": "E22",
+      "set": "main",
+      "language": "en",
+      "category": "tp-negated-point",
+      "section": "Pricing",
+      "points": [
+        {
+          "text": "No price increase this year",
+          "covered": true
+        },
+        {
+          "text": "New enterprise tier",
+          "covered": false
+        }
+      ],
+      "transcript": "Prices stay exactly where they are until December."
+    },
+    {
+      "id": "E23",
+      "set": "main",
+      "language": "en",
+      "category": "tp-paraphrase",
+      "section": "Retention",
+      "points": [
+        {
+          "text": "Churn is under 2%",
+          "covered": true
+        },
+        {
+          "text": "Net promoter score 54",
+          "covered": false
+        }
+      ],
+      "transcript": "Fewer than two customers in a hundred leave us each month."
+    },
+    {
+      "id": "E24",
+      "set": "main",
+      "language": "en",
+      "category": "other-sense",
+      "section": "Platform",
+      "points": [
+        {
+          "text": "Windows support",
+          "covered": false
+        },
+        {
+          "text": "Mac app update",
+          "covered": false
+        }
+      ],
+      "transcript": "Facilities finally replaced the broken windows on the third floor, and their support was great."
+    },
+    {
+      "id": "E25",
+      "set": "main",
+      "language": "en",
+      "category": "announcement",
+      "section": "Wrap-up",
+      "points": [
+        {
+          "text": "Customer survey results",
+          "covered": false
+        },
+        {
+          "text": "Next meeting on Thursday",
+          "covered": false
+        }
+      ],
+      "transcript": "In a minute I will show you the customer survey results, but first, coffee."
+    },
+    {
+      "id": "E26",
+      "set": "main",
+      "language": "en",
+      "category": "number-differs",
+      "section": "Onboarding",
+      "points": [
+        {
+          "text": "Onboarding takes 2 days",
+          "covered": false
+        },
+        {
+          "text": "Setup fee waived",
+          "covered": false
+        }
+      ],
+      "transcript": "Onboarding takes two weeks at the moment, which is far too long."
+    },
+    {
+      "id": "E27",
+      "set": "main",
+      "language": "en",
+      "category": "tp-noisy",
+      "section": "Launch",
+      "points": [
+        {
+          "text": "Launch date Monday",
+          "covered": true
+        },
+        {
+          "text": "Press release ready",
+          "covered": false
+        }
+      ],
+      "transcript": "so um we go live monday yeah monday morning nine o'clock"
+    },
+    {
+      "id": "E28",
+      "set": "main",
+      "language": "en",
+      "category": "quote-other",
+      "section": "Workplace",
+      "points": [
+        {
+          "text": "Remote work increases productivity",
+          "covered": false
+        },
+        {
+          "text": "Office reopening in September",
+          "covered": false
+        }
+      ],
+      "transcript": "Some managers keep telling me remote work increases productivity. I have seen the data and I disagree."
+    },
+    {
+      "id": "E29",
+      "set": "main",
+      "language": "en",
+      "category": "tp-synonym",
+      "section": "Marketing",
+      "points": [
+        {
+          "text": "Webinar series",
+          "covered": true
+        },
+        {
+          "text": "Conference sponsorship",
+          "covered": false
+        }
+      ],
+      "transcript": "What we do now is a run of online seminars, one every two weeks."
+    },
+    {
+      "id": "E30",
+      "set": "main",
+      "language": "en",
+      "category": "tp-translation",
+      "section": "Results",
+      "points": [
+        {
+          "text": "Support costs fell 30% this quarter",
+          "covered": true
+        },
+        {
+          "text": "Churn is under 2%",
+          "covered": false
+        }
+      ],
+      "transcript": "I costi dell'assistenza sono scesi del trenta per cento in questo trimestre."
+    },
+    {
+      "id": "E31",
+      "set": "main",
+      "language": "en",
+      "category": "other-company",
+      "section": "M&A",
+      "points": [
+        {
+          "text": "We acquired Northwind",
+          "covered": false
+        },
+        {
+          "text": "Integration finished in Q3",
+          "covered": false
+        }
+      ],
+      "transcript": "Globex acquired Northwind last week, which changes the market for all of us."
+    },
+    {
+      "id": "E32",
+      "set": "main",
+      "language": "en",
+      "category": "tp-with-negation",
+      "section": "Launch",
+      "points": [
+        {
+          "text": "Launch date Monday",
+          "covered": true
+        },
+        {
+          "text": "Beta testers invited",
+          "covered": false
+        }
+      ],
+      "transcript": "We will not ship anything before Monday, that is when we go live."
+    },
+    {
+      "id": "E33",
+      "set": "main",
+      "language": "en",
+      "category": "tp-with-negation",
+      "section": "Wrap-up",
+      "points": [
+        {
+          "text": "Customer survey results",
+          "covered": true
+        },
+        {
+          "text": "Next meeting on Thursday",
+          "covered": false
+        }
+      ],
+      "transcript": "We never got a survey back this positive: nine out of ten people would recommend us."
+    },
+    {
+      "id": "E34",
+      "set": "main",
+      "language": "en",
+      "category": "will-not-cover",
+      "section": "Strategy",
+      "points": [
+        {
+          "text": "Pricing changes",
+          "covered": false
+        },
+        {
+          "text": "Roadmap for next year",
+          "covered": false
+        }
+      ],
+      "transcript": "I will not cover pricing or the roadmap today, there is a separate session for those on Friday."
+    },
+    {
+      "id": "E36",
+      "set": "main",
+      "language": "en",
+      "category": "tp-terse",
+      "section": "Product",
+      "points": [
+        {
+          "text": "Dark mode",
+          "covered": true
+        },
+        {
+          "text": "Offline sync",
+          "covered": false
+        }
+      ],
+      "transcript": "Dark mode: it is live."
+    },
+    {
+      "id": "E38",
+      "set": "main",
+      "language": "en",
+      "category": "other-company",
+      "section": "Shipping",
+      "points": [
+        {
+          "text": "Free shipping over 50 euros",
+          "covered": false
+        },
+        {
+          "text": "Returns within 30 days",
+          "covered": false
+        }
+      ],
+      "transcript": "Amazon offers free shipping on almost everything, and customers now expect it from everyone."
+    },
+    {
+      "id": "E39",
+      "set": "main",
+      "language": "en",
+      "category": "number-differs",
+      "section": "Shipping",
+      "points": [
+        {
+          "text": "Returns within 30 days",
+          "covered": false
+        },
+        {
+          "text": "Free shipping over 50 euros",
+          "covered": false
+        }
+      ],
+      "transcript": "You can return anything within fourteen days."
+    },
+    {
+      "id": "E40",
+      "set": "main",
+      "language": "en",
+      "category": "tp-paraphrase",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Hiring plan for Q2",
+          "covered": true
+        },
+        {
+          "text": "Travel freeze",
+          "covered": false
+        }
+      ],
+      "transcript": "Between April and June we want to bring in five more people, three of them engineers."
+    },
+    {
+      "id": "E41",
+      "set": "main",
+      "language": "en",
+      "category": "code-switch-trap",
+      "section": "Planning",
+      "points": [
+        {
+          "text": "Deadline extension",
+          "covered": false
+        },
+        {
+          "text": "Budget approval",
+          "covered": false
+        }
+      ],
+      "transcript": "Come si dice, deadline is deadline, e il budget è il budget. Anyway, the coffee machine is broken again."
+    },
+    {
+      "id": "E42",
+      "set": "main",
+      "language": "en",
+      "category": "hypothetical",
+      "section": "Retention",
+      "points": [
+        {
+          "text": "Churn is under 2%",
+          "covered": false
+        },
+        {
+          "text": "Net promoter score 54",
+          "covered": false
+        }
+      ],
+      "transcript": "Suppose churn were under 2%: we would be celebrating right now. It is not."
+    },
+    {
+      "id": "I01",
+      "set": "main",
+      "language": "it",
+      "category": "denial",
+      "section": "Orari",
+      "points": [
+        {
+          "text": "Apertura domenicale",
+          "covered": false
+        },
+        {
+          "text": "Nuovo orario di apertura",
+          "covered": false
+        }
+      ],
+      "transcript": "No, la domenica non apriamo, mettetevi il cuore in pace."
+    },
+    {
+      "id": "I02",
+      "set": "main",
+      "language": "it",
+      "category": "hypothetical",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Budget per il marketing",
+          "covered": false
+        },
+        {
+          "text": "Assunzioni a settembre",
+          "covered": false
+        }
+      ],
+      "transcript": "Immaginate per un attimo che fossimo un'azienda con un grande budget per il marketing, come i nostri concorrenti. Non lo siamo, ed è per questo che voglio cominciare con una storia sul mio primo lavoro."
+    },
+    {
+      "id": "I03",
+      "set": "main",
+      "language": "it",
+      "category": "audience-question",
+      "section": "Clienti",
+      "points": [
+        {
+          "text": "Programma fedeltà",
+          "covered": false
+        },
+        {
+          "text": "Consegne a domicilio",
+          "covered": false
+        }
+      ],
+      "transcript": "Leggo una domanda dalla chat: quando parte il programma fedeltà? Ci arrivo tra poco, prima finisco questo discorso."
+    },
+    {
+      "id": "I04",
+      "set": "main",
+      "language": "it",
+      "category": "quote-other",
+      "section": "Risultati",
+      "points": [
+        {
+          "text": "I reclami sono calati del 20%",
+          "covered": false
+        },
+        {
+          "text": "Tempi di consegna dimezzati",
+          "covered": false
+        }
+      ],
+      "transcript": "Il nostro concorrente va in giro a dire che i suoi reclami sono calati del 20%. Io a quel numero non credo."
+    },
+    {
+      "id": "I05",
+      "set": "main",
+      "language": "it",
+      "category": "other-section",
+      "section": "Clienti",
+      "points": [
+        {
+          "text": "Programma fedeltà",
+          "covered": false
+        },
+        {
+          "text": "Consegne a domicilio",
+          "covered": false
+        }
+      ],
+      "transcript": "L'inventario di fine anno lo facciamo il ventotto dicembre, segnatevelo.",
+      "upcoming": [
+        "Inventario di fine anno",
+        "Chiusura estiva ad agosto"
+      ]
+    },
+    {
+      "id": "I06",
+      "set": "main",
+      "language": "it",
+      "category": "other-sense",
+      "section": "Organizzazione",
+      "points": [
+        {
+          "text": "Turni del sabato",
+          "covered": false
+        },
+        {
+          "text": "Formazione sulla sicurezza",
+          "covered": false
+        }
+      ],
+      "transcript": "Sabato ho visto la partita: la formazione era sbagliata e in difesa non c'era nessuna sicurezza."
+    },
+    {
+      "id": "I07",
+      "set": "main",
+      "language": "it",
+      "category": "agenda",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Budget 2027",
+          "covered": false
+        },
+        {
+          "text": "Assunzioni",
+          "covered": false
+        },
+        {
+          "text": "Listino prezzi",
+          "covered": false
+        }
+      ],
+      "transcript": "Buongiorno a tutti. Oggi parliamo di tre cose: budget, assunzioni e listino prezzi. Prima però un grazie a chi ha organizzato la sala."
+    },
+    {
+      "id": "I08",
+      "set": "main",
+      "language": "it",
+      "category": "cancelled-plan",
+      "section": "Sviluppo",
+      "points": [
+        {
+          "text": "Apertura del negozio di Torino",
+          "covered": false
+        },
+        {
+          "text": "Nuovo sito web",
+          "covered": false
+        }
+      ],
+      "transcript": "L'anno scorso volevamo aprire un negozio a Torino. Il progetto è stato cancellato a ottobre e non se ne parla più."
+    },
+    {
+      "id": "I09",
+      "set": "main",
+      "language": "it",
+      "category": "sarcasm",
+      "section": "Qualità",
+      "points": [
+        {
+          "text": "I clienti sono soddisfatti",
+          "covered": false
+        },
+        {
+          "text": "Resi in diminuzione",
+          "covered": false
+        }
+      ],
+      "transcript": "Certo, i clienti sono soddisfattissimi, come no. Guardate queste recensioni: una stella, una stella, una stella."
+    },
+    {
+      "id": "I10",
+      "set": "main",
+      "language": "it",
+      "category": "compound-one-item",
+      "section": "Espansione",
+      "points": [
+        {
+          "text": "Sedi di Milano, Roma e Napoli",
+          "covered": null
+        },
+        {
+          "text": "Lavoro da remoto",
+          "covered": false
+        }
+      ],
+      "transcript": "A maggio abbiamo aperto la sede di Milano."
+    },
+    {
+      "id": "I11",
+      "set": "main",
+      "language": "it",
+      "category": "number-differs",
+      "section": "Finanza",
+      "points": [
+        {
+          "text": "Fatturato in crescita del 12%",
+          "covered": false
+        },
+        {
+          "text": "Margine al 40%",
+          "covered": false
+        }
+      ],
+      "transcript": "Il fatturato è cresciuto del 2%, molto meno del previsto."
+    },
+    {
+      "id": "I12",
+      "set": "main",
+      "language": "it",
+      "category": "near-synonym",
+      "section": "Personale",
+      "points": [
+        {
+          "text": "Blocco delle assunzioni",
+          "covered": false
+        },
+        {
+          "text": "Premio di produzione",
+          "covered": false
+        }
+      ],
+      "transcript": "Stiamo assumendo a pieno ritmo: dieci persone nuove entrano a gennaio."
+    },
+    {
+      "id": "I13",
+      "set": "main",
+      "language": "it",
+      "category": "covered-again",
+      "section": "Organizzazione",
+      "points": [
+        {
+          "text": "Turni del sabato",
+          "covered": false
+        },
+        {
+          "text": "Formazione sulla sicurezza",
+          "covered": false
+        }
+      ],
+      "transcript": "Come dicevo, il nuovo orario di apertura parte lunedì: ripeto, nuovo orario da lunedì.",
+      "alreadyCovered": [
+        "Nuovo orario di apertura"
+      ]
+    },
+    {
+      "id": "I14",
+      "set": "main",
+      "language": "it",
+      "category": "tp-code-switch",
+      "section": "Squadra",
+      "points": [
+        {
+          "text": "Riunione settimanale",
+          "covered": true
+        },
+        {
+          "text": "Turni di reperibilità",
+          "covered": false
+        }
+      ],
+      "transcript": "So, the weekly meeting: la facciamo ogni lunedì alle dieci, mezz'ora al massimo."
+    },
+    {
+      "id": "I15",
+      "set": "main",
+      "language": "it",
+      "category": "tp-paraphrase",
+      "section": "Clienti",
+      "points": [
+        {
+          "text": "Reclami in calo",
+          "covered": true
+        },
+        {
+          "text": "Programma fedeltà",
+          "covered": false
+        }
+      ],
+      "transcript": "Rispetto all'anno scorso la gente si lamenta molto meno: le lettere di protesta sono la metà."
+    },
+    {
+      "id": "I16",
+      "set": "main",
+      "language": "it",
+      "category": "tp-translation",
+      "section": "Clienti",
+      "points": [
+        {
+          "text": "Consegne a domicilio",
+          "covered": true
+        },
+        {
+          "text": "Programma fedeltà",
+          "covered": false
+        }
+      ],
+      "transcript": "Starting next month we bring the groceries straight to the customer's door, seven days a week."
+    },
+    {
+      "id": "I17",
+      "set": "main",
+      "language": "it",
+      "category": "tp-terse",
+      "section": "Chiusura",
+      "points": [
+        {
+          "text": "Prossima riunione giovedì",
+          "covered": true
+        },
+        {
+          "text": "Risultati del sondaggio",
+          "covered": false
+        }
+      ],
+      "transcript": "Prossima riunione: giovedì. Stessa sala."
+    },
+    {
+      "id": "I18",
+      "set": "main",
+      "language": "it",
+      "category": "tp-future",
+      "section": "Avvio",
+      "points": [
+        {
+          "text": "Progetto pilota a Bologna",
+          "covered": true
+        },
+        {
+          "text": "Formazione dei responsabili",
+          "covered": false
+        }
+      ],
+      "transcript": "Il pilota partirà a Bologna nella prima settimana di maggio, con quattro negozi."
+    },
+    {
+      "id": "I19",
+      "set": "main",
+      "language": "it",
+      "category": "conditional",
+      "section": "Prodotto",
+      "points": [
+        {
+          "text": "La app esce a giugno",
+          "covered": false
+        },
+        {
+          "text": "Nuovo sito web",
+          "covered": false
+        }
+      ],
+      "transcript": "Se mai la app uscirà, non sarà certo quest'anno."
+    },
+    {
+      "id": "I20",
+      "set": "main",
+      "language": "it",
+      "category": "audience-question",
+      "section": "Finanza",
+      "points": [
+        {
+          "text": "Margine al 40%",
+          "covered": false
+        },
+        {
+          "text": "Cassa per 18 mesi",
+          "covered": false
+        }
+      ],
+      "transcript": "Qualcuno ha chiesto se il margine è al 40%. Rispondo alla fine, con il dato vero."
+    },
+    {
+      "id": "I21",
+      "set": "main",
+      "language": "it",
+      "category": "will-not-cover",
+      "section": "Strategia",
+      "points": [
+        {
+          "text": "Listino prezzi",
+          "covered": false
+        },
+        {
+          "text": "Piano per il 2027",
+          "covered": false
+        }
+      ],
+      "transcript": "Oggi non parlerò né del listino prezzi né del piano per il 2027, per quelli c'è la riunione di venerdì."
+    },
+    {
+      "id": "I22",
+      "set": "main",
+      "language": "it",
+      "category": "tp-negated-point",
+      "section": "Prezzi",
+      "points": [
+        {
+          "text": "Nessun aumento dei prezzi quest'anno",
+          "covered": true
+        },
+        {
+          "text": "Nuova linea premium",
+          "covered": false
+        }
+      ],
+      "transcript": "I prezzi restano fermi dove sono fino a dicembre."
+    },
+    {
+      "id": "I23",
+      "set": "main",
+      "language": "it",
+      "category": "tp-paraphrase",
+      "section": "Fedeltà",
+      "points": [
+        {
+          "text": "Meno del 2% dei clienti ci lascia",
+          "covered": true
+        },
+        {
+          "text": "Indice di gradimento a 54",
+          "covered": false
+        }
+      ],
+      "transcript": "Su cento clienti, ne perdiamo meno di due al mese."
+    },
+    {
+      "id": "I24",
+      "set": "main",
+      "language": "it",
+      "category": "other-sense",
+      "section": "Sistemi",
+      "points": [
+        {
+          "text": "Banca dati clienti",
+          "covered": false
+        },
+        {
+          "text": "Posta certificata",
+          "covered": false
+        }
+      ],
+      "transcript": "Stamattina sono passato in banca e poi alla posta, c'era una coda infinita di clienti."
+    },
+    {
+      "id": "I25",
+      "set": "main",
+      "language": "it",
+      "category": "announcement",
+      "section": "Chiusura",
+      "points": [
+        {
+          "text": "Risultati del sondaggio",
+          "covered": false
+        },
+        {
+          "text": "Prossima riunione giovedì",
+          "covered": false
+        }
+      ],
+      "transcript": "Tra un minuto vi mostro i risultati del sondaggio, ma prima prendiamoci un caffè."
+    },
+    {
+      "id": "I26",
+      "set": "main",
+      "language": "it",
+      "category": "number-differs",
+      "section": "Logistica",
+      "points": [
+        {
+          "text": "Consegna in 2 giorni",
+          "covered": false
+        },
+        {
+          "text": "Spedizione gratuita",
+          "covered": false
+        }
+      ],
+      "transcript": "Oggi la consegna richiede due settimane, ed è decisamente troppo."
+    },
+    {
+      "id": "I27",
+      "set": "main",
+      "language": "it",
+      "category": "tp-noisy",
+      "section": "Lancio",
+      "points": [
+        {
+          "text": "Lancio lunedì",
+          "covered": true
+        },
+        {
+          "text": "Comunicato stampa pronto",
+          "covered": false
+        }
+      ],
+      "transcript": "allora ehm partiamo lunedì sì lunedì mattina alle nove andiamo online"
+    },
+    {
+      "id": "I28",
+      "set": "main",
+      "language": "it",
+      "category": "quote-other",
+      "section": "Lavoro",
+      "points": [
+        {
+          "text": "Lo smart working aumenta la produttività",
+          "covered": false
+        },
+        {
+          "text": "Rientro in ufficio a settembre",
+          "covered": false
+        }
+      ],
+      "transcript": "Alcuni responsabili continuano a dirmi che lo smart working aumenta la produttività. Ho visto i dati e non sono d'accordo."
+    },
+    {
+      "id": "I29",
+      "set": "main",
+      "language": "it",
+      "category": "tp-synonym",
+      "section": "Marketing",
+      "points": [
+        {
+          "text": "Ciclo di seminari online",
+          "covered": true
+        },
+        {
+          "text": "Sponsorizzazione della fiera",
+          "covered": false
+        }
+      ],
+      "transcript": "Adesso facciamo una serie di webinar, uno ogni due settimane."
+    },
+    {
+      "id": "I30",
+      "set": "main",
+      "language": "it",
+      "category": "tp-translation",
+      "section": "Risultati",
+      "points": [
+        {
+          "text": "I costi dell'assistenza sono scesi del 30%",
+          "covered": true
+        },
+        {
+          "text": "Blocco delle assunzioni",
+          "covered": false
+        }
+      ],
+      "transcript": "Support costs fell thirty percent this quarter."
+    },
+    {
+      "id": "I31",
+      "set": "main",
+      "language": "it",
+      "category": "other-company",
+      "section": "Acquisizioni",
+      "points": [
+        {
+          "text": "Abbiamo acquisito Rossi Srl",
+          "covered": false
+        },
+        {
+          "text": "Integrazione conclusa a settembre",
+          "covered": false
+        }
+      ],
+      "transcript": "La Bianchi ha acquisito Rossi Srl la settimana scorsa, e questo cambia il mercato per tutti."
+    },
+    {
+      "id": "I32",
+      "set": "main",
+      "language": "it",
+      "category": "tp-with-negation",
+      "section": "Chiusura",
+      "points": [
+        {
+          "text": "Chiusura estiva ad agosto",
+          "covered": true
+        },
+        {
+          "text": "Inventario di fine anno",
+          "covered": false
+        }
+      ],
+      "transcript": "Non accetteremo ordini ad agosto, andiamo tutti in ferie per tre settimane."
+    },
+    {
+      "id": "I33",
+      "set": "main",
+      "language": "it",
+      "category": "tp-with-negation",
+      "section": "Organizzazione",
+      "points": [
+        {
+          "text": "Nuovo orario di apertura",
+          "covered": true
+        },
+        {
+          "text": "Turni del sabato",
+          "covered": false
+        }
+      ],
+      "transcript": "Non abbiamo mai avuto un orario così comodo: da lunedì si apre alle otto e si chiude alle sette."
+    },
+    {
+      "id": "I34",
+      "set": "main",
+      "language": "it",
+      "category": "other-company",
+      "section": "Spedizioni",
+      "points": [
+        {
+          "text": "Spedizione gratuita sopra i 50 euro",
+          "covered": false
+        },
+        {
+          "text": "Reso entro 30 giorni",
+          "covered": false
+        }
+      ],
+      "transcript": "Amazon offre la spedizione gratuita su quasi tutto, e ormai i clienti se la aspettano da chiunque."
+    },
+    {
+      "id": "I35",
+      "set": "main",
+      "language": "it",
+      "category": "number-differs",
+      "section": "Spedizioni",
+      "points": [
+        {
+          "text": "Reso entro 30 giorni",
+          "covered": false
+        },
+        {
+          "text": "Spedizione gratuita sopra i 50 euro",
+          "covered": false
+        }
+      ],
+      "transcript": "Potete restituire qualsiasi cosa entro quattordici giorni."
+    },
+    {
+      "id": "I36",
+      "set": "main",
+      "language": "it",
+      "category": "tp-terse",
+      "section": "Clienti",
+      "points": [
+        {
+          "text": "Programma fedeltà",
+          "covered": true
+        },
+        {
+          "text": "Consegne a domicilio",
+          "covered": false
+        }
+      ],
+      "transcript": "Programma fedeltà: è partito ieri."
+    },
+    {
+      "id": "I37",
+      "set": "main",
+      "language": "it",
+      "category": "code-switch-trap",
+      "section": "Pianificazione",
+      "points": [
+        {
+          "text": "Budget per il marketing",
+          "covered": false
+        },
+        {
+          "text": "Piano assunzioni",
+          "covered": false
+        }
+      ],
+      "transcript": "Come dicono gli americani, no budget, no party. Comunque parliamo d'altro: la macchinetta del caffè è di nuovo rotta."
+    },
+    {
+      "id": "I38",
+      "set": "main",
+      "language": "it",
+      "category": "tp-paraphrase",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Piano assunzioni per il secondo trimestre",
+          "covered": true
+        },
+        {
+          "text": "Blocco delle trasferte",
+          "covered": false
+        }
+      ],
+      "transcript": "Tra aprile e giugno vogliamo far entrare altre cinque persone, tre delle quali sviluppatori."
+    },
+    {
+      "id": "I39",
+      "set": "main",
+      "language": "it",
+      "category": "hypothetical",
+      "section": "Risultati",
+      "points": [
+        {
+          "text": "I reclami sono calati del 20%",
+          "covered": false
+        },
+        {
+          "text": "Tempi di consegna dimezzati",
+          "covered": false
+        }
+      ],
+      "transcript": "Magari i reclami fossero calati del 20%: adesso staremmo festeggiando. Invece no."
+    },
+    {
+      "id": "I40",
+      "set": "main",
+      "language": "it",
+      "category": "denial",
+      "section": "Lancio",
+      "points": [
+        {
+          "text": "Lancio lunedì",
+          "covered": false
+        },
+        {
+          "text": "Comunicato stampa pronto",
+          "covered": false
+        }
+      ],
+      "transcript": "Sia chiaro, lunedì non lanciamo niente. La data è ancora aperta."
+    },
+    {
+      "id": "F01",
+      "set": "main",
+      "language": "en",
+      "category": "other-actor",
+      "section": "Sales",
+      "points": [
+        {
+          "text": "We won the Acme contract",
+          "covered": false
+        },
+        {
+          "text": "Pipeline doubled",
+          "covered": false
+        }
+      ],
+      "transcript": "Our rival won the Acme contract in the end, and that one hurt."
+    },
+    {
+      "id": "F02",
+      "set": "main",
+      "language": "en",
+      "category": "other-actor",
+      "section": "Growth",
+      "points": [
+        {
+          "text": "Our app reached one million downloads",
+          "covered": false
+        },
+        {
+          "text": "Retention at 40%",
+          "covered": false
+        }
+      ],
+      "transcript": "Their app reached one million downloads in its first week, which nobody in the industry expected."
+    },
+    {
+      "id": "F03",
+      "set": "main",
+      "language": "en",
+      "category": "other-actor",
+      "section": "Expansion",
+      "points": [
+        {
+          "text": "New office in Dublin",
+          "covered": false
+        },
+        {
+          "text": "Remote work policy",
+          "covered": false
+        }
+      ],
+      "transcript": "Our main supplier opened a new office in Dublin, so their response times should improve."
+    },
+    {
+      "id": "F04",
+      "set": "main",
+      "language": "en",
+      "category": "cancelled-plan",
+      "section": "People",
+      "points": [
+        {
+          "text": "Bonus scheme for sales",
+          "covered": false
+        },
+        {
+          "text": "Salary review in June",
+          "covered": false
+        }
+      ],
+      "transcript": "We used to have a bonus scheme for sales. It ended in 2023 and it is not coming back."
+    },
+    {
+      "id": "F05",
+      "set": "main",
+      "language": "en",
+      "category": "cancelled-plan",
+      "section": "Facilities",
+      "points": [
+        {
+          "text": "Office move in January",
+          "covered": false
+        },
+        {
+          "text": "New parking rules",
+          "covered": false
+        }
+      ],
+      "transcript": "The office move was supposed to happen in January. The landlord pulled out, so we stay where we are."
+    },
+    {
+      "id": "F06",
+      "set": "main",
+      "language": "en",
+      "category": "slide-title",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Travel freeze",
+          "covered": false
+        },
+        {
+          "text": "Marketing budget",
+          "covered": false
+        }
+      ],
+      "transcript": "The slide behind me says travel freeze, but please ignore it, that slide is from last year's deck."
+    },
+    {
+      "id": "F07",
+      "set": "main",
+      "language": "en",
+      "category": "slide-title",
+      "section": "Product",
+      "points": [
+        {
+          "text": "Pricing page redesign",
+          "covered": false
+        },
+        {
+          "text": "Dark mode",
+          "covered": false
+        }
+      ],
+      "transcript": "My next slide is called pricing page redesign. Before I click, any questions so far?"
+    },
+    {
+      "id": "F08",
+      "set": "main",
+      "language": "en",
+      "category": "rhetorical-question",
+      "section": "Retention",
+      "points": [
+        {
+          "text": "Churn is under 2%",
+          "covered": false
+        },
+        {
+          "text": "Net promoter score 54",
+          "covered": false
+        }
+      ],
+      "transcript": "Who can tell me what our churn is? Anyone? No? Okay, keep guessing while I find the slide."
+    },
+    {
+      "id": "F09",
+      "set": "main",
+      "language": "en",
+      "category": "opposite-state",
+      "section": "Sales",
+      "points": [
+        {
+          "text": "Sales are ahead of plan",
+          "covered": false
+        },
+        {
+          "text": "Two new resellers",
+          "covered": false
+        }
+      ],
+      "transcript": "Sales are behind plan by a mile, and I will not sugarcoat it."
+    },
+    {
+      "id": "F10",
+      "set": "main",
+      "language": "en",
+      "category": "different-value",
+      "section": "Launch",
+      "points": [
+        {
+          "text": "Launch date Monday",
+          "covered": false
+        },
+        {
+          "text": "Press release ready",
+          "covered": false
+        }
+      ],
+      "transcript": "The launch date is Friday."
+    },
+    {
+      "id": "F11",
+      "set": "main",
+      "language": "en",
+      "category": "different-value",
+      "section": "Rollout",
+      "points": [
+        {
+          "text": "Bristol pilot",
+          "covered": false
+        },
+        {
+          "text": "Training for store managers",
+          "covered": false
+        }
+      ],
+      "transcript": "The pilot will start in Leeds with four stores."
+    },
+    {
+      "id": "F12",
+      "set": "main",
+      "language": "en",
+      "category": "aborted-start",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Hiring plan for Q2",
+          "covered": false
+        },
+        {
+          "text": "Travel freeze",
+          "covered": false
+        }
+      ],
+      "transcript": "So, about the hiring plan... actually, no, let me first finish the numbers from last year."
+    },
+    {
+      "id": "F13",
+      "set": "main",
+      "language": "en",
+      "category": "request-refused",
+      "section": "Services",
+      "points": [
+        {
+          "text": "Home delivery available",
+          "covered": false
+        },
+        {
+          "text": "Gift cards",
+          "covered": false
+        }
+      ],
+      "transcript": "Customers keep asking us for home delivery, and we keep telling them no."
+    },
+    {
+      "id": "F14",
+      "set": "main",
+      "language": "en",
+      "category": "other-period",
+      "section": "Results",
+      "points": [
+        {
+          "text": "Support costs fell 30% this quarter",
+          "covered": false
+        },
+        {
+          "text": "Churn is under 2%",
+          "covered": false
+        }
+      ],
+      "transcript": "Two years ago support costs fell 30%, and since then they have crept all the way back."
+    },
+    {
+      "id": "F15",
+      "set": "main",
+      "language": "en",
+      "category": "crossed-attributes",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Marketing budget up 10%",
+          "covered": false
+        },
+        {
+          "text": "Sales budget flat",
+          "covered": false
+        }
+      ],
+      "transcript": "The sales budget goes up ten percent."
+    },
+    {
+      "id": "F16",
+      "set": "main",
+      "language": "en",
+      "category": "sarcasm",
+      "section": "Tools",
+      "points": [
+        {
+          "text": "The new CRM saves time",
+          "covered": false
+        },
+        {
+          "text": "Training sessions in May",
+          "covered": false
+        }
+      ],
+      "transcript": "Great, the new CRM saves us so much time, said no one ever. I restarted it six times this morning."
+    },
+    {
+      "id": "F17",
+      "set": "main",
+      "language": "en",
+      "category": "covered-paraphrase",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Hiring freeze",
+          "covered": false
+        },
+        {
+          "text": "Marketing budget",
+          "covered": false
+        }
+      ],
+      "transcript": "Again, nobody travels, no flights, no hotels, the freeze is total.",
+      "alreadyCovered": [
+        "Travel freeze"
+      ]
+    },
+    {
+      "id": "F18",
+      "set": "main",
+      "language": "en",
+      "category": "tp-paraphrase",
+      "section": "People",
+      "points": [
+        {
+          "text": "Hiring freeze",
+          "covered": true
+        },
+        {
+          "text": "Salary review in June",
+          "covered": false
+        }
+      ],
+      "transcript": "Nobody new joins until the summer, every open position is on hold."
+    },
+    {
+      "id": "F19",
+      "set": "main",
+      "language": "en",
+      "category": "tp-paraphrase",
+      "section": "Product",
+      "points": [
+        {
+          "text": "Pricing page redesign",
+          "covered": true
+        },
+        {
+          "text": "Dark mode",
+          "covered": false
+        }
+      ],
+      "transcript": "We rebuilt the page where people compare our plans: three columns instead of seven."
+    },
+    {
+      "id": "F20",
+      "set": "main",
+      "language": "en",
+      "category": "tp-paraphrase",
+      "section": "Wrap-up",
+      "points": [
+        {
+          "text": "Customer survey results",
+          "covered": true
+        },
+        {
+          "text": "Next meeting on Thursday",
+          "covered": false
+        }
+      ],
+      "transcript": "We asked four hundred clients what they think of us, and nine out of ten would recommend us."
+    },
+    {
+      "id": "F21",
+      "set": "main",
+      "language": "en",
+      "category": "tp-paraphrase",
+      "section": "Product",
+      "points": [
+        {
+          "text": "Offline sync",
+          "covered": true
+        },
+        {
+          "text": "Dark mode",
+          "covered": false
+        }
+      ],
+      "transcript": "Your notes now update on the plane too, and they merge when you land."
+    },
+    {
+      "id": "F22",
+      "set": "main",
+      "language": "en",
+      "category": "tp-translation",
+      "section": "Wrap-up",
+      "points": [
+        {
+          "text": "Next meeting on Thursday",
+          "covered": true
+        },
+        {
+          "text": "Customer survey results",
+          "covered": false
+        }
+      ],
+      "transcript": "Ci rivediamo giovedì alle tre."
+    },
+    {
+      "id": "F23",
+      "set": "main",
+      "language": "en",
+      "category": "other-team",
+      "section": "Engineering",
+      "points": [
+        {
+          "text": "Migration to the new database",
+          "covered": false
+        },
+        {
+          "text": "On-call rotation",
+          "covered": false
+        }
+      ],
+      "transcript": "The finance team finished their migration to the new payroll system, good for them."
+    },
+    {
+      "id": "G01",
+      "set": "main",
+      "language": "it",
+      "category": "other-actor",
+      "section": "Vendite",
+      "points": [
+        {
+          "text": "Abbiamo vinto la gara di Verona",
+          "covered": false
+        },
+        {
+          "text": "Ordini raddoppiati",
+          "covered": false
+        }
+      ],
+      "transcript": "La gara di Verona alla fine l'ha vinta la concorrenza, e ci ha fatto male."
+    },
+    {
+      "id": "G02",
+      "set": "main",
+      "language": "it",
+      "category": "other-actor",
+      "section": "Crescita",
+      "points": [
+        {
+          "text": "La nostra app ha un milione di download",
+          "covered": false
+        },
+        {
+          "text": "Fedeltà al 40%",
+          "covered": false
+        }
+      ],
+      "transcript": "La loro app ha fatto un milione di download nella prima settimana, e nel settore non se lo aspettava nessuno."
+    },
+    {
+      "id": "G03",
+      "set": "main",
+      "language": "it",
+      "category": "other-actor",
+      "section": "Espansione",
+      "points": [
+        {
+          "text": "Nuova sede a Padova",
+          "covered": false
+        },
+        {
+          "text": "Lavoro da remoto",
+          "covered": false
+        }
+      ],
+      "transcript": "Il nostro fornitore principale ha aperto una nuova sede a Padova, quindi i tempi di risposta dovrebbero migliorare."
+    },
+    {
+      "id": "G04",
+      "set": "main",
+      "language": "it",
+      "category": "cancelled-plan",
+      "section": "Personale",
+      "points": [
+        {
+          "text": "Corso di inglese da ottobre",
+          "covered": false
+        },
+        {
+          "text": "Premio di produzione",
+          "covered": false
+        }
+      ],
+      "transcript": "Due anni fa avevamo pensato a un corso di inglese da ottobre, poi non se n'è fatto nulla."
+    },
+    {
+      "id": "G05",
+      "set": "main",
+      "language": "it",
+      "category": "cancelled-plan",
+      "section": "Sede",
+      "points": [
+        {
+          "text": "Trasloco a gennaio",
+          "covered": false
+        },
+        {
+          "text": "Nuove regole per il parcheggio",
+          "covered": false
+        }
+      ],
+      "transcript": "Il trasloco doveva essere a gennaio. Il proprietario si è tirato indietro, quindi restiamo dove siamo."
+    },
+    {
+      "id": "G06",
+      "set": "main",
+      "language": "it",
+      "category": "slide-title",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Blocco delle trasferte",
+          "covered": false
+        },
+        {
+          "text": "Budget per il marketing",
+          "covered": false
+        }
+      ],
+      "transcript": "La slide dietro di me dice blocco delle trasferte, ma ignoratela, è rimasta dalla presentazione dell'anno scorso."
+    },
+    {
+      "id": "G07",
+      "set": "main",
+      "language": "it",
+      "category": "slide-title",
+      "section": "Clienti",
+      "points": [
+        {
+          "text": "Programma fedeltà",
+          "covered": false
+        },
+        {
+          "text": "Consegne a domicilio",
+          "covered": false
+        }
+      ],
+      "transcript": "La prossima slide si intitola programma fedeltà. Prima di andare avanti, ci sono domande?"
+    },
+    {
+      "id": "G08",
+      "set": "main",
+      "language": "it",
+      "category": "rhetorical-question",
+      "section": "Finanza",
+      "points": [
+        {
+          "text": "Margine al 40%",
+          "covered": false
+        },
+        {
+          "text": "Cassa per 18 mesi",
+          "covered": false
+        }
+      ],
+      "transcript": "Chi mi sa dire quant'è il nostro margine? Qualcuno? No? Va bene, pensateci mentre cerco la slide."
+    },
+    {
+      "id": "G09",
+      "set": "main",
+      "language": "it",
+      "category": "opposite-state",
+      "section": "Progetto",
+      "points": [
+        {
+          "text": "Siamo in anticipo sulla tabella di marcia",
+          "covered": false
+        },
+        {
+          "text": "Due nuovi rivenditori",
+          "covered": false
+        }
+      ],
+      "transcript": "Siamo in ritardo sulla tabella di marcia, e di parecchio."
+    },
+    {
+      "id": "G10",
+      "set": "main",
+      "language": "it",
+      "category": "different-value",
+      "section": "Chiusura",
+      "points": [
+        {
+          "text": "Prossima riunione giovedì",
+          "covered": false
+        },
+        {
+          "text": "Risultati del sondaggio",
+          "covered": false
+        }
+      ],
+      "transcript": "La prossima riunione è martedì."
+    },
+    {
+      "id": "G11",
+      "set": "main",
+      "language": "it",
+      "category": "different-value",
+      "section": "Avvio",
+      "points": [
+        {
+          "text": "Progetto pilota a Bologna",
+          "covered": false
+        },
+        {
+          "text": "Formazione dei responsabili",
+          "covered": false
+        }
+      ],
+      "transcript": "Il pilota partirà a Firenze con quattro negozi."
+    },
+    {
+      "id": "G12",
+      "set": "main",
+      "language": "it",
+      "category": "aborted-start",
+      "section": "Organizzazione",
+      "points": [
+        {
+          "text": "Turni del sabato",
+          "covered": false
+        },
+        {
+          "text": "Formazione sulla sicurezza",
+          "covered": false
+        }
+      ],
+      "transcript": "Allora, per quanto riguarda i turni del sabato... anzi no, prima finisco con i numeri dell'anno scorso."
+    },
+    {
+      "id": "G13",
+      "set": "main",
+      "language": "it",
+      "category": "request-refused",
+      "section": "Servizi",
+      "points": [
+        {
+          "text": "Consegna a domicilio disponibile",
+          "covered": false
+        },
+        {
+          "text": "Buoni regalo",
+          "covered": false
+        }
+      ],
+      "transcript": "I clienti continuano a chiederci la consegna a domicilio, e noi continuiamo a rispondere di no."
+    },
+    {
+      "id": "G14",
+      "set": "main",
+      "language": "it",
+      "category": "other-period",
+      "section": "Risultati",
+      "points": [
+        {
+          "text": "I costi sono scesi del 30% quest'anno",
+          "covered": false
+        },
+        {
+          "text": "Margine al 40%",
+          "covered": false
+        }
+      ],
+      "transcript": "Due anni fa i costi erano scesi del 30%, poi piano piano sono tornati dov'erano."
+    },
+    {
+      "id": "G15",
+      "set": "main",
+      "language": "it",
+      "category": "crossed-attributes",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Budget marketing più 10%",
+          "covered": false
+        },
+        {
+          "text": "Budget vendite invariato",
+          "covered": false
+        }
+      ],
+      "transcript": "Il budget delle vendite sale del dieci per cento."
+    },
+    {
+      "id": "G16",
+      "set": "main",
+      "language": "it",
+      "category": "sarcasm",
+      "section": "Strumenti",
+      "points": [
+        {
+          "text": "Il nuovo gestionale fa risparmiare tempo",
+          "covered": false
+        },
+        {
+          "text": "Corsi a maggio",
+          "covered": false
+        }
+      ],
+      "transcript": "Sì, guarda, il nuovo gestionale ci fa risparmiare un sacco di tempo, come no. Stamattina l'ho riavviato sei volte."
+    },
+    {
+      "id": "G17",
+      "set": "main",
+      "language": "it",
+      "category": "covered-paraphrase",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Blocco delle assunzioni",
+          "covered": false
+        },
+        {
+          "text": "Budget per il marketing",
+          "covered": false
+        }
+      ],
+      "transcript": "Ripeto: nessuno viaggia, niente voli, niente hotel, il blocco è totale.",
+      "alreadyCovered": [
+        "Blocco delle trasferte"
+      ]
+    },
+    {
+      "id": "G18",
+      "set": "main",
+      "language": "it",
+      "category": "tp-paraphrase",
+      "section": "Personale",
+      "points": [
+        {
+          "text": "Blocco delle assunzioni",
+          "covered": true
+        },
+        {
+          "text": "Premio di produzione",
+          "covered": false
+        }
+      ],
+      "transcript": "Fino all'estate non entra nessuno di nuovo, tutte le posizioni aperte sono sospese."
+    },
+    {
+      "id": "G19",
+      "set": "main",
+      "language": "it",
+      "category": "tp-paraphrase",
+      "section": "Organizzazione",
+      "points": [
+        {
+          "text": "Formazione sulla sicurezza",
+          "covered": true
+        },
+        {
+          "text": "Turni del sabato",
+          "covered": false
+        }
+      ],
+      "transcript": "Tutti devono fare il corso antincendio e primo soccorso entro marzo."
+    },
+    {
+      "id": "G20",
+      "set": "main",
+      "language": "it",
+      "category": "tp-paraphrase",
+      "section": "Organizzazione",
+      "points": [
+        {
+          "text": "Turni del sabato",
+          "covered": true
+        },
+        {
+          "text": "Formazione sulla sicurezza",
+          "covered": false
+        }
+      ],
+      "transcript": "Il sabato ci si alterna: una settimana lavora una squadra, la settimana dopo l'altra."
+    },
+    {
+      "id": "G21",
+      "set": "main",
+      "language": "it",
+      "category": "tp-paraphrase",
+      "section": "Chiusura",
+      "points": [
+        {
+          "text": "Inventario di fine anno",
+          "covered": true
+        },
+        {
+          "text": "Chiusura estiva ad agosto",
+          "covered": false
+        }
+      ],
+      "transcript": "Il ventotto dicembre contiamo tutto quello che c'è in magazzino, scaffale per scaffale."
+    },
+    {
+      "id": "G22",
+      "set": "main",
+      "language": "it",
+      "category": "tp-translation",
+      "section": "Chiusura",
+      "points": [
+        {
+          "text": "Chiusura estiva ad agosto",
+          "covered": true
+        },
+        {
+          "text": "Inventario di fine anno",
+          "covered": false
+        }
+      ],
+      "transcript": "We shut the shop for two weeks in August, as we do every summer."
+    },
+    {
+      "id": "G23",
+      "set": "main",
+      "language": "it",
+      "category": "other-team",
+      "section": "Sistemi",
+      "points": [
+        {
+          "text": "Migrazione al nuovo database",
+          "covered": false
+        },
+        {
+          "text": "Turni di reperibilità",
+          "covered": false
+        }
+      ],
+      "transcript": "L'amministrazione ha finito la migrazione al nuovo sistema paghe, buon per loro."
+    },
+    {
+      "id": "S01",
+      "set": "other-languages",
+      "language": "es",
+      "category": "tp-terse",
+      "section": "Cierre",
+      "points": [
+        {
+          "text": "Próxima reunión el jueves",
+          "covered": true
+        },
+        {
+          "text": "Resultados de la encuesta",
+          "covered": false
+        }
+      ],
+      "transcript": "Próxima reunión: el jueves. Misma sala."
+    },
+    {
+      "id": "S02",
+      "set": "other-languages",
+      "language": "es",
+      "category": "tp-paraphrase",
+      "section": "Personal",
+      "points": [
+        {
+          "text": "Congelación de contrataciones",
+          "covered": true
+        },
+        {
+          "text": "Revisión salarial en junio",
+          "covered": false
+        }
+      ],
+      "transcript": "Hasta el verano no entra nadie nuevo, todas las vacantes quedan en pausa."
+    },
+    {
+      "id": "S03",
+      "set": "other-languages",
+      "language": "es",
+      "category": "denial",
+      "section": "Lanzamiento",
+      "points": [
+        {
+          "text": "Lanzamiento el lunes",
+          "covered": false
+        },
+        {
+          "text": "Nota de prensa lista",
+          "covered": false
+        }
+      ],
+      "transcript": "Que quede claro, el lunes no lanzamos nada. La fecha sigue abierta."
+    },
+    {
+      "id": "S04",
+      "set": "other-languages",
+      "language": "es",
+      "category": "other-actor",
+      "section": "Expansión",
+      "points": [
+        {
+          "text": "Nueva oficina en Sevilla",
+          "covered": false
+        },
+        {
+          "text": "Trabajo en remoto",
+          "covered": false
+        }
+      ],
+      "transcript": "Nuestro proveedor principal ha abierto una nueva oficina en Sevilla, así que deberían responder más rápido."
+    },
+    {
+      "id": "D01",
+      "set": "other-languages",
+      "language": "de",
+      "category": "tp-terse",
+      "section": "Abschluss",
+      "points": [
+        {
+          "text": "Nächstes Treffen am Donnerstag",
+          "covered": true
+        },
+        {
+          "text": "Ergebnisse der Umfrage",
+          "covered": false
+        }
+      ],
+      "transcript": "Nächstes Treffen: Donnerstag. Gleicher Raum."
+    },
+    {
+      "id": "D02",
+      "set": "other-languages",
+      "language": "de",
+      "category": "tp-paraphrase",
+      "section": "Personal",
+      "points": [
+        {
+          "text": "Einstellungsstopp",
+          "covered": true
+        },
+        {
+          "text": "Gehaltsrunde im Juni",
+          "covered": false
+        }
+      ],
+      "transcript": "Bis zum Sommer kommt niemand Neues dazu, alle offenen Stellen liegen auf Eis."
+    },
+    {
+      "id": "D03",
+      "set": "other-languages",
+      "language": "de",
+      "category": "denial",
+      "section": "Start",
+      "points": [
+        {
+          "text": "Start am Montag",
+          "covered": false
+        },
+        {
+          "text": "Pressemitteilung fertig",
+          "covered": false
+        }
+      ],
+      "transcript": "Damit das klar ist, am Montag starten wir nicht. Der Termin ist noch offen."
+    },
+    {
+      "id": "D04",
+      "set": "other-languages",
+      "language": "de",
+      "category": "agenda",
+      "section": "Budget",
+      "points": [
+        {
+          "text": "Marketingbudget",
+          "covered": false
+        },
+        {
+          "text": "Einstellungen",
+          "covered": false
+        },
+        {
+          "text": "Preisliste",
+          "covered": false
+        }
+      ],
+      "transcript": "Guten Morgen zusammen. Heute haben wir drei Themen: Budget, Einstellungen und Preise. Zuerst aber vielen Dank an alle, die den Raum organisiert haben."
+    },
+    {
+      "id": "R01",
+      "set": "other-languages",
+      "language": "fr",
+      "category": "tp-terse",
+      "section": "Clôture",
+      "points": [
+        {
+          "text": "Prochaine réunion jeudi",
+          "covered": true
+        },
+        {
+          "text": "Résultats du sondage",
+          "covered": false
+        }
+      ],
+      "transcript": "Prochaine réunion : jeudi. Même salle."
+    },
+    {
+      "id": "R02",
+      "set": "other-languages",
+      "language": "fr",
+      "category": "tp-paraphrase",
+      "section": "Personnel",
+      "points": [
+        {
+          "text": "Gel des embauches",
+          "covered": true
+        },
+        {
+          "text": "Révision des salaires en juin",
+          "covered": false
+        }
+      ],
+      "transcript": "Jusqu'à l'été personne de nouveau n'arrive, tous les postes ouverts sont en attente."
+    },
+    {
+      "id": "R03",
+      "set": "other-languages",
+      "language": "fr",
+      "category": "denial",
+      "section": "Lancement",
+      "points": [
+        {
+          "text": "Lancement lundi",
+          "covered": false
+        },
+        {
+          "text": "Communiqué de presse prêt",
+          "covered": false
+        }
+      ],
+      "transcript": "Que ce soit clair, lundi nous ne lançons rien. La date reste ouverte."
+    },
+    {
+      "id": "R04",
+      "set": "other-languages",
+      "language": "fr",
+      "category": "cancelled-plan",
+      "section": "Locaux",
+      "points": [
+        {
+          "text": "Déménagement en janvier",
+          "covered": false
+        },
+        {
+          "text": "Nouvelles règles de parking",
+          "covered": false
+        }
+      ],
+      "transcript": "Le déménagement devait avoir lieu en janvier. Le propriétaire s'est retiré, donc nous restons où nous sommes."
+    }
+  ],
+  "guardProbes": [
+    {
+      "point": "Launch date Monday",
+      "said": "We will not ship anything before Monday, that is when we go live."
+    },
+    {
+      "point": "Chiusura estiva ad agosto",
+      "said": "Non accetteremo ordini ad agosto, andiamo tutti in ferie per tre settimane."
+    },
+    {
+      "point": "Customer survey results",
+      "said": "We never got a survey back this positive: nine out of ten people would recommend us."
+    },
+    {
+      "point": "Nuovo orario di apertura",
+      "said": "Non abbiamo mai avuto un orario così comodo: da lunedì si apre alle otto e si chiude alle sette."
+    },
+    {
+      "point": "Pricing page redesign",
+      "said": "You cannot miss the new pricing layout, it is the first thing visitors see."
+    },
+    {
+      "point": "Next meeting on Thursday",
+      "said": "Do not book anything on Thursday afternoon, we all sit together again."
+    },
+    {
+      "point": "Formazione sulla sicurezza obbligatoria",
+      "said": "Chi non ha fatto il corso sicurezza resta fuori dal magazzino."
+    },
+    {
+      "point": "Budget approval deadline",
+      "said": "Do not miss the deadline: Friday noon the board signs off the money."
+    },
+    {
+      "point": "Inventario di fine anno",
+      "said": "Il ventotto non voglio vedere ferie a fine dicembre: contiamo tutto il magazzino."
+    },
+    {
+      "point": "Hiring plan for Q2",
+      "said": "We have never had a plan this ambitious: five people between April and June."
+    },
+    {
+      "point": "Travel freeze",
+      "said": "Nobody books a flight until further notice: travel is frozen."
+    },
+    {
+      "point": "Turni del sabato",
+      "said": "Nessuno salta il sabato: da ora si ruota, una settimana sì e una no."
+    },
+    {
+      "point": "Offline sync",
+      "said": "You no longer lose your notes when the sync drops: everything works without a connection."
+    },
+    {
+      "point": "Chiusura estiva ad agosto",
+      "said": "Ad agosto non ci siamo: il negozio resta fermo dal dieci al venticinque."
+    },
+    {
+      "point": "Launch date Monday",
+      "said": "Nothing changes on the date: we go live Monday."
+    },
+    {
+      "point": "Programma fedeltà",
+      "said": "Non perdete i punti del programma: ogni dieci euro un punto, e valgono un anno."
+    }
+  ]
+}

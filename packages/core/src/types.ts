@@ -55,6 +55,8 @@ export type Evidence =
       /** share of the point's words found in the quote (fuzzy), 0..1 */
       lexical: number;
       model: string;
+      /** answers of the verification that let the point tick, when the provider verifies (api.ts, Verification) */
+      verified?: { real: number; sameParty: number };
     }
   | { source: "manual"; fromMs: number; toMs: number };
 /** @deprecated use PointState */

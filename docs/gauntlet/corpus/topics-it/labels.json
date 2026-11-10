@@ -1,0 +1,12 @@
+{
+  "note": "Verita' per topics-it. s0b1 e' annunciato a 14 s e comincia davvero a 26 s; s0b2 comincia a 20 s (fuori ordine). s1b2 (Consegne a domicilio) non comincia mai: a 50 s si parla delle consegne dei fornitori. s2b1 non comincia mai: a 62 s viene negato.",
+  "labels": [
+    { "pointId": "s0b0", "startedAtSec": 8 },
+    { "pointId": "s0b2", "startedAtSec": 20 },
+    { "pointId": "s0b1", "startedAtSec": 26 },
+    { "pointId": "s1b0", "startedAtSec": 38 },
+    { "pointId": "s1b1", "startedAtSec": 44 },
+    { "pointId": "s2b0", "startedAtSec": 56 }
+  ],
+  "neverStarted": ["s1b2", "s2b1"]
+}
