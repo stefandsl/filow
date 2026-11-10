@@ -26,6 +26,8 @@ export type LocalHelper = { model: string; pictures: boolean };
 
 export const NO_LOCAL_HELPER =
   'This computer has too little memory for OK Filow to answer on this PC. To get answers from online instead, choose Cloud under "Answers from" in the OK Filow panel.';
+export const OLLAMA_TOO_SLOW =
+  'OK Filow got no answer on this PC within 3 minutes: the AI that runs it here is busy, often because the larger AI that checks your points is using the graphics card. Try again after the take, or choose Cloud under "Answers from" in the OK Filow panel.';
 export const NO_LOCAL_HELPER_DISK =
   'There is not enough free disk space for OK Filow to answer on this PC (it needs about 6 GB free). Free some space, or choose Cloud under "Answers from" in the OK Filow panel to get answers from online.';
 
@@ -161,6 +163,8 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
     });
   } catch (e) {
     if (signal?.aborted) return;
+    // the 3-minute limit: Ollama is there but busy (on a small graphics card the larger AI may hold it)
+    if (e instanceof Error && e.name === "TimeoutError") throw new Error(OLLAMA_TOO_SLOW, { cause: e });
     throw new Error(`Ollama, which runs OK Filow's answers on this PC, is not running. Install it in Settings > Local models, or set "Answers from" to Cloud in the OK Filow panel.`, { cause: e });
   }
   if (res.status === 404) throw new Error(`The screen helper for this computer's setup is not downloaded yet. Get it in Settings > Local models with "Download now", or set "Answers from" to Cloud in the OK Filow panel.`);

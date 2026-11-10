@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MachineInfo } from "@filow/core";
 import * as sysinfo from "@/lib/sysinfo";
-import { NO_LOCAL_HELPER } from "@/lib/buddy/providers";
+import { NO_LOCAL_HELPER, OLLAMA_TOO_SLOW } from "@/lib/buddy/providers";
 import { POST as ask } from "./route";
 import { POST as warm } from "../warm/route";
 
@@ -77,6 +77,19 @@ describe("OK Filow asks the screen helper of the setup", () => {
     expect(chats).toHaveLength(0);
     expect(await (await warm(new Request("http://unit.invalid/api/buddy/warm", { method: "POST", body: "{}" }))).json()).toEqual({ model: null, ok: false });
     expect(loads).toEqual([]);
+  });
+
+  // seen in the packaged E2E: Clef pinned on the 8 GB card held the answer past the 3-minute limit,
+  // and the bubble said Ollama was not running
+  it("an answer held past the time limit says Ollama is busy, not that it is missing", async () => {
+    machine(8, 4);
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (String(url).endsWith("/api/tags")) return Response.json({ models: [] });
+      throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    }));
+    const text = await (await ask(request({ question: "q", ...shot, provider: "local" }))).text();
+    expect(text).toContain(OLLAMA_TOO_SLOW);
+    expect(text).not.toMatch(/not running/);
   });
 
   it("warm-up loads the setup's screen helper", async () => {
