@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { connect, type PairDecision, type PairRequest, type SessionClient } from "@filow/client";
-import type { Engine } from "@filow/core";
+import type { Engine, SessionState } from "@filow/core";
+import { CLOCK_REFRESH_MS, clockKey, takeRecorder, withClock } from "./TimerClock";
 import { desktopBridge, sessionServerUrl } from "@/lib/sessionUrl";
 import { loadedTargets, phoneLink, phoneTargets } from "@/lib/phoneLink";
 import { useRemoteStatus } from "@/lib/useRemoteStatus";
@@ -132,12 +133,25 @@ export function useSession(engine: Engine) {
           const r = engine.dispatch(cmd);
           ack(r.ok ? { ok: true } : { ok: false, error: r.error });
         });
-        client.onResync(() => client.publishState(engine.getState()));
-        client.publishState(engine.getState());
-        unsub = engine.subscribe((state, ops) => {
-          if (ops.length > 40 || state.version % 50 === 0) client.publishState(state);
+        // Full states carry the talk clock (TimerClock.ts) for the phone's timer; a patch keeps it.
+        let sentClock = "";
+        const publishFull = (state: SessionState) => {
+          const full = withClock(engine, state);
+          sentClock = clockKey(full.clock!);
+          client.publishState(full);
+        };
+        client.onResync(() => publishFull(engine.getState()));
+        publishFull(engine.getState());
+        const unsubState = engine.subscribe((state, ops) => {
+          takeRecorder(engine).observe(state);
+          const clockChanged = clockKey(takeRecorder(engine).talkClock()) !== sentClock;
+          if (clockChanged || ops.length > 40 || state.version % 50 === 0) publishFull(state);
           else client.publishPatch(state.version, ops);
         });
+        // A phone that joins later gets the server's stored state, whose clock may be old: a fresh one
+        // every few seconds during a take lines its timer up again (TimerMirror.tsx).
+        const refresh = setInterval(() => { if (engine.getState().engine.recording) publishFull(engine.getState()); }, CLOCK_REFRESH_MS);
+        unsub = () => { unsubState(); clearInterval(refresh); };
         setError(null);
       } catch {
         if (!cancelled) setError(`session server unreachable at ${serverUrl}`);

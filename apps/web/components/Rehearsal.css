@@ -1,0 +1,74 @@
+/* Talk timer (TimerCue), "Talk length" (TimerSettings) and the rehearsal report (RehearsalReport).
+   Calm on purpose: text and a thin outline, no red, no animation. */
+
+.timer-cue { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: var(--type-sm); color: var(--muted); min-height: 32px; }
+.timer-cue .timer-main { display: inline-flex; align-items: center; gap: 6px; }
+.timer-cue .timer-main svg { width: 16px; height: 16px; flex: none; }
+.timer-cue .timer-elapsed { color: var(--text); font-size: var(--type-md); font-weight: 600; font-variant-numeric: tabular-nums; }
+.timer-cue .timer-target { font-variant-numeric: tabular-nums; }
+.timer-cue .timer-badge { color: var(--text); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; }
+.timer-cue .timer-badge:empty { display: none; }
+.timer-cue .timer-badge.behind { border-color: var(--accent); }
+.timer-cue .timer-detail { font-variant-numeric: tabular-nums; }
+.timer-cue .timer-spacer { flex: 1 1 0; }
+.timer-cue .btn { padding: 4px 12px; font-size: var(--type-sm); }
+
+/* Phone mirror: one centred line above the stage view, readable at arm's length. */
+.timer-cue.phone { justify-content: center; padding: 8px 12px 0; font-size: var(--type-base); }
+.timer-cue.phone .timer-elapsed { font-size: var(--type-xl); }
+.mirror-timer { background: var(--bg); }
+
+.timer-settings { width: min(640px, 94vw); }
+.timer-settings form { display: flex; flex-direction: column; gap: 12px; }
+.timer-settings .timer-sections { display: flex; flex-direction: column; border-top: 1px solid var(--border); }
+.timer-field { display: grid; grid-template-columns: minmax(0, 1fr) 6em auto; align-items: center; gap: 10px; font-size: var(--type-sm); color: var(--text); }
+.timer-sections .timer-field { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.timer-field .timer-name { min-width: 0; overflow-wrap: anywhere; display: flex; gap: 10px; align-items: baseline; }
+.timer-field .timer-num { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+.timer-field .timer-unit { color: var(--muted); }
+.timer-field input { width: 100%; text-align: right; font-variant-numeric: tabular-nums; }
+.timer-field input[aria-invalid="true"] { border-color: var(--warn); }
+.timer-field-talk { font-weight: 600; }.timer-settings .timer-error { color: var(--warn); font-size: var(--type-sm); }
+
+.rehearsal-report { width: min(960px, 94vw); }
+.report-body { display: flex; flex-direction: column; gap: 16px; }
+.report-body h2 { font-size: var(--type-md); font-weight: 600; margin: 0 0 8px; }
+.report-body p { margin: 0; }
+.report-tips { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: var(--type-base); }
+.report-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0; }
+/* four across, else two by two (never three and an orphan), one column on a phone */
+@media (max-width: 900px) { .report-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .report-tiles { grid-template-columns: minmax(0, 1fr); } }
+.report-tiles > div { background: var(--surface-2); border-radius: var(--radius); padding: 12px 14px; min-width: 0; }
+.report-tiles dt { font-size: var(--type-sm); color: var(--muted); margin-bottom: 4px; }
+.report-tiles dd { margin: 0; overflow-wrap: anywhere; }
+.report-tiles dd strong { font-size: var(--type-lg); font-variant-numeric: tabular-nums; }
+.report-table-wrap { overflow-x: auto; }
+.report-table { width: 100%; border-collapse: collapse; font-size: var(--type-sm); }
+.report-table th, .report-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.report-table thead th { color: var(--muted); font-weight: 400; }
+.report-table tbody th { font-weight: 600; overflow-wrap: anywhere; }
+.report-table td { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.report-table td:last-child { white-space: normal; }
+.report-points { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.report-more-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.report-more-head h2 { margin: 0; }
+.report-more-head .btn { padding: 4px 12px; font-size: var(--type-sm); }
+.report-more .report-points { margin-top: 8px; }
+.report-actions { justify-content: flex-end; position: sticky; bottom: -20px; background: var(--panel); padding: 12px 0 0; border-top: 1px solid var(--border); }
+
+/* The printable copy: hidden on screen, the only thing printed while the report prints. */
+.rehearsal-print { display: none; }
+@media print {
+  @page { margin: 16mm; }
+  body.printing-report > *:not(.rehearsal-print) { display: none !important; }
+  body.printing-report { background: #fff !important; }
+  body.printing-report .rehearsal-print { display: block; color: #111; font: 11pt/1.45 var(--font); }
+  .rehearsal-print h1 { font-size: 18pt; margin: 0 0 8pt; }
+  .rehearsal-print h2 { font-size: 13pt; margin: 12pt 0 6pt; }
+  .rehearsal-print .hint, .rehearsal-print dt { color: #444; }
+  .rehearsal-print .report-tiles > div { background: none; border: 1px solid #bbb; }
+  .rehearsal-print .report-table th, .rehearsal-print .report-table td { border-bottom: 1px solid #bbb; }
+  .rehearsal-print .report-table thead th { color: #444; }
+  .rehearsal-print section { break-inside: avoid; }
+}

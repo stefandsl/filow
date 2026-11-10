@@ -1,6 +1,7 @@
 "use client";
 import { Icon } from "@/components/icons";
 import { OverlayFrame } from "@/components/OverlayFrame";
+import { TimerMirror } from "@/components/TimerMirror";
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -153,14 +154,17 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
   }
 
   const offline = status.startsWith("connecting") || !state;
+  const timer = state ? <TimerMirror state={state} /> : null; // the talk timer (TimerMirror.tsx)
   if (overlay) {
     return (
       <OverlayFrame overlay={overlay} onClose={closeOverlay}>
+        {timer}
         <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact banner={error ?? (offline ? t("stage.engineOffline") : null)} />
       </OverlayFrame>
     );
   }
-  return <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact={compact} banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
+  return <>{timer}
+    <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact={compact} banner={error ?? (offline ? t("stage.engineOffline") : null)} /></>;
 }
 
 function emptyState(id: string): SessionState {
