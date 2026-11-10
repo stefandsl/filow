@@ -58,6 +58,9 @@ export default function OkFilowPanel() {
   // Start/stop can cross: a release while the mic is still opening is remembered and applied after.
   const starting = useRef(false);
   const pendingStop = useRef<boolean | null>(null);
+  /** A stop is finishing (decoding, typing); a press meanwhile waits in queuedStart. */
+  const stopping = useRef(false);
+  const queuedStart = useRef<Purpose | null>(null);
   const session = useRef(0);
   const typeBox = useRef<HTMLInputElement>(null);
   const [note, setNote] = useState("");
@@ -438,7 +441,12 @@ export default function OkFilowPanel() {
   const startListening = useCallback(async (why: Purpose = "talk") => {
     const b = okFilowBridge();
     if (!b) return;
-    if (audio.current || starting.current) return;
+    if (audio.current || starting.current || stopping.current) {
+      // The last recording is still finishing (its words not typed yet): start right after it, so two
+      // dictations close together neither merge nor lose words.
+      if (stopping.current || pendingStop.current !== null) queuedStart.current = why;
+      return;
+    }
     starting.current = true;
     pendingStop.current = null;
     session.current++;
@@ -464,7 +472,7 @@ export default function OkFilowPanel() {
     if (why === "dictate") {
       const keys = dict?.chordLabel ?? "";
       b.text(dict?.mode === "toggle" ? dictT("dictatingToggle", { keys }) : dictT("dictating"));
-      if (dict?.sound) playCue(true);
+      if (dict?.sound || dict?.screenReader) playCue(true);
     }
     // Recognizer and microphone start together, and the sound is kept until the model is loaded, so the
     // first words are not lost while a model loads (it can take a second or two the first time).
@@ -517,12 +525,19 @@ export default function OkFilowPanel() {
       fail(e instanceof Error ? e.message : String(e));
     }
   }, [dictT, fail, setMode, speaker, stopAudio]);
+  const startRef = useRef(startListening);
+  startRef.current = startListening;
 
   const stopListening = useCallback(async (send: boolean) => {
     const b = okFilowBridge();
     if (!b) return;
+    // A press that came while the last one was still finishing waits in queuedStart; its own release
+    // (before it could start) just drops it.
+    if (queuedStart.current) { queuedStart.current = null; return; }
     if (starting.current) { pendingStop.current = send; return; }
     if (!audio.current) return;
+    stopping.current = true;
+    try {
     const why = purpose.current;
     const sid = session.current;
     stopAudio();
@@ -540,7 +555,7 @@ export default function OkFilowPanel() {
     if (session.current !== sid) return;
     const question = joinTranscript(committed.current, partial.current);
     const dict = statusRef.current?.dictationStatus;
-    if (why === "dictate" && dict?.sound) playCue(false);
+    if (why === "dictate" && (dict?.sound || dict?.screenReader)) playCue(false);
     if (!send) { b.text(""); return setMode("idle"); }
     if (why === "dictate") {
       // The bubble near the mouse says what happened when the user must act (copied) or nothing came.
@@ -548,7 +563,9 @@ export default function OkFilowPanel() {
       b.text("");
       const r = await b.typeText(question, spoken.current).catch(() => null);
       const paste = pasteKeys(dict?.platform ?? "win32");
-      if (!r || !r.ok) { setNote(dictT("failed")); setTyped(question); return setMode("idle"); }
+      // Only filler sounds were heard: nothing to type, said like "nothing heard".
+      if (r?.action === "none") { b.text(dictT("nothing")); return setMode("idle", { holdMs: 2500 }); }
+      if (!r || !r.ok) { setNote(dictT("failed")); setTyped(question); b.text(dictT("failed")); return setMode("idle", { holdMs: 4500 }); }
       if (r.action === "copy") {
         setNote(dictT("copied", { paste }));
         b.text(dictT("copied", { paste }));
@@ -563,6 +580,12 @@ export default function OkFilowPanel() {
       return setMode("error", { error: t("notHeard") });
     }
     void ask(question);
+    } finally {
+      stopping.current = false;
+      const next = queuedStart.current;
+      queuedStart.current = null;
+      if (next) void startRef.current(next);
+    }
   }, [ask, dictT, setMode, stopAudio, t]);
   const stopRef = useRef(stopListening);
   stopRef.current = stopListening;

@@ -1478,6 +1478,7 @@ function getDictation() {
     systemPreferences,
     dialog: dlg,
     shell: sh,
+    screenReader: () => app.isAccessibilitySupportEnabled(),
     // The phrase models ("questions") are the ones made for short utterances; "auto" follows the speech language.
     modelReady: language => sttLocal.modelReady(userData, { use: "questions", language: language === "auto" ? sttLanguage() : language }),
     // Ctrl + V (Command + V on macOS) through OK Filow's own keyboard hook: uiohook-napi (MIT) sends it with

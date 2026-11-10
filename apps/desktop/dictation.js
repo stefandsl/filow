@@ -61,6 +61,9 @@ function createDictation(deps) {
       canPaste: decision.action === "paste",
       copyReason: decision.reason,
       modelReady,
+      // A screen reader is running (Chromium noticed one): the start and stop tones play even when the
+      // sound setting is off, since an announcement from the overlay may not be read out.
+      screenReader: Boolean(deps.screenReader && deps.screenReader()),
     };
   }
 
@@ -89,6 +92,18 @@ function createDictation(deps) {
     } catch { return null; }
   }
 
+  /** A text field (not a password box) has the focus in that window's page. */
+  async function editableFocused(win) {
+    try {
+      return Boolean(await win.webContents.executeJavaScript(
+        "(() => { const e = document.activeElement; if (!e || e.disabled || e.readOnly) return false;" +
+        " if (e.isContentEditable || e.tagName === 'TEXTAREA') return true;" +
+        " return e.tagName === 'INPUT' && /^(text|search|email|url|tel|)$/i.test(e.type || ''); })()",
+        true,
+      ));
+    } catch { return false; }
+  }
+
   let inserter = null;
   let current = { hook: null, keysUp: null };
   /** Copy-only and fallback writes carry the same "not in clipboard history" markers as a paste. */
@@ -104,9 +119,15 @@ function createDictation(deps) {
     if (!text) return { ok: false, action: "none", reason: "empty", chars: 0 };
     const own = ownFocusedWindow();
     if (own) {
-      own.webContents.insertText(text);
-      logLine(`dictation: typed ${text.length} chars into Filow's own window directly`);
-      return { ok: true, action: "direct", reason: "", chars: text.length };
+      // Only into a text field; with none in focus the words are copied and the user is told so.
+      if (await editableFocused(own)) {
+        await own.webContents.insertText(text);
+        logLine(`dictation: typed ${text.length} chars into Filow's own window directly`);
+        return { ok: true, action: "direct", reason: "", chars: text.length };
+      }
+      await writeText(text);
+      logLine(`dictation: copied ${text.length} chars (a Filow window has focus, but no text field)`);
+      return { ok: true, action: "copy", reason: "nofield", chars: text.length };
     }
     const decision = core.pasteDecision({ platform, insert: c.insert, env, macTrusted: macTrusted(), hook: Boolean(hook) });
     if (decision.action === "copy") {

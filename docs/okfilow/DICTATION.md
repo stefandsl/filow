@@ -26,11 +26,13 @@ with `FILOW_OFFLINE=1`. Study of the app this is modelled on: `G:\FILOW\tmp\rese
   out (never words such as "basically" or "diciamo", which may be meant), and a sentence's capital moves
   to the next word.
 - **Sound.** Off by default: a short quiet tone at start (higher) and stop (lower), for screen reader
-  users or when not looking at the screen.
+  users or when not looking at the screen. When Chromium detects a running screen reader
+  (`app.isAccessibilitySupportEnabled()`), the tones play whatever this setting says.
 
 While recording, OK Filow's overlay shows the "Dictating" pill at the top of the screen with the mouse
 and the bubble with the live level next to the pointer (no movement with reduced motion). A polite
-`role="status"` region says "Dictation started" for screen readers. When the words could only be
+`role="status"` region says "Dictation started" for screen readers; the overlay never takes the focus,
+and screen readers often read live regions only in the window in front, so the tones are the reliable cue. When the words could only be
 copied, the bubble says "Copied. Press Ctrl + V to paste it" for a few seconds.
 
 ## How it works
@@ -41,13 +43,15 @@ copied, the bubble says "Copied. Press Ctrl + V to paste it" for a few seconds.
    `src-tauri/src/transcription_coordinator.rs`.
 2. **Microphone and indicator.** OK Filow's panel records (the selected microphone, echo cancellation)
    and its overlays show the state. The recognizer and the microphone start together; sound is kept in
-   the panel until the model is loaded, so the first words are not lost on a cold start.
+   the panel until the model is loaded, so the first words are not lost on a cold start. A press that
+   comes while the last dictation is still being typed waits for it, so two quick dictations neither
+   merge nor lose words.
 3. **Speech to text.** `stt.js` with the "questions" catalogue (short utterances). Phrase models run
    on whole phrases cut by the Silero voice detector; a streaming model gets 0.8 s of silence after the
    last sample so its last word is finished (without it "Friday" came out as "Fri").
 4. **Putting the text in place** (`dictation.js`, pure parts in `dictation-core.js`):
-   - one of Filow's own windows has focus (script editor, OK Filow question box): typed directly with
-     `webContents.insertText`, the clipboard is not touched;
+   - one of Filow's own windows has focus and a text field in it does (script editor, OK Filow question
+     box): typed directly with `webContents.insertText`, the clipboard is not touched;
    - else, when the platform allows key presses into other apps: save every clipboard format
      (Electron 45 `clipboard.read()`), wait until the user's modifier keys are up, write the text, send
      Ctrl + V (Command + V on macOS), and 1.5 s later put the saved formats back unless the user copied
@@ -73,7 +77,9 @@ text would come out wrong; the clipboard handles every script.
 |---|---|---|
 | Linux Wayland session | apps cannot send key presses to other apps | "only copied: press Ctrl + V" |
 | macOS without Accessibility | Command + V cannot be sent | a plain prompt once per run with "Open Accessibility settings" (opens Privacy & Security > Accessibility); copied meanwhile |
-| The keyboard hook did not start | no shortcut, no key presses | Settings: "Restart Filow to try again" |
+| The keyboard hook did not start | no shortcut, no key presses | Settings says so; Filow retries every 30 s |
+| A Filow window has focus, but no text field | nowhere to type | "Copied. Press Ctrl + V to paste it" |
+| The paste keys could not be sent, or the user's keys stayed down for 2 s | no paste | the words stay on the clipboard (losing what was said would be worse than losing the older clipboard content) and the bubble says so |
 | "Only copy them" chosen | the user's choice | "Copied. Press Ctrl + V to paste it" |
 
 ## Privacy

@@ -201,9 +201,9 @@ function createClipboardInserter({ clipboard, ClipboardItem, platform = "win32",
     if (!(await keysUp())) return { pasted: false, reason: "keys", restored: Promise.resolve(false) };
     await write(text);
     try { sendPaste(); } catch (e) {
-      // No key press went out: put the user's clipboard back at once.
-      if (saved.restorable && (await ours(text))) await restoreClipboard(clipboard, saved, ClipboardItem);
-      return { pasted: false, reason: "keys", error: String((e && e.message) || e), restored: Promise.resolve(true) };
+      // No key press went out: the words stay on the clipboard and the user is told to paste them
+      // (losing what was said would be worse than losing the older clipboard content).
+      return { pasted: false, reason: "keys", error: String((e && e.message) || e), restored: Promise.resolve(false) };
     }
     let done;
     const restored = new Promise((r) => { done = r; });

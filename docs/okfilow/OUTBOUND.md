@@ -50,10 +50,10 @@ speech-to-text, the system voice, OK Filow's own speech-to-text (desktop `stt.js
 
 Dictation (`dictation.js`, docs/okfilow/DICTATION.md) is a local path with no cloud variant at all: the
 microphone goes to the phrase models in desktop `stt.js` on this PC, and the text goes to the app that
-has focus through the clipboard. It works with FILOW_OFFLINE=1. One thing Filow does not control: if the
-user has turned on Windows clipboard history (Win+V) or "Sync across your devices" for the clipboard,
-Windows keeps (or syncs) the dictated text it saw on the clipboard for the moment of the paste. Choosing
-"Only copy them" or typing in Filow's own windows (which never use the clipboard) avoids that.
+has focus through the clipboard. It works with FILOW_OFFLINE=1. On Windows the dictated text carries the
+markers that keep it out of clipboard history (Win+V) and cloud clipboard sync. One thing Filow does not
+control: a third-party clipboard manager may still record it for the moment of the paste. Typing in
+Filow's own windows never uses the clipboard.
 
 ## Where the rules live
 

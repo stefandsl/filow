@@ -25,6 +25,8 @@ export type DictationStatus = {
   canPaste: boolean;
   copyReason: "" | "setting" | "nohook" | "wayland" | "accessibility";
   modelReady: boolean | null;
+  /** A screen reader is running: the start and stop tones play whatever the sound setting says. */
+  screenReader?: boolean;
 };
 /** What happened to a dictation (apps/desktop/dictation.js insert()). */
 export type DictationResult = { ok: boolean; action: "paste" | "copy" | "direct" | "none"; reason: string; chars: number };

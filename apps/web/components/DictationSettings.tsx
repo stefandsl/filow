@@ -18,11 +18,20 @@ const LANG_NAMES = { en: "English", it: "Italiano", ru: "Русский", ro: "R
 export function DictationSettings({ lang }: { lang: string }) {
   const [s, setS] = useState<DictationStatus | null>(null);
   const id = useId();
-  useEffect(() => { void bridge()?.status().then(setS).catch(() => setS(null)); }, []);
+  useEffect(() => {
+    // Read again now and then: OK Filow's question keys (the section above), the keyboard hook coming
+    // back, or a model download change what this section must say.
+    const read = () => void bridge()?.status().then((v) => v && setS(v)).catch(() => {});
+    read();
+    const timer = setInterval(read, 4000);
+    window.addEventListener("focus", read);
+    return () => { clearInterval(timer); window.removeEventListener("focus", read); };
+  }, []);
   const b = bridge();
   if (!b || !s) return null; // the browser, or an older desktop build
   const t = (k: DictationKey, vars?: Record<string, string>) => dictationText(lang, k, vars);
-  const set = async (patch: Partial<DictationStatus>) => setS(await b.configure(patch));
+  // A refused change leaves the controls as they were (they show what is stored).
+  const set = async (patch: Partial<DictationStatus>) => { try { const v = await b.configure(patch); if (v) setS(v); } catch { /* unchanged */ } };
   const paste = pasteKeys(s.platform);
   const keyNote =
     s.check.conflict === "same" ? t("conflictSame", { talk: s.talkLabel })

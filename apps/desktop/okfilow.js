@@ -340,6 +340,15 @@ function createOkFilow(deps) {
 
   // ---- state ----
   function setMode(next, extra = {}) {
+    // The panel could not start listening (no model, microphone refused) while keys are still counted as
+    // held: end that session here, or a toggle-mode dictation would eat the user's next press as "stop".
+    if (next === "error" && held) {
+      held = false;
+      clearTimeout(dictateCap);
+      if (purpose === "dictate") gestures?.endToggle();
+      setOverlayMouse(false);
+      purpose = null;
+    }
     mode = next;
     sendOverlays("okfilow:state", { mode, ...extra });
     sendPanel("okfilow:mode", { mode, ...extra });
@@ -578,6 +587,7 @@ function createOkFilow(deps) {
   }
 
   let hookAttempts = 0;
+  let powerWatched = false;
   function startHook() {
     try {
       const { uIOhook, UiohookKey: K } = require("uiohook-napi");
@@ -609,7 +619,8 @@ function createOkFilow(deps) {
       // Key-ups on the secure desktop (Win+L, Ctrl+Alt+Del, sleep) never reach the hook: start clean
       // after them. (The modifier flags on hook events are not reliable on Windows: Alt reads false.)
       const { powerMonitor } = require("electron");
-      for (const ev of ["lock-screen", "unlock-screen", "suspend", "resume"]) powerMonitor.on(ev, () => gestures.reset());
+      if (!powerWatched) for (const ev of ["lock-screen", "unlock-screen", "suspend", "resume"]) powerMonitor.on(ev, () => gestures.reset());
+      powerWatched = true; // once, not once per retry
       uIOhook.on("mousedown", () => {
         gestures.mousedown();
       });

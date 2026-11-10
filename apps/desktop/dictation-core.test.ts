@@ -182,13 +182,16 @@ describe("clipboard save, paste, restore", () => {
     vi.useRealTimers();
   });
 
-  it("when the paste key cannot be sent, the clipboard is put back at once", async () => {
+  it("when the paste key cannot be sent, the words stay on the clipboard to paste by hand", async () => {
+    vi.useFakeTimers();
     const { cb, text } = fakeClipboard({ "text/plain": "theirs" });
     const ins = core.createClipboardInserter({ clipboard: cb, ClipboardItem: FakeItem, sendPaste: () => { throw new Error("no hook"); } });
     const r = await ins.insert("x");
     expect(r.pasted).toBe(false);
-    expect(await text()).toBe("theirs");
     expect(ins.pending).toBe(false);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await text()).toBe("x");
+    vi.useRealTimers();
   });
 });
 
