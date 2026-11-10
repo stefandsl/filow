@@ -6,6 +6,7 @@ import {
   CONSENT_HEADER,
   consentKey,
   isGranted,
+  MIN_SIGNAL_MS,
   signalNames,
   type BuddyRecipients,
   type ConsentChanges,
@@ -41,8 +42,6 @@ export type GatedSend<T> = { sent: true; value: T } | { sent: false; reason: "de
 export type TakeConsent = { ok: true } | { ok: false; decision: "declined" | "dismissed"; kind: OutboundKind; recipient: Recipient };
 
 const IDLE: OutboundSnapshot = { active: false, kinds: [], names: [] };
-/** A send shorter than this still shows the signal this long, so it can be seen and read. */
-export const MIN_SIGNAL_MS = 1200;
 
 export type PageOutbound = ReturnType<typeof createPageOutbound>;
 

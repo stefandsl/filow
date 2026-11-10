@@ -1,11 +1,13 @@
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
+import { MIN_SIGNAL_MS as WEB_MIN_SIGNAL_MS } from "../web/lib/buddy/outbound";
 
 const require = createRequire(import.meta.url);
 type Snapshot = { active: boolean; kinds: string[]; names: string[] };
 type State = { begin(id: string, kind: string, names: unknown): boolean; end(id: string, opts?: { cancel?: boolean }): void; clear(prefix?: string): void; snapshot(): Snapshot; active(): boolean };
-const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentConsentKey, agentGranted } = require("./okfilow-outbound.js") as {
+const { createOutboundState, MIN_SIGNAL_MS, sanitizeConsent, applyConsentChanges, agentRecipient, agentConsentKey, agentGranted } = require("./okfilow-outbound.js") as {
   createOutboundState(o: Record<string, unknown>): State;
+  MIN_SIGNAL_MS: number;
   sanitizeConsent(map: unknown): Record<string, { state: string; at: string; names: string[] }>;
   applyConsentChanges(stored: unknown, changes: unknown): Record<string, { state: string; at: string; names: string[] }>;
   agentRecipient(cli: string | null): { id: string; names: string[]; cli: string } | null;
@@ -32,6 +34,10 @@ function harness(opts: Record<string, unknown> = {}) {
   };
   return { state, seen, advance };
 }
+
+it("the OK Filow windows hold the signal as long as the take page and the remote clients (one number)", () => {
+  expect(MIN_SIGNAL_MS).toBe(WEB_MIN_SIGNAL_MS);
+});
 
 describe("going-outside signal", () => {
   it("is off until something is sent, on while it is in flight, and off again after", () => {

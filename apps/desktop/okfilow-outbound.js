@@ -60,13 +60,16 @@ const agentGranted = (consent, cli) => {
   return Boolean(entry && entry.state === "granted");
 };
 
+/** The one number lives in apps/web/lib/buddy/outbound.ts MIN_SIGNAL_MS; this CommonJS copy is checked equal by okfilow-outbound.test.ts. */
+const MIN_SIGNAL_MS = 1200;
+
 /**
  * Tracks the sends in flight. `begin` when a request carrying user content starts, `end` when it is over.
  * The signal stays up for at least `minMs` (a 200 ms request must still be seen) and goes away
  * `lingerMs` after the last send ended. `end(id, { cancel: true })` drops it at once: nothing went out.
  * `onChange(snapshot)` fires only when what the user should see changes.
  */
-function createOutboundState({ onChange, minMs = 1200, lingerMs = 300, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
+function createOutboundState({ onChange, minMs = MIN_SIGNAL_MS, lingerMs = 300, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
   /** id -> { kind, names, since, timer } */
   const items = new Map();
   let last = JSON.stringify({ active: false, kinds: [], names: [] });
@@ -126,4 +129,4 @@ function createOutboundState({ onChange, minMs = 1200, lingerMs = 300, now = Dat
   return { begin, end, clear, snapshot, active: () => items.size > 0 };
 }
 
-module.exports = { createOutboundState, sanitizeConsent, applyConsentChanges, cleanNames, agentRecipient, agentConsentKey, agentGranted, AGENT_RECIPIENTS, KINDS };
+module.exports = { createOutboundState, MIN_SIGNAL_MS, sanitizeConsent, applyConsentChanges, cleanNames, agentRecipient, agentConsentKey, agentGranted, AGENT_RECIPIENTS, KINDS };

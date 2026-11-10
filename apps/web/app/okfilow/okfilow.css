@@ -159,21 +159,11 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
 .okf-card div { padding: 10px 12px 12px; }
 .okf-card strong { display: block; margin-bottom: 4px; font-size: 15px; color: var(--okf-ink); }
 
-/* Going outside: the notice and the pill are in outbound.css (shared with the take page). */
+/* Going outside: the notice, the pill and the list of choices are in outbound.css (shared with the
+   take page, the PowerPoint add-in and the browser extension). */
 
 /* Panel: the signal sits inside the status line (a live region). */
 .okf-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
-
-/* Panel settings: what may leave this PC, each choice withdrawable. */
-.okf-consent { display: flex; flex-direction: column; gap: 6px; }
-.okf-consent h2 { margin: 4px 0 0; font-size: 13px; font-weight: 700; }
-.okf-consent ul { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.okf-consent li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; line-height: 1.4; }
-.okf-consent-what { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; }
-.okf-consent-to { color: var(--muted); }
-.okf-consent-chip--granted { background: var(--okf-out); color: #08090b; box-shadow: inset 0 0 0 1px var(--okf-out-line); }
-.okf-consent-chip--declined { background: color-mix(in srgb, var(--text) 12%, transparent); }
-.okf-consent .okf-link { align-self: center; opacity: 1; }
 
 /* Overlay: the pill at the top of every display and rings leaving the pointer. */
 .okf-notch--out { gap: 7px; background: var(--okf-out); color: #08090b; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(8, 9, 11, 0.25); }

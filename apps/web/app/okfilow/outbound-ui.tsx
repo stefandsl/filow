@@ -6,6 +6,7 @@
 
 import { useEffect, useId, useRef } from "react";
 import { joinNames, noticeBody, type ConsentMap, type Decision, type NoticeRequest, type OutboundKind, type OutboundSnapshot } from "@/lib/buddy/outbound";
+import type { PageOutboundState } from "@/lib/buddy/outboundPage";
 import type { OkfKey } from "@/lib/buddy/text";
 
 type T = (k: OkfKey) => string;
@@ -97,6 +98,30 @@ export function OutboundNoticeModal({ notice, t, more, onDecide }: { notice: Not
         <NoticeContent id={id} notice={notice} t={t} more={more ?? t("noticeRemember")} onDecide={onDecide} />
       </div>
     </dialog>
+  );
+}
+
+/**
+ * A controller's notice (lib/buddy/outboundPage.ts: the take page, the PowerPoint add-in, the browser
+ * extension) as a modal, one per kind and recipient. `more` is the client's own "remember" sentence.
+ */
+export function OutboundNoticeFor({ state, t, more, onDecide }: { state: Pick<PageOutboundState, "notice">; t: T; more: string; onDecide: (d: Decision) => void }) {
+  const n = state.notice;
+  if (!n) return null;
+  return <OutboundNoticeModal key={`${n.kind}:${n.recipient.id}`} notice={n} t={t} more={more} onDecide={onDecide} />;
+}
+
+/**
+ * A controller's signal: the pill while something is leaving this PC, else what a "Keep it on this
+ * PC" answer kept back (`kept` names the sentence for each kind). Always rendered, so screen readers
+ * hear each change in the live region.
+ */
+export function OutboundSignalFor({ state, t, kept, className = "" }: { state: Pick<PageOutboundState, "snap" | "kept">; t: T; kept: Partial<Record<OutboundKind, OkfKey>>; className?: string }) {
+  const keptText = state.kept && !state.snap.active ? kept[state.kept] : undefined;
+  return (
+    <div className={`okf-out-region ${className}`.trim()} role="status" aria-live="polite">
+      {state.snap.active ? <OutboundPill snap={state.snap} t={t} /> : keptText ? <span className="okf-out-kept">{t(keptText)}</span> : null}
+    </div>
   );
 }
 
