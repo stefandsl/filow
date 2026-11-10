@@ -20,6 +20,7 @@ Format: what is asked, the options, what waits on it. Opened 2026-11-09.
 | D26 | On an 8 GB graphics card, "Best quality" (Clef Flash kept loaded, 5.2 of 8 GB) makes local picture answers wait 60-300 s (track T2) | Best quality steps aside while OK Filow answers about the screen; picture answers go to the cloud, with consent; offer Best quality only from 12 GB | the default profile T2 ships |
 | D27 | First-run ideas from track T3 | drop or defer the OpenRouter key box; ask about PowerPoint on first use instead of in the welcome; start the servers while the welcome is open; skip the Cloud/Local question on the first take; practice script in the user's language. Take all, some or none | the next welcome iteration |
 | D28 | The cloud tracking prompt (packages/core/src/prompt.ts) still uses the old wording; it can only be measured with paid calls | allow one capped paid run (for example 1 USD); leave it unmeasured | cloud tracking accuracy |
+| D31 | The public link (phone mirror over the internet, through Cloudflare) is on by default and starts at launch without asking, so the script and the live transcript pass through Cloudflare's servers. This is the one path out of the PC that has neither the outbound notice nor the "going outside" signal (track T6, docs/okfilow/OUTBOUND.md) | make it opt-in (off until the user turns it on, with the notice; the phone still pairs on the same network without it); keep it on by default but show the notice once and the signal while it runs; leave it as it is | the "data leaves this PC" promise; the setup card's wording (T3 review) |
 
 ## Release
 
@@ -40,7 +41,6 @@ Format: what is asked, the options, what waits on it. Opened 2026-11-09.
 | D13 | The nightly filow-autoloop task now works in its own worktree and branch (autoloop/<date>), never on main | keep; revert | changed by the TRK-2 session on 2026-11-09 |
 | D14 | Remove about 60 old release-* folders, the merged P1 worktree and the research clones in tmp/research | remove all; keep the last two releases; keep everything | disk on G: and a clear folder |
 | D29 | Track T4 built Linux inside the Ubuntu WSL distro, whose disk lives on C: (against the C: rule): /root/filow-t4 (2.3 GB), /root/filow-t4-release (850 MB) and an installed filow 0.9.30 deb | remove them; move the distro to G: (wsl --export / --import); leave them | space on C: |
-| D30 | Tracks T6 (outbound signal), T7 (natural local voice) and T8 (five languages) stopped half way on 2026-11-10 (usage credits ran out; two agents also overflowed their context). Their work is saved as WIP commits on their branches | resume them one at a time; resume all three in parallel (faster, about three times the usage at once); pause them | the owner requests of 2026-11-09 (outbound signal, natural voice, ru/en/it/ro/ja) |
 
 ## Tools and skills that change the machine or fetch code
 
