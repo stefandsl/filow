@@ -110,10 +110,11 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const fileRef = useRef<HTMLInputElement | null>(null);
   // Offline mode is owned by the desktop shell (menu toggle); the web deploy reads FILOW_OFFLINE.
   useEffect(() => {
-    const bridge = (globalThis as { filow?: { offline?: boolean; onOffline?: (fn: (v: boolean) => void) => void } }).filow;
+    const bridge = (globalThis as { filow?: { offline?: boolean; onOffline?: (fn: (v: boolean) => void) => (() => void) | void } }).filow;
     if (bridge?.offline !== undefined) setOffline(bridge.offline);
-    bridge?.onOffline?.(setOffline);
+    const off = bridge?.onOffline?.(setOffline);
     if (!bridge) void fetch("/api/local/status").then((r) => r.json()).then((s: { offline?: boolean }) => setOffline(Boolean(s.offline))).catch(() => undefined);
+    return typeof off === "function" ? off : undefined;
   }, []);
 
   const { script, sectionIdx, points, stats, engine: eng } = state;
