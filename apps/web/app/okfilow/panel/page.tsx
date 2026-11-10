@@ -165,6 +165,10 @@ export default function OkFilowPanel() {
   const ask = useCallback(async (question: string, opts: { typed?: boolean } = {}) => {
     const b = okFilowBridge();
     if (!b) return;
+    // A new question cuts the answer being spoken at once, before anything below is awaited
+    // (the agent check alone took about half a second in the packaged app).
+    run.current++;
+    speaker.stop();
     // "agent, ..." goes to a background job instead of the screen helper.
     try {
       const job = await b.agents.start(question, history.current.at(-1)?.text ?? "");
@@ -281,7 +285,7 @@ export default function OkFilowPanel() {
       fail(e instanceof Error ? e.message : String(e));
       if (handsFree.current) setTimeout(() => handsFree.current && listenAgain.current(), 1500);
     }
-  }, [engineHeaders, fail, groundAnswer, setMode, speak, t]);
+  }, [engineHeaders, fail, groundAnswer, setMode, speak, speaker, t]);
 
   const startListening = useCallback(async (why: Purpose = "talk") => {
     const b = okFilowBridge();
