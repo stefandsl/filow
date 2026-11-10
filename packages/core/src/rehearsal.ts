@@ -27,30 +27,33 @@ export const LONG_PAUSE_MS = 3000;
  * - `words`: a word or a fixed phrase.
  * - `alone`: also an everyday word ("あの人" is "that person", "вот" is "here is"), so it counts only
  *   right before a comma, a full stop or the end of a phrase (not a question mark).
+ * - `aside`: a word or phrase that is meant inside a sentence ("that is what I mean", "as you know",
+ *   "literally translated", "praticamente tutto", "non so come dire"), so it counts only when said
+ *   as an aside: a pause before it (or the start of the phrase) and a pause after it.
  * Kept short on purpose: a word that is often meant (English "like", "so", "actually", Italian
  * "allora", "tipo") is left out, so the count errs low rather than blaming real words.
  */
-type Filler = { label: string; sound?: RegExp; words?: string[]; alone?: boolean };
+type Filler = { label: string; sound?: RegExp; words?: string[]; alone?: boolean; aside?: boolean };
 export const FILLERS: Record<SpeechLanguage, Filler[]> = {
   en: [
     { label: "um", sound: /^u+m+$/ },
     { label: "uh", sound: /^u+h+$/ },
-    { label: "er", sound: /^e+r+m*$/ },
+    { label: "er", sound: /^e+r$|^e+r+m+$/ }, // not "err" (to err)
     { label: "hmm", sound: /^h*m{2,}$/ },
-    { label: "you know", words: ["you", "know"], alone: true },
-    { label: "I mean", words: ["i", "mean"], alone: true },
-    { label: "basically", words: ["basically"] },
-    { label: "literally", words: ["literally"] },
+    { label: "you know", words: ["you", "know"], aside: true },
+    { label: "I mean", words: ["i", "mean"], aside: true },
+    { label: "basically", words: ["basically"], aside: true },
+    { label: "literally", words: ["literally"], aside: true },
   ],
   it: [
     { label: "ehm", sound: /^e+h*m+$|^e+h+$/ },
     { label: "uhm", sound: /^u+h*m+$/ },
     { label: "mmm", sound: /^m{2,}$/ },
-    { label: "cioè", words: ["cioe"] },
-    { label: "diciamo", words: ["diciamo"], alone: true },
-    { label: "praticamente", words: ["praticamente"] },
-    { label: "insomma", words: ["insomma"] },
-    { label: "come dire", words: ["come", "dire"] },
+    { label: "cioè", words: ["cioe"], alone: true }, // "cioè del venti per cento" explains, it is meant
+    { label: "diciamo", words: ["diciamo"], aside: true },
+    { label: "praticamente", words: ["praticamente"], aside: true },
+    { label: "insomma", words: ["insomma"], aside: true },
+    { label: "come dire", words: ["come", "dire"], aside: true },
   ],
   ru: [
     { label: "э", sound: /^э+м*$/ },
@@ -106,6 +109,15 @@ const LETTER = /[\p{L}\p{N}]/gu;
 const IS_JAPANESE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
 // A question mark is not a pause here: "Do you know?" and "Что это значит?" are meant.
 const PAUSE_PUNCT = /^\s*(?:[,.;:!…、。，．！]|$)/u;
+// Before an aside any break will do, the end of a question too ("Right? You know, ...").
+const BREAK_BEFORE = /[,.;:!?…、。，．！？]/u;
+/**
+ * Sounds that answer instead of hesitating ("uh-huh" is yes, "uh-uh" is no, "uh-oh" is trouble): the
+ * pair is skipped whole. Written with a hyphen or, for two different sounds, a space.
+ */
+const ANSWERS: Partial<Record<SpeechLanguage, Array<[string, string]>>> = {
+  en: [["uh", "huh"], ["um", "hum"], ["um", "hmm"], ["mm", "hmm"], ["mm", "hm"], ["uh", "oh"], ["uh", "uh"]],
+};
 
 const MARKERS: Record<"en" | "it" | "ro", Set<string>> = {
   en: new Set("the and is are of to that this we you it was with for".split(" ")),
@@ -129,12 +141,20 @@ export function countFillers(text: string, lang: SpeechLanguage): Map<string, nu
   const tokens = tokenize(text);
   const counts = new Map<string, number>();
   const list = [...FILLERS[lang]].sort((a, b) => (b.words?.length ?? 1) - (a.words?.length ?? 1));
+  const gapBefore = (i: number) => (i === 0 ? "," : text.slice(tokens[i - 1].end, tokens[i].start));
   for (let i = 0; i < tokens.length; ) {
+    const next = tokens[i + 1];
+    if (next && ANSWERS[lang]?.some(([a, b]) => tokens[i].norm === a && next.norm === b && (a === b ? /^[-‑]$/ : /^[-‑ ]$/).test(gapBefore(i + 1)))) {
+      i += 2;
+      continue;
+    }
     const hit = list.find((f) => {
       const n = f.words?.length ?? 1;
       if (i + n > tokens.length) return false;
       const ok = f.sound ? f.sound.test(tokens[i].norm) : f.words!.every((w, k) => tokens[i + k].norm === fold(w));
-      return ok && (!f.alone || PAUSE_PUNCT.test(text.slice(tokens[i + n - 1].end)));
+      if (!ok) return false;
+      if (f.aside && !BREAK_BEFORE.test(gapBefore(i))) return false;
+      return (!f.alone && !f.aside) || PAUSE_PUNCT.test(text.slice(tokens[i + n - 1].end));
     });
     if (hit) {
       counts.set(hit.label, (counts.get(hit.label) ?? 0) + 1);
