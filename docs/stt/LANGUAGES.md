@@ -153,7 +153,7 @@ to pick a matching voice.
 ## Plan for ru, ro and ja in the interface (not done: tracks T2 and T3 are editing the strings)
 
 Where strings live today:
-- `packages/core/src/i18n.ts`: the web app, about 490 keys in `en`, the same in `it` (`Lang = "en" | "it"`).
+- `packages/core/src/i18n.ts`: the web app, about 555 keys in `en`, the same in `it` (`Lang = "en" | "it"`).
 - `apps/desktop/main.js`: four tables, `MENU_TEXT`, `NET_TEXT`, `SPLASH_TEXT`, `LOCAL_AI_TEXT`, en and
   it, picked by `menuLang()`; `apps/desktop/okfilow.js` and the welcome window (`welcome.ts`, T3) have
   their own.
