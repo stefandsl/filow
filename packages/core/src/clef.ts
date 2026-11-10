@@ -62,6 +62,9 @@ export function buildClefRequest(req: DecideRequest, model: string): ClefRequest
   // Asked as separate questions because Clef judges one narrow thing well and a broad criterion
   // badly: the same exclusions written into the criterion above removed 3 of 14 false ticks on the
   // adversarial set, these two questions 11 or 12 of 13 (docs/gauntlet/BASELINE.md).
+  // The party question names both directions: with only "about us, said of a competitor" as its
+  // example, Clef read a point that is itself about others ("Everyone is copying it") said of "all the
+  // other companies" as a different party (0.40 to 0.52 in a live take, under the 0.5 line).
   const asked = new Map(req.bullets.map((b) => [b.id, b]));
   for (const id of req.verify ?? []) {
     const b = asked.get(id);
@@ -80,7 +83,9 @@ export function buildClefRequest(req: DecideRequest, model: string): ClefRequest
       type: "noul",
       instructions:
         `Script point: "${b.text}". Compare who it is about. Is the transcript talking about the same party as the script point? ` +
-        'Answer no only when the transcript says it of a different party than the point means (for example the point is about us and the transcript says that a supplier, a competitor or "they" did it).',
+        'Answer no only when the transcript says it of a different party than the point means: for example the point is about us and the transcript says that a supplier, a competitor or "they" did it, ' +
+        "or the point is about others (everyone, competitors, customers, the market) and the transcript says it of us. " +
+        "When the point itself is about others, the transcript naming those others is the same party.",
       criteria: {
         true: "The same party as in the script point, or no party is named.",
         false: "The transcript says it of a different party than the script point means.",

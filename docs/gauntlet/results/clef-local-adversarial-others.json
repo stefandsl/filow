@@ -1,0 +1,96 @@
+{
+  "at": "2026-11-10T11:52:56.392Z",
+  "model": "clef-flash",
+  "pass": {
+    "real": 0.65,
+    "sameParty": 0.5
+  },
+  "withoutVerification": {
+    "others": {
+      "falseTicks": 4,
+      "expectedNot": 32,
+      "misses": 0,
+      "expectedTicks": 32
+    }
+  },
+  "withVerification": {
+    "others": {
+      "falseTicks": 0,
+      "expectedNot": 32,
+      "misses": 0,
+      "expectedTicks": 32
+    }
+  },
+  "falseTicks": [],
+  "misses": [],
+  "vetoed": [
+    {
+      "id": "O038",
+      "set": "others",
+      "language": "it",
+      "category": "others-point-said-of-us",
+      "point": "I concorrenti hanno licenziato personale",
+      "said": "Noi abbiamo licenziato dodici persone in primavera.",
+      "expected": false,
+      "confidence": 0.9,
+      "guard": "ok",
+      "verification": {
+        "real": 0.89,
+        "sameParty": 0.43
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "O047",
+      "set": "others",
+      "language": "ro",
+      "category": "group-swap",
+      "point": "Furnizorii și-au crescut prețurile",
+      "said": "Clienții noștri și-au crescut prețurile, iar asta ne-a prins nepregătiți.",
+      "expected": false,
+      "confidence": 0.89,
+      "guard": "ok",
+      "verification": {
+        "real": 0.95,
+        "sameParty": 0.24
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "O048",
+      "set": "others",
+      "language": "ru",
+      "category": "group-swap",
+      "point": "Конкуренты сокращают персонал",
+      "said": "Наши поставщики сокращают персонал на складах.",
+      "expected": false,
+      "confidence": 0.9,
+      "guard": "ok",
+      "verification": {
+        "real": 0.96,
+        "sameParty": 0.34
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "O051",
+      "set": "others",
+      "language": "en",
+      "category": "own-point-said-of-others-customers",
+      "point": "Our members renew every year",
+      "said": "Members of the club across town renew every year without fail.",
+      "expected": false,
+      "confidence": 0.89,
+      "guard": "ok",
+      "verification": {
+        "real": 0.92,
+        "sameParty": 0.13
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    }
+  ]
+}

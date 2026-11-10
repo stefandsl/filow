@@ -1,0 +1,9 @@
+{
+  "note": "First starts in the live take (local.heard: when each paraphrase first showed on screen). s0b2 ('Everyone is copying it, so it must be good') is a point about other parties: its paraphrase names 'all the other companies', which is the point itself, not a different party. Sections 1-3 are never spoken. The espresso line at 22 s is off-topic and must tick nothing.",
+  "labels": [
+    { "pointId": "s0b0", "startedAtSec": 11 },
+    { "pointId": "s0b1", "startedAtSec": 32 },
+    { "pointId": "s0b2", "startedAtSec": 42 }
+  ],
+  "neverStarted": ["s1b0", "s1b1", "s1b2", "s1b3", "s1b4", "s1b5", "s2b0", "s2b1", "s2b2", "s3b0", "s3b1", "s3b2"]
+}

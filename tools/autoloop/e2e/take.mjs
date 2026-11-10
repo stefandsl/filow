@@ -261,7 +261,8 @@ listeners.push(async (d) => {
   if (d.method === "Network.requestWillBeSent" && /\/api\/decide$/.test(d.params.request.url)) {
     let provider = "?", body = {};
     try { body = JSON.parse(d.params.request.postData || "{}"); provider = body.provider ?? "(none)"; } catch { /* not JSON */ }
-    reqs.set(d.params.requestId, { provider, sentAtMs: tClick ? Date.now() - tClick : null, transcript: String(body.transcript ?? "").slice(-200) });
+    // A verification call (a point about to tick) is kept whole: the model's answer depends on every field.
+    reqs.set(d.params.requestId, { provider, sentAtMs: tClick ? Date.now() - tClick : null, transcript: String(body.transcript ?? "").slice(-200), request: Array.isArray(body.verify) && body.verify.length ? body : undefined });
   } else if (d.method === "Network.loadingFinished" && reqs.has(d.params.requestId)) {
     const r = reqs.get(d.params.requestId); reqs.delete(d.params.requestId);
     decide.calls++;
@@ -275,7 +276,7 @@ listeners.push(async (d) => {
       decide.ok++;
       decide.models[j.model] = (decide.models[j.model] || 0) + 1;
       if (typeof j.latencyMs === "number") decide.latencies.push(j.latencyMs);
-      if (decide.trace.length < 400) decide.trace.push({ t: r.sentAtMs, latencyMs: j.latencyMs, transcript: r.transcript, decisions: (j.decisions ?? []).map((x) => `${x.id} ${x.started ? "yes" : "no"} ${Math.round(x.confidence * 100) / 100}${x.verification ? ` verified real ${x.verification.real} same party ${x.verification.sameParty}` : ""}`) });
+      if (decide.trace.length < 400) decide.trace.push({ t: r.sentAtMs, latencyMs: j.latencyMs, transcript: r.transcript, decisions: (j.decisions ?? []).map((x) => `${x.id} ${x.started ? "yes" : "no"} ${Math.round(x.confidence * 100) / 100}${x.verification ? ` verified real ${x.verification.real} same party ${x.verification.sameParty}` : ""}`), ...(r.request ? { request: r.request } : {}) });
     } catch { decide.failed++; }
   } else if (d.method === "Network.loadingFailed" && reqs.has(d.params.requestId)) {
     reqs.delete(d.params.requestId); decide.calls++;

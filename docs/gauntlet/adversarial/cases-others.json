@@ -1,0 +1,901 @@
+{
+  "note": "Held-out set written on 2026-11-10 by an independent writer from a brief, without seeing the question wording. The question under test is 'who is it about?', with script points that are themselves about OTHER parties. Each case is one decide request with ONE script point and a spoken transcript of one or two sentences in which the point's own words (or close paraphrases) appear, so that only the party decides. Categories, 8 cases each: O001-O008 general-others (true), O009-O016 named-group (true), O017-O024 named-third-party (true), O025-O032 others-and-us (true), O033-O040 others-point-said-of-us (false), O041-O048 group-swap (false), O049-O056 own-point-said-of-others-customers (false), O057-O064 wrong-named-party (false). Convention: covered is true only when the speaker says it of the same party the point means.",
+  "cases": [
+    {
+      "id": "O001",
+      "set": "others",
+      "language": "en",
+      "category": "general-others",
+      "section": "Market reaction",
+      "points": [
+        {
+          "text": "Everyone is copying it",
+          "covered": true
+        }
+      ],
+      "transcript": "Honestly, all the other companies are making their own version of it now, every single one of them."
+    },
+    {
+      "id": "O002",
+      "set": "others",
+      "language": "en",
+      "category": "general-others",
+      "section": "Banking trends",
+      "points": [
+        {
+          "text": "Most banks now offer it",
+          "covered": true
+        }
+      ],
+      "transcript": "These days nearly every high street bank has put this on offer, so it is no longer unusual."
+    },
+    {
+      "id": "O003",
+      "set": "others",
+      "language": "en",
+      "category": "general-others",
+      "section": "Pricing models",
+      "points": [
+        {
+          "text": "The whole industry moved to subscriptions",
+          "covered": true
+        }
+      ],
+      "transcript": "Across the sector, every player has switched over to subscription pricing in the last few years."
+    },
+    {
+      "id": "O004",
+      "set": "others",
+      "language": "it",
+      "category": "general-others",
+      "section": "Consegne",
+      "points": [
+        {
+          "text": "Tutti ormai usano le consegne in giornata",
+          "covered": true
+        }
+      ],
+      "transcript": "Ormai praticamente tutti gli altri negozi della zona consegnano in giornata."
+    },
+    {
+      "id": "O005",
+      "set": "others",
+      "language": "it",
+      "category": "general-others",
+      "section": "Telemedicina",
+      "points": [
+        {
+          "text": "La maggior parte delle cliniche ha adottato la telemedicina",
+          "covered": true
+        }
+      ],
+      "transcript": "Quasi tutte le cliniche private hanno introdotto le visite da remoto, ormai è la norma."
+    },
+    {
+      "id": "O006",
+      "set": "others",
+      "language": "it",
+      "category": "general-others",
+      "section": "Listini",
+      "points": [
+        {
+          "text": "Tutto il settore ha abbassato i prezzi",
+          "covered": true
+        }
+      ],
+      "transcript": "Nel nostro mercato ogni operatore ha tagliato i listini negli ultimi mesi."
+    },
+    {
+      "id": "O007",
+      "set": "others",
+      "language": "ro",
+      "category": "general-others",
+      "section": "Plăți",
+      "points": [
+        {
+          "text": "Toată lumea folosește deja plata prin telefon",
+          "covered": true
+        }
+      ],
+      "transcript": "Aproape toate magazinele din oraș acceptă acum plata cu telefonul."
+    },
+    {
+      "id": "O008",
+      "set": "others",
+      "language": "ja",
+      "category": "general-others",
+      "section": "教育のIT化",
+      "points": [
+        {
+          "text": "ほとんどの学校がタブレットを導入している",
+          "covered": true
+        }
+      ],
+      "transcript": "今はどこの学校でもタブレット端末を取り入れています。"
+    },
+    {
+      "id": "O009",
+      "set": "others",
+      "language": "en",
+      "category": "named-group",
+      "section": "Competitive landscape",
+      "points": [
+        {
+          "text": "Competitors are cutting delivery times",
+          "covered": true
+        }
+      ],
+      "transcript": "Our rivals have all shaved a day off their delivery promise this year."
+    },
+    {
+      "id": "O010",
+      "set": "others",
+      "language": "en",
+      "category": "named-group",
+      "section": "Customer feedback",
+      "points": [
+        {
+          "text": "Customers want a mobile app",
+          "covered": true
+        }
+      ],
+      "transcript": "The people who buy from us keep telling us they would like to order from an app."
+    },
+    {
+      "id": "O011",
+      "set": "others",
+      "language": "en",
+      "category": "named-group",
+      "section": "Supply chain",
+      "points": [
+        {
+          "text": "Suppliers are raising their prices",
+          "covered": true
+        }
+      ],
+      "transcript": "The firms that sell us our raw materials have put their prices up again this quarter."
+    },
+    {
+      "id": "O012",
+      "set": "others",
+      "language": "it",
+      "category": "named-group",
+      "section": "Concorrenza",
+      "points": [
+        {
+          "text": "I concorrenti hanno aperto nuove sedi",
+          "covered": true
+        }
+      ],
+      "transcript": "Chi fa il nostro stesso mestiere ha aperto diverse nuove sedi in città."
+    },
+    {
+      "id": "O013",
+      "set": "others",
+      "language": "it",
+      "category": "named-group",
+      "section": "Didattica",
+      "points": [
+        {
+          "text": "Gli studenti preferiscono le lezioni registrate",
+          "covered": true
+        }
+      ],
+      "transcript": "I ragazzi che seguono i corsi dicono di preferire le lezioni registrate a quelle in diretta."
+    },
+    {
+      "id": "O014",
+      "set": "others",
+      "language": "it",
+      "category": "named-group",
+      "section": "Approvvigionamenti",
+      "points": [
+        {
+          "text": "I fornitori hanno ritardato le consegne",
+          "covered": true
+        }
+      ],
+      "transcript": "Le aziende che ci riforniscono hanno consegnato tutte in ritardo a ottobre."
+    },
+    {
+      "id": "O015",
+      "set": "others",
+      "language": "ru",
+      "category": "named-group",
+      "section": "Рынок",
+      "points": [
+        {
+          "text": "Конкуренты запустили программу лояльности",
+          "covered": true
+        }
+      ],
+      "transcript": "Наши соперники по рынку уже запустили свои бонусные карты для покупателей."
+    },
+    {
+      "id": "O016",
+      "set": "others",
+      "language": "es",
+      "category": "named-group",
+      "section": "Normativa",
+      "points": [
+        {
+          "text": "Los reguladores van a endurecer las normas",
+          "covered": true
+        }
+      ],
+      "transcript": "Las autoridades que supervisan el sector van a apretar las reglas el año que viene."
+    },
+    {
+      "id": "O017",
+      "set": "others",
+      "language": "en",
+      "category": "named-third-party",
+      "section": "Rival moves",
+      "points": [
+        {
+          "text": "Northwind opened a warehouse in Leeds",
+          "covered": true
+        }
+      ],
+      "transcript": "Northwind has opened a big new warehouse in Leeds, and they are already hiring there."
+    },
+    {
+      "id": "O018",
+      "set": "others",
+      "language": "en",
+      "category": "named-third-party",
+      "section": "Clinical updates",
+      "points": [
+        {
+          "text": "Dr. Patel changed the treatment protocol",
+          "covered": true
+        }
+      ],
+      "transcript": "Dr. Patel rewrote the treatment protocol last spring, and she has trained the whole ward on it."
+    },
+    {
+      "id": "O019",
+      "set": "others",
+      "language": "en",
+      "category": "named-third-party",
+      "section": "League news",
+      "points": [
+        {
+          "text": "Fairmont FC signed a new striker",
+          "covered": true
+        }
+      ],
+      "transcript": "Fairmont brought in a new striker in January, which surprised everyone."
+    },
+    {
+      "id": "O020",
+      "set": "others",
+      "language": "it",
+      "category": "named-third-party",
+      "section": "Mercato",
+      "points": [
+        {
+          "text": "Amazon ha lanciato la consegna in un'ora",
+          "covered": true
+        }
+      ],
+      "transcript": "Amazon ha lanciato la consegna entro un'ora in tre città, e la estenderà presto."
+    },
+    {
+      "id": "O021",
+      "set": "others",
+      "language": "it",
+      "category": "named-third-party",
+      "section": "Corpo docente",
+      "points": [
+        {
+          "text": "Marco Bellini ha cambiato il metodo di valutazione",
+          "covered": true
+        }
+      ],
+      "transcript": "Il professor Bellini ha cambiato il metodo di valutazione; lui ora usa solo prove orali."
+    },
+    {
+      "id": "O022",
+      "set": "others",
+      "language": "it",
+      "category": "named-third-party",
+      "section": "Città e traffico",
+      "points": [
+        {
+          "text": "Il Comune ha ridotto i parcheggi",
+          "covered": true
+        }
+      ],
+      "transcript": "Il Comune ha tolto quasi cento posti auto davanti al mercato."
+    },
+    {
+      "id": "O023",
+      "set": "others",
+      "language": "de",
+      "category": "named-third-party",
+      "section": "Industrie",
+      "points": [
+        {
+          "text": "Siemens hat das Werk in Brünn verkauft",
+          "covered": true
+        }
+      ],
+      "transcript": "Siemens hat das Werk in Brünn im Sommer verkauft, und sie konzentrieren sich jetzt auf Software."
+    },
+    {
+      "id": "O024",
+      "set": "others",
+      "language": "ro",
+      "category": "named-third-party",
+      "section": "Concurența",
+      "points": [
+        {
+          "text": "Emag a lansat livrarea în aceeași zi",
+          "covered": true
+        }
+      ],
+      "transcript": "Emag a lansat livrarea în aceeași zi în București, iar ei vor s-o extindă."
+    },
+    {
+      "id": "O025",
+      "set": "others",
+      "language": "en",
+      "category": "others-and-us",
+      "section": "Copycats",
+      "points": [
+        {
+          "text": "Competitors copied our pricing page",
+          "covered": true
+        }
+      ],
+      "transcript": "Within a month two rivals had lifted our pricing page almost word for word."
+    },
+    {
+      "id": "O026",
+      "set": "others",
+      "language": "en",
+      "category": "others-and-us",
+      "section": "Customer requests",
+      "points": [
+        {
+          "text": "Customers keep asking for an app",
+          "covered": true
+        }
+      ],
+      "transcript": "The people buying from us keep asking whether we will ever build an app."
+    },
+    {
+      "id": "O027",
+      "set": "others",
+      "language": "en",
+      "category": "others-and-us",
+      "section": "Launch delays",
+      "points": [
+        {
+          "text": "Suppliers delayed our shipment",
+          "covered": true
+        }
+      ],
+      "transcript": "Our suppliers held back our shipment by two weeks, which blew the launch date."
+    },
+    {
+      "id": "O028",
+      "set": "others",
+      "language": "it",
+      "category": "others-and-us",
+      "section": "Ristorazione",
+      "points": [
+        {
+          "text": "I concorrenti hanno copiato il nostro menu",
+          "covered": true
+        }
+      ],
+      "transcript": "I ristoranti rivali hanno ripreso il nostro menu quasi identico, piatto per piatto."
+    },
+    {
+      "id": "O029",
+      "set": "others",
+      "language": "it",
+      "category": "others-and-us",
+      "section": "Richieste dei clienti",
+      "points": [
+        {
+          "text": "I clienti ci chiedono sempre la fattura elettronica",
+          "covered": true
+        }
+      ],
+      "transcript": "Chi compra da noi ci domanda continuamente la fattura elettronica."
+    },
+    {
+      "id": "O030",
+      "set": "others",
+      "language": "it",
+      "category": "others-and-us",
+      "section": "Feedback degli studenti",
+      "points": [
+        {
+          "text": "Gli studenti hanno criticato il nostro orario",
+          "covered": true
+        }
+      ],
+      "transcript": "Gli studenti hanno criticato il nostro orario delle lezioni, soprattutto il venerdì."
+    },
+    {
+      "id": "O031",
+      "set": "others",
+      "language": "ja",
+      "category": "others-and-us",
+      "section": "競合の動き",
+      "points": [
+        {
+          "text": "競合が当社の価格表をまねた",
+          "covered": true
+        }
+      ],
+      "transcript": "ライバル会社が、うちの価格表をそっくりそのままコピーしました。"
+    },
+    {
+      "id": "O032",
+      "set": "others",
+      "language": "ru",
+      "category": "others-and-us",
+      "section": "Запросы клиентов",
+      "points": [
+        {
+          "text": "Клиенты просят у нас доставку по выходным",
+          "covered": true
+        }
+      ],
+      "transcript": "Покупатели постоянно просят нас возить заказы и по выходным."
+    },
+    {
+      "id": "O033",
+      "set": "others",
+      "language": "en",
+      "category": "others-point-said-of-us",
+      "section": "Pricing",
+      "points": [
+        {
+          "text": "Competitors raised their prices",
+          "covered": false
+        }
+      ],
+      "transcript": "We raised our prices in March by about eight percent."
+    },
+    {
+      "id": "O034",
+      "set": "others",
+      "language": "en",
+      "category": "others-point-said-of-us",
+      "section": "Patient care",
+      "points": [
+        {
+          "text": "Rival clinics cut waiting times",
+          "covered": false
+        }
+      ],
+      "transcript": "At our clinic we cut waiting times from three weeks to one."
+    },
+    {
+      "id": "O035",
+      "set": "others",
+      "language": "en",
+      "category": "others-point-said-of-us",
+      "section": "Classroom policy",
+      "points": [
+        {
+          "text": "Other schools banned phones",
+          "covered": false
+        }
+      ],
+      "transcript": "In our school we banned phones from the classroom this term."
+    },
+    {
+      "id": "O036",
+      "set": "others",
+      "language": "it",
+      "category": "others-point-said-of-us",
+      "section": "Canali di vendita",
+      "points": [
+        {
+          "text": "I concorrenti hanno aperto un negozio online",
+          "covered": false
+        }
+      ],
+      "transcript": "Noi abbiamo aperto un negozio online a settembre."
+    },
+    {
+      "id": "O037",
+      "set": "others",
+      "language": "it",
+      "category": "others-point-said-of-us",
+      "section": "Abbonamenti",
+      "points": [
+        {
+          "text": "Le altre palestre hanno aumentato gli abbonamenti",
+          "covered": false
+        }
+      ],
+      "transcript": "La nostra palestra ha aumentato gli abbonamenti del dieci per cento."
+    },
+    {
+      "id": "O038",
+      "set": "others",
+      "language": "it",
+      "category": "others-point-said-of-us",
+      "section": "Organico",
+      "points": [
+        {
+          "text": "I concorrenti hanno licenziato personale",
+          "covered": false
+        }
+      ],
+      "transcript": "Noi abbiamo licenziato dodici persone in primavera."
+    },
+    {
+      "id": "O039",
+      "set": "others",
+      "language": "es",
+      "category": "others-point-said-of-us",
+      "section": "Precios",
+      "points": [
+        {
+          "text": "Los competidores bajaron sus precios",
+          "covered": false
+        }
+      ],
+      "transcript": "Nosotros bajamos nuestros precios en octubre un doce por ciento."
+    },
+    {
+      "id": "O040",
+      "set": "others",
+      "language": "de",
+      "category": "others-point-said-of-us",
+      "section": "Preisentwicklung",
+      "points": [
+        {
+          "text": "Die Konkurrenz hat ihre Preise erhöht",
+          "covered": false
+        }
+      ],
+      "transcript": "Wir haben unsere Preise zum Quartalsende erhöht."
+    },
+    {
+      "id": "O041",
+      "set": "others",
+      "language": "en",
+      "category": "group-swap",
+      "section": "Churn",
+      "points": [
+        {
+          "text": "Customers are leaving",
+          "covered": false
+        }
+      ],
+      "transcript": "Our suppliers are leaving; three of them have walked away this quarter."
+    },
+    {
+      "id": "O042",
+      "set": "others",
+      "language": "en",
+      "category": "group-swap",
+      "section": "Hiring",
+      "points": [
+        {
+          "text": "Competitors are hiring aggressively",
+          "covered": false
+        }
+      ],
+      "transcript": "Our customers are hiring aggressively, they added staff in every region."
+    },
+    {
+      "id": "O043",
+      "set": "others",
+      "language": "en",
+      "category": "group-swap",
+      "section": "School feedback",
+      "points": [
+        {
+          "text": "Students complained about the schedule",
+          "covered": false
+        }
+      ],
+      "transcript": "The teachers complained about the schedule, especially the Friday gaps."
+    },
+    {
+      "id": "O044",
+      "set": "others",
+      "language": "it",
+      "category": "group-swap",
+      "section": "Pagamenti",
+      "points": [
+        {
+          "text": "I fornitori sono in ritardo",
+          "covered": false
+        }
+      ],
+      "transcript": "A fine mese i nostri clienti sono in ritardo di sessanta giorni sui pagamenti."
+    },
+    {
+      "id": "O045",
+      "set": "others",
+      "language": "it",
+      "category": "group-swap",
+      "section": "Mercato del lavoro",
+      "points": [
+        {
+          "text": "I concorrenti stanno assumendo",
+          "covered": false
+        }
+      ],
+      "transcript": "I fornitori stanno assumendo molto, soprattutto in logistica."
+    },
+    {
+      "id": "O046",
+      "set": "others",
+      "language": "it",
+      "category": "group-swap",
+      "section": "Scuola e famiglie",
+      "points": [
+        {
+          "text": "Gli studenti hanno protestato",
+          "covered": false
+        }
+      ],
+      "transcript": "I genitori hanno protestato davanti alla scuola per l'orario."
+    },
+    {
+      "id": "O047",
+      "set": "others",
+      "language": "ro",
+      "category": "group-swap",
+      "section": "Prețuri",
+      "points": [
+        {
+          "text": "Furnizorii și-au crescut prețurile",
+          "covered": false
+        }
+      ],
+      "transcript": "Clienții noștri și-au crescut prețurile, iar asta ne-a prins nepregătiți."
+    },
+    {
+      "id": "O048",
+      "set": "others",
+      "language": "ru",
+      "category": "group-swap",
+      "section": "Сокращения",
+      "points": [
+        {
+          "text": "Конкуренты сокращают персонал",
+          "covered": false
+        }
+      ],
+      "transcript": "Наши поставщики сокращают персонал на складах."
+    },
+    {
+      "id": "O049",
+      "set": "others",
+      "language": "en",
+      "category": "own-point-said-of-others-customers",
+      "section": "Loyalty",
+      "points": [
+        {
+          "text": "Our customers trust us",
+          "covered": false
+        }
+      ],
+      "transcript": "A competitor's customers trust them completely, they barely ever compare prices."
+    },
+    {
+      "id": "O050",
+      "set": "others",
+      "language": "en",
+      "category": "own-point-said-of-others-customers",
+      "section": "Campus life",
+      "points": [
+        {
+          "text": "Our students love the new lab",
+          "covered": false
+        }
+      ],
+      "transcript": "The students at the rival college love their new lab."
+    },
+    {
+      "id": "O051",
+      "set": "others",
+      "language": "en",
+      "category": "own-point-said-of-others-customers",
+      "section": "Club retention",
+      "points": [
+        {
+          "text": "Our members renew every year",
+          "covered": false
+        }
+      ],
+      "transcript": "Members of the club across town renew every year without fail."
+    },
+    {
+      "id": "O052",
+      "set": "others",
+      "language": "it",
+      "category": "own-point-said-of-others-customers",
+      "section": "Fiducia",
+      "points": [
+        {
+          "text": "I nostri clienti si fidano di noi",
+          "covered": false
+        }
+      ],
+      "transcript": "I clienti di un concorrente si fidano ciecamente di loro e non confrontano i prezzi."
+    },
+    {
+      "id": "O053",
+      "set": "others",
+      "language": "it",
+      "category": "own-point-said-of-others-customers",
+      "section": "Sala d'attesa",
+      "points": [
+        {
+          "text": "I nostri pazienti aspettano meno",
+          "covered": false
+        }
+      ],
+      "transcript": "I pazienti dell'altra clinica aspettano meno di un'ora, da quel che so."
+    },
+    {
+      "id": "O054",
+      "set": "others",
+      "language": "it",
+      "category": "own-point-said-of-others-customers",
+      "section": "Logistica",
+      "points": [
+        {
+          "text": "I nostri fornitori consegnano sempre in orario",
+          "covered": false
+        }
+      ],
+      "transcript": "I fornitori del nostro rivale consegnano sempre in orario."
+    },
+    {
+      "id": "O055",
+      "set": "others",
+      "language": "ja",
+      "category": "own-point-said-of-others-customers",
+      "section": "顧客満足",
+      "points": [
+        {
+          "text": "うちの顧客は私たちを信頼している",
+          "covered": false
+        }
+      ],
+      "transcript": "競合他社のお客様は、その会社をとても信頼しています。"
+    },
+    {
+      "id": "O056",
+      "set": "others",
+      "language": "de",
+      "category": "own-point-said-of-others-customers",
+      "section": "Kundenbindung",
+      "points": [
+        {
+          "text": "Unsere Kunden vertrauen uns",
+          "covered": false
+        }
+      ],
+      "transcript": "Die Kunden unseres Wettbewerbers vertrauen ihm blind."
+    },
+    {
+      "id": "O057",
+      "set": "others",
+      "language": "en",
+      "category": "wrong-named-party",
+      "section": "Freight rates",
+      "points": [
+        {
+          "text": "Zenith Logistics lowered its rates",
+          "covered": false
+        }
+      ],
+      "transcript": "Harbor Freight lowered its rates last week, and they did it across all regions."
+    },
+    {
+      "id": "O058",
+      "set": "others",
+      "language": "en",
+      "category": "wrong-named-party",
+      "section": "Shift management",
+      "points": [
+        {
+          "text": "Maria Lopez runs the night shift",
+          "covered": false
+        }
+      ],
+      "transcript": "Anna Keller runs the night shift now, she took over in June."
+    },
+    {
+      "id": "O059",
+      "set": "others",
+      "language": "en",
+      "category": "wrong-named-party",
+      "section": "Tournament results",
+      "points": [
+        {
+          "text": "Apex Academy won the regional final",
+          "covered": false
+        }
+      ],
+      "transcript": "Riverside Academy won the regional final, which nobody expected."
+    },
+    {
+      "id": "O060",
+      "set": "others",
+      "language": "it",
+      "category": "wrong-named-party",
+      "section": "E-commerce",
+      "points": [
+        {
+          "text": "Zalando ha aperto un centro a Bologna",
+          "covered": false
+        }
+      ],
+      "transcript": "Amazon ha aperto un centro a Bologna, e assumerà trecento persone."
+    },
+    {
+      "id": "O061",
+      "set": "others",
+      "language": "it",
+      "category": "wrong-named-party",
+      "section": "Reparto",
+      "points": [
+        {
+          "text": "Il dottor Rossi ha cambiato il protocollo",
+          "covered": false
+        }
+      ],
+      "transcript": "Il dottor Ferrari ha cambiato il protocollo e ha formato tutto il reparto."
+    },
+    {
+      "id": "O062",
+      "set": "others",
+      "language": "it",
+      "category": "wrong-named-party",
+      "section": "Calciomercato",
+      "points": [
+        {
+          "text": "La Juventus ha ingaggiato un nuovo portiere",
+          "covered": false
+        }
+      ],
+      "transcript": "Il Milan ha ingaggiato un nuovo portiere a gennaio."
+    },
+    {
+      "id": "O063",
+      "set": "others",
+      "language": "ja",
+      "category": "wrong-named-party",
+      "section": "製造業",
+      "points": [
+        {
+          "text": "ソニーは新しい工場を建てた",
+          "covered": false
+        }
+      ],
+      "transcript": "パナソニックは新しい工場を建てました。"
+    },
+    {
+      "id": "O064",
+      "set": "others",
+      "language": "de",
+      "category": "wrong-named-party",
+      "section": "Preispolitik",
+      "points": [
+        {
+          "text": "Bosch hat die Preise gesenkt",
+          "covered": false
+        }
+      ],
+      "transcript": "Continental hat die Preise gesenkt, quer durch das Sortiment."
+    }
+  ]
+}

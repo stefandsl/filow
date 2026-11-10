@@ -4,20 +4,28 @@
   "engine": {
     "timeoutMs": 2500
   },
+  "gate": {
+    "mode": "app",
+    "calls": 21,
+    "skipped": 1,
+    "candidates": 28,
+    "lexicalOnly": 0,
+    "embedLoadMs": 3058
+  },
   "machine": {
     "cpu": "13th Gen Intel(R) Core(TM) i9-13900KF",
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T09:22:34.180Z",
+  "at": "2026-11-10T11:53:58.686Z",
   "corpus": "demo-it",
   "late": 0,
   "calls": 21,
   "latencyMs": {
-    "p50": 785,
-    "p95": 952,
-    "max": 957,
-    "avg": 795
+    "p50": 877,
+    "p95": 1076,
+    "max": 1082,
+    "avg": 863
   },
   "timeouts": 0,
   "points": [
@@ -26,7 +34,7 @@
       "trail": [
         {
           "sec": 2,
-          "confidence": 0.19,
+          "confidence": 0.14,
           "started": false
         },
         {
@@ -55,7 +63,7 @@
       "trail": [
         {
           "sec": 2,
-          "confidence": 0.05,
+          "confidence": 0.06,
           "started": false
         },
         {
@@ -70,7 +78,7 @@
         },
         {
           "sec": 10,
-          "confidence": 0.06,
+          "confidence": 0.05,
           "started": false
         },
         {
@@ -80,7 +88,7 @@
         },
         {
           "sec": 15,
-          "confidence": 0.91,
+          "confidence": 0.92,
           "started": true
         }
       ],
@@ -94,7 +102,7 @@
       "trail": [
         {
           "sec": 2,
-          "confidence": 0.06,
+          "confidence": 0.12,
           "started": false
         },
         {
@@ -177,7 +185,7 @@
         },
         {
           "sec": 39,
-          "confidence": 0.88,
+          "confidence": 0.89,
           "started": true
         }
       ],
@@ -226,7 +234,7 @@
         },
         {
           "sec": 53,
-          "confidence": 0.88,
+          "confidence": 0.87,
           "started": true
         }
       ],
@@ -274,7 +282,7 @@
         },
         {
           "sec": 71,
-          "confidence": 0.91,
+          "confidence": 0.92,
           "started": true
         }
       ],
@@ -313,7 +321,7 @@
         },
         {
           "sec": 78,
-          "confidence": 0.94,
+          "confidence": 0.95,
           "started": true
         }
       ],

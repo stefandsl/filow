@@ -4,20 +4,28 @@
   "engine": {
     "timeoutMs": 2500
   },
+  "gate": {
+    "mode": "app",
+    "calls": 17,
+    "skipped": 0,
+    "candidates": 43,
+    "lexicalOnly": 0,
+    "embedLoadMs": 0
+  },
   "machine": {
     "cpu": "13th Gen Intel(R) Core(TM) i9-13900KF",
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T09:24:02.831Z",
+  "at": "2026-11-10T11:55:43.506Z",
   "corpus": "traps-ja",
   "late": 0,
   "calls": 17,
   "latencyMs": {
-    "p50": 852,
-    "p95": 980,
-    "max": 980,
-    "avg": 833
+    "p50": 919,
+    "p95": 1087,
+    "max": 1087,
+    "avg": 915
   },
   "timeouts": 0,
   "points": [
@@ -90,7 +98,7 @@
         },
         {
           "sec": 26,
-          "confidence": 0.15,
+          "confidence": 0.16,
           "started": false
         }
       ],
@@ -129,7 +137,7 @@
         },
         {
           "sec": 26,
-          "confidence": 0.14,
+          "confidence": 0.13,
           "started": false
         }
       ],
@@ -197,7 +205,7 @@
         },
         {
           "sec": 38,
-          "confidence": 0.95,
+          "confidence": 0.96,
           "started": true
         }
       ],
@@ -226,7 +234,7 @@
         },
         {
           "sec": 38,
-          "confidence": 0.03,
+          "confidence": 0.02,
           "started": false
         },
         {
@@ -265,7 +273,7 @@
         },
         {
           "sec": 38,
-          "confidence": 0.09,
+          "confidence": 0.08,
           "started": false
         },
         {

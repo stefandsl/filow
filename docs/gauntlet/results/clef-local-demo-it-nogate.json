@@ -1,0 +1,338 @@
+{
+  "provider": "clef-local",
+  "variant": "nogate",
+  "engine": {
+    "timeoutMs": 2500
+  },
+  "machine": {
+    "cpu": "13th Gen Intel(R) Core(TM) i9-13900KF",
+    "ramGb": 128,
+    "platform": "win32"
+  },
+  "at": "2026-11-10T11:56:28.833Z",
+  "corpus": "demo-it",
+  "late": 0,
+  "calls": 21,
+  "latencyMs": {
+    "p50": 704,
+    "p95": 835,
+    "max": 874,
+    "avg": 721
+  },
+  "timeouts": 0,
+  "points": [
+    {
+      "pointId": "s0b0",
+      "trail": [
+        {
+          "sec": 2,
+          "confidence": 0.19,
+          "started": false
+        },
+        {
+          "sec": 6,
+          "confidence": 0.2,
+          "started": false
+        },
+        {
+          "sec": 10,
+          "confidence": 0.92,
+          "started": true
+        },
+        {
+          "sec": 10,
+          "confidence": 0.93,
+          "started": true
+        }
+      ],
+      "labelSec": 10,
+      "flippedSec": 10,
+      "outcome": "correct",
+      "delaySec": 0
+    },
+    {
+      "pointId": "s0b1",
+      "trail": [
+        {
+          "sec": 2,
+          "confidence": 0.05,
+          "started": false
+        },
+        {
+          "sec": 6,
+          "confidence": 0.05,
+          "started": false
+        },
+        {
+          "sec": 10,
+          "confidence": 0.08,
+          "started": false
+        },
+        {
+          "sec": 10,
+          "confidence": 0.05,
+          "started": false
+        },
+        {
+          "sec": 15,
+          "confidence": 0.91,
+          "started": true
+        },
+        {
+          "sec": 15,
+          "confidence": 0.92,
+          "started": true
+        }
+      ],
+      "labelSec": 15,
+      "flippedSec": 15,
+      "outcome": "correct",
+      "delaySec": 0
+    },
+    {
+      "pointId": "s0b2",
+      "trail": [
+        {
+          "sec": 2,
+          "confidence": 0.06,
+          "started": false
+        },
+        {
+          "sec": 6,
+          "confidence": 0.06,
+          "started": false
+        },
+        {
+          "sec": 10,
+          "confidence": 0.05,
+          "started": false
+        },
+        {
+          "sec": 10,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 15,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 15,
+          "confidence": 0.02,
+          "started": false
+        },
+        {
+          "sec": 21,
+          "confidence": 0.15,
+          "started": false
+        }
+      ],
+      "labelSec": 46,
+      "flippedSec": null,
+      "outcome": "miss",
+      "delaySec": null
+    },
+    {
+      "pointId": "s1b0",
+      "trail": [
+        {
+          "sec": 27,
+          "confidence": 0.86,
+          "started": true
+        },
+        {
+          "sec": 27,
+          "confidence": 0.9,
+          "started": true
+        }
+      ],
+      "labelSec": 27,
+      "flippedSec": 27,
+      "outcome": "correct",
+      "delaySec": 0
+    },
+    {
+      "pointId": "s1b1",
+      "trail": [
+        {
+          "sec": 27,
+          "confidence": 0.02,
+          "started": false
+        },
+        {
+          "sec": 27,
+          "confidence": 0.02,
+          "started": false
+        },
+        {
+          "sec": 33,
+          "confidence": 0.06,
+          "started": false
+        },
+        {
+          "sec": 39,
+          "confidence": 0.9,
+          "started": true
+        },
+        {
+          "sec": 39,
+          "confidence": 0.89,
+          "started": true
+        }
+      ],
+      "labelSec": 39,
+      "flippedSec": 39,
+      "outcome": "correct",
+      "delaySec": 0
+    },
+    {
+      "pointId": "s1b2",
+      "trail": [
+        {
+          "sec": 27,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 27,
+          "confidence": 0.02,
+          "started": false
+        },
+        {
+          "sec": 33,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 39,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 39,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 46,
+          "confidence": 0.09,
+          "started": false
+        },
+        {
+          "sec": 53,
+          "confidence": 0.92,
+          "started": true
+        },
+        {
+          "sec": 53,
+          "confidence": 0.87,
+          "started": true
+        }
+      ],
+      "labelSec": 53,
+      "flippedSec": 53,
+      "outcome": "correct",
+      "delaySec": 0
+    },
+    {
+      "pointId": "s2b0",
+      "trail": [
+        {
+          "sec": 64,
+          "confidence": 0.92,
+          "started": true
+        },
+        {
+          "sec": 64,
+          "confidence": 0.93,
+          "started": true
+        }
+      ],
+      "labelSec": 64,
+      "flippedSec": 64,
+      "outcome": "correct",
+      "delaySec": 0
+    },
+    {
+      "pointId": "s2b1",
+      "trail": [
+        {
+          "sec": 64,
+          "confidence": 0.05,
+          "started": false
+        },
+        {
+          "sec": 64,
+          "confidence": 0.05,
+          "started": false
+        },
+        {
+          "sec": 71,
+          "confidence": 0.91,
+          "started": true
+        },
+        {
+          "sec": 71,
+          "confidence": 0.92,
+          "started": true
+        }
+      ],
+      "labelSec": 71,
+      "flippedSec": 71,
+      "outcome": "correct",
+      "delaySec": 0
+    },
+    {
+      "pointId": "s2b2",
+      "trail": [
+        {
+          "sec": 64,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 64,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 71,
+          "confidence": 0.04,
+          "started": false
+        },
+        {
+          "sec": 71,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 78,
+          "confidence": 0.94,
+          "started": true
+        },
+        {
+          "sec": 78,
+          "confidence": 0.95,
+          "started": true
+        }
+      ],
+      "labelSec": 78,
+      "flippedSec": 78,
+      "outcome": "correct",
+      "delaySec": 0
+    }
+  ],
+  "guarded": 0,
+  "verified": 8,
+  "vetoed": 0,
+  "falseStarts": 0,
+  "misses": 1,
+  "correct": 8,
+  "delaySec": {
+    "p50": 0,
+    "p95": 0
+  },
+  "precision": 1,
+  "recall": 0.889
+}

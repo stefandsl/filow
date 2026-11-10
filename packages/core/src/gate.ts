@@ -5,7 +5,7 @@
 // Pure: the embedder is injected (transformers.js in a Web Worker in the app, Node in the harness).
 import type { Bullet } from "./types";
 import type { DecideRequest, DecideResponse, Decision, DecisionProviderId } from "./api";
-import { contentTokens, FUZZY_MIN, quantitiesFromTokens, sameQuantity, similarity, tokenize, type Quantity } from "./text";
+import { contentTokens, FUZZY_MIN, quantitiesFromTokens, sameQuantity, sentences, similarity, tokenize, type Quantity } from "./text";
 
 export type Embedder = (texts: string[]) => Promise<Float32Array[]>;
 
@@ -181,6 +181,36 @@ export function scorePoints(windowVector: Float32Array, points: PointVectors, bu
     .sort((a, b) => b.similarity - a.similarity);
 }
 
+/** A sentence shorter than this (in tokens) is not embedded on its own: a cut-off word or two is noise. */
+const MIN_SENTENCE_TOKENS = 3;
+/**
+ * At most this many of the tail's last sentences are embedded on their own. The point just said is in
+ * the last one or two (a call follows each committed sentence), and the embedding runs inside the
+ * decision call's timeout: 320 Japanese characters hold up to 20 phrases, which put traps-ja's p95 at
+ * 2.4 s of the 2.5 s timeout when every one was embedded.
+ */
+const MAX_SENTENCES = 3;
+
+/**
+ * What the gate embeds: the tail as a whole, then each of its last sentences on its own. A point is said in
+ * one sentence, and in a 320-character tail that sentence shares the vector with the one or two before
+ * it: in a live take the paraphrase of "Everyone is copying it, so it must be good" scored 0.29 and
+ * 0.24 inside the tail (under the 0.3 line, so the model was never asked) and 0.55 on its own. Speech
+ * recognisers often leave out the full stop, so unpunctuated text is cut into overlapping chunks
+ * (text.ts, sentences).
+ */
+export function windowTexts(tail: string): string[] {
+  const own = sentences(tail).map((s) => s.text).filter((s) => s !== tail && tokenize(s).length >= MIN_SENTENCE_TOKENS);
+  return [tail, ...own.slice(-MAX_SENTENCES)];
+}
+
+/** Best similarity of every point over the window texts' vectors (windowTexts), best first. */
+export function scoreWindow(vectors: Float32Array[], points: PointVectors, bullets: Bullet[]): GateScore[] {
+  const best = new Map<string, number>();
+  for (const v of vectors) for (const s of scorePoints(v, points, bullets)) best.set(s.id, Math.max(best.get(s.id) ?? -1, s.similarity));
+  return bullets.map((b) => ({ id: b.id, similarity: best.get(b.id) ?? 0 })).sort((a, b) => b.similarity - a.similarity);
+}
+
 export type GateOutcome = {
   /** bullets worth asking the model about, in similarity order */
   candidates: Bullet[];
@@ -221,9 +251,9 @@ export function gatedDecide(
     if (!pv || !r.bullets.length) return decide(r, signal);
     const t0 = Date.now();
     const tail = prepareWindowText(r.transcript, th.tailChars);
-    const [wv] = await embed([tail]);
+    const vectors = await embed(windowTexts(tail));
     const lex = Number.isFinite(th.lexicalLow ?? Infinity) ? lexicalScores(tail, r.bullets) : new Map<string, number>();
-    const scores = scorePoints(wv, pv, r.bullets).map((s) => ({ ...s, lexical: lex.get(s.id) }));
+    const scores = scoreWindow(vectors, pv, r.bullets).map((s) => ({ ...s, lexical: lex.get(s.id) }));
     const out = gate(scores, r.bullets, th);
     onGate?.(out);
     const byId = new Map(scores.map((s) => [s.id, s]));

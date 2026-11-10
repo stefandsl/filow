@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_GATE, embedPoints, gate, gateCacheKey, gatedDecide, gateThresholdsFor, lexicalScores, prepareWindowText, scorePoints, type Embedder } from "./gate";
+import { DEFAULT_GATE, embedPoints, gate, gateCacheKey, gatedDecide, gateThresholdsFor, lexicalScores, prepareWindowText, scorePoints, windowTexts, type Embedder } from "./gate";
 import type { DecideRequest } from "./api";
 
 // A toy embedder: bag of lowercase words (4+ letters, so "the"/"was" do not count) hashed into 256 dims.
@@ -60,6 +60,60 @@ describe("embedding gate", () => {
     expect(hit.decisions.find((d) => d.id === "b")?.started).toBe(true);
     expect(hit.decisions.find((d) => d.id === "a")?.started).toBe(false);
     expect(hit.model).toContain("gate 1/3");
+  });
+
+  // A live take (trk-p3): the paraphrase of a point came right after an unrelated sentence; embedded
+  // together the tail scored under the 0.3 line and the model was never asked about it.
+  const before = "On a completely different note I had a great espresso this morning and the weather in Milan was lovely and the mountains around the lake looked wonderful under clear skies with gentle breezes";
+  const said = "let me tell you about the pricing of the product";
+  const skipOnly = (calls: DecideRequest[]) =>
+    gatedDecide(
+      async (r) => {
+        calls.push(r);
+        return { decisions: r.bullets.map((b) => ({ id: b.id, started: b.id === "b", confidence: b.id === "b" ? 0.9 : 0.1 })), latencyMs: 5, cost: 0, model: "m" };
+      },
+      toyEmbed,
+      () => pointVectors,
+      // lexical stage off: the point shares its words with the speech, which would let it through anyway
+      { ...gateThresholdsFor("clef-local"), lexicalLow: Infinity },
+    );
+  let pointVectors: Awaited<ReturnType<typeof embedPoints>>;
+
+  it.each([
+    ["after a full stop", `${before}. ${said}`],
+    ["with no full stop (speech recognisers often leave it out)", `${before} ${said}`],
+  ])("asks the model about a point said in one sentence of a diluted tail (%s)", async (_, transcript) => {
+    pointVectors = await embedPoints(toyEmbed, bullets, "en");
+    // the tail as a whole is under the line: this is the dilution the per-sentence scores fix
+    const [whole] = await toyEmbed([prepareWindowText(transcript)]);
+    expect(scorePoints(whole, pointVectors, bullets).find((s) => s.id === "b")!.similarity).toBeLessThan(DEFAULT_GATE.low);
+    const calls: DecideRequest[] = [];
+    const out = await skipOnly(calls)({ transcript, bullets, sectionTitle: "s" });
+    expect(calls.length).toBe(1);
+    expect(out.decisions.find((d) => d.id === "b")?.started).toBe(true);
+    expect(out.decisions.find((d) => d.id === "b")!.gate!).toBeGreaterThanOrEqual(DEFAULT_GATE.low);
+  });
+
+  it("still skips the call when no sentence of the tail is about any point", async () => {
+    pointVectors = await embedPoints(toyEmbed, bullets, "en");
+    const calls: DecideRequest[] = [];
+    await skipOnly(calls)({ transcript: `${before}. The espresso was strong and the lake was calm.`, bullets, sectionTitle: "s" });
+    expect(calls.length).toBe(0);
+  });
+
+  it("embeds the tail and each of its sentences, never a cut-off word or two on its own", () => {
+    expect(windowTexts("First sentence is here. Second one follows now. ok")).toEqual(["First sentence is here. Second one follows now. ok", "First sentence is here.", "Second one follows now."]);
+    expect(windowTexts("a single sentence with no stop")).toEqual(["a single sentence with no stop"]);
+  });
+
+  it("embeds at most the last three sentences on their own, whatever the language packs into the tail", () => {
+    const many = Array.from({ length: 12 }, (_, i) => `Sentence number ${i} is here.`).join(" ");
+    const texts = windowTexts(many);
+    expect(texts).toHaveLength(4);
+    expect(texts.slice(1)).toEqual(["Sentence number 9 is here.", "Sentence number 10 is here.", "Sentence number 11 is here."]);
+    // Japanese recogniser output: phrases separated by spaces, many of them in 320 characters
+    const ja = prepareWindowText("サポートコストは今四半期三十パーセント増加しました 主に残業が原因です ".repeat(8));
+    expect(windowTexts(ja).length).toBeLessThanOrEqual(4);
   });
 });
 

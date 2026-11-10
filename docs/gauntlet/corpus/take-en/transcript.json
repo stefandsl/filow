@@ -1,0 +1,22 @@
+{
+  "note": "REAL recogniser output, not hand-written: the live local take of tools/autoloop/e2e/take.mjs (voice take-voice.ps1, David, Nemotron streaming on device) on the packaged QA build of 5ed82e8, G:/FILOW/tmp/orchestrator/take-int-qa.json (local.transcript, local.heard, local.decide). Times are the take's own: a partial when the line first showed on screen (local.heard), the committed text when the app sent its next /api/decide call for it (about 5 s later). Two passes of the 51 s loop. The point 3 paraphrase ('all the other companies are making their own version of it ... it has to be really good') was transcribed verbatim, yet point 3 ticked only minutes later.",
+  "segments": [
+    { "sec": 7, "partial": "Let me start with something new." },
+    { "sec": 11, "partial": "Let me start with something new. This is a different type of artificial intelligence instead of writing" },
+    { "sec": 16, "committed": "Let me start with something new.  This is a different type of artificial intelligence instead of writing text back to you, it simply gives you a decision" },
+    { "sec": 22, "partial": "Completely different note I had a great espresso" },
+    { "sec": 26, "committed": "Completely different note I had a great espresso this morning and the weather in Milan was lovely" },
+    { "sec": 32, "partial": "You cannot have a conversation with it is not able" },
+    { "sec": 37, "committed": "You cannot have a conversation with it is not able to use any tools and it has no way to browse the internet" },
+    { "sec": 42, "partial": "Now all the other companies are making" },
+    { "sec": 47, "committed": "Now all the other companies are making their own version of it, and that tells you it has to be really good" },
+    { "sec": 62, "partial": "Let me start with something new. This is a different type" },
+    { "sec": 67, "committed": "Let me start with something new. This is a different type of artificial intelligence instead of writing text back to you, it simply gives you a decision" },
+    { "sec": 73, "partial": "On a completely different note, I had a great espresso" },
+    { "sec": 77, "committed": "On a completely different note, I had a great espresso this morning and the weather in Milan was lovely" },
+    { "sec": 83, "partial": "You cannot have a conversation with it." },
+    { "sec": 88, "committed": "You cannot have a conversation with it.  It is not able to use any tools, and it has no way to browse the internet" },
+    { "sec": 93, "partial": "Now all the other companies are making their own version" },
+    { "sec": 98, "committed": "Now all the other companies are making their own version of it, and that tells you it has to be really good" }
+  ]
+}

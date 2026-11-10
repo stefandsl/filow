@@ -62,6 +62,17 @@ describe("verification questions (TRK-2)", () => {
     expect(r.questions.s0b1__party.instructions).toMatch(/same party/);
   });
 
+  it("the party question names both directions, so a point about others said of those others is the same party", () => {
+    // A live take (trk-p3): "Everyone is copying it, so it must be good" said as "all the other companies
+    // are making their own version of it" scored 0.40 to 0.52 when the only example was "about us, said of
+    // a competitor"; with both directions named it scores 0.66 to 0.70 (docs/gauntlet/BASELINE.md).
+    const r = buildClefRequest({ ...req, bullets: [{ id: "s0b2", text: "Everyone is copying it, so it must be good" }], verify: ["s0b2"] }, "clef-flash");
+    const party = r.questions.s0b2__party.instructions;
+    expect(party).toMatch(/the point is about us and the transcript says that a supplier, a competitor or "they" did it/);
+    expect(party).toMatch(/the point is about others \(everyone, competitors, customers, the market\) and the transcript says it of us/);
+    expect(party).toMatch(/When the point itself is about others, the transcript naming those others is the same party\./);
+  });
+
   it("reads both answers into `verification`; a point not listed gets none", () => {
     const out = parseClefAnswers({ answers: { s0b0: { noul: 0.9 }, s0b1: { noul: 0.8 }, s0b1__real: { noul: 0.12 }, s0b1__party: { noul: 0.95 } } }, { ...req, verify: ["s0b1"] });
     expect(out.decisions[0].verification).toBeUndefined();

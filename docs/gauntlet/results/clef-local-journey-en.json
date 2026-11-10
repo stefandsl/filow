@@ -4,20 +4,28 @@
   "engine": {
     "timeoutMs": 2500
   },
+  "gate": {
+    "mode": "app",
+    "calls": 12,
+    "skipped": 0,
+    "candidates": 18,
+    "lexicalOnly": 0,
+    "embedLoadMs": 0
+  },
   "machine": {
     "cpu": "13th Gen Intel(R) Core(TM) i9-13900KF",
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T09:22:43.069Z",
+  "at": "2026-11-10T11:54:08.366Z",
   "corpus": "journey-en",
   "late": 0,
   "calls": 12,
   "latencyMs": {
-    "p50": 727,
-    "p95": 885,
-    "max": 885,
-    "avg": 740
+    "p50": 752,
+    "p95": 1325,
+    "max": 1325,
+    "avg": 803
   },
   "timeouts": 0,
   "points": [
@@ -36,7 +44,7 @@
         },
         {
           "sec": 6,
-          "confidence": 0.88,
+          "confidence": 0.89,
           "started": true
         }
       ],
@@ -114,7 +122,7 @@
         },
         {
           "sec": 18,
-          "confidence": 0.04,
+          "confidence": 0.03,
           "started": false
         },
         {
@@ -124,7 +132,7 @@
         },
         {
           "sec": 26,
-          "confidence": 0.93,
+          "confidence": 0.94,
           "started": true
         }
       ],
