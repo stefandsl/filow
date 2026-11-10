@@ -711,7 +711,7 @@ describe("Engine: Reset section starts the section over (T1 review, finding 1)",
   // A model that answers "yes" only when the transcript really says the point, like clef-flash does.
   function listening() {
     const calls: DecideRequest[] = [];
-    const says: Record<string, RegExp> = { s0b0: /raise prices in january/i, s0b1: /mobile app to 50 pilot/i };
+    const says: Record<string, RegExp> = { s0b0: /raise prices in january/i, s0b1: /mobile app to 50 pilot/i, s1b0: /raise prices in january/i };
     const e = new Engine({
       decide: async (r) => {
         calls.push(r);
@@ -768,6 +768,45 @@ describe("Engine: Reset section starts the section over (T1 review, finding 1)",
     e.feed({ committed: "And the mobile app to 50 pilot customers ships next. " });
     await ticks(e, 4);
     expect(e.getState().points.s0b1?.status).toBe("started");
+  });
+
+  it("words still being transcribed at the Reset were said before it: they tick nothing when they commit", async () => {
+    const { e, calls } = listening();
+    e.feed({ partial: "we will raise prices in January" });
+    e.dispatch({ type: "resetSection" });
+    e.feed({ committed: "We will raise prices in January. ", partial: "" });
+    await ticks(e, 4);
+    expect(calls).toEqual([]);
+    expect(e.getState().points.s0b0?.status ?? "waiting").toBe("waiting");
+    e.feed({ committed: "Again: we will raise prices in January. " });
+    await ticks(e, 4);
+    expect(e.getState().points.s0b0?.status).toBe("started");
+  });
+
+  it("a partial dropped without a commit does not swallow the next sentence", async () => {
+    const { e } = listening();
+    e.feed({ partial: "um" });
+    e.dispatch({ type: "resetSection" });
+    e.feed({ partial: "" });
+    e.feed({ committed: "We will raise prices in January. " });
+    await ticks(e, 4);
+    expect(e.getState().points.s0b0?.status).toBe("started");
+  });
+
+  it("a Reset starts over only its own section", async () => {
+    const TWO = parseScript(`# Intro
+- hello everyone
+
+# Next steps
+- We will raise prices in January
+`);
+    const { e } = listening();
+    e.loadScript(TWO);
+    e.feed({ committed: "Hello everyone. We will raise prices in January. " });
+    e.dispatch({ type: "resetSection" }); // Intro
+    e.dispatch({ type: "nextSection" });
+    await ticks(e, 4);
+    expect(e.getState().points.s1b0?.status).toBe("started"); // said before Intro's Reset, still counts for Next steps
   });
 });
 

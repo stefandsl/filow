@@ -93,8 +93,10 @@ export class Engine {
   private committedTotal = 0;
   /** committed segments still inside `committed`: where each ends in the stream and when it arrived */
   private segs: Array<{ end: number; at: number }> = [];
-  /** offset of the committed stream where the current section's decisions start: set by Reset, words said before it count no more */
-  private fence = 0;
+  /** per section: offset of the committed stream where its decisions start, set by Reset (words said before it count no more) */
+  private fences = new Map<number, number>();
+  /** a Reset came while words were still being transcribed: the section whose fence moves past the segment that commits them */
+  private fenceNextCommit: number | null = null;
   private subs = new Set<Subscriber>();
   private unmentioned: string[] = [];
   private notes: ScreenNote[] = [];
@@ -168,6 +170,8 @@ export class Engine {
     this.segs = [];
     this.partial = "";
     this.lastSent = "";
+    this.fences.clear();
+    this.fenceNextCommit = null;
     this.streak = {};
     this.held.clear();
     this.unmentioned = [];
@@ -187,6 +191,10 @@ export class Engine {
       this.segs.push({ end: this.committedTotal, at: this.o.now() });
       const keepFrom = this.committedTotal - this.committed.length;
       while (this.segs.length > 1 && this.segs[0].end <= keepFrom) this.segs.shift();
+      if (this.fenceNextCommit !== null) this.fences.set(this.fenceNextCommit, this.committedTotal);
+      this.fenceNextCommit = null;
+    } else if (e.partial === "") {
+      this.fenceNextCommit = null; // the words in progress at the Reset were dropped, never committed
     }
     if (e.partial !== undefined) this.partial = e.partial;
     const tail = this.transcript.slice(-TAIL);
@@ -292,7 +300,10 @@ export class Engine {
         }
         // Start the section over: only what is said from now on is asked about. Without the fence the
         // next call sends the same words again and every point ticks back within a second or two.
-        this.fence = this.committedTotal;
+        // Words still being transcribed at the Reset were said before it: their segment is fenced off
+        // too when it commits.
+        this.fences.set(s.sectionIdx, this.committedTotal);
+        this.fenceNextCommit = this.partial.trim() ? s.sectionIdx : null;
         this.lastSent = "";
         this.invalidate();
         return { ok: true };
@@ -420,8 +431,8 @@ export class Engine {
     let startIdx = Math.max(0, end - this.o.window);
     // start at a word boundary: "quattrocentocinquanta" must not become "centocinquanta"
     if (startIdx > 0 && !/\s/.test(raw[startIdx - 1])) while (startIdx < end && !/\s/.test(raw[startIdx])) startIdx++;
-    // nothing said before a Reset is asked about again (the fence sits between two committed segments)
-    const fenceIdx = this.fence - (this.committedTotal - raw.length);
+    // nothing said before this section's Reset is asked about again (the fence sits between two committed segments)
+    const fenceIdx = (this.fences.get(s.sectionIdx) ?? 0) - (this.committedTotal - raw.length);
     if (fenceIdx > startIdx) startIdx = fenceIdx;
     while (startIdx < end && /\s/.test(raw[startIdx])) startIdx++;
     const windowText = raw.slice(startIdx, end);
