@@ -96,7 +96,10 @@ Changes in apps/desktop/package.json "build.mac":
 - Per-arch builds (x64 and arm64 dmg/zip), not universal: native modules come per arch. Build each arch
   on a Mac of that arch, or install the other arch's optional package first
   (`npm install --no-save --os=darwin --cpu=x64 sherpa-onnx-darwin-x64`); after-pack.js stops a build
-  that would ship the wrong one.
+  that would ship the wrong one. CI (Apple Silicon runner) unpacks sherpa-onnx-darwin-x64 at the
+  version package-lock.json pins before building; v0.9.31's first run failed on exactly this.
+  To rebuild one platform for an existing release: run "Desktop builds" by hand with `release_tag`
+  (for example v0.9.31) and `os` (macos-latest); it builds that tag's source and attaches the files.
 
 darwin branches in apps/desktop/*.js:
 - localai.js, Ollama install: `codesign --verify --deep --strict` accepted any valid signature, ad-hoc

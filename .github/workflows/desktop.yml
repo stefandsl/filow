@@ -4,6 +4,15 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Attach to this existing release (for example v0.9.31), built from that tag's source. Empty: build main and keep a short-lived artifact."
+        required: false
+        default: ""
+      os:
+        description: "Build only this runner (macos-latest, windows-latest, ubuntu-latest) or all"
+        required: false
+        default: all
 
 jobs:
   build:
@@ -27,22 +36,48 @@ jobs:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
       WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+      # A manual run can be limited to one runner; the other jobs then skip every step.
+      HERE: ${{ github.event_name != 'workflow_dispatch' || inputs.os == 'all' || inputs.os == '' || inputs.os == matrix.os }}
+      # The release this run attaches to: the pushed tag, or a manual run's release_tag (empty: none).
+      RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.release_tag }}
     steps:
       - uses: actions/checkout@v4
+        if: env.HERE == 'true'
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-node@v4
+        if: env.HERE == 'true'
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+        if: env.HERE == 'true'
+      # The macOS runner is Apple Silicon, so npm installs only sherpa-onnx-darwin-arm64; the Intel build
+      # needs sherpa-onnx-darwin-x64 too (after-pack.js stops a build without it). It is unpacked from the
+      # registry at the version package-lock.json pins (npm pack checks its integrity), not npm-installed
+      # with --cpu=x64, which could prune the arm64 packages.
+      - name: Add the Intel speech-to-text package (macOS)
+        if: env.HERE == 'true' && runner.os == 'macOS'
+        shell: bash
+        run: |
+          v=$(node -p "require('./package-lock.json').packages['node_modules/sherpa-onnx-darwin-x64'].version")
+          tmp=$(mktemp -d)
+          npm pack "sherpa-onnx-darwin-x64@$v" --pack-destination "$tmp"
+          mkdir -p node_modules/sherpa-onnx-darwin-x64
+          tar -xzf "$tmp"/sherpa-onnx-darwin-x64-*.tgz -C node_modules/sherpa-onnx-darwin-x64 --strip-components=1
+          ls node_modules/sherpa-onnx-darwin-x64
       - run: npm run typecheck
+        if: env.HERE == 'true'
       - run: npm run ${{ matrix.script }}
+        if: env.HERE == 'true'
       # Tag builds attach the installers straight to the GitHub release: no artifact storage in
       # between (the Actions storage quota blocked releases before). Each OS job uploads its own files;
       # softprops reuses the release that the first job created for the tag.
       - name: Attach installers to the release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: env.HERE == 'true' && env.RELEASE_TAG != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           files: |
             release/*.exe
             release/*.dmg
@@ -56,13 +91,13 @@ jobs:
       # Auto-update feed: the same files on the PUBLIC releases repo (this repo is private, and an
       # installed app cannot read private releases). Needs the RELEASES_TOKEN secret; see README.
       - name: Publish to the public releases repo
-        if: startsWith(github.ref, 'refs/tags/v') && env.RELEASES_TOKEN != ''
+        if: env.HERE == 'true' && env.RELEASE_TAG != '' && env.RELEASES_TOKEN != ''
         uses: softprops/action-gh-release@v2
         with:
           repository: stefandsl/filow-releases
           token: ${{ secrets.RELEASES_TOKEN }}
-          tag_name: ${{ github.ref_name }}
-          name: Filow ${{ github.ref_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Filow ${{ env.RELEASE_TAG }}
           body: "Installers for Windows, macOS and Linux. Source: github.com/stefandsl/filow (private). The desktop app updates itself from here."
           files: |
             release/*.exe
@@ -73,9 +108,9 @@ jobs:
             release/*.blockmap
             release/*.zip
             !release/builder-debug.yml
-      # Manual runs (no tag) keep the installers as a short-lived artifact instead.
+      # Manual runs without a release_tag keep the installers as a short-lived artifact instead.
       - uses: actions/upload-artifact@v4
-        if: "!startsWith(github.ref, 'refs/tags/v')"
+        if: env.HERE == 'true' && env.RELEASE_TAG == ''
         continue-on-error: true
         with:
           name: filow-${{ matrix.os }}
