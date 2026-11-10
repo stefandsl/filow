@@ -9,7 +9,7 @@ import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
 import type { BuddyRecipients } from "@/lib/buddy/outbound";
 import { createPageOutbound } from "@/lib/buddy/outboundPage";
 import { kvConsentStore, screenOut, scriptOut } from "@/lib/buddy/outboundRemote";
-import { RemoteConsentList, RemoteOutboundNotice, RemoteOutboundSignal, remoteText } from "@/components/RemoteOutbound";
+import { EXTENSION_TEXT, RemoteConsentList, RemoteOutboundNotice, RemoteOutboundSignal, remoteText } from "@/components/RemoteOutbound";
 import type { SlideInfo } from "./adapters";
 import "./sidepanel.css";
 
@@ -283,9 +283,9 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
     <>
       <div className="pane">
         <header className="topbar">
-          <div className="logo">
+          <h1 className="logo">
             <Wordmark height={28} />
-          </div>
+          </h1>
           <span className="spacer" />
           <span className="langswitch">
             {LANGS.map((l) => (
@@ -296,86 +296,89 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
           </span>
           {client && <span className="chip live">{status === "open" ? "●" : status}</span>}
         </header>
-        <RemoteOutboundSignal out={outbound} lang={lang} />
+        <main className="pane-main">
+          <RemoteOutboundSignal out={outbound} lang={lang} swap={EXTENSION_TEXT} />
 
-        {!client ? (
-          <div className="setup">
-            <div className="eyebrow">{t("ext.pairTitle")}</div>
-            <p className="hint">{t("ext.pairHint")}</p>
-            <label className="hint">
-              {t("ext.relay")}
-              <input className="btn" value={server} onChange={(e) => setServer(e.target.value)} placeholder="http://127.0.0.1:4748" />
-            </label>
-            <label className="hint">
-              {t("ext.api")}
-              <input className="btn" value={appServer} onChange={(e) => setAppServer(e.target.value)} placeholder="http://127.0.0.1:4747" />
-            </label>
-            <form
-              className="row"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void join();
-              }}
-            >
-              <input className="btn code-input" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="123456" />
-              <button className="btn primary" type="submit" disabled={code.length !== 6 || status === "pairing"}>
-                {status === "pairing" ? t("mirror.pairing") : t("mirror.join")}
-              </button>
-            </form>
-            {error && <span className="chip err">{error}</span>}
-          </div>
-        ) : (
-          <>
-            <div className="controls">
-              <button className="btn" onClick={() => void attach()}>
-                {attached ? t("ext.deck", { adapter: attached.adapter ?? "" }) : t("ext.useTab")}
-              </button>
-              <button className="btn primary" disabled={!attached} onClick={() => void generate()}>
-                {t("ext.generate")}
-              </button>
-              <label className={`btn choice ${follow ? "primary" : ""}`}>
-                <input type="checkbox" checked={follow} disabled={!attached} onChange={(e) => setFollow(e.target.checked)} /> {t("ext.follow")}
+          {!client ? (
+            <div className="setup">
+              <div className="eyebrow">{t("ext.pairTitle")}</div>
+              <p className="hint">{t("ext.pairHint")}</p>
+              <label className="hint">
+                {t("ext.relay")}
+                <input className="btn" value={server} onChange={(e) => setServer(e.target.value)} placeholder="http://127.0.0.1:4748" />
               </label>
-              <select
-                className="btn"
-                value={mode}
-                onChange={(e) => {
-                  setMode(e.target.value as ScreenMode);
-                  void storage.set("mode", e.target.value);
+              <label className="hint">
+                {t("ext.api")}
+                <input className="btn" value={appServer} onChange={(e) => setAppServer(e.target.value)} placeholder="http://127.0.0.1:4747" />
+              </label>
+              <form
+                className="row"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void join();
                 }}
-                title="Vision for image-only slides while following"
               >
-                <option value="off">{t("ext.visionOff")}</option>
-                <option value="slide-change">{t("ext.visionChange")}</option>
-                <option value="balanced">{t("ext.visionBalanced")}</option>
-                <option value="realtime">{t("ext.visionRealtime")}</option>
-              </select>
-              {progress && <span className="hint">{progress}</span>}
+                <input className="btn code-input" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="123456" />
+                <button className="btn primary" type="submit" disabled={code.length !== 6 || status === "pairing"}>
+                  {status === "pairing" ? t("mirror.pairing") : t("mirror.join")}
+                </button>
+              </form>
               {error && <span className="chip err">{error}</span>}
             </div>
-            {state ? <StageView state={state} onCommand={send} banner={status.startsWith("connecting") ? t("ppt.engineOffline") : null} /> : <div className="hint">{t("ppt.waitingEngine")}</div>}
-          </>
-        )}
-
-        {preview !== null && (
-          <div className="modal-bg" onClick={() => setPreview(null)}>
-            <div className="modal" onClick={(e) => e.stopPropagation()}>
-              <div className="eyebrow">{t("ppt.reviewTitle")}</div>
-              <textarea value={preview} onChange={(e) => setPreview(e.target.value)} spellCheck={false} />
+          ) : (
+            <>
               <div className="controls">
-                <button className="btn primary" onClick={() => void loadScript(preview).catch((e) => setError((e as Error).message))}>
-                  {t("ppt.loadIntoSession")}
+                <button className="btn" onClick={() => void attach()}>
+                  {attached ? t("ext.deck", { adapter: attached.adapter ?? "" }) : t("ext.useTab")}
                 </button>
-                <button className="btn" onClick={() => setPreview(null)}>
-                  {t("common.cancel")}
+                <button className="btn primary" disabled={!attached} onClick={() => void generate()}>
+                  {t("ext.generate")}
                 </button>
+                <label className={`btn choice ${follow ? "primary" : ""}`}>
+                  <input type="checkbox" checked={follow} disabled={!attached} onChange={(e) => setFollow(e.target.checked)} /> {t("ext.follow")}
+                </label>
+                <select
+                  className="btn"
+                  value={mode}
+                  onChange={(e) => {
+                    setMode(e.target.value as ScreenMode);
+                    void storage.set("mode", e.target.value);
+                  }}
+                  title="Vision for image-only slides while following"
+                  aria-label="Vision for image-only slides while following"
+                >
+                  <option value="off">{t("ext.visionOff")}</option>
+                  <option value="slide-change">{t("ext.visionChange")}</option>
+                  <option value="balanced">{t("ext.visionBalanced")}</option>
+                  <option value="realtime">{t("ext.visionRealtime")}</option>
+                </select>
+                {progress && <span className="hint">{progress}</span>}
+                {error && <span className="chip err">{error}</span>}
+              </div>
+              {state ? <StageView state={state} onCommand={send} banner={status.startsWith("connecting") ? t("ppt.engineOffline") : null} /> : <div className="hint">{t("ppt.waitingEngine")}</div>}
+            </>
+          )}
+
+          {preview !== null && (
+            <div className="modal-bg" onClick={() => setPreview(null)}>
+              <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <div className="eyebrow">{t("ppt.reviewTitle")}</div>
+                <textarea value={preview} onChange={(e) => setPreview(e.target.value)} spellCheck={false} />
+                <div className="controls">
+                  <button className="btn primary" onClick={() => void loadScript(preview).catch((e) => setError((e as Error).message))}>
+                    {t("ppt.loadIntoSession")}
+                  </button>
+                  <button className="btn" onClick={() => setPreview(null)}>
+                    {t("common.cancel")}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-        <RemoteConsentList out={outbound} lang={lang} />
+          )}
+          <RemoteConsentList out={outbound} lang={lang} swap={EXTENSION_TEXT} />
+          <RemoteOutboundNotice out={outbound} lang={lang} swap={EXTENSION_TEXT} />
+        </main>
         <footer className="help">{t("ext.help")}</footer>
-        <RemoteOutboundNotice out={outbound} lang={lang} />
       </div>
     </>
   );

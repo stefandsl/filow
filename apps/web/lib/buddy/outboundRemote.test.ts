@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET } from "@/app/api/buddy/recipients/route";
 import { resolveDecisionProvider } from "@/lib/decide/resolve";
-import { askRecipient, CONSENT_HEADER, type BuddyRecipients, type ConsentMap } from "./outbound";
+import { askRecipient, CONSENT_HEADER, noticeBody, type BuddyRecipients, type ConsentMap } from "./outbound";
+import { EXTENSION_TEXT, remoteText } from "@/components/RemoteOutbound";
 import { createPageOutbound } from "./outboundPage";
 import { decideOut, kvConsentStore, screenOut, scriptOut, splitEngines, startLocalFirst, webStorageConsentStore } from "./outboundRemote";
 
@@ -155,6 +156,20 @@ describe("GET /api/buddy/recipients tells a client that does not choose what the
     expect(resolveDecisionProvider()).toBe("openrouter");
     expect(resolveDecisionProvider("clef-cloudflare")).toBe("clef-cloudflare");
     expect(resolveDecisionProvider("matcher")).toBe("openrouter");
+  });
+});
+
+describe("what the add-in and the extension say", () => {
+  it("point at their own list, not at OK Filow's settings; the extension speaks of the tab it follows", () => {
+    const t = remoteText("en");
+    expect(t("consentEmpty")).toBe("Nothing yet. Filow asks before the first send.");
+    expect(t("noticeRememberHere")).toContain("in this pane");
+    const ext = remoteText("it", EXTENSION_TEXT);
+    const r = askRecipient("google/gemini-2.5-flash");
+    expect(noticeBody({ kind: "screen", recipient: r }, ext)).toBe("Mentre segui la presentazione, un'immagine della scheda e il titolo della slide vanno a OpenRouter e poi a Google, che produce il modello che hai scelto, che dice a Filow cosa c'è sopra.");
+    expect(ext("kind_screen")).toBe("Immagini della scheda seguita");
+    // A language without these strings yet reads English, never a missing key.
+    expect(remoteText("ja")("noticeKeep")).toBe("Keep it on this PC");
   });
 });
 

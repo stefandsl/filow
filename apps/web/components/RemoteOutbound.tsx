@@ -11,12 +11,19 @@ import { ConsentList, OutboundNoticeModal, OutboundPill } from "@/app/okfilow/ou
 import "@/app/okfilow/outbound.css";
 import "./RemoteOutbound.css";
 
+/** Sentences a client says its own way (the extension looks at a browser tab, not at a shared screen). */
+export type TextSwap = Partial<Record<OkfKey, OkfKey>>;
+
 /** OK Filow's strings in the client's language (English for a language they do not have yet). */
-export function remoteText(lang: string): (k: OkfKey) => string {
+export function remoteText(lang: string, swap: TextSwap = {}): (k: OkfKey) => string {
   const table = OKF_TEXT[lang === "it" ? "it" : "en"];
   // These clients keep their own choices: the sentences that point at OK Filow's settings point here.
-  return (k) => table[k === "consentEmpty" ? "consentEmptyHere" : k];
+  const own: TextSwap = { consentEmpty: "consentEmptyHere", ...swap };
+  return (k) => table[own[k] ?? k];
 }
+
+/** The browser extension's wording: it sends a picture of the tab it follows, with the slide's title. */
+export const EXTENSION_TEXT: TextSwap = { notice_screen: "notice_screenTab", kind_screen: "kind_screenTab", kept_screen: "kept_screenTab" };
 
 /** The controller's state (notice, signal, choices), re-rendered on every change. */
 export function useRemoteOutbound(out: PageOutbound) {
@@ -26,9 +33,9 @@ export function useRemoteOutbound(out: PageOutbound) {
 }
 
 /** The notice before the first send to a recipient, as a modal: nothing behind it works until it is answered. */
-export function RemoteOutboundNotice({ out, lang }: { out: PageOutbound; lang: string }) {
+export function RemoteOutboundNotice({ out, lang, swap }: { out: PageOutbound; lang: string; swap?: TextSwap }) {
   const state = useRemoteOutbound(out);
-  const t = remoteText(lang);
+  const t = remoteText(lang, swap);
   const n = state.notice;
   if (!n) return null;
   return <OutboundNoticeModal key={`${n.kind}:${n.recipient.id}`} notice={n} t={t} more={t("noticeRememberHere")} onDecide={(d) => void out.decide(d)} />;
@@ -40,9 +47,9 @@ const KEPT: Partial<Record<OutboundKind, OkfKey>> = { audio: "kept_takeHere", tr
  * The signal while something is leaving this PC, and what a "Keep it on this PC" answer kept back.
  * Always rendered, so screen readers hear each change in the live region.
  */
-export function RemoteOutboundSignal({ out, lang }: { out: PageOutbound; lang: string }) {
+export function RemoteOutboundSignal({ out, lang, swap }: { out: PageOutbound; lang: string; swap?: TextSwap }) {
   const state = useRemoteOutbound(out);
-  const t = remoteText(lang);
+  const t = remoteText(lang, swap);
   const kept = state.kept && !state.snap.active ? KEPT[state.kept] : undefined;
   return (
     <div className="okf-out-region okf-out-region--bar" role="status" aria-live="polite">
@@ -52,9 +59,9 @@ export function RemoteOutboundSignal({ out, lang }: { out: PageOutbound; lang: s
 }
 
 /** Every stored choice of this client, each one withdrawable, folded away until opened. */
-export function RemoteConsentList({ out, lang }: { out: PageOutbound; lang: string }) {
+export function RemoteConsentList({ out, lang, swap }: { out: PageOutbound; lang: string; swap?: TextSwap }) {
   const state = useRemoteOutbound(out);
-  const t = remoteText(lang);
+  const t = remoteText(lang, swap);
   return (
     <details className="okf-remote-consent">
       <summary>{t("consentTitle")}</summary>

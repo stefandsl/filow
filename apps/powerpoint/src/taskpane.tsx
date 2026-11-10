@@ -79,9 +79,9 @@ function AppInner({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
   return (
     <div className="pane">
       <header className="topbar">
-        <div className="logo">
+        <h1 className="logo">
           <Wordmark height={28} />
-        </div>
+        </h1>
         <span className="spacer" />
         <span className="langswitch">
           {LANGS.map((l) => (
@@ -90,18 +90,20 @@ function AppInner({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
             </button>
           ))}
         </span>
-        <select className="btn" value={mode} onChange={(e) => setMode(e.target.value as Mode)} title={t("ppt.modeTitle")}>
+        <select className="btn" value={mode} onChange={(e) => setMode(e.target.value as Mode)} title={t("ppt.modeTitle")} aria-label={t("ppt.modeTitle")}>
           <option value="engine" disabled={!host.canUseMic}>
             {host.canUseMic ? t("ppt.modeEngine") : t("ppt.modeEngineNo")}
           </option>
           <option value="view">{t("ppt.modeView")}</option>
         </select>
       </header>
-      <RemoteOutboundSignal out={outbound} lang={lang} />
-      {mode === "engine" ? <EnginePane webSpeech={host.webSpeech} /> : <ViewPane />}
-      <RemoteConsentList out={outbound} lang={lang} />
+      <main className="pane-main">
+        <RemoteOutboundSignal out={outbound} lang={lang} />
+        {mode === "engine" ? <EnginePane webSpeech={host.webSpeech} /> : <ViewPane />}
+        <RemoteConsentList out={outbound} lang={lang} />
+        <RemoteOutboundNotice out={outbound} lang={lang} />
+      </main>
       <footer className="help">{t("ppt.help")}</footer>
-      <RemoteOutboundNotice out={outbound} lang={lang} />
     </div>
   );
 }
