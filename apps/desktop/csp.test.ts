@@ -16,13 +16,20 @@ it("has no eval and no remote script sources", () => {
   expect(POLICY).toContain("object-src 'none'");
 });
 
-it("lets the microphone worklet load (it comes from a blob: URL and worklets follow script-src)", () => {
-  // Without this every take in the packaged app failed with "Failed to load worklet module script".
-  const mic = fs.readFileSync(path.join(__dirname, "../../packages/stt/src/mic.ts"), "utf8");
-  expect(mic).toMatch(/audioWorklet\.addModule\(url\)/);
-  expect(mic).toMatch(/const url = URL\.createObjectURL\(/);
+it("keeps blob: and data: out of script-src; the microphone worklet is a same-origin file 'self' covers", () => {
+  // Worklets follow script-src. The worklet used to come from a blob: URL, which needed blob: here
+  // (without it every take failed with "Failed to load worklet module script"); blob: would let any
+  // running script execute strings once 'unsafe-inline' goes. Now it is apps/web/public/mic-worklet.js.
   const script = POLICY.split("; ").find((d) => d.startsWith("script-src"))!.split(" ");
-  expect(script).toContain("blob:");
+  expect(script).not.toContain("blob:");
+  expect(script).not.toContain("data:");
+  expect(script).toContain("'self'");
+  const mic = fs.readFileSync(path.join(__dirname, "../../packages/stt/src/mic.ts"), "utf8");
+  expect(mic).not.toMatch(/createObjectURL|new Blob\(/);
+  const url = /MIC_WORKLET_URL = "(\/[^"]+)"/.exec(mic)?.[1];
+  expect(url).toBe("/mic-worklet.js");
+  expect(mic).toMatch(/audioWorklet\.addModule\(MIC_WORKLET_URL\)/);
+  expect(fs.readFileSync(path.join(__dirname, "../web/public", url!), "utf8")).toMatch(/registerProcessor\("pcm-chunker"/);
 });
 
 it("sets the policy only on our own pages and replaces any existing one", () => {

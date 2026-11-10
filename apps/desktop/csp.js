@@ -2,17 +2,14 @@
 // #7, docs/autoloop/STANDARDS.md SEC-03). No eval and no remote script sources: scripts come only from
 // the local app server. 'unsafe-inline' stays for scripts because Next.js inlines its bootstrap and the
 // pages carry no nonce yet; 'wasm-unsafe-eval' lets the ONNX speech and embedding models run.
-// blob: is for the microphone's AudioWorklet (packages/stt/src/mic.ts loads it from a blob URL, and
-// worklets follow script-src, not worker-src): without it no take can start (found by the T1 take probe,
-// tools/autoloop/e2e/take.mjs). It widens nothing that 'unsafe-inline' does not already allow.
+// No blob: in script-src: it would let any running script turn a string into code, which matters as
+// soon as a nonce migration drops 'unsafe-inline'. Worklet modules follow script-src, so the
+// microphone's AudioWorklet is a same-origin static file (apps/web/public/mic-worklet.js, loaded by
+// packages/stt/src/mic.ts), covered by 'self'.
 
 const BASE = [
   "default-src 'self'",
-  // blob: is the microphone's AudioWorklet (packages/stt/src/mic.ts loads it from a Blob URL). Worklet
-  // modules follow script-src, not worker-src: without it every local take failed in the packaged app
-  // with "Failed to load worklet module script: blob:...". A blob is made by our own page code, which
-  // 'unsafe-inline' already trusts, so this adds no new source of script.
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
   "img-src 'self' data: blob: https:",

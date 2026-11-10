@@ -6,40 +6,12 @@
 import { audioConstraints } from "./micDevice";
 import { detectSilence, type MicWarning } from "./silence";
 
-const WORKLET_SOURCE = `
-class PcmChunker extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.chunk = Math.round(sampleRate * 0.1);
-    this.buf = new Float32Array(this.chunk);
-    this.fill = 0;
-  }
-  process(inputs) {
-    const ch = inputs[0] && inputs[0][0];
-    if (!ch) return true;
-    let i = 0;
-    while (i < ch.length) {
-      const n = Math.min(ch.length - i, this.chunk - this.fill);
-      this.buf.set(ch.subarray(i, i + n), this.fill);
-      this.fill += n;
-      i += n;
-      if (this.fill === this.chunk) {
-        const out = new Int16Array(this.chunk);
-        let peak = 0;
-        for (let j = 0; j < this.chunk; j++) {
-          const s = Math.max(-1, Math.min(1, this.buf[j]));
-          peak = Math.max(peak, Math.abs(s));
-          out[j] = s < 0 ? s * 0x8000 : s * 0x7fff;
-        }
-        this.port.postMessage({ pcm: out.buffer, peak }, [out.buffer]);
-        this.fill = 0;
-      }
-    }
-    return true;
-  }
-}
-registerProcessor("pcm-chunker", PcmChunker);
-`;
+/**
+ * The PCM chunker AudioWorklet ("pcm-chunker"): a same-origin static file served by the web app
+ * (apps/web/public/mic-worklet.js). Not a blob: URL, so the desktop CSP keeps blob: out of script-src
+ * (worklet modules follow script-src).
+ */
+export const MIC_WORKLET_URL = "/mic-worklet.js";
 
 export type MicCapture = {
   stop: () => void;
@@ -105,9 +77,7 @@ export async function startMic(
       if (elapsedMs > 5000) report({ kind: "slow-context", label, elapsedMs });
     }
     if (track?.readyState === "ended") ended();
-    const url = URL.createObjectURL(new Blob([WORKLET_SOURCE], { type: "application/javascript" }));
-    try { await ctx.audioWorklet.addModule(url); }
-    finally { URL.revokeObjectURL(url); }
+    await ctx.audioWorklet.addModule(MIC_WORKLET_URL);
 
     source = ctx.createMediaStreamSource(stream);
     node = new AudioWorkletNode(ctx, "pcm-chunker");
