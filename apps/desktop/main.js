@@ -1392,7 +1392,7 @@ function showSplash() {
   const local = offline || (process.env.DECISION_PROVIDER || "").startsWith("clef-local");
   splash = new BrowserWindow({
     width: 460, height: 440, frame: false, resizable: false, show: false, alwaysOnTop: false, skipTaskbar: false,
-    backgroundColor: uiTheme() === "dark" ? "#08090b" : "#f7f7f5", title: "Filow",
+    backgroundColor: uiTheme() === "dark" ? "#121212" : "#f6f7f9", title: "Filow",
     icon: appIcon(),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
@@ -1666,7 +1666,7 @@ function showOverlay() {
     skipTaskbar: true,
     hasShadow: true,
     opacity: settings.overlayOpacity || 0.94,
-    backgroundColor: uiTheme() === "dark" ? "#08090b" : "#f7f7f5",
+    backgroundColor: uiTheme() === "dark" ? "#121212" : "#f6f7f9",
     title: "Filow overlay",
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "preload.js") },
   });

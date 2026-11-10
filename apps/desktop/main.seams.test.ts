@@ -407,3 +407,22 @@ describe("welcome setup step, main process", () => {
     expect(f.api.welcomeSetup.choice?.models?.length).toBeGreaterThan(0);
   });
 });
+
+// A window is filled with its backgroundColor until its page is painted (and while it reloads). When
+// that colour is not the page's own --bg, the page arrives with a change of shade: the splash and
+// the overlay were #08090b / #f7f7f5 under pages that are #121212 / #f6f7f9.
+describe("window background colours", () => {
+  it("are the page background of the theme tokens, in every window and both themes", () => {
+    const source = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+    const tokens = readFileSync(new URL("../web/app/theme-tokens.css", import.meta.url), "utf8");
+    const bg = (css: string) => /--bg:\s*(#[0-9a-f]{6})/i.exec(css)?.[1].toLowerCase();
+    const want = { dark: bg(tokens), light: bg(tokens.slice(tokens.indexOf(':root[data-theme="light"]'))) };
+    expect(want.dark && want.light && want.dark !== want.light, "theme-tokens.css gives --bg for both themes").toBe(true);
+    // The region picker is black on purpose: it shows a frozen picture of the screen, not a page.
+    const all = [...source.matchAll(/backgroundColor:\s*([^,\n]+)/g)].map((m) => m[1].trim()).filter((value) => value !== '"#000000"');
+    const themed = all.map((value) => /^uiTheme\(\) === "dark" \? "(#[0-9a-f]{6})" : "(#[0-9a-f]{6})"$/i.exec(value));
+    expect(all.filter((_, i) => !themed[i]), "every backgroundColor in main.js picks its colour with uiTheme()").toEqual([]);
+    expect(themed.length).toBeGreaterThanOrEqual(4); // settings, splash, overlay, main window
+    for (const m of themed) expect({ dark: m![1].toLowerCase(), light: m![2].toLowerCase() }).toEqual(want);
+  });
+});
