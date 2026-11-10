@@ -47,7 +47,7 @@ function fixture(initialEnv: Record<string, string> = {}) {
     ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, setLog: text => { lastTakeLog = text; },
        textTables: { MENU_TEXT, NET_TEXT, SPLASH_TEXT, LOCAL_AI_TEXT },
-       setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; } });`, {
+       setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; } });`, {
     require: (id: string) => {
       if (id.endsWith("electron-updater.js")) return { autoUpdater: { on(event: string, fn: (info: { version: string }) => void) { updaterHandlers[event] = fn; }, checkForUpdates, quitAndInstall() {} } };
       if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`);
@@ -183,5 +183,31 @@ describe("desktop shell text tables", () => {
       expect(text(italian[key]).trim(), `${name}.it.${key} is empty`).not.toBe("");
       expect(placeholders(text(italian[key])), `${name}.${key}: placeholders differ (en "${text(en[key])}", it "${text(italian[key])}")`).toEqual(placeholders(text(en[key])));
     }
+  });
+});
+
+// I18N-02 for the shell: a dialog never carries a sentence written into the code, because that
+// sentence stays English for an Italian user. Text comes from mt() or the shared dictionary.
+describe("desktop shell dialogs", () => {
+  it("answers a manual update check in the user's language", async () => {
+    const f = fixture(); f.api.setLang("it");
+    await f.api.checkForUpdates({ manual: true }); // the fake build has no update feed
+    expect(f.showMessageBox).toHaveBeenCalledWith(null, expect.objectContaining({ message: "Gli aggiornamenti funzionano solo nell'app installata." }));
+  });
+  it("holds no hard-coded sentence in any dialog call", () => {
+    const source = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+    // The startup failure box is left alone: it can fire before the settings (and so the language) are read.
+    const allowed = new Set(["Filow failed to start"]);
+    const sentences: string[] = [];
+    for (const call of source.matchAll(/dialog\s*\.show(?:MessageBox|ErrorBox)\(/g)) {
+      let depth = 1, end = call.index + call[0].length;
+      while (depth > 0 && end < source.length) { const ch = source[end++]; if (ch === "(") depth++; else if (ch === ")") depth--; }
+      const text = source.slice(call.index, end).replace(/\$\{[^}]*\}/g, "");
+      for (const literal of text.matchAll(/"([^"\n]*)"|`([^`]*)`/g)) {
+        const value = literal[1] ?? literal[2];
+        if (/\p{L}{2,} \p{L}{2,}/u.test(value) && !allowed.has(value)) sentences.push(`line ${source.slice(0, call.index).split("\n").length}: ${value.slice(0, 60)}`);
+      }
+    }
+    expect(sentences, "move these texts into MENU_TEXT (en and it) and read them with mt()").toEqual([]);
   });
 });

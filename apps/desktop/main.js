@@ -152,6 +152,16 @@ const MENU_TEXT = {
     updateNone: "You have the latest version ({version}).",
     updateFailed: "Could not check for updates.",
     updateOffline: "Offline mode is on; updates need an internet connection.",
+    updateInstalledOnly: "Updates only work in the installed app.",
+    tunnelDownload: "Download",
+    tunnelTitle: "Share to a phone on another network",
+    tunnelMessage: "This needs Cloudflare's free cloudflared tool (about 20 MB).",
+    tunnelDetail: "It will be downloaded once from\n{url}\ninto\n{folder}\n\nWhile sharing is on, the mirror page and the session relay are reachable through random *.trycloudflare.com URLs. Pairing still needs the 6-digit code.",
+    tunnelFailed: "Could not share to another network",
+    keyTitle: "Add your OpenRouter key",
+    keyMessage: "No OPENROUTER_API_KEY set.",
+    keyDetail: "Open the config folder from the menu, put your key in .env, then restart the app.\n\n{file}",
+    reportOnClipboard: "The full report text is on the clipboard: paste it into the issue.",
     pptNoOrigin: "PowerPoint only loads add-ins over HTTPS. Turn on “Share to phone on any network” first (the manifest will point at that public URL), or set PUBLIC_ORIGIN=https://your-server in .env for a permanent install.",
     pptSaved: "Manifest saved. Sideload it:\n\n• PowerPoint for the web: Home → Add-ins → More Add-ins → My Add-ins → Upload My Add-in → this file.\n• PowerPoint for Windows: put the file in a shared folder, add that folder under File → Options → Trust Center → Trusted Add-in Catalogs, restart PowerPoint, then Insert → My Add-ins → Shared Folder.\n\nThe pane is served from {origin}. A tunnel URL changes every time sharing restarts; save a new manifest then.",
   },
@@ -192,6 +202,16 @@ const MENU_TEXT = {
     updateNone: "Hai già l'ultima versione ({version}).",
     updateFailed: "Impossibile controllare gli aggiornamenti.",
     updateOffline: "La modalità offline è attiva; gli aggiornamenti richiedono internet.",
+    updateInstalledOnly: "Gli aggiornamenti funzionano solo nell'app installata.",
+    tunnelDownload: "Scarica",
+    tunnelTitle: "Condividi con un telefono su un'altra rete",
+    tunnelMessage: "Serve cloudflared, lo strumento gratuito di Cloudflare (circa 20 MB).",
+    tunnelDetail: "Verrà scaricato una sola volta da\n{url}\nin\n{folder}\n\nMentre la condivisione è attiva, la pagina mirror e il relay della sessione sono raggiungibili tramite indirizzi casuali *.trycloudflare.com. Per l'abbinamento serve comunque il codice a 6 cifre.",
+    tunnelFailed: "Impossibile condividere su un'altra rete",
+    keyTitle: "Aggiungi la tua chiave OpenRouter",
+    keyMessage: "OPENROUTER_API_KEY non impostata.",
+    keyDetail: "Apri la cartella di configurazione dal menu, inserisci la chiave nel file .env e riavvia l'app.\n\n{file}",
+    reportOnClipboard: "Il testo completo del report è negli appunti: incollalo nella segnalazione.",
     pptNoOrigin: "PowerPoint carica i componenti aggiuntivi solo via HTTPS. Attiva prima “Condividi col telefono su qualsiasi rete” (il manifest punterà a quell'URL pubblico), oppure imposta PUBLIC_ORIGIN=https://tuo-server in .env per un'installazione permanente.",
     pptSaved: "Manifest salvato. Caricalo in PowerPoint:\n\n• PowerPoint per il web: Home → Componenti aggiuntivi → Altri componenti → I miei componenti → Carica il mio componente → questo file.\n• PowerPoint per Windows: metti il file in una cartella condivisa, aggiungi la cartella in File → Opzioni → Centro protezione → Cataloghi di componenti aggiuntivi attendibili, riavvia PowerPoint, poi Inserisci → I miei componenti → Cartella condivisa.\n\nIl pannello è servito da {origin}. Un URL del tunnel cambia a ogni riavvio della condivisione: salva allora un nuovo manifest.",
   },
@@ -716,11 +736,11 @@ async function ensureCloudflared(win, { silent = false } = {}) {
   if (!silent) {
     const { response } = await dialog.showMessageBox(win, {
       type: "question",
-      buttons: ["Download", "Cancel"],
+      buttons: [mt("tunnelDownload"), sharedText("common.cancel", menuLang())],
       defaultId: 0,
-      title: "Share to a phone on another network",
-      message: "This needs Cloudflare's free cloudflared tool (about 20 MB).",
-      detail: `It will be downloaded once from\n${base}${asset}\ninto\n${path.join(userData, "bin")}\n\nWhile sharing is on, the mirror page and the session relay are reachable through random *.trycloudflare.com URLs. Pairing still needs the 6-digit code.`,
+      title: mt("tunnelTitle"),
+      message: mt("tunnelMessage"),
+      detail: mt("tunnelDetail", { url: base + asset, folder: path.join(userData, "bin") }),
     });
     if (response !== 0) return null;
   }
@@ -861,7 +881,7 @@ async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
         if (!auto) {
           settings.remoteShare = false;
           saveSettings();
-          dialog.showErrorBox("Could not share to another network", String(err.message || err));
+          dialog.showErrorBox(mt("tunnelFailed"), String(err.message || err));
         }
         // auto: stay "wanted" so the next launch retries; the LAN QR keeps working meanwhile
       }
@@ -1181,7 +1201,7 @@ function setUpdateState(next) {
 async function checkForUpdates({ manual = false } = {}) {
   // Unpacked (--dir) builds ship no update feed: checking would only report an error.
   if (!packaged || !fs.existsSync(path.join(process.resourcesPath, "app-update.yml"))) {
-    if (manual) dialog.showMessageBox(mainWin, { type: "info", title: "Filow", message: "Updates only work in the installed app." });
+    if (manual) dialog.showMessageBox(mainWin, { type: "info", title: "Filow", message: mt("updateInstalledOnly") });
     return;
   }
   if (offline) {
@@ -1684,7 +1704,7 @@ async function reportProblem(win) {
   if (truncated && win && !win.isDestroyed()) {
     // The browser cuts long URLs: the full text goes to the clipboard so the user can paste it.
     clipboard.writeText(body);
-    void dialog.showMessageBox(win, { type: "info", message: menuLang() === "it" ? "Il testo completo del report è negli appunti: incollalo nella segnalazione." : "The full report text is on the clipboard: paste it into the issue." });
+    void dialog.showMessageBox(win, { type: "info", message: mt("reportOnClipboard") });
   }
 }
 
@@ -1956,9 +1976,9 @@ async function main() {
     if (!process.env.OPENROUTER_API_KEY) {
       dialog.showMessageBox(win, {
         type: "info",
-        title: "Add your OpenRouter key",
-        message: "No OPENROUTER_API_KEY set.",
-        detail: `Open the config folder from the menu, put your key in .env, then restart the app.\n\n${envFile}`,
+        title: mt("keyTitle"),
+        message: mt("keyMessage"),
+        detail: mt("keyDetail", { file: envFile }),
       });
     }
   } catch (err) {
