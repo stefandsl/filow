@@ -9,8 +9,11 @@ import {
   notesToMarkdown,
   parseScript,
   SCREEN_MODE_LABELS,
+  resolveSetup,
   type DecisionProviderId,
   type ImportResponse,
+  type MachineInfo,
+  type ResolvedSetup,
   type ScreenMode,
   type ScreenNote,
   type Script,
@@ -19,7 +22,8 @@ import {
 } from "@filow/core";
 import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
 import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
-import { getSpeechLang, getStartMode, setDecisionProvider, setStartMode } from "@/lib/prefs";
+import { getSetupPreference, getSpeechLang, getStartMode, setDecisionProvider, setStartMode } from "@/lib/prefs";
+import { loadGate } from "@/lib/gate/client";
 import { useEngine } from "./useEngine";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
 import { engineHeaders, ensureEngineToken, useSession } from "./useSession";
@@ -226,7 +230,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const loadReadiness = async (): Promise<Readiness> => {
     const [stt, local, whisper, sherpa] = await Promise.all([
       fetch("/api/stt/status").then((r) => r.json()).catch(() => ({ elevenlabs: false, openai: false })) as Promise<SttStatus>,
-      fetch("/api/local/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null) as Promise<{ openrouterKey?: boolean; ollama?: { ok: boolean }; models?: Array<{ name: string; installed: boolean }>; advice?: { local: boolean; reason: "gpu" | "ram" | "none" }; gpu?: { name: string } } | null>,
+      fetch("/api/local/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null) as Promise<{ openrouterKey?: boolean; ollama?: { ok: boolean }; models?: Array<{ name: string; installed: boolean }>; hardware?: MachineInfo } | null>,
       whisperCached(selectedWhisperModel()).catch(() => false),
       sherpaBridge()
         ?.status()
@@ -240,13 +244,15 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       sherpa,
       clef: Boolean(local?.ollama?.ok && local?.models?.some((m) => m.name.startsWith("clef") && m.installed)),
       stt,
-      advice: local?.advice ?? { local: false, reason: "none" },
-      gpuName: local?.gpu?.name ?? "",
+      // the setup profile the user chose (Settings), applied to this machine
+      setup: local?.hardware ? resolveSetup(getSetupPreference(), local.hardware) : null,
     };
   };
 
   /** Start button: ask Cloud / Local unless a choice is remembered. */
   const [plan, setPlan] = useState<PlanResponse | null>(null);
+  /** The setup a local take started with, shown as a chip while it runs. */
+  const [takeSetup, setTakeSetup] = useState<ResolvedSetup | null>(null);
 
   const requestStart = async () => {
     const attempt = startAttempts.current.begin();
@@ -257,14 +263,15 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       setSttStatus(r.stt);
       setReadiness(r);
       if (mode === "auto") {
-        // The router measures one call per candidate and picks the lowest-latency setup for each task.
+        // The router follows the setup for this computer (Settings); it measures nothing here, so a
+        // start never spends a cloud call. Decisions stay local (matcher or Clef), never the cloud.
         setStarting(true);
         try {
-          const p = await attempt.wait(fetchPlan({ probe: true, apply: true }));
+          const p = await attempt.wait(fetchPlan({ probe: false, apply: true }));
           setPlan(p);
           if (p.decision.provider && p.stt.backend) {
             pushLog(`auto: ${p.stt.backend} · ${p.decision.provider}${p.decision.measuredMs ? ` ${p.decision.measuredMs} ms` : ""} · ${p.generate.provider}${p.generate.model ? ` ${p.generate.model}` : ""}`);
-            const m: "cloud" | "local" = p.decision.provider === "clef-local" ? "local" : "cloud";
+            const m: "cloud" | "local" = p.decision.provider === "clef-local" || p.decision.provider === "matcher" ? "local" : "cloud";
             await attempt.wait(startTake(m, r, attempt, { provider: p.decision.provider, backend: p.stt.backend }));
             return;
           }
@@ -275,7 +282,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         setStarting(false);
         mode = autoPick(r) ?? "ask";
       }
-      if (mode === "ask" || (mode === "cloud" && !(r.openrouterKey && r.sttKey)) || (mode === "local" && !(r.whisper && r.clef))) {
+      if (mode === "ask" || (mode === "cloud" && !(r.openrouterKey && r.sttKey)) || (mode === "local" && !localReady(r))) {
         setStartDialog(true);
         return;
       }
@@ -299,8 +306,32 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       setLastNotes([]);
       setStarting(true);
       // The mode decides the provider and the transcription backend; no silent fallback to the other side.
-      setDecisionProvider(pick?.provider ?? (mode === "local" ? "clef-local" : "openrouter"));
-      if ((pick?.provider ?? (mode === "local" ? "clef-local" : "")) === "clef-local") void fetch("/api/local/warmup", { method: "POST" }).catch(() => undefined);
+      // Local: the setup for this computer picks the decision provider (packages/core/src/profile.ts).
+      const provider: DecisionProviderId = pick?.provider ?? (mode === "local" ? localProvider(r) : "openrouter");
+      setDecisionProvider(provider);
+      setTakeSetup(mode === "local" ? r.setup : null);
+      if (mode === "local" && r.setup) pushLog(`${t("setup.inUse", { name: t(`setup.${r.setup.active}`) })} · ${provider}`);
+      if (provider === "clef-local") void fetch("/api/local/warmup", { method: "POST" }).catch(() => undefined);
+      if (provider === "matcher") {
+        // the matcher's sentence model (120 MB, downloaded once, then cached) must be ready before the take
+        let lastPct = -10;
+        try {
+          await attempt.wait(loadGate((p) => {
+            // report the big file only: the small ones (config, tokenizer) would restart the percentage
+            const pct = Math.round(p.progress ?? 0);
+            if (p.progress !== undefined && p.file?.endsWith(".onnx") && pct >= lastPct + 10) {
+              lastPct = pct;
+              pushLog(`${t("start.matcherLoading")} ${pct}%`);
+            }
+          }));
+        } catch (err) {
+          if (err instanceof CancelledStart) throw err;
+          engine.setError(t("start.matcherFailed", { error: (err as Error).message }));
+          pushLog(t("start.matcherFailed", { error: (err as Error).message }));
+          setStarting(false);
+          return;
+        }
+      }
       let backend: BackendChoice = pick?.backend ?? choice;
       if (backend === "auto") {
         if (mode === "local") backend = r.sherpa ? "sherpa" : "whisper";
@@ -545,7 +576,12 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         {offline && <span className="chip err">{t("app.offline")}</span>}
         {eng.backend && <span className="chip live"><Icon name="circle" /> {BACKEND_LABELS[eng.backend]}</span>}
         {eng.slowMs && <span className="chip err" title={t("app.slowTitle")}><Icon name="clock" /> {t("app.slow", { ms: eng.slowMs })}</span>}
-        {plan && eng.recording && (
+        {takeSetup && eng.recording && (
+          <a className="chip" href="/settings/local#setup" title={t("setup.label")}>
+            <Icon name="sliders" /> {t("setup.inUse", { name: t(`setup.${takeSetup.active}`) })}
+          </a>
+        )}
+        {plan && eng.recording && !takeSetup && (
           <span className="chip" title={t("plan.chipTitle")}>
             <Icon name="sliders" /> {t(`plan.stt.${plan.stt.backend ?? "none"}`)} · {t(`plan.decision.${plan.decision.provider ?? "none"}`)}
             {plan.decision.measuredMs ? ` ${plan.decision.measuredMs} ms` : ""}
@@ -611,14 +647,28 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   );
 }
 
-type Readiness = { openrouterKey: boolean; sttKey: boolean; whisper: boolean; sherpa: boolean; clef: boolean; stt: SttStatus; advice: { local: boolean; reason: "gpu" | "ram" | "none" }; gpuName: string };
+type Readiness = { openrouterKey: boolean; sttKey: boolean; whisper: boolean; sherpa: boolean; clef: boolean; stt: SttStatus; setup: ResolvedSetup | null };
+
+/**
+ * Who decides in a local take: the setup's choice; Best quality falls back to the on-device matcher
+ * while Clef Flash is not installed (still local, never the cloud). Without a setup (status
+ * unreachable) the older rule: Clef.
+ */
+export function localProvider(r: Pick<Readiness, "clef" | "setup">): "matcher" | "clef-local" {
+  if (!r.setup) return "clef-local";
+  return r.setup.choices.decision.provider === "clef-local" && !r.clef ? "matcher" : r.setup.choices.decision.provider;
+}
+
+/** A local take can start: speech on this computer, and decisions (the matcher needs no install). */
+export function localReady(r: Pick<Readiness, "whisper" | "clef" | "setup">): boolean {
+  return r.whisper && (localProvider(r) === "matcher" || r.clef);
+}
 
 /** Cloud or Local for this take, with what each needs and whether it is there. */
-/** "Auto": local when the models are there and the machine can run them well (GPU first, else enough RAM), otherwise cloud. */
+/** "Auto": local when this computer's setup is ready (it always fits: the setup was chosen for it), otherwise cloud. */
 function autoPick(r: Readiness): "cloud" | "local" | null {
-  if (r.whisper && r.clef && r.advice.local) return "local";
+  if (localReady(r)) return "local";
   if (r.openrouterKey && r.sttKey) return "cloud";
-  if (r.whisper && r.clef) return "local";
   return null;
 }
 
@@ -626,9 +676,10 @@ export function StartModeDialog({ readiness, onPick, onCancel, returnFocusRef }:
   const t = useT();
   const [remember, setRemember] = useState(false);
   const cloudOk = readiness.openrouterKey && readiness.sttKey;
-  const localOk = readiness.whisper && readiness.clef;
+  const localOk = localReady(readiness);
   const auto = autoPick(readiness);
-  const autoWhy = auto === "local" ? t(readiness.advice.reason === "gpu" ? "start.autoGpu" : "start.autoRam", { gpu: readiness.gpuName }) : auto === "cloud" ? t("start.autoCloud") : "";
+  const setupName = readiness.setup ? t(`setup.${readiness.setup.active}`) : "";
+  const autoWhy = auto === "local" && setupName ? t("start.autoSetup", { name: setupName }) : auto === "cloud" ? t("start.autoCloud") : "";
   const Line = ({ ok, label }: { ok: boolean; label: string }) => (
     <div className={`check ${ok ? "ok" : "missing"}`}>
       <Icon name={ok ? "check" : "close"} /> {label} <span className="hint">· {ok ? t("start.ready") : t("start.missing")}</span>
@@ -660,8 +711,13 @@ export function StartModeDialog({ readiness, onPick, onCancel, returnFocusRef }:
           <div className={`mode ${localOk ? "" : "notready"}`}>
             <h3>💻 {t("start.local")}</h3>
             <p className="hint">{t("start.localHint")}</p>
+            {readiness.setup && (
+              <p className="hint setup-line">
+                {t("setup.inUse", { name: setupName })} · <a href="/settings/local#setup">{t("setup.change")}</a>
+              </p>
+            )}
             <Line ok={readiness.whisper} label={t("start.whisper")} />
-            <Line ok={readiness.clef} label={t("start.clef")} />
+            {localProvider(readiness) === "matcher" ? <Line ok label={t("start.matcher")} /> : <Line ok={readiness.clef} label={t("start.clef")} />}
             {!localOk && <p className="hint">{t("start.notReadyLocal")}</p>}
             <button className="btn primary" disabled={!localOk} onClick={() => onPick("local", remember)}>
               {t("ctl.start")} · {t("start.local")}

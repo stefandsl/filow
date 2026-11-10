@@ -3,7 +3,8 @@ import os from "node:os";
 import { OLLAMA_URL } from "@/lib/decide/clef";
 import { LOCAL_MODELS, fits, versionAtLeast } from "@/lib/localModels";
 import { PII_SERVER_URL, piiMode, rizzoReachable } from "@/lib/pii/guard";
-import { gpuInfo, localAdvice } from "@/lib/sysinfo";
+import { recommendProfile } from "@filow/core";
+import { gpuInfo, machineInfo } from "@/lib/sysinfo";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export async function GET() {
   }));
   const pii = { mode: piiMode(), serverUrl: PII_SERVER_URL(), serverReachable: process.env.FILOW_OFFLINE !== "1" && await rizzoReachable() };
   const gpu = await gpuInfo();
-  const advice = localAdvice(gpu, ramGb);
+  const hardware = machineInfo(gpu);
   return NextResponse.json({
     pii,
     ollama: { url: base, reachable: version !== null, version, minimum: "0.35.1", ok: version ? versionAtLeast(version, "0.35.1") : false },
@@ -46,6 +47,8 @@ export async function GET() {
     installed,
     recommendation: ramGb >= 32 ? "clef" : ramGb >= 16 ? "clef-flash" : null,
     gpu: { name: gpu.name, kind: gpu.kind, vramTotalGb: gpu.vramTotalGb },
-    advice,
+    // the setup profiles (P3): the page applies the user's preference with resolveSetup(pref, hardware)
+    hardware,
+    setup: recommendProfile(hardware),
   });
 }

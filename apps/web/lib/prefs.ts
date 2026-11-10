@@ -1,5 +1,5 @@
 // Per-browser preferences (not secrets). Server-side defaults come from env.
-import { isLang, langFromLocale, type DecisionProviderId, type Lang, type ScreenMode } from "@filow/core";
+import { isLang, isSetupPreference, langFromLocale, type DecisionProviderId, type Lang, type ScreenMode, type SetupPreference } from "@filow/core";
 import { acceptUiSnapshot, type UiLanguage, type UiSnapshot, type UiPatch } from "@filow/core";
 import { desktopBridge, type DesktopBridge } from "./sessionUrl";
 
@@ -57,7 +57,7 @@ const KEY = "prefs:decisionProvider";
 export function getDecisionProvider(): DecisionProviderId | undefined {
   try {
     const v = localStorage.getItem(KEY);
-    return v === "openrouter" || v === "clef-local" || v === "clef-cloudflare" ? v : undefined;
+    return v === "openrouter" || v === "clef-local" || v === "clef-cloudflare" || v === "matcher" ? v : undefined;
   } catch {
     return undefined;
   }
@@ -76,7 +76,29 @@ export const PROVIDER_LABELS: Record<DecisionProviderId, string> = {
   openrouter: "OpenRouter (cloud)",
   "clef-local": "Clef on this machine (Ollama)",
   "clef-cloudflare": "Clef on Cloudflare Workers AI",
+  matcher: "On-device matcher (no AI model)",
 };
+
+// ---- Setup profile (P3): "auto" follows the machine (packages/core/src/profile.ts) ----
+const SETUP_KEY = "prefs:setup";
+
+export function getSetupPreference(): SetupPreference {
+  try {
+    const v = localStorage.getItem(SETUP_KEY);
+    return isSetupPreference(v) ? v : "auto";
+  } catch {
+    return "auto";
+  }
+}
+
+export function setSetupPreference(p: SetupPreference): void {
+  try {
+    if (p === "auto") localStorage.removeItem(SETUP_KEY);
+    else localStorage.setItem(SETUP_KEY, p);
+  } catch {
+    /* ignore */
+  }
+}
 
 // ---- Screen Sense cost dial (ARCHITECTURE.md §6.5) ----
 const SCREEN_KEY = "prefs:screenMode";
@@ -212,20 +234,22 @@ export function setStartMode(m: StartMode): void {
 }
 
 // ---- Gate: embedding pre-filter in front of the decision model (packages/core/src/gate.ts) ----
+// On by default since the setup profiles (P3): every profile uses it, and with local Clef it only
+// skips calls (P1: same recall, 4 of 62 calls saved). "off" stays available under More options.
 export type GateMode = "off" | "on";
 const GATE_KEY = "prefs:gate";
 
 export function getGateMode(): GateMode {
   try {
-    return localStorage.getItem(GATE_KEY) === "on" ? "on" : "off";
+    return localStorage.getItem(GATE_KEY) === "off" ? "off" : "on";
   } catch {
-    return "off";
+    return "on";
   }
 }
 
 export function setGateMode(m: GateMode): void {
   try {
-    if (m === "off") localStorage.removeItem(GATE_KEY);
+    if (m === "on") localStorage.removeItem(GATE_KEY);
     else localStorage.setItem(GATE_KEY, m);
   } catch {
     /* ignore */

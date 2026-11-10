@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import os from "node:os";
 import { OLLAMA_URL, decideClefLocal } from "@/lib/decide/clef";
 import { decideOpenRouter } from "@/lib/decide/openrouter";
-import { gpuInfo } from "@/lib/sysinfo";
+import { isSetupPreference, resolveSetup } from "@filow/core";
+import { gpuInfo, machineInfo } from "@/lib/sysinfo";
 import { requireEngine } from "@/lib/engineAuth";
 import { buildPlan, type Plan, type PlanInput } from "@/lib/router";
 
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
   // `apply` changes the server's slide-generation provider for everyone.
   const denied = requireEngine(req);
   if (denied) return denied;
-  const body = (await req.json().catch(() => ({}))) as { probe?: boolean; sherpaReady?: boolean; whisperCached?: boolean; webSpeech?: boolean; apply?: boolean };
+  const body = (await req.json().catch(() => ({}))) as { probe?: boolean; sherpaReady?: boolean; whisperCached?: boolean; webSpeech?: boolean; apply?: boolean; setup?: string };
   const base = OLLAMA_URL();
   let ollamaOk = false;
   let installed: string[] = [];
@@ -70,7 +71,10 @@ export async function POST(req: Request) {
     if (clef !== undefined) probes.clefLocalMs = clef;
     if (cloud !== undefined) probes.openrouterMs = cloud;
   }
+  // The setup profile; "probe" (the Measure button) keeps the older measured routing.
+  const setup = body.probe ? null : resolveSetup(isSetupPreference(body.setup) ? body.setup : "auto", machineInfo(gpu));
   const plan: Plan = buildPlan({
+    setup: setup?.choices ?? null,
     installed,
     ollamaOk,
     gpu: { kind: gpu.kind, vramTotalGb: gpu.vramTotalGb },
@@ -91,5 +95,5 @@ export async function POST(req: Request) {
       process.env.GENERATE_PROVIDER = "openrouter";
     }
   }
-  return NextResponse.json({ ...plan, machine: { gpu: gpu.name, gpuKind: gpu.kind, vramTotalGb: gpu.vramTotalGb, ramGb: Math.ceil(os.totalmem() / 1024 ** 3) }, installed, ollamaOk, keys, offline });
+  return NextResponse.json({ ...plan, setup, machine: { gpu: gpu.name, gpuKind: gpu.kind, vramTotalGb: gpu.vramTotalGb, ramGb: Math.ceil(os.totalmem() / 1024 ** 3) }, installed, ollamaOk, keys, offline });
 }

@@ -3,6 +3,7 @@ import { Icon } from "./icons";
 
 import { useEffect, useState } from "react";
 import { useT } from "@filow/ui";
+import type { ProfileReason, SetupProfileId } from "@filow/core";
 import { engineHeaders, ensureEngineToken } from "@/components/useSession";
 
 /** Shape of /api/local/resources. */
@@ -11,7 +12,8 @@ export type Resources = {
   ram: { usedGb: number; totalGb: number };
   gpu: { name: string; kind: "discrete" | "integrated" | "unified" | "none"; vramTotalGb: number | null; vramUsedGb: number | null; sharedUsedGb: number | null; utilPct: number | null };
   loaded: Array<{ name: string; sizeGb: number; vramGb: number; gpuPct: number; where: "gpu" | "cpu" | "mixed" }>;
-  advice: { local: boolean; reason: "gpu" | "ram" | "none" };
+  /** the setup this machine gets on "auto" (packages/core/src/profile.ts) */
+  setup: { profile: SetupProfileId; reason: ProfileReason };
 };
 
 /** Polls the resources endpoint every `everyMs` while mounted. */
@@ -95,7 +97,7 @@ export function ResourcesPanel({ compact = false, embedded = false }: { compact?
       : res.gpu.sharedUsedGb !== null
         ? `${res.gpu.sharedUsedGb} GB ${t("res.sharedRam")}`
         : "-";
-  const advice = res.advice.local ? t(res.advice.reason === "gpu" ? "res.adviceGpu" : "res.adviceRam") : t("res.adviceCloud");
+  const advice = t("res.setup", { name: t(`setup.${res.setup.profile}`) });
   const unload = async (name: string) => {
     await ensureEngineToken();
     await fetch("/api/local/unload", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ name }) });

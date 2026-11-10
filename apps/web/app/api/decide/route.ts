@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { DecideRequest, DecideResponse, DecisionProviderId } from "@filow/core";
+import type { DecideRequest, DecideResponse, ServerDecisionProviderId } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
 import { decideOpenRouter } from "@/lib/decide/openrouter";
 import { decideClefCloudflare, decideClefLocal } from "@/lib/decide/clef";
@@ -11,16 +11,16 @@ import { anonymizeRequest, piiMode, restore } from "@/lib/pii/guard";
  * local providers are allowed. Cloud providers get an anonymised request
  * (PII guard) and placeholders are restored in the answer.
  */
-const PROVIDERS: Record<DecisionProviderId, { run: (b: DecideRequest, signal?: AbortSignal) => Promise<DecideResponse>; cloud: boolean }> = {
+const PROVIDERS: Record<ServerDecisionProviderId, { run: (b: DecideRequest, signal?: AbortSignal) => Promise<DecideResponse>; cloud: boolean }> = {
   openrouter: { run: decideOpenRouter, cloud: true },
   "clef-local": { run: decideClefLocal, cloud: false },
   "clef-cloudflare": { run: decideClefCloudflare, cloud: true },
 };
 
-function resolveProvider(requested?: string): DecisionProviderId {
+function resolveProvider(requested?: string): ServerDecisionProviderId {
   const offline = process.env.FILOW_OFFLINE === "1";
-  const fallback = (process.env.DECISION_PROVIDER as DecisionProviderId) || "openrouter";
-  const id = (requested && Object.hasOwn(PROVIDERS, requested) ? requested : fallback) as DecisionProviderId;
+  const fallback = (process.env.DECISION_PROVIDER as ServerDecisionProviderId) || "openrouter";
+  const id = (requested && Object.hasOwn(PROVIDERS, requested) ? requested : fallback) as ServerDecisionProviderId;
   if (offline && id !== "clef-local") return "clef-local";
   return id;
 }
@@ -29,6 +29,9 @@ export async function POST(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
   const body = (await req.json().catch(() => null)) as DecideRequest | null;
+  // The on-device matcher runs in the page. A request naming it is a page bug: refuse it rather than
+  // answer with the default provider, which may be a cloud one (no silent cloud fallback).
+  if (body?.provider === "matcher") return NextResponse.json({ error: "the on-device matcher runs in the page, not on the server" }, { status: 400 });
   const provider = resolveProvider(body?.provider);
   if (!body?.bullets?.length) {
     return NextResponse.json<DecideResponse>({ decisions: [], latencyMs: 0, cost: 0, model: provider });

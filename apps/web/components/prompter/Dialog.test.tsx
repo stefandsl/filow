@@ -4,7 +4,7 @@ import { Dialog, openDialog, containDialogTab } from "./Dialog";
 import { ScriptEditor, SourceChooser, StartModeDialog } from "../Teleprompter";
 
 it("gives each migrated dialog a native modal with an associated visible title", () => {
-  const readiness = { openrouterKey: false, sttKey: false, whisper: false, sherpa: false, clef: false, stt: { elevenlabs: false, openai: false }, advice: { local: false, reason: "none" as const }, gpuName: "" };
+  const readiness = { openrouterKey: false, sttKey: false, whisper: false, sherpa: false, clef: false, stt: { elevenlabs: false, openai: false }, setup: null };
   for (const element of [
     <Dialog title="Example" onClose={() => {}}>Content</Dialog>,
     <StartModeDialog readiness={readiness} onPick={() => {}} onCancel={() => {}} />,

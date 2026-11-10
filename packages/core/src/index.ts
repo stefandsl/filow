@@ -12,3 +12,5 @@ export * from "./gate";
 export * from "./guard";
 export * from "./evidence";
 export * from "./ui-preferences";
+export * from "./matcher";
+export * from "./profile";

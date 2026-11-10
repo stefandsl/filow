@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { LANG_LABELS, LANGS, SCREEN_MODE_LABELS, type DecisionProviderId, type I18nKey, type Lang, type ScreenMode } from "@filow/core";
+import { LANG_LABELS, LANGS, SCREEN_MODE_LABELS, type DecisionProviderId, type I18nKey, type Lang, type MachineInfo, type ScreenMode, type SetupModel, type SetupPreference } from "@filow/core";
 import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, sherpaBridge, whisperCached } from "@filow/stt";
 import { Wordmark, LangProvider, useT } from "@filow/ui";
 import { engineHeaders, ensureEngineToken } from "@/components/useSession";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
-import { getDecisionProvider, getGateMode, getScreenMode, getSpeechLang, getStartMode, SPEECH_LANGS, setDecisionProvider, setGateMode, setScreenMode, setSpeechLang, setStartMode, type GateMode, type SpeechLang, type StartMode } from "@/lib/prefs";
+import { getDecisionProvider, getGateMode, getScreenMode, getSetupPreference, getSpeechLang, getStartMode, SPEECH_LANGS, setDecisionProvider, setGateMode, setScreenMode, setSetupPreference, setSpeechLang, setStartMode, type GateMode, type SpeechLang, type StartMode } from "@/lib/prefs";
 import { loadGate } from "@/lib/gate/client";
 import { screenBridge } from "@/lib/screen/watcher";
 import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/sessionUrl";
@@ -15,6 +15,7 @@ import { placementText, ResourcesPanel, useResources } from "@/components/Resour
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
 import { MicrophoneSelect } from "@/components/MicrophoneSelect";
 import { OkFilowSettings } from "@/components/OkFilowSettings";
+import { SetupPicker } from "./SetupPicker";
 
 type Status = {
   pii: { mode: "off" | "on" | "strict"; serverUrl: string; serverReachable: boolean };
@@ -25,6 +26,10 @@ type Status = {
   openrouterKey: boolean;
   cloudflareKey: boolean;
   recommendation: string | null;
+  /** the hardware the setup profiles are chosen from (P3) */
+  hardware?: MachineInfo;
+  gpu?: { name: string };
+  installed: Array<{ name: string; sizeGb: number }>;
   models: Array<{
     name: string; kind: string; runtime: "ollama" | "browser" | "sherpa"; label: string; description: string; downloadGb: number; loadedGb: number; ramGb: number; vramGb?: number;
     status: "available" | "planned"; fit: "fits" | "tight" | "too big"; installed: boolean; installedSizeGb: number | null; ollamaOk: boolean;
@@ -93,6 +98,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const res = useResources();
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [planBusy, setPlanBusy] = useState(false);
+  const [setupPref, setSetupPref] = useState<SetupPreference>("auto");
+  const [setupBusy, setSetupBusy] = useState(false);
   const loadPlan = async (probe: boolean) => {
     setPlanBusy(true);
     try {
@@ -131,6 +138,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     setStartModeState(getStartMode());
     setSpeechLangState(getSpeechLang());
     setGateModeState(getGateMode());
+    setSetupPref(getSetupPreference());
     void screenBridge()
       ?.getSettings()
       .then((h) => {
@@ -313,6 +321,41 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  /** The setup choice is remembered at once; the router's view follows it. */
+  const chooseSetup = (p: SetupPreference) => {
+    setSetupPref(p);
+    setSetupPreference(p);
+    void loadPlan(false);
+  };
+
+  /** One-time downloads the setup still needs, one after the other, with the progress shown per model below. */
+  const getSetupModels = async (models: SetupModel[]) => {
+    setSetupBusy(true);
+    try {
+      for (const m of models) {
+        if (m.runtime === "sherpa") {
+          const b = sherpaBridge();
+          if (b && (await b.status()).model !== "ready") b.download();
+          continue;
+        }
+        if (m.runtime !== "ollama") continue;
+        if (!status?.ollama.reachable && !(await ensureOllama())) {
+          setError(t("settings.ollamaNotRunning"));
+          return;
+        }
+        await pull(m.name);
+      }
+    } finally {
+      setSetupBusy(false);
+      void refresh();
+    }
+  };
+
+  // Links to /settings/local#setup (start dialog, take chip): the section renders after the status loads.
+  useEffect(() => {
+    if (status && window.location.hash === "#setup") document.getElementById("setup")?.scrollIntoView({ block: "start" });
+  }, [status]);
+
   const choose = (id: DecisionProviderId | "") => {
     setProvider(id);
     setDecisionProvider(id);
@@ -325,7 +368,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     return text === key ? m.description : text;
   };
 
-  const providerLabel = (id: string) => (id === "openrouter" || id === "clef-local" || id === "clef-cloudflare" ? t(`provider.${id}`) : id);
+  const providerLabel = (id: string) => (id === "openrouter" || id === "clef-local" || id === "clef-cloudflare" || id === "matcher" ? t(`provider.${id}`) : id);
 
   return (
     <div className="app settings">
@@ -359,6 +402,18 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
         <div className="hint">{t("common.loading")}</div>
       ) : (
         <>
+          {status.hardware && (
+            <SetupPicker
+              hardware={status.hardware}
+              gpuName={status.gpu?.name ?? ""}
+              preference={setupPref}
+              onChange={chooseSetup}
+              installed={{ ollama: status.installed.map((i) => i.name), sherpa: sherpa?.model === "ready" }}
+              onGet={(m) => void getSetupModels(m)}
+              busy={setupBusy}
+            />
+          )}
+
           <ResourcesPanel />
 
           <section className="strip">
@@ -404,40 +459,6 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
           </section>
 
           <section className="strip">
-            <div className="label">{t("gate.label")}</div>
-            <div className="row">
-              {(["off", "on"] as GateMode[]).map((m) => (
-                <label key={m} className={`btn choice ${gateMode === m ? "primary" : ""}`}>
-                  <input
-                    type="radio"
-                    name="gateMode"
-                    checked={gateMode === m}
-                    onChange={() => {
-                      setGateModeState(m);
-                      setGateMode(m);
-                    }}
-                  />{" "}
-                  {t(`gate.${m}`)}
-                </label>
-              ))}
-              <button
-                className="btn"
-                disabled={gateStatus === "loading" || gateStatus === "ready"}
-                onClick={() => {
-                  setGateStatus("loading");
-                  loadGate((p) => setGatePct(p.progress ?? null)).then(
-                    () => setGateStatus("ready"),
-                    () => setGateStatus("error"),
-                  );
-                }}
-              >
-                {gateStatus === "ready" ? t("gate.ready") : gateStatus === "loading" ? `${t("settings.running")}${gatePct !== null ? ` ${Math.round(gatePct)}%` : ""}` : t("gate.download")}
-              </button>
-            </div>
-            <div className="hint">{t("gate.hint")}</div>
-          </section>
-
-          <section className="strip">
             <div className="label">{t("start.modeLabel")}</div>
             <div className="row">
               {(["ask", "auto", "cloud", "local"] as StartMode[]).map((m) => (
@@ -457,26 +478,62 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
             </div>
           </section>
 
-          <section className="strip">
-            <div className="label">{t("settings.provider")}</div>
-            <div className="hint">{t("settings.providerHint")}</div>
-            <div className="row">
-              {(["openrouter", "clef-local", "clef-cloudflare"] as DecisionProviderId[]).map((id) => {
-                const disabled =
-                  (id === "openrouter" && (!status.openrouterKey || status.offline)) ||
-                  (id === "clef-cloudflare" && (!status.cloudflareKey || status.offline));
-                return (
-                  <label key={id} className={`btn choice ${provider === id ? "primary" : ""}`} title={disabled ? t("settings.notConfigured") : ""}>
-                    <input type="radio" name="provider" checked={provider === id} disabled={disabled} onChange={() => choose(id)} /> {t(`provider.${id}`)}
+          <details className="strip more-options">
+            <summary className="label">{t("settings.moreOptions")}</summary>
+            <section className="strip">
+              <div className="label">{t("gate.label")}</div>
+              <div className="row">
+                {(["off", "on"] as GateMode[]).map((m) => (
+                  <label key={m} className={`btn choice ${gateMode === m ? "primary" : ""}`}>
+                    <input
+                      type="radio"
+                      name="gateMode"
+                      checked={gateMode === m}
+                      onChange={() => {
+                        setGateModeState(m);
+                        setGateMode(m);
+                      }}
+                    />{" "}
+                    {t(`gate.${m}`)}
                   </label>
-                );
-              })}
-              <label className={`btn choice ${provider === "" ? "primary" : ""}`}>
-                <input type="radio" name="provider" checked={provider === ""} onChange={() => choose("")} />{" "}
-                {t("settings.serverDefault", { name: providerLabel(status.defaultProvider) })}
-              </label>
-            </div>
-          </section>
+                ))}
+                <button
+                  className="btn"
+                  disabled={gateStatus === "loading" || gateStatus === "ready"}
+                  onClick={() => {
+                    setGateStatus("loading");
+                    loadGate((p) => setGatePct(p.progress ?? null)).then(
+                      () => setGateStatus("ready"),
+                      () => setGateStatus("error"),
+                    );
+                  }}
+                >
+                  {gateStatus === "ready" ? t("gate.ready") : gateStatus === "loading" ? `${t("settings.running")}${gatePct !== null ? ` ${Math.round(gatePct)}%` : ""}` : t("gate.download")}
+                </button>
+              </div>
+              <div className="hint">{t("gate.hint")}</div>
+            </section>
+            <section className="strip">
+              <div className="label">{t("settings.provider")}</div>
+              <div className="hint">{t("settings.providerHint")}</div>
+              <div className="row">
+                {(["matcher", "clef-local", "openrouter", "clef-cloudflare"] as DecisionProviderId[]).map((id) => {
+                  const disabled =
+                    (id === "openrouter" && (!status.openrouterKey || status.offline)) ||
+                    (id === "clef-cloudflare" && (!status.cloudflareKey || status.offline));
+                  return (
+                    <label key={id} className={`btn choice ${provider === id ? "primary" : ""}`} title={disabled ? t("settings.notConfigured") : ""}>
+                      <input type="radio" name="provider" checked={provider === id} disabled={disabled} onChange={() => choose(id)} /> {t(`provider.${id}`)}
+                    </label>
+                  );
+                })}
+                <label className={`btn choice ${provider === "" ? "primary" : ""}`}>
+                  <input type="radio" name="provider" checked={provider === ""} onChange={() => choose("")} />{" "}
+                  {t("settings.serverDefault", { name: providerLabel(status.defaultProvider) })}
+                </label>
+              </div>
+            </section>
+          </details>
 
           <section className="strip">
             <div className="label">Ollama</div>

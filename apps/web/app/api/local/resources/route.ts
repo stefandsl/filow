@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import os from "node:os";
 import { OLLAMA_URL } from "@/lib/decide/clef";
-import { cpuPercent, gpuInfo, loadedModels, localAdvice, ramInfo } from "@/lib/sysinfo";
+import { recommendProfile } from "@filow/core";
+import { cpuPercent, gpuInfo, loadedModels, machineInfo, ramInfo } from "@/lib/sysinfo";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,6 @@ export async function GET() {
     ram,
     gpu,
     loaded,
-    advice: localAdvice(gpu, ram.totalGb),
+    setup: recommendProfile(machineInfo(gpu)),
   });
 }

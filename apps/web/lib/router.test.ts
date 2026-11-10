@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { setupChoices, type MachineInfo } from "@filow/core";
 import { buildPlan, type PlanInput } from "./router";
 
 const base: PlanInput = {
@@ -72,5 +73,26 @@ describe("model router", () => {
   it("local probe failed (null) falls back to cloud when a key exists", () => {
     const p = buildPlan({ ...base, installed: ["clef-flash"], ollamaOk: true, ramGb: 32, keys: { ...base.keys, openrouter: true }, probes: { clefLocalMs: null, openrouterMs: 1500 } });
     expect(p.decision.provider).toBe("openrouter");
+  });
+});
+
+describe("model router with a setup profile", () => {
+  const old: MachineInfo = { ramGb: 8, cores: 4, gpu: { kind: "none", vramGb: null }, freeDiskGb: 100 };
+  const rig: MachineInfo = { ramGb: 32, cores: 22, gpu: { kind: "discrete", vramGb: 8 }, freeDiskGb: 100 };
+
+  it("Lite with an OpenRouter key: decisions stay on this computer (the matcher), no cloud", () => {
+    const p = buildPlan({ ...base, keys: { ...base.keys, openrouter: true }, sherpaReady: true, setup: setupChoices("lite", old) });
+    expect(p.decision).toEqual({ provider: "matcher", reason: "setup", measuredMs: null });
+    expect(p.stt.backend).toBe("sherpa");
+    expect(p.expectedTickMs).toBe(1500 + 50 + 250);
+  });
+
+  it("Advanced uses Clef when it is installed, the matcher until it is (never the cloud)", () => {
+    const adv = setupChoices("advanced", rig);
+    const keys = { ...base.keys, openrouter: true };
+    const gpu = { kind: "discrete" as const, vramTotalGb: 8 };
+    expect(buildPlan({ ...base, keys, gpu, ramGb: 32, installed: ["clef-flash:latest"], ollamaOk: true, setup: adv }).decision).toMatchObject({ provider: "clef-local", reason: "setup" });
+    expect(buildPlan({ ...base, keys, gpu, ramGb: 32, installed: [], ollamaOk: true, setup: adv }).decision).toMatchObject({ provider: "matcher", reason: "clef-missing" });
+    expect(buildPlan({ ...base, keys, installed: ["clef-flash:latest"], ollamaOk: false, setup: adv }).decision.provider).toBe("matcher");
   });
 });

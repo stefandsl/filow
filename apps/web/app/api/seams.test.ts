@@ -97,6 +97,12 @@ describe("Step 4 provider boundaries", () => {
     expect(res.status).toBe(200);
     expect(outbound.mock.calls.map(c => c[0])).toEqual(["http://127.0.0.1:11434/v1/systemone"]);
   });
+  it("a decide request naming the in-page matcher is refused, never answered by the cloud default", async () => {
+    vi.stubEnv("FILOW_OFFLINE", "");
+    const res = await decide(request({ provider: "matcher", transcript: privateText, sectionTitle: "A", bullets: [{ id: "b", text: "B" }] }));
+    expect(res.status).toBe(400);
+    expect(outbound).not.toHaveBeenCalled();
+  });
   // Contract: ARCHITECTURE.md §6.10 offline forces local providers; Q4 prohibits offline text upload.
   it("offline translation must not upload the script to OpenRouter", async () => {
     const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it" }));
