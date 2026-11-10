@@ -11,6 +11,8 @@ export * from "./gauntlet";
 export * from "./gate";
 export * from "./guard";
 export * from "./evidence";
+export * from "./rehearsal";
+export * from "./rehearsal-timer";
 export * from "./ui-preferences";
 export * from "./matcher";
 export * from "./profile";

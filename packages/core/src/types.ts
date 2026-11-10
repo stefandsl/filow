@@ -10,12 +10,31 @@ export type Section = {
   id: string;
   title: string;
   bullets: Bullet[];
+  /** Target length of this section in minutes ("# Intro (3 min)"), for the talk timer. */
+  minutes?: number;
 };
 
 export type Script = {
   sections: Section[];
   /** "slides" when built from a deck, so slide index == section index. */
   source?: "markdown" | "slides" | "import" | "screen";
+  /** Target length of the whole talk in minutes ("<!-- target: 20 min -->"), for the talk timer. */
+  minutes?: number;
+};
+
+/**
+ * When the take started and which section showed when (rehearsal-timer.ts). Kept by the prompter
+ * that runs the take, not by the engine, and sent with the state so the phone mirror shows the same
+ * timer. Times are epoch ms on the prompter's computer.
+ */
+export type TalkClock = {
+  startedAt: number | null;
+  /** set when the take stopped; the timer then stays still */
+  endedAt: number | null;
+  /** every section shown during the take, in order; the first is the one showing at the start */
+  entries: Array<{ idx: number; at: number }>;
+  /** the prompter's time when this was sent, so a phone whose clock differs can line up */
+  sentAt: number;
 };
 
 export type PointStatus = "waiting" | "started" | "missed";
@@ -104,6 +123,8 @@ export type SessionState = {
   unmentioned?: string[];
   /** Vision calls and their cost, counted in stats.costUsd too. */
   screenStats?: { frames: number; costUsd: number | null; analysing: boolean };
+  /** The talk timer's clock, added by the prompter when it publishes the state (never set by the engine). */
+  clock?: TalkClock;
 };
 
 export type Command =
