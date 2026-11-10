@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { oracleDecide, replay, type Corpus } from "./gauntlet";
+import { corpusLanguage, oracleDecide, replay, type Corpus } from "./gauntlet";
 import { Engine, type EngineOptions } from "./engine";
 import { parseScript } from "./script";
+import { FUZZY_MIN, contentTokens, sentences, similarity } from "./text";
 
 const CORPUS: Corpus = {
   name: "unit",
@@ -284,7 +285,7 @@ function loadCorpus(name: string): Corpus {
   const dir = new URL(`../../../docs/gauntlet/corpus/${name}/`, import.meta.url);
   const transcript = JSON.parse(readFileSync(new URL("transcript.json", dir), "utf8"));
   const labels = JSON.parse(readFileSync(new URL("labels.json", dir), "utf8"));
-  return { name, language: name.endsWith("-en") ? "en" : "it", script: readFileSync(new URL("script.md", dir), "utf8"), transcript: transcript.segments, labels: labels.labels, neverStarted: labels.neverStarted };
+  return { name, language: corpusLanguage(name), script: readFileSync(new URL("script.md", dir), "utf8"), transcript: transcript.segments, labels: labels.labels, neverStarted: labels.neverStarted };
 }
 const ANNOUNCE = /\b(parler[oò]|vi parlo|tra poco|più avanti|later i will|i will also cover|i'll (also )?(talk|cover))\b/i;
 const stems = (t: string) => new Set((t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").match(/\p{L}{4,}/gu) ?? []).map((w) => w.slice(0, 5)));
@@ -315,6 +316,50 @@ describe("trap corpora with a gullible model", () => {
 
     it(`${name}: without the guard the same model is fooled (the corpus really has traps)`, async () => {
       const r = await replay(loadCorpus(name), { decide: gullibleDecide, engine: { guard: false } });
+      expect(r.falseStarts).toBeGreaterThanOrEqual(3);
+    });
+  }
+});
+
+// The same trap set in Russian, Romanian and Japanese (docs/stt/LANGUAGES.md). The gullible model here
+// counts shared content words with the product's own tokeniser, because five-letter stems do not exist
+// in Japanese; it still skips an explicit announcement, as the decision models' rubric does.
+const ANNOUNCE_BY_LANGUAGE: Record<string, RegExp> = {
+  ru: /позже я расскажу/i,
+  ro: /mai t[âa]rziu voi vorbi/i,
+  ja: /後ほど/,
+};
+const gullibleWords = (language: string): EngineOptions["decide"] => async (r) => {
+  const heard = sentences(r.transcript).filter((s) => !ANNOUNCE_BY_LANGUAGE[language].test(s.text)).flatMap((s) => contentTokens(s.text));
+  return {
+    decisions: r.bullets.map((b) => {
+      const ws = contentTokens(b.text);
+      const share = ws.filter((w) => heard.some((h) => similarity(w, h) >= FUZZY_MIN)).length / Math.max(1, ws.length);
+      return { id: b.id, started: share >= 0.6, confidence: share >= 0.6 ? 0.95 : 0.1 };
+    }),
+    latencyMs: 1,
+    cost: 0,
+    model: "gullible-words",
+  };
+};
+
+describe("trap corpora in Russian, Romanian and Japanese with a gullible model", () => {
+  it("reads the language of a corpus from its name", () => {
+    expect(["traps-ru", "traps-ro", "traps-ja", "traps-en", "journey-it", "demo-it", "unit"].map(corpusLanguage)).toEqual(["ru", "ro", "ja", "en", "it", "it", "it"]);
+  });
+
+  for (const name of ["traps-ru", "traps-ro", "traps-ja"]) {
+    const corpus = loadCorpus(name);
+    it(`${name}: no false completion, every true point found`, async () => {
+      const r = await replay(corpus, { decide: gullibleWords(corpus.language) });
+      const wrong = r.points.filter((p) => p.outcome === "false-start" || p.outcome === "never-started-flipped").map((p) => p.pointId);
+      expect(wrong).toEqual([]);
+      expect(r.recall).toBe(1);
+      expect(r.guarded).toBeGreaterThan(0);
+    });
+
+    it(`${name}: without the guard the same model is fooled (the corpus really has traps)`, async () => {
+      const r = await replay(corpus, { decide: gullibleWords(corpus.language), engine: { guard: false } });
       expect(r.falseStarts).toBeGreaterThanOrEqual(3);
     });
   }

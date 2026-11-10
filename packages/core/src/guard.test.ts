@@ -136,6 +136,102 @@ describe("claim guard: counts are compared only for the same counted thing", () 
   });
 });
 
+describe("claim guard: Russian", () => {
+  it("blocks the opposite direction, a denial, a wrong number and a wrong unit", () => {
+    expect(blocked("Расходы на поддержку снизились на 30%", "Расходы на поддержку выросли на тридцать процентов в этом квартале, в основном из-за переработок.").conflict?.kind).toBe("direction");
+    expect(blocked("Мы сократили время подключения клиента", "Мы не сократили время подключения клиента, оно по-прежнему две недели.").conflict?.kind).toBe("negation");
+    expect(blocked("Мы повысим цены в январе", "Мы не повысим цены в январе, держим их до весны.").conflict?.kind).toBe("negation");
+    expect(blocked("Отток упал до 4%", "Отток упал до четырнадцати процентов, и это не то, чего мы хотим.").conflict?.kind).toBe("number");
+    expect(blocked("Передадим мобильное приложение 50 пилотным клиентам", "Сначала передадим мобильное приложение пятнадцати пилотным клиентам, потом всем остальным.").conflict?.kind).toBe("number");
+    expect(blocked("Среднее время ответа составляет 4 часа", "Среднее время ответа составляет четыре дня, и это наша главная проблема.").ok).toBe(false);
+  });
+
+  it("passes the same claims said truthfully, numbers spelled out in any case", () => {
+    expect(blocked("Расходы на поддержку снизились на 30%", "Расходы на поддержку снизились на тридцать процентов в этом квартале.").ok).toBe(true);
+    expect(blocked("Отток упал до 4%", "Отток упал до четырёх процентов.").ok).toBe(true);
+    expect(blocked("Индекс лояльности клиентов равен 62", "Индекс лояльности клиентов теперь равен шестидесяти двум, в прошлом квартале было пятьдесят пять.").ok).toBe(true);
+    expect(blocked("Мы наняли 3 инженеров", "В июле мы наняли трёх инженеров, все они работают в поддержке.").ok).toBe(true);
+    expect(blocked("Среднее время ответа составляет 4 часа", "Среднее время ответа составляет четыре часа.").ok).toBe(true);
+    expect(blocked("Передадим мобильное приложение 50 пилотным клиентам", "Передадим мобильное приложение пятидесяти пилотным клиентам.").ok).toBe(true);
+    expect(blocked("Все данные клиентов остаются на наших серверах", "Все данные клиентов остаются на наших серверах, ничего не уходит в чужое облако.").ok).toBe(true);
+  });
+
+  it("'не только' and a contrast after 'а' are not denials of the point", () => {
+    expect(blocked("Выручка выросла", "Не только выручка выросла, но и прибыль.").ok).toBe(true);
+    expect(blocked("Выручка выросла", "Выручка выросла, а расходы упали.").ok).toBe(true);
+  });
+});
+
+describe("claim guard: Romanian, with and without diacritics", () => {
+  it("blocks the opposite direction, a denial, a wrong number and a wrong unit", () => {
+    expect(blocked("Costurile de suport au scăzut cu 30%", "Costurile de suport au crescut cu treizeci la sută în acest trimestru, mai ales din cauza orelor suplimentare.").conflict?.kind).toBe("direction");
+    expect(blocked("Costurile de suport au scăzut cu 30%", "Costurile de suport au crescut cu treizeci la suta in acest trimestru.").conflict?.kind).toBe("direction");
+    expect(blocked("Am redus timpul de integrare a clienților", "Nu am redus timpul de integrare a clienților, este tot două săptămâni.").conflict?.kind).toBe("negation");
+    expect(blocked("Vom majora prețurile în ianuarie", "Nu vom majora preturile in ianuarie, le pastram pana in primavara.").conflict?.kind).toBe("negation");
+    expect(blocked("Veniturile au crescut", "Veniturile nu au mai crescut.").conflict?.kind).toBe("negation");
+    expect(blocked("Rata de renunțare a scăzut la 4%", "Rata de renunțare a scăzut la paisprezece la sută, ceea ce nu ne mulțumește.").conflict?.kind).toBe("number");
+    expect(blocked("Livrăm aplicația mobilă către 50 de clienți pilot", "Livrăm aplicația mobilă mai întâi către cincisprezece clienți pilot, apoi tuturor.").conflict?.kind).toBe("number");
+    expect(blocked("Timpul mediu de răspuns este de 4 ore", "Timpul mediu de răspuns este de patru zile, iar asta este cea mai mare problemă a noastră.").ok).toBe(false);
+  });
+
+  it("passes the same claims said truthfully, typed without diacritics too", () => {
+    expect(blocked("Costurile de suport au scăzut cu 30%", "Costurile de suport au scazut cu treizeci la suta in acest trimestru.").ok).toBe(true);
+    expect(blocked("Am redus timpul de integrare a clienților", "Am redus timpul de integrare a clientilor la o saptamana.").ok).toBe(true);
+    expect(blocked("Rata de renunțare a scăzut la 4%", "Rata de renuntare a scazut la patru la suta.").ok).toBe(true);
+    expect(blocked("Scorul de satisfacție este 62", "Scorul de satisfacție este acum șaizeci și doi, față de cincizeci și cinci în trimestrul trecut.").ok).toBe(true);
+    expect(blocked("Am angajat 3 ingineri", "În iulie am angajat trei ingineri, toți la suport.").ok).toBe(true);
+    expect(blocked("Timpul mediu de răspuns este de 4 ore", "Timpul mediu de raspuns este de patru ore.").ok).toBe(true);
+    expect(blocked("Livrăm aplicația mobilă către 50 de clienți pilot", "Livram aplicatia mobila catre cincizeci de clienti pilot.").ok).toBe(true);
+  });
+
+  it("'mai' is the month, 'more' or 'first', not a denial, and a contrast after 'dar' stands", () => {
+    expect(blocked("Biroul din Cluj se deschide în mai", "Mai întâi vestea bună: biroul din Cluj se deschide în mai.").ok).toBe(true);
+    expect(blocked("Veniturile au crescut", "Cel mai mare client a plecat, dar veniturile au crescut.").ok).toBe(true);
+  });
+});
+
+describe("claim guard: Japanese, as a recogniser writes it (no punctuation, kanji numerals)", () => {
+  it("blocks the opposite direction, a denial in the verb ending, a wrong number and a wrong unit", () => {
+    expect(blocked("サポートコストは30%減少しました", "サポートコストは今四半期三十パーセント増加しました").conflict?.kind).toBe("direction");
+    expect(blocked("オンボーディング期間を短縮しました", "オンボーディング期間は短縮していません").conflict?.kind).toBe("negation");
+    expect(blocked("エンジニアを3人採用しました", "エンジニアは採用していません").conflict?.kind).toBe("negation");
+    expect(blocked("1月に価格を上げます", "一月に価格は上げません").conflict?.kind).toBe("negation");
+    expect(blocked("解約率は4%に下がりました", "解約率は十四パーセントに下がりました").conflict?.kind).toBe("number");
+    expect(blocked("モバイルアプリを50社のパイロット顧客に提供します", "モバイルアプリをまず十五社のパイロット顧客に提供します").conflict?.kind).toBe("number");
+    expect(blocked("平均応答時間は4時間です", "平均応答時間は四日です").ok).toBe(false);
+  });
+
+  it("passes the same claims said truthfully", () => {
+    expect(blocked("サポートコストは30%減少しました", "サポートコストは今四半期三十パーセント減少しました").ok).toBe(true);
+    expect(blocked("オンボーディング期間を短縮しました", "オンボーディング期間を一週間に短縮しました").ok).toBe(true);
+    expect(blocked("解約率は4%に下がりました", "解約率は四パーセントに下がりました").ok).toBe(true);
+    expect(blocked("顧客満足度スコアは62です", "顧客満足度スコアは六十二です").ok).toBe(true);
+    expect(blocked("エンジニアを3人採用しました", "七月にエンジニアを三人採用しました").ok).toBe(true);
+    expect(blocked("平均応答時間は4時間です", "平均応答時間は四時間です").ok).toBe(true);
+    expect(blocked("モバイルアプリを50社のパイロット顧客に提供します", "モバイルアプリを五十社のパイロット顧客に提供します").ok).toBe(true);
+    expect(blocked("大阪オフィスは5月に開設します", "まず良い知らせです 大阪オフィスは五月に開設します").ok).toBe(true);
+  });
+
+  it("endings that look like a denial but are not: かもしれません, なければなりません", () => {
+    expect(blocked("売上は増えました", "売上は増えるかもしれません").conflict?.kind).not.toBe("negation");
+    expect(blocked("値上げします", "値上げしなければなりません").ok).toBe(true);
+  });
+
+  it("a negated point said without its negation is blocked, said with it passes", () => {
+    expect(blocked("値上げはしません", "値上げします").conflict?.kind).toBe("negation");
+    expect(blocked("値上げはしません", "値上げはしません").ok).toBe(true);
+  });
+});
+
+describe("claim guard: the new word lists leave Italian and English alone", () => {
+  it("Italian 'scade' (expires) and 'tripla A' are not directions, 'dar' and 'mai' keep their Italian reading", () => {
+    expect(blocked("Il contratto scade a maggio", "Il contratto scade a maggio e lo rinnoviamo.").ok).toBe(true);
+    expect(blocked("Abbiamo il rating tripla A", "Abbiamo ottenuto il rating tripla A a marzo.").ok).toBe(true);
+    expect(blocked("Non abbiamo mai perso un cliente", "Non abbiamo mai perso un cliente in dieci anni.").ok).toBe(true);
+    expect(blocked("Vogliamo dar voce ai clienti", "Vogliamo dar voce ai clienti con un sondaggio.").ok).toBe(true);
+  });
+});
+
 describe("claim guard: contrast tails are not negated claims", () => {
   it("', non alla tua' after a pause is a contrast (demo-it s1b2, blocked by the first reviewed guard)", () => {
     expect(checkClaim("Il gobbo tradizionale scorre alla sua velocità, non alla tua", "Il gobbo classico, quello che scorre, non risolve: va alla sua velocità, non alla tua, e tu lo insegui.").ok).toBe(true);

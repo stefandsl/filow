@@ -16,9 +16,19 @@ export type Segment = { sec: number; committed?: string; partial?: string };
 /** Ground truth: when the speaker really started each point. */
 export type Label = { pointId: string; startedAtSec: number };
 
+/** Languages a labelled corpus can be in (docs/stt/LANGUAGES.md). */
+export type CorpusLanguage = "it" | "en" | "ru" | "ro" | "ja";
+const CORPUS_LANGUAGES: readonly CorpusLanguage[] = ["it", "en", "ru", "ro", "ja"];
+
+/** Language of a corpus from its directory name ("traps-ru" is Russian); Italian when the name carries none. */
+export function corpusLanguage(name: string): CorpusLanguage {
+  const suffix = name.slice(name.lastIndexOf("-") + 1).toLowerCase();
+  return CORPUS_LANGUAGES.find((l) => l === suffix) ?? "it";
+}
+
 export type Corpus = {
   name: string;
-  language: "it" | "en";
+  language: CorpusLanguage;
   /** Markdown script, the same text the user loads in the app. */
   script: string;
   transcript: Segment[];

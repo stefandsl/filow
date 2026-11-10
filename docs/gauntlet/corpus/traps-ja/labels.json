@@ -1,0 +1,10 @@
+{
+  "note": "Same traps as traps-en, in Japanese. s0b0: the speech contradicts the point (増加, the point says 減少). s0b1: the speech negates the point (短縮していません). s0b2: wrong number (十四, the point says 4). s0b3: TRUE point, number in kanji numerals (六十二) next to an older number. s1b3: TRUE point said before s1b0 (out of order). s1b0: TRUE point with a kanji numeral and a counter (三人). s1b1: wrong unit (四日, the point says 4時間). s1b2: announced for later (後ほど), never delivered. s2b0: a partial says the point, the committed text denies it (上げません). s2b1: a partial says 五十社, the committed text says 十五社. s2b2: TRUE point followed by an unrelated denial in the next phrase (何も出しません).",
+  "labels": [
+    { "pointId": "s0b3", "startedAtSec": 26 },
+    { "pointId": "s1b3", "startedAtSec": 32 },
+    { "pointId": "s1b0", "startedAtSec": 38 },
+    { "pointId": "s2b2", "startedAtSec": 56 }
+  ],
+  "neverStarted": ["s0b0", "s0b1", "s0b2", "s1b1", "s1b2", "s2b0", "s2b1"]
+}
