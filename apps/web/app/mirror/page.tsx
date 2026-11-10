@@ -8,6 +8,7 @@ import { connect, type SessionClient } from "@filow/client";
 import type { Command, SessionState } from "@filow/core";
 import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
 import { sessionServerUrl } from "@/lib/sessionUrl";
+import { classifyServer } from "@/lib/mirrorServer";
 import { LangSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
 
 /** PWA mirror: pair with a code, show the live state, send remote commands. ARCHITECTURE.md §5.8 */
@@ -37,19 +38,13 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
   const closeOverlay = () => (globalThis as { filow?: { closeOverlay?: () => void } }).filow?.closeOverlay?.();
   const [pending, setPending] = useState(false);
 
-  /** ?server= is only trusted when it is this page's own origin; anything else is confirmed first (never auto-connect elsewhere). */
+  /** ?server= is trusted only where the desktop's own QR code points (this origin, or this host one port up); anything else is confirmed first (never auto-connect elsewhere). */
   const resolveServer = (): string | null => {
     if (!serverParam) return sessionServerUrl();
-    let host: string;
-    try {
-      const u = new URL(serverParam);
-      if (u.origin === window.location.origin) return u.origin;
-      if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-      host = u.host;
-    } catch {
-      return null;
-    }
-    return window.confirm(t("mirror.foreignServer", { host })) ? serverParam : null;
+    const s = classifyServer(serverParam, window.location.origin);
+    if (s.kind === "trusted") return s.url;
+    if (s.kind === "invalid") return null;
+    return window.confirm(t("mirror.foreignServer", { host: s.host })) ? serverParam : null;
   };
 
   const join = async (c: string) => {

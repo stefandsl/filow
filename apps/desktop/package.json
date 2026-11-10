@@ -7,6 +7,7 @@
   "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/stefandsl/filow",
   "main": "main.js",
+  "desktopName": "Filow.desktop",
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --publish never",
@@ -33,6 +34,7 @@
     "appId": "com.intelliprompter.app",
     "electronVersion": "45.2.3",
     "npmRebuild": false,
+    "afterPack": "./after-pack.js",
     "artifactName": "Filow-${version}-${os}-${arch}.${ext}",
     "productName": "Filow",
     "executableName": "Filow",
@@ -151,11 +153,25 @@
             "x64",
             "arm64"
           ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "build/icon.png",
       "category": "public.app-category.productivity",
-      "identity": null
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Filow listens to your talk to check off your talking points and to hear OK Filow. Audio is processed on this Mac unless you choose a cloud service.",
+        "NSAppleEventsUsageDescription": "Filow asks PowerPoint which slide is showing, so your talking points follow the slide show."
+      }
     },
     "linux": {
       "target": [
@@ -164,7 +180,26 @@
       ],
       "icon": "build/icon.png",
       "category": "AudioVideo",
-      "maintainer": "Stefan Butnaru"
+      "maintainer": "Stefan Butnaru",
+      "syncDesktopName": true
+    },
+    "deb": {
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "libxt6",
+        "libxrandr2",
+        "libx11-6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0",
+        "libasound2 | libasound2t64",
+        "libgbm1"
+      ]
     },
     "publish": {
       "provider": "github",
@@ -185,7 +220,8 @@
       "enableNodeCliInspectArguments": false,
       "enableEmbeddedAsarIntegrityValidation": true,
       "onlyLoadAppFromAsar": true,
-      "grantFileProtocolExtraPrivileges": true
+      "grantFileProtocolExtraPrivileges": true,
+      "resetAdHocDarwinSignature": true
     }
   },
   "dependencies": {

@@ -182,6 +182,44 @@ async function waitForOllama(ms = 60_000) {
   return "";
 }
 
+/** Ollama's Apple Team ID: the subject.OU of its Developer ID certificate (docs/PLATFORMS.md, macOS). */
+const OLLAMA_MAC_TEAM_ID = "3MU9H2V9Y9";
+
+/**
+ * macOS half of the install (SEC-15; not run on a Mac yet, docs/PLATFORMS.md). The zip is unpacked aside and
+ * must carry a Developer ID signature from Ollama's Team ID before it lands where ollamaExe() finds and starts
+ * it. An Ollama.app already in appsDir stays until the new one is in place and is put back if the swap fails.
+ * The zip and the staging folder are removed whatever happens.
+ */
+function installMacApp(zip, staging, appsDir, run = execFileSync) {
+  const fresh = path.join(staging, "Ollama.app");
+  const target = path.join(appsDir, "Ollama.app");
+  const old = `${target}.filow-old`;
+  try {
+    fs.rmSync(staging, { recursive: true, force: true });
+    run("ditto", ["-xk", zip, staging]);
+    try {
+      run("codesign", ["--verify", "--deep", "--strict", `-R=${require("./integrity.js").macDeveloperIdRequirement(OLLAMA_MAC_TEAM_ID)}`, fresh]);
+    } catch {
+      throw new Error("The Ollama download is not signed by Ollama's Apple Developer ID, so it was not installed.");
+    }
+    fs.mkdirSync(appsDir, { recursive: true });
+    fs.rmSync(old, { recursive: true, force: true });
+    const had = fs.existsSync(target);
+    if (had) fs.renameSync(target, old);
+    try {
+      fs.renameSync(fresh, target);
+    } catch (err) {
+      if (had) fs.renameSync(old, target);
+      throw err;
+    }
+    fs.rmSync(old, { recursive: true, force: true });
+  } finally {
+    fs.rmSync(zip, { force: true });
+    fs.rmSync(staging, { recursive: true, force: true });
+  }
+}
+
 /**
  * Unattended install. onStatus gets {state, pct, error, version, command}:
  * states: checking | downloading | installing | starting | ready | manual | error.
@@ -223,15 +261,11 @@ async function installOllama(binDir, onStatus) {
       fs.rmSync(setup, { force: true });
     } else {
       const zip = path.join(binDir, "Ollama-darwin.zip");
+      const staging = path.join(binDir, "ollama-staging");
       report({ state: "downloading", pct: 0 });
       await downloadWithProgress("https://ollama.com/download/Ollama-darwin.zip", zip, (pct) => report({ state: "downloading", pct }));
       report({ state: "installing", pct: 0 });
-      const apps = path.join(os.homedir(), "Applications");
-      fs.mkdirSync(apps, { recursive: true });
-      execFileSync("ditto", ["-xk", zip, apps]);
-      // SEC-15: the unpacked app must carry a valid Apple code signature (not tested on macOS yet).
-      execFileSync("codesign", ["--verify", "--deep", "--strict", path.join(apps, "Ollama.app")]);
-      fs.rmSync(zip, { force: true });
+      installMacApp(zip, staging, path.join(os.homedir(), "Applications"));
     }
   } catch (err) {
     return report({ state: "error", error: String(err && err.message ? err.message : err) });
@@ -247,4 +281,4 @@ async function installOllama(binDir, onStatus) {
   return version ? report({ state: "ready", version, pct: 100 }) : report({ state: "error", error: "Ollama did not answer after the install; open it once by hand." });
 }
 
-module.exports = { CATALOG, hardwareScan, recommend, ollamaExe, ollamaVersion, installOllama };
+module.exports = { CATALOG, hardwareScan, recommend, ollamaExe, ollamaVersion, installOllama, installMacApp };

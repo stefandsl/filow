@@ -48,7 +48,8 @@ h1.section-title { font-size: var(--type-2xl); margin: 16px 0 8px; font-weight: 
 .strip .label { font-size: var(--type-sm); letter-spacing: 0; text-transform: none; color: var(--muted); font-weight: 400; margin-bottom: 8px; }
 .strip .row { display: flex; gap: 20px; flex-wrap: wrap; font-size: var(--type-base); }
 .strip .row.scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
-.strip .next-item { color: var(--text); }
+/* Icon beside the text, so a wrapped line lines up with the text, not under the circle. */
+.strip .next-item { color: var(--text); display: inline-flex; align-items: flex-start; gap: 6px; }
 .strip .next-item.done { color: var(--muted); text-decoration: line-through; }
 .missed-item { white-space: nowrap; border-width: 0; border-radius: var(--radius); padding: 4px 8px; font-size: var(--type-sm); font-weight: 700; cursor: pointer; background: var(--panel-2); }
 
