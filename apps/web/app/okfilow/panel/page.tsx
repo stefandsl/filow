@@ -531,7 +531,12 @@ export default function OkFilowPanel() {
             </select>
           </label>
           <VoiceSettings bridge={bridge} status={c} t={t} configure={configure}
-            preview={() => void speaker.speak(t("voiceSample"), run.current, { voice: "natural", lang: lang === "it" ? "it" : "en" })} />
+            preview={() => {
+              // The sample takes the turn like a new question: the answer stops for good and hands-free does not reopen the mic over it.
+              const id = ++run.current;
+              if (mode === "speaking" || mode === "thinking") setMode("idle");
+              void speaker.speak(t("voiceSample"), id, { voice: "natural", lang: lang === "it" ? "it" : "en" });
+            }} />
           <label className="okf-row">
             <span>{t("speed")}</span>
             <select value={String(c.speed)} onChange={(e) => void configure({ speed: Number(e.target.value) })}>

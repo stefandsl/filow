@@ -246,6 +246,7 @@ class TtsSession {
     this.model = opts.model || MODEL;
     this.worker = null;
     this.loading = null;
+    this.abortLoad = null;
     this.threads = 0;
     this.pending = new Map();
     this.rid = 0;
@@ -265,15 +266,20 @@ class TtsSession {
         if (this.worker !== worker) return;
         this.worker = null;
         this.loading = null;
+        this.abortLoad = null;
         for (const p of this.pending.values()) p.reject(new Error(message));
         this.pending.clear();
         reject(new Error(message));
         try { worker.terminate(); } catch { /* already gone */ }
       };
+      // A worker stopped while it loads (the voice removed, Filow closing, another setting) must not
+      // leave the answer that waits for it hanging: stopWorker() ends the load with an error.
+      this.abortLoad = (message) => reject(new Error(message));
       worker.on("message", (msg) => {
         if (this.worker !== worker) return;
         if (msg.type === "ready") {
           this.log(`tts: model loaded in ${msg.loadMs} ms, ${threads} threads`);
+          this.abortLoad = null;
           resolve();
         } else if (msg.type === "audio") {
           this.pending.get(msg.rid)?.resolve(msg);
@@ -295,6 +301,7 @@ class TtsSession {
 
   say(req) {
     return new Promise((resolve, reject) => {
+      if (!this.worker) return reject(new Error("voice stopped"));
       const rid = ++this.rid;
       this.pending.set(rid, { resolve, reject });
       this.worker.postMessage({ type: "say", rid, ...req });
@@ -315,7 +322,13 @@ class TtsSession {
     };
     if (!pieces.length) return done({ cancelled: false });
     const t0 = Date.now();
-    await this.start(threads);
+    try {
+      await this.start(threads);
+    } catch (err) {
+      // A newer answer or a cancel took over while the model loaded: this one is simply over.
+      if (gen !== this.gen) return done({ cancelled: true });
+      throw err;
+    }
     let work = 0;
     let audio = 0;
     let firstMs = 0;
@@ -343,8 +356,11 @@ class TtsSession {
   stopWorker() {
     clearTimeout(this.idle);
     const worker = this.worker;
+    const abortLoad = this.abortLoad;
     this.worker = null;
     this.loading = null;
+    this.abortLoad = null;
+    abortLoad?.("voice stopped");
     for (const p of this.pending.values()) p.reject(new Error("voice stopped"));
     this.pending.clear();
     if (worker) try { void worker.terminate(); } catch { /* already gone */ }

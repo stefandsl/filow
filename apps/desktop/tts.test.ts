@@ -357,6 +357,25 @@ describe("speaking piece by piece", () => {
     s.dispose();
   });
 
+  it("never leaves an answer hanging when the worker is stopped while the model loads", async () => {
+    const hung = (p: Promise<unknown>) => Promise.race([p.then((v) => v, (e) => e), new Promise((r) => setTimeout(() => r("hung"), 200))]);
+    // Filow closing (or a new question) while the model loads: the answer is over, not stuck.
+    const a = session();
+    const closing = a.s.speak({ text: THREE, ...REQ }, () => {});
+    a.s.dispose();
+    expect(await hung(closing)).toMatchObject({ cancelled: true, sent: 0 });
+    // The voice removed while it loads (the worker stops, the answer is still the current one): an error the panel can fall back from.
+    const b = session();
+    const removed = b.s.speak({ text: THREE, ...REQ }, () => {});
+    b.s.stopWorker();
+    const got = await hung(removed);
+    expect(got).toBeInstanceOf(Error);
+    expect((got as Error).message).toBe("voice stopped");
+    // A piece asked for after the worker is gone fails at once instead of waiting forever.
+    expect(await hung(b.s.say({ text: "Hi.", lang: "en", sid: 0, speed: 1, steps: 5 }))).toBeInstanceOf(Error);
+    b.s.dispose();
+  });
+
   it("unloads the model after a while without speech", async () => {
     const workers: FakeWorker[] = [];
     const s = new tts.TtsSession(path.join(root, "nowhere"), () => {}, {

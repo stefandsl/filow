@@ -117,8 +117,12 @@ the time back as digits, so the score compares digits with digits.
   cut into pieces (first piece short, each later piece at most three times the one before), each piece
   is synthesized while the previous one plays.
 - The language comes from the answer text (script, then common words; app language on a tie).
-- A new question cuts the old speech: the panel stops playback at once and the worker drops the
-  pieces still queued.
+- A new question cuts the old speech: the panel stops playback at once and the pieces not yet started
+  are never synthesized. A piece the worker is already making cannot be stopped (the native call is
+  not interruptible), so the new answer's first piece can wait for it: after a cut its first audio
+  was 559-1248 ms (median 781 ms, 5 cuts) against about 570 ms without one. On a PC near the
+  step-down limit and a long piece this wait can reach several seconds; restarting the worker instead
+  would cost a model load (0.7-1.3 s) every time.
 - 10 speakers: 0-4 female (measured pitch 160-197 Hz), 5-9 male (85-135 Hz), chosen in the panel.
   Speed setting 0.75x to 1.5x is applied by the model (measured: 7.8 s, 5.8 s, 3.9 s for the same text).
 - Low-spec PCs (pickProfile / nextProfile in tts.js):
