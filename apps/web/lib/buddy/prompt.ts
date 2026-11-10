@@ -2,6 +2,7 @@
 // farzaa/clicky (MIT): the model sees one screenshot per display and may point with
 // [POINT:x,y:label:screenN] tags, which are stripped from the spoken text.
 
+import { BUDDY_LANG_NAMES, buddyLang } from "./lang";
 import { extractVisuals, VISUALS_PROMPT, type BuddyCard, type BuddyModel, type BuddyDrawing } from "./visuals";
 export type { BuddyCard, BuddyModel, BuddyDrawing } from "./visuals";
 
@@ -30,7 +31,8 @@ export function buddySystemPrompt(screens: BuddyScreen[], language: string): str
   const list = screens
     .map((s) => `- screen${s.index}${s.cursor ? " (the mouse is on this one)" : ""}`)
     .join("\n");
-  const lang = language === "it" ? "Italian" : language === "en" ? "English" : "the language the user speaks";
+  const code = buddyLang(language);
+  const lang = code ? BUDDY_LANG_NAMES[code] : "the language the user speaks";
   return [
     "You are OK Filow, a friendly helper that lives next to the user's mouse pointer.",
     "The user holds a key, asks a question out loud and you see a screenshot of each of their screens.",
