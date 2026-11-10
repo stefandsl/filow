@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 import { checkClaim } from "./guard";
 
@@ -154,5 +155,53 @@ describe("claim guard: the latest sentence that states the claim decides", () =>
     const r = checkClaim("Support costs fell 30% this quarter", "Support costs fell thirty percent this quarter. Support costs are a big topic for us.");
     expect(r.ok).toBe(true);
     expect(r.evidence?.text).toBe("Support costs fell thirty percent this quarter.");
+  });
+});
+
+describe("claim guard: short topic labels (TRK-2)", () => {
+  it("a label denied with the verb of its noun (chiusura, non chiudiamo) is blocked (topics-it s2b1)", () => {
+    const r = checkClaim("Chiusura estiva ad agosto", "Quest'estate non chiudiamo ad agosto, restiamo aperti.");
+    expect(r.ok).toBe(false);
+    expect(r.conflict?.kind).toBe("negation");
+  });
+  it("a label said plainly still passes, also in the future tense", () => {
+    expect(checkClaim("Bristol pilot", "The Bristol pilot will start with one small customer group.").ok).toBe(true);
+    expect(checkClaim("Chiusura estiva ad agosto", "La chiusura estiva sarà ad agosto, come ogni anno.").ok).toBe(true);
+    expect(checkClaim("Launch date Monday", "The launch date is Monday, giving us the weekend to finish preparation.").ok).toBe(true);
+  });
+  it("a negation about something else in a sentence that shares one word does not block", () => {
+    expect(checkClaim("Programma fedeltà", "Il programma di oggi non prevede pause.").ok).toBe(true);
+    expect(checkClaim("Weekly review", "We do not have time for questions, so the weekly review comes next.").ok).toBe(true);
+  });
+});
+
+describe("claim guard: one shared word out of three is not a denial (TRK-2 review)", () => {
+  // True points an independent review found blocked when the relevance threshold was lowered to 0.33.
+  const pass: Array<[string, string]> = [
+    ["Launch date Monday", "We will not ship anything before Monday, that is when we go live."],
+    ["Chiusura estiva ad agosto", "Non accetteremo ordini ad agosto, andiamo tutti in ferie per tre settimane."],
+    ["Customer survey results", "We never got a survey back this positive: nine out of ten people would recommend us."],
+    ["Nuovo orario di apertura", "Non abbiamo mai avuto un orario così comodo: da lunedì si apre alle otto e mezza."],
+  ];
+  it.each(pass)("%s / %s passes", (point, said) => {
+    expect(checkClaim(point, said).ok).toBe(true);
+  });
+});
+
+describe("claim guard: true points said with a negation, guard probes (ratchet)", () => {
+  // docs/gauntlet/adversarial/cases.json, guardProbes: sentences a careful human counts as covering the
+  // point, each with a negation that does not deny it. The guard must not block them. The ones it still
+  // blocks are listed here so the cost stays visible: fixing one must remove it from this list, and a
+  // change that blocks another one fails.
+  const KNOWN_BLOCKED = [
+    "Inventario di fine anno | Il ventotto non voglio vedere ferie a fine dicembre: contiamo tutto il magazzino.",
+    "Hiring plan for Q2 | We have never had a plan this ambitious: five people between April and June.",
+    "Programma fedeltà | Non perdete i punti del programma: ogni dieci euro un punto, e valgono un anno.",
+  ];
+  it("blocks only the known ones", () => {
+    const { guardProbes } = JSON.parse(fs.readFileSync(new URL("../../../docs/gauntlet/adversarial/cases.json", import.meta.url), "utf8")) as { guardProbes: { point: string; said: string }[] };
+    expect(guardProbes.length).toBeGreaterThanOrEqual(16);
+    const blocked = guardProbes.filter((p) => !checkClaim(p.point, p.said).ok).map((p) => `${p.point} | ${p.said}`);
+    expect(blocked).toEqual(KNOWN_BLOCKED);
   });
 });

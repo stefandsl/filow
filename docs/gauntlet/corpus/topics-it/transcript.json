@@ -1,0 +1,17 @@
+{
+  "note": "Corpus SINTETICO di etichette brevi (TRK-2, 2026-11-09), scritto a mano PRIMA di misurare la nuova formulazione della domanda: e' una verifica tenuta da parte, non un set di messa a punto. Trappole: solo annuncio (14 s), frase fuori tema (32 s), frase che condivide una parola con un punto ma parla d'altro (50 s), frase che nega il punto (62 s). Il punto s0b2 arriva prima di s0b1 (fuori ordine).",
+  "segments": [
+    { "sec": 2, "committed": "Buongiorno a tutti, cominciamo dall'organizzazione." },
+    { "sec": 8, "committed": "Da lunedì cambia l'orario di apertura: apriamo alle otto e mezza invece che alle nove." },
+    { "sec": 14, "committed": "Dei turni del sabato parliamo tra poco." },
+    { "sec": 20, "committed": "Sulla sicurezza: il corso di formazione è obbligatorio per tutti e si tiene a marzo." },
+    { "sec": 26, "committed": "Ecco, il sabato: i turni ruotano ogni due settimane, così nessuno lavora due sabati di fila." },
+    { "sec": 32, "committed": "Qualcuno ha visto le chiavi del magazzino?" },
+    { "sec": 38, "committed": "Passiamo ai clienti. I reclami sono scesi parecchio rispetto all'anno scorso." },
+    { "sec": 44, "committed": "Il programma fedeltà parte con una tessera a punti." },
+    { "sec": 50, "committed": "Le consegne dei fornitori arrivano sempre il martedì." },
+    { "sec": 56, "committed": "In chiusura, l'inventario di fine anno lo facciamo il ventinove dicembre." },
+    { "sec": 62, "committed": "Quest'estate non chiudiamo ad agosto, restiamo aperti." },
+    { "sec": 68, "committed": "Grazie a tutti." }
+  ]
+}

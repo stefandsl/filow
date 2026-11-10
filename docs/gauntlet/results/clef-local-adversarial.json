@@ -1,0 +1,172 @@
+{
+  "at": "2026-11-09T23:54:39.327Z",
+  "model": "clef-flash",
+  "totals": {
+    "main": {
+      "falseTicks": 11,
+      "expectedNot": 218,
+      "misses": 2,
+      "expectedTicks": 38
+    },
+    "other-languages": {
+      "falseTicks": 2,
+      "expectedNot": 19,
+      "misses": 0,
+      "expectedTicks": 6
+    }
+  },
+  "falseTicks": [
+    {
+      "id": "E09",
+      "set": "main",
+      "language": "en",
+      "category": "sarcasm",
+      "point": "Customer satisfaction is at a record high",
+      "said": "Oh sure, customer satisfaction is at a record high, and I am the Queen of England. Seriously, look at these reviews, people are furious.",
+      "confidence": 0.87,
+      "guard": "ok"
+    },
+    {
+      "id": "E24",
+      "set": "main",
+      "language": "en",
+      "category": "other-sense",
+      "point": "Windows support",
+      "said": "Facilities finally replaced the broken windows on the third floor, and their support was great.",
+      "confidence": 0.84,
+      "guard": "ok"
+    },
+    {
+      "id": "E31",
+      "set": "main",
+      "language": "en",
+      "category": "other-company",
+      "point": "We acquired Northwind",
+      "said": "Globex acquired Northwind last week, which changes the market for all of us.",
+      "confidence": 0.92,
+      "guard": "ok"
+    },
+    {
+      "id": "I09",
+      "set": "main",
+      "language": "it",
+      "category": "sarcasm",
+      "point": "I clienti sono soddisfatti",
+      "said": "Certo, i clienti sono soddisfattissimi, come no. Guardate queste recensioni: una stella, una stella, una stella.",
+      "confidence": 0.83,
+      "guard": "ok"
+    },
+    {
+      "id": "F02",
+      "set": "main",
+      "language": "en",
+      "category": "other-actor",
+      "point": "Our app reached one million downloads",
+      "said": "Their app reached one million downloads in its first week, which nobody in the industry expected.",
+      "confidence": 0.95,
+      "guard": "ok"
+    },
+    {
+      "id": "F03",
+      "set": "main",
+      "language": "en",
+      "category": "other-actor",
+      "point": "New office in Dublin",
+      "said": "Our main supplier opened a new office in Dublin, so their response times should improve.",
+      "confidence": 0.94,
+      "guard": "ok"
+    },
+    {
+      "id": "F04",
+      "set": "main",
+      "language": "en",
+      "category": "cancelled-plan",
+      "point": "Bonus scheme for sales",
+      "said": "We used to have a bonus scheme for sales. It ended in 2023 and it is not coming back.",
+      "confidence": 0.94,
+      "guard": "ok"
+    },
+    {
+      "id": "F05",
+      "set": "main",
+      "language": "en",
+      "category": "cancelled-plan",
+      "point": "Office move in January",
+      "said": "The office move was supposed to happen in January. The landlord pulled out, so we stay where we are.",
+      "confidence": 0.87,
+      "guard": "ok"
+    },
+    {
+      "id": "G03",
+      "set": "main",
+      "language": "it",
+      "category": "other-actor",
+      "point": "Nuova sede a Padova",
+      "said": "Il nostro fornitore principale ha aperto una nuova sede a Padova, quindi i tempi di risposta dovrebbero migliorare.",
+      "confidence": 0.94,
+      "guard": "ok"
+    },
+    {
+      "id": "G05",
+      "set": "main",
+      "language": "it",
+      "category": "cancelled-plan",
+      "point": "Trasloco a gennaio",
+      "said": "Il trasloco doveva essere a gennaio. Il proprietario si è tirato indietro, quindi restiamo dove siamo.",
+      "confidence": 0.91,
+      "guard": "ok"
+    },
+    {
+      "id": "G16",
+      "set": "main",
+      "language": "it",
+      "category": "sarcasm",
+      "point": "Il nuovo gestionale fa risparmiare tempo",
+      "said": "Sì, guarda, il nuovo gestionale ci fa risparmiare un sacco di tempo, come no. Stamattina l'ho riavviato sei volte.",
+      "confidence": 0.96,
+      "guard": "ok"
+    },
+    {
+      "id": "S04",
+      "set": "other-languages",
+      "language": "es",
+      "category": "other-actor",
+      "point": "Nueva oficina en Sevilla",
+      "said": "Nuestro proveedor principal ha abierto una nueva oficina en Sevilla, así que deberían responder más rápido.",
+      "confidence": 0.95,
+      "guard": "ok"
+    },
+    {
+      "id": "R04",
+      "set": "other-languages",
+      "language": "fr",
+      "category": "cancelled-plan",
+      "point": "Déménagement en janvier",
+      "said": "Le déménagement devait avoir lieu en janvier. Le propriétaire s'est retiré, donc nous restons où nous sommes.",
+      "confidence": 0.9,
+      "guard": "ok"
+    }
+  ],
+  "misses": [
+    {
+      "id": "E22",
+      "set": "main",
+      "language": "en",
+      "category": "tp-negated-point",
+      "point": "No price increase this year",
+      "said": "Prices stay exactly where they are until December.",
+      "confidence": 0.91,
+      "guard": "blocked (negation)"
+    },
+    {
+      "id": "F21",
+      "set": "main",
+      "language": "en",
+      "category": "tp-paraphrase",
+      "point": "Offline sync",
+      "said": "Your notes now update on the plane too, and they merge when you land.",
+      "confidence": 0.39,
+      "guard": "ok"
+    }
+  ]
+}

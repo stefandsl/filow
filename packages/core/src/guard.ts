@@ -206,6 +206,10 @@ function coverage(words: string[], toks: Token[]): number {
   return s / words.length;
 }
 
+// More than a third: one exact word out of three (0.333) does not make a sentence "about the point".
+// Measured (TRK-2 review, docs/gauntlet/BASELINE.md): at 0.33 the guard blocked true points whose
+// sentence holds an unrelated negation next to a date word ("We will not ship anything before Monday,
+// that is when we go live" for "Launch date Monday").
 const MIN_RELEVANT = 0.34;
 const round = (x: number) => Math.round(x * 100) / 100;
 

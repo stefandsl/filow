@@ -85,8 +85,12 @@ export function similarity(a: string, b: string): number {
   const lev = 1 - levenshtein(a, b) / Math.max(a.length, b.length);
   let p = 0;
   while (p < a.length && p < b.length && a[p] === b[p]) p++;
-  // a shared stem of 5+ letters leaving at most 3 letters of ending: "tagliare" ~ "tagliato", "reduce" ~ "reduced"
   const short = Math.min(a.length, b.length);
+  // The stem of Latin "-dere / -de" verbs ends in d in the verb and in s in its noun and participle:
+  // chiudere ~ chiusura, decidere ~ decisione, concludere ~ conclusione, decide ~ decision,
+  // conclude ~ conclusion. After 4 shared letters that d/s pair counts as one more shared letter.
+  if (p >= 4 && short >= 6 && ((a[p] === "d" && b[p] === "s") || (a[p] === "s" && b[p] === "d"))) p++;
+  // a shared stem of 5+ letters leaving at most 3 letters of ending: "tagliare" ~ "tagliato", "reduce" ~ "reduced"
   const stem = p >= 5 ? (short - p <= 3 ? Math.max(0.85, p / short) : p / short) : 0;
   return Math.max(lev, stem);
 }

@@ -22,6 +22,18 @@ describe("buildClefRequest", () => {
     expect(r.questions.s0b0.instructions).toContain("introduce tensors");
     expect(r.state).toMatchObject({ section: "Intro", covered_points_context_only: ["say hello"] });
   });
+
+  // The wording is measured (docs/gauntlet/BASELINE.md, TRK-2): "has the speaker STARTED this idea /
+  // made this point" scored 0.2 to 0.65 on short labels said word for word. Changing it again needs
+  // the seven corpora and the adversarial set re-run, not a quiet edit.
+  it("asks whether the point was said, and names what does not count", () => {
+    const q = buildClefRequest(req, "clef-flash").questions.s0b0;
+    expect(q.instructions).toContain('Script point: "introduce tensors". Has the speaker said this, or begun saying something about it');
+    expect(q.instructions).not.toMatch(/STARTED talking about this idea/);
+    expect(q.criteria?.true).toMatch(/exactly this topic/);
+    expect(q.criteria?.false).toMatch(/someone else/);
+    expect(q.criteria?.false).toMatch(/dropped or did not happen/);
+  });
 });
 
 describe("parseClefAnswers", () => {

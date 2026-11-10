@@ -271,3 +271,105 @@ said, and no true point. Result files: `clef-local-<corpus>-final*.json`.
 P1 exit, on these numbers: 0 false completions on every corpus (traps included), recall equal to
 the baseline (19 / 26, same points per corpus), local p95 decision latency 781 ms against the 2500 ms
 timeout, no timeouts.
+
+## TRK-2 (2026-11-10): short topic labels, question wording, guard, adversarial set
+
+Problem: recall was stuck at 19 / 26 since before P1. Every remaining miss but one (demo-it s0b2, a
+miss by design) was a short topic label said almost word for word: "Bristol pilot" against "The
+Bristol pilot will start with one small customer group" got 0.23 from local Clef, "Launch date
+Monday" 0.65, "Weekly review" 0.32, "Revisione settimanale" 0.29. The question asked whether the
+speaker had "STARTED talking about this idea" and whether the transcript shows the speaker "making
+this point, in substance": a label is not a claim, so the model had no point to see being made.
+
+### What changed
+
+1. Question wording (`packages/core/src/clef.ts`): `Script point: "<text>". Has the speaker said
+   this, or begun saying something about it, in the transcript?` with the criteria "stated this point
+   as true for them, or is talking about exactly this topic" against "not said yet, only promised for
+   later, a different point, only a shared word, about someone else, a plan that was dropped or did
+   not happen, denied, or said ironically". Four wordings were compared on the requests of a baseline
+   replay first; the reviewer's cases (below) then compared three refinements of the winner.
+2. Fuzzy match (`packages/core/src/text.ts`): the verb and the noun of a Latin "-dere / -de" stem now
+   match (chiudere ~ chiusura, decidere ~ decisione, decide ~ decision). Without it the guard did not
+   see that "non chiudiamo ad agosto" is about the label "Chiusura estiva ad agosto".
+3. The guard's relevance threshold stays at 0.34. Lowering it to 0.33 was tried first and fixed the
+   same sentence, but the independent review showed it blocks true points whose sentence has an
+   unrelated negation next to a date word ("We will not ship anything before Monday, that is when we
+   go live" for "Launch date Monday"): 7 misses instead of 2 on its set. Reverted, tests added.
+
+### Corpora
+
+Two held-out corpora, `topics-en` and `topics-it` (8 points each: 6 true, 2 traps, plus an
+announcement and an off-topic line), were written before the first new wording was measured on them.
+They exposed a false completion that the old wording has too: "Quest'estate non chiudiamo ad agosto"
+ticked "Chiusura estiva ad agosto" (Clef 0.82 old, 0.92 new); change 2 lets the guard block it. They
+are no longer fully held out for the guard, which was fixed because of them.
+
+Local Clef (clef-flash through Ollama), engine defaults, same machine as above while other agents
+were using it (latencies are upper bounds). Three runs of the final code gave the same counts.
+Result files: `clef-local-<corpus>-trk2-base.json` (before) and `clef-local-<corpus>.json` (after).
+
+| corpus | before: correct / labelled | after | false completions before | after |
+|---|---|---|---|---|
+| demo-it | 7 / 9 | 8 / 9 | 0 | 0 |
+| journey-en | 1 / 4 | 4 / 4 | 0 | 0 |
+| journey-it | 2 / 4 | 4 / 4 | 0 | 0 |
+| traps-en | 4 / 4 | 4 / 4 | 0 | 0 |
+| traps-it | 5 / 5 | 5 / 5 | 0 | 0 |
+| **the five corpora P1 was measured on** | **19 / 26 (0.731)** | **25 / 26 (0.962)** | 0 | 0 |
+| topics-en (new) | 4 / 6 | 6 / 6 | 0 | 0 |
+| topics-it (new) | 2 / 6 | 6 / 6 | **1** | **0** |
+| **all seven** | **25 / 38 (0.658)** | **37 / 38 (0.974)** | 1 | 0 |
+
+The one miss left is demo-it s0b2, a miss by design (announced, then started after the presenter
+left the section). Model calls 90 to 78; worst p95 1093 ms against the 2500 ms timeout.
+
+### Adversarial set (independent review)
+
+A fresh reviewer agent, given the code and told to break it, wrote 138 one-request cases
+(`docs/gauntlet/adversarial/cases.json`: 126 English and Italian, 12 Spanish, German and French;
+283 points) aimed at the new wording: denials, hypotheticals, quoted opinions, other companies,
+cancelled plans, agenda lists, sarcasm, other senses of a word, wrong numbers, and hard true points
+(paraphrases, translations, terse or noisy mentions). A point counts as ticked when Clef says started
+(0.7) and the guard agrees. Run it with
+`GAUNTLET_ADV=1 npx vitest run apps/web/lib/gauntlet/adversarial.test.ts`
+(`docs/gauntlet/results/clef-local-adversarial.json`). The labels are one reviewer's judgement.
+
+| | false ticks (of 218 points that must stay open) | misses (of 38 true points) |
+|---|---|---|
+| before (old wording, guard as in P1) | 21 | 6 |
+| first new wording, threshold 0.33 (as reviewed) | 14 | 7 |
+| **final** | **11** | **2** |
+
+Other languages (19 must stay open, 6 true): before 2 false ticks and 3 misses, final 2 and 0.
+
+So "zero false completions" holds on the seven corpora and does not hold against adversarial
+speech, before or after. The 11 false ticks left, all with Clef between 0.83 and 0.96 and no word
+the guard can test:
+- another actor (4): "Our main supplier opened a new office in Dublin" ticks "New office in Dublin";
+  "Their app reached one million downloads" ticks "Our app reached one million downloads".
+- a plan that was cancelled or did not happen (3): "The office move was supposed to happen in
+  January... we stay where we are" ticks "Office move in January".
+- sarcasm (3): "Oh sure, customer satisfaction is at a record high, and I am the Queen of England".
+- another sense of a word (1, new with this wording): replaced windows on the third floor ticks
+  "Windows support".
+The 2 misses left: "No price increase this year" said as "Prices stay exactly where they are until
+December" (the guard reads a negated point said without a negation as a contradiction), and
+"Offline sync" said as "Your notes now update on the plane too, and they merge when you land"
+(Clef 0.39; it was 0.72 with the old wording, the only true point the new wording loses).
+
+Guard probes: 16 true points said with a negation that does not deny them. The guard passes 13; the 3
+it blocks are listed in `guard.test.ts` as a ratchet (a change that blocks a fourth fails).
+
+### Open, in order of value
+
+1. Other actor, cancelled plan, sarcasm: a wording cannot fix them (three refinements moved 14 to 11
+   or 12) and they have no lexical cue. This is the case for the entailment check planned in
+   PRODUCTION-PLAN (a small multilingual NLI model run only on points about to tick), measured on
+   this adversarial set: target 0 false ticks at no more than 2 extra misses.
+2. A negated point paraphrased without a negation (guard false block).
+3. The cloud prompt (`packages/core/src/prompt.ts`) still asks "has the speaker STARTED talking about
+   that idea" and was left alone: measuring it costs paid calls. The local and the cloud path now
+   differ in wording. Hosted Cloudflare Clef inherits the new wording unmeasured.
+4. Not covered by any of this: real speech-to-text output of a real talk, transcripts longer than a
+   few sentences in the adversarial set, and languages other than Italian and English beyond 12 cases.
