@@ -2,7 +2,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
-import { recommendProfile, setupChoices, type MachineInfo, type ProbeRunner } from "@filow/core";
+import { recommendProfile, setupChoices, sttThreads, type MachineInfo, type ProbeRunner } from "@filow/core";
 import { fixtureRunner, GPU_FIXTURES } from "../../packages/core/src/hardware.fixtures";
 
 // localai.js reads the setup rules and the card detection from vendor/ (packages/core bundled by
@@ -88,6 +88,24 @@ describe("first-start recommendation follows the setup profiles", () => {
     }
     expect(recommend({ ramGb: 4, cores: 2, gpuKind: "none", vramGb: null, freeGb: 100 }).models).toEqual(["nemotron-streaming", "whisper-base"]);
     expect(recommend({ ramGb: 6, cores: 2, gpuKind: "none", vramGb: null, freeGb: 100 }).models).toEqual(["nemotron-streaming", "whisper-base", "lfm3-vl"]);
+  });
+});
+
+// Review T2 spec gap: the speech threads a setup reports are the ones stt.js runs
+describe("speech threads", () => {
+  it("stt.js uses the setup's rule for every core count", () => {
+    const os = require("node:os") as typeof import("node:os");
+    const { SttSession } = require("./stt.js") as { SttSession: { prototype: { threads(): number } } };
+    const real = os.cpus;
+    try {
+      for (let cores = 1; cores <= 32; cores++) {
+        os.cpus = () => real().slice(0, 1).concat(Array(cores - 1).fill(real()[0]));
+        expect(SttSession.prototype.threads.call({}), String(cores)).toBe(sttThreads(cores));
+        expect(setupChoices("lite", { ramGb: 8, cores, gpu: { kind: "none", vramGb: null } }).stt.threads).toBe(sttThreads(cores));
+      }
+    } finally {
+      os.cpus = real;
+    }
   });
 });
 

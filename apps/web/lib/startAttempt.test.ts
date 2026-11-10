@@ -34,7 +34,8 @@ it("does not report a late failure from a cancelled attempt", async () => {
 
 it("guards every startup boundary and only cleans up the obsolete backend", () => {
   const source = readFileSync(new URL('../components/Teleprompter.tsx', import.meta.url), 'utf8');
-  // fetchPlan never probes at Start: a probe spends an OpenRouter call when a key exists (P3)
+  // fetchPlan never probes at Start: a probe spends an OpenRouter call when a key exists (P3). The
+  // behaviour (no call leaves the PC on the Start path) is tested in app/api/local/plan/start.test.ts.
   for (const operation of ['loadReadiness()', 'fetchPlan({ probe: false, apply: true })', 'preopenMic(pushLog)', 'probeMic(attempt)', 'b.start(handlers)']) {
     expect(source).toContain(`await attempt.wait(${operation})`);
   }
