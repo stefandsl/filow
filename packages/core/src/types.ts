@@ -125,6 +125,8 @@ export type SessionState = {
   screenStats?: { frames: number; costUsd: number | null; analysing: boolean };
   /** The talk timer's clock, added by the prompter when it publishes the state (never set by the engine). */
   clock?: TalkClock;
+  /** The point the presenter last said they are on (the "anchor" command); see currentPoint() in anchor.ts. */
+  here?: string;
 };
 
 export type Command =
@@ -140,6 +142,13 @@ export type Command =
   | { type: "loadScript"; text: string }
   | { type: "slideChanged"; index: number; total: number; title?: string }
   | { type: "lookNow" }
-  | { type: "forgetScreen" };
+  | { type: "forgetScreen" }
+  /**
+   * The presenter says where they are (a click on a point or a section, a clicker key, a section's
+   * name said aloud). `pointId`: the point they are on. `keep`: "recent" keeps the last seconds of
+   * speech for the new place (Next: people often start the next part before pressing), "all" keeps
+   * everything (going back after a move made by mistake). Engine.anchor() has the rules.
+   */
+  | { type: "anchor"; idx: number; pointId?: string; keep?: "recent" | "all" };
 
 export type CommandResult = { ok: true } | { ok: false; error: string };

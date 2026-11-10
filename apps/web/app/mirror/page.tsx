@@ -3,10 +3,12 @@ import { Icon } from "@/components/icons";
 import { OverlayFrame } from "@/components/OverlayFrame";
 import { TimerMirror } from "@/components/TimerMirror";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { connect, type SessionClient } from "@filow/client";
-import type { Command, SessionState } from "@filow/core";
+import { currentPoint, DEFAULT_DISPLAY, moveCommand, type Command, type SessionState } from "@filow/core";
+import { useClickerKeys } from "@/components/prompter/useReanchor";
+import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useDisplayPrefs, useEyeline } from "@/components/prompter/DisplayPanel";
 import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
 import { sessionServerUrl } from "@/lib/sessionUrl";
 import { classifyServer } from "@/lib/mirrorServer";
@@ -36,6 +38,7 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
   const serverParam = params.get("server");
   const compact = params.get("compact") === "1";
   const overlay = params.get("overlay") === "1";
+  const points = params.get("points") === "1";
   const closeOverlay = () => (globalThis as { filow?: { closeOverlay?: () => void } }).filow?.closeOverlay?.();
   const [pending, setPending] = useState(false);
 
@@ -70,6 +73,8 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
       });
       if (cl.role === "pending") setPending(true);
       setClient(cl);
+      // An overlay window of the desktop app just spent the code on screen (codes are single use).
+      if (overlay) (globalThis as { filow?: { codeSpent?: () => void } }).filow?.codeSpent?.();
       try {
         localStorage.setItem("mirror:lastCode", c);
       } catch {
@@ -82,6 +87,8 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
         /* unsupported or denied */
       }
     } catch (err) {
+      // An overlay window of the desktop app with a spent code (codes are single use): the shell loads it again with a fresh one.
+      if (overlay && /unknown code|code expired/.test((err as Error).message)) (globalThis as { filow?: { overlayRejoin?: () => void } }).filow?.overlayRejoin?.();
       setError(t("mirror.connectionError", { error: (err as Error).message }));
       setStatus("idle");
     }
@@ -156,16 +163,57 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
   const offline = status.startsWith("connecting") || !state;
   const timer = state ? <TimerMirror state={state} /> : null; // the talk timer (TimerMirror.tsx)
   if (overlay) {
+    // The points window for calls (?points=1) is this same overlay view; it says whether screen sharing can show it.
+    const note = points ? <span className="overlay-note">{t(params.get("private") === "1" ? "points.onlyYou" : "points.shared")}</span> : undefined;
     return (
-      <OverlayFrame overlay={overlay} onClose={closeOverlay}>
+      <OverlayFrame overlay={overlay} onClose={closeOverlay} note={note} closeLabel={points ? t("points.close") : undefined}>
         {timer}
+        <MirrorKeys state={state} onCommand={onCommand} />
+        <OverlayEyeline state={state} />
         <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact banner={error ?? (offline ? t("stage.engineOffline") : null)} />
       </OverlayFrame>
     );
   }
-  return <>{timer}
-    <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact={compact} banner={error ?? (offline ? t("stage.engineOffline") : null)} /></>;
+  if (compact) return <>{timer}<MirrorKeys state={state} onCommand={onCommand} /><StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact banner={error ?? (offline ? t("stage.engineOffline") : null)} /></>;
+  return <MirrorStage state={state ?? emptyState(client.id)} onCommand={onCommand} timer={timer} banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
 }
+
+/** Clicker keys on the mirror (a Bluetooth clicker paired with the phone, or the overlay window in focus). */
+function MirrorKeys({ state, onCommand }: { state: SessionState | null; onCommand: (cmd: Command) => void }) {
+  useClickerKeys((m) => {
+    const cmd = state && moveCommand(state, m);
+    if (cmd) onCommand(cmd);
+  }, Boolean(state));
+  return null;
+}
+
+/** A small overlay window keeps the point the presenter is on in view, a third of the way down (under the bar). */
+const OVERLAY_DISPLAY = { ...DEFAULT_DISPLAY, eyeline: "upper" as const };
+function OverlayEyeline({ state }: { state: SessionState | null }) {
+  useEyeline(pageArea, state ? currentPoint(state) : null, OVERLAY_DISPLAY);
+  return null;
+}
+
+/** The full phone view: the stage with this phone's own display choice (size, eyeline, mirror for glass, contrast). */
+function MirrorStage({ state, onCommand, banner, timer }: { state: SessionState; onCommand: (cmd: Command) => void; banner: string | null; timer: ReactNode }) {
+  const t = useT();
+  const [display, setDisplay] = useDisplayPrefs(DISPLAY_KEYS.mirror);
+  const [open, setOpen] = useState(false);
+  useEyeline(pageArea, currentPoint(state), display);
+  return (
+    <main className="display-root" {...displayAttributes(display)}>
+      {timer}
+      <MirrorKeys state={state} onCommand={onCommand} />
+      <button type="button" className="btn mirror-display-btn" onClick={() => setOpen(true)} title={t("display.openTitle")} aria-haspopup="dialog">
+        <Icon name="sliders" /> {t("display.open")}
+      </button>
+      <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state} onCommand={onCommand} stage banner={banner} />
+      {open && <DisplayPanel prefs={display} onChange={setDisplay} onClose={() => setOpen(false)} />}
+    </main>
+  );
+}
+
+const pageArea = () => (typeof document === "undefined" ? null : (document.scrollingElement as HTMLElement | null));
 
 function emptyState(id: string): SessionState {
   return {

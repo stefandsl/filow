@@ -46,6 +46,7 @@
     "files": [
       "main.js",
       "slideshow.js",
+      "points-window.js",
       "localai.js",
       "stt-worker.js",
       "stt.js",

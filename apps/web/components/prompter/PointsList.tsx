@@ -37,11 +37,14 @@ export function saidAnnouncement(
  * The points of the current section. Each point is an item: the row (which toggles the point, so it
  * holds no other control), then, for a done point with evidence, the "Why?" link and its panel as
  * siblings of the row. A polite live region, hidden from sight, tells a screen reader which point
- * was just ticked.
+ * was just ticked. With `onHere`, one click (or H on the focused row) says "I am on this point" and
+ * `current` marks the point the presenter is on.
  */
-export function PointsList({ points, onToggle }: {
+export function PointsList({ points, onToggle, onHere, current }: {
   points: {id: string; text: string; state: PointState; confidence: number; evidence?: Evidence}[];
   onToggle?(id: string): void;
+  onHere?(id: string): void;
+  current?: string | null;
 }) {
   const t = useT();
   const lang = useLang();
@@ -61,14 +64,22 @@ export function PointsList({ points, onToggle }: {
     const why = point.state === "done" && point.evidence ? point.evidence : null;
     const whyId = `why-${point.id}`;
     const isOpen = open === point.id;
-    return <div key={point.id} className={`point-item ${point.state}${why ? " has-why" : ""}`}>
-      <div className={`point point-row ${point.state}`} data-state={point.state}
+    const here = current === point.id;
+    return <div key={point.id} className={`point-item ${point.state}${why ? " has-why" : ""}${here ? " here" : ""}`}>
+      <div className={`point point-row ${point.state}${here ? " here" : ""}`} data-state={point.state} data-point-id={point.id}
         role={onToggle ? "button" : undefined} aria-pressed={onToggle ? point.state === "done" : undefined} tabIndex={onToggle ? 0 : undefined}
-        title={onToggle ? t("stage.toggle") : undefined}
+        aria-current={here ? "step" : undefined}
+        title={onToggle ? t(onHere ? "here.pointHelp" : "stage.toggle") : undefined}
+        aria-keyshortcuts={onHere ? "H" : undefined}
+        // A pointer click says "I am here". A click with no pointer behind it (detail 0: a screen
+        // reader activating the button in browse mode) toggles, as the button's pressed state says.
+        onClick={onHere ? e => (e.detail === 0 && onToggle ? onToggle(point.id) : onHere(point.id)) : undefined}
         onDoubleClick={onToggle ? () => onToggle(point.id) : undefined}
-        onKeyDown={onToggle ? e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(point.id); } } : undefined}>
-        <span className="point-number">{String(i + 1).padStart(2, "0")}</span>
-        <span className="point-text">{point.text}</span>
+        onKeyDown={onToggle || onHere ? e => {
+          if (onToggle && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onToggle(point.id); }
+          else if (onHere && (e.key === "h" || e.key === "H") && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); onHere(point.id); }
+        } : undefined}>
+        <span className="point-number">{String(i + 1).padStart(2, "0")}</span>        <span className="point-text">{point.text}</span>
         <span className="point-state"><span data-icon={icon}><Icon name={icon} /> {label}</span>
           <span className="point-progress" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><i style={{width: `${percent}%`}} /></span>
           <span className="point-percent">{percent}%</span>

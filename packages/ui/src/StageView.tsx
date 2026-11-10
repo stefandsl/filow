@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { Icon } from "../../../apps/web/components/icons";
 import type { Command, SessionState } from "@filow/core";
-import { evidenceSummary, missedPoints } from "@filow/core";
+import { currentPoint, evidenceSummary, missedPoints, moveCommand } from "@filow/core";
 import { OnScreenStrip } from "./OnScreenStrip";
 import { useLang, useT } from "./lang";
 
@@ -31,6 +31,9 @@ export function StageView({ state, onCommand, banner, stage, compact, pointMark 
   const missed = missedPoints(state);
   const send = onCommand ?? (() => undefined);
   const can = Boolean(onCommand);
+  const here = currentPoint(state);
+  const next = moveCommand(state, "next");
+  const prev = moveCommand(state, "prev");
 
   return (
     <div className={`app ${stage ? "stage" : ""} ${compact ? "compact" : ""}`}>
@@ -64,17 +67,25 @@ export function StageView({ state, onCommand, banner, stage, compact, pointMark 
               return (
                 <div
                   key={b.id}
-                  className={`point ${i >= 10 && !compact ? "far" : ""} ${started ? "started" : ""} ${hot ? "hot" : ""}`}
+                  data-point-id={b.id}
+                  className={`point ${i >= 10 && !compact ? "far" : ""} ${started ? "started" : ""} ${hot ? "hot" : ""} ${here === b.id ? "here" : ""}`}
+                  // a tap says "I am here"; a click with no pointer (detail 0: a screen reader in browse mode) toggles, as aria-pressed says
+                  onClick={can ? (e) => send(e.detail === 0 ? (started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id }) : { type: "anchor", idx: sectionIdx, pointId: b.id }) : undefined}
                   onDoubleClick={can ? () => send(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id }) : undefined}
                   role={can ? "button" : undefined}
                   tabIndex={can ? 0 : undefined}
                   aria-pressed={can ? started : undefined}
-                  title={started && st.evidence ? evidenceSummary(st.evidence, lang) : undefined}
+                  aria-current={here === b.id ? "step" : undefined}
+                  aria-keyshortcuts={can ? "H" : undefined}
+                  title={started && st.evidence ? evidenceSummary(st.evidence, lang) : can ? t("here.tapHelp") : undefined}
                   aria-description={started && st.evidence ? evidenceSummary(st.evidence, lang) : undefined}
                   onKeyDown={can ? (e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
                       send(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id });
+                    } else if ((e.key === "h" || e.key === "H") && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                      e.preventDefault();
+                      send({ type: "anchor", idx: sectionIdx, pointId: b.id });
                     }
                   } : undefined}
                 >
@@ -91,7 +102,13 @@ export function StageView({ state, onCommand, banner, stage, compact, pointMark 
 
           {nextSection && (
             <div className="strip preview">
-              <div className="label">{t("stage.next", { title: nextSection.title })}</div>
+              {can && next ? (
+                <button type="button" className="label next-jump" onClick={() => send(next)} title={t("here.nextHelp")}>
+                  {t("stage.next", { title: nextSection.title })}
+                </button>
+              ) : (
+                <div className="label">{t("stage.next", { title: nextSection.title })}</div>
+              )}
               <div className="row">
                 {nextSection.bullets.map((b) => (
                   <span key={b.id} className={`next-item ${points[b.id]?.status === "started" ? "done" : ""}`}>
@@ -128,10 +145,10 @@ export function StageView({ state, onCommand, banner, stage, compact, pointMark 
 
       {can && !compact && (
         <div className="controls">
-          <button className="btn" onClick={() => send({ type: "prevSection" })} disabled={sectionIdx === 0}>
+          <button className="btn" onClick={() => prev && send(prev)} disabled={!prev}>
             {t("ctl.prevShort")}
           </button>
-          <button className="btn primary" onClick={() => send({ type: "nextSection" })} disabled={!nextSection}>
+          <button className="btn primary" onClick={() => next && send(next)} disabled={!next}>
             {t("ctl.nextShort")}
           </button>
           <button className="btn" onClick={() => send({ type: "resetSection" })}>

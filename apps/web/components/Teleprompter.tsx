@@ -5,6 +5,7 @@ import type { MicWarning } from "@filow/stt";
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import {
+  currentPoint,
   missedPoints,
   notesToMarkdown,
   parseScript,
@@ -47,6 +48,9 @@ import { OverflowMenu } from "./prompter/OverflowMenu";
 import { Dialog } from "./prompter/Dialog";
 import { ImportError } from "./prompter/ImportError";
 import { LogPanel } from "./prompter/LogPanel";
+import { useReanchor } from "./prompter/useReanchor";
+import { ReanchorNotice } from "./prompter/ReanchorNotice";
+import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useCodesForWindows, useDisplayPrefs, useEyeline, usePointsWindow } from "./prompter/DisplayPanel";
 import { pointState } from "@/lib/pointState";
 import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
 import { decisionRecipient, sttRecipient, takeOutbound } from "@/lib/buddy/outbound";
@@ -74,6 +78,14 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const actionMenuRef = useRef<HTMLButtonElement>(null);
   const { engine, state } = useEngine();
   const sessionInfo = useSession(engine);
+  // Re-anchoring (clicker keys, clicks, a section's name said aloud) and the Display panel: prompter/useReanchor.ts, prompter/DisplayPanel.tsx
+  const reanchor = useReanchor(engine, state.sectionIdx);
+  const { slideMoved } = reanchor;
+  const [display, setDisplay] = useDisplayPrefs(DISPLAY_KEYS.prompter);
+  const [displayOpen, setDisplayOpen] = useState(false);
+  const pointsWindow = usePointsWindow();
+  useCodesForWindows(sessionInfo.newCode);
+  const readingRef = useRef<HTMLDivElement>(null);
   const [scriptText, setScriptText] = useState("");
   const [sttStatus, setSttStatus] = useState<SttStatus>({ elevenlabs: false, openai: false });
   // Resolved on the client only, so server and first client render agree.
@@ -107,11 +119,14 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     if (!bridge?.onSlideshow) return;
     const apply = (st: { running: boolean; index: number; total: number; title: string }) => {
       setShow(st.running ? st : null);
-      if (st.running && st.index >= 0) engine.dispatch({ type: "slideChanged", index: st.index, total: st.total, title: st.title || undefined });
+      if (st.running && st.index >= 0) {
+        engine.dispatch({ type: "slideChanged", index: st.index, total: st.total, title: st.title || undefined });
+        slideMoved(st.index);
+      }
     };
     void bridge.slideshowState?.().then(apply);
     return bridge.onSlideshow(apply);
-  }, [engine]);
+  }, [engine, slideMoved]);
   const remoteLink = useRemoteStatus();
   useEffect(() => {
     setPublicLink(publicLinkOn(remoteLink));
@@ -145,6 +160,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const nextSection = script.sections[sectionIdx + 1];
   const missed = missedPoints(state);
   const error = eng.error ?? null;
+  const here = currentPoint(state);
+  useEyeline(readingRef, here, display);
 
   // The desktop shell shows no "update ready" prompt while a take is live (SIGN-04).
   useEffect(() => {
@@ -406,7 +423,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         return;
       }
       const handlers = {
-        onTranscript: (e: { committed?: string; partial?: string }) => { if (attempt.isCurrent()) { rehearsal.transcript(e); engine.feed(e); } },
+        onTranscript: (e: { committed?: string; partial?: string }) => { if (attempt.isCurrent()) { reanchor.heard(e); rehearsal.transcript(e); engine.feed(e); } }, // a named section first: the words of the same segment then count for it
         onError: (m: string) => {
           if (!attempt.isCurrent()) return;
           pushLog(`error: ${m}`);
@@ -486,15 +503,16 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const lang = useLang();
 
   return (
-    <div className="app prompter">
+    <div className="app prompter" {...displayAttributes(display)} data-take={eng.recording ? "live" : undefined}>
       <header className="topbar">
         <div className="logo"><Wordmark height={28} /></div>
         <span className="subtitle">{t("app.tagline")}</span><span className="spacer" />
         <PairPanel prompter info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} onNewCode={() => void sessionInfo.newCode()} />
         <LangSwitch lang={lang} onChange={onLang} /><ThemeSwitch pref={theme} onChange={onTheme} />
+        <button type="button" className="btn display-link" onClick={() => setDisplayOpen(true)} title={t("display.openTitle")} aria-haspopup="dialog"><Icon name="sliders" /><span className="action-label">{t("display.open")}</span></button>
         <a className="btn settings-link" href="/settings/local" aria-label={t("ctl.settings")} title={t("ctl.settingsTitle")}><Icon name="settings" /></a>
       </header>
-      <SectionNav sections={script.sections} current={sectionIdx} onSelect={idx => engine.dispatch({type:"goToSection", idx})}
+      <SectionNav sections={script.sections} current={sectionIdx} onSelect={reanchor.toSection}
         importAction={<button type="button" className="btn" onClick={() => fileRef.current?.click()} disabled={importing} aria-label={t("ctl.import")} title={t("ctl.importTitle")}><Icon name="up" /><span className="action-label">{importing ? t("ctl.importing") : t("ctl.import")}</span></button>}
         reloadAction={<button type="button" className="btn" onClick={loadScript} aria-label={t("ctl.reload")}><Icon name="reload" /><span className="action-label">{t("ctl.reload")}</span></button>} />
         <input
@@ -506,8 +524,9 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         />
 
       <PageOutboundNotice />
-      <div className="prompter-content">
+      <div className="prompter-content" ref={readingRef}>
       <main className="prompter-main">
+      <ReanchorNotice notice={reanchor.notice} onUndo={reanchor.undo} onDismiss={reanchor.dismiss} />
       <PageOutboundSignal className="okf-out-region--bar" />
       {update?.status === "downloaded" && !updateDismissed && !eng.recording && (
         <div className="update-banner">
@@ -534,7 +553,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         {section && <PointsList points={section.bullets.map(b => {
           const st = points[b.id] ?? {status: "waiting", confidence: 0};
           return {id:b.id, text:b.text, confidence:st.confidence, evidence:st.evidence, state:pointState({started:st.status === "started",confidence:st.confidence},st.confidence >= 0.3 || st.active === true)};
-        })} onToggle={id => engine.dispatch(points[id]?.status === "started" ? {type:"reopen",id} : {type:"markStarted",id})} />}
+        })} onToggle={id => engine.dispatch(points[id]?.status === "started" ? {type:"reopen",id} : {type:"markStarted",id})}
+          onHere={id => reanchor.toPoint(sectionIdx, id)} current={here} />}
         {state.screen && <OnScreenStrip screen={state.screen} unmentioned={state.unmentioned} analysing={state.screenStats?.analysing} onLookNow={screen.lookNow} onForget={screen.forget} />}
           {missed.length > 0 && (
             <div className="strip">
@@ -609,6 +629,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         </ScreenSensePanel>}
       </main>
       </div>
+      {displayOpen && <DisplayPanel prefs={display} onChange={setDisplay} onClose={() => setDisplayOpen(false)} pointsWindow={pointsWindow} />}
       <ActionBar start={<>
         {eng.recording ? (
           <button className="btn primary" onClick={stopTake}>
@@ -640,8 +661,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
             try { select?.showPicker(); } catch { /* Keyboard focus works on older hosts. */ }
           }}>{t("mic.chooseAnother")}</button>
         </div>}
-        prev={<button type="button" className="btn" onClick={() => engine.dispatch({type:"prevSection"})} disabled={sectionIdx === 0}><Icon name="left" /> {t("ctl.prev")}</button>}
-        next={<button type="button" className="btn" onClick={() => engine.dispatch({type:"nextSection"})} disabled={!nextSection}>{t("ctl.next")} <Icon name="right" /></button>}
+        prev={<button type="button" className="btn" onClick={() => reanchor.move("prev")} disabled={sectionIdx === 0} aria-keyshortcuts="PageUp ArrowLeft"><Icon name="left" /> {t("ctl.prev")}</button>}
+        next={<button type="button" className="btn" onClick={() => reanchor.move("next")} disabled={!nextSection} aria-keyshortcuts="PageDown ArrowRight">{t("ctl.next")} <Icon name="right" /></button>}
         transcriptToggle={<button type="button" className="btn" aria-expanded={transcriptOpen} aria-controls="prompter-transcript-text" onClick={() => setTranscriptOpen(v => !v)}>{t("footer.transcript")}</button>}
         overflow={<OverflowMenu triggerRef={actionMenuRef} items={[
           {id:"reset",label:t("ctl.reset"),onSelect:() => engine.dispatch({type:"resetSection"})},

@@ -72,6 +72,26 @@ contextBridge.exposeInMainWorld("filow", {
     return () => ipcRenderer.removeListener("slideshow", h);
   },
   closeOverlay: () => ipcRenderer.send("overlay:close"),
+  /** The shell is about to open a floating window (overlay, points window): it joins the session with a fresh pairing code (codes are single use). */
+  onNeedCode: (fn) => {
+    const h = () => fn();
+    ipcRenderer.on("session:needCode", h);
+    return () => ipcRenderer.removeListener("session:needCode", h);
+  },
+  /** A floating window joined the session and spent its code: the page puts a fresh one on screen. */
+  codeSpent: () => ipcRenderer.send("session:codeSpent"),
+  /** A floating window could not join (its code was spent, e.g. after a crash reload): the shell loads it again with a fresh one. */
+  overlayRejoin: () => ipcRenderer.send("overlay:rejoin"),
+  /** The points window for calls (points-window.js): open or close it, and hear when the menu does. */
+  pointsWindow: {
+    status: () => ipcRenderer.invoke("points:status"),
+    set: (on) => ipcRenderer.invoke("points:set", on === true),
+    onChange: (fn) => {
+      const h = (_e, v) => fn(v);
+      ipcRenderer.on("points:changed", h);
+      return () => ipcRenderer.removeListener("points:changed", h);
+    },
+  },
   /** Streaming speech-to-text on this PC (sherpa-onnx + Nemotron in a worker thread of the shell). */
   stt: {
     status: () => ipcRenderer.invoke("stt:status"),

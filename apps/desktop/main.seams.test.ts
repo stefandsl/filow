@@ -54,6 +54,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "node:worker_threads": {}, "node:events": EventEmitter,
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
     "./vendor/i18n": { t }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./ui-preferences": {}, "./slideshow": {},
+    "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
   for (const name of ["stt", "localai", "diag", "welcome-setup", "single-instance", "about"]) {
@@ -292,9 +293,10 @@ describe("windows stay on Filow's own pages", () => {
     expect(f.openExternal.mock.calls.map(c => c[0])).toEqual([`${app}/mirror`, "https://docs.example/"]);
   });
   it("guards every window main.js creates", () => {
-    const source = readFileSync(new URL("./main.js", import.meta.url), "utf8");
-    const windows = source.match(/new BrowserWindow\(/g)?.length ?? 0;
-    const guards = (source.match(/^\s+guardNavigation\(/gm)?.length ?? 0)
+    // points-window.js holds the floating windows (overlay, points window) main.js opens
+    const source = readFileSync(new URL("./main.js", import.meta.url), "utf8") + readFileSync(new URL("./points-window.js", import.meta.url), "utf8");
+    const windows = source.match(/new (deps\.)?BrowserWindow\(/g)?.length ?? 0;
+    const guards = (source.match(/^\s+(deps\.)?guardNavigation\(/gm)?.length ?? 0)
       // the welcome window refuses every navigation and every window by itself
       + (/"will-navigate", event => event\.preventDefault\(\)\);\s+win\.webContents\.setWindowOpenHandler\(\(\) => \(\{ action: "deny" \}\)\);/.test(source) ? 1 : 0);
     expect(windows).toBeGreaterThanOrEqual(5);
@@ -444,10 +446,13 @@ describe("window background colours", () => {
     const want = { dark: bg(tokens), light: bg(tokens.slice(tokens.indexOf(':root[data-theme="light"]'))) };
     expect(want.dark && want.light && want.dark !== want.light, "theme-tokens.css gives --bg for both themes").toBe(true);
     // The region picker is black on purpose: it shows a frozen picture of the screen, not a page.
-    const all = [...source.matchAll(/backgroundColor:\s*([^,\n]+)/g)].map((m) => m[1].trim()).filter((value) => value !== '"#000000"');
+    // Floating windows (points-window.js) take theirs as `background` (a value or a function) from main.js.
+    const all = [...source.matchAll(/\bbackground(?:Color)?:\s*(?:\(\)\s*=>\s*)?([^,\n]+)/g)].map((m) => m[1].trim()).filter((value) => value !== '"#000000"');
     const themed = all.map((value) => /^uiTheme\(\) === "dark" \? "(#[0-9a-f]{6})" : "(#[0-9a-f]{6})"$/i.exec(value));
-    expect(all.filter((_, i) => !themed[i]), "every backgroundColor in main.js picks its colour with uiTheme()").toEqual([]);
-    expect(themed.length).toBeGreaterThanOrEqual(4); // settings, splash, overlay, main window
+    expect(all.filter((_, i) => !themed[i]), "every window background in main.js picks its colour with uiTheme()").toEqual([]);
+    expect(themed.length).toBeGreaterThanOrEqual(5); // settings, splash, overlay, points window, main window
+    const floating = readFileSync(new URL("./points-window.js", import.meta.url), "utf8");
+    expect(floating.match(/#[0-9a-f]{6}\b/gi) ?? [], "points-window.js takes its colours from main.js").toEqual([]);
     for (const m of themed) expect({ dark: m![1].toLowerCase(), light: m![2].toLowerCase() }).toEqual(want);
   });
 });

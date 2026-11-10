@@ -181,6 +181,8 @@ const MENU_TEXT = {
     pptNo: "Not now",
     pptManifest: "PowerPoint add-in: save manifest for another computer…",
     overlayShow: "Presenter overlay (points on top of the slide show)",
+    pointsWindow: "Points window for calls (on top, left out of screen sharing)",
+    pointsWindowPlain: "Points window for calls (on top)",
     okfOpen: "Open OK Filow",
     okfShowAlways: "Always show the buddy",
     okfEnabled: "OK Filow on",
@@ -238,6 +240,8 @@ const MENU_TEXT = {
     pptNo: "Non ora",
     pptManifest: "Componente aggiuntivo PowerPoint: salva il manifest per un altro computer…",
     overlayShow: "Overlay relatore (punti sopra la presentazione)",
+    pointsWindow: "Finestra dei punti per le chiamate (in primo piano, esclusa dalla condivisione)",
+    pointsWindowPlain: "Finestra dei punti per le chiamate (in primo piano)",
     okfOpen: "Apri OK Filow",
     okfShowAlways: "Mostra sempre l'assistente",
     okfEnabled: "OK Filow attivo",
@@ -357,7 +361,7 @@ async function computeWelcomeOffer() {
 function uiSender(event, welcomeOnly = false) {
   return trustedUiSender(event, {
     welcome: welcomeWin?.webContents,
-    pages: [mainWin?.webContents, overlayWin?.webContents].filter(Boolean),
+    pages: [mainWin?.webContents, overlayWin?.webContents, pointsWindow.webContents()].filter(Boolean),
     welcomeUrl, appUrl: APP_URL,
   }, welcomeOnly);
 }
@@ -400,9 +404,8 @@ function initializeUiPreferences() {
     },
   });
   uiPreferences.subscribe(state => {
-    for (const win of [mainWin, overlayWin, welcomeWin]) {
-      if (!win || win.isDestroyed()) continue;
-      const wc = win.webContents;
+    for (const wc of [mainWin, overlayWin, welcomeWin].map((w) => (w && !w.isDestroyed() ? w.webContents : null)).concat(pointsWindow.webContents())) {
+      if (!wc) continue;
       if (uiSender({ sender: wc, senderFrame: wc.mainFrame })) wc.send("ui:preferencesChanged", state);
     }
     if (mainWin && !mainWin.isDestroyed()) buildMenu(mainWin);
@@ -632,7 +635,10 @@ function wireScreenSense() {
     if (info && typeof info.code === "string" && typeof info.id === "string") {
       const changedSession = !currentSession || currentSession.id !== info.id;
       currentSession = { id: info.id, code: info.code };
-      if (changedSession && overlayWin && !overlayWin.isDestroyed()) overlayWin.loadURL(overlayUrl());
+      internalEvents.emit("session:code", info.code);
+      // a new session (page reloaded): each open floating window joins it, each with its own code
+      if (changedSession && overlayWin && !overlayWin.isDestroyed()) void showOverlay();
+      if (changedSession) void pointsWindow.reload();
     }
   });
   appHandle("screen:settings", () => ({ hotkey: settings.screenHotkey, enabled: settings.screenSense }));
@@ -1659,57 +1665,112 @@ async function offerLocalAi() {
   return response === 0 ? { models: rec.models, ollama: rec.ollama } : null;
 }
 
+const { createFloatingWindow, createPointsWindow } = require("./points-window");
 let overlayWin = null;
 let stopSlideShowWatch = null;
 let slideShow = { running: false, index: -1, total: 0, title: "" };
 
-function overlayUrl() {
+function overlayUrl(code = currentSession ? currentSession.code : "") {
   // The overlay is a compact phone-mirror view of the app's own session: nothing to pair, auto-accepted as a local peer.
-  const code = currentSession ? currentSession.code : "";
   return `${APP_URL}/mirror?compact=1&overlay=1${code ? `&code=${code}` : ""}`;
 }
 
+/**
+ * A pairing code nobody has used yet. Codes are single use and a floating window spends one when it
+ * joins, while the page renews its code only after a pairing it has to approve: so before a floating
+ * window (re)joins, the page is asked for a new code (preload onNeedCode). Falls back to the current
+ * code when the page does not answer in time.
+ */
+let codeQueue = Promise.resolve();
+function freshSessionCode() {
+  // One at a time: a new code replaces the last one on the server, so the next window asks only once
+  // the previous one has joined with its code (session:codeSpent) or after a few seconds.
+  const turn = codeQueue.then(() => requestSessionCode());
+  codeQueue = turn.then(() => waitInternal("codeSpent", 6000));
+  return turn;
+}
+function waitInternal(event, timeoutMs) {
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      internalEvents.off(event, done);
+      resolve();
+    };
+    const timer = setTimeout(done, timeoutMs);
+    internalEvents.on(event, done);
+  });
+}
+function requestSessionCode(timeoutMs = 2500) {
+  const before = currentSession ? currentSession.code : "";
+  if (!mainWin || mainWin.isDestroyed()) return Promise.resolve(before);
+  return new Promise((resolve) => {
+    const done = (code) => {
+      clearTimeout(timer);
+      internalEvents.off("session:code", onCode);
+      resolve(code);
+    };
+    const onCode = (code) => { if (code && code !== before) done(code); };
+    const timer = setTimeout(() => done(currentSession ? currentSession.code : ""), timeoutMs);
+    internalEvents.on("session:code", onCode);
+    mainWin.webContents.send("session:needCode");
+  });
+}
+
+let overlayOpening = null;
 function showOverlay() {
+  overlayOpening = overlayOpening || openOverlay().finally(() => (overlayOpening = null));
+  return overlayOpening;
+}
+async function openOverlay() {
+  const code = await freshSessionCode();
   if (overlayWin && !overlayWin.isDestroyed()) {
     overlayWin.show();
-    overlayWin.loadURL(overlayUrl());
+    overlayWin.loadURL(overlayUrl(code));
     return;
   }
   const b = settings.overlayBounds || {};
-  overlayWin = new BrowserWindow({
-    width: b.width || 440,
-    height: b.height || 360,
-    x: b.x,
-    y: b.y,
-    frame: false,
-    transparent: false,
-    alwaysOnTop: true,
-    resizable: true,
-    minimizable: false,
-    skipTaskbar: true,
-    hasShadow: true,
-    opacity: settings.overlayOpacity || 0.94,
-    backgroundColor: uiTheme() === "dark" ? "#121212" : "#f6f7f9",
+  overlayWin = createFloatingWindow(floatingDeps(), {
+    name: "overlay",
     title: "Filow overlay",
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "preload.js") },
+    url: overlayUrl(code),
+    bounds: { width: b.width || 440, height: b.height || 360, x: b.x, y: b.y },
+    background: uiTheme() === "dark" ? "#121212" : "#f6f7f9",
+    opacity: settings.overlayOpacity || 0.94,
+    hidden: settings.overlayHidden,
+    saveBounds: (bounds) => {
+      settings.overlayBounds = bounds;
+      saveSettings();
+    },
+    onClosed: () => (overlayWin = null),
   });
-  overlayWin.setAlwaysOnTop(true, "screen-saver");
-  reloadOnCrash(overlayWin, "overlay");
-  guardNavigation(overlayWin);
-  overlayWin.on("focus", () => uiPreferences?.refresh());
-  overlayWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  overlayWin.setContentProtection(Boolean(settings.overlayHidden));
-  overlayWin.loadURL(overlayUrl());
-  const remember = () => {
-    if (!overlayWin || overlayWin.isDestroyed()) return;
-    settings.overlayBounds = overlayWin.getBounds();
-    saveSettings();
-  };
-  overlayWin.on("moved", remember);
-  overlayWin.on("resized", remember);
-  overlayWin.on("closed", () => (overlayWin = null));
   buildMenu(mainWin);
 }
+
+// The points window for calls (points-window.js): the same floating window as the overlay, its own
+// switch in the menu and in the Display panel, always left out of screen sharing where the system can.
+function floatingDeps() {
+  return { BrowserWindow, preload: path.join(__dirname, "preload.js"), reloadOnCrash, guardNavigation, onFocus: () => uiPreferences?.refresh() };
+}
+const pointsWindow = createPointsWindow({
+  ...floatingDeps(),
+  screen: { getAllDisplays: () => screen.getAllDisplays(), getPrimaryDisplay: () => screen.getPrimaryDisplay() },
+  platform: process.platform,
+  appUrl: APP_URL,
+  sessionCode: () => (currentSession ? currentSession.code : ""),
+  freshCode: () => freshSessionCode(),
+  background: () => uiTheme() === "dark" ? "#121212" : "#f6f7f9",
+  bounds: () => settings.pointsBounds,
+  saveBounds: (bounds) => {
+    settings.pointsBounds = bounds;
+    saveSettings();
+  },
+  onChange: (open) => {
+    if (mainWin && !mainWin.isDestroyed()) {
+      buildMenu(mainWin);
+      mainWin.webContents.send("points:changed", { open });
+    }
+  },
+});
 
 function hideOverlay() {
   if (overlayWin && !overlayWin.isDestroyed()) overlayWin.close();
@@ -1950,6 +2011,12 @@ function buildMenu(win) {
           click: (item) => (item.checked ? showOverlay() : hideOverlay()),
         },
         {
+          label: mt(process.platform === "win32" ? "pointsWindow" : "pointsWindowPlain"), // only Windows reliably leaves it out of sharing (points-window.js)
+          type: "checkbox",
+          checked: pointsWindow.isOpen(),
+          click: (item) => pointsWindow.set(item.checked),
+        },
+        {
           label: mt("overlayAuto"),
           type: "checkbox",
           checked: settings.overlayAuto !== false,
@@ -2083,7 +2150,28 @@ async function main() {
   wireScreenSense();
   startSlideShowWatch();
   appHandle("slideshow:state", () => slideShow);
-  appOn("overlay:close", () => hideOverlay());
+  appOn("overlay:close", (e) => (pointsWindow.owns(e.sender) ? pointsWindow.hide() : hideOverlay()));
+  appOn("session:codeSpent", (e) => {
+    // a floating window paired with the code on screen: the page shows a fresh one for the next device
+    if (!mainWin || mainWin.isDestroyed() || e.sender === mainWin.webContents) return;
+    internalEvents.emit("codeSpent");
+    mainWin.webContents.send("session:needCode");
+  });
+  // A floating window whose code was spent (a crash reload loads the same URL) asks to join again; at
+  // most once in 10 s per window, so a session that refuses every code cannot make it spin.
+  const rejoinedAt = new Map();
+  appOn("overlay:rejoin", (e) => {
+    const now = Date.now();
+    if (now - (rejoinedAt.get(e.sender.id) || 0) < 10_000) return;
+    rejoinedAt.set(e.sender.id, now);
+    if (pointsWindow.owns(e.sender)) void pointsWindow.reload();
+    else if (overlayWin && !overlayWin.isDestroyed() && e.sender === overlayWin.webContents) void showOverlay();
+  });
+  appHandle("points:status", () => ({ open: pointsWindow.isOpen() }));
+  appHandle("points:set", async (_e, on) => {
+    await pointsWindow.set(on === true);
+    return { open: pointsWindow.isOpen() };
+  });
   startOkFilow();
   win.on("closed", () => okFilow?.dispose());
   const hk = registerHotkey();

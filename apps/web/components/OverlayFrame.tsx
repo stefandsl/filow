@@ -9,18 +9,20 @@ import { Icon } from "./icons";
  * no Windows close button and nothing to drag. Every state of the mirror page renders through it, so
  * the code-entry and waiting screens can be moved and closed too, not only the connected view.
  */
-export function OverlayFrame({ overlay, onClose, children }: { overlay: boolean; onClose: () => void; children: ReactNode }) {
+export function OverlayFrame({ overlay, onClose, children, note, closeLabel }: { overlay: boolean; onClose: () => void; children: ReactNode; note?: ReactNode; closeLabel?: string }) {
   const t = useT();
   if (!overlay) return <>{children}</>;
+  const close = closeLabel ?? t("overlay.close");
   return (
     <div className="overlay">
-      <div className="overlay-bar">
+      <header className="overlay-bar">
         <span className="drag"><Icon name="grip" /> Filow</span>
-        <button type="button" className="chip" onClick={onClose} title={t("overlay.close")} aria-label={t("overlay.close")}>
+        {note}
+        <button type="button" className="chip" onClick={onClose} title={close} aria-label={close}>
           <Icon name="close" />
         </button>
-      </div>
-      {children}
+      </header>
+      <main className="overlay-body">{children}</main>
     </div>
   );
 }
