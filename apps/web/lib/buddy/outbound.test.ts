@@ -213,9 +213,16 @@ describe("the server refuses a cloud send that carries no consent for the recipi
     const who = voiceRecipient();
     const none = consentDenied(new Request("http://x/api/buddy/tts", { method: "POST" }), "voice", who);
     expect(none?.status).toBe(403);
-    expect(await none?.json()).toEqual({ error: "consent_required", kind: "voice", recipient: who });
+    expect(await none?.json()).toMatchObject({ code: "consent_required", kind: "voice", recipient: who });
     expect(consentDenied(new Request("http://x", { headers: { [CONSENT_HEADER]: "audio:elevenlabs" } }), "voice", who)?.status).toBe(403);
     expect(consentDenied(new Request("http://x", { headers: { [CONSENT_HEADER]: "voice:elevenlabs" } }), "voice", who)).toBeNull();
+  });
+
+  it("the refusal says, for a client without a notice of its own, who would have received it", async () => {
+    const res = consentDenied(new Request("http://x/api/script/generate", { method: "POST" }), "script", askRecipient("google/gemini-2.5-flash"));
+    const { error } = (await res?.json()) as { error: string };
+    expect(error).toContain("OpenRouter and Google");
+    expect(error).toMatch(/^Not sent/);
   });
 });
 

@@ -252,8 +252,13 @@ export function createNoticeQueue(onChange: (head: NoticeRequest | null) => void
   };
 }
 
-/** Server side: 403 unless the request carries the consent key for this kind and this recipient. */
+/**
+ * Server side: 403 unless the request carries the consent key for this kind and this recipient.
+ * `code` is for programs; `error` is the sentence a client without its own notice (the PowerPoint
+ * add-in, the browser extension) shows as it is, so the user learns why nothing happened.
+ */
 export function consentDenied(req: Request, kind: OutboundKind, recipient: Recipient): Response | null {
   if (req.headers.get(CONSENT_HEADER) === consentKey(kind, recipient)) return null;
-  return Response.json({ error: "consent_required", kind, recipient }, { status: 403 });
+  const error = `Not sent: this would go to ${joinNames(recipient.names, "and")}, and you have not said yes to that here. Use Local mode, or allow it in the Filow window that asks.`;
+  return Response.json({ error, code: "consent_required", kind, recipient }, { status: 403 });
 }

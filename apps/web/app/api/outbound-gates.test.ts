@@ -14,7 +14,7 @@ const outside = () => net.mock.calls.map((c) => String(c[0])).filter((url) => !u
 
 const post = (body: unknown, consent?: string) =>
   new Request("http://unit.invalid/api", { method: "POST", body: JSON.stringify(body), headers: consent ? { "x-filow-consent": consent } : {} });
-const refusal = (kind: string, id: string, names: string[]) => ({ error: "consent_required", kind, recipient: { id, names } });
+const refusal = (kind: string, id: string, names: string[]) => expect.objectContaining({ code: "consent_required", kind, recipient: { id, names } });
 
 const decideBody = { transcript: "and then we look at the numbers", sectionTitle: "Numbers", bullets: [{ id: "a", text: "Revenue grew" }] };
 const frame = { image: "data:image/jpeg;base64,YQ==", source: "screen" };

@@ -36,7 +36,7 @@ describe("cloud question: /api/buddy/ask", () => {
   it("without the user's yes nothing is forwarded", async () => {
     const res = await ask(post(askBody));
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: "consent_required", kind: "ask", recipient: { id: "openrouter/google", names: ["OpenRouter", "Google"] } });
+    expect(await res.json()).toMatchObject({ code: "consent_required", kind: "ask", recipient: { id: "openrouter/google", names: ["OpenRouter", "Google"] } });
     expect(net).not.toHaveBeenCalled();
   });
   it("a yes given for another maker, another kind, or in the body does not count", async () => {
@@ -67,7 +67,7 @@ describe("cloud voice: /api/buddy/tts", () => {
     for (const consent of [undefined, "ask:openrouter/google", "audio:elevenlabs"]) {
       const res = await tts(post({ text: "The answer." }, consent));
       expect(res.status).toBe(403);
-      expect(await res.json()).toMatchObject({ error: "consent_required", kind: "voice", recipient: { id: "elevenlabs" } });
+      expect(await res.json()).toMatchObject({ code: "consent_required", kind: "voice", recipient: { id: "elevenlabs" } });
     }
     expect(net).not.toHaveBeenCalled();
   });
@@ -82,7 +82,7 @@ describe("card photo: /api/buddy/photo", () => {
   it("without the user's yes the subject name is not sent", async () => {
     const res = await photo(get("http://unit.invalid/api/buddy/photo?q=Piston"));
     expect(res.status).toBe(403);
-    expect(await res.json()).toMatchObject({ error: "consent_required", kind: "photo", recipient: { id: "wikipedia", names: ["Wikipedia"] } });
+    expect(await res.json()).toMatchObject({ code: "consent_required", kind: "photo", recipient: { id: "wikipedia", names: ["Wikipedia"] } });
     expect(net).not.toHaveBeenCalled();
   });
   it("with the yes it asks Wikipedia", async () => {

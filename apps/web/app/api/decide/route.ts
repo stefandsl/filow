@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     if (cloud) {
       // The spoken words leave this PC: only with the user's recorded yes for this exact recipient.
       const recipient = decisionRecipient(provider, { openrouter: OPENROUTER_DECISION_MODEL(), cloudflare: CLEF_CLOUDFLARE_MODEL() });
-      const refused = recipient ? consentDenied(req, "transcript", recipient) : NextResponse.json({ error: "consent_required" }, { status: 403 });
+      const refused = recipient ? consentDenied(req, "transcript", recipient) : NextResponse.json({ error: "Not sent: Filow cannot tell who would read your words.", code: "consent_required" }, { status: 403 });
       if (refused) return refused;
     }
     // When the engine gives up on a slow call the page aborts it; the abort is passed on to the model.
