@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET } from "@/app/api/buddy/recipients/route";
 import { resolveDecisionProvider } from "@/lib/decide/resolve";
-import { askRecipient, CONSENT_HEADER, noticeBody, type BuddyRecipients, type ConsentMap } from "./outbound";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ConsentList } from "@/app/okfilow/outbound-ui";
+import { askRecipient, CONSENT_HEADER, noticeBody, signalNames, sttRecipient, type BuddyRecipients, type ConsentMap } from "./outbound";
 import { EXTENSION_TEXT, remoteText } from "@/components/RemoteOutbound";
 import { createPageOutbound } from "./outboundPage";
 import { decideOut, kvConsentStore, screenOut, scriptOut, splitEngines, startLocalFirst, webStorageConsentStore } from "./outboundRemote";
@@ -34,7 +37,9 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 
 describe("splitEngines: engines on this PC come first, the ones that send the microphone out after", () => {
   it("cloud engines and the browser's own speech engine are remote; Whisper and sherpa are local", () => {
-    expect(splitEngines(["elevenlabs", "openai", "browser", "sherpa", "whisper"], CHROME)).toEqual({ local: ["sherpa", "whisper"], remote: ["elevenlabs", "openai", "browser"] });
+    expect(splitEngines(["elevenlabs", "openai", "browser", "sherpa", "whisper"])).toEqual({ local: ["sherpa", "whisper"], remote: ["elevenlabs", "openai", "browser"] });
+    // An engine added later is not on this PC until it is listed as such: never started without a notice.
+    expect(splitEngines(["deepgram", "whisper"])).toEqual({ local: ["whisper"], remote: ["deepgram"] });
   });
 });
 
@@ -108,6 +113,43 @@ describe("startLocalFirst: the automatic engine choice never starts a cloud or b
     const r = await startLocalFirst({ available: ["openai"], userAgent: CHROME, gate: out, start: async () => { throw new Error("token refused"); } });
     expect(r).toEqual({ ok: false, reason: "failed", error: "token refused" });
     expect(out.getState().snap.active).toBe(false);
+  });
+});
+
+describe("review fixes", () => {
+  it("an engine that sends out but has no known recipient is never started", async () => {
+    const { out } = page();
+    const start = vi.fn();
+    const r = await startLocalFirst({ available: ["deepgram"], userAgent: CHROME, gate: out, start });
+    expect(r).toMatchObject({ ok: false, reason: "failed" });
+    expect(start).not.toHaveBeenCalled();
+    expect(out.getState().notice).toBeNull();
+  });
+
+  it("a yes withdrawn between the answer and the start starts nothing and leaves no signal on", async () => {
+    const start = vi.fn();
+    const gate = { allow: async () => "granted" as const, header: () => ({}), hold: () => { throw new Error("consent_required"); } };
+    const r = await startLocalFirst({ available: ["openai"], userAgent: CHROME, gate, start });
+    expect(r).toEqual({ ok: false, reason: "failed", error: "consent_required" });
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it("when OpenRouter picks the host, the signal names only OpenRouter and the list says who picks", async () => {
+    const picked = askRecipient("meta-llama/llama-3.3-70b-instruct");
+    const { out } = page({ [`script:${picked.id}`]: { state: "granted", at: "x", names: picked.names } });
+    await out.load();
+    let during: unknown = null;
+    await out.sending("script", picked, async () => { during = out.getState().snap; });
+    expect(during).toEqual({ active: true, kinds: ["script"], names: ["OpenRouter"] });
+    const html = renderToStaticMarkup(createElement(ConsentList, { consent: out.getState().consent, t: remoteText("en"), onForget: () => {} }));
+    expect(html).toContain("to OpenRouter and Meta (run by a company OpenRouter picks)");
+    // A maker that runs its own model is named in the signal as before.
+    expect(signalNames(askRecipient("google/gemini-2.5-flash"))).toEqual(["OpenRouter", "Google"]);
+  });
+
+  it("Apple's web view (Office for Mac) is named Apple for Web Speech", () => {
+    const officeMac = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko)";
+    expect(sttRecipient("browser", officeMac)).toEqual({ id: "browser/apple", names: ["Apple"] });
   });
 });
 

@@ -86,6 +86,8 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
   const followRef = useRef(false);
   const clientRef = useRef<SessionClient | null>(null);
   const lastSlide = useRef(-1);
+  /** The attached deck tab: frames are captured only while it is the visible tab. */
+  const deckTab = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     void (async () => {
@@ -125,9 +127,10 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
 
   const attach = async () => {
     setError(null);
-    const r = await bg<{ ok: boolean; error?: string; url?: string }>({ t: "attach" });
+    const r = await bg<{ ok: boolean; error?: string; url?: string; tabId?: number }>({ t: "attach" });
     if (!r.ok) return setError(r.error ?? "could not attach");
     const p = await toContent<{ ok: boolean; info?: SlideInfo }>({ t: "probe" });
+    deckTab.current = r.tabId;
     setAttached({ url: r.url, adapter: p.info?.adapter });
   };
 
@@ -164,7 +167,9 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
         void storage.set("mode", "off");
         return;
       }
-      const cap = await bg<{ ok: boolean; dataUrl?: string }>({ t: "capture" });
+      // The notice may have stayed open while the deck moved on: a frame of another slide would carry the wrong title.
+      if (lastSlide.current !== info.index) return;
+      const cap =await bg<{ ok: boolean; dataUrl?: string }>({ t: "capture", tabId: deckTab.current });
       if (!cap.ok || !cap.dataUrl) return;
       const token = await mintEngineToken(server, cl.id, cl.token);
       const look = (consent: Record<string, string>) =>
@@ -213,7 +218,7 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
         seen.add(sig);
         const slide: SlideInput = { index: slides.length, title: info.title, text: info.text };
         if (slideNeedsImage(slide)) {
-          const cap = await bg<{ ok: boolean; dataUrl?: string }>({ t: "capture" });
+          const cap = await bg<{ ok: boolean; dataUrl?: string }>({ t: "capture", tabId: deckTab.current });
           if (cap.ok && cap.dataUrl) slide.imageBase64 = cap.dataUrl.replace(/^data:image\/\w+;base64,/, "");
         }
         slides.push(slide);

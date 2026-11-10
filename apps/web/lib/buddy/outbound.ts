@@ -116,7 +116,8 @@ export function sttRecipient(backend: string, userAgent = ""): Recipient | null 
   // Web Speech sends audio to the browser maker's servers.
   if (/\bEdg\//.test(userAgent)) return { id: "browser/microsoft", names: ["Microsoft"] };
   if (/\bChrome\//.test(userAgent)) return { id: "browser/google", names: ["Google"] };
-  if (/\bSafari\//.test(userAgent)) return { id: "browser/apple", names: ["Apple"] };
+  // Safari, and Apple's web view (Office for Mac), which has no "Safari/" token.
+  if (/\bSafari\//.test(userAgent) || (/AppleWebKit\//.test(userAgent) && /Mac OS X|iPhone|iPad/.test(userAgent))) return { id: "browser/apple", names: ["Apple"] };
   return { id: "browser", names: ["Web Speech"] };
 }
 
@@ -137,6 +138,13 @@ export function takeOutbound(o: { backend: string; provider: string; models: Dec
   if (decide) items.push({ kind: "transcript", recipient: decide });
   return items;
 }
+
+/**
+ * Who the signal names while something is in flight: everyone the content goes to. When OpenRouter
+ * picks the company that runs the model, only OpenRouter is known for sure, so only OpenRouter is
+ * named (the notice and the list of choices say that OpenRouter picks the host).
+ */
+export const signalNames = (recipient: Recipient): string[] => (recipient.picked ? recipient.names.slice(0, 1) : recipient.names);
 
 /** "A", "A and B", "A, B and C". */
 export function joinNames(names: string[], and: string): string {

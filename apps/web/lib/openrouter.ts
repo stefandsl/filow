@@ -27,7 +27,7 @@ export function routedModels(model: string, kind: "text" | "vision"): string[] {
 /**
  * The `provider` routing object of a request (openrouter.ai/docs, "Provider Routing"). When every
  * model is run by its maker on OpenRouter (`makerHosts`), the request may only go to the maker's
- * own hosts, with no fallback to another company: the company the notice names is the one that runs
+ * own hosts (`only` is an allowlist: a fallback stays among them, so a busy host still has a backup): the company the notice names is the one that runs
  * it. Otherwise OpenRouter picks the host, and the recipient says so (`picked` in lib/buddy/outbound.ts).
  * `sort` (OPENROUTER_PROVIDER_SORT=latency|throughput|price; empty = OpenRouter's default) orders
  * whichever hosts are allowed.
@@ -38,7 +38,7 @@ export function openRouterProvider(models: string[]): Record<string, unknown> | 
   const hosts = models.map(makerHosts);
   const pinned = models.length > 0 && hosts.every((h) => h !== null);
   const only = pinned ? [...new Set(hosts.flatMap((h) => h ?? []))] : [];
-  const out = { ...(only.length ? { only, allow_fallbacks: false } : {}), ...sort };
+  const out = { ...(only.length ? { only } : {}), ...sort };
   return Object.keys(out).length ? out : undefined;
 }
 

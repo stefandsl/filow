@@ -63,10 +63,12 @@ export function screenOut(known: BuddyRecipients): Recipient | null {
   return known.offline ? null : known.screen;
 }
 
+/** The speech engines that run on this PC. Any other engine, including one added later, is treated as sending out. */
+const ON_THIS_PC = new Set(["whisper", "sherpa"]);
+
 /** Engines that run on this PC first, then those that send the microphone out (cloud or the browser maker). */
-export function splitEngines<Id extends string>(ids: Id[], userAgent: string): { local: Id[]; remote: Id[] } {
-  const local = ids.filter((id) => sttRecipient(id, userAgent) === null);
-  return { local, remote: ids.filter((id) => !local.includes(id)) };
+export function splitEngines<Id extends string>(ids: Id[]): { local: Id[]; remote: Id[] } {
+  return { local: ids.filter((id) => ON_THIS_PC.has(id)), remote: ids.filter((id) => !ON_THIS_PC.has(id)) };
 }
 
 /** What a take start needs from the page's outbound controller (outboundPage.ts). */
@@ -94,7 +96,7 @@ export async function startLocalFirst<Id extends string, B>(o: {
   gate: TakeGate;
   start: (ids: Id[], headers: Record<string, string>) => Promise<B>;
 }): Promise<LocalFirstResult<B>> {
-  const { local, remote } = splitEngines(o.available, o.userAgent);
+  const { local, remote } = splitEngines(o.available);
   let error = "no speech-to-text engine is available here";
   if (local.length) {
     try {
@@ -108,9 +110,11 @@ export async function startLocalFirst<Id extends string, B>(o: {
   if (!id || !to) return { ok: false, reason: "failed", error };
   const decision = await o.gate.allow("audio", to);
   if (decision !== "granted") return { ok: false, reason: decision, kind: "audio", recipient: to };
-  // The signal is on from before the first sound can leave until the take ends.
-  const release = o.gate.hold("audio", to);
+  let release = () => {};
   try {
+    // The signal is on from before the first sound can leave until the take ends. (`hold` refuses
+    // when the yes was withdrawn since: then nothing starts.)
+    release = o.gate.hold("audio", to);
     return { ok: true, backend: await o.start([id], o.gate.header("audio", to)), audio: to, release };
   } catch (err) {
     release();

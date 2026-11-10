@@ -89,18 +89,18 @@ describe("the host that runs the model is the one the notice names", () => {
     return calls;
   };
 
-  it("pins a Google model to Google's own hosts, with no fallback to another company, whatever the payload says", async () => {
+  it("pins a Google model to Google's own hosts, and no other company, whatever the payload says", async () => {
     process.env.OPENROUTER_API_KEY = "k";
     const calls = capture();
     await openRouterChat("google/gemini-2.5-flash", "vision", { messages: [], provider: { only: ["deepinfra"], allow_fallbacks: true } });
-    expect(calls[0].provider).toEqual({ only: ["google-vertex", "google-ai-studio"], allow_fallbacks: false, sort: "throughput" });
+    expect(calls[0].provider).toEqual({ only: ["google-vertex", "google-ai-studio"], sort: "throughput" });
     expect(askRecipient("google/gemini-2.5-flash")).toEqual({ id: "openrouter/google", names: ["OpenRouter", "Google"] });
   });
 
   it("pins OpenAI and Anthropic models to their makers; an empty sort leaves only the pin", () => {
     process.env.OPENROUTER_PROVIDER_SORT = "";
-    expect(openRouterProvider(["openai/gpt-4o-mini"])).toEqual({ only: ["openai"], allow_fallbacks: false });
-    expect(openRouterProvider(["anthropic/claude-haiku-4.5"])).toEqual({ only: ["anthropic"], allow_fallbacks: false });
+    expect(openRouterProvider(["openai/gpt-4o-mini"])).toEqual({ only: ["openai"] });
+    expect(openRouterProvider(["anthropic/claude-haiku-4.5"])).toEqual({ only: ["anthropic"] });
   });
 
   it("does not pin a model its maker does not run; the recipient then says OpenRouter picks the host", async () => {
@@ -142,6 +142,6 @@ describe("the host that runs the model is the one the notice names", () => {
     const consent = consentKey("ask", buddyCloudRecipient());
     for await (const piece of askBuddy("cloud", { question: "q", images: [], screens: [], consent })) void piece;
     expect(calls[0].model).toBe("google/gemini-2.5-flash");
-    expect(calls[0].provider).toEqual({ only: ["google-vertex", "google-ai-studio"], allow_fallbacks: false, sort: "throughput" });
+    expect(calls[0].provider).toEqual({ only: ["google-vertex", "google-ai-studio"], sort: "throughput" });
   });
 });

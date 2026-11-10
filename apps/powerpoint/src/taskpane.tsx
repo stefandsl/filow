@@ -362,19 +362,22 @@ function EnginePane({ webSpeech }: { webSpeech: boolean }) {
     engineRef.current?.stop();
   };
   // A yes withdrawn in the list below stops the take that relies on it, like the take page does.
-  useEffect(
-    () =>
-      outbound.subscribe(() => {
-        if (!backendRef.current) return;
-        const consent = outbound.getState().consent;
-        const gone = (["audio", "transcript"] as const).some((kind) => {
-          const to = outbound.route(kind);
-          return to !== null && !isGranted(consent, kind, to);
-        });
-        if (gone) stopTake();
-      }),
-    [],
-  );
+  // Leaving engine mode (the mode menu) stops the take too: no microphone streams without its controls.
+  useEffect(() => {
+    const off = outbound.subscribe(() => {
+      if (!backendRef.current) return;
+      const consent = outbound.getState().consent;
+      const gone = (["audio", "transcript"] as const).some((kind) => {
+        const to = outbound.route(kind);
+        return to !== null && !isGranted(consent, kind, to);
+      });
+      if (gone) stopTake();
+    });
+    return () => {
+      off();
+      stopTake();
+    };
+  }, []);
   useEffect(() => {
     if (state && !state.engine.recording && backendRef.current) stopTake();
     // eslint-disable-next-line react-hooks/exhaustive-deps
