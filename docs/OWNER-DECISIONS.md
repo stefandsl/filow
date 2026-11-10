@@ -15,6 +15,12 @@ Format: what is asked, the options, what waits on it. Opened 2026-11-09.
 | D3 | Phone mirror on the local network: the web server listens on every network card | token on every route plus a Host check (keeps the feature); off by default with a switch; remove | SEC-09 |
 | D4 | Does the local voice sound natural enough? | listen to the samples track T7 produces | T7 acceptance (only the owner's ears count) |
 | D5 | Licences of voices and speech models, if a track flags one that is not free for commercial use | accept, replace, or pay | T7, T8 |
+| D23 | PERF-01 asks for the splash in 500 ms (our own budget). On this PC Chromium alone takes about 780 ms to paint a 3.8 KB page, so it cannot pass, even after D2. Showing the splash window at creation gives feedback at about 200 ms | measure "first visible feedback" (window shown) against 500 ms and report the paint time as a second number; keep measuring the paint | PERF-01, a score of 100 |
+| D24 | Pairing over the public link still asks the phone "connect to <host>?" once, because the QR names two different trycloudflare hosts (page and relay). Over the LAN it no longer asks | let the desktop vouch for its relay in the QR (signed pairing link); keep the one question | how pairing over the internet feels |
+| D25 | Installing the phone app (Android) needs a fixed https address; over the LAN it is only a home-screen shortcut | named Cloudflare tunnel on your domain; a trusted certificate for the LAN; stay with the shortcut | an installable phone app (docs/PLATFORMS.md, Phones) |
+| D26 | On an 8 GB graphics card, "Best quality" (Clef Flash kept loaded, 5.2 of 8 GB) makes local picture answers wait 60-300 s (track T2) | Best quality steps aside while OK Filow answers about the screen; picture answers go to the cloud, with consent; offer Best quality only from 12 GB | the default profile T2 ships |
+| D27 | First-run ideas from track T3 | drop or defer the OpenRouter key box; ask about PowerPoint on first use instead of in the welcome; start the servers while the welcome is open; skip the Cloud/Local question on the first take; practice script in the user's language. Take all, some or none | the next welcome iteration |
+| D28 | The cloud tracking prompt (packages/core/src/prompt.ts) still uses the old wording; it can only be measured with paid calls | allow one capped paid run (for example 1 USD); leave it unmeasured | cloud tracking accuracy |
 
 ## Release
 
@@ -34,6 +40,8 @@ Format: what is asked, the options, what waits on it. Opened 2026-11-09.
 | D12 | docs/CODING_STANDARDS.md, docs/GLOSSARY.md and docs/adr/ | let the orchestrator draft them from the code for review; skip | the standards review axis uses the Quality bar until then |
 | D13 | The nightly filow-autoloop task now works in its own worktree and branch (autoloop/<date>), never on main | keep; revert | changed by the TRK-2 session on 2026-11-09 |
 | D14 | Remove about 60 old release-* folders, the merged P1 worktree and the research clones in tmp/research | remove all; keep the last two releases; keep everything | disk on G: and a clear folder |
+| D29 | Track T4 built Linux inside the Ubuntu WSL distro, whose disk lives on C: (against the C: rule): /root/filow-t4 (2.3 GB), /root/filow-t4-release (850 MB) and an installed filow 0.9.30 deb | remove them; move the distro to G: (wsl --export / --import); leave them | space on C: |
+| D30 | Tracks T6 (outbound signal), T7 (natural local voice) and T8 (five languages) stopped half way on 2026-11-10 (usage credits ran out; two agents also overflowed their context). Their work is saved as WIP commits on their branches | resume them one at a time; resume all three in parallel (faster, about three times the usage at once); pause them | the owner requests of 2026-11-09 (outbound signal, natural voice, ru/en/it/ro/ja) |
 
 ## Tools and skills that change the machine or fetch code
 
