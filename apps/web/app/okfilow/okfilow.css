@@ -58,6 +58,8 @@ html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !import
 .okf-settings { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line, rgba(255, 255, 255, 0.1)); }
 .okf-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
 .okf-row select { max-width: 190px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line, rgba(255, 255, 255, 0.14)); background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
+/* The voice names are longer than the other choices: "Voce naturale (su questo PC)" must fit whole. */
+.okf-row select.okf-select-wide { max-width: 250px; }
 .okf-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--okf-ink); cursor: pointer; }
 
 /* Drawings: pen strokes that draw themselves, one after another (HeyClicky-style teaching marks). */

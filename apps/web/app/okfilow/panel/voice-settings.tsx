@@ -66,7 +66,7 @@ export function VoiceSettings({ bridge, status, t, configure, preview }: Props) 
     <>
       <label className="okf-row">
         <span>{t("voice")}</span>
-        <select value={voice} onChange={(e) => void configure({ voice: e.target.value as OkFilowStatus["voice"] })}>
+        <select className="okf-select-wide" value={voice} onChange={(e) => void configure({ voice: e.target.value as OkFilowStatus["voice"] })}>
           {offerNatural && <option value="natural">{t("voiceNatural")}</option>}
           <option value="system">{t("voiceSystem")}</option>
           {!status.offline && <option value="cloud">{t("voiceCloud")}</option>}

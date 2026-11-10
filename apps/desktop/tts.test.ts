@@ -768,6 +768,52 @@ describe("okfilow:tts channels", () => {
   });
 });
 
+describe("the worker that runs the model", () => {
+  // Stands in for sherpa-onnx inside Electron, which refuses audio handed over as an external buffer.
+  function electronLikeSherpa() {
+    const requests: Record<string, unknown>[] = [];
+    class OfflineTts {
+      config: unknown;
+      constructor(config: unknown) { this.config = config; }
+      generate(request: Record<string, unknown>) {
+        requests.push(request);
+        if (request.enableExternalBuffer !== false) throw new Error("External buffers are not allowed");
+        return { samples: new Float32Array([0.1, -0.2, 0.3]), sampleRate: 44100 };
+      }
+    }
+    class GenerationConfig {
+      constructor(fields: Record<string, unknown>) { Object.assign(this, fields); }
+    }
+    return { requests, module: { OfflineTts, GenerationConfig } };
+  }
+  type Posted = { message: { type: string; rid?: number; message?: string; samples?: Float32Array; sampleRate?: number }; transfer?: ArrayBuffer[] };
+
+  it("gets the audio out of the native module inside Electron", () => {
+    const { createHandler } = require("./tts-worker.js");
+    const fake = electronLikeSherpa();
+    const posted: Posted[] = [];
+    const handle = createHandler((message: Posted["message"], transfer?: ArrayBuffer[]) => posted.push({ message, transfer }), () => fake.module);
+    handle({ type: "init", dir: "models", threads: 2 });
+    expect(posted[0].message.type).toBe("ready");
+    handle({ type: "say", rid: 7, text: "Ciao.", lang: "it", sid: 6, speed: 1.05, steps: 5 });
+    expect(posted[1].message).toMatchObject({ type: "audio", rid: 7, sampleRate: 44100 });
+    expect(Array.from(posted[1].message.samples as Float32Array)).toEqual(Array.from(new Float32Array([0.1, -0.2, 0.3])));
+    // The audio travels to the main thread in memory the worker owns.
+    expect(posted[1].transfer).toEqual([(posted[1].message.samples as Float32Array).buffer]);
+    expect(fake.requests[0]).toMatchObject({ text: "Ciao.", generationConfig: { sid: 6, speed: 1.05, numSteps: 5, extra: { lang: "it" } } });
+  });
+
+  it("reports a piece asked for before the model is loaded, and a model that does not load", () => {
+    const { createHandler } = require("./tts-worker.js");
+    const posted: Posted[] = [];
+    const handle = createHandler((message: Posted["message"]) => posted.push({ message }), () => { throw new Error("no native module"); });
+    handle({ type: "say", rid: 1, text: "Hi.", lang: "en", sid: 0, speed: 1, steps: 5 });
+    expect(posted[0].message).toEqual({ type: "error", rid: 1, message: "voice model not loaded" });
+    handle({ type: "init", dir: "models", threads: 2 });
+    expect(posted[1].message).toEqual({ type: "error", message: "no native module" });
+  });
+});
+
 describe("wav bytes", () => {
   it("writes a mono 16-bit file and clips out-of-range samples", () => {
     const wav: Buffer = tts.wavBytes(new Float32Array([0, 1, -1, 2, -2, 0.5]), 44100);
