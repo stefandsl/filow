@@ -5,6 +5,8 @@
 .settings fieldset.dictation-choices input { accent-color: var(--accent); }
 .settings fieldset.dictation-choices:disabled label { opacity: 0.55; }
 .settings .dictation-alert { color: var(--warn); }
+/* The language list's long first choice must not push past the panel on a narrow window. */
+.settings .dictation select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
 /* Explanations under a choice read quieter than the choices themselves. */
 .settings .dictation .hint { color: var(--muted); font-size: var(--type-sm); margin-top: -4px; }
 .settings .dictation .hint.dictation-alert { color: var(--warn); }
