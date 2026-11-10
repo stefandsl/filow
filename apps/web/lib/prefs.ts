@@ -236,11 +236,31 @@ export function setStartMode(m: StartMode): void {
 // ---- Gate: embedding pre-filter in front of the decision model (packages/core/src/gate.ts) ----
 // On by default since the setup profiles (P3): every profile uses it, and with local Clef it only
 // skips calls (P1: same recall, 4 of 62 calls saved). "off" stays available under More options.
+// The gate's width (narrow, or only skipping calls) follows the decision provider of the take
+// (gateThresholdsFor), which is what each setup's `gate.narrow` describes: Best quality decides with
+// Clef (skip only), and with the matcher (Lite, Balanced, or Best quality before Clef is downloaded)
+// the matcher's scores decide and the width does not apply. profile.test.ts checks the two agree.
 export type GateMode = "off" | "on";
 const GATE_KEY = "prefs:gate";
+/** Set once the stored gate value follows the on-by-default rule (see migrateGateMode). */
+const GATE_MIGRATED = "prefs:gateMigrated";
+/** Keys earlier versions wrote while being used: their presence means Filow ran here before P3. */
+const EARLIER_USE = ["prefs:startMode", "prefs:screenMode", "prefs:speechLang", "prefs:decisionProvider", "prefs:micDeviceId", "prefs:nextHeight", "prefs:resourcesCollapsed", "whisper:model", "okfilow.history.v1", "mirror:lastCode"];
+
+/**
+ * Before the setup profiles the gate was off by default and only "on" was stored: nothing stored
+ * meant off, whether the user switched it off or never touched it. On such an install the gate stays
+ * off (the user turns it on in Settings); a new install starts with it on. Runs once.
+ */
+export function migrateGateMode(s: Pick<Storage, "getItem" | "setItem">): void {
+  if (s.getItem(GATE_MIGRATED) !== null) return;
+  if (s.getItem(GATE_KEY) === null && EARLIER_USE.some((k) => s.getItem(k) !== null)) s.setItem(GATE_KEY, "off");
+  s.setItem(GATE_MIGRATED, "1");
+}
 
 export function getGateMode(): GateMode {
   try {
+    migrateGateMode(localStorage);
     return localStorage.getItem(GATE_KEY) === "off" ? "off" : "on";
   } catch {
     return "on";
@@ -249,6 +269,7 @@ export function getGateMode(): GateMode {
 
 export function setGateMode(m: GateMode): void {
   try {
+    localStorage.setItem(GATE_MIGRATED, "1");
     if (m === "on") localStorage.removeItem(GATE_KEY);
     else localStorage.setItem(GATE_KEY, m);
   } catch {
