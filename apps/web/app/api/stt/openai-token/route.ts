@@ -1,11 +1,18 @@
 import { requireEngine } from "@/lib/engineAuth";
+import { consentDenied, sttRecipient } from "@/lib/buddy/outbound";
 import { NextResponse } from "next/server";
 
-/** Mints an ephemeral client secret for a browser-side realtime transcription session. */
+/**
+ * Mints an ephemeral client secret for a browser-side realtime transcription session.
+ * The secret is what lets the microphone stream out, so it needs the user's yes for OpenAI
+ * (x-filow-consent header): 403 without it, and nothing is requested.
+ */
 export async function POST(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
   if (process.env.FILOW_OFFLINE === "1") return NextResponse.json({ unavailable: "disabled" });
+  const refused = consentDenied(req, "audio", sttRecipient("openai")!);
+  if (refused) return refused;
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "OPENAI_API_KEY not set" }, { status: 500 });
 

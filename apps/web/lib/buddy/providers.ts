@@ -2,6 +2,7 @@
 // leaves the PC. Cloud: OpenRouter multimodal, only when the user picked it. An explicit choice
 // never falls back to the other provider; errors go back to the bubble.
 import { OLLAMA_URL } from "@/lib/decide/clef";
+import { askRecipient, consentKey, type Recipient } from "./outbound";
 import { buddySystemPrompt, trimHistory, type BuddyScreen, type BuddyTurn } from "./prompt";
 
 export type BuddyProviderId = "local" | "cloud";
@@ -14,6 +15,8 @@ export type BuddyAskRequest = {
   history?: BuddyTurn[];
   language?: string;
   provider?: string;
+  /** Consent key the caller holds for a cloud send ("ask:openrouter/google"); set from the request header. */
+  consent?: string;
 };
 
 /** Vision models that can read a screenshot, best first. The first one pulled in Ollama is used. */
@@ -142,7 +145,7 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal): As
   }
 }
 
-export async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal): AsyncGenerator<string> {
+async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal): AsyncGenerator<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("No OpenRouter key: add OPENROUTER_API_KEY, or switch the buddy to the local model.");
   const history = trimHistory(req.history ?? []).map((t) => ({ role: t.role, content: t.text }));
@@ -187,6 +190,24 @@ export async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal)
   }
 }
 
+/** The cloud was asked for without the user's yes for the recipient in use. Nothing was sent. */
+export class ConsentRequiredError extends Error {
+  constructor(readonly recipient: Recipient) {
+    super(`consent_required: ask:${recipient.id}`);
+    this.name = "ConsentRequiredError";
+  }
+}
+
+/** Who a cloud question goes to right now: OpenRouter, then the maker of BUDDY_CLOUD_MODEL. */
+export const buddyCloudRecipient = (): Recipient => askRecipient(BUDDY_CLOUD_MODEL());
+
+/**
+ * The only door to a provider. Cloud needs the consent key for the recipient in use; without it this
+ * throws before any network call (the panel asks first, this is the second lock).
+ */
 export function askBuddy(provider: BuddyProviderId, req: BuddyAskRequest, signal?: AbortSignal): AsyncGenerator<string> {
-  return provider === "cloud" ? askOpenRouter(req, signal) : askOllama(req, signal);
+  if (provider !== "cloud") return askOllama(req, signal);
+  const recipient = buddyCloudRecipient();
+  if (req.consent !== consentKey("ask", recipient)) throw new ConsentRequiredError(recipient);
+  return askOpenRouter(req, signal);
 }

@@ -190,6 +190,7 @@ export default function OkFilowPanel() {
     // "agent, ..." goes to a background job instead of the screen helper.
     try {
       const job = await b.agents.start(question, history.current.at(-1)?.text ?? "");
+      if (job && "needsConsent" in job) return fail(t("noticeWaiting"));
       if (job) {
         const said = t("agentStarted").replace("{title}", job.title);
         setHeard(question);

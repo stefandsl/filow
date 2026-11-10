@@ -6,7 +6,8 @@
 const { BrowserWindow, Tray, Menu, screen, desktopCapturer, ipcMain, globalShortcut, nativeImage, shell } = require("electron");
 const path = require("node:path");
 const { createGestures, chordHeld } = require("./okfilow-gestures");
-const { createAgents, agentTask, safeToOpen } = require("./okfilow-agents");
+const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
+const { createOutboundState, sanitizeConsent, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
 const { answerRoot, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 
@@ -35,6 +36,8 @@ const DEFAULTS = {
   answerLog: false,
   /** Its folder; empty means G:\FILOW\tmp\okf-answers in test builds, and no log in other builds. */
   answerDir: "",
+  /** What the user allowed or refused to send outside, per kind and recipient ("ask:openrouter/google"). */
+  consent: {},
 };
 const DICTATE_CHORD = "ctrl+meta";
 /** A finite point inside a window's or display's bounds (right and bottom edges excluded). */
@@ -69,6 +72,7 @@ function createOkFilow(deps) {
     next.answerLog = next.answerLog === true;
     next.answerDir = typeof next.answerDir === "string" ? next.answerDir.slice(0, 500) : "";
     if (!["auto", "codex", "claude"].includes(next.agentCli)) next.agentCli = "auto";
+    next.consent = sanitizeConsent(next.consent);
     saveSettings({ ...getSettings(), okFilow: next });
     return next;
   };
@@ -121,6 +125,42 @@ function createOkFilow(deps) {
     for (const w of overlays.values()) if (!w.isDestroyed()) w.webContents.send(channel, payload);
   }
 
+  // ---- going outside (okfilow-outbound.js, docs/okfilow/OUTBOUND.md) ----
+  // While anything carrying the user's content is in flight, the overlays and the panel say so and
+  // name who receives it. The overlays cannot fade while it is on.
+  const outbound = createOutboundState({
+    onChange: (snap) => {
+      logLine(`okfilow: going outside ${snap.active ? `on (${snap.kinds.join("+")} to ${snap.names.join(", ")})` : "off"}`);
+      sendOverlays("okfilow:outbound", snap);
+      sendPanel("okfilow:outbound", snap);
+      if (snap.active) {
+        clearTimeout(fadeTimer);
+        showOverlays();
+        qaShot("outbound", 400);
+      } else if (mode === "idle" || mode === "error") scheduleFade();
+    },
+  });
+  ipcMain.on("okfilow:outbound:begin", (e, id, kind, names) => { if (ourSender(e.sender)) outbound.begin(`web:${String(id)}`, kind, names); });
+  ipcMain.on("okfilow:outbound:end", (e, id, opts) => { if (ourSender(e.sender)) outbound.end(`web:${String(id)}`, { cancel: Boolean(opts && opts.cancel === true) }); });
+  /** A first-send notice is open in the panel: it must be seen and must not vanish on a stray click. */
+  let noticeOpen = false;
+  let noticeShowedPanel = false;
+  ipcMain.on("okfilow:notice:open", (e) => {
+    if (!ourSender(e.sender)) return;
+    const p = buildPanel();
+    if (!noticeOpen) noticeShowedPanel = !p.isVisible();
+    noticeOpen = true;
+    if (p.isVisible()) { p.moveTop(); p.focus(); } else showPanelAtCursor();
+    logLine("okfilow: first-send notice shown");
+  });
+  ipcMain.on("okfilow:notice:close", (e) => {
+    if (!ourSender(e.sender) || !noticeOpen) return;
+    noticeOpen = false;
+    // Opened only for the notice: get out of the way of what the user is asking about.
+    if (noticeShowedPanel && panel && !panel.isDestroyed()) panel.hide();
+    noticeShowedPanel = false;
+  });
+
   // ---- 3D model window (HeyClicky: a model you can drag around and click to ask about a part) ----
   let modelWin = null;
   let currentModel = null;
@@ -163,8 +203,10 @@ function createOkFilow(deps) {
   ipcMain.on("okfilow:overlay:ready", (e) => {
     if (!ourSender(e.sender)) return;
     e.sender.send("okfilow:state", { mode, purpose: purpose || "talk" });
+    e.sender.send("okfilow:outbound", outbound.snapshot());
     lastCursor = "";
   });
+  ipcMain.on("okfilow:panel:ready", (e) => { if (ourSender(e.sender)) e.sender.send("okfilow:outbound", outbound.snapshot()); });
   ipcMain.on("okfilow:model:ready", (e) => {
     if (!ourSender(e.sender) || !currentModel) return;
     e.sender.send("okfilow:model", currentModel);
@@ -225,6 +267,7 @@ function createOkFilow(deps) {
         w.webContents.on("did-finish-load", () => {
           if (w.isDestroyed()) return;
           w.webContents.send("okfilow:state", { mode, purpose: purpose || "talk" });
+          w.webContents.send("okfilow:outbound", outbound.snapshot());
           lastCursor = "";
         });
         w.loadURL(`${appUrl}/okfilow/overlay`);
@@ -258,9 +301,9 @@ function createOkFilow(deps) {
   let pinned = false;
   function scheduleFade() {
     clearTimeout(fadeTimer);
-    if (cfg().showAlways || pinned) return;
+    if (cfg().showAlways || pinned || outbound.active()) return;
     fadeTimer = setTimeout(() => {
-      if (!pinned && (mode === "idle" || mode === "error")) hideOverlays();
+      if (!pinned && !outbound.active() && (mode === "idle" || mode === "error")) hideOverlays();
     }, FADE_AFTER_MS);
   }
 
@@ -314,8 +357,11 @@ function createOkFilow(deps) {
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload, backgroundThrottling: false },
     });
     panel.setContentProtection(hidden());
-    panel.on("blur", () => panel && !panel.isDestroyed() && panel.hide());
-    panel.on("closed", () => (panel = null));
+    panel.on("blur", () => panel && !panel.isDestroyed() && !noticeOpen && panel.hide());
+    panel.on("closed", () => { panel = null; noticeOpen = false; outbound.clear("web:"); });
+    // A panel that crashed or reloaded can no longer end its sends: they are over.
+    panel.webContents.on("render-process-gone", () => { noticeOpen = false; outbound.clear("web:"); });
+    panel.webContents.on("did-start-loading", () => { noticeOpen = false; outbound.clear("web:"); });
     panel.webContents.on("console-message", (e) => { if (e.level === "warning" || e.level === "error") logLine(`okfilow panel ${e.level}: ${String(e.message).slice(0, 300)}`); });
     lockDown(panel);
     panel.loadURL(`${appUrl}/okfilow/panel`);
@@ -362,7 +408,7 @@ function createOkFilow(deps) {
     const c = setCfg(patch);
     protectAll(hidden());
     if (c.showAlways && c.enabled) showOverlays();
-    else if (mode === "idle") hideOverlays();
+    else if (mode === "idle" && !outbound.active()) hideOverlays();
     if (!c.enabled && mode === "listening") release();
     if (!c.enabled && handsFree) { handsFree = false; sendPanel("okfilow:handsfree", false); }
     refreshTray();
@@ -511,6 +557,11 @@ function createOkFilow(deps) {
     return true;
   }
   function openQuickAsk() {
+    showPanelAtCursor();
+    sendPanel("okfilow:quickAsk", null);
+  }
+  /** Shows the panel next to the mouse and gives it the keyboard. */
+  function showPanelAtCursor() {
     const p = buildPanel();
     const c = screen.getCursorScreenPoint();
     const wa = screen.getDisplayNearestPoint(c).workArea;
@@ -523,7 +574,6 @@ function createOkFilow(deps) {
     p.moveTop();
     p.focus();
     p.webContents.focus();
-    sendPanel("okfilow:quickAsk", null);
   }
 
   let hookAttempts = 0;
@@ -775,10 +825,12 @@ function createOkFilow(deps) {
     return found.has(name);
   };
   const agentsDir = process.env.FILOW_AGENTS_DIR || path.join(userData, "okfilow-agents");
+  /** Ids of the running jobs the going-outside signal is on for. */
+  const agentsOut = new Set();
   const agents = createAgents({
     baseDir: agentsDir,
     logLine,
-    onChange: (jobs) => sendPanel("okfilow:jobs", jobs),
+    onChange: (jobs) => { sendPanel("okfilow:jobs", jobs); trackAgents(jobs); },
     cli: () => cfg().agentCli,
     which,
     openPath: (p) => { void shell.openPath(p); },
@@ -790,10 +842,29 @@ function createOkFilow(deps) {
     const rel = path.relative(agentsDir, path.resolve(String(p || "")));
     return rel && !rel.startsWith("..") && !path.isAbsolute(rel);
   };
-  /** Returns the started job, or null when the text is not an "agent, ..." request. */
+  /** A running agent talks to its maker for as long as it runs: the going-outside signal follows the job. */
+  function trackAgents(jobs) {
+    const running = new Set();
+    for (const job of jobs) {
+      const to = job.status === "running" ? agentRecipient(job.cli) : null;
+      if (!to) continue;
+      running.add(job.id);
+      if (!agentsOut.has(job.id)) { agentsOut.add(job.id); outbound.begin(`agent:${job.id}`, "agent", to.names); }
+    }
+    for (const id of [...agentsOut]) if (!running.has(id)) { agentsOut.delete(id); outbound.end(`agent:${id}`); }
+  }
+  /**
+   * Returns the started job, null when the text is not an "agent, ..." request, or { needsConsent }
+   * when the user has not yet said yes to the maker of the CLI that would run it: nothing is started.
+   */
   ipcMain.handle("okfilow:agent:start", guard((text, context) => {
     const task = agentTask(text);
-    return task ? agents.start(task, typeof context === "string" ? context.slice(0, 2000) : "") : null;
+    if (!task) return null;
+    const cli = pickCli(cfg().agentCli, which);
+    const to = agentRecipient(cli);
+    // No CLI at all: agents.start says so itself, and nothing leaves.
+    if (to && !agentGranted(cfg().consent, cli)) return { needsConsent: { kind: "agent", recipient: { id: to.id, names: to.names }, cli: to.cli } };
+    return agents.start(task, typeof context === "string" ? context.slice(0, 2000) : "");
   }));
   ipcMain.handle("okfilow:agent:list", guard(() => agents.list()));
   ipcMain.handle("okfilow:agent:stop", guard((id) => agents.stop(String(id))));
@@ -828,6 +899,7 @@ function createOkFilow(deps) {
   }
   function dispose() {
     try { agents.dispose(); } catch { /* quitting */ }
+    outbound.clear();
     if (modelWin && !modelWin.isDestroyed()) modelWin.destroy();
     clearTimeout(hookRetryTimer);
     try { hook?.stop(); } catch { /* quitting */ }

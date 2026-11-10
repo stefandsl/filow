@@ -2,6 +2,7 @@ import { buildClefRequest, parseClefAnswers, type ClefResponse, type DecideReque
 
 export const OLLAMA_URL = () => (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
 export const CLEF_LOCAL_MODEL = () => process.env.CLEF_MODEL || "clef-flash";
+export const CLEF_CLOUDFLARE_MODEL = () => process.env.CLEF_CLOUDFLARE_MODEL || "@cf/cloudflare/clef-flash";
 
 /** Local decisions: Cloudflare Clef through Ollama's System One endpoint. Nothing leaves the machine. */
 export async function decideClefLocal(body: DecideRequest, signal?: AbortSignal): Promise<DecideResponse> {
@@ -63,7 +64,7 @@ export async function decideClefCloudflare(body: DecideRequest): Promise<DecideR
   const account = process.env.CLOUDFLARE_ACCOUNT_ID;
   const token = process.env.CLOUDFLARE_API_TOKEN;
   if (!account || !token) throw new Error("CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are not set.");
-  const model = process.env.CLEF_CLOUDFLARE_MODEL || "@cf/cloudflare/clef-flash";
+  const model = CLEF_CLOUDFLARE_MODEL();
   const started = Date.now();
   const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/${model}`, {
     method: "POST",

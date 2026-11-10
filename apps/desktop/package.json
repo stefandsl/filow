@@ -72,7 +72,8 @@
       "okfilow-gestures.js",
       "okfilow-agents.js",
       "okfilow-selection.js",
-      "okfilow-answers.js"
+      "okfilow-answers.js",
+      "okfilow-outbound.js"
     ],
     "asar": true,
     "extraResources": [
