@@ -5,8 +5,12 @@
 //
 // Honest limits, also shown in the report's help text:
 // - Times are when the speech engine reported words, not audio timestamps: a pause is a stretch with
-//   no new words for LONG_PAUSE_MS. Engines that report only finished phrases (no partial text) get
-//   each phrase's start estimated from its length at an average pace.
+//   no new words for LONG_PAUSE_MS. Engines that report only finished phrases (no partial text) do
+//   not say when a phrase began: a pause is then only what is surely silence (the gap before a
+//   phrase minus the longest it could have taken to say), and the pace is measured on the real time
+//   from the first phrase to the last, never on an assumed pace.
+// - A stretch in which the engine said it was lagging or reconnecting had speech that was not
+//   transcribed: it is neither a pause nor speaking time for the pace.
 // - Many speech models leave out "um" and "uh"; the filler count only sees what was transcribed.
 import { t, type I18nKey, type Lang } from "./i18n";
 import { fold, tokenize } from "./text";
@@ -103,7 +107,6 @@ export const PACE_RANGE: Record<SpeechLanguage, [number, number]> = {
 const JAPANESE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/gu;
 const CYRILLIC = /\p{Script=Cyrillic}/gu;
 const LETTER = /[\p{L}\p{N}]/gu;
-const IS_JAPANESE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
 // A question mark is not a pause here: "Do you know?" and "Что это значит?" are meant.
 const PAUSE_PUNCT = /^\s*(?:[,.;:!…、。，．！]|$)/u;
 
@@ -152,7 +155,14 @@ export function speechUnits(text: string, lang: SpeechLanguage): number {
 
 // ---- recording a take ---------------------------------------------------------------------
 
-export type TakeSegment = { text: string; /** when the words began (estimated without partial text) */ startAt: number; /** when the phrase was committed */ at: number };
+export type TakeSegment = {
+  text: string;
+  /** when the words began: the commit time when partial text showed them coming (activity has the
+   *  earlier moments), null when the engine sent the phrase whole and its start is unknown */
+  startAt: number | null;
+  /** when the phrase was committed */
+  at: number;
+};
 export type PointEvent = { id: string; from: PointStatus; to: PointStatus; at: number; sectionIdx: number; manual: boolean };
 
 /** Everything a report is made from. Times are epoch ms on this computer. */
@@ -161,6 +171,8 @@ export type TakeLog = {
   segments: TakeSegment[];
   /** moments the speech engine reported words in progress (partial text) */
   activity: number[];
+  /** moments the engine said it was lagging or reconnecting: speech went untranscribed around them */
+  stalls: number[];
   /** point state changes during the take */
   pointEvents: PointEvent[];
   /** each point's state when the take started, and when it stopped */
@@ -179,6 +191,7 @@ export class TakeRecorder {
   private clock = new TalkClockTracker();
   private segments: TakeSegment[] = [];
   private activity: number[] = [];
+  private stalls: number[] = [];
   private pointEvents: PointEvent[] = [];
   private pointsAtStart: Record<string, PointStatus> = {};
   private last: Record<string, PointStatus> = {};
@@ -203,6 +216,7 @@ export class TakeRecorder {
     if (this.recording && (!wasRecording || this.clock.snapshot(now).startedAt !== startedBefore)) {
       this.segments = [];
       this.activity = [];
+      this.stalls = [];
       this.pointEvents = [];
       this.partialSince = false;
       this.finished = null;
@@ -221,6 +235,7 @@ export class TakeRecorder {
         clock: this.clock.snapshot(now),
         segments: this.segments,
         activity: this.activity,
+        stalls: this.stalls,
         pointEvents: this.pointEvents,
         pointsAtStart: this.pointsAtStart,
         pointsAtEnd: this.last,
@@ -234,13 +249,14 @@ export class TakeRecorder {
     const now = this.now();
     const committed = e.committed?.trim();
     if (committed) {
-      const prev = this.segments[this.segments.length - 1]?.at ?? this.clock.snapshot(now).startedAt ?? now;
-      // Without partial text the phrase arrives whole when it ends: estimate when it began.
-      const startAt = this.partialSince ? now : Math.max(prev, now - estimateMs(committed));
-      this.segments.push({ text: committed, startAt, at: now });
+      // Without partial text the phrase arrives whole when it ends: when it began is not known here.
+      this.segments.push({ text: committed, startAt: this.partialSince ? now : null, at: now });
       this.partialSince = false;
-    } else if (e.partial && /\p{L}/u.test(e.partial) && !/^\s*\(/.test(e.partial)) {
-      // "(reconnecting…)", "(transcription lagging…)" and "…" are status, not speech
+    } else if (e.partial && /^\s*\(/.test(e.partial)) {
+      // "(reconnecting…)", "(transcription lagging…)": status, not words, but speech was going on
+      this.stalls.push(now);
+    } else if (e.partial && /\p{L}/u.test(e.partial)) {
+      // "…" alone is status too
       this.activity.push(now);
       this.partialSince = true;
     }
@@ -257,12 +273,6 @@ export class TakeRecorder {
   }
 }
 
-function estimateMs(text: string): number {
-  const lang: SpeechLanguage = IS_JAPANESE.test(text) ? "ja" : "en";
-  const [lo, hi] = PACE_RANGE[lang];
-  return (speechUnits(text, lang) / ((lo + hi) / 2)) * 60_000;
-}
-
 // ---- the report ---------------------------------------------------------------------------
 
 /** "earlier": already ticked when this take started (from an earlier take, nothing was reset). */
@@ -277,7 +287,9 @@ export type RehearsalReport = {
   speakingMs: number;
   /** words, or characters for Japanese */
   units: number;
-  pace: { unit: "wpm" | "cpm"; value: number | null; band: "slow" | "ok" | "fast" | null; range: [number, number] };
+  /** `phrases`: the engine sent only whole phrases, so the pace is measured on the time from the
+   *  first phrase to the last (short silences included), not word by word */
+  pace: { unit: "wpm" | "cpm"; value: number | null; band: "slow" | "ok" | "fast" | null; range: [number, number]; basis: "words" | "phrases" };
   fillers: { total: number; perMinute: number; top: Array<{ label: string; count: number }> };
   pauses: { count: number; longestMs: number; list: Array<{ atMs: number; ms: number; sectionIdx: number }> };
   talkTargetMs: number | null;
@@ -296,25 +308,39 @@ export function buildRehearsalReport(log: TakeLog, script: Pick<Script, "section
   const text = log.segments.map((s) => s.text).join(" ");
   const lang = opts.lang && opts.lang !== "auto" ? opts.lang : detectSpeechLanguage(text);
 
-  // Speech activity as intervals; a long pause is a gap between them.
-  const spans = [...log.segments.map((s) => [s.startAt, s.at] as const), ...log.activity.map((a) => [a, a] as const)].sort((a, b) => a[0] - b[0]);
+  const range = PACE_RANGE[lang];
+  // A phrase sent whole took at most this long to say: its words at half the low end of the usual
+  // pace. What lies before that is surely silence; anything shorter could still have been speech.
+  const longestSayMs = (s: TakeSegment) => (speechUnits(s.text, lang) / (range[0] / 2)) * 60_000;
+  const starts = log.segments.map((s, i) => s.startAt ?? Math.max(log.segments[i - 1]?.at ?? startedAt, s.at - longestSayMs(s)));
+
+  // Speech activity as intervals; a long pause is a gap between them, unless the engine said it was
+  // lagging during the gap (speech went untranscribed: not a pause, and not timed for the pace).
+  const spans = [...log.segments.map((s, i) => [starts[i], s.at] as const), ...log.activity.map((a) => [a, a] as const)].sort((a, b) => a[0] - b[0]);
   const sectionAt = (time: number) => {
     let idx = log.clock.entries[0]?.idx ?? 0;
     for (const e of log.clock.entries) if (e.at <= time) idx = e.idx;
     return idx;
   };
   const pauses: RehearsalReport["pauses"]["list"] = [];
+  let unheardMs = 0;
   let reach = spans[0]?.[1] ?? 0;
   for (const [from, to] of spans.slice(1)) {
-    if (from - reach >= LONG_PAUSE_MS) pauses.push({ atMs: reach - startedAt, ms: from - reach, sectionIdx: sectionAt(reach) });
+    if (from > reach && log.stalls.some((s) => s > reach && s < from)) unheardMs += from - reach;
+    else if (from - reach >= LONG_PAUSE_MS) pauses.push({ atMs: reach - startedAt, ms: from - reach, sectionIdx: sectionAt(reach) });
     reach = Math.max(reach, to);
   }
   const pauseMs = pauses.reduce((a, p) => a + p.ms, 0);
-  const speakingMs = spans.length ? Math.max(0, reach - spans[0][0] - pauseMs) : 0;
+  const speakingMs = spans.length ? Math.max(0, reach - spans[0][0] - pauseMs - unheardMs) : 0;
 
   const units = speechUnits(text, lang);
-  const range = PACE_RANGE[lang];
-  const value = speakingMs >= MIN_SPEECH_FOR_PACE ? Math.round(units / (speakingMs / 60_000)) : null;
+  // Whole phrases only: the first phrase's length in time is unknown, so the pace counts the words
+  // after it over the real time from its end to the last phrase's end.
+  const basis = log.segments.length > 0 && log.activity.length === 0 && log.segments.every((s) => s.startAt === null) ? "phrases" : "words";
+  const first = log.segments[0];
+  const paceMs = basis === "phrases" ? speakingMs - (first.at - starts[0]) : speakingMs;
+  const paceUnits = basis === "phrases" ? units - speechUnits(first.text, lang) : units;
+  const value = paceMs >= MIN_SPEECH_FOR_PACE ? Math.round(paceUnits / (paceMs / 60_000)) : null;
   const band = value === null ? null : value < range[0] ? "slow" : value > range[1] ? "fast" : "ok";
 
   const fillerCounts = new Map<string, number>();
@@ -362,7 +388,7 @@ export function buildRehearsalReport(log: TakeLog, script: Pick<Script, "section
     durationMs,
     speakingMs,
     units,
-    pace: { unit: lang === "ja" ? "cpm" : "wpm", value, band, range },
+    pace: { unit: lang === "ja" ? "cpm" : "wpm", value, band, range, basis },
     fillers: { total: fillerTotal, perMinute: Math.round((fillerTotal / minutes) * 10) / 10, top },
     pauses: { count: pauses.length, longestMs: Math.max(0, ...pauses.map((p) => p.ms)), list: pauses },
     talkTargetMs: budget.talkMs,
@@ -418,7 +444,7 @@ export function rehearsalMarkdown(r: RehearsalReport, lang: Lang, notes?: string
     `## ${t("report.overview", lang)}`,
     "",
     `- ${t("report.length", lang)}: ${clockText(r.durationMs)}${r.talkTargetMs !== null ? ` (${t("report.target", lang)} ${clockText(r.talkTargetMs)})` : ""}`,
-    `- ${t("report.pace", lang)}: ${pace}${r.pace.band ? ` (${t(`report.band.${r.pace.band}` as I18nKey, lang)}, ${t("report.paceRange", lang, { lo: r.pace.range[0], hi: r.pace.range[1] })})` : ""}`,
+    `- ${t("report.pace", lang)}: ${pace}${r.pace.band ? ` (${t(`report.band.${r.pace.band}` as I18nKey, lang)}, ${t("report.paceRange", lang, { lo: r.pace.range[0], hi: r.pace.range[1] })})` : ""}${r.pace.value !== null && r.pace.basis === "phrases" ? `; ${t("report.paceFromPhrases", lang)}` : ""}`,
     `- ${t("report.fillers", lang)}: ${r.fillers.total}${r.fillers.top.length ? ` (${r.fillers.top.map((f) => `"${f.label}" ${f.count}`).join(", ")})` : ""}`,
     `- ${t("report.pauses", lang)}: ${r.pauses.count}${r.pauses.count ? ` (${t("report.longest", lang)} ${Math.round(r.pauses.longestMs / 1000)} s)` : ""}`,
     "",

@@ -109,6 +109,18 @@ describe("rehearsal report view", () => {
     for (const k of ["report.saveMd", "report.print", "report.close"] as const) expect(text).toContain(t(k, "en"));
   });
 
+  it("says the pace is approximate when the engine sent only whole phrases", () => {
+    // `report` above has one phrase and no pace; this take has twelve, sent whole every 10 s
+    expect(plain(inLang("en", <RehearsalReport report={report} onClose={() => {}} />))).not.toContain("approximate");
+    let at = 0;
+    const whole = new TakeRecorder(() => at);
+    whole.observe(st(true, 0));
+    for (at = 10_000; at <= 120_000; at += 10_000) whole.transcript({ committed: "one two three four five six seven eight nine ten" });
+    whole.observe(st(false, 0));
+    const text = plain(inLang("en", <RehearsalReport report={buildRehearsalReport(whole.result()!, script, { lang: "en" })} onClose={() => {}} />));
+    expect(text).toContain("60 words a minute slow, usual 120-170 approximate: this speech model sends only whole phrases");
+  });
+
   it("speaks Italian when the interface does", () => {
     const text = plain(inLang("it", <RehearsalReport report={report} onClose={() => {}} />));
     expect(text).toContain("Resoconto della prova");
@@ -133,7 +145,7 @@ describe("report and talk length on a phone (360 px)", () => {
     expect(phone).toMatch(/\.report-table tbody th \{[^}]*flex: 1 1 100%/);
     expect(phone).toMatch(/td::before \{ content: attr\(data-label\)/);
     expect(rule(css, ".report-points[hidden]")).toMatch(/display:\s*none/);
-    const html = inLang("en", <RehearsalReport report={buildRehearsalReport({ clock: { startedAt: 0, endedAt: 1000, entries: [{ idx: 0, at: 0 }], sentAt: 0 }, segments: [], activity: [], pointEvents: [], pointsAtStart: {}, pointsAtEnd: {}, manualAtEnd: [] }, script)} onClose={() => {}} />);
+    const html = inLang("en", <RehearsalReport report={buildRehearsalReport({ clock: { startedAt: 0, endedAt: 1000, entries: [{ idx: 0, at: 0 }], sentAt: 0 }, segments: [], activity: [], stalls: [], pointEvents: [], pointsAtStart: {}, pointsAtEnd: {}, manualAtEnd: [] }, script)} onClose={() => {}} />);
     // block layout drops a table's semantics unless the roles are explicit
     expect(html).toContain('<table class="report-table" role="table">');
     expect(html).toMatch(/<th scope="row" role="rowheader">Intro<\/th><td role="cell" data-label="Time">/);

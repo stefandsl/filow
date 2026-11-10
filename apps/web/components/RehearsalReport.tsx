@@ -51,6 +51,7 @@ function ReportBody({ report: r, idPrefix, fold = false }: { report: Report; idP
             <dt>{t("report.pace")}</dt>
             {r.pace.value === null ? <dd className="hint">{t("report.paceShort")}</dd> : <dd><strong>{r.pace.value}</strong> {t(r.pace.unit === "cpm" ? "report.cpmUnit" : "report.wpmUnit")}</dd>}
             {r.pace.band && <dd className="hint">{t(`report.band.${r.pace.band}` as I18nKey)}, {t("report.paceRange", { lo: r.pace.range[0], hi: r.pace.range[1] })}</dd>}
+            {r.pace.value !== null && r.pace.basis === "phrases" && <dd className="hint">{t("report.paceFromPhrases")}</dd>}
           </div>
           <div>
             <dt>{t("report.fillers")}</dt>
