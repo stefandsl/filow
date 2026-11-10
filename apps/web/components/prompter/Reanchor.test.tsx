@@ -77,7 +77,7 @@ describe("a move made by voice", () => {
   it("says where Filow moved and offers the way back, in a live region that is always there", () => {
     const empty = renderToStaticMarkup(<ReanchorNotice notice={null} onUndo={() => {}} onDismiss={() => {}} />);
     expect(empty).toBe('<div class="reanchor-region" role="status" aria-live="polite"></div>');
-    const html = renderToStaticMarkup(<ReanchorNotice notice={{ title: "Pricing", from: 0 }} onUndo={() => {}} onDismiss={() => {}} />);
+    const html = renderToStaticMarkup(<ReanchorNotice notice={{ title: "Pricing", to: 1, from: 0 }} onUndo={() => {}} onDismiss={() => {}} />);
     expect(html).toContain("Moved to &quot;Pricing&quot;: you said its name.");
     expect(html).toContain("Go back");
   });

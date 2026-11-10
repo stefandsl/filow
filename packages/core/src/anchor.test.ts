@@ -122,12 +122,55 @@ describe("anchor: where the presenter says they are", () => {
     expect(status("s1b0")).toBe("started");
   });
 
-  it("Next keeps the words said just before it (keepRecent)", async () => {
+  it("Next keeps the words said in the last seconds before it (keep recent)", async () => {
     const { e, status } = harness();
     e.feed({ committed: "so, our pricing tiers. " });
-    e.dispatch({ type: "anchor", idx: 1, keepRecent: true });
+    e.dispatch({ type: "anchor", idx: 1, keep: "recent" });
     await e.tick();
     expect(status("s1b0")).toBe("started");
+  });
+
+  it("Next keeps only the last seconds: an agenda read long before does not tick the next part", async () => {
+    let clock = 0;
+    const { e, status } = harness(SCRIPT, { now: () => clock });
+    e.feed({ committed: "today: pricing tiers, the annual discount, the mobile app. " }); // the agenda, at 0 s
+    clock = 20_000;
+    e.feed({ committed: "welcome everyone. " }); // at 20 s
+    clock = 30_000;
+    e.dispatch({ type: "anchor", idx: 1, keep: "recent" });
+    await e.tick();
+    expect(status("s1b0")).toBe("waiting");
+    expect(status("s1b1")).toBe("waiting");
+    clock = 33_000;
+    e.feed({ committed: "the annual discount is twenty percent. " });
+    await e.tick();
+    expect(status("s1b1")).toBe("started");
+  });
+
+  it("going back after a move made by mistake (keep all) keeps what was said there", async () => {
+    const { e, status } = harness();
+    e.dispatch({ type: "anchor", idx: 1 });
+    e.feed({ committed: "we have three pricing tiers. " });
+    e.dispatch({ type: "anchor", idx: 2 }); // a voice move by mistake, before the tick
+    e.dispatch({ type: "anchor", idx: 1, keep: "all" });
+    await e.tick();
+    expect(status("s1b0")).toBe("started");
+  });
+
+  it("a click on a point of the same section leaves the decision in flight and the pending confirmations alone", async () => {
+    let release: () => void = () => {};
+    const e = new Engine({
+      decide: (r) => new Promise((res) => (release = () => res({ decisions: r.bullets.map((b) => ({ id: b.id, confidence: b.id === "s0b0" ? 0.95 : 0, started: b.id === "s0b0" })), latencyMs: 5, cost: 0, model: "t" }))),
+      now: () => 1000, setInterval: () => 0, clearInterval: () => {},
+    });
+    e.loadScript(SCRIPT);
+    e.feed({ committed: "welcome everyone. " });
+    const pending = e.tick();
+    e.dispatch({ type: "anchor", idx: 0, pointId: "s0b1" });
+    release();
+    await pending;
+    expect(e.getState().points.s0b0?.status).toBe("started");
+    expect(e.getState().here).toBe("s0b1");
   });
 
   it("a decision asked before the jump is dropped when it answers", async () => {
@@ -182,7 +225,7 @@ describe("clickerMove", () => {
 describe("moveCommand", () => {
   it("Next keeps the recent words, Previous does not, and both stop at the ends", () => {
     const state = { script: SCRIPT, sectionIdx: 1 };
-    expect(moveCommand(state, "next")).toEqual({ type: "anchor", idx: 2, keepRecent: true });
+    expect(moveCommand(state, "next")).toEqual({ type: "anchor", idx: 2, keep: "recent" });
     expect(moveCommand(state, "prev")).toEqual({ type: "anchor", idx: 0 });
     expect(moveCommand({ script: SCRIPT, sectionIdx: 2 }, "next")).toBeNull();
     expect(moveCommand({ script: SCRIPT, sectionIdx: 0 }, "prev")).toBeNull();
@@ -206,6 +249,31 @@ describe("spokenSection", () => {
     expect(spokenSection("", titles, 0)).toBeNull();
     expect(spokenSection("roadmap", ["Q&A", "Roadmap"], 0)).toBe(1);
     expect(spokenSection("q and a", ["Q&A", "Roadmap"], 1)).toBeNull();
+  });
+  it("does not move on ordinary sentences that happen to hold a title (review findings)", () => {
+    const four = ["Intro", "Pricing", "Roadmap", "Questions"];
+    for (const said of ["the pricing is high", "any questions so far", "roadmap matters", "now the pricing went down a lot this year", "the budget review showed growth"])
+      expect(spokenSection(said, [...four, "Budget review"], 0), said).toBeNull();
+    expect(spokenSection("цены выросли", ["Введение", "Цены"], 0)).toBeNull();
+    expect(spokenSection("prețurile sunt mari", ["Introducere", "Prețuri"], 0)).toBeNull();
+    expect(spokenSection("da parte nostra faremo di tutto", ["Parte 1 - Inizio", "Parte 2 - Costi", "Parte 3 - Fine"], 0)).toBeNull();
+  });
+  it("hears announcements in Russian and Romanian, and numbered parts", () => {
+    expect(spokenSection("теперь о ценах", ["Введение", "Цены"], 0)).toBe(1);
+    expect(spokenSection("перейдем к планам развития", ["Введение", "Цены", "Планы развития"], 0)).toBe(2);
+    expect(spokenSection("acum, prețurile", ["Introducere", "Prețuri"], 0)).toBe(1);
+    const parts = ["Parte 1 - Inizio", "Parte 2 - Costi", "Parte 3 - Fine"];
+    expect(spokenSection("passiamo alla parte tre", parts, 0)).toBe(2);
+    expect(spokenSection("ora parliamo della parte 3", parts, 0)).toBe(2);
+    expect(spokenSection("passiamo ai costi", parts, 0)).toBe(1);
+    expect(spokenSection("now, the roadmap", ["Intro", "Roadmap 2027"], 0)).toBe(1);
+  });
+  it("hears announcements in Japanese, not a passing mention", () => {
+    const ja = ["はじめに", "価格設定", "ロードマップ"];
+    expect(spokenSection("では価格設定について話しましょう", ja, 0)).toBe(1);
+    expect(spokenSection("次は価格設定です", ja, 0)).toBe(1);
+    expect(spokenSection("次に、ロードマップ", ja, 0)).toBe(2);
+    expect(spokenSection("価格設定は高いです", ja, 0)).toBeNull();
   });
   it("prefers the longer name, then the next section ahead", () => {
     expect(spokenSection("Plans.", ["Intro", "Plans", "Pricing and plans"], 0)).toBe(1);

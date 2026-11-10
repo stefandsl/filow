@@ -171,6 +171,7 @@ const MENU_TEXT = {
     pptManifest: "PowerPoint add-in: save manifest for another computer…",
     overlayShow: "Presenter overlay (points on top of the slide show)",
     pointsWindow: "Points window for calls (on top, left out of screen sharing)",
+    pointsWindowPlain: "Points window for calls (on top)",
     okfOpen: "Open OK Filow",
     okfShowAlways: "Always show the buddy",
     okfEnabled: "OK Filow on",
@@ -224,6 +225,7 @@ const MENU_TEXT = {
     pptManifest: "Componente aggiuntivo PowerPoint: salva il manifest per un altro computer…",
     overlayShow: "Overlay relatore (punti sopra la presentazione)",
     pointsWindow: "Finestra dei punti per le chiamate (in primo piano, esclusa dalla condivisione)",
+    pointsWindowPlain: "Finestra dei punti per le chiamate (in primo piano)",
     okfOpen: "Apri OK Filow",
     okfShowAlways: "Mostra sempre l'assistente",
     okfEnabled: "OK Filow attivo",
@@ -613,8 +615,9 @@ function wireScreenSense() {
       const changedSession = !currentSession || currentSession.id !== info.id;
       currentSession = { id: info.id, code: info.code };
       internalEvents.emit("session:code", info.code);
-      if (changedSession && overlayWin && !overlayWin.isDestroyed()) overlayWin.loadURL(overlayUrl());
-      if (changedSession) pointsWindow.reload();
+      // a new session (page reloaded): each open floating window joins it, each with its own code
+      if (changedSession && overlayWin && !overlayWin.isDestroyed()) void showOverlay();
+      if (changedSession) void pointsWindow.reload();
     }
   });
   appHandle("screen:settings", () => ({ hotkey: settings.screenHotkey, enabled: settings.screenSense }));
@@ -1655,7 +1658,26 @@ function overlayUrl(code = currentSession ? currentSession.code : "") {
  * window (re)joins, the page is asked for a new code (preload onNeedCode). Falls back to the current
  * code when the page does not answer in time.
  */
-function freshSessionCode(timeoutMs = 2500) {
+let codeQueue = Promise.resolve();
+function freshSessionCode() {
+  // One at a time: a new code replaces the last one on the server, so the next window asks only once
+  // the previous one has joined with its code (session:codeSpent) or after a few seconds.
+  const turn = codeQueue.then(() => requestSessionCode());
+  codeQueue = turn.then(() => waitInternal("codeSpent", 6000));
+  return turn;
+}
+function waitInternal(event, timeoutMs) {
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      internalEvents.off(event, done);
+      resolve();
+    };
+    const timer = setTimeout(done, timeoutMs);
+    internalEvents.on(event, done);
+  });
+}
+function requestSessionCode(timeoutMs = 2500) {
   const before = currentSession ? currentSession.code : "";
   if (!mainWin || mainWin.isDestroyed()) return Promise.resolve(before);
   return new Promise((resolve) => {
@@ -1970,7 +1992,7 @@ function buildMenu(win) {
           click: (item) => (item.checked ? showOverlay() : hideOverlay()),
         },
         {
-          label: mt("pointsWindow"),
+          label: mt(process.platform === "win32" ? "pointsWindow" : "pointsWindowPlain"), // only Windows reliably leaves it out of sharing (points-window.js)
           type: "checkbox",
           checked: pointsWindow.isOpen(),
           click: (item) => pointsWindow.set(item.checked),
@@ -2109,7 +2131,19 @@ async function main() {
   appOn("overlay:close", (e) => (pointsWindow.owns(e.sender) ? pointsWindow.hide() : hideOverlay()));
   appOn("session:codeSpent", (e) => {
     // a floating window paired with the code on screen: the page shows a fresh one for the next device
-    if (mainWin && !mainWin.isDestroyed() && e.sender !== mainWin.webContents) mainWin.webContents.send("session:needCode");
+    if (!mainWin || mainWin.isDestroyed() || e.sender === mainWin.webContents) return;
+    internalEvents.emit("codeSpent");
+    mainWin.webContents.send("session:needCode");
+  });
+  // A floating window whose code was spent (a crash reload loads the same URL) asks to join again; at
+  // most once in 10 s per window, so a session that refuses every code cannot make it spin.
+  const rejoinedAt = new Map();
+  appOn("overlay:rejoin", (e) => {
+    const now = Date.now();
+    if (now - (rejoinedAt.get(e.sender.id) || 0) < 10_000) return;
+    rejoinedAt.set(e.sender.id, now);
+    if (pointsWindow.owns(e.sender)) void pointsWindow.reload();
+    else if (overlayWin && !overlayWin.isDestroyed() && e.sender === overlayWin.webContents) void showOverlay();
   });
   appHandle("points:status", () => ({ open: pointsWindow.isOpen() }));
   appHandle("points:set", async (_e, on) => {

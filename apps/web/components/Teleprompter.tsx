@@ -77,7 +77,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const { engine, state } = useEngine();
   const sessionInfo = useSession(engine);
   // Re-anchoring (clicker keys, clicks, a section's name said aloud) and the Display panel: prompter/useReanchor.ts, prompter/DisplayPanel.tsx
-  const reanchor = useReanchor(engine);
+  const reanchor = useReanchor(engine, state.sectionIdx);
   const { slideMoved } = reanchor;
   const [display, setDisplay] = useDisplayPrefs(DISPLAY_KEYS.prompter);
   const [displayOpen, setDisplayOpen] = useState(false);
@@ -424,7 +424,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         return;
       }
       const handlers = {
-        onTranscript: (e: { committed?: string; partial?: string }) => { if (attempt.isCurrent()) { engine.feed(e); reanchor.heard(e); } },
+        onTranscript: (e: { committed?: string; partial?: string }) => { if (attempt.isCurrent()) { reanchor.heard(e); engine.feed(e); } }, // a named section first: the words of the same segment then count for it
         onError: (m: string) => {
           if (!attempt.isCurrent()) return;
           pushLog(`error: ${m}`);

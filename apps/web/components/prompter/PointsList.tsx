@@ -71,7 +71,9 @@ export function PointsList({ points, onToggle, onHere, current }: {
         aria-current={here ? "step" : undefined}
         title={onToggle ? t(onHere ? "here.pointHelp" : "stage.toggle") : undefined}
         aria-keyshortcuts={onHere ? "H" : undefined}
-        onClick={onHere ? () => onHere(point.id) : undefined}
+        // A pointer click says "I am here". A click with no pointer behind it (detail 0: a screen
+        // reader activating the button in browse mode) toggles, as the button's pressed state says.
+        onClick={onHere ? e => (e.detail === 0 && onToggle ? onToggle(point.id) : onHere(point.id)) : undefined}
         onDoubleClick={onToggle ? () => onToggle(point.id) : undefined}
         onKeyDown={onToggle || onHere ? e => {
           if (onToggle && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onToggle(point.id); }

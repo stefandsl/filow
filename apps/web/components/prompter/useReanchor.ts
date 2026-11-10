@@ -28,14 +28,16 @@ export function useClickerKeys(onMove: (move: ClickerMove) => void, enabled = tr
       const move = clickerMove(e);
       if (!move || keyBelongsToControl(e.target)) return;
       e.preventDefault();
-      latest.current(move);
+      // a held key repeats: one press is one move, not a run through the script marking it missed
+      if (!e.repeat) latest.current(move);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [enabled]);
 }
 
-export type MoveNotice = { title: string; from: number };
+/** A move made by voice: where to (title, section) and where from, for "Go back". */
+export type MoveNotice = { title: string; to: number; from: number };
 
 type Dispatcher = { dispatch(cmd: Command): CommandResult; getState(): SessionState };
 
@@ -45,7 +47,7 @@ type Dispatcher = { dispatch(cmd: Command): CommandResult; getState(): SessionSt
  * and slide moves in PowerPoint. A move made by voice leaves a notice with a way back, in case the
  * name came up in passing.
  */
-export function useReanchor(engine: Dispatcher) {
+export function useReanchor(engine: Dispatcher, sectionIdx: number) {
   const [notice, setNotice] = useState<MoveNotice | null>(null);
   const move = useCallback((m: ClickerMove) => {
     const cmd = moveCommand(engine.getState(), m);
@@ -59,7 +61,7 @@ export function useReanchor(engine: Dispatcher) {
     const s = engine.getState();
     const idx = spokenSection(e.committed, s.script.sections.map((x) => x.title), s.sectionIdx);
     if (idx === null) return;
-    if (engine.dispatch({ type: "anchor", idx }).ok) setNotice({ title: s.script.sections[idx].title, from: s.sectionIdx });
+    if (engine.dispatch({ type: "anchor", idx }).ok) setNotice({ title: s.script.sections[idx].title, to: idx, from: s.sectionIdx });
   }, [engine]);
   // PowerPoint moved to another slide: the slide's section takes back the points an earlier move
   // past it had marked missed. Only on a real change: the slide show reports the same slide often.
@@ -68,15 +70,20 @@ export function useReanchor(engine: Dispatcher) {
     if (lastSlide.current === index) return;
     lastSlide.current = index;
     const s = engine.getState();
-    if (s.script.source === "slides" && index >= 0 && index < s.script.sections.length) engine.dispatch({ type: "anchor", idx: index, keepRecent: true });
+    if (s.script.source === "slides" && index >= 0 && index < s.script.sections.length) engine.dispatch({ type: "anchor", idx: index, keep: "recent" });
   }, [engine]);
+  // the presenter moved again: "Go back" would now lead somewhere else, so the notice goes
+  useEffect(() => {
+    if (notice && sectionIdx !== notice.to) setNotice(null);
+  }, [notice, sectionIdx]);
   useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(null), 12000);
     return () => clearTimeout(t);
   }, [notice]);
   const undo = useCallback(() => {
-    if (notice) engine.dispatch({ type: "anchor", idx: notice.from });
+    // back where the presenter was, with what they had said there (the move was a mistake)
+    if (notice) engine.dispatch({ type: "anchor", idx: notice.from, keep: "all" });
     setNotice(null);
   }, [engine, notice]);
   const dismiss = useCallback(() => setNotice(null), []);

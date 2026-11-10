@@ -69,7 +69,8 @@ export function StageView({ state, onCommand, banner, stage, compact, pointMark 
                   key={b.id}
                   data-point-id={b.id}
                   className={`point ${i >= 10 && !compact ? "far" : ""} ${started ? "started" : ""} ${hot ? "hot" : ""} ${here === b.id ? "here" : ""}`}
-                  onClick={can ? () => send({ type: "anchor", idx: sectionIdx, pointId: b.id }) : undefined}
+                  // a tap says "I am here"; a click with no pointer (detail 0: a screen reader in browse mode) toggles, as aria-pressed says
+                  onClick={can ? (e) => send(e.detail === 0 ? (started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id }) : { type: "anchor", idx: sectionIdx, pointId: b.id }) : undefined}
                   onDoubleClick={can ? () => send(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id }) : undefined}
                   role={can ? "button" : undefined}
                   tabIndex={can ? 0 : undefined}

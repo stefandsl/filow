@@ -5,8 +5,16 @@
 // Both show the mirror page in overlay mode, so they read the app's own session like a paired phone.
 "use strict";
 
-/** Windows 10 2004+ and macOS can leave a window out of screen capture and sharing; Linux cannot. */
+/**
+ * Where the window can promise it is left out of screen sharing: Windows 10 2004+ (WDA_EXCLUDEFROMCAPTURE).
+ * macOS is asked too (NSWindowSharingNone), but capture through ScreenCaptureKit (macOS 15 and later:
+ * Zoom, Teams, browsers) is reported to ignore it, so there the page does not claim it. Linux cannot.
+ */
 function captureHidingWorks(platform) {
+  return platform === "win32";
+}
+/** Where leaving the window out of capture is at least asked for. */
+function captureHidingTried(platform) {
   return platform === "win32" || platform === "darwin";
 }
 
@@ -111,7 +119,7 @@ function createPointsWindow(deps) {
       bounds,
       background: deps.theme() === "dark" ? "#08090b" : "#f7f7f5",
       opacity: 1,
-      hidden: captureHidingWorks(deps.platform),
+      hidden: captureHidingTried(deps.platform),
       saveBounds: deps.saveBounds,
       onClosed: () => {
         win = null;
@@ -134,9 +142,11 @@ function createPointsWindow(deps) {
     /** Whether an IPC event came from this window (its close button asks to close it). */
     owns: (sender) => isOpen() && sender === win.webContents,
     webContents: () => (isOpen() ? win.webContents : null),
-    /** The session changed (a new pairing code): load the page again so it joins the new one. */
-    reload: () => {
-      if (isOpen()) win.loadURL(url(deps.sessionCode()));
+    /** Load the page again with an unspent code: the session changed, or the page could not join (a spent code after a crash reload). */
+    reload: async () => {
+      if (!isOpen()) return;
+      const code = deps.freshCode ? await deps.freshCode() : deps.sessionCode();
+      if (isOpen()) win.loadURL(url(code));
     },
   };
 }

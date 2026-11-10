@@ -71,6 +71,8 @@ const TAIL = 160;
 const COMMITTED_CAP = 6000;
 /** lexical score (gate.ts) a partial hypothesis needs to mark a point "active" */
 const PARTIAL_ACTIVE = 0.5;
+/** speech kept for the new place by an anchor with keep "recent" (Next): the last few seconds before the press */
+const ANCHOR_RECENT_MS = 6000;
 
 export class Engine {
   private readonly o: Required<Omit<EngineOptions, "sessionId" | "onGuard" | "onVerify">> & Pick<EngineOptions, "onGuard" | "onVerify">;
@@ -343,7 +345,7 @@ export class Engine {
         for (const fn of this.lookNowSubs) fn();
         return { ok: true };
       case "anchor":
-        return this.anchor(cmd.idx, cmd.pointId, cmd.keepRecent === true);
+        return this.anchor(cmd.idx, cmd.pointId, cmd.keep);
     }
   }
 
@@ -355,13 +357,16 @@ export class Engine {
    * - the target section's missed points (from `pointId` on) are open again: they were missed by an
    *   earlier move past them, and the presenter is back to say them;
    * - moving to another section, the words said before the move are not asked about for it (a fence,
-   *   as Reset sets), unless `keepRecent`; words still being transcribed at the move do count. Staying
-   *   in the section keeps its words, so a point said just before the click still ticks;
-   * - the target section's pending confirmations start over, and a decision asked before the move is
-   *   dropped when it answers;
+   *   as Reset sets); words still being transcribed at the move do count. `keep: "recent"` keeps the
+   *   last ANCHOR_RECENT_MS of speech (Next: people start the next part, then press); `keep: "all"`
+   *   sets no new fence (going back after a move made by mistake);
+   * - moving, the target section's pending confirmations start over and a decision asked before the
+   *   move is dropped when it answers;
+   * - staying in the section (a click on one of its points) changes nothing in the tracking: its words,
+   *   pending confirmations and the decision in flight all stand;
    * - the open points from `pointId` on are asked first.
    */
-  anchor(idx: number, pointId?: string, keepRecent = false): CommandResult {
+  anchor(idx: number, pointId?: string, keep?: "recent" | "all"): CommandResult {
     const s = this.state;
     const sections = s.script.sections;
     if (!sections.length) return { ok: false, error: "no script" };
@@ -383,14 +388,24 @@ export class Engine {
       if (pointId === undefined) delete st.here;
       else st.here = pointId;
     });
+    const open = bullets.filter((b) => (this.state.points[b.id]?.status ?? "waiting") === "waiting");
+    const first = open.findIndex((b) => bullets.indexOf(b) >= from);
+    this.qCursor = Math.max(0, first);
+    if (!moved) return { ok: true };
     for (const b of bullets) {
       delete this.streak[b.id];
       this.held.delete(b.id);
     }
-    if (moved && !keepRecent) this.fences.set(idx, Math.max(this.fences.get(idx) ?? 0, this.committedTotal));
-    const open = bullets.filter((b) => (this.state.points[b.id]?.status ?? "waiting") === "waiting");
-    const first = open.findIndex((b) => bullets.indexOf(b) >= from);
-    this.qCursor = Math.max(0, first);
+    if (keep !== "all") {
+      // the end of the last committed segment older than the kept stretch (none: all of it is recent)
+      let cut = this.committedTotal;
+      if (keep === "recent") {
+        const oldest = this.o.now() - ANCHOR_RECENT_MS;
+        cut = 0;
+        for (const g of this.segs) if (g.at <= oldest) cut = g.end;
+      }
+      this.fences.set(idx, Math.max(this.fences.get(idx) ?? 0, cut));
+    }
     this.lastSent = "";
     this.invalidate();
     return { ok: true };

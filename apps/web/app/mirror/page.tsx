@@ -86,6 +86,8 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
         /* unsupported or denied */
       }
     } catch (err) {
+      // An overlay window of the desktop app with a spent code (codes are single use): the shell loads it again with a fresh one.
+      if (overlay && /unknown code|code expired/.test((err as Error).message)) (globalThis as { filow?: { overlayRejoin?: () => void } }).filow?.overlayRejoin?.();
       setError(t("mirror.connectionError", { error: (err as Error).message }));
       setStatus("idle");
     }

@@ -62,6 +62,13 @@ describe("points window for calls", () => {
     expect(FakeWindow.made[0].protectedFromCapture).toBe(false);
   });
 
+  it("on macOS asks to be left out of capture but does not promise it (ScreenCaptureKit may ignore it)", async () => {
+    const { w } = make("darwin");
+    await w.show();
+    expect(FakeWindow.made[0].protectedFromCapture).toBe(true);
+    expect(FakeWindow.made[0].url).toContain("private=0");
+  });
+
   it("closes from the menu, the Display panel or its own button, and reports it", async () => {
     const { w, changes } = make();
     await w.set(true);
@@ -89,13 +96,14 @@ describe("points window for calls", () => {
   });
 
   it("reloads into a new session only while open", async () => {
-    const { w } = make();
-    w.reload();
+    let n = 0;
+    const { w } = make("win32", undefined, async () => `00000${++n}`);
+    await w.reload();
     expect(FakeWindow.made).toHaveLength(0);
     await w.show();
-    FakeWindow.made[0].url = "";
-    w.reload();
-    expect(FakeWindow.made[0].url).toContain("points=1");
+    expect(FakeWindow.made[0].url).toContain("code=000001");
+    await w.reload();
+    expect(FakeWindow.made[0].url).toContain("code=000002"); // a code of its own, not the spent one
   });
 
   it("joins with a pairing code nobody has spent, and does not open when switched off meanwhile", async () => {

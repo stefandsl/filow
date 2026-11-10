@@ -124,9 +124,10 @@ export type Command =
   | { type: "forgetScreen" }
   /**
    * The presenter says where they are (a click on a point or a section, a clicker key, a section's
-   * name said aloud). `pointId`: the point they are on. `keepRecent`: keep the words said just before
-   * the move (Next: people often start the next part before pressing). Engine.anchor() has the rules.
+   * name said aloud). `pointId`: the point they are on. `keep`: "recent" keeps the last seconds of
+   * speech for the new place (Next: people often start the next part before pressing), "all" keeps
+   * everything (going back after a move made by mistake). Engine.anchor() has the rules.
    */
-  | { type: "anchor"; idx: number; pointId?: string; keepRecent?: boolean };
+  | { type: "anchor"; idx: number; pointId?: string; keep?: "recent" | "all" };
 
 export type CommandResult = { ok: true } | { ok: false; error: string };
