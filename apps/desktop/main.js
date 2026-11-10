@@ -50,6 +50,14 @@ if (process.env.FILOW_OKF_FAKE_MIC && require("./qa.js").isQaBuild(app)) {
   app.commandLine.appendSwitch("use-fake-device-for-media-stream");
   app.commandLine.appendSwitch("use-file-for-fake-audio-capture", process.env.FILOW_OKF_FAKE_MIC);
 }
+// QA builds only: FILOW_QA_SOCKET_LOG=<file> writes one line per TCP connection this process opens
+// (the in-process Next server and session relay included) for the take probe's offline audit (PR-01):
+// netstat samples miss connections shorter than its interval. FILOW_QA_PROBE_SERVER_OUTBOUND=<host:port>
+// opens one short connection from this process once the servers run, to show the log catches it.
+if (process.env.FILOW_QA_SOCKET_LOG && require("./qa.js").isQaBuild(app)) {
+  const socketLog = process.env.FILOW_QA_SOCKET_LOG;
+  require("./qa.js").installSocketLog((line) => require("node:fs").appendFileSync(socketLog, line));
+}
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -1751,6 +1759,12 @@ function startServers() {
   require(webServer); // Next's standalone server starts listening when required
   process.title = title; // Next renames the process "next-server"; on Linux and macOS ps, pkill and System Monitor would not find Filow
   if (!hosted) require(sessionServer); // relay in-process; hosted mode uses the remote one
+  const probe = /^([^:]+):(\d+)$/.exec(process.env.FILOW_QA_PROBE_SERVER_OUTBOUND || "");
+  if (probe && require("./qa.js").isQaBuild(app)) {
+    require("node:net").connect({ host: probe[1], port: Number(probe[2]) })
+      .on("connect", function () { this.destroy(); })
+      .on("error", () => {});
+  }
 }
 
 function waitFor(url, tries = 100) {

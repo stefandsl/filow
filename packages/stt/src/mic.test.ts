@@ -1,5 +1,8 @@
+import fs from "node:fs";
+import path from "node:path";
+import vm from "node:vm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { preopenMic, startMic } from "./mic";
+import { MIC_WORKLET_URL, preopenMic, startMic } from "./mic";
 
 function fixture(options: { contextMs?: number; workletError?: boolean } = {}) {
   let time = 0;
@@ -14,9 +17,10 @@ function fixture(options: { contextMs?: number; workletError?: boolean } = {}) {
   const mute = { ...graphNode(), gain: { value: 1 } };
   const close = vi.fn(async () => {});
   const contextArgs = vi.fn();
+  const addModule = vi.fn(async (_url: string) => { if (options.workletError) throw new Error("worklet failed"); });
   vi.stubGlobal("AudioContext", class {
     constructor(opts: unknown) { contextArgs(opts); time += options.contextMs || 0; }
-    audioWorklet = { addModule: async () => { if (options.workletError) throw new Error("worklet failed"); } };
+    audioWorklet = { addModule };
     createMediaStreamSource = () => source;
     createGain = () => mute;
     destination = {};
@@ -24,9 +28,8 @@ function fixture(options: { contextMs?: number; workletError?: boolean } = {}) {
   });
   const node = { ...graphNode(), port: { onmessage: null as ((e: { data: { pcm: ArrayBuffer; peak: number } }) => void) | null } };
   vi.stubGlobal("AudioWorkletNode", class { constructor() { return node; } });
-  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mic-test");
-  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
-  return { track, getUserMedia, close, contextArgs, mute, node };
+  const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mic-test");
+  return { track, getUserMedia, close, contextArgs, mute, node, addModule, createObjectURL };
 }
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
@@ -82,11 +85,39 @@ describe("capture health wiring", () => {
     expect(log).toHaveBeenCalledWith("microphone AudioContext opened in 6001 ms");
     mic.stop();
   });
+  it("loads the worklet from the app's own static file, never from a blob: URL (the desktop CSP has no blob: in script-src)", async () => {
+    const f = fixture();
+    const mic = await startMic(16000, vi.fn());
+    expect(f.addModule).toHaveBeenCalledWith(MIC_WORKLET_URL);
+    expect(MIC_WORKLET_URL).toBe("/mic-worklet.js");
+    expect(f.createObjectURL).not.toHaveBeenCalled();
+    mic.stop();
+  });
   it("closes the track/context and clears the health timer if graph setup fails", async () => {
     const f = fixture({ workletError: true });
     await expect(startMic(16000, vi.fn())).rejects.toThrow("worklet failed");
     expect(f.track.stop).toHaveBeenCalledOnce();
     expect(f.close).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("the static worklet file (apps/web/public/mic-worklet.js)", () => {
+  it("registers pcm-chunker and posts 100 ms chunks of 16-bit PCM with their peak", () => {
+    const file = path.join(__dirname, "../../../apps/web/public", MIC_WORKLET_URL);
+    const posted: Array<{ pcm: ArrayBuffer; peak: number }> = [];
+    const registered: Record<string, new () => { process: (inputs: Float32Array[][]) => boolean }> = {};
+    class AudioWorkletProcessor { port = { postMessage: (m: { pcm: ArrayBuffer; peak: number }) => posted.push(m) }; }
+    vm.runInNewContext(fs.readFileSync(file, "utf8"), { AudioWorkletProcessor, registerProcessor: (n: string, c: never) => (registered[n] = c), sampleRate: 1000, Float32Array, Int16Array, Math });
+    const proc = new registered["pcm-chunker"]();
+    expect(proc.process([[new Float32Array(60).fill(0.5)]])).toBe(true);
+    expect(posted).toHaveLength(0); // 60 of 100 samples
+    proc.process([[new Float32Array(60).fill(-2)]]);
+    expect(posted).toHaveLength(1);
+    const pcm = new Int16Array(posted[0].pcm);
+    expect(pcm.length).toBe(100);
+    expect(pcm[0]).toBe(Math.trunc(0.5 * 0x7fff));
+    expect(pcm[99]).toBe(-0x8000); // clipped to -1
+    expect(posted[0].peak).toBe(1);
   });
 });

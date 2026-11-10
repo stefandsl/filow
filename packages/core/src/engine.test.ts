@@ -332,6 +332,25 @@ describe("Engine pacing (Step 1 hygiene)", () => {
     expect(calls).toEqual([1000, 3500]);
     expect(e.getState().engine.slowMs).toBe(2000);
   });
+
+  it("a local model at its normal pace (about 1.1 s a call) is not reported slow; one near the timeout is", async () => {
+    // T1 review finding 6: the packaged local take showed "slow model ~1100 ms" in red on every call.
+    let latencyMs = 1100;
+    const e = new Engine({
+      decide: async (r) => ({ decisions: r.bullets.map((b) => ({ id: b.id, confidence: 0, started: false })), latencyMs, cost: 0, model: "clef-flash (local)" }),
+      now: () => 1000,
+      setInterval: () => 0,
+      clearInterval: () => {},
+    });
+    e.loadScript(SCRIPT);
+    e.feed({ committed: "a " });
+    await e.tick(true);
+    expect(e.getState().engine.slowMs).toBeUndefined();
+    latencyMs = 1600; // over 60% of the 2500 ms timeout: decisions are close to being dropped
+    e.feed({ committed: "b " });
+    await e.tick(true);
+    expect(e.getState().engine.slowMs).toBe(1600);
+  });
 });
 
 describe("Engine stale replies (plan step 3: state validity)", () => {
@@ -681,6 +700,113 @@ describe("Engine: flips only from committed text (P1 step 4)", () => {
     const { e } = sure();
     e.feed({ partial: "good afternoon everyone" });
     expect(e.getState().points).toEqual({});
+  });
+});
+
+describe("Engine: Reset section starts the section over (T1 review, finding 1)", () => {
+  const PRICES = parseScript(`# Next steps
+- We will raise prices in January
+- Ship the mobile app to 50 pilot customers
+`);
+  // A model that answers "yes" only when the transcript really says the point, like clef-flash does.
+  function listening() {
+    const calls: DecideRequest[] = [];
+    const says: Record<string, RegExp> = { s0b0: /raise prices in january/i, s0b1: /mobile app to 50 pilot/i, s1b0: /raise prices in january/i };
+    const e = new Engine({
+      decide: async (r) => {
+        calls.push(r);
+        return {
+          decisions: r.bullets.map((b) => {
+            const yes = says[b.id].test(r.transcript);
+            return { id: b.id, started: yes, confidence: yes ? 0.95 : 0.05, ...(r.verify?.includes(b.id) ? { verification: { real: yes ? 0.9 : 0.1, sameParty: yes ? 0.9 : 0.1 } } : {}) };
+          }),
+          latencyMs: 1,
+          cost: 0,
+          model: "listening",
+        };
+      },
+      now: () => 1000,
+      setInterval: () => 0,
+      clearInterval: () => {},
+    });
+    e.loadScript(PRICES);
+    return { e, calls };
+  }
+  async function ticks(e: Engine, n: number) {
+    for (let i = 0; i < n; i++) await e.tick();
+  }
+
+  it("words said before the reset tick nothing again; an off-topic sentence after it ticks nothing", async () => {
+    const { e, calls } = listening();
+    e.feed({ committed: "We will raise prices in January. We ship the mobile app to 50 pilot customers. " });
+    await ticks(e, 4);
+    expect(e.getState().points.s0b0?.status).toBe("started");
+    expect(e.getState().points.s0b1?.status).toBe("started");
+
+    e.dispatch({ type: "resetSection" });
+    expect(e.getState().points).toEqual({});
+    const before = calls.length;
+    await ticks(e, 4);
+    expect(calls.length).toBe(before); // nothing new was said: nothing to ask
+
+    e.feed({ committed: "By the way, it is raining outside today. " });
+    await ticks(e, 4);
+    expect(calls.slice(before).map((c) => c.transcript)).toEqual(["By the way, it is raining outside today."]);
+    expect(e.getState().points.s0b0?.status ?? "waiting").toBe("waiting");
+    expect(e.getState().points.s0b1?.status ?? "waiting").toBe("waiting");
+  });
+
+  it("each point ticks again once it is said again after the reset", async () => {
+    const { e } = listening();
+    e.feed({ committed: "We will raise prices in January. We ship the mobile app to 50 pilot customers. " });
+    await ticks(e, 4);
+    e.dispatch({ type: "resetSection" });
+    e.feed({ committed: "So, once more: we will raise prices in January. " });
+    await ticks(e, 4);
+    expect(e.getState().points.s0b0?.status).toBe("started");
+    expect(e.getState().points.s0b1?.status ?? "waiting").toBe("waiting");
+    e.feed({ committed: "And the mobile app to 50 pilot customers ships next. " });
+    await ticks(e, 4);
+    expect(e.getState().points.s0b1?.status).toBe("started");
+  });
+
+  it("words still being transcribed at the Reset were said before it: they tick nothing when they commit", async () => {
+    const { e, calls } = listening();
+    e.feed({ partial: "we will raise prices in January" });
+    e.dispatch({ type: "resetSection" });
+    e.feed({ committed: "We will raise prices in January. ", partial: "" });
+    await ticks(e, 4);
+    expect(calls).toEqual([]);
+    expect(e.getState().points.s0b0?.status ?? "waiting").toBe("waiting");
+    e.feed({ committed: "Again: we will raise prices in January. " });
+    await ticks(e, 4);
+    expect(e.getState().points.s0b0?.status).toBe("started");
+  });
+
+  it("a partial dropped without a commit does not swallow the next sentence", async () => {
+    const { e } = listening();
+    e.feed({ partial: "um" });
+    e.dispatch({ type: "resetSection" });
+    e.feed({ partial: "" });
+    e.feed({ committed: "We will raise prices in January. " });
+    await ticks(e, 4);
+    expect(e.getState().points.s0b0?.status).toBe("started");
+  });
+
+  it("a Reset starts over only its own section", async () => {
+    const TWO = parseScript(`# Intro
+- hello everyone
+
+# Next steps
+- We will raise prices in January
+`);
+    const { e } = listening();
+    e.loadScript(TWO);
+    e.feed({ committed: "Hello everyone. We will raise prices in January. " });
+    e.dispatch({ type: "resetSection" }); // Intro
+    e.dispatch({ type: "nextSection" });
+    await ticks(e, 4);
+    expect(e.getState().points.s1b0?.status).toBe("started"); // said before Intro's Reset, still counts for Next steps
   });
 });
 
