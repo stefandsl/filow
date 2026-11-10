@@ -52,10 +52,15 @@ describe("talk length dialog", () => {
   it("offers a box for the talk and one per section, filled from the script", () => {
     const html = inLang("en", <TimerSettings script={script} text="" onSave={() => {}} onCancel={() => {}} />);
     expect(html.match(/<input/g)).toHaveLength(4);
-    expect(plain(html)).toContain(t("timer.talkMinutes", "en"));
-    expect(plain(html)).toContain('Minutes for "Body"');
+    expect(html).toContain(`aria-label="${t("timer.talkMinutes", "en")}"`);
+    expect(html).toContain('aria-label="Minutes for &quot;Body&quot;"');
     expect(html).toContain('value="6"');
+    expect(plain(html)).toContain("Whole talk");
     expect(plain(html)).toContain("Planned so far: 6 min");
+    const partial = parseScript("<!-- target: 10 min -->\n# A (2 min)\n- a\n# B\n- b\n# C\n- c");
+    expect(plain(inLang("en", <TimerSettings script={partial} text="" onSave={() => {}} onCancel={() => {}} />))).toContain("The 2 sections without a target share the other 8 min.");
+    const over = parseScript("<!-- target: 3 min -->\n# A (2 min)\n- a\n# B (2 min)\n- b");
+    expect(plain(inLang("it", <TimerSettings script={over} text="" onSave={() => {}} onCancel={() => {}} />))).toContain("Le sezioni sommano 4 min, più dei 3 min di tutto il discorso.");
   });
 });
 
@@ -71,15 +76,14 @@ describe("rehearsal report view", () => {
   rec.observe(st(false, 0, { s0b0: { status: "started", confidence: 1 } }));
   const report = buildRehearsalReport(rec.result()!, script, { lang: "en" });
 
-  it("shows the advice first, then the numbers, the sections and the skipped points, with the three actions", () => {
+  it("shows the advice first, then the numbers, the sections and the points not reached, with the three actions", () => {
     const text = plain(inLang("en", <RehearsalReport report={report} onClose={() => {}} />));
     expect(text.indexOf("Try next")).toBeLessThan(text.indexOf("At a glance"));
-    expect(text).toContain("You skipped one point: \"b\".");
     expect(text).toContain("The talk ran 1 min over its 6 min.");
     expect(text).toContain("7:00 of 6:00");
-    expect(text).toContain("Intro 7:00 (+5:00) 2:00 1 covered, 1 missed");
+    expect(text).toContain("Intro 7:00 (+5:00) 2:00 1 covered, 1 not reached");
     expect(text).toContain("Body not shown 2:00 1 not reached");
-    expect(text).toContain("Points in sections you did not reach c d");
+    expect(text).toContain("Points you did not get to (the take ended first) (3) b c d");
     for (const k of ["report.saveMd", "report.print", "report.close"] as const) expect(text).toContain(t(k, "en"));
   });
 

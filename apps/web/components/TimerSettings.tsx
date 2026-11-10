@@ -30,7 +30,15 @@ export function TimerSettings({ script, text, onSave, onCancel, returnFocusRef }
   const [sections, setSections] = useState(script.sections.map((s) => asText(s.minutes)));
   const values = [talk, ...sections].map(readMinutes);
   const invalid = values.some((v) => v === "invalid");
-  const planned = sections.map(readMinutes).reduce<number>((a, v) => a + (typeof v === "number" ? v : 0), 0);
+  const secValues = sections.map(readMinutes);
+  const planned = secValues.reduce<number>((a, v) => a + (typeof v === "number" ? v : 0), 0);
+  const open = secValues.filter((v) => v === null).length;
+  const talkMin = readMinutes(talk);
+  const round = (n: number) => Math.round(n * 10) / 10;
+  const summary = typeof talkMin !== "number" ? t("timer.planned", { n: round(planned) })
+    : planned > talkMin ? t("timer.tooMuch", { planned: round(planned), talk: talkMin })
+    : open > 0 ? t("timer.share", { n: open, rest: round(talkMin - planned) })
+    : t("timer.planned", { n: round(planned) });
 
   return (
     <Dialog title={t("timer.dialogTitle")} onClose={onCancel} className="timer-settings" returnFocusRef={returnFocusRef}>
@@ -44,22 +52,24 @@ export function TimerSettings({ script, text, onSave, onCancel, returnFocusRef }
       >
         <p className="hint">{t("timer.hint")}</p>
         <label className="timer-field timer-field-talk">
-          <span>{t("timer.talkMinutes")}</span>
-          <input className="btn" inputMode="decimal" value={talk} onChange={(e) => setTalk(e.target.value)} aria-invalid={readMinutes(talk) === "invalid"} />
+          <span className="timer-name">{t("timer.talk")}</span>
+          <input className="btn" inputMode="decimal" value={talk} onChange={(e) => setTalk(e.target.value)} aria-label={t("timer.talkMinutes")} aria-invalid={talkMin === "invalid"} />
+          <span className="timer-unit" aria-hidden="true">{t("timer.min")}</span>
         </label>
         <div className="timer-sections">
           {script.sections.map((s, i) => {
             const title = sectionLabel(s.title).title;
             return (
               <label key={s.id} className="timer-field">
-                <span>{t("timer.sectionMinutes", { section: title })}</span>
-                <input className="btn" inputMode="decimal" value={sections[i]} aria-invalid={readMinutes(sections[i]) === "invalid"}
+                <span className="timer-name"><span className="timer-num" aria-hidden="true">{String(i + 1).padStart(2, "0")}</span>{title}</span>
+                <input className="btn" inputMode="decimal" value={sections[i]} aria-label={t("timer.sectionMinutes", { section: title })} aria-invalid={secValues[i] === "invalid"}
                   onChange={(e) => setSections((v) => v.map((x, k) => (k === i ? e.target.value : x)))} />
+                <span className="timer-unit" aria-hidden="true">{t("timer.min")}</span>
               </label>
             );
           })}
         </div>
-        <p className="hint" aria-live="polite">{t("timer.planned", { n: Math.round(planned * 10) / 10 })}</p>
+        <p className="hint" aria-live="polite">{summary}</p>
         {invalid && <p className="timer-error" role="alert">{t("timer.invalid")}</p>}
         <div className="controls">
           <button type="submit" className="btn primary" disabled={invalid}>{t("timer.save")}</button>

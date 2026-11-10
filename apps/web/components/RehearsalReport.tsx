@@ -12,11 +12,10 @@ import "./Rehearsal.css";
 
 const OUTCOMES = ["covered", "late", "missed", "notReached"] as const;
 
-function ReportBody({ report: r, idPrefix }: { report: Report; idPrefix: string }) {
+function ReportBody({ report: r, idPrefix, fold = false }: { report: Report; idPrefix: string; /** fold the points the take never got to */ fold?: boolean }) {
   const t = useT();
   const lang = useLang();
   const when = new Date(r.startedAt).toLocaleString(lang);
-  const pace = r.pace.value === null ? t("report.paceShort") : t(r.pace.unit === "cpm" ? "report.cpm" : "report.wpm", { n: r.pace.value });
   const over = r.talkTargetMs !== null ? r.durationMs - r.talkTargetMs : null;
   return (
     <div className="report-body">
@@ -37,7 +36,7 @@ function ReportBody({ report: r, idPrefix }: { report: Report; idPrefix: string 
           </div>
           <div>
             <dt>{t("report.pace")}</dt>
-            <dd><strong>{pace}</strong></dd>
+            {r.pace.value === null ? <dd className="hint">{t("report.paceShort")}</dd> : <dd><strong>{r.pace.value}</strong> {t(r.pace.unit === "cpm" ? "report.cpmUnit" : "report.wpmUnit")}</dd>}
             {r.pace.band && <dd className="hint">{t(`report.band.${r.pace.band}` as I18nKey)}, {t("report.paceRange", { lo: r.pace.range[0], hi: r.pace.range[1] })}</dd>}
           </div>
           <div>
@@ -57,7 +56,7 @@ function ReportBody({ report: r, idPrefix }: { report: Report; idPrefix: string 
         <div className="report-table-wrap">
           <table className="report-table">
             <thead>
-              <tr><th scope="col">{t("report.section")}</th><th scope="col">{t("report.time")}</th><th scope="col">{t("report.target")}</th><th scope="col">{t("report.pointsCol")}</th></tr>
+              <tr><th scope="col">{t("report.section")}</th><th scope="col">{t("report.time")}</th><th scope="col">{t("report.targetCol")}</th><th scope="col">{t("report.pointsCol")}</th></tr>
             </thead>
             <tbody>
               {r.sections.map((s) => {
@@ -79,6 +78,15 @@ function ReportBody({ report: r, idPrefix }: { report: Report; idPrefix: string 
       {(["missed", "late", "notReached"] as const).map((k) => {
         const list = r.points.filter((p) => p.outcome === k);
         if (!list.length) return null;
+        // On screen, points the take never got to are folded away (a short take lists most of the script).
+        if (k === "notReached" && fold) {
+          return (
+            <details key={k} className="report-more">
+              <summary>{t(`report.list.${k}`)} ({list.length})</summary>
+              <ul className="report-points">{list.map((p) => <li key={p.id}>{p.text}</li>)}</ul>
+            </details>
+          );
+        }
         return (
           <section key={k} aria-labelledby={`${idPrefix}-list-${k}`}>
             <h2 id={`${idPrefix}-list-${k}`}>{t(`report.list.${k}` as I18nKey)}</h2>
@@ -105,7 +113,7 @@ export function RehearsalReport({ report, notes, onClose, returnFocusRef }: {
   return (
     <>
       <Dialog title={t("report.title")} onClose={onClose} className="rehearsal-report" returnFocusRef={returnFocusRef}>
-        <ReportBody report={report} idPrefix="report" />
+        <ReportBody report={report} idPrefix="report" fold />
         <div className="controls report-actions">
           <button type="button" className="btn primary" onClick={() => downloadMarkdown(rehearsalMarkdown(report, lang, notes), "filow-rehearsal")}>{t("report.saveMd")}</button>
           <button type="button" className="btn" onClick={printReport}>{t("report.print")}</button>

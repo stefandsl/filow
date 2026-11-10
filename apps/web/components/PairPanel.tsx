@@ -48,6 +48,13 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false }: 
   }, [info, mirrorUrl]);
 
   // Countdown while the dialog is open; a fresh code when the old one runs out.
+  // Escape closes the pairing panel, like every other dialog of the prompter.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     setNow(Date.now());
@@ -76,7 +83,7 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false }: 
       {prompter && info && <button className="chip code" onClick={() => setOpen(true)} title={t("pair.showQr")}>{info.code}</button>}
       {open && (
         <div className="modal-bg" onClick={() => setOpen(false)}>
-          <div className="modal pairmodal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal pairmodal" role="dialog" aria-label={t("pair.title")} onClick={(e) => e.stopPropagation()}>
             <div className="label">{t("pair.title")}</div>
             {error && <p className="hint" role="status">{t("app.mirrorOff")}: {error}</p>}
             {info && <div className="bigcode">{info.code}</div>}

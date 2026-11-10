@@ -312,9 +312,9 @@ export function buildRehearsalReport(log: TakeLog, script: Pick<Script, "section
   const top = [...fillerCounts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).slice(0, 3);
   const minutes = Math.max(speakingMs, 1) / 60_000;
 
-  // Points: covered in time, covered after their section was left, missed, or never reached.
+  // Points: covered in time, covered after their section was left, skipped, or not reached.
   const visited = new Set(log.clock.entries.map((e) => e.idx));
-  const furthest = Math.max(-1, ...visited);
+  const finalIdx = log.clock.entries[log.clock.entries.length - 1]?.idx ?? -1;
   const manual = new Set(log.manualAtEnd);
   const points: RehearsalReport["points"] = script.sections.flatMap((sec, sectionIdx) =>
     sec.bullets.map((b) => {
@@ -325,7 +325,9 @@ export function buildRehearsalReport(log: TakeLog, script: Pick<Script, "section
         const tick = events.filter((e) => e.to === "started").pop();
         const wasMissed = events.some((e) => e.to === "missed") || (log.pointsAtStart[b.id] === "missed" && tick !== undefined);
         outcome = tick && (tick.sectionIdx > sectionIdx || wasMissed) ? "late" : "covered";
-      } else outcome = sectionIdx > furthest ? "notReached" : "missed";
+        // Skipped: marked missed (the presenter moved past it), or left open in a section shown and left.
+        // Still open in the section showing at Stop, or in one never shown: the take ended first.
+      } else outcome = end === "missed" || (visited.has(sectionIdx) && sectionIdx !== finalIdx) ? "missed" : "notReached";
       return { id: b.id, text: b.text, sectionIdx, outcome, manual: manual.has(b.id) };
     }),
   );
@@ -406,7 +408,7 @@ export function rehearsalMarkdown(r: RehearsalReport, lang: Lang, notes?: string
     "",
     `## ${t("report.sections", lang)}`,
     "",
-    `| ${t("report.section", lang)} | ${t("report.time", lang)} | ${t("report.target", lang)} | ${t("report.pointsCol", lang)} |`,
+    `| ${t("report.section", lang)} | ${t("report.time", lang)} | ${t("report.targetCol", lang)} | ${t("report.pointsCol", lang)} |`,
     "|---|---|---|---|",
     ...r.sections.map((s) => {
       const pts = (["covered", "late", "missed", "notReached"] as const).filter((k) => s.outcomes[k]).map((k) => `${s.outcomes[k]} ${t(`report.outcome.${k}` as I18nKey, lang)}`).join(", ") || "-";

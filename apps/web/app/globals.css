@@ -85,6 +85,9 @@ button.chip.code:not(:focus-visible) { color: var(--text); outline: 1px solid va
 .chip.banner { align-self: flex-start; }
 .pairmodal { width: min(420px, 92vw); align-items: center; text-align: center; }
 .pairmodal img { border-radius: var(--radius); }
+/* The phone address is one long word: wrap it inside the dialog instead of scrolling sideways. */
+.pairmodal .hint { overflow-wrap: anywhere; max-width: 100%; }
+.pairmodal .chip { display: inline-block; }
 .bigcode { font-family: var(--font); font-size: var(--type-6xl); letter-spacing: 0; font-weight: 800; }
 .code-input { font-family: var(--font); font-size: var(--type-2xl); letter-spacing: 0; text-align: center; width: 220px; text-transform: none; }
 .app.stage { padding: 16px 16px; gap: 12px; }

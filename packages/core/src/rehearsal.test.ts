@@ -55,7 +55,7 @@ function take(script: Script) {
 const outcomes = (r: ReturnType<typeof buildRehearsalReport>) => Object.fromEntries(r.points.map((p) => [p.id, p.outcome]));
 
 describe("rehearsal report on takes in the five speech languages", () => {
-  it("English: pace, fillers, long pauses, time per section, a missed point and the advice", () => {
+  it("English: pace, fillers, long pauses, time per section, a point not reached and the advice", () => {
     const script = parseScript("<!-- target: 1 min -->\n# Opening (0.5 min)\n- Revenue grew 20%\n- Two new markets\n# Next steps\n- Hire a team\n- Launch in spring");
     const log = take(script)
       .start()
@@ -77,10 +77,10 @@ describe("rehearsal report on takes in the five speech languages", () => {
     // "I mean" before "we" is meant, not a filler; "you know." at the end of a phrase is one
     expect(r.fillers.total).toBe(5);
     expect(r.fillers.top).toEqual([{ label: "um", count: 2 }, { label: "basically", count: 1 }, { label: "uh", count: 1 }]);
-    expect(r.sections.map((s) => [s.spentMs, s.targetMs, s.outcomes.covered, s.outcomes.missed])).toEqual([[40_000, 30_000, 2, 0], [20_000, 30_000, 1, 1]]);
-    expect(outcomes(r)).toEqual({ s0b0: "covered", s0b1: "covered", s1b0: "covered", s1b1: "missed" });
-    expect(r.suggestions.map((s) => s.key)).toEqual(["report.tip.missedOne", "report.tip.fillers"]);
-    expect(r.suggestions[0].vars.point).toBe("Launch in spring");
+    expect(r.sections.map((s) => [s.spentMs, s.targetMs, s.outcomes.covered, s.outcomes.notReached])).toEqual([[40_000, 30_000, 2, 0], [20_000, 30_000, 1, 1]]);
+    // still open in the section showing at Stop: the take ended first, it was not skipped
+    expect(outcomes(r)).toEqual({ s0b0: "covered", s0b1: "covered", s1b0: "covered", s1b1: "notReached" });
+    expect(r.suggestions.map((s) => s.key)).toEqual(["report.tip.fillers", "report.tip.slow"]);
   });
 
   it("Italian: fillers including a phrase, and a point made after its section was left", () => {
@@ -136,7 +136,7 @@ describe("rehearsal report on takes in the five speech languages", () => {
     expect(r.lang).toBe("ro");
     expect(r.fillers.total).toBe(6);
     expect(r.fillers.top.map((f) => f.label)).toEqual(["ă", "adică", "cum să zic"]);
-    expect(outcomes(r)).toEqual({ s0b0: "covered", s1b0: "missed" });
+    expect(outcomes(r)).toEqual({ s0b0: "covered", s1b0: "notReached" });
     expect(countFillers("ăă deci noi", "ro").get("deci")).toBeUndefined();
   });
 
@@ -231,7 +231,7 @@ describe("rehearsal details", () => {
     now = 4000;
     engine.stop();
     const r = buildRehearsalReport(rec.result()!, engine.getState().script);
-    expect(r.points.map((p) => [p.id, p.outcome, p.manual])).toEqual([["s0b0", "covered", true], ["s0b1", "late", true], ["s1b0", "missed", false]]);
+    expect(r.points.map((p) => [p.id, p.outcome, p.manual])).toEqual([["s0b0", "covered", true], ["s0b1", "late", true], ["s1b0", "notReached", false]]);
     expect(r.sections.map((s) => s.spentMs)).toEqual([2000, 2000]);
   });
 });
@@ -243,12 +243,12 @@ describe("rehearsal Markdown", () => {
     const r = buildRehearsalReport(log, script, { lang: "en" });
     const en = rehearsalMarkdown(r, "en", "# Talk notes\n\n## 1. Slide");
     expect(en).toContain("# Rehearsal report");
-    expect(en).toContain("| Intro | 0:31 | 1:00 | 1 missed |");
-    expect(en).toContain("## Points you skipped\n\n- Hello | world");
+    expect(en).toContain("| Intro | 0:31 | 1:00 | 1 not reached |");
+    expect(en).toContain("## Points you did not get to (the take ended first)\n\n- Hello | world");
     expect(en).toContain("\n## Talk notes\n\n### 1. Slide");
     const it = rehearsalMarkdown(r, "it");
     expect(it).toContain("# Resoconto della prova");
-    expect(it).toContain("| Sezione | Tempo | obiettivo | Punti |");
+    expect(it).toContain("| Sezione | Tempo | Obiettivo | Punti |");
     expect(it).not.toContain("Talk notes");
   });
 });
