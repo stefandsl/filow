@@ -63,7 +63,8 @@ describe("microphone device preferences", () => {
     vi.stubGlobal("navigator", undefined);
     vi.stubGlobal("localStorage", undefined);
     expect(await listMicrophones()).toEqual([]);
-    expect(await hasMicrophone()).toBe(false);
+    // Cannot tell: never claims "no microphone".
+    expect(await hasMicrophone()).toBe(true);
     expect(getSelectedMic()).toBeNull();
     expect(() => setSelectedMic("cam")).not.toThrow();
     expect(await audioConstraints()).toEqual({});

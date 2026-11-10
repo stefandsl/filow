@@ -147,7 +147,7 @@ describe("Step 4 desktop offline seams", () => {
     const f = fixture({}, { childProcess: { execFile: vi.fn(), execFileSync, spawn } });
     await f.api.setRemoteShare({ reload() {} }, true, { auto: true, reload: false });
     const lines = f.appendFileSync.mock.calls.map((c: unknown[]) => String(c[1])).filter((l: string) => l.includes("public link:"));
-    expect(lines.map((l: string) => l.slice(25).trim())).toEqual(["public link: connecting", "public link: error no tunnels in tests"]);
+    expect(lines.map((l: string) => l.replace(/^\S+ /, "").trim())).toEqual(["public link: connecting", "public link: error no tunnels in tests"]);
   });
   // Contract: main.js offline menu: "no outbound requests" (includes main-process setup downloads).
   it("offline must block the desktop STT model downloader", async () => {
