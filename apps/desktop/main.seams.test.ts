@@ -31,7 +31,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   const openExternal = vi.fn(async () => {}), checkForUpdates = vi.fn(async () => null);
   const writeText = vi.fn(), showMessageBox = vi.fn(async () => ({ response: 0 }));
   const updaterHandlers: Record<string, (info: { version: string }) => void> = {}, notificationShow = vi.fn();
-  const writeFileSync = vi.fn();
+  const writeFileSync = vi.fn(), appendFileSync = vi.fn();
   const modules: Record<string, any> = {
     electron: {
       crashReporter: { start() {} },
@@ -47,7 +47,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
       net: { isOnline: () => true }, nativeTheme: { shouldUseDarkColors: true },
     },
     "node:path": path, "node:url": { pathToFileURL },
-    "node:fs": { readFileSync: () => "FILOW_OFFLINE=1", appendFileSync() {}, existsSync: (file: string) => updateFeed && String(file).endsWith("app-update.yml"), mkdirSync() {}, rmSync() {}, writeFileSync, renameSync() {} },
+    "node:fs": { readFileSync: () => "FILOW_OFFLINE=1", appendFileSync, existsSync: (file: string) => updateFeed && String(file).endsWith("app-update.yml"), mkdirSync() {}, rmSync() {}, writeFileSync, renameSync() {} },
     "node:os": { homedir: () => "G:/fake", cpus: () => [{ model: "fake" }], totalmem: () => 0, release: () => "fake", networkInterfaces: () => ({}) },
     "node:http": { get: () => { const req = new EventEmitter(); queueMicrotask(() => req.emit("error", new Error("Ollama absent"))); return req; } },
     "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": childProcess,
@@ -67,7 +67,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   }
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
     ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
-       startupOffline: () => applyOffline(null), tunnels, stopTunnels, setLog: text => { lastTakeLog = text; },
+       startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, setLog: text => { lastTakeLog = text; },
        textTables: { MENU_TEXT, NET_TEXT, SPLASH_TEXT, LOCAL_AI_TEXT },
        setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
@@ -81,7 +81,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     __dirname: "G:/fake", process: { env, platform: "win32", arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {} },
     URL, URLSearchParams, console, setTimeout, clearTimeout,
   });
-  return { api, env, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync,
+  return { api, env, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync,
     calls, appHandlers, appExit, whenReady, windows,
     ipc: async (channel: string, win: { webContents: unknown }, ...args: unknown[]) => ipcHandlers[channel]({ sender: win.webContents }, ...args),
     blocked: (url: string) => { let result: any; requestFilter({ url }, r => { result = r; }); return result.cancel === true; } };
@@ -140,6 +140,14 @@ describe("Step 4 desktop offline seams", () => {
     f.api.stopTunnels({ wait: true });
     expect(execFileSync).toHaveBeenCalledTimes(1);
     expect(execFileSync.mock.calls[0].slice(0, 2)).toEqual(["taskkill", ["/PID", "4323", "/T", "/F"]]);
+  });
+  it("a public link start with cloudflared already there logs \"connecting\" once", async () => {
+    const execFileSync = vi.fn((cmd: string) => (cmd === "where" ? "G:/bin/cloudflared.exe\r\n" : ""));
+    const spawn = vi.fn(() => { throw new Error("no tunnels in tests"); });
+    const f = fixture({}, { childProcess: { execFile: vi.fn(), execFileSync, spawn } });
+    await f.api.setRemoteShare({ reload() {} }, true, { auto: true, reload: false });
+    const lines = f.appendFileSync.mock.calls.map((c: unknown[]) => String(c[1])).filter((l: string) => l.includes("public link:"));
+    expect(lines.map((l: string) => l.slice(25).trim())).toEqual(["public link: connecting", "public link: error no tunnels in tests"]);
   });
   // Contract: main.js offline menu: "no outbound requests" (includes main-process setup downloads).
   it("offline must block the desktop STT model downloader", async () => {

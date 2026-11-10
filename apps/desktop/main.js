@@ -994,7 +994,7 @@ async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
           if (reload) win.reload();
           return;
         }
-        remoteStatus("connecting");
+        if (tunnels.state !== "connecting") remoteStatus("connecting"); // back from "downloading"
         const [web, sess] = await Promise.all([startTunnel(bin, PORT), startTunnel(bin, SESSION_PORT)]);
         tunnels.web = web;
         tunnels.session = sess;
