@@ -773,7 +773,7 @@ ARCHITECTURE.md           the design: session protocol, Screen Sense, add-ins, m
 
 **App desktop: "no transcription backend available"** – aggiungi una chiave ElevenLabs o OpenAI in `.env`. Web Speech non esiste dentro l'app desktop.
 
-**I punti non passano mai a STARTED** – controlla il piè di pagina: `CALLS` dovrebbe salire. Se è 0, la route decide sta fallendo; il chip di errore in alto mostra il perché. Se le chiamate salgono ma nulla scatta, esprimi l'idea in modo più diretto o abbassa `START_THRESHOLD` in `components/Teleprompter.tsx`.
+**I punti non passano mai a STARTED** – controlla il piè di pagina: **Chiamate** dovrebbe salire. Se è 0, la route decide sta fallendo; il chip di errore in alto mostra il perché. Se le chiamate salgono ma nulla scatta, esprimi l'idea in modo più diretto o passa un `threshold` (predefinito 0.7) / `sureThreshold` (predefinito 0.85) più basso dove viene creato l'Engine: `new Engine({ decide })` in `apps/web/components/useEngine.ts` (riga 70), e in `apps/powerpoint/src/taskpane.tsx` per il pannello di PowerPoint.
 
 **Porta 4747 già in uso** – web: cambia `-p 4747` negli script di `package.json`. Desktop: imposta la variabile d'ambiente `FILOW_PORT` prima dell'avvio.
 

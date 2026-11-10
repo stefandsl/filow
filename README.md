@@ -766,7 +766,7 @@ ARCHITECTURE.md           the design: session protocol, Screen Sense, add-ins, m
 
 **Desktop app: "no transcription backend available"** – add an ElevenLabs or OpenAI key in `.env`. Web Speech does not exist inside the desktop app.
 
-**Points never flip to STARTED** – check the footer: `CALLS` should be climbing. If it is 0, the decide route is failing; the error chip at the top shows why. If calls climb but nothing flips, say the idea more directly or lower `START_THRESHOLD` in `components/Teleprompter.tsx`.
+**Points never flip to STARTED** – check the footer: **Calls** should be climbing. If it is 0, the decide route is failing; the error chip at the top shows why. If calls climb but nothing flips, say the idea more directly or pass a lower `threshold` (default 0.7) / `sureThreshold` (default 0.85) where the Engine is created: `new Engine({ decide })` in `apps/web/components/useEngine.ts` (line 70), and in `apps/powerpoint/src/taskpane.tsx` for the PowerPoint pane.
 
 **Port 4747 already in use** – web: change `-p 4747` in `package.json` scripts. Desktop: set the environment variable `FILOW_PORT` before launching.
 
