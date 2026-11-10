@@ -4,20 +4,28 @@
   "engine": {
     "timeoutMs": 2500
   },
+  "gate": {
+    "mode": "app",
+    "calls": 17,
+    "skipped": 1,
+    "candidates": 34,
+    "lexicalOnly": 0,
+    "embedLoadMs": 0
+  },
   "machine": {
     "cpu": "13th Gen Intel(R) Core(TM) i9-13900KF",
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T09:23:34.042Z",
+  "at": "2026-11-10T10:44:55.365Z",
   "corpus": "traps-en",
   "late": 0,
   "calls": 17,
   "latencyMs": {
-    "p50": 862,
-    "p95": 969,
-    "max": 969,
-    "avg": 839
+    "p50": 912,
+    "p95": 1114,
+    "max": 1114,
+    "avg": 860
   },
   "timeouts": 0,
   "points": [
@@ -26,7 +34,7 @@
       "trail": [
         {
           "sec": 2,
-          "confidence": 0.08,
+          "confidence": 0.12,
           "started": false
         },
         {
@@ -65,7 +73,7 @@
       "trail": [
         {
           "sec": 2,
-          "confidence": 0.09,
+          "confidence": 0.07,
           "started": false
         },
         {
@@ -104,7 +112,7 @@
       "trail": [
         {
           "sec": 2,
-          "confidence": 0.05,
+          "confidence": 0.06,
           "started": false
         },
         {
@@ -129,7 +137,7 @@
         },
         {
           "sec": 26,
-          "confidence": 0.13,
+          "confidence": 0.14,
           "started": false
         }
       ],
@@ -143,7 +151,7 @@
       "trail": [
         {
           "sec": 2,
-          "confidence": 0.05,
+          "confidence": 0,
           "started": false
         },
         {
@@ -226,7 +234,7 @@
         },
         {
           "sec": 38,
-          "confidence": 0.02,
+          "confidence": 0.01,
           "started": false
         },
         {
@@ -313,7 +321,7 @@
         },
         {
           "sec": 56,
-          "confidence": 0.05,
+          "confidence": 0.04,
           "started": false
         },
         {
@@ -381,7 +389,7 @@
         },
         {
           "sec": 56,
-          "confidence": 0.95,
+          "confidence": 0.96,
           "started": true
         }
       ],

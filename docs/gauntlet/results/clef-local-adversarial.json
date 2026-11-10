@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-10T02:20:42.153Z",
+  "at": "2026-11-10T10:53:44.182Z",
   "model": "clef-flash",
   "pass": {
     "real": 0.65,
@@ -45,8 +45,8 @@
       "confidence": 0.96,
       "guard": "ok",
       "verification": {
-        "real": 0.92,
-        "sameParty": 0.89
+        "real": 0.93,
+        "sameParty": 0.85
       },
       "ticked": true,
       "tickedWithoutVerification": true
@@ -80,8 +80,8 @@
       "confidence": 0.87,
       "guard": "ok",
       "verification": {
-        "real": 0.18,
-        "sameParty": 0.72
+        "real": 0.17,
+        "sameParty": 0.63
       },
       "ticked": false,
       "tickedWithoutVerification": true
@@ -98,7 +98,7 @@
       "guard": "ok",
       "verification": {
         "real": 0.93,
-        "sameParty": 0.39
+        "sameParty": 0.33
       },
       "ticked": false,
       "tickedWithoutVerification": true
@@ -115,7 +115,7 @@
       "guard": "ok",
       "verification": {
         "real": 0.96,
-        "sameParty": 0.47
+        "sameParty": 0.46
       },
       "ticked": false,
       "tickedWithoutVerification": true
@@ -132,7 +132,7 @@
       "guard": "ok",
       "verification": {
         "real": 0.18,
-        "sameParty": 0.79
+        "sameParty": 0.83
       },
       "ticked": false,
       "tickedWithoutVerification": true
@@ -149,7 +149,7 @@
       "guard": "ok",
       "verification": {
         "real": 0.95,
-        "sameParty": 0.27
+        "sameParty": 0.25
       },
       "ticked": false,
       "tickedWithoutVerification": true
@@ -166,7 +166,7 @@
       "guard": "ok",
       "verification": {
         "real": 0.96,
-        "sameParty": 0.22
+        "sameParty": 0.36
       },
       "ticked": false,
       "tickedWithoutVerification": true
@@ -183,7 +183,7 @@
       "guard": "ok",
       "verification": {
         "real": 0.05,
-        "sameParty": 0.85
+        "sameParty": 0.75
       },
       "ticked": false,
       "tickedWithoutVerification": true
@@ -199,8 +199,8 @@
       "confidence": 0.87,
       "guard": "ok",
       "verification": {
-        "real": 0.07,
-        "sameParty": 0.82
+        "real": 0.08,
+        "sameParty": 0.72
       },
       "ticked": false,
       "tickedWithoutVerification": true
@@ -216,8 +216,8 @@
       "confidence": 0.94,
       "guard": "ok",
       "verification": {
-        "real": 0.97,
-        "sameParty": 0.17
+        "real": 0.96,
+        "sameParty": 0.26
       },
       "ticked": false,
       "tickedWithoutVerification": true
@@ -234,7 +234,7 @@
       "guard": "ok",
       "verification": {
         "real": 0.08,
-        "sameParty": 0.76
+        "sameParty": 0.68
       },
       "ticked": false,
       "tickedWithoutVerification": true
@@ -250,8 +250,8 @@
       "confidence": 0.95,
       "guard": "ok",
       "verification": {
-        "real": 0.97,
-        "sameParty": 0.19
+        "real": 0.96,
+        "sameParty": 0.23
       },
       "ticked": false,
       "tickedWithoutVerification": true
@@ -268,7 +268,7 @@
       "guard": "ok",
       "verification": {
         "real": 0.1,
-        "sameParty": 0.78
+        "sameParty": 0.73
       },
       "ticked": false,
       "tickedWithoutVerification": true

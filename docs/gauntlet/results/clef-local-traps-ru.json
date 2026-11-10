@@ -4,20 +4,28 @@
   "engine": {
     "timeoutMs": 2500
   },
+  "gate": {
+    "mode": "app",
+    "calls": 17,
+    "skipped": 1,
+    "candidates": 34,
+    "lexicalOnly": 0,
+    "embedLoadMs": 0
+  },
   "machine": {
     "cpu": "13th Gen Intel(R) Core(TM) i9-13900KF",
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T09:24:31.664Z",
+  "at": "2026-11-10T10:46:09.308Z",
   "corpus": "traps-ru",
   "late": 0,
   "calls": 17,
   "latencyMs": {
-    "p50": 861,
-    "p95": 974,
-    "max": 974,
-    "avg": 842
+    "p50": 1016,
+    "p95": 1306,
+    "max": 1306,
+    "avg": 1016
   },
   "timeouts": 0,
   "points": [
@@ -26,7 +34,7 @@
       "trail": [
         {
           "sec": 2,
-          "confidence": 0.05,
+          "confidence": 0,
           "started": false
         },
         {
@@ -65,7 +73,7 @@
       "trail": [
         {
           "sec": 2,
-          "confidence": 0.23,
+          "confidence": 0.09,
           "started": false
         },
         {
@@ -104,7 +112,7 @@
       "trail": [
         {
           "sec": 2,
-          "confidence": 0.03,
+          "confidence": 0.04,
           "started": false
         },
         {
@@ -143,7 +151,7 @@
       "trail": [
         {
           "sec": 2,
-          "confidence": 0.03,
+          "confidence": 0.01,
           "started": false
         },
         {
@@ -168,7 +176,7 @@
         },
         {
           "sec": 26,
-          "confidence": 0.98,
+          "confidence": 0.97,
           "started": true
         }
       ],
@@ -255,7 +263,7 @@
         },
         {
           "sec": 32,
-          "confidence": 0.12,
+          "confidence": 0.13,
           "started": false
         },
         {
@@ -265,7 +273,7 @@
         },
         {
           "sec": 38,
-          "confidence": 0.07,
+          "confidence": 0.06,
           "started": false
         },
         {
@@ -313,7 +321,7 @@
         },
         {
           "sec": 56,
-          "confidence": 0.05,
+          "confidence": 0.04,
           "started": false
         },
         {
@@ -381,7 +389,7 @@
         },
         {
           "sec": 56,
-          "confidence": 0.96,
+          "confidence": 0.97,
           "started": true
         }
       ],

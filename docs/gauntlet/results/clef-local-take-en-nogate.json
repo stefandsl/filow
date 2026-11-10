@@ -1,0 +1,230 @@
+{
+  "provider": "clef-local",
+  "variant": "nogate",
+  "engine": {
+    "timeoutMs": 2500
+  },
+  "machine": {
+    "cpu": "13th Gen Intel(R) Core(TM) i9-13900KF",
+    "ramGb": 128,
+    "platform": "win32"
+  },
+  "at": "2026-11-10T10:46:48.224Z",
+  "corpus": "take-en",
+  "late": 0,
+  "calls": 7,
+  "latencyMs": {
+    "p50": 700,
+    "p95": 843,
+    "max": 843,
+    "avg": 725
+  },
+  "timeouts": 0,
+  "points": [
+    {
+      "pointId": "s0b0",
+      "trail": [
+        {
+          "sec": 16,
+          "confidence": 0.95,
+          "started": true
+        },
+        {
+          "sec": 16,
+          "confidence": 0.95,
+          "started": true
+        }
+      ],
+      "labelSec": 11,
+      "flippedSec": 16,
+      "outcome": "correct",
+      "delaySec": 5
+    },
+    {
+      "pointId": "s0b1",
+      "trail": [
+        {
+          "sec": 16,
+          "confidence": 0.17,
+          "started": false
+        },
+        {
+          "sec": 16,
+          "confidence": 0.16,
+          "started": false
+        },
+        {
+          "sec": 26,
+          "confidence": 0.24,
+          "started": false
+        },
+        {
+          "sec": 37,
+          "confidence": 0.93,
+          "started": true
+        },
+        {
+          "sec": 37,
+          "confidence": 0.91,
+          "started": true
+        }
+      ],
+      "labelSec": 32,
+      "flippedSec": 37,
+      "outcome": "correct",
+      "delaySec": 5
+    },
+    {
+      "pointId": "s0b2",
+      "trail": [
+        {
+          "sec": 16,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 16,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 26,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 37,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 37,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 47,
+          "confidence": 0.89,
+          "started": true
+        },
+        {
+          "sec": 47,
+          "confidence": 0.86,
+          "started": true
+        }
+      ],
+      "labelSec": 42,
+      "flippedSec": 47,
+      "outcome": "correct",
+      "delaySec": 5
+    },
+    {
+      "pointId": "s1b0",
+      "trail": [],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s1b1",
+      "trail": [],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s1b2",
+      "trail": [],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s1b3",
+      "trail": [],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s1b4",
+      "trail": [],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s1b5",
+      "trail": [],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s2b0",
+      "trail": [],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s2b1",
+      "trail": [],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s2b2",
+      "trail": [],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s3b0",
+      "trail": [],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s3b1",
+      "trail": [],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s3b2",
+      "trail": [],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    }
+  ],
+  "guarded": 0,
+  "verified": 3,
+  "vetoed": 0,
+  "falseStarts": 0,
+  "misses": 0,
+  "correct": 3,
+  "delaySec": {
+    "p50": 5,
+    "p95": 5
+  },
+  "precision": 1,
+  "recall": 1
+}

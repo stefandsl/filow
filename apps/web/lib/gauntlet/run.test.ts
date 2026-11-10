@@ -1,9 +1,11 @@
 // Gauntlet runner (docs/local-latency-gauntlet.md, Round 0). Opt-in: it calls real models.
 //   GAUNTLET=1 GAUNTLET_PROVIDERS=openrouter,clef-local npx vitest run apps/web/lib/gauntlet
-// GAUNTLET_GATE=1 puts the embedding gate (packages/core/src/gate.ts) in front of every provider:
-// the model is asked only about the points whose similarity to the transcript tail is >= GAUNTLET_GATE_LOW
+// By default the embedding gate (packages/core/src/gate.ts) runs as in the app: in front of every
+// provider but the matcher, skip-only for local Clef (gateThresholdsFor). GAUNTLET_GATE=0 replays
+// without it (variant "nogate"). GAUNTLET_GATE=1 sets it by hand (variant "gate"): the model is asked
+// only about the points whose similarity to the transcript tail is >= GAUNTLET_GATE_LOW
 // (default 0.3) or whose lexical score (BM25-weighted fuzzy word match) is >= GAUNTLET_LEX_LOW (default
-// 0.5, "off" disables the lexical stage), and not at all when no point passes. Variant name becomes "gate".
+// 0.5, "off" disables the lexical stage), and not at all when no point passes.
 // GAUNTLET_GATE_NARROW=0: the gate only skips calls; when any point passes, every open point is asked.
 // Reads every corpus under docs/gauntlet/corpus/<name>/ (script.md, transcript.json, labels.json),
 // replays it through the Engine with each provider, prints a table and writes
@@ -13,7 +15,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { DEFAULT_GATE, DEFAULT_MATCHER, corpusLanguage, embedPoints, gatedDecide, matcherDecide, parseScript, replay, type Corpus, type GateThresholds, type MatcherThresholds, type ReplayResult } from "@filow/core";
+import { DEFAULT_GATE, DEFAULT_MATCHER, corpusLanguage, embedPoints, gatedDecide, gateThresholdsFor, matcherDecide, parseScript, replay, type Corpus, type DecisionProviderId, type GateThresholds, type MatcherThresholds, type ReplayResult } from "@filow/core";
 import { loadEmbedder } from "@/lib/gate/embedder";
 import { decideOpenRouter } from "@/lib/decide/openrouter";
 import { decideClefLocal, warmClefLocal } from "@/lib/decide/clef";
@@ -48,6 +50,8 @@ function loadCorpora(): Corpus[] {
   return fs
     .readdirSync(CORPUS_DIR)
     .filter((d) => fs.existsSync(path.join(CORPUS_DIR, d, "transcript.json")))
+    // GAUNTLET_CORPORA=take-en,traps-en replays only those corpora (default: all of them)
+    .filter((d) => !process.env.GAUNTLET_CORPORA || process.env.GAUNTLET_CORPORA.split(",").map((s) => s.trim()).includes(d))
     .map((d) => {
       const dir = path.join(CORPUS_DIR, d);
       const t = JSON.parse(fs.readFileSync(path.join(dir, "transcript.json"), "utf8")) as { segments: Corpus["transcript"] };
@@ -122,12 +126,21 @@ describe.skipIf(!on)("gauntlet (real providers)", () => {
         }
         if (provider === "ollama-chat") variant = `${ollamaModel}${process.env.GAUNTLET_OLLAMA_CPU === "1" ? "-cpu" : ""}${variant === "default" ? "" : `-${variant}`}`;
         const gateStats = { calls: 0, skipped: 0, candidates: 0, lexicalOnly: 0, embedLoadMs: 0 };
-        if (process.env.GAUNTLET_GATE === "1") {
-          variant = variant === "default" ? "gate" : `${variant}-gate`;
+        // The app runs the gate by default (prefs.ts getGateMode), skip-only for local Clef
+        // (gateThresholdsFor), so the default replay does too: without it a point the gate never lets
+        // through to the model ticks in the replay and not in a live take. GAUNTLET_GATE=0 replays
+        // without it ("nogate"); the matcher has no gate in the app either.
+        const gateMode = process.env.GAUNTLET_GATE === "1" ? "custom" : process.env.GAUNTLET_GATE === "0" || provider === "matcher" ? "off" : "app";
+        if (gateMode === "off" && provider !== "matcher") variant = variant === "default" ? "nogate" : `${variant}-nogate`;
+        if (gateMode !== "off") {
+          if (gateMode === "custom") variant = variant === "default" ? "gate" : `${variant}-gate`;
           const { embed, loadMs } = await loadEmbedder();
           gateStats.embedLoadMs = loadMs;
           const lexEnv = process.env.GAUNTLET_LEX_LOW;
-          const th: GateThresholds = { ...DEFAULT_GATE, low: Number(process.env.GAUNTLET_GATE_LOW || DEFAULT_GATE.low), lexicalLow: lexEnv === "off" ? Infinity : Number(lexEnv || DEFAULT_GATE.lexicalLow), narrow: process.env.GAUNTLET_GATE_NARROW !== "0" };
+          const th: GateThresholds =
+            gateMode === "app"
+              ? gateThresholdsFor(provider as DecisionProviderId)
+              : { ...DEFAULT_GATE, low: Number(process.env.GAUNTLET_GATE_LOW || DEFAULT_GATE.low), lexicalLow: lexEnv === "off" ? Infinity : Number(lexEnv || DEFAULT_GATE.lexicalLow), narrow: process.env.GAUNTLET_GATE_NARROW !== "0" };
           const pv = await embedPoints(embed, parseScript(corpus.script).sections.flatMap((sec) => sec.bullets), corpus.language);
           decide = gatedDecide(PROVIDERS[provider], embed, () => pv, th, (o) => {
             gateStats.calls++;
@@ -137,9 +150,9 @@ describe.skipIf(!on)("gauntlet (real providers)", () => {
           });
         }
         const r = await replay(corpus, { decide, engine });
-        const out = { provider, variant, engine, gate: process.env.GAUNTLET_GATE === "1" ? gateStats : undefined, machine: { cpu: os.cpus()[0]?.model, ramGb: Math.round(os.totalmem() / 1024 ** 3), platform: process.platform }, at: new Date().toISOString(), ...r };
+        const out = { provider, variant, engine, gate: gateMode !== "off" ? { mode: gateMode, ...gateStats } : undefined, machine: { cpu: os.cpus()[0]?.model, ramGb: Math.round(os.totalmem() / 1024 ** 3), platform: process.platform }, at: new Date().toISOString(), ...r };
         fs.writeFileSync(path.join(RESULTS_DIR, `${provider}-${corpus.name}${variant === "default" ? "" : `-${variant}`}.json`), JSON.stringify(out, null, 2));
-        lines.push(line(r, `${provider}${variant === "default" ? "" : `/${variant}`}`) + (process.env.GAUNTLET_GATE === "1" ? `  gate: ${gateStats.skipped}/${gateStats.calls} model calls skipped, ${gateStats.candidates} candidates asked (${gateStats.lexicalOnly} by the lexical stage only)` : ""));
+        lines.push(line(r, `${provider}${variant === "default" ? "" : `/${variant}`}`) + (gateMode !== "off" ? `  gate: ${gateStats.skipped}/${gateStats.calls} model calls skipped, ${gateStats.candidates} candidates asked (${gateStats.lexicalOnly} by the lexical stage only)` : ""));
       }
     }
     console.log("\n" + lines.join("\n") + "\n");
