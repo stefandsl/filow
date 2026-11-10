@@ -6,11 +6,15 @@
 //
 // Usage: node tools/autoloop/e2e/onboarding.mjs --exe <win-unpacked> --round <name>
 //          [--lang en|it] [--keyboard] [--models <dir to copy into the profile>] [--mic <wav> (QA build)]
-//          [--offline] [--no-ollama] [--no-mic] [--accept-local-ai]
+//          [--offline] [--no-ollama] [--no-mic] [--accept-local-ai] [--welcome-only]
+//          [--devtools <port>] [--port <app port; the session port is the next one>] [--profile <new dir on G:>]
 // Writes G:/FILOW/tmp/t3-shots/<round>/*.png and report.json. Stops only the process tree it started.
+// Exit code: 0 PASS; 1 the probe crashed; 2 no main window; 3 timeout; 4 a check failed (no point ticked,
+// an axe violation or axe error, a Tab stop without visible focus, zoom overflow): onboarding-verdict.mjs.
 import { spawn, execFileSync, execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { onboardingFailures, onboardingExitCode } from "./onboarding-verdict.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../../..");
 const args = process.argv.slice(2);
@@ -22,9 +26,14 @@ const lang = opt("lang", "en");
 const keyboard = flag("keyboard");
 const DEVTOOLS = Number(opt("devtools", "9353")), PORT = Number(opt("port", "4821"));
 const OUT = path.join("G:/FILOW/tmp/t3-shots", round);
-const profile = path.join("G:/FILOW/tmp", `t3-profile-${round}-${Date.now().toString(36)}`);
+const profile = opt("profile") ? path.resolve(opt("profile")) : path.join("G:/FILOW/tmp", `t3-profile-${round}-${Date.now().toString(36)}`);
+// A first run needs an empty profile: never reuse one (it would skip the welcome and measure nothing).
+if (fs.existsSync(profile) && fs.readdirSync(profile).length) { console.error(`profile not empty: ${profile}`); process.exit(1); }
 fs.mkdirSync(OUT, { recursive: true });
 fs.mkdirSync(profile, { recursive: true });
+// The app's temp files (Chromium, downloads, installers) go next to the profile, never to C:.
+const appTemp = path.join(profile, "tmp");
+fs.mkdirSync(appTemp, { recursive: true });
 if (opt("models")) fs.cpSync(opt("models"), path.join(profile, "models"), { recursive: true });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -35,7 +44,7 @@ const mark = (event, extra = {}) => { const e = { ms: now(), event, ...extra }; 
 let shotN = 0;
 const shotName = (label) => path.join(OUT, `${String(++shotN).padStart(2, "0")}-${label}.png`);
 
-const env = { ...process.env, FILOW_USER_DATA_DIR: profile, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(PORT + 1) };
+const env = { ...process.env, FILOW_USER_DATA_DIR: profile, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(PORT + 1), TEMP: appTemp, TMP: appTemp };
 for (const k of ["OPENROUTER_API_KEY", "ELEVENLABS_API_KEY", "OPENAI_API_KEY", "FILOW_PUBLIC_WEB"]) delete env[k];
 if (flag("offline")) env.FILOW_OFFLINE = "1";
 if (flag("no-ollama")) env.OLLAMA_URL = "http://127.0.0.1:9";
@@ -126,10 +135,14 @@ async function finish(code = 0) {
   const lastWelcome = [...report.timeline].reverse().find((e) => /^welcome .* done$/.test(e.event))?.ms;
   report.waits = { toWelcome: at(/^welcome visible/), welcomeToMain: at(/^main window shown/) - lastWelcome, startToTick: at(/^first point ticked/) - at(/^start take clicked/) };
   try { report.startupLog = fs.readFileSync(path.join(profile, "startup.log"), "utf8").split("\n").filter(Boolean).slice(-80); } catch { /* none */ }
+  report.failures = onboardingFailures(report);
+  report.verdict = report.failures.length || code ? "FAIL" : "PASS";
   fs.writeFileSync(path.join(OUT, "report.json"), JSON.stringify(report, null, 2));
   stop();
   console.log(`\nsteps ${report.steps.length}, clicks ${report.clicks}, keys ${report.keys}, decisions ${report.decisions}; report ${path.join(OUT, "report.json")}`);
-  process.exit(code);
+  for (const f of report.failures) console.log(`FAIL ${f}`);
+  console.log(report.verdict);
+  process.exit(onboardingExitCode(code, report.failures));
 }
 
 try {
@@ -137,7 +150,9 @@ try {
   const wt = await waitTarget((u) => u.startsWith("file:") && u.includes("welcome.html"), 60000);
   if (!wt) throw new Error("welcome window never appeared");
   const w = await connect(wt);
-  for (let i = 0; i < 80; i++) { if (await w.evaluate(`!!document.querySelector("h1")?.textContent`).catch(() => false)) break; await sleep(100); }
+  let hydrated = false;
+  for (let i = 0; i < 80 && !hydrated; i++) { hydrated = await w.evaluate(`!!document.querySelector("h1")?.textContent`).catch(() => false); if (!hydrated) await sleep(100); }
+  if (!hydrated) report.problems.push("welcome: no title after 8 s");
   mark("welcome visible");
   const welcomeWords = await w.evaluate(WORDS);
   const welcomeControls = await w.evaluate(`[...document.querySelectorAll("select, input, button")].filter(e => e.offsetParent).length`);
@@ -158,7 +173,8 @@ try {
   await w.evaluate(`document.activeElement?.blur(); document.body.focus(); true`);
   for (let i = 0; i < 14; i++) {
     await w.key("Tab", "Tab", 9);
-    const d = await w.evaluate(`(() => { const e = document.activeElement; if (!e || e === document.body) return null; const s = getComputedStyle(e); const name = e.getAttribute("aria-label") || (e.labels && e.labels[0] ? e.labels[0].textContent : "") || e.textContent || e.id; return { tag: e.tagName.toLowerCase(), id: e.id, name: name.trim().slice(0, 40), outline: s.outlineStyle !== "none" && parseFloat(s.outlineWidth) > 0, visible: e.offsetParent !== null }; })()`);
+    // A radio's ring is drawn on its card (.choice:has(input:focus-visible)), so the label's outline counts.
+    const d = await w.evaluate(`(() => { const e = document.activeElement; if (!e || e === document.body) return null; const ring = (el) => { const s = getComputedStyle(el); return s.outlineStyle !== "none" && parseFloat(s.outlineWidth) > 0; }; const holder = e.closest("label"); const s = { outlineStyle: ring(e) || (holder && ring(holder)) ? "solid" : "none", outlineWidth: "2" }; const name = e.getAttribute("aria-label") || (e.labels && e.labels[0] ? e.labels[0].textContent : "") || e.textContent || e.id; return { tag: e.tagName.toLowerCase(), id: e.id, name: name.trim().slice(0, 40), outline: s.outlineStyle !== "none" && parseFloat(s.outlineWidth) > 0, visible: e.offsetParent !== null }; })()`);
     if (d && order.length && d.id === order[0].id && d.name === order[0].name) break;
     order.push(d);
   }
@@ -229,7 +245,7 @@ try {
     if (info === "setup") for (let i = 0; i < 20 && !(await w.evaluate(`!!document.querySelector("#setup-name")?.textContent`)); i++) await sleep(250);
     const words = await w.evaluate(WORDS).catch(() => 0);
     step(`welcome:${info}`, { shot: await w.shot(`welcome-${info}`), words });
-    await axe(w, `welcome-${info}`).catch(() => {});
+    await axe(w, `welcome-${info}`).catch((err) => { report.axe[`welcome-${info}`] = { error: String(err && err.message || err).slice(0, 200) }; });
     for (const z of [1.25, 1.5]) {
       await w.call("Emulation.setDeviceMetricsOverride", { width: Math.round(vp[0] / z), height: Math.round(vp[1] / z), deviceScaleFactor: z, mobile: false });
       await sleep(250);
@@ -239,7 +255,11 @@ try {
     await w.call("Emulation.clearDeviceMetricsOverride");
     await sleep(250);
     if (info === "setup" && flag("welcome-only")) await finish(0); // never start a real download from a probe
-    await pressPrimary();
+    // Ready for a take with an optional rest to download: answer "Not now" (Escape on the keyboard) unless
+    // --accept-local-ai; the probe measures the way to the first take, not a 10 GB download.
+    const optionalRest = info === "setup" && !flag("accept-local-ai") && await w.evaluate(`!document.querySelector("#setup-ready")?.hidden && !document.querySelector("#secondary")?.hidden`).catch(() => false);
+    if (optionalRest) { if (keyboard) await w.key("Escape", "Escape", 27); else await w.click(`document.querySelector("#secondary")`); }
+    else await pressPrimary();
     mark(`welcome ${info} done`);
   }
   w.close();
