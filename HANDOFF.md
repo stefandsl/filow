@@ -1,6 +1,6 @@
 # Filow hand-off
 
-Last updated 2026-11-05 for the single-sidebar prompter. Written so that
+Last updated 2026-11-10 ("Where it stands" header and stale file references only). Written so that
 another agent (Codex, Claude, a human) can continue without the chat history. Update this file at the
 end of every working session: "Where it stands", "Pending" and "Known gaps" are the parts that rot.
 
@@ -14,7 +14,14 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.29)
+## Where it stands (v0.9.30)
+
+- Landed after the 0.9.30 release (2026-11-06 to 2026-11-10): OK Filow, the screen helper,
+  with the outbound notice (nothing leaves the PC without a yes, every send is shown;
+  `docs/okfilow/OUTBOUND.md`); a natural voice on this PC (`docs/okfilow/VOICE.md`); speech in five
+  languages, English, Italian, Russian, Romanian and Japanese (`docs/stt/LANGUAGES.md`); release
+  hardening (single instance, offline privacy policy and About, private problem report, macOS
+  permission prompts, `docs/RELEASE-CHECKLIST.md`). Platform notes: `docs/PLATFORMS.md`.
 
 - Sync/stop audit fixes (2026-11-05, `fix/sync-and-stop`): B01-B05 fixed in five
   separate commits. Relay and phone drop old/duplicate patches; gaps request full state;
@@ -218,8 +225,8 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   - 0.9.26: large green tick + green "Detto" label and bar on done points
     (8ef6679); pairing panel reopens after the reload that switching the public link triggers
     (e47bae1, sessionStorage flag in apps/web/lib/pairReopen.ts); resizable next-section rail in the
-    dark layout (114c943, RailSplitter + apps/web/lib/railWidth.ts, saved in localStorage
-    `prefs:railWidth`). Packaged Windows build launched before the tag.
+    dark layout (114c943; that rail and its saved width were removed in 0.9.27, which moved both themes
+    to the sidebar layout). Packaged Windows build launched before the tag.
   - 0.9.25: six fixes from a high-reasoning read-only Codex review of 0.9.24 (c9e8b69): short
     viewports and 200 percent zoom scroll instead of clipping, Screen Sense menus open inward at
     760 px, cancelling a start invalidates the pending async steps, dialogs trap focus / close on
@@ -256,8 +263,9 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
     `docs/superpowers/plans/`. Three depths (raised / sheet / flat) as tokens in `theme-tokens.css`,
     no borders on glass layers, the controls row is one pill dock with a pointer sheen and a light SVG
     refraction on `::before` only, rows from the eleventh go flat, reduced-motion turns sheen and
-    refraction off. Readability gate: `apps/web/lib/glass-contrast.test.ts` reads the tokens and fails
-    below 7:1 (text) / 4.5:1 (muted) over white and black; tints settled at alpha .90-.92 to pass it.
+    refraction off. The glass was retired in 0.9.24; today's readability gate is
+    `apps/web/lib/contrast.test.ts` (`contrastRatio` in `apps/web/lib/contrast.ts`): on the flat surfaces
+    of both themes it fails below 7:1 (text) / 4.5:1 (muted).
     Built by Codex from the plan (3 commits) + review fixes; checked on screen in dark and light over the
     owner's wallpaper. Settings pages, overlay, phone mirror, welcome and splash now share
     the tokens (see above). Still pending: native wallpaper-matrix screenshots, fps check,
