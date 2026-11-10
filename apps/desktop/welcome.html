@@ -10,32 +10,90 @@
 </head>
 <body>
   <main class="welcome">
-    <section class="brand" aria-labelledby="welcome-title">
-      <img class="wordmark white" src="build/wordmark-white.svg" alt="Filow" width="180">
-      <img class="wordmark black" src="build/wordmark-black.svg" alt="Filow" width="180">
+    <aside class="brand">
+      <img class="wordmark white" src="build/wordmark-white.svg" alt="Filow" width="148">
+      <img class="wordmark black" src="build/wordmark-black.svg" alt="Filow" width="148">
       <div class="brand-copy">
-        <p class="welcome-title" id="welcome-title" data-i18n="welcome.title"></p>
-        <h1 data-i18n="app.tagline"></h1>
-        <ul>
+        <p class="tagline" data-i18n="app.tagline"></p>
+        <ul class="features">
           <li><span aria-hidden="true" data-icon="check"></span><span data-i18n="welcome.featurePoints"></span></li>
           <li><span aria-hidden="true" data-icon="slides"></span><span data-i18n="welcome.featureSlides"></span></li>
           <li><span aria-hidden="true" data-icon="phone"></span><span data-i18n="welcome.featurePhone"></span></li>
         </ul>
       </div>
+      <div class="stepper" id="stepper"><ol id="stepper-list" data-i18n-label="welcome.steps"></ol></div>
       <footer data-i18n="welcome.footer"></footer>
-    </section>
-    <section class="options" aria-labelledby="personalize">
-      <header><h2 id="personalize" data-i18n="welcome.personalize"></h2><p data-i18n="welcome.subtitle"></p></header>
-      <div class="rows">
-        <div class="option-row"><label for="language" data-i18n="common.language"></label><select id="language"><option value="" data-i18n="ui.automatic"></option><option value="en"></option><option value="it"></option></select></div>
-        <div class="option-row" id="startup-row"><label for="startup" id="startup-label" data-i18n="ui.startupWindows"></label><input type="checkbox" role="switch" id="startup"><p id="startup-status" class="detail" aria-live="polite"></p></div>
-        <div class="option-row"><label for="follow-theme" data-i18n="ui.followTheme"></label><input type="checkbox" role="switch" id="follow-theme"><div id="explicit-theme" class="detail"><label for="theme" data-i18n="ui.theme"></label><select id="theme"><option value="light" data-i18n="ui.light"></option><option value="dark" data-i18n="ui.dark"></option></select></div></div>
-        <div class="option-row" id="accent-row"><label for="accent" data-i18n="ui.followAccent"></label><input type="checkbox" role="switch" id="accent"><p id="accent-status" class="detail" aria-live="polite"></p></div>
+    </aside>
+
+    <form class="panel" id="flow" novalidate>
+      <p class="progress" id="progress"></p>
+
+      <section class="step" data-step="language" aria-labelledby="progress h-language" hidden>
+        <h1 id="h-language" tabindex="-1" data-i18n="welcome.title"></h1>
+        <p class="lead" data-i18n="welcome.languageLead"></p>
+        <fieldset class="choices" id="language">
+          <legend class="visually-hidden" data-i18n="common.language"></legend>
+          <label class="choice"><input type="radio" name="lang" value=""><span id="lang-auto"></span></label>
+          <label class="choice"><input type="radio" name="lang" value="en"><span lang="en">English</span></label>
+          <label class="choice"><input type="radio" name="lang" value="it"><span lang="it">Italiano</span></label>
+        </fieldset>
+        <details class="more" id="more">
+          <summary><span data-i18n="welcome.moreOptions"></span><span aria-hidden="true" data-icon="chevronDown"></span></summary>
+          <div class="rows" data-prefs></div>
+        </details>
+      </section>
+
+      <section class="step" data-step="mic" aria-labelledby="progress h-mic" hidden>
+        <h1 id="h-mic" tabindex="-1" data-i18n="welcome.micTitle"></h1>
+        <p class="lead" data-i18n="welcome.micLead"></p>
+        <div class="meter-card" id="mic-card" data-state="listening">
+          <div class="meter" id="mic-meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-label="welcome.micLevel"><i id="mic-bar"></i></div>
+          <p class="mic-status" id="mic-status" role="status" aria-live="polite"><span aria-hidden="true" class="mic-icon" id="mic-icon"></span><span id="mic-text"></span></p>
+          <p class="detail" id="mic-device"></p>
+          <div class="inline-actions" id="mic-actions" hidden>
+            <button type="button" class="secondary" id="mic-retry" data-i18n="welcome.micRetry"></button>
+            <button type="button" class="link" id="mic-settings" data-i18n="welcome.micSettings" hidden></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="step" data-step="setup" aria-labelledby="progress h-setup" hidden>
+        <h1 id="h-setup" tabindex="-1"></h1>
+        <div class="setup-card">
+          <p class="setup-name"><span aria-hidden="true" data-icon="system"></span><span id="setup-name"></span></p>
+          <p class="detail" id="setup-facts"></p>
+          <p id="setup-private" data-i18n="welcome.setupPrivate"></p>
+          <p class="setup-size" id="setup-size"></p>
+          <details class="more" id="setup-details">
+            <summary><span data-i18n="welcome.setupDetails"></span><span aria-hidden="true" data-icon="chevronDown"></span></summary>
+            <ul id="setup-list"></ul>
+          </details>
+        </div>
+        <p class="detail" id="setup-note" data-i18n="welcome.setupLaterNote"></p>
+      </section>
+
+      <section class="step" data-step="preferences" aria-labelledby="h-preferences" hidden>
+        <h1 id="h-preferences" tabindex="-1" data-i18n="welcome.preferences"></h1>
+        <div class="rows">
+          <div class="option-row"><label for="language-select" data-i18n="common.language"></label><select id="language-select"><option value="" data-i18n="ui.automatic"></option><option value="en" lang="en">English</option><option value="it" lang="it">Italiano</option></select></div>
+        </div>
+        <div class="rows" data-prefs></div>
+      </section>
+
+      <p id="error" role="alert"></p>
+      <div class="actions">
+        <button type="button" class="secondary" id="back"><span aria-hidden="true" data-icon="left"></span><span data-i18n="welcome.back"></span></button>
+        <span class="spacer"></span>
+        <button type="button" class="secondary" id="secondary"></button>
+        <button type="submit" class="primary" id="start" data-primary><span id="primary-label"></span><span aria-hidden="true" data-icon="right"></span></button>
       </div>
-      <p class="note" data-i18n="welcome.note"></p>
-      <p id="error" role="alert" aria-live="assertive"></p>
-      <div class="actions"><button id="start" class="primary"><span data-i18n="welcome.getStarted"></span><span aria-hidden="true" data-icon="right"></span></button></div>
-    </section>
+    </form>
+
+    <template id="prefs-template">
+      <div class="option-row" data-row="startup"><label for="startup" data-label="startup"></label><input type="checkbox" role="switch" id="startup"><p class="detail" data-status="startup" aria-live="polite"></p></div>
+      <div class="option-row"><label for="follow-theme" data-i18n="ui.followTheme"></label><input type="checkbox" role="switch" id="follow-theme"><div class="detail" data-explicit-theme><label for="theme" data-i18n="ui.theme"></label><select id="theme"><option value="light" data-i18n="ui.light"></option><option value="dark" data-i18n="ui.dark"></option></select></div></div>
+      <div class="option-row" data-row="accent"><label for="accent" data-i18n="ui.followAccent"></label><input type="checkbox" role="switch" id="accent"><p class="detail" data-status="accent" aria-live="polite"></p></div>
+    </template>
   </main>
 </body>
 </html>
