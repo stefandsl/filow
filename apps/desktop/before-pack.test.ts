@@ -3,12 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { tmpRoot } from "./test-tmp";
 
 const require = createRequire(import.meta.url);
 const { problems, requirements } = require("./before-pack.js") as { problems: (base?: string) => string[]; requirements: (base?: string) => { what: string; file: string; sources: string[]; stamp?: string }[] };
 
 // Test files live in the project's own tmp folder (never on C:).
-const base = path.resolve(__dirname, "../../tmp/test-before-pack");
+const base = tmpRoot("before-pack");
 afterAll(() => fs.rmSync(base, { recursive: true, force: true }));
 
 const write = (file: string, at: Date) => {

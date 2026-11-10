@@ -3,11 +3,12 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { afterAll, expect, it } from "vitest";
+import { tmpRoot } from "./test-tmp";
 
 const require = createRequire(import.meta.url);
 const { assetDigest, verifyGithubAsset, signatureOk, macDeveloperIdRequirement } = require("./integrity.js");
 
-const dir = path.resolve(__dirname, "../../tmp/test-integrity");
+const dir = tmpRoot("integrity");
 fs.mkdirSync(dir, { recursive: true });
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 

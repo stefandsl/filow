@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { tmpRoot } from "./test-tmp";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 
@@ -24,8 +25,7 @@ describe("OK Filow answer log", () => {
   });
 
   it("writes the question, raw text, visuals, screenshot and drawing", () => {
-    const root = path.join("G:\\FILOW\\tmp", "okf-answers-test");
-    fs.rmSync(root, { recursive: true, force: true });
+    const root = tmpRoot("okf-answers");
     const dir = writeAnswer(root, { question: "q", raw: "r", visuals: { marks: [] }, images: ["data:image/jpeg;base64,AAEC", "javascript:x"], svg: "<svg/>" }, new Date("2026-11-08T10:00:00Z"));
     expect(fs.readdirSync(dir).sort()).toEqual(["drawing.svg", "question.txt", "raw.txt", "screen1.jpg", "visuals.json"]);
     expect(JSON.parse(fs.readFileSync(path.join(dir, "visuals.json"), "utf8"))).toEqual({ marks: [] });

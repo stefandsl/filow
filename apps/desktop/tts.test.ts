@@ -2,13 +2,12 @@
 // answer is cut into pieces that stream, interruption, the pinned and resumable model download,
 // and the fallback on a PC too small for the model.
 import fs from "node:fs";
-import http from "node:http";
 import path from "node:path";
-import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
-import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { tmpRoot } from "./test-tmp";
+import { startArchiveServer, type ArchiveServer } from "./test-archive-server";
 
 const require = createRequire(import.meta.url);
 const tts = require("./tts.js");
@@ -23,7 +22,7 @@ const texts = (text: string, lang: string): string[] => tts.splitSentences(text,
 const GIB = 1024 ** 3;
 
 // Test files live in the project's own tmp folder (never on C:).
-const root = path.resolve(__dirname, "../../tmp/test-tts");
+const root = tmpRoot("tts");
 
 describe("voice for a language", () => {
   it("speaks each of the five languages in that language", () => {
@@ -416,58 +415,26 @@ function ipc() {
 
 const ARCHIVE = "fixture-voice-2026";
 const FILES = ["voice.onnx", "voice.bin"];
-let bytes: Buffer;
-let server: http.Server;
-let base = "";
-let requests = 0;
-let seenRanges: string[] = [];
-let hold: (() => void) | null = null;
-let holdNext = false;
+let srv: ArchiveServer;
 
 beforeAll(async () => {
-  fs.rmSync(root, { recursive: true, force: true });
-  const src = path.join(root, "src", ARCHIVE);
-  fs.mkdirSync(src, { recursive: true });
-  for (const f of FILES) fs.writeFileSync(path.join(src, f), crypto.randomBytes(512 * 1024));
-  const tar = process.platform === "win32" ? path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe") : "tar";
-  const out = path.join(root, "fixture.tar.bz2");
-  execFileSync(tar, ["-cjf", out, "-C", path.join(root, "src"), ARCHIVE]);
-  bytes = fs.readFileSync(out);
-  server = http.createServer((req, res) => {
-    requests++;
-    const range = req.headers.range;
-    if (range) seenRanges.push(range);
-    const m = /^bytes=(\d+)-$/.exec(range || "");
-    const start = m ? Number(m[1]) : 0;
-    const send = () => {
-      if (m) res.writeHead(206, { "Content-Length": bytes.length - start, "Content-Range": `bytes ${start}-${bytes.length - 1}/${bytes.length}` });
-      else res.writeHead(200, { "Content-Length": bytes.length });
-      res.end(bytes.subarray(start));
-    };
-    if (holdNext) {
-      holdNext = false;
-      hold = send;
-    } else send();
-  });
-  await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
-  base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  srv = await startArchiveServer(root, ARCHIVE, FILES, 512 * 1024);
 });
 
 afterAll(async () => {
-  await new Promise((r) => server.close(r));
+  await srv.close();
   fs.rmSync(root, { recursive: true, force: true });
 });
 
 function spec() {
-  return { id: "fixture-voice", archive: ARCHIVE, url: `${base}/voice.tar.bz2`, sizeBytes: bytes.length, sha256: crypto.createHash("sha256").update(bytes).digest("hex"), files: FILES };
+  return { id: "fixture-voice", archive: ARCHIVE, url: `${srv.base}/voice.tar.bz2`, sizeBytes: srv.bytes.length, sha256: srv.sha256, files: FILES };
 }
 
 function wire(name: string, extra: Record<string, unknown> = {}) {
   const userData = path.join(root, name);
   fs.rmSync(userData, { recursive: true, force: true });
   fs.mkdirSync(path.join(userData, "models"), { recursive: true });
-  requests = 0;
-  seenRanges = [];
+  srv.reset();
   const bus = ipc();
   const log: string[] = [];
   const workers: FakeWorker[] = [];
@@ -524,7 +491,7 @@ describe("okfilow:tts channels", () => {
     for (const channel of ["okfilow:tts:status", "okfilow:tts:download", "okfilow:tts:remove", "okfilow:tts:warm", "okfilow:tts:speak", "okfilow:tts:cancel"]) {
       await expect(bus.invoke(channel, stranger, {})).rejects.toThrow("Denied");
     }
-    expect(requests).toBe(0);
+    expect(srv.requests).toBe(0);
   });
 
   it("says the voice is not installed instead of speaking, and never downloads on its own", async () => {
@@ -532,10 +499,10 @@ describe("okfilow:tts channels", () => {
     const panel = sender();
     const st = (await bus.invoke("okfilow:tts:status", panel)) as Status;
     expect(st).toMatchObject({ installed: false, state: "idle", pct: 0, mode: "natural", level: "standard", voices: 10 });
-    expect(st.sizeBytes).toBe(bytes.length);
+    expect(st.sizeBytes).toBe(srv.bytes.length);
     expect(await bus.invoke("okfilow:tts:speak", panel, { id: 1, text: THREE, lang: "en" })).toEqual({ ok: false, reason: "notInstalled" });
     expect(await bus.invoke("okfilow:tts:warm", panel)).toBe(false);
-    expect(requests).toBe(0);
+    expect(srv.requests).toBe(0);
     expect(workers.length).toBe(0);
   });
 
@@ -549,54 +516,53 @@ describe("okfilow:tts channels", () => {
     expect(done).toMatchObject({ installed: true, state: "ready", pct: 100, error: "" });
     for (const f of FILES) expect(fs.readFileSync(path.join(userData, "models", "fixture-voice", f)).length).toBe(512 * 1024);
     expect(fs.existsSync(partFile(userData, model))).toBe(false);
-    expect(requests).toBe(1);
+    expect(srv.requests).toBe(1);
     // Progress reached the window while it ran.
     expect(panel.sent.every((s) => s.channel === "okfilow:tts:status")).toBe(true);
     // Asking again downloads nothing.
     await bus.invoke("okfilow:tts:download", panel);
-    expect(requests).toBe(1);
+    expect(srv.requests).toBe(1);
   });
 
   it("resumes a download that stopped half way, from the bytes already on disk", async () => {
     const { bus, userData, model } = wire("resume");
     const panel = sender();
-    const cut = Math.ceil(bytes.length * 0.4);
-    fs.writeFileSync(partFile(userData, model), bytes.subarray(0, cut));
+    const cut = Math.ceil(srv.bytes.length * 0.4);
+    fs.writeFileSync(partFile(userData, model), srv.bytes.subarray(0, cut));
     // Before the click: the window can offer "Resume" with what is already there.
     expect(await bus.invoke("okfilow:tts:status", panel)).toMatchObject({ installed: false, state: "idle", pct: 40 });
     await bus.invoke("okfilow:tts:download", panel);
     await until(() => panel.sent.some((s) => (s.payload as Status).installed));
-    expect(seenRanges).toEqual([`bytes=${cut}-`]);
+    expect(srv.seenRanges).toEqual([`bytes=${cut}-`]);
   });
 
   it("throws away bytes that fail the pinned hash and fetches them again", async () => {
     const { bus, userData, model } = wire("corrupt");
     const panel = sender();
     // Right length, wrong bytes: only the hash can tell.
-    const bad = Buffer.from(bytes);
+    const bad = Buffer.from(srv.bytes);
     bad[100] ^= 0xff;
     fs.writeFileSync(partFile(userData, model), bad);
     await bus.invoke("okfilow:tts:download", panel);
     await until(() => panel.sent.some((s) => (s.payload as Status).installed));
-    expect(requests).toBe(1);
-    expect(seenRanges).toEqual([]);
+    expect(srv.requests).toBe(1);
+    expect(srv.seenRanges).toEqual([]);
     expect(fs.readFileSync(path.join(userData, "models", "fixture-voice", FILES[0])).length).toBe(512 * 1024);
   }, 20_000);
 
   it("runs one download at a time: a second click joins the first", async () => {
     const { bus } = wire("single");
     const panel = sender();
-    holdNext = true;
+    srv.mode = "hold-next";
     await bus.invoke("okfilow:tts:download", panel);
-    await until(() => hold !== null);
+    await until(() => srv.held());
     const again = (await bus.invoke("okfilow:tts:download", panel)) as Status;
     expect(again.state).toBe("downloading");
     // Removing while it downloads is ignored.
     expect(((await bus.invoke("okfilow:tts:remove", panel)) as Status).state).toBe("downloading");
-    hold?.();
-    hold = null;
+    srv.release();
     await until(() => panel.sent.some((s) => (s.payload as Status).installed));
-    expect(requests).toBe(1);
+    expect(srv.requests).toBe(1);
   });
 
   it("does not download when Filow is offline, and says why", async () => {
@@ -604,7 +570,7 @@ describe("okfilow:tts channels", () => {
     const panel = sender();
     expect(await bus.invoke("okfilow:tts:download", panel)).toMatchObject({ installed: false, state: "error", error: "offline" });
     await new Promise((r) => setTimeout(r, 50));
-    expect(requests).toBe(0);
+    expect(srv.requests).toBe(0);
   });
 
   it("still speaks offline once the model is installed", async () => {
@@ -612,7 +578,7 @@ describe("okfilow:tts channels", () => {
     install(userData);
     const panel = sender();
     expect(await bus.invoke("okfilow:tts:speak", panel, { id: 4, text: "Short answer here.", lang: "it" })).toMatchObject({ ok: true, sent: 1 });
-    expect(requests).toBe(0);
+    expect(srv.requests).toBe(0);
   });
 
   it("reports a failed download and keeps the reason", async () => {

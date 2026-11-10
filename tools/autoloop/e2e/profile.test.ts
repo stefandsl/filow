@@ -2,8 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterAll, expect, it } from "vitest";
 import { PAST_ONBOARDING, seedProfile } from "./profile.mjs";
+import { tmpRoot } from "../../../apps/desktop/test-tmp";
 
-const root = path.resolve(__dirname, "../../../tmp/test-autoloop-profile");
+const root = tmpRoot("autoloop-profile");
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 const read = (p: string) => JSON.parse(fs.readFileSync(path.join(p, "settings.json"), "utf8"));
 
