@@ -390,6 +390,13 @@ function initializeUiPreferences() {
   ipcMain.handle("okfilow:settings:status", event => { if (!uiSender(event)) throw new Error("Denied"); return okFilow ? okFilow.status() : null; });
   ipcMain.handle("okfilow:settings:configure", (event, patch) => { if (!uiSender(event)) throw new Error("Denied"); return okFilow && patch && typeof patch === "object" ? okFilow.applyConfig(patch) : null; });
   ipcMain.on("okfilow:settings:openPanel", event => { if (uiSender(event)) okFilow?.togglePanel(); });
+  // Dictation's section in Filow Settings (dictation.js). Status needs OK Filow's talk keys for the conflict check.
+  ipcMain.handle("dictation:settings:status", event => { if (!uiSender(event)) throw new Error("Denied"); return dictationStatus(); });
+  ipcMain.handle("dictation:settings:configure", (event, patch) => {
+    if (!uiSender(event)) throw new Error("Denied");
+    if (patch && typeof patch === "object") getDictation().configure(patch);
+    return dictationStatus();
+  });
   ipcMain.handle("ui:getPreferences", event => { if (!uiSender(event)) throw new Error("Denied"); return uiPreferences.get(); });
   ipcMain.handle("ui:updatePreferences", (event, patch) => { if (!uiSender(event)) throw new Error("Denied"); return uiPreferences.update(patch); });
   ipcMain.handle("ui:migratePreferences", (event, patch) => { if (!uiSender(event) || event.sender === welcomeWin?.webContents) throw new Error("Denied"); return uiPreferences.migrateLegacy(patch); });
@@ -1456,6 +1463,36 @@ function appIcon() {
   return path.join(__dirname, "build", process.platform === "win32" ? "icon.ico" : "icon.png");
 }
 
+// ---- Dictation: speak into any app's text field, on this PC only (dictation.js, docs/okfilow/DICTATION.md) ----
+let dictation = null;
+function getDictation() {
+  if (dictation) return dictation;
+  const { clipboard, BrowserWindow: BW, systemPreferences, dialog: dlg, shell: sh } = require("electron");
+  dictation = require("./dictation").createDictation({
+    getSettings: () => settings,
+    saveSettings,
+    logLine,
+    clipboard,
+    BrowserWindow: BW,
+    systemPreferences,
+    dialog: dlg,
+    shell: sh,
+    // The phrase models ("questions") are the ones made for short utterances; "auto" follows the speech language.
+    modelReady: language => sttLocal.modelReady(userData, { use: "questions", language: language === "auto" ? sttLanguage() : language }),
+    // Ctrl + V (Command + V on macOS) through OK Filow's own keyboard hook: uiohook-napi (MIT) sends it with
+    // SendInput on Windows, CGEvent on macOS and XTest on X11. No shell, no PowerShell, no extra native module.
+    sendPaste: hook => {
+      const { UiohookKey: K } = require("uiohook-napi");
+      hook.keyTap(K.V, [process.platform === "darwin" ? K.Meta : K.Ctrl]);
+    },
+  });
+  return dictation;
+}
+function dictationStatus() {
+  const ok = okFilow ? okFilow.status() : null;
+  return getDictation().status({ talkHotkey: ok ? ok.hotkey : "", hook: ok ? ok.hook === "hold" : false });
+}
+
 // ---- OK Filow: push-to-talk screen helper (okfilow.js, docs/BUDDY-PLAN.md) ----
 let okFilow = null;
 function startOkFilow() {
@@ -1472,6 +1509,7 @@ function startOkFilow() {
       menuText: (k) => mt(k),
       isOffline: () => offline,
       sttDownload: () => void sttDownload(),
+      dictation: getDictation(),
     });
     okFilow.start();
   } catch (err) {

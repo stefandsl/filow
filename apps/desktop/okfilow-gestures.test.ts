@@ -93,3 +93,71 @@ it("after a reset (lock screen) a modifier whose key-up was lost is no longer do
   expect(events).toEqual([]);
   vi.useRealTimers();
 });
+
+describe("dictation in toggle mode", () => {
+  type GT = G & { reset(): void; escape(): void; endToggle(): void; active: string | null };
+  const make = (events: string[], dictate = "ctrl+meta") =>
+    createGestures({ talk: () => "ctrl+alt", dictate: () => dictate, dictateMode: () => "toggle", emit: (e) => events.push(e) } as never) as unknown as GT;
+  const tap = (g: G, ...mods: string[]) => { for (const m of mods) g.keydown(m); for (const m of mods) g.keyup(m); };
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("press and let go starts, the next press stops; holding the keys does nothing more", () => {
+    const events: string[] = [];
+    const g = make(events);
+    g.keydown("ctrl"); g.keydown("meta"); vi.advanceTimersByTime(800);
+    expect(events).toEqual([]);
+    g.keyup("meta"); g.keyup("ctrl");
+    expect(events).toEqual(["dictate:start"]);
+    expect(g.active).toBe("dictate");
+    vi.advanceTimersByTime(5000);
+    tap(g, "ctrl", "meta");
+    expect(events).toEqual(["dictate:start", "dictate:end"]);
+    expect(g.active).toBeNull();
+  });
+
+  it("a Windows shortcut on the same keys (Ctrl+Win+D) and an added modifier never toggle", () => {
+    const events: string[] = [];
+    const g = make(events);
+    g.keydown("ctrl"); g.keydown("meta"); g.keydown(null); g.keyup("meta"); g.keyup("ctrl");
+    g.keydown("ctrl"); g.keydown("meta"); g.keydown("shift"); g.keyup("shift"); g.keyup("meta"); g.keyup("ctrl");
+    expect(events).toEqual([]);
+  });
+
+  it("no hands-free double tap in toggle mode: two taps are start then stop", () => {
+    const events: string[] = [];
+    const g = make(events);
+    tap(g, "ctrl", "meta"); tap(g, "ctrl", "meta");
+    expect(events).toEqual(["dictate:start", "dictate:end"]);
+  });
+
+  it("Escape and a lock screen cancel; the talk chord is ignored while dictating", () => {
+    const events: string[] = [];
+    const g = make(events);
+    tap(g, "ctrl", "meta");
+    g.keydown("ctrl"); g.keydown("alt"); vi.advanceTimersByTime(400); g.keyup("alt"); g.keyup("ctrl");
+    g.escape();
+    expect(events).toEqual(["dictate:start", "dictate:cancel"]);
+    tap(g, "ctrl", "meta");
+    g.reset();
+    expect(events.slice(2)).toEqual(["dictate:start", "dictate:cancel"]);
+    g.escape();
+    expect(events).toHaveLength(4);
+  });
+
+  it("after the dictation ended elsewhere, the next press starts again", () => {
+    const events: string[] = [];
+    const g = make(events);
+    tap(g, "ctrl", "meta");
+    g.endToggle();
+    tap(g, "ctrl", "meta");
+    expect(events).toEqual(["dictate:start", "dictate:start"]);
+  });
+
+  it("the talk chord still works in toggle mode when no dictation runs", () => {
+    const events: string[] = [];
+    const g = make(events);
+    g.keydown("ctrl"); g.keydown("alt"); vi.advanceTimersByTime(300); g.keyup("alt");
+    expect(events).toEqual(["talk:start", "talk:end"]);
+  });
+});

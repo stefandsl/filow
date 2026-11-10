@@ -7,6 +7,28 @@ import type { BuddyModel } from "./visuals";
 export type OkFilowCard = { x: number; y: number; title: string; text: string; photo: string };
 export type OkFilowMode = "idle" | "listening" | "thinking" | "speaking" | "error";
 
+/** apps/desktop/dictation.js status(): settings, the key choices, and what this PC can do. */
+export type DictationStatus = {
+  enabled: boolean;
+  chord: string;
+  mode: "hold" | "toggle";
+  language: "auto" | "en" | "it" | "ru" | "ro" | "ja";
+  insert: "paste" | "copy";
+  removeFillers: boolean;
+  sound: boolean;
+  platform: string;
+  chords: Array<{ value: string; label: string }>;
+  chordLabel: string;
+  talk: string;
+  talkLabel: string;
+  check: { ok: boolean; conflict: "same" | "overlap" | "invalid" | null; warnings: Array<"altgr" | "layout"> };
+  canPaste: boolean;
+  copyReason: "" | "setting" | "nohook" | "wayland" | "accessibility";
+  modelReady: boolean | null;
+};
+/** What happened to a dictation (apps/desktop/dictation.js insert()). */
+export type DictationResult = { ok: boolean; action: "paste" | "copy" | "direct" | "none"; reason: string; chars: number };
+
 export type OkFilowStatus = {
   enabled: boolean;
   hotkey: string;
@@ -29,6 +51,8 @@ export type OkFilowStatus = {
   consent?: ConsentMap;
   handsFree: boolean;
   dictateChord: string;
+  /** Dictation's own settings and checks (apps/desktop/dictation.js). */
+  dictationStatus?: DictationStatus;
   hotkeys: string[];
   offline: boolean;
   hook: "hold" | "toggle";
@@ -109,8 +133,8 @@ export type OkFilowBridge = {
   closeModel(): void;
   /** Model window -> panel (through main): ask OK Filow about a clicked part. */
   askAbout(text: string): void;
-  /** Types text into the focused app (dictation). Resolves false when it could not. */
-  typeText(text: string): Promise<boolean>;
+  /** Puts dictated text where the focus is (typed, pasted or only copied; see DictationResult). */
+  typeText(text: string, language?: string): Promise<DictationResult>;
   handsFreeOff(): void;
   agents: {
     /** Starts a job when the text is an "agent, ..." request; resolves null otherwise, or needsConsent when the user must agree first. */

@@ -11,6 +11,11 @@ contextBridge.exposeInMainWorld("filow", {
     configure: (patch) => ipcRenderer.invoke("okfilow:settings:configure", patch),
     openPanel: () => ipcRenderer.send("okfilow:settings:openPanel"),
   },
+  /** Dictation's section in Filow Settings (dictation.js). */
+  dictation: {
+    status: () => ipcRenderer.invoke("dictation:settings:status"),
+    configure: (patch) => ipcRenderer.invoke("dictation:settings:configure", patch),
+  },
   getPreferences: () => ipcRenderer.invoke("ui:getPreferences"),
   updatePreferences: patch => ipcRenderer.invoke("ui:updatePreferences", patch),
   migrateUiPreferences: patch => ipcRenderer.invoke("ui:migratePreferences", patch),
