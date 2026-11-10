@@ -37,6 +37,8 @@ function describeConnect(args) {
  * in-process, so this covers the server side of a take, including connections far shorter than a
  * netstat sample (the take probe, tools/autoloop/e2e/take.mjs, reads it for PR-01). It wraps
  * net.Socket#connect, which net.connect, tls.connect, http(s) agents and fetch (undici) all go through.
+ * Not covered here: worker threads (their own net module; none of ours opens a socket today), Electron's
+ * net module (Chromium's network stack: the probe's --log-net-log covers it) and DNS lookups.
  * @param {(line: string) => void} write
  * @returns {() => void} uninstall
  */

@@ -8,6 +8,9 @@ const MAX_AGE_H = 48;
 const PERF02_LAST_DECISION_S = 120;
 // Share of the rehearsal passes that must tick from speech said again after the Reset.
 const PERF02_FRESH_SHARE = 0.9;
+// A rehearsal that stalls (a point that never ticks again) is not a take: one pass every 5 minutes at least.
+const PERF02_MIN_PER_PASS = 5;
+const minPasses = (m) => Math.max(2, Math.floor((m.minutes ?? 0) / PERF02_MIN_PER_PASS));
 // PERF-02 (docs/autoloop/STANDARDS.md): memory grows 10% or less after the warm-up, over 45 minutes.
 const PERF02_MINUTES = 45;
 const PERF02_MIN_RUN = 20;
@@ -17,13 +20,13 @@ const fresh = (r, now) => r && typeof r.at === "string" && (now - Date.parse(r.a
 const edgesOf = (r) => (Array.isArray(r.heard?.edges) ? r.heard.edges : []);
 /**
  * Points ticked by their own paraphrase: after the first words were heard, and after the line that
- * says that point showed on screen (take-lib.mjs HeardTracker). A tick from the off-topic sentence, or
- * from nothing, does not count.
+ * says that point showed on screen (take-lib.mjs HeardTracker), and not while the off-topic sentence was
+ * the latest line heard. A tick from the off-topic sentence, or from nothing, does not count.
  */
 function ticked(r) {
   if (!Array.isArray(r.points) || !Array.isArray(r.audio?.lineOfPoint) || r.stt?.firstTranscriptMs == null) return 0;
   const done = r.points.map((p) => (p.doneAtMs != null && p.doneAtMs >= r.stt.firstTranscriptMs ? p.doneAtMs : null));
-  const { stale } = passFresh({ startMs: 0, done }, edgesOf(r), r.audio.lineOfPoint);
+  const { stale } = passFresh({ startMs: 0, done }, edgesOf(r), r.audio.lineOfPoint, r.audio.offTopicLine ?? null);
   return done.filter((d, i) => d != null && !stale.includes(i)).length;
 }
 /** Rehearsal passes of a long take, and how many ticked every point from its paraphrase said again in that pass. */
@@ -127,7 +130,7 @@ export function takeChecks(all, now = Date.now()) {
       else if (!(ticked(r) > 0)) detail = "nothing was ticked by speech";
       else if (!(r.takeMs > 0) || r.decide?.lastAtMs == null || r.decide.lastAtMs < r.takeMs - PERF02_LAST_DECISION_S * 1000)
         detail = `no decision in the last ${PERF02_LAST_DECISION_S} s of the take (last at ${r.decide?.lastAtMs == null ? "never" : `${Math.round(r.decide.lastAtMs / 1000)} s`}): the take went idle`;
-      else if (!(stalePasses(r).total >= 2)) detail = `${stalePasses(r).total} rehearsal passes (needs 2 or more)`;
+      else if (!(stalePasses(r).total >= minPasses(m))) detail = `${stalePasses(r).total} rehearsal passes in ${m.minutes} min (needs ${minPasses(m)}: one every ${PERF02_MIN_PER_PASS} min, 2 or more)`;
       else if (stalePasses(r).fresh < PERF02_FRESH_SHARE * stalePasses(r).total)
         detail = `only ${stalePasses(r).fresh}/${stalePasses(r).total} passes ticked from speech said again after the Reset (a Reset that does not start the section over)`;
       else if (!(m.minutes >= PERF02_MIN_RUN)) detail = `run of ${m.minutes} min (needs ${PERF02_MIN_RUN})`;

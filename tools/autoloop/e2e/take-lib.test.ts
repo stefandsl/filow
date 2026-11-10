@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without types
-import { HeardTracker, classifyConnections, overlap, parseNetstat, passFresh, processTree, socketLogAudit } from "./take-lib.mjs";
+import { HeardTracker, classifyConnections, isLoopback, overlap, parseNetstat, passFresh, processTree, socketLogAudit } from "./take-lib.mjs";
 
 const NETSTAT = `
 Connessioni attive
@@ -110,5 +110,16 @@ describe("what was heard", () => {
     expect(passFresh({ startMs: 19000, done: [20000, 20500, 21000] }, edges)).toEqual({ fresh: false, stale: [0, 1, 2] });
     expect(passFresh({ startMs: 19000, done: [41000, 51000, 56000] }, edges)).toEqual({ fresh: true, stale: [] });
     expect(passFresh({ startMs: 0, done: [null, null, null] }, edges)).toEqual({ fresh: false, stale: [] });
+    // a pass where only one point ticked is not a fresh pass
+    expect(passFresh({ startMs: 19000, done: [41000, null, null] }, edges)).toEqual({ fresh: false, stale: [] });
+    // the off-topic control: point 1 ticked while the off-topic sentence (line 1) was the latest line heard
+    expect(passFresh({ startMs: 0, done: [7000, 13000, 18000] }, edges, [0, 2, 3], 1)).toEqual({ fresh: false, stale: [0] });
+    expect(passFresh({ startMs: 0, done: [3000, 13000, 18000] }, edges, [0, 2, 3], 1)).toEqual({ fresh: true, stale: [] });
+  });
+
+  it("counts as loopback only the exact local forms, never a host name that starts like one", () => {
+    for (const a of ["127.0.0.1", "127.5.0.9", "[::1]", "::1", "0.0.0.0", "[::]", "*", "localhost", "[::ffff:127.0.0.1]"]) expect(isLoopback(a)).toBe(true);
+    for (const a of ["127.evil.example", "localhost.example.com", "*x.example.com", "10.0.0.1", "[::2]", "1270.0.0.1"]) expect(isLoopback(a)).toBe(false);
+    expect(socketLogAudit('{"at":1,"host":"127.evil.example","port":443}\n', own).external).toEqual(["127.evil.example:443"]);
   });
 });

@@ -60,6 +60,10 @@ describe("take checks", () => {
     const c = credit({ local: offTopic }, "TST-02");
     expect(c.credit).toBeCloseTo(1 / 3);
     expect(c.detail).toMatch(/before their own paraphrase/);
+    // review mutants M1 and M2: a tick while the off-topic sentence is the latest line heard
+    expect(credit({ local: run({ points: [27_000, 40_000, 60_000].map((doneAtMs, i) => ({ text: "abc"[i], doneAtMs })) }) }, "TST-02").credit).toBeCloseTo(2 / 3);
+    const late = run({ heard: { edges: edges(3) }, points: [20_000, 128_000, 128_000].map((doneAtMs, i) => ({ text: "abc"[i], doneAtMs })) });
+    expect(credit({ local: late }, "TST-02").credit).toBeCloseTo(1 / 3);
     // the off-topic sentence never showed: the control did not run, so nothing can be judged
     expect(credit({ local: run({ heard: { edges: edges().filter((e) => e.line !== 1) } }) }, "TST-02").credit).toBe(0);
     expect(credit({ local: run({ heard: undefined }) }, "TST-02").credit).toBe(0);
@@ -152,5 +156,16 @@ describe("take checks", () => {
     const threeOff = passes(22).map((p, k) => (k % 7 === 6 ? { ...p, done: [p.startMs + 100, ...p.done.slice(1)] } : p));
     expect(credit({ memory: longTake({ cycles: threeOff }) }, "PERF-02").credit).toBe(0);
     expect(credit({ memory: longTake({ cycles: passes(1) }) }, "PERF-02").credit).toBe(0);
+  });
+
+  it("PERF-02: a rehearsal that stalls fails (review mutants M3 and M4)", () => {
+    // M3: every pass ticked only its first point
+    const partial = passes(22).map((p) => ({ ...p, done: [p.done[0], null, null] }));
+    expect(credit({ memory: longTake({ cycles: partial }) }, "PERF-02").credit).toBe(0);
+    // M4: two passes, then 18 minutes with no new one: one pass every 5 minutes at least
+    const stalled = credit({ memory: longTake({ cycles: passes(2) }) }, "PERF-02");
+    expect(stalled.credit).toBe(0);
+    expect(stalled.detail).toMatch(/2 rehearsal passes in 20 min \(needs 4/);
+    expect(credit({ memory: longTake({ cycles: passes(4) }) }, "PERF-02").credit).toBeCloseTo(20 / 45);
   });
 });

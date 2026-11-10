@@ -7,7 +7,8 @@
 export const VOICE = { lineOfPoint: [0, 2, 3], offTopicLine: 1 };
 
 // ---------- addresses ----------
-export const isLoopback = (addr) => /^(127\.|\[::1\]|::1$|0\.0\.0\.0|\[::\]|\*|localhost$)/i.test(addr);
+/** An address or host name on this machine only (exact forms: "127.evil.example" is a host name, not loopback). */
+export const isLoopback = (addr) => /^(127(\.\d{1,3}){3}|\[?::1\]?|\[?::ffff:127(\.\d{1,3}){3}\]?|0\.0\.0\.0|\[::\]|::|\*|localhost)$/i.test(String(addr));
 /** "1.2.3.4:80" or "[::1]:80" -> ["1.2.3.4", "80"] */
 export const splitAddr = (a) => { const i = a.lastIndexOf(":"); return [a.slice(0, i), a.slice(i + 1)]; };
 
@@ -152,17 +153,21 @@ export class HeardTracker {
 
 /**
  * Whether every point of a pass ticked from speech heard in that pass: point i is "fresh" when its own
- * line was heard between the start of the pass (Start, or the Reset that began it) and its tick.
+ * line was heard between the start of the pass (Start, or the Reset that began it) and its tick. With
+ * offTopicLine, a tick that lands while the off-topic sentence is the latest line heard is stale too
+ * (the negative control: that sentence must tick nothing).
  * @param pass { startMs, done: (number|null)[] } done times of the points, ms since Start
  * @param edges HeardTracker edges
- * @returns {{ fresh: boolean, stale: number[] }} stale: points that ticked without their line being heard in the pass
+ * @returns {{ fresh: boolean, stale: number[] }} fresh: every point ticked, none stale; stale: points
+ *   that ticked without their line being heard in the pass (or during the off-topic sentence)
  */
-export function passFresh(pass, edges, lineOfPoint = VOICE.lineOfPoint) {
+export function passFresh(pass, edges, lineOfPoint = VOICE.lineOfPoint, offTopicLine = null) {
   const stale = [];
   pass.done.forEach((doneAt, i) => {
     if (doneAt == null) return;
     const heard = edges.some((e) => e.line === lineOfPoint[i] && e.atMs >= pass.startMs && e.atMs <= doneAt);
-    if (!heard) stale.push(i);
+    const latest = edges.filter((e) => e.atMs <= doneAt).at(-1);
+    if (!heard || (offTopicLine !== null && latest?.line === offTopicLine)) stale.push(i);
   });
-  return { fresh: stale.length === 0 && pass.done.some((d) => d != null), stale };
+  return { fresh: stale.length === 0 && pass.done.length > 0 && pass.done.every((d) => d != null), stale };
 }

@@ -307,7 +307,7 @@ const readState = `(() => {
   const stop = buttons.find((b) => ${JSON.stringify(STOP)}.some((s) => b.textContent.includes(s)));
   // Errors on screen; the OFFLINE chip is a status (it is how offline mode shows), read apart.
   const shown = [...document.querySelectorAll(".chip.err, [role=alert]")].map((e) => e.textContent.trim()).filter(Boolean);
-  const offlineChip = shown.some((s) => ${JSON.stringify(OFFLINE_CHIP)}.includes(s));
+  const offlineChip = [...document.querySelectorAll(".chip")].some((e) => ${JSON.stringify(OFFLINE_CHIP)}.includes(e.textContent.trim()));
   const errs = shown.filter((s) => !${JSON.stringify(OFFLINE_CHIP)}.includes(s));
   return { rows, transcript: document.getElementById("prompter-transcript-text")?.textContent ?? "",
     startEnabled: Boolean(start && !start.disabled), recording: Boolean(stop), dialog: Boolean(document.querySelector(".startmode")), errs, offlineChip,
