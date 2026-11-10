@@ -3,7 +3,7 @@ import { askRecipient, CONSENT_HEADER, photoRecipient, voiceRecipient, withConse
 import { createOutboundController, NoConsentError } from "./outboundClient";
 
 const google = askRecipient("google/gemini-2.5-flash");
-const recipients: BuddyRecipients = { offline: false, ask: google, voice: voiceRecipient(), photo: photoRecipient(), decision: { openrouter: "google/gemini-2.5-flash-lite", cloudflare: "@cf/x/y" } };
+const recipients: BuddyRecipients = { offline: false, ask: google, voice: voiceRecipient(), photo: photoRecipient(), screen: google, script: google, decision: { openrouter: "google/gemini-2.5-flash-lite", cloudflare: "@cf/x/y" } };
 
 /** A panel in miniature: stored choices, a signal log and the notice on screen. */
 function rig(start: ConsentMap = {}, opts: { saveFails?: boolean } = {}) {

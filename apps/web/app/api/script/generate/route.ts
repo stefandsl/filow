@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { generateScript, parseScript, slideNeedsImage, type GenerateRequest, type SlideInput } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
 import { anonymizeRequest, piiMode, restore } from "@/lib/pii/guard";
-import { generateSlideOllama, generateSlideOpenRouter, resolveGenerateProvider } from "@/lib/generate/providers";
+import { generateSlideOllama, generateSlideOpenRouter, resolveGenerateProvider, scriptRecipient } from "@/lib/generate/providers";
+import { consentDenied } from "@/lib/buddy/outbound";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -40,6 +41,11 @@ export async function POST(req: Request) {
 
   const provider = resolveGenerateProvider(body.provider);
   const cloud = provider === "openrouter";
+  if (cloud) {
+    // Slide text and pictures leave this PC: only with the user's recorded yes for this exact recipient.
+    const refused = consentDenied(req, "script", scriptRecipient());
+    if (refused) return refused;
+  }
   const run = cloud ? generateSlideOpenRouter : generateSlideOllama;
   const guard = cloud && piiMode() !== "off";
 

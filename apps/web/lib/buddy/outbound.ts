@@ -6,9 +6,11 @@
 // maker asks again.
 
 /** ask: question + screenshots. voice: answer text. audio: microphone. photo: a card's subject name.
- *  agent: task + last answer, through a coding CLI. transcript: spoken words, for take decisions. */
-export type OutboundKind = "ask" | "voice" | "audio" | "photo" | "agent" | "transcript";
-export const OUTBOUND_KINDS: OutboundKind[] = ["ask", "voice", "audio", "photo", "agent", "transcript"];
+ *  agent: task + last answer, through a coding CLI. transcript: spoken words, for take decisions.
+ *  screen: pictures of the shared screen during a take. script: script text and slide pictures,
+ *  for writing or translating a script. */
+export type OutboundKind = "ask" | "voice" | "audio" | "photo" | "agent" | "transcript" | "screen" | "script";
+export const OUTBOUND_KINDS: OutboundKind[] = ["ask", "voice", "audio", "photo", "agent", "transcript", "screen", "script"];
 /** names: who receives it, in order (the router first, then the maker of the model). */
 export type Recipient = { id: string; names: string[] };
 export type ConsentState = "granted" | "declined";
@@ -54,6 +56,22 @@ export function askRecipient(model: string): Recipient {
   if (!vendor) return { id: "openrouter", names: ["OpenRouter"] };
   return { id: `openrouter/${vendor}`, names: ["OpenRouter", vendorName(vendor)] };
 }
+const makerOf = (model: string) => {
+  const at = model.indexOf("/");
+  return at > 0 ? slug(model.slice(0, at)) : "";
+};
+/** True when two OpenRouter model ids come from the same maker: a yes for one covers the other. */
+export const sameMaker = (a: string, b: string) => makerOf(a) !== "" && makerOf(a) === makerOf(b);
+
+/**
+ * A feature that may use more than one OpenRouter model (text and vision): every maker is named.
+ * One maker gives the same recipient as `askRecipient`, so the wording and the stored key match.
+ */
+export function routerRecipient(models: string[]): Recipient {
+  const makers = [...new Set(models.map(makerOf).filter(Boolean))].sort();
+  if (makers.length === 0) return { id: "openrouter", names: ["OpenRouter"] };
+  return { id: `openrouter/${makers.join("+")}`, names: ["OpenRouter", ...makers.map(vendorName)] };
+}
 export const voiceRecipient = (): Recipient => ({ id: "elevenlabs", names: ["ElevenLabs"] });
 export const photoRecipient = (): Recipient => ({ id: "wikipedia", names: ["Wikipedia"] });
 
@@ -96,7 +114,8 @@ export function joinNames(names: string[], and: string): string {
 /** "OpenRouter and then to Google, the maker of the model you chose", or just the one name. */
 export function whoPhrase(recipient: Recipient, viaTemplate: string, and: string): string {
   const [a, b] = recipient.names;
-  if (recipient.id.startsWith("openrouter/") && a && b) return viaTemplate.replace("{a}", a).replace("{b}", b);
+  // Exactly a router and one maker; with more makers every name is listed, none is dropped.
+  if (recipient.id.startsWith("openrouter/") && recipient.names.length === 2 && a && b) return viaTemplate.replace("{a}", a).replace("{b}", b);
   return joinNames(recipient.names, and);
 }
 
@@ -146,6 +165,10 @@ export type BuddyRecipients = {
   photo: Recipient;
   /** Models behind the take page's cloud deciders; the page names their makers from these. */
   decision: DecisionModels;
+  /** Who reads pictures of the shared screen during a take (Screen Sense). */
+  screen: Recipient;
+  /** Who reads the script and the slide pictures when a script is written or translated in the cloud. */
+  script: Recipient;
 };
 
 /**

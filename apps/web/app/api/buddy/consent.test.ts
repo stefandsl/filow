@@ -20,7 +20,8 @@ const get = (url: string, consent?: string) => new Request(url, { headers: conse
 beforeEach(() => {
   for (const [key, value] of Object.entries({ ACCESS_PASSWORD: "", FILOW_OFFLINE: "", BUDDY_PROVIDER: "", BUDDY_CLOUD_MODEL: "", BUDDY_LOCAL_MODEL: "qwen3-vl:2b",
     OPENROUTER_API_KEY: "test-key-not-real", ELEVENLABS_API_KEY: "test-key-not-real", OPENAI_API_KEY: "test-key-not-real",
-    OPENROUTER_DECISION_MODEL: "", CLEF_CLOUDFLARE_MODEL: "", OLLAMA_URL: "http://127.0.0.1:11434" })) vi.stubEnv(key, value);
+    OPENROUTER_DECISION_MODEL: "", CLEF_CLOUDFLARE_MODEL: "", OPENROUTER_VISION_MODEL: "", OPENROUTER_GENERATE_MODEL: "", OPENROUTER_GENERATE_VISION_MODEL: "",
+    OLLAMA_URL: "http://127.0.0.1:11434" })) vi.stubEnv(key, value);
   net = vi.fn(async (url: string) => {
     if (String(url).includes("openrouter.ai")) return new Response('data: {"choices":[{"delta":{"content":"Hello"}}]}\n\ndata: [DONE]\n\n');
     if (String(url).includes("/api/chat")) return new Response('{"message":{"content":"Hi"},"done":true}\n');
@@ -113,7 +114,16 @@ describe("recipient names: /api/buddy/recipients", () => {
       ask: { id: "openrouter/google", names: ["OpenRouter", "Google"] },
       voice: { id: "elevenlabs", names: ["ElevenLabs"] },
       photo: { id: "wikipedia", names: ["Wikipedia"] },
+      screen: { id: "openrouter/google", names: ["OpenRouter", "Google"] },
+      script: { id: "openrouter/google", names: ["OpenRouter", "Google"] },
       decision: { openrouter: "google/gemini-2.5-flash-lite", cloudflare: "@cf/cloudflare/clef-flash" },
+    });
+    // A script that is written by one maker and read by another names both.
+    vi.stubEnv("OPENROUTER_VISION_MODEL", "openai/gpt-4o-mini");
+    vi.stubEnv("OPENROUTER_GENERATE_VISION_MODEL", "anthropic/claude-sonnet-4");
+    expect(await (await recipients()).json()).toMatchObject({
+      screen: { id: "openrouter/openai", names: ["OpenRouter", "OpenAI"] },
+      script: { id: "openrouter/anthropic+google", names: ["OpenRouter", "Anthropic", "Google"] },
     });
     vi.stubEnv("BUDDY_CLOUD_MODEL", "anthropic/claude-sonnet-4");
     vi.stubEnv("OPENROUTER_DECISION_MODEL", "openai/gpt-4o-mini");

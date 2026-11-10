@@ -14,7 +14,10 @@ import { POST as buddyAsk } from "./buddy/ask/route";
 import { POST as buddyTts } from "./buddy/tts/route";
 import { GET as buddyPhoto } from "./buddy/photo/route";
 
-const request = (body: unknown) => new Request("http://unit.invalid/api", { method: "POST", body: JSON.stringify(body) });
+const request = (body: unknown, consent?: string) =>
+  new Request("http://unit.invalid/api", { method: "POST", body: JSON.stringify(body), headers: consent ? { "x-filow-consent": consent } : {} });
+// The user's recorded yes for the default models: these tests look at what happens after it.
+const YES = { script: "script:openrouter/google", screen: "screen:openrouter/google", transcript: "transcript:openrouter/google" };
 const privateText = "Contact audit@example.invalid";
 let outbound: ReturnType<typeof vi.fn>;
 beforeEach(() => {
@@ -22,7 +25,7 @@ beforeEach(() => {
   for (const [key, value] of Object.entries({ ACCESS_PASSWORD: "", FILOW_OFFLINE: "1", PII_GUARD: "strict",
     OPENROUTER_API_KEY: "fake", OPENAI_API_KEY: "fake", ELEVENLABS_API_KEY: "fake",
     DECISION_PROVIDER: "openrouter", GENERATE_PROVIDER: "openrouter", OLLAMA_URL: "http://127.0.0.1:11434",
-    PII_SERVER_URL: "http://pii.invalid" })) vi.stubEnv(key, value);
+    PII_SERVER_URL: "http://pii.invalid", OPENROUTER_DECISION_MODEL: "", OPENROUTER_VISION_MODEL: "", OPENROUTER_GENERATE_MODEL: "", OPENROUTER_GENERATE_VISION_MODEL: "" })) vi.stubEnv(key, value);
   outbound = vi.fn(async (url: string) => {
     if (url.endsWith("/health")) return new Response("unavailable", { status: 503 });
     return Response.json({ token: "fake", value: "fake", answers: {},
@@ -99,7 +102,7 @@ describe("Step 4 provider boundaries", () => {
   });
   // Contract: ARCHITECTURE.md §6.10 offline forces local providers; Q4 prohibits offline text upload.
   it("offline translation must not upload the script to OpenRouter", async () => {
-    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it" }));
+    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it" }, YES.script));
     expect(res.status).toBe(200);
     expect(outbound, "offline translation must make no cloud request").not.toHaveBeenCalled();
     expect(await res.json()).toMatchObject({ unavailable: "disabled", model: "offline" });
@@ -107,7 +110,7 @@ describe("Step 4 provider boundaries", () => {
   // Contract: guard.ts:1 and ARCHITECTURE.md §6.10: PII guard for text leaving for cloud.
   it("strict PII translation must not send unguarded personal text", async () => {
     vi.stubEnv("FILOW_OFFLINE", "");
-    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it" }));
+    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it" }, YES.script));
     const cloudCalls = outbound.mock.calls.filter(c => c[0].includes("openrouter.ai"));
     expect(cloudCalls, "strict PII must refuse cloud translation when Rizzo is unavailable").toHaveLength(0);
     expect(res.status).toBe(502);
@@ -118,7 +121,7 @@ describe("Step 4 provider boundaries", () => {
     outbound.mockImplementation(async (url: string) => url.endsWith("/health")
       ? new Response("unavailable", { status: 503 })
       : Response.json({ choices: [{ message: { content: "# A\n- Contatta [EMAIL_1]" } }] }));
-    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it" }));
+    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it" }, YES.script));
     expect(res.status).toBe(200);
     expect(JSON.stringify(outbound.mock.calls[1])).not.toContain("audit@example.invalid");
     expect(JSON.stringify(outbound.mock.calls[1])).toContain("[EMAIL_1]");
@@ -134,8 +137,8 @@ describe("Step 4 provider boundaries", () => {
   }
   it("local decision selection does not select local vision or translation", async () => {
     vi.stubEnv("FILOW_OFFLINE", ""); vi.stubEnv("DECISION_PROVIDER", "clef-local"); vi.stubEnv("PII_GUARD", "off");
-    await vision(request({ image: "data:image/png;base64,YQ==" }));
-    await translate(request({ text: "# A\n- B", to: "it" }));
+    await vision(request({ image: "data:image/png;base64,YQ==" }, YES.screen));
+    await translate(request({ text: "# A\n- B", to: "it" }, YES.script));
     expect(outbound.mock.calls.map(c => c[0])).toEqual(Array(2).fill("https://openrouter.ai/api/v1/chat/completions"));
   });
   it("a configured remote Ollama receives raw text even with the offline flag", async () => {
@@ -151,14 +154,14 @@ describe("Step 4 provider boundaries", () => {
   });
   it("strict cloud decide refuses an unavailable PII sidecar before uploading to the model", async () => {
     vi.stubEnv("FILOW_OFFLINE", "");
-    const res = await decide(request({ transcript: privateText, sectionTitle: "A", bullets: [{ id: "b", text: "B" }] }));
+    const res = await decide(request({ transcript: privateText, sectionTitle: "A", bullets: [{ id: "b", text: "B" }] }, YES.transcript));
     expect(res.status).toBe(502);
     expect(outbound.mock.calls.map(c => c[0])).toEqual(["http://pii.invalid/health"]);
   });
   it("normal cloud decide regex-redacts every documented text field when Rizzo is unavailable", async () => {
     vi.stubEnv("FILOW_OFFLINE", ""); vi.stubEnv("PII_GUARD", "on");
     await decide(request({ transcript: privateText, sectionTitle: privateText, bullets: [{ id: "b", text: privateText }],
-      covered: [privateText], upcoming: [privateText], onScreen: [privateText] }));
+      covered: [privateText], upcoming: [privateText], onScreen: [privateText] }, YES.transcript));
     expect(outbound.mock.calls.map(c => c[0])).toEqual(["http://pii.invalid/health", "https://openrouter.ai/api/v1/chat/completions"]);
     expect(JSON.stringify(outbound.mock.calls[1])).not.toContain("audit@example.invalid");
     expect(JSON.stringify(outbound.mock.calls[1])).toContain("[EMAIL_1]");

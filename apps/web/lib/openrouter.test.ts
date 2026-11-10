@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fallbackModels, openRouterChat } from "./openrouter";
+import { fallbackModels, openRouterChat, routedModels } from "./openrouter";
 
 const ok = (model: string) => new Response(JSON.stringify({ model, choices: [{ message: { content: "{}" } }], usage: { cost: 0.001 } }), { status: 200 });
 
@@ -17,8 +17,9 @@ describe("openRouterChat", () => {
     vi.stubGlobal("fetch", fetchMock);
     const r = await openRouterChat("google/gemini-2.5-flash-lite", "text", { messages: [] });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(calls[0].models).toEqual(["google/gemini-2.5-flash-lite", ...fallbackModels("text")]);
-    expect((calls[0].models as string[]).length).toBeLessThanOrEqual(3);
+    // The OpenAI fallback is left out: the user said yes to Google, not to OpenAI.
+    expect(fallbackModels("text")).toContain("openai/gpt-4o-mini");
+    expect(calls[0].models).toEqual(["google/gemini-2.5-flash-lite", "google/gemini-2.0-flash-001"]);
     expect(r.model).toBe("google/gemini-2.0-flash-001");
     expect(r.cost).toBe(0.001);
   });
@@ -33,14 +34,22 @@ describe("openRouterChat", () => {
 
   it("never sends more than 3 models even with a long fallback list", async () => {
     process.env.OPENROUTER_API_KEY = "k";
-    process.env.OPENROUTER_FALLBACK_MODELS = "a/b,c/d,e/f,g/h";
+    process.env.OPENROUTER_FALLBACK_MODELS = "m/2,m/3,m/4,m/5";
     const calls: Array<Record<string, unknown>> = [];
     vi.stubGlobal("fetch", vi.fn(async (_u: string, init: RequestInit) => {
       calls.push(JSON.parse(String(init.body)));
-      return ok("a/b");
+      return ok("m/2");
     }));
     await openRouterChat("m/1", "text", { messages: [] });
-    expect(calls[0].models).toEqual(["m/1", "a/b", "c/d"]);
+    expect(calls[0].models).toEqual(["m/1", "m/2", "m/3"]);
+    delete process.env.OPENROUTER_FALLBACK_MODELS;
+  });
+
+  it("never falls back to a model from another maker, whatever the fallback list says", () => {
+    process.env.OPENROUTER_FALLBACK_MODELS = "openai/gpt-4o-mini,anthropic/claude-haiku,google/gemini-2.0-flash-001";
+    expect(routedModels("google/gemini-2.5-flash", "vision")).toEqual(["google/gemini-2.5-flash", "google/gemini-2.0-flash-001"]);
+    expect(routedModels("openai/gpt-4o", "text")).toEqual(["openai/gpt-4o", "openai/gpt-4o-mini"]);
+    expect(routedModels("no-maker", "text")).toEqual(["no-maker"]);
     delete process.env.OPENROUTER_FALLBACK_MODELS;
   });
 

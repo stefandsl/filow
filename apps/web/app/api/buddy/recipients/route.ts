@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { CLEF_CLOUDFLARE_MODEL } from "@/lib/decide/clef";
 import { OPENROUTER_DECISION_MODEL } from "@/lib/decide/openrouter";
-import { photoRecipient, voiceRecipient, type BuddyRecipients } from "@/lib/buddy/outbound";
+import { askRecipient, photoRecipient, voiceRecipient, type BuddyRecipients } from "@/lib/buddy/outbound";
+import { scriptRecipient } from "@/lib/generate/providers";
+import { VISION_MODEL } from "@/lib/vision/openrouter";
 import { buddyCloudRecipient } from "@/lib/buddy/providers";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +18,8 @@ export async function GET() {
     ask: buddyCloudRecipient(),
     voice: voiceRecipient(),
     photo: photoRecipient(),
+    screen: askRecipient(VISION_MODEL()),
+    script: scriptRecipient(),
     decision: { openrouter: OPENROUTER_DECISION_MODEL(), cloudflare: CLEF_CLOUDFLARE_MODEL() },
   });
 }

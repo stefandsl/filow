@@ -14,12 +14,15 @@ import {
   noticeBody,
   OUTBOUND_KINDS,
   photoRecipient,
+  routerRecipient,
+  sameMaker,
   standing,
   sttRecipient,
   takeOutbound,
   vendorName,
   voiceRecipient,
   voiceRoute,
+  whoPhrase,
   withoutConsent,
   withConsent,
   type ConsentMap,
@@ -69,6 +72,27 @@ describe("recipient naming comes from the provider and the model in use", () => 
     expect(decisionRecipient("openrouter", { openrouter: "google/gemini-2.5-flash-lite", cloudflare: "@cf/cloudflare/clef-flash" })).toEqual({ id: "openrouter/google", names: ["OpenRouter", "Google"] });
     expect(decisionRecipient("clef-cloudflare", { openrouter: "x/y", cloudflare: "@cf/cloudflare/clef-flash" })).toEqual({ id: "cloudflare", names: ["Cloudflare"] });
     expect(decisionRecipient("clef-local", { openrouter: "x/y", cloudflare: "z" })).toBeNull();
+  });
+
+  it("a feature that uses two models names every maker, and one maker reads like a question", () => {
+    expect(routerRecipient(["google/gemini-2.5-flash-lite", "google/gemini-2.5-flash"])).toEqual(askRecipient("google/gemini-2.5-flash"));
+    expect(routerRecipient(["openai/gpt-4o-mini", "google/gemini-2.5-flash"])).toEqual({ id: "openrouter/google+openai", names: ["OpenRouter", "Google", "OpenAI"] });
+    // The order of the models does not change the stored key.
+    expect(routerRecipient(["google/gemini-2.5-flash", "openai/gpt-4o-mini"]).id).toBe("openrouter/google+openai");
+    expect(routerRecipient(["auto", ""])).toEqual({ id: "openrouter", names: ["OpenRouter"] });
+  });
+
+  it("with more than one maker the sentence lists them all instead of dropping the last", () => {
+    const via = "{a} and then to {b}, the maker of the model you chose";
+    expect(whoPhrase(askRecipient("google/gemini-2.5-flash"), via, "and")).toBe("OpenRouter and then to Google, the maker of the model you chose");
+    expect(whoPhrase(routerRecipient(["openai/gpt-4o-mini", "google/gemini-2.5-flash"]), via, "and")).toBe("OpenRouter, Google and OpenAI");
+    expect(whoPhrase({ id: "elevenlabs", names: ["ElevenLabs"] }, via, "and")).toBe("ElevenLabs");
+  });
+
+  it("only a fallback from the same maker is covered by the same yes", () => {
+    expect(sameMaker("google/gemini-2.5-flash", "google/gemini-2.5-pro")).toBe(true);
+    expect(sameMaker("google/gemini-2.5-flash", "openai/gpt-4o-mini")).toBe(false);
+    expect(sameMaker("auto", "auto")).toBe(false);
   });
 
   it("joins names for a sentence", () => {

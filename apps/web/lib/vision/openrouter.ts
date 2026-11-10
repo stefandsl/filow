@@ -4,6 +4,8 @@ import { buildVisionUserPrompt, parseScreenSummary, VISION_SYSTEM_PROMPT, type V
 import { openRouterChat } from "@/lib/openrouter";
 
 export const DEFAULT_VISION_MODEL = "google/gemini-2.5-flash";
+/** The model Screen Sense frames go to. The notice names its maker (lib/buddy/outbound.ts). */
+export const VISION_MODEL = () => process.env.OPENROUTER_VISION_MODEL || DEFAULT_VISION_MODEL;
 
 /** Rough guard: a 1280×720 JPEG at q0.8 is ~150–300 KB; refuse anything absurd. */
 export const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
@@ -17,7 +19,7 @@ export function dataUrlBytes(dataUrl: string): number {
 export async function describeFrame(body: VisionRequest): Promise<VisionResponse> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set. Screen Sense needs a multimodal model on OpenRouter.");
-  const model = process.env.OPENROUTER_VISION_MODEL || DEFAULT_VISION_MODEL;
+  const model = VISION_MODEL();
   const started = Date.now();
   const text = buildVisionUserPrompt(body.context) + (body.question ? `\n\nPRESENTER'S QUESTION: ${body.question}` : "");
   const { content, cost, model: used } = await openRouterChat(model, "vision", {

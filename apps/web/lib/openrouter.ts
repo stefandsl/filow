@@ -3,6 +3,8 @@
 // free-tier models on the shared pool return 429 "temporarily rate-limited upstream" at busy hours;
 // without this every Screen Sense frame or decision failed outright.
 
+import { sameMaker } from "@/lib/buddy/outbound";
+
 /** Extra models tried after the configured one. Override with OPENROUTER_FALLBACK_MODELS (comma list). */
 export function fallbackModels(kind: "text" | "vision"): string[] {
   const env = process.env.OPENROUTER_FALLBACK_MODELS;
@@ -10,7 +12,17 @@ export function fallbackModels(kind: "text" | "vision"): string[] {
   return kind === "vision" ? ["google/gemini-2.5-flash", "openai/gpt-4o-mini"] : ["google/gemini-2.0-flash-001", "openai/gpt-4o-mini"];
 }
 
-export type OpenRouterResult = { json: Record<string, unknown>; content: string; cost: number | null; model: string };
+/**
+ * The `models` list sent to OpenRouter: the configured model, then fallbacks from the SAME maker only.
+ * The user is told, and says yes to, one maker (lib/buddy/outbound.ts); a fallback to another maker
+ * would send their content to a company the notice never named.
+ * OpenRouter accepts at most 3 entries (primary + 2 fallbacks); more is a 400.
+ */
+export function routedModels(model: string, kind: "text" | "vision"): string[] {
+  return [model, ...fallbackModels(kind).filter((m) => m !== model && sameMaker(m, model))].slice(0, 3);
+}
+
+export type OpenRouterResult ={ json: Record<string, unknown>; content: string; cost: number | null; model: string };
 
 /**
  * POST /chat/completions with `models: [model, ...fallbacks]`, retrying once or twice on 429 and 5xx
@@ -19,8 +31,7 @@ export type OpenRouterResult = { json: Record<string, unknown>; content: string;
 export async function openRouterChat(model: string, kind: "text" | "vision", payload: Record<string, unknown>, opts: { retries?: number } = {}): Promise<OpenRouterResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set.");
-  // OpenRouter accepts at most 3 entries in `models` (primary + 2 fallbacks); more is a 400.
-  const models = [model, ...fallbackModels(kind).filter((m) => m !== model)].slice(0, 3);
+  const models = routedModels(model, kind);
   const retries = opts.retries ?? 2;
   let lastError = "";
   for (let attempt = 0; attempt <= retries; attempt++) {
