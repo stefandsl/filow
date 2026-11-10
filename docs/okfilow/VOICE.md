@@ -151,7 +151,9 @@ release-t7-c (electron-builder --dir, filowQa), profile G:/FILOW/tmp/t7-profile,
 CDP 9356. Answers came from OK Filow's real local path (/api/buddy/ask to Ollama /api/chat), with
 Ollama replaced by a local stand-in (G:/FILOW/tmp/t7-work/mock-ollama.mjs, OLLAMA_URL) because this PC
 has no local model. Questions typed into the panel over CDP; the QA hook wrote the audio the main
-process sent to the panel (G:/FILOW/tmp/t7-qa-tts-c/results.json, e2e.log).
+process sent to the panel (G:/FILOW/tmp/t7-qa-tts-c/results.json, e2e.log). The final build,
+release-t7-d (after the review fixes), repeated the whole run: five languages at 0% WER/CER, warm first
+audio 460-717 ms, cut median 2 ms, worst 5 ms (G:/FILOW/tmp/t7-qa-tts-d).
 
 - All five languages answered with the natural voice (44.1 kHz Supertonic audio, standard setting,
   4 threads), every piece sent, and the captured audio transcribed with 0% WER/CER in each language.
