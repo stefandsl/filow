@@ -9,14 +9,14 @@
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T02:21:19.520Z",
+  "at": "2026-11-10T09:22:52.329Z",
   "corpus": "journey-it",
   "late": 0,
   "calls": 12,
   "latencyMs": {
-    "p50": 764,
-    "p95": 896,
-    "max": 896,
+    "p50": 778,
+    "p95": 970,
+    "max": 970,
     "avg": 771
   },
   "timeouts": 0,

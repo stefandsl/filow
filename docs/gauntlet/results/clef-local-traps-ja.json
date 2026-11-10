@@ -1,0 +1,406 @@
+{
+  "provider": "clef-local",
+  "variant": "default",
+  "engine": {
+    "timeoutMs": 2500
+  },
+  "machine": {
+    "cpu": "13th Gen Intel(R) Core(TM) i9-13900KF",
+    "ramGb": 128,
+    "platform": "win32"
+  },
+  "at": "2026-11-10T09:24:02.831Z",
+  "corpus": "traps-ja",
+  "late": 0,
+  "calls": 17,
+  "latencyMs": {
+    "p50": 852,
+    "p95": 980,
+    "max": 980,
+    "avg": 833
+  },
+  "timeouts": 0,
+  "points": [
+    {
+      "pointId": "s0b0",
+      "trail": [
+        {
+          "sec": 2,
+          "confidence": 0.12,
+          "started": false
+        },
+        {
+          "sec": 8,
+          "confidence": 0.12,
+          "started": false
+        },
+        {
+          "sec": 14,
+          "confidence": 0.13,
+          "started": false
+        },
+        {
+          "sec": 20,
+          "confidence": 0.13,
+          "started": false
+        },
+        {
+          "sec": 26,
+          "confidence": 0.12,
+          "started": false
+        },
+        {
+          "sec": 26,
+          "confidence": 0.12,
+          "started": false
+        }
+      ],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s0b1",
+      "trail": [
+        {
+          "sec": 2,
+          "confidence": 0.07,
+          "started": false
+        },
+        {
+          "sec": 8,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 14,
+          "confidence": 0.14,
+          "started": false
+        },
+        {
+          "sec": 20,
+          "confidence": 0.17,
+          "started": false
+        },
+        {
+          "sec": 26,
+          "confidence": 0.16,
+          "started": false
+        },
+        {
+          "sec": 26,
+          "confidence": 0.15,
+          "started": false
+        }
+      ],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s0b2",
+      "trail": [
+        {
+          "sec": 2,
+          "confidence": 0.07,
+          "started": false
+        },
+        {
+          "sec": 8,
+          "confidence": 0.02,
+          "started": false
+        },
+        {
+          "sec": 14,
+          "confidence": 0.02,
+          "started": false
+        },
+        {
+          "sec": 20,
+          "confidence": 0.16,
+          "started": false
+        },
+        {
+          "sec": 26,
+          "confidence": 0.14,
+          "started": false
+        },
+        {
+          "sec": 26,
+          "confidence": 0.14,
+          "started": false
+        }
+      ],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s0b3",
+      "trail": [
+        {
+          "sec": 2,
+          "confidence": 0.07,
+          "started": false
+        },
+        {
+          "sec": 8,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 14,
+          "confidence": 0.02,
+          "started": false
+        },
+        {
+          "sec": 20,
+          "confidence": 0.02,
+          "started": false
+        },
+        {
+          "sec": 26,
+          "confidence": 0.98,
+          "started": true
+        },
+        {
+          "sec": 26,
+          "confidence": 0.98,
+          "started": true
+        }
+      ],
+      "labelSec": 26,
+      "flippedSec": 26,
+      "outcome": "correct",
+      "delaySec": 0
+    },
+    {
+      "pointId": "s1b0",
+      "trail": [
+        {
+          "sec": 32,
+          "confidence": 0.05,
+          "started": false
+        },
+        {
+          "sec": 32,
+          "confidence": 0.06,
+          "started": false
+        },
+        {
+          "sec": 38,
+          "confidence": 0.93,
+          "started": true
+        },
+        {
+          "sec": 38,
+          "confidence": 0.95,
+          "started": true
+        }
+      ],
+      "labelSec": 38,
+      "flippedSec": 38,
+      "outcome": "correct",
+      "delaySec": 0
+    },
+    {
+      "pointId": "s1b1",
+      "trail": [
+        {
+          "sec": 32,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 32,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 38,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 38,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 44,
+          "confidence": 0.7,
+          "started": true
+        },
+        {
+          "sec": 50,
+          "confidence": 0.54,
+          "started": false
+        }
+      ],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s1b2",
+      "trail": [
+        {
+          "sec": 32,
+          "confidence": 0.15,
+          "started": false
+        },
+        {
+          "sec": 32,
+          "confidence": 0.16,
+          "started": false
+        },
+        {
+          "sec": 38,
+          "confidence": 0.09,
+          "started": false
+        },
+        {
+          "sec": 38,
+          "confidence": 0.09,
+          "started": false
+        },
+        {
+          "sec": 44,
+          "confidence": 0.05,
+          "started": false
+        },
+        {
+          "sec": 50,
+          "confidence": 0.05,
+          "started": false
+        }
+      ],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s1b3",
+      "trail": [
+        {
+          "sec": 32,
+          "confidence": 0.97,
+          "started": true
+        },
+        {
+          "sec": 32,
+          "confidence": 0.97,
+          "started": true
+        }
+      ],
+      "labelSec": 32,
+      "flippedSec": 32,
+      "outcome": "correct",
+      "delaySec": 0
+    },
+    {
+      "pointId": "s2b0",
+      "trail": [
+        {
+          "sec": 56,
+          "confidence": 0.07,
+          "started": false
+        },
+        {
+          "sec": 56,
+          "confidence": 0.08,
+          "started": false
+        },
+        {
+          "sec": 64,
+          "confidence": 0.08,
+          "started": false
+        },
+        {
+          "sec": 72,
+          "confidence": 0.07,
+          "started": false
+        },
+        {
+          "sec": 78,
+          "confidence": 0.08,
+          "started": false
+        }
+      ],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s2b1",
+      "trail": [
+        {
+          "sec": 56,
+          "confidence": 0.02,
+          "started": false
+        },
+        {
+          "sec": 56,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 64,
+          "confidence": 0.03,
+          "started": false
+        },
+        {
+          "sec": 72,
+          "confidence": 0.17,
+          "started": false
+        },
+        {
+          "sec": 78,
+          "confidence": 0.19,
+          "started": false
+        }
+      ],
+      "labelSec": null,
+      "flippedSec": null,
+      "outcome": "never-started-ok",
+      "delaySec": null
+    },
+    {
+      "pointId": "s2b2",
+      "trail": [
+        {
+          "sec": 56,
+          "confidence": 0.96,
+          "started": true
+        },
+        {
+          "sec": 56,
+          "confidence": 0.96,
+          "started": true
+        }
+      ],
+      "labelSec": 56,
+      "flippedSec": 56,
+      "outcome": "correct",
+      "delaySec": 0
+    }
+  ],
+  "guarded": 1,
+  "verified": 4,
+  "vetoed": 0,
+  "falseStarts": 0,
+  "misses": 0,
+  "correct": 4,
+  "delaySec": {
+    "p50": 0,
+    "p95": 0
+  },
+  "precision": 1,
+  "recall": 1
+}
