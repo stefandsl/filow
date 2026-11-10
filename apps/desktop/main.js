@@ -299,8 +299,8 @@ let uiPreferences, welcomeController, welcomeWin = null;
 let startupTransition = false, quitting = false;
 let welcomeHydrationTimer;
 const { probeSetup, setupOffer, setupChoice, createOfferGate } = require("./welcome-setup");
-/** shown: the welcome's speech-setup step was answered; choice: that answer (install choices or null); rec: the scan's recommendation. */
-const welcomeSetup = { shown: false, choice: null, rec: null };
+/** shown: the welcome's speech-setup step was answered; choice: that answer (install choices or null); rec, installed: what the offer was made from. */
+const welcomeSetup = { shown: false, choice: null, rec: null, installed: null };
 // The hardware scan behind the offer waits until the welcome window is on screen (opened in welcome:ready).
 const welcomeOffer = createOfferGate(computeWelcomeOffer);
 const welcomeSetupOffer = () => welcomeOffer.get();
@@ -312,9 +312,15 @@ async function computeWelcomeOffer() {
   const installed = await probeSetup({
     fetchJson: () => fetch(`${ollama}/api/tags`, { signal: AbortSignal.timeout(1500) }).then((r) => (r.ok ? r.json() : null)),
     sherpaReady: () => sttLocal.modelReady(userData),
+    // Chromium's CacheStorage for this profile: empty or absent = no Whisper model can be cached yet.
+    browserCache: () => {
+      const dir = path.join(userData, "Service Worker", "CacheStorage");
+      return fs.existsSync(dir) && fs.readdirSync(dir).length > 0;
+    },
   });
   const { net } = require("electron");
   welcomeSetup.rec = info.recommended;
+  welcomeSetup.installed = installed;
   return setupOffer({ hw: info, rec: info.recommended, catalog: localAi.CATALOG, installed, online: !offline && net.isOnline(), installerChose: installChoicesFound });
 }
 
@@ -393,7 +399,7 @@ function initializeUiPreferences() {
   ipcMain.handle("welcome:chooseSetup", async (event, accept) => {
     if (!uiSender(event, true) || typeof accept !== "boolean") throw new Error("Denied");
     const offer = await welcomeSetupOffer();
-    welcomeSetup.choice = setupChoice(offer, welcomeSetup.rec, accept);
+    welcomeSetup.choice = setupChoice(offer, welcomeSetup.rec, accept, localAi.CATALOG, welcomeSetup.installed);
     welcomeSetup.shown = true; // answered: closing the window before this step still gets the question later
     logLine(`welcome: speech setup ${accept ? "accepted" : "declined"}${welcomeSetup.choice ? ` (${welcomeSetup.choice.models.join(", ")})` : ", nothing to download"}`);
     return { ok: true };

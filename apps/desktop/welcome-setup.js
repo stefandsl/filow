@@ -12,18 +12,29 @@ function installedModels(tags) {
   return list.map((m) => String(m && m.name || "").replace(/:latest$/, "")).filter(Boolean);
 }
 
-/** What is installed right now; never throws (Ollama down = not running, nothing pulled). */
-async function probeSetup({ fetchJson, sherpaReady }) {
+/**
+ * What is installed right now; never throws (Ollama down = not running, nothing pulled). browserCache:
+ * whether the app's page cache holds anything at all (the Whisper models live there; the main process
+ * cannot look inside it, but an empty cache means they are certainly missing).
+ */
+async function probeSetup({ fetchJson, sherpaReady, browserCache = () => true }) {
   const tags = await Promise.resolve().then(fetchJson).catch(() => null);
-  let sherpa;
+  let sherpa, cache;
   try { sherpa = Boolean(sherpaReady()); } catch { sherpa = false; }
-  return { sherpa, ollamaRunning: tags !== null, ollamaModels: installedModels(tags) };
+  try { cache = Boolean(browserCache()); } catch { cache = true; }
+  return { sherpa, ollamaRunning: tags !== null, ollamaModels: installedModels(tags), browserCache: cache };
 }
 
+/** true, false, or null when it cannot be known here (a browser model with a non-empty page cache). */
 function isInstalled(name, catalog, installed) {
   if (name === "nemotron-streaming") return installed.sherpa;
   if (catalog[name] && catalog[name].ollama) return installed.ollamaModels.some((m) => String(m).replace(/:latest$/, "") === name);
-  return false; // browser models (Whisper) live in the page cache, which the main process cannot see
+  return installed.browserCache === false ? false : null;
+}
+
+/** Recommended models not known to be installed (unknown ones included: the settings page skips what it finds). */
+function toInstall(rec, catalog, installed) {
+  return rec.models.filter((n) => isInstalled(n, catalog, installed) !== true);
 }
 
 /**
@@ -31,10 +42,14 @@ function isInstalled(name, catalog, installed) {
  * installed: probeSetup(), online: network up, installerChose: the installer already picked models.
  */
 function setupOffer({ hw, rec, catalog, installed, online, installerChose = false, profile = null }) {
-  const missing = rec.models.filter((n) => !isInstalled(n, catalog, installed));
-  const downloadGb = Math.round(missing.reduce((s, n) => s + (catalog[n] ? catalog[n].dl : 0), 0) * 10) / 10;
+  const missing = toInstall(rec, catalog, installed);
+  // The size counts only what is known to be missing: a Whisper model that may already be cached is not added.
+  const known = missing.filter((n) => isInstalled(n, catalog, installed) === false);
+  const downloadGb = Math.round(known.reduce((s, n) => s + (catalog[n] ? catalog[n].dl : 0), 0) * 10) / 10;
   return {
     ask: !installerChose && rec.models.length > 0,
+    // ready: a first take needs nothing more. The rest of the recommendation (slides, screen helper) is
+    // still offered, as an optional download of downloadGb (review T3 finding 4).
     ready: !missing.some((n) => TAKE_MODELS.has(n)),
     downloadGb,
     needsOllama: Boolean(rec.ollama) && !installed.ollamaRunning && missing.some((n) => catalog[n] && catalog[n].ollama),
@@ -46,10 +61,15 @@ function setupOffer({ hw, rec, catalog, installed, online, installerChose = fals
   };
 }
 
-/** The step's answer as main() expects install choices: null = download nothing now. */
-function setupChoice(offer, rec, accept) {
-  if (!accept || !offer.online || offer.ready) return null;
-  return { models: rec.models, ollama: Boolean(rec.ollama) };
+/**
+ * The step's answer as main() expects install choices: null = download nothing now. Only what is not
+ * known to be installed; the step offers a download only when that has a size (offer.downloadGb > 0).
+ */
+function setupChoice(offer, rec, accept, catalog, installed) {
+  if (!accept || !offer.online || !(offer.downloadGb > 0)) return null;
+  const models = toInstall(rec, catalog, installed);
+  if (!models.length) return null;
+  return { models, ollama: Boolean(rec.ollama) && models.some((n) => catalog[n] && catalog[n].ollama) };
 }
 
 /**

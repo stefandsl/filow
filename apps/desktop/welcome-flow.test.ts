@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { welcomeSteps, micErrorKind, levelFromRms, micTick, MIC_HEARD_MS, MIC_SILENT_MS, startMic, micActionsShown, micFocusMove, micDeviceChange, type MicState } from "./welcome-flow";
+import { welcomeSteps, micErrorKind, levelFromRms, micTick, MIC_HEARD_MS, MIC_SILENT_MS, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, type MicState } from "./welcome-flow";
 
 describe("welcome steps", () => {
   it("guides a first run through language, microphone and setup", () => {
@@ -10,6 +10,15 @@ describe("welcome steps", () => {
   });
   it("reopened from the menu, it is the preferences page only", () => {
     expect(welcomeSteps({ firstRun: false, askSetup: true })).toEqual(["preferences"]);
+  });
+});
+
+describe("setup step buttons", () => {
+  it("asks to download whenever something has a size, even when a first take is ready (review T3 finding 4)", () => {
+    expect(offersDownload({ online: true, downloadGb: 11.4 })).toBe(true);
+    expect(offersDownload({ online: true, downloadGb: 0 })).toBe(false);
+    expect(offersDownload({ online: false, downloadGb: 3 })).toBe(false);
+    expect(offersDownload({ online: true, unknown: true, downloadGb: 3 })).toBe(false);
   });
 });
 

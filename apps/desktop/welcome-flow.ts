@@ -12,6 +12,14 @@ export function welcomeSteps({ firstRun, askSetup }: { firstRun: boolean; askSet
   return askSetup ? ["language", "mic", "setup"] : ["language", "mic"];
 }
 
+/**
+ * The setup step asks "download?" only when there is something to fetch and a way to fetch it. Ready for a
+ * first take does not end the offer: the rest of the recommendation is still offered (review T3 finding 4).
+ */
+export function offersDownload(offer: { online: boolean; unknown?: boolean; downloadGb: number }): boolean {
+  return offer.online && !offer.unknown && offer.downloadGb > 0;
+}
+
 export type MicErrorKind = "none" | "blocked" | "busy";
 
 /** getUserMedia error name to what the user can do about it. */

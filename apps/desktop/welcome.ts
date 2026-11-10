@@ -1,7 +1,7 @@
 import { mountIcons } from "../web/components/icons";
 import { t, LANG_LABELS, acceptUiSnapshot, themeFollowing, resolveUiLanguage, type I18nKey, type UiBridge, type UiPatch, type UiSnapshot, type UiResult } from "../../packages/core/src/index";
 import { applyUiPreferences } from "../web/lib/applyUiPreferences";
-import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, micActionsShown, micFocusMove, micDeviceChange, type MicState, type StepId } from "./welcome-flow";
+import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, type MicState, type StepId } from "./welcome-flow";
 import "./welcome.css";
 
 /** The speech-setup offer from the main process (apps/desktop/welcome-setup.js setupOffer). */
@@ -101,7 +101,7 @@ function renderStep() {
   let primary: I18nKey = "welcome.continue";
   let second: I18nKey | null = null;
   if (id === "preferences") primary = "welcome.done";
-  else if (id === "setup" && offer && offer.online && !offer.ready && !offer.unknown) { primary = "welcome.setupAccept"; second = "welcome.setupLater"; }
+  else if (id === "setup" && offer && offersDownload(offer)) { primary = offer.ready ? "welcome.setupAcceptRest" : "welcome.setupAccept"; second = "welcome.setupLater"; }
   else if (last) primary = "welcome.finish";
   $("#primary-label").textContent = tr(primary);
   secondary.hidden = !second;
@@ -199,13 +199,22 @@ function renderSetup() {
   if (!offer) return;
   $("#setup-name").textContent = offer.profile ? tr("welcome.setupProfile", { name: offer.profile }) : tr("welcome.setupLocal");
   $("#setup-facts").textContent = offer.ramGb > 0 ? tr("welcome.setupMemory", { gb: offer.ramGb }) : "";
-  const size = offer.unknown ? tr("welcome.setupUnknown") : offer.ready ? tr("welcome.setupReady") : !offer.online ? tr("welcome.setupOffline") : `${tr("welcome.setupDownload", { gb: offer.downloadGb })}${offer.needsOllama ? ` ${tr("welcome.setupOllama")}` : ""}`;
+  const download = offersDownload(offer);
+  const ollama = offer.needsOllama ? ` ${tr("welcome.setupOllama")}` : "";
+  const gb = offer.downloadGb.toLocaleString(state.resolvedLang);
+  // Ready for a first take: said on its own (green); the optional rest, if any, follows in plain text.
+  const ready = offer.ready && !offer.unknown;
+  const size = offer.unknown ? tr("welcome.setupUnknown")
+    : offer.ready ? (download ? `${tr("welcome.setupRest", { gb })}${ollama}` : "")
+    : !offer.online ? tr("welcome.setupOffline")
+    : `${tr("welcome.setupDownload", { gb })}${ollama}`;
+  $("#setup-ready").hidden = !ready;
   $("#setup-size").textContent = size;
-  $("#setup-size").dataset.tone = offer.ready ? "ok" : "";
-  $("#setup-details").hidden = offer.ready || offer.labels.length === 0;
+  $("#setup-size").hidden = !size;
+  $("#setup-details").hidden = !download || offer.labels.length === 0;
   $("#setup-list").replaceChildren(...offer.labels.map(l => { const li = document.createElement("li"); li.textContent = l; return li; }));
-  // Offline or unknown: the size line already says "later, from Settings".
-  $("#setup-note").hidden = offer.ready || !offer.online || !!offer.unknown;
+  // Nothing to download, offline or unknown: the size line already says so.
+  $("#setup-note").hidden = !download;
 }
 
 // ---- navigation ----
