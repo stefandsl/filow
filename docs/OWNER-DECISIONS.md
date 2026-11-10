@@ -11,7 +11,6 @@ Format: what is asked, the options, what waits on it. Opened 2026-11-09.
 | id | question | options | waits on it |
 |---|---|---|---|
 | D1 | What is "microsoft tondo integration"? | Microsoft To Do (tasks from a talk), Teams (present and track inside a meeting), or another Microsoft 365 app | track T5 has not started |
-| D2 | Startup: the main window opens after 7.7 s (budget 3 s) because it waits for the public link | keep the wait; open at once and refresh once when the link is ready; open at once and update the QR code in place (no reload, most work, best result) | PERF-01 stays failing. **2026-11-10: the third option is built and verified on branch `d2-live-link`** (window at 2.2 s with the link on, QR redrawn in place, no reload), chosen by the owner's standing rule that development cost does not weigh against the better result. It is not on main: merging that branch is the yes, dropping it is the no. |
 | D3 | Phone mirror on the local network: the web server listens on every network card | token on every route plus a Host check (keeps the feature); off by default with a switch; remove | SEC-09 |
 | D4 | Does the local voice sound natural enough? | listen to the samples track T7 produces | T7 acceptance (only the owner's ears count) |
 | D5 | Licences of voices and speech models, if a track flags one that is not free for commercial use | accept, replace, or pay | T7, T8 |
