@@ -2,7 +2,7 @@
 // "Talk length": an optional target for the whole talk and for each section, saved into the script
 // text ("<!-- target: 20 min -->", "# Intro (3 min)"), so it travels with the script.
 import { useState, type RefObject } from "react";
-import { setTimeTargets, type Script } from "@filow/core";
+import { hasLeadingPoints, setTimeTargets, type Script } from "@filow/core";
 import { useT } from "@filow/ui";
 import { Dialog } from "./prompter/Dialog";
 import { sectionLabel } from "./prompter/sectionLabel";
@@ -14,7 +14,8 @@ export function readMinutes(text: string): number | null | "invalid" {
   const s = text.trim().replace(",", ".");
   if (!s) return null;
   const n = Number(s);
-  return Number.isFinite(n) && n > 0 && n <= 600 ? Math.round(n * 10) / 10 : "invalid";
+  const r = Math.round(n * 10) / 10;
+  return Number.isFinite(n) && r > 0 && r <= 600 ? r : "invalid";
 }
 
 export function TimerSettings({ script, text, onSave, onCancel, returnFocusRef }: {
@@ -28,12 +29,14 @@ export function TimerSettings({ script, text, onSave, onCancel, returnFocusRef }
   const t = useT();
   const [talk, setTalk] = useState(asText(script.minutes));
   const [sections, setSections] = useState(script.sections.map((s) => asText(s.minutes)));
-  const values = [talk, ...sections].map(readMinutes);
-  const invalid = values.some((v) => v === "invalid");
-  const secValues = sections.map(readMinutes);
-  const planned = secValues.reduce<number>((a, v) => a + (typeof v === "number" ? v : 0), 0);
-  const open = secValues.filter((v) => v === null).length;
+  const untitledFirst = hasLeadingPoints(text);
+  const secValues = sections.map((v, i) => (i === 0 && untitledFirst ? null : readMinutes(v)));
   const talkMin = readMinutes(talk);
+  const values = [talkMin, ...secValues];
+  const invalid = values.some((v) => v === "invalid");
+  const planned = secValues.reduce<number>((a, v) => a + (typeof v === "number" ? v : 0), 0);
+  // the untitled first section still shares the rest of the talk (talkBudget), so it counts here
+  const open = secValues.filter((v) => v === null).length;
   const round = (n: number) => Math.round(n * 10) / 10;
   const summary = typeof talkMin !== "number" ? t("timer.planned", { n: round(planned) })
     : planned > talkMin ? t("timer.tooMuch", { planned: round(planned), talk: talkMin })
@@ -58,6 +61,8 @@ export function TimerSettings({ script, text, onSave, onCancel, returnFocusRef }
         </label>
         <div className="timer-sections">
           {script.sections.map((s, i) => {
+            // points before the first heading have no heading to hold a target
+            if (i === 0 && untitledFirst) return null;
             const title = sectionLabel(s.title).title;
             return (
               <label key={s.id} className="timer-field">

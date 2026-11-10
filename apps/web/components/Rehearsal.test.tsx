@@ -6,6 +6,7 @@ import { TimerCue } from "./TimerCue";
 import { TimerSettings, readMinutes } from "./TimerSettings";
 import { RehearsalReport } from "./RehearsalReport";
 import { TimerMirror } from "./TimerMirror";
+import { sameScript } from "./RehearsalPanel";
 import { clockKey, takeRecorder, withClock } from "./TimerClock";
 
 const MIN = 60_000;
@@ -64,6 +65,20 @@ describe("talk length dialog", () => {
   });
 });
 
+describe("talk length on a script from elsewhere", () => {
+  it("knows when the prompter's text is not the script on screen", () => {
+    expect(sameScript(parseScript("# A\n- x"), parseScript("# A (2 min)\n- x"))).toBe(true);
+    expect(sameScript(parseScript("# A\n- x"), parseScript("# A\n- y"))).toBe(false);
+  });
+
+  it("offers no box for points that come before the first heading", () => {
+    const text = "- loose point\n# A\n- x";
+    const html = inLang("en", <TimerSettings script={parseScript(text)} text={text} onSave={() => {}} onCancel={() => {}} />);
+    expect(html.match(/<input/g)).toHaveLength(2);
+    expect(plain(html)).not.toContain("Untitled");
+  });
+});
+
 describe("rehearsal report view", () => {
   const rec = new TakeRecorder(() => now);
   let now = 0;
@@ -83,7 +98,12 @@ describe("rehearsal report view", () => {
     expect(text).toContain("7:00 of 6:00");
     expect(text).toContain("Intro 7:00 (+5:00) 2:00 1 covered, 1 not reached");
     expect(text).toContain("Body not shown 2:00 1 not reached");
-    expect(text).toContain("Points you did not get to (the take ended first) (3) b c d");
+    expect(text).toContain("Points you did not get to (the take ended first) (3) Show b c d");
+    const html = inLang("en", <RehearsalReport report={report} onClose={() => {}} />);
+    // folded behind a plain button (reachable by Tab inside the dialog), list hidden until opened
+    expect(html).toMatch(/<button type="button" class="btn" aria-expanded="false" aria-controls="report-list-notReached-items">Show<\/button>/);
+    expect(html).toContain('<ul class="report-points" id="report-list-notReached-items" hidden="">');
+    expect(html).not.toContain("nothing was sent");
     for (const k of ["report.saveMd", "report.print", "report.close"] as const) expect(text).toContain(t(k, "en"));
   });
 

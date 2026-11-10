@@ -3,14 +3,27 @@
 // saved as Markdown or printed (the print dialog offers "Save as PDF").
 import { useEffect, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { formatClock, rehearsalMarkdown, type I18nKey, type Lang, type RehearsalReport as Report } from "@filow/core";
+import { formatClock, POINT_OUTCOMES, rehearsalMarkdown, type I18nKey, type Lang, type RehearsalReport as Report } from "@filow/core";
 import { useLang, useT } from "@filow/ui";
 import { Dialog } from "./prompter/Dialog";
 import { sectionLabel } from "./prompter/sectionLabel";
 import { downloadMarkdown, printReport } from "./RehearsalExport";
 import "./Rehearsal.css";
 
-const OUTCOMES = ["covered", "late", "missed", "notReached"] as const;
+/** A heading with a Show/Hide button (a plain button, so the dialog's Tab order reaches it). */
+function FoldedList({ title, items, id }: { title: string; items: Array<{ id: string; text: string }>; id: string }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  return (
+    <section aria-labelledby={id} className="report-more">
+      <div className="report-more-head">
+        <h2 id={id}>{title}</h2>
+        <button type="button" className="btn" aria-expanded={open} aria-controls={`${id}-items`} onClick={() => setOpen((o) => !o)}>{open ? t("report.hide") : t("report.show")}</button>
+      </div>
+      <ul className="report-points" id={`${id}-items`} hidden={!open}>{items.map((p) => <li key={p.id}>{p.text}</li>)}</ul>
+    </section>
+  );
+}
 
 function ReportBody({ report: r, idPrefix, fold = false }: { report: Report; idPrefix: string; /** fold the points the take never got to */ fold?: boolean }) {
   const t = useT();
@@ -61,7 +74,7 @@ function ReportBody({ report: r, idPrefix, fold = false }: { report: Report; idP
             <tbody>
               {r.sections.map((s) => {
                 const extra = s.targetMs !== null && s.visited ? s.spentMs - s.targetMs : null;
-                const pts = OUTCOMES.filter((k) => s.outcomes[k]).map((k) => `${s.outcomes[k]} ${t(`report.outcome.${k}` as I18nKey)}`).join(", ");
+                const pts = POINT_OUTCOMES.filter((k) => s.outcomes[k]).map((k) => `${s.outcomes[k]} ${t(`report.outcome.${k}` as I18nKey)}`).join(", ");
                 return (
                   <tr key={s.idx}>
                     <th scope="row">{sectionLabel(s.title).title}</th>
@@ -79,14 +92,7 @@ function ReportBody({ report: r, idPrefix, fold = false }: { report: Report; idP
         const list = r.points.filter((p) => p.outcome === k);
         if (!list.length) return null;
         // On screen, points the take never got to are folded away (a short take lists most of the script).
-        if (k === "notReached" && fold) {
-          return (
-            <details key={k} className="report-more">
-              <summary>{t(`report.list.${k}`)} ({list.length})</summary>
-              <ul className="report-points">{list.map((p) => <li key={p.id}>{p.text}</li>)}</ul>
-            </details>
-          );
-        }
+        if (k === "notReached" && fold) return <FoldedList key={k} title={`${t(`report.list.${k}`)} (${list.length})`} items={list} id={`${idPrefix}-list-${k}`} />;
         return (
           <section key={k} aria-labelledby={`${idPrefix}-list-${k}`}>
             <h2 id={`${idPrefix}-list-${k}`}>{t(`report.list.${k}` as I18nKey)}</h2>
@@ -110,6 +116,18 @@ export function RehearsalReport({ report, notes, onClose, returnFocusRef }: {
   const lang = useLang() as Lang;
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  // While the report is open, any print (its button or Ctrl+P) prints the report alone.
+  useEffect(() => {
+    const on = () => document.body.classList.add("printing-report");
+    const off = () => document.body.classList.remove("printing-report");
+    window.addEventListener("beforeprint", on);
+    window.addEventListener("afterprint", off);
+    return () => {
+      window.removeEventListener("beforeprint", on);
+      window.removeEventListener("afterprint", off);
+      off();
+    };
+  }, []);
   return (
     <>
       <Dialog title={t("report.title")} onClose={onClose} className="rehearsal-report" returnFocusRef={returnFocusRef}>

@@ -8,17 +8,30 @@ const MIN = 60_000;
 /**
  * Follows a take through the engine's state: when recording starts and stops, and which section
  * shows when. `observe` is safe to call any number of times with the same state.
+ *
+ * A script loaded during a take (Reload, Edit, a script sent from the browser or a phone; the
+ * caller says so with `scriptLoading`) starts the clock again: the engine itself goes back to the
+ * first section and forgets every tick, so the old times would be measured against the wrong
+ * sections.
  */
 export class TalkClockTracker {
   private startedAt: number | null = null;
   private endedAt: number | null = null;
   private entries: Array<{ idx: number; at: number }> = [];
   private recording = false;
+  private reloadPending = false;
 
-  /** True when the clock changed (a take started or stopped, or another section shows). */
+  /** Call right before the engine loads a script; the next state observed during a take restarts the clock. */
+  scriptLoading(): void {
+    this.reloadPending = true;
+  }
+
+  /** True when the clock changed (a take started, restarted or stopped, or another section shows). */
   observe(state: Pick<SessionState, "sectionIdx"> & { engine: Pick<SessionState["engine"], "recording"> }, now: number): boolean {
     const rec = state.engine.recording;
-    if (rec && !this.recording) {
+    const reloaded = rec && this.recording && this.reloadPending;
+    this.reloadPending = false;
+    if ((rec && !this.recording) || reloaded) {
       this.recording = true;
       this.startedAt = now;
       this.endedAt = null;
@@ -90,8 +103,10 @@ export type TimerView = {
 
 /**
  * What the timer shows now. Null before the first take. The cue needs a budget for every section
- * (from their own targets or the talk target): it compares when the current section started with
- * when the plan wanted it, plus any time spent in it beyond its budget.
+ * (from their own targets or the talk target): it compares when the furthest section reached
+ * started with when the plan wanted it, plus any time since beyond its budget. Going back to an
+ * earlier section (to make a point again) counts as time spent in the furthest one, not as a
+ * restart of the talk.
  */
 export function timerView(
   script: Pick<Script, "sections" | "minutes">,
@@ -111,8 +126,10 @@ export function timerView(
   const sectionMs = budget.sections[idx] ?? null;
   let behindMs: number | null = null;
   if (budget.sections.length > 0 && budget.sections.every((b) => b !== null)) {
-    const plannedStart = budget.sections.slice(0, idx).reduce<number>((a, b) => a + (b ?? 0), 0);
-    behindMs = enteredAt - clock.startedAt - plannedStart + Math.max(0, sectionElapsedMs - (sectionMs ?? 0));
+    const furthest = Math.max(idx, ...clock.entries.map((e) => e.idx));
+    const reachedAt = clock.entries.find((e) => e.idx === furthest)?.at ?? enteredAt;
+    const plannedStart = budget.sections.slice(0, furthest).reduce<number>((a, b) => a + (b ?? 0), 0);
+    behindMs = reachedAt - clock.startedAt - plannedStart + Math.max(0, end - reachedAt - (budget.sections[furthest] ?? 0));
   }
   const section = script.sections[idx];
   const pointsLeft = section ? section.bullets.filter((b) => points[b.id]?.status !== "started").length : 0;

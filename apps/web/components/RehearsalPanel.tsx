@@ -2,13 +2,19 @@
 // The prompter's side of the rehearsal report and the talk timer, kept out of Teleprompter.tsx: it
 // records the take, opens the report after Stop, and offers "Talk length".
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { buildRehearsalReport, notesToMarkdown, type Engine, type RehearsalReport as Report, type ScreenNote, type SessionState, type TranscriptEvent } from "@filow/core";
+import { buildRehearsalReport, notesToMarkdown, parseScript, serializeScript, type Engine, type RehearsalReport as Report, type Script, type ScreenNote, type SessionState, type TranscriptEvent } from "@filow/core";
 import { useT } from "@filow/ui";
 import { getSpeechLang } from "@/lib/prefs";
 import { RehearsalReport } from "./RehearsalReport";
 import { TimerCue } from "./TimerCue";
 import { TimerSettings } from "./TimerSettings";
 import { takeRecorder } from "./TimerClock";
+
+/** Same sections and points (a script sent from the browser or a phone is not in the prompter's text). */
+export function sameScript(a: Script, b: Script): boolean {
+  const shape = (s: Script) => JSON.stringify(s.sections.map((x) => [x.title, x.bullets.map((p) => p.text)]));
+  return shape(a) === shape(b);
+}
 
 /** A take shorter than this (a quick check of the microphone) does not open the report by itself. */
 const AUTO_OPEN_MS = 15_000;
@@ -66,7 +72,8 @@ export function useRehearsal({ engine, state, scriptText, saveScript, notes }: {
       {timerOpen && (
         <TimerSettings
           script={state.script}
-          text={scriptText}
+          // the targets go into the text of the script on screen, which may have come from elsewhere
+          text={sameScript(parseScript(scriptText), state.script) ? scriptText : serializeScript(state.script)}
           returnFocusRef={timerButton}
           onCancel={() => setTimerOpen(false)}
           onSave={(text) => {

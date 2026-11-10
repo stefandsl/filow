@@ -4,10 +4,20 @@ import { TakeRecorder, type Engine, type SessionState, type TalkClock } from "@f
 
 const recorders = new WeakMap<Engine, TakeRecorder>();
 
+/** During a take the prompter sends its clock again this often, for phones that join late. */
+export const CLOCK_REFRESH_MS = 5000;
+
 export function takeRecorder(engine: Engine): TakeRecorder {
   let rec = recorders.get(engine);
   if (!rec) {
     const r = new TakeRecorder();
+    // Every script load (Reload, Edit, a script from the browser or a phone) goes through this method:
+    // the recorder learns of it first, so a take that changes script starts its clock and log again.
+    const load = engine.loadScript.bind(engine);
+    engine.loadScript = (script) => {
+      r.scriptLoading();
+      load(script);
+    };
     r.observe(engine.getState());
     engine.subscribe((state) => r.observe(state));
     recorders.set(engine, r);

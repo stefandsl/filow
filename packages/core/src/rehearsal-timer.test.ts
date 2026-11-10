@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseScript, serializeScript, setTimeTargets, splitSectionMinutes } from "./script";
+import { hasLeadingPoints, parseScript, serializeScript, setTimeTargets, splitSectionMinutes } from "./script";
 import { formatClock, remoteNow, scheduleCue, sectionTimes, talkBudget, TalkClockTracker, timerView } from "./rehearsal-timer";
 
 const MIN = 60_000;
@@ -9,6 +9,15 @@ describe("time targets in the script", () => {
     const s = parseScript(["<!-- target: 20 min -->", "# Intro (3 min)", "- a", "# Dati (4 minuti)", "- b", "# Date [2,5 minute]", "# Итоги (5 мин)", "# まとめ（2分）", "# Plain", "- c"].join("\n"));
     expect(s.minutes).toBe(20);
     expect(s.sections.map((x) => [x.title, x.minutes])).toEqual([["Intro", 3], ["Dati", 4], ["Date", 2.5], ["Итоги", 5], ["まとめ", 2], ["Plain", undefined]]);
+    expect(parseScript("# Pausa (1 minuto)\n# Q&A (3 min.)\n# 質疑（3分間）").sections.map((x) => [x.title, x.minutes])).toEqual([["Pausa", 1], ["Q&A", 3], ["質疑", 3]]);
+  });
+
+  it("keeps the targets on the right headings when points come before the first heading", () => {
+    expect([hasLeadingPoints("- a\n# B\n- b"), hasLeadingPoints("<!-- x -->\n\n# B\n- b"), hasLeadingPoints("")]).toEqual([true, false, false]);
+    const text = "- a\n# B\n- b";
+    const out = setTimeTargets(text, { sections: [2, 5] }); // section 0 is the headingless "Untitled"
+    expect(out).toBe("- a\n# B (5 min)\n- b");
+    expect(parseScript(out).sections.map((s) => [s.title, s.minutes])).toEqual([["Untitled", undefined], ["B", 5]]);
   });
 
   it("leaves titles that only look like a target alone", () => {
@@ -88,6 +97,31 @@ describe("talk clock and cue", () => {
   it("has no cue without a plan, but still counts the time", () => {
     const v = timerView({ sections: sections.map((s) => ({ ...s, minutes: undefined })) }, { startedAt: 0, endedAt: null, entries: [{ idx: 0, at: 0 }] }, 0, 65_000);
     expect([v?.elapsedMs, v?.behindMs, v?.talkMs, formatClock(v?.elapsedMs ?? 0)]).toEqual([65_000, null, null, "1:05"]);
+  });
+
+  it("going back to an earlier section is time spent, not a restart of the talk", () => {
+    // 0 -> 1 -> 2 on plan (2 min each), back to 0 at 4:30 to make a point again
+    const back = { startedAt: 0, endedAt: null, entries: [{ idx: 0, at: 0 }, { idx: 1, at: 2 * MIN }, { idx: 2, at: 4 * MIN }, { idx: 0, at: 4.5 * MIN }] };
+    expect(timerView(script, back, 0, 5 * MIN)?.behindMs).toBe(0);
+    expect(timerView(script, back, 0, 7 * MIN)?.behindMs).toBe(1 * MIN); // one minute past the budget of section 2
+    // and coming back to the furthest section keeps counting from when it was first reached
+    const again = { ...back, entries: [...back.entries, { idx: 2, at: 5 * MIN }] };
+    expect(timerView(script, again, 2, 5.5 * MIN)?.behindMs).toBe(0);
+  });
+
+  it("starts again when another script is loaded during the take", () => {
+    const clock = new TalkClockTracker();
+    clock.observe({ sectionIdx: 0, engine: { recording: true } }, 0);
+    clock.observe({ sectionIdx: 2, engine: { recording: true } }, 60_000);
+    clock.scriptLoading();
+    expect(clock.observe({ sectionIdx: 0, engine: { recording: true } }, 90_000)).toBe(true);
+    expect(clock.snapshot(90_000)).toMatchObject({ startedAt: 90_000, entries: [{ idx: 0, at: 90_000 }] });
+    // a load outside a take changes nothing, and the flag does not linger
+    clock.observe({ sectionIdx: 0, engine: { recording: false } }, 100_000);
+    clock.scriptLoading();
+    clock.observe({ sectionIdx: 0, engine: { recording: false } }, 110_000);
+    expect(clock.observe({ sectionIdx: 0, engine: { recording: true } }, 120_000)).toBe(true);
+    expect(clock.observe({ sectionIdx: 0, engine: { recording: true } }, 130_000)).toBe(false);
   });
 
   it("formats clocks and lines up a phone whose clock is off", () => {

@@ -24,7 +24,7 @@ export const IMPORT_MARKER = "<!-- source: import -->";
  * The heading suffix is taken off the title, so every surface shows "Introduction". Minutes may be
  * written in the five speech languages ("3 min", "3 minuti", "3 minute", "3 мин", "3分").
  */
-const SECTION_MINUTES = /\s*[([（]\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:min|mins|minutes?|minuti|minut[ei]?|мин\.?|минут[аы]?|分)\s*[)\]）]\s*$/iu;
+const SECTION_MINUTES = /\s*[([（]\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:min\.?|mins|minutes?|minut[oi]|minut[ei]?|мин\.?|минут[аы]?|分間?)\s*[)\]）]\s*$/iu;
 const TALK_MINUTES = /^<!--\s*target\s*:\s*(\d{1,3}(?:[.,]\d+)?)\s*min\w*\s*-->$/i;
 
 function minutesOf(raw: string): number | undefined {
@@ -42,6 +42,16 @@ export function splitSectionMinutes(title: string): { title: string; minutes?: n
 
 const fmtMinutes = (n: number) => String(Math.round(n * 10) / 10);
 
+/** True when points come before the first heading (parseScript then makes an "Untitled" section). */
+export function hasLeadingPoints(text: string): boolean {
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (/^#+\s*\S/.test(line)) return false;
+    if (/^[-*•]\s+\S/.test(line)) return true;
+  }
+  return false;
+}
+
 /**
  * Write the time targets into script text, changing only the target line and the heading suffixes:
  * everything else (comments, blank lines, markers) stays as the presenter wrote it. `sections` is
@@ -49,7 +59,8 @@ const fmtMinutes = (n: number) => String(Math.round(n * 10) / 10);
  */
 export function setTimeTargets(text: string, targets: { minutes?: number | null; sections: Array<number | null | undefined> }): string {
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
-  let idx = 0;
+  // Points before the first heading make an "Untitled" first section with no heading to hold a target.
+  let idx = hasLeadingPoints(text) ? 1 : 0;
   const lines = text.split(/\r?\n/).filter((line) => !TALK_MINUTES.test(line.trim()));
   const out = lines.map((line) => {
     const heading = line.match(/^(\s*#+\s*)(.+?)\s*$/);

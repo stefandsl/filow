@@ -26,7 +26,7 @@ export const LONG_PAUSE_MS = 3000;
  * - `sound`: a hesitation sound of any length ("ummm", "ăăă", "эээ", "えーー").
  * - `words`: a word or a fixed phrase.
  * - `alone`: also an everyday word ("あの人" is "that person", "вот" is "here is"), so it counts only
- *   right before a comma, a full stop or the end of a phrase.
+ *   right before a comma, a full stop or the end of a phrase (not a question mark).
  * Kept short on purpose: a word that is often meant (English "like", "so", "actually", Italian
  * "allora", "tipo") is left out, so the count errs low rather than blaming real words.
  */
@@ -57,7 +57,7 @@ export const FILLERS: Record<SpeechLanguage, Filler[]> = {
     { label: "мм", sound: /^м{2,}$/ },
     { label: "ну", words: ["ну"] },
     { label: "как бы", words: ["как", "бы"] },
-    { label: "это самое", words: ["это", "самое"] },
+    { label: "это самое", words: ["это", "самое"], alone: true },
     { label: "короче", words: ["короче"] },
     { label: "типа", words: ["типа"], alone: true },
     { label: "вот", words: ["вот"], alone: true },
@@ -65,12 +65,12 @@ export const FILLERS: Record<SpeechLanguage, Filler[]> = {
   ],
   ro: [
     { label: "ă", sound: /^a{2,}$/ },
-    { label: "î", sound: /^i{2,}$/ },
+    { label: "î", sound: /^i{3,}$/ }, // "îi" (him, her) folds to "ii"
     { label: "eee", sound: /^e{2,}$/ },
     { label: "mmm", sound: /^h*m{2,}$/ },
     { label: "păi", words: ["pai"] },
     { label: "adică", words: ["adica"] },
-    { label: "practic", words: ["practic"] },
+    { label: "practic", words: ["practic"], alone: true },
     { label: "cum să zic", words: ["cum", "sa", "zic"] },
     { label: "deci", words: ["deci"], alone: true },
   ],
@@ -79,6 +79,7 @@ export const FILLERS: Record<SpeechLanguage, Filler[]> = {
     { label: "えっと", words: ["えっ", "と"] },
     { label: "えー", sound: /^え[ーぇ〜]+$/ },
     { label: "あのー", sound: /^あの[ーう〜]+$/ },
+    { label: "あのう", words: ["あの", "う"] }, // the word cutter splits "あのう" in two
     { label: "うーん", sound: /^う[ー〜]+ん$/ },
     { label: "まあ", sound: /^ま[あー]+$/ },
     { label: "なんか", words: ["なんか"], alone: true },
@@ -103,7 +104,8 @@ const JAPANESE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/gu;
 const CYRILLIC = /\p{Script=Cyrillic}/gu;
 const LETTER = /[\p{L}\p{N}]/gu;
 const IS_JAPANESE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
-const PAUSE_PUNCT = /^\s*(?:[,.;:!?…、。，．！？]|$)/u;
+// A question mark is not a pause here: "Do you know?" and "Что это значит?" are meant.
+const PAUSE_PUNCT = /^\s*(?:[,.;:!…、。，．！]|$)/u;
 
 const MARKERS: Record<"en" | "it" | "ro", Set<string>> = {
   en: new Set("the and is are of to that this we you it was with for".split(" ")),
@@ -186,12 +188,19 @@ export class TakeRecorder {
 
   constructor(private readonly now: () => number = () => Date.now()) {}
 
+  /** Call right before the engine loads a script: during a take the log starts again with it. */
+  scriptLoading(): void {
+    this.clock.scriptLoading();
+  }
+
   observe(state: Pick<SessionState, "sectionIdx" | "points" | "engine">): void {
     const now = this.now();
     const wasRecording = this.recording;
+    const startedBefore = this.clock.snapshot(now).startedAt;
     this.clock.observe(state, now);
     this.recording = state.engine.recording;
-    if (this.recording && !wasRecording) {
+    // A new take, or another script loaded during this one (the clock starts again with it).
+    if (this.recording && (!wasRecording || this.clock.snapshot(now).startedAt !== startedBefore)) {
       this.segments = [];
       this.activity = [];
       this.pointEvents = [];
@@ -256,7 +265,9 @@ function estimateMs(text: string): number {
 
 // ---- the report ---------------------------------------------------------------------------
 
-export type PointOutcome = "covered" | "late" | "missed" | "notReached";
+/** "earlier": already ticked when this take started (from an earlier take, nothing was reset). */
+export type PointOutcome = "covered" | "late" | "missed" | "notReached" | "earlier";
+export const POINT_OUTCOMES: PointOutcome[] = ["covered", "late", "earlier", "missed", "notReached"];
 
 export type RehearsalReport = {
   lang: SpeechLanguage;
@@ -323,11 +334,16 @@ export function buildRehearsalReport(log: TakeLog, script: Pick<Script, "section
       let outcome: PointOutcome;
       if (end === "started") {
         const tick = events.filter((e) => e.to === "started").pop();
-        const wasMissed = events.some((e) => e.to === "missed") || (log.pointsAtStart[b.id] === "missed" && tick !== undefined);
-        outcome = tick && (tick.sectionIdx > sectionIdx || wasMissed) ? "late" : "covered";
-        // Skipped: marked missed (the presenter moved past it), or left open in a section shown and left.
-        // Still open in the section showing at Stop, or in one never shown: the take ended first.
-      } else outcome = end === "missed" || (visited.has(sectionIdx) && sectionIdx !== finalIdx) ? "missed" : "notReached";
+        // Ticked before this take began and never touched in it: nothing this take said earned it.
+        if (!tick) outcome = "earlier";
+        else outcome = tick.sectionIdx > sectionIdx || events.some((e) => e.to === "missed") || log.pointsAtStart[b.id] === "missed" ? "late" : "covered";
+      } else {
+        // Skipped: marked missed during this take (the presenter moved past it), or left open in a
+        // section shown and left. Still open in the section showing at Stop, or in a section this
+        // take never showed (even if an earlier take marked it missed): the take ended first.
+        const missedNow = events.some((e) => e.to === "missed");
+        outcome = missedNow || (visited.has(sectionIdx) && sectionIdx !== finalIdx) ? "missed" : "notReached";
+      }
       return { id: b.id, text: b.text, sectionIdx, outcome, manual: manual.has(b.id) };
     }),
   );
@@ -335,7 +351,7 @@ export function buildRehearsalReport(log: TakeLog, script: Pick<Script, "section
   const budget = talkBudget(script);
   const spent = sectionTimes(log.clock, script.sections.length, endedAt);
   const sections = script.sections.map((sec, idx) => {
-    const outcomes: Record<PointOutcome, number> = { covered: 0, late: 0, missed: 0, notReached: 0 };
+    const outcomes: Record<PointOutcome, number> = { covered: 0, late: 0, earlier: 0, missed: 0, notReached: 0 };
     for (const p of points) if (p.sectionIdx === idx) outcomes[p.outcome]++;
     return { idx, title: sec.title, spentMs: spent[idx] ?? 0, targetMs: budget.sections[idx] ?? null, visited: visited.has(idx), outcomes };
   });
@@ -411,7 +427,7 @@ export function rehearsalMarkdown(r: RehearsalReport, lang: Lang, notes?: string
     `| ${t("report.section", lang)} | ${t("report.time", lang)} | ${t("report.targetCol", lang)} | ${t("report.pointsCol", lang)} |`,
     "|---|---|---|---|",
     ...r.sections.map((s) => {
-      const pts = (["covered", "late", "missed", "notReached"] as const).filter((k) => s.outcomes[k]).map((k) => `${s.outcomes[k]} ${t(`report.outcome.${k}` as I18nKey, lang)}`).join(", ") || "-";
+      const pts = POINT_OUTCOMES.filter((k) => s.outcomes[k]).map((k) => `${s.outcomes[k]} ${t(`report.outcome.${k}` as I18nKey, lang)}`).join(", ") || "-";
       return `| ${s.title.replace(/\|/g, "\\|")} | ${s.visited ? clockText(s.spentMs) : "-"} | ${s.targetMs !== null ? clockText(s.targetMs) : "-"} | ${pts} |`;
     }),
     "",

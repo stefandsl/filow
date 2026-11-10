@@ -51,8 +51,10 @@
 .report-table td { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .report-table td:last-child { white-space: normal; }
 .report-points { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
-.report-more summary { cursor: pointer; font-size: var(--type-md); font-weight: 600; margin-bottom: 8px; }
-.report-more summary:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; border-radius: 4px; }
+.report-more-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.report-more-head h2 { margin: 0; }
+.report-more-head .btn { padding: 4px 12px; font-size: var(--type-sm); }
+.report-more .report-points { margin-top: 8px; }
 .report-actions { justify-content: flex-end; position: sticky; bottom: -20px; background: var(--panel); padding: 12px 0 0; border-top: 1px solid var(--border); }
 
 /* The printable copy: hidden on screen, the only thing printed while the report prints. */
@@ -64,7 +66,7 @@
   body.printing-report .rehearsal-print { display: block; color: #111; font: 11pt/1.45 var(--font); }
   .rehearsal-print h1 { font-size: 18pt; margin: 0 0 8pt; }
   .rehearsal-print h2 { font-size: 13pt; margin: 12pt 0 6pt; }
-  .rehearsal-print .hint { color: #444; }
+  .rehearsal-print .hint, .rehearsal-print dt { color: #444; }
   .rehearsal-print .report-tiles > div { background: none; border: 1px solid #bbb; }
   .rehearsal-print .report-table th, .rehearsal-print .report-table td { border-bottom: 1px solid #bbb; }
   .rehearsal-print .report-table thead th { color: #444; }

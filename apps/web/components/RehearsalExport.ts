@@ -12,18 +12,11 @@ export function downloadMarkdown(md: string, prefix: string): void {
 }
 
 /**
- * Print only the report (the browser's print dialog also offers "Save as PDF"): while the dialog is
- * open the page carries a class that hides everything but the printable copy (Rehearsal.css).
+ * Print only the report (the browser's print dialog also offers "Save as PDF"). The class hides
+ * everything but the printable copy in print (Rehearsal.css); the open report removes it after the
+ * print and also sets it for Ctrl+P (RehearsalReport.tsx), so a print never shows the bare app.
  */
 export function printReport(): void {
-  const body = document.body;
-  body.classList.add("printing-report");
-  const done = () => {
-    body.classList.remove("printing-report");
-    window.removeEventListener("afterprint", done);
-  };
-  window.addEventListener("afterprint", done);
+  document.body.classList.add("printing-report");
   window.print();
-  // Some hosts print synchronously and never fire afterprint.
-  setTimeout(done, 1000);
 }

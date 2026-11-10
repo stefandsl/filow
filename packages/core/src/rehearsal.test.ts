@@ -100,7 +100,7 @@ describe("rehearsal report on takes in the five speech languages", () => {
     expect(Object.fromEntries(r.fillers.top.map((f) => [f.label, f.count]))).toEqual({ "come dire": 1, "cioè": 1, diciamo: 1 });
     expect(r.fillers.total).toBe(6);
     expect(outcomes(r)).toEqual({ s0b0: "covered", s0b1: "late", s1b0: "covered" });
-    expect(r.sections[0].outcomes).toEqual({ covered: 1, late: 1, missed: 0, notReached: 0 });
+    expect(r.sections[0].outcomes).toEqual({ covered: 1, late: 1, earlier: 0, missed: 0, notReached: 0 });
     expect(r.pauses.count).toBe(0);
     expect(r.talkTargetMs).toBeNull();
   });
@@ -233,6 +233,52 @@ describe("rehearsal details", () => {
     const r = buildRehearsalReport(rec.result()!, engine.getState().script);
     expect(r.points.map((p) => [p.id, p.outcome, p.manual])).toEqual([["s0b0", "covered", true], ["s0b1", "late", true], ["s1b0", "notReached", false]]);
     expect(r.sections.map((s) => s.spentMs)).toEqual([2000, 2000]);
+  });
+
+  it("a second take without a reset: earlier ticks are not this take's work, earlier misses only count where it went", () => {
+    const engine = new Engine({ decide: async () => ({ decisions: [] }) as never, now: () => 1000, setInterval: () => 0, clearInterval: () => {} });
+    let now = 0;
+    const rec = new TakeRecorder(() => now);
+    engine.subscribe((s) => rec.observe(s));
+    engine.loadScript(parseScript("# A\n- one\n- two\n# B\n- three\n# C\n- four"));
+    engine.start();
+    engine.dispatch({ type: "markStarted", id: "s0b0" });
+    engine.dispatch({ type: "goToSection", idx: 2 }); // s0b1 and s1b0 missed
+    engine.stop();
+    engine.dispatch({ type: "goToSection", idx: 0 });
+    now = 10_000;
+    engine.start(); // take 2: never says anything, stays in section A
+    now = 20_000;
+    engine.stop();
+    const r = buildRehearsalReport(rec.result()!, engine.getState().script);
+    expect(Object.fromEntries(r.points.map((p) => [p.id, p.outcome]))).toEqual({ s0b0: "earlier", s0b1: "notReached", s1b0: "notReached", s2b0: "notReached" });
+    expect(r.sections[0].outcomes.earlier).toBe(1);
+  });
+
+  it("a script loaded during the take starts the log again with it", () => {
+    let now = 0;
+    const rec = new TakeRecorder(() => now);
+    const st = (sectionIdx: number, points: Record<string, PointState>) => ({ sectionIdx, points, engine: { recording: true, backend: null } });
+    rec.observe(st(0, {}));
+    now = 5000;
+    rec.transcript({ committed: "old words" });
+    rec.observe(st(1, { s0b0: { status: "started", confidence: 1 } }));
+    now = 9000;
+    rec.scriptLoading();
+    rec.observe(st(0, {}));
+    now = 12_000;
+    rec.observe({ sectionIdx: 0, points: {}, engine: { recording: false, backend: null } });
+    const log = rec.result()!;
+    expect([log.clock.startedAt, log.segments.length, log.pointEvents.length, log.clock.entries.length]).toEqual([9000, 0, 0, 1]);
+  });
+
+  it("does not count everyday words that only look like fillers", () => {
+    const n = (text: string, lang: Parameters<typeof countFillers>[1]) => [...countFillers(text, lang).values()].reduce((a, b) => a + b, 0);
+    expect(n("Îi mulțumesc pentru exemplu practic bun.", "ro")).toBe(0);
+    expect(n("Это самое главное. Что это значит?", "ru")).toBe(0);
+    expect(n("Do you know? I mean it.", "en")).toBe(0);
+    expect(n("Îîî, practic, asta e.", "ro")).toBe(2);
+    expect(n("あのう、それは、あの人です。", "ja")).toBe(1);
   });
 });
 
