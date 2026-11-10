@@ -9,6 +9,7 @@ import { bezierPoint, bubblePlacement } from "@/lib/buddy/motion";
 import { joinNames, type OutboundSnapshot } from "@/lib/buddy/outbound";
 import type { BuddyMark } from "@/lib/buddy/prompt";
 import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
+import { dictationText } from "@/lib/dictation/text";
 import { OutboundIcon } from "../outbound-ui";
 import "../okfilow.css";
 
@@ -196,6 +197,7 @@ export default function OkFilowOverlay() {
     if (l && l.length > 1) okFilowBridge()?.stroke(l);
   };
   return (
+    <>
     <div className={"okf-overlay" + (mode === "listening" && purpose === "talk" ? " okf-overlay--catch" : "")} aria-hidden onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
       {cards.length > 0 && (() => {
         // A column beside the spot the first card explains; the cards stack by their real heights,
@@ -263,5 +265,10 @@ export default function OkFilowOverlay() {
         {text && <span className="okf-text">{text}</span>}
       </div>
     </div>
+    {/* Dictation's start and end for screen readers (outside the hidden overlay), from the display with the mouse only. */}
+    <div className="okf-sr" role="status" aria-live="polite">
+      {here && purpose === "dictate" && mode === "listening" ? dictationText(lang, "startedLive") : ""}
+    </div>
+    </>
   );
 }

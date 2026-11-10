@@ -196,3 +196,10 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
   .okf-out-rings i:nth-child(2) { opacity: 0.6; transform: scale(2); }
   .okf-out-rings i:nth-child(3) { display: none; }
 }
+
+/* Dictation and question pills hold still when the system asks for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .okf-notch, .okf-notch-dot--listening, .okf-notch-dot--thinking { animation: none; }
+}
+/* Read by screen readers, not shown (the overlay itself is hidden from them: it only follows the mouse). */
+.okf-sr { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

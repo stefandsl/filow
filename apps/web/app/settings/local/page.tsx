@@ -17,6 +17,7 @@ import { fetchPlan, type PlanResponse } from "@/lib/plan";
 import { modelLabel } from "@/lib/router";
 import { MicrophoneSelect } from "@/components/MicrophoneSelect";
 import { OkFilowSettings } from "@/components/OkFilowSettings";
+import { DictationSettings } from "@/components/DictationSettings";
 import { SetupPicker } from "./SetupPicker";
 import { AboutPrivacyLink } from "@/components/AboutPrivacyLink";
 
@@ -741,6 +742,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
           </section>
 
           <OkFilowSettings lang={lang} />
+          <DictationSettings lang={lang} />
 
           <section className="strip">
             <div className="label">{t("settings.privacy")}</div>

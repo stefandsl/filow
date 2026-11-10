@@ -27,7 +27,7 @@ contextBridge.exposeInMainWorld("okFilow", {
   overlayReady: () => ipcRenderer.send("okfilow:overlay:ready"),
   closeModel: () => ipcRenderer.send("okfilow:model:close"),
   askAbout: (text) => ipcRenderer.send("okfilow:askAbout", text),
-  typeText: (text) => ipcRenderer.invoke("okfilow:typeText", text),
+  typeText: (text, language) => ipcRenderer.invoke("okfilow:typeText", text, language),
   handsFreeOff: () => ipcRenderer.send("okfilow:handsfreeOff"),
   agents: {
     start: (text, context) => ipcRenderer.invoke("okfilow:agent:start", text, context),
@@ -58,6 +58,8 @@ contextBridge.exposeInMainWorld("okFilow", {
   deleteAnswers: () => ipcRenderer.invoke("okfilow:deleteAnswers"),
   press: () => ipcRenderer.send("okfilow:press"),
   release: () => ipcRenderer.send("okfilow:release"),
+  /** Test builds with FILOW_OKF_QA_KEYS=1 only (ignored otherwise): a key press for the gestures. */
+  qaKey: (type, key) => ipcRenderer.send("okfilow:qa:key", type, key),
   onPress: on("okfilow:press"),
   onRelease: on("okfilow:release"),
   onCancel: on("okfilow:cancel"),

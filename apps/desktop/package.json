@@ -51,6 +51,8 @@
       "stt-worker.js",
       "stt.js",
       "stt-download.js",
+      "dictation.js",
+      "dictation-core.js",
       "tts.js",
       "tts-worker.js",
       "tunnels.js",

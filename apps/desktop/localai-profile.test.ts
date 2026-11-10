@@ -132,10 +132,12 @@ describe("hardware scan", () => {
       await gate;
       return "";
     };
-    const t0 = Date.now();
+    // Not a stopwatch (it failed at 95 ms under a loaded machine): the call must hand back a promise that
+    // is still pending while the probe is held, i.e. it returned without waiting for the scan.
     const a = hardwareScan({ refresh: true, run: slow });
     const b = hardwareScan();
-    expect(Date.now() - t0).toBeLessThan(50);
+    const PENDING = Symbol("pending");
+    expect(await Promise.race([a.then(() => "settled"), new Promise((r) => setTimeout(() => r(PENDING), 0))])).toBe(PENDING);
     expect(a).toBe(b);
     release();
     await a;

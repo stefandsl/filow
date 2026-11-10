@@ -18,7 +18,8 @@ const DEFAULTS = {
   provider: "local",
   voice: "system",
   showAlways: false,
-  dictation: true,
+  // Dictation's switch lives in settings.dictation (dictation.js); an old okFilow.dictation: false is
+  // still read there until the user changes a dictation setting.
   /** Buddy, drawing and highlighter colour (HeyClicky's cursor_color_hex). */
   color: "#ffb600",
   /** Speech rate for the voice, 0.75 to 1.5. */
@@ -40,7 +41,6 @@ const DEFAULTS = {
   /** What the user allowed or refused to send outside, per kind and recipient ("ask:openrouter/google"). */
   consent: {},
 };
-const DICTATE_CHORD = "ctrl+meta";
 /** A finite point inside a window's or display's bounds (right and bottom edges excluded). */
 const onRect = (x, y, b) => Number.isFinite(x) && Number.isFinite(y) && x >= b.x && x < b.x + b.width && y >= b.y && y < b.y + b.height;
 /** Test builds only: FILOW_OKF_QA=1 lets screen recorders see OK Filow windows, for end-to-end checks. */
@@ -48,6 +48,8 @@ const onRect = (x, y, b) => Number.isFinite(x) && Number.isFinite(y) && x >= b.x
 const QA_ALLOWED = require("./qa.js").isQaBuild(require("electron").app);
 const QA_VISIBLE = QA_ALLOWED && process.env.FILOW_OKF_QA === "1";
 const QA_SHOTS = QA_ALLOWED ? process.env.FILOW_OKF_QA_SHOTS || "" : "";
+/** Test builds only: FILOW_OKF_QA_KEYS=1 lets the panel feed the gestures key presses (when Windows refuses the hook). */
+const QA_KEYS = QA_ALLOWED && process.env.FILOW_OKF_QA_KEYS === "1";
 const HOTKEYS = ["ctrl+alt", "ctrl+shift", "alt+shift", "ctrl+meta"];
 // 1024 wide keeps buttons readable for the model and answers about twice as fast as 1280 on a local GPU.
 const IMAGE_MAX_WIDTH = 1024;
@@ -56,7 +58,7 @@ const FADE_AFTER_MS = 1000;
 const hotkeyHeld = chordHeld;
 
 function createOkFilow(deps) {
-  const { appUrl, getSettings, saveSettings, iconPath, logLine, sttLocal, userData, menuText, isOffline, askKeyboardPermission } = deps;
+  const { appUrl, getSettings, saveSettings, iconPath, logLine, sttLocal, userData, menuText, isOffline, askKeyboardPermission, dictation } = deps;
   const cfg = () => ({ ...DEFAULTS, ...(getSettings().okFilow || {}) });
   const setCfg = (patch) => {
     const { consentChanges, ...rest } = patch || {};
@@ -69,7 +71,6 @@ function createOkFilow(deps) {
     // Until the user picks a voice, the natural one speaks as soon as its model is on this PC (status()).
     next.voiceChosen = next.voiceChosen === true || (!!patch && "voice" in patch);
     next.naturalVoice = Math.min(9, Math.max(0, Math.round(Number(next.naturalVoice)) || 0));
-    next.dictation = next.dictation !== false;
     if (!/^#[0-9a-f]{6}$/i.test(String(next.color))) next.color = DEFAULTS.color;
     next.speed = Math.min(1.5, Math.max(0.75, Number(next.speed) || 1));
     next.typedVoice = next.typedVoice === true;
@@ -309,12 +310,13 @@ function createOkFilow(deps) {
   }
   /** An answer's visuals (points, marks, cards, drawings) stay up until Escape, the panel's Clear or the next question. */
   let pinned = false;
-  function scheduleFade() {
+  /** `ms`: how long the bubble stays after the end (a dictation that was only copied says so for longer). */
+  function scheduleFade(ms = FADE_AFTER_MS) {
     clearTimeout(fadeTimer);
     if (cfg().showAlways || pinned || outbound.active()) return;
     fadeTimer = setTimeout(() => {
       if (!pinned && !outbound.active() && (mode === "idle" || mode === "error")) hideOverlays();
-    }, FADE_AFTER_MS);
+    }, Math.min(Math.max(Number(ms) || FADE_AFTER_MS, FADE_AFTER_MS), 6000));
   }
 
   let lastCursor = "";
@@ -341,13 +343,22 @@ function createOkFilow(deps) {
 
   // ---- state ----
   function setMode(next, extra = {}) {
+    // The panel could not start listening (no model, microphone refused) while keys are still counted as
+    // held: end that session here, or a toggle-mode dictation would eat the user's next press as "stop".
+    if (next === "error" && held) {
+      held = false;
+      clearTimeout(dictateCap);
+      if (purpose === "dictate") gestures?.endToggle();
+      setOverlayMouse(false);
+      purpose = null;
+    }
     mode = next;
     sendOverlays("okfilow:state", { mode, ...extra });
     sendPanel("okfilow:mode", { mode, ...extra });
     if (mode !== "idle" && mode !== "error") {
       clearTimeout(fadeTimer);
       showOverlays();
-    } else scheduleFade();
+    } else scheduleFade(extra.holdMs);
   }
 
   // ---- panel (also the brain) ----
@@ -415,7 +426,10 @@ function createOkFilow(deps) {
   }
 
   function applyConfig(patch) {
-    const c = setCfg(patch);
+    // The panel's dictation switch writes dictation.js's setting (it used to live in okFilow.dictation).
+    const { dictation: dictationOn, ...rest } = patch || {};
+    if (typeof dictationOn === "boolean") dictation.configure({ enabled: dictationOn });
+    const c = setCfg(rest);
     protectAll(hidden());
     if (c.showAlways && c.enabled) showOverlays();
     else if (mode === "idle" && !outbound.active()) hideOverlays();
@@ -469,19 +483,26 @@ function createOkFilow(deps) {
   }
 
   // ---- keyboard gestures (okfilow-gestures.js) ----
-  // Hold the talk chord to ask; hold Ctrl+Win to dictate into the focused app; tap Ctrl+Win twice for
-  // hands-free; tap Ctrl twice for the text box. While talking, the mouse draws a highlighter stroke
-  // on the overlay (the overlay takes the mouse only for that time) and the model sees what was marked.
+  // Hold the talk chord to ask; hold the dictation chord (dictation.js, default Ctrl+Win) to dictate into
+  // the focused app; tap it twice for hands-free; tap Ctrl twice for the text box. While talking, the
+  // mouse draws a highlighter stroke on the overlay (the overlay takes the mouse only for that time) and
+  // the model sees what was marked.
   let gestures = null;
   let purpose = null; // "talk" | "dictate" while the mic is open from a hold
   let handsFree = false;
   let strokes = []; // [{ displayId, points: [[x, y] global DIP] }]
   let selection = Promise.resolve(""); // text selected in the focused app when the talk began
+  let dictateCap = null;
+  let releasedAt = 0; // when the last dictation's keys went up, for the release-to-text log line
 
   function press(kind = "talk") {
-    if (held || !cfg().enabled) return;
+    // Dictation has its own switch: it works with OK Filow's questions turned off.
+    if (held || !(kind === "dictate" ? dictation.cfg().enabled : cfg().enabled)) return;
     held = true;
     purpose = kind;
+    // A toggle-mode dictation nobody stops ends by itself after five minutes.
+    clearTimeout(dictateCap);
+    if (kind === "dictate") dictateCap = setTimeout(() => purpose === "dictate" && release(), 5 * 60_000);
     // Read the selection while the user's app still has focus; it goes with the question.
     if (kind === "talk") { clearDrawings(); strokes = []; setOverlayMouse(true); selection = readSelection(); }
     sendPanel("okfilow:press", { purpose: kind });
@@ -489,6 +510,8 @@ function createOkFilow(deps) {
   function release() {
     if (!held) return;
     held = false;
+    clearTimeout(dictateCap);
+    if (purpose === "dictate") { releasedAt = Date.now(); gestures?.endToggle(); }
     setOverlayMouse(false);
     sendPanel("okfilow:release", { purpose });
     purpose = null;
@@ -496,6 +519,8 @@ function createOkFilow(deps) {
   function cancel() {
     if (!held) return;
     held = false;
+    clearTimeout(dictateCap);
+    if (purpose === "dictate") gestures?.endToggle();
     setOverlayMouse(false);
     strokes = [];
     sendOverlays("okfilow:strokes", []);
@@ -532,39 +557,17 @@ function createOkFilow(deps) {
     while (gestures && gestures.anyDown && Date.now() < until) await new Promise((r) => setTimeout(r, 25));
     return !(gestures && gestures.anyDown);
   }
-  /** Types dictated text into the focused app: clipboard + Ctrl+V, then the user's clipboard comes back. */
-  async function typeText(text) {
-    const t = String(text || "").trim();
-    if (!t || !hook) return false;
-    const { clipboard } = require("electron");
-    // Save every format; when there is one we cannot put back faithfully (copied files, RTF
-    // with objects...), leave the clipboard holding the dictation rather than destroy it.
-    const has = (fmt) => { try { return clipboard.read(fmt).length > 0; } catch { return false; } };
-    const restorable = !has("FileNameW") && !has("FileName"); // copied files cannot be put back faithfully
-    // Not every Electron build has every reader: a missing one just counts as empty.
-    const read = (fn, empty) => { try { return typeof clipboard[fn] === "function" ? clipboard[fn]() : empty; } catch { return empty; } };
-    const saved = { text: read("readText", ""), html: read("readHTML", ""), rtf: read("readRTF", ""), image: read("readImage", null) };
-    const hadSomething = Boolean(saved.text || saved.html || saved.rtf || (saved.image && !saved.image.isEmpty()));
-    if (!(await modifiersUp())) { logLine("okfilow: dictation not typed (keys still held)"); return false; }
-    clipboard.writeText(t);
-    logLine(`okfilow: dictation typed (${t.length} chars)`);
-    const { UiohookKey: K } = require("uiohook-napi");
-    hook.keyTap(K.V, [K.Ctrl]);
-    // Slow targets (RDP, Office) read the clipboard late: wait before putting the old content back.
-    setTimeout(() => {
-      if (!restorable || clipboard.readText() !== t) return; // the user copied something meanwhile: keep theirs
-      const data = { text: saved.text };
-      if (saved.html) data.html = saved.html;
-      if (saved.rtf) data.rtf = saved.rtf;
-      if (saved.image && !saved.image.isEmpty()) data.image = saved.image;
-      try {
-        if (hadSomething) clipboard.write(data);
-        else clipboard.clear();
-      } catch {
-        try { clipboard.writeText(saved.text); } catch { /* leave the dictation there */ }
-      }
-    }, 1500);
-    return true;
+  /**
+   * Dictated text from the panel: typed into whatever has focus (dictation.js decides how: directly in
+   * Filow's own windows, else clipboard + paste with the user's clipboard put back, or only copied).
+   */
+  async function typeText(text, spokenLanguage) {
+    // QA key mode: the paste still goes out through uiohook (SendInput), which works without the hook.
+    const keys = hook || (QA_KEYS ? require("uiohook-napi").uIOhook : null);
+    const r = await dictation.insert(text, { hook: keys, keysUp: () => modifiersUp(), spokenLanguage });
+    if (releasedAt && r.action !== "none") logLine(`dictation: release to text ${Date.now() - releasedAt} ms (${r.action}${r.reason ? `, ${r.reason}` : ""})`);
+    releasedAt = 0;
+    return r;
   }
   function openQuickAsk() {
     showPanelAtCursor();
@@ -599,9 +602,15 @@ function createOkFilow(deps) {
         [K.Shift]: "shift", [K.ShiftRight]: "shift",
         [K.Meta]: "meta", [K.MetaRight]: "meta",
       };
-      gestures = createGestures({
+      // Made once: a retry (Windows refused the hook) must not swap it for a fresh one while a chord is
+      // down or a dictation runs, or the key-ups go to the new one and the old session never ends.
+      // Listeners from a failed attempt are dropped so a retry does not add a second set.
+      uIOhook.removeAllListeners();
+      if (!gestures) gestures = createGestures({
         talk: () => cfg().hotkey,
-        dictate: () => (cfg().dictation && cfg().hotkey !== DICTATE_CHORD ? DICTATE_CHORD : null),
+        // Null while dictation is off or its keys clash with the talk keys (Settings says so).
+        dictate: () => dictation.activeChord(cfg().hotkey),
+        dictateMode: () => dictation.cfg().mode,
         emit: onGesture,
       });
       uIOhook.on("keydown", (e) => {
@@ -609,7 +618,7 @@ function createOkFilow(deps) {
         if (!e.keycode) return;
         const k = map[e.keycode] || null;
         gestures.keydown(k);
-        if (e.keycode === K.Escape) clearDrawings();
+        if (e.keycode === K.Escape) { clearDrawings(); gestures.escape(); }
       });
       uIOhook.on("keyup", (e) => { if (e.keycode) gestures.keyup(map[e.keycode] || null); });
       // Key-ups on the secure desktop (Win+L, Ctrl+Alt+Del, sleep) never reach the hook: start clean
@@ -715,7 +724,9 @@ function createOkFilow(deps) {
   function status() {
     const c = cfg();
     if (!c.voiceChosen && c.voice === "system" && tts?.usable()) c.voice = "natural";
-    return { ...c, hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, mode, handsFree, dictateChord: DICTATE_CHORD };
+    // Dictation keeps its own settings (dictation.js); the panel shows its switch and keys from here.
+    const d = dictation.status({ talkHotkey: c.hotkey, hook: Boolean(hook) });
+    return { ...c, hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, mode, handsFree, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d };
   }
 
   // ---- IPC (only OK Filow's own windows) ----
@@ -777,7 +788,14 @@ function createOkFilow(deps) {
   ipcMain.on("okfilow:press", (e) => ourSender(e.sender) && press("talk"));
   ipcMain.on("okfilow:release", (e) => ourSender(e.sender) && release());
   /** Dictation result from the panel: typed into whatever app has focus. */
-  ipcMain.handle("okfilow:typeText", guard((text) => typeText(typeof text === "string" ? text.slice(0, 20000) : "")));
+  ipcMain.handle("okfilow:typeText", guard((text, lang) => typeText(typeof text === "string" ? text.slice(0, 20000) : "", typeof lang === "string" ? lang.slice(0, 5) : "")));
+  /** Test builds only (FILOW_OKF_QA_KEYS=1): key presses for the gestures, as the hook would deliver them. */
+  ipcMain.on("okfilow:qa:key", (e, type, key) => {
+    if (!QA_KEYS || !ourSender(e.sender) || !gestures) return;
+    const mod = ["ctrl", "alt", "shift", "meta"].includes(key) ? key : null;
+    if (type === "down") { gestures.keydown(mod); if (key === "escape") gestures.escape(); }
+    else if (type === "up") gestures.keyup(mod);
+  });
   /** Hands-free off from the panel (its button or Escape). */
   ipcMain.on("okfilow:handsfreeOff", (e) => { if (ourSender(e.sender)) { handsFree = false; sendPanel("okfilow:handsfree", false); } });
   /** Highlighter strokes from an overlay, in its local coordinates; kept in global DIP until the question is sent. */
@@ -916,6 +934,11 @@ function createOkFilow(deps) {
     buildTray();
     buildPanel();
     startHook();
+    // Dictation turned off, or its keys changed, while it records: stop without typing.
+    dictation.onChange((d) => {
+      if (purpose === "dictate" && (!d.enabled || !dictation.activeChord(cfg().hotkey))) cancel();
+      sendPanel("okfilow:config", status());
+    });
     screen.on("display-added", () => visible && buildOverlays());
     screen.on("display-removed", () => buildOverlays());
     screen.on("display-metrics-changed", () => buildOverlays());

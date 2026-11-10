@@ -19,6 +19,8 @@ const VAD_WINDOW = 512;
 // phrase models made 86 errors at 0.5, 59 at 0.2 (Japanese ReazonSpeech 16.3 % -> 6.7 % CER).
 // `vadThreshold` in the init message overrides it for measurements.
 const VAD_THRESHOLD = 0.2;
+// Silence added after the last sample when a streaming take stops (see flush()).
+const TAIL_PADDING_S = 0.8;
 
 let sherpa = null;
 let recognizer = null;
@@ -114,6 +116,9 @@ function flush() {
     return;
   }
   if (!stream) return;
+  // A streaming model decodes in chunks (560 ms for Nemotron) and needs audio after the last word to
+  // finish it: without this silence a dictation released right after "Friday" came out as "Fri".
+  stream.acceptWaveform({ samples: new Float32Array(Math.round(SAMPLE_RATE * TAIL_PADDING_S)), sampleRate: SAMPLE_RATE });
   stream.inputFinished();
   while (recognizer.isReady(stream)) recognizer.decode(stream);
   const r = recognizer.getResult(stream);

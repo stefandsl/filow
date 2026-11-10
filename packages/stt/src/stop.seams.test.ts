@@ -58,7 +58,11 @@ describe("Step 4 stop seams", () => {
     const posted: any[] = [];
     // Execute the real worker's protocol against a fake recognizer, including inputFinished.
     const inputFinished = vi.fn();
-    const recognizer = { createStream: () => ({ inputFinished, setOption() {} }), isReady: () => false,
+    // The silence fed after the last word before inputFinished (a streaming model needs it to finish
+    // the last word: "Friday" came out as "Fri" without it).
+    const finishedBeforePad: number[] = [];
+    const acceptWaveform = vi.fn((w: { samples: Float32Array }) => { finishedBeforePad.push(inputFinished.mock.calls.length); return w; });
+    const recognizer = { createStream: () => ({ inputFinished, acceptWaveform, setOption() {} }), isReady: () => false,
       getResult: () => ({ text: "last utterance" }) };
     runInNewContext(readFileSync(new URL("../../../apps/desktop/stt-worker.js", import.meta.url), "utf8"), {
       require: (id: string) => id === "node:path" ? path : id === "node:worker_threads" ? { parentPort: {
@@ -74,6 +78,10 @@ describe("Step 4 stop seams", () => {
     const transcript = vi.fn(); const backend = new SherpaStt();
     await backend.start({ onTranscript: transcript, onError: vi.fn() }); backend.stop();
     expect(inputFinished).toHaveBeenCalledOnce();
+    const pad = acceptWaveform.mock.calls.at(-1)?.[0].samples as Float32Array;
+    expect(pad.length).toBeGreaterThanOrEqual(8000);
+    expect(pad.every((v) => v === 0)).toBe(true);
+    expect(finishedBeforePad).toEqual([0]); // the silence goes in before inputFinished
     expect(posted).toContainEqual({ type: "result", partial: "", committed: "last utterance" });
     expect(transcript, "worker flush must reach the take before the result subscription is removed")
       .toHaveBeenCalledWith({ committed: "last utterance ", partial: "" });
