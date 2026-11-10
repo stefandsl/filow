@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { describe, expect, it, vi } from "vitest";
-const { setupOffer, setupChoice, installedModels, probeSetup, createOfferGate } =createRequire(import.meta.url)("./welcome-setup.js");
+const { setupOffer, setupChoice, installedModels, probeSetup, createOfferGate, savedSetupAnswer } = createRequire(import.meta.url)("./welcome-setup.js");
 
 const CATALOG = {
   "nemotron-streaming": { dl: 0.45, ollama: false, label: "Nemotron streaming speech-to-text" },
@@ -101,6 +101,20 @@ describe("offer gate (the welcome shows before the hardware scan)", () => {
     expect(await gate.get()).toBe(2);
     expect(await gate.get()).toBe(2);
     expect(n).toBe(2);
+  });
+});
+
+describe("saved setup answer (review T3 finding 8)", () => {
+  it("reads back a saved download choice and a saved 'not now'", () => {
+    expect(savedSetupAnswer({ choice: { models: ["clef-flash", "gemma4:e4b"], ollama: true } }, CATALOG)).toEqual({ choice: { models: ["clef-flash", "gemma4:e4b"], ollama: true } });
+    expect(savedSetupAnswer({ choice: null }, CATALOG)).toEqual({ choice: null });
+  });
+  it("ignores anything else: nothing saved, a wrong shape, a model not in the catalog", () => {
+    for (const bad of [undefined, null, {}, "x", { choice: "x" }, { choice: { models: "clef-flash", ollama: true } },
+      { choice: { models: [], ollama: false } }, { choice: { models: ["clef-flash"], ollama: "yes" } },
+      { choice: { models: ["../../evil"], ollama: false } }, { choice: { models: ["toString"], ollama: false } }]) {
+      expect(savedSetupAnswer(bad, CATALOG)).toBeNull();
+    }
   });
 });
 

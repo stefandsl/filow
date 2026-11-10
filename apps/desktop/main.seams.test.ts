@@ -32,14 +32,14 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false }
     "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": {},
     "node:worker_threads": {}, "node:events": EventEmitter,
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
-    "./vendor/i18n": { t }, "./ui-preferences": {}, "./welcome-setup": { createOfferGate: () => ({ open() {}, get() {} }) }, "./slideshow": {},
+    "./vendor/i18n": { t }, "./ui-preferences": {}, "./slideshow": {},
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
-  for (const name of ["stt", "localai", "diag"]) {
+  for (const name of ["stt", "localai", "diag", "welcome-setup"]) {
     const module = { exports: {} };
     runInNewContext(readFileSync(new URL(`./${name}.js`, import.meta.url), "utf8"), {
       require: (id: string) => { if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`); return modules[id]; },
-      module, process: { env, platform: "win32" }, URL,
+      module, process: { env, platform: "win32" }, URL, setTimeout,
     });
     modules[`./${name}`] = module.exports;
   }
@@ -48,7 +48,8 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false }
        startupOffline: () => applyOffline(null), tunnels, setLog: text => { lastTakeLog = text; },
        textTables: { MENU_TEXT, NET_TEXT, SPLASH_TEXT, LOCAL_AI_TEXT },
        setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
-       guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; } });`, {
+       guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
+       offerLocalAi, offerFirewall, welcomeSetup, settings: () => settings, patchSettings: patch => Object.assign(settings, patch) });`, {
     require: (id: string) => {
       if (id.endsWith("electron-updater.js")) return { autoUpdater: { on(event: string, fn: (info: { version: string }) => void) { updaterHandlers[event] = fn; }, checkForUpdates, quitAndInstall() {} } };
       if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`);
@@ -299,5 +300,45 @@ describe("desktop shell dialogs", () => {
       }
     }
     expect(sentences, "move these texts into MENU_TEXT (en and it) and read them with mt()").toEqual([]);
+  });
+});
+
+// Review T3 finding 7: reverting the first-run dialog changes failed no test. Finding 8: the welcome's
+// speech-setup answer is kept on disk until offerLocalAi() uses it.
+describe("first-run dialogs after the welcome", () => {
+  it("the welcome answered the speech setup: offerLocalAi asks nothing and returns that answer", async () => {
+    const f = fixture();
+    Object.assign(f.api.welcomeSetup, { shown: true, choice: { models: ["clef-flash"], ollama: true } });
+    expect(await f.api.offerLocalAi()).toEqual({ models: ["clef-flash"], ollama: true });
+    expect(f.showMessageBox).not.toHaveBeenCalled();
+  });
+  it("an answer saved by a launch that quit before the server check is used, not asked again, then dropped", async () => {
+    const f = fixture();
+    f.api.patchSettings({ welcomeSetupAnswer: { choice: { models: ["gemma4:e4b"], ollama: true } } });
+    expect(await f.api.offerLocalAi()).toEqual({ models: ["gemma4:e4b"], ollama: true });
+    expect(f.showMessageBox).not.toHaveBeenCalled();
+    expect(f.api.settings().welcomeSetupAnswer).toBeUndefined();
+    const g = fixture();
+    g.api.patchSettings({ welcomeSetupAnswer: { choice: null } });
+    expect(await g.api.offerLocalAi()).toBeNull();
+    expect(g.showMessageBox).not.toHaveBeenCalled();
+  });
+  it("with no answer anywhere, the native question is still asked", async () => {
+    const f = fixture();
+    await f.api.offerLocalAi(); // the fake machine (0 GB RAM) still gets the Lite recommendation
+    expect(f.showMessageBox).toHaveBeenCalledOnce();
+  });
+  it("the public link is on: the firewall question is left to the pairing panel", async () => {
+    const f = fixture();
+    f.api.patchSettings({ remoteShare: true });
+    await f.api.offerFirewall(null);
+    expect(f.showMessageBox).not.toHaveBeenCalled();
+  });
+  it("the public link is off and the rule is missing: the firewall question is asked", async () => {
+    const f = fixture();
+    f.api.patchSettings({ remoteShare: false });
+    f.showMessageBox.mockResolvedValueOnce({ response: 1 });
+    await f.api.offerFirewall(null);
+    expect(f.showMessageBox).toHaveBeenCalledOnce();
   });
 });

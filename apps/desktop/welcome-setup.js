@@ -73,6 +73,20 @@ function setupChoice(offer, rec, accept, catalog, installed) {
 }
 
 /**
+ * The welcome's answer as saved in settings.json (review T3 finding 8: quitting between the welcome and
+ * the server check must not bring the native question back). Read back only in its exact shape, with
+ * model names from the catalog; anything else = no saved answer.
+ */
+function savedSetupAnswer(saved, catalog) {
+  if (!saved || typeof saved !== "object" || !("choice" in saved)) return null;
+  const c = saved.choice;
+  if (c === null) return { choice: null };
+  if (!c || typeof c !== "object" || !Array.isArray(c.models) || typeof c.ollama !== "boolean") return null;
+  if (!c.models.length || !c.models.every((n) => typeof n === "string" && Object.prototype.hasOwnProperty.call(catalog, n))) return null;
+  return { choice: { models: [...c.models], ollama: c.ollama } };
+}
+
+/**
  * The offer needs a hardware scan that can take seconds on a slow PC (and, while it is synchronous, holds
  * the main process). So it is never computed before the welcome window is on screen: get() before open()
  * waits, and the scan starts one turn after open(), once the show has gone out. Computed once; a failed
@@ -94,4 +108,4 @@ function createOfferGate(compute, defer = (fn) => setTimeout(fn, 0)) {
   };
 }
 
-module.exports = { TAKE_MODELS, installedModels, probeSetup, setupOffer, setupChoice, createOfferGate };
+module.exports = { TAKE_MODELS, installedModels, probeSetup, setupOffer, setupChoice, savedSetupAnswer, createOfferGate };

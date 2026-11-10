@@ -298,7 +298,7 @@ const welcomeUrl = pathToFileURL(welcomeFile).href;
 let uiPreferences, welcomeController, welcomeWin = null;
 let startupTransition = false, quitting = false;
 let welcomeHydrationTimer;
-const { probeSetup, setupOffer, setupChoice, createOfferGate } = require("./welcome-setup");
+const { probeSetup, setupOffer, setupChoice, savedSetupAnswer, createOfferGate } = require("./welcome-setup");
 /** shown: the welcome's speech-setup step was answered; choice: that answer (install choices or null); rec, installed: what the offer was made from. */
 const welcomeSetup = { shown: false, choice: null, rec: null, installed: null };
 // The hardware scan behind the offer waits until the welcome window is on screen (opened in welcome:ready).
@@ -401,6 +401,9 @@ function initializeUiPreferences() {
     const offer = await welcomeSetupOffer();
     welcomeSetup.choice = setupChoice(offer, welcomeSetup.rec, accept, localAi.CATALOG, welcomeSetup.installed);
     welcomeSetup.shown = true; // answered: closing the window before this step still gets the question later
+    // Kept on disk until offerLocalAi() uses it: quitting before the server check must not ask again.
+    settings.welcomeSetupAnswer = { choice: welcomeSetup.choice };
+    try { saveSettings(); } catch (err) { logLine(`welcome: speech setup answer not saved: ${err.message}`); }
     logLine(`welcome: speech setup ${accept ? "accepted" : "declined"}${welcomeSetup.choice ? ` (${welcomeSetup.choice.models.join(", ")})` : ", nothing to download"}`);
     return { ok: true };
   });
@@ -1546,6 +1549,10 @@ const LOCAL_AI_TEXT = {
 /** First start without installer choices (macOS, Linux, portable): offer the hardware-based setup. */
 async function offerLocalAi() {
   // V2 onboarding: the welcome asked in its "This computer" step (or the user skipped it); no second question.
+  // The answer may come from an earlier launch that quit before getting here (settings.welcomeSetupAnswer).
+  const saved = savedSetupAnswer(settings.welcomeSetupAnswer, localAi.CATALOG);
+  if (!welcomeSetup.shown && saved) Object.assign(welcomeSetup, { shown: true, choice: saved.choice });
+  delete settings.welcomeSetupAnswer; // main() saves settings (localAiOffered) right after this returns
   if (welcomeSetup.shown) {
     logLine(`local AI offer: answered in the welcome${welcomeSetup.choice ? "" : " (nothing to download)"}`);
     return welcomeSetup.choice;
