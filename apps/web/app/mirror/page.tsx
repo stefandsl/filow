@@ -196,14 +196,14 @@ function MirrorStage({ state, onCommand, banner }: { state: SessionState; onComm
   const [open, setOpen] = useState(false);
   useEyeline(pageArea, currentPoint(state), display);
   return (
-    <div className="display-root" {...displayAttributes(display)}>
+    <main className="display-root" {...displayAttributes(display)}>
       <MirrorKeys state={state} onCommand={onCommand} />
       <button type="button" className="btn mirror-display-btn" onClick={() => setOpen(true)} title={t("display.openTitle")} aria-haspopup="dialog">
         <Icon name="sliders" /> {t("display.open")}
       </button>
       <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state} onCommand={onCommand} stage banner={banner} />
       {open && <DisplayPanel prefs={display} onChange={setDisplay} onClose={() => setOpen(false)} />}
-    </div>
+    </main>
   );
 }
 
