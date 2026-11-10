@@ -27,7 +27,10 @@ function rig(start: ConsentMap = {}, opts: { writeFails?: boolean } = {}) {
   });
   const advance = (ms: number) => {
     world.clock += ms;
-    for (const timer of world.timers.splice(0)) (timer.at <= world.clock ? timer.fn() : world.timers.push(timer));
+    for (const timer of world.timers.splice(0)) {
+      if (timer.at <= world.clock) timer.fn();
+      else world.timers.push(timer);
+    }
   };
   return { out, world, advance };
 }
