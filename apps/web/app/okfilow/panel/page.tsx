@@ -10,6 +10,7 @@ import { speechDeadline } from "@/lib/buddy/speech";
 import { markToDisplay, parseBuddyAnswer, pointToDisplay, type BuddyTurn } from "@/lib/buddy/prompt";
 import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
 import { burnStrokes, createVad, describeMarked } from "@/lib/buddy/listen";
+import { getSetupPreference } from "@/lib/prefs";
 import "../okfilow.css";
 
 const HISTORY_KEY = "okfilow.history.v1";
@@ -73,7 +74,7 @@ export default function OkFilowPanel() {
     // Load the local model now, so the first question does not wait for it (local only, no content sent).
     void b.status().then(async (s) => {
       if (s.enabled && (s.provider === "local" || s.offline)) {
-        await fetch("/api/buddy/warm", { method: "POST", headers: await engineHeadersRef.current() }).catch(() => {});
+        await fetch("/api/buddy/warm", { method: "POST", headers: { "Content-Type": "application/json", ...(await engineHeadersRef.current()) }, body: JSON.stringify({ setup: getSetupPreference() }) }).catch(() => {});
       }
     });
     void b.stt.status().then((s) => setSttReady(s.ready)).catch(() => setSttReady(false));
@@ -176,6 +177,7 @@ export default function OkFilowPanel() {
         history: [],
         language: "auto",
         provider: statusRef.current?.provider ?? "local",
+        setup: getSetupPreference(),
       }),
     });
     if (!res.ok) return null;
@@ -227,7 +229,7 @@ export default function OkFilowPanel() {
         method: "POST",
         signal: abort.signal,
         headers: { "Content-Type": "application/json", ...(await engineHeaders()) },
-        body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: "auto", provider: statusRef.current?.provider ?? "local" }),
+        body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: "auto", provider: statusRef.current?.provider ?? "local", setup: getSetupPreference() }),
       });
       if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `HTTP ${res.status}`);
       const reader = res.body.getReader();
@@ -290,7 +292,8 @@ export default function OkFilowPanel() {
       }
       // HeyClicky always shows you where. Small local models sometimes answer in words only: then ask
       // once more, narrowly, for the point, while the answer is already being spoken.
-      const grounding = !mapped.length && !drawn.length && !cards.length && !model && text
+      // (not when the setup answered from text: the model saw no picture to point at)
+      const grounding = !mapped.length && !drawn.length && !cards.length && !model && text && res.headers.get("X-Buddy-Sees") !== "text"
         ? groundAnswer(question, text, images, shot, abort.signal).then((p) => { if (p && run.current === id) b.point([p]); }).catch(() => {})
         : Promise.resolve();
       setMode("speaking");

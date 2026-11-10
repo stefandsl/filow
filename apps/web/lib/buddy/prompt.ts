@@ -26,7 +26,20 @@ export type BuddyMark =
   | { kind: "box"; x1: number; y1: number; x2: number; y2: number; label: string; screen: number }
   | { kind: "underline"; x1: number; y: number; x2: number; label: string; screen: number };
 
-export function buddySystemPrompt(screens: BuddyScreen[], language: string): string {
+export function buddySystemPrompt(screens: BuddyScreen[], language: string, opts: { pictures?: boolean } = {}): string {
+  if (opts.pictures === false) {
+    // the setup for this computer answers from text: no screenshot is sent (pictures are too slow here)
+    const lang = language === "it" ? "Italian" : language === "en" ? "English" : "the language the user speaks";
+    return [
+      "You are OK Filow, a friendly helper that lives next to the user's mouse pointer.",
+      "On this computer you cannot see the screen. Answer from the question and from any text the user selected, which is quoted in the question.",
+      "If the answer needs to see the screen, say so in one sentence and ask the user to select the text or describe what they see.",
+      "Your answer is read aloud, so write plain spoken sentences: no markdown, no lists, no emoji, no URLs unless asked.",
+      "Be short: one to three sentences, unless the user asks for a step-by-step walkthrough; then give one step at a time.",
+      `Answer in ${lang}.`,
+      "Never write tags in square brackets such as [POINT] or [BOX]: you cannot see where things are.",
+    ].join("\n");
+  }
   const list = screens
     .map((s) => `- screen${s.index}${s.cursor ? " (the mouse is on this one)" : ""}`)
     .join("\n");

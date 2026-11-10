@@ -11,5 +11,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
-  return NextResponse.json(await warmLocalModel());
+  // the setup preference picks the screen helper to load (absent = "auto")
+  const body = (await req.json().catch(() => ({}))) as { setup?: unknown };
+  return NextResponse.json(await warmLocalModel(body?.setup));
 }

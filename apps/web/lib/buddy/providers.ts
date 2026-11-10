@@ -1,7 +1,10 @@
-// OK Filow answer providers. Local: a vision model in Ollama (Qwen3-VL 8B, else Gemma 4), nothing
-// leaves the PC. Cloud: OpenRouter multimodal, only when the user picked it. An explicit choice
-// never falls back to the other provider; errors go back to the bubble.
+// OK Filow answer providers. Local: the screen helper the setup for this computer chose
+// (packages/core/src/profile.ts), in Ollama; nothing leaves the PC. Cloud: OpenRouter multimodal,
+// only when the user picked it. An explicit choice never falls back to the other provider; errors
+// go back to the bubble.
+import { isSetupPreference, resolveSetup, type ResolvedSetup } from "@filow/core";
 import { OLLAMA_URL } from "@/lib/decide/clef";
+import { gpuInfo, machineInfo } from "@/lib/sysinfo";
 import { buddySystemPrompt, trimHistory, type BuddyScreen, type BuddyTurn } from "./prompt";
 
 export type BuddyProviderId = "local" | "cloud";
@@ -14,36 +17,68 @@ export type BuddyAskRequest = {
   history?: BuddyTurn[];
   language?: string;
   provider?: string;
+  /** the setup preference the user chose in Settings ("auto", "lite", ...); absent = "auto" */
+  setup?: string;
 };
 
-/** Vision models that can read a screenshot, best first. The first one pulled in Ollama is used. */
-// Speed first: the 2B fits fully on an 8 GB GPU and answers in about 0.5 s; the 8B splits onto the CPU.
-export const BUDDY_LOCAL_CANDIDATES = ["qwen3-vl:2b", "qwen3-vl:4b", "gemma4:e2b", "gemma4:e4b", "qwen3-vl:8b"];
+/** What OK Filow runs on "Answers from: Local": the model, and whether it is shown the screenshot. */
+export type LocalHelper = { model: string; pictures: boolean };
 
-// Only OK Filow's own setting counts: the general text model (GENERATE_LOCAL_MODEL) may not see images.
-export function pickLocalModel(installed: string[], configured = process.env.BUDDY_LOCAL_MODEL, candidates = BUDDY_LOCAL_CANDIDATES): string {
-  if (configured) return configured;
-  const names = new Set(installed.flatMap((n) => [n, n.replace(/:latest$/, "")]));
-  return candidates.find((c) => names.has(c)) ?? "gemma4:e4b";
-}
+export const NO_LOCAL_HELPER =
+  'This computer has too little memory for OK Filow to answer on this PC. To get answers from online instead, choose Cloud under "Answers from" in the OK Filow panel.';
 
-/** Drawings and 3D models: the 2B loops and writes broken JSON (measured), so the biggest model draws. */
-export const BUDDY_DRAW_CANDIDATES = ["qwen3-vl:8b", "qwen3-vl:4b", "gemma4:e4b", ...BUDDY_LOCAL_CANDIDATES];
+/** Drawings and 3D models: the 2B loops and writes broken JSON (measured), so a bigger picture model the user installed draws. */
+export const BUDDY_DRAW_MODELS = ["qwen3-vl:8b", "qwen3-vl:4b", "gemma4:e4b"];
 export const wantsVisual = (q: string) => /\b(draw|drawing|sketch|diagram|illustrat\w*|3d|model|disegn\w*|schema|modello)\b/i.test(q);
 
-async function localModel(candidates = BUDDY_LOCAL_CANDIDATES): Promise<string> {
-  if (process.env.BUDDY_LOCAL_MODEL) return pickLocalModel([]);
+/**
+ * The local model and mode for one question: the setup's screen helper (setupChoices), the same
+ * model its downloads fetched, so OK Filow never asks Ollama for a model the setup did not install
+ * nor answers from pictures where the setup chose text. On Best quality a drawing goes to a bigger
+ * picture model when the user installed one. BUDDY_LOCAL_MODEL (developers) overrides all of it.
+ */
+export function localHelper(setup: Pick<ResolvedSetup, "active" | "choices">, installed: string[], question: string, configured = process.env.BUDDY_LOCAL_MODEL): LocalHelper {
+  if (configured) return { model: configured, pictures: true };
+  const h = setup.choices.screenHelper;
+  if (h.mode === "none" || !h.model) throw new Error(NO_LOCAL_HELPER);
+  if (h.mode === "picture" && setup.active === "advanced" && wantsVisual(question)) {
+    const names = new Set(installed.flatMap((n) => [n, n.replace(/:latest$/, "")]));
+    const big = BUDDY_DRAW_MODELS.find((m) => names.has(m));
+    if (big) return { model: big, pictures: true };
+  }
+  return { model: h.model, pictures: h.mode === "picture" };
+}
+
+async function installedModels(): Promise<string[]> {
   try {
     const res = await fetch(`${OLLAMA_URL()}/api/tags`, { signal: AbortSignal.timeout(3000) });
     const json = (await res.json()) as { models?: Array<{ name: string }> };
-    return pickLocalModel((json.models ?? []).map((m) => m.name), undefined, candidates);
+    return (json.models ?? []).map((m) => m.name);
   } catch {
-    return pickLocalModel([], undefined, candidates);
+    return [];
   }
 }
-/** Loads the local vision model and keeps it loaded for 30 minutes (empty prompt: Ollama only loads). */
-export async function warmLocalModel(): Promise<{ model: string; ok: boolean }> {
-  const model = await localModel();
+
+/** The setup for this computer under the user's preference: the rule Settings and the downloads use. */
+export async function serverSetup(preference?: unknown): Promise<ResolvedSetup> {
+  return resolveSetup(isSetupPreference(preference) ? preference : "auto", machineInfo(await gpuInfo()));
+}
+
+/** The local helper for a question under the user's setup preference (throws NO_LOCAL_HELPER when none fits). */
+export async function resolveLocalHelper(preference: unknown, question: string): Promise<LocalHelper> {
+  if (process.env.BUDDY_LOCAL_MODEL) return localHelper(await serverSetup(preference), [], question);
+  const [setup, installed] = await Promise.all([serverSetup(preference), wantsVisual(question) ? installedModels() : Promise.resolve([])]);
+  return localHelper(setup, installed, question);
+}
+
+/** Loads the setup's screen helper and keeps it loaded for 30 minutes (empty prompt: Ollama only loads). */
+export async function warmLocalModel(preference?: unknown): Promise<{ model: string | null; ok: boolean }> {
+  let model: string;
+  try {
+    model = (await resolveLocalHelper(preference, "")).model;
+  } catch {
+    return { model: null, ok: false };
+  }
   try {
     const res = await fetch(`${OLLAMA_URL()}/api/generate`, {
       method: "POST",
@@ -96,8 +131,8 @@ async function* lines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> 
   if (buffer.trim()) yield buffer.trim();
 }
 
-export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal): AsyncGenerator<string> {
-  const model = await localModel(wantsVisual(req.question) ? BUDDY_DRAW_CANDIDATES : BUDDY_LOCAL_CANDIDATES);
+export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper): AsyncGenerator<string> {
+  const { model, pictures } = helper ?? (await resolveLocalHelper(req.setup, req.question));
   const history = trimHistory(req.history ?? []).map((t) => ({ role: t.role, content: t.text }));
   let res: Response;
   try {
@@ -115,19 +150,19 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal): As
         // num_predict: a looping small model once ran 5,800 tokens (45 s); a real answer with a drawing is about 500.
         options: { temperature: 0.3, num_ctx: 8192, num_predict: 1500 },
         messages: [
-          { role: "system", content: buddySystemPrompt(req.screens, req.language ?? "") },
+          { role: "system", content: buddySystemPrompt(req.screens, req.language ?? "", { pictures }) },
           ...history,
-          // Gemma reads images placed on the message before the text.
-          { role: "user", content: req.question, images: req.images.map(base64Of) },
+          // Gemma reads images placed on the message before the text. Text mode sends no picture at all.
+          { role: "user", content: req.question, images: pictures ? req.images.map(base64Of) : [] },
           ...noThinkPrefill(model),
         ],
       }),
     });
   } catch (e) {
     if (signal?.aborted) return;
-    throw new Error(`Ollama is not running on this PC. Install it with the screen helper model (Qwen3-VL) in Settings > Local models, or set "Answers from" to Cloud in the OK Filow panel.`, { cause: e });
+    throw new Error(`Ollama, which runs OK Filow's answers on this PC, is not running. Install it in Settings > Local models, or set "Answers from" to Cloud in the OK Filow panel.`, { cause: e });
   }
-  if (res.status === 404) throw new Error(`The screen helper model (${model}) is not installed. Get it in Settings > Local models, or set "Answers from" to Cloud in the OK Filow panel.`);
+  if (res.status === 404) throw new Error(`The screen helper for this computer's setup is not downloaded yet. Get it in Settings > Local models with "Download now", or set "Answers from" to Cloud in the OK Filow panel.`);
   if (!res.ok || !res.body) throw new Error(`Ollama ${res.status}: ${(await res.text()).slice(0, 300)}`);
   for await (const line of lines(res.body)) {
     let json: { message?: { content?: string }; error?: string; done?: boolean };
@@ -187,6 +222,6 @@ export async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal)
   }
 }
 
-export function askBuddy(provider: BuddyProviderId, req: BuddyAskRequest, signal?: AbortSignal): AsyncGenerator<string> {
-  return provider === "cloud" ? askOpenRouter(req, signal) : askOllama(req, signal);
+export function askBuddy(provider: BuddyProviderId, req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper): AsyncGenerator<string> {
+  return provider === "cloud" ? askOpenRouter(req, signal) : askOllama(req, signal, helper);
 }
