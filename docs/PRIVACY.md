@@ -1,8 +1,8 @@
 # Filow privacy policy
 
 Last updated: 10 November 2026. This text describes what the Filow app really does, checked against
-its code (the full technical list is docs/okfilow/OUTBOUND.md in the source). The Italian version is
-docs/PRIVACY.it.md.
+its code (the full technical list is docs/okfilow/OUTBOUND.md in Filow's source code). It is also
+available in Italian: set Filow's language to Italian.
 
 > Parts in double square brackets, like [[this]], are not filled in yet. Only the publisher can fill them in, before release.
 

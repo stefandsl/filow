@@ -1,8 +1,8 @@
 # Informativa sulla privacy di Filow
 
 Ultimo aggiornamento: 10 novembre 2026. Questo testo descrive quello che l'app Filow fa davvero,
-verificato sul suo codice (l'elenco tecnico completo è docs/okfilow/OUTBOUND.md nei sorgenti). La
-versione inglese è docs/PRIVACY.md.
+verificato sul suo codice (l'elenco tecnico completo è docs/okfilow/OUTBOUND.md nel codice sorgente di
+Filow). È disponibile anche in inglese: imposta la lingua di Filow sull'inglese.
 
 > Le parti tra doppie parentesi quadre, come [[questa]], non sono ancora compilate. Solo l'editore può compilarle, prima del rilascio.
 

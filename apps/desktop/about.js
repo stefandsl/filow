@@ -21,7 +21,7 @@ const TEXT = {
     contents: "Exactly what the file will contain",
     masked: "Masked before you see it: public links, keys and passwords, e-mail addresses, local network addresses and your user name.",
     crashNone: "No crash files on this computer.",
-    crashSome: "Not included: {count} crash files ({size} MB). They can hold parts of what was on screen, so send them only if support asks for them.",
+    crashSome: "Not included: the crash files on this computer ({count}, {size} MB). They can hold parts of what was on screen, so send them only if support asks for them.",
     openCrash: "Open the crash files folder",
     save: "Save to a file…", copy: "Copy the text", close: "Close",
     saved: "Saved to {file}", copied: "Copied. Paste it into your message.", saveFailed: "Could not save the file: {error}",
@@ -43,7 +43,7 @@ const TEXT = {
     contents: "Esattamente cosa conterrà il file",
     masked: "Mascherati prima che tu li veda: link pubblici, chiavi e password, indirizzi e-mail, indirizzi della rete locale e il tuo nome utente.",
     crashNone: "Nessun file di crash su questo computer.",
-    crashSome: "Non inclusi: {count} file di crash ({size} MB). Possono contenere parti di quello che era sullo schermo: inviali solo se l'assistenza li chiede.",
+    crashSome: "Non inclusi: i file di crash su questo computer ({count}, {size} MB). Possono contenere parti di quello che era sullo schermo: inviali solo se l'assistenza li chiede.",
     openCrash: "Apri la cartella dei file di crash",
     save: "Salva in un file…", copy: "Copia il testo", close: "Chiudi",
     saved: "Salvato in {file}", copied: "Copiato. Incollalo nel tuo messaggio.", saveFailed: "Impossibile salvare il file: {error}",
@@ -185,7 +185,8 @@ function createAboutPages(deps) {
     if (!own(event)) throw new Error("Denied");
     return fn(...args);
   });
-  const now = () => new Date().toISOString().replace("T", " ").slice(0, 16);
+  // local date and time, as the user reads a clock: 2026-11-10 12:45
+  const now = () => { const d = new Date(); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 
   function policy() {
     const file = policyFile(deps.docsDir, deps.lang(), fs.existsSync, path.join);

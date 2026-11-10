@@ -14,7 +14,7 @@ export function AboutPrivacyLink() {
   if (!canOpen) return null;
   return (
     <div className="row">
-      <button type="button" className="btn small" onClick={() => desktopBridge()?.openAbout?.("about")}>
+      <button type="button" className="btn" onClick={() => desktopBridge()?.openAbout?.("about")}>
         {t("settings.aboutPrivacy")}
       </button>
       <span className="hint">{t("settings.aboutPrivacyHint")}</span>

@@ -1,6 +1,7 @@
 /* about.html: About and privacy, Report a problem. Colours come from theme-tokens.css (both themes). */
 * { box-sizing: border-box; }
-html { color-scheme: dark; }
+/* the sticky header must never cover a focused or scrolled-to element */
+html { color-scheme: dark; scroll-padding-top: 80px; }
 html[data-theme="light"] { color-scheme: light; }
 body {
   margin: 0;
@@ -139,7 +140,7 @@ textarea {
 }
 .btn:hover { background: var(--control-hover); }
 .btn.primary { background: var(--action-background); color: var(--action-foreground); border-color: transparent; font-weight: 600; }
-.btn.link { background: transparent; border: none; padding: 0; min-height: 0; text-decoration: underline; }
+.btn.link { font-size: inherit; background: transparent; border: none; padding: 0; min-height: 0; text-decoration: underline; text-underline-offset: 2px; }
 .btn:disabled { opacity: 0.55; cursor: default; }
 button:focus-visible, textarea:focus-visible, .preview:focus-visible, a:focus-visible {
   outline: 2px solid var(--accent-ring);

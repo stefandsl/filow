@@ -1872,7 +1872,7 @@ async function reportSections() {
   let gpu = "";
   try {
     const g = await app.getGPUInfo("basic");
-    gpu = (g.gpuDevice || []).map((d) => d.deviceString || `${d.vendorId}:${d.deviceId}`).filter(Boolean).join(", ");
+    gpu = [...new Set((g.gpuDevice || []).map((d) => d.deviceString || `${d.vendorId}:${d.deviceId}`).filter(Boolean))].join(", ");
   } catch {
     /* no gpu info */
   }
