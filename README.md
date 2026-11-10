@@ -686,6 +686,23 @@ false starts either way; the latency gain was within the provider's own variance
 benefit mainly in local mode, where each model call is the expensive part. Details and how to
 rerun the comparison: `docs/gauntlet/BASELINE.md`.
 
+## OK Filow, the screen helper
+
+OK Filow is a helper in the desktop app that sees the screen under your mouse and answers out loud,
+with a dot that can point at what it talks about. Gestures (any other key while a chord is down
+cancels it):
+
+- **Hold Ctrl+Alt** and speak to ask about what is on screen (the chord can be changed in its settings).
+- **Hold Ctrl+Win** to dictate into the field that has focus, in any app; **tap Ctrl+Win twice** for hands-free.
+- **Tap Ctrl twice** to open a text box and type the question instead.
+
+Answers come from the model on this PC by default. Nothing leaves the PC without your yes: the first
+time a screenshot, your voice or your words would go to a service, a notice says what goes where, and
+every send shows "Going outside" while it lasts ([docs/okfilow/OUTBOUND.md](docs/okfilow/OUTBOUND.md)).
+It speaks with a natural voice that runs on this PC, with the system voice as the fallback
+([docs/okfilow/VOICE.md](docs/okfilow/VOICE.md)). Speech works in English, Italian, Russian, Romanian
+and Japanese ([docs/stt/LANGUAGES.md](docs/stt/LANGUAGES.md)).
+
 ## PowerPoint add-in
 
 A task pane for PowerPoint lives in [apps/powerpoint](apps/powerpoint/README.md). Your speaker notes become the script (one slide per section, `-` lines are points), the pane follows the selected slide while you edit, and it runs the microphone itself on Windows and PowerPoint for the web or mirrors a session by code elsewhere. PowerPoint hides panes during a slide show and offers no API to follow one, so on stage the phone mirror or the desktop app is the live view. Build with `npm run build -w apps/powerpoint`; the pane is then served by the web app under `/powerpoint/`.

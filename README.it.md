@@ -693,6 +693,23 @@ guadagno di latenza è rimasto entro la variabilità del fornitore, quindi il be
 soprattutto in modalità locale, dove ogni chiamata al modello è la parte costosa. Dettagli e come
 ripetere il confronto: `docs/gauntlet/BASELINE.md`.
 
+## OK Filow, l'aiutante sullo schermo
+
+OK Filow è un aiutante dell'app desktop che vede lo schermo sotto il mouse e risponde a voce, con un
+puntino che può indicare ciò di cui parla. Gesti (un altro tasto premuto mentre tieni una
+combinazione la annulla):
+
+- **Tieni Ctrl+Alt** e parla per chiedere di ciò che è sullo schermo (la combinazione si cambia nelle sue impostazioni).
+- **Tieni Ctrl+Win** per dettare nel campo attivo, in qualsiasi app; **tocca Ctrl+Win due volte** per il vivavoce.
+- **Tocca Ctrl due volte** per aprire una casella e scrivere la domanda.
+
+Di default le risposte vengono dal modello su questo PC. Nulla esce dal PC senza il tuo sì: la prima
+volta che uno screenshot, la tua voce o le tue parole andrebbero a un servizio, un avviso dice cosa va
+dove, e ogni invio mostra "Esce dal PC" finché dura ([docs/okfilow/OUTBOUND.md](docs/okfilow/OUTBOUND.md)).
+Parla con una voce naturale che gira su questo PC, con la voce di sistema come riserva
+([docs/okfilow/VOICE.md](docs/okfilow/VOICE.md)). Il parlato funziona in inglese, italiano, russo,
+rumeno e giapponese ([docs/stt/LANGUAGES.md](docs/stt/LANGUAGES.md)).
+
 ## Add-in per PowerPoint
 
 Un riquadro attività per PowerPoint vive in [apps/powerpoint](apps/powerpoint/README.md). Le note del relatore diventano lo script (una slide per sezione, le righe `-` sono i punti), il riquadro segue la slide selezionata mentre modifichi, e gestisce da sé il microfono su Windows e in PowerPoint per il web, oppure altrove rispecchia una sessione tramite codice. PowerPoint nasconde i riquadri durante una presentazione e non offre un'API per seguirla, quindi sul palco la vista dal vivo è il mirror sul telefono o l'app desktop. Compila con `npm run build -w apps/powerpoint`; il riquadro viene poi servito dall'app web sotto `/powerpoint/`.
