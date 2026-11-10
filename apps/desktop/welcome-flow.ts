@@ -12,6 +12,24 @@ export function welcomeSteps({ firstRun, askSetup }: { firstRun: boolean; askSet
   return askSetup ? ["language", "mic", "setup"] : ["language", "mic"];
 }
 
+/**
+ * The setup step asks "download?" only when there is something to fetch and a way to fetch it. Ready for a
+ * first take does not end the offer: the rest of the recommendation is still offered (review T3 finding 4).
+ */
+export function offersDownload(offer: { online: boolean; unknown?: boolean; downloadGb: number }): boolean {
+  return offer.online && !offer.unknown && offer.downloadGb > 0;
+}
+
+/**
+ * Escape (review T3 finding 9) does what the visible secondary button does ("Not now" on the setup step).
+ * With no secondary button it does nothing: the welcome has no "cancel", and closing it completes it, so
+ * a stray Escape must not end the guide. Never on a held key, never from an open list or while composing.
+ */
+export function escapeAction(e: { key: string; repeat: boolean; isComposing: boolean; defaultPrevented: boolean; inSelect: boolean }, secondaryShown: boolean): "secondary" | null {
+  if (e.key !== "Escape" || e.repeat || e.isComposing || e.defaultPrevented || e.inSelect) return null;
+  return secondaryShown ? "secondary" : null;
+}
+
 export type MicErrorKind = "none" | "blocked" | "busy";
 
 /** getUserMedia error name to what the user can do about it. */
@@ -39,6 +57,31 @@ export type MicState = { status: "listening" | "heard" | "silent" | MicErrorKind
 
 export function startMic(): MicState {
   return { status: "listening", heardMs: 0, listenedMs: 0 };
+}
+
+/** The Try again row shows when the check failed or heard nothing; it hides while listening and once heard. */
+export function micActionsShown(status: MicState["status"]): boolean {
+  return status !== "listening" && status !== "heard";
+}
+
+/**
+ * Keyboard focus when the Try again row shows or hides (review T3 finding 3). Focus on a button that hides
+ * would fall to the page, so it waits on the status line (a live region that says "Listening..."); when the
+ * row comes back (the check failed again) it returns to Try again. Focus anywhere else is left alone.
+ */
+export function micFocusMove(actionsShown: boolean, focus: "actions" | "status" | "other"): "status" | "retry" | null {
+  if (!actionsShown && focus === "actions") return "status";
+  if (actionsShown && focus === "status") return "retry";
+  return null;
+}
+
+/**
+ * Microphones plugged in or out during the check (review T3 finding 5). No input left: say "No microphone".
+ * One came back (or appeared) after the check failed or heard nothing: check again on its own.
+ */
+export function micDeviceChange(status: MicState["status"], hasInput: boolean): "none" | "restart" | null {
+  if (!hasInput) return status === "none" ? null : "none";
+  return status === "none" || status === "busy" || status === "silent" ? "restart" : null;
 }
 
 /** One meter frame: dtMs of audio at `level`. Heard is final; errors are left to the caller. */

@@ -12,18 +12,46 @@ function installedModels(tags) {
   return list.map((m) => String(m && m.name || "").replace(/:latest$/, "")).filter(Boolean);
 }
 
-/** What is installed right now; never throws (Ollama down = not running, nothing pulled). */
-async function probeSetup({ fetchJson, sherpaReady }) {
+/**
+ * What is installed right now; never throws (Ollama down = not running, nothing pulled). browserCache:
+ * whether the app's page cache holds anything at all (the Whisper models live there; the main process
+ * cannot look inside it, but an empty cache means they are certainly missing).
+ */
+async function probeSetup({ fetchJson, sherpaReady, browserCache = () => true, diskModels = () => [] }) {
   const tags = await Promise.resolve().then(fetchJson).catch(() => null);
-  let sherpa;
+  let sherpa, cache, onDisk = [];
   try { sherpa = Boolean(sherpaReady()); } catch { sherpa = false; }
-  return { sherpa, ollamaRunning: tags !== null, ollamaModels: installedModels(tags) };
+  try { cache = Boolean(browserCache()); } catch { cache = true; }
+  // Ollama installed but not running: its models are still on disk (ollamaDiskModels), not to download again.
+  if (tags === null) try { onDisk = installedModels({ models: diskModels().map((name) => ({ name })) }); } catch { onDisk = []; }
+  return { sherpa, ollamaRunning: tags !== null, ollamaModels: tags !== null ? installedModels(tags) : onDisk, browserCache: cache };
 }
 
+/**
+ * Model names in an Ollama models folder (manifests/registry.ollama.ai/<namespace>/<name>/<tag>), as
+ * `ollama list` names them ("clef-flash:latest", "gemma4:e4b", "<user>/<name>:<tag>"). readdir: fs.readdirSync.
+ */
+function ollamaDiskModels(modelsDir, readdir, join) {
+  const root = join(modelsDir, "manifests", "registry.ollama.ai");
+  const out = [];
+  for (const ns of readdir(root)) {
+    for (const name of readdir(join(root, ns))) {
+      for (const tag of readdir(join(root, ns, name))) out.push(`${ns === "library" ? "" : `${ns}/`}${name}:${tag}`);
+    }
+  }
+  return out;
+}
+
+/** true, false, or null when it cannot be known here (a browser model with a non-empty page cache). */
 function isInstalled(name, catalog, installed) {
   if (name === "nemotron-streaming") return installed.sherpa;
   if (catalog[name] && catalog[name].ollama) return installed.ollamaModels.some((m) => String(m).replace(/:latest$/, "") === name);
-  return false; // browser models (Whisper) live in the page cache, which the main process cannot see
+  return installed.browserCache === false ? false : null;
+}
+
+/** Recommended models not known to be installed (unknown ones included: the settings page skips what it finds). */
+function toInstall(rec, catalog, installed) {
+  return rec.models.filter((n) => isInstalled(n, catalog, installed) !== true);
 }
 
 /**
@@ -31,10 +59,14 @@ function isInstalled(name, catalog, installed) {
  * installed: probeSetup(), online: network up, installerChose: the installer already picked models.
  */
 function setupOffer({ hw, rec, catalog, installed, online, installerChose = false, profile = null }) {
-  const missing = rec.models.filter((n) => !isInstalled(n, catalog, installed));
-  const downloadGb = Math.round(missing.reduce((s, n) => s + (catalog[n] ? catalog[n].dl : 0), 0) * 10) / 10;
+  const missing = toInstall(rec, catalog, installed);
+  // The size counts only what is known to be missing: a Whisper model that may already be cached is not added.
+  const known = missing.filter((n) => isInstalled(n, catalog, installed) === false);
+  const downloadGb = Math.round(known.reduce((s, n) => s + (catalog[n] ? catalog[n].dl : 0), 0) * 10) / 10;
   return {
     ask: !installerChose && rec.models.length > 0,
+    // ready: a first take needs nothing more. The rest of the recommendation (slides, screen helper) is
+    // still offered, as an optional download of downloadGb (review T3 finding 4).
     ready: !missing.some((n) => TAKE_MODELS.has(n)),
     downloadGb,
     needsOllama: Boolean(rec.ollama) && !installed.ollamaRunning && missing.some((n) => catalog[n] && catalog[n].ollama),
@@ -46,10 +78,51 @@ function setupOffer({ hw, rec, catalog, installed, online, installerChose = fals
   };
 }
 
-/** The step's answer as main() expects install choices: null = download nothing now. */
-function setupChoice(offer, rec, accept) {
-  if (!accept || !offer.online || offer.ready) return null;
-  return { models: rec.models, ollama: Boolean(rec.ollama) };
+/**
+ * The step's answer as main() expects install choices: null = download nothing now. Only what is not
+ * known to be installed; the step offers a download only when that has a size (offer.downloadGb > 0).
+ */
+function setupChoice(offer, rec, accept, catalog, installed) {
+  if (!accept || !offer.online || !(offer.downloadGb > 0)) return null;
+  const models = toInstall(rec, catalog, installed);
+  if (!models.length) return null;
+  return { models, ollama: Boolean(rec.ollama) && models.some((n) => catalog[n] && catalog[n].ollama) };
 }
 
-module.exports = { TAKE_MODELS, installedModels, probeSetup, setupOffer, setupChoice };
+/**
+ * The welcome's answer as saved in settings.json (review T3 finding 8: quitting between the welcome and
+ * the server check must not bring the native question back). Read back only in its exact shape, with
+ * model names from the catalog; anything else = no saved answer.
+ */
+function savedSetupAnswer(saved, catalog) {
+  if (!saved || typeof saved !== "object" || !("choice" in saved)) return null;
+  const c = saved.choice;
+  if (c === null) return { choice: null };
+  if (!c || typeof c !== "object" || !Array.isArray(c.models) || typeof c.ollama !== "boolean") return null;
+  if (!c.models.length || !c.models.every((n) => typeof n === "string" && Object.prototype.hasOwnProperty.call(catalog, n))) return null;
+  return { choice: { models: [...c.models], ollama: c.ollama } };
+}
+
+/**
+ * The offer needs a hardware scan that can take seconds on a slow PC (and, while it is synchronous, holds
+ * the main process). So it is never computed before the welcome window is on screen: get() before open()
+ * waits, and the scan starts one turn after open(), once the show has gone out. Computed once; a failed
+ * scan is not kept, so the next get() tries again.
+ */
+function createOfferGate(compute, defer = (fn) => setTimeout(fn, 0)) {
+  let opened;
+  const shown = new Promise((resolve) => { opened = resolve; });
+  let pending = null;
+  return {
+    open() { opened(); },
+    get() {
+      if (!pending) {
+        pending = shown.then(() => new Promise((resolve) => defer(resolve))).then(compute);
+        pending.catch(() => { pending = null; });
+      }
+      return pending;
+    },
+  };
+}
+
+module.exports = { TAKE_MODELS, installedModels, probeSetup, ollamaDiskModels, setupOffer, setupChoice, savedSetupAnswer, createOfferGate };

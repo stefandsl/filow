@@ -298,20 +298,31 @@ const welcomeUrl = pathToFileURL(welcomeFile).href;
 let uiPreferences, welcomeController, welcomeWin = null;
 let startupTransition = false, quitting = false;
 let welcomeHydrationTimer;
-const { probeSetup, setupOffer, setupChoice } = require("./welcome-setup");
-/** shown: the welcome's speech-setup step was answered; choice: that answer (install choices or null). */
-const welcomeSetup = { shown: false, choice: null, offer: null };
-async function welcomeSetupOffer() {
-  if (welcomeSetup.offer) return welcomeSetup.offer;
-  const info = localAiInfo();
+const { probeSetup, ollamaDiskModels, setupOffer, setupChoice, savedSetupAnswer, createOfferGate } = require("./welcome-setup");
+/** shown: the welcome's speech-setup step was answered; choice: that answer (install choices or null); rec, installed: what the offer was made from; offered: the offer the step showed. */
+const welcomeSetup = { shown: false, choice: null, rec: null, installed: null, offered: null };
+// The hardware scan behind the offer waits until the welcome window is on screen (opened in welcome:ready).
+const welcomeOffer = createOfferGate(computeWelcomeOffer);
+const welcomeSetupOffer = () => welcomeOffer.get();
+async function computeWelcomeOffer() {
+  const scanStarted = Date.now();
+  const info = await localAiInfo(); // await: the scan may become asynchronous (localai.js)
+  logLine(`welcome: hardware scan ${Date.now() - scanStarted} ms`);
   const ollama = (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
   const installed = await probeSetup({
     fetchJson: () => fetch(`${ollama}/api/tags`, { signal: AbortSignal.timeout(1500) }).then((r) => (r.ok ? r.json() : null)),
     sherpaReady: () => sttLocal.modelReady(userData),
+    // Chromium's CacheStorage for this profile: empty or absent = no Whisper model can be cached yet.
+    browserCache: () => {
+      const dir = path.join(userData, "Service Worker", "CacheStorage");
+      return fs.existsSync(dir) && fs.readdirSync(dir).length > 0;
+    },
+    diskModels: () => ollamaDiskModels(process.env.OLLAMA_MODELS || path.join(os.homedir(), ".ollama", "models"), (d) => fs.readdirSync(d), path.join),
   });
   const { net } = require("electron");
-  welcomeSetup.offer = setupOffer({ hw: info, rec: info.recommended, catalog: localAi.CATALOG, installed, online: !offline && net.isOnline(), installerChose: installChoicesFound });
-  return welcomeSetup.offer;
+  welcomeSetup.rec = info.recommended;
+  welcomeSetup.installed = installed;
+  return setupOffer({ hw: info, rec: info.recommended, catalog: localAi.CATALOG, installed, online: !offline && net.isOnline(), installerChose: installChoicesFound });
 }
 
 function uiSender(event, welcomeOnly = false) {
@@ -385,14 +396,10 @@ function initializeUiPreferences() {
     const firstRun = settings.welcomeCompleted !== true;
     return { firstRun, askSetup: firstRun && !installChoicesFound && !settings.localAiOffered };
   });
-  ipcMain.handle("welcome:setupOffer", event => { if (!uiSender(event, true)) throw new Error("Denied"); return welcomeSetupOffer(); });
-  ipcMain.handle("welcome:chooseSetup", async (event, accept) => {
+  ipcMain.handle("welcome:setupOffer", event => { if (!uiSender(event, true)) throw new Error("Denied"); return welcomeOfferForStep(); });
+  ipcMain.handle("welcome:chooseSetup", (event, accept) => {
     if (!uiSender(event, true) || typeof accept !== "boolean") throw new Error("Denied");
-    const offer = await welcomeSetupOffer();
-    welcomeSetup.choice = setupChoice(offer, localAiInfo().recommended, accept);
-    welcomeSetup.shown = true; // answered: closing the window before this step still gets the question later
-    logLine(`welcome: speech setup ${accept ? "accepted" : "declined"}${welcomeSetup.choice ? ` (${welcomeSetup.choice.models.join(", ")})` : ", nothing to download"}`);
-    return { ok: true };
+    return chooseWelcomeSetup(accept);
   });
   ipcMain.on("welcome:openMicSettings", event => {
     if (!uiSender(event, true)) return;
@@ -401,9 +408,35 @@ function initializeUiPreferences() {
   });
   ipcMain.on("welcome:ready", event => {
     if (!uiSender(event, true) || quitting) return;
-    clearTimeout(welcomeHydrationTimer);
-    welcomeWin.show();
+    onWelcomeReady();
   });
+}
+/** The welcome is hydrated: show it, and only then let the hardware scan behind the setup step start. */
+function onWelcomeReady() {
+  clearTimeout(welcomeHydrationTimer);
+  welcomeWin.show();
+  logLine("welcome: window shown");
+  welcomeOffer.open();
+}
+/** The offer the setup step shows. Remembered: only an offer the user has seen can be accepted. */
+async function welcomeOfferForStep() {
+  const offer = await welcomeSetupOffer();
+  welcomeSetup.offered = offer;
+  return offer;
+}
+/**
+ * The setup step's answer. No offer shown (the scan failed and the step said "set up from Settings") =
+ * nothing to download, whatever the button said; no second scan here.
+ */
+function chooseWelcomeSetup(accept) {
+  const offer = welcomeSetup.offered;
+  welcomeSetup.choice = offer ? setupChoice(offer, welcomeSetup.rec, accept, localAi.CATALOG, welcomeSetup.installed) : null;
+  welcomeSetup.shown = true; // answered: closing the window before this step still gets the question later
+  // Kept on disk until offerLocalAi() uses it: quitting before the server check must not ask again.
+  settings.welcomeSetupAnswer = { choice: welcomeSetup.choice };
+  try { saveSettings(); } catch (err) { logLine(`welcome: speech setup answer not saved: ${err.message}`); }
+  logLine(`welcome: speech setup ${accept ? "accepted" : "declined"}${welcomeSetup.choice ? ` (${welcomeSetup.choice.models.join(", ")})` : ", nothing to download"}`);
+  return { ok: true };
 }
 function showWelcome() { return welcomeController.show(); }
 function createWelcomeWindow() {
@@ -427,6 +460,7 @@ function createWelcomeWindow() {
   win.webContents.on("render-process-gone", fail);
   win.webContents.on("did-fail-load", fail);
   welcomeHydrationTimer = setTimeout(fail, 15000);
+  logLine("welcome: loading");
   void win.loadFile(welcomeFile).catch(fail);
   return win;
 }
@@ -1540,6 +1574,10 @@ const LOCAL_AI_TEXT = {
 /** First start without installer choices (macOS, Linux, portable): offer the hardware-based setup. */
 async function offerLocalAi() {
   // V2 onboarding: the welcome asked in its "This computer" step (or the user skipped it); no second question.
+  // The answer may come from an earlier launch that quit before getting here (settings.welcomeSetupAnswer).
+  const saved = savedSetupAnswer(settings.welcomeSetupAnswer, localAi.CATALOG);
+  if (!welcomeSetup.shown && saved) Object.assign(welcomeSetup, { shown: true, choice: saved.choice });
+  delete settings.welcomeSetupAnswer; // main() saves settings (localAiOffered) right after this returns
   if (welcomeSetup.shown) {
     logLine(`local AI offer: answered in the welcome${welcomeSetup.choice ? "" : " (nothing to download)"}`);
     return welcomeSetup.choice;

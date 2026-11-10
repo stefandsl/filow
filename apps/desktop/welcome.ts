@@ -1,7 +1,7 @@
 import { mountIcons } from "../web/components/icons";
 import { t, LANG_LABELS, acceptUiSnapshot, themeFollowing, resolveUiLanguage, type I18nKey, type UiBridge, type UiPatch, type UiSnapshot, type UiResult } from "../../packages/core/src/index";
 import { applyUiPreferences } from "../web/lib/applyUiPreferences";
-import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, type MicState, type StepId } from "./welcome-flow";
+import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, escapeAction, type MicState, type StepId } from "./welcome-flow";
 import "./welcome.css";
 
 /** The speech-setup offer from the main process (apps/desktop/welcome-setup.js setupOffer). */
@@ -101,7 +101,7 @@ function renderStep() {
   let primary: I18nKey = "welcome.continue";
   let second: I18nKey | null = null;
   if (id === "preferences") primary = "welcome.done";
-  else if (id === "setup" && offer && offer.online && !offer.ready && !offer.unknown) { primary = "welcome.setupAccept"; second = "welcome.setupLater"; }
+  else if (id === "setup" && offer && offersDownload(offer)) { primary = offer.ready ? "welcome.setupAcceptRest" : "welcome.setupAccept"; second = "welcome.setupLater"; }
   else if (last) primary = "welcome.finish";
   $("#primary-label").textContent = tr(primary);
   secondary.hidden = !second;
@@ -124,12 +124,19 @@ function renderMic() {
   const iconName = mic.status === "heard" ? "check" : mic.status === "listening" ? "circle" : mic.status === "silent" ? "clock" : "close";
   if (icon.dataset.icon !== iconName) { icon.dataset.icon = iconName; mountIcons(card); }
   const failed = mic.status === "none" || mic.status === "blocked" || mic.status === "busy";
-  $("#mic-actions").hidden = !(failed || mic.status === "silent");
+  const actions = $("#mic-actions");
+  const status = $("#mic-status");
+  const shown = micActionsShown(mic.status);
+  const active = document.activeElement;
+  const move = micFocusMove(shown, active && actions.contains(active) ? "actions" : active === status ? "status" : "other");
+  actions.hidden = !shown;
+  if (move === "status") status.focus();
   // Windows and macOS have a microphone privacy page to open; Linux has none.
   const hasSettings = /^(Win|Mac)/.test(navigator.platform);
   $("#mic-settings").hidden = !hasSettings || !(mic.status === "blocked" || mic.status === "busy");
   $("#mic-device").textContent = micLabel && !failed ? tr("welcome.micDevice", { name: micLabel }) : "";
   $("#mic-meter").hidden = failed;
+  if (move === "retry") $("#mic-retry").focus();
 }
 let ariaAt = 0;
 function setLevel(level: number) {
@@ -153,7 +160,16 @@ async function startMicCheck() {
     return;
   }
   if (gen !== micGen || steps[index] !== "mic") { stream.getTracks().forEach(tk => tk.stop()); return; }
-  micLabel = stream.getAudioTracks()[0]?.label ?? "";
+  const track = stream.getAudioTracks()[0];
+  micLabel = track?.label ?? "";
+  // Unplugged mid-check: the track ends. Say so instead of a flat bar under "Filow can hear you."
+  // If another microphone is still plugged in, the device check below starts over with it.
+  track?.addEventListener("ended", () => {
+    if (gen !== micGen) return;
+    stopMic();
+    setMic({ ...startMic(), status: "none" });
+    checkDevices();
+  });
   const ctx = new AudioContext();
   const analyser = ctx.createAnalyser();
   analyser.fftSize = 2048;
@@ -185,13 +201,22 @@ function renderSetup() {
   if (!offer) return;
   $("#setup-name").textContent = offer.profile ? tr("welcome.setupProfile", { name: offer.profile }) : tr("welcome.setupLocal");
   $("#setup-facts").textContent = offer.ramGb > 0 ? tr("welcome.setupMemory", { gb: offer.ramGb }) : "";
-  const size = offer.unknown ? tr("welcome.setupUnknown") : offer.ready ? tr("welcome.setupReady") : !offer.online ? tr("welcome.setupOffline") : `${tr("welcome.setupDownload", { gb: offer.downloadGb })}${offer.needsOllama ? ` ${tr("welcome.setupOllama")}` : ""}`;
+  const download = offersDownload(offer);
+  const ollama = offer.needsOllama ? ` ${tr("welcome.setupOllama")}` : "";
+  const gb = offer.downloadGb.toLocaleString(state.resolvedLang);
+  // Ready for a first take: said on its own (green); the optional rest, if any, follows in plain text.
+  const ready = offer.ready && !offer.unknown;
+  const size = offer.unknown ? tr("welcome.setupUnknown")
+    : offer.ready ? (download ? `${tr("welcome.setupRest", { gb })}${ollama}` : "")
+    : !offer.online ? tr("welcome.setupOffline")
+    : `${tr("welcome.setupDownload", { gb })}${ollama}`;
+  $("#setup-ready").hidden = !ready;
   $("#setup-size").textContent = size;
-  $("#setup-size").dataset.tone = offer.ready ? "ok" : "";
-  $("#setup-details").hidden = offer.ready || offer.labels.length === 0;
+  $("#setup-size").hidden = !size;
+  $("#setup-details").hidden = !download || offer.labels.length === 0;
   $("#setup-list").replaceChildren(...offer.labels.map(l => { const li = document.createElement("li"); li.textContent = l; return li; }));
-  // Offline or unknown: the size line already says "later, from Settings".
-  $("#setup-note").hidden = offer.ready || !offer.online || !!offer.unknown;
+  // Nothing to download, offline or unknown: the size line already says so.
+  $("#setup-note").hidden = !download;
 }
 
 // ---- navigation ----
@@ -226,7 +251,8 @@ async function finish(acceptSetup: boolean) {
 function primaryAction() {
   if (busy) return;
   if (index < steps.length - 1) { go(index + 1); return; }
-  void finish(steps[index] === "setup");
+  // "Download" only when the step offered one: "Finish" on an offline or could-not-check card downloads nothing.
+  void finish(steps[index] === "setup" && !!offer && offersDownload(offer));
 }
 form.addEventListener("submit", event => { event.preventDefault(); primaryAction(); });
 // Enter continues from a step's title or the language choices. Never on a held key (auto-repeat would
@@ -241,11 +267,29 @@ form.addEventListener("keydown", event => {
   if (event.repeat || start.disabled || steps[index] === "setup") return;
   primaryAction();
 });
+document.addEventListener("keydown", event => {
+  const el = event.target as HTMLElement | null;
+  const action = escapeAction({ key: event.key, repeat: event.repeat, isComposing: event.isComposing, defaultPrevented: event.defaultPrevented, inSelect: !!el?.closest?.("select") }, !secondary.hidden && !secondary.disabled && !busy);
+  if (action !== "secondary") return;
+  event.preventDefault();
+  secondary.click();
+});
 back.addEventListener("click", () => go(index - 1));
 secondary.addEventListener("click", () => void finish(false));
 // Closing the window mid-flow completes the welcome (ui-preferences.js): stop the microphone first.
 window.addEventListener("beforeunload", () => stopMic());
 $("#mic-retry").addEventListener("click", () => void startMicCheck());
+navigator.mediaDevices?.addEventListener("devicechange", () => checkDevices());
+function checkDevices() {
+  if (steps[index] !== "mic") return;
+  const gen = micGen;
+  void navigator.mediaDevices.enumerateDevices().catch(() => [] as MediaDeviceInfo[]).then(devices => {
+    if (gen !== micGen || steps[index] !== "mic") return;
+    const action = micDeviceChange(mic.status, devices.some(d => d.kind === "audioinput"));
+    if (action === "none") { stopMic(); setMic({ ...startMic(), status: "none" }); }
+    else if (action === "restart") void startMicCheck();
+  });
+}
 $("#mic-settings").addEventListener("click", () => bridge.openMicSettings());
 
 async function update(patch: UiPatch) {
@@ -261,8 +305,10 @@ window.addEventListener("unload", () => { unsubscribe(); stopMic(); }, { once: t
 void Promise.all([bridge.getPreferences(), bridge.context().catch(() => ({ firstRun: true, askSetup: false }))]).then(([prefsState, ctx]) => {
   steps = welcomeSteps(ctx);
   mountPrefs(document.querySelector<HTMLElement>(steps[0] === "preferences" ? '[data-step="preferences"] [data-prefs]' : "#more .rows")!);
-  if (ctx.askSetup && ctx.firstRun) void loadOffer(); // ready before the user reaches the step
   render(prefsState);
-  window.dispatchEvent(new Event("filow:hydrated"));
+  window.dispatchEvent(new Event("filow:hydrated")); // shows the window
   go(0);
+  // Fetched now so it is ready before the user reaches the step, but only after "shown": the main process
+  // scans the hardware for it, which takes seconds on a slow PC (it also holds the request until shown).
+  if (ctx.askSetup && ctx.firstRun) void loadOffer();
 });

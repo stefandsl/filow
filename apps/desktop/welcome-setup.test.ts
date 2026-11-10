@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { describe, expect, it, vi } from "vitest";
-const { setupOffer, setupChoice, installedModels, probeSetup } = createRequire(import.meta.url)("./welcome-setup.js");
+const { setupOffer, setupChoice, installedModels, probeSetup, createOfferGate, savedSetupAnswer, ollamaDiskModels } = createRequire(import.meta.url)("./welcome-setup.js");
 
 const CATALOG = {
   "nemotron-streaming": { dl: 0.45, ollama: false, label: "Nemotron streaming speech-to-text" },
@@ -11,7 +11,8 @@ const CATALOG = {
 };
 const hw = { ramGb: 32, platform: "win32" };
 const rec = { models: ["nemotron-streaming", "whisper-small", "clef-flash", "gemma4:e4b", "qwen3-vl:2b"], ollama: true };
-const none = { sherpa: false, ollamaRunning: false, ollamaModels: [] as string[] };
+const none = { sherpa: false, ollamaRunning: false, ollamaModels: [] as string[], browserCache: false };
+const takeReady = { sherpa: true, ollamaRunning: true, ollamaModels: ["clef-flash:latest"], browserCache: false };
 
 describe("setup offer", () => {
   it("on a fresh PC offers the whole recommendation with its real size and Ollama", () => {
@@ -20,12 +21,26 @@ describe("setup offer", () => {
     expect(o.labels).toEqual(rec.models.map((n) => CATALOG[n as keyof typeof CATALOG].label));
   });
   it("counts only what is missing, and is ready when the take models are there", () => {
-    const o = setupOffer({ hw, rec, catalog: CATALOG, installed: { sherpa: true, ollamaRunning: true, ollamaModels: ["clef-flash:latest", "gemma4:e4b", "qwen3-vl:2b"] }, online: true });
+    const o = setupOffer({ hw, rec, catalog: CATALOG, installed: { ...takeReady, ollamaModels: ["clef-flash:latest", "gemma4:e4b", "qwen3-vl:2b"] }, online: true });
     expect(o).toMatchObject({ ready: true, downloadGb: 0.5, needsOllama: false });
   });
   it("is not ready without the decision model, even with speech installed", () => {
-    const o = setupOffer({ hw, rec, catalog: CATALOG, installed: { sherpa: true, ollamaRunning: true, ollamaModels: [] }, online: true });
+    const o = setupOffer({ hw, rec, catalog: CATALOG, installed: { ...takeReady, ollamaModels: [] }, online: true });
     expect(o.ready).toBe(false);
+  });
+  it("does not ask to install Ollama when it is already running", () => {
+    const o = setupOffer({ hw, rec, catalog: CATALOG, installed: { ...none, ollamaRunning: true }, online: true });
+    expect(o.needsOllama).toBe(false);
+    expect(setupOffer({ hw, rec, catalog: CATALOG, installed: none, online: true }).needsOllama).toBe(true);
+  });
+  it("Whisper counts as missing only when the page cache is empty (review T3 finding 4)", () => {
+    const allButWhisper = { ...takeReady, ollamaModels: ["clef-flash", "gemma4:e4b", "qwen3-vl:2b"] };
+    expect(setupOffer({ hw, rec, catalog: CATALOG, installed: allButWhisper, online: true }).downloadGb).toBe(0.5);
+    expect(setupOffer({ hw, rec, catalog: CATALOG, installed: { ...allButWhisper, browserCache: true }, online: true }).downloadGb).toBe(0);
+  });
+  it("ready for a take still offers the rest of the recommendation with its size (review T3 finding 4)", () => {
+    const o = setupOffer({ hw, rec, catalog: CATALOG, installed: takeReady, online: true });
+    expect(o).toMatchObject({ ready: true, downloadGb: 11.4 }); // Whisper 0.5 + Gemma 9 + Qwen 1.9
   });
   it("asks nothing when the installer already chose, or there is nothing to recommend", () => {
     expect(setupOffer({ hw, rec, catalog: CATALOG, installed: none, online: true, installerChose: true }).ask).toBe(false);
@@ -38,13 +53,68 @@ describe("setup offer", () => {
 
 describe("setup choice", () => {
   const offer = (installed = none, online = true) => setupOffer({ hw, rec, catalog: CATALOG, installed, online });
+  const choose = (installed = none, accept = true, online = true) => setupChoice(offer(installed, online), rec, accept, CATALOG, installed);
   it("accepting a download returns the installer-style choices main() already understands", () => {
-    expect(setupChoice(offer(), rec, true)).toEqual({ models: rec.models, ollama: true });
+    expect(choose()).toEqual({ models: rec.models, ollama: true });
   });
-  it("declining, being offline or being ready downloads nothing and opens the prompter", () => {
-    expect(setupChoice(offer(), rec, false)).toBeNull();
-    expect(setupChoice(offer(none, false), rec, true)).toBeNull();
-    expect(setupChoice(offer({ sherpa: true, ollamaRunning: true, ollamaModels: ["clef-flash", "gemma4:e4b", "qwen3-vl:2b"] }), rec, true)).toBeNull();
+  it("declining, being offline or having everything downloads nothing and opens the prompter", () => {
+    expect(choose(none, false)).toBeNull();
+    expect(choose(none, true, false)).toBeNull();
+    expect(choose({ ...takeReady, ollamaModels: ["clef-flash", "gemma4:e4b", "qwen3-vl:2b"], browserCache: true })).toBeNull();
+  });
+  it("ready for a take, accepting gets only the rest (review T3 finding 4)", () => {
+    expect(choose(takeReady)).toEqual({ models: ["whisper-small", "gemma4:e4b", "qwen3-vl:2b"], ollama: true });
+  });
+  it("a Whisper model that may be cached is still in the list (the settings page skips it if found)", () => {
+    expect(choose({ ...takeReady, ollamaModels: ["clef-flash", "gemma4:e4b"], browserCache: true })).toEqual({ models: ["whisper-small", "qwen3-vl:2b"], ollama: true });
+  });
+});
+
+describe("offer gate (the welcome shows before the hardware scan)", () => {
+  const flush = () => new Promise((r) => setTimeout(r, 5));
+  it("a request that arrives before the window is shown waits: no scan until open()", async () => {
+    const order: string[] = [];
+    const gate = createOfferGate(() => { order.push("scan"); return { ok: 1 }; });
+    const answer = gate.get();
+    await flush();
+    expect(order).toEqual([]);
+    order.push("shown");
+    gate.open();
+    expect(await answer).toEqual({ ok: 1 });
+    expect(order).toEqual(["shown", "scan"]);
+  });
+  it("the scan starts a turn after open(), not inside it or in its microtasks", async () => {
+    const compute = vi.fn(() => 1);
+    const gate = createOfferGate(compute);
+    void gate.get();
+    gate.open();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(compute).not.toHaveBeenCalled();
+    await flush();
+    expect(compute).toHaveBeenCalledTimes(1);
+  });
+  it("scans once, and tries again after a failed scan", async () => {
+    let n = 0;
+    const gate = createOfferGate(() => { n++; if (n === 1) throw new Error("scan failed"); return n; });
+    gate.open();
+    await expect(gate.get()).rejects.toThrow("scan failed");
+    expect(await gate.get()).toBe(2);
+    expect(await gate.get()).toBe(2);
+    expect(n).toBe(2);
+  });
+});
+
+describe("saved setup answer (review T3 finding 8)", () => {
+  it("reads back a saved download choice and a saved 'not now'", () => {
+    expect(savedSetupAnswer({ choice: { models: ["clef-flash", "gemma4:e4b"], ollama: true } }, CATALOG)).toEqual({ choice: { models: ["clef-flash", "gemma4:e4b"], ollama: true } });
+    expect(savedSetupAnswer({ choice: null }, CATALOG)).toEqual({ choice: null });
+  });
+  it("ignores anything else: nothing saved, a wrong shape, a model not in the catalog", () => {
+    for (const bad of [undefined, null, {}, "x", { choice: "x" }, { choice: { models: "clef-flash", ollama: true } },
+      { choice: { models: [], ollama: false } }, { choice: { models: ["clef-flash"], ollama: "yes" } },
+      { choice: { models: ["../../evil"], ollama: false } }, { choice: { models: ["toString"], ollama: false } }]) {
+      expect(savedSetupAnswer(bad, CATALOG)).toBeNull();
+    }
   });
 });
 
@@ -56,10 +126,29 @@ describe("installed models", () => {
   });
   it("probe never throws: Ollama down means not running, no models", async () => {
     const fetchJson = vi.fn(async () => { throw new Error("ECONNREFUSED"); });
-    expect(await probeSetup({ fetchJson, sherpaReady: () => true })).toEqual({ sherpa: true, ollamaRunning: false, ollamaModels: [] });
+    expect(await probeSetup({ fetchJson, sherpaReady: () => true })).toEqual({ sherpa: true, ollamaRunning: false, ollamaModels: [], browserCache: true });
   });
   it("probe reads the tags when Ollama answers", async () => {
     const fetchJson = vi.fn(async () => ({ models: [{ name: "clef-flash:latest" }] }));
-    expect(await probeSetup({ fetchJson, sherpaReady: () => false })).toEqual({ sherpa: false, ollamaRunning: true, ollamaModels: ["clef-flash"] });
+    expect(await probeSetup({ fetchJson, sherpaReady: () => false, browserCache: () => false })).toEqual({ sherpa: false, ollamaRunning: true, ollamaModels: ["clef-flash"], browserCache: false });
+  });
+  it("Ollama installed but not running: the models on disk count as installed, not to download again", async () => {
+    const r = await probeSetup({ fetchJson: async () => { throw new Error("ECONNREFUSED"); }, sherpaReady: () => true, diskModels: () => ["clef-flash:latest", "gemma4:e4b"] });
+    expect(r).toMatchObject({ ollamaRunning: false, ollamaModels: ["clef-flash", "gemma4:e4b"] });
+    expect(setupOffer({ hw, rec, catalog: CATALOG, installed: { ...r, browserCache: false }, online: true })).toMatchObject({ ready: true, downloadGb: 2.4 });
+  });
+  it("a running Ollama's own list wins over the disk; an unreadable folder means none", async () => {
+    const r = await probeSetup({ fetchJson: async () => ({ models: [{ name: "qwen3-vl:2b" }] }), sherpaReady: () => true, diskModels: () => ["clef-flash"] });
+    expect(r.ollamaModels).toEqual(["qwen3-vl:2b"]);
+    const none2 = await probeSetup({ fetchJson: async () => null, sherpaReady: () => true, diskModels: () => { throw new Error("ENOENT"); } });
+    expect(none2.ollamaModels).toEqual([]);
+  });
+  it("reads Ollama's models folder the way `ollama list` names them", () => {
+    const tree: Record<string, string[]> = { "m/manifests/registry.ollama.ai": ["library", "someone"], "m/manifests/registry.ollama.ai/library": ["clef-flash", "gemma4"], "m/manifests/registry.ollama.ai/library/clef-flash": ["latest"], "m/manifests/registry.ollama.ai/library/gemma4": ["e4b"], "m/manifests/registry.ollama.ai/someone": ["tool"], "m/manifests/registry.ollama.ai/someone/tool": ["v1"] };
+    expect(ollamaDiskModels("m", (d: string) => tree[d] ?? [], (...p: string[]) => p.join("/"))).toEqual(["clef-flash:latest", "gemma4:e4b", "someone/tool:v1"]);
+  });
+  it("probe treats an unreadable page cache as unknown (maybe cached), never as empty", async () => {
+    const r = await probeSetup({ fetchJson: async () => null, sherpaReady: () => false, browserCache: () => { throw new Error("EPERM"); } });
+    expect(r.browserCache).toBe(true);
   });
 });
