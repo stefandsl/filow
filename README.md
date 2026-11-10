@@ -334,7 +334,7 @@ Output lands in `release/`.
 
 The installed desktop app checks for a new version a few seconds after start-up and from the menu (*Check for updates…*). The update downloads in the background; you get "Restart now / Later", and an update you postpone installs itself the next time you quit. Windows and Linux (AppImage) update in place; macOS needs a signed and notarized build for in-place updates, so on a Mac the app only tells you a new version exists until that is set up.
 
-The feed is a **public** GitHub repository that holds only the installers, because this source repository is private and an installed app cannot read private releases without shipping a secret. One-time setup, from a machine where `gh` is logged in:
+The feed is a separate **public** GitHub repository that holds only the installers. It was set up while this source repository was private (an installed app cannot read private releases without shipping a secret); the source has been public since 2026-11-03, and the feed stays where installed apps look for updates. One-time setup, from a machine where `gh` is logged in:
 
 ```bash
 gh repo create stefandsl/filow-releases --public --description "Filow installers (auto-update feed)"
@@ -346,7 +346,7 @@ Create a fine-grained personal access token on GitHub (Settings → Developer se
 gh secret set RELEASES_TOKEN --repo stefandsl/filow
 ```
 
-From the next tag on, the release job publishes the same installers plus the update metadata (`latest*.yml`, `*.blockmap`) to the public repo, and installed apps pick them up. Nothing from the source leaves the private repo.
+From the next tag on, the release job publishes the same installers plus the update metadata (`latest*.yml`, `*.blockmap`) to the public repo, and installed apps pick them up.
 
 ## Code signing and the SmartScreen warning
 

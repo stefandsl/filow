@@ -53,8 +53,8 @@ jobs:
             release/*.zip
             !release/builder-debug.yml
           generate_release_notes: true
-      # Auto-update feed: the same files on the PUBLIC releases repo (this repo is private, and an
-      # installed app cannot read private releases). Needs the RELEASES_TOKEN secret; see README.
+      # Auto-update feed: the same files on the separate releases repo, which the installed apps read
+      # (electron-builder publish config). Needs the RELEASES_TOKEN secret; see README.
       - name: Publish to the public releases repo
         if: startsWith(github.ref, 'refs/tags/v') && env.RELEASES_TOKEN != ''
         uses: softprops/action-gh-release@v2
@@ -63,7 +63,7 @@ jobs:
           token: ${{ secrets.RELEASES_TOKEN }}
           tag_name: ${{ github.ref_name }}
           name: Filow ${{ github.ref_name }}
-          body: "Installers for Windows, macOS and Linux. Source: github.com/stefandsl/filow (private). The desktop app updates itself from here."
+          body: "Installers for Windows, macOS and Linux. Source: github.com/stefandsl/filow. The desktop app updates itself from here."
           files: |
             release/*.exe
             release/*.dmg
