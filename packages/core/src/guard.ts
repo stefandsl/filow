@@ -120,20 +120,46 @@ type Claim = {
   quantities: Counted[];
   direction: "up" | "down" | null;
   negated: boolean;
+  /** what each negation in the point denies: the content words in its reach, and whether it is a verbal one ("not", "non") */
+  denied: Array<{ words: string[]; verbal: boolean }>;
 };
 
 function claimOf(point: string): Claim {
   const toks = tokenize(point);
   const words = contentTokens(point);
   const dirs = new Set(toks.map((_, i) => directionAt(toks, i)).filter(Boolean) as Array<"up" | "down">);
+  // ", non alla tua" / ", not our costs" after a pause is a contrast tail, not a denial of the claim
+  const negations = toks.map((_, i) => i).filter((i) => negates(toks, i) && !(i > 0 && pauseBetween(point, toks[i - 1], toks[i])));
+  const denied = negations.map((i) => {
+    const reach: string[] = [];
+    for (let k = i + 1; k <= i + SCOPE && k < toks.length; k++) {
+      if (pauseBetween(point, toks[k - 1], toks[k]) || SCOPE_END.has(toks[k].norm)) break;
+      if (words.includes(toks[k].norm)) reach.push(toks[k].norm);
+    }
+    return { words: reach, verbal: !NOMINAL_NEGATIONS.has(toks[i].norm) };
+  });
   return {
     words,
     anchors: words.filter((w) => !UP.test(w) && !DOWN.test(w)),
     quantities: withNouns(toks, quantitiesFromTokens(toks).filter((q) => q.kind !== "year")),
     direction: dirs.size === 1 ? [...dirs][0] : null,
-    // ", non alla tua" / ", not our costs" after a pause is a contrast tail, not a denial of the claim
-    negated: toks.some((_, i) => negates(toks, i) && !(i > 0 && pauseBetween(point, toks[i - 1], toks[i]))),
+    negated: negations.length > 0,
+    denied,
   };
+}
+
+/**
+ * Does the speech affirm what a negated point denies? "We do not store card numbers" is contradicted
+ * by "we store card numbers", not by "card numbers go straight to the bank": the same thing said
+ * without a negation is a paraphrase, and a paraphrase is the decision model's call.
+ * A verbal negation denies its verb, the first content word after it ("non chiuderà": chiuderà).
+ * A nominal one ("no price increase", "no branches will close") has no single word to point at, so
+ * every content word in its reach must be said. A negation with nothing in its reach keeps the old
+ * rule: any sentence about the point without a negation contradicts it.
+ */
+function affirmsDenied(claim: Claim, tokens: Token[]): boolean {
+  const said = (w: string) => tokens.some((t) => similarity(w, t.norm) >= FUZZY_MIN);
+  return claim.denied.some((d) => (d.words.length === 0 ? true : d.verbal ? said(d.words[0]) : d.words.every(said)));
 }
 
 type Reading = { conflict?: GuardConflict; carriesClaim: boolean; anchored: boolean };
@@ -166,11 +192,12 @@ function read(claim: Claim, sentence: string): Reading {
     else return { conflict: { kind: "number", detail: `point says ${mine.map(label).join(", ")}, speech says ${theirs.map(label).join(", ")}` }, carriesClaim: true, anchored };
   }
 
-  // negation: an affirmative point denied in the speech, or a negated point said with no negation in its clauses
+  // negation: an affirmative point denied in the speech, or a negated point whose denied words are
+  // affirmed, with no negation, in the clauses about it
   if (!claim.negated && deniesPointWords(sentence, st, claim.words)) return { conflict: { kind: "negation", detail: "the speech denies the point" }, carriesClaim: true, anchored };
   if (claim.negated) {
     const said = scope.some((c) => c.some((t) => t.norm === "senza" || t.norm === "without" || negates(st, st.indexOf(t))));
-    if (!said) return { conflict: { kind: "negation", detail: "the point is a negation, the speech is not" }, carriesClaim: true, anchored };
+    if (!said && affirmsDenied(claim, scope.flat())) return { conflict: { kind: "negation", detail: "the point is a negation, the speech affirms it" }, carriesClaim: true, anchored };
   }
 
   // direction, in the clauses about the point's subject: "revenue jumped while costs dropped"
@@ -206,6 +233,10 @@ function coverage(words: string[], toks: Token[]): number {
   return s / words.length;
 }
 
+// More than a third: one exact word out of three (0.333) does not make a sentence "about the point".
+// Measured (TRK-2 review, docs/gauntlet/BASELINE.md): at 0.33 the guard blocked true points whose
+// sentence holds an unrelated negation next to a date word ("We will not ship anything before Monday,
+// that is when we go live" for "Launch date Monday").
 const MIN_RELEVANT = 0.34;
 const round = (x: number) => Math.round(x * 100) / 100;
 

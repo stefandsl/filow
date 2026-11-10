@@ -27,6 +27,15 @@
     }
   },
   {
+    "id": "SEC-07",
+    "check": "no preload lets a page choose the IPC channel",
+    "weight": 2,
+    "auto": {
+      "type": "cmd",
+      "cmd": "node tools/autoloop/checks/preload-fixed-channels.mjs"
+    }
+  },
+  {
     "id": "SEC-08",
     "check": "session permission handlers set",
     "weight": 2,

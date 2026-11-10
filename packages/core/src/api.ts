@@ -8,6 +8,19 @@ export type Decision = {
   /** pre-filter scores of the transcript tail for this point, when the gate ran (gate.ts) */
   gate?: number;
   lexical?: number;
+  /** Present when the provider verified this point in this answer (the request listed it in `verify`). */
+  verification?: Verification;
+};
+
+/**
+ * The second look at a point that is about to be ticked (TRK-2, docs/gauntlet/BASELINE.md): two
+ * focused questions the decision model answers far better than one broad one.
+ */
+export type Verification = {
+  /** 0..1: the speaker presents it as true, happening or planned (not cancelled, denied, imagined or ironic) */
+  real: number;
+  /** 0..1: the transcript says it of the same party as the script point (not a supplier or competitor when the point is about us) */
+  sameParty: number;
 };
 
 export type DecideRequest = {
@@ -23,6 +36,8 @@ export type DecideRequest = {
   onScreen?: string[];
   /** Optional language hint, e.g. "it" or "en". */
   language?: string;
+  /** Ids of the points (among `bullets`) to verify in the same call: the ones one answer away from a tick. */
+  verify?: string[];
   /** Which decision provider to use; the server falls back to its configured default. */
   provider?: DecisionProviderId;
 };
@@ -37,6 +52,8 @@ export type DecideResponse = {
   /** USD; null when the provider does not report usage.cost */
   cost: number | null;
   model: string;
+  /** true when this provider answers `verify` requests; the engine then waits for the verification before a tick */
+  canVerify?: boolean;
 };
 
 export type SttStatus = {

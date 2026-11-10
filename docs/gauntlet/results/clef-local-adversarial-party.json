@@ -1,0 +1,182 @@
+{
+  "at": "2026-11-10T02:36:00.261Z",
+  "model": "clef-flash",
+  "pass": {
+    "real": 0.65,
+    "sameParty": 0.5
+  },
+  "withoutVerification": {
+    "party": {
+      "falseTicks": 9,
+      "expectedNot": 40,
+      "misses": 0,
+      "expectedTicks": 40
+    }
+  },
+  "withVerification": {
+    "party": {
+      "falseTicks": 1,
+      "expectedNot": 40,
+      "misses": 0,
+      "expectedTicks": 40
+    }
+  },
+  "falseTicks": [
+    {
+      "id": "P068",
+      "set": "party",
+      "language": "ja",
+      "category": "customer-or-other-person",
+      "point": "当店はテレビで紹介されました",
+      "said": "常連のお客様の田所さんが、先週テレビの料理番組で紹介されていました。",
+      "expected": false,
+      "confidence": 0.98,
+      "guard": "ok",
+      "verification": {
+        "real": 0.95,
+        "sameParty": 0.67
+      },
+      "ticked": true,
+      "tickedWithoutVerification": true
+    }
+  ],
+  "misses": [],
+  "vetoed": [
+    {
+      "id": "P043",
+      "set": "party",
+      "language": "en",
+      "category": "supplier-or-partner",
+      "point": "Our new head of sales",
+      "said": "One of the farms that supplies us, Thornbury, has a new head of sales, a woman called Ines Varga.",
+      "expected": false,
+      "confidence": 0.94,
+      "guard": "ok",
+      "verification": {
+        "real": 0.97,
+        "sameParty": 0.25
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "P044",
+      "set": "party",
+      "language": "en",
+      "category": "supplier-or-partner",
+      "point": "Our factory now runs on solar power",
+      "said": "Our frame supplier in Porto now runs its factory entirely on solar power.",
+      "expected": false,
+      "confidence": 0.95,
+      "guard": "ok",
+      "verification": {
+        "real": 0.96,
+        "sameParty": 0.21
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "P045",
+      "set": "party",
+      "language": "it",
+      "category": "supplier-or-partner",
+      "point": "Abbiamo assunto venti persone",
+      "said": "Il nostro fornitore di componenti, la Meccanica Rivalta, quest'anno ha assunto venti persone.",
+      "expected": false,
+      "confidence": 0.81,
+      "guard": "ok",
+      "verification": {
+        "real": 0.94,
+        "sameParty": 0.09
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "P046",
+      "set": "party",
+      "language": "it",
+      "category": "supplier-or-partner",
+      "point": "Il nostro nuovo stabilimento in Puglia",
+      "said": "Il nostro partner per la distribuzione, Sudalia, ha inaugurato un nuovo stabilimento in Puglia, vicino a Bari.",
+      "expected": false,
+      "confidence": 0.92,
+      "guard": "ok",
+      "verification": {
+        "real": 0.97,
+        "sameParty": 0.47
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "P047",
+      "set": "party",
+      "language": "it",
+      "category": "supplier-or-partner",
+      "point": "Abbiamo rinnovato il sito web",
+      "said": "L'agenzia che ci segue la pubblicità ha rinnovato il proprio sito web, ed è venuto molto bene.",
+      "expected": false,
+      "confidence": 0.87,
+      "guard": "ok",
+      "verification": {
+        "real": 0.95,
+        "sameParty": 0.19
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "P048",
+      "set": "party",
+      "language": "it",
+      "category": "supplier-or-partner",
+      "point": "Abbiamo cambiato sede",
+      "said": "Lo studio di commercialisti che ci segue ha cambiato sede, adesso sono in via Carducci.",
+      "expected": false,
+      "confidence": 0.97,
+      "guard": "ok",
+      "verification": {
+        "real": 0.96,
+        "sameParty": 0.22
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "P049",
+      "set": "party",
+      "language": "de",
+      "category": "supplier-or-partner",
+      "point": "Wir haben einen neuen Geschäftsführer",
+      "said": "Unser Partner in Österreich, die Firma Kranewitter, hat seit Oktober einen neuen Geschäftsführer.",
+      "expected": false,
+      "confidence": 0.77,
+      "guard": "ok",
+      "verification": {
+        "real": 0.94,
+        "sameParty": 0.09
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    },
+    {
+      "id": "P057",
+      "set": "party",
+      "language": "it",
+      "category": "competitor",
+      "point": "Abbiamo lanciato la consegna a domicilio",
+      "said": "La libreria Tre Archi, quella in piazza, ha lanciato la consegna a domicilio in tutta la città.",
+      "expected": false,
+      "confidence": 0.97,
+      "guard": "ok",
+      "verification": {
+        "real": 0.96,
+        "sameParty": 0.4
+      },
+      "ticked": false,
+      "tickedWithoutVerification": true
+    }
+  ]
+}

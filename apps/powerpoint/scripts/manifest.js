@@ -114,9 +114,17 @@ if (require.main !== module) return;
 const origin = (process.argv[2] || "https://localhost:3000").replace(/\/$/, "");
 const dev = !process.argv[2];
 const idFile = path.join(__dirname, "..", ".manifest-id");
-const id = fs.existsSync(idFile) ? fs.readFileSync(idFile, "utf8").trim() : (() => { const v = randomUUID(); fs.writeFileSync(idFile, v); return v; })();
+// The add-in's identity. A local .manifest-id wins; otherwise the Id already in the tracked
+// manifest.xml is kept, so a build in a fresh checkout does not rewrite that file with a random Id
+// (Office treats a new Id as a different add-in). A random Id is only made when neither exists.
+const trackedManifest = path.join(__dirname, "..", "manifest.xml");
+const trackedId = fs.existsSync(trackedManifest) ? (/<Id>([0-9a-f]{8}-[0-9a-f-]{27})<\/Id>/i.exec(fs.readFileSync(trackedManifest, "utf8")) || [])[1] : undefined;
+const id = fs.existsSync(idFile) ? fs.readFileSync(idFile, "utf8").trim() : trackedId || (() => { const v = randomUUID(); fs.writeFileSync(idFile, v); return v; })();
 const xml = buildManifest(origin, { dev, id });
 const out = dev ? path.join(__dirname, "..", "manifest.xml") : path.join(__dirname, "..", "dist", `manifest.${origin.replace(/^https?:\/\//, "").replace(/[^a-z0-9.-]/gi, "_")}.xml`);
 fs.mkdirSync(path.dirname(out), { recursive: true });
-fs.writeFileSync(out, xml);
-console.log("wrote", path.relative(process.cwd(), out));
+// Same text apart from line endings (a Windows checkout has CRLF): leave the file alone, so a build
+// does not show a tracked file as changed.
+const same = fs.existsSync(out) && fs.readFileSync(out, "utf8").replace(/\r\n/g, "\n") === xml.replace(/\r\n/g, "\n");
+if (!same) fs.writeFileSync(out, xml);
+console.log(same ? "unchanged" : "wrote", path.relative(process.cwd(), out));

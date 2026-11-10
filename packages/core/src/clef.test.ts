@@ -22,6 +22,18 @@ describe("buildClefRequest", () => {
     expect(r.questions.s0b0.instructions).toContain("introduce tensors");
     expect(r.state).toMatchObject({ section: "Intro", covered_points_context_only: ["say hello"] });
   });
+
+  // The wording is measured (docs/gauntlet/BASELINE.md, TRK-2): "has the speaker STARTED this idea /
+  // made this point" scored 0.2 to 0.65 on short labels said word for word. Changing it again needs
+  // the seven corpora and the adversarial set re-run, not a quiet edit.
+  it("asks whether the point was said, and names what does not count", () => {
+    const q = buildClefRequest(req, "clef-flash").questions.s0b0;
+    expect(q.instructions).toContain('Script point: "introduce tensors". Has the speaker said this, or begun saying something about it');
+    expect(q.instructions).not.toMatch(/STARTED talking about this idea/);
+    expect(q.criteria?.true).toMatch(/exactly this topic/);
+    expect(q.criteria?.false).toMatch(/someone else/);
+    expect(q.criteria?.false).toMatch(/dropped or did not happen/);
+  });
 });
 
 describe("parseClefAnswers", () => {
@@ -38,5 +50,26 @@ describe("parseClefAnswers", () => {
     const out = parseClefAnswers({ answers: { s0b0: { noul: Number.NaN } } }, req);
     expect(out.decisions.map((d) => d.confidence)).toEqual([0, 0]);
     expect(out.unmentioned).toEqual([]);
+  });
+});
+
+describe("verification questions (TRK-2)", () => {
+  it("adds two questions for each point listed in `verify`, and only for those", () => {
+    const r = buildClefRequest({ ...req, verify: ["s0b1", "unknown"] }, "clef-flash");
+    expect(Object.keys(r.questions)).toEqual(["s0b0", "s0b1", "s0b1__real", "s0b1__party", "fact_0"]);
+    expect(r.questions.s0b1__real.instructions).toContain('"show the demo"');
+    expect(r.questions.s0b1__real.instructions).toMatch(/cancelled/);
+    expect(r.questions.s0b1__party.instructions).toMatch(/same party/);
+  });
+
+  it("reads both answers into `verification`; a point not listed gets none", () => {
+    const out = parseClefAnswers({ answers: { s0b0: { noul: 0.9 }, s0b1: { noul: 0.8 }, s0b1__real: { noul: 0.12 }, s0b1__party: { noul: 0.95 } } }, { ...req, verify: ["s0b1"] });
+    expect(out.decisions[0].verification).toBeUndefined();
+    expect(out.decisions[1].verification).toEqual({ real: 0.12, sameParty: 0.95 });
+  });
+
+  it("a missing verification answer is not a pass: the point stays unverified", () => {
+    const out = parseClefAnswers({ answers: { s0b1: { noul: 0.8 }, s0b1__real: { noul: 0.9 } } }, { ...req, verify: ["s0b1"] });
+    expect(out.decisions[1].verification).toBeUndefined();
   });
 });
