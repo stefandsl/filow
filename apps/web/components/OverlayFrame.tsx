@@ -15,14 +15,14 @@ export function OverlayFrame({ overlay, onClose, children, note, closeLabel }: {
   const close = closeLabel ?? t("overlay.close");
   return (
     <div className="overlay">
-      <div className="overlay-bar">
+      <header className="overlay-bar">
         <span className="drag"><Icon name="grip" /> Filow</span>
         {note}
         <button type="button" className="chip" onClick={onClose} title={close} aria-label={close}>
           <Icon name="close" />
         </button>
-      </div>
-      {children}
+      </header>
+      <main className="overlay-body">{children}</main>
     </div>
   );
 }

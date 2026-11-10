@@ -50,7 +50,7 @@ import { ImportError } from "./prompter/ImportError";
 import { LogPanel } from "./prompter/LogPanel";
 import { useReanchor } from "./prompter/useReanchor";
 import { ReanchorNotice } from "./prompter/ReanchorNotice";
-import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useDisplayPrefs, useEyeline, usePointsWindow } from "./prompter/DisplayPanel";
+import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useCodesForWindows, useDisplayPrefs, useEyeline, usePointsWindow } from "./prompter/DisplayPanel";
 import { pointState } from "@/lib/pointState";
 import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
 import { decisionRecipient, sttRecipient, takeOutbound } from "@/lib/buddy/outbound";
@@ -82,6 +82,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const [display, setDisplay] = useDisplayPrefs(DISPLAY_KEYS.prompter);
   const [displayOpen, setDisplayOpen] = useState(false);
   const pointsWindow = usePointsWindow();
+  useCodesForWindows(sessionInfo.newCode);
   const readingRef = useRef<HTMLDivElement>(null);
   const [scriptText, setScriptText] = useState("");
   const [sttStatus, setSttStatus] = useState<SttStatus>({ elevenlabs: false, openai: false });

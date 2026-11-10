@@ -55,7 +55,7 @@ function pointsUrl(appUrl, code, platform) {
   return `${appUrl}/mirror?compact=1&overlay=1&points=1&private=${captureHidingWorks(platform) ? 1 : 0}${code ? `&code=${code}` : ""}`;
 }
 
-const POINTS_SIZE = { width: 380, height: 300 };
+const POINTS_SIZE = { width: 380, height: 340 };
 
 /** First place of the points window: top centre of the screen, right under where a webcam usually sits. */
 function defaultPointsBounds(workArea) {
@@ -77,24 +77,37 @@ function usableBounds(saved, workAreas) {
 /**
  * The points window for calls. Always left out of screen capture where the system allows it (the
  * page says so in its bar), since it is the presenter's prompter, not something to show the audience.
- * `deps`: the createFloatingWindow deps plus screen, platform, url(code), sessionCode(), theme(),
- * bounds() / saveBounds(b) (the settings store), onChange(open).
+ * `deps`: the createFloatingWindow deps plus screen, platform, appUrl, sessionCode(), freshCode()
+ * (a promise of an unspent pairing code), theme(), bounds() / saveBounds(b) (the settings store),
+ * onChange(open).
  */
 function createPointsWindow(deps) {
   let win = null;
+  /** an opening in progress (it waits for a fresh pairing code): a second switch-on joins it */
+  let opening = null;
+  /** switched off while the code was on its way: do not open after all */
+  let cancelled = false;
   const isOpen = () => Boolean(win && !win.isDestroyed());
-  const url = () => pointsUrl(deps.appUrl, deps.sessionCode(), deps.platform);
+  const url = (code) => pointsUrl(deps.appUrl, code, deps.platform);
   function show() {
+    cancelled = false;
     if (isOpen()) {
       win.show();
-      return;
+      return Promise.resolve();
     }
+    opening = opening || open().finally(() => (opening = null));
+    return opening;
+  }
+  async function open() {
+    // Pairing codes are single use: the window joins with one nobody has spent (main.js freshSessionCode).
+    const code = deps.freshCode ? await deps.freshCode() : deps.sessionCode();
+    if (cancelled || isOpen()) return;
     const screens = deps.screen.getAllDisplays().map((d) => d.workArea);
     const bounds = usableBounds(deps.bounds(), screens) || defaultPointsBounds(deps.screen.getPrimaryDisplay().workArea);
     win = createFloatingWindow(deps, {
       name: "points",
       title: "Filow points",
-      url: url(),
+      url: url(code),
       bounds,
       background: deps.theme() === "dark" ? "#08090b" : "#f7f7f5",
       opacity: 1,
@@ -108,8 +121,10 @@ function createPointsWindow(deps) {
     deps.onChange(true);
   }
   function hide() {
+    cancelled = true;
     if (isOpen()) win.close(); // "closed" reports the change
     win = null;
+    return Promise.resolve();
   }
   return {
     show,
@@ -121,7 +136,7 @@ function createPointsWindow(deps) {
     webContents: () => (isOpen() ? win.webContents : null),
     /** The session changed (a new pairing code): load the page again so it joins the new one. */
     reload: () => {
-      if (isOpen()) win.loadURL(url());
+      if (isOpen()) win.loadURL(url(deps.sessionCode()));
     },
   };
 }

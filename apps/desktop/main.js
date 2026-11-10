@@ -612,6 +612,7 @@ function wireScreenSense() {
     if (info && typeof info.code === "string" && typeof info.id === "string") {
       const changedSession = !currentSession || currentSession.id !== info.id;
       currentSession = { id: info.id, code: info.code };
+      internalEvents.emit("session:code", info.code);
       if (changedSession && overlayWin && !overlayWin.isDestroyed()) overlayWin.loadURL(overlayUrl());
       if (changedSession) pointsWindow.reload();
     }
@@ -1643,23 +1644,50 @@ let overlayWin = null;
 let stopSlideShowWatch = null;
 let slideShow = { running: false, index: -1, total: 0, title: "" };
 
-function overlayUrl() {
+function overlayUrl(code = currentSession ? currentSession.code : "") {
   // The overlay is a compact phone-mirror view of the app's own session: nothing to pair, auto-accepted as a local peer.
-  const code = currentSession ? currentSession.code : "";
   return `${APP_URL}/mirror?compact=1&overlay=1${code ? `&code=${code}` : ""}`;
 }
 
+/**
+ * A pairing code nobody has used yet. Codes are single use and a floating window spends one when it
+ * joins, while the page renews its code only after a pairing it has to approve: so before a floating
+ * window (re)joins, the page is asked for a new code (preload onNeedCode). Falls back to the current
+ * code when the page does not answer in time.
+ */
+function freshSessionCode(timeoutMs = 2500) {
+  const before = currentSession ? currentSession.code : "";
+  if (!mainWin || mainWin.isDestroyed()) return Promise.resolve(before);
+  return new Promise((resolve) => {
+    const done = (code) => {
+      clearTimeout(timer);
+      internalEvents.off("session:code", onCode);
+      resolve(code);
+    };
+    const onCode = (code) => { if (code && code !== before) done(code); };
+    const timer = setTimeout(() => done(currentSession ? currentSession.code : ""), timeoutMs);
+    internalEvents.on("session:code", onCode);
+    mainWin.webContents.send("session:needCode");
+  });
+}
+
+let overlayOpening = null;
 function showOverlay() {
+  overlayOpening = overlayOpening || openOverlay().finally(() => (overlayOpening = null));
+  return overlayOpening;
+}
+async function openOverlay() {
+  const code = await freshSessionCode();
   if (overlayWin && !overlayWin.isDestroyed()) {
     overlayWin.show();
-    overlayWin.loadURL(overlayUrl());
+    overlayWin.loadURL(overlayUrl(code));
     return;
   }
   const b = settings.overlayBounds || {};
   overlayWin = createFloatingWindow(floatingDeps(), {
     name: "overlay",
     title: "Filow overlay",
-    url: overlayUrl(),
+    url: overlayUrl(code),
     bounds: { width: b.width || 440, height: b.height || 360, x: b.x, y: b.y },
     background: uiTheme() === "dark" ? "#08090b" : "#f7f7f5",
     opacity: settings.overlayOpacity || 0.94,
@@ -1684,6 +1712,7 @@ const pointsWindow = createPointsWindow({
   platform: process.platform,
   appUrl: APP_URL,
   sessionCode: () => (currentSession ? currentSession.code : ""),
+  freshCode: () => freshSessionCode(),
   theme: () => uiTheme(),
   bounds: () => settings.pointsBounds,
   saveBounds: (bounds) => {
@@ -2078,9 +2107,13 @@ async function main() {
   startSlideShowWatch();
   appHandle("slideshow:state", () => slideShow);
   appOn("overlay:close", (e) => (pointsWindow.owns(e.sender) ? pointsWindow.hide() : hideOverlay()));
+  appOn("session:codeSpent", (e) => {
+    // a floating window paired with the code on screen: the page shows a fresh one for the next device
+    if (mainWin && !mainWin.isDestroyed() && e.sender !== mainWin.webContents) mainWin.webContents.send("session:needCode");
+  });
   appHandle("points:status", () => ({ open: pointsWindow.isOpen() }));
-  appHandle("points:set", (_e, on) => {
-    pointsWindow.set(on === true);
+  appHandle("points:set", async (_e, on) => {
+    await pointsWindow.set(on === true);
     return { open: pointsWindow.isOpen() };
   });
   startOkFilow();

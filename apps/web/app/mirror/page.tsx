@@ -5,7 +5,7 @@ import { OverlayFrame } from "@/components/OverlayFrame";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { connect, type SessionClient } from "@filow/client";
-import { currentPoint, moveCommand, type Command, type SessionState } from "@filow/core";
+import { currentPoint, DEFAULT_DISPLAY, moveCommand, type Command, type SessionState } from "@filow/core";
 import { useClickerKeys } from "@/components/prompter/useReanchor";
 import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useDisplayPrefs, useEyeline } from "@/components/prompter/DisplayPanel";
 import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
@@ -72,6 +72,8 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
       });
       if (cl.role === "pending") setPending(true);
       setClient(cl);
+      // An overlay window of the desktop app just spent the code on screen (codes are single use).
+      if (overlay) (globalThis as { filow?: { codeSpent?: () => void } }).filow?.codeSpent?.();
       try {
         localStorage.setItem("mirror:lastCode", c);
       } catch {
@@ -162,6 +164,7 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
     return (
       <OverlayFrame overlay={overlay} onClose={closeOverlay} note={note} closeLabel={points ? t("points.close") : undefined}>
         <MirrorKeys state={state} onCommand={onCommand} />
+        <OverlayEyeline state={state} />
         <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact banner={error ?? (offline ? t("stage.engineOffline") : null)} />
       </OverlayFrame>
     );
@@ -176,6 +179,13 @@ function MirrorKeys({ state, onCommand }: { state: SessionState | null; onComman
     const cmd = state && moveCommand(state, m);
     if (cmd) onCommand(cmd);
   }, Boolean(state));
+  return null;
+}
+
+/** A small overlay window keeps the point the presenter is on in view, a third of the way down (under the bar). */
+const OVERLAY_DISPLAY = { ...DEFAULT_DISPLAY, eyeline: "upper" as const };
+function OverlayEyeline({ state }: { state: SessionState | null }) {
+  useEyeline(pageArea, state ? currentPoint(state) : null, OVERLAY_DISPLAY);
   return null;
 }
 

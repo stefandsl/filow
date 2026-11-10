@@ -74,14 +74,19 @@ export function useEyeline(area: RefObject<HTMLElement | null> | (() => HTMLElem
     const apply = () => {
       const wait = POINTER_CALM_MS - (Date.now() - lastPointer.current);
       if (wait > 0) { timer = setTimeout(apply, wait); return; }
-      const el = getArea();
-      const row = el?.querySelector<HTMLElement>(`[data-point-id="${CSS.escape(current)}"]`) ?? document.querySelector<HTMLElement>(`[data-point-id="${CSS.escape(current)}"]`);
+      let el = getArea();
+      const row = document.querySelector<HTMLElement>(`[data-point-id="${CSS.escape(current)}"]`);
       if (!el || !row) return;
+      // A short window lays the prompter out as one page that scrolls as a whole (globals.css, max-height: 500px).
+      if (el !== document.scrollingElement && el.scrollHeight <= el.clientHeight + 1) el = document.scrollingElement as HTMLElement | null;
+      if (!el) return;
       const page = el === document.scrollingElement;
       const areaTop = page ? 0 : el.getBoundingClientRect().top;
       const view = page ? window.innerHeight : el.clientHeight;
       const itemTop = row.getBoundingClientRect().top - areaTop + el.scrollTop;
-      const top = eyelineScrollTop(itemTop, view, prefs.eyeline, el.scrollHeight - view);
+      // On the first point the section's title stays in view: nothing above it needs to scroll away.
+      const first = document.querySelector("[data-point-id]") === row;
+      const top = first ? 0 : eyelineScrollTop(itemTop, view, prefs.eyeline, el.scrollHeight - view);
       if (Math.abs(top - el.scrollTop) < 4) return;
       const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
       el.scrollTo({ top, behavior: still ? "auto" : "smooth" });
@@ -98,6 +103,19 @@ type PointsWindowBridge = {
 };
 function pointsWindowBridge(): PointsWindowBridge | undefined {
   return (globalThis as { filow?: { pointsWindow?: PointsWindowBridge } }).filow?.pointsWindow;
+}
+
+/**
+ * The desktop shell asks for a fresh pairing code before a floating window (overlay, points window)
+ * joins the session: codes are single use. `newCode` issues one and reports it to the shell.
+ */
+export function useCodesForWindows(newCode: () => Promise<void> | void) {
+  const latest = useRef(newCode);
+  latest.current = newCode;
+  useEffect(() => {
+    const bridge = (globalThis as { filow?: { onNeedCode?: (fn: () => void) => () => void } }).filow;
+    return bridge?.onNeedCode?.(() => void latest.current());
+  }, []);
 }
 
 /** The desktop's points window for calls: whether it is open, and a switch. Absent outside the desktop app. */
