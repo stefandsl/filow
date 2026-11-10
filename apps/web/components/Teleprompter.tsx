@@ -819,7 +819,7 @@ export function ScriptEditor({
           </span>
         ))}
         <div className="hint">{t("editor.hint", { sections: preview.sections.length, points: preview.sections.reduce((n, s) => n + s.bullets.length, 0) })}</div>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} />
+        <textarea value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} aria-label={title ?? t("editor.title")} />
         <div className="controls">
           <button className="btn primary" onClick={() => onSave(text)}>
             {t("common.save")}
@@ -828,7 +828,7 @@ export function ScriptEditor({
             {t("common.cancel")}
           </button>
           <span className="hint" style={{ marginLeft: "auto" }}>{t("editor.translateTo")}</span>
-          <select className="btn" value={to} onChange={(e) => setTo(e.target.value)} disabled={busy}>
+          <select className="btn" value={to} onChange={(e) => setTo(e.target.value)} disabled={busy} aria-label={t("editor.translateTo")}>
             {[["en", "English"], ["it", "Italiano"], ["ro", "Română"], ["ru", "Русский"], ["de", "Deutsch"], ["fr", "Français"], ["es", "Español"]].map(([k, l]) => (
               <option key={k} value={k}>
                 {l}
