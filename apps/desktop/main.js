@@ -85,8 +85,19 @@ if (process.env.FILOW_USER_DATA_DIR) {
   app.setPath("sessionData", process.env.FILOW_USER_DATA_DIR);
 }
 const userData = app.getPath("userData");
+// One Filow per profile (single-instance.js): a second launch starts nothing and brings the running
+// window forward instead of fighting for the ports. Keyed on userData, so test profiles still coexist.
+const { claimSingleInstance, windowToFront, bringToFront } = require("./single-instance");
+const firstInstance = claimSingleInstance(app, () => {
+  logLine("second launch on this profile: bringing the running window forward");
+  bringToFront(windowToFront({ welcome: welcomeWin, main: mainWin, splash }));
+});
+if (!firstInstance) {
+  logLine("second launch on this profile: Filow already runs, leaving");
+  app.exit(0);
+}
 // Native crash dumps (main, renderer, GPU, utility) stay on this PC under userData/Crashpad; nothing
-// is uploaded. A report leaves the PC only through "Send report", which the user starts.
+// is uploaded. "Report a problem" lists them but never includes them; nothing is sent by Filow.
 app.setPath("crashDumps", path.join(userData, "Crashpad"));
 require("electron").crashReporter.start({ uploadToServer: false });
 const envFile = path.join(userData, ".env");
@@ -200,7 +211,12 @@ const MENU_TEXT = {
     keyTitle: "Add your OpenRouter key",
     keyMessage: "No OPENROUTER_API_KEY set.",
     keyDetail: "Open the config folder from the menu, put your key in .env, then restart the app.\n\n{file}",
-    reportOnClipboard: "The full report text is on the clipboard: paste it into the issue.",
+    about: "About and privacy…",
+    macKeysMessage: "Hold-to-talk needs a permission from macOS.",
+    macKeysAccessibility: "To notice when you hold the OK Filow key, Filow must be allowed in System Settings > Privacy & Security > Accessibility. Turn Filow on there.\n\nUntil then hold-to-talk is off: press Command+Option+O to start and stop OK Filow. If it still does not work after you allow it, quit Filow and open it again.",
+    macKeysInput: "To notice when you hold the OK Filow key, Filow must be allowed in System Settings > Privacy & Security > Input Monitoring. Turn Filow on there.\n\nUntil then hold-to-talk is off: press Command+Option+O to start and stop OK Filow. If it still does not work after you allow it, quit Filow and open it again.",
+    macKeysOpen: "Open System Settings",
+    macKeysLater: "Not now",
     pptNoOrigin: "PowerPoint only loads add-ins over HTTPS. Turn on “Share to phone on any network” first (the manifest will point at that public URL), or set PUBLIC_ORIGIN=https://your-server in .env for a permanent install.",
     pptSaved: "Manifest saved. Sideload it:\n\n• PowerPoint for the web: Home → Add-ins → More Add-ins → My Add-ins → Upload My Add-in → this file.\n• PowerPoint for Windows: put the file in a shared folder, add that folder under File → Options → Trust Center → Trusted Add-in Catalogs, restart PowerPoint, then Insert → My Add-ins → Shared Folder.\n\nThe pane is served from {origin}. A tunnel URL changes every time sharing restarts; save a new manifest then.",
   },
@@ -252,7 +268,12 @@ const MENU_TEXT = {
     keyTitle: "Aggiungi la tua chiave OpenRouter",
     keyMessage: "OPENROUTER_API_KEY non impostata.",
     keyDetail: "Apri la cartella di configurazione dal menu, inserisci la chiave nel file .env e riavvia l'app.\n\n{file}",
-    reportOnClipboard: "Il testo completo del report è negli appunti: incollalo nella segnalazione.",
+    about: "Informazioni e privacy…",
+    macKeysMessage: "Per parlare tenendo premuto un tasto serve un permesso di macOS.",
+    macKeysAccessibility: "Per accorgersi di quando tieni premuto il tasto di OK Filow, Filow deve essere consentito in Impostazioni di Sistema > Privacy e sicurezza > Accessibilità. Attiva Filow lì.\n\nFino ad allora la pressione prolungata è spenta: premi Comando+Opzione+O per avviare e fermare OK Filow. Se dopo averlo consentito non funziona ancora, chiudi Filow e riaprilo.",
+    macKeysInput: "Per accorgersi di quando tieni premuto il tasto di OK Filow, Filow deve essere consentito in Impostazioni di Sistema > Privacy e sicurezza > Monitoraggio dell'input. Attiva Filow lì.\n\nFino ad allora la pressione prolungata è spenta: premi Comando+Opzione+O per avviare e fermare OK Filow. Se dopo averlo consentito non funziona ancora, chiudi Filow e riaprilo.",
+    macKeysOpen: "Apri Impostazioni di Sistema",
+    macKeysLater: "Non ora",
     pptNoOrigin: "PowerPoint carica i componenti aggiuntivi solo via HTTPS. Attiva prima “Condividi col telefono su qualsiasi rete” (il manifest punterà a quell'URL pubblico), oppure imposta PUBLIC_ORIGIN=https://tuo-server in .env per un'installazione permanente.",
     pptSaved: "Manifest salvato. Caricalo in PowerPoint:\n\n• PowerPoint per il web: Home → Componenti aggiuntivi → Altri componenti → I miei componenti → Carica il mio componente → questo file.\n• PowerPoint per Windows: metti il file in una cartella condivisa, aggiungi la cartella in File → Opzioni → Centro protezione → Cataloghi di componenti aggiuntivi attendibili, riavvia PowerPoint, poi Inserisci → I miei componenti → Cartella condivisa.\n\nIl pannello è servito da {origin}. Un URL del tunnel cambia a ogni riavvio della condivisione: salva allora un nuovo manifest.",
   },
@@ -1470,6 +1491,8 @@ function startOkFilow() {
       sttLocal: sttLocal.forUse("questions", sttLanguage),
       userData,
       menuText: (k) => mt(k),
+    // macOS: the plain-words prompt that opens the right System Settings pane (mac-permissions.js).
+    askKeyboardPermission: require("./mac-permissions").createKeyboardPermissionPrompt({ dialog, systemPreferences, openSystemSettings, menuText: (k) => mt(k), logLine }),
       isOffline: () => offline,
       sttDownload: () => void sttDownload(),
     });
@@ -1819,10 +1842,10 @@ function applyOffline(win, value = process.env.FILOW_OFFLINE === "1") {
   win?.webContents.send("offline", offline);
 }
 
-// ---- Diagnostics: crashes go to startup.log; "Report a problem" opens a prefilled GitHub issue ----
+// ---- Diagnostics: crashes go to startup.log; "Report a problem" makes a file the user saves ----
 const diag = require("./diag");
-// Nothing is sent by itself. The issue page opens in the browser with the text below; the user reads
-// it and submits (public repo stefandsl/filow-releases, so the owner sees every report on GitHub).
+// Nothing is sent, ever: the report window (about.js) shows every line of the report and saves it to a
+// file the user picks, to send privately. It no longer opens a public GitHub issue.
 process.on("uncaughtException", (err) => logLine(`CRASH main: ${err && err.stack ? err.stack : err}`));
 process.on("unhandledRejection", (err) => logLine(`CRASH main (promise): ${err && err.stack ? err.stack : err}`));
 app.on("render-process-gone", (_e, _wc, d) => logLine(`CRASH renderer: ${d.reason} (exit ${d.exitCode})`));
@@ -1832,7 +1855,8 @@ let lastTakeLog = "";
 appOn("diag:takeLog", (_e, text) => {
   lastTakeLog = String(text || "").slice(-4000);
 });
-appOn("diag:report", () => void reportProblem(mainWin));
+appOn("diag:report", () => void reportProblem());
+appOn("about:open", (_e, view) => void about().open(view === "report" ? "report" : "about"));
 
 function tailOf(file, maxChars) {
   try {
@@ -1843,53 +1867,48 @@ function tailOf(file, maxChars) {
   }
 }
 
-async function reportProblem(win) {
+/** The report's sections (about.js titles them): system, the last take's log, the end of startup.log, all masked. */
+async function reportSections() {
   let gpu = "";
   try {
     const g = await app.getGPUInfo("basic");
-    gpu = (g.gpuDevice || []).map((d) => d.deviceString || `${d.vendorId}:${d.deviceId}`).filter(Boolean).join(", ");
+    gpu = [...new Set((g.gpuDevice || []).map((d) => d.deviceString || `${d.vendorId}:${d.deviceId}`).filter(Boolean))].join(", ");
   } catch {
     /* no gpu info */
   }
-  const head = [
+  const system = [
     `Filow ${app.getVersion()} · Electron ${process.versions.electron} · ${process.platform} ${os.release()} ${process.arch}`,
     `${os.cpus()[0] ? os.cpus()[0].model : "cpu?"} · ${Math.round(os.totalmem() / 1024 ** 3)} GB RAM · GPU ${gpu || "?"}`,
-    `settings: theme ${settings.theme || "system"}, lang ${menuLang()}, local AI ${settings.localAi ? "on" : "off"}`,
+    `settings: theme ${settings.theme || "system"}, lang ${menuLang()}, local AI ${settings.localAi ? "on" : "off"}, offline ${offline ? "on" : "off"}`,
   ].join("\n");
-  // The issue is public: mask live links, keys, addresses and the user's name before it leaves the app.
+  // The user may send the file anywhere: mask live links, keys, addresses and the user's name first.
   let user = "";
   try { user = os.userInfo().username; } catch { /* no user info */ }
   const clean = (text) => diag.redact(text, { home: os.homedir(), user });
-  const sections = {
-    head: [
-      "**What happened**", "", "(describe here)", "",
-      "**System**", "```", head, "```",
-      "**Take log**", "```", clean(lastTakeLog || "(no take yet)"), "```",
-      "**startup.log (tail)**", "```", "",
-    ].join("\n"),
-    log: clean(tailOf(path.join(userData, "startup.log"), 6000)),
-    tail: "\n```",
-  };
-  const body = sections.head + sections.log + sections.tail;
-  const title = `[${app.getVersion()}] problem on ${process.platform}`;
-  if (process.env.FILOW_OFFLINE === "1") {
-    const { response } = await dialog.showMessageBox({
-      type: "info", title: "Filow", message: sharedText("offline.reportCopyPrompt", menuLang()),
-      buttons: [sharedText("offline.copyReport", menuLang()), sharedText("common.cancel", menuLang())],
-      defaultId: 0, cancelId: 1,
-    });
-    if (response === 0) clipboard.writeText(body);
-    return;
-  }
-  // Browsers and GitHub cut long URLs: the oldest log lines go first, and the full text goes to the clipboard.
-  const { url, truncated } = diag.issueUrl("https://github.com/stefandsl/filow-releases/issues/new", title, sections, 7800);
-  logLine(`report: opening issue form (${body.length} chars${truncated ? ", log shortened" : ""})`);
-  await openExternalSafe(url);
-  if (truncated && win && !win.isDestroyed()) {
-    // The browser cuts long URLs: the full text goes to the clipboard so the user can paste it.
-    clipboard.writeText(body);
-    void dialog.showMessageBox(win, { type: "info", message: mt("reportOnClipboard") });
-  }
+  return [
+    { id: "system", text: system },
+    { id: "take", text: clean(lastTakeLog) },
+    { id: "log", text: clean(tailOf(path.join(userData, "startup.log"), 6000)) },
+  ];
+}
+
+let aboutPages = null;
+/** About and privacy, Report a problem (about.js): one local window, created on first use. */
+function about() {
+  aboutPages ||= require("./about").createAboutPages({
+    BrowserWindow, ipcMain, dialog, clipboard, shell, openExternalSafe, logLine, fs, path,
+    pageFile: path.join(__dirname, "about.html"), preload: path.join(__dirname, "about-preload.js"),
+    lang: menuLang, theme: uiTheme, icon: appIcon,
+    info: () => ({ version: app.getVersion(), electron: process.versions.electron, configFolder: userData }),
+    docsDir: packaged ? resources : path.join(resources, "..", "docs"),
+    crashDir: path.join(userData, "Crashpad"), documentsDir: () => app.getPath("documents"),
+    collectReport: reportSections,
+  });
+  return aboutPages;
+}
+
+function reportProblem() {
+  return about().open("report");
 }
 
 function buildMenu(win) {
@@ -1967,11 +1986,14 @@ function buildMenu(win) {
             : updateState.status === "checking"
               ? { label: mt("updateChecking"), enabled: false }
               : { label: mt("updateCheck"), click: () => void checkForUpdates({ manual: true }) },
-        { label: mt("report"), click: () => void reportProblem(win) },
+        { label: mt("about"), click: () => void about().open("about") },
+        { label: mt("report"), click: () => void reportProblem() },
         { type: "separator" },
-        { label: mt("reload"), accelerator: "CmdOrCtrl+R", click: () => win.reload() },
-        { label: mt("fullscreen"), accelerator: "F11", click: () => win.setFullScreen(!win.isFullScreen()) },
-        { label: mt("devtools"), accelerator: "CmdOrCtrl+Shift+I", click: () => win.webContents.toggleDevTools() },
+        // These act on the main window only when it (or no window) has the focus: Cmd+R in the About
+        // window must not reload the main window in the middle of a take (macOS menus are app-wide).
+        { label: mt("reload"), accelerator: "CmdOrCtrl+R", click: (_i, focused) => { if (!focused || focused === win) win.reload(); } },
+        { label: mt("fullscreen"), accelerator: "F11", click: (_i, focused) => { if (!focused || focused === win) win.setFullScreen(!win.isFullScreen()); } },
+        { label: mt("devtools"), accelerator: "CmdOrCtrl+Shift+I", click: (_i, focused) => { if (!focused || focused === win) win.webContents.toggleDevTools(); } },
         { type: "separator" },
         { label: mt("quit"), role: "quit" },
       ],
@@ -2051,7 +2073,7 @@ async function main() {
   reloadOnCrash(win, "main");
   endTakeWithPage(win);
   win.on("focus", () => uiPreferences?.refresh());
-  win.on("closed", () => { mainWin = null; });
+  win.on("closed", () => { mainWin = null; aboutPages?.close(); }); // About must not keep Filow running alone
   nativeTheme.themeSource = settings.theme === "light" || settings.theme === "dark" ? settings.theme : "system";
   // §6.2: the window is already filtered out of Screen Sense's own chooser; hiding it from every
   // capture is opt-in (menu) because it also blanks the user's own screenshots.
@@ -2156,7 +2178,7 @@ function failStartup(err) {
 }
 
 app.setAppUserModelId("com.intelliprompter.app");
-app.whenReady().then(main);
+if (firstInstance) app.whenReady().then(main);
 app.on("window-all-closed", () => { if (!startupTransition) app.quit(); });
 app.on("before-quit", () => { quitting = true; uiPreferences?.dispose(); okFilow?.dispose(); });
 app.on("will-quit", () => {

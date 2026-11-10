@@ -1,8 +1,8 @@
-// "Report a problem" text (PRODUCTION-PLAN P2.1). The report goes to a public GitHub issue the user
-// submits, so everything that could identify the user or reach their running session is masked first.
+// "Report a problem" text (PRODUCTION-PLAN P2.1). The user saves the report to a file and may send it to
+// anyone, so everything that could identify the user or reach their running session is masked first.
 
 /**
- * Masks what must not reach a public issue: live public-link URLs (anyone holding one can open the
+ * Masks what must not leave in a report: live public-link URLs (anyone holding one can open the
  * running session), LAN and other private IPv4 addresses, the user's home folder and user name in
  * paths, e-mail addresses, and anything shaped like an API key or bearer token.
  */
@@ -28,25 +28,4 @@ function escapeRe(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/**
- * The GitHub "new issue" URL for a report, kept under maxUrl characters by shortening the log section
- * (oldest lines first) before encoding, so the URL never ends inside a %-escape.
- * Returns { url, truncated } where truncated says the full text should go to the clipboard.
- */
-function issueUrl(base, title, sections, maxUrl = 7800) {
-  const build = (logText) => `${base}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(sections.head + logText + sections.tail)}`;
-  const log = sections.log;
-  let url = build(log);
-  if (url.length <= maxUrl) return { url, truncated: false };
-  // Binary search the longest suffix of the log that fits.
-  let lo = 0, hi = log.length;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (build("(older lines cut)\n" + log.slice(log.length - mid)).length <= maxUrl) lo = mid;
-    else hi = mid - 1;
-  }
-  url = build("(older lines cut)\n" + log.slice(log.length - lo));
-  return { url, truncated: true };
-}
-
-module.exports = { redact, issueUrl };
+module.exports = { redact };

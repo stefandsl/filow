@@ -33,9 +33,10 @@ contextBridge.exposeInMainWorld("filow", {
   remoteStatus: () => ipcRenderer.invoke("remote:status"),
   /** Auto-update state (installed app only): idle | checking | downloading | downloaded | none | error. */
   updateStatus: () => ipcRenderer.invoke("update:status"),
-  /** Diagnostics: the page keeps the main process informed of its take log; "report" opens the issue form. */
+  /** Diagnostics: the page keeps the main process informed of its take log; "report" opens the local report window. */
   takeLog: (text) => ipcRenderer.send("diag:takeLog", text),
   reportProblem: () => ipcRenderer.send("diag:report"),
+  openAbout: (view) => ipcRenderer.send("about:open", view === "report" ? "report" : "about"),
   /** The page says when a take starts and stops: the shell shows no "update ready" prompt meanwhile. */
   setTakeLive: (on) => ipcRenderer.send("take:live", Boolean(on)),
   checkForUpdates: () => ipcRenderer.send("update:check"),

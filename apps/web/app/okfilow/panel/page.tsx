@@ -616,6 +616,7 @@ export default function OkFilowPanel() {
         {c?.hook === "toggle" ? t("hintToggle") : t("hintHold").replace("{key}", hotkey ?? "")}
       </p>
       {c?.hook !== "toggle" && <p className="okf-hint">{t("hintMore")}</p>}
+      {c?.hookPermission && <p className="okf-hint">{t(c.hookPermission === "accessibility" ? "hintMacAccessibility" : "hintMacInput")}</p>}
       {handsFreeOn && (
         <p className="okf-handsfree" role="status">
           {t("handsFreeOn")}

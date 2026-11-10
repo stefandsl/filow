@@ -86,7 +86,10 @@ Changes in apps/desktop/package.json "build.mac":
   Now electron-builder signs when it finds one (keychain, or CSC_LINK + CSC_KEY_PASSWORD) and skips
   signing otherwise. `electronFuses.resetAdHocDarwinSignature: true`: flipping the fuses breaks the
   ad-hoc signature, and an unsigned arm64 build would not launch at all.
-- `zip` target next to `dmg`: electron-updater on macOS installs from the zip (latest-mac.yml).
+- `zip` target next to `dmg`: electron-updater on macOS installs from the zip (latest-mac.yml). The
+  updater (Squirrel.Mac) refuses an update whose signature does not match the running app, so unsigned
+  builds cannot update themselves even with the zip: auto-update on macOS needs D7 (Developer ID).
+  Published releases up to 0.9.30 carry only the dmg; the first release built from this config adds the zip.
 - Notarization hook: electron-builder notarizes after signing when these are set in the environment,
   nothing to change in the config: APPLE_API_KEY, APPLE_API_KEY_ID, APPLE_API_ISSUER (App Store Connect
   API key, preferred), or APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID.
@@ -117,16 +120,32 @@ Checks that need a Mac (in order):
    `spctl -a -vvv -t exec Filow.app` says "Notarized Developer ID", `xcrun stapler validate` on the dmg.
 3. First take: microphone prompt shows our text; the sherpa worker loads (library validation on).
 4. Screen Sense and OK Filow: Screen Recording permission prompt, and what the app shows when it is denied.
-5. OK Filow hold-to-talk: uiohook needs Accessibility (Input Monitoring) permission; okfilow.js (T6)
-   should ask via systemPreferences.isTrustedAccessibilityClient(true). Not handled today.
+5. OK Filow hold-to-talk (mac-permissions.js, 2026-11-10): before the hook starts, okfilow.js checks
+   `systemPreferences.isTrustedAccessibilityClient(false)`; if Accessibility is missing, or the hook's own error says
+   so (UIOHOOK_ERROR_AXAPI_DISABLED: Accessibility; UIOHOOK_ERROR_CREATE_EVENT_PORT: Input Monitoring), hold-to-talk
+   stays off, the Cmd+Option+O toggle works, the panel shows the toggle hint with the hotkey list disabled,
+   and a plain-words dialog (en, it) opens the right pane (Privacy_Accessibility or Privacy_ListenEvent).
+   The hook is retried every 30 s, so it should start once the permission is given. On a Mac, check: the
+   dialog shows once per launch; "Open System Settings" lists Filow under Accessibility (prompt=true) and
+   opens the right pane; whether macOS needs Input Monitoring too for this tap (it is an active tap,
+   kCGEventTapOptionDefault) and whether the retry picks it up without a restart (macOS often asks to
+   quit the app after an Input Monitoring change; the dialog tells the user to reopen Filow if needed);
+   dictation typing (keyTap Cmd+V) after Accessibility is granted. Unit tests: mac-permissions.test.ts
+   (logic only; nothing here ran on macOS).
 6. PowerPoint: the Apple Events prompts (System Events, PowerPoint); no "Where is Microsoft PowerPoint?"
    dialog when it is not installed; add-in sideload; `openssl req -addext` with macOS LibreSSL;
    `security add-trusted-cert -d` on a standard (non-admin) account.
 7. Ollama install: confirm the Team ID with `codesign -dvvv ~/Applications/Ollama.app 2>&1 | grep -E 'Authority|TeamIdentifier'`
    (expected TeamIdentifier=3MU9H2V9Y9).
-8. Keychain prompt when a key moves from .env to secrets.json; auto-update from a signed build.
+8. Keychain prompt when a key moves from .env to secrets.json; auto-update from a signed build: install
+   version N from the dmg, publish N+1 with its zip and latest-mac.yml, check that "Restart to install"
+   replaces the app (unsigned: expected to fail with a code-signature error).
 9. Try removing allow-unsigned-executable-memory from the entitlements: keep it only if the app or the
    speech worker fails without it.
+10. Single instance: open Filow twice (Dock, then Finder); the second launch must bring the first window
+   forward and start no servers (requestSingleInstanceLock, verified on Windows only).
+11. About and privacy, Report a problem: the window opens from the Filow menu and Settings, the policy
+   shows offline, "Save to a file" writes to ~/Documents (verified on Windows only).
 
 ## Phones (Android and iOS companion)
 

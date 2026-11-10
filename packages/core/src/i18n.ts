@@ -105,8 +105,6 @@ const en = {
   "update.error": "Update check failed: {error}. Try checking for updates again.",
   "app.offline": "OFFLINE",
   "offline.downloadDisabled": "Offline mode is on. Turn it off to download models or install Ollama.",
-  "offline.reportCopyPrompt": "Offline mode is on. Copy the report to the clipboard to review and share it later?",
-  "offline.copyReport": "Copy report",
   "app.slow": "slow model: {ms} ms per call",
   "app.slowTitle": "The decision model answers slower than the engine asks. Decisions arrive late but nothing is lost; a faster model or the GPU would fix it.",
   "app.analysing": "analysing…",
@@ -516,6 +514,8 @@ const en = {
   "settings.piiHint": "Before any cloud call, personal data in the transcript, the points and the screen facts is replaced by placeholders (emails, phones, IBANs, card numbers, codice fiscale always; names, addresses and 22 Italian categories when the Rizzo-PII server runs). The map stays in memory and is dropped after the call. Local providers never need it. Set PII_GUARD=strict to refuse cloud calls without the server, off to disable.",
   "settings.rizzoStart": "Start Rizzo-PII locally (Docker):",
   "settings.offlineHint": "Offline mode (desktop app menu > Offline) forces local providers, on-device Whisper, and blocks every request that is not to this machine.",
+  "settings.aboutPrivacy": "About and privacy",
+  "settings.aboutPrivacyHint": "Read what Filow keeps on this computer and what it sends, and make a problem report you can send privately.",
   "settings.languageHint": "Interface language for this browser and, in the desktop app, for the menu.",
 
   // PowerPoint pane and browser extension
@@ -684,8 +684,6 @@ const it: Partial<Record<I18nKey, string>> = {
   "update.error": "Controllo aggiornamenti non riuscito: {error}. Riprova a cercare aggiornamenti.",
   "app.offline": "OFFLINE",
   "offline.downloadDisabled": "La modalità offline è attiva. Disattivala per scaricare modelli o installare Ollama.",
-  "offline.reportCopyPrompt": "La modalità offline è attiva. Copiare il report negli appunti per rivederlo e condividerlo in seguito?",
-  "offline.copyReport": "Copia report",
   "app.slow": "modello lento: {ms} ms a chiamata",
   "app.slowTitle": "Il modello di decisione risponde più lentamente di quanto il motore chieda. Le decisioni arrivano in ritardo ma nulla va perso; un modello più veloce o la GPU lo risolverebbero.",
   "app.analysing": "analisi…",
@@ -1088,6 +1086,8 @@ const it: Partial<Record<I18nKey, string>> = {
   "settings.piiHint": "Prima di ogni chiamata al cloud, i dati personali nella trascrizione, nei punti e nei dati dello schermo vengono sostituiti da segnaposto (email, telefoni, IBAN, carte, codice fiscale sempre; nomi, indirizzi e 22 categorie italiane quando il server Rizzo-PII è attivo). La mappa resta in memoria e viene scartata dopo la chiamata. I provider locali non ne hanno bisogno. Imposta PII_GUARD=strict per rifiutare le chiamate cloud senza il server, off per disattivare.",
   "settings.rizzoStart": "Avvia Rizzo-PII in locale (Docker):",
   "settings.offlineHint": "La modalità offline (menu dell'app desktop > Offline) forza i provider locali e Whisper sul dispositivo e blocca ogni richiesta che non sia verso questo computer.",
+  "settings.aboutPrivacy": "Informazioni e privacy",
+  "settings.aboutPrivacyHint": "Leggi cosa Filow conserva su questo computer e cosa invia, e prepara una segnalazione da inviare in privato.",
   "settings.languageHint": "Lingua dell'interfaccia per questo browser e, nell'app desktop, per il menu.",
 
   "ppt.modeEngine": "Motore (microfono qui)",
