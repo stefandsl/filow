@@ -30,6 +30,7 @@
     "esbuild": "0.28.2"
   },
   "build": {
+    "beforePack": "./before-pack.js",
     "appId": "com.intelliprompter.app",
     "electronVersion": "45.2.3",
     "npmRebuild": false,

@@ -1802,9 +1802,7 @@ async function main() {
     stage("loading servers");
     startServers();
   } catch (err) {
-    closeSplash();
-    dialog.showErrorBox("Filow failed to start", String(err && err.stack ? err.stack : err));
-    app.quit();
+    failStartup(err);
     return;
   }
 
@@ -1946,10 +1944,21 @@ async function main() {
       });
     }
   } catch (err) {
-    closeSplash();
-    dialog.showErrorBox("Filow failed to start", String(err));
-    app.quit();
+    failStartup(err);
   }
+}
+
+/**
+ * A start that cannot go on. The reason goes to startup.log first: the error box blocks the whole
+ * process until someone clicks it, so a test run, or a user who closes it, would otherwise have no
+ * trace (a package built without the session server bundle sat on the splash for minutes this way).
+ */
+function failStartup(err) {
+  const text = String(err && err.stack ? err.stack : err);
+  logLine(`startup failed at "${startupStage}": ${text}`);
+  closeSplash();
+  dialog.showErrorBox("Filow failed to start", text);
+  app.quit();
 }
 
 app.setAppUserModelId("com.intelliprompter.app");

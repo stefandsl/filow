@@ -17,6 +17,8 @@ function newestBuild() {
 }
 const exeDir = process.argv[2] || newestBuild();
 const runs = Number(process.argv[3] || 5);
+// Ports can be moved when another session is using the defaults (FILOW_E2E_PORT).
+const PORT = Number(process.env.FILOW_E2E_PORT || 4787);
 const profile = path.join(ROOT, "tmp", "autoloop-profile");
 const log = path.join(profile, "startup.log");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -27,7 +29,7 @@ for (let i = 0; i < runs; i++) {
   fs.writeFileSync(log, "");
   const t0 = Date.now();
   const app = spawn(path.join(exeDir, "Filow.exe"), [], {
-    env: { ...process.env, FILOW_USER_DATA_DIR: profile, FILOW_PORT: "4787", FILOW_SESSION_PORT: "4788" }, stdio: "ignore",
+    env: { ...process.env, FILOW_USER_DATA_DIR: profile, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(PORT + 1) }, stdio: "ignore",
   });
   let s = null, m = null;
   for (let w = 0; w < 120 && m == null; w++) {
@@ -36,6 +38,13 @@ for (let i = 0; i < runs; i++) {
     const at = (needle) => { const line = text.split("\n").find((l) => l.includes(needle)); return line ? Date.parse(line.slice(0, 24)) - t0 : null; };
     s = s ?? at("splash shown");
     m = at("main window shown");
+    // A start that failed sits behind an error box: stop the whole run with the reason.
+    const failed = text.split(/\r?\n/).find((l) => l.includes("startup failed"));
+    if (failed) {
+      try { execSync(`taskkill /PID ${app.pid} /T /F`, { stdio: "ignore" }); } catch { /* gone */ }
+      console.error("the app failed to start: " + failed.slice(25, 400));
+      process.exit(2);
+    }
   }
   try { execSync(`taskkill /PID ${app.pid} /T /F`, { stdio: "ignore" }); } catch { /* gone */ }
   await sleep(3000);
