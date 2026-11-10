@@ -1,0 +1,100 @@
+import { EventEmitter } from "node:events";
+import { describe, expect, it, vi } from "vitest";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pw = require("./points-window.js");
+
+class FakeWindow extends EventEmitter {
+  static made: FakeWindow[] = [];
+  opts: Record<string, unknown>;
+  url = "";
+  protectedFromCapture: boolean | null = null;
+  onTop: unknown[] = [];
+  destroyed = false;
+  webContents = new EventEmitter();
+  constructor(opts: Record<string, unknown>) {
+    super();
+    this.opts = opts;
+    FakeWindow.made.push(this);
+  }
+  setAlwaysOnTop(...a: unknown[]) { this.onTop = a; }
+  setVisibleOnAllWorkspaces() {}
+  setContentProtection(on: boolean) { this.protectedFromCapture = on; }
+  loadURL(u: string) { this.url = u; }
+  isDestroyed() { return this.destroyed; }
+  show() {}
+  getBounds() { return { x: 1, y: 2, width: 300, height: 200 }; }
+  close() { this.destroyed = true; this.emit("closed"); }
+}
+
+const AREA = { x: 0, y: 0, width: 1920, height: 1040 };
+function make(platform = "win32", saved: unknown = undefined) {
+  FakeWindow.made = [];
+  const changes: boolean[] = [];
+  const saveBounds = vi.fn();
+  const w = pw.createPointsWindow({
+    BrowserWindow: FakeWindow, preload: "preload.js", reloadOnCrash: vi.fn(), guardNavigation: vi.fn(), onFocus: vi.fn(),
+    screen: { getAllDisplays: () => [{ workArea: AREA }], getPrimaryDisplay: () => ({ workArea: AREA }) },
+    platform, appUrl: "http://127.0.0.1:4735", sessionCode: () => "123456", theme: () => "dark",
+    bounds: () => saved, saveBounds, onChange: (open: boolean) => changes.push(open),
+  });
+  return { w, changes, saveBounds };
+}
+
+describe("points window for calls", () => {
+  it("opens the mirror's overlay view on top of everything, sandboxed, under the webcam, left out of screen sharing", () => {
+    const { w, changes } = make();
+    w.show();
+    const win = FakeWindow.made[0];
+    expect(win.url).toBe("http://127.0.0.1:4735/mirror?compact=1&overlay=1&points=1&private=1&code=123456");
+    expect(win.protectedFromCapture).toBe(true);
+    expect(win.onTop).toEqual([true, "screen-saver"]);
+    expect(win.opts).toMatchObject({ frame: false, alwaysOnTop: true, skipTaskbar: true, width: 380, height: 300, x: 770, y: 8 });
+    expect(win.opts.webPreferences).toMatchObject({ contextIsolation: true, nodeIntegration: false, sandbox: true, preload: "preload.js" });
+    expect(changes).toEqual([true]);
+    w.show(); // a second switch-on reuses the window
+    expect(FakeWindow.made).toHaveLength(1);
+  });
+
+  it("says screen sharing can show it where the system cannot hide windows (Linux)", () => {
+    const { w } = make("linux");
+    w.show();
+    expect(FakeWindow.made[0].url).toContain("private=0");
+    expect(FakeWindow.made[0].protectedFromCapture).toBe(false);
+  });
+
+  it("closes from the menu, the Display panel or its own button, and reports it", () => {
+    const { w, changes } = make();
+    w.set(true);
+    const win = FakeWindow.made[0];
+    expect(w.owns(win.webContents)).toBe(true);
+    expect(w.owns(new EventEmitter())).toBe(false);
+    w.set("yes"); // only a real true opens: anything else closes
+    expect(w.isOpen()).toBe(false);
+    expect(w.owns(win.webContents)).toBe(false);
+    expect(w.webContents()).toBeNull();
+    expect(changes).toEqual([true, false]);
+  });
+
+  it("keeps its place, but not one on a screen that is gone", () => {
+    const { w, saveBounds } = make("win32", { x: 100, y: 100, width: 400, height: 260 });
+    w.show();
+    expect(FakeWindow.made[0].opts).toMatchObject({ x: 100, y: 100, width: 400 });
+    FakeWindow.made[0].emit("moved");
+    expect(saveBounds).toHaveBeenCalledWith({ x: 1, y: 2, width: 300, height: 200 });
+    const gone = make("win32", { x: 5000, y: 100, width: 400, height: 260 });
+    gone.w.show();
+    expect(FakeWindow.made[0].opts).toMatchObject({ x: 770, y: 8 });
+    expect(pw.usableBounds({ x: 0, y: 0, width: 50, height: 50 }, [AREA])).toBeNull();
+    expect(pw.usableBounds({ x: "a" }, [AREA])).toBeNull();
+  });
+
+  it("reloads into a new session only while open", () => {
+    const { w } = make();
+    w.reload();
+    expect(FakeWindow.made).toHaveLength(0);
+    w.show();
+    FakeWindow.made[0].url = "";
+    w.reload();
+    expect(FakeWindow.made[0].url).toContain("points=1");
+  });
+});

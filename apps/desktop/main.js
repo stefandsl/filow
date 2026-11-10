@@ -170,6 +170,7 @@ const MENU_TEXT = {
     pptNo: "Not now",
     pptManifest: "PowerPoint add-in: save manifest for another computer…",
     overlayShow: "Presenter overlay (points on top of the slide show)",
+    pointsWindow: "Points window for calls (on top, left out of screen sharing)",
     okfOpen: "Open OK Filow",
     okfShowAlways: "Always show the buddy",
     okfEnabled: "OK Filow on",
@@ -222,6 +223,7 @@ const MENU_TEXT = {
     pptNo: "Non ora",
     pptManifest: "Componente aggiuntivo PowerPoint: salva il manifest per un altro computer…",
     overlayShow: "Overlay relatore (punti sopra la presentazione)",
+    pointsWindow: "Finestra dei punti per le chiamate (in primo piano, esclusa dalla condivisione)",
     okfOpen: "Apri OK Filow",
     okfShowAlways: "Mostra sempre l'assistente",
     okfEnabled: "OK Filow attivo",
@@ -336,7 +338,7 @@ async function computeWelcomeOffer() {
 function uiSender(event, welcomeOnly = false) {
   return trustedUiSender(event, {
     welcome: welcomeWin?.webContents,
-    pages: [mainWin?.webContents, overlayWin?.webContents].filter(Boolean),
+    pages: [mainWin?.webContents, overlayWin?.webContents, pointsWindow.webContents()].filter(Boolean),
     welcomeUrl, appUrl: APP_URL,
   }, welcomeOnly);
 }
@@ -379,9 +381,8 @@ function initializeUiPreferences() {
     },
   });
   uiPreferences.subscribe(state => {
-    for (const win of [mainWin, overlayWin, welcomeWin]) {
-      if (!win || win.isDestroyed()) continue;
-      const wc = win.webContents;
+    for (const wc of [mainWin, overlayWin, welcomeWin].map((w) => (w && !w.isDestroyed() ? w.webContents : null)).concat(pointsWindow.webContents())) {
+      if (!wc) continue;
       if (uiSender({ sender: wc, senderFrame: wc.mainFrame })) wc.send("ui:preferencesChanged", state);
     }
     if (mainWin && !mainWin.isDestroyed()) buildMenu(mainWin);
@@ -612,6 +613,7 @@ function wireScreenSense() {
       const changedSession = !currentSession || currentSession.id !== info.id;
       currentSession = { id: info.id, code: info.code };
       if (changedSession && overlayWin && !overlayWin.isDestroyed()) overlayWin.loadURL(overlayUrl());
+      if (changedSession) pointsWindow.reload();
     }
   });
   appHandle("screen:settings", () => ({ hotkey: settings.screenHotkey, enabled: settings.screenSense }));
@@ -1636,6 +1638,7 @@ async function offerLocalAi() {
   return response === 0 ? { models: rec.models, ollama: rec.ollama } : null;
 }
 
+const { createFloatingWindow, createPointsWindow } = require("./points-window");
 let overlayWin = null;
 let stopSlideShowWatch = null;
 let slideShow = { running: false, index: -1, total: 0, title: "" };
@@ -1653,40 +1656,47 @@ function showOverlay() {
     return;
   }
   const b = settings.overlayBounds || {};
-  overlayWin = new BrowserWindow({
-    width: b.width || 440,
-    height: b.height || 360,
-    x: b.x,
-    y: b.y,
-    frame: false,
-    transparent: false,
-    alwaysOnTop: true,
-    resizable: true,
-    minimizable: false,
-    skipTaskbar: true,
-    hasShadow: true,
-    opacity: settings.overlayOpacity || 0.94,
-    backgroundColor: uiTheme() === "dark" ? "#08090b" : "#f7f7f5",
+  overlayWin = createFloatingWindow(floatingDeps(), {
+    name: "overlay",
     title: "Filow overlay",
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "preload.js") },
+    url: overlayUrl(),
+    bounds: { width: b.width || 440, height: b.height || 360, x: b.x, y: b.y },
+    background: uiTheme() === "dark" ? "#08090b" : "#f7f7f5",
+    opacity: settings.overlayOpacity || 0.94,
+    hidden: settings.overlayHidden,
+    saveBounds: (bounds) => {
+      settings.overlayBounds = bounds;
+      saveSettings();
+    },
+    onClosed: () => (overlayWin = null),
   });
-  overlayWin.setAlwaysOnTop(true, "screen-saver");
-  reloadOnCrash(overlayWin, "overlay");
-  guardNavigation(overlayWin);
-  overlayWin.on("focus", () => uiPreferences?.refresh());
-  overlayWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  overlayWin.setContentProtection(Boolean(settings.overlayHidden));
-  overlayWin.loadURL(overlayUrl());
-  const remember = () => {
-    if (!overlayWin || overlayWin.isDestroyed()) return;
-    settings.overlayBounds = overlayWin.getBounds();
-    saveSettings();
-  };
-  overlayWin.on("moved", remember);
-  overlayWin.on("resized", remember);
-  overlayWin.on("closed", () => (overlayWin = null));
   buildMenu(mainWin);
 }
+
+// The points window for calls (points-window.js): the same floating window as the overlay, its own
+// switch in the menu and in the Display panel, always left out of screen sharing where the system can.
+function floatingDeps() {
+  return { BrowserWindow, preload: path.join(__dirname, "preload.js"), reloadOnCrash, guardNavigation, onFocus: () => uiPreferences?.refresh() };
+}
+const pointsWindow = createPointsWindow({
+  ...floatingDeps(),
+  screen: { getAllDisplays: () => screen.getAllDisplays(), getPrimaryDisplay: () => screen.getPrimaryDisplay() },
+  platform: process.platform,
+  appUrl: APP_URL,
+  sessionCode: () => (currentSession ? currentSession.code : ""),
+  theme: () => uiTheme(),
+  bounds: () => settings.pointsBounds,
+  saveBounds: (bounds) => {
+    settings.pointsBounds = bounds;
+    saveSettings();
+  },
+  onChange: (open) => {
+    if (mainWin && !mainWin.isDestroyed()) {
+      buildMenu(mainWin);
+      mainWin.webContents.send("points:changed", { open });
+    }
+  },
+});
 
 function hideOverlay() {
   if (overlayWin && !overlayWin.isDestroyed()) overlayWin.close();
@@ -1931,6 +1941,12 @@ function buildMenu(win) {
           click: (item) => (item.checked ? showOverlay() : hideOverlay()),
         },
         {
+          label: mt("pointsWindow"),
+          type: "checkbox",
+          checked: pointsWindow.isOpen(),
+          click: (item) => pointsWindow.set(item.checked),
+        },
+        {
           label: mt("overlayAuto"),
           type: "checkbox",
           checked: settings.overlayAuto !== false,
@@ -2061,7 +2077,12 @@ async function main() {
   wireScreenSense();
   startSlideShowWatch();
   appHandle("slideshow:state", () => slideShow);
-  appOn("overlay:close", () => hideOverlay());
+  appOn("overlay:close", (e) => (pointsWindow.owns(e.sender) ? pointsWindow.hide() : hideOverlay()));
+  appHandle("points:status", () => ({ open: pointsWindow.isOpen() }));
+  appHandle("points:set", (_e, on) => {
+    pointsWindow.set(on === true);
+    return { open: pointsWindow.isOpen() };
+  });
   startOkFilow();
   win.on("closed", () => okFilow?.dispose());
   const hk = registerHotkey();

@@ -71,6 +71,16 @@ contextBridge.exposeInMainWorld("filow", {
     return () => ipcRenderer.removeListener("slideshow", h);
   },
   closeOverlay: () => ipcRenderer.send("overlay:close"),
+  /** The points window for calls (points-window.js): open or close it, and hear when the menu does. */
+  pointsWindow: {
+    status: () => ipcRenderer.invoke("points:status"),
+    set: (on) => ipcRenderer.invoke("points:set", on === true),
+    onChange: (fn) => {
+      const h = (_e, v) => fn(v);
+      ipcRenderer.on("points:changed", h);
+      return () => ipcRenderer.removeListener("points:changed", h);
+    },
+  },
   /** Streaming speech-to-text on this PC (sherpa-onnx + Nemotron in a worker thread of the shell). */
   stt: {
     status: () => ipcRenderer.invoke("stt:status"),

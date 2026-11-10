@@ -39,6 +39,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "node:worker_threads": {}, "node:events": EventEmitter,
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
     "./vendor/i18n": { t }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./ui-preferences": {}, "./slideshow": {},
+    "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
   for (const name of ["stt", "localai", "diag", "welcome-setup"]) {
@@ -267,9 +268,10 @@ describe("windows stay on Filow's own pages", () => {
     expect(f.openExternal.mock.calls.map(c => c[0])).toEqual([`${app}/mirror`, "https://docs.example/"]);
   });
   it("guards every window main.js creates", () => {
-    const source = readFileSync(new URL("./main.js", import.meta.url), "utf8");
-    const windows = source.match(/new BrowserWindow\(/g)?.length ?? 0;
-    const guards = (source.match(/^\s+guardNavigation\(/gm)?.length ?? 0)
+    // points-window.js holds the floating windows (overlay, points window) main.js opens
+    const source = readFileSync(new URL("./main.js", import.meta.url), "utf8") + readFileSync(new URL("./points-window.js", import.meta.url), "utf8");
+    const windows = source.match(/new (deps\.)?BrowserWindow\(/g)?.length ?? 0;
+    const guards = (source.match(/^\s+(deps\.)?guardNavigation\(/gm)?.length ?? 0)
       // the welcome window refuses every navigation and every window by itself
       + (/"will-navigate", event => event\.preventDefault\(\)\);\s+win\.webContents\.setWindowOpenHandler\(\(\) => \(\{ action: "deny" \}\)\);/.test(source) ? 1 : 0);
     expect(windows).toBeGreaterThanOrEqual(5);
