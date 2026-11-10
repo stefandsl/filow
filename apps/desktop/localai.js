@@ -223,15 +223,27 @@ async function installOllama(binDir, onStatus) {
       fs.rmSync(setup, { force: true });
     } else {
       const zip = path.join(binDir, "Ollama-darwin.zip");
+      const staging = path.join(binDir, "ollama-staging");
       report({ state: "downloading", pct: 0 });
       await downloadWithProgress("https://ollama.com/download/Ollama-darwin.zip", zip, (pct) => report({ state: "downloading", pct }));
       report({ state: "installing", pct: 0 });
+      fs.rmSync(staging, { recursive: true, force: true });
+      execFileSync("ditto", ["-xk", zip, staging]);
+      // SEC-15: unpacked aside and checked before it lands where ollamaExe() finds and starts it: a Developer ID
+      // signature from Ollama Inc., not just any valid signature (not tested on macOS yet, docs/PLATFORMS.md).
+      try {
+        execFileSync("codesign", ["--verify", "--deep", "--strict", `-R=${require("./integrity.js").macDeveloperIdRequirement("Ollama Inc.")}`, path.join(staging, "Ollama.app")]);
+      } catch (err) {
+        fs.rmSync(staging, { recursive: true, force: true });
+        throw err;
+      } finally {
+        fs.rmSync(zip, { force: true });
+      }
       const apps = path.join(os.homedir(), "Applications");
       fs.mkdirSync(apps, { recursive: true });
-      execFileSync("ditto", ["-xk", zip, apps]);
-      // SEC-15: the unpacked app must carry a valid Apple code signature (not tested on macOS yet).
-      execFileSync("codesign", ["--verify", "--deep", "--strict", path.join(apps, "Ollama.app")]);
-      fs.rmSync(zip, { force: true });
+      fs.rmSync(path.join(apps, "Ollama.app"), { recursive: true, force: true }); // only reached when it held no ollama binary
+      fs.renameSync(path.join(staging, "Ollama.app"), path.join(apps, "Ollama.app"));
+      fs.rmSync(staging, { recursive: true, force: true });
     }
   } catch (err) {
     return report({ state: "error", error: String(err && err.message ? err.message : err) });
