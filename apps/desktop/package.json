@@ -47,6 +47,8 @@
       "stt-worker.js",
       "stt.js",
       "stt-download.js",
+      "tts.js",
+      "tts-worker.js",
       "tunnels.js",
       "csp.js",
       "secrets.js",
@@ -174,6 +176,7 @@
     "copyright": "Copyright © 2026 VoidExploit",
     "asarUnpack": [
       "stt-worker.js",
+      "tts-worker.js",
       "node_modules/sherpa-onnx-node/**",
       "node_modules/sherpa-onnx-*/**",
       "node_modules/uiohook-napi/**"

@@ -1,15 +1,16 @@
 "use client";
 // OK Filow panel: settings + the "brain" (hold-to-talk -> speech-to-text on this PC ->
 // screenshots -> /api/buddy/ask streamed -> voice + pointing). Lives in a hidden desktop window.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { getSelectedMic } from "@filow/stt";
 import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture, type OkFilowCard, type OkFilowJob, type OkFilowMode, type OkFilowStatus } from "@/lib/buddy/bridge";
 import { drawingSvg, type BuddyModel } from "@/lib/buddy/visuals";
-import { speechDeadline } from "@/lib/buddy/speech";
+import { createSpeaker } from "@/lib/buddy/voice";
 import { markToDisplay, parseBuddyAnswer, pointToDisplay, type BuddyTurn } from "@/lib/buddy/prompt";
 import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
 import { burnStrokes, createVad, describeMarked } from "@/lib/buddy/listen";
+import { VoiceSettings } from "./voice-settings";
 import "../okfilow.css";
 
 const HISTORY_KEY = "okfilow.history.v1";
@@ -121,44 +122,21 @@ export default function OkFilowPanel() {
   }, []);
   engineHeadersRef.current = engineHeaders;
 
-  const speak = useCallback(async (text: string, id: number) => {
-    const voice = statusRef.current?.voice ?? "system";
-    if (!text || voice === "off") return;
-    if (voice === "cloud" && !statusRef.current?.offline) {
-      const res = await fetch("/api/buddy/tts", { method: "POST", headers: { "Content-Type": "application/json", ...(await engineHeaders()) }, body: JSON.stringify({ text }) });
-      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `voice ${res.status}`);
-      const url = URL.createObjectURL(await res.blob());
-      const el = new Audio(url);
-      await new Promise<void>((resolve) => {
-        let check: ReturnType<typeof setInterval> | undefined;
-        const done = () => { clearInterval(check); clearTimeout(stuck); resolve(); };
-        // The end event can go missing (device change, Bluetooth sleep): never stay on "speaking".
-        const stuck = setTimeout(() => { el.pause(); done(); }, speechDeadline(text, statusRef.current?.speed));
-        el.onended = el.onerror = done;
-        el.playbackRate = statusRef.current?.speed ?? 1;
-        void el.play().catch(done);
-        check = setInterval(() => { if (run.current !== id) { el.pause(); done(); } }, 100);
-      });
-      URL.revokeObjectURL(url);
-      return;
-    }
-    const synth = window.speechSynthesis;
-    if (!synth) return;
-    synth.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    const want = lang === "it" ? "it" : "en";
-    const voices = synth.getVoices();
-    u.voice = voices.find((v) => v.lang.toLowerCase().startsWith(want) && v.localService) ?? voices.find((v) => v.lang.toLowerCase().startsWith(want)) ?? null;
-    u.lang = want === "it" ? "it-IT" : "en-US";
-    u.rate = 1.05 * (statusRef.current?.speed ?? 1);
-    await new Promise<void>((resolve) => {
-      const done = () => { clearInterval(check); clearTimeout(stuck); resolve(); };
-      const stuck = setTimeout(() => { synth.cancel(); done(); }, speechDeadline(text, statusRef.current?.speed));
-      u.onend = u.onerror = done;
-      synth.speak(u);
-      const check = setInterval(() => { if (run.current !== id) { synth.cancel(); done(); } else if (!synth.speaking && !synth.pending) done(); }, 150);
-    });
-  }, [engineHeaders, lang]);
+  // The three voices (natural on this PC, this PC's own, cloud) live in lib/buddy/voice.ts.
+  const langRef = useRef(lang);
+  langRef.current = lang;
+  const tRef = useRef(t);
+  tRef.current = t;
+  const speaker = useMemo(() => createSpeaker({
+    bridge: okFilowBridge,
+    status: () => statusRef.current,
+    isCurrent: (id) => run.current === id,
+    uiLang: () => langRef.current,
+    engineHeaders: () => engineHeadersRef.current(),
+    onFallback: (reason) => setNote(tRef.current(`voiceWhy_${reason}`)),
+  }), []);
+  const speak = useCallback((text: string, id: number) => speaker.speak(text, id), [speaker]);
+  useEffect(() => speaker.attach(), [speaker]);
 
   // Hands-free: after each answer the mic opens again until it is switched off.
   const listenAgain = useRef<() => void>(() => {});
@@ -321,6 +299,7 @@ export default function OkFilowPanel() {
       // A new question interrupts the old answer; dictation leaves the conversation alone.
       run.current++;
       asking.current?.abort();
+      speaker.stop();
       window.speechSynthesis?.cancel();
       setHeard("");
       setAnswer("");
@@ -363,7 +342,7 @@ export default function OkFilowPanel() {
       void b.stt.stop().catch(() => {});
       fail(e instanceof Error ? e.message : String(e));
     }
-  }, [fail, setMode, stopAudio, t]);
+  }, [fail, setMode, speaker, stopAudio, t]);
 
   const stopListening = useCallback(async (send: boolean) => {
     const b = okFilowBridge();
@@ -547,14 +526,8 @@ export default function OkFilowPanel() {
               <option value="cloud">{t("brainCloud")}</option>
             </select>
           </label>
-          <label className="okf-row">
-            <span>{t("voice")}</span>
-            <select value={c.offline && c.voice === "cloud" ? "system" : c.voice} onChange={(e) => void configure({ voice: e.target.value as "system" | "cloud" | "off" })}>
-              <option value="system">{t("voiceSystem")}</option>
-              {!c.offline && <option value="cloud">{t("voiceCloud")}</option>}
-              <option value="off">{t("voiceOff")}</option>
-            </select>
-          </label>
+          <VoiceSettings bridge={bridge} status={c} t={t} configure={configure}
+            preview={() => void speaker.speak(t("voiceSample"), run.current, { voice: "natural", lang: lang === "it" ? "it" : "en" })} />
           <label className="okf-row">
             <span>{t("speed")}</span>
             <select value={String(c.speed)} onChange={(e) => void configure({ speed: Number(e.target.value) })}>
