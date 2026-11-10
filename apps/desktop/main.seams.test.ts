@@ -53,10 +53,11 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": childProcess,
     "node:worker_threads": {}, "node:events": EventEmitter,
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
+    "./integrity": { sha256File: async () => "" },
     "./vendor/i18n": { t }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./ui-preferences": {}, "./slideshow": {},
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
-  for (const name of ["stt", "localai", "diag", "welcome-setup", "single-instance", "about"]) {
+  for (const name of ["download", "stt", "localai", "diag", "welcome-setup", "single-instance", "about"]) {
     const module = { exports: {} };
     runInNewContext(readFileSync(new URL(`./${name}.js`, import.meta.url), "utf8"), {
       require: (id: string) => { if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`); return modules[id]; },

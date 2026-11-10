@@ -50,6 +50,7 @@
       "stt-worker.js",
       "stt.js",
       "stt-download.js",
+      "download.js",
       "tts.js",
       "tts-worker.js",
       "tunnels.js",

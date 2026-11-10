@@ -6,11 +6,11 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const http = require("node:http");
-const https = require("node:https");
 const { execFile } = require("node:child_process");
 const { Worker } = require("node:worker_threads");
-const { idleTimeout, contentRangeStart, receiveArchive, retryDownload } = require("./stt-download");
+const { retryDownload } = require("./stt-download");
+const { download } = require("./download");
+const { sha256File } = require("./integrity");
 
 /** Spoken languages Filow is measured on; "auto" lets the model decide. */
 const LANGUAGES = ["en", "it", "ru", "ro", "ja"];
@@ -210,14 +210,6 @@ function pickInstalled(choice, installed) {
   return { model, wanted, streaming, notes };
 }
 
-/** SHA-256 of a file, streamed (the archive is ~475 MB). */
-function sha256File(file) {
-  return new Promise((resolve, reject) => {
-    const h = require("node:crypto").createHash("sha256");
-    fs.createReadStream(file).on("data", (c) => h.update(c)).on("error", reject).on("end", () => resolve(h.digest("hex")));
-  });
-}
-
 /** Rejects a download whose bytes are not the pinned archive (corrupt, truncated or swapped). */
 async function verifyArchive(file, expected = MODEL.sha256) {
   const got = await sha256File(file);
@@ -252,58 +244,6 @@ function requiredSpecs(key) {
 function modelReady(userData, opts = {}) {
   const choice = chooseModels({ language: opts.language, use: opts.use, ...hardwareOf(opts.hardware) });
   return Boolean(pickInstalled(choice, installedKeys(userData)).model);
-}
-
-/**
- * Downloads url into dest, resuming from dest's current size with an HTTP Range request when dest
- * already holds part of the file. Safe because the finished file must match the pinned SHA-256
- * before it is used: a bad resume costs one fresh download, never a corrupt model.
- * Only https, or plain http when the first URL is http (local test servers); never https -> http.
- */
-function downloadWithProgress(url, dest, onPct, hops = 5, fallbackSize = MODEL.sizeBytes) {
-  return new Promise((resolve, reject) => {
-    let response;
-    let req;
-    const offset = fs.existsSync(dest) ? fs.statSync(dest).size : 0;
-    const client = new URL(url).protocol === "http:" ? http : https;
-    const headers = { "User-Agent": "Filow" };
-    if (offset > 0) headers.Range = `bytes=${offset}-`;
-    const idle = idleTimeout(err => req?.destroy(err));
-    try {
-      req = client.get(url, { headers }, (res) => {
-        idle.stop();
-        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && hops > 0) {
-          res.destroy();
-          try {
-            if (new URL(url).protocol === "https:" && new URL(res.headers.location, url).protocol !== "https:") throw new Error("download redirected away from https");
-            return downloadWithProgress(new URL(res.headers.location, url).href, dest, onPct, hops - 1, fallbackSize).then(resolve, reject);
-          }
-          catch (err) { return reject(err); }
-        }
-        const resumed = offset > 0 && res.statusCode === 206 && contentRangeStart(res.headers["content-range"]) === offset;
-        if (offset > 0 && (res.statusCode === 416 || (res.statusCode === 206 && !resumed))) {
-          // The part on disk does not line up with the file on the server (changed, or already longer).
-          res.destroy();
-          fs.rmSync(dest, { force: true });
-          return reject(new Error("the partial download did not match the server; starting over"));
-        }
-        if (res.statusCode !== 200 && !resumed) {
-          res.destroy();
-          return reject(new Error(`download failed: HTTP ${res.statusCode}`));
-        }
-        response = res;
-        // 200 to a Range request means the server sent the whole file: write it from the start.
-        receiveArchive(res, fs.createWriteStream(dest, { flags: resumed ? "a" : "w" }), {
-          contentLength: res.headers["content-length"], fallbackSize, onPct, startAt: resumed ? offset : 0,
-        }).then(resolve, reject);
-      })
-      .on("error", err => {
-        idle.stop();
-        // Once writing, settle through pipeline so Windows can delete the closed file.
-        if (response) response.destroy(err); else reject(err);
-      });
-    } catch (err) { idle.stop(); reject(err); }
-  });
 }
 
 /** Windows ships bsdtar as tar.exe (bzip2 built in); macOS and Linux have tar with -j. Runs as a child process: a 475 MB bzip2 takes tens of seconds and must not block the app. */
@@ -357,7 +297,8 @@ async function ensureModel(userData, onStatus, spec = MODEL) {
     await retryDownload(async () => {
       if (fs.existsSync(part) && fs.statSync(part).size > spec.sizeBytes) fs.rmSync(part, { force: true });
       if (!(fs.existsSync(part) && fs.statSync(part).size === spec.sizeBytes)) {
-        await downloadWithProgress(spec.url, part, (pct) => onStatus({ state: "downloading", pct }), 5, spec.sizeBytes);
+        // Resumes the part on disk; the pinned hash below makes a bad resume cost one fresh download, never a corrupt model.
+        await download(spec.url, part, { onPct: (pct) => onStatus({ state: "downloading", pct }), fallbackSize: spec.sizeBytes, resume: true });
       }
       onStatus({ state: "extracting", pct: 99 });
       try { await verifyArchive(part, spec.sha256); }
@@ -620,5 +561,5 @@ function forUse(use, getLanguage = () => "auto") {
 
 module.exports = {
   MODEL, CATALOGUE, LANGUAGES, normaliseLanguage, tierFor, chooseModels, pickInstalled, installedKeys, requiredSpecs, recognizerConfig, speechStatus,
-  modelDir, modelReady, ensureModel, ensureAll, removeModel, partFile, partialPct, downloadWithProgress, SttSession, forUse, verifyArchive, sha256File,
+  modelDir, modelReady, ensureModel, ensureAll, removeModel, partFile, partialPct, SttSession, forUse, verifyArchive, sha256File,
 };
