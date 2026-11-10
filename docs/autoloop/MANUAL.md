@@ -1,6 +1,6 @@
 # Scorecard status (items without an automatic check yet)
 
-Updated 2026-11-09 by the autoloop. Status: `auto` = scored by score.mjs; `verified` = checked by hand
+Updated 2026-11-10 by the autoloop. Status: `auto` = scored by score.mjs; `verified` = checked by hand
 with evidence in JOURNAL.md; `open` = not done; `handoff` = in files owned by another session;
 `needs user` = only the user can do it (money, accounts, hardware, a clean VM).
 The stop condition needs every row `auto`-passing or `verified`.
@@ -10,11 +10,11 @@ The stop condition needs every row `auto`-passing or `verified`.
 | SEC-01 | auto (SEC-1) + open | add electronegativity run as a check |
 | SEC-02 | auto, passing 8/8 | - |
 | SEC-03 | auto, passing | stronger: CDP probe for violations across pages (tmp/autoloop/csp-probe.mjs) as a check |
-| SEC-04 | auto (SEC-5), passing | E2E navigation and window.open probe as a check |
+| SEC-04 | auto (SEC-5, weak) + verified 2026-11-10 | the static check passed while 4 of 5 main.js windows had no will-navigate guard; fixed (guardNavigation, unit test counts the windows). E2E by hand (tmp/autoloop/probe-sec04.mjs): promote it to a scored check |
 | SEC-05 | auto, passing 48/48 | - |
 | SEC-06 | auto, passing | - |
-| SEC-07 | open | review preload exposeInMainWorld: no generic channel wrappers |
-| SEC-08 | auto, passing | E2E: geolocation request denied |
+| SEC-07 | auto, passing (4 preloads, 140 functions, 94 fixed channels) | open note: `accessPassword` is exposed to the app pages by preload.js and okfilow-preload.js (safe only while SEC-04 keeps those windows on the app origin); `onOffline` returns no unsubscribe |
+| SEC-08 | auto (file-contains, weak) + open | E2E 2026-11-10: geolocation and midi denied, but camera and notifications are granted (the handler allows all of "media"); the standard says only mic and display-capture |
 | SEC-09 | open / needs user | Next server listens on 0.0.0.0 (LAN phone mirror by design): needs Host-header check and token on every route; design decision with the user for the LAN mode |
 | SEC-10 | auto, passing (Electron 45.2.3) | check runs against the npm registry daily |
 | SEC-11 | auto (SEC-4), 6 of 7 fuses | GrantFileProtocolExtraPrivileges needs splash/welcome/picker on a custom protocol first |
@@ -24,7 +24,8 @@ The stop condition needs every row `auto`-passing or `verified`.
 | SEC-15 | auto, passing 5/5 | macOS codesign path untested (needs a Mac) |
 | SEC-16 | auto, passing | - |
 | SIGN-01 | needs user | code-signing identity (Azure Trusted Signing, OV or EV) costs money |
-| SIGN-02..04 | open | depend on SIGN-01; SIGN-04 (no restart mid-talk) can be done now |
+| SIGN-02..03 | open | depend on SIGN-01 |
+| SIGN-04 | verified 2026-11-10 (unit + packaged wiring) | no dialog or notification while a take or a slideshow is live; not covered: a take in the PowerPoint pane or an OK Filow voice question; a real update-downloaded needs an installed, signed build |
 | CR-01 | auto, passing | - |
 | CR-02 | auto (weak check), verified by CDP crash test | stronger check proposed |
 | CR-03 | verified by design | dumps never uploaded; add a consent screen if uploads are ever added |
@@ -33,7 +34,8 @@ The stop condition needs every row `auto`-passing or `verified`.
 | A11Y-01, 04 | auto, passing | axe-core WCAG 2.2 A+AA over every shipped page (read from apps/web/app) in both themes: 0 violations |
 | A11Y-06 | auto, passing | reduced motion: 0 elements move with the setting, 121 without |
 | A11Y-07 | auto, passing | reflow: 0 pages scroll sideways at 640 and 320 px; the 200 px control overflows on 3 pages |
-| A11Y-02, 03, 05 | open | keyboard-only flow, focus order, aria-live announcements |
+| A11Y-02, 03 | auto, passing | keyboard walk in a11y.mjs: 67 tab stops over 6 pages, ring and name at each, no trap, Enter/Space/Escape work. Not measured: Shift+Tab, "not obscured", logical order, the OK Filow windows themselves |
+| A11Y-05 | auto, passing | the points list announces each tick ("Detto: ..."); Narrator by ear is still open, and the phone mirror and PowerPoint pane (packages/ui StageView) tick silently |
 | PERF-01 | auto, failing | splash ~1.0 s (budget 0.5); main window 8-14 s: servers ~6 s, then the public-link hold ~6 s (user decision pending); start the link in parallel with the servers |
 | PERF-02..04 | open | 45-minute memory run weekly; CPU while idle; bundle size |
 | STT-01..05 | open | corpus with word timestamps; WER with a jiwer-equivalent in TS |
@@ -41,7 +43,7 @@ The stop condition needs every row `auto`-passing or `verified`.
 | TRK-02 | auto, failing (recall 0.80) | raise recall to 0.9 without new false completions |
 | TRK-03..07 | open | see docs/gauntlet/BASELINE.md |
 | I18N-01 | verified 2026-11-09 | tools/autoloop/checks/i18n-parity.mjs: 0 problems (en, it); kept as a manual re-run, not scored (already passing) |
-| I18N-02..03 | open | pseudo-locale screenshots; Intl helpers |
+| I18N-02..03 | open | 2026-11-10: main.js dialogs no longer carry English-only sentences (guard test). Left: okfilow.js, localai.js and stt.js texts, save/open dialogs, the startup failure box; pseudo-locale screenshots; Intl helpers |
 | INST-01..04 | open / needs user | clean-VM installs need a VM; INST-04 silent Ollama install needs a consent dialog |
 | TST-01 | auto, ratchet 38% | raise coverage to 60/75 |
 | TST-02 | open | Playwright `_electron` suite against the packaged exe |

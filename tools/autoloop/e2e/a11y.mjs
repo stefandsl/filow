@@ -8,6 +8,7 @@
 import { spawn, execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { seedProfile } from "./profile.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../../..");
 // Every page the web app ships, read from apps/web/app (a hand-kept list once scanned two 404 pages).
@@ -21,7 +22,8 @@ function pageRoutes(dir = path.join(ROOT, "apps", "web", "app"), base = "") {
 }
 const ROUTES = pageRoutes();
 const THEMES = ["dark", "light"];
-const PORT = 4787, DEVTOOLS = 9344;
+// Ports can be moved when another session is using the defaults (FILOW_E2E_PORT, FILOW_E2E_DEVTOOLS).
+const PORT = Number(process.env.FILOW_E2E_PORT || 4787), DEVTOOLS = Number(process.env.FILOW_E2E_DEVTOOLS || 9344);
 
 function newestBuild() {
   const dirs = fs.readdirSync(ROOT).filter((d) => /^release-autoloop/.test(d) && fs.existsSync(path.join(ROOT, d, "win-unpacked", "Filow.exe")));
@@ -31,7 +33,7 @@ function newestBuild() {
 }
 
 const exeDir = process.argv[2] || newestBuild();
-const profile = path.join(ROOT, "tmp", "autoloop-profile");
+const profile = seedProfile(ROOT);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const startupLog = path.join(profile, "startup.log");
 const logLinesBefore = fs.existsSync(startupLog) ? fs.readFileSync(startupLog, "utf8").split("\n").length : 0;
@@ -43,8 +45,15 @@ const stop = () => { try { execSync(`taskkill /PID ${app.pid} /T /F`, { stdio: "
 process.on("exit", stop);
 
 let target;
+// A start that failed says so in startup.log and then sits behind an error box: stop at once, with the reason.
+const startupFailure = () => {
+  const fresh = fs.existsSync(startupLog) ? fs.readFileSync(startupLog, "utf8").split(/\r?\n/).slice(Math.max(0, logLinesBefore - 1)) : [];
+  return fresh.find((l) => l.includes("startup failed")) || null;
+};
 for (let i = 0; i < 60 && !target; i++) {
   await sleep(2000);
+  const failed = startupFailure();
+  if (failed) { console.error("the app failed to start: " + failed.slice(25, 400)); process.exit(2); }
   try { target = (await (await fetch(`http://127.0.0.1:${DEVTOOLS}/json`)).json()).find((t) => t.type === "page" && t.url.startsWith(`http://127.0.0.1:${PORT}/`) && !t.url.includes("/okfilow/")); } catch { /* not up yet */ }
 }
 if (!target) { console.error("app did not come up"); process.exit(2); }
@@ -137,8 +146,97 @@ const controlOverflows = Object.values(reflow[200]).filter((px) => px > 0).lengt
 console.log(`reflow: ${reflowFailures.length} page/width overflow(s) at 640/320 px; control at 200 px overflows on ${controlOverflows} page(s)`);
 for (const f of reflowFailures) console.log("  " + f);
 
+// A11Y-02 and A11Y-03 (WCAG 2.1.1, 2.1.2, 2.4.3, 2.4.7): a keyboard-only walk of every page with real
+// key events. Tab goes through every stop until it is back at the first one. Each stop must be on
+// screen, carry a name and show a focus ring; the focus must never stick on one element, and the walk
+// must close (no trap). On the main page the keys must also work: Enter and Space tick and untick a
+// point, the start dialog keeps the focus inside, and Escape closes it and gives the focus back.
+// A planted control (a button with no name and no ring) must be reported, or the probe measures nothing.
+// Limits: "ring" means an outline or a box shadow on the focused element (it is not compared with the
+// unfocused look), and "name" means visible text, aria-label, title, placeholder or value, which is
+// close to, but not the same as, the computed accessible name. Narrator itself stays a manual check.
+const key = async (k, code, vk) => {
+  await call("Input.dispatchKeyEvent", { type: "rawKeyDown", key: k, code, windowsVirtualKeyCode: vk });
+  if (k === "Enter" || k === " ") await call("Input.dispatchKeyEvent", { type: "char", key: k, text: k === "Enter" ? "\r" : k });
+  await call("Input.dispatchKeyEvent", { type: "keyUp", key: k, code, windowsVirtualKeyCode: vk });
+  await sleep(100);
+};
+const focused = `(() => { const el = document.activeElement; if (!el || el === document.body) return null;
+  const cs = getComputedStyle(el), r = el.getBoundingClientRect();
+  window.__stops = window.__stops || new Map();
+  if (!window.__stops.has(el)) window.__stops.set(el, window.__stops.size);
+  const name = (el.getAttribute("aria-label") || el.textContent || el.getAttribute("title") || el.getAttribute("placeholder") || el.value || "").trim().replace(/\\s+/g, " ");
+  return { n: window.__stops.get(el), what: "<" + el.tagName.toLowerCase() + (el.id === "planted" ? "#planted" : "") + (el.className ? " ." + String(el.className).split(" ")[0] : "") + "> " + name.slice(0, 30),
+    named: name !== "", ring: (cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth) > 0) || cs.boxShadow !== "none",
+    visible: r.width > 0 && r.height > 0 && cs.visibility !== "hidden" }; })()`;
+async function walk(route) {
+  const problems = [];
+  await evaluate(`window.__stops = new Map(); document.activeElement && document.activeElement.blur(); true`);
+  let last = null, stops = 0, closed = false;
+  for (let i = 0; i < 150 && !closed; i++) { // the largest page has 35 stops; a page past 150 would read as a trap
+    await key("Tab", "Tab", 9);
+    const s = await evaluate(focused);
+    if (!s) { if (stops === 0 && i >= 2) break; continue; } // a page with nothing to focus
+    if (s.n === 0 && stops > 0) { closed = true; break; } // back at the first stop
+    if (last && s.n === last.n) problems.push({ route, kind: "stuck", what: s.what });
+    stops = Math.max(stops, s.n + 1);
+    if (!s.named) problems.push({ route, kind: "no-name", what: s.what });
+    if (!s.ring) problems.push({ route, kind: "no-ring", what: s.what });
+    if (!s.visible) problems.push({ route, kind: "invisible", what: s.what });
+    last = s;
+  }
+  if (stops > 1 && !closed) problems.push({ route, kind: "trap", what: `the walk did not return to the first stop after ${stops} stops` });
+  return { stops, problems };
+}
+await call("Page.bringToFront");
+// Key events reach a page only while it counts as focused; Windows does not always let a test window
+// take the foreground (a run with the window in the background found 0 tab stops).
+await call("Emulation.setFocusEmulationEnabled", { enabled: true });
+const keyboard = { stops: {}, problems: [], controlCaught: false, announced: false, announcement: null };
+for (const route of ROUTES) {
+  await open(route);
+  const w = await walk(route);
+  keyboard.stops[route] = w.stops;
+  keyboard.problems.push(...w.problems);
+}
+{
+  await open("/");
+  const state = `document.querySelector('.point-row[role="button"]')?.dataset.state`;
+  const start = await evaluate(`(() => { const p = document.querySelector('.point-row[role="button"]'); if (!p) return null; p.focus(); return p.dataset.state; })()`);
+  await key("Enter", "Enter", 13); await sleep(400);
+  const afterEnter = await evaluate(state);
+  // A11Y-05 (WCAG 4.1.3): the tick is announced through the polite live region, which stays in the accessibility tree.
+  const region = `(() => { const r = document.querySelector(".prompter-points > [aria-live=polite]"); if (!r) return null; const cs = getComputedStyle(r); return cs.display === "none" || cs.visibility === "hidden" ? null : r.textContent; })()`;
+  const pointText = await evaluate(`document.querySelector(".point-row[role=button] .point-text")?.textContent ?? ""`);
+  const saidAfterEnter = await evaluate(region);
+  await key(" ", "Space", 32); await sleep(400);
+  const afterSpace = await evaluate(state);
+  const saidAfterSpace = await evaluate(region);
+  keyboard.announced = typeof saidAfterEnter === "string" && pointText !== "" && saidAfterEnter.endsWith(": " + pointText) && saidAfterSpace === "";
+  keyboard.announcement = { afterTick: saidAfterEnter, afterUntick: saidAfterSpace };
+  if (start !== "waiting" || afterEnter !== "done" || afterSpace !== "waiting") keyboard.problems.push({ route: "/", kind: "keys", what: `point row: ${start} -> Enter -> ${afterEnter} -> Space -> ${afterSpace}` });
+  const dialogOpen = `!!document.querySelector("dialog[open]")`;
+  const opener = await evaluate(`(() => { const b = document.querySelector(".action-bar .btn.primary"); if (!b) return null; b.focus(); return b.textContent.trim(); })()`);
+  await key("Enter", "Enter", 13); await sleep(1200);
+  let left = 0;
+  if (!(await evaluate(dialogOpen))) keyboard.problems.push({ route: "/", kind: "keys", what: `Enter on "${opener}" opened no dialog` });
+  else {
+    for (let i = 0; i < 10; i++) { await key("Tab", "Tab", 9); if (!(await evaluate(`document.querySelector("dialog[open]").contains(document.activeElement)`))) left++; }
+    await key("Escape", "Escape", 27); await sleep(600);
+  }
+  const after = await evaluate(`(${dialogOpen}) + "|" + document.activeElement.textContent.trim()`);
+  if (left > 0 || after !== `false|${opener}`) keyboard.problems.push({ route: "/", kind: "keys", what: `start dialog: ${left} Tab presses left it; after Escape: ${after} (opened from "${opener}")` });
+  // The control: one more button, without a name and without a ring, placed first in the tab order.
+  await evaluate(`document.body.insertAdjacentHTML("afterbegin", '<button id="planted" style="outline:none;box-shadow:none"></button>'); true`);
+  const planted = (await walk("/")).problems.filter((p) => p.what.startsWith("<button#planted>")); // its problems stay out of keyboard.problems: they are the control, not a defect
+  keyboard.controlCaught = planted.some((p) => p.kind === "no-name") && planted.some((p) => p.kind === "no-ring");
+}
+const keyboardStops = Object.values(keyboard.stops).reduce((a, b) => a + b, 0);
+console.log(`keyboard: ${keyboardStops} tab stops over ${ROUTES.length} pages, ${keyboard.problems.length} problem(s); planted control ${keyboard.controlCaught ? "caught" : "NOT caught"}; tick ${keyboard.announced ? "announced" : "NOT announced"} (${JSON.stringify(keyboard.announcement)})`);
+for (const p of keyboard.problems) console.log(`  ${p.route} ${p.kind}: ${p.what}`);
+
 fs.mkdirSync(path.join(ROOT, "tmp", "autoloop"), { recursive: true });
-fs.writeFileSync(path.join(ROOT, "tmp", "autoloop", "a11y.json"), JSON.stringify({ at: new Date().toISOString(), build: exeDir, total, results, motion, moving, movingNormally, reflow, reflowFailures, controlOverflows, routes: ROUTES, wrongPages }, null, 2));
+fs.writeFileSync(path.join(ROOT, "tmp", "autoloop", "a11y.json"), JSON.stringify({ at: new Date().toISOString(), build: exeDir, total, results, motion, moving, movingNormally, reflow, reflowFailures, controlOverflows, keyboard, routes: ROUTES, wrongPages }, null, 2));
 if (wrongPages.length) console.log("WRONG PAGES (these results are not valid): " + wrongPages.join("; "));
 console.log(`total rule violations across ${results.length} page/theme runs: ${total}`);
 ws.close(); stop(); process.exit(0);

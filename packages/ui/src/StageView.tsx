@@ -95,7 +95,7 @@ export function StageView({ state, onCommand, banner, stage, compact, pointMark 
               <div className="row">
                 {nextSection.bullets.map((b) => (
                   <span key={b.id} className={`next-item ${points[b.id]?.status === "started" ? "done" : ""}`}>
-                    {previewMark} {b.text}
+                    {previewMark}<span>{b.text}</span>
                   </span>
                 ))}
               </div>
