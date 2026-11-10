@@ -528,7 +528,8 @@ class SttSession {
         if (this.worker !== worker) return;
         if (m.type === "ready") {
           this.ready = true;
-          this.log(`stt: ${spec.label} ready in ${m.loadMs} ms (${threads} threads, ${this.use}, ${lang})`);
+          // "stt: <key> ready" is what tools/autoloop/e2e/linux.mjs looks for.
+          this.log(`stt: ${pick.model} ready in ${m.loadMs} ms (${threads} threads, ${spec.label}, ${this.use}, ${lang})`);
           resolve({ loadMs: m.loadMs, ...info });
         } else if (m.type === "result") this.onResult(m);
         else if (m.type === "error") {

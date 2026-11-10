@@ -14,6 +14,11 @@ it("has no eval and no remote script sources", () => {
   expect(POLICY).toContain("object-src 'none'");
 });
 
+it("lets the microphone load its AudioWorklet from a blob URL (worklets follow script-src)", () => {
+  const script = POLICY.split("; ").find((d) => d.startsWith("script-src"))!;
+  expect(script.split(" ")).toContain("blob:");
+});
+
 it("sets the policy only on our own pages and replaces any existing one", () => {
   const own = cspHeaders({ url: "http://127.0.0.1:4747/", resourceType: "mainFrame", responseHeaders: { "content-security-policy": ["x"] } }, [4747]);
   expect(own["Content-Security-Policy"]).toEqual([POLICY]);

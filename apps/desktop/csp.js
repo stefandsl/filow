@@ -2,10 +2,14 @@
 // #7, docs/autoloop/STANDARDS.md SEC-03). No eval and no remote script sources: scripts come only from
 // the local app server. 'unsafe-inline' stays for scripts because Next.js inlines its bootstrap and the
 // pages carry no nonce yet; 'wasm-unsafe-eval' lets the ONNX speech and embedding models run.
+// blob: is for the microphone's AudioWorklet (packages/stt/src/mic.ts loads its processor from a blob
+// URL, and worklets are governed by script-src, not worker-src): without it every take that listens
+// on this PC fails with "Failed to load worklet module script". It adds nothing 'unsafe-inline' does
+// not already allow.
 
 const BASE = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
   "img-src 'self' data: blob: https:",
