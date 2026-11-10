@@ -15,6 +15,7 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@filow/core": "*",
     "@types/ws": "^8.5.13",
     "esbuild": "^0.25.0",
     "tsx": "^4.19.2",
