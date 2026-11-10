@@ -1410,7 +1410,11 @@ function sttDownload() {
     sttBroadcast("stt:status", sttStatus());
     return Promise.resolve();
   }
-  if (sttDownloading) return sttDownloading;
+  if (sttDownloading) {
+    // Another language's model is still coming: fetch this one right after it instead of ignoring the click.
+    if (sttJob && sttJob.key !== key) void sttDownloading.then(() => sttDownload());
+    return sttDownloading;
+  }
   sttDownloading = sttLocal
     .ensureAll(userData, sttLocal.requiredSpecs(key), (s) => {
       sttJob = { key, state: s.state, pct: s.pct, error: s.error || "" };
