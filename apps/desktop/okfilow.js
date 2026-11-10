@@ -3,7 +3,8 @@
 // bubble, pointing), a small panel window that is also the "brain" (mic, speech-to-text, the
 // /api/buddy/ask call, the voice), a tray icon, the hold-to-talk hotkey and the screenshots.
 // Screenshots stay in memory; every OK Filow window is excluded from capture.
-const { BrowserWindow, Tray, Menu, screen, desktopCapturer, ipcMain, globalShortcut, nativeImage, shell } = require("electron");
+const { BrowserWindow, Tray, Menu, screen, desktopCapturer, ipcMain, globalShortcut, nativeImage, shell, systemPreferences } = require("electron");
+const { keyboardPermission } = require("./mac-permissions");
 const path = require("node:path");
 const { createGestures, chordHeld } = require("./okfilow-gestures");
 const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
@@ -55,7 +56,7 @@ const FADE_AFTER_MS = 1000;
 const hotkeyHeld = chordHeld;
 
 function createOkFilow(deps) {
-  const { appUrl, getSettings, saveSettings, iconPath, logLine, sttLocal, userData, menuText, isOffline } = deps;
+  const { appUrl, getSettings, saveSettings, iconPath, logLine, sttLocal, userData, menuText, isOffline, askKeyboardPermission } = deps;
   const cfg = () => ({ ...DEFAULTS, ...(getSettings().okFilow || {}) });
   const setCfg = (patch) => {
     const { consentChanges, ...rest } = patch || {};
@@ -97,6 +98,8 @@ function createOkFilow(deps) {
   let tts = null;
   let hook = null;
   let hookError = "";
+  /** macOS only: the permission hold-to-talk still lacks (mac-permissions.js), "" when none. */
+  let hookPermission = "";
   let held = false;
 
   const preload = path.join(__dirname, "okfilow-preload.js");
@@ -586,6 +589,9 @@ function createOkFilow(deps) {
   let hookAttempts = 0;
   function startHook() {
     try {
+      // macOS: no hook before the permission is there (mac-permissions.js); the toggle below works meanwhile.
+      const missing = keyboardPermission({ platform: process.platform, systemPreferences });
+      if (missing) throw Object.assign(new Error(`macOS has not allowed reading the keyboard yet (${missing})`), { permission: missing });
       const { uIOhook, UiohookKey: K } = require("uiohook-napi");
       const map = {
         [K.Ctrl]: "ctrl", [K.CtrlRight]: "ctrl",
@@ -616,6 +622,7 @@ function createOkFilow(deps) {
       uIOhook.start();
       hook = uIOhook;
       hookError = "";
+      hookPermission = "";
       clearTimeout(hookRetryTimer);
       try { globalShortcut.unregister("CommandOrControl+Alt+O"); } catch { /* was not registered */ }
       retryingQuietly = false;
@@ -623,6 +630,8 @@ function createOkFilow(deps) {
       sendPanel("okfilow:config", status());
     } catch (e) {
       hookError = String((e && e.message) || e);
+      hookPermission = (e && e.permission) || keyboardPermission({ platform: process.platform, systemPreferences, error: e }) || "";
+      if (hookPermission && askKeyboardPermission) void askKeyboardPermission(hookPermission);
       // Windows can refuse the hook for a moment (another app just let go of one): try again first.
       hookAttempts += 1;
       if (!retryingQuietly && hookAttempts < 5 && /register|hook/i.test(hookError)) {
@@ -700,7 +709,7 @@ function createOkFilow(deps) {
   function status() {
     const c = cfg();
     if (!c.voiceChosen && c.voice === "system" && tts?.usable()) c.voice = "natural";
-    return { ...c, hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, mode, handsFree, dictateChord: DICTATE_CHORD };
+    return { ...c, hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, mode, handsFree, dictateChord: DICTATE_CHORD };
   }
 
   // ---- IPC (only OK Filow's own windows) ----

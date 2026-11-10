@@ -59,6 +59,7 @@
       "integrity.js",
       "diag.js",
       "single-instance.js",
+      "mac-permissions.js",
       "about.js",
       "about-preload.js",
       "about.html",
