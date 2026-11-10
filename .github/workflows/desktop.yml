@@ -70,6 +70,12 @@ jobs:
         if: env.HERE == 'true'
       - run: npm run ${{ matrix.script }}
         if: env.HERE == 'true'
+      # electron-builder's own debug file is not for users. The release action ignores "!" patterns
+      # (0.9.30 and 0.9.31 carry it), so it is removed before anything is attached.
+      - name: Drop builder-debug.yml
+        if: env.HERE == 'true'
+        shell: bash
+        run: rm -f release/builder-debug.yml
       # Tag builds attach the installers straight to the GitHub release: no artifact storage in
       # between (the Actions storage quota blocked releases before). Each OS job uploads its own files;
       # softprops reuses the release that the first job created for the tag.
