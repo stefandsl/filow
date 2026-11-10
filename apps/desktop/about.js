@@ -19,7 +19,7 @@ const TEXT = {
     writeMail: "Write an e-mail", openForm: "Open the support form",
     describe: "What happened? (optional)", describeHint: "What you did, what you expected and what happened instead. It goes at the top of the file.",
     contents: "Exactly what the file will contain",
-    masked: "Masked before you see it: public links, keys and passwords, e-mail addresses, local network addresses and your user name.",
+    masked: "Masked before you see it: public links, keys and passwords, e-mail addresses, local network addresses and your user name in folder paths. Other names, such as a microphone's name, stay: read the text before you send it.",
     crashNone: "No crash files on this computer.",
     crashSome: "Not included: the crash files on this computer ({count}, {size} MB). They can hold parts of what was on screen, so send them only if support asks for them.",
     openCrash: "Open the crash files folder",
@@ -41,7 +41,7 @@ const TEXT = {
     writeMail: "Scrivi un'e-mail", openForm: "Apri il modulo di assistenza",
     describe: "Cosa è successo? (facoltativo)", describeHint: "Cosa hai fatto, cosa ti aspettavi e cosa è successo invece. Va in cima al file.",
     contents: "Esattamente cosa conterrà il file",
-    masked: "Mascherati prima che tu li veda: link pubblici, chiavi e password, indirizzi e-mail, indirizzi della rete locale e il tuo nome utente.",
+    masked: "Mascherati prima che tu li veda: link pubblici, chiavi e password, indirizzi e-mail, indirizzi della rete locale e il tuo nome utente nei percorsi delle cartelle. Altri nomi, come quello di un microfono, restano: leggi il testo prima di inviarlo.",
     crashNone: "Nessun file di crash su questo computer.",
     crashSome: "Non inclusi: i file di crash su questo computer ({count}, {size} MB). Possono contenere parti di quello che era sullo schermo: inviali solo se l'assistenza li chiede.",
     openCrash: "Apri la cartella dei file di crash",
@@ -180,6 +180,7 @@ function createAboutPages(deps) {
   const { BrowserWindow, ipcMain, dialog, clipboard, shell, openExternalSafe, logLine, fs, path } = deps;
   let win = null;
   let sections = null; // collected when the report view opens, so the file matches what was shown
+  let view = "about"; // the view asked for last: the page reads it at start (a send before load is lost)
   const own = (event) => Boolean(win && !win.isDestroyed() && event.sender === win.webContents);
   const handle = (channel, fn) => ipcMain.handle(channel, (event, ...args) => {
     if (!own(event)) throw new Error("Denied");
@@ -200,7 +201,7 @@ function createAboutPages(deps) {
   const crash = () => crashSummary(deps.crashDir, fs, path.join);
   const fileText = (description) => reportFile({ lang: deps.lang(), date: now(), description, sections: sections || [], crash: crash() });
 
-  handle("about:data", () => ({ lang: deps.lang(), theme: deps.theme(), text: textFor(deps.lang()), info: deps.info(), policy: policy().blocks, support: SUPPORT }));
+  handle("about:data", () => ({ view, lang: deps.lang(), theme: deps.theme(), text: textFor(deps.lang()), info: deps.info(), policy: policy().blocks, support: SUPPORT }));
   handle("about:openConfigFolder", () => shell.openPath(deps.info().configFolder));
   handle("report:data", async () => {
     sections = await deps.collectReport();
@@ -230,8 +231,9 @@ function createAboutPages(deps) {
   handle("about:close", () => { if (win && !win.isDestroyed()) win.close(); });
 
   /** Opens (or brings forward) the window on "about" or "report". */
-  function open(view = "about") {
-    const hash = view === "report" ? "report" : "about";
+  function open(requested = "about") {
+    const hash = requested === "report" ? "report" : "about";
+    view = hash;
     if (win && !win.isDestroyed()) {
       win.webContents.send("about:view", hash);
       if (win.isMinimized()) win.restore();
@@ -245,6 +247,7 @@ function createAboutPages(deps) {
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: deps.preload },
     });
     win.setMenuBarVisibility(false);
+    win.removeMenu?.(); // Windows, Linux: the app menu's shortcuts (Ctrl+R, F11) never reach this window
     // A local page with nowhere to go: links leave for the system browser (https and mailto only).
     win.webContents.on("will-navigate", (event, url) => { event.preventDefault(); void openExternalSafe(url); });
     win.webContents.setWindowOpenHandler(({ url }) => { void openExternalSafe(url); return { action: "deny" }; });
@@ -253,7 +256,11 @@ function createAboutPages(deps) {
     void win.loadFile(deps.pageFile, { hash });
     return win;
   }
-  return { open };
+  /** Closes the window (the main window went away: nothing may keep Filow running behind it). */
+  function close() {
+    if (win && !win.isDestroyed()) win.close();
+  }
+  return { open, close };
 }
 
 module.exports = { createAboutPages, parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, TEXT, SUPPORT };

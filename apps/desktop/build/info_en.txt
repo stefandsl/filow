@@ -1,4 +1,4 @@
-﻿Filow: the speaking companion that listens as you present.
+Filow: the speaking companion that listens as you present.
 Load your script and speak freely: Filow checks off your points as you cover them and shows what you missed. Phone mirror, Screen Sense and the PowerPoint add-in.
 
 Local or cloud AI: on the next page, choose the models to download on first start. Without local models Filow uses the cloud: an OpenRouter API key (a few cents per talk), pasted into the .env file the app opens on first start. Offline mode sends nothing over the network.
@@ -7,7 +7,7 @@ Local or cloud AI: on the next page, choose the models to download on first star
 WHAT'S NEW
 
 All versions: https://github.com/stefandsl/filow-releases/releases
-Report a problem: https://github.com/stefandsl/filow-releases/issues
+Report a problem: in Filow, open the Filow menu > Report a problem. Filow saves a report file that you send privately; it sends nothing itself.
 
 # Filow 0.9.30
 

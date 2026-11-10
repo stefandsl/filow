@@ -33,6 +33,8 @@ export type OkFilowStatus = {
   offline: boolean;
   hook: "hold" | "toggle";
   hookError: string;
+  /** macOS: the permission hold-to-talk still needs (apps/desktop/mac-permissions.js); absent or "" elsewhere. */
+  hookPermission?: "accessibility" | "inputMonitoring" | "";
   mode: OkFilowMode;
 };
 

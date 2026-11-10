@@ -11,7 +11,7 @@ Filow). È disponibile anche in inglese: imposta la lingua di Filow sull'inglese
 - Filow funziona sul tuo computer. Non c'è nessun account e nessuna registrazione.
 - **Nessuna telemetria.** Filow non ci manda come lo usi, cosa dici o cosa c'è sul tuo schermo.
 - Il tuo copione, la tua voce e il tuo schermo restano sul tuo computer, a meno che tu non attivi una
-  funzione cloud. Prima che qualcosa vada per la prima volta a un servizio cloud, Filow ti dice cosa
+  funzione cloud. Prima che qualcosa di tuo vada per la prima volta a un servizio cloud, Filow ti dice cosa
   va dove e aspetta la tua risposta. Mentre invia, mostra "Esce dal PC".
 - **Un'eccezione, oggi:** il link pubblico per il telefono è attivo di serie (vedi "Il link pubblico").
 - Puoi cancellare tutto quello che Filow conserva (vedi "Come cancellare i tuoi dati").
@@ -92,7 +92,9 @@ sì nelle impostazioni di OK Filow. Le funzioni cloud usano il tuo account press
 | Sessione, Screen Sense | le immagini dello schermo che condividi | OpenRouter, poi il produttore del modello |
 | Traduzione del copione | il tuo copione | OpenRouter, poi il produttore del modello |
 | Copione dalle slide (componente PowerPoint, estensione del browser) | testo e immagini delle slide | OpenRouter, poi il produttore del modello. Questi due non mostrano ancora l'avviso, quindi le loro richieste cloud vengono rifiutate e funziona solo la modalità locale |
+| Controllo del modello nelle Impostazioni (senza avviso: non contiene nulla di tuo) | una richiesta di prova fissa, per vedere quale modello cloud risponde | OpenRouter, poi il produttore del modello |
 | Download (modelli vocali, Ollama, lo strumento per il link, aggiornamenti) | nessun tuo contenuto, solo la richiesta | github.com, ollama.com e gli host dei modelli indicati nella finestra di download |
+| Controllo ortografico nelle caselle di testo, solo su Linux | nessun tuo contenuto: il correttore integrato della finestra può scaricare il suo dizionario | Google, che ospita i dizionari di Chromium (non ancora verificato su un desktop Linux) |
 
 OpenRouter passa la tua richiesta a un'azienda che fa girare il modello. Per i modelli di Google è
 Google; per altri modelli può essere un'altra azienda scelta da OpenRouter.

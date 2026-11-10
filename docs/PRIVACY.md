@@ -11,7 +11,7 @@ available in Italian: set Filow's language to Italian.
 - Filow works on your computer. There is no account and no sign-up.
 - **No telemetry.** Filow does not send us how you use it, what you say or what is on your screen.
 - Your script, your voice and your screen stay on your computer unless you turn on a cloud feature.
-  Before the first time anything goes to a cloud service, Filow tells you what goes where and waits
+  Before the first time anything of yours goes to a cloud service, Filow tells you what goes where and waits
   for your answer. While it sends, it shows "Going outside".
 - **One exception today:** the public link for your phone is on by default (see "The public link").
 - You can delete everything Filow keeps (see "How to delete your data").
@@ -90,7 +90,9 @@ OK Filow's settings. Cloud features use your own account with that company.
 | Take, Screen Sense | pictures of the screen you share | OpenRouter, then the model's maker |
 | Script translation | your script | OpenRouter, then the model's maker |
 | Script from slides (PowerPoint add-in, browser extension) | slide text and pictures | OpenRouter, then the model's maker. These two do not show the notice yet, so their cloud requests are refused and only their local mode works |
+| Model check in Settings (no notice: nothing of yours is in it) | a fixed sample request, to see which cloud model answers | OpenRouter, then the model's maker |
 | Downloads (speech models, Ollama, the link tool, updates) | no content of yours, only the request | github.com, ollama.com and the model hosts named in the download window |
+| Spelling check in text boxes, on Linux only | no content of yours: the window's built-in spelling checker may download its dictionary | Google, which hosts the dictionaries for Chromium (not yet checked on a Linux desktop) |
 
 OpenRouter passes your request to a company that runs the model. For Google's models that is Google;
 for other models it can be another company that OpenRouter picks.

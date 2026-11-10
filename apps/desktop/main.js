@@ -97,7 +97,7 @@ if (!firstInstance) {
   app.exit(0);
 }
 // Native crash dumps (main, renderer, GPU, utility) stay on this PC under userData/Crashpad; nothing
-// is uploaded. A report leaves the PC only through "Send report", which the user starts.
+// is uploaded. "Report a problem" lists them but never includes them; nothing is sent by Filow.
 app.setPath("crashDumps", path.join(userData, "Crashpad"));
 require("electron").crashReporter.start({ uploadToServer: false });
 const envFile = path.join(userData, ".env");
@@ -1989,9 +1989,11 @@ function buildMenu(win) {
         { label: mt("about"), click: () => void about().open("about") },
         { label: mt("report"), click: () => void reportProblem() },
         { type: "separator" },
-        { label: mt("reload"), accelerator: "CmdOrCtrl+R", click: () => win.reload() },
-        { label: mt("fullscreen"), accelerator: "F11", click: () => win.setFullScreen(!win.isFullScreen()) },
-        { label: mt("devtools"), accelerator: "CmdOrCtrl+Shift+I", click: () => win.webContents.toggleDevTools() },
+        // These act on the main window only when it (or no window) has the focus: Cmd+R in the About
+        // window must not reload the main window in the middle of a take (macOS menus are app-wide).
+        { label: mt("reload"), accelerator: "CmdOrCtrl+R", click: (_i, focused) => { if (!focused || focused === win) win.reload(); } },
+        { label: mt("fullscreen"), accelerator: "F11", click: (_i, focused) => { if (!focused || focused === win) win.setFullScreen(!win.isFullScreen()); } },
+        { label: mt("devtools"), accelerator: "CmdOrCtrl+Shift+I", click: (_i, focused) => { if (!focused || focused === win) win.webContents.toggleDevTools(); } },
         { type: "separator" },
         { label: mt("quit"), role: "quit" },
       ],
@@ -2071,7 +2073,7 @@ async function main() {
   reloadOnCrash(win, "main");
   endTakeWithPage(win);
   win.on("focus", () => uiPreferences?.refresh());
-  win.on("closed", () => { mainWin = null; });
+  win.on("closed", () => { mainWin = null; aboutPages?.close(); }); // About must not keep Filow running alone
   nativeTheme.themeSource = settings.theme === "light" || settings.theme === "dark" ? settings.theme : "system";
   // §6.2: the window is already filtered out of Screen Sense's own chooser; hiding it from every
   // capture is opt-in (menu) because it also blanks the user's own screenshots.

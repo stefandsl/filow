@@ -1,4 +1,4 @@
-﻿Filow: il compagno di presentazione che ti ascolta.
+Filow: il compagno di presentazione che ti ascolta.
 Carica il tuo copione, parla liberamente: Filow spunta i punti mentre li dici e ti mostra cosa hai saltato. Mirror sul telefono, Screen Sense e componente per PowerPoint.
 
 AI in locale o nel cloud: nella pagina successiva scegli i modelli da scaricare al primo avvio. Senza modelli locali Filow usa il cloud: serve una chiave OpenRouter (pochi centesimi per intervento), che incolli nel file .env aperto al primo avvio. La modalità offline non invia nulla in rete.
@@ -7,7 +7,7 @@ AI in locale o nel cloud: nella pagina successiva scegli i modelli da scaricare 
 NOVITÀ
 
 Tutte le versioni: https://github.com/stefandsl/filow-releases/releases
-Segnalazioni: https://github.com/stefandsl/filow-releases/issues
+Segnalazioni: in Filow, apri il menu Filow > Segnala un problema. Filow salva un file di segnalazione che invii tu in privato; da solo non invia nulla.
 
 # Filow 0.9.30
 

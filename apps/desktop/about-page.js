@@ -1,11 +1,11 @@
-/* global window, document, location */
+/* global window, document, location, HTMLTextAreaElement */
 // about.html: "About and privacy" and "Report a problem". Everything shown comes from the main process
 // (about.js) as plain data and is put on the page with textContent: no HTML from any file is parsed.
 (() => {
   const api = window.filowAbout;
   const main = document.getElementById("main");
   let data = null;
-  let view = location.hash === "#report" ? "report" : "about";
+  let view = "about";
   let description = "";
   let previewTimer = 0;
 
@@ -89,6 +89,9 @@
         data.support.form ? el("button", { type: "button", class: "btn", text: tx.openForm, onclick: () => void api.support("form") }) : null)
       : el("p", {}, `${tx.supportUnset} `, todo(tx.supportTodo));
     const save = el("button", { type: "button", class: "btn primary", text: tx.save, disabled: true, onclick: async () => {
+      // the preview catches up first, so what is on screen is what goes in the file
+      clearTimeout(previewTimer);
+      preview.textContent = await api.preview(description);
       const r = await api.save(description);
       if (r.saved) say(fill(tx.saved, { file: r.saved }));
       else if (r.error) say(fill(tx.saveFailed, { error: r.error }), true);
@@ -140,8 +143,13 @@
     document.getElementById("tab-report").textContent = data.text.tabReport;
     for (const b of document.querySelectorAll("#tabs button")) b.addEventListener("click", () => render(b.dataset.view, true));
     api.onView((v) => render(v, true));
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") void api.close(); });
-    render(view, false);
+    // Escape closes, except while an input method is composing or the description holds text.
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || e.isComposing || e.keyCode === 229) return;
+      if (e.target instanceof HTMLTextAreaElement && e.target.value) return;
+      void api.close();
+    });
+    render(data.view || (location.hash === "#report" ? "report" : "about"), false);
   }
   void start();
 })();

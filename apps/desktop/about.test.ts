@@ -143,6 +143,19 @@ describe("the About and privacy window", () => {
     expect(await s.call("report:save", w, "")).toEqual({ canceled: true });
     expect(s.written).toEqual([]);
   });
+  it("the page learns the view asked for last, even when it was asked before the page loaded", async () => {
+    const s = setup(); const w = s.pages.open("about");
+    s.pages.open("report");
+    expect(s.windows).toHaveLength(1);
+    expect(((await s.call("about:data", w)) as { view: string }).view).toBe("report");
+  });
+  it("closes when asked (the main window went away), and a later open makes a new window", () => {
+    const s = setup(); const w = s.pages.open("about"); w.close = vi.fn(() => w.emit("closed"));
+    s.pages.close();
+    expect(w.close).toHaveBeenCalledOnce();
+    s.pages.open("about");
+    expect(s.windows).toHaveLength(2);
+  });
   it("opens no mail or form while no support address is set", async () => {
     const s = setup(); const w = s.pages.open("report");
     await s.call("report:support", w, "email");
