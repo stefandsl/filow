@@ -136,19 +136,43 @@ if (!quick) {
   check("QA-1 no em dash in UI text", 1, hits.length === 0, hits.join(", "));
 }
 
-// TRK-1: tracking quality from the latest local gauntlet result, when one exists.
+// TRK-1, TRK-2: tracking quality of the local decision path, totalled over every corpus under
+// docs/gauntlet/corpus from its committed replay result, docs/gauntlet/results/clef-local-<corpus>.json
+// (apps/web/lib/gauntlet/run.test.ts, default variant). A corpus with no result fails both checks.
+// 2026-11-10 fix: this used to score the single newest file in the results folder, by timestamp.
+// After a checkout that order is arbitrary, and it once picked a file of another kind (an
+// adversarial-set result, which has no recall), so the two checks passed or failed by chance.
+// The adversarial sets (clef-local-adversarial*.json) are reported in the detail, not scored: two
+// false ticks in 406 are known model limits (docs/gauntlet/BASELINE.md).
 {
-  const dir = path.join(ROOT, "docs/gauntlet/results");
-  const local = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => /^(clef-local|ollama)/.test(f)).map((f) => path.join(dir, f)) : [];
-  if (local.length) {
-    const latest = local.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
-    try {
-      const j = JSON.parse(fs.readFileSync(latest, "utf8"));
-      const s = j.summary || j;
-      metrics.trackingRecall = s.recall; metrics.trackingFalse = s.falseStarts ?? s.false;
-      check("TRK-1 zero false completions", 3, (s.falseStarts ?? s.false ?? 1) === 0, path.basename(latest));
-      check("TRK-2 recall >= 0.9", 3, (s.recall ?? 0) >= 0.9, `recall=${s.recall}`);
-    } catch { /* unreadable result */ }
+  const corpusDir = path.join(ROOT, "docs/gauntlet/corpus");
+  const resDir = path.join(ROOT, "docs/gauntlet/results");
+  const corpora = fs.existsSync(corpusDir) ? fs.readdirSync(corpusDir).filter((d) => fs.existsSync(path.join(corpusDir, d, "labels.json"))) : [];
+  if (corpora.length) {
+    let correct = 0, labelled = 0, falseStarts = 0;
+    const missing = [];
+    for (const c of corpora) {
+      try {
+        const j = JSON.parse(fs.readFileSync(path.join(resDir, `clef-local-${c}.json`), "utf8"));
+        if (!Array.isArray(j.points) || typeof j.correct !== "number" || typeof j.falseStarts !== "number") throw new Error("not a replay result");
+        correct += j.correct;
+        falseStarts += j.falseStarts;
+        labelled += j.points.filter((p) => p.labelSec != null).length;
+      } catch { missing.push(c); }
+    }
+    let advFalse = 0, advOpen = 0;
+    for (const f of fs.existsSync(resDir) ? fs.readdirSync(resDir).filter((n) => /^clef-local-adversarial.*\.json$/.test(n)) : []) {
+      try {
+        const j = JSON.parse(fs.readFileSync(path.join(resDir, f), "utf8"));
+        for (const t of Object.values(j.withVerification || {})) { advFalse += t.falseTicks; advOpen += t.expectedNot; }
+      } catch { /* unreadable: not counted */ }
+    }
+    const recall = labelled ? Math.round((correct / labelled) * 1000) / 1000 : 0;
+    metrics.trackingRecall = recall; metrics.trackingFalse = falseStarts;
+    if (advOpen) metrics.adversarialFalseTicks = `${advFalse}/${advOpen}`;
+    const gap = missing.length ? `no replay result for ${missing.join(", ")}` : "";
+    check("TRK-1 zero false completions", 3, !missing.length && falseStarts === 0, gap || `${falseStarts} on ${corpora.length} corpora${advOpen ? `; adversarial sets ${advFalse} of ${advOpen} (reported, not scored)` : ""}`);
+    check("TRK-2 recall >= 0.9", 3, !missing.length && recall >= 0.9, gap || `recall=${recall} (${correct}/${labelled})`);
   }
 }
 

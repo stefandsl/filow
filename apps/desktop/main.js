@@ -14,6 +14,13 @@ function openExternalSafe(url) {
   if (!["https:", "http:", "mailto:"].includes(u.protocol)) { console.warn(`blocked external link ${u.protocol}`); return Promise.resolve(); }
   return shell.openExternal(u.toString());
 }
+// The system's own privacy settings pages (microphone permission): only these two schemes, never a link.
+function openSystemSettings(url) {
+  let u;
+  try { u = new URL(String(url)); } catch { return Promise.resolve(); }
+  if (!["ms-settings:", "x-apple.systempreferences:"].includes(u.protocol)) { console.warn(`blocked settings link ${u.protocol}`); return Promise.resolve(); }
+  return shell.openExternal(u.toString());
+}
 // SEC-04: a window stays on Filow's own pages. Any other navigation is refused and a page cannot open
 // a window; web and mail links go to the system browser instead (openExternalSafe drops the rest).
 // The pages loaded from files (splash, region picker) have nowhere to go at all.
@@ -390,7 +397,7 @@ function initializeUiPreferences() {
   ipcMain.on("welcome:openMicSettings", event => {
     if (!uiSender(event, true)) return;
     const url = process.platform === "win32" ? "ms-settings:privacy-microphone" : process.platform === "darwin" ? "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone" : "";
-    if (url) void shell.openExternal(url);
+    if (url) void openSystemSettings(url);
   });
   ipcMain.on("welcome:ready", event => {
     if (!uiSender(event, true) || quitting) return;
