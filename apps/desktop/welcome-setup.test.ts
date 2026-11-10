@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { describe, expect, it, vi } from "vitest";
-const { setupOffer, setupChoice, installedModels, probeSetup } = createRequire(import.meta.url)("./welcome-setup.js");
+const { setupOffer, setupChoice, installedModels, probeSetup, createOfferGate } =createRequire(import.meta.url)("./welcome-setup.js");
 
 const CATALOG = {
   "nemotron-streaming": { dl: 0.45, ollama: false, label: "Nemotron streaming speech-to-text" },
@@ -45,6 +45,40 @@ describe("setup choice", () => {
     expect(setupChoice(offer(), rec, false)).toBeNull();
     expect(setupChoice(offer(none, false), rec, true)).toBeNull();
     expect(setupChoice(offer({ sherpa: true, ollamaRunning: true, ollamaModels: ["clef-flash", "gemma4:e4b", "qwen3-vl:2b"] }), rec, true)).toBeNull();
+  });
+});
+
+describe("offer gate (the welcome shows before the hardware scan)", () => {
+  const flush = () => new Promise((r) => setTimeout(r, 5));
+  it("a request that arrives before the window is shown waits: no scan until open()", async () => {
+    const order: string[] = [];
+    const gate = createOfferGate(() => { order.push("scan"); return { ok: 1 }; });
+    const answer = gate.get();
+    await flush();
+    expect(order).toEqual([]);
+    order.push("shown");
+    gate.open();
+    expect(await answer).toEqual({ ok: 1 });
+    expect(order).toEqual(["shown", "scan"]);
+  });
+  it("the scan starts a turn after open(), not inside it or in its microtasks", async () => {
+    const compute = vi.fn(() => 1);
+    const gate = createOfferGate(compute);
+    void gate.get();
+    gate.open();
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(compute).not.toHaveBeenCalled();
+    await flush();
+    expect(compute).toHaveBeenCalledTimes(1);
+  });
+  it("scans once, and tries again after a failed scan", async () => {
+    let n = 0;
+    const gate = createOfferGate(() => { n++; if (n === 1) throw new Error("scan failed"); return n; });
+    gate.open();
+    await expect(gate.get()).rejects.toThrow("scan failed");
+    expect(await gate.get()).toBe(2);
+    expect(await gate.get()).toBe(2);
+    expect(n).toBe(2);
   });
 });
 

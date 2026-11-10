@@ -32,7 +32,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false }
     "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": {},
     "node:worker_threads": {}, "node:events": EventEmitter,
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
-    "./vendor/i18n": { t }, "./ui-preferences": {}, "./welcome-setup": {}, "./slideshow": {},
+    "./vendor/i18n": { t }, "./ui-preferences": {}, "./welcome-setup": { createOfferGate: () => ({ open() {}, get() {} }) }, "./slideshow": {},
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
   for (const name of ["stt", "localai", "diag"]) {

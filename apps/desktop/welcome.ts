@@ -261,8 +261,10 @@ window.addEventListener("unload", () => { unsubscribe(); stopMic(); }, { once: t
 void Promise.all([bridge.getPreferences(), bridge.context().catch(() => ({ firstRun: true, askSetup: false }))]).then(([prefsState, ctx]) => {
   steps = welcomeSteps(ctx);
   mountPrefs(document.querySelector<HTMLElement>(steps[0] === "preferences" ? '[data-step="preferences"] [data-prefs]' : "#more .rows")!);
-  if (ctx.askSetup && ctx.firstRun) void loadOffer(); // ready before the user reaches the step
   render(prefsState);
-  window.dispatchEvent(new Event("filow:hydrated"));
+  window.dispatchEvent(new Event("filow:hydrated")); // shows the window
   go(0);
+  // Fetched now so it is ready before the user reaches the step, but only after "shown": the main process
+  // scans the hardware for it, which takes seconds on a slow PC (it also holds the request until shown).
+  if (ctx.askSetup && ctx.firstRun) void loadOffer();
 });

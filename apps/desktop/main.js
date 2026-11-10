@@ -298,20 +298,24 @@ const welcomeUrl = pathToFileURL(welcomeFile).href;
 let uiPreferences, welcomeController, welcomeWin = null;
 let startupTransition = false, quitting = false;
 let welcomeHydrationTimer;
-const { probeSetup, setupOffer, setupChoice } = require("./welcome-setup");
-/** shown: the welcome's speech-setup step was answered; choice: that answer (install choices or null). */
-const welcomeSetup = { shown: false, choice: null, offer: null };
-async function welcomeSetupOffer() {
-  if (welcomeSetup.offer) return welcomeSetup.offer;
-  const info = localAiInfo();
+const { probeSetup, setupOffer, setupChoice, createOfferGate } = require("./welcome-setup");
+/** shown: the welcome's speech-setup step was answered; choice: that answer (install choices or null); rec: the scan's recommendation. */
+const welcomeSetup = { shown: false, choice: null, rec: null };
+// The hardware scan behind the offer waits until the welcome window is on screen (opened in welcome:ready).
+const welcomeOffer = createOfferGate(computeWelcomeOffer);
+const welcomeSetupOffer = () => welcomeOffer.get();
+async function computeWelcomeOffer() {
+  const scanStarted = Date.now();
+  const info = await localAiInfo(); // await: the scan may become asynchronous (localai.js)
+  logLine(`welcome: hardware scan ${Date.now() - scanStarted} ms`);
   const ollama = (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
   const installed = await probeSetup({
     fetchJson: () => fetch(`${ollama}/api/tags`, { signal: AbortSignal.timeout(1500) }).then((r) => (r.ok ? r.json() : null)),
     sherpaReady: () => sttLocal.modelReady(userData),
   });
   const { net } = require("electron");
-  welcomeSetup.offer = setupOffer({ hw: info, rec: info.recommended, catalog: localAi.CATALOG, installed, online: !offline && net.isOnline(), installerChose: installChoicesFound });
-  return welcomeSetup.offer;
+  welcomeSetup.rec = info.recommended;
+  return setupOffer({ hw: info, rec: info.recommended, catalog: localAi.CATALOG, installed, online: !offline && net.isOnline(), installerChose: installChoicesFound });
 }
 
 function uiSender(event, welcomeOnly = false) {
@@ -389,7 +393,7 @@ function initializeUiPreferences() {
   ipcMain.handle("welcome:chooseSetup", async (event, accept) => {
     if (!uiSender(event, true) || typeof accept !== "boolean") throw new Error("Denied");
     const offer = await welcomeSetupOffer();
-    welcomeSetup.choice = setupChoice(offer, localAiInfo().recommended, accept);
+    welcomeSetup.choice = setupChoice(offer, welcomeSetup.rec, accept);
     welcomeSetup.shown = true; // answered: closing the window before this step still gets the question later
     logLine(`welcome: speech setup ${accept ? "accepted" : "declined"}${welcomeSetup.choice ? ` (${welcomeSetup.choice.models.join(", ")})` : ", nothing to download"}`);
     return { ok: true };
@@ -403,6 +407,8 @@ function initializeUiPreferences() {
     if (!uiSender(event, true) || quitting) return;
     clearTimeout(welcomeHydrationTimer);
     welcomeWin.show();
+    logLine("welcome: window shown");
+    welcomeOffer.open();
   });
 }
 function showWelcome() { return welcomeController.show(); }
@@ -427,6 +433,7 @@ function createWelcomeWindow() {
   win.webContents.on("render-process-gone", fail);
   win.webContents.on("did-fail-load", fail);
   welcomeHydrationTimer = setTimeout(fail, 15000);
+  logLine("welcome: loading");
   void win.loadFile(welcomeFile).catch(fail);
   return win;
 }

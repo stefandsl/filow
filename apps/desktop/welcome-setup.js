@@ -52,4 +52,26 @@ function setupChoice(offer, rec, accept) {
   return { models: rec.models, ollama: Boolean(rec.ollama) };
 }
 
-module.exports = { TAKE_MODELS, installedModels, probeSetup, setupOffer, setupChoice };
+/**
+ * The offer needs a hardware scan that can take seconds on a slow PC (and, while it is synchronous, holds
+ * the main process). So it is never computed before the welcome window is on screen: get() before open()
+ * waits, and the scan starts one turn after open(), once the show has gone out. Computed once; a failed
+ * scan is not kept, so the next get() tries again.
+ */
+function createOfferGate(compute, defer = (fn) => setTimeout(fn, 0)) {
+  let opened;
+  const shown = new Promise((resolve) => { opened = resolve; });
+  let pending = null;
+  return {
+    open() { opened(); },
+    get() {
+      if (!pending) {
+        pending = shown.then(() => new Promise((resolve) => defer(resolve))).then(compute);
+        pending.catch(() => { pending = null; });
+      }
+      return pending;
+    },
+  };
+}
+
+module.exports = { TAKE_MODELS, installedModels, probeSetup, setupOffer, setupChoice, createOfferGate };
