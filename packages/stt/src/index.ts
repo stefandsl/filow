@@ -11,7 +11,7 @@ export { preopenMic, releasePreopenedMic } from "./mic";
 export * from "./micDevice";
 export type { MicWarning } from "./silence";
 export * from "./whisperModels";
-export { SherpaStt, sherpaBridge, type SherpaBridge } from "./sherpa";
+export { SherpaStt, sherpaBridge, sherpaNotes, sherpaUsable, type SherpaBridge, type SherpaNote, type SherpaStatus } from "./sherpa";
 import { SherpaStt } from "./sherpa";
 
 export const BACKEND_LABELS: Record<SttBackendId, string> = {

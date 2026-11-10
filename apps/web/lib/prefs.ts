@@ -165,8 +165,8 @@ export type StartMode = "ask" | "auto" | "cloud" | "local";
 const START_KEY = "prefs:startMode";
 
 // ---- Speech language: what the speaker talks, independent of the interface language ----
-export type SpeechLang = "auto" | "en" | "it" | "ro" | "ru";
-export const SPEECH_LANGS: SpeechLang[] = ["auto", "en", "it", "ro", "ru"];
+export type SpeechLang = "auto" | "en" | "it" | "ru" | "ro" | "ja";
+export const SPEECH_LANGS: SpeechLang[] = ["auto", "en", "it", "ru", "ro", "ja"];
 const SPEECH_KEY = "prefs:speechLang";
 
 export function getSpeechLang(): SpeechLang {

@@ -18,7 +18,7 @@ import {
   type SttStatus,
 } from "@filow/core";
 import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
-import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
+import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, sherpaUsable, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
 import { getSpeechLang, getStartMode, setDecisionProvider, setStartMode } from "@/lib/prefs";
 import { useEngine } from "./useEngine";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
@@ -235,10 +235,12 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       fetch("/api/stt/status").then((r) => r.json()).catch(() => ({ elevenlabs: false, openai: false })) as Promise<SttStatus>,
       fetch("/api/local/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null) as Promise<{ openrouterKey?: boolean; ollama?: { ok: boolean }; models?: Array<{ name: string; installed: boolean }>; advice?: { local: boolean; reason: "gpu" | "ram" | "none" }; gpu?: { name: string } } | null>,
       whisperCached(selectedWhisperModel()).catch(() => false),
-      sherpaBridge()
-        ?.status()
-        .then((s) => s.model === "ready")
-        .catch(() => false) ?? Promise.resolve(false),
+      // The shell picks its model by the spoken language: hand it the one chosen in Settings first.
+      (async () => {
+        const b = sherpaBridge();
+        if (!b) return false;
+        return sherpaUsable(await (b.setLanguage ? b.setLanguage(getSpeechLang()) : b.status()));
+      })().catch(() => false),
     ]);
     return {
       openrouterKey: Boolean(local?.openrouterKey),

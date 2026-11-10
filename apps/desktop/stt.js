@@ -436,6 +436,7 @@ function speechStatus(userData, { language = "auto", hardware, job } = {}) {
       tier: choice.tier,
       wanted: pick.wanted,
       wantedLabel: CATALOGUE[pick.wanted].label,
+      wantedStreaming: CATALOGUE[pick.wanted].kind === "online",
       state: missing.length === 0 ? "ready" : mine ? job.state : "missing",
       pct: missing.length === 0 ? 100 : mine ? job.pct : 0,
       error: missing.length > 0 && mine && job.error ? job.error : undefined,
@@ -443,6 +444,7 @@ function speechStatus(userData, { language = "auto", hardware, job } = {}) {
       partial: missing.reduce((best, s) => Math.max(best, partialPct(userData, s)), 0),
       usable: Boolean(pick.model),
       active: pick.model,
+      activeLabel: pick.model ? CATALOGUE[pick.model].label : null,
       streaming: pick.streaming,
       notes: pick.notes,
     };
@@ -451,8 +453,8 @@ function speechStatus(userData, { language = "auto", hardware, job } = {}) {
   const q = view("questions");
   return {
     model: t.state, pct: t.pct, error: t.error, partial: t.partial,
-    language: lang, tier: t.tier, wanted: t.wanted, wantedLabel: t.wantedLabel, downloadBytes: t.downloadBytes,
-    usable: t.usable, active: t.active, streaming: t.streaming, notes: t.notes,
+    language: lang, tier: t.tier, wanted: t.wanted, wantedLabel: t.wantedLabel, wantedStreaming: t.wantedStreaming, downloadBytes: t.downloadBytes,
+    usable: t.usable, active: t.active, activeLabel: t.activeLabel, streaming: t.streaming, notes: t.notes,
     questions: { wanted: q.wanted, wantedLabel: q.wantedLabel, state: q.state, pct: q.pct, downloadBytes: q.downloadBytes, usable: q.usable, active: q.active, notes: q.notes },
   };
 }

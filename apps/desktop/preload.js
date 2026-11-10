@@ -72,7 +72,8 @@ contextBridge.exposeInMainWorld("filow", {
   /** Streaming speech-to-text on this PC (sherpa-onnx + Nemotron in a worker thread of the shell). */
   stt: {
     status: () => ipcRenderer.invoke("stt:status"),
-    download: () => ipcRenderer.send("stt:download"),
+    download: (language) => ipcRenderer.send("stt:download", language),
+    setLanguage: (language) => ipcRenderer.invoke("stt:language", language),
     remove: () => ipcRenderer.invoke("stt:remove"),
     start: (language) => ipcRenderer.invoke("stt:start", language),
     feed: (samples) => ipcRenderer.send("stt:feed", samples),
