@@ -13,6 +13,7 @@ import {
   resolveSetup,
   type DecisionProviderId,
   type ImportResponse,
+  type Lang,
   type MachineInfo,
   type ResolvedSetup,
   type ScreenMode,
@@ -71,7 +72,7 @@ export default function Teleprompter() {
   );
 }
 
-function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it") => void; theme: "system" | "light" | "dark"; onTheme: (t: "system" | "light" | "dark") => void }) {
+function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => void; theme: "system" | "light" | "dark"; onTheme: (t: "system" | "light" | "dark") => void }) {
   const t = useT();
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);

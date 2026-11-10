@@ -6,7 +6,7 @@ import { TimerMirror } from "@/components/TimerMirror";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { connect, type SessionClient } from "@filow/client";
-import { currentPoint, DEFAULT_DISPLAY, moveCommand, type Command, type SessionState } from "@filow/core";
+import { currentPoint, DEFAULT_DISPLAY, moveCommand, type Command, type Lang, type SessionState } from "@filow/core";
 import { useClickerKeys } from "@/components/prompter/useReanchor";
 import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useDisplayPrefs, useEyeline } from "@/components/prompter/DisplayPanel";
 import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
@@ -27,7 +27,7 @@ export default function MirrorPage() {
   );
 }
 
-function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") => void }) {
+function Mirror({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
   const t = useT();
   const params = useSearchParams();
   const [code, setCode] = useState(params.get("code") ?? "");

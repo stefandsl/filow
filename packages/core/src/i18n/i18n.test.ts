@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { DICTIONARIES, PLACEHOLDER } from "./i18n";
+import { DICTIONARIES, PLACEHOLDER } from "./index";
 const labels = {
  "pair.device": ["Pair device", "Abbina dispositivo"],
  "footer.transcript": ["Transcript", "Trascrizione"],

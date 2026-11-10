@@ -160,8 +160,7 @@ input.btn { text-transform: none; letter-spacing: 0; font-family: var(--font); }
 input.btn.hotkey { width: min(100%, 320px); }
 .keys { display: inline-flex; gap: 4px; align-items: center; }
 .keys kbd { font: var(--type-sm)/1 var(--font); padding: 8px 8px 8px; border-width: 0; border-radius: var(--radius); background: var(--surface-2); color: var(--text); }
-.langswitch { display: inline-flex; gap: 4px; }
-.langswitch .chip { padding: 4px 8px; }
+.langswitch { max-width: 11em; }
 
 /* Presenter overlay (desktop window on top of the slide show) */
 .overlay { display: flex; flex-direction: column; min-height: 100vh; }
