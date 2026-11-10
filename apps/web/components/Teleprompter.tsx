@@ -683,11 +683,9 @@ export function localReady(r: Pick<Readiness, "whisper" | "clef" | "setup">): bo
 }
 
 /** Cloud or Local for this take, with what each needs and whether it is there. */
-/** "Auto": local when this computer's setup is ready (it always fits: the setup was chosen for it), otherwise cloud. */
+/** "Auto": local when this computer's setup is ready (it always fits: the setup was chosen for it). Never the cloud by itself: Cloud is its own button. */
 function autoPick(r: Readiness): "cloud" | "local" | null {
-  if (localReady(r)) return "local";
-  if (r.openrouterKey && r.sttKey) return "cloud";
-  return null;
+  return localReady(r) ? "local" : null;
 }
 
 export function StartModeDialog({ readiness, onPick, onCancel, returnFocusRef }: { readiness: Readiness; onPick: (mode: "cloud" | "local", remember: boolean, auto?: boolean) => void; onCancel: () => void; returnFocusRef?: RefObject<HTMLElement | null> }) {
@@ -736,7 +734,7 @@ export function StartModeDialog({ readiness, onPick, onCancel, returnFocusRef }:
             )}
             <Line ok={readiness.whisper} label={t("start.whisper")} />
             {localProvider(readiness) === "matcher" ? <Line ok label={t("start.matcher")} /> : <Line ok={readiness.clef} label={t("start.clef")} />}
-            {!localOk && <p className="hint">{t("start.notReadyLocal")}</p>}
+            {!localOk && <p className="hint">{t(readiness.whisper ? "start.notReadyLocal" : "start.noLocalSpeech")}</p>}
             <button className="btn primary" disabled={!localOk} onClick={() => onPick("local", remember)}>
               {t("ctl.start")} · {t("start.local")}
             </button>
