@@ -26,6 +26,7 @@ import { getSetupPreference, getSpeechLang, getStartMode, setDecisionProvider, s
 import { loadGate } from "@/lib/gate/client";
 import { useEngine } from "./useEngine";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
+import { LOCAL_STT, takeModeOf } from "@/lib/router";
 import { engineHeaders, ensureEngineToken, useSession } from "./useSession";
 import { PairPanel } from "./PairPanel";
 import { useScreenSense, type ScreenSource } from "./useScreenSense";
@@ -276,18 +277,21 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         try {
           const p = await attempt.wait(fetchPlan({ probe: false, apply: true }));
           setPlan(p);
-          if (p.decision.provider && p.stt.backend) {
+          // local only when the audio and the decisions both stay here (takeModeOf); otherwise ask
+          const m = takeModeOf(p);
+          if (m && p.decision.provider && p.stt.backend) {
             pushLog(`auto: ${p.stt.backend} · ${p.decision.provider}${p.decision.measuredMs ? ` ${p.decision.measuredMs} ms` : ""} · ${p.generate.provider}${p.generate.model ? ` ${p.generate.model}` : ""}`);
-            const m: "cloud" | "local" = p.decision.provider === "clef-local" || p.decision.provider === "matcher" ? "local" : "cloud";
             await attempt.wait(startTake(m, r, attempt, { provider: p.decision.provider, backend: p.stt.backend }));
             return;
           }
+          if (p.stt.reason === "local-speech-missing") pushLog(t("start.noLocalSpeech"));
         } catch (err) {
           if (err instanceof CancelledStart) throw err;
           pushLog(`auto: router failed (${(err as Error).message}); asking`);
         }
         setStarting(false);
-        mode = autoPick(r) ?? "ask";
+        // never a silent cloud take: Auto starts local or asks (the dialog names what is missing)
+        mode = localReady(r) ? "local" : "ask";
       }
       if (mode === "ask" || (mode === "cloud" && !(r.openrouterKey && r.sttKey)) || (mode === "local" && !localReady(r))) {
         setStartDialog(true);
@@ -346,6 +350,13 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       }
       if (backend === "auto") {
         engine.setError(t("start.notReadyCloud"));
+        setStarting(false);
+        return;
+      }
+      if (mode === "local" && !LOCAL_STT.includes(backend)) {
+        // a speech engine picked in the bar that sends the audio out cannot run a local take
+        engine.setError(t("start.localNeedsLocalSpeech"));
+        pushLog(t("start.localNeedsLocalSpeech"));
         setStarting(false);
         return;
       }
