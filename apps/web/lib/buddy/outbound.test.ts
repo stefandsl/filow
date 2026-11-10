@@ -45,7 +45,8 @@ describe("recipient naming comes from the provider and the model in use", () => 
 
   it("a maker it has never heard of is still named, from the model id", () => {
     expect(vendorName("acme-labs")).toBe("Acme Labs");
-    expect(askRecipient("acme-labs/vision-1")).toEqual({ id: "openrouter/acme-labs", names: ["OpenRouter", "Acme Labs"] });
+    // An unknown maker has no host of its own on OpenRouter: OpenRouter picks who runs it, and the recipient says so.
+    expect(askRecipient("acme-labs/vision-1")).toEqual({ id: "openrouter/acme-labs@any", names: ["OpenRouter", "Acme Labs"], picked: true });
   });
 
   it("a model id without a maker names OpenRouter alone, never a guessed company", () => {
@@ -84,9 +85,9 @@ describe("recipient naming comes from the provider and the model in use", () => 
 
   it("with more than one maker the sentence lists them all instead of dropping the last", () => {
     const via = "{a} and then to {b}, the maker of the model you chose";
-    expect(whoPhrase(askRecipient("google/gemini-2.5-flash"), via, "and")).toBe("OpenRouter and then to Google, the maker of the model you chose");
-    expect(whoPhrase(routerRecipient(["openai/gpt-4o-mini", "google/gemini-2.5-flash"]), via, "and")).toBe("OpenRouter, Google and OpenAI");
-    expect(whoPhrase({ id: "elevenlabs", names: ["ElevenLabs"] }, via, "and")).toBe("ElevenLabs");
+    expect(whoPhrase(askRecipient("google/gemini-2.5-flash"), via, "and", "picked")).toBe("OpenRouter and then to Google, the maker of the model you chose");
+    expect(whoPhrase(routerRecipient(["openai/gpt-4o-mini", "google/gemini-2.5-flash"]), via, "and", "picked")).toBe("OpenRouter, Google and OpenAI");
+    expect(whoPhrase({ id: "elevenlabs", names: ["ElevenLabs"] }, via, "and", "picked")).toBe("ElevenLabs");
   });
 
   it("only a fallback from the same maker is covered by the same yes", () => {

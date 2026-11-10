@@ -750,8 +750,8 @@ export default function OkFilowPanel() {
             <button type="button" className="okf-link" onClick={() => void okFilowBridge()?.openAnswers().then((ok) => { if (!ok) setNote(t("answerDirNone")); })}>{t("openAnswers")}</button>
           </div>
           <button type="button" className="okf-link" onClick={() => { history.current = []; saveHistory([]); setNote(t("historyCleared")); }}>{t("clearHistory")}</button>
-          {askRoute(c) === "cloud" && recipients && <p className="okf-note">{t("cloudNote").replace("{who}", whoPhrase(recipients.ask, t("outVia"), t("outAnd")))}</p>}
-          {voiceRoute(c) === "cloud" && recipients && <p className="okf-note">{t("voiceNote").replace("{who}", whoPhrase(recipients.voice, t("outVia"), t("outAnd")))}</p>}
+          {askRoute(c) === "cloud" && recipients && <p className="okf-note">{t("cloudNote").replace("{who}", whoPhrase(recipients.ask, t("outVia"), t("outAnd"), t("outViaPicked")))}</p>}
+          {voiceRoute(c) === "cloud" && recipients && <p className="okf-note">{t("voiceNote").replace("{who}", whoPhrase(recipients.voice, t("outVia"), t("outAnd"), t("outViaPicked")))}</p>}
           {c.offline && <p className="okf-note">{t("offlineNote")}</p>}
           <ConsentList consent={c.consent} t={t} onForget={(key) => void out.forget(key)} />
         </section>

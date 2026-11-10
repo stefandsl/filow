@@ -3,7 +3,7 @@
 // free-tier models on the shared pool return 429 "temporarily rate-limited upstream" at busy hours;
 // without this every Screen Sense frame or decision failed outright.
 
-import { sameMaker } from "@/lib/buddy/outbound";
+import { makerHosts, sameMaker } from "@/lib/buddy/outbound";
 
 /** Extra models tried after the configured one. Override with OPENROUTER_FALLBACK_MODELS (comma list). */
 export function fallbackModels(kind: "text" | "vision"): string[] {
@@ -19,7 +19,27 @@ export function fallbackModels(kind: "text" | "vision"): string[] {
  * OpenRouter accepts at most 3 entries (primary + 2 fallbacks); more is a 400.
  */
 export function routedModels(model: string, kind: "text" | "vision"): string[] {
-  return [model, ...fallbackModels(kind).filter((m) => m !== model && sameMaker(m, model))].slice(0, 3);
+  // A fallback is also run the same way: by the maker when the configured model is, else by a host OpenRouter picks.
+  const pinned = Boolean(makerHosts(model));
+  return [model, ...fallbackModels(kind).filter((m) => m !== model && sameMaker(m, model) && Boolean(makerHosts(m)) === pinned)].slice(0, 3);
+}
+
+/**
+ * The `provider` routing object of a request (openrouter.ai/docs, "Provider Routing"). When every
+ * model is run by its maker on OpenRouter (`makerHosts`), the request may only go to the maker's
+ * own hosts, with no fallback to another company: the company the notice names is the one that runs
+ * it. Otherwise OpenRouter picks the host, and the recipient says so (`picked` in lib/buddy/outbound.ts).
+ * `sort` (OPENROUTER_PROVIDER_SORT=latency|throughput|price; empty = OpenRouter's default) orders
+ * whichever hosts are allowed.
+ */
+export function openRouterProvider(models: string[]): Record<string, unknown> | undefined {
+  const sortEnv = process.env.OPENROUTER_PROVIDER_SORT;
+  const sort = sortEnv !== "" ? { sort: sortEnv || "throughput" } : {};
+  const hosts = models.map(makerHosts);
+  const pinned = models.length > 0 && hosts.every((h) => h !== null);
+  const only = pinned ? [...new Set(hosts.flatMap((h) => h ?? []))] : [];
+  const out = { ...(only.length ? { only, allow_fallbacks: false } : {}), ...sort };
+  return Object.keys(out).length ? out : undefined;
 }
 
 /**
@@ -29,6 +49,12 @@ export function routedModels(model: string, kind: "text" | "vision"): string[] {
 export function openRouterChatUrl(): string {
   const base = (process.env.OPENROUTER_BASE_URL || "").trim().replace(/\/+$/, "");
   return `${base || "https://openrouter.ai/api/v1"}/chat/completions`;
+}
+
+/** `{ provider }` to spread into a request body, or nothing. */
+export function withProvider(models: string[]): { provider?: Record<string, unknown> } {
+  const provider = openRouterProvider(models);
+  return provider ? { provider } : {};
 }
 
 export type OpenRouterResult ={ json: Record<string, unknown>; content: string; cost: number | null; model: string };
@@ -56,9 +82,9 @@ export async function openRouterChat(model: string, kind: "text" | "vision", pay
         model: models[0],
         models,
         usage: { include: true },
-        // Route to the fastest provider of each model (OPENROUTER_PROVIDER_SORT=latency|throughput|price; empty = OpenRouter's default).
-        ...(process.env.OPENROUTER_PROVIDER_SORT !== "" ? { provider: { sort: process.env.OPENROUTER_PROVIDER_SORT || "throughput" } } : {}),
         ...payload,
+        // After the payload: no caller may widen who runs the model.
+        ...withProvider(models),
       }),
     });
     if (res.ok) {
