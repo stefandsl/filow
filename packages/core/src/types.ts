@@ -104,6 +104,8 @@ export type SessionState = {
   unmentioned?: string[];
   /** Vision calls and their cost, counted in stats.costUsd too. */
   screenStats?: { frames: number; costUsd: number | null; analysing: boolean };
+  /** The point the presenter last said they are on (the "anchor" command); see currentPoint() in anchor.ts. */
+  here?: string;
 };
 
 export type Command =
@@ -119,6 +121,12 @@ export type Command =
   | { type: "loadScript"; text: string }
   | { type: "slideChanged"; index: number; total: number; title?: string }
   | { type: "lookNow" }
-  | { type: "forgetScreen" };
+  | { type: "forgetScreen" }
+  /**
+   * The presenter says where they are (a click on a point or a section, a clicker key, a section's
+   * name said aloud). `pointId`: the point they are on. `keepRecent`: keep the words said just before
+   * the move (Next: people often start the next part before pressing). Engine.anchor() has the rules.
+   */
+  | { type: "anchor"; idx: number; pointId?: string; keepRecent?: boolean };
 
 export type CommandResult = { ok: true } | { ok: false; error: string };

@@ -342,7 +342,58 @@ export class Engine {
         // Capture is owned by the surface (desktop / web); the engine relays the request.
         for (const fn of this.lookNowSubs) fn();
         return { ok: true };
+      case "anchor":
+        return this.anchor(cmd.idx, cmd.pointId, cmd.keepRecent === true);
     }
+  }
+
+  /**
+   * Re-anchoring (the "anchor" command): the presenter says they are at section `idx`, on point
+   * `pointId` if given. Rules:
+   * - a move never ticks a point: the open points of the sections passed going forward are missed
+   *   (as with Next), the points of the target section before `pointId` are left as they are;
+   * - the target section's missed points (from `pointId` on) are open again: they were missed by an
+   *   earlier move past them, and the presenter is back to say them;
+   * - moving to another section, the words said before the move are not asked about for it (a fence,
+   *   as Reset sets), unless `keepRecent`; words still being transcribed at the move do count. Staying
+   *   in the section keeps its words, so a point said just before the click still ticks;
+   * - the target section's pending confirmations start over, and a decision asked before the move is
+   *   dropped when it answers;
+   * - the open points from `pointId` on are asked first.
+   */
+  anchor(idx: number, pointId?: string, keepRecent = false): CommandResult {
+    const s = this.state;
+    const sections = s.script.sections;
+    if (!sections.length) return { ok: false, error: "no script" };
+    if (!Number.isInteger(idx) || idx < 0 || idx >= sections.length) return { ok: false, error: `no section ${idx}` };
+    const bullets = sections[idx].bullets;
+    const from = pointId === undefined ? 0 : bullets.findIndex((b) => b.id === pointId);
+    if (from < 0) return { ok: false, error: `unknown point ${pointId} in section ${idx}` };
+    const moved = idx !== s.sectionIdx;
+    this.update((st) => {
+      for (const sec of st.script.sections.slice(st.sectionIdx, Math.max(st.sectionIdx, idx))) {
+        for (const b of sec.bullets) {
+          const cur = st.points[b.id];
+          if (!cur || cur.status === "waiting") st.points[b.id] = { status: "missed", confidence: cur?.confidence ?? 0 };
+        }
+      }
+      for (const b of bullets.slice(from)) if (st.points[b.id]?.status === "missed") delete st.points[b.id];
+      for (const p of Object.values(st.points)) delete p.active;
+      st.sectionIdx = idx;
+      if (pointId === undefined) delete st.here;
+      else st.here = pointId;
+    });
+    for (const b of bullets) {
+      delete this.streak[b.id];
+      this.held.delete(b.id);
+    }
+    if (moved && !keepRecent) this.fences.set(idx, Math.max(this.fences.get(idx) ?? 0, this.committedTotal));
+    const open = bullets.filter((b) => (this.state.points[b.id]?.status ?? "waiting") === "waiting");
+    const first = open.findIndex((b) => bullets.indexOf(b) >= from);
+    this.qCursor = Math.max(0, first);
+    this.lastSent = "";
+    this.invalidate();
+    return { ok: true };
   }
 
   private setPoint(id: string, state: PointState): CommandResult {

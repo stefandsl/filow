@@ -15,3 +15,5 @@ export * from "./ui-preferences";
 export * from "./matcher";
 export * from "./profile";
 export * from "./hardware";
+export * from "./anchor";
+export * from "./display";
