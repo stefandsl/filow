@@ -1,11 +1,24 @@
 import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import Module, { createRequire } from "node:module";
 import path from "node:path";
+import { runInThisContext } from "node:vm";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
+// about.js reads its texts from vendor/i18n, a build of the core dictionary (npm run build:welcome)
+// that is not in git: the test hands it the source, as main.seams.test.ts does.
+import * as i18n from "../../packages/core/src/i18n";
 
-const require = createRequire(import.meta.url);
-const { parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, createAboutPages, TEXT, SUPPORT } = require("./about.js");
+/** about.js, loaded with vendor/i18n replaced by the core source. */
+function loadAbout() {
+  const file = path.resolve(__dirname, "about.js");
+  const own = createRequire(file);
+  const mod = { exports: {} as Record<string, unknown> };
+  const wrapped = runInThisContext(Module.wrap(readFileSync(file, "utf8")), { filename: file });
+  wrapped.call(mod.exports, mod.exports, (id: string) => (id === "./vendor/i18n" ? i18n : own(id)), mod, file, path.dirname(file));
+  return mod.exports;
+}
+const { parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, createAboutPages, textFor, ABOUT_KEYS, SUPPORT } = loadAbout() as any;
+const TEXT = { en: textFor("en"), it: textFor("it") };
 
 const docs = path.join(__dirname, "..", "..", "docs");
 const policy = (name: string) => parseMarkdown(readFileSync(path.join(docs, name), "utf8"));
@@ -78,13 +91,10 @@ describe("the problem report", () => {
     expect(crashSummary("C", fs, (...p: string[]) => p.join("/"))).toEqual({ count: 2, mb: 2 });
     expect(crashSummary("missing", { readdirSync: () => { throw new Error("ENOENT"); } }, (...p: string[]) => p.join("/"))).toEqual({ count: 0, mb: 0 });
   });
-  it("has the same keys and placeholders in English and Italian", () => {
-    const vars = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
-    expect(Object.keys(TEXT.it).sort()).toEqual(Object.keys(TEXT.en).sort());
-    for (const k of Object.keys(TEXT.en)) {
-      expect(TEXT.it[k].trim(), k).not.toBe("");
-      expect(vars(TEXT.it[k]), k).toEqual(vars(TEXT.en[k]));
-    }
+  it("reads every text from the shared dictionary (the parity test covers its languages)", () => {
+    const en = i18n.DICTIONARIES.en as Record<string, string>;
+    expect((ABOUT_KEYS as string[]).filter((k) => !en[`about.${k}`])).toEqual([]);
+    for (const lang of i18n.LANGS) for (const k of ABOUT_KEYS as string[]) expect(textFor(lang)[k], `${lang} ${k}`).toBe(i18n.t(`about.${k}` as i18n.I18nKey, lang));
   });
   it("has no support address until the owner gives one (D33)", () => expect(SUPPORT).toEqual({ email: "", form: "" }));
 });
@@ -128,6 +138,13 @@ describe("the About and privacy window", () => {
     const data: any = await s.call("about:data", w);
     expect(data.policy[0]).toMatchObject({ type: "h", level: 1 });
     expect(() => s.handlers["about:data"]({ sender: {} })).toThrow("Denied");
+  });
+  it("shows a Japanese user the English policy, with the page around it and the note in Japanese", async () => {
+    const s = setup(); s.deps.lang = () => "ja"; const w = s.pages.open("about");
+    const data: any = await s.call("about:data", w);
+    expect(data.policyLang).toBe("en");
+    expect(data.text.policyEnglish).toBe(i18n.t("about.policyEnglish", "ja"));
+    expect(data.text.tabAbout).toBe(i18n.t("about.tabAbout", "ja"));
   });
   it("saves exactly the text it showed, with the user's words, to the file the user picked", async () => {
     const s = setup(); const w = s.pages.open("report");

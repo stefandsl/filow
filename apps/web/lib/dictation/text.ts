@@ -1,6 +1,7 @@
 // Words for Dictation (apps/desktop/dictation.js) in Filow Settings and in OK Filow's panel and overlay.
-// English and Italian here; Russian, Romanian and Japanese come with the translation pass (until then
-// those interfaces show English, like the OK Filow strings in lib/buddy/text.ts).
+// English here, one file per other language (text.<lang>.ts); text.test.ts checks they match.
+import { isLang, type Lang } from "@filow/core";
+import { it } from "./text.it";
 
 const en = {
   title: "Dictation",
@@ -47,53 +48,11 @@ const en = {
 
 export type DictationKey = keyof typeof en;
 
-const it: Record<DictationKey, string> = {
-  title: "Dettatura",
-  intro: "Tieni premuti alcuni tasti, parla, lascia: le tue parole vengono scritte nella casella di testo in cui ti trovi, in qualsiasi app.",
-  privacy: "La tua voce resta su questo computer. La dettatura non usa mai un servizio vocale online, anche se ne hai impostato uno altrove in Filow.",
-  enabled: "Dettatura attiva",
-  shortcut: "Tasti",
-  mode: "Come funzionano i tasti",
-  modeHold: "Tieni premuto per parlare, lascia per scrivere",
-  modeToggle: "Premi una volta per iniziare, di nuovo per finire",
-  modeToggleHint: "Esc ferma senza scrivere. Una dettatura che nessuno ferma finisce dopo 5 minuti.",
-  language: "Lingua in cui detti",
-  languageAuto: "La stessa lingua parlata impostata sopra",
-  languageHint: "Scegli la tua lingua per la massima precisione: Filow usa allora il modello vocale fatto per frasi brevi in quella lingua.",
-  insert: "Dove vanno le parole",
-  insertPaste: "Scrivile dove mi trovo",
-  insertCopy: "Copiale soltanto, incollo io",
-  insertHow: "Filow mette le parole negli appunti, preme {paste} per te, poi rimette quello che avevi copiato prima.",
-  fillers: "Togli \"ehm\", \"uhm\" e suoni simili",
-  fillersHint: "Solo suoni. Parole come \"praticamente\" restano: potresti volerle dire.",
-  sound: "Suono leggero quando la dettatura inizia e finisce",
-  soundHint: "Utile con un lettore di schermo, o quando non guardi lo schermo.",
-  conflictSame: "Sono gli stessi tasti che OK Filow usa per le domande ({talk}). La dettatura resta spenta finché non scegli altri tasti qui o in OK Filow.",
-  conflictOverlap: "Questi tasti contengono quelli delle domande di OK Filow ({talk}), o il contrario: lasciando un tasto partirebbe l'altra funzione. La dettatura resta spenta finché non scegli altri tasti.",
-  warnAltgr: "Su molte tastiere Ctrl + Alt è il tasto AltGr, che serve a scrivere alcune lettere. Premerlo da solo può avviare la dettatura.",
-  warnLayout: "Windows può usare questi tasti per cambiare la lingua della tastiera. Se succede, scegli altri tasti.",
-  togglesHandsFree: "Tocca i tasti due volte per far ascoltare OK Filow a mani libere.",
-  copyWayland: "Su questo desktop (Wayland) le app non possono premere tasti in altre app, quindi le parole vengono solo copiate: premi Ctrl + V per incollarle.",
-  copyAccessibility: "macOS chiede il permesso Accessibilità prima che Filow possa scrivere in altre app. Finché non lo concedi, le parole vengono copiate: premi Comando + V per incollarle.",
-  copyNohook: "Windows non ha ancora permesso a Filow di seguire la tastiera, quindi per ora i tasti non fanno nulla. Filow riprova ogni 30 secondi; anche riavviare Filow aiuta.",
-  modelMissing: "Su questo computer non c'è ancora un modello vocale per questa lingua. Scaricalo nella sezione della voce qui sopra; poi la dettatura funziona.",
-  modelReady: "Modello vocale pronto su questo computer.",
-  dictating: "Sto dettando… lascia per scriverlo",
-  dictatingToggle: "Sto dettando… premi di nuovo {keys} per scriverlo",
-  typed: "Scritto nella tua app",
-  copied: "Copiato. Premi {paste} per incollarlo",
-  nothing: "Non ho sentito niente",
-  failed: "Non riesco a scrivere nell'app. Le tue parole sono nel pannello di OK Filow.",
-  startedLive: "Dettatura iniziata",
-  hintHold: "Tieni {keys} per dettare in qualsiasi app; toccalo due volte per il vivavoce.",
-  hintToggle: "Premi {keys} per dettare in qualsiasi app, e di nuovo per scriverlo.",
-};
+export const DICTATION_TEXT: Record<Lang, Record<DictationKey, string>> = { en, it };
 
-export const DICTATION_TEXT: Record<"en" | "it", Record<DictationKey, string>> = { en, it };
-
-/** The text for a key in the interface language (Italian or English for now), with {placeholders} filled. */
+/** The text for a key in the interface language (English for an unknown one), with {placeholders} filled. */
 export function dictationText(lang: string, key: DictationKey, vars: Record<string, string> = {}): string {
-  const s = DICTATION_TEXT[lang === "it" ? "it" : "en"][key];
+  const s = DICTATION_TEXT[isLang(lang) ? lang : "en"][key] || en[key];
   return s.replace(/\{(\w+)\}/g, (m, k: string) => vars[k] ?? m);
 }
 

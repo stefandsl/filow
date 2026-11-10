@@ -17,10 +17,9 @@
       // grabbed it before this window opened), dimmed, with a full-width crosshair, a magnifier
       // next to the cursor and the size of the selection. Own implementation; no third-party code.
       const q = new URLSearchParams(location.search);
-      const it = q.get("lang") === "it";
-      const T = it
-        ? { hint: "Trascina un rettangolo da mandare a Screen Sense · Invio = tutto lo schermo · Esc annulla", size: (w, h) => `${w} × ${h}` }
-        : { hint: "Drag a rectangle to send to Screen Sense · Enter = whole screen · Esc to cancel", size: (w, h) => `${w} × ${h}` };
+      // The hint arrives translated from the shell (main.js reads the shared dictionary).
+      document.documentElement.lang = q.get("lang") || "en";
+      const T = { hint: q.get("hint") || "Drag a rectangle to send to Screen Sense · Enter = whole screen · Esc to cancel", size: (w, h) => `${w} × ${h}` };
       document.getElementById("hint").textContent = T.hint;
 
       const canvas = document.getElementById("c");

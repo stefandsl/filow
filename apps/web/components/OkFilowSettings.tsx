@@ -3,7 +3,7 @@
 // the OK Filow panel; this section reads and writes the same settings through the main window's bridge.
 import { useEffect, useState } from "react";
 import type { OkFilowStatus } from "@/lib/buddy/bridge";
-import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
+import { okfText } from "@/lib/buddy/text";
 
 type OkFilowSettingsBridge = {
   status(): Promise<OkFilowStatus | null>;
@@ -14,7 +14,7 @@ const bridge = () => (globalThis as { filow?: { okFilow?: OkFilowSettingsBridge 
 
 export function OkFilowSettings({ lang }: { lang: string }) {
   const [s, setS] = useState<OkFilowStatus | null>(null);
-  const t = (k: OkfKey) => OKF_TEXT[lang === "it" ? "it" : "en"][k];
+  const t = okfText(lang);
   useEffect(() => { void bridge()?.status().then(setS); }, []);
   const b = bridge();
   if (!b || !s) return null; // browser, or OK Filow did not start

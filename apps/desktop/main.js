@@ -451,7 +451,7 @@ async function pickRegion() {
       if (pickerWin) finish(null);
     });
     pickerWin.setAlwaysOnTop(true, "screen-saver");
-    pickerWin.loadFile(path.join(__dirname, "picker.html"), { query: { lang: menuLang() } }).then(() => {
+    pickerWin.loadFile(path.join(__dirname, "picker.html"), { query: { lang: menuLang(), hint: sharedText("shell.picker.hint", menuLang()) } }).then(() => {
       if (!pickerWin) return;
       pickerWin.show();
       pickerWin.focus();
@@ -1290,7 +1290,10 @@ function showSplash() {
     icon: appIcon(),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
-  const q = new URLSearchParams({ v: app.getVersion(), theme: uiTheme(), local: local ? "1" : "0", lang: menuLang() });
+  const lang = menuLang();
+  // The page has no dictionary of its own: its texts come translated in the query.
+  const q = new URLSearchParams({ v: app.getVersion(), theme: uiTheme(), lang, tagline: sharedText("app.tagline", lang),
+    badge: sharedText(local ? "shell.splash.local" : "shell.splash.guard", lang) });
   splashShownAt = Date.now();
   guardNavigation(splash);
   splash.on("closed", () => (splash = null));

@@ -7,55 +7,17 @@
 /** Where users send a saved report. Empty until the owner decides (D33); the page says it is not set. */
 const SUPPORT = { email: "", form: "" };
 
-const TEXT = {
-  en: {
-    tabAbout: "About and privacy", tabReport: "Report a problem", version: "Version {version}",
-    fact1: "No account. No telemetry: Filow does not tell anyone how you use it.",
-    fact2: "Your script, settings and logs stay in your config folder on this computer.",
-    configFolder: "Your config folder", openFolder: "Open the folder", todo: "not filled in yet",
-    policyMissing: "The privacy policy file is missing from this installation. Reinstall Filow to get it back.",
-    reportIntro: "Filow does not send this report anywhere. Save it to a file, read it, then send it yourself, privately.",
-    whereTo: "Where to send it", supportUnset: "Not set in this version yet.", supportTodo: "support e-mail address or form, added by the publisher",
-    writeMail: "Write an e-mail", openForm: "Open the support form",
-    describe: "What happened? (optional)", describeHint: "What you did, what you expected and what happened instead. It goes at the top of the file.",
-    contents: "Exactly what the file will contain",
-    masked: "Masked before you see it: public links, keys and passwords, e-mail addresses, local network addresses and your user name in folder paths. Other names, such as a microphone's name, stay: read the text before you send it.",
-    crashNone: "No crash files on this computer.",
-    crashSome: "Not included: the crash files on this computer ({count}, {size} MB). They can hold parts of what was on screen, so send them only if support asks for them.",
-    openCrash: "Open the crash files folder",
-    save: "Save to a file…", copy: "Copy the text", close: "Close",
-    saved: "Saved to {file}", copied: "Copied. Paste it into your message.", saveFailed: "Could not save the file: {error}",
-    saveTitle: "Save the problem report", loading: "Collecting the report…",
-    fileTitle: "Filow problem report", fileMade: "Made on {date}. Filow did not send this file anywhere.",
-    fileWhat: "What happened", fileNone: "(not written)", fileCrash: "Crash files not included: {count} ({size} MB).",
-    fileSystem: "This computer and Filow", fileTake: "Log of the last take", fileLog: "Start-up log (last lines)", fileNoTake: "(no take since Filow started)",
-  },
-  it: {
-    tabAbout: "Informazioni e privacy", tabReport: "Segnala un problema", version: "Versione {version}",
-    fact1: "Nessun account. Nessuna telemetria: Filow non dice a nessuno come lo usi.",
-    fact2: "Il tuo copione, le impostazioni e i registri restano nella cartella di configurazione su questo computer.",
-    configFolder: "La tua cartella di configurazione", openFolder: "Apri la cartella", todo: "non ancora compilato",
-    policyMissing: "In questa installazione manca il file dell'informativa sulla privacy. Reinstalla Filow per riaverlo.",
-    reportIntro: "Filow non invia questa segnalazione da nessuna parte. Salvala in un file, leggila, poi inviala tu, in privato.",
-    whereTo: "Dove inviarla", supportUnset: "Non ancora indicato in questa versione.", supportTodo: "indirizzo e-mail o modulo di assistenza, aggiunto dall'editore",
-    writeMail: "Scrivi un'e-mail", openForm: "Apri il modulo di assistenza",
-    describe: "Cosa è successo? (facoltativo)", describeHint: "Cosa hai fatto, cosa ti aspettavi e cosa è successo invece. Va in cima al file.",
-    contents: "Esattamente cosa conterrà il file",
-    masked: "Mascherati prima che tu li veda: link pubblici, chiavi e password, indirizzi e-mail, indirizzi della rete locale e il tuo nome utente nei percorsi delle cartelle. Altri nomi, come quello di un microfono, restano: leggi il testo prima di inviarlo.",
-    crashNone: "Nessun file di crash su questo computer.",
-    crashSome: "Non inclusi: i file di crash su questo computer ({count}, {size} MB). Possono contenere parti di quello che era sullo schermo: inviali solo se l'assistenza li chiede.",
-    openCrash: "Apri la cartella dei file di crash",
-    save: "Salva in un file…", copy: "Copia il testo", close: "Chiudi",
-    saved: "Salvato in {file}", copied: "Copiato. Incollalo nel tuo messaggio.", saveFailed: "Impossibile salvare il file: {error}",
-    saveTitle: "Salva la segnalazione", loading: "Raccolgo la segnalazione…",
-    fileTitle: "Segnalazione di un problema in Filow", fileMade: "Creata il {date}. Filow non ha inviato questo file da nessuna parte.",
-    fileWhat: "Cosa è successo", fileNone: "(non scritto)", fileCrash: "File di crash non inclusi: {count} ({size} MB).",
-    fileSystem: "Questo computer e Filow", fileTake: "Registro dell'ultima sessione", fileLog: "Registro di avvio (ultime righe)", fileNoTake: "(nessuna sessione da quando Filow è partito)",
-  },
-};
+// The page's texts are about.<key> in the shared dictionary (packages/core/src/i18n), so every
+// language and the parity check cover them.
+const { t: sharedText } = require("./vendor/i18n");
+const ABOUT_KEYS = ["tabAbout", "tabReport", "version", "fact1", "fact2", "configFolder", "openFolder", "todo", "policyMissing", "policyEnglish",
+  "reportIntro", "whereTo", "supportUnset", "supportTodo", "writeMail", "openForm", "describe", "describeHint", "contents", "masked",
+  "crashNone", "crashSome", "openCrash", "save", "copy", "close", "saved", "copied", "saveFailed", "saveTitle", "loading",
+  "fileTitle", "fileMade", "fileWhat", "fileNone", "fileCrash", "fileSystem", "fileTake", "fileLog", "fileNoTake"];
 
 const fill = (text, vars = {}) => text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
-const textFor = (lang) => TEXT[lang] || TEXT.en;
+/** Every text of the window in one language, {placeholders} left for the page to fill. */
+const textFor = (lang) => Object.fromEntries(ABOUT_KEYS.map((k) => [k, sharedText(`about.${k}`, lang)]));
 
 // ---- the policy: a small Markdown reader for the subset docs/PRIVACY*.md uses ----
 // It returns plain data (no HTML): the page builds DOM nodes with textContent, so nothing in the file
@@ -201,7 +163,12 @@ function createAboutPages(deps) {
   const crash = () => crashSummary(deps.crashDir, fs, path.join);
   const fileText = (description) => reportFile({ lang: deps.lang(), date: now(), description, sections: sections || [], crash: crash() });
 
-  handle("about:data", () => ({ view, lang: deps.lang(), theme: deps.theme(), text: textFor(deps.lang()), info: deps.info(), policy: policy().blocks, support: SUPPORT }));
+  handle("about:data", () => {
+    const p = policy();
+    // The policy is legal text, kept in English (and Italian); the page says so in the user's language.
+    const policyLang = /PRIVACY\.it\.md$/.test(p.file || "") ? "it" : "en";
+    return { view, lang: deps.lang(), theme: deps.theme(), text: textFor(deps.lang()), info: deps.info(), policy: p.blocks, policyLang, support: SUPPORT };
+  });
   handle("about:openConfigFolder", () => shell.openPath(deps.info().configFolder));
   handle("report:data", async () => {
     sections = await deps.collectReport();
@@ -263,4 +230,4 @@ function createAboutPages(deps) {
   return { open, close };
 }
 
-module.exports = { createAboutPages, parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, TEXT, SUPPORT };
+module.exports = { createAboutPages, parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, textFor, ABOUT_KEYS, SUPPORT };

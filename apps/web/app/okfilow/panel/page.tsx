@@ -8,7 +8,7 @@ import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture,
 import { drawingSvg, type BuddyModel } from "@/lib/buddy/visuals";
 import { createSpeaker } from "@/lib/buddy/voice";
 import { markToDisplay, parseBuddyAnswer, pointToDisplay, type BuddyTurn } from "@/lib/buddy/prompt";
-import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
+import { okfText, type OkfKey } from "@/lib/buddy/text";
 import { dictationText, pasteKeys, type DictationKey } from "@/lib/dictation/text";
 import { playCue } from "@/lib/dictation/cue";
 import { burnStrokes, createVad, describeMarked } from "@/lib/buddy/listen";
@@ -37,7 +37,7 @@ const HOTKEY_LABEL: Record<string, string> = { "ctrl+alt": "Ctrl + Alt", "ctrl+s
 
 export default function OkFilowPanel() {
   const lang = useLang();
-  const t = useCallback((k: OkfKey) => (OKF_TEXT[lang === "it" ? "it" : "en"][k] ?? OKF_TEXT.en[k]), [lang]);
+  const t = useCallback((k: OkfKey) => okfText(lang)(k), [lang]);
   const dictT = useCallback((k: DictationKey, vars?: Record<string, string>) => dictationText(lang, k, vars), [lang]);
   /** The language the recognizer listened in for this dictation (for the filler words). */
   const spoken = useRef("");
