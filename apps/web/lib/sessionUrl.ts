@@ -29,6 +29,8 @@ export type DesktopBridge = {
   updateStatus?: () => Promise<UpdateStatus>;
   takeLog?: (text: string) => void;
   reportProblem?: () => void;
+  /** Tells the shell a take is live, so an update that finishes downloading does not interrupt it. */
+  setTakeLive?: (on: boolean) => void;
   onUpdateStatus?: (fn: (s: UpdateStatus) => void) => () => void;
   checkForUpdates?: () => void;
   installUpdate?: () => void;

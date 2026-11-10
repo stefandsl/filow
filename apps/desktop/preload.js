@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld("filow", {
   /** Diagnostics: the page keeps the main process informed of its take log; "report" opens the issue form. */
   takeLog: (text) => ipcRenderer.send("diag:takeLog", text),
   reportProblem: () => ipcRenderer.send("diag:report"),
+  /** The page says when a take starts and stops: the shell shows no "update ready" prompt meanwhile. */
+  setTakeLive: (on) => ipcRenderer.send("take:live", Boolean(on)),
   checkForUpdates: () => ipcRenderer.send("update:check"),
   installUpdate: () => ipcRenderer.send("update:install"),
   onUpdateStatus: (fn) => {

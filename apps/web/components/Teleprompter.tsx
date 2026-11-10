@@ -123,6 +123,12 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const missed = missedPoints(state);
   const error = eng.error ?? null;
 
+  // The desktop shell shows no "update ready" prompt while a take is live (SIGN-04).
+  useEffect(() => {
+    desktopBridge()?.setTakeLive?.(eng.recording);
+    return () => desktopBridge()?.setTakeLive?.(false); // leaving the page ends the take
+  }, [eng.recording]);
+
   const pushLog = useCallback((line: string) => {
     setLog((l) => {
       const next = [...l.slice(-30), `${new Date().toLocaleTimeString()}  ${line}`];
@@ -394,7 +400,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
 
       <div className="prompter-content">
       <main className="prompter-main">
-      {update?.status === "downloaded" && !updateDismissed && (
+      {update?.status === "downloaded" && !updateDismissed && !eng.recording && (
         <div className="update-banner">
           <span><Icon name="up" /> {t("update.ready", { version: update.version })}</span>
           <button className="btn primary" onClick={() => desktopBridge()?.installUpdate?.()}>
