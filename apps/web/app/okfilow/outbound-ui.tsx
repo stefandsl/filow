@@ -39,14 +39,64 @@ export function OutboundNotice({ notice, t, onDecide }: { notice: NoticeRequest;
       tabIndex={-1}
       onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); onDecide("dismissed"); } }}
     >
+      <NoticeContent id={id} notice={notice} t={t} more={t("noticeRemember")} onDecide={onDecide} />
+    </div>
+  );
+}
+
+function NoticeContent({ id, notice, t, more, onDecide }: { id: string; notice: NoticeRequest; t: T; more: string; onDecide: (d: Decision) => void }) {
+  return (
+    <>
       <h2 id={`${id}-title`}><OutboundIcon size={16} />{t("noticeTitle")}</h2>
       <p id={`${id}-body`}>{noticeBody(notice, t)}</p>
-      <p className="okf-notice-more">{t("noticeRemember")}</p>
+      <p className="okf-notice-more">{more}</p>
       <div className="okf-notice-actions">
         <button type="button" className="okf-notice-keep" onClick={() => onDecide("declined")}>{t("noticeKeep")}</button>
         <button type="button" className="okf-notice-send" onClick={() => onDecide("granted")}>{t("noticeSend")}</button>
       </div>
-    </div>
+    </>
+  );
+}
+
+/**
+ * The same notice on a page of the main window, as a modal of its own: it must also show above the
+ * script editor, which is a modal, and nothing behind it can be used until the user has answered.
+ * Render it with a key per notice. Escape, or closing it any other way, is "not now": nothing is sent.
+ */
+export function OutboundNoticeModal({ notice, t, more, onDecide }: { notice: NoticeRequest; t: T; more?: string; onDecide: (d: Decision) => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const decide = useRef(onDecide);
+  const id = useId();
+  useEffect(() => { decide.current = onDecide; });
+  useEffect(() => {
+    const el = dialog.current;
+    if (!el) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const closed = () => decide.current("dismissed");
+    if (!el.open) el.showModal();
+    box.current?.focus();
+    el.addEventListener("close", closed);
+    return () => {
+      el.removeEventListener("close", closed);
+      if (el.open) el.close();
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
+  return (
+    <dialog
+      ref={dialog}
+      className="okf-notice-modal"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby={`${id}-title`}
+      aria-describedby={`${id}-body`}
+      onCancel={(e) => { e.preventDefault(); onDecide("dismissed"); }}
+    >
+      <div ref={box} className="okf-notice" tabIndex={-1}>
+        <NoticeContent id={id} notice={notice} t={t} more={more ?? t("noticeRemember")} onDecide={onDecide} />
+      </div>
+    </dialog>
   );
 }
 
