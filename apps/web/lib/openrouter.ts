@@ -22,6 +22,15 @@ export function routedModels(model: string, kind: "text" | "vision"): string[] {
   return [model, ...fallbackModels(kind).filter((m) => m !== model && sameMaker(m, model))].slice(0, 3);
 }
 
+/**
+ * The chat endpoint. OPENROUTER_BASE_URL points it at a local mock for end-to-end checks
+ * (docs/okfilow/OUTBOUND.md: count what would have left the PC without paying for a call).
+ */
+export function openRouterChatUrl(): string {
+  const base = (process.env.OPENROUTER_BASE_URL || "").trim().replace(/\/+$/, "");
+  return `${base || "https://openrouter.ai/api/v1"}/chat/completions`;
+}
+
 export type OpenRouterResult ={ json: Record<string, unknown>; content: string; cost: number | null; model: string };
 
 /**
@@ -35,7 +44,7 @@ export async function openRouterChat(model: string, kind: "text" | "vision", pay
   const retries = opts.retries ?? 2;
   let lastError = "";
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const res = await fetch(openRouterChatUrl(), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,

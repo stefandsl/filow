@@ -2,6 +2,7 @@
 // leaves the PC. Cloud: OpenRouter multimodal, only when the user picked it. An explicit choice
 // never falls back to the other provider; errors go back to the bubble.
 import { OLLAMA_URL } from "@/lib/decide/clef";
+import { openRouterChatUrl } from "@/lib/openrouter";
 import { askRecipient, consentKey, type Recipient } from "./outbound";
 import { buddySystemPrompt, trimHistory, type BuddyScreen, type BuddyTurn } from "./prompt";
 
@@ -149,7 +150,7 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal): Async
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("No OpenRouter key: add OPENROUTER_API_KEY, or switch the buddy to the local model.");
   const history = trimHistory(req.history ?? []).map((t) => ({ role: t.role, content: t.text }));
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const res = await fetch(openRouterChatUrl(), {
     method: "POST",
     signal,
     headers: {
