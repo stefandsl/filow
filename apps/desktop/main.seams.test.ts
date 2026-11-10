@@ -13,6 +13,7 @@ function fixture(initialEnv: Record<string, string> = {}) {
   const outbound = vi.fn(() => { throw new Error("fake network boundary: no bytes sent"); });
   const openExternal = vi.fn(async () => {}), checkForUpdates = vi.fn(async () => null);
   const writeText = vi.fn(), showMessageBox = vi.fn(async () => ({ response: 0 }));
+  const updaterHandlers: Record<string, (info: { version: string }) => void> = {}, notificationShow = vi.fn();
   const modules: Record<string, any> = {
     electron: {
       crashReporter: { start() {} },
@@ -21,10 +22,12 @@ function fixture(initialEnv: Record<string, string> = {}) {
       ipcMain: { on() {} }, BrowserWindow: { getAllWindows: () => [] },
       session: { defaultSession: { webRequest: { onBeforeRequest: (_filter: unknown, cb: typeof requestFilter) => { requestFilter = cb; } } } },
       shell: { openExternal }, dialog: { showMessageBox }, clipboard: { writeText },
+      Menu: { buildFromTemplate: (template: unknown) => template, setApplicationMenu() {} },
+      Notification: class { static isSupported() { return true; } on() {} show() { notificationShow(); } },
     },
     "node:path": path, "node:url": { pathToFileURL },
     "node:fs": { readFileSync: () => "FILOW_OFFLINE=1", appendFileSync() {}, existsSync: () => false, mkdirSync() {}, rmSync() {} },
-    "node:os": { homedir: () => "G:/fake", cpus: () => [{ model: "fake" }], totalmem: () => 0, release: () => "fake" },
+    "node:os": { homedir: () => "G:/fake", cpus: () => [{ model: "fake" }], totalmem: () => 0, release: () => "fake", networkInterfaces: () => ({}) },
     "node:http": { get: () => { const req = new EventEmitter(); queueMicrotask(() => req.emit("error", new Error("Ollama absent"))); return req; } },
     "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": {},
     "node:worker_threads": {}, "node:events": EventEmitter,
@@ -43,16 +46,17 @@ function fixture(initialEnv: Record<string, string> = {}) {
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
     ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, setLog: text => { lastTakeLog = text; },
-       textTables: { MENU_TEXT, NET_TEXT, SPLASH_TEXT, LOCAL_AI_TEXT } });`, {
+       textTables: { MENU_TEXT, NET_TEXT, SPLASH_TEXT, LOCAL_AI_TEXT },
+       setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; } });`, {
     require: (id: string) => {
-      if (id.endsWith("electron-updater.js")) return { autoUpdater: { on() {}, checkForUpdates } };
+      if (id.endsWith("electron-updater.js")) return { autoUpdater: { on(event: string, fn: (info: { version: string }) => void) { updaterHandlers[event] = fn; }, checkForUpdates, quitAndInstall() {} } };
       if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`);
       return modules[id];
     },
     __dirname: "G:/fake", process: { env, platform: "win32", arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {} },
     URL, URLSearchParams, console,
   });
-  return { api, env, outbound, openExternal, checkForUpdates, writeText, showMessageBox,
+  return { api, env, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow,
     blocked: (url: string) => { let result: any; requestFilter({ url }, r => { result = r; }); return result.cancel === true; } };
 }
 
@@ -126,6 +130,36 @@ describe("Step 4 desktop offline seams", () => {
     await f.api.reportProblem(null);
     expect(f.writeText).not.toHaveBeenCalled();
     expect(f.openExternal).not.toHaveBeenCalled();
+  });
+});
+
+// SIGN-04: an update never interrupts a live session.
+describe("update ready during a take", () => {
+  const withWindow = () => {
+    const f = fixture();
+    f.api.setMainWin({ isDestroyed: () => false, show() {}, focus() {}, webContents: { send() {} } });
+    f.api.loadUpdater();
+    return f;
+  };
+  it("raises no dialog and no notification while a take is live", () => {
+    const f = withWindow();
+    f.api.setTakeLive(true);
+    f.updaterHandlers["update-downloaded"]({ version: "9.9.9" });
+    expect(f.showMessageBox, "a modal dialog would take the focus mid-talk").not.toHaveBeenCalled();
+    expect(f.notificationShow, "a system notification would pop over the slides").not.toHaveBeenCalled();
+  });
+  it("prompts as before when no take is running, also after one has ended", () => {
+    const f = withWindow();
+    f.api.setTakeLive(true); f.api.setTakeLive(false);
+    f.updaterHandlers["update-downloaded"]({ version: "9.9.9" });
+    expect(f.showMessageBox).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ message: "Filow 9.9.9 is ready." }));
+    expect(f.notificationShow).toHaveBeenCalledOnce();
+  });
+  it("treats only an explicit true from the page as a live take", () => {
+    const f = withWindow();
+    f.api.setTakeLive("yes");
+    f.updaterHandlers["update-downloaded"]({ version: "9.9.9" });
+    expect(f.showMessageBox).toHaveBeenCalledOnce();
   });
 });
 

@@ -459,6 +459,7 @@ function wireScreenSense() {
   appHandle("update:status", () => ({ ...updateState, current: app.getVersion() }));
   appOn("update:check", () => void checkForUpdates({ manual: true }));
   appOn("update:install", () => loadUpdater() && updateState.status === "downloaded" && updater.quitAndInstall());
+  appOn("take:live", (_e, on) => setTakeLive(on));
   appHandle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
   wireStt();
   appHandle("localai:status", () => localAiState);
@@ -1101,6 +1102,17 @@ async function uninstallPowerPointAddin(win) {
 // from the menu; the download happens in the background and the user chooses when to restart.
 let updater = null;
 let updateState = { status: "idle", version: "", error: "" }; // idle | checking | available | downloading | downloaded | none | error
+// An update never interrupts a talk (SIGN-04). The page reports when a take starts and stops. An
+// update that finishes downloading during a take raises no notification and no dialog: the page
+// shows its "restart" banner once the take ends, the menu offers the restart, and the update is
+// installed when the app quits.
+let takeLive = false;
+function setTakeLive(on) {
+  const live = on === true; // the value comes from a page: anything else is not a take
+  if (live === takeLive) return;
+  takeLive = live;
+  logLine(takeLive ? "take: live" : "take: ended");
+}
 
 function loadUpdater() {
   if (updater !== null) return updater;
@@ -1116,6 +1128,10 @@ function loadUpdater() {
     updater.on("error", (err) => setUpdateState({ status: "error", error: String((err && err.message) || err).slice(0, 200) }));
     updater.on("update-downloaded", (info) => {
       setUpdateState({ status: "downloaded", version: info.version });
+      if (takeLive) {
+        logLine("update: ready, prompt held (a take is live)");
+        return;
+      }
       // System notification as well, for when the app sits behind other windows.
       try {
         if (Notification.isSupported()) {
