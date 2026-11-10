@@ -85,6 +85,17 @@ if (process.env.FILOW_USER_DATA_DIR) {
   app.setPath("sessionData", process.env.FILOW_USER_DATA_DIR);
 }
 const userData = app.getPath("userData");
+// One Filow per profile (single-instance.js): a second launch starts nothing and brings the running
+// window forward instead of fighting for the ports. Keyed on userData, so test profiles still coexist.
+const { claimSingleInstance, windowToFront, bringToFront } = require("./single-instance");
+const firstInstance = claimSingleInstance(app, () => {
+  logLine("second launch on this profile: bringing the running window forward");
+  bringToFront(windowToFront({ welcome: welcomeWin, main: mainWin, splash }));
+});
+if (!firstInstance) {
+  logLine("second launch on this profile: Filow already runs, leaving");
+  app.exit(0);
+}
 // Native crash dumps (main, renderer, GPU, utility) stay on this PC under userData/Crashpad; nothing
 // is uploaded. A report leaves the PC only through "Send report", which the user starts.
 app.setPath("crashDumps", path.join(userData, "Crashpad"));
@@ -2156,7 +2167,7 @@ function failStartup(err) {
 }
 
 app.setAppUserModelId("com.intelliprompter.app");
-app.whenReady().then(main);
+if (firstInstance) app.whenReady().then(main);
 app.on("window-all-closed", () => { if (!startupTransition) app.quit(); });
 app.on("before-quit", () => { quitting = true; uiPreferences?.dispose(); okFilow?.dispose(); });
 app.on("will-quit", () => {

@@ -58,6 +58,7 @@
       "qa.js",
       "integrity.js",
       "diag.js",
+      "single-instance.js",
       "preload.js",
       "splash.html",
       "vendor/*.js",
