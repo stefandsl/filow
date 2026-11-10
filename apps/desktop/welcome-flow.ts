@@ -20,6 +20,16 @@ export function offersDownload(offer: { online: boolean; unknown?: boolean; down
   return offer.online && !offer.unknown && offer.downloadGb > 0;
 }
 
+/**
+ * Escape (review T3 finding 9) does what the visible secondary button does ("Not now" on the setup step).
+ * With no secondary button it does nothing: the welcome has no "cancel", and closing it completes it, so
+ * a stray Escape must not end the guide. Never on a held key, never from an open list or while composing.
+ */
+export function escapeAction(e: { key: string; repeat: boolean; isComposing: boolean; defaultPrevented: boolean; inSelect: boolean }, secondaryShown: boolean): "secondary" | null {
+  if (e.key !== "Escape" || e.repeat || e.isComposing || e.defaultPrevented || e.inSelect) return null;
+  return secondaryShown ? "secondary" : null;
+}
+
 export type MicErrorKind = "none" | "blocked" | "busy";
 
 /** getUserMedia error name to what the user can do about it. */

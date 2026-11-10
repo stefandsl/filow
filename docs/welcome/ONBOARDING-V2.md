@@ -45,13 +45,25 @@ action (Try again, Open privacy settings, set up later from Settings); keyboard 
    computer (English)", English, Italiano). "Appearance and startup" collapsed below. Continue.
 2. **Check your microphone** (step 2). Starts listening on entry; a level bar; "Filow can hear you." after
    0.4 s of speech in total. Recovery: no microphone, blocked by the OS (button opens the OS microphone
-   privacy page on Windows and macOS), busy, or nothing heard after 6 s, each with Try again. Never blocks:
-   Continue always works.
-3. **We picked the best setup for this PC** (step 3, the T2 slot). A card: setup name, memory, "Your voice
-   and your script stay here", then one of: already installed (single "Start Filow" button), "one-time
-   download of about N GB, continues in the background" (+ Ollama line) with "Download and continue" /
-   "Not now", offline, or could-not-check. Model names only under "What gets installed".
+   privacy page on Windows and macOS), busy, or nothing heard after 6 s, each with Try again. Unplugging
+   the microphone mid-check says "No microphone"; plugging one in after a failure checks again on its own.
+   After Try again, keyboard focus waits on the status line and returns to Try again if it fails again.
+   Never blocks: Continue always works.
+3. **We picked the best setup for this PC** (step 3, the T2 slot). A card: setup name, memory, what runs
+   on this computer (speech recognition and the AI: the voice is not sent), and the two things that use
+   the internet (the phone link through Cloudflare, on by default; a cloud AI only with the user's own
+   key), then one of: already installed (plus, when the rest of the recommendation is missing, an
+   optional "about N GB" with "Download the rest" / "Not now"), "one-time download of about N GB,
+   continues in the background" (+ Ollama line) with "Download and continue" / "Not now", offline, or
+   could-not-check. Model names only under "What gets installed". The answer is saved at once
+   (settings.welcomeSetupAnswer), so quitting before the main window does not ask again.
 4. Main window, Start take, first point ticks.
+
+The window shows before the hardware scan: the scan behind step 3 starts only once the window is on
+screen (startup.log: "welcome: window shown", then "welcome: hardware scan N ms").
+
+Escape does what the visible secondary button does ("Not now" on step 3) and nothing elsewhere: the
+welcome has no "cancel", and closing the window completes it, so a stray Escape must not end the guide.
 
 Reopened later from Filow > Welcome..., the same window is a plain Preferences page (language and the
 three switches, Done). When the installer already chose the models, step 3 is left out. Closing the

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { welcomeSteps, micErrorKind, levelFromRms, micTick, MIC_HEARD_MS, MIC_SILENT_MS, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, type MicState } from "./welcome-flow";
+import { welcomeSteps, micErrorKind, levelFromRms, micTick, MIC_HEARD_MS, MIC_SILENT_MS, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, escapeAction, type MicState } from "./welcome-flow";
 
 describe("welcome steps", () => {
   it("guides a first run through language, microphone and setup", () => {
@@ -19,6 +19,21 @@ describe("setup step buttons", () => {
     expect(offersDownload({ online: true, downloadGb: 0 })).toBe(false);
     expect(offersDownload({ online: false, downloadGb: 3 })).toBe(false);
     expect(offersDownload({ online: true, unknown: true, downloadGb: 3 })).toBe(false);
+  });
+});
+
+describe("Escape (review T3 finding 9)", () => {
+  const key = (over: Partial<Parameters<typeof escapeAction>[0]> = {}) => ({ key: "Escape", repeat: false, isComposing: false, defaultPrevented: false, inSelect: false, ...over });
+  it("does what the visible secondary button does", () => {
+    expect(escapeAction(key(), true)).toBe("secondary");
+  });
+  it("does nothing without a secondary button (closing would end the guide)", () => {
+    expect(escapeAction(key(), false)).toBeNull();
+  });
+  it("ignores other keys, a held key, composition, a handled key and an open list", () => {
+    for (const over of [{ key: "Enter" }, { repeat: true }, { isComposing: true }, { defaultPrevented: true }, { inSelect: true }]) {
+      expect(escapeAction(key(over), true)).toBeNull();
+    }
   });
 });
 

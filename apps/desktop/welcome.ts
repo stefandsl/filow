@@ -1,7 +1,7 @@
 import { mountIcons } from "../web/components/icons";
 import { t, LANG_LABELS, acceptUiSnapshot, themeFollowing, resolveUiLanguage, type I18nKey, type UiBridge, type UiPatch, type UiSnapshot, type UiResult } from "../../packages/core/src/index";
 import { applyUiPreferences } from "../web/lib/applyUiPreferences";
-import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, type MicState, type StepId } from "./welcome-flow";
+import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, escapeAction, type MicState, type StepId } from "./welcome-flow";
 import "./welcome.css";
 
 /** The speech-setup offer from the main process (apps/desktop/welcome-setup.js setupOffer). */
@@ -263,6 +263,13 @@ form.addEventListener("keydown", event => {
   event.preventDefault();
   if (event.repeat || start.disabled || steps[index] === "setup") return;
   primaryAction();
+});
+document.addEventListener("keydown", event => {
+  const el = event.target as HTMLElement | null;
+  const action = escapeAction({ key: event.key, repeat: event.repeat, isComposing: event.isComposing, defaultPrevented: event.defaultPrevented, inSelect: !!el?.closest?.("select") }, !secondary.hidden && !secondary.disabled && !busy);
+  if (action !== "secondary") return;
+  event.preventDefault();
+  secondary.click();
 });
 back.addEventListener("click", () => go(index - 1));
 secondary.addEventListener("click", () => void finish(false));
