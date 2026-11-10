@@ -19,17 +19,17 @@ const core = () => ({ ...require("./vendor/profile"), ...require("./vendor/hardw
 
 /** Catalogue mirrored from apps/web/lib/localModels.ts (sizes in GB) for the first-start recommendation. */
 const CATALOG = {
-  "nemotron-streaming": { dl: 0.45, ram: 3, ollama: false, label: "Nemotron streaming speech-to-text" },
-  "whisper-base": { dl: 0.15, ram: 2, ollama: false, label: "Whisper base" },
-  "whisper-small": { dl: 0.5, ram: 4, ollama: false, label: "Whisper small" },
-  "clef-flash": { dl: 11, ram: 16, ollama: true, label: "Clef Flash (local decisions)" },
-  clef: { dl: 17, ram: 32, ollama: true, label: "Clef 27B (local decisions)" },
-  "gemma4:e2b": { dl: 6, ram: 8, ollama: true, label: "Gemma 4 E2B (script from slides)" },
-  "gemma4:e4b": { dl: 9, ram: 16, ollama: true, label: "Gemma 4 E4B (script from slides)" },
-  "qwen3-vl:8b": { dl: 6.1, ram: 16, ollama: true, label: "Qwen3-VL 8B (OK Filow screen helper)" },
-  "qwen3-vl:4b": { dl: 3.3, ram: 8, ollama: true, label: "Qwen3-VL 4B (OK Filow screen helper)" },
-  "qwen3-vl:2b": { dl: 1.9, ram: 6, ollama: true, label: "Qwen3-VL 2B (OK Filow screen helper)" },
-  "lfm3-vl": { dl: 1.5, ram: 4, ollama: true, label: "LFM3-VL (OK Filow screen helper, small)" },
+  "nemotron-streaming": { dl: 0.45, ram: 3, ollama: false, label: "Speech model (live, on this computer)" },
+  "whisper-base": { dl: 0.15, ram: 2, ollama: false, label: "Speech model for the browser (small)" },
+  "whisper-small": { dl: 0.5, ram: 4, ollama: false, label: "Speech model for the browser" },
+  "clef-flash": { dl: 11, ram: 16, ollama: true, label: "Point-checking AI (large)" },
+  clef: { dl: 17, ram: 32, ollama: true, label: "Point-checking AI (largest)" },
+  "gemma4:e2b": { dl: 6, ram: 8, ollama: true, label: "Script writer for slides (small)" },
+  "gemma4:e4b": { dl: 9, ram: 16, ollama: true, label: "Script writer for slides" },
+  "qwen3-vl:8b": { dl: 6.1, ram: 16, ollama: true, label: "OK Filow screen helper (large)" },
+  "qwen3-vl:4b": { dl: 3.3, ram: 8, ollama: true, label: "OK Filow screen helper (medium)" },
+  "qwen3-vl:2b": { dl: 1.9, ram: 6, ollama: true, label: "OK Filow screen helper" },
+  "lfm3-vl": { dl: 1.5, ram: 4, ollama: true, label: "OK Filow screen helper (small)" },
 };
 
 /** Runs a probe as a child process: resolves its output, or "" on failure. The main process never waits on it. */
@@ -93,10 +93,11 @@ function profileOf(hw) {
 /**
  * What this machine can run comfortably: exactly its setup profile's downloads (setupChoices), the
  * Whisper model of that profile for the browser, plus the slide model the RAM allows (script from
- * slides). Keeps 3 GB of disk headroom; drops the biggest Ollama model first.
+ * slides). The profile's own models already fit (the core picks a lighter setup, or no screen
+ * helper, when they would not); only the slide model is dropped for disk space, keeping 4 GB free.
  */
 function recommend(hw) {
-  const { recommendProfile, setupChoices } = core();
+  const { recommendProfile, setupChoices, DOWNLOAD_SPARE_GB } = core();
   const machine = machineOf(hw);
   const profile = recommendProfile(machine).profile;
   const choices = setupChoices(profile, machine);
@@ -111,16 +112,11 @@ function recommend(hw) {
   else if (hw.ramGb >= 8) models.push("gemma4:e2b");
   const total = (list) => list.reduce((s, n) => s + (CATALOG[n]?.dl || 0), 0);
   if (hw.freeGb >= 0) {
-    // Drop order: big slide model (its small sibling steps in), small slide model, then Clef:
-    // decisions are the core feature, so they go last. Keep 3 GB spare after the downloads.
-    const spare = 3 + 1; // + ~1 GB for Ollama itself
-    for (const drop of ["gemma4:e4b", "gemma4:e2b", "qwen3-vl:8b", "qwen3-vl:4b", "qwen3-vl:2b", "lfm3-vl", "clef", "clef-flash"]) {
-      if (total(models) + spare <= hw.freeGb) break;
-      if (!models.includes(drop)) continue;
-      models = models.filter((n) => n !== drop);
-      if (drop === "gemma4:e4b" && !models.includes("gemma4:e2b")) models.splice(1, 0, "gemma4:e2b");
-      if (drop === "qwen3-vl:8b" && !models.includes("qwen3-vl:4b")) models.push("qwen3-vl:4b");
-    }
+    // the big slide model gives way to its small sibling, then to nothing (DOWNLOAD_SPARE_GB left free)
+    const ollamaTotal = (list) => list.reduce((s, n) => s + (CATALOG[n]?.ollama ? CATALOG[n].dl : 0), 0);
+    const fits = (list) => ollamaTotal(list) + DOWNLOAD_SPARE_GB <= hw.freeGb;
+    if (models.includes("gemma4:e4b") && !fits(models)) models = models.map((n) => (n === "gemma4:e4b" ? "gemma4:e2b" : n));
+    if (models.includes("gemma4:e2b") && !fits(models)) models = models.filter((n) => n !== "gemma4:e2b");
   }
   return { profile, models, ollama: models.some((n) => CATALOG[n]?.ollama), downloadGb: Math.round(total(models) * 10) / 10, labels: models.map((n) => CATALOG[n]?.label || n) };
 }

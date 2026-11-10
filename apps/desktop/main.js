@@ -304,7 +304,7 @@ const welcomeSetup = { shown: false, choice: null, offer: null };
 async function welcomeSetupOffer() {
   if (welcomeSetup.offer) return welcomeSetup.offer;
   const info = await localAiInfo();
-  const ollama =(process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
+  const ollama = (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
   const installed = await probeSetup({
     fetchJson: () => fetch(`${ollama}/api/tags`, { signal: AbortSignal.timeout(1500) }).then((r) => (r.ok ? r.json() : null)),
     sherpaReady: () => sttLocal.modelReady(userData),

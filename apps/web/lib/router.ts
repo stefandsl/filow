@@ -95,7 +95,8 @@ export function buildPlan(inp: PlanInput): Plan {
   ].find((g) => inp.ollamaOk && has(inp, g.tag) && (fitsGpu(inp, g.gpu) || fitsRam(inp, g.ram)));
   let generate: Plan["generate"];
   if (gen) generate = { provider: "ollama", model: gen.tag, reason: fitsGpu(inp, gen.gpu) ? "local-on-gpu" : "local-in-ram" };
-  else if (cloudOk) generate = { provider: "openrouter", model: null, reason: "cloud-only" };
+  // a setup for this computer never moves slide generation to the cloud ("apply" would set it for the run)
+  else if (cloudOk && !inp.setup) generate = { provider: "openrouter", model: null, reason: "cloud-only" };
   else generate = { provider: "none", model: null, reason: "none" };
 
   const vision: Plan["vision"] = cloudOk ? { provider: "openrouter", reason: "cloud-only" } : { provider: "none", reason: "none" };

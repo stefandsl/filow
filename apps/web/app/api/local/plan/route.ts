@@ -72,7 +72,7 @@ export async function POST(req: Request) {
     if (cloud !== undefined) probes.openrouterMs = cloud;
   }
   // The setup profile; "probe" (the Measure button) keeps the older measured routing.
-  const setup = body.probe ? null : resolveSetup(isSetupPreference(body.setup) ? body.setup : "auto", machineInfo(gpu));
+  const setup = body.probe ? null : resolveSetup(isSetupPreference(body.setup) ? body.setup : "auto", machineInfo(gpu, ollamaOk ? installed : undefined));
   const plan: Plan = buildPlan({
     setup: setup?.choices ?? null,
     installed,

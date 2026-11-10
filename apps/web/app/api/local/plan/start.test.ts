@@ -9,7 +9,7 @@ const request = (body: unknown) => new Request("http://unit.invalid/api/local/pl
 let outbound: string[];
 
 beforeEach(() => {
-  for (const [k, v] of Object.entries({ ACCESS_PASSWORD: "", FILOW_OFFLINE: "", OLLAMA_URL: "http://127.0.0.1:11434", OPENROUTER_API_KEY: "fake", ELEVENLABS_API_KEY: "fake", OPENAI_API_KEY: "fake" })) vi.stubEnv(k, v);
+  for (const [k, v] of Object.entries({ ACCESS_PASSWORD: "", FILOW_OFFLINE: "", OLLAMA_URL: "http://127.0.0.1:11434", OPENROUTER_API_KEY: "fake", ELEVENLABS_API_KEY: "fake", OPENAI_API_KEY: "fake", GENERATE_PROVIDER: "", GENERATE_LOCAL_MODEL: "" })) vi.stubEnv(k, v);
   outbound = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
     outbound.push(String(url));
@@ -23,11 +23,14 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("the plan a take starts with", () => {
-  it("Start (probe false): no call leaves this PC, decisions and speech stay local", async () => {
-    const p = (await (await plan(request({ probe: false, apply: true, sherpaReady: true, webSpeech: true }))).json()) as { decision: { provider: string }; stt: { backend: string } };
+  it("Start (probe false): no call leaves this PC, decisions, speech and slide generation stay local", async () => {
+    const p = (await (await plan(request({ probe: false, apply: true, sherpaReady: true, webSpeech: true }))).json()) as { decision: { provider: string }; stt: { backend: string }; generate: { provider: string } };
     expect(outbound.filter((u) => !u.startsWith("http://127.0.0.1:11434/"))).toEqual([]);
     expect(p.decision.provider).toBe("matcher");
     expect(p.stt.backend).toBe("sherpa");
+    // "apply" must not switch the server's slide generation to the cloud under a local setup
+    expect(p.generate.provider).toBe("none");
+    expect(process.env.GENERATE_PROVIDER).not.toBe("openrouter");
   });
 
   it("Start with no speech model on this PC: nothing local to listen with, and still no cloud engine", async () => {

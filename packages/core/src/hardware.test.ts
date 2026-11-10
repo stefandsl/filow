@@ -30,6 +30,10 @@ describe("graphics card detection (shared by the desktop app and the server)", (
     expect(parseNvidiaSmi("")).toBeNull();
     expect(parseNvidiaSmi("NVIDIA RTX A6000, 49140\r\nNVIDIA RTX A6000, 49140")).toEqual({ name: "NVIDIA RTX A6000", vramGb: 48 });
     expect(parseNvidiaSmi("garbage")).toBeNull();
+    // several NVIDIA cards: the one with the most memory
+    expect(parseNvidiaSmi("NVIDIA GeForce GTX 1650, 4096\nNVIDIA GeForce RTX 3060, 12288\n")).toEqual({ name: "NVIDIA GeForce RTX 3060", vramGb: 12 });
+    expect(classifyAdapter("AMD Radeon VII", null, "lspci")).toMatchObject({ kind: "discrete", ollama: true });
+    expect(classifyAdapter("AMD Radeon RX 7600M XT", 8)).toMatchObject({ kind: "discrete", ollama: false });
     expect(parseWinAdapters("not json")).toEqual([]);
     expect(parseWinAdapters(JSON.stringify({ name: "X", bytes: 0 }))).toEqual([{ name: "X", memGb: null }]);
     expect(classifyAdapter("", 8)).toMatchObject({ kind: "none" });

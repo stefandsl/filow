@@ -59,18 +59,22 @@ describe("first-start recommendation follows the setup profiles", () => {
   });
 
   // Review T2 finding 2: the screen helper downloaded must be the one OK Filow calls (setupChoices)
-  it("downloads exactly the profile's models (no other screen helper), plus Whisper and the slide model", () => {
+  it("downloads exactly the profile's models (no other screen helper), plus Whisper and the slide model, at every free disk size", () => {
     for (const ramGb of RAM)
       for (const cores of CORES)
-        for (const gpu of GPUS) {
-          const hw = hwOf(ramGb, cores, gpu, 500);
-          const machine = machineOf(ramGb, cores, gpu, 500);
+        for (const gpu of GPUS)
+          for (const free of [-1, 3, 5, 6, 15, 16, 17, 20, 500]) {
+          const hw = hwOf(ramGb, cores, gpu, free);
+          const machine = machineOf(ramGb, cores, gpu, free);
           const rec = recommend(hw);
           const c = setupChoices(recommendProfile(machine).profile, machine);
           const want = c.models.filter((m) => m.runtime !== "browser").map((m) => m.name);
           const got = rec.models.filter((m) => !m.startsWith("whisper-") && !m.startsWith("gemma4:"));
           expect(got.sort(), JSON.stringify(hw)).toEqual(want.sort());
           if (c.screenHelper.model) expect(rec.models).toContain(c.screenHelper.model);
+          // and what it downloads fits, with 4 GB left free (nothing is installed on these machines)
+          const ollamaGb = rec.models.reduce((s, m) => s + ((CATALOG[m] as { ollama: boolean; dl: number }).ollama ? (CATALOG[m] as { dl: number }).dl : 0), 0);
+          if (free >= 0 && ollamaGb > 0) expect(ollamaGb + 4, JSON.stringify(hw)).toBeLessThanOrEqual(free);
           for (const m of rec.models) expect(CATALOG, m).toHaveProperty([m]);
         }
   });

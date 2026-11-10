@@ -26,6 +26,8 @@ export type LocalHelper = { model: string; pictures: boolean };
 
 export const NO_LOCAL_HELPER =
   'This computer has too little memory for OK Filow to answer on this PC. To get answers from online instead, choose Cloud under "Answers from" in the OK Filow panel.';
+export const NO_LOCAL_HELPER_DISK =
+  'There is not enough free disk space for OK Filow to answer on this PC (it needs about 6 GB free). Free some space, or choose Cloud under "Answers from" in the OK Filow panel to get answers from online.';
 
 /** Drawings and 3D models: the 2B loops and writes broken JSON (measured), so a bigger picture model the user installed draws. */
 export const BUDDY_DRAW_MODELS = ["qwen3-vl:8b", "qwen3-vl:4b", "gemma4:e4b"];
@@ -40,7 +42,7 @@ export const wantsVisual = (q: string) => /\b(draw|drawing|sketch|diagram|illust
 export function localHelper(setup: Pick<ResolvedSetup, "active" | "choices">, installed: string[], question: string, configured = process.env.BUDDY_LOCAL_MODEL): LocalHelper {
   if (configured) return { model: configured, pictures: true };
   const h = setup.choices.screenHelper;
-  if (h.mode === "none" || !h.model) throw new Error(NO_LOCAL_HELPER);
+  if (h.mode === "none" || !h.model) throw new Error(h.lacking === "disk" ? NO_LOCAL_HELPER_DISK : NO_LOCAL_HELPER);
   if (h.mode === "picture" && setup.active === "advanced" && wantsVisual(question)) {
     const names = new Set(installed.flatMap((n) => [n, n.replace(/:latest$/, "")]));
     const big = BUDDY_DRAW_MODELS.find((m) => names.has(m));
@@ -60,15 +62,14 @@ async function installedModels(): Promise<string[]> {
 }
 
 /** The setup for this computer under the user's preference: the rule Settings and the downloads use. */
-export async function serverSetup(preference?: unknown): Promise<ResolvedSetup> {
-  return resolveSetup(isSetupPreference(preference) ? preference : "auto", machineInfo(await gpuInfo()));
+export async function serverSetup(preference?: unknown, installed?: string[]): Promise<ResolvedSetup> {
+  return resolveSetup(isSetupPreference(preference) ? preference : "auto", machineInfo(await gpuInfo(), installed));
 }
 
-/** The local helper for a question under the user's setup preference (throws NO_LOCAL_HELPER when none fits). */
+/** The local helper for a question under the user's setup preference (throws when none fits, saying why). */
 export async function resolveLocalHelper(preference: unknown, question: string): Promise<LocalHelper> {
-  if (process.env.BUDDY_LOCAL_MODEL) return localHelper(await serverSetup(preference), [], question);
-  const [setup, installed] = await Promise.all([serverSetup(preference), wantsVisual(question) ? installedModels() : Promise.resolve([])]);
-  return localHelper(setup, installed, question);
+  const installed = process.env.BUDDY_LOCAL_MODEL ? [] : await installedModels();
+  return localHelper(await serverSetup(preference, installed), installed, question);
 }
 
 /** Loads the setup's screen helper and keeps it loaded for 30 minutes (empty prompt: Ollama only loads). */

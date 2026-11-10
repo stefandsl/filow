@@ -21,6 +21,11 @@ export type MachineInfo = {
   gpu: { kind: "discrete" | "integrated" | "unified" | "none"; vramGb: number | null; ollama?: boolean };
   /** free disk where models are stored, GB; null or absent = unknown */
   freeDiskGb?: number | null;
+  /**
+   * Ollama tags already installed, when known: what is already downloaded needs no free space, so
+   * the setup does not change by itself once its own downloads have filled the disk.
+   */
+  installed?: string[];
 };
 
 /** Why the machine got its profile, shown to the user in plain words. */
@@ -51,6 +56,8 @@ export type SetupChoices = {
      * answers waited 60 to 300 s behind it on the P3 run. The copy says so (owner decision D26 open).
      */
     waitsForDecisions: boolean;
+    /** "none" only: what is missing for a local answer model, too little memory or too little free disk */
+    lacking?: "memory" | "disk";
   };
   /** everything this setup downloads once */
   models: SetupModel[];
@@ -72,8 +79,34 @@ export type ResolvedSetup = {
 
 const RANK: Record<SetupProfileId, number> = { lite: 0, standard: 1, advanced: 2 };
 
-/** Clef Flash (11 GB) plus the screen helper and Ollama itself, with 3 GB to spare. */
-const ADVANCED_DISK_GB = 16;
+/** Left free after the setup's downloads: 3 GB to spare and about 1 GB for Ollama itself. */
+export const DOWNLOAD_SPARE_GB = 4;
+
+const SHERPA: SetupModel = { name: "nemotron-streaming", downloadGb: 0.45, runtime: "sherpa", use: "take" };
+const MATCHER: SetupModel = { name: "paraphrase-multilingual-MiniLM-L12-v2", downloadGb: 0.12, runtime: "browser", use: "take" };
+const LFM: SetupModel = { name: "lfm3-vl", downloadGb: 1.5, runtime: "ollama", use: "screen" };
+const CLEF_FLASH: SetupModel = { name: "clef-flash", downloadGb: 11, runtime: "ollama", use: "take" };
+const QWEN_2B: SetupModel = { name: "qwen3-vl:2b", downloadGb: 1.9, runtime: "ollama", use: "screen" };
+
+/** "lfm3-vl" is any tag of it ("lfm3-vl:latest"); "qwen3-vl:2b" is that tag only. */
+const isInstalled = (name: string, ollama: string[] = []) => ollama.some((i) => i === name || (!name.includes(":") && i.split(":")[0] === name));
+
+/**
+ * Free disk (GB) the Ollama models of a list still need, with DOWNLOAD_SPARE_GB left over; 0 when
+ * they are all installed. What is already downloaded needs no room, so a setup does not flip to a
+ * lighter one after its own downloads filled the disk.
+ */
+export function diskNeededGb(models: SetupModel[], installed?: string[]): number {
+  const missing = models.filter((x) => x.runtime === "ollama" && !isInstalled(x.name, installed)).reduce((s, x) => s + x.downloadGb, 0);
+  return missing > 0 ? Math.round((missing + DOWNLOAD_SPARE_GB) * 10) / 10 : 0;
+}
+
+const roomFor = (m: MachineInfo, models: SetupModel[]) => m.freeDiskGb === null || m.freeDiskGb === undefined || m.freeDiskGb >= diskNeededGb(models, m.installed);
+
+/** Free disk Best quality needs on this machine (its downloads still missing plus the spare), GB. */
+export function advancedDiskNeedGb(m: Pick<MachineInfo, "installed">): number {
+  return Math.ceil(diskNeededGb([CLEF_FLASH, QWEN_2B], m.installed));
+}
 
 /**
  * Video memory Best quality is offered from. 8 GB holds Clef Flash for decisions (p50 0.9 s, p95
@@ -102,7 +135,8 @@ export function recommendProfile(m: MachineInfo): { profile: SetupProfileId; rea
   const vram = m.gpu.vramGb ?? 0;
   const usable = usableGpu(m);
   const bigGpu = (usable && m.gpu.kind === "discrete" && vram >= ADVANCED_MIN_VRAM_GB && m.ramGb >= 16) || (m.gpu.kind === "unified" && m.ramGb >= 32);
-  const diskOk = m.freeDiskGb === null || m.freeDiskGb === undefined || m.freeDiskGb >= ADVANCED_DISK_GB;
+  // Clef Flash and its screen helper must fit (whatever of them is not downloaded yet), with room to spare
+  const diskOk = roomFor(m, [CLEF_FLASH, QWEN_2B]);
   if (bigGpu && diskOk) return { profile: "advanced", reason: m.gpu.kind === "unified" ? "unified" : "gpu" };
   // a big GPU without the disk space for Clef Flash still runs the standard setup well
   if (bigGpu) return { profile: "standard", reason: "low-disk" };
@@ -122,10 +156,8 @@ export function sttThreads(cores: number): number {
 
 /** The concrete choices of a profile on a machine. */
 export function setupChoices(profile: SetupProfileId, m: MachineInfo): SetupChoices {
-  const sherpa: SetupModel = { name: "nemotron-streaming", downloadGb: 0.45, runtime: "sherpa", use: "take" };
-  const matcherModel: SetupModel = { name: "paraphrase-multilingual-MiniLM-L12-v2", downloadGb: 0.12, runtime: "browser", use: "take" };
-  const lfm: SetupModel = { name: "lfm3-vl", downloadGb: 1.5, runtime: "ollama", use: "screen" };
   if (profile === "advanced") {
+    const shared = m.gpu.kind === "discrete" && (m.gpu.vramGb ?? 0) < SHARED_GPU_FREE_GB;
     return {
       profile,
       stt: { backend: "sherpa", threads: sttThreads(m.cores), browserWhisper: "onnx-community/whisper-small" },
@@ -134,11 +166,14 @@ export function setupChoices(profile: SetupProfileId, m: MachineInfo): SetupChoi
       gate: { on: true, narrow: false },
       // qwen3-vl:2b on the GPU: first word 0.5 s, whole answer 0.7 s with a new screenshot each time
       // (on a card under 12 GB it waits while Clef is loaded: waitsForDecisions)
-      screenHelper: { mode: "picture", model: "qwen3-vl:2b", waitsForDecisions: m.gpu.kind === "discrete" && (m.gpu.vramGb ?? 0) < SHARED_GPU_FREE_GB },
-      models: [sherpa, matcherModel, { name: "clef-flash", downloadGb: 11, runtime: "ollama", use: "take" }, { name: "qwen3-vl:2b", downloadGb: 1.9, runtime: "ollama", use: "screen" }],
-      budget: { decisionP95Ms: 2500, sttRtf: 0.25, screenAnswerS: m.gpu.kind === "discrete" && (m.gpu.vramGb ?? 0) < SHARED_GPU_FREE_GB ? 300 : 1 },
+      screenHelper: { mode: "picture", model: QWEN_2B.name, waitsForDecisions: shared },
+      models: [SHERPA, MATCHER, CLEF_FLASH, QWEN_2B],
+      budget: { decisionP95Ms: 2500, sttRtf: 0.25, screenAnswerS: shared ? 300 : 1 },
     };
   }
+  // The small screen helper needs its download to fit; without the room OK Filow has no local
+  // answers here and says why (never a download that cannot finish, never a silent switch to cloud).
+  const room = roomFor(m, [LFM]);
   if (profile === "standard") {
     return {
       profile,
@@ -147,22 +182,23 @@ export function setupChoices(profile: SetupProfileId, m: MachineInfo): SetupChoi
       gate: { on: true, narrow: true },
       // lfm3-vl reads the screenshot: 0.3 s on a GPU, 6 s on this PC's CPU alone (about 10 to 12 s
       // estimated on a typical 16 GB laptop); the fastest picture model measured
-      screenHelper: { mode: "picture", model: "lfm3-vl", waitsForDecisions: false },
-      models: [sherpa, matcherModel, lfm],
-      budget: { decisionP95Ms: 100, sttRtf: 0.5, screenAnswerS: 12 },
+      screenHelper: room ? { mode: "picture", model: LFM.name, waitsForDecisions: false } : { mode: "none", model: null, waitsForDecisions: false, lacking: "disk" },
+      models: room ? [SHERPA, MATCHER, LFM] : [SHERPA, MATCHER],
+      budget: { decisionP95Ms: 100, sttRtf: 0.5, screenAnswerS: room ? 12 : null },
     };
   }
   // lite: pictures take 5 s to the first word on this PC's CPU alone, an estimated 15 to 20 s on an
   // old laptop; the same model answering from text takes 1.7 s here (5 to 7 s estimated there).
   // Under 6 GB of RAM no answer model fits next to the app and the speech model.
-  const textModel = m.ramGb >= 6;
+  const memory = m.ramGb >= 6;
+  const textModel = memory && room;
   return {
     profile,
     stt: { backend: "sherpa", threads: sttThreads(m.cores), browserWhisper: "onnx-community/whisper-base" },
     decision: { provider: "matcher", model: null },
     gate: { on: true, narrow: true },
-    screenHelper: textModel ? { mode: "text", model: "lfm3-vl", waitsForDecisions: false } : { mode: "none", model: null, waitsForDecisions: false },
-    models: textModel ? [sherpa, matcherModel, lfm] : [sherpa, matcherModel],
+    screenHelper: textModel ? { mode: "text", model: LFM.name, waitsForDecisions: false } : { mode: "none", model: null, waitsForDecisions: false, lacking: memory ? "disk" : "memory" },
+    models: textModel ? [SHERPA, MATCHER, LFM] : [SHERPA, MATCHER],
     budget: { decisionP95Ms: 250, sttRtf: 0.85, screenAnswerS: textModel ? 7 : null },
   };
 }
@@ -183,7 +219,5 @@ export function resolveSetup(preference: SetupPreference, m: MachineInfo): Resol
  * model loads inside the page on first use and is never listed here.
  */
 export function missingModels(choices: SetupChoices, installed: { ollama: string[]; sherpa: boolean }): SetupModel[] {
-  // "lfm3-vl" is any tag of it ("lfm3-vl:latest"); "qwen3-vl:2b" is that tag only
-  const has = (n: string) => installed.ollama.some((i) => i === n || (!n.includes(":") && i.split(":")[0] === n));
-  return choices.models.filter((mm) => (mm.runtime === "ollama" ? !has(mm.name) : mm.runtime === "sherpa" ? !installed.sherpa : false));
+  return choices.models.filter((mm) => (mm.runtime === "ollama" ? !isInstalled(mm.name, installed.ollama) : mm.runtime === "sherpa" ? !installed.sherpa : false));
 }

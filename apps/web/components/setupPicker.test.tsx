@@ -47,6 +47,13 @@ describe("SetupPicker", () => {
     expect(plain(render(rtx16, "auto", { ollama: ["clef-flash:latest", "qwen3-vl:2b"], sherpa: true }))).toContain(t("setup.ready", "en"));
   });
 
+  it("too little free disk: says how much Best quality needs, and that OK Filow's answers do not fit", () => {
+    const html = plain(render({ ...rtx16, freeDiskGb: 5 }));
+    expect(html).toContain(t("setup.why.low-disk", "en", { disk: 5, need: 17 }));
+    expect(html).toContain(t("setup.screen.noDisk", "en"));
+    expect(plain(render({ ...rtx16, freeDiskGb: 50 }))).not.toContain(t("setup.screen.noDisk", "en"));
+  });
+
   it("an old laptop under 6 GB is told OK Filow has no local answers here", () => {
     expect(plain(render({ ...oldLaptop, ramGb: 4, cores: 2 }))).toContain(t("setup.lite.descNone", "en"));
   });

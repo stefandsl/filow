@@ -1,11 +1,16 @@
+import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { recommendProfile } from "@filow/core";
 import { fixtureRunner, GPU_FIXTURES } from "../../../packages/core/src/hardware.fixtures";
 import { detectedGpu, freeDiskGb, machineInfo, resetGpuDetection, type GpuInfo } from "./sysinfo";
 
-afterEach(() => resetGpuDetection());
+afterEach(() => {
+  resetGpuDetection();
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
 
 // Review T2 finding 4: the server detects the card with the same code and the same fixtures as the
 // desktop app (apps/desktop/localai-profile.test.ts), so both pick the same setup profile.
@@ -38,19 +43,18 @@ describe("server graphics card detection", () => {
 
 // Review T2 finding 7: free disk where the models go, not the home folder
 describe("free disk for the setup", () => {
-  it("follows OLLAMA_MODELS", () => {
-    const prev = process.env.OLLAMA_MODELS;
-    try {
-      // a folder that does not exist yet, on the drive of the repo: its nearest parent is measured
-      process.env.OLLAMA_MODELS = path.join(process.cwd(), "filow-no-such-dir", "models");
-      expect(freeDiskGb()).toBe(freeDiskGb(process.cwd()));
-      // where the repo and the home folder are on different drives (this test PC: G: and C:), they differ
-      if (path.parse(process.cwd()).root.toLowerCase() !== path.parse(os.homedir()).root.toLowerCase()) expect(freeDiskGb()).not.toBe(freeDiskGb(os.homedir()));
-      process.env.OLLAMA_MODELS = "";
-      expect(freeDiskGb()).toBe(freeDiskGb(os.homedir()));
-    } finally {
-      if (prev === undefined) delete process.env.OLLAMA_MODELS;
-      else process.env.OLLAMA_MODELS = prev;
-    }
+  it("follows OLLAMA_MODELS, measuring its nearest existing folder", () => {
+    // two fake drives: the models drive (only its root exists) and the home folder's drive
+    const models = path.join(path.parse(process.cwd()).root, "filow-models-drive", "ollama", "models");
+    const free: Record<string, number> = { [path.parse(models).root]: 700, [os.homedir()]: 30 };
+    vi.spyOn(fs, "statfsSync").mockImplementation(((p: string) => {
+      if (!(p in free)) throw new Error("ENOENT");
+      return { bavail: free[p], bsize: 1024 ** 3 };
+    }) as unknown as typeof fs.statfsSync);
+    vi.stubEnv("OLLAMA_MODELS", models);
+    expect(freeDiskGb()).toBe(700);
+    vi.stubEnv("OLLAMA_MODELS", "");
+    // no OLLAMA_MODELS: ~/.ollama/models, which does not exist here, so the home folder is measured
+    expect(freeDiskGb()).toBe(30);
   });
 });

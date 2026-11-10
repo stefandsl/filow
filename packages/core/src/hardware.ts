@@ -29,14 +29,17 @@ const gb1 = (bytes: number) => Math.round((bytes / 1024 ** 3) * 10) / 10;
 
 export const NVIDIA_SMI_ARGS = ["--query-gpu=name,memory.total", "--format=csv,noheader,nounits"];
 
-/** First card of `nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits` (MiB). */
+/** The card with the most memory in `nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits` (MiB). */
 export function parseNvidiaSmi(out: string): { name: string; vramGb: number } | null {
-  const line = out.split(/\r?\n/).find((l) => l.trim());
-  if (!line) return null;
-  const parts = line.split(",").map((s) => s.trim());
-  const mib = Number(parts[parts.length - 1]);
-  if (parts.length < 2 || !Number.isFinite(mib) || mib <= 0) return null;
-  return { name: parts.slice(0, -1).join(","), vramGb: Math.round((mib / 1024) * 10) / 10 };
+  let best: { name: string; vramGb: number } | null = null;
+  for (const line of out.split(/\r?\n/).filter((l) => l.trim())) {
+    const parts = line.split(",").map((s) => s.trim());
+    const mib = Number(parts[parts.length - 1]);
+    if (parts.length < 2 || !Number.isFinite(mib) || mib <= 0) continue;
+    const card = { name: parts.slice(0, -1).join(","), vramGb: Math.round((mib / 1024) * 10) / 10 };
+    if (!best || card.vramGb > best.vramGb) best = card;
+  }
+  return best;
 }
 
 /**
@@ -75,9 +78,10 @@ const INTEGRATED = [
   /\bvega \d+ graphics\b/i, // Vega 8 Graphics (APU)
   /\b(adreno|mali|powervr|videocore)\b/i,
 ];
-const DISCRETE = [/\b(nvidia|geforce|quadro|tesla)\b|\b[rg]tx\b/i, /\bradeon\b.*\b(rx|pro)\b|\bfirepro\b/i, /\barc(\(tm\))? [ab]\d{3}\b/i];
+const DISCRETE = [/\b(nvidia|geforce|quadro|tesla)\b|\b[rg]tx\b/i, /\bradeon\b.*\b(rx|pro|vii)\b|\bfirepro\b/i, /\barc(\(tm\))? [ab]\d{3}\b/i];
 // Ollama's GPU support: NVIDIA (CUDA) and these AMD Radeon cards (ROCm); Intel Arc is not on it.
-const OLLAMA_AMD = /\brx\s*(6[89]\d0|7[6-9]\d0|9\d{3})\b|\bradeon pro w(6[89]\d0|7\d{3})\b/i;
+// (laptop Radeons are not on the list and are left out: a lighter setup is the safe error)
+const OLLAMA_AMD = /\brx\s*(6[89]\d0|7[6-9]\d0|9\d{3})\b|\bradeon pro w(6[89]\d0|7\d{3})\b|\bradeon(\(tm\))? vii\b|\brx vega (56|64)\b/i;
 const NVIDIA = /\b(nvidia|geforce|quadro|tesla)\b|\b[rg]tx\b/i;
 
 /** One display adapter by its name and memory (GB, null = unknown). NVIDIA cards come from nvidia-smi. */

@@ -141,11 +141,12 @@ export function freeDiskGb(dir = ollamaModelsDir(process.env, os.homedir(), path
  * The hardware description the setup profiles are chosen from (packages/core/src/profile.ts).
  * RAM is rounded up, so a "16 GB" laptop that reports 15.7 GB counts as 16.
  */
-export function machineInfo(gpu: GpuInfo): MachineInfo {
+export function machineInfo(gpu: GpuInfo, installed?: string[]): MachineInfo {
   return {
     ramGb: Math.ceil(os.totalmem() / 1024 ** 3),
     cores: os.cpus().length,
     gpu: { kind: gpu.kind, vramGb: gpu.vramTotalGb, ollama: gpu.ollama },
     freeDiskGb: freeDiskGb(),
+    installed,
   };
 }
