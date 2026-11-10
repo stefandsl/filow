@@ -1,4 +1,6 @@
+import fs from "node:fs";
 import { createRequire } from "node:module";
+import path from "node:path";
 import { expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
@@ -12,6 +14,15 @@ it("has no eval and no remote script sources", () => {
   expect(script).not.toContain("'unsafe-eval'");
   expect(script).not.toMatch(/https?:|\*/);
   expect(POLICY).toContain("object-src 'none'");
+});
+
+it("lets the microphone worklet load (it comes from a blob: URL and worklets follow script-src)", () => {
+  // Without this every take in the packaged app failed with "Failed to load worklet module script".
+  const mic = fs.readFileSync(path.join(__dirname, "../../packages/stt/src/mic.ts"), "utf8");
+  expect(mic).toMatch(/audioWorklet\.addModule\(url\)/);
+  expect(mic).toMatch(/const url = URL\.createObjectURL\(/);
+  const script = POLICY.split("; ").find((d) => d.startsWith("script-src"))!.split(" ");
+  expect(script).toContain("blob:");
 });
 
 it("sets the policy only on our own pages and replaces any existing one", () => {
