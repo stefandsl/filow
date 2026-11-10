@@ -650,7 +650,7 @@ function createOkFilow(deps) {
         setTimeout(startHook, 2000);
         return;
       }
-      if (!retryingQuietly) logLine(`okfilow: keyboard hook unavailable (${hookError}); falling back to Ctrl+Alt+O toggle (Ctrl+Alt+Space belongs to Claude)`);
+      if (!retryingQuietly) logLine(`okfilow: keyboard hook unavailable (${hookError}); falling back to Ctrl+Alt+O toggle`);
       try {
         if (!globalShortcut.isRegistered("CommandOrControl+Alt+O")) {
           globalShortcut.register("CommandOrControl+Alt+O", () => {

@@ -173,7 +173,7 @@ a row also stop the run.
 3. Ordered implementation steps, each shippable alone: `apps/web/lib/decide/*`,
    `packages/core` (engine, prompts, `api.ts` `DecisionProviderId`), `packages/stt`,
    `apps/web/lib/localModels.ts`, `apps/desktop/localai.js` CATALOG, `installer.nsh` model page,
-   `PROVIDERS` in `api/decide/route.ts`, `PROVIDER_LABELS` in `prefs.ts`, `StartModeDialog`, i18n.
+   `PROVIDERS` in `api/decide/route.ts`, `StartModeDialog`, i18n.
 4. The rejected list: what was refuted or failed the gates, and why, so it is not retried.
 5. The measurements still needed before a final choice.
 6. If no stack passed: the best failing stack per tier with its fix note and the cost to get there.
