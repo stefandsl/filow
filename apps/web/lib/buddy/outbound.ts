@@ -170,8 +170,29 @@ export function keepLocalPatch(kind: OutboundKind): KeepLocalPatch {
   return {};
 }
 
+/**
+ * THE one place that says whether a screen-helper question stays on this PC or goes to the cloud.
+ * Anything that is not an explicit "cloud" on an online PC is local. (When the per-machine setup
+ * decides the screen-helper mode, point this function at that value and nothing else changes.)
+ */
+export function askRoute(status: { provider?: string; offline?: boolean } | null | undefined): "local" | "cloud" {
+  return status?.provider === "cloud" && !status.offline ? "cloud" : "local";
+}
+/** The same decision for the voice that reads the answers. */
+export function voiceRoute(status: { voice?: string; offline?: boolean } | null | undefined): "local" | "cloud" {
+  return status?.voice === "cloud" && !status.offline ? "cloud" : "local";
+}
+
 /** One first-send notice: what would go, to whom (and through which CLI, for agents). */
 export type NoticeRequest = { kind: OutboundKind; recipient: Recipient; cli?: string };
+
+type NoticeTextKey = `notice_${OutboundKind}` | "outVia" | "outAnd";
+/** What the notice says: what goes, and to whom, from the recipient actually in use. */
+export function noticeBody(notice: NoticeRequest, t: (key: NoticeTextKey) => string): string {
+  return t(`notice_${notice.kind}`)
+    .replace("{who}", whoPhrase(notice.recipient, t("outVia"), t("outAnd")))
+    .replace("{cli}", notice.cli ?? "");
+}
 
 /**
  * Notices wait in line: one is shown at a time, and two sends that need the same yes share one

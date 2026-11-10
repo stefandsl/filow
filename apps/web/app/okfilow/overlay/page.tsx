@@ -2,10 +2,14 @@
 // OK Filow overlay: one transparent, click-through window per display. Draws the buddy dot next to
 // the mouse, the waveform while listening, a spinner while thinking, the answer bubble, and flies
 // the dot along a curve to the things the answer points at.
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useLang } from "@filow/ui";
 import { okFilowBridge, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/bridge";
 import { bezierPoint, bubblePlacement } from "@/lib/buddy/motion";
+import { joinNames, type OutboundSnapshot } from "@/lib/buddy/outbound";
 import type { BuddyMark } from "@/lib/buddy/prompt";
+import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
+import { OutboundIcon } from "../outbound-ui";
 import "../okfilow.css";
 
 const OFFSET = { x: 16, y: 20 };
@@ -74,6 +78,11 @@ export default function OkFilowOverlay() {
   // Highlighter: while the talk chord is held the overlay takes the mouse; a drag marks the screen.
   const [ink, setInk] = useState<Array<Array<[number, number]>>>([]);
   const live = useRef<Array<[number, number]> | null>(null);
+  // Going outside: on while anything carrying the user's content is in flight (main decides).
+  const [out, setOut] = useState<OutboundSnapshot>({ active: false, kinds: [], names: [] });
+  const lang = useLang();
+  const t = useCallback((k: OkfKey) => (OKF_TEXT[lang === "it" ? "it" : "en"][k] ?? OKF_TEXT.en[k]), [lang]);
+  const going = out.active && out.names.length > 0;
 
   const pos = useRef({ x: -100, y: -100 });
   const cursor = useRef<{ x: number; y: number } | null>(null);
@@ -100,6 +109,7 @@ export default function OkFilowOverlay() {
         if (s.mode === "speaking" || s.mode === "idle" || s.mode === "error") setInk([]);
       }),
       b.onText(setText),
+      b.outbound?.onChange(setOut) ?? (() => {}),
       b.onLevel(setLevel),
       b.onCursor((p) => { cursor.current = p; }),
       b.onDraw((list) => {
@@ -227,13 +237,21 @@ export default function OkFilowOverlay() {
           ))}
         </svg>
       )}
-      {here && (mode === "listening" || mode === "thinking") && (
-        <div className="okf-notch" role="status">
+      {/* Going outside wins over the other pills, and shows on every display: it must not be missed. */}
+      {going ? (
+        <div className="okf-notch okf-notch--out">
+          <OutboundIcon />
+          <strong>{t("outLabel")}</strong>
+          <span>{t("outSending").replace("{names}", joinNames(out.names, t("outAnd")))}</span>
+        </div>
+      ) : here && (mode === "listening" || mode === "thinking") && (
+        <div className="okf-notch">
           <span className={"okf-notch-dot okf-notch-dot--" + mode} />
-          {mode === "thinking" ? "OK Filow is looking" : purpose === "dictate" ? "Dictating" : purpose === "handsfree" ? "Hands-free, listening" : "Listening"}
+          {t(mode === "thinking" ? "notchLooking" : purpose === "dictate" ? "notchDictating" : purpose === "handsfree" ? "notchHandsFree" : "notchListening")}
         </div>
       )}
-      <div ref={dot} className={`okf-buddy okf-buddy--${mode}${here ? "" : " okf-hidden"}`}>
+      <div ref={dot} className={`okf-buddy okf-buddy--${mode}${going ? " okf-buddy--out" : ""}${here ? "" : " okf-hidden"}`}>
+        {going && <span className="okf-out-rings"><i /><i /><i /></span>}
         <svg className="okf-arrow" viewBox="0 0 24 24" width="22" height="22"><path d="M3 2l17 8-7.5 2.2L10.4 20z" /></svg>
         {label && <span className={"okf-label" + flip}>{label}</span>}
       </div>

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   askRecipient,
+  askRoute,
   CONSENT_HEADER,
   consentDenied,
   consentKey,
@@ -9,17 +10,22 @@ import {
   gateOutbound,
   isGranted,
   joinNames,
+  keepLocalPatch,
+  noticeBody,
+  OUTBOUND_KINDS,
   photoRecipient,
   standing,
   sttRecipient,
   takeOutbound,
   vendorName,
   voiceRecipient,
+  voiceRoute,
   withoutConsent,
   withConsent,
   type ConsentMap,
 } from "./outbound";
 import { askBuddy, ConsentRequiredError } from "./providers";
+import { OKF_TEXT, type OkfKey } from "./text";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -208,6 +214,60 @@ describe("takeOutbound: what a take sends, from the engines picked", () => {
     expect(takeOutbound({ backend: "sherpa", provider: "openrouter", models })).toEqual([
       { kind: "transcript", recipient: { id: "openrouter/google", names: ["OpenRouter", "Google"] } },
     ]);
+  });
+});
+
+describe("askRoute and voiceRoute: the one local-or-cloud decision", () => {
+  it("only an explicit cloud choice on an online PC is cloud", () => {
+    expect(askRoute({ provider: "cloud" })).toBe("cloud");
+    expect(askRoute({ provider: "cloud", offline: false })).toBe("cloud");
+    expect(voiceRoute({ voice: "cloud" })).toBe("cloud");
+  });
+
+  it("offline mode, a local choice, an unknown value and no status at all are local", () => {
+    expect(askRoute({ provider: "cloud", offline: true })).toBe("local");
+    expect(askRoute({ provider: "local" })).toBe("local");
+    expect(askRoute({ provider: "auto" })).toBe("local");
+    expect(askRoute({})).toBe("local");
+    expect(askRoute(null)).toBe("local");
+    expect(voiceRoute({ voice: "cloud", offline: true })).toBe("local");
+    expect(voiceRoute({ voice: "system" })).toBe("local");
+    expect(voiceRoute(undefined)).toBe("local");
+  });
+
+  it("keeping it on this PC moves the question and the voice to this PC, and nothing else", () => {
+    expect(keepLocalPatch("ask")).toEqual({ provider: "local" });
+    expect(keepLocalPatch("voice")).toEqual({ voice: "system" });
+    expect(keepLocalPatch("photo")).toEqual({});
+    expect(keepLocalPatch("agent")).toEqual({});
+  });
+});
+
+describe("noticeBody: the notice names the recipient actually in use, in both languages", () => {
+  const en = (k: OkfKey) => OKF_TEXT.en[k];
+  const itText = (k: OkfKey) => OKF_TEXT.it[k];
+
+  it("a cloud question names OpenRouter and the maker of the model chosen", () => {
+    expect(noticeBody({ kind: "ask", recipient: askRecipient("google/gemini-2.5-flash") }, en))
+      .toBe("Your question and a screenshot of your screens go to OpenRouter and then to Google, the maker of the model you chose.");
+    expect(noticeBody({ kind: "ask", recipient: askRecipient("anthropic/claude-sonnet-4") }, en)).toContain("then to Anthropic");
+    expect(noticeBody({ kind: "ask", recipient: askRecipient("google/gemini-2.5-flash") }, itText))
+      .toBe("La tua domanda e uno screenshot dei tuoi schermi vanno a OpenRouter e poi a Google, che produce il modello che hai scelto.");
+  });
+
+  it("every kind has a sentence in both languages and none leaves a placeholder behind", () => {
+    for (const kind of OUTBOUND_KINDS) {
+      for (const t of [en, itText]) {
+        const body = noticeBody({ kind, recipient: { id: "elevenlabs", names: ["ElevenLabs"] }, cli: "Codex" }, t);
+        expect(body).toContain("ElevenLabs");
+        expect(body).not.toMatch(/[{}]|undefined/);
+      }
+    }
+  });
+
+  it("an agent notice names the CLI the task goes through", () => {
+    expect(noticeBody({ kind: "agent", recipient: { id: "openai", names: ["OpenAI"] }, cli: "Codex" }, en))
+      .toBe("Your task and the last OK Filow answer go to OpenAI, through Codex on this PC.");
   });
 });
 
