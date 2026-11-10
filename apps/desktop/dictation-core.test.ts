@@ -15,6 +15,7 @@ const core = require("./dictation-core.js") as {
   createClipboardInserter(o: Record<string, unknown>): Inserter;
   postProcess(t: string, o?: { language?: string; removeFillers?: boolean }): string;
   setFillerHook(fn: ((lang: string) => RegExp[]) | null): void;
+  joinAfter(before: string, text: string): string;
 };
 
 describe("dictation shortcut", () => {
@@ -230,5 +231,17 @@ describe("text clean-up", () => {
     core.setFillerHook(() => [/^ciao$/]);
     expect(core.postProcess("ciao um", { language: "it", removeFillers: true })).toBe("um");
     core.setFillerHook(null);
+  });
+});
+
+describe("joining a dictation to the text before the caret", () => {
+  it("adds a space after a word or a full stop, and nowhere else", () => {
+    expect(core.joinAfter("Friday.", "Please")).toBe(" Please");
+    expect(core.joinAfter("word", "next")).toBe(" next");
+    expect(core.joinAfter("", "Start")).toBe("Start");
+    expect(core.joinAfter(" ", "after space")).toBe("after space");
+    expect(core.joinAfter("(", "inside")).toBe("inside");
+    expect(core.joinAfter("word", ", then")).toBe(", then");
+    expect(core.joinAfter("です。", "今日は")).toBe("今日は");
   });
 });

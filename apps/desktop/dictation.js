@@ -92,16 +92,21 @@ function createDictation(deps) {
     } catch { return null; }
   }
 
-  /** A text field (not a password box) has the focus in that window's page. */
+  /**
+   * A text field (not a password box) has the focus in that window's page: null when none does, else the
+   * character just before the caret (so a second dictation is not glued to the first one's full stop).
+   */
   async function editableFocused(win) {
     try {
-      return Boolean(await win.webContents.executeJavaScript(
-        "(() => { const e = document.activeElement; if (!e || e.disabled || e.readOnly) return false;" +
-        " if (e.isContentEditable || e.tagName === 'TEXTAREA') return true;" +
-        " return e.tagName === 'INPUT' && /^(text|search|email|url|tel|)$/i.test(e.type || ''); })()",
+      const r = await win.webContents.executeJavaScript(
+        "(() => { const e = document.activeElement; if (!e || e.disabled || e.readOnly) return null;" +
+        " if (e.isContentEditable) { const s = getSelection(); const n = s && s.anchorNode; return { before: n && n.nodeType === 3 ? n.textContent.slice(Math.max(0, s.anchorOffset - 1), s.anchorOffset) : '' }; }" +
+        " const field = e.tagName === 'TEXTAREA' || (e.tagName === 'INPUT' && /^(text|search|email|url|tel|)$/i.test(e.type || ''));" +
+        " if (!field) return null; const at = e.selectionStart || 0; return { before: e.value.slice(Math.max(0, at - 1), at) }; })()",
         true,
-      ));
-    } catch { return false; }
+      );
+      return r && typeof r === "object" ? { before: String(r.before || "") } : null;
+    } catch { return null; }
   }
 
   let inserter = null;
@@ -120,8 +125,9 @@ function createDictation(deps) {
     const own = ownFocusedWindow();
     if (own) {
       // Only into a text field; with none in focus the words are copied and the user is told so.
-      if (await editableFocused(own)) {
-        await own.webContents.insertText(text);
+      const field = await editableFocused(own);
+      if (field) {
+        await own.webContents.insertText(core.joinAfter(field.before, text));
         logLine(`dictation: typed ${text.length} chars into Filow's own window directly`);
         return { ok: true, action: "direct", reason: "", chars: text.length };
       }

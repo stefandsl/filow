@@ -290,7 +290,20 @@ function postProcess(text, { language = "auto", removeFillers: drop = false } = 
   return t.replace(/^[,;:]\s*/u, "").trim();
 }
 
+const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}。、]/u;
+/**
+ * The text to insert after `before` (the character left of the caret): a space between a word or a full
+ * stop and the new words, none at the start of a field, after a space or bracket, before punctuation, or
+ * in Japanese and Chinese (written without spaces).
+ */
+function joinAfter(before, text) {
+  const b = String(before || "");
+  if (!b || !text || /[\s([{"'«“‘-]$/u.test(b) || /^[\s,.;:!?)\]}…]/u.test(text) || CJK.test(b) || CJK.test(text.charAt(0))) return text;
+  return ` ${text}`;
+}
+
 module.exports = {
+  joinAfter,
   MODS, LANGS, DEFAULTS, CHORDS, parseChord, chordLabel, checkChord, sanitizeConfig, pasteDecision,
   snapshotClipboard, restoreClipboard, clipboardWriter, createClipboardInserter, postProcess, removeFillers, setFillerHook, fold,
 };
