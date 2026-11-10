@@ -1,10 +1,26 @@
+import path from "node:path";
 import { createRequire } from "node:module";
+import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
-import { recommendProfile, setupChoices, type MachineInfo } from "@filow/core";
+import { recommendProfile, setupChoices, type MachineInfo, type ProbeRunner } from "@filow/core";
+import { fixtureRunner, GPU_FIXTURES } from "../../packages/core/src/hardware.fixtures";
+
+// localai.js reads the setup rules and the card detection from vendor/ (packages/core bundled by
+// `npm run build:welcome`); build those two bundles the same way here, so the test runs that code.
+buildSync({
+  entryPoints: ["profile.ts", "hardware.ts"].map((f) => path.resolve(__dirname, "../../packages/core/src", f)),
+  bundle: true,
+  platform: "node",
+  format: "cjs",
+  outdir: path.resolve(__dirname, "vendor"),
+  logLevel: "silent",
+});
 
 const require = createRequire(import.meta.url);
-type Hw = { ramGb: number; cores: number; gpuKind: string; vramGb: number | null; freeGb: number };
-const { profileOf, recommend } = require("./localai.js") as {
+type Hw = { ramGb: number; cores: number; gpuKind: string; vramGb: number | null; gpuOllama?: boolean; freeGb: number };
+const { CATALOG, hardwareScan, profileOf, recommend } = require("./localai.js") as {
+  CATALOG: Record<string, unknown>;
+  hardwareScan: (o?: { refresh?: boolean; run?: ProbeRunner }) => Promise<Hw & { gpu: string }>;
   profileOf: (hw: Hw) => string;
   recommend: (hw: Hw & { gpuClass?: string }) => { profile: string; models: string[] };
 };
@@ -12,17 +28,21 @@ const { profileOf, recommend } = require("./localai.js") as {
 // every combination the rules distinguish, and the values just around each threshold
 const RAM = [4, 6, 8, 11, 12, 15, 16, 32, 64];
 const CORES = [2, 4, 5, 6, 8, 22];
-const GPUS: Array<{ kind: MachineInfo["gpu"]["kind"]; vramGb: number | null }> = [
+const GPUS: Array<{ kind: MachineInfo["gpu"]["kind"]; vramGb: number | null; ollama?: boolean }> = [
   { kind: "none", vramGb: null },
   { kind: "integrated", vramGb: 0.5 },
   { kind: "discrete", vramGb: 3.9 },
   { kind: "discrete", vramGb: 4 },
   { kind: "discrete", vramGb: 7.9 },
   { kind: "discrete", vramGb: 8 },
+  { kind: "discrete", vramGb: 8, ollama: false },
+  { kind: "discrete", vramGb: 12 },
   { kind: "discrete", vramGb: 24 },
   { kind: "unified", vramGb: 16 },
 ];
 const DISK = [-1, 15, 16, 500];
+const machineOf = (ramGb: number, cores: number, gpu: (typeof GPUS)[number], freeGb: number): MachineInfo => ({ ramGb, cores, gpu, freeDiskGb: freeGb < 0 ? null : freeGb });
+const hwOf = (ramGb: number, cores: number, gpu: (typeof GPUS)[number], freeGb: number): Hw => ({ ramGb, cores, gpuKind: gpu.kind, vramGb: gpu.vramGb, gpuOllama: gpu.ollama, freeGb });
 
 describe("first-start recommendation follows the setup profiles", () => {
   it("localai.js picks the same profile as packages/core/src/profile.ts on every machine", () => {
@@ -31,14 +51,31 @@ describe("first-start recommendation follows the setup profiles", () => {
       for (const cores of CORES)
         for (const gpu of GPUS)
           for (const freeGb of DISK) {
-            const core = recommendProfile({ ramGb, cores, gpu, freeDiskGb: freeGb < 0 ? null : freeGb }).profile;
-            expect(profileOf({ ramGb, cores, gpuKind: gpu.kind, vramGb: gpu.vramGb, freeGb }), JSON.stringify({ ramGb, cores, gpu, freeGb })).toBe(core);
+            const core = recommendProfile(machineOf(ramGb, cores, gpu, freeGb)).profile;
+            expect(profileOf(hwOf(ramGb, cores, gpu, freeGb)), JSON.stringify({ ramGb, cores, gpu, freeGb })).toBe(core);
             n++;
           }
     expect(n).toBe(RAM.length * CORES.length * GPUS.length * DISK.length);
   });
 
-  it("recommends the profile's Ollama models, never Clef below Best quality", () => {
+  // Review T2 finding 2: the screen helper downloaded must be the one OK Filow calls (setupChoices)
+  it("downloads exactly the profile's models (no other screen helper), plus Whisper and the slide model", () => {
+    for (const ramGb of RAM)
+      for (const cores of CORES)
+        for (const gpu of GPUS) {
+          const hw = hwOf(ramGb, cores, gpu, 500);
+          const machine = machineOf(ramGb, cores, gpu, 500);
+          const rec = recommend(hw);
+          const c = setupChoices(recommendProfile(machine).profile, machine);
+          const want = c.models.filter((m) => m.runtime !== "browser").map((m) => m.name);
+          const got = rec.models.filter((m) => !m.startsWith("whisper-") && !m.startsWith("gemma4:"));
+          expect(got.sort(), JSON.stringify(hw)).toEqual(want.sort());
+          if (c.screenHelper.model) expect(rec.models).toContain(c.screenHelper.model);
+          for (const m of rec.models) expect(CATALOG, m).toHaveProperty([m]);
+        }
+  });
+
+  it("never Clef below Best quality; nothing for OK Filow under 6 GB", () => {
     const cases: Array<[Hw, string]> = [
       [{ ramGb: 8, cores: 4, gpuKind: "none", vramGb: null, freeGb: 100 }, "lite"],
       [{ ramGb: 16, cores: 8, gpuKind: "integrated", vramGb: null, freeGb: 100 }, "standard"],
@@ -47,10 +84,42 @@ describe("first-start recommendation follows the setup profiles", () => {
     for (const [hw, profile] of cases) {
       const rec = recommend(hw);
       expect(rec.profile).toBe(profile);
-      const machine: MachineInfo = { ramGb: hw.ramGb, cores: hw.cores, gpu: { kind: hw.gpuKind as MachineInfo["gpu"]["kind"], vramGb: hw.vramGb }, freeDiskGb: hw.freeGb };
-      for (const m of setupChoices(rec.profile as "lite", machine).models.filter((x) => x.runtime === "ollama")) expect(rec.models).toContain(m.name);
       expect(rec.models.includes("clef-flash")).toBe(profile === "advanced");
     }
     expect(recommend({ ramGb: 4, cores: 2, gpuKind: "none", vramGb: null, freeGb: 100 }).models).toEqual(["nemotron-streaming", "whisper-base"]);
+    expect(recommend({ ramGb: 6, cores: 2, gpuKind: "none", vramGb: null, freeGb: 100 }).models).toEqual(["nemotron-streaming", "whisper-base", "lfm3-vl"]);
+  });
+});
+
+// Review T2 findings 4 and 6: the desktop scan runs the shared detection, asynchronously
+describe("hardware scan", () => {
+  it("detects every fixture card as the core (and the server) does", async () => {
+    for (const f of GPU_FIXTURES) {
+      const hw = await hardwareScan({ refresh: true, run: fixtureRunner(f) });
+      if (process.platform !== "win32" && f.nvidia === "") continue; // the Windows adapter script only runs on Windows
+      expect({ kind: hw.gpuKind, vramGb: hw.vramGb, ollama: hw.gpuOllama }, f.label).toEqual(f.want);
+    }
+  });
+
+  it("does not block: it returns a promise at once, and one scan serves the session", async () => {
+    let calls = 0;
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const slow: ProbeRunner = async () => {
+      calls++;
+      await gate;
+      return "";
+    };
+    const t0 = Date.now();
+    const a = hardwareScan({ refresh: true, run: slow });
+    const b = hardwareScan();
+    expect(Date.now() - t0).toBeLessThan(50);
+    expect(a).toBe(b);
+    release();
+    await a;
+    expect(calls).toBeGreaterThan(0);
+    const before = calls;
+    await hardwareScan();
+    expect(calls).toBe(before);
   });
 });

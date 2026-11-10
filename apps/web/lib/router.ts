@@ -11,7 +11,8 @@ export type GenerateChoice = "ollama" | "openrouter" | "none";
 export type PlanInput = {
   installed: string[]; // Ollama tags present
   ollamaOk: boolean;
-  gpu: { kind: "discrete" | "integrated" | "unified" | "none"; vramTotalGb: number | null };
+  /** `ollama` false: a card Ollama cannot run models on (core hardware.ts), counted as none */
+  gpu: { kind: "discrete" | "integrated" | "unified" | "none"; vramTotalGb: number | null; ollama?: boolean };
   ramGb: number;
   keys: { openrouter: boolean; elevenlabs: boolean; openai: boolean; cloudflare: boolean };
   offline: boolean;
@@ -39,7 +40,7 @@ export type Plan = {
 };
 
 const has = (inp: PlanInput, tag: string) => inp.installed.some((n) => n === tag || n.startsWith(`${tag}:`));
-const fitsGpu = (inp: PlanInput, gb: number) => (inp.gpu.kind === "discrete" || inp.gpu.kind === "unified") && (inp.gpu.vramTotalGb ?? 0) >= gb;
+const fitsGpu = (inp: PlanInput, gb: number) => (inp.gpu.kind === "discrete" || inp.gpu.kind === "unified") && inp.gpu.ollama !== false && (inp.gpu.vramTotalGb ?? 0) >= gb;
 const fitsRam = (inp: PlanInput, gb: number) => inp.ramGb >= gb;
 
 export function buildPlan(inp: PlanInput): Plan {

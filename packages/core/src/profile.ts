@@ -14,7 +14,11 @@ export type MachineInfo = {
   ramGb: number;
   /** logical processors (os.cpus().length) */
   cores: number;
-  gpu: { kind: "discrete" | "integrated" | "unified" | "none"; vramGb: number | null };
+  /**
+   * `ollama` false: a card Ollama cannot run models on (Intel Arc, most Radeons, see hardware.ts);
+   * it counts as no graphics card for the profiles. Absent = it can (NVIDIA, Apple).
+   */
+  gpu: { kind: "discrete" | "integrated" | "unified" | "none"; vramGb: number | null; ollama?: boolean };
   /** free disk where models are stored, GB; null or absent = unknown */
   freeDiskGb?: number | null;
 };
@@ -39,7 +43,15 @@ export type SetupChoices = {
    * is sent; it answers from the question and the text the user selected (pictures are too slow on
    * this machine). "none": no local answer model fits; the user is told, never switched to cloud.
    */
-  screenHelper: { mode: "picture" | "text" | "none"; model: string | null };
+  screenHelper: {
+    mode: "picture" | "text" | "none";
+    model: string | null;
+    /**
+     * Best quality on a card under 12 GB: Clef Flash stays loaded (5.2 of 8 GB measured) and picture
+     * answers waited 60 to 300 s behind it on the P3 run. The copy says so (owner decision D26 open).
+     */
+    waitsForDecisions: boolean;
+  };
   /** everything this setup downloads once */
   models: SetupModel[];
   /** the budget the setup was picked to meet on its target machine (see BASELINE.md) */
@@ -64,23 +76,38 @@ const RANK: Record<SetupProfileId, number> = { lite: 0, standard: 1, advanced: 2
 const ADVANCED_DISK_GB = 16;
 
 /**
+ * Video memory Best quality is offered from. 8 GB holds Clef Flash for decisions (p50 0.9 s, p95
+ * 1.7 s on an RTX 3070) but not Clef and the screen helper together: picture answers then wait
+ * behind Clef (setupChoices sets waitsForDecisions under SHARED_GPU_FREE_GB). Owner decision D26
+ * asks whether to raise this to 12; until then 8 stays and the description says what happens.
+ */
+export const ADVANCED_MIN_VRAM_GB = 8;
+/** From this much video memory Clef Flash and the screen helper both stay loaded. */
+export const SHARED_GPU_FREE_GB = 12;
+
+/** The graphics card counts for the profiles: Ollama runs models on it (hardware.ts). */
+const usableGpu = (m: MachineInfo) => m.gpu.kind === "unified" || (m.gpu.kind === "discrete" && m.gpu.ollama !== false);
+
+/**
  * The profile for a machine.
- * - advanced: a discrete GPU with 8 GB of video memory and 16 GB of RAM, or Apple unified memory of
- *   32 GB. Clef Flash (9.1B, Q8) split over an 8 GB RTX 3070 answers in p50 0.9 s, p95 1.7 s; on the
- *   CPU alone (Core i9-13900KF) even a 1.7B model takes 6 to 14 s per decision, so Clef needs the GPU.
- * - standard: 12 GB of RAM and 6 logical cores (a typical 16 GB laptop), or any discrete GPU with
- *   4 GB: room for 4 speech threads and for the 1.5 GB picture model next to the app.
+ * - advanced: a discrete GPU Ollama can use with 8 GB of video memory and 16 GB of RAM, or Apple
+ *   unified memory of 32 GB. Clef Flash (9.1B, Q8) split over an 8 GB RTX 3070 answers in p50 0.9 s,
+ *   p95 1.7 s; on the CPU alone (Core i9-13900KF) even a 1.7B model takes 6 to 14 s per decision, so
+ *   Clef needs the GPU. A card Ollama cannot use (Intel Arc, most Radeons) counts as none.
+ * - standard: 12 GB of RAM and 6 logical cores (a typical 16 GB laptop), or a usable discrete GPU
+ *   with 4 GB: room for 4 speech threads and for the 1.5 GB picture model next to the app.
  * - lite: everything else (old laptops, 4 to 8 GB, 2 to 4 cores, no graphics card).
  */
 export function recommendProfile(m: MachineInfo): { profile: SetupProfileId; reason: ProfileReason } {
   const vram = m.gpu.vramGb ?? 0;
-  const bigGpu = (m.gpu.kind === "discrete" && vram >= 8 && m.ramGb >= 16) || (m.gpu.kind === "unified" && m.ramGb >= 32);
+  const usable = usableGpu(m);
+  const bigGpu = (usable && m.gpu.kind === "discrete" && vram >= ADVANCED_MIN_VRAM_GB && m.ramGb >= 16) || (m.gpu.kind === "unified" && m.ramGb >= 32);
   const diskOk = m.freeDiskGb === null || m.freeDiskGb === undefined || m.freeDiskGb >= ADVANCED_DISK_GB;
   if (bigGpu && diskOk) return { profile: "advanced", reason: m.gpu.kind === "unified" ? "unified" : "gpu" };
   // a big GPU without the disk space for Clef Flash still runs the standard setup well
   if (bigGpu) return { profile: "standard", reason: "low-disk" };
   if (m.ramGb >= 12 && m.cores >= 6) return { profile: "standard", reason: "ram-and-cores" };
-  if (m.gpu.kind === "discrete" && vram >= 4 && m.ramGb >= 8) return { profile: "standard", reason: "small-gpu" };
+  if (usable && m.gpu.kind === "discrete" && vram >= 4 && m.ramGb >= 8) return { profile: "standard", reason: "small-gpu" };
   return { profile: "lite", reason: m.ramGb < 12 ? "low-ram" : "few-cores" };
 }
 
@@ -106,9 +133,10 @@ export function setupChoices(profile: SetupProfileId, m: MachineInfo): SetupChoi
       // P1: asking Clef about fewer points changes its answers; the gate only skips calls for it
       gate: { on: true, narrow: false },
       // qwen3-vl:2b on the GPU: first word 0.5 s, whole answer 0.7 s with a new screenshot each time
-      screenHelper: { mode: "picture", model: "qwen3-vl:2b" },
+      // (on a card under 12 GB it waits while Clef is loaded: waitsForDecisions)
+      screenHelper: { mode: "picture", model: "qwen3-vl:2b", waitsForDecisions: m.gpu.kind === "discrete" && (m.gpu.vramGb ?? 0) < SHARED_GPU_FREE_GB },
       models: [sherpa, matcherModel, { name: "clef-flash", downloadGb: 11, runtime: "ollama", use: "take" }, { name: "qwen3-vl:2b", downloadGb: 1.9, runtime: "ollama", use: "screen" }],
-      budget: { decisionP95Ms: 2500, sttRtf: 0.25, screenAnswerS: 1 },
+      budget: { decisionP95Ms: 2500, sttRtf: 0.25, screenAnswerS: m.gpu.kind === "discrete" && (m.gpu.vramGb ?? 0) < SHARED_GPU_FREE_GB ? 300 : 1 },
     };
   }
   if (profile === "standard") {
@@ -119,7 +147,7 @@ export function setupChoices(profile: SetupProfileId, m: MachineInfo): SetupChoi
       gate: { on: true, narrow: true },
       // lfm3-vl reads the screenshot: 0.3 s on a GPU, 6 s on this PC's CPU alone (about 10 to 12 s
       // estimated on a typical 16 GB laptop); the fastest picture model measured
-      screenHelper: { mode: "picture", model: "lfm3-vl" },
+      screenHelper: { mode: "picture", model: "lfm3-vl", waitsForDecisions: false },
       models: [sherpa, matcherModel, lfm],
       budget: { decisionP95Ms: 100, sttRtf: 0.5, screenAnswerS: 12 },
     };
@@ -133,7 +161,7 @@ export function setupChoices(profile: SetupProfileId, m: MachineInfo): SetupChoi
     stt: { backend: "sherpa", threads: sttThreads(m.cores), browserWhisper: "onnx-community/whisper-base" },
     decision: { provider: "matcher", model: null },
     gate: { on: true, narrow: true },
-    screenHelper: textModel ? { mode: "text", model: "lfm3-vl" } : { mode: "none", model: null },
+    screenHelper: textModel ? { mode: "text", model: "lfm3-vl", waitsForDecisions: false } : { mode: "none", model: null, waitsForDecisions: false },
     models: textModel ? [sherpa, matcherModel, lfm] : [sherpa, matcherModel],
     budget: { decisionP95Ms: 250, sttRtf: 0.85, screenAnswerS: textModel ? 7 : null },
   };

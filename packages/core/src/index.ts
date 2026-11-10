@@ -14,3 +14,4 @@ export * from "./evidence";
 export * from "./ui-preferences";
 export * from "./matcher";
 export * from "./profile";
+export * from "./hardware";

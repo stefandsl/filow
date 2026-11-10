@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     setup: setup?.choices ?? null,
     installed,
     ollamaOk,
-    gpu: { kind: gpu.kind, vramTotalGb: gpu.vramTotalGb },
+    gpu: { kind: gpu.kind, vramTotalGb: gpu.vramTotalGb, ollama: gpu.ollama },
     ramGb: Math.ceil(os.totalmem() / 1024 ** 3),
     keys,
     offline,

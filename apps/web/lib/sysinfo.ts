@@ -4,18 +4,21 @@
 import fs from "node:fs";
 import os from "node:os";
 import { execFile } from "node:child_process";
-import type { MachineInfo } from "@filow/core";
+import path from "node:path";
+import { detectGpu, freeGbAt, ollamaModelsDir, type DetectedGpu, type MachineInfo, type ProbeRunner } from "@filow/core";
 
 export type GpuInfo = {
   name: string;
   /** "discrete" has its own VRAM; "integrated"/"unified" share system RAM. */
   kind: "discrete" | "integrated" | "unified" | "none";
   vramTotalGb: number | null;
+  /** Ollama runs models on this card (core hardware.ts); false = it counts as none for the setup. */
+  ollama?: boolean;
   vramUsedGb: number | null;
   /** Memory the GPU borrows from system RAM (Windows "Shared Usage"). */
   sharedUsedGb: number | null;
   utilPct: number | null;
-  source: "nvidia-smi" | "windows-counters" | "apple" | "none";
+  source: DetectedGpu["source"];
 };
 
 export type LoadedModel = { name: string; sizeGb: number; vramGb: number; gpuPct: number; where: "gpu" | "cpu" | "mixed"; expiresAt: string | null };
@@ -54,46 +57,44 @@ export async function cpuPercent(): Promise<number> {
   return dTotal > 0 ? Math.max(0, Math.min(100, Math.round((1 - dIdle / dTotal) * 100))) : 0;
 }
 
-// ---- GPU
+// ---- GPU: which card, detected once per server run with the code the desktop app runs
+// (packages/core/src/hardware.ts), so both give the machine the same setup; then its live usage.
+let detected: Promise<DetectedGpu> | null = null;
 let gpuCache: { at: number; info: GpuInfo } | null = null;
-const NONE: GpuInfo = { name: "", kind: "none", vramTotalGb: null, vramUsedGb: null, sharedUsedGb: null, utilPct: null, source: "none" };
 
-async function nvidiaSmi(): Promise<GpuInfo | null> {
-  const out = await run("nvidia-smi", ["--query-gpu=name,memory.used,memory.total,utilization.gpu", "--format=csv,noheader,nounits"], 3000);
-  const line = out.split(/\r?\n/).find((l) => l.trim());
-  if (!line) return null;
-  const [name, used, total, util] = line.split(",").map((s) => s.trim());
-  return { name, kind: "discrete", vramUsedGb: Math.round((Number(used) / 1024) * 10) / 10, vramTotalGb: Math.round((Number(total) / 1024) * 10) / 10, sharedUsedGb: null, utilPct: Number(util) || 0, source: "nvidia-smi" };
+/** The graphics card, the same detection as apps/desktop/localai.js. `runner` is for tests. */
+export function detectedGpu(runner: ProbeRunner = run): Promise<DetectedGpu> {
+  if (!detected) detected = detectGpu(runner, { platform: process.platform, cpuModel: os.cpus()[0]?.model || "", totalMemBytes: os.totalmem() });
+  return detected;
 }
 
-const WIN_PS = `
+/** Tests: forget the detected card and the cached usage. */
+export function resetGpuDetection(): void {
+  detected = null;
+  gpuCache = null;
+}
+
+async function nvidiaUsage(): Promise<Pick<GpuInfo, "vramUsedGb" | "utilPct"> | null> {
+  const out = await run("nvidia-smi", ["--query-gpu=memory.used,utilization.gpu", "--format=csv,noheader,nounits"], 3000);
+  const line = out.split(/\r?\n/).find((l) => l.trim());
+  if (!line) return null;
+  const [used, util] = line.split(",").map((s) => s.trim());
+  return { vramUsedGb: Math.round((Number(used) / 1024) * 10) / 10, utilPct: Number(util) || 0 };
+}
+
+const WIN_USAGE_PS = `
 $ErrorActionPreference='SilentlyContinue'
-$cls='HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}'
-$adapter=Get-ChildItem $cls | ForEach-Object { Get-ItemProperty $_.PSPath } | Where-Object { $_.DriverDesc -and $_.DriverDesc -notmatch 'Remote|Basic|Virtual' } | Select-Object -First 1
-$name=$adapter.DriverDesc
-$total=$adapter.'HardwareInformation.qwMemorySize'
-if (-not $total) { $total=(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notmatch 'Remote|Basic|Virtual' } | Measure-Object AdapterRAM -Maximum).Maximum }
 $ded=((Get-Counter '\\GPU Adapter Memory(*)\\Dedicated Usage').CounterSamples | Measure-Object CookedValue -Sum).Sum
 $sh=((Get-Counter '\\GPU Adapter Memory(*)\\Shared Usage').CounterSamples | Measure-Object CookedValue -Sum).Sum
 $util=((Get-Counter '\\GPU Engine(*engtype_3D)\\Utilization Percentage').CounterSamples | Measure-Object CookedValue -Sum).Sum
-[pscustomobject]@{ name=$name; total=[double]$total; dedicated=[double]$ded; shared=[double]$sh; util=[double]$util } | ConvertTo-Json -Compress
+[pscustomobject]@{ dedicated=[double]$ded; shared=[double]$sh; util=[double]$util } | ConvertTo-Json -Compress
 `;
 
-async function windowsCounters(): Promise<GpuInfo | null> {
-  const out = await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", WIN_PS], 8000);
+async function windowsUsage(): Promise<Pick<GpuInfo, "vramUsedGb" | "sharedUsedGb" | "utilPct"> | null> {
+  const out = await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", WIN_USAGE_PS], 8000);
   try {
-    const j = JSON.parse(out.trim()) as { name?: string; total?: number; dedicated?: number; shared?: number; util?: number };
-    if (!j.name) return null;
-    const integrated = /arc|iris|uhd|vega|radeon\(tm\) graphics|intel/i.test(j.name) && !(j.total && j.total > 3 * 1024 ** 3);
-    return {
-      name: j.name,
-      kind: integrated ? "integrated" : "discrete",
-      vramTotalGb: j.total ? gb(j.total) : null,
-      vramUsedGb: j.dedicated ? gb(j.dedicated) : 0,
-      sharedUsedGb: j.shared ? gb(j.shared) : 0,
-      utilPct: typeof j.util === "number" ? Math.min(100, Math.round(j.util)) : null,
-      source: "windows-counters",
-    };
+    const j = JSON.parse(out.trim()) as { dedicated?: number; shared?: number; util?: number };
+    return { vramUsedGb: j.dedicated ? gb(j.dedicated) : 0, sharedUsedGb: j.shared ? gb(j.shared) : 0, utilPct: typeof j.util === "number" ? Math.min(100, Math.round(j.util)) : null };
   } catch {
     return null;
   }
@@ -101,13 +102,12 @@ async function windowsCounters(): Promise<GpuInfo | null> {
 
 export async function gpuInfo(): Promise<GpuInfo> {
   if (gpuCache && Date.now() - gpuCache.at < 2500) return gpuCache.info;
-  let info: GpuInfo | null = await nvidiaSmi();
-  if (!info && process.platform === "win32") info = await windowsCounters();
-  if (!info && process.platform === "darwin" && /apple/i.test(os.cpus()[0]?.model || "")) {
-    info = { name: `${os.cpus()[0].model} (unified memory)`, kind: "unified", vramTotalGb: gb(os.totalmem()), vramUsedGb: null, sharedUsedGb: null, utilPct: null, source: "apple" };
-  }
-  gpuCache = { at: Date.now(), info: info ?? NONE };
-  return gpuCache.info;
+  const g = await detectedGpu();
+  const info: GpuInfo = { name: g.name, kind: g.kind, vramTotalGb: g.vramGb, ollama: g.ollama, vramUsedGb: null, sharedUsedGb: null, utilPct: null, source: g.source };
+  if (g.source === "nvidia-smi") Object.assign(info, await nvidiaUsage());
+  else if (process.platform === "win32" && g.kind !== "none") Object.assign(info, await windowsUsage());
+  gpuCache = { at: Date.now(), info };
+  return info;
 }
 
 // ---- Ollama: what is loaded right now and how much of it sits in VRAM
@@ -129,14 +129,12 @@ export function ramInfo() {
   return { totalGb: gb(os.totalmem()), usedGb: gb(os.totalmem() - os.freemem()) };
 }
 
-/** Free space on the disk that holds the user's home (where Ollama keeps its models), GB; null if unknown. */
-export function freeDiskGb(dir = os.homedir()): number | null {
-  try {
-    const s = fs.statfsSync(dir);
-    return Math.round((s.bavail * s.bsize) / 1024 ** 3);
-  } catch {
-    return null;
-  }
+/**
+ * Free space where Ollama keeps its models (OLLAMA_MODELS, else ~/.ollama/models), GB: the nearest
+ * existing folder of that path is measured. null if unknown.
+ */
+export function freeDiskGb(dir = ollamaModelsDir(process.env, os.homedir(), path.sep)): number | null {
+  return freeGbAt(dir, (p) => fs.statfsSync(p), path.dirname);
 }
 
 /**
@@ -147,7 +145,7 @@ export function machineInfo(gpu: GpuInfo): MachineInfo {
   return {
     ramGb: Math.ceil(os.totalmem() / 1024 ** 3),
     cores: os.cpus().length,
-    gpu: { kind: gpu.kind, vramGb: gpu.vramTotalGb },
+    gpu: { kind: gpu.kind, vramGb: gpu.vramTotalGb, ollama: gpu.ollama },
     freeDiskGb: freeDiskGb(),
   };
 }

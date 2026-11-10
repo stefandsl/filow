@@ -303,8 +303,8 @@ const { probeSetup, setupOffer, setupChoice } = require("./welcome-setup");
 const welcomeSetup = { shown: false, choice: null, offer: null };
 async function welcomeSetupOffer() {
   if (welcomeSetup.offer) return welcomeSetup.offer;
-  const info = localAiInfo();
-  const ollama = (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
+  const info = await localAiInfo();
+  const ollama =(process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
   const installed = await probeSetup({
     fetchJson: () => fetch(`${ollama}/api/tags`, { signal: AbortSignal.timeout(1500) }).then((r) => (r.ok ? r.json() : null)),
     sherpaReady: () => sttLocal.modelReady(userData),
@@ -389,7 +389,7 @@ function initializeUiPreferences() {
   ipcMain.handle("welcome:chooseSetup", async (event, accept) => {
     if (!uiSender(event, true) || typeof accept !== "boolean") throw new Error("Denied");
     const offer = await welcomeSetupOffer();
-    welcomeSetup.choice = setupChoice(offer, localAiInfo().recommended, accept);
+    welcomeSetup.choice = setupChoice(offer, (await localAiInfo()).recommended, accept);
     welcomeSetup.shown = true; // answered: closing the window before this step still gets the question later
     logLine(`welcome: speech setup ${accept ? "accepted" : "declined"}${welcomeSetup.choice ? ` (${welcomeSetup.choice.models.join(", ")})` : ", nothing to download"}`);
     return { ok: true };
@@ -1491,11 +1491,9 @@ const localAi = require("./localai");
 let localAiState = { state: "idle", pct: 0, error: "", version: "", command: "" };
 let localAiHardware = null;
 let localAiInstalling = null;
+/** The hardware scan and its recommendation; a promise (the scan runs off the main thread), made once. */
 function localAiInfo() {
-  if (!localAiHardware) {
-    const hw = localAi.hardwareScan();
-    localAiHardware = { ...hw, recommended: localAi.recommend(hw) };
-  }
+  if (!localAiHardware) localAiHardware = localAi.hardwareScan().then((hw) => ({ ...hw, recommended: localAi.recommend(hw) }));
   return localAiHardware;
 }
 function setLocalAi(s) {
@@ -1537,7 +1535,7 @@ async function offerLocalAi() {
     logLine(`local AI offer: answered in the welcome${welcomeSetup.choice ? "" : " (nothing to download)"}`);
     return welcomeSetup.choice;
   }
-  const info = localAiInfo();
+  const info = await localAiInfo();
   const rec = info.recommended;
   if (!rec.models.length) return null;
   const tx = LOCAL_AI_TEXT[menuLang()] || LOCAL_AI_TEXT.en;

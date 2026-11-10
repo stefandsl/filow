@@ -29,6 +29,8 @@ export function SetupPicker({ hardware, gpuName, preference, onChange, installed
   const name = (p: SetupProfileId) => t(`setup.${p}`);
   const desc = (p: SetupProfileId) => {
     if (p === "lite" && resolveSetup("lite", hardware).choices.screenHelper.mode === "none") return t("setup.lite.descNone");
+    // a card under 12 GB: picture answers wait while the larger AI is loaded (measured, D26)
+    if (p === "advanced" && resolveSetup("advanced", hardware).choices.screenHelper.waitsForDecisions) return t("setup.advanced.descShared");
     return t(`setup.${p}.desc` as I18nKey);
   };
   const why = t(`setup.why.${setup.reason}` as I18nKey, { ram: hardware.ramGb, cores: hardware.cores, vram: hardware.gpu.vramGb ?? 0, disk: hardware.freeDiskGb ?? 0 });
