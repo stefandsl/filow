@@ -3,11 +3,19 @@
 Filow is free software under GPL-3.0-or-later. It bundles the components below; each keeps its own license.
 Electron's own notices (Chromium and its dependencies) ship next to Filow.exe as LICENSES.chromium.html.
 
-## Speech model
+## Speech models
 
-The on-device speech recognizer that Filow downloads on request is NVIDIA Nemotron 3.5 ASR streaming
-(0.6B), released by NVIDIA under the OpenMDW license, in the int8 export made by the sherpa-onnx project
-(k2-fsa, Apache-2.0). It is not bundled in the installer.
+The on-device speech recognizers below are downloaded on request, the one each spoken language needs;
+none is bundled in the installer. The default is NVIDIA Nemotron 3.5 ASR streaming (0.6B), released by
+NVIDIA under the OpenMDW license. All are the ONNX exports made by the sherpa-onnx project (k2-fsa,
+Apache-2.0); each keeps its authors' license:
+
+- Nemotron 3.5 streaming (sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11): OpenMDW-1.1
+- Parakeet TDT 0.6b v3 (sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8): CC-BY-4.0
+- Vosk small Russian streaming (sherpa-onnx-streaming-zipformer-small-ru-vosk-int8-2025-08-16): Apache-2.0
+- ReazonSpeech Japanese (sherpa-onnx-zipformer-ja-reazonspeech-2024-08-01): Apache-2.0
+- Dolphin base (sherpa-onnx-dolphin-base-ctc-multi-lang-int8-2025-04-02): Apache-2.0
+- Silero voice detector (silero_vad.onnx): MIT
 
 ## Voice model
 
@@ -149,7 +157,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### browser 0.9.30
+### browser 0.9.31
 
 License: GPL-3.0-or-later
 
@@ -571,7 +579,7 @@ public licenses.
 Creative Commons may be contacted at creativecommons.org.
 ```
 
-### client 0.9.30
+### client 0.9.31
 
 License: GPL-3.0-or-later
 
@@ -764,7 +772,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### core 0.9.30
+### core 0.9.31
 
 License: GPL-3.0-or-later
 
@@ -878,7 +886,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### desktop 0.9.30
+### desktop 0.9.31
 
 License: GPL-3.0-or-later
 
@@ -3370,7 +3378,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### powerpoint 0.9.30
+### powerpoint 0.9.31
 
 License: GPL-3.0-or-later
 
@@ -3738,7 +3746,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### server 0.9.30
+### server 0.9.31
 
 License: GPL-3.0-or-later
 
@@ -4342,7 +4350,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### stt 0.9.30
+### stt 0.9.31
 
 License: GPL-3.0-or-later
 
@@ -4948,7 +4956,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### ui 0.9.30
+### ui 0.9.31
 
 License: GPL-3.0-or-later
 
@@ -5100,7 +5108,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### web 0.9.30
+### web 0.9.31
 
 License: GPL-3.0-or-later
 
