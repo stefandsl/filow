@@ -232,6 +232,11 @@ export type BuddyRecipients = {
   screen: Recipient;
   /** Who reads the script and the slide pictures when a script is written or translated in the cloud. */
   script: Recipient;
+  /**
+   * What the server runs when the client does not choose (the PowerPoint add-in and the browser
+   * extension do not): the decision provider and the script writer. Absent on an older server.
+   */
+  defaults?: { decide: string; generate: string };
 };
 
 /**

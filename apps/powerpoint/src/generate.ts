@@ -117,10 +117,12 @@ export async function requestGeneration(
   slides: SlideInput[],
   language: string | undefined,
   onProgress: (p: GenerateProgress) => void,
+  /** The consent header when the script is written in the cloud (the server refuses without it). */
+  extraHeaders: Record<string, string> = {},
 ): Promise<GenerateResult> {
   const res = await fetch(`${origin}/api/script/generate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...extraHeaders },
     body: JSON.stringify({ slides, language }),
   });
   if (!res.ok || !res.body) {

@@ -4,8 +4,9 @@
 // server route that names the recipients.
 import { useEffect, useSyncExternalStore } from "react";
 import type { OkFilowPatch, OkFilowStatus } from "@/lib/buddy/bridge";
-import { applyConsentChanges, type BuddyRecipients, type ConsentMap } from "@/lib/buddy/outbound";
+import type { BuddyRecipients } from "@/lib/buddy/outbound";
 import { createPageOutbound, type ConsentStore, type PageOutbound } from "@/lib/buddy/outboundPage";
+import { webStorageConsentStore } from "@/lib/buddy/outboundRemote";
 import { engineHeaders, ensureEngineToken } from "./useSession";
 
 type SettingsBridge = {
@@ -14,23 +15,7 @@ type SettingsBridge = {
 };
 const bridge = () => (globalThis as { filow?: { okFilow?: SettingsBridge } }).filow?.okFilow ?? null;
 
-const STORAGE_KEY = "filow.outbound.consent";
-const fromStorage = (): ConsentMap => {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as ConsentMap) : {};
-  } catch {
-    return {};
-  }
-};
-const toStorage = (next: ConsentMap): boolean => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    return true;
-  } catch {
-    return false;
-  }
-};
+const browserStore = webStorageConsentStore(() => localStorage, "filow.outbound.consent");
 
 /**
  * On the desktop the choices live in OK Filow's settings, so they are listed in its panel and can
@@ -43,7 +28,7 @@ const store: ConsentStore = {
       const status = await b.status().catch(() => null);
       if (status) return status.consent ?? {};
     }
-    return fromStorage();
+    return browserStore.read();
   },
   async write(changes, also) {
     const b = bridge();
@@ -52,8 +37,7 @@ const store: ConsentStore = {
       // Main merges the changes into what is stored now (another window may have changed it).
       if (status) return (await b.configure({ consentChanges: changes, ...also }).catch(() => null))?.consent ?? null;
     }
-    const merged = applyConsentChanges(fromStorage(), changes);
-    return toStorage(merged) ? merged : null;
+    return browserStore.write(changes, also);
   },
 };
 

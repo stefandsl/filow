@@ -15,6 +15,8 @@ function devCerts() {
 
 export default defineConfig(({ command }) => ({
   plugins: [react()],
+  // The outbound notice and signal are the web app's own (apps/web/components/RemoteOutbound.tsx), imported as "@/...".
+  resolve: { alias: [{ find: /^@\//, replacement: `${path.resolve(__dirname, "../web")}/` }], dedupe: ["react", "react-dom"] },
   // Production: served by apps/web at /powerpoint/ (same origin as the API and relay).
   // Dev: served at the root, as the dev manifest (scripts/manifest.js) expects.
   base: command === "build" ? "/powerpoint/" : "/",

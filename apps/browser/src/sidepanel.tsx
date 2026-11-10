@@ -6,8 +6,32 @@ import { createRoot } from "react-dom/client";
 import { connect, type SessionClient } from "@filow/client";
 import { langFromLocale, LANGS, parseScript, slideNeedsImage, type Command, type GenerateProgress, type Lang, type ScreenMode, type SessionState, type SlideInput, type VisionResponse } from "@filow/core";
 import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
+import type { BuddyRecipients } from "@/lib/buddy/outbound";
+import { createPageOutbound } from "@/lib/buddy/outboundPage";
+import { kvConsentStore, screenOut, scriptOut } from "@/lib/buddy/outboundRemote";
+import { RemoteConsentList, RemoteOutboundNotice, RemoteOutboundSignal, remoteText } from "@/components/RemoteOutbound";
 import type { SlideInfo } from "./adapters";
 import "./sidepanel.css";
+
+/** The Filow API this panel talks to (set from the "API" field once paired). */
+const api = { origin: "http://127.0.0.1:4747" };
+const CONSENT_KEY = "outboundConsent";
+
+/**
+ * What leaves this PC (docs/okfilow/OUTBOUND.md): nothing without a yes, every send shown. The
+ * extension cannot reach the Filow window's settings, so it keeps its own choices in its own
+ * storage and lists them under "What may leave this PC".
+ */
+const outbound = createPageOutbound({
+  store: kvConsentStore({
+    get: async () => (await chrome.storage.local.get(CONSENT_KEY))[CONSENT_KEY],
+    set: (next) => chrome.storage.local.set({ [CONSENT_KEY]: next }),
+  }),
+  fetchRecipients: async () => {
+    const res = await fetch(`${api.origin}/api/buddy/recipients`, { cache: "no-store" });
+    return res.ok ? ((await res.json()) as BuddyRecipients) : null;
+  },
+});
 
 const storage = {
   async get<T>(k: string, d: T): Promise<T> {
@@ -46,6 +70,7 @@ function App() {
 
 function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
   const t = useT();
+  const okt = remoteText(lang);
   const [server, setServer] = useState("http://127.0.0.1:4748");
   const [appServer, setAppServer] = useState("http://127.0.0.1:4747");
   const [code, setCode] = useState("");
@@ -70,6 +95,10 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
       setMode(await storage.get("mode", "slide-change"));
     })();
   }, []);
+
+  useEffect(() => {
+    api.origin = appServer.replace(/\/$/, "");
+  }, [appServer]);
 
   const join = async () => {
     setError(null);
@@ -126,14 +155,25 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
     const cl = clientRef.current;
     if (!cl) return;
     try {
+      // Before the tab is even captured: who would look at it, and a yes. A no stops watching.
+      const known = await outbound.recipients();
+      if (!known) return;
+      const to = screenOut(known);
+      if (to && (await outbound.allow("screen", to)) !== "granted") {
+        setMode("off");
+        void storage.set("mode", "off");
+        return;
+      }
       const cap = await bg<{ ok: boolean; dataUrl?: string }>({ t: "capture" });
       if (!cap.ok || !cap.dataUrl) return;
       const token = await mintEngineToken(server, cl.id, cl.token);
-      const res = await fetch(`${appServer}/api/vision`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ image: cap.dataUrl, source: "window", context: { sectionTitle: info.title } }),
-      });
+      const look = (consent: Record<string, string>) =>
+        fetch(`${appServer}/api/vision`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...consent },
+          body: JSON.stringify({ image: cap.dataUrl, source: "window", context: { sectionTitle: info.title } }),
+        });
+      const res = to ? await outbound.sending("screen", to, look) : await look({});
       if (!res.ok) return;
       const out = (await res.json()) as VisionResponse;
       // The engine owns the ON SCREEN strip; a view cannot feed it directly, so show it locally.
@@ -147,8 +187,14 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
     const cl = clientRef.current;
     if (!cl) return;
     setError(null);
-    setProgress(t("ext.reading"));
+    setProgress(null);
     try {
+      // Before the slides are even read: who would write the script, and a yes if that is not this PC.
+      const known = await outbound.recipients();
+      if (!known) throw new Error(okt("noticeUnknown"));
+      const to = scriptOut(known);
+      if (to && (await outbound.allow("script", to)) !== "granted") return; // the signal line says what was kept
+      setProgress(t("ext.reading"));
       const first = await toContent<{ ok: boolean; info?: SlideInfo }>({ t: "probe" });
       if (!first.ok || !first.info) throw new Error("attach the deck tab first");
       const slides: SlideInput[] = [];
@@ -177,31 +223,36 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
         info = n.info;
       }
       const token = await mintEngineToken(server, cl.id, cl.token);
-      const res = await fetch(`${appServer}/api/script/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ slides }),
-      });
-      if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `generate failed (${res.status})`);
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let buf = "";
-      let text: string | null = null;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const lines = buf.split("\n");
-        buf = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const j = JSON.parse(line) as { progress?: GenerateProgress; done?: boolean; text?: string; error?: string };
-          if (j.error) throw new Error(j.error);
-          if (j.progress) setProgress(`${j.progress.done} / ${j.progress.total} · ${j.progress.title}`);
-          if (j.done) text = j.text ?? "";
+      // The signal stays on for the whole stream: the slides leave until the last answer is in.
+      const write = async (consent: Record<string, string>): Promise<string> => {
+        const res = await fetch(`${appServer}/api/script/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...consent },
+          body: JSON.stringify({ slides }),
+        });
+        if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `generate failed (${res.status})`);
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        let text: string | null = null;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            const j = JSON.parse(line) as { progress?: GenerateProgress; done?: boolean; text?: string; error?: string };
+            if (j.error) throw new Error(j.error);
+            if (j.progress) setProgress(`${j.progress.done} / ${j.progress.total} · ${j.progress.title}`);
+            if (j.done) text = j.text ?? "";
+          }
         }
-      }
-      if (text === null) throw new Error("stream ended early");
+        if (text === null) throw new Error("stream ended early");
+        return text;
+      };
+      const text = to ? await outbound.sending("script", to, write) : await write({});
       setPreview(text);
       setProgress(t("ext.review"));
     } catch (err) {
@@ -245,6 +296,7 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
           </span>
           {client && <span className="chip live">{status === "open" ? "●" : status}</span>}
         </header>
+        <RemoteOutboundSignal out={outbound} lang={lang} />
 
         {!client ? (
           <div className="setup">
@@ -321,7 +373,9 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
             </div>
           </div>
         )}
+        <RemoteConsentList out={outbound} lang={lang} />
         <footer className="help">{t("ext.help")}</footer>
+        <RemoteOutboundNotice out={outbound} lang={lang} />
       </div>
     </>
   );
