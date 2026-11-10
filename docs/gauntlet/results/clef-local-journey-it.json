@@ -8,7 +8,7 @@
     "mode": "app",
     "calls": 12,
     "skipped": 0,
-    "candidates": 18,
+    "candidates": 16,
     "lexicalOnly": 0,
     "embedLoadMs": 0
   },
@@ -17,15 +17,15 @@
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T10:44:02.269Z",
+  "at": "2026-11-10T11:54:18.191Z",
   "corpus": "journey-it",
   "late": 0,
   "calls": 12,
   "latencyMs": {
-    "p50": 764,
-    "p95": 882,
-    "max": 882,
-    "avg": 760
+    "p50": 822,
+    "p95": 987,
+    "max": 987,
+    "avg": 817
   },
   "timeouts": 0,
   "points": [

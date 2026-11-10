@@ -183,9 +183,16 @@ export function scorePoints(windowVector: Float32Array, points: PointVectors, bu
 
 /** A sentence shorter than this (in tokens) is not embedded on its own: a cut-off word or two is noise. */
 const MIN_SENTENCE_TOKENS = 3;
+/**
+ * At most this many of the tail's last sentences are embedded on their own. The point just said is in
+ * the last one or two (a call follows each committed sentence), and the embedding runs inside the
+ * decision call's timeout: 320 Japanese characters hold up to 20 phrases, which put traps-ja's p95 at
+ * 2.4 s of the 2.5 s timeout when every one was embedded.
+ */
+const MAX_SENTENCES = 3;
 
 /**
- * What the gate embeds: the tail as a whole, then each of its sentences on its own. A point is said in
+ * What the gate embeds: the tail as a whole, then each of its last sentences on its own. A point is said in
  * one sentence, and in a 320-character tail that sentence shares the vector with the one or two before
  * it: in a live take the paraphrase of "Everyone is copying it, so it must be good" scored 0.29 and
  * 0.24 inside the tail (under the 0.3 line, so the model was never asked) and 0.55 on its own. Speech
@@ -194,7 +201,7 @@ const MIN_SENTENCE_TOKENS = 3;
  */
 export function windowTexts(tail: string): string[] {
   const own = sentences(tail).map((s) => s.text).filter((s) => s !== tail && tokenize(s).length >= MIN_SENTENCE_TOKENS);
-  return [tail, ...own];
+  return [tail, ...own.slice(-MAX_SENTENCES)];
 }
 
 /** Best similarity of every point over the window texts' vectors (windowTexts), best first. */

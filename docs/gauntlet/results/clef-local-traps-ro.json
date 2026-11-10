@@ -8,7 +8,7 @@
     "mode": "app",
     "calls": 17,
     "skipped": 1,
-    "candidates": 36,
+    "candidates": 34,
     "lexicalOnly": 0,
     "embedLoadMs": 0
   },
@@ -17,15 +17,15 @@
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T10:45:51.903Z",
+  "at": "2026-11-10T11:55:57.969Z",
   "corpus": "traps-ro",
   "late": 0,
   "calls": 17,
   "latencyMs": {
-    "p50": 1081,
-    "p95": 1264,
-    "max": 1264,
-    "avg": 1014
+    "p50": 882,
+    "p95": 1040,
+    "max": 1040,
+    "avg": 848
   },
   "timeouts": 0,
   "points": [

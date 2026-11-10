@@ -5,7 +5,7 @@
 // point and the lexical match (names, numbers, terms), turned into a confidence. A few milliseconds per
 // call. The engine's guard (numbers, negation, contradiction) and confirm rule apply as for any model.
 import type { DecideRequest, DecideResponse, Decision } from "./api";
-import { lexicalScores, prepareWindowText, scorePoints, type Embedder, type GateScore, type PointVectors } from "./gate";
+import { lexicalScores, prepareWindowText, scoreWindow, type Embedder, type GateScore, type PointVectors } from "./gate";
 
 export const MATCHER_MODEL = "on-device matcher";
 
@@ -108,8 +108,7 @@ export function matcherDecide(
     // diluted when the tail also holds the sentences around it
     const sentences = th.perSentence > 0 ? tail.split(/(?<=[.!?;])\s+/).filter((s) => s.split(/\s+/).length >= 5).slice(-th.perSentence) : [];
     const vectors = await embed([tail, ...sentences]);
-    const best = new Map<string, number>();
-    for (const v of vectors) for (const s of scorePoints(v, pv, r.bullets)) best.set(s.id, Math.max(best.get(s.id) ?? -1, s.similarity));
+    const best = new Map(scoreWindow(vectors, pv, r.bullets).map((s) => [s.id, s.similarity]));
     const lex = lexicalScores(tail, r.bullets);
     const scores = r.bullets.map((b) => ({ id: b.id, similarity: best.get(b.id) ?? 0, lexical: lex.get(b.id) }));
     const byId = new Map(matcherDecisions(scores, th).map((d) => [d.id, d]));

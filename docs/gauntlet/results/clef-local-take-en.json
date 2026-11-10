@@ -17,15 +17,15 @@
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T10:44:07.672Z",
+  "at": "2026-11-10T11:54:23.466Z",
   "corpus": "take-en",
   "late": 0,
   "calls": 7,
   "latencyMs": {
-    "p50": 825,
-    "p95": 971,
-    "max": 971,
-    "avg": 761
+    "p50": 814,
+    "p95": 923,
+    "max": 923,
+    "avg": 727
   },
   "timeouts": 0,
   "points": [
@@ -63,7 +63,7 @@
         },
         {
           "sec": 26,
-          "confidence": 0.05,
+          "confidence": 0.06,
           "started": false
         },
         {
@@ -97,7 +97,7 @@
         },
         {
           "sec": 26,
-          "confidence": 0.14,
+          "confidence": 0.15,
           "started": false
         },
         {

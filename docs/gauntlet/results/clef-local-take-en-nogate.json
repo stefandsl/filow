@@ -9,15 +9,15 @@
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T10:46:48.224Z",
+  "at": "2026-11-10T11:56:50.609Z",
   "corpus": "take-en",
   "late": 0,
   "calls": 7,
   "latencyMs": {
-    "p50": 700,
-    "p95": 843,
-    "max": 843,
-    "avg": 725
+    "p50": 713,
+    "p95": 840,
+    "max": 840,
+    "avg": 726
   },
   "timeouts": 0,
   "points": [

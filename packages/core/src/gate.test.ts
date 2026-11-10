@@ -74,7 +74,8 @@ describe("embedding gate", () => {
       },
       toyEmbed,
       () => pointVectors,
-      gateThresholdsFor("clef-local"),
+      // lexical stage off: the point shares its words with the speech, which would let it through anyway
+      { ...gateThresholdsFor("clef-local"), lexicalLow: Infinity },
     );
   let pointVectors: Awaited<ReturnType<typeof embedPoints>>;
 
@@ -103,6 +104,16 @@ describe("embedding gate", () => {
   it("embeds the tail and each of its sentences, never a cut-off word or two on its own", () => {
     expect(windowTexts("First sentence is here. Second one follows now. ok")).toEqual(["First sentence is here. Second one follows now. ok", "First sentence is here.", "Second one follows now."]);
     expect(windowTexts("a single sentence with no stop")).toEqual(["a single sentence with no stop"]);
+  });
+
+  it("embeds at most the last three sentences on their own, whatever the language packs into the tail", () => {
+    const many = Array.from({ length: 12 }, (_, i) => `Sentence number ${i} is here.`).join(" ");
+    const texts = windowTexts(many);
+    expect(texts).toHaveLength(4);
+    expect(texts.slice(1)).toEqual(["Sentence number 9 is here.", "Sentence number 10 is here.", "Sentence number 11 is here."]);
+    // Japanese recogniser output: phrases separated by spaces, many of them in 320 characters
+    const ja = prepareWindowText("サポートコストは今四半期三十パーセント増加しました 主に残業が原因です ".repeat(8));
+    expect(windowTexts(ja).length).toBeLessThanOrEqual(4);
   });
 });
 

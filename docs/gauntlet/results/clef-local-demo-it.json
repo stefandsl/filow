@@ -10,22 +10,22 @@
     "skipped": 1,
     "candidates": 28,
     "lexicalOnly": 0,
-    "embedLoadMs": 1169
+    "embedLoadMs": 3058
   },
   "machine": {
     "cpu": "13th Gen Intel(R) Core(TM) i9-13900KF",
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T10:43:44.016Z",
+  "at": "2026-11-10T11:53:58.686Z",
   "corpus": "demo-it",
   "late": 0,
   "calls": 21,
   "latencyMs": {
-    "p50": 795,
-    "p95": 957,
-    "max": 986,
-    "avg": 771
+    "p50": 877,
+    "p95": 1076,
+    "max": 1082,
+    "avg": 863
   },
   "timeouts": 0,
   "points": [

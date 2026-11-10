@@ -9,7 +9,7 @@
     "calls": 17,
     "skipped": 0,
     "candidates": 31,
-    "lexicalOnly": 2,
+    "lexicalOnly": 3,
     "embedLoadMs": 0
   },
   "machine": {
@@ -17,15 +17,15 @@
     "ramGb": 128,
     "platform": "win32"
   },
-  "at": "2026-11-10T10:44:40.705Z",
+  "at": "2026-11-10T11:54:55.850Z",
   "corpus": "topics-it",
   "late": 0,
   "calls": 17,
   "latencyMs": {
-    "p50": 755,
-    "p95": 1009,
-    "max": 1009,
-    "avg": 805
+    "p50": 860,
+    "p95": 1468,
+    "max": 1468,
+    "avg": 932
   },
   "timeouts": 0,
   "points": [
