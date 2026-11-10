@@ -104,6 +104,8 @@ button.chip.code:not(:focus-visible) { color: var(--text); outline: 1px solid va
 .settings .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .settings .choice { display: inline-flex; gap: 8px; align-items: center; text-transform: none; letter-spacing: 0; }
 .settings .choice input { accent-color: var(--accent); }
+/* On the accent fill of the chosen button the accent radio vanished into an empty ring: draw it in the text colour on accent. */
+.settings .choice.primary input { accent-color: var(--on-accent); }
 .settings a { color: var(--text); }
 .settings code { font-family: var(--font); }
 a.btn { text-decoration: none; display: inline-flex; align-items: center; }
