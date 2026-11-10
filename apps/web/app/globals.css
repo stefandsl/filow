@@ -76,6 +76,8 @@ select.btn option { background: var(--panel); color: var(--text); }
 
 .modal-bg { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 10; }
 .modal { background: var(--panel); border-width: 0; border-radius: var(--radius); width: min(900px, 92vw); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+/* a vw width plus the dialog's own padding is wider than a phone screen: never wider than the dialog */
+.accessible-dialog > .modal { max-width: 100%; }
 .modal textarea { width: 100%; height: 60vh; background: var(--bg); color: var(--text); border-width: 0; border-radius: var(--radius); padding: 12px; font-family: var(--font); font-size: var(--type-sm); resize: vertical; }
 .modal .hint { font-size: var(--type-sm); color: var(--muted); }
 

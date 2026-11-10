@@ -67,20 +67,21 @@ function ReportBody({ report: r, idPrefix, fold = false }: { report: Report; idP
       <section aria-labelledby={`${idPrefix}-sections`}>
         <h2 id={`${idPrefix}-sections`}>{t("report.sections")}</h2>
         <div className="report-table-wrap">
-          <table className="report-table">
-            <thead>
-              <tr><th scope="col">{t("report.section")}</th><th scope="col">{t("report.time")}</th><th scope="col">{t("report.targetCol")}</th><th scope="col">{t("report.pointsCol")}</th></tr>
+          {/* explicit roles: on a phone the rows are laid out as blocks (Rehearsal.css), which would drop the table semantics */}
+          <table className="report-table" role="table">
+            <thead role="rowgroup">
+              <tr role="row"><th scope="col" role="columnheader">{t("report.section")}</th><th scope="col" role="columnheader">{t("report.time")}</th><th scope="col" role="columnheader">{t("report.targetCol")}</th><th scope="col" role="columnheader">{t("report.pointsCol")}</th></tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup">
               {r.sections.map((s) => {
                 const extra = s.targetMs !== null && s.visited ? s.spentMs - s.targetMs : null;
                 const pts = POINT_OUTCOMES.filter((k) => s.outcomes[k]).map((k) => `${s.outcomes[k]} ${t(`report.outcome.${k}` as I18nKey)}`).join(", ");
                 return (
-                  <tr key={s.idx}>
-                    <th scope="row">{sectionLabel(s.title).title}</th>
-                    <td>{s.visited ? formatClock(s.spentMs) : t("report.notShown")}{extra !== null && extra >= 30_000 && <span className="hint"> (+{formatClock(extra)})</span>}</td>
-                    <td>{s.targetMs !== null ? formatClock(s.targetMs) : "-"}</td>
-                    <td>{pts || "-"}</td>
+                  <tr key={s.idx} role="row">
+                    <th scope="row" role="rowheader">{sectionLabel(s.title).title}</th>
+                    <td role="cell" data-label={t("report.time")}>{s.visited ? formatClock(s.spentMs) : t("report.notShown")}{extra !== null && extra >= 30_000 && <span className="hint"> (+{formatClock(extra)})</span>}</td>
+                    <td role="cell" data-label={t("report.targetCol")}>{s.targetMs !== null ? formatClock(s.targetMs) : "-"}</td>
+                    <td role="cell" data-label={t("report.pointsCol")}>{pts || "-"}</td>
                   </tr>
                 );
               })}

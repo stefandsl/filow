@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { buildRehearsalReport, Engine, parseScript, t, TakeRecorder, type Lang, type SessionState, type TalkClock } from "@filow/core";
@@ -111,6 +113,31 @@ describe("rehearsal report view", () => {
     const text = plain(inLang("it", <RehearsalReport report={report} onClose={() => {}} />));
     expect(text).toContain("Resoconto della prova");
     expect(text).toContain("Tempo per sezione");
+  });
+});
+
+describe("report and talk length on a phone (360 px)", () => {
+  const css = readFileSync(path.join(__dirname, "Rehearsal.css"), "utf8");
+  const globals = readFileSync(path.join(__dirname, "../app/globals.css"), "utf8");
+  const rule = (sheet: string, selector: string) => sheet.match(new RegExp(`(^|\\n)\\s*${selector.replace(/[.[\]()>]/g, "\\$&")}\\s*\\{([^}]*)\\}`))?.[2] ?? "";
+
+  it("sizes both dialogs inside the dialog's padding, not by the viewport", () => {
+    // 94vw plus the dialog's 2 x 16 px padding is wider than a 360 px screen
+    for (const sel of [".rehearsal-report", ".timer-settings"]) expect(rule(css, sel)).toMatch(/width:\s*min\(\d+px,\s*100%\)/);
+    expect(rule(globals, ".accessible-dialog > .modal")).toMatch(/max-width:\s*100%/);
+  });
+
+  it("stacks each section's row with labelled cells, and keeps the folded list folded", () => {
+    const phone = css.slice(css.search(/@media \(max-width: 480px\) \{\s*\.report-table/));
+    expect(phone).toMatch(/\.report-table tr \{[^}]*display: flex; flex-wrap: wrap/);
+    expect(phone).toMatch(/\.report-table tbody th \{[^}]*flex: 1 1 100%/);
+    expect(phone).toMatch(/td::before \{ content: attr\(data-label\)/);
+    expect(rule(css, ".report-points[hidden]")).toMatch(/display:\s*none/);
+    const html = inLang("en", <RehearsalReport report={buildRehearsalReport({ clock: { startedAt: 0, endedAt: 1000, entries: [{ idx: 0, at: 0 }], sentAt: 0 }, segments: [], activity: [], pointEvents: [], pointsAtStart: {}, pointsAtEnd: {}, manualAtEnd: [] }, script)} onClose={() => {}} />);
+    // block layout drops a table's semantics unless the roles are explicit
+    expect(html).toContain('<table class="report-table" role="table">');
+    expect(html).toMatch(/<th scope="row" role="rowheader">Intro<\/th><td role="cell" data-label="Time">/);
+    expect(html).toContain('data-label="Points"');
   });
 });
 
