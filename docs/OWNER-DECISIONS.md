@@ -29,6 +29,8 @@ Format: what is asked, the options, what waits on it. Opened 2026-11-09.
 | D6 | Code signing for Windows | Azure Trusted Signing, OV or EV certificate | SIGN-01..04, SmartScreen-free install |
 | D7 | Apple developer and Google Play accounts, a Mac, real phones | buy or lend | macOS and iOS checks, store listings |
 | D8 | Push local main to GitHub (ahead of origin since 2026-11-09) | push now; push after the tracks merge | nothing is pushed without a yes |
+| D32 | The app ID is still `com.intelliprompter.app` (apps/desktop/package.json, main.js AUMID). Settings do not move with it (the config folder follows the package name), but the Windows installer GUID, taskbar and notification identity, and on macOS the bundle ID (permissions, keychain, updater) do. Full table: docs/RELEASE-CHECKLIST.md | keep it for good; change it now, before signing and stores (pin `nsis.guid` to the old GUID, change the AUMID in the same release, test an upgrade); change it later (also costs every signed Mac user a reinstall, impossible after a store listing) | signed releases, any store listing |
+| D33 | Who is the data controller in the privacy policy, and where do users send a problem report privately | give the legal name, postal address, privacy e-mail, how many months a report is kept and the supervisory authority (docs/PRIVACY.md, PRIVACY.it.md `[[...]]`); give a support e-mail or a form URL (`SUPPORT` in apps/desktop/about.js; the report window then shows a "Write an e-mail" or form button); have a legal adviser confirm the children and classroom section | publishing the privacy policy (stores, AppSource, GDPR); a private way for users to reach support |
 
 ## How agents work on this machine
 
