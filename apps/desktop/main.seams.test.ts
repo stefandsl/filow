@@ -5,6 +5,10 @@ import { pathToFileURL } from "node:url";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import { PLACEHOLDER, t } from "@filow/core";
+// localai.js reads the setup rules and the card detection from vendor/, a build of these two files
+// (npm run build:welcome); vendor/ is not in git, so the fixture hands it the sources themselves.
+import * as profileRules from "../../packages/core/src/profile";
+import * as hardwareRules from "../../packages/core/src/hardware";
 
 /** Evaluate untouched main.js, with startup held and all effects replaced in-process. */
 function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, childProcess = {} as Record<string, unknown> } = {}) {
@@ -34,7 +38,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": childProcess,
     "node:worker_threads": {}, "node:events": EventEmitter,
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
-    "./vendor/i18n": { t }, "./ui-preferences": {}, "./slideshow": {},
+    "./vendor/i18n": { t }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./ui-preferences": {}, "./slideshow": {},
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
   for (const name of ["stt", "localai", "diag", "welcome-setup"]) {

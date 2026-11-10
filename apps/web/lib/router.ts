@@ -11,7 +11,8 @@ export type GenerateChoice = "ollama" | "openrouter" | "none";
 export type PlanInput = {
   installed: string[]; // Ollama tags present
   ollamaOk: boolean;
-  gpu: { kind: "discrete" | "integrated" | "unified" | "none"; vramTotalGb: number | null };
+  /** `ollama` false: a card Ollama cannot run models on (core hardware.ts), counted as none */
+  gpu: { kind: "discrete" | "integrated" | "unified" | "none"; vramTotalGb: number | null; ollama?: boolean };
   ramGb: number;
   keys: { openrouter: boolean; elevenlabs: boolean; openai: boolean; cloudflare: boolean };
   offline: boolean;
@@ -39,13 +40,19 @@ export type Plan = {
 };
 
 const has = (inp: PlanInput, tag: string) => inp.installed.some((n) => n === tag || n.startsWith(`${tag}:`));
-const fitsGpu = (inp: PlanInput, gb: number) => (inp.gpu.kind === "discrete" || inp.gpu.kind === "unified") && (inp.gpu.vramTotalGb ?? 0) >= gb;
+const fitsGpu = (inp: PlanInput, gb: number) => (inp.gpu.kind === "discrete" || inp.gpu.kind === "unified") && inp.gpu.ollama !== false && (inp.gpu.vramTotalGb ?? 0) >= gb;
 const fitsRam = (inp: PlanInput, gb: number) => inp.ramGb >= gb;
 
 export function buildPlan(inp: PlanInput): Plan {
   // ---- speech-to-text: local streaming first (no network, private, measured ~0.2 RTF), then cloud streaming, then windowed Whisper
+  // A setup for this computer keeps the audio here: no cloud and no browser engine (Web Speech sends
+  // the audio to the browser maker). Nothing local ready = none, and the page says so and asks.
   let stt: Plan["stt"];
-  if (inp.sherpaReady) stt = { backend: "sherpa", reason: "streaming-local", expectedLagMs: 1500 };
+  if (inp.setup) {
+    if (inp.sherpaReady) stt = { backend: "sherpa", reason: "streaming-local", expectedLagMs: 1500 };
+    else if (inp.whisperCached) stt = { backend: "whisper", reason: "whisper-windowed", expectedLagMs: 4500 };
+    else stt = { backend: null, reason: "local-speech-missing", expectedLagMs: null };
+  } else if (inp.sherpaReady) stt = { backend: "sherpa", reason: "streaming-local", expectedLagMs: 1500 };
   else if (!inp.offline && inp.keys.elevenlabs) stt = { backend: "elevenlabs", reason: "cloud-streaming", expectedLagMs: 1200 };
   else if (!inp.offline && inp.keys.openai) stt = { backend: "openai", reason: "cloud-streaming", expectedLagMs: 1500 };
   else if (inp.whisperCached) stt = { backend: "whisper", reason: "whisper-windowed", expectedLagMs: 4500 };
@@ -88,7 +95,8 @@ export function buildPlan(inp: PlanInput): Plan {
   ].find((g) => inp.ollamaOk && has(inp, g.tag) && (fitsGpu(inp, g.gpu) || fitsRam(inp, g.ram)));
   let generate: Plan["generate"];
   if (gen) generate = { provider: "ollama", model: gen.tag, reason: fitsGpu(inp, gen.gpu) ? "local-on-gpu" : "local-in-ram" };
-  else if (cloudOk) generate = { provider: "openrouter", model: null, reason: "cloud-only" };
+  // a setup for this computer never moves slide generation to the cloud ("apply" would set it for the run)
+  else if (cloudOk && !inp.setup) generate = { provider: "openrouter", model: null, reason: "cloud-only" };
   else generate = { provider: "none", model: null, reason: "none" };
 
   const vision: Plan["vision"] = cloudOk ? { provider: "openrouter", reason: "cloud-only" } : { provider: "none", reason: "none" };
@@ -97,6 +105,26 @@ export function buildPlan(inp: PlanInput): Plan {
   const decMs = decision.measuredMs ?? (decision.provider === "matcher" ? 50 : decision.provider === "clef-local" ? (inp.gpu.kind === "discrete" ? 900 : 1500) : decision.provider ? 1500 : null);
   const expectedTickMs = stt.expectedLagMs !== null && decMs !== null ? stt.expectedLagMs + decMs + 250 : null;
   return { stt, decision, generate, vision, expectedTickMs, probes: inp.probes };
+}
+
+/** Speech engines that keep the audio on this computer. */
+export const LOCAL_STT: readonly SttChoice[] = ["sherpa", "whisper"];
+const LOCAL_DECISION: readonly DecisionChoice[] = ["matcher", "clef-local"];
+
+/**
+ * What kind of take a plan starts: "local" only when the audio and the decisions both stay on this
+ * computer, "cloud" when both go out; anything else (mixed, or an engine missing) is null and the
+ * page asks instead of starting, so a take shown as local never sends anything out.
+ */
+export function takeModeOf(plan: Pick<Plan, "stt" | "decision">): "local" | "cloud" | null {
+  const stt = plan.stt.backend;
+  const dec = plan.decision.provider;
+  if (!stt || !dec) return null;
+  const sttLocal = LOCAL_STT.includes(stt);
+  const decLocal = LOCAL_DECISION.includes(dec);
+  if (sttLocal && decLocal) return "local";
+  if (!sttLocal && !decLocal) return "cloud";
+  return null;
 }
 
 /** Labels for the catalogue entries the plan refers to (for the Settings panel). */

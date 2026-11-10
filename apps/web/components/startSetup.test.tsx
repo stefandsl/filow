@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { resolveSetup, type MachineInfo } from "@filow/core";
+import { resolveSetup, t, type MachineInfo } from "@filow/core";
 import { LangProvider } from "@filow/ui";
 import { StartModeDialog, localProvider, localReady } from "./Teleprompter";
 
@@ -36,5 +36,18 @@ describe("local take readiness follows the setup", () => {
     const buttons = [...html.matchAll(/<button[^>]*>[^<]*Start[^<]*·[^<]*(Cloud|Local)/g)].map((m) => [m[1], /disabled/.test(m[0])]);
     expect(buttons).toContainEqual(["Local", false]);
     expect(buttons).toContainEqual(["Cloud", true]);
+  });
+
+  // Review T2 finding 1: with no speech model the dialog says so plainly, and Auto never starts the cloud by itself
+  it("without the speech model the dialog says the voice would have to go online, and offers no Auto start", () => {
+    const html = renderToStaticMarkup(
+      <LangProvider lang="en">
+        <StartModeDialog readiness={{ ...base, whisper: false, sherpa: false, openrouterKey: true, sttKey: true, setup: resolveSetup("auto", oldLaptop) }} onPick={() => {}} onCancel={() => {}} />
+      </LangProvider>,
+    );
+    expect(html.replace(/&#x27;/g, "'")).toContain(t("start.noLocalSpeech", "en"));
+    expect(html).not.toContain("Speech model on this PC (streaming");
+    // the cloud is its own button, never the automatic pick (before: "Filow would start in Cloud mode")
+    expect(html).not.toContain(t("start.autoTitle", "en"));
   });
 });

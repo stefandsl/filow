@@ -14,6 +14,7 @@ import { screenBridge } from "@/lib/screen/watcher";
 import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/sessionUrl";
 import { placementText, ResourcesPanel, useResources } from "@/components/ResourcesPanel";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
+import { modelLabel } from "@/lib/router";
 import { MicrophoneSelect } from "@/components/MicrophoneSelect";
 import { OkFilowSettings } from "@/components/OkFilowSettings";
 import { SetupPicker } from "./SetupPicker";
@@ -425,7 +426,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               <div className="planrows">
                 <div><strong>{t("plan.task.stt")}</strong> {t(`plan.stt.${plan.stt.backend ?? "none"}`)} <span className="hint">· {t(`plan.reason.${plan.stt.reason}` as I18nKey)}</span></div>
                 <div><strong>{t("plan.task.decision")}</strong> {t(`plan.decision.${plan.decision.provider ?? "none"}`)}{plan.decision.measuredMs ? ` · ${plan.decision.measuredMs} ms` : ""} <span className="hint">· {t(`plan.reason.${plan.decision.reason}` as I18nKey)}</span></div>
-                <div><strong>{t("plan.task.generate")}</strong> {plan.generate.provider === "ollama" ? plan.generate.model : t(`plan.decision.${plan.generate.provider === "openrouter" ? "openrouter" : "none"}`)} <span className="hint">· {t(`plan.reason.${plan.generate.reason}` as I18nKey)}</span></div>
+                <div><strong>{t("plan.task.generate")}</strong> {plan.generate.provider === "ollama" ? modelLabel(plan.generate.model) : t(`plan.decision.${plan.generate.provider === "openrouter" ? "openrouter" : "none"}`)} <span className="hint">· {t(`plan.reason.${plan.generate.reason}` as I18nKey)}</span></div>
                 <div><strong>{t("plan.task.vision")}</strong> {t(`plan.decision.${plan.vision.provider === "openrouter" ? "openrouter" : "none"}`)}</div>
                 {plan.expectedTickMs !== null && <div className="hint">{t("plan.expected", { s: (plan.expectedTickMs / 1000).toFixed(1) })}</div>}
               </div>

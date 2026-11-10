@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { setupChoices, type MachineInfo } from "@filow/core";
-import { buildPlan, type PlanInput } from "./router";
+import { buildPlan, takeModeOf, type DecisionChoice, type Plan, type PlanInput, type SttChoice } from "./router";
 
 const base: PlanInput = {
   installed: [],
@@ -94,5 +94,39 @@ describe("model router with a setup profile", () => {
     expect(buildPlan({ ...base, keys, gpu, ramGb: 32, installed: ["clef-flash:latest"], ollamaOk: true, setup: adv }).decision).toMatchObject({ provider: "clef-local", reason: "setup" });
     expect(buildPlan({ ...base, keys, gpu, ramGb: 32, installed: [], ollamaOk: true, setup: adv }).decision).toMatchObject({ provider: "matcher", reason: "clef-missing" });
     expect(buildPlan({ ...base, keys, installed: ["clef-flash:latest"], ollamaOk: false, setup: adv }).decision.provider).toBe("matcher");
+  });
+
+  // Review T2 finding 1: Auto + an ElevenLabs key + speech model not installed sent the audio to the
+  // cloud while the take was shown as local.
+  it("a setup never sends the audio out: no local speech engine ready = none, said plainly, even with every key", () => {
+    const keys = { openrouter: true, elevenlabs: true, openai: true, cloudflare: true };
+    for (const profile of ["lite", "standard", "advanced"] as const) {
+      const p = buildPlan({ ...base, keys, webSpeech: true, setup: setupChoices(profile, rig) });
+      expect(p.stt).toEqual({ backend: null, reason: "local-speech-missing", expectedLagMs: null });
+      expect(takeModeOf(p)).toBeNull();
+    }
+  });
+
+  it("a setup uses the speech engines on this computer: streaming first, then a downloaded Whisper", () => {
+    const keys = { ...base.keys, elevenlabs: true, openai: true };
+    const lite = setupChoices("lite", old);
+    expect(buildPlan({ ...base, keys, sherpaReady: true, whisperCached: true, setup: lite }).stt.backend).toBe("sherpa");
+    const w = buildPlan({ ...base, keys, webSpeech: true, whisperCached: true, setup: lite });
+    expect(w.stt.backend).toBe("whisper");
+    expect(takeModeOf(w)).toBe("local");
+  });
+});
+
+describe("takeModeOf: a take is local only when the audio and the decisions both stay here", () => {
+  const plan = (stt: SttChoice | null, provider: DecisionChoice | null) =>
+    ({ ...buildPlan(base), stt: { backend: stt, reason: "x", expectedLagMs: null }, decision: { provider, reason: "x", measuredMs: null } }) as Plan;
+  it("local, cloud, or neither (mixed or missing: the page asks)", () => {
+    expect(takeModeOf(plan("sherpa", "matcher"))).toBe("local");
+    expect(takeModeOf(plan("whisper", "clef-local"))).toBe("local");
+    expect(takeModeOf(plan("elevenlabs", "matcher"))).toBeNull();
+    expect(takeModeOf(plan("browser", "clef-local"))).toBeNull();
+    expect(takeModeOf(plan("sherpa", "openrouter"))).toBeNull();
+    expect(takeModeOf(plan("elevenlabs", "openrouter"))).toBe("cloud");
+    expect(takeModeOf(plan(null, "matcher"))).toBeNull();
   });
 });

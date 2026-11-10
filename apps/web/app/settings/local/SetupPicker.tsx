@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { missingModels, resolveSetup, SETUP_PREFERENCES, type I18nKey, type MachineInfo, type SetupModel, type SetupPreference, type SetupProfileId } from "@filow/core";
+import { advancedDiskNeedGb, missingModels, resolveSetup, SETUP_PREFERENCES, type I18nKey, type MachineInfo, type SetupModel, type SetupPreference, type SetupProfileId } from "@filow/core";
 import { useT } from "@filow/ui";
 
 export type SetupPickerProps = {
@@ -29,9 +29,14 @@ export function SetupPicker({ hardware, gpuName, preference, onChange, installed
   const name = (p: SetupProfileId) => t(`setup.${p}`);
   const desc = (p: SetupProfileId) => {
     if (p === "lite" && resolveSetup("lite", hardware).choices.screenHelper.mode === "none") return t("setup.lite.descNone");
+    // a card under 12 GB: picture answers wait while the larger AI is loaded (measured, D26)
+    if (p === "advanced" && resolveSetup("advanced", hardware).choices.screenHelper.waitsForDecisions) return t("setup.advanced.descShared");
     return t(`setup.${p}.desc` as I18nKey);
   };
-  const why = t(`setup.why.${setup.reason}` as I18nKey, { ram: hardware.ramGb, cores: hardware.cores, vram: hardware.gpu.vramGb ?? 0, disk: hardware.freeDiskGb ?? 0 });
+  const why = t(`setup.why.${setup.reason}` as I18nKey, { ram: hardware.ramGb, cores: hardware.cores, vram: hardware.gpu.vramGb ?? 0, disk: hardware.freeDiskGb ?? 0, need: advancedDiskNeedGb(hardware) });
+  // OK Filow has no local answers with this setup here: say why (Lite's own text already names memory)
+  const helper = setup.choices.screenHelper;
+  const noScreen = helper.mode !== "none" ? null : helper.lacking === "disk" ? t("setup.screen.noDisk") : setup.active !== "lite" ? t("setup.screen.none") : null;
   const gpu = hardware.gpu.kind === "none" || !gpuName ? t("setup.noGpu") : hardware.gpu.kind === "discrete" && hardware.gpu.vramGb ? `${gpuName} (${hardware.gpu.vramGb} GB)` : gpuName;
   const missing = missingModels(setup.choices, installed);
   const list = (ms: SetupModel[]) => ms.map((m) => t(`setup.model.${m.name}` as I18nKey)).join(", ");
@@ -66,6 +71,7 @@ export function SetupPicker({ hardware, gpuName, preference, onChange, installed
       <div className="hint" aria-live="polite">
         {preference === "auto" ? desc(setup.active) : t(setup.heavierThanRecommended ? "setup.heavier" : "setup.pinned", { name: name(setup.recommended) })}
       </div>
+      {noScreen && <div className="hint">{noScreen}</div>}
       <div className="row" aria-live="polite">
         {forTake.length === 0 && <span className="chip live">{t("setup.ready")}</span>}
         {forTake.length > 0 && <span className="hint">{t("setup.needs", { list: list(forTake), gb: gb(forTake) })}</span>}

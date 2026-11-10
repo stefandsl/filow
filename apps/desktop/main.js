@@ -1559,11 +1559,9 @@ const localAi = require("./localai");
 let localAiState = { state: "idle", pct: 0, error: "", version: "", command: "" };
 let localAiHardware = null;
 let localAiInstalling = null;
+/** The hardware scan and its recommendation; a promise (the scan runs off the main thread), made once. */
 function localAiInfo() {
-  if (!localAiHardware) {
-    const hw = localAi.hardwareScan();
-    localAiHardware = { ...hw, recommended: localAi.recommend(hw) };
-  }
+  if (!localAiHardware) localAiHardware = localAi.hardwareScan().then((hw) => ({ ...hw, recommended: localAi.recommend(hw) }));
   return localAiHardware;
 }
 function setLocalAi(s) {
@@ -1609,7 +1607,7 @@ async function offerLocalAi() {
     logLine(`local AI offer: answered in the welcome${welcomeSetup.choice ? "" : " (nothing to download)"}`);
     return welcomeSetup.choice;
   }
-  const info = localAiInfo();
+  const info = await localAiInfo();
   const rec = info.recommended;
   if (!rec.models.length) return null;
   const tx = LOCAL_AI_TEXT[menuLang()] || LOCAL_AI_TEXT.en;

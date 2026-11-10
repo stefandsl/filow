@@ -6,77 +6,68 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const https = require("node:https");
-const { spawn, execFileSync } = require("node:child_process");
+const { spawn, execFile, execFileSync } = require("node:child_process");
 
 const OLLAMA_URL = () => process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 
+/**
+ * The setup profiles (packages/core/src/profile.ts) and the graphics card detection
+ * (packages/core/src/hardware.ts), bundled into vendor/ by `npm run build:welcome`: the same code
+ * the web server runs, so the first-start downloads, Settings and OK Filow follow one rule.
+ */
+const core = () => ({ ...require("./vendor/profile"), ...require("./vendor/hardware") });
+
 /** Catalogue mirrored from apps/web/lib/localModels.ts (sizes in GB) for the first-start recommendation. */
 const CATALOG = {
-  "nemotron-streaming": { dl: 0.45, ram: 3, ollama: false, label: "Nemotron streaming speech-to-text" },
-  "whisper-base": { dl: 0.15, ram: 2, ollama: false, label: "Whisper base" },
-  "whisper-small": { dl: 0.5, ram: 4, ollama: false, label: "Whisper small" },
-  "clef-flash": { dl: 11, ram: 16, ollama: true, label: "Clef Flash (local decisions)" },
-  clef: { dl: 17, ram: 32, ollama: true, label: "Clef 27B (local decisions)" },
-  "gemma4:e2b": { dl: 6, ram: 8, ollama: true, label: "Gemma 4 E2B (script from slides)" },
-  "gemma4:e4b": { dl: 9, ram: 16, ollama: true, label: "Gemma 4 E4B (script from slides)" },
-  "qwen3-vl:8b": { dl: 6.1, ram: 16, ollama: true, label: "Qwen3-VL 8B (OK Filow screen helper)" },
-  "qwen3-vl:4b": { dl: 3.3, ram: 8, ollama: true, label: "Qwen3-VL 4B (OK Filow screen helper)" },
-  "qwen3-vl:2b": { dl: 1.9, ram: 6, ollama: true, label: "Qwen3-VL 2B (OK Filow screen helper)" },
-  "lfm3-vl": { dl: 1.5, ram: 4, ollama: true, label: "LFM3-VL (OK Filow screen helper, small)" },
+  "nemotron-streaming": { dl: 0.45, ram: 3, ollama: false, label: "Speech model (live, on this computer)" },
+  "whisper-base": { dl: 0.15, ram: 2, ollama: false, label: "Speech model for the browser (small)" },
+  "whisper-small": { dl: 0.5, ram: 4, ollama: false, label: "Speech model for the browser" },
+  "clef-flash": { dl: 11, ram: 16, ollama: true, label: "Point-checking AI (large)" },
+  clef: { dl: 17, ram: 32, ollama: true, label: "Point-checking AI (largest)" },
+  "gemma4:e2b": { dl: 6, ram: 8, ollama: true, label: "Script writer for slides (small)" },
+  "gemma4:e4b": { dl: 9, ram: 16, ollama: true, label: "Script writer for slides" },
+  "qwen3-vl:8b": { dl: 6.1, ram: 16, ollama: true, label: "OK Filow screen helper (large)" },
+  "qwen3-vl:4b": { dl: 3.3, ram: 8, ollama: true, label: "OK Filow screen helper (medium)" },
+  "qwen3-vl:2b": { dl: 1.9, ram: 6, ollama: true, label: "OK Filow screen helper" },
+  "lfm3-vl": { dl: 1.5, ram: 4, ollama: true, label: "OK Filow screen helper (small)" },
 };
 
-function gpuName() {
-  try {
-    if (process.platform === "win32") {
-      const out = execFileSync("powershell.exe", ["-NoProfile", "-Command", "(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notmatch 'Remote|Basic' } | Select-Object -First 1 -ExpandProperty Name)"], { encoding: "utf8", timeout: 8000, windowsHide: true });
-      return out.trim();
+/** Runs a probe as a child process: resolves its output, or "" on failure. The main process never waits on it. */
+function runProbe(cmd, args, timeoutMs) {
+  return new Promise((resolve) => {
+    try {
+      execFile(cmd, args, { encoding: "utf8", timeout: timeoutMs, windowsHide: true, maxBuffer: 1 << 20 }, (err, out) => resolve(err ? "" : String(out)));
+    } catch {
+      resolve("");
     }
-    if (process.platform === "darwin") {
-      const cpu = os.cpus()[0]?.model || "";
-      return /apple/i.test(cpu) ? `${cpu} (unified memory)` : "";
-    }
-    const out = execFileSync("sh", ["-c", "lspci 2>/dev/null | grep -iE 'vga|3d' | head -1 | cut -d: -f3"], { encoding: "utf8", timeout: 4000 });
-    return out.trim();
-  } catch {
-    return "";
-  }
+  });
 }
 
-function freeGb(dir) {
-  try {
-    const s = fs.statfsSync(dir);
-    return Math.round((s.bavail * s.bsize) / 1024 ** 3);
-  } catch {
-    return -1;
-  }
+let scanning = null;
+
+/**
+ * { ramGb, gpu, gpuClass: "discrete"|"integrated"|"unknown", gpuKind, vramGb, gpuOllama, freeGb, cpu, cores, platform, arch }
+ * Asynchronous (the probes take up to 11 s on Windows and used to freeze every window) and done
+ * once per session: later calls get the same promise. `refresh` scans again.
+ */
+function hardwareScan({ refresh = false, run = runProbe } = {}) {
+  if (!scanning || refresh) scanning = scan(run);
+  return scanning;
 }
 
-/** Video memory of an NVIDIA card in GB (nvidia-smi), else null: other cards are not measured here. */
-function nvidiaVramGb() {
-  try {
-    const out = execFileSync("nvidia-smi", ["--query-gpu=memory.total", "--format=csv,noheader,nounits"], { encoding: "utf8", timeout: 3000, windowsHide: true });
-    const mib = Number(out.split(/\r?\n/)[0]);
-    return Number.isFinite(mib) && mib > 0 ? Math.round((mib / 1024) * 10) / 10 : null;
-  } catch {
-    return null;
-  }
-}
-
-/** { ramGb, gpu, gpuClass: "discrete"|"integrated"|"unknown", gpuKind, vramGb, freeGb, cpu, cores } */
-function hardwareScan() {
-  const gpu = gpuName();
-  const gpuClass = /nvidia|geforce|rtx|radeon|rx \d|apple/i.test(gpu) ? "discrete" : /arc|iris|uhd|intel|vega/i.test(gpu) ? "integrated" : "unknown";
-  // An NVIDIA card answers nvidia-smi even when Windows lists the integrated GPU first (laptops with
-  // both); that is also what the web side's gpuInfo() reads, so the two agree on the profile.
-  const nvidia = process.platform === "darwin" ? null : nvidiaVramGb();
-  const gpuKind = nvidia ? "discrete" : /apple/i.test(gpu) ? "unified" : gpuClass === "discrete" ? "discrete" : gpuClass === "integrated" ? "integrated" : "none";
+async function scan(run) {
+  const { detectGpu, ollamaModelsDir, freeGbAt } = core();
+  const g = await detectGpu(run, { platform: process.platform, cpuModel: os.cpus()[0]?.model || "", totalMemBytes: os.totalmem() });
+  // free space where Ollama will keep the models (OLLAMA_MODELS, else ~/.ollama/models)
+  const free = freeGbAt(ollamaModelsDir(process.env, os.homedir(), path.sep), (p) => fs.statfsSync(p), path.dirname);
   return {
     ramGb: Math.ceil(os.totalmem() / 1024 ** 3),
-    gpu,
-    gpuClass,
-    gpuKind,
-    vramGb: nvidia ?? (gpuKind === "unified" ? Math.ceil(os.totalmem() / 1024 ** 3) : null),
-    freeGb: freeGb(os.homedir()),
+    gpu: g.name,
+    gpuClass: g.kind === "discrete" || g.kind === "unified" ? "discrete" : g.kind === "integrated" ? "integrated" : "unknown",
+    gpuKind: g.kind,
+    vramGb: g.vramGb,
+    gpuOllama: g.ollama,
+    freeGb: free === null ? -1 : free,
     cpu: os.cpus()[0]?.model || "",
     cores: os.cpus().length,
     platform: process.platform,
@@ -84,52 +75,48 @@ function hardwareScan() {
   };
 }
 
-/**
- * The setup profile for this machine: the same rule as recommendProfile in
- * packages/core/src/profile.ts (this file is plain CommonJS in the Electron main process and cannot
- * import the TypeScript core; apps/desktop/localai-profile.test.ts keeps the two in step).
- */
-function profileOf(hw) {
-  const vram = hw.vramGb || 0;
-  const free = hw.freeGb;
-  const bigGpu = (hw.gpuKind === "discrete" && vram >= 8 && hw.ramGb >= 16) || (hw.gpuKind === "unified" && hw.ramGb >= 32);
-  const diskOk = free === null || free === undefined || free < 0 || free >= 16;
-  if (bigGpu && diskOk) return "advanced";
-  if (bigGpu) return "standard";
-  if (hw.ramGb >= 12 && hw.cores >= 6) return "standard";
-  if (hw.gpuKind === "discrete" && vram >= 4 && hw.ramGb >= 8) return "standard";
-  return "lite";
+/** The scan in the shape packages/core/src/profile.ts reads. */
+function machineOf(hw) {
+  return {
+    ramGb: hw.ramGb,
+    cores: hw.cores,
+    gpu: { kind: hw.gpuKind, vramGb: hw.vramGb ?? null, ollama: hw.gpuOllama },
+    freeDiskGb: hw.freeGb === null || hw.freeGb === undefined || hw.freeGb < 0 ? null : hw.freeGb,
+  };
 }
 
-/** Models of each profile (packages/core/src/profile.ts setupChoices), plus Whisper for the browser. */
-const PROFILE_MODELS = {
-  advanced: ["nemotron-streaming", "whisper-small", "clef-flash", "qwen3-vl:2b"],
-  standard: ["nemotron-streaming", "whisper-base", "lfm3-vl"],
-  lite: ["nemotron-streaming", "whisper-base", "lfm3-vl"],
-  liteSmall: ["nemotron-streaming", "whisper-base"],
-};
+/** The setup profile for this machine: recommendProfile in packages/core/src/profile.ts. */
+function profileOf(hw) {
+  return core().recommendProfile(machineOf(hw)).profile;
+}
 
 /**
- * What this machine can run comfortably: its setup profile's models, plus the slide model the RAM
- * allows (script from slides). Keeps 3 GB of disk headroom; drops the biggest Ollama model first.
+ * What this machine can run comfortably: exactly its setup profile's downloads (setupChoices), the
+ * Whisper model of that profile for the browser, plus the slide model the RAM allows (script from
+ * slides). The profile's own models already fit (the core picks a lighter setup, or no screen
+ * helper, when they would not); only the slide model is dropped for disk space, keeping 4 GB free.
  */
 function recommend(hw) {
-  const profile = profileOf(hw);
-  let models = [...PROFILE_MODELS[profile === "lite" && hw.ramGb < 6 ? "liteSmall" : profile]];
+  const { recommendProfile, setupChoices, DOWNLOAD_SPARE_GB } = core();
+  const machine = machineOf(hw);
+  const profile = recommendProfile(machine).profile;
+  const choices = setupChoices(profile, machine);
+  const whisper = `whisper-${choices.stt.browserWhisper.split("whisper-")[1]}`;
+  // the matcher's small model ("browser") loads inside the page on first use and is not listed here
+  let models = [
+    ...choices.models.filter((m) => m.runtime === "sherpa").map((m) => m.name),
+    whisper,
+    ...choices.models.filter((m) => m.runtime === "ollama").map((m) => m.name),
+  ];
   if (hw.ramGb >= 32) models.push("gemma4:e4b");
   else if (hw.ramGb >= 8) models.push("gemma4:e2b");
   const total = (list) => list.reduce((s, n) => s + (CATALOG[n]?.dl || 0), 0);
   if (hw.freeGb >= 0) {
-    // Drop order: big slide model (its small sibling steps in), small slide model, then Clef:
-    // decisions are the core feature, so they go last. Keep 3 GB spare after the downloads.
-    const spare = 3 + 1; // + ~1 GB for Ollama itself
-    for (const drop of ["gemma4:e4b", "gemma4:e2b", "qwen3-vl:8b", "qwen3-vl:4b", "qwen3-vl:2b", "lfm3-vl", "clef", "clef-flash"]) {
-      if (total(models) + spare <= hw.freeGb) break;
-      if (!models.includes(drop)) continue;
-      models = models.filter((n) => n !== drop);
-      if (drop === "gemma4:e4b" && !models.includes("gemma4:e2b")) models.splice(1, 0, "gemma4:e2b");
-      if (drop === "qwen3-vl:8b" && !models.includes("qwen3-vl:4b")) models.push("qwen3-vl:4b");
-    }
+    // the big slide model gives way to its small sibling, then to nothing (DOWNLOAD_SPARE_GB left free)
+    const ollamaTotal = (list) => list.reduce((s, n) => s + (CATALOG[n]?.ollama ? CATALOG[n].dl : 0), 0);
+    const fits = (list) => ollamaTotal(list) + DOWNLOAD_SPARE_GB <= hw.freeGb;
+    if (models.includes("gemma4:e4b") && !fits(models)) models = models.map((n) => (n === "gemma4:e4b" ? "gemma4:e2b" : n));
+    if (models.includes("gemma4:e2b") && !fits(models)) models = models.filter((n) => n !== "gemma4:e2b");
   }
   return { profile, models, ollama: models.some((n) => CATALOG[n]?.ollama), downloadGb: Math.round(total(models) * 10) / 10, labels: models.map((n) => CATALOG[n]?.label || n) };
 }

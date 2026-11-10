@@ -14,6 +14,7 @@ import { askRoute, changesStored, voiceRoute, whoPhrase, type BuddyRecipients, t
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
 import { ConsentList, OutboundNotice, OutboundPill } from "../outbound-ui";
 import { VoiceSettings } from "./voice-settings";
+import { getSetupPreference } from "@/lib/prefs";
 import "../okfilow.css";
 
 const HISTORY_KEY = "okfilow.history.v1";
@@ -83,7 +84,7 @@ export default function OkFilowPanel() {
     // Load the local model now, so the first question does not wait for it (local only, no content sent).
     void b.status().then(async (s) => {
       if (s.enabled && (s.provider === "local" || s.offline)) {
-        await fetch("/api/buddy/warm", { method: "POST", headers: await engineHeadersRef.current() }).catch(() => {});
+        await fetch("/api/buddy/warm", { method: "POST", headers: { "Content-Type": "application/json", ...(await engineHeadersRef.current()) }, body: JSON.stringify({ setup: getSetupPreference() }) }).catch(() => {});
       }
     });
     void b.stt.status().then((s) => setSttReady(s.ready)).catch(() => setSttReady(false));
@@ -203,7 +204,8 @@ export default function OkFilowPanel() {
     cloudAudio: (text) => cloudVoiceRef.current(text),
     onFallback: (reason) => setNote(tRef.current(`voiceWhy_${reason}`)),
   }), []);
-  const speak = useCallback((text: string, id: number) => speaker.speak(text, id), [speaker]);
+  // lang: the answer's language from the server (X-Buddy-Lang); without it the voice detects it from the text.
+  const speak = useCallback((text: string, id: number, lang?: string) => speaker.speak(text, id, { lang }), [speaker]);
   useEffect(() => speaker.attach(), [speaker]);
 
   // Hands-free: after each answer the mic opens again until it is switched off.
@@ -226,6 +228,7 @@ export default function OkFilowPanel() {
           history: [],
           language: "auto",
           provider: to ? "cloud" : "local",
+          setup: getSetupPreference(),
         }),
       });
       return res.ok ? res.text() : null;
@@ -316,14 +319,20 @@ export default function OkFilowPanel() {
           setNote(t("kept_ask"));
         } else to = rec.ask;
       }
+      // What the server says about the answer: whether the model saw a picture (X-Buddy-Sees) and the
+      // language it answered in (X-Buddy-Lang), which the voice uses to pick a matching voice.
+      let seesText = false;
+      let answerLang: string | undefined;
       const send = async (consent: Record<string, string>, quiet?: () => void) => {
         const res = await fetch("/api/buddy/ask", {
           method: "POST",
           signal: abort.signal,
           headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent },
-          body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: "auto", provider: route }),
+          body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: "auto", provider: route, setup: getSetupPreference() }),
         });
         if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `HTTP ${res.status}`);
+        seesText = res.headers.get("X-Buddy-Sees") === "text";
+        answerLang = res.headers.get("X-Buddy-Lang") ?? undefined;
         // The server answered from this PC after all (offline switch): nothing went outside.
         if (res.headers.get("X-Buddy-Provider") !== "cloud") quiet?.();
         const reader = res.body.getReader();
@@ -405,11 +414,12 @@ export default function OkFilowPanel() {
       }
       // HeyClicky always shows you where. Small local models sometimes answer in words only: then ask
       // once more, narrowly, for the point, while the answer is already being spoken.
-      const grounding = !mapped.length && !drawn.length && !cards.length && !model && text
+      // (not when the setup answered from text: the model saw no picture to point at)
+      const grounding = !mapped.length && !drawn.length && !cards.length && !model && text && !seesText
         ? groundAnswer(question, text, images, shot, abort.signal, to).then((p) => { if (p && run.current === id) b.point([p]); }).catch(() => {})
         : Promise.resolve();
       setMode("speaking");
-      if (!opts.typed || statusRef.current?.typedVoice) await speak(text, id);
+      if (!opts.typed || statusRef.current?.typedVoice) await speak(text, id, answerLang);
       await grounding;
       if (run.current === id) setMode("idle");
       if (run.current === id && handsFree.current) listenAgain.current();

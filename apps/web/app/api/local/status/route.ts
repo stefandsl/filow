@@ -34,7 +34,8 @@ export async function GET() {
   }));
   const pii = { mode: piiMode(), serverUrl: PII_SERVER_URL(), serverReachable: process.env.FILOW_OFFLINE !== "1" && await rizzoReachable() };
   const gpu = await gpuInfo();
-  const hardware = machineInfo(gpu);
+  // what is installed needs no free disk: the setup does not flip after its own downloads
+  const hardware = machineInfo(gpu, installed.map((i) => i.name));
   return NextResponse.json({
     pii,
     ollama: { url: base, reachable: version !== null, version, minimum: "0.35.1", ok: version ? versionAtLeast(version, "0.35.1") : false },

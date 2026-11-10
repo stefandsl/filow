@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireEngine } from "@/lib/engineAuth";
 import { dataUrlBytes, MAX_IMAGE_BYTES } from "@/lib/vision/openrouter";
 import { CONSENT_HEADER, consentDenied } from "@/lib/buddy/outbound";
-import { askBuddy, buddyCloudRecipient, resolveBuddyProvider, type BuddyAskRequest } from "@/lib/buddy/providers";
+import { askBuddy, buddyCloudRecipient, resolveBuddyProvider, resolveLocalHelper, type BuddyAskRequest, type LocalHelper } from "@/lib/buddy/providers";
 import { answerLanguage } from "@/lib/buddy/lang";
 
 export const dynamic = "force-dynamic";
@@ -47,13 +47,22 @@ export async function POST(req: Request) {
   // speaks". The `lang` header is always one of the five (English when nothing tells).
   const known = answerLanguage(question, body.language, req.headers.get("accept-language"));
   const lang = known ?? "en";
+  // Local: the screen helper of the setup for this computer, and whether it reads the picture or only text
+  let helper: LocalHelper | undefined;
+  if (provider === "local") {
+    try {
+      helper = await resolveLocalHelper(body.setup, question);
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 409 });
+    }
+  }
   const encoder = new TextEncoder();
   const abort = new AbortController();
   req.signal?.addEventListener("abort", () => abort.abort());
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const piece of askBuddy(provider, { ...body, question, images, screens, consent, language: known ?? "auto" }, abort.signal)) controller.enqueue(encoder.encode(piece));
+        for await (const piece of askBuddy(provider, { ...body, question, images, screens, consent, language: known ?? "auto" }, abort.signal, helper)) controller.enqueue(encoder.encode(piece));
       } catch (e) {
         if (!abort.signal.aborted) controller.enqueue(encoder.encode(`\n[ERROR] ${e instanceof Error ? e.message : String(e)}`));
       } finally {
@@ -65,6 +74,7 @@ export async function POST(req: Request) {
     },
   });
   return new Response(stream, {
-    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Buddy-Provider": provider, "X-Buddy-Lang": lang },
+    // X-Buddy-Sees "text": no picture went to the model, so the page asks for no point on screen
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Buddy-Provider": provider, "X-Buddy-Lang": lang, "X-Buddy-Sees": helper && !helper.pictures ? "text" : "screen" },
   });
 }

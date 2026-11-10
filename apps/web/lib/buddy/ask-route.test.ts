@@ -5,6 +5,8 @@ const asked: Array<{ language?: string }> = [];
 vi.mock("@/lib/engineAuth", () => ({ requireEngine: () => null }));
 vi.mock("@/lib/buddy/providers", () => ({
   resolveBuddyProvider: () => "local",
+  // the setup's screen helper (T2): a local answer that reads the picture
+  resolveLocalHelper: async () => ({ model: "fake-vl", pictures: true }),
   askBuddy: async function* (_p: string, req: { language?: string }) { asked.push(req); yield "ok"; },
 }));
 

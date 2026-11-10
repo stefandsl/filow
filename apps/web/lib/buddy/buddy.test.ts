@@ -1,14 +1,49 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { buddySystemPrompt, markToDisplay, parseBuddyAnswer, pointToDisplay, trimHistory } from "./prompt";
 import { bezierPoint, bubblePlacement } from "./motion";
-import { noThinkPrefill, pickLocalModel, resolveBuddyProvider, wantsVisual, BUDDY_DRAW_CANDIDATES } from "./providers";
+import { resolveSetup, type MachineInfo } from "@filow/core";
+import { localHelper, NO_LOCAL_HELPER, noThinkPrefill, resolveBuddyProvider, wantsVisual } from "./providers";
 
-it("pickLocalModel prefers the configured model, else the best installed vision model", () => {
-  expect(pickLocalModel(["clef-flash:latest", "gemma4:e4b", "qwen3-vl:2b"], undefined)).toBe("qwen3-vl:2b");
-  expect(pickLocalModel(["gemma4:e4b", "qwen3-vl:8b"], undefined)).toBe("gemma4:e4b");
-  expect(pickLocalModel(["qwen3-vl:2b"], undefined)).toBe("qwen3-vl:2b");
-  expect(pickLocalModel([], undefined)).toBe("gemma4:e4b");
-  expect(pickLocalModel(["gemma4:e4b"], "my-vl")).toBe("my-vl");
+// Review T2 finding 2: OK Filow calls the screen helper its setup downloaded, in the setup's mode
+describe("the local screen helper follows the setup for this computer", () => {
+  const hw = (ramGb: number, cores: number, gpu: MachineInfo["gpu"] = { kind: "none", vramGb: null }): MachineInfo => ({ ramGb, cores, gpu, freeDiskGb: 500 });
+  const every = ["clef-flash:latest", "gemma4:e2b", "gemma4:e4b", "qwen3-vl:2b", "qwen3-vl:8b", "lfm3-vl:latest"];
+
+  it("Lite at 6 to 7 GB: the small model it downloaded, answering from text (no picture)", () => {
+    for (const ram of [6, 7]) expect(localHelper(resolveSetup("auto", hw(ram, 4)), every, "what is this?", undefined)).toEqual({ model: "lfm3-vl", pictures: false });
+  });
+
+  it("Lite at 8 GB with the slide model installed: still the small model from text, never Gemma from pictures", () => {
+    const s = resolveSetup("auto", hw(8, 4));
+    expect(s.active).toBe("lite");
+    expect(localHelper(s, every, "what is this?", undefined)).toEqual({ model: "lfm3-vl", pictures: false });
+    expect(localHelper(s, every, "draw me a diagram", undefined)).toEqual({ model: "lfm3-vl", pictures: false });
+  });
+
+  it("Lite under 6 GB: no local answer, said plainly (never a silent switch to the cloud)", () => {
+    expect(() => localHelper(resolveSetup("auto", hw(4, 2)), every, "what is this?", undefined)).toThrow(NO_LOCAL_HELPER);
+  });
+
+  it("Balanced reads the screenshot with the small model; Best quality with Qwen3-VL 2B, drawings with a bigger one when installed", () => {
+    expect(localHelper(resolveSetup("auto", hw(16, 8)), every, "what is this?", undefined)).toEqual({ model: "lfm3-vl", pictures: true });
+    expect(localHelper(resolveSetup("auto", hw(16, 8)), every, "draw me a diagram", undefined)).toEqual({ model: "lfm3-vl", pictures: true });
+    const best = resolveSetup("auto", hw(32, 16, { kind: "discrete", vramGb: 8 }));
+    expect(localHelper(best, every, "what is this?", undefined)).toEqual({ model: "qwen3-vl:2b", pictures: true });
+    expect(localHelper(best, every, "explain photosynthesis with a drawing", undefined)).toEqual({ model: "qwen3-vl:8b", pictures: true });
+    expect(localHelper(best, ["qwen3-vl:2b"], "explain photosynthesis with a drawing", undefined)).toEqual({ model: "qwen3-vl:2b", pictures: true });
+  });
+
+  it("a pinned profile wins over the machine; BUDDY_LOCAL_MODEL (developers) wins over both", () => {
+    expect(localHelper(resolveSetup("standard", hw(8, 4)), every, "q", undefined)).toEqual({ model: "lfm3-vl", pictures: true });
+    expect(localHelper(resolveSetup("auto", hw(4, 2)), [], "q", "my-vl")).toEqual({ model: "my-vl", pictures: true });
+  });
+
+  it("text mode tells the model it cannot see the screen and asks for no tags", () => {
+    const p = buddySystemPrompt([{ index: 1, cursor: true }] as Parameters<typeof buddySystemPrompt>[0], "en", { pictures: false });
+    expect(p).toMatch(/cannot see the screen/);
+    expect(p).not.toMatch(/\[POINT:x,y/);
+    expect(buddySystemPrompt([{ index: 1, cursor: true }] as Parameters<typeof buddySystemPrompt>[0], "en")).toMatch(/\[POINT:x,y/);
+  });
 });
 import { joinTranscript } from "./bridge";
 import { createVad, describeMarked } from "./listen";
@@ -187,7 +222,8 @@ it("ignores the general text model setting when choosing the vision model", () =
   const old = process.env.GENERATE_LOCAL_MODEL;
   process.env.GENERATE_LOCAL_MODEL = "gemma4:e2b";
   try {
-    expect(pickLocalModel(["qwen3-vl:8b", "gemma4:e4b"])).toBe("gemma4:e4b");
+    const best = resolveSetup("auto", { ramGb: 32, cores: 16, gpu: { kind: "discrete", vramGb: 8 }, freeDiskGb: 500 });
+    expect(localHelper(best, ["qwen3-vl:2b", "gemma4:e2b"], "q", undefined).model).toBe("qwen3-vl:2b");
   } finally {
     if (old === undefined) delete process.env.GENERATE_LOCAL_MODEL; else process.env.GENERATE_LOCAL_MODEL = old;
   }
@@ -206,11 +242,9 @@ describe("local reply speed", () => {
     expect(noThinkPrefill("gemma4:e4b")).toEqual([]);
   });
 
-  it("sends drawing and 3D requests to the biggest installed vision model, everything else to the fast one", () => {
+  it("recognises drawing and 3D requests (they may go to a bigger installed model on Best quality)", () => {
     expect(wantsVisual("explain photosynthesis with a drawing")).toBe(true);
     expect(wantsVisual("disegnami un motore in 3D")).toBe(true);
     expect(wantsVisual("what does this button do?")).toBe(false);
-    expect(pickLocalModel(["qwen3-vl:2b", "qwen3-vl:8b"], undefined, BUDDY_DRAW_CANDIDATES)).toBe("qwen3-vl:8b");
-    expect(pickLocalModel(["qwen3-vl:2b", "qwen3-vl:8b"], undefined)).toBe("qwen3-vl:2b");
   });
 });
