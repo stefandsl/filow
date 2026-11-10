@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-10T02:03:05.394Z",
+  "at": "2026-11-10T02:20:42.153Z",
   "model": "clef-flash",
   "pass": {
     "real": 0.65,
@@ -9,7 +9,7 @@
     "main": {
       "falseTicks": 11,
       "expectedNot": 218,
-      "misses": 2,
+      "misses": 1,
       "expectedTicks": 38
     },
     "other-languages": {
@@ -23,7 +23,7 @@
     "main": {
       "falseTicks": 1,
       "expectedNot": 218,
-      "misses": 2,
+      "misses": 1,
       "expectedTicks": 38
     },
     "other-languages": {
@@ -53,20 +53,6 @@
     }
   ],
   "misses": [
-    {
-      "id": "E22",
-      "set": "main",
-      "language": "en",
-      "category": "tp-negated-point",
-      "point": "No price increase this year",
-      "said": "Prices stay exactly where they are until December.",
-      "expected": true,
-      "confidence": 0.91,
-      "guard": "blocked (negation)",
-      "verification": null,
-      "ticked": false,
-      "tickedWithoutVerification": false
-    },
     {
       "id": "F21",
       "set": "main",

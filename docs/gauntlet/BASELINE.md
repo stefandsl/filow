@@ -448,3 +448,23 @@ every open point on every call.
 3. "Same party" needs more third-party true points before its threshold can be trusted.
 4. Not measured: cloud providers (no verification there), real speech-to-text of a real talk, and a
    slow PC, where one more call per tick costs more than 0.65 s.
+
+### Negated points said in other words (2026-11-10, guard)
+
+The guard treated any sentence about a negated point that had no negation as a contradiction, so
+"No branches will close" was blocked by "Every single one of our branches stays open" (2 of the 5
+negated-point cases of the held-out set, 1 of the first set). It is a contradiction only when the
+speech affirms what the point denies: the verb after a verbal negation ("non chiuderà": "la palestra
+chiuderà" contradicts, "resterà aperta" does not), or every content word in the reach of a nominal
+one ("no price increase": "there will be a price increase" contradicts, "prices stay where they are"
+does not). Seven true points and seven contradictions are tests in `guard.test.ts`; both mutations
+(never block, always block) fail them.
+
+| set | false ticks | misses before | after |
+|---|---|---|---|
+| adversarial, English and Italian | 1 of 218 | 2 of 38 | **1** |
+| held out (`cases-verify.json`) | 0 of 148 | 4 of 61 | **2** |
+| seven corpora | 0 | 1 of 38 (by design) | 1 |
+
+The misses left are the model's, not the guard's: one paraphrase at 0.39 and two anecdotes at 0.60
+and 0.61, all under the 0.7 line.

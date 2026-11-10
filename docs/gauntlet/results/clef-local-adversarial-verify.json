@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-10T02:00:43.386Z",
+  "at": "2026-11-10T02:18:21.367Z",
   "model": "clef-flash",
   "pass": {
     "real": 0.65,
@@ -9,7 +9,7 @@
     "verify": {
       "falseTicks": 11,
       "expectedNot": 148,
-      "misses": 4,
+      "misses": 2,
       "expectedTicks": 61
     }
   },
@@ -17,7 +17,7 @@
     "verify": {
       "falseTicks": 0,
       "expectedNot": 148,
-      "misses": 4,
+      "misses": 2,
       "expectedTicks": 61
     }
   },
@@ -47,34 +47,6 @@
       "expected": true,
       "confidence": 0.6,
       "guard": "ok",
-      "verification": null,
-      "ticked": false,
-      "tickedWithoutVerification": false
-    },
-    {
-      "id": "V077",
-      "set": "verify",
-      "language": "en",
-      "category": "negated-point",
-      "point": "No branches will close",
-      "said": "Every single one of our branches stays open. I want that to be heard clearly by the staff in this room.",
-      "expected": true,
-      "confidence": 0.94,
-      "guard": "blocked (negation)",
-      "verification": null,
-      "ticked": false,
-      "tickedWithoutVerification": false
-    },
-    {
-      "id": "V079",
-      "set": "verify",
-      "language": "it",
-      "category": "negated-point",
-      "point": "La palestra non chiuderà durante i lavori",
-      "said": "Per tutta la durata del cantiere la palestra resterà aperta e utilizzabile, i lavori si faranno a zone.",
-      "expected": true,
-      "confidence": 0.95,
-      "guard": "blocked (negation)",
       "verification": null,
       "ticked": false,
       "tickedWithoutVerification": false

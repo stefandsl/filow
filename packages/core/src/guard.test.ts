@@ -205,3 +205,36 @@ describe("claim guard: true points said with a negation, guard probes (ratchet)"
     expect(blocked).toEqual(KNOWN_BLOCKED);
   });
 });
+
+describe("claim guard: a negated point said in other words (TRK-2 held-out set)", () => {
+  // True points the guard blocked: the point is a negation and the speech affirms the same thing
+  // without one. It is a contradiction only when the speech affirms what the point denies.
+  const pass: Array<[string, string]> = [
+    ["No branches will close", "Every single one of our branches stays open. I want that to be heard clearly by the staff in this room."],
+    ["La palestra non chiuderà durante i lavori", "Per tutta la durata del cantiere la palestra resterà aperta e utilizzabile, i lavori si faranno a zone."],
+    ["No price increase this year", "Prices stay exactly where they are until December."],
+    ["Nessun aumento dei prezzi quest'anno", "I prezzi restano fermi dove sono fino a dicembre."],
+    ["No fee increase next year", "Fees stay exactly where they are for the coming year. You will pay what you pay today."],
+    ["Nessun taglio agli stipendi", "Le buste paga restano quelle di oggi, per tutti, e questo ve lo garantisco personalmente."],
+    ["We do not store card numbers", "Card numbers go straight to the bank and are gone from our systems."],
+  ];
+  it.each(pass)("%s / %s passes", (point, said) => {
+    expect(checkClaim(point, said).ok).toBe(true);
+  });
+
+  // The speech affirms the very thing the point denies: still a contradiction.
+  const block: Array<[string, string]> = [
+    ["No branches will close", "Three branches will close in June, I am sorry to say."],
+    ["La palestra non chiuderà durante i lavori", "La palestra chiuderà per tutta la durata dei lavori."],
+    ["No price increase this year", "There will be a price increase this year, around four percent."],
+    ["Nessun aumento dei prezzi quest'anno", "Quest'anno ci sarà un aumento dei prezzi del quattro per cento."],
+    ["Non usiamo il cloud per i dati", "Usiamo il cloud per tutti i dati dei clienti."],
+    ["We did not cut the onboarding time", "We cut the onboarding time to two days."],
+    ["We do not store card numbers", "We store card numbers in our own database."],
+  ];
+  it.each(block)("%s / %s is blocked", (point, said) => {
+    const r = checkClaim(point, said);
+    expect(r.ok).toBe(false);
+    expect(r.conflict?.kind).toBe("negation");
+  });
+});
