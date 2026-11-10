@@ -25,8 +25,12 @@ function createDictation(deps) {
 
   function configure(patch) {
     const p = patch && typeof patch === "object" ? patch : {};
-    const next = core.sanitizeConfig({ ...cfg(), ...p });
-    saveSettings({ ...getSettings(), dictation: next });
+    const next = core.sanitizeConfig({ v: 2, ...cfg(), ...p });
+    // Saved sparse: only the keys this patch set (cleaned), on top of the user's earlier choices.
+    const chosen = {};
+    for (const k of Object.keys(p)) if (k in next) chosen[k] = next[k];
+    const s = getSettings();
+    saveSettings({ ...s, dictation: core.nextStored(s.dictation, chosen) });
     logLine(`dictation: settings ${JSON.stringify(next)}`);
     for (const fn of listeners) try { fn(next); } catch { /* a listener's own problem */ }
     return next;

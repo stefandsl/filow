@@ -1,29 +1,32 @@
 // Browser side of the gate: one embedding worker per page, loaded on demand, and the point
 // vectors cached in localStorage under the gate cache key (model + prep version + language +
 // point texts), so a script that was seen before costs nothing to prepare again.
-import { GATE_MODEL, embedPoints, gateCacheKey, type Bullet, type Embedder, type PointVectors } from "@filow/core";
+import { GATE_MODEL, createDownloadProgress, embedPoints, gateCacheKey, type Bullet, type Embedder, type PointVectors } from "@filow/core";
 
 let worker: Worker | null = null;
 let ready: Promise<void> | null = null;
 let seq = 0;
 const pending = new Map<number, { resolve: (v: Float32Array[]) => void; reject: (e: Error) => void }>();
-let onProgress: ((p: { status: string; file?: string; progress?: number }) => void) | null = null;
+/** The whole model's percent (all its files' bytes together, never going down), or null before any size is known. */
+export type GateProgress = { percent: number | null };
+let onProgress: ((p: GateProgress) => void) | null = null;
 
 export function gateAvailable(): boolean {
   return typeof window !== "undefined" && typeof Worker !== "undefined";
 }
 
 /** Loads the model (first time: a download of ~120 MB, then the browser cache). Resolves when ready. */
-export function loadGate(progress?: (p: { status: string; file?: string; progress?: number }) => void): Promise<void> {
+export function loadGate(progress?: (p: GateProgress) => void): Promise<void> {
   if (!gateAvailable()) return Promise.reject(new Error("no worker support"));
   if (progress) onProgress = progress;
   if (ready) return ready;
   worker = new Worker(new URL("./embed.worker.ts", import.meta.url), { type: "module" });
+  const total = createDownloadProgress();
   ready = new Promise<void>((resolve, reject) => {
     worker!.onmessage = (ev: MessageEvent) => {
-      const m = ev.data as { type: string; id?: number; dims?: number; data?: Float32Array; message?: string; status?: string; file?: string; progress?: number };
+      const m = ev.data as { type: string; id?: number; dims?: number; data?: Float32Array; message?: string; status?: string; file?: string; loaded?: number; total?: number };
       if (m.type === "ready") resolve();
-      else if (m.type === "progress") onProgress?.({ status: m.status ?? "", file: m.file, progress: m.progress });
+      else if (m.type === "progress") onProgress?.({ percent: total.update(m) });
       else if (m.type === "vectors" && m.id !== undefined && m.data && m.dims) {
         const d = m.dims;
         const n = m.data.length / d;

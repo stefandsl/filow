@@ -26,7 +26,8 @@ export function setSelectedWhisperModel(id: string): void {
   }
 }
 
-export type WhisperProgress = { status: string; file?: string; progress?: number };
+/** One file's event; add them up with createDownloadProgress (@filow/core), never show `file` to the user. */
+export type WhisperProgress = { status: string; file?: string; progress?: number; loaded?: number; total?: number };
 
 /** Creates the recognition worker (bundled by Next / Vite). */
 export function createWhisperWorker(): Worker {
@@ -37,9 +38,9 @@ export function createWhisperWorker(): Worker {
 export function preloadWhisper(model: string, onProgress: (p: WhisperProgress) => void): Promise<string> {
   return new Promise((resolve, reject) => {
     const w = createWhisperWorker();
-    w.onmessage = (ev: MessageEvent<{ type: string; status?: string; file?: string; progress?: number; device?: string; message?: string }>) => {
+    w.onmessage = (ev: MessageEvent<{ type: string; status?: string; file?: string; progress?: number; loaded?: number; total?: number; device?: string; message?: string }>) => {
       const m = ev.data;
-      if (m.type === "progress") onProgress({ status: m.status ?? "", file: m.file, progress: m.progress });
+      if (m.type === "progress") onProgress({ status: m.status ?? "", file: m.file, progress: m.progress, loaded: m.loaded, total: m.total });
       if (m.type === "ready") {
         w.terminate();
         resolve(m.device ?? "wasm");

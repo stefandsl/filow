@@ -1,6 +1,7 @@
 "use client";
 import { sherpaBridge, sherpaNotes, type SherpaStatus } from "@filow/stt";
 import { useT } from "@filow/ui";
+import { DownloadLabel } from "./DownloadLabel";
 
 /**
  * Under the on-device speech model: which model the spoken language needs and, in plain words, what
@@ -19,7 +20,7 @@ export function SherpaLanguageNote({ s }: { s: SherpaStatus | null }) {
           {t(n.key, n.vars)}{" "}
           {n.key === "speech.questionsModel" && (
             <button className="btn" disabled={busy} onClick={() => sherpaBridge()?.download(s?.language, "questions")}>
-              {q?.state === "downloading" ? `${t("settings.download")} ${q.pct}%` : q?.state === "extracting" ? t("settings.starting") : t("settings.download")}
+              {q?.state === "downloading" ? <DownloadLabel label={t("progress.speechModel")} percent={q.pct ?? null} /> : q?.state === "extracting" ? t("settings.starting") : t("settings.download")}
             </button>
           )}
         </p>
