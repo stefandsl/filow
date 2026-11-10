@@ -1,54 +1,91 @@
-// Worker thread: streaming speech-to-text with sherpa-onnx (Nemotron 3.5 ASR streaming, int8, CPU).
-// Runs off the main thread so a 100 ms decode never stalls the window. Protocol (parentPort):
-//   in : { type: "init", dir, threads, language } | { type: "feed", samples: Float32Array } | { type: "stop" }
+// Worker thread: speech-to-text with sherpa-onnx on the CPU, off the main thread so a 100 ms decode
+// never stalls the window. stt.js picks the model and builds its recognizer configuration.
+// Protocol (parentPort):
+//   in : { type: "init", kind: "online" | "offline", config, vad, streamLanguage, language }
+//        | { type: "feed", samples: Float32Array } | { type: "language", language } | { type: "stop" }
 //   out: { type: "ready", loadMs } | { type: "result", partial, committed } | { type: "error", message } | { type: "stopped" }
-// `committed` is non-empty only when the endpoint detector closed a segment; `partial` is the live text.
+// `committed` is non-empty only when a phrase is closed; `partial` is the live text. A streaming
+// ("online") model closes a phrase with its endpoint detector and writes partials while the person
+// speaks. A phrase ("offline") model gets whole phrases cut by the Silero voice detector and has no
+// partials: each phrase arrives once, committed.
 const { parentPort } = require("node:worker_threads");
-const path = require("node:path");
+
+const SAMPLE_RATE = 16000;
+// Silero works on 512-sample windows at 16 kHz. A phrase longer than 8 s is cut so a speaker who
+// never pauses still sees text.
+const VAD_WINDOW = 512;
+// Speech probability above which Silero counts a window as speech. 0.5 (the usual default) cut the
+// soft start of phrases: on the 15 test-take clips (G:/FILOW/tmp/t8-scripts/vad-bench.mjs) the
+// phrase models made 86 errors at 0.5, 59 at 0.2 (Japanese ReazonSpeech 16.3 % -> 6.7 % CER).
+// `vadThreshold` in the init message overrides it for measurements.
+const VAD_THRESHOLD = 0.2;
 
 let sherpa = null;
 let recognizer = null;
 let stream = null;
+let vad = null;
+let pending = new Float32Array(0);
+let kind = "online";
+let streamLanguage = false;
 let language = "auto";
 
 function init(msg) {
   const t0 = Date.now();
   sherpa = require("sherpa-onnx-node");
-  recognizer = new sherpa.OnlineRecognizer({
-    featConfig: { sampleRate: 16000, featureDim: 80 },
-    modelConfig: {
-      transducer: {
-        encoder: path.join(msg.dir, "encoder.int8.onnx"),
-        decoder: path.join(msg.dir, "decoder.int8.onnx"),
-        joiner: path.join(msg.dir, "joiner.int8.onnx"),
-      },
-      tokens: path.join(msg.dir, "tokens.txt"),
-      numThreads: msg.threads || 2,
-      provider: "cpu",
-      modelType: "",
-      debug: 0,
-    },
-    decodingMethod: "greedy_search",
-    enableEndpoint: 1,
-    // A sentence is "committed" after 1.2 s of silence following speech, or 2.4 s of silence after
-    // nothing, or 20 s of continuous speech. The live partial keeps the engine fed meanwhile.
-    rule1MinTrailingSilence: 2.4,
-    rule2MinTrailingSilence: 1.2,
-    rule3MinUtteranceLength: 20,
-  });
+  kind = msg.kind === "offline" ? "offline" : "online";
+  streamLanguage = Boolean(msg.streamLanguage);
   language = msg.language || "auto";
-  newStream();
+  if (kind === "online") {
+    recognizer = new sherpa.OnlineRecognizer(msg.config);
+    newStream();
+  } else {
+    recognizer = new sherpa.OfflineRecognizer(msg.config);
+    vad = new sherpa.Vad({
+      sileroVad: { model: msg.vad, threshold: Number.isFinite(msg.vadThreshold) ? msg.vadThreshold : VAD_THRESHOLD, minSilenceDuration: 0.4, minSpeechDuration: 0.25, maxSpeechDuration: 8, windowSize: VAD_WINDOW },
+      sampleRate: SAMPLE_RATE,
+      numThreads: 1,
+      provider: "cpu",
+      debug: 0,
+    }, 30);
+  }
   parentPort.postMessage({ type: "ready", loadMs: Date.now() - t0 });
 }
 
 function newStream() {
   stream = recognizer.createStream();
-  if (language && language !== "auto") stream.setOption("language", language);
+  if (streamLanguage && language && language !== "auto") stream.setOption("language", language);
+}
+
+/** Transcribes every phrase the voice detector has closed. */
+function drainPhrases() {
+  while (!vad.isEmpty()) {
+    // false: copy the samples. Electron's V8 sandbox refuses buffers that point into native memory
+    // ("External buffers are not allowed"), which is what front() hands out by default.
+    const segment = vad.front(false);
+    vad.pop();
+    const s = recognizer.createStream();
+    s.acceptWaveform({ samples: segment.samples, sampleRate: SAMPLE_RATE });
+    recognizer.decode(s);
+    const committed = (recognizer.getResult(s).text || "").trim();
+    if (committed) parentPort.postMessage({ type: "result", partial: "", committed });
+  }
+}
+
+function feedOffline(samples) {
+  const all = new Float32Array(pending.length + samples.length);
+  all.set(pending);
+  all.set(samples, pending.length);
+  let at = 0;
+  for (; at + VAD_WINDOW <= all.length; at += VAD_WINDOW) vad.acceptWaveform(all.subarray(at, at + VAD_WINDOW));
+  pending = all.slice(at);
+  drainPhrases();
 }
 
 function feed(samples) {
-  if (!recognizer || !stream) return;
-  stream.acceptWaveform({ samples, sampleRate: 16000 });
+  if (!recognizer) return;
+  if (kind === "offline") return feedOffline(samples);
+  if (!stream) return;
+  stream.acceptWaveform({ samples, sampleRate: SAMPLE_RATE });
   while (recognizer.isReady(stream)) recognizer.decode(stream);
   const r = recognizer.getResult(stream);
   if (recognizer.isEndpoint(stream)) {
@@ -60,23 +97,38 @@ function feed(samples) {
   }
 }
 
+/** Sends what is still buffered as a last committed phrase and starts clean for the next take. */
+function flush() {
+  if (!recognizer) return;
+  if (kind === "offline") {
+    // The last partial window, padded with silence, so the end of the last word is not lost.
+    if (pending.length) {
+      const last = new Float32Array(VAD_WINDOW);
+      last.set(pending);
+      vad.acceptWaveform(last);
+    }
+    pending = new Float32Array(0);
+    vad.flush();
+    drainPhrases();
+    vad.reset();
+    return;
+  }
+  if (!stream) return;
+  stream.inputFinished();
+  while (recognizer.isReady(stream)) recognizer.decode(stream);
+  const r = recognizer.getResult(stream);
+  if (r.text) parentPort.postMessage({ type: "result", partial: "", committed: r.text.trim() });
+  newStream();
+}
+
 parentPort.on("message", (msg) => {
   try {
     if (msg.type === "init") init(msg);
     else if (msg.type === "feed") feed(msg.samples instanceof Float32Array ? msg.samples : new Float32Array(msg.samples));
     else if (msg.type === "language") {
       language = msg.language || "auto";
-      if (recognizer) newStream();
-    } else if (msg.type === "stop") {
-      // flush what is still in the stream
-      if (recognizer && stream) {
-        stream.inputFinished();
-        while (recognizer.isReady(stream)) recognizer.decode(stream);
-        const r = recognizer.getResult(stream);
-        if (r.text) parentPort.postMessage({ type: "result", partial: "", committed: r.text.trim() });
-        newStream();
-      }
-    }
+      if (recognizer && kind === "online") newStream();
+    } else if (msg.type === "stop") flush();
   } catch (err) {
     parentPort.postMessage({ type: "error", message: String((err && err.message) || err) });
   } finally {

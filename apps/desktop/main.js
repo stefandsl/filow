@@ -1459,7 +1459,7 @@ function startOkFilow() {
       saveSettings,
       iconPath: path.join(__dirname, "build", "icon.png"),
       logLine,
-      sttLocal,
+      sttLocal: sttLocal.forUse("questions", sttLanguage),
       userData,
       menuText: (k) => mt(k),
       isOffline: () => offline,
@@ -1472,30 +1472,48 @@ function startOkFilow() {
   }
 }
 
-// ---- Streaming speech-to-text on this PC (stt.js + stt-worker.js) ----
+// ---- Speech-to-text on this PC (stt.js + stt-worker.js) ----
+// The spoken language (auto, en, it, ru, ro, ja) picks the model; the page sets it from Settings
+// and with every take, and OK Filow's questions use the same one.
 const sttLocal = require("./stt");
 let sttSession = null;
-let sttModelState = { state: "idle", pct: 0, error: "" };
+let sttJob = null; // the download in flight or the last one that failed: {key, state, pct, error}
+function sttLanguage() {
+  return sttLocal.normaliseLanguage(settings.speechLanguage);
+}
+function setSttLanguage(language) {
+  if (typeof language !== "string") return;
+  const lang = sttLocal.normaliseLanguage(language);
+  if (lang !== sttLanguage()) saveSettings({ ...settings, speechLanguage: lang });
+}
 function sttStatus() {
-  const ready = sttLocal.modelReady(userData);
-  const model = ready ? "ready" : sttModelState.state === "downloading" || sttModelState.state === "extracting" || sttModelState.state === "error" ? sttModelState.state : "missing";
-  return { model, pct: sttModelState.pct, error: sttModelState.error || undefined, running: Boolean(sttSession && sttSession.ready), partial: ready ? 0 : sttLocal.partialPct(userData) };
+  return { ...sttLocal.speechStatus(userData, { language: sttLanguage(), job: sttJob }), running: Boolean(sttSession && sttSession.ready) };
 }
 function sttBroadcast(channel, payload) {
   for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(channel, payload);
 }
 let sttDownloading = null;
-function sttDownload() {
+/**
+ * Downloads, with the user's consent given by the button, what the spoken language needs: the model
+ * for following a talk, or with use "questions" the more accurate one for OK Filow questions.
+ */
+function sttDownload(use = "tracking") {
+  const status = sttStatus();
+  const key = use === "questions" ? status.questions.wanted : status.wanted;
   if (process.env.FILOW_OFFLINE === "1") {
-    sttModelState = { state: "error", pct: 0, error: sharedText("offline.downloadDisabled", menuLang()) };
+    sttJob = { key, state: "error", pct: 0, error: sharedText("offline.downloadDisabled", menuLang()) };
     sttBroadcast("stt:status", sttStatus());
     return Promise.resolve();
   }
-  if (sttDownloading) return sttDownloading;
+  if (sttDownloading) {
+    // Another language's model is still coming: fetch this one right after it instead of ignoring the click.
+    if (sttJob && sttJob.key !== key) void sttDownloading.then(() => sttDownload(use));
+    return sttDownloading;
+  }
   sttDownloading = sttLocal
-    .ensureModel(userData, (s) => {
-      sttModelState = { state: s.state, pct: s.pct, error: s.error || "" };
-      logLine(`stt model: ${s.state}${s.pct ? ` ${s.pct}%` : ""}${s.message ? ` ${s.message}` : ""}${s.error ? ` ${s.error}` : ""}`);
+    .ensureAll(userData, sttLocal.requiredSpecs(key), (s) => {
+      sttJob = { key, state: s.state, pct: s.pct, error: s.error || "" };
+      logLine(`stt model ${s.model || key}: ${s.state}${s.pct ? ` ${s.pct}%` : ""}${s.message ? ` ${s.message}` : ""}${s.error ? ` ${s.error}` : ""}`);
       sttBroadcast("stt:status", sttStatus());
     })
     .finally(() => {
@@ -1505,15 +1523,24 @@ function sttDownload() {
 }
 function wireStt() {
   appHandle("stt:status", () => sttStatus());
-  appOn("stt:download", () => void sttDownload());
+  appHandle("stt:language", (_e, language) => {
+    setSttLanguage(language);
+    return sttStatus();
+  });
+  appOn("stt:download", (_e, language, use) => {
+    setSttLanguage(language);
+    void sttDownload(use === "questions" ? "questions" : "tracking");
+  });
   appHandle("stt:remove", () => {
     if (sttSession) sttSession.dispose();
     sttSession = null;
+    sttJob = null;
     sttLocal.removeModel(userData);
     sttBroadcast("stt:status", sttStatus());
   });
   appHandle("stt:start", async (e, language) => {
-    if (!sttSession) sttSession = new sttLocal.SttSession(userData, logLine);
+    setSttLanguage(language);
+    if (!sttSession) sttSession = new sttLocal.SttSession(userData, logLine, { use: "tracking", getLanguage: sttLanguage });
     const wc = e.sender;
     sttSession.onResult = (r) => !wc.isDestroyed() && wc.send("stt:result", { partial: r.partial, committed: r.committed });
     sttSession.onError = (m) => !wc.isDestroyed() && wc.send("stt:result", { partial: "", committed: "", error: m });

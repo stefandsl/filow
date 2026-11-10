@@ -1,23 +1,80 @@
-// Streaming on-device transcription through the desktop shell (sherpa-onnx + Nemotron in a worker
-// thread of the Electron main process). The page captures the microphone, ships 16 kHz PCM to the
-// shell and gets live partials plus committed sentences back. Desktop app only.
+// On-device transcription through the desktop shell (sherpa-onnx in a worker thread of the Electron
+// main process; the model depends on the spoken language, see apps/desktop/stt.js). The page
+// captures the microphone, ships 16 kHz PCM to the shell and gets live partials plus committed
+// sentences back. Desktop app only.
 import type { SttBackend, SttHandlers } from "./types";
 import { startMic, type MicCapture } from "./mic";
 
+/** "fallback": the best model for the language is not downloaded; "phrases": the talk is followed phrase by phrase. */
+export type SherpaNote = "fallback" | "phrases";
+
+export type SherpaStatus = {
+  /** The model Filow wants for following a talk in the chosen language. */
+  model: "ready" | "missing" | "downloading" | "extracting" | "error";
+  pct: number;
+  error?: string;
+  running: boolean;
+  partial?: number;
+  /** The spoken language the shell holds: auto, en, it, ru, ro or ja. */
+  language?: string;
+  wanted?: string;
+  wantedLabel?: string;
+  /** False when even the best model for the language only follows a talk phrase by phrase. */
+  wantedStreaming?: boolean;
+  downloadBytes?: number;
+  /** Some model can listen now (possibly a fallback, see notes). */
+  usable?: boolean;
+  active?: string | null;
+  activeLabel?: string | null;
+  streaming?: boolean;
+  notes?: SherpaNote[];
+  /** The model for OK Filow questions, when it differs from the one for following a talk. */
+  questions?: { wanted: string; wantedLabel: string; state: SherpaStatus["model"]; pct: number; downloadBytes: number; usable: boolean; active: string | null; notes: SherpaNote[] };
+};
+
+export type SherpaStart = { loadMs: number; model?: string; streaming?: boolean; notes?: SherpaNote[]; language?: string };
+
 export type SherpaBridge = {
-  status: () => Promise<{ model: "ready" | "missing" | "downloading" | "extracting" | "error"; pct: number; error?: string; running: boolean; partial?: number }>;
-  download: () => void;
+  status: () => Promise<SherpaStatus>;
+  /** use "questions" fetches the more accurate model for OK Filow questions instead of the one for following a talk. */
+  download: (language?: string, use?: "tracking" | "questions") => void;
+  /** Stores the spoken language in the shell (desktop builds from 0.9.31) and returns the status for it. */
+  setLanguage?: (language: string) => Promise<SherpaStatus>;
   remove: () => Promise<void>;
-  start: (language: string) => Promise<{ loadMs: number }>;
+  start: (language: string) => Promise<SherpaStart>;
   feed: (samples: Float32Array) => void;
   stop: () => Promise<void>;
   onResult: (fn: (r: { partial: string; committed: string }) => void) => () => void;
-  onStatus: (fn: (s: { model: string; pct: number; error?: string; partial?: number }) => void) => () => void;
+  onStatus: (fn: (s: SherpaStatus) => void) => () => void;
 };
 
 export function sherpaBridge(): SherpaBridge | null {
   const b = (globalThis as { filow?: { stt?: SherpaBridge } }).filow;
   return b?.stt ?? null;
+}
+
+/** True when the shell can listen now; older shells only report the one model. */
+export function sherpaUsable(s: SherpaStatus): boolean {
+  return s.usable ?? s.model === "ready";
+}
+
+/**
+ * Pure: what the settings page tells the user about the spoken language, as string keys with their
+ * values: the model it needs and its size, then plainly what is given up (phrase by phrase, a
+ * fallback model, or no model at all yet).
+ */
+export function sherpaNotes(s: SherpaStatus | null): Array<{ key: "speech.model" | "speech.notePhrases" | "speech.noteFallback" | "speech.noneForLang" | "speech.questionsModel"; vars?: Record<string, string | number> }> {
+  if (!s?.wantedLabel) return [];
+  const out: ReturnType<typeof sherpaNotes> = [];
+  if (s.model !== "ready") out.push({ key: "speech.model", vars: { model: s.wantedLabel, mb: Math.round((s.downloadBytes ?? 0) / 1e6) } });
+  // Phrase by phrase is what the user gets now (the model in use), or will get once the wanted
+  // model arrives when nothing is on disk yet; a streaming fallback in use is not phrase by phrase.
+  if (s.notes?.includes("phrases") || (!s.active && s.wantedStreaming === false)) out.push({ key: "speech.notePhrases" });
+  if (s.notes?.includes("fallback") && s.active) out.push({ key: "speech.noteFallback", vars: { active: s.activeLabel ?? s.active, wanted: s.wantedLabel } });
+  if (s.usable === false && s.language && s.language !== "auto") out.push({ key: "speech.noneForLang" });
+  const q = s.questions;
+  if (q && q.wanted !== s.wanted && q.state !== "ready") out.push({ key: "speech.questionsModel", vars: { model: q.wantedLabel, mb: Math.round(q.downloadBytes / 1e6) } });
+  return out;
 }
 
 const SAMPLE_RATE = 16000;
@@ -36,8 +93,9 @@ export class SherpaStt implements SttBackend {
     const bridge = sherpaBridge();
     if (!bridge) throw new Error("streaming transcription needs the desktop app");
     const st = await bridge.status();
-    if (st.model !== "ready") throw new Error("the streaming model is not downloaded (Settings > Local models)");
-    await bridge.start(this.language && this.language !== "auto" ? this.language : "auto");
+    if (!sherpaUsable(st)) throw new Error("the speech model for this language is not downloaded (Settings > Local models)");
+    const started = await bridge.start(this.language && this.language !== "auto" ? this.language : "auto");
+    if (started?.model) h.onLog?.(`stt: ${started.model}${started.streaming === false ? ", phrase by phrase" : ""}${started.notes?.includes("fallback") ? ", fallback model" : ""}`);
     this.off = bridge.onResult((r) => {
       if (r.committed) h.onTranscript({ committed: r.committed + " ", partial: "" });
       else h.onTranscript({ partial: r.partial });

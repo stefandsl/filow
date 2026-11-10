@@ -1,0 +1,21 @@
+{
+  "note": "SYNTHETIC trap corpus in Romanian (T8 languages, docs/stt/LANGUAGES.md), written by hand, same traps as traps-en. Three segments (sec 20, 38, 56) are written without diacritics on purpose: recognisers and people both drop them, and the script keeps them. Segments with only `partial` are streaming STT hypotheses that are later revised by the committed text that follows. Traps per point are listed in labels.json.",
+  "segments": [
+    { "sec": 2, "committed": "Bună ziua, haideți să trecem prin trimestru." },
+    { "sec": 8, "committed": "Costurile de suport au crescut cu treizeci la sută în acest trimestru, mai ales din cauza orelor suplimentare." },
+    { "sec": 14, "committed": "Nu am redus timpul de integrare a clienților, este tot două săptămâni." },
+    { "sec": 20, "committed": "Rata de renuntare a scazut la paisprezece la suta, ceea ce nu ne multumeste." },
+    { "sec": 26, "committed": "Scorul de satisfacție este acum șaizeci și doi, față de cincizeci și cinci în trimestrul trecut." },
+    { "sec": 32, "committed": "Mai întâi vestea bună: biroul din Cluj se deschide în mai." },
+    { "sec": 38, "committed": "In iulie am angajat trei ingineri, toti la suport." },
+    { "sec": 44, "committed": "Timpul mediu de răspuns este de patru zile, iar asta este cea mai mare problemă a noastră." },
+    { "sec": 50, "committed": "Mai târziu voi vorbi și despre noul model de prețuri, dar mai întâi pașii următori." },
+    { "sec": 56, "committed": "Pașii următori. Toate datele clientilor raman pe serverele noastre, nimic nu ajunge într-un cloud străin." },
+    { "sec": 61, "partial": "Vom majora prețurile în ianuarie" },
+    { "sec": 64, "committed": "Nu vom majora prețurile în ianuarie, le păstrăm până în primăvară." },
+    { "sec": 68, "partial": "Livrăm aplicația mobilă către cincizeci de clienți" },
+    { "sec": 69, "partial": "Livrăm aplicația mobilă către cincizeci de clienți pilot" },
+    { "sec": 72, "committed": "Livrăm aplicația mobilă mai întâi către cincisprezece clienți pilot, apoi tuturor." },
+    { "sec": 78, "committed": "Asta e tot din partea mea, vă mulțumesc." }
+  ]
+}

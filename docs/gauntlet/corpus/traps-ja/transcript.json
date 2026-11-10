@@ -1,0 +1,21 @@
+{
+  "note": "SYNTHETIC trap corpus in Japanese (T8 languages, docs/stt/LANGUAGES.md), written by hand, same traps as traps-en. The speech is written the way the local recognisers write Japanese: no punctuation, numbers as kanji numerals, phrases separated by a space; the script uses digits and the percent sign. Segments with only `partial` are streaming STT hypotheses that are later revised by the committed text that follows. Traps per point are listed in labels.json.",
+  "segments": [
+    { "sec": 2, "committed": "皆さんこんにちは 今四半期の結果を見ていきましょう" },
+    { "sec": 8, "committed": "サポートコストは今四半期三十パーセント増加しました 主に残業が原因です" },
+    { "sec": 14, "committed": "オンボーディング期間は短縮していません 新規顧客で今も二週間かかります" },
+    { "sec": 20, "committed": "解約率は十四パーセントに下がりました これは目標には届いていません" },
+    { "sec": 26, "committed": "顧客満足度スコアは六十二です 前の四半期は五十五でした" },
+    { "sec": 32, "committed": "まず良い知らせです 大阪オフィスは五月に開設します" },
+    { "sec": 38, "committed": "七月にエンジニアを三人採用しました 全員サポート担当です" },
+    { "sec": 44, "committed": "平均応答時間は四日です これが最大の課題です" },
+    { "sec": 50, "committed": "後ほど新しい料金モデルについてもお話しします その前に次のステップです" },
+    { "sec": 56, "committed": "次のステップです 顧客データはすべて自社サーバーに保管します 外部のクラウドには何も出しません" },
+    { "sec": 61, "partial": "一月に価格を上げます" },
+    { "sec": 64, "committed": "一月に価格は上げません 春まで据え置きます" },
+    { "sec": 68, "partial": "モバイルアプリを五十社の" },
+    { "sec": 69, "partial": "モバイルアプリを五十社のパイロット顧客に" },
+    { "sec": 72, "committed": "モバイルアプリをまず十五社のパイロット顧客に提供します その後すべてのお客様に広げます" },
+    { "sec": 78, "committed": "以上です ありがとうございました" }
+  ]
+}

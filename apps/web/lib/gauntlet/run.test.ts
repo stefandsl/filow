@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { DEFAULT_GATE, DEFAULT_MATCHER, embedPoints, gatedDecide, matcherDecide, parseScript, replay, type Corpus, type GateThresholds, type MatcherThresholds, type ReplayResult } from "@filow/core";
+import { DEFAULT_GATE, DEFAULT_MATCHER, corpusLanguage, embedPoints, gatedDecide, matcherDecide, parseScript, replay, type Corpus, type GateThresholds, type MatcherThresholds, type ReplayResult } from "@filow/core";
 import { loadEmbedder } from "@/lib/gate/embedder";
 import { decideOpenRouter } from "@/lib/decide/openrouter";
 import { decideClefLocal, warmClefLocal } from "@/lib/decide/clef";
@@ -52,7 +52,7 @@ function loadCorpora(): Corpus[] {
       const dir = path.join(CORPUS_DIR, d);
       const t = JSON.parse(fs.readFileSync(path.join(dir, "transcript.json"), "utf8")) as { segments: Corpus["transcript"] };
       const l = JSON.parse(fs.readFileSync(path.join(dir, "labels.json"), "utf8")) as { labels: Corpus["labels"]; neverStarted?: string[] };
-      return { name: d, language: d.endsWith("-en") ? "en" : "it", script: fs.readFileSync(path.join(dir, "script.md"), "utf8"), transcript: t.segments, labels: l.labels, neverStarted: l.neverStarted } satisfies Corpus;
+      return { name: d, language: corpusLanguage(d), script: fs.readFileSync(path.join(dir, "script.md"), "utf8"), transcript: t.segments, labels: l.labels, neverStarted: l.neverStarted } satisfies Corpus;
     });
 }
 

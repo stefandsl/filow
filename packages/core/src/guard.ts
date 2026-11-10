@@ -3,7 +3,7 @@
 // 30%" for a point that says they fell, "we did not cut" for "we cut", 21% for 12%, days for hours)
 // never flips a point, whatever confidence the decision model gave. Conservative by design: it only
 // blocks on an explicit conflict in a sentence about the point; vague or paraphrased speech is left to
-// the model. Pure and language-light (Italian and English word lists), no model.
+// the model. Pure and language-light (word lists for Italian, English, Russian, Romanian and Japanese), no model.
 import { contentTokens, FUZZY_MIN, NEGATIONS, STOP, quantitiesFromTokens, sameQuantity, sentences, similarity, tokenize, type Quantity, type Sentence, type Token } from "./text";
 
 export type GuardConflict = {
@@ -29,6 +29,13 @@ const DOWN = /^(cal(o|a|i|e|at[oaie]|ano|are|ando|era|eranno)|diminu\w*|ridott[o
 /** "up"/"down" are a direction only after a verb of motion or before a number ("went up", "down 5%"), never in "set up". */
 const MOTION = new Set(["went", "go", "goes", "going", "gone", "come", "came", "coming", "is", "are", "was", "were", "been", "be", "moved", "move"]);
 
+// Russian, Romanian (folded: no diacritics) and Japanese (as the segmenter cuts it). Kept apart from the
+// Italian and English lists so that neither can change the other: no stem here is an Italian or English word.
+const UP_MORE = /^(вырос\p{L}*|выраст\p{L}*|раст(ет|ут|и|ущ\p{L}*)|рос|росл[аои]|рост(а|у|ом|е)?|увелич\p{L}*|повыс\p{L}*|повыш\p{L}*|поднял\p{L}*|подним\p{L}*|подня\p{L}*|подорожа\p{L}*|удвои\p{L}*|утрои\p{L}*|прибав\p{L}*|взлете\p{L}*|crest(e|em|eti|ere\p{L}*)|majora\p{L}*|urc(a|am|at\p{L}*)|spori\p{L}*|dublat\p{L}*|triplat\p{L}*|scumpi\p{L}*|ridicat\p{L}*|増|増加|増え\p{L}*|増や\p{L}*|急増|倍増|上昇|上が\p{L}*|上げ\p{L}*|伸び\p{L}*|拡大|向上)$/u;
+const DOWN_MORE = /^(сниз\p{L}*|сниж\p{L}*|упал\p{L}*|упад\p{L}*|пада\p{L}*|падени\p{L}*|сократ\p{L}*|сокращ\p{L}*|уменьш\p{L}*|понизи\p{L}*|пониж\p{L}*|опусти\p{L}*|подешеве\p{L}*|обвал\p{L}*|рухну\p{L}*|урез\p{L}*|убав\p{L}*|scad|scazu\p{L}*|scadere\p{L}*|redus\p{L}*|micsora\p{L}*|cobor\p{L}*|injumatat\p{L}*|ieftin\p{L}*|prabus\p{L}*|減|減少|減り\p{L}*|減っ\p{L}*|減ら\p{L}*|減る|急減|半減|低下|下落|下が\p{L}*|下げ\p{L}*|削減|短縮|縮小)$/u;
+const isUp = (t: string) => UP.test(t) || UP_MORE.test(t);
+const isDown = (t: string) => DOWN.test(t) || DOWN_MORE.test(t);
+
 function directionAt(toks: Token[], i: number): "up" | "down" | null {
   const t = toks[i].norm;
   if (t === "up" || t === "down") {
@@ -37,7 +44,7 @@ function directionAt(toks: Token[], i: number): "up" | "down" | null {
     if (!MOTION.has(prev) && !/^\d/.test(next)) return null;
     return t;
   }
-  return UP.test(t) ? "up" : DOWN.test(t) ? "down" : null;
+  return isUp(t) ? "up" : isDown(t) ? "down" : null;
 }
 
 /** Verbal negators deny the predicate that follows; nominal ones only the noun right after them. */
@@ -45,18 +52,45 @@ const NOMINAL_NEGATIONS = new Set(["no", "nessun", "nessuno", "nessuna", "niente
 /** Verbs that turn a negation into an affirmation of what follows: "don't forget we cut", "nobody expected us to cut". */
 const NEUTRAL_AFTER_NEGATION = /^(forget|forgot|forgotten|dimentic\w*|scord\w*|expect\w*|aspett\w*|doubt\w*|dubit\w*|surprise\w*|stupi\w*|hide|nascond\w*|deny|neg\w*)$/;
 /** Words that end a negation's reach: a new clause or subject. */
-const SCOPE_END = new Set(["che", "chi", "ma", "perche", "mentre", "invece", "that", "which", "who", "but", "because", "while", "whereas", "although", "e", "and"]);
+const SCOPE_END = new Set([
+  "che", "chi", "ma", "perche", "mentre", "invece", "that", "which", "who", "but", "because", "while", "whereas", "although", "e", "and",
+  "но", "а", "что", "dar", "iar", "insa",
+]);
+/** Words that open a contrasting clause. */
+const CLAUSE_START = new Set(["while", "whereas", "mentre", "but", "ma", "invece", "но", "а", "dar", "iar", "insa"]);
 const SCOPE = 5;
+
+/** Italian words that make a following "mai" (within 3 words) a denial: "non ... mai", "nessuno mai". ("né" is left out: folded it is Romanian "ne", "us".) */
+const IT_NEGATOR_BEFORE_MAI = new Set(["non", "nessuno", "niente", "nulla"]);
+
+/**
+ * Japanese denies in the verb ending, after the word it denies: "増えません", "増えない", "増えなかった",
+ * "増えず". These are the pieces the segmenter leaves for those endings.
+ */
+const JA_NEGATION = new Set(["ない", "せん", "なか", "ず", "しない", "ません"]);
+/** ...unless the ending belongs to "かもしれない" (may), "しかない" (only), "に違いない" (surely) or "なければならない" (must). */
+const JA_NOT_A_DENIAL = new Set(["かも", "しか", "違い", "間違い", "ば", "なら", "なり"]);
+
+function negatesBackwards(toks: Token[], i: number): boolean {
+  if (!JA_NEGATION.has(toks[i].norm)) return false;
+  for (let k = i - 1; k >= 0 && k >= i - 3; k--) if (JA_NOT_A_DENIAL.has(toks[k].norm)) return false;
+  return true;
+}
 
 /** Is the negation word at i a real denial? Not "non solo", "not only", "no doubt", "come mai", "più che mai", "senza niente". */
 function negates(toks: Token[], i: number): boolean {
   const t = toks[i].norm;
+  if (negatesBackwards(toks, i)) return true;
   if (!NEGATIONS.has(t)) return false;
   const next = toks[i + 1]?.norm ?? "";
   const prev = toks[i - 1]?.norm ?? "";
   if ((t === "non" && (next === "solo" || next === "soltanto")) || (t === "not" && (next === "only" || next === "just"))) return false;
+  if ((t === "не" && (next === "только" || next === "просто")) || (t === "nu" && (next === "numai" || next === "doar"))) return false;
+  // Romanian "mai" is "more" or "still" ("cel mai mare", "am mai crescut", "este mai rapidă"), never a
+  // denial; Italian "mai" denies with a negator before it ("non abbiamo mai", "né mai") or as "mai più".
+  // "come mai...?" and "più che mai" have none, so they stay affirmative too.
+  if (t === "mai" && !(toks.slice(Math.max(0, i - 3), i).some((p) => IT_NEGATOR_BEFORE_MAI.has(p.norm)) || (i === 0 && next === "piu"))) return false;
   if ((t === "no" || t === "nessun") && (next === "doubt" || next === "dubbio")) return false;
-  if (t === "mai" && (prev === "come" || prev === "che")) return false; // "come mai...?", "più che mai"
   if (prev === "senza" || prev === "without") return false; // "senza niente": the preposition says it
   for (let k = i + 1; k <= i + 2 && k < toks.length; k++) if (NEUTRAL_AFTER_NEGATION.test(toks[k].norm)) return false;
   return true;
@@ -64,7 +98,7 @@ function negates(toks: Token[], i: number): boolean {
 
 /** True when a pause (comma, colon, full stop...) separates token a from token b in the text. */
 function pauseBetween(text: string, a: Token, b: Token): boolean {
-  return /[,.;:!?()]/.test(text.slice(a.end, b.start));
+  return /[,.;:!?()、。，：；！？（）]/.test(text.slice(a.end, b.start));
 }
 
 const matchesAny = (words: string[], tok: string) => words.some((w) => similarity(w, tok) >= FUZZY_MIN);
@@ -73,6 +107,14 @@ const matchesAny = (words: string[], tok: string) => words.some((w) => similarit
 function deniesPointWords(text: string, toks: Token[], pointWords: string[]): boolean {
   for (let i = 0; i < toks.length; i++) {
     if (!negates(toks, i)) continue;
+    if (negatesBackwards(toks, i)) {
+      // a Japanese ending denies what stands before it, in its clause
+      for (let k = i - 1; k >= 0 && k >= i - SCOPE; k--) {
+        if (pauseBetween(text, toks[k], toks[k + 1])) break;
+        if (matchesAny(pointWords, toks[k].norm)) return true;
+      }
+      continue;
+    }
     const nominal = NOMINAL_NEGATIONS.has(toks[i].norm);
     for (let k = i + 1; k <= i + SCOPE && k < toks.length; k++) {
       if (pauseBetween(text, toks[k - 1], toks[k]) || SCOPE_END.has(toks[k].norm)) break;
@@ -89,7 +131,7 @@ function clauses(text: string, toks: Token[]): Token[][] {
   const out: Token[][] = [];
   let cur: Token[] = [];
   toks.forEach((t, i) => {
-    const cut = i > 0 && (pauseBetween(text, toks[i - 1], t) || ["while", "whereas", "mentre", "but", "ma", "invece"].includes(t.norm));
+    const cut = i > 0 && (pauseBetween(text, toks[i - 1], t) || CLAUSE_START.has(t.norm));
     if (cut && cur.length) {
       out.push(cur);
       cur = [];
@@ -140,7 +182,7 @@ function claimOf(point: string): Claim {
   });
   return {
     words,
-    anchors: words.filter((w) => !UP.test(w) && !DOWN.test(w)),
+    anchors: words.filter((w) => !isUp(w) && !isDown(w)),
     quantities: withNouns(toks, quantitiesFromTokens(toks).filter((q) => q.kind !== "year")),
     direction: dirs.size === 1 ? [...dirs][0] : null,
     negated: negations.length > 0,

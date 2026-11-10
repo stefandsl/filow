@@ -1,0 +1,10 @@
+{
+  "note": "Same traps as traps-en, in Russian. s0b0: the speech contradicts the point (costs rose, the point says they fell). s0b1: the speech negates the point. s0b2: wrong number (fourteen, the point says 4). s0b3: TRUE point, number spelled in the dative (шестидесяти двум) next to an older number. s1b3: TRUE point said before s1b0 (out of order). s1b0: TRUE point, number in the accusative (трёх). s1b1: wrong unit (days, the point says hours). s1b2: announced for later, never delivered. s2b0: a partial says the point, the committed text denies it. s2b1: a partial says fifty, the committed text says fifteen. s2b2: TRUE point followed by an unrelated 'ничего не'.",
+  "labels": [
+    { "pointId": "s0b3", "startedAtSec": 26 },
+    { "pointId": "s1b3", "startedAtSec": 32 },
+    { "pointId": "s1b0", "startedAtSec": 38 },
+    { "pointId": "s2b2", "startedAtSec": 56 }
+  ],
+  "neverStarted": ["s0b0", "s0b1", "s0b2", "s1b1", "s1b2", "s2b0", "s2b1"]
+}

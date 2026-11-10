@@ -3,6 +3,9 @@
 // it into resources/. Also names the speech model and its license (see apps/desktop/stt.js).
 import fs from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
+
+const { CATALOGUE } = createRequire(import.meta.url)("../apps/desktop/stt.js");
 
 const sbom = JSON.parse(fs.readFileSync("tmp/sbom.cdx.json", "utf8"));
 const rows = [];
@@ -31,11 +34,14 @@ const out = [
   "Filow is free software under GPL-3.0-or-later. It bundles the components below; each keeps its own license.",
   "Electron's own notices (Chromium and its dependencies) ship next to Filow.exe as LICENSES.chromium.html.",
   "",
-  "## Speech model",
+  "## Speech models",
   "",
-  "The on-device speech recognizer that Filow downloads on request is NVIDIA Nemotron 3.5 ASR streaming",
-  "(0.6B), released by NVIDIA under the OpenMDW license, in the int8 export made by the sherpa-onnx project",
-  "(k2-fsa, Apache-2.0). It is not bundled in the installer.",
+  "The on-device speech recognizers below are downloaded on request, the one each spoken language needs;",
+  "none is bundled in the installer. The default is NVIDIA Nemotron 3.5 ASR streaming (0.6B), released by",
+  "NVIDIA under the OpenMDW license. All are the ONNX exports made by the sherpa-onnx project (k2-fsa,",
+  "Apache-2.0); each keeps its authors' license:",
+  "",
+  ...Object.values(CATALOGUE).map((m) => `- ${m.label} (${m.archive}): ${m.licence}`),
   "",
   "## Voice model",
   "",

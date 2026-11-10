@@ -1,0 +1,10 @@
+{
+  "note": "Same traps as traps-en, in Romanian. s0b0: the speech contradicts the point (costs rose, the point says they fell). s0b1: the speech negates the point. s0b2: wrong number (paisprezece, the point says 4), said without diacritics. s0b3: TRUE point, number spelled out (șaizeci și doi) next to an older number. s1b3: TRUE point said before s1b0 (out of order), with 'mai' used twice in senses that are not a denial. s1b0: TRUE point said without diacritics. s1b1: wrong unit (zile, the point says ore). s1b2: announced for later, never delivered. s2b0: a partial says the point, the committed text denies it. s2b1: a partial says cincizeci, the committed text says cincisprezece. s2b2: TRUE point said without diacritics, followed by an unrelated 'nimic nu'.",
+  "labels": [
+    { "pointId": "s0b3", "startedAtSec": 26 },
+    { "pointId": "s1b3", "startedAtSec": 32 },
+    { "pointId": "s1b0", "startedAtSec": 38 },
+    { "pointId": "s2b2", "startedAtSec": 56 }
+  ],
+  "neverStarted": ["s0b0", "s0b1", "s0b2", "s1b1", "s1b2", "s2b0", "s2b1"]
+}

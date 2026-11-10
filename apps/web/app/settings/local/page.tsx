@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { LANG_LABELS, LANGS, SCREEN_MODE_LABELS, type DecisionProviderId, type I18nKey, type Lang, type MachineInfo, type ScreenMode, type SetupModel, type SetupPreference } from "@filow/core";
-import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, sherpaBridge, whisperCached } from "@filow/stt";
+import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, sherpaBridge, whisperCached, type SherpaStatus } from "@filow/stt";
+import { SherpaLanguageNote } from "@/components/SherpaLanguageNote";
 import { Wordmark, LangProvider, useT } from "@filow/ui";
 import { engineHeaders, ensureEngineToken } from "@/components/useSession";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
@@ -113,11 +114,12 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   useEffect(() => {
     void loadPlan(false);
   }, []);
-  const [sherpa, setSherpa] = useState<{ model: string; pct: number; error?: string; running?: boolean; partial?: number } | null>(null);
+  const [sherpa, setSherpa] = useState<SherpaStatus | null>(null);
   useEffect(() => {
     const b = sherpaBridge();
     if (!b) return;
-    void b.status().then(setSherpa);
+    // The shell picks its model by the spoken language chosen below.
+    void (b.setLanguage ? b.setLanguage(getSpeechLang()) : b.status()).then(setSherpa);
     return b.onStatus((s) => setSherpa(s));
   }, []);
 
@@ -448,6 +450,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                     onChange={() => {
                       setSpeechLangState(l);
                       setSpeechLang(l);
+                      void sherpaBridge()?.setLanguage?.(l).then(setSherpa);
                     }}
                   />{" "}
                   {t(`speech.${l}`)}
@@ -645,11 +648,17 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                             </button>
                           </>
                         ) : (
-                          <button className="btn primary" disabled={sherpa?.model === "downloading" || sherpa?.model === "extracting"} onClick={() => sherpaBridge()?.download()}>
+                          <button className="btn primary" disabled={sherpa?.model === "downloading" || sherpa?.model === "extracting"} onClick={() => sherpaBridge()?.download(speechLang)}>
                             {sherpa?.model === "downloading" ? `${t("settings.download")} ${sherpa.pct}%` : sherpa?.model === "extracting" ? t("settings.starting") : sherpa?.partial ? t("settings.resumeDownload", { pct: sherpa.partial }) : t("settings.download")}
                           </button>
                         )}
+                        {sherpa?.model !== "ready" && sherpa?.active && (
+                          <button className="btn" onClick={() => void sherpaBridge()?.remove()}>
+                            {t("settings.delete")}
+                          </button>
+                        )}
                         {sherpa?.model === "error" && <span className="chip err">{sherpa.error}</span>}
+                        <SherpaLanguageNote s={sherpa} />
                       </>
                     ) : (
                       <span className="hint">{t("settings.sherpaDesktopOnly")}</span>

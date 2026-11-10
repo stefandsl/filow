@@ -3,13 +3,15 @@ import { requireEngine } from "@/lib/engineAuth";
 import { dataUrlBytes, MAX_IMAGE_BYTES } from "@/lib/vision/openrouter";
 import { CONSENT_HEADER, consentDenied } from "@/lib/buddy/outbound";
 import { askBuddy, buddyCloudRecipient, resolveBuddyProvider, type BuddyAskRequest } from "@/lib/buddy/providers";
+import { answerLanguage } from "@/lib/buddy/lang";
 
 export const dynamic = "force-dynamic";
 
 /**
  * OK Filow: question + one screenshot per display in, the answer streamed back as plain text
  * (with [POINT] tags, parsed by the client). Images are forwarded once and never logged or stored.
- * The provider used is in the X-Buddy-Provider header; errors after the stream started are sent
+ * The provider used is in the X-Buddy-Provider header and the answer's language (`lang`: en, it,
+ * ru, ro or ja) in X-Buddy-Lang; errors after the stream started are sent
  * as a final "\n[ERROR] message" line.
  * Cloud needs the user's yes for the recipient in use (x-filow-consent header): without it the
  * answer is 403 and nothing is forwarded.
@@ -39,13 +41,19 @@ export async function POST(req: Request) {
   }
   // Only the header counts: a consent field in the body is never trusted.
   const consent = req.headers.get(CONSENT_HEADER) ?? undefined;
+  // The answer is in the spoken language the user set, else the question's own, else the
+  // interface's; it travels as `lang` so the voice can match it.
+  // The prompt names a language only when one is known; otherwise it says "the language the user
+  // speaks". The `lang` header is always one of the five (English when nothing tells).
+  const known = answerLanguage(question, body.language, req.headers.get("accept-language"));
+  const lang = known ?? "en";
   const encoder = new TextEncoder();
   const abort = new AbortController();
   req.signal?.addEventListener("abort", () => abort.abort());
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const piece of askBuddy(provider, { ...body, question, images, screens, consent }, abort.signal)) controller.enqueue(encoder.encode(piece));
+        for await (const piece of askBuddy(provider, { ...body, question, images, screens, consent, language: known ?? "auto" }, abort.signal)) controller.enqueue(encoder.encode(piece));
       } catch (e) {
         if (!abort.signal.aborted) controller.enqueue(encoder.encode(`\n[ERROR] ${e instanceof Error ? e.message : String(e)}`));
       } finally {
@@ -57,6 +65,6 @@ export async function POST(req: Request) {
     },
   });
   return new Response(stream, {
-    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Buddy-Provider": provider },
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Buddy-Provider": provider, "X-Buddy-Lang": lang },
   });
 }
