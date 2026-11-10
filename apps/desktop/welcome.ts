@@ -163,10 +163,12 @@ async function startMicCheck() {
   const track = stream.getAudioTracks()[0];
   micLabel = track?.label ?? "";
   // Unplugged mid-check: the track ends. Say so instead of a flat bar under "Filow can hear you."
+  // If another microphone is still plugged in, the device check below starts over with it.
   track?.addEventListener("ended", () => {
     if (gen !== micGen) return;
     stopMic();
     setMic({ ...startMic(), status: "none" });
+    checkDevices();
   });
   const ctx = new AudioContext();
   const analyser = ctx.createAnalyser();
@@ -249,7 +251,8 @@ async function finish(acceptSetup: boolean) {
 function primaryAction() {
   if (busy) return;
   if (index < steps.length - 1) { go(index + 1); return; }
-  void finish(steps[index] === "setup");
+  // "Download" only when the step offered one: "Finish" on an offline or could-not-check card downloads nothing.
+  void finish(steps[index] === "setup" && !!offer && offersDownload(offer));
 }
 form.addEventListener("submit", event => { event.preventDefault(); primaryAction(); });
 // Enter continues from a step's title or the language choices. Never on a held key (auto-repeat would
@@ -276,7 +279,8 @@ secondary.addEventListener("click", () => void finish(false));
 // Closing the window mid-flow completes the welcome (ui-preferences.js): stop the microphone first.
 window.addEventListener("beforeunload", () => stopMic());
 $("#mic-retry").addEventListener("click", () => void startMicCheck());
-navigator.mediaDevices?.addEventListener("devicechange", () => {
+navigator.mediaDevices?.addEventListener("devicechange", () => checkDevices());
+function checkDevices() {
   if (steps[index] !== "mic") return;
   const gen = micGen;
   void navigator.mediaDevices.enumerateDevices().catch(() => [] as MediaDeviceInfo[]).then(devices => {
@@ -285,7 +289,7 @@ navigator.mediaDevices?.addEventListener("devicechange", () => {
     if (action === "none") { stopMic(); setMic({ ...startMic(), status: "none" }); }
     else if (action === "restart") void startMicCheck();
   });
-});
+}
 $("#mic-settings").addEventListener("click", () => bridge.openMicSettings());
 
 async function update(patch: UiPatch) {

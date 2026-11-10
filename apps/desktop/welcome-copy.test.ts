@@ -9,9 +9,12 @@ describe("setup card copy is true", () => {
   for (const lang of ["en", "it"] as const) {
     it(`${lang}: no blanket "no cloud" promise, and it names the phone link's carrier and the cloud AI`, () => {
       const card = `${t("welcome.setupPrivate", lang)} ${t("welcome.setupOnline", lang)}`;
-      expect(card).not.toMatch(/no cloud|nessun cloud|stay here|restano qui/i);
+      expect(card).not.toMatch(/no cloud|nessun cloud|stay here|restano qui|only two|solo due/i);
+      // Everything main.js sends out on a default install: downloads and update checks, the public link
+      // (cloudflared, on by default), and a cloud AI that needs the user's own key.
       expect(card).toMatch(/Cloudflare/);
-      expect(card).toMatch(/\bAI\b/);
+      expect(card).toMatch(/update|aggiornament/i);
+      expect(card).toMatch(/\bAI\b.*(key|chiave)/);
     });
   }
   it("the card shows both lines", () => {

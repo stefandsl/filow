@@ -27,6 +27,7 @@ const keyboard = flag("keyboard");
 const DEVTOOLS = Number(opt("devtools", "9353")), PORT = Number(opt("port", "4821"));
 const OUT = path.join("G:/FILOW/tmp/t3-shots", round);
 const profile = opt("profile") ? path.resolve(opt("profile")) : path.join("G:/FILOW/tmp", `t3-profile-${round}-${Date.now().toString(36)}`);
+if (/^c:/i.test(profile)) { console.error(`profile must not be on C: (the app's temp goes there too): ${profile}`); process.exit(1); }
 // A first run needs an empty profile: never reuse one (it would skip the welcome and measure nothing).
 if (fs.existsSync(profile) && fs.readdirSync(profile).length) { console.error(`profile not empty: ${profile}`); process.exit(1); }
 fs.mkdirSync(OUT, { recursive: true });
@@ -134,7 +135,11 @@ async function finish(code = 0) {
   const at = (re) => report.timeline.find((e) => re.test(e.event))?.ms;
   const lastWelcome = [...report.timeline].reverse().find((e) => /^welcome .* done$/.test(e.event))?.ms;
   report.waits = { toWelcome: at(/^welcome visible/), welcomeToMain: at(/^main window shown/) - lastWelcome, startToTick: at(/^first point ticked/) - at(/^start take clicked/) };
-  try { report.startupLog = fs.readFileSync(path.join(profile, "startup.log"), "utf8").split("\n").filter(Boolean).slice(-80); } catch { /* none */ }
+  try {
+    const lines = fs.readFileSync(path.join(profile, "startup.log"), "utf8").split("\n").filter(Boolean);
+    report.startupLog = lines.slice(-80);
+    report.welcomeLog = lines.filter((l) => / welcome: /.test(l));
+  } catch { /* none */ }
   report.failures = onboardingFailures(report);
   report.verdict = report.failures.length || code ? "FAIL" : "PASS";
   fs.writeFileSync(path.join(OUT, "report.json"), JSON.stringify(report, null, 2));

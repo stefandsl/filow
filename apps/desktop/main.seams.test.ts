@@ -14,6 +14,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false }
   const openExternal = vi.fn(async () => {}), checkForUpdates = vi.fn(async () => null);
   const writeText = vi.fn(), showMessageBox = vi.fn(async () => ({ response: 0 }));
   const updaterHandlers: Record<string, (info: { version: string }) => void> = {}, notificationShow = vi.fn();
+  const writeFileSync = vi.fn();
   const modules: Record<string, any> = {
     electron: {
       crashReporter: { start() {} },
@@ -24,9 +25,10 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false }
       shell: { openExternal }, dialog: { showMessageBox }, clipboard: { writeText },
       Menu: { buildFromTemplate: (template: unknown) => template, setApplicationMenu() {} },
       Notification: class { static isSupported() { return true; } on() {} show() { notificationShow(); } },
+      net: { isOnline: () => true },
     },
     "node:path": path, "node:url": { pathToFileURL },
-    "node:fs": { readFileSync: () => "FILOW_OFFLINE=1", appendFileSync() {}, existsSync: (file: string) => updateFeed && String(file).endsWith("app-update.yml"), mkdirSync() {}, rmSync() {} },
+    "node:fs": { readFileSync: () => "FILOW_OFFLINE=1", appendFileSync() {}, existsSync: (file: string) => updateFeed && String(file).endsWith("app-update.yml"), mkdirSync() {}, rmSync() {}, writeFileSync, renameSync() {} },
     "node:os": { homedir: () => "G:/fake", cpus: () => [{ model: "fake" }], totalmem: () => 0, release: () => "fake", networkInterfaces: () => ({}) },
     "node:http": { get: () => { const req = new EventEmitter(); queueMicrotask(() => req.emit("error", new Error("Ollama absent"))); return req; } },
     "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": {},
@@ -49,16 +51,17 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false }
        textTables: { MENU_TEXT, NET_TEXT, SPLASH_TEXT, LOCAL_AI_TEXT },
        setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
-       offerLocalAi, offerFirewall, welcomeSetup, settings: () => settings, patchSettings: patch => Object.assign(settings, patch) });`, {
+       offerLocalAi, offerFirewall, welcomeSetup, settings: () => settings, patchSettings: patch => Object.assign(settings, patch),
+       onWelcomeReady, welcomeOfferForStep, chooseWelcomeSetup, setWelcomeWin: win => { welcomeWin = win; } });`, {
     require: (id: string) => {
       if (id.endsWith("electron-updater.js")) return { autoUpdater: { on(event: string, fn: (info: { version: string }) => void) { updaterHandlers[event] = fn; }, checkForUpdates, quitAndInstall() {} } };
       if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`);
       return modules[id];
     },
     __dirname: "G:/fake", process: { env, platform: "win32", arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {} },
-    URL, URLSearchParams, console,
+    URL, URLSearchParams, console, setTimeout, clearTimeout,
   });
-  return { api, env, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow,
+  return { api, env, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync,
     blocked: (url: string) => { let result: any; requestFilter({ url }, r => { result = r; }); return result.cancel === true; } };
 }
 
@@ -340,5 +343,47 @@ describe("first-run dialogs after the welcome", () => {
     f.showMessageBox.mockResolvedValueOnce({ response: 1 });
     await f.api.offerFirewall(null);
     expect(f.showMessageBox).toHaveBeenCalledOnce();
+  });
+});
+
+// Review T3 findings 2, 3, 8 on the main-process side of the welcome (the IPC handlers call these).
+describe("welcome setup step, main process", () => {
+  const tick = () => new Promise((r) => setTimeout(r, 20));
+  it("no hardware scan answer before the window is shown; welcome:ready shows it and lets the scan run", async () => {
+    const f = fixture();
+    const show = vi.fn();
+    f.api.setWelcomeWin({ show });
+    let offer: unknown = null;
+    void f.api.welcomeOfferForStep().then((o: unknown) => { offer = o; });
+    await tick();
+    expect(offer).toBeNull();
+    f.api.onWelcomeReady();
+    expect(show).toHaveBeenCalledOnce();
+    for (let i = 0; i < 50 && !offer; i++) await tick();
+    expect(offer).toMatchObject({ ask: true, device: "pc" });
+  });
+  it("the answer is written to settings.json at once (survives a quit before the server check)", async () => {
+    const f = fixture();
+    f.api.setWelcomeWin({ show() {} });
+    f.api.onWelcomeReady();
+    await f.api.welcomeOfferForStep();
+    f.api.chooseWelcomeSetup(false);
+    expect(f.api.settings().welcomeSetupAnswer).toEqual({ choice: null });
+    const written = f.writeFileSync.mock.calls.map((c: unknown[]) => String(c[1])).join("\n");
+    expect(written).toContain("welcomeSetupAnswer");
+  });
+  it("accepting when no offer was shown (the scan failed, the card said 'set up from Settings') downloads nothing", () => {
+    const f = fixture();
+    f.api.chooseWelcomeSetup(true);
+    expect(f.api.welcomeSetup.choice).toBeNull();
+    expect(f.api.welcomeSetup.shown).toBe(true);
+  });
+  it("accepting the offer the step showed returns what to install", async () => {
+    const f = fixture();
+    f.api.setWelcomeWin({ show() {} });
+    f.api.onWelcomeReady();
+    await f.api.welcomeOfferForStep();
+    f.api.chooseWelcomeSetup(true);
+    expect(f.api.welcomeSetup.choice?.models?.length).toBeGreaterThan(0);
   });
 });

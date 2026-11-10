@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { describe, expect, it, vi } from "vitest";
-const { setupOffer, setupChoice, installedModels, probeSetup, createOfferGate, savedSetupAnswer } = createRequire(import.meta.url)("./welcome-setup.js");
+const { setupOffer, setupChoice, installedModels, probeSetup, createOfferGate, savedSetupAnswer, ollamaDiskModels } = createRequire(import.meta.url)("./welcome-setup.js");
 
 const CATALOG = {
   "nemotron-streaming": { dl: 0.45, ollama: false, label: "Nemotron streaming speech-to-text" },
@@ -131,6 +131,21 @@ describe("installed models", () => {
   it("probe reads the tags when Ollama answers", async () => {
     const fetchJson = vi.fn(async () => ({ models: [{ name: "clef-flash:latest" }] }));
     expect(await probeSetup({ fetchJson, sherpaReady: () => false, browserCache: () => false })).toEqual({ sherpa: false, ollamaRunning: true, ollamaModels: ["clef-flash"], browserCache: false });
+  });
+  it("Ollama installed but not running: the models on disk count as installed, not to download again", async () => {
+    const r = await probeSetup({ fetchJson: async () => { throw new Error("ECONNREFUSED"); }, sherpaReady: () => true, diskModels: () => ["clef-flash:latest", "gemma4:e4b"] });
+    expect(r).toMatchObject({ ollamaRunning: false, ollamaModels: ["clef-flash", "gemma4:e4b"] });
+    expect(setupOffer({ hw, rec, catalog: CATALOG, installed: { ...r, browserCache: false }, online: true })).toMatchObject({ ready: true, downloadGb: 2.4 });
+  });
+  it("a running Ollama's own list wins over the disk; an unreadable folder means none", async () => {
+    const r = await probeSetup({ fetchJson: async () => ({ models: [{ name: "qwen3-vl:2b" }] }), sherpaReady: () => true, diskModels: () => ["clef-flash"] });
+    expect(r.ollamaModels).toEqual(["qwen3-vl:2b"]);
+    const none2 = await probeSetup({ fetchJson: async () => null, sherpaReady: () => true, diskModels: () => { throw new Error("ENOENT"); } });
+    expect(none2.ollamaModels).toEqual([]);
+  });
+  it("reads Ollama's models folder the way `ollama list` names them", () => {
+    const tree: Record<string, string[]> = { "m/manifests/registry.ollama.ai": ["library", "someone"], "m/manifests/registry.ollama.ai/library": ["clef-flash", "gemma4"], "m/manifests/registry.ollama.ai/library/clef-flash": ["latest"], "m/manifests/registry.ollama.ai/library/gemma4": ["e4b"], "m/manifests/registry.ollama.ai/someone": ["tool"], "m/manifests/registry.ollama.ai/someone/tool": ["v1"] };
+    expect(ollamaDiskModels("m", (d: string) => tree[d] ?? [], (...p: string[]) => p.join("/"))).toEqual(["clef-flash:latest", "gemma4:e4b", "someone/tool:v1"]);
   });
   it("probe treats an unreadable page cache as unknown (maybe cached), never as empty", async () => {
     const r = await probeSetup({ fetchJson: async () => null, sherpaReady: () => false, browserCache: () => { throw new Error("EPERM"); } });

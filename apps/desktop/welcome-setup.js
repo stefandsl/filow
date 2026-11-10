@@ -17,12 +17,29 @@ function installedModels(tags) {
  * whether the app's page cache holds anything at all (the Whisper models live there; the main process
  * cannot look inside it, but an empty cache means they are certainly missing).
  */
-async function probeSetup({ fetchJson, sherpaReady, browserCache = () => true }) {
+async function probeSetup({ fetchJson, sherpaReady, browserCache = () => true, diskModels = () => [] }) {
   const tags = await Promise.resolve().then(fetchJson).catch(() => null);
-  let sherpa, cache;
+  let sherpa, cache, onDisk = [];
   try { sherpa = Boolean(sherpaReady()); } catch { sherpa = false; }
   try { cache = Boolean(browserCache()); } catch { cache = true; }
-  return { sherpa, ollamaRunning: tags !== null, ollamaModels: installedModels(tags), browserCache: cache };
+  // Ollama installed but not running: its models are still on disk (ollamaDiskModels), not to download again.
+  if (tags === null) try { onDisk = installedModels({ models: diskModels().map((name) => ({ name })) }); } catch { onDisk = []; }
+  return { sherpa, ollamaRunning: tags !== null, ollamaModels: tags !== null ? installedModels(tags) : onDisk, browserCache: cache };
+}
+
+/**
+ * Model names in an Ollama models folder (manifests/registry.ollama.ai/<namespace>/<name>/<tag>), as
+ * `ollama list` names them ("clef-flash:latest", "gemma4:e4b", "<user>/<name>:<tag>"). readdir: fs.readdirSync.
+ */
+function ollamaDiskModels(modelsDir, readdir, join) {
+  const root = join(modelsDir, "manifests", "registry.ollama.ai");
+  const out = [];
+  for (const ns of readdir(root)) {
+    for (const name of readdir(join(root, ns))) {
+      for (const tag of readdir(join(root, ns, name))) out.push(`${ns === "library" ? "" : `${ns}/`}${name}:${tag}`);
+    }
+  }
+  return out;
 }
 
 /** true, false, or null when it cannot be known here (a browser model with a non-empty page cache). */
@@ -108,4 +125,4 @@ function createOfferGate(compute, defer = (fn) => setTimeout(fn, 0)) {
   };
 }
 
-module.exports = { TAKE_MODELS, installedModels, probeSetup, setupOffer, setupChoice, savedSetupAnswer, createOfferGate };
+module.exports = { TAKE_MODELS, installedModels, probeSetup, ollamaDiskModels, setupOffer, setupChoice, savedSetupAnswer, createOfferGate };

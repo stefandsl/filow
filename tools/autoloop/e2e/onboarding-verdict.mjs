@@ -17,6 +17,11 @@ export function onboardingFailures(report) {
     if (!kb.order || !kb.order.length) out.push("keyboard: Tab reached no control");
     else if (bad.length) out.push(`keyboard: ${bad.length} Tab stop(s) without visible focus: ${bad.map((d) => (d ? d.id || d.name || d.tag : "page")).join(", ")}`);
   }
+  // Finding 2: the welcome must be on screen before the hardware scan runs (startup.log order).
+  const log = report.welcomeLog || [];
+  const shown = log.findIndex((l) => /welcome: window shown/.test(l));
+  const scan = log.findIndex((l) => /welcome: hardware scan/.test(l));
+  if (scan >= 0 && (shown < 0 || scan < shown)) out.push("welcome: the hardware scan ran before the window was shown");
   for (const [label, z] of Object.entries(report.zoom || {})) {
     if (!z) continue;
     if (z.hOverflow) out.push(`zoom ${label}: the page scrolls sideways`);

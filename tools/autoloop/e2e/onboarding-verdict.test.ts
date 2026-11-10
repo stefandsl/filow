@@ -32,6 +32,13 @@ describe("onboarding probe verdict (review T3 finding 6)", () => {
     expect(onboardingFailures({ ...clean, zoom: { "1.5": { hOverflow: true, primaryVisible: true } } })).toEqual(["zoom 1.5: the page scrolls sideways"]);
     expect(onboardingFailures({ ...clean, zoom: { "mic@1.25": { hOverflow: false, primaryVisible: false } } })).toEqual(["zoom mic@1.25: the primary button is off screen"]);
   });
+  it("the hardware scan logged before the welcome was shown fails (finding 2 regression)", () => {
+    const ok = ["t welcome: loading", "t welcome: window shown", "t welcome: hardware scan 500 ms"];
+    expect(onboardingFailures({ ...clean, welcomeLog: ok })).toEqual([]);
+    const late = ["t welcome: loading", "t welcome: hardware scan 500 ms", "t welcome: window shown"];
+    expect(onboardingFailures({ ...clean, welcomeLog: late })).toEqual(["welcome: the hardware scan ran before the window was shown"]);
+    expect(onboardingFailures({ ...clean, welcomeLog: ["t welcome: hardware scan 500 ms"] })).toHaveLength(1);
+  });
   it("the probe's own failure code wins over the checks", () => {
     expect(onboardingExitCode(2, ["no point ticked"])).toBe(2);
   });

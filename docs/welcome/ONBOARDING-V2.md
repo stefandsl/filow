@@ -49,10 +49,10 @@ action (Try again, Open privacy settings, set up later from Settings); keyboard 
    the microphone mid-check says "No microphone"; plugging one in after a failure checks again on its own.
    After Try again, keyboard focus waits on the status line and returns to Try again if it fails again.
    Never blocks: Continue always works.
-3. **We picked the best setup for this PC** (step 3, the T2 slot). A card: setup name, memory, what runs
-   on this computer (speech recognition and the AI: the voice is not sent), and the two things that use
-   the internet (the phone link through Cloudflare, on by default; a cloud AI only with the user's own
-   key), then one of: already installed (plus, when the rest of the recommendation is missing, an
+3. **We picked the best setup for this PC** (step 3, the T2 slot). A card: setup name, memory, "Filow
+   understands your voice on this computer" (the audio is not sent), and what uses the internet
+   (downloads and app updates, the phone link through Cloudflare, on by default; a cloud AI only with the
+   user's own key), then one of: already installed (plus, when the rest of the recommendation is missing, an
    optional "about N GB" with "Download the rest" / "Not now"), "one-time download of about N GB,
    continues in the background" (+ Ollama line) with "Download and continue" / "Not now", offline, or
    could-not-check. Model names only under "What gets installed". The answer is saved at once
@@ -62,8 +62,9 @@ action (Try again, Open privacy settings, set up later from Settings); keyboard 
 The window shows before the hardware scan: the scan behind step 3 starts only once the window is on
 screen (startup.log: "welcome: window shown", then "welcome: hardware scan N ms").
 
-Escape does what the visible secondary button does ("Not now" on step 3) and nothing elsewhere: the
-welcome has no "cancel", and closing the window completes it, so a stray Escape must not end the guide.
+Escape does what the visible secondary button does: on step 3, "Not now" (the welcome ends, nothing
+downloads, setup stays in Settings). On the other steps it does nothing: there is no "cancel" there, and
+closing the window completes the welcome, so a stray Escape on steps 1 and 2 must not skip the guide.
 
 Reopened later from Filow > Welcome..., the same window is a plain Preferences page (language and the
 three switches, Done). When the installer already chose the models, step 3 is left out. Closing the
