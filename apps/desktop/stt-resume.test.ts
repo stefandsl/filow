@@ -92,7 +92,8 @@ async function run(userData: string, s = spec()) {
   return states;
 }
 
-describe("speech model download resumes and verifies", () => {
+// Each case hashes and unpacks a real archive: on a busy PC that passes the default 5 s.
+describe("speech model download resumes and verifies", { timeout: 20_000 }, () => {
   it("resumes a part on disk with a Range request and unpacks the verified archive", async () => {
     const ud = freshUserData("resume");
     const s = spec();

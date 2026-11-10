@@ -11,7 +11,10 @@ export type OkFilowStatus = {
   enabled: boolean;
   hotkey: string;
   provider: "local" | "cloud";
-  voice: "system" | "cloud" | "off";
+  /** "natural" = the neural voice that runs on this PC (apps/desktop/tts.js). */
+  voice: "natural" | "system" | "cloud" | "off";
+  /** Which of the natural voices speaks: 0-4 female, 5-9 male. */
+  naturalVoice?: number;
   showAlways: boolean;
   dictation: boolean;
   color: string;
@@ -44,6 +47,25 @@ export type OkFilowCapture = {
 };
 
 type Off = () => void;
+
+/** The natural voice on this PC: is its model here, and can this PC carry it. */
+export type OkFilowTtsStatus = {
+  installed: boolean;
+  state: "idle" | "downloading" | "extracting" | "ready" | "error";
+  /** Download progress 0-100 (what is already on disk when a download was interrupted). */
+  pct: number;
+  error: string;
+  sizeBytes: number;
+  voices: number;
+  /** "system" when this PC cannot carry the model; `reason` says why. */
+  mode: "natural" | "system";
+  level: "standard" | "light" | "";
+  reason: "" | "lowMemory" | "fewCores" | "slow";
+};
+export type OkFilowTtsChunk = { id: number; seq: number; last: boolean; samples: Float32Array; sampleRate: number; pause: number };
+export type OkFilowTtsReply =
+  | { ok: true; cancelled: boolean; chunks: number; sent: number; level: string }
+  | { ok: false; reason: "notInstalled" | "lowMemory" | "fewCores" | "slow" | "failed"; error?: string };
 
 /** A background "agent, ..." job (apps/desktop/okfilow-agents.js). */
 export type OkFilowJob = {
@@ -146,6 +168,20 @@ export type OkFilowBridge = {
     feed(samples: Float32Array): void;
     stop(): Promise<unknown>;
     onResult(fn: (r: { partial: string; committed: string; error?: string }) => void): Off;
+  };
+  /** Absent in a desktop build older than the natural voice. */
+  tts?: {
+    status(): Promise<OkFilowTtsStatus>;
+    /** The click is the consent: fetches the voice model (resumes a partial download). */
+    download(): Promise<OkFilowTtsStatus>;
+    remove(): Promise<OkFilowTtsStatus>;
+    /** Loads the model ahead of the answer. */
+    warm(): Promise<boolean>;
+    speak(req: { id: number; text: string; lang: string; voice?: number; speed?: number }): Promise<OkFilowTtsReply>;
+    cancel(id?: number): Promise<void>;
+    played(info: { id: number; seconds: number; interrupted: boolean; state: string }): void;
+    onChunk(fn: (c: OkFilowTtsChunk) => void): Off;
+    onStatus(fn: (s: OkFilowTtsStatus) => void): Off;
   };
 };
 

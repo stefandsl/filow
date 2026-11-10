@@ -84,4 +84,16 @@ contextBridge.exposeInMainWorld("okFilow", {
     stop: () => ipcRenderer.invoke("okfilow:stt:stop"),
     onResult: on("okfilow:stt:result"),
   },
+  // The natural voice on this PC (tts.js).
+  tts: {
+    status: () => ipcRenderer.invoke("okfilow:tts:status"),
+    download: () => ipcRenderer.invoke("okfilow:tts:download"),
+    remove: () => ipcRenderer.invoke("okfilow:tts:remove"),
+    warm: () => ipcRenderer.invoke("okfilow:tts:warm"),
+    speak: (req) => ipcRenderer.invoke("okfilow:tts:speak", req),
+    cancel: (id) => ipcRenderer.invoke("okfilow:tts:cancel", id),
+    played: (info) => ipcRenderer.send("okfilow:tts:played", info),
+    onChunk: on("okfilow:tts:chunk"),
+    onStatus: on("okfilow:tts:status"),
+  },
 });

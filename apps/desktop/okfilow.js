@@ -64,7 +64,10 @@ function createOkFilow(deps) {
     if (consentChanges !== undefined) next.consent = applyConsentChanges(next.consent, consentChanges);
     if (!HOTKEYS.includes(next.hotkey)) next.hotkey = DEFAULTS.hotkey;
     if (next.provider !== "cloud") next.provider = "local";
-    if (next.voice !== "cloud" && next.voice !== "off") next.voice = "system";
+    if (!["natural", "cloud", "off"].includes(next.voice)) next.voice = "system";
+    // Until the user picks a voice, the natural one speaks as soon as its model is on this PC (status()).
+    next.voiceChosen = next.voiceChosen === true || (!!patch && "voice" in patch);
+    next.naturalVoice = Math.min(9, Math.max(0, Math.round(Number(next.naturalVoice)) || 0));
     next.dictation = next.dictation !== false;
     if (!/^#[0-9a-f]{6}$/i.test(String(next.color))) next.color = DEFAULTS.color;
     next.speed = Math.min(1.5, Math.max(0.75, Number(next.speed) || 1));
@@ -91,6 +94,7 @@ function createOkFilow(deps) {
   let fadeTimer = null;
   let cursorTimer = null;
   let stt = null;
+  let tts = null;
   let hook = null;
   let hookError = "";
   let held = false;
@@ -695,6 +699,7 @@ function createOkFilow(deps) {
 
   function status() {
     const c = cfg();
+    if (!c.voiceChosen && c.voice === "system" && tts?.usable()) c.voice = "natural";
     return { ...c, hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, mode, handsFree, dictateChord: DICTATE_CHORD };
   }
 
@@ -820,6 +825,14 @@ function createOkFilow(deps) {
   });
   ipcMain.handle("okfilow:stt:stop", guard(() => stt?.stop()));
 
+  // The natural voice on this PC (tts.js, docs/okfilow/VOICE.md). A model that arrives or leaves
+  // changes which voice speaks by default, so the windows get the new config.
+  tts = require("./tts").wireTts({
+    ipcMain, ours: ourSender, userData, logLine, isOffline,
+    qaDir: QA_ALLOWED ? process.env.FILOW_OKF_QA_TTS_DIR || "" : "",
+    onChange: () => { sendPanel("okfilow:config", status()); sendOverlays("okfilow:config", status()); },
+  });
+
   // ---- agents (okfilow-agents.js): "agent, <task>" runs a background job ----
   // Only hits are cached: a CLI installed while Filow runs is found on the next try.
   const found = new Set();
@@ -916,6 +929,7 @@ function createOkFilow(deps) {
     tray = null;
     try { stt?.dispose(); } catch { /* quitting */ }
     stt = null;
+    try { tts?.dispose(); } catch { /* quitting */ }
   }
   return { start, dispose, togglePanel, status, applyConfig };
 }
