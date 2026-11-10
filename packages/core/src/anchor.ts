@@ -2,9 +2,20 @@
 // section, a presentation clicker, or saying a section's name). Pure helpers, no DOM: the engine's
 // "anchor" command (engine.ts) does the move; these decide which move an input means.
 import { contentTokens, fold, similarity, tokenize, FUZZY_MIN } from "./text";
-import type { SessionState } from "./types";
+import type { Command, SessionState } from "./types";
 
 export type ClickerMove = "next" | "prev";
+
+/**
+ * The anchor command for a Next / Previous move (button, clicker key, tap) from `state`, or null at
+ * either end of the script. Next keeps the words said just before it: people often start the next
+ * part, then press. Previous does not: what was said since is about the later part.
+ */
+export function moveCommand(state: Pick<SessionState, "script" | "sectionIdx">, move: ClickerMove): Command | null {
+  const idx = state.sectionIdx + (move === "next" ? 1 : -1);
+  if (idx < 0 || idx >= state.script.sections.length) return null;
+  return move === "next" ? { type: "anchor", idx, keepRecent: true } : { type: "anchor", idx };
+}
 
 /**
  * The keys a presentation clicker sends, read as a section move: PageDown / PageUp (most clickers),

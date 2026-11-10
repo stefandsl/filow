@@ -23,7 +23,7 @@ describe("display preferences", () => {
     expect(displayStyle({ ...DEFAULT_DISPLAY, size: "l", width: "medium", eyeline: "top" })).toEqual({
       "--display-scale": "1.375",
       "--display-measure": "42ch",
-      "--display-room": "90%",
+      "--display-room-vh": "90vh",
     });
   });
 });

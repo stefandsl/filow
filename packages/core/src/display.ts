@@ -59,6 +59,6 @@ export function displayStyle(p: DisplayPrefs): Record<string, string> {
   return {
     "--display-scale": String(DISPLAY_SCALE[p.size]),
     "--display-measure": DISPLAY_MEASURE[p.width],
-    "--display-room": `${Math.round((1 - EYELINE_RATIO[p.eyeline]) * 100)}%`,
+    "--display-room-vh": `${Math.round((1 - EYELINE_RATIO[p.eyeline]) * 100)}vh`,
   };
 }

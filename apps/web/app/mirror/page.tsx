@@ -5,7 +5,9 @@ import { OverlayFrame } from "@/components/OverlayFrame";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { connect, type SessionClient } from "@filow/client";
-import type { Command, SessionState } from "@filow/core";
+import { currentPoint, moveCommand, type Command, type SessionState } from "@filow/core";
+import { useClickerKeys } from "@/components/prompter/useReanchor";
+import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useDisplayPrefs, useEyeline } from "@/components/prompter/DisplayPanel";
 import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
 import { sessionServerUrl } from "@/lib/sessionUrl";
 import { classifyServer } from "@/lib/mirrorServer";
@@ -35,6 +37,7 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
   const serverParam = params.get("server");
   const compact = params.get("compact") === "1";
   const overlay = params.get("overlay") === "1";
+  const points = params.get("points") === "1";
   const closeOverlay = () => (globalThis as { filow?: { closeOverlay?: () => void } }).filow?.closeOverlay?.();
   const [pending, setPending] = useState(false);
 
@@ -154,14 +157,47 @@ function Mirror({ lang, onLang }: { lang: "en" | "it"; onLang: (l: "en" | "it") 
 
   const offline = status.startsWith("connecting") || !state;
   if (overlay) {
+    // The points window for calls (?points=1) is this same overlay view; it says whether screen sharing can show it.
+    const note = points ? <span className="overlay-note">{t(params.get("private") === "1" ? "points.onlyYou" : "points.shared")}</span> : undefined;
     return (
-      <OverlayFrame overlay={overlay} onClose={closeOverlay}>
+      <OverlayFrame overlay={overlay} onClose={closeOverlay} note={note} closeLabel={points ? t("points.close") : undefined}>
+        <MirrorKeys state={state} onCommand={onCommand} />
         <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact banner={error ?? (offline ? t("stage.engineOffline") : null)} />
       </OverlayFrame>
     );
   }
-  return <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact={compact} banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
+  if (compact) return <><MirrorKeys state={state} onCommand={onCommand} /><StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact banner={error ?? (offline ? t("stage.engineOffline") : null)} /></>;
+  return <MirrorStage state={state ?? emptyState(client.id)} onCommand={onCommand} banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
 }
+
+/** Clicker keys on the mirror (a Bluetooth clicker paired with the phone, or the overlay window in focus). */
+function MirrorKeys({ state, onCommand }: { state: SessionState | null; onCommand: (cmd: Command) => void }) {
+  useClickerKeys((m) => {
+    const cmd = state && moveCommand(state, m);
+    if (cmd) onCommand(cmd);
+  }, Boolean(state));
+  return null;
+}
+
+/** The full phone view: the stage with this phone's own display choice (size, eyeline, mirror for glass, contrast). */
+function MirrorStage({ state, onCommand, banner }: { state: SessionState; onCommand: (cmd: Command) => void; banner: string | null }) {
+  const t = useT();
+  const [display, setDisplay] = useDisplayPrefs(DISPLAY_KEYS.mirror);
+  const [open, setOpen] = useState(false);
+  useEyeline(pageArea, currentPoint(state), display);
+  return (
+    <div className="display-root" {...displayAttributes(display)}>
+      <MirrorKeys state={state} onCommand={onCommand} />
+      <button type="button" className="btn mirror-display-btn" onClick={() => setOpen(true)} title={t("display.openTitle")} aria-haspopup="dialog">
+        <Icon name="sliders" /> {t("display.open")}
+      </button>
+      <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state} onCommand={onCommand} stage banner={banner} />
+      {open && <DisplayPanel prefs={display} onChange={setDisplay} onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
+const pageArea = () => (typeof document === "undefined" ? null : (document.scrollingElement as HTMLElement | null));
 
 function emptyState(id: string): SessionState {
   return {

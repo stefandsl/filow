@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clickerMove, currentPoint, spokenSection } from "./anchor";
+import { clickerMove, currentPoint, moveCommand, spokenSection } from "./anchor";
 import { Engine } from "./engine";
 import { parseScript } from "./script";
 import type { DecideRequest, DecideResponse } from "./api";
@@ -176,6 +176,16 @@ describe("clickerMove", () => {
     expect(clickerMove({ key: "PageDown", ctrlKey: true })).toBeNull();
     expect(clickerMove({ key: "ArrowLeft", altKey: true })).toBeNull();
     expect(clickerMove({ key: "PageUp", metaKey: true })).toBeNull();
+  });
+});
+
+describe("moveCommand", () => {
+  it("Next keeps the recent words, Previous does not, and both stop at the ends", () => {
+    const state = { script: SCRIPT, sectionIdx: 1 };
+    expect(moveCommand(state, "next")).toEqual({ type: "anchor", idx: 2, keepRecent: true });
+    expect(moveCommand(state, "prev")).toEqual({ type: "anchor", idx: 0 });
+    expect(moveCommand({ script: SCRIPT, sectionIdx: 2 }, "next")).toBeNull();
+    expect(moveCommand({ script: SCRIPT, sectionIdx: 0 }, "prev")).toBeNull();
   });
 });
 
