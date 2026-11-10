@@ -1543,7 +1543,9 @@ function startServers() {
   process.env.NODE_ENV = "production";
   process.env.FILOW_SCRIPT = scriptFile;
   process.env.PUBLIC_ORIGIN = `http://${process.env.FILOW_LAN_IP || "127.0.0.1"}:${PORT}`;
+  const title = process.title;
   require(webServer); // Next's standalone server starts listening when required
+  process.title = title; // Next renames the process "next-server"; on Linux and macOS ps, pkill and System Monitor would not find Filow
   if (!hosted) require(sessionServer); // relay in-process; hosted mode uses the remote one
 }
 

@@ -72,4 +72,15 @@ function verifyAuthenticode(file, organisation) {
   });
 }
 
-module.exports = { sha256File, assetDigest, verifyGithubAsset, signatureOk, verifyAuthenticode };
+/**
+ * macOS code requirement for `codesign --verify -R=`: Apple's Developer ID chain (intermediate CA and
+ * leaf "Developer ID Application" marker OIDs) with the certificate's organisation pinned. A bare
+ * `codesign --verify` accepts any valid signature, ad-hoc and self-signed included.
+ */
+function macDeveloperIdRequirement(organisation) {
+  return "anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists" +
+    " and certificate leaf[field.1.2.840.113635.100.6.1.13] exists" +
+    ` and certificate leaf[subject.O] = "${String(organisation).replace(/["\\]/g, "")}"`;
+}
+
+module.exports = { sha256File, assetDigest, verifyGithubAsset, signatureOk, verifyAuthenticode, macDeveloperIdRequirement };

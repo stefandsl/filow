@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 import { afterAll, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { assetDigest, verifyGithubAsset, signatureOk } = require("./integrity.js");
+const { assetDigest, verifyGithubAsset, signatureOk, macDeveloperIdRequirement } = require("./integrity.js");
 
 const dir = path.resolve(__dirname, "../../tmp/test-integrity");
 fs.mkdirSync(dir, { recursive: true });
@@ -28,6 +28,16 @@ it("accepts the exact bytes, rejects changed bytes and a release without a diges
   fs.writeFileSync(f, "binarY");
   await expect(verifyGithubAsset(f, "cloudflare/cloudflared", "cloudflared-windows-amd64.exe", async () => release(`sha256:${good}`))).rejects.toThrow(/integrity check/);
   await expect(verifyGithubAsset(f, "cloudflare/cloudflared", "cloudflared-windows-amd64.exe", async () => ({ assets: [] }))).rejects.toThrow(/no published SHA-256/);
+});
+
+it("macOS: requires Apple's Developer ID chain and pins the organisation, not just any signature", () => {
+  const r = macDeveloperIdRequirement("Ollama Inc.");
+  expect(r).toMatch(/^anchor apple generic /);
+  expect(r).toContain("certificate 1[field.1.2.840.113635.100.6.2.6] exists"); // Developer ID intermediate CA
+  expect(r).toContain("certificate leaf[field.1.2.840.113635.100.6.1.13] exists"); // Developer ID Application leaf
+  expect(r).toMatch(/ and certificate leaf\[subject\.O\] = "Ollama Inc\."$/);
+  // a quote cannot end the string early and widen the requirement
+  expect(macDeveloperIdRequirement('Evil" or anchor trusted or "')).not.toMatch(/" or anchor/);
 });
 
 it("accepts only a valid signature from the named organisation", () => {

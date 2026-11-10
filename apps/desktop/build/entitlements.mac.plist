@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Hardened runtime entitlements for Filow (docs/PLATFORMS.md, macOS). Used for the app and its helpers. -->
+<plist version="1.0">
+  <dict>
+    <!-- V8 and WebAssembly (the ONNX speech models) need executable memory. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <!-- The microphone for live tracking and OK Filow. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+    <!-- Media permission covers the camera too; macOS still asks the user first. -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
+    <!-- slideshow.js asks PowerPoint (via osascript) which slide is showing. -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+  </dict>
+</plist>
