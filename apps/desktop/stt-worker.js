@@ -15,7 +15,7 @@ const SAMPLE_RATE = 16000;
 // never pauses still sees text.
 const VAD_WINDOW = 512;
 // Speech probability above which Silero counts a window as speech. 0.5 (the usual default) cut the
-// soft start of phrases: on the 15 test-take clips (G:/FILOW/tmp/t8-scripts/vad-bench.mjs) the
+// soft start of phrases: on the 15 test-take clips (local bench, not in the repo: G:/FILOW/tmp/t8-scripts/vad-bench.mjs) the
 // phrase models made 86 errors at 0.5, 59 at 0.2 (Japanese ReazonSpeech 16.3 % -> 6.7 % CER).
 // `vadThreshold` in the init message overrides it for measurements.
 const VAD_THRESHOLD = 0.2;

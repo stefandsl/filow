@@ -16,6 +16,10 @@ Intelligibility was checked objectively: every sample was transcribed by a local
 
 ## How it was measured (2026-11-10)
 
+Every `G:/FILOW/tmp/...` path in this file (bench and WER scripts, the Ollama stand-in, raw results,
+logs and the samples below) is a local bench script or raw data kept on the measuring machine, not in
+the repo. The paths are kept so the owner can find them there.
+
 - This PC: Windows 11, shared with two other agent tracks building and testing at the same time, so
   every number is noisy. Each figure is 5 runs: median and worst are both given.
 - Same three sentences per language: a short one, one with a time, a date, a number and an acronym

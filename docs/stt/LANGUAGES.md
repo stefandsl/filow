@@ -9,6 +9,10 @@ adding ru, ro and ja to the interface.
 
 ## How it was measured
 
+Every `G:/FILOW/tmp/...` path in this file (audio and model lists, logs, the VAD bench script) is a
+local bench script or raw data kept on the measuring machine, not in the repo. The paths are kept so
+the owner can find them there.
+
 - Audio: 12 clips per language from Google FLEURS (dev split, CC-BY-4.0), the first 14 MB of each
   language's archive. URLs, sizes and SHA-256 in `G:/FILOW/tmp/t8-audio/audio.tsv`.
 - Models: every candidate from the sherpa-onnx `asr-models` release page, run through
