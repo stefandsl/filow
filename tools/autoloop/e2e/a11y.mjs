@@ -8,6 +8,7 @@
 import { spawn, execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { seedProfile } from "./profile.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../../..");
 // Every page the web app ships, read from apps/web/app (a hand-kept list once scanned two 404 pages).
@@ -32,7 +33,7 @@ function newestBuild() {
 }
 
 const exeDir = process.argv[2] || newestBuild();
-const profile = path.join(ROOT, "tmp", "autoloop-profile");
+const profile = seedProfile(ROOT);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const startupLog = path.join(profile, "startup.log");
 const logLinesBefore = fs.existsSync(startupLog) ? fs.readFileSync(startupLog, "utf8").split("\n").length : 0;

@@ -8,6 +8,7 @@
 import { spawn, execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { seedProfile } from "./profile.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../../..");
 function newestBuild() {
@@ -19,7 +20,7 @@ const exeDir = process.argv[2] || newestBuild();
 const runs = Number(process.argv[3] || 5);
 // Ports can be moved when another session is using the defaults (FILOW_E2E_PORT).
 const PORT = Number(process.env.FILOW_E2E_PORT || 4787);
-const profile = path.join(ROOT, "tmp", "autoloop-profile");
+const profile = seedProfile(ROOT);
 const log = path.join(profile, "startup.log");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pct = (a, p) => { const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
