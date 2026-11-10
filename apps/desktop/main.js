@@ -1467,12 +1467,13 @@ function appIcon() {
 let dictation = null;
 function getDictation() {
   if (dictation) return dictation;
-  const { clipboard, BrowserWindow: BW, systemPreferences, dialog: dlg, shell: sh } = require("electron");
+  const { clipboard, ClipboardItem, BrowserWindow: BW, systemPreferences, dialog: dlg, shell: sh } = require("electron");
   dictation = require("./dictation").createDictation({
     getSettings: () => settings,
     saveSettings,
     logLine,
     clipboard,
+    ClipboardItem,
     BrowserWindow: BW,
     systemPreferences,
     dialog: dlg,

@@ -48,6 +48,13 @@ so both are named ("OpenRouter and then to Google, the maker of the model you ch
 Everything else stays on this PC: local Clef / Ollama decisions and answers, sherpa and whisper
 speech-to-text, the system voice, OK Filow's own speech-to-text (desktop `stt.js`, local only).
 
+Dictation (`dictation.js`, docs/okfilow/DICTATION.md) is a local path with no cloud variant at all: the
+microphone goes to the phrase models in desktop `stt.js` on this PC, and the text goes to the app that
+has focus through the clipboard. It works with FILOW_OFFLINE=1. One thing Filow does not control: if the
+user has turned on Windows clipboard history (Win+V) or "Sync across your devices" for the clipboard,
+Windows keeps (or syncs) the dictated text it saw on the clipboard for the moment of the paste. Choosing
+"Only copy them" or typing in Filow's own windows (which never use the clipboard) avoids that.
+
 ## Where the rules live
 
 - `apps/web/lib/buddy/outbound.ts` (pure): kinds, recipients (`askRecipient`, `routerRecipient`,

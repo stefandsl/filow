@@ -47,6 +47,8 @@ const onRect = (x, y, b) => Number.isFinite(x) && Number.isFinite(y) && x >= b.x
 const QA_ALLOWED = require("./qa.js").isQaBuild(require("electron").app);
 const QA_VISIBLE = QA_ALLOWED && process.env.FILOW_OKF_QA === "1";
 const QA_SHOTS = QA_ALLOWED ? process.env.FILOW_OKF_QA_SHOTS || "" : "";
+/** Test builds only: FILOW_OKF_QA_KEYS=1 lets the panel feed the gestures key presses (when Windows refuses the hook). */
+const QA_KEYS = QA_ALLOWED && process.env.FILOW_OKF_QA_KEYS === "1";
 const HOTKEYS = ["ctrl+alt", "ctrl+shift", "alt+shift", "ctrl+meta"];
 // 1024 wide keeps buttons readable for the model and answers about twice as fast as 1280 on a local GPU.
 const IMAGE_MAX_WIDTH = 1024;
@@ -548,7 +550,9 @@ function createOkFilow(deps) {
    * Filow's own windows, else clipboard + paste with the user's clipboard put back, or only copied).
    */
   async function typeText(text, spokenLanguage) {
-    const r = await dictation.insert(text, { hook, keysUp: () => modifiersUp(), spokenLanguage });
+    // QA key mode: the paste still goes out through uiohook (SendInput), which works without the hook.
+    const keys = hook || (QA_KEYS ? require("uiohook-napi").uIOhook : null);
+    const r = await dictation.insert(text, { hook: keys, keysUp: () => modifiersUp(), spokenLanguage });
     if (releasedAt && r.action !== "none") logLine(`dictation: release to text ${Date.now() - releasedAt} ms (${r.action}${r.reason ? `, ${r.reason}` : ""})`);
     releasedAt = 0;
     return r;
@@ -583,7 +587,11 @@ function createOkFilow(deps) {
         [K.Shift]: "shift", [K.ShiftRight]: "shift",
         [K.Meta]: "meta", [K.MetaRight]: "meta",
       };
-      gestures = createGestures({
+      // Made once: a retry (Windows refused the hook) must not swap it for a fresh one while a chord is
+      // down or a dictation runs, or the key-ups go to the new one and the old session never ends.
+      // Listeners from a failed attempt are dropped so a retry does not add a second set.
+      uIOhook.removeAllListeners();
+      if (!gestures) gestures = createGestures({
         talk: () => cfg().hotkey,
         // Null while dictation is off or its keys clash with the talk keys (Settings says so).
         dictate: () => dictation.activeChord(cfg().hotkey),
@@ -757,6 +765,13 @@ function createOkFilow(deps) {
   ipcMain.on("okfilow:release", (e) => ourSender(e.sender) && release());
   /** Dictation result from the panel: typed into whatever app has focus. */
   ipcMain.handle("okfilow:typeText", guard((text, lang) => typeText(typeof text === "string" ? text.slice(0, 20000) : "", typeof lang === "string" ? lang.slice(0, 5) : "")));
+  /** Test builds only (FILOW_OKF_QA_KEYS=1): key presses for the gestures, as the hook would deliver them. */
+  ipcMain.on("okfilow:qa:key", (e, type, key) => {
+    if (!QA_KEYS || !ourSender(e.sender) || !gestures) return;
+    const mod = ["ctrl", "alt", "shift", "meta"].includes(key) ? key : null;
+    if (type === "down") { gestures.keydown(mod); if (key === "escape") gestures.escape(); }
+    else if (type === "up") gestures.keyup(mod);
+  });
   /** Hands-free off from the panel (its button or Escape). */
   ipcMain.on("okfilow:handsfreeOff", (e) => { if (ourSender(e.sender)) { handsFree = false; sendPanel("okfilow:handsfree", false); } });
   /** Highlighter strokes from an overlay, in its local coordinates; kept in global DIP until the question is sent. */

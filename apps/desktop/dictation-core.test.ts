@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
-type Snap = { text: string; html: string; rtf: string; image: unknown; restorable: boolean; empty: boolean };
+type Snap = { items: unknown[]; restorable: boolean; empty: boolean };
 type Inserter = { insert(text: string): Promise<{ pasted: boolean; reason: string; restored: Promise<boolean> }>; pending: boolean };
 const core = require("./dictation-core.js") as {
   CHORDS: string[];
@@ -11,7 +11,7 @@ const core = require("./dictation-core.js") as {
   checkChord(c: string, o: { talk?: string; platform?: string }): { ok: boolean; conflict: string | null; warnings: string[] };
   sanitizeConfig(raw: unknown, legacy?: boolean): Record<string, unknown>;
   pasteDecision(o: Record<string, unknown>): { action: string; reason: string };
-  snapshotClipboard(cb: unknown): Snap;
+  snapshotClipboard(cb: unknown): Promise<Snap>;
   createClipboardInserter(o: Record<string, unknown>): Inserter;
   postProcess(t: string, o?: { language?: string; removeFillers?: boolean }): string;
   setFillerHook(fn: ((lang: string) => RegExp[]) | null): void;
@@ -84,70 +84,84 @@ describe("paste or copy", () => {
   });
 });
 
-/** A clipboard that records every call, like Electron's. */
-function fakeClipboard(initial: { text?: string; html?: string; files?: boolean }) {
-  const log: string[] = [];
-  const st = { text: initial.text ?? "", html: initial.html ?? "", files: initial.files ?? false };
-  const cb = {
-    readText: () => { log.push("readText"); return st.text; },
-    readHTML: () => st.html,
-    readRTF: () => "",
-    readImage: () => ({ isEmpty: () => true }),
-    read: (fmt: string) => (st.files && fmt === "FileNameW" ? "C:\\a.txt" : ""),
-    writeText: (t: string) => { log.push(`writeText:${t}`); st.text = t; st.html = ""; st.files = false; },
-    write: (d: { text: string; html?: string }) => { log.push(`write:${d.text}${d.html ? "+html" : ""}`); st.text = d.text; st.html = d.html ?? ""; },
-    clear: () => { log.push("clear"); st.text = ""; st.html = ""; },
-  };
-  return { cb, log, st };
+/** Electron 45's W3C-style clipboard (read/write items, all async), recording every call. */
+class FakeItem {
+  constructor(public data: Record<string, unknown>) {}
+  get types() { return Object.keys(this.data); }
+  async getType(t: string) { return this.data[t]; }
 }
+function fakeClipboard(initial: Record<string, unknown> | null, opts: { unreadable?: boolean } = {}) {
+  const log: string[] = [];
+  const st = { items: initial ? [new FakeItem(initial)] : ([] as FakeItem[]) };
+  const text = () => String(st.items[0]?.data["text/plain"] ?? "");
+  const cb = {
+    read: async () => { if (opts.unreadable) throw new Error("locked"); return st.items; },
+    readText: async () => text(),
+    write: async (items: FakeItem[]) => { log.push(`write:${items.map((i) => i.types.join("+")).join(",")}:${String(items[0]?.data["text/plain"] ?? "")}`); st.items = items; },
+    writeText: async (t: string) => { log.push(`writeText:${t}`); st.items = [new FakeItem({ "text/plain": t })]; },
+    clear: async () => { log.push("clear"); st.items = []; },
+  };
+  return { cb, log, st, text };
+}
+const HIST = 'electron application/osclipboard;format="CanIncludeInClipboardHistory"';
 
 describe("clipboard save, paste, restore", () => {
-  it("saves first, writes the text, pastes, then puts the user's clipboard back (text and html)", async () => {
+  it("saves first, writes the text (kept out of Windows clipboard history), pastes, then puts every format back", async () => {
     vi.useFakeTimers();
-    const { cb, log, st } = fakeClipboard({ text: "theirs", html: "<b>theirs</b>" });
-    const ins = core.createClipboardInserter({ clipboard: cb, sendPaste: () => log.push("paste"), restoreMs: 1500 });
+    const { cb, log, text, st } = fakeClipboard({ "text/plain": "theirs", "text/html": "<b>theirs</b>" });
+    const ins = core.createClipboardInserter({ clipboard: cb, ClipboardItem: FakeItem, platform: "win32", sendPaste: () => log.push("paste"), restoreMs: 1500 });
     const r = await ins.insert("hello world");
     expect(r.pasted).toBe(true);
-    expect(log.filter((x) => x !== "readText")).toEqual(["writeText:hello world", "paste"]);
-    expect(st.text).toBe("hello world");
+    expect(log[0]).toMatch(/^write:text\/plain\+.*CanIncludeInClipboardHistory.*CanUploadToCloudClipboard.*:hello world$/);
+    expect(log[1]).toBe("paste");
+    expect(await text()).toBe("hello world");
     await vi.advanceTimersByTimeAsync(1500);
     expect(await r.restored).toBe(true);
-    expect(log.at(-1)).toBe("write:theirs+html");
-    expect(st).toMatchObject({ text: "theirs", html: "<b>theirs</b>" });
+    expect(log.at(-1)).toBe("write:text/plain+text/html:theirs");
+    expect(st.items[0].data["text/html"]).toBe("<b>theirs</b>");
     vi.useRealTimers();
   });
 
-  it("waits for the keys to be up before writing; if they never are, nothing is written", async () => {
-    const { cb, log } = fakeClipboard({ text: "theirs" });
-    const ins = core.createClipboardInserter({ clipboard: cb, sendPaste: () => log.push("paste"), keysUp: async () => false });
-    const r = await ins.insert("x");
-    expect(r).toMatchObject({ pasted: false, reason: "keys" });
-    expect(log.some((l) => l.startsWith("writeText") || l === "paste")).toBe(false);
+  it("adds the history markers on Windows only", async () => {
+    const { cb, st } = fakeClipboard(null);
+    await core.createClipboardInserter({ clipboard: cb, ClipboardItem: FakeItem, platform: "darwin", sendPaste: () => {} }).insert("x");
+    expect(st.items[0].types).toEqual(["text/plain"]);
+    const w = fakeClipboard(null);
+    await core.createClipboardInserter({ clipboard: w.cb, ClipboardItem: FakeItem, platform: "win32", sendPaste: () => {} }).insert("x");
+    expect(w.st.items[0].types).toContain(HIST);
   });
 
-  it("keeps what the user copied meanwhile, and keeps copied files rather than lose them", async () => {
+  it("waits for the keys to be up before writing; if they never are, nothing is written", async () => {
+    const { cb, log } = fakeClipboard({ "text/plain": "theirs" });
+    const ins = core.createClipboardInserter({ clipboard: cb, ClipboardItem: FakeItem, sendPaste: () => log.push("paste"), keysUp: async () => false });
+    const r = await ins.insert("x");
+    expect(r).toMatchObject({ pasted: false, reason: "keys" });
+    expect(log).toEqual([]);
+  });
+
+  it("keeps what the user copied meanwhile, and never overwrites a clipboard it could not read", async () => {
     vi.useFakeTimers();
-    const a = fakeClipboard({ text: "theirs" });
-    const ins = core.createClipboardInserter({ clipboard: a.cb, sendPaste: () => {}, restoreMs: 1000 });
+    const a = fakeClipboard({ "text/plain": "theirs" });
+    const ins = core.createClipboardInserter({ clipboard: a.cb, ClipboardItem: FakeItem, sendPaste: () => {}, restoreMs: 1000 });
     const r = await ins.insert("dictated");
-    a.st.text = "copied later";
+    await a.cb.writeText("copied later");
     await vi.advanceTimersByTimeAsync(1000);
     expect(await r.restored).toBe(false);
-    expect(a.st.text).toBe("copied later");
+    expect(await a.text()).toBe("copied later");
 
-    const b = fakeClipboard({ text: "", files: true });
-    const ins2 = core.createClipboardInserter({ clipboard: b.cb, sendPaste: () => {}, restoreMs: 1000 });
+    const b = fakeClipboard({ "text/plain": "theirs" }, { unreadable: true });
+    const ins2 = core.createClipboardInserter({ clipboard: b.cb, ClipboardItem: FakeItem, sendPaste: () => {}, restoreMs: 1000 });
     const r2 = await ins2.insert("dictated");
     await vi.advanceTimersByTimeAsync(1000);
     expect(await r2.restored).toBe(false);
-    expect(b.st.text).toBe("dictated");
+    expect(await b.text()).toBe("dictated");
     vi.useRealTimers();
   });
 
   it("an empty clipboard is emptied again afterwards", async () => {
     vi.useFakeTimers();
-    const { cb, log } = fakeClipboard({ text: "" });
-    const ins = core.createClipboardInserter({ clipboard: cb, sendPaste: () => {}, restoreMs: 10 });
+    const { cb, log } = fakeClipboard(null);
+    const ins = core.createClipboardInserter({ clipboard: cb, ClipboardItem: FakeItem, sendPaste: () => {}, restoreMs: 10 });
     await ins.insert("x");
     await vi.advanceTimersByTimeAsync(10);
     expect(log.at(-1)).toBe("clear");
@@ -156,24 +170,24 @@ describe("clipboard save, paste, restore", () => {
 
   it("two dictations in a row: the user's clipboard comes back, not the first dictation", async () => {
     vi.useFakeTimers();
-    const { cb, st } = fakeClipboard({ text: "theirs" });
-    const ins = core.createClipboardInserter({ clipboard: cb, sendPaste: () => {}, restoreMs: 1500 });
+    const { cb, text } = fakeClipboard({ "text/plain": "theirs" });
+    const ins = core.createClipboardInserter({ clipboard: cb, ClipboardItem: FakeItem, sendPaste: () => {}, restoreMs: 1500 });
     const first = await ins.insert("one");
     await vi.advanceTimersByTimeAsync(500);
     const second = await ins.insert("two");
     expect(await first.restored).toBe(false);
     await vi.advanceTimersByTimeAsync(1500);
     expect(await second.restored).toBe(true);
-    expect(st.text).toBe("theirs");
+    expect(await text()).toBe("theirs");
     vi.useRealTimers();
   });
 
   it("when the paste key cannot be sent, the clipboard is put back at once", async () => {
-    const { cb, st } = fakeClipboard({ text: "theirs" });
-    const ins = core.createClipboardInserter({ clipboard: cb, sendPaste: () => { throw new Error("no hook"); } });
+    const { cb, text } = fakeClipboard({ "text/plain": "theirs" });
+    const ins = core.createClipboardInserter({ clipboard: cb, ClipboardItem: FakeItem, sendPaste: () => { throw new Error("no hook"); } });
     const r = await ins.insert("x");
     expect(r.pasted).toBe(false);
-    expect(st.text).toBe("theirs");
+    expect(await text()).toBe("theirs");
     expect(ins.pending).toBe(false);
   });
 });

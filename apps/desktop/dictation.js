@@ -91,6 +91,8 @@ function createDictation(deps) {
 
   let inserter = null;
   let current = { hook: null, keysUp: null };
+  /** Copy-only and fallback writes carry the same "not in clipboard history" markers as a paste. */
+  const writeText = core.clipboardWriter({ clipboard: deps.clipboard, ClipboardItem: deps.ClipboardItem, platform });
   /**
    * Puts the dictated text in place. `hook` sends the paste keys (uiohook keyTap, see DICTATION.md "Paste");
    * `keysUp` waits until the user's own modifiers are up. Returns what happened, for the panel to say.
@@ -108,7 +110,7 @@ function createDictation(deps) {
     }
     const decision = core.pasteDecision({ platform, insert: c.insert, env, macTrusted: macTrusted(), hook: Boolean(hook) });
     if (decision.action === "copy") {
-      deps.clipboard.writeText(text);
+      await writeText(text);
       logLine(`dictation: copied ${text.length} chars (${decision.reason})`);
       if (decision.reason === "accessibility") void askMacPermission();
       return { ok: true, action: "copy", reason: decision.reason, chars: text.length };
@@ -117,6 +119,8 @@ function createDictation(deps) {
     if (!inserter) {
       inserter = core.createClipboardInserter({
         clipboard: deps.clipboard,
+        ClipboardItem: deps.ClipboardItem,
+        platform,
         keysUp: () => (current.keysUp ? current.keysUp() : Promise.resolve(true)),
         // Command + V on macOS, Ctrl + V elsewhere, sent through the same hook (SendInput / CGEvent / XTest).
         sendPaste: () => deps.sendPaste(current.hook),
@@ -124,11 +128,12 @@ function createDictation(deps) {
     }
     const r = await inserter.insert(text);
     if (!r.pasted) {
-      deps.clipboard.writeText(text);
+      await writeText(text);
       logLine(`dictation: paste failed (${r.reason}${r.error ? `: ${r.error}` : ""}), ${text.length} chars left on the clipboard`);
       return { ok: true, action: "copy", reason: r.reason || "keys", chars: text.length };
     }
     logLine(`dictation: pasted ${text.length} chars`);
+    void r.restored.then((back) => logLine(`dictation: clipboard ${back ? "put back as it was" : "left as is (changed meanwhile, or unreadable before)"}`));
     return { ok: true, action: "paste", reason: "", chars: text.length };
   }
 

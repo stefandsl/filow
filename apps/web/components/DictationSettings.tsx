@@ -29,18 +29,19 @@ export function DictationSettings({ lang }: { lang: string }) {
     : s.check.conflict === "overlap" ? t("conflictOverlap", { talk: s.talkLabel })
     : "";
   const warnings = s.check.warnings.map((w) => t(w === "altgr" ? "warnAltgr" : "warnLayout"));
-  const copyNote = s.copyReason === "wayland" ? t("copyWayland") : s.copyReason === "accessibility" ? t("copyAccessibility") : s.copyReason === "nohook" ? t("copyNohook") : "";
+  const copyNote = s.copyReason === "wayland" ? t("copyWayland") : s.copyReason === "accessibility" ? t("copyAccessibility") : "";
   const off = !s.enabled;
 
   return (
-    <section className="strip" aria-labelledby={`${id}-title`}>
+    <section className="strip dictation" aria-labelledby={`${id}-title`}>
       <div className="label" id={`${id}-title`}>{t("title")}</div>
-      <div className="hint">{t("intro")}</div>
-      <div className="hint">{t("privacy")}</div>
+      <div>{t("intro")}</div>
+      <div>{t("privacy")}</div>
       <label className="row">
         <input type="checkbox" checked={s.enabled} onChange={(e) => void set({ enabled: e.target.checked })} />
         <span>{t("enabled")}</span>
       </label>
+      {s.enabled && s.copyReason === "nohook" && <div className="dictation-alert" role="alert">{t("copyNohook")}</div>}
 
       <label className="row">
         <span>{t("shortcut")}</span>
@@ -69,6 +70,7 @@ export function DictationSettings({ lang }: { lang: string }) {
           {(Object.keys(LANG_NAMES) as Array<keyof typeof LANG_NAMES>).map((l) => <option key={l} value={l} lang={l}>{LANG_NAMES[l]}</option>)}
         </select>
       </label>
+      <div className="hint">{t("languageHint")}</div>
       {s.modelReady !== null && <div className={`hint${s.modelReady ? "" : " dictation-alert"}`}>{s.modelReady ? t("modelReady") : t("modelMissing")}</div>}
 
       <fieldset className="row dictation-choices" disabled={off}>

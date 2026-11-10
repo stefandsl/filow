@@ -5,3 +5,6 @@
 .settings fieldset.dictation-choices input { accent-color: var(--accent); }
 .settings fieldset.dictation-choices:disabled label { opacity: 0.55; }
 .settings .dictation-alert { color: var(--warn); }
+/* Explanations under a choice read quieter than the choices themselves. */
+.settings .dictation .hint { color: var(--muted); font-size: var(--type-sm); margin-top: -4px; }
+.settings .dictation .hint.dictation-alert { color: var(--warn); }

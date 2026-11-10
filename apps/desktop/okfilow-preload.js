@@ -58,6 +58,8 @@ contextBridge.exposeInMainWorld("okFilow", {
   deleteAnswers: () => ipcRenderer.invoke("okfilow:deleteAnswers"),
   press: () => ipcRenderer.send("okfilow:press"),
   release: () => ipcRenderer.send("okfilow:release"),
+  /** Test builds with FILOW_OKF_QA_KEYS=1 only (ignored otherwise): a key press for the gestures. */
+  qaKey: (type, key) => ipcRenderer.send("okfilow:qa:key", type, key),
   onPress: on("okfilow:press"),
   onRelease: on("okfilow:release"),
   onCancel: on("okfilow:cancel"),

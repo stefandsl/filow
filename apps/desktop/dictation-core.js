@@ -134,27 +134,50 @@ function pasteDecision({ platform = "win32", insert = "paste", env = {}, macTrus
 }
 
 // ---- clipboard: save, write, paste, restore ----
+// Electron 45's clipboard is the W3C-style one: read() gives every item with every format (raw Windows
+// formats too, as "electron application/osclipboard;format=..."), write() puts items back atomically, and
+// everything returns a promise. (The old readHTML / readImage calls are gone: Filow's earlier dictation
+// compared a promise with a string and so never put the user's clipboard back.)
 
-const read = (cb, fn, empty) => { try { return typeof cb[fn] === "function" ? cb[fn]() : empty; } catch { return empty; } };
-const hasFormat = (cb, fmt) => { try { return typeof cb.read === "function" && cb.read(fmt).length > 0; } catch { return false; } };
+/** Windows: keep the dictation out of clipboard history (Win+V) and cloud clipboard sync. */
+const OS_FORMAT = (name) => `electron application/osclipboard;format="${name}"`;
+const PRIVATE_WIN = ["CanIncludeInClipboardHistory", "CanUploadToCloudClipboard"];
 
-/** What is on the clipboard now, as far as it can be put back faithfully. */
-function snapshotClipboard(cb) {
-  // Copied files (and formats Electron cannot write back) cannot be restored: then the dictation stays.
-  const restorable = !hasFormat(cb, "FileNameW") && !hasFormat(cb, "FileName");
-  const image = read(cb, "readImage", null);
-  const s = { text: read(cb, "readText", ""), html: read(cb, "readHTML", ""), rtf: read(cb, "readRTF", ""), image: image && !image.isEmpty() ? image : null, restorable };
-  s.empty = !s.text && !s.html && !s.rtf && !s.image;
-  return s;
+/** What is on the clipboard now, every format, so it can be put back as it was. */
+async function snapshotClipboard(cb) {
+  try {
+    const items = await cb.read();
+    const saved = [];
+    for (const it of items) {
+      const rec = {};
+      for (const t of it.types) { try { rec[t] = await it.getType(t); } catch { /* a format that cannot be read is left out */ } }
+      if (Object.keys(rec).length) saved.push(rec);
+    }
+    return { items: saved, empty: saved.length === 0, restorable: true };
+  } catch {
+    // Unreadable: never overwrite it later with a half copy; the dictation stays on the clipboard.
+    return { items: [], empty: false, restorable: false };
+  }
 }
 
-function restoreClipboard(cb, s) {
-  if (s.empty) return void cb.clear();
-  const data = { text: s.text };
-  if (s.html) data.html = s.html;
-  if (s.rtf) data.rtf = s.rtf;
-  if (s.image) data.image = s.image;
-  try { cb.write(data); } catch { cb.writeText(s.text); }
+async function restoreClipboard(cb, s, ClipboardItem) {
+  if (s.empty) return cb.clear();
+  return cb.write(s.items.map((r) => new ClipboardItem(r)));
+}
+
+/**
+ * Writes dictated text, with the Windows markers that keep it out of clipboard history and cloud sync
+ * (Handy does the same in src-tauri/src/paste_tx/windows.rs publish_formats). Not the "exclude from
+ * monitor processing" marker: remote desktop and virtual machine windows sync the clipboard as a
+ * monitor, and the paste must reach them too.
+ */
+function clipboardWriter({ clipboard, ClipboardItem, platform = "win32" }) {
+  return async (text) => {
+    if (!ClipboardItem) return clipboard.writeText(text);
+    const item = { "text/plain": text };
+    if (platform === "win32") for (const f of PRIVATE_WIN) item[OS_FORMAT(f)] = new Blob([new Uint8Array(4)]);
+    return clipboard.write([new ClipboardItem(item)]);
+  };
 }
 
 /**
@@ -164,33 +187,34 @@ function restoreClipboard(cb, s) {
  * When a second dictation comes before the first one's restore, the first snapshot is kept (the user's own
  * clipboard, not the first dictation) and the earlier restore is cancelled.
  */
-function createClipboardInserter({ clipboard, sendPaste, keysUp = async () => true, restoreMs = 1500, setTimeout: st = setTimeout, clearTimeout: ct = clearTimeout }) {
+function createClipboardInserter({ clipboard, ClipboardItem, platform = "win32", sendPaste, keysUp = async () => true, restoreMs = 1500, setTimeout: st = setTimeout, clearTimeout: ct = clearTimeout }) {
+  const write = clipboardWriter({ clipboard, ClipboardItem, platform });
+  const ours = async (text) => { try { return (await clipboard.readText()) === text; } catch { return false; } };
   let pending = null; // { saved, text, timer, done }
   async function insert(text) {
     let saved;
-    if (pending && clipboard.readText() === pending.text) {
-      ct(pending.timer);
-      saved = pending.saved;
-      pending.done(false);
-    } else {
-      if (pending) { ct(pending.timer); pending.done(false); }
-      saved = snapshotClipboard(clipboard);
-    }
+    const prev = pending;
     pending = null;
+    if (prev) { ct(prev.timer); prev.done(false); }
+    if (prev && (await ours(prev.text))) saved = prev.saved;
+    else saved = await snapshotClipboard(clipboard);
     if (!(await keysUp())) return { pasted: false, reason: "keys", restored: Promise.resolve(false) };
-    clipboard.writeText(text);
+    await write(text);
     try { sendPaste(); } catch (e) {
       // No key press went out: put the user's clipboard back at once.
-      if (saved.restorable && clipboard.readText() === text) restoreClipboard(clipboard, saved);
+      if (saved.restorable && (await ours(text))) await restoreClipboard(clipboard, saved, ClipboardItem);
       return { pasted: false, reason: "keys", error: String((e && e.message) || e), restored: Promise.resolve(true) };
     }
     let done;
     const restored = new Promise((r) => { done = r; });
     const p = { saved, text, done, timer: null };
-    p.timer = st(() => {
+    p.timer = st(async () => {
       if (pending === p) pending = null;
-      if (!saved.restorable || clipboard.readText() !== text) return done(false); // theirs now: keep it
-      try { restoreClipboard(clipboard, saved); done(true); } catch { done(false); }
+      try {
+        if (!saved.restorable || !(await ours(text))) return done(false); // theirs now: keep it
+        await restoreClipboard(clipboard, saved, ClipboardItem);
+        done(true);
+      } catch { done(false); }
     }, restoreMs);
     pending = p;
     return { pasted: true, reason: "", restored };
@@ -268,5 +292,5 @@ function postProcess(text, { language = "auto", removeFillers: drop = false } = 
 
 module.exports = {
   MODS, LANGS, DEFAULTS, CHORDS, parseChord, chordLabel, checkChord, sanitizeConfig, pasteDecision,
-  snapshotClipboard, restoreClipboard, createClipboardInserter, postProcess, removeFillers, setFillerHook, fold,
+  snapshotClipboard, restoreClipboard, clipboardWriter, createClipboardInserter, postProcess, removeFillers, setFillerHook, fold,
 };
