@@ -468,3 +468,24 @@ does not). Seven true points and seven contradictions are tests in `guard.test.t
 
 The misses left are the model's, not the guard's: one paraphrase at 0.39 and two anecdotes at 0.60
 and 0.61, all under the 0.7 line.
+
+### "Same party", checked on a third set (2026-11-10)
+
+The gap of the party question was thin on the first two sets, so a third author wrote 80 one-point
+cases about nothing else (`cases-party.json`: 40 true, 40 false; 30 English, 30 Italian, 4 each of
+Romanian, Russian, Japanese, Spanish, German). True: the speaker's own side said plainly, a point
+that itself names a third party, a bare label with no owner word, a market or general fact. False:
+said of a supplier or partner, of a competitor, of a customer or another person, or of a different
+third party than the point names.
+
+| | false ticks (of 40) | true points lost (of 40) |
+|---|---|---|
+| without verification | 9 | 0 |
+| with verification, threshold 0.5 (unchanged) | **1** | **0** |
+
+The main question already refuses 31 of the 40 false cases; the party question stops 8 of the 9
+left. The one that still ticks is Japanese ("our shop was on television" said of a regular customer,
+same party 0.67). Scores of the points that were ready to tick: false 0.10 to 0.46 (and that 0.67),
+true from 0.53 (points that name a third party sit lowest, 0.53 to 0.88; the speaker's own side 0.86
+or more). Two rewordings were tried on the odd-numbered half only: neither widened the gap (one
+moved it to 0.52 to 0.71, one lost a true point), so the question and the 0.5 threshold stay.
