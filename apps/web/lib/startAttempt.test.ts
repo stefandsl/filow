@@ -34,9 +34,13 @@ it("does not report a late failure from a cancelled attempt", async () => {
 
 it("guards every startup boundary and only cleans up the obsolete backend", () => {
   const source = readFileSync(new URL('../components/Teleprompter.tsx', import.meta.url), 'utf8');
-  for (const operation of ['loadReadiness()', 'fetchPlan({ probe: true, apply: true })', 'preopenMic(pushLog)', 'probeMic(attempt)', 'b.start(handlers)']) {
+  // fetchPlan never probes at Start: a probe spends an OpenRouter call when a key exists (P3)
+  for (const operation of ['loadReadiness()', 'fetchPlan({ probe: false, apply: true })', 'preopenMic(pushLog)', 'probeMic(attempt)', 'b.start(handlers)']) {
     expect(source).toContain(`await attempt.wait(${operation})`);
   }
+  expect(source).not.toContain('probe: true');
+  // the on-device matcher's model load is a startup boundary too
+  expect(source).toContain('await attempt.wait(loadGate(');
   expect(source).toContain('pendingBackend?.stop();');
   expect(source).not.toContain('cancelRef');
 });

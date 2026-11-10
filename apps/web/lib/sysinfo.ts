@@ -1,8 +1,10 @@
 // Live machine resources for the Settings dashboard and the "auto" start mode: CPU load, RAM,
 // GPU memory (nvidia-smi where present, Windows GPU performance counters otherwise, unified memory
 // on Apple silicon) and which Ollama models are loaded and where they sit (VRAM vs RAM).
+import fs from "node:fs";
 import os from "node:os";
 import { execFile } from "node:child_process";
+import type { MachineInfo } from "@filow/core";
 
 export type GpuInfo = {
   name: string;
@@ -127,13 +129,25 @@ export function ramInfo() {
   return { totalGb: gb(os.totalmem()), usedGb: gb(os.totalmem() - os.freemem()) };
 }
 
+/** Free space on the disk that holds the user's home (where Ollama keeps its models), GB; null if unknown. */
+export function freeDiskGb(dir = os.homedir()): number | null {
+  try {
+    const s = fs.statfsSync(dir);
+    return Math.round((s.bavail * s.bsize) / 1024 ** 3);
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Should "auto" pick the local models on this machine? Yes when the GPU can hold the decision model
- * (6 GB) or there is enough system RAM for it (16 GB); the reason is shown to the user.
+ * The hardware description the setup profiles are chosen from (packages/core/src/profile.ts).
+ * RAM is rounded up, so a "16 GB" laptop that reports 15.7 GB counts as 16.
  */
-export function localAdvice(gpu: GpuInfo, ramTotalGb: number): { local: boolean; reason: "gpu" | "ram" | "none" } {
-  if (gpu.kind === "discrete" && (gpu.vramTotalGb ?? 0) >= 6) return { local: true, reason: "gpu" };
-  if (gpu.kind === "unified" && ramTotalGb >= 16) return { local: true, reason: "gpu" };
-  if (ramTotalGb >= 16) return { local: true, reason: "ram" };
-  return { local: false, reason: "none" };
+export function machineInfo(gpu: GpuInfo): MachineInfo {
+  return {
+    ramGb: Math.ceil(os.totalmem() / 1024 ** 3),
+    cores: os.cpus().length,
+    gpu: { kind: gpu.kind, vramGb: gpu.vramTotalGb },
+    freeDiskGb: freeDiskGb(),
+  };
 }

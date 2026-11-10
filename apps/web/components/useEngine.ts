@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Engine, gatedDecide, gateThresholdsFor, type DecideRequest, type DecideResponse, type PointVectors, type SessionState } from "@filow/core";
+import { Engine, gatedDecide, gateThresholdsFor, matcherDecide, type DecideRequest, type DecideResponse, type PointVectors, type SessionState } from "@filow/core";
 import { useLang } from "@filow/ui";
 import { engineHeaders } from "./useSession";
 import { getDecisionProvider, getGateMode } from "@/lib/prefs";
@@ -22,21 +22,34 @@ async function decideViaApi(req: DecideRequest, signal?: AbortSignal): Promise<D
   return (await res.json()) as DecideResponse;
 }
 
+/** Point vectors are needed by the gate (when on) and by the on-device matcher (always). */
+const wantsPoints = () => gateAvailable() && (getGateMode() === "on" || getDecisionProvider() === "matcher");
+
 /**
  * One Engine per mounted component, plus its latest state. With the pre-filter on (Settings),
  * each decision first goes through the embedding gate: the model is asked only about the points
- * the speech resembles, and not at all when nothing matches. Point vectors are prepared when the
- * script changes and cached per script; until they are ready the call goes straight to the model.
+ * the speech resembles, and not at all when nothing matches. With the on-device matcher (the Lite
+ * and Standard setups) there is no model: the gate's scores decide, in the page. Point vectors are
+ * prepared when the script changes and cached per script; until they are ready the call goes
+ * straight to the model, and the matcher answers "not started".
  */
 export function useEngine() {
   const points = useRef<PointVectors | null>(null);
+  /** The preparation in flight for the current script, so a take started later can wait for it. */
+  const preparing = useRef<(() => void) | null>(null);
   const engine = useMemo(() => {
     // The gate's mode follows the provider chosen at take start (gateThresholdsFor: local Clef only skips calls).
     const narrowed = gatedDecide(decideViaApi, browserEmbed, () => points.current, gateThresholdsFor(undefined));
     const skipOnly = gatedDecide(decideViaApi, browserEmbed, () => points.current, gateThresholdsFor("clef-local"));
+    const matcher = matcherDecide(browserEmbed, () => points.current);
     const decide = (r: DecideRequest, signal?: AbortSignal) => {
+      const provider = getDecisionProvider();
+      if (provider === "matcher") {
+        if (!points.current) preparing.current?.();
+        return matcher(r, signal);
+      }
       if (getGateMode() !== "on" || !gateAvailable()) return decideViaApi(r, signal);
-      return (gateThresholdsFor(getDecisionProvider()).narrow === false ? skipOnly : narrowed)(r, signal);
+      return (gateThresholdsFor(provider).narrow === false ? skipOnly : narrowed)(r, signal);
     };
     return new Engine({ decide });
   }, []);
@@ -52,20 +65,26 @@ export function useEngine() {
   const script = state.script;
   useEffect(() => {
     points.current = null;
-    if (getGateMode() !== "on" || !gateAvailable()) return;
     const bullets = script.sections.flatMap((s) => s.bullets);
-    if (!bullets.length) return;
     let live = true;
-    preparePoints(bullets, lang).then(
-      (pv) => {
-        if (live) points.current = pv;
-      },
-      () => {
-        /* no gate: decisions go straight to the model */
-      },
-    );
+    let started = false;
+    const prepare = () => {
+      if (started || !bullets.length || !gateAvailable()) return;
+      started = true;
+      preparePoints(bullets, lang).then(
+        (pv) => {
+          if (live) points.current = pv;
+        },
+        () => {
+          started = false; // try again on the next call; until then no gate, and the matcher answers "not started"
+        },
+      );
+    };
+    preparing.current = prepare;
+    if (wantsPoints()) prepare();
     return () => {
       live = false;
+      preparing.current = null;
     };
   }, [script, lang]);
   return { engine, state };

@@ -489,3 +489,84 @@ same party 0.67). Scores of the points that were ready to tick: false 0.10 to 0.
 true from 0.53 (points that name a third party sit lowest, 0.53 to 0.88; the speaker's own side 0.86
 or more). Two rewordings were tried on the odd-numbered half only: neither widened the gap (one
 moved it to 0.52 to 0.71, one lost a true point), so the question and the 0.5 threshold stay.
+
+## P3 setup profiles (2026-11-10): what each setup runs, measured
+
+Machine: the RTX 3070 desktop (Core i9-13900KF, 24 cores / 32 threads, 128 GB, RTX 3070 8 GB, Ollama
+0.40.13), **not old hardware**. Other tracks used the same PC and Ollama during the runs, so latencies are
+upper bounds for this PC. "CPU only" means Ollama with `num_gpu: 0` (no layer on the GPU), the closest
+this PC gets to a machine without a graphics card. Same five corpora as P1 (26 true points, 12 traps).
+
+Decisions. Runner: `GAUNTLET=1 GAUNTLET_PROVIDERS=<provider> npx vitest run apps/web/lib/gauntlet`
+(providers `matcher`, `clef-local` with `GAUNTLET_GATE=1 GAUNTLET_GATE_NARROW=0`, `ollama-chat` with
+`GAUNTLET_OLLAMA_MODEL`, `GAUNTLET_OLLAMA_CPU=1`).
+
+| setup | decider | false completions | recall | late | model calls | p50 per corpus | p95 (worst corpus) |
+|---|---|---|---|---|---|---|---|
+| Lite, Standard | on-device matcher, tail + last sentence (no model; Node, CPU) | **0** | **23 / 26** | 0 | 57 | 19 to 46 ms | **83 ms** |
+| (first version) | on-device matcher, tail only | 0 | 19 / 26 | 1 | 61 | 8 to 13 ms | 23 ms |
+| Advanced | Clef Flash behind the skip-only gate (GPU + CPU split) | **0** | **19 / 26** | 3 | 62 | 833 to 915 ms | 1699 ms |
+| rejected | lfm3-vl 1.7B, JSON prompt, GPU | 15 | 13 | 0 | 52 | 367 to 487 ms | 714 ms |
+| rejected | lfm3-vl behind the narrowed gate, GPU | 4 | 17 | 4 | 56 | 278 to 438 ms | 968 ms |
+
+One-request smoke test of the JSON decision prompt (4 points, 828 prompt tokens, ~103 answer tokens),
+warm: lfm3-vl p50 0.58 s on the GPU, **6.3 s CPU only with all threads, 13.6 s with 4 threads**;
+qwen3-vl:2b 0.93 s on the GPU and 9.6 s CPU only, and its JSON was cut off (every point read as 0).
+So without a graphics card no language model fits the engine's 2.5 s timeout: Lite and Standard
+decide with the matcher (`packages/core/src/matcher.ts`): the gate's embedding similarity and lexical
+score turned into a confidence, a near tie kept ambiguous, and announcement-only sentences ("later I
+will cover", "tra poco vi parlerò") left out. Its first run, without that filter, completed both
+"announcement only" trap points (2 false completions); with it, 0. Scoring the last sentence on its own
+as well as the 320-character tail (a point said after another topic is no longer diluted) took recall
+from 19 to 23 of 26; with sentences of 3 words or more it completed "Backup retention policy" on
+"We do backups." (1 false), so only sentences of 5 words or more are scored alone (0 false); 2 or 3
+sentences gave the same recall. These two settings were tuned on the same five corpora they are scored
+on, so 23 / 26 is optimistic. Clef reaches 19 / 26 on other points (it finds traps-en 4 / 4 and traps-it
+5 / 5). The corpora are synthetic, small and in English and Italian only (the announcement filter
+knows those two languages): Advanced keeps Clef because it reads meaning rather than words, which
+these corpora do not yet prove.
+
+In the packaged app (build release-t2-c, Lite setup, a take fed by a synthetic English voice through
+the fake microphone) the matcher ran in the page in WebAssembly at **50 ms per call** on average.
+
+Speech to text, Nemotron 3.5 streaming int8, sherpa-onnx, CPU, fed in 100 ms chunks like the
+microphone (`node scripts/bench/stt-rtf.cjs <threads> <modelDir> <wav...>`), 19 s of the model's own
+test files (de, es, fr, uk):
+
+| threads | RTF | decode per 560 ms chunk p50 / p95 | used by |
+|---|---|---|---|
+| 1 | 0.61 | 368 / 415 ms | - |
+| 2 | 0.33 | 207 / 235 ms | Lite (and any machine with 4 logical cores) |
+| 4 | 0.22 | 136 / 152 ms | Standard, Advanced (6 cores or more) |
+
+OK Filow, "Answers from: Local", the request `askOllama` sends
+(`npx tsx scripts/bench/okfilow-local.mts`, slides from `scripts/bench/slide.ps1`): a 1024 x 576 slide
+screenshot (a new image every run, so no cached prompt), "What does the chart on my screen show? One
+sentence.", warm, median of 3:
+
+| setup | model | where | first word | whole answer | read the picture |
+|---|---|---|---|---|---|
+| Advanced | qwen3-vl:2b | GPU | 0.50 s | 0.66 s | yes, correct |
+| (Standard with a graphics card) | lfm3-vl | GPU | 0.21 s | 0.31 s | yes, correct |
+| Standard without a graphics card | lfm3-vl | CPU only | 5.2 s | 6.0 s | yes, correct |
+| Lite: text answers | lfm3-vl, no picture, the slide text in the question | CPU only | 1.7 s | 3.7 s | not sent; correct, but it added unasked facts |
+| rejected | qwen3-vl:2b | CPU only | 13.6 s | 15.7 s | yes |
+
+Cold loads: lfm3-vl 3.2 s (GPU) and 16.2 s (CPU), qwen3-vl:2b 8.8 s and 23.2 s.
+
+Not measured: the same answers limited to 4 and 8 CPU threads (an old and a typical laptop). Once
+Clef Flash was resident with `keep_alive: -1` (5.2 GB of the 3070's 8 GB, loaded by a take's warm-up),
+every request for another model (lfm3-vl, qwen3-vl:2b, even a 10-token "say hello") waited until
+the client gave up (60, 90 and 300 s) while Clef itself answered in 0.7 s. So on an 8 GB card the
+Advanced take and OK Filow's local picture answers do not fit side by side: one waits for the other.
+The Ollama server is shared with other sessions, so Clef was not unloaded to measure further.
+
+The Lite budget is an estimate, not a measurement: this PC has no old-hardware mode. An old 4-core
+laptop (2017 to 2019, DDR4) is taken as 2.5 to 3 times slower per thread than this i9 (single-thread
+benchmarks) with a third of the memory bandwidth. Speech at 2 threads goes from RTF 0.33 to about 0.8
+to 1.0: at the edge of real time, so the oldest 2-core machines may fall behind (the 560 ms model has
+1120 ms siblings that cost less per second of audio; not shipped yet). A 4-core / 8-thread laptop
+runs 4 threads (RTF 0.22 here, about 0.55 to 0.65 there). The matcher goes from 50 ms in the page to
+about 150 ms (budget 250 ms, inside the 500 ms tick). OK Filow on the CPU: see the thread-limited rows
+above; picture answers are not usable on such a machine, which is why Lite answers from the selected
+text. To be re-measured on a real 8 GB / 4-core machine (M2 in docs/local-latency-gauntlet.md).

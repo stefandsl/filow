@@ -1,10 +1,11 @@
 // Model router: given what is installed, what the machine can hold and (when asked) one measured
 // call per candidate, pick the lowest-latency setup for each task of a take. Pure function
 // (buildPlan) so it is unit-tested; the probes and the inventory are gathered by /api/local/plan.
+import type { SetupChoices } from "@filow/core";
 import { LOCAL_MODELS } from "./localModels";
 
 export type SttChoice = "sherpa" | "elevenlabs" | "openai" | "whisper" | "browser";
-export type DecisionChoice = "clef-local" | "openrouter" | "clef-cloudflare";
+export type DecisionChoice = "clef-local" | "openrouter" | "clef-cloudflare" | "matcher";
 export type GenerateChoice = "ollama" | "openrouter" | "none";
 
 export type PlanInput = {
@@ -19,6 +20,12 @@ export type PlanInput = {
   webSpeech: boolean;
   /** Measured latency of one real decision call, ms; undefined = not probed, null = failed. */
   probes: { clefLocalMs?: number | null; openrouterMs?: number | null };
+  /**
+   * The setup profile in use (packages/core/src/profile.ts). When given, decisions stay on this
+   * computer: the profile's choice, or the on-device matcher while Clef Flash is not installed yet.
+   * Absent: the older measured routing below (used only by the explicit "Measure" button).
+   */
+  setup?: SetupChoices | null;
 };
 
 export type Plan = {
@@ -52,7 +59,11 @@ export function buildPlan(inp: PlanInput): Plan {
   const clefMs = inp.probes.clefLocalMs;
   const cloudMs = inp.probes.openrouterMs;
   let decision: Plan["decision"];
-  if (clefInstalled && typeof clefMs === "number" && clefMs <= 2500 && (!cloudOk || typeof cloudMs !== "number" || clefMs <= cloudMs * 1.2)) {
+  if (inp.setup) {
+    if (inp.setup.decision.provider === "matcher") decision = { provider: "matcher", reason: "setup", measuredMs: null };
+    else if (clefInstalled) decision = { provider: "clef-local", reason: "setup", measuredMs: typeof clefMs === "number" ? clefMs : null };
+    else decision = { provider: "matcher", reason: "clef-missing", measuredMs: null };
+  } else if (clefInstalled && typeof clefMs === "number" && clefMs <= 2500 && (!cloudOk || typeof cloudMs !== "number" || clefMs <= cloudMs * 1.2)) {
     decision = { provider: "clef-local", reason: "measured-local-faster", measuredMs: clefMs };
   } else if (cloudOk && typeof cloudMs === "number" && (typeof clefMs !== "number" || clefMs > cloudMs * 1.2 || clefMs > 2500)) {
     decision = { provider: "openrouter", reason: clefInstalled ? "measured-cloud-faster" : "cloud-only", measuredMs: cloudMs };
@@ -82,7 +93,8 @@ export function buildPlan(inp: PlanInput): Plan {
 
   const vision: Plan["vision"] = cloudOk ? { provider: "openrouter", reason: "cloud-only" } : { provider: "none", reason: "none" };
 
-  const decMs = decision.measuredMs ?? (decision.provider === "clef-local" ? (inp.gpu.kind === "discrete" ? 150 : 1500) : decision.provider ? 1500 : null);
+  // matcher: p95 under 25 ms in the gauntlet (Node); the page adds the tick, so 50 is a fair figure
+  const decMs = decision.measuredMs ?? (decision.provider === "matcher" ? 50 : decision.provider === "clef-local" ? (inp.gpu.kind === "discrete" ? 900 : 1500) : decision.provider ? 1500 : null);
   const expectedTickMs = stt.expectedLagMs !== null && decMs !== null ? stt.expectedLagMs + decMs + 250 : null;
   return { stt, decision, generate, vision, expectedTickMs, probes: inp.probes };
 }

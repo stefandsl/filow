@@ -1,0 +1,161 @@
+// Setup profiles (P3.1): the software picks the setup that fits the machine, so the user never has
+// to know what a model is. Pure: a hardware description in, a profile and its concrete choices out.
+// The numbers behind each rule were measured on the P3 profile run (docs/gauntlet/BASELINE.md,
+// "P3 setup profiles"); the comments name the measurement each threshold rests on.
+
+export type SetupProfileId = "lite" | "standard" | "advanced";
+/** What the user asked for: "auto" follows the machine, a profile id pins it. */
+export type SetupPreference = "auto" | SetupProfileId;
+export const SETUP_PROFILES: SetupProfileId[] = ["lite", "standard", "advanced"];
+export const SETUP_PREFERENCES: SetupPreference[] = ["auto", ...SETUP_PROFILES];
+
+export type MachineInfo = {
+  /** total memory, GB */
+  ramGb: number;
+  /** logical processors (os.cpus().length) */
+  cores: number;
+  gpu: { kind: "discrete" | "integrated" | "unified" | "none"; vramGb: number | null };
+  /** free disk where models are stored, GB; null or absent = unknown */
+  freeDiskGb?: number | null;
+};
+
+/** Why the machine got its profile, shown to the user in plain words. */
+export type ProfileReason = "gpu" | "unified" | "ram-and-cores" | "small-gpu" | "low-ram" | "few-cores" | "low-disk";
+
+/** Local model the setup needs, with its one-time download. */
+/** `use` "take": a local take needs it; "screen": only OK Filow's local answers do. */
+export type SetupModel = { name: string; downloadGb: number; runtime: "ollama" | "sherpa" | "browser"; use: "take" | "screen" };
+
+export type SetupChoices = {
+  profile: SetupProfileId;
+  /** speech to text: streaming Nemotron on the desktop; the Whisper model only when there is no desktop app */
+  stt: { backend: "sherpa"; threads: number; browserWhisper: "onnx-community/whisper-base" | "onnx-community/whisper-small" };
+  /** decisions: the on-device matcher (no language model) or Clef Flash through Ollama */
+  decision: { provider: "matcher" | "clef-local"; model: string | null };
+  /** the embedding gate: on for every profile (the matcher is the gate); narrow false = it only skips calls */
+  gate: { on: true; narrow: boolean };
+  /**
+   * OK Filow on "Answers from: Local". "picture": the model reads the screenshot. "text": no picture
+   * is sent; it answers from the question and the text the user selected (pictures are too slow on
+   * this machine). "none": no local answer model fits; the user is told, never switched to cloud.
+   */
+  screenHelper: { mode: "picture" | "text" | "none"; model: string | null };
+  /** everything this setup downloads once */
+  models: SetupModel[];
+  /** the budget the setup was picked to meet on its target machine (see BASELINE.md) */
+  budget: { decisionP95Ms: number; sttRtf: number; screenAnswerS: number | null };
+};
+
+export type ResolvedSetup = {
+  /** the profile this machine gets on "auto" */
+  recommended: SetupProfileId;
+  reason: ProfileReason;
+  preference: SetupPreference;
+  /** the profile in use: the preference, or the recommendation on "auto" */
+  active: SetupProfileId;
+  choices: SetupChoices;
+  /** the user pinned a heavier profile than the machine was given: it may be slow here */
+  heavierThanRecommended: boolean;
+};
+
+const RANK: Record<SetupProfileId, number> = { lite: 0, standard: 1, advanced: 2 };
+
+/** Clef Flash (11 GB) plus the screen helper and Ollama itself, with 3 GB to spare. */
+const ADVANCED_DISK_GB = 16;
+
+/**
+ * The profile for a machine.
+ * - advanced: a discrete GPU with 8 GB of video memory and 16 GB of RAM, or Apple unified memory of
+ *   32 GB. Clef Flash (9.1B, Q8) split over an 8 GB RTX 3070 answers in p50 0.9 s, p95 1.7 s; on the
+ *   CPU alone (Core i9-13900KF) even a 1.7B model takes 6 to 14 s per decision, so Clef needs the GPU.
+ * - standard: 12 GB of RAM and 6 logical cores (a typical 16 GB laptop), or any discrete GPU with
+ *   4 GB: room for 4 speech threads and for the 1.5 GB picture model next to the app.
+ * - lite: everything else (old laptops, 4 to 8 GB, 2 to 4 cores, no graphics card).
+ */
+export function recommendProfile(m: MachineInfo): { profile: SetupProfileId; reason: ProfileReason } {
+  const vram = m.gpu.vramGb ?? 0;
+  const bigGpu = (m.gpu.kind === "discrete" && vram >= 8 && m.ramGb >= 16) || (m.gpu.kind === "unified" && m.ramGb >= 32);
+  const diskOk = m.freeDiskGb === null || m.freeDiskGb === undefined || m.freeDiskGb >= ADVANCED_DISK_GB;
+  if (bigGpu && diskOk) return { profile: "advanced", reason: m.gpu.kind === "unified" ? "unified" : "gpu" };
+  // a big GPU without the disk space for Clef Flash still runs the standard setup well
+  if (bigGpu) return { profile: "standard", reason: "low-disk" };
+  if (m.ramGb >= 12 && m.cores >= 6) return { profile: "standard", reason: "ram-and-cores" };
+  if (m.gpu.kind === "discrete" && vram >= 4 && m.ramGb >= 8) return { profile: "standard", reason: "small-gpu" };
+  return { profile: "lite", reason: m.ramGb < 12 ? "low-ram" : "few-cores" };
+}
+
+/**
+ * Speech threads: the rule apps/desktop/stt.js applies (2 to 4, leaving two cores to the app),
+ * measured on the i9 test PC as RTF 0.61 at 1 thread, 0.33 at 2 and 0.22 at 4. stt.js applies it
+ * itself; the setup reports it so the numbers on screen and in tests are the ones that run.
+ */
+export function sttThreads(cores: number): number {
+  return Math.max(2, Math.min(4, cores - 2));
+}
+
+/** The concrete choices of a profile on a machine. */
+export function setupChoices(profile: SetupProfileId, m: MachineInfo): SetupChoices {
+  const sherpa: SetupModel = { name: "nemotron-streaming", downloadGb: 0.45, runtime: "sherpa", use: "take" };
+  const matcherModel: SetupModel = { name: "paraphrase-multilingual-MiniLM-L12-v2", downloadGb: 0.12, runtime: "browser", use: "take" };
+  const lfm: SetupModel = { name: "lfm3-vl", downloadGb: 1.5, runtime: "ollama", use: "screen" };
+  if (profile === "advanced") {
+    return {
+      profile,
+      stt: { backend: "sherpa", threads: sttThreads(m.cores), browserWhisper: "onnx-community/whisper-small" },
+      decision: { provider: "clef-local", model: "clef-flash" },
+      // P1: asking Clef about fewer points changes its answers; the gate only skips calls for it
+      gate: { on: true, narrow: false },
+      // qwen3-vl:2b on the GPU: first word 0.5 s, whole answer 0.7 s with a new screenshot each time
+      screenHelper: { mode: "picture", model: "qwen3-vl:2b" },
+      models: [sherpa, matcherModel, { name: "clef-flash", downloadGb: 11, runtime: "ollama", use: "take" }, { name: "qwen3-vl:2b", downloadGb: 1.9, runtime: "ollama", use: "screen" }],
+      budget: { decisionP95Ms: 2500, sttRtf: 0.25, screenAnswerS: 1 },
+    };
+  }
+  if (profile === "standard") {
+    return {
+      profile,
+      stt: { backend: "sherpa", threads: sttThreads(m.cores), browserWhisper: "onnx-community/whisper-base" },
+      decision: { provider: "matcher", model: null },
+      gate: { on: true, narrow: true },
+      // lfm3-vl reads the screenshot: 0.3 s on a GPU, 6 s on this PC's CPU alone (about 10 to 12 s
+      // estimated on a typical 16 GB laptop); the fastest picture model measured
+      screenHelper: { mode: "picture", model: "lfm3-vl" },
+      models: [sherpa, matcherModel, lfm],
+      budget: { decisionP95Ms: 100, sttRtf: 0.5, screenAnswerS: 12 },
+    };
+  }
+  // lite: pictures take 5 s to the first word on this PC's CPU alone, an estimated 15 to 20 s on an
+  // old laptop; the same model answering from text takes 1.7 s here (5 to 7 s estimated there).
+  // Under 6 GB of RAM no answer model fits next to the app and the speech model.
+  const textModel = m.ramGb >= 6;
+  return {
+    profile,
+    stt: { backend: "sherpa", threads: sttThreads(m.cores), browserWhisper: "onnx-community/whisper-base" },
+    decision: { provider: "matcher", model: null },
+    gate: { on: true, narrow: true },
+    screenHelper: textModel ? { mode: "text", model: "lfm3-vl" } : { mode: "none", model: null },
+    models: textModel ? [sherpa, matcherModel, lfm] : [sherpa, matcherModel],
+    budget: { decisionP95Ms: 250, sttRtf: 0.85, screenAnswerS: textModel ? 7 : null },
+  };
+}
+
+export function isSetupPreference(v: unknown): v is SetupPreference {
+  return typeof v === "string" && (SETUP_PREFERENCES as string[]).includes(v);
+}
+
+/** The preference applied to the machine: what runs, and whether it is heavier than advised. */
+export function resolveSetup(preference: SetupPreference, m: MachineInfo): ResolvedSetup {
+  const { profile: recommended, reason } = recommendProfile(m);
+  const active = preference === "auto" ? recommended : preference;
+  return { recommended, reason, preference, active, choices: setupChoices(active, m), heavierThanRecommended: RANK[active] > RANK[recommended] };
+}
+
+/**
+ * One-time downloads still needed: the setup's models that are not installed yet. The matcher's small
+ * model loads inside the page on first use and is never listed here.
+ */
+export function missingModels(choices: SetupChoices, installed: { ollama: string[]; sherpa: boolean }): SetupModel[] {
+  // "lfm3-vl" is any tag of it ("lfm3-vl:latest"); "qwen3-vl:2b" is that tag only
+  const has = (n: string) => installed.ollama.some((i) => i === n || (!n.includes(":") && i.split(":")[0] === n));
+  return choices.models.filter((mm) => (mm.runtime === "ollama" ? !has(mm.name) : mm.runtime === "sherpa" ? !installed.sherpa : false));
+}

@@ -21,7 +21,8 @@ const CATALOG = {
   "gemma4:e4b": { dl: 9, ram: 16, ollama: true, label: "Gemma 4 E4B (script from slides)" },
   "qwen3-vl:8b": { dl: 6.1, ram: 16, ollama: true, label: "Qwen3-VL 8B (OK Filow screen helper)" },
   "qwen3-vl:4b": { dl: 3.3, ram: 8, ollama: true, label: "Qwen3-VL 4B (OK Filow screen helper)" },
-  "qwen3-vl:2b": { dl: 1.9, ram: 6, ollama: true, label: "Qwen3-VL 2B (OK Filow screen helper, fastest)" },
+  "qwen3-vl:2b": { dl: 1.9, ram: 6, ollama: true, label: "Qwen3-VL 2B (OK Filow screen helper)" },
+  "lfm3-vl": { dl: 1.5, ram: 4, ollama: true, label: "LFM3-VL (OK Filow screen helper, small)" },
 };
 
 function gpuName() {
@@ -50,14 +51,31 @@ function freeGb(dir) {
   }
 }
 
-/** { ramGb, gpu, gpuClass: "discrete"|"integrated"|"unknown", freeGb, cpu, cores } */
+/** Video memory of an NVIDIA card in GB (nvidia-smi), else null: other cards are not measured here. */
+function nvidiaVramGb() {
+  try {
+    const out = execFileSync("nvidia-smi", ["--query-gpu=memory.total", "--format=csv,noheader,nounits"], { encoding: "utf8", timeout: 3000, windowsHide: true });
+    const mib = Number(out.split(/\r?\n/)[0]);
+    return Number.isFinite(mib) && mib > 0 ? Math.round((mib / 1024) * 10) / 10 : null;
+  } catch {
+    return null;
+  }
+}
+
+/** { ramGb, gpu, gpuClass: "discrete"|"integrated"|"unknown", gpuKind, vramGb, freeGb, cpu, cores } */
 function hardwareScan() {
   const gpu = gpuName();
   const gpuClass = /nvidia|geforce|rtx|radeon|rx \d|apple/i.test(gpu) ? "discrete" : /arc|iris|uhd|intel|vega/i.test(gpu) ? "integrated" : "unknown";
+  // An NVIDIA card answers nvidia-smi even when Windows lists the integrated GPU first (laptops with
+  // both); that is also what the web side's gpuInfo() reads, so the two agree on the profile.
+  const nvidia = process.platform === "darwin" ? null : nvidiaVramGb();
+  const gpuKind = nvidia ? "discrete" : /apple/i.test(gpu) ? "unified" : gpuClass === "discrete" ? "discrete" : gpuClass === "integrated" ? "integrated" : "none";
   return {
     ramGb: Math.ceil(os.totalmem() / 1024 ** 3),
     gpu,
     gpuClass,
+    gpuKind,
+    vramGb: nvidia ?? (gpuKind === "unified" ? Math.ceil(os.totalmem() / 1024 ** 3) : null),
     freeGb: freeGb(os.homedir()),
     cpu: os.cpus()[0]?.model || "",
     cores: os.cpus().length,
@@ -66,19 +84,46 @@ function hardwareScan() {
   };
 }
 
-/** What this machine can run comfortably. Keeps 3 GB of disk headroom; drops the biggest Ollama model first. */
+/**
+ * The setup profile for this machine: the same rule as recommendProfile in
+ * packages/core/src/profile.ts (this file is plain CommonJS in the Electron main process and cannot
+ * import the TypeScript core; apps/desktop/localai-profile.test.ts keeps the two in step).
+ */
+function profileOf(hw) {
+  const vram = hw.vramGb || 0;
+  const free = hw.freeGb;
+  const bigGpu = (hw.gpuKind === "discrete" && vram >= 8 && hw.ramGb >= 16) || (hw.gpuKind === "unified" && hw.ramGb >= 32);
+  const diskOk = free === null || free === undefined || free < 0 || free >= 16;
+  if (bigGpu && diskOk) return "advanced";
+  if (bigGpu) return "standard";
+  if (hw.ramGb >= 12 && hw.cores >= 6) return "standard";
+  if (hw.gpuKind === "discrete" && vram >= 4 && hw.ramGb >= 8) return "standard";
+  return "lite";
+}
+
+/** Models of each profile (packages/core/src/profile.ts setupChoices), plus Whisper for the browser. */
+const PROFILE_MODELS = {
+  advanced: ["nemotron-streaming", "whisper-small", "clef-flash", "qwen3-vl:2b"],
+  standard: ["nemotron-streaming", "whisper-base", "lfm3-vl"],
+  lite: ["nemotron-streaming", "whisper-base", "lfm3-vl"],
+  liteSmall: ["nemotron-streaming", "whisper-base"],
+};
+
+/**
+ * What this machine can run comfortably: its setup profile's models, plus the slide model the RAM
+ * allows (script from slides). Keeps 3 GB of disk headroom; drops the biggest Ollama model first.
+ */
 function recommend(hw) {
-  let models;
-  if (hw.ramGb >= 32) models = ["nemotron-streaming", "whisper-small", "clef-flash", "gemma4:e4b", "qwen3-vl:2b"];
-  else if (hw.ramGb >= 16) models = ["nemotron-streaming", hw.gpuClass === "unknown" ? "whisper-base" : "whisper-small", "clef-flash", "gemma4:e2b", "qwen3-vl:2b"];
-  else if (hw.ramGb >= 8) models = ["nemotron-streaming", "whisper-base", "gemma4:e2b", "qwen3-vl:2b"];
-  else models = ["nemotron-streaming", "whisper-base"];
+  const profile = profileOf(hw);
+  let models = [...PROFILE_MODELS[profile === "lite" && hw.ramGb < 6 ? "liteSmall" : profile]];
+  if (hw.ramGb >= 32) models.push("gemma4:e4b");
+  else if (hw.ramGb >= 8) models.push("gemma4:e2b");
   const total = (list) => list.reduce((s, n) => s + (CATALOG[n]?.dl || 0), 0);
   if (hw.freeGb >= 0) {
     // Drop order: big slide model (its small sibling steps in), small slide model, then Clef:
     // decisions are the core feature, so they go last. Keep 3 GB spare after the downloads.
     const spare = 3 + 1; // + ~1 GB for Ollama itself
-    for (const drop of ["gemma4:e4b", "gemma4:e2b", "qwen3-vl:8b", "qwen3-vl:4b", "clef", "clef-flash"]) {
+    for (const drop of ["gemma4:e4b", "gemma4:e2b", "qwen3-vl:8b", "qwen3-vl:4b", "qwen3-vl:2b", "lfm3-vl", "clef", "clef-flash"]) {
       if (total(models) + spare <= hw.freeGb) break;
       if (!models.includes(drop)) continue;
       models = models.filter((n) => n !== drop);
@@ -86,7 +131,7 @@ function recommend(hw) {
       if (drop === "qwen3-vl:8b" && !models.includes("qwen3-vl:4b")) models.push("qwen3-vl:4b");
     }
   }
-  return { models, ollama: models.some((n) => CATALOG[n]?.ollama), downloadGb: Math.round(total(models) * 10) / 10, labels: models.map((n) => CATALOG[n]?.label || n) };
+  return { profile, models, ollama: models.some((n) => CATALOG[n]?.ollama), downloadGb: Math.round(total(models) * 10) / 10, labels: models.map((n) => CATALOG[n]?.label || n) };
 }
 
 function ollamaExe() {
@@ -281,4 +326,4 @@ async function installOllama(binDir, onStatus) {
   return version ? report({ state: "ready", version, pct: 100 }) : report({ state: "error", error: "Ollama did not answer after the install; open it once by hand." });
 }
 
-module.exports = { CATALOG, hardwareScan, recommend, ollamaExe, ollamaVersion, installOllama, installMacApp };
+module.exports = { CATALOG, hardwareScan, profileOf, recommend, ollamaExe, ollamaVersion, installOllama, installMacApp };

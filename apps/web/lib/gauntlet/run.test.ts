@@ -13,10 +13,11 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { DEFAULT_GATE, embedPoints, gatedDecide, parseScript, replay, type Corpus, type GateThresholds, type ReplayResult } from "@filow/core";
+import { DEFAULT_GATE, DEFAULT_MATCHER, embedPoints, gatedDecide, matcherDecide, parseScript, replay, type Corpus, type GateThresholds, type MatcherThresholds, type ReplayResult } from "@filow/core";
 import { loadEmbedder } from "@/lib/gate/embedder";
 import { decideOpenRouter } from "@/lib/decide/openrouter";
 import { decideClefLocal, warmClefLocal } from "@/lib/decide/clef";
+import { decideOllamaChat, isSmallDecisionModel } from "@/lib/gauntlet/ollamaChat";
 
 const ROOT = path.resolve(__dirname, "../../../..");
 const CORPUS_DIR = path.join(ROOT, "docs", "gauntlet", "corpus");
@@ -55,10 +56,28 @@ function loadCorpora(): Corpus[] {
     });
 }
 
+// ollama-chat: GAUNTLET_OLLAMA_MODEL (a small decision model), GAUNTLET_OLLAMA_CPU=1 pins it to the CPU
+// (num_gpu 0) to measure a machine without a graphics card. matcher: no model at all (the Lite setup);
+// GAUNTLET_MATCH="simStart,simSure,lexStart,margin" overrides its thresholds.
+const ollamaModel = process.env.GAUNTLET_OLLAMA_MODEL || "lfm3-vl";
+const ollamaOptions = (): Record<string, number> => (process.env.GAUNTLET_OLLAMA_CPU === "1" ? { num_gpu: 0 } : {});
 const PROVIDERS: Record<string, (r: Parameters<typeof decideOpenRouter>[0], signal?: AbortSignal) => ReturnType<typeof decideOpenRouter>> = {
   openrouter: (r) => decideOpenRouter(r),
   "clef-local": (r, signal) => decideClefLocal(r, signal),
+  "ollama-chat": (r, signal) => {
+    if (!isSmallDecisionModel(ollamaModel)) throw new Error(`not a small decision model: ${ollamaModel}`);
+    return decideOllamaChat(r, ollamaModel, signal, ollamaOptions());
+  },
+  matcher: () => Promise.reject(new Error("the matcher is built per corpus")),
 };
+
+// GAUNTLET_MATCH_SENT=<n>: also score the last n sentences of the tail on their own
+function matcherThresholds(): MatcherThresholds {
+  const sent = process.env.GAUNTLET_MATCH_SENT ? { perSentence: Number(process.env.GAUNTLET_MATCH_SENT) } : {};
+  const v = (process.env.GAUNTLET_MATCH || "").split(",").map(Number);
+  if (v.length !== 4 || v.some((n) => !Number.isFinite(n))) return { ...DEFAULT_MATCHER, ...sent };
+  return { ...DEFAULT_MATCHER, ...sent, simStart: v[0], simSure: v[1], lexStart: v[2], margin: v[3] };
+}
 
 function line(r: ReplayResult, provider: string): string {
   return `${provider.padEnd(12)} ${r.corpus.padEnd(10)} calls ${String(r.calls).padStart(3)}  p50 ${String(r.latencyMs.p50).padStart(5)} ms  p95 ${String(r.latencyMs.p95).padStart(5)} ms  timeouts ${r.timeouts}  correct ${r.correct}  late ${r.late}  false ${r.falseStarts}  miss ${r.misses}  precision ${r.precision ?? "-"}  recall ${r.recall ?? "-"}  delay p50 ${r.delaySec.p50 ?? "-"} s  guarded ${r.guarded}  verified ${r.verified}  vetoed ${r.vetoed}`;
@@ -73,6 +92,11 @@ describe.skipIf(!on)("gauntlet (real providers)", () => {
     fs.mkdirSync(RESULTS_DIR, { recursive: true });
     const lines: string[] = [`env: ${envFile ?? "shell only"} · model ${process.env.OPENROUTER_DECISION_MODEL ?? "default"} / ${process.env.CLEF_MODEL ?? "clef-flash"} · ${os.cpus()[0]?.model} · ${Math.round(os.totalmem() / 1024 ** 3)} GB`];
     for (const provider of wanted) {
+      if (provider === "ollama-chat" && isSmallDecisionModel(ollamaModel)) {
+        const t0 = Date.now();
+        await decideOllamaChat({ transcript: "warm-up", bullets: [{ id: "a", text: "warm-up" }], sectionTitle: "warm-up" }, ollamaModel, undefined, ollamaOptions()).catch(() => undefined);
+        lines.push(`ollama-chat ${ollamaModel} warm-up in ${Date.now() - t0} ms`);
+      }
       if (provider === "clef-local") {
         // A cold Clef load takes ~16 s; calls aborted at the timeout never let it finish, so warm it first.
         const w = await warmClefLocal();
@@ -90,6 +114,13 @@ describe.skipIf(!on)("gauntlet (real providers)", () => {
         };
         let variant = process.env.GAUNTLET_VARIANT || "default";
         let decide = PROVIDERS[provider];
+        if (provider === "matcher") {
+          const { embed } = await loadEmbedder();
+          const pv = await embedPoints(embed, parseScript(corpus.script).sections.flatMap((sec) => sec.bullets), corpus.language);
+          decide = matcherDecide(embed, () => pv, matcherThresholds());
+          if (process.env.GAUNTLET_MATCH && variant === "default") variant = `m${process.env.GAUNTLET_MATCH.replace(/,/g, "-")}`;
+        }
+        if (provider === "ollama-chat") variant = `${ollamaModel}${process.env.GAUNTLET_OLLAMA_CPU === "1" ? "-cpu" : ""}${variant === "default" ? "" : `-${variant}`}`;
         const gateStats = { calls: 0, skipped: 0, candidates: 0, lexicalOnly: 0, embedLoadMs: 0 };
         if (process.env.GAUNTLET_GATE === "1") {
           variant = variant === "default" ? "gate" : `${variant}-gate`;
