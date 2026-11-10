@@ -141,6 +141,7 @@ describe("speech worker, phrase models", () => {
       },
       Vad: function (config: any) {
         expect(config.sileroVad.windowSize).toBe(512);
+        expect(config.sileroVad.threshold).toBe(0.2); // measured: 0.5 cuts the soft start of phrases
         return {
           acceptWaveform(w: Float32Array) { fed.push(w.length); buffered += w.length; if (buffered >= 1024) { queue.push(new Float32Array(buffered)); buffered = 0; } },
           isEmpty: () => queue.length === 0, pop: () => { queue = queue.slice(1); },

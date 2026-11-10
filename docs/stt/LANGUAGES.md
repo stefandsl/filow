@@ -113,7 +113,13 @@ speaks); (b) OK Filow questions, one short utterance, where a phrase model is fi
   accurate model for questions exists for the language (Parakeet for en, it, ru on a standard PC,
   ReazonSpeech for ja), Settings offers it as a separate, optional download with its size.
 - Phrase models run behind the Silero voice detector in the speech worker; their segments are copied
-  out of native memory (`vad.front(false)`), because Electron refuses external buffers.
+  out of native memory (`vad.front(false)`), because Electron refuses external buffers. The detector's
+  threshold is 0.2, not the usual 0.5, which cut the soft start of phrases. Measured through the real
+  worker on the 15 test-take clips (3 per language, `G:/FILOW/tmp/t8-scripts/vad-bench.mjs`), error
+  rate at 0.5 / 0.2: Parakeet en 29.3 / 9.8 %, it 9.3 / 5.6 %, ru 10.4 / 10.4 %, ro 31.5 / 30.1 %;
+  ReazonSpeech ja 16.3 / 6.7 % CER; Dolphin ja 14.1 / 11.9 % CER. Romanian phrase by phrase is worse
+  than on whole clips (16.9 %): the cuts still split some words. Three clips per language is a small
+  sample.
 
 ## Tracking in each language (packages/core)
 
