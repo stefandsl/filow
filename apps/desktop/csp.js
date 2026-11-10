@@ -5,7 +5,11 @@
 
 const BASE = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+  // blob: is the microphone's AudioWorklet (packages/stt/src/mic.ts loads it from a Blob URL). Worklet
+  // modules follow script-src, not worker-src: without it every local take failed in the packaged app
+  // with "Failed to load worklet module script: blob:...". A blob is made by our own page code, which
+  // 'unsafe-inline' already trusts, so this adds no new source of script.
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
   "img-src 'self' data: blob: https:",
