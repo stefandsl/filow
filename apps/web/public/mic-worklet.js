@@ -1,9 +1,12 @@
 // The microphone's AudioWorklet (packages/stt/src/mic.ts loads it with audioWorklet.addModule("/mic-worklet.js")).
 // It is a same-origin static file, not a blob: URL, so the desktop CSP (apps/desktop/csp.js) needs no
 // blob: in script-src. Cuts the input into ~100 ms chunks of 16-bit mono PCM and posts each with its peak.
+// With processorOptions { format: "f32" } (OK Filow's panel, which feeds the on-device recognizer) each
+// chunk is posted as the float samples themselves: { samples: ArrayBuffer of Float32, peak }.
 class PcmChunker extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
+    this.float = Boolean(options && options.processorOptions && options.processorOptions.format === "f32");
     this.chunk = Math.round(sampleRate * 0.1);
     this.buf = new Float32Array(this.chunk);
     this.fill = 0;
@@ -17,7 +20,13 @@ class PcmChunker extends AudioWorkletProcessor {
       this.buf.set(ch.subarray(i, i + n), this.fill);
       this.fill += n;
       i += n;
-      if (this.fill === this.chunk) {
+      if (this.fill === this.chunk && this.float) {
+        const out = this.buf.slice();
+        let peak = 0;
+        for (let j = 0; j < this.chunk; j++) peak = Math.max(peak, Math.abs(out[j]));
+        this.port.postMessage({ samples: out.buffer, peak }, [out.buffer]);
+        this.fill = 0;
+      } else if (this.fill === this.chunk) {
         const out = new Int16Array(this.chunk);
         let peak = 0;
         for (let j = 0; j < this.chunk; j++) {

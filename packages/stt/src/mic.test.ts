@@ -120,4 +120,20 @@ describe("the static worklet file (apps/web/public/mic-worklet.js)", () => {
     expect(pcm[99]).toBe(-0x8000); // clipped to -1
     expect(posted[0].peak).toBe(1);
   });
+
+  it("in float mode (OK Filow's panel) posts the float samples themselves, unclipped, with their peak", () => {
+    const file = path.join(__dirname, "../../../apps/web/public", MIC_WORKLET_URL);
+    const posted: Array<{ samples?: ArrayBuffer; pcm?: ArrayBuffer; peak: number }> = [];
+    const registered: Record<string, new (o?: unknown) => { process: (inputs: Float32Array[][]) => boolean }> = {};
+    class AudioWorkletProcessor { port = { postMessage: (m: { samples?: ArrayBuffer; peak: number }) => posted.push(m) }; }
+    vm.runInNewContext(fs.readFileSync(file, "utf8"), { AudioWorkletProcessor, registerProcessor: (n: string, c: never) => (registered[n] = c), sampleRate: 1000, Float32Array, Int16Array, Math, Boolean });
+    const proc = new registered["pcm-chunker"]({ processorOptions: { format: "f32" } });
+    proc.process([[new Float32Array(128).fill(0.25)]]);
+    proc.process([[new Float32Array(128).fill(-0.5)]]);
+    expect(posted).toHaveLength(2); // 256 samples: two chunks of 100, 56 kept for the next
+    expect(posted[0].pcm).toBeUndefined();
+    const a = new Float32Array(posted[0].samples!), b = new Float32Array(posted[1].samples!);
+    expect([a.length, a[0], a[99], posted[0].peak]).toEqual([100, 0.25, 0.25, 0.25]);
+    expect([b[27], b[28], posted[1].peak]).toEqual([0.25, -0.5, 0.5]);
+  });
 });

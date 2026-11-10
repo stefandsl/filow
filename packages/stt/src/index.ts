@@ -7,7 +7,7 @@ import { LocalWhisperStt } from "./whisper";
 
 export type { SttBackend, SttHandlers, TranscriptEvent } from "./types";
 export { browserSupported } from "./browser";
-export { preopenMic, releasePreopenedMic } from "./mic";
+export { floatMicNode, preopenMic, releasePreopenedMic } from "./mic";
 export * from "./micDevice";
 export type { MicWarning } from "./silence";
 export * from "./whisperModels";

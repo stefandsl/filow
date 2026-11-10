@@ -3,7 +3,7 @@
 // screenshots -> /api/buddy/ask streamed -> voice + pointing). Lives in a hidden desktop window.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
-import { getSelectedMic } from "@filow/stt";
+import { floatMicNode, getSelectedMic } from "@filow/stt";
 import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture, type OkFilowCard, type OkFilowJob, type OkFilowMode, type OkFilowStatus } from "@/lib/buddy/bridge";
 import { drawingSvg, type BuddyModel } from "@/lib/buddy/visuals";
 import { createSpeaker } from "@/lib/buddy/voice";
@@ -67,7 +67,7 @@ export default function OkFilowPanel() {
   const [jobs, setJobs] = useState<OkFilowJob[]>([]);
   const committed = useRef<string[]>([]);
   const partial = useRef("");
-  const audio = useRef<{ ctx: AudioContext; stream: MediaStream; node: ScriptProcessorNode } | null>(null);
+  const audio = useRef<{ ctx: AudioContext; stream: MediaStream; node: { disconnect(): void } } | null>(null);
   const run = useRef(0);
   const asking = useRef<AbortController | null>(null);
   /** The last answer's visuals in global DIP, for "Replay last answer". */
@@ -495,9 +495,8 @@ export default function OkFilowPanel() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { ...(mic ? { deviceId: { exact: mic } } : {}), echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
       const ctx = new AudioContext({ sampleRate: 16000 });
       const src = ctx.createMediaStreamSource(stream);
-      const node = ctx.createScriptProcessor(2048, 1, 1);
-      node.onaudioprocess = (ev) => {
-        const samples = new Float32Array(ev.inputBuffer.getChannelData(0));
+      audio.current = { ctx, stream, node: { disconnect: () => {} } }; // so a failure while the worklet loads still frees the microphone
+      const node = await floatMicNode(ctx, src, (samples) => {
         if (recognizerReady) b.stt.feed(samples);
         else if (queued.length < 400) queued.push(samples); // at most ~50 s while a model loads
         let peak = 0;
@@ -505,9 +504,7 @@ export default function OkFilowPanel() {
         const level = Math.min(1, peak * 2.5);
         b.level(level);
         if (vad.current?.push(level, performance.now())) { vad.current = null; void stopRef.current(true); }
-      };
-      src.connect(node);
-      node.connect(ctx.destination);
+      });
       audio.current = { ctx, stream, node };
       const failed = await loading;
       if (failed) throw failed;

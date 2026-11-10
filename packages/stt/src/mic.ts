@@ -95,6 +95,21 @@ export async function startMic(
   } catch (err) { stop(); throw err; }
 }
 
+/**
+ * The same worklet in float mode, for a graph the caller owns (OK Filow's panel): ~100 ms chunks of
+ * Float32 samples from `source`. Replaces the deprecated ScriptProcessorNode. Returns the node to disconnect.
+ */
+export async function floatMicNode(ctx: AudioContext, source: AudioNode, onSamples: (samples: Float32Array) => void): Promise<{ disconnect(): void }> {
+  await ctx.audioWorklet.addModule(MIC_WORKLET_URL);
+  const node = new AudioWorkletNode(ctx, "pcm-chunker", { processorOptions: { format: "f32" } });
+  node.port.onmessage = (ev: MessageEvent<{ samples: ArrayBuffer }>) => onSamples(new Float32Array(ev.data.samples));
+  const mute = ctx.createGain();
+  mute.gain.value = 0; // keeps the graph running without sending the microphone to the speakers
+  source.connect(node);
+  node.connect(mute).connect(ctx.destination);
+  return { disconnect: () => { node.port.onmessage = null; node.disconnect(); mute.disconnect(); } };
+}
+
 export function toBase64(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf);
   let bin = "";
