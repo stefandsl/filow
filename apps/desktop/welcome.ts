@@ -1,7 +1,7 @@
 import { mountIcons } from "../web/components/icons";
 import { t, LANG_LABELS, acceptUiSnapshot, themeFollowing, resolveUiLanguage, type I18nKey, type UiBridge, type UiPatch, type UiSnapshot, type UiResult } from "../../packages/core/src/index";
 import { applyUiPreferences } from "../web/lib/applyUiPreferences";
-import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, type MicState, type StepId } from "./welcome-flow";
+import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, micActionsShown, micFocusMove, micDeviceChange, type MicState, type StepId } from "./welcome-flow";
 import "./welcome.css";
 
 /** The speech-setup offer from the main process (apps/desktop/welcome-setup.js setupOffer). */
@@ -124,12 +124,19 @@ function renderMic() {
   const iconName = mic.status === "heard" ? "check" : mic.status === "listening" ? "circle" : mic.status === "silent" ? "clock" : "close";
   if (icon.dataset.icon !== iconName) { icon.dataset.icon = iconName; mountIcons(card); }
   const failed = mic.status === "none" || mic.status === "blocked" || mic.status === "busy";
-  $("#mic-actions").hidden = !(failed || mic.status === "silent");
+  const actions = $("#mic-actions");
+  const status = $("#mic-status");
+  const shown = micActionsShown(mic.status);
+  const active = document.activeElement;
+  const move = micFocusMove(shown, active && actions.contains(active) ? "actions" : active === status ? "status" : "other");
+  actions.hidden = !shown;
+  if (move === "status") status.focus();
   // Windows and macOS have a microphone privacy page to open; Linux has none.
   const hasSettings = /^(Win|Mac)/.test(navigator.platform);
   $("#mic-settings").hidden = !hasSettings || !(mic.status === "blocked" || mic.status === "busy");
   $("#mic-device").textContent = micLabel && !failed ? tr("welcome.micDevice", { name: micLabel }) : "";
   $("#mic-meter").hidden = failed;
+  if (move === "retry") $("#mic-retry").focus();
 }
 let ariaAt = 0;
 function setLevel(level: number) {
@@ -153,7 +160,14 @@ async function startMicCheck() {
     return;
   }
   if (gen !== micGen || steps[index] !== "mic") { stream.getTracks().forEach(tk => tk.stop()); return; }
-  micLabel = stream.getAudioTracks()[0]?.label ?? "";
+  const track = stream.getAudioTracks()[0];
+  micLabel = track?.label ?? "";
+  // Unplugged mid-check: the track ends. Say so instead of a flat bar under "Filow can hear you."
+  track?.addEventListener("ended", () => {
+    if (gen !== micGen) return;
+    stopMic();
+    setMic({ ...startMic(), status: "none" });
+  });
   const ctx = new AudioContext();
   const analyser = ctx.createAnalyser();
   analyser.fftSize = 2048;
@@ -246,6 +260,16 @@ secondary.addEventListener("click", () => void finish(false));
 // Closing the window mid-flow completes the welcome (ui-preferences.js): stop the microphone first.
 window.addEventListener("beforeunload", () => stopMic());
 $("#mic-retry").addEventListener("click", () => void startMicCheck());
+navigator.mediaDevices?.addEventListener("devicechange", () => {
+  if (steps[index] !== "mic") return;
+  const gen = micGen;
+  void navigator.mediaDevices.enumerateDevices().catch(() => [] as MediaDeviceInfo[]).then(devices => {
+    if (gen !== micGen || steps[index] !== "mic") return;
+    const action = micDeviceChange(mic.status, devices.some(d => d.kind === "audioinput"));
+    if (action === "none") { stopMic(); setMic({ ...startMic(), status: "none" }); }
+    else if (action === "restart") void startMicCheck();
+  });
+});
 $("#mic-settings").addEventListener("click", () => bridge.openMicSettings());
 
 async function update(patch: UiPatch) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { welcomeSteps, micErrorKind, levelFromRms, micTick, MIC_HEARD_MS, MIC_SILENT_MS, startMic, type MicState } from "./welcome-flow";
+import { welcomeSteps, micErrorKind, levelFromRms, micTick, MIC_HEARD_MS, MIC_SILENT_MS, startMic, micActionsShown, micFocusMove, micDeviceChange, type MicState } from "./welcome-flow";
 
 describe("welcome steps", () => {
   it("guides a first run through language, microphone and setup", () => {
@@ -59,8 +59,50 @@ describe("microphone check", () => {
     const heard = run(Array(Math.ceil(MIC_HEARD_MS / 50)).fill(0.6));
     expect(run(Array(400).fill(0), 50, heard).status).toBe("heard");
   });
+  it("room noise (about -45 dBFS) never counts as speech, however long it lasts", () => {
+    const noise = levelFromRms(10 ** (-45 / 20));
+    expect(run(Array(400).fill(noise)).status).toBe("silent");
+  });
+  it("a voice near the microphone (about -26 dBFS) counts", () => {
+    expect(run(Array(10).fill(levelFromRms(0.05))).status).toBe("heard");
+  });
+  it("shows the help after 6 s of quiet, not before 5 s", () => {
+    expect(run(Array(100).fill(0), 50).status).toBe("listening"); // 5 s
+    expect(run(Array(120).fill(0), 50).status).toBe("silent"); // 6 s
+  });
   it("does not change an error state", () => {
     const err: MicState = { ...listening, status: "blocked" };
     expect(micTick(err, 0.9, 5000)).toEqual(err);
+  });
+});
+
+describe("Try again keeps keyboard focus (review T3 finding 3)", () => {
+  it("the row hides while listening and once heard, shows after a failure or silence", () => {
+    expect(micActionsShown("listening")).toBe(false);
+    expect(micActionsShown("heard")).toBe(false);
+    for (const s of ["silent", "none", "blocked", "busy"] as const) expect(micActionsShown(s)).toBe(true);
+  });
+  it("focus on Try again moves to the status line when the row hides, and back when it shows", () => {
+    expect(micFocusMove(false, "actions")).toBe("status");
+    expect(micFocusMove(true, "status")).toBe("retry");
+  });
+  it("leaves focus alone anywhere else, and when nothing hides", () => {
+    expect(micFocusMove(false, "other")).toBeNull();
+    expect(micFocusMove(true, "other")).toBeNull();
+    expect(micFocusMove(true, "actions")).toBeNull();
+    expect(micFocusMove(false, "status")).toBeNull();
+  });
+});
+
+describe("microphone plugged in or out mid-check (review T3 finding 5)", () => {
+  it("no input left: says No microphone, whatever the check said before", () => {
+    for (const s of ["listening", "heard", "silent", "busy"] as const) expect(micDeviceChange(s, false)).toBe("none");
+    expect(micDeviceChange("none", false)).toBeNull();
+  });
+  it("a microphone appears after a failure or silence: checks again on its own", () => {
+    for (const s of ["none", "busy", "silent"] as const) expect(micDeviceChange(s, true)).toBe("restart");
+  });
+  it("does not restart a running or passed check, nor a blocked one (a setting, not a device)", () => {
+    for (const s of ["listening", "heard", "blocked"] as const) expect(micDeviceChange(s, true)).toBeNull();
   });
 });

@@ -43,6 +43,8 @@ footer { color: var(--muted); font-size: var(--type-xs); }
 h1 { text-wrap: balance; margin: 0; font-size: var(--type-3xl); line-height: 1.15; font-weight: 650; letter-spacing: 0; }
 /* The title takes focus on each step so screen readers announce it; it is not a control, so no ring. */
 h1:focus, h1:focus-visible { outline: none; }
+/* Focus waits here while the mic check runs again (welcome-flow.ts micFocusMove); not a control, no ring. */
+.mic-status:focus, .mic-status:focus-visible { outline: none; }
 .lead { margin: 0; color: var(--muted); max-width: 52ch; }
 .detail { margin: 0; color: var(--muted); font-size: var(--type-sm); }
 

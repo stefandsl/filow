@@ -41,6 +41,31 @@ export function startMic(): MicState {
   return { status: "listening", heardMs: 0, listenedMs: 0 };
 }
 
+/** The Try again row shows when the check failed or heard nothing; it hides while listening and once heard. */
+export function micActionsShown(status: MicState["status"]): boolean {
+  return status !== "listening" && status !== "heard";
+}
+
+/**
+ * Keyboard focus when the Try again row shows or hides (review T3 finding 3). Focus on a button that hides
+ * would fall to the page, so it waits on the status line (a live region that says "Listening..."); when the
+ * row comes back (the check failed again) it returns to Try again. Focus anywhere else is left alone.
+ */
+export function micFocusMove(actionsShown: boolean, focus: "actions" | "status" | "other"): "status" | "retry" | null {
+  if (!actionsShown && focus === "actions") return "status";
+  if (actionsShown && focus === "status") return "retry";
+  return null;
+}
+
+/**
+ * Microphones plugged in or out during the check (review T3 finding 5). No input left: say "No microphone".
+ * One came back (or appeared) after the check failed or heard nothing: check again on its own.
+ */
+export function micDeviceChange(status: MicState["status"], hasInput: boolean): "none" | "restart" | null {
+  if (!hasInput) return status === "none" ? null : "none";
+  return status === "none" || status === "busy" || status === "silent" ? "restart" : null;
+}
+
 /** One meter frame: dtMs of audio at `level`. Heard is final; errors are left to the caller. */
 export function micTick(state: MicState, level: number, dtMs: number): MicState {
   if (state.status !== "listening" && state.status !== "silent") return state;
