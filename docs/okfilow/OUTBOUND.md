@@ -25,11 +25,11 @@ Recipient names always come from the provider and model configured right now
 (`GET /api/buddy/recipients`), never from fixed text. OpenRouter forwards to the company that runs
 the model. For makers that run their own models (`MAKER_HOSTS` in `outbound.ts`: Google, OpenAI,
 Anthropic, without their open-weight families) every request is pinned to the maker's own hosts
-(`provider: { only: [...], allow_fallbacks: false }`, `openRouterProvider` in `lib/openrouter.ts`),
+(`provider: { only: [...] }`, an allowlist: a fallback stays among the maker's hosts; `openRouterProvider` in `lib/openrouter.ts`),
 so both names are true ("OpenRouter and then to Google, the maker of the model you chose"). For any
 other model OpenRouter picks the host, and the recipient says so (`picked`, id `openrouter/<maker>@any`:
 "OpenRouter and then to a company OpenRouter picks to run the model made by Meta (it may be a company
-other than Meta)"); a yes for a pinned model never covers it.
+other than Meta)"); a yes for a pinned model never covers it, and the signal then names OpenRouter only.
 
 ## Inventory
 
