@@ -54,7 +54,9 @@ function newStream() {
 /** Transcribes every phrase the voice detector has closed. */
 function drainPhrases() {
   while (!vad.isEmpty()) {
-    const segment = vad.front();
+    // false: copy the samples. Electron's V8 sandbox refuses buffers that point into native memory
+    // ("External buffers are not allowed"), which is what front() hands out by default.
+    const segment = vad.front(false);
     vad.pop();
     const s = recognizer.createStream();
     s.acceptWaveform({ samples: segment.samples, sampleRate: SAMPLE_RATE });
@@ -94,6 +96,12 @@ function feed(samples) {
 function flush() {
   if (!recognizer) return;
   if (kind === "offline") {
+    // The last partial window, padded with silence, so the end of the last word is not lost.
+    if (pending.length) {
+      const last = new Float32Array(VAD_WINDOW);
+      last.set(pending);
+      vad.acceptWaveform(last);
+    }
     pending = new Float32Array(0);
     vad.flush();
     drainPhrases();

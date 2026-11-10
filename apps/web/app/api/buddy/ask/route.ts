@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireEngine } from "@/lib/engineAuth";
 import { dataUrlBytes, MAX_IMAGE_BYTES } from "@/lib/vision/openrouter";
 import { askBuddy, resolveBuddyProvider, type BuddyAskRequest } from "@/lib/buddy/providers";
-import { answerLang } from "@/lib/buddy/lang";
+import { answerLanguage } from "@/lib/buddy/lang";
 
 export const dynamic = "force-dynamic";
 
@@ -34,14 +34,17 @@ export async function POST(req: Request) {
   const provider = resolveBuddyProvider(body.provider);
   // The answer is in the spoken language the user set, else the question's own, else the
   // interface's; it travels as `lang` so the voice can match it.
-  const lang = answerLang(question, body.language, req.headers.get("accept-language"));
+  // The prompt names a language only when one is known; otherwise it says "the language the user
+  // speaks". The `lang` header is always one of the five (English when nothing tells).
+  const known = answerLanguage(question, body.language, req.headers.get("accept-language"));
+  const lang = known ?? "en";
   const encoder = new TextEncoder();
   const abort = new AbortController();
   req.signal?.addEventListener("abort", () => abort.abort());
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const piece of askBuddy(provider, { ...body, question, images, screens, language: lang }, abort.signal)) controller.enqueue(encoder.encode(piece));
+        for await (const piece of askBuddy(provider, { ...body, question, images, screens, language: known ?? "auto" }, abort.signal)) controller.enqueue(encoder.encode(piece));
       } catch (e) {
         if (!abort.signal.aborted) controller.enqueue(encoder.encode(`\n[ERROR] ${e instanceof Error ? e.message : String(e)}`));
       } finally {

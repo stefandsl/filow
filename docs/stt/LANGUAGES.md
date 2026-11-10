@@ -43,6 +43,9 @@ Speed: 2 threads RTF 0.60 median, 0.71 worst; 4 threads 0.39, 0.55 worst. Peak 8
 Licence OpenMDW-1.1.
 
 So Nemotron covers all five, streaming, but Romanian is poor (3 words in 10 wrong) and Russian middling.
+Tracking ignores Romanian diacritics, so the Romanian rates were also scored with them folded: Nemotron
+stays at 29.9 %, Parakeet v3 goes from 16.9 to 16.6 %, Whisper small from 35.3 to 30.6 %. The gap is
+in the words, not the accents.
 
 ## Candidates, same clips
 
@@ -106,6 +109,11 @@ speaks); (b) OK Filow questions, one short utterance, where a phrase model is fi
   closes (pause of 0.4 s, or 8 s of continuous speech) instead of word by word.
 - The spoken language is stored by the desktop shell (`settings.speechLanguage`) from Settings and from
   each take, so OK Filow's questions use the same model choice.
+- The Download button fetches the model for following a talk; questions use it too. When a more
+  accurate model for questions exists for the language (Parakeet for en, it, ru on a standard PC,
+  ReazonSpeech for ja), Settings offers it as a separate, optional download with its size.
+- Phrase models run behind the Silero voice detector in the speech worker; their segments are copied
+  out of native memory (`vad.front(false)`), because Electron refuses external buffers.
 
 ## Tracking in each language (packages/core)
 

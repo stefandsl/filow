@@ -595,6 +595,11 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                             {sherpa?.model === "downloading" ? `${t("settings.download")} ${sherpa.pct}%` : sherpa?.model === "extracting" ? t("settings.starting") : sherpa?.partial ? t("settings.resumeDownload", { pct: sherpa.partial }) : t("settings.download")}
                           </button>
                         )}
+                        {sherpa?.model !== "ready" && sherpa?.active && (
+                          <button className="btn" onClick={() => void sherpaBridge()?.remove()}>
+                            {t("settings.delete")}
+                          </button>
+                        )}
                         {sherpa?.model === "error" && <span className="chip err">{sherpa.error}</span>}
                         <SherpaLanguageNote s={sherpa} />
                       </>

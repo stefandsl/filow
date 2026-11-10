@@ -28,13 +28,16 @@ export type SherpaStatus = {
   activeLabel?: string | null;
   streaming?: boolean;
   notes?: SherpaNote[];
+  /** The model for OK Filow questions, when it differs from the one for following a talk. */
+  questions?: { wanted: string; wantedLabel: string; state: SherpaStatus["model"]; pct: number; downloadBytes: number; usable: boolean; active: string | null; notes: SherpaNote[] };
 };
 
 export type SherpaStart = { loadMs: number; model?: string; streaming?: boolean; notes?: SherpaNote[]; language?: string };
 
 export type SherpaBridge = {
   status: () => Promise<SherpaStatus>;
-  download: (language?: string) => void;
+  /** use "questions" fetches the more accurate model for OK Filow questions instead of the one for following a talk. */
+  download: (language?: string, use?: "tracking" | "questions") => void;
   /** Stores the spoken language in the shell (desktop builds from 0.9.31) and returns the status for it. */
   setLanguage?: (language: string) => Promise<SherpaStatus>;
   remove: () => Promise<void>;
@@ -60,13 +63,17 @@ export function sherpaUsable(s: SherpaStatus): boolean {
  * values: the model it needs and its size, then plainly what is given up (phrase by phrase, a
  * fallback model, or no model at all yet).
  */
-export function sherpaNotes(s: SherpaStatus | null): Array<{ key: "speech.model" | "speech.notePhrases" | "speech.noteFallback" | "speech.noneForLang"; vars?: Record<string, string | number> }> {
+export function sherpaNotes(s: SherpaStatus | null): Array<{ key: "speech.model" | "speech.notePhrases" | "speech.noteFallback" | "speech.noneForLang" | "speech.questionsModel"; vars?: Record<string, string | number> }> {
   if (!s?.wantedLabel) return [];
   const out: ReturnType<typeof sherpaNotes> = [];
   if (s.model !== "ready") out.push({ key: "speech.model", vars: { model: s.wantedLabel, mb: Math.round((s.downloadBytes ?? 0) / 1e6) } });
-  if (s.wantedStreaming === false || s.notes?.includes("phrases")) out.push({ key: "speech.notePhrases" });
+  // Phrase by phrase is what the user gets now (the model in use), or will get once the wanted
+  // model arrives when nothing is on disk yet; a streaming fallback in use is not phrase by phrase.
+  if (s.notes?.includes("phrases") || (!s.active && s.wantedStreaming === false)) out.push({ key: "speech.notePhrases" });
   if (s.notes?.includes("fallback") && s.active) out.push({ key: "speech.noteFallback", vars: { active: s.activeLabel ?? s.active, wanted: s.wantedLabel } });
   if (s.usable === false && s.language && s.language !== "auto") out.push({ key: "speech.noneForLang" });
+  const q = s.questions;
+  if (q && q.wanted !== s.wanted && q.state !== "ready") out.push({ key: "speech.questionsModel", vars: { model: q.wantedLabel, mb: Math.round(q.downloadBytes / 1e6) } });
   return out;
 }
 

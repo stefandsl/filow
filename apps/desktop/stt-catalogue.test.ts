@@ -143,7 +143,9 @@ describe("speech worker, phrase models", () => {
         expect(config.sileroVad.windowSize).toBe(512);
         return {
           acceptWaveform(w: Float32Array) { fed.push(w.length); buffered += w.length; if (buffered >= 1024) { queue.push(new Float32Array(buffered)); buffered = 0; } },
-          isEmpty: () => queue.length === 0, front: () => ({ samples: queue[0] }), pop: () => { queue = queue.slice(1); },
+          isEmpty: () => queue.length === 0, pop: () => { queue = queue.slice(1); },
+          // Like Electron: a segment that points into native memory is refused.
+          front: (external = true) => { if (external) throw new Error("External buffers are not allowed"); return { samples: queue[0] }; },
           flush() { if (buffered) queue.push(new Float32Array(buffered)); buffered = 0; }, reset() {},
         };
       },
@@ -165,11 +167,12 @@ describe("speech worker, phrase models", () => {
     expect(w.posted.slice(1)).toEqual([{ type: "result", partial: "", committed: "phrase of 1024" }]);
   });
 
-  it("sends the unfinished phrase on stop, then acknowledges", () => {
+  it("sends the unfinished phrase on stop, its last part window padded with silence, then acknowledges", () => {
     const w = worker();
     w.send({ type: "init", kind: "offline", config: {}, vad: "vad.onnx" });
     w.send({ type: "feed", samples: new Float32Array(600) });
     w.send({ type: "stop" });
-    expect(w.posted.slice(1)).toEqual([{ type: "result", partial: "", committed: "phrase of 512" }, { type: "stopped" }]);
+    expect(w.fed).toEqual([512, 512]);
+    expect(w.posted.slice(1)).toEqual([{ type: "result", partial: "", committed: "phrase of 1024" }, { type: "stopped" }]);
   });
 });

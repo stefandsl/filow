@@ -26,11 +26,11 @@ const WORDS: Record<"en" | "it" | "ro", string[]> = {
 export function detectLanguage(text: string): BuddyLang | null {
   const s = text.normalize("NFC");
   if (/[぀-ヿㇰ-ㇿｦ-ﾟ]/.test(s)) return "ja"; // hiragana, katakana
-  const han = (s.match(/[一-鿿]/g) ?? []).length;
-  const cyrillic = (s.match(/[Ѐ-ӿ]/g) ?? []).length;
-  const latin = (s.match(/[a-zà-ɏ]/gi) ?? []).length;
-  if (cyrillic > 0 && cyrillic >= latin) return "ru";
-  if (han > 0 && han >= latin) return "ja"; // kanji only: Filow knows no other Han-script language
+  // Any Cyrillic or kanji wins over Latin letters: questions name products in Latin script
+  // ("Где кнопка Export в Adobe Premiere Pro?"), while an English, Italian or Romanian question
+  // practically never contains Cyrillic or kanji. Filow knows no other Han-script language.
+  if (/[Ѐ-ӿ]/.test(s)) return "ru";
+  if (/[一-鿿]/.test(s)) return "ja";
   if (/[ășțşţâî]/i.test(s)) return "ro";
   const words = s.toLowerCase().match(/[\p{L}']+/gu) ?? [];
   const score = { en: 0, it: 0, ro: 0 };

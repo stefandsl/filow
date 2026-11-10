@@ -189,6 +189,12 @@ describe("claim guard: Romanian, with and without diacritics", () => {
     expect(blocked("Biroul din Cluj se deschide în mai", "Mai întâi vestea bună: biroul din Cluj se deschide în mai.").ok).toBe(true);
     expect(blocked("Veniturile au crescut", "Cel mai mare client a plecat, dar veniturile au crescut.").ok).toBe(true);
   });
+
+  it("'mai' before any adjective is the comparative, and 'ne mai' is 'we still', neither denies", () => {
+    expect(blocked("Aplicația este rapidă", "Aplicația este mai rapidă decât anul trecut.").ok).toBe(true);
+    expect(blocked("Ne trebuie un server nou", "Ne mai trebuie un server nou.").ok).toBe(true);
+    expect(blocked("Veniturile au crescut", "Veniturile nu au mai crescut.").conflict?.kind).toBe("negation");
+  });
 });
 
 describe("claim guard: Japanese, as a recogniser writes it (no punctuation, kanji numerals)", () => {

@@ -1402,9 +1402,13 @@ function sttBroadcast(channel, payload) {
   for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(channel, payload);
 }
 let sttDownloading = null;
-/** Downloads, with the user's consent given by the button, what the spoken language needs. */
-function sttDownload() {
-  const key = sttStatus().wanted;
+/**
+ * Downloads, with the user's consent given by the button, what the spoken language needs: the model
+ * for following a talk, or with use "questions" the more accurate one for OK Filow questions.
+ */
+function sttDownload(use = "tracking") {
+  const status = sttStatus();
+  const key = use === "questions" ? status.questions.wanted : status.wanted;
   if (process.env.FILOW_OFFLINE === "1") {
     sttJob = { key, state: "error", pct: 0, error: sharedText("offline.downloadDisabled", menuLang()) };
     sttBroadcast("stt:status", sttStatus());
@@ -1412,7 +1416,7 @@ function sttDownload() {
   }
   if (sttDownloading) {
     // Another language's model is still coming: fetch this one right after it instead of ignoring the click.
-    if (sttJob && sttJob.key !== key) void sttDownloading.then(() => sttDownload());
+    if (sttJob && sttJob.key !== key) void sttDownloading.then(() => sttDownload(use));
     return sttDownloading;
   }
   sttDownloading = sttLocal
@@ -1432,9 +1436,9 @@ function wireStt() {
     setSttLanguage(language);
     return sttStatus();
   });
-  appOn("stt:download", (_e, language) => {
+  appOn("stt:download", (_e, language, use) => {
     setSttLanguage(language);
-    void sttDownload();
+    void sttDownload(use === "questions" ? "questions" : "tracking");
   });
   appHandle("stt:remove", () => {
     if (sttSession) sttSession.dispose();

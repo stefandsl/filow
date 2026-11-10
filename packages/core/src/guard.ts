@@ -60,11 +60,8 @@ const SCOPE_END = new Set([
 const CLAUSE_START = new Set(["while", "whereas", "mentre", "but", "ma", "invece", "но", "а", "dar", "iar", "insa"]);
 const SCOPE = 5;
 
-const RO_BEFORE_MAI = new Set(["cel", "cea", "cei", "cele", "si", "am", "au", "ati", "vom", "vor", "nu", "sa", "tot"]);
-const RO_AFTER_MAI = new Set([
-  "mult", "multa", "multi", "multe", "putin", "putine", "bine", "mare", "mari", "mic", "mici", "ales", "tarziu", "devreme",
-  "departe", "aproape", "repede", "bun", "buna", "buni", "bune", "nou", "noi",
-]);
+/** Italian words that make a following "mai" (within 3 words) a denial: "non ... mai", "nessuno mai". ("né" is left out: folded it is Romanian "ne", "us".) */
+const IT_NEGATOR_BEFORE_MAI = new Set(["non", "nessuno", "niente", "nulla"]);
 
 /**
  * Japanese denies in the verb ending, after the word it denies: "増えません", "増えない", "増えなかった",
@@ -89,10 +86,11 @@ function negates(toks: Token[], i: number): boolean {
   const prev = toks[i - 1]?.norm ?? "";
   if ((t === "non" && (next === "solo" || next === "soltanto")) || (t === "not" && (next === "only" || next === "just"))) return false;
   if ((t === "не" && (next === "только" || next === "просто")) || (t === "nu" && (next === "numai" || next === "doar"))) return false;
-  // Romanian "mai" is "more" or "still" ("cel mai mare", "am mai crescut", "mai mult"), not the Italian "never"
-  if (t === "mai" && (RO_BEFORE_MAI.has(prev) || RO_AFTER_MAI.has(next))) return false;
+  // Romanian "mai" is "more" or "still" ("cel mai mare", "am mai crescut", "este mai rapidă"), never a
+  // denial; Italian "mai" denies with a negator before it ("non abbiamo mai", "né mai") or as "mai più".
+  // "come mai...?" and "più che mai" have none, so they stay affirmative too.
+  if (t === "mai" && !(toks.slice(Math.max(0, i - 3), i).some((p) => IT_NEGATOR_BEFORE_MAI.has(p.norm)) || (i === 0 && next === "piu"))) return false;
   if ((t === "no" || t === "nessun") && (next === "doubt" || next === "dubbio")) return false;
-  if (t === "mai" && (prev === "come" || prev === "che")) return false; // "come mai...?", "più che mai"
   if (prev === "senza" || prev === "without") return false; // "senza niente": the preposition says it
   for (let k = i + 1; k <= i + 2 && k < toks.length; k++) if (NEUTRAL_AFTER_NEGATION.test(toks[k].norm)) return false;
   return true;

@@ -30,9 +30,11 @@ describe("language of an OK Filow question", () => {
     expect(detectLanguage("ok")).toBeNull();
   });
 
-  it("goes by the script that carries most of a mixed question", () => {
+  it("lets Cyrillic or Japanese script win over product names in Latin letters", () => {
     expect(detectLanguage("Как открыть PowerPoint?")).toBe("ru");
+    expect(detectLanguage("Где кнопка Export в Adobe Premiere Pro?")).toBe("ru");
     expect(detectLanguage("PowerPointはどこ")).toBe("ja");
+    expect(detectLanguage("Adobe Premiere Pro 保存")).toBe("ja");
   });
 
   it("lets the spoken language the user set win over the question, and the interface language break a tie", () => {
