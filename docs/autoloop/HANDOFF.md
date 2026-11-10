@@ -8,6 +8,8 @@
 - SEC-05: `okfilow.js:697` ipcMain handler without a sender check.
 
 ## For the P1 tracking session (packages/core/src/engine.ts, gate.ts, docs/gauntlet/corpus)
+- BUG (T1 take probe, 2026-11-10): "Reset section" does not really reset. `resetSection` in engine.ts clears the points, streaks and `lastSent` but keeps `this.committed`, so the next tick asks again about words said before the reset and re-ticks the points within 1-2 s (20-minute probe run: 278 resets, each re-ticked from old text, cycles of 1.3-2 s). Expected: only speech after the reset counts (drop or fence the committed text at reset). Repro: `node tools/autoloop/e2e/take.mjs --minutes 20`, then `cycles` in tmp/autoloop/take.json.
+- UX (same probe): with clef-flash at ~1.0-1.1 s per call (this PC), `slowMs` (> 2 x the 500 ms tick) shows "slow model: N ms per call" for the whole of every local take. Either the threshold or the message needs a look; T2 (latency) may own the fix.
 - TRK-1/TRK-2 in the score read the newest `docs/gauntlet/results/clef-local*` or `ollama*` result file (`summary.recall`, `summary.falseStarts`). Please write local results in that shape so the loop can track them.
 
 ## From the 2026-11-09 scheduled run (I18N-01, elephant review)

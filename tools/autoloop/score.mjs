@@ -9,6 +9,7 @@
 import { execSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { takeChecks } from "./e2e/take-score.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../..");
 const args = new Set(process.argv.slice(2));
@@ -213,6 +214,19 @@ if (!quick) {
     } catch { detail = "unreadable coldstart.json"; }
   }
   check("PERF-01 cold start", 3, credit, detail);
+}
+
+// TST-02 (local take), PR-01 (offline, 0 outbound) and PERF-02 (memory over a long take): the packaged
+// app with the fake microphone (tools/autoloop/e2e/take.mjs writes tmp/autoloop/take.json). The rules
+// live in take-score.mjs with their own tests; missing or older than 48 hours counts as failing.
+{
+  let all = null;
+  try { all = JSON.parse(fs.readFileSync(path.join(ROOT, "tmp/autoloop/take.json"), "utf8")); } catch { /* no take yet */ }
+  for (const c of takeChecks(all)) check(c.id, c.weight, c.credit, c.detail);
+  const m = all?.memory?.memory;
+  if (all?.local?.timeToAllDoneMs != null) metrics.takeAllDoneMs = all.local.timeToAllDoneMs;
+  if (all?.offline?.network) metrics.offlineOutbound = all.offline.network.outbound;
+  if (m) { metrics.takeMemStartMB = m.startMB; metrics.takeMemEndMB = m.endMB; metrics.takeMemMaxMB = m.maxMB; metrics.takeMemSlope = m.slopeMBper10min; }
 }
 
 // Standards scorecard items with automatic checks (docs/autoloop/standards.json, grows over time).
