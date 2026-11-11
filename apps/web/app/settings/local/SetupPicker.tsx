@@ -72,6 +72,12 @@ export function SetupPicker({ hardware, gpuName, preference, onChange, installed
         {preference === "auto" ? desc(setup.active) : t(setup.heavierThanRecommended ? "setup.heavier" : "setup.pinned", { name: name(setup.recommended) })}
       </div>
       {noScreen && <div className="hint">{noScreen}</div>}
+      {/* A modest PC: FreeLLMAPI and OpenRouter are named as the way to more, never switched on here. */}
+      {setup.active === "lite" && (
+        <div className="hint" data-lite-cloud>
+          {t("setup.lite.cloud")} <a href="#freellm">{t("setup.lite.cloudLink")}</a>
+        </div>
+      )}
       <div className="row" aria-live="polite">
         {forTake.length === 0 && <span className="chip live">{t("setup.ready")}</span>}
         {forTake.length > 0 && <span className="hint">{t("setup.needs", { list: list(forTake), gb: gb(forTake) })}</span>}

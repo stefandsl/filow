@@ -5,6 +5,7 @@ import { LOCAL_MODELS, fits, versionAtLeast } from "@/lib/localModels";
 import { PII_SERVER_URL, piiMode, rizzoReachable } from "@/lib/pii/guard";
 import { recommendProfile } from "@filow/core";
 import { gpuInfo, machineInfo } from "@/lib/sysinfo";
+import { freellmConfigured } from "@/lib/freellm";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,7 @@ export async function GET() {
     offline: process.env.FILOW_OFFLINE === "1",
     defaultProvider: process.env.DECISION_PROVIDER || "openrouter",
     openrouterKey: Boolean(process.env.OPENROUTER_API_KEY),
+    freellmReady: freellmConfigured(),
     cloudflareKey: Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN),
     models,
     installed,

@@ -111,6 +111,16 @@ export function routerRecipient(models: string[]): Recipient {
   if (models.some((m) => makerOf(m) && !makerHosts(m))) return { id: `openrouter/${makers.join("+")}@any`, names, picked: true };
   return { id: `openrouter/${makers.join("+")}`, names };
 }
+/**
+ * FreeLLMAPI (lib/freellm.ts): the user's own router passes the content on to a free-tier provider it
+ * picks per request, which Filow cannot know in advance. One recipient, one yes, whatever model or
+ * strategy is set. The name is the English form; the windows show it in the user's language (`localNames`).
+ */
+export const FREELLM_ID = "freellmapi";
+export const FREELLM_NAME = "FreeLLMAPI (a free provider it chooses)";
+export const freellmRecipient = (): Recipient => ({ id: FREELLM_ID, names: [FREELLM_NAME] });
+/** Names as a window shows them: FreeLLMAPI's in the window's language (`freeName`). */
+export const localNames = (names: string[], freeName: string): string[] => names.map((n) => (n === FREELLM_NAME ? freeName : n));
 export const voiceRecipient = (): Recipient => ({ id: "elevenlabs", names: ["ElevenLabs"] });
 export const photoRecipient = (): Recipient => ({ id: "wikipedia", names: ["Wikipedia"] });
 
@@ -131,6 +141,7 @@ export type DecisionModels = { openrouter: string; cloudflare: string };
 /** Who reads the spoken words to decide when to scroll; null for the local decider. */
 export function decisionRecipient(provider: string, models: DecisionModels): Recipient | null {
   if (provider === "openrouter") return askRecipient(models.openrouter);
+  if (provider === "freellm") return freellmRecipient();
   if (provider === "clef-cloudflare") return { id: "cloudflare", names: ["Cloudflare"] };
   return null;
 }
@@ -238,6 +249,8 @@ export type BuddyRecipients = {
   offline: boolean;
   /** Who a cloud question goes to, from the cloud model configured on this PC right now. */
   ask: Recipient;
+  /** Who a question answered through FreeLLMAPI goes to. Absent on an older server. */
+  freellm?: Recipient;
   voice: Recipient;
   photo: Recipient;
   /** Models behind the take page's cloud deciders; the page names their makers from these. */
@@ -276,12 +289,21 @@ export function keepLocalPatch(kind: OutboundKind): KeepLocalPatch {
 }
 
 /**
- * THE one place that says whether a screen-helper question stays on this PC or goes to the cloud.
- * Anything that is not an explicit "cloud" on an online PC is local. (When the per-machine setup
- * decides the screen-helper mode, point this function at that value and nothing else changes.)
+ * THE one place that says whether a screen-helper question stays on this PC or goes out: to the
+ * cloud (OpenRouter) or through the user's FreeLLMAPI router. Anything that is not an explicit
+ * "cloud" or "freellm" on an online PC is local. (When the per-machine setup decides the
+ * screen-helper mode, point this function at that value and nothing else changes.)
  */
-export function askRoute(status: { provider?: string; offline?: boolean } | null | undefined): "local" | "cloud" {
-  return status?.provider === "cloud" && !status.offline ? "cloud" : "local";
+export type AskRoute = "local" | "cloud" | "freellm";
+export function askRoute(status: { provider?: string; offline?: boolean } | null | undefined): AskRoute {
+  if (!status || status.offline) return "local";
+  return status.provider === "cloud" || status.provider === "freellm" ? status.provider : "local";
+}
+/** Who the route sends a question to; null when it stays on this PC. */
+export function askRouteRecipient(route: AskRoute, rec: Pick<BuddyRecipients, "ask" | "freellm">): Recipient | null {
+  if (route === "cloud") return rec.ask;
+  if (route === "freellm") return rec.freellm ?? freellmRecipient();
+  return null;
 }
 /** The same decision for the voice that reads the answers. */
 export function voiceRoute(status: { voice?: string; offline?: boolean } | null | undefined): "local" | "cloud" {
@@ -291,13 +313,18 @@ export function voiceRoute(status: { voice?: string; offline?: boolean } | null 
 /** One first-send notice: what would go, to whom (and through which CLI, for agents). */
 export type NoticeRequest = { kind: OutboundKind; recipient: Recipient; cli?: string };
 
-type NoticeTextKey = `notice_${OutboundKind}` | "outVia" | "outViaPicked" | "outAnd";
-/** What the notice says: what goes, and to whom, from the recipient actually in use. */
+type NoticeTextKey = `notice_${OutboundKind}` | "outVia" | "outViaPicked" | "outAnd" | "outFree" | "outFreeWarn";
+/**
+ * What the notice says: what goes, and to whom, from the recipient actually in use. Through
+ * FreeLLMAPI it also says that the provider it picks is not known in advance and may keep or train
+ * on the content.
+ */
 export function noticeBody(notice: NoticeRequest, t: (key: NoticeTextKey) => string): string {
+  const free = notice.recipient.id === FREELLM_ID;
+  const who = free ? t("outFree") : whoPhrase(notice.recipient, t("outVia"), t("outAnd"), t("outViaPicked"));
   // A sentence may name the recipient or the CLI more than once: every place is filled.
-  return t(`notice_${notice.kind}`)
-    .split("{who}").join(whoPhrase(notice.recipient, t("outVia"), t("outAnd"), t("outViaPicked")))
-    .split("{cli}").join(notice.cli ?? "");
+  const body = t(`notice_${notice.kind}`).split("{who}").join(who).split("{cli}").join(notice.cli ?? "");
+  return free ? `${body} ${t("outFreeWarn")}` : body;
 }
 
 /**

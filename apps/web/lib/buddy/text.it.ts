@@ -147,4 +147,13 @@ export const it: Record<OkfKey, string> = {
   notchDictating: "Dettatura",
   notchHandsFree: "Vivavoce, ti ascolto",
   notchListening: "Ti ascolto",
+  // FreeLLMAPI: the user's own router to free cloud models (lib/freellm.ts)
+  brainFree: "FreeLLMAPI (gratis, il tuo router)",
+  freeNote: "FreeLLMAPI (modelli cloud gratuiti tramite il tuo router): quando chiedi, la domanda e uno screenshot degli schermi vanno al tuo router FreeLLMAPI e poi a un fornitore gratuito scelto dal router, che può conservarli o usarli per addestrare i suoi modelli.",
+  freeSetup: "Configura FreeLLMAPI",
+  freeGet: "Scarica FreeLLMAPI",
+  freeName: "FreeLLMAPI (un fornitore gratuito scelto dal router)",
+  outFree: "FreeLLMAPI, il tuo router, e poi a un fornitore di AI gratuito che il router sceglie per ogni richiesta (Filow non può sapere prima quale)",
+  outFreeWarn: "Quel fornitore può conservare ciò che riceve o usarlo per addestrare i suoi modelli.",
+  liteHint: "Questo PC è modesto, quindi qui le risposte sono lente o leggono solo il testo che selezioni. Per avere risposte senza un PC potente, scegli FreeLLMAPI (gratis, tramite il tuo router) o Cloud (OpenRouter, a pagamento) in \"Risposte da\". Entrambi mandano la domanda e uno screenshot fuori da questo PC, e solo dopo il tuo sì.",
 };

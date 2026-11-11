@@ -13,7 +13,9 @@ import { dictationText, pasteKeys, type DictationKey } from "@/lib/dictation/tex
 import { playCue } from "@/lib/dictation/cue";
 import { createPhraseFlow, type PhraseFlow } from "@/lib/dictation/handsfree";
 import { burnStrokes, createVad, describeMarked } from "@/lib/buddy/listen";
-import { askRoute, changesStored, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
+import { askRoute, askRouteRecipient, changesStored, FREELLM_ID, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
+import { FREELLM_DOWNLOAD_URL, freellmCodeOf, localizeFreeLlmError } from "@/lib/freellm";
+import { FreeLlmPanelNotes } from "./freellm-notes";
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
 import { ConsentList, OutboundNotice, OutboundPill } from "../outbound-ui";
 import { VoiceSettings } from "./voice-settings";
@@ -48,6 +50,8 @@ export default function OkFilowPanel() {
   const [heard, setHeard] = useState("");
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
+  /** The last error was "FreeLLMAPI is not running": its download link shows under it. */
+  const [freeDown, setFreeDown] = useState(false);
   const [typed, setTyped] = useState("");
   const [sttReady, setSttReady] = useState<boolean | null>(null);
 
@@ -133,7 +137,10 @@ export default function OkFilowPanel() {
     // Electron wraps errors thrown in the main process: "Error invoking remote method 'x': Error: msg".
     // A stopped Ollama: said in the user's language, and the desktop shell starts it in the background.
     const stopped = OLLAMA_STOPPED_ANSWER.test(raw);
-    const message = stopped ? t("ollamaStopped") : raw.replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, "");
+    const plain = raw.replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, "");
+    // FreeLLMAPI's failures come tagged from the server: shown in the panel's language, with its download link when it is not running
+    const message = stopped ? t("ollamaStopped") : localizeFreeLlmError(plain, lang);
+    setFreeDown(freellmCodeOf(plain) === "not_running");
     setError(message);
     okFilowBridge()?.text(message);
     setMode("error", stopped ? { error: message, code: "ollama_stopped" } : { error: message });
@@ -148,7 +155,7 @@ export default function OkFilowPanel() {
       stopAudio();
       void okFilowBridge()?.stt.stop().catch(() => {});
     }
-  }, [setMode, stopAudio, t]);
+  }, [lang, setMode, stopAudio, t]);
 
   const engineHeadersRef = useRef<() => Promise<Record<string, string>>>(async () => ({}));
   const engineHeaders = useCallback(async (): Promise<Record<string, string>> => {
@@ -252,7 +259,8 @@ export default function OkFilowPanel() {
           screens: shot.screens,
           history: [],
           language: getSpeechLang(),
-          provider: to ? "cloud" : "local",
+          // the same door as the answer: never another cloud than the one the user said yes to
+          provider: to ? (to.id === FREELLM_ID ? "freellm" : "cloud") : "local",
           setup: getSetupPreference(),
         }),
       });
@@ -331,18 +339,19 @@ export default function OkFilowPanel() {
       // notice so it shows the screen as it was when the user asked; nothing is sent until they say yes.
       let route = askRoute(statusRef.current);
       let to: Recipient | null = null;
-      if (route === "cloud") {
+      if (route !== "local") {
         const rec = await out.recipients();
-        if (!rec) throw new Error(t("noticeUnknown"));
-        if (out.standing("ask", rec.ask) === "ask") b.text(t("noticeWaiting"));
-        const decision = await out.allow("ask", rec.ask);
+        const recipient = rec && askRouteRecipient(route, rec);
+        if (!recipient) throw new Error(t("noticeUnknown"));
+        if (out.standing("ask", recipient) === "ask") b.text(t("noticeWaiting"));
+        const decision = await out.allow("ask", recipient);
         if (run.current !== id) return;
         b.text("");
         if (decision === "dismissed") return setMode("idle");
         if (decision === "declined") {
           route = "local";
           setNote(t("kept_ask"));
-        } else to = rec.ask;
+        } else to = recipient;
       }
       // What the server says about the answer: whether the model saw a picture (X-Buddy-Sees) and the
       // language it answered in (X-Buddy-Lang), which the voice uses to pick a matching voice.
@@ -355,11 +364,15 @@ export default function OkFilowPanel() {
           headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent },
           body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: getSpeechLang(), provider: route, setup: getSetupPreference() }),
         });
-        if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `HTTP ${res.status}`);
+        if (!res.ok || !res.body) {
+          // Refused before anything was forwarded (no yes on record, Offline mode, FreeLLMAPI without a key): nothing went outside.
+          if (res.status === 403 || res.status === 409) quiet?.();
+          throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `HTTP ${res.status}`);
+        }
         seesText = res.headers.get("X-Buddy-Sees") === "text";
         answerLang = res.headers.get("X-Buddy-Lang") ?? undefined;
         // The server answered from this PC after all (offline switch): nothing went outside.
-        if (res.headers.get("X-Buddy-Provider") !== "cloud") quiet?.();
+        if (res.headers.get("X-Buddy-Provider") === "local") quiet?.();
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let got = "";
@@ -759,7 +772,7 @@ export default function OkFilowPanel() {
         <section className="okf-convo">
           {heard && <p className="okf-q">{heard}</p>}
           {answer && <p className="okf-a">{answer}</p>}
-          {error && <p className="okf-err">{error}</p>}
+          {error && <p className="okf-err">{error}{freeDown && <> <a href={FREELLM_DOWNLOAD_URL} target="_blank" rel="noreferrer">{t("freeGet")}</a></>}</p>}
         </section>
       )}
 
@@ -809,11 +822,13 @@ export default function OkFilowPanel() {
           </label>
           <label className="okf-row">
             <span>{t("brain")}</span>
-            <select value={c.offline ? "local" : c.provider} onChange={(e) => void configure({ provider: e.target.value as "local" | "cloud" })} disabled={c.offline}>
+            <select className="okf-select-wide" value={c.offline ? "local" : c.provider} onChange={(e) => void configure({ provider: e.target.value as OkFilowStatus["provider"] })} disabled={c.offline}>
               <option value="local">{t("brainLocal")}</option>
+              <option value="freellm">{t("brainFree")}</option>
               <option value="cloud">{t("brainCloud")}</option>
             </select>
           </label>
+          <FreeLlmPanelNotes provider={c.offline ? "local" : c.provider} t={t} />
           <VoiceSettings bridge={bridge} status={c} t={t} configure={configure}
             preview={() => {
               // The sample takes the turn like a new question: the answer stops for good and hands-free does not reopen the mic over it.

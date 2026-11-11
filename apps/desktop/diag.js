@@ -9,7 +9,10 @@
 function redact(text, { home = "", user = "" } = {}) {
   let s = String(text || "");
   s = s.replace(/https?:\/\/[a-z0-9-]+\.trycloudflare\.com\S*/gi, "<public link>");
-  s = s.replace(/\b(sk-(?:or-v1-|proj-|ant-)?[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|xox[abpr]-[A-Za-z0-9-]{10,})\b/g, "<key>");
+  // any NAME_KEY=value, NAME_TOKEN=value or NAME_SECRET=value line (FREELLMAPI_API_KEY and whatever comes next)
+  // (an "=" or ":" is required: "PRIMARY KEY constraint" and "API_KEY missing" are ordinary log lines)
+  s = s.replace(/\b([A-Z0-9_]*(?:KEY|TOKEN|SECRET))(\s*[=:]\s*)[^\s"']{8,}/g, "$1$2<secret>");
+  s = s.replace(/\b(sk-(?:or-v1-|proj-|ant-)?[A-Za-z0-9_-]{16,}|freellmapi-[A-Za-z0-9_-]{8,}|AIza[0-9A-Za-z_-]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|xox[abpr]-[A-Za-z0-9-]{10,})\b/g, "<key>");
   s = s.replace(/\b(Bearer|token|password|ACCESS_PASSWORD)([=: ]+)[^\s"']{8,}/gi, "$1$2<secret>");
   s = s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>");
   s = s.replace(/\b(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b/g, "<lan ip>");

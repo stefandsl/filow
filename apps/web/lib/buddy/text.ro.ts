@@ -149,4 +149,13 @@ export const ro: Record<OkfKey, string> = {
   notchDictating: "Dictare",
   notchHandsFree: "Mâini libere, ascult",
   notchListening: "Ascult",
+  // FreeLLMAPI: the user's own router to free cloud models (lib/freellm.ts)
+  brainFree: "FreeLLMAPI (gratuit, routerul tău)",
+  freeNote: "FreeLLMAPI (modele cloud gratuite prin propriul tău router): când întrebi, întrebarea ta și o captură a ecranelor tale ajung la routerul tău FreeLLMAPI și apoi la un furnizor gratuit ales de router, care le poate păstra sau folosi la antrenarea modelelor sale.",
+  freeSetup: "Configurează FreeLLMAPI",
+  freeGet: "Descarcă FreeLLMAPI",
+  freeName: "FreeLLMAPI (și un furnizor gratuit ales de router)",
+  outFree: "routerul tău FreeLLMAPI și apoi la un furnizor gratuit de AI pe care routerul îl alege pentru fiecare cerere (Filow nu poate ști dinainte care)",
+  outFreeWarn: "Acel furnizor poate păstra ce primește sau îl poate folosi la antrenarea modelelor sale.",
+  liteHint: "Acest PC este modest, așa că aici răspunsurile sunt lente sau citesc doar textul pe care îl selectezi. Pentru răspunsuri fără un PC puternic, alege FreeLLMAPI (gratuit, prin propriul tău router) sau Cloud (OpenRouter, cu plată) la „Răspunsuri de la”. Ambele trimit întrebarea ta și o captură de ecran în afara acestui PC, și numai după ce spui da.",
 };

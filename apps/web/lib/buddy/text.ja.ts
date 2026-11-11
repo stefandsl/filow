@@ -149,4 +149,13 @@ export const ja: Record<OkfKey, string> = {
   notchDictating: "音声入力中",
   notchHandsFree: "ハンズフリーで聞いています",
   notchListening: "聞いています",
+  // FreeLLMAPI: the user's own router to free cloud models (lib/freellm.ts)
+  brainFree: "FreeLLMAPI（無料・自分のルーター）",
+  freeNote: "FreeLLMAPI（自分のルーター経由の無料クラウドモデル）：質問すると、質問と画面のスクリーンショットがあなたのFreeLLMAPIルーターに送られ、そこからルーターが選ぶ無料のプロバイダーに送られます。そのプロバイダーは内容を保存したり、モデルの学習に使ったりすることがあります。",
+  freeSetup: "FreeLLMAPIを設定",
+  freeGet: "FreeLLMAPIを入手",
+  freeName: "FreeLLMAPI（ルーターが選ぶ無料プロバイダー）",
+  outFree: "あなたのFreeLLMAPIルーターを経由して、ルーターがリクエストごとに選ぶ無料のAIプロバイダー（どこになるかFilowには事前にわかりません）",
+  outFreeWarn: "そのプロバイダーは、受け取った内容を保存したり、モデルの学習に使ったりすることがあります。",
+  liteHint: "このPCは性能が控えめなため、ここでの回答は遅いか、選択したテキストだけを読みます。高性能なPCなしで回答を得るには、「回答の提供元」でFreeLLMAPI（無料・自分のルーター経由）またはクラウド（OpenRouter・有料）を選んでください。どちらも質問とスクリーンショットをこのPCの外へ送りますが、送るのはあなたが同意した後だけです。",
 };

@@ -51,11 +51,39 @@ other than Meta)"); a yes for a pinned model never covers it, and the signal the
 | 14 | Model router probe (`/api/local/plan` with `probe`) | a fixed sample request, no user content | OpenRouter, then the maker | none needed (no user content) | none |
 | 15 | Downloads (Ollama installer, sherpa model, cloudflared, update check on GitHub) | no user content (the request itself only) | ollama.com, github.com | none needed | the download dialogs |
 | 16 | Report a problem, "Open an issue on GitHub" (`apps/desktop/about.js`, `issueUrl`, IPC `report:issue`) | what the user wrote, the Filow version, the system line and the end of the take and start-up logs, masked by `diag.redact` (public links, keys, e-mail addresses, LAN addresses, the user name in paths) and cut to a 6000-character link | GitHub (the page `github.com/stefandsl/filow/issues/new` in the user's own browser), and after the user posts it, anyone: issues are public | no server route: the only sender is the click, through `openExternalSafe`; opening the report window sends nothing | a notice right above the button, before the click, on every visit: issues are public, the text reaches GitHub as soon as the page opens, a GitHub account is needed. No stored consent: each report is its own click |
+| 17 | OK Filow question, FreeLLMAPI mode (`/api/buddy/ask` with `provider: "freellm"`, `lib/freellm.ts`) | the question, screenshots, selected text and the conversation, as row 1 | the user's FreeLLMAPI router, then a free provider it picks (`freellmRecipient`, id `freellmapi`) | `ask` | panel notice; pill in panel and next to the pointer: "FreeLLMAPI (a free provider it chooses)" |
+| 18 | Take, decisions through FreeLLMAPI (`/api/decide` with `freellm`) | the words spoken, anonymised by the PII guard, as row 7 | as row 17 | `transcript` | take-page notice before the take starts; pill during each call |
+| 19 | Script translation and script from slides through FreeLLMAPI (`SCRIPT_CLOUD=freellm`, or `provider: "freellm"`) | the script text, slide text and slide pictures, as rows 9 and 10 | as row 17 | `script` | the same notices as rows 9 and 10, naming FreeLLMAPI; pill |
+| 20 | "Check connection" in Settings > FreeLLMAPI (`/api/freellm/check`) | no user content (a model-list request with the unified key) | the user's FreeLLMAPI router only | none needed; refused in Offline mode | none |
 
 Row 16 is not an OK Filow request, so it has no pill: Filow hands one link to the browser and the
 browser does the sending. The link holds exactly the masked text the report window shows (shortened
 when long), never the crash files. The user's own words at the top are not masked: they are the
 user's to write and to read before the click.
+
+## FreeLLMAPI
+
+FreeLLMAPI (github.com/tashfeenahmed/freellmapi) is a router the user installs and runs on their own
+PC or network; Filow never installs or bundles it. It is local, but it forwards every request to one
+of about 34 providers' free tiers, chosen per request, which may keep or train on the content. So:
+
+- It is one recipient, `freellmapi`, named "FreeLLMAPI (a free provider it chooses)" (shown in the
+  window's language through `localNames`). A yes for OpenRouter never covers it, nor the reverse, and
+  the notice adds that the provider is not known in advance and may keep or train on the content
+  (`noticeBody`, `outFree` and `outFreeWarn`).
+- It is used only where the user picked it: "Answers from" in the OK Filow panel, the takes
+  switch and the scripts switch in Settings > FreeLLMAPI (a Cloud take is tracked by OpenRouter until
+  the takes switch is on: `cloudProvider` in `components/Teleprompter.tsx`). Nothing selects it for them, and
+  a Lite setup only points to it.
+- Offline mode refuses it before anything is sent (`requireFreeLlm`), although the router is on
+  localhost: the page-level offline filter lets localhost through, so the server refuses.
+- The router's address is never left: a redirect is refused (`routerFetch`), and a 200 that is not a
+  chat answer or a model list is a failure, not an empty success.
+- A failure (router not running, wrong key, quotas used up, no model with vision) comes back with its
+  own reason and next step (`FreeLlmError`); no route falls back from it to OpenRouter or anywhere else.
+- The address must be http(s) on this PC or a private network address (`normalizeBaseUrl`, in the
+  server and again in the desktop app before saving). The unified key is encrypted in `secrets.json`
+  like the keys from `.env`, is never sent back to a page, and is masked in "Report a problem".
 
 Everything else stays on this PC: local Clef / Ollama decisions and answers, sherpa and whisper
 speech-to-text, the system voice, OK Filow's own speech-to-text (desktop `stt.js`, local only).

@@ -154,6 +154,15 @@ const en = {
   notchDictating: "Dictating",
   notchHandsFree: "Hands-free, listening",
   notchListening: "Listening",
+  // FreeLLMAPI: the user's own router to free cloud models (lib/freellm.ts)
+  brainFree: "FreeLLMAPI (free, your router)",
+  freeNote: "FreeLLMAPI (free cloud models through your own router): when you ask, your question and a screenshot of your screens go to your FreeLLMAPI router and then to a free provider it chooses, which may keep them or train on them.",
+  freeSetup: "Set up FreeLLMAPI",
+  freeGet: "Get FreeLLMAPI",
+  freeName: "FreeLLMAPI (a free provider it chooses)",
+  outFree: "your FreeLLMAPI router and then to a free AI provider it chooses for each request (Filow cannot know which one in advance)",
+  outFreeWarn: "That provider may keep what it receives or use it to train its models.",
+  liteHint: "This PC is modest, so answers on it are slow or read only the text you select. For answers without a strong PC, choose FreeLLMAPI (free, through your own router) or Cloud (OpenRouter, paid) under \"Answers from\". Both send your question and a screenshot outside this PC, and only after you say yes.",
 };
 export type OkfKey = keyof typeof en;
 /** A translation: the same keys as English (text.test.ts checks every language). */

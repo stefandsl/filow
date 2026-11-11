@@ -5,7 +5,8 @@ import { Engine, gatedDecide, gateThresholdsFor, matcherDecide, type DecideReque
 import { useLang } from "@filow/ui";
 import { engineHeaders } from "./useSession";
 import { pageOutbound } from "./usePageOutbound";
-import { getDecisionProvider, getGateMode } from "@/lib/prefs";
+import { getDecisionProvider, getGateMode, getLang } from "@/lib/prefs";
+import { localizeFreeLlmError } from "@/lib/freellm";
 import { browserEmbed, gateAvailable, preparePoints } from "@/lib/gate/client";
 
 /**
@@ -33,7 +34,8 @@ async function decideViaApi(req: DecideRequest, signal?: AbortSignal): Promise<D
     : await call({});
   if (!res.ok) {
     const { error } = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(error ?? `decide failed (${res.status})`);
+    // a FreeLLMAPI failure names its reason and the next step, in the user's language
+    throw new Error(localizeFreeLlmError(error ?? `decide failed (${res.status})`, getLang()));
   }
   return (await res.json()) as DecideResponse;
 }

@@ -5,7 +5,7 @@
 // take page. The rules live in lib/buddy/outbound.ts; nothing here decides whether to send.
 
 import { useEffect, useId, useRef } from "react";
-import { joinNames, noticeBody, type ConsentMap, type Decision, type NoticeRequest, type OutboundKind, type OutboundSnapshot } from "@/lib/buddy/outbound";
+import { joinNames, localNames, noticeBody, type ConsentMap, type Decision, type NoticeRequest, type OutboundKind, type OutboundSnapshot } from "@/lib/buddy/outbound";
 import type { PageOutboundState } from "@/lib/buddy/outboundPage";
 import type { OkfKey } from "@/lib/buddy/text";
 
@@ -132,7 +132,7 @@ export function OutboundPill({ snap, t }: { snap: OutboundSnapshot; t: T }) {
     <span className="okf-out">
       <OutboundIcon />
       <span className="okf-out-label">{t("outLabel")}</span>
-      <span className="okf-out-to">{t("outSending").replace("{names}", joinNames(snap.names, t("outAnd")))}</span>
+      <span className="okf-out-to">{t("outSending").replace("{names}", joinNames(localNames(snap.names, t("freeName")), t("outAnd")))}</span>
     </span>
   );
 }
@@ -149,7 +149,7 @@ export function ConsentList({ consent, t, onForget }: { consent: ConsentMap | un
           {entries.map(([key, entry]) => {
             const what = t(`kind_${key.slice(0, key.indexOf(":")) as OutboundKind}` as OkfKey);
             // "@any": OpenRouter picks the company that runs the model, which may not be its maker.
-            const to = t("consentTo").replace("{names}", joinNames(entry.names, t("outAnd"))) + (key.endsWith("@any") ? ` ${t("consentPicked")}` : "");
+            const to = t("consentTo").replace("{names}", joinNames(localNames(entry.names, t("freeName")), t("outAnd"))) + (key.endsWith("@any") ? ` ${t("consentPicked")}` : "");
             const action = entry.state === "granted" ? t("consentWithdraw") : t("consentAskAgain");
             return (
               <li key={key}>

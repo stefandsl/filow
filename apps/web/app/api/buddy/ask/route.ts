@@ -4,6 +4,7 @@ import { dataUrlBytes, MAX_IMAGE_BYTES } from "@/lib/vision/openrouter";
 import { CONSENT_HEADER, consentDenied } from "@/lib/buddy/outbound";
 import { askBuddy, buddyCloudRecipient, resolveBuddyProvider, resolveLocalHelper, type BuddyAskRequest, type LocalHelper } from "@/lib/buddy/providers";
 import { answerLanguage } from "@/lib/buddy/lang";
+import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,16 @@ export async function POST(req: Request) {
   const provider = resolveBuddyProvider(body.provider);
   if (provider === "cloud") {
     const refused = consentDenied(req, "ask", buddyCloudRecipient());
+    if (refused) return refused;
+  }
+  if (provider === "freellm") {
+    // Offline mode, no key or an address outside the user's network: said at once, nothing is sent.
+    try {
+      requireFreeLlm();
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : String(e), code: e instanceof FreeLlmError ? `freellm_${e.code}` : "freellm_failed" }, { status: 409 });
+    }
+    const refused = consentDenied(req, "ask", freellmRecipient());
     if (refused) return refused;
   }
   // Only the header counts: a consent field in the body is never trusted.

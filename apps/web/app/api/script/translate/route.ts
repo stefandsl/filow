@@ -4,6 +4,7 @@ import { requireEngine } from "@/lib/engineAuth";
 import { openRouterChat } from "@/lib/openrouter";
 import { GENERATE_TEXT_MODEL, scriptRecipient } from "@/lib/generate/providers";
 import { consentDenied } from "@/lib/buddy/outbound";
+import { freellmChat, scriptCloud } from "@/lib/freellm";
 import { anonymizeRequest, restore } from "@/lib/pii/guard";
 import { keepTimeTargets, TRANSLATE_LANGS } from "@/lib/translateScript";
 
@@ -21,9 +22,9 @@ export async function POST(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
   if (process.env.FILOW_OFFLINE === "1") return NextResponse.json({ unavailable: "disabled", model: "offline", cost: 0 });
-  let body: { text?: string; to?: string };
+  let body: { text?: string; to?: string; provider?: string };
   try {
-    body = (await req.json()) as { text?: string; to?: string };
+    body = (await req.json()) as { text?: string; to?: string; provider?: string };
   } catch {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
@@ -32,7 +33,9 @@ export async function POST(req: Request) {
   if (!to || !text) return NextResponse.json({ error: "text and a supported `to` language required" }, { status: 400 });
   if (text.length > MAX_CHARS) return NextResponse.json({ error: `at most ${MAX_CHARS} characters` }, { status: 413 });
   // The script leaves this PC: only with the user's recorded yes for this exact recipient.
-  const refused = consentDenied(req, "script", scriptRecipient());
+  // OpenRouter, or the user's FreeLLMAPI router when they chose it for scripts (or the request names it).
+  const cloud = body.provider === "freellm" || body.provider === "openrouter" ? body.provider : scriptCloud();
+  const refused = consentDenied(req, "script", scriptRecipient(cloud));
   if (refused) return refused;
 
   const source = parseScript(text);
@@ -47,14 +50,16 @@ export async function POST(req: Request) {
   ].join(" ");
   try {
     const { req: safe, map } = await anonymizeRequest({ transcript: text, sectionTitle: "", bullets: [] });
-    const { content, cost, model } = await openRouterChat(GENERATE_TEXT_MODEL(), "text", {
+    const payload = {
       temperature: 0.2,
       max_tokens: 4000,
       messages: [
         { role: "system", content: system },
         { role: "user", content: safe.transcript },
       ],
-    });
+    };
+    // Never one instead of the other: a FreeLLMAPI failure comes back as its own reason.
+    const { content, cost, model } = cloud === "freellm" ? { ...(await freellmChat(payload)), cost: 0 } : await openRouterChat(GENERATE_TEXT_MODEL(), "text", payload);
     const cleaned = restore(content, map).replace(/^```(?:markdown|md)?\s*/i, "").replace(/```\s*$/, "").trim();
     const out = parseScript(cleaned);
     const got = { sections: out.sections.length, points: out.sections.reduce((n, s) => n + s.bullets.length, 0) };

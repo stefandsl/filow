@@ -103,9 +103,22 @@ OK Filow's settings. Cloud features use your own account with that company.
 | Report a problem, "Open an issue on GitHub" (the notice is next to the button, every time; nothing is sent before your click) | what you wrote, the Filow version, your system and the end of the last take's log and of the start-up log, masked as described above | GitHub, in your own browser; once you post the issue, anyone (issues are public) |
 | Downloads (speech models, Ollama, the link tool, updates) | no content of yours, only the request | github.com, ollama.com and the model hosts named in the download window |
 | Spelling check in text boxes, on Linux only | no content of yours: the window's built-in spelling checker may download its dictionary | Google, which hosts the dictionaries for Chromium (not yet checked on a Linux desktop) |
+| FreeLLMAPI, when you chose it (OK Filow answers, take tracking, script writing and translation) | the same content as the cloud feature it replaces: your question and pictures of your screens, the words you spoke (masked as above), your script or slides | your own FreeLLMAPI router, then a free AI provider the router picks for each request |
+| "Check connection" in Settings > FreeLLMAPI (no notice: nothing of yours is in it) | a request for the router's list of models | your FreeLLMAPI router only |
 
 OpenRouter passes your request to a company that runs the model. For Google's models that is Google;
 for other models it can be another company that OpenRouter picks.
+
+**FreeLLMAPI** is a separate free app (github.com/tashfeenahmed/freellmapi) that you install and run
+yourself, on this computer or another one on your network; Filow does not install it. It is meant for
+a computer that is not powerful, when privacy is not your main concern. The router is yours, but it
+passes each request on to one of many free AI providers, with your own keys for them, and Filow
+cannot know in advance which one. Free tiers often keep what they receive and may use it to train
+their models. Filow treats it like any other cloud: it asks before the first send, shows "Going
+outside - Sending to FreeLLMAPI (a free provider it chooses)" every time, never switches to it by
+itself and never falls back from it to another cloud. Its key is stored encrypted on this computer.
+FreeLLMAPI's own description says it is for personal experimentation: a school or a company should
+check the terms of the providers behind it before using it.
 
 **Offline mode** (Filow menu) stops every request that would leave your computer, including the
 update check and the public link.

@@ -76,7 +76,8 @@ function createOkFilow(deps) {
     // Windows send their consent changes, merged here into what is stored now (okfilow-outbound.js).
     if (consentChanges !== undefined) next.consent = applyConsentChanges(next.consent, consentChanges);
     if (!HOTKEYS.includes(next.hotkey)) next.hotkey = DEFAULTS.hotkey;
-    if (next.provider !== "cloud") next.provider = "local";
+    // FreeLLMAPI is only ever the user's own pick in the panel; nothing sets it for them.
+    if (next.provider !== "cloud" && next.provider !== "freellm") next.provider = "local";
     if (!["natural", "cloud", "off"].includes(next.voice)) next.voice = "system";
     // Until the user picks a voice, the natural one speaks as soon as its model is on this PC (status()).
     next.voiceChosen = next.voiceChosen === true || (!!patch && "voice" in patch);
@@ -127,6 +128,8 @@ function createOkFilow(deps) {
   function openWeb(url) {
     let u;
     try { u = new URL(String(url)); } catch { return; }
+    // Filow's own settings pages belong in the main window (the browser cannot change desktop settings).
+    if (u.origin === appUrl && u.pathname.startsWith("/settings/") && deps.openAppPage?.(u.toString())) return;
     if (u.protocol === "https:" || u.protocol === "http:") void shell.openExternal(u.toString());
   }
   /** OK Filow windows never leave their page; links open in the system browser. */
