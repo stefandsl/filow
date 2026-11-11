@@ -8,6 +8,7 @@ const { keyboardPermission } = require("./mac-permissions");
 const path = require("node:path");
 const { createGestures, chordHeld } = require("./okfilow-gestures");
 const { createHookRetry, describeHookError, QUICK_MS } = require("./okfilow-hook-retry");
+const { loadUiohook } = require("./uiohook");
 const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
@@ -583,7 +584,7 @@ function createOkFilow(deps) {
    */
   async function typeText(text, spokenLanguage, phrase = false) {
     // QA key mode: the paste still goes out through uiohook (SendInput), which works without the hook.
-    const keys = hook || (QA_KEYS ? require("uiohook-napi").uIOhook : null);
+    const keys = hook || (QA_KEYS ? loadUiohook().uIOhook : null);
     // `phrase`: one phrase of a hands-free dictation (its last words can arrive after the next press).
     const r = await dictation.insert(text, { hook: keys, keysUp: () => modifiersUp(), spokenLanguage, run: (phrase && phraseRun) || undefined });
     if (releasedAt && r.action !== "none") logLine(`dictation: release to text ${Date.now() - releasedAt} ms (${r.action}${r.reason ? `, ${r.reason}` : ""})`);
@@ -603,7 +604,7 @@ function createOkFilow(deps) {
     p.setPosition(Math.round(Math.min(Math.max(wa.x + 8, c.x + 14), wa.x + wa.width - w - 8)), Math.round(Math.min(Math.max(wa.y + 8, c.y + 18), wa.y + wa.height - h - 8)));
     // Windows only lets the process that sent the last input take the foreground: a tap of F24
     // (a key no app uses) from our hook makes that us, so the box really gets the keyboard.
-    try { if (hook) hook.keyTap(require("uiohook-napi").UiohookKey.F24); } catch { /* focus may stay put */ }
+    try { if (hook) hook.keyTap(loadUiohook().UiohookKey.F24); } catch { /* focus may stay put */ }
     p.show();
     p.moveTop();
     p.focus();
@@ -616,7 +617,7 @@ function createOkFilow(deps) {
       // macOS: no hook before the permission is there (mac-permissions.js); the toggle below works meanwhile.
       const missing = keyboardPermission({ platform: process.platform, systemPreferences });
       if (missing) throw Object.assign(new Error(`macOS has not allowed reading the keyboard yet (${missing})`), { permission: missing });
-      const { uIOhook, UiohookKey: K } = require("uiohook-napi");
+      const { uIOhook, UiohookKey: K } = loadUiohook();
       const map = {
         [K.Ctrl]: "ctrl", [K.CtrlRight]: "ctrl",
         [K.Alt]: "alt", [K.AltRight]: "alt",
@@ -679,7 +680,7 @@ function createOkFilow(deps) {
     },
     onDown: ({ error: e, failures, delayMs, quick, fallback }) => {
       // A start that failed leaves its key listeners on the hook: drop them before any retry adds new ones.
-      try { require("uiohook-napi").uIOhook.removeAllListeners(); } catch { /* nothing attached */ }
+      try { loadUiohook().uIOhook.removeAllListeners(); } catch { /* nothing attached */ }
       const changed = !hookError;
       hookError = String((e && e.message) || e);
       hookPermission = (e && e.permission) || keyboardPermission({ platform: process.platform, systemPreferences, error: e }) || "";
