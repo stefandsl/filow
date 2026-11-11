@@ -23,7 +23,7 @@ describe("whiteboard board", () => {
     expect(svg).toContain(">Voltage</text>");
     expect(svg).toContain(">pushes</text>");
     expect(svg).toContain('data-edge="v&gt;i"');
-    expect(svg).toContain(">y = 2x</text>");
+    expect(svg).toContain(">y = 2x</tspan>");
     expect(svg).toContain(">R stays the same</text>");
     expect(svg).toContain('data-block="plot"');
     expect(svg.match(/data-node=/g)).toHaveLength(2);
@@ -111,6 +111,19 @@ describe("whiteboard board", () => {
     expect(svg.split(BOARD_PALETTES.light.highlight).length - 1).toBe(1);
     const none = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "cells", values: ["1", "3"], pointer: -1 }] }] })!;
     expect(render(none, 0)).not.toContain(BOARD_PALETTES.light.highlight);
+  });
+
+  it("draws several functions on one plot and marks where the first two cross", () => {
+    const market = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "plot", expr: "10 - x", more: ["2*x", "alert(1)", "10 - x"], xmin: 0, xmax: 8 }] }] })!;
+    expect(market.steps[0].items[0]).toMatchObject({ kind: "plot", expr: "10 - x", more: ["2*x"] });
+    const svg = render(market, 0);
+    expect(svg.match(/data-curve="0"/g)).toHaveLength(1);
+    expect(svg.match(/data-curve="1"/g)).toHaveLength(1);
+    // 10 - x = 2x at x = 10/3
+    expect(svg).toContain('data-cross="3.33,6.67"');
+    expect(svg).toContain(">y = 10 - x</tspan>");
+    // one function: no second curve, no mark
+    expect(render(lesson, 1)).not.toContain("data-cross");
   });
 
   it("uses the palette it is given for both themes", () => {

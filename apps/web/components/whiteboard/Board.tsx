@@ -8,7 +8,7 @@ import { useEffect, useRef, type CSSProperties, type KeyboardEvent, type ReactNo
 import rough from "roughjs";
 import { drawingSvg } from "@/lib/buddy/visuals";
 import { arrowHead, type BoardLayout, type Box, type PlacedBlock } from "@/lib/whiteboard/layout";
-import { parseExpr, sampleCurve } from "@/lib/whiteboard/plot";
+import { evalExpr, parseExpr, sampleCurve } from "@/lib/whiteboard/plot";
 
 export type BoardPalette = { board: string; ink: string; soft: string; accent: string; mark: string; fill: string; highlight: string; curve: string };
 export const BOARD_PALETTES: Record<"light" | "dark", BoardPalette> = {
@@ -91,24 +91,58 @@ function Formula({ tex, box, color }: { tex: string; box: Box; color: string }) 
 function Plot({ block, palette, draw }: { block: Extract<PlacedBlock, { kind: "plot" }>; palette: BoardPalette; draw: Draw }) {
   const { box } = block;
   const expr = parseExpr(block.expr);
-  const curve = expr ? sampleCurve(expr, block.xmin, block.xmax) : null;
+  const first = expr ? sampleCurve(expr, block.xmin, block.xmax) : null;
+  // Further functions on the same axes (a lesson about where two curves meet shows them meeting).
+  const others = (block.more ?? []).flatMap((src) => {
+    const tree = parseExpr(src);
+    const sampled = tree ? sampleCurve(tree, block.xmin, block.xmax) : null;
+    return tree && sampled ? [{ src, tree, sampled }] : [];
+  });
   const pad = { l: 44, r: 14, t: 30, b: 26 };
   const inner = { x: box.x + pad.l, y: box.y + pad.t, w: box.w - pad.l - pad.r, h: box.h - pad.t - pad.b };
   const num = (v: number) => (Math.abs(v) >= 1000 || (Math.abs(v) < 0.01 && v !== 0) ? v.toExponential(1) : String(Math.round(v * 100) / 100));
-  const label = <text x={box.x + 6} y={box.y + 19} fontSize={16} fill={palette.ink} className="wb-fade">{`y = ${block.expr}`}</text>;
-  if (!curve) return <g>{label}</g>;
+  const colours = [palette.curve, palette.accent, palette.mark];
+  const label = (
+    <text x={box.x + 6} y={box.y + 19} fontSize={16} className="wb-fade">
+      {[block.expr, ...others.map((o) => o.src)].map((src, i) => <tspan key={i} fill={others.length ? colours[i % 3] : palette.ink}>{`${i ? "   " : ""}y = ${src}`}</tspan>)}
+    </text>
+  );
+  if (!first) return <g>{label}</g>;
+  const curve = { ...first, ymin: Math.min(first.ymin, ...others.map((o) => o.sampled.ymin)), ymax: Math.max(first.ymax, ...others.map((o) => o.sampled.ymax)) };
   const sx = (x: number) => inner.x + ((x - curve.xmin) / (curve.xmax - curve.xmin)) * inner.w;
   const sy = (y: number) => inner.y + inner.h - ((y - curve.ymin) / (curve.ymax - curve.ymin)) * inner.h;
   // the axes sit on zero when zero is in view, else on the left and bottom edges
   const axisY = curve.ymin <= 0 && curve.ymax >= 0 ? sy(0) : inner.y + inner.h;
   const axisX = curve.xmin <= 0 && curve.xmax >= 0 ? sx(0) : inner.x;
+  // Where the first two curves meet, found by walking along x until their difference changes sign.
+  const crossings: Array<[number, number]> = [];
+  if (expr && others[0]) {
+    let before = NaN;
+    for (let k = 0; k <= 240 && crossings.length < 3; k++) {
+      const x = curve.xmin + ((curve.xmax - curve.xmin) * k) / 240;
+      const d = evalExpr(expr, x) - evalExpr(others[0].tree, x);
+      if (Number.isFinite(d) && Number.isFinite(before) && (d === 0 || d * before < 0)) {
+        const step = (curve.xmax - curve.xmin) / 240;
+        const at = d === 0 ? x : x - step * (d / (d - before));
+        crossings.push([at, evalExpr(expr, at)]);
+      }
+      before = d;
+    }
+  }
+  const path = (runs: Array<Array<[number, number]>>) => runs.map((run) => run.map(([x, y], k) => `${k ? "L" : "M"}${sx(x).toFixed(1)} ${sy(y).toFixed(1)}`).join(" "));
   return (
     <g>
       {label}
       {draw((g, o) => g.line(inner.x, axisY, inner.x + inner.w, axisY, o), `${block.key}-ax`, palette.soft, 1.6)}
       {draw((g, o) => g.line(axisX, inner.y + inner.h, axisX, inner.y, o), `${block.key}-ay`, palette.soft, 1.6)}
-      {curve.runs.map((run, i) => (
-        <path key={i} className="wb-stroke" pathLength={1} d={run.map(([x, y], k) => `${k ? "L" : "M"}${sx(x).toFixed(1)} ${sy(y).toFixed(1)}`).join(" ")} fill="none" stroke={palette.curve} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      {[first, ...others.map((o) => o.sampled)].map((c, n) => path(c.runs).map((d, i) => (
+        <path key={`${n}-${i}`} className="wb-stroke" data-curve={n} pathLength={1} d={d} fill="none" stroke={colours[n % 3]} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      )))}
+      {crossings.filter(([, y]) => y >= curve.ymin && y <= curve.ymax).map(([x, y], i) => (
+        <g key={i} className="wb-fade" data-cross={`${num(x)},${num(y)}`}>
+          <circle cx={sx(x)} cy={sy(y)} r={6} fill={palette.board} stroke={palette.ink} strokeWidth={2.4} />
+          <text x={sx(x) + 10} y={sy(y) - 8} fontSize={13} fill={palette.ink}>{`(${num(x)}, ${num(y)})`}</text>
+        </g>
       ))}
       <g fontSize={13} fill={palette.soft} className="wb-fade">
         <text x={inner.x} y={box.y + box.h - 6} textAnchor="middle">{num(curve.xmin)}</text>

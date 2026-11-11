@@ -278,6 +278,7 @@ describe("whiteboard plot: an expression is parsed, never run", () => {
   it("finds the sums in a sentence that do not come out, by computing them", () => {
     expect(checkArithmetic("The middle is (0+1)/2 = 0, so we look at index 0.")).toEqual(["(0+1)/2 = 0"]);
     expect(checkArithmetic("fact(2) returns 2*3 = 5 and 3 + 4 = 7.")).toEqual(["2*3 = 5"]);
+    expect(checkArithmetic("Row 12 = 3 values, and 7 = 7.")).toEqual([]);
     for (const fine of ["100 * 1.05^2 = 110.25", "10 / 3 = 3.33", "2 " + String.fromCharCode(0xd7) + " 3 = 6", "(0+4)/2 = 2", "x = 5", "V = I R", "In 2024 = the year", "a^2 + b^2 = c^2"]) expect(checkArithmetic(fine), fine).toEqual([]);
   });
 

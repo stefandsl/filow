@@ -24,7 +24,7 @@ export type PlacedMark = { key: string; step: number; style: MarkStyle; target: 
 export type PlacedBlock = { key: string; step: number; box: Box } & (
   | { kind: "formula"; tex: string }
   | { kind: "note" | "card"; lines: string[]; font: number; cut: boolean }
-  | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string }
+  | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string; more?: string[] }
   | { kind: "sketch"; drawing: BuddyDrawing }
   | { kind: "cells"; values: string[]; pointer: number }
 );
@@ -450,10 +450,56 @@ function arrangementCost(edges: PlacedEdge[], nodes: PlacedNode[]): number {
  * The board for the first `upto + 1` steps of the lesson. Each call lays out only what is shown,
  * so a step that arrives later never has to be known in advance.
  */
-export function layoutBoard(lesson: Lesson, upto: number, shape: BoardShape): BoardLayout {
+export function layoutBoard(whole: Lesson, upto: number, shape: BoardShape): BoardLayout {
+  // A lesson with more than one board can hold clearly goes on on a fresh board, not on a crowded one.
+  const lesson = boardPage(whole, upto).lesson;
   const first = boardAt(lesson, upto, shape, 0);
   // A phone-shaped board also grows to hold its notes before any is wiped (up to a limit).
   return shape === "tall" && first.short > 0 ? boardAt(lesson, upto, shape, Math.min(640, Math.ceil(first.short))).layout : first.layout;
+}
+
+/** What one board holds before the lesson continues on the next: more than this cannot be drawn without crowding. */
+export const BOARD_HOLDS = { nodes: 7, edges: 9 };
+
+/**
+ * The board that shows step `upto`: where it starts, which board of the lesson it is, and the lesson
+ * as that board shows it (earlier boards' steps emptied; a box from an earlier board that this one
+ * points at is drawn again with the first step that needs it; the title carries the board's number).
+ */
+export function boardPage(lesson: Lesson, upto: number): { start: number; number: number; lesson: Lesson } {
+  const touched = (k: number) => new Set(lesson.steps[k].items.flatMap((it) => (it.kind === "node" ? [it.id] : it.kind === "edge" ? [it.from, it.to] : it.kind === "mark" ? [it.target] : [])));
+  let start = 0;
+  let number = 1;
+  let nodes = new Set<string>();
+  let edges = 0;
+  const last = Math.min(upto, lesson.steps.length - 1);
+  for (let k = 0; k <= last; k++) {
+    const ids = touched(k);
+    const arrows = lesson.steps[k].items.filter((it) => it.kind === "edge").length;
+    const next = new Set([...nodes, ...ids]);
+    if (k > start && (next.size > BOARD_HOLDS.nodes || edges + arrows > BOARD_HOLDS.edges)) {
+      start = k;
+      number++;
+      nodes = ids;
+      edges = arrows;
+    } else {
+      nodes = next;
+      edges += arrows;
+    }
+  }
+  if (!start) return { start, number, lesson };
+  const names = new Map<string, string>();
+  for (const s of lesson.steps) for (const it of s.items) if (it.kind === "node") names.set(it.id, it.text);
+  const have = new Set<string>();
+  const steps = lesson.steps.map((s, k) => {
+    if (k < start) return { ...s, items: [], card: false };
+    if (k > last) return s;
+    const own = new Set(s.items.flatMap((it) => (it.kind === "node" ? [it.id] : [])));
+    const carried = [...touched(k)].filter((id) => !have.has(id) && !own.has(id) && names.has(id));
+    for (const id of [...carried, ...own]) have.add(id);
+    return { ...s, items: [...carried.map((id) => ({ kind: "node" as const, id, text: names.get(id)! })), ...s.items] };
+  });
+  return { start, number, lesson: { ...lesson, title: `${lesson.title} (${number})`, steps } };
 }
 
 /** The board with `extra` height for the notes; `short` is how much room the notes still lack. */
@@ -472,7 +518,7 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
   const nodesIn: NodeIn[] = [];
   const edgesIn: EdgeIn[] = [];
   const marksIn: Array<{ target: string; style: MarkStyle; step: number }> = [];
-  type BlockIn = { key: string; step: number } & ({ kind: "formula"; tex: string } | { kind: "note" | "card"; text: string } | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string } | { kind: "sketch"; drawing: BuddyDrawing } | { kind: "cells"; values: string[]; pointer: number });
+  type BlockIn = { key: string; step: number } & ({ kind: "formula"; tex: string } | { kind: "note" | "card"; text: string } | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string; more?: string[] } | { kind: "sketch"; drawing: BuddyDrawing } | { kind: "cells"; values: string[]; pointer: number });
   const blocksIn: BlockIn[] = [];
   lesson.steps.slice(0, upto + 1).forEach((s, step) => {
     if (s.card) blocksIn.push({ key: `c${step}`, step, kind: "card", text: s.say });
@@ -483,7 +529,7 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
       else if (it.kind === "mark") marksIn.push({ target: it.target, style: it.style, step });
       else if (it.kind === "formula") blocksIn.push({ key, step, kind: "formula", tex: it.tex });
       else if (it.kind === "note") blocksIn.push({ key, step, kind: "note", text: it.text });
-      else if (it.kind === "plot") blocksIn.push({ key, step, kind: "plot", expr: it.expr, xmin: it.xmin, xmax: it.xmax, text: it.text });
+      else if (it.kind === "plot") blocksIn.push({ key, step, kind: "plot", expr: it.expr, xmin: it.xmin, xmax: it.xmax, text: it.text, more: it.more });
       else if (it.kind === "sketch") blocksIn.push({ key, step, kind: "sketch", drawing: it.drawing });
       else if (it.kind === "cells") {
         // The same row again is the same row with its pointer moved: it stays where it is on the board.
@@ -548,7 +594,7 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
     if (b.kind === "formula") return { ...base, kind: "formula", tex: b.tex, box: { x: notes.x, y: 0, w: notes.w, h: TALL_FORMULA.test(b.tex) ? 92 : 62 } };
     if (b.kind === "plot") {
       const pw = Math.min(notes.w, 400);
-      return { ...base, kind: "plot", expr: b.expr, xmin: b.xmin, xmax: b.xmax, text: b.text, box: { x: notes.x + (notes.w - pw) / 2, y: 0, w: pw, h: Math.min(250, Math.max(170, notes.h * 0.42)) } };
+      return { ...base, kind: "plot", expr: b.expr, xmin: b.xmin, xmax: b.xmax, text: b.text, more: b.more, box: { x: notes.x + (notes.w - pw) / 2, y: 0, w: pw, h: Math.min(250, Math.max(170, notes.h * 0.42)) } };
     }
     if (b.kind === "cells") {
       const cw = Math.min(64, (notes.w - 8) / b.values.length);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateLesson, type Lesson } from "./lesson";
-import { BOARD_SIZE, layoutBoard, layoutProblems, textWidth, wrapText, type BoardShape } from "./layout";
+import { BOARD_HOLDS, BOARD_SIZE, boardPage, layoutBoard, layoutProblems, textWidth, wrapText, type BoardShape } from "./layout";
 
 const SHAPES: BoardShape[] = ["wide", "tall"];
 
@@ -121,7 +121,8 @@ describe("whiteboard layout", () => {
     const make = (n: number) => validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: Array.from({ length: Math.min(n, 6) }, (_, i) => ({ kind: "node", id: `a${i}`, text: `A${i}` })) }, { say: "s", items: Array.from({ length: Math.max(0, n - 6) }, (_, i) => ({ kind: "node", id: `b${i}`, text: `B${i}` })) }] })!;
     expect(layoutBoard(make(4), 1, "tall").h).toBe(BOARD_SIZE.tall.h);
     expect(layoutBoard(make(6), 1, "tall").h).toBe(BOARD_SIZE.tall.h + 200);
-    expect(layoutBoard(make(9), 1, "tall").h).toBe(BOARD_SIZE.tall.h + 500);
+    // nine boxes are more than one board holds: the second step starts a new board with its three
+    expect(layoutBoard(make(9), 1, "tall").h).toBe(BOARD_SIZE.tall.h);
     expect(layoutBoard(make(9), 1, "wide").h).toBe(BOARD_SIZE.wide.h);
     expect(layoutProblems(layoutBoard(make(10), 1, "tall"))).toEqual([]);
   });
@@ -232,6 +233,31 @@ describe("whiteboard layout", () => {
     expect(wide.edges[0].label!.lines.join(" ")).toBe("finds steepest drop in");
     expect(layoutProblems(wide)).toEqual([]);
     expect(layoutProblems(l).filter((p) => p.includes("is cut") || p.includes("overlaps"))).toEqual([]);
+  });
+
+  it("continues on a fresh board when one board would be crowded, and carries over the boxes it still points at", () => {
+    const ids = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
+    const lesson = validateLesson({ title: "Dense", scene: "flow", steps: [
+      { say: "one", items: ids.slice(0, 5).map((id) => ({ kind: "node", id, text: id.toUpperCase() })) },
+      { say: "two", items: [{ kind: "node", id: "f", text: "F" }, { kind: "node", id: "g", text: "G" }, { kind: "edge", from: "a", to: "f", text: "feeds" }, { kind: "formula", tex: "a + b = c" }] },
+      { say: "three", items: [{ kind: "node", id: "h", text: "H" }, { kind: "node", id: "i", text: "I" }, { kind: "edge", from: "g", to: "h", text: "then" }, { kind: "mark", target: "a", style: "circle" }] },
+      { say: "four", items: [{ kind: "edge", from: "h", to: "i", text: "ends" }] },
+    ] })!;
+    expect(boardPage(lesson, 1)).toMatchObject({ start: 0, number: 1 });
+    expect(boardPage(lesson, 2)).toMatchObject({ start: 2, number: 2 });
+    const second = layoutBoard(lesson, 3, "wide");
+    expect(second.title.text).toBe("Dense (2)");
+    // only what this board draws, plus G and A, which it points at
+    expect(second.nodes.map((nd) => nd.id).sort()).toEqual(["a", "g", "h", "i"]);
+    expect(second.edges.map((e) => `${e.from}>${e.to}`)).toEqual(["g>h", "h>i"]);
+    expect(second.blocks).toEqual([]);
+    expect(second.marks.map((m) => m.target)).toEqual(["a"]);
+    for (const shape of SHAPES) expect(layoutProblems(layoutBoard(lesson, 3, shape)), shape).toEqual([]);
+    // going back shows the first board again, whole
+    const firstBoard = layoutBoard(lesson, 1, "wide");
+    expect(firstBoard.title.text).toBe("Dense");
+    expect(firstBoard.nodes).toHaveLength(7);
+    expect(BOARD_HOLDS).toEqual({ nodes: 7, edges: 9 });
   });
 
   it("spreads several arrows between the same two nodes so their labels stay apart", () => {

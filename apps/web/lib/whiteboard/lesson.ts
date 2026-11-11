@@ -16,7 +16,8 @@ export type LessonItem =
   | { kind: "node"; id: string; text: string }
   | { kind: "edge"; from: string; to: string; text: string }
   | { kind: "formula"; tex: string }
-  | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string }
+  /** `more`: further functions drawn on the same axes (the plot marks where the first two meet). */
+  | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string; more?: string[] }
   | { kind: "note"; text: string }
   /** A row of values with a pointer under one of them (-1: none): the worked example of an algorithm. */
   | { kind: "cells"; values: string[]; pointer: number }
@@ -45,7 +46,7 @@ export const LIMITS = {
   say: 260,
   title: 70,
   nodeText: 36,
-  edgeText: 22,
+  edgeText: 30,
   note: 120,
   tex: 180,
   question: 400,
@@ -201,7 +202,8 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
       if (!(xmin < xmax) || xmin < -1e4 || xmax > 1e4) { xmin = -5; xmax = 5; }
       // a function with no value anywhere in the range would draw an empty frame
       if (!tree || !sampleCurve(tree, xmin, xmax) || !once(`p:${expr.replace(/\s+/g, "")}`)) continue;
-      out.push({ kind: "plot", expr, xmin, xmax, text: cleanText(q.label ?? (q.expr ? q.text : ""), LIMITS.edgeText) });
+      const more = (Array.isArray(q.more) ? q.more : []).map((m) => cleanExpr(m).slice(0, 80)).filter((m) => m !== expr && parseExpr(m)).slice(0, 2);
+      out.push({ kind: "plot", expr, xmin, xmax, text: cleanText(q.label ?? (q.expr ? q.text : ""), LIMITS.edgeText), ...(more.length ? { more } : {}) });
     } else if (kind === "note" || kind === "text" || kind === "list") {
       const text = cleanText(q.text ?? (Array.isArray(q.items) ? q.items.join("; ") : ""), LIMITS.note);
       if (text && once(`n:${text.toLowerCase()}`)) out.push({ kind: "note", text });
@@ -395,7 +397,7 @@ export function lessonMarkdown(lesson: Lesson, words: { step: string; drawing: s
       if (it.kind === "node") lines.push(`- ${md(it.text)}`);
       else if (it.kind === "edge") lines.push(`- ${md(names.get(it.from) ?? it.from)} -> ${md(names.get(it.to) ?? it.to)}${it.text ? `: ${md(it.text)}` : ""}`);
       else if (it.kind === "formula") lines.push(`- \`${it.tex.replace(/`/g, "")}\``);
-      else if (it.kind === "plot") lines.push(`- y = \`${it.expr.replace(/`/g, "")}\` (x ${it.xmin} .. ${it.xmax})`);
+      else if (it.kind === "plot") lines.push(`- ${[it.expr, ...(it.more ?? [])].map((e) => `y = \`${e.replace(/`/g, "")}\``).join(", ")} (x ${it.xmin} .. ${it.xmax})`);
       else if (it.kind === "note") lines.push(`- ${md(it.text)}`);
       else if (it.kind === "cells") lines.push(`- ${it.values.map((v, k) => (k === it.pointer ? `**${md(v)}**` : md(v))).join(" | ")}`);
       else if (it.kind === "sketch") lines.push(`- ${md(it.drawing.title)}`);
