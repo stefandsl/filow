@@ -139,7 +139,7 @@ export function FreeLlmSettings({ onChange }: { onChange?: () => void }) {
       </div>
 
       {desktop ? (
-        <label className="row">
+        <label className="row freellm-check">
           <input type="checkbox" checked={s.scripts} disabled={s.offline} onChange={(e) => void save({ scripts: e.target.checked })} />
           <span>{t("freellm.scripts")}</span>
         </label>
@@ -148,8 +148,8 @@ export function FreeLlmSettings({ onChange }: { onChange?: () => void }) {
       )}
 
       <div className="row">
-        {desktop && <button type="button" className="btn" disabled={busy || !dirty || !urlOk || !modelOk} onClick={() => void save().then((ok) => { if (ok) setNote({ ok: true, text: t("freellm.saved") }); })}>{t("freellm.save")}</button>}
-        <button type="button" className="btn primary" disabled={busy || s.offline || !urlOk || !modelOk || (!s.hasKey && !key)} onClick={() => void check()}>{t("freellm.check")}</button>
+        {desktop && <button type="button" className="btn" data-act="save" disabled={busy || !dirty || !urlOk || !modelOk} onClick={() => void save().then((ok) => { if (ok) setNote({ ok: true, text: t("freellm.saved") }); })}>{t("freellm.save")}</button>}
+        <button type="button" className="btn primary" data-act="check" disabled={busy || s.offline || !urlOk || !modelOk || (!s.hasKey && !key)} onClick={() => void check()}>{t("freellm.check")}</button>
         <a className="btn" href={FREELLM_DOWNLOAD_URL} target="_blank" rel="noreferrer">{t("freellm.get")}</a>
       </div>
       <div className="hint" role="status" aria-live="polite">

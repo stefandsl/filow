@@ -7,6 +7,7 @@
 //   prints "fake-freellm ready http://127.0.0.1:<port>/v1"; POST /__mode {"mode":"quota"} switches
 //   the reply, GET /__log returns the recorded requests.
 import http from "node:http";
+import { pathToFileURL } from "node:url";
 
 /** ok: answers. quota: 429 quota_exceeded. no_vision: 422 no_vision_model when a picture comes. bad_model: 400. broken: 500. */
 export const FAKE_MODES = ["ok", "quota", "no_vision", "bad_model", "broken"];
@@ -41,10 +42,10 @@ function answerFor(body) {
 }
 
 /**
- * Starts the fake on 127.0.0.1 (port 0 = any free port).
+ * Starts the fake on 127.0.0.1 (port 0 = any free port). `delayMs` holds each chat answer back.
  * @returns {Promise<{ url: string, port: number, log: Array<Record<string, unknown>>, setMode(m: string): void, close(): Promise<void> }>}
  */
-export function startFakeFreeLlm({ port = 0, key = "fake-unified-key", mode = "ok" } = {}) {
+export function startFakeFreeLlm({ port = 0, key = "fake-unified-key", mode = "ok", delayMs = 0 } = {}) {
   const state = { mode };
   const log = [];
   const server = http.createServer(async (req, res) => {
@@ -73,6 +74,8 @@ export function startFakeFreeLlm({ port = 0, key = "fake-unified-key", mode = "o
       ] });
     }
     if (url.pathname !== "/v1/chat/completions" || req.method !== "POST") return send(404, { error: { message: "Not found", code: "not_found" } });
+    // a real router takes a moment (it may try several providers): long enough to see the signal
+    if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
     if (state.mode === "quota") return send(429, { error: { message: "All free-tier quotas are used up", type: "rate_limit_error", code: "quota_exceeded" } }, { "Retry-After": "3600" });
     if (state.mode === "no_vision" && entry.image) return send(422, { error: { message: "No vision-capable model is enabled", code: "no_vision_model" } });
     if (state.mode === "bad_model") return send(400, { error: { message: `Unknown profile or model: ${body?.model}`, code: "model_not_found" } });
@@ -103,7 +106,7 @@ export function startFakeFreeLlm({ port = 0, key = "fake-unified-key", mode = "o
   });
 }
 
-const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/").split("/").pop());
+const isMain = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
   const arg = (name, def) => {
     const i = process.argv.indexOf(`--${name}`);

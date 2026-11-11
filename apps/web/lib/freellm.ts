@@ -291,9 +291,10 @@ export async function checkFreeLlm(lang = "en"): Promise<FreeLlmCheck> {
     const json = (await res.json().catch(() => ({}))) as { data?: Array<{ id?: unknown; execution_status?: unknown }> };
     const rows = Array.isArray(json.data) ? json.data : [];
     const ids = rows.map((r) => (typeof r.id === "string" ? r.id : "")).filter((id) => id && normalizeModel(id) === id);
-    const ready = rows.filter((r) => r.execution_status === undefined || r.execution_status === "ready").length;
     const routing = ids.filter((id) => id === "auto" || id.startsWith("auto:"));
     const readyIds = rows.filter((r) => typeof r.id === "string" && r.execution_status === "ready").map((r) => r.id as string);
+    // an older router does not say which models can answer now: then every model it lists counts
+    const ready = rows.some((r) => r.execution_status !== undefined) ? readyIds.length : ids.length - routing.length;
     const models = [...new Set([...routing, ...readyIds, ...ids])].slice(0, 60);
     return { ok: true, models, ready, url: baseUrl };
   } catch (e) {

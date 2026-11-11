@@ -347,7 +347,11 @@ export default function OkFilowPanel() {
           headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent },
           body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: "auto", provider: route, setup: getSetupPreference() }),
         });
-        if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `HTTP ${res.status}`);
+        if (!res.ok || !res.body) {
+          // Refused before anything was forwarded (no yes on record, Offline mode, FreeLLMAPI without a key): nothing went outside.
+          if (res.status === 403 || res.status === 409) quiet?.();
+          throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `HTTP ${res.status}`);
+        }
         seesText = res.headers.get("X-Buddy-Sees") === "text";
         answerLang = res.headers.get("X-Buddy-Lang") ?? undefined;
         // The server answered from this PC after all (offline switch): nothing went outside.
@@ -753,7 +757,7 @@ export default function OkFilowPanel() {
           </label>
           <label className="okf-row">
             <span>{t("brain")}</span>
-            <select value={c.offline ? "local" : c.provider} onChange={(e) => void configure({ provider: e.target.value as OkFilowStatus["provider"] })} disabled={c.offline}>
+            <select className="okf-select-wide" value={c.offline ? "local" : c.provider} onChange={(e) => void configure({ provider: e.target.value as OkFilowStatus["provider"] })} disabled={c.offline}>
               <option value="local">{t("brainLocal")}</option>
               <option value="freellm">{t("brainFree")}</option>
               <option value="cloud">{t("brainCloud")}</option>

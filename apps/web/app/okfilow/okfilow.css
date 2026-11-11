@@ -52,6 +52,10 @@ html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !import
 .okf-err { color: #ff6b5b; }
 .okf-warn { margin: 0; font-size: 13px; color: var(--okf-ink); }
 .okf-warn a { color: inherit; }
+/* Light theme: the amber ink and the light red are unreadable on a light panel (contrast 1.6 and 2.9). */
+:root[data-theme="light"] .okf-warn { color: #7a4d00; }
+:root[data-theme="light"] .okf-err { color: #b3261e; }
+.okf-err a { color: inherit; }
 .okf-type { display: flex; gap: 8px; }
 .okf-type input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line, rgba(255, 255, 255, 0.14)); background: var(--panel); color: var(--text); font: inherit; font-size: 14px; }
 .okf-type button { padding: 8px 14px; border: 0; border-radius: 10px; background: var(--okf-ink); color: #08090b; font-weight: 700; cursor: pointer; }
