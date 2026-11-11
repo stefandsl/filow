@@ -10,6 +10,7 @@ import type { OkFilowBridge, OkFilowStatus, OkFilowTtsReply, OkFilowTtsStatus } 
 import { detectDominantLanguage, SPOKEN_LANGS, type SpokenLang } from "@filow/core";
 import { voiceRoute } from "./outbound";
 import { speechDeadline } from "./speech";
+import { splitSentences } from "./turn";
 
 export const VOICE_LANGS = SPOKEN_LANGS;
 export type VoiceLang = SpokenLang;
@@ -63,6 +64,13 @@ export interface ChunkPlayer {
   played(): number;
   /** Silences everything at once. */
   stop(): void;
+  /**
+   * Pause: the piece being heard plays to its end, the pieces not yet begun come off the schedule and
+   * are kept in order, with the ones that arrive meanwhile. Nothing is cut.
+   */
+  pause?(): void;
+  /** Carries on with the kept pieces, in order: nothing repeated, nothing skipped. */
+  resume?(): void;
   /** The audio output's state, for the log ("running", "suspended"). */
   state(): string;
 }
@@ -75,37 +83,73 @@ export function webAudioPlayer(): ChunkPlayer {
   if (ctx.state === "suspended") void ctx.resume().catch(() => {});
   const gain = ctx.createGain();
   gain.connect(ctx.destination);
-  const sources: AudioBufferSourceNode[] = [];
+  type Piece = { samples: Float32Array; sampleRate: number; pauseMs: number };
+  /** On the schedule: begun, or about to. */
+  let scheduled: Array<Piece & { at: number; duration: number; source: AudioBufferSourceNode }> = [];
+  /** Kept while paused (null when not paused). */
+  let held: Piece[] | null = null;
   let next = 0;
   let first = -1;
   let end = 0;
   let stoppedAt = -1;
+  /** Seconds of silence a pause added between two pieces: not counted as heard. */
+  let idle = 0;
+  const schedule = (p: Piece) => {
+    const buffer = ctx.createBuffer(1, p.samples.length, p.sampleRate);
+    buffer.getChannelData(0).set(p.samples);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(gain);
+    // A piece that arrives late starts at once; one that arrives early waits for its turn.
+    const at = Math.max(ctx.currentTime + 0.03, next);
+    source.start(at);
+    scheduled.push({ ...p, at, duration: buffer.duration, source });
+    if (first < 0) first = at;
+    end = at + buffer.duration;
+    next = end + Math.max(0, p.pauseMs) / 1000;
+    return at;
+  };
   return {
     add(samples, sampleRate, pauseMs) {
       if (stoppedAt >= 0 || !samples.length) return;
-      const buffer = ctx.createBuffer(1, samples.length, sampleRate);
-      buffer.getChannelData(0).set(samples);
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(gain);
-      // A piece that arrives late starts at once; one that arrives early waits for its turn.
-      const at = Math.max(ctx.currentTime + 0.03, next);
-      source.start(at);
-      sources.push(source);
-      if (first < 0) first = at;
-      end = at + buffer.duration;
-      next = end + Math.max(0, pauseMs) / 1000;
+      if (held) held.push({ samples, sampleRate, pauseMs });
+      else schedule({ samples, sampleRate, pauseMs });
     },
-    remaining: () => (stoppedAt >= 0 ? 0 : Math.max(0, end - ctx.currentTime)),
-    played: () => (first < 0 ? 0 : Math.max(0, Math.min(stoppedAt >= 0 ? stoppedAt : ctx.currentTime, end) - first)),
+    remaining: () => (stoppedAt >= 0 ? 0 : Math.max(0, end - ctx.currentTime) + (held ?? []).reduce((sum, p) => sum + p.samples.length / p.sampleRate, 0)),
+    played: () => (first < 0 ? 0 : Math.max(0, Math.min(stoppedAt >= 0 ? stoppedAt : ctx.currentTime, end) - first - idle)),
     stop() {
       if (stoppedAt >= 0) return;
       stoppedAt = ctx.currentTime;
+      held = null;
       // A 5 ms fade instead of a hard cut, so the interruption does not click.
       gain.gain.setValueAtTime(gain.gain.value, stoppedAt);
       gain.gain.linearRampToValueAtTime(0, stoppedAt + 0.005);
-      for (const s of sources) { try { s.stop(stoppedAt + 0.01); } catch { /* already ended */ } }
+      for (const s of scheduled) { try { s.source.stop(stoppedAt + 0.01); } catch { /* already ended */ } }
       setTimeout(() => gain.disconnect(), 100);
+    },
+    pause() {
+      if (held || stoppedAt >= 0) return;
+      const now = ctx.currentTime;
+      const begun = scheduled.filter((p) => p.at <= now);
+      held = scheduled.filter((p) => p.at > now).map((p) => {
+        try { p.source.stop(); } catch { /* never started */ }
+        p.source.disconnect();
+        return { samples: p.samples, sampleRate: p.sampleRate, pauseMs: p.pauseMs };
+      });
+      scheduled = begun;
+      const cur = begun[begun.length - 1];
+      end = cur ? cur.at + cur.duration : 0;
+      next = cur ? end + Math.max(0, cur.pauseMs) / 1000 : 0;
+    },
+    resume() {
+      const list = held;
+      if (!list) return;
+      held = null;
+      if (stoppedAt >= 0 || !list.length) return;
+      const due = next;
+      const at = schedule(list[0]);
+      if (due > 0) idle += Math.max(0, at - due);
+      for (const p of list.slice(1)) schedule(p);
     },
     state: () => ctx.state,
   };
@@ -151,6 +195,21 @@ export type SpeakOptions = {
   voice?: VoiceChoice;
 };
 
+/** Letters and digits only, to measure how much of a text a voice has said whatever the spacing and marks. */
+const bare = (s: string) => s.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "");
+/** How many of `list`'s sentences fit, whole, in the first `chars` letters of the text. */
+export function sentencesWithin(list: string[], chars: number): number {
+  let n = 0;
+  let sum = 0;
+  for (const s of list) {
+    sum += bare(s).length;
+    // Two letters of slack: the text is tidied for speech before it is cut into pieces.
+    if (sum > chars + 2) break;
+    n++;
+  }
+  return n;
+}
+
 /** Extra time the natural voice gets before it is given up on: its model may still be loading. */
 const LOAD_ALLOWANCE_MS = 8000;
 
@@ -162,28 +221,83 @@ export function createSpeaker(deps: SpeakerDeps) {
   let utterance = 0;
   const told = new Set<VoiceFallback>();
   const mute = new Set<VoiceLang>();
+  /** Paused: the voice finishes what cannot be cut cleanly (a sentence, a piece) and holds the rest. */
+  let held = false;
+  /** What pause and resume do to the voice that is speaking right now. */
+  let hooks: { pause?(): void; resume?(): void } = {};
+  /** Lets go of whoever waits for the pause to end. */
+  let gate: Array<() => void> = [];
+  /** Finishes the wait in progress now, without waiting for its next look. */
+  let nudge: (() => void) | null = null;
+  /** The sentences of the last answer spoken and how many were heard whole (left() is the rest). */
+  let said: { list: string[]; done: number } = { list: [], done: 0 };
+  /** How many sentences the voice speaking now has finished, when only it can tell (set by the voice). */
+  let measure: (() => number) | null = null;
+  const openGate = () => {
+    const list = gate;
+    gate = [];
+    for (const fn of list) fn();
+  };
 
   function stop() {
+    // Where the voice got to is kept, so a Resume after a stop speaks only the rest.
+    if (measure) said.done = Math.max(said.done, Math.min(said.list.length, measure()));
+    measure = null;
     token++;
+    held = false;
+    hooks = {};
     const end = cut;
     cut = null;
     end?.();
+    openGate();
   }
+
+  /** Pause: no new sentence or piece starts until resume(). The one being heard is not cut (the cloud voice, one recording, fades out at once). */
+  function pause() {
+    if (held) return;
+    held = true;
+    hooks.pause?.();
+  }
+  function resume() {
+    if (!held) return;
+    held = false;
+    hooks.resume?.();
+    openGate();
+  }
+  /** Resolves when the pause is over: true to carry on, false when the answer was cut meanwhile. */
+  function resumed(live: () => boolean) {
+    return new Promise<boolean>((resolve) => {
+      const done = () => { clearInterval(look); resolve(live() && !held); };
+      const look = setInterval(() => { if (!live()) { gate = gate.filter((g) => g !== done); done(); } }, 150);
+      gate.push(done);
+    });
+  }
+  /** The part of the last answer the voice has not spoken ("" when it said all of it, or was never asked). */
+  const left = () => said.list.slice(said.done).join(" ");
 
   /** Resolves when `settled()` says so, the deadline passes or the utterance is cut. */
   function wait(live: () => boolean, deadlineMs: number, everyMs: number, settled: () => boolean) {
     return new Promise<"done" | "cut" | "late">((resolve) => {
+      let spent = 0;
+      let over = false;
       const finish = (how: "done" | "cut" | "late") => {
+        if (over) return;
+        over = true;
         clearInterval(timer);
-        clearTimeout(stuck);
         if (cut === onCut) cut = null;
+        if (nudge === look) nudge = null;
         resolve(how);
       };
       const onCut = () => finish("cut");
-      const timer = setInterval(() => { if (!live()) finish("cut"); else if (settled()) finish("done"); }, everyMs);
-      // The end of speech can go missing (device change, Bluetooth sleep): never stay on "speaking".
-      const stuck = setTimeout(() => finish("late"), deadlineMs);
+      const look = () => { if (!live()) finish("cut"); else if (settled()) finish("done"); };
+      const timer = setInterval(() => {
+        look();
+        // The end of speech can go missing (device change, Bluetooth sleep): never stay on "speaking".
+        // The clock stands still during a pause: a paused answer is not a lost one.
+        if (!held && (spent += everyMs) >= deadlineMs) finish("late");
+      }, everyMs);
       cut = onCut;
+      nudge = look;
     });
   }
 
@@ -196,13 +310,30 @@ export function createSpeaker(deps: SpeakerDeps) {
     const player = (deps.player ?? webAudioPlayer)();
     let pieces = 0;
     let last = false;
+    /** Each piece's words and how long it takes to hear, to tell later how far the voice got. */
+    const heard: Array<{ chars: number; seconds: number }> = [];
     const off = tts.onChunk((c) => {
       if (!c || c.id !== id || !live()) return;
       pieces++;
       if (c.last) last = true;
       const samples = toSamples(c.samples);
-      if (samples.length) player.add(samples, Number(c.sampleRate) || 44100, c.last ? 0 : Number(c.pause) || 0);
+      const rate = Number(c.sampleRate) || 44100;
+      const pauseMs = c.last ? 0 : Number(c.pause) || 0;
+      if (!samples.length) return;
+      player.add(samples, rate, pauseMs);
+      heard.push({ chars: typeof c.text === "string" ? bare(c.text).length : 0, seconds: samples.length / rate + pauseMs / 1000 });
     });
+    hooks = { pause: () => player.pause?.(), resume: () => player.resume?.() };
+    // The sentences heard whole: the words of the pieces already played, measured against the answer's sentences.
+    measure = () => {
+      let seconds = player.played();
+      let chars = 0;
+      for (const h of heard) {
+        if ((seconds -= h.seconds) < -0.05) break;
+        chars += h.chars;
+      }
+      return sentencesWithin(said.list, chars);
+    };
     let reply: OkFilowTtsReply | null = null;
     void tts.speak({ id, text, lang, voice: s?.naturalVoice, speed: s?.speed }).then(
       (r) => { reply = r; },
@@ -215,6 +346,13 @@ export function createSpeaker(deps: SpeakerDeps) {
       return (!r.ok || r.cancelled || last || !r.sent) && player.remaining() <= 0;
     });
     off();
+    if (how === "done" && live()) {
+      // Heard to the end; a voice that failed on the way said only what its pieces held.
+      const ok = (reply as OkFilowTtsReply | null)?.ok === true;
+      said.done = ok ? said.list.length : measure?.() ?? 0;
+      measure = null;
+      hooks = {};
+    }
     if (how !== "done") {
       player.stop();
       void tts.cancel(id).catch(() => {});
@@ -246,7 +384,27 @@ export function createSpeaker(deps: SpeakerDeps) {
     el.onended = el.onerror = () => { ended = true; };
     el.playbackRate = deps.status()?.speed ?? 1;
     void el.play().catch(() => { ended = true; });
-    await wait(live, speechDeadline(text, deps.status()?.speed), 100, () => ended);
+    // One recording: nobody knows where its sentences end, so a pause is taken at once, with a short
+    // fade (about 40 ms) instead of a click, and resume carries on from the same position.
+    let fade: ReturnType<typeof setInterval> | null = null;
+    const unfade = () => { if (fade) clearInterval(fade); fade = null; el.volume = 1; };
+    hooks = {
+      pause: () => {
+        let v = 1;
+        fade = setInterval(() => {
+          v -= 0.25;
+          el.volume = Math.max(0, v);
+          if (v <= 0) { unfade(); el.pause(); }
+        }, 10);
+      },
+      resume: () => { unfade(); void el.play().catch(() => { ended = true; }); },
+    };
+    // How far it got: the share of the recording heard, measured against the answer's sentences.
+    measure = () => (el.duration > 0 && Number.isFinite(el.duration) ? sentencesWithin(said.list, Math.floor((bare(said.list.join("")).length * el.currentTime) / el.duration)) : 0);
+    if (held) hooks.pause?.();
+    const how = await wait(live, speechDeadline(text, deps.status()?.speed), 100, () => ended);
+    if (how === "done" && live()) { said.done = said.list.length; measure = null; }
+    unfade();
     el.pause();
     URL.revokeObjectURL(url);
   }
@@ -266,14 +424,26 @@ export function createSpeaker(deps: SpeakerDeps) {
       }
       return;
     }
-    const u = new SpeechSynthesisUtterance(text);
-    u.voice = pick(lang) ?? null;
-    u.lang = BCP47[lang];
-    u.rate = 1.05 * (deps.status()?.speed ?? 1);
-    let ended = false;
-    u.onend = u.onerror = () => { ended = true; };
-    synth.speak(u);
-    await wait(live, speechDeadline(text, deps.status()?.speed), 150, () => ended || (!synth.speaking && !synth.pending));
+    // One sentence at a time, so a pause can fall between two sentences: the one being spoken is
+    // finished, the next ones wait, and resume starts with the first sentence not spoken yet.
+    const base = said.done;
+    const list = said.list.slice(base);
+    measure = null;
+    hooks = {};
+    for (let i = 0; i < list.length; i++) {
+      if (held && !(await resumed(live))) break;
+      if (!live()) break;
+      const u = new SpeechSynthesisUtterance(list[i]);
+      u.voice = pick(lang) ?? null;
+      u.lang = BCP47[lang];
+      u.rate = 1.05 * (deps.status()?.speed ?? 1);
+      let ended = false;
+      u.onend = u.onerror = () => { ended = true; nudge?.(); };
+      synth.speak(u);
+      const how = await wait(live, speechDeadline(list[i], deps.status()?.speed), 150, () => ended || (!synth.speaking && !synth.pending));
+      if (how !== "done") break;
+      said.done = base + i + 1;
+    }
     synth.cancel();
   }
 
@@ -287,7 +457,9 @@ export function createSpeaker(deps: SpeakerDeps) {
     const live = () => token === mine && deps.isCurrent(id);
     const s = deps.status();
     const voice = opts.voice ?? s?.voice ?? "system";
+    said = { list: [], done: 0 };
     if (!text.trim() || voice === "off") return;
+    said = { list: splitSentences(text), done: 0 };
     const lang = isLang(opts.lang) ? opts.lang : detectLang(text, deps.uiLang());
     // One rule decides local or cloud for the voice (lib/buddy/outbound.ts), shared with the notice.
     if (voiceRoute({ voice, offline: s?.offline }) === "cloud") return cloud(text, lang, live);
@@ -307,5 +479,5 @@ export function createSpeaker(deps: SpeakerDeps) {
     });
   }
 
-  return { speak, stop, attach };
+  return { speak, stop, attach, pause, resume, paused: () => held, left };
 }

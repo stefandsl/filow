@@ -107,7 +107,8 @@ export type OkFilowTtsStatus = {
   level: "standard" | "light" | "";
   reason: "" | "lowMemory" | "fewCores" | "slow";
 };
-export type OkFilowTtsChunk = { id: number; seq: number; last: boolean; samples: Float32Array; sampleRate: number; pause: number };
+/** `text`: the words of the piece (absent on older desktop builds), so the voice can tell how far it got. */
+export type OkFilowTtsChunk = { id: number; seq: number; last: boolean; samples: Float32Array; sampleRate: number; pause: number; text?: string };
 export type OkFilowTtsReply =
   | { ok: true; cancelled: boolean; chunks: number; sent: number; level: string }
   | { ok: false; reason: "notInstalled" | "lowMemory" | "fewCores" | "slow" | "failed"; error?: string };

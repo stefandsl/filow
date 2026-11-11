@@ -189,6 +189,19 @@ const en = {
   notchAnswering: "OK Filow is answering",
   // A drawing was asked for and the model made none, twice (lib/buddy/draw.ts)
   drawFailed: "The drawing did not come out this time. Ask me again.",
+  // The eye on the pill is a button, with its own shortcut; Pause and Resume (docs/okfilow/PILL.md)
+  notchNotLooking: "OK Filow is not looking",
+  eyeClose: "Stop looking at my screen",
+  eyeKey: "Shortcut: {key}",
+  pause: "Pause",
+  pauseHint: "Pause the answer",
+  resume: "Resume",
+  resumeHint: "Carry on with the answer",
+  paused: "Paused",
+  eyeKeyLabel: "Open or close the eye",
+  pauseKeyLabel: "Pause and resume the answer",
+  keyNone: "No shortcut",
+  keyTaken: "Windows did not accept {key}: another app is already using it. Choose another one.",
 };
 export type OkfKey = keyof typeof en;
 /** A translation: the same keys as English (text.test.ts checks every language). */

@@ -21,6 +21,33 @@ export function overStopButton(pointer: P | null, rect: { left: number; top: num
   return pointer.x >= rect.left - margin && pointer.x <= rect.right + margin && pointer.y >= rect.top - margin && pointer.y <= rect.bottom + margin;
 }
 
+/** Whether the pointer is on any control of the pill (the eye, Pause, Resume, Stop). */
+export function overControls(pointer: P | null, rects: Array<{ left: number; top: number; right: number; bottom: number } | null | undefined>, margin = 4): boolean {
+  return rects.some((r) => overStopButton(pointer, r ?? null, margin));
+}
+
+/**
+ * A clock that stands still during a pause: the pointer's flight and the pen strokes are timed on
+ * it, so they freeze with the answer and carry on from the same spot.
+ */
+export function createPausableClock() {
+  let lost = 0;
+  let since: number | null = null;
+  return {
+    /** The time on this clock when the real clock says `now`. */
+    at: (now: number) => (since ?? now) - lost,
+    pause(now: number) {
+      if (since === null) since = now;
+    },
+    resume(now: number) {
+      if (since === null) return;
+      lost += now - since;
+      since = null;
+    },
+    paused: () => since !== null,
+  };
+}
+
 /** Quadratic bezier from `from` to `to`, bowing up and to the side like a thrown arc (Clicky's flight). */
 export function bezierPoint(from: P, to: P, k: number): P {
   const t = ease(Math.max(0, Math.min(1, k)));
