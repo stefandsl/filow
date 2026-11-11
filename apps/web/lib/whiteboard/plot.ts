@@ -201,3 +201,27 @@ export function sampleCurve(e: Expr, xmin: number, xmax: number, samples = 120):
   if (!runs.length) return null;
   return { runs, xmin, xmax, ymin, ymax };
 }
+
+/**
+ * The sums a sentence states that do not come out ("(0+1)/2 = 0"), each as it was written. Found by
+ * computing them: the left side is read by the same parser as a plot (numbers and + - * / ^ only),
+ * and compared with the number on the right at the precision that number is written in.
+ */
+export function checkArithmetic(text: string): string[] {
+  const wrong: string[] = [];
+  const signs = Array.from(text, (ch) => SIGNS[ch.codePointAt(0) ?? 0] ?? ch).join("").replace(/pi/g, "#");
+  const re = /([\d.()+\-*/^\s]{3,})=\s*(-?\d+(?:\.\d+)?)/g;
+  for (let m = re.exec(signs); m; m = re.exec(signs)) {
+    const left = m[1].trim();
+    // a sum has an operator between numbers; "x = 5" or "2024 = 2024" is not one
+    if (!/\d\s*[+\-*/^]\s*[\d(]/.test(left)) continue;
+    const tree = parseExpr(left);
+    if (!tree) continue;
+    const value = evalExpr(tree, 0);
+    const stated = Number(m[2]);
+    const decimals = (m[2].split(".")[1] ?? "").length;
+    const scale = 10 ** decimals;
+    if (!Number.isFinite(value) || Math.abs(Math.round(value * scale) / scale - stated) > 1e-9) wrong.push(`${left} = ${m[2]}`);
+  }
+  return wrong;
+}

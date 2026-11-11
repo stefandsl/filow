@@ -90,9 +90,13 @@ export function startFakeModel(port = 4812) {
         const asked = text(messages[messages.length - 1]);
         const reviewing = text(messages[0]).includes("strict examiner of a whiteboard lesson");
         const count = (from, to) => (asked.slice(asked.indexOf(from), to ? asked.indexOf(to) : undefined).match(/^\d+\. /gm) ?? []).length;
+        // the arrow call: one sentence a line, each judged true
+        const judging = text(messages[0]).includes("one line at a time");
         const answer = reviewing
-          ? { topic: true, answers: true, issues: "", sentences: Array.from({ length: count("Sentences:", "Boxes:") }, (_, i) => ({ n: i + 1, true: true })), arrows: Array.from({ length: count("Arrows:") }, (_, i) => ({ n: i + 1, verdict: "ok" })) }
-          : CLOUD;
+          ? { topic: true, answers: true, issues: "", sentences: Array.from({ length: count("Sentences:", "Boxes:") }, (_, i) => ({ n: i + 1, true: true })) }
+          : judging
+            ? { arrows: (asked.match(/^\d+\. /gm) ?? []).map((_, i) => ({ n: i + 1, verdict: "true" })) }
+            : CLOUD;
         res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(answer) } }] })}\n\n`);
         return setTimeout(() => res.end("data: [DONE]\n\n"), 600);
       }

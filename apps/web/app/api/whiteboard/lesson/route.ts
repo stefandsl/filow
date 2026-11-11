@@ -4,7 +4,7 @@ import { CONSENT_HEADER, consentDenied } from "@/lib/buddy/outbound";
 import { BUDDY_CLOUD_MODEL, askBuddy, buddyCloudRecipient, resolveBuddyProvider, resolveLocalHelper, type LocalHelper } from "@/lib/buddy/providers";
 import { answerLanguage, buddyLang } from "@/lib/buddy/lang";
 import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
-import { StallError, TIMEOUTS, generateCloud, generateLocal, maxStepsFor, texOk, type Ask, type LessonEvent } from "@/lib/whiteboard/generate";
+import { BusyError, RETRY, StallError, TIMEOUTS, generateCloud, generateLocal, maxStepsFor, texOk, type Ask, type LessonEvent } from "@/lib/whiteboard/generate";
 import { LIMITS, cleanText, validateLesson } from "@/lib/whiteboard/lesson";
 
 export const dynamic = "force-dynamic";
@@ -73,16 +73,24 @@ export async function POST(req: Request) {
   let timedOut = false;
   const deadline = setTimeout(() => { timedOut = true; abort.abort(); }, TIMEOUTS.lessonMs);
   const ask: Ask = async ({ system, user, format, maxTokens, timeoutMs, temperature }) => {
-    const limit = AbortSignal.timeout(timeoutMs);
-    let text = "";
-    try {
-      for await (const piece of askBuddy(provider, { question: user, images: [], screens: [], consent, language: lang }, AbortSignal.any([abort.signal, limit]), helper, { system, format, maxTokens, temperature })) text += piece;
-    } catch (e) {
-      if (limit.aborted && !abort.signal.aborted) throw new StallError();
-      throw e;
+    // An online provider that is busy (429) or failing (5xx) is asked again after a short wait, three
+    // times at most, and then the user is told so. Never another provider instead.
+    for (let attempt = 0; ; attempt++) {
+      const limit = AbortSignal.timeout(timeoutMs);
+      let text = "";
+      try {
+        for await (const piece of askBuddy(provider, { question: user, images: [], screens: [], consent, language: lang }, AbortSignal.any([abort.signal, limit]), helper, { system, format, maxTokens, temperature })) text += piece;
+      } catch (e) {
+        if (limit.aborted && !abort.signal.aborted) throw new StallError();
+        const busy = provider !== "local" && !abort.signal.aborted && /\b(?:429|5\d\d)\b|rate.?limit|overloaded|temporarily/i.test(e instanceof Error ? e.message : String(e));
+        if (!busy) throw e;
+        if (attempt >= RETRY.waitsMs.length) throw new BusyError();
+        await new Promise((resolve) => setTimeout(resolve, RETRY.waitsMs[attempt]));
+        continue;
+      }
+      if (timedOut || (limit.aborted && !abort.signal.aborted)) throw new StallError();
+      return text;
     }
-    if (timedOut || (limit.aborted && !abort.signal.aborted)) throw new StallError();
-    return text;
   };
 
   const encoder = new TextEncoder();
@@ -97,7 +105,7 @@ export async function POST(req: Request) {
         else await generateLocal(ask, request, emit);
       } catch (e) {
         if (timedOut) emit({ type: "error", code: "stalled", message: "The lesson took too long." });
-        else if (!abort.signal.aborted) emit({ type: "error", code: e instanceof StallError ? "stalled" : "model", message: e instanceof Error ? e.message : String(e) });
+        else if (!abort.signal.aborted) emit({ type: "error", code: e instanceof StallError ? "stalled" : e instanceof BusyError ? "busy" : "model", message: e instanceof Error ? e.message : String(e) });
       } finally {
         clearTimeout(deadline);
         controller.close();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LIMITS, cleanTex, cleanText, lessonContextText, lessonMarkdown, makeStep, newContext, parseJsonLoose, validateItems, validateLesson, validateOutline } from "./lesson";
-import { evalExpr, parseExpr, sampleCurve } from "./plot";
+import { checkArithmetic, evalExpr, parseExpr, sampleCurve } from "./plot";
 
 describe("whiteboard lesson: what the model writes is data", () => {
   it("keeps the kinds it knows and drops the rest", () => {
@@ -275,6 +275,12 @@ describe("whiteboard plot: an expression is parsed, never run", () => {
       expect(parseExpr(src), src).toBeNull();
     }
   });
+  it("finds the sums in a sentence that do not come out, by computing them", () => {
+    expect(checkArithmetic("The middle is (0+1)/2 = 0, so we look at index 0.")).toEqual(["(0+1)/2 = 0"]);
+    expect(checkArithmetic("fact(2) returns 2*3 = 5 and 3 + 4 = 7.")).toEqual(["2*3 = 5"]);
+    for (const fine of ["100 * 1.05^2 = 110.25", "10 / 3 = 3.33", "2 " + String.fromCharCode(0xd7) + " 3 = 6", "(0+4)/2 = 2", "x = 5", "V = I R", "In 2024 = the year", "a^2 + b^2 = c^2"]) expect(checkArithmetic(fine), fine).toEqual([]);
+  });
+
   it("samples a curve and lifts the pen at a pole", () => {
     const parabola = sampleCurve(parseExpr("x^2")!, -2, 2)!;
     expect(parabola.runs).toHaveLength(1);
