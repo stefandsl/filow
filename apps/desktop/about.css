@@ -156,3 +156,7 @@ button:focus-visible, textarea:focus-visible, .preview:focus-visible, a:focus-vi
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+
+/* Japanese: break lines by its own rules and keep phrases whole in headings and buttons. */
+:lang(ja) { line-break: strict; word-break: normal; }
+:lang(ja) :is(h1, h2, h3, button, label, summary) { word-break: auto-phrase; }

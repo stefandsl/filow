@@ -808,4 +808,5 @@ export const ru: Dictionary = {
   "catalog.lfm3-vl": "Модель OK Filow для анализа экрана (малая)",
   "ctl.backend.sherpa": "Речевая модель на этом устройстве",
   "catalog.nemotron-streaming": "Речевая модель (в реальном времени, на этом компьютере)",
+  "ctl.controls": "Управление прогоном",
 };

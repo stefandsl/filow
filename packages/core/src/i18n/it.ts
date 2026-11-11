@@ -810,4 +810,5 @@ export const it: Dictionary = {
   "catalog.lfm3-vl": "Aiuto per lo schermo di OK Filow (piccolo)",
   "ctl.backend.sherpa": "Modello vocale su questo dispositivo",
   "catalog.nemotron-streaming": "Modello vocale (dal vivo, su questo computer)",
+  "ctl.controls": "Comandi della sessione",
 };

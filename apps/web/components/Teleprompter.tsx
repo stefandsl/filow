@@ -631,7 +631,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       </main>
       </div>
       {displayOpen && <DisplayPanel prefs={display} onChange={setDisplay} onClose={() => setDisplayOpen(false)} pointsWindow={pointsWindow} />}
-      <ActionBar start={<>
+      <ActionBar label={t("ctl.controls")} start={<>
         {eng.recording ? (
           <button className="btn primary" onClick={stopTake}>
             <Icon name="stop" /> {t("ctl.stop")}

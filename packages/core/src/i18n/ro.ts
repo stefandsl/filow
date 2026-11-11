@@ -810,4 +810,5 @@ export const ro: Dictionary = {
   "catalog.lfm3-vl": "Model OK Filow pentru ecran (mic)",
   "ctl.backend.sherpa": "Model vocal pe acest dispozitiv",
   "catalog.nemotron-streaming": "Model de recunoaștere vocală (în timp real, pe acest computer)",
+  "ctl.controls": "Comenzile sesiunii",
 };

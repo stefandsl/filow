@@ -820,6 +820,7 @@ export const en = {
   "catalog.lfm3-vl": "OK Filow screen helper (small)",
   "ctl.backend.sherpa": "Speech model on this device",
   "catalog.nemotron-streaming": "Speech model (live, on this computer)",
+  "ctl.controls": "Take controls",
 };
 
 export type I18nKey = keyof typeof en;

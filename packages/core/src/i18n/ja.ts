@@ -820,4 +820,5 @@ export const ja: Dictionary = {
   "catalog.lfm3-vl": "OK Filowの画面ヘルパー(小)",
   "ctl.backend.sherpa": "このデバイス上の音声モデル",
   "catalog.nemotron-streaming": "音声モデル(リアルタイム、このコンピューター上)",
+  "ctl.controls": "セッションの操作",
 };
