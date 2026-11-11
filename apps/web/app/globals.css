@@ -109,6 +109,13 @@ button.chip.code:not(:focus-visible) { color: var(--text); outline: 1px solid va
 .settings .model:first-of-type { padding-top: 12px; }
 .settings .model > div:first-child { flex: 1 1 16rem; min-width: 0; overflow-wrap: anywhere; } /* WCAG 1.4.10: shrink below its longest line at 320 px */
 .settings .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+/* The whiteboard model list names each model in a sentence: it shrinks with a narrow window instead of pushing the page wider (WCAG 1.4.10; seen at 320 px in Italian, 72 px too wide). */
+.settings [data-setting="whiteboard-model"] select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
+/* Model rows. "in use" says other words than "installed" and adds a ring and bold text: never colour alone. */
+.chip.inuse { color: var(--text); font-weight: 700; border-color: var(--accent-ring); }
+/* The result of a delete keeps its line while empty, so the rows above do not move when it appears. */
+.device-notice { min-height: 1.5em; margin-top: 8px; }
+.device-notice.failed { color: var(--warn); }
 .settings .choice { display: inline-flex; gap: 8px; align-items: center; text-transform: none; letter-spacing: 0; }
 .settings .choice input { accent-color: var(--accent); }
 /* On the accent fill of the chosen button the accent radio vanished into an empty ring: draw it in the text colour on accent. */

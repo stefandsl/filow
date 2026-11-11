@@ -4,6 +4,9 @@ import { LOCAL_MODELS } from "@/lib/localModels";
 
 export const dynamic = "force-dynamic";
 
+/** A model of Filow's catalogue, by its name or by an installed tag of it ("clef-flash:latest"). */
+const deletable = (name: string) => LOCAL_MODELS.some((m) => m.runtime === "ollama" && (m.name === name || (!m.name.includes(":") && name.startsWith(`${m.name}:`))));
+
 /** Streams Ollama's pull progress (NDJSON) straight back to the page. */
 export async function POST(req: Request) {
   const denied = requireEngine(req);
@@ -38,7 +41,8 @@ export async function DELETE(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
   const { name } = (await req.json()) as { name?: string };
-  if (!name) return new Response(JSON.stringify({ error: "name required" }), { status: 400 });
+  // Only the models Filow itself offers: this route never deletes anything else the user keeps in Ollama.
+  if (!name || !deletable(name)) return new Response(JSON.stringify({ error: "unknown model" }), { status: 400 });
   const res = await fetch(`${OLLAMA_URL()}/api/delete`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },

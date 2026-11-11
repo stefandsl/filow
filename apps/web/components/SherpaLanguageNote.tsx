@@ -2,6 +2,7 @@
 import { sherpaBridge, sherpaNotes, type SherpaStatus } from "@filow/stt";
 import { useT } from "@filow/ui";
 import { DownloadLabel } from "./DownloadLabel";
+import { modelsBridge, StopButton } from "./ModelControls";
 
 /**
  * Under the on-device speech model: which model the spoken language needs and, in plain words, what
@@ -22,6 +23,9 @@ export function SherpaLanguageNote({ s }: { s: SherpaStatus | null }) {
             <button className="btn" disabled={busy} onClick={() => sherpaBridge()?.download(s?.language, "questions")}>
               {q?.state === "downloading" ? <DownloadLabel label={t("progress.speechModel")} percent={q.pct ?? null} /> : q?.state === "extracting" ? t("settings.starting") : t("settings.download")}
             </button>
+          )}{" "}
+          {n.key === "speech.questionsModel" && busy && modelsBridge() && (
+            <StopButton name={q?.wantedLabel ?? ""} onStop={() => void modelsBridge()?.cancel("speech")} />
           )}
         </p>
       ))}

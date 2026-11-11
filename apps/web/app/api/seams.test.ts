@@ -53,7 +53,7 @@ describe("OK Filow offline boundaries", () => {
 
 describe("Step 4 provider boundaries", () => {
   it("offline local status must not probe a remote PII server", async () => {
-    const res = await localStatus();
+    const res = await localStatus(new Request("http://unit.invalid/api/local/status"));
     expect(res.status).toBe(200);
     expect(outbound.mock.calls.filter(c => !c[0].startsWith("http://127.0.0.1:11434/")),
       "offline status must not contact the remote PII sidecar").toHaveLength(0);

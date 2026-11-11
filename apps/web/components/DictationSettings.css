@@ -10,3 +10,5 @@
 /* Explanations under a choice read quieter than the choices themselves. */
 .settings .dictation .hint { color: var(--muted); font-size: var(--type-sm); margin-top: -4px; }
 .settings .dictation .hint.dictation-alert { color: var(--warn); }
+/* A download's percent keeps its width (9% to 10%), so the Stop button next to it stays where it is. */
+.settings .dictation-progress { font-variant-numeric: tabular-nums; }

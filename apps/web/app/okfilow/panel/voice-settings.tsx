@@ -14,10 +14,14 @@ type Props = {
   configure: (patch: Partial<OkFilowStatus>) => Promise<void>;
   /** Says the sample sentence with the natural voice. */
   preview: () => void;
+  /** The one question before the voice is deleted (the browser's own dialog; a test passes its own). */
+  confirmRemove?: (question: string) => boolean;
+  /** The voice's status before the desktop app has answered (tests; the panel reads it from the bridge). */
+  initial?: OkFilowTtsStatus | null;
 };
 
-export function VoiceSettings({ bridge, status, t, configure, preview }: Props) {
-  const [tts, setTts] = useState<OkFilowTtsStatus | null>(null);
+export function VoiceSettings({ bridge, status, t, configure, preview, confirmRemove = (q) => window.confirm(q), initial = null }: Props) {
+  const [tts, setTts] = useState<OkFilowTtsStatus | null>(initial);
   const api = bridge.tts;
 
   useEffect(() => {
@@ -43,6 +47,8 @@ export function VoiceSettings({ bridge, status, t, configure, preview }: Props) 
   // The voices that speak on this PC: the download offer and the reasons belong next to them.
   const onThisPc = voice === "natural" || voice === "system";
   const offerNatural = !!api && (panel.show !== "blocked" || voice === "natural");
+  // The same rule as Filow Settings (apps/desktop/model-use.js): OK Filow on, the natural voice chosen, and this PC able to carry it.
+  const inUse = status.enabled !== false && voice === "natural" && panel.show === "ready";
 
   const download = async () => {
     if (!api) return;
@@ -54,9 +60,23 @@ export function VoiceSettings({ bridge, status, t, configure, preview }: Props) 
       setTts((now) => (reply.state === "downloading" && now?.state === "downloading" && now.pct > reply.pct ? now : reply));
     } catch { /* the desktop reports the failure through the status channel */ }
   };
+  const size = (bytes: number) => `${Math.max(1, Math.round(bytes / 1e6))} MB`;
+  const [removed, setRemoved] = useState("");
+  /** Stop: the desktop app ends the download and deletes what it fetched; the row goes back to "Download". */
+  const stop = async () => {
+    if (!api?.stopDownload) return;
+    try { setTts(await api.stopDownload()); } catch { /* the status channel shows what happened */ }
+  };
+  /** Delete, after one question that names the voice and its size and says what speaks instead. */
   const remove = async () => {
-    if (!api) return;
-    try { setTts(await api.remove()); } catch { /* still installed: the row stays as it is */ }
+    if (!api || !tts) return;
+    const question = t("voiceRemoveConfirm").replace("{size}", size(tts.sizeBytes));
+    if (!confirmRemove(inUse ? `${question}\n\n${t("voiceRemoveInUse")}` : question)) return;
+    try {
+      const reply = await api.remove();
+      setTts(reply);
+      if (!reply.installed) setRemoved(t("voiceRemoved").replace("{size}", size(reply.freedBytes ?? tts.sizeBytes)));
+    } catch { /* still installed: the row stays as it is */ }
   };
 
   const who = Math.max(0, Math.min((panel.show === "ready" ? panel.voices : 10) - 1, status.naturalVoice ?? 0));
@@ -79,7 +99,12 @@ export function VoiceSettings({ bridge, status, t, configure, preview }: Props) 
       {onThisPc && panel.show === "get" && (
         <>
           {panel.busy
-            ? <p className="okf-note" role="status">{panel.busy === "extracting" ? t("voiceExtracting") : t("voiceDownloading").replace("{pct}", String(panel.pct))}</p>
+            ? (
+              <div className="okf-row">
+                <p className="okf-note okf-progress" role="status">{panel.busy === "extracting" ? t("voiceExtracting") : t("voiceDownloading").replace("{pct}", String(panel.pct))}</p>
+                {api?.stopDownload && <button type="button" className="okf-link" data-testid="voice-stop" aria-label={t("voiceStopLabel")} onClick={() => void stop()}>{t("voiceStop")}</button>}
+              </div>
+            )
             : status.offline || panel.problem === "offline"
               ? <p className="okf-warn" role="status">{t("voiceOfflineGet")}</p>
               : (
@@ -104,13 +129,24 @@ export function VoiceSettings({ bridge, status, t, configure, preview }: Props) 
               ))}
             </select>
           </label>
-          <div className="okf-row">
-            <button type="button" className="okf-link" onClick={preview}>{t("voicePreview")}</button>
-            <button type="button" className="okf-link" onClick={() => void remove()}>{t("voiceRemove")}</button>
-          </div>
           {panel.light && <p className="okf-hint">{t("voiceLight")}</p>}
         </>
       )}
+
+      {/* The voice on disk, whichever voice speaks: its size, whether it is the one in use, and Delete. */}
+      {tts?.installed && (
+        <>
+          <p className="okf-hint" data-testid="voice-installed">
+            {t("voiceInstalled").replace("{size}", size(tts.sizeBytes))}
+            {inUse && <> · <strong data-testid="voice-in-use">{t("voiceInUse")}</strong></>}
+          </p>
+          <div className="okf-row">
+            {voice === "natural" && panel.show === "ready" ? <button type="button" className="okf-link" onClick={preview}>{t("voicePreview")}</button> : <span />}
+            <button type="button" className="okf-link" data-testid="voice-remove" onClick={() => void remove()}>{t("voiceRemove")}</button>
+          </div>
+        </>
+      )}
+      {!tts?.installed && removed && <p className="okf-hint" role="status">{removed}</p>}
     </>
   );
 }

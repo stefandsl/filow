@@ -1,5 +1,6 @@
 // Stream helpers kept separate from HTTPS/filesystem orchestration for offline tests.
 const { Transform, pipeline } = require("node:stream");
+const { cancelError, isCancelled } = require("./model-files");
 
 function idleTimeout(onTimeout, ms = 30_000) {
   let timer;
@@ -59,15 +60,25 @@ function receiveArchive(res, out, { contentLength, fallbackSize, onPct, startAt 
 }
 
 const RETRY_DELAYS = [5000, 15000, 45000];
-async function retryDownload(operation, onAttempt, onRetry) {
+/**
+ * Runs operation, again after 5, 15 and 45 s when it fails. A download the user stopped
+ * (err.code "FILOW_CANCELLED") is never tried again, and `signal` ends the wait between two tries
+ * at once: Stop must not be answered by a retry a few seconds later.
+ */
+async function retryDownload(operation, onAttempt, onRetry, signal, delays = RETRY_DELAYS) {
   for (let attempt = 1; ; attempt++) {
+    if (signal && signal.aborted) throw cancelError();
     onAttempt(attempt);
     try { return await operation(); }
     catch (err) {
-      const delay = RETRY_DELAYS[attempt - 1];
-      if (delay === undefined) throw err;
+      const delay = delays[attempt - 1];
+      if (delay === undefined || isCancelled(err) || (signal && signal.aborted)) throw signal && signal.aborted ? cancelError() : err;
       onRetry(attempt, delay, err);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve, reject) => {
+        const stop = () => { clearTimeout(timer); reject(cancelError()); };
+        const timer = setTimeout(() => { if (signal) signal.removeEventListener("abort", stop); resolve(); }, delay);
+        if (signal) signal.addEventListener("abort", stop, { once: true });
+      });
     }
   }
 }
