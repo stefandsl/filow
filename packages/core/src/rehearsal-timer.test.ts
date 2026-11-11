@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hasLeadingPoints, parseScript, serializeScript, setTimeTargets, splitSectionMinutes } from "./script";
-import { formatClock, remoteNow, scheduleCue, sectionTimes, talkBudget, TalkClockTracker, timerView } from "./rehearsal-timer";
+import { formatClock, overPlan, remoteNow, scheduleCue, sectionTimes, talkBudget, TalkClockTracker, timerView } from "./rehearsal-timer";
 
 const MIN = 60_000;
 
@@ -22,10 +22,20 @@ describe("time targets in the script", () => {
 
   it("leaves titles that only look like a target alone", () => {
     expect(splitSectionMinutes("(3 min)")).toEqual({ title: "(3 min)" });
-    expect(splitSectionMinutes("Break (0 min)")).toEqual({ title: "Break (0 min)" });
+    expect(splitSectionMinutes("Break (700 min)")).toEqual({ title: "Break (700 min)" });
     expect(splitSectionMinutes("Results (3 slides)")).toEqual({ title: "Results (3 slides)" });
     expect(parseScript("# A\n- x").minutes).toBeUndefined();
     expect(parseScript("# A\n- x").sections[0]).toEqual({ id: "s0", title: "A", bullets: [{ id: "s0b0", text: "x" }] });
+  });
+
+  // Review L7
+  it("reads a hand-written talk target in the heading's units, and takes a zero target off the title", () => {
+    expect([parseScript("<!-- target: 20 мин -->\n# A\n- x").minutes, parseScript("<!-- target: 20分 -->\n# A\n- x").minutes, parseScript("<!-- target: 2,5 minuti -->\n# A\n- x").minutes]).toEqual([20, 20, 2.5]);
+    expect(parseScript("<!-- target: 0 min -->\n# A\n- x").minutes).toBeUndefined();
+    expect(parseScript("<!-- target: 20 slides -->\n# A\n- x").minutes).toBeUndefined();
+    expect(splitSectionMinutes("Break (0 min)")).toEqual({ title: "Break" });
+    // saving from "Talk length" replaces the hand-written line instead of adding a second one
+    expect(setTimeTargets("<!-- target: 20 мин -->\n# Break (0 min)\n- x", { minutes: 10, sections: [2] })).toBe("<!-- target: 10 min -->\n# Break (2 min)\n- x");
   });
 
   it("writes targets back without touching the rest of the text, and round-trips", () => {
@@ -47,6 +57,19 @@ describe("talk budget", () => {
 
   it("shares what is left of the talk among sections without a target, by their points", () => {
     expect(talkBudget(script(10, [2, 1], [undefined, 1], [undefined, 3]))).toEqual({ talkMs: 10 * MIN, sections: [2 * MIN, 2 * MIN, 6 * MIN] });
+  });
+
+  // Review M5: talk 5 min, sections 3 + 4 + one open gave no cue and no warning.
+  it("keeps a full plan and says so when the sections add up to more than the talk", () => {
+    const over = script(5, [3, 1], [4, 1], [undefined, 1]);
+    expect(talkBudget(over)).toEqual({ talkMs: 5 * MIN, sections: [3 * MIN, 4 * MIN, 0] });
+    expect(overPlan(over)).toEqual({ planned: 7, talk: 5 });
+    expect([overPlan(script(10, [3, 1], [4, 1])), overPlan(script(undefined, [3, 1])), overPlan(script(7, [3, 1], [4, 1]))]).toEqual([null, null, null]);
+    // second section reached at 4:00 instead of 3:00, now 4:30: one minute behind the sections' plan
+    const view = timerView(over, { startedAt: 0, endedAt: null, entries: [{ idx: 0, at: 0 }, { idx: 1, at: 4 * MIN }] }, 1, 4.5 * MIN)!;
+    expect(view.behindMs).toBe(MIN);
+    expect(scheduleCue(view.behindMs)).toEqual({ kind: "behind", minutes: 1 });
+    expect(view.remainingMs).toBe(0.5 * MIN);
   });
 
   it("sums the sections when each has a target, and has no plan when one is missing", () => {

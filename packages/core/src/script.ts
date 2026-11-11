@@ -25,19 +25,26 @@ export const IMPORT_MARKER = "<!-- source: import -->";
  * written in the five speech languages ("3 min", "3 minuti", "3 minute", "3 мин", "3分").
  */
 const SECTION_MINUTES = /\s*[([（]\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:min\.?|mins|minutes?|minut[oi]|minut[ei]?|мин\.?|минут[аы]?|分間?)\s*[)\]）]\s*$/iu;
-const TALK_MINUTES = /^<!--\s*target\s*:\s*(\d{1,3}(?:[.,]\d+)?)\s*min\w*\s*-->$/i;
+// the same units as a heading: a hand-written "<!-- target: 20 мин -->" or "20分" is read too
+const TALK_MINUTES = /^<!--\s*target\s*:\s*(\d{1,3}(?:[.,]\d+)?)\s*(?:min\p{L}*\.?|мин\p{L}*\.?|分間?)\s*-->$/iu;
 
 function minutesOf(raw: string): number | undefined {
   const n = Number(raw.replace(",", "."));
   return n > 0 && n <= 600 ? n : undefined;
 }
 
-/** "Intro (3 min)" -> { title: "Intro", minutes: 3 }; a title without a valid suffix stays as it is. */
+/**
+ * "Intro (3 min)" -> { title: "Intro", minutes: 3 }; a title without a valid suffix stays as it is.
+ * "Break (0 min)" is no target (as an empty box in "Talk length"), and the suffix does not stay in
+ * the title. A heading that is nothing but "(3 min)" keeps it as its title: it has no other name.
+ */
 export function splitSectionMinutes(title: string): { title: string; minutes?: number } {
   const m = title.match(SECTION_MINUTES);
-  const minutes = m ? minutesOf(m[1]) : undefined;
   const rest = m ? title.slice(0, m.index).trim() : "";
-  return minutes !== undefined && rest ? { title: rest, minutes } : { title };
+  if (!m || !rest) return { title };
+  const minutes = minutesOf(m[1]);
+  if (minutes !== undefined) return { title: rest, minutes };
+  return Number(m[1].replace(",", ".")) === 0 ? { title: rest } : { title };
 }
 
 const fmtMinutes = (n: number) => String(Math.round(n * 10) / 10);

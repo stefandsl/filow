@@ -73,7 +73,7 @@ describe("rehearsal report on takes in the five speech languages", () => {
     expect(r.units).toBe(32);
     expect(r.pauses.list.map((p) => [p.atMs, p.ms, p.sectionIdx])).toEqual([[10_000, 6000, 0], [26_000, 15_000, 0]]);
     expect(r.speakingMs).toBe(30_000);
-    expect(r.pace).toEqual({ unit: "wpm", value: 64, band: "slow", range: [120, 170] });
+    expect(r.pace).toEqual({ unit: "wpm", value: 64, band: "slow", range: [120, 170], basis: "words" });
     // "I mean" before "we" is meant, not a filler; "you know." at the end of a phrase is one
     expect(r.fillers.total).toBe(5);
     expect(r.fillers.top).toEqual([{ label: "um", count: 2 }, { label: "basically", count: 1 }, { label: "uh", count: 1 }]);
@@ -184,15 +184,57 @@ describe("rehearsal details", () => {
     expect(outcomes(buildRehearsalReport(log, script))).toEqual({ s0b0: "covered", s0b1: "late", s1b0: "missed" });
   });
 
-  it("estimates when a phrase began when the speech engine sends no partial text", () => {
+  it("counts only sure silence as a pause when the speech engine sends no partial text", () => {
     const script = parseScript("# A\n- x");
     const ten = "one two three four five six seven eight nine ten";
     const log = take(script).start().say(0, 5000, ten, false).say(15_000, 20_000, ten, false).stop(21_000);
     const r = buildRehearsalReport(log, script);
-    expect(r.pauses.count).toBe(1);
-    // the second phrase took about 4 s at an average pace, so the silence was about 11 s, not 15
-    expect(r.pauses.list[0].ms).toBeGreaterThan(10_000);
-    expect(r.pauses.list[0].ms).toBeLessThan(12_000);
+    // ten words take at most 10 s even at half the slow end of the usual pace: at least 5 s of the 15 were silence
+    expect(r.pauses.list.map((p) => [p.atMs, p.ms])).toEqual([[5000, 5000]]);
+    expect(r.pace.basis).toBe("phrases");
+  });
+
+  // Review M3: phrases committed whole every 10 s were reported at an "ok" 125 words a minute.
+  it("measures the pace of whole phrases on the real time between them, in the take's language", () => {
+    const script = parseScript("# A\n- x");
+    const ten = "one two three four five six seven eight nine ten";
+    const slow = take(script).start();
+    for (let i = 1; i <= 12; i++) slow.say(0, i * 10_000, ten, false);
+    const r = buildRehearsalReport(slow.stop(125_000), script, { lang: "en" });
+    expect(r.pace).toEqual({ unit: "wpm", value: 60, band: "slow", range: [120, 170], basis: "phrases" });
+    expect(r.pauses.count).toBe(0);
+    // the saved report says the number is approximate, and why
+    expect(rehearsalMarkdown(r, "en")).toContain("- Pace: 60 words a minute (slow, usual 120-170); approximate: this speech model sends only whole phrases");
+    const fast = take(script).start();
+    for (let i = 1; i <= 12; i++) fast.say(0, i * 3000, ten, false);
+    expect(buildRehearsalReport(fast.stop(40_000), script, { lang: "en" }).pace).toMatchObject({ value: 200, band: "fast" });
+    // Russian: 8 words every 4 s is 120 a minute, inside the Russian range (100-150), not judged by the English one
+    const ru = take(script).start();
+    for (let i = 1; i <= 12; i++) ru.say(0, i * 4000, "мы говорим о том что важно для нас", false);
+    expect(buildRehearsalReport(ru.stop(50_000), script, { lang: "ru" }).pace).toMatchObject({ value: 120, band: "ok", range: [100, 150] });
+  });
+
+  // Review M4: 40 partials, a 4.5 s "(transcription lagging…)" gap, then words: one long pause was reported.
+  it("does not call a stretch the engine was lagging on a pause, nor time it for the pace", () => {
+    let now = 0;
+    const rec = new TakeRecorder(() => now);
+    rec.observe({ sectionIdx: 0, points: {}, engine: { recording: true, backend: null } });
+    for (; now < 20_000; now += 500) rec.transcript({ partial: "we talk" });
+    rec.transcript({ committed: "we talk about the plan for the year and the people who run it today" });
+    now = 22_000;
+    rec.transcript({ partial: "(transcription lagging…)" });
+    now = 24_500;
+    for (; now < 45_000; now += 500) rec.transcript({ partial: "and then" });
+    rec.transcript({ committed: "and then we talk about the money and the time it takes to get there" });
+    now = 46_000;
+    rec.observe({ sectionIdx: 0, points: {}, engine: { recording: false, backend: null } });
+    const log = rec.result()!;
+    expect(log.stalls).toEqual([22_000]);
+    const r = buildRehearsalReport(log, parseScript("# A\n- x"), { lang: "en" });
+    expect(r.pauses.count).toBe(0);
+    // 40.5 s of heard speech (0-20 s and 24.5-45 s), the 4.5 s gap left out
+    expect(r.speakingMs).toBe(40_500);
+    expect(r.pace.basis).toBe("words");
   });
 
   it("ignores status text from the speech engine and speech outside a take", () => {
@@ -292,6 +334,8 @@ describe("rehearsal Markdown", () => {
     expect(en).toContain("| Intro | 0:31 | 1:00 | 1 not reached |");
     expect(en).toContain("## Points you did not get to (the take ended first)\n\n- Hello | world");
     expect(en).toContain("\n## Talk notes\n\n### 1. Slide");
+    // words in progress were seen: the pace is not flagged as approximate
+    expect(en).not.toContain("approximate");
     const it = rehearsalMarkdown(r, "it");
     expect(it).toContain("# Resoconto della prova");
     expect(it).toContain("| Sezione | Tempo | Obiettivo | Punti |");

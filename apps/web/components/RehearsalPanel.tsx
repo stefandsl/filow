@@ -2,7 +2,7 @@
 // The prompter's side of the rehearsal report and the talk timer, kept out of Teleprompter.tsx: it
 // records the take, opens the report after Stop, and offers "Talk length".
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { buildRehearsalReport, notesToMarkdown, parseScript, serializeScript, type Engine, type RehearsalReport as Report, type Script, type ScreenNote, type SessionState, type TranscriptEvent } from "@filow/core";
+import { buildRehearsalReport, notesToMarkdown, parseScript, serializeScript, type Engine, type RehearsalReport as Report, type Script, type ScreenNote, type SessionState, type SpeechLanguage, type TranscriptEvent } from "@filow/core";
 import { useT } from "@filow/ui";
 import { getSpeechLang } from "@/lib/prefs";
 import { RehearsalReport } from "./RehearsalReport";
@@ -17,7 +17,29 @@ export function sameScript(a: Script, b: Script): boolean {
 }
 
 /** A take shorter than this (a quick check of the microphone) does not open the report by itself. */
-const AUTO_OPEN_MS = 15_000;
+export const AUTO_OPEN_MS = 15_000;
+
+/**
+ * What Stop does, kept apart from React so it can be tested: fed the recording flag every time it
+ * changes, it answers once per take, when the take stops, with that take's report and whether to
+ * open it. Before the first take, during one and on a repeated "not recording" it answers null.
+ */
+export class TakeReports {
+  private wasRecording = false;
+
+  update(recording: boolean, engine: Engine, lang: SpeechLanguage | "auto"): { report: Report; open: boolean } | null {
+    if (recording) {
+      this.wasRecording = true;
+      return null;
+    }
+    if (!this.wasRecording) return null;
+    this.wasRecording = false;
+    const log = takeRecorder(engine).result();
+    if (!log) return null;
+    const report = buildRehearsalReport(log, engine.getState().script, { lang });
+    return { report, open: report.durationMs >= AUTO_OPEN_MS };
+  }
+}
 
 export function useRehearsal({ engine, state, scriptText, saveScript, notes }: {
   engine: Engine;
@@ -33,21 +55,14 @@ export function useRehearsal({ engine, state, scriptText, saveScript, notes }: {
   const [timerOpen, setTimerOpen] = useState(false);
   const timerButton = useRef<HTMLButtonElement>(null);
   const recording = state.engine.recording;
-  const wasRecording = useRef(false);
+  const reports = useRef(new TakeReports());
 
   useEffect(() => {
-    if (recording) {
-      wasRecording.current = true;
-      return;
-    }
-    if (!wasRecording.current) return;
-    wasRecording.current = false;
-    const log = recorder.result();
-    if (!log) return;
-    const r = buildRehearsalReport(log, engine.getState().script, { lang: getSpeechLang() });
-    setReport(r);
-    if (r.durationMs >= AUTO_OPEN_MS) setReportOpen(true);
-  }, [recording, recorder, engine]);
+    const out = reports.current.update(recording, engine, getSpeechLang());
+    if (!out) return;
+    setReport(out.report);
+    if (out.open) setReportOpen(true);
+  }, [recording, engine]);
 
   const hasScript = state.script.sections.length > 0;
   const timer = hasScript ? (
