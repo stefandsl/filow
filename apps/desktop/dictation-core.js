@@ -213,12 +213,29 @@ function clipboardWriter({ clipboard, ClipboardItem, platform = "win32" }) {
  * meanwhile. Slow targets (remote desktop, Office) read the clipboard late, hence the wait.
  * When a second dictation comes before the first one's restore, the first snapshot is kept (the user's own
  * clipboard, not the first dictation) and the earlier restore is cancelled.
+ * Two pastes are never closer than `gapMs`: the app with focus reads the clipboard a moment after the
+ * key press, so text written right behind a paste (two phrases of a hands-free dictation closing
+ * together) would be pasted twice and the first one lost.
  */
-function createClipboardInserter({ clipboard, ClipboardItem, platform = "win32", sendPaste, keysUp = async () => true, restoreMs = 1500, setTimeout: st = setTimeout, clearTimeout: ct = clearTimeout }) {
+function createClipboardInserter({ clipboard, ClipboardItem, platform = "win32", sendPaste, keysUp = async () => true, restoreMs = 1500, gapMs = 300, setTimeout: st = setTimeout, clearTimeout: ct = clearTimeout, now = Date.now }) {
   const write = clipboardWriter({ clipboard, ClipboardItem, platform });
   const ours = async (text) => { try { return (await clipboard.readText()) === text; } catch { return false; } };
   let pending = null; // { saved, text, timer, done }
-  async function insert(text) {
+  let pastedAt = -Infinity;
+  let queue = Promise.resolve(); // one insert at a time, in the order they were asked for
+  function insert(text, onPasted) {
+    const turn = queue.then(() => insertNow(text, onPasted));
+    queue = turn.catch(() => {});
+    return turn;
+  }
+  /**
+   * `textOrFn`: the text, or a function that gives it when its turn comes (it may depend on the insert
+   * before). `onPasted` runs as soon as the paste keys went out, before the next insert's turn.
+   */
+  async function insertNow(textOrFn, onPasted) {
+    const wait = pastedAt + gapMs - now();
+    if (wait > 0) await new Promise((r) => st(r, wait));
+    const text = typeof textOrFn === "function" ? textOrFn() : textOrFn;
     let saved;
     const prev = pending;
     pending = null;
@@ -232,6 +249,8 @@ function createClipboardInserter({ clipboard, ClipboardItem, platform = "win32",
       // (losing what was said would be worse than losing the older clipboard content).
       return { pasted: false, reason: "keys", error: String((e && e.message) || e), restored: Promise.resolve(false) };
     }
+    pastedAt = now();
+    if (onPasted) onPasted();
     let done;
     const restored = new Promise((r) => { done = r; });
     const p = { saved, text, done, timer: null };
@@ -329,8 +348,36 @@ function joinAfter(before, text) {
   return ` ${text}`;
 }
 
+/**
+ * Hands-free dictation (issue #2) types one phrase after another into a field Filow cannot read, so it
+ * keeps what it put there itself: the next phrase gets a space after the last one where the language
+ * writes one. When the words can only be copied, the clipboard must hold everything said since the
+ * start, not just the last phrase, so the copied text grows phrase by phrase.
+ */
+function createPhraseRun() {
+  let tail = ""; // the last character typed or copied in this run
+  let copied = "";
+  return {
+    /** The text to paste for this phrase, given the phrases already typed. */
+    pasteText(text) { return joinAfter(tail, text); },
+    /** The phrase went in (pasted, or typed directly into one of Filow's own fields). */
+    typed(text) { if (text) tail = text.slice(-1); },
+    /**
+     * The user moved on by themselves (Enter, Tab, a mouse click): the caret is no longer right after
+     * the last phrase, so the next one starts without a space (a new chat message, another field).
+     */
+    moved() { tail = ""; },
+    /** Copy only: the whole text said so far, for the clipboard. */
+    copyText(text) {
+      copied += joinAfter(copied.slice(-1), text);
+      if (text) tail = text.slice(-1);
+      return copied;
+    },
+  };
+}
+
 module.exports = {
-  joinAfter,
+  joinAfter, createPhraseRun,
   MODS, LANGS, DEFAULTS, CHORDS, parseChord, chordLabel, checkChord, sanitizeConfig, nextStored, pasteDecision,
   snapshotClipboard, restoreClipboard, clipboardWriter, createClipboardInserter, postProcess, removeFillers, setFillerHook, fold,
 };

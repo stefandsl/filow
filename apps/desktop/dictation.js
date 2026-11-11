@@ -64,6 +64,8 @@ function createDictation(deps) {
       talkLabel: core.chordLabel(talkHotkey || "", platform),
       check,
       /** "paste" when key presses can reach other apps here; else "copy" and the reason. */
+      /** False while the keyboard hook is not registered: the dictation keys do nothing (okfilow.js keeps trying). */
+      hookReady: hook !== false,
       canPaste: decision.action === "paste",
       copyReason: decision.reason,
       modelReady,
@@ -122,28 +124,32 @@ function createDictation(deps) {
   /**
    * Puts the dictated text in place. `hook` sends the paste keys (uiohook keyTap, see DICTATION.md "Paste");
    * `keysUp` waits until the user's own modifiers are up. Returns what happened, for the panel to say.
+   * `run` (core.createPhraseRun) is given for each phrase of one hands-free dictation: it puts the space
+   * between phrases and, when the words are only copied, keeps the whole text on the clipboard.
    */
-  async function insert(raw, { hook, keysUp, spokenLanguage } = {}) {
+  async function insert(raw, { hook, keysUp, spokenLanguage, run } = {}) {
     const c = cfg();
     const lang = c.language !== "auto" ? c.language : spokenLanguage || "auto";
     const text = core.postProcess(raw, { language: lang, removeFillers: c.removeFillers });
     if (!text) return { ok: false, action: "none", reason: "empty", chars: 0 };
+    const copy = (t) => writeText(run ? run.copyText(t) : t);
     const own = ownFocusedWindow();
     if (own) {
       // Only into a text field; with none in focus the words are copied and the user is told so.
       const field = await editableFocused(own);
       if (field) {
         await own.webContents.insertText(core.joinAfter(field.before, text));
+        if (run) run.typed(text);
         logLine(`dictation: typed ${text.length} chars into Filow's own window directly`);
         return { ok: true, action: "direct", reason: "", chars: text.length };
       }
-      await writeText(text);
+      await copy(text);
       logLine(`dictation: copied ${text.length} chars (a Filow window has focus, but no text field)`);
       return { ok: true, action: "copy", reason: "nofield", chars: text.length };
     }
     const decision = core.pasteDecision({ platform, insert: c.insert, env, macTrusted: macTrusted(), hook: Boolean(hook) });
     if (decision.action === "copy") {
-      await writeText(text);
+      await copy(text);
       logLine(`dictation: copied ${text.length} chars (${decision.reason})`);
       if (decision.reason === "accessibility") void askMacPermission();
       return { ok: true, action: "copy", reason: decision.reason, chars: text.length };
@@ -159,9 +165,10 @@ function createDictation(deps) {
         sendPaste: () => deps.sendPaste(current.hook),
       });
     }
-    const r = await inserter.insert(text);
+    // The space before a phrase depends on the phrase before it, so it is decided when this one's turn comes.
+    const r = await inserter.insert(run ? () => run.pasteText(text) : text, () => { if (run) run.typed(text); });
     if (!r.pasted) {
-      await writeText(text);
+      await copy(text);
       logLine(`dictation: paste failed (${r.reason}${r.error ? `: ${r.error}` : ""}), ${text.length} chars left on the clipboard`);
       return { ok: true, action: "copy", reason: r.reason || "keys", chars: text.length };
     }
@@ -170,7 +177,7 @@ function createDictation(deps) {
     return { ok: true, action: "paste", reason: "", chars: text.length };
   }
 
-  return { cfg, configure, status, activeChord, insert, onChange: (fn) => (listeners.add(fn), () => listeners.delete(fn)) };
+  return { cfg, configure, status, activeChord, insert, newPhraseRun: core.createPhraseRun, onChange: (fn) => (listeners.add(fn), () => listeners.delete(fn)) };
 }
 
 module.exports = { createDictation };
