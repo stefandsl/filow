@@ -1371,7 +1371,7 @@ function getDictation() {
     // Ctrl + V (Command + V on macOS) through OK Filow's own keyboard hook: uiohook-napi (MIT) sends it with
     // SendInput on Windows, CGEvent on macOS and XTest on X11. No shell, no PowerShell, no extra native module.
     sendPaste: hook => {
-      const { UiohookKey: K } = require("uiohook-napi");
+      const { UiohookKey: K } = require("./uiohook").loadUiohook();
       hook.keyTap(K.V, [process.platform === "darwin" ? K.Meta : K.Ctrl]);
     },
   });

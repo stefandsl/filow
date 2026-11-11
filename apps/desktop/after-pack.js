@@ -26,6 +26,8 @@ function missingNative(resourcesDir, platform, arch) {
     else for (const lib of SHERPA_LIBS[platform] || []) if (!has(sherpa, lib)) missing.push(`${sherpa}/${lib} (speech to text)`);
     const hook = `uiohook-napi/prebuilds/${platform}-${a}`;
     if (!has(...hook.split("/"), "uiohook-napi.node")) missing.push(`${hook} (OK Filow hold-to-talk)`);
+    // Windows x64: Filow's own build of that binary (native/uiohook, issue #6), loaded by uiohook.js.
+    if (platform === "win32" && a === "x64" && !fs.existsSync(path.join(resourcesDir, "app.asar.unpacked", "native", "uiohook", "prebuilds", "win32-x64", "uiohook-napi.node"))) missing.push("native/uiohook/prebuilds/win32-x64 (keyboard hook that Windows does not refuse)");
   }
   return missing;
 }

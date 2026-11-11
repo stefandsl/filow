@@ -89,6 +89,8 @@
       "okfilow-preload.js",
       "okfilow-gestures.js",
       "okfilow-hook-retry.js",
+      "uiohook.js",
+      "native/uiohook/prebuilds/**",
       "okfilow-agents.js",
       "okfilow-selection.js",
       "okfilow-answers.js",
@@ -239,7 +241,8 @@
       "tts-worker.js",
       "node_modules/sherpa-onnx-node/**",
       "node_modules/sherpa-onnx-*/**",
-      "node_modules/uiohook-napi/**"
+      "node_modules/uiohook-napi/**",
+      "native/uiohook/**"
     ],
     "electronFuses": {
       "runAsNode": false,
