@@ -60,7 +60,9 @@ export class TalkClockTracker {
  * The time each section may take, in ms. A section with its own target keeps it. When the talk has a
  * target, what is left of it goes to the sections without one, in proportion to their points (at
  * least one share each). `talkMs` is the talk target, or the sum of the sections when every
- * section has one; otherwise null.
+ * section has one; otherwise null. When the sections' own targets already fill the talk (or go
+ * past it, see `overPlan`), nothing is left: the sections without a target get 0, so the plan stays
+ * complete and the behind/ahead cue keeps working.
  */
 export function talkBudget(script: Pick<Script, "sections" | "minutes">): { talkMs: number | null; sections: Array<number | null> } {
   const own = script.sections.map((s) => (s.minutes && s.minutes > 0 ? s.minutes * MIN : null));
@@ -71,8 +73,18 @@ export function talkBudget(script: Pick<Script, "sections" | "minutes">): { talk
   const weight = (i: number) => Math.max(1, script.sections[i].bullets.length);
   const open = own.map((x, i) => (x === null ? i : -1)).filter((i) => i >= 0);
   const totalWeight = open.reduce((a, i) => a + weight(i), 0);
-  const sections = own.map((x, i) => (x !== null ? x : rest > 0 && totalWeight > 0 ? (rest * weight(i)) / totalWeight : null));
+  const sections = own.map((x, i) => (x !== null ? x : (Math.max(0, rest) * weight(i)) / totalWeight));
   return { talkMs, sections };
+}
+
+/**
+ * Section targets that add up to more than the talk target, in minutes; null when they fit or there
+ * is no talk target. The timer then follows the sections' targets, and says so.
+ */
+export function overPlan(script: Pick<Script, "sections" | "minutes">): { planned: number; talk: number } | null {
+  if (!script.minutes || script.minutes <= 0) return null;
+  const planned = Math.round(script.sections.reduce((a, s) => a + (s.minutes && s.minutes > 0 ? s.minutes : 0), 0) * 10) / 10;
+  return planned > script.minutes ? { planned, talk: script.minutes } : null;
 }
 
 /** Time spent in each section during the take, in ms (a section shown twice adds up). */

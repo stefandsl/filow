@@ -134,6 +134,7 @@ export function RehearsalReport({ report, notes, onClose, returnFocusRef }: {
     <>
       <Dialog title={t("report.title")} onClose={onClose} className="rehearsal-report" returnFocusRef={returnFocusRef}>
         <ReportBody report={report} idPrefix="report" fold />
+        <p className="hint">{t("report.keepLast")}</p>
         <div className="controls report-actions">
           <button type="button" className="btn primary" onClick={() => downloadMarkdown(rehearsalMarkdown(report, lang, notes), "filow-rehearsal")}>{t("report.saveMd")}</button>
           <button type="button" className="btn" onClick={printReport}>{t("report.print")}</button>

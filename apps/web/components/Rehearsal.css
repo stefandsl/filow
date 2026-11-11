@@ -10,6 +10,8 @@
 .timer-cue .timer-badge:empty { display: none; }
 .timer-cue .timer-badge.behind { border-color: var(--accent); }
 .timer-cue .timer-detail { font-variant-numeric: tabular-nums; }
+.timer-cue .timer-warn { color: var(--text); border: 1px solid var(--warn); border-radius: 999px; padding: 2px 10px; }
+.timer-settings .timer-warn { color: var(--text); border-left: 3px solid var(--warn); padding-left: 10px; }
 .timer-cue .timer-spacer { flex: 1 1 0; }
 .timer-cue .btn { padding: 4px 12px; font-size: var(--type-sm); }
 
