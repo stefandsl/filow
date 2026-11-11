@@ -70,7 +70,21 @@ const bundle = path.join(out, "layout.cjs");
 buildSync({ entryPoints: [path.join(ROOT, "apps/web/lib/whiteboard/layout.ts")], bundle: true, platform: "node", format: "cjs", outfile: bundle, logLevel: "silent", alias: { "@": path.join(ROOT, "apps/web") } });
 const { layoutBoard, layoutProblems } = (await import(pathToFileURL(bundle).href)).default;
 
-async function runOne(question) {
+// --rescore: no model call; the saved lessons of <out> are laid out again with the current layout code
+// and their machine checks and summary rewritten (after a layout change, to see what it fixed).
+const rescore = args.includes("--rescore");
+async function runOne(question, n) {
+  if (rescore) {
+    const file = path.join(out, `lesson-${n}.json`);
+    if (!fs.existsSync(file)) return { question, error: "no saved lesson", events: [] };
+    const r = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (!r.lesson) return r;
+    const problems = [];
+    for (const shape of ["wide", "tall"]) for (let i = 0; i < r.lesson.steps.length; i++) for (const p of layoutProblems(layoutBoard(r.lesson, i, shape))) problems.push(`${shape} step ${i + 1}: ${p}`);
+    r.problems = [...new Set(problems)];
+    r.machinePass = r.steps >= 3 && r.drawn >= r.steps - 1 && r.drawn >= 3 && r.problems.length === 0;
+    return r;
+  }
   const t0 = Date.now();
   const events = [];
   let res;
@@ -157,7 +171,7 @@ const detail = [];
 const list = only ? CONCEPTS.slice(only - 1, only) : CONCEPTS;
 for (const [i, question] of list.entries()) {
   const n = only || i + 1;
-  const r = await runOne(question);
+  const r = await runOne(question, n);
   fs.writeFileSync(path.join(out, `lesson-${n}.json`), JSON.stringify(r, null, 1));
   if (r.error) {
     rows.push(`| ${n} | ${question} | ${r.model ?? "?"} | - | FAIL | ${r.error} |`);

@@ -139,7 +139,7 @@ function gridNodes(nodes: NodeIn[], area: Box, scene: "flow" | "stack", shape: B
   let rows: number;
   if (scene === "flow") {
     // A phone-shaped board reads top to bottom: one column while it fits, then two.
-    const maxCols = shape === "tall" ? (n <= 4 ? 1 : 2) : area.w >= 900 ? 4 : 3;
+    const maxCols = shape === "tall" ? (n <= 6 ? 1 : 2) : area.w >= 900 ? 4 : 3;
     cols = Math.min(n, maxCols);
     rows = Math.ceil(n / cols);
   } else {
@@ -357,7 +357,9 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
     const reach = (Math.abs(nx) * Math.max(a.box.w, b.box.w)) / 2 + (Math.abs(ny) * Math.max(a.box.h, b.box.h)) / 2;
     // A label breaks between words only: one long word makes the label wider, never "release / d".
     const longest = Math.max(0, ...e.text.split(/\s+/).map((word) => (Array.from(word).some((ch) => isWideChar(ch.codePointAt(0) ?? 0)) ? 0 : textWidth(word, LABEL_FONT))));
-    const lines = e.text ? wrapText(e.text, Math.max(arr.labelMax, longest + 1), LABEL_FONT, 2) : [];
+    let lines = e.text ? wrapText(e.text, Math.max(arr.labelMax, longest + 1), LABEL_FONT, 2) : [];
+    // a label that does not fit two lines of the narrow gap is set wider (it then rides an arc) rather than cut
+    if (lines.length && lines[lines.length - 1].endsWith(ELLIPSIS) && !e.text.endsWith(ELLIPSIS)) lines = wrapText(e.text, Math.max(arr.labelMax, longest + 1, 230), LABEL_FONT, 2);
     const lw = Math.max(0, ...lines.map((ln) => textWidth(ln, LABEL_FONT))) + 12;
     const lh = lines.length * LABEL_LINE + 8;
     let best: { curve: Curve; box: Box | null; cost: number } | null = null;
@@ -422,8 +424,9 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
   const { w } = BOARD_SIZE[shape];
   // A phone-shaped board grows downwards with the diagram (the page scrolls); a wide one is fixed.
   const shown = new Set(lesson.steps.slice(0, upto + 1).flatMap((s) => s.items.flatMap((it) => (it.kind === "node" ? [it.id] : []))));
-  const h = BOARD_SIZE[shape].h + (shape === "tall" ? Math.min(4, Math.max(0, shown.size - 6)) * 90 : 0) + extra;
-  const titleFont = shape === "tall" ? 24 : 30;
+  const h = BOARD_SIZE[shape].h + (shape === "tall" ? Math.min(6, Math.max(0, shown.size - 4)) * 96 : 0) + extra;
+  // a long title is set smaller before it is ever cut
+  const titleFont = [shape === "tall" ? 24 : 30, 21, 18, 16].find((f) => textWidth(lesson.title, f) <= w - (shape === "tall" ? 14 : 24) * 2 - 8) ?? 16;
   const margin = shape === "tall" ? 14 : 24;
   const titleText = wrapText(lesson.title, w - margin * 2 - 8, titleFont, 1)[0];
   const title = { text: titleText, x: margin + 4, y: 46, font: titleFont, cut: titleText.endsWith(ELLIPSIS) && !lesson.title.endsWith(ELLIPSIS) };

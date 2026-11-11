@@ -119,8 +119,9 @@ describe("whiteboard layout", () => {
 
   it("lets a phone-shaped board grow downwards with its diagram", () => {
     const make = (n: number) => validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: Array.from({ length: Math.min(n, 6) }, (_, i) => ({ kind: "node", id: `a${i}`, text: `A${i}` })) }, { say: "s", items: Array.from({ length: Math.max(0, n - 6) }, (_, i) => ({ kind: "node", id: `b${i}`, text: `B${i}` })) }] })!;
-    expect(layoutBoard(make(6), 1, "tall").h).toBe(BOARD_SIZE.tall.h);
-    expect(layoutBoard(make(9), 1, "tall").h).toBe(BOARD_SIZE.tall.h + 270);
+    expect(layoutBoard(make(4), 1, "tall").h).toBe(BOARD_SIZE.tall.h);
+    expect(layoutBoard(make(6), 1, "tall").h).toBe(BOARD_SIZE.tall.h + 192);
+    expect(layoutBoard(make(9), 1, "tall").h).toBe(BOARD_SIZE.tall.h + 480);
     expect(layoutBoard(make(9), 1, "wide").h).toBe(BOARD_SIZE.wide.h);
     expect(layoutProblems(layoutBoard(make(10), 1, "tall"))).toEqual([]);
   });
@@ -218,6 +219,14 @@ describe("whiteboard layout", () => {
     const mid = { x: label.x + label.w / 2, y: label.y + label.h / 2 };
     l.edges[1] = { ...l.edges[1], x1: mid.x - 80, y1: mid.y, cx: mid.x, cy: mid.y, x2: mid.x + 80, y2: mid.y };
     expect(layoutProblems(l)).toContain('arrow b -> a runs through the label "feeds"');
+  });
+
+  it("on the phone-shaped board, sets a long title smaller and a long arrow label wider instead of cutting them", () => {
+    const lesson = validateLesson({ title: "TCP Three-Way Handshake Explained Step by Step", scene: "flow", steps: [{ say: "s", items: [{ kind: "node", id: "a", text: "Sorted list" }, { kind: "node", id: "b", text: "Middle element" }, { kind: "node", id: "c", text: "Target" }, { kind: "node", id: "d", text: "Left half" }, { kind: "node", id: "e", text: "Right half" }, { kind: "edge", from: "a", to: "b", text: "has a middle element" }] }, { say: "s", items: [{ kind: "edge", from: "b", to: "c", text: "is compared with the" }, { kind: "edge", from: "c", to: "d", text: "smaller: go to" }, { kind: "edge", from: "c", to: "e", text: "larger: go to" }] }] })!;
+    const l = layoutBoard(lesson, 1, "tall");
+    expect(l.title.cut).toBe(false);
+    expect(l.title.font).toBeLessThan(24);
+    expect(layoutProblems(l).filter((p) => p.includes("is cut") || p.includes("overlaps"))).toEqual([]);
   });
 
   it("spreads several arrows between the same two nodes so their labels stay apart", () => {
