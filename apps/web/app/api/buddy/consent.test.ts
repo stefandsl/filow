@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as sysinfo from "@/lib/sysinfo";
 import { POST as ask } from "./ask/route";
 import { POST as tts } from "./tts/route";
 import { GET as photo } from "./photo/route";
@@ -29,6 +30,9 @@ beforeEach(() => {
     return Response.json({ token: "fake", value: "fake" });
   });
   vi.stubGlobal("fetch", net);
+  // a fixed, ordinary PC: a local question must not wait for a real hardware probe
+  vi.spyOn(sysinfo, "gpuInfo").mockResolvedValue({ name: "", kind: "none", vramTotalGb: null, vramUsedGb: null, sharedUsedGb: null, utilPct: null, source: "none" });
+  vi.spyOn(sysinfo, "machineInfo").mockReturnValue({ ramGb: 32, cores: 8, gpu: { kind: "none", vramGb: null }, freeDiskGb: 500 });
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 

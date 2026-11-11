@@ -8,6 +8,9 @@ export default defineConfig({
   test: {
     include: ["apps/web/components/**/*.test.tsx", "apps/desktop/**/*.test.ts", "packages/*/src/**/*.test.ts", "apps/server/src/**/*.test.ts", "apps/powerpoint/src/**/*.test.ts", "apps/browser/src/**/*.test.ts", "apps/web/lib/**/*.test.ts", "apps/web/app/**/*.test.ts", "tools/autoloop/**/*.test.ts"],
     environment: "node",
+    // The default 5 s is too tight for a two-core CI runner: a first call that really probes the hardware,
+    // or a property test beside the whole suite, crossed it there while taking a fraction of a second here.
+    testTimeout: 20_000,
     // `npm run test:coverage`. Thresholds are a ratchet at the measured level (2026-11-09: lines 38.39,
     // branches 37.07, functions 36.95): coverage may only go up. Target: docs/autoloop/STANDARDS.md TST-01.
     coverage: {
