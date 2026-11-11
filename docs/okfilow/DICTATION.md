@@ -15,8 +15,14 @@ with `FILOW_OFFLINE=1`. Study of the app this is modelled on: `G:\FILOW\tmp\rese
   Ctrl + Alt warns about AltGr; Alt + Shift and Ctrl + Shift warn that Windows may switch the keyboard
   language with them.
 - **How the keys work.** Hold to talk and let go to type (default), or press once to start and once
-  more to stop. In that mode Escape stops without typing, a dictation nobody stops ends after five
-  minutes, and "tap twice for hands-free" is off (two taps are start and stop).
+  more to stop.
+- **Hands-free (issue #2, like Wispr Flow).** Tap the keys twice (or, in "press once" mode, press them
+  once): Filow listens with the keys up and types each phrase into the focused field when the user
+  pauses. One more press of the keys stops it and types what was said since the last pause; Escape
+  stops it without typing those last words (phrases already typed stay). A hands-free dictation
+  nobody stops ends after five minutes. The bubble says how to stop while it runs.
+  OK Filow's own hands-free questions are no longer on these keys: they start with two taps of OK
+  Filow's question keys (Ctrl + Alt by default), and both settings screens say so.
 - **Language.** "Same as the speech language above" or one of English, Italian, Russian, Romanian,
   Japanese. A chosen language picks the most accurate model made for short phrases (stt.js
   `CANDIDATES.questions`: Parakeet for en/it/ru/ro, ReazonSpeech for ja); "Automatic" needs the one
@@ -44,7 +50,18 @@ copied, the bubble says "Copied. Press Ctrl + V to paste it" for a few seconds.
 1. **Keys.** OK Filow's keyboard hook (uiohook-napi) and `okfilow-gestures.js`; no second hook. Hold
    mode arms after 250 ms like the question keys (so Ctrl + Win + D stays a Windows shortcut); toggle
    mode counts a clean press and release (another key in between cancels it), ported from Handy's
-   `src-tauri/src/transcription_coordinator.rs`.
+   `src-tauri/src/transcription_coordinator.rs`. Two short taps of the chord within 450 ms (keys let
+   go each time, no other key or modifier in between) emit `dictate:handsfree` and put the gestures in
+   the same "running with the keys up" state as toggle mode, so the next press ends it.
+   **Hands-free phrases.** The microphone and the recognizer stay open for the whole dictation. The
+   recognizer closes phrases by itself (stt-worker.js); `apps/web/lib/dictation/handsfree.ts` decides
+   when they are typed: at the pause heard by the voice-activity detector OK Filow's hands-free
+   questions use (`lib/buddy/listen.ts` createVad, about 1.1 s of quiet after speech), or the moment a
+   phrase closes right after such a pause, or after 2 s without a new phrase when the detector missed
+   the pause. Each phrase goes through the same `dictation.insert` as a single dictation, so the
+   clipboard rules below hold for every phrase; `dictation-core.js` createPhraseRun adds the space
+   between phrases (none in Japanese) and, when the words can only be copied, keeps everything said
+   so far on the clipboard instead of the last phrase only.
 2. **Microphone and indicator.** OK Filow's panel records (the selected microphone, echo cancellation)
    and its overlays show the state. The recognizer and the microphone start together; sound is kept in
    the panel until the model is loaded, so the first words are not lost on a cold start. A press that
@@ -98,7 +115,11 @@ does not control: a third-party clipboard manager may still record the text for 
 - `apps/desktop/dictation-core.test.ts`: shortcut parsing and conflicts, settings, paste-or-copy per
   platform, the clipboard order (save, keys up, write with markers, paste, restore; user's newer copy
   kept; unreadable never overwritten; two dictations in a row), text clean-up in five languages.
-- `apps/desktop/okfilow-gestures.test.ts` "dictation in toggle mode".
+- `apps/desktop/okfilow-gestures.test.ts` "dictation in toggle mode", and the double tap: starts
+  hands-free dictation, one more press or Escape ends it, slow taps and shortcuts do not count.
+- `apps/web/lib/dictation/handsfree.test.ts`: which phrases are typed and when (with the real pause
+  detector); `apps/desktop/dictation-handsfree.test.ts`: phrase after phrase through the real insert
+  and clipboard code (spaces, clipboard put back, history markers on every phrase, copy-only).
 - `packages/stt/src/stop.seams.test.ts`: the silence before the end of a streaming take.
 - End to end (QA build): `FILOW_OKF_FAKE_MIC=<wav>` plays a recording as the microphone and
   `FILOW_OKF_QA_KEYS=1` lets the panel feed key presses to the real gestures code (for machines where

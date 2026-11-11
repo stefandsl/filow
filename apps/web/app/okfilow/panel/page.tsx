@@ -11,6 +11,7 @@ import { markToDisplay, parseBuddyAnswer, pointToDisplay, type BuddyTurn } from 
 import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
 import { dictationText, pasteKeys, type DictationKey } from "@/lib/dictation/text";
 import { playCue } from "@/lib/dictation/cue";
+import { createPhraseFlow, type PhraseFlow } from "@/lib/dictation/handsfree";
 import { burnStrokes, createVad, describeMarked } from "@/lib/buddy/listen";
 import { askRoute, changesStored, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
@@ -55,6 +56,12 @@ export default function OkFilowPanel() {
   const handsFree = useRef(false);
   const [handsFreeOn, setHandsFreeOn] = useState(false);
   const vad = useRef<ReturnType<typeof createVad> | null>(null);
+  // Hands-free dictation (issue #2): the next dictation types phrase by phrase (set by the press), the
+  // flow that decides when, and the phrases being typed, one after the other.
+  const dictHandsFree = useRef(false);
+  const flow = useRef<PhraseFlow | null>(null);
+  const typing = useRef<Promise<unknown>>(Promise.resolve());
+  const micTick = useRef<(level: number, now: number) => void>(() => {});
   // Start/stop can cross: a release while the mic is still opening is remembered and applied after.
   const starting = useRef(false);
   const pendingStop = useRef<boolean | null>(null);
@@ -454,7 +461,8 @@ export default function OkFilowPanel() {
     committed.current = [];
     partial.current = "";
     setNote("");
-    vad.current = why === "handsfree" ? createVad() : null;
+    flow.current = why === "dictate" && dictHandsFree.current ? createPhraseFlow() : null;
+    vad.current = why === "handsfree" || flow.current ? createVad() : null;
     if (why !== "dictate") {
       // A new question interrupts the old answer; dictation leaves the conversation alone.
       run.current++;
@@ -471,7 +479,7 @@ export default function OkFilowPanel() {
     const dict = why === "dictate" ? statusRef.current?.dictationStatus : undefined;
     if (why === "dictate") {
       const keys = dict?.chordLabel ?? "";
-      b.text(dict?.mode === "toggle" ? dictT("dictatingToggle", { keys }) : dictT("dictating"));
+      b.text(flow.current ? dictT("dictatingHandsFree", { keys }) : dictT("dictating"));
       if (dict?.sound || dict?.screenReader) playCue(true);
     }
     // Recognizer and microphone start together, and the sound is kept until the model is loaded, so the
@@ -504,7 +512,7 @@ export default function OkFilowPanel() {
         for (let i = 0; i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]));
         const level = Math.min(1, peak * 2.5);
         b.level(level);
-        if (vad.current?.push(level, performance.now())) { vad.current = null; void stopRef.current(true); }
+        micTick.current(level, performance.now());
       };
       src.connect(node);
       node.connect(ctx.destination);
@@ -537,6 +545,9 @@ export default function OkFilowPanel() {
     if (starting.current) { pendingStop.current = send; return; }
     if (!audio.current) return;
     stopping.current = true;
+    // Hands-free dictation: from here the rest is typed below, not phrase by phrase.
+    const phrases = flow.current;
+    flow.current = null;
     try {
     const why = purpose.current;
     const sid = session.current;
@@ -558,13 +569,16 @@ export default function OkFilowPanel() {
     if (why === "dictate" && (dict?.sound || dict?.screenReader)) playCue(false);
     if (!send) { b.text(""); return setMode("idle"); }
     if (why === "dictate") {
+      // Phrases of a hands-free dictation still on their way into the app go first.
+      await typing.current;
       // The bubble near the mouse says what happened when the user must act (copied) or nothing came.
+      if (!question && phrases?.typed) { b.text(""); return setMode("idle"); }
       if (!question) { b.text(dictT("nothing")); return setMode("idle", { holdMs: 2500 }); }
       b.text("");
       const r = await b.typeText(question, spoken.current).catch(() => null);
       const paste = pasteKeys(dict?.platform ?? "win32");
       // Only filler sounds were heard: nothing to type, said like "nothing heard".
-      if (r?.action === "none") { b.text(dictT("nothing")); return setMode("idle", { holdMs: 2500 }); }
+      if (r?.action === "none") { b.text(phrases?.typed ? "" : dictT("nothing")); return setMode("idle", phrases?.typed ? {} : { holdMs: 2500 }); }
       if (!r || !r.ok) { setNote(dictT("failed")); setTyped(question); b.text(dictT("failed")); return setMode("idle", { holdMs: 4500 }); }
       if (r.action === "copy") {
         setNote(dictT("copied", { paste }));
@@ -591,6 +605,37 @@ export default function OkFilowPanel() {
   stopRef.current = stopListening;
   listenAgain.current = () => { if (handsFree.current) void startListening("handsfree"); };
 
+  /** Hands-free dictation: one phrase into the focused field, after the phrases before it; the mic stays open. */
+  const typePhrase = useCallback((text: string) => {
+    const b = okFilowBridge();
+    const f = flow.current;
+    if (!b || !f) return;
+    committed.current = f.pending();
+    if (!text) return;
+    const keys = statusRef.current?.dictationStatus?.chordLabel ?? "";
+    b.text(joinTranscript(committed.current, partial.current) || dictT("dictatingHandsFree", { keys }));
+    const lang = spoken.current;
+    typing.current = typing.current.then(async () => {
+      const r = await b.typeText(text, lang).catch(() => null);
+      if (r?.action === "none") return; // only filler sounds
+      if (!r || !r.ok) { setNote(dictT("failed")); setTyped((was) => joinTranscript([was, text], "")); return; }
+      if (r.action === "copy") {
+        const line = dictT("copied", { paste: pasteKeys(statusRef.current?.dictationStatus?.platform ?? "win32") });
+        setNote(line);
+        if (flow.current === f) b.text(line);
+      } else setNote(dictT("typed"));
+    });
+  }, [dictT]);
+  // The pause detector: it ends a hands-free question, and tells a hands-free dictation to type what was said.
+  micTick.current = (level, now) => {
+    const f = flow.current;
+    if (vad.current?.push(level, now)) {
+      if (!f) { vad.current = null; void stopRef.current(true); return; }
+      vad.current = createVad();
+      typePhrase(f.pause(now));
+    } else if (f) typePhrase(f.tick(now));
+  };
+
   const setHandsFree = useCallback((on: boolean) => {
     handsFree.current = on;
     setHandsFreeOn(on);
@@ -606,12 +651,16 @@ export default function OkFilowPanel() {
         if (r.error) return fail(r.error);
         if (r.committed) { committed.current.push(r.committed); partial.current = ""; }
         else partial.current = r.partial;
+        // Hands-free dictation: the phrase goes to the flow, which hands back what to type now (if anything).
+        const f = r.committed ? flow.current : null;
+        if (f) { committed.current.pop(); typePhrase(f.committed(r.committed, performance.now())); }
         const live = joinTranscript(committed.current, partial.current);
         setHeard(live);
-        b.text(live);
+        if (live || !flow.current) b.text(live);
       }),
       b.onPress((p) => {
         if (handsFree.current) { handsFree.current = false; setHandsFreeOn(false); b.handsFreeOff(); void stopListening(false); }
+        dictHandsFree.current = p?.purpose === "dictate" && Boolean(p.handsFree);
         void startListening(p?.purpose === "dictate" ? "dictate" : "talk");
       }),
       b.onRelease(() => void stopListening(true)),
@@ -639,7 +688,7 @@ export default function OkFilowPanel() {
       }),
     ];
     return () => offs.forEach((o) => o());
-  }, [ask, bridge, fail, setHandsFree, setMode, speak, startListening, stopListening, t]);
+  }, [ask, bridge, fail, setHandsFree, setMode, speak, startListening, stopListening, t, typePhrase]);
 
   if (!bridge) return <main className="okf-panel"><p>{t("desktopOnly")}</p></main>;
   const c = status;
@@ -680,7 +729,7 @@ export default function OkFilowPanel() {
       <p className="okf-hint">
         {c?.hook === "toggle" ? t("hintToggle") : t("hintHold").replace("{key}", hotkey ?? "")}
       </p>
-      {c?.hook !== "toggle" && <p className="okf-hint">{t("hintMore")}{dictHint ? ` ${dictHint}` : ""}</p>}
+      {c?.hook !== "toggle" && <p className="okf-hint">{t("hintMore")}{dictHint ? ` ${dictHint}` : ""}{hotkey ? ` ${dictT("handsFreeQuestions", { talk: hotkey })}` : ""}</p>}
       {c?.hookPermission && <p className="okf-hint">{t(c.hookPermission === "accessibility" ? "hintMacAccessibility" : "hintMacInput")}</p>}
       {handsFreeOn && (
         <p className="okf-handsfree" role="status">

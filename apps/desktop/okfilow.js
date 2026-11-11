@@ -491,7 +491,8 @@ function createOkFilow(deps) {
 
   // ---- keyboard gestures (okfilow-gestures.js) ----
   // Hold the talk chord to ask; hold the dictation chord (dictation.js, default Ctrl+Win) to dictate into
-  // the focused app; tap it twice for hands-free; tap Ctrl twice for the text box. While talking, the
+  // the focused app, or tap it twice for hands-free dictation (phrase by phrase, until the keys are pressed
+  // once more or Escape); tap the talk chord twice for hands-free questions; tap Ctrl twice for the text box. While talking, the
   // mouse draws a highlighter stroke on the overlay (the overlay takes the mouse only for that time) and
   // the model sees what was marked.
   let gestures = null;
@@ -501,18 +502,27 @@ function createOkFilow(deps) {
   let selection = Promise.resolve(""); // text selected in the focused app when the talk began
   let dictateCap = null;
   let releasedAt = 0; // when the last dictation's keys went up, for the release-to-text log line
+  let phraseRun = null; // dictation-core createPhraseRun() while the phrases of one hands-free dictation are typed
 
-  function press(kind = "talk") {
+  /** `handsFree`: a dictation with the keys up (double tap, or toggle mode): typed phrase by phrase. */
+  function press(kind = "talk", handsFree = false) {
     // Dictation has its own switch: it works with OK Filow's questions turned off.
-    if (held || !(kind === "dictate" ? dictation.cfg().enabled : cfg().enabled)) return;
+    if (held || !(kind === "dictate" ? dictation.cfg().enabled : cfg().enabled)) {
+      // Not started: the gestures must not count a hands-free dictation as running.
+      if (kind === "dictate" && handsFree) gestures?.endToggle();
+      return;
+    }
     held = true;
     purpose = kind;
-    // A toggle-mode dictation nobody stops ends by itself after five minutes.
+    // A hands-free dictation nobody stops ends by itself after five minutes.
     clearTimeout(dictateCap);
-    if (kind === "dictate") dictateCap = setTimeout(() => purpose === "dictate" && release(), 5 * 60_000);
+    if (kind === "dictate") {
+      dictateCap = setTimeout(() => purpose === "dictate" && release(), 5 * 60_000);
+      phraseRun = handsFree ? dictation.newPhraseRun() : null;
+    }
     // Read the selection while the user's app still has focus; it goes with the question.
     if (kind === "talk") { clearDrawings(); strokes = []; setOverlayMouse(true); selection = readSelection(); }
-    sendPanel("okfilow:press", { purpose: kind });
+    sendPanel("okfilow:press", { purpose: kind, handsFree: kind === "dictate" && handsFree });
   }
   function release() {
     if (!held) return;
@@ -546,6 +556,7 @@ function createOkFilow(deps) {
     switch (ev) {
       case "talk:start": return press("talk");
       case "dictate:start": return press("dictate");
+      case "dictate:handsfree": return press("dictate", true);
       case "talk:end": case "dictate:end": return release();
       case "talk:cancel": case "dictate:cancel": return cancel();
       case "handsfree:toggle":
@@ -571,7 +582,7 @@ function createOkFilow(deps) {
   async function typeText(text, spokenLanguage) {
     // QA key mode: the paste still goes out through uiohook (SendInput), which works without the hook.
     const keys = hook || (QA_KEYS ? require("uiohook-napi").uIOhook : null);
-    const r = await dictation.insert(text, { hook: keys, keysUp: () => modifiersUp(), spokenLanguage });
+    const r = await dictation.insert(text, { hook: keys, keysUp: () => modifiersUp(), spokenLanguage, run: phraseRun || undefined });
     if (releasedAt && r.action !== "none") logLine(`dictation: release to text ${Date.now() - releasedAt} ms (${r.action}${r.reason ? `, ${r.reason}` : ""})`);
     releasedAt = 0;
     return r;

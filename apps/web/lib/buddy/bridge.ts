@@ -168,7 +168,8 @@ export type OkFilowBridge = {
   deleteAnswers(): Promise<number>;
   press(): void;
   release(): void;
-  onPress(fn: (p: { purpose: "talk" | "dictate" } | undefined) => void): Off;
+  /** `handsFree`: a dictation with the keys up, typed phrase by phrase until the keys are pressed once more. */
+  onPress(fn: (p: { purpose: "talk" | "dictate"; handsFree?: boolean } | undefined) => void): Off;
   onRelease(fn: (p: { purpose: "talk" | "dictate" | null } | undefined) => void): Off;
   onCancel(fn: (p: { purpose: "talk" | "dictate" | null } | undefined) => void): Off;
   onConfig(fn: (s: OkFilowStatus) => void): Off;

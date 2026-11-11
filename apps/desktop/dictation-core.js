@@ -329,8 +329,31 @@ function joinAfter(before, text) {
   return ` ${text}`;
 }
 
+/**
+ * Hands-free dictation (issue #2) types one phrase after another into a field Filow cannot read, so it
+ * keeps what it put there itself: the next phrase gets a space after the last one where the language
+ * writes one. When the words can only be copied, the clipboard must hold everything said since the
+ * start, not just the last phrase, so the copied text grows phrase by phrase.
+ */
+function createPhraseRun() {
+  let tail = ""; // the last character typed or copied in this run
+  let copied = "";
+  return {
+    /** The text to paste for this phrase, given the phrases already typed. */
+    pasteText(text) { return joinAfter(tail, text); },
+    /** The phrase went in (pasted, or typed directly into one of Filow's own fields). */
+    typed(text) { if (text) tail = text.slice(-1); },
+    /** Copy only: the whole text said so far, for the clipboard. */
+    copyText(text) {
+      copied += joinAfter(copied.slice(-1), text);
+      if (text) tail = text.slice(-1);
+      return copied;
+    },
+  };
+}
+
 module.exports = {
-  joinAfter,
+  joinAfter, createPhraseRun,
   MODS, LANGS, DEFAULTS, CHORDS, parseChord, chordLabel, checkChord, sanitizeConfig, nextStored, pasteDecision,
   snapshotClipboard, restoreClipboard, clipboardWriter, createClipboardInserter, postProcess, removeFillers, setFillerHook, fold,
 };
