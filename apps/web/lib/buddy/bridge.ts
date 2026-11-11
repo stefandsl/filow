@@ -31,7 +31,7 @@ export type DictationStatus = {
   screenReader?: boolean;
 };
 /** What happened to a dictation (apps/desktop/dictation.js insert()). */
-export type DictationResult = { ok: boolean; action: "paste" | "copy" | "direct" | "none"; reason: string; chars: number };
+export type DictationResult = { ok: boolean; action: "paste" | "typed" | "copy" | "direct" | "refused" | "none"; reason: string; chars: number };
 
 export type OkFilowStatus = {
   enabled: boolean;
@@ -178,7 +178,7 @@ export type OkFilowBridge = {
   press(): void;
   release(): void;
   /** `handsFree`: a dictation with the keys up, typed phrase by phrase until the keys are pressed once more. */
-  onPress(fn: (p: { purpose: "talk" | "dictate"; handsFree?: boolean } | undefined) => void): Off;
+  onPress(fn: (p: { purpose: "talk" | "dictate"; handsFree?: boolean; upgrade?: boolean } | undefined) => void): Off;
   onRelease(fn: (p: { purpose: "talk" | "dictate" | null } | undefined) => void): Off;
   onCancel(fn: (p: { purpose: "talk" | "dictate" | null } | undefined) => void): Off;
   onConfig(fn: (s: OkFilowStatus) => void): Off;

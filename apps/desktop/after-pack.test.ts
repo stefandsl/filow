@@ -33,11 +33,13 @@ const sherpa = (os: string, cpu: string) => ["sherpa-onnx.node", ...LIBS[os]].ma
 const hook = (platform: string, cpu: string) => `uiohook-napi/prebuilds/${platform}-${cpu}/uiohook-napi.node`;
 /** Filow's own build of the hook binary for Windows x64 (native/uiohook, issue #6), next to node_modules. */
 const OURS = "../native/uiohook/prebuilds/win32-x64/uiohook-napi.node";
+/** The dictation helper for Windows x64 (native/target). */
+const TARGET = "../native/target/prebuilds/win32-x64/filow-target.node";
 
 it("passes a build that holds the speech and hotkey binaries for its own platform and CPU", () => {
   expect(missingNative(resources("linux-ok", [...sherpa("linux", "x64"), hook("linux", "x64")]), "linux", "x64")).toEqual([]);
-  expect(missingNative(resources("win-ok", [...sherpa("win", "x64"), hook("win32", "x64"), OURS]), "win32", "x64")).toEqual([]);
-  expect(missingNative(resources("win-stock-hook-only", [...sherpa("win", "x64"), hook("win32", "x64")]), "win32", "x64")).toEqual(["native/uiohook/prebuilds/win32-x64 (keyboard hook that Windows does not refuse)"]);
+  expect(missingNative(resources("win-ok", [...sherpa("win", "x64"), hook("win32", "x64"), OURS, TARGET]), "win32", "x64")).toEqual([]);
+  expect(missingNative(resources("win-stock-hook-only", [...sherpa("win", "x64"), hook("win32", "x64")]), "win32", "x64")).toEqual(["native/uiohook/prebuilds/win32-x64 (keyboard hook that Windows does not refuse)", "native/target/prebuilds/win32-x64 (dictation: target window and password boxes)"]);
 });
 
 it("names what is missing when the binaries are for another CPU (x64 build made on an arm64 Mac)", () => {
@@ -48,14 +50,14 @@ it("names what is missing when the binaries are for another CPU (x64 build made 
 });
 
 it("uses sherpa's win- prefix on Windows and needs the addon itself, not just the folder or another .node", () => {
-  const res = resources("win-empty", ["sherpa-onnx-win-x64/README.md", "sherpa-onnx-win-x64/other.node", hook("win32", "x64"), OURS]);
+  const res = resources("win-empty", ["sherpa-onnx-win-x64/README.md", "sherpa-onnx-win-x64/other.node", hook("win32", "x64"), OURS, TARGET]);
   expect(missingNative(res, "win32", "x64")).toEqual(["sherpa-onnx-win-x64 (speech to text)"]);
-  const noHook = resources("win-no-hook", [...sherpa("win", "x64"), "uiohook-napi/prebuilds/win32-x64/other.node", OURS]);
+  const noHook = resources("win-no-hook", [...sherpa("win", "x64"), "uiohook-napi/prebuilds/win32-x64/other.node", OURS, TARGET]);
   expect(missingNative(noHook, "win32", "x64")).toEqual(["uiohook-napi/prebuilds/win32-x64 (OK Filow hold-to-talk)"]);
 });
 
 it("names each library the speech addon cannot start without, with the target platform's file names", () => {
-  const addonOnly = (os: string, platform: string) => resources(`${os}-addon-only`, [`sherpa-onnx-${os}-x64/sherpa-onnx.node`, hook(platform, "x64"), ...(platform === "win32" ? [OURS] : [])]);
+  const addonOnly = (os: string, platform: string) => resources(`${os}-addon-only`, [`sherpa-onnx-${os}-x64/sherpa-onnx.node`, hook(platform, "x64"), ...(platform === "win32" ? [OURS, TARGET] : [])]);
   expect(missingNative(addonOnly("linux", "linux"), "linux", "x64")).toEqual(["sherpa-onnx-linux-x64/libonnxruntime.so (speech to text)", "sherpa-onnx-linux-x64/libsherpa-onnx-c-api.so (speech to text)"]);
   expect(missingNative(addonOnly("darwin", "darwin"), "darwin", "x64")).toEqual(["sherpa-onnx-darwin-x64/libonnxruntime.dylib (speech to text)", "sherpa-onnx-darwin-x64/libsherpa-onnx-c-api.dylib (speech to text)"]);
   expect(missingNative(addonOnly("win", "win32"), "win32", "x64")).toEqual(["sherpa-onnx-win-x64/onnxruntime.dll (speech to text)", "sherpa-onnx-win-x64/sherpa-onnx-c-api.dll (speech to text)"]);

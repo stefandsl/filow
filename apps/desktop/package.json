@@ -91,6 +91,9 @@
       "okfilow-gestures.js",
       "okfilow-hook-retry.js",
       "uiohook.js",
+      "dictation-target.js",
+      "dictation-diag.js",
+      "native/target/prebuilds/**",
       "native/uiohook/prebuilds/**",
       "okfilow-agents.js",
       "okfilow-selection.js",
@@ -243,7 +246,8 @@
       "node_modules/sherpa-onnx-node/**",
       "node_modules/sherpa-onnx-*/**",
       "node_modules/uiohook-napi/**",
-      "native/uiohook/**"
+      "native/uiohook/**",
+      "native/target/**"
     ],
     "electronFuses": {
       "runAsNode": false,

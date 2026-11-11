@@ -1389,6 +1389,9 @@ function getDictation() {
     screenReader: () => app.isAccessibilitySupportEnabled(),
     // The phrase models ("questions") are the ones made for short utterances; "auto" follows the speech language.
     modelReady: language => sttLocal.modelReady(userData, { use: "questions", language: language === "auto" ? sttLanguage() : language }),
+    // Windows: our own small helper reads which window has the keyboard (program, window class, administrator,
+    // password box) and sends the keys, so Filow knows whether Windows took them. Null on other systems.
+    target: () => require("./dictation-target").loadTarget(),
     // Ctrl + V (Command + V on macOS) through OK Filow's own keyboard hook: uiohook-napi (MIT) sends it with
     // SendInput on Windows, CGEvent on macOS and XTest on X11. No shell, no PowerShell, no extra native module.
     sendPaste: hook => {
@@ -1901,8 +1904,24 @@ async function reportSections() {
   let user = "";
   try { user = os.userInfo().username; } catch { /* no user info */ }
   const clean = (text) => diag.redact(text, { home: os.homedir(), user });
+  // Dictation and keys (dictation-diag.js): the hook, the settings, this system and the last dictations
+  // stage by stage. Names of programs and window classes, counts and times; never the dictated words.
+  let dictationFacts;
+  try {
+    const ok = okFilow ? okFilow.status() : null;
+    let mic = "unknown";
+    try { mic = process.platform === "linux" ? "the system decides (no permission to ask for)" : `access ${systemPreferences.getMediaAccessStatus("microphone")}`; } catch { /* stays unknown */ }
+    dictationFacts = getDictation().reportText({
+      hook: { ready: Boolean(ok && ok.hook === "hold"), error: ok ? ok.hookError : "OK Filow did not start", failures: ok ? ok.hookFailures : 0, lastTryAt: ok ? ok.hookLastTryAt : 0, permission: ok ? ok.hookPermission : "" },
+      mic,
+    });
+  } catch (err) {
+    dictationFacts = `(not readable: ${err && err.message ? err.message : err})`;
+  }
   return [
     { id: "system", text: system },
+    // keep: short and the first thing an agent needs, so the issue link never cuts it
+    { id: "dictation", text: clean(dictationFacts), keep: true },
     { id: "take", text: clean(lastTakeLog) },
     { id: "log", text: clean(tailOf(path.join(userData, "startup.log"), 6000)) },
   ];
