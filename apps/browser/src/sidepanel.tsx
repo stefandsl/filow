@@ -4,7 +4,7 @@
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { connect, type SessionClient } from "@filow/client";
-import { langFromLocale, LANGS, parseScript, slideNeedsImage, type Command, type GenerateProgress, type Lang, type ScreenMode, type SessionState, type SlideInput, type VisionResponse } from "@filow/core";
+import { isLang, LANG_LABELS, langFromLocale, LANGS, parseScript, slideNeedsImage, type Command, type GenerateProgress, type Lang, type ScreenMode, type SessionState, type SlideInput, type VisionResponse } from "@filow/core";
 import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
 import type { BuddyRecipients } from "@/lib/buddy/outbound";
 import { createPageOutbound } from "@/lib/buddy/outboundPage";
@@ -292,13 +292,9 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
             <Wordmark height={28} />
           </h1>
           <span className="spacer" />
-          <span className="langswitch">
-            {LANGS.map((l) => (
-              <button key={l} className={`chip ${lang === l ? "code" : ""}`} onClick={() => onLang(l)}>
-                {l.toUpperCase()}
-              </button>
-            ))}
-          </span>
+          <select className="btn langswitch" value={lang} aria-label={t("common.language")} title={t("common.language")} onChange={(e) => { if (isLang(e.target.value)) onLang(e.target.value); }}>
+            {LANGS.map((l) => <option key={l} value={l} lang={l}>{LANG_LABELS[l]}</option>)}
+          </select>
           {client && <span className="chip live">{status === "open" ? "●" : status}</span>}
         </header>
         <main className="pane-main">
