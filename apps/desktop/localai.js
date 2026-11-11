@@ -30,6 +30,8 @@ const CATALOG = {
   "qwen3-vl:4b": { dl: 3.3, ram: 8, ollama: true },
   "qwen3-vl:2b": { dl: 1.9, ram: 6, ollama: true },
   "lfm3-vl": { dl: 1.5, ram: 4, ollama: true },
+  // S1-mini by Superwhisper (s1-runtime.js): cleans up English dictation; 484,219,808 bytes, on every tier.
+  "s1-mini": { dl: 0.46, ram: 2, ollama: false },
 };
 
 /** Runs a probe as a child process: resolves its output, or "" on failure. The main process never waits on it. */

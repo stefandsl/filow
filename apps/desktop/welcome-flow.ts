@@ -21,6 +21,15 @@ export function offersDownload(offer: { online: boolean; unknown?: boolean; down
 }
 
 /**
+ * The size the setup step shows and asks about: the offer's total, less the share of the cleanup model
+ * (S1-mini by Superwhisper) when its line is unticked.
+ */
+export function offerGb(offer: { downloadGb: number; cleanup?: { gb: number } | null }, cleanupTicked: boolean): number {
+  if (cleanupTicked || !offer.cleanup) return offer.downloadGb;
+  return Math.max(0, Math.round((offer.downloadGb - offer.cleanup.gb) * 10) / 10);
+}
+
+/**
  * Escape (review T3 finding 9) does what the visible secondary button does ("Not now" on the setup step).
  * With no secondary button it does nothing: the welcome has no "cancel", and closing it completes it, so
  * a stray Escape must not end the guide. Never on a held key, never from an open list or while composing.

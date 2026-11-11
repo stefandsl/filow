@@ -1,16 +1,16 @@
 import { mountIcons } from "../web/components/icons";
 import { t, LANG_LABELS, acceptUiSnapshot, themeFollowing, resolveUiLanguage, type I18nKey, type UiBridge, type UiPatch, type UiSnapshot, type UiResult } from "../../packages/core/src/index";
 import { applyUiPreferences } from "../web/lib/applyUiPreferences";
-import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, escapeAction, type MicState, type StepId } from "./welcome-flow";
+import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, offerGb, escapeAction, type MicState, type StepId } from "./welcome-flow";
 import "./welcome.css";
 
 /** The speech-setup offer from the main process (apps/desktop/welcome-setup.js setupOffer). */
-type SetupOffer = { ask: boolean; ready: boolean; downloadGb: number; needsOllama: boolean; models: string[]; device: "pc" | "mac"; ramGb: number; online: boolean; profile: string | null; unknown?: boolean };
+type SetupOffer = { ask: boolean; ready: boolean; downloadGb: number; needsOllama: boolean; models: string[]; device: "pc" | "mac"; ramGb: number; online: boolean; profile: string | null; unknown?: boolean; cleanup?: { id: string; bytes: number; gb: number } | null };
 type WelcomeBridge = UiBridge & {
   complete: () => Promise<UiResult>;
   context: () => Promise<{ firstRun: boolean; askSetup: boolean }>;
   setupOffer: () => Promise<SetupOffer>;
-  chooseSetup: (accept: boolean) => Promise<{ ok: boolean }>;
+  chooseSetup: (accept: boolean, cleanup: boolean) => Promise<{ ok: boolean }>;
   openMicSettings: () => void;
 };
 declare global { interface Window { filowWelcome: WelcomeBridge } }
@@ -29,6 +29,10 @@ let errorKey: I18nKey | null = null;
 let steps: StepId[] = ["language"];
 let index = 0;
 let offer: SetupOffer | null = null;
+// The setup step's "S1-mini by Superwhisper" line: ticked unless the user unticks it.
+let cleanupTicked = true;
+/** The offer as the step counts it: without the cleanup model's share when its line is unticked. */
+const counted = (o: SetupOffer) => ({ ...o, downloadGb: offerGb(o, cleanupTicked) });
 let busy = false;
 const tr = (key: I18nKey, vars?: Record<string, string | number>) => t(key, state?.resolvedLang ?? "en", vars);
 
@@ -101,7 +105,7 @@ function renderStep() {
   let primary: I18nKey = "welcome.continue";
   let second: I18nKey | null = null;
   if (id === "preferences") primary = "welcome.done";
-  else if (id === "setup" && offer && offersDownload(offer)) { primary = offer.ready ? "welcome.setupAcceptRest" : "welcome.setupAccept"; second = "welcome.setupLater"; }
+  else if (id === "setup" && offer && offersDownload(counted(offer))) { primary = offer.ready ? "welcome.setupAcceptRest" : "welcome.setupAccept"; second = "welcome.setupLater"; }
   else if (last) primary = "welcome.finish";
   $("#primary-label").textContent = tr(primary);
   secondary.hidden = !second;
@@ -201,9 +205,9 @@ function renderSetup() {
   if (!offer) return;
   $("#setup-name").textContent = offer.profile ? tr("welcome.setupProfile", { name: offer.profile }) : tr("welcome.setupLocal");
   $("#setup-facts").textContent = offer.ramGb > 0 ? tr("welcome.setupMemory", { gb: offer.ramGb }) : "";
-  const download = offersDownload(offer);
+  const download = offersDownload(counted(offer));
   const ollama = offer.needsOllama ? ` ${tr("welcome.setupOllama")}` : "";
-  const gb = offer.downloadGb.toLocaleString(state.resolvedLang);
+  const gb = offerGb(offer, cleanupTicked).toLocaleString(state.resolvedLang);
   // Ready for a first take: said on its own (green); the optional rest, if any, follows in plain text.
   const ready = offer.ready && !offer.unknown;
   const size = offer.unknown ? tr("welcome.setupUnknown")
@@ -213,8 +217,13 @@ function renderSetup() {
   $("#setup-ready").hidden = !ready;
   $("#setup-size").textContent = size;
   $("#setup-size").hidden = !size;
-  $("#setup-details").hidden = !download || offer.models.length === 0;
-  $("#setup-list").replaceChildren(...offer.models.map(n => { const li = document.createElement("li"); li.textContent = tr(`catalog.${n}` as I18nKey); return li; }));
+  // S1-mini by Superwhisper has its own ticked line with its real size; it stays while there is a way to download.
+  const cleanup = offersDownload(offer) ? offer.cleanup ?? null : null;
+  const listed = offer.models.filter(n => n !== cleanup?.id);
+  $("#setup-details").hidden = !download || listed.length === 0;
+  $("#setup-cleanup-row").hidden = !cleanup;
+  if (cleanup) $("#setup-cleanup-label").textContent = tr("welcome.setupCleanup", { size: `${Math.round(cleanup.bytes / 1024 / 1024)} MB` });
+  $("#setup-list").replaceChildren(...listed.map(n => { const li = document.createElement("li"); li.textContent = tr(`catalog.${n}` as I18nKey); return li; }));
   // Nothing to download, offline or unknown: the size line already says so.
   $("#setup-note").hidden = !download;
 }
@@ -241,7 +250,7 @@ async function finish(acceptSetup: boolean) {
   busy = true; render();
   try {
     // A failed answer must not keep the user in the welcome: main() then asks with its own dialog.
-    if (steps.includes("setup")) await bridge.chooseSetup(acceptSetup).catch(() => undefined);
+    if (steps.includes("setup")) await bridge.chooseSetup(acceptSetup, cleanupTicked).catch(() => undefined);
     stopMic();
     const result = await bridge.complete();
     if (!result.ok) { errorKey = result.code; render(result.state); }
@@ -252,7 +261,7 @@ function primaryAction() {
   if (busy) return;
   if (index < steps.length - 1) { go(index + 1); return; }
   // "Download" only when the step offered one: "Finish" on an offline or could-not-check card downloads nothing.
-  void finish(steps[index] === "setup" && !!offer && offersDownload(offer));
+  void finish(steps[index] === "setup" && !!offer && offersDownload(counted(offer)));
 }
 form.addEventListener("submit", event => { event.preventDefault(); primaryAction(); });
 // Enter continues from a step's title or the language choices. Never on a held key (auto-repeat would
@@ -291,6 +300,7 @@ function checkDevices() {
   });
 }
 $("#mic-settings").addEventListener("click", () => bridge.openMicSettings());
+$<HTMLInputElement>("#setup-cleanup").addEventListener("change", event => { cleanupTicked = (event.target as HTMLInputElement).checked; render(); });
 
 async function update(patch: UiPatch) {
   try { const result = await bridge.updatePreferences(patch); errorKey = result.ok ? null : result.code; render(result.state); }

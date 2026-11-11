@@ -68,6 +68,34 @@ describe("SetupPicker", () => {
     expect(plain(render(rtx16, "auto", { ollama: ["gemma4:e2b"], sherpa: true }))).not.toContain("translate scripts");
   });
 
+  it("S1-mini by Superwhisper is offered ticked on every tier, with its real size, and only while it is missing", () => {
+    const withCleanup = (hardware: MachineInfo, cleanup: { runtime: boolean; model: boolean; downloading: boolean; pct: number } | null, installed = { ollama: [] as string[], sherpa: false }) =>
+      renderToStaticMarkup(
+        <LangProvider lang="en">
+          <SetupPicker hardware={hardware} gpuName="" preference="auto" onChange={() => {}} installed={installed} onGet={() => {}} cleanup={cleanup} />
+        </LangProvider>,
+      );
+    const missing = { runtime: true, model: false, downloading: false, pct: 0 };
+    for (const pc of [oldLaptop, rtx8, rtx16]) {
+      const html = withCleanup(pc, missing);
+      expect(html).toMatch(/data-cleanup-model="offered"><input type="checkbox" checked=""/);
+      expect(plain(html)).toContain(t("setup.cleanup", "en", { size: "462 MB" }));
+    }
+    expect(t("setup.cleanup", "en", { size: "462 MB" })).toContain("S1-mini by Superwhisper");
+    // nothing else missing: the download button is still there for it
+    const all = { ollama: ["clef-flash", "lfm3-vl", "qwen3-vl:2b", "gemma4:e2b", "gemma4:e4b"], sherpa: true };
+    expect(plain(withCleanup(rtx16, missing, all))).toContain(t("setup.get", "en"));
+    expect(plain(withCleanup(rtx16, { ...missing, model: true }, all))).not.toContain(t("setup.get", "en"));
+    // on this computer already, no runtime in this build, or the browser: no line
+    expect(withCleanup(oldLaptop, { ...missing, model: true })).not.toContain("data-cleanup-model");
+    expect(withCleanup(oldLaptop, { ...missing, runtime: false })).not.toContain("data-cleanup-model");
+    expect(withCleanup(oldLaptop, null)).not.toContain("data-cleanup-model");
+    // while it downloads: the progress, no tick
+    const running = withCleanup(oldLaptop, { ...missing, downloading: true, pct: 37 });
+    expect(plain(running)).toContain(t("setup.cleanupGetting", "en", { pct: 37 }));
+    expect(running).not.toContain('data-cleanup-model="offered"');
+  });
+
   it("a PC that cannot hold that model is told so, and why", () => {
     expect(plain(render({ ...oldLaptop, ramGb: 6 }))).toContain(t("setup.scriptNoMemory", "en", { ram: 8 }));
     expect(plain(render({ ...oldLaptop, freeDiskGb: 6 }))).toContain(t("setup.scriptNoDisk", "en"));

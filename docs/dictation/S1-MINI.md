@@ -45,7 +45,7 @@ the input (`dictation-cleanup.js`).
 To do before this can ship: the macOS binaries are not signed by their makers, so Filow's build must sign
 them; the release to take must be pinned by tag and hash (the "latest" release has no binaries).
 
-### 2. Delivery of the 462 MiB model: downloaded by the setup, on by default (recommended)
+### 2. Delivery of the 462 MiB model: downloaded by the setup, on by default (built, see "The model in the setup")
 
 The file is `s1-mini-q4_k_m.gguf`, 484,219,808 bytes, SHA-256
 `3b41ebe2502cbd03e811d5d16b022f5ab551eda58d62597d152f89535003c634` (superwhisper/s1-mini-GGUF, revision
@@ -185,19 +185,52 @@ Started from the page (the same call the Settings button makes), with the model 
   unsigned), with the hardened runtime; on Linux the archive is built on Ubuntu and must be tried on the
   oldest distribution Filow supports; then an after-pack check per platform like the Windows one.
 
+## The model in the setup (2026-11-11, owner's decision: "Setup downloads it", ticked by default)
+
+The same line, "S1-mini by Superwhisper" with its size (462 MB: 484,219,808 bytes), ticked on every
+tier, in three places:
+
+| Where | What the user sees | Code |
+|---|---|---|
+| Windows installer, components page | a ticked box in the "Local AI" group, in the Recommended and Full types, in the installer's twelve languages; "already installed" and unticked when the file is in the profile | `apps/desktop/build/installer.nsh` (`SecS1Mini`); the choice travels as `"s1-mini"` in `install-choices.json` |
+| First-run welcome, "this computer" step | a ticked checkbox under "What gets installed"; unticking takes its share out of the size shown | `welcome-setup.js` (`withCleanup`, `setupOffer`, `setupChoice`), `welcome.ts`, `welcome.html` |
+| Settings, "Setup for this computer" | a ticked checkbox next to "Download now"; the percent while it downloads; no line once the file is here | `apps/web/app/settings/local/SetupPicker.tsx`, `CLEANUP_MODEL` in `packages/core/src/profile.ts` |
+
+One download path. All three, and the button in Settings > Dictation, end in `wantCleanupModel()` in
+`main.js`, which calls `wantModel()` in `s1-runtime.js`, which calls `fetchModel()` (resumable, pinned
+SHA-256, the file gets its name only after the check). No page downloads the file by itself.
+
+Without a network during setup the item stays pending: the wish is written to `settings.json`
+(`cleanupModelWanted`) and tried again at every start until the file is on the computer; Settings >
+Dictation shows its button the whole time. A build without the runtime (macOS, Linux today) never offers
+the line and never keeps the wish.
+
+On an update the installer's components page is skipped, so the installer does not hand `"s1-mini"` to
+the app then: a model the user unticked does not come back with every update.
+
+Tests: `apps/desktop/s1-setup.test.ts` (one path, pending when offline, the size and the exact name in
+every place, twelve installer labels, five languages), `apps/web/components/setupPicker.test.tsx`.
+
+Not verified by a real install: the installer writes `install-choices.json` into the profile of the
+installed Filow and registers under the same application id, so it cannot be run on this PC without
+touching the owner's installation. The installer was compiled (NSIS turns every warning into an error)
+and its strings and sizes are checked by tests.
+
+## Download speed (2026-11-11)
+
+The earlier note (0.3 MB/s through Filow, about 2 MB/s with curl) was looked into. Filow's downloader and
+curl were run at the same moment against the pinned link, five rounds, the downloader inside Electron's
+main process: 0.21 to 1.31 MB/s for Filow, 0.26 to 0.97 MB/s for curl, neither consistently ahead, with
+and without a resumed (Range) request. In plain Node the downloader matched curl (0.9 MB/s both).
+Against a local server it moves 563 MB/s. So the speed seen that evening was the line and the CDN at
+that moment, not the code.
+
+One real fault was found on the way and fixed: progress was reported for every 16 KB chunk, and for
+speech models each report wrote a log line to disk and told every window (30,000 times for a 500 MB
+model; it halved the local ceiling to 255 MB/s). Progress is now reported when the whole percent
+changes (`stt-download.js`, test in `stt-download.test.ts`). This applies to every model download.
+
 ## Not built yet
 
-- **The model in the setup (owner's decision: "Setup downloads it", ticked by default).** Not built.
-  Today the model is downloaded from Settings > Dictation with one button that shows the real size.
-  What the next person does, with the places:
-  1. `apps/desktop/build/installer.nsh`: a new section next to `SecWhisperBase` ... `SecOllama` (a state
-     variable, `_FilowSection` and `_FilowReadSection` lines, a label per installer language with the
-     size "462 MB", in the Recommended and Full types), and its state written where the other choices are
-     handed to the app. NSIS treats warnings as errors: build the installer after every change.
-  2. `apps/desktop/welcome-setup.js` (`setupOffer`) and `welcome.ts` ("speech setup" step): the same item
-     in the offer, ticked by default, calling `s1Runtime().download()` (main.js) when chosen.
-  3. `apps/web/app/settings/local/SetupPicker.tsx` (+ `setupPicker.test.tsx`) and `packages/core/src/profile.ts`:
-     the row with its size on every tier, five languages.
-  The download itself is done and proven: `s1-runtime.js` `download()` (resumable, pinned SHA-256, file
-  renamed only after the check), IPC `dictation:cleanup:download`, status in `cleanupState`.
-- The cleanup for other languages (the owner named two more models): not started, see the report.
+- The cleanup for other languages (the owner named two more models): see `CLEANUP-MULTILINGUAL.md` when
+  it is written.

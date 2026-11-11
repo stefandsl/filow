@@ -11,7 +11,8 @@ contextBridge.exposeInMainWorld("filowWelcome", {
   // First-run guide (docs/welcome/ONBOARDING-V2.md): which steps to show, the speech-setup offer and its answer.
   context: () => ipcRenderer.invoke("welcome:context"),
   setupOffer: () => ipcRenderer.invoke("welcome:setupOffer"),
-  chooseSetup: accept => ipcRenderer.invoke("welcome:chooseSetup", accept === true),
+  // cleanup: the step's "S1-mini by Superwhisper" line (ticked unless the user unticked it).
+  chooseSetup: (accept, cleanup) => ipcRenderer.invoke("welcome:chooseSetup", accept === true, cleanup !== false),
   // Fixed destination (the OS microphone privacy page); the renderer cannot pass a URL.
   openMicSettings: () => ipcRenderer.send("welcome:openMicSettings"),
 });

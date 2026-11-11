@@ -3,6 +3,8 @@
 // opened behind the splash and listed five model names. Track T2 (setup profiles) fills `profile`; the shape
 // of the offer stays the same.
 
+const { MODEL: CLEANUP_FILE, SETUP_ID: CLEANUP_MODEL } = require("./s1-runtime");
+
 /** Models a take cannot start without: the speech model and a local decision model. */
 const TAKE_MODELS = new Set(["nemotron-streaming", "clef-flash", "clef"]);
 
@@ -17,14 +19,15 @@ function installedModels(tags) {
  * whether the app's page cache holds anything at all (the Whisper models live there; the main process
  * cannot look inside it, but an empty cache means they are certainly missing).
  */
-async function probeSetup({ fetchJson, sherpaReady, browserCache = () => true, diskModels = () => [] }) {
+async function probeSetup({ fetchJson, sherpaReady, browserCache = () => true, diskModels = () => [], cleanupReady = () => false }) {
   const tags = await Promise.resolve().then(fetchJson).catch(() => null);
-  let sherpa, cache, onDisk = [];
+  let sherpa, cache, cleanup, onDisk = [];
+  try { cleanup = Boolean(cleanupReady()); } catch { cleanup = false; }
   try { sherpa = Boolean(sherpaReady()); } catch { sherpa = false; }
   try { cache = Boolean(browserCache()); } catch { cache = true; }
   // Ollama installed but not running: its models are still on disk (ollamaDiskModels), not to download again.
   if (tags === null) try { onDisk = installedModels({ models: diskModels().map((name) => ({ name })) }); } catch { onDisk = []; }
-  return { sherpa, ollamaRunning: tags !== null, ollamaModels: tags !== null ? installedModels(tags) : onDisk, browserCache: cache };
+  return { sherpa, ollamaRunning: tags !== null, ollamaModels: tags !== null ? installedModels(tags) : onDisk, browserCache: cache, cleanup };
 }
 
 /**
@@ -42,9 +45,20 @@ function ollamaDiskModels(modelsDir, readdir, join) {
   return out;
 }
 
+/**
+ * S1-mini by Superwhisper (cleans up English dictation) joins every recommendation, whatever the setup
+ * tier, when this build has its runtime and the file is not on this computer yet. cleanup: s1-runtime.js
+ * status() ({ runtime, model }).
+ */
+function withCleanup(rec, cleanup, catalog) {
+  if (!cleanup || !cleanup.runtime || cleanup.model || !catalog[CLEANUP_MODEL] || rec.models.includes(CLEANUP_MODEL)) return rec;
+  return { ...rec, models: [...rec.models, CLEANUP_MODEL], downloadGb: Math.round((rec.downloadGb + catalog[CLEANUP_MODEL].dl) * 10) / 10 };
+}
+
 /** true, false, or null when it cannot be known here (a browser model with a non-empty page cache). */
 function isInstalled(name, catalog, installed) {
   if (name === "nemotron-streaming") return installed.sherpa;
+  if (name === CLEANUP_MODEL) return installed.cleanup === true;
   if (catalog[name] && catalog[name].ollama) return installed.ollamaModels.some((m) => String(m).replace(/:latest$/, "") === name);
   return installed.browserCache === false ? false : null;
 }
@@ -75,6 +89,8 @@ function setupOffer({ hw, rec, catalog, installed, online, installerChose = fals
     ramGb: hw.ramGb,
     online: Boolean(online),
     profile,
+    // The step shows it as its own ticked line with the real size; unticked, its share leaves the total.
+    cleanup: known.includes(CLEANUP_MODEL) ? { id: CLEANUP_MODEL, bytes: CLEANUP_FILE.bytes, gb: catalog[CLEANUP_MODEL].dl } : null,
   };
 }
 
@@ -82,9 +98,10 @@ function setupOffer({ hw, rec, catalog, installed, online, installerChose = fals
  * The step's answer as main() expects install choices: null = download nothing now. Only what is not
  * known to be installed; the step offers a download only when that has a size (offer.downloadGb > 0).
  */
-function setupChoice(offer, rec, accept, catalog, installed) {
+function setupChoice(offer, rec, accept, catalog, installed, cleanup = true) {
   if (!accept || !offer.online || !(offer.downloadGb > 0)) return null;
-  const models = toInstall(rec, catalog, installed);
+  // cleanup: the step's "S1-mini by Superwhisper" line, ticked unless the user unticked it.
+  const models = toInstall(rec, catalog, installed).filter((n) => cleanup || n !== CLEANUP_MODEL);
   if (!models.length) return null;
   return { models, ollama: Boolean(rec.ollama) && models.some((n) => catalog[n] && catalog[n].ollama) };
 }
@@ -125,4 +142,4 @@ function createOfferGate(compute, defer = (fn) => setTimeout(fn, 0)) {
   };
 }
 
-module.exports = { TAKE_MODELS, installedModels, probeSetup, ollamaDiskModels, setupOffer, setupChoice, savedSetupAnswer, createOfferGate };
+module.exports = { TAKE_MODELS, CLEANUP_MODEL, installedModels, probeSetup, ollamaDiskModels, withCleanup, setupOffer, setupChoice, savedSetupAnswer, createOfferGate };

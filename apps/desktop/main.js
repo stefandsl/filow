@@ -213,7 +213,7 @@ const welcomeUrl = pathToFileURL(welcomeFile).href;
 let uiPreferences, welcomeController, welcomeWin = null;
 let startupTransition = false, quitting = false;
 let welcomeHydrationTimer;
-const { probeSetup, ollamaDiskModels, setupOffer, setupChoice, savedSetupAnswer, createOfferGate } = require("./welcome-setup");
+const { probeSetup, ollamaDiskModels, withCleanup, setupOffer, setupChoice, savedSetupAnswer, createOfferGate, CLEANUP_MODEL } = require("./welcome-setup");
 /** shown: the welcome's speech-setup step was answered; choice: that answer (install choices or null); rec, installed: what the offer was made from; offered: the offer the step showed. */
 const welcomeSetup = { shown: false, choice: null, rec: null, installed: null, offered: null };
 // The hardware scan behind the offer waits until the welcome window is on screen (opened in welcome:ready).
@@ -233,11 +233,13 @@ async function computeWelcomeOffer() {
       return fs.existsSync(dir) && fs.readdirSync(dir).length > 0;
     },
     diskModels: () => ollamaDiskModels(process.env.OLLAMA_MODELS || path.join(os.homedir(), ".ollama", "models"), (d) => fs.readdirSync(d), path.join),
+    cleanupReady: () => s1Runtime().status().model,
   });
   const { net } = require("electron");
-  welcomeSetup.rec = info.recommended;
+  const rec = withCleanup(info.recommended, s1Runtime().status(), localAi.CATALOG);
+  welcomeSetup.rec = rec;
   welcomeSetup.installed = installed;
-  return setupOffer({ hw: info, rec: info.recommended, catalog: localAi.CATALOG, installed, online: !offline && net.isOnline(), installerChose: installChoicesFound });
+  return setupOffer({ hw: info, rec, catalog: localAi.CATALOG, installed, online: !offline && net.isOnline(), installerChose: installChoicesFound });
 }
 
 function uiSender(event, welcomeOnly = false) {
@@ -304,9 +306,7 @@ function initializeUiPreferences() {
 // The user asked for S1-mini by Superwhisper in Settings: one download from huggingface.co, hash checked.
 ipcMain.handle("dictation:cleanup:download", event => {
   if (!uiSender(event)) throw new Error("Denied");
-  if (offline) return { started: false, reason: "offline" };
-  void s1Runtime().fetchModel();
-  return { started: true };
+  return wantCleanupModel("asked in Settings");
 });
   ipcMain.handle("dictation:settings:configure", (event, patch) => {
     if (!uiSender(event)) throw new Error("Denied");
@@ -328,9 +328,9 @@ ipcMain.handle("dictation:cleanup:download", event => {
     return { firstRun, askSetup: firstRun && !installChoicesFound && !settings.localAiOffered };
   });
   ipcMain.handle("welcome:setupOffer", event => { if (!uiSender(event, true)) throw new Error("Denied"); return welcomeOfferForStep(); });
-  ipcMain.handle("welcome:chooseSetup", (event, accept) => {
-    if (!uiSender(event, true) || typeof accept !== "boolean") throw new Error("Denied");
-    return chooseWelcomeSetup(accept);
+  ipcMain.handle("welcome:chooseSetup", (event, accept, cleanup) => {
+    if (!uiSender(event, true) || typeof accept !== "boolean" || typeof cleanup !== "boolean") throw new Error("Denied");
+    return chooseWelcomeSetup(accept, cleanup);
   });
   ipcMain.on("welcome:openMicSettings", event => {
     if (!uiSender(event, true)) return;
@@ -359,9 +359,9 @@ async function welcomeOfferForStep() {
  * The setup step's answer. No offer shown (the scan failed and the step said "set up from Settings") =
  * nothing to download, whatever the button said; no second scan here.
  */
-function chooseWelcomeSetup(accept) {
+function chooseWelcomeSetup(accept, cleanup = true) {
   const offer = welcomeSetup.offered;
-  welcomeSetup.choice = offer ? setupChoice(offer, welcomeSetup.rec, accept, localAi.CATALOG, welcomeSetup.installed) : null;
+  welcomeSetup.choice = offer ? setupChoice(offer, welcomeSetup.rec, accept, localAi.CATALOG, welcomeSetup.installed, cleanup) : null;
   welcomeSetup.shown = true; // answered: closing the window before this step still gets the question later
   // Kept on disk until offerLocalAi() uses it: quitting before the server check must not ask again.
   settings.welcomeSetupAnswer = { choice: welcomeSetup.choice };
@@ -1388,6 +1388,23 @@ function s1Runtime() {
 }
 app.on("will-quit", () => { if (s1) s1.stop(); });
 /**
+ * The installer's components page, the welcome's setup step and Settings all end here: one download path
+ * (s1-runtime.js fetchModel: resumable, pinned SHA-256). The wish is kept in settings.json until the file
+ * is on this computer, so a setup done without a network is finished at a later start.
+ */
+function wantCleanupModel(why) {
+  const store = {
+    set(wanted) {
+      if (Boolean(settings.cleanupModelWanted) === wanted) return;
+      if (wanted) settings.cleanupModelWanted = true; else delete settings.cleanupModelWanted;
+      try { saveSettings(); } catch (err) { logLine(`s1: wish not saved: ${err.message}`); }
+    },
+  };
+  const result = require("./s1-runtime").wantModel(s1Runtime(), store, () => !offline);
+  logLine(`s1: model wanted (${why}): ${result.started ? "download started" : result.reason}`);
+  return result;
+}
+/**
  * Called when the dictation keys go down: S1-mini is loaded while the person speaks (about a second),
  * so the words can be cleaned when the keys go up. Only for someone who dictates in English; it holds
  * about 0.9 GB of memory and s1-runtime.js lets it go after ten minutes without a dictation.
@@ -1633,7 +1650,7 @@ async function offerLocalAi() {
     return welcomeSetup.choice;
   }
   const info = await localAiInfo();
-  const rec = info.recommended;
+  const rec = withCleanup(info.recommended, s1Runtime().status(), localAi.CATALOG);
   if (!rec.models.length) return null;
   const tx = (key, vars) => sharedText(`shell.localAi.${key}`, menuLang(), vars);
   const machine = [tx("machine", { ram: info.ramGb }), info.gpu, info.freeGb >= 0 ? tx("free", { gb: info.freeGb }) : ""].filter(Boolean).join(" · ");
@@ -2230,6 +2247,10 @@ async function main() {
       saveSettings();
       await offerFirewall(win);
     }
+    // S1-mini by Superwhisper is fetched here, by the main process, not by the settings page below.
+    const cleanupChosen = Boolean(choices && Array.isArray(choices.models) && choices.models.includes(CLEANUP_MODEL));
+    if (cleanupChosen) choices = { ...choices, models: choices.models.filter((n) => n !== CLEANUP_MODEL) };
+    if (cleanupChosen || settings.cleanupModelWanted) wantCleanupModel(cleanupChosen ? "chosen in the setup" : "still pending from the setup");
     if (choices && choices.ollama) void startOllamaInstall();
     else startOllamaIfWanted("Filow opened");
     const firstPage =

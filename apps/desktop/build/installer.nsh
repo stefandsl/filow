@@ -44,6 +44,7 @@ Var ModelsIntro
 Var HwLine
 Var LblWhisperBase
 Var LblWhisperSmall
+Var LblS1Mini
 Var LblClef
 Var LblGemmaSmall
 Var LblGemmaBig
@@ -52,6 +53,7 @@ Var RunText
 Var ShortcutText
 Var StWhisperBase
 Var StWhisperSmall
+Var StS1Mini
 Var StClef
 Var StGemmaSmall
 Var StGemmaBig
@@ -76,6 +78,7 @@ Var InfoTitle
 Var InfoSub
 Var InfoTop
 Var OllamaFound
+Var HaveS1Mini
 Var HaveClef
 Var HaveGemmaSmall
 Var HaveGemmaBig
@@ -191,6 +194,10 @@ FunctionEnd
   StrCpy $HaveClef 0
   StrCpy $HaveGemmaSmall 0
   StrCpy $HaveGemmaBig 0
+  StrCpy $HaveS1Mini 0
+  ${If} ${FileExists} "$APPDATA\@filow\desktop\models\s1-mini\s1-mini-q4_k_m.gguf"
+    StrCpy $HaveS1Mini 1
+  ${EndIf}
   ${If} ${FileExists} "$PROFILE\.ollama\models\manifests\registry.ollama.ai\library\clef-flash\latest"
     StrCpy $HaveClef 1
   ${EndIf}
@@ -206,6 +213,12 @@ FunctionEnd
 !macro FilowRecommend
   StrCpy $StWhisperBase ${BST_CHECKED}
   StrCpy $StWhisperSmall ${BST_UNCHECKED}
+  ; S1-mini by Superwhisper (cleans up English dictation, 462 MB): ticked on every PC, whatever its
+  ; memory, unless the file is already here. The 4 GB kept spare below covers it.
+  StrCpy $StS1Mini ${BST_CHECKED}
+  ${If} $HaveS1Mini == 1
+    StrCpy $StS1Mini ${BST_UNCHECKED}
+  ${EndIf}
   StrCpy $StClef ${BST_UNCHECKED}
   StrCpy $StGemmaSmall ${BST_UNCHECKED}
   StrCpy $StGemmaBig ${BST_UNCHECKED}
@@ -284,6 +297,11 @@ FunctionEnd
   ${ElseIf} $RamGb < 16
     StrCpy $LblWhisperSmall "$LblWhisperSmall$SfxRam16"
   ${EndIf}
+  ${If} $HaveS1Mini == 1
+    StrCpy $LblS1Mini "$LblS1Mini$SfxHave"
+  ${ElseIf} $StS1Mini == ${BST_CHECKED}
+    StrCpy $LblS1Mini "$LblS1Mini$SfxRec"
+  ${EndIf}
   ${If} $HaveClef == 1
     StrCpy $LblClef "$LblClef$SfxHave"
   ${ElseIf} $StClef == ${BST_CHECKED}
@@ -329,6 +347,9 @@ SectionGroup /e "Local AI" SecAI
   Section /o "Whisper small" SecWhisperSmall
     AddSize 512000
   SectionEnd
+  Section /o "S1-mini by Superwhisper" SecS1Mini
+    AddSize 472871
+  SectionEnd
   Section /o "Clef Flash" SecClef
     AddSize 11534336
   SectionEnd
@@ -364,6 +385,7 @@ SectionEnd
   SectionSetText ${SecAI} "$LblGroupAI"
   !insertmacro _FilowSection ${SecWhisperBase} $StWhisperBase "$LblWhisperBase"
   !insertmacro _FilowSection ${SecWhisperSmall} $StWhisperSmall "$LblWhisperSmall"
+  !insertmacro _FilowSection ${SecS1Mini} $StS1Mini "$LblS1Mini"
   !insertmacro _FilowSection ${SecClef} $StClef "$LblClef"
   !insertmacro _FilowSection ${SecGemmaSmall} $StGemmaSmall "$LblGemmaSmall"
   !insertmacro _FilowSection ${SecGemmaBig} $StGemmaBig "$LblGemmaBig"
@@ -396,6 +418,7 @@ SectionEnd
 !macro FilowReadSections
   !insertmacro _FilowReadSection ${SecWhisperBase} $StWhisperBase
   !insertmacro _FilowReadSection ${SecWhisperSmall} $StWhisperSmall
+  !insertmacro _FilowReadSection ${SecS1Mini} $StS1Mini
   !insertmacro _FilowReadSection ${SecClef} $StClef
   !insertmacro _FilowReadSection ${SecGemmaSmall} $StGemmaSmall
   !insertmacro _FilowReadSection ${SecGemmaBig} $StGemmaBig
@@ -414,6 +437,7 @@ SectionEnd
     StrCpy $ModelsIntro "Spunta cosa scaricare al primo avvio. '– consigliato' gira bene su questo PC; le altre note dicono cosa manca. Puoi cambiare tutto in Impostazioni."
     StrCpy $LblWhisperBase "Whisper base: trascrizione sul dispositivo (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: trascrizione più accurata (500 MB, serve una GPU)"
+    StrCpy $LblS1Mini "S1-mini by Superwhisper (462 MB): ripulisce la dettatura in inglese su questo PC"
     StrCpy $LblClef "Clef Flash: decisioni in locale (11 GB, 16 GB di RAM)"
     StrCpy $LblGemmaSmall "Gemma 4 E2B: copione dalle slide e traduzione (4,3 GB, 8 GB di RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: copione dalle slide e traduzione, migliore (6,1 GB, 16 GB di RAM)"
@@ -444,6 +468,7 @@ SectionEnd
     StrCpy $ModelsIntro "Wähle, was beim ersten Start geladen wird. '– empfohlen' läuft gut auf diesem PC; die anderen Hinweise sagen, was fehlt. Alles lässt sich später in den Einstellungen ändern."
     StrCpy $LblWhisperBase "Whisper base: Spracherkennung auf dem Gerät (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: genauere Spracherkennung (500 MB, braucht eine GPU)"
+    StrCpy $LblS1Mini "S1-mini by Superwhisper (462 MB): bereinigt englische Diktate auf diesem PC"
     StrCpy $LblClef "Clef Flash: lokale Entscheidungen (11 GB, 16 GB RAM)"
     StrCpy $LblGemmaSmall "Gemma 4 E2B: Skript aus den Folien und Übersetzung (4,3 GB, 8 GB RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: Skript aus den Folien und Übersetzung, besser (6,1 GB, 16 GB RAM)"
@@ -474,6 +499,7 @@ SectionEnd
     StrCpy $ModelsIntro "Cochez ce qui sera téléchargé au premier lancement. « – recommandé » fonctionne bien sur ce PC ; les autres notes disent ce qui manque. Tout se change ensuite dans les Paramètres."
     StrCpy $LblWhisperBase "Whisper base : transcription sur l'appareil (150 Mo)"
     StrCpy $LblWhisperSmall "Whisper small : transcription plus précise (500 Mo, GPU nécessaire)"
+    StrCpy $LblS1Mini "S1-mini by Superwhisper (462 Mo) : nettoie la dictée en anglais sur ce PC"
     StrCpy $LblClef "Clef Flash : décisions en local (11 Go, 16 Go de RAM)"
     StrCpy $LblGemmaSmall "Gemma 4 E2B : script à partir des diapositives et traduction (4,3 Go, 8 Go de RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B : script à partir des diapositives et traduction, meilleur (6,1 Go, 16 Go de RAM)"
@@ -504,6 +530,7 @@ SectionEnd
     StrCpy $ModelsIntro "Marca lo que se descargará en el primer inicio. '– recomendado' va bien en este PC; las demás notas dicen qué falta. Todo se puede cambiar luego en Ajustes."
     StrCpy $LblWhisperBase "Whisper base: transcripción en el dispositivo (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: transcripción más precisa (500 MB, necesita GPU)"
+    StrCpy $LblS1Mini "S1-mini by Superwhisper (462 MB): limpia el dictado en inglés en este PC"
     StrCpy $LblClef "Clef Flash: decisiones en local (11 GB, 16 GB de RAM)"
     StrCpy $LblGemmaSmall "Gemma 4 E2B: guion a partir de las diapositivas y traducción (4,3 GB, 8 GB de RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: guion a partir de las diapositivas y traducción, mejor (6,1 GB, 16 GB de RAM)"
@@ -534,6 +561,7 @@ SectionEnd
     StrCpy $ModelsIntro "Marque o que baixar na primeira abertura. '– recomendado' roda bem neste PC; as outras notas dizem o que falta. Tudo pode ser alterado depois em Configurações."
     StrCpy $LblWhisperBase "Whisper base: transcrição no dispositivo (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: transcrição mais precisa (500 MB, precisa de GPU)"
+    StrCpy $LblS1Mini "S1-mini by Superwhisper (462 MB): limpa o ditado em inglês neste PC"
     StrCpy $LblClef "Clef Flash: decisões locais (11 GB, 16 GB de RAM)"
     StrCpy $LblGemmaSmall "Gemma 4 E2B: roteiro a partir dos slides e tradução (4,3 GB, 8 GB de RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: roteiro a partir dos slides e tradução, melhor (6,1 GB, 16 GB de RAM)"
@@ -564,6 +592,7 @@ SectionEnd
     StrCpy $ModelsIntro "Vink aan wat bij de eerste start wordt gedownload. '– aanbevolen' werkt goed op deze pc; de andere opmerkingen zeggen wat ontbreekt. Alles is later aan te passen in Instellingen."
     StrCpy $LblWhisperBase "Whisper base: spraakherkenning op het apparaat (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: nauwkeurigere spraakherkenning (500 MB, GPU nodig)"
+    StrCpy $LblS1Mini "S1-mini by Superwhisper (462 MB): ruimt Engelse dictaten op deze pc op"
     StrCpy $LblClef "Clef Flash: lokale beslissingen (11 GB, 16 GB RAM)"
     StrCpy $LblGemmaSmall "Gemma 4 E2B: script uit de dia's en vertaling (4,3 GB, 8 GB RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: script uit de dia's en vertaling, beter (6,1 GB, 16 GB RAM)"
@@ -594,6 +623,7 @@ SectionEnd
     StrCpy $ModelsIntro "Zaznacz, co pobrać przy pierwszym uruchomieniu. „– zalecane” działa dobrze na tym komputerze; pozostałe uwagi mówią, czego brakuje. Wszystko można później zmienić w Ustawieniach."
     StrCpy $LblWhisperBase "Whisper base: rozpoznawanie mowy na urządzeniu (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: dokładniejsze rozpoznawanie mowy (500 MB, wymaga GPU)"
+    StrCpy $LblS1Mini "S1-mini by Superwhisper (462 MB): porządkuje dyktowanie po angielsku na tym komputerze"
     StrCpy $LblClef "Clef Flash: decyzje lokalnie (11 GB, 16 GB RAM)"
     StrCpy $LblGemmaSmall "Gemma 4 E2B: skrypt ze slajdów i tłumaczenie (4,3 GB, 8 GB RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: skrypt ze slajdów i tłumaczenie, lepszy (6,1 GB, 16 GB RAM)"
@@ -624,6 +654,7 @@ SectionEnd
     StrCpy $ModelsIntro "Отметьте, что скачать при первом запуске. «– рекомендуется» хорошо работает на этом ПК; остальные пометки говорят, чего не хватает. Всё можно изменить позже в Настройках."
     StrCpy $LblWhisperBase "Whisper base: распознавание речи на устройстве (150 МБ)"
     StrCpy $LblWhisperSmall "Whisper small: более точное распознавание (500 МБ, нужна GPU)"
+    StrCpy $LblS1Mini "S1-mini by Superwhisper (462 МБ): приводит в порядок диктовку на английском на этом ПК"
     StrCpy $LblClef "Clef Flash: локальные решения (11 ГБ, 16 ГБ ОЗУ)"
     StrCpy $LblGemmaSmall "Gemma 4 E2B: сценарий из слайдов и перевод (4,3 ГБ, 8 ГБ ОЗУ)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: сценарий из слайдов и перевод, лучше (6,1 ГБ, 16 ГБ ОЗУ)"
@@ -654,6 +685,7 @@ SectionEnd
     StrCpy $ModelsIntro "初回起動時にダウンロードするものを選んでください。「– 推奨」はこの PC で快適に動作します。その他の注記は不足しているものを示します。後から設定で変更できます。"
     StrCpy $LblWhisperBase "Whisper base: 端末内の音声認識 (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: より高精度な音声認識 (500 MB、GPU が必要)"
+    StrCpy $LblS1Mini "S1-mini by Superwhisper (462 MB): 英語の音声入力をこの PC 上で整えます"
     StrCpy $LblClef "Clef Flash: ローカル判定 (11 GB、RAM 16 GB)"
     StrCpy $LblGemmaSmall "Gemma 4 E2B: スライドから原稿を生成、翻訳 (4.3 GB、RAM 8 GB)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: スライドから原稿を生成、翻訳、高品質 (6.1 GB、RAM 16 GB)"
@@ -684,6 +716,7 @@ SectionEnd
     StrCpy $ModelsIntro "勾选首次启动时要下载的内容。“– 推荐”表示在本机运行良好；其他备注说明缺少什么。之后都可以在“设置”中更改。"
     StrCpy $LblWhisperBase "Whisper base：本机语音识别 (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small：更精确的语音识别 (500 MB，需要 GPU)"
+    StrCpy $LblS1Mini "S1-mini by Superwhisper (462 MB)：在本机整理英语听写"
     StrCpy $LblClef "Clef Flash：本地判断 (11 GB，需 16 GB 内存)"
     StrCpy $LblGemmaSmall "Gemma 4 E2B：从幻灯片生成讲稿、翻译 (4.3 GB，需 8 GB 内存)"
     StrCpy $LblGemmaBig "Gemma 4 E4B：从幻灯片生成讲稿、翻译，效果更好 (6.1 GB，需 16 GB 内存)"
@@ -714,6 +747,7 @@ SectionEnd
     StrCpy $ModelsIntro "Bifează ce să se descarce la prima pornire. '– recomandat' rulează bine pe acest PC; celelalte note spun ce lipsește. Poți schimba totul mai târziu din Setări."
     StrCpy $LblWhisperBase "Whisper base: recunoaștere vocală pe dispozitiv (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: recunoaștere vocală mai precisă (500 MB, necesită GPU)"
+    StrCpy $LblS1Mini "S1-mini by Superwhisper (462 MB): curăță dictarea în engleză pe acest PC"
     StrCpy $LblClef "Clef Flash: decizii locale (11 GB, 16 GB RAM)"
     StrCpy $LblGemmaSmall "Gemma 4 E2B: scenariu din slide-uri și traducere (4,3 GB, 8 GB RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: scenariu din slide-uri și traducere, mai bun (6,1 GB, 16 GB RAM)"
@@ -744,6 +778,7 @@ SectionEnd
     StrCpy $ModelsIntro "Tick what to download on first start. '– recommended' runs well on this PC; the other notes say what is missing. Everything can be changed later in Settings."
     StrCpy $LblWhisperBase "Whisper base: on-device speech-to-text (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: more accurate speech-to-text (500 MB, needs a GPU)"
+    StrCpy $LblS1Mini "S1-mini by Superwhisper (462 MB): cleans up English dictation on this PC"
     StrCpy $LblClef "Clef Flash: local decisions (11 GB, 16 GB RAM)"
     StrCpy $LblGemmaSmall "Gemma 4 E2B: script from slides and translation (4.3 GB, 8 GB RAM)"
     StrCpy $LblGemmaBig "Gemma 4 E4B: script from slides and translation, better (6.1 GB, 16 GB RAM)"
@@ -831,6 +866,11 @@ SectionEnd
   ${EndIf}
   ${If} $StWhisperSmall == ${BST_CHECKED}
     StrCpy $1 '$1"whisper-small",'
+  ${EndIf}
+  ; Not on updates: the components page is skipped then, and a model the user unticked must not come back.
+  ${If} $StS1Mini == ${BST_CHECKED}
+  ${AndIfNot} ${isUpdated}
+    StrCpy $1 '$1"s1-mini",'
   ${EndIf}
   ${If} $StClef == ${BST_CHECKED}
     StrCpy $1 '$1"clef-flash",'

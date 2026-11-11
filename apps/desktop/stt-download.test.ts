@@ -48,6 +48,20 @@ describe("model download helpers (no network)", () => {
     expect(f.out.closed).toBe(true);
     expect(vi.getTimerCount()).toBe(0);
   });
+  it("reports progress once per whole percent, not once per chunk (callers log and tell every window each time)", async () => {
+    const res = new PassThrough();
+    const out = new Writable({ write(_c, _e, done) { done(); } });
+    const seen: number[] = [];
+    const result = receiveArchive(res, out, { contentLength: String(5000 * 16), fallbackSize: 0, onPct: (p: number) => seen.push(p) });
+    for (let i = 0; i < 5000; i++) res.write(Buffer.alloc(16));
+    res.end();
+    await result;
+    expect(seen.length).toBeLessThanOrEqual(100);
+    expect(seen.length).toBeGreaterThan(90);
+    expect(seen).toEqual([...seen].sort((a, b) => a - b));
+    expect(new Set(seen).size).toBe(seen.length);
+    expect(seen.at(-1)).toBe(99);
+  });
   it("aborts a stalled fake response and closes the output before rejecting", async () => {
     vi.useFakeTimers();
     const f = transfer();
