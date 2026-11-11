@@ -425,7 +425,7 @@ export default function WhiteboardPage() {
         )}
       </section>
 
-      {notice && <OutboundNoticeModal key={`${notice.kind}:${notice.recipient.id}`} notice={notice} t={okfT} more={t("onlyQuestion")} onDecide={(d) => void out.decide(d)} />}
+      {notice && <OutboundNoticeModal key={`${notice.kind}:${notice.recipient.id}`} notice={notice} t={okfT} more={`${t("noticeScope")} ${okfT("noticeRemember")}`} onDecide={(d) => void out.decide(d)} />}
     </main>
   );
 }

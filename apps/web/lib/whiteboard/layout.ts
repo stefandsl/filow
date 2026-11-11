@@ -333,7 +333,9 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
     // neighbours rides an arc into the space between the rows).
     // How far a node reaches across the arrow's path: an arc must clear that much.
     const reach = (Math.abs(nx) * Math.max(a.box.w, b.box.w)) / 2 + (Math.abs(ny) * Math.max(a.box.h, b.box.h)) / 2;
-    const lines = e.text ? wrapText(e.text, arr.labelMax, LABEL_FONT, 2) : [];
+    // A label breaks between words only: one long word makes the label wider, never "release / d".
+    const longest = Math.max(0, ...e.text.split(/\s+/).map((word) => (Array.from(word).some((ch) => isWideChar(ch.codePointAt(0) ?? 0)) ? 0 : textWidth(word, LABEL_FONT))));
+    const lines = e.text ? wrapText(e.text, Math.max(arr.labelMax, longest + 1), LABEL_FONT, 2) : [];
     const lw = Math.max(0, ...lines.map((ln) => textWidth(ln, LABEL_FONT))) + 12;
     const lh = lines.length * LABEL_LINE + 8;
     let best: { curve: Curve; box: Box | null; cost: number } | null = null;
@@ -386,10 +388,17 @@ function arrangementCost(edges: PlacedEdge[], nodes: PlacedNode[]): number {
  * so a step that arrives later never has to be known in advance.
  */
 export function layoutBoard(lesson: Lesson, upto: number, shape: BoardShape): BoardLayout {
+  const first = boardAt(lesson, upto, shape, 0);
+  // A phone-shaped board also grows to hold its notes before any is wiped (up to a limit).
+  return shape === "tall" && first.short > 0 ? boardAt(lesson, upto, shape, Math.min(640, Math.ceil(first.short))).layout : first.layout;
+}
+
+/** The board with `extra` height for the notes; `short` is how much room the notes still lack. */
+function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number): { layout: BoardLayout; short: number } {
   const { w } = BOARD_SIZE[shape];
   // A phone-shaped board grows downwards with the diagram (the page scrolls); a wide one is fixed.
   const shown = new Set(lesson.steps.slice(0, upto + 1).flatMap((s) => s.items.flatMap((it) => (it.kind === "node" ? [it.id] : []))));
-  const h = BOARD_SIZE[shape].h + (shape === "tall" ? Math.min(4, Math.max(0, shown.size - 6)) * 90 : 0);
+  const h = BOARD_SIZE[shape].h + (shape === "tall" ? Math.min(4, Math.max(0, shown.size - 6)) * 90 : 0) + extra;
   const titleFont = shape === "tall" ? 24 : 30;
   const margin = shape === "tall" ? 14 : 24;
   const title = { text: wrapText(lesson.title, w - margin * 2 - 8, titleFont, 1)[0], x: margin + 4, y: 46, font: titleFont };
@@ -423,7 +432,7 @@ export function layoutBoard(lesson: Lesson, upto: number, shape: BoardShape): Bo
       diagram = { ...content, w: content.w - nw - 24 };
       notes = { x: content.x + content.w - nw, y: content.y, w: nw, h: content.h };
     } else {
-      const nh = Math.round(content.h * 0.38);
+      const nh = Math.round((content.h - extra) * 0.38) + extra;
       diagram = { ...content, h: content.h - nh - 20 };
       notes = { x: content.x, y: content.y + content.h - nh, w: content.w, h: nh };
     }
@@ -480,6 +489,17 @@ export function layoutBoard(lesson: Lesson, upto: number, shape: BoardShape): Bo
   });
   let wiped = 0;
   const total = () => sized.slice(wiped).reduce((sum, b) => sum + b.box.h, 0) + gap * Math.max(0, sized.length - wiped - 1);
+  // A full column first makes its pictures smaller; only then is anything wiped.
+  if (total() > notes.h) {
+    for (const b of sized) {
+      if (b.kind === "plot") b.box.h = Math.min(b.box.h, 170);
+      else if (b.kind === "sketch") {
+        const sh = Math.min(b.box.h, 168);
+        b.box = { x: notes.x + (notes.w - (sh * 4) / 3) / 2, y: 0, w: (sh * 4) / 3, h: sh };
+      }
+    }
+  }
+  const short = Math.max(0, total() - notes.h);
   while (sized.length - wiped > 1 && total() > notes.h) wiped++;
   const blocks = sized.slice(wiped);
   // A single block taller than the room it has is cut to it (a long card on a small board).
@@ -490,7 +510,7 @@ export function layoutBoard(lesson: Lesson, upto: number, shape: BoardShape): Bo
     y += b.box.h + gap;
   }
 
-  return { shape, w, h, title, nodes, edges, marks, blocks, wiped };
+  return { layout: { shape, w, h, title, nodes, edges, marks, blocks, wiped }, short };
 }
 
 /**

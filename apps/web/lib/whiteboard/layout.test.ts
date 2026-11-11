@@ -122,6 +122,36 @@ describe("whiteboard layout", () => {
     expect(layoutBoard(make(9), 1, "wide").h).toBe(BOARD_SIZE.wide.h);
     expect(layoutProblems(layoutBoard(make(10), 1, "tall"))).toEqual([]);
   });
+  it("on a phone-shaped board, grows to keep the notes and never breaks a label inside a word", () => {
+    const lesson = validateLesson({
+      title: "Photosynthesis",
+      scene: "flow",
+      steps: [
+        { say: "s", items: [{ kind: "node", id: "sun", text: "Sunlight" }, { kind: "node", id: "water", text: "Water" }, { kind: "node", id: "co2", text: "Carbon dioxide" }, { kind: "node", id: "leaf", text: "Leaf" }, { kind: "edge", from: "sun", to: "leaf", text: "energy" }, { kind: "edge", from: "water", to: "leaf" }] },
+        { say: "s", items: [{ kind: "edge", from: "co2", to: "leaf" }, { kind: "node", id: "sugar", text: "Glucose" }, { kind: "edge", from: "leaf", to: "sugar", text: "makes" }, { kind: "formula", tex: "6CO_2 + 6H_2O \\rightarrow C_6H_{12}O_6 + 6O_2" }] },
+        { say: "s", items: [{ kind: "node", id: "o2", text: "Oxygen" }, { kind: "edge", from: "leaf", to: "o2", text: "released" }, { kind: "plot", expr: "x / (1 + x)", xmin: 0, xmax: 8 }, { kind: "note", text: "The curve flattens: light is no longer the limit." }] },
+      ],
+    })!;
+    const tall = layoutBoard(lesson, 2, "tall");
+    expect(tall.wiped).toBe(0);
+    expect(tall.blocks.map((b) => b.kind)).toEqual(["formula", "plot", "note"]);
+    expect(tall.h).toBeGreaterThan(BOARD_SIZE.tall.h);
+    expect(layoutProblems(tall)).toEqual([]);
+    for (const shape of SHAPES) for (const e of layoutBoard(lesson, 2, shape).edges) if (e.label) expect(e.label.lines.join(" "), shape).toMatch(/^(energy|makes|released)$/);
+    // a wide board is a fixed sheet
+    expect(layoutBoard(lesson, 2, "wide").h).toBe(BOARD_SIZE.wide.h);
+  });
+  it("makes the pictures of a full column smaller before it wipes a formula", () => {
+    const lesson = validateLesson({ title: "Ohm", scene: "flow", steps: [{ say: "s", items: [{ kind: "node", id: "v", text: "Voltage" }, { kind: "node", id: "i", text: "Current" }, { kind: "edge", from: "v", to: "i" }] }, { say: "s", items: [{ kind: "formula", tex: "V = I R" }, { kind: "plot", expr: "2x", xmin: 0, xmax: 5 }, { kind: "sketch", title: "Resistor", shapes: [{ type: "rect", x: 120, y: 120, w: 160, h: 60 }] }] }, { say: "s", items: [{ kind: "note", text: "The resistance stays the same." }] }] }, { sketch: true })!;
+    const l = layoutBoard(lesson, 2, "wide");
+    expect(l.wiped).toBe(0);
+    expect(l.blocks.map((b) => b.kind)).toEqual(["formula", "plot", "sketch", "note"]);
+    expect(layoutProblems(l)).toEqual([]);
+    const sketch = l.blocks.find((b) => b.kind === "sketch")!.box;
+    expect(sketch.w / sketch.h).toBeCloseTo(4 / 3);
+    // with room to spare the plot keeps its full height
+    expect(layoutBoard(lesson, 1, "wide").blocks.find((b) => b.kind === "plot")!.box.h).toBeGreaterThan(200);
+  });
   it("spreads several arrows between the same two nodes so their labels stay apart", () => {
     const lesson = validateLesson({
       title: "TCP handshake",
