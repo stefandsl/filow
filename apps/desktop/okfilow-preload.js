@@ -14,7 +14,7 @@ contextBridge.exposeInMainWorld("okFilow", {
   sessionUrl: process.env.FILOW_SESSION_URL || `http://127.0.0.1:${process.env.SESSION_PORT || 4748}`,
   status: () => ipcRenderer.invoke("okfilow:status"),
   configure: (patch) => ipcRenderer.invoke("okfilow:configure", patch),
-  capture: () => ipcRenderer.invoke("okfilow:capture"),
+  capture: (opts) => ipcRenderer.invoke("okfilow:capture", opts),
   setMode: (mode, extra) => ipcRenderer.invoke("okfilow:setMode", mode, extra),
   level: (v) => ipcRenderer.send("okfilow:level", v),
   text: (t) => ipcRenderer.send("okfilow:text", t),

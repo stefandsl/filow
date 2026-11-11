@@ -43,6 +43,9 @@ describe("stopping an answer (desktop shell)", () => {
     expect(main).toMatch(/function stopAnswer\(source\) \{\s*if \(!answering\(mode\)\) return false;/);
     expect(main).toContain("next.seeScreen = seeChoice(next.seeScreen);");
     expect(require("./okfilow.js").DEFAULTS.seeScreen).toBe("auto");
+    // "Look at my screen" off: the screen is not captured at all
+    expect(main).toMatch(/const wantImages = opts\.images !== false;[\s\S]{0,400}if \(wantImages\) \{[\s\S]{0,200}desktopCapturer\.getSources/);
+    expect(main).toContain('if (wantImages && !out.images.length) throw');
     const preload = source("okfilow-preload.js");
     expect(preload).toContain('onStop: on("okfilow:stop")');
     expect(preload).toContain('ipcRenderer.send("okfilow:stopAnswer", source)');

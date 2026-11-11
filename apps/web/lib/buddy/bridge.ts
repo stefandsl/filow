@@ -132,7 +132,8 @@ export type OkFilowBridge = {
   sessionUrl: string;
   status(): Promise<OkFilowStatus>;
   configure(patch: OkFilowPatch): Promise<OkFilowStatus>;
-  capture(): Promise<OkFilowCapture>;
+  /** `images: false` ("Look at my screen" is off): no picture of the screen is taken; `images` comes back empty. */
+  capture(opts?: { images?: boolean }): Promise<OkFilowCapture>;
   setMode(mode: OkFilowMode, extra?: Record<string, unknown>): Promise<void>;
   level(v: number): void;
   text(t: string): void;

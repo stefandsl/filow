@@ -397,7 +397,8 @@ export default function OkFilowPanel() {
     b.text("");
     b.clearVisuals();
     try {
-      const shot = await b.capture();
+      // With "Look at my screen" off no picture of the screen is even taken.
+      const shot = await b.capture({ images: seeing });
       if (run.current !== id) return;
       // What the user circled goes in two ways: burnt into the screenshot, and as grid boxes in words.
       const marked = shot.marked ?? [];

@@ -133,7 +133,7 @@ describe("what counts as a picture", () => {
 });
 
 describe("a draw request is answered with a picture, never with a refusal", () => {
-  const run = async (replies: Array<string | Error>, opts: { signal?: AbortSignal; retryMs?: number; lang?: string } = {}) => {
+  const run = async (replies: Array<string | Error>, opts: { signal?: AbortSignal; firstMs?: number; retryMs?: number; lang?: string } = {}) => {
     const shapes: AskShape[] = [];
     const ask = (shape: AskShape, signal: AbortSignal) => (async function* () {
       shapes.push(shape);
@@ -143,7 +143,7 @@ describe("a draw request is answered with a picture, never with a refusal", () =
       for (const piece of (r ?? "").match(/[\s\S]{1,40}/g) ?? []) yield piece;
     })();
     let out = "";
-    for await (const piece of drawnAnswer(ask, { kind: "2d", language: "en", lang: opts.lang ?? "en", signal: opts.signal ?? new AbortController().signal, retryMs: opts.retryMs })) out += piece;
+    for await (const piece of drawnAnswer(ask, { kind: "2d", language: "en", lang: opts.lang ?? "en", signal: opts.signal ?? new AbortController().signal, firstMs: opts.firstMs, retryMs: opts.retryMs })) out += piece;
     return { out, shapes };
   };
 
@@ -182,6 +182,13 @@ describe("a draw request is answered with a picture, never with a refusal", () =
     const slow = await run([REFUSAL, "HANG"], { retryMs: 30 });
     expect(slow.out).toBe(OKF_TEXT.en.drawFailed);
     expect((await run([REFUSAL, new Error("Ollama 500")])).out).toBe(OKF_TEXT.en.drawFailed);
+  });
+
+  it("a first try that runs out of time is not waited for: the second try's drawing is the answer", async () => {
+    const { out, shapes } = await run(["HANG", `A car. ${CAR}`], { firstMs: 30 });
+    expect(out).toBe(`A car. ${CAR}`);
+    expect(shapes).toHaveLength(2);
+    expect((await run(["HANG", "HANG"], { firstMs: 30, retryMs: 30 })).out).toBe(OKF_TEXT.en.drawFailed);
   });
 
   it("a failure of the first try is the answer's error, as for any question", async () => {

@@ -8,8 +8,9 @@ import type { AskShape } from "./providers";
 import { okfText } from "./text";
 import { drawOnlyPrompt, extractVisuals, type DrawKind } from "./visuals";
 
-/** How long the second try may take before the answer gives up on the picture. */
-export const DRAW_RETRY_MS = 60_000;
+/** How long the first try may take (a drawing takes 20 to 30 s on an 8 GB graphics card), and the second before the answer gives up on the picture. */
+export const DRAW_FIRST_MS = 90_000;
+export const DRAW_RETRY_MS = 45_000;
 
 /** True when the answer carries a drawing or a model the app can show. */
 export function hasPicture(raw: string): boolean {
@@ -24,7 +25,7 @@ export type DrawAsk = (shape: AskShape, signal: AbortSignal) => AsyncIterable<st
  * `ask` calls the provider with the given prompt; `signal` is the user's Stop (or a closed page):
  * once it fires nothing more is asked and nothing is yielded.
  */
-export async function* drawnAnswer(ask: DrawAsk, opts: { kind: DrawKind; language: string; lang: string; signal: AbortSignal; retryMs?: number }): AsyncGenerator<string> {
+export async function* drawnAnswer(ask: DrawAsk, opts: { kind: DrawKind; language: string; lang: string; signal: AbortSignal; firstMs?: number; retryMs?: number }): AsyncGenerator<string> {
   const code = buddyLang(opts.language);
   const name = code ? BUDDY_LANG_NAMES[code] : "the language the user speaks";
   const attempt = async (again: boolean, signal: AbortSignal): Promise<string> => {
@@ -33,7 +34,16 @@ export async function* drawnAnswer(ask: DrawAsk, opts: { kind: DrawKind; languag
     for await (const piece of ask({ system: drawOnlyPrompt(opts.kind, name, again), pictures: false }, signal)) said += piece;
     return said;
   };
-  const first = await attempt(false, opts.signal);
+  // The first try has a limit too: a small model that loops must not keep the user waiting for minutes.
+  const firstLimit = AbortSignal.any([opts.signal, AbortSignal.timeout(opts.firstMs ?? DRAW_FIRST_MS)]);
+  let first = "";
+  try {
+    first = await attempt(false, firstLimit);
+  } catch (e) {
+    if (opts.signal.aborted) return;
+    // Out of time counts as "no picture"; anything else (Ollama not running, no consent) is the answer's error.
+    if (!firstLimit.aborted) throw e;
+  }
   if (opts.signal.aborted) return;
   if (hasPicture(first)) return void (yield first);
   let second = "";

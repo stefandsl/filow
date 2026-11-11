@@ -822,17 +822,21 @@ function createOkFilow(deps) {
   const startHook = () => hookRetry.attempt();
 
   // ---- screenshots ----
-  async function capture() {
+  /** `images: false` ("Look at my screen" is off): no picture of the screen is taken at all; the rest (which screen has the mouse, the selected text) is still returned. */
+  async function capture(opts = {}) {
+    const wantImages = opts.images !== false;
     const displays = screen.getAllDisplays();
     const cursor = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
     const maxW = Math.max(...displays.map((d) => Math.round(d.size.width * d.scaleFactor)));
     const maxH = Math.max(...displays.map((d) => Math.round(d.size.height * d.scaleFactor)));
-    if (!hidden()) protectAll(true); // the model never sees OK Filow itself
-    let sources;
-    try {
-      sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: Math.min(maxW, 2560), height: Math.min(maxH, 2560) } });
-    } finally {
-      if (!hidden()) protectAll(false);
+    let sources = [];
+    if (wantImages) {
+      if (!hidden()) protectAll(true); // the model never sees OK Filow itself
+      try {
+        sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: Math.min(maxW, 2560), height: Math.min(maxH, 2560) } });
+      } finally {
+        if (!hidden()) protectAll(false);
+      }
     }
     const selected = await Promise.race([selection, new Promise((r) => setTimeout(() => r(""), 1200))]);
     selection = Promise.resolve("");
@@ -842,6 +846,12 @@ function createOkFilow(deps) {
     // time a local model needs. Other screens are added only when the setting asks for them.
     const ordered = (cfg().allScreens ? [cursor, ...displays.filter((d) => d.id !== cursor.id)] : [cursor]).slice(0, 4);
     ordered.forEach((d) => {
+      if (!wantImages) {
+        const index = out.screens.length + 1;
+        out.screens.push({ index, width: d.bounds.width, height: d.bounds.height, cursor: d.id === cursor.id });
+        out.displays.push({ index, id: d.id, bounds: d.bounds });
+        return;
+      }
       const src = sources.find((s) => String(s.display_id) === String(d.id)) || (displays.length === 1 ? sources[0] : null);
       if (!src || src.thumbnail.isEmpty()) return;
       let img = src.thumbnail;
@@ -861,7 +871,7 @@ function createOkFilow(deps) {
       }
     });
     strokes = [];
-    if (!out.images.length) throw new Error(menuText("okfNoCapture"));
+    if (wantImages && !out.images.length) throw new Error(menuText("okfNoCapture"));
     return out;
   }
 
@@ -883,9 +893,9 @@ function createOkFilow(deps) {
   }
   ipcMain.handle("okfilow:status", guard(() => status()));
   ipcMain.handle("okfilow:configure", guard((patch) => applyConfig(patch && typeof patch === "object" ? patch : {})));
-  ipcMain.handle("okfilow:capture", guard(async () => {
+  ipcMain.handle("okfilow:capture", guard(async (opts) => {
     const t = Date.now();
-    const out = await capture();
+    const out = await capture(opts && typeof opts === "object" ? { images: opts.images !== false } : {});
     logLine(`okfilow: captured ${out.images.length} screen(s) in ${Date.now() - t} ms`);
     return out;
   }));
