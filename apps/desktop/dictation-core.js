@@ -33,6 +33,11 @@ const DEFAULTS = Object.freeze({
   cleanupStyle: "semi-formal",
   /** May the model turn three or more spoken items into a bulleted list? */
   cleanupLists: false,
+  /**
+   * Italian, Russian, Romanian and Japanese dictations that the recognizer left without a full stop get
+   * their marks and capitals from a small model on this PC (dictation-punctuate.js). On by default.
+   */
+  punctuate: true,
 });
 const CLEANUP_STYLES = ["casual", "semi-casual", "semi-formal", "formal"];
 
@@ -43,7 +48,7 @@ const CLEANUP_STYLES = ["casual", "semi-casual", "semi-formal", "formal"];
  * (both started off and that build could not tell them apart): those two are dropped from such a record.
  */
 const STORE_VERSION = 2;
-const KEYS = ["enabled", "chord", "mode", "language", "insert", "removeFillers", "sound", "cleanup", "cleanupStyle", "cleanupLists"];
+const KEYS = ["enabled", "chord", "mode", "language", "insert", "removeFillers", "sound", "cleanup", "cleanupStyle", "cleanupLists", "punctuate"];
 const OLD_OFF_DEFAULTS = ["removeFillers", "sound"];
 
 /** What settings.json holds -> only the user's own choices (an object with known keys). */
@@ -152,6 +157,7 @@ function sanitizeConfig(raw, legacyEnabled) {
     cleanup: typeof r.cleanup === "boolean" ? r.cleanup : DEFAULTS.cleanup,
     cleanupStyle: CLEANUP_STYLES.includes(r.cleanupStyle) ? r.cleanupStyle : DEFAULTS.cleanupStyle,
     cleanupLists: typeof r.cleanupLists === "boolean" ? r.cleanupLists : DEFAULTS.cleanupLists,
+    punctuate: typeof r.punctuate === "boolean" ? r.punctuate : DEFAULTS.punctuate,
   };
 }
 

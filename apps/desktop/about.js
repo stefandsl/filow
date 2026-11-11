@@ -14,7 +14,7 @@ const ISSUE_URL_LIMIT = 6000;
 // The page's texts are about.<key> in the shared dictionary (packages/core/src/i18n), so every
 // language and the parity check cover them.
 const { t: sharedText } = require("./vendor/i18n");
-const ABOUT_KEYS = ["tabAbout", "tabReport", "version", "fact1", "fact2", "fact3", "configFolder", "openFolder", "todo", "policyMissing", "policyEnglish",
+const ABOUT_KEYS = ["tabAbout", "tabReport", "version", "fact1", "fact2", "fact3", "fact4", "configFolder", "openFolder", "todo", "policyMissing", "policyEnglish",
   "issueIntro", "issueHeading", "issuePublic", "issueOpen", "issueOpened", "issueFailed", "issueTitle", "issueTitleBare", "issueCut", "issueEarlier", "describe", "describeHint", "contents", "masked",
   "crashNone", "crashSome", "openCrash", "save", "copy", "close", "saved", "copied", "saveFailed", "saveTitle", "loading",
   "fileTitle", "fileMade", "fileWhat", "fileNone", "fileCrash", "fileSystem", "fileDictation", "fileTake", "fileLog", "fileNoTake"];

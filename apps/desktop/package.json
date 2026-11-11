@@ -95,6 +95,13 @@
       "dictation-diag.js",
       "dictation-cleanup.js",
       "s1-runtime.js",
+      "dictation-punctuate.js",
+      "truecase-text.js",
+      "truecase-runtime.js",
+      "truecase-worker.js",
+      "!node_modules/onnxruntime-node/bin/napi-v6/!(${platform})/**",
+      "!node_modules/onnxruntime-node/bin/napi-v6/${platform}/!(${arch})/**",
+      "!node_modules/onnxruntime-node/bin/**/{DirectML,dxcompiler,dxil}.dll",
       "licenses/**",
       "native/target/prebuilds/**",
       "native/llama/*-*/**",
@@ -247,6 +254,10 @@
     "asarUnpack": [
       "stt-worker.js",
       "tts-worker.js",
+      "truecase-worker.js",
+      "node_modules/onnxruntime-node/**",
+      "node_modules/onnxruntime-common/**",
+      "node_modules/@huggingface/tokenizers/**",
       "node_modules/sherpa-onnx-node/**",
       "node_modules/sherpa-onnx-*/**",
       "node_modules/uiohook-napi/**",
@@ -266,6 +277,8 @@
     }
   },
   "dependencies": {
+    "@huggingface/tokenizers": "0.2.0",
+    "onnxruntime-node": "1.30.0",
     "sherpa-onnx-node": "^2.0.1",
     "uiohook-napi": "^1.5.5"
   }
