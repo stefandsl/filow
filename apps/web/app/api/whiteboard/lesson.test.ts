@@ -10,6 +10,7 @@ const LOCAL = "http://127.0.0.1:11434";
 type Call = { url: string; body: { model?: string; format?: { properties?: Record<string, { items?: { enum?: string[] } }> }; messages: Array<{ role: string; content: unknown; images?: unknown[] }>; options?: { num_predict?: number }; response_format?: unknown } };
 let calls: Call[];
 let localAnswers: string[];
+let repairAnswers: string[];
 let cloudAnswers: string[];
 const outside = () => calls.filter((c) => !c.url.startsWith(LOCAL));
 const chats = () => calls.filter((c) => c.url.endsWith("/api/chat"));
@@ -22,13 +23,15 @@ beforeEach(() => {
   vi.spyOn(sysinfo, "machineInfo").mockReturnValue({ ramGb: 32, cores: 8, gpu: { kind: "none", vramGb: null }, freeDiskGb: 500 });
   calls = [];
   localAnswers = [];
+  repairAnswers = [];
   cloudAnswers = [];
   CHECKS.passes = 1;
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: { body?: string }) => {
     const call = { url: String(url), body: init?.body ? JSON.parse(init.body) : {} };
     calls.push(call);
     if (call.url.includes("/api/chat")) {
-      const text = localAnswers.shift() ?? "";
+      // the second round over the plan (refused relations written again, lone things linked) answers from its own list: none by default
+      const text = String(call.body.messages?.[0]?.content ?? "").includes("A fact checker went through") ? (repairAnswers.shift() ?? "{}") : (localAnswers.shift() ?? "");
       // streamed in two pieces, as Ollama does
       const half = Math.ceil(text.length / 2);
       return new Response(`${JSON.stringify({ message: { content: text.slice(0, half) } })}\n${JSON.stringify({ message: { content: text.slice(half) }, done: true })}\n`);
@@ -85,6 +88,48 @@ describe("whiteboard lesson, local model: plan, check, then a pick per step", ()
     expect(text).toContain("gives energy to");
   });
 
+  it("has a refused relation written again once, and draws the new one only when the fact check passes it", async () => {
+    // "Glucose shines on Light" was refused. The model turns it round, repeats it unchanged, links two things wrongly and names a thing that is not there.
+    repairAnswers = [JSON.stringify({ relations: [{ from: "sun", verb: "is stored in", to: "sugar" }, { from: "sugar", verb: "shines on", to: "sun" }, { from: "o2", verb: "feeds", to: "sugar" }, { from: "sun", verb: "warms", to: "moon" }] })];
+    localAnswers = [OUTLINE, JUDGE, PLAN, CHECK, JSON.stringify({ answers: [{ n: 1, true: true }, { n: 2, true: false }] }), PICK1, PICK2, PICK3];
+    const ev = await events(await post({ question: "photosynthesis" }));
+    const edges = stepsOf(ev).flatMap((s) => s.items).flatMap((i) => (i.kind === "edge" ? [`${i.from} ${i.text} ${i.to}`] : []));
+    expect(edges).toContain("sun is stored in sugar");
+    expect(edges.join("|")).not.toMatch(/shines on|feeds|warms/);
+    expect(ev[ev.length - 1]).toMatchObject({ type: "done", relations: 4, drawn: 4 });
+    const repair = calls.find((c) => String(c.body.messages?.[0]?.content).includes("A fact checker went through"))!;
+    expect(String(repair.body.messages[1].content)).toContain("Refused: Glucose shines on Light.");
+    expect(repair.body.format?.properties?.relations).toBeDefined();
+    // the second check saw only the two candidates that are new and join two listed things
+    const second = calls.filter((c) => String(c.body.messages?.[0]?.content).includes("You check facts"))[1];
+    expect(String(second.body.messages[1].content)).toBe("Topic: Photosynthesis\n1. Light is stored in Glucose.\n2. Oxygen feeds Glucose.");
+  });
+
+  it("asks how a thing no relation touches is linked, and asks nothing on the Lite tier or when the check cannot be read", async () => {
+    const ALL_BUT_O2 = JSON.stringify({ answers: [{ n: 1, true: true }, { n: 2, true: true }, { n: 3, true: true }, { n: 4, true: false }] });
+    repairAnswers = [JSON.stringify({ relations: [{ from: "leaf", verb: "gives off", to: "o2" }] })];
+    localAnswers = [OUTLINE, JUDGE, PLAN, ALL_BUT_O2, JSON.stringify({ answers: [{ n: 1, true: true }] }), PICK1, PICK2, PICK3];
+    const text = JSON.stringify(await events(await post({ question: "photosynthesis" })));
+    expect(text).toContain("gives off");
+    const asked = () => calls.filter((c) => String(c.body.messages?.[0]?.content).includes("A fact checker went through"));
+    expect(String(asked()[0].body.messages[1].content)).toContain("Not linked yet: o2");
+    // nothing refused, but the plan names a thing that no relation touches: asked as well
+    calls.length = 0;
+    repairAnswers = [JSON.stringify({ relations: [{ from: "water", verb: "enters", to: "leaf" }] })];
+    localAnswers = [OUTLINE, JUDGE, JSON.stringify({ things: [{ id: "leaf", text: "Leaf" }, { id: "sugar", text: "Glucose" }, { id: "water", text: "Water" }], relations: [{ from: "leaf", verb: "makes", to: "sugar" }] }), JSON.stringify({ answers: [{ n: 1, true: true }] }), JSON.stringify({ answers: [{ n: 1, true: true }] }), PICK1, PICK2, PICK3];
+    expect(JSON.stringify(await events(await post({ question: "photosynthesis" })))).toContain("enters");
+    expect(String(asked()[0].body.messages[1].content)).toContain("Not linked yet: water");
+    calls.length = 0;
+    localAnswers = [OUTLINE, JUDGE, PLAN, "not json", PICK1, PICK2, PICK3];
+    await events(await post({ question: "photosynthesis" }));
+    expect(asked()).toHaveLength(0);
+    vi.spyOn(sysinfo, "machineInfo").mockReturnValue({ ramGb: 6, cores: 4, gpu: { kind: "none", vramGb: null }, freeDiskGb: 500 });
+    calls.length = 0;
+    localAnswers = [OUTLINE, PLAN, CHECK, PICK1, PICK2, PICK3];
+    await events(await post({ question: "photosynthesis" }));
+    expect(asked()).toHaveLength(0);
+  });
+
   it("draws no arrow at all when the check cannot be read", async () => {
     localAnswers = [OUTLINE, JUDGE, PLAN, "not json", PICK1, PICK2, PICK3];
     const steps = stepsOf(await events(await post({ question: "photosynthesis" })));
@@ -96,7 +141,9 @@ describe("whiteboard lesson, local model: plan, check, then a pick per step", ()
     localAnswers = [...FULL];
     await events(await post({ question: "How does photosynthesis work?" }));
     const chat = chats();
-    expect(chat).toHaveLength(7);
+    // the outline, its check, the plan, its check, the second round over the plan (one relation was refused), three steps
+    expect(chat).toHaveLength(8);
+    expect(chat[4].body.format).toMatchObject({ required: ["relations"] });
     expect(chat[0].body.format).toMatchObject({ type: "object", required: ["title", "scene", "kind", "steps"] });
     expect(chat[1].body.format).toMatchObject({ required: ["sentences", "answers"] });
     expect(userOf(chat[1])).toContain("2. It makes sugar.");
@@ -104,9 +151,9 @@ describe("whiteboard lesson, local model: plan, check, then a pick per step", ()
     expect(chat[3].body.format).toMatchObject({ required: ["answers"] });
     expect(userOf(chat[3])).toContain("1. Light gives energy to Leaf.");
     expect(userOf(chat[3])).toContain("3. Glucose shines on Light.");
-    expect(chat[4].body.format?.properties?.things?.items?.enum).toEqual(["sun", "leaf", "sugar", "o2"]);
-    expect(chat[4].body.format?.properties?.relations?.items?.enum).toEqual(["1", "2", "3"]);
-    expect(userOf(chat[4])).toContain('Sentence of this step: "A leaf takes in light."');
+    expect(chat[5].body.format?.properties?.things?.items?.enum).toEqual(["sun", "leaf", "sugar", "o2"]);
+    expect(chat[5].body.format?.properties?.relations?.items?.enum).toEqual(["1", "2", "3"]);
+    expect(userOf(chat[5])).toContain('Sentence of this step: "A leaf takes in light."');
     for (const c of chat) {
       expect(String(c.body.messages[0].content)).not.toContain("[POINT");
       expect(c.body.messages.find((m) => m.role === "user")?.images ?? []).toEqual([]);

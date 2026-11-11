@@ -72,6 +72,7 @@ export function startFakeModel(port = 4812) {
         if (system.includes("planning a short whiteboard lesson")) answer = JSON.stringify(outlineFor(/broken/i.test(user)));
         else if (system.includes("strict examiner")) answer = JSON.stringify({ sentences: (user.match(/^\d+\. /gm) ?? []).map((_, i) => ({ n: i + 1, true: true })), answers: true });
         else if (system.includes("prepare the drawing")) answer = JSON.stringify(user.includes("Already on the board") ? MORE_PLAN : PLAN);
+        else if (system.includes("A fact checker went through")) answer = JSON.stringify({ relations: [] });
         else if (system.includes("check facts")) answer = JSON.stringify({ answers: (user.match(/^\d+\. /gm) ?? []).map((_, i) => ({ n: i + 1, true: true })) });
         else {
           const n = STEPS.findIndex((s) => user.includes(`Sentence of this step: "${s.say}"`)) + 1 || 1;

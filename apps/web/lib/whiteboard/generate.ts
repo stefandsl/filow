@@ -114,7 +114,7 @@ export const TIMEOUTS = { outlineMs: 150_000, stepMs: 75_000, cloudMs: 120_000, 
 
 export type Plan = { things: Array<{ id: string; text: string }>; relations: Array<{ from: string; to: string; text: string }> };
 
-const PLAN_LIMITS = { things: 8, relations: 8 };
+const PLAN_LIMITS = { things: 8, relations: 8, repairs: 6 };
 const planSchema = {
   type: "object",
   properties: {
@@ -133,6 +133,18 @@ function planSystem(lang: BuddyLang, more: boolean): string {
     more ? "Some things are already on the board (listed below): reuse their ids, add at most 3 new things, and only new relations." : "",
     `Write every text and verb in ${BUDDY_LANG_NAMES[lang]}; ids stay ASCII.`,
   ].filter(Boolean).join("\n");
+}
+
+const repairSchema = { type: "object", properties: { relations: planSchema.properties.relations }, required: ["relations"] };
+function repairSystem(lang: BuddyLang): string {
+  return [
+    "A fact checker went through the relations of a whiteboard drawing. You write the missing ones. Reply with JSON only.",
+    '"relations": each {"from":"sun","verb":"gives light to","to":"leaf"}, read as a sentence: from, verb, to. Use only the listed ids. The verb is 1 to 3 words.',
+    'For each statement after "Refused:": the same fact written so that it is true. Turn it round when it was backwards (the one that acts comes first), or use the verb that says what really happens. Leave it out when the two things are not directly linked.',
+    'For each id after "Not linked yet:": one relation between it and another listed thing, as the sentences of the lesson state it.',
+    "Only what is certainly true as written, in that direction. Never repeat a refused statement unchanged.",
+    `Write every verb in ${BUDDY_LANG_NAMES[lang]}; ids stay ASCII.`,
+  ].join("\n");
 }
 
 /** The plan as the model wrote it, checked: every relation joins two named things and says something. */
@@ -380,7 +392,33 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
     const statements = plan.relations.map((r, k) => `${k + 1}. ${label(r.from)} ${r.text} ${label(r.to)}.`).join("\n");
     const verdicts = await confirm(`Topic: ${title}\n${statements}`, plan.relations.length);
     // A relation the checker did not confirm is not drawn; a check that cannot be read confirms nothing.
-    plan = { ...plan, relations: plan.relations.filter((_, k) => verdicts?.has(k + 1)) };
+    const all = plan.relations;
+    plan = { ...plan, relations: all.filter((_, k) => verdicts?.has(k + 1)) };
+    // Second round, once: a refused relation is often a true fact said backwards or with a loose verb,
+    // and a thing no relation touches leaves a box alone on the board. The model writes those again
+    // from the sentences of the lesson; what it writes goes through the same fact check.
+    const refusedRelations = all.filter((_, k) => !verdicts?.has(k + 1));
+    const touched = new Set(plan.relations.flatMap((r) => [r.from, r.to]));
+    const untouched = plan.things.filter((t) => !touched.has(t.id));
+    if (verdicts && !req.lite && !stalled && plan.things.length >= 2 && (refusedRelations.length || untouched.length)) {
+      const say = (r: Plan["relations"][number]) => `${label(r.from)} ${r.text} ${label(r.to)}.`;
+      const names = new Map([...ctx.nodes, ...plan.things.map((t) => [t.id, t.text] as [string, string])]);
+      const raw = await tryAsk({
+        system: repairSystem(req.lang),
+        user: [`Lesson: ${title}`, numbered, `Things: ${[...names].map(([id, text]) => `${id} = ${text}`).join("; ")}`, plan.relations.length ? `Confirmed: ${plan.relations.map(say).join(" ")}` : "", refusedRelations.length ? `Refused: ${refusedRelations.map(say).join(" ")}` : "", untouched.length ? `Not linked yet: ${untouched.map((t) => t.id).join(", ")}` : ""].filter(Boolean).join("\n"),
+        format: repairSchema,
+        maxTokens: 360,
+        timeoutMs: TIMEOUTS.stepMs,
+        temperature: 0.2,
+      });
+      const same = (a: Plan["relations"][number], b: Plan["relations"][number]) => a.from === b.from && a.to === b.to && a.text.toLowerCase() === b.text.toLowerCase();
+      // never the refused statement again as it was, nor one already confirmed
+      const candidates = validatePlan({ things: [], relations: (raw as { relations?: unknown } | undefined)?.relations }, names).relations.filter((c) => !all.some((r) => same(r, c))).slice(0, PLAN_LIMITS.repairs);
+      if (candidates.length) {
+        const second = await confirm(`Topic: ${title}\n${candidates.map((r, k) => `${k + 1}. ${say(r)}`).join("\n")}`, candidates.length);
+        plan = { ...plan, relations: [...plan.relations, ...candidates.filter((_, k) => second?.has(k + 1))].slice(0, PLAN_LIMITS.relations) };
+      }
+    }
   }
   // What is still refused: a plain statement of a checked relation in its place, else the step is left out.
   const spare = [...plan.relations];
