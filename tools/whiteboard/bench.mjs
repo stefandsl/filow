@@ -2,10 +2,10 @@
 // The whiteboard lesson proof (docs/whiteboard/SPEC.md section 6): runs concepts through the real
 // lesson route of a running Filow server (so the real prompts, schema, validation and the model the
 // setup chose), then scores each lesson. Nothing here is paid: the route's local path talks to the
-// Ollama on this PC. The cloud path is never used (provider is always "local").
+// Ollama on this PC. The cloud path is used only with --cloud and the recipient named on the command line.
 //
 // Usage: node tools/whiteboard/bench.mjs [--base http://127.0.0.1:4811] [--out <dir>] [--setup auto]
-//        [--only 3] [--concepts "a|b|c"] [--lang-test]
+//        [--only 3] [--concepts "a|b|c"] [--set heldout] [--cloud --yes-send-to <recipient id>]
 // Writes <out>/lesson-<n>.json (events + lesson + score) and <out>/summary.md.
 // The machine checks are: the lesson arrived, how many steps have a drawing, and no layout problem
 // (overlap, off the board, cut label, arrow through a box) on any step of either board shape.
@@ -24,7 +24,34 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace
 const base = arg("base", "http://127.0.0.1:4811");
 const out = path.resolve(arg("out", path.join(ROOT, "tmp/whiteboard-bench")));
 const setup = arg("setup", "auto");
-const CONCEPTS = (arg("concepts", "") || [
+const HELD_OUT = [
+  "The Doppler effect",
+  "How do vaccines train the immune system?",
+  "Bayes' rule",
+  "How does a DNS lookup work?",
+  "The derivative as a slope",
+  "The water cycle",
+  "How does public-key encryption work?",
+  "Natural selection",
+  "Kirchhoff's laws",
+  "How does quicksort work?",
+];
+// --cloud: the same concepts through the cloud path of the server (its OPENROUTER_API_KEY). This is
+// a paid call that sends the ten questions to the company the server names, so it only runs when
+// the command itself names that recipient: --cloud --yes-send-to <recipient id>. Without the id
+// the script prints who would receive the questions and stops.
+const cloud = args.includes("--cloud");
+let consent = "";
+if (cloud) {
+  const who = await (await fetch(`${arg("base", "http://127.0.0.1:4811")}/api/buddy/recipients`)).json();
+  const id = who?.ask?.id;
+  if (!id || arg("yes-send-to", "") !== id) {
+    console.error(`The cloud run would send ten questions to: ${(who?.ask?.names ?? ["unknown"]).join(", ")} (recipient id "${id}").\nNothing was sent. To run it, repeat the command with: --cloud --yes-send-to ${id}`);
+    process.exit(3);
+  }
+  consent = `ask:${id}`;
+}
+const CONCEPTS = (arg("concepts", "") || (arg("set", "first") === "heldout" ? HELD_OUT : [
   "How does photosynthesis work?",
   "Prove the Pythagorean theorem",
   "How does the TCP three-way handshake work?",
@@ -35,7 +62,7 @@ const CONCEPTS = (arg("concepts", "") || [
   "Supply and demand: how is a price set?",
   "Ohm's law",
   "What is recursion?",
-].join("|")).split("|").map((s) => s.trim()).filter(Boolean);
+]).join("|")).split("|").map((s) => s.trim()).filter(Boolean);
 const only = Number(arg("only", "0"));
 
 fs.mkdirSync(out, { recursive: true });
@@ -48,7 +75,7 @@ async function runOne(question) {
   const events = [];
   let res;
   try {
-    res = await fetch(`${base}/api/whiteboard/lesson`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question, provider: "local", setup }) });
+    res = await fetch(`${base}/api/whiteboard/lesson`, { method: "POST", headers: { "Content-Type": "application/json", ...(consent ? { "x-filow-consent": consent } : {}) }, body: JSON.stringify({ question, provider: cloud ? "cloud" : "local", setup }) });
   } catch (e) {
     return { question, error: `server not reachable: ${e.message}`, events };
   }

@@ -3,10 +3,12 @@ import { requireEngine } from "@/lib/engineAuth";
 import { CONSENT_HEADER, consentDenied } from "@/lib/buddy/outbound";
 import { BUDDY_CLOUD_MODEL, askBuddy, buddyCloudRecipient, resolveBuddyProvider, resolveLocalHelper, type LocalHelper } from "@/lib/buddy/providers";
 import { answerLanguage, buddyLang } from "@/lib/buddy/lang";
-import { StallError, generateCloud, generateLocal, maxStepsFor, texOk, type Ask, type LessonEvent } from "@/lib/whiteboard/generate";
+import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
+import { StallError, TIMEOUTS, generateCloud, generateLocal, maxStepsFor, texOk, type Ask, type LessonEvent } from "@/lib/whiteboard/generate";
 import { LIMITS, cleanText, validateLesson } from "@/lib/whiteboard/lesson";
 
 export const dynamic = "force-dynamic";
+const MAX_BODY = 64_000;
 
 /**
  * Whiteboard lesson: a concept in, the lesson streamed back as JSON lines (start, outline, one
@@ -19,7 +21,10 @@ export async function POST(req: Request) {
   if (denied) return denied;
   let body: { question?: unknown; provider?: unknown; setup?: unknown; language?: unknown; lesson?: unknown };
   try {
-    body = (await req.json()) as typeof body;
+    // a question and, for a follow-up, one lesson: anything much larger is not a whiteboard request
+    const raw = await req.text();
+    if (raw.length > MAX_BODY) return NextResponse.json({ error: "request too large" }, { status: 413 });
+    body = JSON.parse(raw) as typeof body;
   } catch {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }
@@ -29,11 +34,18 @@ export async function POST(req: Request) {
   const lesson = body.lesson === undefined || body.lesson === null ? null : validateLesson(body.lesson, { maxSteps: 40, texOk, sketch: true });
   if (body.lesson !== undefined && body.lesson !== null && !lesson) return NextResponse.json({ error: "the lesson to continue is not valid" }, { status: 400 });
 
-  const asked = resolveBuddyProvider(typeof body.provider === "string" ? body.provider : undefined);
-  // The whiteboard draws with this PC's model or the cloud model. FreeLLMAPI is not one of its sources:
-  // it is refused here, never quietly swapped for another one.
-  if (asked === "freellm") return NextResponse.json({ error: "the whiteboard cannot use FreeLLMAPI: choose this PC or Cloud", code: "unsupported_provider" }, { status: 400 });
-  const provider: "local" | "cloud" = asked;
+  const provider = resolveBuddyProvider(typeof body.provider === "string" ? body.provider : undefined);
+  if (provider === "freellm") {
+    // The user's FreeLLMAPI router, as for OK Filow's answers: its own reasons to refuse first (offline,
+    // no key, an address outside this network), then the user's yes for it. Never another source instead.
+    try {
+      requireFreeLlm();
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : String(e), code: e instanceof FreeLlmError ? `freellm_${e.code}` : "freellm_failed" }, { status: 409 });
+    }
+    const refused = consentDenied(req, "ask", freellmRecipient());
+    if (refused) return refused;
+  }
   if (provider === "cloud") {
     const refused = consentDenied(req, "ask", buddyCloudRecipient());
     if (refused) return refused;
@@ -57,6 +69,9 @@ export async function POST(req: Request) {
 
   const abort = new AbortController();
   req.signal?.addEventListener("abort", () => abort.abort());
+  // One lesson has an end, however many calls it takes: after that the model is cut off.
+  let timedOut = false;
+  const deadline = setTimeout(() => { timedOut = true; abort.abort(); }, TIMEOUTS.lessonMs);
   const ask: Ask = async ({ system, user, format, maxTokens, timeoutMs, temperature }) => {
     const limit = AbortSignal.timeout(timeoutMs);
     let text = "";
@@ -66,7 +81,7 @@ export async function POST(req: Request) {
       if (limit.aborted && !abort.signal.aborted) throw new StallError();
       throw e;
     }
-    if (limit.aborted && !abort.signal.aborted) throw new StallError();
+    if (timedOut || (limit.aborted && !abort.signal.aborted)) throw new StallError();
     return text;
   };
 
@@ -75,13 +90,16 @@ export async function POST(req: Request) {
     async start(controller) {
       const emit = (e: LessonEvent) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
       try {
-        emit({ type: "start", provider, model: provider === "cloud" ? BUDDY_CLOUD_MODEL() : helper!.model, lang, lite, more: Boolean(lesson) });
-        const request = { question, lang, maxSteps: maxStepsFor(lite), lesson };
-        if (provider === "cloud") await generateCloud(ask, request, emit);
+        emit({ type: "start", provider, model: provider === "cloud" ? BUDDY_CLOUD_MODEL() : provider === "freellm" ? "FreeLLMAPI" : helper!.model, lang, lite, more: Boolean(lesson) });
+        const request = { question, lang, maxSteps: maxStepsFor(lite), lesson, lite };
+        // an online model writes the whole lesson in one answer, whichever door it comes through
+        if (provider !== "local") await generateCloud(ask, request, emit);
         else await generateLocal(ask, request, emit);
       } catch (e) {
-        if (!abort.signal.aborted) emit({ type: "error", code: e instanceof StallError ? "stalled" : "model", message: e instanceof Error ? e.message : String(e) });
+        if (timedOut) emit({ type: "error", code: "stalled", message: "The lesson took too long." });
+        else if (!abort.signal.aborted) emit({ type: "error", code: e instanceof StallError ? "stalled" : "model", message: e instanceof Error ? e.message : String(e) });
       } finally {
+        clearTimeout(deadline);
         controller.close();
       }
     },

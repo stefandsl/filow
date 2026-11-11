@@ -167,7 +167,7 @@ describe("whiteboard entry from OK Filow and its strings", () => {
       }
     }
     // a translation is not the English left in place (names and "Cloud" aside)
-    for (const lang of ["ru", "ja"] as const) expect(keys.filter((k) => WB_TEXT[lang][k] === WB_TEXT.en[k])).toEqual([]);
+    for (const lang of ["ru", "ja"] as const) expect(keys.filter((k) => WB_TEXT[lang][k] === WB_TEXT.en[k])).toEqual(["from_free"]);
     expect(wbText("it", "stepOf", { n: 2, total: 5 })).toBe("Passo 2 di 5");
     expect(wbText("ja", "from_local")).not.toBe(WB_TEXT.en.from_local);
     expect(wbText("de", "stepOf", { n: 2, total: 5 })).toBe("Step 2 of 5");

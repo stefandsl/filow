@@ -28,7 +28,7 @@ const PICKS = [
   { things: ["o2"], relations: ["5"], formula: "", plot: "x / (1 + x)", note: "The curve flattens: light is no longer the limit." },
   { things: ["leaf"], relations: [], formula: "", plot: "", note: "" },
 ];
-const outlineFor = (broken) => ({ title: broken ? "Broken lesson" : "Photosynthesis", scene: "flow", steps: STEPS.map((s) => ({ say: s.say })) });
+const outlineFor = (broken) => ({ title: broken ? "Broken lesson" : "Photosynthesis", scene: "flow", kind: "process", steps: STEPS.map((s) => ({ say: s.say })) });
 const CLOUD = {
   title: "Ohm's law",
   scene: "flow",
@@ -68,6 +68,7 @@ export function startFakeModel(port = 4812) {
         const system = String((body.messages ?? [])[0]?.content ?? "");
         let answer;
         if (system.includes("planning a short whiteboard lesson")) answer = JSON.stringify(outlineFor(/broken/i.test(user)));
+        else if (system.includes("strict examiner")) answer = JSON.stringify({ sentences: (user.match(/^\d+\. /gm) ?? []).map((_, i) => ({ n: i + 1, true: true })), answers: true });
         else if (system.includes("prepare the drawing")) answer = JSON.stringify(user.includes("Already on the board") ? MORE_PLAN : PLAN);
         else if (system.includes("check facts")) answer = JSON.stringify({ answers: (user.match(/^\d+\. /gm) ?? []).map((_, i) => ({ n: i + 1, true: true })) });
         else {

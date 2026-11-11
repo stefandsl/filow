@@ -8,9 +8,10 @@ import { useLang } from "@filow/ui";
 import "katex/dist/katex.min.css";
 import { okFilowBridge, type OkFilowStatus } from "@/lib/buddy/bridge";
 import { okfText, OLLAMA_STOPPED_ANSWER, type OkfKey } from "@/lib/buddy/text";
-import { askRoute, changesStored, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
+import { askRoute, askRouteRecipient, changesStored, type AskRoute, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
 import { createSpeaker } from "@/lib/buddy/voice";
+import { freellmCodeOf, localizeFreeLlmError } from "@/lib/freellm";
 import { getSetupPreference } from "@/lib/prefs";
 import { Board, BOARD_PALETTES } from "@/components/whiteboard/Board";
 import { initialLesson, lessonReducer, readLessonStream } from "@/lib/whiteboard/client";
@@ -35,7 +36,7 @@ export default function WhiteboardPage() {
   const [desktop, setDesktop] = useState(false);
   const [question, setQuestion] = useState("");
   const [follow, setFollow] = useState("");
-  const [from, setFrom] = useState<"local" | "cloud">("local");
+  const [from, setFrom] = useState<AskRoute>("local");
   const [voiceOn, setVoiceOn] = useState(true);
   const [note, setNote] = useState("");
   const [notice, setNotice] = useState<NoticeRequest | null>(null);
@@ -119,15 +120,18 @@ export default function WhiteboardPage() {
     if (!more) dispatchPlayer({ type: "reset", expected: 0 });
     try {
       // Offline mode always means this PC; otherwise what was chosen on this page.
-      let route: "local" | "cloud" = statusRef.current?.offline ? "local" : from;
+      let route: AskRoute = statusRef.current?.offline ? "local" : from;
       let to: Recipient | null = null;
-      if (route === "cloud") {
+      if (route !== "local") {
         if (!okFilowBridge()) {
           route = "local";
           setNote(wbText(langRef.current, "cloudNeedsApp"));
         } else {
-          const rec = await out.recipients();
-          if (!rec) throw new Error(okfT("noticeUnknown"));
+          const all = await out.recipients();
+          // who receives the question on this route: OpenRouter and the model's maker, or the user's FreeLLMAPI router
+          const target = all ? askRouteRecipient(route, all) : null;
+          if (!target) throw new Error(okfT("noticeUnknown"));
+          const rec = { ask: target };
           if (out.standing("ask", rec.ask) === "ask") setNote(wbText(langRef.current, "noticeWaiting"));
           const decision = await out.allow("ask", rec.ask);
           if (askSeq.current !== id) return;
@@ -151,7 +155,7 @@ export default function WhiteboardPage() {
           throw Object.assign(new Error(j.error || `HTTP ${res.status}`), { code: j.code || "model" });
         }
         // The server answered from this PC after all (offline switch): nothing went outside.
-        if (res.headers.get("X-Buddy-Provider") !== "cloud") quiet?.();
+        if (res.headers.get("X-Buddy-Provider") === "local") quiet?.();
         let ended = false;
         await readLessonStream(res.body, (event) => {
           if (askSeq.current !== id) return;
@@ -195,8 +199,8 @@ export default function WhiteboardPage() {
     };
     void b.status().then((s) => {
       apply(s);
-      // OK Filow set to FreeLLMAPI: the whiteboard has no such source, so it starts on this PC (never on another cloud)
-      setFrom(askRoute(s) === "cloud" ? "cloud" : "local");
+      // the whiteboard starts on the source OK Filow answers from: this PC, FreeLLMAPI or Cloud
+      setFrom(askRoute(s));
       if (s.voice === "off") setVoiceOn(false);
     }).catch(() => {});
     const offs = [b.onConfig(apply)];
@@ -324,13 +328,13 @@ export default function WhiteboardPage() {
   };
 
   const status_line = ls.phase === "planning" ? t("planning") : ls.phase === "drawing" && stepCount < ls.expected ? t("drawingStep", { n: stepCount + 1, total: ls.expected }) : "";
-  const errorText = !ls.error ? "" : ls.error.code === "plan" ? t("errPlan") : ls.error.code === "stalled" ? t("errStalled") : ls.error.code === "no_local_helper" ? ls.error.message : OLLAMA_STOPPED_ANSWER.test(ls.error.message) ? okfT("ollamaStopped") : t("errGeneric", { message: ls.error.message });
+  const errorText = !ls.error ? "" : ls.error.code === "plan" ? t("errPlan") : ls.error.code === "stalled" ? t("errStalled") : ls.error.code === "no_local_helper" ? ls.error.message : OLLAMA_STOPPED_ANSWER.test(ls.error.message) ? okfT("ollamaStopped") : ls.error.code.startsWith("freellm") || freellmCodeOf(ls.error.message) ? localizeFreeLlmError(ls.error.message, lang) : t("errGeneric", { message: ls.error.message });
 
   return (
     <main className={`wb-page${lite ? " wb-plain" : ""}`} data-phase={ls.phase} data-player={player.phase} data-shown-ms={shownMs ?? undefined}>
       <header className="wb-head">
         <h1>{t("title")}</h1>
-        {ls.meta && <span className="wb-chip" data-source={ls.meta.provider}>{t(ls.meta.provider === "cloud" ? "source_cloud" : "source_local", { model: ls.meta.model })}</span>}
+        {ls.meta && <span className="wb-chip" data-source={ls.meta.provider}>{t(ls.meta.provider === "cloud" ? "source_cloud" : ls.meta.provider === "freellm" ? "source_free" : "source_local", { model: ls.meta.model })}</span>}
         {snap?.active && <OutboundPill snap={snap} t={okfT} />}
         <span className="wb-grow" />
         {desktop && <button type="button" className="wb-btn small" onClick={() => okFilowBridge()?.closeWhiteboard?.()}>{t("close")}</button>}
@@ -346,13 +350,16 @@ export default function WhiteboardPage() {
           <span className="wb-seg">
             <label><input type="radio" name="wb-from" checked={from === "local" || offline} onChange={() => setFrom("local")} />{t("from_local")}</label>
             <label title={!desktop ? t("cloudNeedsApp") : offline ? t("cloudOffline") : t("onlyQuestion")}>
+              <input type="radio" name="wb-from" checked={from === "freellm" && !offline} disabled={!desktop || offline} onChange={() => setFrom("freellm")} />{t("from_free")}
+            </label>
+            <label title={!desktop ? t("cloudNeedsApp") : offline ? t("cloudOffline") : t("onlyQuestion")}>
               <input type="radio" name="wb-from" checked={from === "cloud" && !offline} disabled={!desktop || offline} onChange={() => setFrom("cloud")} />{t("from_cloud")}
             </label>
           </span>
         </fieldset>
         <button type="submit" className="wb-btn primary" disabled={!question.trim()}>{t("explain")}</button>
       </form>
-      {from === "cloud" && !offline && desktop && <p className="wb-note">{t("onlyQuestion")}</p>}
+      {from !== "local" && !offline && desktop && <p className="wb-note">{t("onlyQuestion")}{from === "freellm" ? ` ${okfT("outFreeWarn")}` : ""}</p>}
       {offline && <p className="wb-note">{t("cloudOffline")}</p>}
 
       {!ls.lesson && !busy && !ls.error && (
@@ -412,7 +419,8 @@ export default function WhiteboardPage() {
               <button type="button" className="wb-btn" onClick={() => void savePng()} disabled={!layout}>{t("exportPng")}</button>
               <button type="button" className="wb-btn" onClick={saveMd} disabled={stepCount === 0}>{t("exportMd")}</button>
             </div>
-            {ls.meta?.provider === "local" && <p className="wb-note" data-advice="cloud">{t("localSimple")}</p>}
+            {/* The full local tier met the strict lesson target (docs/whiteboard/PROOF.md); the Lite tier was not measured, so it keeps the advice. Never a switch: only words. */}
+            {ls.meta?.provider === "local" && lite && <p className="wb-note" data-advice="cloud">{t("localSimple")}</p>}
             {lite && <p className="wb-note">{t("liteNote")}</p>}
             {ls.stalled && <p className="wb-note">{t("stalledNote")}</p>}
             {!ls.stalled && ls.cards > 0 && <p className="wb-note">{t("cardsNote", { n: ls.cards })}</p>}

@@ -29,7 +29,10 @@ export type LessonStep = {
   card: boolean;
 };
 export type Lesson = { title: string; scene: Scene; steps: LessonStep[] };
-export type Outline = { title: string; scene: Scene; says: string[] };
+export const KINDS = ["process", "proof", "comparison", "algorithm", "law"] as const;
+/** The kind of explanation the outline chose; each has its own recipe (generate.ts). */
+export type ExplanationKind = (typeof KINDS)[number];
+export type Outline = { title: string; scene: Scene; kind: ExplanationKind; says: string[] };
 
 export const LIMITS = {
   steps: 7,
@@ -85,18 +88,30 @@ export function cleanTex(v: unknown, texOk?: (tex: string) => boolean): string {
   // A formula cut off by the token limit: close what was left open.
   if (depth > 3) return "";
   tex += "}".repeat(depth);
+  // A formula is mathematics: a relation or an operation, not a phrase set in italics ("gradient descent").
+  const bare = tex.replace(/\\text\w*\{[^{}]*\}/g, " ").replace(/\\[a-zA-Z]+/g, " ");
+  if (!/[=<>+\-*/^_\d]|\\(?:frac|sum|int|sqrt|times|cdot|le|ge|ne|approx|to|rightarrow|propto|partial)\b/.test(tex) || (bare.match(/[A-Za-z]{4,}/g) ?? []).length >= 2) return "";
+  // one symbol or one number alone ("0", "x") states nothing
+  if (tex.replace(/\s+/g, "").length < 3) return "";
   if (texOk && !texOk(tex)) return "";
   return tex;
 }
+
+/** A formula without what only changes its look (a times sign, spacing, a final full stop): the same formula written twice is one. */
+const texKey = (tex: string) => tex.replace(/\\(?:times|cdot|left|right|[,;!: ])/g, "").replace(/[\s.,;*]+/g, "");
 
 export type LessonContext = {
   /** The nodes on the board so far: id -> label. Updated as items are accepted. */
   nodes: Map<string, string>;
   /** The arrows on the board so far ("from>to>label"): a model often draws the same arrow again in a later step. */
   edges: Set<string>;
+  /** How many boxes the board may hold (a follow-up gets room for a few more than the lesson it continues). */
+  nodeCap?: number;
   /** Formulas, plots and notes already written, so a later step does not write them again. */
   seen: Set<string>;
   texOk?: (tex: string) => boolean;
+  /** The sentence of the step being validated: a box is circled as "what the step talks about" only when the sentence names it. */
+  hint?: string;
   /** Free shapes are accepted (the cloud path). */
   sketch?: boolean;
 };
@@ -125,14 +140,15 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
     if (!text) return "";
     let id = slug(idRaw) || slug(text) || `n${ctx.nodes.size + 1}`;
     if (ctx.nodes.has(id)) {
-      // the same thing named twice is one node; a different thing under a used id gets its own
+      // the same thing named twice is one node, and so is anything the model puts under an id it already used;
+      // only an id derived from a label can collide by accident, and then the new thing gets its own
       if (ctx.nodes.get(id)!.toLowerCase() === text.toLowerCase() || slug(idRaw)) {
         touched.push(id);
         return id;
       }
       id = `${id}_${ctx.nodes.size + 1}`.slice(0, 24);
     }
-    if (ctx.nodes.size >= LIMITS.nodes || full()) return "";
+    if (ctx.nodes.size >= (ctx.nodeCap ?? LIMITS.nodes) || full()) return "";
     ctx.nodes.set(id, text);
     out.push({ kind: "node", id, text });
     return id;
@@ -159,8 +175,10 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
       const toRef = q.to ?? q.target;
       const from = find(fromRef) || addNode(fromRef, "");
       const to = find(toRef) || (full() ? "" : addNode(toRef, ""));
-      if (!from || !to || from === to || full()) continue;
+      if (!from || !to || full()) continue;
       const text = cleanText(q.text ?? q.label, LIMITS.edgeText);
+      // an arrow from a box to itself ("calls itself") says something only with its label
+      if (from === to && !text) continue;
       const edgeKey = `${from}>${to}>${text.toLowerCase()}`;
       // The same arrow again, or a bare arrow where one already runs: not drawn twice. A label on
       // an arrow that had none is new (the board then shows the labelled one).
@@ -172,7 +190,7 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
       out.push({ kind: "edge", from, to, text });
     } else if (kind === "formula") {
       const tex = cleanTex(q.tex ?? q.latex ?? q.text, ctx.texOk);
-      if (tex && once(`f:${tex.replace(/\s+/g, "")}`)) out.push({ kind: "formula", tex });
+      if (tex && once(`f:${texKey(tex)}`)) out.push({ kind: "formula", tex });
     } else if (kind === "plot") {
       const expr = cleanExpr(q.expr ?? q.fn ?? q.text).slice(0, 80);
       const tree = parseExpr(expr);
@@ -197,7 +215,8 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
     }
   }
   // Nothing new, but the model pointed at something on the board: circle it, as the step prompt asks.
-  const pointed = touched[touched.length - 1];
+  const said = ctx.hint?.toLowerCase();
+  const pointed = [...touched].reverse().find((id) => said === undefined || said.includes((ctx.nodes.get(id) ?? "\n").toLowerCase()));
   if (!out.length && pointed && once(`m:${pointed}:circle`)) out.push({ kind: "mark", target: pointed, style: "circle" });
   return out;
 }
@@ -221,7 +240,8 @@ export function validateOutline(raw: unknown, maxSteps: number = LIMITS.steps): 
     if (say && says.length < maxSteps) says.push(say);
   }
   if (!says.length) return null;
-  return { title: cleanText(r.title, LIMITS.title) || says[0].slice(0, LIMITS.title), scene: sceneOf(r.scene), says };
+  const kind = (KINDS as readonly string[]).includes(String((r as { kind?: unknown }).kind)) ? ((r as { kind: ExplanationKind }).kind) : "process";
+  return { title: cleanText(r.title, LIMITS.title) || says[0].slice(0, LIMITS.title), scene: sceneOf(r.scene), kind, says };
 }
 
 /** One step from its sentence and its items; no usable item makes it a text card. */
@@ -241,6 +261,7 @@ export function validateLesson(raw: unknown, opts: { maxSteps?: number; texOk?: 
     ctx.nodes = before.nodes;
     ctx.edges = before.edges;
     ctx.seen = before.seen;
+    ctx.nodeCap = before.nodeCap;
   }
   const steps: LessonStep[] = [];
   for (const s of Array.isArray(r.steps) ? r.steps : []) {
@@ -248,8 +269,9 @@ export function validateLesson(raw: unknown, opts: { maxSteps?: number; texOk?: 
     if (!s || typeof s !== "object") continue;
     const q = s as { say?: unknown; items?: unknown };
     const say = cleanText(q.say, LIMITS.say);
+    // a step is what is said while it is drawn: without a sentence there is no step
+    if (!say) continue;
     const step = makeStep(say, q.items, ctx);
-    if (!say && step.card) continue;
     steps.push(step);
   }
   if (!steps.length) return null;
@@ -264,8 +286,16 @@ export function validateLesson(raw: unknown, opts: { maxSteps?: number; texOk?: 
  */
 export function parseJsonLoose(text: unknown): unknown {
   if (typeof text !== "string") return undefined;
-  const start = text.indexOf("{");
-  if (start < 0) return undefined;
+  // Words before the JSON may hold a brace of their own ("the set {a, b} ..."): try the next ones too.
+  let start = text.indexOf("{");
+  for (let tries = 0; start >= 0 && tries < 6; tries++, start = text.indexOf("{", start + 1)) {
+    const got = parseFrom(text, start);
+    if (got !== undefined) return got;
+  }
+  return undefined;
+}
+
+function parseFrom(text: string, start: number): unknown {
   const body = text.slice(start, start + 60_000);
   const tryParse = (s: string): unknown => {
     try { return JSON.parse(s); } catch { return undefined; }
@@ -322,11 +352,12 @@ export function lessonContextText(lesson: Lesson): string {
 /** What a lesson already has on its board, for steps that continue it. */
 export function contextOf(lesson: Lesson, opts: Omit<LessonContext, "nodes" | "edges" | "seen"> = {}): LessonContext {
   const ctx = newContext(opts);
+  ctx.nodeCap = Math.min(14, LIMITS.nodes + 3);
   for (const s of lesson.steps) {
     for (const it of s.items) {
       if (it.kind === "node") ctx.nodes.set(it.id, it.text);
       else if (it.kind === "edge") ctx.edges.add(`${it.from}>${it.to}>${it.text.toLowerCase()}`);
-      else if (it.kind === "formula") ctx.seen.add(`f:${it.tex.replace(/\s+/g, "")}`);
+      else if (it.kind === "formula") ctx.seen.add(`f:${texKey(it.tex)}`);
       else if (it.kind === "plot") ctx.seen.add(`p:${it.expr.replace(/\s+/g, "")}`);
       else if (it.kind === "note") ctx.seen.add(`n:${it.text.toLowerCase()}`);
       else if (it.kind === "mark") ctx.seen.add(`m:${it.target}:${it.style}`);
@@ -371,9 +402,10 @@ export function outlineSchema(maxSteps: number) {
     properties: {
       title: { type: "string", maxLength: 60 },
       scene: { type: "string", enum: [...SCENES] },
+      kind: { type: "string", enum: [...KINDS] },
       steps: { type: "array", minItems: Math.min(3, maxSteps), maxItems: maxSteps, items: { type: "object", properties: { say: { type: "string", maxLength: 220 } }, required: ["say"] } },
     },
-    required: ["title", "scene", "steps"],
+    required: ["title", "scene", "kind", "steps"],
   };
 }
 export const STEP_SCHEMA = {
