@@ -107,6 +107,8 @@ export type LessonRequest = {
   audit?: boolean;
   /** Guards switched on or off for this request (see GUARDS). */
   guards?: Partial<typeof GUARDS>;
+  /** Checks of the local path switched off for this request (see LOCAL_CHECKS). */
+  localChecks?: Partial<typeof LOCAL_CHECKS>;
 };
 
 /**
@@ -127,6 +129,16 @@ export type LessonRequest = {
  * refusal of a redacted question, the comparison of the topic's names, the validator (cells in
  * full, every curve of a plot), and the look at the first sentence.
  */
+/**
+ * The checks of the local path, each of which can be switched off for a measured run
+ * (WHITEBOARD_LOCAL_OFF="sentences,relations,repair"), so that the lessons can be scored with and
+ * without them:
+ * sentences: the examiner of the outline's sentences, with its rewrite and its second plan.
+ * relations: the fact check of the drawing plan's relations (off: every relation of the plan may be drawn).
+ * repair: the second round that writes refused relations again and links lone things.
+ */
+export const LOCAL_CHECKS = { sentences: true, relations: true, repair: true };
+
 export const GUARDS = { examiner: false, arrows: false, sums: false, must: false, links: false, removeLoneBoxes: false };
 
 /** How long one answer may take. The outline includes loading the model into memory the first time. */
@@ -339,7 +351,9 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
     }
   };
   /** The sentences passed by every examiner (two differently worded checks by default); null when none could be read. */
+  const checks = { ...LOCAL_CHECKS, ...req.localChecks };
   const examine = async (kind: ExplanationKind, user: string, count: number) => {
+    if (!checks.sentences) return null;
     const all: Array<{ kept: Set<number>; answers: boolean }> = [];
     for (let pass = 0; pass < CHECKS.passes; pass++) {
       const one = readJudgement(await tryAsk({ system: judgeSystem(kind, pass), user, format: judgeSchema(count), maxTokens: 60 + count * 22, timeoutMs: TIMEOUTS.stepMs, temperature: 0 }), count);
@@ -350,6 +364,7 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
   };
   /** The relations confirmed by every check; null when none could be read. */
   const confirm = async (user: string, count: number) => {
+    if (!checks.relations) return new Set(Array.from({ length: count }, (_, i) => i + 1));
     const all: Array<Set<number>> = [];
     for (let pass = 0; pass < CHECKS.passes; pass++) {
       const one = readVerdicts(await tryAsk({ system: pass ? CHECK_SYSTEM_2 : CHECK_SYSTEM, user, format: checkSchema(count), maxTokens: 40 + count * 22, timeoutMs: TIMEOUTS.stepMs, temperature: 0 }), count);
@@ -427,7 +442,7 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
     const refusedRelations = all.filter((_, k) => !verdicts?.has(k + 1));
     const touched = new Set(plan.relations.flatMap((r) => [r.from, r.to]));
     const untouched = plan.things.filter((t) => !touched.has(t.id));
-    if (verdicts && !req.lite && !stalled && plan.things.length >= 2 && (refusedRelations.length || untouched.length)) {
+    if (verdicts && checks.repair && checks.relations && !req.lite && !stalled && plan.things.length >= 2 && (refusedRelations.length || untouched.length)) {
       const say = (r: Plan["relations"][number]) => `${label(r.from)} ${r.text} ${label(r.to)}.`;
       const names = new Map([...ctx.nodes, ...plan.things.map((t) => [t.id, t.text] as [string, string])]);
       const raw = await tryAsk({

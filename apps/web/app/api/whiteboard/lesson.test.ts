@@ -130,6 +130,27 @@ describe("whiteboard lesson, local model: plan, check, then a pick per step", ()
     expect(asked()).toHaveLength(0);
   });
 
+  it("for a measured run the checks of the local path can be switched off by name: no examiner, no fact check, no second round", async () => {
+    vi.stubEnv("WHITEBOARD_LOCAL_OFF", "sentences, relations, repair");
+    // the outline, the plan, three picks: five calls, and the relation the fact check would refuse is drawn when a step picks it
+    localAnswers = [OUTLINE, PLAN, pick(["sun", "leaf"], ["1"]), pick(["sugar"], ["2", "3"]), pick(["o2"], ["4"])];
+    const ev = await events(await post({ question: "photosynthesis" }));
+    expect(chats()).toHaveLength(5);
+    expect(JSON.stringify(ev)).toContain("shines on");
+    expect(ev[ev.length - 1]).toMatchObject({ type: "done", relations: 4, drawn: 4 });
+    // one at a time: with only the examiner off, the fact check still refuses the false relation
+    vi.stubEnv("WHITEBOARD_LOCAL_OFF", "sentences");
+    calls = [];
+    localAnswers = [OUTLINE, PLAN, CHECK, PICK1, PICK2, PICK3];
+    const checked = await events(await post({ question: "photosynthesis" }));
+    expect(JSON.stringify(checked)).not.toContain("shines on");
+    // with only the second round off, the refused relation is not asked for again
+    vi.stubEnv("WHITEBOARD_LOCAL_OFF", "repair");
+    calls = [];
+    localAnswers = [...FULL];
+    await events(await post({ question: "photosynthesis" }));
+    expect(calls.filter((c) => String(c.body.messages?.[0]?.content).includes("A fact checker went through"))).toHaveLength(0);
+  });
   it("draws no arrow at all when the check cannot be read", async () => {
     localAnswers = [OUTLINE, JUDGE, PLAN, "not json", PICK1, PICK2, PICK3];
     const steps = stepsOf(await events(await post({ question: "photosynthesis" })));
