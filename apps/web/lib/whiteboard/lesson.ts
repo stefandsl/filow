@@ -207,10 +207,12 @@ export function makeStep(say: string, rawItems: unknown, ctx: LessonContext): Le
 }
 
 /** A whole lesson in one object (the cloud path, and anything read back). Null when nothing is usable. */
-export function validateLesson(raw: unknown, opts: { maxSteps?: number; texOk?: (tex: string) => boolean; sketch?: boolean } = {}): Lesson | null {
+export function validateLesson(raw: unknown, opts: { maxSteps?: number; texOk?: (tex: string) => boolean; sketch?: boolean; nodes?: Map<string, string> } = {}): Lesson | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as { title?: unknown; scene?: unknown; steps?: unknown };
   const ctx = newContext({ texOk: opts.texOk, sketch: opts.sketch });
+  // steps that continue a lesson may point at the nodes it already has
+  if (opts.nodes) ctx.nodes = new Map(opts.nodes);
   const steps: LessonStep[] = [];
   for (const s of Array.isArray(r.steps) ? r.steps : []) {
     if (steps.length >= (opts.maxSteps ?? LIMITS.steps)) break;
@@ -347,6 +349,8 @@ export const STEP_SCHEMA = {
           to: { type: "string" },
           tex: { type: "string" },
           expr: { type: "string" },
+          xmin: { type: "number" },
+          xmax: { type: "number" },
           target: { type: "string" },
           style: { type: "string", enum: [...MARK_STYLES] },
         },
