@@ -492,7 +492,7 @@ Ollama used the GPU during the third gemma run, so its times are not to be trust
 
 | Model | Size | Licence | Strict | Seconds a lesson | First step after | Note |
 |---|---|---|---|---|---|---|
-| qwen3-vl:8b (today) | 6.1 GB | Apache-2.0 | 3, 3, 4, 4, 4, 6 (mean 4.0, round 7) | about 150 | | the baseline |
+| qwen3-vl:8b (today) | as installed by Filow | not looked up again | 3, 3, 4, 4, 4, 6 (mean 4.0, round 7) | about 150 | | the baseline |
 | gemma4:12b | 7.5 GB | Apache-2.0 | 4; 5, 5; 5, 5 (mean 4.8) | 40, 44 | 28, 30 s | barely fits 8 GB; much slower when the GPU is shared |
 | qwen3:8b | 4.9 GB | Apache-2.0 | 2 | 18 | 14 s | the text sibling of today's model |
 | qwen3:8b, thinking on | | | not reviewed (machine 2/10) | 161 | 98 s | mostly text cards: the thinking eats the time of each step |
