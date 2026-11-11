@@ -70,6 +70,15 @@ describe("Stop reaches the model", () => {
     expect(calls[0].signal.aborted).toBe(true);
   });
 
+  it("a request that was already given up when it arrived never reaches the model's answer", async () => {
+    fakeOllama(() => ({ text: "One two three ", endless: true }));
+    const gone = new AbortController();
+    gone.abort();
+    const res = await post({ question: "count for me", images: [image] }, gone.signal).catch(() => null);
+    if (res) await res.text().catch(() => "");
+    expect(calls.every((c) => c.signal.aborted)).toBe(true);
+  });
+
   it("a Stop during a draw request ends its call and never starts the second try", async () => {
     fakeOllama(() => ({ text: "I can't draw ", endless: true }));
     const panel = new AbortController();
@@ -122,6 +131,23 @@ describe("a draw request through the route", () => {
       expect(c.body.messages.at(-1)?.content).toBe("draw a car");
     }
     expect(res.headers.get("X-Buddy-Sees")).toBe("text");
+  });
+
+  it("online without the user's yes: refused before anything is asked, on the draw path as on any other", async () => {
+    vi.stubEnv("OPENROUTER_API_KEY", "test-key-not-real");
+    fakeOllama(() => ({ text: "never" }));
+    const res = await post({ question: "draw a car", images: [image], provider: "cloud" });
+    expect(res.status).toBe(403);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("the selected text the panel adds after the question does not turn a question into a draw request", async () => {
+    fakeOllama(() => ({ text: "It means a horse." }));
+    const res = await post({ question: "What does it mean?\n(Text I have selected: \"draw a horse\")", images: [image] });
+    expect(await res.text()).toBe("It means a horse.");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body.messages[0].content).not.toContain("The user asked you for a drawing");
+    expect(calls[0].body.messages.at(-1)?.images).toHaveLength(1);
   });
 
   it("works with the switch off as well (drawing needs no screen)", async () => {

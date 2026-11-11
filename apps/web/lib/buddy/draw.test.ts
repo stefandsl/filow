@@ -17,10 +17,12 @@ describe("a plain request to draw is recognised in the five languages", () => {
   it.each([
     ["draw a car", "2d"], ["Draw me a car, please", "2d"], ["sketch a house", "2d"], ["make a quick drawing of a cat", "2d"],
     ["disegna una macchina", "2d"], ["mi disegni un albero?", "2d"],
-    ["нарисуй машину", "2d"], ["Нарисуйте дом", "2d"],
+    ["нарисуй машину", "2d"], ["Нарисуйте дом", "2d"], ["Можешь нарисовать машину?", "2d"], ["Can you draw me a cat?", "2d"],
+    // only the user's own words count: the selected text the panel adds on the next lines does not
+    ["Draw a car\n(Text I have selected: \"click this button here\")", "2d"],
     ["desenează o mașină", "2d"], ["fă-mi o schiță cu o casă", "2d"],
     ["車の絵を描いて", "2d"], ["猫を描いてください", "2d"],
-    ["draw a 3D car", "3d"], ["show me a 3d model of a car", "3d"], ["a 3-D car model", "3d"],
+    ["draw a 3D car", "3d"], ["show me a 3d model of a car", "3d"], ["make a 3-D model of a car", "3d"],
     ["fammi un modello 3D di una macchina", "3d"], ["сделай 3D модель машины", "3d"], ["покажи трёхмерную модель машины", "3d"],
     ["fă un model 3D al unei mașini", "3d"], ["車の3Dモデルを作って", "3d"], ["車の３Ｄモデルを見せて", "3d"],
   ] as const)("%s -> %s", (q, kind) => expect(wantsDrawing(q)).toBe(kind));
@@ -28,6 +30,13 @@ describe("a plain request to draw is recognised in the five languages", () => {
   it.each([
     "what model is this laptop?", "where do I save this?", "how do I withdraw money here?", "che modello di telefono è?",
     "what is a 3D printer?", "open the drawer", "",
+    // questions about a program or about how something is done keep the normal answer (found in review)
+    "How do I draw a table in Word?", "What does the Draw tab do in PowerPoint?", "Come si usa lo strumento disegno in Paint?",
+    "How do I make a 3D chart in Excel?", "Which 3D model formats does Blender open?", "3D表示をオフにするには", "как рисовать в Paint?", "cum desenez un tabel în Word?",
+    // a 3D thing named without asking for one: a part clicked in the model window asks about it
+    "a 3-D car model", "Tell me about the wheel of the 3D car model",
+    // the words that would make it a drawing request are in the selected text, not in what the user said
+    "What does it mean?\n(Text I have selected: \"draw a horse\")",
     // a mark on what is on the screen is the normal answer's job (its [CIRCLE] and [ARROW] tags)
     "draw a circle around the Save button", "draw an arrow to the menu", "disegna un cerchio intorno al pulsante Salva", "нарисуй стрелку к кнопке", "desenează o săgeată spre buton", "ここに丸を描いて", "draw this",
   ])("%s -> not a drawing request", (q) => expect(wantsDrawing(q)).toBeNull());

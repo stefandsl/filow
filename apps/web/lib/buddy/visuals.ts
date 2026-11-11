@@ -100,15 +100,26 @@ const words = (whole: string[], stems: string[], pieces: string[] = []) =>
 
 const DRAW_VERB = words(
   ["draw", "sketch", "doodle", "illustrate", "(?:a|the|quick|simple|little) (?:drawing|sketch|diagram|doodle|illustration) of"],
-  ["disegn", "schizz", "desen", "schi[tț]", "ilustreaz", "нарису", "рисуй", "рисуе", "начерти", "изобрази", "набросай"],
+  ["disegn", "schizz", "desen", "schi[tț]", "ilustreaz", "нарис", "рисуй", "рисуе", "рисов", "начерти", "изобрази", "набросай"],
   ["描い", "描け", "描く", "絵を", "イラスト", "スケッチ", "図を"],
 );
 // "3D" also right after Japanese text ("車の3Dモデル"), so its edge is checked against Latin letters and digits only.
 const THREE_D = words([], ["тр[её]хмерн", "tridimension"], ["(?<![A-Za-z0-9])3[\\s-]?[dд](?![A-Za-z0-9])", "三次元", "立体", "3次元"]);
-const MODEL_OR_MAKE = words(
+/** Asking for a thing to be made or shown. The word "model" alone is not a request ("tell me about the wheel of the 3D car model"). */
+const MAKE_VERB = words(
   ["make", "build", "show", "create", "render", "fammi", "fai", "fare", "costruisci", "f[ăa]", "arat[ăa]", "creeaz[ăa]", "construie[sș]te"],
-  ["model", "crea", "mostra", "модел", "сделай", "покажи", "построй", "создай"],
-  ["モデル", "作って", "作成", "見せて", "表示"],
+  ["crea", "mostra", "сделай", "покажи", "построй", "создай"],
+  ["作って", "作成して", "見せて"],
+);
+/**
+ * A question about how something works or where it is (very often about a program on the screen:
+ * "how do I draw a table in Word?", "what does the Draw tab do?") is not a request for a picture: it
+ * keeps the normal answer, which sees the screen and can still draw.
+ */
+const ASKING_ABOUT = words(
+  ["how", "what", "which", "where", "why", "when", "who", "tab", "tool", "menu", "come", "cosa", "quale", "quali", "dove", "perch[eé]", "quando", "strumento", "scheda", "как", "что", "где", "почему", "зачем", "когда", "cum", "ce", "care", "unde", "de ce", "c[âa]nd"],
+  ["как(?:ой|ая|ие|ую|им)", "инструмент", "вкладк"],
+  ["どう", "なぜ", "何", "どこ", "どの", "には", "方法", "とは"],
 );
 /** The user means a mark on what is on the screen (a circle around a button), not a picture of a thing. */
 const ON_SCREEN = words(
@@ -118,13 +129,17 @@ const ON_SCREEN = words(
 );
 
 /**
- * Whether the question plainly asks for a picture of a thing, and which kind: "draw a car" (2d),
- * "a 3D model of a car" (3d), in the five languages. Null for everything else, also for a mark on the
- * screen ("draw a circle around the Save button"), which the normal answer does with its tags.
+ * Whether the user plainly asks OK Filow for a picture of a thing, and which kind: "draw a car" (2d),
+ * "make a 3D model of a car" (3d), in the five languages. Only the user's own words count: the first
+ * line (the panel adds the selected text and what was circled on the lines after it). Null for
+ * everything else: a mark on the screen ("draw a circle around the Save button"), which the normal
+ * answer does with its tags, and a question about how something is done or where it is. When in
+ * doubt it is null, and the normal answer (which can also draw) takes the question.
  */
 export function wantsDrawing(question: string): DrawKind | null {
-  const q = question.normalize("NFKC");
-  if (THREE_D.test(q) && (DRAW_VERB.test(q) || MODEL_OR_MAKE.test(q))) return "3d";
+  const q = question.normalize("NFKC").split("\n")[0];
+  if (ASKING_ABOUT.test(q)) return null;
+  if (THREE_D.test(q) && (DRAW_VERB.test(q) || MAKE_VERB.test(q))) return "3d";
   if (DRAW_VERB.test(q) && !ON_SCREEN.test(q)) return "2d";
   return null;
 }

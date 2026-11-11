@@ -84,6 +84,10 @@ describe('the "Look at my screen" switch', () => {
     expect(kept).toContain("No picture of your screen leaves this PC.");
     expect(kept).not.toContain("okf-out-icon");
     expect(kept).not.toContain("OpenRouter");
+    // that line is part of what a screen reader reads for the switch
+    const ids = /aria-describedby="([^"]+)"/.exec(going)?.[1].split(" ") ?? [];
+    expect(ids).toHaveLength(2);
+    for (const one of ids) expect(going).toContain(`id="${one}"`);
     // answers from this PC: nothing about sending at all
     const local = render(sw({ on: true }));
     expect(local).not.toContain("go to");

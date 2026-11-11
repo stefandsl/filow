@@ -43,7 +43,7 @@ export function StopButton({ active, t, onStop, pill = false }: { active: boolea
 export function SeeScreenSwitch({ on, slow, leaves, who, t, onChange, id = "okf-see" }: { on: boolean; slow: boolean; leaves: boolean; who: string; t: T; onChange: (next: boolean) => void; id?: string }) {
   return (
     <div className="okf-see" data-testid="okf-see">
-      <button type="button" role="switch" aria-checked={on} aria-describedby={`${id}-what`} className={"okf-see-switch" + (on ? " okf-see-switch--on" : "")} onClick={() => onChange(!on)}>
+      <button type="button" role="switch" aria-checked={on} aria-describedby={leaves ? `${id}-what ${id}-out` : `${id}-what`} className={"okf-see-switch" + (on ? " okf-see-switch--on" : "")} onClick={() => onChange(!on)}>
         <EyeIcon off={!on} />
         <span className="okf-see-name">{t("seeScreen")}</span>
         <span className="okf-see-state">{t(on ? "seeStateOn" : "seeStateOff")}</span>
@@ -55,7 +55,7 @@ export function SeeScreenSwitch({ on, slow, leaves, who, t, onChange, id = "okf-
       </p>
       {/* Answers from online: always one line here (so nothing moves), saying where the pictures go or that none leave. */}
       {leaves && (
-        <p className={"okf-see-out" + (on ? "" : " okf-see-out--kept")}>
+        <p id={`${id}-out`} className={"okf-see-out" + (on ? "" : " okf-see-out--kept")}>
           {on && <OutboundIcon />}
           <span>{on ? t("seeLeaves").replace("{names}", who) : t("seeKept")}</span>
         </p>

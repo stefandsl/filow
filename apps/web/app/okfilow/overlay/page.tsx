@@ -207,8 +207,24 @@ export default function OkFilowOverlay() {
 
   const bars = [0.55, 0.85, 1, 0.8, 0.5];
   const answering = mode === "thinking" || mode === "speaking";
+  // The pill can appear, move or go away under a pointer that stands still (main only says where the
+  // pointer is when it moves): look again whenever what is shown changes.
+  useEffect(() => {
+    const over = overStopButton(cursor.current, stopSpot.current?.getBoundingClientRect() ?? null);
+    if (over !== overStop.current) {
+      overStop.current = over;
+      okFilowBridge()?.overlayHover?.(over);
+    }
+  }, [mode, going, here, sees, lang]);
+  /** Stop: the one thing on the overlay that takes the mouse (see onCursor above). */
+  const stopPill = (
+    <span ref={stopSpot} className="okf-notch-stop" onPointerDown={(e) => e.stopPropagation()}>
+      <StopButton pill active={answering} t={t} onStop={() => okFilowBridge()?.stopAnswer?.("button")} />
+    </span>
+  );
   const onDown = (e: React.PointerEvent) => {
-    if (e.button !== 0) return;
+    // The highlighter marks only while the talk keys are held (the only other time a click reaches this window is on the Stop button).
+    if (e.button !== 0 || !(mode === "listening" && purpose === "talk")) return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
     live.current = [[e.clientX, e.clientY]];
     setInk((k) => [...k, live.current!]);
@@ -275,16 +291,15 @@ export default function OkFilowOverlay() {
           <OutboundIcon />
           <strong>{t("outLabel")}</strong>
           <span>{t("outSending").replace("{names}", joinNames(localNames(out.names, t("freeName")), t("outAnd")))}</span>
+          {/* An answer from online can be stopped from here too. */}
+          {answering && stopPill}
         </div>
       ) : here && (mode === "listening" || answering) && (
         <div className="okf-notch">
           {/* While asking: an eye when the question took the screen, struck through when it went with words only (said in words too). */}
           {mode === "thinking" ? <EyeIcon off={!sees} size={15} /> : <span className={"okf-notch-dot okf-notch-dot--" + mode} />}
           <span>{t(mode === "thinking" ? (sees ? "notchLooking" : "notchWords") : mode === "speaking" ? "notchAnswering" : purpose === "dictate" ? "notchDictating" : purpose === "handsfree" ? "notchHandsFree" : "notchListening")}</span>
-          {/* Stop: the one thing on the overlay that takes the mouse (see onCursor above). */}
-          <span ref={stopSpot} className="okf-notch-stop" onPointerDown={(e) => e.stopPropagation()}>
-            <StopButton pill active={answering} t={t} onStop={() => okFilowBridge()?.stopAnswer?.("button")} />
-          </span>
+          {stopPill}
         </div>
       )}
       <div ref={dot} className={`okf-buddy okf-buddy--${mode}${going ? " okf-buddy--out" : ""}${here ? "" : " okf-hidden"}`}>

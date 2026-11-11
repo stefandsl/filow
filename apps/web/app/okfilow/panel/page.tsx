@@ -327,7 +327,8 @@ export default function OkFilowPanel() {
     setStopped(true);
     if (was) { setAnswer(was.shown); b.text(was.shown); }
     setMode("idle", { stopped: true, holdMs: 4000 });
-    if (handsFree.current) listenAgain.current();
+    // Hands-free listens again, after a moment: listening clears the bubble, and what was stopped should be seen first.
+    if (handsFree.current) setTimeout(() => { if (handsFree.current && modeRef.current === "idle") listenAgain.current(); }, 2500);
     return true;
   }, [endAnswer, setMode]);
 
@@ -412,6 +413,8 @@ export default function OkFilowPanel() {
       let to: Recipient | null = null;
       if (route !== "local") {
         const rec = await out.recipients();
+        // Stopped while this was looked up: no notice opens for an answer nobody waits for.
+        if (run.current !== id) return;
         const recipient = rec && askRouteRecipient(route, rec);
         if (!recipient) throw new Error(t("noticeUnknown"));
         if (out.standing("ask", recipient) === "ask") b.text(t("noticeWaiting"));
@@ -898,7 +901,12 @@ export default function OkFilowPanel() {
           <OutboundPill snap={outSnap} t={t} />
         </p>
         {/* Only while an answer is in progress; the row keeps its height, so nothing moves. */}
-        <StopButton active={answering} t={t} onStop={() => { if (!stopAnswer()) bridge.stopAnswer?.("panel"); }} />
+        <StopButton active={answering} t={t} onStop={() => {
+          // The button goes away once pressed: the keyboard goes to the question box, not nowhere.
+          const had = document.activeElement?.getAttribute("data-testid") === "okf-stop";
+          if (!stopAnswer()) bridge.stopAnswer?.("panel");
+          if (had) typeBox.current?.focus();
+        }} />
       </div>
       <p className="okf-hint">
         {c?.hook === "toggle" ? t("hintToggle") : t("hintHold").replace("{key}", hotkey ?? "")}
@@ -919,7 +927,7 @@ export default function OkFilowPanel() {
         <section className="okf-convo">
           {heard && <p className="okf-q">{heard}</p>}
           {answer && <p className="okf-a">{answer}</p>}
-          {stopped && <p className="okf-stopped" data-testid="okf-stopped">{t("stopped")}</p>}
+          {stopped && <p className="okf-stopped" data-testid="okf-stopped" role="status">{t("stopped")}</p>}
           {error && <p className="okf-err">{error}{freeDown && <> <a href={FREELLM_DOWNLOAD_URL} target="_blank" rel="noreferrer">{t("freeGet")}</a></>}</p>}
         </section>
       )}
@@ -932,7 +940,7 @@ export default function OkFilowPanel() {
       </form>
       {/* Always here, in everyday words: whether a question takes the screen with it. */}
       {c && (
-        <SeeScreenSwitch on={sees} slow={slowToSee(route, localScreen)} leaves={screenLeaves(true, route)} who={seeWho} t={t}
+        <SeeScreenSwitch on={sees} slow={slowToSee(route, localScreen)} leaves={screenLeaves(true, route) && Boolean(seeWho)} who={seeWho} t={t}
           onChange={(next) => void configure({ seeScreen: next ? "on" : "off" })} />
       )}
       {bridge.showWhiteboard && <p className="okf-hint okf-board-link"><button type="button" onClick={() => { bridge.showWhiteboard?.(typed.trim()); setTyped(""); }}>{t("whiteboard")}</button> {t("whiteboardHint")}</p>}

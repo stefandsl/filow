@@ -80,6 +80,7 @@ export async function POST(req: Request) {
   // The user's Stop (the panel aborts its request) and a page that went away both end the model's
   // work here: the provider call below carries this signal, so a local model stops generating.
   req.signal?.addEventListener("abort", () => abort.abort());
+  if (req.signal?.aborted) abort.abort();
   const ask: BuddyAskRequest = { ...body, question, images, screens, consent, sees, language: known ?? "auto" };
   // A plain request for a drawing or a 3D model is answered with one (lib/buddy/draw.ts): it needs no screenshot.
   const drawing = wantsDrawing(question);
