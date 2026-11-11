@@ -145,6 +145,11 @@ does not control: a third-party clipboard manager may still record the text for 
 - End to end (QA build): `FILOW_OKF_FAKE_MIC=<wav>` plays a recording as the microphone and
   `FILOW_OKF_QA_KEYS=1` lets the panel feed key presses to the real gestures code (for machines where
   Windows refuses the hook, such as a locked session). Both switches work only in a QA package.
+- Test isolation: `FILOW_QA_NO_GLOBAL_INPUT=1` (apps/desktop/global-input.js) makes an instance start no
+  keyboard or mouse hook, register no global shortcut, open no real microphone, and never type, paste or
+  copy anything; the log says so in one line at start. Every test launch on a PC somebody is using sets
+  it (a test instance once reacted to the owner's dictation keys and pasted into the owner's window).
+  It only takes abilities away, so it works in every build. Keys then go through `FILOW_OKF_QA_KEYS=1`.
 
 ## Cleanup of English dictations: S1-mini by Superwhisper
 

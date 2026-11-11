@@ -91,6 +91,7 @@
       "okfilow-gestures.js",
       "okfilow-hook-retry.js",
       "uiohook.js",
+      "global-input.js",
       "dictation-target.js",
       "dictation-diag.js",
       "dictation-cleanup.js",

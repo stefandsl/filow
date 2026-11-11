@@ -3,7 +3,11 @@
 // bubble, pointing), a small panel window that is also the "brain" (mic, speech-to-text, the
 // /api/buddy/ask call, the voice), a tray icon, the hold-to-talk hotkey and the screenshots.
 // Screenshots stay in memory; every OK Filow window is excluded from capture.
-const { BrowserWindow, Tray, Menu, screen, desktopCapturer, ipcMain, globalShortcut, nativeImage, shell, systemPreferences } = require("electron");
+const { BrowserWindow, Tray, Menu, screen, desktopCapturer, ipcMain, globalShortcut: electronShortcuts, nativeImage, shell, systemPreferences } = require("electron");
+const { globalInputOff, shortcutsFor, REFUSED_INSERT } = require("./global-input");
+/** Test isolation (global-input.js): no hook, no global shortcut, no typing into other windows, no focus taken. */
+const INPUT_OFF = globalInputOff();
+const globalShortcut = shortcutsFor(electronShortcuts, INPUT_OFF);
 const { keyboardPermission } = require("./mac-permissions");
 const path = require("node:path");
 const { createGestures, chordHeld, ARM_MS } = require("./okfilow-gestures");
@@ -182,7 +186,7 @@ function createOkFilow(deps) {
     const p = buildPanel();
     if (!noticeOpen) noticeShowedPanel = !p.isVisible();
     noticeOpen = true;
-    if (p.isVisible()) { p.moveTop(); p.focus(); } else showPanelAtCursor();
+    if (p.isVisible()) { p.moveTop(); if (!INPUT_OFF) p.focus(); } else showPanelAtCursor();
     logLine("okfilow: first-send notice shown");
   });
   ipcMain.on("okfilow:notice:close", (e) => {
@@ -587,7 +591,7 @@ function createOkFilow(deps) {
       return;
     }
     // Dictation has its own switch: it works with OK Filow's questions turned off.
-    if (held || !(kind === "dictate" ? dictation.cfg().enabled : cfg().enabled)) {
+    if (held || (kind === "dictate" && INPUT_OFF) || !(kind === "dictate" ? dictation.cfg().enabled : cfg().enabled)) {
       // Not started: the gestures must not count a hands-free dictation as running.
       if (kind === "dictate" && handsFree) gestures?.endToggle();
       return;
@@ -607,7 +611,7 @@ function createOkFilow(deps) {
       dictation.warmCleanup();
     }
     // Read the selection while the user's app still has focus; it goes with the question.
-    if (kind === "talk") { clearDrawings(); strokes = []; setOverlayMouse(true); selection = readSelection(); }
+    if (kind === "talk") { clearDrawings(); strokes = []; setOverlayMouse(true); selection = INPUT_OFF ? Promise.resolve("") : readSelection(); }
     sendPanel("okfilow:press", { purpose: kind, handsFree: kind === "dictate" && handsFree });
   }
   function release() {
@@ -694,6 +698,7 @@ function createOkFilow(deps) {
    * Filow's own windows, else clipboard + paste with the user's clipboard put back, or only copied).
    */
   async function typeText(text, spokenLanguage, phrase = false) {
+    if (INPUT_OFF) return { ...REFUSED_INSERT };
     // QA key mode: the paste still goes out through uiohook (SendInput), which works without the hook.
     const keys = hook || (QA_KEYS ? loadUiohook().uIOhook : null);
     // `phrase`: one phrase of a hands-free dictation (its last words can arrive after the next press).
@@ -717,6 +722,8 @@ function createOkFilow(deps) {
     p.setPosition(Math.round(Math.min(Math.max(wa.x + 8, c.x + 14), wa.x + wa.width - w - 8)), Math.round(Math.min(Math.max(wa.y + 8, c.y + 18), wa.y + wa.height - h - 8)));
     // Windows only lets the process that sent the last input take the foreground: a tap of F24
     // (a key no app uses) from our hook makes that us, so the box really gets the keyboard.
+    // Test isolation: the panel shows without taking the keyboard from the window the person is using.
+    if (INPUT_OFF) { p.showInactive(); p.moveTop(); return; }
     try { if (hook) hook.keyTap(loadUiohook().UiohookKey.F24); } catch { /* focus may stay put */ }
     p.show();
     p.moveTop();
@@ -825,7 +832,12 @@ function createOkFilow(deps) {
       if (changed || fallback) sendPanel("okfilow:config", status());
     },
   });
-  const startHook = () => hookRetry.attempt();
+  function startHook() {
+    if (!INPUT_OFF) return hookRetry.attempt();
+    // Test isolation: the gestures exist (the QA key path feeds them), on a stand-in hook that hears and sends nothing.
+    try { registerHook(); } catch (e) { logLine(`okfilow: gestures not set up (${e && e.message})`); }
+    logLine("okfilow: global input is off: no keyboard hook, no fallback shortcut; keys reach the gestures only through the QA key path");
+  }
 
   // ---- screenshots ----
   /** `images: false` ("Look at my screen" is off): no picture of the screen is taken at all; the rest (which screen has the mouse, the selected text) is still returned. */
