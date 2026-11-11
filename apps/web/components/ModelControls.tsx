@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { I18nKey } from "@filow/core";
 import { useT } from "@filow/ui";
-import { deleteQuestion, deviceUses, sizeText, usesText, type DeviceModel, type DeviceModels, type ModelUseItem, type UseContext } from "@/lib/modelUse";
+import { deleteQuestion, deviceUses, listedModels, sizeText, usesText, type DeviceModel, type DeviceModels, type ModelUseItem, type UseContext } from "@/lib/modelUse";
 
 type ModelsBridge = {
   status(): Promise<DeviceModels>;
@@ -42,16 +42,18 @@ export function InUseChip({ uses }: { uses: ModelUseItem[] }) {
 export type DeviceNotice = { kind: "freed" | "failed"; text: string } | null;
 
 /** The rows, without the bridge: what the list shows for a given status (unit tested). */
-export function DeviceModelRows({ data, ctx, busy, notice, onStop, onDelete }: { data: DeviceModels; ctx: UseContext; busy: string | null; notice: DeviceNotice; onStop: (m: DeviceModel) => void; onDelete: (m: DeviceModel) => void }) {
+export function DeviceModelRows({ data, ctx, busy, notice, onDelete }: { data: DeviceModels; ctx: UseContext; busy: string | null; notice: DeviceNotice; onDelete: (m: DeviceModel) => void }) {
   const t = useT();
+  // A model is listed once it is on disk for good. While it downloads, its percent and Stop are where the
+  // download was started: a row appearing here at that moment would push that button away from the pointer.
+  const models = listedModels(data);
   return (
     <section className="strip device-models" data-testid="device-models">
       <div className="label">{t("settings.onThisPc")}</div>
       <div className="hint">{t("settings.onThisPcHint")}</div>
-      {data.models.length === 0 && <div className="hint">{t("settings.onThisPcNone")}</div>}
-      {data.models.map((m) => {
+      {models.length === 0 && <div className="hint">{t("settings.onThisPcNone")}</div>}
+      {models.map((m) => {
         const uses = deviceUses(m, ctx);
-        const downloading = data.downloading.includes(m.id);
         return (
           <div key={m.id} className="model" data-model={m.id}>
             <div>
@@ -63,13 +65,9 @@ export function DeviceModelRows({ data, ctx, busy, notice, onStop, onDelete }: {
               </div>
             </div>
             <div className="row">
-              {downloading ? (
-                <StopButton name={m.name} onStop={() => onStop(m)} />
-              ) : (
-                <button type="button" className="btn danger" data-testid="delete-model" disabled={busy === m.id} aria-label={t("settings.deleteLabel", { name: m.name })} onClick={() => onDelete(m)}>
-                  {t("settings.delete")}
-                </button>
-              )}
+              <button type="button" className="btn danger" data-testid="delete-model" disabled={busy === m.id} aria-label={t("settings.deleteLabel", { name: m.name })} onClick={() => onDelete(m)}>
+                {t("settings.delete")}
+              </button>
             </div>
           </div>
         );
@@ -96,15 +94,13 @@ export function DeviceModelList({ ctx, onChange, confirmDelete = (text) => windo
   useEffect(() => {
     read();
     const timer = setInterval(read, 2000);
-    return () => clearInterval(timer);
+    // A window in the background has its timers slowed down: coming back to it shows the present at once.
+    window.addEventListener("focus", read);
+    document.addEventListener("visibilitychange", read);
+    return () => { clearInterval(timer); window.removeEventListener("focus", read); document.removeEventListener("visibilitychange", read); };
   }, [read]);
   if (!modelsBridge() || !data) return null;
 
-  const stop = async (m: DeviceModel) => {
-    await modelsBridge()?.cancel(m.id).catch(() => undefined);
-    read();
-    onChange?.();
-  };
   const remove = async (m: DeviceModel) => {
     const question = deleteQuestion({ name: m.name, size: sizeText(m.bytes, t), uses: m.installed ? deviceUses(m, ctx) : [], effect: m.kind }, t);
     if (!confirmDelete(question)) return;
@@ -121,5 +117,5 @@ export function DeviceModelList({ ctx, onChange, confirmDelete = (text) => windo
       onChange?.();
     }
   };
-  return <DeviceModelRows data={data} ctx={ctx} busy={busy} notice={notice} onStop={(m) => void stop(m)} onDelete={(m) => void remove(m)} />;
+  return <DeviceModelRows data={data} ctx={ctx} busy={busy} notice={notice} onDelete={(m) => void remove(m)} />;
 }

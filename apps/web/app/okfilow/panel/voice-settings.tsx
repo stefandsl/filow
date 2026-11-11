@@ -127,22 +127,22 @@ export function VoiceSettings({ bridge, status, t, configure, preview, confirmRe
               ))}
             </select>
           </label>
-          <div className="okf-row">
-            <button type="button" className="okf-link" onClick={preview}>{t("voicePreview")}</button>
-          </div>
           {panel.light && <p className="okf-hint">{t("voiceLight")}</p>}
         </>
       )}
 
       {/* The voice on disk, whichever voice speaks: its size, whether it is the one in use, and Delete. */}
       {tts?.installed && (
-        <div className="okf-row" data-testid="voice-installed">
-          <span className="okf-hint">
+        <>
+          <p className="okf-hint" data-testid="voice-installed">
             {t("voiceInstalled").replace("{size}", size(tts.sizeBytes))}
             {voice === "natural" && panel.show === "ready" && <> · <strong data-testid="voice-in-use">{t("voiceInUse")}</strong></>}
-          </span>
-          <button type="button" className="okf-link" data-testid="voice-remove" onClick={() => void remove()}>{t("voiceRemove")}</button>
-        </div>
+          </p>
+          <div className="okf-row">
+            {voice === "natural" && panel.show === "ready" ? <button type="button" className="okf-link" onClick={preview}>{t("voicePreview")}</button> : <span />}
+            <button type="button" className="okf-link" data-testid="voice-remove" onClick={() => void remove()}>{t("voiceRemove")}</button>
+          </div>
+        </>
       )}
       {!tts?.installed && removed && <p className="okf-hint" role="status">{removed}</p>}
     </>

@@ -55,11 +55,12 @@ describe("the natural voice in the OK Filow panel", () => {
 
   it("installed and speaking: 'in use' next to the size; installed while another voice speaks: the size only", () => {
     const used = renderToStaticMarkup(view(tts({ installed: true, state: "ready", pct: 100 }), "natural"));
-    expect(plain(used)).toContain("Natural voice installed (129 MB) · in use Remove the voice");
+    expect(plain(used)).toContain("Natural voice installed (129 MB) · in use Listen Remove the voice");
     expect(used).toContain('<strong data-testid="voice-in-use">in use</strong>');
     for (const voice of ["system", "cloud", "off"] as const) {
       const idle = renderToStaticMarkup(view(tts({ installed: true, state: "ready", pct: 100 }), voice));
       expect(plain(idle), voice).toContain("Natural voice installed (129 MB) Remove the voice");
+      expect(plain(idle), voice).not.toContain("Listen");
       expect(idle, voice).not.toContain("voice-in-use");
     }
     // this PC turned out too slow for it: on disk, not speaking

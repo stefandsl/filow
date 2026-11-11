@@ -10,7 +10,8 @@ export type UseId = "tracking" | "questions" | "dictation" | "voice" | "cleanup"
 export type ModelUseItem = { use: UseId; language?: string };
 
 /** One row of the desktop app's list (window.filow.models.status()). */
-export type DeviceModel = { id: string; kind: "speech" | "voice" | "cleanup" | "punctuation"; name: string; installed: boolean; bytes: number; uses: ModelUseItem[]; loaded: boolean };
+/** `downloading`: this model's own download is in flight (its percent and Stop are where it was started). */
+export type DeviceModel = { id: string; kind: "speech" | "voice" | "cleanup" | "punctuation"; name: string; installed: boolean; bytes: number; uses: ModelUseItem[]; loaded: boolean; downloading?: boolean };
 export type DeviceModels = { models: DeviceModel[]; downloading: string[] };
 
 export type UseContext = {
@@ -37,6 +38,11 @@ const sameModel = (row: string, picked: string | null | undefined) => Boolean(pi
 
 /** A take in cloud mode keeps nothing on this computer: no local model follows the talk or ticks the points. */
 const localTake = (ctx: UseContext) => ctx.startMode !== "cloud";
+
+/** The rows Settings shows: everything on disk except a download in flight (it is listed when it is done, or when it was left unfinished). */
+export function listedModels(data: DeviceModels): DeviceModel[] {
+  return data.models.filter((m) => m.installed || !m.downloading);
+}
 
 /** A model from the desktop app's list: its uses, without "following a talk" when a take would not use it. */
 export function deviceUses(model: Pick<DeviceModel, "uses">, ctx: UseContext): ModelUseItem[] {

@@ -290,6 +290,24 @@ describe("one list, one stop, one delete (model-control.js)", () => {
     expect(vosk).toMatchObject({ installed: true, bytes: 4000, uses: [], loaded: false });
     expect(cleanup).toMatchObject({ kind: "cleanup", installed: true, bytes: 300 });
     expect(cleanup.uses).toEqual([{ use: "cleanup", language: "en" }]);
+    expect(s.models.map((m: { downloading: boolean }) => m.downloading)).toEqual([false, false, false]);
+  });
+
+  it("marks the row whose own download is in flight, and no other", () => {
+    const { userData, c, downloads, s1, setJob } = control("list-downloading");
+    install(userData, stt.CATALOGUE.nemotron);
+    fs.writeFileSync(stt.partFile(userData, stt.CATALOGUE["vosk-small-ru"]), Buffer.alloc(500));
+    fs.writeFileSync(stt.partFile(userData, stt.CATALOGUE.dolphin), Buffer.alloc(500)); // left unfinished earlier
+    fs.mkdirSync(path.join(userData, "models", "s1-mini"));
+    fs.writeFileSync(path.join(userData, "models", "s1-mini", "model.part"), Buffer.alloc(100));
+    downloads.begin("speech");
+    setJob({ key: "vosk-small-ru" });
+    s1.start();
+    const flags = Object.fromEntries(c.status().models.map((m: { id: string; downloading: boolean }) => [m.id, m.downloading]));
+    expect(flags).toEqual({ "speech:nemotron": false, "speech:vosk-small-ru": true, "speech:dolphin": false, cleanup: true });
+    // the job is kept after a failure, but nothing is downloading then
+    downloads.cancel("speech");
+    expect(c.status().models.find((m: { id: string }) => m.id === "speech:vosk-small-ru").downloading).toBe(false);
   });
 
   it("a cloud voice while offline counts as the system voice; the natural voice is not shown in use without the wired voice", () => {

@@ -49,7 +49,10 @@ const data: DeviceModels = {
   models: [
     { id: "speech:nemotron", kind: "speech", name: "Nemotron 3.5 streaming", installed: true, bytes: 475271763, loaded: true, uses: [{ use: "tracking", language: "auto" }, { use: "dictation", language: "it" }] },
     { id: "speech:vosk-small-ru", kind: "speech", name: "Vosk small Russian streaming", installed: true, bytes: 24110855, loaded: false, uses: [] },
-    { id: "cleanup", kind: "cleanup", name: "S1-mini by Superwhisper", installed: false, bytes: 30 * 1024 * 1024, loaded: false, uses: [] },
+    // downloading right now: its percent and Stop are in the Dictation section, where it was started
+    { id: "cleanup", kind: "cleanup", name: "S1-mini by Superwhisper", installed: false, bytes: 30 * 1024 * 1024, loaded: false, uses: [], downloading: true },
+    // left unfinished by an earlier run: nothing is downloading it
+    { id: "voice", kind: "voice", name: "Supertonic 3", installed: false, bytes: 62 * 1024 * 1024, loaded: false, uses: [], downloading: false },
   ],
 };
 
@@ -83,7 +86,7 @@ describe("InUseChip", () => {
 });
 
 describe("the list of models on this computer", () => {
-  const render = (over: Partial<Parameters<typeof DeviceModelRows>[0]> = {}) => <DeviceModelRows data={data} ctx={ctx} busy={null} notice={null} onStop={() => {}} onDelete={() => {}} {...over} />;
+  const render = (over: Partial<Parameters<typeof DeviceModelRows>[0]> = {}) => <DeviceModelRows data={data} ctx={ctx} busy={null} notice={null} onDelete={() => {}} {...over} />;
 
   it("two speech models installed, one in use: the badge is on that one only; size and 'loaded' are shown", () => {
     const markup = html(render());
@@ -102,28 +105,30 @@ describe("the list of models on this computer", () => {
     expect(plain(rows[0])).not.toContain("following a talk");
   });
 
-  it("an installed model has Delete, a download in flight has Stop instead; neither is shown as installed while it downloads", () => {
-    const rows = html(render()).split('<div class="model"').slice(1);
+  it("a download in flight is not listed (no row appears above the button that started it); one left unfinished is, with Delete", () => {
+    const markup = html(render());
+    const rows = markup.split('<div class="model"').slice(1);
+    expect(markup).not.toContain("S1-mini by Superwhisper");
+    expect(markup).not.toContain('data-model="cleanup"');
     expect(rows[0]).toContain('data-testid="delete-model"');
     expect(rows[0]).toContain('aria-label="Delete Nemotron 3.5 streaming"');
-    expect(rows[0]).not.toContain('data-testid="stop-download"');
-    expect(rows[2]).toContain('data-testid="stop-download"');
-    expect(rows[2]).toContain('aria-label="Stop the download: S1-mini by Superwhisper"');
-    expect(rows[2]).not.toContain('data-testid="delete-model"');
+    expect(rows[2]).toContain('data-model="voice"');
+    expect(rows[2]).toContain('aria-label="Delete Supertonic 3"');
     expect(rows[2]).not.toContain("chip live");
-    expect(plain(rows[2])).toContain("S1-mini by Superwhisper Dictation cleanup unfinished download 30 MB");
+    expect(plain(rows[2])).toContain("Supertonic 3 Natural voice unfinished download 62 MB");
+    // once the download is done the model is listed like any other
+    const done = html(render({ data: { ...data, models: data.models.map((m) => (m.id === "cleanup" ? { ...m, installed: true, downloading: false } : m)) } }));
+    expect(done).toContain('data-model="cleanup"');
   });
 
-  it("Delete and Stop call the handlers with the row's model", () => {
+  it("Delete calls the handler with the row's model", () => {
     const onDelete = vi.fn();
-    const onStop = vi.fn();
-    const { deletes, stops } = inRender(() => { const tree = DeviceModelRows({ data, ctx, busy: null, notice: null, onStop, onDelete }); return { deletes: find(tree, "delete-model"), stops: find(tree, "stop-download") }; });
-    expect(deletes).toHaveLength(2);
+    const deletes = inRender(() => find(DeviceModelRows({ data, ctx, busy: null, notice: null, onDelete }), "delete-model"));
+    expect(deletes).toHaveLength(3);
     (deletes[1].onClick as () => void)();
     expect(onDelete).toHaveBeenCalledWith(data.models[1]);
-    expect(stops).toHaveLength(1);
-    (stops[0].onClick as () => void)();
-    expect(onStop).toHaveBeenCalledWith(data.models[2]);
+    (deletes[2].onClick as () => void)();
+    expect(onDelete).toHaveBeenLastCalledWith(data.models[3]);
   });
 
   it("the row being deleted has its button disabled; the result is announced in a line that is always there", () => {

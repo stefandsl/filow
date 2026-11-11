@@ -22,7 +22,7 @@ function createModelControl(deps) {
   const models = path.join(deps.userData, "models");
   const mb = (bytes) => `${Math.round(bytes / 1024 / 1024)} MB`;
 
-  /** { models: [{ id, kind, name, installed, bytes, uses: [{ use, language }], loaded }], downloading: [ids] } */
+  /** { models: [{ id, kind, name, installed, bytes, uses: [{ use, language }], loaded, downloading }], downloading: [ids] } */
   function status() {
     const ok = deps.okFilow ? deps.okFilow() : null;
     const voice = deps.voice ? deps.voice() : null;
@@ -37,13 +37,17 @@ function createModelControl(deps) {
       punctuation: { installed: tc.model, runtime: tc.runtime },
     });
     const loadedSpeech = deps.speech.loaded();
+    // `downloading`: this row's own download is in flight. Settings lists a model once it is on disk for
+    // good; while it downloads, the percent and Stop are where the download was started.
+    const job = deps.speech.job();
+    const speechBusy = job && deps.downloads.active("speech") ? job.key : "";
     const rows = deps.stt.modelsOnDisk(deps.userData).map((m) => ({
-      id: `speech:${m.key}`, kind: "speech", name: m.label, installed: m.installed, bytes: m.bytes, uses: use.speech[m.key] || [], loaded: loadedSpeech.includes(m.key),
+      id: `speech:${m.key}`, kind: "speech", name: m.label, installed: m.installed, bytes: m.bytes, uses: use.speech[m.key] || [], loaded: loadedSpeech.includes(m.key), downloading: m.key === speechBusy,
     }));
     const others = [
-      { id: "voice", kind: "voice", name: "Supertonic 3", installed: deps.tts.modelReady(deps.userData), bytes: deps.stt.specBytes(deps.userData, deps.tts.MODEL), uses: use.voice, loaded: Boolean(voice && voice.loaded()) },
-      { id: "cleanup", kind: "cleanup", name: "S1-mini by Superwhisper", installed: s1.model, bytes: sizeOf(path.join(models, "s1-mini")), uses: use.cleanup, loaded: s1.running },
-      { id: "punctuation", kind: "punctuation", name: "Horizon Labs truecase-small", installed: tc.model, bytes: sizeOf(path.join(models, "truecase-small")), uses: use.punctuation, loaded: tc.running },
+      { id: "voice", kind: "voice", name: "Supertonic 3", installed: deps.tts.modelReady(deps.userData), bytes: deps.stt.specBytes(deps.userData, deps.tts.MODEL), uses: use.voice, loaded: Boolean(voice && voice.loaded()), downloading: deps.downloads.active("voice") },
+      { id: "cleanup", kind: "cleanup", name: "S1-mini by Superwhisper", installed: s1.model, bytes: sizeOf(path.join(models, "s1-mini")), uses: use.cleanup, loaded: s1.running, downloading: Boolean(s1.downloading) },
+      { id: "punctuation", kind: "punctuation", name: "Horizon Labs truecase-small", installed: tc.model, bytes: sizeOf(path.join(models, "truecase-small")), uses: use.punctuation, loaded: tc.running, downloading: Boolean(tc.downloading) },
     ].filter((m) => m.bytes > 0);
     const downloading = [...deps.downloads.ids(), ...(s1.downloading ? ["cleanup"] : []), ...(tc.downloading ? ["punctuation"] : [])];
     return { models: [...rows, ...others], downloading };

@@ -124,10 +124,13 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
       setPlanBusy(false);
     }
   };
+  const [sherpa, setSherpa] = useState<SherpaStatus | null>(null);
+  // The plan says which engine follows a talk and which model ticks the points, so "in use" depends on
+  // it: it is read at the start and again whenever a model arrives or goes (downloaded, deleted).
+  const onDisk = `${sherpa?.model === "ready"}|${sherpa?.active ?? ""}|${Object.keys(cached).filter((k) => cached[k]).join(",")}|${(status?.installed ?? []).map((i) => i.name).join(",")}`;
   useEffect(() => {
     void loadPlan(false);
-  }, []);
-  const [sherpa, setSherpa] = useState<SherpaStatus | null>(null);
+  }, [onDisk]);
   useEffect(() => {
     const b = sherpaBridge();
     if (!b) return;
@@ -248,13 +251,23 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     } catch (err) {
       // Stopped by the user: not an error, and the files that were already complete go too.
       if (err instanceof DOMException && err.name === "AbortError") {
-        await removeCachedModel(name);
+        await removeStopped(name);
         setCached((c) => ({ ...c, [name]: false }));
       } else setError(`Whisper: ${(err as Error).message}`);
     } finally {
       delete pulls.current[name];
       setProgress((p) => ({ ...p, [name]: "" }));
     }
+  };
+
+  /**
+   * After a Stop: the files that were already complete go. A file whose write to the browser cache was
+   * under way when the worker ended can still land a moment later (seen once, stopping at 0%), so the
+   * cache is cleared a second time shortly after.
+   */
+  const removeStopped = async (name: string) => {
+    await removeCachedModel(name);
+    setTimeout(() => void removeCachedModel(name), 2500);
   };
 
   /** One question (name, size, what it is in use for) before a model that lives in the app's own page is deleted. */
@@ -594,7 +607,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                         const stopped = err instanceof DOMException && err.name === "AbortError";
                         setGateStatus(stopped ? "idle" : "error");
                         setGatePct(null);
-                        if (stopped) void removeCachedModel(GATE_MODEL).then(() => setGateCached(false));
+                        if (stopped) void removeStopped(GATE_MODEL).then(() => setGateCached(false));
                       },
                     );
                   }}
@@ -710,7 +723,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               <div key={m.name} className="model">
                 <div>
                   <strong>{label(m.name)}</strong> <span className="chip">{t(`plan.task.${m.kind}` as I18nKey)}</span>{" "}
-                  <span className={`chip ${m.fit === "fits" ? "live" : m.fit === "tight" ? "" : "err"}`}>{t(`fit.${m.fit}`)}</span>
+                  <span className={`chip ${m.fit === "fits" ? "live" : m.fit === "tight" ? "" : "err"}`}>{t(`fit.${m.fit}`)}</span>{" "}
                   {m.runtime !== "sherpa" && (m.installed || cached[m.name]) && <span className="chip live">{t("settings.installed")}</span>}{" "}
                   {m.runtime === "ollama" && m.installed && <InUseChip uses={ollamaUses(m.name, useCtx)} />}
                   {m.runtime === "browser" && cached[m.name] && <InUseChip uses={browserUses({ name: m.name, kind: "whisper" }, useCtx)} />}
