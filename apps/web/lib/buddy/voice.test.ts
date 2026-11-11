@@ -114,6 +114,7 @@ function setup(over: Partial<OkFilowStatus> = {}, opts: { tts?: boolean; cloudAu
   const players: Array<ReturnType<typeof fakePlayer>> = [];
   const modes = new Set<(m: { mode: OkFilowMode }) => void>();
   const fallbacks: VoiceFallback[] = [];
+  const noVoice: string[] = [];
   const state = { status: { voice: "natural", speed: 1, offline: false, naturalVoice: 3, ...over } as OkFilowStatus, turn: 1, ui: "en" };
   const bridge = {
     tts: opts.tts === false ? undefined : t.tts,
@@ -126,9 +127,10 @@ function setup(over: Partial<OkFilowStatus> = {}, opts: { tts?: boolean; cloudAu
     uiLang: () => state.ui,
     cloudAudio: opts.cloudAudio,
     onFallback: (r) => fallbacks.push(r),
+    onNoVoice: (l) => noVoice.push(l),
     player: () => { const p = fakePlayer(); players.push(p); return p; },
   });
-  return { ...t, speaker, players, fallbacks, state, mode: (mode: OkFilowMode) => { for (const fn of [...modes]) fn({ mode }); }, modeListeners: () => modes.size };
+  return { ...t, speaker, players, fallbacks, noVoice, state, mode: (mode: OkFilowMode) => { for (const fn of [...modes]) fn({ mode }); }, modeListeners: () => modes.size };
 }
 
 /** The voice built into the PC, as the panel sees it. */
@@ -393,17 +395,44 @@ describe("this PC's voice", () => {
     expect(s.requests).toEqual([]);
   });
 
-  it("uses the app language when this PC has no voice for the text", async () => {
-    const { spoken, synth } = fakeSynth(VOICES);
+  // Review of the five-language pass, finding 4: Russian, Romanian and Japanese text was handed to
+  // an English or Italian voice, which reads it as noise.
+  it("stays silent and says so, once per language, when this PC has no voice for the text", async () => {
+    const { spoken } = fakeSynth(VOICES);
     const s = setup({ voice: "system" });
     s.state.ui = "it";
-    const done = s.speaker.speak("Откройте меню Файл.", 1);
-    expect(spoken[0]).toMatchObject({ lang: "it-IT", voice: { name: "Elsa" } });
+    await s.speaker.speak("Откройте меню Файл.", 1);
+    await s.speaker.speak("Привет, я OK Filow.", 1, { lang: "ru" });
+    await s.speaker.speak("こんにちは、OK Filowです。", 1);
+    await s.speaker.speak("Bună, sunt OK Filow. Așa sun pe acest PC.", 1, { lang: "ro" });
+    expect(spoken).toEqual([]);
+    expect(s.noVoice).toEqual(["ru", "ja", "ro"]);
+  });
+
+  it("speaks the interface language with its own voice when this PC has one (the preview's fallback)", async () => {
+    const { spoken, synth } = fakeSynth([...VOICES, { lang: "ru-RU", localService: true, name: "Irina" }, { lang: "ja-JP", localService: true, name: "Haruka" }, { lang: "ro-RO", localService: true, name: "Andrei" }]);
+    const s = setup({ voice: "system" });
+    for (const [lang, name, text] of [["ru", "Irina", "Привет, я OK Filow."], ["ja", "Haruka", "こんにちは、OK Filowです。"], ["ro", "Andrei", "Buna, sunt OK Filow."]] as const) {
+      spoken.length = 0;
+      const done = s.speaker.speak(text, 1, { lang });
+      expect(spoken[0]).toMatchObject({ voice: { name } });
+      expect(spoken[0].lang.slice(0, 2)).toBe(lang);
+      synth.speaking = false;
+      await tick(150);
+      await done;
+    }
+    expect(s.noVoice).toEqual([]);
+  });
+
+  it("lets the system choose while the list of voices is not known yet", async () => {
+    const { spoken, synth } = fakeSynth([]);
+    const s = setup({ voice: "system" });
+    const done = s.speaker.speak("Привет.", 1);
+    expect(spoken[0]).toMatchObject({ lang: "ru-RU", voice: null });
     synth.speaking = false;
     await tick(150);
     await done;
   });
-
   it("stops at once when interrupted", async () => {
     const { synth } = fakeSynth(VOICES);
     const s = setup({ voice: "system" });

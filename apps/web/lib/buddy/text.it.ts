@@ -91,6 +91,7 @@ export const it: Record<OkfKey, string> = {
   voiceWhy_fewCores: "Il processore di questo PC è troppo piccolo per la voce naturale, quindi parla la voce di questo PC.",
   voiceWhy_slow: "La voce naturale era troppo lenta su questo PC, quindi parla la voce di questo PC.",
   voiceWhy_failed: "La voce naturale non è partita, quindi parla la voce di questo PC.",
+  voiceNoSystem: "Questo PC non ha una voce per questa lingua, quindi non è stato letto nulla ad alta voce. Scegli la voce naturale, oppure aggiungi una voce per questa lingua nelle impostazioni di sistema.",
   voiceOfflineGet: "La modalità offline è attiva: disattivala una volta per scaricare la voce.",
   voiceGetFailed: "Il download si è fermato. Premi il pulsante per riprendere da dove si era fermato.",
   offlineNote: "Modalità offline: tutto resta su questo PC.",
