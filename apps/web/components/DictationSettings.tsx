@@ -10,6 +10,7 @@ type DictationBridge = {
   status(): Promise<DictationStatus | null>;
   configure(patch: Partial<DictationStatus>): Promise<DictationStatus | null>;
   downloadCleanup?(): Promise<{ started: boolean; reason?: string }>;
+  downloadPunctuation?(): Promise<{ started: boolean; reason?: string }>;
 };
 /** The desktop app's dictation bridge; null in the browser. Also used by the setup picker for the same download. */
 export const dictationBridge = () => (globalThis as { filow?: { dictation?: DictationBridge } }).filow?.dictation ?? null;
@@ -125,6 +126,27 @@ export function DictationSettings({ lang }: { lang: string }) {
         <input type="checkbox" checked={s.cleanupLists} disabled={off || !s.cleanup} onChange={(e) => void set({ cleanupLists: e.target.checked })} />
         <span>{t("cleanupLists")}</span>
       </label>
+
+      {/* Italian, Russian, Romanian, Japanese: marks and capitals from a small model on this PC (dictation-punctuate.js). */}
+      <label className="row">
+        <input type="checkbox" checked={s.punctuate ?? true} disabled={off} aria-describedby={`${id}-punctuate`} onChange={(e) => void set({ punctuate: e.target.checked })} />
+        <span>{t("punctuate")}</span>
+      </label>
+      <div className="hint" id={`${id}-punctuate`}>{t("punctuateHint")}</div>
+      {(s.punctuate ?? true) && s.punctuateState && !s.punctuateState.runtime && <div className="hint">{t("punctuateNoRuntime")}</div>}
+      {(s.punctuate ?? true) && s.punctuateState?.runtime && !s.punctuateState.model && (
+        <div className="row" role="status">
+          {s.punctuateState.downloading
+            ? <span>{t("punctuateDownloading", { pct: String(s.punctuateState.pct) })}</span>
+            : <>
+                <span className="hint dictation-alert">{s.punctuateState.error ? t("punctuateDownloadFailed", { error: s.punctuateState.error }) : t("punctuateMissing")}</span>
+                <button type="button" className="btn" disabled={off} onClick={() => { void b.downloadPunctuation?.().then(() => b.status()).then((v) => v && setS(v)).catch(() => {}); }}>
+                  {t("punctuateDownload", { size: `${Math.round(s.punctuateState.bytes / 1024 / 1024)} MB` })}
+                </button>
+              </>}
+        </div>
+      )}
+      <div className="hint">{t("cleanupByLanguage")}</div>
 
       <label className="row">
         <input type="checkbox" checked={s.removeFillers} disabled={off} onChange={(e) => void set({ removeFillers: e.target.checked })} />

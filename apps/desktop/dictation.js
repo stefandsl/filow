@@ -80,6 +80,8 @@ function createDictation(deps) {
       cleanupReady: deps.cleanupStatus ? (() => { const s = deps.cleanupStatus(); return Boolean(s.model && s.runtime); })() : false,
       /** { runtime, model, downloading, pct, bytes, error }: what Settings needs to offer the download and show it. */
       cleanupState: deps.cleanupStatus ? deps.cleanupStatus() : null,
+      // the punctuation and capitals model for Italian, Russian, Romanian and Japanese (dictation-punctuate.js)
+      punctuateState: deps.punctuateStatus ? deps.punctuateStatus() : null,
       // A screen reader is running (Chromium noticed one): the start and stop tones play even when the
       // sound setting is off, since an announcement from the overlay may not be read out.
       screenReader: Boolean(deps.screenReader && deps.screenReader()),
@@ -202,6 +204,15 @@ function createDictation(deps) {
       if (cl.used) text = cl.text;
       diag.mark("cleanup", cl.used ? { used: true, took: cl.ms } : { used: false, why: cl.reason, took: cl.ms });
       if (cl.asked) logLine(`dictation: cleanup ${cl.used ? `used (S1-mini, ${cl.ms} ms)` : `skipped (${cl.reason}, ${cl.ms} ms)`}`);
+    }
+    // Italian, Russian, Romanian, Japanese: where the recognizer left the sentence open, a small model on this
+    // PC adds full stops, commas, question marks and capitals (dictation-punctuate.js). It only adds; an
+    // answer that is late or not provably the same words is dropped and the words above go in.
+    if (deps.punctuator) {
+      const pu = await deps.punctuator.punctuate(text, { enabled: c.punctuate, language: c.language, spokenLanguage });
+      if (pu.used) text = pu.text;
+      diag.mark("punctuation", pu.used ? { used: true, took: pu.ms } : { used: false, why: pu.reason, took: pu.ms });
+      if (pu.asked) logLine(`dictation: punctuation ${pu.used ? `added (${pu.ms} ms)` : `skipped (${pu.reason}, ${pu.ms} ms)`}`);
     }
     /** One of Filow's own windows has the keyboard: only into a text field; with none the words are copied and the user is told so. */
     const intoOwn = async (win, fld) => {
@@ -340,8 +351,9 @@ function createDictation(deps) {
     }
     return {
       platform,
-      settings: { enabled: c.enabled, chord: c.chord, mode: c.mode, insert: c.insert, language: c.language, cleanup: c.cleanup, cleanupStyle: c.cleanupStyle, cleanupLists: c.cleanupLists },
+      settings: { enabled: c.enabled, chord: c.chord, mode: c.mode, insert: c.insert, language: c.language, cleanup: c.cleanup, cleanupStyle: c.cleanupStyle, cleanupLists: c.cleanupLists, punctuate: c.punctuate },
       cleanup: deps.cleanupStatus ? deps.cleanupStatus() : { model: false, runtime: false },
+      punctuation: deps.punctuateStatus ? deps.punctuateStatus() : { model: false, runtime: false },
       hook,
       model: { ready, language: c.language },
       mic,

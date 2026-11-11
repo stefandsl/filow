@@ -788,6 +788,7 @@ export const it: Dictionary = {
   "about.fact1": "Nessun account. Nessuna telemetria: Filow non dice a nessuno come lo usi.",
   "about.fact2": "Il tuo copione, le impostazioni e i registri restano nella cartella di configurazione su questo computer.",
   "about.fact3": "Le dettature in inglese sono ripulite su questo computer da S1-mini by Superwhisper (Apache 2.0 con una clausola sul nome), eseguito con llama.cpp (MIT). I testi delle licenze sono nella cartella licenses di Filow.",
+  "about.fact4": "Le dettature in italiano, russo, rumeno e giapponese ricevono punteggiatura e maiuscole su questo computer da multilingual-punctuation-truecase-small di Horizon Labs (Apache 2.0, basato su mmBERT-small, MIT), eseguito con ONNX Runtime (MIT). I testi delle licenze sono nella cartella licenses di Filow e nelle note sui componenti di terze parti.",
   "about.configFolder": "La tua cartella di configurazione",
   "about.openFolder": "Apri la cartella",
   "about.todo": "non ancora compilato",

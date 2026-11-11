@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld("filow", {
     status: () => ipcRenderer.invoke("dictation:settings:status"),
     configure: (patch) => ipcRenderer.invoke("dictation:settings:configure", patch),
     downloadCleanup: () => ipcRenderer.invoke("dictation:cleanup:download"),
+    downloadPunctuation: () => ipcRenderer.invoke("dictation:punctuation:download"),
   },
   getPreferences: () => ipcRenderer.invoke("ui:getPreferences"),
   updatePreferences: patch => ipcRenderer.invoke("ui:updatePreferences", patch),

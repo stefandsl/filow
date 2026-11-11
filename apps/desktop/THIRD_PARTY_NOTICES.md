@@ -40,6 +40,17 @@ It runs on this computer in llama.cpp's server program (https://github.com/ggml-
 MIT License, Copyright (c) 2023-2026 The ggml authors, bundled unmodified with the LLVM OpenMP runtime
 (Apache-2.0 with LLVM exceptions). Their license texts ship in licenses/llama.cpp.
 
+Italian, Russian, Romanian and Japanese dictations that the speech recognition left without a full stop get
+their full stops, commas, question marks and capitals from multilingual-punctuation-truecase-small
+(https://huggingface.co/Horizon-Labs/multilingual-punctuation-truecase-small), Copyright 2026 Horizon Labs,
+Apache License 2.0. It is a fine-tuned version of mmBERT-small (https://huggingface.co/jhu-clsp/mmBERT-small),
+MIT License, Copyright (c) the mmBERT authors (Johns Hopkins University CLSP), from which its weights and
+tokenizer files derive. The model is not bundled in the installer; Filow downloads the unmodified files
+onnx/model_quantized.onnx, tokenizer.json, tokenizer_config.json and config.json on request. Its LICENSE and
+NOTICE ship in licenses/truecase-small. It runs on this computer in ONNX Runtime (onnxruntime-node, MIT
+License, Copyright (c) Microsoft Corporation) with the tokenizer of @huggingface/tokenizers (Apache-2.0);
+both are listed with their license texts below.
+
 ## Fonts
 
 The whiteboard sets formulas with KaTeX. Its math fonts (the KaTeX_* font files, 20 faces) ship inside the
@@ -3205,11 +3216,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### onnxruntime-common 1.31.0-dev.20260911-2a43ec07e
+### onnxruntime-common 1.30.0
 
 License: MIT
 
-### onnxruntime-common 1.30.0
+### onnxruntime-common 1.31.0-dev.20260911-2a43ec07e
 
 License: MIT
 

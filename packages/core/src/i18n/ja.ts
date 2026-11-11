@@ -798,6 +798,7 @@ export const ja: Dictionary = {
   "about.fact1": "アカウント不要。テレメトリーなし：Filowは、あなたの使い方を誰にも知らせません。",
   "about.fact2": "台本、設定、ログは、このコンピューターの設定フォルダーに保存されます。",
   "about.fact3": "英語の音声入力は、このコンピューター上で S1-mini by Superwhisper（Apache 2.0、名称に関する条項付き）が整えます。実行には llama.cpp（MIT）を使います。ライセンス文は Filow の licenses フォルダーにあります。",
+  "about.fact4": "イタリア語・ロシア語・ルーマニア語・日本語の音声入力には、このコンピューター上で Horizon Labs の multilingual-punctuation-truecase-small（Apache 2.0、mmBERT-small（MIT）がベース）が句読点と大文字を補います。実行には ONNX Runtime（MIT）を使います。ライセンス文は Filow の licenses フォルダーとサードパーティ通知にあります。",
   "about.configFolder": "設定フォルダー",
   "about.openFolder": "フォルダーを開く",
   "about.todo": "未記入",

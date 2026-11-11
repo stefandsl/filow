@@ -308,6 +308,11 @@ ipcMain.handle("dictation:cleanup:download", event => {
   if (!uiSender(event)) throw new Error("Denied");
   return wantCleanupModel("asked in Settings");
 });
+// The punctuation and capitals model (Italian, Russian, Romanian, Japanese): the same kind of download.
+ipcMain.handle("dictation:punctuation:download", event => {
+  if (!uiSender(event)) throw new Error("Denied");
+  return wantPunctuationModel("asked in Settings");
+});
   ipcMain.handle("dictation:settings:configure", (event, patch) => {
     if (!uiSender(event)) throw new Error("Denied");
     if (patch && typeof patch === "object") getDictation().configure(patch);
@@ -1414,7 +1419,37 @@ function warmS1() {
     const c = getDictation().cfg();
     const lang = c.language === "auto" ? sttLanguage() : c.language;
     if (c.enabled && c.cleanup && lang === "en") s1Runtime().warm();
+    // The punctuation and capitals model, for someone who dictates in Italian, Russian, Romanian or Japanese.
+    if (c.enabled && c.punctuate && require("./dictation-punctuate").LANGS.includes(lang)) truecaseRuntime().warm();
   } catch (err) { logLine(`s1: warm start skipped (${err && err.message ? err.message : err})`); }
+}
+let truecase = null;
+/**
+ * The local runtime for the punctuation and capitals model (truecase-runtime.js): a process of its own
+ * (Electron utilityProcess), started at the first dictation in one of its languages.
+ */
+function truecaseRuntime() {
+  truecase ||= require("./truecase-runtime").createTruecaseRuntime({
+    userData, logLine,
+    fork: (script) => require("electron").utilityProcess.fork(script, [], { serviceName: "Filow punctuation", stdio: "ignore" }),
+    download: require("./download").download, sha256File: require("./integrity").sha256File,
+    threads: () => Math.max(2, Math.min(4, Math.floor(os.cpus().length / 2))),
+  });
+  return truecase;
+}
+app.on("will-quit", () => { if (truecase) truecase.stop(); });
+/** Settings asked for the punctuation model: the same kept-until-here path as S1-mini (s1-runtime.js wantModel). */
+function wantPunctuationModel(why) {
+  const store = {
+    set(wanted) {
+      if (Boolean(settings.punctuationModelWanted) === wanted) return;
+      if (wanted) settings.punctuationModelWanted = true; else delete settings.punctuationModelWanted;
+      try { saveSettings(); } catch (err) { logLine(`truecase: wish not saved: ${err.message}`); }
+    },
+  };
+  const result = require("./s1-runtime").wantModel(truecaseRuntime(), store, () => !offline);
+  logLine(`truecase: model wanted (${why}): ${result.started ? "download started" : result.reason}`);
+  return result;
 }
 let dictation = null;
 function getDictation() {
@@ -1441,6 +1476,9 @@ function getDictation() {
     // s1-runtime.js). Without the model or the runtime the step is skipped and the report says why.
     cleaner: require("./dictation-cleanup").createCleaner({ run: (body, signal) => s1Runtime().run(body, signal), ready: () => s1Runtime().ready(), budgetMs: () => 700 }),
     cleanupStatus: () => s1Runtime().status(),
+    // Italian, Russian, Romanian, Japanese: marks and capitals where the recognizer left none (dictation-punctuate.js).
+    punctuator: require("./dictation-punctuate").createPunctuator({ run: (lower, signal) => truecaseRuntime().run(lower, signal), ready: () => truecaseRuntime().ready() }),
+    punctuateStatus: () => truecaseRuntime().status(),
     cleanupWarm: () => warmS1(),
     // Ctrl + V (Command + V on macOS) through OK Filow's own keyboard hook: uiohook-napi (MIT) sends it with
     // SendInput on Windows, CGEvent on macOS and XTest on X11. No shell, no PowerShell, no extra native module.
@@ -2251,6 +2289,7 @@ async function main() {
     const cleanupChosen = Boolean(choices && Array.isArray(choices.models) && choices.models.includes(CLEANUP_MODEL));
     if (cleanupChosen) choices = { ...choices, models: choices.models.filter((n) => n !== CLEANUP_MODEL) };
     if (cleanupChosen || settings.cleanupModelWanted) wantCleanupModel(cleanupChosen ? "chosen in the setup" : "still pending from the setup");
+    if (settings.punctuationModelWanted) wantPunctuationModel("still pending");
     if (choices && choices.ollama) void startOllamaInstall();
     else startOllamaIfWanted("Filow opened");
     const firstPage =

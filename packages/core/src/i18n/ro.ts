@@ -788,6 +788,7 @@ export const ro: Dictionary = {
   "about.fact1": "Fără cont. Fără telemetrie: Filow nu spune nimănui cum îl folosești.",
   "about.fact2": "Scenariul, setările și jurnalele tale rămân în folderul de configurare de pe acest computer.",
   "about.fact3": "Dictările în engleză sunt curățate pe acest computer de S1-mini by Superwhisper (Apache 2.0 cu o clauză privind numele), care rulează în llama.cpp (MIT). Textele licențelor sunt în folderul licenses al Filow.",
+  "about.fact4": "Dictările în italiană, rusă, română și japoneză primesc punctuația și majusculele pe acest computer de la multilingual-punctuation-truecase-small de la Horizon Labs (Apache 2.0, bazat pe mmBERT-small, MIT), care rulează în ONNX Runtime (MIT). Textele licențelor sunt în folderul licenses al Filow și în notele despre componentele terțe.",
   "about.configFolder": "Folderul tău de configurare",
   "about.openFolder": "Deschide folderul",
   "about.todo": "necompletat încă",
