@@ -15,6 +15,12 @@ export const SLIDES_MARKER = "<!-- source: slides -->";
 /** A script built by /api/import carries this marker. Slides win when both are present. */
 export const IMPORT_MARKER = "<!-- source: import -->";
 
+/** Optional heading prefix: "Intro - What is a decision model?" is the label "Intro" and the title after it. */
+export function sectionLabel(title: string): { label: string; title: string } {
+  const separator = title.indexOf(" - ");
+  return separator > 0 ? { label: title.slice(0, separator), title: title.slice(separator + 3) } : { label: "", title };
+}
+
 /**
  * Optional time targets (the talk timer, rehearsal-timer.ts):
  *

@@ -107,15 +107,21 @@ function ReportBody({ report: r, idPrefix, fold = false }: { report: Report; idP
   );
 }
 
+/** The saved file: what the report shows, and the take's notes only while the box in the report is ticked. */
+export function reportFile(report: Report, lang: Lang, notes: string | undefined, withNotes: boolean): string {
+  return rehearsalMarkdown(report, lang, withNotes ? notes : undefined);
+}
+
 export function RehearsalReport({ report, notes, onClose, returnFocusRef }: {
   report: Report;
-  /** the live screen notes of the take, as Markdown, appended to the saved file */
+  /** the live screen notes of the take, as Markdown: appended to the saved file unless the presenter unticks the box */
   notes?: string;
   onClose: () => void;
   returnFocusRef?: RefObject<HTMLElement | null>;
 }) {
   const t = useT();
   const lang = useLang() as Lang;
+  const [withNotes, setWithNotes] = useState(true);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   // While the report is open, any print (its button or Ctrl+P) prints the report alone.
@@ -132,11 +138,13 @@ export function RehearsalReport({ report, notes, onClose, returnFocusRef }: {
   }, []);
   return (
     <>
-      <Dialog title={t("report.title")} onClose={onClose} className="rehearsal-report" returnFocusRef={returnFocusRef}>
+      <Dialog heading title={t("report.title")} onClose={onClose} className="rehearsal-report" returnFocusRef={returnFocusRef}>
         <ReportBody report={report} idPrefix="report" fold />
         <p className="hint">{t("report.keepLast")}</p>
         <div className="controls report-actions">
-          <button type="button" className="btn primary" onClick={() => downloadMarkdown(rehearsalMarkdown(report, lang, notes), "filow-rehearsal")}>{t("report.saveMd")}</button>
+          {/* the saved file holds what this dialog shows; the take's notes go in only while this box says so */}
+          {notes && <label className="report-with-notes"><input type="checkbox" checked={withNotes} onChange={(e) => setWithNotes(e.target.checked)} /> {t("report.withNotes")}</label>}
+          <button type="button" className="btn primary" onClick={() => downloadMarkdown(reportFile(report, lang, notes, withNotes), "filow-rehearsal")}>{t("report.saveMd")}</button>
           <button type="button" className="btn" onClick={printReport}>{t("report.print")}</button>
           <button type="button" className="btn" onClick={onClose}>{t("report.close")}</button>
         </div>

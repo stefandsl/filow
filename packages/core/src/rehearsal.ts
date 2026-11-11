@@ -14,7 +14,8 @@
 // - Many speech models leave out "um" and "uh"; the filler count only sees what was transcribed.
 import { t, type I18nKey, type Lang } from "./i18n";
 import { fold, tokenize } from "./text";
-import { sectionTimes, talkBudget, TalkClockTracker } from "./rehearsal-timer";
+import { formatClock, sectionTimes, talkBudget, TalkClockTracker } from "./rehearsal-timer";
+import { sectionLabel } from "./script";
 import type { TranscriptEvent } from "./engine";
 import type { PointStatus, Script, SessionState, TalkClock } from "./types";
 
@@ -31,30 +32,34 @@ export const LONG_PAUSE_MS = 3000;
  * - `words`: a word or a fixed phrase.
  * - `alone`: also an everyday word ("あの人" is "that person", "вот" is "here is"), so it counts only
  *   right before a comma, a full stop or the end of a phrase (not a question mark).
+ * - `aside`: a word or phrase that is meant inside a sentence ("that is what I mean", "as you know",
+ *   "literally translated", "praticamente tutto", "non so come dire"), so it counts only when said
+ *   as an aside: a break before it and a break after it, one of them inside the sentence (a comma),
+ *   so "You know." or "Insomma." said as a whole sentence is left alone too.
  * Kept short on purpose: a word that is often meant (English "like", "so", "actually", Italian
  * "allora", "tipo") is left out, so the count errs low rather than blaming real words.
  */
-type Filler = { label: string; sound?: RegExp; words?: string[]; alone?: boolean };
+type Filler = { label: string; sound?: RegExp; words?: string[]; alone?: boolean; aside?: boolean };
 export const FILLERS: Record<SpeechLanguage, Filler[]> = {
   en: [
     { label: "um", sound: /^u+m+$/ },
     { label: "uh", sound: /^u+h+$/ },
-    { label: "er", sound: /^e+r+m*$/ },
-    { label: "hmm", sound: /^h*m{2,}$/ },
-    { label: "you know", words: ["you", "know"], alone: true },
-    { label: "I mean", words: ["i", "mean"], alone: true },
-    { label: "basically", words: ["basically"] },
-    { label: "literally", words: ["literally"] },
+    { label: "er", sound: /^e+r$|^e+r+m+$/ }, // not "err" (to err)
+    { label: "hmm", sound: /^h+m+$|^m{3,}$/ }, // not "mm": a yes, and millimetres
+    { label: "you know", words: ["you", "know"], aside: true },
+    { label: "I mean", words: ["i", "mean"], aside: true },
+    { label: "basically", words: ["basically"], aside: true },
+    { label: "literally", words: ["literally"], aside: true },
   ],
   it: [
     { label: "ehm", sound: /^e+h*m+$|^e+h+$/ },
     { label: "uhm", sound: /^u+h*m+$/ },
     { label: "mmm", sound: /^m{2,}$/ },
-    { label: "cioè", words: ["cioe"] },
-    { label: "diciamo", words: ["diciamo"], alone: true },
-    { label: "praticamente", words: ["praticamente"] },
-    { label: "insomma", words: ["insomma"] },
-    { label: "come dire", words: ["come", "dire"] },
+    { label: "cioè", words: ["cioe"], alone: true }, // "cioè del venti per cento" explains, it is meant
+    { label: "diciamo", words: ["diciamo"], aside: true },
+    { label: "praticamente", words: ["praticamente"], aside: true },
+    { label: "insomma", words: ["insomma"], aside: true },
+    { label: "come dire", words: ["come", "dire"], aside: true },
   ],
   ru: [
     { label: "э", sound: /^э+м*$/ },
@@ -109,6 +114,26 @@ const CYRILLIC = /\p{Script=Cyrillic}/gu;
 const LETTER = /[\p{L}\p{N}]/gu;
 // A question mark is not a pause here: "Do you know?" and "Что это значит?" are meant.
 const PAUSE_PUNCT = /^\s*(?:[,.;:!…、。，．！]|$)/u;
+// The breaks around an aside. Soft: inside a sentence (a comma, three dots, a spaced dash). Hard: the
+// sentence's edge. An aside needs a break on both sides and a soft one on at least one: "You know."
+// and "Insomma." as whole sentences are an answer or a statement, and they are meant.
+const SOFT_BREAK = /[,;:…、，]|\.{2,}|\s[-\u2013\u2014]\s/u;
+const HARD_BREAK_BEFORE = /[.!?。．！？]/u; // the end of a question too ("Right? You know, ...")
+const SOFT_BREAK_AFTER = /^\s*(?:[,;:…、，]|\.{2,}|[-\u2013\u2014]\s)/u;
+const HARD_BREAK_AFTER = /^\s*[.!。．！]/u; // not a question mark: "do you know?" is meant
+type Break = "soft" | "hard" | null;
+/**
+ * Sounds that answer instead of hesitating ("uh-huh" and "mm-hmm" are yes, "uh-uh" and "mm-mm" are no,
+ * "uh-oh" is trouble): the pair is skipped whole. Written with a hyphen or a dash or, for two
+ * different sounds, a space.
+ */
+const ANSWERS: Partial<Record<SpeechLanguage, Array<[string, string]>>> = {
+  en: [["uh", "huh"], ["um", "hum"], ["um", "hmm"], ["mm", "hmm"], ["mm", "hm"], ["uh", "oh"], ["uh", "uh"], ["mm", "mm"], ["nuh", "uh"], ["huh", "uh"]],
+};
+const JOINED = /^[-\u2010\u2011\u2013\u2014]$/;
+const JOINED_OR_SPACE = /^[-\u2010\u2011\u2013\u2014 ]$/;
+// English only: "ER" and "UM" in capitals are names, not sounds.
+const ACRONYM = /^[A-Z]{2,}$/;
 
 const MARKERS: Record<"en" | "it" | "ro", Set<string>> = {
   en: new Set("the and is are of to that this we you it was with for".split(" ")),
@@ -127,17 +152,49 @@ export function detectSpeechLanguage(text: string): SpeechLanguage {
   return best[1] > 0 ? best[0] : "en";
 }
 
-/** Filler counts in one stretch of text, by label. */
-export function countFillers(text: string, lang: SpeechLanguage): Map<string, number> {
+/**
+ * Filler counts in one stretch of text, by label. `around` is the speech right before and after it
+ * (the neighbouring phrases of a take): where the speech engine cut a sentence in two, the cut is not
+ * a pause, so "That is exactly what" + "I mean." counts nothing.
+ */
+export function countFillers(text: string, lang: SpeechLanguage, around: { before?: string; after?: string } = {}): Map<string, number> {
   const tokens = tokenize(text);
   const counts = new Map<string, number>();
   const list = [...FILLERS[lang]].sort((a, b) => (b.words?.length ?? 1) - (a.words?.length ?? 1));
+  const breakBefore = (i: number): Break => {
+    const lead = (i === 0 ? (around.before ?? "") + " " + text.slice(0, tokens[0].start) : text.slice(tokens[i - 1].end, tokens[i].start));
+    if (i === 0 && !/[\p{L}\p{N}]/u.test(lead)) return "hard"; // the start of the take
+    // only what follows the last word counts (the phrase before may hold many sentences)
+    const gap = i === 0 ? lead.slice(lead.search(/[^\p{L}\p{N}\p{M}'’]*$/u)) : lead;
+    return SOFT_BREAK.test(gap) ? "soft" : HARD_BREAK_BEFORE.test(gap) ? "hard" : null;
+  };
+  const breakAfter = (last: number): Break => {
+    const rest = text.slice(tokens[last].end);
+    if (SOFT_BREAK_AFTER.test(rest)) return "soft";
+    if (HARD_BREAK_AFTER.test(rest)) return "hard";
+    // the end of the text is the end of a sentence only when nothing follows it in the take
+    return /^\s*$/.test(rest) && !around.after?.trim() ? "hard" : null;
+  };
+  const aside = (i: number, n: number) => {
+    const before = breakBefore(i);
+    const after = breakAfter(i + n - 1);
+    return before !== null && after !== null && (before === "soft" || after === "soft");
+  };
   for (let i = 0; i < tokens.length; ) {
+    const next = tokens[i + 1];
+    if (next && ANSWERS[lang]?.some(([a, b]) => tokens[i].norm === a && next.norm === b && (a === b ? JOINED : JOINED_OR_SPACE).test(text.slice(tokens[i].end, next.start)))) {
+      i += 2;
+      continue;
+    }
     const hit = list.find((f) => {
       const n = f.words?.length ?? 1;
       if (i + n > tokens.length) return false;
-      const ok = f.sound ? f.sound.test(tokens[i].norm) : f.words!.every((w, k) => tokens[i + k].norm === fold(w));
-      return ok && (!f.alone || PAUSE_PUNCT.test(text.slice(tokens[i + n - 1].end)));
+      const ok = f.sound
+        ? f.sound.test(tokens[i].norm) && !(lang === "en" && ACRONYM.test(text.slice(tokens[i].start, tokens[i].end)))
+        : f.words!.every((w, k) => tokens[i + k].norm === fold(w));
+      if (!ok) return false;
+      if (f.aside) return aside(i, n);
+      return !f.alone || PAUSE_PUNCT.test(text.slice(tokens[i + n - 1].end));
     });
     if (hit) {
       counts.set(hit.label, (counts.get(hit.label) ?? 0) + 1);
@@ -344,7 +401,10 @@ export function buildRehearsalReport(log: TakeLog, script: Pick<Script, "section
   const band = value === null ? null : value < range[0] ? "slow" : value > range[1] ? "fast" : "ok";
 
   const fillerCounts = new Map<string, number>();
-  for (const s of log.segments) for (const [label, n] of countFillers(s.text, lang)) fillerCounts.set(label, (fillerCounts.get(label) ?? 0) + n);
+  log.segments.forEach((s, k) => {
+    const around = { before: log.segments[k - 1]?.text, after: log.segments[k + 1]?.text };
+    for (const [label, n] of countFillers(s.text, lang, around)) fillerCounts.set(label, (fillerCounts.get(label) ?? 0) + n);
+  });
   const fillerTotal = [...fillerCounts.values()].reduce((a, b) => a + b, 0);
   const top = [...fillerCounts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).slice(0, 3);
   const minutes = Math.max(speakingMs, 1) / 60_000;
@@ -423,14 +483,22 @@ function suggest(r: RehearsalReport): RehearsalReport["suggestions"] {
 
 // ---- Markdown -----------------------------------------------------------------------------
 
-const clockText = (ms: number) => {
-  const s = Math.round(Math.max(0, ms) / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
+/** A time over or under its target is worth a line from this much. */
+export const REPORT_OVER_MS = 30_000;
 
-/** The report as Markdown, in the interface language; `notes` (live screen notes) is appended as is. */
+/**
+ * The report as Markdown, in the interface language. It says what the report on screen says
+ * (RehearsalReport.tsx): the same times (formatClock), section names and words. `notes` (live screen
+ * notes) is appended as is, when the presenter asked for it in the report.
+ */
 export function rehearsalMarkdown(r: RehearsalReport, lang: Lang, notes?: string): string {
   const when = new Date(r.startedAt).toLocaleString(lang);
+  const over = r.talkTargetMs !== null ? r.durationMs - r.talkTargetMs : null;
+  const length = [
+    formatClock(r.durationMs),
+    r.talkTargetMs !== null ? ` ${t("timer.of", lang, { target: formatClock(r.talkTargetMs) })}` : "",
+    over !== null && Math.abs(over) >= REPORT_OVER_MS ? ` (${over > 0 ? t("timer.over", lang, { t: formatClock(over) }) : t("timer.left", lang, { t: formatClock(-over) })})` : "",
+  ].join("");
   const pace = r.pace.value === null ? t("report.paceShort", lang) : t(r.pace.unit === "cpm" ? "report.cpm" : "report.wpm", lang, { n: r.pace.value });
   const out = [
     `# ${t("report.title", lang)}`,
@@ -443,7 +511,7 @@ export function rehearsalMarkdown(r: RehearsalReport, lang: Lang, notes?: string
     "",
     `## ${t("report.overview", lang)}`,
     "",
-    `- ${t("report.length", lang)}: ${clockText(r.durationMs)}${r.talkTargetMs !== null ? ` (${t("report.target", lang)} ${clockText(r.talkTargetMs)})` : ""}`,
+    `- ${t("report.length", lang)}: ${length}`,
     `- ${t("report.pace", lang)}: ${pace}${r.pace.band ? ` (${t(`report.band.${r.pace.band}` as I18nKey, lang)}, ${t("report.paceRange", lang, { lo: r.pace.range[0], hi: r.pace.range[1] })})` : ""}${r.pace.value !== null && r.pace.basis === "phrases" ? `; ${t("report.paceFromPhrases", lang)}` : ""}`,
     `- ${t("report.fillers", lang)}: ${r.fillers.total}${r.fillers.top.length ? ` (${r.fillers.top.map((f) => `"${f.label}" ${f.count}`).join(", ")})` : ""}`,
     `- ${t("report.pauses", lang)}: ${r.pauses.count}${r.pauses.count ? ` (${t("report.longest", lang)} ${Math.round(r.pauses.longestMs / 1000)} s)` : ""}`,
@@ -454,7 +522,9 @@ export function rehearsalMarkdown(r: RehearsalReport, lang: Lang, notes?: string
     "|---|---|---|---|",
     ...r.sections.map((s) => {
       const pts = POINT_OUTCOMES.filter((k) => s.outcomes[k]).map((k) => `${s.outcomes[k]} ${t(`report.outcome.${k}` as I18nKey, lang)}`).join(", ") || "-";
-      return `| ${s.title.replace(/\|/g, "\\|")} | ${s.visited ? clockText(s.spentMs) : "-"} | ${s.targetMs !== null ? clockText(s.targetMs) : "-"} | ${pts} |`;
+      const extra = s.targetMs !== null && s.visited ? s.spentMs - s.targetMs : null;
+      const time = s.visited ? `${formatClock(s.spentMs)}${extra !== null && extra >= REPORT_OVER_MS ? ` (+${formatClock(extra)})` : ""}` : t("report.notShown", lang);
+      return `| ${sectionLabel(s.title).title.replace(/\|/g, "\\|")} | ${time} | ${s.targetMs !== null ? formatClock(s.targetMs) : "-"} | ${pts} |`;
     }),
     "",
   ];

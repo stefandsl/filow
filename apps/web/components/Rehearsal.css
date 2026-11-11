@@ -35,6 +35,10 @@
 .timer-field-talk { font-weight: 600; }.timer-settings .timer-error { color: var(--warn); font-size: var(--type-sm); }
 
 .rehearsal-report { width: min(960px, 100%); }
+/* The report's title is its h1 (the parts below are h2): it reads as a heading, not as a small grey label. */
+.rehearsal-report .dialog-title { font-size: var(--type-lg); font-weight: 600; line-height: 1.25; margin: 0; color: var(--text); }
+.report-with-notes { display: inline-flex; align-items: center; gap: 8px; margin-right: auto; min-height: 32px; font-size: var(--type-sm); color: var(--text); }
+.report-with-notes input { accent-color: var(--accent); flex: none; width: 16px; height: 16px; margin: 0; }
 .report-body { display: flex; flex-direction: column; gap: 16px; }
 .report-body h2 { font-size: var(--type-md); font-weight: 600; margin: 0 0 8px; }
 .report-body p { margin: 0; }

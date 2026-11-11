@@ -61,7 +61,7 @@ describe("rehearsal report on takes in the five speech languages", () => {
       .start()
       .say(0, 10_000, "Um, so revenue grew twenty percent this year, you know.")
       .set(10_500, "s0b0", "started")
-      .say(16_000, 26_000, "Uh, we opened two new markets, basically Spain and Portugal.")
+      .say(16_000, 26_000, "Uh, we opened two new markets, basically, Spain and Portugal.")
       .set(26_500, "s0b1", "started")
       .go(40_000, 1)
       .say(41_000, 51_000, "Next we hire a team, um, and I mean we hire fast.")
@@ -87,7 +87,7 @@ describe("rehearsal report on takes in the five speech languages", () => {
     const script = parseScript("# Apertura\n- I ricavi sono cresciuti\n- Due nuovi mercati\n# Conclusione\n- Assumere un team");
     const log = take(script)
       .start()
-      .say(0, 12_000, "Ehm, allora, i ricavi sono cresciuti molto quest'anno, cioè del venti per cento.")
+      .say(0, 12_000, "Ehm, allora, i ricavi sono cresciuti molto quest'anno, cioè, del venti per cento.")
       .set(12_500, "s0b0", "started")
       .go(13_000, 1)
       .say(13_500, 25_000, "Insomma, come dire, abbiamo anche due nuovi mercati, praticamente.")
@@ -173,7 +173,8 @@ describe("rehearsal details", () => {
   });
 
   it("counts fillers on whole words only", () => {
-    expect([...countFillers("Umbrella, ummm, hmm, uh-huh", "en")]).toEqual([["um", 1], ["hmm", 1], ["uh", 1]]);
+    // "uh-huh" is a yes, not a hesitation
+    expect([...countFillers("Umbrella, ummm, hmm, uh-huh, uh", "en")]).toEqual([["um", 1], ["hmm", 1], ["uh", 1]]);
     expect(countFillers("Ehm ehmmm eh", "it").get("ehm")).toBe(3);
     expect(countFillers("Нужно, вот это", "ru").size).toBe(0);
   });
@@ -322,6 +323,40 @@ describe("rehearsal details", () => {
     expect(n("Îîî, practic, asta e.", "ro")).toBe(2);
     expect(n("あのう、それは、あの人です。", "ja")).toBe(1);
   });
+
+  it("English and Italian: a word that is meant is never a filler, a word set off by pauses still is", () => {
+    const n = (text: string, lang: Parameters<typeof countFillers>[1]) => [text, [...countFillers(text, lang).values()].reduce((a, b) => a + b, 0)];
+    const meantEn = [
+      "That is what I mean.", "As you know.", "Now you know, so act.", "I know what you know.",
+      "Uh-huh.", "Um-hum, yes.", "Mm-hmm.", "Uh huh, go on.", "Uh-oh, the slide is gone.", "Uh-uh, not that one.",
+      "It is literally translated.", "Translated literally.", "Basically it is the basis.", "It is basically done.",
+      "We err on the side of caution.", "The ER was full.", "The gap is 5 mm.", "Mm, yes.",
+      "Mm-mm, not that one.", "Nuh-uh.", "Huh-uh.", "Uh\u2013huh.",
+      // a whole sentence is an answer or a statement, not an aside
+      "You know.", "I told you. You know.", "Basically.",
+    ];
+    for (const s of meantEn) expect(n(s, "en")).toEqual([s, 0]);
+    const meantIt = [
+      "Praticamente tutto.", "Insomma ha vinto.", "Non so come dire.", "Come dire di no?", "Lo facciamo come diciamo.",
+      "Diciamo la verità.", "È cresciuto, cioè del venti per cento.", "Com'è andata? Insomma.",
+    ];
+    for (const s of meantIt) expect(n(s, "it")).toEqual([s, 0]);
+    expect(Object.fromEntries(countFillers("Um, you know, it is, basically, done. I mean, uh, er, literally. Uh, uh, well.", "en"))).toEqual({ um: 1, "you know": 1, basically: 1, "I mean": 1, uh: 3, er: 1, literally: 1 });
+    expect(Object.fromEntries(countFillers("Ehm, cioè, insomma, abbiamo, praticamente, finito, diciamo. Come dire, sì.", "it"))).toEqual({ ehm: 1, "cioè": 1, insomma: 1, praticamente: 1, diciamo: 1, "come dire": 1 });
+  });
+
+  it("a phrase the speech engine cut in two is read with its neighbours: the cut is not a pause", () => {
+    const total = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0);
+    expect(total(countFillers("I mean, more or less.", "en"))).toBe(1);
+    expect(total(countFillers("I mean, more or less.", "en", { before: "That is exactly what" }))).toBe(0);
+    expect(total(countFillers("And then, I mean", "en"))).toBe(1);
+    expect(total(countFillers("And then, I mean", "en", { after: "that we should go" }))).toBe(0);
+    expect(total(countFillers("praticamente", "it", { before: "Abbiamo venduto,", after: "tutto" }))).toBe(0);
+    expect(total(countFillers("you know", "en", { before: "It grew this year,", after: "" }))).toBe(1);
+    const script = parseScript("# A\n- One");
+    const log = take(script).start().say(0, 4000, "That is exactly what").say(4500, 6000, "I mean, more or less.").say(7000, 12_000, "As").say(12_500, 14_000, "you know, it grew.").stop(15_000);
+    expect(buildRehearsalReport(log, script, { lang: "en" }).fillers.total).toBe(0);
+  });
 });
 
 describe("rehearsal Markdown", () => {
@@ -340,5 +375,18 @@ describe("rehearsal Markdown", () => {
     expect(it).toContain("# Resoconto della prova");
     expect(it).toContain("| Sezione | Tempo | Obiettivo | Punti |");
     expect(it).not.toContain("Talk notes");
+  });
+
+  it("writes times and section names as the timer and the screen do: hours, no label prefix, 'not shown', time over", () => {
+    const script = parseScript("<!-- target: 60 min -->\n# Intro - Why now (20 min)\n- One\n# Part 2 - Never shown\n- Two");
+    const r = buildRehearsalReport(take(script).start().stop(90 * 60_000 + 59_900), script, { lang: "en" });
+    const md = rehearsalMarkdown(r, "en");
+    expect(md).toContain("- Length: 1:30:59 of 1:00:00 (30:59 over)");
+    expect(md).not.toMatch(/\b9[01]:\d\d\b/);
+    expect(md).toContain("| Why now | 1:30:59 (+1:10:59) | 20:00 | 1 not reached |");
+    expect(md).toContain("| Never shown | not shown | 40:00 | 1 not reached |");
+    expect(rehearsalMarkdown(r, "it")).toContain("- Durata: 1:30:59 su 1:00:00 (30:59 oltre)");
+    const short = parseScript("<!-- target: 10 min -->\n# A\n- One");
+    expect(rehearsalMarkdown(buildRehearsalReport(take(short).start().stop(8 * 60_000), short, { lang: "en" }), "en")).toContain("- Length: 8:00 of 10:00 (2:00 left)");
   });
 });
