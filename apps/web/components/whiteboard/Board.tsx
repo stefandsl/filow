@@ -100,7 +100,8 @@ function Plot({ block, palette, draw }: { block: Extract<PlacedBlock, { kind: "p
   });
   const pad = { l: 44, r: 14, t: 30, b: 26 };
   const inner = { x: box.x + pad.l, y: box.y + pad.t, w: box.w - pad.l - pad.r, h: box.h - pad.t - pad.b };
-  const num = (v: number) => (Math.abs(v) >= 1000 || (Math.abs(v) < 0.01 && v !== 0) ? v.toExponential(1) : String(Math.round(v * 100) / 100));
+  // money and counts are read as numbers ("1050", "4322"), not as powers of ten; only what is truly huge or tiny is
+  const num = (v: number) => (Math.abs(v) >= 1e7 || (Math.abs(v) < 0.01 && v !== 0) ? v.toExponential(1) : Math.abs(v) >= 1000 ? String(Math.round(v)) : String(Math.round(v * 100) / 100));
   const colours = [palette.curve, palette.accent, palette.mark];
   const label = (
     <text x={box.x + 6} y={box.y + 19} fontSize={16} className="wb-fade">

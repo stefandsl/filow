@@ -790,7 +790,10 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
       const valid = validateLesson(raw, { maxSteps, texOk, sketch: true, continues: more ? req.lesson! : undefined });
       // A placeholder the question did not contain means the model never saw a name of the question.
       redacted = placeholderLeaks(text, req.question + (more ? JSON.stringify(req.lesson) : ""));
-      if (redacted.length) return null;
+      if (redacted.length) {
+        firstRaw ??= raw;
+        return null;
+      }
       if (valid) {
         firstRaw ??= raw;
         // The model restates the topic first; a name of the question that it and the title never use is a lesson about something else.
@@ -821,7 +824,7 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
   };
   const offTopic = (review: Review | null) => Boolean(review && !review.topic);
   const audit = () => { if (req.audit) emit({ type: "audit", raw: firstRaw, changes }); };
-  const hidden = () => emit({ type: "error", code: "redacted", message: `The online service replaced part of the question with ${redacted.join(", ")} before the model saw it.` });
+  const hidden = () => { changes.push(`refused: the question reached the model with ${redacted.join(", ")} in place of a name`); audit(); emit({ type: "error", code: "redacted", message: `The online service replaced part of the question with ${redacted.join(", ")} before the model saw it.` }); };
 
   let draft = await write("");
   if (redacted.length) return hidden();
