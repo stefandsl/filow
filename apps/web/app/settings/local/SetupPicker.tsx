@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { advancedDiskNeedGb, CLEANUP_MODEL, missingModels, resolveSetup, SCRIPT_MODEL_MIN_RAM_GB, scriptModel, SETUP_PREFERENCES, type I18nKey, type MachineInfo, type SetupModel, type SetupPreference, type SetupProfileId } from "@filow/core";
 import { useT } from "@filow/ui";
+import { StopButton } from "@/components/ModelControls";
 
 export type SetupPickerProps = {
   hardware: MachineInfo;
@@ -18,6 +19,8 @@ export type SetupPickerProps = {
    * build, file on this computer, a download running. Absent in the browser: the line is not shown.
    */
   cleanup?: { runtime: boolean; model: boolean; downloading: boolean; pct: number } | null;
+  /** Stops the download of S1-mini by Superwhisper (the desktop app deletes the part); the Stop button shows only with it. */
+  onStopCleanup?: () => void;
 };
 
 const round = (n: number) => Math.round(n * 10) / 10;
@@ -27,7 +30,7 @@ const round = (n: number) => Math.round(n * 10) / 10;
  * answers together (packages/core/src/profile.ts). Native radio buttons in a fieldset, so arrow keys
  * move between the options and a screen reader reads the group name, each option and its text.
  */
-export function SetupPicker({ hardware, gpuName, preference, onChange, installed, onGet, busy, cleanup }: SetupPickerProps) {
+export function SetupPicker({ hardware, gpuName, preference, onChange, installed, onGet, busy, cleanup, onStopCleanup }: SetupPickerProps) {
   const t = useT();
   const id = useId();
   // The cleanup model's line is ticked unless the user unticks it: every setup gets it, whatever the tier.
@@ -99,7 +102,10 @@ export function SetupPicker({ hardware, gpuName, preference, onChange, installed
         {scriptMissing.length > 0 && <span className="hint" data-script-model={scriptMissing[0].name}>{t("setup.scriptNeeds", { list: list(scriptMissing), gb: gb(scriptMissing) })}</span>}
         {!script && <span className="hint" data-script-model="none">{t(hardware.ramGb < SCRIPT_MODEL_MIN_RAM_GB ? "setup.scriptNoMemory" : "setup.scriptNoDisk", { ram: SCRIPT_MODEL_MIN_RAM_GB })}</span>}
         {cleanupMissing && (cleanup?.downloading ? (
-          <span className="hint" data-cleanup-model="downloading">{t("setup.cleanupGetting", { pct: cleanup.pct })}</span>
+          <>
+            <span className="hint" data-cleanup-model="downloading">{t("setup.cleanupGetting", { pct: cleanup.pct })}</span>
+            {onStopCleanup && <StopButton small name="S1-mini by Superwhisper" onStop={onStopCleanup} />}
+          </>
         ) : (
           <label className="hint setup-cleanup" data-cleanup-model="offered">
             <input type="checkbox" checked={cleanupTicked} onChange={(e) => setCleanupTicked(e.target.checked)} /> {t("setup.cleanup", { size: cleanupSize })}

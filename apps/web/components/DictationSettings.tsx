@@ -4,6 +4,7 @@
 import { useEffect, useId, useState } from "react";
 import type { DictationStatus } from "@/lib/buddy/bridge";
 import { dictationText, pasteKeys, type DictationKey } from "@/lib/dictation/text";
+import { modelsBridge, StopButton } from "./ModelControls";
 import "./DictationSettings.css";
 
 type DictationBridge = {
@@ -36,6 +37,10 @@ export function DictationSettings({ lang }: { lang: string }) {
   const t = (k: DictationKey, vars?: Record<string, string>) => dictationText(lang, k, vars);
   // A refused change leaves the controls as they were (they show what is stored).
   const set = async (patch: Partial<DictationStatus>) => { try { const v = await b.configure(patch); if (v) setS(v); } catch { /* unchanged */ } };
+  // Stop for a model download: the desktop app ends it, deletes the part and forgets to resume it at the next start.
+  const stop = async (id: "cleanup" | "punctuation") => {
+    try { await modelsBridge()?.cancel(id); const v = await b.status(); if (v) setS(v); } catch { /* the next reading shows the state */ }
+  };
   const paste = pasteKeys(s.platform);
   const keyNote =
     s.check.conflict === "same" ? t("conflictSame", { talk: s.talkLabel })
@@ -104,7 +109,10 @@ export function DictationSettings({ lang }: { lang: string }) {
       {s.cleanup && s.cleanupState?.runtime && !s.cleanupState.model && (
         <div className="row" role="status">
           {s.cleanupState.downloading
-            ? <span>{t("cleanupDownloading", { pct: String(s.cleanupState.pct) })}</span>
+            ? <>
+                <span className="dictation-progress">{t("cleanupDownloading", { pct: String(s.cleanupState.pct) })}</span>
+                {modelsBridge() && <StopButton name="S1-mini by Superwhisper" onStop={() => void stop("cleanup")} />}
+              </>
             : <>
                 <span className="hint dictation-alert">{s.cleanupState.error ? t("cleanupDownloadFailed", { error: s.cleanupState.error }) : t("cleanupMissing")}</span>
                 <button type="button" className="btn" disabled={off} onClick={() => { void b.downloadCleanup?.().then(() => b.status()).then((v) => v && setS(v)).catch(() => {}); }}>
@@ -137,7 +145,10 @@ export function DictationSettings({ lang }: { lang: string }) {
       {(s.punctuate ?? true) && s.punctuateState?.runtime && !s.punctuateState.model && (
         <div className="row" role="status">
           {s.punctuateState.downloading
-            ? <span>{t("punctuateDownloading", { pct: String(s.punctuateState.pct) })}</span>
+            ? <>
+                <span className="dictation-progress">{t("punctuateDownloading", { pct: String(s.punctuateState.pct) })}</span>
+                {modelsBridge() && <StopButton name={t("punctuate")} onStop={() => void stop("punctuation")} />}
+              </>
             : <>
                 <span className="hint dictation-alert">{s.punctuateState.error ? t("punctuateDownloadFailed", { error: s.punctuateState.error }) : t("punctuateMissing")}</span>
                 <button type="button" className="btn" disabled={off} onClick={() => { void b.downloadPunctuation?.().then(() => b.status()).then((v) => v && setS(v)).catch(() => {}); }}>

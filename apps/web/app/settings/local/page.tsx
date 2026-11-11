@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { createDownloadProgress, LANG_LABELS, LANGS, SCREEN_MODE_LABELS, type DecisionProviderId, type I18nKey, type Lang, type MachineInfo, type ScreenMode, type SetupModel, type SetupPreference } from "@filow/core";
-import { preloadWhisper, selectedWhisperModel, setSelectedWhisperModel, sherpaBridge, whisperCached, type SherpaStatus } from "@filow/stt";
+import { createDownloadProgress, GATE_MODEL, LANG_LABELS, LANGS, SCREEN_MODE_LABELS, type DecisionProviderId, type I18nKey, type Lang, type MachineInfo, type ScreenMode, type SetupModel, type SetupPreference } from "@filow/core";
+import { preloadWhisper, removeCachedModel, selectedWhisperModel, setSelectedWhisperModel, sherpaBridge, whisperCached, type SherpaStatus } from "@filow/stt";
 import { SherpaLanguageNote } from "@/components/SherpaLanguageNote";
 import { Wordmark, LangProvider, useT } from "@filow/ui";
 import { engineHeaders, ensureEngineToken } from "@/components/useSession";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
 import { getDecisionProvider, getGateMode, getScreenMode, getSetupPreference, getSpeechLang, getStartMode, SPEECH_LANGS, setDecisionProvider, setGateMode, setScreenMode, setSetupPreference, chooseSpeechLang, syncSpeechLang, setStartMode, type GateMode, type SpeechLang, type StartMode } from "@/lib/prefs";
-import { loadGate } from "@/lib/gate/client";
+import { loadGate, stopGate, unloadGate } from "@/lib/gate/client";
+import { DeviceModelList, InUseChip, modelsBridge, StopButton } from "@/components/ModelControls";
+import { browserUses, deleteQuestion, ollamaUses, sizeText, type UseContext } from "@/lib/modelUse";
+import { readTranslateWhere } from "@/lib/translateWhere";
 import { screenBridge } from "@/lib/screen/watcher";
 import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/sessionUrl";
 import { localAiBusy, localAiEnsureStep, localAiNeedsReport, localAiText } from "@/lib/localAiStatus";
@@ -39,6 +42,8 @@ type Status = {
   hardware?: MachineInfo;
   gpu?: { name: string };
   installed: Array<{ name: string; sizeGb: number }>;
+  /** The Ollama model each feature would call now, from the feature's own picker (lib/modelUse.ts). */
+  picks?: { decision: string; translate: string | null; okfilow: string[] };
   models: Array<{
     name: string; kind: string; runtime: "ollama" | "browser" | "sherpa"; label: string; description: string; downloadGb: number; loadedGb: number; ramGb: number; vramGb?: number;
     status: "available" | "planned"; fit: "fits" | "tight" | "too big"; installed: boolean; installedSizeGb: number | null; ollamaOk: boolean;
@@ -143,13 +148,30 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
 
   const refresh = useCallback(async () => {
     await ensureEngineToken();
-    const res = await fetch("/api/local/status", { cache: "no-store" });
+    const res = await fetch(`/api/local/status?setup=${encodeURIComponent(getSetupPreference())}`, { cache: "no-store" });
     const s = (await res.json()) as Status;
     setStatus(s);
     const c: Record<string, boolean> = {};
     for (const m of s.models) if (m.runtime === "browser") c[m.name] = await whisperCached(m.name);
     setCached(c);
+    setGateCached(await whisperCached(GATE_MODEL));
   }, []);
+
+  // What "in use" is worked out from (lib/modelUse.ts): the plan, the user's switches, OK Filow's own status.
+  const [okf, setOkf] = useState<UseContext["okFilow"]>(null);
+  const [translateWhere, setTranslateWhere] = useState<UseContext["translateWhere"]>("local");
+  const [gateCached, setGateCached] = useState(false);
+  useEffect(() => {
+    const b = (globalThis as { filow?: { okFilow?: { status(): Promise<{ enabled?: boolean; provider?: string; offline?: boolean } | null> } } }).filow?.okFilow;
+    const read = () => {
+      setTranslateWhere(readTranslateWhere(typeof localStorage === "undefined" ? null : localStorage));
+      void b?.status().then((s) => setOkf(s ? { enabled: s.enabled !== false, provider: s.provider ?? "", offline: Boolean(s.offline) } : null)).catch(() => {});
+    };
+    read();
+    const timer = setInterval(read, 4000);
+    return () => clearInterval(timer);
+  }, []);
+  const useCtx: UseContext = { plan, startMode, decisionPref: provider, okFilow: okf, translateWhere, gateMode, whisperModel, picks: status?.picks ?? null };
 
   useEffect(() => {
     setProvider(getDecisionProvider() ?? "");
@@ -212,20 +234,41 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const download = async (name: string) => {
     setError(null);
     setProgress((p) => ({ ...p, [name]: t("settings.starting") }));
+    const ctl = new AbortController();
+    pulls.current[name] = ctl;
     try {
       // One number for the whole model: its files download in parallel (issue #4).
       const total = createDownloadProgress();
       const device = await preloadWhisper(name, (p) => {
         const percent = total.update(p);
         setProgress((pr) => ({ ...pr, [name]: <DownloadLabel label={t("progress.speechModel")} percent={percent} /> }));
-      });
+      }, ctl.signal);
       setTestResult((r) => ({ ...r, [name]: t("settings.readyOn", { device }) }));
       setCached((c) => ({ ...c, [name]: true }));
     } catch (err) {
-      setError(`Whisper: ${(err as Error).message}`);
+      // Stopped by the user: not an error, and the files that were already complete go too.
+      if (err instanceof DOMException && err.name === "AbortError") {
+        await removeCachedModel(name);
+        setCached((c) => ({ ...c, [name]: false }));
+      } else setError(`Whisper: ${(err as Error).message}`);
     } finally {
+      delete pulls.current[name];
       setProgress((p) => ({ ...p, [name]: "" }));
     }
+  };
+
+  /** One question (name, size, what it is in use for) before a model that lives in the app's own page is deleted. */
+  const removeCached = async (name: string, kind: "whisper" | "gate", sizeGb: number) => {
+    const uses = browserUses({ name, kind }, useCtx);
+    if (!confirm(deleteQuestion({ name: kind === "gate" ? t("gate.label") : label(name), size: sizeText(sizeGb * 1024 ** 3, t), uses, effect: "browser" }, t))) return;
+    if (kind === "gate") {
+      unloadGate();
+      setGateStatus("idle");
+      setGatePct(null);
+    }
+    await removeCachedModel(name);
+    if (kind === "gate") setGateCached(false);
+    else setCached((c) => ({ ...c, [name]: false }));
   };
 
   const pull = async (name: string) => {
@@ -285,9 +328,11 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     pulls.current[name]?.abort();
   };
 
-  const remove = async (name: string) => {
-    if (!confirm(t("settings.deleteConfirm", { name }))) return;
-    await fetch("/api/local/pull", { method: "DELETE", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ name }) });
+  const remove = async (name: string, sizeGb: number) => {
+    // One question that names the model and its size and, when a feature uses it, says so and what happens next.
+    if (!confirm(deleteQuestion({ name: label(name), size: sizeText(sizeGb * 1024 ** 3, t), uses: ollamaUses(name, useCtx), effect: "ollama" }, t))) return;
+    const res = await fetch("/api/local/pull", { method: "DELETE", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ name }) }).catch(() => null);
+    if (!res || !res.ok) setError(t("settings.deleteFailed", { name: label(name), error: res ? `HTTP ${res.status}` : "" }));
     void refresh();
   };
 
@@ -450,6 +495,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               onGet={(m) => void getSetupModels(m)}
               busy={setupBusy}
               cleanup={cleanupModel}
+              onStopCleanup={modelsBridge() ? () => void modelsBridge()?.cancel("cleanup").then(readCleanupModel) : undefined}
             />
           )}
 
@@ -542,13 +588,29 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                   onClick={() => {
                     setGateStatus("loading");
                     loadGate((p) => setGatePct(p.percent)).then(
-                      () => setGateStatus("ready"),
-                      () => setGateStatus("error"),
+                      () => { setGateStatus("ready"); setGateCached(true); },
+                      (err) => {
+                        // Stopped by the user: back to "Download", and the files that were already complete go too.
+                        const stopped = err instanceof DOMException && err.name === "AbortError";
+                        setGateStatus(stopped ? "idle" : "error");
+                        setGatePct(null);
+                        if (stopped) void removeCachedModel(GATE_MODEL).then(() => setGateCached(false));
+                      },
                     );
                   }}
                 >
                   {gateStatus === "ready" ? t("gate.ready") : gateStatus === "loading" ? <DownloadLabel label={t("progress.gateModel")} percent={gatePct} /> : t("gate.download")}
                 </button>
+                {gateStatus === "loading" && <StopButton name={t("gate.label")} onStop={() => stopGate()} />}
+                {gateStatus !== "loading" && gateCached && (
+                  <>
+                    <span className="chip live">{t("settings.installed")}</span>
+                    <InUseChip uses={browserUses({ name: GATE_MODEL, kind: "gate" }, useCtx)} />
+                    <button type="button" className="btn danger" aria-label={t("settings.deleteLabel", { name: t("gate.label") })} onClick={() => void removeCached(GATE_MODEL, "gate", 0.12)}>
+                      {t("settings.delete")}
+                    </button>
+                  </>
+                )}
               </div>
               <div className="hint">{t("gate.hint")}</div>
             </section>
@@ -607,6 +669,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                 </button>
                 {/* this row is only there while Ollama is not usable: an old "ready" would contradict the chip above */}
                 {localAiBusy(ai) && ai && <span className="chip busy">{aiText(ai)}</span>}
+                {/* the installer's download can be stopped; an install that is running is left to finish */}
+                {ai?.state === "downloading" && modelsBridge() && <StopButton name="Ollama" onStop={() => void modelsBridge()?.cancel("ollama-installer")} />}
                 {/* after a failure the line below says what to do; "downloads the installer" would be wrong for an Ollama that is installed */}
                 {ai?.state !== "error" && <span className="hint">{t("settings.aiHint")}</span>}
               </div>
@@ -637,6 +701,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
             )}
           </section>
 
+          <DeviceModelList ctx={useCtx} onChange={() => { readCleanupModel(); void sherpaBridge()?.status().then(setSherpa); }} />
+
           <section className="strip">
             <div className="label">{t("settings.models")}</div>
             <div className="hint">{t("settings.ramNote")}</div>
@@ -645,7 +711,9 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                 <div>
                   <strong>{label(m.name)}</strong> <span className="chip">{t(`plan.task.${m.kind}` as I18nKey)}</span>{" "}
                   <span className={`chip ${m.fit === "fits" ? "live" : m.fit === "tight" ? "" : "err"}`}>{t(`fit.${m.fit}`)}</span>
-                  {m.runtime !== "sherpa" && (m.installed || cached[m.name]) && <span className="chip live">{t("settings.installed")}</span>}
+                  {m.runtime !== "sherpa" && (m.installed || cached[m.name]) && <span className="chip live">{t("settings.installed")}</span>}{" "}
+                  {m.runtime === "ollama" && m.installed && <InUseChip uses={ollamaUses(m.name, useCtx)} />}
+                  {m.runtime === "browser" && cached[m.name] && <InUseChip uses={browserUses({ name: m.name, kind: "whisper" }, useCtx)} />}
                   {res?.loaded.some((l) => l.name === m.name || l.name.startsWith(`${m.name}:`)) &&
                     (() => {
                       const l = res.loaded.find((x) => x.name === m.name || x.name.startsWith(`${m.name}:`))!;
@@ -676,6 +744,12 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                       <button className="btn primary" disabled={Boolean(progress[m.name])} onClick={() => void download(m.name)}>
                         {progress[m.name] ? progress[m.name] : cached[m.name] ? t("settings.recheck") : t("settings.download")}
                       </button>
+                      {progress[m.name] && <StopButton name={label(m.name)} onStop={() => cancelPull(m.name)} />}
+                      {!progress[m.name] && cached[m.name] && (
+                        <button type="button" className="btn danger" aria-label={t("settings.deleteLabel", { name: label(m.name) })} onClick={() => void removeCached(m.name, "whisper", m.downloadGb)}>
+                          {t("settings.delete")}
+                        </button>
+                      )}
                       {whisperModel !== m.name && (
                         <button
                           className="btn"
@@ -692,22 +766,16 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                   {m.runtime === "sherpa" &&
                     (sherpaBridge() ? (
                       <>
+                        {/* Each speech model on disk has its own row above ("Models on this computer"): size, in use, Delete. */}
                         {sherpa?.model === "ready" ? (
-                          <>
-                            <span className="chip live">{t("settings.installed")}</span>
-                            <button className="btn" onClick={() => void sherpaBridge()?.remove()}>
-                              {t("settings.delete")}
-                            </button>
-                          </>
+                          <span className="chip live">{t("settings.installed")}</span>
                         ) : (
                           <button className="btn primary" disabled={sherpa?.model === "downloading" || sherpa?.model === "extracting"} onClick={() => sherpaBridge()?.download(speechLang)}>
                             {sherpa?.model === "downloading" ? <DownloadLabel label={t("progress.speechModel")} percent={sherpa.pct ?? null} /> : sherpa?.model === "extracting" ? t("settings.starting") : sherpa?.partial ? t("settings.resumeDownload", { pct: sherpa.partial }) : t("settings.download")}
                           </button>
                         )}
-                        {sherpa?.model !== "ready" && sherpa?.active && (
-                          <button className="btn" onClick={() => void sherpaBridge()?.remove()}>
-                            {t("settings.delete")}
-                          </button>
+                        {(sherpa?.model === "downloading" || sherpa?.model === "extracting") && modelsBridge() && (
+                          <StopButton name={sherpa.wantedLabel ?? label(m.name)} onStop={() => void modelsBridge()?.cancel("speech")} />
                         )}
                         {sherpa?.model === "error" && <span className="chip err">{sherpa.error}</span>}
                         <SherpaLanguageNote s={sherpa} />
@@ -720,11 +788,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                       <button className="btn primary" disabled={!m.ollamaOk || Boolean(progress[m.name])} onClick={() => void pull(m.name)}>
                         {progress[m.name] ? progress[m.name] : t("settings.download")}
                       </button>
-                      {progress[m.name] && (
-                        <button className="btn danger" title={t("settings.cancelPullHint")} onClick={() => cancelPull(m.name)}>
-                          {t("settings.cancelPull")}
-                        </button>
-                      )}
+                      {progress[m.name] && <StopButton name={label(m.name)} hint={t("settings.stopHintOllama")} onStop={() => cancelPull(m.name)} />}
                     </>
                   )}
                   {m.installed && m.kind === "decision" && (
@@ -738,7 +802,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                     </button>
                   )}
                   {m.installed && m.runtime === "ollama" && (
-                    <button className="btn danger" onClick={() => void remove(m.name)}>
+                    <button className="btn danger" aria-label={t("settings.deleteLabel", { name: label(m.name) })} onClick={() => void remove(m.name, m.installedSizeGb ?? m.downloadGb)}>
                       {t("settings.delete")}
                     </button>
                   )}
