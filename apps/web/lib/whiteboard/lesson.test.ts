@@ -105,6 +105,15 @@ describe("whiteboard lesson: what the model writes is data", () => {
     expect([LIMITS.lessonItemsPerStep, LIMITS.lessonNodes]).toEqual([10, 14]);
   });
 
+  it("puts back the LaTeX command a model wrote with a single backslash inside JSON", () => {
+    // what JSON.parse makes of {"tex":"4 \times (\frac{1}{2}ab) \neq \beta \rho"}: a tab, a form feed, a newline, a backspace, a carriage return
+    const read = JSON.parse('{"tex":"4 \\times (\\frac{1}{2}ab) \\neq \\beta \\rho"}'.replace(/\\\\/g, "\\")) as { tex: string };
+    expect(read.tex).toContain("\times");
+    expect(cleanTex(read.tex)).toBe("4 \\times (\\frac{1}{2}ab) \\neq \\beta \\rho");
+    // a formula written properly is untouched, and a line break between two numbers is not a command
+    expect(cleanTex("a \\times b")).toBe("a \\times b");
+    expect(cleanTex("1 +\n2")).not.toContain("\\n2");
+  });
   it("accepts a row of cells with a pointer, cleans it, and does not repeat the same row", () => {
     const ctx = newContext();
     expect(validateItems([{ kind: "cells", values: [1, 3, "5", "<b>7</b>", "", "3 * Factorial(2) = 3 * 2"], pointer: 2 }], ctx)).toEqual([{ kind: "cells", values: ["1", "3", "5", "7", "3 * Factorial(2) = 3 * 2"], pointer: 2 }]);

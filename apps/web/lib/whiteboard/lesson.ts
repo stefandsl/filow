@@ -83,9 +83,13 @@ export function slug(v: unknown): string {
 const TEX_FORBIDDEN = /\\(?:href|url|includegraphics|html(?:Class|Id|Style|Data)|[egx]?def|let|futurelet|(?:re)?newcommand|providecommand|input|catcode|write|csname|expandafter|loop|read|openin|special|char|uppercase|lowercase)(?![a-zA-Z])/;
 
 /** LaTeX for one formula, or "" when it is not usable. `texOk` is the real parser (KaTeX on the server). */
+/** The letter a JSON escape stood for, when a LaTeX command was read as that escape ("\t" + "imes"). */
+const TEX_ESCAPED: Record<string, string> = { "\t": "t", "\f": "f", "\b": "b", "\n": "n", "\r": "r", "\v": "v" };
 export function cleanTex(v: unknown, texOk?: (tex: string) => boolean): string {
   if (typeof v !== "string") return "";
-  let tex = visible(v).trim();
+  // A model that writes "\times" or "\frac" inside JSON without doubling the backslash has it read as
+  // a tab or a form feed followed by "imes" or "rac": the command is put back before anything else looks at it.
+  let tex = visible(v.replace(/[\t\f\b\n\r\v](?=[a-zA-Z])/g, (c) => `\\${TEX_ESCAPED[c]}`)).trim();
   // The model often wraps the formula as it would in a chat answer.
   tex = tex.replace(/^\$\$?|\$\$?$/g, "").replace(/^\\[([]|\\[)\]]$/g, "").trim();
   if (!tex || tex.length > LIMITS.tex || TEX_FORBIDDEN.test(tex)) return "";
