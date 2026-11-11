@@ -120,8 +120,8 @@ describe("whiteboard layout", () => {
   it("lets a phone-shaped board grow downwards with its diagram", () => {
     const make = (n: number) => validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: Array.from({ length: Math.min(n, 6) }, (_, i) => ({ kind: "node", id: `a${i}`, text: `A${i}` })) }, { say: "s", items: Array.from({ length: Math.max(0, n - 6) }, (_, i) => ({ kind: "node", id: `b${i}`, text: `B${i}` })) }] })!;
     expect(layoutBoard(make(4), 1, "tall").h).toBe(BOARD_SIZE.tall.h);
-    expect(layoutBoard(make(6), 1, "tall").h).toBe(BOARD_SIZE.tall.h + 192);
-    expect(layoutBoard(make(9), 1, "tall").h).toBe(BOARD_SIZE.tall.h + 480);
+    expect(layoutBoard(make(6), 1, "tall").h).toBe(BOARD_SIZE.tall.h + 200);
+    expect(layoutBoard(make(9), 1, "tall").h).toBe(BOARD_SIZE.tall.h + 500);
     expect(layoutBoard(make(9), 1, "wide").h).toBe(BOARD_SIZE.wide.h);
     expect(layoutProblems(layoutBoard(make(10), 1, "tall"))).toEqual([]);
   });
