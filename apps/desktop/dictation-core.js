@@ -223,27 +223,57 @@ function createClipboardInserter({ clipboard, ClipboardItem, platform = "win32",
   let pending = null; // { saved, text, timer, done }
   let pastedAt = -Infinity;
   let queue = Promise.resolve(); // one insert at a time, in the order they were asked for
-  function insert(text, onPasted) {
-    const turn = queue.then(() => insertNow(text, onPasted));
+  function insert(text, onPasted, check) {
+    const turn = queue.then(() => insertNow(text, onPasted, check));
     queue = turn.catch(() => {});
     return turn;
   }
   /**
    * `textOrFn`: the text, or a function that gives it when its turn comes (it may depend on the insert
    * before). `onPasted` runs as soon as the paste keys went out, before the next insert's turn.
+   * `check` runs when the user's keys are up, right before the clipboard is written: it looks at the
+   * window that has the keyboard at that moment (not when the keys went down) and returns null to go
+   * on, or `{ reason, ... }` to stop: nothing is written then, and an earlier dictation's text still
+   * on the clipboard is taken off it (the user's own clipboard comes back) when `giveBack` is set.
    */
-  async function insertNow(textOrFn, onPasted) {
+  async function insertNow(textOrFn, onPasted, check) {
     const wait = pastedAt + gapMs - now();
     if (wait > 0) await new Promise((r) => st(r, wait));
-    const text = typeof textOrFn === "function" ? textOrFn() : textOrFn;
+    // The keys first: the wait can be long (the user holds them for the next dictation), and the
+    // clipboard is looked at only after it, so something the user copied meanwhile is what comes back.
+    if (!(await keysUp())) return { pasted: false, reason: "keys", restored: Promise.resolve(false) };
     let saved;
     const prev = pending;
     pending = null;
     if (prev) { ct(prev.timer); prev.done(false); }
-    if (prev && (await ours(prev.text))) saved = prev.saved;
+    const fromPrev = Boolean(prev && (await ours(prev.text)));
+    if (fromPrev) saved = prev.saved;
     else saved = await snapshotClipboard(clipboard);
-    if (!(await keysUp())) return { pasted: false, reason: "keys", restored: Promise.resolve(false) };
-    await write(text);
+    /** The earlier dictation's restore was cancelled above: do it now when this insert does not paste. */
+    const giveBack = async () => {
+      if (!fromPrev || !saved.restorable) return;
+      // Not before the app that got the earlier paste has read it (slow targets read the clipboard late).
+      const due = pastedAt + restoreMs - now();
+      if (due > 0) await new Promise((r) => st(r, due));
+      try { if (await ours(prev.text)) await restoreClipboard(clipboard, saved, ClipboardItem); } catch { /* the clipboard is busy: the text stays */ }
+    };
+    let text;
+    try {
+      if (check) {
+        const stop = await check();
+        if (stop) {
+          if (stop.giveBack) await giveBack();
+          return { pasted: false, restored: Promise.resolve(false), ...stop };
+        }
+      }
+      text = typeof textOrFn === "function" ? textOrFn() : textOrFn;
+      await write(text);
+    } catch (e) {
+      // The target could not be read or the clipboard could not be written: nothing was pasted, and an
+      // earlier dictation's text does not stay on the clipboard in place of the user's own.
+      await giveBack();
+      return { pasted: false, reason: "keys", error: String((e && e.message) || e), restored: Promise.resolve(false) };
+    }
     try { sendPaste(); } catch (e) {
       // No key press went out: the words stay on the clipboard and the user is told to paste them
       // (losing what was said would be worse than losing the older clipboard content).

@@ -6,7 +6,7 @@
 const { BrowserWindow, Tray, Menu, screen, desktopCapturer, ipcMain, globalShortcut, nativeImage, shell, systemPreferences } = require("electron");
 const { keyboardPermission } = require("./mac-permissions");
 const path = require("node:path");
-const { createGestures, chordHeld } = require("./okfilow-gestures");
+const { createGestures, chordHeld, ARM_MS } = require("./okfilow-gestures");
 const { createHookRetry, describeHookError, QUICK_MS } = require("./okfilow-hook-retry");
 const { loadUiohook } = require("./uiohook");
 const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
@@ -415,6 +415,7 @@ function createOkFilow(deps) {
       purpose = null;
     }
     mode = next;
+    if (next === "listening" && purpose === "dictate") dictation.diag.mark("listening", {}, { once: true });
     sendOverlays("okfilow:state", { mode, ...extra });
     sendPanel("okfilow:mode", { mode, ...extra });
     if (mode !== "idle" && mode !== "error") {
@@ -557,10 +558,20 @@ function createOkFilow(deps) {
   let selection = Promise.resolve(""); // text selected in the focused app when the talk began
   let dictateCap = null;
   let releasedAt = 0; // when the last dictation's keys went up, for the release-to-text log line
+  let pressedAt = 0; // when the last dictation's keys went down, for the "nothing recognised" log line
+  let heldMs = 0; // how long they were down
   let phraseRun = null; // dictation-core createPhraseRun() while the phrases of one hands-free dictation are typed
 
   /** `handsFree`: a dictation with the keys up (double tap, or toggle mode): typed phrase by phrase. */
   function press(kind = "talk", handsFree = false) {
+    // A second brief press right after the first (okfilow-gestures.js): the dictation that just started
+    // goes on hands-free. Nothing restarts: the microphone and the recognizer stay as they are.
+    if (held && kind === "dictate" && handsFree && purpose === "dictate" && !phraseRun) {
+      phraseRun = dictation.newPhraseRun();
+      dictation.diag.handsFree();
+      sendPanel("okfilow:press", { purpose: "dictate", handsFree: true, upgrade: true });
+      return;
+    }
     // Dictation has its own switch: it works with OK Filow's questions turned off.
     if (held || !(kind === "dictate" ? dictation.cfg().enabled : cfg().enabled)) {
       // Not started: the gestures must not count a hands-free dictation as running.
@@ -574,7 +585,11 @@ function createOkFilow(deps) {
     if (kind === "dictate") {
       dictateCap = setTimeout(() => purpose === "dictate" && release(), 5 * 60_000);
       releasedAt = 0; // an earlier dictation that typed nothing must not time this one's phrases
-      if (handsFree) phraseRun = dictation.newPhraseRun();
+      // A hold is known as one only after the start delay: the keys went down that much earlier.
+      const ago = handsFree ? 0 : ARM_MS;
+      pressedAt = Date.now() - ago;
+      phraseRun = handsFree ? dictation.newPhraseRun() : null;
+      dictation.diag.begin(handsFree ? "handsfree" : "hold", ago);
     }
     // Read the selection while the user's app still has focus; it goes with the question.
     if (kind === "talk") { clearDrawings(); strokes = []; setOverlayMouse(true); selection = readSelection(); }
@@ -584,7 +599,7 @@ function createOkFilow(deps) {
     if (!held) return;
     held = false;
     clearTimeout(dictateCap);
-    if (purpose === "dictate") { releasedAt = Date.now(); gestures?.endToggle(); }
+    if (purpose === "dictate") { releasedAt = Date.now(); heldMs = releasedAt - pressedAt; dictation.diag.mark("keys-up"); gestures?.endToggle(); }
     setOverlayMouse(false);
     sendPanel("okfilow:release", { purpose });
     purpose = null;
@@ -593,7 +608,7 @@ function createOkFilow(deps) {
     if (!held) return;
     held = false;
     clearTimeout(dictateCap);
-    if (purpose === "dictate") gestures?.endToggle();
+    if (purpose === "dictate") { gestures?.endToggle(); dictation.diag.mark("keys-up"); dictation.diag.result("cancelled"); }
     setOverlayMouse(false);
     strokes = [];
     sendOverlays("okfilow:strokes", []);
@@ -628,7 +643,12 @@ function createOkFilow(deps) {
   /** Waits until every modifier is up, so a synthetic Ctrl+V never becomes Win+V or Ctrl+Alt+V. */
   async function modifiersUp(timeoutMs = 2000) {
     const until = Date.now() + timeoutMs;
-    while (gestures && gestures.anyDown && Date.now() < until) await new Promise((r) => setTimeout(r, 25));
+    // While the user holds the keys for the next dictation the words of the last one wait for that
+    // release (they go in first, in order): a paste now would be Ctrl + Win + V, and giving up after two
+    // seconds left them on the clipboard only. Hold mode only, and for a minute at most: in a hands-free
+    // dictation the keys are up, so a key that looks held there is a lost key-up, not a hold.
+    const waiting = () => Date.now() < until || (held && purpose === "dictate" && !phraseRun && Date.now() < until + 60_000);
+    while (gestures && gestures.anyDown && waiting()) await new Promise((r) => setTimeout(r, 25));
     return !(gestures && gestures.anyDown);
   }
   /**
@@ -641,6 +661,8 @@ function createOkFilow(deps) {
     // `phrase`: one phrase of a hands-free dictation (its last words can arrive after the next press).
     const r = await dictation.insert(text, { hook: keys, keysUp: () => modifiersUp(), spokenLanguage, run: (phrase && phraseRun) || undefined });
     if (releasedAt && r.action !== "none") logLine(`dictation: release to text ${Date.now() - releasedAt} ms (${r.action}${r.reason ? `, ${r.reason}` : ""})`);
+    // Issue #7: a press that gave no words used to leave no trace in the log at all.
+    else if (releasedAt && !phrase) logLine(`dictation: nothing recognised (keys held ${heldMs} ms${heldMs < 1000 ? ": too short to say anything; hold the keys while speaking, or press them twice briefly for hands-free" : ""})`);
     releasedAt = 0;
     return r;
   }
@@ -717,6 +739,8 @@ function createOkFilow(deps) {
     }
   }
   let powerWired = false;
+  let hookFailures = 0; // failed tries since the hook last worked, and when the last try was ("Report a problem")
+  let hookLastTryAt = 0;
   // Issue #6: the hook is tried again for as long as Filow runs (four quick tries, then a growing delay, and
   // at once after unlock, wake-up or a display change); the fallback key works meanwhile and the panel and
   // Settings say so. When a try succeeds the hold keys are back without a restart.
@@ -725,6 +749,8 @@ function createOkFilow(deps) {
     // Windows can refuse the hook for a moment (another app just let go of one): quick tries first.
     quickFor: (e) => /register|hook/i.test(String((e && e.message) || e)) && !(e && e.permission),
     onUp: ({ failures }) => {
+      hookFailures = failures || 0;
+      hookLastTryAt = Date.now();
       hookError = "";
       hookPermission = "";
       try { globalShortcut.unregister("CommandOrControl+Alt+O"); } catch { /* was not registered */ }
@@ -735,6 +761,8 @@ function createOkFilow(deps) {
       // A start that failed leaves its key listeners on the hook: drop them before any retry adds new ones.
       try { loadUiohook().uIOhook.removeAllListeners(); } catch { /* nothing attached */ }
       const changed = !hookError;
+      hookFailures = failures || 0;
+      hookLastTryAt = Date.now();
       hookError = String((e && e.message) || e);
       hookPermission = (e && e.permission) || keyboardPermission({ platform: process.platform, systemPreferences, error: e }) || "";
       if (hookPermission && askKeyboardPermission) void askKeyboardPermission(hookPermission);
@@ -809,7 +837,7 @@ function createOkFilow(deps) {
     // Dictation keeps its own settings (dictation.js); the panel shows its switch and keys from here.
     const d = dictation.status({ talkHotkey: c.hotkey, hook: Boolean(hook) });
     // answerDir: the folder the log writes to, also when the user has not picked one (the panel shows its name).
-    return { ...c, answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, mode, handsFree, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d };
+    return { ...c, answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, hookFailures, hookLastTryAt, mode, handsFree, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d };
   }
 
   // ---- IPC (only OK Filow's own windows) ----
@@ -938,7 +966,9 @@ function createOkFilow(deps) {
     return stt.start(typeof language === "string" ? language : "auto");
   });
   ipcMain.on("okfilow:stt:feed", (e, samples) => {
-    if (ourSender(e) && stt) stt.feed(samples instanceof Float32Array ? samples : new Float32Array(samples));
+    if (!ourSender(e) || !stt) return;
+    if (held && purpose === "dictate") dictation.diag.mark("audio", {}, { once: true }); // the microphone delivers sound
+    stt.feed(samples instanceof Float32Array ? samples : new Float32Array(samples));
   });
   ipcMain.handle("okfilow:stt:stop", guard(() => stt?.stop()));
 

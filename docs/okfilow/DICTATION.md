@@ -16,9 +16,12 @@ with `FILOW_OFFLINE=1`. Study of the app this is modelled on: `G:\FILOW\tmp\rese
   language with them.
 - **How the keys work.** Hold to talk and let go to type (default), or press once to start and once
   more to stop.
-- **Hands-free (issue #2, like Wispr Flow).** Tap the keys twice (or, in "press once" mode, press them
-  once): Filow listens with the keys up and types each phrase into the focused field when the user
-  pauses. One more press of the keys stops it and types what was said since the last pause; Escape
+- **Hands-free (issue #2, like Wispr Flow).** Press the keys twice, briefly (or, in "press once" mode,
+  press them once): Filow listens with the keys up and types each phrase into the focused field when the
+  user pauses. "Briefly" is under 0.8 s, with the second press starting within 0.6 s of the first one's
+  end (issue #7: two fingers on two keys take 0.4 to 0.8 s, and the old limit of 0.25 s made two presses
+  two empty dictations). A second press long enough to have started a dictation keeps that dictation
+  going with the keys up: nothing restarts. A press that gave no words says how the keys work. One more press of the keys stops it and types what was said since the last pause; Escape
   stops it without typing those last words (phrases already typed stay). A hands-free dictation
   nobody stops ends after five minutes. The bubble says how to stop while it runs.
   OK Filow's own hands-free questions are no longer on these keys: they start with two taps of OK
@@ -76,6 +79,13 @@ copied, the bubble says "Copied. Press Ctrl + V to paste it" for a few seconds.
 4. **Putting the text in place** (`dictation.js`, pure parts in `dictation-core.js`):
    - one of Filow's own windows has focus and a text field in it does (script editor, OK Filow question
      box): typed directly with `webContents.insertText`, the clipboard is not touched;
+   - else the window that has the keyboard is looked at when the words are ready and the user's keys are
+     up (`dictation-target.js`, Windows x64, through our helper `native/target`): a password box is
+     refused (nothing typed, copied, kept or logged), an administrator window or a session where no
+     window has the keyboard gets the words on the clipboard with its own sentence, a terminal gets them
+     typed as Unicode characters (never Enter), and Windows' answer to the key events is checked
+     (`SendInput` returns how many it took). Each dictation logs its target as program name and window
+     class, never a title. Full table: `docs/dictation/SPEC.md`;
    - else, when the platform allows key presses into other apps: save every clipboard format
      (Electron 45 `clipboard.read()`), wait until the user's modifier keys are up, write the text, send
      Ctrl + V (Command + V on macOS), and 1.5 s later put the saved formats back unless the user copied
@@ -105,6 +115,10 @@ text would come out wrong; the clipboard handles every script.
 | A Filow window has focus, but no text field | nowhere to type | "Copied. Press Ctrl + V to paste it" |
 | The paste keys could not be sent, or the user's keys stayed down for 2 s | no paste | the words stay on the clipboard (losing what was said would be worse than losing the older clipboard content) and the bubble says so |
 | "Only copy them" chosen | the user's choice | "Copied. Press Ctrl + V to paste it" |
+| A window run as administrator (Windows) | Windows drops keys from a program that is not one | "This window runs as administrator, so Filow cannot type in it. Copied: press Ctrl + V." |
+| No window has the keyboard (Windows: locked or disconnected session, remote desktop left minimized) | nowhere to type | "No text box has the keyboard. Copied: click where the words should go and press Ctrl + V." |
+| Windows took none of the key events | the paste did not happen | "Windows did not accept the keys. Copied: press Ctrl + V." |
+| A password box (Windows) | dictation never goes into one | "This is a password box: nothing was typed and nothing was kept." Nothing is copied either. |
 
 ## Privacy
 
@@ -124,15 +138,30 @@ does not control: a third-party clipboard manager may still record the text for 
   detector); `apps/desktop/dictation-handsfree.test.ts`: phrase after phrase through the real insert
   and clipboard code (spaces, clipboard put back, history markers on every phrase, copy-only).
 - `packages/stt/src/stop.seams.test.ts`: the silence before the end of a streaming take.
+- `apps/desktop/dictation-target.test.ts`: password box, administrator window, terminal, no window,
+  refused keys, and "the target is the window that has the keyboard when the keys are up" through the
+  real insert; `apps/desktop/dictation-diag.test.ts`: the report section, the problem codes, and that the
+  GitHub link never cuts the section; `okfilow-gestures.test.ts`: brief presses as real fingers make them.
 - End to end (QA build): `FILOW_OKF_FAKE_MIC=<wav>` plays a recording as the microphone and
   `FILOW_OKF_QA_KEYS=1` lets the panel feed key presses to the real gestures code (for machines where
   Windows refuses the hook, such as a locked session). Both switches work only in a QA package.
 
+## Report a problem
+
+The report has a "Dictation and keys" section (`dictation-diag.js`, spec in `docs/dictation/SPEC.md`):
+a problem code, the settings, the keyboard hook's state, the model, the microphone permission, the
+platform's facts and the last five dictations stage by stage with times. Never the words.
+
 ## Not done yet
+
+- macOS, Linux and Windows on ARM have no target helper: no password-box or administrator detection
+  there, and whether the keys were accepted is not known (docs/dictation/SPEC.md says why).
 
 - The first ~250 ms after pressing the keys are not recorded (the arm delay, plus the microphone
   start). Opening the microphone at the first key-down would catch them, at the cost of a brief
   microphone light on every Ctrl + Win shortcut: an owner decision.
-- Russian, Romanian and Japanese wording for the Settings section (translation pass).
+- Hands-free with the streaming model (Nemotron, used when no phrase model for the language is on the PC or the language is Automatic): on 2026-11-11 a phrase after a pause was lost in three runs out of four, in the app and with the model fed directly (the same file through the phrase model, Parakeet with the Silero detector, gave all three phrases in English and Italian). A fresh stream at each endpoint did not help. Not fixed: it is in how the streaming recognizer goes on after an endpoint. Until then hands-free is reliable with a phrase model only.
+- A press that comes while the last dictation's words are still on their way starts recording at once (the panel no longer waits for the insert), and those words wait for the new press's keys to go up. Not seen in the app: it needs another program in front, and the test session had none.
+- The microphone still runs on a ScriptProcessor node; the AudioWorklet version (commit 385021f, branch ux-fixes) is not merged or measured.
 - The filler sounds follow the rehearsal report's list by hand (`dictation-core.js` SOUNDS); once both
   live where the desktop can import them, `setFillerHook` takes the shared list.

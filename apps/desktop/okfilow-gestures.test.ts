@@ -91,8 +91,62 @@ describe("OK Filow gestures", () => {
     expect(events).toEqual([]);
     vi.advanceTimersByTime(600);
     tapChord("ctrl", "meta");
-    g.keydown("ctrl"); g.keydown("meta"); vi.advanceTimersByTime(300); g.keyup("meta"); g.keyup("ctrl");
+    g.keydown("ctrl"); g.keydown("meta"); vi.advanceTimersByTime(900); g.keyup("meta"); g.keyup("ctrl");
     expect(events).toEqual(["dictate:start", "dictate:end"]);
+  });
+
+  // Issue #7: the owner's presses of Ctrl+Win were 0.45 to 0.85 s long (the log shows dictate:start and,
+  // 0.2 to 0.6 s later, dictate:end), far longer than the 0.25 s a tap was allowed, so two of them never
+  // started hands-free dictation.
+  const press = (ms: number, gap: number) => { g.keydown("ctrl"); g.keydown("meta"); vi.advanceTimersByTime(ms); g.keyup("meta"); g.keyup("ctrl"); vi.advanceTimersByTime(gap); };
+
+  it("two brief presses as real fingers make them (half a second each) start hands-free dictation", () => {
+    press(500, 400);
+    expect(events).toEqual(["dictate:start", "dictate:end"]);
+    press(550, 0);
+    // The second press had started a dictation: it goes on with the keys up instead of ending.
+    expect(events).toEqual(["dictate:start", "dictate:end", "dictate:start", "dictate:handsfree"]);
+    expect((g as G & { active: string | null }).active).toBe("dictate");
+    vi.advanceTimersByTime(10_000);
+    press(500, 0);
+    expect(events.slice(4)).toEqual(["dictate:end"]);
+  });
+
+  it("a brief press then a quick tap, or a quick tap then a brief press, also start it", () => {
+    press(450, 300); tapChord("ctrl", "meta");
+    expect(events).toEqual(["dictate:start", "dictate:end", "dictate:handsfree"]);
+    (g as G & { escape(): void }).escape();
+    vi.advanceTimersByTime(2000);
+    events.length = 0;
+    tapChord("ctrl", "meta", 300); press(600, 0);
+    expect(events).toEqual(["dictate:start", "dictate:handsfree"]);
+  });
+
+  it("a brief press then a real hold, or a second press that comes late, stay two dictations", () => {
+    press(500, 300); press(1500, 0);
+    expect(events).toEqual(["dictate:start", "dictate:end", "dictate:start", "dictate:end"]);
+    vi.advanceTimersByTime(2000);
+    events.length = 0;
+    press(500, 700); press(500, 0);
+    expect(events).toEqual(["dictate:start", "dictate:end", "dictate:start", "dictate:end"]);
+  });
+
+  it("a brief press and then a Windows shortcut on the same keys is not hands-free", () => {
+    press(500, 200);
+    g.keydown("ctrl"); g.keydown("meta"); vi.advanceTimersByTime(300); g.keydown(null); g.keyup("meta"); g.keyup("ctrl");
+    expect(events).toEqual(["dictate:start", "dictate:end", "dictate:start", "dictate:cancel"]);
+    // An added modifier ends the hold as a hold, never as the second press of a pair.
+    vi.advanceTimersByTime(2000);
+    events.length = 0;
+    press(500, 200);
+    g.keydown("ctrl"); g.keydown("meta"); vi.advanceTimersByTime(300); g.keydown("shift"); g.keyup("shift"); g.keyup("meta"); g.keyup("ctrl");
+    expect(events).toEqual(["dictate:start", "dictate:end", "dictate:start", "dictate:end"]);
+  });
+
+  it("the talk keys keep their own rule: two brief holds are two questions", () => {
+    g.keydown("ctrl"); g.keydown("alt"); vi.advanceTimersByTime(500); g.keyup("alt"); g.keyup("ctrl"); vi.advanceTimersByTime(300);
+    g.keydown("ctrl"); g.keydown("alt"); vi.advanceTimersByTime(500); g.keyup("alt"); g.keyup("ctrl");
+    expect(events).toEqual(["talk:start", "talk:end", "talk:start", "talk:end"]);
   });
 
   it("OK Filow's hands-free questions are on its own keys: tapping the talk keys twice", () => {

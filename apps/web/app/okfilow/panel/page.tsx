@@ -26,6 +26,8 @@ import "../okfilow.css";
 const HISTORY_KEY = "okfilow.history.v1";
 const COLORS = ["#ffb600", "#3380ff", "#ff4d6d", "#2ecc71", "#b06cff", "#ffffff"];
 type Purpose = "talk" | "dictate" | "handsfree";
+/** Why the words were only copied, in plain words (an administrator window, no text box, keys refused). */
+const copiedKey = (reason: string): DictationKey => (reason === "elevated" ? "copiedElevated" : reason === "nofocus" ? "copiedNoFocus" : reason === "blocked" ? "copiedBlocked" : "copied");
 
 function loadHistory(): BuddyTurn[] {
   try {
@@ -561,6 +563,9 @@ export default function OkFilowPanel() {
     } catch (e) {
       starting.current = false;
       pendingStop.current = null;
+      // A press queued behind this start must not swallow the next real release (the microphone would
+      // stay open with nothing to stop it).
+      queuedStart.current = null;
       stopAudio();
       void b.stt.stop().catch(() => {});
       fail(e instanceof Error ? e.message : String(e));
@@ -582,6 +587,19 @@ export default function OkFilowPanel() {
     // Hands-free dictation: from here the rest is typed below, not phrase by phrase.
     const phrases = flow.current;
     flow.current = null;
+    /**
+     * A press that came while this recording was finishing starts now. Once per stop: by the time this
+     * stop's words are in the app another recording may be stopping, and its flag is not ours to clear.
+     */
+    let handedOver = false;
+    const startQueued = () => {
+      if (handedOver) return;
+      handedOver = true;
+      stopping.current = false;
+      const next = queuedStart.current;
+      queuedStart.current = null;
+      if (next) void startRef.current(next);
+    };
     try {
     const why = purpose.current;
     const sid = session.current;
@@ -595,6 +613,8 @@ export default function OkFilowPanel() {
       if (why === "dictate" && waited === 0 && joinTranscript(committed.current, partial.current)) break;
       await new Promise((r) => setTimeout(r, 50));
       if (waited >= minWait && joinTranscript(committed.current, partial.current)) break;
+      // The keys were pressed again (the second brief press of a pair): its words must not wait for this.
+      if (why === "dictate" && queuedStart.current) break;
     }
     // A new recording started meanwhile (a press during hands-free): leave its state alone.
     if (session.current !== sid) return;
@@ -603,24 +623,47 @@ export default function OkFilowPanel() {
     if (why === "dictate" && (dict?.sound || dict?.screenReader)) playCue(false);
     if (!send) { typingRun.current++; b.text(""); return setMode("idle"); }
     if (why === "dictate") {
+      // The words of this dictation are complete. A press that came meanwhile starts recording now, not
+      // after these words are in the app: putting them there waits for the user's keys to be up, and
+      // they are down again, so the next dictation would lose its first seconds (or all of it).
+      const spokenIn = spoken.current;
+      startQueued();
+      /** False once the next press took the panel over: its bubble and state are left alone. */
+      const mine = () => session.current === sid;
+      const say = (text: string) => { if (mine()) b.text(text); };
+      const idle = (extra?: { holdMs?: number }) => { if (mine()) setMode("idle", extra); };
       // Phrases of a hands-free dictation still on their way into the app go first.
       await typing.current;
       // The bubble near the mouse says what happened when the user must act (copied) or nothing came.
-      if (!question && phrases?.typed) { b.text(""); return setMode("idle"); }
-      if (!question) { b.text(dictT("nothing")); return setMode("idle", { holdMs: 2500 }); }
-      b.text("");
-      const r = await b.typeText(question, spoken.current, Boolean(phrases)).catch(() => null);
+      if (!question && phrases?.typed) { say(""); return idle(); }
+      if (!question) {
+        // Issue #7: a press too short to say anything used to end without a word about what to do.
+        // The shell logs it and keeps it for "Report a problem" (an empty text is never typed).
+        void b.typeText("", spokenIn, false).catch(() => null);
+        say(phrases ? dictT("nothing") : dictT("nothingHint", { keys: dict?.chordLabel ?? "" }));
+        return idle({ holdMs: phrases ? 2500 : 5000 });
+      }
+      say("");
+      const r = await b.typeText(question, spokenIn, Boolean(phrases)).catch(() => null);
       const paste = pasteKeys(dict?.platform ?? "win32");
       // Only filler sounds were heard: nothing to type, said like "nothing heard".
-      if (r?.action === "none") { b.text(phrases?.typed ? "" : dictT("nothing")); return setMode("idle", phrases?.typed ? {} : { holdMs: 2500 }); }
-      if (!r || !r.ok) { setNote(dictT("failed")); setTyped(question); b.text(dictT("failed")); return setMode("idle", { holdMs: 4500 }); }
+      if (r?.action === "none") { say(phrases?.typed ? "" : dictT("nothing")); return idle(phrases?.typed ? {} : { holdMs: 2500 }); }
+      if (!r || !r.ok) { setNote(dictT("failed")); setTyped(question); say(dictT("failed")); return idle({ holdMs: 4500 }); }
+      if (r.action === "refused") {
+        // A password box: nothing was typed, copied or kept, and the words leave the panel too.
+        if (mine()) setHeard("");
+        setNote(dictT("refusedPassword"));
+        say(dictT("refusedPassword"));
+        return idle({ holdMs: 5000 });
+      }
       if (r.action === "copy") {
-        setNote(dictT("copied", { paste }));
-        b.text(dictT("copied", { paste }));
-        return setMode("idle", { holdMs: 4500 });
+        const line = dictT(copiedKey(r.reason), { paste });
+        setNote(line);
+        say(line);
+        return idle({ holdMs: 5000 });
       }
       setNote(dictT("typed"));
-      return setMode("idle");
+      return idle();
     }
     if (!question) {
       if (why === "handsfree" && handsFree.current) { setMode("idle"); return listenAgain.current(); }
@@ -629,15 +672,13 @@ export default function OkFilowPanel() {
     }
     void ask(question);
     } finally {
-      stopping.current = false;
-      const next = queuedStart.current;
-      queuedStart.current = null;
-      if (next) void startRef.current(next);
+      startQueued();
     }
   }, [ask, dictT, setMode, stopAudio, t]);
   const stopRef = useRef(stopListening);
   stopRef.current = stopListening;
   listenAgain.current = () => { if (handsFree.current) void startListening("handsfree"); };
+
 
   /** Hands-free dictation: one phrase into the focused field, after the phrases before it; the mic stays open. */
   const typePhrase = useCallback((text: string) => {
@@ -655,8 +696,9 @@ export default function OkFilowPanel() {
       const r = await b.typeText(text, lang, true).catch(() => null);
       if (r?.action === "none") return; // only filler sounds
       if (!r || !r.ok) { setNote(dictT("failed")); setTyped((was) => joinTranscript([was, text], "")); return; }
+      if (r.action === "refused") { setNote(dictT("refusedPassword")); if (flow.current === f) { setHeard(""); b.text(dictT("refusedPassword")); } return; }
       if (r.action === "copy") {
-        const line = dictT("copied", { paste: pasteKeys(statusRef.current?.dictationStatus?.platform ?? "win32") });
+        const line = dictT(copiedKey(r.reason), { paste: pasteKeys(statusRef.current?.dictationStatus?.platform ?? "win32") });
         setNote(line);
         if (flow.current === f) b.text(line);
       } else setNote(dictT("typed"));
@@ -695,6 +737,22 @@ export default function OkFilowPanel() {
         if (live || !flow.current) b.text(live);
       }),
       b.onPress((p) => {
+        if (p?.upgrade) {
+          // The second brief press of a pair: the dictation that just started goes on hands-free.
+          dictHandsFree.current = true;
+          if (purpose.current === "dictate" && (audio.current || starting.current) && !stopping.current && !flow.current) {
+            const f = createPhraseFlow();
+            for (const c of committed.current) f.committed(c, performance.now());
+            committed.current = f.pending();
+            flow.current = f;
+            vad.current = createVad();
+            b.text(dictT("dictatingHandsFree", { keys: statusRef.current?.dictationStatus?.chordLabel ?? "" }));
+            // Heard as well as seen: the microphone now stays open with the keys up.
+            const ds = statusRef.current?.dictationStatus;
+            if (ds?.sound || ds?.screenReader) playCue(true);
+          }
+          return;
+        }
         if (handsFree.current) { handsFree.current = false; setHandsFreeOn(false); b.handsFreeOff(); void stopListening(false); }
         dictHandsFree.current = p?.purpose === "dictate" && Boolean(p.handsFree);
         void startListening(p?.purpose === "dictate" ? "dictate" : "talk");
@@ -724,7 +782,7 @@ export default function OkFilowPanel() {
       }),
     ];
     return () => offs.forEach((o) => o());
-  }, [ask, bridge, fail, setHandsFree, setMode, speak, startListening, stopListening, t, typePhrase]);
+  }, [ask, bridge, dictT, fail, setHandsFree, setMode, speak, startListening, stopListening, t, typePhrase]);
 
   if (!bridge) return <main className="okf-panel"><p>{t("desktopOnly")}</p></main>;
   const c = status;

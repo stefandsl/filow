@@ -1,8 +1,11 @@
 // OK Filow keyboard gestures, HeyClicky-style (docs/OKFILOW-GAUNTLET.md rows 1-4):
 //   talk       hold the talk chord (default Ctrl+Alt)            -> talk:start / talk:end / talk:cancel
 //   dictate    hold the dictation chord (default Ctrl+Win)       -> dictate:start / dictate:end / dictate:cancel
-//   hands-free dictation (issue #2, like Wispr Flow): tap the dictation chord twice, or in toggle mode
-//              press it once and let go                           -> dictate:handsfree
+//   hands-free dictation (issue #2, like Wispr Flow): press the dictation chord twice, briefly, or in
+//              toggle mode press it once and let go               -> dictate:handsfree
+//              "Briefly" is what real fingers do on two keys (issue #7: 0.4 to 0.8 s each, not the 0.25 s
+//              a single key gets): a press under SHORT_MS counts, also when it was long enough to start
+//              a dictation; the second press must begin within DOUBLE_GAP_MS of the first one's end.
 //              then press it once more -> dictate:end; Escape -> dictate:cancel
 //   hands-free questions: tap the talk chord twice               -> handsfree:toggle
 //   text box   tap Ctrl twice, alone                             -> text:open
@@ -13,6 +16,8 @@
 const ARM_MS = 250;
 const TAP_MS = 300; // a press shorter than this is a tap
 const DOUBLE_MS = 450; // two taps closer than this are a double tap
+const SHORT_MS = 800; // a press of the dictation chord shorter than this is "brief"
+const DOUBLE_GAP_MS = 600; // the second brief press starts at most this long after the first one ended
 
 const MODS = ["ctrl", "alt", "shift", "meta"];
 
@@ -33,6 +38,8 @@ function createGestures(o) {
   const now = o.now || Date.now;
   const down = { ctrl: false, alt: false, shift: false, meta: false };
   let active = null; // "talk" | "dictate" while a chord session runs
+  let activeSince = 0; // when the keys of the running session went down
+  let activeSecond = false; // the running dictation began right after a brief press
   let arming = null; // { kind, timer, since }
   let suppressed = false;
   let ctrlTap = { since: 0, clean: false, last: 0 };
@@ -70,8 +77,20 @@ function createGestures(o) {
       else tapDirty = true;
     }
     if (active && want !== active) {
-      o.emit(`${active}:end`);
+      const kind = active;
       active = null;
+      if (cause !== "up") tapDirty = true; // another modifier joined: not a press of the chord until every key is up
+      // A brief press that was long enough to start a dictation (keys let go cleanly, not another key added).
+      const brief = kind === "dictate" && cause === "up" && !tapDirty && now() - activeSince < SHORT_MS;
+      if (brief && activeSecond) {
+        // The second brief press: the dictation that just started goes on with the keys up.
+        toggled = true;
+        lastTap.dictate = 0;
+        o.emit("dictate:handsfree");
+      } else {
+        o.emit(`${kind}:end`);
+        if (brief) lastTap.dictate = now();
+      }
     }
     if (arming && want !== arming.kind) {
       const a = arming;
@@ -80,7 +99,7 @@ function createGestures(o) {
       // hands-free dictation; two of the talk chord switch OK Filow's hands-free questions on or off.
       if (cause !== "up") tapDirty = true; // Ctrl+Win+Shift: no tap until every modifier is up
       else if (!tapDirty && now() - a.since < TAP_MS) {
-        if (now() - lastTap[a.kind] < DOUBLE_MS) {
+        if (a.kind === "dictate" ? a.second : now() - lastTap[a.kind] < DOUBLE_MS) {
           lastTap[a.kind] = 0;
           if (a.kind === "dictate") { toggled = true; o.emit("dictate:handsfree"); }
           else o.emit("handsfree:toggle");
@@ -89,7 +108,10 @@ function createGestures(o) {
     }
     if (want && want !== "dictate-toggle" && !active && !arming) {
       const kind = want;
-      arming = { kind, since: now(), timer: st(() => { arming = null; active = kind; o.emit(`${kind}:start`); }, ARM_MS) };
+      const since = now();
+      // Dictation: does this press begin right after a brief one? (Then it is the second of a pair.)
+      const second = kind === "dictate" && lastTap.dictate > 0 && since - lastTap.dictate < DOUBLE_GAP_MS;
+      arming = { kind, since, second, timer: st(() => { arming = null; active = kind; activeSince = since; activeSecond = second; o.emit(`${kind}:start`); }, ARM_MS) };
     }
   }
 
@@ -160,4 +182,4 @@ function createGestures(o) {
   };
 }
 
-module.exports = { createGestures, chordHeld, ARM_MS, TAP_MS, DOUBLE_MS };
+module.exports = { createGestures, chordHeld, ARM_MS, TAP_MS, DOUBLE_MS, SHORT_MS, DOUBLE_GAP_MS };

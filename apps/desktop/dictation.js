@@ -6,17 +6,24 @@
 // the settings and the last step, putting the text in place. Pure logic: dictation-core.js.
 const core = require("./dictation-core");
 const { PANES } = require("./mac-permissions");
+const target = require("./dictation-target");
+const { createDictationDiag, reportText } = require("./dictation-diag");
 
 /**
  * deps: { getSettings, saveSettings, logLine, clipboard, BrowserWindow, systemPreferences, dialog,
  *         openSystemSettings(url) (main.js: system settings schemes only, never a web link),
- *         platform?, env?, modelReady?(language) -> boolean }
+ *         platform?, env?, modelReady?(language) -> boolean,
+ *         target?() -> the Windows helper { info, sendPaste, typeText } or null (dictation-target.js loadTarget) }
  */
 function createDictation(deps) {
   const { getSettings, saveSettings, logLine } = deps;
   const platform = deps.platform || process.platform;
   const env = deps.env || process.env;
   const listeners = new Set();
+  /** What happened in the last dictations, for "Report a problem" (never the words). */
+  const diag = createDictationDiag();
+  /** Windows: our helper that reads the target window and sends the keys (main.js passes it; null elsewhere and in tests without one). */
+  const helperFor = () => (typeof deps.target === "function" ? deps.target() || null : null);
 
   const cfg = () => {
     const s = getSettings();
@@ -101,20 +108,46 @@ function createDictation(deps) {
   }
 
   /**
-   * A text field (not a password box) has the focus in that window's page: null when none does, else the
-   * character just before the caret (so a second dictation is not glued to the first one's full stop).
+   * A text field has the focus in that window's page: null when none does, `{ password: true }` for a
+   * password box (dictation never goes into one), else the character just before the caret (so a second
+   * dictation is not glued to the first one's full stop).
    */
   async function editableFocused(win) {
     try {
       const r = await win.webContents.executeJavaScript(
-        "(() => { const e = document.activeElement; if (!e || e.disabled || e.readOnly) return null;" +
+        "(() => { const e = document.activeElement; if (!e) return null;" +
+        " if (e.tagName === 'INPUT' && /^password$/i.test(e.type || '')) return { password: true };" +
+        " if (e.disabled || e.readOnly) return null;" +
         " if (e.isContentEditable) { const s = getSelection(); const n = s && s.anchorNode; return { before: n && n.nodeType === 3 ? n.textContent.slice(Math.max(0, s.anchorOffset - 1), s.anchorOffset) : '' }; }" +
         " const field = e.tagName === 'TEXTAREA' || (e.tagName === 'INPUT' && /^(text|search|email|url|tel|)$/i.test(e.type || ''));" +
         " if (!field) return null; const at = e.selectionStart || 0; return { before: e.value.slice(Math.max(0, at - 1), at) }; })()",
         true,
       );
-      return r && typeof r === "object" ? { before: String(r.before || "") } : null;
+      if (!r || typeof r !== "object") return null;
+      return r.password === true ? { password: true } : { before: String(r.before || "") };
     } catch { return null; }
+  }
+
+  let unchecked = ""; // the last target whose password state could not be read (logged once per target)
+  /**
+   * The window that has the keyboard now (dictation-target.js). When Windows could not say whether the
+   * focused control is a password box (UI Automation did not answer), it is asked once more after a
+   * moment; if it still cannot say, the dictation goes on and the log says that the check was not possible.
+   */
+  async function readTarget() {
+    const helper = helperFor();
+    const read = () => { try { return target.describeTarget(helper ? helper.info() : null); } catch { return target.describeTarget(null); } };
+    let t = read();
+    if (t.known && !t.none && !t.own && !t.password && !t.passwordChecked) {
+      await new Promise((r) => setTimeout(r, 120));
+      t = read();
+      const line = target.targetLine(t);
+      if (t.known && !t.none && !t.password && !t.passwordChecked && line !== unchecked) {
+        unchecked = line;
+        logLine(`dictation: Windows could not say whether the focused control of ${line} is a password box`);
+      }
+    }
+    return t;
   }
 
   let inserter = null;
@@ -131,53 +164,164 @@ function createDictation(deps) {
     const c = cfg();
     const lang = c.language !== "auto" ? c.language : spokenLanguage || "auto";
     const text = core.postProcess(raw, { language: lang, removeFillers: c.removeFillers });
-    if (!text) return { ok: false, action: "none", reason: "empty", chars: 0 };
+    if (!text) {
+      // Nothing recognised (or only filler sounds). In a hands-free dictation earlier phrases may have gone in.
+      diag.nothing();
+      return { ok: false, action: "none", reason: "empty", chars: 0 };
+    }
+    diag.mark("recognised", { chars: text.length });
     const copy = (t) => writeText(run ? run.copyText(t) : t);
+    /** A password box has the keyboard: the words are not typed, not copied and not kept anywhere. */
+    const refuse = () => {
+      logLine("dictation: a password box has the keyboard: nothing typed, nothing copied");
+      diag.mark("done", { what: "refused (password box)" });
+      diag.result("refused:password");
+      return { ok: true, action: "refused", reason: "password", chars: 0 };
+    };
     const own = ownFocusedWindow();
-    if (own) {
-      // Only into a text field; with none in focus the words are copied and the user is told so.
-      const field = await editableFocused(own);
-      if (field) {
-        await own.webContents.insertText(core.joinAfter(field.before, text));
+    // Before anything is typed or copied, on every path (Filow's own windows, "only copy", no keyboard
+    // hook): a password box never gets dictated words, and they never reach the clipboard for it.
+    const field = own ? await editableFocused(own) : null;
+    if (field && field.password) return refuse();
+    if (!own && (await readTarget()).password) return refuse();
+    /** One of Filow's own windows has the keyboard: only into a text field; with none the words are copied and the user is told so. */
+    const intoOwn = async (win, fld) => {
+      if (fld) {
+        await win.webContents.insertText(core.joinAfter(fld.before, text));
         if (run) run.typed(text);
         logLine(`dictation: typed ${text.length} chars into Filow's own window directly`);
+        diag.mark("target", { line: "Filow itself", method: "direct" });
+        diag.result("direct");
         return { ok: true, action: "direct", reason: "", chars: text.length };
       }
       await copy(text);
       logLine(`dictation: copied ${text.length} chars (a Filow window has focus, but no text field)`);
+      diag.mark("target", { line: "Filow itself, no text field", method: "copy" });
+      diag.result("copied:nofield");
       return { ok: true, action: "copy", reason: "nofield", chars: text.length };
-    }
+    };
+    if (own) return intoOwn(own, field);
     const decision = core.pasteDecision({ platform, insert: c.insert, env, macTrusted: macTrusted(), hook: Boolean(hook) });
     if (decision.action === "copy") {
       await copy(text);
       logLine(`dictation: copied ${text.length} chars (${decision.reason})`);
+      diag.result(`copied:${decision.reason}`);
       if (decision.reason === "accessibility") void askMacPermission();
       return { ok: true, action: "copy", reason: decision.reason, chars: text.length };
     }
     current = { hook, keysUp };
+    const helper = helperFor();
     if (!inserter) {
       inserter = core.createClipboardInserter({
         clipboard: deps.clipboard,
         ClipboardItem: deps.ClipboardItem,
         platform,
         keysUp: () => (current.keysUp ? current.keysUp() : Promise.resolve(true)),
-        // Command + V on macOS, Ctrl + V elsewhere, sent through the same hook (SendInput / CGEvent / XTest).
-        sendPaste: () => deps.sendPaste(current.hook),
+        // Windows with our helper: Ctrl + V by SendInput, and Windows says whether it took the keys (it
+        // refuses them for an administrator window). Elsewhere: Command + V on macOS, Ctrl + V on Linux,
+        // sent through the keyboard hook (CGEvent / XTest), which cannot tell.
+        sendPaste: () => {
+          const h = helperFor();
+          if (!h) return deps.sendPaste(current.hook);
+          const accepted = h.sendPaste();
+          if (accepted !== 4) throw Object.assign(new Error(`Windows accepted ${accepted} of 4 key events`), { blocked: true });
+        },
       });
     }
+    // Looked at when the user's keys are up and the words are ready: the window that has the keyboard
+    // now, not the one that had it when the keys went down (the user may have clicked another text box).
+    let seen = null;
+    const check = () => {
+      seen = target.describeTarget(helper ? helper.info() : null);
+      const how = target.chooseMethod(seen);
+      const line = target.targetLine(seen);
+      diag.mark("target", { line, method: how.method });
+      logLine(`dictation: target ${line} -> ${how.method}${how.reason ? ` (${how.reason})` : ""}`);
+      // The keyboard went to one of Filow's own windows meanwhile: its page says what has the focus
+      // (a password box there is refused below), and nothing is pasted blind.
+      if (seen.own) return { reason: "own", method: "own", giveBack: true };
+      if (how.method === "paste") return null;
+      return { reason: how.reason || how.method, method: how.method, giveBack: how.method !== "copy" };
+    };
     // The space before a phrase depends on the phrase before it, so it is decided when this one's turn comes.
-    const r = await inserter.insert(run ? () => run.pasteText(text) : text, () => { if (run) run.typed(text); });
+    const r = await inserter.insert(run ? () => run.pasteText(text) : text, () => { if (run) run.typed(text); }, check);
+    if (r.method === "refuse") return refuse(); // the keyboard moved to a password box while the keys went up
+    if (r.method === "own") {
+      const win = ownFocusedWindow();
+      const fld = win ? await editableFocused(win) : null;
+      if (fld && fld.password) return refuse();
+      if (win) return intoOwn(win, fld);
+      await copy(text);
+      logLine(`dictation: only copied (no window has the keyboard), ${text.length} chars left on the clipboard`);
+      diag.result("copied:nofocus");
+      return { ok: true, action: "copy", reason: "nofocus", chars: text.length };
+    }
+    if (r.method === "type") {
+      // A terminal: typed as characters (the keys are up: the inserter waited for them).
+      const piece = run ? run.pasteText(text) : text;
+      const wanted = 2 * [...piece.replace(/[\r\n\t]/g, "")].reduce((n, ch) => n + ch.length, 0);
+      const accepted = helper.typeText(piece);
+      if (accepted === wanted) {
+        if (run) run.typed(text);
+        logLine(`dictation: typed ${text.length} chars as key presses`);
+        diag.mark("done", { what: "typed as key presses" });
+        diag.result("typed");
+        return { ok: true, action: "typed", reason: "", chars: text.length };
+      }
+      await copy(text);
+      logLine(`dictation: typing stopped (Windows accepted ${accepted} of ${wanted} key events), ${text.length} chars left on the clipboard`);
+      diag.mark("done", { what: "copied", accepted: false });
+      diag.result("copied:blocked");
+      return { ok: true, action: "copy", reason: "blocked", chars: text.length };
+    }
     if (!r.pasted) {
       await copy(text);
-      logLine(`dictation: paste failed (${r.reason}${r.error ? `: ${r.error}` : ""}), ${text.length} chars left on the clipboard`);
-      return { ok: true, action: "copy", reason: r.reason || "keys", chars: text.length };
+      const why = r.reason || "keys";
+      logLine(`dictation: ${r.method === "copy" ? "only copied" : "paste failed"} (${why}${r.error ? `: ${r.error}` : ""}), ${text.length} chars left on the clipboard`);
+      diag.mark("done", { what: "copied", accepted: r.error ? false : undefined });
+      diag.result(`copied:${r.error ? "blocked" : why}`);
+      return { ok: true, action: "copy", reason: r.error ? "blocked" : why, chars: text.length };
     }
     logLine(`dictation: pasted ${text.length} chars`);
-    void r.restored.then((back) => logLine(`dictation: clipboard ${back ? "put back as it was" : "left as is (changed meanwhile, or unreadable before)"}`));
+    diag.mark("done", { what: "pasted" });
+    diag.result("pasted");
+    void r.restored.then((back) => {
+      logLine(`dictation: clipboard ${back ? "put back as it was" : "left as is (changed meanwhile, or unreadable before)"}`);
+      diag.mark("clipboard", { back: Boolean(back) });
+    });
     return { ok: true, action: "paste", reason: "", chars: text.length };
   }
 
-  return { cfg, configure, status, activeChord, insert, newPhraseRun: core.createPhraseRun, onChange: (fn) => (listeners.add(fn), () => listeners.delete(fn)) };
+  /** Facts for "Report a problem" (dictation-diag.js reportText): settings, model, this system, the last dictations. */
+  function reportFacts({ hook = {}, mic = "" } = {}) {
+    const c = cfg();
+    const helper = helperFor();
+    let info;
+    try { info = helper ? helper.info() : null; } catch { info = null; }
+    let ready;
+    try { ready = deps.modelReady ? Boolean(deps.modelReady(c.language)) : null; } catch { ready = null; }
+    const session = [];
+    if (platform === "win32") {
+      session.push(`Windows, remote desktop session ${info ? (info.remote ? "yes" : "no") : "unknown"}, Filow runs as administrator ${info ? (info.selfElevated === 1 ? "yes" : "no") : "unknown"}`);
+    } else if (platform === "darwin") {
+      session.push(`macOS, Accessibility permission (needed to press the paste keys) ${macTrusted() ? "granted" : "NOT granted"}${hook.permission ? `, keyboard permission missing: ${hook.permission}` : ""}`);
+    } else {
+      const wayland = String(env.XDG_SESSION_TYPE || "").toLowerCase() === "wayland" || Boolean(env.WAYLAND_DISPLAY);
+      session.push(`Linux, ${wayland ? "Wayland session (apps cannot press keys in other apps: the words are only copied)" : `X11 session (${String(env.XDG_SESSION_TYPE || "type not set").replace(/[^\w-]/g, "")})`}, desktop ${String(env.XDG_CURRENT_DESKTOP || "?").replace(/[^\w:-]/g, "").slice(0, 40)}`);
+    }
+    return {
+      platform,
+      settings: { enabled: c.enabled, chord: c.chord, mode: c.mode, insert: c.insert, language: c.language },
+      hook,
+      model: { ready, language: c.language },
+      mic,
+      helper: Boolean(helper),
+      session,
+      runs: diag.runs(),
+    };
+  }
+
+  return { cfg, configure, status, activeChord, insert, diag, reportFacts, reportText: (o) => reportText(reportFacts(o)), newPhraseRun: core.createPhraseRun, onChange: (fn) => (listeners.add(fn), () => listeners.delete(fn)) };
 }
 
 module.exports = { createDictation };

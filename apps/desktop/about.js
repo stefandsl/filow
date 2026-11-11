@@ -17,7 +17,7 @@ const { t: sharedText } = require("./vendor/i18n");
 const ABOUT_KEYS = ["tabAbout", "tabReport", "version", "fact1", "fact2", "configFolder", "openFolder", "todo", "policyMissing", "policyEnglish",
   "issueIntro", "issueHeading", "issuePublic", "issueOpen", "issueOpened", "issueFailed", "issueTitle", "issueTitleBare", "issueCut", "issueEarlier", "describe", "describeHint", "contents", "masked",
   "crashNone", "crashSome", "openCrash", "save", "copy", "close", "saved", "copied", "saveFailed", "saveTitle", "loading",
-  "fileTitle", "fileMade", "fileWhat", "fileNone", "fileCrash", "fileSystem", "fileTake", "fileLog", "fileNoTake"];
+  "fileTitle", "fileMade", "fileWhat", "fileNone", "fileCrash", "fileSystem", "fileDictation", "fileTake", "fileLog", "fileNoTake"];
 
 
 const fill = (text, vars = {}) => text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
@@ -117,6 +117,9 @@ function crashSummary(dir, fs, join) {
   return { count, mb: Math.round((bytes / 1024 ** 2) * 10) / 10 };
 }
 
+/** A section's heading in the user's language (an unknown id is shown as it is). */
+const sectionTitle = (tx, id) => ({ system: tx.fileSystem, dictation: tx.fileDictation, take: tx.fileTake, log: tx.fileLog })[id] || id;
+
 /** The whole file: title, the user's own words on top, then the diagnostic sections main.js collected ({ id, text }). */
 function reportFile({ lang, date, description, sections, crash }) {
   const tx = textFor(lang);
@@ -125,7 +128,7 @@ function reportFile({ lang, date, description, sections, crash }) {
     tx.fileTitle, fill(tx.fileMade, { date }), "",
     `== ${tx.fileWhat}`, words || tx.fileNone, "",
     ...sections.flatMap((s) => {
-      const title = { system: tx.fileSystem, take: tx.fileTake, log: tx.fileLog }[s.id] || s.id;
+      const title = sectionTitle(tx, s.id);
       const body = String(s.text || "").trimEnd() || (s.id === "take" ? tx.fileNoTake : tx.fileNone);
       return [`== ${title}`, body, ""];
     }),
@@ -158,6 +161,16 @@ function lastLines(text, max) {
   return firstBreak < 0 ? tail : tail.slice(firstBreak + 1);
 }
 
+/** The first whole lines that fit in max characters (the newest facts come first in a kept section). */
+function firstLines(text, max) {
+  if (text.length <= max) return text;
+  const head = firstChars(text, max);
+  const lastBreak = head.lastIndexOf("\n");
+  return lastBreak > 0 ? head.slice(0, lastBreak) : head;
+}
+/** A kept section (dictation and keys) is never cut like a log, but it has a ceiling of its own in a link. */
+const ISSUE_KEEP_MAX = 1800;
+
 /** Log characters kept even when the user wrote a lot: the words are shortened before the logs go below this. */
 const ISSUE_LOG_FLOOR = 1500;
 
@@ -178,7 +191,8 @@ function issueUrl({ lang, description, sections, version, limit = ISSUE_URL_LIMI
     : fill(tx.issueTitleBare, { version });
   const texts = (sections || []).map((s) => ({
     id: s.id,
-    title: { system: tx.fileSystem, take: tx.fileTake, log: tx.fileLog }[s.id] || s.id,
+    title: sectionTitle(tx, s.id),
+    keep: s.keep === true,
     text: wellFormed(String(s.text || "").trimEnd()) || (s.id === "take" ? tx.fileNoTake : tx.fileNone),
   }));
   // as the browser will get it: the URL parser escapes a few more characters (an apostrophe is three)
@@ -188,7 +202,11 @@ function issueUrl({ lang, description, sections, version, limit = ISSUE_URL_LIMI
     const parts = [`### ${tx.fileWhat}`, (cut ? `${firstChars(words, wordsMax).trimEnd()}…` : words) || tx.fileNone, ""];
     for (const s of texts) {
       let text = s.text;
-      if (text.length > logMax) {
+      if (s.keep && text.length > ISSUE_KEEP_MAX) {
+        // newest first: the oldest dictations go, the problem code and the system facts stay
+        cut = true;
+        text = firstLines(text, ISSUE_KEEP_MAX);
+      } else if (!s.keep && text.length > logMax) {
         cut = true;
         text = [tx.issueEarlier, lastLines(text, logMax)].filter(Boolean).join("\n");
       }
@@ -210,7 +228,7 @@ function issueUrl({ lang, description, sections, version, limit = ISSUE_URL_LIMI
   };
   const whole = build(words.length, Infinity);
   if (fits(whole)) return whole;
-  const longest = Math.max(0, ...texts.map((s) => s.text.length));
+  const longest = Math.max(0, ...texts.filter((s) => !s.keep).map((s) => s.text.length));
   const floor = Math.min(longest, ISSUE_LOG_FLOOR);
   // the user's words stay whole unless they would push the logs under their floor
   const wordsKept = fits(build(words.length, floor)) ? words.length : largest(words.length, (n) => build(n, floor));
