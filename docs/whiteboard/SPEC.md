@@ -91,7 +91,14 @@ The answer is a stream of JSON lines: `start`, `outline`, one `step` per step, `
 
 Local (default): Ollama with a JSON schema in `format`.
 1. One short call for the outline: title, scene and one sentence per step.
-2. One call per step for its items, with the outline and the ids already on the board.
+2. One call for the drawing plan of the whole lesson: the things (boxes) and the relations between
+   them, each relation "from, verb, to". A relation must join two named things and carry a verb.
+3. One call that checks every relation as a statement of fact; a relation that is not confirmed
+   (false, unsure, or a check that cannot be read) is never drawn.
+4. One small call per step that picks, by id from a closed list, which things and checked relations
+   that step shows, plus an optional formula, plot expression or short note. A checked relation
+   whose two things are both on the board is drawn even when no step picked it. A small model that
+   draws freely step by step invents false arrows (docs/whiteboard/PROOF.md): here it cannot.
    Invalid or empty: one retry; still nothing: text card. Each call has its own time limit; a model
    that stalls after the outline still yields a lesson of text cards.
 The page shows and speaks step 1 while the later steps are generated.
