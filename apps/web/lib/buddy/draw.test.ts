@@ -130,6 +130,11 @@ describe("what counts as a picture", () => {
     const screens = [{ index: 1, width: 10, height: 10 }];
     expect(parseBuddyAnswer("You: 2 + 2 = 4.", screens).text).toBe("2 + 2 = 4.");
     expect(parseBuddyAnswer("You:Click Save [POINT:42,31:Save button].", screens).text).toBe("Click Save.");
+    // measured with qwen3-vl:2b: the label on every line, each line only a tag
+    const lines = parseBuddyAnswer("You: [POINT:500,500:Step 1]  \nYou: [POINT:400,300:Step 2]  \nYou: Then close the valve.", screens);
+    expect(lines.text).toBe("Then close the valve.");
+    expect(lines.points).toHaveLength(2);
+    expect(parseBuddyAnswer("First line.\nYou: Second line.", screens).text).toBe("First line.\nSecond line.");
     expect(parseBuddyAnswer("Do you: yes or no?", screens).text).toBe("Do you: yes or no?");
     expect(parseBuddyAnswer("Your file is saved.", screens).text).toBe("Your file is saved.");
   });

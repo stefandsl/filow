@@ -137,9 +137,11 @@ export function parseBuddyAnswer(raw: string, screens: BuddyScreen[], defaultScr
     .replace(BROKEN_TAG_RE, "")
     .replace(/[ \t]+([,.;:!?])/g, "$1")
     .replace(/[ \t]{2,}/g, " ")
-    .trim()
-    // Small local models copy the label of the prompt's examples ("You: Click Save"): it is not part of the answer.
-    .replace(/^You\s*:\s*/, "");
+    // Small local models copy the label of the prompt's examples ("You: Click Save"), sometimes on every
+    // line: it is not part of the answer. Lines left empty by it (a line that was only a tag) go too.
+    .replace(/^[ \t]*You\s*:[ \t]*/gm, "")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
   return { text, points, marks: marks.slice(0, 4), cards: visuals.cards, model: visuals.model, drawing: visuals.drawing };
 }
 
