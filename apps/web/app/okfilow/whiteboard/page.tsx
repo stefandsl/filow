@@ -447,6 +447,8 @@ export default function WhiteboardPage() {
             {/* The local model explains correctly but its boards miss the main relations too often (docs/whiteboard/PROOF.md, round 3): the page says so. Never a switch: only words. */}
             {ls.meta?.provider === "local" && <p className="wb-note" data-advice="cloud">{t("localSimple")}</p>}
             {lite && <p className="wb-note">{t("liteNote")}</p>}
+            {ls.unchecked.length > 0 && <p className="wb-note" data-unchecked={ls.unchecked.join(",")}>{t("uncheckedNote", { steps: ls.unchecked.join(", ") })}</p>}
+            {ls.doubts && ls.unchecked.length === 0 && <p className="wb-note" data-doubts="1">{t("doubtsNote")}</p>}
             {ls.stalled && <p className="wb-note">{t("stalledNote")}</p>}
             {!ls.stalled && ls.cards > 0 && <p className="wb-note">{t("cardsNote", { n: ls.cards })}</p>}
             {layout && layout.wiped > 0 && <p className="wb-note">{t("wipedNote", { n: layout.wiped })}</p>}

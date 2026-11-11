@@ -37,7 +37,7 @@ const CLOUD = {
   steps: [
     { say: "Voltage pushes a current through a resistance.", items: [{ kind: "node", id: "v", text: "Voltage" }, { kind: "node", id: "i", text: "Current" }, { kind: "node", id: "r", text: "Resistance" }, { kind: "edge", from: "v", to: "i", text: "pushes" }, { kind: "edge", from: "r", to: "i", text: "limits" }] },
     { say: "One formula ties the three together.", items: [{ kind: "formula", tex: "V = I R" }, { kind: "plot", expr: "2x", xmin: 0, xmax: 5 }, { kind: "sketch", title: "Resistor", shapes: [{ type: "line", x1: 40, y1: 150, x2: 120, y2: 150, stroke: "#333333", width: 4 }, { type: "rect", x: 120, y: 120, w: 160, h: 60, fill: "#e7c98a", stroke: "#333333", width: 4 }, { type: "line", x1: 280, y1: 150, x2: 360, y2: 150, stroke: "#333333", width: 4 }] }] },
-    { say: "Double the voltage and the current doubles.", items: [{ kind: "mark", target: "i", style: "highlight" }, { kind: "note", text: "The resistance stays the same." }] },
+    { say: "Double the voltage and the current doubles.", items: [{ kind: "mark", target: "i", style: "highlight" }, { kind: "note", text: "The resistance stays the same." }, { kind: "cells", values: ["V = 12 V", "I = 2 A", "R = 6 ohm"], pointer: 0 }] },
   ],
 };
 

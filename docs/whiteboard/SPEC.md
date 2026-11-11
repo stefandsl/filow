@@ -115,7 +115,11 @@ a placeholder the question did not contain (a provider that hides names: no less
 `redacted`); a proper name of the question the restatement and title never use (off the topic); the
 examiner's review (sentences, topic, the one thing the board must show, looked for on the board in
 code); the sums in the sentences, recomputed; every arrow judged alone, with who acts; boxes left
-alone (asked once for their links, judged, else taken off); notes moved to the step of their box.
+alone (off by default; when on, asked once for their links and judged); notes moved to the step of
+their box; a last look in code (the opening word, curves a note speaks of, cut cells, plot numbers).
+A guard repairs, asks for one rewrite or refuses the whole lesson; it never cuts a step, a curve or
+part of a worked example. A step whose check did not pass after the rewrite is shown and named
+under the board as not confirmed; when more than half are, the lesson is refused.
 
 Hardware tiers come from the existing setup resolution: no local helper -> the existing message and
 a Cloud button the user must press; text-only helper -> 4 steps, plain shapes; picture helper -> the
@@ -134,6 +138,7 @@ full lesson.
 | The cloud service hid a name or place of the question (`[PERSON_NAME]`) | no lesson; the reason, where the setting is (OpenRouter account, privacy or guardrails), Try again and "Explain it on this PC" |
 | The online model keeps writing about another topic | no lesson; the reason, Try again and "Explain it on this PC" |
 | The online model is busy after three waits | the reason; no other source is used |
+| A step could not be confirmed (examiner or a sum), even after the rewrite | the whole lesson, and a note naming the steps to read with care |
 | The question is empty or too long | the Explain button stays off / the text is cut to 400 characters |
 
 ## 6. Tests and proof

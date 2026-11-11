@@ -250,11 +250,65 @@ close the loop or show the output (Krebs cycle with no arrow back, supply and de
 price unlinked, photosynthesis without its inputs), and now and then a wrong sentence. That is
 what this 8 GB model knows and can state, not a missing check. The target of 8 is not met, the
 page keeps its advice under local lessons, and nothing here was tuned to the ten questions.
+## Round 5b: the guards did harm, and what changed
+
+Measured by the coordinator on round 5 code (paid, two runs): strict 2/10 and 4/10, where round 4
+code had 6 and 6. The redaction refusal worked on the real service; the other guards cut content
+and showed what was left.
+
+| Seen in the paid runs | Cause | Change |
+|---|---|---|
+| Ohm's law starts at "Next, Current is ..."; the law is never stated; "voltage" is a lower-case lone box | `applyReview` in `generate.ts` left out every step whose sentence the examiner refused or whose sum did not come out ("a false sentence is not spoken, and what was drawn with it goes too"), and the validator then recreated the box the cut step had drawn from its id. Refused sentences were never part of what a rewrite was asked to fix. Which of the two verdicts cut step 1 cannot be told: the raw lesson was not saved. | No step is ever left out. A refused sentence or a wrong sum asks for the whole lesson again, once, with the examiner's reason. If the rewrite is no better, the first lesson is shown whole and the step is named under the board as not confirmed. If more than half the steps stay unconfirmed, the whole lesson is refused. |
+| Compound interest "plots only the simple line" | The board drew both curves. `bench.mjs` wrote only the first function of a plot into `summary.md` (the `describe` and `finalBoard` lines), and `reviewText` gave the examiner the same one-curve text, so the reviewer and the examiner both read a plot that was not the one drawn. | Both print every curve of a plot. |
+| Supply and demand plots only demand | Most likely the validator (`lesson.ts`, the plot branch): a plot whose first expression was already drawn was dropped as a repeat even when it added a second curve. Not provable without the raw lesson. | A plot is a repeat only when all its curves are. From now on `validatorLosses` records anything the validator does not keep. |
+| Cells cut to "I = 2...", "Facto..." | `cleanText(v, 6)` in the cells branch of `lesson.ts`: six characters a value. | Forty characters. The layout shows every value in full: a row when it fits, otherwise one value under the other with the pointer at the left. |
+| Binary search skips an iteration or stops early | No check | A stated middle is recomputed from the stated bounds ("low = 4, high = 7, mid = 9" is refused); a division stated as its floor passes only when the sentence says it is rounded down; the examiner is told that a trace must run to its end. The last point rests on the model. |
+| "Network receives Input Data", "Oxygen exits Plant" still reversed | The judge was asked whether the sentence is true; these are true sentences drawn against the flow. | The judge is told that an arrow points from what gives to what receives, calls such a line reversed and gives the label for the turned arrow. Not measured. An arrow the judge says nothing about is now kept, not dropped. |
+
+Rules every guard now follows, each a test (`lib/whiteboard/guards.test.ts`, the route tests):
+a guard may repair, ask for one rewrite, or refuse the whole lesson with a reason. It never removes
+a step, a curve or part of a worked example. The one thing still taken off is an arrow the judge
+calls false, and that is written into the audit.
+
+A last look in code after every guard (`finalProblems`): the first sentence does not open with
+"Next", "Then", "Finally" (five languages); a note that speaks of a second curve has a plot with
+two; no cell is cut; no plot uses a number above 2 that the lesson never gives. What it finds
+before the rewrite is part of the rewrite request; what it still finds afterwards is said under
+the board. It does not catch a plot whose slope is a number the lesson uses for something else
+(the run 2 Ohm lesson: 6 ohms in the example, `2*x` plotted, 2 being the current).
+
+Replayed offline over the twenty lessons a real model wrote before round 5
+(`fixtures/cloud-r3.json`, from `wb-cloud\r3-run1` and `r3-run2`), with the examiner and the judge
+played by the test:
+
+- an examiner that agrees: all 18 lessons come out with every sentence and every item (the two
+  Krebs lessons were written about a placeholder and are refused whole);
+- an examiner that refuses the first sentence twice: every lesson is shown whole, step 1 named;
+- six kinds of bad answers (unreadable, all false, every other false, all arrows false, arrows
+  reversed, a rewrite that drops a step): each lesson is shown whole or not at all;
+- the sum check, the validator and the note mover raise no false alarm on them and lose nothing.
+
+Guards switched off by default because nothing shows they help (`GUARDS` in `generate.ts`):
+
+| Guard | Why off | Switch |
+|---|---|---|
+| The examiner's "must show" word, looked for on the board | Model-dependent, new in round 5, the round that scored worse; each miss costs a rewrite | `WHITEBOARD_GUARDS=must` |
+| Asking for links of lone boxes | Model-dependent, new in round 5 | `WHITEBOARD_GUARDS=links` |
+| Taking a lone box off the board | On the saved lessons it would have removed ten boxes in four lessons, five of them the trace of a binary search | `WHITEBOARD_GUARDS=links,removeLoneBoxes` |
+
+Still on: the redaction refusal (shown to work on the real service), the name check, the
+examiner with its one rewrite, the sum check, the arrow judge, the note mover. Whether each helps
+is what the next paid run can now show: every `lesson-N.json` holds `raw` (the lesson as the model
+first wrote it), `lesson` (as shown) and `changes` (what each guard did), `summary.md` lists the
+changes under each lesson, and `--raw` writes `summary-raw.md` so that one reviewer can score both.
+
+No paid call was made here. Local model: unchanged by this round.
 ## How to repeat
 
 1. Start Filow (or `next dev`) with Ollama running.
 2. `node tools/whiteboard/bench.mjs --base http://127.0.0.1:<port> --out <dir>` (add `--set heldout`
-   for the second set): the machine score and `summary.md` with every lesson in words.
+   for the second set, `--raw` for the lessons before the guards): the machine score and `summary.md`
+   with every lesson in words and what the guards changed.
 3. Give `summary.md` to someone who did not write the prompts and does not know earlier scores.
 
 Saved runs (outside the repo): `G:\FILOW\tmp\wb-tmp\` folders `bench-final-1`, `bench-final-2`,

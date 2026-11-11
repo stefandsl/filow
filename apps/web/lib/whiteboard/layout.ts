@@ -26,7 +26,8 @@ export type PlacedBlock = { key: string; step: number; box: Box } & (
   | { kind: "note" | "card"; lines: string[]; font: number; cut: boolean }
   | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string; more?: string[] }
   | { kind: "sketch"; drawing: BuddyDrawing }
-  | { kind: "cells"; values: string[]; pointer: number }
+  /** `column`: the values are too long for a row and stand one under the other. `cut`: even so, one does not fit. */
+  | { kind: "cells"; values: string[]; pointer: number; column: boolean; font: number; cut: boolean }
 );
 export type BoardLayout = {
   shape: BoardShape;
@@ -64,6 +65,8 @@ function charWidth(ch: string): number {
 export const textWidth = (text: string, font: number) => Array.from(text).reduce((w, ch) => w + charWidth(ch), 0) * font;
 
 /** Breaks a label into lines no wider than `max`; the last line ends with an ellipsis when cut. */
+/** Height of one line of a column of cells. */
+export const CELL_ROW = 32;
 export function wrapText(text: string, max: number, font: number, maxLines: number): string[] {
   const lines: string[] = [];
   let line = "";
@@ -597,8 +600,14 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
       return { ...base, kind: "plot", expr: b.expr, xmin: b.xmin, xmax: b.xmax, text: b.text, more: b.more, box: { x: notes.x + (notes.w - pw) / 2, y: 0, w: pw, h: Math.min(250, Math.max(170, notes.h * 0.42)) } };
     }
     if (b.kind === "cells") {
-      const cw = Math.min(64, (notes.w - 8) / b.values.length);
-      return { ...base, kind: "cells", values: b.values, pointer: b.pointer, box: { x: notes.x + (notes.w - cw * b.values.length) / 2, y: 0, w: cw * b.values.length, h: 78 } };
+      // every value is shown in full: a row when it fits, else one value under the other, with a smaller hand if it must
+      const widest = Math.max(...b.values.map((v) => textWidth(v, 18)));
+      const cw = Math.max(40, Math.min(64, (notes.w - 8) / b.values.length), widest + 26);
+      if (cw * b.values.length <= notes.w - 8) return { ...base, kind: "cells", values: b.values, pointer: b.pointer, column: false, font: Math.min(20, Math.max(13, cw * 0.42), 18 * ((cw - 22) / Math.max(1, widest))), cut: false, box: { x: notes.x + (notes.w - cw * b.values.length) / 2, y: 0, w: cw * b.values.length, h: 78 } };
+      const room = notes.w - 52;
+      const font = Math.max(12, Math.min(18, (18 * room) / Math.max(1, widest)));
+      const bw = Math.min(notes.w, Math.max(120, textWidth(b.values.reduce((a, v) => (v.length > a.length ? v : a), ""), font) + 52));
+      return { ...base, kind: "cells", values: b.values, pointer: b.pointer, column: true, font, cut: (widest * font) / 18 > room + 1, box: { x: notes.x + (notes.w - bw) / 2, y: 0, w: bw, h: b.values.length * CELL_ROW + 6 } };
     }
     if (b.kind === "sketch") {
       const sw = Math.min(notes.w, 380, (notes.h * 0.6 * 4) / 3);
@@ -653,7 +662,7 @@ export function layoutProblems(l: BoardLayout): string[] {
   }
   for (let i = 0; i < things.length; i++) for (let j = i + 1; j < things.length; j++) if (overlap(things[i].box, things[j].box)) problems.push(`${things[i].name} overlaps ${things[j].name}`);
   if (l.title.cut) problems.push("the title is cut");
-  for (const b of l.blocks) if ((b.kind === "note" || b.kind === "card") && b.cut) problems.push(`${b.kind} ${b.key} is cut`);
+  for (const b of l.blocks) if ((b.kind === "note" || b.kind === "card" || b.kind === "cells") && b.cut) problems.push(`${b.kind} ${b.key} is cut`);
   for (const nd of l.nodes) {
     if (nd.font < 15) problems.push(`node ${nd.id} is set too small to read`);
     if (nd.lines.some((ln) => textWidth(ln, nd.font) > nd.box.w - 8)) problems.push(`node ${nd.id} text is wider than its box`);

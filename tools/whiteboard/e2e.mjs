@@ -212,6 +212,9 @@ try {
     const cloud = await lessonDone(90_000);
     check("after the yes the lesson comes from the cloud model", cloud && cloud.phase === "done" && cloud.source === "cloud" && cloud.sketches === 1, JSON.stringify(cloud && { phase: cloud.phase, source: cloud.source, sketches: cloud.sketches, alert: cloud.alert }));
     check("three cloud calls were made (the lesson, its review, its arrows), with the question and no picture", cloudCalls().length === 3 && cloudCalls().every((c) => !c.hasImage) && cloudCalls()[0].user.includes("Ohm"), JSON.stringify(cloudCalls().map((c) => ({ url: c.url, hasImage: c.hasImage, user: c.user.slice(0, 60) }))));
+    // a worked example is written in full (cells used to be cut at 6 characters: "I = 2...")
+    const cellTexts = await page.evaluate(`[...document.querySelectorAll('svg.wb-board [data-block="cells"] text')].map((x) => x.textContent).join("|")`);
+    check("the cells of a worked example are readable in full", cellTexts === "V = 12 V|I = 2 A|R = 6 ohm", cellTexts);
     await setTheme("light");
     await shot("cloud-light-1264", 1264, 800);
     await shot("cloud-light-360", 360, 740);

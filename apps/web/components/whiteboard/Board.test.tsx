@@ -102,6 +102,19 @@ describe("whiteboard board", () => {
     expect(render(cut, 0)).toContain("<image href=");
   });
 
+  it("labels a plot of money in plain numbers, not powers of ten", () => {
+    const money = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "plot", expr: "1000 * (1 + 0.05 * x)", more: ["1000 * 1.05^x"], xmin: 0, xmax: 30 }] }] })!;
+    const svg = render(money, 0);
+    expect(svg).not.toMatch(/\de\+\d/);
+    expect(svg).toContain("(1, 1050)");
+  });
+  it("writes the long values of a worked example one under the other, each in full", () => {
+    const trace = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "cells", values: ["Factorial(3)", "3 * Factorial(2)", "3 * (2 * Factorial(1))", "3 * (2 * (1 * Factorial(0)))", "3 * 2", "6"], pointer: 1 }] }] })!;
+    const svg = render(trace, 0);
+    expect(svg).toContain('data-block="cells" data-column="1" data-pointer="1"');
+    expect(svg).toContain(">3 * (2 * Factorial(1))</text>");
+    expect(svg).not.toContain(String.fromCharCode(0x2026));
+  });
   it("draws a row of cells with the pointer under the value being looked at", () => {
     const cells = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "cells", values: ["1", "3", "5", "<7>"], pointer: 2 }] }] })!;
     const svg = render(cells, 0);

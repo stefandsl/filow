@@ -19,7 +19,7 @@ const MAX_BODY = 64_000;
 export async function POST(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
-  let body: { question?: unknown; provider?: unknown; setup?: unknown; language?: unknown; lesson?: unknown };
+  let body: { question?: unknown; provider?: unknown; setup?: unknown; language?: unknown; lesson?: unknown; audit?: unknown };
   try {
     // a question and, for a follow-up, one lesson: anything much larger is not a whiteboard request
     const raw = await req.text();
@@ -99,7 +99,10 @@ export async function POST(req: Request) {
       const emit = (e: LessonEvent) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
       try {
         emit({ type: "start", provider, model: provider === "cloud" ? BUDDY_CLOUD_MODEL() : provider === "freellm" ? "FreeLLMAPI" : helper!.model, lang, lite, more: Boolean(lesson) });
-        const request = { question, lang, maxSteps: maxStepsFor(lite), lesson, lite };
+        // audit: the proof bench asks for what the model first wrote and what each guard changed.
+      // WHITEBOARD_GUARDS: guards that are off by default, switched on by name for a measured run ("must,links").
+      const on = new Set((process.env.WHITEBOARD_GUARDS || "").split(",").map((g) => g.trim()));
+      const request = { question, lang, maxSteps: maxStepsFor(lite), lesson, lite, audit: body.audit === true, guards: { must: on.has("must"), links: on.has("links"), removeLoneBoxes: on.has("removeLoneBoxes") } };
         // an online model writes the whole lesson in one answer, whichever door it comes through
         if (provider !== "local") await generateCloud(ask, request, emit);
         else await generateLocal(ask, request, emit);

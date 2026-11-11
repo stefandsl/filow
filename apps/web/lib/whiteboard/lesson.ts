@@ -48,6 +48,8 @@ export const LIMITS = {
   nodeText: 36,
   edgeText: 30,
   note: 120,
+  /** One value of a row of cells: long enough for a line of a worked example ("3 * Factorial(2)", "I = 2 A"). */
+  cell: 40,
   tex: 180,
   question: 400,
   /** The lesson sent back with a follow-up question. */
@@ -201,15 +203,18 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
       let xmax = finite(q.xmax) ?? 5;
       if (!(xmin < xmax) || xmin < -1e4 || xmax > 1e4) { xmin = -5; xmax = 5; }
       // a function with no value anywhere in the range would draw an empty frame
-      if (!tree || !sampleCurve(tree, xmin, xmax) || !once(`p:${expr.replace(/\s+/g, "")}`)) continue;
+      if (!tree || !sampleCurve(tree, xmin, xmax)) continue;
       const more = (Array.isArray(q.more) ? q.more : []).map((m) => cleanExpr(m).slice(0, 80)).filter((m) => m !== expr && parseExpr(m)).slice(0, 2);
+      // The same curve again is not drawn twice, but the same curve with another one beside it is a new
+      // picture (demand alone, then demand and supply): dropping it would lose the second curve.
+      if (!once(`p:${[expr, ...more].join("|").replace(/\s+/g, "")}`)) continue;
       out.push({ kind: "plot", expr, xmin, xmax, text: cleanText(q.label ?? (q.expr ? q.text : ""), LIMITS.edgeText), ...(more.length ? { more } : {}) });
     } else if (kind === "note" || kind === "text" || kind === "list") {
       const text = cleanText(q.text ?? (Array.isArray(q.items) ? q.items.join("; ") : ""), LIMITS.note);
       const about = slug(q.about ?? q.target);
       if (text && once(`n:${text.toLowerCase()}`)) out.push({ kind: "note", text, ...(about ? { about } : {}) });
     } else if (kind === "cells" || kind === "array") {
-      const values = (Array.isArray(q.values) ? q.values : []).slice(0, 10).map((v) => cleanText(v, 6)).filter(Boolean);
+      const values = (Array.isArray(q.values) ? q.values : []).slice(0, 10).map((v) => cleanText(v, LIMITS.cell)).filter(Boolean);
       const at = finite(q.pointer);
       const pointer = at !== null && Number.isInteger(at) && at >= 0 && at < values.length ? at : -1;
       // one value is not a row; the same row with the same pointer is not drawn twice
