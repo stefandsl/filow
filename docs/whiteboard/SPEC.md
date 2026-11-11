@@ -110,6 +110,11 @@ Cloud (only when the user chose Cloud, never as a fallback): one call for the wh
 `askBuddy("cloud", ...)`, so the consent key, the first-send notice and the going-outside signal
 apply unchanged. Only the question text (and, for a follow-up, the lesson so far) is sent: no
 screenshot. Offline mode answers on this PC whatever was asked.
+By default that one call is the whole lesson: only the redaction refusal, the comparison of the
+topic's names, the validator and the look at the first sentence act on it. The examiner, the arrow
+judge and the rewrite for a sum are off (they lowered the score in a paid raw-against-shown run,
+docs/whiteboard/PROOF.md) and can be switched on by name with `WHITEBOARD_GUARDS`. With all of
+them on, the order is as follows.
 The lesson starts with the model's own restatement of the topic. Code then checks, in this order:
 a placeholder the question did not contain (a provider that hides names: no lesson, code
 `redacted`); a proper name of the question the restatement and title never use (off the topic); the

@@ -116,8 +116,18 @@ export type LessonRequest = {
  * must: the examiner names one thing the board must show, and its absence asks for a rewrite.
  * links: boxes no arrow touches are named to the model once, and the links it proposes are judged.
  * removeLoneBoxes: a box still alone after that is taken off the board.
+ * examiner: a second call reads the lesson back (topic, every sentence, whether it does what was
+ *   asked); a refusal asks for one rewrite, and a step still refused is named as not confirmed.
+ * arrows: a call judges every arrow alone; a reversed one is turned, a false one is not drawn.
+ * sums: a sum in a sentence that does not come out asks for a rewrite and marks its step.
+ * The paid run of round 5b, scored raw against shown by four reviewers, had the lessons as the
+ * model wrote them at 7 and 8 of 10 and the same lessons after these three at 6 and 4: the judge
+ * turned and removed correct arrows, the examiner marked correct steps. So they are off too. What
+ * stays on by default is what fixes a proven failure or cannot make a correct lesson worse: the
+ * refusal of a redacted question, the comparison of the topic's names, the validator (cells in
+ * full, every curve of a plot), and the look at the first sentence.
  */
-export const GUARDS = { must: false, links: false, removeLoneBoxes: false };
+export const GUARDS = { examiner: false, arrows: false, sums: false, must: false, links: false, removeLoneBoxes: false };
 
 /** How long one answer may take. The outline includes loading the model into memory the first time. */
 export const TIMEOUTS = { outlineMs: 150_000, stepMs: 75_000, cloudMs: 120_000, lessonMs: 420_000 };
@@ -766,6 +776,36 @@ export function placeNotes(lesson: Lesson): Lesson {
   return { ...lesson, steps };
 }
 
+/**
+ * A remark about one box says so: "Measured in Amperes (A)" about the box "Current (I)" is written
+ * "Current (I): Measured in Amperes (A)", so that it reads with its box wherever the notes stand.
+ * A remark the model wrote about several boxes ("Connection established" for the client and for
+ * the server) is about none in particular and stays as it is, once.
+ */
+export function labelNotes(raw: unknown, lesson: Lesson): Lesson {
+  const names = lessonNodes(lesson);
+  const about = new Map<string, Set<string>>();
+  for (const s of Array.isArray((raw as { steps?: unknown } | null)?.steps) ? (raw as { steps: Array<{ items?: unknown }> }).steps : []) {
+    for (const it of Array.isArray(s?.items) ? (s.items as Array<{ kind?: unknown; text?: unknown; about?: unknown }>) : []) {
+      if (it?.kind !== "note" || typeof it.text !== "string") continue;
+      const key = cleanText(it.text, LIMITS.note).toLowerCase();
+      about.set(key, (about.get(key) ?? new Set()).add(String(it.about ?? "")));
+    }
+  }
+  const steps = lesson.steps.map((s) => ({
+    ...s,
+    items: s.items.map((it): LessonItem => {
+      if (it.kind !== "note" || !it.about || !names.has(it.about) || (about.get(it.text.toLowerCase())?.size ?? 1) > 1) return it;
+      const label = names.get(it.about)!;
+      // the remark already names its box, or would not fit with the name in front
+      const bare = label.replace(/\s*\([^)]*\)\s*$/, "").toLowerCase();
+      if (it.text.toLowerCase().includes(bare) || label.length + 2 + it.text.length > LIMITS.note) return it;
+      return { ...it, text: `${label}: ${it.text}` };
+    }),
+  }));
+  return { ...lesson, steps };
+}
+
 /** Steps (1-based) whose sentence states a sum that does not come out: checked by computing it, not by asking. */
 export function wrongSums(lesson: Lesson): Array<{ step: number; claim: string }> {
   return lesson.steps.flatMap((s, k) => checkArithmetic(s.say).map((claim) => ({ step: k + 1, claim })));
@@ -798,7 +838,7 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
         firstRaw ??= raw;
         // The model restates the topic first; a name of the question that it and the title never use is a lesson about something else.
         const restated = `${cleanText((raw as { topic?: unknown } | null)?.topic, 300)} ${valid.title}`;
-        return { lesson: placeNotes(valid), drifted: more ? [] : missingNames(req.question, restated), lost: validatorLosses(raw, valid) };
+        return { lesson: labelNotes(raw, placeNotes(valid)), drifted: more ? [] : missingNames(req.question, restated), lost: validatorLosses(raw, valid) };
       }
     }
     return null;
@@ -808,19 +848,25 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
   let definition = "";
   const examine = async (draft: Draft): Promise<Review | null> => {
     const lesson = draft.lesson;
-    const review = await twice(async (temperature) => readReview(parseJsonLoose(await ask({ system: REVIEW_SYSTEM, user: `${definition ? `The topic, defined: ${definition}\n` : ""}${reviewText(req.question, lesson)}`, format: { type: "object" }, maxTokens: 700, timeoutMs: TIMEOUTS.cloudMs, temperature })), lesson.steps.length));
+    const review = !guards.examiner ? null : await twice(async (temperature) => readReview(parseJsonLoose(await ask({ system: REVIEW_SYSTEM, user: `${definition ? `The topic, defined: ${definition}\n` : ""}${reviewText(req.question, lesson)}`, format: { type: "object" }, maxTokens: 700, timeoutMs: TIMEOUTS.cloudMs, temperature })), lesson.steps.length));
     // a lesson that never names what was asked about is off the topic, whatever the examiner says
     if (draft.drifted.length) return { topic: false, answers: false, issues: [review?.issues, `the lesson never mentions ${draft.drifted.join(", ")}, which the question is about`].filter(Boolean).join("; "), sentences: review?.sentences ?? null, why: review?.why, arrows: new Map() };
     return review;
   };
+  /** Found by code and only written into the audit: the sums recomputed and the last look, when their guards are off. */
+  const noted = (lesson: Lesson): string[] => [
+    ...(guards.sums ? [] : wrongSums(lesson).map((w) => `noted only (sum check): "${w.claim}" in step ${w.step} does not come out`)),
+    ...(guards.examiner ? [] : finalProblems(lesson).filter((p) => !p.startsWith("the first sentence")).map((p) => `noted only (last look): ${p}`)),
+  ];
   /** Everything a rewrite is asked to fix: the examiner's reasons, the sentences it refused, sums that do not come out, and the final look in code. */
   const faults = (lesson: Lesson, review: Review | null): string[] => {
-    const sums = wrongSums(lesson).map((w) => `"${w.claim}" in step ${w.step} is not exact: correct the number, or say how it is rounded`);
+    const sums = !guards.sums ? [] : wrongSums(lesson).map((w) => `"${w.claim}" in step ${w.step} is not exact: correct the number, or say how it is rounded`);
     const said = review && (!review.topic || !review.answers) ? [review.issues || (review.topic ? "it does not do what was asked" : "it is about a different topic")] : [];
     const refused = review?.sentences ? lesson.steps.flatMap((s, k) => (review.sentences!.has(k + 1) ? [] : [`sentence ${k + 1} ("${s.say}") is not correct as written${review.why?.get(k + 1) ? `: ${review.why.get(k + 1)}` : ""}`])) : [];
     // what the examiner says the board must show is looked for on the board, in code
     const absent = guards.must && review?.must && !boardShows(lesson, review.must) ? [`the board never shows "${review.must}": draw it`] : [];
-    return [...said, ...refused, ...absent, ...sums, ...finalProblems(lesson)];
+    // the first sentence must introduce the topic: always looked at; the rest of the last look only with the examiner
+    return [...said, ...refused, ...absent, ...sums, ...finalProblems(lesson).filter((p) => guards.examiner || p.startsWith("the first sentence"))];
   };
   const offTopic = (review: Review | null) => Boolean(review && !review.topic);
   const audit = () => { if (req.audit) emit({ type: "audit", raw: firstRaw, changes }); };
@@ -878,7 +924,7 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
       return readArrowVerdicts(raw, lines.length);
     });
   const sentences = arrowSentences(lesson);
-  const arrows = (sentences.length ? await judge(sentences) : null) ?? new Map<number, "ok" | "reversed" | "false">();
+  const arrows = (guards.arrows && sentences.length ? await judge(sentences) : null) ?? new Map<number, "ok" | "reversed" | "false">();
   const dropped: string[] = [];
   const turned = [...arrows].filter(([, v]) => v === "reversed").length;
   const checked = applyReview(lesson, { arrows }, more ? req.lesson! : undefined, labels, dropped);
@@ -889,7 +935,7 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
   }
   // Steps that could not be confirmed stay in the lesson, in their place, and are named to the page:
   // a sentence the examiner still refuses, or a sum that still does not come out.
-  const bad = new Set(wrongSums(lesson).map((w) => w.step));
+  const bad = new Set(guards.sums ? wrongSums(lesson).map((w) => w.step) : []);
   const unchecked = lesson.steps.map((_, k) => k).filter((k) => bad.has(k + 1) || (review?.sentences ? !review.sentences.has(k + 1) : false));
   if (unchecked.length * 2 > lesson.steps.length) {
     // most of the lesson could not be confirmed, twice: the whole lesson is refused, with the reason
@@ -924,8 +970,9 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
     if (drop.size) changes.push(`box(es) taken off the board because nothing links them: ${[...drop].map((id) => names.get(id)).join(", ")}`);
   }
   // The last look, in code. What it still finds is said to the page with the lesson, not cut out of it.
-  const doubts = finalProblems(lesson);
+  const doubts = guards.examiner ? finalProblems(lesson) : [];
   for (const d of doubts) changes.push(`left as it is: ${d}`);
+  for (const line of noted(lesson)) changes.push(line);
   emit({ type: "outline", title: more ? req.lesson!.title : lesson.title, scene: more ? req.lesson!.scene : lesson.scene, says: lesson.steps.map((s) => s.say) });
   lesson.steps.forEach((step, index) => emit({ type: "step", index, step }));
   audit();

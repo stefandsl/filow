@@ -42,6 +42,9 @@ export const LIMITS = {
   /** A text-only helper (the Lite setup) gets a shorter lesson. */
   liteSteps: 4,
   itemsPerStep: 6,
+  /** A lesson written whole (the online path): the prompt asks for 2 to 6 items a step and at most 8 boxes, and a model that writes a few more keeps them. In real lessons the seventh item of a step was the arrow from CO2 to the plant, and the eleventh box took its arrow with it. A board that is full continues on a fresh one. */
+  lessonItemsPerStep: 10,
+  lessonNodes: 14,
   nodes: 10,
   say: 260,
   title: 70,
@@ -112,6 +115,8 @@ export type LessonContext = {
   edges: Set<string>;
   /** How many boxes the board may hold (a follow-up gets room for a few more than the lesson it continues). */
   nodeCap?: number;
+  /** How many items one step may hold (default LIMITS.itemsPerStep). */
+  itemCap?: number;
   /** Formulas, plots and notes already written, so a later step does not write them again. */
   seen: Set<string>;
   texOk?: (tex: string) => boolean;
@@ -135,7 +140,7 @@ const finite = (v: unknown): number | null => {
 export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
   const out: LessonItem[] = [];
   const list = Array.isArray(raw) ? raw : raw && typeof raw === "object" && Array.isArray((raw as { items?: unknown }).items) ? (raw as { items: unknown[] }).items : [];
-  const full = () => out.length >= LIMITS.itemsPerStep;
+  const full = () => out.length >= (ctx.itemCap ?? LIMITS.itemsPerStep);
   /** Nodes the model drew again although they are on the board: what the step is talking about. */
   const touched: string[] = [];
   const once = (key: string) => (ctx.seen.has(key) ? false : Boolean(ctx.seen.add(key)));
@@ -271,6 +276,8 @@ export function validateLesson(raw: unknown, opts: { maxSteps?: number; texOk?: 
   if (!raw || typeof raw !== "object") return null;
   const r = raw as { title?: unknown; scene?: unknown; steps?: unknown };
   const ctx = newContext({ texOk: opts.texOk, sketch: opts.sketch });
+  ctx.itemCap = LIMITS.lessonItemsPerStep;
+  ctx.nodeCap = LIMITS.lessonNodes;
   // steps that continue a lesson may point at the nodes it already has
   if (opts.continues) {
     const before = contextOf(opts.continues);
@@ -368,18 +375,19 @@ export function lessonContextText(lesson: Lesson): string {
 /** What a lesson already has on its board, for steps that continue it. */
 export function contextOf(lesson: Lesson, opts: Omit<LessonContext, "nodes" | "edges" | "seen"> = {}): LessonContext {
   const ctx = newContext(opts);
-  ctx.nodeCap = Math.min(14, LIMITS.nodes + 3);
   for (const s of lesson.steps) {
     for (const it of s.items) {
       if (it.kind === "node") ctx.nodes.set(it.id, it.text);
       else if (it.kind === "edge") ctx.edges.add(`${it.from}>${it.to}>${it.text.toLowerCase()}`);
       else if (it.kind === "formula") ctx.seen.add(`f:${texKey(it.tex)}`);
-      else if (it.kind === "plot") ctx.seen.add(`p:${it.expr.replace(/\s+/g, "")}`);
+      else if (it.kind === "plot") ctx.seen.add(`p:${[it.expr, ...(it.more ?? [])].join("|").replace(/\s+/g, "")}`);
       else if (it.kind === "note") ctx.seen.add(`n:${it.text.toLowerCase()}`);
       else if (it.kind === "mark") ctx.seen.add(`m:${it.target}:${it.style}`);
       else if (it.kind === "cells") ctx.seen.add(`c:${it.values.join("|")}:${it.pointer}`);
     }
   }
+  // a follow-up gets room for three more boxes than the board it continues
+  ctx.nodeCap = Math.max(LIMITS.nodes, ctx.nodes.size) + 3;
   return ctx;
 }
 

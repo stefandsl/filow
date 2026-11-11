@@ -99,9 +99,10 @@ describe("whiteboard lesson: what the model writes is data", () => {
     const full = validateLesson({ title: "T", scene: "flow", steps: [{ say: "a", items: Array.from({ length: 5 }, (_, i) => ({ kind: "node", id: `a${i}`, text: `A${i}` })) }, { say: "b", items: Array.from({ length: 5 }, (_, i) => ({ kind: "node", id: `b${i}`, text: `B${i}` })) }] })!;
     const more = validateLesson({ title: "T", scene: "flow", steps: [{ say: "c", items: Array.from({ length: 6 }, (_, i) => ({ kind: "node", id: `c${i}`, text: `C${i}` })) }] }, { continues: full })!;
     expect(more.steps[0].items).toHaveLength(3);
-    // a lesson that is not a follow-up keeps the limit of ten
-    const alone = validateLesson({ title: "T", scene: "flow", steps: [{ say: "a", items: Array.from({ length: 6 }, (_, i) => ({ kind: "node", id: `a${i}`, text: `A${i}` })) }, { say: "b", items: Array.from({ length: 6 }, (_, i) => ({ kind: "node", id: `b${i}`, text: `B${i}` })) }] })!;
-    expect(alone.steps.flatMap((s) => s.items)).toHaveLength(10);
+    // a lesson written whole holds fourteen boxes and ten items a step: a box that is cut takes its arrows with it
+    const alone = validateLesson({ title: "T", scene: "flow", steps: [{ say: "a", items: Array.from({ length: 12 }, (_, i) => ({ kind: "node", id: `a${i}`, text: `A${i}` })) }, { say: "b", items: Array.from({ length: 6 }, (_, i) => ({ kind: "node", id: `b${i}`, text: `B${i}` })) }] })!;
+    expect(alone.steps.map((s) => s.items.length)).toEqual([LIMITS.lessonItemsPerStep, LIMITS.lessonNodes - LIMITS.lessonItemsPerStep]);
+    expect([LIMITS.lessonItemsPerStep, LIMITS.lessonNodes]).toEqual([10, 14]);
   });
 
   it("accepts a row of cells with a pointer, cleans it, and does not repeat the same row", () => {

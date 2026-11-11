@@ -303,6 +303,64 @@ first wrote it), `lesson` (as shown) and `changes` (what each guard did), `summa
 changes under each lesson, and `--raw` writes `summary-raw.md` so that one reviewer can score both.
 
 No paid call was made here. Local model: unchanged by this round.
+## Round 6, first part: raw against shown, and what was switched off
+
+Measured by the coordinator on round 5b code (paid, two runs, four fresh reviewers), each lesson
+scored twice, as the model wrote it and as Filow showed it:
+
+| Run | Raw (before the guards) | Shown (after the guards) |
+|---|---|---|
+| r5-run1 | 7/10 | 6/10 |
+| r5-run2 | 8/10 | 4/10 |
+
+The guards lowered the score. The arrow judge turned or removed correct arrows (the SYN-ACK
+redrawn from client to server, the third leg of the handshake removed), the examiner marked
+correct steps as not confirmed (Ohm's law itself), and rewrites were asked for non-faults. In the
+raw lessons the only outright failure was the Krebs cycle (the account hides the name, the model
+writes about the nitrogen cycle) plus one or two arrow slips.
+
+Decision, by that evidence. On by default, because it fixes a proven failure or cannot make a
+correct lesson worse:
+
+- the refusal of a question the provider redacted (code `redacted`, the localized message);
+- the comparison of the topic's names in code: a lesson that never names what was asked is
+  written again once, then from a definition, then refused (code `topic`), never shown;
+- the validator: cells in full, every curve of a plot, and now ten items a step and fourteen boxes
+  (the caps of six and ten had cut the arrow from CO2 to the plant and the box "Starch" with its
+  arrow in two of the raw lessons);
+- the look at the first sentence: one that opens with "Next" asks for one rewrite, kept only if
+  it is better.
+
+Off by default, behind `WHITEBOARD_GUARDS` (`examiner`, `arrows`, `sums`, and as before `must`,
+`links`, `removeLoneBoxes`): the sentence examiner with its marks and its rewrite, the arrow
+judge, the rewrite for a sum. The sums are still recomputed, as a "noted only" line in the audit
+of the bench.
+
+Calls per online lesson: one (it was three, and up to ten). A lesson off the topic by its names
+costs up to four (lesson, rewrite, definition, third lesson); a first sentence that opens with
+"Next" costs two.
+
+Proved offline on the raw lessons of those two runs (`fixtures/cloud-r5-raw.json`, twenty raw
+answers; `lib/whiteboard/guards.test.ts`): replayed with the defaults, each of the eighteen
+lessons on the topic is shown after exactly one call with every sentence and every box, arrow,
+formula, curve, cell and sketch the model wrote; the two written about the nitrogen cycle are
+refused whole. What differs from the raw answer is listed and pinned by the test: a remark, a
+row of cells or a plot the model wrote twice is drawn once (nine items in twenty lessons), a
+remark may move to the step that draws its box, and a remark about one box carries its name.
+
+Two defects of the raw lessons that were ours:
+
+- Drawn twice: a plot that draws every curve of an earlier plot and one more now takes that
+  plot's place on the board (supply alone, then supply and demand: one plot, not two with supply
+  on both); a row of cells that begins with all the values of an earlier row replaces it (a
+  trace that grows by a line is one block). "Connection established" written for the client and
+  for the server is one remark.
+- Unit and variable remarks not tied to their box: a remark the model wrote about one box is
+  written with that box's name in front ("Current (I): Measured in Amperes (A)"). It still stands
+  in the notes column, not beside the box.
+
+Layout of those twenty raw lessons: no problem on the wide board; on the narrow one seven dense
+steps still have an arrow or a box on a label. That is open.
 ## How to repeat
 
 1. Start Filow (or `next dev`) with Ollama running.

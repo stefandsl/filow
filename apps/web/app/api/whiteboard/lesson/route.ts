@@ -102,7 +102,7 @@ export async function POST(req: Request) {
         // audit: the proof bench asks for what the model first wrote and what each guard changed.
       // WHITEBOARD_GUARDS: guards that are off by default, switched on by name for a measured run ("must,links").
       const on = new Set((process.env.WHITEBOARD_GUARDS || "").split(",").map((g) => g.trim()));
-      const request = { question, lang, maxSteps: maxStepsFor(lite), lesson, lite, audit: body.audit === true, guards: { must: on.has("must"), links: on.has("links"), removeLoneBoxes: on.has("removeLoneBoxes") } };
+      const request = { question, lang, maxSteps: maxStepsFor(lite), lesson, lite, audit: body.audit === true, guards: { examiner: on.has("examiner"), arrows: on.has("arrows"), sums: on.has("sums"), must: on.has("must"), links: on.has("links"), removeLoneBoxes: on.has("removeLoneBoxes") } };
         // an online model writes the whole lesson in one answer, whichever door it comes through
         if (provider !== "local") await generateCloud(ask, request, emit);
         else await generateLocal(ask, request, emit);
