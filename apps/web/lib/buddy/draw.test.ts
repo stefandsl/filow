@@ -209,6 +209,47 @@ describe("a draw request is answered with a picture, never with a refusal", () =
     await expect(run([new Error("Ollama, which runs OK Filow's answers on this PC, is not running.")])).rejects.toThrow("is not running");
   });
 
+  it("the spoken sentence goes out as soon as the picture's block starts, before the picture is finished", async () => {
+    let finish = () => {};
+    const gate = new Promise<void>((res) => { finish = res; });
+    const [head, tail] = [CAR.slice(0, 40), CAR.slice(40)];
+    const ask = () => (async function* () {
+      yield "Here is ";
+      yield "a car. ";
+      yield head;
+      await gate;
+      yield tail;
+    })();
+    const answer = drawnAnswer(ask, { kind: "2d", language: "en", lang: "en", signal: new AbortController().signal });
+    // the model is still writing the picture (the gate is closed) and the sentence is already here
+    expect((await answer.next()).value).toBe("Here is a car. ");
+    finish();
+    expect((await answer.next()).value).toBe(CAR);
+    expect((await answer.next()).done).toBe(true);
+  });
+
+  it("a sentence already said is not said twice: the second try adds only its picture", async () => {
+    const { out, shapes } = await run([`A car. ${SUN}`, `Another sentence. ${CAR}`]);
+    expect(out).toBe(`A car. ${CAR}`);
+    expect(shapes).toHaveLength(2);
+  });
+
+  it("a sentence already said is followed by the plain failure line when no picture comes", async () => {
+    expect((await run([`A car. ${SUN}`, REFUSAL])).out).toBe(`A car. \n${OKF_TEXT.en.drawFailed}`);
+  });
+
+  it("nothing is said early from a reply with tags or with no sentence before the block", async () => {
+    const pieces = async (reply: string) => {
+      const got: string[] = [];
+      const ask = () => (async function* () { for (const p of reply.match(/[\s\S]{1,25}/g) ?? []) yield p; })();
+      for await (const p of drawnAnswer(ask, { kind: "2d", language: "en", lang: "en", signal: new AbortController().signal })) got.push(p);
+      return got;
+    };
+    expect(await pieces(`Look here [POINT:10,10:x]. ${CAR}`)).toEqual([`Look here [POINT:10,10:x]. ${CAR}`]);
+    expect(await pieces(CAR)).toEqual([CAR]);
+    expect(await pieces(`Here is a car. ${CAR}`)).toEqual(["Here is a car. ", CAR]);
+  });
+
   it("after a Stop nothing more is asked and nothing is shown", async () => {
     const stop = new AbortController();
     stop.abort();
