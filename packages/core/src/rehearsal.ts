@@ -59,18 +59,18 @@ export const FILLERS: Record<SpeechLanguage, Filler[]> = {
   // "типа", "короче" (also "shorter"), "păi" (folds to "pai", straw), "adică", "deci", "practic",
   // "なんか". "ну" and "как бы" count only when set off by a pause ("ну, ..."; not "как бы ни").
   ru: [
-    { label: "э", sound: /^э+м*$/ },
-    { label: "мм", sound: /^м{2,}$/ },
+    { label: "э", sound: /^э{2,}м*$|^э+м+$/ }, // not the letter "э" on its own
+    { label: "ммм", sound: /^м{3,}$/ }, // not "мм", millimetres
     { label: "ну", words: ["ну"], alone: true },
     { label: "как бы", words: ["как", "бы"], alone: true },
     { label: "это самое", words: ["это", "самое"], alone: true },
   ],
   ro: [
-    { label: "ă", sound: /^a{2,}$/ },
-    { label: "î", sound: /^i{3,}$/ }, // "îi" (him, her) folds to "ii"
-    { label: "eee", sound: /^e{2,}$/ },
-    { label: "mmm", sound: /^h*m{2,}$/ },
-    { label: "cum să zic", words: ["cum", "sa", "zic"] },
+    { label: "ă", sound: /^a{3,}$/ }, // not "AA" (batteries)
+    { label: "î", sound: /^i{4,}$/ }, // "îi" (him, her) folds to "ii", and "III" is a number
+    { label: "eee", sound: /^e{3,}$/ },
+    { label: "mmm", sound: /^h*m{3,}$|^h+m{2,}$/ }, // not "mm", millimetres
+    { label: "cum să zic", words: ["cum", "sa", "zic"], alone: true }, // "Cum să zic asta mai simplu?" is meant
   ],
   ja: [
     { label: "えーと", sound: /^え[ーぇえ〜]*(?:っ?と)$/ }, // えーと, ええと, えっと when the cutter keeps it whole

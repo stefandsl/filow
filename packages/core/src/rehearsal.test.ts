@@ -278,7 +278,11 @@ describe("rehearsal details", () => {
     expect(n("Îi mulțumesc pentru exemplu practic bun.", "ro")).toBe(0);
     expect(n("Это самое главное. Что это значит?", "ru")).toBe(0);
     expect(n("Do you know? I mean it.", "en")).toBe(0);
-    expect(n("Îîî, practic, asta e.", "ro")).toBe(1);
+    expect(n("Îîîî, practic, asta e.", "ro")).toBe(1);
+    // Review of this pass: letters, units and numbers that only look like hesitation sounds.
+    expect(n("Bateriile AA. Clasa a III-a. Grosime 5 mm. Cum să zic asta mai simplu?", "ro")).toBe(0);
+    expect(n("Толщина листа 5 мм, ширина 20 мм. Буква э, буква м.", "ru")).toBe(0);
+    expect(n("Эээ, ммм, cum", "ru")).toBe(2);
     expect(n("Короче, эта дорога короче. Такого типа, вот. Что это значит.", "ru")).toBe(0);
     expect(n("Как бы ни было, ну и ладно.", "ru")).toBe(0);
     expect(n("ええ、そうです。なんか変です。", "ja")).toBe(0); // "ええ" is yes

@@ -1355,6 +1355,7 @@ function getDictation() {
   if (dictation) return dictation;
   const { clipboard, ClipboardItem, BrowserWindow: BW, systemPreferences, dialog: dlg } = require("electron");
   dictation = require("./dictation").createDictation({
+    text: (key) => sharedText(key, menuLang()),
     getSettings: () => settings,
     saveSettings,
     logLine,

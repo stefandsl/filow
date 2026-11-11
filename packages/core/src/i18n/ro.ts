@@ -216,7 +216,7 @@ export const ro: Dictionary = {
   "start.fix": "Deschide Setările",
   "start.notReadyCloud": "Modul Cloud necesită o cheie OpenRouter și o cheie ElevenLabs sau OpenAI în .env.",
   "start.notReadyLocal": "Modul Local necesită ce enumeră configurația pentru acest computer; descarcă totul din Setări.",
-  "start.modeLabel": "La pornire",
+  "start.modeLabel": "La „Pornește”",
   "speech.label": "Limba vorbită",
   "speech.auto": "Detectare (pentru Whisper, urmează limba interfeței)",
   "speech.en": "English",
@@ -811,4 +811,8 @@ export const ro: Dictionary = {
   "ctl.backend.sherpa": "Model vocal pe acest dispozitiv",
   "catalog.nemotron-streaming": "Model de recunoaștere vocală (în timp real, pe acest computer)",
   "ctl.controls": "Comenzile sesiunii",
+  "menu.dictationMacMessage": "Permite-i lui Filow să scrie dictarea ta în alte aplicații",
+  "menu.dictationMacDetail": "macOS îți cere să permiți asta o singură dată. În Configurări sistem, deschide Intimitate și securitate, apoi Accesibilitate, și activează Filow. Până atunci cuvintele tale sunt copiate: apasă Command + V ca să le lipești.",
+  "menu.dictationMacOpen": "Deschide configurările de Accesibilitate",
+  "ext.visionTitle": "Analiza slide-urilor formate doar din imagini, în timpul prezentării",
 };

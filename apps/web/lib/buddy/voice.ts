@@ -255,7 +255,7 @@ export function createSpeaker(deps: SpeakerDeps) {
     const voices = synth.getVoices();
     const pick = (want: string) => voices.find((v) => v.lang.toLowerCase().startsWith(want) && v.localService) ?? voices.find((v) => v.lang.toLowerCase().startsWith(want));
     // A voice for the language of the text when this PC has one, else the app language.
-    const want: VoiceLang = !voices.length || pick(lang) ? lang : deps.uiLang() === "it" ? "it" : "en";
+    const want: VoiceLang = !voices.length || pick(lang) ? lang : isLang(deps.uiLang()) ? (deps.uiLang() as VoiceLang) : "en";
     u.voice = pick(want) ?? null;
     u.lang = BCP47[want];
     u.rate = 1.05 * (deps.status()?.speed ?? 1);

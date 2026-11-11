@@ -94,6 +94,14 @@ describe("spoken language", () => {
     expect(getSpeechLang()).toBe("ja");
     expect(setLanguage).not.toHaveBeenCalled();
   });
+  it("keeps a choice made while the shell was still answering", async () => {
+    let answer: (s: { language: string }) => void = () => {};
+    const pending = syncSpeechLang({ status: () => new Promise<{ language: string }>((r) => { answer = r; }) });
+    await chooseSpeechLang("ja", null); // the user picks before the shell's (older) answer arrives
+    answer({ language: "it" });
+    expect((await pending).lang).toBe("ja");
+    expect(getSpeechLang()).toBe("ja");
+  });
   it("writes a choice to the shell and to the mirror, and works without a shell", async () => {
     const setLanguage = vi.fn(async (language: string) => ({ language }));
     expect(await chooseSpeechLang("ro", { status: async () => ({}), setLanguage })).toEqual({ language: "ro" });

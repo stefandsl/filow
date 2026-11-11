@@ -755,7 +755,7 @@ export default function OkFilowPanel() {
               // The sample takes the turn like a new question: the answer stops for good and hands-free does not reopen the mic over it.
               const id = ++run.current;
               if (mode === "speaking" || mode === "thinking") setMode("idle");
-              void speaker.speak(t("voiceSample"), id, { voice: "natural", lang: lang === "it" ? "it" : "en" });
+              void speaker.speak(t("voiceSample"), id, { voice: "natural", lang });
             }} />
           <label className="okf-row">
             <span>{t("speed")}</span>

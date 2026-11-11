@@ -15,19 +15,19 @@ export type LatinLang = "en" | "it" | "ro";
 export const LATIN_LANGS: readonly LatinLang[] = ["en", "it", "ro"];
 
 // Short, frequent words that tell the three Latin-script languages apart. Words two of them share
-// (a, e, o, in, la, un, se, te, ma, mai, come, le) are left out on purpose.
+// (a, e, o, in, la, un, se, te, mi, ma, mai, le) are left out on purpose.
 const words = (list: string) => new Set(list.split(" "));
 const LATIN_WORDS: Record<LatinLang, Set<string>> = {
   en: words("the and is are of to that this we you it was with for what where how do does can i my why which on should click button your at has then will open choose sure hello not be have from or if here there about today very"),
-  it: words("il lo gli che cosa dove perché perche questo questa sono è non per di del della mi posso devo qui qual quale pulsante clicco una con nel alla anche puoi più poi ecco fai clic apri scegli sul sulla ciao grazie certo ed ha alle oggi molto parliamo siamo buongiorno"),
-  ro: words("și este sunt suntem de care pe nu cu acest această aceasta asta pentru poți vrei din să apoi unde iar sau ce cum dacă în apasă alege deschide bună buna ziua mulțumesc multumesc sigur meniul fișier ești esti pot trebuie eu meu mea aici butonul apăs fac despre foarte astăzi astazi azi vom avem că tuturor vorbim salut"),
+  it: words("il lo gli che cosa dove come perché perche questo questa sono è non per di del della posso devo qui qual quale pulsante clicco una con nel alla anche puoi più poi ecco fai faccio clic apri scegli sul sulla ciao grazie certo ed ha ho hai alle oggi molto parliamo siamo buongiorno attimo arrivo"),
+  ro: words("și este sunt suntem de care pe nu cu acest această aceasta asta pentru poți vrei din să apoi unde iar sau ce cum dacă în apasă alege deschide bună buna ziua mulțumesc multumesc sigur meniul fișier ești esti pot trebuie eu el meu mea aici butonul apăs fac despre foarte astăzi astazi azi vom avem am că tuturor vorbim salut spus ieri cineva întrebări intrebari rog bine pare foame dreptate vedem când cât câte îmi"),
 };
 
 const KANA = /[぀-ヿㇰ-ㇿｦ-ﾟ]/g;
 const HAN = /[一-鿿]/g;
 const CYRILLIC = /[Ѐ-ӿ]/g;
 const LATIN = /[a-zÀ-ɏ]/gi;
-const RO_LETTERS = /[ăşșţț]/g;
+const RO_LETTERS = /[ăâîşșţț]/g;
 const IT_LETTERS = /[àèéìòù]/g;
 const count = (text: string, re: RegExp) => (text.match(re) ?? []).length;
 

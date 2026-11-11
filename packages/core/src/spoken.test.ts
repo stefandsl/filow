@@ -40,6 +40,13 @@ describe("spoken languages", () => {
     expect(detectSpeechLanguage("Bună ziua tuturor, vorbim despre securitate")).toBe("ro");
     expect(detectSpeechLanguage("Astazi vorbim despre proiect")).toBe("ro");
     expect(latinScores("Buna ziua tuturor").ro).toBeGreaterThan(0);
+    // Found by the review of this pass: everyday short sentences, with the letters only Romanian has.
+    for (const s of ["Când începem?", "Cât e ceasul?", "Îmi place", "Câte slide-uri am?", "El are dreptate", "Are cineva intrebari?", "I-am spus ieri", "Mi-e foame", "Mi se pare bine", "Te rog sa repeti", "O sa mai vedem"]) {
+      expect(detectLanguage(s), s).toBe("ro");
+      expect(detectSpeechLanguage(s), s).toBe("ro");
+    }
+    for (const s of ["Come faccio a esportare?", "Come si salva?", "Un attimo e arrivo"]) expect(detectSpeechLanguage(s), s).toBe("it");
+    for (const s of ["Come here and look at this", "I am here", "Are you there?"]) expect(detectSpeechLanguage(s), s).toBe("en");
   });
 
   it("falls back only among the languages the text could be", () => {

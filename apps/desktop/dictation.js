@@ -77,9 +77,9 @@ function createDictation(deps) {
     try { deps.systemPreferences.isTrustedAccessibilityClient(true); } catch { /* older macOS: the pane below still works */ }
     const r = await deps.dialog.showMessageBox({
       type: "info",
-      message: "Let Filow type your dictation into other apps",
-      detail: "macOS asks you to allow this once. In System Settings, open Privacy & Security, then Accessibility, and turn Filow on. Until then your words are copied: press Command + V to paste them.",
-      buttons: ["Open Accessibility settings", "Not now"],
+      message: deps.text("menu.dictationMacMessage"),
+      detail: deps.text("menu.dictationMacDetail"),
+      buttons: [deps.text("menu.dictationMacOpen"), deps.text("menu.macKeysLater")],
       defaultId: 0,
       cancelId: 1,
     });

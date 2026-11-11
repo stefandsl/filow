@@ -821,6 +821,10 @@ export const en = {
   "ctl.backend.sherpa": "Speech model on this device",
   "catalog.nemotron-streaming": "Speech model (live, on this computer)",
   "ctl.controls": "Take controls",
+  "menu.dictationMacMessage": "Let Filow type your dictation into other apps",
+  "menu.dictationMacDetail": "macOS asks you to allow this once. In System Settings, open Privacy & Security, then Accessibility, and turn Filow on. Until then your words are copied: press Command + V to paste them.",
+  "menu.dictationMacOpen": "Open Accessibility settings",
+  "ext.visionTitle": "Vision for image-only slides while following",
 };
 
 export type I18nKey = keyof typeof en;

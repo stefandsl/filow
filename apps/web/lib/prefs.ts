@@ -223,8 +223,10 @@ type SpeechLangBridge<S extends { language?: string }> = { status: () => Promise
  */
 export async function syncSpeechLang<S extends { language?: string }>(bridge: SpeechLangBridge<S> | null): Promise<{ lang: SpeechLang; status: S | null }> {
   if (!bridge) return { lang: getSpeechLang(), status: null };
+  const before = getSpeechLang();
   const status = await bridge.status();
-  if ((SPEECH_LANGS as string[]).includes(status.language ?? "")) setSpeechLang(status.language as SpeechLang);
+  // A choice made while the shell was answering is newer than its answer: keep it.
+  if (getSpeechLang() === before && (SPEECH_LANGS as string[]).includes(status.language ?? "")) setSpeechLang(status.language as SpeechLang);
   return { lang: getSpeechLang(), status };
 }
 

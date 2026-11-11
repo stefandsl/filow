@@ -345,8 +345,8 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
                     setMode(e.target.value as ScreenMode);
                     void storage.set("mode", e.target.value);
                   }}
-                  title="Vision for image-only slides while following"
-                  aria-label="Vision for image-only slides while following"
+                  title={t("ext.visionTitle")}
+                  aria-label={t("ext.visionTitle")}
                 >
                   <option value="off">{t("ext.visionOff")}</option>
                   <option value="slide-change">{t("ext.visionChange")}</option>

@@ -811,4 +811,8 @@ export const it: Dictionary = {
   "ctl.backend.sherpa": "Modello vocale su questo dispositivo",
   "catalog.nemotron-streaming": "Modello vocale (dal vivo, su questo computer)",
   "ctl.controls": "Comandi della sessione",
+  "menu.dictationMacMessage": "Permetti a Filow di scrivere la tua dettatura nelle altre app",
+  "menu.dictationMacDetail": "macOS chiede di consentirlo una volta. In Impostazioni di Sistema apri Privacy e sicurezza, poi Accessibilità, e attiva Filow. Fino ad allora le tue parole vengono copiate: premi Comando + V per incollarle.",
+  "menu.dictationMacOpen": "Apri le impostazioni di Accessibilità",
+  "ext.visionTitle": "Visione per le slide di sole immagini mentre segui",
 };
