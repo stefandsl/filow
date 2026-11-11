@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fixtures from "./fixtures/cloud-r3.json";
-import { finalProblems, generateCloud, orphanBoxes, placeNotes, texOk, validatorLosses, wrongSums, type Ask, type LessonEvent } from "./generate";
+import rawFixtures from "./fixtures/cloud-r5-raw.json";
+import { GUARDS, finalProblems, generateCloud, labelNotes, missingNames, orphanBoxes, placeNotes, texOk, validatorLosses, wrongSums, type Ask, type LessonEvent } from "./generate";
 import { LIMITS, validateLesson, type Lesson, type LessonItem } from "./lesson";
 import { layoutBoard, layoutProblems } from "./layout";
 import { checkArithmetic } from "./plot";
@@ -36,10 +37,12 @@ function fake(f: Fixture, play: Play = {}) {
   };
   return { ask, asked };
 }
-async function shown(f: Fixture, play: Play = {}, audit = false) {
+/** The three guards the paid raw-against-shown run showed to lower the score: off by default, tested switched on. */
+const ON = { examiner: true, arrows: true, sums: true };
+async function shown(f: Fixture, play: Play = {}, audit = false, guards: Partial<typeof GUARDS> = ON) {
   const events: LessonEvent[] = [];
   const model = fake(f, play);
-  await generateCloud(model.ask, { question: f.question, lang: "en", maxSteps: LIMITS.steps, audit }, (e) => events.push(e));
+  await generateCloud(model.ask, { question: f.question, lang: "en", maxSteps: LIMITS.steps, audit, guards }, (e) => events.push(e));
   const steps = events.flatMap((e) => (e.type === "step" ? [e.step] : []));
   return { events, steps, asked: model.asked, error: events.find((e) => e.type === "error"), done: events.find((e) => e.type === "done"), audit: events.find((e) => e.type === "audit") };
 }
@@ -48,7 +51,73 @@ const drawn = (items: LessonItem[], skip: (it: LessonItem) => boolean = () => fa
 const everything = (steps: Array<{ items: LessonItem[] }>, skip?: (it: LessonItem) => boolean) => drawn(steps.flatMap((s) => s.items), skip);
 const written = (f: Fixture) => validateLesson(f.lesson, { maxSteps: LIMITS.steps, texOk, sketch: true })!;
 
-describe("the guards of the online path, replayed over saved real lessons", () => {
+describe("the default online path, replayed over the raw lessons of the paid round 5b runs: shown equals raw", () => {
+  type Raw = { run: string; n: number; question: string; raw: { topic?: string; title: string; steps: Array<{ say: string; items: unknown[] }> } };
+  const RAW = rawFixtures as unknown as Raw[];
+  /** The model played by the test writes exactly what the real one wrote, every time it is asked. */
+  const replay = async (f: Raw) => {
+    const events: LessonEvent[] = [];
+    const asked: string[] = [];
+    const ask: Ask = async ({ system }) => {
+      asked.push(system.slice(0, 60));
+      return system.startsWith("Define the topic") ? "A definition of the topic." : JSON.stringify(f.raw);
+    };
+    await generateCloud(ask, { question: f.question, lang: "en", maxSteps: LIMITS.steps, audit: true }, (e) => events.push(e));
+    return { events, asked, steps: events.flatMap((e) => (e.type === "step" ? [e.step] : [])), error: events.find((e) => e.type === "error") as { code: string } | undefined, done: events.find((e) => e.type === "done"), changes: (events.find((e) => e.type === "audit") as { changes: string[] } | undefined)?.changes ?? [] };
+  };
+  const offTopic = (f: Raw) => missingNames(f.question, `${f.raw.topic ?? ""} ${f.raw.title}`).length > 0;
+
+  it("has the twenty raw lessons, two of them written about another cycle because the provider hid the name", () => {
+    expect(RAW).toHaveLength(20);
+    expect(RAW.filter(offTopic).map((f) => `${f.n} ${f.raw.title}`)).toEqual(["7 Nitrogen Cycle Outline", "7 The Nitrogen Cycle"]);
+  });
+
+  it.each(RAW.filter((f) => !offTopic(f)).map((f) => [`${f.run}/${f.n} ${f.question}`, f] as const))("%s: one call, and the lesson on the board is the lesson the model wrote", async (_name, f) => {
+    const got = await replay(f);
+    expect(got.error).toBeUndefined();
+    expect(got.asked).toHaveLength(1);
+    // what the validator makes of the raw answer (what can be drawn safely), with nothing else done to it
+    const written = validateLesson(f.raw, { maxSteps: LIMITS.steps, texOk, sketch: true })!;
+    expect(got.steps.map((s) => s.say)).toEqual(f.raw.steps.slice(0, LIMITS.steps).map((s) => s.say.trim()));
+    // every box, arrow, formula, curve, cell and sketch, in its own step, untouched
+    got.steps.forEach((s, k) => expect(drawn(s.items, (it) => it.kind === "note")).toEqual(drawn(written.steps[k].items, (it) => it.kind === "note")));
+    // every remark is there: at most moved to the step of its box and given the name of its box
+    expect(everything(got.steps)).toEqual(everything(labelNotes(f.raw, placeNotes(written)).steps));
+    const bare = (steps: Array<{ items: LessonItem[] }>) => steps.flatMap((s) => s.items).flatMap((it) => (it.kind === "note" ? [it.text.replace(/^[^:]{1,40}: /, "")] : [])).sort();
+    expect(bare(got.steps).length).toBe(written.steps.flatMap((s) => s.items).filter((it) => it.kind === "note").length);
+    // no arrow turned or removed, no step marked, no doubt raised, no rewrite asked for
+    expect(got.done).toEqual({ type: "done", cards: 0, stalled: false });
+    expect(got.changes.filter((c) => !c.includes("the validator did not keep") && !c.startsWith("noted only"))).toEqual([]);
+  });
+
+  it.each(RAW.filter(offTopic).map((f) => [`${f.run}/${f.n}`, f] as const))("%s: a lesson about another topic is refused whole, never shown", async (_name, f) => {
+    const got = await replay(f);
+    expect(got.steps).toEqual([]);
+    expect(got.error).toMatchObject({ code: "topic" });
+    // the lesson, one rewrite, the definition, a third lesson
+    expect(got.asked).toHaveLength(4);
+  });
+
+  it("is off for the examiner, the arrow judge and the sum rewrite when nothing is asked for: one call even for a lesson with a wrong sum and a doubtful arrow", async () => {
+    expect(GUARDS).toEqual({ examiner: false, arrows: false, sums: false, must: false, links: false, removeLoneBoxes: false });
+    let calls = 0;
+    const wrong = { title: "Sums", scene: "flow", steps: [{ say: "Twice the sum is (3+4)*2 = 12.", items: [{ kind: "node", id: "a", text: "Sum" }, { kind: "node", id: "b", text: "Result" }, { kind: "edge", from: "b", to: "a", text: "receives" }] }, { say: "That is all.", items: [{ kind: "note", text: "done" }] }] };
+    const events: LessonEvent[] = [];
+    await generateCloud(async () => { calls++; return JSON.stringify(wrong); }, { question: "sums", lang: "en", maxSteps: 7 }, (e) => events.push(e));
+    expect(calls).toBe(1);
+    expect(events[events.length - 1]).toEqual({ type: "done", cards: 0, stalled: false });
+  });
+  it("what the validator did not keep of those lessons is only what was written twice", () => {
+    const lost = RAW.filter((f) => !offTopic(f)).flatMap((f) => validatorLossesOf(f.raw).map((l) => `${f.run}/${f.n} ${l}`));
+    // a remark made twice, the same row of cells with the same pointer, the same plot again: nothing else.
+    // (Before this round the cap of 6 items a step cut the arrow from CO2 to the plant, and the cap of 10 boxes cut "Starch" with its arrow.)
+    expect(lost).toEqual(["r5-run1/3 step 4: the validator did not keep 1 note", "r5-run1/6 step 3: the validator did not keep 1 cells", "r5-run1/6 step 6: the validator did not keep 1 cells", "r5-run1/8 step 3: the validator did not keep 1 plot", "r5-run2/3 step 4: the validator did not keep 1 note", "r5-run2/6 step 3: the validator did not keep 1 cells", "r5-run2/6 step 5: the validator did not keep 1 cells", "r5-run2/6 step 6: the validator did not keep 1 cells", "r5-run2/8 step 3: the validator did not keep 1 plot"]);
+  });
+});
+
+const validatorLossesOf = (raw: unknown) => validatorLosses(raw, validateLesson(raw, { maxSteps: LIMITS.steps, texOk, sketch: true })!);
+
+describe("the guards that are off by default, switched on and replayed over saved real lessons", () => {
   it("has the saved lessons to replay", () => {
     expect(FIXTURES).toHaveLength(20);
     expect(LESSONS.length).toBeGreaterThanOrEqual(18);
@@ -175,5 +244,45 @@ describe("a worked example stays readable", () => {
     const market = validateLesson({ title: "Market", scene: "flow", steps: [{ say: "Demand falls with price.", items: [{ kind: "plot", expr: "10 - x", xmin: 0, xmax: 8 }] }, { say: "Supply rises, and they meet.", items: [{ kind: "plot", expr: "10 - x", more: ["x"], xmin: 0, xmax: 8 }] }, { say: "The same again.", items: [{ kind: "plot", expr: "10 - x", more: ["x"], xmin: 0, xmax: 8 }] }] }, { maxSteps: 7, texOk })!;
     expect(market.steps[1].items).toEqual([{ kind: "plot", expr: "10 - x", xmin: 0, xmax: 8, text: "", more: ["x"] }]);
     expect(market.steps[2].items).toEqual([]);
+  });
+});
+
+describe("nothing is drawn twice on the board", () => {
+  const market = validateLesson({ title: "Market", scene: "flow", steps: [
+    { say: "Supply rises with price.", items: [{ kind: "plot", expr: "x", xmin: 0, xmax: 10 }] },
+    { say: "Demand falls, and they meet.", items: [{ kind: "plot", expr: "10 - x", more: ["x"], xmin: 0, xmax: 10 }] },
+    { say: "Another curve.", items: [{ kind: "plot", expr: "x^2", xmin: 0, xmax: 3 }] },
+  ] }, { maxSteps: 7, texOk })!;
+  it("a plot that draws an earlier plot's curves and one more takes its place", () => {
+    const plots = (upto: number) => layoutBoard(market, upto, "wide").blocks.flatMap((b) => (b.kind === "plot" ? [[b.expr, ...(b.more ?? [])].join(" & ")] : []));
+    expect(plots(0)).toEqual(["x"]);
+    // supply is not drawn a second time on a plot of its own
+    expect(plots(1)).toEqual(["10 - x & x"]);
+    expect(plots(2)).toEqual(["10 - x & x", "x^2"]);
+    // it stays where the first one stood and is drawn anew in its step
+    const first = layoutBoard(market, 0, "wide").blocks.find((b) => b.kind === "plot")!;
+    const grown = layoutBoard(market, 1, "wide").blocks.find((b) => b.kind === "plot")!;
+    expect(grown.key).toBe(first.key);
+    expect(grown.step).toBe(1);
+  });
+  it("a trace that grows by a line is one block, not one more row each step", () => {
+    const trace = validateLesson({ title: "Interest", scene: "stack", steps: [
+      { say: "Year 0.", items: [{ kind: "cells", values: ["Year 0: 1000", "Year 1: ?"], pointer: 0 }] },
+      { say: "Year 1.", items: [{ kind: "cells", values: ["Year 0: 1000", "Year 1: ?", "Year 2: ?"], pointer: 1 }] },
+      { say: "Another row.", items: [{ kind: "cells", values: ["Year 9", "Year 10"], pointer: 1 }] },
+    ] }, { maxSteps: 7, texOk })!;
+    const rows = (upto: number) => layoutBoard(trace, upto, "wide").blocks.flatMap((b) => (b.kind === "cells" ? [b.values.length] : []));
+    expect(rows(1)).toEqual([3]);
+    expect(rows(2)).toEqual([3, 2]);
+  });
+  it("lays out every raw lesson of the paid runs: no problem on the wide board", () => {
+    const report: string[] = [];
+    for (const f of rawFixtures as unknown as Array<{ run: string; n: number; raw: unknown }>) {
+      const lesson = validateLesson(f.raw, { maxSteps: LIMITS.steps, texOk, sketch: true })!;
+      for (const shape of ["wide", "tall"] as const) for (let i = 0; i < lesson.steps.length; i++) for (const p of layoutProblems(layoutBoard(lesson, i, shape))) report.push(`${f.run}/${f.n} ${shape} step ${i + 1}: ${p}`);
+    }
+    // the wide board is clean; on the narrow one seven dense steps still have an arrow or a box on a label (known, open)
+    expect(report.filter((r) => r.includes(" wide "))).toEqual([]);
+    expect(report.filter((r) => r.includes(" tall ")).length).toBeLessThanOrEqual(8);
   });
 });

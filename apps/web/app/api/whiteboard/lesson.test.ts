@@ -130,6 +130,27 @@ describe("whiteboard lesson, local model: plan, check, then a pick per step", ()
     expect(asked()).toHaveLength(0);
   });
 
+  it("for a measured run the checks of the local path can be switched off by name: no examiner, no fact check, no second round", async () => {
+    vi.stubEnv("WHITEBOARD_LOCAL_OFF", "sentences, relations, repair");
+    // the outline, the plan, three picks: five calls, and the relation the fact check would refuse is drawn when a step picks it
+    localAnswers = [OUTLINE, PLAN, pick(["sun", "leaf"], ["1"]), pick(["sugar"], ["2", "3"]), pick(["o2"], ["4"])];
+    const ev = await events(await post({ question: "photosynthesis" }));
+    expect(chats()).toHaveLength(5);
+    expect(JSON.stringify(ev)).toContain("shines on");
+    expect(ev[ev.length - 1]).toMatchObject({ type: "done", relations: 4, drawn: 4 });
+    // one at a time: with only the examiner off, the fact check still refuses the false relation
+    vi.stubEnv("WHITEBOARD_LOCAL_OFF", "sentences");
+    calls = [];
+    localAnswers = [OUTLINE, PLAN, CHECK, PICK1, PICK2, PICK3];
+    const checked = await events(await post({ question: "photosynthesis" }));
+    expect(JSON.stringify(checked)).not.toContain("shines on");
+    // with only the second round off, the refused relation is not asked for again
+    vi.stubEnv("WHITEBOARD_LOCAL_OFF", "repair");
+    calls = [];
+    localAnswers = [...FULL];
+    await events(await post({ question: "photosynthesis" }));
+    expect(calls.filter((c) => String(c.body.messages?.[0]?.content).includes("A fact checker went through"))).toHaveLength(0);
+  });
   it("draws no arrow at all when the check cannot be read", async () => {
     localAnswers = [OUTLINE, JUDGE, PLAN, "not json", PICK1, PICK2, PICK3];
     const steps = stepsOf(await events(await post({ question: "photosynthesis" })));
@@ -476,10 +497,72 @@ describe("whiteboard lesson, cloud model", () => {
     const refused = extra.topic === false || extra.answers === false;
     return refused || !arrows.length ? [first] : [first, JSON.stringify({ arrows: arrows.map((verdict, i) => ({ n: i + 1, verdict: verdict === "ok" ? "true" : verdict })) })];
   };
-  const REVIEW_OK = review([true, true], ["ok"]);
   const OHM = (label: string, from = "i", to = "v") => JSON.stringify({ title: "Ohm's law", scene: "flow", steps: [{ say: "Voltage drives a current through a resistance.", items: [{ kind: "node", id: "v", text: "Voltage" }, { kind: "node", id: "i", text: "Current" }, { kind: "node", id: "r", text: "Resistance" }, { kind: "edge", from, to, text: label }, { kind: "edge", from: "r", to: "i", text: "limits" }] }, { say: "The three are tied by one formula.", items: [{ kind: "formula", tex: "V = I R" }] }, { say: "Current is measured in volts.", items: [{ kind: "edge", from: "i", to: "r", text: "creates" }] }] });
 
-  describe("the online lesson is read back by an examiner before it is shown", () => {
+  describe("by default the online lesson is shown as the model wrote it: one call, and only what fixes a proven failure", () => {
+    const ask = async (question: string, answers: string[], extra: Record<string, unknown> = {}) => {
+      calls = [];
+      cloudAnswers = answers;
+      return events(await post({ question, provider: "cloud", ...extra }, "ask:openrouter/google"));
+    };
+    const WRONG = OHM("receives").replace("Current is measured in volts.", "Twice the sum is (3+4)*2 = 12, and current is measured in volts.");
+
+    it("makes one call and changes nothing: no examiner, no arrow judge, no rewrite for a sum, no step marked", async () => {
+      // an arrow against the flow, a false sentence and a wrong sum: all the model's, all shown as written
+      const ev = await ask("Ohm's law", [WRONG, "never asked for", "never asked for"], { audit: true });
+      expect(outside()).toHaveLength(1);
+      expect(cloudAnswers).toHaveLength(2);
+      expect(ev.map((e) => e.type)).toEqual(["start", "outline", "step", "step", "step", "audit", "done"]);
+      const written = validateLesson(JSON.parse(WRONG))!;
+      expect(stepsOf(ev)).toEqual(written.steps);
+      expect(ev[ev.length - 1]).toEqual({ type: "done", cards: 0, stalled: false });
+      // the recomputed sum is a line of the audit for the bench, nothing more
+      expect((ev.find((e) => e.type === "audit") as { changes: string[] }).changes).toEqual(['noted only (sum check): "(3+4)*2 = 12" in step 3 does not come out']);
+    });
+
+    it("still refuses a question the provider redacted, after one call", async () => {
+      const ev = await ask("The Krebs cycle in outline", [JSON.stringify({ topic: "The [PERSON_NAME] cycle.", title: "A cycle", scene: "cycle", steps: [{ say: "Carbon moves.", items: [] }, { say: "Plants take it in.", items: [] }] })]);
+      expect(ev.map((e) => e.type)).toEqual(["start", "error"]);
+      expect(ev[1]).toMatchObject({ code: "redacted" });
+      expect(outside()).toHaveLength(1);
+    });
+
+    it("still compares the topic by its names: a lesson about another cycle is written again, then from a definition, then refused", async () => {
+      const lesson = (title: string) => JSON.stringify({ topic: `${title} moves matter around.`, title, scene: "cycle", steps: [{ say: "Something is taken in.", items: [{ kind: "node", id: "a", text: "Air" }] }, { say: "Something is given off.", items: [{ kind: "node", id: "s", text: "Soil" }] }] });
+      const better = await ask("The Krebs cycle in outline", [lesson("The nitrogen cycle"), lesson("The Krebs cycle")]);
+      expect(better[1]).toMatchObject({ title: "The Krebs cycle" });
+      expect(outside()).toHaveLength(2);
+      expect(JSON.stringify(outside()[1].body.messages)).toContain("never mentions Krebs");
+      const never = await ask("The Krebs cycle in outline", [lesson("The nitrogen cycle"), lesson("The nitrogen cycle"), "The Krebs cycle is a series of reactions in the cell.", lesson("The carbon cycle")]);
+      expect(never.map((e) => e.type)).toEqual(["start", "error"]);
+      expect(never[1]).toMatchObject({ code: "topic" });
+      // the lesson, the rewrite, the definition, the third lesson: never a wrong-topic lesson on the board
+      expect(outside()).toHaveLength(4);
+    });
+
+    it("still asks again for a lesson whose first sentence opens as if something came before, and keeps the first when the second is no better", async () => {
+      const opens = (say: string) => JSON.stringify({ title: "Ohm's law", scene: "flow", steps: [{ say, items: [{ kind: "node", id: "i", text: "Current" }] }, { say: "Resistance opposes it.", items: [{ kind: "node", id: "r", text: "Resistance" }] }] });
+      const ev = await ask("Ohm's law", [opens("Next, current is the flow of charge."), opens("Ohm's law ties voltage, current and resistance.")]);
+      expect(outside()).toHaveLength(2);
+      expect(ev[1]).toMatchObject({ says: ["Ohm's law ties voltage, current and resistance.", "Resistance opposes it."] });
+      const same = await ask("Ohm's law", [opens("Next, current is the flow of charge."), opens("Then there is current.")]);
+      expect(same[1]).toMatchObject({ says: ["Next, current is the flow of charge.", "Resistance opposes it."] });
+    });
+
+    it("writes a remark with the box it is about, and a remark made about several boxes once and for none", async () => {
+      const NOTES = JSON.stringify({ title: "Ohm's law", scene: "flow", steps: [
+        { say: "Voltage drives current.", items: [{ kind: "node", id: "v", text: "Voltage (V)" }, { kind: "node", id: "i", text: "Current (I)" }, { kind: "edge", from: "v", to: "i", text: "drives" }] },
+        { say: "Each has its unit.", items: [{ kind: "note", about: "v", text: "Measured in Volts (V)" }, { kind: "note", about: "i", text: "Measured in Amperes (A)" }, { kind: "note", about: "i", text: "Current flows in a loop" }, { kind: "note", about: "plot", text: "A remark about nothing" }] },
+        { say: "The circuit is closed.", items: [{ kind: "note", about: "v", text: "Circuit closed" }, { kind: "note", about: "i", text: "Circuit closed" }] },
+      ] });
+      const ev = await ask("Ohm's law", [NOTES]);
+      const notes = stepsOf(ev).flatMap((s) => s.items).flatMap((it) => (it.kind === "note" ? [it.text] : []));
+      expect(notes).toEqual(["Voltage (V): Measured in Volts (V)", "Current (I): Measured in Amperes (A)", "Current flows in a loop", "A remark about nothing", "Circuit closed"]);
+    });
+  });
+
+  describe("guards that are off by default, switched on by name: the lesson read back by an examiner, its arrows judged, its sums recomputed", () => {
+    beforeEach(() => vi.stubEnv("WHITEBOARD_GUARDS", "examiner,arrows,sums"));
     const run = async (answers: string[]) => {
       // each run is looked at on its own
       calls = [];
@@ -619,7 +702,7 @@ describe("whiteboard lesson, cloud model", () => {
       const off = await run([first, must, arrows]);
       expect(outside()).toHaveLength(3);
       expect(JSON.stringify(off)).not.toContain("Resistance");
-      vi.stubEnv("WHITEBOARD_GUARDS", "must");
+      vi.stubEnv("WHITEBOARD_GUARDS", "examiner,arrows,sums,must");
       const ev = await run([first, must, OHM("drives", "v", "i"), must, arrows]);
       expect(JSON.stringify(outside()[2].body.messages)).toContain('the board never shows \\"resistance\\"');
       expect(JSON.stringify(ev)).toContain("Resistance");
@@ -635,13 +718,13 @@ describe("whiteboard lesson, cloud model", () => {
       const plain = await run([ALONE, ...review([true, true], ["ok"])]);
       expect(outside()).toHaveLength(3);
       expect(boxes(plain)).toEqual(["v", "i", "r", "w", "t"]);
-      vi.stubEnv("WHITEBOARD_GUARDS", "links");
+      vi.stubEnv("WHITEBOARD_GUARDS", "examiner,arrows,sums,links");
       const linked = await run([ALONE, ...review([true, true], ["ok"]), links, JSON.stringify({ arrows: [{ n: 1, verdict: "true", acts: "B" }] })]);
       // the proposed link was judged, and turned because the judge said Resistance acts; no box is removed
       expect(edges(linked)).toEqual([{ kind: "edge", from: "v", to: "i", text: "drives" }, { kind: "edge", from: "r", to: "i", text: "is limited by" }]);
       expect(boxes(linked)).toEqual(["v", "i", "r", "w", "t"]);
       expect(String(outside()[3].body.messages[0].content)).toContain("not linked to anything");
-      vi.stubEnv("WHITEBOARD_GUARDS", "links, removeLoneBoxes");
+      vi.stubEnv("WHITEBOARD_GUARDS", "examiner,arrows,sums,links, removeLoneBoxes");
       const cut = await run([ALONE, ...review([true, true], ["ok"]), links, JSON.stringify({ arrows: [{ n: 1, verdict: "true", acts: "B" }] })]);
       // Wire stayed alone and shared its step: gone. Temperature is alone too, but its step draws nothing else: kept.
       expect(boxes(cut)).toEqual(["v", "i", "r", "t"]);
@@ -746,14 +829,14 @@ describe("whiteboard lesson, cloud model", () => {
     expect(calls).toEqual([]);
   });
 
-  it("with the yes, the lesson call and its check carry only text, and the whole lesson comes back validated", async () => {
-    cloudAnswers = ["```json\n" + CLOUD + "\n```", ...REVIEW_OK];
+  it("with the yes, the one lesson call carries only text, and the whole lesson comes back validated", async () => {
+    cloudAnswers = ["```json\n" + CLOUD + "\n```"];
     const res = await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/google");
     const ev = await events(res);
     expect(ev.map((e) => e.type)).toEqual(["start", "outline", "step", "step", "done"]);
     expect(ev[0]).toMatchObject({ provider: "cloud", model: "google/gemini-2.5-flash" });
     expect(ev[3]).toMatchObject({ step: { items: [{ kind: "formula", tex: "V = IR" }, { kind: "sketch", drawing: { title: "Resistor" } }] } });
-    expect(outside()).toHaveLength(3);
+    expect(outside()).toHaveLength(1);
     const sent = outside()[0];
     expect(sent.url).toBe("https://openrouter.ai/api/v1/chat/completions");
     expect(sent.body.response_format).toEqual({ type: "json_object" });
@@ -778,13 +861,12 @@ describe("whiteboard lesson, cloud model", () => {
     });
 
     it("with the yes, the question goes to the router only, and the lesson comes back validated", async () => {
-      cloudAnswers = [CLOUD, ...REVIEW_OK];
+      cloudAnswers = [CLOUD];
       const ev = await events(await post({ question: "Ohm's law", provider: "freellm" }, "ask:freellmapi"));
       expect(ev.map((e) => e.type)).toEqual(["start", "outline", "step", "step", "done"]);
       expect(ev[0]).toMatchObject({ provider: "freellm", model: "FreeLLMAPI" });
-      // the lesson and its check: both to the router, nothing anywhere else
-      // the lesson, its review and its arrows: all to the router, nothing anywhere else
-      expect(calls).toHaveLength(3);
+      // one call, to the router, nothing anywhere else
+      expect(calls).toHaveLength(1);
       expect(calls.every((c) => c.url.startsWith(FREE))).toBe(true);
       const sent = JSON.stringify(calls[0].body.messages);
       expect(sent).toContain("Ohm's law");

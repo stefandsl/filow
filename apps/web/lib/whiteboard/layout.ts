@@ -532,11 +532,21 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
       else if (it.kind === "mark") marksIn.push({ target: it.target, style: it.style, step });
       else if (it.kind === "formula") blocksIn.push({ key, step, kind: "formula", tex: it.tex });
       else if (it.kind === "note") blocksIn.push({ key, step, kind: "note", text: it.text });
-      else if (it.kind === "plot") blocksIn.push({ key, step, kind: "plot", expr: it.expr, xmin: it.xmin, xmax: it.xmax, text: it.text, more: it.more });
+      else if (it.kind === "plot") {
+        // A plot that draws every curve of an earlier one and more (supply alone, then supply and demand)
+        // is that plot grown: it takes its place, so the board never shows the same curve on two plots.
+        const curves = (b: { expr: string; more?: string[] }) => [b.expr, ...(b.more ?? [])].map((c) => c.replace(/\s+/g, ""));
+        const mine = curves(it);
+        const grown = blocksIn.findIndex((b) => b.kind === "plot" && curves(b).every((c) => mine.includes(c)));
+        const next = { step, kind: "plot" as const, expr: it.expr, xmin: it.xmin, xmax: it.xmax, text: it.text, more: it.more };
+        if (grown >= 0) blocksIn[grown] = { key: blocksIn[grown].key, ...next };
+        else blocksIn.push({ key, ...next });
+      }
       else if (it.kind === "sketch") blocksIn.push({ key, step, kind: "sketch", drawing: it.drawing });
       else if (it.kind === "cells") {
         // The same row again is the same row with its pointer moved: it stays where it is on the board.
-        const same = blocksIn.findIndex((b) => b.kind === "cells" && b.values.join("|") === it.values.join("|"));
+        // So is a row that begins with all the values of an earlier one: the trace grown by a line.
+        const same = blocksIn.findIndex((b) => b.kind === "cells" && b.values.length <= it.values.length && b.values.every((v, k) => v === it.values[k]));
         if (same >= 0) blocksIn[same] = { key: blocksIn[same].key, step, kind: "cells", values: it.values, pointer: it.pointer };
         else blocksIn.push({ key, step, kind: "cells", values: it.values, pointer: it.pointer });
       }
