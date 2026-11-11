@@ -61,6 +61,8 @@ export default function OkFilowPanel() {
   const dictHandsFree = useRef(false);
   const flow = useRef<PhraseFlow | null>(null);
   const typing = useRef<Promise<unknown>>(Promise.resolve());
+  /** Goes up when a dictation is cancelled or fails: phrases still queued from before are not typed. */
+  const typingRun = useRef(0);
   const micTick = useRef<(level: number, now: number) => void>(() => {});
   // Start/stop can cross: a release while the mic is still opening is remembered and applied after.
   const starting = useRef(false);
@@ -133,6 +135,12 @@ export default function OkFilowPanel() {
     setError(message);
     okFilowBridge()?.text(message);
     setMode("error", { error: message });
+    // Hands-free dictation: nothing more is typed after an error; words still waiting for a pause are kept in the box below.
+    const f = flow.current;
+    flow.current = null;
+    typingRun.current++;
+    const rest = f ? joinTranscript(f.pending(), partial.current) : "";
+    if (rest) setTyped((was) => joinTranscript([was, rest], ""));
     // A failure never leaves the mic open.
     if (audio.current) {
       stopAudio();
@@ -523,7 +531,7 @@ export default function OkFilowPanel() {
       if (pendingStop.current !== null) {
         const send = pendingStop.current;
         pendingStop.current = null;
-        void stopRef.current(send);
+        void stopRef.current(send, true);
       }
     } catch (e) {
       starting.current = false;
@@ -536,12 +544,13 @@ export default function OkFilowPanel() {
   const startRef = useRef(startListening);
   startRef.current = startListening;
 
-  const stopListening = useCallback(async (send: boolean) => {
+  const stopListening = useCallback(async (send: boolean, deferred = false) => {
     const b = okFilowBridge();
     if (!b) return;
     // A press that came while the last one was still finishing waits in queuedStart; its own release
-    // (before it could start) just drops it.
-    if (queuedStart.current) { queuedStart.current = null; return; }
+    // (before it could start) just drops it. `deferred`: this is the stop that was waiting for the
+    // microphone to open, not that press's release, so the recording is stopped and the press starts after.
+    if (queuedStart.current && !deferred) { queuedStart.current = null; return; }
     if (starting.current) { pendingStop.current = send; return; }
     if (!audio.current) return;
     stopping.current = true;
@@ -567,7 +576,7 @@ export default function OkFilowPanel() {
     const question = joinTranscript(committed.current, partial.current);
     const dict = statusRef.current?.dictationStatus;
     if (why === "dictate" && (dict?.sound || dict?.screenReader)) playCue(false);
-    if (!send) { b.text(""); return setMode("idle"); }
+    if (!send) { typingRun.current++; b.text(""); return setMode("idle"); }
     if (why === "dictate") {
       // Phrases of a hands-free dictation still on their way into the app go first.
       await typing.current;
@@ -575,7 +584,7 @@ export default function OkFilowPanel() {
       if (!question && phrases?.typed) { b.text(""); return setMode("idle"); }
       if (!question) { b.text(dictT("nothing")); return setMode("idle", { holdMs: 2500 }); }
       b.text("");
-      const r = await b.typeText(question, spoken.current).catch(() => null);
+      const r = await b.typeText(question, spoken.current, Boolean(phrases)).catch(() => null);
       const paste = pasteKeys(dict?.platform ?? "win32");
       // Only filler sounds were heard: nothing to type, said like "nothing heard".
       if (r?.action === "none") { b.text(phrases?.typed ? "" : dictT("nothing")); return setMode("idle", phrases?.typed ? {} : { holdMs: 2500 }); }
@@ -615,8 +624,10 @@ export default function OkFilowPanel() {
     const keys = statusRef.current?.dictationStatus?.chordLabel ?? "";
     b.text(joinTranscript(committed.current, partial.current) || dictT("dictatingHandsFree", { keys }));
     const lang = spoken.current;
+    const mine = typingRun.current;
     typing.current = typing.current.then(async () => {
-      const r = await b.typeText(text, lang).catch(() => null);
+      if (typingRun.current !== mine) return; // Escape or an error came first
+      const r = await b.typeText(text, lang, true).catch(() => null);
       if (r?.action === "none") return; // only filler sounds
       if (!r || !r.ok) { setNote(dictT("failed")); setTyped((was) => joinTranscript([was, text], "")); return; }
       if (r.action === "copy") {

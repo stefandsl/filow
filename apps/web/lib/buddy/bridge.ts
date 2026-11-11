@@ -138,7 +138,8 @@ export type OkFilowBridge = {
   /** Model window -> panel (through main): ask OK Filow about a clicked part. */
   askAbout(text: string): void;
   /** Puts dictated text where the focus is (typed, pasted or only copied; see DictationResult). */
-  typeText(text: string, language?: string): Promise<DictationResult>;
+  /** `phrase`: one phrase of a hands-free dictation (it follows the phrases typed before it). */
+  typeText(text: string, language?: string, phrase?: boolean): Promise<DictationResult>;
   handsFreeOff(): void;
   agents: {
     /** Starts a job when the text is an "agent, ..." request; resolves null otherwise, or needsConsent when the user must agree first. */

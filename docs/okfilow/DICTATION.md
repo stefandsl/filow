@@ -60,8 +60,11 @@ copied, the bubble says "Copied. Press Ctrl + V to paste it" for a few seconds.
    phrase closes right after such a pause, or after 2 s without a new phrase when the detector missed
    the pause. Each phrase goes through the same `dictation.insert` as a single dictation, so the
    clipboard rules below hold for every phrase; `dictation-core.js` createPhraseRun adds the space
-   between phrases (none in Japanese) and, when the words can only be copied, keeps everything said
-   so far on the clipboard instead of the last phrase only.
+   between phrases (none in Japanese; none after the user's own Enter, Tab or mouse click, seen by
+   the hook) and, when the words can only be copied, keeps everything said so far on the clipboard
+   instead of the last phrase only. Two pastes are kept at least 300 ms apart (the app reads the
+   clipboard a moment after Ctrl + V). After Escape or an error no queued phrase is typed; words
+   that were waiting for a pause when an error came are kept in the panel's text box.
 2. **Microphone and indicator.** OK Filow's panel records (the selected microphone, echo cancellation)
    and its overlays show the state. The recognizer and the microphone start together; sound is kept in
    the panel until the model is loaded, so the first words are not lost on a cold start. A press that

@@ -163,13 +163,13 @@ function createDictation(deps) {
         sendPaste: () => deps.sendPaste(current.hook),
       });
     }
-    const r = await inserter.insert(run ? run.pasteText(text) : text);
+    // The space before a phrase depends on the phrase before it, so it is decided when this one's turn comes.
+    const r = await inserter.insert(run ? () => run.pasteText(text) : text, () => { if (run) run.typed(text); });
     if (!r.pasted) {
       await copy(text);
       logLine(`dictation: paste failed (${r.reason}${r.error ? `: ${r.error}` : ""}), ${text.length} chars left on the clipboard`);
       return { ok: true, action: "copy", reason: r.reason || "keys", chars: text.length };
     }
-    if (run) run.typed(text);
     logLine(`dictation: pasted ${text.length} chars`);
     void r.restored.then((back) => logLine(`dictation: clipboard ${back ? "put back as it was" : "left as is (changed meanwhile, or unreadable before)"}`));
     return { ok: true, action: "paste", reason: "", chars: text.length };

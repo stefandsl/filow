@@ -74,7 +74,7 @@ const it: Record<DictationKey, string> = {
   conflictOverlap: "Questi tasti contengono quelli delle domande di OK Filow ({talk}), o il contrario: lasciando un tasto partirebbe l'altra funzione. La dettatura resta spenta finché non scegli altri tasti.",
   warnAltgr: "Su molte tastiere Ctrl + Alt è il tasto AltGr, che serve a scrivere alcune lettere. Premerlo da solo può avviare la dettatura.",
   warnLayout: "Windows può usare questi tasti per cambiare la lingua della tastiera. Se succede, scegli altri tasti.",
-  togglesHandsFree: "Tocca i tasti due volte per dettare a mani libere: Filow scrive ogni frase quando fai una pausa, finché premi di nuovo i tasti o Esc. Una dettatura che nessuno ferma finisce dopo 5 minuti.",
+  togglesHandsFree: "Tocca i tasti due volte per dettare a mani libere: Filow scrive ogni frase quando fai una pausa, finché non premi di nuovo i tasti o Esc. Una dettatura che nessuno ferma finisce dopo 5 minuti.",
   copyWayland: "Su questo desktop (Wayland) le app non possono premere tasti in altre app, quindi le parole vengono solo copiate: premi Ctrl + V per incollarle.",
   copyAccessibility: "macOS chiede il permesso Accessibilità prima che Filow possa scrivere in altre app. Finché non lo concedi, le parole vengono copiate: premi Comando + V per incollarle.",
   copyNohook: "Windows non ha ancora permesso a Filow di seguire la tastiera, quindi per ora i tasti non fanno nulla. Filow riprova ogni 30 secondi; anche riavviare Filow aiuta.",

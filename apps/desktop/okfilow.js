@@ -518,7 +518,8 @@ function createOkFilow(deps) {
     clearTimeout(dictateCap);
     if (kind === "dictate") {
       dictateCap = setTimeout(() => purpose === "dictate" && release(), 5 * 60_000);
-      phraseRun = handsFree ? dictation.newPhraseRun() : null;
+      releasedAt = 0; // an earlier dictation that typed nothing must not time this one's phrases
+      if (handsFree) phraseRun = dictation.newPhraseRun();
     }
     // Read the selection while the user's app still has focus; it goes with the question.
     if (kind === "talk") { clearDrawings(); strokes = []; setOverlayMouse(true); selection = readSelection(); }
@@ -579,10 +580,11 @@ function createOkFilow(deps) {
    * Dictated text from the panel: typed into whatever has focus (dictation.js decides how: directly in
    * Filow's own windows, else clipboard + paste with the user's clipboard put back, or only copied).
    */
-  async function typeText(text, spokenLanguage) {
+  async function typeText(text, spokenLanguage, phrase = false) {
     // QA key mode: the paste still goes out through uiohook (SendInput), which works without the hook.
     const keys = hook || (QA_KEYS ? require("uiohook-napi").uIOhook : null);
-    const r = await dictation.insert(text, { hook: keys, keysUp: () => modifiersUp(), spokenLanguage, run: phraseRun || undefined });
+    // `phrase`: one phrase of a hands-free dictation (its last words can arrive after the next press).
+    const r = await dictation.insert(text, { hook: keys, keysUp: () => modifiersUp(), spokenLanguage, run: (phrase && phraseRun) || undefined });
     if (releasedAt && r.action !== "none") logLine(`dictation: release to text ${Date.now() - releasedAt} ms (${r.action}${r.reason ? `, ${r.reason}` : ""})`);
     releasedAt = 0;
     return r;
@@ -637,6 +639,8 @@ function createOkFilow(deps) {
         const k = map[e.keycode] || null;
         gestures.keydown(k);
         if (e.keycode === K.Escape) { clearDrawings(); gestures.escape(); }
+        // Hands-free dictation: after the user's own Enter or Tab the next phrase starts without a space.
+        if (phraseRun && (e.keycode === K.Enter || e.keycode === K.NumpadEnter || e.keycode === K.Tab)) phraseRun.moved();
       });
       uIOhook.on("keyup", (e) => { if (e.keycode) gestures.keyup(map[e.keycode] || null); });
       // Key-ups on the secure desktop (Win+L, Ctrl+Alt+Del, sleep) never reach the hook: start clean
@@ -649,6 +653,7 @@ function createOkFilow(deps) {
       }
       uIOhook.on("mousedown", () => {
         gestures.mousedown();
+        if (phraseRun) phraseRun.moved(); // a click may have moved the caret
       });
       uIOhook.start();
       hook = uIOhook;
@@ -808,7 +813,7 @@ function createOkFilow(deps) {
   ipcMain.on("okfilow:press", (e) => ourSender(e) && press("talk"));
   ipcMain.on("okfilow:release", (e) => ourSender(e) && release());
   /** Dictation result from the panel: typed into whatever app has focus. */
-  ipcMain.handle("okfilow:typeText", guard((text, lang) => typeText(typeof text === "string" ? text.slice(0, 20000) : "", typeof lang === "string" ? lang.slice(0, 5) : "")));
+  ipcMain.handle("okfilow:typeText", guard((text, lang, phrase) => typeText(typeof text === "string" ? text.slice(0, 20000) : "", typeof lang === "string" ? lang.slice(0, 5) : "", phrase === true)));
   /** Test builds only (FILOW_OKF_QA_KEYS=1): key presses for the gestures, as the hook would deliver them. */
   ipcMain.on("okfilow:qa:key", (e, type, key) => {
     if (!QA_KEYS || !ourSender(e) || !gestures) return;
