@@ -156,4 +156,6 @@ export const it: Record<OkfKey, string> = {
   outFree: "FreeLLMAPI, il tuo router, e poi a un fornitore di AI gratuito che il router sceglie per ogni richiesta (Filow non può sapere prima quale)",
   outFreeWarn: "Quel fornitore può conservare ciò che riceve o usarlo per addestrare i suoi modelli.",
   liteHint: "Questo PC è modesto, quindi qui le risposte sono lente o leggono solo il testo che selezioni. Per avere risposte senza un PC potente, scegli FreeLLMAPI (gratis, tramite il tuo router) o Cloud (OpenRouter, a pagamento) in \"Risposte da\". Entrambi mandano la domanda e uno screenshot fuori da questo PC, e solo dopo il tuo sì.",
+  whiteboard: "Lavagna",
+  whiteboardHint: "Spiega un concetto difficile passo dopo passo, disegnando. Anche a voce: \"lavagna: la fotosintesi\".",
 };

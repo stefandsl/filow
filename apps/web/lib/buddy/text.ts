@@ -163,6 +163,9 @@ const en = {
   outFree: "your FreeLLMAPI router and then to a free AI provider it chooses for each request (Filow cannot know which one in advance)",
   outFreeWarn: "That provider may keep what it receives or use it to train its models.",
   liteHint: "This PC is modest, so answers on it are slow or read only the text you select. For answers without a strong PC, choose FreeLLMAPI (free, through your own router) or Cloud (OpenRouter, paid) under \"Answers from\". Both send your question and a screenshot outside this PC, and only after you say yes.",
+  // Whiteboard tutor (docs/whiteboard/SPEC.md)
+  whiteboard: "Whiteboard",
+  whiteboardHint: "Explains a hard concept step by step, drawing as it goes. Or say \"whiteboard: photosynthesis\".",
 };
 export type OkfKey = keyof typeof en;
 /** A translation: the same keys as English (text.test.ts checks every language). */

@@ -158,4 +158,6 @@ export const ro: Record<OkfKey, string> = {
   outFree: "routerul tău FreeLLMAPI și apoi la un furnizor gratuit de AI pe care routerul îl alege pentru fiecare cerere (Filow nu poate ști dinainte care)",
   outFreeWarn: "Acel furnizor poate păstra ce primește sau îl poate folosi la antrenarea modelelor sale.",
   liteHint: "Acest PC este modest, așa că aici răspunsurile sunt lente sau citesc doar textul pe care îl selectezi. Pentru răspunsuri fără un PC puternic, alege FreeLLMAPI (gratuit, prin propriul tău router) sau Cloud (OpenRouter, cu plată) la „Răspunsuri de la”. Ambele trimit întrebarea ta și o captură de ecran în afara acestui PC, și numai după ce spui da.",
+  whiteboard: "Tablă",
+  whiteboardHint: "Explică un concept dificil pas cu pas, desenând. Sau spune: \"tablă: fotosinteza\".",
 };

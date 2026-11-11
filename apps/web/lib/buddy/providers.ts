@@ -26,6 +26,13 @@ export type BuddyAskRequest = {
   setup?: string;
 };
 
+/**
+ * A caller with its own task (the whiteboard lesson, lib/whiteboard/generate.ts) gives its own system
+ * prompt, a JSON schema for the answer and a length limit. Set by server code only, never read from
+ * a request body. The consent lock and the provider choice in askBuddy apply unchanged.
+ */
+export type AskShape = { system: string; format?: unknown; maxTokens?: number; temperature?: number };
+
 /** What OK Filow runs on "Answers from: Local": the model, and whether it is shown the screenshot. */
 export type LocalHelper = { model: string; pictures: boolean };
 
@@ -144,7 +151,7 @@ async function* lines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> 
   if (buffer.trim()) yield buffer.trim();
 }
 
-export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper): AsyncGenerator<string> {
+export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper, shape?: AskShape): AsyncGenerator<string> {
   const { model, pictures } = helper ?? (await resolveLocalHelper(req.setup, req.question));
   const history = trimHistory(req.history ?? []).map((t) => ({ role: t.role, content: t.text }));
   let res: Response;
@@ -161,9 +168,11 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
         think: false,
         keep_alive: "30m",
         // num_predict: a looping small model once ran 5,800 tokens (45 s); a real answer with a drawing is about 500.
-        options: { temperature: 0.3, num_ctx: 8192, num_predict: 1500 },
+        options: { temperature: shape?.temperature ?? 0.3, num_ctx: 8192, num_predict: shape?.maxTokens ?? 1500 },
+        // A JSON schema the answer must follow (Ollama structured output), when the caller has one.
+        ...(shape?.format ? { format: shape.format } : {}),
         messages: [
-          { role: "system", content: buddySystemPrompt(req.screens, req.language ?? "", { pictures }) },
+          { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures }) },
           ...history,
           // Gemma reads images placed on the message before the text. Text mode sends no picture at all.
           { role: "user", content: req.question, images: pictures ? req.images.map(base64Of) : [] },
@@ -193,7 +202,7 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
   }
 }
 
-async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal): AsyncGenerator<string> {
+async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal, shape?: AskShape): AsyncGenerator<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("No OpenRouter key: add OPENROUTER_API_KEY, or switch the buddy to the local model.");
   const history = trimHistory(req.history ?? []).map((t) => ({ role: t.role, content: t.text }));
@@ -211,9 +220,10 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal): Async
       stream: true,
       temperature: 0.3,
       // 500 cut a photosynthesis drawing off mid-JSON (953 chars); a spoken answer plus a drawing is about 500-900 tokens.
-      max_tokens: 1500,
+      max_tokens: shape?.maxTokens ?? 1500,
+      ...(shape?.format ? { response_format: { type: "json_object" } } : {}),
       messages: [
-        { role: "system", content: buddySystemPrompt(req.screens, req.language ?? "") },
+        { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "") },
         ...history,
         {
           role: "user",
@@ -273,7 +283,7 @@ export const buddyCloudRecipient = (): Recipient => askRecipient(BUDDY_CLOUD_MOD
  * The only door to a provider. Cloud needs the consent key for the recipient in use; without it this
  * throws before any network call (the panel asks first, this is the second lock).
  */
-export function askBuddy(provider: BuddyProviderId, req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper): AsyncGenerator<string> {
+export function askBuddy(provider: BuddyProviderId, req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper, shape?: AskShape): AsyncGenerator<string> {
   if (provider === "freellm") {
     // offline, no key or an address outside the user's network: refused before the consent check
     requireFreeLlm();
@@ -281,8 +291,8 @@ export function askBuddy(provider: BuddyProviderId, req: BuddyAskRequest, signal
     if (req.consent !== consentKey("ask", recipient)) throw new ConsentRequiredError(recipient);
     return askFreeLlm(req, signal);
   }
-  if (provider !== "cloud") return askOllama(req, signal, helper);
+  if (provider !== "cloud") return askOllama(req, signal, helper, shape);
   const recipient = buddyCloudRecipient();
   if (req.consent !== consentKey("ask", recipient)) throw new ConsentRequiredError(recipient);
-  return askOpenRouter(req, signal);
+  return askOpenRouter(req, signal, shape);
 }

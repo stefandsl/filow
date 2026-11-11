@@ -27,6 +27,9 @@ contextBridge.exposeInMainWorld("okFilow", {
   overlayReady: () => ipcRenderer.send("okfilow:overlay:ready"),
   closeModel: () => ipcRenderer.send("okfilow:model:close"),
   askAbout: (text) => ipcRenderer.send("okfilow:askAbout", text),
+  showWhiteboard: (topic) => ipcRenderer.send("okfilow:whiteboard:show", String(topic || "")),
+  whiteboardReady: () => ipcRenderer.send("okfilow:whiteboard:ready"),
+  closeWhiteboard: () => ipcRenderer.send("okfilow:whiteboard:close"),
   typeText: (text, language, phrase) => ipcRenderer.invoke("okfilow:typeText", text, language, phrase === true),
   handsFreeOff: () => ipcRenderer.send("okfilow:handsfreeOff"),
   agents: {
@@ -75,6 +78,7 @@ contextBridge.exposeInMainWorld("okFilow", {
   onCards: on("okfilow:cards"),
   onModel: on("okfilow:model"),
   onAskText: on("okfilow:askText"),
+  onWhiteboard: on("okfilow:whiteboard"),
   onStrokes: on("okfilow:strokes"),
   onHandsFree: on("okfilow:handsfree"),
   onQuickAsk: on("okfilow:quickAsk"),
