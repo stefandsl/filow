@@ -146,10 +146,9 @@ describe("S1-mini: one name and one size everywhere", () => {
   it("the installer names it exactly, with the size, in all twelve languages, ticked by default and not on updates", () => {
     const labels = nsh.split(/\r?\n/).filter((l) => /StrCpy \$LblS1Mini "S1-mini/.test(l));
     expect(labels).toHaveLength(12);
-    for (const l of labels) {
-      expect(l).toMatch(/"S1-mini by Superwhisper ?[:：]/);
-      expect(l).toMatch(/\(462 (MB|Mo|МБ)\)"$/);
-    }
+    // The size comes right after the name: the page's list is narrow and cuts a long line (seen in the built
+    // installer), so a size at the end would not show.
+    for (const l of labels) expect(l).toMatch(/"S1-mini by Superwhisper \(462 (MB|Mo|МБ)\) ?[:：]/);
     expect(new Set(labels.map((l) => l.trim())).size).toBe(12);
     expect(nsh).toMatch(/StrCpy \$StS1Mini \$\{BST_CHECKED\}\r?\n\s+\$\{If\} \$HaveS1Mini == 1\r?\n\s+StrCpy \$StS1Mini \$\{BST_UNCHECKED\}/);
     expect(nsh).toContain('!insertmacro _FilowSection ${SecS1Mini} $StS1Mini "$LblS1Mini"');
