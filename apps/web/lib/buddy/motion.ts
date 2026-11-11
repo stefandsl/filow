@@ -12,6 +12,15 @@ export function marksStarted(count: number, elapsedMs: number, gapMs: number): n
   return Math.min(count, Math.floor(elapsedMs / gapMs) + 1);
 }
 
+/**
+ * Whether the pointer is on the Stop button of the pill (a few pixels of margin, so the edge is not
+ * a trap). `rect` is null while no button is shown.
+ */
+export function overStopButton(pointer: P | null, rect: { left: number; top: number; right: number; bottom: number } | null, margin = 4): boolean {
+  if (!pointer || !rect || rect.right <= rect.left) return false;
+  return pointer.x >= rect.left - margin && pointer.x <= rect.right + margin && pointer.y >= rect.top - margin && pointer.y <= rect.bottom + margin;
+}
+
 /** Quadratic bezier from `from` to `to`, bowing up and to the side like a thrown arc (Clicky's flight). */
 export function bezierPoint(from: P, to: P, k: number): P {
   const t = ease(Math.max(0, Math.min(1, k)));

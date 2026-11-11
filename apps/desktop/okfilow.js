@@ -107,6 +107,8 @@ function createOkFilow(deps) {
   let panel = null;
   let tray = null;
   let mode = "idle"; // idle | listening | thinking | speaking | error
+  /** The question being answered took the screen with it (the eye on the pill next to the pointer). */
+  let asksSee = true;
   let visible = false;
   let fadeTimer = null;
   let cursorTimer = null;
@@ -230,7 +232,7 @@ function createOkFilow(deps) {
   /** An overlay finished setting up: it missed what was sent while it loaded, so send it now. */
   ipcMain.on("okfilow:overlay:ready", (e) => {
     if (!ourSender(e)) return;
-    e.sender.send("okfilow:state", { mode, purpose: purpose || "talk" });
+    e.sender.send("okfilow:state", { mode, purpose: purpose || "talk", sees: asksSee });
     e.sender.send("okfilow:outbound", outbound.snapshot());
     lastCursor = "";
   });
@@ -343,7 +345,7 @@ function createOkFilow(deps) {
         // A new overlay misses whatever was sent while it loaded: give it the state and the cursor now.
         w.webContents.on("did-finish-load", () => {
           if (w.isDestroyed()) return;
-          w.webContents.send("okfilow:state", { mode, purpose: purpose || "talk" });
+          w.webContents.send("okfilow:state", { mode, purpose: purpose || "talk", sees: asksSee });
           w.webContents.send("okfilow:outbound", outbound.snapshot());
           lastCursor = "";
         });
@@ -419,6 +421,8 @@ function createOkFilow(deps) {
       purpose = null;
     }
     mode = next;
+    // Whether the question being answered took the screen: an overlay that loads later is told too.
+    if (typeof extra.sees === "boolean") asksSee = extra.sees;
     // The Stop button next to the pointer takes the mouse only during an answer (okfilow-stop.js).
     if (!answering(mode)) stopHover.clear();
     for (const w of overlays.values()) applyMouse(w);
@@ -636,8 +640,7 @@ function createOkFilow(deps) {
   function applyMouse(w) {
     if (!w || w.isDestroyed()) return;
     const m = overlayMouse({ caught: mouseCaught, hover: stopHover.has(w.webContents.id), mode });
-    if (m.ignore) w.setIgnoreMouseEvents(true, { forward: m.forward });
-    else w.setIgnoreMouseEvents(false);
+    w.setIgnoreMouseEvents(m.ignore);
   }
   /**
    * Stops the answer in progress (the Stop button, Escape): the panel ends the request, the voice and

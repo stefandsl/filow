@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { marksStarted } from "./motion";
+import { marksStarted, overStopButton } from "./motion";
 import type { BuddyTurn } from "./prompt";
 import { askSees, screenLeaves, seesScreen, slowToSee } from "./sees";
 import { createAnswerTurn } from "./turn";
@@ -82,6 +82,23 @@ describe("stopping an answer", () => {
     expect(marksStarted(4, 60_000, 900)).toBe(4);
     expect(marksStarted(0, 5000, 900)).toBe(0);
     expect(marksStarted(3, Number.NaN, 900)).toBe(0);
+  });
+});
+
+describe("the Stop button next to the pointer takes the mouse only while the pointer is on it", () => {
+  const rect = { left: 700, top: 14, right: 770, bottom: 38 };
+  it("on the button, or within a few pixels of its edge", () => {
+    expect(overStopButton({ x: 735, y: 26 }, rect)).toBe(true);
+    expect(overStopButton({ x: 697, y: 12 }, rect)).toBe(true);
+    expect(overStopButton({ x: 774, y: 42 }, rect)).toBe(true);
+  });
+  it("anywhere else, on another screen, or with no button shown: the overlay stays click-through", () => {
+    expect(overStopButton({ x: 690, y: 26 }, rect)).toBe(false);
+    expect(overStopButton({ x: 735, y: 60 }, rect)).toBe(false);
+    expect(overStopButton({ x: 300, y: 400 }, rect)).toBe(false);
+    expect(overStopButton(null, rect)).toBe(false);
+    expect(overStopButton({ x: 735, y: 26 }, null)).toBe(false);
+    expect(overStopButton({ x: 0, y: 0 }, { left: 0, top: 0, right: 0, bottom: 0 })).toBe(false);
   });
 });
 

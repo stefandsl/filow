@@ -7,12 +7,11 @@ const answering = (mode) => mode === "thinking" || mode === "speaking";
 /**
  * What an overlay window does with the mouse. The overlays are click-through, except: while the
  * talk keys are held (`caught`: a drag marks the screen), and while the pointer is on the Stop button
- * of an answer in progress (`hover`). During an answer the mouse moves are forwarded to the page so
- * it can tell when the pointer reaches the button; at any other time nothing is forwarded.
+ * of an answer in progress (`hover`: the overlay page says so from the pointer position main sends
+ * it; mouse events forwarded by Electron made the window flap between the two states and lose the click).
  */
 function overlayMouse({ caught, hover, mode }) {
-  if (caught || (hover && answering(mode))) return { ignore: false, forward: false };
-  return { ignore: true, forward: answering(mode) };
+  return { ignore: !(caught || (hover && answering(mode))) };
 }
 
 /** "Look at my screen": "on" or "off" once the user chose, "auto" until then (the setup decides). */

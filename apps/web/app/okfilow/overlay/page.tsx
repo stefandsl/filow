@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { okFilowBridge, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/bridge";
-import { bezierPoint, bubblePlacement, marksStarted } from "@/lib/buddy/motion";
+import { bezierPoint, bubblePlacement, marksStarted, overStopButton } from "@/lib/buddy/motion";
 import { EyeIcon, StopButton } from "@/components/okfilow/controls";
 import { joinNames, localNames, type OutboundSnapshot } from "@/lib/buddy/outbound";
 import type { BuddyMark } from "@/lib/buddy/prompt";
@@ -73,6 +73,8 @@ export default function OkFilowOverlay() {
   const [sees, setSees] = useState(true);
   const [stopped, setStopped] = useState(false);
   const marksAt = useRef(0);
+  const stopSpot = useRef<HTMLSpanElement>(null);
+  const overStop = useRef(false);
   const [text, setText] = useState("");
   const [level, setLevel] = useState(0);
   const [label, setLabel] = useState("");
@@ -107,6 +109,8 @@ export default function OkFilowOverlay() {
         setMode(s.mode);
         setPurpose(s.purpose ?? "talk");
         if (typeof s.sees === "boolean") setSees(s.sees);
+        // No answer in progress: main has taken the mouse back already.
+        if (s.mode !== "thinking" && s.mode !== "speaking") overStop.current = false;
         setStopped(s.stopped === true);
         if (s.stopped === true) {
           // Stop: the pointer flies nowhere else, and the marks not yet begun are not drawn (the ones on screen stay).
@@ -127,7 +131,16 @@ export default function OkFilowOverlay() {
       b.onText(setText),
       b.outbound?.onChange(setOut) ?? (() => {}),
       b.onLevel(setLevel),
-      b.onCursor((p) => { cursor.current = p; }),
+      b.onCursor((p) => {
+        cursor.current = p;
+        // The Stop button is the one thing here that takes a click: while the pointer is on it (main
+        // sends where the pointer is), this overlay asks main for the mouse, and gives it back after.
+        const over = overStopButton(p, stopSpot.current?.getBoundingClientRect() ?? null);
+        if (over !== overStop.current) {
+          overStop.current = over;
+          b.overlayHover?.(over);
+        }
+      }),
       b.onDraw((list) => {
         // Kept until main sends okfilow:clear (Escape, the panel's Clear, or the next question).
         marksAt.current = performance.now();
@@ -268,8 +281,8 @@ export default function OkFilowOverlay() {
           {/* While asking: an eye when the question took the screen, struck through when it went with words only (said in words too). */}
           {mode === "thinking" ? <EyeIcon off={!sees} size={15} /> : <span className={"okf-notch-dot okf-notch-dot--" + mode} />}
           <span>{t(mode === "thinking" ? (sees ? "notchLooking" : "notchWords") : mode === "speaking" ? "notchAnswering" : purpose === "dictate" ? "notchDictating" : purpose === "handsfree" ? "notchHandsFree" : "notchListening")}</span>
-          {/* Stop: the one thing on the overlay that takes the mouse (main lets this window have it while the pointer is on the button). */}
-          <span className="okf-notch-stop" onPointerDown={(e) => e.stopPropagation()} onMouseEnter={() => okFilowBridge()?.overlayHover?.(true)} onMouseLeave={() => okFilowBridge()?.overlayHover?.(false)}>
+          {/* Stop: the one thing on the overlay that takes the mouse (see onCursor above). */}
+          <span ref={stopSpot} className="okf-notch-stop" onPointerDown={(e) => e.stopPropagation()}>
             <StopButton pill active={answering} t={t} onStop={() => okFilowBridge()?.stopAnswer?.("button")} />
           </span>
         </div>
