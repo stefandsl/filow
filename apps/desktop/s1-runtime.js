@@ -121,15 +121,22 @@ function createS1Runtime(deps) {
   }
 
   // ---- the model file: downloaded once, resumable, used only when its SHA-256 is the pinned one ----
+  /** The pinned SHA-256 or nothing: a file that differs is deleted and the download fails. */
+  async function verifyDownload(file) {
+    const sha = await deps.sha256File(file);
+    if (sha === MODEL.sha256) return;
+    try { fs.rmSync(file, { force: true }); } catch { /* the next try starts again */ }
+    throw new Error("the downloaded model is not the expected file (hash differs); it was deleted");
+  }
   let fetching = null;
   let pct = 0;
   let fetchError = "";
   /**
    * Downloads the model (462 MiB) into the profile. A broken download continues where it stopped; the
    * file gets its real name only after its hash was checked, so a half or altered file is never loaded.
-   * deps.download(url, dest, { resume, onPct, fallbackSize }) and deps.sha256File(file) are Filow's own.
+   * The downloader (resume, progress) and the SHA-256 reader come from Filow's own modules, through deps.
    */
-  function download() {
+  function fetchModel() {
     if (hasModel()) return Promise.resolve(true);
     if (fetching) return fetching;
     const dest = model();
@@ -140,11 +147,7 @@ function createS1Runtime(deps) {
       fs.mkdirSync(path.dirname(dest), { recursive: true });
       log(`s1: downloading the model (${Math.round(MODEL.bytes / 1024 / 1024)} MiB) from huggingface.co`);
       await deps.download(deps.modelUrl || MODEL_URL, part, { resume: true, fallbackSize: MODEL.bytes, onPct: (p) => { pct = p; } });
-      const sha = await deps.sha256File(part);
-      if (sha !== MODEL.sha256) {
-        try { fs.rmSync(part, { force: true }); } catch { /* the next try starts again */ }
-        throw new Error("the downloaded model is not the expected file (hash differs); it was deleted");
-      }
+      await verifyDownload(part);
       fs.renameSync(part, dest);
       pct = 100;
       lastError = "";
@@ -158,7 +161,7 @@ function createS1Runtime(deps) {
   function warm() { if (ready().ok) void start().catch(() => {}); }
   function stop() { ct(idleTimer); idleTimer = null; const c = child; child = null; base = ""; if (c) { try { c.kill(); } catch { /* gone */ } } }
   const status = () => ({ runtime: Boolean(exe()), model: hasModel(), running: Boolean(child), startedMs, error: lastError || fetchError, downloading: Boolean(fetching), pct, bytes: MODEL.bytes, unloads });
-  return { ready, run, warm, stop, status, download };
+  return { ready, run, warm, stop, status, fetchModel };
 }
 
 module.exports = { createS1Runtime, serverFile, modelFile, freePort, MODEL, MODEL_URL, IDLE_UNLOAD_MS };

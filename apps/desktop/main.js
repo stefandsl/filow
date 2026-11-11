@@ -305,7 +305,7 @@ function initializeUiPreferences() {
 ipcMain.handle("dictation:cleanup:download", event => {
   if (!uiSender(event)) throw new Error("Denied");
   if (offline) return { started: false, reason: "offline" };
-  void s1Runtime().download();
+  void s1Runtime().fetchModel();
   return { started: true };
 });
   ipcMain.handle("dictation:settings:configure", (event, patch) => {
