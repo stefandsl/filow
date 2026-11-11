@@ -207,6 +207,7 @@ export function sampleCurve(e: Expr, xmin: number, xmax: number, samples = 120):
  * computing them: the left side is read by the same parser as a plot (numbers and + - * / ^ only),
  * and compared with the number on the right at the precision that number is written in.
  */
+const INDEX_WORDS = /\b(floor|floored|rounded down|round down|rounding down|integer division|whole number)\b|[\u230a\u230b]/i;
 export function checkArithmetic(text: string): string[] {
   const wrong: string[] = [];
   const signs = Array.from(text, (ch) => SIGNS[ch.codePointAt(0) ?? 0] ?? ch).join("").replace(/pi/g, "#");
@@ -221,7 +222,17 @@ export function checkArithmetic(text: string): string[] {
     const stated = Number(m[2]);
     const decimals = (m[2].split(".")[1] ?? "").length;
     const scale = 10 ** decimals;
-    if (!Number.isFinite(value) || Math.abs(Math.round(value * scale) / scale - stated) > 1e-9) wrong.push(`${left} = ${m[2]}`);
+    // a middle index is a whole number: where the text says it is rounded down, a division may be stated as its floor
+    const floored = !decimals && left.includes("/") && INDEX_WORDS.test(text) && Math.floor(value) === stated;
+    if (!Number.isFinite(value) || (!floored && Math.abs(Math.round(value * scale) / scale - stated) > 1e-9)) wrong.push(`${left} = ${m[2]}`);
+  }
+  // a binary search states its bounds and its middle: "low = 4, high = 7, mid = 5" is recomputed
+  // only a plain statement counts ("low = 4", "high is 7"); "mid = (4 + 7) / 2" is a sum, read above
+  const bound = (name: string) => new RegExp(`\\b${name}\\b['"]?\\s*(?:=|is|at|to|becomes)\\s*(\\d+)\\b(?!\\s*[+\\-*/^)(])`, "i").exec(signs)?.[1];
+  const low = bound("low"), high = bound("high"), mid = bound("mid") ?? bound("middle");
+  if (low !== undefined && high !== undefined && mid !== undefined && Number(low) <= Number(high)) {
+    const half = (Number(low) + Number(high)) / 2;
+    if (Number(mid) !== Math.floor(half) && Number(mid) !== Math.ceil(half)) wrong.push(`mid of low ${low} and high ${high} = ${mid}`);
   }
   return wrong;
 }

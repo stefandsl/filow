@@ -86,6 +86,17 @@ describe("whiteboard step player", () => {
 
 describe("whiteboard lesson assembly on the page", () => {
   const ev = (event: LessonEvent): LessonAction => ({ type: "event", event });
+  it("remembers which steps were shown without being confirmed, counted in the whole lesson", () => {
+    const step = (say: string): LessonAction => ({ type: "event", event: { type: "step", index: 0, step: { say, items: [], card: false } } });
+    const first = [{ type: "ask", more: false } as LessonAction, { type: "event", event: { type: "outline", title: "T", scene: "flow", says: ["a", "b"] } } as LessonAction, step("a"), { type: "event", event: { type: "step", index: 1, step: { say: "b", items: [], card: false } } } as LessonAction, { type: "event", event: { type: "done", cards: 0, stalled: false, unchecked: [1] } } as LessonAction].reduce(lessonReducer, initialLesson);
+    expect(first.unchecked).toEqual([2]);
+    expect(first.doubts).toBe(false);
+    // a follow-up adds its steps after the two that are there
+    const more = [{ type: "ask", more: true } as LessonAction, { type: "event", event: { type: "outline", title: "T", scene: "flow", says: ["c"] } } as LessonAction, step("c"), { type: "event", event: { type: "done", cards: 0, stalled: false, unchecked: [0], doubts: ["x"] } } as LessonAction].reduce(lessonReducer, first);
+    expect(more.unchecked).toEqual([2, 3]);
+    expect(more.doubts).toBe(true);
+    expect([{ type: "ask", more: false } as LessonAction].reduce(lessonReducer, more).unchecked).toEqual([]);
+  });
   const feed = (actions: LessonAction[], from: LessonState = initialLesson) => actions.reduce(lessonReducer, from);
   const start: LessonEvent = { type: "start", provider: "local", model: "m", lang: "en", lite: false, more: false };
   const outline: LessonEvent = { type: "outline", title: "T", scene: "flow", says: ["a", "b"] };

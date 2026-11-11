@@ -16,6 +16,9 @@ export type LessonState = {
   stalled: boolean;
   /** Steps shown as text because their drawing could not be made. */
   cards: number;
+  /** Steps (1-based, in the whole lesson) shown although their check did not pass, and whether the last look in code found something. */
+  unchecked: number[];
+  doubts: boolean;
 };
 export type LessonAction =
   | { type: "ask"; more: boolean }
@@ -24,7 +27,7 @@ export type LessonAction =
   | { type: "cancel" }
   | { type: "clear" };
 
-export const initialLesson: LessonState = { lesson: null, base: 0, expected: 0, meta: null, phase: "idle", error: null, stalled: false, cards: 0 };
+export const initialLesson: LessonState = { lesson: null, base: 0, expected: 0, meta: null, phase: "idle", error: null, stalled: false, cards: 0, unchecked: [], doubts: false };
 
 export function lessonReducer(s: LessonState, a: LessonAction): LessonState {
   const count = s.lesson?.steps.length ?? 0;
@@ -51,7 +54,7 @@ export function lessonReducer(s: LessonState, a: LessonAction): LessonState {
         if (!s.lesson || s.base + e.index !== count) return s;
         return { ...s, lesson: { ...s.lesson, steps: [...s.lesson.steps, e.step] }, phase: "drawing" };
       }
-      if (e.type === "done") return { ...s, phase: "done", stalled: s.stalled || e.stalled, cards: s.cards + e.cards, expected: count };
+      if (e.type === "done") return { ...s, phase: "done", stalled: s.stalled || e.stalled, cards: s.cards + e.cards, expected: count, unchecked: [...s.unchecked, ...(e.unchecked ?? []).map((k) => s.base + k + 1)], doubts: s.doubts || Boolean(e.doubts?.length) };
       if (e.type === "error") return { ...s, phase: "error", error: { code: e.code, message: e.message }, expected: count };
       return s;
     }

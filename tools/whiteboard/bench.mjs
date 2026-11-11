@@ -5,7 +5,10 @@
 // Ollama on this PC. The cloud path is used only with --cloud and the recipient named on the command line.
 //
 // Usage: node tools/whiteboard/bench.mjs [--base http://127.0.0.1:4811] [--out <dir>] [--setup auto]
-//        [--only 3] [--concepts "a|b|c"] [--set heldout] [--cloud --yes-send-to <recipient id>]
+//        [--only 3] [--concepts "a|b|c"] [--set heldout] [--cloud --yes-send-to <recipient id>] [--raw]
+// Every lesson-N.json holds the lesson as shown (`lesson`), the lesson as the model first wrote it
+// (`raw`, before any guard) and what each guard changed (`changes`); summary.md lists the changes,
+// and --raw also writes summary-raw.md so that raw and shown can be reviewed side by side.
 // Writes <out>/lesson-<n>.json (events + lesson + score) and <out>/summary.md.
 // The machine checks are: the lesson arrived, how many steps have a drawing, and no layout problem
 // (overlap, off the board, cut label, arrow through a box) on any step of either board shape.
@@ -89,7 +92,7 @@ async function runOne(question, n) {
   const events = [];
   let res;
   try {
-    res = await fetch(`${base}/api/whiteboard/lesson`, { method: "POST", headers: { "Content-Type": "application/json", ...(consent ? { "x-filow-consent": consent } : {}) }, body: JSON.stringify({ question, provider: cloud ? "cloud" : "local", setup }) });
+    res = await fetch(`${base}/api/whiteboard/lesson`, { method: "POST", headers: { "Content-Type": "application/json", ...(consent ? { "x-filow-consent": consent } : {}) }, body: JSON.stringify({ question, provider: cloud ? "cloud" : "local", setup, audit: true }) });
   } catch (e) {
     return { question, error: `server not reachable: ${e.message}`, events };
   }
@@ -113,7 +116,11 @@ async function runOne(question, n) {
   const steps = events.filter((e) => e.type === "step").map((e) => e.step);
   const failure = events.find((e) => e.type === "error");
   const done = events.find((e) => e.type === "done");
-  if (!outline || !steps.length) return { question, error: failure?.message ?? "no lesson", events, model: start?.model };
+  // "do no harm", measured: the lesson as the model first wrote it (before any guard) and what each guard then changed
+  const audit = events.find((e) => e.type === "audit");
+  const raw = audit?.raw ?? null;
+  const changes = audit?.changes ?? [];
+  if (!outline || !steps.length) return { question, error: failure?.message ?? "no lesson", events: events.filter((e) => e.type !== "audit"), model: start?.model, raw, changes };
   const lesson = { title: outline.title, scene: outline.scene, steps };
   const problems = [];
   for (const shape of ["wide", "tall"]) for (let i = 0; i < steps.length; i++) for (const p of layoutProblems(layoutBoard(lesson, i, shape))) problems.push(`${shape} step ${i + 1}: ${p}`);
@@ -124,7 +131,11 @@ async function runOne(question, n) {
     lang: start?.lang,
     lite: start?.lite,
     lesson,
-    events,
+    raw,
+    changes,
+    unchecked: done?.unchecked ?? [],
+    doubts: done?.doubts ?? [],
+    events: events.filter((e) => e.type !== "audit"),
     msOutline: outline.ms,
     msFirstStep: events.find((e) => e.type === "step")?.ms,
     msTotal: events[events.length - 1].ms,
@@ -142,7 +153,7 @@ async function runOne(question, n) {
 }
 
 const describe = (it) =>
-  it.kind === "node" ? `[${it.text}]` : it.kind === "edge" ? `${it.from}->${it.to}${it.text ? `(${it.text})` : ""}` : it.kind === "formula" ? `$${it.tex}$` : it.kind === "plot" ? `plot(${it.expr}, ${it.xmin}..${it.xmax})` : it.kind === "note" ? `note:"${it.text}"` : it.kind === "mark" ? `mark:${it.target}` : it.kind === "cells" ? `cells[${it.values.map((v, k) => (k === it.pointer ? `>${v}<` : v)).join(" ")}]` : it.kind;
+  it.kind === "node" ? `[${it.text}]` : it.kind === "edge" ? `${it.from}->${it.to}${it.text ? `(${it.text})` : ""}` : it.kind === "formula" ? `$${it.tex}$` : it.kind === "plot" ? `plot(${[it.expr, ...(it.more ?? [])].join(" AND ")}, ${it.xmin}..${it.xmax})` : it.kind === "note" ? `note:"${it.text}"` : it.kind === "mark" ? `mark:${it.target}` : it.kind === "cells" ? `cells[${it.values.map((v, k) => (k === it.pointer ? `>${v}<` : v)).join(" ")}]` : it.kind;
 
 /** The board at the end of the lesson, in words: what a reader of the picture would see. */
 function finalBoard(lesson) {
@@ -153,7 +164,7 @@ function finalBoard(lesson) {
     if (it.kind === "node") names.set(it.id, it.text);
     else if (it.kind === "edge") arrows.push(it);
     else if (it.kind === "formula") other.push(`formula $${it.tex}$`);
-    else if (it.kind === "plot") other.push(`plot of y = ${it.expr} for x from ${it.xmin} to ${it.xmax}`);
+    else if (it.kind === "plot") other.push(`one plot with ${1 + (it.more?.length ?? 0)} curve(s): y = ${[it.expr, ...(it.more ?? [])].join(" and y = ")}, for x from ${it.xmin} to ${it.xmax}${it.more?.length ? " (the crossing of the first two is marked)" : ""}`);
     else if (it.kind === "cells") other.push(`row of cells [${it.values.join(", ")}]${it.pointer >= 0 ? ` with a pointer under ${it.values[it.pointer]}` : ""}`);
     else if (it.kind === "note") other.push(`note "${it.text}"`);
   }
@@ -166,8 +177,23 @@ function finalBoard(lesson) {
   ].join("\n");
 }
 
+/** What the guards did to this lesson, for the reader of summary.md. */
+function guardLines(r) {
+  if (r.raw === undefined) return "";
+  const notes = [...(r.changes ?? []), ...((r.unchecked ?? []).length ? [`shown as not confirmed: step(s) ${r.unchecked.map((k) => k + 1).join(", ")}`] : [])];
+  return `\nGuards: ${notes.length ? `\n${notes.map((c) => `- ${c}`).join("\n")}` : "changed nothing."}\n`;
+}
+/** The lesson as the model first wrote it, before any guard, in the same words as the shown one (for --raw). */
+function rawText(n, question, r) {
+  const steps = Array.isArray(r.raw?.steps) ? r.raw.steps : null;
+  if (!steps) return `## ${n}. ${question}\n\nNo raw lesson was saved${r.error ? ` (${r.error})` : ""}.\n`;
+  const lesson = { title: String(r.raw.title ?? ""), scene: String(r.raw.scene ?? ""), steps: steps.map((s) => ({ say: String(s?.say ?? ""), items: (Array.isArray(s?.items) ? s.items : []).filter((it) => it && typeof it === "object").map((it) => (it.kind === "node" || it.kind === "note" || it.kind === "edge" ? { ...it, text: String(it.text ?? "") } : it.kind === "cells" ? { ...it, values: (Array.isArray(it.values) ? it.values : []).map(String), pointer: Number.isInteger(it.pointer) ? it.pointer : -1 } : it)) })) };
+  return `## ${n}. ${question}\n\nTitle: ${lesson.title} (${lesson.scene})\n\n${lesson.steps.map((s, k) => `${k + 1}. ${s.say}\n   ${s.items.map(describe).join("  ")}`).join("\n")}\n\nFinal board:\n${finalBoard(lesson)}\n`;
+}
+
 const rows = [];
 const detail = [];
+const rawDetail = [];
 const list = only ? CONCEPTS.slice(only - 1, only) : CONCEPTS;
 for (const [i, question] of list.entries()) {
   const n = only || i + 1;
@@ -175,10 +201,12 @@ for (const [i, question] of list.entries()) {
   fs.writeFileSync(path.join(out, `lesson-${n}.json`), JSON.stringify(r, null, 1));
   if (r.error) {
     rows.push(`| ${n} | ${question} | ${r.model ?? "?"} | - | FAIL | ${r.error} |`);
-    detail.push(`## ${n}. ${question}\n\nFAILED: ${r.error}\n`);
+    detail.push(`## ${n}. ${question}\n\nFAILED: ${r.error}\n${guardLines(r)}`);
+    rawDetail.push(rawText(n, question, r));
   } else {
     rows.push(`| ${n} | ${question} | ${r.model} | ${r.drawn}/${r.steps}, relations ${r.planDrawn}/${r.planRelations} | ${r.machinePass ? "pass" : "FAIL"} | ${r.problems.length ? r.problems.slice(0, 3).join("; ") : r.stalled ? "stalled" : "no layout problem"}; outline ${r.msOutline} ms, first step ${r.msFirstStep} ms, all ${r.msTotal} ms |`);
-    detail.push(`## ${n}. ${question}\n\nTitle: ${r.lesson.title} (${r.lesson.scene}, ${r.lang})\n\n${r.lesson.steps.map((s, k) => `${k + 1}. ${s.say}\n   ${s.card ? "(text card)" : s.items.map(describe).join("  ")}`).join("\n")}\n\nFinal board:\n${finalBoard(r.lesson)}\n`);
+    detail.push(`## ${n}. ${question}\n\nTitle: ${r.lesson.title} (${r.lesson.scene}, ${r.lang})\n\n${r.lesson.steps.map((s, k) => `${k + 1}. ${s.say}\n   ${s.card ? "(text card)" : s.items.map(describe).join("  ")}`).join("\n")}\n\nFinal board:\n${finalBoard(r.lesson)}\n${guardLines(r)}`);
+    rawDetail.push(rawText(n, question, r));
   }
   console.log(rows[rows.length - 1]);
 }
@@ -189,4 +217,10 @@ const coverage = `Drawing coverage: ${sum("drawn")} of ${sum("steps")} steps dra
 console.log(coverage);
 const summary = [`# Whiteboard lesson proof (machine checks)`, "", `Server ${base}, setup "${setup}", ${new Date().toISOString()}`, "", "| # | Concept | Model | Steps with a drawing | Machine checks | Notes |", "|---|---|---|---|---|---|", ...rows, "", `Machine pass: ${passed} of ${rows.length}`, "", coverage, "", ...detail].join("\n");
 fs.writeFileSync(path.join(out, "summary.md"), summary);
+// --raw: the same ten lessons as the model first wrote them, before any guard, for a reviewer to
+// score next to summary.md (raw against shown). Works with --rescore on a saved run too.
+if (args.includes("--raw")) {
+  fs.writeFileSync(path.join(out, "summary-raw.md"), [`# Whiteboard lessons as the model first wrote them (before any guard)`, "", `Server ${base}, ${new Date().toISOString()}. The lessons that were shown are in summary.md.`, "", ...rawDetail].join("\n"));
+  console.log(`raw lessons in ${path.join(out, "summary-raw.md")}`);
+}
 console.log(`machine pass ${passed}/${rows.length}; details in ${path.join(out, "summary.md")}`);

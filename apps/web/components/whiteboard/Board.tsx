@@ -7,7 +7,7 @@
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import rough from "roughjs";
 import { drawingSvg } from "@/lib/buddy/visuals";
-import { arrowHead, type BoardLayout, type Box, type PlacedBlock } from "@/lib/whiteboard/layout";
+import { CELL_ROW, arrowHead, type BoardLayout, type Box, type PlacedBlock } from "@/lib/whiteboard/layout";
 import { evalExpr, parseExpr, sampleCurve } from "@/lib/whiteboard/plot";
 
 export type BoardPalette = { board: string; ink: string; soft: string; accent: string; mark: string; fill: string; highlight: string; curve: string };
@@ -266,6 +266,22 @@ export function Board({ layout, current, palette, sketchy, label, onPick, pickLa
         }
         if (b.kind === "cells") {
           // A row of values, the worked example of an algorithm; the pointer sits under the one being looked at.
+          if (b.column) {
+            // values too long for a row: one under the other, each in full, the pointer at the left of its line
+            const py = box.y + 3 + (b.pointer + 0.5) * CELL_ROW;
+            return (
+              <g key={b.key} className={fresh(b.step)} data-block="cells" data-column="1" data-pointer={b.pointer}>
+                {b.values.map((v, k) => (
+                  <g key={k}>
+                    {k === b.pointer && <rect className="wb-fade" x={box.x + 30} y={box.y + 3 + k * CELL_ROW + 2} width={box.w - 32} height={CELL_ROW - 4} rx={6} fill={p.highlight} />}
+                    {draw((g, o) => g.rectangle(box.x + 28, box.y + 3 + k * CELL_ROW, box.w - 28, CELL_ROW, o), `${b.key}-c${k}`, p.ink, 1.6, k * 40)}
+                    <text className="wb-fade" x={box.x + 38} y={box.y + 3 + (k + 0.5) * CELL_ROW + b.font * 0.35} fontSize={b.font} textAnchor="start" fill={p.ink}>{v}</text>
+                  </g>
+                ))}
+                {b.pointer >= 0 && draw((g, o) => g.linearPath([[box.x + 4, py - 8], [box.x + 20, py], [box.x + 4, py + 8]], { ...o, disableMultiStroke: true }), `${b.key}-p`, p.mark, 3.2, 200)}
+              </g>
+            );
+          }
           const cw = box.w / b.values.length;
           const ch = 46;
           const px = box.x + (b.pointer + 0.5) * cw;
@@ -275,7 +291,7 @@ export function Board({ layout, current, palette, sketchy, label, onPick, pickLa
                 <g key={k}>
                   {k === b.pointer && <rect className="wb-fade" x={box.x + k * cw + 2} y={box.y + 2} width={cw - 4} height={ch - 4} rx={6} fill={p.highlight} />}
                   {draw((g, o) => g.rectangle(box.x + k * cw, box.y, cw, ch, o), `${b.key}-c${k}`, p.ink, 1.8, k * 40)}
-                  <text className="wb-fade" x={box.x + (k + 0.5) * cw} y={box.y + ch / 2 + 7} fontSize={Math.min(20, cw * 0.42)} textAnchor="middle" fill={p.ink}>{v}</text>
+                  <text className="wb-fade" x={box.x + (k + 0.5) * cw} y={box.y + ch / 2 + 7} fontSize={b.font} textAnchor="middle" fill={p.ink}>{v}</text>
                 </g>
               ))}
               {b.pointer >= 0 && draw((g, o) => g.linearPath([[px - 9, box.y + ch + 22], [px, box.y + ch + 7], [px + 9, box.y + ch + 22]], { ...o, disableMultiStroke: true }), `${b.key}-p`, p.mark, 3.2, 200)}

@@ -481,23 +481,46 @@ describe("whiteboard lesson, cloud model", () => {
 
   describe("the online lesson is read back by an examiner before it is shown", () => {
     const run = async (answers: string[]) => {
+      // each run is looked at on its own
+      calls = [];
       cloudAnswers = answers;
       return events(await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/google"));
     };
     const edges = (ev: LessonEvent[]) => stepsOf(ev).flatMap((s) => s.items).filter((i) => i.kind === "edge");
 
-    it("turns an arrow labelled from the wrong end, drops a false one and one the examiner did not judge", async () => {
+    it("turns an arrow labelled from the wrong end and gives it the judge's label, does not draw a false one, and keeps one the judge said nothing about", async () => {
       const ev = await run([OHM("drives"), ...review([true, true, true], ["reversed", "ok", "false"])]);
       expect(edges(ev)).toEqual([{ kind: "edge", from: "v", to: "i", text: "drives" }, { kind: "edge", from: "r", to: "i", text: "limits" }]);
       const unjudged = await run([OHM("drives"), ...review([true, true, true], ["reversed"])]);
-      expect(edges(unjudged)).toEqual([{ kind: "edge", from: "v", to: "i", text: "drives" }]);
+      expect(edges(unjudged)).toEqual([{ kind: "edge", from: "v", to: "i", text: "drives" }, { kind: "edge", from: "r", to: "i", text: "limits" }, { kind: "edge", from: "i", to: "r", text: "creates" }]);
+      // "Current receives Voltage" is true as a sentence but runs against the flow: turned, with a label that reads the new way
+      const flow = await run([OHM("receives"), review([true, true, true], [])[0], JSON.stringify({ arrows: [{ n: 1, verdict: "reversed", label: "pushes" }, { n: 2, verdict: "true" }, { n: 3, verdict: "true" }] })]);
+      expect(edges(flow)[0]).toEqual({ kind: "edge", from: "v", to: "i", text: "pushes" });
+      expect(String(outside()[2].body.messages[0].content)).toContain("an arrow points the way things go");
+      // an answer of the judge that cannot be read turns and drops nothing
+      const unread = await run([OHM("drives"), review([true, true, true], [])[0], "not json", "still not json"]);
+      expect(edges(unread)).toHaveLength(3);
     });
 
-    it("leaves out a step whose sentence the examiner refused, with what was drawn in it", async () => {
-      const ev = await run([OHM("drives", "v", "i"), ...review([true, true, false], ["ok", "ok", "ok"])]);
-      expect(ev[1]).toMatchObject({ says: ["Voltage drives a current through a resistance.", "The three are tied by one formula."] });
-      expect(JSON.stringify(ev)).not.toContain("measured in volts");
-      expect(JSON.stringify(ev)).not.toContain("creates");
+    it("never leaves a step out: a refused sentence has the whole lesson written again with the reason, and a better rewrite is shown", async () => {
+      const refusing = JSON.stringify({ topic: true, answers: true, issues: "", sentences: [{ n: 1, true: true }, { n: 2, true: true }, { n: 3, true: false, why: "current is measured in amperes" }] });
+      const fixed = OHM("drives", "v", "i").replace("measured in volts", "measured in amperes");
+      const ev = await run([OHM("drives", "v", "i"), refusing, fixed, ...review([true, true, true], ["ok", "ok", "ok"])]);
+      const asked = JSON.stringify(outside()[2].body.messages);
+      expect(asked).toContain('sentence 3 (\\"Current is measured in volts.\\") is not correct as written: current is measured in amperes');
+      expect(asked).toContain("leave nothing out");
+      expect(ev[1]).toMatchObject({ says: ["Voltage drives a current through a resistance.", "The three are tied by one formula.", "Current is measured in amperes."] });
+      expect(ev[ev.length - 1]).toEqual({ type: "done", cards: 0, stalled: false });
+    });
+
+    it("when the rewrite is no better, shows the first lesson whole and names the step that was not confirmed", async () => {
+      const refusing = JSON.stringify({ topic: true, answers: true, issues: "", sentences: [{ n: 1, true: true }, { n: 2, true: true }, { n: 3, true: false }] });
+      const worse = JSON.stringify({ title: "Ohm's law", scene: "flow", steps: [{ say: "Next, current flows.", items: [{ kind: "node", id: "i", text: "Current" }] }, { say: "Current is measured in volts.", items: [] }] });
+      const ev = await run([OHM("drives", "v", "i"), refusing, worse, JSON.stringify({ topic: true, answers: true, issues: "", sentences: [{ n: 1, true: true }, { n: 2, true: false }] }), JSON.stringify({ arrows: [{ n: 1, verdict: "true" }, { n: 2, verdict: "true" }, { n: 3, verdict: "true" }] })]);
+      // every step of the first lesson is there, in order, with what it drew
+      expect(ev[1]).toMatchObject({ says: ["Voltage drives a current through a resistance.", "The three are tied by one formula.", "Current is measured in volts."] });
+      expect(edges(ev)).toHaveLength(3);
+      expect(ev[ev.length - 1]).toEqual({ type: "done", cards: 0, stalled: false, unchecked: [2] });
     });
 
     it("has a lesson about another topic written again once, with the examiner's reason, and checks that one too", async () => {
@@ -509,7 +532,7 @@ describe("whiteboard lesson, cloud model", () => {
       expect(outside()).toHaveLength(5);
       const second = JSON.stringify(outside()[2].body.messages);
       expect(second).toContain("This is the carbon cycle, not Ohm");
-      expect(second).toContain("Write the lesson again");
+      expect(second).toContain("Write the whole lesson again");
       // every call goes to the same recipient, and none carries a picture
       for (const c of outside()) {
         expect(c.url).toBe("https://openrouter.ai/api/v1/chat/completions");
@@ -539,14 +562,21 @@ describe("whiteboard lesson, cloud model", () => {
       expect(JSON.stringify(outside()[6].body.messages)).toContain("The topic, defined: Ohm");
     });
 
-    it("recomputes the sums a lesson states: a wrong one has the lesson written again, and what is still wrong is not shown", async () => {
+    it("recomputes the sums a lesson states: a wrong one has the lesson written again; one still wrong keeps its step, marked as not confirmed", async () => {
       const SUMS = (say: string) => JSON.stringify({ title: "Ohm's law by numbers", scene: "stack", steps: [{ say: "The list has 5 values.", items: [{ kind: "cells", values: ["1", "3", "5", "7", "9"], pointer: -1 }] }, { say, items: [{ kind: "cells", values: ["1", "3", "5", "7", "9"], pointer: 2 }] }, { say: "5 is the target.", items: [{ kind: "note", text: "found" }] }] });
       const ok = review([true, true, true], []);
       const ev = await run([SUMS("The middle is (0+1)/2 = 0."), ...ok, SUMS("The middle is (0+4)/2 = 2."), ...ok]);
       expect(JSON.stringify(outside()[2].body.messages)).toContain("(0+1)/2 = 0");
       expect(ev[1]).toMatchObject({ says: ["The list has 5 values.", "The middle is (0+4)/2 = 2.", "5 is the target."] });
+      expect(ev[ev.length - 1]).toEqual({ type: "done", cards: 0, stalled: false });
+      // the rewrite is no better: the first lesson is shown whole, and its second step is named as not confirmed
       const still = await run([SUMS("The middle is (0+1)/2 = 0."), ...ok, SUMS("The middle is 7/2 = 3."), ...ok]);
-      expect(still[1]).toMatchObject({ says: ["The list has 5 values.", "5 is the target."] });
+      expect(still[1]).toMatchObject({ says: ["The list has 5 values.", "The middle is (0+1)/2 = 0.", "5 is the target."] });
+      expect(still[still.length - 1]).toMatchObject({ type: "done", unchecked: [1] });
+      // a middle index said to be rounded down is right
+      const floor = await run([SUMS("The middle is (0+1)/2 = 0, rounded down."), ...ok]);
+      expect(outside()).toHaveLength(2);
+      expect(floor[floor.length - 1]).toEqual({ type: "done", cards: 0, stalled: false });
     });
 
     it("shows no lesson when a service on the way hid a name of the question behind a placeholder, and says so", async () => {
@@ -582,26 +612,39 @@ describe("whiteboard lesson, cloud model", () => {
       expect(readArrowVerdicts({ arrows: "x" }, 2)).toBeNull();
     });
 
-    it("has the lesson written again when the board never shows the one thing the examiner says it must", async () => {
+    it("only with the guard on: has the lesson written again when the board never shows the one thing the examiner says it must", async () => {
       const first = JSON.stringify({ topic: "Ohm's law", title: "Ohm's law", scene: "flow", steps: [{ say: "Voltage drives current.", items: [{ kind: "node", id: "v", text: "Voltage" }, { kind: "node", id: "i", text: "Current" }, { kind: "edge", from: "v", to: "i", text: "drives" }] }, { say: "That is the law.", items: [{ kind: "mark", target: "v" }] }] });
       const must = JSON.stringify({ topic: true, answers: true, issues: "", must: "resistance", sentences: [{ n: 1, true: true }, { n: 2, true: true }, { n: 3, true: true }] });
-      const ev = await run([first, must, OHM("drives", "v", "i"), must, JSON.stringify({ arrows: [{ n: 1, verdict: "true" }, { n: 2, verdict: "true" }, { n: 3, verdict: "true" }] })]);
+      const arrows = JSON.stringify({ arrows: [{ n: 1, verdict: "true" }, { n: 2, verdict: "true" }, { n: 3, verdict: "true" }] });
+      const off = await run([first, must, arrows]);
+      expect(outside()).toHaveLength(3);
+      expect(JSON.stringify(off)).not.toContain("Resistance");
+      vi.stubEnv("WHITEBOARD_GUARDS", "must");
+      const ev = await run([first, must, OHM("drives", "v", "i"), must, arrows]);
       expect(JSON.stringify(outside()[2].body.messages)).toContain('the board never shows \\"resistance\\"');
       expect(JSON.stringify(ev)).toContain("Resistance");
       expect(boardShows(validateLesson(JSON.parse(first))!, "voltage push")).toBe(true);
       expect(boardShows(validateLesson(JSON.parse(first))!, "oxygen")).toBe(false);
     });
 
-    it("asks once how a box left alone links to the rest, judges the answer like any arrow, and takes off a box that stays alone", async () => {
+    it("leaves boxes that stand alone as they are by default; with the guard on, asks once how they link and judges the answer; takes a box off only when that is switched on too", async () => {
       const ALONE = JSON.stringify({ topic: "Ohm's law", title: "Ohm's law", scene: "flow", steps: [{ say: "Voltage drives current.", items: [{ kind: "node", id: "v", text: "Voltage" }, { kind: "node", id: "i", text: "Current" }, { kind: "node", id: "r", text: "Resistance" }, { kind: "node", id: "w", text: "Wire" }, { kind: "edge", from: "v", to: "i", text: "drives" }] }, { say: "Temperature matters too.", items: [{ kind: "node", id: "t", text: "Temperature" }] }] });
       const links = JSON.stringify({ links: [{ from: "Current", verb: "is limited by", to: "Resistance" }, { from: "Wire", verb: "is", to: "Nothing here" }, { from: "Voltage", verb: "is", to: "Current" }] });
-      const ev = await run([ALONE, ...review([true, true], ["ok"]), links, JSON.stringify({ arrows: [{ n: 1, verdict: "true", acts: "B" }] })]);
-      const items = stepsOf(ev).flatMap((s) => s.items);
-      // the proposed link was judged, and turned because the judge said Resistance acts
-      expect(items.filter((i) => i.kind === "edge")).toEqual([{ kind: "edge", from: "v", to: "i", text: "drives" }, { kind: "edge", from: "r", to: "i", text: "is limited by" }]);
-      // Wire stayed alone and shared its step: gone. Temperature is alone too, but its step draws nothing else: kept.
-      expect(items.filter((i) => i.kind === "node").map((i) => (i.kind === "node" ? i.id : ""))).toEqual(["v", "i", "r", "t"]);
+      const boxes = (ev: LessonEvent[]) => stepsOf(ev).flatMap((s) => s.items).flatMap((i) => (i.kind === "node" ? [i.id] : []));
+      // default: nothing is asked, nothing is taken off
+      const plain = await run([ALONE, ...review([true, true], ["ok"])]);
+      expect(outside()).toHaveLength(3);
+      expect(boxes(plain)).toEqual(["v", "i", "r", "w", "t"]);
+      vi.stubEnv("WHITEBOARD_GUARDS", "links");
+      const linked = await run([ALONE, ...review([true, true], ["ok"]), links, JSON.stringify({ arrows: [{ n: 1, verdict: "true", acts: "B" }] })]);
+      // the proposed link was judged, and turned because the judge said Resistance acts; no box is removed
+      expect(edges(linked)).toEqual([{ kind: "edge", from: "v", to: "i", text: "drives" }, { kind: "edge", from: "r", to: "i", text: "is limited by" }]);
+      expect(boxes(linked)).toEqual(["v", "i", "r", "w", "t"]);
       expect(String(outside()[3].body.messages[0].content)).toContain("not linked to anything");
+      vi.stubEnv("WHITEBOARD_GUARDS", "links, removeLoneBoxes");
+      const cut = await run([ALONE, ...review([true, true], ["ok"]), links, JSON.stringify({ arrows: [{ n: 1, verdict: "true", acts: "B" }] })]);
+      // Wire stayed alone and shared its step: gone. Temperature is alone too, but its step draws nothing else: kept.
+      expect(boxes(cut)).toEqual(["v", "i", "r", "t"]);
       expect(orphanBoxes(validateLesson(JSON.parse(ALONE))!)).toEqual(["r", "w", "t"]);
     });
 
@@ -649,14 +692,33 @@ describe("whiteboard lesson, cloud model", () => {
       expect(JSON.stringify(outside()[2].body.messages)).toContain("The loop is not closed.");
     });
 
-    it("asks once more for a review that cannot be read, and gives an error when too little of the lesson passes", async () => {
+    it("asks once more for a review that cannot be read, and refuses the whole lesson when most of it stays unconfirmed", async () => {
       const ev = await run([OHM("drives", "v", "i"), "not json", ...review([true, true, true], ["ok", "ok", "ok"])]);
       expect(ev.map((e) => e.type)).toEqual(["start", "outline", "step", "step", "step", "done"]);
       expect(outside()).toHaveLength(4);
-      const little = await run([OHM("drives", "v", "i"), ...review([false, false, true], ["ok", "ok", "ok"])]);
+      // two of three sentences refused, and again after the rewrite: no lesson, and the reason
+      const bad = JSON.stringify({ topic: true, answers: true, issues: "", sentences: [{ n: 1, true: false }, { n: 2, true: false }, { n: 3, true: true }] });
+      const little = await run([OHM("drives", "v", "i"), bad, OHM("drives", "v", "i"), bad, JSON.stringify({ arrows: [] })]);
       expect(little.map((e) => e.type)).toEqual(["start", "error"]);
+      expect(little[1]).toMatchObject({ code: "plan" });
     });
 
+    it("for the proof bench only: sends the lesson as the model first wrote it and what each guard changed", async () => {
+      const wrote = JSON.parse(OHM("receives"));
+      wrote.steps[1].items.push({ kind: "plot", expr: "not a function ((" });
+      const answers = () => [JSON.stringify(wrote), review([true, true, true], [])[0], JSON.stringify({ arrows: [{ n: 1, verdict: "reversed", label: "pushes" }, { n: 2, verdict: "true" }, { n: 3, verdict: "false" }] })];
+      cloudAnswers = answers();
+      const ev = await events(await post({ question: "Ohm's law", provider: "cloud", audit: true }, "ask:openrouter/google"));
+      const audit = ev.find((e) => e.type === "audit") as { raw: { steps: Array<{ items: unknown[] }> }; changes: string[] };
+      // raw: before the validator and every guard (the plot that cannot be drawn is still in it)
+      expect(audit.raw.steps[1].items).toHaveLength(2);
+      expect(audit.raw.steps[0].items).toContainEqual({ kind: "edge", from: "i", to: "v", text: "receives" });
+      expect(audit.changes).toEqual(["step 2: the validator did not keep 1 plot", "1 arrow(s) turned round by the arrow judge", "arrow(s) the judge called false, not drawn: i --creates--> r"]);
+      // the page never gets it
+      cloudAnswers = answers();
+      const plain = await events(await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/google"));
+      expect(plain.some((e) => e.type === "audit")).toBe(false);
+    });
     it("sends the examiner only the question and the lesson's own text", async () => {
       await run([OHM("drives", "v", "i"), ...review([true, true, true], ["ok", "ok", "ok"])]);
       const sent = (outside()[1].body.messages[1].content as Array<{ text?: string }>)[0]?.text ?? "";

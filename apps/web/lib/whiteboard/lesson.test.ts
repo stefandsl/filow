@@ -106,7 +106,9 @@ describe("whiteboard lesson: what the model writes is data", () => {
 
   it("accepts a row of cells with a pointer, cleans it, and does not repeat the same row", () => {
     const ctx = newContext();
-    expect(validateItems([{ kind: "cells", values: [1, 3, "5", "<b>7</b>", "", "a very long value"], pointer: 2 }], ctx)).toEqual([{ kind: "cells", values: ["1", "3", "5", "7", `a ver${String.fromCharCode(0x2026)}`], pointer: 2 }]);
+    expect(validateItems([{ kind: "cells", values: [1, 3, "5", "<b>7</b>", "", "3 * Factorial(2) = 3 * 2"], pointer: 2 }], ctx)).toEqual([{ kind: "cells", values: ["1", "3", "5", "7", "3 * Factorial(2) = 3 * 2"], pointer: 2 }]);
+    // a line of a worked example is kept whole (it used to be cut at 6 characters: "Facto...", "I = 2...")
+    expect(LIMITS.cell).toBeGreaterThanOrEqual(40);
     expect(validateItems([{ kind: "cells", values: ["1", "3"], pointer: 9 }, { kind: "cells", values: ["1"] }, { kind: "cells", values: "x" }], ctx)).toEqual([{ kind: "cells", values: ["1", "3"], pointer: -1 }]);
     expect(validateItems([{ kind: "cells", values: ["1", "3"], pointer: -1 }, { kind: "cells", values: ["1", "3"], pointer: 1 }], ctx)).toEqual([{ kind: "cells", values: ["1", "3"], pointer: 1 }]);
     const md = lessonMarkdown({ title: "T", scene: "flow", steps: [{ say: "s", card: false, items: [{ kind: "cells", values: ["1", "3", "5"], pointer: 1 }] }] });
