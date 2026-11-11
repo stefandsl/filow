@@ -16,6 +16,18 @@ const STEPS = [
   { say: "Oxygen is released, and more light means more sugar up to a limit.", items: [{ kind: "node", id: "o2", text: "Oxygen" }, { kind: "edge", from: "leaf", to: "o2", text: "released" }, { kind: "plot", expr: "x / (1 + x)", xmin: 0, xmax: 8 }, { kind: "note", text: "The curve flattens: light is no longer the limit." }] },
   { say: "So the leaf is where light becomes food.", items: [{ kind: "mark", target: "leaf", style: "circle" }, { kind: "mark", target: "sugar", style: "underline" }] },
 ];
+// The local path asks for a drawing plan, a fact check of its relations, then a pick per step.
+const PLAN = {
+  things: [{ id: "sun", text: "Sunlight" }, { id: "water", text: "Water" }, { id: "co2", text: "Carbon dioxide" }, { id: "leaf", text: "Leaf" }, { id: "sugar", text: "Glucose" }, { id: "o2", text: "Oxygen" }],
+  relations: [{ from: "sun", verb: "energy", to: "leaf" }, { from: "water", verb: "enters", to: "leaf" }, { from: "co2", verb: "enters", to: "leaf" }, { from: "leaf", verb: "makes", to: "sugar" }, { from: "leaf", verb: "releases", to: "o2" }],
+};
+const MORE_PLAN = { things: [{ id: "chl", text: "Chlorophyll" }], relations: [{ from: "chl", verb: "sits in", to: "leaf" }] };
+const PICKS = [
+  { things: ["sun", "water", "co2"], relations: ["1", "2"], formula: "", plot: "", note: "" },
+  { things: ["sugar"], relations: ["4"], formula: "6CO_2 + 6H_2O \\rightarrow C_6H_{12}O_6 + 6O_2", plot: "", note: "" },
+  { things: ["o2"], relations: ["5"], formula: "", plot: "x / (1 + x)", note: "The curve flattens: light is no longer the limit." },
+  { things: ["leaf"], relations: [], formula: "", plot: "", note: "" },
+];
 const outlineFor = (broken) => ({ title: broken ? "Broken lesson" : "Photosynthesis", scene: "flow", steps: STEPS.map((s) => ({ say: s.say })) });
 const CLOUD = {
   title: "Ohm's law",
