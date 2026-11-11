@@ -44,6 +44,8 @@ describe("OK Filow asks the screen helper of the setup", () => {
     expect(res.headers.get("X-Buddy-Sees")).toBe("text");
     expect(chats).toHaveLength(1);
     expect(chats[0].model).toBe("lfm3-vl");
+    // a local model is never left to think on its own: hidden reasoning eats the answer's tokens and the reply comes back empty
+    expect((chats[0] as { think?: unknown }).think).toBe(false);
     expect(chats[0].messages.at(-1)?.images).toEqual([]);
     expect(chats[0].messages[0].content).toMatch(/cannot see the screen/);
   });
@@ -52,6 +54,8 @@ describe("OK Filow asks the screen helper of the setup", () => {
     machine(6, 2);
     await (await ask(request({ question: "q", ...shot, provider: "local" }))).text();
     expect(chats[0].model).toBe("lfm3-vl");
+    // a local model is never left to think on its own: hidden reasoning eats the answer's tokens and the reply comes back empty
+    expect((chats[0] as { think?: unknown }).think).toBe(false);
   });
 
   it("Balanced pinned by the user: the same model reads the picture", async () => {
@@ -60,6 +64,8 @@ describe("OK Filow asks the screen helper of the setup", () => {
     await res.text();
     expect(res.headers.get("X-Buddy-Sees")).toBe("screen");
     expect(chats[0].model).toBe("lfm3-vl");
+    // a local model is never left to think on its own: hidden reasoning eats the answer's tokens and the reply comes back empty
+    expect((chats[0] as { think?: unknown }).think).toBe(false);
     expect(chats[0].messages.at(-1)?.images).toHaveLength(1);
   });
 
