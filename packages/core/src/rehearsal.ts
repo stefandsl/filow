@@ -10,7 +10,8 @@
 // - Many speech models leave out "um" and "uh"; the filler count only sees what was transcribed.
 import { t, type I18nKey, type Lang } from "./i18n";
 import { fold, tokenize } from "./text";
-import { sectionTimes, talkBudget, TalkClockTracker } from "./rehearsal-timer";
+import { formatClock, sectionTimes, talkBudget, TalkClockTracker } from "./rehearsal-timer";
+import { sectionLabel } from "./script";
 import type { TranscriptEvent } from "./engine";
 import type { PointStatus, Script, SessionState, TalkClock } from "./types";
 
@@ -417,14 +418,22 @@ function suggest(r: RehearsalReport): RehearsalReport["suggestions"] {
 
 // ---- Markdown -----------------------------------------------------------------------------
 
-const clockText = (ms: number) => {
-  const s = Math.round(Math.max(0, ms) / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
+/** A time over or under its target is worth a line from this much. */
+export const REPORT_OVER_MS = 30_000;
 
-/** The report as Markdown, in the interface language; `notes` (live screen notes) is appended as is. */
+/**
+ * The report as Markdown, in the interface language. It says what the report on screen says
+ * (RehearsalReport.tsx): the same times (formatClock), section names and words. `notes` (live screen
+ * notes) is appended as is, when the presenter asked for it in the report.
+ */
 export function rehearsalMarkdown(r: RehearsalReport, lang: Lang, notes?: string): string {
   const when = new Date(r.startedAt).toLocaleString(lang);
+  const over = r.talkTargetMs !== null ? r.durationMs - r.talkTargetMs : null;
+  const length = [
+    formatClock(r.durationMs),
+    r.talkTargetMs !== null ? ` ${t("timer.of", lang, { target: formatClock(r.talkTargetMs) })}` : "",
+    over !== null && Math.abs(over) >= REPORT_OVER_MS ? ` (${over > 0 ? t("timer.over", lang, { t: formatClock(over) }) : t("timer.left", lang, { t: formatClock(-over) })})` : "",
+  ].join("");
   const pace = r.pace.value === null ? t("report.paceShort", lang) : t(r.pace.unit === "cpm" ? "report.cpm" : "report.wpm", lang, { n: r.pace.value });
   const out = [
     `# ${t("report.title", lang)}`,
@@ -437,7 +446,7 @@ export function rehearsalMarkdown(r: RehearsalReport, lang: Lang, notes?: string
     "",
     `## ${t("report.overview", lang)}`,
     "",
-    `- ${t("report.length", lang)}: ${clockText(r.durationMs)}${r.talkTargetMs !== null ? ` (${t("report.target", lang)} ${clockText(r.talkTargetMs)})` : ""}`,
+    `- ${t("report.length", lang)}: ${length}`,
     `- ${t("report.pace", lang)}: ${pace}${r.pace.band ? ` (${t(`report.band.${r.pace.band}` as I18nKey, lang)}, ${t("report.paceRange", lang, { lo: r.pace.range[0], hi: r.pace.range[1] })})` : ""}`,
     `- ${t("report.fillers", lang)}: ${r.fillers.total}${r.fillers.top.length ? ` (${r.fillers.top.map((f) => `"${f.label}" ${f.count}`).join(", ")})` : ""}`,
     `- ${t("report.pauses", lang)}: ${r.pauses.count}${r.pauses.count ? ` (${t("report.longest", lang)} ${Math.round(r.pauses.longestMs / 1000)} s)` : ""}`,
@@ -448,7 +457,9 @@ export function rehearsalMarkdown(r: RehearsalReport, lang: Lang, notes?: string
     "|---|---|---|---|",
     ...r.sections.map((s) => {
       const pts = POINT_OUTCOMES.filter((k) => s.outcomes[k]).map((k) => `${s.outcomes[k]} ${t(`report.outcome.${k}` as I18nKey, lang)}`).join(", ") || "-";
-      return `| ${s.title.replace(/\|/g, "\\|")} | ${s.visited ? clockText(s.spentMs) : "-"} | ${s.targetMs !== null ? clockText(s.targetMs) : "-"} | ${pts} |`;
+      const extra = s.targetMs !== null && s.visited ? s.spentMs - s.targetMs : null;
+      const time = s.visited ? `${formatClock(s.spentMs)}${extra !== null && extra >= REPORT_OVER_MS ? ` (+${formatClock(extra)})` : ""}` : t("report.notShown", lang);
+      return `| ${sectionLabel(s.title).title.replace(/\|/g, "\\|")} | ${time} | ${s.targetMs !== null ? formatClock(s.targetMs) : "-"} | ${pts} |`;
     }),
     "",
   ];

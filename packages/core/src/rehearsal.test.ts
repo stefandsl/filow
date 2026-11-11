@@ -316,4 +316,17 @@ describe("rehearsal Markdown", () => {
     expect(it).toContain("| Sezione | Tempo | Obiettivo | Punti |");
     expect(it).not.toContain("Talk notes");
   });
+
+  it("writes times and section names as the timer and the screen do: hours, no label prefix, 'not shown', time over", () => {
+    const script = parseScript("<!-- target: 60 min -->\n# Intro - Why now (20 min)\n- One\n# Part 2 - Never shown\n- Two");
+    const r = buildRehearsalReport(take(script).start().stop(90 * 60_000 + 59_900), script, { lang: "en" });
+    const md = rehearsalMarkdown(r, "en");
+    expect(md).toContain("- Length: 1:30:59 of 1:00:00 (30:59 over)");
+    expect(md).not.toMatch(/\b9[01]:\d\d\b/);
+    expect(md).toContain("| Why now | 1:30:59 (+1:10:59) | 20:00 | 1 not reached |");
+    expect(md).toContain("| Never shown | not shown | 40:00 | 1 not reached |");
+    expect(rehearsalMarkdown(r, "it")).toContain("- Durata: 1:30:59 su 1:00:00 (30:59 oltre)");
+    const short = parseScript("<!-- target: 10 min -->\n# A\n- One");
+    expect(rehearsalMarkdown(buildRehearsalReport(take(short).start().stop(8 * 60_000), short, { lang: "en" }), "en")).toContain("- Length: 8:00 of 10:00 (2:00 left)");
+  });
 });
