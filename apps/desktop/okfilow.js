@@ -962,6 +962,7 @@ function createOkFilow(deps) {
     if (!ourSender(e)) return;
     if (on === true && answering(mode)) stopHover.add(e.sender.id);
     else stopHover.delete(e.sender.id);
+    if (QA_SHOTS) logLine(`okfilow qa stop hover ${on === true} from overlay ${e.sender.id} (mode ${mode}): takes the mouse = ${stopHover.has(e.sender.id)}`);
     for (const w of overlays.values()) applyMouse(w);
   });
   /** Hands-free off from the panel (its button or Escape). */
