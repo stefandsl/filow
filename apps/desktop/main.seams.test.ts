@@ -11,7 +11,10 @@ import * as profileRules from "../../packages/core/src/profile";
 import * as hardwareRules from "../../packages/core/src/hardware";
 
 /** Evaluate untouched main.js, with startup held and all effects replaced in-process. */
-function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, childProcess = {} as Record<string, unknown>, lockHeld = false } = {}) {
+function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, childProcess = {} as Record<string, unknown>, lockHeld = false, platform = "win32" } = {}) {
+  // every dictionary key the shell asks for while it runs, literal or computed (mt(k), tx(key), `catalog.${n}`)
+  const asked = new Set<string>();
+  const recordingT = (key: string, lang: string, vars?: Record<string, string | number>) => { asked.add(key); return t(key, lang as Parameters<typeof t>[1], vars); };
   const env = { ...initialEnv };
   // single instance: the order of profile and lock calls, the app's event handlers, exit and start
   const calls: string[] = [], appHandlers: Record<string, (...args: any[]) => void> = {};
@@ -54,7 +57,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "node:worker_threads": {}, "node:events": EventEmitter,
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
     "./integrity": { sha256File: async () => "" },
-    "./vendor/i18n": { t, isLang, langFromLocale }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./ui-preferences": {}, "./slideshow": {},
+    "./vendor/i18n": { t: recordingT, isLang, langFromLocale }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./ui-preferences": {}, "./slideshow": {},
     "./qa.js": { isQaBuild: (app: { isPackaged: boolean }) => !app.isPackaged }, // a packaged build without the QA marker
     "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },
   };
@@ -63,7 +66,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     const module = { exports: {} };
     runInNewContext(readFileSync(new URL(`./${name}.js`, import.meta.url), "utf8"), {
       require: (id: string) => { if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`); return modules[id]; },
-      module, process: { env, platform: "win32" }, URL, setTimeout,
+      module, process: { env, platform }, URL, setTimeout,
     });
     modules[`./${name}`] = module.exports;
   }
@@ -73,17 +76,18 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
        setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
        offerLocalAi, offerFirewall, welcomeSetup, settings: () => settings, patchSettings: patch => Object.assign(settings, patch),
-       onWelcomeReady, welcomeOfferForStep, chooseWelcomeSetup, setWelcomeWin: win => { welcomeWin = win; } });`, {
+       onWelcomeReady, welcomeOfferForStep, chooseWelcomeSetup, setWelcomeWin: win => { welcomeWin = win; }, buildMenu, st,
+       setLocalAiHardware: hw => { localAiHardware = Promise.resolve(hw); } });`, {
     require: (id: string) => {
       if (id.endsWith("electron-updater.js")) return { autoUpdater: { on(event: string, fn: (info: { version: string }) => void) { updaterHandlers[event] = fn; }, checkForUpdates, quitAndInstall() {} } };
       if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`);
       return modules[id];
     },
-    __dirname: "G:/fake", process: { env, platform: "win32", arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {} },
+    __dirname: "G:/fake", process: { env, platform, arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {} },
     URL, URLSearchParams, console, setTimeout, clearTimeout,
   });
   return { api, env, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync,
-    calls, appHandlers, appExit, whenReady, windows,
+    calls, appHandlers, appExit, whenReady, windows, asked, catalog: Object.keys(modules["./localai"].CATALOG),
     ipc: async (channel: string, win: { webContents: unknown }, ...args: unknown[]) => ipcHandlers[channel]({ sender: win.webContents }, ...args),
     blocked: (url: string) => { let result: any; requestFilter({ url }, r => { result = r; }); return result.cancel === true; } };
 }
@@ -359,6 +363,64 @@ describe("desktop shell texts", () => {
   });
 });
 
+// Review of the five-language pass, finding 10: the key check above only sees literal keys in the
+// source. Here the shell runs (menu, first-start questions, update prompts, splash) with a recording
+// dictionary, so computed keys (mt(k), tx(key), `catalog.${n}`) are checked as they are asked for.
+describe("desktop shell texts at run time", () => {
+  const LANGS5 = Object.keys(DICTIONARIES) as (keyof typeof DICTIONARIES)[];
+  const missing = (keys: Iterable<string>) => {
+    const out: string[] = [];
+    for (const key of keys) for (const lang of LANGS5) if (!((DICTIONARIES[lang] as Record<string, string>)[key] ?? "").trim()) out.push(`${lang} ${key}`);
+    return out;
+  };
+  const fakeWin = () => ({ webContents: Object.assign(new EventEmitter(), { send: vi.fn() }), loadURL: vi.fn(), isDestroyed: () => false });
+  const machine = (platform: string) => ({ ramGb: 32, gpu: "Fake GPU", freeGb: 200, platform, recommended: { profile: "advanced", models: ["clef", "gemma4:e4b"], ollama: true, downloadGb: 9.5 } });
+
+  it("builds the menu on Windows, macOS and Linux only from keys every language has", () => {
+    for (const platform of ["win32", "darwin", "linux"]) {
+      const f = fixture({}, { platform });
+      for (const lang of LANGS5) { f.api.setLang(lang); f.api.buildMenu(fakeWin()); }
+      expect(f.asked.size, platform).toBeGreaterThan(20);
+      expect(missing(f.asked), platform).toEqual([]);
+    }
+  });
+
+  it("asks the first-start and update questions only from keys every language has", async () => {
+    const f = fixture();
+    f.api.setLocalAiHardware(machine("win32"));
+    await f.api.offerLocalAi();
+    f.api.patchSettings({ remoteShare: false });
+    f.showMessageBox.mockResolvedValueOnce({ response: 1 }); // "Later": the rule is not written
+    await f.api.offerFirewall(null);
+    await f.api.checkForUpdates({ manual: true });
+    for (const key of ["title", "local", "guard", "download", "starting"]) f.api.st(key);
+    const asked = [...f.asked];
+    for (const prefix of ["shell.localAi.", "shell.firewall.", "catalog.", "menu.", "shell.splash."]) expect(asked.some((k) => k.startsWith(prefix)), prefix).toBe(true);
+    // st() is called with names this test made up: only the ones the dictionary has count as asked by the shell.
+    const real = asked.filter((k) => !k.startsWith("shell.splash.") || k in DICTIONARIES.en);
+    expect(missing(real)).toEqual([]);
+  });
+
+  it("names every model of the catalogue in every language", () => {
+    const f = fixture();
+    expect(f.catalog.length).toBeGreaterThan(5);
+    expect(missing(f.catalog.map((n) => `catalog.${n}`))).toEqual([]);
+  });
+
+  it("names the machine in the user's language: ПК in Russian, Mac on a Mac", async () => {
+    const message = async (lang: string, platform: string) => {
+      const f = fixture({}, { platform });
+      f.api.setLang(lang);
+      f.api.setLocalAiHardware(machine(platform));
+      await f.api.offerLocalAi();
+      return (f.showMessageBox.mock.calls[0] as unknown[]).map((a) => (a as { message?: string } | null)?.message).find(Boolean);
+    };
+    expect(await message("ru", "win32")).toContain("на этом ПК без облака");
+    expect(await message("ru", "darwin")).toContain("на этом Mac без облака");
+    expect(await message("en", "win32")).toContain("on this PC without any cloud");
+    expect(await message("it", "linux")).not.toContain("{device}");
+  });
+});
 // I18N-02 for the shell: a dialog never carries a sentence written into the code, because that
 // sentence stays English for an Italian user. Text comes from mt() or the shared dictionary.
 describe("desktop shell dialogs", () => {

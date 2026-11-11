@@ -300,6 +300,11 @@ const fold = (w) => w.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 const SENTENCE_END = /[.!?…]$/u;
 const upperFirst = (w) => w.charAt(0).toLocaleUpperCase() + w.slice(1);
 const isUpper = (ch) => ch !== ch.toLocaleLowerCase() && ch === ch.toLocaleUpperCase();
+// Meant in every language, whatever the sound patterns say: a word in capitals is a name, a size or a
+// number (ER, AAA, III, МММ) and what follows a number is its unit ("5 mm", "20 мм"). The rehearsal
+// report has the same two rules (packages/core/src/rehearsal.ts, ACRONYM and AFTER_NUMBER).
+const isName = (w) => /^\p{Lu}{2,}$/u.test(w);
+const AFTER_NUMBER = /\p{N}$/u;
 
 function removeFillers(text, lang) {
   if (lang === "ja") return text.replace(JA_SOUNDS, "$1");
@@ -309,7 +314,7 @@ function removeFillers(text, lang) {
   let capNext = false;
   for (let i = 0; i < words.length; i++) {
     const m = /^([\p{L}\p{M}]+)([,.;:!?…]*)$/u.exec(words[i]);
-    if (m && pats.some((re) => re.test(fold(m[1])))) {
+    if (m && !isName(m[1]) && !AFTER_NUMBER.test(words[i - 1] || "") && pats.some((re) => re.test(fold(m[1])))) {
       const punct = m[2];
       const startOfSentence = out.length === 0 || SENTENCE_END.test(out[out.length - 1]);
       if (startOfSentence && isUpper(m[1].charAt(0))) capNext = true;

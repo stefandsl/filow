@@ -6,6 +6,39 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
+// What PowerPoint shows of the add-in (its description, the ribbon button, the first-run card), in
+// the five interface languages. English is the default; Office picks an override by its own locale.
+const LOCALES = ["it-IT", "ru-RU", "ro-RO", "ja-JP"];
+const TEXT = {
+  description: {
+    en: "Your speaker notes become live talking points that get checked off as you say them.",
+    "it-IT": "Le note del relatore diventano punti dal vivo, spuntati man mano che li dici.",
+    "ru-RU": "Заметки докладчика становятся живыми пунктами, которые отмечаются по мере того, как вы их произносите.",
+    "ro-RO": "Notele vorbitorului devin puncte live, bifate pe măsură ce le rostești.",
+    "ja-JP": "発表者ノートが話すポイントになり、話した項目から順にチェックされます。",
+  },
+  open: { en: "Open Filow", "it-IT": "Apri Filow", "ru-RU": "Открыть Filow", "ro-RO": "Deschide Filow", "ja-JP": "Filowを開く" },
+  getStarted: {
+    en: "Open the Filow pane, load your notes, and rehearse.",
+    "it-IT": "Apri il pannello di Filow, carica le note e fai una prova.",
+    "ru-RU": "Откройте панель Filow, загрузите заметки и отрепетируйте.",
+    "ro-RO": "Deschide panoul Filow, încarcă notele și repetă.",
+    "ja-JP": "Filowのパネルを開き、ノートを読み込んで、リハーサルを始めましょう。",
+  },
+  tooltip: {
+    en: "Speaker notes become live talking points.",
+    "it-IT": "Le note del relatore diventano punti dal vivo.",
+    "ru-RU": "Заметки докладчика становятся живыми пунктами.",
+    "ro-RO": "Notele vorbitorului devin puncte live.",
+    "ja-JP": "発表者ノートが話すポイントになります。",
+  },
+};
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+/** A localized element: the English default and one override per other language (`tag` is Override or bt:Override). */
+function localized(open, close, key, tag, pad) {
+  const lines = LOCALES.map((locale) => `${pad}  <${tag} Locale="${locale}" Value="${esc(TEXT[key][locale])}"/>`);
+  return `${open} DefaultValue="${esc(TEXT[key].en)}">\n${lines.join("\n")}\n${pad}${close}`;
+}
 /**
  * Manifest XML for an origin. `dev` = the Vite dev server serves the pane at the root;
  * otherwise the web app serves it under /powerpoint/. `id` keeps the add-in identity stable.
@@ -24,7 +57,7 @@ function buildManifest(origin, { dev = false, id = randomUUID() } = {}) {
   <ProviderName>Filow</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Filow"/>
-  <Description DefaultValue="Your speaker notes become live talking points that get checked off as you say them."/>
+  ${localized("<Description", "</Description>", "description", "Override", "  ")}
   <IconUrl DefaultValue="${base}/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="${base}/assets/icon-64.png"/>
   <SupportUrl DefaultValue="${origin}"/>
@@ -96,11 +129,11 @@ function buildManifest(origin, { dev = false, id = randomUUID() } = {}) {
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="Filow"/>
         <bt:String id="Group.Label" DefaultValue="Filow"/>
-        <bt:String id="Open.Label" DefaultValue="Open Filow"/>
+        ${localized(`<bt:String id="Open.Label"`, "</bt:String>", "open", "bt:Override", "        ")}
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="Open the Filow pane, load your notes, and rehearse."/>
-        <bt:String id="Open.Tooltip" DefaultValue="Speaker notes become live talking points."/>
+        ${localized(`<bt:String id="GetStarted.Description"`, "</bt:String>", "getStarted", "bt:Override", "        ")}
+        ${localized(`<bt:String id="Open.Tooltip"`, "</bt:String>", "tooltip", "bt:Override", "        ")}
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>
@@ -108,7 +141,7 @@ function buildManifest(origin, { dev = false, id = randomUUID() } = {}) {
 `;
 }
 
-module.exports = { buildManifest };
+module.exports = { buildManifest, LOCALES, TEXT };
 if (require.main !== module) return;
 
 const origin = (process.argv[2] || "https://localhost:3000").replace(/\/$/, "");

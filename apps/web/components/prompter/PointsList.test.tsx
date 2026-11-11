@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
+import { LANGS, t } from "@filow/core";
 import { LangProvider } from "@filow/ui";
+const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 import { PointsList, WhyDone, saidAnnouncement } from "./PointsList";
 it("keeps full points and three semantic states", () => {
  const long = "A long talking point ".repeat(10);
@@ -16,10 +18,12 @@ it("keeps full points and three semantic states", () => {
  expect(css).toContain('font-size: 1.375rem; font-weight: 700');
 });
 
-it("labels all three states in both languages", () => {
- for (const lang of ["en", "it"] as const) {
+it("labels all three states in every interface language", () => {
+ for (const lang of LANGS) {
   const html = renderToStaticMarkup(<LangProvider lang={lang}><PointsList points={(["waiting","active","done"] as const).map(state => ({id:state,text:state,state,confidence:0.5}))} /></LangProvider>);
-  for (const label of lang === "en" ? ["Waiting","In progress","Said"] : ["In attesa","In corso","Detto"]) expect(html).toContain(label);
+  if (lang === "en" || lang === "it") for (const label of lang === "en" ? ["Waiting","In progress","Said"] : ["In attesa","In corso","Detto"]) expect(html).toContain(label);
+  for (const key of ["state.waiting", "state.active", "state.done"] as const) expect(html).toContain(escapeHtml(t(key, lang)));
+  if (lang !== "en") expect(html).not.toContain("In progress");
  }
 });
 
@@ -38,15 +42,17 @@ it("offers 'why is this done?' on a done point with evidence, with a hover summa
  expect(html).toMatch(/class="point-why"[^>]*hidden=""/); // collapsed until asked, but present for aria-controls
 });
 
-it("explains a model flip: quote, time range, model, confidence and scores, in both languages", () => {
- for (const lang of ["en", "it"] as const) {
+it("explains a model flip: quote, time range, model, confidence and scores, in every interface language", () => {
+ for (const lang of LANGS) {
   const html = renderToStaticMarkup(<LangProvider lang={lang}><WhyDone evidence={MODEL_EVIDENCE} /></LangProvider>);
   expect(html).toContain("We hired three engineers in July.");
   expect(html).toContain("clef-flash (local)");
   expect(html).toContain("91%");
   expect(html).toContain("80%");
   expect(html).toContain("62%");
-  expect(html).toContain(lang === "en" ? "Why is this done?" : "Perché è segnato come detto?");
+  if (lang === "en" || lang === "it") expect(html).toContain(lang === "en" ? "Why is this done?" : "Perché è segnato come detto?");
+  expect(html).toContain(escapeHtml(t("why.title", lang)));
+  if (lang !== "en") expect(html).not.toContain("Why is this done?");
  }
 });
 

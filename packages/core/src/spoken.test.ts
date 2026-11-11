@@ -45,6 +45,10 @@ describe("spoken languages", () => {
       expect(detectLanguage(s), s).toBe("ro");
       expect(detectSpeechLanguage(s), s).toBe("ro");
     }
+    // â and î are Romanian letters on their own, in words no list knows.
+    expect(latinScores("gândind").ro).toBeGreaterThan(0);
+    expect(detectLanguage("Un gând")).toBe("ro");
+    expect(detectLanguage("Gânduri, în sfârșit")).toBe("ro");
     for (const s of ["Come faccio a esportare?", "Come si salva?", "Un attimo e arrivo"]) expect(detectSpeechLanguage(s), s).toBe("it");
     for (const s of ["Come here and look at this", "I am here", "Are you there?"]) expect(detectSpeechLanguage(s), s).toBe("en");
   });

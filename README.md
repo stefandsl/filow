@@ -77,7 +77,7 @@ text; off restores Filow yellow. Changes apply immediately to all desktop window
 of the spoken-language setting. Browser and phone preferences remain separate.
 
 **Get started** or the title-bar X saves completion once per profile. Reopen all four options from
-**Filow > Welcome...** without interrupting a take. The startup switch is available in installed
+**Filow > Welcome…** without interrupting a take. The startup switch is available in installed
 Windows/macOS builds, never enables itself, and reflects OS startup settings; macOS may require
 Login Items approval. Startup is hidden in development/Windows portable builds and on Linux;
 Linux also hides system accent following. macOS login/accent behavior still needs real-device QA.

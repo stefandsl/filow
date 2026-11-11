@@ -9,7 +9,12 @@
   <ProviderName>Filow</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Filow"/>
-  <Description DefaultValue="Your speaker notes become live talking points that get checked off as you say them."/>
+  <Description DefaultValue="Your speaker notes become live talking points that get checked off as you say them.">
+    <Override Locale="it-IT" Value="Le note del relatore diventano punti dal vivo, spuntati man mano che li dici."/>
+    <Override Locale="ru-RU" Value="Заметки докладчика становятся живыми пунктами, которые отмечаются по мере того, как вы их произносите."/>
+    <Override Locale="ro-RO" Value="Notele vorbitorului devin puncte live, bifate pe măsură ce le rostești."/>
+    <Override Locale="ja-JP" Value="発表者ノートが話すポイントになり、話した項目から順にチェックされます。"/>
+  </Description>
   <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-64.png"/>
   <SupportUrl DefaultValue="https://localhost:3000"/>
@@ -81,11 +86,26 @@
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="Filow"/>
         <bt:String id="Group.Label" DefaultValue="Filow"/>
-        <bt:String id="Open.Label" DefaultValue="Open Filow"/>
+        <bt:String id="Open.Label" DefaultValue="Open Filow">
+          <bt:Override Locale="it-IT" Value="Apri Filow"/>
+          <bt:Override Locale="ru-RU" Value="Открыть Filow"/>
+          <bt:Override Locale="ro-RO" Value="Deschide Filow"/>
+          <bt:Override Locale="ja-JP" Value="Filowを開く"/>
+        </bt:String>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="Open the Filow pane, load your notes, and rehearse."/>
-        <bt:String id="Open.Tooltip" DefaultValue="Speaker notes become live talking points."/>
+        <bt:String id="GetStarted.Description" DefaultValue="Open the Filow pane, load your notes, and rehearse.">
+          <bt:Override Locale="it-IT" Value="Apri il pannello di Filow, carica le note e fai una prova."/>
+          <bt:Override Locale="ru-RU" Value="Откройте панель Filow, загрузите заметки и отрепетируйте."/>
+          <bt:Override Locale="ro-RO" Value="Deschide panoul Filow, încarcă notele și repetă."/>
+          <bt:Override Locale="ja-JP" Value="Filowのパネルを開き、ノートを読み込んで、リハーサルを始めましょう。"/>
+        </bt:String>
+        <bt:String id="Open.Tooltip" DefaultValue="Speaker notes become live talking points.">
+          <bt:Override Locale="it-IT" Value="Le note del relatore diventano punti dal vivo."/>
+          <bt:Override Locale="ru-RU" Value="Заметки докладчика становятся живыми пунктами."/>
+          <bt:Override Locale="ro-RO" Value="Notele vorbitorului devin puncte live."/>
+          <bt:Override Locale="ja-JP" Value="発表者ノートが話すポイントになります。"/>
+        </bt:String>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

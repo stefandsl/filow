@@ -102,6 +102,24 @@ describe("spoken language", () => {
     expect((await pending).lang).toBe("ja");
     expect(getSpeechLang()).toBe("ja");
   });
+  it("keeps it even when the choice is the value the page showed before (picked away and back)", async () => {
+    use({ "prefs:speechLang": "it" });
+    let answer: (s: { language: string }) => void = () => {};
+    const pending = syncSpeechLang({ status: () => new Promise<{ language: string }>((r) => { answer = r; }) });
+    await chooseSpeechLang("ro", null);
+    await chooseSpeechLang("it", null);
+    answer({ language: "ja" }); // what the shell held when it was asked
+    expect((await pending).lang).toBe("it");
+    expect(getSpeechLang()).toBe("it");
+  });
+  it("keeps a choice of Auto made while the shell was still answering", async () => {
+    use({});
+    let answer: (s: { language: string }) => void = () => {};
+    const pending = syncSpeechLang({ status: () => new Promise<{ language: string }>((r) => { answer = r; }) });
+    await chooseSpeechLang("auto", null);
+    answer({ language: "ru" });
+    expect((await pending).lang).toBe("auto");
+  });
   it("writes a choice to the shell and to the mirror, and works without a shell", async () => {
     const setLanguage = vi.fn(async (language: string) => ({ language }));
     expect(await chooseSpeechLang("ro", { status: async () => ({}), setLanguage })).toEqual({ language: "ro" });

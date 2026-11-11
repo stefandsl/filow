@@ -326,6 +326,11 @@ describe("rehearsal details", () => {
     expect(n("Bateriile AA. Clasa a III-a. Grosime 5 mm. Cum să zic asta mai simplu?", "ro")).toBe(0);
     expect(n("Толщина листа 5 мм, ширина 20 мм. Буква э, буква м.", "ru")).toBe(0);
     expect(n("Эээ, ммм, cum", "ru")).toBe(2);
+    // A unit after a number and a word in capitals are meant, in every language.
+    expect(n("Spessore 5 mm, larghezza 20 mm.", "it")).toBe(0);
+    expect(n("Mm, va bene.", "it")).toBe(1);
+    expect(n("Bateriile AAA.", "ro")).toBe(0);
+    expect(n("Банк МММ, эээ, закрыт.", "ru")).toBe(1);
     expect(n("Короче, эта дорога короче. Такого типа, вот. Что это значит.", "ru")).toBe(0);
     expect(n("Как бы ни было, ну и ладно.", "ru")).toBe(0);
     expect(n("ええ、そうです。なんか変です。", "ja")).toBe(0); // "ええ" is yes

@@ -128,8 +128,10 @@ const ANSWERS: Partial<Record<SpeechLanguage, Array<[string, string]>>> = {
 };
 const JOINED = /^[-\u2010\u2011\u2013\u2014]$/;
 const JOINED_OR_SPACE = /^[-\u2010\u2011\u2013\u2014 ]$/;
-// English only: "ER" and "UM" in capitals are names, not sounds.
-const ACRONYM = /^[A-Z]{2,}$/;
+// A word in capitals is a name, a size or a number, not a sound: ER, UM, AAA (batteries), III, МММ.
+const ACRONYM = /^\p{Lu}{2,}$/u;
+// What follows a number is its unit: "5 mm", "20 мм".
+const AFTER_NUMBER = /\p{N}\s*$/u;
 
 /** The language a transcript is in, from its letters and its commonest words (English when nothing tells). */
 export function detectSpeechLanguage(text: string): SpeechLanguage {
@@ -174,7 +176,7 @@ export function countFillers(text: string, lang: SpeechLanguage, around: { befor
       const n = f.words?.length ?? 1;
       if (i + n > tokens.length) return false;
       const ok = f.sound
-        ? f.sound.test(tokens[i].norm) && !(lang === "en" && ACRONYM.test(text.slice(tokens[i].start, tokens[i].end)))
+        ? f.sound.test(tokens[i].norm) && !ACRONYM.test(text.slice(tokens[i].start, tokens[i].end)) && !AFTER_NUMBER.test(text.slice(0, tokens[i].start))
         : f.words!.every((w, k) => tokens[i + k].norm === fold(w));
       if (!ok) return false;
       if (f.aside) return aside(i, n);

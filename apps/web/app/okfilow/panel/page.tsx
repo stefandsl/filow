@@ -236,6 +236,7 @@ export default function OkFilowPanel() {
     uiLang: () => langRef.current,
     cloudAudio: (text) => cloudVoiceRef.current(text),
     onFallback: (reason) => setNote(tRef.current(`voiceWhy_${reason}`)),
+    onNoVoice: () => setNote(tRef.current("voiceNoSystem")),
   }), []);
   // lang: the answer's language from the server (X-Buddy-Lang); without it the voice detects it from the text.
   const speak = useCallback((text: string, id: number, lang?: string) => speaker.speak(text, id, { lang }), [speaker]);

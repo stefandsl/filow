@@ -3,7 +3,8 @@
 //             this module plays the pieces back to back, so speech starts after the first one;
 //   system  - the voice built into this PC (speechSynthesis), the zero-download fallback;
 //   cloud   - ElevenLabs through /api/buddy/tts, only when the user chose it.
-// A natural voice that cannot speak falls back to the system voice and says why. Nothing here
+// A natural voice that cannot speak falls back to the system voice and says why; a system voice that
+// does not exist for the language stays silent and says why. Nothing here
 // ever falls back to the cloud.
 import type { OkFilowBridge, OkFilowStatus, OkFilowTtsReply, OkFilowTtsStatus } from "./bridge";
 import { detectDominantLanguage, SPOKEN_LANGS, type SpokenLang } from "@filow/core";
@@ -139,6 +140,8 @@ export type SpeakerDeps = {
   cloudAudio?(text: string): Promise<Blob | "system" | null>;
   /** The natural voice could not speak and the system voice took over (once per reason). */
   onFallback?(reason: VoiceFallback): void;
+  /** This PC has no voice for the language of the text: nothing was read aloud (once per language). */
+  onNoVoice?(lang: VoiceLang): void;
   player?(): ChunkPlayer;
 };
 export type SpeakOptions = {
@@ -158,6 +161,7 @@ export function createSpeaker(deps: SpeakerDeps) {
   let cut: (() => void) | null = null;
   let utterance = 0;
   const told = new Set<VoiceFallback>();
+  const mute = new Set<VoiceLang>();
 
   function stop() {
     token++;
@@ -251,13 +255,20 @@ export function createSpeaker(deps: SpeakerDeps) {
     const synth = window.speechSynthesis;
     if (!synth) return;
     synth.cancel();
-    const u = new SpeechSynthesisUtterance(text);
     const voices = synth.getVoices();
     const pick = (want: string) => voices.find((v) => v.lang.toLowerCase().startsWith(want) && v.localService) ?? voices.find((v) => v.lang.toLowerCase().startsWith(want));
-    // A voice for the language of the text when this PC has one, else the app language.
-    const want: VoiceLang = !voices.length || pick(lang) ? lang : isLang(deps.uiLang()) ? (deps.uiLang() as VoiceLang) : "en";
-    u.voice = pick(want) ?? null;
-    u.lang = BCP47[want];
+    // A voice of another language would read this text as noise (Russian or Japanese in an English
+    // voice): when the list is known and has none for the language, stay silent and say why.
+    if (voices.length && !pick(lang)) {
+      if (!mute.has(lang)) {
+        mute.add(lang);
+        deps.onNoVoice?.(lang);
+      }
+      return;
+    }
+    const u = new SpeechSynthesisUtterance(text);
+    u.voice = pick(lang) ?? null;
+    u.lang = BCP47[lang];
     u.rate = 1.05 * (deps.status()?.speed ?? 1);
     let ended = false;
     u.onend = u.onerror = () => { ended = true; };

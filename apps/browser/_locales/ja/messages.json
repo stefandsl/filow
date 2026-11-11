@@ -1,0 +1,4 @@
+{
+  "extDescription": { "message": "HTMLスライドの横に話すポイントを表示。スライドから台本を生成し、発表中はプロンプターが進行に合わせて動きます。" },
+  "actionTitle": { "message": "Filowを開く" }
+}

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildRehearsalReport, Engine, parseScript, rehearsalMarkdown, t, TakeRecorder, type Lang, type SessionState, type TalkClock } from "@filow/core";
+import { buildRehearsalReport, Engine, LANGS, parseScript, rehearsalMarkdown, t, TakeRecorder, type Lang, type SessionState, type TalkClock } from "@filow/core";
 import { LangProvider } from "@filow/ui";
 import { TimerCue } from "./TimerCue";
 import { TimerSettings, readMinutes } from "./TimerSettings";
@@ -179,7 +179,7 @@ describe("rehearsal report view", () => {
   it("the saved Markdown says what the screen shows: the same section names, times and words", () => {
     const labelled = parseScript("<!-- target: 6 min -->\n# Intro - Why now (2 min)\n- a\n- b\n# Body (2 min)\n- c\n# End (2 min)\n- d");
     const r = buildRehearsalReport(rec.result()!, labelled, { lang: "en" });
-    for (const lang of ["en", "it"] as const) {
+    for (const lang of LANGS) {
       const html = inLang(lang, <RehearsalReport report={r} onClose={() => {}} />);
       const screen = plain(html);
       const md = rehearsalMarkdown(r, lang);

@@ -250,6 +250,14 @@ describe("text clean-up", () => {
     // Review of this pass: units, letters and numbers are meant words.
     expect(core.postProcess("Толщина листа 5 мм, ширина 20 мм. Буква э, буква м.", { language: "ru", removeFillers: true })).toBe("Толщина листа 5 мм, ширина 20 мм. Буква э, буква м.");
     expect(core.postProcess("Clasa a III-a, grosime 5 mm.", { language: "ro", removeFillers: true })).toBe("Clasa a III-a, grosime 5 mm.");
+    // The same in every language: a unit after a number and a word in capitals are meant.
+    const kept = (text: string, language: string) => core.postProcess(text, { language, removeFillers: true });
+    expect(kept("The sheet is 5 mm thick, um, and 20 mm wide.", "en")).toBe("The sheet is 5 mm thick, and 20 mm wide.");
+    expect(kept("Spessore 5 mm, ehm, larghezza 20 mm.", "it")).toBe("Spessore 5 mm, larghezza 20 mm.");
+    expect(kept("Bateriile AAA si AA, aaa, sunt gata.", "ro")).toBe("Bateriile AAA si AA, sunt gata.");
+    expect(kept("Ммм, хорошо. Банк МММ.", "ru")).toBe("Хорошо. Банк МММ.");
+    expect(kept("Go to the ER, er, now.", "en")).toBe("Go to the ER, now.");
+    expect(kept("Толщина 5 мм, эээ, ширина 20 мм.", "auto")).toBe("Толщина 5 мм, ширина 20 мм.");
     // Russian and Romanian: sounds only, never a word that can be meant.
     expect(core.postProcess("эээ вот это значит типа проект", { language: "ru", removeFillers: true })).toBe("вот это значит типа проект");
     expect(core.postProcess("ăăă păi adică proiectul", { language: "ro", removeFillers: true })).toBe("păi adică proiectul");
