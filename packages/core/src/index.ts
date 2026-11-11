@@ -17,6 +17,7 @@ export * from "./rehearsal-timer";
 export * from "./ui-preferences";
 export * from "./matcher";
 export * from "./profile";
+export * from "./easy";
 export * from "./hardware";
 export * from "./anchor";
 export * from "./display";

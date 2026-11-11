@@ -24,7 +24,7 @@ import {
 } from "@filow/core";
 import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
 import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, sherpaUsable, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
-import { getCloudDecision, getSetupPreference, getStartMode, setDecisionProvider, setStartMode, speechLangFor, syncSpeechLang } from "@/lib/prefs";
+import { getCloudDecision, getSetupPreference, getStartMode, setDecisionProvider, setStartMode, speechLangFor, syncSpeechLang, type StartMode } from "@/lib/prefs";
 import { loadGate } from "@/lib/gate/client";
 import { useEngine } from "./useEngine";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
@@ -305,38 +305,36 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
     const attempt = startAttempts.current.begin();
     setStarting(true);
     try {
-      let mode = getStartMode();
+      const mode = getStartMode();
       const r = await attempt.wait(loadReadiness());
       setSttStatus(r.stt);
       setReadiness(r);
+      let p: PlanResponse | null = null;
       if (mode === "auto") {
         // The router follows the setup for this computer (Settings); it measures nothing here, so a
         // start never spends a cloud call. Decisions stay local (matcher or Clef), never the cloud.
         setStarting(true);
         try {
-          const p = await attempt.wait(fetchPlan({ probe: false, apply: true }));
+          p = await attempt.wait(fetchPlan({ probe: false, apply: true }));
           setPlan(p);
-          // local only when the audio and the decisions both stay here (takeModeOf); otherwise ask
-          const m = takeModeOf(p);
-          if (m && p.decision.provider && p.stt.backend) {
-            pushLog(`auto: ${p.stt.backend} · ${p.decision.provider}${p.decision.measuredMs ? ` ${p.decision.measuredMs} ms` : ""} · ${p.generate.provider}${p.generate.model ? ` ${p.generate.model}` : ""}`);
-            await attempt.wait(startTake(m, r, attempt, { provider: p.decision.provider, backend: p.stt.backend }));
-            return;
-          }
-          if (p.stt.reason === "local-speech-missing") pushLog(t("start.noLocalSpeech"));
         } catch (err) {
           if (err instanceof CancelledStart) throw err;
           pushLog(`auto: router failed (${(err as Error).message}); asking`);
         }
-        setStarting(false);
-        // never a silent cloud take: Auto starts local or asks (the dialog names what is missing)
-        mode = localReady(r) ? "local" : "ask";
       }
-      if (mode === "ask" || (mode === "cloud" && !cloudReady(r)) || (mode === "local" && !localReady(r))) {
+      const step = startStep(mode, r, p && p.decision.provider && p.stt.backend ? takeModeOf(p) : null);
+      if (step === "plan" && p?.decision.provider && p.stt.backend) {
+        pushLog(`auto: ${p.stt.backend} · ${p.decision.provider}${p.decision.measuredMs ? ` ${p.decision.measuredMs} ms` : ""} · ${p.generate.provider}${p.generate.model ? ` ${p.generate.model}` : ""}`);
+        await attempt.wait(startTake("local", r, attempt, { provider: p.decision.provider, backend: p.stt.backend }));
+        return;
+      }
+      if (p?.stt.reason === "local-speech-missing") pushLog(t("start.noLocalSpeech"));
+      if (mode === "auto") setStarting(false);
+      if (step === "dialog" || step === "plan") {
         setStartDialog(true);
         return;
       }
-      await attempt.wait(startTake(mode, r, attempt));
+      await attempt.wait(startTake(step, r, attempt));
     } catch (err) {
       if (!(err instanceof CancelledStart)) {
         engine.setError((err as Error).message);
@@ -737,7 +735,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
           onCancel={() => { startAttempts.current.cancel(); setStartDialog(false); }}
           onPick={(mode, remember, auto) => {
             setStartDialog(false);
-            setStartMode(remember ? (auto ? "auto" : mode) : "ask");
+            setStartMode(modeAfterPick(getStartMode(), mode, remember, auto));
             void startTake(mode, readiness, startAttempts.current.begin());
           }}
         />
@@ -790,6 +788,29 @@ export function localProvider(r: Pick<Readiness, "clef" | "setup">): "matcher" |
 /** A local take can start: speech on this computer, and decisions (the matcher needs no install). */
 export function localReady(r: Pick<Readiness, "whisper" | "clef" | "setup">): boolean {
   return r.whisper && (localProvider(r) === "matcher" || r.clef);
+}
+
+/**
+ * What pressing Start does, from the remembered mode, what is ready, and (on Auto) the kind of take
+ * the router planned. "plan": a local take with the plan's engines. Auto runs a take on this PC or
+ * shows the dialog; it never starts an online take, whatever the plan says. "ask" always shows the
+ * dialog; a remembered Cloud or Local starts when it is ready and shows the dialog when it is not.
+ */
+export function startStep(mode: StartMode, r: Parameters<typeof cloudReady>[0] & Parameters<typeof localReady>[0], planned: "local" | "cloud" | null): "plan" | "local" | "cloud" | "dialog" {
+  if (mode === "auto") return planned === "local" ? "plan" : localReady(r) ? "local" : "dialog";
+  if (mode === "cloud") return cloudReady(r) ? "cloud" : "dialog";
+  if (mode === "local") return localReady(r) ? "local" : "dialog";
+  return "dialog";
+}
+
+/**
+ * The start mode kept after a pick in the dialog. "Remember my choice": the pick. Without it the
+ * question comes back next time, except on Auto, which stays: a profile on Auto only saw the dialog
+ * because this PC was not ready, and one unremembered pick must not turn every later take into a question.
+ */
+export function modeAfterPick(current: StartMode, picked: "cloud" | "local", remember: boolean, auto?: boolean): StartMode {
+  if (remember) return auto ? "auto" : picked;
+  return current === "auto" ? "auto" : "ask";
 }
 
 /** Cloud or Local for this take, with what each needs and whether it is there. */

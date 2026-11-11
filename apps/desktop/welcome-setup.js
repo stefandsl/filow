@@ -70,15 +70,16 @@ function toInstall(rec, catalog, installed) {
 
 /**
  * hw: { ramGb, platform }, rec: { models, ollama } from the recommendation, catalog: sizes and labels,
- * installed: probeSetup(), online: network up, installerChose: the installer already picked models.
+ * installed: probeSetup(), online: network up. The installer never picks models: this offer is the
+ * only place a new install is asked.
  */
-function setupOffer({ hw, rec, catalog, installed, online, installerChose = false, profile = null }) {
+function setupOffer({ hw, rec, catalog, installed, online, profile = null }) {
   const missing = toInstall(rec, catalog, installed);
   // The size counts only what is known to be missing: a Whisper model that may already be cached is not added.
   const known = missing.filter((n) => isInstalled(n, catalog, installed) === false);
   const downloadGb = Math.round(known.reduce((s, n) => s + (catalog[n] ? catalog[n].dl : 0), 0) * 10) / 10;
   return {
-    ask: !installerChose && rec.models.length > 0,
+    ask: rec.models.length > 0,
     // ready: a first take needs nothing more. The rest of the recommendation (slides, screen helper) is
     // still offered, as an optional download of downloadGb (review T3 finding 4).
     ready: !missing.some((n) => TAKE_MODELS.has(n)),

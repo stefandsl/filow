@@ -8,6 +8,11 @@ import { desktopBridge, type NetStatus } from "@/lib/sessionUrl";
 import { consumeReopenPairing, markReopenPairing } from "@/lib/pairReopen";
 import { publicLinkOn, useRemoteStatus } from "@/lib/useRemoteStatus";
 
+/** Tell the desktop shell the pairing panel is open, so it brings the phone link up (a shell without it started the link at launch). */
+export function announcePairing(bridge: Pick<NonNullable<ReturnType<typeof desktopBridge>>, "pairingOpened"> | null | undefined): void {
+  bridge?.pairingOpened?.();
+}
+
 /** Shows the pairing code and a QR for the mirror URL. */
 export function PairPanel({ info, status, error, onNewCode, prompter = false }: { info: SessionInfo | null; status: string; error: string | null; onNewCode?: () => void; prompter?: boolean }) {
   const t = useT();
@@ -28,6 +33,11 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false }: 
   useEffect(() => {
     if (!open || !bridge?.net) return;
     void bridge.net.status().then(setNet);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  // The link for a phone on another network starts when this panel opens, never at launch.
+  useEffect(() => {
+    if (open) announcePairing(bridge);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   const pending = remote?.state === "downloading" || remote?.state === "connecting";

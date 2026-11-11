@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { DICTIONARIES, PLACEHOLDER } from "./index";
+import { EASY_CONTROLS } from "../easy";
 const labels = {
  "pair.device": ["Pair device", "Abbina dispositivo"],
  "footer.transcript": ["Transcript", "Trascrizione"],
@@ -39,6 +40,40 @@ it("gives every language every key with matching placeholders", () => {
    const wrong = Object.keys(en).filter((k) => placeholders(en[k]) !== placeholders(dict[k] ?? ""));
    expect(wrong.map((k) => `${k}: en {${placeholders(en[k])}} vs ${lang} {${placeholders(dict[k] ?? "")}}`), `${lang} placeholders differ`).toEqual([]);
  }
+});
+
+// Easy settings: the eight controls an ordinary person sees first. Their texts use everyday words:
+// no technical term, product or company name, in any language. "PC" and "Windows" are everyday words.
+const EASY_JARGON: RegExp[] = [
+ /\b(models?|gpus?|cpu|v?ram|ollama|api|llm|cloud|open ?router|free ?llm\w*|whisper|clef|gemma|backend|providers?|hotkeys?|runtime|tokens?|server|offline|\.env|cloudflare|elevenlabs|openai|superwhisper|nemotron|sherpa|tts|stt)\b/i,
+ /\bAI\b/, // capitals only: "ai" is an everyday Romanian word
+ /\b(modell[oi]|fornitor[ei]|scheda grafica|memoria video|modelul?|modele(le)?|furnizor\w*|plac[aă] video)\b/i,
+ /модел|облак|облач|провайдер|видеокарт|видеопамят|сервер|оперативн|нейросет|(^|[^а-яё])ии([^а-яё]|$)/i,
+ /モデル|クラウド|プロバイダ|ランタイム|バックエンド|ホットキー|サーバー|グラフィック|メモリ|ＡＩ|人工知能/,
+];
+it("keeps every Easy settings text free of technical terms, in all five languages", () => {
+ const found: string[] = [];
+ let checked = 0;
+ for (const [lang, dict] of Object.entries(DICTIONARIES) as [string, Record<string, string>][]) {
+   for (const [key, text] of Object.entries(dict)) {
+     if (!key.startsWith("easy.")) continue;
+     checked++;
+     const plain = text.replace(PLACEHOLDER, " ");
+     for (const re of EASY_JARGON) { const m = plain.match(re); if (m) found.push(`${lang} ${key}: "${m[0]}"`); }
+     if (text.includes(String.fromCharCode(0x2014))) found.push(`${lang} ${key}: em dash`);
+   }
+ }
+ expect(found).toEqual([]);
+ expect(checked).toBe(5 * 25);
+});
+it("has a label and a one-line description for each of the eight Easy controls, and the shared words", () => {
+ const en = DICTIONARIES.en as Record<string, string>;
+ for (const control of EASY_CONTROLS) {
+   expect(en[`easy.${control}`], control).toBeTruthy();
+   expect(en[`easy.${control}.desc`], control).toMatch(/^[A-Z][^\n]{20,160}\.$/);
+ }
+ expect([en["easy.custom"], en["easy.chosen"], en["easy.reset"], en["easy.on"], en["easy.off"]]).toEqual(["Custom", "Chosen for this PC", "Reset to recommended", "On", "Off"]);
+ expect(EASY_CONTROLS.map((c) => en[`easy.${c}`])).toEqual(["Keep it on this PC", "Look at my screen", "Answer out loud", "Dictate into any app", "Tidy up what I dictate", "Speed or quality", "Language", "Start with Windows"]);
 });
 
 // Typography each language keeps: Romanian comma-below letters, Japanese full-width punctuation and brackets.

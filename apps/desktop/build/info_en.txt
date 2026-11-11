@@ -1,7 +1,7 @@
 Filow: the speaking companion that listens as you present.
 Load your script and speak freely: Filow checks off your points as you cover them and shows what you missed. Phone mirror, Screen Sense and the PowerPoint add-in.
 
-Local or cloud AI: on the next page, choose the models to download on first start. Without local models Filow uses the cloud: an OpenRouter API key (a few cents per talk), pasted into the .env file the app opens on first start. Offline mode sends nothing over the network.
+On this PC first: at its first start Filow picks the setup that suits this computer and offers to download what it needs. Nothing goes to an online service unless you choose one and add your own account. Pairing a phone from another network uses a free Cloudflare link (you can turn it off). Offline mode sends nothing over the network.
 
 
 WHAT'S NEW

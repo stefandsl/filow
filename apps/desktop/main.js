@@ -239,7 +239,7 @@ async function computeWelcomeOffer() {
   const rec = withCleanup(info.recommended, s1Runtime().status(), localAi.CATALOG);
   welcomeSetup.rec = rec;
   welcomeSetup.installed = installed;
-  return setupOffer({ hw: info, rec, catalog: localAi.CATALOG, installed, online: !offline && net.isOnline(), installerChose: installChoicesFound });
+  return setupOffer({ hw: info, rec, catalog: localAi.CATALOG, installed, online: !offline && net.isOnline() });
 }
 
 function uiSender(event, welcomeOnly = false) {
@@ -330,7 +330,7 @@ ipcMain.handle("dictation:punctuation:download", event => {
   ipcMain.handle("welcome:context", event => {
     if (!uiSender(event, true)) throw new Error("Denied");
     const firstRun = settings.welcomeCompleted !== true;
-    return { firstRun, askSetup: firstRun && !installChoicesFound && !settings.localAiOffered };
+    return { firstRun, askSetup: firstRun && !settings.localAiOffered };
   });
   ipcMain.handle("welcome:setupOffer", event => { if (!uiSender(event, true)) throw new Error("Denied"); return welcomeOfferForStep(); });
   ipcMain.handle("welcome:chooseSetup", (event, accept, cleanup) => {
@@ -515,6 +515,10 @@ function wireScreenSense() {
   // The pairing dialog can switch the public link on/off; the window reloads with the new URLs.
   appOn("remote:set", (_e, on) => {
     if (mainWin && !mainWin.isDestroyed()) void setRemoteShare(mainWin, Boolean(on));
+  });
+  // The pairing dialog was opened: the public link starts now, not at launch.
+  appOn("remote:pairing", () => {
+    if (mainWin && !mainWin.isDestroyed()) linkForPairing(mainWin);
   });
   appHandle("update:status", () => ({ ...updateState, current: app.getVersion() }));
   appOn("update:check", () => void checkForUpdates({ manual: true }));
@@ -904,9 +908,24 @@ function stopTunnels({ wait = false } = {}) {
 }
 
 /**
+ * "Pair a phone" was opened: bring the public link up when the user has it on and it is not up yet.
+ * It comes up in about 6 s (bound by trycloudflare.com issuing the address) and stays for the rest of
+ * this run. The window is not reloaded: the page gets the new addresses with the "remote:status"
+ * event and redraws the pairing QR in place (docs/OWNER-DECISIONS.md D2, third option); until then
+ * the QR carries the address on this network. Returns whether a start was made.
+ */
+function linkForPairing(win) {
+  const { linkStartsForPairing } = require("./tunnels.js");
+  if (!linkStartsForPairing({ wanted: settings.remoteShare, offline, hosted: Boolean(process.env.FILOW_SESSION_URL), state: tunnels.state })) return false;
+  void setRemoteShare(win, true, { auto: true, reload: false });
+  return true;
+}
+
+/**
  * The public link is on by default (WhatsApp-style pairing: the QR works from any network).
- * `auto` = at start-up: no dialogs, failures only show in the pairing dialog and the app keeps
- * working on the LAN. From the menu or the dialog the user gets the download question and errors.
+ * `auto` = started by opening the pairing panel: no dialogs, failures only show in the pairing dialog
+ * and the app keeps working on the LAN. From the menu or the dialog's own button the user gets the
+ * download question and errors.
  */
 let remoteBusy = false;
 async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
@@ -953,7 +972,7 @@ async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
           saveSettings();
           await errorWithReport(win, mt("tunnelFailed"), String(err.message || err));
         }
-        // auto: stay "wanted" so the next launch retries; the LAN QR keeps working meanwhile
+        // auto: stay "wanted" so opening the pairing panel again retries; the LAN QR keeps working meanwhile
       }
     } else {
       remoteStatus("off");
@@ -1301,7 +1320,7 @@ async function checkForUpdates({ manual = false } = {}) {
 }
 
 
-// ---- Splash screen and first-start choices from the installer ----
+// ---- Splash screen ----
 let splash = null;
 let splashShownAt = 0;
 const SPLASH_MIN_MS = Number(process.env.FILOW_SPLASH_MIN_MS || 1800);
@@ -1376,19 +1395,17 @@ function closeSplash() {
 }
 const st = (key) => sharedText(`shell.splash.${key}`, menuLang());
 
-/** install-choices.json is written by the Windows installer (build/installer.nsh): language and models to fetch. */
-let installChoicesFound = false;
-function readInstallChoices() {
-  const file = path.join(userData, "install-choices.json");
+/**
+ * Until 0.9.34 the Windows installer had a page of model names and wrote its ticks to
+ * install-choices.json; the app then skipped its own setup. The installer no longer asks: what to
+ * download is decided here, by the one rule the app uses (localai.js recommend). A file left by an
+ * older installer is removed unread, so its list (made by another rule) is never followed.
+ */
+function dropInstallerChoices() {
   try {
-    if (!fs.existsSync(file)) return null;
-    const choices = JSON.parse(fs.readFileSync(file, "utf8"));
-    fs.rmSync(file, { force: true });
-    installChoicesFound = true; // the welcome then skips its speech-setup step: the installer already asked
-    // Installer locale is inferred, not an explicit UI language preference.
-    return choices;
+    fs.rmSync(path.join(userData, "install-choices.json"), { force: true });
   } catch {
-    return null;
+    /* read-only profile: the file is never read anyway */
   }
 }
 
@@ -1410,7 +1427,7 @@ function s1Runtime() {
 }
 app.on("will-quit", () => { if (s1) s1.stop(); });
 /**
- * The installer's components page, the welcome's setup step and Settings all end here: one download path
+ * The welcome's setup step, the first-start dialog and Settings all end here: one download path
  * (s1-runtime.js fetchModel: resumable, pinned SHA-256). The wish is kept in settings.json until the file
  * is on this computer, so a setup done without a network is finished at a later start.
  */
@@ -1766,7 +1783,7 @@ function startOllamaIfWanted(why, { needed = false } = {}) {
   logLine(`local AI: start check (${why})`);
   void startOllamaInstall({ startOnly: true });
 }
-/** First start without installer choices (macOS, Linux, portable): offer the hardware-based setup. */
+/** First start, on every platform and for every kind of install: offer the setup chosen for this hardware. */
 async function offerLocalAi() {
   // V2 onboarding: the welcome asked in its "This computer" step (or the user skipped it); no second question.
   // The answer may come from an earlier launch that quit before getting here (settings.welcomeSetupAnswer).
@@ -2255,7 +2272,8 @@ function installCsp() {
 async function main() {
   killStaleTunnels();
   installCsp();
-  let choices;
+  /** What the user accepted in the first-run setup (the welcome's step, or the dialog after it): models to fetch. */
+  let choices = null;
   try {
     seed(scriptFile, "script.md");
     const migrated = migrateLegacyProfile();
@@ -2266,7 +2284,7 @@ async function main() {
     loadSettings();
     freeLlm().apply(); // FreeLLMAPI: the address and model saved in Settings win over .env
     if (migrated) settings.profileMigrated = true;
-    choices = readInstallChoices();
+    dropInstallerChoices();
     initializeUiPreferences();
     if (settings.welcomeCompleted !== true) {
       startupTransition = true;
@@ -2353,12 +2371,10 @@ async function main() {
   }
   guardNavigation(win);
 
-  // The public link starts now and comes up while the app opens: about 6 s, bound by trycloudflare.com
-  // issuing the address. The window does not wait for it and is not reloaded when it arrives: the page
-  // gets the new addresses with the "remote:status" event and redraws the pairing QR in place
-  // (docs/OWNER-DECISIONS.md D2, third option). Until then the QR carries the address on this network.
-  const wantLink = settings.remoteShare && !offline && !process.env.FILOW_SESSION_URL;
-  if (wantLink) void setRemoteShare(win, true, { auto: true, reload: false });
+  // The public link is not started here: it comes up the first time "Pair a phone" is opened
+  // (linkForPairing). Nothing is kept of a pairing between two starts (the relay's sessions live in
+  // memory, codes are single use and the trycloudflare address is new each time), so no phone waits
+  // for a link at launch.
 
   try {
     stage("waiting for servers");
