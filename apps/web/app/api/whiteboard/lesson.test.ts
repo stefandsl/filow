@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "./lesson/route";
-import { StallError, TIMEOUTS, generateLocal, readVerdicts, texOk, validatePlan, type Ask, type LessonEvent } from "@/lib/whiteboard/generate";
+import { CHECKS, StallError, TIMEOUTS, generateLocal, readVerdicts, texOk, validatePlan, type Ask, type LessonEvent } from "@/lib/whiteboard/generate";
 
 // The lesson route against a fake model: an Ollama and an OpenRouter that answer what each test
 // queues. No real key, no network, no paid call.
@@ -18,6 +18,8 @@ beforeEach(() => {
   calls = [];
   localAnswers = [];
   cloudAnswers = [];
+  // one examiner in these tests (each check is one queued answer); the two-examiner rule has its own test
+  CHECKS.passes = 1;
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: { body?: string }) => {
     const call = { url: String(url), body: init?.body ? JSON.parse(init.body) : {} };
     calls.push(call);
@@ -31,7 +33,7 @@ beforeEach(() => {
     return Response.json({});
   }));
 });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+afterEach(() => { CHECKS.passes = 2; vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 const post = (body: unknown, consent?: string) => POST(new Request("http://unit.invalid/api/whiteboard/lesson", { method: "POST", body: JSON.stringify(body), headers: consent ? { "x-filow-consent": consent } : {} }));
 const events = async (res: Response): Promise<LessonEvent[]> => (await res.text()).split("\n").filter(Boolean).map((l) => JSON.parse(l) as LessonEvent);
@@ -47,7 +49,7 @@ const PLAN = JSON.stringify({
 });
 // the checker calls the third relation false: it must never be drawn
 const CHECK = JSON.stringify({ answers: [{ n: 1, true: true }, { n: 2, true: true }, { n: 3, true: false }, { n: 4, true: true }] });
-const pick = (things: string[], relations: string[], extra: { formula?: string; plot?: string; note?: string } = {}) => JSON.stringify({ things, relations, formula: "", plot: "", note: "", ...extra });
+const pick = (things: string[], relations: string[], extra: { formula?: string; plot?: string; xmax?: number; note?: string } = {}) => JSON.stringify({ things, relations, formula: "", plot: "", xmax: 10, ...extra });
 const PICK1 = pick(["sun", "leaf"], ["1"]);
 const PICK2 = pick([], ["2"], { formula: "6CO_2 + 6H_2O \\rightarrow C_6H_{12}O_6 + 6O_2" });
 const PICK3 = pick(["leaf"], ["3"]);
@@ -146,11 +148,14 @@ describe("whiteboard lesson, local model: plan, check, then a pick per step", ()
   });
 
   it("a lesson with nothing to box is formulas and notes", async () => {
-    localAnswers = [OUTLINE, JUDGE, JSON.stringify({ things: [], relations: [] }), pick([], [], { formula: "a^2 + b^2 = c^2" }), pick([], [], { plot: "100 * 1.05^x" }), pick([], [], { note: "It grows faster each year." })];
+    localAnswers = [OUTLINE, JUDGE, JSON.stringify({ things: [], relations: [] }), pick([], [], { formula: "a^2 + b^2 = c^2" }), pick([], [], { plot: "100 * 1.05^x", xmax: 30 }), pick([], [], { note: "It grows faster each year." }), pick([], [], { note: "Again." })];
     const steps = stepsOf(await events(await post({ question: "x" })));
-    expect(steps.map((s) => s.items[0])).toEqual([{ kind: "formula", tex: "a^2 + b^2 = c^2" }, { kind: "plot", expr: "100 * 1.05^x", xmin: 0, xmax: 10, text: "" }, { kind: "note", text: "It grows faster each year." }]);
+    expect(steps.map((s) => s.items[0])).toEqual([{ kind: "formula", tex: "a^2 + b^2 = c^2" }, { kind: "plot", expr: "100 * 1.05^x", xmin: 0, xmax: 30, text: "" }, undefined]);
+    // a step cannot write free text on the board: with nothing to draw it is a text card of its checked sentence
+    expect(steps[2]).toEqual({ say: "Oxygen leaves.", items: [], card: true });
+    expect(JSON.stringify(steps)).not.toContain("grows faster");
     // no relations: no fact check call
-    expect(chats()).toHaveLength(6);
+    expect(chats()).toHaveLength(7);
   });
 
   it("never lets what the model wrote through as markup, a link, a macro or code", async () => {
@@ -169,7 +174,7 @@ describe("whiteboard lesson, local model: plan, check, then a pick per step", ()
     expect(text).not.toMatch(/<script|<img|<b |<i>|<svg|onerror|onclick|onload|javascript:|\\\\href|fetch\(|notacommand/);
     expect(ev[1]).toMatchObject({ title: "Tricks" });
     const steps = stepsOf(ev);
-    expect(steps[0].items).toEqual([{ kind: "node", id: "a", text: "A" }, { kind: "node", id: "b", text: "B" }, { kind: "edge", from: "a", to: "b", text: "feeds" }, { kind: "note", text: "ok" }]);
+    expect(steps[0].items).toEqual([{ kind: "node", id: "a", text: "A" }, { kind: "node", id: "b", text: "B" }, { kind: "edge", from: "a", to: "b", text: "feeds" }]);
     expect(steps[1].card).toBe(true);
     expect(steps[2].items).toEqual([{ kind: "formula", tex: "\\frac{1}{2}" }]);
   });
@@ -204,7 +209,7 @@ describe("whiteboard lesson, local model: plan, check, then a pick per step", ()
       const ev = await events(await post({ question }));
       expect(ev[0], name).toMatchObject({ lang });
       // every call that writes text for the board names the language
-      for (const c of [chats()[0], chats()[2], chats()[4]]) expect(String(c.body.messages[0].content), name).toContain(`in ${name}`);
+      for (const c of [chats()[0], chats()[2]]) expect(String(c.body.messages[0].content), name).toContain(`in ${name}`);
     }
   });
   it("refuses an empty question and a follow-up on a lesson that is not one", async () => {
@@ -260,6 +265,29 @@ describe("whiteboard lesson, every spoken sentence is checked", () => {
     const ev = await events(await post({ question: "photosynthesis" }));
     expect(ev[1]).toMatchObject({ says: ["A leaf takes in light.", "It makes sugar."] });
     expect(stepsOf(ev)).toHaveLength(2);
+  });
+
+  it("drops a sentence refused twice when the lesson stays long enough without it", async () => {
+    const FOUR = JSON.stringify({ title: "Photosynthesis", scene: "flow", kind: "process", steps: [{ say: "A leaf takes in light." }, { say: "Arrays are sorted lists." }, { say: "It makes sugar." }, { say: "Oxygen leaves." }] });
+    localAnswers = [FOUR, judge([true, false, true, true]), JSON.stringify({ sentences: [{ n: 2, say: "Arrays are always sorted." }] }), judge([true, false, true, true]), PLAN, CHECK, PICK1, PICK2, PICK3];
+    const ev = await events(await post({ question: "photosynthesis" }));
+    expect(ev[1]).toMatchObject({ says: ["A leaf takes in light.", "It makes sugar.", "Oxygen leaves."] });
+    expect(JSON.stringify(ev)).not.toMatch(/sorted/);
+  });
+
+  it("needs two differently worded examiners to agree: a sentence or a relation one of them refuses is out", async () => {
+    CHECKS.passes = 2;
+    const CHECK_B = JSON.stringify({ answers: [{ n: 1, true: true }, { n: 2, true: false }, { n: 3, true: true }, { n: 4, true: true }] });
+    localAnswers = [OUTLINE, JUDGE, judge([true, true, false]), "not json", PLAN, CHECK, CHECK_B, PICK1, pick(["sugar"], ["2"])];
+    const ev = await events(await post({ question: "photosynthesis" }));
+    // sentence 3 was refused by the second examiner and could not be rewritten: replaced, since two sentences are too few
+    expect(ev[1]).toMatchObject({ says: ["A leaf takes in light.", "It makes sugar.", "Light gives energy to Leaf."] });
+    const text = JSON.stringify(ev);
+    expect(text).not.toContain("Oxygen leaves.");
+    // "Leaf makes Glucose" passed the first relation check and failed the second: never drawn
+    expect(text).not.toContain('"text":"makes"');
+    expect(String(chats()[2].body.messages[0].content)).toContain("second, sceptical examiner");
+    expect(String(chats()[6].body.messages[0].content)).toContain("sceptical science teacher");
   });
 
   it("plans the lesson again, once, when the examiner says it does not do what was asked", async () => {

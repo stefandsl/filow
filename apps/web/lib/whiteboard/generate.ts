@@ -166,6 +166,12 @@ const CHECK_SYSTEM = [
   "true only when the statement is correct exactly as written, in that direction (who does what to whom). If it is false, backwards, vague or you are not sure, answer false.",
 ].join("\n");
 
+const CHECK_SYSTEM_2 = [
+  "You are a sceptical science teacher marking claims. Reply with JSON only.",
+  'Each numbered line is a claim of the form "A does something to B". For each answer {"n": its number, "true": true or false}.',
+  "true only when a teacher would mark the claim fully correct: the right two things, the right direction, and a verb that says what really happens. A claim that is loose, reversed, circular or only sometimes right is false.",
+].join("\n");
+
 /** Which statements the checker let through (1-based numbers); null when its answer cannot be read. */
 export function readVerdicts(raw: unknown, count: number): Set<number> | null {
   const list = (raw as { answers?: unknown } | null)?.answers;
@@ -187,19 +193,19 @@ function pickSchema(thingIds: string[], relationCount: number) {
       ...(relationCount ? { relations: { type: "array", maxItems: 3, items: { type: "string", enum: numbers } } } : {}),
       formula: { type: "string", maxLength: 160 },
       plot: { type: "string", maxLength: 60 },
-      note: { type: "string", maxLength: 110 },
+      xmax: { type: "integer" },
     },
-    required: ["formula", "plot", "note"],
+    required: ["formula", "plot", "xmax"],
   };
 }
 
-function pickSystem(lang: BuddyLang): string {
+function pickSystem(): string {
   return [
     "You choose what one step of a whiteboard lesson shows. Reply with JSON only.",
     '"things": the ids of the things this sentence talks about, from the list. "relations": the numbers of the relations this sentence states, from the list. Choose only what the sentence itself says; leave out the rest (later steps show it). Both may be empty.',
     '"formula": when the sentence states a law or an equation, that formula in LaTeX (for example a^2 + b^2 = c^2); otherwise "".',
     '"plot": when the sentence tells how a quantity grows, falls or meets another, an expression in x for the curve (numbers, x, + - * / ^, sin, cos, exp, ln, sqrt), for example 100 * 1.05^x; otherwise "".',
-    `"note": when nothing else fits, one short remark of at most 10 words in ${BUDDY_LANG_NAMES[lang]}; otherwise "".`,
+    '"xmax": for a plot, where x should end (x starts at 0): the largest value of x the sentence talks about, for example 5 for a count from 5 down to 0; otherwise 10.',
   ].join("\n");
 }
 
@@ -218,9 +224,13 @@ const KIND_TEST: Record<ExplanationKind, string> = {
   algorithm: "the steps trace a small concrete example with real values from start to result",
   law: "the steps name each quantity, state the formula and show what it means",
 };
-function judgeSystem(kind: ExplanationKind): string {
+/** How many differently worded examiners must agree (a sentence or relation passes only when all do). */
+export const CHECKS = { passes: 2 };
+function judgeSystem(kind: ExplanationKind, pass = 0): string {
   return [
-    "You are a strict examiner checking a short lesson for a school textbook. Reply with JSON only.",
+    pass
+      ? "You are a second, sceptical examiner: assume each sentence of this short lesson may hide a mistake and look for it. Reply with JSON only."
+      : "You are a strict examiner checking a short lesson for a school textbook. Reply with JSON only.",
     '"sentences": for each numbered sentence {"n": its number, "true": true or false}. true only when the sentence is correct exactly as written and precise. false when it is wrong, misleading, defines a term wrongly, contradicts an earlier sentence, or you are not sure.',
     `"answers": true only when the lesson as a whole really does what was asked: ${KIND_TEST[kind]}. A lesson that only restates the result is false.`,
   ].join("\n");
@@ -267,6 +277,26 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
       return undefined;
     }
   };
+  /** The sentences passed by every examiner (two differently worded checks by default); null when none could be read. */
+  const examine = async (kind: ExplanationKind, user: string, count: number) => {
+    const all: Array<{ kept: Set<number>; answers: boolean }> = [];
+    for (let pass = 0; pass < CHECKS.passes; pass++) {
+      const one = readJudgement(await tryAsk({ system: judgeSystem(kind, pass), user, format: judgeSchema(count), maxTokens: 60 + count * 22, timeoutMs: TIMEOUTS.stepMs, temperature: 0 }), count);
+      if (one) all.push(one);
+    }
+    if (!all.length) return null;
+    return { kept: new Set([...all[0].kept].filter((n) => all.every((v) => v.kept.has(n)))), answers: all.every((v) => v.answers) };
+  };
+  /** The relations confirmed by every check; null when none could be read. */
+  const confirm = async (user: string, count: number) => {
+    const all: Array<Set<number>> = [];
+    for (let pass = 0; pass < CHECKS.passes; pass++) {
+      const one = readVerdicts(await tryAsk({ system: pass ? CHECK_SYSTEM_2 : CHECK_SYSTEM, user, format: checkSchema(count), maxTokens: 40 + count * 22, timeoutMs: TIMEOUTS.stepMs, temperature: 0 }), count);
+      if (one) all.push(one);
+    }
+    if (!all.length) return null;
+    return new Set([...all[0]].filter((n) => all.every((v) => v.has(n))));
+  };
   // The outline, then its sentences checked one by one. A small model writes fluent sentences that
   // are sometimes false ("arrays are sorted lists") or a "proof" that proves nothing: the board must
   // not say them. A refused sentence is rewritten once; refused again, it is replaced by a plain
@@ -278,7 +308,7 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
     const next = validateOutline(parseJsonLoose(text), maxSteps);
     if (!next) continue;
     outline = next;
-    const judged = readJudgement(await tryAsk({ system: judgeSystem(next.kind), user: `Asked: ${quoted(req.question)}\nLesson: ${next.title}\n${next.says.map((s, k) => `${k + 1}. ${s}`).join("\n")}`, format: judgeSchema(next.says.length), maxTokens: 60 + next.says.length * 22, timeoutMs: TIMEOUTS.stepMs, temperature: 0 }), next.says.length);
+    const judged = await examine(next.kind, `Asked: ${quoted(req.question)}\nLesson: ${next.title}\n${next.says.map((s, k) => `${k + 1}. ${s}`).join("\n")}`, next.says.length);
     kept = judged?.kept ?? null;
     // A lesson that as a whole does not do what was asked (a proof with no proof) is planned again, once.
     if (!judged || judged.answers || more || attempt === 1) break;
@@ -306,7 +336,7 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
       }
     }
     if (tried.length) {
-      const again = readJudgement(await tryAsk({ system: judgeSystem(outline.kind), user: `Asked: ${quoted(req.question)}\nLesson: ${title}\n${says.map((s, k) => `${k + 1}. ${s}`).join("\n")}`, format: judgeSchema(says.length), maxTokens: 60 + says.length * 22, timeoutMs: TIMEOUTS.stepMs, temperature: 0 }), says.length);
+      const again = await examine(outline.kind, `Asked: ${quoted(req.question)}\nLesson: ${title}\n${says.map((s, k) => `${k + 1}. ${s}`).join("\n")}`, says.length);
       // a rewrite counts only when the second check passes it
       refused = refused.filter((k) => !tried.includes(k) || !again?.kept.has(k + 1));
     }
@@ -326,7 +356,7 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
   const label = (id: string) => plan.things.find((t) => t.id === id)?.text ?? ctx.nodes.get(id) ?? id;
   if (plan.relations.length && !stalled) {
     const statements = plan.relations.map((r, k) => `${k + 1}. ${label(r.from)} ${r.text} ${label(r.to)}.`).join("\n");
-    const verdicts = readVerdicts(await tryAsk({ system: CHECK_SYSTEM, user: `Topic: ${title}\n${statements}`, format: checkSchema(plan.relations.length), maxTokens: 40 + plan.relations.length * 22, timeoutMs: TIMEOUTS.stepMs, temperature: 0 }), plan.relations.length);
+    const verdicts = await confirm(`Topic: ${title}\n${statements}`, plan.relations.length);
     // A relation the checker did not confirm is not drawn; a check that cannot be read confirms nothing.
     plan = { ...plan, relations: plan.relations.filter((_, k) => verdicts?.has(k + 1)) };
   }
@@ -335,7 +365,8 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
   says = says.flatMap((s, k) => {
     if (!refused.includes(k)) return [s];
     const r = spare.shift();
-    return r ? [`${label(r.from)} ${r.text} ${label(r.to)}.`] : [];
+    // a plain statement of a checked relation stands in only when the lesson would otherwise be too short to be one
+    return r && says.length - refused.length < 3 ? [`${label(r.from)} ${r.text} ${label(r.to)}.`] : [];
   });
   if (!says.length) says = [outline.says[0]];
   emit({ type: "outline", title, scene, says });
@@ -351,7 +382,7 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
         plan.relations.length ? `Relations:\n${plan.relations.map((r, k) => `${k + 1}. ${label(r.from)} ${r.text} ${label(r.to)}`).join("\n")}` : "",
         `Sentence of this step: "${says[i]}"`,
       ].filter(Boolean).join("\n");
-      const raw = (await tryAsk({ system: pickSystem(req.lang), user, format: pickSchema(thingIds, plan.relations.length), maxTokens: 220, timeoutMs: TIMEOUTS.stepMs, temperature: attempt ? 0.5 : 0.2 })) as { things?: unknown; relations?: unknown; formula?: unknown; plot?: unknown; note?: unknown } | undefined;
+      const raw = (await tryAsk({ system: pickSystem(), user, format: pickSchema(thingIds, plan.relations.length), maxTokens: 220, timeoutMs: TIMEOUTS.stepMs, temperature: attempt ? 0.5 : 0.2 })) as { things?: unknown; relations?: unknown; formula?: unknown; plot?: unknown; xmax?: unknown } | undefined;
       if (!raw || typeof raw !== "object") continue;
       // Built from the plan only: an id or a number that is not in it is ignored.
       const items: unknown[] = [];
@@ -376,8 +407,7 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
         linked++;
       }
       if (typeof raw.formula === "string" && raw.formula.trim()) items.push({ kind: "formula", tex: raw.formula });
-      if (typeof raw.plot === "string" && raw.plot.trim()) items.push({ kind: "plot", expr: raw.plot, xmin: 0, xmax: 10 });
-      if (typeof raw.note === "string" && raw.note.trim()) items.push({ kind: "note", text: raw.note });
+      if (typeof raw.plot === "string" && raw.plot.trim()) items.push({ kind: "plot", expr: raw.plot, xmin: 0, xmax: typeof raw.xmax === "number" && raw.xmax >= 1 && raw.xmax <= 1000 ? raw.xmax : 10 });
       step = makeStep(says[i], items, ctx);
     }
     if (step.card) cards++;

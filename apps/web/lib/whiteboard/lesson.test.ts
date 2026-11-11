@@ -108,6 +108,9 @@ describe("whiteboard lesson: what the model writes is data", () => {
     expect(cleanTex("\\frac{a}{b")).toBe("\\frac{a}{b}");
     expect(cleanTex("x".repeat(LIMITS.tex + 1))).toBe("");
     expect(cleanTex("a^2 + b^2 = c^2", () => false)).toBe("");
+    // a phrase is not a formula
+    for (const tex of ["gradient descent", "gradient = gradient descent", "\\text{Supply meets demand}", "photosynthesis"]) expect(cleanTex(tex), tex).toBe("");
+    for (const tex of ["V = I \\times R", "A = P \\times (1 + \\text{rate})^{\\text{time}}", "\\frac{\\partial L}{\\partial w}", "\\log_2 n", "5! = 120", "\\sum_k V_k = 0"]) expect(cleanTex(tex), tex).toBe(tex);
   });
 
   it("accepts a plot only when its expression parses", () => {
@@ -205,10 +208,10 @@ describe("whiteboard lesson: export and follow-up context", () => {
     expect(md).toContain("R is \\*constant\\* here");
   });
   it("writes nothing that a Markdown viewer would turn into a link, an image or HTML", () => {
-    const hostile = validateLesson({ title: "See [here](https://evil.example)", scene: "flow", steps: [{ say: "Visit https://evil.example now ![x](http://e/x.png)", items: [{ kind: "formula", tex: "\\text{[click](https://evil.example)}" }, { kind: "note", text: "a < b and [link](javascript:alert(1))" }] }] })!;
+    const hostile = validateLesson({ title: "See [here](https://evil.example)", scene: "flow", steps: [{ say: "Visit https://evil.example now ![x](http://e/x.png)", items: [{ kind: "formula", tex: "x = \\text{[click](https://evil.example)}" }, { kind: "note", text: "a < b and [link](javascript:alert(1))" }] }] })!;
     const md = lessonMarkdown(hostile);
     // a formula sits in a code span, where it is only text; everything outside one is escaped
-    expect(md).toContain("- `\\text{[click](https://evil.example)}`");
+    expect(md).toContain("- `x = \\text{[click](https://evil.example)}`");
     const outside = md.replace(/`[^`]*`/g, "");
     expect(outside).not.toMatch(/(^|[^\\])\]\(/);
     expect(outside).not.toMatch(/https?:\/\//);

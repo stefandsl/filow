@@ -88,6 +88,9 @@ export function cleanTex(v: unknown, texOk?: (tex: string) => boolean): string {
   // A formula cut off by the token limit: close what was left open.
   if (depth > 3) return "";
   tex += "}".repeat(depth);
+  // A formula is mathematics: a relation or an operation, not a phrase set in italics ("gradient descent").
+  const bare = tex.replace(/\\text\w*\{[^{}]*\}/g, " ").replace(/\\[a-zA-Z]+/g, " ");
+  if (!/[=<>+\-*/^_\d]|\\(?:frac|sum|int|sqrt|times|cdot|le|ge|ne|approx|to|rightarrow|propto|partial)\b/.test(tex) || (bare.match(/[A-Za-z]{4,}/g) ?? []).length >= 2) return "";
   if (texOk && !texOk(tex)) return "";
   return tex;
 }
