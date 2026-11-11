@@ -50,6 +50,12 @@ other than Meta)"); a yes for a pinned model never covers it, and the signal the
 | 13 | Public link (trycloudflare tunnel, `main.js`) | the mirror page and the session relay: script, transcript, slide state | Cloudflare (relay), and whoever opens the link | not content-gated. **On by default since 0.4.0** and started at launch without a dialog (the download of cloudflared is silent when automatic); the explaining dialog shows only when the user turns it on from the menu | only the "Public link on" chip on the take page; no notice, no per-send signal. See "Open" |
 | 14 | Model router probe (`/api/local/plan` with `probe`) | a fixed sample request, no user content | OpenRouter, then the maker | none needed (no user content) | none |
 | 15 | Downloads (Ollama installer, sherpa model, cloudflared, update check on GitHub) | no user content (the request itself only) | ollama.com, github.com | none needed | the download dialogs |
+| 16 | Report a problem, "Open an issue on GitHub" (`apps/desktop/about.js`, `issueUrl`, IPC `report:issue`) | what the user wrote, the Filow version, the system line and the end of the take and start-up logs, masked by `diag.redact` (public links, keys, e-mail addresses, LAN addresses, the user name in paths) and cut to a 6000-character link | GitHub (the page `github.com/stefandsl/filow/issues/new` in the user's own browser), and after the user posts it, anyone: issues are public | no server route: the only sender is the click, through `openExternalSafe`; opening the report window sends nothing | a notice right above the button, before the click, on every visit: issues are public, the text reaches GitHub as soon as the page opens, a GitHub account is needed. No stored consent: each report is its own click |
+
+Row 16 is not an OK Filow request, so it has no pill: Filow hands one link to the browser and the
+browser does the sending. The link holds exactly the masked text the report window shows (shortened
+when long), never the crash files. The user's own words at the top are not masked: they are the
+user's to write and to read before the click.
 
 Everything else stays on this PC: local Clef / Ollama decisions and answers, sherpa and whisper
 speech-to-text, the system voice, OK Filow's own speech-to-text (desktop `stt.js`, local only).

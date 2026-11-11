@@ -5,7 +5,7 @@ import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, createAboutPages, TEXT, SUPPORT } = require("./about.js");
+const { parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, issueUrl, createAboutPages, TEXT, ISSUE_TEXT, SUPPORT, ISSUE_URL_LIMIT } = require("./about.js");
 
 const docs = path.join(__dirname, "..", "..", "docs");
 const policy = (name: string) => parseMarkdown(readFileSync(path.join(docs, name), "utf8"));
@@ -86,7 +86,88 @@ describe("the problem report", () => {
       expect(vars(TEXT.it[k]), k).toEqual(vars(TEXT.en[k]));
     }
   });
-  it("has no support address until the owner gives one (D33)", () => expect(SUPPORT).toEqual({ email: "", form: "" }));
+  it("sends reports to the project's GitHub issues page", () => {
+    expect(SUPPORT).toEqual({ issues: "https://github.com/stefandsl/filow/issues", newIssue: "https://github.com/stefandsl/filow/issues/new" });
+  });
+});
+
+describe("the report as a new GitHub issue", () => {
+  const sections = [
+    { id: "system", text: "Filow 0.9.31 · win32 x64" },
+    { id: "take", text: "" },
+    { id: "log", text: "first line\nmiddle line\nlast line" },
+  ];
+  const read = (url: string) => { const u = new URL(url); return { u, title: u.searchParams.get("title") || "", body: u.searchParams.get("body") || "" }; };
+  const longLog = (lines: number, word = "line of the log") => Array.from({ length: lines }, (_, i) => `${i + 1} ${word}`).join("\n");
+
+  it("opens the new-issue page with a title from the user's first line and the whole short report", () => {
+    const r = issueUrl({ lang: "en", description: "  The points stopped\nafter slide 3.  ", sections, version: "0.9.31" });
+    const { u, title, body } = read(r.url);
+    expect(u.origin + u.pathname).toBe(SUPPORT.newIssue);
+    expect([...u.searchParams.keys()]).toEqual(["title", "body"]);
+    expect(title).toBe("Problem report: The points stopped");
+    expect(body).toBe(r.body);
+    expect(body).toContain("The points stopped\nafter slide 3.");
+    expect(body).toContain(`### ${TEXT.en.fileSystem}\n\`\`\`\nFilow 0.9.31 · win32 x64\n\`\`\``);
+    expect(body).toContain(TEXT.en.fileNoTake);
+    expect(body).toContain("first line\nmiddle line\nlast line");
+    expect(r.cut).toBe(false);
+    expect(body).not.toContain(TEXT.en.issueCut);
+  });
+  it("names the version when the user wrote nothing, in the user's language", () => {
+    expect(read(issueUrl({ lang: "it", description: "", sections, version: "0.9.31" }).url).title).toBe("Segnalazione di un problema (Filow 0.9.31)");
+    const long = read(issueUrl({ lang: "en", description: "word ".repeat(40), sections, version: "1" }).url).title;
+    expect(long.length).toBeLessThanOrEqual("Problem report: ".length + 80);
+    expect(long.endsWith("…")).toBe(true);
+  });
+  it("puts nothing in the link but the user's words and the sections it was given", () => {
+    const { body } = read(issueUrl({ lang: "en", description: "WORDS", sections: [{ id: "log", text: "MASKED-LOG" }], version: "1" }).url);
+    const fixed = [`### ${TEXT.en.fileWhat}`, "WORDS", `### ${TEXT.en.fileLog}`, "```", "MASKED-LOG", "```"];
+    expect(body.split("\n").filter(Boolean)).toEqual(fixed);
+  });
+  it("cuts a long report to the limit: the newest log lines stay, and a line says the file has the rest", () => {
+    const r = issueUrl({ lang: "en", description: "it froze", sections: [sections[0], { id: "take", text: longLog(300) }, { id: "log", text: longLog(900) }], version: "1" });
+    expect(r.url.length).toBeLessThanOrEqual(ISSUE_URL_LIMIT);
+    expect(r.url.length, "the room is used").toBeGreaterThan(ISSUE_URL_LIMIT - 400);
+    const { body } = read(r.url);
+    expect(r.cut).toBe(true);
+    expect(body.endsWith(TEXT.en.issueCut)).toBe(true);
+    expect(body).toContain("it froze");
+    expect(body).toContain("Filow 0.9.31");
+    expect(body).toContain("900 line of the log");
+    expect(body).toContain("300 line of the log");
+    expect(body).not.toMatch(/^1 line of the log$/m);
+    expect(body).toContain(`${TEXT.en.issueEarlier}\n`);
+    // whole lines only: every kept log line is one of the original lines
+    for (const line of body.split("\n").filter((l) => /line of the log/.test(l))) expect(line).toMatch(/^\d+ line of the log$/);
+  });
+  it("counts the limit on the escaped link: accents, apostrophes, Japanese and emoji", () => {
+    for (const word of ["perché l'utente è lì", "日本語のログ", "😀😀 log 😀"]) {
+      const r = issueUrl({ lang: "it", description: `${word} `.repeat(300), sections: [{ id: "log", text: longLog(500, word) }], version: "1" });
+      expect(r.url.length, word).toBeLessThanOrEqual(ISSUE_URL_LIMIT);
+      expect(() => decodeURIComponent(new URL(r.url).search), word).not.toThrow();
+      expect(read(r.url).body, word).not.toContain("��");
+      expect(read(r.url).body.endsWith(TEXT.it.issueCut), word).toBe(true);
+    }
+  });
+  it("keeps the user's words whole while cutting the logs is enough, and never splits a character pair", () => {
+    const words = "😀".repeat(100);
+    const r = issueUrl({ lang: "en", description: words, sections: [{ id: "log", text: longLog(2000) }], version: "1" });
+    expect(read(r.url).body).toContain(words);
+    const tight = issueUrl({ lang: "en", description: "😀".repeat(2000), sections: [], version: "1", limit: 1001 });
+    expect(tight.url.length).toBeLessThanOrEqual(1001);
+    expect(() => encodeURIComponent(tight.body)).not.toThrow();
+  });
+  it("keeps its new strings in one block, in English and Italian, and the page gets them with the rest", () => {
+    expect(Object.keys(ISSUE_TEXT)).toEqual(["en", "it"]);
+    for (const lang of ["en", "it"] as const) for (const k of Object.keys(ISSUE_TEXT.en)) expect(TEXT[lang][k], `${lang}.${k}`).toBe(ISSUE_TEXT[lang][k]);
+    expect(ISSUE_TEXT.en.issuePublic).toMatch(/public/);
+    expect(ISSUE_TEXT.it.issuePublic).toMatch(/pubbliche/);
+  });
+  it("a log line cannot close its code fence, so nothing in a log becomes a mention or markup", () => {
+    const { body } = read(issueUrl({ lang: "en", description: "", sections: [{ id: "log", text: "before\n```\n@someone #12 <b>" }], version: "1" }).url);
+    expect(body).toContain("````\nbefore\n```\n@someone #12 <b>\n````");
+  });
 });
 
 describe("the About and privacy window", () => {
@@ -156,10 +237,29 @@ describe("the About and privacy window", () => {
     s.pages.open("about");
     expect(s.windows).toHaveLength(2);
   });
-  it("opens no mail or form while no support address is set", async () => {
+  it("opens the GitHub issue only on the click, through openExternalSafe, with the masked sections that were shown", async () => {
     const s = setup(); const w = s.pages.open("report");
-    await s.call("report:support", w, "email");
-    await s.call("report:support", w, "form");
-    expect(s.deps.openExternalSafe).not.toHaveBeenCalled();
+    await s.call("report:data", w);
+    await s.call("report:preview", w, "it froze");
+    expect(s.deps.openExternalSafe, "showing the report sends nothing").not.toHaveBeenCalled();
+    expect(await s.call("report:issue", w, "it froze")).toEqual({ opened: true, cut: false });
+    expect(s.deps.openExternalSafe).toHaveBeenCalledOnce();
+    expect(s.deps.shell.openPath, "no other way out").not.toHaveBeenCalled();
+    const url = new URL(s.deps.openExternalSafe.mock.calls[0][0]);
+    expect(url.origin + url.pathname).toBe("https://github.com/stefandsl/filow/issues/new");
+    expect(url.searchParams.get("title")).toBe("Problem report: it froze");
+    expect(url.searchParams.get("body")).toBe(issueUrl({ lang: "en", description: "it froze", sections: [{ id: "log", text: "the log" }], version: "1.0" }).body);
+    expect(s.deps.collectReport, "the sections are the ones the user was shown").toHaveBeenCalledOnce();
+    expect(() => s.handlers["report:issue"]({ sender: {} }, "x")).toThrow("Denied");
+  });
+  it("says so when the browser did not open", async () => {
+    const s = setup(); const w = s.pages.open("report");
+    s.deps.openExternalSafe.mockRejectedValueOnce(new Error("no browser"));
+    expect(await s.call("report:issue", w, "")).toEqual({ error: "no browser" });
+    expect(s.deps.collectReport, "collected first when the click came before the report was shown").toHaveBeenCalledOnce();
+  });
+  it("has no other channel that could send the report", () => {
+    const s = setup(); s.pages.open("report");
+    expect(Object.keys(s.handlers).sort()).toEqual(["about:close", "about:data", "about:openConfigFolder", "report:copy", "report:data", "report:issue", "report:openCrashFolder", "report:preview", "report:save"]);
   });
 });

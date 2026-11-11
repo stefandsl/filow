@@ -2,10 +2,14 @@
 // privacy policy ships inside the package (docs/PRIVACY.md, docs/PRIVACY.it.md as extraResources) and
 // is read from disk: no remote fetch, so it opens offline and always matches this version of the app.
 // The problem report is made, shown line by line and saved to a file the user picks. Filow sends it
-// nowhere; where the user can send it privately is the owner's to fill in (docs/OWNER-DECISIONS.md D33).
+// nowhere by itself. "Open an issue on GitHub" opens the project's new-issue page in the user's browser
+// with the masked report filled in: a public place, so the page says so before the click, and the text
+// reaches GitHub only through that click (docs/okfilow/OUTBOUND.md row 16).
 
-/** Where users send a saved report. Empty until the owner decides (D33); the page says it is not set. */
-const SUPPORT = { email: "", form: "" };
+/** Where a problem report goes: a public issue on the project's GitHub page (owner, 2026-11-10). */
+const SUPPORT = { issues: "https://github.com/stefandsl/filow/issues", newIssue: "https://github.com/stefandsl/filow/issues/new" };
+/** The longest link handed to the browser, in characters after escaping (GitHub refuses very long ones). */
+const ISSUE_URL_LIMIT = 6000;
 
 const TEXT = {
   en: {
@@ -53,6 +57,35 @@ const TEXT = {
     fileSystem: "Questo computer e Filow", fileTake: "Registro dell'ultima sessione", fileLog: "Registro di avvio (ultime righe)", fileNoTake: "(nessuna sessione da quando Filow è partito)",
   },
 };
+
+// ---- strings added for "Open an issue on GitHub" (GitHub issue #5): one block, English and Italian ----
+// They replace reportIntro, whereTo, supportUnset, supportTodo, writeMail and openForm, which the page no
+// longer shows.
+const ISSUE_TEXT = {
+  en: {
+    issueIntro: "Filow sends nothing by itself. Write what happened, read the report, then open an issue on GitHub or save the report to a file.",
+    issueHeading: "Send the report",
+    issuePublic: "Issues on GitHub are public: anyone can read them. The button opens GitHub in your browser with what you wrote, the Filow version, your system and the end of the log already filled in (a long report is cut to fit). That text reaches GitHub as soon as the page opens, before you post it. You need a GitHub account to post.",
+    issueOpen: "Open an issue on GitHub",
+    issueOpened: "GitHub is opening in your browser. Read the issue there, then post it.",
+    issueFailed: "Could not open the browser. Copy the text and paste it into a new issue at {url}",
+    issueTitle: "Problem report: {summary}", issueTitleBare: "Problem report (Filow {version})",
+    issueCut: "(Cut to fit in a link. To give the full report, save it to a file in Filow and attach the file to this issue.)",
+    issueEarlier: "(earlier lines cut)",
+  },
+  it: {
+    issueIntro: "Filow non invia niente da solo. Scrivi cosa è successo, leggi la segnalazione, poi apri una segnalazione su GitHub oppure salvala in un file.",
+    issueHeading: "Invia la segnalazione",
+    issuePublic: "Le segnalazioni su GitHub sono pubbliche: chiunque può leggerle. Il pulsante apre GitHub nel browser con già inserito quello che hai scritto, la versione di Filow, il tuo sistema e la fine del registro (una segnalazione lunga viene accorciata). Quel testo arriva a GitHub appena la pagina si apre, prima che tu la pubblichi. Per pubblicarla serve un account GitHub.",
+    issueOpen: "Apri una segnalazione su GitHub",
+    issueOpened: "GitHub si sta aprendo nel browser. Leggi la segnalazione lì, poi pubblicala.",
+    issueFailed: "Impossibile aprire il browser. Copia il testo e incollalo in una nuova segnalazione su {url}",
+    issueTitle: "Segnalazione: {summary}", issueTitleBare: "Segnalazione di un problema (Filow {version})",
+    issueCut: "(Accorciata per stare in un link. Per dare la segnalazione completa, salvala in un file da Filow e allega il file a questa segnalazione.)",
+    issueEarlier: "(righe precedenti tagliate)",
+  },
+};
+for (const lang of Object.keys(ISSUE_TEXT)) Object.assign(TEXT[lang], ISSUE_TEXT[lang]);
 
 const fill = (text, vars = {}) => text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
 const textFor = (lang) => TEXT[lang] || TEXT.en;
@@ -169,6 +202,74 @@ function reportFile({ lang, date, description, sections, crash }) {
 
 const reportName = (date) => `filow-report-${date.slice(0, 10)}.txt`;
 
+// ---- the same report as a new issue on GitHub ----
+
+/** Half of a character pair left by a cut would make the link impossible to escape: it becomes U+FFFD. */
+const wellFormed = (text) => text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "�");
+/** A code fence longer than any run of backticks in the text, so no log line can close it. */
+const fence = (text) => "`".repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map((m) => m[0].length + 1)));
+/** The last whole lines that fit in max characters (the newest lines of a log are the useful ones). */
+function lastLines(text, max) {
+  if (text.length <= max) return text;
+  if (max <= 0) return "";
+  const tail = text.slice(-max);
+  const startsOnALine = text[text.length - max - 1] === "\n";
+  return startsOnALine ? tail : tail.slice(tail.indexOf("\n") + 1 || tail.length);
+}
+
+/**
+ * The link that opens a new issue with the report filled in. Built only from what the report window
+ * shows: the user's words and the sections main.js collected and masked. The logs go inside code
+ * fences, so nothing in them becomes a mention, a reference or markup on GitHub. Longer than `limit`
+ * (counted after escaping): the oldest log lines go first, then the end of the user's words, and a
+ * line says the full report can be attached from the saved file.
+ */
+function issueUrl({ lang, description, sections, version, limit = ISSUE_URL_LIMIT }) {
+  const tx = textFor(lang);
+  const words = String(description || "").trim().slice(0, 4000);
+  const summary = (words.split("\n").find((l) => l.trim()) || "").trim().replace(/\s+/g, " ");
+  const title = wellFormed(summary
+    ? fill(tx.issueTitle, { summary: summary.length > 80 ? `${summary.slice(0, 79).trimEnd()}…` : summary })
+    : fill(tx.issueTitleBare, { version }));
+  const texts = (sections || []).map((s) => ({
+    id: s.id,
+    title: { system: tx.fileSystem, take: tx.fileTake, log: tx.fileLog }[s.id] || s.id,
+    text: String(s.text || "").trimEnd() || (s.id === "take" ? tx.fileNoTake : tx.fileNone),
+  }));
+  const build = (wordsMax, logMax) => {
+    let cut = words.length > wordsMax;
+    const parts = [`### ${tx.fileWhat}`, (cut ? `${words.slice(0, wordsMax).trimEnd()}…` : words) || tx.fileNone, ""];
+    for (const s of texts) {
+      let text = s.text;
+      if (s.id !== "system" && text.length > logMax) {
+        cut = true;
+        text = [tx.issueEarlier, lastLines(text, logMax)].filter(Boolean).join("\n");
+      }
+      const f = fence(text);
+      parts.push(`### ${s.title}`, f, text, f, "");
+    }
+    if (cut) parts.push(tx.issueCut);
+    const body = wellFormed(parts.join("\n").trimEnd());
+    // as the browser will get it: the URL parser escapes a few more characters (an apostrophe is three)
+    const url = new URL(`${SUPPORT.newIssue}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`).href;
+    return { url, title, body, cut };
+  };
+  /** The largest n in [0, max] whose link fits (the link only grows with n), or 0. */
+  const largest = (max, make) => {
+    let lo = 0, hi = max;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (make(mid).url.length <= limit) lo = mid; else hi = mid - 1;
+    }
+    return make(lo);
+  };
+  const whole = build(words.length, Infinity);
+  if (whole.url.length <= limit) return whole;
+  const logsCut = largest(Math.max(0, ...texts.map((s) => s.text.length)), (n) => build(words.length, n));
+  if (logsCut.url.length <= limit) return logsCut;
+  return largest(words.length, (n) => build(n, 0));
+}
+
 // ---- the window ----
 
 /**
@@ -223,10 +324,19 @@ function createAboutPages(deps) {
   });
   handle("report:copy", (description) => { clipboard.writeText(fileText(description)); return true; });
   handle("report:openCrashFolder", () => shell.openPath(deps.crashDir));
-  handle("report:support", (kind) => {
-    if (kind === "email" && SUPPORT.email) return openExternalSafe(`mailto:${SUPPORT.email}?subject=${encodeURIComponent("Filow problem report")}`);
-    if (kind === "form" && SUPPORT.form) return openExternalSafe(SUPPORT.form);
-    return undefined;
+  // The one way a report leaves this PC: the user's click on "Open an issue on GitHub", after the notice
+  // next to the button. The link carries the sections that were shown (collected and masked once).
+  handle("report:issue", async (description) => {
+    sections ||= await deps.collectReport();
+    const issue = issueUrl({ lang: deps.lang(), description, sections, version: deps.info().version });
+    try {
+      await openExternalSafe(issue.url);
+      logLine(`report: opened a new GitHub issue in the browser (${issue.url.length} chars${issue.cut ? ", cut to fit" : ""})`);
+      return { opened: true, cut: issue.cut };
+    } catch (err) {
+      logLine(`report: the browser did not open for the GitHub issue: ${err && err.message ? err.message : err}`);
+      return { error: String((err && err.message) || err) };
+    }
   });
   handle("about:close", () => { if (win && !win.isDestroyed()) win.close(); });
 
@@ -263,4 +373,4 @@ function createAboutPages(deps) {
   return { open, close };
 }
 
-module.exports = { createAboutPages, parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, TEXT, SUPPORT };
+module.exports = { createAboutPages, parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, issueUrl, TEXT, ISSUE_TEXT, SUPPORT, ISSUE_URL_LIMIT };
