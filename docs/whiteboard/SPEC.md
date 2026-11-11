@@ -99,6 +99,9 @@ Local (default): Ollama with a JSON schema in `format`.
    that step shows, plus an optional formula, plot expression or short note. A checked relation
    whose two things are both on the board is drawn even when no step picked it. A small model that
    draws freely step by step invents false arrows (docs/whiteboard/PROOF.md): here it cannot.
+   Between the fact check and the picks, once (not on the Lite tier): relations the check refused are
+   written again and things no relation touches are linked from the sentences; what comes back goes
+   through the same fact check before it can be drawn.
    Invalid or empty: one retry; still nothing: text card. Each call has its own time limit; a model
    that stalls after the outline still yields a lesson of text cards.
 The page shows and speaks step 1 while the later steps are generated.
@@ -107,6 +110,12 @@ Cloud (only when the user chose Cloud, never as a fallback): one call for the wh
 `askBuddy("cloud", ...)`, so the consent key, the first-send notice and the going-outside signal
 apply unchanged. Only the question text (and, for a follow-up, the lesson so far) is sent: no
 screenshot. Offline mode answers on this PC whatever was asked.
+The lesson starts with the model's own restatement of the topic. Code then checks, in this order:
+a placeholder the question did not contain (a provider that hides names: no lesson, code
+`redacted`); a proper name of the question the restatement and title never use (off the topic); the
+examiner's review (sentences, topic, the one thing the board must show, looked for on the board in
+code); the sums in the sentences, recomputed; every arrow judged alone, with who acts; boxes left
+alone (asked once for their links, judged, else taken off); notes moved to the step of their box.
 
 Hardware tiers come from the existing setup resolution: no local helper -> the existing message and
 a Cloud button the user must press; text-only helper -> 4 steps, plain shapes; picture helper -> the
@@ -122,6 +131,9 @@ full lesson.
 | The model stalls | the steps that arrived stay; the rest become text cards; a note says the drawing stopped early |
 | Cloud chosen, no consent yet | the first-send notice; No keeps the lesson on this PC |
 | Cloud chosen while offline | answered on this PC; the source chip says so |
+| The cloud service hid a name or place of the question (`[PERSON_NAME]`) | no lesson; the reason, where the setting is (OpenRouter account, privacy or guardrails), Try again and "Explain it on this PC" |
+| The online model keeps writing about another topic | no lesson; the reason, Try again and "Explain it on this PC" |
+| The online model is busy after three waits | the reason; no other source is used |
 | The question is empty or too long | the Explain button stays off / the text is cut to 400 characters |
 
 ## 6. Tests and proof

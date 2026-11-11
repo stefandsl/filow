@@ -197,6 +197,59 @@ Local model: nothing new was measured in round 4. The three things to try (repai
 relation, asking for relations per sentence, a bench on an idle graphics card) were not done. The
 round 3 result stands: 4, 5 and 3 of 10 with the drawing rubric, held-out 3 of 10, and the page
 keeps its advice under local lessons.
+
+## Round 5: a provider that hides names, and what the paid runs still showed
+
+Measured by the coordinator with round 4 code (two valid paid runs): strict 6/10 and 6/10, machine
+layout 9/10 and 7/10. The Krebs cycle failures had one proven cause outside Filow: the OpenRouter
+account redacts personal data in every prompt, so "Krebs" reached the model as `[PERSON_NAME]` and
+the model taught some other cycle.
+
+| Failure | Change |
+|---|---|
+| A name of the question hidden before the model saw it | A cloud answer that carries a bracketed placeholder the question did not contain (`placeholderLeaks` of `lib/pii/guard.ts`, unchanged) ends the lesson at once with code `redacted`: nothing more is asked, no board is shown. The page says, in five languages, that the cloud service hid a name or place, that the setting is in the OpenRouter account (privacy or guardrails), and offers "Explain it on this PC", which asks the local model the same question. |
+| The same, when the model does not echo the placeholder | The lesson JSON starts with `"topic"`: the model restates what it was asked. Code compares the proper names of the question (capitalised words, possessives at its start: Krebs, Ohm, Bayes, Pythagorean) with that restatement and the title. A missing name is a lesson off the topic whatever the examiner says: written again once with the reason, then from a definition, then refused with the same "Explain it on this PC" button. |
+| Reversed arrows the judge passed ("Error -> True Output (determines)") | The saved lesson shows both arrows on the final board. Code drops every arrow that has no verdict and turns every "reversed" one, so the judge was asked and answered "true": it answered wrong. Each line now names the two ends ("A = Error, B = True Output. Sentence: ...") and the judge also says who acts; "true" with `acts: "B"` is applied as reversed. Not measured on a real model. |
+| Boxes left unconnected | After the review, boxes no arrow touches are named to the model once ("Not linked yet"); each link it proposes is judged like any other arrow (kept, turned or dropped); a box still alone is taken off the board unless its step draws nothing else. |
+| A note or unit at the wrong step | A note may say which box it is about (`about`), and code also looks for a box's label in the note's words. A note that stands before the step that draws its box is moved to that step. Notes are not yet drawn next to their box: they stay in the notes column. |
+| The key output missing from the board | The examiner names the one thing the final board must show (`must`); code looks for it in everything written on the board; when it is absent the lesson is written again once with "the board never shows ...". |
+
+Calls per online lesson: three when it passes, one more when boxes are left alone (plus the
+judging of the proposed links), up to ten in the worst case. Same recipient, same consent, only
+the question and the lesson's own text.
+
+OK Filow answers: the route adds one localized sentence after a cloud or FreeLLMAPI answer that
+carries such a placeholder (the answer is streamed, so it cannot be withheld). The script writer
+and the script translation already refused leaked placeholders before this round.
+
+Every guard above has a test on the fake provider (one that replaces a name with `[PERSON_NAME]`)
+and was seen failing when the guard is broken on purpose. No paid call was made here.
+
+### Local model, round 5
+
+Two changes, general: (1) a relation the fact check refused is written again once (turned round
+or with a truer verb) and (2) a thing no relation touches is linked from the lesson's sentences;
+both in one call, and what comes back goes through the same fact check before it can be drawn.
+Skipped on the Lite tier and when the check cannot be read.
+
+Measured on qwen3-vl:8b, RTX 3070 8 GB. `nvidia-smi` before the first run: 0 % load, 0.9 GB in
+use (idle); during the runs 34 to 43 %, 7.5 GB (the model itself). Fresh reviewers, drawing rubric.
+
+| Run | Machine | Strict | Arrows drawn | Boxes with no arrow |
+|---|---|---|---|---|
+| r5-t1 | 10/10 | 3/10 | 26 | 17 of 51 |
+| r5-t2 | 8/10 | 4/10 | 32 | 14 of 49 |
+| r5-t3 | 10/10 | 6/10 | 27 | 13 of 46 |
+| r5-heldout | 9/10 | 4/10 | 20 | 20 of 47 |
+| round 4 runs, for comparison | | (round 3: 4, 5, 3; held-out 3) | 15 to 18 | 20 to 22 of 47 |
+
+The second round draws more true arrows (about half as many again on the first set) and leaves
+fewer boxes alone, but the strict score does not move outside its noise: 3, 4 and 6 against 4, 5
+and 3, held-out 4 against 3. The reviewers' reasons are the same in every run: the board does not
+close the loop or show the output (Krebs cycle with no arrow back, supply and demand with the
+price unlinked, photosynthesis without its inputs), and now and then a wrong sentence. That is
+what this 8 GB model knows and can state, not a missing check. The target of 8 is not met, the
+page keeps its advice under local lessons, and nothing here was tuned to the ten questions.
 ## How to repeat
 
 1. Start Filow (or `next dev`) with Ollama running.
@@ -206,4 +259,4 @@ keeps its advice under local lessons.
 
 Saved runs (outside the repo): `G:\FILOW\tmp\wb-tmp\` folders `bench-final-1`, `bench-final-2`,
 `bench-plan-2`, `bench-plan-3`, `r2-run1..3`, `r2-heldout`, `r3-run1..3`, `r3-heldout`, `r4-run1`,
-`r4-run2`, `r4-heldout`.
+`r4-run2`, `r4-heldout`, `r5-t1..3`, `r5-heldout`.
