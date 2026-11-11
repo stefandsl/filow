@@ -85,11 +85,19 @@
     area.value = description;
     // The report leaves this PC only here: the notice sits right above the button and is read with it.
     const issue = el("button", { type: "button", id: "open-issue", class: "btn primary", text: tx.issueOpen, disabled: true, "aria-describedby": "issue-notice", onclick: async () => {
-      clearTimeout(previewTimer);
-      preview.textContent = await api.preview(description);
-      const r = await api.issue(description);
-      if (r && r.opened) say(tx.issueOpened);
-      else say(fill(tx.issueFailed, { url: data.support.issues }), true);
+      issue.disabled = true; // one click, one browser tab
+      try {
+        clearTimeout(previewTimer);
+        preview.textContent = await api.preview(description);
+        const r = await api.issue(description);
+        if (!r || !r.opened) throw new Error((r && r.error) || "not opened");
+        say(tx.issueOpened);
+      } catch {
+        say(fill(tx.issueFailed, { url: data.support.issues }), true);
+      } finally {
+        issue.disabled = false;
+        issue.focus(); // a disabled button loses the focus: give it back
+      }
     } });
     const save = el("button", { type: "button", class: "btn", text: tx.save, disabled: true, onclick: async () => {
       // the preview catches up first, so what is on screen is what goes in the file

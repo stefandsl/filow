@@ -146,7 +146,8 @@ describe("the report as a new GitHub issue", () => {
       const r = issueUrl({ lang: "it", description: `${word} `.repeat(300), sections: [{ id: "log", text: longLog(500, word) }], version: "1" });
       expect(r.url.length, word).toBeLessThanOrEqual(ISSUE_URL_LIMIT);
       expect(() => decodeURIComponent(new URL(r.url).search), word).not.toThrow();
-      expect(read(r.url).body, word).not.toContain("��");
+      expect(read(r.url).title + read(r.url).body, `${word}: no character cut in half`).not.toContain("�");
+      expect(read(r.url).body, `${word}: the newest log line stays, however much the user wrote`).toContain(`500 ${word}`);
       expect(read(r.url).body.endsWith(TEXT.it.issueCut), word).toBe(true);
     }
   });
@@ -157,6 +158,38 @@ describe("the report as a new GitHub issue", () => {
     const tight = issueUrl({ lang: "en", description: "😀".repeat(2000), sections: [], version: "1", limit: 1001 });
     expect(tight.url.length).toBeLessThanOrEqual(1001);
     expect(() => encodeURIComponent(tight.body)).not.toThrow();
+    expect(tight.title + tight.body).not.toContain("�");
+    expect(tight.title).toBe(`Problem report: ${"😀".repeat(39)}…`);
+  });
+  it("shortens a very long description rather than drop the logs", () => {
+    for (const words of ["日本語".repeat(240), "word ".repeat(800)]) {
+      const r = issueUrl({ lang: "en", description: words, sections: [sections[0], { id: "log", text: longLog(400) }], version: "1" });
+      expect(r.url.length).toBeLessThanOrEqual(ISSUE_URL_LIMIT);
+      expect(r.body).toContain("Filow 0.9.31");
+      expect(r.body).toContain("400 line of the log");
+      expect(r.body.match(/^\d+ line of the log$/gm)!.length, "at least the floor of log lines").toBeGreaterThan(40);
+      expect(r.body).toContain(`${words.slice(0, 60)}`);
+      expect(r.body).toMatch(/…\n\n### /);
+    }
+  });
+  it("keeps the end of a last log line that is longer than the room there is", () => {
+    const r = issueUrl({ lang: "en", description: "", sections: [{ id: "log", text: `old\n${"x".repeat(7000)} THE END` }], version: "1" });
+    expect(r.url.length).toBeLessThanOrEqual(ISSUE_URL_LIMIT);
+    expect(r.url.length).toBeGreaterThan(ISSUE_URL_LIMIT - 400);
+    expect(r.body).toContain("x THE END\n```");
+  });
+  it("never goes over the limit, whatever it is given", () => {
+    const big = [{ id: "system", text: "s".repeat(7000) }, { id: "log", text: longLog(900) }];
+    const r = issueUrl({ lang: "en", description: "words", sections: big, version: "1" });
+    expect(r.url.length).toBeLessThanOrEqual(ISSUE_URL_LIMIT);
+    expect(r.cut).toBe(true);
+    expect(r.body, "an oversized first section is cut like the others, the log stays").toContain("900 line of the log");
+    for (const limit of [3000, 1200, 600, 300, 120, 60]) {
+      const t = issueUrl({ lang: "it", description: "perché l'utente ".repeat(200), sections: big, version: "1", limit });
+      expect(t.url.length, String(limit)).toBeLessThanOrEqual(limit);
+      expect(t.url.startsWith(SUPPORT.newIssue), String(limit)).toBe(true);
+      expect(t.cut, String(limit)).toBe(true);
+    }
   });
   it("keeps its new strings in one block, in English and Italian, and the page gets them with the rest", () => {
     expect(Object.keys(ISSUE_TEXT)).toEqual(["en", "it"]);

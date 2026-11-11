@@ -37,14 +37,15 @@ Quasi niente:
   scarica se c'è. GitHub vede il tuo indirizzo IP e la versione dell'app, come per ogni download. Noi
   vediamo solo il numero di download.
 - **Una segnalazione che scegli di pubblicare.** "Segnala un problema" crea la segnalazione sul tuo
-  computer e te ne mostra prima ogni riga, con link pubblici, chiavi, indirizzi e-mail, indirizzi
-  della rete locale e il tuo nome utente nei percorsi delle cartelle già mascherati. Filow non la
-  invia mai da solo. Puoi salvarla in un file, oppure premere "Apri una segnalazione su GitHub": il
-  browser apre allora una nuova segnalazione sulla pagina GitHub di Filow
+  computer e te ne mostra prima ogni riga. Nei registri, link pubblici, chiavi, indirizzi e-mail,
+  indirizzi della rete locale e il tuo nome utente nei percorsi delle cartelle sono mascherati;
+  quello che scrivi tu resta come l'hai scritto. Filow non la invia mai da solo. Puoi salvarla in un
+  file, oppure premere "Apri una segnalazione su GitHub": il browser apre allora una nuova
+  segnalazione sulla pagina GitHub di Filow
   ([github.com/stefandsl/filow/issues](https://github.com/stefandsl/filow/issues), gestita da GitHub,
-  Inc.) con già inserito quello che hai scritto, la versione di Filow, il tuo sistema e la fine del
-  registro (una segnalazione lunga viene accorciata). Quel testo arriva a GitHub appena la pagina si
-  apre. Una volta pubblicata, la segnalazione è **pubblica**: chiunque può leggerla, accanto al nome
+  Inc.) con già inserito quello che hai scritto, la versione di Filow, il tuo sistema e la fine di due
+  registri (l'ultima sessione e l'avvio); una segnalazione lunga viene accorciata. Quel testo arriva
+  a GitHub appena la pagina si apre. Una volta pubblicata, la segnalazione è **pubblica**: chiunque può leggerla, accanto al nome
   del tuo account GitHub. La usiamo solo per risolvere il problema. Puoi modificarla su GitHub in
   qualsiasi momento e chiederci lì di cancellarla. I file di crash non ne fanno mai parte.
 
@@ -102,7 +103,7 @@ sì nelle impostazioni di OK Filow. Le funzioni cloud usano il tuo account press
 | Traduzione del copione | il tuo copione | OpenRouter, poi il produttore del modello |
 | Copione dalle slide (componente PowerPoint, estensione del browser) | testo e immagini delle slide | OpenRouter, poi il produttore del modello. Questi due non mostrano ancora l'avviso, quindi le loro richieste cloud vengono rifiutate e funziona solo la modalità locale |
 | Controllo del modello nelle Impostazioni (senza avviso: non contiene nulla di tuo) | una richiesta di prova fissa, per vedere quale modello cloud risponde | OpenRouter, poi il produttore del modello |
-| Segnala un problema, "Apri una segnalazione su GitHub" (l'avviso è accanto al pulsante, ogni volta; niente parte prima del tuo clic) | quello che hai scritto, la versione di Filow, il tuo sistema e la fine del registro, mascherati come descritto sopra | GitHub, nel tuo browser; una volta pubblicata la segnalazione, chiunque (le segnalazioni sono pubbliche) |
+| Segnala un problema, "Apri una segnalazione su GitHub" (l'avviso è accanto al pulsante, ogni volta; niente parte prima del tuo clic) | quello che hai scritto, la versione di Filow, il tuo sistema e la fine del registro dell'ultima sessione e di quello di avvio, mascherati come descritto sopra | GitHub, nel tuo browser; una volta pubblicata la segnalazione, chiunque (le segnalazioni sono pubbliche) |
 | Download (modelli vocali, Ollama, lo strumento per il link, aggiornamenti) | nessun tuo contenuto, solo la richiesta | github.com, ollama.com e gli host dei modelli indicati nella finestra di download |
 | Controllo ortografico nelle caselle di testo, solo su Linux | nessun tuo contenuto: il correttore integrato della finestra può scaricare il suo dizionario | Google, che ospita i dizionari di Chromium (non ancora verificato su un desktop Linux) |
 

@@ -1021,7 +1021,7 @@ async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
         if (!auto) {
           settings.remoteShare = false;
           saveSettings();
-          void errorWithReport(win, mt("tunnelFailed"), String(err.message || err));
+          await errorWithReport(win, mt("tunnelFailed"), String(err.message || err));
         }
         // auto: stay "wanted" so the next launch retries; the LAN QR keeps working meanwhile
       }
@@ -1236,7 +1236,7 @@ async function installPowerPointAddin(win, { silent = false } = {}) {
   } catch (err) {
     settings.pptInstalled = false;
     saveSettings();
-    if (!silent) void errorWithReport(win, mt("pptInstallFailed"), String(err.message || err));
+    if (!silent) await errorWithReport(win, mt("pptInstallFailed"), String(err.message || err));
     return false;
   }
 }
@@ -2004,8 +2004,12 @@ function reportButtons() {
 /** Such an error: what failed, the reason, and a button that leads to the report window (and from there to a GitHub issue). */
 async function errorWithReport(win, message, detail) {
   const options = { type: "error", title: "Filow", message, detail, buttons: reportButtons(), defaultId: 0, cancelId: 0, noLink: true };
-  const { response } = win && !win.isDestroyed() ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
-  if (response === 1) reportProblem();
+  try {
+    const { response } = win && !win.isDestroyed() ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
+    if (response === 1) reportProblem();
+  } catch (err) {
+    logLine(`error dialog "${message}" could not be shown: ${err && err.message ? err.message : err}`);
+  }
 }
 
 function buildMenu(win) {
@@ -2300,16 +2304,24 @@ function failStartup(err) {
   // The user cannot fix this one: next to closing, the box offers Report a problem, whose window has the
   // start-up log with this reason in it and the button that opens a GitHub issue. Filow quits when that
   // window closes. If the box or the window cannot be made, the plain error box and quit, as before.
+  let report = false;
   try {
     const choice = dialog.showMessageBoxSync({ type: "error", title: "Filow", message: "Filow failed to start", detail: text, buttons: reportButtons(), defaultId: 0, cancelId: 0, noLink: true });
-    if (choice === 1) {
-      startupTransition = true; // the splash just closed: its window-all-closed must not quit under the report window
-      reportProblem().once("closed", () => app.quit());
-      return;
-    }
+    report = choice === 1;
   } catch (boxErr) {
     logLine(`startup failed: the report offer could not be shown: ${boxErr && boxErr.message ? boxErr.message : boxErr}`);
     dialog.showErrorBox("Filow failed to start", text);
+  }
+  if (report) {
+    try {
+      startupTransition = true; // the splash just closed: its window-all-closed must not quit under the report window
+      const win = reportProblem();
+      win.once("closed", () => app.quit());
+      win.webContents.once("did-fail-load", () => app.quit()); // a window that cannot show must not keep Filow running unseen
+      return;
+    } catch (winErr) {
+      logLine(`startup failed: the report window could not be opened: ${winErr && winErr.message ? winErr.message : winErr}`);
+    }
   }
   app.quit();
 }

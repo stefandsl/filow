@@ -36,12 +36,13 @@ Almost nothing:
   run by GitHub, Inc.) whether a newer version exists, and downloads it if so. GitHub sees your IP
   address and the app version, like any download. We only see download counts.
 - **A problem report you choose to post.** "Report a problem" makes the report on your computer and
-  shows you every line of it first, with public links, keys, e-mail addresses, local network
-  addresses and your user name in folder paths masked. Filow never sends it by itself. You can save
+  shows you every line of it first. In the logs, public links, keys, e-mail addresses, local network
+  addresses and your user name in folder paths are masked; what you write yourself stays as you wrote
+  it. Filow never sends it by itself. You can save
   it to a file, or press "Open an issue on GitHub": your browser then opens a new issue on Filow's
   GitHub page ([github.com/stefandsl/filow/issues](https://github.com/stefandsl/filow/issues), run by
-  GitHub, Inc.) with what you wrote, the Filow version, your system and the end of the log already
-  filled in (a long report is shortened). That text reaches GitHub as soon as the page opens. Once you
+  GitHub, Inc.) with what you wrote, the Filow version, your system and the end of two logs (the
+  last take and the start-up log) already filled in (a long report is shortened). That text reaches GitHub as soon as the page opens. Once you
   post the issue it is **public**: anyone can read it, next to your GitHub account name. We use it
   only to fix the problem. You can edit your issue on GitHub at any time, and ask us there to delete
   it. Crash files are never part of it.
@@ -99,7 +100,7 @@ OK Filow's settings. Cloud features use your own account with that company.
 | Script translation | your script | OpenRouter, then the model's maker |
 | Script from slides (PowerPoint add-in, browser extension) | slide text and pictures | OpenRouter, then the model's maker. These two do not show the notice yet, so their cloud requests are refused and only their local mode works |
 | Model check in Settings (no notice: nothing of yours is in it) | a fixed sample request, to see which cloud model answers | OpenRouter, then the model's maker |
-| Report a problem, "Open an issue on GitHub" (the notice is next to the button, every time; nothing is sent before your click) | what you wrote, the Filow version, your system and the end of the log, masked as described above | GitHub, in your own browser; once you post the issue, anyone (issues are public) |
+| Report a problem, "Open an issue on GitHub" (the notice is next to the button, every time; nothing is sent before your click) | what you wrote, the Filow version, your system and the end of the last take's log and of the start-up log, masked as described above | GitHub, in your own browser; once you post the issue, anyone (issues are public) |
 | Downloads (speech models, Ollama, the link tool, updates) | no content of yours, only the request | github.com, ollama.com and the model hosts named in the download window |
 | Spelling check in text boxes, on Linux only | no content of yours: the window's built-in spelling checker may download its dictionary | Google, which hosts the dictionaries for Chromium (not yet checked on a Linux desktop) |
 
