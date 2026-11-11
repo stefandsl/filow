@@ -45,7 +45,7 @@ export async function* withPointer(answer: AsyncIterable<string>, ground: (label
   if (held && !POINT_START.test(held)) yield held;
   for (const { label, screen } of labels) {
     if (stopped()) return;
-    let reply = "";
+    let reply: string;
     try {
       reply = await ground(label);
     } catch {
