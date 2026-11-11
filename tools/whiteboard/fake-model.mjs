@@ -56,10 +56,12 @@ export function startFakeModel(port = 4812) {
         const system = String((body.messages ?? [])[0]?.content ?? "");
         let answer;
         if (system.includes("planning a short whiteboard lesson")) answer = JSON.stringify(outlineFor(/broken/i.test(user)));
+        else if (system.includes("prepare the drawing")) answer = JSON.stringify(user.includes("Already on the board") ? MORE_PLAN : PLAN);
+        else if (system.includes("check facts")) answer = JSON.stringify({ answers: (user.match(/^\d+\. /gm) ?? []).map((_, i) => ({ n: i + 1, true: true })) });
         else {
-          const n = Number(/Draw step (\d+)/.exec(user)?.[1] ?? 1);
+          const n = STEPS.findIndex((s) => user.includes(`Sentence of this step: "${s.say}"`)) + 1 || 1;
           const broken = user.includes("Lesson: Broken lesson") && n === 2;
-          answer = broken ? "Sure! Here is the drawing you asked for: {items: oops" : JSON.stringify({ items: STEPS[Math.min(STEPS.length, n) - 1].items });
+          answer = broken ? "Sure! Here is the drawing you asked for: {things: oops" : JSON.stringify(PICKS[n - 1]);
         }
         res.writeHead(200, { "Content-Type": "application/x-ndjson" });
         const half = Math.ceil(answer.length / 2);
