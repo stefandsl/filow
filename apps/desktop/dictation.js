@@ -140,7 +140,7 @@ function createDictation(deps) {
     const text = core.postProcess(raw, { language: lang, removeFillers: c.removeFillers });
     if (!text) {
       // Nothing recognised (or only filler sounds). In a hands-free dictation earlier phrases may have gone in.
-      if (diag.current && !diag.current.phrases) diag.result("nothing");
+      diag.nothing();
       return { ok: false, action: "none", reason: "empty", chars: 0 };
     }
     diag.mark("recognised", { chars: text.length });

@@ -15,9 +15,14 @@ function createDictationDiag(o = {}) {
   const runs = [];
   let cur = null;
 
-  /** The keys went down (or the hands-free dictation started). */
-  function begin(kind) {
-    cur = { at: now(), kind: kind === "handsfree" ? "handsfree" : "hold", stages: [{ name: "keys-down", ms: 0 }], phrases: 0, result: "" };
+  /**
+   * The keys went down (or the hands-free dictation started). `agoMs`: how long ago they really went down
+   * (a hold is only known as one after the 250 ms start delay), so the times count from the key press.
+   */
+  function begin(kind, agoMs = 0) {
+    // A run the next press overtook before its words (or their absence) came back: it gave nothing.
+    if (cur && !cur.result) cur.result = cur.stages.some((s) => s.name === "recognised") ? "overtaken" : "nothing";
+    cur = { at: now() - Math.max(0, Number(agoMs) || 0), kind: kind === "handsfree" ? "handsfree" : "hold", stages: [{ name: "keys-down", ms: 0 }], phrases: 0, result: "" };
     runs.push(cur);
     while (runs.length > max) runs.shift();
     return cur;
@@ -37,9 +42,13 @@ function createDictationDiag(o = {}) {
     cur.result = String(what || "").slice(0, 40);
     if (/^(pasted|typed|direct)/.test(cur.result)) cur.phrases += 1;
   }
+  /** No words came back for a dictation whose keys are up. A run that is still listening is left alone. */
+  function nothing() {
+    if (cur && !cur.result && !cur.phrases && cur.stages.some((s) => s.name === "keys-up")) cur.result = "nothing";
+  }
   const last = () => (runs.length ? runs[runs.length - 1] : null);
 
-  return { begin, handsFree, mark, result, last, runs: () => runs.slice(), get current() { return cur; } };
+  return { begin, handsFree, mark, result, nothing, last, runs: () => runs.slice(), get current() { return cur; } };
 }
 
 const p2 = (n) => String(n).padStart(2, "0");

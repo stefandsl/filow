@@ -88,4 +88,17 @@ describe("dictation: what the report says", () => {
     expect(issueUrl({ lang: "en", description: "", sections: [long], version: "1" }).body.startsWith("### What happened")).toBe(true);
     expect(issueUrl({ lang: "en", description: "", sections: [{ ...long, keep: true }], version: "1", limit: 100000 }).body).toContain(long.text.trimEnd());
   });
+
+  it("a brief press the next press overtook is closed as nothing, and its late empty answer does not mark the new run", () => {
+    const { d, tick } = clocked();
+    const diag = d as Diag & { nothing(): void; begin(kind: string, agoMs?: number): void };
+    diag.begin("hold", 250); tick(250); d.mark("keys-up");
+    expect(d.runs()[0].stages.at(-1)).toMatchObject({ name: "keys-up", ms: 500 }); // counted from the key press, not from the start delay
+    tick(350);
+    diag.begin("hold", 250); // the second brief press, before the first one's words (none) came back
+    diag.nothing(); // the first press's empty answer arrives now: the new run is still listening
+    expect(d.runs().map((r) => r.result)).toEqual(["nothing", ""]);
+    d.handsFree(); tick(4000); d.result("pasted"); tick(9000); d.mark("keys-up"); diag.nothing();
+    expect(d.runs()[1]).toMatchObject({ kind: "handsfree", result: "pasted" });
+  });
 });

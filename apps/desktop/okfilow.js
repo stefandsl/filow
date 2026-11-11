@@ -6,7 +6,7 @@
 const { BrowserWindow, Tray, Menu, screen, desktopCapturer, ipcMain, globalShortcut, nativeImage, shell, systemPreferences } = require("electron");
 const { keyboardPermission } = require("./mac-permissions");
 const path = require("node:path");
-const { createGestures, chordHeld } = require("./okfilow-gestures");
+const { createGestures, chordHeld, ARM_MS } = require("./okfilow-gestures");
 const { createHookRetry, describeHookError, QUICK_MS } = require("./okfilow-hook-retry");
 const { loadUiohook } = require("./uiohook");
 const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
@@ -585,9 +585,11 @@ function createOkFilow(deps) {
     if (kind === "dictate") {
       dictateCap = setTimeout(() => purpose === "dictate" && release(), 5 * 60_000);
       releasedAt = 0; // an earlier dictation that typed nothing must not time this one's phrases
-      pressedAt = Date.now();
+      // A hold is known as one only after the start delay: the keys went down that much earlier.
+      const ago = handsFree ? 0 : ARM_MS;
+      pressedAt = Date.now() - ago;
       phraseRun = handsFree ? dictation.newPhraseRun() : null;
-      dictation.diag.begin(handsFree ? "handsfree" : "hold");
+      dictation.diag.begin(handsFree ? "handsfree" : "hold", ago);
     }
     // Read the selection while the user's app still has focus; it goes with the question.
     if (kind === "talk") { clearDrawings(); strokes = []; setOverlayMouse(true); selection = readSelection(); }
