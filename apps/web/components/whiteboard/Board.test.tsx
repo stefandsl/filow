@@ -112,6 +112,14 @@ describe("whiteboard board", () => {
     expect(bare).toContain('data-axis="x">x</text>');
     expect(bare).not.toContain('data-axis="y"');
   });
+  it("marks where two curves cross inside the plot, not where they start from the same point", () => {
+    const start = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "plot", expr: "1000*1.05^x", more: ["1000+50*x"], xmin: 0, xmax: 10 }] }] })!;
+    // compound and simple interest are equal at year 0 (the start, not marked) and again at year 1 (a crossing, marked)
+    expect(render(start, 0)).not.toContain('data-cross="0,1000"');
+    expect(render(start, 0)).toContain('data-cross="1,1050"');
+    const inside = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "plot", expr: "12 - x", more: ["x"], xmin: 0, xmax: 10 }] }] })!;
+    expect(render(inside, 0)).toContain('data-cross="6,6"');
+  });
   it("labels a plot of money in plain numbers, not powers of ten", () => {
     const money = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "plot", expr: "1000 * (1 + 0.05 * x)", more: ["1000 * 1.05^x"], xmin: 0, xmax: 30 }] }] })!;
     const svg = render(money, 0);

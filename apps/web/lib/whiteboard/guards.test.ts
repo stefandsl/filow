@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import fixtures from "./fixtures/cloud-r3.json";
 import rawFixtures from "./fixtures/cloud-r5-raw.json";
 import droppedFixtures from "./fixtures/cloud-m-dropped.json";
-import { GUARDS, finalProblems, formulaSymbols, generateCloud, labelNotes, missingLegend, missingNames, orphanBoxes, placeNotes, texOk, validatorLosses, wrongSums, type Ask, type LessonEvent } from "./generate";
+import sonnetFixtures from "./fixtures/cloud-sonnet-raw.json";
+import { GUARDS, TIMEOUTS, finalProblems, formulaSymbols, generateCloud, labelNotes, missingLegend, missingNames, orphanBoxes, placeNotes, texOk, validatorLosses, wrongSums, type Ask, type LessonEvent } from "./generate";
 import { LIMITS, validateLesson, type Lesson, type LessonItem } from "./lesson";
 import { layoutBoard, layoutProblems } from "./layout";
 import { checkArithmetic } from "./plot";
@@ -251,6 +252,47 @@ describe("a worked example stays readable", () => {
   });
 });
 
+describe("the default online path, replayed over the raw lessons of the paid Claude Sonnet runs: no harm", () => {
+  type Raw = { run: string; n: number; question: string; raw: { topic?: string; title: string; steps: Array<{ say: string; items: unknown[] }> } };
+  const SONNET = sonnetFixtures as unknown as Raw[];
+  it("has the twenty lessons", () => expect(SONNET).toHaveLength(20));
+  // the saved "raw" of the two Krebs lessons is the first answer, written before the name was spelled out: about another cycle, refused
+  it.each(SONNET.filter((f) => !/Krebs/.test(f.question)).map((f) => [`${f.run}/${f.n} ${f.question}`, f] as const))("%s: shown as written", async (_name, f) => {
+    const events: LessonEvent[] = [];
+    const asked: string[] = [];
+    await generateCloud(async ({ system }) => { asked.push(system.slice(0, 40)); return JSON.stringify(f.raw); }, { question: f.question, lang: "en", maxSteps: LIMITS.steps, audit: true }, (e) => events.push(e));
+    const steps = events.flatMap((e) => (e.type === "step" ? [e.step] : []));
+    const written = validateLesson(f.raw, { maxSteps: LIMITS.steps, texOk, sketch: true })!;
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    // one call for the lesson, at most one more for a legend; no rewrite
+    expect(asked.filter((s) => s.startsWith("You are a patient teacher"))).toHaveLength(1);
+    expect(asked.length).toBeLessThanOrEqual(2);
+    expect(steps.map((s) => s.say)).toEqual(written.steps.map((s) => s.say));
+    steps.forEach((s, k) => expect(drawn(s.items, (it) => it.kind === "note")).toEqual(drawn(written.steps[k].items, (it) => it.kind === "note")));
+    expect(everything(steps)).toEqual(everything(labelNotes(f.raw, placeNotes(written)).steps));
+    // every formula and every row of cells the model wrote is drawn, in its step
+    const count = (items: Array<{ kind?: unknown }>, kind: string) => items.filter((it) => it?.kind === kind).length;
+    f.raw.steps.slice(0, LIMITS.steps).forEach((s, k) => {
+      expect(count(steps[k].items, "formula")).toBe(count(s.items as Array<{ kind?: unknown }>, "formula"));
+      expect(count(steps[k].items, "cells")).toBe(count(s.items as Array<{ kind?: unknown }>, "cells"));
+    });
+    expect(events[events.length - 1]).toEqual({ type: "done", cards: 0, stalled: false });
+  });
+  it("a remark that defines something of its own is not given the name of the box the model pinned it to", () => {
+    const f = SONNET.find((d) => d.run === "m-sonnet-run1" && d.n === 10)!;
+    const lesson = labelNotes(f.raw, validateLesson(f.raw, { maxSteps: LIMITS.steps, texOk, sketch: true })!);
+    const notes = lesson.steps.flatMap((s) => s.items).flatMap((it) => (it.kind === "note" ? [it.text] : []));
+    // it read "Base case: n = the whole number we want the factorial of" before
+    expect(notes).toContain("n = the whole number we want the factorial of");
+    expect(notes.some((n) => /^Base case: n =/.test(n))).toBe(false);
+    // a plain remark about a box still carries its name
+    expect(notes.some((n) => /: Each call must move closer to the base case$/.test(n))).toBe(true);
+  });
+  it("gives an online answer four minutes and a lesson ten", () => {
+    expect(TIMEOUTS.cloudMs).toBeGreaterThanOrEqual(240_000);
+    expect(TIMEOUTS.lessonMs).toBeGreaterThanOrEqual(600_000);
+  });
+});
 describe("the legend of a lesson", () => {
   it("finds the letters of a formula, not its words and commands", () => {
     expect(formulaSymbols("A = P(1 + r/n)^{nt}")).toEqual(["A", "P", "r", "n", "t"]);

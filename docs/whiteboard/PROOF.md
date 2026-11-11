@@ -463,6 +463,24 @@ cells"):
 Fixture tests from those five saved lessons (`fixtures/cloud-m-dropped.json`): every formula and
 every row of cells the model wrote is in its step, no such step becomes a text card, the theorem
 is on the final board once and drawn in the last step. Not measured on a paid run after the fix.
+Also from those reviews and from the Carbon run, by prompt or mechanically, none of it measured on
+a paid run yet:
+
+- Time: an online answer has four minutes (it had two) and a whole lesson ten; while the lesson is
+  being written the page says how many seconds it has waited. A reasoning model had given no
+  lesson for 3 and 4 of 10 questions at the old limit.
+- A lesson cut short to a single step is asked for once more and never shown (the one-step
+  recursion of the Carbon run).
+- A remark that defines something of its own ("n = the whole number we want") is no longer given
+  the name of the box the model pinned it to (it read "Base case: n = ...").
+- The mark where two curves cross is not drawn where they merely start from the same point (both
+  at 1000 in year 0); a crossing inside the plot is.
+- The prompt asks for the result on the board in the last step.
+- `echo.mjs` reports a spelling the provider did not answer for (a 429) as not tested.
+
+Replayed over the twenty raw lessons of the two Sonnet runs (`fixtures/cloud-sonnet-raw.json`):
+the eighteen on the topic are shown as written, with every formula and row of cells in its step,
+after one call or two (the legend); the two saved first answers about another cycle are refused.
 ## How to repeat
 
 1. Start Filow (or `next dev`) with Ollama running.

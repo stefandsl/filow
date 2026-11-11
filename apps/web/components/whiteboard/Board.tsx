@@ -143,7 +143,8 @@ function Plot({ block, palette, draw }: { block: Extract<PlacedBlock, { kind: "p
       {[first, ...others.map((o) => o.sampled)].map((c, n) => path(c.runs).map((d, i) => (
         <path key={`${n}-${i}`} className="wb-stroke" data-curve={n} pathLength={1} d={d} fill="none" stroke={colours[n % 3]} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
       )))}
-      {crossings.filter(([, y]) => y >= curve.ymin && y <= curve.ymax).map(([x, y], i) => (
+      {/* where two curves start from the same point (both at 1000 when x is 0) is not a crossing worth a mark */}
+      {crossings.filter(([x, y]) => y >= curve.ymin && y <= curve.ymax && x > curve.xmin + (curve.xmax - curve.xmin) * 0.02 && x < curve.xmax - (curve.xmax - curve.xmin) * 0.02).map(([x, y], i) => (
         <g key={i} className="wb-fade" data-cross={`${num(x)},${num(y)}`}>
           <circle cx={sx(x)} cy={sy(y)} r={6} fill={palette.board} stroke={palette.ink} strokeWidth={2.4} />
           <text x={sx(x) + 10} y={sy(y) - 8} fontSize={13} fill={palette.ink}>{`(${num(x)}, ${num(y)})`}</text>

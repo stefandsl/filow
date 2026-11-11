@@ -34,6 +34,8 @@ async function boardRecipients(model: string, headers: Record<string, string>): 
   const res = await fetch(`/api/whiteboard/recipients?model=${encodeURIComponent(model)}`, { headers });
   return res.ok ? ((await res.json()) as BuddyRecipients) : null;
 }
+/** After this many seconds of planning the page says how long it has waited. */
+const WAIT_SAID_AFTER_S = 10;
 const LOOK_KEY = "filow.whiteboard.look";
 // Set once a lesson showed that the online account hides names: later questions spell their names out from the first call.
 const SPELL_KEY = "filow.whiteboard.spell";
@@ -450,7 +452,17 @@ export default function WhiteboardPage() {
     } else void ask(last.text, last.more);
   };
 
-  const status_line = ls.phase === "planning" ? t("planning") : ls.phase === "drawing" && stepCount < ls.expected ? t("drawingStep", { n: stepCount + 1, total: ls.expected }) : "";
+  // While the lesson is being written the page says how long it has been waiting: an online model that reasons may take minutes.
+  const [waited, setWaited] = useState(0);
+  const planning = ls.phase === "planning";
+  useEffect(() => {
+    setWaited(0);
+    if (!planning) return;
+    const started = Date.now();
+    const timer = setInterval(() => setWaited(Math.round((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [planning]);
+  const status_line = ls.phase === "planning" ? `${t("planning")}${waited >= WAIT_SAID_AFTER_S ? ` ${t("waitedFor", { s: waited })}` : ""}` : ls.phase === "drawing" && stepCount < ls.expected ? t("drawingStep", { n: stepCount + 1, total: ls.expected }) : "";
   const errorText = !ls.error ? "" : ls.error.code === "plan" ? t("errPlan") : ls.error.code === "stalled" ? t("errStalled") : ls.error.code === "busy" ? t("errBusy") : ls.error.code === "topic" ? t("errTopic") : ls.error.code === "redacted" ? t("errRedacted", { what: placeholderLeaks(ls.error.message, "").join(", ") || "[...]" }) : ls.error.code === "no_local_helper" ? ls.error.message : OLLAMA_STOPPED_ANSWER.test(ls.error.message) ? okfT("ollamaStopped") : ls.error.code.startsWith("freellm") || freellmCodeOf(ls.error.message) ? localizeFreeLlmError(ls.error.message, lang) : t("errGeneric", { message: ls.error.message });
 
   return (

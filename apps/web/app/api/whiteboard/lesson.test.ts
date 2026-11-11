@@ -611,6 +611,16 @@ describe("whiteboard lesson, cloud model", () => {
       expect(outside()).toHaveLength(1);
       expect(stepsOf(off)).toEqual(written.steps);
     });
+    it("asks once more for a lesson that was cut short to a single step, and never shows it", async () => {
+      const one = JSON.stringify({ title: "Recursion", scene: "flow", steps: [{ say: "A function calls itself.", items: [{ kind: "node", id: "f", text: "Function" }] }] });
+      const whole = JSON.stringify({ title: "Recursion", scene: "flow", steps: [{ say: "A function calls itself.", items: [{ kind: "node", id: "f", text: "Function" }] }, { say: "It stops at the base case.", items: [{ kind: "node", id: "b", text: "Base case" }, { kind: "edge", who: "f", does: "stops at", to: "b" }] }] });
+      const ev = await ask("What is recursion?", [one, whole]);
+      expect(outside()).toHaveLength(2);
+      expect(stepsOf(ev)).toHaveLength(2);
+      const never = await ask("What is recursion?", [one, one]);
+      expect(never.map((e) => e.type)).toEqual(["start", "error"]);
+      expect(never[1]).toMatchObject({ code: "plan" });
+    });
     it("writes a remark with the box it is about, and a remark made about several boxes once and for none", async () => {
       const NOTES = JSON.stringify({ title: "Ohm's law", scene: "flow", steps: [
         { say: "Voltage drives current.", items: [{ kind: "node", id: "v", text: "Voltage (V)" }, { kind: "node", id: "i", text: "Current (I)" }, { kind: "edge", from: "v", to: "i", text: "drives" }] },

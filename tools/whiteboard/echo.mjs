@@ -35,7 +35,12 @@ for (const sentence of sentences) {
     body: JSON.stringify({ model, temperature: 0, max_tokens: 120, messages: [{ role: "system", content: "Repeat the user's message exactly, character for character. Output nothing else." }, { role: "user", content: sentence }] }),
   });
   const json = await res.json().catch(() => null);
-  const echo = json?.choices?.[0]?.message?.content ?? `HTTP ${res.status}: ${JSON.stringify(json).slice(0, 200)}`;
+  if (!res.ok || typeof json?.choices?.[0]?.message?.content !== "string") {
+    // the provider did not answer (a 429 when it is busy): this spelling was not tested, which is not the same as "came back changed"
+    console.log(`sent: ${sentence}\n=> NOT TESTED (HTTP ${res.status}${json?.error?.message ? `: ${String(json.error.message).slice(0, 120)}` : ""})\n`);
+    continue;
+  }
+  const echo = json.choices[0].message.content;
   const hidden = /[[<{]\s*[A-Z][A-Z_ ]{2,}\s*[\]>}]/.test(String(echo));
   console.log(`sent: ${sentence}\necho: ${String(echo).trim()}\n=> ${hidden ? "HIDDEN (a placeholder came back)" : String(echo).trim() === sentence ? "came back as written" : "came back changed"}\n`);
 }

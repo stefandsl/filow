@@ -88,7 +88,8 @@ function cloudSystem(lang: BuddyLang, maxSteps: number, more: boolean): string {
     'Choose the kind of explanation and follow its recipe. A process: what goes in, what happens in order, what comes out. A proof: what is given, the construction, each equality with its reason, the conclusion. An algorithm: one small example with real values traced step by step in a row of cells. A law: each quantity, the formula, one example with numbers, and a plot when it is a curve. A market, a feedback or a cycle: the mechanism that moves it (what pushes the price up or down, what feeds back), drawn as arrows that close the loop.',
     'Every arrow has a label and reads as a sentence from its start to its end: "Voltage --drives--> Current", never the other way round. An arrow points the way things go: from what gives, sends or causes to what receives ("Input data --feeds--> Network", "Plant --releases--> Oxygen", never "Network --receives--> Input data"). The first step introduces the topic itself. A note about a plot names only curves that plot draws. An arrow is drawn in the step whose sentence states it. Every box that takes part is linked by an arrow; a cycle or a loop is closed by an arrow back to its start. Two plots must not contradict each other: use the same expression for the same curve, and the function the worked example uses. Curves that meet (supply and demand) go on ONE plot, {"kind":"plot","expr":"10 - x","more":["2*x"],"xmin":0,"xmax":8}: the board marks where they cross. A number in a sentence is exact, or the sentence says how it is rounded ("rounded down"). Keep the board readable: at most 8 boxes and 10 arrows in the whole lesson.',
     "Later steps reuse the ids of earlier nodes. No coordinates outside a sketch, no HTML, no links.",
-    "Before you answer, check three things: every box is the who or the to of at least one arrow; every arrow reads as a true sentence from who to to; every letter of every formula is named in its step.",
+    "The last step puts the result on the board: the final formula, the value that was found, what comes out. " +
+      "Before you answer, check three things: every box is the who or the to of at least one arrow; every arrow reads as a true sentence from who to to; every letter of every formula is named in its step.",
     `Write the title and every text in ${BUDDY_LANG_NAMES[lang]}; ids stay ASCII.`,
     NOT_AN_INSTRUCTION,
   ].join("\n");
@@ -149,7 +150,12 @@ export const LOCAL_CHECKS = { sentences: true, relations: true, repair: true };
 export const GUARDS = { legend: true, examiner: false, arrows: false, sums: false, must: false, links: false, removeLoneBoxes: false };
 
 /** How long one answer may take. The outline includes loading the model into memory the first time. */
-export const TIMEOUTS = { outlineMs: 150_000, stepMs: 75_000, cloudMs: 120_000, lessonMs: 420_000 };
+/**
+ * cloudMs: one online answer. A reasoning model thinks before it writes: in a paid run one gave no
+ * lesson for 3 and 4 of 10 questions at 120 s, so an answer now has four minutes, and a whole
+ * lesson ten (lessonMs). The page says how long it has been waiting.
+ */
+export const TIMEOUTS = { outlineMs: 150_000, stepMs: 75_000, cloudMs: 240_000, lessonMs: 600_000 };
 
 // ---- The local path: plan, check, then one small pick per step ----
 // A small model draws false arrows when it invents a drawing step by step. So it first names the
@@ -848,6 +854,8 @@ export function labelNotes(raw: unknown, lesson: Lesson): Lesson {
     items: s.items.map((it): LessonItem => {
       if (it.kind !== "note" || !it.about || !names.has(it.about) || (about.get(it.text.toLowerCase())?.size ?? 1) > 1) return it;
       const label = names.get(it.about)!;
+      // a remark that names something of its own ("n = the number we want") is about that, whatever box the model pinned it to
+      if (/^\s*[\p{L}\p{N}_()]{1,14}\s*=/u.test(it.text)) return it;
       // the remark already names its box, or would not fit with the name in front
       const bare = label.replace(/\s*\([^)]*\)\s*$/, "").toLowerCase();
       if (it.text.toLowerCase().includes(bare) || label.length + 2 + it.text.length > LIMITS.note) return it;
@@ -971,7 +979,10 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
         firstRaw ??= raw;
         return null;
       }
-      if (valid) {
+      // A lesson cut short to a single step (four to seven were asked for) is not a lesson: asked for once more, never shown.
+      const short = valid && !more && valid.steps.length < 2;
+      if (short) changes.push(`the answer had ${valid.steps.length} step(s): asked for again`);
+      if (valid && !short) {
         firstRaw ??= raw;
         // The model restates the topic first; a name of the question that it and the title never use is a lesson about something else.
         const restated = `${cleanText((raw as { topic?: unknown } | null)?.topic, 300)} ${valid.title}`;
