@@ -9,7 +9,8 @@
 //   3. A router without a vision model, and one with its quotas used up: the reason is shown, nothing
 //      else is tried.
 //   4. Offline mode: the same question does not reach the router.
-// Ollama is pointed at a dead port, so nothing here touches a real Ollama.
+// Ollama is pointed at a dead loopback address that Filow does not count as "the Ollama on this PC",
+// so nothing here touches, or starts, a real Ollama.
 import { spawn, execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -115,7 +116,7 @@ const clickText = (scope, text) => `(() => {
 function launch(extraEnv = {}) {
   const app = spawn(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DEVTOOLS}`], {
     env: { ...process.env, FILOW_USER_DATA_DIR: profile, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(PORT + 1), FILOW_HTTPS_PORT: String(PORT + 2),
-      OLLAMA_URL: "http://127.0.0.1:9", FILOW_OKF_QA: "1", FREELLMAPI_API_KEY: "", FREELLMAPI_BASE_URL: "", OPENROUTER_API_KEY: "", ...extraEnv },
+      OLLAMA_URL: "http://127.0.0.2:9", FILOW_OKF_QA: "1", FREELLMAPI_API_KEY: "", FREELLMAPI_BASE_URL: "", OPENROUTER_API_KEY: "", ...extraEnv },
     stdio: "ignore",
   });
   return app;

@@ -140,7 +140,7 @@ export function FreeLlmSettings({ onChange }: { onChange?: () => void }) {
         <div>
           {desktop && (
             <div className="row">
-              <input id={`${id}-key`} className="btn freellm-input" type="password" spellCheck={false} autoComplete="off" value={key}
+              <input id={`${id}-key`} className="btn freellm-input" type="password" spellCheck={false} autoComplete="off" value={key} aria-label={t("freellm.key")}
                 aria-describedby={`${id}-key-hint`} onChange={(e) => { setKey(e.target.value); setNote(null); }} />
               {s.hasKey && <button type="button" className="btn" disabled={busy} onClick={() => void withBusy(async () => { if (await send({ key: "" })) setNote(null); })}>{t("freellm.keyRemove")}</button>}
             </div>
