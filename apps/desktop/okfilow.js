@@ -12,6 +12,7 @@ const { loadUiohook } = require("./uiohook");
 const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
+const { answering, overlayMouse, seeChoice, wordsOnlyList } = require("./okfilow-stop");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 const { trustedUiSender } = require("./ui-preferences");
 
@@ -48,6 +49,10 @@ const DEFAULTS = {
   answerDir: "",
   /** What the user allowed or refused to send outside, per kind and recipient ("ask:openrouter/google"). */
   consent: {},
+  /** "Look at my screen" in the panel: "on" or "off" once the user chose; "auto" until then (the setup for this computer decides). */
+  seeScreen: "auto",
+  /** Recipients whose yes for questions was given while the notice said "no picture of your screen is sent": that yes does not cover a screenshot. */
+  askWordsOnly: [],
 };
 /** A finite point inside a window's or display's bounds (right and bottom edges excluded). */
 const onRect = (x, y, b) => Number.isFinite(x) && Number.isFinite(y) && x >= b.x && x < b.x + b.width && y >= b.y && y < b.y + b.height;
@@ -88,6 +93,8 @@ function createOkFilow(deps) {
     next.onboarded = next.onboarded === true;
     next.allScreens = next.allScreens === true;
     next.allowScreenshots = next.allowScreenshots === true;
+    next.seeScreen = seeChoice(next.seeScreen);
+    next.askWordsOnly = wordsOnlyList(next.askWordsOnly);
     next.answerLog = next.answerLog === true;
     next.answerDir = typeof next.answerDir === "string" ? next.answerDir.slice(0, 500) : "";
     if (!["auto", "codex", "claude"].includes(next.agentCli)) next.agentCli = "auto";
@@ -103,6 +110,8 @@ function createOkFilow(deps) {
   let panel = null;
   let tray = null;
   let mode = "idle"; // idle | listening | thinking | speaking | error
+  /** The question being answered took the screen with it (the eye on the pill next to the pointer). */
+  let asksSee = true;
   let visible = false;
   let fadeTimer = null;
   let cursorTimer = null;
@@ -226,7 +235,7 @@ function createOkFilow(deps) {
   /** An overlay finished setting up: it missed what was sent while it loaded, so send it now. */
   ipcMain.on("okfilow:overlay:ready", (e) => {
     if (!ourSender(e)) return;
-    e.sender.send("okfilow:state", { mode, purpose: purpose || "talk" });
+    e.sender.send("okfilow:state", { mode, purpose: purpose || "talk", sees: asksSee });
     e.sender.send("okfilow:outbound", outbound.snapshot());
     lastCursor = "";
   });
@@ -330,7 +339,7 @@ function createOkFilow(deps) {
           backgroundColor: "#00000000",
           webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload, backgroundThrottling: false },
         });
-        w.setIgnoreMouseEvents(!mouseCaught);
+        applyMouse(w);
         w.setAlwaysOnTop(true, "screen-saver");
         w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
         w.setContentProtection(hidden()); // out of the user's recordings unless they allow it
@@ -339,7 +348,7 @@ function createOkFilow(deps) {
         // A new overlay misses whatever was sent while it loaded: give it the state and the cursor now.
         w.webContents.on("did-finish-load", () => {
           if (w.isDestroyed()) return;
-          w.webContents.send("okfilow:state", { mode, purpose: purpose || "talk" });
+          w.webContents.send("okfilow:state", { mode, purpose: purpose || "talk", sees: asksSee });
           w.webContents.send("okfilow:outbound", outbound.snapshot());
           lastCursor = "";
         });
@@ -360,7 +369,7 @@ function createOkFilow(deps) {
       w.showInactive();
       const d = screen.getAllDisplays().find((x) => x.id === id);
       if (d) w.setBounds(d.bounds); // after showing: Windows shrinks hidden windows to the work area
-      w.setIgnoreMouseEvents(!mouseCaught);
+      applyMouse(w);
     }
     startCursor();
   }
@@ -415,6 +424,11 @@ function createOkFilow(deps) {
       purpose = null;
     }
     mode = next;
+    // Whether the question being answered took the screen: an overlay that loads later is told too.
+    if (typeof extra.sees === "boolean") asksSee = extra.sees;
+    // The Stop button next to the pointer takes the mouse only during an answer (okfilow-stop.js).
+    if (!answering(mode)) stopHover.clear();
+    for (const w of overlays.values()) applyMouse(w);
     if (next === "listening" && purpose === "dictate") dictation.diag.mark("listening", {}, { once: true });
     sendOverlays("okfilow:state", { mode, ...extra });
     sendPanel("okfilow:mode", { mode, ...extra });
@@ -620,8 +634,31 @@ function createOkFilow(deps) {
   function setOverlayMouse(capture) {
     // Remembered: overlays created or shown later (the first press creates them) must get it too.
     mouseCaught = capture;
-    for (const w of overlays.values()) if (!w.isDestroyed()) w.setIgnoreMouseEvents(!capture);
+    for (const w of overlays.values()) applyMouse(w);
     if (QA_SHOTS) logLine(`okfilow qa mouse ${capture ? "caught" : "through"} on ${overlays.size} overlay(s), visible=${visible}`);
+  }
+  /** The overlays whose Stop button has the pointer on it right now (webContents ids). */
+  const stopHover = new Set();
+  /** Click-through or not, for one overlay (okfilow-stop.js overlayMouse). */
+  function applyMouse(w) {
+    if (!w || w.isDestroyed()) return;
+    const m = overlayMouse({ caught: mouseCaught, hover: stopHover.has(w.webContents.id), mode });
+    w.setIgnoreMouseEvents(m.ignore);
+  }
+  /**
+   * Stops the answer in progress (the Stop button, Escape): the panel ends the request, the voice and
+   * the pointing. False when no answer was in progress, so Escape keeps its other meanings then.
+   */
+  function stopAnswer(source) {
+    if (!answering(mode)) return false;
+    logLine(`okfilow: answer stopped by the user (${source})`);
+    sendPanel("okfilow:stop", { source });
+    return true;
+  }
+  /** Escape: stops the answer in progress; when there is none, wipes the drawings. Always ends a held or hands-free dictation. */
+  function onEscape() {
+    if (!stopAnswer("escape")) clearDrawings();
+    gestures?.escape();
   }
   function onGesture(ev) {
     logLine(`okfilow: gesture ${ev}`);
@@ -717,7 +754,7 @@ function createOkFilow(deps) {
         const k = map[e.keycode] || null;
         gestures.keydown(k);
         if (!k) dictation.userMoved(); // the caret may have moved: no joining space before the next dictation
-        if (e.keycode === K.Escape) { clearDrawings(); gestures.escape(); }
+        if (e.keycode === K.Escape) onEscape();
         // Hands-free dictation: after the user's own Enter or Tab the next phrase starts without a space.
         if (phraseRun && (e.keycode === K.Enter || e.keycode === K.NumpadEnter || e.keycode === K.Tab)) phraseRun.moved();
       });
@@ -791,17 +828,21 @@ function createOkFilow(deps) {
   const startHook = () => hookRetry.attempt();
 
   // ---- screenshots ----
-  async function capture() {
+  /** `images: false` ("Look at my screen" is off): no picture of the screen is taken at all; the rest (which screen has the mouse, the selected text) is still returned. */
+  async function capture(opts = {}) {
+    const wantImages = opts.images !== false;
     const displays = screen.getAllDisplays();
     const cursor = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
     const maxW = Math.max(...displays.map((d) => Math.round(d.size.width * d.scaleFactor)));
     const maxH = Math.max(...displays.map((d) => Math.round(d.size.height * d.scaleFactor)));
-    if (!hidden()) protectAll(true); // the model never sees OK Filow itself
-    let sources;
-    try {
-      sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: Math.min(maxW, 2560), height: Math.min(maxH, 2560) } });
-    } finally {
-      if (!hidden()) protectAll(false);
+    let sources = [];
+    if (wantImages) {
+      if (!hidden()) protectAll(true); // the model never sees OK Filow itself
+      try {
+        sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: Math.min(maxW, 2560), height: Math.min(maxH, 2560) } });
+      } finally {
+        if (!hidden()) protectAll(false);
+      }
     }
     const selected = await Promise.race([selection, new Promise((r) => setTimeout(() => r(""), 1200))]);
     selection = Promise.resolve("");
@@ -811,6 +852,12 @@ function createOkFilow(deps) {
     // time a local model needs. Other screens are added only when the setting asks for them.
     const ordered = (cfg().allScreens ? [cursor, ...displays.filter((d) => d.id !== cursor.id)] : [cursor]).slice(0, 4);
     ordered.forEach((d) => {
+      if (!wantImages) {
+        const index = out.screens.length + 1;
+        out.screens.push({ index, width: d.bounds.width, height: d.bounds.height, cursor: d.id === cursor.id });
+        out.displays.push({ index, id: d.id, bounds: d.bounds });
+        return;
+      }
       const src = sources.find((s) => String(s.display_id) === String(d.id)) || (displays.length === 1 ? sources[0] : null);
       if (!src || src.thumbnail.isEmpty()) return;
       let img = src.thumbnail;
@@ -830,7 +877,7 @@ function createOkFilow(deps) {
       }
     });
     strokes = [];
-    if (!out.images.length) throw new Error(menuText("okfNoCapture"));
+    if (wantImages && !out.images.length) throw new Error(menuText("okfNoCapture"));
     return out;
   }
 
@@ -852,9 +899,9 @@ function createOkFilow(deps) {
   }
   ipcMain.handle("okfilow:status", guard(() => status()));
   ipcMain.handle("okfilow:configure", guard((patch) => applyConfig(patch && typeof patch === "object" ? patch : {})));
-  ipcMain.handle("okfilow:capture", guard(async () => {
+  ipcMain.handle("okfilow:capture", guard(async (opts) => {
     const t = Date.now();
-    const out = await capture();
+    const out = await capture(opts && typeof opts === "object" ? { images: opts.images !== false } : {});
     logLine(`okfilow: captured ${out.images.length} screen(s) in ${Date.now() - t} ms`);
     return out;
   }));
@@ -908,8 +955,18 @@ function createOkFilow(deps) {
   ipcMain.on("okfilow:qa:key", (e, type, key) => {
     if (!QA_KEYS || !ourSender(e) || !gestures) return;
     const mod = ["ctrl", "alt", "shift", "meta"].includes(key) ? key : null;
-    if (type === "down") { gestures.keydown(mod); if (key === "escape") gestures.escape(); }
+    if (type === "down") { gestures.keydown(mod); if (key === "escape") onEscape(); }
     else if (type === "up") gestures.keyup(mod);
+  });
+  /** The Stop button (the pill next to the pointer, or the panel when the keyboard hook is down). */
+  ipcMain.on("okfilow:stopAnswer", (e, source) => { if (ourSender(e)) stopAnswer(source === "panel" ? "panel" : "button"); });
+  /** An overlay says the pointer is on (or off) its Stop button: that overlay takes the mouse meanwhile. */
+  ipcMain.on("okfilow:overlay:hover", (e, on) => {
+    if (!ourSender(e)) return;
+    if (on === true && answering(mode)) stopHover.add(e.sender.id);
+    else stopHover.delete(e.sender.id);
+    if (QA_SHOTS) logLine(`okfilow qa stop hover ${on === true} from overlay ${e.sender.id} (mode ${mode}): takes the mouse = ${stopHover.has(e.sender.id)}`);
+    for (const w of overlays.values()) applyMouse(w);
   });
   /** Hands-free off from the panel (its button or Escape). */
   ipcMain.on("okfilow:handsfreeOff", (e) => { if (ourSender(e)) { handsFree = false; sendPanel("okfilow:handsfree", false); } });

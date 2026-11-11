@@ -76,10 +76,11 @@ export function createOutboundController(deps: OutboundDeps) {
     },
     standing: (kind: OutboundKind, recipient: Recipient) => standing(deps.consent(), kind, recipient),
     /** Resolves "granted" only from a stored yes or from the user pressing Send on the notice. */
-    allow(kind: OutboundKind, recipient: Recipient, cli?: string): Promise<Decision> {
+    /** `words`: the question goes without a screenshot, and the notice says so. */
+    allow(kind: OutboundKind, recipient: Recipient, cli?: string, words = false): Promise<Decision> {
       const now = standing(deps.consent(), kind, recipient);
       if (now !== "ask") return Promise.resolve(now);
-      return queue.ask(cli ? { kind, recipient, cli } : { kind, recipient });
+      return queue.ask({ kind, recipient, ...(cli ? { cli } : {}), ...(words ? { words: true as const } : {}) });
     },
     /** The user's answer to the notice on screen. A yes that could not be stored is not a yes. */
     async decide(decision: Decision): Promise<void> {

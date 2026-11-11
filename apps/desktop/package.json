@@ -112,7 +112,8 @@
       "okfilow-agents.js",
       "okfilow-selection.js",
       "okfilow-answers.js",
-      "okfilow-outbound.js"
+      "okfilow-outbound.js",
+      "okfilow-stop.js"
     ],
     "asar": true,
     "extraResources": [

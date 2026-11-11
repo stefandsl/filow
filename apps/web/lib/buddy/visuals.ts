@@ -38,21 +38,119 @@ export type DrawingShape = Paint &
   );
 export type BuddyDrawing = { title: string; shapes: DrawingShape[] };
 
+const MODEL_EXAMPLE = '{"title":"Water molecule","parts":[{"name":"Oxygen atom","shape":"sphere","size":[1.2],"pos":[0,0,0],"rot":[0,0,0],"color":"#e5484d"},{"name":"Hydrogen atom 1","shape":"sphere","size":[0.7],"pos":[1,0.7,0],"rot":[0,0,0],"color":"#f4f4f5"},{"name":"O-H bond 1","shape":"cylinder","size":[0.15,1.1,0.15],"pos":[0.5,0.35,0],"rot":[0,0,-55],"color":"#a0a8b4"}]}';
+const DRAWING_EXAMPLE = '{"title":"Sun","shapes":[{"type":"rect","x":0,"y":0,"w":400,"h":300,"fill":"#bfe3ff"},{"type":"circle","cx":200,"cy":150,"r":60,"fill":"#ffcc33","stroke":"#e0a000","width":4},{"type":"line","x1":200,"y1":60,"x2":200,"y2":20,"stroke":"#e0a000","width":4},{"type":"path","d":"M 170 170 Q 200 195 230 170","fill":"none","stroke":"#7a4b00","width":4}]}';
+const MODEL_RULES = "shapes: box (size = width,height,depth), sphere (size[0] = diameter), cylinder and cone (size = diameter,height,diameter), torus (size = outer diameter, tube thickness, 0), capsule (diameter,height,diameter). pos is the centre, rot is in degrees. That example only shows the format: build the real thing the user asked about, with 8 to 25 parts in their true places and proportions, clear names and distinct colours. Keep it within -2..2 on every axis, and say one spoken sentence about it.";
+const DRAWING_RULES = "The canvas is 400 wide and 300 high, y grows downward. types: rect (x,y,w,h, optional rx), circle (cx,cy,r), ellipse (cx,cy,rx,ry), line (x1,y1,x2,y2), polyline and polygon (points: [[x,y],...]), path (d with only M, L, C, Q, Z), text (x,y,text,size) for short labels. fill and stroke are #rrggbb or none, width is the stroke width. That example only shows the format: draw the real thing asked, with 6 to 40 shapes from back to front, and say one spoken sentence about it. A 3D request gets model3d instead.";
+
+/**
+ * How to draw: a 3D model or a flat drawing, as a block at the end of the answer. It needs no
+ * screenshot, so every prompt carries it, also the one for a model that does not see the screen.
+ */
+export const DRAW_PROMPT = [
+  "You can draw. You do it by writing a block at the very end of your answer, and the app turns the block into a picture the user sees. Never say that you cannot draw, and never describe a drawing in words instead of making it.",
+  "When the answer is about a real physical thing (an engine, a molecule, a building, an organ, a machine), build a 3D model the user can turn and click: add, at the very end of your answer, a block",
+  "```model3d",
+  MODEL_EXAMPLE,
+  "```",
+  "When the user asks you to draw something flat (a 2D drawing, sketch, diagram, logo, icon), add at the very end of your answer a block. Always draw it, even when it has nothing to do with the screen: never refuse because of what is on the screen.",
+  "```drawing2d",
+  DRAWING_EXAMPLE,
+  "```",
+  DRAWING_RULES,
+  MODEL_RULES,
+].join("\n");
+
 export const VISUALS_PROMPT = [
   "",
   "When a picture explains better than words, you can also show:",
   "[CARD:x,y:Title|one or two sentences|photo subject] a small card next to x,y with a real photo of the photo subject (an English Wikipedia title like Piston or Mitochondrion; leave it empty for no photo). At most two cards.",
-  "When the answer is about a real physical thing (an engine, a molecule, a building, an organ, a machine), build a 3D model the user can turn and click: add, at the very end of your answer, a block",
-  "```model3d",
-  '{"title":"Water molecule","parts":[{"name":"Oxygen atom","shape":"sphere","size":[1.2],"pos":[0,0,0],"rot":[0,0,0],"color":"#e5484d"},{"name":"Hydrogen atom 1","shape":"sphere","size":[0.7],"pos":[1,0.7,0],"rot":[0,0,0],"color":"#f4f4f5"},{"name":"O-H bond 1","shape":"cylinder","size":[0.15,1.1,0.15],"pos":[0.5,0.35,0],"rot":[0,0,-55],"color":"#a0a8b4"}]}',
-  "```",
-  "When the user asks you to draw something flat (a 2D drawing, sketch, diagram, logo, icon), add at the very end of your answer a block. Always draw it, even when it has nothing to do with the screen: never refuse because of what is on the screen.",
-  "```drawing2d",
-  '{"title":"Sun","shapes":[{"type":"rect","x":0,"y":0,"w":400,"h":300,"fill":"#bfe3ff"},{"type":"circle","cx":200,"cy":150,"r":60,"fill":"#ffcc33","stroke":"#e0a000","width":4},{"type":"line","x1":200,"y1":60,"x2":200,"y2":20,"stroke":"#e0a000","width":4},{"type":"path","d":"M 170 170 Q 200 195 230 170","fill":"none","stroke":"#7a4b00","width":4}]}',
-  "```",
-  "The canvas is 400 wide and 300 high, y grows downward. types: rect (x,y,w,h, optional rx), circle (cx,cy,r), ellipse (cx,cy,rx,ry), line (x1,y1,x2,y2), polyline and polygon (points: [[x,y],...]), path (d with only M, L, C, Q, Z), text (x,y,text,size) for short labels. fill and stroke are #rrggbb or none, width is the stroke width. That example only shows the format: draw the real thing asked, with 6 to 40 shapes from back to front, and say one spoken sentence about it. A 3D request gets model3d instead.",
-  "shapes: box (size = width,height,depth), sphere (size[0] = diameter), cylinder and cone (size = diameter,height,diameter), torus (size = outer diameter, tube thickness, 0), capsule (diameter,height,diameter). pos is the centre, rot is in degrees. That example only shows the format: build the real thing the user asked about, with 8 to 25 parts in their true places and proportions, clear names and distinct colours. Keep it within -2..2 on every axis, and say one spoken sentence about it.",
+  DRAW_PROMPT,
 ].join("\n");
+
+/**
+ * The whole prompt for a question that plainly asks for a drawing or a 3D model (wantsDrawing): only
+ * the one format it needs and nothing about the screen, which small local models otherwise act on
+ * instead of drawing (measured: G:/FILOW/tmp/okf-stop/REPRO.md). `again`: the first reply had no
+ * usable picture.
+ */
+export function drawOnlyPrompt(kind: DrawKind, languageName: string, again = false): string {
+  const flat = kind === "2d";
+  return [
+    "You are OK Filow, a friendly helper that lives next to the user's mouse pointer.",
+    `The user asked you for ${flat ? "a drawing" : "a 3D model"}. You can draw: you write a block, and the app turns the block into ${flat ? "a picture" : "a 3D model"} the user sees. Never say that you cannot draw, never ask whether to start, and never describe the picture in words instead of making it.`,
+    `Reply with exactly two things: first one short spoken sentence in ${languageName} about what you drew (no markdown, no tags in square brackets), then the block. Nothing after the block.`,
+    flat ? "```drawing2d" : "```model3d",
+    flat ? DRAWING_EXAMPLE : MODEL_EXAMPLE,
+    "```",
+    flat ? DRAWING_RULES.replace(" A 3D request gets model3d instead.", "") : MODEL_RULES,
+    `The ${flat ? "Sun" : "water molecule"} above is only there to show the format. Do not copy it: every shape, size and colour must be your own, for the thing the user asked for.`,
+    ...(again ? ["Your last reply had no usable picture in it. This time write the block, complete and valid JSON, closed with ```."] : []),
+  ].join("\n");
+}
+
+export type DrawKind = "2d" | "3d";
+
+// Word edges that also hold for letters outside ASCII (Romanian, Russian): \b does not.
+const START = String.raw`(?<![\p{L}\p{N}])`;
+const END = String.raw`(?![\p{L}\p{N}])`;
+/** Whole words, word beginnings (a stem and whatever ending follows) and, for Japanese, plain pieces. */
+const words = (whole: string[], stems: string[], pieces: string[] = []) =>
+  new RegExp([...(whole.length ? [`${START}(?:${whole.join("|")})${END}`] : []), ...(stems.length ? [`${START}(?:${stems.join("|")})`] : []), ...pieces].join("|"), "iu");
+
+const DRAW_VERB = words(
+  ["draw", "sketch", "doodle", "illustrate", "(?:a|the|quick|simple|little) (?:drawing|sketch|diagram|doodle|illustration) of"],
+  ["disegn", "schizz", "desen", "schi[tț]", "ilustreaz", "нарис", "рисуй", "рисуе", "рисов", "начерти", "изобрази", "набросай"],
+  ["描い", "描け", "描く", "絵を", "イラスト", "スケッチ", "図を"],
+);
+// "3D" also right after Japanese text ("車の3Dモデル"), so its edge is checked against Latin letters and digits only.
+const THREE_D = words([], ["тр[её]хмерн", "tridimension"], ["(?<![A-Za-z0-9])3[\\s-]?[dд](?![A-Za-z0-9])", "三次元", "立体", "3次元"]);
+/** Asking for a thing to be made or shown. The word "model" alone is not a request ("tell me about the wheel of the 3D car model"). */
+const MAKE_VERB = words(
+  ["make", "build", "show", "create", "render", "fammi", "fai", "fare", "costruisci", "f[ăa]", "arat[ăa]", "creeaz[ăa]", "construie[sș]te"],
+  ["crea", "mostra", "сделай", "покажи", "построй", "создай"],
+  ["作って", "作成して", "見せて"],
+);
+/**
+ * A question about how something works or where it is (very often about a program on the screen:
+ * "how do I draw a table in Word?", "what does the Draw tab do?") is not a request for a picture: it
+ * keeps the normal answer, which sees the screen and can still draw.
+ */
+const ASKING_ABOUT = words(
+  ["how", "what", "which", "where", "why", "when", "who", "tab", "tool", "menu", "come", "cosa", "quale", "quali", "dove", "perch[eé]", "quando", "strumento", "scheda", "как", "что", "где", "почему", "зачем", "когда", "cum", "ce", "care", "unde", "de ce", "c[âa]nd"],
+  ["как(?:ой|ая|ие|ую|им)", "инструмент", "вкладк"],
+  ["どう", "なぜ", "何", "どこ", "どの", "には", "方法", "とは"],
+);
+/** The user means a mark on what is on the screen (a circle around a button), not a picture of a thing. */
+const ON_SCREEN = words(
+  ["circle", "underline", "arrow", "highlight", "point (?:at|to)", "mark", "around", "on (?:my|the|this) screen", "this", "here", "button", "schermo", "qui", "quest[oaie]", "pulsante", "aici", "aceast[ăa]", "acest", "здесь", "тут", "эт(?:о|от|у|а|им|ом)"],
+  ["cerchi", "sottoline", "frecci", "evidenzi", "indica", "[îi]ncercui", "sublinia", "s[ăa]geat", "eviden[tț]i", "ecran", "buton", "обвед", "подчеркн", "стрелк", "выдел", "экран", "кнопк"],
+  ["丸で囲", "下線", "矢印", "ハイライト", "画面", "ここ", "この", "ボタン"],
+);
+
+/**
+ * Whether the user plainly asks OK Filow for a picture of a thing, and which kind: "draw a car" (2d),
+ * "make a 3D model of a car" (3d), in the five languages. Only the user's own words count: the first
+ * line (the panel adds the selected text and what was circled on the lines after it). Null for
+ * everything else: a mark on the screen ("draw a circle around the Save button"), which the normal
+ * answer does with its tags, and a question about how something is done or where it is. When in
+ * doubt it is null, and the normal answer (which can also draw) takes the question.
+ */
+export function wantsDrawing(question: string): DrawKind | null {
+  const q = question.normalize("NFKC").split("\n")[0];
+  if (ASKING_ABOUT.test(q)) return null;
+  if (THREE_D.test(q) && (DRAW_VERB.test(q) || MAKE_VERB.test(q))) return "3d";
+  if (DRAW_VERB.test(q) && !ON_SCREEN.test(q)) return "2d";
+  return null;
+}
+
+/** The model wrote back the prompt's own example (the Sun, the water molecule) instead of the thing asked: measured with small local models. */
+export function isExampleCopy(raw: unknown): boolean {
+  if (!raw || typeof raw !== "object") return false;
+  const r = raw as { shapes?: unknown; parts?: unknown };
+  const same = (mine: unknown, example: unknown) => mine !== undefined && JSON.stringify(mine) === JSON.stringify(example);
+  return same(r.shapes, (JSON.parse(DRAWING_EXAMPLE) as { shapes: unknown }).shapes) || same(r.parts, (JSON.parse(MODEL_EXAMPLE) as { parts: unknown }).parts);
+}
 
 const CARD_RE = /\[CARD:\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*:([^\]|]*)\|([^\]|]*)(?:\|([^\]|:]*))?(?::\s*screen\s*(\d+))?\s*\]/gi;
 
@@ -141,7 +239,11 @@ function takeBlock<T>(body: string, name: string, validate: (raw: unknown) => T 
   const m = new RegExp("```\\s*" + name + "\\s*([\\s\\S]*?)```", "i").exec(body.slice(fence));
   if (!m) return { body: body.slice(0, fence), value: null }; // still streaming
   let value: T | null;
-  try { value = validate(JSON.parse(m[1].trim())); } catch { value = null; }
+  try {
+    const parsed: unknown = JSON.parse(m[1].trim());
+    // The prompt's own example written back is not the thing the user asked for: never shown.
+    value = isExampleCopy(parsed) ? null : validate(parsed);
+  } catch { value = null; }
   return { body: body.slice(0, fence) + body.slice(fence + m.index + m[0].length), value };
 }
 

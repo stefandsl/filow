@@ -4,6 +4,8 @@ import { dataUrlBytes, MAX_IMAGE_BYTES } from "@/lib/vision/openrouter";
 import { CONSENT_HEADER, consentDenied } from "@/lib/buddy/outbound";
 import { askBuddy, buddyCloudRecipient, resolveBuddyProvider, resolveLocalHelper, type BuddyAskRequest, type LocalHelper } from "@/lib/buddy/providers";
 import { answerLanguage } from "@/lib/buddy/lang";
+import { drawnAnswer } from "@/lib/buddy/draw";
+import { wantsDrawing } from "@/lib/buddy/visuals";
 import { okfText } from "@/lib/buddy/text";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
@@ -30,9 +32,12 @@ export async function POST(req: Request) {
   }
   const question = typeof body?.question === "string" ? body.question.trim().slice(0, 2000) : "";
   if (!question) return NextResponse.json({ error: "question is empty" }, { status: 400 });
-  const images = Array.isArray(body.images) ? body.images.slice(0, 4) : [];
-  const screens = Array.isArray(body.screens) ? body.screens.slice(0, images.length) : [];
-  if (!images.length || screens.length !== images.length) return NextResponse.json({ error: "one screenshot per screen is required" }, { status: 400 });
+  // "Look at my screen" in the panel: false = the user's words only, and no screenshot is read or
+  // forwarded even if one was sent; true or absent = one screenshot per screen, as before.
+  const sees = typeof body.sees === "boolean" ? body.sees : undefined;
+  const images = sees === false ? [] : Array.isArray(body.images) ? body.images.slice(0, 4) : [];
+  const screens = Array.isArray(body.screens) ? body.screens.slice(0, sees === false ? 4 : images.length) : [];
+  if (sees !== false && (!images.length || screens.length !== images.length)) return NextResponse.json({ error: "one screenshot per screen is required" }, { status: 400 });
   for (const image of images) {
     if (typeof image !== "string" || !/^data:image\/(jpeg|png|webp);base64,/.test(image)) return NextResponse.json({ error: "images must be JPEG, PNG or WebP data URLs" }, { status: 400 });
     if (dataUrlBytes(image) > MAX_IMAGE_BYTES) return NextResponse.json({ error: "image too large" }, { status: 413 });
@@ -64,7 +69,7 @@ export async function POST(req: Request) {
   let helper: LocalHelper | undefined;
   if (provider === "local") {
     try {
-      helper = await resolveLocalHelper(body.setup, question);
+      helper = await resolveLocalHelper(body.setup, question, sees);
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 409 });
     }
@@ -72,11 +77,21 @@ export async function POST(req: Request) {
   const encoder = new TextEncoder();
   const abort = new AbortController();
   let said = "";
+  // The user's Stop (the panel aborts its request) and a page that went away both end the model's
+  // work here: the provider call below carries this signal, so a local model stops generating.
   req.signal?.addEventListener("abort", () => abort.abort());
+  if (req.signal?.aborted) abort.abort();
+  const ask: BuddyAskRequest = { ...body, question, images, screens, consent, sees, language: known ?? "auto" };
+  // A plain request for a drawing or a 3D model is answered with one (lib/buddy/draw.ts): it needs no screenshot.
+  const drawing = wantsDrawing(question);
+  // Made inside the stream: a refused consent throws here and must reach the bubble as an error line.
+  const pieces = () => drawing
+    ? drawnAnswer((shape, signal) => askBuddy(provider, ask, signal, helper, shape), { kind: drawing, language: known ?? "auto", lang, signal: abort.signal })
+    : askBuddy(provider, ask, abort.signal, helper);
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const piece of askBuddy(provider, { ...body, question, images, screens, consent, language: known ?? "auto" }, abort.signal, helper)) {
+        for await (const piece of pieces()) {
           if (provider !== "local") said += piece;
           controller.enqueue(encoder.encode(piece));
         }
@@ -95,6 +110,6 @@ export async function POST(req: Request) {
   });
   return new Response(stream, {
     // X-Buddy-Sees "text": no picture went to the model, so the page asks for no point on screen
-    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Buddy-Provider": provider, "X-Buddy-Lang": lang, "X-Buddy-Sees": helper && !helper.pictures ? "text" : "screen" },
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Buddy-Provider": provider, "X-Buddy-Lang": lang, "X-Buddy-Sees": drawing || sees === false || (helper && !helper.pictures) ? "text" : "screen" },
   });
 }

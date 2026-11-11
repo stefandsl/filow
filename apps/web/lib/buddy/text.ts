@@ -175,6 +175,27 @@ const en = {
   // Whiteboard tutor (docs/whiteboard/SPEC.md)
   whiteboard: "Whiteboard",
   whiteboardHint: "Explains a hard concept step by step, drawing as it goes. Or say \"whiteboard: photosynthesis\".",
+  // Stop the answer (the button on the panel and next to the pointer, Escape, the talk keys)
+  stop: "Stop",
+  stopHint: "Stop the answer (Esc)",
+  stopped: "Stopped",
+  // "Look at my screen": the one switch for whether a question takes the screen with it (lib/buddy/sees.ts)
+  seeScreen: "Look at my screen",
+  seeOn: "OK Filow sees your screen and can point at things.",
+  seeOff: "OK Filow answers from your words only. It can still draw.",
+  seeSlow: "On this PC this makes answers slower.",
+  seeLeaves: "Pictures of your screen go to {names} with each question.",
+  seeKept: "No picture of your screen leaves this PC.",
+  // The same notice and note when "Look at my screen" is off: no screenshot goes, and they say so
+  notice_askWords: "Your question, any text you have selected and the earlier questions and answers of this conversation go to {who}. No picture of your screen is sent.",
+  cloudNoteWords: "Cloud: when you ask, your question goes to {who}. No picture of your screen is sent.",
+  seeStateOn: "On",
+  seeStateOff: "Off",
+  mode_thinkingWords: "Thinking…",
+  notchWords: "OK Filow is thinking",
+  notchAnswering: "OK Filow is answering",
+  // A drawing was asked for and the model made none, twice (lib/buddy/draw.ts)
+  drawFailed: "The drawing did not come out this time. Ask me again.",
 };
 export type OkfKey = keyof typeof en;
 /** A translation: the same keys as English (text.test.ts checks every language). */

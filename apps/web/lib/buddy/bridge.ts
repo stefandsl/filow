@@ -64,6 +64,10 @@ export type OkFilowStatus = {
   onboarded?: boolean;
   /** What the user allowed or refused to send outside, per kind and recipient. */
   consent?: ConsentMap;
+  /** "Look at my screen": the user's choice, or "auto" while the setup for this computer decides (lib/buddy/sees.ts). Missing on older builds. */
+  seeScreen?: "auto" | "on" | "off";
+  /** Recipients whose yes for questions was given to the notice that said no screenshot is sent (lib/buddy/sees.ts). */
+  askWordsOnly?: string[];
   handsFree: boolean;
   dictateChord: string;
   /** Dictation's own settings and checks (apps/desktop/dictation.js). */
@@ -130,7 +134,8 @@ export type OkFilowBridge = {
   sessionUrl: string;
   status(): Promise<OkFilowStatus>;
   configure(patch: OkFilowPatch): Promise<OkFilowStatus>;
-  capture(): Promise<OkFilowCapture>;
+  /** `images: false` ("Look at my screen" is off): no picture of the screen is taken; `images` comes back empty. */
+  capture(opts?: { images?: boolean }): Promise<OkFilowCapture>;
   setMode(mode: OkFilowMode, extra?: Record<string, unknown>): Promise<void>;
   level(v: number): void;
   text(t: string): void;
@@ -185,6 +190,11 @@ export type OkFilowBridge = {
   pickAnswerDir(): Promise<OkFilowStatus>;
   openAnswers(): Promise<boolean>;
   deleteAnswers(): Promise<number>;
+  /** Stop the answer in progress (the Stop button, Escape). Main tells the panel through onStop. Absent in a desktop build older than Stop. */
+  stopAnswer?(source?: "button" | "panel"): void;
+  onStop?(fn: (p: { source?: string } | undefined) => void): Off;
+  /** Overlay -> main: the pointer is on (or off) the Stop button, so this overlay takes the mouse meanwhile. */
+  overlayHover?(on: boolean): void;
   press(): void;
   release(): void;
   /** `handsFree`: a dictation with the keys up, typed phrase by phrase until the keys are pressed once more. */
@@ -193,7 +203,8 @@ export type OkFilowBridge = {
   onCancel(fn: (p: { purpose: "talk" | "dictate" | null } | undefined) => void): Off;
   onConfig(fn: (s: OkFilowStatus) => void): Off;
   onMode(fn: (s: { mode: OkFilowMode; error?: string }) => void): Off;
-  onState(fn: (s: { mode: OkFilowMode; error?: string; purpose?: string }) => void): Off;
+  /** `sees`: this question took the screen with it; `stopped`: the user stopped the answer. */
+  onState(fn: (s: { mode: OkFilowMode; error?: string; purpose?: string; sees?: boolean; stopped?: boolean }) => void): Off;
   onCursor(fn: (p: { x: number; y: number } | null) => void): Off;
   onLevel(fn: (v: number) => void): Off;
   onText(fn: (t: string) => void): Off;
