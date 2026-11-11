@@ -106,6 +106,11 @@ function ReportBody({ report: r, idPrefix, fold = false }: { report: Report; idP
   );
 }
 
+/** The saved file: what the report shows, and the take's notes only while the box in the report is ticked. */
+export function reportFile(report: Report, lang: Lang, notes: string | undefined, withNotes: boolean): string {
+  return rehearsalMarkdown(report, lang, withNotes ? notes : undefined);
+}
+
 export function RehearsalReport({ report, notes, onClose, returnFocusRef }: {
   report: Report;
   /** the live screen notes of the take, as Markdown: appended to the saved file unless the presenter unticks the box */
@@ -137,7 +142,7 @@ export function RehearsalReport({ report, notes, onClose, returnFocusRef }: {
         <div className="controls report-actions">
           {/* the saved file holds what this dialog shows; the take's notes go in only while this box says so */}
           {notes && <label className="report-with-notes"><input type="checkbox" checked={withNotes} onChange={(e) => setWithNotes(e.target.checked)} /> {t("report.withNotes")}</label>}
-          <button type="button" className="btn primary" onClick={() => downloadMarkdown(rehearsalMarkdown(report, lang, withNotes ? notes : undefined), "filow-rehearsal")}>{t("report.saveMd")}</button>
+          <button type="button" className="btn primary" onClick={() => downloadMarkdown(reportFile(report, lang, notes, withNotes), "filow-rehearsal")}>{t("report.saveMd")}</button>
           <button type="button" className="btn" onClick={printReport}>{t("report.print")}</button>
           <button type="button" className="btn" onClick={onClose}>{t("report.close")}</button>
         </div>

@@ -288,16 +288,32 @@ describe("rehearsal details", () => {
       "That is what I mean.", "As you know.", "Now you know, so act.", "I know what you know.",
       "Uh-huh.", "Um-hum, yes.", "Mm-hmm.", "Uh huh, go on.", "Uh-oh, the slide is gone.", "Uh-uh, not that one.",
       "It is literally translated.", "Translated literally.", "Basically it is the basis.", "It is basically done.",
-      "We err on the side of caution.",
+      "We err on the side of caution.", "The ER was full.", "The gap is 5 mm.", "Mm, yes.",
+      "Mm-mm, not that one.", "Nuh-uh.", "Huh-uh.", "Uh\u2013huh.",
+      // a whole sentence is an answer or a statement, not an aside
+      "You know.", "I told you. You know.", "Basically.",
     ];
     for (const s of meantEn) expect(n(s, "en")).toEqual([s, 0]);
     const meantIt = [
       "Praticamente tutto.", "Insomma ha vinto.", "Non so come dire.", "Come dire di no?", "Lo facciamo come diciamo.",
-      "Diciamo la verità.", "È cresciuto, cioè del venti per cento.",
+      "Diciamo la verità.", "È cresciuto, cioè del venti per cento.", "Com'è andata? Insomma.",
     ];
     for (const s of meantIt) expect(n(s, "it")).toEqual([s, 0]);
     expect(Object.fromEntries(countFillers("Um, you know, it is, basically, done. I mean, uh, er, literally. Uh, uh, well.", "en"))).toEqual({ um: 1, "you know": 1, basically: 1, "I mean": 1, uh: 3, er: 1, literally: 1 });
     expect(Object.fromEntries(countFillers("Ehm, cioè, insomma, abbiamo, praticamente, finito, diciamo. Come dire, sì.", "it"))).toEqual({ ehm: 1, "cioè": 1, insomma: 1, praticamente: 1, diciamo: 1, "come dire": 1 });
+  });
+
+  it("a phrase the speech engine cut in two is read with its neighbours: the cut is not a pause", () => {
+    const total = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0);
+    expect(total(countFillers("I mean, more or less.", "en"))).toBe(1);
+    expect(total(countFillers("I mean, more or less.", "en", { before: "That is exactly what" }))).toBe(0);
+    expect(total(countFillers("And then, I mean", "en"))).toBe(1);
+    expect(total(countFillers("And then, I mean", "en", { after: "that we should go" }))).toBe(0);
+    expect(total(countFillers("praticamente", "it", { before: "Abbiamo venduto,", after: "tutto" }))).toBe(0);
+    expect(total(countFillers("you know", "en", { before: "It grew this year,", after: "" }))).toBe(1);
+    const script = parseScript("# A\n- One");
+    const log = take(script).start().say(0, 4000, "That is exactly what").say(4500, 6000, "I mean, more or less.").say(7000, 12_000, "As").say(12_500, 14_000, "you know, it grew.").stop(15_000);
+    expect(buildRehearsalReport(log, script, { lang: "en" }).fillers.total).toBe(0);
   });
 });
 

@@ -30,7 +30,8 @@ export const LONG_PAUSE_MS = 3000;
  *   right before a comma, a full stop or the end of a phrase (not a question mark).
  * - `aside`: a word or phrase that is meant inside a sentence ("that is what I mean", "as you know",
  *   "literally translated", "praticamente tutto", "non so come dire"), so it counts only when said
- *   as an aside: a pause before it (or the start of the phrase) and a pause after it.
+ *   as an aside: a break before it and a break after it, one of them inside the sentence (a comma),
+ *   so "You know." or "Insomma." said as a whole sentence is left alone too.
  * Kept short on purpose: a word that is often meant (English "like", "so", "actually", Italian
  * "allora", "tipo") is left out, so the count errs low rather than blaming real words.
  */
@@ -40,7 +41,7 @@ export const FILLERS: Record<SpeechLanguage, Filler[]> = {
     { label: "um", sound: /^u+m+$/ },
     { label: "uh", sound: /^u+h+$/ },
     { label: "er", sound: /^e+r$|^e+r+m+$/ }, // not "err" (to err)
-    { label: "hmm", sound: /^h*m{2,}$/ },
+    { label: "hmm", sound: /^h+m+$|^m{3,}$/ }, // not "mm": a yes, and millimetres
     { label: "you know", words: ["you", "know"], aside: true },
     { label: "I mean", words: ["i", "mean"], aside: true },
     { label: "basically", words: ["basically"], aside: true },
@@ -110,15 +111,26 @@ const LETTER = /[\p{L}\p{N}]/gu;
 const IS_JAPANESE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
 // A question mark is not a pause here: "Do you know?" and "Что это значит?" are meant.
 const PAUSE_PUNCT = /^\s*(?:[,.;:!…、。，．！]|$)/u;
-// Before an aside any break will do, the end of a question too ("Right? You know, ...").
-const BREAK_BEFORE = /[,.;:!?…、。，．！？]/u;
+// The breaks around an aside. Soft: inside a sentence (a comma, three dots, a spaced dash). Hard: the
+// sentence's edge. An aside needs a break on both sides and a soft one on at least one: "You know."
+// and "Insomma." as whole sentences are an answer or a statement, and they are meant.
+const SOFT_BREAK = /[,;:…、，]|\.{2,}|\s[-\u2013\u2014]\s/u;
+const HARD_BREAK_BEFORE = /[.!?。．！？]/u; // the end of a question too ("Right? You know, ...")
+const SOFT_BREAK_AFTER = /^\s*(?:[,;:…、，]|\.{2,}|[-\u2013\u2014]\s)/u;
+const HARD_BREAK_AFTER = /^\s*[.!。．！]/u; // not a question mark: "do you know?" is meant
+type Break = "soft" | "hard" | null;
 /**
- * Sounds that answer instead of hesitating ("uh-huh" is yes, "uh-uh" is no, "uh-oh" is trouble): the
- * pair is skipped whole. Written with a hyphen or, for two different sounds, a space.
+ * Sounds that answer instead of hesitating ("uh-huh" and "mm-hmm" are yes, "uh-uh" and "mm-mm" are no,
+ * "uh-oh" is trouble): the pair is skipped whole. Written with a hyphen or a dash or, for two
+ * different sounds, a space.
  */
 const ANSWERS: Partial<Record<SpeechLanguage, Array<[string, string]>>> = {
-  en: [["uh", "huh"], ["um", "hum"], ["um", "hmm"], ["mm", "hmm"], ["mm", "hm"], ["uh", "oh"], ["uh", "uh"]],
+  en: [["uh", "huh"], ["um", "hum"], ["um", "hmm"], ["mm", "hmm"], ["mm", "hm"], ["uh", "oh"], ["uh", "uh"], ["mm", "mm"], ["nuh", "uh"], ["huh", "uh"]],
 };
+const JOINED = /^[-\u2010\u2011\u2013\u2014]$/;
+const JOINED_OR_SPACE = /^[-\u2010\u2011\u2013\u2014 ]$/;
+// English only: "ER" and "UM" in capitals are names, not sounds.
+const ACRONYM = /^[A-Z]{2,}$/;
 
 const MARKERS: Record<"en" | "it" | "ro", Set<string>> = {
   en: new Set("the and is are of to that this we you it was with for".split(" ")),
@@ -137,25 +149,49 @@ export function detectSpeechLanguage(text: string): SpeechLanguage {
   return best[1] > 0 ? best[0] : "en";
 }
 
-/** Filler counts in one stretch of text, by label. */
-export function countFillers(text: string, lang: SpeechLanguage): Map<string, number> {
+/**
+ * Filler counts in one stretch of text, by label. `around` is the speech right before and after it
+ * (the neighbouring phrases of a take): where the speech engine cut a sentence in two, the cut is not
+ * a pause, so "That is exactly what" + "I mean." counts nothing.
+ */
+export function countFillers(text: string, lang: SpeechLanguage, around: { before?: string; after?: string } = {}): Map<string, number> {
   const tokens = tokenize(text);
   const counts = new Map<string, number>();
   const list = [...FILLERS[lang]].sort((a, b) => (b.words?.length ?? 1) - (a.words?.length ?? 1));
-  const gapBefore = (i: number) => (i === 0 ? "," : text.slice(tokens[i - 1].end, tokens[i].start));
+  const breakBefore = (i: number): Break => {
+    const lead = (i === 0 ? (around.before ?? "") + " " + text.slice(0, tokens[0].start) : text.slice(tokens[i - 1].end, tokens[i].start));
+    if (i === 0 && !/[\p{L}\p{N}]/u.test(lead)) return "hard"; // the start of the take
+    // only what follows the last word counts (the phrase before may hold many sentences)
+    const gap = i === 0 ? lead.slice(lead.search(/[^\p{L}\p{N}\p{M}'’]*$/u)) : lead;
+    return SOFT_BREAK.test(gap) ? "soft" : HARD_BREAK_BEFORE.test(gap) ? "hard" : null;
+  };
+  const breakAfter = (last: number): Break => {
+    const rest = text.slice(tokens[last].end);
+    if (SOFT_BREAK_AFTER.test(rest)) return "soft";
+    if (HARD_BREAK_AFTER.test(rest)) return "hard";
+    // the end of the text is the end of a sentence only when nothing follows it in the take
+    return /^\s*$/.test(rest) && !around.after?.trim() ? "hard" : null;
+  };
+  const aside = (i: number, n: number) => {
+    const before = breakBefore(i);
+    const after = breakAfter(i + n - 1);
+    return before !== null && after !== null && (before === "soft" || after === "soft");
+  };
   for (let i = 0; i < tokens.length; ) {
     const next = tokens[i + 1];
-    if (next && ANSWERS[lang]?.some(([a, b]) => tokens[i].norm === a && next.norm === b && (a === b ? /^[-‑]$/ : /^[-‑ ]$/).test(gapBefore(i + 1)))) {
+    if (next && ANSWERS[lang]?.some(([a, b]) => tokens[i].norm === a && next.norm === b && (a === b ? JOINED : JOINED_OR_SPACE).test(text.slice(tokens[i].end, next.start)))) {
       i += 2;
       continue;
     }
     const hit = list.find((f) => {
       const n = f.words?.length ?? 1;
       if (i + n > tokens.length) return false;
-      const ok = f.sound ? f.sound.test(tokens[i].norm) : f.words!.every((w, k) => tokens[i + k].norm === fold(w));
+      const ok = f.sound
+        ? f.sound.test(tokens[i].norm) && !(lang === "en" && ACRONYM.test(text.slice(tokens[i].start, tokens[i].end)))
+        : f.words!.every((w, k) => tokens[i + k].norm === fold(w));
       if (!ok) return false;
-      if (f.aside && !BREAK_BEFORE.test(gapBefore(i))) return false;
-      return (!f.alone && !f.aside) || PAUSE_PUNCT.test(text.slice(tokens[i + n - 1].end));
+      if (f.aside) return aside(i, n);
+      return !f.alone || PAUSE_PUNCT.test(text.slice(tokens[i + n - 1].end));
     });
     if (hit) {
       counts.set(hit.label, (counts.get(hit.label) ?? 0) + 1);
@@ -339,7 +375,10 @@ export function buildRehearsalReport(log: TakeLog, script: Pick<Script, "section
   const band = value === null ? null : value < range[0] ? "slow" : value > range[1] ? "fast" : "ok";
 
   const fillerCounts = new Map<string, number>();
-  for (const s of log.segments) for (const [label, n] of countFillers(s.text, lang)) fillerCounts.set(label, (fillerCounts.get(label) ?? 0) + n);
+  log.segments.forEach((s, k) => {
+    const around = { before: log.segments[k - 1]?.text, after: log.segments[k + 1]?.text };
+    for (const [label, n] of countFillers(s.text, lang, around)) fillerCounts.set(label, (fillerCounts.get(label) ?? 0) + n);
+  });
   const fillerTotal = [...fillerCounts.values()].reduce((a, b) => a + b, 0);
   const top = [...fillerCounts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).slice(0, 3);
   const minutes = Math.max(speakingMs, 1) / 60_000;

@@ -6,8 +6,8 @@ import { buildRehearsalReport, Engine, parseScript, rehearsalMarkdown, t, TakeRe
 import { LangProvider } from "@filow/ui";
 import { TimerCue } from "./TimerCue";
 import { TimerSettings, readMinutes } from "./TimerSettings";
-import { RehearsalReport } from "./RehearsalReport";
-import { ARRIVAL_KEEP_MS, bestArrival, TimerMirror } from "./TimerMirror";
+import { RehearsalReport, reportFile } from "./RehearsalReport";
+import { bestArrival, keepArrival, TimerMirror } from "./TimerMirror";
 import { sameScript } from "./RehearsalPanel";
 import { clockKey, takeRecorder, withClock } from "./TimerClock";
 
@@ -63,16 +63,24 @@ describe("talk timer line", () => {
     const stored = { sentAt: 1000, at: 5900 }; // a phone that joins late gets a clock sent up to 5 s before
     const fresh = { sentAt: 6000, at: 6040 };
     const slow = { sentAt: 11_000, at: 11_900 };
-    expect(bestArrival(null, stored)).toBe(stored);
-    expect(bestArrival(stored, fresh)).toBe(fresh);
-    expect(bestArrival(fresh, slow)).toBe(fresh);
-    // one of the two clocks was set anew (no delay is that long): follow it
-    const reset = { sentAt: 16_000, at: 16_040 + 60 * MIN };
-    expect(bestArrival(fresh, reset)).toBe(reset);
-    // and after a minute the kept message gives way, so a small change is followed too
-    const later = { sentAt: 6000 + ARRIVAL_KEEP_MS + 1000, at: 6040 + ARRIVAL_KEEP_MS + 1300 };
-    expect(bestArrival(fresh, later)).toBe(later);
-    expect(bestArrival(fresh, { sentAt: 6000 + ARRIVAL_KEEP_MS - 1000, at: 6040 + ARRIVAL_KEEP_MS - 700 })).toBe(fresh);
+    expect(bestArrival([])).toBeNull();
+    let kept = keepArrival([], stored);
+    expect(bestArrival(kept)).toBe(stored);
+    kept = keepArrival(kept, fresh);
+    expect(bestArrival(kept)).toBe(fresh);
+    kept = keepArrival(kept, slow);
+    expect(bestArrival(kept)).toBe(fresh);
+    // one of the two clocks was set anew (no delay is that long): start again from that message
+    const reset = { sentAt: 16_000, at: 16_040 + 20_000 };
+    expect(keepArrival(kept, reset)).toEqual([reset]);
+    // a small change of a clock is followed within a minute: the old messages are forgotten, and a
+    // slow message does not win while a quicker recent one is kept
+    const shifted = (n: number, delay: number) => ({ sentAt: 6000 + n * 5000, at: 6000 + n * 5000 + 3000 + delay });
+    for (let n = 1; n <= 11; n++) kept = keepArrival(kept, shifted(n, n === 11 ? 900 : 40));
+    expect(bestArrival(kept)).toBe(fresh);
+    kept = keepArrival(kept, shifted(13, 900));
+    expect(kept).not.toContain(fresh);
+    expect(bestArrival(kept)).toEqual(shifted(2, 40));
   });
 });
 
@@ -162,6 +170,10 @@ describe("rehearsal report view", () => {
     expect(plain(inLang("it", <RehearsalReport report={report} notes={"# Talk notes"} onClose={() => {}} />))).toContain("Aggiungi al file salvato le note di questa prova");
     // no notes in the take: nothing to add, no box
     expect(inLang("en", <RehearsalReport report={report} onClose={() => {}} />)).not.toContain("report-with-notes");
+    // the file follows the box
+    expect(reportFile(report, "en", "# Talk notes\n\nA note", true)).toContain("## Talk notes\n\nA note");
+    expect(reportFile(report, "en", "# Talk notes\n\nA note", false)).toBe(rehearsalMarkdown(report, "en"));
+    expect(reportFile(report, "en", "# Talk notes\n\nA note", false)).not.toContain("A note");
   });
 
   it("has one heading order: the title is the h1 that names the dialog, its parts are h2", () => {
