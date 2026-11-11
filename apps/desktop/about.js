@@ -161,6 +161,16 @@ function lastLines(text, max) {
   return firstBreak < 0 ? tail : tail.slice(firstBreak + 1);
 }
 
+/** The first whole lines that fit in max characters (the newest facts come first in a kept section). */
+function firstLines(text, max) {
+  if (text.length <= max) return text;
+  const head = firstChars(text, max);
+  const lastBreak = head.lastIndexOf("\n");
+  return lastBreak > 0 ? head.slice(0, lastBreak) : head;
+}
+/** A kept section (dictation and keys) is never cut like a log, but it has a ceiling of its own in a link. */
+const ISSUE_KEEP_MAX = 1800;
+
 /** Log characters kept even when the user wrote a lot: the words are shortened before the logs go below this. */
 const ISSUE_LOG_FLOOR = 1500;
 
@@ -192,7 +202,11 @@ function issueUrl({ lang, description, sections, version, limit = ISSUE_URL_LIMI
     const parts = [`### ${tx.fileWhat}`, (cut ? `${firstChars(words, wordsMax).trimEnd()}…` : words) || tx.fileNone, ""];
     for (const s of texts) {
       let text = s.text;
-      if (!s.keep && text.length > logMax) {
+      if (s.keep && text.length > ISSUE_KEEP_MAX) {
+        // newest first: the oldest dictations go, the problem code and the system facts stay
+        cut = true;
+        text = firstLines(text, ISSUE_KEEP_MAX);
+      } else if (!s.keep && text.length > logMax) {
         cut = true;
         text = [tx.issueEarlier, lastLines(text, logMax)].filter(Boolean).join("\n");
       }

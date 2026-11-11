@@ -86,7 +86,12 @@ describe("dictation: what the report says", () => {
     // Without `keep` a long section loses its first lines (the problem code is the first one).
     const long = { id: "dictation", text: `problem code: FD-H1-OK\n${"x".repeat(30)}\n`.repeat(400) };
     expect(issueUrl({ lang: "en", description: "", sections: [long], version: "1" }).body.startsWith("### What happened")).toBe(true);
-    expect(issueUrl({ lang: "en", description: "", sections: [{ ...long, keep: true }], version: "1", limit: 100000 }).body).toContain(long.text.trimEnd());
+    // A kept section has its own ceiling: the newest lines stay (the problem code first), the oldest go, and the link still carries the words.
+    const kept = issueUrl({ lang: "en", description: "My words", sections: [{ ...long, keep: true }], version: "1" });
+    expect(kept.body).toContain("My words");
+    expect(kept.body).toContain("```\nproblem code: FD-H1-OK\n");
+    expect(kept.cut).toBe(true);
+    expect(kept.url.length).toBeLessThanOrEqual(6000);
   });
 
   it("a brief press the next press overtook is closed as nothing, and its late empty answer does not mark the new run", () => {

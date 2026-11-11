@@ -645,8 +645,9 @@ function createOkFilow(deps) {
     const until = Date.now() + timeoutMs;
     // While the user holds the keys for the next dictation the words of the last one wait for that
     // release (they go in first, in order): a paste now would be Ctrl + Win + V, and giving up after two
-    // seconds left them on the clipboard only.
-    const waiting = () => Date.now() < until || (held && purpose === "dictate" && Date.now() < until + 5 * 60_000);
+    // seconds left them on the clipboard only. Hold mode only, and for a minute at most: in a hands-free
+    // dictation the keys are up, so a key that looks held there is a lost key-up, not a hold.
+    const waiting = () => Date.now() < until || (held && purpose === "dictate" && !phraseRun && Date.now() < until + 60_000);
     while (gestures && gestures.anyDown && waiting()) await new Promise((r) => setTimeout(r, 25));
     return !(gestures && gestures.anyDown);
   }

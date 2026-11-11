@@ -587,8 +587,14 @@ export default function OkFilowPanel() {
     // Hands-free dictation: from here the rest is typed below, not phrase by phrase.
     const phrases = flow.current;
     flow.current = null;
-    /** A press that came while this recording was finishing starts now. */
+    /**
+     * A press that came while this recording was finishing starts now. Once per stop: by the time this
+     * stop's words are in the app another recording may be stopping, and its flag is not ours to clear.
+     */
+    let handedOver = false;
     const startQueued = () => {
+      if (handedOver) return;
+      handedOver = true;
       stopping.current = false;
       const next = queuedStart.current;
       queuedStart.current = null;

@@ -239,6 +239,9 @@ function createClipboardInserter({ clipboard, ClipboardItem, platform = "win32",
   async function insertNow(textOrFn, onPasted, check) {
     const wait = pastedAt + gapMs - now();
     if (wait > 0) await new Promise((r) => st(r, wait));
+    // The keys first: the wait can be long (the user holds them for the next dictation), and the
+    // clipboard is looked at only after it, so something the user copied meanwhile is what comes back.
+    if (!(await keysUp())) return { pasted: false, reason: "keys", restored: Promise.resolve(false) };
     let saved;
     const prev = pending;
     pending = null;
@@ -254,7 +257,6 @@ function createClipboardInserter({ clipboard, ClipboardItem, platform = "win32",
       if (due > 0) await new Promise((r) => st(r, due));
       try { if (await ours(prev.text)) await restoreClipboard(clipboard, saved, ClipboardItem); } catch { /* the clipboard is busy: the text stays */ }
     };
-    if (!(await keysUp())) return { pasted: false, reason: "keys", restored: Promise.resolve(false) };
     let text;
     try {
       if (check) {

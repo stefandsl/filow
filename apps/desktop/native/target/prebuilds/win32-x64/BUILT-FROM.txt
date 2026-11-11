@@ -1,1 +1,2 @@
 apps/desktop/native/target/src/target.cc sha256 9dbc33c5ea6e732539a373217667c35a46f1e670ff368e4a0015447cc1bddfe9
+filow-target.node sha256 e8802dc157ba50eb15db244e4bf7b5bb5227a4385737a7e76a0d7af80cbbd12e

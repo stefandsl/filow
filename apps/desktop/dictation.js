@@ -184,10 +184,10 @@ function createDictation(deps) {
     const field = own ? await editableFocused(own) : null;
     if (field && field.password) return refuse();
     if (!own && (await readTarget()).password) return refuse();
-    if (own) {
-      // Only into a text field; with none in focus the words are copied and the user is told so.
-      if (field) {
-        await own.webContents.insertText(core.joinAfter(field.before, text));
+    /** One of Filow's own windows has the keyboard: only into a text field; with none the words are copied and the user is told so. */
+    const intoOwn = async (win, fld) => {
+      if (fld) {
+        await win.webContents.insertText(core.joinAfter(fld.before, text));
         if (run) run.typed(text);
         logLine(`dictation: typed ${text.length} chars into Filow's own window directly`);
         diag.mark("target", { line: "Filow itself", method: "direct" });
@@ -199,7 +199,8 @@ function createDictation(deps) {
       diag.mark("target", { line: "Filow itself, no text field", method: "copy" });
       diag.result("copied:nofield");
       return { ok: true, action: "copy", reason: "nofield", chars: text.length };
-    }
+    };
+    if (own) return intoOwn(own, field);
     const decision = core.pasteDecision({ platform, insert: c.insert, env, macTrusted: macTrusted(), hook: Boolean(hook) });
     if (decision.action === "copy") {
       await copy(text);
@@ -236,12 +237,25 @@ function createDictation(deps) {
       const line = target.targetLine(seen);
       diag.mark("target", { line, method: how.method });
       logLine(`dictation: target ${line} -> ${how.method}${how.reason ? ` (${how.reason})` : ""}`);
+      // The keyboard went to one of Filow's own windows meanwhile: its page says what has the focus
+      // (a password box there is refused below), and nothing is pasted blind.
+      if (seen.own) return { reason: "own", method: "own", giveBack: true };
       if (how.method === "paste") return null;
       return { reason: how.reason || how.method, method: how.method, giveBack: how.method !== "copy" };
     };
     // The space before a phrase depends on the phrase before it, so it is decided when this one's turn comes.
     const r = await inserter.insert(run ? () => run.pasteText(text) : text, () => { if (run) run.typed(text); }, check);
     if (r.method === "refuse") return refuse(); // the keyboard moved to a password box while the keys went up
+    if (r.method === "own") {
+      const win = ownFocusedWindow();
+      const fld = win ? await editableFocused(win) : null;
+      if (fld && fld.password) return refuse();
+      if (win) return intoOwn(win, fld);
+      await copy(text);
+      logLine(`dictation: only copied (no window has the keyboard), ${text.length} chars left on the clipboard`);
+      diag.result("copied:nofocus");
+      return { ok: true, action: "copy", reason: "nofocus", chars: text.length };
+    }
     if (r.method === "type") {
       // A terminal: typed as characters (the keys are up: the inserter waited for them).
       const piece = run ? run.pasteText(text) : text;

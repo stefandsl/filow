@@ -241,6 +241,43 @@ describe("dictation target: where the words go", () => {
     expect((await r).action).toBe("paste");
     expect(pasted).toEqual(["words"]);
   });
+
+  it("the keyboard goes to one of Filow's own windows while the keys go up: its page decides, never a blind paste", async () => {
+    const m = make(NOTEPAD);
+    let up = false;
+    const state = { win: null as unknown };
+    // the same dictation object, but Electron now reports a focused Filow window with a password input
+    const d2 = createDictation({
+      getSettings: () => ({ dictation: { v: 2, removeFillers: false } }), saveSettings: () => {}, logLine: (l: string) => m.log.push(l),
+      clipboard: { read: async () => m.st.items, readText: async () => m.text(), write: async (i: FakeItem[]) => { m.writes.push(String(i[0].data["text/plain"])); m.st.items = i; }, writeText: async (t: string) => { m.writes.push(t); }, clear: async () => {} },
+      ClipboardItem: FakeItem, BrowserWindow: { getFocusedWindow: () => state.win },
+      sendPaste: () => { throw new Error("no hook path"); },
+      target: () => ({ info: () => m.st.info as Info, sendPaste: () => { m.pasted.push(m.text()); return 4; }, typeText: () => 0 }),
+      platform: "win32", env: {},
+    });
+    const r = d2.insert("secret", { hook: {}, keysUp: async () => { while (!up) await new Promise((res) => setTimeout(res, 25)); return true; } });
+    await vi.advanceTimersByTimeAsync(200);
+    m.st.info = { ...NOTEPAD, exe: "Filow.exe", cls: "Chrome_WidgetWin_1", own: true, passwordChecked: false };
+    state.win = { isDestroyed: () => false, isVisible: () => true, webContents: { executeJavaScript: async () => ({ password: true }), insertText: async () => { throw new Error("must not type"); } } };
+    up = true;
+    await vi.advanceTimersByTimeAsync(500);
+    expect((await r).action).toBe("refused");
+    expect(m.pasted).toEqual([]);
+    expect(m.writes).not.toContain("secret");
+  });
+
+  it("something the user copies while the keys are still down is what comes back after the paste", async () => {
+    const m = make(NOTEPAD);
+    let up = false;
+    const r = m.d.insert("dictated", { hook: {}, keysUp: async () => { while (!up) await new Promise((res) => setTimeout(res, 25)); return true; } });
+    await vi.advanceTimersByTimeAsync(200);
+    m.st.items = [new FakeItem({ "text/plain": "copied during the wait" })];
+    up = true;
+    await vi.advanceTimersByTimeAsync(200);
+    expect((await r).action).toBe("paste");
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(m.text()).toBe("copied during the wait");
+  });
 });
 
 describe("dictation target: the facts", () => {
@@ -268,7 +305,9 @@ describe("dictation target: the facts", () => {
     const dir = path.join(__dirname, "native", "target");
     const sha = crypto.createHash("sha256").update(fs.readFileSync(path.join(dir, "src", "target.cc"), "utf8").replace(/\r\n/g, "\n")).digest("hex");
     expect(fs.readFileSync(path.join(dir, "prebuilds", "win32-x64", "BUILT-FROM.txt"), "utf8")).toContain(sha);
-    expect(fs.statSync(path.join(dir, "prebuilds", "win32-x64", "filow-target.node")).size).toBeGreaterThan(20_000);
+    // ...and the binary is the one that build wrote (a stale or swapped file fails here).
+    const bin = crypto.createHash("sha256").update(fs.readFileSync(path.join(dir, "prebuilds", "win32-x64", "filow-target.node"))).digest("hex");
+    expect(fs.readFileSync(path.join(dir, "prebuilds", "win32-x64", "BUILT-FROM.txt"), "utf8")).toContain(`filow-target.node sha256 ${bin}`);
   });
 
   it.runIf(process.platform === "win32" && process.arch === "x64")("the helper loads on Windows and answers with facts, no title and no text", () => {

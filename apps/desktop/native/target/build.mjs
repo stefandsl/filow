@@ -30,5 +30,6 @@ fs.mkdirSync(out, { recursive: true });
 fs.copyFileSync(path.join(dir, "build", "Release", "filow_target.node"), path.join(out, "filow-target.node"));
 // The test compares this with the source, so a changed source without a rebuilt binary is noticed.
 const sha = crypto.createHash("sha256").update(fs.readFileSync(path.join(here, "src", "target.cc"), "utf8").replace(/\r\n/g, "\n")).digest("hex");
-fs.writeFileSync(path.join(out, "BUILT-FROM.txt"), `apps/desktop/native/target/src/target.cc sha256 ${sha}\n`);
+const bin = crypto.createHash("sha256").update(fs.readFileSync(path.join(out, "filow-target.node"))).digest("hex");
+fs.writeFileSync(path.join(out, "BUILT-FROM.txt"), `apps/desktop/native/target/src/target.cc sha256 ${sha}\nfilow-target.node sha256 ${bin}\n`);
 console.log(`built ${path.join(out, "filow-target.node")}`);
