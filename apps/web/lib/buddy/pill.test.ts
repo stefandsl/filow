@@ -275,6 +275,24 @@ describe("Resume after Stop", () => {
     expect(plan.history.map((t) => t.role)).toEqual(["user", "assistant", "user", "assistant"]);
   });
 
+  it("a continuation that is stopped again keeps one question and one answer, the answer being all that is shown now", () => {
+    const resumed: BuddyTurn[] = [...before, { role: "user", text: "explain" }, { role: "assistant", text: "Plants take in light." }];
+    const turn = createAnswerTurn();
+    turn.begin(5, "explain", new AbortController(), { continues: "Plants take in light." });
+    // Stopped before a new word came: the first part is still what was said.
+    const early = createAnswerTurn();
+    early.begin(6, "explain", new AbortController(), { continues: "Plants take in light." });
+    expect(early.stop(resumed)?.history).toEqual(resumed);
+    expect(early.offer()).toEqual({ kind: "continue", question: "explain", shown: "Plants take in light." });
+    turn.progress(5, "Plants take in light. They make sugar. Then th");
+    const was = turn.stop(resumed);
+    expect(was?.history).toEqual([...before, { role: "user", text: "explain" }, { role: "assistant", text: "Plants take in light. They make sugar. Then th" }]);
+    // And it can be resumed once more from there.
+    const plan = resumePlan(turn.offer()!, was!.history);
+    expect(plan).toMatchObject({ kind: "continue", shown: "Plants take in light. They make sugar." });
+    expect(plan.history.map((t) => t.role)).toEqual(["user", "assistant", "user", "assistant"]);
+  });
+
   it("asks again when no whole sentence was shown, or when the conversation no longer ends with that answer", () => {
     const stopped: BuddyTurn[] = [...before, { role: "user", text: "explain" }, { role: "assistant", text: "Plants take" }];
     const none = resumePlan({ kind: "continue", question: "explain", shown: "Plants take" }, stopped);

@@ -5,8 +5,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { okFilowBridge, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/bridge";
-import { bezierPoint, bubblePlacement, marksStarted, overStopButton } from "@/lib/buddy/motion";
-import { EyeIcon, StopButton } from "@/components/okfilow/controls";
+import { bezierPoint, bubblePlacement, createPausableClock, marksStarted, overControls, STROKE_GAP_MS } from "@/lib/buddy/motion";
+import { keyLabel, PILL_IDLE, pillView, statusRoom, type PillAction, type PillState } from "@/lib/buddy/pill";
+import { AnswerControls, EyeButton, Slot } from "@/components/okfilow/controls";
 import { joinNames, localNames, type OutboundSnapshot } from "@/lib/buddy/outbound";
 import type { BuddyMark } from "@/lib/buddy/prompt";
 import { okfText, type OkfKey } from "@/lib/buddy/text";
@@ -17,7 +18,6 @@ import "../okfilow.css";
 const OFFSET = { x: 16, y: 20 };
 const FLY_MS = 650;
 const HOLD_MS = 5500;
-const STROKE_GAP_MS = 900;
 
 /** SVG path for one mark, drawn like a quick pen stroke (circles are slightly open ellipses). */
 function markPath(m: BuddyMark): string {
@@ -73,15 +73,23 @@ export default function OkFilowOverlay() {
   const [sees, setSees] = useState(true);
   const [stopped, setStopped] = useState(false);
   const marksAt = useRef(0);
-  const stopSpot = useRef<HTMLSpanElement>(null);
+  // The pill: its state (the eye now, paused, resumable: the panel says), its shortcuts, and whether the pointer is on one of its controls.
+  const [pill, setPill] = useState<PillState>(PILL_IDLE);
+  const [keys, setKeys] = useState({ eye: "", pause: "" });
+  const pillSpot = useRef<HTMLDivElement>(null);
   const overStop = useRef(false);
+  /** The flights and the pen are timed on this clock: it stands still while the answer is paused. */
+  const clock = useRef(createPausableClock());
+  /** Whether the pointer is on a control of the pill (the eye, Pause, Resume, Stop). */
+  const onControl = useCallback((p: { x: number; y: number } | null) => overControls(p, Array.from(pillSpot.current?.querySelectorAll("button") ?? [], (el) => el.getBoundingClientRect())), []);
   const [text, setText] = useState("");
   const [level, setLevel] = useState(0);
   const [label, setLabel] = useState("");
   // Near the bottom or right edge the label goes above or to the left of the arrow, never off screen.
   const [flip, setFlip] = useState("");
   const [here, setHere] = useState(false);
-  const [marks, setMarks] = useState<{ id: number; list: BuddyMark[] }>({ id: 0, list: [] });
+  // `done`: drawn before a stop (Resume after Stop): shown as it was, not drawn again.
+  const [marks, setMarks] = useState<{ id: number; list: Array<BuddyMark & { done?: boolean }> }>({ id: 0, list: [] });
   const [cards, setCards] = useState<OkFilowCard[]>([]);
   // Highlighter: while the talk chord is held the overlay takes the mouse; a drag marks the screen.
   const [ink, setInk] = useState<Array<Array<[number, number]>>>([]);
@@ -101,24 +109,27 @@ export default function OkFilowOverlay() {
     const b = okFilowBridge();
     if (!b) return;
     const applyColor = (c?: string) => { if (c && /^#[0-9a-f]{6}$/i.test(c)) document.documentElement.style.setProperty("--okf-ink", c); };
-    void b.status().then((s) => applyColor(s.color)).catch(() => {});
+    const applyKeys = (s: { eyeKey?: string; pauseKey?: string }) => setKeys({ eye: keyLabel(s.eyeKey), pause: keyLabel(s.pauseKey) });
+    void b.status().then((s) => { applyColor(s.color); applyKeys(s); }).catch(() => {});
     const offs = [
-      b.onConfig((s) => applyColor(s.color)),
+      b.onConfig((s) => { applyColor(s.color); applyKeys(s); }),
+      b.onPill?.((s) => setPill({ sees: s?.sees !== false, paused: s?.paused === true, resumable: s?.resumable === true })) ?? (() => {}),
       b.onStrokes(() => setInk([])),
       b.onState((s) => {
         setMode(s.mode);
         setPurpose(s.purpose ?? "talk");
         if (typeof s.sees === "boolean") setSees(s.sees);
-        // No answer in progress: main has taken the mouse back already.
-        if (s.mode !== "thinking" && s.mode !== "speaking") overStop.current = false;
         setStopped(s.stopped === true);
         if (s.stopped === true) {
           // Stop: the pointer flies nowhere else, and the marks not yet begun are not drawn (the ones on screen stay).
           queue.current = [];
           flight.current = null;
           setLabel("");
-          const elapsed = performance.now() - marksAt.current;
-          setMarks((m) => ({ id: m.id, list: m.list.slice(0, marksStarted(m.list.length, elapsed, STROKE_GAP_MS)) }));
+          const elapsed = clock.current.at(performance.now()) - marksAt.current;
+          setMarks((m) => {
+            const before = m.list.filter((x) => x.done).length;
+            return { id: m.id, list: m.list.slice(0, before + marksStarted(m.list.length - before, elapsed, STROKE_GAP_MS)) };
+          });
         }
         if (s.mode !== "listening" && live.current) {
           const l = live.current;
@@ -133,9 +144,9 @@ export default function OkFilowOverlay() {
       b.onLevel(setLevel),
       b.onCursor((p) => {
         cursor.current = p;
-        // The Stop button is the one thing here that takes a click: while the pointer is on it (main
-        // sends where the pointer is), this overlay asks main for the mouse, and gives it back after.
-        const over = overStopButton(p, stopSpot.current?.getBoundingClientRect() ?? null);
+        // The controls of the pill are the one thing here that takes a click: while the pointer is on
+        // one (main sends where the pointer is), this overlay asks main for the mouse, and gives it back after.
+        const over = onControl(p);
         if (over !== overStop.current) {
           overStop.current = over;
           b.overlayHover?.(over);
@@ -143,7 +154,7 @@ export default function OkFilowOverlay() {
       }),
       b.onDraw((list) => {
         // Kept until main sends okfilow:clear (Escape, the panel's Clear, or the next question).
-        marksAt.current = performance.now();
+        marksAt.current = clock.current.at(performance.now());
         setMarks((m) => ({ id: m.id + 1, list: Array.isArray(list) ? list : [] }));
       }),
       b.onCards((list) => setCards(Array.isArray(list) ? list.slice(0, 2) : [])),
@@ -163,7 +174,9 @@ export default function OkFilowOverlay() {
     // Listeners are in place: ask for the state sent while this page was still loading.
     b.overlayReady();
     let raf = 0;
-    const tick = (now: number) => {
+    const tick = (real: number) => {
+      // The flight is timed on the clock that stands still during a pause: the pointer freezes where it is.
+      const now = clock.current.at(real);
       const f = flight.current;
       if (!f && queue.current.length) {
         const to = queue.current.shift()!;
@@ -203,25 +216,33 @@ export default function OkFilowOverlay() {
     };
     raf = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(raf); offs.forEach((o) => o()); };
-  }, []);
+  }, [onControl]);
+
+  // Pause: the pointer's flight and the pen stand still; Resume: they carry on from the same spot.
+  useEffect(() => {
+    if (pill.paused) clock.current.pause(performance.now());
+    else clock.current.resume(performance.now());
+  }, [pill.paused]);
 
   const bars = [0.55, 0.85, 1, 0.8, 0.5];
   const answering = mode === "thinking" || mode === "speaking";
   // The pill can appear, move or go away under a pointer that stands still (main only says where the
   // pointer is when it moves): look again whenever what is shown changes.
+  // Main is told every time (not only on a change): its own record is wiped when the pill goes away.
   useEffect(() => {
-    const over = overStopButton(cursor.current, stopSpot.current?.getBoundingClientRect() ?? null);
-    if (over !== overStop.current) {
-      overStop.current = over;
-      okFilowBridge()?.overlayHover?.(over);
-    }
-  }, [mode, going, here, sees, lang]);
-  /** Stop: the one thing on the overlay that takes the mouse (see onCursor above). */
-  const stopPill = (
-    <span ref={stopSpot} className="okf-notch-stop" onPointerDown={(e) => e.stopPropagation()}>
-      <StopButton pill active={answering} t={t} onStop={() => okFilowBridge()?.stopAnswer?.("button")} />
-    </span>
-  );
+    const over = onControl(cursor.current);
+    overStop.current = over;
+    okFilowBridge()?.overlayHover?.(over);
+  }, [mode, going, here, sees, lang, stopped, pill, keys, onControl]);
+  const view = pillView({ mode, purpose, stopped, pill });
+  /** A control of the pill: Stop ends the answer; the eye, Pause and Resume go to the panel through main. */
+  const act = (action: PillAction) => {
+    const b = okFilowBridge();
+    if (action === "stop") b?.stopAnswer?.("button");
+    else b?.control?.(action);
+  };
+  const controls = <AnswerControls pill view={view} t={t} pauseKey={keys.pause} onAction={act} />;
+  const drawnBefore = marks.list.filter((m) => m.done).length;
   const onDown = (e: React.PointerEvent) => {
     // The highlighter marks only while the talk keys are held (the only other time a click reaches this window is on the Stop button).
     if (e.button !== 0 || !(mode === "listening" && purpose === "talk")) return;
@@ -244,7 +265,7 @@ export default function OkFilowOverlay() {
   };
   return (
     <>
-    <div className={"okf-overlay" + (mode === "listening" && purpose === "talk" ? " okf-overlay--catch" : "")} aria-hidden onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+    <div className={"okf-overlay" + (mode === "listening" && purpose === "talk" ? " okf-overlay--catch" : "") + (pill.paused ? " okf-paused" : "")} aria-hidden onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
       {cards.length > 0 && (() => {
         // A column beside the spot the first card explains; the cards stack by their real heights,
         // and the column is kept on screen (it scrolls inside itself only if it is taller).
@@ -274,33 +295,16 @@ export default function OkFilowOverlay() {
       {marks.list.length > 0 && (
         <svg key={marks.id} className="okf-draw" width="100%" height="100%">
           {marks.list.map((m, i) => (
-            <g key={i} className="okf-mark" style={{ animationDelay: `${i * STROKE_GAP_MS}ms` }}>
-              <path d={markPath(m)} pathLength={1} style={{ animationDelay: `${i * STROKE_GAP_MS}ms` }} />
+            <g key={i} className={"okf-mark" + (m.done ? " okf-mark--done" : "")} style={{ animationDelay: `${(i - drawnBefore) * STROKE_GAP_MS}ms` }}>
+              <path d={markPath(m)} pathLength={1} style={{ animationDelay: `${(i - drawnBefore) * STROKE_GAP_MS}ms` }} />
               {m.label && (
                 <foreignObject x={labelAt(m).x} y={labelAt(m).y} width="240" height="40">
-                  <span className="okf-mark-label" style={{ animationDelay: `${i * STROKE_GAP_MS + 450}ms` }}>{m.label}</span>
+                  <span className="okf-mark-label" style={{ animationDelay: `${(i - drawnBefore) * STROKE_GAP_MS + 450}ms` }}>{m.label}</span>
                 </foreignObject>
               )}
             </g>
           ))}
         </svg>
-      )}
-      {/* Going outside wins over the other pills, and shows on every display: it must not be missed. */}
-      {going ? (
-        <div className="okf-notch okf-notch--out">
-          <OutboundIcon />
-          <strong>{t("outLabel")}</strong>
-          <span>{t("outSending").replace("{names}", joinNames(localNames(out.names, t("freeName")), t("outAnd")))}</span>
-          {/* An answer from online can be stopped from here too. */}
-          {answering && stopPill}
-        </div>
-      ) : here && (mode === "listening" || answering) && (
-        <div className="okf-notch">
-          {/* While asking: an eye when the question took the screen, struck through when it went with words only (said in words too). */}
-          {mode === "thinking" ? <EyeIcon off={!sees} size={15} /> : <span className={"okf-notch-dot okf-notch-dot--" + mode} />}
-          <span>{t(mode === "thinking" ? (sees ? "notchLooking" : "notchWords") : mode === "speaking" ? "notchAnswering" : purpose === "dictate" ? "notchDictating" : purpose === "handsfree" ? "notchHandsFree" : "notchListening")}</span>
-          {stopPill}
-        </div>
       )}
       <div ref={dot} className={`okf-buddy okf-buddy--${mode}${going ? " okf-buddy--out" : ""}${here ? "" : " okf-hidden"}`}>
         {going && <span className="okf-out-rings"><i /><i /><i /></span>}
@@ -317,6 +321,25 @@ export default function OkFilowOverlay() {
         {stopped && <span className="okf-bubble-stopped">{t("stopped")}</span>}
       </div>
     </div>
+    {/* The pill is outside the hidden overlay: its controls are real buttons with names. The window never takes the
+        keyboard (it must not take it from the app in use), so keys reach them through the panel and the two shortcuts.
+        Going outside wins over the other pills, and shows on every display: it must not be missed. */}
+    {going ? (
+      <div ref={pillSpot} className="okf-notch okf-notch--out" role="group" aria-label="OK Filow">
+        <OutboundIcon />
+        <strong>{t("outLabel")}</strong>
+        <span>{t("outSending").replace("{names}", joinNames(localNames(out.names, t("freeName")), t("outAnd")))}</span>
+        {/* An answer from online can be paused and stopped from here too. */}
+        {answering && controls}
+      </div>
+    ) : here && view.show && (
+      <div ref={pillSpot} className="okf-notch" role="group" aria-label="OK Filow" data-testid="okf-pill">
+        {/* The eye as it is now (what the next question would do), in a word too; a click opens or closes it. */}
+        {view.eye ? <EyeButton open={pill.sees} t={t} keyLabel={keys.eye} onToggle={() => act("eye")} /> : <span className={"okf-notch-dot okf-notch-dot--" + mode} />}
+        <Slot className="okf-notch-status" show={view.status} labels={statusRoom(view.status).map((k) => ({ key: k, text: t(k) }))} />
+        {controls}
+      </div>
+    )}
     {/* Dictation's start and end for screen readers (outside the hidden overlay), from the display with the mouse only. */}
     <div className="okf-sr" role="status" aria-live="polite">
       {here && purpose === "dictate" && mode === "listening" ? dictationText(lang, "startedLive") : ""}

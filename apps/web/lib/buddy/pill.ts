@@ -46,6 +46,11 @@ export type PillView = {
 /** Every status the pill can show, so its room is as wide as the widest and nothing jumps. */
 export const PILL_STATUSES: OkfKey[] = ["notchLooking", "notchNotLooking", "notchAnswering", "paused", "stopped", "notchListening", "notchHandsFree", "notchDictating"];
 
+/** The statuses of an answer in progress share one room: looking, not looking, answering and paused swap without the pill changing width. */
+export const ANSWER_STATUSES: OkfKey[] = ["notchLooking", "notchNotLooking", "notchAnswering", "paused"];
+/** The labels that size the status's room: the whole group for an answer in progress, the status alone otherwise. */
+export const statusRoom = (status: OkfKey): OkfKey[] => (ANSWER_STATUSES.includes(status) ? ANSWER_STATUSES : [status]);
+
 /**
  * The pill in one state. Answering: [eye] status [Pause] [Stop]; paused: [eye] "Paused" [Resume]
  * [Stop]; stopped and resumable: [eye] "Stopped" [Resume]; listening: [eye] status.

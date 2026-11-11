@@ -110,7 +110,7 @@ export function resumePlan(offer: ResumeOffer, history: BuddyTurn[]): { kind: Re
 }
 
 export function createAnswerTurn() {
-  let cur: { id: number; question: string; shown: string; kept: boolean; resumable: boolean; abort?: AbortController; paused: boolean; buffered: string | null; waiting: Array<(go: boolean) => void> } | null = null;
+  let cur: { id: number; question: string; shown: string; continues: boolean; kept: boolean; resumable: boolean; abort?: AbortController; paused: boolean; buffered: string | null; waiting: Array<(go: boolean) => void> } | null = null;
   let offer: ResumeOffer | null = null;
   /** Lets go of whoever waits for a Resume: `go` false when the answer is over instead. */
   const release = (c: NonNullable<typeof cur>, go: boolean) => {
@@ -121,12 +121,14 @@ export function createAnswerTurn() {
   return {
     /**
      * A new answer starts: `abort` ends its request to the model. `resumable` false: a stop of this
-     * answer offers no Resume (a drawing request). Any earlier offer is gone: a new question was asked.
+     * answer offers no Resume (a drawing request). `continues`: this request carries on a stopped
+     * answer whose first part (this text) is on screen and in the conversation already. Any earlier
+     * offer is gone: a new question was asked, or the offer was taken.
      */
-    begin(id: number, question: string, abort?: AbortController, opts: { resumable?: boolean } = {}) {
+    begin(id: number, question: string, abort?: AbortController, opts: { resumable?: boolean; continues?: string } = {}) {
       if (cur) release(cur, false);
       offer = null;
-      cur = { id, question, shown: "", kept: false, resumable: opts.resumable !== false, abort, paused: false, buffered: null, waiting: [] };
+      cur = { id, question, shown: opts.continues ?? "", continues: opts.continues !== undefined, kept: false, resumable: opts.resumable !== false, abort, paused: false, buffered: null, waiting: [] };
     },
     /**
      * The text so far (tags and unfinished blocks already taken out). True when it may be shown now;
@@ -193,7 +195,12 @@ export function createAnswerTurn() {
       c.abort?.abort();
       const shown = c.shown.trim();
       // Nothing was said yet: the question is dropped too, so no question is left without an answer.
-      const next = c.kept || !shown ? history : [...history, { role: "user" as const, text: c.question }, { role: "assistant" as const, text: shown }].slice(-12);
+      // A continuation (Resume after Stop) already has its question and the first part in the
+      // conversation: the last answer becomes what is shown now, with no second question turn.
+      const last = history[history.length - 1];
+      const next = c.kept || !shown ? history
+        : c.continues && last?.role === "assistant" ? [...history.slice(0, -1), { role: "assistant" as const, text: shown }]
+        : [...history, { role: "user" as const, text: c.question }, { role: "assistant" as const, text: shown }].slice(-12);
       offer = c.resumable ? { kind: c.kept ? "speak" : shown ? "continue" : "again", question: c.question, shown } : null;
       return { question: c.question, shown, history: next };
     },

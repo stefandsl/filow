@@ -1,6 +1,9 @@
 // OK Filow motion helpers, pure so they are unit tested.
 type P = { x: number; y: number };
 
+/** An answer's marks begin to draw one after another, this far apart. */
+export const STROKE_GAP_MS = 900;
+
 const ease = (k: number) => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
 
 /**

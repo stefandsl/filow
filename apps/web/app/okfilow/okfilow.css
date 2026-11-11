@@ -247,3 +247,45 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
 .okf-see-out .okf-out-icon { flex: none; margin-top: 2px; color: var(--okf-out-line); }
 .okf-see-out--kept { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .okf-see-track, .okf-see-track i { transition: none; } }
+
+/* The eye's shortcut, under the switch. */
+.okf-see-key { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.okf-key-taken { margin: -4px 0 0; font-size: 12px; }
+
+/* One room for several labels (Pause and Resume, the statuses of an answer): as wide as the widest, so nothing moves when the label changes. */
+.okf-slot { display: inline-grid; justify-items: start; align-items: center; }
+.okf-slot > span { grid-area: 1 / 1; white-space: nowrap; }
+.okf-slot-off { visibility: hidden; }
+.okf-ctl .okf-slot { justify-items: center; }
+
+/* Pause, Resume and the eye as buttons: the shape of Stop, on the panel's row and on the pill (docs/okfilow/PILL.md). */
+.okf-ctls { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.okf-ctl {
+  flex: none; display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--text) 28%, transparent); border-radius: 9px;
+  background: var(--panel); color: var(--text); font: 700 13px/1 inherit; cursor: pointer;
+}
+.okf-ctl svg { flex: none; }
+.okf-ctl--pause svg, .okf-ctl--resume svg { fill: currentColor; }
+.okf-ctl:hover { border-color: var(--okf-ink); }
+.okf-ctl:focus-visible { outline: 2px solid var(--okf-ink); outline-offset: 2px; }
+/* On the pill: compact, every control the same height, the eye at the left edge and the answer's controls at the right. */
+.okf-notch .okf-ctl, .okf-notch .okf-stop {
+  height: 24px; padding: 0 9px; margin: 0; border-radius: 999px; border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1); color: #f4f4f5; font: 700 12px/1 system-ui, sans-serif; pointer-events: auto;
+}
+.okf-notch .okf-ctl:hover { background: rgba(255, 255, 255, 0.2); border-color: rgba(255, 255, 255, 0.5); }
+.okf-notch .okf-ctl:focus-visible, .okf-notch .okf-stop:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.okf-notch .okf-ctl--eye { margin-left: -8px; gap: 5px; }
+/* Closed: quieter and dashed, on top of the struck-through eye and the word. */
+.okf-notch .okf-ctl--shut { color: #c9cbd1; border-style: dashed; }
+.okf-notch .okf-ctls { margin: 0 -8px 0 4px; }
+.okf-notch--out .okf-ctl, .okf-notch--out .okf-stop { border-color: rgba(8, 9, 11, 0.45); background: rgba(8, 9, 11, 0.12); color: #08090b; }
+.okf-notch--out .okf-ctl:focus-visible, .okf-notch--out .okf-stop:focus-visible { outline-color: #08090b; }
+.okf-notch-status { font-weight: 600; }
+
+/* Paused: the pen holds still where it is; Resume lets it go on. */
+.okf-paused .okf-mark, .okf-paused .okf-mark path, .okf-paused .okf-mark-label, .okf-paused .okf-card { animation-play-state: paused; }
+/* Marks drawn before a stop (Resume after Stop): shown as they were, not drawn a second time. */
+.okf-mark--done path { animation: none; stroke-dashoffset: 0; }
+.okf-mark--done .okf-mark-label { animation: none; opacity: 1; }
