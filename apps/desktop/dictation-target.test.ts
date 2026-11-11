@@ -278,10 +278,43 @@ describe("dictation target: where the words go", () => {
     await vi.advanceTimersByTimeAsync(2000);
     expect(m.text()).toBe("copied during the wait");
   });
+
+  // Seen in Notepad on 2026-11-11: two dictations in a row came out as "...alle 9.La riunione...".
+  it("two dictations in a row into the same window are joined by a space; not after a key or a click, not in another window", async () => {
+    const m = make(NOTEPAD);
+    const d = m.d as typeof m.d & { userMoved(): void };
+    const say = async (text: string) => { const r = d.insert(text, { hook: {} }); await vi.advanceTimersByTimeAsync(2500); return r; };
+    await say("La riunione comincia domani mattina alle 9.");
+    await say("Porta la relazione.");
+    expect(m.pasted).toEqual(["La riunione comincia domani mattina alle 9.", " Porta la relazione."]);
+    d.userMoved(); // the user pressed Enter or clicked: the caret is somewhere else
+    await say("Nuova riga.");
+    expect(m.pasted[2]).toBe("Nuova riga.");
+    m.st.info = { ...NOTEPAD, hwnd: 200, exe: "WINWORD.EXE", cls: "OpusApp" };
+    await say("In un'altra finestra.");
+    expect(m.pasted[3]).toBe("In un'altra finestra.");
+    // Japanese is written without spaces.
+    await say("会議は明日です。");
+    await say("よろしく。");
+    expect(m.pasted[5]).toBe("よろしく。");
+  });
+
+  it("Filow's own paste keys coming back through the keyboard hook do not count as the user typing", async () => {
+    const m = make(NOTEPAD);
+    const d = m.d as typeof m.d & { userMoved(): void };
+    const r = d.insert("first.", { hook: {} });
+    await vi.advanceTimersByTimeAsync(100);
+    await r;
+    d.userMoved(); // the hook reports our own Ctrl + V a moment after it was sent
+    await vi.advanceTimersByTimeAsync(2500);
+    const r2 = d.insert("second.", { hook: {} });
+    await vi.advanceTimersByTimeAsync(500);
+    await r2;
+    expect(m.pasted).toEqual(["first.", " second."]);
+  });
 });
 
-describe("dictation target: the facts", () => {
-  it("keeps names only: a title or a path never gets through", () => {
+describe("dictation target: the facts", () => {  it("keeps names only: a title or a path never gets through", () => {
     const t = target.describeTarget({ ...NOTEPAD, exe: "C:\\Users\\someone\\app.exe", cls: "Cls<script>", title: "Private letter.docx" });
     expect(JSON.stringify(t)).not.toContain("Private");
     expect(t.exe).toBe("CUserssomeoneapp.exe"); // separators are dropped: the helper sends a file name, and a path cannot be rebuilt

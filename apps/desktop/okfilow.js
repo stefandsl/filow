@@ -590,6 +590,7 @@ function createOkFilow(deps) {
       pressedAt = Date.now() - ago;
       phraseRun = handsFree ? dictation.newPhraseRun() : null;
       dictation.diag.begin(handsFree ? "handsfree" : "hold", ago);
+      dictation.warmCleanup();
     }
     // Read the selection while the user's app still has focus; it goes with the question.
     if (kind === "talk") { clearDrawings(); strokes = []; setOverlayMouse(true); selection = readSelection(); }
@@ -715,6 +716,7 @@ function createOkFilow(deps) {
         if (!e.keycode) return;
         const k = map[e.keycode] || null;
         gestures.keydown(k);
+        if (!k) dictation.userMoved(); // the caret may have moved: no joining space before the next dictation
         if (e.keycode === K.Escape) { clearDrawings(); gestures.escape(); }
         // Hands-free dictation: after the user's own Enter or Tab the next phrase starts without a space.
         if (phraseRun && (e.keycode === K.Enter || e.keycode === K.NumpadEnter || e.keycode === K.Tab)) phraseRun.moved();
@@ -732,6 +734,7 @@ function createOkFilow(deps) {
       }
       uIOhook.on("mousedown", () => {
         gestures.mousedown();
+        dictation.userMoved();
         if (phraseRun) phraseRun.moved(); // a click may have moved the caret
       });
       uIOhook.start();

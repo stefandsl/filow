@@ -27,7 +27,14 @@ const DEFAULTS = Object.freeze({
   removeFillers: true,
   /** A short quiet tone when dictation starts and stops (useful with a screen reader). On by default (issue #3). */
   sound: true,
+  /** English dictations are written out by S1-mini by Superwhisper on this PC (dictation-cleanup.js). */
+  cleanup: true,
+  /** How written the result is: "casual" | "semi-casual" | "semi-formal" | "formal" (the model's own registers). */
+  cleanupStyle: "semi-formal",
+  /** May the model turn three or more spoken items into a bulleted list? */
+  cleanupLists: false,
 });
+const CLEANUP_STYLES = ["casual", "semi-casual", "semi-formal", "formal"];
 
 /**
  * settings.json keeps only what the user chose (`v: 2` plus the keys they set), so a setting they never
@@ -36,7 +43,7 @@ const DEFAULTS = Object.freeze({
  * (both started off and that build could not tell them apart): those two are dropped from such a record.
  */
 const STORE_VERSION = 2;
-const KEYS = ["enabled", "chord", "mode", "language", "insert", "removeFillers", "sound"];
+const KEYS = ["enabled", "chord", "mode", "language", "insert", "removeFillers", "sound", "cleanup", "cleanupStyle", "cleanupLists"];
 const OLD_OFF_DEFAULTS = ["removeFillers", "sound"];
 
 /** What settings.json holds -> only the user's own choices (an object with known keys). */
@@ -142,6 +149,9 @@ function sanitizeConfig(raw, legacyEnabled) {
     insert: r.insert === "copy" ? "copy" : "paste",
     removeFillers: typeof r.removeFillers === "boolean" ? r.removeFillers : DEFAULTS.removeFillers,
     sound: typeof r.sound === "boolean" ? r.sound : DEFAULTS.sound,
+    cleanup: typeof r.cleanup === "boolean" ? r.cleanup : DEFAULTS.cleanup,
+    cleanupStyle: CLEANUP_STYLES.includes(r.cleanupStyle) ? r.cleanupStyle : DEFAULTS.cleanupStyle,
+    cleanupLists: typeof r.cleanupLists === "boolean" ? r.cleanupLists : DEFAULTS.cleanupLists,
   };
 }
 
@@ -413,6 +423,6 @@ function createPhraseRun() {
 
 module.exports = {
   joinAfter, createPhraseRun,
-  MODS, LANGS, DEFAULTS, CHORDS, parseChord, chordLabel, checkChord, sanitizeConfig, nextStored, pasteDecision,
+  MODS, LANGS, DEFAULTS, CHORDS, CLEANUP_STYLES, parseChord, chordLabel, checkChord, sanitizeConfig, nextStored, pasteDecision,
   snapshotClipboard, restoreClipboard, clipboardWriter, createClipboardInserter, postProcess, removeFillers, setFillerHook, fold,
 };

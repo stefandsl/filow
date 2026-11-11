@@ -55,7 +55,7 @@
 
   function aboutView() {
     const tx = data.text;
-    const facts = el("ul", { class: "facts" }, el("li", { text: tx.fact1 }), el("li", { text: tx.fact2 }));
+    const facts = el("ul", { class: "facts" }, el("li", { text: tx.fact1 }), el("li", { text: tx.fact2 }), el("li", { text: tx.fact3 }));
     const folder = el("div", { class: "folder" },
       el("span", { class: "label", text: tx.configFolder }),
       el("code", { class: "path", text: data.info.configFolder }),

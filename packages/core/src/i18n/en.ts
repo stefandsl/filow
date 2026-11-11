@@ -794,6 +794,7 @@ export const en = {
   "about.version": "Version {version}",
   "about.fact1": "No account. No telemetry: Filow does not tell anyone how you use it.",
   "about.fact2": "Your script, settings and logs stay in your config folder on this computer.",
+  "about.fact3": "English dictations are cleaned up on this computer by S1-mini by Superwhisper (Apache 2.0 with a naming clause), running in llama.cpp (MIT). Their licence texts are in Filow's licenses folder.",
   "about.configFolder": "Your config folder",
   "about.openFolder": "Open the folder",
   "about.todo": "not filled in yet",

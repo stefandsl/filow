@@ -146,6 +146,10 @@ does not control: a third-party clipboard manager may still record the text for 
   `FILOW_OKF_QA_KEYS=1` lets the panel feed key presses to the real gestures code (for machines where
   Windows refuses the hook, such as a locked session). Both switches work only in a QA package.
 
+## Cleanup of English dictations: S1-mini by Superwhisper
+
+English dictations are written out by S1-mini by Superwhisper on this PC before they are typed (fillers, self-corrections, numbers, dates, e-mail addresses); other languages never go through it. Everything about it, the safety net and what is not built yet: `docs/dictation/S1-MINI.md`. Two dictations in a row into the same window are joined by a space (same file, section 8).
+
 ## Report a problem
 
 The report has a "Dictation and keys" section (`dictation-diag.js`, spec in `docs/dictation/SPEC.md`):

@@ -15,6 +15,13 @@ export type DictationStatus = {
   language: "auto" | "en" | "it" | "ru" | "ro" | "ja";
   insert: "paste" | "copy";
   removeFillers: boolean;
+  /** English dictations written out by S1-mini by Superwhisper on this PC (apps/desktop/dictation-cleanup.js). */
+  cleanup: boolean;
+  cleanupStyle: "casual" | "semi-casual" | "semi-formal" | "formal";
+  cleanupLists: boolean;
+  /** The model is on this computer and the runtime is in this build. */
+  cleanupReady?: boolean;
+  cleanupState?: { runtime: boolean; model: boolean; downloading: boolean; pct: number; bytes: number; error: string } | null;
   sound: boolean;
   platform: string;
   chords: Array<{ value: string; label: string }>;

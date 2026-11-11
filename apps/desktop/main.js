@@ -301,6 +301,13 @@ function initializeUiPreferences() {
   ipcMain.handle("freellm:configure", (event, patch) => { if (!uiSender(event)) throw new Error("Denied"); return freeLlm().configure(patch); });
   // Dictation's section in Filow Settings (dictation.js). Status needs OK Filow's talk keys for the conflict check.
   ipcMain.handle("dictation:settings:status", event => { if (!uiSender(event)) throw new Error("Denied"); return dictationStatus(); });
+// The user asked for S1-mini by Superwhisper in Settings: one download from huggingface.co, hash checked.
+ipcMain.handle("dictation:cleanup:download", event => {
+  if (!uiSender(event)) throw new Error("Denied");
+  if (offline) return { started: false, reason: "offline" };
+  void s1Runtime().download();
+  return { started: true };
+});
   ipcMain.handle("dictation:settings:configure", (event, patch) => {
     if (!uiSender(event)) throw new Error("Denied");
     if (patch && typeof patch === "object") getDictation().configure(patch);
@@ -1373,6 +1380,25 @@ function appIcon() {
 }
 
 // ---- Dictation: speak into any app's text field, on this PC only (dictation.js, docs/okfilow/DICTATION.md) ----
+let s1 = null;
+/** The local runtime for S1-mini by Superwhisper (s1-runtime.js): started at the first English dictation. */
+function s1Runtime() {
+  s1 ||= require("./s1-runtime").createS1Runtime({ userData, logLine, spawn: require("node:child_process").spawn, download: require("./download").download, sha256File: require("./integrity").sha256File, threads: () => Math.max(2, Math.min(6, Math.floor(os.cpus().length / 2))) });
+  return s1;
+}
+app.on("will-quit", () => { if (s1) s1.stop(); });
+/**
+ * Called when the dictation keys go down: S1-mini is loaded while the person speaks (about a second),
+ * so the words can be cleaned when the keys go up. Only for someone who dictates in English; it holds
+ * about 0.9 GB of memory and s1-runtime.js lets it go after ten minutes without a dictation.
+ */
+function warmS1() {
+  try {
+    const c = getDictation().cfg();
+    const lang = c.language === "auto" ? sttLanguage() : c.language;
+    if (c.enabled && c.cleanup && lang === "en") s1Runtime().warm();
+  } catch (err) { logLine(`s1: warm start skipped (${err && err.message ? err.message : err})`); }
+}
 let dictation = null;
 function getDictation() {
   if (dictation) return dictation;
@@ -1394,6 +1420,11 @@ function getDictation() {
     // Windows: our own small helper reads which window has the keyboard (program, window class, administrator,
     // password box) and sends the keys, so Filow knows whether Windows took them. Null on other systems.
     target: () => require("./dictation-target").loadTarget(),
+    // English dictations are written out by S1-mini by Superwhisper on this PC (dictation-cleanup.js,
+    // s1-runtime.js). Without the model or the runtime the step is skipped and the report says why.
+    cleaner: require("./dictation-cleanup").createCleaner({ run: (body, signal) => s1Runtime().run(body, signal), ready: () => s1Runtime().ready(), budgetMs: () => 700 }),
+    cleanupStatus: () => s1Runtime().status(),
+    cleanupWarm: () => warmS1(),
     // Ctrl + V (Command + V on macOS) through OK Filow's own keyboard hook: uiohook-napi (MIT) sends it with
     // SendInput on Windows, CGEvent on macOS and XTest on X11. No shell, no PowerShell, no extra native module.
     sendPaste: hook => {

@@ -13,6 +13,7 @@ Thumbs.db
 apps/web/public/powerpoint
 apps/web/public/ort
 apps/desktop/vendor
+apps/desktop/native/llama/*-*/
 apps/browser/dist
 apps/browser/src/theme.css
 design/
