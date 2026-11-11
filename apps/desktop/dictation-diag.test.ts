@@ -1,6 +1,10 @@
 // "Report a problem", section "Dictation and keys" (docs/dictation/SPEC.md): what the last dictations did,
 // stage by stage, so the next bug on another system can be read from the issue alone.
-import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import Module, { createRequire } from "node:module";
+import path from "node:path";
+import { runInThisContext } from "node:vm";
+import * as i18n from "../../packages/core/src/i18n";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
@@ -72,7 +76,12 @@ describe("dictation: what the report says", () => {
   });
 
   it("the GitHub issue link keeps this section whole when the logs are cut to fit", () => {
-    const { issueUrl } = require("./about.js") as { issueUrl(o: Record<string, unknown>): { url: string; body: string; cut: boolean } };
+    // about.js reads its texts from vendor/i18n, a build that is not in git: hand it the source, as about.test.ts does.
+    const aboutFile = path.resolve(__dirname, "about.js");
+    const aboutOwn = createRequire(aboutFile);
+    const aboutMod = { exports: {} as Record<string, unknown> };
+    runInThisContext(Module.wrap(readFileSync(aboutFile, "utf8")), { filename: aboutFile }).call(aboutMod.exports, aboutMod.exports, (id: string) => (id === "./vendor/i18n" ? i18n : aboutOwn(id)), aboutMod, aboutFile, path.dirname(aboutFile));
+    const { issueUrl } = aboutMod.exports as { issueUrl(o: Record<string, unknown>): { url: string; body: string; cut: boolean } };
     const { d, tick } = clocked();
     for (let i = 0; i < 5; i++) { d.begin("hold"); tick(2000); d.mark("keys-up"); tick(600); d.mark("recognised", { chars: 36 }); d.mark("target", { line: "Notepad.exe [Notepad > RichEditD2DPT]", method: "paste" }); d.mark("done", { what: "pasted" }); d.result("pasted"); tick(1500); d.mark("clipboard", { back: true }); }
     const dict = reportText({ ...FACTS, runs: d.runs() });
