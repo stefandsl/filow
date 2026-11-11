@@ -18,7 +18,7 @@ export type LessonItem =
   | { kind: "formula"; tex: string }
   /** `more`: further functions drawn on the same axes (the plot marks where the first two meet). */
   | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string; more?: string[] }
-  | { kind: "note"; text: string }
+  | { kind: "note"; text: string; about?: string }
   /** A row of values with a pointer under one of them (-1: none): the worked example of an algorithm. */
   | { kind: "cells"; values: string[]; pointer: number }
   | { kind: "mark"; target: string; style: MarkStyle }
@@ -206,7 +206,8 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
       out.push({ kind: "plot", expr, xmin, xmax, text: cleanText(q.label ?? (q.expr ? q.text : ""), LIMITS.edgeText), ...(more.length ? { more } : {}) });
     } else if (kind === "note" || kind === "text" || kind === "list") {
       const text = cleanText(q.text ?? (Array.isArray(q.items) ? q.items.join("; ") : ""), LIMITS.note);
-      if (text && once(`n:${text.toLowerCase()}`)) out.push({ kind: "note", text });
+      const about = slug(q.about ?? q.target);
+      if (text && once(`n:${text.toLowerCase()}`)) out.push({ kind: "note", text, ...(about ? { about } : {}) });
     } else if (kind === "cells" || kind === "array") {
       const values = (Array.isArray(q.values) ? q.values : []).slice(0, 10).map((v) => cleanText(v, 6)).filter(Boolean);
       const at = finite(q.pointer);

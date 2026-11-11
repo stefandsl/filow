@@ -19,6 +19,7 @@ import { boardPng, fileStem, saveBlob } from "@/lib/whiteboard/export";
 import { layoutBoard, type BoardShape } from "@/lib/whiteboard/layout";
 import { LIMITS, lessonMarkdown, validateLesson } from "@/lib/whiteboard/lesson";
 import { initialPlayer, playerReducer, readingMs } from "@/lib/whiteboard/player";
+import { placeholderLeaks } from "@/lib/pii/guard";
 import { wbText, type WbKey } from "@/lib/whiteboard/text";
 import { OutboundNoticeModal, OutboundPill } from "../outbound-ui";
 import "../outbound.css";
@@ -336,10 +337,14 @@ export default function WhiteboardPage() {
     saveBlob(new Blob([lessonMarkdown(ls.lesson, { step: t("mdStep"), drawing: t("mdBoard") })], { type: "text/markdown;charset=utf-8" }), `${fileStem(ls.lesson.title)}.md`);
     setNote(t("saved"));
   };
-  const retry = (viaCloud: boolean) => {
+  const retry = (via: "same" | "cloud" | "local") => {
     const last = lastAsk.current;
     if (!last) return;
-    if (viaCloud) {
+    if (via === "local") {
+      // on this PC nothing leaves, so no notice: the same question, asked of the local model
+      setFrom("local");
+      setTimeout(() => void askRef.current(last.text, last.more), 0);
+    } else if (via === "cloud") {
       // the user's own press: the next ask goes through the notice like any cloud question
       setFrom("cloud");
       setTimeout(() => void askRef.current(last.text, last.more), 0);
@@ -347,7 +352,7 @@ export default function WhiteboardPage() {
   };
 
   const status_line = ls.phase === "planning" ? t("planning") : ls.phase === "drawing" && stepCount < ls.expected ? t("drawingStep", { n: stepCount + 1, total: ls.expected }) : "";
-  const errorText = !ls.error ? "" : ls.error.code === "plan" ? t("errPlan") : ls.error.code === "stalled" ? t("errStalled") : ls.error.code === "busy" ? t("errBusy") : ls.error.code === "topic" ? t("errTopic") : ls.error.code === "no_local_helper" ? ls.error.message : OLLAMA_STOPPED_ANSWER.test(ls.error.message) ? okfT("ollamaStopped") : ls.error.code.startsWith("freellm") || freellmCodeOf(ls.error.message) ? localizeFreeLlmError(ls.error.message, lang) : t("errGeneric", { message: ls.error.message });
+  const errorText = !ls.error ? "" : ls.error.code === "plan" ? t("errPlan") : ls.error.code === "stalled" ? t("errStalled") : ls.error.code === "busy" ? t("errBusy") : ls.error.code === "topic" ? t("errTopic") : ls.error.code === "redacted" ? t("errRedacted", { what: placeholderLeaks(ls.error.message, "").join(", ") || "[...]" }) : ls.error.code === "no_local_helper" ? ls.error.message : OLLAMA_STOPPED_ANSWER.test(ls.error.message) ? okfT("ollamaStopped") : ls.error.code.startsWith("freellm") || freellmCodeOf(ls.error.message) ? localizeFreeLlmError(ls.error.message, lang) : t("errGeneric", { message: ls.error.message });
 
   return (
     <main className={`wb-page${lite ? " wb-plain" : ""}`} data-phase={ls.phase} data-player={player.phase} data-shown-ms={shownMs ?? undefined}>
@@ -395,8 +400,9 @@ export default function WhiteboardPage() {
       {ls.error && (
         <div className="wb-alert" role="alert">
           <p>{errorText}</p>
-          <button type="button" className="wb-btn small" onClick={() => retry(false)}>{t("retry")}</button>
-          {desktop && !offline && from !== "cloud" && <button type="button" className="wb-btn small" onClick={() => retry(true)}>{t("useCloud")}</button>}
+          <button type="button" className="wb-btn small" onClick={() => retry("same")}>{t("retry")}</button>
+          {from !== "local" && (ls.error.code === "redacted" || ls.error.code === "topic") && <button type="button" className="wb-btn small primary" data-action="use-local" onClick={() => retry("local")}>{t("useLocal")}</button>}
+          {desktop && !offline && from !== "cloud" && <button type="button" className="wb-btn small" onClick={() => retry("cloud")}>{t("useCloud")}</button>}
         </div>
       )}
 

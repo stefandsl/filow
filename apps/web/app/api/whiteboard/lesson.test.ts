@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "./lesson/route";
-import { CHECKS, RETRY, StallError, TIMEOUTS, generateLocal, readVerdicts, texOk, validatePlan, type Ask, type LessonEvent } from "@/lib/whiteboard/generate";
+import { CHECKS, RETRY, StallError, TIMEOUTS, boardShows, generateLocal, missingNames, orphanBoxes, placeNotes, readArrowVerdicts, readVerdicts, texOk, validatePlan, type Ask, type LessonEvent } from "@/lib/whiteboard/generate";
+import { validateLesson } from "@/lib/whiteboard/lesson";
 import * as sysinfo from "@/lib/sysinfo";
 
 // The lesson route against a fake model: an Ollama and an OpenRouter that answer what each test
@@ -492,13 +493,80 @@ describe("whiteboard lesson, cloud model", () => {
     });
 
     it("recomputes the sums a lesson states: a wrong one has the lesson written again, and what is still wrong is not shown", async () => {
-      const SUMS = (say: string) => JSON.stringify({ title: "Binary search", scene: "stack", steps: [{ say: "The list has 5 values.", items: [{ kind: "cells", values: ["1", "3", "5", "7", "9"], pointer: -1 }] }, { say, items: [{ kind: "cells", values: ["1", "3", "5", "7", "9"], pointer: 2 }] }, { say: "5 is the target.", items: [{ kind: "note", text: "found" }] }] });
+      const SUMS = (say: string) => JSON.stringify({ title: "Ohm's law by numbers", scene: "stack", steps: [{ say: "The list has 5 values.", items: [{ kind: "cells", values: ["1", "3", "5", "7", "9"], pointer: -1 }] }, { say, items: [{ kind: "cells", values: ["1", "3", "5", "7", "9"], pointer: 2 }] }, { say: "5 is the target.", items: [{ kind: "note", text: "found" }] }] });
       const ok = review([true, true, true], []);
       const ev = await run([SUMS("The middle is (0+1)/2 = 0."), ...ok, SUMS("The middle is (0+4)/2 = 2."), ...ok]);
       expect(JSON.stringify(outside()[2].body.messages)).toContain("(0+1)/2 = 0");
       expect(ev[1]).toMatchObject({ says: ["The list has 5 values.", "The middle is (0+4)/2 = 2.", "5 is the target."] });
       const still = await run([SUMS("The middle is (0+1)/2 = 0."), ...ok, SUMS("The middle is 7/2 = 3."), ...ok]);
       expect(still[1]).toMatchObject({ says: ["The list has 5 values.", "5 is the target."] });
+    });
+
+    it("shows no lesson when a service on the way hid a name of the question behind a placeholder, and says so", async () => {
+      cloudAnswers = [JSON.stringify({ topic: "The [PERSON_NAME] cycle is a cycle.", title: "The [PERSON_NAME] Cycle", scene: "cycle", steps: [{ say: "Carbon moves through the air.", items: [{ kind: "node", id: "a", text: "Air" }] }, { say: "Plants take it in.", items: [{ kind: "node", id: "p", text: "Plants" }] }] })];
+      const ev = await events(await post({ question: "The Krebs cycle in outline", provider: "cloud" }, "ask:openrouter/google"));
+      expect(ev.map((e) => e.type)).toEqual(["start", "error"]);
+      expect(ev[1]).toMatchObject({ code: "redacted" });
+      expect(JSON.stringify(ev)).toContain("[PERSON_NAME]");
+      // nothing more is asked of the model once the question is known to have been altered
+      expect(outside()).toHaveLength(1);
+      // brackets the learner wrote are not a placeholder of the service
+      cloudAnswers = [JSON.stringify({ topic: "What [PERSON_NAME] means in a template.", title: "The [PERSON_NAME] tag", scene: "flow", steps: [{ say: "A tag stands for a name.", items: [{ kind: "node", id: "t", text: "Tag" }, { kind: "node", id: "n", text: "Name" }, { kind: "edge", from: "t", to: "n", text: "stands for" }] }, { say: "It is filled in later.", items: [{ kind: "mark", target: "n" }] }] }), ...review([true, true], ["ok"])];
+      const own = await events(await post({ question: "what does [PERSON_NAME] mean in a template?", provider: "cloud" }, "ask:openrouter/google"));
+      expect(own[own.length - 1]).toMatchObject({ type: "done" });
+    });
+
+    it("treats a lesson that never uses a name of the question as off the topic, whatever the examiner says", async () => {
+      const KREBS = JSON.stringify({ topic: "The Krebs cycle turns acetyl-CoA into energy carriers.", title: "The Krebs cycle", scene: "cycle", steps: [{ say: "Acetyl-CoA joins oxaloacetate.", items: [{ kind: "node", id: "a", text: "Acetyl-CoA" }, { kind: "node", id: "o", text: "Oxaloacetate" }, { kind: "edge", from: "a", to: "o", text: "joins" }] }, { say: "Citrate forms.", items: [{ kind: "node", id: "c", text: "Citrate" }, { kind: "edge", from: "o", to: "c", text: "becomes" }] }] });
+      const CARBON = JSON.stringify({ topic: "The carbon cycle moves carbon.", title: "The carbon cycle", scene: "cycle", steps: [{ say: "Plants take in carbon dioxide.", items: [] }, { say: "Animals breathe it out.", items: [] }] });
+      cloudAnswers = [CARBON, ...review([true, true], []), KREBS, ...review([true, true], ["ok", "ok"])];
+      const ev = await events(await post({ question: "The Krebs cycle in outline", provider: "cloud" }, "ask:openrouter/google"));
+      expect(ev[1]).toMatchObject({ title: "The Krebs cycle" });
+      expect(JSON.stringify(outside()[2].body.messages)).toContain("never mentions Krebs");
+      expect(missingNames("Ohm's law", "ohm's law explained")).toEqual([]);
+      expect(missingNames("Bayes' rule", "How beliefs are updated")).toEqual(["Bayes"]);
+      expect(missingNames("Prove the Pythagorean theorem", "Pythagoras and his theorem")).toEqual([]);
+      expect(missingNames("How does photosynthesis work?", "Anything at all")).toEqual([]);
+      expect(missingNames("Supply and demand: how is a price set?", "Markets")).toEqual([]);
+    });
+
+    it("turns an arrow when the judge says the box at its end is the one that acts", () => {
+      expect(readArrowVerdicts({ arrows: [{ n: 1, verdict: "true", acts: "B" }, { n: 2, verdict: "true", acts: "A" }, { n: 3, verdict: "true" }, { n: 4, verdict: "false", acts: "B" }, { n: 9, verdict: "true" }] }, 4)).toEqual(new Map([[1, "reversed"], [2, "ok"], [3, "ok"], [4, "false"]]));
+      expect(readArrowVerdicts({ arrows: "x" }, 2)).toBeNull();
+    });
+
+    it("has the lesson written again when the board never shows the one thing the examiner says it must", async () => {
+      const first = JSON.stringify({ topic: "Ohm's law", title: "Ohm's law", scene: "flow", steps: [{ say: "Voltage drives current.", items: [{ kind: "node", id: "v", text: "Voltage" }, { kind: "node", id: "i", text: "Current" }, { kind: "edge", from: "v", to: "i", text: "drives" }] }, { say: "That is the law.", items: [{ kind: "mark", target: "v" }] }] });
+      const must = JSON.stringify({ topic: true, answers: true, issues: "", must: "resistance", sentences: [{ n: 1, true: true }, { n: 2, true: true }, { n: 3, true: true }] });
+      const ev = await run([first, must, OHM("drives", "v", "i"), must, JSON.stringify({ arrows: [{ n: 1, verdict: "true" }, { n: 2, verdict: "true" }, { n: 3, verdict: "true" }] })]);
+      expect(JSON.stringify(outside()[2].body.messages)).toContain('the board never shows \\"resistance\\"');
+      expect(JSON.stringify(ev)).toContain("Resistance");
+      expect(boardShows(validateLesson(JSON.parse(first))!, "voltage push")).toBe(true);
+      expect(boardShows(validateLesson(JSON.parse(first))!, "oxygen")).toBe(false);
+    });
+
+    it("asks once how a box left alone links to the rest, judges the answer like any arrow, and takes off a box that stays alone", async () => {
+      const ALONE = JSON.stringify({ topic: "Ohm's law", title: "Ohm's law", scene: "flow", steps: [{ say: "Voltage drives current.", items: [{ kind: "node", id: "v", text: "Voltage" }, { kind: "node", id: "i", text: "Current" }, { kind: "node", id: "r", text: "Resistance" }, { kind: "node", id: "w", text: "Wire" }, { kind: "edge", from: "v", to: "i", text: "drives" }] }, { say: "Temperature matters too.", items: [{ kind: "node", id: "t", text: "Temperature" }] }] });
+      const links = JSON.stringify({ links: [{ from: "Current", verb: "is limited by", to: "Resistance" }, { from: "Wire", verb: "is", to: "Nothing here" }, { from: "Voltage", verb: "is", to: "Current" }] });
+      const ev = await run([ALONE, ...review([true, true], ["ok"]), links, JSON.stringify({ arrows: [{ n: 1, verdict: "true", acts: "B" }] })]);
+      const items = stepsOf(ev).flatMap((s) => s.items);
+      // the proposed link was judged, and turned because the judge said Resistance acts
+      expect(items.filter((i) => i.kind === "edge")).toEqual([{ kind: "edge", from: "v", to: "i", text: "drives" }, { kind: "edge", from: "r", to: "i", text: "is limited by" }]);
+      // Wire stayed alone and shared its step: gone. Temperature is alone too, but its step draws nothing else: kept.
+      expect(items.filter((i) => i.kind === "node").map((i) => (i.kind === "node" ? i.id : ""))).toEqual(["v", "i", "r", "t"]);
+      expect(String(outside()[3].body.messages[0].content)).toContain("not linked to anything");
+      expect(orphanBoxes(validateLesson(JSON.parse(ALONE))!)).toEqual(["r", "w", "t"]);
+    });
+
+    it("moves a remark to the step that draws the box it is about", () => {
+      const lesson = validateLesson({ title: "Ohm's law", scene: "flow", steps: [
+        { say: "Voltage drives current.", items: [{ kind: "node", id: "v", text: "Voltage" }, { kind: "note", about: "r", text: "Measured in ohms." }, { kind: "note", text: "Current is counted in amperes." }, { kind: "note", text: "Voltage is in volts." }] },
+        { say: "Current flows.", items: [{ kind: "node", id: "i", text: "Current" }, { kind: "edge", from: "v", to: "i", text: "drives" }] },
+        { say: "Resistance limits it.", items: [{ kind: "node", id: "r", text: "Resistance" }, { kind: "note", about: "v", text: "A battery gives it." }] },
+      ] })!;
+      const placed = placeNotes(lesson).steps.map((s) => s.items.filter((it) => it.kind === "note").map((it) => (it.kind === "note" ? it.text : "")));
+      // by "about", by the label in its words; a remark about a box already drawn stays where it is
+      expect(placed).toEqual([["Voltage is in volts."], ["Current is counted in amperes."], ["A battery gives it.", "Measured in ohms."]]);
     });
 
     it("asks a busy provider again after a wait, and after three more tries says so without using another source", async () => {
@@ -549,8 +617,8 @@ describe("whiteboard lesson, cloud model", () => {
       expect(sent).toContain("formula V = I R");
       // the arrows go in a call of their own, one sentence a line, to be judged alone
       const lines = (outside()[2].body.messages[1].content as Array<{ text?: string }>)[0]?.text ?? "";
-      expect(lines).toContain("1. Voltage drives Current.");
-      expect(lines).toContain("3. Current creates Resistance.");
+      expect(lines).toContain("1. A = Voltage, B = Current. Sentence: Voltage drives Current.");
+      expect(lines).toContain("3. A = Current, B = Resistance. Sentence: Current creates Resistance.");
       expect(String(outside()[2].body.messages[0].content)).toContain("one line at a time");
       expect(String(outside()[1].body.messages[0].content)).toContain("strict examiner of a whiteboard lesson");
     });

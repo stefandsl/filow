@@ -7,6 +7,7 @@
 // Usage: node tools/whiteboard/fake-model.mjs [port]      (default 4812)
 // Point Filow at it: OLLAMA_URL=http://127.0.0.1:4812  OPENROUTER_BASE_URL=http://127.0.0.1:4812/v1
 // Lessons by topic: a question that contains "broken" gets a step of invalid JSON (a text card);
+// as OpenRouter, a question that names Krebs comes back as a lesson about "[PERSON_NAME]" (an account that redacts names);
 // anything else gets the full lesson (boxes, arrows, a formula, a plot, a note, a mark).
 import http from "node:http";
 
@@ -30,6 +31,7 @@ const PICKS = [
 ];
 const outlineFor = (broken) => ({ title: broken ? "Broken lesson" : "Photosynthesis", scene: "flow", kind: "process", steps: STEPS.map((s) => ({ say: s.say })) });
 const CLOUD = {
+  topic: "Ohm's law: the current through a resistance is the voltage across it divided by the resistance.",
   title: "Ohm's law",
   scene: "flow",
   steps: [
@@ -93,10 +95,13 @@ export function startFakeModel(port = 4812) {
         // the arrow call: one sentence a line, each judged true
         const judging = text(messages[0]).includes("one line at a time");
         const answer = reviewing
-          ? { topic: true, answers: true, issues: "", sentences: Array.from({ length: count("Sentences:", "Boxes:") }, (_, i) => ({ n: i + 1, true: true })) }
+          ? { topic: true, answers: true, issues: "", must: "current", sentences: Array.from({ length: count("Sentences:", "Boxes:") }, (_, i) => ({ n: i + 1, true: true })) }
           : judging
             ? { arrows: (asked.match(/^\d+\. /gm) ?? []).map((_, i) => ({ n: i + 1, verdict: "true" })) }
-            : CLOUD;
+            : /Krebs/.test(asked)
+              ? // a provider that hides names before the model sees them: the model answers about a placeholder
+                { ...CLOUD, topic: "The [PERSON_NAME] cycle is a cycle.", title: "The [PERSON_NAME] cycle" }
+              : CLOUD;
         res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(answer) } }] })}\n\n`);
         return setTimeout(() => res.end("data: [DONE]\n\n"), 600);
       }
