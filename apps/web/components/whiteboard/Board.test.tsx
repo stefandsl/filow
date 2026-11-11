@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Board, BOARD_PALETTES } from "./Board";
 import { layoutBoard } from "@/lib/whiteboard/layout";
+import { stepSchedule } from "@/lib/whiteboard/pace";
 import { validateLesson, type Lesson } from "@/lib/whiteboard/lesson";
 
 const render = (lesson: Lesson, upto: number, extra: Partial<Parameters<typeof Board>[0]> = {}) =>
@@ -107,6 +108,53 @@ describe("whiteboard board", () => {
     const svg = render(money, 0);
     expect(svg).not.toMatch(/\de\+\d/);
     expect(svg).toContain("(1, 1050)");
+  });
+  it("gives each new thing of the step its slot of the sentence's time, and none to what is already on the board", () => {
+    const two = validateLesson({ title: "T", scene: "flow", steps: [{ say: "a", items: [{ kind: "node", id: "v", text: "Voltage" }] }, { say: "b", items: [{ kind: "node", id: "i", text: "Current" }, { kind: "edge", from: "v", to: "i", text: "drives" }, { kind: "formula", tex: "V = I R" }] }] })!;
+    const board = layoutBoard(two, 1, "wide");
+    const timing = stepSchedule(board, 1, 4000);
+    const svg = renderToStaticMarkup(<Board layout={board} current={1} palette={BOARD_PALETTES.light} sketchy label="t" timing={timing} />);
+    expect(svg).toContain('class="wb-board wb-timed"');
+    // the new box starts at once, the arrow after it, the formula last; the box of step 1 has no slot
+    const at = (re: RegExp) => Number(re.exec(svg)?.[1] ?? NaN);
+    const box = at(/--wb-at:(\d+)ms[^>]*data-node="i"/);
+    const arrow = at(/--wb-at:(\d+)ms[^>]*data-edge="v&gt;i"/);
+    const formula = at(/--wb-at:(\d+)ms[^>]*data-block="formula"/);
+    expect(box).toBe(0);
+    expect(arrow).toBeGreaterThan(box);
+    expect(formula).toBeGreaterThan(arrow);
+    expect(/--wb-at[^>]*data-node="v"/.test(svg)).toBe(false);
+    // timed strokes carry no delay of their own: the style sheet times them from the slot
+    expect(svg).not.toContain("animation-delay");
+    // without a timing the board draws as before
+    expect(render(two, 1)).not.toContain("--wb-at");
+  });
+
+  it("stands complete when the step is over, and draws chalk on the blackboard", () => {
+    const one = validateLesson({ title: "T", scene: "flow", steps: [{ say: "a", items: [{ kind: "node", id: "v", text: "Voltage" }] }] })!;
+    expect(render(one, 0, { rest: true })).toContain('class="wb-board wb-rest"');
+    const chalk = render(one, 0, { palette: BOARD_PALETTES.dark });
+    expect(chalk).toContain('class="wb-board wb-chalk"');
+    expect(chalk).toContain(BOARD_PALETTES.dark.board);
+    // chalk is a broader, rougher line than the marker's
+    const width = (svg: string) => Number(/class="wb-stroke"[^>]*stroke-width="([\d.]+)"/.exec(svg)?.[1]);
+    expect(width(chalk)).toBeGreaterThan(width(render(one, 0)));
+  });
+
+  it("keeps every ink readable on both boards (WCAG contrast of 4.5 for what is written, 3 for lines)", () => {
+    const lum = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const contrast = (a: string, b: string) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+    for (const [name, p] of Object.entries(BOARD_PALETTES)) {
+      for (const ink of [p.ink, p.soft, p.accent] as const) expect(contrast(ink, p.board), `${name} ${ink} on the board`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(p.ink, p.fill), `${name} label in a box`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(p.ink, p.highlight), `${name} label on a highlight`).toBeGreaterThanOrEqual(4.5);
+      for (const line of [p.mark, p.curve] as const) expect(contrast(line, p.board), `${name} line ${line}`).toBeGreaterThanOrEqual(3);
+    }
+    expect(BOARD_PALETTES.dark.chalk).toBe(true);
+    expect(lum(BOARD_PALETTES.dark.board)).toBeLessThan(0.05);
   });
   it("writes the long values of a worked example one under the other, each in full", () => {
     const trace = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "cells", values: ["Factorial(3)", "3 * Factorial(2)", "3 * (2 * Factorial(1))", "3 * (2 * (1 * Factorial(0)))", "3 * 2", "6"], pointer: 1 }] }] })!;

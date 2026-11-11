@@ -372,13 +372,24 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
       let box: Box | null = null;
       if (lines.length) {
         let hits = Infinity;
-        for (const t of [0.5, 0.38, 0.62, 0.28, 0.72, 0.18, 0.82, 0.11, 0.89]) {
-          const pt = curveAt(curve, t);
-          // kept on the board: a label near the border slides inwards instead of being cut
-          const candidate = { x: Math.min(Math.max(pt.x - lw / 2, board.x), Math.max(board.x, board.x + board.w - lw)), y: Math.min(Math.max(pt.y - lh / 2, board.y), board.y + board.h - lh), w: Math.min(lw, board.w), h: lh };
-          const n = nodes.filter((nd) => overlap(nd.box, candidate, 1)).length + labels.filter((l) => overlap(l, candidate, 1)).length + linesThrough(candidate);
-          if (n < hits) { hits = n; box = candidate; }
-          if (!n) break;
+        // On the line first, at nine places along it; where every one of those is taken (a dense board,
+        // a narrow one), beside the line, on either side of it.
+        search: for (const side of [0, 1, -1]) {
+          for (const t of [0.5, 0.38, 0.62, 0.28, 0.72, 0.18, 0.82, 0.11, 0.89]) {
+            const on = curveAt(curve, t);
+            const ahead = curveAt(curve, Math.min(1, t + 0.03));
+            const back = curveAt(curve, Math.max(0, t - 0.03));
+            const along = Math.hypot(ahead.x - back.x, ahead.y - back.y) || 1;
+            const ux = -(ahead.y - back.y) / along;
+            const uy = (ahead.x - back.x) / along;
+            const off = side * ((Math.abs(ux) * lw) / 2 + (Math.abs(uy) * lh) / 2 + 7);
+            const pt = { x: on.x + ux * off, y: on.y + uy * off };
+            // kept on the board: a label near the border slides inwards instead of being cut
+            const candidate = { x: Math.min(Math.max(pt.x - lw / 2, board.x), Math.max(board.x, board.x + board.w - lw)), y: Math.min(Math.max(pt.y - lh / 2, board.y), board.y + board.h - lh), w: Math.min(lw, board.w), h: lh };
+            const n = nodes.filter((nd) => overlap(nd.box, candidate, 1)).length + labels.filter((l) => overlap(l, candidate, 1)).length + linesThrough(candidate);
+            if (n < hits) { hits = n; box = candidate; }
+            if (!n) break search;
+          }
         }
         cost += hits;
       }

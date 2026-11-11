@@ -8,7 +8,7 @@ export function fileStem(title: string): string {
 }
 
 /** The KaTeX style rules and the fonts the formulas on the board use, as CSS with the fonts inlined. */
-async function formulaCss(svg: SVGSVGElement): Promise<string> {
+export async function formulaCss(svg: SVGSVGElement): Promise<string> {
   const used = new Set<string>();
   svg.querySelectorAll(".katex, .katex *").forEach((el) => {
     const family = getComputedStyle(el).fontFamily.split(",")[0].replace(/["']/g, "").trim();

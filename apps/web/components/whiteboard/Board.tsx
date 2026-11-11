@@ -8,13 +8,17 @@ import { useEffect, useRef, type CSSProperties, type KeyboardEvent, type ReactNo
 import rough from "roughjs";
 import { drawingSvg } from "@/lib/buddy/visuals";
 import { CELL_ROW, arrowHead, type BoardLayout, type Box, type PlacedBlock } from "@/lib/whiteboard/layout";
+import type { Slot } from "@/lib/whiteboard/pace";
 import { evalExpr, parseExpr, sampleCurve } from "@/lib/whiteboard/plot";
 
-export type BoardPalette = { board: string; ink: string; soft: string; accent: string; mark: string; fill: string; highlight: string; curve: string };
+/** `chalk`: the strokes are those of chalk on a blackboard (rougher, a little broader) and not of a marker. */
+export type BoardPalette = { board: string; ink: string; soft: string; accent: string; mark: string; fill: string; highlight: string; curve: string; chalk?: boolean };
+/** The two looks of the board: marker on a whiteboard (`light`), chalk on a blackboard (`dark`). */
 export const BOARD_PALETTES: Record<"light" | "dark", BoardPalette> = {
   light: { board: "#fbfaf6", ink: "#1f2430", soft: "#565d6b", accent: "#1d4ed8", mark: "#c2410c", fill: "#eef2fb", highlight: "#fde68a", curve: "#0f766e" },
-  dark: { board: "#14171d", ink: "#f1f3f7", soft: "#aab2c0", accent: "#8ab4ff", mark: "#ffb44a", fill: "#222835", highlight: "#5b4a12", curve: "#5eead4" },
+  dark: { board: "#16221d", ink: "#f5f2e7", soft: "#b7c3ba", accent: "#9ccfff", mark: "#ffb870", fill: "#20322a", highlight: "#57501c", curve: "#a5e8a0", chalk: true },
 };
+export type BoardLook = keyof typeof BOARD_PALETTES;
 /** A validated sketch as a picture URL. Text cut in the middle of an emoji must not break the board. */
 function sketchHref(svg: string): string {
   const whole = (svg as string & { toWellFormed?: () => string }).toWellFormed?.() ?? svg;
@@ -167,15 +171,31 @@ export type BoardProps = {
   /** A box was clicked (or Enter pressed on it): explain that part again. */
   onPick?: (id: string, text: string) => void;
   pickLabel?: (text: string) => string;
+  /**
+   * When each new thing of the current step is drawn, in ms from the start of the step
+   * (lib/whiteboard/pace.ts): the drawing then takes the time of the spoken sentence. Without it
+   * the new things draw on at once, as before.
+   */
+  timing?: Map<string, Slot>;
+  /** The board as it stands when the step is over: nothing is mid-stroke (paused, stepped by hand, or the voice has ended). */
+  rest?: boolean;
 };
 
-export function Board({ layout, current, palette, sketchy, label, onPick, pickLabel }: BoardProps) {
+export function Board({ layout, current, palette, sketchy, label, onPick, pickLabel, timing, rest }: BoardProps) {
   const p = palette;
   const pen = sketchy ? SKETCH_PEN : PLAIN_PEN;
+  const chalk = Boolean(p.chalk);
   const draw: Draw = (make, key, stroke, width, delay = 0) => {
-    return make(pen, { seed: seedOf(key), roughness: 1.1, bowing: 1, stroke, strokeWidth: width }).map((d, i) => (
-      <path key={`${key}-${i}`} className="wb-stroke" pathLength={1} d={d} fill="none" stroke={stroke} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" style={delay ? ({ animationDelay: `${delay}ms` } as CSSProperties) : undefined} />
+    const broad = chalk ? width * 1.15 : width;
+    return make(pen, { seed: seedOf(key), roughness: chalk ? 1.7 : 1.1, bowing: 1, stroke, strokeWidth: broad }).map((d, i) => (
+      <path key={`${key}-${i}`} className="wb-stroke" pathLength={1} d={d} fill="none" stroke={stroke} strokeWidth={broad} strokeLinecap="round" strokeLinejoin="round" style={delay && !timing ? ({ animationDelay: `${delay}ms` } as CSSProperties) : undefined} />
     ));
+  };
+  /** The place of a new thing in the time of its step, handed to the style sheet. */
+  const slot = (key: string, step: number): CSSProperties | undefined => {
+    // the schedule holds only the new things of the current step, so anything older finds no slot
+    const s = step <= current ? timing?.get(key) : undefined;
+    return s ? ({ "--wb-at": `${s.at}ms`, "--wb-len": `${s.len}ms` } as CSSProperties) : undefined;
   };
   const fresh = (step: number) => (step === current ? "wb-new" : undefined);
   const onKey = (id: string, text: string) => (ev: KeyboardEvent<SVGGElement>) => {
@@ -188,13 +208,13 @@ export function Board({ layout, current, palette, sketchy, label, onPick, pickLa
   const overMarks = layout.marks.filter((m) => m.style !== "highlight");
 
   return (
-    <svg className="wb-board" viewBox={`0 0 ${layout.w} ${layout.h}`} xmlns="http://www.w3.org/2000/svg" role="group" aria-label={label} fontFamily={FONT} data-shape={layout.shape} data-step={current}>
+    <svg className={`wb-board${timing ? " wb-timed" : ""}${rest ? " wb-rest" : ""}${chalk ? " wb-chalk" : ""}`} viewBox={`0 0 ${layout.w} ${layout.h}`} xmlns="http://www.w3.org/2000/svg" role="group" aria-label={label} fontFamily={FONT} data-shape={layout.shape} data-step={current}>
       <rect x={0} y={0} width={layout.w} height={layout.h} rx={18} fill={p.board} />
       <text x={layout.title.x} y={layout.title.y} fontSize={layout.title.font} fontWeight={700} fill={p.ink}>{layout.title.text}</text>
       {draw((g, o) => g.line(layout.title.x, 58, layout.w - layout.title.x, 58, o), "title-rule", p.soft, 1.4)}
 
       {highlights.map((m) => (
-        <rect key={m.key} className={`wb-fade ${fresh(m.step) ?? ""}`} x={m.box.x - 8} y={m.box.y - 8} width={m.box.w + 16} height={m.box.h + 16} rx={14} fill={p.highlight} />
+        <rect key={m.key} className={`wb-fade ${fresh(m.step) ?? ""}`} style={slot(m.key, m.step)} x={m.box.x - 8} y={m.box.y - 8} width={m.box.w + 16} height={m.box.h + 16} rx={14} fill={p.highlight} />
       ))}
 
       {layout.edges.map((e, i) => {
@@ -203,7 +223,7 @@ export function Board({ layout, current, palette, sketchy, label, onPick, pickLa
         const a = wing(0.42);
         const b = wing(-0.42);
         return (
-          <g key={e.key} className={fresh(e.step)} data-edge={`${e.from}>${e.to}`}>
+          <g key={e.key} className={fresh(e.step)} style={slot(e.key, e.step)} data-edge={`${e.from}>${e.to}`}>
             {draw((g, o) => g.path(`M${e.x1.toFixed(1)} ${e.y1.toFixed(1)} Q${e.cx.toFixed(1)} ${e.cy.toFixed(1)} ${e.x2.toFixed(1)} ${e.y2.toFixed(1)}`, { ...o, disableMultiStroke: true }), e.key, p.soft, 2.2, 120 + i * 60)}
             {draw((g, o) => g.linearPath([[a.x, a.y], [head.x, head.y], [b.x, b.y]], { ...o, disableMultiStroke: true }), `${e.key}-h`, p.soft, 2.2, 420 + i * 60)}
             {e.label && (
@@ -231,7 +251,7 @@ export function Board({ layout, current, palette, sketchy, label, onPick, pickLa
           <g
             key={nd.id}
             className={`wb-node ${fresh(nd.step) ?? ""}`}
-            style={{ transform: `translate(${nd.box.x}px, ${nd.box.y}px)` }}
+            style={{ transform: `translate(${nd.box.x}px, ${nd.box.y}px)`, ...slot(`n:${nd.id}`, nd.step) }}
             data-node={nd.id}
             {...(picks ? { role: "button", tabIndex: 0, "aria-label": pickLabel ? pickLabel(visible) : visible, onClick: () => onPick?.(nd.id, nd.text), onKeyDown: onKey(nd.id, nd.text) } : {})}
           >
@@ -245,7 +265,7 @@ export function Board({ layout, current, palette, sketchy, label, onPick, pickLa
       })}
 
       {overMarks.map((m) => (
-        <g key={m.key} className={fresh(m.step)}>
+        <g key={m.key} className={fresh(m.step)} style={slot(m.key, m.step)}>
           {m.style === "circle"
             ? draw((g, o) => g.ellipse(m.box.x + m.box.w / 2, m.box.y + m.box.h / 2, m.box.w + 30, m.box.h + 26, o), m.key, p.mark, 3, 200)
             : draw((g, o) => g.line(m.box.x + 6, m.box.y + m.box.h + 8, m.box.x + m.box.w - 6, m.box.y + m.box.h + 8, o), m.key, p.mark, 3.4, 200)}
@@ -254,11 +274,11 @@ export function Board({ layout, current, palette, sketchy, label, onPick, pickLa
 
       {layout.blocks.map((b) => {
         const { box } = b;
-        if (b.kind === "formula") return <g key={b.key} className={`wb-fade ${fresh(b.step) ?? ""}`} data-block="formula"><Formula tex={b.tex} box={box} color={p.ink} /></g>;
-        if (b.kind === "plot") return <g key={b.key} className={fresh(b.step)} data-block="plot"><Plot block={b} palette={p} draw={draw} /></g>;
+        if (b.kind === "formula") return <g key={b.key} className={`wb-fade ${fresh(b.step) ?? ""}`} style={slot(b.key, b.step)} data-block="formula"><Formula tex={b.tex} box={box} color={p.ink} /></g>;
+        if (b.kind === "plot") return <g key={b.key} className={fresh(b.step)} style={slot(b.key, b.step)} data-block="plot"><Plot block={b} palette={p} draw={draw} /></g>;
         if (b.kind === "sketch") {
           return (
-            <g key={b.key} className={`wb-fade ${fresh(b.step) ?? ""}`} data-block="sketch">
+            <g key={b.key} className={`wb-fade ${fresh(b.step) ?? ""}`} style={slot(b.key, b.step)} data-block="sketch">
               {/* our own SVG from validated shapes, shown as a picture: it cannot run anything */}
               <image href={sketchHref(drawingSvg(b.drawing))} x={box.x} y={box.y} width={box.w} height={box.h} preserveAspectRatio="xMidYMid meet" />
               {draw((g, o) => g.rectangle(box.x, box.y, box.w, box.h, o), b.key, p.soft, 1.6)}
@@ -271,7 +291,7 @@ export function Board({ layout, current, palette, sketchy, label, onPick, pickLa
             // values too long for a row: one under the other, each in full, the pointer at the left of its line
             const py = box.y + 3 + (b.pointer + 0.5) * CELL_ROW;
             return (
-              <g key={b.key} className={fresh(b.step)} data-block="cells" data-column="1" data-pointer={b.pointer}>
+              <g key={b.key} className={fresh(b.step)} style={slot(b.key, b.step)} data-block="cells" data-column="1" data-pointer={b.pointer}>
                 {b.values.map((v, k) => (
                   <g key={k}>
                     {k === b.pointer && <rect className="wb-fade" x={box.x + 30} y={box.y + 3 + k * CELL_ROW + 2} width={box.w - 32} height={CELL_ROW - 4} rx={6} fill={p.highlight} />}
@@ -287,7 +307,7 @@ export function Board({ layout, current, palette, sketchy, label, onPick, pickLa
           const ch = 46;
           const px = box.x + (b.pointer + 0.5) * cw;
           return (
-            <g key={b.key} className={fresh(b.step)} data-block="cells" data-pointer={b.pointer}>
+            <g key={b.key} className={fresh(b.step)} style={slot(b.key, b.step)} data-block="cells" data-pointer={b.pointer}>
               {b.values.map((v, k) => (
                 <g key={k}>
                   {k === b.pointer && <rect className="wb-fade" x={box.x + k * cw + 2} y={box.y + 2} width={cw - 4} height={ch - 4} rx={6} fill={p.highlight} />}
@@ -301,7 +321,7 @@ export function Board({ layout, current, palette, sketchy, label, onPick, pickLa
         }
         const lineH = b.font * 1.3;
         return (
-          <g key={b.key} className={fresh(b.step)} data-block={b.kind}>
+          <g key={b.key} className={fresh(b.step)} style={slot(b.key, b.step)} data-block={b.kind}>
             {b.kind === "card" ? draw((g, o) => g.rectangle(box.x + 2, box.y + 2, box.w - 4, box.h - 4, o), b.key, p.soft, 1.8) : draw((g, o) => g.line(box.x + 6, box.y + 6, box.x + 6, box.y + box.h - 6, o), b.key, p.mark, 3)}
             {b.lines.map((ln, k) => (
               <text key={k} className="wb-fade" x={box.x + 18} y={box.y + 11 + k * lineH + b.font * 0.92} fontSize={b.font} fill={p.ink}>{ln}</text>

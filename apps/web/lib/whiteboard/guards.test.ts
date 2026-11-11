@@ -281,8 +281,9 @@ describe("nothing is drawn twice on the board", () => {
       const lesson = validateLesson(f.raw, { maxSteps: LIMITS.steps, texOk, sketch: true })!;
       for (const shape of ["wide", "tall"] as const) for (let i = 0; i < lesson.steps.length; i++) for (const p of layoutProblems(layoutBoard(lesson, i, shape))) report.push(`${f.run}/${f.n} ${shape} step ${i + 1}: ${p}`);
     }
-    // the wide board is clean; on the narrow one seven dense steps still have an arrow or a box on a label (known, open)
+    // the wide board is clean; on the narrow one a label may now stand beside its arrow, which took the
+    // dense steps with an arrow or a box on a label from eight to three (those three are open)
     expect(report.filter((r) => r.includes(" wide "))).toEqual([]);
-    expect(report.filter((r) => r.includes(" tall ")).length).toBeLessThanOrEqual(8);
+    expect(report.filter((r) => r.includes(" tall ")).length).toBeLessThanOrEqual(3);
   });
 });

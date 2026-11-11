@@ -361,6 +361,43 @@ Two defects of the raw lessons that were ours:
 
 Layout of those twenty raw lessons: no problem on the wide board; on the narrow one seven dense
 steps still have an arrow or a box on a label. That is open.
+## Round 7: the local checks, measured on and off
+
+The same honesty check as for the online path, on the local model (qwen3-vl:8b, RTX 3070 8 GB).
+The local path has no single "raw" lesson to compare with (its steps are picked from a checked
+plan), so it is an A/B: three runs of the ten questions with the local checks on (the default)
+and three with `WHITEBOARD_LOCAL_OFF=sentences,relations,repair` (no sentence examiner, no fact
+check of the plan's relations, no second round). `nvidia-smi` before each run: 0 to 8 % load (the
+7.6 GB in use from the second run on is the model itself, kept loaded). Two fresh strict
+reviewers per run, drawing rubric.
+
+| Run | Checks | Machine | Reviewer A | Reviewer B | What the failures mostly were |
+|---|---|---|---|---|---|
+| r7-on1 | on | 7/10 | 3 | 3 | thin or unlinked boards |
+| r7-on2 | on | 9/10 | 4 | 4 | thin or unlinked boards |
+| r7-on3 | on | 8/10 | 4 | 6 | thin or unlinked boards |
+| r7-off1 | off | 8/10 | 4 | 5 | false drawings |
+| r7-off2 | off | 10/10 | 1 | 1 | false drawings |
+| r7-off3 | off | 8/10 | 4 | 3 | false drawings |
+
+Mean of the six scores: 4.0 with the checks on, 3.0 with them off. Three runs a side is little
+and the spread is wide (one run without the checks scored above one run with them), so the
+difference in the number is weak evidence. The difference in kind is not: without the checks all
+six reviews name false arrows as the main failure ("Voltage is equal to Current", "Leg is
+Hypotenuse", "Supply increases Price"), with them none does. Unlike the online path, where the
+guards lowered the score, nothing here shows a local check doing harm, so the local defaults stay
+as they are: all three on. They were measured together; which of the three carries the gain was
+not measured. A run with the checks on takes about 25 minutes for ten lessons on this card, one
+without about 10.
+
+The ceiling is unchanged: with the checks on, the lessons fail because the board is thin (the
+outputs of photosynthesis not linked, no supply and demand curves, the cycle not closed), which
+is what this 8 GB model can state, and the page keeps its advice under local lessons.
+
+Also in this round, on the narrow board: a label that finds no free place on its arrow may stand
+beside it. On the twenty raw online lessons that took the steps with an arrow or a box on a label
+from eight to three; the wide board has none. The pen in time with the voice, the blackboard and
+the video are described in `docs/whiteboard/PEN-AND-VIDEO.md`.
 ## How to repeat
 
 1. Start Filow (or `next dev`) with Ollama running.
@@ -371,4 +408,4 @@ steps still have an arrow or a box on a label. That is open.
 
 Saved runs (outside the repo): `G:\FILOW\tmp\wb-tmp\` folders `bench-final-1`, `bench-final-2`,
 `bench-plan-2`, `bench-plan-3`, `r2-run1..3`, `r2-heldout`, `r3-run1..3`, `r3-heldout`, `r4-run1`,
-`r4-run2`, `r4-heldout`, `r5-t1..3`, `r5-heldout`.
+`r4-run2`, `r4-heldout`, `r5-t1..3`, `r5-heldout`, `r7-on1..3`, `r7-off1..3`.
