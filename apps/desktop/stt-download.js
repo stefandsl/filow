@@ -27,6 +27,7 @@ function contentRangeStart(header) {
 function receiveArchive(res, out, { contentLength, fallbackSize, onPct, startAt = 0, idleMs }) {
   return new Promise((resolve, reject) => {
     let received = 0;
+    let lastPct = -1;
     const total = contentLength ? startAt + Number(contentLength) : Number(fallbackSize);
     const idle = idleTimeout(err => res.destroy(err), idleMs);
     const aborted = () => out.destroy(new Error("download response aborted"));
@@ -35,7 +36,12 @@ function receiveArchive(res, out, { contentLength, fallbackSize, onPct, startAt 
       transform(chunk, _encoding, done) {
         if (chunk.length) idle.reset();
         received += chunk.length;
-        if (total) onPct(Math.min(99, Math.round((startAt + received) / total * 100)));
+        // Progress is reported when the whole percent changes, not for every 16 KB chunk: callers write a
+        // log line and tell every window each time, which for a 500 MB model was 30,000 times.
+        if (total) {
+          const pct = Math.min(99, Math.round((startAt + received) / total * 100));
+          if (pct !== lastPct) { lastPct = pct; onPct(pct); }
+        }
         done(null, chunk);
       },
       flush(done) {
