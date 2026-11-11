@@ -148,8 +148,7 @@ function createS1Runtime(deps) {
       fs.renameSync(part, dest);
       pct = 100;
       lastError = "";
-      log("s1: model on this computer, hash checked");
-      warm();
+      log("s1: model on this computer, hash checked"); // loaded at the next English dictation, not now
       return true;
     })().catch((e) => { fetchError = String((e && e.message) || e).slice(0, 120); log(`s1: model download failed (${fetchError})`); return false; }).finally(() => { fetching = null; });
     return fetching;

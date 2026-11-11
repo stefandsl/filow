@@ -305,3 +305,32 @@ describe("S1-mini: Filow's own sample set (tools/dictation/s1-samples.json)", ()
     expect(refused).toEqual([]);
   });
 });
+
+describe("S1-mini: the model download", () => {
+  it("continues a part file, keeps the file only when its hash is the pinned one, and deletes anything else", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const { tmpRoot } = await import("./test-tmp");
+    const root = tmpRoot("s1-download");
+    try {
+      const file = path.join(root, "models", "s1-mini", "s1-mini-q4_k_m.gguf");
+      const calls: Array<{ url: string; resume: boolean }> = [];
+      let hash = "0".repeat(64);
+      const rt = createS1Runtime({
+        userData: root, logLine: () => {}, serverFile: () => "X:/llama-server", spawn: () => { throw new Error("must not start after a download"); },
+        download: async (url: string, dest: string, o: { resume: boolean }) => { calls.push({ url, resume: o.resume }); fs.writeFileSync(dest, "bytes"); },
+        sha256File: async () => hash,
+      }) as ReturnType<typeof createS1Runtime> & { download(): Promise<boolean> };
+      expect(await rt.download()).toBe(false); // not the expected file
+      expect(fs.existsSync(file)).toBe(false);
+      expect(fs.existsSync(`${file}.part`)).toBe(false);
+      expect(String(rt.status().error)).toContain("not the expected file");
+      expect(rt.ready()).toMatchObject({ ok: false, reason: "model not on this computer" });
+      hash = MODEL.sha256;
+      expect(await rt.download()).toBe(true);
+      expect(fs.existsSync(file)).toBe(true);
+      expect(calls.every((c) => c.resume && c.url === "https://huggingface.co/superwhisper/s1-mini-GGUF/resolve/34add00a48a2e5d24e5a4ee5405a99620a3a240c/s1-mini-q4_k_m.gguf")).toBe(true);
+      expect(rt.status()).toMatchObject({ model: true, running: false }); // loaded at the next English dictation, not now
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  });
+});

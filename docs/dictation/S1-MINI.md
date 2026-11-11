@@ -138,9 +138,37 @@ What the measurement changed in the code: the safety net now checks figures. Eve
 answer must be the value of a stretch of the number words that were said (or two stretches side by side,
 as in years and times, or digits said one by one). The expectations were not changed.
 
+## Memory and when the model is loaded
+
+The runtime with the model holds about 0.9 GB. It is not loaded at start. It is loaded when the dictation
+keys go down, and only when the dictation language is English (chosen, or the speech language when
+dictation follows it): the person speaks for a second or more while the model loads (0.7 to 1.2 s here).
+It stays loaded while dictation is in use and is stopped after ten minutes without a dictation
+(`IDLE_UNLOAD_MS` in `s1-runtime.js`, tested with a fake clock); the next English dictation starts it
+again. A dictation that ends before the model is ready is typed raw (`cleanup skipped (slower than 700 ms)`)
+and the model is ready for the next one. Someone who dictates in another language never loads it.
+
+A smaller PC, imitated: the same runs with 2 threads on this PC (an imitation: the cores here are much
+faster than a Lite PC's) gave cold starts of 0.7 to 0.95 s, median 261 ms, 90th percentile 364 ms, worst
+810 ms, the same 31 exact / 8 acceptable / 1 refused. No real Lite hardware was measured. So the cleanup
+is on by default on every tier, with a guard instead of a guess: when three answers in a row are later
+than the budget, the cleanup rests until Filow is started again (`resting: too slow on this computer` in
+the report) and dictations stop waiting for it.
+
+## Dates and times
+
+Added after the figures check: a month, a weekday or "am"/"pm" in the answer must be one the speaker said
+(a short form such as "sept" counts for its month; "morning", "afternoon", "evening" count for the half
+of the day). With the figures check this pins day, month, year, hour and minute. Samples in
+`dictation-cleanup.test.ts` ("dates and times").
+
 ## Packaged check (2026-11-11)
 
 Installer built once with the runtime inside: 175.7 MB (0.9.32 was 161.7 MB). In the packaged QA build, with an English recording (Windows speech voice) as the microphone, the Parakeet recognizer and the model placed in the profile: the runtime started ahead of the first dictation in 0.9 s; each dictation logged `cleanup used (S1-mini, 145 to 336 ms)`; release to text was 299 to 633 ms. "...send the report by Friday, no wait, make that Thursday" was typed as "...send the report by Thursday." and "one thousand two hundred and fifty euros" as "€1,250", in hold and in hands-free. The recognizer misheard parts of the synthetic voice ("I need" as "you need", the e-mail address only half), which the cleanup cannot repair. The session had no foreground window, so the words were read from the clipboard path, not from Notepad; the in-app model download button was not run end to end (the file was copied into the profile).
+
+### The in-app download, run in the packaged build
+
+Started from the page (the same call the Settings button makes), with the model absent. The app was killed at 14 % (66.9 MB on disk); after a restart the download went on from 14 %, not from zero, and the part on disk was checked to be byte for byte the start of the real file. To spare the wait (the download ran at about 0.3 MB/s through Filow's downloader that evening, against about 2 MB/s with curl: not looked into), the part was then filled from the copy already on this PC up to 3 MB before the end; Filow fetched the last 3 MB, checked the SHA-256, gave the file its name and logged `model on this computer, hash checked`. A file with another hash is deleted and never loaded (unit test). Log: G:\FILOW\tmp\dict-logs\startup-s1-b-download.log.
 
 ## Platforms
 
@@ -159,10 +187,17 @@ Installer built once with the runtime inside: 175.7 MB (0.9.32 was 161.7 MB). In
 
 ## Not built yet
 
-- The model in the setup: the installer's components page, the welcome and the SetupPicker (ticked by
-  default, as the owner decided). Today the model is downloaded from Settings > Dictation with one
-  button that shows the real size; the download is resumable and the file is used only after its
-  SHA-256 was checked.
-- THIRD_PARTY_NOTICES.md itself (the generator `scripts/third-party-notices.mjs` has the new section; the
-  file is regenerated at release) and a line in About. The licence texts ship in `licenses/`.
+- **The model in the setup (owner's decision: "Setup downloads it", ticked by default).** Not built.
+  Today the model is downloaded from Settings > Dictation with one button that shows the real size.
+  What the next person does, with the places:
+  1. `apps/desktop/build/installer.nsh`: a new section next to `SecWhisperBase` ... `SecOllama` (a state
+     variable, `_FilowSection` and `_FilowReadSection` lines, a label per installer language with the
+     size "462 MB", in the Recommended and Full types), and its state written where the other choices are
+     handed to the app. NSIS treats warnings as errors: build the installer after every change.
+  2. `apps/desktop/welcome-setup.js` (`setupOffer`) and `welcome.ts` ("speech setup" step): the same item
+     in the offer, ticked by default, calling `s1Runtime().download()` (main.js) when chosen.
+  3. `apps/web/app/settings/local/SetupPicker.tsx` (+ `setupPicker.test.tsx`) and `packages/core/src/profile.ts`:
+     the row with its size on every tier, five languages.
+  The download itself is done and proven: `s1-runtime.js` `download()` (resumable, pinned SHA-256, file
+  renamed only after the check), IPC `dictation:cleanup:download`, status in `cleanupState`.
 - The cleanup for other languages (the owner named two more models): not started, see the report.
