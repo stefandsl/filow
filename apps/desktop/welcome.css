@@ -99,6 +99,10 @@ input[role="switch"]:checked::after { transform: translateX(20px); background: v
 .setup-card p { margin: 0; }
 .setup-size[data-tone="ok"] { color: var(--ok); font-weight: 600; }
 .setup-size[data-tone="warn"] { color: var(--warn); }
+/* One optional download with its own tick (S1-mini by Superwhisper): a native checkbox, 44 px tall to hit. */
+.setup-check { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: var(--type-sm); cursor: pointer; }
+.setup-check[hidden] { display: none; }
+.setup-check input { width: 18px; height: 18px; margin: 0; flex-shrink: 0; accent-color: var(--action-background); cursor: pointer; }
 
 /* ---- actions: always visible at the bottom, also at 150 % zoom ---- */
 #error { margin: 16px 0 0; min-height: 0; color: var(--warn); font-size: var(--type-sm); }

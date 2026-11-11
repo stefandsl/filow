@@ -17,7 +17,7 @@ import { placementText, ResourcesPanel, useResources } from "@/components/Resour
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
 import { MicrophoneSelect } from "@/components/MicrophoneSelect";
 import { OkFilowSettings } from "@/components/OkFilowSettings";
-import { DictationSettings } from "@/components/DictationSettings";
+import { DictationSettings, dictationBridge } from "@/components/DictationSettings";
 import { SetupPicker } from "./SetupPicker";
 import { FreeLlmSettings } from "./FreeLlmSettings";
 import { AboutPrivacyLink } from "@/components/AboutPrivacyLink";
@@ -129,6 +129,16 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     void syncSpeechLang(b).then(({ lang: spoken, status }) => { setSpeechLangState(spoken); if (status) setSherpa(status); });
     return b.onStatus((s) => setSherpa(s));
   }, []);
+  // S1-mini by Superwhisper for the setup picker: present or not, and a running download, as the desktop app says.
+  const [cleanupModel, setCleanupModel] = useState<{ runtime: boolean; model: boolean; downloading: boolean; pct: number } | null>(null);
+  const readCleanupModel = useCallback(() => {
+    void dictationBridge()?.status().then((v) => setCleanupModel(v?.cleanupState ?? null)).catch(() => {});
+  }, []);
+  useEffect(() => {
+    readCleanupModel();
+    const timer = setInterval(readCleanupModel, 2000);
+    return () => clearInterval(timer);
+  }, [readCleanupModel]);
 
   const refresh = useCallback(async () => {
     await ensureEngineToken();
@@ -352,6 +362,12 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     setSetupBusy(true);
     try {
       for (const m of models) {
+        if (m.runtime === "llama") {
+          // the same call the button in the Dictation section makes: the app downloads, resumes and checks the hash
+          await dictationBridge()?.downloadCleanup?.().catch(() => undefined);
+          readCleanupModel();
+          continue;
+        }
         if (m.runtime === "sherpa") {
           const b = sherpaBridge();
           if (b && (await b.status()).model !== "ready") b.download();
@@ -432,6 +448,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               installed={{ ollama: status.installed.map((i) => i.name), sherpa: sherpa?.model === "ready" }}
               onGet={(m) => void getSetupModels(m)}
               busy={setupBusy}
+              cleanup={cleanupModel}
             />
           )}
 

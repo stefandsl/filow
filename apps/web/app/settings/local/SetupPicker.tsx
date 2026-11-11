@@ -1,7 +1,7 @@
 "use client";
 
-import { useId } from "react";
-import { advancedDiskNeedGb, missingModels, resolveSetup, SCRIPT_MODEL_MIN_RAM_GB, scriptModel, SETUP_PREFERENCES, type I18nKey, type MachineInfo, type SetupModel, type SetupPreference, type SetupProfileId } from "@filow/core";
+import { useId, useState } from "react";
+import { advancedDiskNeedGb, CLEANUP_MODEL, missingModels, resolveSetup, SCRIPT_MODEL_MIN_RAM_GB, scriptModel, SETUP_PREFERENCES, type I18nKey, type MachineInfo, type SetupModel, type SetupPreference, type SetupProfileId } from "@filow/core";
 import { useT } from "@filow/ui";
 
 export type SetupPickerProps = {
@@ -13,6 +13,11 @@ export type SetupPickerProps = {
   /** starts the one-time downloads; undefined while one runs */
   onGet?: (models: SetupModel[]) => void;
   busy?: boolean;
+  /**
+   * S1-mini by Superwhisper as the desktop app reports it (dictation status, cleanupState): runtime in this
+   * build, file on this computer, a download running. Absent in the browser: the line is not shown.
+   */
+  cleanup?: { runtime: boolean; model: boolean; downloading: boolean; pct: number } | null;
 };
 
 const round = (n: number) => Math.round(n * 10) / 10;
@@ -22,9 +27,13 @@ const round = (n: number) => Math.round(n * 10) / 10;
  * answers together (packages/core/src/profile.ts). Native radio buttons in a fieldset, so arrow keys
  * move between the options and a screen reader reads the group name, each option and its text.
  */
-export function SetupPicker({ hardware, gpuName, preference, onChange, installed, onGet, busy }: SetupPickerProps) {
+export function SetupPicker({ hardware, gpuName, preference, onChange, installed, onGet, busy, cleanup }: SetupPickerProps) {
   const t = useT();
   const id = useId();
+  // The cleanup model's line is ticked unless the user unticks it: every setup gets it, whatever the tier.
+  const [cleanupTicked, setCleanupTicked] = useState(true);
+  const cleanupMissing = Boolean(cleanup && cleanup.runtime && !cleanup.model);
+  const cleanupSize = `${Math.round(CLEANUP_MODEL.bytes / 1024 / 1024)} MB`;
   const setup = resolveSetup(preference, hardware);
   const name = (p: SetupProfileId) => t(`setup.${p}`);
   const desc = (p: SetupProfileId) => {
@@ -46,6 +55,8 @@ export function SetupPicker({ hardware, gpuName, preference, onChange, installed
   const gb = (ms: SetupModel[]) => round(ms.reduce((s, m) => s + m.downloadGb, 0));
   const forTake = missing.filter((m) => m.use === "take");
   const forScreen = missing.filter((m) => m.use === "screen");
+  // one button fetches everything still missing, the ticked cleanup model included (the app downloads that one itself)
+  const toGet = cleanupMissing && cleanupTicked && !cleanup?.downloading ? [...missing, CLEANUP_MODEL] : missing;
 
   return (
     <section className="strip setup" id="setup" aria-labelledby={`${id}-title`}>
@@ -87,8 +98,15 @@ export function SetupPicker({ hardware, gpuName, preference, onChange, installed
         {forScreen.length > 0 && <span className="hint">{t("setup.screenNeeds", { list: list(forScreen), gb: gb(forScreen) })}</span>}
         {scriptMissing.length > 0 && <span className="hint" data-script-model={scriptMissing[0].name}>{t("setup.scriptNeeds", { list: list(scriptMissing), gb: gb(scriptMissing) })}</span>}
         {!script && <span className="hint" data-script-model="none">{t(hardware.ramGb < SCRIPT_MODEL_MIN_RAM_GB ? "setup.scriptNoMemory" : "setup.scriptNoDisk", { ram: SCRIPT_MODEL_MIN_RAM_GB })}</span>}
-        {missing.length > 0 && onGet && (
-          <button type="button" className="btn primary" disabled={busy} onClick={() => onGet(missing)}>
+        {cleanupMissing && (cleanup?.downloading ? (
+          <span className="hint" data-cleanup-model="downloading">{t("setup.cleanupGetting", { pct: cleanup.pct })}</span>
+        ) : (
+          <label className="hint setup-cleanup" data-cleanup-model="offered">
+            <input type="checkbox" checked={cleanupTicked} onChange={(e) => setCleanupTicked(e.target.checked)} /> {t("setup.cleanup", { size: cleanupSize })}
+          </label>
+        ))}
+        {toGet.length > 0 && onGet && (
+          <button type="button" className="btn primary" disabled={busy} onClick={() => onGet(toGet)}>
             {busy ? t("setup.getting") : t("setup.get")}
           </button>
         )}

@@ -128,11 +128,11 @@ describe("installed models", () => {
   });
   it("probe never throws: Ollama down means not running, no models", async () => {
     const fetchJson = vi.fn(async () => { throw new Error("ECONNREFUSED"); });
-    expect(await probeSetup({ fetchJson, sherpaReady: () => true })).toEqual({ sherpa: true, ollamaRunning: false, ollamaModels: [], browserCache: true });
+    expect(await probeSetup({ fetchJson, sherpaReady: () => true })).toEqual({ sherpa: true, ollamaRunning: false, ollamaModels: [], browserCache: true, cleanup: false });
   });
   it("probe reads the tags when Ollama answers", async () => {
     const fetchJson = vi.fn(async () => ({ models: [{ name: "clef-flash:latest" }] }));
-    expect(await probeSetup({ fetchJson, sherpaReady: () => false, browserCache: () => false })).toEqual({ sherpa: false, ollamaRunning: true, ollamaModels: ["clef-flash"], browserCache: false });
+    expect(await probeSetup({ fetchJson, sherpaReady: () => false, browserCache: () => false })).toEqual({ sherpa: false, ollamaRunning: true, ollamaModels: ["clef-flash"], browserCache: false, cleanup: false });
   });
   it("Ollama installed but not running: the models on disk count as installed, not to download again", async () => {
     const r = await probeSetup({ fetchJson: async () => { throw new Error("ECONNREFUSED"); }, sherpaReady: () => true, diskModels: () => ["clef-flash:latest", "gemma4:e4b"] });

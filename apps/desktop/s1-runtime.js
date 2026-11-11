@@ -164,4 +164,21 @@ function createS1Runtime(deps) {
   return { ready, run, warm, stop, status, fetchModel };
 }
 
-module.exports = { createS1Runtime, serverFile, modelFile, freePort, MODEL, MODEL_URL, IDLE_UNLOAD_MS };
+/** The name the setup uses for the model (build/installer.nsh, welcome-setup.js, packages/core profile.ts). */
+const SETUP_ID = "s1-mini";
+/**
+ * The installer, the welcome or Settings asked for the model: one path for all three. The wish is kept
+ * (store.set(true)) until the file is on this computer, so a setup done without a network is finished at
+ * a later start; Settings shows its button meanwhile. A build without the runtime never keeps the wish.
+ */
+function wantModel(rt, store, canFetch = () => true) {
+  const s = rt.status();
+  if (s.model) { store.set(false); return { started: false, reason: "present" }; }
+  if (!s.runtime) return { started: false, reason: "no runtime" };
+  store.set(true);
+  if (!canFetch()) return { started: false, reason: "offline" };
+  void rt.fetchModel().then((ok) => { if (ok) store.set(false); });
+  return { started: true };
+}
+
+module.exports = { createS1Runtime, serverFile, modelFile, freePort, wantModel, MODEL, MODEL_URL, IDLE_UNLOAD_MS, SETUP_ID };

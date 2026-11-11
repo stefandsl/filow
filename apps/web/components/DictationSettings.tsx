@@ -11,7 +11,9 @@ type DictationBridge = {
   configure(patch: Partial<DictationStatus>): Promise<DictationStatus | null>;
   downloadCleanup?(): Promise<{ started: boolean; reason?: string }>;
 };
-const bridge = () => (globalThis as { filow?: { dictation?: DictationBridge } }).filow?.dictation ?? null;
+/** The desktop app's dictation bridge; null in the browser. Also used by the setup picker for the same download. */
+export const dictationBridge = () => (globalThis as { filow?: { dictation?: DictationBridge } }).filow?.dictation ?? null;
+const bridge = dictationBridge;
 
 /** Each language in its own name, so a speaker finds theirs whatever the interface language. */
 const LANG_NAMES = { en: "English", it: "Italiano", ru: "Русский", ro: "Română", ja: "日本語" } as const;

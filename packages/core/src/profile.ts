@@ -36,7 +36,14 @@ export type ProfileReason = "gpu" | "unified" | "ram-and-cores" | "small-gpu" | 
  * `use` "take": a local take needs it; "screen": only OK Filow's local answers do; "script": writing
  * a script from slides and translating one on this PC (scriptModel, not part of a profile's `models`).
  */
-export type SetupModel = { name: string; downloadGb: number; runtime: "ollama" | "sherpa" | "browser"; use: "take" | "screen" | "script" };
+export type SetupModel = { name: string; downloadGb: number; runtime: "ollama" | "sherpa" | "browser" | "llama"; use: "take" | "screen" | "script" | "dictation" };
+
+/**
+ * S1-mini by Superwhisper: writes out English dictation on this PC (apps/desktop/s1-runtime.js, where the
+ * file's size and SHA-256 are pinned). Offered with every setup, whatever the tier, and not part of a
+ * profile's `models`: only the desktop app can say whether its runtime is in the build and the file here.
+ */
+export const CLEANUP_MODEL: SetupModel & { bytes: number } = { name: "s1-mini", downloadGb: 0.46, runtime: "llama", use: "dictation", bytes: 484_219_808 };
 
 export type SetupChoices = {
   profile: SetupProfileId;

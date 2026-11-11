@@ -62,11 +62,11 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
-  for (const name of ["download", "stt", "localai", "diag", "welcome-setup", "single-instance", "about"]) {
+  for (const name of ["download", "stt", "localai", "diag", "s1-runtime", "welcome-setup", "single-instance", "about"]) {
     const module = { exports: {} };
     runInNewContext(readFileSync(new URL(`./${name}.js`, import.meta.url), "utf8"), {
       require: (id: string) => { if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`); return modules[id]; },
-      module, process: { env, platform }, URL, setTimeout,
+      module, process: { env, platform }, URL, setTimeout, clearTimeout, __dirname: "G:/fake",
     });
     modules[`./${name}`] = module.exports;
   }
