@@ -3,7 +3,7 @@
 import type { LessonEvent } from "./generate";
 import type { Lesson } from "./lesson";
 
-export type LessonMeta = { provider: "local" | "cloud"; model: string; lang: string; lite: boolean };
+export type LessonMeta = { provider: "local" | "cloud" | "freellm"; model: string; lang: string; lite: boolean };
 export type LessonState = {
   lesson: Lesson | null;
   /** Where the steps of the answer being read go: 0 for a new lesson, the end for a follow-up. */

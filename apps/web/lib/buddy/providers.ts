@@ -255,13 +255,13 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal, shape?
  * cloud, to the model or `auto:*` strategy set in Settings. Its failures carry their own reason and
  * next step (lib/freellm.ts); there is never a fallback to another provider.
  */
-async function* askFreeLlm(req: BuddyAskRequest, signal?: AbortSignal): AsyncGenerator<string> {
+async function* askFreeLlm(req: BuddyAskRequest, signal?: AbortSignal, shape?: AskShape): AsyncGenerator<string> {
   const history = trimHistory(req.history ?? []).map((t) => ({ role: t.role, content: t.text }));
   yield* freellmStream({
     temperature: 0.3,
-    max_tokens: 1500,
+    max_tokens: shape?.maxTokens ?? 1500,
     messages: [
-      { role: "system", content: buddySystemPrompt(req.screens, req.language ?? "") },
+      { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "") },
       ...history,
       { role: "user", content: [{ type: "text", text: req.question }, ...req.images.map((url) => ({ type: "image_url", image_url: { url } }))] },
     ],
@@ -289,7 +289,7 @@ export function askBuddy(provider: BuddyProviderId, req: BuddyAskRequest, signal
     requireFreeLlm();
     const recipient = freellmRecipient();
     if (req.consent !== consentKey("ask", recipient)) throw new ConsentRequiredError(recipient);
-    return askFreeLlm(req, signal);
+    return askFreeLlm(req, signal, shape);
   }
   if (provider !== "cloud") return askOllama(req, signal, helper, shape);
   const recipient = buddyCloudRecipient();

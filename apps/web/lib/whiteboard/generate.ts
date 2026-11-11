@@ -7,7 +7,7 @@ import { BUDDY_LANG_NAMES, type BuddyLang } from "@/lib/buddy/lang";
 import { LIMITS, cleanText, contextOf, lessonContextText, makeStep, newContext, outlineSchema, parseJsonLoose, slug, validateLesson, validateOutline, type ExplanationKind, type Lesson, type LessonStep, type Scene } from "./lesson";
 
 export type LessonEvent =
-  | { type: "start"; provider: "local" | "cloud"; model: string; lang: BuddyLang; lite: boolean; more: boolean }
+  | { type: "start"; provider: "local" | "cloud" | "freellm"; model: string; lang: BuddyLang; lite: boolean; more: boolean }
   | { type: "outline"; title: string; scene: Scene; says: string[] }
   | { type: "step"; index: number; step: LessonStep }
   | { type: "done"; cards: number; stalled: boolean }
@@ -89,7 +89,7 @@ export type LessonRequest = {
 };
 
 /** How long one answer may take. The outline includes loading the model into memory the first time. */
-export const TIMEOUTS = { outlineMs: 150_000, stepMs: 75_000, cloudMs: 120_000 };
+export const TIMEOUTS = { outlineMs: 150_000, stepMs: 75_000, cloudMs: 120_000, lessonMs: 420_000 };
 
 // ---- The local path: plan, check, then one small pick per step ----
 // A small model draws false arrows when it invents a drawing step by step. So it first names the
@@ -224,8 +224,12 @@ const KIND_TEST: Record<ExplanationKind, string> = {
   algorithm: "the steps trace a small concrete example with real values from start to result",
   law: "the steps name each quantity, state the formula and show what it means",
 };
-/** How many differently worded examiners must agree (a sentence or relation passes only when all do). */
-export const CHECKS = { passes: 2 };
+/**
+ * How many differently worded examiners must agree. Measured on this project's proof (docs/whiteboard/PROOF.md):
+ * two examiners refuse so much that lessons come out hollow and take half as long again, with a lower
+ * strict score than one. So one is the default; the second stays available.
+ */
+export const CHECKS = { passes: 1 };
 function judgeSystem(kind: ExplanationKind, pass = 0): string {
   return [
     pass
@@ -408,6 +412,8 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
       }
       if (typeof raw.formula === "string" && raw.formula.trim()) items.push({ kind: "formula", tex: raw.formula });
       if (typeof raw.plot === "string" && raw.plot.trim()) items.push({ kind: "plot", expr: raw.plot, xmin: 0, xmax: typeof raw.xmax === "number" && raw.xmax >= 1 && raw.xmax <= 1000 ? raw.xmax : 10 });
+      // a circle goes only on a box this sentence names
+      ctx.hint = says[i];
       step = makeStep(says[i], items, ctx);
     }
     if (step.card) cards++;

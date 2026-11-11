@@ -103,6 +103,8 @@ export type LessonContext = {
   /** Formulas, plots and notes already written, so a later step does not write them again. */
   seen: Set<string>;
   texOk?: (tex: string) => boolean;
+  /** The sentence of the step being validated: a box is circled as "what the step talks about" only when the sentence names it. */
+  hint?: string;
   /** Free shapes are accepted (the cloud path). */
   sketch?: boolean;
 };
@@ -203,7 +205,8 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
     }
   }
   // Nothing new, but the model pointed at something on the board: circle it, as the step prompt asks.
-  const pointed = touched[touched.length - 1];
+  const said = ctx.hint?.toLowerCase();
+  const pointed = [...touched].reverse().find((id) => said === undefined || said.includes((ctx.nodes.get(id) ?? "\n").toLowerCase()));
   if (!out.length && pointed && once(`m:${pointed}:circle`)) out.push({ kind: "mark", target: pointed, style: "circle" });
   return out;
 }

@@ -18,7 +18,6 @@ beforeEach(() => {
   calls = [];
   localAnswers = [];
   cloudAnswers = [];
-  // one examiner in these tests (each check is one queued answer); the two-examiner rule has its own test
   CHECKS.passes = 1;
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: { body?: string }) => {
     const call = { url: String(url), body: init?.body ? JSON.parse(init.body) : {} };
@@ -33,7 +32,7 @@ beforeEach(() => {
     return Response.json({});
   }));
 });
-afterEach(() => { CHECKS.passes = 2; vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+afterEach(() => { CHECKS.passes = 1; vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 const post = (body: unknown, consent?: string) => POST(new Request("http://unit.invalid/api/whiteboard/lesson", { method: "POST", body: JSON.stringify(body), headers: consent ? { "x-filow-consent": consent } : {} }));
 const events = async (res: Response): Promise<LessonEvent[]> => (await res.text()).split("\n").filter(Boolean).map((l) => JSON.parse(l) as LessonEvent);
@@ -125,9 +124,14 @@ describe("whiteboard lesson, local model: plan, check, then a pick per step", ()
     expect(steps[0].items.map((i) => i.kind)).toEqual(["node", "node", "edge"]);
   });
 
-  it("circles what a step talks about when everything it names is already on the board", async () => {
-    localAnswers = [OUTLINE, JUDGE, PLAN, CHECK, PICK1, pick(["leaf"], ["1"]), PICK3];
-    expect(stepsOf(await events(await post({ question: "photosynthesis" })))[1].items).toEqual([{ kind: "mark", target: "leaf", style: "circle" }]);
+  it("circles a box already on the board only when the sentence of the step names it", async () => {
+    const SAYS = JSON.stringify({ title: "Photosynthesis", scene: "flow", kind: "process", steps: [{ say: "A leaf takes in light." }, { say: "The leaf is green." }, { say: "Nothing else happens." }] });
+    localAnswers = [SAYS, JUDGE, PLAN, CHECK, PICK1, pick(["sun"], ["1"]), pick(["sun"], []), pick(["sun"], [])];
+    const steps = stepsOf(await events(await post({ question: "photosynthesis" })));
+    // "The leaf is green." picked Light: the circle goes on the box the sentence names, not on the one picked
+    expect(steps[1].items).toEqual([{ kind: "mark", target: "leaf", style: "circle" }]);
+    // a sentence that names no box circles nothing: it is a text card
+    expect(steps[2]).toMatchObject({ items: [], card: true });
   });
 
   it("links two things with their checked relation as soon as both are on the board, even when no step picks it", async () => {
@@ -437,11 +441,72 @@ describe("whiteboard lesson, cloud model", () => {
     expect(JSON.stringify(sent.body.messages[1].content)).toContain("Ohm's law");
   });
 
-  it("refuses FreeLLMAPI as a source: nothing is sent anywhere, and no other source stands in", async () => {
-    const res = await post({ question: "photosynthesis", provider: "freellm" });
-    expect(res.status).toBe(400);
-    expect((await res.json()).code).toBe("unsupported_provider");
-    expect(calls).toHaveLength(0);
+  describe("through the user's FreeLLMAPI router", () => {
+    const FREE = "http://localhost:3001/v1";
+    beforeEach(() => {
+      vi.stubEnv("FREELLMAPI_BASE_URL", FREE);
+      vi.stubEnv("FREELLMAPI_API_KEY", "test-key-not-real");
+    });
+
+    it("without the user's yes for FreeLLMAPI nothing is sent, and a yes for the cloud model does not count", async () => {
+      const res = await post({ question: "Ohm's law", provider: "freellm" });
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({ code: "consent_required", kind: "ask", recipient: { id: "freellmapi" } });
+      expect((await post({ question: "Ohm's law", provider: "freellm" }, "ask:openrouter/google")).status).toBe(403);
+      expect((await post({ question: "Ohm's law", provider: "freellm", consent: "ask:freellmapi" })).status).toBe(403);
+      expect(calls).toEqual([]);
+    });
+
+    it("with the yes, the question goes to the router only, and the lesson comes back validated", async () => {
+      cloudAnswers = [CLOUD];
+      const ev = await events(await post({ question: "Ohm's law", provider: "freellm" }, "ask:freellmapi"));
+      expect(ev.map((e) => e.type)).toEqual(["start", "outline", "step", "step", "done"]);
+      expect(ev[0]).toMatchObject({ provider: "freellm", model: "FreeLLMAPI" });
+      expect(calls).toHaveLength(1);
+      expect(calls[0].url.startsWith(FREE)).toBe(true);
+      const sent = JSON.stringify(calls[0].body.messages);
+      expect(sent).toContain("Ohm's law");
+      expect(sent).toContain("whiteboard");
+      expect(sent).not.toContain("data:image");
+    });
+
+    it("says why when FreeLLMAPI cannot be used, and never answers from another source instead", async () => {
+      vi.stubEnv("FREELLMAPI_API_KEY", "");
+      const noKey = await post({ question: "Ohm's law", provider: "freellm" }, "ask:freellmapi");
+      expect(noKey.status).toBe(409);
+      expect((await noKey.json()).code).toBe("freellm_no_key");
+      vi.stubEnv("FREELLMAPI_API_KEY", "test-key-not-real");
+      vi.stubEnv("FILOW_OFFLINE", "1");
+      const offline = await post({ question: "Ohm's law", provider: "freellm" }, "ask:freellmapi");
+      expect(offline.status).toBe(409);
+      expect((await offline.json()).code).toBe("freellm_offline");
+      expect(calls).toEqual([]);
+    });
+  });
+
+  it("refuses a request far larger than a question and a lesson", async () => {
+    const res = await post({ question: "x", lesson: { title: "t", steps: [{ say: "y".repeat(70_000), items: [] }] } });
+    expect(res.status).toBe(413);
+    expect(calls).toEqual([]);
+  });
+
+  it("cuts a lesson off when it takes longer than a lesson may, and says so", async () => {
+    const before = { ...TIMEOUTS };
+    TIMEOUTS.lessonMs = 80;
+    try {
+      vi.stubGlobal("fetch", vi.fn((url: string, init?: { signal?: AbortSignal }) =>
+        String(url).includes("/api/chat") ? new Promise<Response>((_resolve, reject) => {
+          const fail = () => reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+          if (init?.signal?.aborted) fail();
+          else init?.signal?.addEventListener("abort", fail);
+        }) : Promise.resolve(Response.json({}))));
+      const started = Date.now();
+      const ev = await events(await post({ question: "photosynthesis" }));
+      expect(Date.now() - started).toBeLessThan(2000);
+      expect(ev[ev.length - 1]).toMatchObject({ type: "error", code: "stalled", message: "The lesson took too long." });
+    } finally {
+      Object.assign(TIMEOUTS, before);
+    }
   });
 
   it("offline mode answers on this PC whatever was asked", async () => {
