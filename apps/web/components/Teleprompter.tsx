@@ -645,10 +645,10 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
           </>
         )}
 </>} mode={<><label className="backend-choice"><span>{t("ctl.mode")}</span>
-        <select className="btn" value={choice} disabled={eng.recording} onChange={(e) => setChoice(e.target.value as BackendChoice)} title={choice === "auto" ? t("ctl.auto") : BACKEND_LABELS[choice]} aria-label={t("ctl.backend")}>
+        <select className="btn" value={choice} disabled={eng.recording} onChange={(e) => setChoice(e.target.value as BackendChoice)} title={choice === "auto" ? t("ctl.auto") : choice === "sherpa" ? t("ctl.backend.sherpa") : BACKEND_LABELS[choice]} aria-label={t("ctl.backend")}>
           <option value="auto" title={t("ctl.auto")}>{t("ctl.auto.short")}</option>
           {availability.map((id) => (
-            <option key={id} value={id} title={BACKEND_LABELS[id]}>
+            <option key={id} value={id} title={id === "sherpa" ? t("ctl.backend.sherpa") : BACKEND_LABELS[id]}>
               {t(`ctl.backend.${id}.short`)}
             </option>
           ))}

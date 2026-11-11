@@ -63,7 +63,7 @@ export type NetStatus = { ip: string; iface: string; virtual: boolean; firewall:
 export type LocalAiStatus = { state: "idle" | "checking" | "downloading" | "installing" | "starting" | "ready" | "manual" | "error"; pct: number; error: string; version: string; command: string };
 export type LocalAiHardware = {
   ramGb: number; gpu: string; gpuClass: "discrete" | "integrated" | "unknown"; freeGb: number; cpu: string; cores: number; platform: string; arch: string;
-  recommended: { models: string[]; ollama: boolean; downloadGb: number; labels: string[] };
+  recommended: { models: string[]; ollama: boolean; downloadGb: number };
 };
 
 export type UpdateStatus = { status: "idle" | "checking" | "downloading" | "downloaded" | "none" | "error"; version: string; error: string; current: string };

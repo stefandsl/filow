@@ -1532,7 +1532,7 @@ async function offerLocalAi() {
   if (!rec.models.length) return null;
   const tx = (key, vars) => sharedText(`shell.localAi.${key}`, menuLang(), vars);
   const machine = [tx("machine", { ram: info.ramGb }), info.gpu, info.freeGb >= 0 ? tx("free", { gb: info.freeGb }) : ""].filter(Boolean).join(" · ");
-  const recommended = [tx("recommended", { models: rec.labels.join(", ") }), rec.ollama ? tx("ollama") : ""].filter(Boolean).join("\n");
+  const recommended = [tx("recommended", { models: rec.models.map((n) => sharedText(`catalog.${n}`, menuLang())).join(", ") }), rec.ollama ? tx("ollama") : ""].filter(Boolean).join("\n");
   // Owned by the splash when it is up: an unowned box opened behind the splash (seen 2026-11-09).
   const owner = splash && !splash.isDestroyed() ? splash : null;
   const options = {

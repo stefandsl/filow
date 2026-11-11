@@ -70,7 +70,7 @@ function setupOffer({ hw, rec, catalog, installed, online, installerChose = fals
     ready: !missing.some((n) => TAKE_MODELS.has(n)),
     downloadGb,
     needsOllama: Boolean(rec.ollama) && !installed.ollamaRunning && missing.some((n) => catalog[n] && catalog[n].ollama),
-    labels: rec.models.map((n) => (catalog[n] && catalog[n].label) || n),
+    models: rec.models.slice(),
     device: hw.platform === "darwin" ? "mac" : "pc",
     ramGb: hw.ramGb,
     online: Boolean(online),

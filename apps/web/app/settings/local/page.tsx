@@ -556,7 +556,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
             {hw && (
               <div className="hint">
                 {t("settings.hardware", { gpu: hw.gpu || "-", free: hw.freeGb })}
-                {hw.recommended.models.length > 0 && <> · {t("settings.recommendedList", { list: hw.recommended.labels.join(", "), gb: hw.recommended.downloadGb })}</>}
+                {hw.recommended.models.length > 0 && <> · {t("settings.recommendedList", { list: hw.recommended.models.map((n) => t(`catalog.${n}` as I18nKey)).join(", "), gb: hw.recommended.downloadGb })}</>}
               </div>
             )}
             {autoList.length > 0 && <div className="hint">{t("settings.autoSetup", { list: autoList.join(", ") })}</div>}
@@ -669,7 +669,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                   {m.status === "available" && m.runtime === "ollama" && !m.installed && (
                     <>
                       <button className="btn primary" disabled={!m.ollamaOk || Boolean(progress[m.name])} onClick={() => void pull(m.name)}>
-                        {progress[m.name] ? progress[m.name] : t("settings.pull")}
+                        {progress[m.name] ? progress[m.name] : t("settings.download")}
                       </button>
                       {progress[m.name] && (
                         <button className="btn danger" title={t("settings.cancelPullHint")} onClick={() => cancelPull(m.name)}>
