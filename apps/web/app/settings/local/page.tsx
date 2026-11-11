@@ -576,12 +576,14 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                 </button>
                 {/* this row is only there while Ollama is not usable: an old "ready" would contradict the chip above */}
                 {localAiBusy(ai) && ai && <span className="chip busy">{aiText(ai)}</span>}
-                <span className="hint">{t("settings.aiHint")}</span>
+                {/* after a failure the line below says what to do; "downloads the installer" would be wrong for an Ollama that is installed */}
+                {ai?.state !== "error" && <span className="hint">{t("settings.aiHint")}</span>}
               </div>
             )}
             {!status.ollama.ok && ai?.state === "error" && (
-              <div className="row" role="alert" data-testid="ollama-failure">
-                <span className="chip err">{aiText(ai)}</span>
+              <div className="row" role="alert" data-testid="ollama-failure" style={{ alignItems: "center", gap: 12, margin: "8px 0" }}>
+                {/* full-size text: this is the line the user has to read and act on, not a status chip */}
+                <span style={{ color: "var(--warn)", flex: "1 1 420px" }}>{aiText(ai)}</span>
                 {localAiNeedsReport(ai) && desktopBridge()?.reportProblem && (
                   <button type="button" className="btn small" onClick={() => desktopBridge()?.reportProblem?.()}>
                     {t("log.report")}
