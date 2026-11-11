@@ -347,7 +347,7 @@ export default function WhiteboardPage() {
   };
 
   const status_line = ls.phase === "planning" ? t("planning") : ls.phase === "drawing" && stepCount < ls.expected ? t("drawingStep", { n: stepCount + 1, total: ls.expected }) : "";
-  const errorText = !ls.error ? "" : ls.error.code === "plan" ? t("errPlan") : ls.error.code === "stalled" ? t("errStalled") : ls.error.code === "no_local_helper" ? ls.error.message : OLLAMA_STOPPED_ANSWER.test(ls.error.message) ? okfT("ollamaStopped") : ls.error.code.startsWith("freellm") || freellmCodeOf(ls.error.message) ? localizeFreeLlmError(ls.error.message, lang) : t("errGeneric", { message: ls.error.message });
+  const errorText = !ls.error ? "" : ls.error.code === "plan" ? t("errPlan") : ls.error.code === "stalled" ? t("errStalled") : ls.error.code === "busy" ? t("errBusy") : ls.error.code === "topic" ? t("errTopic") : ls.error.code === "no_local_helper" ? ls.error.message : OLLAMA_STOPPED_ANSWER.test(ls.error.message) ? okfT("ollamaStopped") : ls.error.code.startsWith("freellm") || freellmCodeOf(ls.error.message) ? localizeFreeLlmError(ls.error.message, lang) : t("errGeneric", { message: ls.error.message });
 
   return (
     <main className={`wb-page${lite ? " wb-plain" : ""}`} data-phase={ls.phase} data-player={player.phase} data-shown-ms={shownMs ?? undefined}>

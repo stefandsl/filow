@@ -164,6 +164,39 @@ To measure it (a paid call, the owner's decision): start Filow or `next dev` wit
 recipient and stops; the same command with `--yes-send-to <recipient id>` (for the default model:
 `openrouter/google`) runs the ten questions, each now two to four calls.
 
+## Round 4: the online path after its first paid run with the examiner
+
+Measured by the coordinator (google/gemini-2.5-flash, round 3 code): strict 6/10 on the one valid
+run (was 3 and 5); the second run was cut short by the provider (429 on lessons 6 to 10); layout
+5/10. What failed: a refusal instead of a lesson (Krebs cycle), two reversed arrows the examiner
+let through, a plot that did not match the worked example and two curves never drawn together, a
+sum stated wrongly ("(0+1)/2 = 0"), lessons that state the outcome and skip the mechanism.
+
+What changed, none of it measured on a real model yet (no paid call was made here):
+
+| Failure | Change |
+|---|---|
+| Reversed arrows got through a general read | The arrows go in a call of their own, one sentence a line ("Error calculates True target."), each judged true, reversed or false, and the verdict is applied as given: turned, kept or dropped. An arrow without a verdict is dropped. |
+| No lesson for the Krebs cycle | After a second lesson off the topic, the model first defines the topic in one sentence, writes a third lesson from that definition, and the examiner is given the definition too. Only then does the page say that no lesson could be made. Whether the lesson or the examiner was wrong in that run could not be told from the saved files (only the refusal was saved). |
+| A wrong sum in a sentence | Every "expression = number" in the spoken sentences is recomputed in code (`checkArithmetic`). A wrong one has the lesson written again with the claim quoted; a step whose sum is still wrong is not shown. |
+| Curves on separate plots, plot not matching the example | A plot can hold up to three functions and marks where the first two cross; the prompt asks for one plot when curves meet and for the function the example uses. |
+| Outcome without mechanism | The examiner's "does it do what was asked" now names the one step each kind cannot do without (how inputs become outputs, what pushes a market back, a numeric example for a law, one concrete case for an idea such as recursion) and that rounding is said. A lesson without it is written again once. |
+| 429 or 5xx from the provider | The same call is made again after 2, 5 and 10 seconds; after that the page says the online model is busy. No other source is used. |
+| Crowded boards | A lesson with more than 7 boxes or 9 arrows continues on a fresh board ("Title (2)") that redraws the boxes it still points at; arrow labels may be 30 characters and are no longer cut at 22. |
+
+Calls per online lesson now: three when it passes (lesson, review, arrows), up to eight in the worst
+case (two rewrites, the definition, three reviews, the arrows). Each goes to the same recipient
+under the same consent and carries only the question and the lesson's own text.
+
+Layout of the saved paid run recomputed with this code: still 5/10, but the saved lessons carry
+labels already cut at 22 characters by the older validator, so this number says little about new
+lessons. The effect of the board limit, the continued board and the longer labels is for the next
+paid run to show.
+
+Local model: nothing new was measured in round 4. The three things to try (repairing a refused
+relation, asking for relations per sentence, a bench on an idle graphics card) were not done. The
+round 3 result stands: 4, 5 and 3 of 10 with the drawing rubric, held-out 3 of 10, and the page
+keeps its advice under local lessons.
 ## How to repeat
 
 1. Start Filow (or `next dev`) with Ollama running.
