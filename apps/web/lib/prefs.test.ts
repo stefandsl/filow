@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { gateThresholdsFor, SETUP_PROFILES, setupChoices } from "@filow/core";
 import { readFileSync } from "node:fs";
-import { chooseSpeechLang, getGateMode, getSetupPreference, getSpeechLang, migrateGateMode, setGateMode, setSetupPreference, speechLangFor, syncSpeechLang } from "./prefs";
+import { chooseSpeechLang, getGateMode, getSetupPreference, getSpeechLang, getStartMode, migrateGateMode, migrateStartMode, setGateMode, setSetupPreference, setStartMode, speechLangFor, syncSpeechLang } from "./prefs";
 
 /** A localStorage that lives in this test only. */
 function memoryStorage(init: Record<string, string> = {}) {
@@ -38,6 +38,91 @@ describe("the setup choice is remembered", () => {
     expect(store.getItem("prefs:setup")).toBeNull();
     use({ "prefs:setup": "bogus" });
     expect(getSetupPreference()).toBe("auto");
+  });
+});
+
+// Easy settings: a new profile starts takes on this PC without the Cloud / Local question; a profile
+// that was used before keeps exactly what it had, also when what it had was never written down.
+describe("the start mode", () => {
+  it("a new profile is on Auto and stores nothing", () => {
+    expect(getStartMode()).toBe("auto");
+    expect(store.getItem("prefs:startMode")).toBeNull();
+    // still Auto after the profile wrote its first settings (the check ran once)
+    store.setItem("prefs:micDeviceId", "abc");
+    store.setItem("okfilow.history.v1", "[]");
+    expect(getStartMode()).toBe("auto");
+  });
+
+  it("a stored choice is untouched, whatever else the profile holds", () => {
+    for (const v of ["ask", "auto", "cloud", "local"] as const) {
+      use({ "prefs:startMode": v });
+      expect(getStartMode()).toBe(v);
+      expect(store.getItem("prefs:startMode")).toBe(v);
+    }
+  });
+
+  // Before, nothing stored meant "ask" (the key was removed for it): such a user saw the dialog at every take.
+  it.each([["prefs:micDeviceId", "abc"], ["prefs:speechLang", "it"], ["okfilow.history.v1", "[]"], ["prefs:gateMigrated", "1"], ["prefs:gate", "off"], ["prefs:setup", "lite"], ["mirror:lastCode", "1234"]])("a profile used before (%s) with nothing stored keeps the question", (key, value) => {
+    use({ [key]: value });
+    expect(getStartMode()).toBe("ask");
+    expect(store.getItem("prefs:startMode")).toBe("ask");
+    expect(getStartMode()).toBe("ask");
+  });
+
+  it("the interface language and theme mirrors do not make a profile a used one", () => {
+    use({ "prefs:lang": "it", "prefs:theme": "dark" });
+    expect(getStartMode()).toBe("auto");
+  });
+
+  it("a new profile stays new whichever setting is read or written first", () => {
+    expect(getGateMode()).toBe("on");
+    expect(getStartMode()).toBe("auto");
+    use();
+    setGateMode("off");
+    expect(getStartMode()).toBe("auto");
+    use();
+    setSetupPreference("lite");
+    expect(getStartMode()).toBe("auto");
+    use();
+    migrateStartMode(store);
+    store.setItem("prefs:screenMode", "off");
+    expect(getStartMode()).toBe("auto");
+  });
+
+  // OK Filow's windows write their history without ever reading the start mode: the check must have run by then.
+  it("a page that only loads the preferences has told new from used before it writes anything", async () => {
+    vi.stubGlobal("window", { localStorage: store });
+    vi.resetModules();
+    const loaded = await import("./prefs");
+    expect(store.getItem("prefs:startModeMigrated")).toBe("1");
+    store.setItem("okfilow.history.v1", "[]");
+    expect(loaded.getStartMode()).toBe("auto");
+  });
+
+  it("every choice is written down, also Ask every time, and survives a reload", () => {
+    for (const v of ["ask", "cloud", "local", "auto"] as const) {
+      setStartMode(v);
+      expect(store.getItem("prefs:startMode")).toBe(v);
+      expect(getStartMode()).toBe(v);
+    }
+    // a new profile that picks "Ask every time" before anything else keeps it
+    use();
+    setStartMode("ask");
+    expect(getStartMode()).toBe("ask");
+  });
+
+  it("the gate's own rule for earlier installs is unchanged by it", () => {
+    use({ "prefs:speechLang": "it" });
+    expect(getStartMode()).toBe("ask");
+    expect(getGateMode()).toBe("off");
+    use();
+    expect(getStartMode()).toBe("auto");
+    expect(getGateMode()).toBe("on");
+  });
+
+  it("without storage the question stays", () => {
+    vi.stubGlobal("localStorage", { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } });
+    expect(getStartMode()).toBe("ask");
   });
 });
 
