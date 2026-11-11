@@ -49,6 +49,27 @@ describe("whiteboard lesson: what the model writes is data", () => {
     expect(items.filter((i) => i.kind === "mark")).toEqual([{ kind: "mark", target: "b", style: "circle" }]);
   });
 
+  it("does not draw again an arrow an earlier step already drew", () => {
+    const ctx = newContext();
+    validateItems([{ kind: "node", id: "sun", text: "Sun" }, { kind: "node", id: "leaf", text: "Leaf" }, { kind: "edge", from: "sun", to: "leaf" }], ctx);
+    const later = validateItems([{ kind: "edge", from: "sun", to: "leaf" }, { kind: "edge", from: "Sun", to: "Leaf", text: "Energy" }, { kind: "edge", from: "sun", to: "leaf", text: "energy" }, { kind: "edge", from: "leaf", to: "sun" }], ctx);
+    expect(later).toEqual([{ kind: "edge", from: "sun", to: "leaf", text: "Energy" }, { kind: "edge", from: "leaf", to: "sun", text: "" }]);
+  });
+  it("circles what a step points at when the model only redrew things already on the board", () => {
+    const ctx = newContext();
+    validateItems([{ kind: "node", id: "client", text: "Client" }, { kind: "node", id: "server", text: "Server" }, { kind: "edge", from: "client", to: "server" }], ctx);
+    expect(validateItems([{ kind: "node", id: "client", text: "Client" }, { kind: "node", id: "server", text: "Server" }, { kind: "edge", from: "client", to: "server" }], ctx)).toEqual([{ kind: "mark", target: "server", style: "circle" }]);
+    // a label on an arrow that had none is new
+    expect(validateItems([{ kind: "edge", from: "client", to: "server", text: "SYN" }], ctx)).toEqual([{ kind: "edge", from: "client", to: "server", text: "SYN" }]);
+    expect(validateItems([{ kind: "nonsense" }], ctx)).toEqual([]);
+  });
+
+  it("writes a formula, a plot or a note once, however often the model repeats it", () => {
+    const ctx = newContext();
+    const items = [{ kind: "formula", tex: "V = I R" }, { kind: "note", text: "R is fixed" }, { kind: "plot", expr: "2x" }];
+    expect(validateItems(items, ctx)).toHaveLength(3);
+    expect(validateItems([{ kind: "formula", tex: "V=IR" }, { kind: "note", text: "r is FIXED" }, { kind: "plot", expr: "2 x" }, { kind: "formula", tex: "I = V / R" }], ctx)).toEqual([{ kind: "formula", tex: "I = V / R" }]);
+  });
   it("caps the items of a step and the nodes of a lesson", () => {
     const ctx = newContext();
     const many = Array.from({ length: 30 }, (_, i) => ({ kind: "node", id: `n${i}`, text: `Node ${i}` }));

@@ -4,7 +4,7 @@
 // Every answer is parsed and validated in lesson.ts before anything is sent to the page.
 import katex from "katex";
 import { BUDDY_LANG_NAMES, type BuddyLang } from "@/lib/buddy/lang";
-import { LIMITS, STEP_SCHEMA, lessonContextText, lessonNodes, makeStep, newContext, outlineSchema, parseJsonLoose, validateLesson, validateOutline, type Lesson, type LessonStep, type Scene } from "./lesson";
+import { LIMITS, STEP_SCHEMA, contextOf, lessonContextText, makeStep, newContext, outlineSchema, parseJsonLoose, validateLesson, validateOutline, type Lesson, type LessonStep, type Scene } from "./lesson";
 
 export type LessonEvent =
   | { type: "start"; provider: "local" | "cloud"; model: string; lang: BuddyLang; lite: boolean; more: boolean }
@@ -41,6 +41,7 @@ function outlineSystem(lang: BuddyLang, maxSteps: number, more: boolean): string
       ? `The learner is following the lesson below and asks a follow-up. Plan 1 to ${maxSteps} more steps that answer it and build on what is already on the board.`
       : `Plan ${Math.min(3, maxSteps)} to ${maxSteps} steps that explain the concept in order, from what the learner already knows to the new idea. Every step must be true and must follow from the one before.`,
     'Each step has one spoken sentence "say": at most 28 words, plain words, no markdown, no list.',
+    "Say only what you are sure is true: leave a detail out rather than guess. Asked to prove or derive something, make each step one step of the proof, with its reason. When the concept has a formula, one step states it.",
     '"scene" says how the drawing is arranged: "flow" for parts that feed into each other, "cycle" for a loop that returns to its start, "stack" for events in time order, a list of cases or a derivation.',
     `Write the title and every sentence in ${BUDDY_LANG_NAMES[lang]}.`,
     NOT_AN_INSTRUCTION,
@@ -58,10 +59,17 @@ const ITEM_RULES = [
 
 function stepSystem(lang: BuddyLang): string {
   return [
-    'You draw one step of a whiteboard lesson. Reply with JSON only: {"items":[...]} with 2 to 5 items.',
+    'You draw one step of a whiteboard lesson. Reply with JSON only: {"items":[...]} with 1 to 4 items.',
     "Item kinds:",
     ...ITEM_RULES,
-    "Draw only what this step says. Reuse the ids already on the board and do not draw their boxes again. Use a formula when the step states a law or an equation, and a plot when it describes a curve.",
+    "Rules:",
+    "- Draw only what the sentence of this step says; the later steps draw the rest.",
+    "- Draw the real things the lesson is about, never the comparison used to explain them.",
+    "- A box is a thing: a part, a substance, a quantity, a party, a stage. At most 2 new boxes in a step. Reuse the ids already on the board; never draw their boxes or their arrows again.",
+    "- An arrow goes from the cause, the source or the sender to what it produces, feeds or receives. Draw an arrow only when it is true.",
+    "- A message between two parties (a protocol, a conversation) is an arrow from the sender to the receiver, labelled with the name of the message. Each party is one box.",
+    "- When the step states a law or an equation, write it as a formula. When it tells how a quantity grows, falls or meets another, add a plot.",
+    "- When the step has nothing new to draw, mark the box it talks about or add one short note.",
     `No coordinates, no colours, no HTML. Write every text in ${BUDDY_LANG_NAMES[lang]}; ids stay ASCII.`,
   ].join("\n");
 }
@@ -115,8 +123,7 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
   const scene = more ? req.lesson!.scene : outline.scene;
   emit({ type: "outline", title, scene, says: outline.says });
 
-  const ctx = newContext({ texOk });
-  if (more) ctx.nodes = lessonNodes(req.lesson!);
+  const ctx = more ? contextOf(req.lesson!, { texOk }) : newContext({ texOk });
   const earlier = more ? req.lesson!.steps.map((s) => s.say).slice(-6) : [];
   let cards = 0;
   let stalled = false;
@@ -154,7 +161,7 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
   let lesson: Lesson | null = null;
   for (let attempt = 0; attempt < 2 && !lesson; attempt++) {
     const text = await ask({ system: cloudSystem(req.lang, maxSteps, more), user, format: { type: "object" }, maxTokens: 3500, timeoutMs: 120_000, temperature: attempt ? 0.6 : 0.3 });
-    lesson = validateLesson(parseJsonLoose(text), { maxSteps, texOk, sketch: true, nodes: more ? lessonNodes(req.lesson!) : undefined });
+    lesson = validateLesson(parseJsonLoose(text), { maxSteps, texOk, sketch: true, continues: more ? req.lesson! : undefined });
   }
   if (!lesson) {
     emit({ type: "error", code: "plan", message: "The model did not return a lesson." });

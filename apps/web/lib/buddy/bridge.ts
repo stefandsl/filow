@@ -137,6 +137,11 @@ export type OkFilowBridge = {
   closeModel(): void;
   /** Model window -> panel (through main): ask OK Filow about a clicked part. */
   askAbout(text: string): void;
+  /** Whiteboard tutor (docs/whiteboard/SPEC.md). Absent in a desktop build older than the whiteboard. */
+  showWhiteboard?(topic: string): void;
+  whiteboardReady?(): void;
+  closeWhiteboard?(): void;
+  onWhiteboard?(fn: (topic: string) => void): Off;
   /** Puts dictated text where the focus is (typed, pasted or only copied; see DictationResult). */
   typeText(text: string, language?: string): Promise<DictationResult>;
   handsFreeOff(): void;

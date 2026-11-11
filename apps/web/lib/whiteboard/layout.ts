@@ -18,7 +18,7 @@ export type PlacedEdge = {
   to: string;
   /** A quadratic curve from the edge of one node to the edge of the other. */
   x1: number; y1: number; cx: number; cy: number; x2: number; y2: number;
-  label: { text: string; box: Box; font: number } | null;
+  label: { lines: string[]; box: Box; font: number } | null;
 };
 export type PlacedMark = { key: string; step: number; style: MarkStyle; target: string; box: Box };
 export type PlacedBlock = { key: string; step: number; box: Box } & (
@@ -41,6 +41,8 @@ export type BoardLayout = {
 };
 
 const ELLIPSIS = String.fromCharCode(0x2026);
+const LABEL_FONT = 16;
+const LABEL_LINE = LABEL_FONT * 1.2;
 
 // ---- text measuring without a browser: an estimate on the safe (wide) side ----
 const isWideChar = (c: number) => (c >= 0x1100 && c <= 0x11ff) || (c >= 0x2e80 && c <= 0xa4cf) || (c >= 0xac00 && c <= 0xd7af) || (c >= 0xf900 && c <= 0xfaff) || (c >= 0xff00 && c <= 0xffe6) || c >= 0x1f000;
@@ -99,15 +101,35 @@ function exitPoint(b: Box, tx: number, ty: number, pad: number) {
   const s = Math.min(sx, sy);
   return { x: c.x + dx * s, y: c.y + dy * s };
 }
-const curveAt = (e: Pick<PlacedEdge, "x1" | "y1" | "cx" | "cy" | "x2" | "y2">, t: number) => ({
+type Curve = Pick<PlacedEdge, "x1" | "y1" | "cx" | "cy" | "x2" | "y2">;
+const curveAt = (e: Curve, t: number) => ({
   x: (1 - t) * (1 - t) * e.x1 + 2 * (1 - t) * t * e.cx + t * t * e.x2,
   y: (1 - t) * (1 - t) * e.y1 + 2 * (1 - t) * t * e.cy + t * t * e.y2,
 });
 
 type NodeIn = { id: string; text: string; step: number };
+type EdgeIn = { from: string; to: string; text: string; step: number };
+/**
+ * Placed nodes, plus what the arrows need to know: the direction the diagram reads in ("x": arrows
+ * leave a box by its side, "y": by its top or bottom, null: straight from centre to centre) and how
+ * wide a label may be before it is broken in two lines.
+ */
+type Arrangement = { nodes: PlacedNode[]; axis: "x" | "y" | null; labelMax: number };
+
+/** One type size for the whole diagram: the largest at which every label fits a box of w x maxH. */
+function fitLabels(nodes: NodeIn[], w: number, maxH: number, sizes: number[]) {
+  const lines = (f: number) => Math.max(...nodes.map((nd) => wrapText(nd.text, w - 24, f, 99).length));
+  const room = (f: number) => Math.max(1, Math.floor((maxH - 20) / (f * 1.22)));
+  // no word broken in the middle ("Chlorophyl / l") when a smaller size keeps it whole
+  const whole = (f: number) => nodes.every((nd) => nd.text.split(/\s+/).every((word) => Array.from(word).some((ch) => isWideChar(ch.codePointAt(0) ?? 0)) || textWidth(word, f) <= w - 24));
+  const pick = sizes.find((f) => lines(f) <= room(f) && whole(f)) ?? sizes.find((f) => lines(f) <= room(f));
+  const font = pick ?? sizes[sizes.length - 1];
+  const lineCount = pick ? lines(pick) : room(font);
+  return { font, lineCount, h: Math.min(maxH, Math.max(52, lineCount * font * 1.22 + 24)) };
+}
 
 /** Nodes in a grid whose cells never touch: by rows that snake (flow) or by columns (stack). */
-function gridNodes(nodes: NodeIn[], area: Box, scene: "flow" | "stack", shape: BoardShape): PlacedNode[] {
+function gridNodes(nodes: NodeIn[], area: Box, scene: "flow" | "stack", shape: BoardShape): Arrangement {
   const n = nodes.length;
   let cols: number;
   let rows: number;
@@ -125,30 +147,16 @@ function gridNodes(nodes: NodeIn[], area: Box, scene: "flow" | "stack", shape: B
   const gapX = scene === "stack" ? 96 : Math.min(120, Math.max(72, cellW * 0.34));
   const gapY = Math.max(40, Math.min(64, cellH * 0.38));
   const w = cellW - gapX;
-  const maxH = cellH - gapY;
-  // One type size for the whole diagram: the largest at which every label fits its box.
-  let font = 24;
-  let lineCount = 1;
-  for (const f of [24, 22, 20, 18, 16, 15]) {
-    font = f;
-    const fits = Math.max(1, Math.floor((maxH - 20) / (f * 1.22)));
-    lineCount = Math.max(...nodes.map((nd) => wrapText(nd.text, w - 24, f, 99).length));
-    if (lineCount <= fits) break;
-    lineCount = fits;
-  }
-  const h = Math.min(maxH, Math.max(52, lineCount * font * 1.22 + 24));
-  const gridW = cols * cellW;
-  const gridH = rows * cellH;
-  const x0 = area.x + (area.w - gridW) / 2;
-  const y0 = area.y + (area.h - gridH) / 2;
-  return nodes.map((nd, i) => {
+  const { font, lineCount, h } = fitLabels(nodes, w, cellH - gapY, [24, 22, 20, 18, 16, 15]);
+  const x0 = area.x + (area.w - cols * cellW) / 2;
+  const y0 = area.y + (area.h - rows * cellH) / 2;
+  const placed = nodes.map((nd, i) => {
     let col: number;
     let row: number;
     if (scene === "flow") {
       row = Math.floor(i / cols);
       const k = i % cols;
-      // Rows alternate direction, so each node sits next to the one before it. A short last row
-      // is pushed to the side its row starts from.
+      // Rows alternate direction, so each node sits next to the one before it.
       col = row % 2 === 0 ? k : cols - 1 - k;
     } else {
       col = Math.floor(i / rows);
@@ -157,10 +165,12 @@ function gridNodes(nodes: NodeIn[], area: Box, scene: "flow" | "stack", shape: B
     const box = { x: x0 + col * cellW + (cellW - w) / 2, y: y0 + row * cellH + (cellH - h) / 2, w, h };
     return { id: nd.id, step: nd.step, text: nd.text, box, font, lines: wrapText(nd.text, w - 24, font, lineCount) };
   });
+  const oneColumn = cols === 1;
+  return { nodes: placed, axis: oneColumn || scene === "stack" ? "y" : null, labelMax: oneColumn ? 200 : gapX - 10 };
 }
 
 /** Nodes around an ellipse, the first at the top, clockwise. Null when they would touch. */
-function cycleNodes(nodes: NodeIn[], area: Box): PlacedNode[] | null {
+function cycleNodes(nodes: NodeIn[], area: Box): Arrangement | null {
   const n = nodes.length;
   for (const font of [22, 20, 18, 16, 15]) {
     const w = Math.min(210, area.w * (n > 6 ? 0.2 : 0.26));
@@ -174,12 +184,94 @@ function cycleNodes(nodes: NodeIn[], area: Box): PlacedNode[] | null {
       const c = { x: area.x + area.w / 2 + rx * Math.cos(a), y: area.y + area.h / 2 + ry * Math.sin(a) };
       return { id: nd.id, step: nd.step, text: nd.text, font, box: { x: c.x - w / 2, y: c.y - h / 2, w, h }, lines: wrapText(nd.text, w - 24, font, lineCount) };
     });
-    if (placed.every((a, i) => placed.every((b, j) => j <= i || !overlap(a.box, b.box, 28)))) return placed;
+    if (placed.every((a, i) => placed.every((b, j) => j <= i || !overlap(a.box, b.box, 28)))) return { nodes: placed, axis: null, labelMax: Math.min(170, area.w * 0.3) };
   }
   return null;
 }
 
-function placeEdges(edges: Array<{ from: string; to: string; text: string; step: number }>, nodes: PlacedNode[], board: Box): PlacedEdge[] {
+/**
+ * The layer of each node when the arrows are followed: sources first, what they feed next. An arrow
+ * that closes a loop is left out of the count. Null when the arrows give no order worth showing.
+ */
+function layering(nodes: NodeIn[], edges: EdgeIn[]): number[] | null {
+  const index = new Map(nodes.map((nd, i) => [nd.id, i]));
+  const next: number[][] = nodes.map(() => []);
+  for (const e of edges) {
+    const a = index.get(e.from);
+    const b = index.get(e.to);
+    if (a !== undefined && b !== undefined && a !== b && !next[a].includes(b)) next[a].push(b);
+  }
+  const state = nodes.map(() => 0);
+  const forward: number[][] = nodes.map(() => []);
+  const visit = (u: number) => {
+    state[u] = 1;
+    for (const v of next[u]) {
+      if (state[v] === 1) continue; // closes a loop
+      forward[u].push(v);
+      if (state[v] === 0) visit(v);
+    }
+    state[u] = 2;
+  };
+  nodes.forEach((_, i) => { if (state[i] === 0) visit(i); });
+  const layer = nodes.map(() => 0);
+  for (let pass = 0; pass < nodes.length; pass++) {
+    let changed = false;
+    forward.forEach((targets, u) => targets.forEach((v) => { if (layer[v] < layer[u] + 1) { layer[v] = layer[u] + 1; changed = true; } }));
+    if (!changed) break;
+  }
+  return Math.max(...layer) > 0 ? layer : null;
+}
+
+/**
+ * A flow drawn by its arrows: layers left to right on a wide board, top to bottom on a tall one,
+ * so an arrow between neighbouring layers crosses only the empty band between them. Null when the
+ * lesson does not fit that shape (too many layers, or too many nodes in one).
+ */
+function layeredNodes(nodes: NodeIn[], edges: EdgeIn[], area: Box, shape: BoardShape): Arrangement | null {
+  const layer = layering(nodes, edges);
+  if (!layer) return null;
+  const count = Math.max(...layer) + 1;
+  const groups: number[][] = Array.from({ length: count }, () => []);
+  layer.forEach((l, i) => groups[l].push(i));
+  const widest = Math.max(...groups.map((g) => g.length));
+  const wide = shape === "wide";
+  if (wide ? count > (area.w >= 900 ? 5 : 4) || widest > 5 : count > Math.floor(area.h / 96) || widest > 2) return null;
+  // Order each layer by where its nodes' sources sit in the layer before, so arrows cross less.
+  const slot = nodes.map(() => 0);
+  const index = new Map(nodes.map((nd, i) => [nd.id, i]));
+  groups.forEach((g, l) => {
+    if (l > 0) {
+      const weight = (i: number) => {
+        const from = edges.flatMap((e) => (index.get(e.to) === i && layer[index.get(e.from) ?? -1] === l - 1 ? [slot[index.get(e.from)!]] : []));
+        return from.length ? from.reduce((a, b) => a + b, 0) / from.length : g.indexOf(i);
+      };
+      const weights = new Map(g.map((i) => [i, weight(i)]));
+      g.sort((a, b) => weights.get(a)! - weights.get(b)! || a - b);
+    }
+    g.forEach((i, k) => { slot[i] = k - (g.length - 1) / 2; });
+  });
+  // along: the direction the layers follow; across: the direction nodes of one layer are spread in
+  const alongSize = wide ? area.w : area.h;
+  const acrossSize = wide ? area.h : area.w;
+  const pitchAlong = Math.min(alongSize / count, wide ? 340 : 150);
+  const pitchAcross = Math.min(acrossSize / widest, wide ? 150 : 230);
+  const gapAlong = wide ? Math.max(104, pitchAlong * 0.4) : Math.max(48, pitchAlong * 0.4);
+  const gapAcross = wide ? Math.max(36, pitchAcross * 0.3) : 44;
+  const w = wide ? pitchAlong - gapAlong : pitchAcross - gapAcross;
+  const maxH = wide ? pitchAcross - gapAcross : pitchAlong - gapAlong;
+  const { font, lineCount, h } = fitLabels(nodes, w, maxH, [24, 22, 20, 18, 16, 15]);
+  const mid = centre(area);
+  const placed = nodes.map((nd, i) => {
+    const along = (layer[i] - (count - 1) / 2) * pitchAlong;
+    const across = slot[i] * pitchAcross;
+    const c = wide ? { x: mid.x + along, y: mid.y + across } : { x: mid.x + across, y: mid.y + along };
+    return { id: nd.id, step: nd.step, text: nd.text, font, box: { x: c.x - w / 2, y: c.y - h / 2, w, h }, lines: wrapText(nd.text, w - 24, font, lineCount) };
+  });
+  return { nodes: placed, axis: wide ? "x" : "y", labelMax: wide ? gapAlong - 12 : 180 };
+}
+
+function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[] {
+  const { nodes, axis } = arr;
   const byId = new Map(nodes.map((nd) => [nd.id, nd]));
   const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
   const perPair = new Map<string, number>();
@@ -195,23 +287,42 @@ function placeEdges(edges: Array<{ from: string; to: string; text: string; step:
     const k = seen.get(key) ?? 0;
     seen.set(key, k + 1);
     const m = perPair.get(key) ?? 1;
+    const ca = centre(a.box);
+    const cb = centre(b.box);
     // The pair's own direction, so two arrows that go opposite ways bend to opposite sides.
-    const [p, q] = e.from < e.to ? [centre(a.box), centre(b.box)] : [centre(b.box), centre(a.box)];
+    const [p, q] = e.from < e.to ? [ca, cb] : [cb, ca];
     const len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
     const nx = -(q.y - p.y) / len;
     const ny = (q.x - p.x) / len;
     const spread = (k - (m - 1) / 2) * 62;
     const others = nodes.filter((nd) => nd.id !== e.from && nd.id !== e.to);
-    const build = (bend: number) => {
+    // Side ports when the two boxes are apart along the diagram's reading direction.
+    const sideways = axis === "x" && (a.box.x + a.box.w < b.box.x || b.box.x + b.box.w < a.box.x);
+    const upright = axis === "y" && (a.box.y + a.box.h < b.box.y || b.box.y + b.box.h < a.box.y);
+    const build = (bend: number): Curve => {
       const mid = { x: (p.x + q.x) / 2 + nx * (spread + bend), y: (p.y + q.y) / 2 + ny * (spread + bend) };
-      const s = exitPoint(a.box, mid.x, mid.y, 4);
-      const t = exitPoint(b.box, mid.x, mid.y, 12);
+      let s: { x: number; y: number };
+      let t: { x: number; y: number };
+      if (sideways) {
+        const right = cb.x > ca.x;
+        const slide = (box: Box) => Math.max(-box.h / 2 + 8, Math.min(box.h / 2 - 8, (mid.y - (ca.y + cb.y) / 2) * 0.5));
+        s = { x: right ? a.box.x + a.box.w + 4 : a.box.x - 4, y: ca.y + slide(a.box) };
+        t = { x: right ? b.box.x - 12 : b.box.x + b.box.w + 12, y: cb.y + slide(b.box) };
+      } else if (upright) {
+        const down = cb.y > ca.y;
+        const slide = (box: Box) => Math.max(-box.w / 2 + 10, Math.min(box.w / 2 - 10, (mid.x - (ca.x + cb.x) / 2) * 0.5));
+        s = { x: ca.x + slide(a.box), y: down ? a.box.y + a.box.h + 4 : a.box.y - 4 };
+        t = { x: cb.x + slide(b.box), y: down ? b.box.y - 12 : b.box.y + b.box.h + 12 };
+      } else {
+        s = exitPoint(a.box, mid.x, mid.y, 4);
+        t = exitPoint(b.box, mid.x, mid.y, 12);
+      }
       // The control point that makes the curve pass through `mid` at its half.
       return { x1: s.x, y1: s.y, x2: t.x, y2: t.y, cx: 2 * mid.x - (s.x + t.x) / 2, cy: 2 * mid.y - (s.y + t.y) / 2 };
     };
-    const crosses = (c: ReturnType<typeof build>) => {
-      for (let i = 1; i < 16; i++) {
-        const pt = curveAt(c, i / 16);
+    const crosses = (c: Curve) => {
+      for (let i = 1; i < 20; i++) {
+        const pt = curveAt(c, i / 20);
         if (pt.x < board.x || pt.y < board.y || pt.x > board.x + board.w || pt.y > board.y + board.h) return true;
         if (others.some((nd) => overlap(nd.box, { x: pt.x, y: pt.y, w: 0, h: 0 }, 8))) return true;
       }
@@ -222,21 +333,21 @@ function placeEdges(edges: Array<{ from: string; to: string; text: string; step:
     // neighbours rides an arc into the space between the rows).
     // How far a node reaches across the arrow's path: an arc must clear that much.
     const reach = (Math.abs(nx) * Math.max(a.box.w, b.box.w)) / 2 + (Math.abs(ny) * Math.max(a.box.h, b.box.h)) / 2;
-    const font = 17;
-    const lw = textWidth(e.text, font) + 12;
-    const lh = font + 10;
-    let best: { curve: ReturnType<typeof build>; box: Box | null; cost: number } | null = null;
-    for (const bend of [0, reach + 22, -(reach + 22), reach + 38, -(reach + 38), reach * 2.4 + 40, -(reach * 2.4 + 40)]) {
+    const lines = e.text ? wrapText(e.text, arr.labelMax, LABEL_FONT, 2) : [];
+    const lw = Math.max(0, ...lines.map((ln) => textWidth(ln, LABEL_FONT))) + 12;
+    const lh = lines.length * LABEL_LINE + 8;
+    let best: { curve: Curve; box: Box | null; cost: number } | null = null;
+    for (const bend of [0, reach + 22, -(reach + 22), reach + 40, -(reach + 40), reach * 2.2 + 40, -(reach * 2.2 + 40), reach * 3.4 + 60, -(reach * 3.4 + 60)]) {
       const curve = build(bend);
       let cost = crosses(curve) ? 10 : 0;
       let box: Box | null = null;
-      if (e.text) {
+      if (lines.length) {
         let hits = Infinity;
         for (const t of [0.5, 0.38, 0.62, 0.28, 0.72, 0.18, 0.82, 0.11, 0.89]) {
           const pt = curveAt(curve, t);
           // kept on the board: a label near the border slides inwards instead of being cut
           const candidate = { x: Math.min(Math.max(pt.x - lw / 2, board.x), Math.max(board.x, board.x + board.w - lw)), y: Math.min(Math.max(pt.y - lh / 2, board.y), board.y + board.h - lh), w: Math.min(lw, board.w), h: lh };
-          const n =nodes.filter((nd) => overlap(nd.box, candidate, 1)).length + labels.filter((l) => overlap(l, candidate, 1)).length;
+          const n = nodes.filter((nd) => overlap(nd.box, candidate, 1)).length + labels.filter((l) => overlap(l, candidate, 1)).length;
           if (n < hits) { hits = n; box = candidate; }
           if (!n) break;
         }
@@ -247,26 +358,45 @@ function placeEdges(edges: Array<{ from: string; to: string; text: string; step:
     }
     if (!best) return;
     if (best.box) labels.push(best.box);
-    out.push({ key: `e${index}`, step: e.step, from: e.from, to: e.to, ...best.curve, label: best.box ? { text: e.text, box: best.box, font } : null });
+    out.push({ key: `e${index}`, step: e.step, from: e.from, to: e.to, ...best.curve, label: best.box ? { lines, box: best.box, font: LABEL_FONT } : null });
   });
   return out;
 }
 
 const TALL_FORMULA = /\\(?:d?frac|sum|int|prod|sqrt|binom|begin|lim)/;
 
+/** How well an arrangement shows its arrows: arrows through a box count most, then crowded labels. */
+function arrangementCost(edges: PlacedEdge[], nodes: PlacedNode[]): number {
+  let cost = 0;
+  for (const e of edges) {
+    for (let i = 1; i < 20; i++) {
+      const pt = curveAt(e, i / 20);
+      if (nodes.some((nd) => nd.id !== e.from && nd.id !== e.to && overlap(nd.box, { x: pt.x, y: pt.y, w: 0, h: 0 }))) { cost += 10; break; }
+    }
+    if (e.label && nodes.some((nd) => overlap(nd.box, e.label!.box))) cost += 3;
+  }
+  const labelBoxes = edges.flatMap((e) => (e.label ? [e.label.box] : []));
+  labelBoxes.forEach((a, i) => labelBoxes.forEach((b, j) => { if (j > i && overlap(a, b)) cost += 3; }));
+  for (const nd of nodes) if (nd.lines.join(" ").endsWith(ELLIPSIS) && !nd.text.endsWith(ELLIPSIS)) cost += 2;
+  return cost;
+}
+
 /**
  * The board for the first `upto + 1` steps of the lesson. Each call lays out only what is shown,
  * so a step that arrives later never has to be known in advance.
  */
 export function layoutBoard(lesson: Lesson, upto: number, shape: BoardShape): BoardLayout {
-  const { w, h } = BOARD_SIZE[shape];
+  const { w } = BOARD_SIZE[shape];
+  // A phone-shaped board grows downwards with the diagram (the page scrolls); a wide one is fixed.
+  const shown = new Set(lesson.steps.slice(0, upto + 1).flatMap((s) => s.items.flatMap((it) => (it.kind === "node" ? [it.id] : []))));
+  const h = BOARD_SIZE[shape].h + (shape === "tall" ? Math.min(4, Math.max(0, shown.size - 6)) * 90 : 0);
   const titleFont = shape === "tall" ? 24 : 30;
   const margin = shape === "tall" ? 14 : 24;
   const title = { text: wrapText(lesson.title, w - margin * 2 - 8, titleFont, 1)[0], x: margin + 4, y: 46, font: titleFont };
   const content: Box = { x: margin, y: 72, w: w - margin * 2, h: h - 72 - 20 };
 
   const nodesIn: NodeIn[] = [];
-  const edgesIn: Array<{ from: string; to: string; text: string; step: number }> = [];
+  const edgesIn: EdgeIn[] = [];
   const marksIn: Array<{ target: string; style: MarkStyle; step: number }> = [];
   type BlockIn = { key: string; step: number } & ({ kind: "formula"; tex: string } | { kind: "note" | "card"; text: string } | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string } | { kind: "sketch"; drawing: BuddyDrawing });
   const blocksIn: BlockIn[] = [];
@@ -289,11 +419,11 @@ export function layoutBoard(lesson: Lesson, upto: number, shape: BoardShape): Bo
   let notes: Box = content;
   if (nodesIn.length && blocksIn.length) {
     if (shape === "wide") {
-      const nw = Math.round(content.w * 0.36);
+      const nw = Math.round(content.w * 0.34);
       diagram = { ...content, w: content.w - nw - 24 };
       notes = { x: content.x + content.w - nw, y: content.y, w: nw, h: content.h };
     } else {
-      const nh = Math.round(content.h * 0.4);
+      const nh = Math.round(content.h * 0.38);
       diagram = { ...content, h: content.h - nh - 20 };
       notes = { x: content.x, y: content.y + content.h - nh, w: content.w, h: nh };
     }
@@ -303,11 +433,27 @@ export function layoutBoard(lesson: Lesson, upto: number, shape: BoardShape): Bo
   }
 
   let nodes: PlacedNode[] = [];
+  let edges: PlacedEdge[] = [];
   if (nodesIn.length) {
-    const scene = lesson.scene === "cycle" && nodesIn.length < 3 ? "flow" : lesson.scene;
-    nodes = (scene === "cycle" ? cycleNodes(nodesIn, diagram) : null) ?? gridNodes(nodesIn, diagram, scene === "stack" ? "stack" : "flow", shape);
+    // The arrows only reach the boxes that are on the board.
+    const ids = new Set(nodesIn.map((nd) => nd.id));
+    // A bare arrow gives way to a labelled one between the same two boxes (a later step named it).
+    const live = edgesIn.filter((e) => ids.has(e.from) && ids.has(e.to) && (e.text || !edgesIn.some((o) => o !== e && o.text && o.from === e.from && o.to === e.to)));
+    const grid = (scene: "flow" | "stack") => gridNodes(nodesIn, diagram, scene, shape);
+    const ring = nodesIn.length >= 3 ? cycleNodes(nodesIn, diagram) : null;
+    const layered = layeredNodes(nodesIn, live, diagram, shape);
+    // The scene's own arrangement first; the others are the way out when its arrows tangle.
+    const own = lesson.scene === "cycle" ? [ring, grid("flow")] : lesson.scene === "stack" ? [grid("stack")] : [layered, grid("flow")];
+    const options = [...own, layered, ring, grid("flow"), grid("stack")].filter((o): o is Arrangement => o !== null);
+    // The scene's own arrangement is kept unless its arrows cannot be drawn cleanly and another can.
+    let bestCost = Infinity;
+    for (const option of options) {
+      const placedEdges = placeEdges(live, option, diagram);
+      const cost = arrangementCost(placedEdges, option.nodes);
+      if (cost < bestCost) { bestCost = cost; nodes = option.nodes; edges = placedEdges; }
+      if (!cost) break;
+    }
   }
-  const edges = placeEdges(edgesIn, nodes, content);
   const marks: PlacedMark[] = [];
   marksIn.forEach((mk, i) => {
     const nd = nodes.find((x) => x.id === mk.target);
@@ -356,7 +502,7 @@ export function layoutProblems(l: BoardLayout): string[] {
   const board: Box = { x: 0, y: 0, w: l.w, h: l.h };
   const things: Array<{ name: string; box: Box }> = [
     ...l.nodes.map((nd) => ({ name: `node ${nd.id}`, box: nd.box })),
-    ...l.edges.flatMap((e) => (e.label ? [{ name: `label "${e.label.text}"`, box: e.label.box }] : [])),
+    ...l.edges.flatMap((e) => (e.label ? [{ name: `label "${e.label.lines.join(" ")}"`, box: e.label.box }] : [])),
     ...l.blocks.map((b) => ({ name: `${b.kind} ${b.key}`, box: b.box })),
   ];
   for (const t of things) {
@@ -371,11 +517,12 @@ export function layoutProblems(l: BoardLayout): string[] {
     if (nd.lines.join(" ").endsWith(ELLIPSIS) && !nd.text.endsWith(ELLIPSIS)) problems.push(`node ${nd.id} label is cut`);
   }
   for (const e of l.edges) {
-    for (let i = 1; i < 16; i++) {
-      const pt = curveAt(e, i / 16);
+    for (let i = 1; i < 20; i++) {
+      const pt = curveAt(e, i / 20);
       const hit = l.nodes.find((nd) => nd.id !== e.from && nd.id !== e.to && overlap(nd.box, { x: pt.x, y: pt.y, w: 0, h: 0 }));
       if (hit) { problems.push(`arrow ${e.from} -> ${e.to} runs through node ${hit.id}`); break; }
     }
+    if (e.label && e.label.lines.join(" ").endsWith(ELLIPSIS)) problems.push(`label on ${e.from} -> ${e.to} is cut`);
   }
   return problems;
 }

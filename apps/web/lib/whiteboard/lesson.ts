@@ -92,11 +92,15 @@ export function cleanTex(v: unknown, texOk?: (tex: string) => boolean): string {
 export type LessonContext = {
   /** The nodes on the board so far: id -> label. Updated as items are accepted. */
   nodes: Map<string, string>;
+  /** The arrows on the board so far ("from>to>label"): a model often draws the same arrow again in a later step. */
+  edges: Set<string>;
+  /** Formulas, plots and notes already written, so a later step does not write them again. */
+  seen: Set<string>;
   texOk?: (tex: string) => boolean;
   /** Free shapes are accepted (the cloud path). */
   sketch?: boolean;
 };
-export const newContext = (opts: Omit<LessonContext, "nodes"> = {}): LessonContext => ({ nodes: new Map(), ...opts });
+export const newContext = (opts: Omit<LessonContext, "nodes" | "edges" | "seen"> = {}): LessonContext => ({ nodes: new Map(), edges: new Set(), seen: new Set(), ...opts });
 
 const finite = (v: unknown): number | null => {
   const n = typeof v === "string" && v.trim() ? Number(v) : v;
@@ -112,13 +116,19 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
   const out: LessonItem[] = [];
   const list = Array.isArray(raw) ? raw : raw && typeof raw === "object" && Array.isArray((raw as { items?: unknown }).items) ? (raw as { items: unknown[] }).items : [];
   const full = () => out.length >= LIMITS.itemsPerStep;
+  /** Nodes the model drew again although they are on the board: what the step is talking about. */
+  const touched: string[] = [];
+  const once = (key: string) => (ctx.seen.has(key) ? false : Boolean(ctx.seen.add(key)));
   const addNode = (idRaw: unknown, textRaw: unknown): string => {
     const text = cleanText(textRaw, LIMITS.nodeText) || cleanText(String(idRaw ?? "").replace(/[_-]+/g, " "), LIMITS.nodeText);
     if (!text) return "";
     let id = slug(idRaw) || slug(text) || `n${ctx.nodes.size + 1}`;
     if (ctx.nodes.has(id)) {
       // the same thing named twice is one node; a different thing under a used id gets its own
-      if (ctx.nodes.get(id)!.toLowerCase() === text.toLowerCase() || slug(idRaw)) return id;
+      if (ctx.nodes.get(id)!.toLowerCase() === text.toLowerCase() || slug(idRaw)) {
+        touched.push(id);
+        return id;
+      }
       id = `${id}_${ctx.nodes.size + 1}`.slice(0, 24);
     }
     if (ctx.nodes.size >= LIMITS.nodes || full()) return "";
@@ -150,21 +160,28 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
       const to = find(toRef) || (full() ? "" : addNode(toRef, ""));
       if (!from || !to || from === to || full()) continue;
       const text = cleanText(q.text ?? q.label, LIMITS.edgeText);
-      if (out.some((o) => o.kind === "edge" && o.from === from && o.to === to && o.text === text)) continue;
+      const edgeKey = `${from}>${to}>${text.toLowerCase()}`;
+      // The same arrow again, or a bare arrow where one already runs: not drawn twice. A label on
+      // an arrow that had none is new (the board then shows the labelled one).
+      if (ctx.edges.has(edgeKey) || (!text && [...ctx.edges].some((k) => k.startsWith(`${from}>${to}>`)))) {
+        touched.push(to);
+        continue;
+      }
+      ctx.edges.add(edgeKey);
       out.push({ kind: "edge", from, to, text });
     } else if (kind === "formula") {
       const tex = cleanTex(q.tex ?? q.latex ?? q.text, ctx.texOk);
-      if (tex) out.push({ kind: "formula", tex });
+      if (tex && once(`f:${tex.replace(/\s+/g, "")}`)) out.push({ kind: "formula", tex });
     } else if (kind === "plot") {
       const expr = cleanExpr(q.expr ?? q.fn ?? q.text).slice(0, 80);
-      if (!parseExpr(expr)) continue;
+      if (!parseExpr(expr) || !once(`p:${expr.replace(/\s+/g, "")}`)) continue;
       let xmin = finite(q.xmin) ?? -5;
       let xmax = finite(q.xmax) ?? 5;
       if (!(xmin < xmax) || xmin < -1e4 || xmax > 1e4) { xmin = -5; xmax = 5; }
       out.push({ kind: "plot", expr, xmin, xmax, text: cleanText(q.label ?? (q.expr ? q.text : ""), LIMITS.edgeText) });
     } else if (kind === "note" || kind === "text" || kind === "list") {
       const text = cleanText(q.text ?? (Array.isArray(q.items) ? q.items.join("; ") : ""), LIMITS.note);
-      if (text) out.push({ kind: "note", text });
+      if (text && once(`n:${text.toLowerCase()}`)) out.push({ kind: "note", text });
     } else if (kind === "mark") {
       const target = find(q.target ?? q.id);
       if (!target) continue;
@@ -175,6 +192,8 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
       if (drawing) out.push({ kind: "sketch", drawing });
     }
   }
+  // Nothing new, but the model pointed at something on the board: circle it, as the step prompt asks.
+  if (!out.length && touched.length) out.push({ kind: "mark", target: touched[touched.length - 1], style: "circle" });
   return out;
 }
 
@@ -207,12 +226,17 @@ export function makeStep(say: string, rawItems: unknown, ctx: LessonContext): Le
 }
 
 /** A whole lesson in one object (the cloud path, and anything read back). Null when nothing is usable. */
-export function validateLesson(raw: unknown, opts: { maxSteps?: number; texOk?: (tex: string) => boolean; sketch?: boolean; nodes?: Map<string, string> } = {}): Lesson | null {
+export function validateLesson(raw: unknown, opts: { maxSteps?: number; texOk?: (tex: string) => boolean; sketch?: boolean; continues?: Lesson } = {}): Lesson | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as { title?: unknown; scene?: unknown; steps?: unknown };
   const ctx = newContext({ texOk: opts.texOk, sketch: opts.sketch });
   // steps that continue a lesson may point at the nodes it already has
-  if (opts.nodes) ctx.nodes = new Map(opts.nodes);
+  if (opts.continues) {
+    const before = contextOf(opts.continues);
+    ctx.nodes = before.nodes;
+    ctx.edges = before.edges;
+    ctx.seen = before.seen;
+  }
   const steps: LessonStep[] = [];
   for (const s of Array.isArray(r.steps) ? r.steps : []) {
     if (steps.length >= (opts.maxSteps ?? LIMITS.steps)) break;
@@ -292,7 +316,22 @@ export function lessonContextText(lesson: Lesson): string {
   return text.slice(0, LIMITS.contextBytes);
 }
 
-/** The nodes of a lesson (id -> label), for a context that continues it. */
+/** What a lesson already has on its board, for steps that continue it. */
+export function contextOf(lesson: Lesson, opts: Omit<LessonContext, "nodes" | "edges" | "seen"> = {}): LessonContext {
+  const ctx = newContext(opts);
+  for (const s of lesson.steps) {
+    for (const it of s.items) {
+      if (it.kind === "node") ctx.nodes.set(it.id, it.text);
+      else if (it.kind === "edge") ctx.edges.add(`${it.from}>${it.to}>${it.text.toLowerCase()}`);
+      else if (it.kind === "formula") ctx.seen.add(`f:${it.tex.replace(/\s+/g, "")}`);
+      else if (it.kind === "plot") ctx.seen.add(`p:${it.expr.replace(/\s+/g, "")}`);
+      else if (it.kind === "note") ctx.seen.add(`n:${it.text.toLowerCase()}`);
+    }
+  }
+  return ctx;
+}
+
+/** The nodes of a lesson (id -> label). */
 export function lessonNodes(lesson: Lesson): Map<string, string> {
   const ids = new Map<string, string>();
   for (const s of lesson.steps) for (const it of s.items) if (it.kind === "node") ids.set(it.id, it.text);
@@ -325,9 +364,9 @@ export function outlineSchema(maxSteps: number) {
   return {
     type: "object",
     properties: {
-      title: { type: "string" },
+      title: { type: "string", maxLength: 60 },
       scene: { type: "string", enum: [...SCENES] },
-      steps: { type: "array", minItems: Math.min(3, maxSteps), maxItems: maxSteps, items: { type: "object", properties: { say: { type: "string" } }, required: ["say"] } },
+      steps: { type: "array", minItems: Math.min(3, maxSteps), maxItems: maxSteps, items: { type: "object", properties: { say: { type: "string", maxLength: 220 } }, required: ["say"] } },
     },
     required: ["title", "scene", "steps"],
   };
@@ -343,8 +382,8 @@ export const STEP_SCHEMA = {
         type: "object",
         properties: {
           kind: { type: "string", enum: [...ITEM_KINDS] },
-          id: { type: "string" },
-          text: { type: "string" },
+          id: { type: "string", maxLength: 24 },
+          text: { type: "string", maxLength: 110 },
           from: { type: "string" },
           to: { type: "string" },
           tex: { type: "string" },

@@ -70,6 +70,58 @@ describe("whiteboard layout", () => {
     for (const shape of SHAPES) for (let upto = 0; upto < 3; upto++) expect(layoutProblems(layoutBoard(lesson, upto, shape)), `${shape} ${upto}`).toEqual([]);
   });
 
+  it("draws a flow by its arrows: sources on one side, what they feed next, no arrow through a box", () => {
+    // what the local model wrote for photosynthesis in the first live run: a hub with six arrows into it
+    const lesson = validateLesson({
+      title: "Photosynthesis Basics",
+      scene: "flow",
+      steps: [
+        { say: "s1", items: [{ kind: "node", id: "sun", text: "Sun" }, { kind: "node", id: "water", text: "Water" }, { kind: "node", id: "air", text: "Air" }] },
+        { say: "s2", items: [{ kind: "node", id: "chlorophyll", text: "Chlorophyll" }, { kind: "edge", from: "sun", to: "chlorophyll" }] },
+        { say: "s3", items: [{ kind: "node", id: "leaf", text: "Leaf" }, { kind: "edge", from: "water", to: "leaf" }, { kind: "edge", from: "air", to: "leaf", text: "carbon dioxide" }, { kind: "edge", from: "chlorophyll", to: "leaf", text: "energy" }] },
+        { say: "s4", items: [{ kind: "node", id: "sugar", text: "Sugar" }, { kind: "node", id: "oxygen", text: "Oxygen" }, { kind: "edge", from: "leaf", to: "sugar" }, { kind: "edge", from: "leaf", to: "oxygen", text: "released" }] },
+      ],
+    })!;
+    for (const shape of SHAPES) for (let upto = 0; upto < 4; upto++) expect(layoutProblems(layoutBoard(lesson, upto, shape)), `${shape} ${upto}`).toEqual([]);
+    const l = layoutBoard(lesson, 3, "wide");
+    const x = (id: string) => l.nodes.find((nd) => nd.id === id)!.box.x;
+    expect(x("sun")).toBeLessThan(x("chlorophyll"));
+    expect(x("chlorophyll")).toBeLessThan(x("leaf"));
+    expect(x("leaf")).toBeLessThan(x("sugar"));
+    expect(x("sugar")).toBe(x("oxygen"));
+    // every arrow leaves by the side facing the next layer
+    for (const e of l.edges) expect(e.x2).toBeGreaterThan(e.x1);
+  });
+
+  it("falls back to another arrangement when the arrows of a tangle cannot be drawn cleanly in rows", () => {
+    const ids = ["a", "b", "c", "d", "e", "f"];
+    const edges = ids.flatMap((from, i) => ids.slice(i + 2).map((to) => ({ kind: "edge", from, to })));
+    const lesson = validateLesson({ title: "Tangle", scene: "flow", steps: [{ say: "s", items: ids.map((id) => ({ kind: "node", id, text: id.toUpperCase() })) }, { say: "s", items: edges.slice(0, 6) }, { say: "s", items: [...edges.slice(6), { kind: "edge", from: "f", to: "a" }] }] })!;
+    for (const shape of SHAPES) expect(layoutProblems(layoutBoard(lesson, 2, shape)).filter((p) => p.startsWith("arrow")), shape).toEqual([]);
+  });
+  it("shows one arrow when a later step names an arrow that was bare", () => {
+    const lesson = validateLesson({ title: "TCP", scene: "flow", steps: [{ say: "s", items: [{ kind: "node", id: "c", text: "Client" }, { kind: "node", id: "s", text: "Server" }, { kind: "edge", from: "c", to: "s" }] }, { say: "s", items: [{ kind: "edge", from: "c", to: "s", text: "SYN" }] }] })!;
+    expect(layoutBoard(lesson, 0, "wide").edges).toHaveLength(1);
+    const later = layoutBoard(lesson, 1, "wide").edges;
+    expect(later).toHaveLength(1);
+    expect(later[0].label?.lines).toEqual(["SYN"]);
+  });
+
+  it("keeps a word whole in its box by setting the diagram a size smaller", () => {
+    const lesson = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: ["Sun", "Plant", "Food", "stems", "roots"].map((text, i) => ({ kind: "node", id: `n${i}`, text })) }, { say: "s", items: [...["soil", "Chlorophyll", "oxygen", "sugar"].map((text, i) => ({ kind: "node", id: `m${i}`, text })), { kind: "note", text: "a note takes a third of the board" }] }] })!;
+    for (const shape of SHAPES) {
+      const l = layoutBoard(lesson, 1, shape);
+      expect(l.nodes.find((nd) => nd.text === "Chlorophyll")!.lines, shape).toEqual(["Chlorophyll"]);
+    }
+  });
+
+  it("lets a phone-shaped board grow downwards with its diagram", () => {
+    const make = (n: number) => validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: Array.from({ length: Math.min(n, 6) }, (_, i) => ({ kind: "node", id: `a${i}`, text: `A${i}` })) }, { say: "s", items: Array.from({ length: Math.max(0, n - 6) }, (_, i) => ({ kind: "node", id: `b${i}`, text: `B${i}` })) }] })!;
+    expect(layoutBoard(make(6), 1, "tall").h).toBe(BOARD_SIZE.tall.h);
+    expect(layoutBoard(make(9), 1, "tall").h).toBe(BOARD_SIZE.tall.h + 270);
+    expect(layoutBoard(make(9), 1, "wide").h).toBe(BOARD_SIZE.wide.h);
+    expect(layoutProblems(layoutBoard(make(10), 1, "tall"))).toEqual([]);
+  });
   it("spreads several arrows between the same two nodes so their labels stay apart", () => {
     const lesson = validateLesson({
       title: "TCP handshake",
