@@ -16,7 +16,7 @@ The stop condition needs every row `auto`-passing or `verified`.
 | SEC-07 | auto, passing (4 preloads, 140 functions, 94 fixed channels) | open note: `accessPassword` is exposed to the app pages by preload.js and okfilow-preload.js (safe only while SEC-04 keeps those windows on the app origin); `onOffline` returns no unsubscribe |
 | SEC-08 | auto (file-contains, weak) + open | E2E 2026-11-10: geolocation and midi denied, but camera and notifications are granted (the handler allows all of "media"); the standard says only mic and display-capture |
 | SEC-09 | open / needs user | Next server listens on 0.0.0.0 (LAN phone mirror by design): needs Host-header check and token on every route; design decision with the user for the LAN mode |
-| SEC-10 | auto, passing (Electron 45.2.3) | check runs against the npm registry daily |
+| SEC-10 | auto, passing (Electron 45.3.0) | check runs against the npm registry daily |
 | SEC-11 | auto (SEC-4), 6 of 7 fuses | GrantFileProtocolExtraPrivileges needs splash/welcome/picker on a custom protocol first |
 | SEC-12 | open | Next standalone + server bundle outside app.asar: hash manifest or move inside |
 | SEC-13 | auto, passing | QA builds use -c.extraMetadata.filowQa=true |
