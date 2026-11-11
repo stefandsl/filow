@@ -752,7 +752,7 @@ function createOkFilow(deps) {
     logLine(`okfilow: captured ${out.images.length} screen(s) in ${Date.now() - t} ms`);
     return out;
   }));
-  ipcMain.handle("okfilow:setMode", guard((m, extra) => (logLine(`okfilow: mode ${m}${extra && extra.error ? ` (${String(extra.error).slice(0, 200)})` : ""}`), setMode(typeof m === "string" ? m : "idle", extra && typeof extra === "object" ? extra : {}))));
+  ipcMain.handle("okfilow:setMode", guard((m, extra) => (logLine(`okfilow: mode ${m}${extra && extra.error ? ` (${String(extra.error).slice(0, 200)})` : ""}`), extra && extra.error && deps.onAnswerError && deps.onAnswerError({ error: String(extra.error), code: typeof extra.code === "string" ? extra.code : "" }), setMode(typeof m === "string" ? m : "idle", extra && typeof extra === "object" ? extra : {}))));
   ipcMain.on("okfilow:level", (e, level) => ourSender(e) && sendOverlays("okfilow:level", Number(level) || 0));
   let lastQaText = "";
   ipcMain.on("okfilow:text", (e, text) => {

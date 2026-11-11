@@ -1522,6 +1522,8 @@ function startOkFilow() {
     askKeyboardPermission: require("./mac-permissions").createKeyboardPermissionPrompt({ dialog, systemPreferences, openSystemSettings, menuText: (k) => mt(k), logLine }),
       isOffline: () => offline,
       sttDownload: () => void sttDownload(),
+      // a question found Ollama stopped: start it in the background, so the next question is answered
+      onAnswerError: (failure) => { if (localAi.isOllamaStopped(failure)) startOllamaIfWanted("OK Filow found Ollama stopped", { needed: true }); },
       dictation: getDictation(),
     });
     okFilow.start();
@@ -1625,19 +1627,55 @@ function localAiInfo() {
 }
 function setLocalAi(s) {
   localAiState = s;
-  logLine(`local AI: ${s.state}${s.pct ? ` ${s.pct}%` : ""}${s.error ? ` ${s.error}` : ""}`);
+  logLine(`local AI: ${s.state}${s.pct ? ` ${s.pct}%` : ""}${s.code ? ` [${s.code}]` : ""}${s.error ? ` ${s.error}` : ""}`);
   for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send("localai:status", s);
 }
-function startOllamaInstall() {
-  if (process.env.FILOW_OFFLINE === "1") {
-    setLocalAi({ ...localAiState, state: "error", pct: 0, error: sharedText("offline.downloadDisabled", menuLang()) });
+/** What the start of Ollama writes in the startup log (the reason it did not start: exit code, the end of its own logs), masked like a report. */
+function localAiLog(line) {
+  let user = "";
+  try { user = os.userInfo().username; } catch { /* no user info */ }
+  logLine(`local AI: ${diag.redact(line, { home: os.homedir(), user })}`);
+}
+/** QA builds only: FILOW_QA_OLLAMA_EXE=<ollama.exe> stands in for the installed Ollama (with OLLAMA_URL on a spare port). */
+function localAiDeps() {
+  const qaExe = process.env.FILOW_QA_OLLAMA_EXE && require("./qa.js").isQaBuild(app) ? process.env.FILOW_QA_OLLAMA_EXE : "";
+  return { log: localAiLog, ...(qaExe ? { findExe: () => qaExe } : {}) };
+}
+/**
+ * Installs Ollama if it is missing, then starts it and waits for it. `startOnly`: never download, only
+ * start an Ollama that is installed (when Filow opens, or when OK Filow finds it stopped).
+ */
+function startOllamaInstall({ startOnly = false } = {}) {
+  if (!startOnly && process.env.FILOW_OFFLINE === "1") {
+    setLocalAi({ ...localAiState, state: "error", pct: 0, code: "", error: sharedText("offline.downloadDisabled", menuLang()) });
     return Promise.resolve();
   }
   if (localAiInstalling) return localAiInstalling;
-  localAiInstalling = localAi.installOllama(path.join(userData, "bin"), setLocalAi).finally(() => {
-    localAiInstalling = null;
-  });
+  if (!startOnly && !settings.ollamaWanted) {
+    // the user asked Filow for Ollama once: from now on Filow starts it when it opens
+    settings.ollamaWanted = true;
+    saveSettings();
+  }
+  localAiInstalling = Promise.resolve()
+    .then(() => localAi.installOllama(path.join(userData, "bin"), setLocalAi, { ...localAiDeps(), startOnly }))
+    .catch((err) => {
+      // whatever went wrong, the status may not stay on "starting"
+      setLocalAi({ state: "error", pct: 0, code: "unexpected", error: String(err && err.message ? err.message : err), version: "", command: "" });
+    })
+    .finally(() => {
+      localAiInstalling = null;
+    });
   return localAiInstalling;
+}
+/**
+ * An installed Ollama that is not answering is started in the background, without a question: when
+ * Filow opens (only once the user has asked Filow for Ollama) and when OK Filow needed it and found
+ * it stopped (`needed`). Nothing is downloaded here.
+ */
+function startOllamaIfWanted(why, { needed = false } = {}) {
+  if ((!needed && !settings.ollamaWanted) || localAiInstalling || !localAi.ollamaIsLocal()) return;
+  logLine(`local AI: start check (${why})`);
+  void startOllamaInstall({ startOnly: true });
 }
 const LOCAL_AI_TEXT = {
   en: {
@@ -2246,6 +2284,7 @@ async function main() {
       await offerFirewall(win);
     }
     if (choices && choices.ollama) void startOllamaInstall();
+    else startOllamaIfWanted("Filow opened");
     const firstPage =
       choices && Array.isArray(choices.models) && choices.models.length
         ? `${APP_URL}/settings/local?auto=${encodeURIComponent(choices.models.join(","))}${choices.ollama ? "&ollama=1" : ""}`
@@ -2335,4 +2374,5 @@ app.on("will-quit", () => {
   stopTunnels({ wait: true });
   if (httpsProxy) httpsProxy.close();
   if (stopSlideShowWatch) stopSlideShowWatch();
+  localAi.stopOwnOllama(); // only an "ollama serve" Filow started itself; Ollama's own app keeps running
 });

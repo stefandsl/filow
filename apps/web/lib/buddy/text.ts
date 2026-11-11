@@ -50,6 +50,7 @@ const en = {
   agentCliAuto: "Automatic",
   welcome: "Hi, I'm OK Filow. Hold {key} and ask me anything about your screen. I live down here in the tray.",
   notHeard: "I didn't catch that. Hold the keys a bit longer while you speak.",
+  ollamaStopped: 'Ollama, which runs OK Filow\'s answers on this PC, is not running. If it is installed, Filow is starting it now: ask again in a minute. If not, install it in Settings > Local models, or choose Cloud under "Answers from" in the OK Filow panel.',
   emptyAnswer: "The model gave an empty answer. Try again or pick another model.",
   noStt: "Speech-to-text on this PC is not installed yet.",
   openSettings: "Open Local models",
@@ -198,6 +199,7 @@ const it: Record<OkfKey, string> = {
   agentCliAuto: "Automatico",
   welcome: "Ciao, sono OK Filow. Tieni premuto {key} e chiedimi qualsiasi cosa sul tuo schermo. Abito qui, nella barra delle applicazioni.",
   notHeard: "Non ho sentito. Tieni premuti i tasti un po' più a lungo mentre parli.",
+  ollamaStopped: 'Ollama, che su questo PC fa rispondere OK Filow, non è in esecuzione. Se è installato, Filow lo sta avviando adesso: chiedi di nuovo tra un minuto. Altrimenti installalo in Impostazioni > Modelli locali, oppure scegli Cloud in "Risposte da" nel pannello di OK Filow.',
   emptyAnswer: "Il modello ha dato una risposta vuota. Riprova o scegli un altro modello.",
   noStt: "Il riconoscimento vocale su questo PC non è ancora installato.",
   openSettings: "Apri Modelli locali",
@@ -293,3 +295,6 @@ const it: Record<OkfKey, string> = {
   notchListening: "Ti ascolto",
 };
 export const OKF_TEXT: Record<"en" | "it", Record<OkfKey, string>> = { en, it };
+
+/** The server's answer when Ollama does not answer at all (providers.ts askOllama); the desktop shell has the same test (localai.js OLLAMA_STOPPED). */
+export const OLLAMA_STOPPED_ANSWER = /\bOllama\b.*\bis not running\b/;
