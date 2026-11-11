@@ -55,6 +55,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
     "./integrity": { sha256File: async () => "" },
     "./vendor/i18n": { t }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./ui-preferences": {}, "./slideshow": {},
+    "./qa.js": { isQaBuild: (app: { isPackaged: boolean }) => !app.isPackaged }, // a packaged build without the QA marker
     "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
@@ -199,6 +200,12 @@ describe("Step 4 desktop offline seams", () => {
     const body = url.searchParams.get("body") || "";
     expect(body).toMatch(/my words[\s\S]*phone joined via <public link> with <key>/);
     expect(decodeURIComponent(url.href)).not.toMatch(/trycloudflare|sk-or-v1-0123/);
+  });
+  it("outside a QA build nothing can point the issue button at another page", async () => {
+    const f = fixture({ FILOW_QA_ISSUE_PAGE: "http://127.0.0.1:9/elsewhere" });
+    f.api.reportProblem();
+    await f.ipc("report:issue", f.windows[0], "");
+    expect(String(f.openExternal.mock.calls[0][0])).toMatch(/^https:\/\/github\.com\/stefandsl\/filow\/issues\/new\?/);
   });
   it("answers the report channels only for its own window", async () => {
     const f = fixture({}); f.api.reportProblem();

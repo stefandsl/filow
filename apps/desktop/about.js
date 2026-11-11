@@ -224,7 +224,7 @@ function lastLines(text, max) {
  * (counted after escaping): the oldest log lines go first, then the end of the user's words, and a
  * line says the full report can be attached from the saved file.
  */
-function issueUrl({ lang, description, sections, version, limit = ISSUE_URL_LIMIT }) {
+function issueUrl({ lang, description, sections, version, limit = ISSUE_URL_LIMIT, page = SUPPORT.newIssue }) {
   const tx = textFor(lang);
   const words = String(description || "").trim().slice(0, 4000);
   const summary = (words.split("\n").find((l) => l.trim()) || "").trim().replace(/\s+/g, " ");
@@ -251,7 +251,7 @@ function issueUrl({ lang, description, sections, version, limit = ISSUE_URL_LIMI
     if (cut) parts.push(tx.issueCut);
     const body = wellFormed(parts.join("\n").trimEnd());
     // as the browser will get it: the URL parser escapes a few more characters (an apostrophe is three)
-    const url = new URL(`${SUPPORT.newIssue}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`).href;
+    const url = new URL(`${page}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`).href;
     return { url, title, body, cut };
   };
   /** The largest n in [0, max] whose link fits (the link only grows with n), or 0. */
@@ -275,7 +275,8 @@ function issueUrl({ lang, description, sections, version, limit = ISSUE_URL_LIMI
 /**
  * deps: BrowserWindow, ipcMain, dialog, clipboard, shell, openExternalSafe, logLine, fs, path,
  * pageFile (about.html), preload, lang(), theme(), icon(), info() -> { version, electron, configFolder },
- * docsDir, crashDir, documentsDir, collectReport() -> Promise<[{ title, text }]>.
+ * docsDir, crashDir, documentsDir, collectReport() -> Promise<[{ title, text }]>,
+ * issuePage (QA builds only: a local stand-in for the GitHub new-issue page; undefined otherwise).
  */
 function createAboutPages(deps) {
   const { BrowserWindow, ipcMain, dialog, clipboard, shell, openExternalSafe, logLine, fs, path } = deps;
@@ -328,7 +329,7 @@ function createAboutPages(deps) {
   // next to the button. The link carries the sections that were shown (collected and masked once).
   handle("report:issue", async (description) => {
     sections ||= await deps.collectReport();
-    const issue = issueUrl({ lang: deps.lang(), description, sections, version: deps.info().version });
+    const issue = issueUrl({ lang: deps.lang(), description, sections, version: deps.info().version, page: deps.issuePage || SUPPORT.newIssue });
     try {
       await openExternalSafe(issue.url);
       logLine(`report: opened a new GitHub issue in the browser (${issue.url.length} chars${issue.cut ? ", cut to fit" : ""})`);

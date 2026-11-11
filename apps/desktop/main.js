@@ -1987,6 +1987,8 @@ function about() {
     docsDir: packaged ? resources : path.join(resources, "..", "docs"),
     crashDir: path.join(userData, "Crashpad"), documentsDir: () => app.getPath("documents"),
     collectReport: reportSections,
+    // QA builds only: the probe points the issue button at its own local page instead of GitHub
+    issuePage: process.env.FILOW_QA_ISSUE_PAGE && require("./qa.js").isQaBuild(app) ? process.env.FILOW_QA_ISSUE_PAGE : undefined,
   });
   return aboutPages;
 }
