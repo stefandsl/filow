@@ -4,13 +4,14 @@
 // Every answer is parsed and validated in lesson.ts before anything is sent to the page.
 import katex from "katex";
 import { BUDDY_LANG_NAMES, type BuddyLang } from "@/lib/buddy/lang";
-import { LIMITS, cleanText, contextOf, lessonContextText, makeStep, newContext, outlineSchema, parseJsonLoose, slug, validateLesson, validateOutline, type ExplanationKind, type Lesson, type LessonStep, type Scene } from "./lesson";
+import { LIMITS, cleanText, contextOf, lessonContextText, makeStep, newContext, outlineSchema, parseJsonLoose, slug, validateLesson, validateOutline, type ExplanationKind, type Lesson, type LessonItem, type LessonStep, type Scene } from "./lesson";
 
 export type LessonEvent =
   | { type: "start"; provider: "local" | "cloud" | "freellm"; model: string; lang: BuddyLang; lite: boolean; more: boolean }
   | { type: "outline"; title: string; scene: Scene; says: string[] }
   | { type: "step"; index: number; step: LessonStep }
-  | { type: "done"; cards: number; stalled: boolean }
+  /** `relations`/`drawn`: how many relations the checked plan had and how many of them ended on the board (local path). */
+  | { type: "done"; cards: number; stalled: boolean; relations?: number; drawn?: number }
   | { type: "error"; message: string; code: "plan" | "stalled" | "model" };
 
 /** One question to the model: the answer text, whole. Throws StallError when it ran out of time. */
@@ -70,6 +71,9 @@ function cloudSystem(lang: BuddyLang, maxSteps: number, more: boolean): string {
     '"items": 2 to 6 per step, of these kinds:',
     ...ITEM_RULES,
     '- {"kind":"sketch","title":"...","shapes":[...]}: at most one small free drawing per step, when a picture of the real thing helps. Canvas 400 by 300, y grows downward; shapes: rect (x,y,w,h), circle (cx,cy,r), ellipse (cx,cy,rx,ry), line (x1,y1,x2,y2), polygon (points), path (d with M L C Q Z), text (x,y,text,size); fill and stroke are #rrggbb.',
+    '- {"kind":"cells","values":["1","3","5","7","9"],"pointer":2}: a row of values with a pointer under the one being looked at (position from 0, -1 for none): the worked example of an algorithm, repeated with the pointer moved as the steps go on.',
+    'Choose the kind of explanation and follow its recipe. A process: what goes in, what happens in order, what comes out. A proof: what is given, the construction, each equality with its reason, the conclusion. An algorithm: one small example with real values traced step by step in a row of cells. A law: each quantity, the formula, one example with numbers, and a plot when it is a curve. A market, a feedback or a cycle: the mechanism that moves it (what pushes the price up or down, what feeds back), drawn as arrows that close the loop.',
+    'Every arrow has a label and reads as a sentence from its start to its end: "Voltage --drives--> Current", never the other way round. An arrow is drawn in the step whose sentence states it. Every box that takes part is linked by an arrow; a cycle or a loop is closed by an arrow back to its start. Two plots must not contradict each other: use the same expression for the same curve. Keep the board readable: at most 8 boxes and 10 arrows in the whole lesson.',
     "Later steps reuse the ids of earlier nodes. No coordinates outside a sketch, no HTML, no links.",
     `Write the title and every text in ${BUDDY_LANG_NAMES[lang]}; ids stay ASCII.`,
     NOT_AN_INSTRUCTION,
@@ -194,8 +198,10 @@ function pickSchema(thingIds: string[], relationCount: number) {
       formula: { type: "string", maxLength: 160 },
       plot: { type: "string", maxLength: 60 },
       xmax: { type: "integer" },
+      cells: { type: "array", maxItems: 10, items: { type: "string", maxLength: 6 } },
+      pointer: { type: "integer" },
     },
-    required: ["formula", "plot", "xmax"],
+    required: ["formula", "plot", "xmax", "cells", "pointer"],
   };
 }
 
@@ -205,6 +211,8 @@ function pickSystem(): string {
     '"things": the ids of the things this sentence talks about, from the list. "relations": the numbers of the relations this sentence states, from the list. Choose only what the sentence itself says; leave out the rest (later steps show it). Both may be empty.',
     '"formula": when the sentence states a law or an equation, that formula in LaTeX (for example a^2 + b^2 = c^2); otherwise "".',
     '"plot": when the sentence tells how a quantity grows, falls or meets another, an expression in x for the curve (numbers, x, + - * / ^, sin, cos, exp, ln, sqrt), for example 100 * 1.05^x; otherwise "".',
+    '"cells": when the sentence works on a row of values (a list being searched or sorted, a sequence of numbers, the calls of a recursion), those values in order, for example ["1","3","5","7","9"]; otherwise []. "pointer": the position, counted from 0, of the value the sentence is looking at, or -1 when it looks at none. An algorithm lesson shows its cells in every step that touches them.',
+    "A law or a proof lesson shows its formula in the step that states it, and each step of a derivation as a formula.",
     '"xmax": for a plot, where x should end (x starts at 0): the largest value of x the sentence talks about, for example 5 for a count from 5 down to 0; otherwise 10.',
   ].join("\n");
 }
@@ -378,63 +386,210 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
   const thingIds = plan.things.map((t) => t.id);
   let cards = 0;
   for (let i = 0; i < says.length; i++) {
-    let step: LessonStep = { say: says[i], items: [], card: true };
-    for (let attempt = 0; attempt < 2 && step.card && !stalled; attempt++) {
-      const user = [
-        `Lesson: ${title}`,
-        thingIds.length ? `Things: ${plan.things.map((t) => `${t.id} = ${t.text}`).join("; ")}` : "",
-        plan.relations.length ? `Relations:\n${plan.relations.map((r, k) => `${k + 1}. ${label(r.from)} ${r.text} ${label(r.to)}`).join("\n")}` : "",
-        `Sentence of this step: "${says[i]}"`,
-      ].filter(Boolean).join("\n");
-      const raw = (await tryAsk({ system: pickSystem(), user, format: pickSchema(thingIds, plan.relations.length), maxTokens: 220, timeoutMs: TIMEOUTS.stepMs, temperature: attempt ? 0.5 : 0.2 })) as { things?: unknown; relations?: unknown; formula?: unknown; plot?: unknown; xmax?: unknown } | undefined;
-      if (!raw || typeof raw !== "object") continue;
+    const sentence = says[i].toLowerCase();
+    /** The items of this step: what the model picked (when its answer can be read), then what the plan itself gives. */
+    const itemsFor = (raw: { things?: unknown; relations?: unknown; formula?: unknown; plot?: unknown; xmax?: unknown; cells?: unknown; pointer?: unknown } | undefined, more: number): unknown[] => {
       // Built from the plan only: an id or a number that is not in it is ignored.
       const items: unknown[] = [];
-      const show = (id: string) => { const t = plan.things.find((x) => x.id === id); if (t) items.push({ kind: "node", id: t.id, text: t.text }); };
-      const picked = (Array.isArray(raw.relations) ? raw.relations : []).map((n) => plan.relations[Number(n) - 1]).filter(Boolean).slice(0, 3);
-      for (const id of Array.isArray(raw.things) ? raw.things.slice(0, 3) : []) if (typeof id === "string") show(id);
+      const shown = new Set<string>();
+      const show = (id: string) => {
+        const t = plan.things.find((x) => x.id === id);
+        if (t && !shown.has(id)) {
+          shown.add(id);
+          items.push({ kind: "node", id: t.id, text: t.text });
+        }
+      };
+      const picked = (Array.isArray(raw?.relations) ? raw.relations : []).map((n) => plan.relations[Number(n) - 1]).filter(Boolean).slice(0, 3);
+      for (const id of Array.isArray(raw?.things) ? raw.things.slice(0, 3) : []) if (typeof id === "string") show(id);
       // a thing the sentence names is shown with it, picked or not: boxes the lesson talks about are on the board
-      const sentence = says[i].toLowerCase();
       for (const t of plan.things) if (!ctx.nodes.has(t.id) && t.text.length >= 3 && sentence.includes(t.text.toLowerCase())) show(t.id);
+      // `more`: a step that would otherwise draw nothing takes the next things of the plan, in the plan's order
+      for (const t of plan.things) {
+        if (more <= 0) break;
+        if (ctx.nodes.has(t.id) || shown.has(t.id)) continue;
+        show(t.id);
+        more--;
+      }
       for (const r of picked) {
         show(r.from);
         show(r.to);
         items.push({ kind: "edge", from: r.from, to: r.to, text: r.text });
       }
-      // A checked relation whose two things are now both on the board is drawn even when the step
-      // did not pick it (at most two): it is true, and boxes left unconnected explain nothing.
-      const here = new Set([...ctx.nodes.keys(), ...items.flatMap((it) => ((it as { kind?: string }).kind === "node" ? [(it as { id: string }).id] : []))]);
+      // A checked relation is drawn as soon as both its things are on the board, picked or not (at most
+      // three in a step): it is true, and boxes left unconnected explain nothing.
+      const here = new Set([...ctx.nodes.keys(), ...shown]);
       let linked = 0;
       for (const r of plan.relations) {
-        if (linked >= 2 || !here.has(r.from) || !here.has(r.to) || picked.includes(r) || ctx.edges.has(`${r.from}>${r.to}>${r.text.toLowerCase()}`)) continue;
+        if (linked >= 3 || !here.has(r.from) || !here.has(r.to) || picked.includes(r) || ctx.edges.has(`${r.from}>${r.to}>${r.text.toLowerCase()}`)) continue;
         items.push({ kind: "edge", from: r.from, to: r.to, text: r.text });
         linked++;
       }
-      if (typeof raw.formula === "string" && raw.formula.trim()) items.push({ kind: "formula", tex: raw.formula });
-      if (typeof raw.plot === "string" && raw.plot.trim()) items.push({ kind: "plot", expr: raw.plot, xmin: 0, xmax: typeof raw.xmax === "number" && raw.xmax >= 1 && raw.xmax <= 1000 ? raw.xmax : 10 });
-      // a circle goes only on a box this sentence names
-      ctx.hint = says[i];
-      step = makeStep(says[i], items, ctx);
+      if (typeof raw?.formula === "string" && raw.formula.trim()) items.push({ kind: "formula", tex: raw.formula });
+      if (typeof raw?.plot === "string" && raw.plot.trim()) items.push({ kind: "plot", expr: raw.plot, xmin: 0, xmax: typeof raw.xmax === "number" && raw.xmax >= 1 && raw.xmax <= 1000 ? raw.xmax : 10 });
+      if (Array.isArray(raw?.cells) && raw.cells.length) items.push({ kind: "cells", values: raw.cells, pointer: raw.pointer });
+      return items;
+    };
+    // a circle goes only on a box this sentence names
+    ctx.hint = says[i];
+    let step: LessonStep = { say: says[i], items: [], card: true };
+    for (let attempt = 0; attempt < 2 && step.card && !stalled; attempt++) {
+      const user = [
+        `Lesson: ${title} (${outline.kind})`,
+        thingIds.length ? `Things: ${plan.things.map((t) => `${t.id} = ${t.text}`).join("; ")}` : "",
+        plan.relations.length ? `Relations:\n${plan.relations.map((r, k) => `${k + 1}. ${label(r.from)} ${r.text} ${label(r.to)}`).join("\n")}` : "",
+        `Sentence of this step: "${says[i]}"`,
+      ].filter(Boolean).join("\n");
+      const raw = (await tryAsk({ system: pickSystem(), user, format: pickSchema(thingIds, plan.relations.length), maxTokens: 260, timeoutMs: TIMEOUTS.stepMs, temperature: attempt ? 0.5 : 0.2 })) as Parameters<typeof itemsFor>[0];
+      if (!raw || typeof raw !== "object") continue;
+      step = makeStep(says[i], itemsFor(raw, 0), ctx);
     }
+    // Nothing drawn (an unreadable pick, a stalled model, or a pick of things already there): the step
+    // still draws from the checked plan while the plan has something left. Only then is it a text card.
+    if (step.card) step = makeStep(says[i], itemsFor(undefined, 2), ctx);
     if (step.card) cards++;
     emit({ type: "step", index: i, step });
   }
-  emit({ type: "done", cards, stalled });
+  const drawn = plan.relations.filter((r) => ctx.edges.has(`${r.from}>${r.to}>${r.text.toLowerCase()}`)).length;
+  emit({ type: "done", cards, stalled, relations: plan.relations.length, drawn });
 }
 
-/** Cloud path: the whole lesson in one answer. */
+// ---- The online path (Cloud or FreeLLMAPI): the lesson in one answer, then checked like the local one ----
+// A large model writes a rich lesson at once, and still gets things wrong in ways a reader notices:
+// an arrow labelled from the wrong end, a different topic under the right title, a board whose loop
+// never closes. So the lesson is read back by an examiner call (same recipient, same consent; only
+// the question and the lesson's own text are sent), which answers for the topic, for every sentence
+// and for every arrow with its direction. A reversed arrow is turned, a false one dropped, a false
+// sentence takes its step with it; a lesson off the topic or not doing what was asked is written
+// again, once, with the examiner's reason, and checked again. At most four calls; usually two.
+
+type Review = { topic: boolean; answers: boolean; issues: string; sentences: Set<number> | null; arrows: Map<number, "ok" | "reversed" | "false"> };
+
+const REVIEW_SYSTEM = [
+  "You are a strict examiner of a whiteboard lesson. Reply with one JSON object only:",
+  '{"topic": true or false, "sentences": [{"n": 1, "true": true}], "arrows": [{"n": 1, "verdict": "ok"}], "answers": true or false, "issues": "..."}',
+  '"topic": true only when the lesson is about exactly what was asked (the Krebs cycle is not the carbon cycle).',
+  '"sentences": for each numbered sentence, true only when it is correct exactly as written.',
+  '"arrows": each numbered arrow reads "A --label--> B", meaning "A label B". verdict "ok" when that is true as written in that direction; "reversed" when it is true only the other way round ("B label A", as in "Current --drives--> Voltage"); "false" when it is wrong either way, vague, or contradicts a sentence of the lesson.',
+  '"answers": true only when the lesson does what was asked and the board shows it: the main things are linked (no box left alone when it takes part), a cycle or feedback loop is closed by an arrow back, plots do not contradict each other, an algorithm is traced on a concrete example with real values, a proof reaches its conclusion.',
+  '"issues": when topic or answers is false, one or two sentences saying what must change; otherwise "".',
+].join("\n");
+
+/** The lesson as the examiner reads it: numbered sentences, numbered arrows, and what else is on the board. */
+function reviewText(question: string, lesson: Lesson): string {
+  const names = new Map<string, string>();
+  for (const s of lesson.steps) for (const it of s.items) if (it.kind === "node") names.set(it.id, it.text);
+  const arrows: string[] = [];
+  const other: string[] = [];
+  for (const s of lesson.steps) {
+    for (const it of s.items) {
+      if (it.kind === "edge") arrows.push(`${arrows.length + 1}. ${names.get(it.from) ?? it.from} --${it.text || "(no label)"}--> ${names.get(it.to) ?? it.to}`);
+      else if (it.kind === "formula") other.push(`formula ${it.tex}`);
+      else if (it.kind === "plot") other.push(`plot of y = ${it.expr} for x from ${it.xmin} to ${it.xmax}`);
+      else if (it.kind === "cells") other.push(`row of cells [${it.values.join(", ")}]`);
+    }
+  }
+  return [
+    `Asked: ${quoted(question)}`,
+    `Lesson: ${lesson.title}`,
+    "Sentences:",
+    ...lesson.steps.map((s, k) => `${k + 1}. ${s.say}`),
+    `Boxes: ${[...names.values()].join(", ") || "none"}`,
+    "Arrows:",
+    ...(arrows.length ? arrows : ["none"]),
+    `Also on the board: ${other.join("; ") || "nothing else"}`,
+  ].join("\n");
+}
+
+/** The examiner's answer; null when it cannot be read (the lesson is then shown as it is). */
+export function readReview(raw: unknown, sentences: number, arrows: number): Review | null {
+  const r = raw as { topic?: unknown; answers?: unknown; issues?: unknown; sentences?: unknown; arrows?: unknown } | null;
+  if (!r || typeof r !== "object" || typeof r.topic !== "boolean") return null;
+  // a review that says nothing about the arrows of a board that has some is not a review
+  if (arrows > 0 && !Array.isArray(r.arrows)) return null;
+  const kept = new Set<number>();
+  const judged = Array.isArray(r.sentences);
+  for (const a of judged ? (r.sentences as unknown[]) : []) {
+    const q = (a && typeof a === "object" ? a : {}) as { n?: unknown; true?: unknown };
+    if (typeof q.n === "number" && q.n >= 1 && q.n <= sentences && q.true === true) kept.add(q.n);
+  }
+  const verdicts = new Map<number, "ok" | "reversed" | "false">();
+  for (const a of Array.isArray(r.arrows) ? r.arrows : []) {
+    const q = (a && typeof a === "object" ? a : {}) as { n?: unknown; verdict?: unknown };
+    if (typeof q.n === "number" && q.n >= 1 && q.n <= arrows && (q.verdict === "ok" || q.verdict === "reversed" || q.verdict === "false")) verdicts.set(q.n, q.verdict);
+  }
+  return { topic: r.topic, answers: r.answers === true, issues: cleanText(r.issues, 300), sentences: judged ? kept : null, arrows: verdicts };
+}
+
+/**
+ * The lesson with the examiner's verdicts applied: a reversed arrow turned, a false one (or one the
+ * examiner said nothing about) dropped, a step whose sentence is false left out. Null when too little is left.
+ */
+export function applyReview(lesson: Lesson, review: Review, continues?: Lesson): Lesson | null {
+  let n = 0;
+  const steps = lesson.steps.flatMap((s, k) => {
+    const items: LessonItem[] = s.items.flatMap((it): LessonItem[] => {
+      if (it.kind !== "edge") return [it];
+      const verdict = review.arrows.get(++n);
+      if (verdict === "ok") return [it];
+      return verdict === "reversed" ? [{ ...it, from: it.to, to: it.from }] : [];
+    });
+    // a false sentence is not spoken, and what was drawn with it goes too
+    if (review.sentences && !review.sentences.has(k + 1)) return [];
+    return [{ say: s.say, items }];
+  });
+  if (steps.length < 2) return null;
+  // validated again from scratch: boxes that lost their step are recreated by the arrows that need them
+  return validateLesson({ title: lesson.title, scene: lesson.scene, steps: steps.map((s) => ({ say: s.say, items: s.items.map((it) => (it.kind === "sketch" ? { kind: "sketch", drawing: it.drawing } : it)) })) }, { maxSteps: steps.length, texOk, sketch: true, continues });
+}
+
+/** Online path: the whole lesson in one answer, read back by an examiner, repaired once when it must be. */
 export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: LessonEvent) => void): Promise<void> {
   const more = Boolean(req.lesson);
   const maxSteps = more ? Math.min(3, req.maxSteps) : req.maxSteps;
   const user = more ? `${lessonContextText(req.lesson!)}\n\nFollow-up: ${quoted(req.question)}` : `Concept: ${quoted(req.question)}`;
-  let lesson: Lesson | null = null;
-  for (let attempt = 0; attempt < 2 && !lesson; attempt++) {
-    const text = await ask({ system: cloudSystem(req.lang, maxSteps, more), user, format: { type: "object" }, maxTokens: 3500, timeoutMs: TIMEOUTS.cloudMs, temperature: attempt ? 0.6 : 0.3 });
-    lesson = validateLesson(parseJsonLoose(text), { maxSteps, texOk, sketch: true, continues: more ? req.lesson! : undefined });
-  }
+  const write = async (note: string): Promise<Lesson | null> => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const text = await ask({ system: cloudSystem(req.lang, maxSteps, more), user: note ? `${user}\n\n${note}` : user, format: { type: "object" }, maxTokens: 3500, timeoutMs: TIMEOUTS.cloudMs, temperature: attempt ? 0.6 : 0.3 });
+      const lesson = validateLesson(parseJsonLoose(text), { maxSteps, texOk, sketch: true, continues: more ? req.lesson! : undefined });
+      if (lesson) return lesson;
+    }
+    return null;
+  };
+  const examine = async (lesson: Lesson): Promise<Review | null> => {
+    const arrows = lesson.steps.reduce((sum, s) => sum + s.items.filter((it) => it.kind === "edge").length, 0);
+    const text = await ask({ system: REVIEW_SYSTEM, user: reviewText(req.question, lesson), format: { type: "object" }, maxTokens: 900, timeoutMs: TIMEOUTS.cloudMs, temperature: 0 });
+    const first = readReview(parseJsonLoose(text), lesson.steps.length, arrows);
+    if (first) return first;
+    // an answer that cannot be read is asked for once more
+    return readReview(parseJsonLoose(await ask({ system: REVIEW_SYSTEM, user: reviewText(req.question, lesson), format: { type: "object" }, maxTokens: 900, timeoutMs: TIMEOUTS.cloudMs, temperature: 0.2 })), lesson.steps.length, arrows);
+  };
+
+  let lesson = await write("");
   if (!lesson) {
     emit({ type: "error", code: "plan", message: "The model did not return a lesson." });
     return;
+  }
+  let review = await examine(lesson);
+  if (review && (!review.topic || !review.answers)) {
+    // Written again once, with the examiner's reason (the model's own words about its own lesson).
+    const again = await write(`An examiner refused your previous lesson "${lesson.title}": ${review.issues || (review.topic ? "it does not do what was asked" : "it is about a different topic")}. Write the lesson again and fix exactly that.`);
+    if (again) {
+      lesson = again;
+      review = await examine(lesson);
+    }
+  }
+  if (review && !review.topic) {
+    // never teach another topic under the asked title
+    emit({ type: "error", code: "plan", message: "The model kept answering about a different topic." });
+    return;
+  }
+  if (review) {
+    const checked = applyReview(lesson, review, more ? req.lesson! : undefined);
+    if (!checked) {
+      emit({ type: "error", code: "plan", message: "Too little of the lesson passed its check." });
+      return;
+    }
+    lesson = checked;
   }
   emit({ type: "outline", title: more ? req.lesson!.title : lesson.title, scene: more ? req.lesson!.scene : lesson.scene, says: lesson.steps.map((s) => s.say) });
   lesson.steps.forEach((step, index) => emit({ type: "step", index, step }));

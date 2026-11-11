@@ -230,6 +230,24 @@ export function Board({ layout, current, palette, sketchy, label, onPick, pickLa
             </g>
           );
         }
+        if (b.kind === "cells") {
+          // A row of values, the worked example of an algorithm; the pointer sits under the one being looked at.
+          const cw = box.w / b.values.length;
+          const ch = 46;
+          const px = box.x + (b.pointer + 0.5) * cw;
+          return (
+            <g key={b.key} className={fresh(b.step)} data-block="cells" data-pointer={b.pointer}>
+              {b.values.map((v, k) => (
+                <g key={k}>
+                  {k === b.pointer && <rect className="wb-fade" x={box.x + k * cw + 2} y={box.y + 2} width={cw - 4} height={ch - 4} rx={6} fill={p.highlight} />}
+                  {draw((g, o) => g.rectangle(box.x + k * cw, box.y, cw, ch, o), `${b.key}-c${k}`, p.ink, 1.8, k * 40)}
+                  <text className="wb-fade" x={box.x + (k + 0.5) * cw} y={box.y + ch / 2 + 7} fontSize={Math.min(20, cw * 0.42)} textAnchor="middle" fill={p.ink}>{v}</text>
+                </g>
+              ))}
+              {b.pointer >= 0 && draw((g, o) => g.linearPath([[px - 9, box.y + ch + 22], [px, box.y + ch + 7], [px + 9, box.y + ch + 22]], { ...o, disableMultiStroke: true }), `${b.key}-p`, p.mark, 3.2, 200)}
+            </g>
+          );
+        }
         const lineH = b.font * 1.3;
         return (
           <g key={b.key} className={fresh(b.step)} data-block={b.kind}>

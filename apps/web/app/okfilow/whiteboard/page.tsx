@@ -17,13 +17,14 @@ import { Board, BOARD_PALETTES } from "@/components/whiteboard/Board";
 import { initialLesson, lessonReducer, readLessonStream } from "@/lib/whiteboard/client";
 import { boardPng, fileStem, saveBlob } from "@/lib/whiteboard/export";
 import { layoutBoard, type BoardShape } from "@/lib/whiteboard/layout";
-import { LIMITS, lessonMarkdown } from "@/lib/whiteboard/lesson";
+import { LIMITS, lessonMarkdown, validateLesson } from "@/lib/whiteboard/lesson";
 import { initialPlayer, playerReducer, readingMs } from "@/lib/whiteboard/player";
 import { wbText, type WbKey } from "@/lib/whiteboard/text";
 import { OutboundNoticeModal, OutboundPill } from "../outbound-ui";
 import "../outbound.css";
 import "./whiteboard.css";
 
+const REPLAY_KEY = "filow.whiteboard.replay";
 const EXAMPLES: WbKey[] = ["example1", "example2", "example3", "example4"];
 
 export default function WhiteboardPage() {
@@ -183,6 +184,24 @@ export default function WhiteboardPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("voice") === "off") setVoiceOn(false);
+    // A saved lesson handed to this window (tools/whiteboard/shots.mjs puts one in sessionStorage to
+    // photograph its final board): checked like anything a model wrote, shown silently at its last step.
+    try {
+      const saved = window.sessionStorage.getItem(REPLAY_KEY);
+      window.sessionStorage.removeItem(REPLAY_KEY);
+      const lesson = saved ? validateLesson(JSON.parse(saved), { maxSteps: 12, sketch: true }) : null;
+      if (lesson) {
+        setVoiceOn(false);
+        dispatchLesson({ type: "ask", more: false });
+        dispatchPlayer({ type: "reset", expected: 0 });
+        dispatchLesson({ type: "event", event: { type: "start", provider: "local", model: "saved lesson", lang: "en", lite: false, more: false } });
+        dispatchLesson({ type: "event", event: { type: "outline", title: lesson.title, scene: lesson.scene, says: lesson.steps.map((s) => s.say) } });
+        lesson.steps.forEach((step, index) => dispatchLesson({ type: "event", event: { type: "step", index, step } }));
+        dispatchLesson({ type: "event", event: { type: "done", cards: lesson.steps.filter((s) => s.card).length, stalled: false } });
+        jumpTo.current = lesson.steps.length - 1;
+        return;
+      }
+    } catch { /* not a lesson: the page opens as usual */ }
     const q = params.get("q");
     const b = okFilowBridge();
     if (!b) {
@@ -419,8 +438,8 @@ export default function WhiteboardPage() {
               <button type="button" className="wb-btn" onClick={() => void savePng()} disabled={!layout}>{t("exportPng")}</button>
               <button type="button" className="wb-btn" onClick={saveMd} disabled={stepCount === 0}>{t("exportMd")}</button>
             </div>
-            {/* The full local tier met the strict lesson target (docs/whiteboard/PROOF.md); the Lite tier was not measured, so it keeps the advice. Never a switch: only words. */}
-            {ls.meta?.provider === "local" && lite && <p className="wb-note" data-advice="cloud">{t("localSimple")}</p>}
+            {/* The local model explains correctly but its boards miss the main relations too often (docs/whiteboard/PROOF.md, round 3): the page says so. Never a switch: only words. */}
+            {ls.meta?.provider === "local" && <p className="wb-note" data-advice="cloud">{t("localSimple")}</p>}
             {lite && <p className="wb-note">{t("liteNote")}</p>}
             {ls.stalled && <p className="wb-note">{t("stalledNote")}</p>}
             {!ls.stalled && ls.cards > 0 && <p className="wb-note">{t("cardsNote", { n: ls.cards })}</p>}

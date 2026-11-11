@@ -26,6 +26,7 @@ export type PlacedBlock = { key: string; step: number; box: Box } & (
   | { kind: "note" | "card"; lines: string[]; font: number; cut: boolean }
   | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string }
   | { kind: "sketch"; drawing: BuddyDrawing }
+  | { kind: "cells"; values: string[]; pointer: number }
 );
 export type BoardLayout = {
   shape: BoardShape;
@@ -138,11 +139,11 @@ function gridNodes(nodes: NodeIn[], area: Box, scene: "flow" | "stack", shape: B
   let rows: number;
   if (scene === "flow") {
     // A phone-shaped board reads top to bottom: one column while it fits, then two.
-    const maxCols = shape === "tall" ? (n <= 4 ? 1 : 2) : area.w >= 900 ? 4 : 3;
+    const maxCols = shape === "tall" ? 1 : area.w >= 900 ? 4 : 3;
     cols = Math.min(n, maxCols);
     rows = Math.ceil(n / cols);
   } else {
-    cols = n > 5 ? 2 : 1;
+    cols = n > 5 && shape === "wide" ? 2 : 1;
     rows = Math.ceil(n / cols);
   }
   const cellW = Math.min(area.w / cols, scene === "stack" ? 460 : 330);
@@ -151,7 +152,10 @@ function gridNodes(nodes: NodeIn[], area: Box, scene: "flow" | "stack", shape: B
   const gapY = Math.max(40, Math.min(64, cellH * 0.38));
   const w = cellW - gapX;
   const { font, lineCount, h } = fitLabels(nodes, w, cellH - gapY, [24, 22, 20, 18, 16, 15]);
-  const x0 = area.x + (area.w - cols * cellW) / 2;
+  // A phone-shaped board is one column of boxes on the left with a free lane on the right: arrows
+  // between boxes that are not neighbours arc through the lane, and every label has room there.
+  const lane = shape === "tall" && cols === 1 && n >= 3;
+  const x0 = lane ? area.x - gapX / 2 + 2 : area.x + (area.w - cols * cellW) / 2;
   const y0 = area.y + (area.h - rows * cellH) / 2;
   const placed = nodes.map((nd, i) => {
     let col: number;
@@ -280,12 +284,16 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
   const perPair = new Map<string, number>();
   for (const e of edges) perPair.set(pairKey(e.from, e.to), (perPair.get(pairKey(e.from, e.to)) ?? 0) + 1);
   const seen = new Map<string, number>();
-  const labels: Box[] = [];
-  const out: PlacedEdge[] = [];
-  edges.forEach((e, index) => {
+  const samples = (c: Curve) => Array.from({ length: 19 }, (_, i) => curveAt(c, (i + 1) / 20));
+  /**
+   * One arrow with its label, placed against what is already there: `labels` are the labels of the
+   * other arrows (not to be crossed or covered), `drawn` the other arrows (a label is not put on a line).
+   */
+  const place = (e: EdgeIn, index: number, k: number, labels: Box[], drawn: PlacedEdge[]): PlacedEdge | null => {
+    const linesThrough = (box: Box) => drawn.filter((o) => samples(o).some((pt) => overlap(box, { x: pt.x, y: pt.y, w: 0, h: 0 }, 2))).length;
     const a = byId.get(e.from);
     const b = byId.get(e.to);
-    if (!a || !b) return;
+    if (!a || !b) return null;
     if (a === b) {
       // An arrow from a box to itself ("calls itself"): a small loop over the box (under it when there is no room above).
       const c = centre(a.box);
@@ -296,14 +304,9 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
       const lw = Math.max(0, ...lines.map((ln) => textWidth(ln, LABEL_FONT))) + 12;
       const lh = lines.length * LABEL_LINE + 8;
       const box = { x: Math.min(Math.max(c.x - lw / 2, board.x), Math.max(board.x, board.x + board.w - lw)), y: up ? edgeY - 44 - lh : edgeY + 44, w: Math.min(lw, board.w), h: lh };
-      labels.push(box);
-      out.push({ key: `e${index}`, step: e.step, from: e.from, to: e.to, x1: c.x + a.box.w * 0.22, y1: edgeY + dir * 4, cx: c.x, cy: edgeY + dir * 78, x2: c.x - a.box.w * 0.22, y2: edgeY + dir * 12, label: { lines, box, font: LABEL_FONT } });
-      return;
+      return { key: `e${index}`, step: e.step, from: e.from, to: e.to, x1: c.x + a.box.w * 0.22, y1: edgeY + dir * 4, cx: c.x, cy: edgeY + dir * 78, x2: c.x - a.box.w * 0.22, y2: edgeY + dir * 12, label: { lines, box, font: LABEL_FONT } };
     }
-    const key = pairKey(e.from, e.to);
-    const k = seen.get(key) ?? 0;
-    seen.set(key, k + 1);
-    const m = perPair.get(key) ?? 1;
+    const m = perPair.get(pairKey(e.from, e.to)) ?? 1;
     const ca = centre(a.box);
     const cb = centre(b.box);
     // The pair's own direction, so two arrows that go opposite ways bend to opposite sides.
@@ -342,6 +345,8 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
         const pt = curveAt(c, i / 20);
         if (pt.x < board.x || pt.y < board.y || pt.x > board.x + board.w || pt.y > board.y + board.h) return true;
         if (others.some((nd) => overlap(nd.box, { x: pt.x, y: pt.y, w: 0, h: 0 }, 8))) return true;
+        // nor through the label of an arrow already drawn: a line across a word makes it unreadable
+        if (labels.some((l) => overlap(l, { x: pt.x, y: pt.y, w: 0, h: 0 }, 2))) return true;
       }
       return false;
     };
@@ -352,7 +357,9 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
     const reach = (Math.abs(nx) * Math.max(a.box.w, b.box.w)) / 2 + (Math.abs(ny) * Math.max(a.box.h, b.box.h)) / 2;
     // A label breaks between words only: one long word makes the label wider, never "release / d".
     const longest = Math.max(0, ...e.text.split(/\s+/).map((word) => (Array.from(word).some((ch) => isWideChar(ch.codePointAt(0) ?? 0)) ? 0 : textWidth(word, LABEL_FONT))));
-    const lines = e.text ? wrapText(e.text, Math.max(arr.labelMax, longest + 1), LABEL_FONT, 2) : [];
+    let lines = e.text ? wrapText(e.text, Math.max(arr.labelMax, longest + 1), LABEL_FONT, 2) : [];
+    // a label that does not fit two lines of the narrow gap is set wider (it then rides an arc) rather than cut
+    if (lines.length && lines[lines.length - 1].endsWith(ELLIPSIS) && !e.text.endsWith(ELLIPSIS)) lines = wrapText(e.text, Math.max(arr.labelMax, longest + 1, 230), LABEL_FONT, 2);
     const lw = Math.max(0, ...lines.map((ln) => textWidth(ln, LABEL_FONT))) + 12;
     const lh = lines.length * LABEL_LINE + 8;
     let best: { curve: Curve; box: Box | null; cost: number } | null = null;
@@ -366,7 +373,7 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
           const pt = curveAt(curve, t);
           // kept on the board: a label near the border slides inwards instead of being cut
           const candidate = { x: Math.min(Math.max(pt.x - lw / 2, board.x), Math.max(board.x, board.x + board.w - lw)), y: Math.min(Math.max(pt.y - lh / 2, board.y), board.y + board.h - lh), w: Math.min(lw, board.w), h: lh };
-          const n = nodes.filter((nd) => overlap(nd.box, candidate, 1)).length + labels.filter((l) => overlap(l, candidate, 1)).length;
+          const n = nodes.filter((nd) => overlap(nd.box, candidate, 1)).length + labels.filter((l) => overlap(l, candidate, 1)).length + linesThrough(candidate);
           if (n < hits) { hits = n; box = candidate; }
           if (!n) break;
         }
@@ -375,11 +382,48 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
       if (!best || cost < best.cost) best = { curve, box, cost };
       if (!cost) break;
     }
-    if (!best) return;
-    if (best.box) labels.push(best.box);
-    out.push({ key: `e${index}`, step: e.step, from: e.from, to: e.to, ...best.curve, label: best.box ? { lines, box: best.box, font: LABEL_FONT } : null });
+    if (!best) return null;
+    return { key: `e${index}`, step: e.step, from: e.from, to: e.to, ...best.curve, label: best.box ? { lines, box: best.box, font: LABEL_FONT } : null };
+  };
+
+  /** What is wrong with one placed arrow among the others: through a box, across a label, a covered label. */
+  const costOf = (edge: PlacedEdge, others: PlacedEdge[]): number => {
+    const pts = samples(edge);
+    let cost = 0;
+    if (nodes.some((nd) => nd.id !== edge.from && nd.id !== edge.to && pts.some((pt) => overlap(nd.box, { x: pt.x, y: pt.y, w: 0, h: 0 })))) cost += 10;
+    for (const o of others) {
+      if (o.label && pts.some((pt) => overlap(o.label!.box, { x: pt.x, y: pt.y, w: 0, h: 0 }))) cost += 3;
+      if (edge.label && o.label && overlap(edge.label.box, o.label.box)) cost += 2;
+      if (edge.label && samples(o).some((pt) => overlap(edge.label!.box, { x: pt.x, y: pt.y, w: 0, h: 0 }))) cost += 3;
+    }
+    if (edge.label) cost += nodes.filter((nd) => overlap(nd.box, edge.label!.box)).length * 2;
+    return cost;
+  };
+
+  // First each arrow in order, against the ones before it. Then a second look: an arrow that ended up
+  // across a label, or a label that ended up under a later arrow, is placed again knowing all the others.
+  const ks = edges.map((e) => {
+    const key = pairKey(e.from, e.to);
+    const k = seen.get(key) ?? 0;
+    seen.set(key, k + 1);
+    return k;
   });
-  return out;
+  const placed: Array<PlacedEdge | null> = [];
+  edges.forEach((e, index) => {
+    const before = placed.flatMap((p) => (p ? [p] : []));
+    placed.push(place(e, index, ks[index], before.flatMap((p) => (p.label ? [p.label.box] : [])), before));
+  });
+  for (let round = 0; round < 2; round++) {
+    placed.forEach((current, i) => {
+      if (!current) return;
+      const others = placed.flatMap((p, j) => (p && j !== i ? [p] : []));
+      const now = costOf(current, others);
+      if (!now) return;
+      const again = place(edges[i], i, ks[i], others.flatMap((p) => (p.label ? [p.label.box] : [])), others);
+      if (again && costOf(again, others) < now) placed[i] = again;
+    });
+  }
+  return placed.flatMap((p) => (p ? [p] : []));
 }
 
 const TALL_FORMULA = /\\(?:d?frac|sum|int|prod|sqrt|binom|begin|lim)/;
@@ -393,6 +437,8 @@ function arrangementCost(edges: PlacedEdge[], nodes: PlacedNode[]): number {
       if (nodes.some((nd) => nd.id !== e.from && nd.id !== e.to && overlap(nd.box, { x: pt.x, y: pt.y, w: 0, h: 0 }))) { cost += 10; break; }
     }
     if (e.label && nodes.some((nd) => overlap(nd.box, e.label!.box))) cost += 3;
+    // an arrow across another arrow's label makes the label unreadable
+    for (const o of edges) if (o !== e && o.label && Array.from({ length: 19 }, (_, i) => curveAt(e, (i + 1) / 20)).some((pt) => overlap(o.label!.box, { x: pt.x, y: pt.y, w: 0, h: 0 }))) cost += 3;
   }
   const labelBoxes = edges.flatMap((e) => (e.label ? [e.label.box] : []));
   labelBoxes.forEach((a, i) => labelBoxes.forEach((b, j) => { if (j > i && overlap(a, b)) cost += 3; }));
@@ -415,8 +461,9 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
   const { w } = BOARD_SIZE[shape];
   // A phone-shaped board grows downwards with the diagram (the page scrolls); a wide one is fixed.
   const shown = new Set(lesson.steps.slice(0, upto + 1).flatMap((s) => s.items.flatMap((it) => (it.kind === "node" ? [it.id] : []))));
-  const h = BOARD_SIZE[shape].h + (shape === "tall" ? Math.min(4, Math.max(0, shown.size - 6)) * 90 : 0) + extra;
-  const titleFont = shape === "tall" ? 24 : 30;
+  const h = BOARD_SIZE[shape].h + (shape === "tall" ? Math.max(0, shown.size - 4) * 100 : 0) + extra;
+  // a long title is set smaller before it is ever cut
+  const titleFont = [shape === "tall" ? 24 : 30, 21, 18, 16].find((f) => textWidth(lesson.title, f) <= w - (shape === "tall" ? 14 : 24) * 2 - 8) ?? 16;
   const margin = shape === "tall" ? 14 : 24;
   const titleText = wrapText(lesson.title, w - margin * 2 - 8, titleFont, 1)[0];
   const title = { text: titleText, x: margin + 4, y: 46, font: titleFont, cut: titleText.endsWith(ELLIPSIS) && !lesson.title.endsWith(ELLIPSIS) };
@@ -425,7 +472,7 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
   const nodesIn: NodeIn[] = [];
   const edgesIn: EdgeIn[] = [];
   const marksIn: Array<{ target: string; style: MarkStyle; step: number }> = [];
-  type BlockIn = { key: string; step: number } & ({ kind: "formula"; tex: string } | { kind: "note" | "card"; text: string } | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string } | { kind: "sketch"; drawing: BuddyDrawing });
+  type BlockIn = { key: string; step: number } & ({ kind: "formula"; tex: string } | { kind: "note" | "card"; text: string } | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string } | { kind: "sketch"; drawing: BuddyDrawing } | { kind: "cells"; values: string[]; pointer: number });
   const blocksIn: BlockIn[] = [];
   lesson.steps.slice(0, upto + 1).forEach((s, step) => {
     if (s.card) blocksIn.push({ key: `c${step}`, step, kind: "card", text: s.say });
@@ -438,6 +485,12 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
       else if (it.kind === "note") blocksIn.push({ key, step, kind: "note", text: it.text });
       else if (it.kind === "plot") blocksIn.push({ key, step, kind: "plot", expr: it.expr, xmin: it.xmin, xmax: it.xmax, text: it.text });
       else if (it.kind === "sketch") blocksIn.push({ key, step, kind: "sketch", drawing: it.drawing });
+      else if (it.kind === "cells") {
+        // The same row again is the same row with its pointer moved: it stays where it is on the board.
+        const same = blocksIn.findIndex((b) => b.kind === "cells" && b.values.join("|") === it.values.join("|"));
+        if (same >= 0) blocksIn[same] = { key: blocksIn[same].key, step, kind: "cells", values: it.values, pointer: it.pointer };
+        else blocksIn.push({ key, step, kind: "cells", values: it.values, pointer: it.pointer });
+      }
     });
   });
 
@@ -496,6 +549,10 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
     if (b.kind === "plot") {
       const pw = Math.min(notes.w, 400);
       return { ...base, kind: "plot", expr: b.expr, xmin: b.xmin, xmax: b.xmax, text: b.text, box: { x: notes.x + (notes.w - pw) / 2, y: 0, w: pw, h: Math.min(250, Math.max(170, notes.h * 0.42)) } };
+    }
+    if (b.kind === "cells") {
+      const cw = Math.min(64, (notes.w - 8) / b.values.length);
+      return { ...base, kind: "cells", values: b.values, pointer: b.pointer, box: { x: notes.x + (notes.w - cw * b.values.length) / 2, y: 0, w: cw * b.values.length, h: 78 } };
     }
     if (b.kind === "sketch") {
       const sw = Math.min(notes.w, 380, (notes.h * 0.6 * 4) / 3);
@@ -564,6 +621,15 @@ export function layoutProblems(l: BoardLayout): string[] {
       if (hit) { problems.push(`arrow ${e.from} -> ${e.to} runs through node ${hit.id}`); break; }
     }
     if (e.label && e.label.lines.join(" ").endsWith(ELLIPSIS)) problems.push(`label on ${e.from} -> ${e.to} is cut`);
+    for (const o of l.edges) {
+      if (o === e || !o.label) continue;
+      let through = false;
+      for (let i = 1; i < 20 && !through; i++) {
+        const pt = curveAt(e, i / 20);
+        through = overlap(o.label.box, { x: pt.x, y: pt.y, w: 0, h: 0 });
+      }
+      if (through) problems.push(`arrow ${e.from} -> ${e.to} runs through the label "${o.label.lines.join(" ")}"`);
+    }
   }
   return problems;
 }
