@@ -145,6 +145,9 @@ const en = {
   notchDictating: "Dictating",
   notchHandsFree: "Hands-free, listening",
   notchListening: "Listening",
+  // Whiteboard tutor (docs/whiteboard/SPEC.md)
+  whiteboard: "Whiteboard",
+  whiteboardHint: "Explains a hard concept step by step, drawing as it goes. Or say \"whiteboard: photosynthesis\".",
 };
 export type OkfKey = keyof typeof en;
 const it: Record<OkfKey, string> = {
@@ -291,5 +294,8 @@ const it: Record<OkfKey, string> = {
   notchDictating: "Dettatura",
   notchHandsFree: "Vivavoce, ti ascolto",
   notchListening: "Ti ascolto",
+  // Lavagna (docs/whiteboard/SPEC.md)
+  whiteboard: "Lavagna",
+  whiteboardHint: "Spiega un concetto difficile passo dopo passo, disegnando. Anche a voce: \"lavagna: la fotosintesi\".",
 };
 export const OKF_TEXT: Record<"en" | "it", Record<OkfKey, string>> = { en, it };

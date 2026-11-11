@@ -114,7 +114,7 @@ function createOkFilow(deps) {
   const preload = path.join(__dirname, "okfilow-preload.js");
   /** Content protection keeps OK Filow out of screenshots and recordings unless the user allows them. */
   const hidden = () => !QA_VISIBLE && !cfg().allowScreenshots;
-  const allWindows = () => [panel, modelWin, ...overlays.values()].filter((w) => w && !w.isDestroyed());
+  const allWindows = () => [panel, modelWin, boardWin, ...overlays.values()].filter((w) => w && !w.isDestroyed());
   const protectAll = (on) => { for (const w of allWindows()) w.setContentProtection(on); };
   /**
    * Our windows' main frames, still showing our own pages (they cannot navigate away, but check
@@ -181,6 +181,7 @@ function createOkFilow(deps) {
 
   // ---- 3D model window (HeyClicky: a model you can drag around and click to ask about a part) ----
   let modelWin = null;
+  let boardWin = null;
   let currentModel = null;
   function showModel(model) {
     currentModel = model;
@@ -233,6 +234,49 @@ function createOkFilow(deps) {
   });
   ipcMain.on("okfilow:model:close", (e) => { if (ourSender(e) && modelWin && !modelWin.isDestroyed()) modelWin.close(); });
   ipcMain.on("okfilow:askAbout", (e, text) => { if (ourSender(e) && typeof text === "string") sendPanel("okfilow:askText", text.slice(0, 300)); });
+
+  // ---- Whiteboard tutor window (docs/whiteboard/SPEC.md): one of OK Filow's own pages, in an ordinary window ----
+  let boardTopic = "";
+  function showWhiteboard(topic) {
+    boardTopic = String(topic || "").slice(0, 400);
+    if (boardWin && !boardWin.isDestroyed()) {
+      if (boardTopic) boardWin.webContents.send("okfilow:whiteboard", boardTopic);
+      boardTopic = "";
+      boardWin.show();
+      boardWin.focus();
+      return;
+    }
+    const wa = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+    const w = Math.min(1280, wa.width - 40);
+    const h = Math.min(860, wa.height - 40);
+    boardWin = new BrowserWindow({
+      width: w,
+      height: h,
+      x: Math.round(wa.x + (wa.width - w) / 2),
+      y: Math.round(wa.y + (wa.height - h) / 2),
+      minWidth: 360,
+      minHeight: 480,
+      show: false,
+      autoHideMenuBar: true,
+      title: "Filow Whiteboard",
+      backgroundColor: "#121212",
+      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload, backgroundThrottling: false },
+    });
+    boardWin.setContentProtection(hidden());
+    lockDown(boardWin);
+    boardWin.on("closed", () => { boardWin = null; });
+    boardWin.once("ready-to-show", () => boardWin && !boardWin.isDestroyed() && boardWin.show());
+    boardWin.loadURL(`${appUrl}/okfilow/whiteboard`);
+  }
+  ipcMain.on("okfilow:whiteboard:show", (e, topic) => { if (ourSender(e) && typeof topic === "string") showWhiteboard(topic); });
+  /** The whiteboard page finished loading: hand it the topic it was opened for. */
+  ipcMain.on("okfilow:whiteboard:ready", (e) => {
+    if (!ourSender(e) || !boardWin || boardWin.isDestroyed() || e.sender !== boardWin.webContents) return;
+    if (boardTopic) e.sender.send("okfilow:whiteboard", boardTopic);
+    boardTopic = "";
+    logLine("okfilow: whiteboard shown");
+  });
+  ipcMain.on("okfilow:whiteboard:close", (e) => { if (ourSender(e) && boardWin && !boardWin.isDestroyed()) boardWin.close(); });
   /** Cards (global DIP) go to the overlay of the display they sit on, in its local coordinates. */
   ipcMain.on("okfilow:cards", (e, list) => {
     if (!ourSender(e) || !Array.isArray(list)) return;
@@ -964,6 +1008,7 @@ function createOkFilow(deps) {
     try { agents.dispose(); } catch { /* quitting */ }
     outbound.clear();
     if (modelWin && !modelWin.isDestroyed()) modelWin.destroy();
+    if (boardWin && !boardWin.isDestroyed()) boardWin.destroy();
     clearTimeout(hookRetryTimer);
     try { hook?.stop(); } catch { /* quitting */ }
     stopCursor();

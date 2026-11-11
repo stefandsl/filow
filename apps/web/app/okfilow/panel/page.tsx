@@ -17,6 +17,7 @@ import { createOutboundController, type OutboundController } from "@/lib/buddy/o
 import { ConsentList, OutboundNotice, OutboundPill } from "../outbound-ui";
 import { VoiceSettings } from "./voice-settings";
 import { getSetupPreference } from "@/lib/prefs";
+import { whiteboardTopic } from "@/lib/whiteboard/client";
 import "../okfilow.css";
 
 const HISTORY_KEY = "okfilow.history.v1";
@@ -258,6 +259,13 @@ export default function OkFilowPanel() {
     // "agent, ..." goes to a background job instead of the screen helper.
     // A new question drops any notice still waiting for the previous one: nothing of it may go out.
     out.dismissAll();
+    // "whiteboard: ..." opens the whiteboard tutor with that topic (docs/whiteboard/SPEC.md).
+    const boardTopic = whiteboardTopic(question);
+    if (boardTopic && b.showWhiteboard) {
+      setHeard(question);
+      b.showWhiteboard(boardTopic);
+      return setMode("idle");
+    }
     try {
       const lastAnswer = history.current.at(-1)?.text ?? "";
       let job = await b.agents.start(question, lastAnswer);
@@ -704,6 +712,7 @@ export default function OkFilowPanel() {
         <input ref={typeBox} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={t("typePlaceholder")} aria-label={t("typePlaceholder")} />
         <button type="submit" disabled={!typed.trim()}>{t("ask")}</button>
       </form>
+      {bridge.showWhiteboard && <p className="okf-hint okf-board-link"><button type="button" onClick={() => { bridge.showWhiteboard?.(typed.trim()); setTyped(""); }}>{t("whiteboard")}</button> {t("whiteboardHint")}</p>}
 
       <section className="okf-jobs" aria-label={t("agentsTitle")}>
         <h2>{t("agentsTitle")}</h2>
