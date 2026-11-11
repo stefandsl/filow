@@ -3,7 +3,7 @@
 // "X min behind / ahead" cue. Text only: no sound, no colour flashing, nothing that moves, so it suits
 // reduced motion as it is. Shared by the prompter and the phone mirror.
 import { useEffect, useState, type ReactNode } from "react";
-import { formatClock, scheduleCue, talkBudget, timerView, type PointState, type Script, type TalkClock } from "@filow/core";
+import { formatClock, overPlan, scheduleCue, talkBudget, timerView, type PointState, type Script, type TalkClock } from "@filow/core";
 import { useT } from "@filow/ui";
 import { Icon } from "./icons";
 import "./Rehearsal.css";
@@ -32,6 +32,7 @@ export function TimerCue({ script, clock, sectionIdx, points, now = Date.now, ph
   const talkMs = view?.talkMs ?? talkBudget(script).talkMs;
   if (!view && talkMs === null) return action ? <div className={`timer-cue${phone ? " phone" : ""}`}><span className="timer-spacer" />{action}</div> : null;
 
+  const over = overPlan(script);
   const cue = scheduleCue(view?.behindMs ?? null);
   const cueText = cue.kind === "onTime" ? t("timer.onTime") : cue.kind === "behind" ? t("timer.behind", { n: cue.minutes }) : cue.kind === "ahead" ? t("timer.ahead", { n: cue.minutes }) : "";
   const section = view && view.sectionMs !== null ? view.sectionMs - view.sectionElapsedMs : null;
@@ -48,6 +49,8 @@ export function TimerCue({ script, clock, sectionIdx, points, now = Date.now, ph
         <span className="timer-detail">{section >= 0 ? t("timer.sectionLeft", { t: formatClock(section) }) : t("timer.sectionOver", { t: formatClock(-section) })}</span>
       )}
       {view?.running && view.pointsLeft > 0 && <span className="timer-detail">{t("timer.pointsLeft", { n: view.pointsLeft })}</span>}
+      {/* the cue follows the sections' targets; say that they do not fit the talk */}
+      {over && <span className="timer-warn">{t("timer.overPlanned", over)}</span>}
       {action && <><span className="timer-spacer" />{action}</>}
     </div>
   );

@@ -5,6 +5,7 @@ export const ro: Record<OkfKey, string> = {
   close: "Închide",
   modelHint: "Trage pentru a roti, derulează pentru zoom, fă clic pe o parte ca să întrebi despre ea",
   modelAsking: "Întreb despre {part}…",
+  ollamaStopped: "Ollama, care rulează răspunsurile OK Filow pe acest PC, nu este pornit. Dacă este instalat, Filow îl pornește chiar acum: întreabă din nou peste un minut. Dacă nu, instalează-l din Setări \u003e Modele locale sau alege Cloud la „Răspunsuri de la” în panoul OK Filow.",
   mode_idle: "Gata",
   mode_listening: "Te ascult…",
   mode_thinking: "Mă uit la ecranul tău…",

@@ -899,7 +899,7 @@ async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
         if (!auto) {
           settings.remoteShare = false;
           saveSettings();
-          dialog.showErrorBox(mt("tunnelFailed"), String(err.message || err));
+          await errorWithReport(win, mt("tunnelFailed"), String(err.message || err));
         }
         // auto: stay "wanted" so the next launch retries; the LAN QR keeps working meanwhile
       }
@@ -1114,7 +1114,7 @@ async function installPowerPointAddin(win, { silent = false } = {}) {
   } catch (err) {
     settings.pptInstalled = false;
     saveSettings();
-    if (!silent) dialog.showErrorBox("PowerPoint", `${mt("pptInstallFailed")}\n\n${String(err.message || err)}`);
+    if (!silent) await errorWithReport(win, mt("pptInstallFailed"), String(err.message || err));
     return false;
   }
 }
@@ -1400,6 +1400,8 @@ function startOkFilow() {
     askKeyboardPermission: require("./mac-permissions").createKeyboardPermissionPrompt({ dialog, systemPreferences, openSystemSettings, menuText: (k) => mt(k), logLine }),
       isOffline: () => offline,
       sttDownload: () => void sttDownload(),
+      // a question found Ollama stopped: start it in the background, so the next question is answered
+      onAnswerError: (failure) => { if (localAi.isOllamaStopped(failure)) startOllamaIfWanted("OK Filow found Ollama stopped", { needed: true }); },
       dictation: getDictation(),
     });
     okFilow.start();
@@ -1503,19 +1505,55 @@ function localAiInfo() {
 }
 function setLocalAi(s) {
   localAiState = s;
-  logLine(`local AI: ${s.state}${s.pct ? ` ${s.pct}%` : ""}${s.error ? ` ${s.error}` : ""}`);
+  logLine(`local AI: ${s.state}${s.pct ? ` ${s.pct}%` : ""}${s.code ? ` [${s.code}]` : ""}${s.error ? ` ${s.error}` : ""}`);
   for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send("localai:status", s);
 }
-function startOllamaInstall() {
-  if (process.env.FILOW_OFFLINE === "1") {
-    setLocalAi({ ...localAiState, state: "error", pct: 0, error: sharedText("offline.downloadDisabled", menuLang()) });
+/** What the start of Ollama writes in the startup log (the reason it did not start: exit code, the end of its own logs), masked like a report. */
+function localAiLog(line) {
+  let user = "";
+  try { user = os.userInfo().username; } catch { /* no user info */ }
+  logLine(`local AI: ${diag.redact(line, { home: os.homedir(), user })}`);
+}
+/** QA builds only: FILOW_QA_OLLAMA_EXE=<ollama.exe> stands in for the installed Ollama (with OLLAMA_URL on a spare port). */
+function localAiDeps() {
+  const qaExe = process.env.FILOW_QA_OLLAMA_EXE && require("./qa.js").isQaBuild(app) ? process.env.FILOW_QA_OLLAMA_EXE : "";
+  return { log: localAiLog, ...(qaExe ? { findExe: () => qaExe } : {}) };
+}
+/**
+ * Installs Ollama if it is missing, then starts it and waits for it. `startOnly`: never download, only
+ * start an Ollama that is installed (when Filow opens, or when OK Filow finds it stopped).
+ */
+function startOllamaInstall({ startOnly = false } = {}) {
+  if (!startOnly && process.env.FILOW_OFFLINE === "1") {
+    setLocalAi({ ...localAiState, state: "error", pct: 0, code: "", error: sharedText("offline.downloadDisabled", menuLang()) });
     return Promise.resolve();
   }
   if (localAiInstalling) return localAiInstalling;
-  localAiInstalling = localAi.installOllama(path.join(userData, "bin"), setLocalAi).finally(() => {
-    localAiInstalling = null;
-  });
+  if (!startOnly && !settings.ollamaWanted) {
+    // the user asked Filow for Ollama once: from now on Filow starts it when it opens
+    settings.ollamaWanted = true;
+    saveSettings();
+  }
+  localAiInstalling = Promise.resolve()
+    .then(() => localAi.installOllama(path.join(userData, "bin"), setLocalAi, { ...localAiDeps(), startOnly }))
+    .catch((err) => {
+      // whatever went wrong, the status may not stay on "starting"
+      setLocalAi({ state: "error", pct: 0, code: "unexpected", error: String(err && err.message ? err.message : err), version: "", command: "" });
+    })
+    .finally(() => {
+      localAiInstalling = null;
+    });
   return localAiInstalling;
+}
+/**
+ * An installed Ollama that is not answering is started in the background, without a question: when
+ * Filow opens (only once the user has asked Filow for Ollama) and when OK Filow needed it and found
+ * it stopped (`needed`). Nothing is downloaded here.
+ */
+function startOllamaIfWanted(why, { needed = false } = {}) {
+  if ((!needed && !settings.ollamaWanted) || localAiInstalling || !localAi.ollamaIsLocal()) return;
+  logLine(`local AI: start check (${why})`);
+  void startOllamaInstall({ startOnly: true });
 }
 /** First start without installer choices (macOS, Linux, portable): offer the hardware-based setup. */
 async function offerLocalAi() {
@@ -1791,8 +1829,9 @@ function applyOffline(win, value = process.env.FILOW_OFFLINE === "1") {
 
 // ---- Diagnostics: crashes go to startup.log; "Report a problem" makes a file the user saves ----
 const diag = require("./diag");
-// Nothing is sent, ever: the report window (about.js) shows every line of the report and saves it to a
-// file the user picks, to send privately. It no longer opens a public GitHub issue.
+// Filow sends nothing by itself: the report window (about.js) shows every line of the masked report and
+// saves it to a file the user picks. It leaves this PC only when the user presses "Open an issue on
+// GitHub" there, after the notice that issues are public (docs/okfilow/OUTBOUND.md row 16).
 process.on("uncaughtException", (err) => logLine(`CRASH main: ${err && err.stack ? err.stack : err}`));
 process.on("unhandledRejection", (err) => logLine(`CRASH main (promise): ${err && err.stack ? err.stack : err}`));
 app.on("render-process-gone", (_e, _wc, d) => logLine(`CRASH renderer: ${d.reason} (exit ${d.exitCode})`));
@@ -1850,12 +1889,29 @@ function about() {
     docsDir: packaged ? resources : path.join(resources, "..", "docs"),
     crashDir: path.join(userData, "Crashpad"), documentsDir: () => app.getPath("documents"),
     collectReport: reportSections,
+    // QA builds only: the probe points the issue button at its own local page instead of GitHub
+    issuePage: process.env.FILOW_QA_ISSUE_PAGE && require("./qa.js").isQaBuild(app) ? process.env.FILOW_QA_ISSUE_PAGE : undefined,
   });
   return aboutPages;
 }
 
 function reportProblem() {
   return about().open("report");
+}
+/** The two buttons of an error the user cannot fix from its dialog: close it, or open Report a problem. */
+function reportButtons() {
+  const tx = require("./about").TEXT;
+  return [(tx[menuLang()] || tx.en).close, mt("report")];
+}
+/** Such an error: what failed, the reason, and a button that leads to the report window (and from there to a GitHub issue). */
+async function errorWithReport(win, message, detail) {
+  const options = { type: "error", title: "Filow", message, detail, buttons: reportButtons(), defaultId: 0, cancelId: 0, noLink: true };
+  try {
+    const { response } = win && !win.isDestroyed() ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
+    if (response === 1) reportProblem();
+  } catch (err) {
+    logLine(`error dialog "${message}" could not be shown: ${err && err.message ? err.message : err}`);
+  }
 }
 
 function buildMenu(win) {
@@ -2092,6 +2148,7 @@ async function main() {
       await offerFirewall(win);
     }
     if (choices && choices.ollama) void startOllamaInstall();
+    else startOllamaIfWanted("Filow opened");
     const firstPage =
       choices && Array.isArray(choices.models) && choices.models.length
         ? `${APP_URL}/settings/local?auto=${encodeURIComponent(choices.models.join(","))}${choices.ollama ? "&ollama=1" : ""}`
@@ -2147,7 +2204,28 @@ function failStartup(err) {
   const text = String(err && err.stack ? err.stack : err);
   logLine(`startup failed at "${startupStage}": ${text}`);
   closeSplash();
-  dialog.showErrorBox("Filow failed to start", text);
+  // The user cannot fix this one: next to closing, the box offers Report a problem, whose window has the
+  // start-up log with this reason in it and the button that opens a GitHub issue. Filow quits when that
+  // window closes. If the box or the window cannot be made, the plain error box and quit, as before.
+  let report = false;
+  try {
+    const choice = dialog.showMessageBoxSync({ type: "error", title: "Filow", message: "Filow failed to start", detail: text, buttons: reportButtons(), defaultId: 0, cancelId: 0, noLink: true });
+    report = choice === 1;
+  } catch (boxErr) {
+    logLine(`startup failed: the report offer could not be shown: ${boxErr && boxErr.message ? boxErr.message : boxErr}`);
+    dialog.showErrorBox("Filow failed to start", text);
+  }
+  if (report) {
+    try {
+      startupTransition = true; // the splash just closed: its window-all-closed must not quit under the report window
+      const win = reportProblem();
+      win.once("closed", () => app.quit());
+      win.webContents.once("did-fail-load", () => app.quit()); // a window that cannot show must not keep Filow running unseen
+      return;
+    } catch (winErr) {
+      logLine(`startup failed: the report window could not be opened: ${winErr && winErr.message ? winErr.message : winErr}`);
+    }
+  }
   app.quit();
 }
 
@@ -2160,4 +2238,5 @@ app.on("will-quit", () => {
   stopTunnels({ wait: true });
   if (httpsProxy) httpsProxy.close();
   if (stopSlideShowWatch) stopSlideShowWatch();
+  localAi.stopOwnOllama(); // only an "ollama serve" Filow started itself; Ollama's own app keeps running
 });

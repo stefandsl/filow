@@ -8,7 +8,7 @@ import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture,
 import { drawingSvg, type BuddyModel } from "@/lib/buddy/visuals";
 import { createSpeaker } from "@/lib/buddy/voice";
 import { markToDisplay, parseBuddyAnswer, pointToDisplay, type BuddyTurn } from "@/lib/buddy/prompt";
-import { okfText, type OkfKey } from "@/lib/buddy/text";
+import { okfText, OLLAMA_STOPPED_ANSWER, type OkfKey } from "@/lib/buddy/text";
 import { dictationText, pasteKeys, type DictationKey } from "@/lib/dictation/text";
 import { playCue } from "@/lib/dictation/cue";
 import { burnStrokes, createVad, describeMarked } from "@/lib/buddy/listen";
@@ -122,16 +122,18 @@ export default function OkFilowPanel() {
 
   const fail = useCallback((raw: string) => {
     // Electron wraps errors thrown in the main process: "Error invoking remote method 'x': Error: msg".
-    const message = raw.replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, "");
+    // A stopped Ollama: said in the user's language, and the desktop shell starts it in the background.
+    const stopped = OLLAMA_STOPPED_ANSWER.test(raw);
+    const message = stopped ? t("ollamaStopped") : raw.replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, "");
     setError(message);
     okFilowBridge()?.text(message);
-    setMode("error", { error: message });
+    setMode("error", stopped ? { error: message, code: "ollama_stopped" } : { error: message });
     // A failure never leaves the mic open.
     if (audio.current) {
       stopAudio();
       void okFilowBridge()?.stt.stop().catch(() => {});
     }
-  }, [setMode, stopAudio]);
+  }, [setMode, stopAudio, t]);
 
   const engineHeadersRef = useRef<() => Promise<Record<string, string>>>(async () => ({}));
   const engineHeaders = useCallback(async (): Promise<Record<string, string>> => {

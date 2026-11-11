@@ -5,6 +5,7 @@ export const it: Record<OkfKey, string> = {
   close: "Chiudi",
   modelHint: "Trascina per ruotare, scorri per ingrandire, fai clic su una parte per chiedere cos'è",
   modelAsking: "Chiedo di {part}…",
+  ollamaStopped: 'Ollama, che su questo PC fa rispondere OK Filow, non è in esecuzione. Se è installato, Filow lo sta avviando adesso: chiedi di nuovo tra un minuto. Altrimenti installalo in Impostazioni > Modelli locali, oppure scegli Cloud in "Risposte da" nel pannello di OK Filow.',
   mode_idle: "Pronto",
   mode_listening: "Ti ascolto…",
   mode_thinking: "Guardo il tuo schermo…",

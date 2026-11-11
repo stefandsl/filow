@@ -10,6 +10,7 @@ const en = {
   close: "Close",
   modelHint: "Drag to turn, scroll to zoom, click a part to ask about it",
   modelAsking: "Asking about {part}…",
+  ollamaStopped: 'Ollama, which runs OK Filow\'s answers on this PC, is not running. If it is installed, Filow is starting it now: ask again in a minute. If not, install it in Settings > Local models, or choose Cloud under "Answers from" in the OK Filow panel.',
   mode_idle: "Ready",
   mode_listening: "Listening…",
   mode_thinking: "Looking at your screen…",
@@ -174,3 +175,6 @@ export function okfText(lang: string, swap: TextSwap = {}): (k: OkfKey) => strin
     return table[key] || en[key];
   };
 }
+
+/** The server's answer when Ollama does not answer at all (providers.ts askOllama); the desktop shell has the same test (localai.js OLLAMA_STOPPED). */
+export const OLLAMA_STOPPED_ANSWER = /\bOllama\b.*\bis not running\b/;

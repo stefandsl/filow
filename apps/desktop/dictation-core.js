@@ -23,11 +23,38 @@ const DEFAULTS = Object.freeze({
   language: "auto",
   /** "paste": type into the app that has focus. "copy": only put the text on the clipboard. */
   insert: "paste",
-  /** Take out hesitation sounds ("um", "ehm", "эээ", "えーと"). Off by default: what was said is what is typed. */
-  removeFillers: false,
-  /** A short quiet tone when dictation starts and stops (useful with a screen reader). */
-  sound: false,
+  /** Take out hesitation sounds ("um", "ehm", "эээ", "えーと"). On by default (owner, issue #3). */
+  removeFillers: true,
+  /** A short quiet tone when dictation starts and stops (useful with a screen reader). On by default (issue #3). */
+  sound: true,
 });
+
+/**
+ * settings.json keeps only what the user chose (`v: 2` plus the keys they set), so a setting they never
+ * touched follows DEFAULTS even when a default changes later. Before v2 the whole cleaned object was saved
+ * on every change, so a stored `false` for removeFillers or sound was the old default, never a choice
+ * (both started off and that build could not tell them apart): those two are dropped from such a record.
+ */
+const STORE_VERSION = 2;
+const KEYS = ["enabled", "chord", "mode", "language", "insert", "removeFillers", "sound"];
+const OLD_OFF_DEFAULTS = ["removeFillers", "sound"];
+
+/** What settings.json holds -> only the user's own choices (an object with known keys). */
+function storedChoices(raw) {
+  const r = raw && typeof raw === "object" ? raw : {};
+  const out = {};
+  for (const k of KEYS) if (r[k] !== undefined) out[k] = r[k];
+  if (r.v !== STORE_VERSION) for (const k of OLD_OFF_DEFAULTS) if (out[k] === false) delete out[k];
+  return out;
+}
+
+/** Stored choices + a patch from Settings -> the record to save (v2, sparse). */
+function nextStored(raw, patch) {
+  const out = { v: STORE_VERSION, ...storedChoices(raw) };
+  const p = patch && typeof patch === "object" ? patch : {};
+  for (const k of KEYS) if (p[k] !== undefined) out[k] = p[k];
+  return out;
+}
 
 // Names people write for each modifier, on every platform.
 const ALIASES = {
@@ -105,7 +132,7 @@ function checkChord(chord, { talk, platform = "win32" } = {}) {
 
 /** Stored settings (plus the old okFilow.dictation switch) -> clean settings. */
 function sanitizeConfig(raw, legacyEnabled) {
-  const r = raw && typeof raw === "object" ? raw : {};
+  const r = storedChoices(raw);
   const enabled = typeof r.enabled === "boolean" ? r.enabled : legacyEnabled === false ? false : DEFAULTS.enabled;
   return {
     enabled,
@@ -113,8 +140,8 @@ function sanitizeConfig(raw, legacyEnabled) {
     mode: r.mode === "toggle" ? "toggle" : "hold",
     language: LANGS.includes(r.language) ? r.language : "auto",
     insert: r.insert === "copy" ? "copy" : "paste",
-    removeFillers: r.removeFillers === true,
-    sound: r.sound === true,
+    removeFillers: typeof r.removeFillers === "boolean" ? r.removeFillers : DEFAULTS.removeFillers,
+    sound: typeof r.sound === "boolean" ? r.sound : DEFAULTS.sound,
   };
 }
 
@@ -304,6 +331,6 @@ function joinAfter(before, text) {
 
 module.exports = {
   joinAfter,
-  MODS, LANGS, DEFAULTS, CHORDS, parseChord, chordLabel, checkChord, sanitizeConfig, pasteDecision,
+  MODS, LANGS, DEFAULTS, CHORDS, parseChord, chordLabel, checkChord, sanitizeConfig, nextStored, pasteDecision,
   snapshotClipboard, restoreClipboard, clipboardWriter, createClipboardInserter, postProcess, removeFillers, setFillerHook, fold,
 };

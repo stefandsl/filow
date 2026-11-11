@@ -86,12 +86,23 @@
         previewTimer = setTimeout(async () => { preview.textContent = await api.preview(description); }, 200);
       } });
     area.value = description;
-    const support = data.support.email || data.support.form
-      ? el("div", { class: "actions" },
-        data.support.email ? el("button", { type: "button", class: "btn", text: `${tx.writeMail}: ${data.support.email}`, onclick: () => void api.support("email") }) : null,
-        data.support.form ? el("button", { type: "button", class: "btn", text: tx.openForm, onclick: () => void api.support("form") }) : null)
-      : el("p", {}, `${tx.supportUnset} `, todo(tx.supportTodo));
-    const save = el("button", { type: "button", class: "btn primary", text: tx.save, disabled: true, onclick: async () => {
+    // The report leaves this PC only here: the notice sits right above the button and is read with it.
+    const issue = el("button", { type: "button", id: "open-issue", class: "btn primary", text: tx.issueOpen, disabled: true, "aria-describedby": "issue-notice", onclick: async () => {
+      issue.disabled = true; // one click, one browser tab
+      try {
+        clearTimeout(previewTimer);
+        preview.textContent = await api.preview(description);
+        const r = await api.issue(description);
+        if (!r || !r.opened) throw new Error((r && r.error) || "not opened");
+        say(tx.issueOpened);
+      } catch {
+        say(fill(tx.issueFailed, { url: data.support.issues }), true);
+      } finally {
+        issue.disabled = false;
+        issue.focus(); // a disabled button loses the focus: give it back
+      }
+    } });
+    const save = el("button", { type: "button", class: "btn", text: tx.save, disabled: true, onclick: async () => {
       // the preview catches up first, so what is on screen is what goes in the file
       clearTimeout(previewTimer);
       preview.textContent = await api.preview(description);
@@ -107,20 +118,22 @@
         ? el("p", {}, fill(tx.crashSome, { count: r.crash.count, size: r.crash.mb }), " ",
           el("button", { type: "button", class: "btn link", text: tx.openCrash, onclick: () => void api.openCrashFolder() }))
         : el("p", { text: tx.crashNone }));
+      issue.disabled = false;
       save.disabled = false;
       copy.disabled = false;
     });
     return [
       el("h1", { tabindex: "-1", text: tx.tabReport }),
-      el("p", { class: "lead", text: tx.reportIntro }),
-      el("h2", { text: tx.whereTo }), support,
+      el("p", { class: "lead", text: tx.issueIntro }),
       el("label", { for: "describe", class: "field-label", text: tx.describe }),
       el("p", { id: "describe-hint", class: "hint", text: tx.describeHint }),
       area,
       el("h2", { text: tx.contents }),
       el("p", { class: "hint", text: tx.masked }),
       preview, crash,
-      el("div", { class: "actions" }, save, copy, el("button", { type: "button", class: "btn", text: tx.close, onclick: () => void api.close() })),
+      el("h2", { text: tx.issueHeading }),
+      el("div", { class: "note", id: "issue-notice" }, el("p", { text: tx.issuePublic })),
+      el("div", { class: "actions" }, issue, save, copy, el("button", { type: "button", class: "btn", text: tx.close, onclick: () => void api.close() })),
       status,
     ];
   }

@@ -60,7 +60,9 @@ export type DesktopBridge = {
 
 export type NetStatus = { ip: string; iface: string; virtual: boolean; firewall: "ok" | "missing" | "n/a"; interfaces: Array<{ name: string; address: string; virtual: boolean }> };
 
-export type LocalAiStatus = { state: "idle" | "checking" | "downloading" | "installing" | "starting" | "ready" | "manual" | "error"; pct: number; error: string; version: string; command: string };
+export type LocalAiStatus = { state: "idle" | "checking" | "downloading" | "installing" | "starting" | "ready" | "manual" | "error"; pct: number; error: string; version: string; command: string;
+  /** On "error": what failed (localai.js installOllama). The page has a sentence for each in the user's language; "" = `error` is already one. */
+  code?: string };
 export type LocalAiHardware = {
   ramGb: number; gpu: string; gpuClass: "discrete" | "integrated" | "unknown"; freeGb: number; cpu: string; cores: number; platform: string; arch: string;
   recommended: { models: string[]; ollama: boolean; downloadGb: number };

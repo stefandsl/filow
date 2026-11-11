@@ -61,7 +61,7 @@ describe("rehearsal report on takes in the five speech languages", () => {
       .start()
       .say(0, 10_000, "Um, so revenue grew twenty percent this year, you know.")
       .set(10_500, "s0b0", "started")
-      .say(16_000, 26_000, "Uh, we opened two new markets, basically Spain and Portugal.")
+      .say(16_000, 26_000, "Uh, we opened two new markets, basically, Spain and Portugal.")
       .set(26_500, "s0b1", "started")
       .go(40_000, 1)
       .say(41_000, 51_000, "Next we hire a team, um, and I mean we hire fast.")
@@ -73,7 +73,7 @@ describe("rehearsal report on takes in the five speech languages", () => {
     expect(r.units).toBe(32);
     expect(r.pauses.list.map((p) => [p.atMs, p.ms, p.sectionIdx])).toEqual([[10_000, 6000, 0], [26_000, 15_000, 0]]);
     expect(r.speakingMs).toBe(30_000);
-    expect(r.pace).toEqual({ unit: "wpm", value: 64, band: "slow", range: [120, 170] });
+    expect(r.pace).toEqual({ unit: "wpm", value: 64, band: "slow", range: [120, 170], basis: "words" });
     // "I mean" before "we" is meant, not a filler; "you know." at the end of a phrase is one
     expect(r.fillers.total).toBe(5);
     expect(r.fillers.top).toEqual([{ label: "um", count: 2 }, { label: "basically", count: 1 }, { label: "uh", count: 1 }]);
@@ -87,7 +87,7 @@ describe("rehearsal report on takes in the five speech languages", () => {
     const script = parseScript("# Apertura\n- I ricavi sono cresciuti\n- Due nuovi mercati\n# Conclusione\n- Assumere un team");
     const log = take(script)
       .start()
-      .say(0, 12_000, "Ehm, allora, i ricavi sono cresciuti molto quest'anno, cioè del venti per cento.")
+      .say(0, 12_000, "Ehm, allora, i ricavi sono cresciuti molto quest'anno, cioè, del venti per cento.")
       .set(12_500, "s0b0", "started")
       .go(13_000, 1)
       .say(13_500, 25_000, "Insomma, come dire, abbiamo anche due nuovi mercati, praticamente.")
@@ -174,7 +174,8 @@ describe("rehearsal details", () => {
   });
 
   it("counts fillers on whole words only", () => {
-    expect([...countFillers("Umbrella, ummm, hmm, uh-huh", "en")]).toEqual([["um", 1], ["hmm", 1], ["uh", 1]]);
+    // "uh-huh" is a yes, not a hesitation
+    expect([...countFillers("Umbrella, ummm, hmm, uh-huh, uh", "en")]).toEqual([["um", 1], ["hmm", 1], ["uh", 1]]);
     expect(countFillers("Ehm ehmmm eh", "it").get("ehm")).toBe(3);
     expect(countFillers("Нужно, вот это", "ru").size).toBe(0);
   });
@@ -185,15 +186,57 @@ describe("rehearsal details", () => {
     expect(outcomes(buildRehearsalReport(log, script))).toEqual({ s0b0: "covered", s0b1: "late", s1b0: "missed" });
   });
 
-  it("estimates when a phrase began when the speech engine sends no partial text", () => {
+  it("counts only sure silence as a pause when the speech engine sends no partial text", () => {
     const script = parseScript("# A\n- x");
     const ten = "one two three four five six seven eight nine ten";
     const log = take(script).start().say(0, 5000, ten, false).say(15_000, 20_000, ten, false).stop(21_000);
     const r = buildRehearsalReport(log, script);
-    expect(r.pauses.count).toBe(1);
-    // the second phrase took about 4 s at an average pace, so the silence was about 11 s, not 15
-    expect(r.pauses.list[0].ms).toBeGreaterThan(10_000);
-    expect(r.pauses.list[0].ms).toBeLessThan(12_000);
+    // ten words take at most 10 s even at half the slow end of the usual pace: at least 5 s of the 15 were silence
+    expect(r.pauses.list.map((p) => [p.atMs, p.ms])).toEqual([[5000, 5000]]);
+    expect(r.pace.basis).toBe("phrases");
+  });
+
+  // Review M3: phrases committed whole every 10 s were reported at an "ok" 125 words a minute.
+  it("measures the pace of whole phrases on the real time between them, in the take's language", () => {
+    const script = parseScript("# A\n- x");
+    const ten = "one two three four five six seven eight nine ten";
+    const slow = take(script).start();
+    for (let i = 1; i <= 12; i++) slow.say(0, i * 10_000, ten, false);
+    const r = buildRehearsalReport(slow.stop(125_000), script, { lang: "en" });
+    expect(r.pace).toEqual({ unit: "wpm", value: 60, band: "slow", range: [120, 170], basis: "phrases" });
+    expect(r.pauses.count).toBe(0);
+    // the saved report says the number is approximate, and why
+    expect(rehearsalMarkdown(r, "en")).toContain("- Pace: 60 words a minute (slow, usual 120-170); approximate: this speech model sends only whole phrases");
+    const fast = take(script).start();
+    for (let i = 1; i <= 12; i++) fast.say(0, i * 3000, ten, false);
+    expect(buildRehearsalReport(fast.stop(40_000), script, { lang: "en" }).pace).toMatchObject({ value: 200, band: "fast" });
+    // Russian: 8 words every 4 s is 120 a minute, inside the Russian range (100-150), not judged by the English one
+    const ru = take(script).start();
+    for (let i = 1; i <= 12; i++) ru.say(0, i * 4000, "мы говорим о том что важно для нас", false);
+    expect(buildRehearsalReport(ru.stop(50_000), script, { lang: "ru" }).pace).toMatchObject({ value: 120, band: "ok", range: [100, 150] });
+  });
+
+  // Review M4: 40 partials, a 4.5 s "(transcription lagging…)" gap, then words: one long pause was reported.
+  it("does not call a stretch the engine was lagging on a pause, nor time it for the pace", () => {
+    let now = 0;
+    const rec = new TakeRecorder(() => now);
+    rec.observe({ sectionIdx: 0, points: {}, engine: { recording: true, backend: null } });
+    for (; now < 20_000; now += 500) rec.transcript({ partial: "we talk" });
+    rec.transcript({ committed: "we talk about the plan for the year and the people who run it today" });
+    now = 22_000;
+    rec.transcript({ partial: "(transcription lagging…)" });
+    now = 24_500;
+    for (; now < 45_000; now += 500) rec.transcript({ partial: "and then" });
+    rec.transcript({ committed: "and then we talk about the money and the time it takes to get there" });
+    now = 46_000;
+    rec.observe({ sectionIdx: 0, points: {}, engine: { recording: false, backend: null } });
+    const log = rec.result()!;
+    expect(log.stalls).toEqual([22_000]);
+    const r = buildRehearsalReport(log, parseScript("# A\n- x"), { lang: "en" });
+    expect(r.pauses.count).toBe(0);
+    // 40.5 s of heard speech (0-20 s and 24.5-45 s), the 4.5 s gap left out
+    expect(r.speakingMs).toBe(40_500);
+    expect(r.pace.basis).toBe("words");
   });
 
   it("ignores status text from the speech engine and speech outside a take", () => {
@@ -289,6 +332,40 @@ describe("rehearsal details", () => {
     expect(Object.fromEntries(countFillers("ええと、あのー、あの人は、えーと、えっと", "ja"))).toEqual({ "えーと": 2, "えっと": 1, "あのー": 1 });
     expect(n("あのう、それは、あの人です。", "ja")).toBe(1);
   });
+
+  it("English and Italian: a word that is meant is never a filler, a word set off by pauses still is", () => {
+    const n = (text: string, lang: Parameters<typeof countFillers>[1]) => [text, [...countFillers(text, lang).values()].reduce((a, b) => a + b, 0)];
+    const meantEn = [
+      "That is what I mean.", "As you know.", "Now you know, so act.", "I know what you know.",
+      "Uh-huh.", "Um-hum, yes.", "Mm-hmm.", "Uh huh, go on.", "Uh-oh, the slide is gone.", "Uh-uh, not that one.",
+      "It is literally translated.", "Translated literally.", "Basically it is the basis.", "It is basically done.",
+      "We err on the side of caution.", "The ER was full.", "The gap is 5 mm.", "Mm, yes.",
+      "Mm-mm, not that one.", "Nuh-uh.", "Huh-uh.", "Uh\u2013huh.",
+      // a whole sentence is an answer or a statement, not an aside
+      "You know.", "I told you. You know.", "Basically.",
+    ];
+    for (const s of meantEn) expect(n(s, "en")).toEqual([s, 0]);
+    const meantIt = [
+      "Praticamente tutto.", "Insomma ha vinto.", "Non so come dire.", "Come dire di no?", "Lo facciamo come diciamo.",
+      "Diciamo la verità.", "È cresciuto, cioè del venti per cento.", "Com'è andata? Insomma.",
+    ];
+    for (const s of meantIt) expect(n(s, "it")).toEqual([s, 0]);
+    expect(Object.fromEntries(countFillers("Um, you know, it is, basically, done. I mean, uh, er, literally. Uh, uh, well.", "en"))).toEqual({ um: 1, "you know": 1, basically: 1, "I mean": 1, uh: 3, er: 1, literally: 1 });
+    expect(Object.fromEntries(countFillers("Ehm, cioè, insomma, abbiamo, praticamente, finito, diciamo. Come dire, sì.", "it"))).toEqual({ ehm: 1, "cioè": 1, insomma: 1, praticamente: 1, diciamo: 1, "come dire": 1 });
+  });
+
+  it("a phrase the speech engine cut in two is read with its neighbours: the cut is not a pause", () => {
+    const total = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0);
+    expect(total(countFillers("I mean, more or less.", "en"))).toBe(1);
+    expect(total(countFillers("I mean, more or less.", "en", { before: "That is exactly what" }))).toBe(0);
+    expect(total(countFillers("And then, I mean", "en"))).toBe(1);
+    expect(total(countFillers("And then, I mean", "en", { after: "that we should go" }))).toBe(0);
+    expect(total(countFillers("praticamente", "it", { before: "Abbiamo venduto,", after: "tutto" }))).toBe(0);
+    expect(total(countFillers("you know", "en", { before: "It grew this year,", after: "" }))).toBe(1);
+    const script = parseScript("# A\n- One");
+    const log = take(script).start().say(0, 4000, "That is exactly what").say(4500, 6000, "I mean, more or less.").say(7000, 12_000, "As").say(12_500, 14_000, "you know, it grew.").stop(15_000);
+    expect(buildRehearsalReport(log, script, { lang: "en" }).fillers.total).toBe(0);
+  });
 });
 
 describe("rehearsal Markdown", () => {
@@ -301,9 +378,24 @@ describe("rehearsal Markdown", () => {
     expect(en).toContain("| Intro | 0:31 | 1:00 | 1 not reached |");
     expect(en).toContain("## Points you did not get to (the take ended first)\n\n- Hello | world");
     expect(en).toContain("\n## Talk notes\n\n### 1. Slide");
+    // words in progress were seen: the pace is not flagged as approximate
+    expect(en).not.toContain("approximate");
     const it = rehearsalMarkdown(r, "it");
     expect(it).toContain("# Resoconto della prova");
     expect(it).toContain("| Sezione | Tempo | Obiettivo | Punti |");
     expect(it).not.toContain("Talk notes");
+  });
+
+  it("writes times and section names as the timer and the screen do: hours, no label prefix, 'not shown', time over", () => {
+    const script = parseScript("<!-- target: 60 min -->\n# Intro - Why now (20 min)\n- One\n# Part 2 - Never shown\n- Two");
+    const r = buildRehearsalReport(take(script).start().stop(90 * 60_000 + 59_900), script, { lang: "en" });
+    const md = rehearsalMarkdown(r, "en");
+    expect(md).toContain("- Length: 1:30:59 of 1:00:00 (30:59 over)");
+    expect(md).not.toMatch(/\b9[01]:\d\d\b/);
+    expect(md).toContain("| Why now | 1:30:59 (+1:10:59) | 20:00 | 1 not reached |");
+    expect(md).toContain("| Never shown | not shown | 40:00 | 1 not reached |");
+    expect(rehearsalMarkdown(r, "it")).toContain("- Durata: 1:30:59 su 1:00:00 (30:59 oltre)");
+    const short = parseScript("<!-- target: 10 min -->\n# A\n- One");
+    expect(rehearsalMarkdown(buildRehearsalReport(take(short).start().stop(8 * 60_000), short, { lang: "en" }), "en")).toContain("- Length: 8:00 of 10:00 (2:00 left)");
   });
 });

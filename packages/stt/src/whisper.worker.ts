@@ -12,7 +12,7 @@ type In =
   | { type: "load"; model: string }
   | { type: "transcribe"; id: number; audio: Float32Array; language?: string };
 type Out =
-  | { type: "progress"; model: string; file?: string; progress?: number; status: string }
+  | { type: "progress"; model: string; file?: string; progress?: number; loaded?: number; total?: number; status: string }
   | { type: "ready"; model: string; device: string }
   | { type: "result"; id: number; text: string }
   | { type: "error"; message: string; id?: number };
@@ -33,8 +33,9 @@ async function load(model: string) {
     asr = (await pipeline("automatic-speech-recognition", model, {
       device,
       dtype: hasWebGpu ? "fp32" : "q8",
-      progress_callback: (p: { status: string; file?: string; progress?: number }) =>
-        post({ type: "progress", model, file: p.file, progress: p.progress, status: p.status }),
+      // loaded/total per file: the page adds them up into one number for the model (issue #4).
+      progress_callback: (p: { status: string; file?: string; progress?: number; loaded?: number; total?: number }) =>
+        post({ type: "progress", model, file: p.file, progress: p.progress, loaded: p.loaded, total: p.total, status: p.status }),
     })) as AutomaticSpeechRecognitionPipeline;
     loadedModel = model;
     post({ type: "ready", model, device });
