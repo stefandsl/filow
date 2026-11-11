@@ -488,7 +488,7 @@ describe("whiteboard lesson, cloud model", () => {
 
     it("sends the examiner only the question and the lesson's own text", async () => {
       await run([OHM("drives", "v", "i"), review([true, true, true], ["ok", "ok", "ok"])]);
-      const sent = String(outside()[1].body.messages[1].content[0]?.text ?? outside()[1].body.messages[1].content);
+      const sent = (outside()[1].body.messages[1].content as Array<{ text?: string }>)[0]?.text ?? "";
       expect(sent).toContain(`Asked: """Ohm's law"""`);
       expect(sent).toContain("1. Voltage --drives--> Current");
       expect(sent).toContain("3. Current --creates--> Resistance");
