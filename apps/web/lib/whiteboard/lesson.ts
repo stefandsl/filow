@@ -17,7 +17,7 @@ export type LessonItem =
   | { kind: "edge"; from: string; to: string; text: string }
   | { kind: "formula"; tex: string }
   /** `more`: further functions drawn on the same axes (the plot marks where the first two meet). */
-  | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string; more?: string[] }
+  | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string; more?: string[]; xName?: string; yName?: string }
   | { kind: "note"; text: string; about?: string }
   /** A row of values with a pointer under one of them (-1: none): the worked example of an algorithm. */
   | { kind: "cells"; values: string[]; pointer: number }
@@ -53,6 +53,8 @@ export const LIMITS = {
   note: 120,
   /** One value of a row of cells: long enough for a line of a worked example ("3 * Factorial(2)", "I = 2 A"). */
   cell: 40,
+  /** The name of an axis of a plot. */
+  axis: 28,
   tex: 180,
   question: 400,
   /** The lesson sent back with a follow-up question. */
@@ -181,12 +183,13 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
     if (kind === "node") {
       addNode(q.id, q.text ?? q.label ?? q.name);
     } else if (kind === "edge" || kind === "arrow") {
-      const fromRef = q.from ?? q.source;
+      // an arrow may be written as a sentence: who, does, to (the one that acts comes first by construction)
+      const fromRef = q.who ?? q.from ?? q.source;
       const toRef = q.to ?? q.target;
       const from = find(fromRef) || addNode(fromRef, "");
       const to = find(toRef) || (full() ? "" : addNode(toRef, ""));
       if (!from || !to || full()) continue;
-      const text = cleanText(q.text ?? q.label, LIMITS.edgeText);
+      const text = cleanText(q.does ?? q.text ?? q.label, LIMITS.edgeText);
       // an arrow from a box to itself ("calls itself") says something only with its label
       if (from === to && !text) continue;
       const edgeKey = `${from}>${to}>${text.toLowerCase()}`;
@@ -213,7 +216,10 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
       // The same curve again is not drawn twice, but the same curve with another one beside it is a new
       // picture (demand alone, then demand and supply): dropping it would lose the second curve.
       if (!once(`p:${[expr, ...more].join("|").replace(/\s+/g, "")}`)) continue;
-      out.push({ kind: "plot", expr, xmin, xmax, text: cleanText(q.label ?? (q.expr ? q.text : ""), LIMITS.edgeText), ...(more.length ? { more } : {}) });
+      // what the two axes measure ("Current (A)", "Voltage (V)"): written at the axes
+      const xName = cleanText(q.x ?? q.xName ?? q.xlabel, LIMITS.axis);
+      const yName = cleanText(q.y ?? q.yName ?? q.ylabel, LIMITS.axis);
+      out.push({ kind: "plot", expr, xmin, xmax, text: cleanText(q.label ?? (q.expr ? q.text : ""), LIMITS.edgeText), ...(more.length ? { more } : {}), ...(xName ? { xName } : {}), ...(yName ? { yName } : {}) });
     } else if (kind === "note" || kind === "text" || kind === "list") {
       const text = cleanText(q.text ?? (Array.isArray(q.items) ? q.items.join("; ") : ""), LIMITS.note);
       const about = slug(q.about ?? q.target);

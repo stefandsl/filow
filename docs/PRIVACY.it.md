@@ -126,6 +126,12 @@ un'azienda dovrebbe controllare le condizioni dei fornitori che ci stanno dietro
 **La modalità offline** (menu Filow) blocca ogni richiesta che uscirebbe dal tuo computer, compresi
 il controllo degli aggiornamenti e il link pubblico.
 
+**Nomi nelle domande alla lavagna.** Alcuni account online nascondono i nomi in ciò che invii
+prima che il modello lo veda, così una lezione sul "ciclo di Krebs" parlerebbe d'altro. Quando
+Filow se ne accorge, invia di nuovo la stessa domanda della lavagna con il nome scritto lettera per
+lettera, allo stesso servizio, e te lo dice sotto la lezione. Viene modificato solo il testo di
+quella domanda: mai il tuo script, il tuo schermo, le tue domande a OK Filow o una risposta.
+(Deciso dal titolare l'11 novembre 2026.)
 ## Il link pubblico
 
 Per permettere a un telefono su un'altra rete di seguire il tuo intervento, Filow apre un link

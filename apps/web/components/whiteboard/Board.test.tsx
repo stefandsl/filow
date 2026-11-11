@@ -103,6 +103,15 @@ describe("whiteboard board", () => {
     expect(render(cut, 0)).toContain("<image href=");
   });
 
+  it("writes the names of a plot's axes at the axes", () => {
+    const named = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "plot", expr: "6*x", xmin: 0, xmax: 5, x: "Current (A)", y: "Voltage (V)" }] }] })!;
+    const svg = render(named, 0);
+    expect(svg).toContain('data-axis="x">Current (A)</text>');
+    expect(svg).toContain('data-axis="y">Voltage (V)</text>');
+    const bare = render(validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "plot", expr: "6*x", xmin: 0, xmax: 5 }] }] })!, 0);
+    expect(bare).toContain('data-axis="x">x</text>');
+    expect(bare).not.toContain('data-axis="y"');
+  });
   it("labels a plot of money in plain numbers, not powers of ten", () => {
     const money = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "plot", expr: "1000 * (1 + 0.05 * x)", more: ["1000 * 1.05^x"], xmin: 0, xmax: 30 }] }] })!;
     const svg = render(money, 0);

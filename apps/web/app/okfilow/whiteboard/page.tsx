@@ -29,6 +29,11 @@ import "./whiteboard.css";
 
 const REPLAY_KEY = "filow.whiteboard.replay";
 const LOOK_KEY = "filow.whiteboard.look";
+// Set once a lesson showed that the online account hides names: later questions spell their names out from the first call.
+const SPELL_KEY = "filow.whiteboard.spell";
+const knownToHideNames = () => {
+  try { return localStorage.getItem(SPELL_KEY) === "1"; } catch { return false; }
+};
 const EXAMPLES: WbKey[] = ["example1", "example2", "example3", "example4"];
 
 export default function WhiteboardPage() {
@@ -105,7 +110,7 @@ export default function WhiteboardPage() {
         return changesStored(s.consent ?? {}, changes);
       },
       fetchRecipients: async () => {
-        const res = await fetch("/api/buddy/recipients", { headers: await engineHeaders() });
+        const res = await fetch("/api/whiteboard/recipients", { headers: await engineHeaders() });
         return res.ok ? ((await res.json()) as BuddyRecipients) : null;
       },
       signal: {
@@ -167,7 +172,7 @@ export default function WhiteboardPage() {
           method: "POST",
           signal: abort.signal,
           headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent },
-          body: JSON.stringify({ question: text, provider: route, setup: getSetupPreference(), language: more ? lsRef.current.meta?.lang ?? "auto" : "auto", lesson: more ? current : undefined }),
+          body: JSON.stringify({ question: text, provider: route, setup: getSetupPreference(), language: more ? lsRef.current.meta?.lang ?? "auto" : "auto", lesson: more ? current : undefined, spell: route !== "local" && knownToHideNames() }),
         });
         if (!res.ok || !res.body) {
           const j = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
@@ -275,6 +280,11 @@ export default function WhiteboardPage() {
       narrow.removeEventListener("change", size);
     };
   }, []);
+
+  useEffect(() => {
+    if (!ls.spelled.length) return;
+    try { localStorage.setItem(SPELL_KEY, "1"); } catch { /* the next question finds it out again */ }
+  }, [ls.spelled]);
 
   // The player follows the lesson as it arrives.
   const stepCount = ls.lesson?.steps.length ?? 0;
@@ -529,6 +539,7 @@ export default function WhiteboardPage() {
             {/* The local model explains correctly but its boards miss the main relations too often (docs/whiteboard/PROOF.md, round 3): the page says so. Never a switch: only words. */}
             {ls.meta?.provider === "local" && <p className="wb-note" data-advice="cloud">{t("localSimple")}</p>}
             {lite && <p className="wb-note">{t("liteNote")}</p>}
+            {ls.spelled.length > 0 && <p className="wb-note" data-spelled={ls.spelled.join(",")}>{t("spelledNote", { names: ls.spelled.join(", ") })}</p>}
             {ls.unchecked.length > 0 && <p className="wb-note" data-unchecked={ls.unchecked.join(",")}>{t("uncheckedNote", { steps: ls.unchecked.join(", ") })}</p>}
             {ls.doubts && ls.unchecked.length === 0 && <p className="wb-note" data-doubts="1">{t("doubtsNote")}</p>}
             {ls.stalled && <p className="wb-note">{t("stalledNote")}</p>}

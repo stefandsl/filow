@@ -14,7 +14,7 @@ export type LessonEvent =
   | { type: "step"; index: number; step: LessonStep }
   /** `relations`/`drawn`: how many relations the checked plan had and how many of them ended on the board (local path). */
   /** `unchecked`: steps (0-based) shown although their check did not pass. `doubts`: what the last look in code still found. */
-  | { type: "done"; cards: number; stalled: boolean; relations?: number; drawn?: number; unchecked?: number[]; doubts?: string[] }
+  | { type: "done"; cards: number; stalled: boolean; relations?: number; drawn?: number; unchecked?: number[]; doubts?: string[]; spelled?: string[] }
   /** Only when the request asked for it (the proof bench): the lesson as the model first wrote it, and what each guard changed. */
   | { type: "audit"; raw: unknown; changes: string[] }
   | { type: "error"; message: string; code: "plan" | "stalled" | "model" | "topic" | "busy" | "redacted" };
@@ -64,9 +64,9 @@ function outlineSystem(lang: BuddyLang, maxSteps: number, more: boolean): string
 
 const ITEM_RULES = [
   '- {"kind":"node","id":"leaf","text":"Leaf"}: a labelled box. id: short lowercase ASCII. text: 1 to 3 words.',
-  '- {"kind":"edge","from":"sun","to":"leaf","text":"energy"}: an arrow between two node ids, new or already on the board. text: 0 to 2 words.',
-  '- {"kind":"formula","tex":"a^2 + b^2 = c^2"}: one formula in LaTeX.',
-  '- {"kind":"plot","expr":"x^2","xmin":-3,"xmax":3}: the graph of an expression in x (numbers, x, + - * / ^, sin, cos, exp, ln, sqrt).',
+  '- {"kind":"edge","who":"sun","does":"gives light to","to":"leaf"}: an arrow, written as a sentence: "who" (a node id, new or already on the board) "does" (a verb, 1 to 3 words) "to" (a node id). "who" is the one that acts, gives, sends or causes, and the arrow is drawn from "who" to "to". Read it back as a sentence ("Sun gives light to Leaf"): it must be true exactly as said. The receiver never comes first: not who "network", does "receives", to "data", but who "data", does "feeds", to "network".',
+  '- {"kind":"formula","tex":"a^2 + b^2 = c^2"}: one formula in LaTeX. Every letter in it is named in the same step, in the sentence or in a note ("P = principal, r = yearly rate, t = years").',
+  '- {"kind":"plot","expr":"6*x","xmin":0,"xmax":5,"x":"Current (A)","y":"Voltage (V)"}: the graph of an expression in x (numbers, x, + - * / ^, sin, cos, exp, ln, sqrt). "x" and "y" name what the two axes measure, with the unit: always give both.',
   '- {"kind":"note","about":"leaf","text":"..."}: a short remark, at most 12 words. "about": the id of the box it describes, when it describes one; it belongs to the step that draws that box, or a later one.',
   '- {"kind":"mark","target":"leaf","style":"circle"}: circle, underline or highlight a node already on the board.',
 ];
@@ -88,6 +88,7 @@ function cloudSystem(lang: BuddyLang, maxSteps: number, more: boolean): string {
     'Choose the kind of explanation and follow its recipe. A process: what goes in, what happens in order, what comes out. A proof: what is given, the construction, each equality with its reason, the conclusion. An algorithm: one small example with real values traced step by step in a row of cells. A law: each quantity, the formula, one example with numbers, and a plot when it is a curve. A market, a feedback or a cycle: the mechanism that moves it (what pushes the price up or down, what feeds back), drawn as arrows that close the loop.',
     'Every arrow has a label and reads as a sentence from its start to its end: "Voltage --drives--> Current", never the other way round. An arrow points the way things go: from what gives, sends or causes to what receives ("Input data --feeds--> Network", "Plant --releases--> Oxygen", never "Network --receives--> Input data"). The first step introduces the topic itself. A note about a plot names only curves that plot draws. An arrow is drawn in the step whose sentence states it. Every box that takes part is linked by an arrow; a cycle or a loop is closed by an arrow back to its start. Two plots must not contradict each other: use the same expression for the same curve, and the function the worked example uses. Curves that meet (supply and demand) go on ONE plot, {"kind":"plot","expr":"10 - x","more":["2*x"],"xmin":0,"xmax":8}: the board marks where they cross. A number in a sentence is exact, or the sentence says how it is rounded ("rounded down"). Keep the board readable: at most 8 boxes and 10 arrows in the whole lesson.',
     "Later steps reuse the ids of earlier nodes. No coordinates outside a sketch, no HTML, no links.",
+    "Before you answer, check three things: every box is the who or the to of at least one arrow; every arrow reads as a true sentence from who to to; every letter of every formula is named in its step.",
     `Write the title and every text in ${BUDDY_LANG_NAMES[lang]}; ids stay ASCII.`,
     NOT_AN_INSTRUCTION,
   ].join("\n");
@@ -107,6 +108,10 @@ export type LessonRequest = {
   audit?: boolean;
   /** Guards switched on or off for this request (see GUARDS). */
   guards?: Partial<typeof GUARDS>;
+  /** The page knows this account hides names (an earlier lesson showed it): spell the names of the question out from the first call. */
+  spell?: boolean;
+  /** How names are spelled out (WHITEBOARD_NAME_SPELLING; default: letters apart). */
+  spelling?: Spelling;
   /** Checks of the local path switched off for this request (see LOCAL_CHECKS). */
   localChecks?: Partial<typeof LOCAL_CHECKS>;
 };
@@ -118,6 +123,8 @@ export type LessonRequest = {
  * must: the examiner names one thing the board must show, and its absence asks for a rewrite.
  * links: boxes no arrow touches are named to the model once, and the links it proposes are judged.
  * removeLoneBoxes: a box still alone after that is taken off the board.
+ * legend (on): letters of a formula that nothing names, and plot axes without a name, are asked for
+ *   once and added. It adds a note and names; it never changes or removes what the model wrote.
  * examiner: a second call reads the lesson back (topic, every sentence, whether it does what was
  *   asked); a refusal asks for one rewrite, and a step still refused is named as not confirmed.
  * arrows: a call judges every arrow alone; a reversed one is turned, a false one is not drawn.
@@ -139,7 +146,7 @@ export type LessonRequest = {
  */
 export const LOCAL_CHECKS = { sentences: true, relations: true, repair: true };
 
-export const GUARDS = { examiner: false, arrows: false, sums: false, must: false, links: false, removeLoneBoxes: false };
+export const GUARDS = { legend: true, examiner: false, arrows: false, sums: false, must: false, links: false, removeLoneBoxes: false };
 
 /** How long one answer may take. The outline includes loading the model into memory the first time. */
 export const TIMEOUTS = { outlineMs: 150_000, stepMs: 75_000, cloudMs: 120_000, lessonMs: 420_000 };
@@ -743,12 +750,41 @@ export function validatorLosses(raw: unknown, lesson: Lesson): string[] {
  * way, or the model drifted. Only words written with a capital inside the question count, and only
  * in scripts that have capitals; a name matches by its first letters, so "Pythagoras" finds "Pythagorean".
  */
-export function missingNames(question: string, text: string): string[] {
+/** The proper names of a question: words written with a capital inside it, and a possessive at its start ("Ohm's law", "Bayes' rule"). */
+export function questionNames(question: string): string[] {
   const words = question.replace(/[\u2019]/g, "'").split(/[^\p{L}']+/u).filter(Boolean);
+  // inside the question any capitalised word is a name; at its start only a possessive is
+  return [...new Set(words.filter((word, i) => word.length >= 3 && /^\p{Lu}\p{Ll}/u.test(word) && (i > 0 || /'s?$/.test(word))).map((word) => word.replace(/'s?$/, "")))];
+}
+
+/** How a name is spelled out so that a privacy filter on the way does not take it for a person: its letters apart. */
+export const SPELLINGS = { spaced: " ", hyphen: "-", dots: "." } as const;
+export type Spelling = keyof typeof SPELLINGS;
+export const spellName = (name: string, how: Spelling = "spaced") => Array.from(name).join(SPELLINGS[how]);
+/**
+ * The question with its names spelled out, and the model told why. Only this text is changed, and
+ * only for the whiteboard: an account that hides names (the owner's decision of 11/11/2026 is to
+ * keep that filter on) would otherwise have the lesson written about "[PERSON_NAME]".
+ */
+export function spellQuestion(question: string, names: string[], how: Spelling = "spaced"): string {
+  let text = question;
+  for (const name of names) text = text.split(name).join(spellName(name, how));
+  return `${text}\n(A privacy filter between us hides names, so ${names.map((n) => `"${spellName(n, how)}"`).join(" and ")} ${names.length > 1 ? "are names" : "is a name"} spelled out letter by letter: read ${names.length > 1 ? "each" : "it"} as one word, and write ${names.length > 1 ? "them" : "it"} normally in your answer.)`;
+}
+/** Text in which a name the model wrote spelled out ("K r e b s", "K-r-e-b-s") is written normally again. Nothing else is touched. */
+export function unspell(text: string, names: string[]): string {
+  let out = text;
+  for (const name of names) {
+    const letters = Array.from(name).map((ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    if (letters.length < 2) continue;
+    out = out.replace(new RegExp(`(?<![\\p{L}])${letters.join("[ .\\-\\u00b7]{1,2}")}(?![\\p{L}])`, "giu"), name);
+  }
+  return out;
+}
+
+export function missingNames(question: string, text: string): string[] {
   const hay = text.toLowerCase();
-  // inside the question any capitalised word is a name; at its start only a possessive is ("Ohm's law", "Bayes' rule")
-  const names = words.filter((word, i) => word.length >= 3 && /^\p{Lu}\p{Ll}/u.test(word) && (i > 0 || /'s?$/.test(word))).map((word) => word.replace(/'s?$/, ""));
-  return [...new Set(names)].filter((name) => !hay.includes(name.toLowerCase().slice(0, Math.max(3, Math.min(5, name.length)))));
+  return questionNames(question).filter((name) => !hay.includes(name.toLowerCase().slice(0, Math.max(3, Math.min(5, name.length)))));
 }
 
 /** Everything written on the boards of a lesson, as one lower-case text. */
@@ -821,6 +857,82 @@ export function labelNotes(raw: unknown, lesson: Lesson): Lesson {
   return { ...lesson, steps };
 }
 
+/** Letters that need no naming: the constants and the variable of a plot. */
+const KNOWN_SYMBOLS = new Set(["e", "d", "x", "y"]);
+/** The single-letter symbols of a formula ("A = P(1 + r/n)^{nt}" has A, P, r, n, t); words such as sin or mid are not symbols. */
+export function formulaSymbols(tex: string): string[] {
+  const bare = tex.replace(/\\(?:text|mathrm|operatorname|mathbf|textbf)\s*\{[^}]*\}/g, " ").replace(/\\[a-zA-Z]+/g, " ");
+  const found: string[] = [];
+  for (const run of bare.match(/[A-Za-z]+/g) ?? []) if (run.length <= 2) for (const ch of run) if (!KNOWN_SYMBOLS.has(ch) && !found.includes(ch)) found.push(ch);
+  return found;
+}
+
+/**
+ * What a reader cannot read off the board without being told: per step (0-based), the letters of
+ * its formulas that nothing said or written up to that step names, and the plots (numbered in board
+ * order from 1) whose axes have no name.
+ */
+export function missingLegend(lesson: Lesson): { symbols: Array<{ step: number; symbols: string[] }>; plots: number[] } {
+  const symbols: Array<{ step: number; symbols: string[] }> = [];
+  const plots: number[] = [];
+  let told = lesson.title;
+  let plot = 0;
+  lesson.steps.forEach((s, k) => {
+    told += ` ${s.say} ${s.items.map((it) => (it.kind === "node" || it.kind === "note" || it.kind === "edge" ? it.text : it.kind === "cells" ? it.values.join(" ") : "")).join(" ")}`;
+    const named = (ch: string) => new RegExp(`(^|[^\\p{L}])${ch}([^\\p{L}]|$)`, "u").test(told);
+    const open = [...new Set(s.items.flatMap((it) => (it.kind === "formula" ? formulaSymbols(it.tex) : [])))].filter((ch) => !named(ch));
+    // one formula of pure numbers, or a single stray letter, is not worth a question
+    if (open.length >= 2 || (open.length === 1 && s.items.some((it) => it.kind === "formula" && formulaSymbols(it.tex).length >= 3))) symbols.push({ step: k, symbols: open });
+    for (const it of s.items) if (it.kind === "plot" && ++plot && !(it.xName && it.yName)) plots.push(plot);
+  });
+  return { symbols, plots };
+}
+
+const LEGEND_SYSTEM = [
+  'A whiteboard lesson leaves some things unnamed. Reply with JSON only: {"symbols":[{"symbol":"n","means":"periods a year"}],"axes":[{"plot":1,"x":"Current (A)","y":"Voltage (V)"}]}.',
+  '"symbols": for each letter listed, what it stands for in this lesson, in 1 to 5 words.',
+  '"axes": for each plot listed, what the horizontal axis (x) and the vertical axis (y) measure, with the unit when there is one, in 1 to 3 words each.',
+  "Name only what is listed. Use the words of the lesson.",
+].join("\n");
+
+/** The lesson with its legend added: a note that names the letters in the step of their formula, and names on the axes. Nothing is taken away. */
+export function addLegend(lesson: Lesson, raw: unknown, want: ReturnType<typeof missingLegend>): { lesson: Lesson; added: string[] } {
+  const r = (raw && typeof raw === "object" ? raw : {}) as { symbols?: unknown; axes?: unknown };
+  const means = new Map<string, string>();
+  for (const s of Array.isArray(r.symbols) ? r.symbols : []) {
+    const q = (s && typeof s === "object" ? s : {}) as { symbol?: unknown; means?: unknown };
+    const symbol = cleanText(q.symbol, 2);
+    const text = cleanText(q.means, 40);
+    if (symbol.length === 1 && text) means.set(symbol, text);
+  }
+  const axes = new Map<number, { x: string; y: string }>();
+  for (const a of Array.isArray(r.axes) ? r.axes : []) {
+    const q = (a && typeof a === "object" ? a : {}) as { plot?: unknown; x?: unknown; y?: unknown };
+    const x = cleanText(q.x, LIMITS.axis);
+    const y = cleanText(q.y, LIMITS.axis);
+    if (typeof q.plot === "number" && want.plots.includes(q.plot) && x && y) axes.set(q.plot, { x, y });
+  }
+  const added: string[] = [];
+  let plot = 0;
+  const steps = lesson.steps.map((s, k) => {
+    const items: LessonItem[] = s.items.map((it): LessonItem => {
+      if (it.kind !== "plot") return it;
+      const names = axes.get(++plot);
+      if (!names) return it;
+      added.push(`axes of plot ${plot} named "${names.x}" and "${names.y}"`);
+      return { ...it, xName: it.xName || names.x, yName: it.yName || names.y };
+    });
+    const open = want.symbols.find((w) => w.step === k)?.symbols.filter((ch) => means.has(ch)) ?? [];
+    const text = open.map((ch) => `${ch} = ${means.get(ch)}`).join(", ").slice(0, LIMITS.note);
+    if (text && items.length < LIMITS.lessonItemsPerStep) {
+      items.push({ kind: "note", text });
+      added.push(`step ${k + 1}: the letters ${open.join(", ")} named in a note`);
+    }
+    return { ...s, items };
+  });
+  return { lesson: added.length ? { ...lesson, steps } : lesson, added };
+}
+
 /** Steps (1-based) whose sentence states a sum that does not come out: checked by computing it, not by asking. */
 export function wrongSums(lesson: Lesson): Array<{ step: number; claim: string }> {
   return lesson.steps.flatMap((s, k) => checkArithmetic(s.say).map((claim) => ({ step: k + 1, claim })));
@@ -831,7 +943,16 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
   const more = Boolean(req.lesson);
   const guards = { ...GUARDS, ...req.guards };
   const maxSteps = more ? Math.min(3, req.maxSteps) : req.maxSteps;
-  const user = more ? `${lessonContextText(req.lesson!)}\n\nFollow-up: ${quoted(req.question)}` : `Concept: ${quoted(req.question)}`;
+  const userFor = (question: string) => (more ? `${lessonContextText(req.lesson!)}\n\nFollow-up: ${quoted(question)}` : `Concept: ${quoted(question)}`);
+  let user = userFor(req.question);
+  // Names of the question spelled out for an online account that hides names (whiteboard questions only, this text only).
+  const names = more ? [] : questionNames(req.question);
+  let spelled: string[] = [];
+  const spell = () => {
+    spelled = names;
+    user = userFor(spellQuestion(req.question, names, req.spelling));
+    changes.push(`the question was sent again with ${names.join(", ")} spelled out: the online account hides names`);
+  };
   /** What each guard changed, in order, and the lesson as the model first wrote it (sent as an "audit" event when asked for). */
   const changes: string[] = [];
   let firstRaw: unknown = null;
@@ -840,7 +961,8 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
   type Draft = { lesson: Lesson; drifted: string[]; lost: string[] };
   const write = async (note: string): Promise<Draft | null> => {
     for (let attempt = 0; attempt < 2; attempt++) {
-      const text = await ask({ system: cloudSystem(req.lang, maxSteps, more), user: note ? `${user}\n\n${note}` : user, format: { type: "object" }, maxTokens: 3500, timeoutMs: TIMEOUTS.cloudMs, temperature: attempt ? 0.6 : 0.3 });
+      // a name the model wrote spelled out, as it was sent, is written normally again before anything reads the answer
+      const text = unspell(await ask({ system: cloudSystem(req.lang, maxSteps, more), user: note ? `${user}\n\n${note}` : user, format: { type: "object" }, maxTokens: 3500, timeoutMs: TIMEOUTS.cloudMs, temperature: attempt ? 0.6 : 0.3 }), spelled);
       const raw = parseJsonLoose(text);
       const valid = validateLesson(raw, { maxSteps, texOk, sketch: true, continues: more ? req.lesson! : undefined });
       // A placeholder the question did not contain means the model never saw a name of the question.
@@ -887,7 +1009,22 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
   const audit = () => { if (req.audit) emit({ type: "audit", raw: firstRaw, changes }); };
   const hidden = () => { changes.push(`refused: the question reached the model with ${redacted.join(", ")} in place of a name`); audit(); emit({ type: "error", code: "redacted", message: `The online service replaced part of the question with ${redacted.join(", ")} before the model saw it.` }); };
 
+  if (req.spell && names.length) spell();
   let draft = await write("");
+  // The answer is about a placeholder, or never uses a name of the question: the account hides names.
+  // Asked once more with the names spelled out; what comes back is checked like any first answer.
+  if (!spelled.length && names.length && (redacted.length || draft?.drifted.length)) {
+    const before = { draft, redacted };
+    spell();
+    redacted = [];
+    const again = await write("");
+    if (again) draft = again;
+    else if (!redacted.length) {
+      // the spelled question brought no lesson: what the first answer showed stands
+      redacted = before.redacted;
+      draft = before.draft;
+    }
+  }
   if (redacted.length) return hidden();
   if (!draft) {
     emit({ type: "error", code: "plan", message: "The model did not return a lesson." });
@@ -984,6 +1121,19 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
     if (accepted.length) changes.push(`${accepted.length} link(s) added for boxes that stood alone`);
     if (drop.size) changes.push(`box(es) taken off the board because nothing links them: ${[...drop].map((id) => names.get(id)).join(", ")}`);
   }
+  // The legend: letters of a formula that nothing names, and plots whose axes have no name, are asked
+  // for once and added (a note in the formula's step, names at the axes). Nothing is changed or taken away.
+  const want = more ? { symbols: [], plots: [] } : missingLegend(lesson);
+  if (guards.legend && (want.symbols.length || want.plots.length)) {
+    const lines = [`Topic: ${quoted(req.question)}`, ...lesson.steps.map((s, k) => `${k + 1}. ${s.say}`)];
+    for (const w of want.symbols) lines.push(`Letters to name (step ${w.step + 1}, formula ${lesson.steps[w.step].items.flatMap((it) => (it.kind === "formula" ? [it.tex] : [])).join(" ; ")}): ${w.symbols.join(", ")}`);
+    let n = 0;
+    for (const s of lesson.steps) for (const it of s.items) if (it.kind === "plot" && want.plots.includes(++n)) lines.push(`Plot ${n} to name the axes of: y = ${[it.expr, ...(it.more ?? [])].join(" and y = ")}`);
+    const legend = addLegend(lesson, parseJsonLoose(await ask({ system: LEGEND_SYSTEM, user: lines.join("\n"), format: { type: "object" }, maxTokens: 300, timeoutMs: TIMEOUTS.cloudMs, temperature: 0 }).catch(() => "")), want);
+    lesson = legend.lesson;
+    for (const a of legend.added) changes.push(`legend: ${a}`);
+    if (!legend.added.length) changes.push("legend asked for and nothing usable came back: the lesson is unchanged");
+  }
   // The last look, in code. What it still finds is said to the page with the lesson, not cut out of it.
   const doubts = guards.examiner ? finalProblems(lesson) : [];
   for (const d of doubts) changes.push(`left as it is: ${d}`);
@@ -991,6 +1141,6 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
   emit({ type: "outline", title: more ? req.lesson!.title : lesson.title, scene: more ? req.lesson!.scene : lesson.scene, says: lesson.steps.map((s) => s.say) });
   lesson.steps.forEach((step, index) => emit({ type: "step", index, step }));
   audit();
-  emit({ type: "done", cards: lesson.steps.filter((s) => s.card).length, stalled: false, ...(unchecked.length ? { unchecked } : {}), ...(doubts.length ? { doubts } : {}) });
+  emit({ type: "done", cards: lesson.steps.filter((s) => s.card).length, stalled: false, ...(unchecked.length ? { unchecked } : {}), ...(doubts.length ? { doubts } : {}), ...(spelled.length ? { spelled } : {}) });
 }
 export const maxStepsFor = (lite: boolean) => (lite ? LIMITS.liteSteps : LIMITS.steps);

@@ -1,28 +1,10 @@
 import { NextResponse } from "next/server";
-import { CLEF_CLOUDFLARE_MODEL } from "@/lib/decide/clef";
-import { OPENROUTER_DECISION_MODEL } from "@/lib/decide/openrouter";
-import { askRecipient, freellmRecipient, photoRecipient, voiceRecipient, type BuddyRecipients } from "@/lib/buddy/outbound";
-import { resolveGenerateProvider, scriptRecipient } from "@/lib/generate/providers";
-import { resolveDecisionProvider } from "@/lib/decide/resolve";
-import { VISION_MODEL } from "@/lib/vision/openrouter";
-import { buddyCloudRecipient } from "@/lib/buddy/providers";
+import type { BuddyRecipients } from "@/lib/buddy/outbound";
+import { configuredRecipients } from "@/lib/buddy/recipients";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Who would receive what, from the providers and models actually configured. The notices and the
- * "going outside" signal read their names from here, never from fixed text. Sends nothing anywhere.
- */
+/** Who would receive what, from the providers and models actually configured (lib/buddy/recipients.ts). Sends nothing anywhere. */
 export async function GET() {
-  return NextResponse.json<BuddyRecipients>({
-    offline: process.env.FILOW_OFFLINE === "1",
-    ask: buddyCloudRecipient(),
-    freellm: freellmRecipient(),
-    voice: voiceRecipient(),
-    photo: photoRecipient(),
-    screen: askRecipient(VISION_MODEL()),
-    script: scriptRecipient(),
-    decision: { openrouter: OPENROUTER_DECISION_MODEL(), cloudflare: CLEF_CLOUDFLARE_MODEL() },
-    defaults: { decide: resolveDecisionProvider(), generate: resolveGenerateProvider() },
-  });
+  return NextResponse.json<BuddyRecipients>(configuredRecipients());
 }

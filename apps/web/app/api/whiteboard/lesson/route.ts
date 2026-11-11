@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireEngine } from "@/lib/engineAuth";
 import { CONSENT_HEADER, consentDenied } from "@/lib/buddy/outbound";
-import { BUDDY_CLOUD_MODEL, askBuddy, buddyCloudRecipient, resolveBuddyProvider, resolveLocalHelper, type LocalHelper } from "@/lib/buddy/providers";
+import { WHITEBOARD_CLOUD_MODEL, askBuddy, whiteboardCloudRecipient, resolveBuddyProvider, resolveLocalHelper, type LocalHelper } from "@/lib/buddy/providers";
 import { answerLanguage, buddyLang } from "@/lib/buddy/lang";
 import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
-import { BusyError, RETRY, StallError, TIMEOUTS, generateCloud, generateLocal, maxStepsFor, texOk, type Ask, type LessonEvent } from "@/lib/whiteboard/generate";
+import { BusyError, RETRY, StallError, TIMEOUTS, generateCloud, generateLocal, maxStepsFor, texOk, type Ask, type LessonEvent, type Spelling } from "@/lib/whiteboard/generate";
 import { LIMITS, cleanText, validateLesson } from "@/lib/whiteboard/lesson";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,7 @@ const MAX_BODY = 64_000;
 export async function POST(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
-  let body: { question?: unknown; provider?: unknown; setup?: unknown; language?: unknown; lesson?: unknown; audit?: unknown };
+  let body: { question?: unknown; provider?: unknown; setup?: unknown; language?: unknown; lesson?: unknown; audit?: unknown; spell?: unknown };
   try {
     // a question and, for a follow-up, one lesson: anything much larger is not a whiteboard request
     const raw = await req.text();
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     if (refused) return refused;
   }
   if (provider === "cloud") {
-    const refused = consentDenied(req, "ask", buddyCloudRecipient());
+    const refused = consentDenied(req, "ask", whiteboardCloudRecipient());
     if (refused) return refused;
   }
   // Only the header counts: a consent field in the body is never trusted.
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
       const limit = AbortSignal.timeout(timeoutMs);
       let text = "";
       try {
-        for await (const piece of askBuddy(provider, { question: user, images: [], screens: [], consent, language: lang }, AbortSignal.any([abort.signal, limit]), helper, { system, format, maxTokens, temperature })) text += piece;
+        for await (const piece of askBuddy(provider, { question: user, images: [], screens: [], consent, language: lang }, AbortSignal.any([abort.signal, limit]), helper, { system, format, maxTokens, temperature, ...(provider === "cloud" ? { model: WHITEBOARD_CLOUD_MODEL() } : {}) })) text += piece;
       } catch (e) {
         if (limit.aborted && !abort.signal.aborted) throw new StallError();
         const busy = provider !== "local" && !abort.signal.aborted && /\b(?:429|5\d\d)\b|rate.?limit|overloaded|temporarily/i.test(e instanceof Error ? e.message : String(e));
@@ -98,14 +98,18 @@ export async function POST(req: Request) {
     async start(controller) {
       const emit = (e: LessonEvent) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
       try {
-        emit({ type: "start", provider, model: provider === "cloud" ? BUDDY_CLOUD_MODEL() : provider === "freellm" ? "FreeLLMAPI" : helper!.model, lang, lite, more: Boolean(lesson) });
+        emit({ type: "start", provider, model: provider === "cloud" ? WHITEBOARD_CLOUD_MODEL() : provider === "freellm" ? "FreeLLMAPI" : helper!.model, lang, lite, more: Boolean(lesson) });
         // audit: the proof bench asks for what the model first wrote and what each guard changed.
       // WHITEBOARD_GUARDS: guards that are off by default, switched on by name for a measured run ("must,links").
       const on = new Set((process.env.WHITEBOARD_GUARDS || "").split(",").map((g) => g.trim()));
       // WHITEBOARD_LOCAL_OFF: checks of the local path switched off by name for a measured run ("sentences,relations,repair").
       const off = new Set((process.env.WHITEBOARD_LOCAL_OFF || "").split(",").map((g) => g.trim()));
       const localChecks = { sentences: !off.has("sentences"), relations: !off.has("relations"), repair: !off.has("repair") };
-      const request = { localChecks, question, lang, maxSteps: maxStepsFor(lite), lesson, lite, audit: body.audit === true, guards: { examiner: on.has("examiner"), arrows: on.has("arrows"), sums: on.has("sums"), must: on.has("must"), links: on.has("links"), removeLoneBoxes: on.has("removeLoneBoxes") } };
+      // An online account that hides names: the page says so once it has seen it (`spell`), and the names of
+      // the question are then spelled out from the first call. WHITEBOARD_NAME_SPELLING picks how (spaced, hyphen, dots).
+      const how = process.env.WHITEBOARD_NAME_SPELLING;
+      const spelling: Spelling = how === "hyphen" || how === "dots" ? how : "spaced";
+      const request = { spell: body.spell === true, spelling, localChecks, question, lang, maxSteps: maxStepsFor(lite), lesson, lite, audit: body.audit === true, guards: { legend: !on.has("nolegend"), examiner: on.has("examiner"), arrows: on.has("arrows"), sums: on.has("sums"), must: on.has("must"), links: on.has("links"), removeLoneBoxes: on.has("removeLoneBoxes") } };
         // an online model writes the whole lesson in one answer, whichever door it comes through
         if (provider !== "local") await generateCloud(ask, request, emit);
         else await generateLocal(ask, request, emit);

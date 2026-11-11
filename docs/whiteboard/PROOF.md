@@ -398,6 +398,40 @@ Also in this round, on the narrow board: a label that finds no free place on its
 beside it. On the twenty raw online lessons that took the steps with an arrow or a box on a label
 from eight to three; the wide board has none. The pen in time with the voice, the blackboard and
 the video are described in `docs/whiteboard/PEN-AND-VIDEO.md`.
+## Round 8, part B: the online lesson, by prompt and by adding only
+
+Not measured on a real model yet: no paid call was made here.
+
+What the strict reviews of the raw lessons (r5-run1, r5-run2) still found, and what was done about
+each. None of it is an examiner that edits: the prompt asks for more, the validator reads more,
+and one question adds what is missing.
+
+| Defect in the raw lessons | Change |
+|---|---|
+| A wrong-way or invented arrow (neural network, both runs; "New Principal becomes Interest") | The prompt asks for an arrow as a sentence, `{"kind":"edge","who":"data","does":"feeds","to":"network"}`: who acts comes first by construction and the verb is the label. The validator reads `who`/`does` and still reads `from`/`text`. Before answering the model is asked to read every arrow back as a sentence. |
+| A formula with letters nobody named (`A = P(1 + r/n)^{nt}`) | The prompt asks for every letter to be named in the step. Code then looks: the single letters of each formula against everything said and written up to that step. For what is still unnamed, one question ("the legend") and a note in the formula's step: "n = periods a year, t = years". |
+| Plots with unlabelled axes | A plot carries `x` and `y` names, drawn at the axes. A plot without them is part of the same one question. |
+| Boxes left alone | Prompt only: every box is the who or the to of at least one arrow. |
+
+The legend adds a note and names; it never changes or removes anything the model wrote, and when
+its answer is no use the lesson is shown as it was. It can be switched off
+(`WHITEBOARD_GUARDS=nolegend`). On the twenty raw lessons of the paid runs, replayed: every lesson
+on the topic still comes out exactly as written; 6 to 12 of them would have had the one extra
+question (every plot of those runs predates axis names). Calls per online lesson: one, or two when
+a legend is asked for.
+
+Names an online account hides (owner decision of 11/11/2026: keep the account's filter, work
+around it for whiteboard questions only): when the answer carries a placeholder or never uses a
+name of the question, the question is sent once more with the name spelled out letter by letter
+and the model told why; the lesson is then written normally and the page says what was done. If
+the spelled name is hidden too, the lesson is refused as before. Which spelling the real filter
+lets through is not known yet: `node tools/whiteboard/echo.mjs --yes-send --name Krebs` prints it
+(a paid call of a few tokens), and `WHITEBOARD_NAME_SPELLING` picks `spaced`, `hyphen` or `dots`.
+See `docs/okfilow/OUTBOUND.md`.
+
+The whiteboard's online model can be its own (`WHITEBOARD_CLOUD_MODEL`, default: OK Filow's). The
+consent recipient follows that model's maker, and the whiteboard's notice reads it from
+`/api/whiteboard/recipients`.
 ## How to repeat
 
 1. Start Filow (or `next dev`) with Ollama running.

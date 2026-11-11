@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fixtures from "./fixtures/cloud-r3.json";
 import rawFixtures from "./fixtures/cloud-r5-raw.json";
-import { GUARDS, finalProblems, generateCloud, labelNotes, missingNames, orphanBoxes, placeNotes, texOk, validatorLosses, wrongSums, type Ask, type LessonEvent } from "./generate";
+import { GUARDS, finalProblems, formulaSymbols, generateCloud, labelNotes, missingLegend, missingNames, orphanBoxes, placeNotes, texOk, validatorLosses, wrongSums, type Ask, type LessonEvent } from "./generate";
 import { LIMITS, validateLesson, type Lesson, type LessonItem } from "./lesson";
 import { layoutBoard, layoutProblems } from "./layout";
 import { checkArithmetic } from "./plot";
@@ -75,7 +75,9 @@ describe("the default online path, replayed over the raw lessons of the paid rou
   it.each(RAW.filter((f) => !offTopic(f)).map((f) => [`${f.run}/${f.n} ${f.question}`, f] as const))("%s: one call, and the lesson on the board is the lesson the model wrote", async (_name, f) => {
     const got = await replay(f);
     expect(got.error).toBeUndefined();
-    expect(got.asked).toHaveLength(1);
+    // one call for the lesson; one more only to ask for a legend (letters of a formula, names of axes), which this replay leaves unanswered
+    expect(got.asked.filter((s) => !s.startsWith("A whiteboard lesson leaves"))).toHaveLength(1);
+    expect(got.asked.length).toBeLessThanOrEqual(2);
     // what the validator makes of the raw answer (what can be drawn safely), with nothing else done to it
     const written = validateLesson(f.raw, { maxSteps: LIMITS.steps, texOk, sketch: true })!;
     expect(got.steps.map((s) => s.say)).toEqual(f.raw.steps.slice(0, LIMITS.steps).map((s) => s.say.trim()));
@@ -87,19 +89,19 @@ describe("the default online path, replayed over the raw lessons of the paid rou
     expect(bare(got.steps).length).toBe(written.steps.flatMap((s) => s.items).filter((it) => it.kind === "note").length);
     // no arrow turned or removed, no step marked, no doubt raised, no rewrite asked for
     expect(got.done).toEqual({ type: "done", cards: 0, stalled: false });
-    expect(got.changes.filter((c) => !c.includes("the validator did not keep") && !c.startsWith("noted only"))).toEqual([]);
+    expect(got.changes.filter((c) => !c.includes("the validator did not keep") && !c.startsWith("noted only") && !c.startsWith("legend asked for"))).toEqual([]);
   });
 
   it.each(RAW.filter(offTopic).map((f) => [`${f.run}/${f.n}`, f] as const))("%s: a lesson about another topic is refused whole, never shown", async (_name, f) => {
     const got = await replay(f);
     expect(got.steps).toEqual([]);
     expect(got.error).toMatchObject({ code: "topic" });
-    // the lesson, one rewrite, the definition, a third lesson
-    expect(got.asked).toHaveLength(4);
+    // the lesson, the same question with the name spelled out, one rewrite, the definition, a third lesson
+    expect(got.asked).toHaveLength(5);
   });
 
   it("is off for the examiner, the arrow judge and the sum rewrite when nothing is asked for: one call even for a lesson with a wrong sum and a doubtful arrow", async () => {
-    expect(GUARDS).toEqual({ examiner: false, arrows: false, sums: false, must: false, links: false, removeLoneBoxes: false });
+    expect(GUARDS).toEqual({ legend: true, examiner: false, arrows: false, sums: false, must: false, links: false, removeLoneBoxes: false });
     let calls = 0;
     const wrong = { title: "Sums", scene: "flow", steps: [{ say: "Twice the sum is (3+4)*2 = 12.", items: [{ kind: "node", id: "a", text: "Sum" }, { kind: "node", id: "b", text: "Result" }, { kind: "edge", from: "b", to: "a", text: "receives" }] }, { say: "That is all.", items: [{ kind: "note", text: "done" }] }] };
     const events: LessonEvent[] = [];
@@ -247,6 +249,34 @@ describe("a worked example stays readable", () => {
   });
 });
 
+describe("the legend of a lesson", () => {
+  it("finds the letters of a formula, not its words and commands", () => {
+    expect(formulaSymbols("A = P(1 + r/n)^{nt}")).toEqual(["A", "P", "r", "n", "t"]);
+    expect(formulaSymbols("V = I \\times R")).toEqual(["V", "I", "R"]);
+    expect(formulaSymbols("\\text{mid} = \\lfloor (0 + 6) / 2 \\rfloor = 3")).toEqual([]);
+    expect(formulaSymbols("y = \\sin(x) + e^{x}")).toEqual([]);
+    expect(formulaSymbols("a^2 + b^2 = c^2")).toEqual(["a", "b", "c"]);
+    expect(formulaSymbols("max = a + b")).toEqual(["a", "b"]);
+  });
+  it("asks only for letters that nothing said or written names, and for plots whose axes have no name", () => {
+    const lesson = (say: string, extra: unknown[] = []) => validateLesson({ title: "T", scene: "flow", steps: [{ say: "First.", items: [{ kind: "node", id: "p", text: "Principal (P)" }] }, { say, items: [{ kind: "formula", tex: "A = P(1 + r)^t" }, ...extra] }] }, { maxSteps: 7, texOk })!;
+    expect(missingLegend(lesson("The amount grows."))).toEqual({ symbols: [{ step: 1, symbols: ["A", "r", "t"] }], plots: [] });
+    expect(missingLegend(lesson("The amount A grows at the rate r for t years."))).toEqual({ symbols: [], plots: [] });
+    expect(missingLegend(lesson("It grows.", [{ kind: "note", text: "A = amount, r = rate, t = years" }]))).toEqual({ symbols: [], plots: [] });
+    expect(missingLegend(lesson("The amount A grows at the rate r for t years.", [{ kind: "plot", expr: "x^2", xmin: 0, xmax: 2 }, { kind: "plot", expr: "x", xmin: 0, xmax: 2, x: "Years", y: "Amount" }]))).toEqual({ symbols: [], plots: [1] });
+  });
+  it("on the raw lessons of the paid runs: says which would have been asked for a legend", () => {
+    const asked = (rawFixtures as unknown as Array<{ run: string; n: number; raw: unknown }>).flatMap((f) => {
+      const lesson = validateLesson(f.raw, { maxSteps: LIMITS.steps, texOk, sketch: true })!;
+      const want = missingLegend(lesson);
+      return want.symbols.length || want.plots.length ? [`${f.run}/${f.n}: letters ${want.symbols.flatMap((s) => s.symbols).join("") || "-"}, plots ${want.plots.join(",") || "-"}`] : [];
+    });
+    // every plot of those lessons was written before axes had names; the compound-interest formula left n and t unnamed
+    expect(asked.some((a) => a.startsWith("r5-run1/4") && a.includes("n") && a.includes("t"))).toBe(true);
+    expect(asked.length).toBeGreaterThanOrEqual(6);
+    expect(asked.length).toBeLessThanOrEqual(12);
+  });
+});
 describe("nothing is drawn twice on the board", () => {
   const market = validateLesson({ title: "Market", scene: "flow", steps: [
     { say: "Supply rises with price.", items: [{ kind: "plot", expr: "x", xmin: 0, xmax: 10 }] },
