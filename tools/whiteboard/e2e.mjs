@@ -196,6 +196,8 @@ try {
 
     // 7. Cloud: nothing leaves before the yes; after it, one call with the question and no picture.
     const cloudCalls = () => fake.seen.filter((x) => x.url.endsWith("/chat/completions"));
+    // what an earlier run of these checks left in the profile (the account-hides-names flag, a chosen model, a chosen look) must not decide this one
+    await page.evaluate(`(() => { for (const k of ["filow.whiteboard.spell", "filow.whiteboard.model", "filow.whiteboard.look"]) localStorage.removeItem(k); return true; })()`);
     await page.evaluate(`document.querySelectorAll('main.wb-page input[type="radio"]')[2].click(); true`);
     await sleep(300);
     await setInput(0, "Ohm's law");
