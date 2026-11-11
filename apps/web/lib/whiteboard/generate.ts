@@ -4,8 +4,9 @@
 // Every answer is parsed and validated in lesson.ts before anything is sent to the page.
 import katex from "katex";
 import { BUDDY_LANG_NAMES, type BuddyLang } from "@/lib/buddy/lang";
+import { placeholderLeaks } from "@/lib/pii/guard";
 import { checkArithmetic } from "./plot";
-import { LIMITS, cleanText, contextOf, lessonContextText, makeStep, newContext, outlineSchema, parseJsonLoose, slug, validateLesson, validateOutline, type ExplanationKind, type Lesson, type LessonItem, type LessonStep, type Scene } from "./lesson";
+import { LIMITS, cleanText, contextOf, lessonContextText, lessonNodes, makeStep, newContext, outlineSchema, parseJsonLoose, slug, validateLesson, validateOutline, type ExplanationKind, type Lesson, type LessonItem, type LessonStep, type Scene } from "./lesson";
 
 export type LessonEvent =
   | { type: "start"; provider: "local" | "cloud" | "freellm"; model: string; lang: BuddyLang; lite: boolean; more: boolean }
@@ -13,7 +14,7 @@ export type LessonEvent =
   | { type: "step"; index: number; step: LessonStep }
   /** `relations`/`drawn`: how many relations the checked plan had and how many of them ended on the board (local path). */
   | { type: "done"; cards: number; stalled: boolean; relations?: number; drawn?: number }
-  | { type: "error"; message: string; code: "plan" | "stalled" | "model" | "topic" | "busy" };
+  | { type: "error"; message: string; code: "plan" | "stalled" | "model" | "topic" | "busy" | "redacted" };
 
 /** One question to the model: the answer text, whole. Throws StallError when it ran out of time. */
 export type Ask = (call: { system: string; user: string; format?: unknown; maxTokens: number; timeoutMs: number; temperature?: number }) => Promise<string>;
@@ -63,14 +64,15 @@ const ITEM_RULES = [
   '- {"kind":"edge","from":"sun","to":"leaf","text":"energy"}: an arrow between two node ids, new or already on the board. text: 0 to 2 words.',
   '- {"kind":"formula","tex":"a^2 + b^2 = c^2"}: one formula in LaTeX.',
   '- {"kind":"plot","expr":"x^2","xmin":-3,"xmax":3}: the graph of an expression in x (numbers, x, + - * / ^, sin, cos, exp, ln, sqrt).',
-  '- {"kind":"note","text":"..."}: a short remark, at most 12 words.',
+  '- {"kind":"note","about":"leaf","text":"..."}: a short remark, at most 12 words. "about": the id of the box it describes, when it describes one; it belongs to the step that draws that box, or a later one.',
   '- {"kind":"mark","target":"leaf","style":"circle"}: circle, underline or highlight a node already on the board.',
 ];
 
 function cloudSystem(lang: BuddyLang, maxSteps: number, more: boolean): string {
   return [
     "You are a patient teacher explaining on a whiteboard, one step at a time. Reply with one JSON object only, no prose around it:",
-    '{"title":"...","scene":"flow","steps":[{"say":"...","items":[...]}]}',
+    '{"topic":"...","title":"...","scene":"flow","steps":[{"say":"...","items":[...]}]}',
+    '"topic": first, in one sentence, say in your own words what you were asked to explain, naming it exactly as the learner did.',
     more
       ? `The learner is following the lesson below and asks a follow-up. Write 1 to ${maxSteps} more steps that answer it and build on what is already on the board (reuse its ids).`
       : `Write ${Math.min(4, maxSteps)} to ${maxSteps} steps that explain the concept in order. Every step must be true and must follow from the one before.`,
@@ -112,7 +114,7 @@ export const TIMEOUTS = { outlineMs: 150_000, stepMs: 75_000, cloudMs: 120_000, 
 
 export type Plan = { things: Array<{ id: string; text: string }>; relations: Array<{ from: string; to: string; text: string }> };
 
-const PLAN_LIMITS = { things: 8, relations: 8 };
+const PLAN_LIMITS = { things: 8, relations: 8, repairs: 6 };
 const planSchema = {
   type: "object",
   properties: {
@@ -131,6 +133,18 @@ function planSystem(lang: BuddyLang, more: boolean): string {
     more ? "Some things are already on the board (listed below): reuse their ids, add at most 3 new things, and only new relations." : "",
     `Write every text and verb in ${BUDDY_LANG_NAMES[lang]}; ids stay ASCII.`,
   ].filter(Boolean).join("\n");
+}
+
+const repairSchema = { type: "object", properties: { relations: planSchema.properties.relations }, required: ["relations"] };
+function repairSystem(lang: BuddyLang): string {
+  return [
+    "A fact checker went through the relations of a whiteboard drawing. You write the missing ones. Reply with JSON only.",
+    '"relations": each {"from":"sun","verb":"gives light to","to":"leaf"}, read as a sentence: from, verb, to. Use only the listed ids. The verb is 1 to 3 words.',
+    'For each statement after "Refused:": the same fact written so that it is true. Turn it round when it was backwards (the one that acts comes first), or use the verb that says what really happens. Leave it out when the two things are not directly linked.',
+    'For each id after "Not linked yet:": one relation between it and another listed thing, as the sentences of the lesson state it.',
+    "Only what is certainly true as written, in that direction. Never repeat a refused statement unchanged.",
+    `Write every verb in ${BUDDY_LANG_NAMES[lang]}; ids stay ASCII.`,
+  ].join("\n");
 }
 
 /** The plan as the model wrote it, checked: every relation joins two named things and says something. */
@@ -378,7 +392,33 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
     const statements = plan.relations.map((r, k) => `${k + 1}. ${label(r.from)} ${r.text} ${label(r.to)}.`).join("\n");
     const verdicts = await confirm(`Topic: ${title}\n${statements}`, plan.relations.length);
     // A relation the checker did not confirm is not drawn; a check that cannot be read confirms nothing.
-    plan = { ...plan, relations: plan.relations.filter((_, k) => verdicts?.has(k + 1)) };
+    const all = plan.relations;
+    plan = { ...plan, relations: all.filter((_, k) => verdicts?.has(k + 1)) };
+    // Second round, once: a refused relation is often a true fact said backwards or with a loose verb,
+    // and a thing no relation touches leaves a box alone on the board. The model writes those again
+    // from the sentences of the lesson; what it writes goes through the same fact check.
+    const refusedRelations = all.filter((_, k) => !verdicts?.has(k + 1));
+    const touched = new Set(plan.relations.flatMap((r) => [r.from, r.to]));
+    const untouched = plan.things.filter((t) => !touched.has(t.id));
+    if (verdicts && !req.lite && !stalled && plan.things.length >= 2 && (refusedRelations.length || untouched.length)) {
+      const say = (r: Plan["relations"][number]) => `${label(r.from)} ${r.text} ${label(r.to)}.`;
+      const names = new Map([...ctx.nodes, ...plan.things.map((t) => [t.id, t.text] as [string, string])]);
+      const raw = await tryAsk({
+        system: repairSystem(req.lang),
+        user: [`Lesson: ${title}`, numbered, `Things: ${[...names].map(([id, text]) => `${id} = ${text}`).join("; ")}`, plan.relations.length ? `Confirmed: ${plan.relations.map(say).join(" ")}` : "", refusedRelations.length ? `Refused: ${refusedRelations.map(say).join(" ")}` : "", untouched.length ? `Not linked yet: ${untouched.map((t) => t.id).join(", ")}` : ""].filter(Boolean).join("\n"),
+        format: repairSchema,
+        maxTokens: 360,
+        timeoutMs: TIMEOUTS.stepMs,
+        temperature: 0.2,
+      });
+      const same = (a: Plan["relations"][number], b: Plan["relations"][number]) => a.from === b.from && a.to === b.to && a.text.toLowerCase() === b.text.toLowerCase();
+      // never the refused statement again as it was, nor one already confirmed
+      const candidates = validatePlan({ things: [], relations: (raw as { relations?: unknown } | undefined)?.relations }, names).relations.filter((c) => !all.some((r) => same(r, c))).slice(0, PLAN_LIMITS.repairs);
+      if (candidates.length) {
+        const second = await confirm(`Topic: ${title}\n${candidates.map((r, k) => `${k + 1}. ${say(r)}`).join("\n")}`, candidates.length);
+        plan = { ...plan, relations: [...plan.relations, ...candidates.filter((_, k) => second?.has(k + 1))].slice(0, PLAN_LIMITS.relations) };
+      }
+    }
   }
   // What is still refused: a plain statement of a checked relation in its place, else the step is left out.
   const spare = [...plan.relations];
@@ -470,11 +510,12 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
 // sentence takes its step with it; a lesson off the topic or not doing what was asked is written
 // again, once, with the examiner's reason, and checked again. At most four calls; usually two.
 
-type Review = { topic: boolean; answers: boolean; issues: string; sentences: Set<number> | null; arrows: Map<number, "ok" | "reversed" | "false"> };
+type Review = { topic: boolean; answers: boolean; issues: string; must?: string; sentences: Set<number> | null; arrows: Map<number, "ok" | "reversed" | "false"> };
 
 const REVIEW_SYSTEM = [
   "You are a strict examiner of a whiteboard lesson. Reply with one JSON object only:",
-  '{"topic": true or false, "sentences": [{"n": 1, "true": true}], "answers": true or false, "issues": "..."}',
+  '{"topic": true or false, "sentences": [{"n": 1, "true": true}], "answers": true or false, "must": "...", "issues": "..."}',
+  '"must": the one thing the finished board has to show for this concept, as 1 to 3 plain words that would be written on it (photosynthesis: "oxygen"; supply and demand: "equilibrium"; recursion: "return").',
   '"topic": true only when the lesson is about exactly what was asked (the Krebs cycle is not the carbon cycle).',
   '"sentences": for each numbered sentence, true only when it is correct exactly as written.',
   '"answers": true only when the lesson does what was asked and the board shows it: the main things are linked (no box left alone when it takes part), a cycle or feedback loop is closed by an arrow back, plots do not contradict each other, an algorithm is traced on a concrete example with real values, a proof reaches its conclusion. Each kind of lesson has one step it cannot do without, and it must be there: a process says how what goes in becomes what comes out; a market or a feedback says what pushes it back (a surplus lowers the price, a shortage raises it); a law gives one example with numbers; an idea such as recursion is shown on one concrete case; a plot shows the same function the example uses, and curves that are said to meet are drawn on one plot. A number that was rounded is said to be rounded.',
@@ -522,7 +563,7 @@ export function readReview(raw: unknown, sentences: number): Review | null {
     const q = (a && typeof a === "object" ? a : {}) as { n?: unknown; verdict?: unknown };
     if (typeof q.n === "number" && q.n >= 1 && (q.verdict === "ok" || q.verdict === "reversed" || q.verdict === "false")) verdicts.set(q.n, q.verdict);
   }
-  return { topic: r.topic, answers: r.answers === true, issues: cleanText(r.issues, 300), sentences: judged ? kept : null, arrows: verdicts };
+  return { topic: r.topic, answers: r.answers === true, issues: cleanText(r.issues, 300), must: cleanText((r as { must?: unknown }).must, 60), sentences: judged ? kept : null, arrows: verdicts };
 }
 
 /**
@@ -547,19 +588,26 @@ export function applyReview(lesson: Lesson, review: Review, continues?: Lesson):
   return validateLesson({ title: lesson.title, scene: lesson.scene, steps: steps.map((s) => ({ say: s.say, items: s.items.map((it) => (it.kind === "sketch" ? { kind: "sketch", drawing: it.drawing } : it)) })) }, { maxSteps: steps.length, texOk, sketch: true, continues });
 }
 
+const LINK_SYSTEM = [
+  'Some boxes of a whiteboard drawing are not linked to anything. Reply with JSON only: {"links":[{"from":"...","verb":"...","to":"..."}]}.',
+  'For each box listed as not linked yet, give one true link between it and another box of the drawing: "from" and "to" are box labels exactly as given, "verb" is 1 to 3 words, and the link reads as a sentence: from, verb, to. Leave a box out when it has no true link to any other box.',
+].join("\n");
+
 const ARROW_SYSTEM = [
   'You judge claims one line at a time. Reply with JSON only: {"arrows":[{"n":1,"verdict":"true"}]} with one entry for every line.',
   'Each numbered line is a sentence of the form "A does something to B", taken from a drawing about the topic given. Judge each sentence alone, exactly as written.',
   '"true": correct as written.',
   '"reversed": wrong as written but correct with A and B swapped. "Error calculates True target" is reversed (the target is used to calculate the error). "Current drives Voltage" is reversed.',
   '"false": wrong both ways, or too vague to be a statement.',
+  'Also say who acts: "acts": "A" when A is the one that does, causes or sends what the sentence says, "B" when it is really B. In "Error is compared to Prediction" the prediction is what gets compared and the error is the result, so B acts.',
+  'Each entry: {"n": 1, "verdict": "true", "acts": "A"}.',
 ].join("\n");
 
 /** The arrows of a lesson as one sentence each ("Voltage drives Current."), in board order. */
 function arrowSentences(lesson: Lesson): string[] {
   const names = new Map<string, string>();
   for (const s of lesson.steps) for (const it of s.items) if (it.kind === "node") names.set(it.id, it.text);
-  return lesson.steps.flatMap((s) => s.items.flatMap((it) => (it.kind === "edge" ? [`${names.get(it.from) ?? it.from} ${it.text || "is linked to"} ${names.get(it.to) ?? it.to}.`] : [])));
+  return lesson.steps.flatMap((s) => s.items.flatMap((it) => (it.kind === "edge" ? [`A = ${names.get(it.from) ?? it.from}, B = ${names.get(it.to) ?? it.to}. Sentence: ${names.get(it.from) ?? it.from} ${it.text || "is linked to"} ${names.get(it.to) ?? it.to}.`] : [])));
 }
 
 /** The verdict on each arrow (1-based); null when the answer cannot be read. */
@@ -568,12 +616,68 @@ export function readArrowVerdicts(raw: unknown, count: number): Map<number, "ok"
   if (!Array.isArray(list)) return null;
   const verdicts = new Map<number, "ok" | "reversed" | "false">();
   for (const a of list) {
-    const q = (a && typeof a === "object" ? a : {}) as { n?: unknown; verdict?: unknown };
+    const q = (a && typeof a === "object" ? a : {}) as { n?: unknown; verdict?: unknown; acts?: unknown };
     if (typeof q.n !== "number" || q.n < 1 || q.n > count) continue;
-    if (q.verdict === "true" || q.verdict === "ok") verdicts.set(q.n, "ok");
+    // "true", but the judge says the box at the arrow's end is the one that acts: the arrow points the wrong way
+    if ((q.verdict === "true" || q.verdict === "ok") && q.acts === "B") verdicts.set(q.n, "reversed");
+    else if (q.verdict === "true" || q.verdict === "ok") verdicts.set(q.n, "ok");
     else if (q.verdict === "reversed" || q.verdict === "false") verdicts.set(q.n, q.verdict);
   }
   return verdicts;
+}
+
+/**
+ * The proper names of a question ("Krebs", "Ohm", "Bayes", "Pythagorean") that `text` never uses.
+ * A lesson about an eponym that does not name it is about something else: the name was lost on the
+ * way, or the model drifted. Only words written with a capital inside the question count, and only
+ * in scripts that have capitals; a name matches by its first letters, so "Pythagoras" finds "Pythagorean".
+ */
+export function missingNames(question: string, text: string): string[] {
+  const words = question.replace(/[\u2019]/g, "'").split(/[^\p{L}']+/u).filter(Boolean);
+  const hay = text.toLowerCase();
+  // inside the question any capitalised word is a name; at its start only a possessive is ("Ohm's law", "Bayes' rule")
+  const names = words.filter((word, i) => word.length >= 3 && /^\p{Lu}\p{Ll}/u.test(word) && (i > 0 || /'s?$/.test(word))).map((word) => word.replace(/'s?$/, ""));
+  return [...new Set(names)].filter((name) => !hay.includes(name.toLowerCase().slice(0, Math.max(3, Math.min(5, name.length)))));
+}
+
+/** Everything written on the boards of a lesson, as one lower-case text. */
+function boardText(lesson: Lesson): string {
+  return lesson.steps.flatMap((s) => s.items.map((it) => (it.kind === "node" || it.kind === "note" ? it.text : it.kind === "edge" ? it.text : it.kind === "formula" ? it.tex : it.kind === "plot" ? `${it.expr} ${it.text}` : it.kind === "cells" ? it.values.join(" ") : ""))).join(" ").toLowerCase();
+}
+/** Whether a word of `must` (4 letters or more, by its first letters) is written somewhere on the board. */
+export function boardShows(lesson: Lesson, must: string): boolean {
+  const words = must.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((x) => x.length >= 4);
+  const text = boardText(lesson);
+  return !words.length || words.some((word) => text.includes(word.slice(0, Math.min(6, word.length))));
+}
+
+/** The boxes no arrow touches, in a lesson that has arrows: a board must not read as a list. */
+export function orphanBoxes(lesson: Lesson): string[] {
+  const linked = new Set(lesson.steps.flatMap((s) => s.items.flatMap((it) => (it.kind === "edge" ? [it.from, it.to] : []))));
+  const boxes = lesson.steps.flatMap((s) => s.items.flatMap((it) => (it.kind === "node" ? [it.id] : [])));
+  return linked.size && boxes.length >= 3 ? boxes.filter((id) => !linked.has(id)) : [];
+}
+
+/**
+ * A remark belongs with the box it describes: one that names a box ("about", or the box's label in
+ * its words) and stands in a step before that box is drawn is moved to the step that draws it.
+ */
+export function placeNotes(lesson: Lesson): Lesson {
+  const drawnAt = new Map<string, number>();
+  const labels: Array<[string, string]> = [];
+  lesson.steps.forEach((s, k) => s.items.forEach((it) => { if (it.kind === "node" && !drawnAt.has(it.id)) { drawnAt.set(it.id, k); labels.push([it.id, it.text.toLowerCase()]); } }));
+  labels.sort((a, b) => b[1].length - a[1].length);
+  const steps = lesson.steps.map((s) => ({ ...s, items: [...s.items] }));
+  lesson.steps.forEach((s, k) => s.items.forEach((it) => {
+    if (it.kind !== "note") return;
+    const text = it.text.toLowerCase();
+    const box = it.about && drawnAt.has(it.about) ? it.about : labels.find(([, label]) => label.length >= 4 && new RegExp(`(^|[^\\p{L}])${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "u").test(text))?.[0];
+    const at = box === undefined ? k : drawnAt.get(box)!;
+    if (at <= k) return;
+    steps[k].items.splice(steps[k].items.indexOf(it), 1);
+    steps[at].items.push(it);
+  }));
+  return { ...lesson, steps };
 }
 
 /** Steps (1-based) whose sentence states a sum that does not come out: checked by computing it, not by asking. */
@@ -586,11 +690,24 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
   const more = Boolean(req.lesson);
   const maxSteps = more ? Math.min(3, req.maxSteps) : req.maxSteps;
   const user = more ? `${lessonContextText(req.lesson!)}\n\nFollow-up: ${quoted(req.question)}` : `Concept: ${quoted(req.question)}`;
+  /** Placeholders a service on the way put in place of a name or a place ("[PERSON_NAME]"), and names of the question the answer never uses. */
+  let redacted: string[] = [];
+  let drifted: string[] = [];
   const write = async (note: string): Promise<Lesson | null> => {
     for (let attempt = 0; attempt < 2; attempt++) {
       const text = await ask({ system: cloudSystem(req.lang, maxSteps, more), user: note ? `${user}\n\n${note}` : user, format: { type: "object" }, maxTokens: 3500, timeoutMs: TIMEOUTS.cloudMs, temperature: attempt ? 0.6 : 0.3 });
-      const lesson = validateLesson(parseJsonLoose(text), { maxSteps, texOk, sketch: true, continues: more ? req.lesson! : undefined });
-      if (lesson) return lesson;
+      const raw = parseJsonLoose(text);
+      const valid = validateLesson(raw, { maxSteps, texOk, sketch: true, continues: more ? req.lesson! : undefined });
+      const lesson = valid && placeNotes(valid);
+      // A placeholder the question did not contain means the model never saw a name of the question.
+      redacted = placeholderLeaks(text, req.question + (more ? JSON.stringify(req.lesson) : ""));
+      if (redacted.length) return null;
+      if (lesson) {
+        // The model restates the topic first; a name of the question that it and the title never use is a lesson about something else.
+        const restated = `${cleanText((raw as { topic?: unknown } | null)?.topic, 300)} ${lesson.title}`;
+        drifted = more ? [] : missingNames(req.question, restated);
+        return lesson;
+      }
     }
     return null;
   };
@@ -603,43 +720,52 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
   const faults = (lesson: Lesson, review: Review | null): string => {
     const sums = wrongSums(lesson).map((w) => `"${w.claim}" in step ${w.step} is not exact: correct the number, or say how it is rounded`);
     const said = review && (!review.topic || !review.answers) ? [review.issues || (review.topic ? "it does not do what was asked" : "it is about a different topic")] : [];
-    return [...said, ...sums].join("; ");
+    // what the examiner says the board must show is looked for on the board, in code
+    const absent = review?.must && !boardShows(lesson, review.must) ? [`the board never shows "${review.must}": draw it`] : [];
+    return [...said, ...absent, ...sums].join("; ");
   };
 
+  const hidden = () => emit({ type: "error", code: "redacted", message: `The online service replaced part of the question with ${redacted.join(", ")} before the model saw it.` });
   let lesson = await write("");
+  if (redacted.length) return hidden();
   if (!lesson) {
     emit({ type: "error", code: "plan", message: "The model did not return a lesson." });
     return;
   }
   let review = await examine(lesson);
+  // a lesson that never names what was asked about is off the topic, whatever the examiner says
+  if (drifted.length) review = { topic: false, answers: false, issues: [review?.issues, `the lesson never mentions ${drifted.join(", ")}, which the question is about`].filter(Boolean).join("; "), sentences: review?.sentences ?? null, arrows: new Map() };
   const first = faults(lesson, review);
   if (first) {
     // Written again once, with the reasons (the examiner's words about the model's own lesson, and the sums).
     const again = await write(`An examiner refused your previous lesson "${lesson.title}": ${first}. Write the lesson again and fix exactly that.`);
+    if (redacted.length) return hidden();
     if (again) {
       lesson = again;
       review = await examine(lesson);
+      if (drifted.length) review = { topic: false, answers: false, issues: "", sentences: review?.sentences ?? null, arrows: new Map() };
     }
   }
   if (review && !review.topic) {
     // Still another topic: the model first says in one sentence what the topic is, then writes from that.
     definition = cleanText(await ask({ system: "Define the topic the learner names, in one sentence of at most 30 words, as a textbook would. Reply with that sentence only.", user: `Topic: ${quoted(req.question)}`, maxTokens: 120, timeoutMs: TIMEOUTS.cloudMs, temperature: 0 }), 300);
     const third = definition ? await write(`The topic is: ${definition} Write the lesson about exactly this topic and nothing else.`) : null;
+    if (redacted.length) return hidden();
     if (third) {
       lesson = third;
       review = await examine(lesson);
     }
-    if (!third || (review && !review.topic)) {
+    if (!third || drifted.length || (review && !review.topic)) {
       // never teach another topic under the asked title
       emit({ type: "error", code: "topic", message: "The model kept answering about a different topic." });
       return;
     }
   }
   // Every arrow as its own sentence, judged alone; the verdicts are applied as they come.
+  const judge = (lines: string[]) =>
+    twice(async (temperature) => readArrowVerdicts(parseJsonLoose(await ask({ system: ARROW_SYSTEM, user: `Topic: ${quoted(req.question)}\n${lines.map((s, k) => `${k + 1}. ${s}`).join("\n")}`, format: { type: "object" }, maxTokens: 60 + lines.length * 30, timeoutMs: TIMEOUTS.cloudMs, temperature })), lines.length));
   const sentences = arrowSentences(lesson);
-  const arrows = sentences.length
-    ? await twice(async (temperature) => readArrowVerdicts(parseJsonLoose(await ask({ system: ARROW_SYSTEM, user: `Topic: ${quoted(req.question)}\n${sentences.map((s, k) => `${k + 1}. ${s}`).join("\n")}`, format: { type: "object" }, maxTokens: 60 + sentences.length * 24, timeoutMs: TIMEOUTS.cloudMs, temperature })), sentences.length))
-    : new Map<number, "ok" | "reversed" | "false">();
+  const arrows = sentences.length ? await judge(sentences) : new Map<number, "ok" | "reversed" | "false">();
   // a sum that is still wrong takes its step with it: the board never shows arithmetic that does not come out
   const bad = new Set(wrongSums(lesson).map((w) => w.step));
   const kept = new Set((review?.sentences ? [...review.sentences] : lesson.steps.map((_, k) => k + 1)).filter((n) => !bad.has(n)));
@@ -649,6 +775,29 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
     return;
   }
   lesson = checked;
+  // Boxes no arrow touches make the board read as a list. The model is asked once how each links to
+  // the rest; what it proposes is judged like any other arrow; a box still alone is taken off the
+  // board, unless its step draws nothing else.
+  const alone = orphanBoxes(lesson);
+  if (alone.length) {
+    const names = lessonNodes(lesson);
+    const idOf = (v: unknown) => { const label = cleanText(v, LIMITS.nodeText).toLowerCase(); return [...names].find(([, text]) => text.toLowerCase() === label)?.[0] ?? ""; };
+    const raw = parseJsonLoose(await ask({ system: LINK_SYSTEM, user: `Topic: ${quoted(req.question)}\nBoxes: ${[...names.values()].join("; ")}\nNot linked yet: ${alone.map((id) => names.get(id)).join("; ")}`, format: { type: "object" }, maxTokens: 320, timeoutMs: TIMEOUTS.cloudMs, temperature: 0 })) as { links?: unknown } | undefined;
+    const proposed = (Array.isArray(raw?.links) ? raw.links : []).flatMap((l) => {
+      const q = (l && typeof l === "object" ? l : {}) as { from?: unknown; verb?: unknown; to?: unknown };
+      const from = idOf(q.from);
+      const to = idOf(q.to);
+      const text = cleanText(q.verb, LIMITS.edgeText);
+      return from && to && from !== to && text && (alone.includes(from) || alone.includes(to)) ? [{ kind: "edge" as const, from, to, text }] : [];
+    }).slice(0, 6);
+    const verdicts = proposed.length ? await judge(proposed.map((e) => `A = ${names.get(e.from)}, B = ${names.get(e.to)}. Sentence: ${names.get(e.from)} ${e.text} ${names.get(e.to)}.`)) : null;
+    const accepted = proposed.flatMap((e, k) => { const v = verdicts?.get(k + 1); return v === "ok" ? [e] : v === "reversed" ? [{ ...e, from: e.to, to: e.from }] : []; });
+    const linked = new Set(accepted.flatMap((e) => [e.from, e.to]));
+    const drop = new Set(alone.filter((id) => !linked.has(id)));
+    const board: Lesson = lesson;
+    const steps = board.steps.map((s, k) => ({ say: s.say, items: [...s.items.filter((it) => !(it.kind === "node" && drop.has(it.id) && s.items.length > 1)).map((it) => (it.kind === "sketch" ? { kind: "sketch", drawing: it.drawing } : it)), ...(k === board.steps.length - 1 ? accepted : [])] }));
+    lesson = validateLesson({ title: board.title, scene: board.scene, steps }, { maxSteps: steps.length, texOk, sketch: true, continues: more ? req.lesson! : undefined }) ?? lesson;
+  }
   emit({ type: "outline", title: more ? req.lesson!.title : lesson.title, scene: more ? req.lesson!.scene : lesson.scene, says: lesson.steps.map((s) => s.say) });
   lesson.steps.forEach((step, index) => emit({ type: "step", index, step }));
   emit({ type: "done", cards: lesson.steps.filter((s) => s.card).length, stalled: false });

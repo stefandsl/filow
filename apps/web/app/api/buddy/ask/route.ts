@@ -4,6 +4,8 @@ import { dataUrlBytes, MAX_IMAGE_BYTES } from "@/lib/vision/openrouter";
 import { CONSENT_HEADER, consentDenied } from "@/lib/buddy/outbound";
 import { askBuddy, buddyCloudRecipient, resolveBuddyProvider, resolveLocalHelper, type BuddyAskRequest, type LocalHelper } from "@/lib/buddy/providers";
 import { answerLanguage } from "@/lib/buddy/lang";
+import { okfText } from "@/lib/buddy/text";
+import { placeholderLeaks } from "@/lib/pii/guard";
 import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
 
 export const dynamic = "force-dynamic";
@@ -69,11 +71,18 @@ export async function POST(req: Request) {
   }
   const encoder = new TextEncoder();
   const abort = new AbortController();
+  let said = "";
   req.signal?.addEventListener("abort", () => abort.abort());
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const piece of askBuddy(provider, { ...body, question, images, screens, consent, language: known ?? "auto" }, abort.signal, helper)) controller.enqueue(encoder.encode(piece));
+        for await (const piece of askBuddy(provider, { ...body, question, images, screens, consent, language: known ?? "auto" }, abort.signal, helper)) {
+          if (provider !== "local") said += piece;
+          controller.enqueue(encoder.encode(piece));
+        }
+        // A placeholder the question did not contain ("[PERSON_NAME]"): a service on the way hid a name
+        // before the model saw it. The answer is already on screen, so the reason follows it.
+        if (placeholderLeaks(said, question).length) controller.enqueue(encoder.encode(`\n\n${okfText(lang)("outRedacted")}`));
       } catch (e) {
         if (!abort.signal.aborted) controller.enqueue(encoder.encode(`\n[ERROR] ${e instanceof Error ? e.message : String(e)}`));
       } finally {

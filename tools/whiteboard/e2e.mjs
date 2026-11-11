@@ -219,7 +219,23 @@ try {
     check("the cloud lesson with a sketch passes axe at 360 px", Array.isArray(cloudAxe) && cloudAxe.length === 0, (cloudAxe || []).join("; "));
     await setTheme("dark");
 
-    // 8. "No" keeps the lesson on this PC: a different maker needs its own yes, and a no sends nothing.
+    // 8. A cloud account that hides names: no lesson, the reason, and the way back to this PC.
+    const sentBefore = cloudCalls().length;
+    await setInput(0, "The Krebs cycle");
+    await submit(0);
+    const hid = await waitFor(async () => { if (await page.evaluate(`Boolean(document.querySelector("dialog.okf-notice-modal[open]"))`)) await page.evaluate(`document.querySelector("dialog.okf-notice-modal .okf-notice-send").click(); true`); return page.evaluate(`Boolean(document.querySelector('main.wb-page .wb-alert [data-action="use-local"]'))`); }, 60_000);
+    const alertText = await page.evaluate(`document.querySelector("main.wb-page .wb-alert p")?.textContent ?? ""`);
+    check("a name hidden by the cloud service shows no lesson, says why and where the setting is", hid && /OpenRouter/.test(alertText) && alertText.includes("[PERSON_NAME]") && cloudCalls().length === sentBefore + 1 && (await page.evaluate(`document.querySelectorAll("main.wb-page svg.wb-board [data-node]").length`)) === 0, `${alertText.slice(0, 120)} | calls ${cloudCalls().length - sentBefore}`);
+    await shot("redacted-dark-1264", 1264, 800);
+    await shot("redacted-dark-360", 360, 740);
+    const hidAxe = await axe();
+    check("the message passes axe at 360 px", Array.isArray(hidAxe) && hidAxe.length === 0, (hidAxe || []).join("; "));
+    await page.evaluate(`document.querySelector('main.wb-page .wb-alert [data-action="use-local"]').click(); true`);
+    await sleep(800);
+    const onPc = await lessonDone(120_000);
+    check("Explain it on this PC asks the local model the same question, and nothing more leaves", onPc && onPc.phase === "done" && onPc.source === "local" && cloudCalls().length === sentBefore + 1, JSON.stringify(onPc && { phase: onPc.phase, source: onPc.source, alert: onPc.alert }));
+
+    // 9. "No" keeps the lesson on this PC: a different maker needs its own yes, and a no sends nothing.
     check("no local call carried a picture", fake.seen.filter((x) => x.url.startsWith("/api/chat")).every((x) => !x.hasImage));
   } else {
     check("nothing was sent to a cloud model", fake.seen.filter((x) => x.url.endsWith("/chat/completions")).length === 0);
