@@ -7,6 +7,7 @@ import { answerLanguage } from "@/lib/buddy/lang";
 import { drawnAnswer } from "@/lib/buddy/draw";
 import { wantsDrawing } from "@/lib/buddy/visuals";
 import { photoAnswer, wantsPhoto } from "@/lib/buddy/photo";
+import { isPointOnly, pointQuestion, withPointer } from "@/lib/buddy/pointer";
 import { okfText } from "@/lib/buddy/text";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
@@ -96,10 +97,20 @@ export async function POST(req: Request) {
   if (req.signal?.aborted) abort.abort();
   const ask: BuddyAskRequest = { ...body, question, images, screens, consent, sees, language: known ?? "auto" };
   // A plain request for a drawing or a 3D model is answered with one (lib/buddy/draw.ts): it needs no screenshot.
-  const drawing = wantsDrawing(question);  // Made inside the stream: a refused consent throws here and must reach the bubble as an error line.
+  const drawing = wantsDrawing(question);
+  // On this PC a setup may answer with one model and place the points with another (lib/buddy/pointer.ts).
+  const pointer = provider === "local" && !drawing && helper?.pictures && !isPointOnly(question) ? helper.pointer : undefined;
+  const whereIs = async (label: string) => {
+    let reply = "";
+    for await (const piece of askBuddy("local", { ...ask, question: pointQuestion(label), history: [] }, abort.signal, { model: pointer!, pictures: true })) reply += piece;
+    return reply;
+  };
+  // Made inside the stream: a refused consent throws here and must reach the bubble as an error line.
   const pieces = () => drawing
     ? drawnAnswer((shape, signal) => askBuddy(provider, ask, signal, helper, shape), { kind: drawing, language: known ?? "auto", lang, signal: abort.signal })
-    : askBuddy(provider, ask, abort.signal, helper);
+    : pointer
+      ? withPointer(askBuddy(provider, ask, abort.signal, helper), whereIs, () => abort.signal.aborted)
+      : askBuddy(provider, ask, abort.signal, helper);
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
