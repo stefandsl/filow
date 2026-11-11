@@ -8,6 +8,32 @@
 !include LogicLib.nsh
 !include FileFunc.nsh
 
+; NSIS ships Romanian without the five "install for whom" strings, and electron-builder treats the
+; "missing, using fallback" warning as an error. Filow supplies them here. The language-file macro is
+; redefined so that a string Filow provides (FILOW_<Language>_<NAME>) is used instead of the English
+; fallback; any other missing string still warns, as before.
+!include LangFile.nsh
+!define FILOW_Romanian_MULTIUSER_TEXT_INSTALLMODE_TITLE "Alege utilizatorii"
+!define FILOW_Romanian_MULTIUSER_TEXT_INSTALLMODE_SUBTITLE "Alege pentru ce utilizatori vrei să instalezi $(^NameDA)."
+!define FILOW_Romanian_MULTIUSER_INNERTEXT_INSTALLMODE_TOP "Alege dacă vrei să instalezi $(^NameDA) doar pentru tine sau pentru toți utilizatorii acestui computer. $(^ClickNext)"
+!define FILOW_Romanian_MULTIUSER_INNERTEXT_INSTALLMODE_ALLUSERS "Instalează pentru oricine folosește acest computer"
+!define FILOW_Romanian_MULTIUSER_INNERTEXT_INSTALLMODE_CURRENTUSER "Instalează doar pentru mine"
+!macroundef LANGFILE_SETSTRING
+!macro LANGFILE_SETSTRING NAME VALUE
+  !ifndef ${NAME}
+    !ifdef LANGFILE_PRIV_INCLUDEISFALLBACK
+      !ifdef FILOW_${LANGFILE_IDNAME}_${NAME}
+        !define "${NAME}" "${FILOW_${LANGFILE_IDNAME}_${NAME}}"
+      !else
+        !define "${NAME}" "${VALUE}"
+        !warning 'LangString "${NAME}" for language ${LANGFILE_IDNAME} is missing, using fallback from "${LANGFILE_PRIV_INCLUDEISFALLBACK}"'
+      !endif
+    !else
+      !define "${NAME}" "${VALUE}"
+    !endif
+  !endif
+!macroend
+
 ; Installer pass only: the uninstaller never sets them and makensis treats unused variables as errors here.
 !ifndef BUILD_UNINSTALLER
 Var WelcomeTitle
