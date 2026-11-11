@@ -8,6 +8,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 const net = require("node:net");
 const crypto = require("node:crypto");
+const { cancelError, isCancelled, removeInside } = require("./model-files");
 
 const MODEL_FILE = "s1-mini-q4_k_m.gguf";
 /** The file Filow downloads (superwhisper/s1-mini-GGUF, revision 34add00a): size and SHA-256 are pinned. */
@@ -129,39 +130,87 @@ function createS1Runtime(deps) {
     throw new Error("the downloaded model is not the expected file (hash differs); it was deleted");
   }
   let fetching = null;
+  let stopFetch = null;
   let pct = 0;
   let fetchError = "";
   /**
    * Downloads the model (462 MiB) into the profile. A broken download continues where it stopped; the
    * file gets its real name only after its hash was checked, so a half or altered file is never loaded.
    * The downloader (resume, progress) and the SHA-256 reader come from Filow's own modules, through deps.
+   * cancelFetch() is the user's Stop: the transfer ends, the part is deleted, and it is not an error.
    */
   function fetchModel() {
     if (hasModel()) return Promise.resolve(true);
     if (fetching) return fetching;
     const dest = model();
     const part = `${dest}.part`;
+    const ctl = new AbortController();
     fetchError = "";
     pct = 0;
+    stopFetch = () => ctl.abort(cancelError());
     fetching = (async () => {
       fs.mkdirSync(path.dirname(dest), { recursive: true });
       log(`s1: downloading the model (${Math.round(MODEL.bytes / 1024 / 1024)} MiB) from huggingface.co`);
-      await deps.download(deps.modelUrl || MODEL_URL, part, { resume: true, fallbackSize: MODEL.bytes, onPct: (p) => { pct = p; } });
+      await deps.download(deps.modelUrl || MODEL_URL, part, { resume: true, fallbackSize: MODEL.bytes, onPct: (p) => { pct = p; }, signal: ctl.signal });
       await verifyDownload(part);
+      if (ctl.signal.aborted) throw cancelError();
       fs.renameSync(part, dest);
       pct = 100;
       lastError = "";
       log("s1: model on this computer, hash checked"); // loaded at the next English dictation, not now
       return true;
-    })().catch((e) => { fetchError = String((e && e.message) || e).slice(0, 120); log(`s1: model download failed (${fetchError})`); return false; }).finally(() => { fetching = null; });
+    })().catch((e) => {
+      if (isCancelled(e) || ctl.signal.aborted) {
+        try { fs.rmSync(part, { force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* the next download starts over anyway */ }
+        pct = 0;
+        log("s1: model download stopped by the user, nothing kept on disk");
+        return false;
+      }
+      fetchError = String((e && e.message) || e).slice(0, 120); log(`s1: model download failed (${fetchError})`); return false;
+    }).finally(() => { fetching = null; stopFetch = null; });
     return fetching;
+  }
+  /** Stop: true when a download was running. It settles (file closed, part deleted) before the promise of fetchModel does. */
+  function cancelFetch() {
+    if (!stopFetch) return false;
+    stopFetch();
+    return true;
   }
 
   /** Loads the model ahead of the first dictation, so that one does not pay the start. Errors are kept for the report. */
   function warm() { if (ready().ok) void start().catch(() => {}); }
   function stop() { ct(idleTimer); idleTimer = null; const c = child; child = null; base = ""; if (c) { try { c.kill(); } catch { /* gone */ } } }
+  /**
+   * Delete: any download is stopped, the runtime is stopped and waited for (Windows will not delete a
+   * model a running llama-server has open), then the model's folder goes, part included. Returns the
+   * bytes freed. Dictation carries on without the cleanup step (ready() says "model not on this computer").
+   */
+  async function remove() {
+    cancelFetch();
+    if (fetching) await fetching;
+    if (starting) await starting.catch(() => {});
+    const c = child;
+    stop();
+    await exited(c);
+    lastError = "";
+    fetchError = "";
+    pct = 0;
+    const freed = removeInside(path.join(deps.userData, "models"), path.dirname(model()));
+    log(`s1: model deleted by the user (${Math.round(freed / 1024 / 1024)} MB freed)`);
+    return freed;
+  }
   const status = () => ({ runtime: Boolean(exe()), model: hasModel(), running: Boolean(child), startedMs, error: lastError || fetchError, downloading: Boolean(fetching), pct, bytes: MODEL.bytes, unloads });
-  return { ready, run, warm, stop, status, fetchModel };
+  return { ready, run, warm, stop, status, fetchModel, cancelFetch, remove };
+}
+
+/** Settles when a child process (or utility process) has exited, or after `ms` when it does not say so. */
+function exited(child, ms = 5000) {
+  if (!child || typeof child.once !== "function" || child.exitCode !== null && child.exitCode !== undefined) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    if (timer.unref) timer.unref();
+    child.once("exit", () => { clearTimeout(timer); resolve(); });
+  });
 }
 
 /** The name the setup uses for the model (build/installer.nsh, welcome-setup.js, packages/core profile.ts). */
@@ -181,4 +230,4 @@ function wantModel(rt, store, canFetch = () => true) {
   return { started: true };
 }
 
-module.exports = { createS1Runtime, serverFile, modelFile, freePort, wantModel, MODEL, MODEL_URL, IDLE_UNLOAD_MS, SETUP_ID };
+module.exports = { exited, createS1Runtime, serverFile, modelFile, freePort, wantModel, MODEL, MODEL_URL, IDLE_UNLOAD_MS, SETUP_ID };

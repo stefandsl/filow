@@ -11,6 +11,7 @@ const { Worker } = require("node:worker_threads");
 const { retryDownload } = require("./stt-download");
 const { download } = require("./download");
 const { sha256File } = require("./integrity");
+const { cancelError, isCancelled, removeInside, sizeOf } = require("./model-files");
 
 /** Spoken languages Filow is measured on; "auto" lets the model decide. */
 const LANGUAGES = ["en", "it", "ru", "ro", "ja"];
@@ -247,10 +248,11 @@ function modelReady(userData, opts = {}) {
 }
 
 /** Windows ships bsdtar as tar.exe (bzip2 built in); macOS and Linux have tar with -j. Runs as a child process: a 475 MB bzip2 takes tens of seconds and must not block the app. */
-function extract(archive, into) {
+function extract(archive, into, signal) {
   const tar = process.platform === "win32" ? path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe") : "tar";
   return new Promise((resolve, reject) => {
-    execFile(tar, ["-xjf", archive, "-C", into], { timeout: 15 * 60_000, windowsHide: true, maxBuffer: 1 << 20 }, (err) => (err ? reject(err) : resolve()));
+    // Stop while unpacking: the signal ends the tar process, and the caller removes what it wrote.
+    execFile(tar, ["-xjf", archive, "-C", into], { timeout: 15 * 60_000, windowsHide: true, maxBuffer: 1 << 20, signal }, (err) => (err ? reject(signal && signal.aborted ? cancelError() : err) : resolve()));
   });
 }
 
@@ -278,9 +280,12 @@ function installBare(part, dir, spec) {
  * Downloads and unpacks one model into userData/models; onStatus gets {state, pct}. `spec` is a
  * catalogue entry (MODEL by default; a fixture in tests). The download resumes from the .part file;
  * the finished file must match the pinned SHA-256 before it is unpacked, and a mismatch deletes it
- * so the next try starts clean.
+ * so the next try starts clean. `opts.signal` is the user's Stop (model-files.js createDownloads):
+ * the transfer ends at once, no retry follows, the part and anything half unpacked are deleted, and
+ * onStatus gets {state: "cancelled"}, never an error.
  */
-async function ensureModel(userData, onStatus, spec = MODEL) {
+async function ensureModel(userData, onStatus, spec = MODEL, opts = {}) {
+  const { signal } = opts;
   const dir = modelDir(userData, spec);
   if (specInstalled(userData, spec)) return onStatus({ state: "ready", pct: 100 });
   const models = path.join(userData, "models");
@@ -298,17 +303,18 @@ async function ensureModel(userData, onStatus, spec = MODEL) {
       if (fs.existsSync(part) && fs.statSync(part).size > spec.sizeBytes) fs.rmSync(part, { force: true });
       if (!(fs.existsSync(part) && fs.statSync(part).size === spec.sizeBytes)) {
         // Resumes the part on disk; the pinned hash below makes a bad resume cost one fresh download, never a corrupt model.
-        await download(spec.url, part, { onPct: (pct) => onStatus({ state: "downloading", pct }), fallbackSize: spec.sizeBytes, resume: true });
+        await download(spec.url, part, { onPct: (pct) => onStatus({ state: "downloading", pct }), fallbackSize: spec.sizeBytes, resume: true, signal });
       }
       onStatus({ state: "extracting", pct: 99 });
       try { await verifyArchive(part, spec.sha256); }
       catch (err) { fs.rmSync(part, { force: true }); throw err; }
+      if (signal && signal.aborted) throw cancelError();
       if (spec.bare) return installBare(part, dir, spec);
       const extracted = path.join(models, spec.archive);
       // A failed extraction must not contribute stale files to a later attempt.
       fs.rmSync(extracted, { recursive: true, force: true });
       try {
-        await extract(part, models);
+        await extract(part, models, signal);
         if (!spec.files.every((f) => fs.existsSync(path.join(extracted, f)))) throw new Error("archive did not contain the expected files");
         // Test audio and unquantised copies of the model are never loaded: they only take disk space.
         if (spec.prune) for (const entry of fs.readdirSync(extracted)) if (!spec.files.includes(entry)) fs.rmSync(path.join(extracted, entry), { recursive: true, force: true });
@@ -320,9 +326,17 @@ async function ensureModel(userData, onStatus, spec = MODEL) {
       }
       fs.rmSync(part, { force: true });
     }, attempt => onStatus({ state: "downloading", pct: partialPct(userData, spec), message: `download attempt ${attempt}/4` }),
-    (attempt, delay, err) => onStatus({ state: "downloading", pct: partialPct(userData, spec), message: `attempt ${attempt} failed: ${err.message}; retry in ${delay / 1000} s` }));
+    (attempt, delay, err) => onStatus({ state: "downloading", pct: partialPct(userData, spec), message: `attempt ${attempt} failed: ${err.message}; retry in ${delay / 1000} s` }),
+    signal, opts.retryDelays);
     onStatus({ state: "ready", pct: 100 });
   } catch (err) {
+    if (isCancelled(err)) {
+      // Stopped by the user: nothing of this download stays on disk.
+      for (const leftover of [part, path.join(models, spec.archive)]) {
+        try { if (!spec.bare || leftover === part) removeInside(models, leftover); } catch { /* held by a scanner: the next download starts over anyway */ }
+      }
+      return onStatus({ state: "cancelled", pct: 0 });
+    }
     // The part stays (unless it failed its hash, which deleted it): the next try resumes it.
     onStatus({ state: "error", pct: partialPct(userData, spec), error: String((err && err.message) || err) });
   }
@@ -333,7 +347,7 @@ async function ensureModel(userData, onStatus, spec = MODEL) {
  * onStatus gets one overall percentage weighted by size, the entry being fetched in `model`, and a
  * single {state: "ready"} at the end; the first failure stops the run with {state: "error"}.
  */
-async function ensureAll(userData, specs, onStatus) {
+async function ensureAll(userData, specs, onStatus, opts = {}) {
   const missing = specs.filter((s) => !specInstalled(userData, s));
   const total = missing.reduce((n, s) => n + s.sizeBytes, 0) || 1;
   let done = 0;
@@ -341,22 +355,54 @@ async function ensureAll(userData, specs, onStatus) {
     let failed = false;
     await ensureModel(userData, (s) => {
       if (s.state === "ready") return;
-      if (s.state === "error") failed = true;
-      const pct = Math.min(99, Math.floor(((done + (spec.sizeBytes * s.pct) / 100) / total) * 100));
+      // "cancelled" (the user's Stop) ends the run like a failure does, and is passed on as it is.
+      if (s.state === "error" || s.state === "cancelled") failed = true;
+      const pct = s.state === "cancelled" ? 0 : Math.min(99, Math.floor(((done + (spec.sizeBytes * s.pct) / 100) / total) * 100));
       onStatus({ ...s, pct, model: spec.key ?? spec.id });
-    }, spec);
+    }, spec, opts);
     if (failed) return;
     done += spec.sizeBytes;
   }
   onStatus({ state: "ready", pct: 100 });
 }
 
-/** Removes every speech model and every unfinished download. */
-function removeModel(userData) {
-  for (const spec of Object.values(CATALOGUE)) {
-    fs.rmSync(modelDir(userData, spec), { recursive: true, force: true });
-    fs.rmSync(partFile(userData, spec), { force: true });
-  }
+/** Everything one catalogue entry can leave in userData/models: its folder, its unfinished download, a half unpacked archive, the pre-0.9.31 archive name. */
+function specPaths(userData, spec) {
+  const models = path.join(userData, "models");
+  const paths = [modelDir(userData, spec), partFile(userData, spec)];
+  if (!spec.bare) paths.push(path.join(models, spec.archive), path.join(models, `${spec.archive}.tar.bz2`));
+  return paths;
+}
+
+/** Bytes a catalogue entry holds on disk right now (installed files and any unfinished download). */
+function specBytes(userData, spec) {
+  return specPaths(userData, spec).reduce((n, p) => n + sizeOf(p), 0);
+}
+
+/**
+ * Deletes speech models completely and returns the bytes freed. With `key`, that one model (its
+ * folder, its unfinished download, anything half unpacked); the voice detector goes with the last
+ * phrase model that needs it. Without a key, every speech model and every unfinished download.
+ * Each path is checked to be inside userData/models before it is removed (model-files.js).
+ */
+function removeModel(userData, key) {
+  const models = path.join(userData, "models");
+  const remove = (spec) => specPaths(userData, spec).reduce((n, p) => n + removeInside(models, p), 0);
+  if (key === undefined) return Object.values(CATALOGUE).reduce((n, spec) => n + remove(spec), 0);
+  const spec = Object.prototype.hasOwnProperty.call(CATALOGUE, key) ? CATALOGUE[key] : null;
+  if (!spec) throw new Error(`unknown speech model: ${key}`);
+  let freed = remove(spec);
+  const phraseModelLeft = Object.values(CATALOGUE).some((s) => s.kind === "offline" && specBytes(userData, s) > 0);
+  if (spec.kind !== "vad" && !phraseModelLeft) freed += remove(VAD);
+  return freed;
+}
+
+/** The speech models that hold anything on disk: [{ key, label, installed, bytes }], the voice detector left out (it follows its models). */
+function modelsOnDisk(userData) {
+  return Object.values(CATALOGUE)
+    .filter((s) => s.kind !== "vad")
+    .map((s) => ({ key: s.key, label: s.label, installed: specInstalled(userData, s), bytes: specBytes(userData, s) }))
+    .filter((m) => m.bytes > 0);
 }
 
 /**
@@ -536,11 +582,13 @@ class SttSession {
     return this.stopping;
   }
 
+  /** Stops the worker; the promise settles when the thread is gone and the model files are closed (Delete waits for it). */
   dispose() {
-    if (this.worker) void this.worker.terminate();
+    const worker = this.worker;
     this.worker = null;
     this.modelKey = null;
     this.ready = false;
+    return worker ? Promise.resolve(worker.terminate()).catch(() => {}) : Promise.resolve();
   }
 }
 
@@ -560,6 +608,7 @@ function forUse(use, getLanguage = () => "auto") {
 }
 
 module.exports = {
+  modelsOnDisk, specBytes, specPaths,
   MODEL, CATALOGUE, LANGUAGES, normaliseLanguage, tierFor, chooseModels, pickInstalled, installedKeys, requiredSpecs, recognizerConfig, speechStatus,
   modelDir, modelReady, ensureModel, ensureAll, removeModel, partFile, partialPct, SttSession, forUse, verifyArchive, sha256File,
 };

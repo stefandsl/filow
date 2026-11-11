@@ -124,6 +124,16 @@ contextBridge.exposeInMainWorld("filow", {
       return () => ipcRenderer.removeListener("stt:status", h);
     },
   },
+  /**
+   * The models in Filow's profile (model-control.js): what is on disk and in use, Stop for a download
+   * ("speech", "voice", "cleanup", "punctuation", "ollama-installer", "cloudflared") and Delete for a
+   * model ("speech:<key>", "voice", "cleanup", "punctuation").
+   */
+  models: {
+    status: () => ipcRenderer.invoke("models:status"),
+    cancel: (id) => ipcRenderer.invoke("models:cancel", id),
+    remove: (id) => ipcRenderer.invoke("models:delete", id),
+  },
   /** Phone on this network: which adapter/IP the QR uses, the Windows Firewall state, and fixes. */
   net: {
     status: () => ipcRenderer.invoke("net:status"),

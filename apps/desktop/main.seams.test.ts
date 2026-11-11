@@ -62,11 +62,11 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
-  for (const name of ["download", "stt", "localai", "diag", "s1-runtime", "welcome-setup", "single-instance", "about"]) {
+  for (const name of ["model-files", "download", "stt", "localai", "diag", "s1-runtime", "welcome-setup", "single-instance", "about"]) {
     const module = { exports: {} };
     runInNewContext(readFileSync(new URL(`./${name}.js`, import.meta.url), "utf8"), {
       require: (id: string) => { if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`); return modules[id]; },
-      module, process: { env, platform }, URL, setTimeout, clearTimeout, __dirname: "G:/fake",
+      module, process: { env, platform }, URL, setTimeout, clearTimeout, AbortController, __dirname: "G:/fake",
     });
     modules[`./${name}`] = module.exports;
   }
@@ -84,7 +84,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
       return modules[id];
     },
     __dirname: "G:/fake", process: { env, platform, arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {} },
-    URL, URLSearchParams, console, setTimeout, clearTimeout,
+    URL, URLSearchParams, console, setTimeout, clearTimeout, AbortController,
   });
   return { api, env, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync,
     calls, appHandlers, appExit, whenReady, windows, asked, catalog: Object.keys(modules["./localai"].CATALOG),

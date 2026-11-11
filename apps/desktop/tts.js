@@ -21,14 +21,19 @@ const MODEL = {
 const LANGS = ["en", "it", "ru", "ro", "ja"];
 /** Speakers in the model: 0-4 are the female voices, 5-9 the male ones (measured pitch, VOICE.md). */
 const VOICES = 10;
+/** The id of the voice in the downloads registry and in the models list (model-files.js, main.js). */
+const DOWNLOAD_ID = "voice";
 /** Longest answer spoken in one go. */
 const MAX_TEXT = 4000;
 
 // `spec` is MODEL everywhere except in tests.
 const modelDir = (userData, spec = MODEL) => path.join(userData, "models", spec.id);
 const modelReady = (userData, spec = MODEL) => spec.files.every((f) => fs.existsSync(path.join(modelDir(userData, spec), f)));
+/** Deletes the voice completely (its folder, an unfinished download, anything half unpacked); returns the bytes freed. Nothing outside userData/models can be removed (model-files.js). */
 function removeModel(userData, spec = MODEL) {
-  fs.rmSync(modelDir(userData, spec), { recursive: true, force: true });
+  const { removeInside } = require("./model-files");
+  const models = path.join(userData, "models");
+  return require("./stt").specPaths(userData, spec).reduce((n, p) => n + removeInside(models, p), 0);
 }
 
 /** Language and speaker for a request; anything unknown falls back to English and the first voice. */
@@ -364,12 +369,14 @@ class TtsSession {
     abortLoad?.("voice stopped");
     for (const p of this.pending.values()) p.reject(new Error("voice stopped"));
     this.pending.clear();
-    if (worker) try { void worker.terminate(); } catch { /* already gone */ }
+    // The promise settles when the thread is gone and the model files are closed (Delete waits for it).
+    if (worker) try { return worker.terminate().catch(() => {}); } catch { /* already gone */ }
+    return Promise.resolve();
   }
 
   dispose() {
     this.gen++;
-    this.stopWorker();
+    return this.stopWorker();
   }
 }
 
@@ -399,9 +406,9 @@ function wavBytes(samples, sampleRate) {
  * OK Filow's windows (okfilow.js ourSender); every channel refuses any other sender. `qaDir` (test
  * builds only) gets a WAV and a JSON line per spoken answer.
  */
-function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOffline = () => false, qaDir = "", hardware, session, download, model = MODEL, onChange = () => {} }) {
+function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOffline = () => false, qaDir = "", hardware, session, download, model = MODEL, onChange = () => {}, downloads = require("./model-files").createDownloads() }) {
   const stt = require("./stt");
-  const fetchModel = download || ((onStatus) => stt.ensureModel(userData, onStatus, model));
+  const fetchModel = download || ((onStatus, signal) => stt.ensureModel(userData, onStatus, model, { signal }));
   const tts = session || new TtsSession(userData, logLine, { model });
   const installed = () => modelReady(userData, model);
   let profile = pickProfile(hardware);
@@ -452,31 +459,45 @@ function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOff
     if (!downloading) {
       state = { state: "downloading", pct: stt.partialPct(userData, model), error: "" };
       logLine("tts: model download started");
+      const signal = downloads.begin(DOWNLOAD_ID);
+      let stopped = false;
       downloading = Promise.resolve()
         .then(() => fetchModel((s) => {
+          if (s.state === "cancelled") { stopped = true; return; }
           state = { state: s.state, pct: Math.round(s.pct ?? state.pct), error: s.error ? String(s.error) : "" };
           push();
-        }))
+        }, signal))
         .catch((err) => { state = { state: "error", pct: 0, error: String((err && err.message) || err) }; })
         .then(() => {
           downloading = null;
-          if (state.state !== "error") state = { state: "idle", pct: 0, error: "" };
-          logLine(`tts: model download ${installed() ? "finished" : "failed: " + state.error}`);
+          downloads.end(DOWNLOAD_ID, signal);
+          if (stopped || state.state !== "error") state = { state: "idle", pct: 0, error: "" };
+          // Stop is the user's choice: the log says so, in words the problem report does not read as a failure.
+          logLine(`tts: model download ${installed() ? "finished" : stopped ? "stopped by the user, nothing kept on disk" : "failed: " + state.error}`);
           push();
         });
     }
     return status();
   });
 
-  handle("okfilow:tts:remove", () => {
-    if (downloading) return status();
-    tts.dispose();
-    removeModel(userData, model);
-    try { fs.rmSync(stt.partFile(userData, model), { force: true }); } catch { /* nothing to remove */ }
-    state = { state: "idle", pct: 0, error: "" };
-    push();
+  /** Stop: ends the download in flight; the part on disk is deleted (stt.js ensureModel). */
+  const stopDownload = () => {
+    downloads.cancel(DOWNLOAD_ID);
     return status();
-  });
+  };
+  handle("okfilow:tts:stopDownload", () => stopDownload());
+
+  /** Delete: the worker lets go of the files first, then the folder and any part are removed. */
+  const remove = async () => {
+    if (downloading) { downloads.cancel(DOWNLOAD_ID); await downloading; }
+    await tts.dispose();
+    const freedBytes = removeModel(userData, model);
+    state = { state: "idle", pct: 0, error: "" };
+    logLine(`tts: model deleted by the user (${Math.round(freedBytes / 1024 / 1024)} MB freed)`);
+    push();
+    return { ...status(), freedBytes };
+  };
+  handle("okfilow:tts:remove", () => remove());
 
   /** Loads the model ahead of the answer (the panel calls it when a question starts). */
   handle("okfilow:tts:warm", () => {
@@ -556,6 +577,10 @@ function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOff
     /** The model is here and this PC can carry it. */
     usable: () => profile.mode === "natural" && installed(),
     dispose: () => tts.dispose(),
+    stopDownload,
+    remove,
+    /** True while the worker holds the model in memory. */
+    loaded: () => Boolean(tts.worker),
   };
 }
 

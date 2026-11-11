@@ -522,6 +522,7 @@ function wireScreenSense() {
   appOn("take:live", (_e, on) => setTakeLive(on));
   appHandle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, session: tunnels.session, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
   wireStt();
+  wireModels();
   appHandle("localai:status", () => localAiState);
   appHandle("net:status", () => {
     const ranked = rankedInterfaces();
@@ -761,6 +762,10 @@ function cloudflaredPath() {
 
 // The shared downloader: redirects, idle timeout, length check, and no partial file left on failure.
 const { download } = require("./download");
+// Every download Filow starts can be stopped by the user: one registry of the downloads in flight,
+// keyed by a model id (model-files.js). wireModels() below registers the IPC that stops and deletes.
+const modelFiles = require("./model-files");
+const modelDownloads = modelFiles.createDownloads();
 
 /** Official cloudflared binary from GitHub releases, into <userData>/bin. Asks first. */
 // SEC-15: cloudflared is not code-signed, so the download must match the SHA-256 GitHub publishes for
@@ -796,15 +801,21 @@ async function ensureCloudflared(win, { silent = false } = {}) {
   const bin = path.join(userData, "bin");
   fs.mkdirSync(bin, { recursive: true });
   const dest = path.join(bin, process.platform === "win32" ? "cloudflared.exe" : "cloudflared");
-  if (process.platform === "darwin") {
-    const tgz = path.join(bin, asset);
-    await download(base + asset, tgz);
-    await verifyDownload(tgz, asset);
-    execFileSync("tar", ["-xzf", tgz, "-C", bin]);
-    fs.rmSync(tgz, { force: true });
-  } else {
-    await download(base + asset, dest);
-    await verifyDownload(dest, asset);
+  // Stop (models:cancel "cloudflared"): the transfer ends and the partial file is deleted (download.js).
+  const signal = modelDownloads.begin("cloudflared");
+  try {
+    if (process.platform === "darwin") {
+      const tgz = path.join(bin, asset);
+      await download(base + asset, tgz, { signal });
+      await verifyDownload(tgz, asset);
+      execFileSync("tar", ["-xzf", tgz, "-C", bin]);
+      fs.rmSync(tgz, { force: true });
+    } else {
+      await download(base + asset, dest, { signal });
+      await verifyDownload(dest, asset);
+    }
+  } finally {
+    modelDownloads.end("cloudflared", signal);
   }
   if (process.platform !== "win32") fs.chmodSync(dest, 0o755);
   return dest;
@@ -930,8 +941,14 @@ async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
         remoteStatus("on");
       } catch (err) {
         stopTunnels();
-        remoteStatus("error", String(err.message || err));
-        if (!auto) {
+        if (modelFiles.isCancelled(err)) {
+          // The user stopped the download of cloudflared: the public link stays off, and it is not an error.
+          settings.remoteShare = false;
+          saveSettings();
+          remoteStatus("off");
+          logLine("public link: download stopped by the user, nothing kept on disk");
+        } else remoteStatus("error", String(err.message || err));
+        if (!auto && !modelFiles.isCancelled(err)) {
           settings.remoteShare = false;
           saveSettings();
           await errorWithReport(win, mt("tunnelFailed"), String(err.message || err));
@@ -1521,6 +1538,7 @@ function startOkFilow() {
         return true;
       },
       sttDownload: () => void sttDownload(),
+      downloads: modelDownloads,
       // a question found Ollama stopped: start it in the background, so the next question is answered
       onAnswerError: (failure) => { if (localAi.isOllamaStopped(failure)) startOllamaIfWanted("OK Filow found Ollama stopped", { needed: true }); },
       dictation: getDictation(),
@@ -1570,16 +1588,30 @@ function sttDownload(use = "tracking") {
     if (sttJob && sttJob.key !== key) void sttDownloading.then(() => sttDownload(use));
     return sttDownloading;
   }
+  const signal = modelDownloads.begin("speech");
   sttDownloading = sttLocal
     .ensureAll(userData, sttLocal.requiredSpecs(key), (s) => {
-      sttJob = { key, state: s.state, pct: s.pct, error: s.error || "" };
-      logLine(`stt model ${s.model || key}: ${s.state}${s.pct ? ` ${s.pct}%` : ""}${s.message ? ` ${s.message}` : ""}${s.error ? ` ${s.error}` : ""}`);
+      if (s.state === "cancelled") {
+        // Stop is the user's choice: back to "Download", no error kept, and the log says who stopped it.
+        sttJob = null;
+        logLine(`stt model ${s.model || key}: download stopped by the user, nothing kept on disk`);
+      } else {
+        sttJob = { key, state: s.state, pct: s.pct, error: s.error || "" };
+        logLine(`stt model ${s.model || key}: ${s.state}${s.pct ? ` ${s.pct}%` : ""}${s.message ? ` ${s.message}` : ""}${s.error ? ` ${s.error}` : ""}`);
+      }
       sttBroadcast("stt:status", sttStatus());
-    })
+    }, { signal })
     .finally(() => {
       sttDownloading = null;
+      modelDownloads.end("speech", signal);
     });
   return sttDownloading;
+}
+/** The recognizers let go of their model files (the take's and OK Filow's own), so Windows can delete them. */
+async function releaseSpeechModels() {
+  const mine = sttSession ? sttSession.dispose() : null;
+  sttSession = null;
+  await Promise.all([mine, okFilow ? okFilow.releaseStt() : null]);
 }
 function wireStt() {
   appHandle("stt:status", () => sttStatus());
@@ -1591,11 +1623,14 @@ function wireStt() {
     setSttLanguage(language);
     void sttDownload(use === "questions" ? "questions" : "tracking");
   });
-  appHandle("stt:remove", () => {
-    if (sttSession) sttSession.dispose();
-    sttSession = null;
+  // Every speech model at once (the older button); one model goes through models:delete "speech:<key>".
+  appHandle("stt:remove", async () => {
+    modelDownloads.cancel("speech");
+    if (sttDownloading) await sttDownloading;
+    await releaseSpeechModels();
     sttJob = null;
-    sttLocal.removeModel(userData);
+    const freed = sttLocal.removeModel(userData);
+    logLine(`stt: every speech model deleted by the user (${Math.round(freed / 1024 / 1024)} MB freed)`);
     sttBroadcast("stt:status", sttStatus());
   });
   appHandle("stt:start", async (e, language) => {
@@ -1612,6 +1647,40 @@ function wireStt() {
     if (sttSession) sttSession.feed(samples instanceof Float32Array ? samples : new Float32Array(samples));
   });
   appHandle("stt:stop", () => sttSession?.stop());
+}
+
+// ---- Models on this computer: installed, in use, stop a download, delete (model-control.js) ----
+let modelControl = null;
+function models() {
+  const forget = (key, what) => {
+    if (!settings[key]) return;
+    delete settings[key];
+    try { saveSettings(); } catch (err) { logLine(`${what}: wish not cleared: ${err.message}`); }
+  };
+  modelControl ||= require("./model-control").createModelControl({
+    userData, logLine, downloads: modelDownloads, stt: sttLocal, tts: require("./tts"),
+    speech: {
+      language: sttLanguage,
+      job: () => sttJob,
+      clearJob: () => { sttJob = null; },
+      downloading: () => sttDownloading,
+      release: releaseSpeechModels,
+      loaded: () => [sttSession && sttSession.worker ? sttSession.modelKey : null, okFilow ? okFilow.sttLoaded() : null].filter(Boolean),
+      changed: () => sttBroadcast("stt:status", sttStatus()),
+    },
+    voice: () => (okFilow ? okFilow.voiceModel() : null),
+    okFilow: () => (okFilow ? okFilow.status() : null),
+    dictation: () => getDictation().cfg(),
+    cleanup: s1Runtime,
+    punctuation: truecaseRuntime,
+    clearWish: (kind) => (kind === "cleanup" ? forget("cleanupModelWanted", "s1") : forget("punctuationModelWanted", "truecase")),
+  });
+  return modelControl;
+}
+function wireModels() {
+  appHandle("models:status", () => models().status());
+  appHandle("models:cancel", (_e, id) => models().cancel(String(id)));
+  appHandle("models:delete", (_e, id) => models().remove(String(id)));
 }
 
 // ---- Local AI: hardware scan, recommendation, unattended Ollama install (localai.js) ----
@@ -1655,14 +1724,17 @@ function startOllamaInstall({ startOnly = false } = {}) {
     settings.ollamaWanted = true;
     saveSettings();
   }
+  // Stop (models:cancel "ollama-installer") ends the installer's download; an install that is running is left to finish.
+  const signal = startOnly ? undefined : modelDownloads.begin("ollama-installer");
   localAiInstalling = Promise.resolve()
-    .then(() => localAi.installOllama(path.join(userData, "bin"), setLocalAi, { ...localAiDeps(), startOnly }))
+    .then(() => localAi.installOllama(path.join(userData, "bin"), setLocalAi, { ...localAiDeps(), startOnly, signal }))
     .catch((err) => {
       // whatever went wrong, the status may not stay on "starting"
       setLocalAi({ state: "error", pct: 0, code: "unexpected", error: String(err && err.message ? err.message : err), version: "", command: "" });
     })
     .finally(() => {
       localAiInstalling = null;
+      if (signal) modelDownloads.end("ollama-installer", signal);
     });
   return localAiInstalling;
 }
