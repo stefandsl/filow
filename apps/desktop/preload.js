@@ -133,6 +133,8 @@ contextBridge.exposeInMainWorld("filow", {
     status: () => ipcRenderer.invoke("localai:status"),
     hardware: () => ipcRenderer.invoke("localai:hardware"),
     install: () => ipcRenderer.send("localai:install"),
+    /** Start an installed Ollama that is not running (the editor's local translation); nothing is downloaded. */
+    start: () => ipcRenderer.send("localai:start"),
     onStatus: (fn) => {
       const h = (_e, v) => fn(v);
       ipcRenderer.on("localai:status", h);

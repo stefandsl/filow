@@ -15,7 +15,7 @@ export const LOCAL_TRANSLATE_CHUNK = 6;
  * first one installed is used; TRANSLATE_LOCAL_MODEL overrides. Every setup that has a text model
  * installs one of these.
  */
-export const LOCAL_TRANSLATE_MODELS = ["gemma4:e4b", "gemma4:e2b", "qwen3-vl:8b", "qwen3-vl:2b", "lfm3-vl"];
+export const LOCAL_TRANSLATE_MODELS = ["gemma4:e4b", "gemma4:e2b"];
 
 export type LocalTranslateReason = "ollama_down" | "no_model" | "too_slow" | "failed";
 

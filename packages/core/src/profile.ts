@@ -32,8 +32,11 @@ export type MachineInfo = {
 export type ProfileReason = "gpu" | "unified" | "ram-and-cores" | "small-gpu" | "low-ram" | "few-cores" | "low-disk";
 
 /** Local model the setup needs, with its one-time download. */
-/** `use` "take": a local take needs it; "screen": only OK Filow's local answers do. */
-export type SetupModel = { name: string; downloadGb: number; runtime: "ollama" | "sherpa" | "browser"; use: "take" | "screen" };
+/**
+ * `use` "take": a local take needs it; "screen": only OK Filow's local answers do; "script": writing
+ * a script from slides and translating one on this PC (scriptModel, not part of a profile's `models`).
+ */
+export type SetupModel = { name: string; downloadGb: number; runtime: "ollama" | "sherpa" | "browser"; use: "take" | "screen" | "script" };
 
 export type SetupChoices = {
   profile: SetupProfileId;
@@ -102,6 +105,29 @@ export function diskNeededGb(models: SetupModel[], installed?: string[]): number
 }
 
 const roomFor = (m: MachineInfo, models: SetupModel[]) => m.freeDiskGb === null || m.freeDiskGb === undefined || m.freeDiskGb >= diskNeededGb(models, m.installed);
+
+/**
+ * Sizes are what Ollama reports once the model is installed (measured 2026-11-11, docs/TRANSLATE-LOCAL.md).
+ * The small models of the setups (lfm3-vl, qwen3-vl:2b) do not translate well enough and are not used for it.
+ */
+const GEMMA_E2B: SetupModel = { name: "gemma4:e2b", downloadGb: 4.3, runtime: "ollama", use: "script" };
+const GEMMA_E4B: SetupModel = { name: "gemma4:e4b", downloadGb: 6.1, runtime: "ollama", use: "script" };
+/** Memory from which a script model fits next to the app: Gemma 4 E2B from 8 GB, E4B from 32 GB. */
+export const SCRIPT_MODEL_MIN_RAM_GB = 8;
+
+/**
+ * The model that writes scripts from slides and translates scripts on this PC, for every setup: the
+ * rule the installer and the first start already follow (localai.js recommend). Gemma 4 E4B from
+ * 32 GB of memory, E2B from 8 GB; the one already installed wins; a download that would not leave
+ * DOWNLOAD_SPARE_GB free is not offered (the big one gives way to the small one first). Null: this
+ * PC has too little memory, or too little free disk, for local translation.
+ */
+export function scriptModel(m: MachineInfo): SetupModel | null {
+  const has = (x: SetupModel) => isInstalled(x.name, m.installed);
+  if (m.ramGb < SCRIPT_MODEL_MIN_RAM_GB) return null;
+  const wanted = m.ramGb >= 32 ? [GEMMA_E4B, GEMMA_E2B] : [GEMMA_E2B];
+  return wanted.find(has) ?? wanted.find((x) => roomFor(m, [x])) ?? null;
+}
 
 /** Free disk Best quality needs on this machine (its downloads still missing plus the spare), GB. */
 export function advancedDiskNeedGb(m: Pick<MachineInfo, "installed">): number {

@@ -229,13 +229,13 @@ FunctionEnd
   ${Do}
     StrCpy $R1 4
     ${If} $StGemmaBig == ${BST_CHECKED}
-      IntOp $R1 $R1 + 9
+      IntOp $R1 $R1 + 7
     ${EndIf}
     ${If} $StClef == ${BST_CHECKED}
       IntOp $R1 $R1 + 11
     ${EndIf}
     ${If} $StGemmaSmall == ${BST_CHECKED}
-      IntOp $R1 $R1 + 6
+      IntOp $R1 $R1 + 5
     ${EndIf}
     ${If} $R1 <= $FreeGb
       ${ExitDo}
@@ -333,10 +333,10 @@ SectionGroup /e "Local AI" SecAI
     AddSize 11534336
   SectionEnd
   Section /o "Gemma 4 E2B" SecGemmaSmall
-    AddSize 6291456
+    AddSize 4508877
   SectionEnd
   Section /o "Gemma 4 E4B" SecGemmaBig
-    AddSize 9437184
+    AddSize 6396314
   SectionEnd
 SectionGroupEnd
 Section /o "Ollama" SecOllama
@@ -415,8 +415,8 @@ SectionEnd
     StrCpy $LblWhisperBase "Whisper base: trascrizione sul dispositivo (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: trascrizione più accurata (500 MB, serve una GPU)"
     StrCpy $LblClef "Clef Flash: decisioni in locale (11 GB, 16 GB di RAM)"
-    StrCpy $LblGemmaSmall "Gemma 4 E2B: copione dalle slide (6 GB, 8 GB di RAM)"
-    StrCpy $LblGemmaBig "Gemma 4 E4B: copione dalle slide, migliore (9 GB, 16 GB di RAM)"
+    StrCpy $LblGemmaSmall "Gemma 4 E2B: copione dalle slide e traduzione (4,3 GB, 8 GB di RAM)"
+    StrCpy $LblGemmaBig "Gemma 4 E4B: copione dalle slide e traduzione, migliore (6,1 GB, 16 GB di RAM)"
     StrCpy $LblOllama "Installa Ollama in background (motore dei modelli locali, 1 GB; serve per Clef e Gemma)"
     StrCpy $RunText "Esegui Filow"
     StrCpy $ShortcutText "Crea collegamento sul desktop"
@@ -445,8 +445,8 @@ SectionEnd
     StrCpy $LblWhisperBase "Whisper base: Spracherkennung auf dem Gerät (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: genauere Spracherkennung (500 MB, braucht eine GPU)"
     StrCpy $LblClef "Clef Flash: lokale Entscheidungen (11 GB, 16 GB RAM)"
-    StrCpy $LblGemmaSmall "Gemma 4 E2B: Skript aus den Folien (6 GB, 8 GB RAM)"
-    StrCpy $LblGemmaBig "Gemma 4 E4B: Skript aus den Folien, besser (9 GB, 16 GB RAM)"
+    StrCpy $LblGemmaSmall "Gemma 4 E2B: Skript aus den Folien und Übersetzung (4,3 GB, 8 GB RAM)"
+    StrCpy $LblGemmaBig "Gemma 4 E4B: Skript aus den Folien und Übersetzung, besser (6,1 GB, 16 GB RAM)"
     StrCpy $LblOllama "Ollama im Hintergrund installieren (Laufzeit für lokale Modelle, 1 GB; nötig für Clef und Gemma)"
     StrCpy $RunText "Filow starten"
     StrCpy $ShortcutText "Desktop-Verknüpfung erstellen"
@@ -475,8 +475,8 @@ SectionEnd
     StrCpy $LblWhisperBase "Whisper base : transcription sur l'appareil (150 Mo)"
     StrCpy $LblWhisperSmall "Whisper small : transcription plus précise (500 Mo, GPU nécessaire)"
     StrCpy $LblClef "Clef Flash : décisions en local (11 Go, 16 Go de RAM)"
-    StrCpy $LblGemmaSmall "Gemma 4 E2B : script à partir des diapositives (6 Go, 8 Go de RAM)"
-    StrCpy $LblGemmaBig "Gemma 4 E4B : script à partir des diapositives, meilleur (9 Go, 16 Go de RAM)"
+    StrCpy $LblGemmaSmall "Gemma 4 E2B : script à partir des diapositives et traduction (4,3 Go, 8 Go de RAM)"
+    StrCpy $LblGemmaBig "Gemma 4 E4B : script à partir des diapositives et traduction, meilleur (6,1 Go, 16 Go de RAM)"
     StrCpy $LblOllama "Installer Ollama en arrière-plan (moteur des modèles locaux, 1 Go ; requis par Clef et Gemma)"
     StrCpy $RunText "Lancer Filow"
     StrCpy $ShortcutText "Créer un raccourci sur le bureau"
@@ -505,8 +505,8 @@ SectionEnd
     StrCpy $LblWhisperBase "Whisper base: transcripción en el dispositivo (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: transcripción más precisa (500 MB, necesita GPU)"
     StrCpy $LblClef "Clef Flash: decisiones en local (11 GB, 16 GB de RAM)"
-    StrCpy $LblGemmaSmall "Gemma 4 E2B: guion a partir de las diapositivas (6 GB, 8 GB de RAM)"
-    StrCpy $LblGemmaBig "Gemma 4 E4B: guion a partir de las diapositivas, mejor (9 GB, 16 GB de RAM)"
+    StrCpy $LblGemmaSmall "Gemma 4 E2B: guion a partir de las diapositivas y traducción (4,3 GB, 8 GB de RAM)"
+    StrCpy $LblGemmaBig "Gemma 4 E4B: guion a partir de las diapositivas y traducción, mejor (6,1 GB, 16 GB de RAM)"
     StrCpy $LblOllama "Instalar Ollama en segundo plano (motor de modelos locales, 1 GB; necesario para Clef y Gemma)"
     StrCpy $RunText "Ejecutar Filow"
     StrCpy $ShortcutText "Crear un acceso directo en el escritorio"
@@ -535,8 +535,8 @@ SectionEnd
     StrCpy $LblWhisperBase "Whisper base: transcrição no dispositivo (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: transcrição mais precisa (500 MB, precisa de GPU)"
     StrCpy $LblClef "Clef Flash: decisões locais (11 GB, 16 GB de RAM)"
-    StrCpy $LblGemmaSmall "Gemma 4 E2B: roteiro a partir dos slides (6 GB, 8 GB de RAM)"
-    StrCpy $LblGemmaBig "Gemma 4 E4B: roteiro a partir dos slides, melhor (9 GB, 16 GB de RAM)"
+    StrCpy $LblGemmaSmall "Gemma 4 E2B: roteiro a partir dos slides e tradução (4,3 GB, 8 GB de RAM)"
+    StrCpy $LblGemmaBig "Gemma 4 E4B: roteiro a partir dos slides e tradução, melhor (6,1 GB, 16 GB de RAM)"
     StrCpy $LblOllama "Instalar o Ollama em segundo plano (motor dos modelos locais, 1 GB; necessário para Clef e Gemma)"
     StrCpy $RunText "Executar o Filow"
     StrCpy $ShortcutText "Criar atalho na área de trabalho"
@@ -565,8 +565,8 @@ SectionEnd
     StrCpy $LblWhisperBase "Whisper base: spraakherkenning op het apparaat (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: nauwkeurigere spraakherkenning (500 MB, GPU nodig)"
     StrCpy $LblClef "Clef Flash: lokale beslissingen (11 GB, 16 GB RAM)"
-    StrCpy $LblGemmaSmall "Gemma 4 E2B: script uit de dia's (6 GB, 8 GB RAM)"
-    StrCpy $LblGemmaBig "Gemma 4 E4B: script uit de dia's, beter (9 GB, 16 GB RAM)"
+    StrCpy $LblGemmaSmall "Gemma 4 E2B: script uit de dia's en vertaling (4,3 GB, 8 GB RAM)"
+    StrCpy $LblGemmaBig "Gemma 4 E4B: script uit de dia's en vertaling, beter (6,1 GB, 16 GB RAM)"
     StrCpy $LblOllama "Ollama op de achtergrond installeren (runtime voor lokale modellen, 1 GB; nodig voor Clef en Gemma)"
     StrCpy $RunText "Filow starten"
     StrCpy $ShortcutText "Snelkoppeling op het bureaublad maken"
@@ -595,8 +595,8 @@ SectionEnd
     StrCpy $LblWhisperBase "Whisper base: rozpoznawanie mowy na urządzeniu (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: dokładniejsze rozpoznawanie mowy (500 MB, wymaga GPU)"
     StrCpy $LblClef "Clef Flash: decyzje lokalnie (11 GB, 16 GB RAM)"
-    StrCpy $LblGemmaSmall "Gemma 4 E2B: skrypt ze slajdów (6 GB, 8 GB RAM)"
-    StrCpy $LblGemmaBig "Gemma 4 E4B: skrypt ze slajdów, lepszy (9 GB, 16 GB RAM)"
+    StrCpy $LblGemmaSmall "Gemma 4 E2B: skrypt ze slajdów i tłumaczenie (4,3 GB, 8 GB RAM)"
+    StrCpy $LblGemmaBig "Gemma 4 E4B: skrypt ze slajdów i tłumaczenie, lepszy (6,1 GB, 16 GB RAM)"
     StrCpy $LblOllama "Zainstaluj Ollama w tle (silnik modeli lokalnych, 1 GB; potrzebny dla Clef i Gemma)"
     StrCpy $RunText "Uruchom Filow"
     StrCpy $ShortcutText "Utwórz skrót na pulpicie"
@@ -625,8 +625,8 @@ SectionEnd
     StrCpy $LblWhisperBase "Whisper base: распознавание речи на устройстве (150 МБ)"
     StrCpy $LblWhisperSmall "Whisper small: более точное распознавание (500 МБ, нужна GPU)"
     StrCpy $LblClef "Clef Flash: локальные решения (11 ГБ, 16 ГБ ОЗУ)"
-    StrCpy $LblGemmaSmall "Gemma 4 E2B: сценарий из слайдов (6 ГБ, 8 ГБ ОЗУ)"
-    StrCpy $LblGemmaBig "Gemma 4 E4B: сценарий из слайдов, лучше (9 ГБ, 16 ГБ ОЗУ)"
+    StrCpy $LblGemmaSmall "Gemma 4 E2B: сценарий из слайдов и перевод (4,3 ГБ, 8 ГБ ОЗУ)"
+    StrCpy $LblGemmaBig "Gemma 4 E4B: сценарий из слайдов и перевод, лучше (6,1 ГБ, 16 ГБ ОЗУ)"
     StrCpy $LblOllama "Установить Ollama в фоне (среда для локальных моделей, 1 ГБ; нужна для Clef и Gemma)"
     StrCpy $RunText "Запустить Filow"
     StrCpy $ShortcutText "Создать ярлык на рабочем столе"
@@ -655,8 +655,8 @@ SectionEnd
     StrCpy $LblWhisperBase "Whisper base: 端末内の音声認識 (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: より高精度な音声認識 (500 MB、GPU が必要)"
     StrCpy $LblClef "Clef Flash: ローカル判定 (11 GB、RAM 16 GB)"
-    StrCpy $LblGemmaSmall "Gemma 4 E2B: スライドから原稿を生成 (6 GB、RAM 8 GB)"
-    StrCpy $LblGemmaBig "Gemma 4 E4B: スライドから原稿を生成、高品質 (9 GB、RAM 16 GB)"
+    StrCpy $LblGemmaSmall "Gemma 4 E2B: スライドから原稿を生成、翻訳 (4.3 GB、RAM 8 GB)"
+    StrCpy $LblGemmaBig "Gemma 4 E4B: スライドから原稿を生成、翻訳、高品質 (6.1 GB、RAM 16 GB)"
     StrCpy $LblOllama "Ollama をバックグラウンドでインストール (ローカルモデルの実行環境、1 GB。Clef と Gemma に必要)"
     StrCpy $RunText "Filow を起動"
     StrCpy $ShortcutText "デスクトップにショートカットを作成"
@@ -685,8 +685,8 @@ SectionEnd
     StrCpy $LblWhisperBase "Whisper base：本机语音识别 (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small：更精确的语音识别 (500 MB，需要 GPU)"
     StrCpy $LblClef "Clef Flash：本地判断 (11 GB，需 16 GB 内存)"
-    StrCpy $LblGemmaSmall "Gemma 4 E2B：从幻灯片生成讲稿 (6 GB，需 8 GB 内存)"
-    StrCpy $LblGemmaBig "Gemma 4 E4B：从幻灯片生成讲稿，效果更好 (9 GB，需 16 GB 内存)"
+    StrCpy $LblGemmaSmall "Gemma 4 E2B：从幻灯片生成讲稿、翻译 (4.3 GB，需 8 GB 内存)"
+    StrCpy $LblGemmaBig "Gemma 4 E4B：从幻灯片生成讲稿、翻译，效果更好 (6.1 GB，需 16 GB 内存)"
     StrCpy $LblOllama "在后台安装 Ollama（本地模型运行环境，1 GB；Clef 和 Gemma 需要）"
     StrCpy $RunText "运行 Filow"
     StrCpy $ShortcutText "创建桌面快捷方式"
@@ -715,8 +715,8 @@ SectionEnd
     StrCpy $LblWhisperBase "Whisper base: recunoaștere vocală pe dispozitiv (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: recunoaștere vocală mai precisă (500 MB, necesită GPU)"
     StrCpy $LblClef "Clef Flash: decizii locale (11 GB, 16 GB RAM)"
-    StrCpy $LblGemmaSmall "Gemma 4 E2B: scenariu din slide-uri (6 GB, 8 GB RAM)"
-    StrCpy $LblGemmaBig "Gemma 4 E4B: scenariu din slide-uri, mai bun (9 GB, 16 GB RAM)"
+    StrCpy $LblGemmaSmall "Gemma 4 E2B: scenariu din slide-uri și traducere (4,3 GB, 8 GB RAM)"
+    StrCpy $LblGemmaBig "Gemma 4 E4B: scenariu din slide-uri și traducere, mai bun (6,1 GB, 16 GB RAM)"
     StrCpy $LblOllama "Instalează Ollama în fundal (motorul modelelor locale, 1 GB; necesar pentru Clef și Gemma)"
     StrCpy $RunText "Pornește Filow"
     StrCpy $ShortcutText "Creează o comandă rapidă pe desktop"
@@ -745,8 +745,8 @@ SectionEnd
     StrCpy $LblWhisperBase "Whisper base: on-device speech-to-text (150 MB)"
     StrCpy $LblWhisperSmall "Whisper small: more accurate speech-to-text (500 MB, needs a GPU)"
     StrCpy $LblClef "Clef Flash: local decisions (11 GB, 16 GB RAM)"
-    StrCpy $LblGemmaSmall "Gemma 4 E2B: script from slides (6 GB, 8 GB RAM)"
-    StrCpy $LblGemmaBig "Gemma 4 E4B: script from slides, better (9 GB, 16 GB RAM)"
+    StrCpy $LblGemmaSmall "Gemma 4 E2B: script from slides and translation (4.3 GB, 8 GB RAM)"
+    StrCpy $LblGemmaBig "Gemma 4 E4B: script from slides and translation, better (6.1 GB, 16 GB RAM)"
     StrCpy $LblOllama "Install Ollama in the background (local model runner, 1 GB; needed by Clef and Gemma)"
     StrCpy $RunText "Run Filow"
     StrCpy $ShortcutText "Create a desktop shortcut"

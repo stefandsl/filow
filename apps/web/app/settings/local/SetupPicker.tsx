@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { advancedDiskNeedGb, missingModels, resolveSetup, SETUP_PREFERENCES, type I18nKey, type MachineInfo, type SetupModel, type SetupPreference, type SetupProfileId } from "@filow/core";
+import { advancedDiskNeedGb, missingModels, resolveSetup, SCRIPT_MODEL_MIN_RAM_GB, scriptModel, SETUP_PREFERENCES, type I18nKey, type MachineInfo, type SetupModel, type SetupPreference, type SetupProfileId } from "@filow/core";
 import { useT } from "@filow/ui";
 
 export type SetupPickerProps = {
@@ -38,7 +38,10 @@ export function SetupPicker({ hardware, gpuName, preference, onChange, installed
   const helper = setup.choices.screenHelper;
   const noScreen = helper.mode !== "none" ? null : helper.lacking === "disk" ? t("setup.screen.noDisk") : setup.active !== "lite" ? t("setup.screen.none") : null;
   const gpu = hardware.gpu.kind === "none" || !gpuName ? t("setup.noGpu") : hardware.gpu.kind === "discrete" && hardware.gpu.vramGb ? `${gpuName} (${hardware.gpu.vramGb} GB)` : gpuName;
-  const missing = missingModels(setup.choices, installed);
+  // every setup also gets the model that writes and translates scripts on this PC, when the machine holds it
+  const script = scriptModel({ ...hardware, installed: installed.ollama });
+  const scriptMissing = script && !installed.ollama.some((n) => n === script.name || n === `${script.name}:latest`) ? [script] : [];
+  const missing = [...missingModels(setup.choices, installed), ...scriptMissing];
   const list = (ms: SetupModel[]) => ms.map((m) => t(`setup.model.${m.name}` as I18nKey)).join(", ");
   const gb = (ms: SetupModel[]) => round(ms.reduce((s, m) => s + m.downloadGb, 0));
   const forTake = missing.filter((m) => m.use === "take");
@@ -82,6 +85,8 @@ export function SetupPicker({ hardware, gpuName, preference, onChange, installed
         {forTake.length === 0 && <span className="chip live">{t("setup.ready")}</span>}
         {forTake.length > 0 && <span className="hint">{t("setup.needs", { list: list(forTake), gb: gb(forTake) })}</span>}
         {forScreen.length > 0 && <span className="hint">{t("setup.screenNeeds", { list: list(forScreen), gb: gb(forScreen) })}</span>}
+        {scriptMissing.length > 0 && <span className="hint" data-script-model={scriptMissing[0].name}>{t("setup.scriptNeeds", { list: list(scriptMissing), gb: gb(scriptMissing) })}</span>}
+        {!script && <span className="hint" data-script-model="none">{t(hardware.ramGb < SCRIPT_MODEL_MIN_RAM_GB ? "setup.scriptNoMemory" : "setup.scriptNoDisk", { ram: SCRIPT_MODEL_MIN_RAM_GB })}</span>}
         {missing.length > 0 && onGet && (
           <button type="button" className="btn primary" disabled={busy} onClick={() => onGet(missing)}>
             {busy ? t("setup.getting") : t("setup.get")}

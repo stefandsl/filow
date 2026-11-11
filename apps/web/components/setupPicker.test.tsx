@@ -57,4 +57,19 @@ describe("SetupPicker", () => {
   it("an old laptop under 6 GB is told OK Filow has no local answers here", () => {
     expect(plain(render({ ...oldLaptop, ramGb: 4, cores: 2 }))).toContain(t("setup.lite.descNone", "en"));
   });
+
+  it("every setup lists the model that writes and translates scripts on this PC, with its size, until it is installed", () => {
+    for (const p of ["lite", "standard", "advanced"] as const) {
+      expect(plain(render(oldLaptop, p)), p).toContain(t("setup.scriptNeeds", "en", { list: t("setup.model.gemma4:e2b", "en"), gb: 4.3 }));
+      expect(plain(render(oldLaptop, p, { ollama: ["gemma4:e2b"], sherpa: false })), p).not.toContain("translate scripts");
+    }
+    // 32 GB: the better one; the small one counts when it is the one already there
+    expect(plain(render(rtx16))).toContain(t("setup.scriptNeeds", "en", { list: t("setup.model.gemma4:e4b", "en"), gb: 6.1 }));
+    expect(plain(render(rtx16, "auto", { ollama: ["gemma4:e2b"], sherpa: true }))).not.toContain("translate scripts");
+  });
+
+  it("a PC that cannot hold that model is told so, and why", () => {
+    expect(plain(render({ ...oldLaptop, ramGb: 6 }))).toContain(t("setup.scriptNoMemory", "en", { ram: 8 }));
+    expect(plain(render({ ...oldLaptop, freeDiskGb: 6 }))).toContain(t("setup.scriptNoDisk", "en"));
+  });
 });

@@ -523,6 +523,8 @@ function wireScreenSense() {
   });
   appHandle("localai:hardware", () => localAiInfo());
   appOn("localai:install", () => void startOllamaInstall());
+  // the script editor's local translation found Ollama stopped: start what is installed, download nothing
+  appOn("localai:start", () => startOllamaIfWanted("the editor needs Ollama to translate", { needed: true }));
   appOn("session:report", (_e, info) => {
     if (info && typeof info.code === "string" && typeof info.id === "string") {
       const changedSession = !currentSession || currentSession.id !== info.id;

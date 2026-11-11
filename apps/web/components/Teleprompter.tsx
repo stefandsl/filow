@@ -24,8 +24,7 @@ import {
 } from "@filow/core";
 import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
 import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, sherpaUsable, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
-import { getCloudDecision, getLang, getSetupPreference, getStartMode, setDecisionProvider, setStartMode, speechLangFor, syncSpeechLang } from "@/lib/prefs";
-import { localizeFreeLlmError } from "@/lib/freellm";
+import { getCloudDecision, getSetupPreference, getStartMode, setDecisionProvider, setStartMode, speechLangFor, syncSpeechLang } from "@/lib/prefs";
 import { loadGate } from "@/lib/gate/client";
 import { useEngine } from "./useEngine";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
@@ -56,7 +55,8 @@ import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useCodesForWindows, useD
 import { pointState } from "@/lib/pointState";
 import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
 import { decisionRecipient, sttRecipient, takeOutbound } from "@/lib/buddy/outbound";
-import { pageOutbound, usePageOutbound } from "./usePageOutbound";
+import { usePageOutbound } from "./usePageOutbound";
+import { useScriptTranslate } from "./useScriptTranslate";
 import { PageOutboundNotice, PageOutboundSignal, useOkfText } from "./PageOutbound";
 import { useRehearsal } from "./RehearsalPanel";
 import { downloadMarkdown } from "./RehearsalExport";
@@ -908,38 +908,10 @@ export function ScriptEditor({
   warnings?: string[];
 }) {
   const t = useT();
-  const okt = useOkfText();
   const [text, setText] = useState(initial);
-  const [to, setTo] = useState("en");
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
   const preview = parseScript(text);
-  const translate = async () => {
-    setBusy(true);
-    setNote(t("editor.translating"));
-    try {
-      await ensureEngineToken();
-      // The script goes to the cloud model: named first, asked once, shown while it is sent.
-      const done = await pageOutbound().gated("script", (r) => r.script, async (consent, quiet) => {
-        const res = await fetch("/api/script/translate", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders(), ...consent }, body: JSON.stringify({ text, to }) });
-        if (res.status === 403) quiet(); // refused here: nothing left this PC
-        return { res, j: (await res.json()) as { text?: string; model?: string; structureKept?: boolean; expected?: { points: number }; got?: { sections: number; points: number }; error?: string } };
-      });
-      if (!done.sent) { setNote(done.reason === "unknown" ? okt("noticeUnknown") : null); return; }
-      const { res, j } = done.value;
-      if (!res.ok || !j.text) throw new Error(j.error ?? `HTTP ${res.status}`);
-      setText(j.text);
-      setNote(
-        j.structureKept
-          ? t("editor.translated", { model: j.model ?? "", sections: j.got?.sections ?? 0, points: j.got?.points ?? 0 })
-          : t("editor.translateMismatch", { got: j.got?.points ?? 0, expected: j.expected?.points ?? 0 }),
-      );
-    } catch (err) {
-      setNote(t("editor.translateFailed", { error: localizeFreeLlmError((err as Error).message, getLang()) }));
-    } finally {
-      setBusy(false);
-    }
-  };
+  // Translate: on this PC by default, the cloud by choice (useScriptTranslate.tsx)
+  const translation = useScriptTranslate(text, setText);
   return (
     <Dialog title={title ?? t("editor.title")} onClose={onCancel}>
         {warnings.map((w, i) => (
@@ -956,20 +928,10 @@ export function ScriptEditor({
           <button className="btn" onClick={onCancel}>
             {t("common.cancel")}
           </button>
-          <span className="hint" style={{ marginLeft: "auto" }}>{t("editor.translateTo")}</span>
-          <select className="btn" value={to} onChange={(e) => setTo(e.target.value)} disabled={busy} aria-label={t("editor.translateTo")}>
-            {[["en", "English"], ["it", "Italiano"], ["ru", "Русский"], ["ro", "Română"], ["ja", "日本語"], ["de", "Deutsch"], ["fr", "Français"], ["es", "Español"]].map(([k, l]) => (
-              <option key={k} value={k}>
-                {l}
-              </option>
-            ))}
-          </select>
-          <button className="btn" disabled={busy || !text.trim()} onClick={() => void translate()}>
-            {busy ? t("editor.translating") : t("editor.translate")}
-          </button>
+          {translation.row}
         </div>
         <PageOutboundSignal />
-        {note && <div className="hint">{note}</div>}
+        {translation.below}
     </Dialog>
   );
 }

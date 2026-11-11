@@ -68,7 +68,8 @@ export const LOCAL_MODELS: LocalModel[] = [
     name: "gemma4:e2b",
     kind: "generate",
     runtime: "ollama",
-    downloadGb: 6,
+    // what Ollama reports once installed (4.27 GiB, measured 2026-11-11); also translates scripts
+    downloadGb: 4.3,
     loadedGb: 7,
     ramGb: 8,
     vramGb: 8,
@@ -78,7 +79,8 @@ export const LOCAL_MODELS: LocalModel[] = [
     name: "gemma4:e4b",
     kind: "generate",
     runtime: "ollama",
-    downloadGb: 9,
+    // what Ollama reports once installed (6.13 GiB, measured 2026-11-11); also translates scripts
+    downloadGb: 6.1,
     loadedGb: 10,
     ramGb: 16,
     vramGb: 12,
