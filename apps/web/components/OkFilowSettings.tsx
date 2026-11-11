@@ -33,6 +33,7 @@ export function OkFilowSettings({ lang }: { lang: string }) {
         <span>{t("brain")}</span>
         <select className="btn" value={s.provider} disabled={s.offline} onChange={(e) => void set({ provider: e.target.value as OkFilowStatus["provider"] })}>
           <option value="local">{t("brainLocal")}</option>
+          {!s.offline && <option value="freellm">{t("brainFree")}</option>}
           {!s.offline && <option value="cloud">{t("brainCloud")}</option>}
         </select>
       </label>

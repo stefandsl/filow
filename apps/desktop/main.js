@@ -414,6 +414,9 @@ function initializeUiPreferences() {
   ipcMain.handle("okfilow:settings:status", event => { if (!uiSender(event)) throw new Error("Denied"); return okFilow ? okFilow.status() : null; });
   ipcMain.handle("okfilow:settings:configure", (event, patch) => { if (!uiSender(event)) throw new Error("Denied"); return okFilow && patch && typeof patch === "object" ? okFilow.applyConfig(patch) : null; });
   ipcMain.on("okfilow:settings:openPanel", event => { if (uiSender(event)) okFilow?.togglePanel(); });
+  // FreeLLMAPI's section in Filow Settings (freellm.js). The key travels one way only: page to main.
+  ipcMain.handle("freellm:status", event => { if (!uiSender(event)) throw new Error("Denied"); return freeLlm().status(); });
+  ipcMain.handle("freellm:configure", (event, patch) => { if (!uiSender(event)) throw new Error("Denied"); return freeLlm().configure(patch); });
   // Dictation's section in Filow Settings (dictation.js). Status needs OK Filow's talk keys for the conflict check.
   ipcMain.handle("dictation:settings:status", event => { if (!uiSender(event)) throw new Error("Denied"); return dictationStatus(); });
   ipcMain.handle("dictation:settings:configure", (event, patch) => {
@@ -694,6 +697,24 @@ function loadSecrets() {
   });
   for (const [k, v] of Object.entries(secrets)) if (v && !(k in process.env)) process.env[k] = v;
 }
+
+// FreeLLMAPI (freellm.js): its settings section reads and changes the address, the model and the
+// unified key. The key goes to the same encrypted store as the keys typed in .env; a page never gets it back.
+let freeLlmSettings;
+const freeLlm = () => (freeLlmSettings ||= require("./freellm.js").createFreeLlm({
+  getSettings: () => settings,
+  saveSettings,
+  env: process.env,
+  logLine: (line) => logLine(line),
+  storeKey: (value) => {
+    const { safeStorage } = require("electron");
+    return require("./secrets.js").setSecret({
+      storeFile: path.join(userData, "secrets.json"),
+      fsx: { read: (p) => (fs.existsSync(p) ? fs.readFileSync(p, "utf8") : null), write: (p, t) => fs.writeFileSync(p, t) },
+      crypto: { available: () => safeStorage.isEncryptionAvailable(), encrypt: (s) => safeStorage.encryptString(s).toString("base64") },
+    }, require("./freellm.js").KEY_NAME, value);
+  },
+}));
 
 function loadEnv(file) {
   const text = fs.readFileSync(file, "utf8");
@@ -2117,6 +2138,7 @@ async function main() {
     loadSecrets();
     aliasLegacyEnv();
     loadSettings();
+    freeLlm().apply(); // FreeLLMAPI: the address and model saved in Settings win over .env
     if (migrated) settings.profileMigrated = true;
     choices = readInstallChoices();
     initializeUiPreferences();

@@ -61,4 +61,20 @@ function migrateSecrets({ envFile, storeFile, fsx, crypto, log = () => {} }) {
   return out;
 }
 
-module.exports = { extractSecrets, migrateSecrets, SECRET_NAME, NOTE };
+/**
+ * Stores one secret typed in a settings page (encrypted, same store), or removes it when `value` is
+ * empty. Returns false, storing nothing, when the OS key store is not available: a key is never
+ * written in clear text by this path.
+ */
+function setSecret({ storeFile, fsx, crypto }, name, value) {
+  if (!SECRET_NAME.test(name)) throw new Error("not a secret name");
+  if (!crypto.available()) return false;
+  let store;
+  try { store = JSON.parse(fsx.read(storeFile) || "{}"); } catch { store = {}; }
+  if (value) store[name] = crypto.encrypt(String(value));
+  else delete store[name];
+  fsx.write(storeFile, JSON.stringify(store, null, 2));
+  return true;
+}
+
+module.exports = { extractSecrets, migrateSecrets, setSecret, SECRET_NAME, NOTE };

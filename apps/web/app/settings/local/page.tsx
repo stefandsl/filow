@@ -19,6 +19,7 @@ import { MicrophoneSelect } from "@/components/MicrophoneSelect";
 import { OkFilowSettings } from "@/components/OkFilowSettings";
 import { DictationSettings } from "@/components/DictationSettings";
 import { SetupPicker } from "./SetupPicker";
+import { FreeLlmSettings } from "./FreeLlmSettings";
 import { AboutPrivacyLink } from "@/components/AboutPrivacyLink";
 
 type Status = {
@@ -543,6 +544,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               </div>
             </section>
           </details>
+
+          <FreeLlmSettings onChange={() => void refresh()} />
 
           <section className="strip">
             <div className="label">Ollama</div>

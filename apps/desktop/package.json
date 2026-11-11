@@ -60,6 +60,7 @@
       "tunnels.js",
       "csp.js",
       "secrets.js",
+      "freellm.js",
       "qa.js",
       "integrity.js",
       "diag.js",
