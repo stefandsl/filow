@@ -101,4 +101,15 @@ describe("dictation: what the report says", () => {
     d.handsFree(); tick(4000); d.result("pasted"); tick(9000); d.mark("keys-up"); diag.nothing();
     expect(d.runs()[1]).toMatchObject({ kind: "handsfree", result: "pasted" });
   });
+
+  it("a long hands-free dictation stays short in the report: first stages, a count, the last ones", () => {
+    const { d, tick } = clocked();
+    d.begin("handsfree");
+    for (let i = 0; i < 12; i++) { tick(5000); d.mark("recognised", { chars: 30 }); d.mark("target", { line: "Notepad.exe [Notepad]", method: "paste" }); d.mark("done", { what: "pasted" }); d.result("pasted"); }
+    tick(1000); d.mark("keys-up");
+    const text = reportText({ ...FACTS, runs: [d.runs()[0], d.runs()[0], d.runs()[0], d.runs()[0], d.runs()[0]] });
+    expect(text).toMatch(/\(\d+ more stages\)/);
+    expect(text).toContain("keys up +61000 ms => pasted");
+    expect(text.length).toBeLessThan(4000); // five such runs still fit a GitHub link with room for the logs
+  });
 });

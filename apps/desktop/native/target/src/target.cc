@@ -94,7 +94,9 @@ static napi_value Info(napi_env env, napi_callback_info) {
   }
   // Browsers, Electron apps and modern Windows apps say it through UI Automation.
   bool uiaOk = false;
-  if (fg && !password) {
+  // Not for Filow's own windows: the page itself says what has the focus there (dictation.js), and asking
+  // our own process through UI Automation from its main thread would wait on itself.
+  if (fg && !password && pid != GetCurrentProcessId()) {
     IUIAutomation* u = Uia();
     IUIAutomationElement* el = nullptr;
     if (u && SUCCEEDED(u->GetFocusedElement(&el)) && el) {
@@ -143,7 +145,15 @@ static napi_value SendPaste(napi_env env, napi_callback_info) {
   in.push_back(Key('V', sv, 0));
   in.push_back(Key('V', sv, KEYEVENTF_KEYUP));
   in.push_back(Key(VK_CONTROL, sc, KEYEVENTF_KEYUP));
-  napi_value out; napi_create_uint32(env, Send(in), &out);
+  UINT sent = Send(in);
+  if (sent != 0 && sent != 4) {
+    // Cut short: never leave V or Ctrl held down for the user's next key.
+    std::vector<INPUT> up;
+    up.push_back(Key('V', sv, KEYEVENTF_KEYUP));
+    up.push_back(Key(VK_CONTROL, sc, KEYEVENTF_KEYUP));
+    Send(up);
+  }
+  napi_value out; napi_create_uint32(env, sent, &out);
   return out;
 }
 

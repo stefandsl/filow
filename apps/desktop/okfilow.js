@@ -643,7 +643,11 @@ function createOkFilow(deps) {
   /** Waits until every modifier is up, so a synthetic Ctrl+V never becomes Win+V or Ctrl+Alt+V. */
   async function modifiersUp(timeoutMs = 2000) {
     const until = Date.now() + timeoutMs;
-    while (gestures && gestures.anyDown && Date.now() < until) await new Promise((r) => setTimeout(r, 25));
+    // While the user holds the keys for the next dictation the words of the last one wait for that
+    // release (they go in first, in order): a paste now would be Ctrl + Win + V, and giving up after two
+    // seconds left them on the clipboard only.
+    const waiting = () => Date.now() < until || (held && purpose === "dictate" && Date.now() < until + 5 * 60_000);
+    while (gestures && gestures.anyDown && waiting()) await new Promise((r) => setTimeout(r, 25));
     return !(gestures && gestures.anyDown);
   }
   /**

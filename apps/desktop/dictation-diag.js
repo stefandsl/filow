@@ -116,7 +116,11 @@ function reportText(facts) {
   else {
     lines.push("last dictations (newest first; times from the moment the keys went down; never the words):");
     for (const r of runs.slice().reverse()) {
-      lines.push(`- ${clock(r.at)} ${r.kind}: ${r.stages.map(stageText).join(", ")} => ${r.result || "not finished"}`);
+      // A long hands-free dictation has dozens of stages: the first ones and the last ones tell the story,
+      // and the section must stay short enough for the issue link (it is never cut there).
+      const all = r.stages.map(stageText);
+      const shown = all.length > 12 ? [...all.slice(0, 8), `(${all.length - 11} more stages)`, ...all.slice(-3)] : all;
+      lines.push(`- ${clock(r.at)} ${r.kind}: ${shown.join(", ")} => ${r.result || "not finished"}`);
     }
   }
   return lines.join("\n");

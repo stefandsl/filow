@@ -563,6 +563,9 @@ export default function OkFilowPanel() {
     } catch (e) {
       starting.current = false;
       pendingStop.current = null;
+      // A press queued behind this start must not swallow the next real release (the microphone would
+      // stay open with nothing to stop it).
+      queuedStart.current = null;
       stopAudio();
       void b.stt.stop().catch(() => {});
       fail(e instanceof Error ? e.message : String(e));
@@ -584,6 +587,13 @@ export default function OkFilowPanel() {
     // Hands-free dictation: from here the rest is typed below, not phrase by phrase.
     const phrases = flow.current;
     flow.current = null;
+    /** A press that came while this recording was finishing starts now. */
+    const startQueued = () => {
+      stopping.current = false;
+      const next = queuedStart.current;
+      queuedStart.current = null;
+      if (next) void startRef.current(next);
+    };
     try {
     const why = purpose.current;
     const sid = session.current;
@@ -607,37 +617,47 @@ export default function OkFilowPanel() {
     if (why === "dictate" && (dict?.sound || dict?.screenReader)) playCue(false);
     if (!send) { typingRun.current++; b.text(""); return setMode("idle"); }
     if (why === "dictate") {
+      // The words of this dictation are complete. A press that came meanwhile starts recording now, not
+      // after these words are in the app: putting them there waits for the user's keys to be up, and
+      // they are down again, so the next dictation would lose its first seconds (or all of it).
+      const spokenIn = spoken.current;
+      startQueued();
+      /** False once the next press took the panel over: its bubble and state are left alone. */
+      const mine = () => session.current === sid;
+      const say = (text: string) => { if (mine()) b.text(text); };
+      const idle = (extra?: { holdMs?: number }) => { if (mine()) setMode("idle", extra); };
       // Phrases of a hands-free dictation still on their way into the app go first.
       await typing.current;
       // The bubble near the mouse says what happened when the user must act (copied) or nothing came.
-      if (!question && phrases?.typed) { b.text(""); return setMode("idle"); }
+      if (!question && phrases?.typed) { say(""); return idle(); }
       if (!question) {
         // Issue #7: a press too short to say anything used to end without a word about what to do.
         // The shell logs it and keeps it for "Report a problem" (an empty text is never typed).
-        void b.typeText("", spoken.current, false).catch(() => null);
-        b.text(phrases ? dictT("nothing") : dictT("nothingHint", { keys: dict?.chordLabel ?? "" }));
-        return setMode("idle", { holdMs: phrases ? 2500 : 5000 });
+        void b.typeText("", spokenIn, false).catch(() => null);
+        say(phrases ? dictT("nothing") : dictT("nothingHint", { keys: dict?.chordLabel ?? "" }));
+        return idle({ holdMs: phrases ? 2500 : 5000 });
       }
-      b.text("");
-      const r = await b.typeText(question, spoken.current, Boolean(phrases)).catch(() => null);
+      say("");
+      const r = await b.typeText(question, spokenIn, Boolean(phrases)).catch(() => null);
       const paste = pasteKeys(dict?.platform ?? "win32");
       // Only filler sounds were heard: nothing to type, said like "nothing heard".
-      if (r?.action === "none") { b.text(phrases?.typed ? "" : dictT("nothing")); return setMode("idle", phrases?.typed ? {} : { holdMs: 2500 }); }
-      if (!r || !r.ok) { setNote(dictT("failed")); setTyped(question); b.text(dictT("failed")); return setMode("idle", { holdMs: 4500 }); }
+      if (r?.action === "none") { say(phrases?.typed ? "" : dictT("nothing")); return idle(phrases?.typed ? {} : { holdMs: 2500 }); }
+      if (!r || !r.ok) { setNote(dictT("failed")); setTyped(question); say(dictT("failed")); return idle({ holdMs: 4500 }); }
       if (r.action === "refused") {
-        // A password box: nothing was typed, copied or kept, and the words are not shown anywhere.
+        // A password box: nothing was typed, copied or kept, and the words leave the panel too.
+        if (mine()) setHeard("");
         setNote(dictT("refusedPassword"));
-        b.text(dictT("refusedPassword"));
-        return setMode("idle", { holdMs: 5000 });
+        say(dictT("refusedPassword"));
+        return idle({ holdMs: 5000 });
       }
       if (r.action === "copy") {
         const line = dictT(copiedKey(r.reason), { paste });
         setNote(line);
-        b.text(line);
-        return setMode("idle", { holdMs: 5000 });
+        say(line);
+        return idle({ holdMs: 5000 });
       }
       setNote(dictT("typed"));
-      return setMode("idle");
+      return idle();
     }
     if (!question) {
       if (why === "handsfree" && handsFree.current) { setMode("idle"); return listenAgain.current(); }
@@ -646,10 +666,7 @@ export default function OkFilowPanel() {
     }
     void ask(question);
     } finally {
-      stopping.current = false;
-      const next = queuedStart.current;
-      queuedStart.current = null;
-      if (next) void startRef.current(next);
+      startQueued();
     }
   }, [ask, dictT, setMode, stopAudio, t]);
   const stopRef = useRef(stopListening);
@@ -673,7 +690,7 @@ export default function OkFilowPanel() {
       const r = await b.typeText(text, lang, true).catch(() => null);
       if (r?.action === "none") return; // only filler sounds
       if (!r || !r.ok) { setNote(dictT("failed")); setTyped((was) => joinTranscript([was, text], "")); return; }
-      if (r.action === "refused") { setNote(dictT("refusedPassword")); if (flow.current === f) b.text(dictT("refusedPassword")); return; }
+      if (r.action === "refused") { setNote(dictT("refusedPassword")); if (flow.current === f) { setHeard(""); b.text(dictT("refusedPassword")); } return; }
       if (r.action === "copy") {
         const line = dictT(copiedKey(r.reason), { paste: pasteKeys(statusRef.current?.dictationStatus?.platform ?? "win32") });
         setNote(line);
@@ -724,6 +741,9 @@ export default function OkFilowPanel() {
             flow.current = f;
             vad.current = createVad();
             b.text(dictT("dictatingHandsFree", { keys: statusRef.current?.dictationStatus?.chordLabel ?? "" }));
+            // Heard as well as seen: the microphone now stays open with the keys up.
+            const ds = statusRef.current?.dictationStatus;
+            if (ds?.sound || ds?.screenReader) playCue(true);
           }
           return;
         }

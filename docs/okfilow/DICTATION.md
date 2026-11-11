@@ -160,6 +160,8 @@ platform's facts and the last five dictations stage by stage with times. Never t
 - The first ~250 ms after pressing the keys are not recorded (the arm delay, plus the microphone
   start). Opening the microphone at the first key-down would catch them, at the cost of a brief
   microphone light on every Ctrl + Win shortcut: an owner decision.
+- Hands-free with the streaming model (Nemotron, used when no phrase model for the language is on the PC or the language is Automatic): on 2026-11-11 a phrase after a pause was lost in three runs out of four, in the app and with the model fed directly (the same file through the phrase model, Parakeet with the Silero detector, gave all three phrases in English and Italian). A fresh stream at each endpoint did not help. Not fixed: it is in how the streaming recognizer goes on after an endpoint. Until then hands-free is reliable with a phrase model only.
+- A press that comes while the last dictation's words are still on their way starts recording at once (the panel no longer waits for the insert), and those words wait for the new press's keys to go up. Not seen in the app: it needs another program in front, and the test session had none.
 - The microphone still runs on a ScriptProcessor node; the AudioWorklet version (commit 385021f, branch ux-fixes) is not merged or measured.
 - The filler sounds follow the rehearsal report's list by hand (`dictation-core.js` SOUNDS); once both
   live where the desktop can import them, `setFillerHook` takes the shared list.

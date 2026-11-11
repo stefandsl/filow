@@ -36,7 +36,7 @@ class FakeItem {
 
 const NOTEPAD: Info = { hwnd: 100, pid: 5, exe: "Notepad.exe", cls: "Notepad", focusCls: "RichEditD2DPT", elevated: 0, selfElevated: 0, own: false, password: false, passwordChecked: true, remote: false };
 
-function make(first: Info | null) {
+function make(first: Info | null, settings: Record<string, unknown> = {}, ownWindow: unknown = null) {
   const st = { items: [new FakeItem({ "text/plain": "theirs" })] as FakeItem[], info: first };
   const text = () => String(st.items[0]?.data["text/plain"] ?? "");
   const pasted: string[] = [];
@@ -57,12 +57,12 @@ function make(first: Info | null) {
     clear: async () => { st.items = []; },
   };
   const d = createDictation({
-    getSettings: () => ({ dictation: { removeFillers: false } }),
+    getSettings: () => ({ dictation: { v: 2, removeFillers: false, ...settings } }),
     saveSettings: () => {},
     logLine: (l: string) => log.push(l),
     clipboard,
     ClipboardItem: FakeItem,
-    BrowserWindow: { getFocusedWindow: () => null },
+    BrowserWindow: { getFocusedWindow: () => ownWindow },
     sendPaste: () => { throw new Error("the hook path must not be used when the helper is there"); },
     target: () => (st.info === undefined ? null : helper),
     platform: "win32",
@@ -108,7 +108,56 @@ describe("dictation target: where the words go", () => {
     const r = m.d.insert("secret", { hook: {} });
     await vi.advanceTimersByTimeAsync(400);
     expect((await r).action).toBe("refused");
+    expect(m.writes).toEqual(["earlier words"]); // the refused words never reached the clipboard
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(m.text()).toBe("theirs"); // and the earlier dictation's put-back still happens
+  });
+
+  it("the keyboard moves to a password box while the user's keys go up: refused there too, clipboard given back", async () => {
+    const m = make(NOTEPAD);
+    const first = m.d.insert("earlier words", { hook: {} });
+    await vi.advanceTimersByTimeAsync(400);
+    await first;
+    let up = false;
+    const r = m.d.insert("secret", { hook: {}, keysUp: async () => { while (!up) await new Promise((res) => setTimeout(res, 25)); return true; } });
+    await vi.advanceTimersByTimeAsync(200);
+    m.st.info = { ...NOTEPAD, password: true };
+    up = true;
+    await vi.advanceTimersByTimeAsync(3000);
+    expect((await r).action).toBe("refused");
+    expect(m.writes).not.toContain("secret");
     expect(m.text()).toBe("theirs");
+    expect(m.pasted).toEqual(["earlier words"]);
+  });
+
+  it("a password box is refused on every path: only-copy setting, no keyboard hook, Filow's own windows", async () => {
+    const pw = { ...NOTEPAD, password: true };
+    const copyOnly = make(pw, { insert: "copy" });
+    expect((await copyOnly.d.insert("secret", { hook: {} })).action).toBe("refused");
+    expect(copyOnly.writes).toEqual([]);
+    const noHook = make(pw);
+    expect((await noHook.d.insert("secret", {})).action).toBe("refused");
+    expect(noHook.writes).toEqual([]);
+    // One of Filow's own windows with a password input in focus (an API key box): the page says so.
+    const own = make(NOTEPAD, {}, { isDestroyed: () => false, isVisible: () => true, webContents: { executeJavaScript: async () => ({ password: true }), insertText: async () => { throw new Error("must not type"); } } });
+    expect((await own.d.insert("secret", { hook: {} })).action).toBe("refused");
+    expect(own.writes).toEqual([]);
+    expect(own.log.join("\n")).not.toContain("secret");
+  });
+
+  it("Windows cannot say whether it is a password box: asked once more, then the log says the check was not possible", async () => {
+    const m = make({ ...NOTEPAD, passwordChecked: false });
+    let calls = 0;
+    const base = m.st.info as Info;
+    Object.defineProperty(m.st, "info", { get: () => { calls++; return calls === 2 ? { ...base, password: true, passwordChecked: true } : base; } });
+    const r = m.d.insert("secret", { hook: {} });
+    await vi.advanceTimersByTimeAsync(300);
+    expect((await r).action).toBe("refused"); // the second look found the password box
+    const u = make({ ...NOTEPAD, passwordChecked: false });
+    const r2 = u.d.insert("plain words", { hook: {} });
+    await vi.advanceTimersByTimeAsync(600);
+    expect((await r2).action).toBe("paste");
+    expect(u.log.join("\n")).toContain("could not say whether the focused control of Notepad.exe [Notepad > RichEditD2DPT] is a password box");
   });
 
   it("an administrator window: only copied, and the reason is said", async () => {
@@ -165,7 +214,7 @@ describe("dictation target: where the words go", () => {
 
   it("the target is the window that has the keyboard when the keys are up, not when they went down", async () => {
     // "Press the keys, then click a text box in another window": the click lands while the keys are held.
-    const m = make({ ...NOTEPAD, password: true }); // at key-down a password box had the keyboard...
+    const m = make(NOTEPAD); // while the keys are held Notepad has the keyboard...
     let up = false;
     const r = m.d.insert("goes to the box I pointed at", { hook: {}, keysUp: async () => { while (!up) await new Promise((res) => setTimeout(res, 25)); return true; } });
     await vi.advanceTimersByTimeAsync(200);

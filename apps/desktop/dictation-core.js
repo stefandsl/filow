@@ -249,18 +249,29 @@ function createClipboardInserter({ clipboard, ClipboardItem, platform = "win32",
     /** The earlier dictation's restore was cancelled above: do it now when this insert does not paste. */
     const giveBack = async () => {
       if (!fromPrev || !saved.restorable) return;
-      try { await restoreClipboard(clipboard, saved, ClipboardItem); } catch { /* the clipboard is busy: the text stays */ }
+      // Not before the app that got the earlier paste has read it (slow targets read the clipboard late).
+      const due = pastedAt + restoreMs - now();
+      if (due > 0) await new Promise((r) => st(r, due));
+      try { if (await ours(prev.text)) await restoreClipboard(clipboard, saved, ClipboardItem); } catch { /* the clipboard is busy: the text stays */ }
     };
     if (!(await keysUp())) return { pasted: false, reason: "keys", restored: Promise.resolve(false) };
-    if (check) {
-      const stop = await check();
-      if (stop) {
-        if (stop.giveBack) await giveBack();
-        return { pasted: false, restored: Promise.resolve(false), ...stop };
+    let text;
+    try {
+      if (check) {
+        const stop = await check();
+        if (stop) {
+          if (stop.giveBack) await giveBack();
+          return { pasted: false, restored: Promise.resolve(false), ...stop };
+        }
       }
+      text = typeof textOrFn === "function" ? textOrFn() : textOrFn;
+      await write(text);
+    } catch (e) {
+      // The target could not be read or the clipboard could not be written: nothing was pasted, and an
+      // earlier dictation's text does not stay on the clipboard in place of the user's own.
+      await giveBack();
+      return { pasted: false, reason: "keys", error: String((e && e.message) || e), restored: Promise.resolve(false) };
     }
-    const text = typeof textOrFn === "function" ? textOrFn() : textOrFn;
-    await write(text);
     try { sendPaste(); } catch (e) {
       // No key press went out: the words stay on the clipboard and the user is told to paste them
       // (losing what was said would be worse than losing the older clipboard content).

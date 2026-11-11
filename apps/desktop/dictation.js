@@ -108,20 +108,46 @@ function createDictation(deps) {
   }
 
   /**
-   * A text field (not a password box) has the focus in that window's page: null when none does, else the
-   * character just before the caret (so a second dictation is not glued to the first one's full stop).
+   * A text field has the focus in that window's page: null when none does, `{ password: true }` for a
+   * password box (dictation never goes into one), else the character just before the caret (so a second
+   * dictation is not glued to the first one's full stop).
    */
   async function editableFocused(win) {
     try {
       const r = await win.webContents.executeJavaScript(
-        "(() => { const e = document.activeElement; if (!e || e.disabled || e.readOnly) return null;" +
+        "(() => { const e = document.activeElement; if (!e) return null;" +
+        " if (e.tagName === 'INPUT' && /^password$/i.test(e.type || '')) return { password: true };" +
+        " if (e.disabled || e.readOnly) return null;" +
         " if (e.isContentEditable) { const s = getSelection(); const n = s && s.anchorNode; return { before: n && n.nodeType === 3 ? n.textContent.slice(Math.max(0, s.anchorOffset - 1), s.anchorOffset) : '' }; }" +
         " const field = e.tagName === 'TEXTAREA' || (e.tagName === 'INPUT' && /^(text|search|email|url|tel|)$/i.test(e.type || ''));" +
         " if (!field) return null; const at = e.selectionStart || 0; return { before: e.value.slice(Math.max(0, at - 1), at) }; })()",
         true,
       );
-      return r && typeof r === "object" ? { before: String(r.before || "") } : null;
+      if (!r || typeof r !== "object") return null;
+      return r.password === true ? { password: true } : { before: String(r.before || "") };
     } catch { return null; }
+  }
+
+  let unchecked = ""; // the last target whose password state could not be read (logged once per target)
+  /**
+   * The window that has the keyboard now (dictation-target.js). When Windows could not say whether the
+   * focused control is a password box (UI Automation did not answer), it is asked once more after a
+   * moment; if it still cannot say, the dictation goes on and the log says that the check was not possible.
+   */
+  async function readTarget() {
+    const helper = helperFor();
+    const read = () => { try { return target.describeTarget(helper ? helper.info() : null); } catch { return target.describeTarget(null); } };
+    let t = read();
+    if (t.known && !t.none && !t.own && !t.password && !t.passwordChecked) {
+      await new Promise((r) => setTimeout(r, 120));
+      t = read();
+      const line = target.targetLine(t);
+      if (t.known && !t.none && !t.password && !t.passwordChecked && line !== unchecked) {
+        unchecked = line;
+        logLine(`dictation: Windows could not say whether the focused control of ${line} is a password box`);
+      }
+    }
+    return t;
   }
 
   let inserter = null;
@@ -145,10 +171,21 @@ function createDictation(deps) {
     }
     diag.mark("recognised", { chars: text.length });
     const copy = (t) => writeText(run ? run.copyText(t) : t);
+    /** A password box has the keyboard: the words are not typed, not copied and not kept anywhere. */
+    const refuse = () => {
+      logLine("dictation: a password box has the keyboard: nothing typed, nothing copied");
+      diag.mark("done", { what: "refused (password box)" });
+      diag.result("refused:password");
+      return { ok: true, action: "refused", reason: "password", chars: 0 };
+    };
     const own = ownFocusedWindow();
+    // Before anything is typed or copied, on every path (Filow's own windows, "only copy", no keyboard
+    // hook): a password box never gets dictated words, and they never reach the clipboard for it.
+    const field = own ? await editableFocused(own) : null;
+    if (field && field.password) return refuse();
+    if (!own && (await readTarget()).password) return refuse();
     if (own) {
       // Only into a text field; with none in focus the words are copied and the user is told so.
-      const field = await editableFocused(own);
       if (field) {
         await own.webContents.insertText(core.joinAfter(field.before, text));
         if (run) run.typed(text);
@@ -204,13 +241,7 @@ function createDictation(deps) {
     };
     // The space before a phrase depends on the phrase before it, so it is decided when this one's turn comes.
     const r = await inserter.insert(run ? () => run.pasteText(text) : text, () => { if (run) run.typed(text); }, check);
-    if (r.method === "refuse") {
-      // A password box: the words are not typed, not copied and not kept anywhere.
-      logLine("dictation: a password box has the keyboard: nothing typed, nothing copied");
-      diag.mark("done", { what: "refused (password box)" });
-      diag.result("refused:password");
-      return { ok: true, action: "refused", reason: "password", chars: 0 };
-    }
+    if (r.method === "refuse") return refuse(); // the keyboard moved to a password box while the keys went up
     if (r.method === "type") {
       // A terminal: typed as characters (the keys are up: the inserter waited for them).
       const piece = run ? run.pasteText(text) : text;
