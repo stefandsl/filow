@@ -50,7 +50,8 @@ describe("whiteboard layout", () => {
       }
     }
     expect(boards).toBeGreaterThan(2000);
-  });
+    // 400 random lessons take about 3 s alone and more than the default 5 s on a busy machine
+  }, 30_000);
 
   it("is deterministic: the same lesson and step give the same board", () => {
     const lesson = randomLesson(7);
