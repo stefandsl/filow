@@ -23,7 +23,7 @@ export type PlacedEdge = {
 export type PlacedMark = { key: string; step: number; style: MarkStyle; target: string; box: Box };
 export type PlacedBlock = { key: string; step: number; box: Box } & (
   | { kind: "formula"; tex: string }
-  | { kind: "note" | "card"; lines: string[]; font: number }
+  | { kind: "note" | "card"; lines: string[]; font: number; cut: boolean }
   | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string }
   | { kind: "sketch"; drawing: BuddyDrawing }
 );
@@ -31,7 +31,7 @@ export type BoardLayout = {
   shape: BoardShape;
   w: number;
   h: number;
-  title: { text: string; x: number; y: number; font: number };
+  title: { text: string; x: number; y: number; font: number; cut: boolean };
   nodes: PlacedNode[];
   edges: PlacedEdge[];
   marks: PlacedMark[];
@@ -52,6 +52,9 @@ function charWidth(ch: string): number {
   if (ch === " ") return 0.3;
   if ("iljtfI.,:;'|!()[]".includes(ch)) return 0.36;
   if ("mwMW@%".includes(ch)) return 0.92;
+  // dashes and arrows are as wide as a capital M, and so are the widest Cyrillic capitals
+  if ((c >= 0x2012 && c <= 0x2015) || (c >= 0x2190 && c <= 0x21ff) || (c >= 0x27f0 && c <= 0x27ff)) return 1.02;
+  if ([0x416, 0x428, 0x429, 0x42e, 0x41c, 0x42b, 0x424].includes(c)) return 0.96;
   if (c >= 0x400 && c <= 0x4ff) return ch === ch.toUpperCase() ? 0.74 : 0.62; // Cyrillic
   if (ch >= "A" && ch <= "Z") return 0.72;
   if (ch >= "0" && ch <= "9") return 0.6;
@@ -283,6 +286,20 @@ function placeEdges(edges: EdgeIn[], arr: Arrangement, board: Box): PlacedEdge[]
     const a = byId.get(e.from);
     const b = byId.get(e.to);
     if (!a || !b) return;
+    if (a === b) {
+      // An arrow from a box to itself ("calls itself"): a small loop over the box (under it when there is no room above).
+      const c = centre(a.box);
+      const up = a.box.y - 70 >= board.y;
+      const edgeY = up ? a.box.y : a.box.y + a.box.h;
+      const dir = up ? -1 : 1;
+      const lines = wrapText(e.text, Math.max(arr.labelMax, 120), LABEL_FONT, 2);
+      const lw = Math.max(0, ...lines.map((ln) => textWidth(ln, LABEL_FONT))) + 12;
+      const lh = lines.length * LABEL_LINE + 8;
+      const box = { x: Math.min(Math.max(c.x - lw / 2, board.x), Math.max(board.x, board.x + board.w - lw)), y: up ? edgeY - 44 - lh : edgeY + 44, w: Math.min(lw, board.w), h: lh };
+      labels.push(box);
+      out.push({ key: `e${index}`, step: e.step, from: e.from, to: e.to, x1: c.x + a.box.w * 0.22, y1: edgeY + dir * 4, cx: c.x, cy: edgeY + dir * 78, x2: c.x - a.box.w * 0.22, y2: edgeY + dir * 12, label: { lines, box, font: LABEL_FONT } });
+      return;
+    }
     const key = pairKey(e.from, e.to);
     const k = seen.get(key) ?? 0;
     seen.set(key, k + 1);
@@ -401,7 +418,8 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
   const h = BOARD_SIZE[shape].h + (shape === "tall" ? Math.min(4, Math.max(0, shown.size - 6)) * 90 : 0) + extra;
   const titleFont = shape === "tall" ? 24 : 30;
   const margin = shape === "tall" ? 14 : 24;
-  const title = { text: wrapText(lesson.title, w - margin * 2 - 8, titleFont, 1)[0], x: margin + 4, y: 46, font: titleFont };
+  const titleText = wrapText(lesson.title, w - margin * 2 - 8, titleFont, 1)[0];
+  const title = { text: titleText, x: margin + 4, y: 46, font: titleFont, cut: titleText.endsWith(ELLIPSIS) && !lesson.title.endsWith(ELLIPSIS) };
   const content: Box = { x: margin, y: 72, w: w - margin * 2, h: h - 72 - 20 };
 
   const nodesIn: NodeIn[] = [];
@@ -485,7 +503,8 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
     }
     const font = 21;
     const lines = wrapText(b.text, notes.w - 36, font, b.kind === "card" ? 6 : 4);
-    return { ...base, kind: b.kind, lines, font, box: { x: notes.x, y: 0, w: notes.w, h: lines.length * font * 1.3 + 22 } };
+    const cut = lines[lines.length - 1].endsWith(ELLIPSIS) && !b.text.endsWith(ELLIPSIS);
+    return { ...base, kind: b.kind, lines, font, cut, box: { x: notes.x, y: 0, w: notes.w, h: lines.length * font * 1.3 + 22 } };
   });
   let wiped = 0;
   const total = () => sized.slice(wiped).reduce((sum, b) => sum + b.box.h, 0) + gap * Math.max(0, sized.length - wiped - 1);
@@ -530,6 +549,8 @@ export function layoutProblems(l: BoardLayout): string[] {
     if (t.box.w < 8 || t.box.h < 8) problems.push(`${t.name} has no room`);
   }
   for (let i = 0; i < things.length; i++) for (let j = i + 1; j < things.length; j++) if (overlap(things[i].box, things[j].box)) problems.push(`${things[i].name} overlaps ${things[j].name}`);
+  if (l.title.cut) problems.push("the title is cut");
+  for (const b of l.blocks) if ((b.kind === "note" || b.kind === "card") && b.cut) problems.push(`${b.kind} ${b.key} is cut`);
   for (const nd of l.nodes) {
     if (nd.font < 15) problems.push(`node ${nd.id} is set too small to read`);
     if (nd.lines.some((ln) => textWidth(ln, nd.font) > nd.box.w - 8)) problems.push(`node ${nd.id} text is wider than its box`);

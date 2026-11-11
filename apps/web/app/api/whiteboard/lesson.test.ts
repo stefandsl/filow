@@ -331,7 +331,7 @@ describe("whiteboard drawing plan", () => {
       ],
     });
     expect(plan.things).toEqual([{ id: "client", text: "Client" }, { id: "server", text: "Server" }]);
-    expect(plan.relations).toEqual([{ from: "client", to: "server", text: "SYN" }, { from: "server", to: "client", text: "SYN-ACK" }]);
+    expect(plan.relations).toEqual([{ from: "client", to: "server", text: "SYN" }, { from: "server", to: "client", text: "SYN-ACK" }, { from: "client", to: "client", text: "calls" }]);
     expect(validatePlan("nope")).toEqual({ things: [], relations: [] });
   });
 

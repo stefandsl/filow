@@ -43,7 +43,7 @@ describe("whiteboard layout", () => {
         for (let upto = 0; upto < lesson.steps.length; upto++) {
           const l = layoutBoard(lesson, upto, shape);
           boards++;
-          const hard = layoutProblems(l).filter((p) => !p.startsWith("label") && !p.includes("overlaps label") && !p.startsWith("arrow") && !p.endsWith("label is cut"));
+          const hard = layoutProblems(l).filter((p) => !p.startsWith("label") && !p.includes("overlaps label") && !p.startsWith("arrow") && !p.endsWith("is cut"));
           expect(hard, `seed ${seed} ${shape} step ${upto}`).toEqual([]);
           for (const e of l.edges) if (e.label) expect(e.label.box.x >= 0 && e.label.box.x + e.label.box.w <= l.w, `seed ${seed} label off board`).toBe(true);
         }
@@ -165,6 +165,34 @@ describe("whiteboard layout", () => {
       }
     }
   });
+  it("draws an arrow from a box to itself as a loop with its label, clear of everything", () => {
+    const lesson = validateLesson({ title: "Recursion", scene: "flow", steps: [{ say: "s", items: [{ kind: "node", id: "f", text: "Function" }, { kind: "node", id: "b", text: "Base case" }, { kind: "edge", from: "f", to: "f", text: "calls itself" }, { kind: "edge", from: "f", to: "b", text: "stops at" }] }] })!;
+    expect(lesson.steps[0].items.filter((i) => i.kind === "edge")).toHaveLength(2);
+    for (const shape of SHAPES) {
+      const l = layoutBoard(lesson, 0, shape);
+      expect(layoutProblems(l), shape).toEqual([]);
+      const loop = l.edges.find((e) => e.from === "f" && e.to === "f")!;
+      const box = l.nodes.find((nd) => nd.id === "f")!.box;
+      expect(loop.label?.lines.join(" ")).toBe("calls itself");
+      // it leaves and comes back on the same side of its box, and bulges away from it
+      expect(Math.abs(loop.y1 - loop.y2)).toBeLessThan(12);
+      expect(Math.min(Math.abs(loop.cy - box.y), Math.abs(loop.cy - (box.y + box.h)))).toBeGreaterThan(60);
+    }
+  });
+
+  it("reports a title, a note or a card that had to be cut, and measures wide characters as wide", () => {
+    const long = "This lesson has a title that is far too long to fit on one line of any board whatever its width may be today";
+    const lesson = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "node", id: "a", text: "A" }, { kind: "note", text: "mmmmm ".repeat(20) }] }] })!;
+    const l = layoutBoard({ ...lesson, title: long }, 0, "tall");
+    expect(layoutProblems(l)).toContain("the title is cut");
+    expect(layoutProblems(l).some((p) => /^note b0_1 is cut$/.test(p))).toBe(true);
+    expect(layoutProblems(layoutBoard(lesson, 0, "wide")).filter((p) => p.includes("title"))).toEqual([]);
+    const arrow = String.fromCharCode(0x2192);
+    const zhe = String.fromCharCode(0x416);
+    expect(textWidth(arrow, 20)).toBeGreaterThan(textWidth("a", 20) * 1.5);
+    expect(textWidth(zhe, 20)).toBeGreaterThan(textWidth(String.fromCharCode(0x410), 20));
+  });
+
   it("spreads several arrows between the same two nodes so their labels stay apart", () => {
     const lesson = validateLesson({
       title: "TCP handshake",

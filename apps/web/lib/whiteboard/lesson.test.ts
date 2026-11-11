@@ -84,6 +84,26 @@ describe("whiteboard lesson: what the model writes is data", () => {
     expect(validateItems([{ kind: "plot", expr: "sqrt(0 - x^2 - 1)" }, { kind: "plot", expr: "1/0" }], ctx)).toEqual([]);
   });
 
+  it("keeps an arrow from a box to itself only when it has a label", () => {
+    const ctx = newContext();
+    expect(validateItems([{ kind: "node", id: "f", text: "Function" }, { kind: "edge", from: "f", to: "f" }, { kind: "edge", from: "f", to: "f", text: "calls itself" }], ctx)).toEqual([{ kind: "node", id: "f", text: "Function" }, { kind: "edge", from: "f", to: "f", text: "calls itself" }]);
+  });
+
+  it("treats a formula written with a times sign, spaces or a full stop as the same formula", () => {
+    const ctx = newContext();
+    expect(validateItems([{ kind: "formula", tex: "A = P(1 + r)^t" }], ctx)).toHaveLength(1);
+    expect(validateItems([{ kind: "formula", tex: "A = P \\times (1+r)^t." }, { kind: "formula", tex: "A = P \\cdot \\left(1 + r\\right)^t" }], ctx)).toEqual([]);
+  });
+
+  it("gives a follow-up room for three more boxes on a full board, and no more", () => {
+    const full = validateLesson({ title: "T", scene: "flow", steps: [{ say: "a", items: Array.from({ length: 5 }, (_, i) => ({ kind: "node", id: `a${i}`, text: `A${i}` })) }, { say: "b", items: Array.from({ length: 5 }, (_, i) => ({ kind: "node", id: `b${i}`, text: `B${i}` })) }] })!;
+    const more = validateLesson({ title: "T", scene: "flow", steps: [{ say: "c", items: Array.from({ length: 6 }, (_, i) => ({ kind: "node", id: `c${i}`, text: `C${i}` })) }] }, { continues: full })!;
+    expect(more.steps[0].items).toHaveLength(3);
+    // a lesson that is not a follow-up keeps the limit of ten
+    const alone = validateLesson({ title: "T", scene: "flow", steps: [{ say: "a", items: Array.from({ length: 6 }, (_, i) => ({ kind: "node", id: `a${i}`, text: `A${i}` })) }, { say: "b", items: Array.from({ length: 6 }, (_, i) => ({ kind: "node", id: `b${i}`, text: `B${i}` })) }] })!;
+    expect(alone.steps.flatMap((s) => s.items)).toHaveLength(10);
+  });
+
   it("caps the items of a step and the nodes of a lesson", () => {
     const ctx = newContext();
     const many = Array.from({ length: 30 }, (_, i) => ({ kind: "node", id: `n${i}`, text: `Node ${i}` }));
@@ -158,6 +178,7 @@ describe("whiteboard lesson: what the model writes is data", () => {
         { say: "A leaf takes in light.", items: [{ kind: "node", id: "sun", text: "Light" }, { kind: "node", id: "leaf", text: "Leaf" }] },
         { say: "It makes sugar.", items: [{ kind: "node", id: "sugar", text: "Glucose" }, { kind: "edge", from: "leaf", to: "sugar" }, { kind: "mark", target: "leaf", style: "underline" }] },
         { say: "", items: [] },
+        { say: "", items: [{ kind: "node", id: "ghost", text: "Never said" }] },
         { say: "Only words here.", items: [] },
       ],
     });
@@ -173,6 +194,8 @@ describe("whiteboard lesson: broken JSON from a model", () => {
   it("reads JSON inside a fence or between words", () => {
     expect(parseJsonLoose('Sure!\n```json\n{"items":[{"kind":"note","text":"hi"}]}\n```\nDone.')).toEqual({ items: [{ kind: "note", text: "hi" }] });
     expect(parseJsonLoose('{"a":[1,2,],}')).toEqual({ a: [1, 2] });
+    // words before the JSON with a brace of their own
+    expect(parseJsonLoose('For the set {a, b} the plan is {"items":[{"kind":"note","text":"hi"}]}')).toEqual({ items: [{ kind: "note", text: "hi" }] });
   });
   it("closes an answer that was cut off, keeping the complete items", () => {
     // half a label is not what the model meant: with nothing complete before it, there is no answer

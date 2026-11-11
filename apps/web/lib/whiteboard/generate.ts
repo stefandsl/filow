@@ -114,7 +114,7 @@ function planSystem(lang: BuddyLang, more: boolean): string {
   return [
     "You prepare the drawing for a whiteboard lesson. Reply with JSON only.",
     '"things": the 2 to 7 real things the lesson is about (parts, substances, quantities, parties, stages), each {"id":"leaf","text":"Leaf"}. id: short lowercase ASCII. text: 1 to 3 words. No thing that is only a comparison or an example.',
-    '"relations": the facts that link two of those things, each {"from":"sun","verb":"gives light to","to":"leaf"}, read as a sentence: from, verb, to. The verb is 1 to 3 words. A message between two parties is a relation from the sender to the receiver whose verb is the name of the message.',
+    '"relations": the facts that link two of those things (or one thing to itself, as in a function that calls itself), each {"from":"sun","verb":"gives light to","to":"leaf"}, read as a sentence: from, verb, to. The verb is 1 to 3 words. A message between two parties is a relation from the sender to the receiver whose verb is the name of the message.',
     "Only relations that are true as written, in that direction. Use only ids from your list of things. Fewer and certain is better than more and doubtful. A lesson that is a formula or a derivation may have no things at all.",
     more ? "Some things are already on the board (listed below): reuse their ids, add at most 3 new things, and only new relations." : "",
     `Write every text and verb in ${BUDDY_LANG_NAMES[lang]}; ids stay ASCII.`,
@@ -148,7 +148,7 @@ export function validatePlan(raw: unknown, known: Map<string, string> = new Map(
     const to = find(q.to);
     const text = cleanText(q.verb ?? q.text, LIMITS.edgeText);
     // an arrow needs two different named things and a verb: a bare arrow says nothing
-    if (!from || !to || from === to || !text || relations.length >= PLAN_LIMITS.relations) continue;
+    if (!from || !to || !text || relations.length >= PLAN_LIMITS.relations) continue;
     if (relations.some((x) => x.from === from && x.to === to && x.text.toLowerCase() === text.toLowerCase())) continue;
     relations.push({ from, to, text });
   }
