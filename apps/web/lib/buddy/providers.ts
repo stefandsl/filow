@@ -28,6 +28,8 @@ export type BuddyAskRequest = {
   setup?: string;
   /** "Look at my screen" in the OK Filow panel: true or false is the user's choice; absent, the setup for this computer decides. */
   sees?: boolean;
+  /** Resume after Stop: the conversation ends with the part of the answer the user saw, and the model carries on from it (lib/buddy/prompt.ts resumeQuestion). */
+  resume?: boolean;
 };
 
 /**

@@ -6,6 +6,7 @@ import { askBuddy, buddyCloudRecipient, resolveBuddyProvider, resolveLocalHelper
 import { answerLanguage } from "@/lib/buddy/lang";
 import { drawnAnswer } from "@/lib/buddy/draw";
 import { wantsDrawing } from "@/lib/buddy/visuals";
+import { resumeQuestion } from "@/lib/buddy/prompt";
 import { okfText } from "@/lib/buddy/text";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
@@ -81,9 +82,13 @@ export async function POST(req: Request) {
   // work here: the provider call below carries this signal, so a local model stops generating.
   req.signal?.addEventListener("abort", () => abort.abort());
   if (req.signal?.aborted) abort.abort();
-  const ask: BuddyAskRequest = { ...body, question, images, screens, consent, sees, language: known ?? "auto" };
+  // Resume after Stop: the conversation ends with the part of the answer the user saw; the model is
+  // told to carry on from it instead of being asked the question a second time. The language, the
+  // helper and the screenshots above were all chosen from the question itself.
+  const carryOn = resumeQuestion(body.history, body.resume);
+  const ask: BuddyAskRequest = { ...body, question: carryOn ?? question, images, screens, consent, sees, language: known ?? "auto" };
   // A plain request for a drawing or a 3D model is answered with one (lib/buddy/draw.ts): it needs no screenshot.
-  const drawing = wantsDrawing(question);
+  const drawing = carryOn ? null : wantsDrawing(question);
   // Made inside the stream: a refused consent throws here and must reach the bubble as an error line.
   const pieces = () => drawing
     ? drawnAnswer((shape, signal) => askBuddy(provider, ask, signal, helper, shape), { kind: drawing, language: known ?? "auto", lang, signal: abort.signal })
@@ -110,6 +115,6 @@ export async function POST(req: Request) {
   });
   return new Response(stream, {
     // X-Buddy-Sees "text": no picture went to the model, so the page asks for no point on screen
-    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Buddy-Provider": provider, "X-Buddy-Lang": lang, "X-Buddy-Sees": drawing || sees === false || (helper && !helper.pictures) ? "text" : "screen" },
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Buddy-Provider": provider, "X-Buddy-Lang": lang, "X-Buddy-Resume": carryOn ? "1" : "0", "X-Buddy-Sees": drawing || sees === false || (helper && !helper.pictures) ? "text" : "screen" },
   });
 }
