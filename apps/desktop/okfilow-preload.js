@@ -19,7 +19,7 @@ contextBridge.exposeInMainWorld("okFilow", {
   level: (v) => ipcRenderer.send("okfilow:level", v),
   text: (t) => ipcRenderer.send("okfilow:text", t),
   point: (points) => ipcRenderer.send("okfilow:point", points),
-  draw: (marks) => ipcRenderer.send("okfilow:draw", marks),
+  draw: (marks, from) => ipcRenderer.send("okfilow:draw", marks, from),
   stroke: (points) => ipcRenderer.send("okfilow:stroke", points),
   cards: (list) => ipcRenderer.send("okfilow:cards", list),
   showModel: (model) => ipcRenderer.send("okfilow:model:show", model),
@@ -64,6 +64,12 @@ contextBridge.exposeInMainWorld("okFilow", {
   onStop: on("okfilow:stop"),
   /** Overlay -> main: the pointer is on (or off) the Stop button, so this overlay takes the mouse meanwhile. */
   overlayHover: (on) => ipcRenderer.send("okfilow:overlay:hover", on === true),
+  /** A control of the pill: "eye", "pause", "resume" or "stop". Main passes it to the panel (onControl), which acts. */
+  control: (action) => ipcRenderer.send("okfilow:control", action),
+  onControl: on("okfilow:control"),
+  /** Panel -> main -> overlays: what the pill shows now ({ sees, paused, resumable }). */
+  pill: (state) => ipcRenderer.send("okfilow:pill", state),
+  onPill: on("okfilow:pill"),
   press: () => ipcRenderer.send("okfilow:press"),
   release: () => ipcRenderer.send("okfilow:release"),
   /** Test builds with FILOW_OKF_QA_KEYS=1 only (ignored otherwise): a key press for the gestures. */

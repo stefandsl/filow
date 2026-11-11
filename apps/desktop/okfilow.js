@@ -16,7 +16,7 @@ const { loadUiohook } = require("./uiohook");
 const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
-const { answering, overlayMouse, seeChoice, wordsOnlyList } = require("./okfilow-stop");
+const { answering, overlayMouse, seeChoice, wordsOnlyList, pillState, pillLive, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 const { trustedUiSender } = require("./ui-preferences");
 
@@ -57,6 +57,9 @@ const DEFAULTS = {
   seeScreen: "auto",
   /** Recipients whose yes for questions was given while the notice said "no picture of your screen is sent": that yes does not cover a screenshot. */
   askWordsOnly: [],
+  /** The shortcut that opens and closes the eye, and the one for Pause/Resume (okfilow-stop.js EYE_KEYS, PAUSE_KEYS; "none" for no shortcut). */
+  eyeKey: EYE_KEYS[0],
+  pauseKey: PAUSE_KEYS[0],
 };
 /** A finite point inside a window's or display's bounds (right and bottom edges excluded). */
 const onRect = (x, y, b) => Number.isFinite(x) && Number.isFinite(y) && x >= b.x && x < b.x + b.width && y >= b.y && y < b.y + b.height;
@@ -76,33 +79,41 @@ const FADE_AFTER_MS = 1000;
 /** Exactly the hotkey's modifiers are down (extra modifiers cancel, so Ctrl+Alt+Del never triggers it). */
 const hotkeyHeld = chordHeld;
 
+/** The stored settings after a change: every field is checked, whatever a window sent. What is not in the patch stays as it was. */
+function nextCfg(was, patch) {
+  const { consentChanges, ...rest } = patch || {};
+  const next = { ...was, ...rest };
+  // Windows send their consent changes, merged here into what is stored now (okfilow-outbound.js).
+  if (consentChanges !== undefined) next.consent = applyConsentChanges(next.consent, consentChanges);
+  if (!HOTKEYS.includes(next.hotkey)) next.hotkey = DEFAULTS.hotkey;
+  // FreeLLMAPI is only ever the user's own pick in the panel; nothing sets it for them.
+  if (next.provider !== "cloud" && next.provider !== "freellm") next.provider = "local";
+  if (!["natural", "cloud", "off"].includes(next.voice)) next.voice = "system";
+  // Until the user picks a voice, the natural one speaks as soon as its model is on this PC (status()).
+  next.voiceChosen = next.voiceChosen === true || (!!patch && "voice" in patch);
+  next.naturalVoice = Math.min(9, Math.max(0, Math.round(Number(next.naturalVoice)) || 0));
+  if (!/^#[0-9a-f]{6}$/i.test(String(next.color))) next.color = DEFAULTS.color;
+  next.speed = Math.min(1.5, Math.max(0.75, Number(next.speed) || 1));
+  next.typedVoice = next.typedVoice === true;
+  next.onboarded = next.onboarded === true;
+  next.allScreens = next.allScreens === true;
+  next.allowScreenshots = next.allowScreenshots === true;
+  next.seeScreen = seeChoice(next.seeScreen);
+  next.askWordsOnly = wordsOnlyList(next.askWordsOnly);
+  next.eyeKey = keyChoice(next.eyeKey, EYE_KEYS);
+  next.pauseKey = keyChoice(next.pauseKey, PAUSE_KEYS);
+  next.answerLog = next.answerLog === true;
+  next.answerDir = typeof next.answerDir === "string" ? next.answerDir.slice(0, 500) : "";
+  if (!["auto", "codex", "claude"].includes(next.agentCli)) next.agentCli = "auto";
+  next.consent = sanitizeConsent(next.consent);
+  return next;
+}
+
 function createOkFilow(deps) {
   const { appUrl, getSettings, saveSettings, iconPath, logLine, sttLocal, userData, menuText, isOffline, askKeyboardPermission, dictation } = deps;
   const cfg = () => ({ ...DEFAULTS, ...(getSettings().okFilow || {}) });
   const setCfg = (patch) => {
-    const { consentChanges, ...rest } = patch || {};
-    const next = { ...cfg(), ...rest };
-    // Windows send their consent changes, merged here into what is stored now (okfilow-outbound.js).
-    if (consentChanges !== undefined) next.consent = applyConsentChanges(next.consent, consentChanges);
-    if (!HOTKEYS.includes(next.hotkey)) next.hotkey = DEFAULTS.hotkey;
-    // FreeLLMAPI is only ever the user's own pick in the panel; nothing sets it for them.
-    if (next.provider !== "cloud" && next.provider !== "freellm") next.provider = "local";
-    if (!["natural", "cloud", "off"].includes(next.voice)) next.voice = "system";
-    // Until the user picks a voice, the natural one speaks as soon as its model is on this PC (status()).
-    next.voiceChosen = next.voiceChosen === true || (!!patch && "voice" in patch);
-    next.naturalVoice = Math.min(9, Math.max(0, Math.round(Number(next.naturalVoice)) || 0));
-    if (!/^#[0-9a-f]{6}$/i.test(String(next.color))) next.color = DEFAULTS.color;
-    next.speed = Math.min(1.5, Math.max(0.75, Number(next.speed) || 1));
-    next.typedVoice = next.typedVoice === true;
-    next.onboarded = next.onboarded === true;
-    next.allScreens = next.allScreens === true;
-    next.allowScreenshots = next.allowScreenshots === true;
-    next.seeScreen = seeChoice(next.seeScreen);
-    next.askWordsOnly = wordsOnlyList(next.askWordsOnly);
-    next.answerLog = next.answerLog === true;
-    next.answerDir = typeof next.answerDir === "string" ? next.answerDir.slice(0, 500) : "";
-    if (!["auto", "codex", "claude"].includes(next.agentCli)) next.agentCli = "auto";
-    next.consent = sanitizeConsent(next.consent);
+    const next = nextCfg(cfg(), patch);
     saveSettings({ ...getSettings(), okFilow: next });
     return next;
   };
@@ -116,6 +127,11 @@ function createOkFilow(deps) {
   let mode = "idle"; // idle | listening | thinking | speaking | error
   /** The question being answered took the screen with it (the eye on the pill next to the pointer). */
   let asksSee = true;
+  /** The pill as the panel last described it: the eye now, paused, resumable (okfilow-stop.js pillState). */
+  let pill = pillState(null);
+  /** The two shortcuts as registered (okfilow-stop.js bindKey): the panel says so when Windows refused one. */
+  let eyeBound = { choice: "", accelerator: null, state: "none" };
+  let pauseBound = { choice: "", accelerator: null, state: "none" };
   let visible = false;
   let fadeTimer = null;
   let cursorTimer = null;
@@ -240,6 +256,7 @@ function createOkFilow(deps) {
   ipcMain.on("okfilow:overlay:ready", (e) => {
     if (!ourSender(e)) return;
     e.sender.send("okfilow:state", { mode, purpose: purpose || "talk", sees: asksSee });
+    e.sender.send("okfilow:pill", pill);
     e.sender.send("okfilow:outbound", outbound.snapshot());
     lastCursor = "";
   });
@@ -353,6 +370,7 @@ function createOkFilow(deps) {
         w.webContents.on("did-finish-load", () => {
           if (w.isDestroyed()) return;
           w.webContents.send("okfilow:state", { mode, purpose: purpose || "talk", sees: asksSee });
+          w.webContents.send("okfilow:pill", pill);
           w.webContents.send("okfilow:outbound", outbound.snapshot());
           lastCursor = "";
         });
@@ -381,7 +399,9 @@ function createOkFilow(deps) {
     if (!visible) return;
     visible = false;
     stopCursor();
-    for (const w of overlays.values()) if (!w.isDestroyed()) w.hide();
+    // Hidden overlays have no pill under the pointer: none of them keeps the mouse.
+    stopHover.clear();
+    for (const w of overlays.values()) if (!w.isDestroyed()) { applyMouse(w); w.hide(); }
   }
   /** An answer's visuals (points, marks, cards, drawings) stay up until Escape, the panel's Clear or the next question. */
   let pinned = false;
@@ -430,8 +450,8 @@ function createOkFilow(deps) {
     mode = next;
     // Whether the question being answered took the screen: an overlay that loads later is told too.
     if (typeof extra.sees === "boolean") asksSee = extra.sees;
-    // The Stop button next to the pointer takes the mouse only during an answer (okfilow-stop.js).
-    if (!answering(mode)) stopHover.clear();
+    // The pill's controls take the mouse only while the pill has any (okfilow-stop.js pillLive).
+    if (!pillLive(mode, pill)) stopHover.clear();
     for (const w of overlays.values()) applyMouse(w);
     if (next === "listening" && purpose === "dictate") dictation.diag.mark("listening", {}, { once: true });
     sendOverlays("okfilow:state", { mode, ...extra });
@@ -517,9 +537,32 @@ function createOkFilow(deps) {
     if (!c.enabled && mode === "listening") release();
     if (!c.enabled && handsFree) { handsFree = false; sendPanel("okfilow:handsfree", false); }
     refreshTray();
+    bindPillKeys();
     sendPanel("okfilow:config", status());
     sendOverlays("okfilow:config", status());
     return status();
+  }
+
+  // ---- the pill's controls and shortcuts (docs/okfilow/PILL.md) ----
+  /**
+   * A control of the pill, from a click on an overlay or from a shortcut. Stop ends the answer as
+   * Escape does; the eye, Pause and Resume go to the panel, which owns the state and acts.
+   */
+  function control(action, source) {
+    if (!action) return false;
+    if (action === "stop") return stopAnswer(source === "key" ? "escape" : "button");
+    logLine(`okfilow: ${action} (${source})`);
+    sendPanel("okfilow:control", { action, source });
+    return true;
+  }
+  /** The eye's shortcut, and Pause/Resume's: registered again only when the choice changed. Off with OK Filow, and under test isolation. */
+  function bindPillKeys() {
+    const c = cfg();
+    const want = (choice) => (c.enabled ? choice : "none");
+    const before = `${eyeBound.state} ${pauseBound.state}`;
+    if (eyeBound.choice !== want(c.eyeKey)) eyeBound = bindKey(globalShortcut, eyeBound, want(c.eyeKey), () => control("eye", "key"), { inputOff: INPUT_OFF });
+    if (pauseBound.choice !== want(c.pauseKey)) pauseBound = bindKey(globalShortcut, pauseBound, want(c.pauseKey), () => control(pauseKeyAction(mode, pill), "key"), { inputOff: INPUT_OFF });
+    if (before !== `${eyeBound.state} ${pauseBound.state}`) logLine(`okfilow: shortcuts: eye ${eyeBound.choice} ${eyeBound.state}, pause ${pauseBound.choice} ${pauseBound.state}`);
   }
 
   /** Test builds only: FILOW_OKF_QA_SHOTS=<dir> saves each overlay as PNG once a drawing has played. */
@@ -643,11 +686,17 @@ function createOkFilow(deps) {
   }
   /** The overlays whose Stop button has the pointer on it right now (webContents ids). */
   const stopHover = new Set();
+  /** What each overlay was last told about the mouse (webContents id -> click-through), for the test log. */
+  const mouseWas = new Map();
   /** Click-through or not, for one overlay (okfilow-stop.js overlayMouse). */
   function applyMouse(w) {
     if (!w || w.isDestroyed()) return;
-    const m = overlayMouse({ caught: mouseCaught, hover: stopHover.has(w.webContents.id), mode });
+    const id = w.webContents.id;
+    const m = overlayMouse({ caught: mouseCaught, hover: stopHover.has(id), mode, pill });
     w.setIgnoreMouseEvents(m.ignore);
+    // Test builds log every change, so an end-to-end run can tell whether Windows would deliver a click.
+    if (QA_SHOTS && mouseWas.get(id) !== m.ignore) logLine(`okfilow qa overlay ${id} mouse ${m.ignore ? "click-through" : "takes clicks"} (mode ${mode}, hover ${stopHover.has(id)}, caught ${mouseCaught})`);
+    mouseWas.set(id, m.ignore);
   }
   /**
    * Stops the answer in progress (the Stop button, Escape): the panel ends the request, the voice and
@@ -842,20 +891,21 @@ function createOkFilow(deps) {
   // ---- screenshots ----
   /** `images: false` ("Look at my screen" is off): no picture of the screen is taken at all; the rest (which screen has the mouse, the selected text) is still returned. */
   async function capture(opts = {}) {
-    const wantImages = opts.images !== false;
+    // The eye closed (the stored setting is "off"): no picture is taken, whoever asks and whatever they ask for.
+    const want = { images: opts.images, seeScreen: cfg().seeScreen };
+    const wantImages = mayCapture(want);
     const displays = screen.getAllDisplays();
     const cursor = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
     const maxW = Math.max(...displays.map((d) => Math.round(d.size.width * d.scaleFactor)));
     const maxH = Math.max(...displays.map((d) => Math.round(d.size.height * d.scaleFactor)));
-    let sources = [];
-    if (wantImages) {
+    const sources = await screenSources(want, async () => {
       if (!hidden()) protectAll(true); // the model never sees OK Filow itself
       try {
-        sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: Math.min(maxW, 2560), height: Math.min(maxH, 2560) } });
+        return await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: Math.min(maxW, 2560), height: Math.min(maxH, 2560) } });
       } finally {
         if (!hidden()) protectAll(false);
       }
-    }
+    });
     const selected = await Promise.race([selection, new Promise((r) => setTimeout(() => r(""), 1200))]);
     selection = Promise.resolve("");
     const out = { images: [], screens: [], displays: [], marked: [], selected };
@@ -899,7 +949,7 @@ function createOkFilow(deps) {
     // Dictation keeps its own settings (dictation.js); the panel shows its switch and keys from here.
     const d = dictation.status({ talkHotkey: c.hotkey, hook: Boolean(hook) });
     // answerDir: the folder the log writes to, also when the user has not picked one (the panel shows its name).
-    return { ...c, answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, hookFailures, hookLastTryAt, mode, handsFree, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d };
+    return { ...c, answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, hookFailures, hookLastTryAt, mode, handsFree, eyeKeys: EYE_KEYS, pauseKeys: PAUSE_KEYS, eyeKeyState: eyeBound.state, pauseKeyState: pauseBound.state, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d };
   }
 
   // ---- IPC (only OK Filow's own windows) ----
@@ -967,15 +1017,29 @@ function createOkFilow(deps) {
   ipcMain.on("okfilow:qa:key", (e, type, key) => {
     if (!QA_KEYS || !ourSender(e) || !gestures) return;
     const mod = ["ctrl", "alt", "shift", "meta"].includes(key) ? key : null;
+    // "eye" and "pause": what the two global shortcuts do, so a run under test isolation can press them.
+    if (type === "down" && key === "eye") return void control("eye", "key");
+    if (type === "down" && key === "pause") return void control(pauseKeyAction(mode, pill), "key");
+    if (key === "eye" || key === "pause") return;
     if (type === "down") { gestures.keydown(mod); if (key === "escape") onEscape(); }
     else if (type === "up") gestures.keyup(mod);
   });
+  /** A click on a control of the pill (an overlay), or the same from the panel's row. */
+  ipcMain.on("okfilow:control", (e, action) => { if (ourSender(e)) control(pillAction(action), "button"); });
+  /** The panel says what the pill shows now; every overlay is told, and the mouse rule follows. */
+  ipcMain.on("okfilow:pill", (e, v) => {
+    if (!ourSender(e) || !panel || panel.isDestroyed() || e.sender !== panel.webContents) return;
+    pill = pillState(v);
+    sendOverlays("okfilow:pill", pill);
+    if (!pillLive(mode, pill)) stopHover.clear();
+    for (const w of overlays.values()) applyMouse(w);
+  });
   /** The Stop button (the pill next to the pointer, or the panel when the keyboard hook is down). */
   ipcMain.on("okfilow:stopAnswer", (e, source) => { if (ourSender(e)) stopAnswer(source === "panel" ? "panel" : "button"); });
-  /** An overlay says the pointer is on (or off) its Stop button: that overlay takes the mouse meanwhile. */
+  /** An overlay says the pointer is on (or off) a control of its pill: that overlay takes the mouse meanwhile. */
   ipcMain.on("okfilow:overlay:hover", (e, on) => {
     if (!ourSender(e)) return;
-    if (on === true && answering(mode)) stopHover.add(e.sender.id);
+    if (on === true && pillLive(mode, pill)) stopHover.add(e.sender.id);
     else stopHover.delete(e.sender.id);
     if (QA_SHOTS) logLine(`okfilow qa stop hover ${on === true} from overlay ${e.sender.id} (mode ${mode}): takes the mouse = ${stopHover.has(e.sender.id)}`);
     for (const w of overlays.values()) applyMouse(w);
@@ -1012,15 +1076,17 @@ function createOkFilow(deps) {
   });
 
   /** marks: BuddyMark[] in global DIP. Each overlay gets the ones anchored on its display, in local coordinates. */
-  ipcMain.on("okfilow:draw", (e, marks) => {
+  /** `from` (Resume after Stop): the first `from` marks were drawn before the stop; they are shown as they were, the rest are drawn now. */
+  ipcMain.on("okfilow:draw", (e, marks, from) => {
     if (!ourSender(e) || !Array.isArray(marks)) return;
     pinned = true;
     showOverlays();
     qaShot("draw");
+    const drawn = Math.max(0, Math.round(Number(from)) || 0);
     for (const w of overlays.values()) {
       if (w.isDestroyed()) continue;
       const b = w.getBounds();
-      const mine = marks.filter((m) => m && typeof m === "object").map((m) => localMark(m, b)).filter(Boolean);
+      const mine = marks.map((m, i) => { const l = m && typeof m === "object" ? localMark(m, b) : null; return l && i < drawn ? { ...l, done: true } : l; }).filter(Boolean);
       w.webContents.send("okfilow:draw", mine);
     }
   });
@@ -1120,6 +1186,7 @@ function createOkFilow(deps) {
     buildTray();
     buildPanel();
     startHook();
+    bindPillKeys();
     // Dictation turned off, or its keys changed, while it records: stop without typing.
     dictation.onChange((d) => {
       if (purpose === "dictate" && (!d.enabled || !dictation.activeChord(cfg().hotkey))) cancel();
@@ -1145,6 +1212,7 @@ function createOkFilow(deps) {
     if (modelWin && !modelWin.isDestroyed()) modelWin.destroy();
     if (boardWin && !boardWin.isDestroyed()) boardWin.destroy();
     hookRetry.stop();
+    for (const k of [eyeBound, pauseBound]) { if (k.accelerator) { try { globalShortcut.unregister(k.accelerator); } catch { /* quitting */ } } }
     try { hook?.stop(); } catch { /* quitting */ }
     stopCursor();
     clearTimeout(fadeTimer);
@@ -1161,4 +1229,4 @@ function createOkFilow(deps) {
   return { start, dispose, togglePanel, status, applyConfig };
 }
 
-module.exports = { createOkFilow, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS };
+module.exports = { createOkFilow, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS, nextCfg };
