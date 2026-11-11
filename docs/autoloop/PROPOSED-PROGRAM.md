@@ -16,3 +16,9 @@
 - CR-02: still the weak string check. The crash probe belongs in the same e2e file.
 - A wall-clock assertion in a unit test is a flake waiting for a busy machine (gate.test.ts:168). Add to the lint or review list: no `performance.now()` thresholds in tests.
 - In the Bash tool a heredoc turns a doubled backslash into a single one: write helper scripts that hold backslashes with the Write tool, not with a heredoc.
+
+## 2026-11-11 (scheduled run)
+- Section 0: the take probes need Ollama, and nothing starts it. A run without it scores TST-02 and PR-01 as failing for reasons unrelated to the code. Proposal: take.mjs checks 127.0.0.1:11434 in its preflight and exits with "Ollama is not running" instead of running a take that decides nothing; the scheduled run starts `ollama serve` itself, keeps the PID and stops it at the end.
+- Section 1: a score is only comparable to another made from the same probe files. Today the score fell 96.22 -> 95.85 because the 45-minute take replaced the 20-minute one, not because of the code. Proposal: results.tsv records the age and source build of each tmp/autoloop/*.json the score read, and the keep rule compares against the best score made from the same probe set.
+- Section 6: run the 45-minute memory take in the background while experiments are being written (it needs only its ports). It found a stall at 26 minutes that the 20-minute run cannot see.
+- SEC-08 check is still a string search. The CDP probe of this run (tmp/autoloop/probe-sec08.mjs in the worktree, not committed: probes belong in tools/autoloop/e2e in the review step) is a candidate for tools/autoloop/e2e/permissions.mjs writing tmp/autoloop/permissions.json. It fails on build B (camera granted), so it can fail.
