@@ -1,0 +1,202 @@
+import { describe, expect, it } from "vitest";
+import { LIMITS, cleanTex, cleanText, lessonContextText, lessonMarkdown, makeStep, newContext, parseJsonLoose, validateItems, validateLesson, validateOutline } from "./lesson";
+import { evalExpr, parseExpr, sampleCurve } from "./plot";
+
+describe("whiteboard lesson: what the model writes is data", () => {
+  it("keeps the kinds it knows and drops the rest", () => {
+    const ctx = newContext();
+    const items = validateItems(
+      [
+        { kind: "node", id: "sun", text: "Light" },
+        { kind: "node", id: "leaf", text: "Leaf" },
+        { kind: "edge", from: "sun", to: "leaf", text: "energy" },
+        { kind: "script", text: "alert(1)" },
+        { kind: "html", text: "<b>x</b>" },
+        "not an object",
+        null,
+      ],
+      ctx,
+    );
+    expect(items.map((i) => i.kind)).toEqual(["node", "node", "edge"]);
+    expect([...ctx.nodes.keys()]).toEqual(["sun", "leaf"]);
+  });
+
+  it("repairs an edge that names nodes by label, or names a node never drawn", () => {
+    const ctx = newContext();
+    validateItems([{ kind: "node", id: "a", text: "Client" }], ctx);
+    const items = validateItems([{ kind: "edge", from: "Client", to: "server_host", text: "SYN" }], ctx);
+    expect(items).toEqual([
+      { kind: "node", id: "server_host", text: "server host" },
+      { kind: "edge", from: "a", to: "server_host", text: "SYN" },
+    ]);
+  });
+
+  it("drops an edge to itself, a mark on nothing, and a second copy of the same edge", () => {
+    const ctx = newContext();
+    const items = validateItems(
+      [
+        { kind: "node", id: "a", text: "A" },
+        { kind: "node", id: "b", text: "B" },
+        { kind: "edge", from: "a", to: "a" },
+        { kind: "edge", from: "a", to: "b", text: "x" },
+        { kind: "edge", from: "a", to: "b", text: "x" },
+        { kind: "mark", target: "ghost" },
+        { kind: "mark", target: "b", style: "explode" },
+      ],
+      ctx,
+    );
+    expect(items.filter((i) => i.kind === "edge")).toHaveLength(1);
+    expect(items.filter((i) => i.kind === "mark")).toEqual([{ kind: "mark", target: "b", style: "circle" }]);
+  });
+
+  it("caps the items of a step and the nodes of a lesson", () => {
+    const ctx = newContext();
+    const many = Array.from({ length: 30 }, (_, i) => ({ kind: "node", id: `n${i}`, text: `Node ${i}` }));
+    expect(validateItems(many, ctx)).toHaveLength(LIMITS.itemsPerStep);
+    validateItems(many.slice(6), ctx);
+    validateItems(many.slice(12), ctx);
+    expect(ctx.nodes.size).toBe(LIMITS.nodes);
+  });
+
+  it("turns text into plain text: no tags, no control or direction characters, cut to length", () => {
+    expect(cleanText('<img src=x onerror="alert(1)">Leaf<script>x</script>', 40)).toBe("Leaf x");
+    expect(cleanText("a\u202eb\u0000c\nd", 40)).toBe("a b c d");
+    expect(Array.from(cleanText("x".repeat(500), 36))).toHaveLength(36);
+    expect(cleanText({ toString: () => "boom" }, 10)).toBe("");
+  });
+
+  it("refuses LaTeX that could do more than draw a formula", () => {
+    for (const tex of ["\\href{javascript:alert(1)}{x}", "\\url{http://evil}", "\\def\\a{\\a\\a}\\a", "\\htmlClass{x}{y}", "\\includegraphics{file:///c:/x}", "\\newcommand{\\x}{y}", "x}{", ""]) {
+      expect(cleanTex(tex), tex).toBe("");
+    }
+    expect(cleanTex("$$E = mc^2$$")).toBe("E = mc^2");
+    expect(cleanTex("\\frac{a}{b")).toBe("\\frac{a}{b}");
+    expect(cleanTex("x".repeat(LIMITS.tex + 1))).toBe("");
+    expect(cleanTex("a^2 + b^2 = c^2", () => false)).toBe("");
+  });
+
+  it("accepts a plot only when its expression parses", () => {
+    const ctx = newContext();
+    const items = validateItems(
+      [
+        { kind: "plot", expr: "y = x^2 - 3", xmin: -3, xmax: 3 },
+        { kind: "plot", expr: "alert(1)" },
+        { kind: "plot", expr: "constructor.constructor('x')()" },
+        { kind: "plot", expr: "2x + 1", xmin: 5, xmax: -5 },
+      ],
+      ctx,
+    );
+    expect(items).toEqual([
+      { kind: "plot", expr: "x^2 - 3", xmin: -3, xmax: 3, text: "" },
+      { kind: "plot", expr: "2x + 1", xmin: -5, xmax: 5, text: "" },
+    ]);
+  });
+
+  it("takes free shapes only on the path that allows them", () => {
+    const sketch = { kind: "sketch", title: "Sun", shapes: [{ type: "circle", cx: 200, cy: 150, r: 60 }] };
+    expect(validateItems([sketch], newContext())).toEqual([]);
+    expect(validateItems([sketch], newContext({ sketch: true }))[0]).toMatchObject({ kind: "sketch", drawing: { title: "Sun" } });
+  });
+
+  it("a step with no usable item becomes a text card", () => {
+    expect(makeStep("Plants make sugar.", { items: [{ kind: "nonsense" }] }, newContext())).toEqual({ say: "Plants make sugar.", items: [], card: true });
+    expect(makeStep("Plants make sugar.", "garbage", newContext()).card).toBe(true);
+  });
+
+  it("reads an outline and caps its steps", () => {
+    const o = validateOutline({ title: " Photosynthesis ", scene: "timeline", steps: [{ say: "One." }, "Two.", { say: "" }, { say: "Three." }, { say: "Four." }] }, 3);
+    expect(o).toEqual({ title: "Photosynthesis", scene: "stack", says: ["One.", "Two.", "Three."] });
+    expect(validateOutline({ title: "x", steps: [] })).toBeNull();
+    expect(validateOutline("nope")).toBeNull();
+  });
+
+  it("validates a whole lesson and keeps node ids across steps", () => {
+    const lesson = validateLesson({
+      title: "Photosynthesis",
+      scene: "flow",
+      steps: [
+        { say: "A leaf takes in light.", items: [{ kind: "node", id: "sun", text: "Light" }, { kind: "node", id: "leaf", text: "Leaf" }] },
+        { say: "It makes sugar.", items: [{ kind: "node", id: "sugar", text: "Glucose" }, { kind: "edge", from: "leaf", to: "sugar" }, { kind: "mark", target: "leaf", style: "underline" }] },
+        { say: "", items: [] },
+        { say: "Only words here.", items: [] },
+      ],
+    });
+    expect(lesson?.steps).toHaveLength(3);
+    expect(lesson?.steps[1].items).toHaveLength(3);
+    expect(lesson?.steps[2]).toEqual({ say: "Only words here.", items: [], card: true });
+    expect(validateLesson({ steps: [] })).toBeNull();
+    expect(validateLesson(null)).toBeNull();
+  });
+});
+
+describe("whiteboard lesson: broken JSON from a model", () => {
+  it("reads JSON inside a fence or between words", () => {
+    expect(parseJsonLoose('Sure!\n```json\n{"items":[{"kind":"note","text":"hi"}]}\n```\nDone.')).toEqual({ items: [{ kind: "note", text: "hi" }] });
+    expect(parseJsonLoose('{"a":[1,2,],}')).toEqual({ a: [1, 2] });
+  });
+  it("closes an answer that was cut off, keeping the complete items", () => {
+    expect(parseJsonLoose('{"items":[{"kind":"node","id":"a","text":"Li')).toEqual({ items: [{ kind: "node", id: "a", text: "Li" }] });
+    expect(parseJsonLoose('{"items":[{"kind":"node","id":"a"},{"kind":"edge","fr')).toEqual({ items: [{ kind: "node", id: "a" }] });
+    expect(parseJsonLoose('{"items":[{"kind":"node","id":"a"},')).toEqual({ items: [{ kind: "node", id: "a" }] });
+  });
+  it("gives up on text that is not JSON", () => {
+    expect(parseJsonLoose("I cannot help with that.")).toBeUndefined();
+    expect(parseJsonLoose('{"a":]')).toBeUndefined();
+    expect(parseJsonLoose(42)).toBeUndefined();
+    expect(parseJsonLoose('{"a":"}')).toEqual({ a: "}" });
+  });
+});
+
+describe("whiteboard lesson: export and follow-up context", () => {
+  const lesson = validateLesson({
+    title: "Ohm's law",
+    scene: "flow",
+    steps: [
+      { say: "Voltage pushes current through a resistance.", items: [{ kind: "node", id: "v", text: "Voltage" }, { kind: "node", id: "i", text: "Current" }, { kind: "edge", from: "v", to: "i", text: "pushes" }] },
+      { say: "The three are tied by one formula.", items: [{ kind: "formula", tex: "V = I R" }, { kind: "plot", expr: "2x", xmin: 0, xmax: 5 }, { kind: "note", text: "R is *constant* here" }] },
+    ],
+  })!;
+  it("writes the steps as Markdown with node names, not ids", () => {
+    const md = lessonMarkdown(lesson);
+    expect(md).toContain("# Ohm's law");
+    expect(md).toContain("## Step 2");
+    expect(md).toContain("- Voltage -> Current: pushes");
+    expect(md).toContain("- $V = I R$");
+    expect(md).toContain("- y = `2x` (x 0 .. 5)");
+    expect(md).toContain("R is \\*constant\\* here");
+  });
+  it("keeps the follow-up context under its size limit", () => {
+    const long = { ...lesson, steps: Array.from({ length: 40 }, () => ({ say: "x".repeat(250), items: [], card: true })) };
+    expect(new TextEncoder().encode(lessonContextText(long)).length).toBeLessThanOrEqual(LIMITS.contextBytes);
+    expect(lessonContextText(lesson)).toContain("v = Voltage; i = Current");
+  });
+});
+
+describe("whiteboard plot: an expression is parsed, never run", () => {
+  const at = (src: string, x: number) => evalExpr(parseExpr(src)!, x);
+  it("computes the usual forms", () => {
+    expect(at("x^2 - 3", 2)).toBe(1);
+    expect(at("-x^2", 3)).toBe(-9);
+    expect(at("2x + 1", 4)).toBe(9);
+    expect(at("3(x + 1)", 1)).toBe(6);
+    expect(at("2^-1", 0)).toBe(0.5);
+    expect(at("f(x) = 1000 * (1 + 0.05)^x", 2)).toBeCloseTo(1102.5);
+    expect(at("sin(pi / 2) + sqrt(16) + abs(-2) + ln(e)", 0)).toBeCloseTo(8);
+    expect(at("y = 2\u00b7x \u2212 1", 3)).toBe(5);
+  });
+  it("refuses everything else", () => {
+    for (const src of ["", "alert(1)", "x.constructor", "window", "x; x", "x = 2", "(x", "x)", "sin x", "2 +", "x".repeat(90), "this", "[1]", "`x`", "x => x", "eval(x)", "1e9999x"]) {
+      expect(parseExpr(src), src).toBeNull();
+    }
+  });
+  it("samples a curve and lifts the pen at a pole", () => {
+    const parabola = sampleCurve(parseExpr("x^2")!, -2, 2)!;
+    expect(parabola.runs).toHaveLength(1);
+    expect(parabola.ymin).toBeLessThan(0.01);
+    expect(parabola.ymax).toBeGreaterThan(3.9);
+    const pole = sampleCurve(parseExpr("1/x")!, -2, 2)!;
+    expect(pole.runs.length).toBeGreaterThanOrEqual(2);
+    expect(sampleCurve(parseExpr("sqrt(-1 - x^2)")!, -2, 2)).toBeNull();
+    expect(sampleCurve(parseExpr("3")!, 0, 1)!.ymax).toBeGreaterThan(3);
+  });
+});
