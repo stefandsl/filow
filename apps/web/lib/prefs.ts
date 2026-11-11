@@ -231,6 +231,9 @@ export function speechLangFor(uiLang: string, detects: boolean): string {
   return s === "auto" && !detects ? uiLang : s;
 }
 
+/** How many times the user chose a spoken language on this page: a shell answer asked for before a choice is older than it. */
+let speechChoices = 0;
+
 /** The part of the shell's speech bridge the spoken language needs (packages/stt sherpaBridge()). */
 type SpeechLangBridge<S extends { language?: string }> = { status: () => Promise<S>; setLanguage?: (language: string) => Promise<S> };
 
@@ -242,15 +245,16 @@ type SpeechLangBridge<S extends { language?: string }> = { status: () => Promise
  */
 export async function syncSpeechLang<S extends { language?: string }>(bridge: SpeechLangBridge<S> | null): Promise<{ lang: SpeechLang; status: S | null }> {
   if (!bridge) return { lang: getSpeechLang(), status: null };
-  const before = getSpeechLang();
+  const asked = speechChoices;
   const status = await bridge.status();
-  // A choice made while the shell was answering is newer than its answer: keep it.
-  if (getSpeechLang() === before && (SPEECH_LANGS as string[]).includes(status.language ?? "")) setSpeechLang(status.language as SpeechLang);
+  // A choice made while the shell was answering is newer than its answer: keep it, whatever its value.
+  if (speechChoices === asked && (SPEECH_LANGS as string[]).includes(status.language ?? "")) setSpeechLang(status.language as SpeechLang);
   return { lang: getSpeechLang(), status };
 }
 
 /** Set the spoken language in the one store (and its mirror). Resolves with the shell's new status, if any. */
 export async function chooseSpeechLang<S extends { language?: string }>(l: SpeechLang, bridge: SpeechLangBridge<S> | null): Promise<S | null> {
+  speechChoices++;
   setSpeechLang(l);
   return bridge?.setLanguage ? bridge.setLanguage(l) : null;
 }
