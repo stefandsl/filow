@@ -4,22 +4,19 @@
 // outboundRemote.ts. These clients import it through their "@" alias to apps/web, so it must not
 // import anything that only the web app has.
 import { useEffect, useSyncExternalStore } from "react";
-import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
+import { okfText, type OkfKey, type TextSwap } from "@/lib/buddy/text";
 import type { OutboundKind } from "@/lib/buddy/outbound";
 import type { PageOutbound } from "@/lib/buddy/outboundPage";
 import { ConsentList, OutboundNoticeFor, OutboundSignalFor } from "@/app/okfilow/outbound-ui";
 import "@/app/okfilow/outbound.css";
 import "./RemoteOutbound.css";
 
-/** Sentences a client says its own way (the extension looks at a browser tab, not at a shared screen). */
-export type TextSwap = Partial<Record<OkfKey, OkfKey>>;
+export type { TextSwap };
 
-/** OK Filow's strings in the client's language (English for a language they do not have yet). */
+/** OK Filow's strings in the client's language, said the client's way. */
 export function remoteText(lang: string, swap: TextSwap = {}): (k: OkfKey) => string {
-  const table = OKF_TEXT[lang === "it" ? "it" : "en"];
   // These clients keep their own choices: the sentences that point at OK Filow's settings point here.
-  const own: TextSwap = { consentEmpty: "consentEmptyHere", ...swap };
-  return (k) => table[own[k] ?? k];
+  return okfText(lang, { consentEmpty: "consentEmptyHere", ...swap });
 }
 
 /** The browser extension's wording: it sends a picture of the tab it follows, with the slide's title. */

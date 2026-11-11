@@ -2,17 +2,15 @@
 // The take page's notice and signal (docs/okfilow/OUTBOUND.md). The rules are in
 // lib/buddy/outboundPage.ts; this file only shows them, in the page's language.
 import { useLang } from "@filow/ui";
-import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
+import { okfText, type OkfKey } from "@/lib/buddy/text";
 import type { OutboundKind } from "@/lib/buddy/outbound";
 import { OutboundNoticeFor, OutboundSignalFor } from "@/app/okfilow/outbound-ui";
 import "@/app/okfilow/outbound.css";
 import { usePageOutbound } from "./usePageOutbound";
 
-/** OK Filow's strings in the page's language (English for a language they do not have yet). */
+/** OK Filow's strings in the page's language. */
 export function useOkfText(): (k: OkfKey) => string {
-  const lang = useLang();
-  const table = OKF_TEXT[lang === "it" ? "it" : "en"];
-  return (k) => table[k];
+  return okfText(useLang());
 }
 
 const KEPT: Partial<Record<OutboundKind, OkfKey>> = { audio: "kept_take", transcript: "kept_take", screen: "kept_screen", script: "kept_script" };

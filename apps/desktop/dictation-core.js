@@ -281,11 +281,11 @@ const SOUNDS = {
   any: [/^u+h*m+$/, /^u+h{2,}$/, /^e+h*m+$/, /^h+m{2,}$/, /^m{3,}$/, /^э{2,}м*$/, /^э+м+$/, /^м{3,}$/],
   en: [/^u+h+$/, /^e+r+m*$/, /^h*m{2,}$/],
   it: [/^e+h{2,}$/, /^e{2,}h+$/, /^m{2,}$/],
-  ru: [/^э+$/, /^м{2,}$/],
-  ro: [/^a{3,}$/, /^i{3,}$/, /^e{3,}$/, /^h*m{2,}$/],
+  ru: [], // "э" is a letter and "мм" is millimetres: only the longer sounds in `any` are dropped
+  ro: [/^a{3,}$/, /^i{4,}$/, /^e{3,}$/], // "III" is a number, "mm" is millimetres
 };
 // Japanese is written without spaces: the sound must stand alone, before a comma, a space or the end.
-const JA_SOUNDS = /(^|[\s、。，．,.!?！？])(?:え[ーぇ〜]*っ?と|え[ーぇ〜]+|あの[ーう〜]+|う[ー〜]+ん|ま[あー]{2,})(?:[、，,]\s*|\s+|(?=[。．.!?！？]|$))/gu;
+const JA_SOUNDS = /(^|[\s、。，．,.!?！？])(?:え[ーぇえ〜]*っ?と|え[ーぇ〜]+|あの[ーう〜]+|う[ー〜]+ん|ま[あー]{2,})(?:[、，,]\s*|\s+|(?=[。．.!?！？]|$))/gu;
 
 let fillerHook = null;
 /** Lets another module supply the filler patterns: (lang) => RegExp[] (whole folded word). */

@@ -20,7 +20,7 @@
     "predist:win": "npm run vendor",
     "predist:mac": "npm run vendor",
     "predist:linux": "npm run vendor",
-    "build:welcome": "esbuild welcome.ts --bundle --platform=browser --target=chrome130 --outfile=vendor/welcome.js && esbuild ../../packages/core/src/i18n.ts ../../packages/core/src/ui-preferences.ts ../../packages/core/src/profile.ts ../../packages/core/src/hardware.ts --bundle --platform=node --format=cjs --outdir=vendor && esbuild ../web/app/theme-tokens.css --bundle --outfile=vendor/theme-tokens.css",
+    "build:welcome": "esbuild welcome.ts --bundle --platform=browser --target=chrome130 --outfile=vendor/welcome.js && esbuild i18n=../../packages/core/src/i18n/index.ts ui-preferences=../../packages/core/src/ui-preferences.ts profile=../../packages/core/src/profile.ts hardware=../../packages/core/src/hardware.ts --bundle --platform=node --format=cjs --outdir=vendor && esbuild ../web/app/theme-tokens.css --bundle --outfile=vendor/theme-tokens.css",
     "prestart": "npm run build:welcome",
     "typecheck": "tsc --noEmit --strict --skipLibCheck --target es2022 --moduleResolution bundler --module esnext --jsx react-jsx welcome.ts"
   },
@@ -165,6 +165,7 @@
         "nl_NL",
         "pl_PL",
         "ru_RU",
+        "ro_RO",
         "ja_JP",
         "zh_CN"
       ],

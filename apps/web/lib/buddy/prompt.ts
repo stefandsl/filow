@@ -30,7 +30,8 @@ export type BuddyMark =
 export function buddySystemPrompt(screens: BuddyScreen[], language: string, opts: { pictures?: boolean } = {}): string {
   if (opts.pictures === false) {
     // the setup for this computer answers from text: no screenshot is sent (pictures are too slow here)
-    const lang = language === "it" ? "Italian" : language === "en" ? "English" : "the language the user speaks";
+    const spoken = buddyLang(language);
+    const lang = spoken ? BUDDY_LANG_NAMES[spoken] : "the language the user speaks";
     return [
       "You are OK Filow, a friendly helper that lives next to the user's mouse pointer.",
       "On this computer you cannot see the screen. Answer from the question and from any text the user selected, which is quoted in the question.",

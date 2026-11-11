@@ -116,11 +116,11 @@ describe("rehearsal report on takes in the five speech languages", () => {
       .stop(22_000);
     const r = buildRehearsalReport(log, script);
     expect(r.lang).toBe("ru");
-    expect(Object.fromEntries(r.fillers.top.map((f) => [f.label, f.count]))).toEqual({ "вот": 1, "как бы": 1, "ну": 1 }); // ties in alphabetical order
-    expect(r.fillers.total).toBe(5); // + "эээ" and "это самое"; "типа новые" is meant
+    expect(Object.fromEntries(r.fillers.top.map((f) => [f.label, f.count]))).toEqual({ "как бы": 1, "ну": 1, "э": 1 }); // ties in alphabetical order
+    expect(r.fillers.total).toBe(4); // + "это самое"; "вот" and "типа" are often meant, so they are never counted
     expect(outcomes(r)).toEqual({ s0b0: "covered", s0b1: "covered", s1b0: "notReached" });
     expect(r.sections[1]).toMatchObject({ visited: false, spentMs: 0 });
-    expect(r.suggestions.map((s) => s.key)).toEqual(["report.tip.fillers", "report.tip.slow"]); // points not reached are no fault
+    expect(r.suggestions.map((s) => s.key)).toEqual(["report.tip.slow"]); // points not reached are no fault; four fillers in 22 s stay under the fillers tip
   });
 
   it("Romanian: hesitation sounds and phrases with or without diacritics", () => {
@@ -134,8 +134,9 @@ describe("rehearsal report on takes in the five speech languages", () => {
       .stop(25_000);
     const r = buildRehearsalReport(log, script);
     expect(r.lang).toBe("ro");
-    expect(r.fillers.total).toBe(6);
-    expect(r.fillers.top.map((f) => f.label)).toEqual(["ă", "adică", "cum să zic"]);
+    expect(r.fillers.total).toBe(2); // the sound and "cum să zic"; "păi", "adică", "practic", "deci" are often meant
+    expect(r.fillers.top.map((f) => f.label)).toEqual(["ă", "cum să zic"]);
+    expect(countFillers("Am luat pai de la bunica. Păi, da.", "ro").size).toBe(0); // "pai" is straw: a meant word is never marked
     expect(outcomes(r)).toEqual({ s0b0: "covered", s1b0: "notReached" });
     expect(countFillers("ăă deci noi", "ro").get("deci")).toBeUndefined();
   });
@@ -320,7 +321,15 @@ describe("rehearsal details", () => {
     expect(n("Îi mulțumesc pentru exemplu practic bun.", "ro")).toBe(0);
     expect(n("Это самое главное. Что это значит?", "ru")).toBe(0);
     expect(n("Do you know? I mean it.", "en")).toBe(0);
-    expect(n("Îîî, practic, asta e.", "ro")).toBe(2);
+    expect(n("Îîîî, practic, asta e.", "ro")).toBe(1);
+    // Review of this pass: letters, units and numbers that only look like hesitation sounds.
+    expect(n("Bateriile AA. Clasa a III-a. Grosime 5 mm. Cum să zic asta mai simplu?", "ro")).toBe(0);
+    expect(n("Толщина листа 5 мм, ширина 20 мм. Буква э, буква м.", "ru")).toBe(0);
+    expect(n("Эээ, ммм, cum", "ru")).toBe(2);
+    expect(n("Короче, эта дорога короче. Такого типа, вот. Что это значит.", "ru")).toBe(0);
+    expect(n("Как бы ни было, ну и ладно.", "ru")).toBe(0);
+    expect(n("ええ、そうです。なんか変です。", "ja")).toBe(0); // "ええ" is yes
+    expect(Object.fromEntries(countFillers("ええと、あのー、あの人は、えーと、えっと", "ja"))).toEqual({ "えーと": 2, "えっと": 1, "あのー": 1 });
     expect(n("あのう、それは、あの人です。", "ja")).toBe(1);
   });
 

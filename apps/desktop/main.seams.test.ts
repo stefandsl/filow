@@ -4,7 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
-import { PLACEHOLDER, t } from "@filow/core";
+import { DICTIONARIES, isLang, langFromLocale, t } from "@filow/core";
 // localai.js reads the setup rules and the card detection from vendor/, a build of these two files
 // (npm run build:welcome); vendor/ is not in git, so the fixture hands it the sources themselves.
 import * as profileRules from "../../packages/core/src/profile";
@@ -54,7 +54,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "node:worker_threads": {}, "node:events": EventEmitter,
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
     "./integrity": { sha256File: async () => "" },
-    "./vendor/i18n": { t }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./ui-preferences": {}, "./slideshow": {},
+    "./vendor/i18n": { t, isLang, langFromLocale }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./ui-preferences": {}, "./slideshow": {},
     "./qa.js": { isQaBuild: (app: { isPackaged: boolean }) => !app.isPackaged }, // a packaged build without the QA marker
     "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },
   };
@@ -70,7 +70,6 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
     ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, setLog: text => { lastTakeLog = text; },
-       textTables: { MENU_TEXT, NET_TEXT, SPLASH_TEXT, LOCAL_AI_TEXT },
        setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
        offerLocalAi, offerFirewall, welcomeSetup, settings: () => settings, patchSettings: patch => Object.assign(settings, patch),
@@ -335,26 +334,28 @@ describe("windows stay on Filow's own pages", () => {
   });
 });
 
-// I18N-01 for the shell: main.js keeps its own en/it tables (menu, firewall prompt, splash, local AI)
-// outside the core dictionaries, so the core parity test does not see them. mt() falls back to
-// English only when a key is absent, so an empty string would show a blank label.
-describe("desktop shell text tables", () => {
-  type Entry = string | ((hw: object, rec: object) => string);
-  const tables = fixture().api.textTables as Record<string, Record<"en" | "it", Record<string, Entry>>>;
-  const placeholders = (text: string) => [...text.matchAll(PLACEHOLDER)].map(m => m[1]).sort();
-  // LOCAL_AI_TEXT builds two of its texts from the hardware scan: render those with a sample machine.
-  const hw = { platform: "win32", ramGb: 16, gpu: "sample GPU", freeGb: 100 };
-  const rec = { downloadGb: 5, labels: ["sample model"], ollama: true };
-  const text = (entry: Entry) => (typeof entry === "function" ? entry(hw, rec) : entry);
-  it.each(Object.keys(tables))("%s: Italian has the same keys, placeholders and no empty text", name => {
-    const { en, it: italian } = tables[name];
-    expect(Object.keys(italian).sort(), `${name}: keys differ between en and it`).toEqual(Object.keys(en).sort());
-    for (const key of Object.keys(en)) {
-      expect(typeof italian[key], `${name}.${key}: en and it are different kinds of entry`).toBe(typeof en[key]);
-      expect(text(en[key]).trim(), `${name}.en.${key} is empty`).not.toBe("");
-      expect(text(italian[key]).trim(), `${name}.it.${key} is empty`).not.toBe("");
-      expect(placeholders(text(italian[key])), `${name}.${key}: placeholders differ (en "${text(en[key])}", it "${text(italian[key])}")`).toEqual(placeholders(text(en[key])));
-    }
+// I18N-01 for the shell: every menu, dialog and splash text is a key of the shared dictionary, so the
+// core parity test covers it in every language. main.js keeps no table of its own, and every key it
+// names exists (sharedText falls back to the bare key, which would show "menu.x" in the menu).
+describe("desktop shell texts", () => {
+  const source = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+  const en = DICTIONARIES.en as Record<string, string>;
+  it("keeps no language table of its own", () => {
+    expect(source.match(/^\s*(?:it|en|ru|ro|ja):\s*\{/gm) ?? [], "move the text into packages/core/src/i18n").toEqual([]);
+  });
+  it("names only keys the dictionary has", () => {
+    const keys = [
+      ...[...source.matchAll(/\bmt\("(\w+)"/g)].map(m => `menu.${m[1]}`),
+      ...[...source.matchAll(/\bst\("(\w+)"/g)].map(m => `shell.splash.${m[1]}`),
+      ...[...source.matchAll(/sharedText\("([\w.]+)"/g)].map(m => m[1]),
+    ];
+    expect(keys.length).toBeGreaterThan(40);
+    expect([...new Set(keys)].filter(k => !(k in en))).toEqual([]);
+  });
+  it("asks about local AI in the user's language, with the machine filled in", () => {
+    expect(t("shell.localAi.machine", "it", { ram: 16 })).toBe("Questo computer: 16 GB di RAM");
+    expect(langFromLocale("it-IT")).toBe("it");
+    expect(isLang("xx")).toBe(false);
   });
 });
 

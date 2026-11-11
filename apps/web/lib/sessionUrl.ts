@@ -65,7 +65,7 @@ export type LocalAiStatus = { state: "idle" | "checking" | "downloading" | "inst
   code?: string };
 export type LocalAiHardware = {
   ramGb: number; gpu: string; gpuClass: "discrete" | "integrated" | "unknown"; freeGb: number; cpu: string; cores: number; platform: string; arch: string;
-  recommended: { models: string[]; ollama: boolean; downloadGb: number; labels: string[] };
+  recommended: { models: string[]; ollama: boolean; downloadGb: number };
 };
 
 export type UpdateStatus = { status: "idle" | "checking" | "downloading" | "downloaded" | "none" | "error"; version: string; error: string; current: string };

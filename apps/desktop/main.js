@@ -161,134 +161,16 @@ async function refreshPptRegistrationAfterMigration() {
 const DEFAULT_HOTKEY = "CommandOrControl+Shift+Space";
 let settings = { screenHotkey: DEFAULT_HOTKEY, screenSense: true, contentProtection: false, remoteShare: true, mirrorHost: "", lang: "", theme: "system", overlayAuto: true, overlayHidden: false, overlayOpacity: 0.94 };
 
-// Menu strings. The page owns the choice (Settings / EN-IT switch) and tells us over IPC; "" = system locale.
-const MENU_TEXT = {
-  en: {
-    configFolder: "Open config folder (keys + script)", editEnv: "Edit API keys (.env)", settings: "Local models & privacy settings",
-    offline: "Offline mode (local models only, no outbound requests)", share: "Share to phone on any network (Cloudflare tunnel)",
-    shareOn: "Share to phone on any network (on: {url})", mirrorAddress: "Mirror address on this network", automatic: "Automatic ({ip})",
-    customHost: "Custom host: set FILOW_MIRROR_HOST in .env", virtualIface: "  · virtual, not for phones", firewall: "Allow Filow in Windows Firewall (phone on the Wi-Fi)…", hideWindow: "Hide this window from screen recordings and screenshots",
-    reload: "Reload", fullscreen: "Toggle fullscreen", devtools: "Developer tools", quit: "Quit",
-    pptInstall: "Add Filow to PowerPoint on this PC",
-    pptInstalled: "Done. Restart PowerPoint: Filow is on the Home tab (Add-ins group; on a Mac under Insert → My Add-ins). It talks to the app running on this PC, so keep Filow open while you present.",
-    pptInstallFailed: "Could not add the add-in to PowerPoint.",
-    pptRemove: "Remove Filow from PowerPoint on this PC",
-    pptRemoved: "Removed. Restart PowerPoint.",
-    pptWinOnly: "Automatic install works on Windows and macOS. On Linux there is no PowerPoint; save the manifest for another computer instead.",
-    pptFirstRun: "Add Filow to PowerPoint?",
-    pptFirstRunDetail: "A certificate for localhost is created and trusted for your user (the system asks once), and the add-in is registered for PowerPoint on this computer. You can undo it from the menu. On a Mac the pane runs in View mode (no microphone in Office for Mac): start the take here or on the phone.",
-    pptYes: "Add to PowerPoint",
-    pptNo: "Not now",
-    pptManifest: "PowerPoint add-in: save manifest for another computer…",
-    overlayShow: "Presenter overlay (points on top of the slide show)",
-    pointsWindow: "Points window for calls (on top, left out of screen sharing)",
-    pointsWindowPlain: "Points window for calls (on top)",
-    okfOpen: "Open OK Filow",
-    okfShowAlways: "Always show the buddy",
-    okfEnabled: "OK Filow on",
-    okfNoCapture: "Could not take a screenshot of the screens.",
-    okfNoStt: "Downloading speech-to-text for this PC (about 450 MB). Type your question meanwhile, or try again in a few minutes.",
-    overlayAuto: "Open the overlay automatically when a slide show starts",
-    overlayHidden: "Hide the overlay from screen recordings and shares",
-    updateCheck: "Check for updates…",
-    report: "Report a problem…",
-    updateChecking: "Checking for updates…",
-    updateDownloading: "Downloading update {version}…",
-    updateInstall: "Restart to install {version}",
-    updateReady: "Filow {version} is ready.",
-    updateReadyDetail: "Restart now to install it, or it installs itself the next time you quit.",
-    updateRestart: "Restart now",
-    updateLater: "Later",
-    updateNone: "You have the latest version ({version}).",
-    updateFailed: "Could not check for updates.",
-    updateOffline: "Offline mode is on; updates need an internet connection.",
-    updateInstalledOnly: "Updates only work in the installed app.",
-    tunnelDownload: "Download",
-    tunnelTitle: "Share to a phone on another network",
-    tunnelMessage: "This needs Cloudflare's free cloudflared tool (about 20 MB).",
-    tunnelDetail: "It will be downloaded once from\n{url}\ninto\n{folder}\n\nWhile sharing is on, the mirror page and the session relay are reachable through random *.trycloudflare.com URLs. Pairing still needs the 6-digit code.",
-    tunnelFailed: "Could not share to another network",
-    tunnelOffline: "Offline mode is on; the public link needs outbound connections.",
-    tunnelHosted: "A hosted session server is configured in .env; its URL is already public.",
-    keyTitle: "Add your OpenRouter key",
-    keyMessage: "No OPENROUTER_API_KEY set.",
-    keyDetail: "Open the config folder from the menu, put your key in .env, then restart the app.\n\n{file}",
-    about: "About and privacy…",
-    macKeysMessage: "Hold-to-talk needs a permission from macOS.",
-    macKeysAccessibility: "To notice when you hold the OK Filow key, Filow must be allowed in System Settings > Privacy & Security > Accessibility. Turn Filow on there.\n\nUntil then hold-to-talk is off: press Command+Option+O to start and stop OK Filow. If it still does not work after you allow it, quit Filow and open it again.",
-    macKeysInput: "To notice when you hold the OK Filow key, Filow must be allowed in System Settings > Privacy & Security > Input Monitoring. Turn Filow on there.\n\nUntil then hold-to-talk is off: press Command+Option+O to start and stop OK Filow. If it still does not work after you allow it, quit Filow and open it again.",
-    macKeysOpen: "Open System Settings",
-    macKeysLater: "Not now",
-    pptNoOrigin: "PowerPoint only loads add-ins over HTTPS. Turn on “Share to phone on any network” first (the manifest will point at that public URL), or set PUBLIC_ORIGIN=https://your-server in .env for a permanent install.",
-    pptSaved: "Manifest saved. Sideload it:\n\n• PowerPoint for the web: Home → Add-ins → More Add-ins → My Add-ins → Upload My Add-in → this file.\n• PowerPoint for Windows: put the file in a shared folder, add that folder under File → Options → Trust Center → Trusted Add-in Catalogs, restart PowerPoint, then Insert → My Add-ins → Shared Folder.\n\nThe pane is served from {origin}. A tunnel URL changes every time sharing restarts; save a new manifest then.",
-  },
-  it: {
-    configFolder: "Apri la cartella di configurazione (chiavi + copione)", editEnv: "Modifica le chiavi API (.env)", settings: "Modelli locali e privacy",
-    offline: "Modalità offline (solo modelli locali, nessuna richiesta in uscita)", share: "Condividi col telefono su qualsiasi rete (tunnel Cloudflare)",
-    shareOn: "Condividi col telefono su qualsiasi rete (attivo: {url})", mirrorAddress: "Indirizzo del mirror su questa rete", automatic: "Automatico ({ip})",
-    customHost: "Host personalizzato: imposta FILOW_MIRROR_HOST in .env", virtualIface: "  · virtuale, non per i telefoni", firewall: "Consenti Filow nel firewall di Windows (telefono sul Wi-Fi)…", hideWindow: "Nascondi questa finestra da registrazioni e screenshot",
-    reload: "Ricarica", fullscreen: "Schermo intero", devtools: "Strumenti per sviluppatori", quit: "Esci",
-    pptInstall: "Aggiungi Filow a PowerPoint su questo PC",
-    pptInstalled: "Fatto. Riavvia PowerPoint: Filow è nella scheda Home (gruppo Componenti aggiuntivi; su Mac in Inserisci → I miei componenti). Parla con l'app in esecuzione su questo PC, quindi tieni aperto Filow mentre presenti.",
-    pptInstallFailed: "Impossibile aggiungere il componente a PowerPoint.",
-    pptRemove: "Rimuovi Filow da PowerPoint su questo PC",
-    pptRemoved: "Rimosso. Riavvia PowerPoint.",
-    pptWinOnly: "L'installazione automatica funziona su Windows e macOS. Su Linux non c'è PowerPoint; salva il manifest per un altro computer.",
-    pptFirstRun: "Aggiungere Filow a PowerPoint?",
-    pptFirstRunDetail: "Viene creato un certificato per localhost, considerato attendibile per il tuo utente (il sistema chiede una volta), e il componente viene registrato per PowerPoint su questo computer. Puoi annullare dal menu. Su Mac il pannello funziona in modalità Vista (niente microfono in Office per Mac): avvia la registrazione qui o dal telefono.",
-    pptYes: "Aggiungi a PowerPoint",
-    pptNo: "Non ora",
-    pptManifest: "Componente aggiuntivo PowerPoint: salva il manifest per un altro computer…",
-    overlayShow: "Overlay relatore (punti sopra la presentazione)",
-    pointsWindow: "Finestra dei punti per le chiamate (in primo piano, esclusa dalla condivisione)",
-    pointsWindowPlain: "Finestra dei punti per le chiamate (in primo piano)",
-    okfOpen: "Apri OK Filow",
-    okfShowAlways: "Mostra sempre l'assistente",
-    okfEnabled: "OK Filow attivo",
-    okfNoCapture: "Non sono riuscito a fare lo screenshot degli schermi.",
-    okfNoStt: "Sto scaricando il riconoscimento vocale per questo PC (circa 450 MB). Intanto scrivi la domanda, o riprova tra qualche minuto.",
-    overlayAuto: "Apri l'overlay da solo quando parte una presentazione",
-    overlayHidden: "Nascondi l'overlay da registrazioni e condivisioni dello schermo",
-    updateCheck: "Controlla aggiornamenti…",
-    report: "Segnala un problema…",
-    updateChecking: "Controllo aggiornamenti…",
-    updateDownloading: "Scaricamento aggiornamento {version}…",
-    updateInstall: "Riavvia per installare {version}",
-    updateReady: "Filow {version} è pronto.",
-    updateReadyDetail: "Riavvia ora per installarlo, oppure si installa da solo alla prossima chiusura.",
-    updateRestart: "Riavvia ora",
-    updateLater: "Più tardi",
-    updateNone: "Hai già l'ultima versione ({version}).",
-    updateFailed: "Impossibile controllare gli aggiornamenti.",
-    updateOffline: "La modalità offline è attiva; gli aggiornamenti richiedono internet.",
-    updateInstalledOnly: "Gli aggiornamenti funzionano solo nell'app installata.",
-    tunnelDownload: "Scarica",
-    tunnelTitle: "Condividi con un telefono su un'altra rete",
-    tunnelMessage: "Serve cloudflared, lo strumento gratuito di Cloudflare (circa 20 MB).",
-    tunnelDetail: "Verrà scaricato una sola volta da\n{url}\nin\n{folder}\n\nMentre la condivisione è attiva, la pagina mirror e il relay della sessione sono raggiungibili tramite indirizzi casuali *.trycloudflare.com. Per l'abbinamento serve comunque il codice a 6 cifre.",
-    tunnelFailed: "Impossibile condividere su un'altra rete",
-    tunnelOffline: "La modalità offline è attiva; il link pubblico richiede connessioni in uscita.",
-    tunnelHosted: "Nel file .env è configurato un server di sessione ospitato; il suo indirizzo è già pubblico.",
-    keyTitle: "Aggiungi la tua chiave OpenRouter",
-    keyMessage: "OPENROUTER_API_KEY non impostata.",
-    keyDetail: "Apri la cartella di configurazione dal menu, inserisci la chiave nel file .env e riavvia l'app.\n\n{file}",
-    about: "Informazioni e privacy…",
-    macKeysMessage: "Per parlare tenendo premuto un tasto serve un permesso di macOS.",
-    macKeysAccessibility: "Per accorgersi di quando tieni premuto il tasto di OK Filow, Filow deve essere consentito in Impostazioni di Sistema > Privacy e sicurezza > Accessibilità. Attiva Filow lì.\n\nFino ad allora la pressione prolungata è spenta: premi Comando+Opzione+O per avviare e fermare OK Filow. Se dopo averlo consentito non funziona ancora, chiudi Filow e riaprilo.",
-    macKeysInput: "Per accorgersi di quando tieni premuto il tasto di OK Filow, Filow deve essere consentito in Impostazioni di Sistema > Privacy e sicurezza > Monitoraggio dell'input. Attiva Filow lì.\n\nFino ad allora la pressione prolungata è spenta: premi Comando+Opzione+O per avviare e fermare OK Filow. Se dopo averlo consentito non funziona ancora, chiudi Filow e riaprilo.",
-    macKeysOpen: "Apri Impostazioni di Sistema",
-    macKeysLater: "Non ora",
-    pptNoOrigin: "PowerPoint carica i componenti aggiuntivi solo via HTTPS. Attiva prima “Condividi col telefono su qualsiasi rete” (il manifest punterà a quell'URL pubblico), oppure imposta PUBLIC_ORIGIN=https://tuo-server in .env per un'installazione permanente.",
-    pptSaved: "Manifest salvato. Caricalo in PowerPoint:\n\n• PowerPoint per il web: Home → Componenti aggiuntivi → Altri componenti → I miei componenti → Carica il mio componente → questo file.\n• PowerPoint per Windows: metti il file in una cartella condivisa, aggiungi la cartella in File → Opzioni → Centro protezione → Cataloghi di componenti aggiuntivi attendibili, riavvia PowerPoint, poi Inserisci → I miei componenti → Cartella condivisa.\n\nIl pannello è servito da {origin}. Un URL del tunnel cambia a ogni riavvio della condivisione: salva allora un nuovo manifest.",
-  },
-};
+// Shell strings live in the shared dictionary (packages/core/src/i18n, bundled to vendor/i18n.js), so
+// the parity check covers them in every language. The page owns the language choice and tells us over
+// IPC; "" = system locale.
+const { t: sharedText, isLang, langFromLocale } = require("./vendor/i18n");
 function menuLang() {
-  if (settings.lang === "it" || settings.lang === "en") return settings.lang;
-  return app.getLocale().toLowerCase().startsWith("it") ? "it" : "en";
+  return isLang(settings.lang) ? settings.lang : langFromLocale(app.getLocale());
 }
+/** A menu or dialog text of the shell: `menu.<key>` in the shared dictionary. */
 function mt(key, vars) {
-  const text = MENU_TEXT[menuLang()][key] || MENU_TEXT.en[key] || key;
-  return vars ? text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : text;
+  return sharedText(`menu.${key}`, menuLang(), vars);
 }
 let initialUiSettings = {};
 function loadSettings() {
@@ -323,7 +205,7 @@ function saveSettings(candidate = settings) {
 }
 
 let mainWin = null;
-const { t: sharedText } = require("./vendor/i18n");
+
 const { createUiPreferences, trustedUiSender, createWelcomeController } = require("./ui-preferences");
 const { pathToFileURL } = require("node:url");
 const welcomeFile = path.join(__dirname, "welcome.html");
@@ -569,7 +451,7 @@ async function pickRegion() {
       if (pickerWin) finish(null);
     });
     pickerWin.setAlwaysOnTop(true, "screen-saver");
-    pickerWin.loadFile(path.join(__dirname, "picker.html"), { query: { lang: menuLang() } }).then(() => {
+    pickerWin.loadFile(path.join(__dirname, "picker.html"), { query: { lang: menuLang(), hint: sharedText("shell.picker.hint", menuLang()) } }).then(() => {
       if (!pickerWin) return;
       pickerWin.show();
       pickerWin.focus();
@@ -790,10 +672,6 @@ function allowFirewall() {
     p.on("error", () => resolve(firewallStatus()));
   });
 }
-const NET_TEXT = {
-  en: { title: "Let your phone reach Filow on this network?", message: "Phones on the same Wi-Fi can only open the mirror if Windows Firewall lets Filow accept connections.", detail: "Filow adds one rule for its own program (incoming, all profiles). Windows will ask for administrator confirmation.", allow: "Allow", later: "Not now" },
-  it: { title: "Permettere al telefono di raggiungere Filow su questa rete?", message: "I telefoni sullo stesso Wi-Fi possono aprire il mirror solo se Windows Firewall lascia che Filow accetti connessioni.", detail: "Filow aggiunge una regola per il proprio programma (in entrata, tutti i profili). Windows chiederà la conferma dell'amministratore.", allow: "Consenti", later: "Non ora" },
-};
 function rebuildMenu(win) {
   try {
     buildMenu(win);
@@ -808,8 +686,8 @@ function rebuildMenu(win) {
 async function offerFirewall(win) {
   if (process.platform !== "win32" || settings.remoteShare !== false) { logLine("firewall offer: left to the pairing panel"); return; }
   if (firewallStatus() === "ok") return;
-  const tx = NET_TEXT[menuLang()] || NET_TEXT.en;
-  const { response } = await dialog.showMessageBox(win, { type: "question", title: tx.title, message: tx.message, detail: tx.detail, buttons: [tx.allow, tx.later], defaultId: 0, cancelId: 1, noLink: true });
+  const tx = (key) => sharedText(`shell.firewall.${key}`, menuLang());
+  const { response } = await dialog.showMessageBox(win, { type: "question", title: tx("title"), message: tx("message"), detail: tx("detail"), buttons: [tx("allow"), tx("later")], defaultId: 0, cancelId: 1, noLink: true });
   if (response === 0) await allowFirewall();
 }
 
@@ -1412,7 +1290,10 @@ function showSplash() {
     icon: appIcon(),
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
-  const q = new URLSearchParams({ v: app.getVersion(), theme: uiTheme(), local: local ? "1" : "0", lang: menuLang() });
+  const lang = menuLang();
+  // The page has no dictionary of its own: its texts come translated in the query.
+  const q = new URLSearchParams({ v: app.getVersion(), theme: uiTheme(), lang, tagline: sharedText("app.tagline", lang),
+    badge: sharedText(local ? "shell.splash.local" : "shell.splash.guard", lang) });
   splashShownAt = Date.now();
   guardNavigation(splash);
   splash.on("closed", () => (splash = null));
@@ -1441,11 +1322,7 @@ function closeSplash() {
   if (splash && !splash.isDestroyed()) splash.close();
   splash = null;
 }
-const SPLASH_TEXT = {
-  en: { servers: "Starting the local servers…", link: "Preparing the public link for your phone…", download: "Downloading the link tool (one time)…", ready: "Ready" },
-  it: { servers: "Avvio dei server locali…", link: "Preparazione del link pubblico per il telefono…", download: "Download dello strumento per il link (una tantum)…", ready: "Pronto" },
-};
-const st = (key) => (SPLASH_TEXT[menuLang()] || SPLASH_TEXT.en)[key];
+const st = (key) => sharedText(`shell.splash.${key}`, menuLang());
 
 /** install-choices.json is written by the Windows installer (build/installer.nsh): language and models to fetch. */
 let installChoicesFound = false;
@@ -1478,6 +1355,7 @@ function getDictation() {
   if (dictation) return dictation;
   const { clipboard, ClipboardItem, BrowserWindow: BW, systemPreferences, dialog: dlg } = require("electron");
   dictation = require("./dictation").createDictation({
+    text: (key) => sharedText(key, menuLang()),
     getSettings: () => settings,
     saveSettings,
     logLine,
@@ -1677,22 +1555,6 @@ function startOllamaIfWanted(why, { needed = false } = {}) {
   logLine(`local AI: start check (${why})`);
   void startOllamaInstall({ startOnly: true });
 }
-const LOCAL_AI_TEXT = {
-  en: {
-    title: "Run AI on this computer?",
-    install: "Install now",
-    later: "Not now",
-    message: (hw, rec) => `Filow can transcribe and decide on this ${hw.platform === "darwin" ? "Mac" : "PC"} without any cloud. Install the recommended local models now (about ${rec.downloadGb} GB)?`,
-    detail: (hw, rec) => `This computer: ${hw.ramGb} GB RAM${hw.gpu ? ` · ${hw.gpu}` : ""}${hw.freeGb >= 0 ? ` · ${hw.freeGb} GB free` : ""}\n\nRecommended: ${rec.labels.join(", ")}${rec.ollama ? "\nOllama (the local model runner) is installed in the background." : ""}\n\nDownloads run while you use the app; you can change everything later in Settings.`,
-  },
-  it: {
-    title: "Eseguire l'AI su questo computer?",
-    install: "Installa ora",
-    later: "Non ora",
-    message: (hw, rec) => `Filow può trascrivere e decidere su questo ${hw.platform === "darwin" ? "Mac" : "PC"} senza alcun cloud. Installare ora i modelli locali consigliati (circa ${rec.downloadGb} GB)?`,
-    detail: (hw, rec) => `Questo computer: ${hw.ramGb} GB di RAM${hw.gpu ? ` · ${hw.gpu}` : ""}${hw.freeGb >= 0 ? ` · ${hw.freeGb} GB liberi` : ""}\n\nConsigliati: ${rec.labels.join(", ")}${rec.ollama ? "\nOllama (il motore dei modelli locali) viene installato in background." : ""}\n\nI download proseguono mentre usi l'app; puoi cambiare tutto in Impostazioni.`,
-  },
-};
 /** First start without installer choices (macOS, Linux, portable): offer the hardware-based setup. */
 async function offerLocalAi() {
   // V2 onboarding: the welcome asked in its "This computer" step (or the user skipped it); no second question.
@@ -1707,15 +1569,17 @@ async function offerLocalAi() {
   const info = await localAiInfo();
   const rec = info.recommended;
   if (!rec.models.length) return null;
-  const tx = LOCAL_AI_TEXT[menuLang()] || LOCAL_AI_TEXT.en;
+  const tx = (key, vars) => sharedText(`shell.localAi.${key}`, menuLang(), vars);
+  const machine = [tx("machine", { ram: info.ramGb }), info.gpu, info.freeGb >= 0 ? tx("free", { gb: info.freeGb }) : ""].filter(Boolean).join(" · ");
+  const recommended = [tx("recommended", { models: rec.models.map((n) => sharedText(`catalog.${n}`, menuLang())).join(", ") }), rec.ollama ? tx("ollama") : ""].filter(Boolean).join("\n");
   // Owned by the splash when it is up: an unowned box opened behind the splash (seen 2026-11-09).
   const owner = splash && !splash.isDestroyed() ? splash : null;
   const options = {
     type: "question",
-    title: tx.title,
-    message: tx.message(info, rec),
-    detail: tx.detail(info, rec),
-    buttons: [tx.install, tx.later],
+    title: tx("title"),
+    message: tx("message", { device: info.platform === "darwin" ? "Mac" : "PC", gb: rec.downloadGb }),
+    detail: [machine, recommended, tx("after")].join("\n\n"),
+    buttons: [tx("install"), tx("later")],
     defaultId: 0,
     cancelId: 1,
     noLink: true,

@@ -1,17 +1,19 @@
 "use client";
 import { Icon, type IconName } from "./icons";
 import { useSyncExternalStore } from "react";
-import { LANGS, t, type Lang } from "@filow/core";
+import { isLang, LANG_LABELS, LANGS, t, type Lang } from "@filow/core";
 import { getLang, getThemePref, setLang, setThemePref, subscribeUiPreferences, type ThemePref } from "@/lib/prefs";
 
 export function useUiLang(): [Lang, (lang: Lang) => void] {
   const lang = useSyncExternalStore(subscribeUiPreferences, getLang, () => "en" as Lang);
   return [lang, setLang];
 }
+/** The interface language: five languages do not fit as chips on a phone, so a select names each in itself. */
 export function LangSwitch({ lang, onChange }: { lang: Lang; onChange: (l: Lang) => void }) {
-  return <span className="langswitch" role="group" aria-label={t("common.language", lang)}>
-    {LANGS.map(l => <button key={l} className={`chip ${lang === l ? "code" : ""}`} onClick={() => onChange(l)} aria-pressed={lang === l}>{l.toUpperCase()}</button>)}
-  </span>;
+  return <select className="btn langswitch" value={lang} aria-label={t("common.language", lang)} title={t("common.language", lang)}
+    onChange={(e) => { if (isLang(e.target.value)) onChange(e.target.value); }}>
+    {LANGS.map(l => <option key={l} value={l} lang={l}>{LANG_LABELS[l]}</option>)}
+  </select>;
 }
 export function useUiTheme(): [ThemePref, (theme: ThemePref) => void] {
   return [useSyncExternalStore(subscribeUiPreferences, getThemePref, () => "system" as ThemePref), setThemePref];

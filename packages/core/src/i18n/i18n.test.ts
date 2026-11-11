@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { DICTIONARIES, PLACEHOLDER } from "./i18n";
+import { DICTIONARIES, PLACEHOLDER } from "./index";
 const labels = {
  "pair.device": ["Pair device", "Abbina dispositivo"],
  "footer.transcript": ["Transcript", "Trascrizione"],
@@ -39,4 +39,12 @@ it("gives every language every key with matching placeholders", () => {
    const wrong = Object.keys(en).filter((k) => placeholders(en[k]) !== placeholders(dict[k] ?? ""));
    expect(wrong.map((k) => `${k}: en {${placeholders(en[k])}} vs ${lang} {${placeholders(dict[k] ?? "")}}`), `${lang} placeholders differ`).toEqual([]);
  }
+});
+
+// Typography each language keeps: Romanian comma-below letters, Japanese full-width punctuation and brackets.
+it("keeps each language's own typography", () => {
+ const ro = DICTIONARIES.ro as Record<string, string>, ja = DICTIONARIES.ja as Record<string, string>;
+ expect(Object.keys(ro).filter((k) => /[\u015E\u015F\u0162\u0163]/.test(ro[k]))).toEqual([]);
+ expect(Object.keys(ja).filter((k) => /[\u3041-\u30FF\u4E00-\u9FFF][.,] /.test(ja[k]))).toEqual([]);
+ expect(Object.keys(ja).filter((k) => /[\u3041-\u30FF\u4E00-\u9FFF][()]|[()][\u3041-\u30FF\u4E00-\u9FFF]/.test(ja[k]))).toEqual([]);
 });

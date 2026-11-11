@@ -8,7 +8,7 @@ import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture,
 import { drawingSvg, type BuddyModel } from "@/lib/buddy/visuals";
 import { createSpeaker } from "@/lib/buddy/voice";
 import { markToDisplay, parseBuddyAnswer, pointToDisplay, type BuddyTurn } from "@/lib/buddy/prompt";
-import { OKF_TEXT, OLLAMA_STOPPED_ANSWER, type OkfKey } from "@/lib/buddy/text";
+import { okfText, OLLAMA_STOPPED_ANSWER, type OkfKey } from "@/lib/buddy/text";
 import { dictationText, pasteKeys, type DictationKey } from "@/lib/dictation/text";
 import { playCue } from "@/lib/dictation/cue";
 import { createPhraseFlow, type PhraseFlow } from "@/lib/dictation/handsfree";
@@ -17,7 +17,7 @@ import { askRoute, changesStored, voiceRoute, whoPhrase, type BuddyRecipients, t
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
 import { ConsentList, OutboundNotice, OutboundPill } from "../outbound-ui";
 import { VoiceSettings } from "./voice-settings";
-import { getSetupPreference } from "@/lib/prefs";
+import { getSetupPreference, getSpeechLang } from "@/lib/prefs";
 import "../okfilow.css";
 
 const HISTORY_KEY = "okfilow.history.v1";
@@ -38,7 +38,7 @@ const HOTKEY_LABEL: Record<string, string> = { "ctrl+alt": "Ctrl + Alt", "ctrl+s
 
 export default function OkFilowPanel() {
   const lang = useLang();
-  const t = useCallback((k: OkfKey) => (OKF_TEXT[lang === "it" ? "it" : "en"][k] ?? OKF_TEXT.en[k]), [lang]);
+  const t = useCallback((k: OkfKey) => okfText(lang)(k), [lang]);
   const dictT = useCallback((k: DictationKey, vars?: Record<string, string>) => dictationText(lang, k, vars), [lang]);
   /** The language the recognizer listened in for this dictation (for the filler words). */
   const spoken = useRef("");
@@ -251,7 +251,7 @@ export default function OkFilowPanel() {
           images,
           screens: shot.screens,
           history: [],
-          language: "auto",
+          language: getSpeechLang(),
           provider: to ? "cloud" : "local",
           setup: getSetupPreference(),
         }),
@@ -353,7 +353,7 @@ export default function OkFilowPanel() {
           method: "POST",
           signal: abort.signal,
           headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent },
-          body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: "auto", provider: route, setup: getSetupPreference() }),
+          body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: getSpeechLang(), provider: route, setup: getSetupPreference() }),
         });
         if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `HTTP ${res.status}`);
         seesText = res.headers.get("X-Buddy-Sees") === "text";
@@ -497,7 +497,8 @@ export default function OkFilowPanel() {
     let recognizerReady = false;
     let queued: Float32Array[] = [];
     try {
-      // Like HeyClicky: never guess the language from the UI, let the recognizer detect what is spoken.
+      // "auto" here means the spoken language set in Settings (the shell resolves it); only when that is
+      // automatic too does the recognizer detect what is spoken. The interface language is never used.
       // Dictation uses its own language setting ("auto" there means the speech language in Settings).
       const loading = b.stt.start(dict ? dict.language : "auto").then(
         (info) => {
@@ -818,7 +819,7 @@ export default function OkFilowPanel() {
               // The sample takes the turn like a new question: the answer stops for good and hands-free does not reopen the mic over it.
               const id = ++run.current;
               if (mode === "speaking" || mode === "thinking") setMode("idle");
-              void speaker.speak(t("voiceSample"), id, { voice: "natural", lang: lang === "it" ? "it" : "en" });
+              void speaker.speak(t("voiceSample"), id, { voice: "natural", lang });
             }} />
           <label className="okf-row">
             <span>{t("speed")}</span>

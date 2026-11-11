@@ -60,13 +60,16 @@
       el("span", { class: "label", text: tx.configFolder }),
       el("code", { class: "path", text: data.info.configFolder }),
       el("button", { type: "button", class: "btn", text: tx.openFolder, onclick: () => void api.openConfigFolder() }));
+    const policyLang = data.policyLang || "en";
     const policy = data.policy.length
-      ? el("article", { class: "policy" }, ...data.policy.map(block))
+      ? el("article", { class: "policy", lang: policyLang }, ...data.policy.map(block))
       : el("p", { class: "warn", role: "alert", text: tx.policyMissing });
+    // The policy is legal text and is not translated into every language: say so in the user's own.
+    const policyNote = data.policy.length && policyLang !== data.lang ? el("p", { class: "hint policy-lang", text: tx.policyEnglish }) : null;
     return [
       el("h1", { tabindex: "-1", text: tx.tabAbout }),
       el("p", { class: "version", text: `${fill(tx.version, { version: data.info.version })} · Electron ${data.info.electron}` }),
-      facts, folder, policy,
+      facts, folder, ...(policyNote ? [policyNote] : []), policy,
     ];
   }
 

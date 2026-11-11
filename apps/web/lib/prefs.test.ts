@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { gateThresholdsFor, SETUP_PROFILES, setupChoices } from "@filow/core";
-import { getGateMode, getSetupPreference, migrateGateMode, setGateMode, setSetupPreference } from "./prefs";
+import { readFileSync } from "node:fs";
+import { chooseSpeechLang, getGateMode, getSetupPreference, getSpeechLang, migrateGateMode, setGateMode, setSetupPreference, speechLangFor, syncSpeechLang } from "./prefs";
 
 /** A localStorage that lives in this test only. */
 function memoryStorage(init: Record<string, string> = {}) {
@@ -78,5 +79,46 @@ describe("the pre-filter (gate)", () => {
       const c = setupChoices(p, { ramGb: 32, cores: 16, gpu: { kind: "discrete", vramGb: 8 }, freeDiskGb: 500 });
       expect(gateThresholdsFor(c.decision.provider).narrow !== false, p).toBe(c.gate.narrow);
     }
+  });
+});
+
+// T3, DUP3: the spoken language has one store. In the desktop app that is the shell (settings.json);
+// localStorage only mirrors it, so a stale mirror must never overwrite what the shell holds.
+describe("spoken language", () => {
+  it("reads the shell's value into the page at start instead of pushing the page's copy", async () => {
+    use({ "prefs:speechLang": "it" }); // a stale mirror
+    const setLanguage = vi.fn(async (language: string) => ({ language }));
+    const { lang, status } = await syncSpeechLang({ status: async () => ({ language: "ja" }), setLanguage });
+    expect(lang).toBe("ja");
+    expect(status).toEqual({ language: "ja" });
+    expect(getSpeechLang()).toBe("ja");
+    expect(setLanguage).not.toHaveBeenCalled();
+  });
+  it("keeps a choice made while the shell was still answering", async () => {
+    let answer: (s: { language: string }) => void = () => {};
+    const pending = syncSpeechLang({ status: () => new Promise<{ language: string }>((r) => { answer = r; }) });
+    await chooseSpeechLang("ja", null); // the user picks before the shell's (older) answer arrives
+    answer({ language: "it" });
+    expect((await pending).lang).toBe("ja");
+    expect(getSpeechLang()).toBe("ja");
+  });
+  it("writes a choice to the shell and to the mirror, and works without a shell", async () => {
+    const setLanguage = vi.fn(async (language: string) => ({ language }));
+    expect(await chooseSpeechLang("ro", { status: async () => ({}), setLanguage })).toEqual({ language: "ro" });
+    expect(setLanguage).toHaveBeenCalledWith("ro");
+    expect(getSpeechLang()).toBe("ro");
+    expect(await chooseSpeechLang("ru", null)).toBeNull();
+    expect((await syncSpeechLang(null)).lang).toBe("ru");
+  });
+  it("hands a backend the set language, and the interface language only to one that cannot detect", () => {
+    expect(speechLangFor("it", true)).toBe("auto");
+    expect(speechLangFor("it", false)).toBe("it");
+    use({ "prefs:speechLang": "ja" });
+    expect(speechLangFor("it", false)).toBe("ja");
+  });
+  it("sends OK Filow's questions with the spoken language, never a fixed auto", () => {
+    const panel = readFileSync(new URL("../app/okfilow/panel/page.tsx", import.meta.url), "utf8");
+    expect(panel.match(/language: getSpeechLang\(\)/g)).toHaveLength(2);
+    expect(panel).not.toMatch(/language: "auto"/);
   });
 });

@@ -2,7 +2,7 @@
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { connect, type SessionClient } from "@filow/client";
-import { Engine, isLang, langFromLocale, LANGS, parseScript, type Command, type DecideRequest, type DecideResponse, type Lang, type SessionState, type SttStatus } from "@filow/core";
+import { Engine, isLang, LANG_LABELS, langFromLocale, LANGS, parseScript, type Command, type DecideRequest, type DecideResponse, type Lang, type SessionState, type SttStatus } from "@filow/core";
 import { availableBackends, BACKEND_LABELS, startAuto, type SttBackend } from "@filow/stt";
 import { Wordmark, LangProvider, StageView, useLang, useT } from "@filow/ui";
 import { isGranted, type BuddyRecipients } from "@/lib/buddy/outbound";
@@ -83,13 +83,9 @@ function AppInner({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
           <Wordmark height={28} />
         </h1>
         <span className="spacer" />
-        <span className="langswitch">
-          {LANGS.map((l) => (
-            <button key={l} className={`chip ${lang === l ? "code" : ""}`} onClick={() => onLang(l)}>
-              {l.toUpperCase()}
-            </button>
-          ))}
-        </span>
+        <select className="btn langswitch" value={lang} aria-label={t("common.language")} title={t("common.language")} onChange={(e) => { if (isLang(e.target.value)) onLang(e.target.value); }}>
+          {LANGS.map((l) => <option key={l} value={l} lang={l}>{LANG_LABELS[l]}</option>)}
+        </select>
         <select className="btn" value={mode} onChange={(e) => setMode(e.target.value as Mode)} title={t("ppt.modeTitle")} aria-label={t("ppt.modeTitle")}>
           <option value="engine" disabled={!host.canUseMic}>
             {host.canUseMic ? t("ppt.modeEngine") : t("ppt.modeEngineNo")}

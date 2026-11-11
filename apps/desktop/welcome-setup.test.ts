@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import { describe, expect, it, vi } from "vitest";
+import { DICTIONARIES } from "@filow/core";
 const { setupOffer, setupChoice, installedModels, probeSetup, createOfferGate, savedSetupAnswer, ollamaDiskModels } = createRequire(import.meta.url)("./welcome-setup.js");
 
 const CATALOG = {
@@ -18,7 +19,8 @@ describe("setup offer", () => {
   it("on a fresh PC offers the whole recommendation with its real size and Ollama", () => {
     const o = setupOffer({ hw, rec, catalog: CATALOG, installed: none, online: true });
     expect(o).toMatchObject({ ask: true, ready: false, downloadGb: 22.8, needsOllama: true, device: "pc", ramGb: 32, online: true, profile: null });
-    expect(o.labels).toEqual(rec.models.map((n) => CATALOG[n as keyof typeof CATALOG].label));
+    expect(o.models).toEqual(rec.models); // named in the user's language where they are shown (catalog.<name>)
+    expect(Object.keys(CATALOG).filter((n) => !(`catalog.${n}` in DICTIONARIES.en))).toEqual([]);
   });
   it("counts only what is missing, and is ready when the take models are there", () => {
     const o = setupOffer({ hw, rec, catalog: CATALOG, installed: { ...takeReady, ollamaModels: ["clef-flash:latest", "gemma4:e4b", "qwen3-vl:2b"] }, online: true });

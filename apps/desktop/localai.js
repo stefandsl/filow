@@ -19,17 +19,17 @@ const core = () => ({ ...require("./vendor/profile"), ...require("./vendor/hardw
 
 /** Catalogue mirrored from apps/web/lib/localModels.ts (sizes in GB) for the first-start recommendation. */
 const CATALOG = {
-  "nemotron-streaming": { dl: 0.45, ram: 3, ollama: false, label: "Speech model (live, on this computer)" },
-  "whisper-base": { dl: 0.15, ram: 2, ollama: false, label: "Speech model for the browser (small)" },
-  "whisper-small": { dl: 0.5, ram: 4, ollama: false, label: "Speech model for the browser" },
-  "clef-flash": { dl: 11, ram: 16, ollama: true, label: "Point-checking AI (large)" },
-  clef: { dl: 17, ram: 32, ollama: true, label: "Point-checking AI (largest)" },
-  "gemma4:e2b": { dl: 6, ram: 8, ollama: true, label: "Script writer for slides (small)" },
-  "gemma4:e4b": { dl: 9, ram: 16, ollama: true, label: "Script writer for slides" },
-  "qwen3-vl:8b": { dl: 6.1, ram: 16, ollama: true, label: "OK Filow screen helper (large)" },
-  "qwen3-vl:4b": { dl: 3.3, ram: 8, ollama: true, label: "OK Filow screen helper (medium)" },
-  "qwen3-vl:2b": { dl: 1.9, ram: 6, ollama: true, label: "OK Filow screen helper" },
-  "lfm3-vl": { dl: 1.5, ram: 4, ollama: true, label: "OK Filow screen helper (small)" },
+  "nemotron-streaming": { dl: 0.45, ram: 3, ollama: false },
+  "whisper-base": { dl: 0.15, ram: 2, ollama: false },
+  "whisper-small": { dl: 0.5, ram: 4, ollama: false },
+  "clef-flash": { dl: 11, ram: 16, ollama: true },
+  clef: { dl: 17, ram: 32, ollama: true },
+  "gemma4:e2b": { dl: 6, ram: 8, ollama: true },
+  "gemma4:e4b": { dl: 9, ram: 16, ollama: true },
+  "qwen3-vl:8b": { dl: 6.1, ram: 16, ollama: true },
+  "qwen3-vl:4b": { dl: 3.3, ram: 8, ollama: true },
+  "qwen3-vl:2b": { dl: 1.9, ram: 6, ollama: true },
+  "lfm3-vl": { dl: 1.5, ram: 4, ollama: true },
 };
 
 /** Runs a probe as a child process: resolves its output, or "" on failure. The main process never waits on it. */
@@ -118,7 +118,7 @@ function recommend(hw) {
     if (models.includes("gemma4:e4b") && !fits(models)) models = models.map((n) => (n === "gemma4:e4b" ? "gemma4:e2b" : n));
     if (models.includes("gemma4:e2b") && !fits(models)) models = models.filter((n) => n !== "gemma4:e2b");
   }
-  return { profile, models, ollama: models.some((n) => CATALOG[n]?.ollama), downloadGb: Math.round(total(models) * 10) / 10, labels: models.map((n) => CATALOG[n]?.label || n) };
+  return { profile, models, ollama: models.some((n) => CATALOG[n]?.ollama), downloadGb: Math.round(total(models) * 10) / 10 };
 }
 
 function ollamaExe() {

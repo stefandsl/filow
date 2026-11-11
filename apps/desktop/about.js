@@ -11,84 +11,18 @@ const SUPPORT = { issues: "https://github.com/stefandsl/filow/issues", newIssue:
 /** The longest link handed to the browser, in characters after escaping (GitHub refuses very long ones). */
 const ISSUE_URL_LIMIT = 6000;
 
-const TEXT = {
-  en: {
-    tabAbout: "About and privacy", tabReport: "Report a problem", version: "Version {version}",
-    fact1: "No account. No telemetry: Filow does not tell anyone how you use it.",
-    fact2: "Your script, settings and logs stay in your config folder on this computer.",
-    configFolder: "Your config folder", openFolder: "Open the folder", todo: "not filled in yet",
-    policyMissing: "The privacy policy file is missing from this installation. Reinstall Filow to get it back.",
-    reportIntro: "Filow does not send this report anywhere. Save it to a file, read it, then send it yourself, privately.",
-    whereTo: "Where to send it", supportUnset: "Not set in this version yet.", supportTodo: "support e-mail address or form, added by the publisher",
-    writeMail: "Write an e-mail", openForm: "Open the support form",
-    describe: "What happened? (optional)", describeHint: "What you did, what you expected and what happened instead. It goes at the top of the file.",
-    contents: "Exactly what the file will contain",
-    masked: "Masked before you see it: public links, keys and passwords, e-mail addresses, local network addresses and your user name in folder paths. Other names, such as a microphone's name, stay: read the text before you send it.",
-    crashNone: "No crash files on this computer.",
-    crashSome: "Not included: the crash files on this computer ({count}, {size} MB). They can hold parts of what was on screen, so send them only if support asks for them.",
-    openCrash: "Open the crash files folder",
-    save: "Save to a file…", copy: "Copy the text", close: "Close",
-    saved: "Saved to {file}", copied: "Copied. Paste it into your message.", saveFailed: "Could not save the file: {error}",
-    saveTitle: "Save the problem report", loading: "Collecting the report…",
-    fileTitle: "Filow problem report", fileMade: "Made on {date}. Filow did not send this file anywhere.",
-    fileWhat: "What happened", fileNone: "(not written)", fileCrash: "Crash files not included: {count} ({size} MB).",
-    fileSystem: "This computer and Filow", fileTake: "Log of the last take", fileLog: "Start-up log (last lines)", fileNoTake: "(no take since Filow started)",
-  },
-  it: {
-    tabAbout: "Informazioni e privacy", tabReport: "Segnala un problema", version: "Versione {version}",
-    fact1: "Nessun account. Nessuna telemetria: Filow non dice a nessuno come lo usi.",
-    fact2: "Il tuo copione, le impostazioni e i registri restano nella cartella di configurazione su questo computer.",
-    configFolder: "La tua cartella di configurazione", openFolder: "Apri la cartella", todo: "non ancora compilato",
-    policyMissing: "In questa installazione manca il file dell'informativa sulla privacy. Reinstalla Filow per riaverlo.",
-    reportIntro: "Filow non invia questa segnalazione da nessuna parte. Salvala in un file, leggila, poi inviala tu, in privato.",
-    whereTo: "Dove inviarla", supportUnset: "Non ancora indicato in questa versione.", supportTodo: "indirizzo e-mail o modulo di assistenza, aggiunto dall'editore",
-    writeMail: "Scrivi un'e-mail", openForm: "Apri il modulo di assistenza",
-    describe: "Cosa è successo? (facoltativo)", describeHint: "Cosa hai fatto, cosa ti aspettavi e cosa è successo invece. Va in cima al file.",
-    contents: "Esattamente cosa conterrà il file",
-    masked: "Mascherati prima che tu li veda: link pubblici, chiavi e password, indirizzi e-mail, indirizzi della rete locale e il tuo nome utente nei percorsi delle cartelle. Altri nomi, come quello di un microfono, restano: leggi il testo prima di inviarlo.",
-    crashNone: "Nessun file di crash su questo computer.",
-    crashSome: "Non inclusi: i file di crash su questo computer ({count}, {size} MB). Possono contenere parti di quello che era sullo schermo: inviali solo se l'assistenza li chiede.",
-    openCrash: "Apri la cartella dei file di crash",
-    save: "Salva in un file…", copy: "Copia il testo", close: "Chiudi",
-    saved: "Salvato in {file}", copied: "Copiato. Incollalo nel tuo messaggio.", saveFailed: "Impossibile salvare il file: {error}",
-    saveTitle: "Salva la segnalazione", loading: "Raccolgo la segnalazione…",
-    fileTitle: "Segnalazione di un problema in Filow", fileMade: "Creata il {date}. Filow non ha inviato questo file da nessuna parte.",
-    fileWhat: "Cosa è successo", fileNone: "(non scritto)", fileCrash: "File di crash non inclusi: {count} ({size} MB).",
-    fileSystem: "Questo computer e Filow", fileTake: "Registro dell'ultima sessione", fileLog: "Registro di avvio (ultime righe)", fileNoTake: "(nessuna sessione da quando Filow è partito)",
-  },
-};
+// The page's texts are about.<key> in the shared dictionary (packages/core/src/i18n), so every
+// language and the parity check cover them.
+const { t: sharedText } = require("./vendor/i18n");
+const ABOUT_KEYS = ["tabAbout", "tabReport", "version", "fact1", "fact2", "configFolder", "openFolder", "todo", "policyMissing", "policyEnglish",
+  "issueIntro", "issueHeading", "issuePublic", "issueOpen", "issueOpened", "issueFailed", "issueTitle", "issueTitleBare", "issueCut", "issueEarlier", "describe", "describeHint", "contents", "masked",
+  "crashNone", "crashSome", "openCrash", "save", "copy", "close", "saved", "copied", "saveFailed", "saveTitle", "loading",
+  "fileTitle", "fileMade", "fileWhat", "fileNone", "fileCrash", "fileSystem", "fileTake", "fileLog", "fileNoTake"];
 
-// ---- strings added for "Open an issue on GitHub" (GitHub issue #5): one block, English and Italian ----
-// They replace reportIntro, whereTo, supportUnset, supportTodo, writeMail and openForm, which the page no
-// longer shows.
-const ISSUE_TEXT = {
-  en: {
-    issueIntro: "Filow sends nothing by itself. Write what happened, read the report, then open an issue on GitHub or save the report to a file.",
-    issueHeading: "Send the report",
-    issuePublic: "Issues on GitHub are public: anyone can read them. The button opens GitHub in your browser with what you wrote (as you wrote it), the Filow version, your system and the end of the two logs below already filled in (a long report is cut to fit). That text reaches GitHub as soon as the page opens, before you post it. You need a GitHub account to post.",
-    issueOpen: "Open an issue on GitHub",
-    issueOpened: "GitHub is opening in your browser. Read the issue there, then post it.",
-    issueFailed: "Could not open the browser. Copy the text and paste it into a new issue at {url}",
-    issueTitle: "Problem report: {summary}", issueTitleBare: "Problem report (Filow {version})",
-    issueCut: "(Cut to fit in a link. To give the full report, save it to a file in Filow and attach the file to this issue.)",
-    issueEarlier: "(earlier lines cut)",
-  },
-  it: {
-    issueIntro: "Filow non invia niente da solo. Scrivi cosa è successo, leggi il testo qui sotto, poi apri una segnalazione su GitHub oppure salva il testo in un file.",
-    issueHeading: "Invia la segnalazione",
-    issuePublic: "Le segnalazioni su GitHub sono pubbliche: chiunque può leggerle. Il pulsante apre GitHub nel browser con già inserito quello che hai scritto (così come l'hai scritto), la versione di Filow, il tuo sistema e la fine dei due registri qui sotto (una segnalazione lunga viene accorciata). Quel testo arriva a GitHub appena la pagina si apre, prima che tu la pubblichi. Per pubblicarla serve un account GitHub.",
-    issueOpen: "Apri una segnalazione su GitHub",
-    issueOpened: "GitHub si sta aprendo nel browser. Leggi la segnalazione lì, poi pubblicala.",
-    issueFailed: "Impossibile aprire il browser. Copia il testo e incollalo in una nuova segnalazione su {url}",
-    issueTitle: "Segnalazione: {summary}", issueTitleBare: "Segnalazione di un problema (Filow {version})",
-    issueCut: "(Accorciata per stare in un link. Per dare la segnalazione completa, salvala in un file da Filow e allega il file a questa segnalazione.)",
-    issueEarlier: "(righe precedenti tagliate)",
-  },
-};
-for (const lang of Object.keys(ISSUE_TEXT)) Object.assign(TEXT[lang], ISSUE_TEXT[lang]);
 
 const fill = (text, vars = {}) => text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
-const textFor = (lang) => TEXT[lang] || TEXT.en;
+/** Every text of the window in one language, {placeholders} left for the page to fill. */
+const textFor = (lang) => Object.fromEntries(ABOUT_KEYS.map((k) => [k, sharedText(`about.${k}`, lang)]));
 
 // ---- the policy: a small Markdown reader for the subset docs/PRIVACY*.md uses ----
 // It returns plain data (no HTML): the page builds DOM nodes with textContent, so nothing in the file
@@ -320,7 +254,12 @@ function createAboutPages(deps) {
   const crash = () => crashSummary(deps.crashDir, fs, path.join);
   const fileText = (description) => reportFile({ lang: deps.lang(), date: now(), description, sections: sections || [], crash: crash() });
 
-  handle("about:data", () => ({ view, lang: deps.lang(), theme: deps.theme(), text: textFor(deps.lang()), info: deps.info(), policy: policy().blocks, support: SUPPORT }));
+  handle("about:data", () => {
+    const p = policy();
+    // The policy is legal text, kept in English (and Italian); the page says so in the user's language.
+    const policyLang = /PRIVACY\.it\.md$/.test(p.file || "") ? "it" : "en";
+    return { view, lang: deps.lang(), theme: deps.theme(), text: textFor(deps.lang()), info: deps.info(), policy: p.blocks, policyLang, support: SUPPORT };
+  });
   handle("about:openConfigFolder", () => shell.openPath(deps.info().configFolder));
   handle("report:data", async () => {
     sections = await deps.collectReport();
@@ -391,4 +330,4 @@ function createAboutPages(deps) {
   return { open, close };
 }
 
-module.exports = { createAboutPages, parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, issueUrl, TEXT, ISSUE_TEXT, SUPPORT, ISSUE_URL_LIMIT };
+module.exports = { createAboutPages, parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, issueUrl, textFor, ABOUT_KEYS, SUPPORT, ISSUE_URL_LIMIT };

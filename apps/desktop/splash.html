@@ -39,12 +39,14 @@
       const q = new URLSearchParams(location.search);
       document.documentElement.dataset.theme = q.get("theme") || "dark";
       document.getElementById("version").textContent = "v" + (q.get("v") || "");
-      const local = q.get("local") === "1";
-      const it = (q.get("lang") || "en") === "it";
-      document.getElementById("tagline").textContent = it ? "Parla liberamente. Resta sul punto." : "Speak freely. Stay on point.";
-      document.getElementById("badge").innerHTML = local
-        ? (it ? "Modelli locali · dati su questo PC · " : "Local models · data stays on this PC · ") + '<span class="gdpr">GDPR</span>'
-        : (it ? "PII guard attivo · " : "PII guard on · ") + '<span class="gdpr">GDPR</span>';
+      // Texts arrive translated from the shell (main.js reads the shared dictionary).
+      document.documentElement.lang = q.get("lang") || "en";
+      document.getElementById("tagline").textContent = q.get("tagline") || "Speak freely. Stay on point.";
+      const badge = document.getElementById("badge");
+      const gdpr = document.createElement("span");
+      gdpr.className = "gdpr";
+      gdpr.textContent = "GDPR";
+      badge.replaceChildren(document.createTextNode((q.get("badge") || "") + " · "), gdpr);
       window.setStatus = (text, done) => {
         document.getElementById("status").textContent = text;
         document.getElementById("bar").classList.toggle("done", Boolean(done));

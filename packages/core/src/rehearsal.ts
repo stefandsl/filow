@@ -14,13 +14,15 @@
 // - Many speech models leave out "um" and "uh"; the filler count only sees what was transcribed.
 import { t, type I18nKey, type Lang } from "./i18n";
 import { fold, tokenize } from "./text";
+import { detectDominantLanguage, SPOKEN_LANGS, type SpokenLang } from "./spoken";
 import { formatClock, sectionTimes, talkBudget, TalkClockTracker } from "./rehearsal-timer";
 import { sectionLabel } from "./script";
 import type { TranscriptEvent } from "./engine";
 import type { PointStatus, Script, SessionState, TalkClock } from "./types";
 
-export type SpeechLanguage = "en" | "it" | "ru" | "ro" | "ja";
-export const SPEECH_LANGUAGES: SpeechLanguage[] = ["en", "it", "ru", "ro", "ja"];
+/** The spoken languages (packages/core/src/spoken.ts), under the name the report has always used. */
+export type SpeechLanguage = SpokenLang;
+export const SPEECH_LANGUAGES: SpeechLanguage[] = [...SPOKEN_LANGS];
 
 /** A silence at least this long counts as a long pause. */
 export const LONG_PAUSE_MS = 3000;
@@ -61,37 +63,33 @@ export const FILLERS: Record<SpeechLanguage, Filler[]> = {
     { label: "insomma", words: ["insomma"], aside: true },
     { label: "come dire", words: ["come", "dire"], aside: true },
   ],
+  // Russian, Romanian, Japanese: only hesitation sounds, and phrases that are fillers in nearly every
+  // use. A word that is often meant is left out even when it is a common filler: "вот", "значит",
+  // "типа", "короче" (also "shorter"), "păi" (folds to "pai", straw), "adică", "deci", "practic",
+  // "なんか". "ну" and "как бы" count only when set off by a pause ("ну, ..."; not "как бы ни").
   ru: [
-    { label: "э", sound: /^э+м*$/ },
-    { label: "мм", sound: /^м{2,}$/ },
-    { label: "ну", words: ["ну"] },
-    { label: "как бы", words: ["как", "бы"] },
+    { label: "э", sound: /^э{2,}м*$|^э+м+$/ }, // not the letter "э" on its own
+    { label: "ммм", sound: /^м{3,}$/ }, // not "мм", millimetres
+    { label: "ну", words: ["ну"], alone: true },
+    { label: "как бы", words: ["как", "бы"], alone: true },
     { label: "это самое", words: ["это", "самое"], alone: true },
-    { label: "короче", words: ["короче"] },
-    { label: "типа", words: ["типа"], alone: true },
-    { label: "вот", words: ["вот"], alone: true },
-    { label: "значит", words: ["значит"], alone: true },
   ],
   ro: [
-    { label: "ă", sound: /^a{2,}$/ },
-    { label: "î", sound: /^i{3,}$/ }, // "îi" (him, her) folds to "ii"
-    { label: "eee", sound: /^e{2,}$/ },
-    { label: "mmm", sound: /^h*m{2,}$/ },
-    { label: "păi", words: ["pai"] },
-    { label: "adică", words: ["adica"] },
-    { label: "practic", words: ["practic"], alone: true },
-    { label: "cum să zic", words: ["cum", "sa", "zic"] },
-    { label: "deci", words: ["deci"], alone: true },
+    { label: "ă", sound: /^a{3,}$/ }, // not "AA" (batteries)
+    { label: "î", sound: /^i{4,}$/ }, // "îi" (him, her) folds to "ii", and "III" is a number
+    { label: "eee", sound: /^e{3,}$/ },
+    { label: "mmm", sound: /^h*m{3,}$|^h+m{2,}$/ }, // not "mm", millimetres
+    { label: "cum să zic", words: ["cum", "sa", "zic"], alone: true }, // "Cum să zic asta mai simplu?" is meant
   ],
   ja: [
-    { label: "えーと", sound: /^え[ーぇ〜]*(?:っ?と)$/ },
+    { label: "えーと", sound: /^え[ーぇえ〜]*(?:っ?と)$/ }, // えーと, ええと, えっと when the cutter keeps it whole
     { label: "えっと", words: ["えっ", "と"] },
-    { label: "えー", sound: /^え[ーぇ〜]+$/ },
+    { label: "えーと", words: ["ええ", "と"] }, // the word cutter may split "ええと" in two
+    { label: "えー", sound: /^え[ーぇ〜]+$/ }, // not "ええ", which is "yes"
     { label: "あのー", sound: /^あの[ーう〜]+$/ },
     { label: "あのう", words: ["あの", "う"] }, // the word cutter splits "あのう" in two
     { label: "うーん", sound: /^う[ー〜]+ん$/ },
     { label: "まあ", sound: /^ま[あー]+$/ },
-    { label: "なんか", words: ["なんか"], alone: true },
     { label: "あの", words: ["あの"], alone: true },
   ],
 };
@@ -109,8 +107,6 @@ export const PACE_RANGE: Record<SpeechLanguage, [number, number]> = {
   ja: [250, 380],
 };
 
-const JAPANESE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/gu;
-const CYRILLIC = /\p{Script=Cyrillic}/gu;
 const LETTER = /[\p{L}\p{N}]/gu;
 // A question mark is not a pause here: "Do you know?" and "Что это значит?" are meant.
 const PAUSE_PUNCT = /^\s*(?:[,.;:!…、。，．！]|$)/u;
@@ -135,21 +131,9 @@ const JOINED_OR_SPACE = /^[-\u2010\u2011\u2013\u2014 ]$/;
 // English only: "ER" and "UM" in capitals are names, not sounds.
 const ACRONYM = /^[A-Z]{2,}$/;
 
-const MARKERS: Record<"en" | "it" | "ro", Set<string>> = {
-  en: new Set("the and is are of to that this we you it was with for".split(" ")),
-  it: new Set("il lo la di che e non per un una sono questo come gli del della".split(" ")),
-  ro: new Set("si este sunt de in care pe nu cu o un mai ca la acest pentru".split(" ")),
-};
-
-/** The language a transcript is in, from its letters and its commonest words. */
+/** The language a transcript is in, from its letters and its commonest words (English when nothing tells). */
 export function detectSpeechLanguage(text: string): SpeechLanguage {
-  const letters = (text.match(LETTER) ?? []).length || 1;
-  if ((text.match(JAPANESE) ?? []).length / letters > 0.3) return "ja";
-  if ((text.match(CYRILLIC) ?? []).length / letters > 0.5) return "ru";
-  const tokens = tokenize(text).map((tok) => tok.norm);
-  const score = (l: "en" | "it" | "ro") => tokens.filter((w) => MARKERS[l].has(w)).length;
-  const best = (["en", "it", "ro"] as const).map((l) => [l, score(l)] as const).sort((a, b) => b[1] - a[1])[0];
-  return best[1] > 0 ? best[0] : "en";
+  return detectDominantLanguage(text, "en") ?? "en";
 }
 
 /**
