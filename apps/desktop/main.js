@@ -1373,6 +1373,13 @@ function appIcon() {
 }
 
 // ---- Dictation: speak into any app's text field, on this PC only (dictation.js, docs/okfilow/DICTATION.md) ----
+let s1 = null;
+/** The local runtime for S1-mini by Superwhisper (s1-runtime.js): started at the first English dictation. */
+function s1Runtime() {
+  s1 ||= require("./s1-runtime").createS1Runtime({ userData, logLine, spawn: require("node:child_process").spawn, threads: () => Math.max(2, Math.min(6, Math.floor(os.cpus().length / 2))) });
+  return s1;
+}
+app.on("will-quit", () => { if (s1) s1.stop(); });
 let dictation = null;
 function getDictation() {
   if (dictation) return dictation;
@@ -1394,6 +1401,10 @@ function getDictation() {
     // Windows: our own small helper reads which window has the keyboard (program, window class, administrator,
     // password box) and sends the keys, so Filow knows whether Windows took them. Null on other systems.
     target: () => require("./dictation-target").loadTarget(),
+    // English dictations are written out by S1-mini by Superwhisper on this PC (dictation-cleanup.js,
+    // s1-runtime.js). Without the model or the runtime the step is skipped and the report says why.
+    cleaner: require("./dictation-cleanup").createCleaner({ run: (body, signal) => s1Runtime().run(body, signal), ready: () => s1Runtime().ready(), budgetMs: () => 700 }),
+    cleanupStatus: () => s1Runtime().status(),
     // Ctrl + V (Command + V on macOS) through OK Filow's own keyboard hook: uiohook-napi (MIT) sends it with
     // SendInput on Windows, CGEvent on macOS and XTest on X11. No shell, no PowerShell, no extra native module.
     sendPaste: hook => {

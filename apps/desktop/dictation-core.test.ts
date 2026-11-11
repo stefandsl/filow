@@ -62,7 +62,10 @@ describe("dictation shortcut", () => {
 
 describe("dictation settings", () => {
   it("fills defaults, keeps the old OK Filow switch, and refuses unknown values", () => {
-    expect(core.sanitizeConfig(undefined)).toEqual({ enabled: true, chord: "ctrl+meta", mode: "hold", language: "auto", insert: "paste", removeFillers: true, sound: true });
+    expect(core.sanitizeConfig(undefined)).toEqual({ enabled: true, chord: "ctrl+meta", mode: "hold", language: "auto", insert: "paste", removeFillers: true, sound: true, cleanup: true, cleanupStyle: "semi-formal", cleanupLists: false });
+    // Cleanup (S1-mini by Superwhisper): only the model's own registers are kept.
+    expect(core.sanitizeConfig({ v: 2, cleanup: false, cleanupStyle: "formal", cleanupLists: true })).toMatchObject({ cleanup: false, cleanupStyle: "formal", cleanupLists: true });
+    expect(core.sanitizeConfig({ v: 2, cleanupStyle: "shouting", cleanup: "yes" })).toMatchObject({ cleanup: true, cleanupStyle: "semi-formal" });
     expect(core.sanitizeConfig(undefined, false).enabled).toBe(false);
     expect(core.sanitizeConfig({ enabled: true }, false).enabled).toBe(true);
     const c = core.sanitizeConfig({ chord: "Win + Alt", mode: "toggle", language: "ja", insert: "copy", removeFillers: true, sound: true });

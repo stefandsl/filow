@@ -76,6 +76,8 @@ function createDictation(deps) {
       canPaste: decision.action === "paste",
       copyReason: decision.reason,
       modelReady,
+      /** S1-mini by Superwhisper: is the model on this computer and the runtime in this build? (Settings says so.) */
+      cleanupReady: deps.cleanupStatus ? (() => { const s = deps.cleanupStatus(); return Boolean(s.model && s.runtime); })() : false,
       // A screen reader is running (Chromium noticed one): the start and stop tones play even when the
       // sound setting is off, since an announcement from the overlay may not be read out.
       screenReader: Boolean(deps.screenReader && deps.screenReader()),
@@ -150,6 +152,12 @@ function createDictation(deps) {
     return t;
   }
 
+  // Where the last dictation went (window and last character), until the user types or clicks.
+  let lastSpot = null;
+  let ignoreMovesUntil = 0;
+  /** The user pressed a key or clicked (the keyboard hook saw it): the caret may be anywhere now. */
+  function userMoved() { if (Date.now() >= ignoreMovesUntil) lastSpot = null; }
+
   let inserter = null;
   let current = { hook: null, keysUp: null };
   /** Copy-only and fallback writes carry the same "not in clipboard history" markers as a paste. */
@@ -163,7 +171,7 @@ function createDictation(deps) {
   async function insert(raw, { hook, keysUp, spokenLanguage, run } = {}) {
     const c = cfg();
     const lang = c.language !== "auto" ? c.language : spokenLanguage || "auto";
-    const text = core.postProcess(raw, { language: lang, removeFillers: c.removeFillers });
+    let text = core.postProcess(raw, { language: lang, removeFillers: c.removeFillers });
     if (!text) {
       // Nothing recognised (or only filler sounds). In a hands-free dictation earlier phrases may have gone in.
       diag.nothing();
@@ -184,6 +192,15 @@ function createDictation(deps) {
     const field = own ? await editableFocused(own) : null;
     if (field && field.password) return refuse();
     if (!own && (await readTarget()).password) return refuse();
+    // English only: S1-mini by Superwhisper writes the words out on this PC (dictation-cleanup.js). An
+    // answer that is late or not safely the same message is dropped: the words above go in instead.
+    if (deps.cleaner) {
+      const said = core.postProcess(raw, { language: lang, removeFillers: false });
+      const cl = await deps.cleaner.clean(said, { enabled: c.cleanup, language: c.language, spokenLanguage, style: c.cleanupStyle, lists: c.cleanupLists });
+      if (cl.used) text = cl.text;
+      diag.mark("cleanup", cl.used ? { used: true, took: cl.ms } : { used: false, why: cl.reason, took: cl.ms });
+      if (cl.asked) logLine(`dictation: cleanup ${cl.used ? `used (S1-mini, ${cl.ms} ms)` : `skipped (${cl.reason}, ${cl.ms} ms)`}`);
+    }
     /** One of Filow's own windows has the keyboard: only into a text field; with none the words are copied and the user is told so. */
     const intoOwn = async (win, fld) => {
       if (fld) {
@@ -243,8 +260,18 @@ function createDictation(deps) {
       if (how.method === "paste") return null;
       return { reason: how.reason || how.method, method: how.method, giveBack: how.method !== "copy" };
     };
+    // Two dictations in a row into the same window (issue seen in Notepad: "...alle 9.La riunione..."):
+    // Filow cannot read another program's caret, but it knows where its own last words went. Same
+    // window, and no key or click of the user's since: the new words follow the old ones, so they get
+    // the space a writer would put there.
+    const lead = (piece) => (piece === text && lastSpot && seen && seen.id && lastSpot.id === seen.id && Date.now() - lastSpot.at < 10 * 60_000 ? core.joinAfter(lastSpot.tail, piece) : piece);
+    const went = () => {
+      if (run) run.typed(text);
+      ignoreMovesUntil = Date.now() + 400; // our own Ctrl + V comes back through the keyboard hook
+      lastSpot = seen && seen.id ? { id: seen.id, tail: text.slice(-1), at: Date.now() } : null;
+    };
     // The space before a phrase depends on the phrase before it, so it is decided when this one's turn comes.
-    const r = await inserter.insert(run ? () => run.pasteText(text) : text, () => { if (run) run.typed(text); }, check);
+    const r = await inserter.insert(() => lead(run ? run.pasteText(text) : text), went, check);
     if (r.method === "refuse") return refuse(); // the keyboard moved to a password box while the keys went up
     if (r.method === "own") {
       const win = ownFocusedWindow();
@@ -258,11 +285,11 @@ function createDictation(deps) {
     }
     if (r.method === "type") {
       // A terminal: typed as characters (the keys are up: the inserter waited for them).
-      const piece = run ? run.pasteText(text) : text;
+      const piece = lead(run ? run.pasteText(text) : text);
       const wanted = 2 * [...piece.replace(/[\r\n\t]/g, "")].reduce((n, ch) => n + ch.length, 0);
       const accepted = helper.typeText(piece);
       if (accepted === wanted) {
-        if (run) run.typed(text);
+        went();
         logLine(`dictation: typed ${text.length} chars as key presses`);
         diag.mark("done", { what: "typed as key presses" });
         diag.result("typed");
@@ -311,7 +338,8 @@ function createDictation(deps) {
     }
     return {
       platform,
-      settings: { enabled: c.enabled, chord: c.chord, mode: c.mode, insert: c.insert, language: c.language },
+      settings: { enabled: c.enabled, chord: c.chord, mode: c.mode, insert: c.insert, language: c.language, cleanup: c.cleanup, cleanupStyle: c.cleanupStyle, cleanupLists: c.cleanupLists },
+      cleanup: deps.cleanupStatus ? deps.cleanupStatus() : { model: false, runtime: false },
       hook,
       model: { ready, language: c.language },
       mic,
@@ -321,7 +349,7 @@ function createDictation(deps) {
     };
   }
 
-  return { cfg, configure, status, activeChord, insert, diag, reportFacts, reportText: (o) => reportText(reportFacts(o)), newPhraseRun: core.createPhraseRun, onChange: (fn) => (listeners.add(fn), () => listeners.delete(fn)) };
+  return { cfg, configure, status, activeChord, insert, userMoved, diag, reportFacts, reportText: (o) => reportText(reportFacts(o)), newPhraseRun: core.createPhraseRun, onChange: (fn) => (listeners.add(fn), () => listeners.delete(fn)) };
 }
 
 module.exports = { createDictation };

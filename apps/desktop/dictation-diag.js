@@ -3,7 +3,7 @@
 // It records times, counts, the target program's name and window class, and what was done with the
 // words. It never records the words, a window title or anything typed.
 
-const STAGES = ["keys-down", "listening", "audio", "keys-up", "recognised", "target", "done", "clipboard"];
+const STAGES = ["keys-down", "listening", "audio", "keys-up", "recognised", "cleanup", "target", "done", "clipboard"];
 
 /**
  * @param {{ now?: () => number, max?: number }} o
@@ -63,6 +63,7 @@ function stageText(s) {
     case "audio": return `first sound ${at}`;
     case "keys-up": return `keys up ${at}`;
     case "recognised": return `recognised ${s.chars || 0} chars ${at}`;
+    case "cleanup": return `cleanup ${s.used ? `used (${s.took || 0} ms)` : `skipped (${String(s.why || "?").slice(0, 60)}${s.took ? `, ${s.took} ms` : ""})`} ${at}`;
     case "target": return `target ${s.line || "?"} -> ${s.method || "?"} ${at}`;
     case "done": return `${s.what || "?"}${s.accepted === false ? " (Windows did not accept the keys)" : ""} ${at}`;
     case "clipboard": return `clipboard ${s.back ? "put back" : "left as is"} ${at}`;
@@ -109,6 +110,7 @@ function reportText(facts) {
     `keyboard hook: ${hook.ready ? "registered" : `NOT registered${hook.error ? ` (${String(hook.error).slice(0, 160)})` : ""}`}${hook.failures ? `, ${hook.failures} failed ${hook.failures === 1 ? "try" : "tries"}` : ""}${hook.lastTryAt ? `, last try ${clock(hook.lastTryAt)}` : ""}`,
     `speech: on this computer, model for "${(f.model && f.model.language) || "auto"}" ${f.model && f.model.ready === true ? "ready" : f.model && f.model.ready === false ? "NOT on this computer" : "unknown"}`,
     `microphone: ${f.mic || "unknown"}`,
+    `cleanup (English only): S1-mini by Superwhisper, ${s.cleanup === false ? "off" : "on"}, style ${s.cleanupStyle || "semi-formal"}, lists ${s.cleanupLists ? "on" : "off"}; model ${f.cleanup && f.cleanup.model ? "on this computer" : "NOT on this computer"}, runtime ${f.cleanup && f.cleanup.runtime ? "in this build" : "NOT in this build"}${f.cleanup && f.cleanup.running ? `, running (started in ${f.cleanup.startedMs} ms)` : ""}${f.cleanup && f.cleanup.error ? `, last error: ${String(f.cleanup.error).slice(0, 80)}` : ""}`,
     `typing helper: ${f.helper ? "yes" : "no (keys go through the keyboard hook, the target is not known)"}`,
     ...(Array.isArray(f.session) ? f.session.map((x) => `system: ${x}`) : []),
   ];

@@ -90,6 +90,27 @@ export function DictationSettings({ lang }: { lang: string }) {
       </fieldset>
       {s.insert === "paste" && <div className="hint">{copyNote || t("insertHow", { paste })}</div>}
 
+      {/* S1-mini by Superwhisper: the name stays as it is in every language (its licence asks for it). */}
+      <label className="row">
+        <input type="checkbox" checked={s.cleanup} disabled={off} aria-describedby={`${id}-cleanup`} onChange={(e) => void set({ cleanup: e.target.checked })} />
+        <span>{t("cleanup")}</span>
+      </label>
+      <div className="hint" id={`${id}-cleanup`}>{t("cleanupHint")}</div>
+      {s.cleanup && !s.cleanupReady && <div className="hint dictation-alert">{t("cleanupMissing")}</div>}
+      <label className="row">
+        <span>{t("cleanupStyle")}</span>
+        <select className="btn" value={s.cleanupStyle} disabled={off || !s.cleanup} onChange={(e) => void set({ cleanupStyle: e.target.value as DictationStatus["cleanupStyle"] })}>
+          <option value="casual">{t("styleCasual")}</option>
+          <option value="semi-casual">{t("styleSemiCasual")}</option>
+          <option value="semi-formal">{t("styleSemiFormal")}</option>
+          <option value="formal">{t("styleFormal")}</option>
+        </select>
+      </label>
+      <label className="row">
+        <input type="checkbox" checked={s.cleanupLists} disabled={off || !s.cleanup} onChange={(e) => void set({ cleanupLists: e.target.checked })} />
+        <span>{t("cleanupLists")}</span>
+      </label>
+
       <label className="row">
         <input type="checkbox" checked={s.removeFillers} disabled={off} onChange={(e) => void set({ removeFillers: e.target.checked })} />
         <span>{t("fillers")}</span>

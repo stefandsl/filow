@@ -34,11 +34,13 @@ const TERMINAL_EXES = new Set(["windowsterminal.exe", "conhost.exe", "openconsol
  * `raw` is the helper's info() or null. `exe` is a file name only; both names are cut to plain characters.
  */
 function describeTarget(raw) {
-  if (!raw || typeof raw !== "object") return { known: false, none: false, exe: "", cls: "", focusCls: "", elevated: null, password: false, passwordChecked: false, own: false, remote: null };
+  if (!raw || typeof raw !== "object") return { known: false, none: false, id: 0, exe: "", cls: "", focusCls: "", elevated: null, password: false, passwordChecked: false, own: false, remote: null };
   const name = (v) => String(v || "").replace(/[^\w .()+#-]/g, "").slice(0, 60);
   const none = !raw.hwnd;
   return {
     known: true,
+    /** The window's handle: only to tell "the same window as last time" (never logged or reported). */
+    id: Number(raw.hwnd) || 0,
     /** No window has the keyboard at all (a locked or disconnected session, a remote desktop left minimized). */
     none,
     exe: name(raw.exe),
