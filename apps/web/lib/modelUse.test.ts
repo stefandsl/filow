@@ -111,7 +111,7 @@ describe("the words", () => {
   });
 
   it("every language has the words, with no em dash and every placeholder kept", () => {
-    const keys = ["settings.stop", "settings.stopLabel", "settings.stopHint", "settings.stopHintOllama", "settings.inUse", "settings.loaded", "settings.partial", "settings.deleteModelConfirm", "settings.deleteModelInUse", "settings.deleteLabel", "settings.freed", "settings.deleteFailed", "settings.onThisPc", "settings.onThisPcHint", "settings.onThisPcNone", "size.mb", "size.gb", "use.withLanguage",
+    const keys = ["settings.stop", "settings.stopLabel", "settings.stopHint", "settings.stopHintOllama", "settings.inUse", "settings.loaded", "settings.partial", "settings.deleteModelConfirm", "settings.deleteModelInUse", "settings.deleteLabel", "settings.freed", "settings.deleteFailed", "settings.deleteDuringTake", "settings.onThisPc", "settings.onThisPcHint", "settings.onThisPcNone", "size.mb", "size.gb", "use.withLanguage",
       ...["speech", "voice", "cleanup", "punctuation"].map((k) => `modelKind.${k}`),
       ...["tracking", "questions", "dictation", "voice", "cleanup", "punctuation", "decision", "generate", "translate", "okfilow", "gate"].map((k) => `use.${k}`),
       ...["speech", "voice", "cleanup", "punctuation", "ollama", "browser"].map((k) => `deleteEffect.${k}`)] as I18nKey[];
@@ -119,7 +119,7 @@ describe("the words", () => {
       for (const key of keys) {
         const text = translate(key, lang);
         expect(text, `${lang} ${key}`).not.toBe(key);
-        expect(text, `${lang} ${key}`).not.toContain("—");
+        expect(text, `${lang} ${key}`).not.toContain(String.fromCharCode(0x2014));
         expect((text.match(/\{\w+\}/g) ?? []).sort(), `${lang} ${key}`).toEqual((translate(key, "en").match(/\{\w+\}/g) ?? []).sort());
         if (lang !== "en" && !["size.mb", "size.gb", "use.withLanguage"].includes(key)) expect(text, `${lang} ${key} is still English`).not.toBe(translate(key, "en"));
       }

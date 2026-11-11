@@ -141,7 +141,9 @@ function createS1Runtime(deps) {
    */
   function fetchModel() {
     if (hasModel()) return Promise.resolve(true);
-    if (fetching) return fetching;
+    // A download that was just stopped is still closing its file: the new one starts when it is gone
+    // (joining it would end as "stopped" while the wish to have the model stays).
+    if (fetching) return stopFetch ? fetching : fetching.then(() => fetchModel());
     const dest = model();
     const part = `${dest}.part`;
     const ctl = new AbortController();
@@ -174,7 +176,9 @@ function createS1Runtime(deps) {
   /** Stop: true when a download was running. It settles (file closed, part deleted) before the promise of fetchModel does. */
   function cancelFetch() {
     if (!stopFetch) return false;
-    stopFetch();
+    const stop = stopFetch;
+    stopFetch = null; // from here on the download counts as ending, not as running
+    stop();
     return true;
   }
 

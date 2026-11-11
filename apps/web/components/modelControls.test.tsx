@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { t } from "@filow/core";
 import { LangProvider } from "@filow/ui";
 import type { SherpaStatus } from "@filow/stt";
-import { DeviceModelRows, InUseChip, StopButton } from "./ModelControls";
+import { deleteNotice, DeviceModelRows, InUseChip, StopButton } from "./ModelControls";
 import { SherpaLanguageNote } from "./SherpaLanguageNote";
 import { SetupPicker } from "@/app/settings/local/SetupPicker";
 import type { DeviceModels, UseContext } from "@/lib/modelUse";
@@ -139,6 +139,13 @@ describe("the list of models on this computer", () => {
     const done = html(render({ notice: { kind: "freed", text: t("settings.freed", "en", { name: "Vosk small Russian streaming", size: "23 MB" }) } }));
     expect(done).toContain('role="status" data-testid="device-notice">Vosk small Russian streaming deleted: 23 MB freed.</div>');
     expect(html(render({ notice: { kind: "failed", text: "x" } }))).toContain('class="hint device-notice failed"');
+  });
+
+  it("after a delete: the size freed, or in the user's words why nothing was deleted", () => {
+    const tr = (key: Parameters<typeof t>[0], vars?: Record<string, string | number>) => t(key, "en", vars);
+    expect(deleteNotice("Nemotron 3.5 streaming", { ok: true, freedBytes: 685000000 }, tr)).toEqual({ kind: "freed", text: "Nemotron 3.5 streaming deleted: 653 MB freed." });
+    expect(deleteNotice("Nemotron 3.5 streaming", { ok: false, code: "take", error: "a take is listening with this model; stop the take first" }, tr)).toEqual({ kind: "failed", text: "Filow is listening with Nemotron 3.5 streaming right now. Stop the take, then delete it." });
+    expect(deleteNotice("X", { ok: false, error: "EBUSY" }, tr)).toEqual({ kind: "failed", text: "X could not be deleted: EBUSY" });
   });
 
   it("nothing downloaded: says so", () => {

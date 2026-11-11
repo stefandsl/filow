@@ -456,7 +456,13 @@ function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOff
   handle("okfilow:tts:download", () => {
     if (installed()) return status();
     if (isOffline()) return { ...status(), state: "error", error: "offline" };
-    if (!downloading) {
+    // Stopped a moment ago and still closing its file: the new download starts when that one is gone.
+    if (downloading && !downloads.active(DOWNLOAD_ID)) void downloading.then(() => { if (!downloading && !installed()) startDownload(); });
+    else if (!downloading) startDownload();
+    return status();
+  });
+  const startDownload = () => {
+    {
       state = { state: "downloading", pct: stt.partialPct(userData, model), error: "" };
       logLine("tts: model download started");
       const signal = downloads.begin(DOWNLOAD_ID);
@@ -477,8 +483,7 @@ function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOff
           push();
         });
     }
-    return status();
-  });
+  };
 
   /** Stop: ends the download in flight; the part on disk is deleted (stt.js ensureModel). */
   const stopDownload = () => {

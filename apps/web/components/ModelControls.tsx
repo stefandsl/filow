@@ -10,7 +10,8 @@ import { deleteQuestion, deviceUses, listedModels, sizeText, usesText, type Devi
 type ModelsBridge = {
   status(): Promise<DeviceModels>;
   cancel(id: string): Promise<{ ok: boolean; stopped: boolean }>;
-  remove(id: string): Promise<{ ok: boolean; freedBytes?: number; error?: string }>;
+  /** code "take": a take that is running listens with this model; nothing was deleted. */
+  remove(id: string): Promise<{ ok: boolean; freedBytes?: number; error?: string; code?: string }>;
 };
 /** The desktop app's models bridge; null in the browser and in desktop builds before 0.9.35. */
 export const modelsBridge = () => (globalThis as { filow?: { models?: ModelsBridge } }).filow?.models ?? null;
@@ -40,6 +41,13 @@ export function InUseChip({ uses }: { uses: ModelUseItem[] }) {
 }
 
 export type DeviceNotice = { kind: "freed" | "failed"; text: string } | null;
+
+/** What the list says after a delete: the size freed, or why nothing was deleted, in the user's words. */
+export function deleteNotice(name: string, r: { ok: boolean; freedBytes?: number; error?: string; code?: string }, t: ReturnType<typeof useT>): NonNullable<DeviceNotice> {
+  if (r.ok) return { kind: "freed", text: t("settings.freed", { name, size: sizeText(r.freedBytes ?? 0, t) }) };
+  if (r.code === "take") return { kind: "failed", text: t("settings.deleteDuringTake", { name }) };
+  return { kind: "failed", text: t("settings.deleteFailed", { name, error: r.error ?? "" }) };
+}
 
 /** The rows, without the bridge: what the list shows for a given status (unit tested). */
 export function DeviceModelRows({ data, ctx, busy, notice, onDelete }: { data: DeviceModels; ctx: UseContext; busy: string | null; notice: DeviceNotice; onDelete: (m: DeviceModel) => void }) {
@@ -108,7 +116,7 @@ export function DeviceModelList({ ctx, onChange, confirmDelete = (text) => windo
     setNotice(null);
     try {
       const r = await modelsBridge()!.remove(m.id);
-      setNotice(r.ok ? { kind: "freed", text: t("settings.freed", { name: m.name, size: sizeText(r.freedBytes ?? 0, t) }) } : { kind: "failed", text: t("settings.deleteFailed", { name: m.name, error: r.error ?? "" }) });
+      setNotice(deleteNotice(m.name, r, t));
     } catch (err) {
       setNotice({ kind: "failed", text: t("settings.deleteFailed", { name: m.name, error: String((err as Error).message ?? err) }) });
     } finally {

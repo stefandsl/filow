@@ -630,6 +630,7 @@ export const en = {
   "settings.deleteLabel": "Delete {name}",
   "settings.freed": "{name} deleted: {size} freed.",
   "settings.deleteFailed": "{name} could not be deleted: {error}",
+  "settings.deleteDuringTake": "Filow is listening with {name} right now. Stop the take, then delete it.",
   "settings.onThisPc": "Models on this computer",
   "settings.onThisPcHint": "What Filow downloaded into its own folder, how much disk space each model takes, and which ones it is using now. A model that is only installed can be deleted without changing anything.",
   "settings.onThisPcNone": "Nothing downloaded yet.",

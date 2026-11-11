@@ -47,6 +47,8 @@ export function VoiceSettings({ bridge, status, t, configure, preview, confirmRe
   // The voices that speak on this PC: the download offer and the reasons belong next to them.
   const onThisPc = voice === "natural" || voice === "system";
   const offerNatural = !!api && (panel.show !== "blocked" || voice === "natural");
+  // The same rule as Filow Settings (apps/desktop/model-use.js): OK Filow on, the natural voice chosen, and this PC able to carry it.
+  const inUse = status.enabled !== false && voice === "natural" && panel.show === "ready";
 
   const download = async () => {
     if (!api) return;
@@ -69,7 +71,7 @@ export function VoiceSettings({ bridge, status, t, configure, preview, confirmRe
   const remove = async () => {
     if (!api || !tts) return;
     const question = t("voiceRemoveConfirm").replace("{size}", size(tts.sizeBytes));
-    if (!confirmRemove(voice === "natural" ? `${question}\n\n${t("voiceRemoveInUse")}` : question)) return;
+    if (!confirmRemove(inUse ? `${question}\n\n${t("voiceRemoveInUse")}` : question)) return;
     try {
       const reply = await api.remove();
       setTts(reply);
@@ -136,7 +138,7 @@ export function VoiceSettings({ bridge, status, t, configure, preview, confirmRe
         <>
           <p className="okf-hint" data-testid="voice-installed">
             {t("voiceInstalled").replace("{size}", size(tts.sizeBytes))}
-            {voice === "natural" && panel.show === "ready" && <> · <strong data-testid="voice-in-use">{t("voiceInUse")}</strong></>}
+            {inUse && <> · <strong data-testid="voice-in-use">{t("voiceInUse")}</strong></>}
           </p>
           <div className="okf-row">
             {voice === "natural" && panel.show === "ready" ? <button type="button" className="okf-link" onClick={preview}>{t("voicePreview")}</button> : <span />}

@@ -239,6 +239,9 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     setProgress((p) => ({ ...p, [name]: t("settings.starting") }));
     const ctl = new AbortController();
     pulls.current[name] = ctl;
+    // A model that was here before this click ("Re-check") stays when the check is stopped.
+    const hadIt = Boolean(cached[name]);
+    clearTimeout(lateRemovals.current[name]);
     try {
       // One number for the whole model: its files download in parallel (issue #4).
       const total = createDownloadProgress();
@@ -251,8 +254,10 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     } catch (err) {
       // Stopped by the user: not an error, and the files that were already complete go too.
       if (err instanceof DOMException && err.name === "AbortError") {
-        await removeStopped(name);
-        setCached((c) => ({ ...c, [name]: false }));
+        if (!hadIt) {
+          await removeStopped(name);
+          setCached((c) => ({ ...c, [name]: false }));
+        }
       } else setError(`Whisper: ${(err as Error).message}`);
     } finally {
       delete pulls.current[name];
@@ -265,10 +270,15 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
    * under way when the worker ended can still land a moment later (seen once, stopping at 0%), so the
    * cache is cleared a second time shortly after.
    */
+  const lateRemovals = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const removeStopped = async (name: string) => {
     await removeCachedModel(name);
-    setTimeout(() => void removeCachedModel(name), 2500);
+    clearTimeout(lateRemovals.current[name]);
+    // dropped when the same model is downloaded again meanwhile (download() and the pre-filter button clear it)
+    lateRemovals.current[name] = setTimeout(() => void removeCachedModel(name), 2500);
   };
+  /** The user pressed Stop on the Ollama installer: the setup that asked for it ends quietly, not with "Ollama is not running". */
+  const ollamaStopped = useRef(false);
 
   /** One question (name, size, what it is in use for) before a model that lives in the app's own page is deleted. */
   const removeCached = async (name: string, kind: "whisper" | "gate", sizeGb: number) => {
@@ -433,8 +443,10 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
           continue;
         }
         if (m.runtime !== "ollama") continue;
+        ollamaStopped.current = false;
         if (!status?.ollama.reachable && !(await ensureOllama())) {
-          setError(t("settings.ollamaNotRunning"));
+          // stopped by the user while the installer downloaded: a choice, not an error
+          if (!ollamaStopped.current) setError(t("settings.ollamaNotRunning"));
           return;
         }
         await pull(m.name);
@@ -600,6 +612,9 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                   disabled={gateStatus === "loading" || gateStatus === "ready"}
                   onClick={() => {
                     setGateStatus("loading");
+                    // a model that was here before this click (loaded again after a restart) stays when the load is stopped
+                    const hadIt = gateCached;
+                    clearTimeout(lateRemovals.current[GATE_MODEL]);
                     loadGate((p) => setGatePct(p.percent)).then(
                       () => { setGateStatus("ready"); setGateCached(true); },
                       (err) => {
@@ -607,7 +622,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                         const stopped = err instanceof DOMException && err.name === "AbortError";
                         setGateStatus(stopped ? "idle" : "error");
                         setGatePct(null);
-                        if (stopped) void removeStopped(GATE_MODEL).then(() => setGateCached(false));
+                        if (stopped && !hadIt) void removeStopped(GATE_MODEL).then(() => setGateCached(false));
                       },
                     );
                   }}
@@ -683,7 +698,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                 {/* this row is only there while Ollama is not usable: an old "ready" would contradict the chip above */}
                 {localAiBusy(ai) && ai && <span className="chip busy">{aiText(ai)}</span>}
                 {/* the installer's download can be stopped; an install that is running is left to finish */}
-                {ai?.state === "downloading" && modelsBridge() && <StopButton name="Ollama" onStop={() => void modelsBridge()?.cancel("ollama-installer")} />}
+                {ai?.state === "downloading" && modelsBridge() && <StopButton name="Ollama" onStop={() => { ollamaStopped.current = true; void modelsBridge()?.cancel("ollama-installer"); }} />}
                 {/* after a failure the line below says what to do; "downloads the installer" would be wrong for an Ollama that is installed */}
                 {ai?.state !== "error" && <span className="hint">{t("settings.aiHint")}</span>}
               </div>
@@ -791,6 +806,12 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                         )}
                         {(sherpa?.model === "downloading" || sherpa?.model === "extracting") && modelsBridge() && (
                           <StopButton name={sherpa.wantedLabel ?? label(m.name)} onStop={() => void modelsBridge()?.cancel("speech")} />
+                        )}
+                        {/* a desktop build before the models list: its one Delete (every speech model at once) stays */}
+                        {!modelsBridge() && (sherpa?.model === "ready" || sherpa?.active) && (
+                          <button className="btn" onClick={() => void sherpaBridge()?.remove()}>
+                            {t("settings.delete")}
+                          </button>
                         )}
                         {sherpa?.model === "error" && <span className="chip err">{sherpa.error}</span>}
                       </>

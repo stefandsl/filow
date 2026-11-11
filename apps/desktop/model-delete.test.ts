@@ -3,9 +3,10 @@
 // Every folder here is a scratch folder; no real model folder is touched and nothing is downloaded.
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { EventEmitter } from "node:events";
 import { createRequire } from "node:module";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { tmpRoot } from "./test-tmp";
 
 const require = createRequire(import.meta.url);
@@ -207,6 +208,25 @@ describe("which model is in use (model-use.js)", () => {
     }
   });
 
+  it("uses the machine the recognizer measures: a PC with few cores gets the light choice, and no hardware given means this PC", () => {
+    const installed = ["nemotron", "parakeet-v3"];
+    // English questions: Parakeet on a standard PC, Nemotron on a light one (stt.js CANDIDATES)
+    expect(uses(modelUse({ ...base, speech: { installed, language: "en", hardware } }).speech["parakeet-v3"])).toEqual(["questions:en", "dictation:en"]);
+    const light = modelUse({ ...base, speech: { installed, language: "en", hardware: { ramGb: 16, cores: 4 } } });
+    expect(uses(light.speech.nemotron)).toEqual(["tracking:en", "questions:en", "dictation:en"]);
+    expect(light.speech["parakeet-v3"]).toBeUndefined();
+    // no hardware handed in: this PC is measured, as the recognizer does (here made a four-core PC)
+    const cpus = vi.spyOn(os, "cpus").mockReturnValue(Array(4).fill({}) as ReturnType<typeof os.cpus>);
+    try {
+      const small = modelUse({ ...base, speech: { installed, language: "en" } });
+      expect(uses(small.speech.nemotron)).toEqual(["tracking:en", "questions:en", "dictation:en"]);
+      expect(small.speech["parakeet-v3"]).toBeUndefined();
+    } finally { cpus.mockRestore(); }
+    // the recognizer's own pick on this PC, whatever this PC is
+    const picked = stt.pickInstalled(stt.chooseModels({ language: "en", use: "questions", ...stt.hardwareOf() }), installed).model;
+    expect(uses(modelUse({ ...base, speech: { installed, language: "en" } }).speech[picked])).toContain("questions:en");
+  });
+
   it("OK Filow or dictation switched off: their uses are gone", () => {
     const u = modelUse({ ...base, okFilow: { enabled: false, voice: "natural", voiceUsable: true }, dictation: { ...base.dictation, enabled: false }, speech: { installed: ["nemotron", "parakeet-v3"], language: "it", hardware } });
     expect(uses(u.speech.nemotron)).toEqual(["tracking:it"]);
@@ -361,6 +381,25 @@ describe("one list, one stop, one delete (model-control.js)", () => {
     expect(signal.aborted).toBe(true);
     expect(calls).toContain("job cleared");
     expect(c.status().models).toEqual([]);
+  });
+
+  it("a take that is running listens with the model: nothing is deleted and the answer says so", async () => {
+    const released: Array<string | undefined> = [];
+    const { userData, c, log } = control("delete-in-take", { });
+    install(userData, stt.CATALOGUE.nemotron);
+    install(userData, stt.CATALOGUE["vosk-small-ru"]);
+    const busy = control("delete-in-take-busy", { speech: { language: () => "en", job: () => null, clearJob: () => {}, downloading: () => null, release: async (key?: string) => { released.push(key); }, inTake: (key: string) => key === "nemotron", loaded: () => ["nemotron"], changed: () => {} } });
+    install(busy.userData, stt.CATALOGUE.nemotron);
+    install(busy.userData, stt.CATALOGUE["vosk-small-ru"]);
+    expect(await busy.c.remove("speech:nemotron")).toMatchObject({ ok: false, code: "take" });
+    expect(released).toEqual([]);
+    expect(stt.installedKeys(busy.userData)).toContain("nemotron");
+    // a model the take does not use can go, and only a recognizer holding THAT model is asked to let go
+    expect(await busy.c.remove("speech:vosk-small-ru")).toEqual({ ok: true, freedBytes: 4000 });
+    expect(released).toEqual(["vosk-small-ru"]);
+    // without a take the same delete goes through
+    expect(await c.remove("speech:nemotron")).toEqual({ ok: true, freedBytes: 4000 });
+    expect(log.join("\n")).toMatch(/speech:nemotron deleted by the user/);
   });
 
   it("delete S1-mini and the punctuation model: wish cleared, runtime asked to remove; unknown ids delete nothing", async () => {

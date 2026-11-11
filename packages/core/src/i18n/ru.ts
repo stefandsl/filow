@@ -620,6 +620,7 @@ export const ru: Dictionary = {
   "settings.deleteLabel": "Удалить {name}",
   "settings.freed": "{name}: удалено, освобождено {size}.",
   "settings.deleteFailed": "Не удалось удалить {name}: {error}",
+  "settings.deleteDuringTake": "Сейчас Filow слушает с моделью {name}. Остановите прогон, затем удалите её.",
   "settings.onThisPc": "Модели на этом компьютере",
   "settings.onThisPcHint": "Что Filow скачал в свою папку, сколько места занимает каждая модель и какие из них используются сейчас. Модель, которая только установлена, можно удалить, и ничего не изменится.",
   "settings.onThisPcNone": "Пока ничего не скачано.",

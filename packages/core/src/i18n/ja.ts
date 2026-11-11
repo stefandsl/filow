@@ -630,6 +630,7 @@ export const ja: Dictionary = {
   "settings.deleteLabel": "{name}を削除",
   "settings.freed": "{name}を削除しました。{size}を解放しました。",
   "settings.deleteFailed": "{name}を削除できませんでした：{error}",
+  "settings.deleteDuringTake": "いまFilowは{name}で聞き取っています。セッションを終了してから削除してください。",
   "settings.onThisPc": "このコンピューター上のモデル",
   "settings.onThisPcHint": "Filowが自分のフォルダーにダウンロードしたもの、各モデルが使うディスク容量、いま使っているモデルを示します。インストールされているだけのモデルは、削除しても何も変わりません。",
   "settings.onThisPcNone": "まだ何もダウンロードしていません。",

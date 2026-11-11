@@ -1571,6 +1571,7 @@ function sttBroadcast(channel, payload) {
   for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(channel, payload);
 }
 let sttDownloading = null;
+let sttStops = 0; // times the user pressed Stop: a download queued before a Stop is dropped with it
 /**
  * Downloads, with the user's consent given by the button, what the spoken language needs: the model
  * for following a talk, or with use "questions" the more accurate one for OK Filow questions.
@@ -1584,8 +1585,12 @@ function sttDownload(use = "tracking") {
     return Promise.resolve();
   }
   if (sttDownloading) {
+    // Stopped a moment ago and still closing its file: this click starts a fresh download when that one is gone.
+    if (!modelDownloads.active("speech")) return sttDownloading.then(() => sttDownload(use));
     // Another language's model is still coming: fetch this one right after it instead of ignoring the click.
-    if (sttJob && sttJob.key !== key) void sttDownloading.then(() => sttDownload(use));
+    // A Stop in between means "stop downloading": what was queued behind the stopped download goes with it.
+    const stops = sttStops;
+    if (sttJob && sttJob.key !== key) void sttDownloading.then(() => (sttStops === stops ? sttDownload(use) : undefined));
     return sttDownloading;
   }
   const signal = modelDownloads.begin("speech");
@@ -1594,6 +1599,7 @@ function sttDownload(use = "tracking") {
       if (s.state === "cancelled") {
         // Stop is the user's choice: back to "Download", no error kept, and the log says who stopped it.
         sttJob = null;
+        sttStops += 1;
         logLine(`stt model ${s.model || key}: download stopped by the user, nothing kept on disk`);
       } else {
         sttJob = { key, state: s.state, pct: s.pct, error: s.error || "" };
@@ -1607,11 +1613,16 @@ function sttDownload(use = "tracking") {
     });
   return sttDownloading;
 }
-/** The recognizers let go of their model files (the take's and OK Filow's own), so Windows can delete them. */
-async function releaseSpeechModels() {
-  const mine = sttSession ? sttSession.dispose() : null;
-  sttSession = null;
-  await Promise.all([mine, okFilow ? okFilow.releaseStt() : null]);
+/**
+ * The recognizers let go of their model files (the take's and OK Filow's own), so Windows can delete
+ * them. With a key, only a recognizer that holds that model: deleting a model nobody uses must not
+ * stop the others. They start again by themselves the next time someone speaks.
+ */
+async function releaseSpeechModels(key) {
+  const holds = sttSession && (key === undefined || sttSession.modelKey === key);
+  const mine = holds ? sttSession.dispose() : null;
+  if (holds) sttSession = null;
+  await Promise.all([mine, okFilow ? okFilow.releaseStt(key) : null]);
 }
 function wireStt() {
   appHandle("stt:status", () => sttStatus());
@@ -1665,6 +1676,8 @@ function models() {
       clearJob: () => { sttJob = null; },
       downloading: () => sttDownloading,
       release: releaseSpeechModels,
+      // a take that is running listens with this model: it is not pulled from under the speaker
+      inTake: (key) => Boolean(takeLive && sttSession && sttSession.worker && sttSession.modelKey === key),
       loaded: () => [sttSession && sttSession.worker ? sttSession.modelKey : null, okFilow ? okFilow.sttLoaded() : null].filter(Boolean),
       changed: () => sttBroadcast("stt:status", sttStatus()),
     },
@@ -1726,8 +1739,13 @@ function startOllamaInstall({ startOnly = false } = {}) {
   }
   // Stop (models:cancel "ollama-installer") ends the installer's download; an install that is running is left to finish.
   const signal = startOnly ? undefined : modelDownloads.begin("ollama-installer");
+  // Once the download is over there is nothing left to stop: the installer that runs after it is left to finish.
+  const onStatus = (s) => {
+    if (signal && !["checking", "downloading"].includes(s.state)) modelDownloads.end("ollama-installer", signal);
+    setLocalAi(s);
+  };
   localAiInstalling = Promise.resolve()
-    .then(() => localAi.installOllama(path.join(userData, "bin"), setLocalAi, { ...localAiDeps(), startOnly, signal }))
+    .then(() => localAi.installOllama(path.join(userData, "bin"), onStatus, { ...localAiDeps(), startOnly, signal }))
     .catch((err) => {
       // whatever went wrong, the status may not stay on "starting"
       setLocalAi({ state: "error", pct: 0, code: "unexpected", error: String(err && err.message ? err.message : err), version: "", command: "" });

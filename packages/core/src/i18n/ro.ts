@@ -620,6 +620,7 @@ export const ro: Dictionary = {
   "settings.deleteLabel": "Șterge {name}",
   "settings.freed": "{name} a fost șters: {size} eliberați.",
   "settings.deleteFailed": "{name} nu a putut fi șters: {error}",
+  "settings.deleteDuringTake": "Filow ascultă chiar acum cu {name}. Apasă Oprește, apoi șterge modelul.",
   "settings.onThisPc": "Modele descărcate pe acest computer",
   "settings.onThisPcHint": "Ce a descărcat Filow în folderul său, cât spațiu ocupă fiecare model și pe care le folosește acum. Un model care este doar instalat poate fi șters fără să se schimbe nimic.",
   "settings.onThisPcNone": "Nimic descărcat încă.",

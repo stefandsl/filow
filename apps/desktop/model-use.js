@@ -3,7 +3,7 @@
 // guessed here: every answer comes from the function the feature itself calls to pick its model
 // (stt.js chooseModels and pickInstalled, dictation-cleanup.js decide, dictation-punctuate.js wanted,
 // okfilow.js for the voice). A model that is selected but not loaded in memory is still in use.
-const { chooseModels, pickInstalled, normaliseLanguage } = require("./stt");
+const { chooseModels, pickInstalled, normaliseLanguage, hardwareOf } = require("./stt");
 const { decide } = require("./dictation-cleanup");
 const { wanted } = require("./dictation-punctuate");
 
@@ -25,7 +25,8 @@ function modelUse(input = {}) {
   const dict = input.dictation || {};
   const installed = Array.isArray(speechIn.installed) ? speechIn.installed : [];
   const language = normaliseLanguage(speechIn.language);
-  const hw = speechIn.hardware || {};
+  // The same machine the recognizer measures (stt.js hardwareOf): a PC with few cores or little memory gets other models.
+  const hw = hardwareOf(speechIn.hardware);
   const speech = {};
   const add = (use, lang, purpose) => {
     const key = pickInstalled(chooseModels({ language: lang, use: purpose, ramGb: hw.ramGb, cores: hw.cores }), installed).model;

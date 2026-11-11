@@ -11,7 +11,7 @@ const DOWNLOAD_ONLY = ["speech", "ollama-installer", "cloudflared"];
 
 /**
  * deps: { userData, logLine, downloads (model-files.js createDownloads), stt (stt.js), tts (tts.js),
- *   speech: { language(), job(), clearJob(), downloading(): Promise|null, release(): Promise, loaded(): [keys], changed() },
+ *   speech: { language(), job(), clearJob(), downloading(): Promise|null, release(key): Promise, inTake?(key), loaded(): [keys], changed() },
  *   voice(): the wired voice ({ usable(), loaded(), remove() }) or null,
  *   okFilow(): { enabled, voice, offline } or null, dictation(): { enabled, language, cleanup, punctuate },
  *   cleanup(): the S1-mini runtime, punctuation(): the punctuation runtime (status, cancelFetch, remove),
@@ -72,14 +72,17 @@ function createModelControl(deps) {
       let freed = 0;
       if (typeof id === "string" && id.startsWith("speech:")) {
         const key = id.slice("speech:".length);
+        // A take that is running listens with this model: deleting it would leave the speaker unheard.
+        if (deps.speech.inTake && deps.speech.inTake(key)) return { ok: false, code: "take", error: "a take is listening with this model; stop the take first" };
         const job = deps.speech.job();
         if (job && job.key === key) {
           deps.downloads.cancel("speech");
           await deps.speech.downloading();
           deps.speech.clearJob();
         }
-        // The recognizers hold the model files open: they are stopped first and start again on demand.
-        await deps.speech.release();
+        // A recognizer that holds this model has its files open: it is stopped first and starts again on
+        // demand. One that listens with another model is left alone.
+        await deps.speech.release(key);
         freed = deps.stt.removeModel(deps.userData, key);
         deps.speech.changed();
       } else if (id === "voice") {

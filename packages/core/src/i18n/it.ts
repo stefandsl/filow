@@ -622,6 +622,7 @@ export const it: Dictionary = {
   "settings.deleteLabel": "Elimina {name}",
   "settings.freed": "{name} eliminato: {size} liberati.",
   "settings.deleteFailed": "Impossibile eliminare {name}: {error}",
+  "settings.deleteDuringTake": "Filow sta ascoltando con {name} in questo momento. Premi Ferma, poi elimina il modello.",
   "settings.onThisPc": "Modelli su questo computer",
   "settings.onThisPcHint": "Ciò che Filow ha scaricato nella propria cartella, quanto spazio occupa ogni modello e quali sta usando ora. Un modello solo installato si può eliminare senza cambiare nulla.",
   "settings.onThisPcNone": "Ancora nessun download.",

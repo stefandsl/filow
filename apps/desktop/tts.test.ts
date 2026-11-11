@@ -589,6 +589,21 @@ describe("okfilow:tts channels", () => {
     expect(((await bus.invoke("okfilow:tts:stopDownload", panel)) as Status).state).toBe("idle");
   });
 
+  it("Download pressed right after Stop starts a fresh download that finishes", async () => {
+    const { bus, userData } = wire("stop-then-download");
+    const panel = sender();
+    srv.mode = "hold-next";
+    await bus.invoke("okfilow:tts:download", panel);
+    await until(() => srv.held());
+    await bus.invoke("okfilow:tts:stopDownload", panel);
+    // the click lands before the stopped download has settled
+    await bus.invoke("okfilow:tts:download", panel);
+    await until(() => panel.sent.some((s) => (s.payload as Status).installed));
+    expect(srv.requests).toBe(2);
+    expect(fs.existsSync(path.join(userData, "models", "fixture-voice", "voice.bin"))).toBe(true);
+    srv.release();
+  });
+
   it("Delete while it downloads stops the download first and leaves nothing behind", async () => {
     const { bus, userData } = wire("delete-while-downloading");
     const panel = sender();

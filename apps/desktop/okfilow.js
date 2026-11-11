@@ -1092,7 +1092,12 @@ function createOkFilow(deps) {
     try { tts?.dispose(); } catch { /* quitting */ }
   }
   /** Delete of a speech model (main.js): the recognizer for questions and dictation lets go of its files first. */
-  const releaseStt = () => { const gone = stt ? stt.dispose() : null; stt = null; return Promise.resolve(gone); };
+  const releaseStt = (key) => {
+    if (!stt || (key !== undefined && stt.modelKey !== key)) return Promise.resolve();
+    const gone = stt.dispose();
+    stt = null;
+    return Promise.resolve(gone);
+  };
   /** The natural voice for main.js's models list: { installed, usable, loaded, stopDownload, remove }. */
   const voiceModel = () => tts;
   /** The speech model OK Filow's recognizer holds in memory right now, or null. */

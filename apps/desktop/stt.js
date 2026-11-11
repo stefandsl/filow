@@ -608,7 +608,7 @@ function forUse(use, getLanguage = () => "auto") {
 }
 
 module.exports = {
-  modelsOnDisk, specBytes, specPaths,
+  modelsOnDisk, specBytes, specPaths, hardwareOf,
   MODEL, CATALOGUE, LANGUAGES, normaliseLanguage, tierFor, chooseModels, pickInstalled, installedKeys, requiredSpecs, recognizerConfig, speechStatus,
   modelDir, modelReady, ensureModel, ensureAll, removeModel, partFile, partialPct, SttSession, forUse, verifyArchive, sha256File,
 };

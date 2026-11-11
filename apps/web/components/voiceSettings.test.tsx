@@ -12,8 +12,8 @@ const api = (over: Record<string, unknown> = {}) => ({
   status: async () => tts(), download: async () => tts({ state: "downloading" }), remove: vi.fn(async () => ({ ...tts(), freedBytes: 128774318 })),
   stopDownload: vi.fn(async () => tts()), onStatus: () => () => {}, ...over,
 });
-const view = (initial: OkFilowTtsStatus, voice: OkFilowStatus["voice"], lang = "en", bridgeTts: ReturnType<typeof api> = api(), confirmRemove: (q: string) => boolean = () => true) => (
-  <VoiceSettings bridge={{ tts: bridgeTts } as unknown as OkFilowBridge} status={{ voice, offline: false, naturalVoice: 0 } as OkFilowStatus} t={okfText(lang)} configure={async () => {}} preview={() => {}} initial={initial} confirmRemove={confirmRemove} />
+const view = (initial: OkFilowTtsStatus, voice: OkFilowStatus["voice"], lang = "en", bridgeTts: ReturnType<typeof api> = api(), confirmRemove: (q: string) => boolean = () => true, enabled = true) => (
+  <VoiceSettings bridge={{ tts: bridgeTts } as unknown as OkFilowBridge} status={{ voice, offline: false, naturalVoice: 0, enabled } as OkFilowStatus} t={okfText(lang)} configure={async () => {}} preview={() => {}} initial={initial} confirmRemove={confirmRemove} />
 );
 const plain = (markup: string) => markup.replace(/<[^>]+>/g, " ").replace(/&#x27;|&#39;/g, "'").replace(/\s+/g, " ").trim();
 /** The props of the element with this data-testid, found while React renders (no DOM library in this repo). */
@@ -63,6 +63,8 @@ describe("the natural voice in the OK Filow panel", () => {
       expect(plain(idle), voice).not.toContain("Listen");
       expect(idle, voice).not.toContain("voice-in-use");
     }
+    // OK Filow switched off: nothing speaks, so the voice is installed only (the same rule as Filow Settings)
+    expect(renderToStaticMarkup(view(tts({ installed: true, state: "ready", pct: 100 }), "natural", "en", api(), () => true, false))).not.toContain("voice-in-use");
     // this PC turned out too slow for it: on disk, not speaking
     expect(renderToStaticMarkup(view(tts({ installed: true, state: "ready", mode: "system", reason: "slow" }), "natural"))).not.toContain("voice-in-use");
   });
@@ -85,7 +87,7 @@ describe("the natural voice in the OK Filow panel", () => {
     for (const lang of ["en", "it", "ru", "ro", "ja"]) {
       const t = okfText(lang);
       for (const key of ["voiceStop", "voiceStopLabel", "voiceRemoveConfirm", "voiceRemoveInUse", "voiceRemoved", "voiceInstalled", "voiceInUse"] as const) {
-        expect(t(key), `${lang} ${key}`).not.toContain("—");
+        expect(t(key), `${lang} ${key}`).not.toContain(String.fromCharCode(0x2014));
         if (lang !== "en") expect(t(key), `${lang} ${key}`).not.toBe(okfText("en")(key));
         expect((t(key).match(/\{\w+\}/g) ?? []).join(), `${lang} ${key}`).toBe((okfText("en")(key).match(/\{\w+\}/g) ?? []).join());
       }

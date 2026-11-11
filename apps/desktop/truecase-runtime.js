@@ -145,7 +145,8 @@ function createTruecaseRuntime(deps) {
    */
   function fetchModel() {
     if (hasModel()) return Promise.resolve(true);
-    if (fetching) return fetching;
+    // A download that was just stopped is still closing its file: the new one starts when it is gone.
+    if (fetching) return stopFetch ? fetching : fetching.then(() => fetchModel());
     const ctl = new AbortController();
     fetchError = "";
     pct = 0;
@@ -184,7 +185,9 @@ function createTruecaseRuntime(deps) {
   /** Stop: true when a download was running. */
   function cancelFetch() {
     if (!stopFetch) return false;
-    stopFetch();
+    const stop = stopFetch;
+    stopFetch = null; // from here on the download counts as ending, not as running
+    stop();
     return true;
   }
 

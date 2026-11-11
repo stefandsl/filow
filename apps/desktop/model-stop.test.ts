@@ -228,6 +228,24 @@ describe("S1-mini and the punctuation model", { timeout: 15_000 }, () => {
     expect(seen.requests).toBe(1);
   });
 
+  it("S1-mini: Download pressed right after Stop starts a fresh download, it does not join the one that is ending", async () => {
+    const userData = dir("s1-stop-then-download");
+    const rt = createS1Runtime({ userData, logLine: () => {}, spawn: () => { throw new Error("not started in this test"); }, download, sha256File, serverFile: () => "llama-server", modelUrl: `${base}/s1.gguf` });
+    let wish = false;
+    const store = { set: (v: boolean) => { wish = v; } };
+    wantModel(rt, store);
+    await until(() => rt.status().pct >= 1);
+    expect(rt.cancelFetch()).toBe(true);
+    // the click lands while the stopped download still closes its file
+    expect(wantModel(rt, store)).toEqual({ started: true });
+    await until(() => seen.requests === 2 && rt.status().downloading && rt.status().pct >= 1);
+    expect(wish).toBe(true); // a download really is running for that wish
+    expect(seen.ranges).toEqual([]); // from the first byte: the stopped part was deleted
+    expect(rt.cancelFetch()).toBe(true);
+    await until(() => !rt.status().downloading);
+    expect(fs.readdirSync(path.join(userData, "models"))).toEqual([]);
+  });
+
   it("punctuation: Stop removes the whole folder, the files already finished included", async () => {
     const userData = dir("truecase-stop");
     const log: string[] = [];
