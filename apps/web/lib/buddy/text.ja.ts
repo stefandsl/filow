@@ -169,6 +169,8 @@ export const ja: Record<OkfKey, string> = {
   seeSlow: "このPCでは回答が遅くなります。",
   seeLeaves: "質問のたびに、画面の画像が{names}に送られます。",
   seeKept: "画面の画像がこのPCの外に出ることはありません。",
+  notice_askWords: "質問、選択中のテキスト、この会話のこれまでの質問と回答が{who}に送られます。画面の画像は送られません。",
+  cloudNoteWords: "クラウド：質問すると、質問が{who}に送られます。画面の画像は送られません。",
   seeStateOn: "オン",
   seeStateOff: "オフ",
   mode_thinkingWords: "考えています…",

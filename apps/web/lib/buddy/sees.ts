@@ -24,5 +24,19 @@ export const askSees = (choice: SeeChoice | undefined): boolean | undefined => (
 /** Looking at the screen is slow on this PC (why the setup left it off): said next to the switch, the user still chooses. */
 export const slowToSee = (route: AskRoute, local: LocalScreenMode): boolean => route === "local" && local === "text";
 
+/**
+ * A yes given to the notice that said "no picture of your screen is sent" does not cover the screen.
+ * `wordsOnly` lists the recipients whose yes was given that way (okFilow.askWordsOnly): with the
+ * switch on, such a yes is withdrawn first, so the full notice is shown before a screenshot goes.
+ */
+export const screenYesMissing = (seeing: boolean, granted: boolean, wordsOnly: readonly string[] | undefined, recipientId: string): boolean =>
+  seeing && granted && (wordsOnly ?? []).includes(recipientId);
+
+/** The list after the user said yes to a notice: on it when that notice was the words-only one, off it when it named the screenshot. */
+export function wordsOnlyAfterYes(wordsOnly: readonly string[] | undefined, recipientId: string, seeing: boolean): string[] {
+  const rest = (wordsOnly ?? []).filter((id) => id !== recipientId);
+  return seeing ? rest : [...rest, recipientId].slice(-20);
+}
+
 /** With the switch on and answers from online, pictures of the screen leave this PC with each question. */
 export const screenLeaves = (sees: boolean, route: AskRoute): boolean => sees && route !== "local";

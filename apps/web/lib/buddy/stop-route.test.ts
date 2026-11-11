@@ -10,6 +10,7 @@ vi.mock("@/lib/sysinfo", () => ({
 }));
 
 const { POST } = await import("@/app/api/buddy/ask/route");
+const { SCREEN_NOTE } = await import("./prompt");
 const image = "data:image/png;base64,iVBORw0KGgo=";
 const CAR = '```drawing2d\n{"title":"Car","shapes":[{"type":"rect","x":60,"y":120,"w":280,"h":70,"fill":"#d33a2c"}]}\n```';
 const line = (content: string, done = false) => JSON.stringify({ message: { content }, done }) + "\n";
@@ -100,6 +101,7 @@ describe('"Look at my screen" on the request', () => {
     expect(await res.text()).toBe("A fine day.");
     expect(res.headers.get("X-Buddy-Sees")).toBe("text");
     expect(calls[0].body.messages.at(-1)?.images).toEqual([]);
+    expect(calls[0].body.messages.at(-1)?.content).toBe("how are you?");
     expect(calls[0].body.messages[0].content).toContain("you cannot see the screen");
     const none = await post({ question: "how are you?", sees: false });
     expect(none.status).toBe(200);
@@ -115,6 +117,8 @@ describe('"Look at my screen" on the request', () => {
     expect(res.headers.get("X-Buddy-Sees")).toBe("screen");
     expect(calls[0].body.messages.at(-1)?.images).toHaveLength(1);
     expect(calls[0].body.messages[0].content).toContain("[POINT:x,y:label:screenN]");
+    // with a screenshot the question is followed by the reminder to answer the question itself
+    expect(calls[0].body.messages.at(-1)?.content).toBe("what is this?" + SCREEN_NOTE);
   });
 });
 

@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { answering, overlayMouse, seeChoice } = require("./okfilow-stop.js");
+const { answering, overlayMouse, seeChoice, wordsOnlyList } = require("./okfilow-stop.js");
 const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 const source = (name: string) => fs.readFileSync(path.join(here, name), "utf8");
 
@@ -30,6 +30,10 @@ describe("stopping an answer (desktop shell)", () => {
     expect(seeChoice("off")).toBe("off");
     expect(seeChoice("auto")).toBe("auto");
     for (const v of [undefined, null, true, "yes", 1]) expect(seeChoice(v)).toBe("auto");
+    // whose yes was given to the words-only notice: plain recipient ids, nothing else is stored
+    expect(wordsOnlyList(["openrouter/google", "openrouter/google", 7, "", null, "freellm"])).toEqual(["openrouter/google", "freellm"]);
+    expect(wordsOnlyList("openrouter/google")).toEqual([]);
+    expect(wordsOnlyList(Array.from({ length: 30 }, (_, i) => "r" + i))).toHaveLength(20);
   });
 
   it("the shell wires them: Escape stops an answer before it wipes drawings, the panel is told, the setting is stored and the file ships", () => {

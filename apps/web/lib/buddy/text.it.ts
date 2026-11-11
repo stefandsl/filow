@@ -169,6 +169,8 @@ export const it: Record<OkfKey, string> = {
   seeSlow: "Su questo PC le risposte diventano più lente.",
   seeLeaves: "Le immagini del tuo schermo vanno a {names} a ogni domanda.",
   seeKept: "Nessuna immagine del tuo schermo lascia questo PC.",
+  notice_askWords: "La tua domanda, il testo che hai selezionato e le domande e risposte precedenti di questa conversazione vanno a {who}. Non viene inviata nessuna immagine del tuo schermo.",
+  cloudNoteWords: "Cloud: quando chiedi, la domanda va a {who}. Non viene inviata nessuna immagine del tuo schermo.",
   seeStateOn: "Acceso",
   seeStateOff: "Spento",
   mode_thinkingWords: "Sto pensando…",

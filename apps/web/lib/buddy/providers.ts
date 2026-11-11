@@ -9,7 +9,7 @@ import { WHITEBOARD_MODELS, isWhiteboardModel } from "@/lib/whiteboard/models";
 import { askRecipient, consentKey, freellmRecipient, type Recipient } from "./outbound";
 import { freellmStream, requireFreeLlm } from "@/lib/freellm";
 import { gpuInfo, machineInfo } from "@/lib/sysinfo";
-import { buddySystemPrompt, trimHistory, type BuddyScreen, type BuddyTurn } from "./prompt";
+import { buddySystemPrompt, trimHistory, withScreenNote, type BuddyScreen, type BuddyTurn } from "./prompt";
 import { wantsDrawing } from "./visuals";
 
 export type BuddyProviderId = "local" | "cloud" | "freellm";
@@ -186,7 +186,7 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
           { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures }) },
           ...history,
           // Gemma reads images placed on the message before the text. Text mode sends no picture at all.
-          { role: "user", content: req.question, images: pictures ? req.images.map(base64Of) : [] },
+          { role: "user", content: shape ? req.question : withScreenNote(req.question, pictures), images: pictures ? req.images.map(base64Of) : [] },
           ...(process.env.BUDDY_LOCAL_THINK === "1" ? [] : noThinkPrefill(model)),
         ],
       }),
@@ -242,7 +242,7 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal, shape?
         ...history,
         {
           role: "user",
-          content: [{ type: "text", text: req.question }, ...(pictures ? req.images : []).map((url) => ({ type: "image_url", image_url: { url } }))],
+          content: [{ type: "text", text: shape ? req.question : withScreenNote(req.question, pictures) }, ...(pictures ? req.images : []).map((url) => ({ type: "image_url", image_url: { url } }))],
         },
       ],
       // Only the company the notice named runs the model (lib/openrouter.ts, openRouterProvider).
@@ -279,7 +279,7 @@ async function* askFreeLlm(req: BuddyAskRequest, signal?: AbortSignal, shape?: A
     messages: [
       { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures }) },
       ...history,
-      { role: "user", content: [{ type: "text", text: req.question }, ...(pictures ? req.images : []).map((url) => ({ type: "image_url", image_url: { url } }))] },
+      { role: "user", content: [{ type: "text", text: shape ? req.question : withScreenNote(req.question, pictures) }, ...(pictures ? req.images : []).map((url) => ({ type: "image_url", image_url: { url } }))] },
     ],
   }, signal);
 }

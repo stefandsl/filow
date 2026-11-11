@@ -66,6 +66,8 @@ export type OkFilowStatus = {
   consent?: ConsentMap;
   /** "Look at my screen": the user's choice, or "auto" while the setup for this computer decides (lib/buddy/sees.ts). Missing on older builds. */
   seeScreen?: "auto" | "on" | "off";
+  /** Recipients whose yes for questions was given to the notice that said no screenshot is sent (lib/buddy/sees.ts). */
+  askWordsOnly?: string[];
   handsFree: boolean;
   dictateChord: string;
   /** Dictation's own settings and checks (apps/desktop/dictation.js). */

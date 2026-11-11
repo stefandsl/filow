@@ -13,7 +13,7 @@ import { dictationText, pasteKeys, type DictationKey } from "@/lib/dictation/tex
 import { playCue } from "@/lib/dictation/cue";
 import { createPhraseFlow, type PhraseFlow } from "@/lib/dictation/handsfree";
 import { burnStrokes, createVad, describeMarked } from "@/lib/buddy/listen";
-import { askRoute, askRouteRecipient, changesStored, FREELLM_ID, joinNames, localNames, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
+import { askRoute, askRouteRecipient, changesStored, consentKey, FREELLM_ID, joinNames, localNames, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
 import { FREELLM_DOWNLOAD_URL, freellmCodeOf, localizeFreeLlmError } from "@/lib/freellm";
 import { FreeLlmPanelNotes } from "./freellm-notes";
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
@@ -21,7 +21,7 @@ import { ConsentList, OutboundNotice, OutboundPill } from "../outbound-ui";
 import { VoiceSettings } from "./voice-settings";
 import { getSetupPreference, getSpeechLang } from "@/lib/prefs";
 import { createAnswerTurn } from "@/lib/buddy/turn";
-import { askSees, screenLeaves, seesScreen, slowToSee, type LocalScreenMode } from "@/lib/buddy/sees";
+import { askSees, screenLeaves, screenYesMissing, seesScreen, slowToSee, wordsOnlyAfterYes, type LocalScreenMode } from "@/lib/buddy/sees";
 import { SeeScreenSwitch, StopButton } from "@/components/okfilow/controls";
 import { whiteboardTopic } from "@/lib/whiteboard/client";
 import "../okfilow.css";
@@ -417,9 +417,19 @@ export default function OkFilowPanel() {
         if (run.current !== id) return;
         const recipient = rec && askRouteRecipient(route, rec);
         if (!recipient) throw new Error(t("noticeUnknown"));
-        if (out.standing("ask", recipient) === "ask") b.text(t("noticeWaiting"));
-        const decision = await out.allow("ask", recipient);
+        // A yes given while the notice said "no picture of your screen is sent" does not cover the
+        // screen: with the switch on it is withdrawn, so the full notice comes before any screenshot goes.
+        if (screenYesMissing(seeing, out.standing("ask", recipient) === "granted", statusRef.current?.askWordsOnly, recipient.id)) await out.forget(consentKey("ask", recipient));
+        const asked = out.standing("ask", recipient) === "ask";
+        if (asked) b.text(t("noticeWaiting"));
+        const decision = await out.allow("ask", recipient, undefined, !seeing);
         if (run.current !== id) return;
+        // Which notice the yes was given to is kept, so it is never stretched to cover more later.
+        if (asked && decision === "granted") {
+          const s = await b.configure({ askWordsOnly: wordsOnlyAfterYes(statusRef.current?.askWordsOnly, recipient.id, seeing) });
+          statusRef.current = s;
+          setStatus(s);
+        }
         b.text("");
         if (decision === "dismissed") return setMode("idle");
         if (decision === "declined") {
@@ -1053,7 +1063,7 @@ export default function OkFilowPanel() {
             <button type="button" className="okf-link" onClick={() => void okFilowBridge()?.openAnswers().then((ok) => { if (!ok) setNote(t("answerDirNone")); })}>{t("openAnswers")}</button>
           </div>
           <button type="button" className="okf-link" onClick={() => { history.current = []; saveHistory([]); setNote(t("historyCleared")); }}>{t("clearHistory")}</button>
-          {askRoute(c) === "cloud" && recipients && <p className="okf-note">{t("cloudNote").replace("{who}", whoPhrase(recipients.ask, t("outVia"), t("outAnd"), t("outViaPicked")))}</p>}
+          {askRoute(c) === "cloud" && recipients && <p className="okf-note">{t(sees ? "cloudNote" : "cloudNoteWords").replace("{who}", whoPhrase(recipients.ask, t("outVia"), t("outAnd"), t("outViaPicked")))}</p>}
           {voiceRoute(c) === "cloud" && recipients && <p className="okf-note">{t("voiceNote").replace("{who}", whoPhrase(recipients.voice, t("outVia"), t("outAnd"), t("outViaPicked")))}</p>}
           {c.offline && <p className="okf-note">{t("offlineNote")}</p>}
           <ConsentList consent={c.consent} t={t} onForget={(key) => void out.forget(key)} />

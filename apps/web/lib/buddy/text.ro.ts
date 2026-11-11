@@ -169,6 +169,8 @@ export const ro: Record<OkfKey, string> = {
   seeSlow: "Pe acest PC, răspunsurile devin mai lente.",
   seeLeaves: "Imaginile ecranului tău ajung la {names} cu fiecare întrebare.",
   seeKept: "Nicio imagine a ecranului tău nu pleacă de pe acest PC.",
+  notice_askWords: "Întrebarea ta, textul pe care l-ai selectat și întrebările și răspunsurile anterioare din această conversație ajung la {who}. Nu se trimite nicio imagine a ecranului tău.",
+  cloudNoteWords: "Cloud: când întrebi, întrebarea ta ajunge la {who}. Nu se trimite nicio imagine a ecranului tău.",
   seeStateOn: "Pornit",
   seeStateOff: "Oprit",
   mode_thinkingWords: "Mă gândesc…",

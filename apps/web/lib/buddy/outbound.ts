@@ -311,9 +311,10 @@ export function voiceRoute(status: { voice?: string; offline?: boolean } | null 
 }
 
 /** One first-send notice: what would go, to whom (and through which CLI, for agents). */
-export type NoticeRequest = { kind: OutboundKind; recipient: Recipient; cli?: string };
+/** `words`: a question that goes without a screenshot ("Look at my screen" is off): the notice says so. */
+export type NoticeRequest = { kind: OutboundKind; recipient: Recipient; cli?: string; words?: true };
 
-type NoticeTextKey = `notice_${OutboundKind}` | "outVia" | "outViaPicked" | "outAnd" | "outFree" | "outFreeWarn";
+type NoticeTextKey = `notice_${OutboundKind}` | "notice_askWords" | "outVia" | "outViaPicked" | "outAnd" | "outFree" | "outFreeWarn";
 /**
  * What the notice says: what goes, and to whom, from the recipient actually in use. Through
  * FreeLLMAPI it also says that the provider it picks is not known in advance and may keep or train
@@ -323,7 +324,8 @@ export function noticeBody(notice: NoticeRequest, t: (key: NoticeTextKey) => str
   const free = notice.recipient.id === FREELLM_ID;
   const who = free ? t("outFree") : whoPhrase(notice.recipient, t("outVia"), t("outAnd"), t("outViaPicked"));
   // A sentence may name the recipient or the CLI more than once: every place is filled.
-  const body = t(`notice_${notice.kind}`).split("{who}").join(who).split("{cli}").join(notice.cli ?? "");
+  // The notice names only what really goes: no screenshot when the question goes with words only.
+  const body = t(notice.kind === "ask" && notice.words ? "notice_askWords" : `notice_${notice.kind}`).split("{who}").join(who).split("{cli}").join(notice.cli ?? "");
   return free ? `${body} ${t("outFreeWarn")}` : body;
 }
 

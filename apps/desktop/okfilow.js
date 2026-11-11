@@ -12,7 +12,7 @@ const { loadUiohook } = require("./uiohook");
 const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
-const { answering, overlayMouse, seeChoice } = require("./okfilow-stop");
+const { answering, overlayMouse, seeChoice, wordsOnlyList } = require("./okfilow-stop");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 const { trustedUiSender } = require("./ui-preferences");
 
@@ -51,6 +51,8 @@ const DEFAULTS = {
   consent: {},
   /** "Look at my screen" in the panel: "on" or "off" once the user chose; "auto" until then (the setup for this computer decides). */
   seeScreen: "auto",
+  /** Recipients whose yes for questions was given while the notice said "no picture of your screen is sent": that yes does not cover a screenshot. */
+  askWordsOnly: [],
 };
 /** A finite point inside a window's or display's bounds (right and bottom edges excluded). */
 const onRect = (x, y, b) => Number.isFinite(x) && Number.isFinite(y) && x >= b.x && x < b.x + b.width && y >= b.y && y < b.y + b.height;
@@ -92,6 +94,7 @@ function createOkFilow(deps) {
     next.allScreens = next.allScreens === true;
     next.allowScreenshots = next.allowScreenshots === true;
     next.seeScreen = seeChoice(next.seeScreen);
+    next.askWordsOnly = wordsOnlyList(next.askWordsOnly);
     next.answerLog = next.answerLog === true;
     next.answerDir = typeof next.answerDir === "string" ? next.answerDir.slice(0, 500) : "";
     if (!["auto", "codex", "claude"].includes(next.agentCli)) next.agentCli = "auto";

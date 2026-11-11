@@ -17,4 +17,7 @@ function overlayMouse({ caught, hover, mode }) {
 /** "Look at my screen": "on" or "off" once the user chose, "auto" until then (the setup decides). */
 const seeChoice = (v) => (v === "on" || v === "off" ? v : "auto");
 
-module.exports = { answering, overlayMouse, seeChoice };
+/** Recipient ids as stored: strings only, at most twenty, each of a sane length. */
+const wordsOnlyList = (v) => (Array.isArray(v) ? [...new Set(v.filter((x) => typeof x === "string" && x && x.length <= 200))].slice(-20) : []);
+
+module.exports = { answering, overlayMouse, seeChoice, wordsOnlyList };

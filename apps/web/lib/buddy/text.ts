@@ -179,6 +179,9 @@ const en = {
   seeSlow: "On this PC this makes answers slower.",
   seeLeaves: "Pictures of your screen go to {names} with each question.",
   seeKept: "No picture of your screen leaves this PC.",
+  // The same notice and note when "Look at my screen" is off: no screenshot goes, and they say so
+  notice_askWords: "Your question, any text you have selected and the earlier questions and answers of this conversation go to {who}. No picture of your screen is sent.",
+  cloudNoteWords: "Cloud: when you ask, your question goes to {who}. No picture of your screen is sent.",
   seeStateOn: "On",
   seeStateOff: "Off",
   mode_thinkingWords: "Thinking…",
