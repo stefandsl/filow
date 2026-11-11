@@ -211,7 +211,8 @@ describe("what the add-in and the extension say", () => {
     expect(noticeBody({ kind: "screen", recipient: r }, ext)).toBe("Mentre segui la presentazione, un'immagine della scheda e il titolo della slide vanno a OpenRouter e poi a Google, che produce il modello che hai scelto, che dice a Filow cosa c'è sopra.");
     expect(ext("kind_screen")).toBe("Immagini della scheda seguita");
     // A language without these strings yet reads English, never a missing key.
-    expect(remoteText("ja")("noticeKeep")).toBe("Keep it on this PC");
+    expect(remoteText("xx")("noticeKeep")).toBe("Keep it on this PC"); // an unknown language reads English
+    expect(remoteText("ja")("noticeKeep")).not.toBe("Keep it on this PC");
   });
 });
 

@@ -2,6 +2,9 @@
 // English here, one file per other language (text.<lang>.ts); text.test.ts checks they match.
 import { isLang, type Lang } from "@filow/core";
 import { it } from "./text.it";
+import { ru } from "./text.ru";
+import { ro } from "./text.ro";
+import { ja } from "./text.ja";
 
 const en = {
   title: "Dictation",
@@ -48,7 +51,7 @@ const en = {
 
 export type DictationKey = keyof typeof en;
 
-export const DICTATION_TEXT: Record<Lang, Record<DictationKey, string>> = { en, it };
+export const DICTATION_TEXT: Record<Lang, Record<DictationKey, string>> = { en, it, ru, ro, ja };
 
 /** The text for a key in the interface language (English for an unknown one), with {placeholders} filled. */
 export function dictationText(lang: string, key: DictationKey, vars: Record<string, string> = {}): string {

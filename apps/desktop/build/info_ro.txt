@@ -1,0 +1,61 @@
+﻿Filow: partenerul de prezentare care te ascultă în timp ce vorbești.
+Încarcă scenariul și vorbește liber: Filow bifează punctele pe măsură ce le spui și îți arată ce ai omis. Oglindă pe telefon, Screen Sense și programul de completare pentru PowerPoint.
+
+AI local sau în cloud: pe pagina următoare alegi modelele de descărcat la prima pornire. Fără modele locale, Filow folosește cloudul: o cheie API OpenRouter (câțiva cenți pe prezentare), lipită în fișierul .env pe care aplicația îl deschide la prima pornire. Modul offline nu trimite nimic prin rețea.
+
+
+NOUTĂȚI
+
+Toate versiunile: https://github.com/stefandsl/filow-releases/releases
+Raportează o problemă: în Filow, deschide meniul Filow > Raportează o problemă. Filow salvează un fișier de raport pe care îl trimiți tu, în privat; aplicația nu trimite nimic singură.
+
+# Filow 0.9.30
+
+* Program de instalare: o pagină Informații cu noutățile și o pagină Selectare componente, cu dimensiuni și tipuri de instalare (recomandată pentru acest PC, completă, minimă).
+
+# Filow 0.9.29
+
+* Sincronizarea cu telefonul: actualizările duplicate și cele învechite sunt ignorate; starea completă după o întrerupere sau o reconectare.
+* Oprirea unei sesiuni nu mai pierde ultimele cuvinte.
+* Suprapunerea pentru prezentator are o bară de care o poți trage și un X pentru închidere.
+
+# Filow 0.9.28
+
+* Selector de microfon lângă Pornește și în Setări, cu un avertisment când microfonul ales nu transmite sunet.
+* Descărcarea modelului local de recunoaștere vocală reîncearcă în loc să se blocheze.
+* Modul offline: traducerea, tokenurile de transcriere, descărcările de modele, tunelul public și rapoartele de probleme nu mai folosesc rețeaua.
+
+# Filow 0.9.27
+
+* Un singur aspect pentru tema întunecată și cea luminoasă: secțiunile în bara laterală, secțiunea următoare sub puncte, Screen Sense deasupra barei Pornește.
+
+# Filow 0.9.26
+
+* O bifă verde, bine vizibilă, pe punctele spuse.
+* Fereastra de asociere rămâne deschisă când treci la linkul public.
+* Panoul Secțiunea următoare se redimensionează trăgând de marginea lui.
+
+# Filow 0.9.25
+
+* Ferestrele mici și zoomul de 200% derulează în loc să taie conținutul; meniurile Screen Sense rămân pe ecran; anularea pornirii oprește totul; erorile de import sunt vizibile.
+
+# Filow 0.9.24
+
+* Design nou, cu suprafețe plate și stări ale punctelor afișate cu pictogramă și text.
+
+# Filow 0.9.23
+
+* O interfață mai discretă și mai unitară: aceleași stări la trecerea cu mouse-ul, la focalizare și la apăsare pe fiecare control, pictograme clare, cifre care nu tremură în timpul unei sesiuni.
+
+# Filow 0.9.22
+
+* Efect de sticlă lichidă pe puncte, controale, bare, setări, suprapunere și fereastra de bun venit, în tema întunecată și în cea luminoasă.
+
+# Filow 0.9.21
+
+* Programul de instalare și aplicația portabilă au din nou pictogramă.
+
+# Filow 0.9.20
+
+* Aplicația pornește din nou după instalare; comutatorul de pornire odată cu Windows este reparat.
+* Fereastră de bun venit, fereastră cu efect de sticlă mată, licență GPL v3, actualizări de securitate.

@@ -1,6 +1,9 @@
 // OK Filow UI strings. English here, one file per other language (text.<lang>.ts).
 import { isLang, type Lang } from "@filow/core";
 import { it } from "./text.it";
+import { ru } from "./text.ru";
+import { ro } from "./text.ro";
+import { ja } from "./text.ja";
 
 const en = {
   desktopOnly: "OK Filow runs in the Filow desktop app.",
@@ -154,7 +157,7 @@ export type OkfKey = keyof typeof en;
 /** A translation: the same keys as English (text.test.ts checks every language). */
 export type OkfTable = Record<OkfKey, string>;
 
-export const OKF_TEXT: Record<Lang, OkfTable> = { en, it };
+export const OKF_TEXT: Record<Lang, OkfTable> = { en, it, ru, ro, ja };
 
 /** Sentences a client says its own way (the extension looks at a browser tab, not at a shared screen). */
 export type TextSwap = Partial<Record<OkfKey, OkfKey>>;

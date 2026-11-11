@@ -4,15 +4,18 @@
 
 import { en, type Dictionary, type I18nKey } from "./en";
 import { it } from "./it";
+import { ru } from "./ru";
+import { ro } from "./ro";
+import { ja } from "./ja";
 
 export type { I18nKey, Dictionary };
 
-export type Lang = "en" | "it";
-export const LANGS: Lang[] = ["en", "it"];
+export type Lang = "en" | "it" | "ru" | "ro" | "ja";
+export const LANGS: Lang[] = ["en", "it", "ru", "ro", "ja"];
 /** Each language named in itself, as a language picker shows it. */
-export const LANG_LABELS: Record<Lang, string> = { en: "English", it: "Italiano" };
+export const LANG_LABELS: Record<Lang, string> = { en: "English", it: "Italiano", ru: "Русский", ro: "Română", ja: "日本語" };
 
-export const DICTIONARIES: Record<Lang, Dictionary> = { en, it };
+export const DICTIONARIES: Record<Lang, Dictionary> = { en, it, ru, ro, ja };
 
 /** A {name} placeholder; shared with the locale parity test so both read placeholders the same way. */
 export const PLACEHOLDER = /\{(\w+)\}/g;
