@@ -8,7 +8,7 @@ import { SherpaLanguageNote } from "@/components/SherpaLanguageNote";
 import { Wordmark, LangProvider, useT } from "@filow/ui";
 import { engineHeaders, ensureEngineToken } from "@/components/useSession";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
-import { getDecisionProvider, getGateMode, getScreenMode, getSetupPreference, getSpeechLang, getStartMode, SPEECH_LANGS, setDecisionProvider, setGateMode, setScreenMode, setSetupPreference, setSpeechLang, setStartMode, type GateMode, type SpeechLang, type StartMode } from "@/lib/prefs";
+import { getDecisionProvider, getGateMode, getScreenMode, getSetupPreference, getSpeechLang, getStartMode, SPEECH_LANGS, setDecisionProvider, setGateMode, setScreenMode, setSetupPreference, chooseSpeechLang, syncSpeechLang, setStartMode, type GateMode, type SpeechLang, type StartMode } from "@/lib/prefs";
 import { loadGate } from "@/lib/gate/client";
 import { screenBridge } from "@/lib/screen/watcher";
 import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/sessionUrl";
@@ -120,8 +120,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   useEffect(() => {
     const b = sherpaBridge();
     if (!b) return;
-    // The shell picks its model by the spoken language chosen below.
-    void (b.setLanguage ? b.setLanguage(getSpeechLang()) : b.status()).then(setSherpa);
+    // The shell holds the spoken language (and picks its model by it): read it from there.
+    void syncSpeechLang(b).then(({ lang: spoken, status }) => { setSpeechLangState(spoken); if (status) setSherpa(status); });
     return b.onStatus((s) => setSherpa(s));
   }, []);
 
@@ -453,8 +453,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                     checked={speechLang === l}
                     onChange={() => {
                       setSpeechLangState(l);
-                      setSpeechLang(l);
-                      void sherpaBridge()?.setLanguage?.(l).then(setSherpa);
+                      void chooseSpeechLang(l, sherpaBridge()).then((s) => { if (s) setSherpa(s); });
                     }}
                   />{" "}
                   {t(`speech.${l}`)}

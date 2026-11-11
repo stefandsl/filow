@@ -218,6 +218,15 @@ export function okFilowBridge(): OkFilowBridge | null {
   return ((window as unknown as { okFilow?: OkFilowBridge }).okFilow) ?? null;
 }
 
+/**
+ * The slice of the same IPC surface the main window gets (window.filow.okFilow, apps/desktop/preload.js):
+ * Filow Settings shows OK Filow's main switches; the full list stays in the panel.
+ */
+export type OkFilowSettingsBridge = Pick<OkFilowBridge, "status" | "configure"> & { openPanel(): void };
+
+export function okFilowSettingsBridge(): OkFilowSettingsBridge | null {
+  return (globalThis as { filow?: { okFilow?: OkFilowSettingsBridge } }).filow?.okFilow ?? null;
+}
 /** Joins the committed sherpa text and the live partial into the question. */
 export function joinTranscript(committed: string[], partial: string): string {
   return [...committed, partial].map((s) => s.trim()).filter(Boolean).join(" ").replace(/\s{2,}/g, " ").trim();

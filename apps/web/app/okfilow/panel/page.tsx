@@ -16,7 +16,7 @@ import { askRoute, changesStored, voiceRoute, whoPhrase, type BuddyRecipients, t
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
 import { ConsentList, OutboundNotice, OutboundPill } from "../outbound-ui";
 import { VoiceSettings } from "./voice-settings";
-import { getSetupPreference } from "@/lib/prefs";
+import { getSetupPreference, getSpeechLang } from "@/lib/prefs";
 import "../okfilow.css";
 
 const HISTORY_KEY = "okfilow.history.v1";
@@ -234,7 +234,7 @@ export default function OkFilowPanel() {
           images,
           screens: shot.screens,
           history: [],
-          language: "auto",
+          language: getSpeechLang(),
           provider: to ? "cloud" : "local",
           setup: getSetupPreference(),
         }),
@@ -336,7 +336,7 @@ export default function OkFilowPanel() {
           method: "POST",
           signal: abort.signal,
           headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent },
-          body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: "auto", provider: route, setup: getSetupPreference() }),
+          body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: getSpeechLang(), provider: route, setup: getSetupPreference() }),
         });
         if (!res.ok || !res.body) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `HTTP ${res.status}`);
         seesText = res.headers.get("X-Buddy-Sees") === "text";
@@ -479,7 +479,8 @@ export default function OkFilowPanel() {
     let recognizerReady = false;
     let queued: Float32Array[] = [];
     try {
-      // Like HeyClicky: never guess the language from the UI, let the recognizer detect what is spoken.
+      // "auto" here means the spoken language set in Settings (the shell resolves it); only when that is
+      // automatic too does the recognizer detect what is spoken. The interface language is never used.
       // Dictation uses its own language setting ("auto" there means the speech language in Settings).
       const loading = b.stt.start(dict ? dict.language : "auto").then(
         (info) => {

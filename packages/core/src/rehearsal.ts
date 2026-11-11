@@ -10,12 +10,14 @@
 // - Many speech models leave out "um" and "uh"; the filler count only sees what was transcribed.
 import { t, type I18nKey, type Lang } from "./i18n";
 import { fold, tokenize } from "./text";
+import { detectDominantLanguage, SPOKEN_LANGS, type SpokenLang } from "./spoken";
 import { sectionTimes, talkBudget, TalkClockTracker } from "./rehearsal-timer";
 import type { TranscriptEvent } from "./engine";
 import type { PointStatus, Script, SessionState, TalkClock } from "./types";
 
-export type SpeechLanguage = "en" | "it" | "ru" | "ro" | "ja";
-export const SPEECH_LANGUAGES: SpeechLanguage[] = ["en", "it", "ru", "ro", "ja"];
+/** The spoken languages (packages/core/src/spoken.ts), under the name the report has always used. */
+export type SpeechLanguage = SpokenLang;
+export const SPEECH_LANGUAGES: SpeechLanguage[] = [...SPOKEN_LANGS];
 
 /** A silence at least this long counts as a long pause. */
 export const LONG_PAUSE_MS = 3000;
@@ -100,28 +102,14 @@ export const PACE_RANGE: Record<SpeechLanguage, [number, number]> = {
   ja: [250, 380],
 };
 
-const JAPANESE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/gu;
-const CYRILLIC = /\p{Script=Cyrillic}/gu;
 const LETTER = /[\p{L}\p{N}]/gu;
 const IS_JAPANESE = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
 // A question mark is not a pause here: "Do you know?" and "Что это значит?" are meant.
 const PAUSE_PUNCT = /^\s*(?:[,.;:!…、。，．！]|$)/u;
 
-const MARKERS: Record<"en" | "it" | "ro", Set<string>> = {
-  en: new Set("the and is are of to that this we you it was with for".split(" ")),
-  it: new Set("il lo la di che e non per un una sono questo come gli del della".split(" ")),
-  ro: new Set("si este sunt de in care pe nu cu o un mai ca la acest pentru".split(" ")),
-};
-
-/** The language a transcript is in, from its letters and its commonest words. */
+/** The language a transcript is in, from its letters and its commonest words (English when nothing tells). */
 export function detectSpeechLanguage(text: string): SpeechLanguage {
-  const letters = (text.match(LETTER) ?? []).length || 1;
-  if ((text.match(JAPANESE) ?? []).length / letters > 0.3) return "ja";
-  if ((text.match(CYRILLIC) ?? []).length / letters > 0.5) return "ru";
-  const tokens = tokenize(text).map((tok) => tok.norm);
-  const score = (l: "en" | "it" | "ro") => tokens.filter((w) => MARKERS[l].has(w)).length;
-  const best = (["en", "it", "ro"] as const).map((l) => [l, score(l)] as const).sort((a, b) => b[1] - a[1])[0];
-  return best[1] > 0 ? best[0] : "en";
+  return detectDominantLanguage(text, "en") ?? "en";
 }
 
 /** Filler counts in one stretch of text, by label. */

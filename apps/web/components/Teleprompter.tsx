@@ -24,7 +24,7 @@ import {
 } from "@filow/core";
 import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
 import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, sherpaUsable, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
-import { getSetupPreference, getSpeechLang, getStartMode, setDecisionProvider, setStartMode } from "@/lib/prefs";
+import { getSetupPreference, getStartMode, setDecisionProvider, setStartMode, speechLangFor, syncSpeechLang } from "@/lib/prefs";
 import { loadGate } from "@/lib/gate/client";
 import { useEngine } from "./useEngine";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
@@ -274,11 +274,11 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       fetch("/api/stt/status").then((r) => r.json()).catch(() => ({ elevenlabs: false, openai: false })) as Promise<SttStatus>,
       fetch("/api/local/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null) as Promise<{ openrouterKey?: boolean; ollama?: { ok: boolean }; models?: Array<{ name: string; installed: boolean }>; hardware?: MachineInfo } | null>,
       whisperCached(selectedWhisperModel()).catch(() => false),
-      // The shell picks its model by the spoken language: hand it the one chosen in Settings first.
+      // The shell picks its model by the spoken language it holds; this also refreshes the page's copy.
       (async () => {
         const b = sherpaBridge();
         if (!b) return false;
-        return sherpaUsable(await (b.setLanguage ? b.setLanguage(getSpeechLang()) : b.status()));
+        return sherpaUsable((await syncSpeechLang(b)).status!);
       })().catch(() => false),
     ]);
     return {
@@ -437,7 +437,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       {
         // Explicit backend from the chosen mode: never fall back silently.
         // A cloud engine's token request carries the consent key; the server refuses it otherwise.
-        const b = createBackend(backend, { headers: { ...engineHeaders(), ...outbound.header("audio", sttTo) }, language: backend === "whisper" && getSpeechLang() === "auto" ? lang : getSpeechLang() });
+        const b = createBackend(backend, { headers: { ...engineHeaders(), ...outbound.header("audio", sttTo) }, language: speechLangFor(lang, backend !== "whisper") });
         pendingBackend = b;
         // The signal is on from before the first sound can leave until the take ends.
         if (sttTo) micSignal.current = releaseMic = outbound.hold("audio", sttTo);

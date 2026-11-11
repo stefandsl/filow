@@ -6,11 +6,12 @@
 // A natural voice that cannot speak falls back to the system voice and says why. Nothing here
 // ever falls back to the cloud.
 import type { OkFilowBridge, OkFilowStatus, OkFilowTtsReply, OkFilowTtsStatus } from "./bridge";
+import { detectDominantLanguage, SPOKEN_LANGS, type SpokenLang } from "@filow/core";
 import { voiceRoute } from "./outbound";
 import { speechDeadline } from "./speech";
 
-export const VOICE_LANGS = ["en", "it", "ru", "ro", "ja"] as const;
-export type VoiceLang = (typeof VOICE_LANGS)[number];
+export const VOICE_LANGS = SPOKEN_LANGS;
+export type VoiceLang = SpokenLang;
 export type VoiceChoice = OkFilowStatus["voice"];
 /** Why the natural voice did not speak. */
 export type VoiceFallback = "notInstalled" | "lowMemory" | "fewCores" | "slow" | "failed";
@@ -18,42 +19,13 @@ export type VoiceFallback = "notInstalled" | "lowMemory" | "fewCores" | "slow" |
 const isLang = (v: unknown): v is VoiceLang => (VOICE_LANGS as readonly string[]).includes(String(v));
 const BCP47: Record<VoiceLang, string> = { en: "en-US", it: "it-IT", ru: "ru-RU", ro: "ro-RO", ja: "ja-JP" };
 
-// Words that settle the language of a short answer written in Latin letters. Words shared by two
-// of the three languages (in, a, e, o, la, si, come, ma, se, le) are left out on purpose.
-const words = (list: string) => new Set(list.split(" "));
-const RO_WORDS = words("și este sunt pentru care această acest poți vrei din cu nu să mai apoi unde iar sau pe ce cum dacă în de apasă alege deschide bună mulțumesc sigur meniul fișier ești te");
-const IT_WORDS = words("il lo gli un una che di è per non con sono del della nel alla questo questa anche puoi più qui poi dove ecco fai clic apri scegli sul sulla ciao grazie certo ed ha alle");
-const EN_WORDS = words("the is are and of to you that this for with on can your at has then where click will it open choose sure hello what how do not be have from or if here there my i");
-
 /**
- * The language of a text, for picking the voice. Japanese and Russian are told by their script;
- * English, Italian and Romanian by their letters and most common words. `fallback` (the app
+ * The language of a text, for picking the voice (packages/core/src/spoken.ts). `fallback` (the app
  * language) decides when the text gives no hint.
  */
 export function detectLang(text: string, fallback: string = "en"): VoiceLang {
   const back: VoiceLang = isLang(fallback) ? fallback : "en";
-  const count = (re: RegExp) => (text.match(re) || []).length;
-  const kana = count(/[぀-ヿ]/g);
-  const han = count(/[一-鿿]/g);
-  const cyr = count(/[Ѐ-ӿ]/g);
-  const lat = count(/[a-zÀ-ɏ]/gi);
-  if (kana + han + cyr + lat === 0) return back;
-  if ((kana + han) * 2 > lat + cyr) return "ja";
-  if (cyr > lat) return "ru";
-  const lower = text.toLowerCase();
-  const score = { en: 0, it: 0, ro: 0 };
-  score.ro += 3 * (lower.match(/[ăşșţțâî]/g) || []).length;
-  score.it += 2 * (lower.match(/[àèéìòù]/g) || []).length;
-  for (const w of lower.match(/\p{L}+/gu) || []) {
-    if (RO_WORDS.has(w)) score.ro += 2;
-    if (IT_WORDS.has(w)) score.it += 2;
-    if (EN_WORDS.has(w)) score.en += 2;
-  }
-  const best = Math.max(score.en, score.it, score.ro);
-  const winners = (["en", "it", "ro"] as const).filter((l) => score[l] === best);
-  if (best > 0 && winners.length === 1) return winners[0];
-  // No hint, or a tie: the app language when it is one of the tied ones, else English.
-  return winners.includes(back as "en") ? back : best > 0 ? winners[0] : "en";
+  return detectDominantLanguage(text, back) ?? back;
 }
 
 /** What the settings show for the natural voice (apps/web/app/okfilow/panel/voice-settings.tsx). */
