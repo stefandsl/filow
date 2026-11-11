@@ -3,7 +3,8 @@
 import { describe, expect, it } from "vitest";
 import { DICTIONARIES, t as translate, type I18nKey, type Lang } from "@filow/core";
 import type { LocalAiStatus } from "./sessionUrl";
-import { LOCAL_AI_ERROR_CODES, localAiBusy, localAiNeedsReport, localAiText } from "./localAiStatus";
+import { LOCAL_AI_ERROR_CODES, localAiBusy, localAiEnsureStep, localAiNeedsReport, localAiText } from "./localAiStatus";
+import { OKF_TEXT, OLLAMA_STOPPED_ANSWER } from "./buddy/text";
 
 const status = (s: Partial<LocalAiStatus>): LocalAiStatus => ({ state: "idle", pct: 0, error: "", version: "", command: "", code: "", ...s });
 const tr = (lang: Lang) => (key: I18nKey, vars?: Record<string, string | number>) => translate(key, lang, vars);
@@ -56,6 +57,32 @@ describe("the Ollama install and start line", () => {
     expect(localAiNeedsReport(status({ state: "error", code: "" }))).toBe(false);
     expect(localAiNeedsReport(status({ state: "starting", code: "start_exited" }))).toBe(false);
     expect(localAiNeedsReport(null)).toBe(false);
+  });
+
+  it("a download that needs Ollama asks the desktop shell once, waits for the run, and takes its end as the answer", () => {
+    const step = (state: LocalAiStatus["state"], asked: boolean, fresh: boolean) => localAiEnsureStep(status({ state }), asked, fresh);
+    // nothing running: ask; a result left from before (Ollama does not answer now) is not an answer
+    for (const state of ["idle", "ready", "error", "manual"] as const) expect(step(state, false, false)).toBe("ask");
+    // a run on its way, ours or the start check Filow makes when it opens: wait
+    for (const state of ["checking", "downloading", "installing", "starting"] as const) expect(step(state, true, true)).toBe("wait");
+    expect(step("starting", false, false)).toBe("wait");
+    // the start check ended with nothing installed: now the install is asked for, instead of waiting 30 minutes
+    expect(step("idle", false, true)).toBe("ask");
+    // the end of a run we watched or asked for
+    expect(step("ready", true, true)).toBe("ready");
+    expect(step("ready", false, true)).toBe("ready");
+    expect(step("error", true, true)).toBe("failed");
+    expect(step("error", false, true)).toBe("failed");
+    expect(step("manual", true, true)).toBe("failed");
+    expect(step("idle", true, true)).toBe("failed");
+  });
+
+  it("OK Filow says a stopped Ollama in Italian too, and only the server's own sentence is taken for it", () => {
+    expect(OKF_TEXT.it.ollamaStopped).toContain("non è in esecuzione");
+    expect(OKF_TEXT.it.ollamaStopped).not.toMatch(/is not running|\.\./);
+    expect(OKF_TEXT.it.ollamaStopped).toContain(OKF_TEXT.it.brain); // the setting, by the name the panel shows
+    expect(OLLAMA_STOPPED_ANSWER.test(OKF_TEXT.en.ollamaStopped)).toBe(true);
+    expect(OLLAMA_STOPPED_ANSWER.test(OKF_TEXT.en.notHeard)).toBe(false);
   });
 
   it("only a status on its way keeps the install button waiting: a failure frees it for another try", () => {

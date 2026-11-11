@@ -1523,7 +1523,7 @@ function startOkFilow() {
       isOffline: () => offline,
       sttDownload: () => void sttDownload(),
       // a question found Ollama stopped: start it in the background, so the next question is answered
-      onAnswerError: (message) => { if (localAi.OLLAMA_STOPPED.test(message)) startOllamaIfWanted("OK Filow found Ollama stopped", { needed: true }); },
+      onAnswerError: (failure) => { if (localAi.isOllamaStopped(failure)) startOllamaIfWanted("OK Filow found Ollama stopped", { needed: true }); },
       dictation: getDictation(),
     });
     okFilow.start();
@@ -1673,7 +1673,7 @@ function startOllamaInstall({ startOnly = false } = {}) {
  * it stopped (`needed`). Nothing is downloaded here.
  */
 function startOllamaIfWanted(why, { needed = false } = {}) {
-  if ((!needed && !settings.ollamaWanted) || localAiInstalling) return;
+  if ((!needed && !settings.ollamaWanted) || localAiInstalling || !localAi.ollamaIsLocal()) return;
   logLine(`local AI: start check (${why})`);
   void startOllamaInstall({ startOnly: true });
 }

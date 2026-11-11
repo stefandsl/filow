@@ -12,7 +12,7 @@ import { getDecisionProvider, getGateMode, getScreenMode, getSetupPreference, ge
 import { loadGate } from "@/lib/gate/client";
 import { screenBridge } from "@/lib/screen/watcher";
 import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/sessionUrl";
-import { localAiBusy, localAiNeedsReport, localAiText } from "@/lib/localAiStatus";
+import { localAiBusy, localAiEnsureStep, localAiNeedsReport, localAiText } from "@/lib/localAiStatus";
 import { placementText, ResourcesPanel, useResources } from "@/components/ResourcesPanel";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
 import { modelLabel } from "@/lib/router";
@@ -169,14 +169,19 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const ensureOllama = async (): Promise<boolean> => {
     const la = desktopBridge()?.localAi;
     if (!la) return false;
-    const now = await la.status();
-    if (now.state !== "downloading" && now.state !== "installing" && now.state !== "starting" && now.state !== "checking") la.install();
+    let asked = false;
+    let fresh = false;
     const until = Date.now() + 30 * 60_000;
     while (Date.now() < until) {
-      const s = await la.status();
-      if (s.state === "ready") return true;
-      if (s.state === "error" || s.state === "manual") return false;
-      await new Promise((r) => setTimeout(r, 2000));
+      const step = localAiEnsureStep(await la.status(), asked, fresh);
+      if (step === "ready") return true;
+      if (step === "failed") return false;
+      if (step === "wait") fresh = true;
+      if (step === "ask") {
+        asked = true;
+        la.install();
+      }
+      await new Promise((r) => setTimeout(r, step === "ask" ? 300 : 2000));
     }
     return false;
   };
@@ -569,7 +574,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                 >
                   {ai?.state === "error" ? t("settings.ai.retry") : t("settings.aiInstallBtn")}
                 </button>
-                {ai && ai.state !== "idle" && ai.state !== "error" && <span className={`chip ${ai.state === "ready" ? "live" : "busy"}`}>{aiText(ai)}</span>}
+                {/* this row is only there while Ollama is not usable: an old "ready" would contradict the chip above */}
+                {localAiBusy(ai) && ai && <span className="chip busy">{aiText(ai)}</span>}
                 <span className="hint">{t("settings.aiHint")}</span>
               </div>
             )}

@@ -10,7 +10,7 @@ import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { tmpRoot } from "./test-tmp";
 
 const require = createRequire(import.meta.url);
-const { startOllama, installOllama, probeOllama, OLLAMA_STOPPED } = require("./localai.js");
+const { startOllama, installOllama, probeOllama, scrubLogLine, isOllamaStopped, OLLAMA_STOPPED } = require("./localai.js");
 
 const dir = tmpRoot("localai-start");
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -23,9 +23,10 @@ type Run = { pid: number; exit: null | { code: number | null; signal: string | n
  * is at Ollama's address t ms after the start; `served` is the time our own "ollama serve" was started
  * (null: not yet). Nothing real is started and no real time passes.
  */
-function machine(port: (t: number, served: number | null) => Probe["state"], opts: { app?: boolean; exitAfterMs?: number; exitCode?: number } = {}) {
+function machine(port: (t: number, served: number | null) => Probe["state"], opts: { app?: boolean; exitAfterMs?: number; exitCode?: number; earlier?: boolean } = {}) {
   let clock = 0;
   let served: number | null = null;
+  let earlier = opts.earlier === true; // an "ollama serve" Filow started before this try, still running
   const calls = { app: 0, serve: 0, stop: 0 };
   const logs: string[] = [];
   const run: Run = { pid: 4242, exit: null };
@@ -49,7 +50,12 @@ function machine(port: (t: number, served: number | null) => Probe["state"], opt
       served = clock;
       return run;
     },
-    stop: () => void calls.stop++,
+    hasOwn: () => earlier,
+    stop: () => {
+      calls.stop++;
+      earlier = false;
+      return true;
+    },
     log: (line: string) => logs.push(line),
     ollamaLogs: [] as string[],
   };
@@ -117,6 +123,33 @@ describe("starting an installed Ollama", () => {
     expect(r.error).toBe("Ollama did not answer within 4 minutes (nothing listens on its port)");
     expect(m.elapsed()).toBe(240_000);
     expect(m.calls).toEqual({ app: 1, serve: 1, stop: 1 });
+  });
+
+  it("our server giving way to something silent already at the port is a start that timed out, not one that stopped at once", async () => {
+    // nothing at the port for the app's 20 s, then something takes it and stays silent; our server exits on the taken port
+    const m = machine((t) => (t >= 20_500 ? "busy" : "down"), { exitAfterMs: 1000, exitCode: 1 });
+    const r = await startOllama("ollama.exe", m.deps);
+    expect(r).toMatchObject({ ok: false, code: "start_timeout", exitCode: null });
+    expect(r.error).toMatch(/its port is open but it does not answer/);
+    expect(m.elapsed()).toBe(240_000);
+  });
+
+  it("a server Filow started earlier that no longer answers is stopped, so the new try is not blocked by it", async () => {
+    // the old server holds the port in silence until it is stopped; after that a fresh one answers
+    let stopped = false;
+    const m = machine((t, served) => (!stopped ? "busy" : served !== null && t - served >= 2000 ? "up" : "down"), { app: false, earlier: true });
+    const stop = m.deps.stop;
+    m.deps.stop = () => ((stopped = true), stop());
+    const r = await startOllama("ollama.exe", m.deps);
+    expect(r).toMatchObject({ ok: true, by: "serve" });
+    expect(m.calls).toMatchObject({ serve: 1, stop: 1 });
+    expect(m.logs[0]).toMatch(/stopped the "ollama serve" Filow started earlier/);
+  });
+
+  it("a server Filow started earlier that is only slow for a moment is not stopped", async () => {
+    const m = machine((t) => (t >= 3000 ? "up" : "busy"), { earlier: true });
+    expect(await startOllama("ollama.exe", m.deps)).toMatchObject({ ok: true, by: "running" });
+    expect(m.calls).toEqual({ app: 0, serve: 0, stop: 0 });
   });
 
   it("Ollama's own logs go into the reason when its app was the one that failed", async () => {
@@ -207,11 +240,25 @@ describe("what is at Ollama's address (probeOllama)", () => {
   });
 });
 
+it("log lines are made safe before they reach the startup log", () => {
+  // Go doubles the backslashes, which would hide the home folder from the report's own masking
+  expect(scrubLogLine('OLLAMA_MODELS:C:\\\\Users\\\\Anna Rossi\\\\.ollama\\\\models')).toBe("OLLAMA_MODELS:C:\\Users\\Anna Rossi\\.ollama\\models");
+  expect(scrubLogLine('msg="server config" env="map[HTTPS_PROXY:http://anna:s3cret@proxy.example:8080 HTTP_PROXY: NO_PROXY:localhost OLLAMA_HOST:http://127.0.0.1:11434]"'))
+    .toBe('msg="server config" env="map[HTTPS_PROXY:<set> HTTP_PROXY: NO_PROXY:<set> OLLAMA_HOST:http://127.0.0.1:11434]"');
+  expect(scrubLogLine("pull from https://anna:s3cret@registry.example/v2/")).toBe("pull from https://<secret>@registry.example/v2/");
+  expect(scrubLogLine("Your new public key is: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEsZ0kq9Qx1ZP7example")).toBe("Your new public key is: <public key>");
+});
+
 it("OK Filow's 'Ollama is not running' answer is the one the desktop shell reacts to", () => {
   const providers = fs.readFileSync(path.resolve(__dirname, "../web/lib/buddy/providers.ts"), "utf8");
   const sentence = /throw new Error\(`(Ollama, which runs[^`]+)`/.exec(providers)?.[1] ?? "";
   expect(sentence).not.toBe("");
   expect(OLLAMA_STOPPED.test(sentence)).toBe(true);
+  expect(isOllamaStopped({ error: sentence, code: "" })).toBe(true);
+  // the panel says it in the user's language and sends its code instead; it uses the same test on the server's answer
+  expect(isOllamaStopped({ error: "Ollama, che su questo PC fa rispondere OK Filow, non è in esecuzione.", code: "ollama_stopped" })).toBe(true);
+  expect(isOllamaStopped({ error: "Non ho sentito.", code: "" })).toBe(false);
+  expect(fs.readFileSync(path.resolve(__dirname, "../web/lib/buddy/text.ts"), "utf8")).toContain(`OLLAMA_STOPPED_ANSWER = ${OLLAMA_STOPPED};`);
   // the other answers about Ollama are not a stopped Ollama
   expect(OLLAMA_STOPPED.test("OK Filow got no answer on this PC within 3 minutes: the AI that runs it here is busy")).toBe(false);
   expect(OLLAMA_STOPPED.test("The screen helper for this computer's setup is not downloaded yet.")).toBe(false);

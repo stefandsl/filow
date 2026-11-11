@@ -30,6 +30,20 @@ export function localAiNeedsReport(s: LocalAiStatus | null): boolean {
   return Boolean(s && s.state === "error" && s.code && (NEEDS_REPORT.has(s.code) || !known(s.code)));
 }
 
+/**
+ * A download that needs Ollama waits for the desktop shell to have it running. What to do with the
+ * status just read: "ask" the shell to install and start it, "wait", or stop ("ready" / "failed").
+ * `fresh`: this status is the end of a run we asked for or watched, not a result from before.
+ * A run on its way is waited for. A start check that ended with nothing installed (idle) and a result
+ * from before (ready or error while Ollama does not answer) make us ask, once.
+ */
+export function localAiEnsureStep(s: LocalAiStatus, asked: boolean, fresh: boolean): "ask" | "wait" | "ready" | "failed" {
+  if (localAiBusy(s)) return "wait";
+  if (s.state === "idle") return asked ? "failed" : "ask";
+  if (!fresh && !asked) return "ask";
+  return s.state === "ready" ? "ready" : "failed"; // error or manual
+}
+
 /** A status that is still on its way: the install button waits and nothing is offered yet. */
 export function localAiBusy(s: LocalAiStatus | null): boolean {
   return Boolean(s && ["checking", "downloading", "installing", "starting"].includes(s.state));

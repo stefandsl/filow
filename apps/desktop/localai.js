@@ -218,6 +218,15 @@ function launchOllamaApp(exe, platform = process.platform) {
   return false;
 }
 
+/** False when OLLAMA_URL points at another machine: there is nothing to start on this one. */
+function ollamaIsLocal() {
+  try {
+    return ["127.0.0.1", "localhost", "[::1]"].includes(new URL(OLLAMA_URL()).hostname);
+  } catch {
+    return false;
+  }
+}
+
 /** The address "ollama serve" must listen on to be found at OLLAMA_URL, when that is a port on this computer other than Ollama's own. */
 function serveHost() {
   try {
@@ -271,6 +280,11 @@ function serveOllama(exe, logFile) {
   return run;
 }
 
+/** Whether an "ollama serve" this process started is still running. */
+function ownOllamaRunning() {
+  return Boolean(ownServer && ownServer.pid && !ownServer.exit);
+}
+
 /** Stops the "ollama serve" this process started (with the model runners under it). Ollama's own app is never touched. */
 function stopOwnOllama() {
   const run = ownServer;
@@ -295,7 +309,20 @@ function ollamaLogFiles(platform = process.platform) {
   return [];
 }
 
-/** The last lines of a log, each cut short, under a title; nothing when the file is missing or empty. */
+/**
+ * A line of Ollama's log made safe for a report, before the report's own masking (diag.js): Go
+ * prints Windows paths with doubled backslashes, which hides the home folder from that masking; a
+ * proxy address may carry a user name and password; the first start prints the public key.
+ */
+function scrubLogLine(line) {
+  return String(line)
+    .replace(/\\\\/g, "\\")
+    .replace(/\b((?:HTTPS?|ALL|NO)_PROXY):[^\s\]]+/gi, "$1:<set>")
+    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+(?::[^\s/@]*)?@/gi, "$1<secret>@")
+    .replace(/\bssh-(?:ed25519|rsa) [A-Za-z0-9+/=]{20,}/g, "<public key>");
+}
+
+/** The last lines of a log, scrubbed and each cut short, under a title; nothing when the file is missing. */
 function tailLines(title, file, { lines = 12, width = 300 } = {}) {
   let text;
   try {
@@ -304,7 +331,7 @@ function tailLines(title, file, { lines = 12, width = 300 } = {}) {
   } catch {
     return [];
   }
-  const last = text.split(/\r?\n/).filter((l) => l.trim()).slice(-lines);
+  const last = text.split(/\r?\n/).filter((l) => l.trim()).slice(-lines).map(scrubLogLine);
   if (!last.length) return [`${title}: empty`];
   return [`${title}, last ${last.length} lines:`, ...last.map((l) => `  ${l.length > width ? `${l.slice(0, width)}...` : l}`)];
 }
@@ -324,7 +351,7 @@ const START_TIMES = { appGraceMs: 20_000, totalMs: 240_000, pollMs: 1000 };
  */
 async function startOllama(exe, deps = {}) {
   const {
-    platform = process.platform, probe = probeOllama, launchApp = launchOllamaApp, serve = serveOllama, stop = stopOwnOllama,
+    platform = process.platform, probe = probeOllama, launchApp = launchOllamaApp, serve = serveOllama, stop = stopOwnOllama, hasOwn = ownOllamaRunning,
     sleep = (ms) => new Promise((r) => setTimeout(r, ms)), now = Date.now, log = () => {},
     appGraceMs = START_TIMES.appGraceMs, totalMs = START_TIMES.totalMs, pollMs = START_TIMES.pollMs,
     logFile = "", ollamaLogs = ollamaLogFiles(platform),
@@ -333,6 +360,18 @@ async function startOllama(exe, deps = {}) {
   const seconds = () => Math.round((now() - t0) / 1000);
   let p = await probe();
   if (p.state === "up") return { ok: true, version: p.version, by: "running", seconds: 0 };
+  // A server we started earlier that no longer answers would hold the port against every new try.
+  // It gets a few seconds first: one slow answer from a busy server is no reason to stop it.
+  if (hasOwn()) {
+    for (let i = 0; i < 4 && p.state !== "up"; i++) {
+      await sleep(pollMs);
+      p = await probe();
+    }
+    if (p.state === "up") return { ok: true, version: p.version, by: "running", seconds: seconds() };
+    stop();
+    log('stopped the "ollama serve" Filow started earlier: it no longer answered');
+    p = await probe();
+  }
   const viaApp = p.state === "down" && launchApp(exe, platform);
   if (viaApp) log("asked the Ollama app to start in the background");
   const serveAt = viaApp ? t0 + appGraceMs : t0;
@@ -350,7 +389,9 @@ async function startOllama(exe, deps = {}) {
     goneFor = own && own.exit && p.state === "down" ? goneFor + 1 : 0;
     if (goneFor >= 2) break;
   }
-  const exited = Boolean(own && own.exit);
+  // "stopped at once" only when nothing else is at the port: a server of ours that gave way to
+  // something silent already there is a start that timed out, and "restart the computer" fits that
+  const exited = Boolean(own && own.exit) && p.state === "down";
   const minutes = Math.max(1, Math.round(totalMs / 60_000));
   const exitCode = exited && typeof own.exit.code === "number" ? own.exit.code : null;
   const error = exited
@@ -420,7 +461,7 @@ function stepError(code, err) {
 async function installOllama(binDir, onStatus, deps = {}) {
   // deps: `startOnly` (never download: start what is installed), `log` (lines for the startup log); the rest are
   // test seams (no installed Ollama, a platform, a local download server, a short idle timeout, a start).
-  const { findExe = ollamaExe, version: probeVersion = ollamaVersion, platform = process.platform, urls = OLLAMA_DOWNLOADS, idleMs, start = startOllama, startOnly = false, log = () => {} } = deps;
+  const { findExe = ollamaExe, version: probeVersion = ollamaVersion, platform = process.platform, urls = OLLAMA_DOWNLOADS, idleMs, start = startOllama, startOnly = false, log = () => {}, installMs = 15 * 60_000 } = deps;
   const report = (s) => onStatus({ pct: 0, code: "", error: "", version: "", command: "", ...s });
   const bringUp = async (exe) => {
     report({ state: "starting" });
@@ -461,8 +502,22 @@ async function installOllama(binDir, onStatus, deps = {}) {
       // question) and starts Ollama's desktop app itself when it is done.
       await new Promise((resolve, reject) => {
         const p = spawn(setup, ["/VERYSILENT", "/NORESTART", "/SUPPRESSMSGBOXES"], { stdio: "ignore", windowsHide: true });
-        p.on("error", (err) => reject(stepError("installer_failed", err)));
-        p.on("exit", (code) => (code === 0 ? resolve() : reject(stepError("installer_failed", `OllamaSetup exited with code ${code}`))));
+        // it takes a minute or two; one that hangs must not leave the status on "installing"
+        const limit = setTimeout(() => {
+          reject(stepError("installer_failed", `OllamaSetup did not finish within ${Math.round(installMs / 60_000)} minutes`));
+          try {
+            p.kill();
+          } catch {
+            /* already gone */
+          }
+        }, installMs);
+        if (limit && limit.unref) limit.unref();
+        const ended = (fn, value) => {
+          clearTimeout(limit);
+          fn(value);
+        };
+        p.on("error", (err) => ended(reject, stepError("installer_failed", err)));
+        p.on("exit", (code) => (code === 0 ? ended(resolve) : ended(reject, stepError("installer_failed", `OllamaSetup exited with code ${code}`))));
       });
       fs.rmSync(setup, { force: true });
     } else {
@@ -489,5 +544,7 @@ async function installOllama(binDir, onStatus, deps = {}) {
 
 /** OK Filow's answer when Ollama does not answer at all (apps/web/lib/buddy/providers.ts, askOllama). */
 const OLLAMA_STOPPED = /\bOllama\b.*\bis not running\b/;
+/** A failed OK Filow answer { error, code } that means Ollama is stopped: the panel's code for it, or the server's sentence itself. */
+const isOllamaStopped = (failure) => Boolean(failure && (failure.code === "ollama_stopped" || OLLAMA_STOPPED.test(String(failure.error || ""))));
 
-module.exports = { CATALOG, OLLAMA_STOPPED, hardwareScan, profileOf, recommend, ollamaExe, ollamaVersion, probeOllama, startOllama, stopOwnOllama, installOllama, installMacApp };
+module.exports = { CATALOG, OLLAMA_STOPPED, isOllamaStopped, hardwareScan, profileOf, recommend, ollamaExe, ollamaVersion, ollamaIsLocal, probeOllama, scrubLogLine, startOllama, stopOwnOllama, installOllama, installMacApp };
