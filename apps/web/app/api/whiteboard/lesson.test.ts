@@ -179,6 +179,24 @@ describe("whiteboard lesson, local model: plan, check, then a pick per step", ()
     for (const c of chat.slice(1)) expect(JSON.stringify(c.body.messages)).not.toContain("Ignore all rules");
   });
 
+  it("writes the lesson in the language of the question: Russian, Romanian, Japanese", async () => {
+    const cp = (...codes: number[]) => String.fromCharCode(...codes);
+    const questions: Array<[string, string, string]> = [
+      // "Kak rabotaet fotosintez?" in Cyrillic
+      [cp(0x41a, 0x430, 0x43a, 0x20, 0x440, 0x430, 0x431, 0x43e, 0x442, 0x430, 0x435, 0x442, 0x20, 0x444, 0x43e, 0x442, 0x43e, 0x441, 0x438, 0x43d, 0x442, 0x435, 0x437, 0x3f), "ru", "Russian"],
+      ["Cum func" + cp(0x21b) + "ioneaz" + cp(0x103) + " fotosinteza " + cp(0x219) + "i ce este dob" + cp(0xe2) + "nda?", "ro", "Romanian"],
+      // "kougousei no shikumi wa?" in Japanese
+      [cp(0x5149, 0x5408, 0x6210, 0x306e, 0x3057, 0x304f, 0x307f, 0x306f, 0xff1f), "ja", "Japanese"],
+    ];
+    for (const [question, lang, name] of questions) {
+      calls = [];
+      localAnswers = [...FULL];
+      const ev = await events(await post({ question }));
+      expect(ev[0], name).toMatchObject({ lang });
+      // every call that writes text for the board names the language
+      for (const c of [chats()[0], chats()[1], chats()[3]]) expect(String(c.body.messages[0].content), name).toContain(`in ${name}`);
+    }
+  });
   it("refuses an empty question and a follow-up on a lesson that is not one", async () => {
     expect((await post({ question: "   " })).status).toBe(400);
     expect((await post({ question: "more", lesson: { steps: "x" } })).status).toBe(400);

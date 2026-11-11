@@ -152,6 +152,19 @@ describe("whiteboard layout", () => {
     // with room to spare the plot keeps its full height
     expect(layoutBoard(lesson, 1, "wide").blocks.find((b) => b.kind === "plot")!.box.h).toBeGreaterThan(200);
   });
+  it("fits Japanese and Russian labels in their boxes on both boards", () => {
+    const cp = (...codes: number[]) => String.fromCharCode(...codes);
+    const ja = [cp(0x592a, 0x967d, 0x306e, 0x5149), cp(0x4e8c, 0x9178, 0x5316, 0x70ad, 0x7d20), cp(0x8449, 0x7dd1, 0x4f53), cp(0x30d6, 0x30c9, 0x30a6, 0x7cd6), cp(0x9178, 0x7d20)];
+    const ru = [cp(0x421, 0x43e, 0x43b, 0x43d, 0x435, 0x447, 0x43d, 0x44b, 0x439, 0x20, 0x441, 0x432, 0x435, 0x442), cp(0x423, 0x433, 0x43b, 0x435, 0x43a, 0x438, 0x441, 0x43b, 0x44b, 0x439, 0x20, 0x433, 0x430, 0x437), cp(0x425, 0x43b, 0x43e, 0x440, 0x43e, 0x43f, 0x43b, 0x430, 0x441, 0x442), cp(0x413, 0x43b, 0x44e, 0x43a, 0x43e, 0x437, 0x430), cp(0x41a, 0x438, 0x441, 0x43b, 0x43e, 0x440, 0x43e, 0x434)];
+    for (const words of [ja, ru]) {
+      const lesson = validateLesson({ title: words[0], scene: "flow", steps: [{ say: "s", items: [...words.map((text, i) => ({ kind: "node", id: `n${i}`, text })), { kind: "edge", from: "n0", to: "n2", text: words[4] }] }, { say: "s", items: [{ kind: "edge", from: "n1", to: "n2", text: words[3] }, { kind: "edge", from: "n2", to: "n3" }, { kind: "edge", from: "n2", to: "n4" }, { kind: "note", text: words.join(" ") }] }] })!;
+      for (const shape of SHAPES) {
+        const l = layoutBoard(lesson, 1, shape);
+        expect(layoutProblems(l), shape).toEqual([]);
+        expect(l.nodes.map((nd) => nd.lines.join("")).sort(), shape).toEqual(words.map((w) => w.replace(/ /g, "")).sort());
+      }
+    }
+  });
   it("spreads several arrows between the same two nodes so their labels stay apart", () => {
     const lesson = validateLesson({
       title: "TCP handshake",
