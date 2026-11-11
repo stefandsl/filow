@@ -15,6 +15,8 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "u
 manifest.version = require(path.join(root, "package.json")).version;
 fs.writeFileSync(path.join(dist, "manifest.json"), JSON.stringify(manifest, null, 2));
 fs.cpSync(path.join(root, "icons"), path.join(dist, "icons"), { recursive: true });
+// The store listing and the toolbar title in the five interface languages (manifest "__MSG_...__").
+fs.cpSync(path.join(root, "_locales"), path.join(dist, "_locales"), { recursive: true });
 
 // Chromium family: one zip. Firefox: same files, manifest without the Chrome-only "side_panel" key
 // (Firefox warns on unknown keys but loads; keeping both keys in one zip is fine for unpacked use).
