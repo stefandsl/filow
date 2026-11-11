@@ -616,6 +616,7 @@ export const it: Dictionary = {
   "settings.stopHintOllama": "Ferma il download. Ollama conserva la parte già scaricata e la rimuove da solo più tardi.",
   "settings.inUse": "in uso: {what}",
   "settings.loaded": "caricato in memoria",
+  "settings.partial": "download non completato",
   "settings.deleteModelConfirm": "Eliminare {name} ({size}) da questo computer?",
   "settings.deleteModelInUse": "È in uso: {what}.",
   "settings.deleteLabel": "Elimina {name}",

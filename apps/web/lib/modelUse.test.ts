@@ -111,7 +111,7 @@ describe("the words", () => {
   });
 
   it("every language has the words, with no em dash and every placeholder kept", () => {
-    const keys = ["settings.stop", "settings.stopLabel", "settings.stopHint", "settings.stopHintOllama", "settings.inUse", "settings.loaded", "settings.deleteModelConfirm", "settings.deleteModelInUse", "settings.deleteLabel", "settings.freed", "settings.deleteFailed", "settings.onThisPc", "settings.onThisPcHint", "settings.onThisPcNone", "size.mb", "size.gb", "use.withLanguage",
+    const keys = ["settings.stop", "settings.stopLabel", "settings.stopHint", "settings.stopHintOllama", "settings.inUse", "settings.loaded", "settings.partial", "settings.deleteModelConfirm", "settings.deleteModelInUse", "settings.deleteLabel", "settings.freed", "settings.deleteFailed", "settings.onThisPc", "settings.onThisPcHint", "settings.onThisPcNone", "size.mb", "size.gb", "use.withLanguage",
       ...["speech", "voice", "cleanup", "punctuation"].map((k) => `modelKind.${k}`),
       ...["tracking", "questions", "dictation", "voice", "cleanup", "punctuation", "decision", "generate", "translate", "okfilow", "gate"].map((k) => `use.${k}`),
       ...["speech", "voice", "cleanup", "punctuation", "ollama", "browser"].map((k) => `deleteEffect.${k}`)] as I18nKey[];

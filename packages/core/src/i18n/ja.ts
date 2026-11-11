@@ -624,6 +624,7 @@ export const ja: Dictionary = {
   "settings.stopHintOllama": "ダウンロードを止めます。取得済みの部分はOllamaが保持し、あとで自動的に削除します。",
   "settings.inUse": "使用中：{what}",
   "settings.loaded": "メモリに読み込み済み",
+  "settings.partial": "ダウンロード未完了",
   "settings.deleteModelConfirm": "{name}（{size}）をこのコンピューターから削除しますか？",
   "settings.deleteModelInUse": "現在使用中です：{what}。",
   "settings.deleteLabel": "{name}を削除",

@@ -162,6 +162,7 @@ function createS1Runtime(deps) {
     })().catch((e) => {
       if (isCancelled(e) || ctl.signal.aborted) {
         try { fs.rmSync(part, { force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* the next download starts over anyway */ }
+        try { fs.rmdirSync(path.dirname(part)); } catch { /* not empty: the model itself is there */ }
         pct = 0;
         log("s1: model download stopped by the user, nothing kept on disk");
         return false;

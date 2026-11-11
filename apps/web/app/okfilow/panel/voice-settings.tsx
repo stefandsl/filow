@@ -16,10 +16,12 @@ type Props = {
   preview: () => void;
   /** The one question before the voice is deleted (the browser's own dialog; a test passes its own). */
   confirmRemove?: (question: string) => boolean;
+  /** The voice's status before the desktop app has answered (tests; the panel reads it from the bridge). */
+  initial?: OkFilowTtsStatus | null;
 };
 
-export function VoiceSettings({ bridge, status, t, configure, preview, confirmRemove = (q) => window.confirm(q) }: Props) {
-  const [tts, setTts] = useState<OkFilowTtsStatus | null>(null);
+export function VoiceSettings({ bridge, status, t, configure, preview, confirmRemove = (q) => window.confirm(q), initial = null }: Props) {
+  const [tts, setTts] = useState<OkFilowTtsStatus | null>(initial);
   const api = bridge.tts;
 
   useEffect(() => {

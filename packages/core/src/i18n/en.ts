@@ -624,6 +624,7 @@ export const en = {
   "settings.stopHintOllama": "Stops the download. Ollama keeps the part it fetched and removes it by itself later.",
   "settings.inUse": "in use: {what}",
   "settings.loaded": "loaded in memory",
+  "settings.partial": "unfinished download",
   "settings.deleteModelConfirm": "Delete {name} ({size}) from this computer?",
   "settings.deleteModelInUse": "It is in use: {what}.",
   "settings.deleteLabel": "Delete {name}",

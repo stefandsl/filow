@@ -111,6 +111,7 @@ describe("the list of models on this computer", () => {
     expect(rows[2]).toContain('aria-label="Stop the download: S1-mini by Superwhisper"');
     expect(rows[2]).not.toContain('data-testid="delete-model"');
     expect(rows[2]).not.toContain("chip live");
+    expect(plain(rows[2])).toContain("S1-mini by Superwhisper Dictation cleanup unfinished download 30 MB");
   });
 
   it("Delete and Stop call the handlers with the row's model", () => {

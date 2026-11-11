@@ -220,6 +220,7 @@ describe("S1-mini and the punctuation model", { timeout: 15_000 }, () => {
     await until(() => !rt.status().downloading);
     expect(rt.status()).toMatchObject({ model: false, downloading: false, pct: 0, error: "" });
     expect(fs.existsSync(part)).toBe(false);
+    expect(fs.readdirSync(path.join(userData, "models"))).toEqual([]); // not even an empty folder stays
     expect(log.join("\n")).toMatch(/stopped by the user/);
     expect(log.join("\n")).not.toMatch(/failed/);
     expect(rt.cancelFetch()).toBe(false);

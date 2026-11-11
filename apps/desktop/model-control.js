@@ -43,7 +43,7 @@ function createModelControl(deps) {
     const others = [
       { id: "voice", kind: "voice", name: "Supertonic 3", installed: deps.tts.modelReady(deps.userData), bytes: deps.stt.specBytes(deps.userData, deps.tts.MODEL), uses: use.voice, loaded: Boolean(voice && voice.loaded()) },
       { id: "cleanup", kind: "cleanup", name: "S1-mini by Superwhisper", installed: s1.model, bytes: sizeOf(path.join(models, "s1-mini")), uses: use.cleanup, loaded: s1.running },
-      { id: "punctuation", kind: "punctuation", name: "multilingual-punctuation-truecase-small", installed: tc.model, bytes: sizeOf(path.join(models, "truecase-small")), uses: use.punctuation, loaded: tc.running },
+      { id: "punctuation", kind: "punctuation", name: "Horizon Labs truecase-small", installed: tc.model, bytes: sizeOf(path.join(models, "truecase-small")), uses: use.punctuation, loaded: tc.running },
     ].filter((m) => m.bytes > 0);
     const downloading = [...deps.downloads.ids(), ...(s1.downloading ? ["cleanup"] : []), ...(tc.downloading ? ["punctuation"] : [])];
     return { models: [...rows, ...others], downloading };

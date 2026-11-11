@@ -737,6 +737,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                       return l ? <span className="chip live">{t("mem.now", { total: l.sizeGb, vram: l.vramGb, pct: l.gpuPct })}</span> : null;
                     })()}
                   </div>
+                  {/* Under the description, not beside the button: the button and its Stop keep their line whatever the note says. */}
+                  {m.runtime === "sherpa" && sherpaBridge() && <SherpaLanguageNote s={sherpa} />}
                 </div>
                 <div className="row">
                   {m.status === "available" && m.runtime === "browser" && (
@@ -778,7 +780,6 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                           <StopButton name={sherpa.wantedLabel ?? label(m.name)} onStop={() => void modelsBridge()?.cancel("speech")} />
                         )}
                         {sherpa?.model === "error" && <span className="chip err">{sherpa.error}</span>}
-                        <SherpaLanguageNote s={sherpa} />
                       </>
                     ) : (
                       <span className="hint">{t("settings.sherpaDesktopOnly")}</span>

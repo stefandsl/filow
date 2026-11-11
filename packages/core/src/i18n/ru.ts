@@ -614,6 +614,7 @@ export const ru: Dictionary = {
   "settings.stopHintOllama": "Останавливает скачивание. Ollama хранит скачанную часть и позже удаляет её сам.",
   "settings.inUse": "используется: {what}",
   "settings.loaded": "загружена в память",
+  "settings.partial": "скачивание не завершено",
   "settings.deleteModelConfirm": "Удалить {name} ({size}) с этого компьютера?",
   "settings.deleteModelInUse": "Модель используется: {what}.",
   "settings.deleteLabel": "Удалить {name}",

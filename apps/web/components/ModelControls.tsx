@@ -56,7 +56,7 @@ export function DeviceModelRows({ data, ctx, busy, notice, onStop, onDelete }: {
           <div key={m.id} className="model" data-model={m.id}>
             <div>
               <strong>{m.name}</strong> <span className="chip">{t(`modelKind.${m.kind}` as I18nKey)}</span>{" "}
-              {m.installed && <span className="chip live">{t("settings.installed")}</span>} <InUseChip uses={m.installed ? uses : []} />
+              {m.installed ? <span className="chip live">{t("settings.installed")}</span> : <span className="chip">{t("settings.partial")}</span>} <InUseChip uses={m.installed ? uses : []} />
               <div className="hint memline">
                 <span>{sizeText(m.bytes, t)}</span>
                 {m.loaded && <span>{t("settings.loaded")}</span>}
