@@ -110,7 +110,7 @@ export default function WhiteboardPage() {
         return changesStored(s.consent ?? {}, changes);
       },
       fetchRecipients: async () => {
-        const res = await fetch("/api/buddy/recipients?for=whiteboard", { headers: await engineHeaders() });
+        const res = await fetch("/api/whiteboard/recipients", { headers: await engineHeaders() });
         return res.ok ? ((await res.json()) as BuddyRecipients) : null;
       },
       signal: {

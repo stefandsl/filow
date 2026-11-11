@@ -46,7 +46,7 @@ const HELD_OUT = [
 const cloud = args.includes("--cloud");
 let consent = "";
 if (cloud) {
-  const who = await (await fetch(`${arg("base", "http://127.0.0.1:4811")}/api/buddy/recipients?for=whiteboard`)).json();
+  const who = await (await fetch(`${arg("base", "http://127.0.0.1:4811")}/api/whiteboard/recipients`)).json();
   const id = who?.ask?.id;
   if (!id || arg("yes-send-to", "") !== id) {
     console.error(`The cloud run would send ten questions to: ${(who?.ask?.names ?? ["unknown"]).join(", ")} (recipient id "${id}").\nNothing was sent. To run it, repeat the command with: --cloud --yes-send-to ${id}`);

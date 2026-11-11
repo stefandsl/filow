@@ -888,9 +888,10 @@ describe("whiteboard lesson, cloud model", () => {
     expect(ev[ev.length - 1]).toMatchObject({ type: "done" });
     expect(outside()[0].body.model).toBe("anthropic/claude-test");
     // the notice of the whiteboard names that maker; OK Filow's own notice is unchanged
-    const { GET } = await import("../buddy/recipients/route");
-    expect((await (await GET(new Request("http://unit.invalid/api/buddy/recipients?for=whiteboard"))).json()).ask.id).toBe("openrouter/anthropic");
-    expect((await (await GET(new Request("http://unit.invalid/api/buddy/recipients"))).json()).ask.id).toBe("openrouter/google");
+    const forBoard = await import("./recipients/route");
+    const forBuddy = await import("../buddy/recipients/route");
+    expect((await (await forBoard.GET()).json()).ask.id).toBe("openrouter/anthropic");
+    expect((await (await forBuddy.GET()).json()).ask.id).toBe("openrouter/google");
     // unset, the whiteboard uses OK Filow's model
     vi.stubEnv("WHITEBOARD_CLOUD_MODEL", "");
     cloudAnswers = [CLOUD];
