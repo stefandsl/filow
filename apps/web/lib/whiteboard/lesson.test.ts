@@ -129,7 +129,7 @@ describe("whiteboard lesson: what the model writes is data", () => {
     expect(cleanTex("x".repeat(LIMITS.tex + 1))).toBe("");
     expect(cleanTex("a^2 + b^2 = c^2", () => false)).toBe("");
     // a phrase is not a formula
-    for (const tex of ["gradient descent", "gradient = gradient descent", "\\text{Supply meets demand}", "photosynthesis"]) expect(cleanTex(tex), tex).toBe("");
+    for (const tex of ["gradient descent", "gradient = gradient descent", "\\text{Supply meets demand}", "photosynthesis", "0", "x", "c^"]) expect(cleanTex(tex), tex).toBe("");
     for (const tex of ["V = I \\times R", "A = P \\times (1 + \\text{rate})^{\\text{time}}", "\\frac{\\partial L}{\\partial w}", "\\log_2 n", "5! = 120", "\\sum_k V_k = 0"]) expect(cleanTex(tex), tex).toBe(tex);
   });
 
