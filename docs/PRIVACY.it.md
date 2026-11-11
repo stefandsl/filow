@@ -95,9 +95,22 @@ sì nelle impostazioni di OK Filow. Le funzioni cloud usano il tuo account press
 | Controllo del modello nelle Impostazioni (senza avviso: non contiene nulla di tuo) | una richiesta di prova fissa, per vedere quale modello cloud risponde | OpenRouter, poi il produttore del modello |
 | Download (modelli vocali, Ollama, lo strumento per il link, aggiornamenti) | nessun tuo contenuto, solo la richiesta | github.com, ollama.com e gli host dei modelli indicati nella finestra di download |
 | Controllo ortografico nelle caselle di testo, solo su Linux | nessun tuo contenuto: il correttore integrato della finestra può scaricare il suo dizionario | Google, che ospita i dizionari di Chromium (non ancora verificato su un desktop Linux) |
+| FreeLLMAPI, quando lo hai scelto (risposte di OK Filow, tracciamento della ripresa, scrittura e traduzione dei copioni) | gli stessi contenuti della funzione cloud che sostituisce: la domanda e le immagini dei tuoi schermi, le parole pronunciate (mascherate come sopra), il copione o le slide | il tuo router FreeLLMAPI, poi un fornitore di AI gratuito che il router sceglie per ogni richiesta |
+| "Verifica la connessione" in Impostazioni > FreeLLMAPI (senza avviso: non contiene nulla di tuo) | una richiesta dell'elenco dei modelli del router | solo il tuo router FreeLLMAPI |
 
 OpenRouter passa la tua richiesta a un'azienda che fa girare il modello. Per i modelli di Google è
 Google; per altri modelli può essere un'altra azienda scelta da OpenRouter.
+
+**FreeLLMAPI** è un'app gratuita separata (github.com/tashfeenahmed/freellmapi) che installi e avvii
+tu, su questo computer o su un altro della tua rete; Filow non la installa. È pensata per un computer
+poco potente, quando la privacy non è la tua prima preoccupazione. Il router è tuo, ma passa ogni
+richiesta a uno dei tanti fornitori di AI gratuiti, con le tue chiavi, e Filow non può sapere prima
+quale. I piani gratuiti spesso conservano ciò che ricevono e possono usarlo per addestrare i loro
+modelli. Filow lo tratta come ogni altro cloud: chiede prima del primo invio, mostra "Esce dal PC -
+Invio a FreeLLMAPI (un fornitore gratuito scelto da lui)" ogni volta, non passa mai a FreeLLMAPI da
+solo e non ripiega mai da FreeLLMAPI su un altro cloud. La sua chiave è salvata cifrata su questo
+computer. La descrizione stessa di FreeLLMAPI dice che è per sperimentazione personale: una scuola o
+un'azienda dovrebbe controllare le condizioni dei fornitori che ci stanno dietro prima di usarlo.
 
 **La modalità offline** (menu Filow) blocca ogni richiesta che uscirebbe dal tuo computer, compresi
 il controllo degli aggiornamenti e il link pubblico.
