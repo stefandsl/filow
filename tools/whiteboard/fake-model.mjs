@@ -84,7 +84,16 @@ export function startFakeModel(port = 4812) {
       }
       if (url.endsWith("/chat/completions")) {
         res.writeHead(200, { "Content-Type": "text/event-stream" });
-        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(CLOUD) } }] })}\n\n`);
+        const messages = body.messages ?? [];
+        const text = (m) => (typeof m?.content === "string" ? m.content : (m?.content ?? []).map((p) => p.text ?? "").join(""));
+        // the examiner call of the online path: every sentence true, every arrow right as drawn
+        const asked = text(messages[messages.length - 1]);
+        const reviewing = text(messages[0]).includes("strict examiner of a whiteboard lesson");
+        const count = (from, to) => (asked.slice(asked.indexOf(from), to ? asked.indexOf(to) : undefined).match(/^\d+\. /gm) ?? []).length;
+        const answer = reviewing
+          ? { topic: true, answers: true, issues: "", sentences: Array.from({ length: count("Sentences:", "Boxes:") }, (_, i) => ({ n: i + 1, true: true })), arrows: Array.from({ length: count("Arrows:") }, (_, i) => ({ n: i + 1, verdict: "ok" })) }
+          : CLOUD;
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(answer) } }] })}\n\n`);
         return setTimeout(() => res.end("data: [DONE]\n\n"), 600);
       }
       res.writeHead(404, { "Content-Type": "application/json" });

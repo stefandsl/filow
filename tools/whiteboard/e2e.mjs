@@ -210,7 +210,7 @@ try {
     await page.evaluate(`document.querySelector("dialog.okf-notice-modal .okf-notice-send").click(); true`);
     const cloud = await lessonDone(90_000);
     check("after the yes the lesson comes from the cloud model", cloud && cloud.phase === "done" && cloud.source === "cloud" && cloud.sketches === 1, JSON.stringify(cloud && { phase: cloud.phase, source: cloud.source, sketches: cloud.sketches, alert: cloud.alert }));
-    check("exactly one cloud call was made, with the question and no picture", cloudCalls().length === 1 && !cloudCalls()[0].hasImage && cloudCalls()[0].user.includes("Ohm"), JSON.stringify(cloudCalls().map((c) => ({ url: c.url, hasImage: c.hasImage, user: c.user.slice(0, 60) }))));
+    check("two cloud calls were made (the lesson and its check), with the question and no picture", cloudCalls().length === 2 && cloudCalls().every((c) => !c.hasImage) && cloudCalls()[0].user.includes("Ohm"), JSON.stringify(cloudCalls().map((c) => ({ url: c.url, hasImage: c.hasImage, user: c.user.slice(0, 60) }))));
     await setTheme("light");
     await shot("cloud-light-1264", 1264, 800);
     await shot("cloud-light-360", 360, 740);

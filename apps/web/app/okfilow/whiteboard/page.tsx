@@ -438,8 +438,8 @@ export default function WhiteboardPage() {
               <button type="button" className="wb-btn" onClick={() => void savePng()} disabled={!layout}>{t("exportPng")}</button>
               <button type="button" className="wb-btn" onClick={saveMd} disabled={stepCount === 0}>{t("exportMd")}</button>
             </div>
-            {/* The full local tier met the strict lesson target (docs/whiteboard/PROOF.md); the Lite tier was not measured, so it keeps the advice. Never a switch: only words. */}
-            {ls.meta?.provider === "local" && lite && <p className="wb-note" data-advice="cloud">{t("localSimple")}</p>}
+            {/* The local model explains correctly but its boards miss the main relations too often (docs/whiteboard/PROOF.md, round 3): the page says so. Never a switch: only words. */}
+            {ls.meta?.provider === "local" && <p className="wb-note" data-advice="cloud">{t("localSimple")}</p>}
             {lite && <p className="wb-note">{t("liteNote")}</p>}
             {ls.stalled && <p className="wb-note">{t("stalledNote")}</p>}
             {!ls.stalled && ls.cards > 0 && <p className="wb-note">{t("cardsNote", { n: ls.cards })}</p>}

@@ -222,10 +222,15 @@ describe("whiteboard layout", () => {
   });
 
   it("on the phone-shaped board, sets a long title smaller and a long arrow label wider instead of cutting them", () => {
-    const lesson = validateLesson({ title: "TCP Three-Way Handshake Explained Step by Step", scene: "flow", steps: [{ say: "s", items: [{ kind: "node", id: "a", text: "Sorted list" }, { kind: "node", id: "b", text: "Middle element" }, { kind: "node", id: "c", text: "Target" }, { kind: "node", id: "d", text: "Left half" }, { kind: "node", id: "e", text: "Right half" }, { kind: "edge", from: "a", to: "b", text: "has a middle element" }] }, { say: "s", items: [{ kind: "edge", from: "b", to: "c", text: "is compared with the" }, { kind: "edge", from: "c", to: "d", text: "smaller: go to" }, { kind: "edge", from: "c", to: "e", text: "larger: go to" }] }] })!;
+    const lesson = validateLesson({ title: "TCP Three-Way Handshake Explained", scene: "flow", steps: [{ say: "s", items: [{ kind: "node", id: "a", text: "Sorted list" }, { kind: "node", id: "b", text: "Middle element" }, { kind: "node", id: "c", text: "Target" }, { kind: "node", id: "d", text: "Left half" }, { kind: "node", id: "e", text: "Right half" }, { kind: "edge", from: "a", to: "b", text: "has a middle element" }] }, { say: "s", items: [{ kind: "edge", from: "b", to: "c", text: "is compared with the" }, { kind: "edge", from: "c", to: "d", text: "smaller: go to" }, { kind: "edge", from: "c", to: "e", text: "larger: go to" }] }] })!;
     const l = layoutBoard(lesson, 1, "tall");
     expect(l.title.cut).toBe(false);
-    expect(l.title.font).toBeLessThan(24);
+    expect(l.title.font).toBe(21);
+    // on the wide board a label too long for two lines of the gap between neighbours is set wider, not cut
+    const chain = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "node", id: "a", text: "Gradient" }, { kind: "node", id: "b", text: "Error" }, { kind: "node", id: "c", text: "Weights" }, { kind: "node", id: "d", text: "Loss" }, { kind: "edge", from: "a", to: "b", text: "finds steepest drop in" }, { kind: "edge", from: "b", to: "c" }] }, { say: "s", items: [{ kind: "edge", from: "c", to: "d" }] }] })!;
+    const wide = layoutBoard(chain, 1, "wide");
+    expect(wide.edges[0].label!.lines.join(" ")).toBe("finds steepest drop in");
+    expect(layoutProblems(wide)).toEqual([]);
     expect(layoutProblems(l).filter((p) => p.includes("is cut") || p.includes("overlaps"))).toEqual([]);
   });
 
