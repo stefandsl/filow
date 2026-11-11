@@ -35,9 +35,9 @@ const OUTLINE = `<!-- target: 12 min -->
 - Grazie dell'attenzione, ci sono domande?`;
 
 type Chat = { model: string; format: { required: string[] }; messages: Array<{ role: string; content: string }> };
-/** How the fake model answers one chunk: by default every line "translated" as "EN <line>". */
+/** How the fake model answers one chunk: by default every line "translated" as "The <line>". */
 type Answer = (lines: Record<string, string>, call: number, body: Chat) => unknown;
-const translated: Answer = (lines) => Object.fromEntries(Object.entries(lines).map(([k, v]) => [k, `EN ${v}`]));
+const translated: Answer = (lines) => Object.fromEntries(Object.entries(lines).map(([k, v]) => [k, `The ${v}`]));
 
 let net: ReturnType<typeof vi.fn>;
 let answer: Answer;
@@ -88,8 +88,8 @@ describe("a script is translated on this PC by default", () => {
     expect(urls().filter((u) => u.endsWith("/api/chat")).length).toBeGreaterThan(0);
     // not masked: the address reaches the local model as written, and comes back
     expect(JSON.stringify(chats)).toContain("marta@example.invalid");
-    expect(j).toMatchObject({ where: "local", model: "gemma4:e2b (local)", cost: 0, structureKept: true, untranslated: 0, expected: { sections: 3, points: 14 }, got: { sections: 3, points: 14 } });
-    expect(lines(j.text)).toEqual(lines(`${OUTLINE}\n- Scrivi a marta@example.invalid`).map((l) => `EN ${l}`));
+    expect(j).toMatchObject({ where: "local", model: "gemma4:e2b", cost: 0, structureKept: true, untranslated: 0, expected: { sections: 3, points: 14 }, got: { sections: 3, points: 14 } });
+    expect(lines(j.text)).toEqual(lines(`${OUTLINE}\n- Scrivi a marta@example.invalid`).map((l) => `The ${l}`));
   });
   it("the talk's and the sections' time targets stay as they were", async () => {
     const j = await (await translate(post({ text: OUTLINE, to: "en" }))).json();
@@ -125,12 +125,12 @@ describe("a chunk that comes back wrong", () => {
     answer = (l, call) => (call === 1 ? Object.fromEntries(Object.entries(translated(l, call, {} as Chat) as Record<string, string>).slice(1)) : translated(l, call, {} as Chat));
     const j = await (await translate(post({ text: OUTLINE, to: "en" }))).json();
     expect(j).toMatchObject({ untranslated: 0, structureKept: true });
-    expect(lines(j.text)).toEqual(lines(OUTLINE).map((l) => `EN ${l}`));
+    expect(lines(j.text)).toEqual(lines(OUTLINE).map((l) => `The ${l}`));
     expect(chats).toHaveLength(5);
   });
   it("wrong twice: its lines stay in the original and the answer says which section, nothing dropped or invented", async () => {
     // the model merges the two last lines of the second section's first chunk, every time
-    answer = (l, call, body) => (body.messages[1].content.includes("riconoscimento") ? { l1: "EN merged", l2: "EN merged", extra: "an invented point" } : translated(l, call, body));
+    answer = (l, call, body) => (body.messages[1].content.includes("riconoscimento") ? { l1: "The merged", l2: "The merged", extra: "an invented point" } : translated(l, call, body));
     const j = await (await translate(post({ text: OUTLINE, to: "en" }))).json();
     const src = lines(OUTLINE);
     const got = lines(j.text);
@@ -138,7 +138,7 @@ describe("a chunk that comes back wrong", () => {
     expect(j).toMatchObject({ structureKept: true, untranslated: LOCAL_TRANSLATE_CHUNK, untranslatedSections: [2], got: { sections: 3, points: 13 } });
     // the chunk is the source, word for word; the rest is translated
     expect(got.slice(5, 5 + LOCAL_TRANSLATE_CHUNK)).toEqual(src.slice(5, 5 + LOCAL_TRANSLATE_CHUNK));
-    expect(got.filter((l) => l.startsWith("EN "))).toHaveLength(src.length - LOCAL_TRANSLATE_CHUNK);
+    expect(got.filter((l) => l.startsWith("The "))).toHaveLength(src.length - LOCAL_TRANSLATE_CHUNK);
     expect(j.text).not.toContain("invented");
   });
   it("an answer that is not JSON at all is treated the same way", async () => {
@@ -151,7 +151,7 @@ describe("a chunk that comes back wrong", () => {
     answer = (l, call, body) => ({ ...(translated(l, call, body) as Record<string, string>), l2: l.l2 });
     const j = await (await translate(post({ text: "# Titolo\n- Ogni relatore perde il filo\n- Filow ascolta la tua voce", to: "en" }))).json();
     expect(j).toMatchObject({ untranslated: 1, untranslatedSections: [1] });
-    expect(lines(j.text)).toEqual(["EN Titolo", "Ogni relatore perde il filo", "EN Filow ascolta la tua voce"]);
+    expect(lines(j.text)).toEqual(["The Titolo", "Ogni relatore perde il filo", "The Filow ascolta la tua voce"]);
   });
   it("a line in the wrong writing system is not accepted as Russian or Japanese", async () => {
     answer = () => ({ l1: "タイトル", l2: "Every speaker loses the thread at least once" });
@@ -162,6 +162,21 @@ describe("a chunk that comes back wrong", () => {
     const ru = await (await translate(post({ text: "# Titolo\n- Ogni relatore perde il filo", to: "ru" }))).json();
     expect(lines(ru.text)).toEqual(["Заголовок", "Ogni relatore perde il filo"]);
   });
+  it("a sentence reworded in the source language is not accepted as a translation", async () => {
+    // the model "translates" the second line into Italian again, with other words (measured with small models)
+    answer = () => ({ l1: "Title", l2: "Qualsiasi oratore smarrisce il filo del discorso almeno una volta", l3: "Filow listens to your voice and ticks off the points" });
+    const en = await (await translate(post({ text: "# Titolo\n- Ogni relatore perde il filo almeno una volta\n- Filow ascolta la tua voce e spunta i punti", to: "en" }))).json();
+    expect(en).toMatchObject({ untranslated: 1, untranslatedSections: [1] });
+    expect(lines(en.text)).toEqual(["Title", "Ogni relatore perde il filo almeno una volta", "Filow listens to your voice and ticks off the points"]);
+    // and the other way round: English handed back when Italian was asked for
+    answer = () => ({ l1: "Titolo", l2: "Every speaker loses the thread at least once, it happens to you" });
+    const it = await (await translate(post({ text: "# Title\n- Each speaker drops the thread one time or more", to: "it" }))).json();
+    expect(it).toMatchObject({ untranslated: 1 });
+    // a short line, and a line with no small word of any language, are left alone
+    answer = () => ({ l1: "PowerPoint, Markdown e Filow", l2: "Grazie mille" });
+    expect(await (await translate(post({ text: "# PowerPoint, Markdown and Filow\n- Thank you very much", to: "it" }))).json()).toMatchObject({ untranslated: 0 });
+  });
+
   it("markers and line breaks a model adds do not become new points", async () => {
     answer = () => ({ l1: "# Title", l2: "- First\n- Second" });
     const j = await (await translate(post({ text: "# Titolo\n- Primo e secondo", to: "en" }))).json();

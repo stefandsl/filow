@@ -158,6 +158,7 @@ describe("scriptModel: what writes and translates scripts on this PC", () => {
   });
   it("the one already installed wins, and needs no free disk", () => {
     expect(name({ ...machine(32, 16, rtx(8), 1), installed: ["gemma4:e2b"] })).toBe("gemma4:e2b");
+    expect(name({ ...machine(32, 16, rtx(8), 200), installed: ["gemma4:e2b"] }), "no second download while one is there").toBe("gemma4:e2b");
     expect(name({ ...machine(32, 16, rtx(8), 1), installed: ["gemma4:e4b", "gemma4:e2b"] })).toBe("gemma4:e4b");
     expect(name({ ...machine(8, 4, undefined, 1), installed: ["gemma4:e2b"] })).toBe("gemma4:e2b");
   });

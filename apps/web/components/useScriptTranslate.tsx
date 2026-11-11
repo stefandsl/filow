@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@filow/ui";
 import { joinNames, localNames } from "@/lib/buddy/outbound";
 import { localizeFreeLlmError } from "@/lib/freellm";
+import { localAiBusy } from "@/lib/localAiStatus";
 import { getLang } from "@/lib/prefs";
 import { desktopBridge } from "@/lib/sessionUrl";
 import { localUnavailableText, readTranslateWhere, saveTranslateWhere, whereHint, type TranslateState, type TranslateWhere } from "@/lib/translateWhere";
@@ -31,6 +32,8 @@ const LANGS = [["en", "English"], ["it", "Italiano"], ["ru", "Русский"], 
 
 /** How long the editor waits for an Ollama the desktop shell is starting before it says it is not running. */
 const START_WAIT_MS = 45_000;
+/** The shell reports "starting" within this time when it has an Ollama to start. */
+const START_GRACE_MS = 4000;
 
 export function useScriptTranslate(text: string, setText: (text: string) => void) {
   const t = useT();
@@ -94,13 +97,16 @@ export function useScriptTranslate(text: string, setText: (text: string) => void
   /** On this PC. An installed Ollama that is not running is started by the desktop shell first. */
   const runLocal = async () => {
     let now = await check();
-    if (now && !now.local.ok && now.local.reason === "ollama_down" && desktopBridge()?.localAi?.start) {
+    const shell = desktopBridge()?.localAi;
+    if (now && !now.local.ok && now.local.reason === "ollama_down" && shell?.start) {
       setNote(t("editor.localStarting"));
-      desktopBridge()?.localAi?.start?.();
-      const until = Date.now() + START_WAIT_MS;
-      while (alive.current && Date.now() < until && now && !now.local.ok && now.local.reason === "ollama_down") {
-        await new Promise((r) => setTimeout(r, 2000));
+      shell.start();
+      const began = Date.now();
+      while (alive.current && Date.now() - began < START_WAIT_MS && now && !now.local.ok && now.local.reason === "ollama_down") {
+        await new Promise((r) => setTimeout(r, 1500));
         now = await check();
+        // the shell is not starting anything (no Ollama installed, or it is on another computer): do not wait for nothing
+        if (Date.now() - began > START_GRACE_MS && !localAiBusy(await shell.status().catch(() => null))) break;
       }
       if (alive.current) setNote(t("editor.translating"));
     }

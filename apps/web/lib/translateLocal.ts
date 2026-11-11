@@ -70,7 +70,34 @@ function wrongScript(line: string, source: string, language: string): boolean {
   if (language === "Russian" && long && !CYRILLIC.test(line)) return true;
   if (language === "Japanese" && long && !KANA_OR_HAN.test(line)) return true;
   if (language !== "Japanese" && KANA_OR_HAN.test(line) && !KANA_OR_HAN.test(source)) return true;
-  return false;
+  if (language !== "Russian" && CYRILLIC.test(line) && !CYRILLIC.test(source)) return true;
+  return otherLanguage(line, language);
+}
+
+/** Small words that give a language away, for the languages written in Latin letters that a script is translated into. */
+const SMALL_WORDS: Record<string, string[]> = {
+  English: ["the", "and", "you", "your", "is", "are", "with", "for", "this", "that", "it", "of", "to", "when", "if", "at", "by", "from", "as", "we", "there"],
+  Italian: ["il", "lo", "gli", "che", "di", "non", "per", "sono", "con", "del", "della", "una", "sul", "tuo", "tua", "ai", "anche", "senza", "ti", "più", "ci", "nel"],
+  Romanian: ["și", "să", "este", "pentru", "cu", "nu", "din", "pe", "care", "mai", "sunt", "îl", "îți", "ești", "cel", "cei", "când", "dacă", "fără", "către"],
+  German: ["der", "die", "das", "und", "ist", "nicht", "mit", "für", "ein", "eine", "zu", "auf", "den", "sie", "wenn", "dem", "du", "dein", "ohne", "wir"],
+  French: ["le", "les", "et", "est", "pas", "pour", "avec", "une", "des", "du", "vous", "votre", "qui", "sur", "dans", "sans", "nous", "au"],
+  Spanish: ["el", "los", "las", "y", "es", "para", "una", "del", "por", "más", "sin", "cuando", "hay", "al", "su", "nos"],
+};
+
+/**
+ * A sentence in another language than the one asked for: a model that rewords the Italian line in
+ * Italian instead of translating it (measured: translategemma:4b through this prompt, lfm3-vl). Kept
+ * careful so a good line is never refused: at least five words, none of the target language's small
+ * words, and two or more of another language's.
+ */
+function otherLanguage(line: string, language: string): boolean {
+  const target = SMALL_WORDS[language];
+  if (!target) return false;
+  const words = line.toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
+  if (words.length < 5) return false;
+  const hits = (list: string[]) => words.filter((w) => list.includes(w)).length;
+  if (hits(target) > 0) return false;
+  return Object.entries(SMALL_WORDS).some(([name, list]) => name !== language && hits(list) >= 2);
 }
 
 /** One line of an outline as the model returned it, or null when it is not a usable translation of `source`. */

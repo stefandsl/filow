@@ -64,7 +64,7 @@ export async function POST(req: Request) {
       const r = await translateScriptLocal(source, TRANSLATE_LANGS[to], state.model, req.signal);
       return NextResponse.json({
         text: serializeScript(keepTimeTargets(source, r.script)),
-        model: `${r.model} (local)`,
+        model: r.model,
         where: "local",
         cost: 0,
         structureKept: true,
