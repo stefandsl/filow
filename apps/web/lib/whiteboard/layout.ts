@@ -602,8 +602,8 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
     if (b.kind === "cells") {
       // every value is shown in full: a row when it fits, else one value under the other, with a smaller hand if it must
       const widest = Math.max(...b.values.map((v) => textWidth(v, 18)));
-      const cw = Math.max(40, Math.min(64, (notes.w - 8) / b.values.length), widest + 16);
-      if (cw * b.values.length <= notes.w - 8) return { ...base, kind: "cells", values: b.values, pointer: b.pointer, column: false, font: Math.min(20, Math.max(13, cw * 0.42), 18 * ((cw - 12) / Math.max(1, widest))), cut: false, box: { x: notes.x + (notes.w - cw * b.values.length) / 2, y: 0, w: cw * b.values.length, h: 78 } };
+      const cw = Math.max(40, Math.min(64, (notes.w - 8) / b.values.length), widest + 26);
+      if (cw * b.values.length <= notes.w - 8) return { ...base, kind: "cells", values: b.values, pointer: b.pointer, column: false, font: Math.min(20, Math.max(13, cw * 0.42), 18 * ((cw - 22) / Math.max(1, widest))), cut: false, box: { x: notes.x + (notes.w - cw * b.values.length) / 2, y: 0, w: cw * b.values.length, h: 78 } };
       const room = notes.w - 52;
       const font = Math.max(12, Math.min(18, (18 * room) / Math.max(1, widest)));
       const bw = Math.min(notes.w, Math.max(120, textWidth(b.values.reduce((a, v) => (v.length > a.length ? v : a), ""), font) + 52));
