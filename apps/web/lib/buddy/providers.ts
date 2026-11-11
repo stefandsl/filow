@@ -167,10 +167,11 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
         model,
         stream: true,
         // Qwen3-VL and Gemma think out loud by default: minutes of hidden reasoning and sometimes an empty reply.
-        think: false,
+        // BUDDY_LOCAL_THINK=1 (developers, for measuring a thinking model): let it think, and give it room to.
+        think: process.env.BUDDY_LOCAL_THINK === "1",
         keep_alive: "30m",
         // num_predict: a looping small model once ran 5,800 tokens (45 s); a real answer with a drawing is about 500.
-        options: { temperature: shape?.temperature ?? 0.3, num_ctx: 8192, num_predict: shape?.maxTokens ?? 1500 },
+        options: { temperature: shape?.temperature ?? 0.3, num_ctx: 8192, num_predict: (shape?.maxTokens ?? 1500) * (process.env.BUDDY_LOCAL_THINK === "1" ? 4 : 1) },
         // A JSON schema the answer must follow (Ollama structured output), when the caller has one.
         ...(shape?.format ? { format: shape.format } : {}),
         messages: [
@@ -178,7 +179,7 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
           ...history,
           // Gemma reads images placed on the message before the text. Text mode sends no picture at all.
           { role: "user", content: req.question, images: pictures ? req.images.map(base64Of) : [] },
-          ...noThinkPrefill(model),
+          ...(process.env.BUDDY_LOCAL_THINK === "1" ? [] : noThinkPrefill(model)),
         ],
       }),
     });
