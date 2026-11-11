@@ -50,7 +50,7 @@ export function DictationSettings({ lang }: { lang: string }) {
         <input type="checkbox" checked={s.enabled} onChange={(e) => void set({ enabled: e.target.checked })} />
         <span>{t("enabled")}</span>
       </label>
-      {s.enabled && s.copyReason === "nohook" && <div className="dictation-alert" role="alert">{t("copyNohook")}</div>}
+      {s.enabled && (s.hookReady === false || s.copyReason === "nohook") && <div className="dictation-alert" role="alert">{t("copyNohook")}</div>}
 
       <label className="row">
         <span>{t("shortcut")}</span>

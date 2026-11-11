@@ -7,6 +7,7 @@ const { BrowserWindow, Tray, Menu, screen, desktopCapturer, ipcMain, globalShort
 const { keyboardPermission } = require("./mac-permissions");
 const path = require("node:path");
 const { createGestures, chordHeld } = require("./okfilow-gestures");
+const { createHookRetry, describeHookError, QUICK_MS } = require("./okfilow-hook-retry");
 const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
@@ -609,9 +610,9 @@ function createOkFilow(deps) {
     p.webContents.focus();
   }
 
-  let hookAttempts = 0;
-  function startHook() {
-    try {
+  /** Registers the keyboard hook; throws when the system refuses it (hookRetry below tries again). */
+  function registerHook() {
+    {
       // macOS: no hook before the permission is there (mac-permissions.js); the toggle below works meanwhile.
       const missing = keyboardPermission({ platform: process.platform, systemPreferences });
       if (missing) throw Object.assign(new Error(`macOS has not allowed reading the keyboard yet (${missing})`), { permission: missing });
@@ -645,11 +646,13 @@ function createOkFilow(deps) {
       uIOhook.on("keyup", (e) => { if (e.keycode) gestures.keyup(map[e.keycode] || null); });
       // Key-ups on the secure desktop (Win+L, Ctrl+Alt+Del, sleep) never reach the hook: start clean
       // after them. (The modifier flags on hook events are not reliable on Windows: Alt reads false.)
-      // Once only: a failed start is retried (every 2 s, then every 30 s) and must not add listeners each time.
+      // Once only: a failed start is retried (okfilow-hook-retry.js) and must not add listeners each time.
       if (!powerWired) {
         powerWired = true;
         const { powerMonitor } = require("electron");
         for (const ev of ["lock-screen", "unlock-screen", "suspend", "resume"]) powerMonitor.on(ev, () => gestures.reset());
+        // After an unlock or a wake-up Windows often allows the hook again: do not wait out the retry delay.
+        for (const ev of ["unlock-screen", "resume"]) powerMonitor.on(ev, () => hookRetry.nudge());
       }
       uIOhook.on("mousedown", () => {
         gestures.mousedown();
@@ -657,48 +660,50 @@ function createOkFilow(deps) {
       });
       uIOhook.start();
       hook = uIOhook;
+    }
+  }
+  let powerWired = false;
+  // Issue #6: the hook is tried again for as long as Filow runs (four quick tries, then a growing delay, and
+  // at once after unlock, wake-up or a display change); the fallback key works meanwhile and the panel and
+  // Settings say so. When a try succeeds the hold keys are back without a restart.
+  const hookRetry = createHookRetry({
+    start: registerHook,
+    // Windows can refuse the hook for a moment (another app just let go of one): quick tries first.
+    quickFor: (e) => /register|hook/i.test(String((e && e.message) || e)) && !(e && e.permission),
+    onUp: ({ failures }) => {
       hookError = "";
       hookPermission = "";
-      clearTimeout(hookRetryTimer);
       try { globalShortcut.unregister("CommandOrControl+Alt+O"); } catch { /* was not registered */ }
-      retryingQuietly = false;
-      logLine("okfilow: hold-to-talk hook started");
+      logLine(`okfilow: hold-to-talk hook started${failures ? ` (after ${failures} failed ${failures === 1 ? "try" : "tries"}; the hold keys work again)` : ""}`);
       sendPanel("okfilow:config", status());
-    } catch (e) {
+    },
+    onDown: ({ error: e, failures, delayMs, quick, fallback }) => {
       // A start that failed leaves its key listeners on the hook: drop them before any retry adds new ones.
       try { require("uiohook-napi").uIOhook.removeAllListeners(); } catch { /* nothing attached */ }
+      const changed = !hookError;
       hookError = String((e && e.message) || e);
       hookPermission = (e && e.permission) || keyboardPermission({ platform: process.platform, systemPreferences, error: e }) || "";
       if (hookPermission && askKeyboardPermission) void askKeyboardPermission(hookPermission);
-      // Windows can refuse the hook for a moment (another app just let go of one): try again first.
-      hookAttempts += 1;
-      if (!retryingQuietly && hookAttempts < 5 && /register|hook/i.test(hookError)) {
-        logLine(`okfilow: keyboard hook not ready (${hookError}), retry ${hookAttempts} of 4`);
-        setTimeout(startHook, 2000);
-        return;
+      const why = describeHookError(e);
+      if (quick) logLine(`okfilow: keyboard hook not ready (${why}), retry ${failures} of ${QUICK_MS.length}`);
+      else if (fallback) logLine(`okfilow: keyboard hook unavailable (${why}); Ctrl+Alt+O works meanwhile; still trying in the background (next try in ${Math.round(delayMs / 1000)} s, then at most every 60 s, and after unlock, wake-up or a display change)`);
+      else if (failures % 10 === 0) logLine(`okfilow: keyboard hook still unavailable after ${failures} tries (${why}); next try in ${Math.round(delayMs / 1000)} s`);
+      if (fallback) {
+        try {
+          if (!globalShortcut.isRegistered("CommandOrControl+Alt+O")) {
+            globalShortcut.register("CommandOrControl+Alt+O", () => {
+              if (held) return release();
+              held = true;
+              sendPanel("okfilow:press");
+            });
+          }
+        } catch { /* the main hotkey code owns errors */ }
       }
-      if (!retryingQuietly) logLine(`okfilow: keyboard hook unavailable (${hookError}); falling back to Ctrl+Alt+O toggle`);
-      try {
-        if (!globalShortcut.isRegistered("CommandOrControl+Alt+O")) {
-          globalShortcut.register("CommandOrControl+Alt+O", () => {
-            if (held) return release();
-            held = true;
-            sendPanel("okfilow:press");
-          });
-        }
-      } catch { /* the main hotkey code owns errors */ }
-      // Keep trying in the background: hold-to-talk comes back as soon as Windows allows the hook.
-      clearTimeout(hookRetryTimer);
-      hookRetryTimer = setTimeout(() => {
-        hookAttempts = 0;
-        retryingQuietly = true;
-        startHook();
-      }, 30_000);
-    }
-  }
-  let hookRetryTimer = null;
-  let powerWired = false;
-  let retryingQuietly = false;
+      // The panel and Settings say that the hold keys are unavailable and which key works meanwhile.
+      if (changed || fallback) sendPanel("okfilow:config", status());
+    },
+  });
+  const startHook = () => hookRetry.attempt();
 
   // ---- screenshots ----
   async function capture() {
@@ -967,6 +972,8 @@ function createOkFilow(deps) {
     screen.on("display-added", () => visible && buildOverlays());
     screen.on("display-removed", () => buildOverlays());
     screen.on("display-metrics-changed", () => buildOverlays());
+    // A display change (docking, a remote session taking over) is another moment the hook may register again.
+    for (const ev of ["display-added", "display-removed", "display-metrics-changed"]) screen.on(ev, () => hookRetry.nudge());
     if (cfg().enabled && cfg().showAlways) showOverlays();
     // First run: the panel says hello and circles the tray icon, once (HeyClicky's intro).
     if (cfg().enabled && !cfg().onboarded) {
@@ -980,7 +987,7 @@ function createOkFilow(deps) {
     try { agents.dispose(); } catch { /* quitting */ }
     outbound.clear();
     if (modelWin && !modelWin.isDestroyed()) modelWin.destroy();
-    clearTimeout(hookRetryTimer);
+    hookRetry.stop();
     try { hook?.stop(); } catch { /* quitting */ }
     stopCursor();
     clearTimeout(fadeTimer);

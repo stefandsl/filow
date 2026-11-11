@@ -64,6 +64,8 @@ function createDictation(deps) {
       talkLabel: core.chordLabel(talkHotkey || "", platform),
       check,
       /** "paste" when key presses can reach other apps here; else "copy" and the reason. */
+      /** False while the keyboard hook is not registered: the dictation keys do nothing (okfilow.js keeps trying). */
+      hookReady: hook !== false,
       canPaste: decision.action === "paste",
       copyReason: decision.reason,
       modelReady,

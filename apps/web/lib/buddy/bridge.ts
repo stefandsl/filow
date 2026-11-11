@@ -22,6 +22,8 @@ export type DictationStatus = {
   talk: string;
   talkLabel: string;
   check: { ok: boolean; conflict: "same" | "overlap" | "invalid" | null; warnings: Array<"altgr" | "layout"> };
+  /** False while the keyboard hook is not registered, so the dictation keys do nothing (missing on older builds). */
+  hookReady?: boolean;
   canPaste: boolean;
   copyReason: "" | "setting" | "nohook" | "wayland" | "accessibility";
   modelReady: boolean | null;

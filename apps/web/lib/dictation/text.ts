@@ -30,7 +30,7 @@ const en = {
   togglesHandsFree: "Tap the keys twice to dictate hands-free: Filow types each phrase when you pause, until you press the keys once more or Escape. A dictation nobody stops ends after 5 minutes.",
   copyWayland: "On this desktop (Wayland) apps cannot press keys in other apps, so the words are only copied: press Ctrl + V to paste them.",
   copyAccessibility: "macOS needs the Accessibility permission before Filow can type into other apps. Until you allow it, the words are copied: press Command + V to paste them.",
-  copyNohook: "Windows did not let Filow watch the keyboard yet, so the keys do nothing for now. Filow tries again every 30 seconds; restarting Filow also helps.",
+  copyNohook: "Filow cannot watch the keyboard yet, so the dictation keys do nothing for now. Filow keeps trying in the background and the keys start working by themselves, with no restart. Meanwhile you can still ask OK Filow a question with Ctrl + Alt + O.",
   modelMissing: "No speech model for this language is on this computer yet. Download it in the speech section above; dictation works after that.",
   modelReady: "Speech model ready on this computer.",
   // Panel and overlay
@@ -77,7 +77,7 @@ const it: Record<DictationKey, string> = {
   togglesHandsFree: "Tocca i tasti due volte per dettare a mani libere: Filow scrive ogni frase quando fai una pausa, finché non premi di nuovo i tasti o Esc. Una dettatura che nessuno ferma finisce dopo 5 minuti.",
   copyWayland: "Su questo desktop (Wayland) le app non possono premere tasti in altre app, quindi le parole vengono solo copiate: premi Ctrl + V per incollarle.",
   copyAccessibility: "macOS chiede il permesso Accessibilità prima che Filow possa scrivere in altre app. Finché non lo concedi, le parole vengono copiate: premi Comando + V per incollarle.",
-  copyNohook: "Windows non ha ancora permesso a Filow di seguire la tastiera, quindi per ora i tasti non fanno nulla. Filow riprova ogni 30 secondi; anche riavviare Filow aiuta.",
+  copyNohook: "Filow non riesce ancora a seguire la tastiera, quindi per ora i tasti della dettatura non fanno nulla. Filow continua a riprovare in background e i tasti tornano a funzionare da soli, senza riavviare. Intanto puoi fare una domanda a OK Filow con Ctrl + Alt + O.",
   modelMissing: "Su questo computer non c'è ancora un modello vocale per questa lingua. Scaricalo nella sezione della voce qui sopra; poi la dettatura funziona.",
   modelReady: "Modello vocale pronto su questo computer.",
   dictating: "Sto dettando… lascia per scriverlo",

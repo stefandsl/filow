@@ -101,7 +101,7 @@ text would come out wrong; the clipboard handles every script.
 |---|---|---|
 | Linux Wayland session | apps cannot send key presses to other apps | "only copied: press Ctrl + V" |
 | macOS without Accessibility | Command + V cannot be sent | a plain prompt once per run with "Open Accessibility settings" (opens Privacy & Security > Accessibility); copied meanwhile |
-| The keyboard hook did not start | no shortcut, no key presses | Settings says so; Filow retries every 30 s |
+| The keyboard hook did not start | no shortcut, no key presses | Settings and the OK Filow panel say so and name the key that works meanwhile (Ctrl + Alt + O for questions); Filow keeps trying (okfilow-hook-retry.js: four quick tries, then 5, 10, 20, 30 s and every 60 s, and at once after unlock, wake-up or a display change) and the keys come back without a restart |
 | A Filow window has focus, but no text field | nowhere to type | "Copied. Press Ctrl + V to paste it" |
 | The paste keys could not be sent, or the user's keys stayed down for 2 s | no paste | the words stay on the clipboard (losing what was said would be worse than losing the older clipboard content) and the bubble says so |
 | "Only copy them" chosen | the user's choice | "Copied. Press Ctrl + V to paste it" |

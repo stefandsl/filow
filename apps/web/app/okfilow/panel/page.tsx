@@ -742,6 +742,8 @@ export default function OkFilowPanel() {
       </p>
       {c?.hook !== "toggle" && <p className="okf-hint">{t("hintMore")}{dictHint ? ` ${dictHint}` : ""}{hotkey ? ` ${dictT("handsFreeQuestions", { talk: hotkey })}` : ""}</p>}
       {c?.hookPermission && <p className="okf-hint">{t(c.hookPermission === "accessibility" ? "hintMacAccessibility" : "hintMacInput")}</p>}
+      {/* Issue #6: the keyboard hook is not registered (Filow keeps trying): say so, and which key works meanwhile. */}
+      {c?.hook === "toggle" && c.hookError && !c.hookPermission && <p className="okf-note okf-hookdown" role="status">{t("hookDown").replace("{key}", hotkey ?? "")}</p>}
       {handsFreeOn && (
         <p className="okf-handsfree" role="status">
           {t("handsFreeOn")}
