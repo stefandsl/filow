@@ -55,9 +55,23 @@
 @keyframes wb-draw { to { stroke-dashoffset: 0; } }
 @keyframes wb-fade { from { opacity: 0; } to { opacity: 1; } }
 .wb-formula .katex-display { margin: 0; }
+/* The voice drives the clock: each new thing of the step is drawn in its own slot of the time the
+   sentence takes (--wb-at, --wb-len, set by the board from lib/whiteboard/pace.ts). The strokes of
+   a thing come first, then what is written in it, left to right. */
+@media (prefers-reduced-motion: no-preference) {
+  .wb-timed .wb-new .wb-stroke, .wb-timed .wb-new.wb-stroke { animation: wb-draw calc(var(--wb-len, 800ms) * 0.6) linear forwards; animation-delay: var(--wb-at, 0ms) !important; }
+  .wb-timed .wb-new .wb-fade, .wb-timed .wb-new.wb-fade { animation: wb-fade calc(var(--wb-len, 800ms) * 0.5) ease-out both; animation-delay: calc(var(--wb-at, 0ms) + var(--wb-len, 800ms) * 0.3); }
+  .wb-timed .wb-new text.wb-fade, .wb-timed .wb-new .wb-fade text { animation: wb-write calc(var(--wb-len, 800ms) * 0.55) linear both; animation-delay: calc(var(--wb-at, 0ms) + var(--wb-len, 800ms) * 0.45); }
+}
+@keyframes wb-write { from { clip-path: inset(-20% 100% -20% 0); } to { clip-path: inset(-20% -5% -20% 0); } }
+/* The step is over (paused, stepped by hand, or the voice has ended): the board is complete, nothing mid-stroke. */
+.wb-board.wb-rest .wb-new .wb-stroke, .wb-board.wb-rest .wb-new.wb-stroke, .wb-board.wb-rest .wb-new .wb-fade, .wb-board.wb-rest .wb-new.wb-fade, .wb-board.wb-rest .wb-new text { animation: none !important; stroke-dasharray: none; stroke-dashoffset: 0; opacity: 1; clip-path: none; }
+/* Chalk: a softer, slightly broken line. */
+.wb-chalk .wb-stroke { opacity: 0.94; }
+.wb-look { margin-left: 0; }
 @media (prefers-reduced-motion: reduce) {
   .wb-node { transition: none; }
-  .wb-new .wb-stroke, .wb-new.wb-stroke, .wb-new .wb-fade, .wb-new.wb-fade { animation: none; stroke-dasharray: none; stroke-dashoffset: 0; }
+  .wb-new .wb-stroke, .wb-new.wb-stroke, .wb-new .wb-fade, .wb-new.wb-fade, .wb-new text { animation: none; stroke-dasharray: none; stroke-dashoffset: 0; clip-path: none; }
   .wb-progress > span { transition: none; }
 }
 .wb-plain .wb-node { transition: none; }

@@ -222,6 +222,35 @@ try {
     check("the cloud lesson with a sketch passes axe at 360 px", Array.isArray(cloudAxe) && cloudAxe.length === 0, (cloudAxe || []).join("; "));
     await setTheme("dark");
 
+    // 7b. The pen keeps time with the sentence, the board has two looks, and the lesson can be saved as a video.
+    await clickButton("/^(Play|Riproduci)$/");
+    await sleep(250);
+    const timed = await page.evaluate(`(() => { const svg = document.querySelector("svg.wb-board"); const f = document.querySelector(".wb-frame"); return { cls: svg.getAttribute("class"), stepMs: Number(f.dataset.stepMs || 0), slots: [...svg.querySelectorAll(".wb-new")].filter((e) => (e.getAttribute("style") || "").includes("--wb-at")).length }; })()`);
+    check("a step that is being said draws its new things over the time of its sentence", /wb-timed/.test(timed.cls) && !/wb-rest/.test(timed.cls) && timed.stepMs >= 1200 && timed.slots >= 1, JSON.stringify(timed));
+    await clickButton("/^(Pause|Pausa)$/");
+    await sleep(200);
+    const rested = await page.evaluate(`(() => { const svg = document.querySelector("svg.wb-board"); return { cls: svg.getAttribute("class"), open: [...svg.querySelectorAll(".wb-new .wb-stroke")].filter((e) => parseFloat(getComputedStyle(e).strokeDashoffset) > 0).length }; })()`);
+    check("paused, the board stands complete: no stroke is left half drawn", /wb-rest/.test(rested.cls) && rested.open === 0, JSON.stringify(rested));
+    const lookOf = () => page.evaluate(`(() => { const f = document.querySelector(".wb-frame"); return { look: f.dataset.look, board: document.querySelector("svg.wb-board > rect").getAttribute("fill"), chalk: document.querySelector("svg.wb-board").classList.contains("wb-chalk") }; })()`);
+    const lookBefore = await lookOf();
+    await page.evaluate(`document.querySelector('main.wb-page [data-action="look"]').click(); true`);
+    await sleep(300);
+    const lookAfter = await lookOf();
+    check("the switch changes the board between whiteboard and blackboard", lookBefore.look !== lookAfter.look && lookBefore.board !== lookAfter.board && lookBefore.chalk !== lookAfter.chalk, JSON.stringify([lookBefore, lookAfter]));
+    await shot(`look-${lookAfter.look}-1264`, 1264, 800);
+    const lookAxe = await axe();
+    check("the other look passes axe", Array.isArray(lookAxe) && lookAxe.length === 0, (lookAxe || []).join("; "));
+    await page.evaluate(`document.querySelector('main.wb-page [data-action="look"]').click(); true`);
+    await sleep(200);
+    // the video: the file is caught in the page, not saved to disk
+    await page.evaluate(`(() => { window.__video = []; const orig = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (this.download && /\\.webm$/.test(this.download)) window.__video.push(this.download); else orig.call(this); }; document.querySelector('main.wb-page [data-action="video"]').click(); return true; })()`);
+    await sleep(1200);
+    check("Save video plays the lesson again from its first step while it records", await page.evaluate(`document.querySelector("main.wb-page").dataset.recording === "true" && document.querySelector("svg.wb-board").dataset.step === "0"`));
+    const video = await waitFor(() => page.evaluate(`document.querySelector("main.wb-page").dataset.video || ""`), 120_000);
+    const videoNote = await page.evaluate(`document.querySelector('main.wb-page p.wb-note[role="status"]')?.textContent ?? ""`);
+    const frames = Number(/frames=(\d+)/.exec(video || "")?.[1] ?? 0);
+    const bytes = Number(/bytes=(\d+)/.exec(video || "")?.[1] ?? 0);
+    check("the lesson is saved as a WebM video made in the app, with the sentences as captions when no voice can be recorded", /^video\/webm/.test(video || "") && frames >= 30 && bytes > 40_000 && /sound=false/.test(video) && (await page.evaluate(`window.__video.length`)) === 1 && videoNote.length > 20, `${video} | ${videoNote.slice(0, 80)}`);
     // 8. A cloud account that hides names: no lesson, the reason, and the way back to this PC.
     const sentBefore = cloudCalls().length;
     await setInput(0, "The Krebs cycle");

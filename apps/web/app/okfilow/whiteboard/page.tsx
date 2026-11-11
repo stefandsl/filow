@@ -10,14 +10,16 @@ import { okFilowBridge, type OkFilowStatus } from "@/lib/buddy/bridge";
 import { okfText, OLLAMA_STOPPED_ANSWER, type OkfKey } from "@/lib/buddy/text";
 import { askRoute, askRouteRecipient, changesStored, type AskRoute, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
-import { createSpeaker } from "@/lib/buddy/voice";
+import { createSpeaker, webAudioPlayer } from "@/lib/buddy/voice";
 import { freellmCodeOf, localizeFreeLlmError } from "@/lib/freellm";
 import { getSetupPreference } from "@/lib/prefs";
-import { Board, BOARD_PALETTES } from "@/components/whiteboard/Board";
+import { Board, BOARD_PALETTES, type BoardLook } from "@/components/whiteboard/Board";
 import { initialLesson, lessonReducer, readLessonStream } from "@/lib/whiteboard/client";
-import { boardPng, fileStem, saveBlob } from "@/lib/whiteboard/export";
+import { boardPng, fileStem, formulaCss, saveBlob } from "@/lib/whiteboard/export";
+import { createRecorder, type LessonRecorder } from "@/lib/whiteboard/video";
 import { layoutBoard, type BoardShape } from "@/lib/whiteboard/layout";
 import { LIMITS, lessonMarkdown, validateLesson } from "@/lib/whiteboard/lesson";
+import { PaceMeter, drawMsFor, stepSchedule } from "@/lib/whiteboard/pace";
 import { initialPlayer, playerReducer, readingMs } from "@/lib/whiteboard/player";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { wbText, type WbKey } from "@/lib/whiteboard/text";
@@ -26,6 +28,7 @@ import "../outbound.css";
 import "./whiteboard.css";
 
 const REPLAY_KEY = "filow.whiteboard.replay";
+const LOOK_KEY = "filow.whiteboard.look";
 const EXAMPLES: WbKey[] = ["example1", "example2", "example3", "example4"];
 
 export default function WhiteboardPage() {
@@ -45,6 +48,20 @@ export default function WhiteboardPage() {
   const [snap, setSnap] = useState<OutboundSnapshot | null>(null);
   const [shape, setShape] = useState<BoardShape>("wide");
   const [theme, setTheme] = useState<"light" | "dark">("dark");
+  // The look of the board: a whiteboard or a blackboard. It follows the app's theme until the user picks one here.
+  const [look, setLook] = useState<"auto" | BoardLook>("auto");
+  const board: BoardLook = look === "auto" ? theme : look;
+  // How long this voice takes to say a sentence, learned as the lesson is spoken (lib/whiteboard/pace.ts).
+  const meter = useMemo(() => new PaceMeter(), []);
+  /** The turn whose sentence has been said to its end: its drawing is complete. */
+  const [saidTurn, setSaidTurn] = useState(-1);
+  // A lesson being saved as a video (lib/whiteboard/video.ts).
+  const recorderRef = useRef<LessonRecorder | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [videoInfo, setVideoInfo] = useState<{ bytes: number; frames: number; sound: boolean; type: string } | null>(null);
+  const captionRef = useRef("");
+  const boardRef = useRef<BoardLook>("dark");
+  boardRef.current = board;
   const [ls, dispatchLesson] = useReducer(lessonReducer, initialLesson);
   const [player, dispatchPlayer] = useReducer(playerReducer, initialPlayer);
   const lsRef = useRef(ls);
@@ -104,7 +121,7 @@ export default function WhiteboardPage() {
   langRef.current = lang;
   // The voices of OK Filow (natural on this PC, the system voice). No cloud voice from this page:
   // without `cloudAudio` the speaker falls back to the system voice and sends nothing.
-  const speaker = useMemo(() => createSpeaker({ bridge: okFilowBridge, status: () => statusRef.current, isCurrent: (id) => turnRef.current === id, uiLang: () => langRef.current }), []);
+  const speaker = useMemo(() => createSpeaker({ player: () => recorderRef.current?.player() ?? webAudioPlayer(), bridge: okFilowBridge, status: () => statusRef.current, isCurrent: (id) => turnRef.current === id, uiLang: () => langRef.current }), []);
 
   const ask = useCallback(async (raw: string, more: boolean) => {
     const text = raw.trim().slice(0, LIMITS.question);
@@ -243,6 +260,10 @@ export default function WhiteboardPage() {
     const root = document.documentElement;
     const read = () => setTheme(root.dataset.theme === "light" ? "light" : "dark");
     read();
+    try {
+      const kept = localStorage.getItem(LOOK_KEY);
+      if (kept === "light" || kept === "dark") setLook(kept);
+    } catch { /* no storage: the board follows the theme */ }
     const watch = new MutationObserver(read);
     watch.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
     const narrow = window.matchMedia("(max-width: 700px)");
@@ -269,6 +290,7 @@ export default function WhiteboardPage() {
   // One step: speak its sentence (or give it reading time), then tell the player it is done.
   const say = player.index >= 0 ? ls.lesson?.steps[player.index]?.say ?? "" : "";
   const lessonLang = ls.meta?.lang;
+  captionRef.current = say;
   const speaking = player.phase === "showing" && player.playing;
   useEffect(() => {
     if (!speaking) return;
@@ -281,6 +303,9 @@ export default function WhiteboardPage() {
       const started = performance.now();
       void speaker.speak(say, turn, { lang: lessonLang }).catch(() => {}).then(() => {
         if (over) return;
+        // the voice has ended: what is left of the drawing is completed at once, and the clock learns this voice
+        setSaidTurn(turn);
+        meter.learn(say, performance.now() - started);
         // No voice spoke (none installed, or it failed at once): leave time to read instead.
         timer = setTimeout(finish, performance.now() - started < 500 ? readingMs(say) : 450);
       });
@@ -290,7 +315,7 @@ export default function WhiteboardPage() {
       clearTimeout(timer);
       speaker.stop();
     };
-  }, [speaking, player.turn, say, voiceOn, lessonLang, speaker]);
+  }, [speaking, player.turn, say, voiceOn, lessonLang, speaker, meter]);
 
   // How long after its data arrived a step was on the board (only when the board was waiting for it).
   useEffect(() => {
@@ -310,8 +335,16 @@ export default function WhiteboardPage() {
   const layout = useMemo(() => (ls.lesson && player.index >= 0 ? layoutBoard(ls.lesson, player.index, shape) : null), [ls.lesson, player.index, shape]);
   const busy = ls.phase === "planning" || ls.phase === "drawing";
   const lite = Boolean(ls.meta?.lite);
+  // The drawing of the step being said takes the time of its sentence: measured from this voice, or the reading time with the voice off.
+  const stepMs = speaking && say ? (voiceOn ? meter.estimate(say) : readingMs(say)) : 0;
+  const timing = useMemo(() => (layout && stepMs && !lite ? stepSchedule(layout, player.index, drawMsFor(stepMs)) : undefined), [layout, stepMs, lite, player.index]);
+  const rest = !speaking || saidTurn === player.turn;
   const offline = Boolean(status?.offline);
 
+  const chooseLook = (next: BoardLook) => {
+    setLook(next);
+    try { localStorage.setItem(LOOK_KEY, next); } catch { /* private mode: the choice lasts for this page */ }
+  };
   const onAsk = (ev: FormEvent) => {
     ev.preventDefault();
     void ask(question, false);
@@ -332,7 +365,52 @@ export default function WhiteboardPage() {
       setNote(t("exportFailed"));
     }
   };
-  const saveMd = () => {
+  // The lesson as a video: it is played again from its first step while the board is recorded
+  // (lib/whiteboard/video.ts). The natural voice of this PC goes into the video; any other voice
+  // cannot be recorded by a page, so the video is then silent and carries the sentences as captions.
+  const startVideo = async () => {
+    const svg = frame.current?.querySelector<SVGSVGElement>("svg.wb-board");
+    if (!svg || !ls.lesson) return;
+    const natural = voiceOn && statusRef.current?.voice === "natural" && Boolean(okFilowBridge()?.tts);
+    const made = createRecorder({
+      board: () => frame.current?.querySelector<SVGSVGElement>("svg.wb-board") ?? null,
+      caption: () => captionRef.current,
+      colours: () => ({ page: BOARD_PALETTES[boardRef.current].board, ink: BOARD_PALETTES[boardRef.current].ink }),
+      css: () => formulaCss(svg),
+      sound: natural,
+    });
+    if (!made) {
+      setNote(t("videoUnsupported"));
+      return;
+    }
+    recorderRef.current = made;
+    setRecording(true);
+    setNote(t("videoRecording"));
+    await made.start();
+    dispatchPlayer({ type: "goto", index: 0 });
+  };
+  const endVideo = async (save: boolean) => {
+    const made = recorderRef.current;
+    if (!made) return;
+    recorderRef.current = null;
+    setRecording(false);
+    const blob = await made.stop();
+    if (!save || !ls.lesson) {
+      setNote("");
+      return;
+    }
+    saveBlob(blob, `${fileStem(ls.lesson.title)}.webm`);
+    setVideoInfo({ bytes: blob.size, frames: made.frames(), sound: made.sound, type: blob.type });
+    setNote(t(made.sound ? "videoSavedVoice" : "videoSavedSilent"));
+  };
+  // The lesson has played to its end: the recording ends with it, after a moment on the finished board.
+  const endVideoRef = useRef(endVideo);
+  endVideoRef.current = endVideo;
+  useEffect(() => {
+    if (!recording || player.phase !== "done") return;
+    const timer = setTimeout(() => void endVideoRef.current(true), 900);
+    return () => clearTimeout(timer);
+  }, [recording, player.phase]);  const saveMd = () => {
     if (!ls.lesson) return;
     saveBlob(new Blob([lessonMarkdown(ls.lesson, { step: t("mdStep"), drawing: t("mdBoard") })], { type: "text/markdown;charset=utf-8" }), `${fileStem(ls.lesson.title)}.md`);
     setNote(t("saved"));
@@ -355,7 +433,7 @@ export default function WhiteboardPage() {
   const errorText = !ls.error ? "" : ls.error.code === "plan" ? t("errPlan") : ls.error.code === "stalled" ? t("errStalled") : ls.error.code === "busy" ? t("errBusy") : ls.error.code === "topic" ? t("errTopic") : ls.error.code === "redacted" ? t("errRedacted", { what: placeholderLeaks(ls.error.message, "").join(", ") || "[...]" }) : ls.error.code === "no_local_helper" ? ls.error.message : OLLAMA_STOPPED_ANSWER.test(ls.error.message) ? okfT("ollamaStopped") : ls.error.code.startsWith("freellm") || freellmCodeOf(ls.error.message) ? localizeFreeLlmError(ls.error.message, lang) : t("errGeneric", { message: ls.error.message });
 
   return (
-    <main className={`wb-page${lite ? " wb-plain" : ""}`} data-phase={ls.phase} data-player={player.phase} data-shown-ms={shownMs ?? undefined}>
+    <main className={`wb-page${lite ? " wb-plain" : ""}`} data-phase={ls.phase} data-player={player.phase} data-recording={recording || undefined} data-video={videoInfo ? `${videoInfo.type};bytes=${videoInfo.bytes};frames=${videoInfo.frames};sound=${videoInfo.sound}` : undefined} data-shown-ms={shownMs ?? undefined}>
       <header className="wb-head">
         <h1>{t("title")}</h1>
         {ls.meta && <span className="wb-chip" data-source={ls.meta.provider}>{t(ls.meta.provider === "cloud" ? "source_cloud" : ls.meta.provider === "freellm" ? "source_free" : "source_local", { model: ls.meta.model })}</span>}
@@ -407,12 +485,14 @@ export default function WhiteboardPage() {
       )}
 
       <section className="wb-stage" aria-label={t("title")}>
-        <div className="wb-frame" ref={frame} style={layout ? { background: BOARD_PALETTES[theme].board } : undefined}>
+        <div className="wb-frame" ref={frame} data-look={board} data-step-ms={stepMs || undefined} style={layout ? { background: BOARD_PALETTES[board].board } : undefined}>
           {layout ? (
             <Board
               layout={layout}
               current={player.index}
-              palette={BOARD_PALETTES[theme]}
+              palette={BOARD_PALETTES[board]}
+              timing={timing}
+              rest={rest}
               sketchy={!lite}
               label={t("boardLabel", { title: ls.lesson?.title ?? "" })}
               onPick={busy ? undefined : (_id, text) => void ask(t("againAsk", { name: text }), true)}
@@ -440,9 +520,11 @@ export default function WhiteboardPage() {
               <button type="button" className="wb-btn" onClick={() => dispatchPlayer({ type: "next" })} disabled={player.index + 1 >= stepCount}>{t("next")}</button>
               <button type="button" className="wb-btn" onClick={() => dispatchPlayer({ type: "replay" })} disabled={player.index < 0}>{t("replay")}</button>
               <button type="button" className="wb-btn" aria-pressed={voiceOn} onClick={() => setVoiceOn((v) => !v)}>{voiceOn ? t("voiceOn") : t("voiceOff")}</button>
+            <button type="button" className="wb-btn wb-look" data-action="look" title={t("lookSwitch")} onClick={() => chooseLook(board === "dark" ? "light" : "dark")}>{t(board === "dark" ? "lookBlack" : "lookWhite")}</button>
               <span className="wb-grow" />
               <button type="button" className="wb-btn" onClick={() => void savePng()} disabled={!layout}>{t("exportPng")}</button>
               <button type="button" className="wb-btn" onClick={saveMd} disabled={stepCount === 0}>{t("exportMd")}</button>
+            <button type="button" className="wb-btn" data-action="video" aria-pressed={recording} onClick={() => void (recording ? endVideo(false) : startVideo())} disabled={!layout || busy}>{recording ? t("videoStop") : t("exportVideo")}</button>
             </div>
             {/* The local model explains correctly but its boards miss the main relations too often (docs/whiteboard/PROOF.md, round 3): the page says so. Never a switch: only words. */}
             {ls.meta?.provider === "local" && <p className="wb-note" data-advice="cloud">{t("localSimple")}</p>}
