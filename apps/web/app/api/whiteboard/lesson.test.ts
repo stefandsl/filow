@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "./lesson/route";
+import { WHITEBOARD_MODELS } from "@/lib/whiteboard/models";
 import { CHECKS, RETRY, StallError, TIMEOUTS, boardShows, generateLocal, missingNames, orphanBoxes, placeNotes, readArrowVerdicts, readVerdicts, texOk, validatePlan, type Ask, type LessonEvent } from "@/lib/whiteboard/generate";
 import { validateLesson } from "@/lib/whiteboard/lesson";
 import * as sysinfo from "@/lib/sysinfo";
@@ -503,7 +504,7 @@ describe("whiteboard lesson, cloud model", () => {
     const ask = async (question: string, answers: string[], extra: Record<string, unknown> = {}) => {
       calls = [];
       cloudAnswers = answers;
-      return events(await post({ question, provider: "cloud", ...extra }, "ask:openrouter/google"));
+      return events(await post({ question, provider: "cloud", ...extra }, "ask:openrouter/anthropic"));
     };
     const WRONG = OHM("receives").replace("Current is measured in volts.", "Twice the sum is (3+4)*2 = 12, and current is measured in volts.");
 
@@ -628,7 +629,7 @@ describe("whiteboard lesson, cloud model", () => {
       // each run is looked at on its own
       calls = [];
       cloudAnswers = answers;
-      return events(await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/google"));
+      return events(await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/anthropic"));
     };
     const edges = (ev: LessonEvent[]) => stepsOf(ev).flatMap((s) => s.items).filter((i) => i.kind === "edge");
 
@@ -725,7 +726,7 @@ describe("whiteboard lesson, cloud model", () => {
 
     it("shows no lesson when a service on the way hid a name of the question behind a placeholder, and says so", async () => {
       cloudAnswers = [JSON.stringify({ topic: "The [PERSON_NAME] cycle is a cycle.", title: "The [PERSON_NAME] Cycle", scene: "cycle", steps: [{ say: "Carbon moves through the air.", items: [{ kind: "node", id: "a", text: "Air" }] }, { say: "Plants take it in.", items: [{ kind: "node", id: "p", text: "Plants" }] }] })];
-      const ev = await events(await post({ question: "The Krebs cycle in outline", provider: "cloud" }, "ask:openrouter/google"));
+      const ev = await events(await post({ question: "The Krebs cycle in outline", provider: "cloud" }, "ask:openrouter/anthropic"));
       expect(ev.map((e) => e.type)).toEqual(["start", "error"]);
       expect(ev[1]).toMatchObject({ code: "redacted" });
       expect(JSON.stringify(ev)).toContain("[PERSON_NAME]");
@@ -733,7 +734,7 @@ describe("whiteboard lesson, cloud model", () => {
       expect(outside()).toHaveLength(3);
       // brackets the learner wrote are not a placeholder of the service
       cloudAnswers = [JSON.stringify({ topic: "What [PERSON_NAME] means in a template.", title: "The [PERSON_NAME] tag", scene: "flow", steps: [{ say: "A tag stands for a name.", items: [{ kind: "node", id: "t", text: "Tag" }, { kind: "node", id: "n", text: "Name" }, { kind: "edge", from: "t", to: "n", text: "stands for" }] }, { say: "It is filled in later.", items: [{ kind: "mark", target: "n" }] }] }), ...review([true, true], ["ok"])];
-      const own = await events(await post({ question: "what does [PERSON_NAME] mean in a template?", provider: "cloud" }, "ask:openrouter/google"));
+      const own = await events(await post({ question: "what does [PERSON_NAME] mean in a template?", provider: "cloud" }, "ask:openrouter/anthropic"));
       expect(own[own.length - 1]).toMatchObject({ type: "done" });
     });
 
@@ -741,7 +742,7 @@ describe("whiteboard lesson, cloud model", () => {
       const KREBS = JSON.stringify({ topic: "The Krebs cycle turns acetyl-CoA into energy carriers.", title: "The Krebs cycle", scene: "cycle", steps: [{ say: "Acetyl-CoA joins oxaloacetate.", items: [{ kind: "node", id: "a", text: "Acetyl-CoA" }, { kind: "node", id: "o", text: "Oxaloacetate" }, { kind: "edge", from: "a", to: "o", text: "joins" }] }, { say: "Citrate forms.", items: [{ kind: "node", id: "c", text: "Citrate" }, { kind: "edge", from: "o", to: "c", text: "becomes" }] }] });
       const CARBON = JSON.stringify({ topic: "The carbon cycle moves carbon.", title: "The carbon cycle", scene: "cycle", steps: [{ say: "Plants take in carbon dioxide.", items: [] }, { say: "Animals breathe it out.", items: [] }] });
       cloudAnswers = [CARBON, CARBON, ...review([true, true], []), KREBS, ...review([true, true], ["ok", "ok"])];
-      const ev = await events(await post({ question: "The Krebs cycle in outline", provider: "cloud" }, "ask:openrouter/google"));
+      const ev = await events(await post({ question: "The Krebs cycle in outline", provider: "cloud" }, "ask:openrouter/anthropic"));
       expect(ev[1]).toMatchObject({ title: "The Krebs cycle" });
       expect(JSON.stringify(outside()[3].body.messages)).toContain("never mentions Krebs");
       expect(missingNames("Ohm's law", "ohm's law explained")).toEqual([]);
@@ -814,12 +815,12 @@ describe("whiteboard lesson, cloud model", () => {
           if (busy-- > 0) return new Response(JSON.stringify({ error: { message: "temporarily rate-limited upstream" } }), { status: 429 });
           return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: answers.shift() ?? "" } }] })}\n\ndata: [DONE]\n\n`);
         }));
-        const ev = await events(await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/google"));
+        const ev = await events(await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/anthropic"));
         expect(ev[ev.length - 1]).toMatchObject({ type: "done" });
         expect(calls).toHaveLength(6);
         calls = [];
         busy = 99;
-        const down = await events(await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/google"));
+        const down = await events(await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/anthropic"));
         expect(down.map((e) => e.type)).toEqual(["start", "error"]);
         expect(down[1]).toMatchObject({ code: "busy" });
         // four tries, all to the same recipient, none to this PC's model
@@ -852,7 +853,7 @@ describe("whiteboard lesson, cloud model", () => {
       wrote.steps[1].items.push({ kind: "plot", expr: "not a function ((" });
       const answers = () => [JSON.stringify(wrote), review([true, true, true], [])[0], JSON.stringify({ arrows: [{ n: 1, verdict: "reversed", label: "pushes" }, { n: 2, verdict: "true" }, { n: 3, verdict: "false" }] })];
       cloudAnswers = answers();
-      const ev = await events(await post({ question: "Ohm's law", provider: "cloud", audit: true }, "ask:openrouter/google"));
+      const ev = await events(await post({ question: "Ohm's law", provider: "cloud", audit: true }, "ask:openrouter/anthropic"));
       const audit = ev.find((e) => e.type === "audit") as { raw: { steps: Array<{ items: unknown[] }> }; changes: string[] };
       // raw: before the validator and every guard (the plot that cannot be drawn is still in it)
       expect(audit.raw.steps[1].items).toHaveLength(2);
@@ -860,7 +861,7 @@ describe("whiteboard lesson, cloud model", () => {
       expect(audit.changes).toEqual(["step 2: the validator did not keep 1 plot", "1 arrow(s) turned round by the arrow judge", "arrow(s) the judge called false, not drawn: i --creates--> r", "legend asked for and nothing usable came back: the lesson is unchanged"]);
       // the page never gets it
       cloudAnswers = answers();
-      const plain = await events(await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/google"));
+      const plain = await events(await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/anthropic"));
       expect(plain.some((e) => e.type === "audit")).toBe(false);
     });
     it("sends the examiner only the question and the lesson's own text", async () => {
@@ -877,26 +878,49 @@ describe("whiteboard lesson, cloud model", () => {
     });
   });
 
-  it("can use an online model of its own (WHITEBOARD_CLOUD_MODEL): that model is called, and the yes must be for its maker", async () => {
-    vi.stubEnv("WHITEBOARD_CLOUD_MODEL", "anthropic/claude-test");
-    // a yes for OK Filow's maker does not count for another maker
-    expect((await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/google")).status).toBe(403);
+  it("uses Claude Sonnet 5.5 online by default, and asks for a yes of its own: a yes given to Google for OK Filow sends nothing", async () => {
+    // someone who uses OK Filow online has said yes to OpenRouter and Google; the whiteboard's maker is another one
+    const res = await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/google");
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: "consent_required", kind: "ask", recipient: { id: "openrouter/anthropic" } });
     expect(calls).toEqual([]);
     cloudAnswers = [CLOUD];
     const ev = await events(await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/anthropic"));
-    expect(ev[0]).toMatchObject({ provider: "cloud", model: "anthropic/claude-test" });
+    expect(ev[0]).toMatchObject({ provider: "cloud", model: "anthropic/claude-sonnet-5.5" });
     expect(ev[ev.length - 1]).toMatchObject({ type: "done" });
-    expect(outside()[0].body.model).toBe("anthropic/claude-test");
+    expect(outside().every((c) => c.body.model === "anthropic/claude-sonnet-5.5")).toBe(true);
     // the notice of the whiteboard names that maker; OK Filow's own notice is unchanged
     const forBoard = await import("./recipients/route");
     const forBuddy = await import("../buddy/recipients/route");
-    expect((await (await forBoard.GET()).json()).ask.id).toBe("openrouter/anthropic");
+    const board = async (query = "") => (await (await forBoard.GET(new Request(`http://unit.invalid/api/whiteboard/recipients${query}`))).json()).ask;
+    expect(await board()).toMatchObject({ id: "openrouter/anthropic", names: ["OpenRouter", "Anthropic"] });
     expect((await (await forBuddy.GET()).json()).ask.id).toBe("openrouter/google");
-    // unset, the whiteboard uses OK Filow's model
-    vi.stubEnv("WHITEBOARD_CLOUD_MODEL", "");
+    expect(WHITEBOARD_MODELS).toEqual(["anthropic/claude-sonnet-5.5", "google/gemini-2.5-flash"]);
+  });
+
+  it("lets the user pick the other measured model, with that maker's yes, and never calls a model that is not on its list", async () => {
+    const forBoard = await import("./recipients/route");
+    expect((await (await forBoard.GET(new Request("http://unit.invalid/api/whiteboard/recipients?model=google/gemini-2.5-flash"))).json()).ask.id).toBe("openrouter/google");
+    // Flash chosen: Anthropic's yes does not count for it, Google's does
+    expect((await post({ question: "Ohm's law", provider: "cloud", model: "google/gemini-2.5-flash" }, "ask:openrouter/anthropic")).status).toBe(403);
+    expect(calls).toEqual([]);
     cloudAnswers = [CLOUD];
-    const same = await events(await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/google"));
-    expect(same[0]).toMatchObject({ model: "google/gemini-2.5-flash" });
+    const flash = await events(await post({ question: "Ohm's law", provider: "cloud", model: "google/gemini-2.5-flash" }, "ask:openrouter/google"));
+    expect(flash[0]).toMatchObject({ model: "google/gemini-2.5-flash" });
+    expect(outside()[0].body.model).toBe("google/gemini-2.5-flash");
+    // a name from outside the list is not a choice: the default is used, under the default's yes
+    calls = [];
+    expect((await post({ question: "Ohm's law", provider: "cloud", model: "someone/else" }, "ask:openrouter/someone")).status).toBe(403);
+    expect(calls).toEqual([]);
+    expect((await (await forBoard.GET(new Request("http://unit.invalid/api/whiteboard/recipients?model=someone/else"))).json()).ask.id).toBe("openrouter/anthropic");
+    cloudAnswers = [CLOUD];
+    const fallback = await events(await post({ question: "Ohm's law", provider: "cloud", model: "someone/else" }, "ask:openrouter/anthropic"));
+    expect(fallback[0]).toMatchObject({ model: "anthropic/claude-sonnet-5.5" });
+    // for a measured run the environment names the model, whatever the page chose
+    vi.stubEnv("WHITEBOARD_CLOUD_MODEL", "openai/test-model");
+    cloudAnswers = [CLOUD];
+    const measured = await events(await post({ question: "Ohm's law", provider: "cloud", model: "google/gemini-2.5-flash" }, "ask:openrouter/openai"));
+    expect(measured[0]).toMatchObject({ model: "openai/test-model" });
   });
   it("without the user's yes nothing is sent", async () => {
     const res = await post({ question: "Ohm's law", provider: "cloud" });
@@ -907,16 +931,16 @@ describe("whiteboard lesson, cloud model", () => {
 
   it("a yes for another maker or in the body does not count", async () => {
     expect((await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/openai")).status).toBe(403);
-    expect((await post({ question: "Ohm's law", provider: "cloud", consent: "ask:openrouter/google" })).status).toBe(403);
+    expect((await post({ question: "Ohm's law", provider: "cloud", consent: "ask:openrouter/anthropic" })).status).toBe(403);
     expect(calls).toEqual([]);
   });
 
   it("with the yes, the one lesson call carries only text, and the whole lesson comes back validated", async () => {
     cloudAnswers = ["```json\n" + CLOUD + "\n```"];
-    const res = await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/google");
+    const res = await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/anthropic");
     const ev = await events(res);
     expect(ev.map((e) => e.type)).toEqual(["start", "outline", "step", "step", "done"]);
-    expect(ev[0]).toMatchObject({ provider: "cloud", model: "google/gemini-2.5-flash" });
+    expect(ev[0]).toMatchObject({ provider: "cloud", model: "anthropic/claude-sonnet-5.5" });
     expect(ev[3]).toMatchObject({ step: { items: [{ kind: "formula", tex: "V = IR" }, { kind: "sketch", drawing: { title: "Resistor" } }] } });
     // the lesson and the question for its legend
     expect(outside()).toHaveLength(2);
@@ -938,7 +962,7 @@ describe("whiteboard lesson, cloud model", () => {
       const res = await post({ question: "Ohm's law", provider: "freellm" });
       expect(res.status).toBe(403);
       expect(await res.json()).toMatchObject({ code: "consent_required", kind: "ask", recipient: { id: "freellmapi" } });
-      expect((await post({ question: "Ohm's law", provider: "freellm" }, "ask:openrouter/google")).status).toBe(403);
+      expect((await post({ question: "Ohm's law", provider: "freellm" }, "ask:openrouter/anthropic")).status).toBe(403);
       expect((await post({ question: "Ohm's law", provider: "freellm", consent: "ask:freellmapi" })).status).toBe(403);
       expect(calls).toEqual([]);
     });
@@ -999,7 +1023,7 @@ describe("whiteboard lesson, cloud model", () => {
   it("offline mode answers on this PC whatever was asked", async () => {
     vi.stubEnv("FILOW_OFFLINE", "1");
     localAnswers = [...FULL];
-    const ev = await events(await post({ question: "photosynthesis", provider: "cloud" }, "ask:openrouter/google"));
+    const ev = await events(await post({ question: "photosynthesis", provider: "cloud" }, "ask:openrouter/anthropic"));
     expect(ev[0]).toMatchObject({ provider: "local" });
     expect(outside()).toEqual([]);
   });

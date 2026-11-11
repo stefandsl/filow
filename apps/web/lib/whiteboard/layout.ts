@@ -4,7 +4,7 @@
 // Pure and deterministic: the same lesson up to the same step always gives the same board, so
 // going back, replaying and exporting all show the same picture.
 import type { BuddyDrawing } from "@/lib/buddy/visuals";
-import type { Lesson, MarkStyle } from "./lesson";
+import { texKey, type Lesson, type MarkStyle } from "./lesson";
 
 export type BoardShape = "wide" | "tall";
 export const BOARD_SIZE: Record<BoardShape, { w: number; h: number }> = { wide: { w: 1200, h: 720 }, tall: { w: 480, h: 800 } };
@@ -541,7 +541,14 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
       if (it.kind === "node") { if (!nodesIn.some((nd) => nd.id === it.id)) nodesIn.push({ id: it.id, text: it.text, step }); }
       else if (it.kind === "edge") edgesIn.push({ from: it.from, to: it.to, text: it.text, step });
       else if (it.kind === "mark") marksIn.push({ target: it.target, style: it.style, step });
-      else if (it.kind === "formula") blocksIn.push({ key, step, kind: "formula", tex: it.tex });
+      else if (it.kind === "formula") {
+        // The same formula shown again in a later step (the conclusion of a proof) is that formula,
+        // written anew in its place: the board never carries it twice.
+        const same = blocksIn.findIndex((b) => b.kind === "formula" && texKey(b.tex) === texKey(it.tex));
+        // it goes where the new things go (the old place may already have been wiped to make room)
+        if (same >= 0) blocksIn.splice(same, 1);
+        blocksIn.push({ key, step, kind: "formula", tex: it.tex });
+      }
       else if (it.kind === "note") blocksIn.push({ key, step, kind: "note", text: it.text });
       else if (it.kind === "plot") {
         // A plot that draws every curve of an earlier one and more (supply alone, then supply and demand)

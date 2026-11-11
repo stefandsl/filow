@@ -432,6 +432,37 @@ See `docs/okfilow/OUTBOUND.md`.
 The whiteboard's online model can be its own (`WHITEBOARD_CLOUD_MODEL`, default: OK Filow's). The
 consent recipient follows that model's maker, and the whiteboard's notice reads it from
 `/api/whiteboard/recipients`.
+## Round 9: three online models measured, the default changed, two drawings no longer dropped
+
+Measured by the coordinator on round 8 code (paid, the ten proof questions, two runs a model, six
+fresh strict reviewers; `wb-cloud\m-flash-run1/2`, `m-sonnet-run1/2`, `m-carbon-run1/2`):
+
+| Online model | Strict | Machine | Note |
+|---|---|---|---|
+| anthropic/claude-sonnet-5.5 | 9/10 and 9/10 | 9 and 9 | no factual error found in any lesson |
+| google/gemini-2.5-flash | 6/10 and 6/10 | 6 and 4 | |
+| google/gemini-4-carbon | 5/10 and 5/10 | | 3 and 4 concepts had no lesson (time limit, empty answer); the lessons that arrived passed but one |
+
+The hidden-name work-around held on the real service (the Krebs cycle got a real lesson on Flash
+and on Sonnet); the spaced spelling comes back unchanged, lower case is still hidden.
+
+Owner decision of 11/11/2026: the whiteboard's online default is Claude Sonnet 5.5. It can be
+changed to Gemini 2.5 Flash in the whiteboard and in Settings, each under the yes of its own
+maker; OK Filow's answers keep their model. See `docs/okfilow/OUTBOUND.md`.
+
+Both Sonnet reviews named one defect of ours, and the lesson files show the rules that did it
+(`changes` in `lesson-2.json` and `lesson-6.json`: "the validator did not keep 1 formula", "1
+cells"):
+
+| Lesson | What was dropped | The rule | Now |
+|---|---|---|---|
+| Pythagoras, step 6 | the closing formula `a^2 + b^2 = c^2` | a formula already written (step 1) counted as a repeat anywhere in the lesson | a formula is a repeat only inside its own step; shown again later it is kept, and the board writes it anew as the newest thing, once |
+| Binary search, steps 3 and 5 | the row of cells | the same row with the same pointer counted as a repeat anywhere in the lesson, so the step that spoke of it drew nothing | kept in every step that shows it; the board holds one row and redraws it in that step |
+| Binary search (round 5 raw) | the row narrowed to one value | "one value is not a row" | a row of one value is a row |
+
+Fixture tests from those five saved lessons (`fixtures/cloud-m-dropped.json`): every formula and
+every row of cells the model wrote is in its step, no such step becomes a text card, the theorem
+is on the final board once and drawn in the last step. Not measured on a paid run after the fix.
 ## How to repeat
 
 1. Start Filow (or `next dev`) with Ollama running.

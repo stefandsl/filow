@@ -110,7 +110,8 @@ describe("whiteboard lesson: what the model writes is data", () => {
     expect(validateItems([{ kind: "cells", values: [1, 3, "5", "<b>7</b>", "", "3 * Factorial(2) = 3 * 2"], pointer: 2 }], ctx)).toEqual([{ kind: "cells", values: ["1", "3", "5", "7", "3 * Factorial(2) = 3 * 2"], pointer: 2 }]);
     // a line of a worked example is kept whole (it used to be cut at 6 characters: "Facto...", "I = 2...")
     expect(LIMITS.cell).toBeGreaterThanOrEqual(40);
-    expect(validateItems([{ kind: "cells", values: ["1", "3"], pointer: 9 }, { kind: "cells", values: ["1"] }, { kind: "cells", values: "x" }], ctx)).toEqual([{ kind: "cells", values: ["1", "3"], pointer: -1 }]);
+    // a row narrowed to one value (the target of a search) is still a row; no value at all is not
+    expect(validateItems([{ kind: "cells", values: ["1", "3"], pointer: 9 }, { kind: "cells", values: ["1"], pointer: 0 }, { kind: "cells", values: "x" }, { kind: "cells", values: [] }], ctx)).toEqual([{ kind: "cells", values: ["1", "3"], pointer: -1 }, { kind: "cells", values: ["1"], pointer: 0 }]);
     expect(validateItems([{ kind: "cells", values: ["1", "3"], pointer: -1 }, { kind: "cells", values: ["1", "3"], pointer: 1 }], ctx)).toEqual([{ kind: "cells", values: ["1", "3"], pointer: 1 }]);
     const md = lessonMarkdown({ title: "T", scene: "flow", steps: [{ say: "s", card: false, items: [{ kind: "cells", values: ["1", "3", "5"], pointer: 1 }] }] });
     expect(md).toContain("- 1 | **3** | 5");

@@ -20,6 +20,7 @@ import { OkFilowSettings } from "@/components/OkFilowSettings";
 import { DictationSettings, dictationBridge } from "@/components/DictationSettings";
 import { SetupPicker } from "./SetupPicker";
 import { FreeLlmSettings } from "./FreeLlmSettings";
+import { WhiteboardModelSetting } from "@/components/whiteboard/ModelPicker";
 import { AboutPrivacyLink } from "@/components/AboutPrivacyLink";
 import { DownloadLabel } from "@/components/DownloadLabel";
 
@@ -574,6 +575,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
           </details>
 
           <FreeLlmSettings onChange={() => void refresh()} />
+          <WhiteboardModelSetting />
 
           <section className="strip">
             <div className="label">Ollama</div>

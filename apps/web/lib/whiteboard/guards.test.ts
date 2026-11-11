@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fixtures from "./fixtures/cloud-r3.json";
 import rawFixtures from "./fixtures/cloud-r5-raw.json";
+import droppedFixtures from "./fixtures/cloud-m-dropped.json";
 import { GUARDS, finalProblems, formulaSymbols, generateCloud, labelNotes, missingLegend, missingNames, orphanBoxes, placeNotes, texOk, validatorLosses, wrongSums, type Ask, type LessonEvent } from "./generate";
 import { LIMITS, validateLesson, type Lesson, type LessonItem } from "./lesson";
 import { layoutBoard, layoutProblems } from "./layout";
@@ -111,9 +112,10 @@ describe("the default online path, replayed over the raw lessons of the paid rou
   });
   it("what the validator did not keep of those lessons is only what was written twice", () => {
     const lost = RAW.filter((f) => !offTopic(f)).flatMap((f) => validatorLossesOf(f.raw).map((l) => `${f.run}/${f.n} ${l}`));
-    // a remark made twice, the same row of cells with the same pointer, the same plot again: nothing else.
+    // a remark made twice and the same plot again: nothing else. A row of cells or a formula that a later
+    // step shows again is kept (it is what that step draws), and so is a row narrowed to one value.
     // (Before this round the cap of 6 items a step cut the arrow from CO2 to the plant, and the cap of 10 boxes cut "Starch" with its arrow.)
-    expect(lost).toEqual(["r5-run1/3 step 4: the validator did not keep 1 note", "r5-run1/6 step 3: the validator did not keep 1 cells", "r5-run1/6 step 6: the validator did not keep 1 cells", "r5-run1/8 step 3: the validator did not keep 1 plot", "r5-run2/3 step 4: the validator did not keep 1 note", "r5-run2/6 step 3: the validator did not keep 1 cells", "r5-run2/6 step 5: the validator did not keep 1 cells", "r5-run2/6 step 6: the validator did not keep 1 cells", "r5-run2/8 step 3: the validator did not keep 1 plot"]);
+    expect(lost).toEqual(["r5-run1/3 step 4: the validator did not keep 1 note", "r5-run1/8 step 3: the validator did not keep 1 plot", "r5-run2/3 step 4: the validator did not keep 1 note", "r5-run2/8 step 3: the validator did not keep 1 plot"]);
   });
 });
 
@@ -315,5 +317,60 @@ describe("nothing is drawn twice on the board", () => {
     // dense steps with an arrow or a box on a label from eight to three (those three are open)
     expect(report.filter((r) => r.includes(" wide "))).toEqual([]);
     expect(report.filter((r) => r.includes(" tall ")).length).toBeLessThanOrEqual(3);
+  });
+});
+
+describe("a step keeps its picture: lessons of the paid Sonnet and Carbon runs whose drawings the validator dropped", () => {
+  type Dropped = { run: string; n: number; question: string; raw: { title: string; steps: Array<{ say: string; items: Array<{ kind: string; tex?: string; values?: string[]; pointer?: number }> }> } };
+  const DROPPED = droppedFixtures as unknown as Dropped[];
+  const kinds = (items: Array<{ kind: string }>, kind: string) => items.filter((it) => it.kind === kind).length;
+
+  it.each(DROPPED.map((f) => [`${f.run}/${f.n} ${f.question}`, f] as const))("%s: every formula and every row of cells the model wrote is in its step", (_name, f) => {
+    const lesson = validateLesson(f.raw, { maxSteps: LIMITS.steps, texOk, sketch: true })!;
+    expect(lesson.steps).toHaveLength(f.raw.steps.length);
+    f.raw.steps.forEach((s, k) => {
+      expect(kinds(lesson.steps[k].items, "formula"), `formulas of step ${k + 1}`).toBe(kinds(s.items, "formula"));
+      expect(kinds(lesson.steps[k].items, "cells"), `cells of step ${k + 1}`).toBe(kinds(s.items, "cells"));
+      // a step that drew something still draws something: it is not turned into a text card
+      if (s.items.length) expect(lesson.steps[k].card).toBe(false);
+    });
+    expect(validatorLosses(f.raw, lesson).filter((l) => /formula|cells/.test(l))).toEqual([]);
+  });
+
+  it("the proof ends on the formula it set out to prove, written anew at the conclusion and only once on the board", () => {
+    const f = DROPPED.find((d) => d.run === "m-sonnet-run1" && d.n === 2)!;
+    const lesson = validateLesson(f.raw, { maxSteps: LIMITS.steps, texOk, sketch: true })!;
+    const last = lesson.steps.length - 1;
+    expect(lesson.steps[0].items).toContainEqual({ kind: "formula", tex: "a^2 + b^2 = c^2" });
+    expect(lesson.steps[last].items).toContainEqual({ kind: "formula", tex: "a^2 + b^2 = c^2" });
+    for (const shape of ["wide", "tall"] as const) {
+      const board = layoutBoard(lesson, last, shape);
+      const theorem = board.blocks.filter((b) => b.kind === "formula" && b.tex === "a^2 + b^2 = c^2");
+      expect(theorem).toHaveLength(1);
+      // drawn in the last step: it is among the new things of the conclusion
+      expect(theorem[0].step).toBe(last);
+    }
+    // at the first step it was the statement, drawn then
+    expect(layoutBoard(lesson, 0, "wide").blocks.find((b) => b.kind === "formula")).toMatchObject({ step: 0 });
+  });
+
+  it("a formula shown again in a later step is on the board once, as the newest thing", () => {
+    const twice = validateLesson({ title: "T", scene: "flow", steps: [{ say: "The law.", items: [{ kind: "formula", tex: "V = I R" }, { kind: "note", text: "first" }] }, { say: "So, the law.", items: [{ kind: "formula", tex: "V = I \\times R" }, { kind: "formula", tex: "V = I R" }] }] }, { maxSteps: 7, texOk })!;
+    // the same formula twice in one step is one; in the later step it is kept
+    expect(twice.steps[1].items).toHaveLength(1);
+    const blocks = layoutBoard(twice, 1, "wide").blocks;
+    expect(blocks.filter((b) => b.kind === "formula")).toHaveLength(1);
+    expect(blocks.map((b) => b.kind)).toEqual(["note", "formula"]);
+    expect(blocks[1]).toMatchObject({ step: 1 });
+  });
+  it("the row of a search is shown again in the step that speaks of it, as one block whose pointer is where that step looks", () => {
+    const f = DROPPED.find((d) => d.run === "m-sonnet-run1" && d.n === 6)!;
+    const lesson = validateLesson(f.raw, { maxSteps: LIMITS.steps, texOk, sketch: true })!;
+    expect(lesson.steps.map((s) => s.items.filter((it) => it.kind === "cells").map((it) => (it.kind === "cells" ? it.pointer : null)))).toEqual([[-1], [3], [3], [5], [5]]);
+    for (let k = 0; k < lesson.steps.length; k++) {
+      const rows = layoutBoard(lesson, k, "wide").blocks.filter((b) => b.kind === "cells");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ step: k });
+    }
   });
 });

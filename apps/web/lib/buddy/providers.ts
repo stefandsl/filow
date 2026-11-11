@@ -5,6 +5,7 @@
 import { isSetupPreference, resolveSetup, type ResolvedSetup } from "@filow/core";
 import { OLLAMA_URL } from "@/lib/decide/clef";
 import { openRouterChatUrl, withProvider } from "@/lib/openrouter";
+import { WHITEBOARD_MODELS, isWhiteboardModel } from "@/lib/whiteboard/models";
 import { askRecipient, consentKey, freellmRecipient, type Recipient } from "./outbound";
 import { freellmStream, requireFreeLlm } from "@/lib/freellm";
 import { gpuInfo, machineInfo } from "@/lib/sysinfo";
@@ -279,9 +280,15 @@ export class ConsentRequiredError extends Error {
 
 /** Who a cloud question goes to right now: OpenRouter, then the maker of BUDDY_CLOUD_MODEL. */
 export const buddyCloudRecipient = (): Recipient => askRecipient(BUDDY_CLOUD_MODEL());
-/** The online model of the whiteboard: OK Filow's unless WHITEBOARD_CLOUD_MODEL names another (so that two can be measured without a code change). */
-export const WHITEBOARD_CLOUD_MODEL = () => process.env.WHITEBOARD_CLOUD_MODEL || BUDDY_CLOUD_MODEL();
-export const whiteboardCloudRecipient = (): Recipient => askRecipient(WHITEBOARD_CLOUD_MODEL());
+/**
+ * The online model of a whiteboard lesson: WHITEBOARD_CLOUD_MODEL when set (for a measured run),
+ * else the one the user chose among WHITEBOARD_MODELS, else the default. A name that is not on the
+ * list is never sent anywhere.
+ */
+export const WHITEBOARD_CLOUD_MODEL = (chosen?: unknown): string =>
+  process.env.WHITEBOARD_CLOUD_MODEL || (isWhiteboardModel(chosen) ? chosen : WHITEBOARD_MODELS[0]);
+/** Who receives a whiteboard question online: OpenRouter and the maker of that model (its own yes). */
+export const whiteboardCloudRecipient = (chosen?: unknown): Recipient => askRecipient(WHITEBOARD_CLOUD_MODEL(chosen));
 
 /**
  * The only door to a provider. Cloud needs the consent key for the recipient in use; without it this
