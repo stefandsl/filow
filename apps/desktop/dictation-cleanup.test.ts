@@ -69,7 +69,7 @@ describe("S1-mini: the answer must be the same message, cleaned", () => {
   it("refuses an answer that says more, far less, or something else", () => {
     expect(ok("send the report", "Send the report. Also, I wanted to let you know that the quarterly numbers look great this time around.").reason).toBe("too long");
     expect(ok("please remind maria that the budget review moved to the second floor meeting room on tuesday afternoon", "OK.").reason).toBe("too short");
-    expect(ok("send the report to maria on friday", "Deliver the document to Giulia next Monday morning.").reason).toBe("new words");
+    expect(ok("send the report to maria on friday", "Deliver the document to Giulia tomorrow morning please.").reason).toBe("new words");
     // An answer to the dictation instead of the dictation (the model is not a chat model, but still).
     expect(ok("what is the capital of france", "The capital of France is Paris.").ok).toBe(true); // one new word is within the bound...
     expect(ok("what is the capital of france", "Paris is a beautiful city on the Seine river.").reason).toBe("new words"); // ...a new sentence is not
@@ -100,6 +100,24 @@ describe("S1-mini: figures", () => {
     expect(ok("the meeting is in room twelve", "The meeting is in room 1.").reason).toBe("numbers");
   });
 });
+describe("S1-mini: dates and times", () => {
+  const ok = (raw: string, out: string) => cleanup.acceptCleaned(raw, out);
+  it("a spoken date keeps its day, month and year; a time keeps its hour and its half of the day", () => {
+    expect(ok("the deadline is march third twenty twenty seven", "The deadline is March 3, 2027.").ok).toBe(true);
+    expect(ok("the deadline is march third twenty twenty seven", "The deadline is May 3, 2027.").reason).toBe("date or time");
+    expect(ok("the deadline is march third twenty twenty seven", "The deadline is March 13, 2027.").reason).toBe("numbers");
+    expect(ok("the deadline is march third twenty twenty seven", "The deadline is March 3, 2026.").reason).toBe("numbers");
+    expect(ok("see you on tuesday at nine", "See you on Thursday at 9.").reason).toBe("date or time");
+    expect(ok("book the flight for monday actually tuesday morning", "Book the flight for Tuesday morning.").ok).toBe(true);
+    expect(ok("the call starts at nine thirty a m", "The call starts at 9:30am.").ok).toBe(true);
+    expect(ok("the call starts at nine thirty", "The call starts at 9:30pm.").reason).toBe("date or time");
+    expect(ok("let us meet at three fifteen in the afternoon", "Let us meet at 3:15 p.m.").ok).toBe(true);
+    expect(ok("the report is due in sept", "The report is due in September.").ok).toBe(true);
+    // Ordinary words that look like the checks' targets are left alone.
+    expect(ok("i may be late and i am sorry", "I may be late, and I am sorry.").ok).toBe(true);
+    expect(ok("the program is ready", "The program is ready.").ok).toBe(true);
+  });
+});
 describe("S1-mini: the time budget and failures", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
@@ -114,7 +132,23 @@ describe("S1-mini: the time budget and failures", () => {
     expect(await late).toMatchObject({ used: false, reason: "slower than 700 ms" });
     expect(aborted).toBe(true);
   });
-  it("a runtime that is missing or fails never throws: the raw words go in and the reason is kept", async () => {
+  it("a computer too slow for the budget: after three late answers in a row the cleanup rests, and nothing waits any more", async () => {
+    let delay = 100; let calls = 0;
+    const c = cleanup.createCleaner({ budgetMs: () => 700, run: () => { calls += 1; return new Promise<string>((res) => setTimeout(() => res("Send the report."), delay)); } });
+    const once = async () => { const r = c.clean("send the report", { language: "en" }); await vi.advanceTimersByTimeAsync(800); return r; };
+    expect((await once()).used).toBe(true);
+    delay = 3000;
+    for (let i = 0; i < 3; i++) expect((await once()).reason).toBe("slower than 700 ms");
+    const rest = await c.clean("send the report", { language: "en" });
+    expect(rest).toMatchObject({ used: false, reason: "resting: too slow on this computer", asked: false, ms: 0 });
+    expect(calls).toBe(4);
+    // A late first answer (the model was still loading) does not count towards the three.
+    const cold = cleanup.createCleaner({ budgetMs: () => 700, run: () => new Promise<string>((res) => setTimeout(() => res("Send the report."), delay)) });
+    const first = cold.clean("send the report", { language: "en" }); await vi.advanceTimersByTimeAsync(800); await first;
+    delay = 100;
+    const second = cold.clean("send the report", { language: "en" }); await vi.advanceTimersByTimeAsync(200);
+    expect((await second).used).toBe(true);
+  });  it("a runtime that is missing or fails never throws: the raw words go in and the reason is kept", async () => {
     const calls: string[] = [];
     const missing = await cleanup.createCleaner({ run: async () => { calls.push("run"); return "x"; }, ready: () => ({ ok: false, reason: "model not on this computer" }) }).clean("send the report", { language: "en" });
     expect(missing).toMatchObject({ used: false, reason: "model not on this computer", asked: false });
@@ -222,6 +256,31 @@ describe("S1-mini: the runtime (llama-server as a child process)", () => {
     expect(child.kill).toHaveBeenCalled();
     server.close();
     expect(MODEL.bytes).toBe(484219808);
+  });
+
+  it("gives its memory back after ten minutes without a dictation, and starts again with the next one", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const kills: number[] = []; let spawns = 0;
+      const rt = createS1Runtime({
+        userData: "X:/profile", logLine: () => {}, serverFile: () => "X:/llama-server", modelExists: () => true, sleep: async () => {},
+        spawn: () => { spawns += 1; const n = spawns; return Object.assign(new EventEmitter(), { kill: () => { kills.push(n); } }); },
+        fetch: async (url: string) => (String(url).endsWith("/health") ? { ok: true } : { ok: true, json: async () => ({ choices: [{ message: { content: "Done." } }] }) }),
+      }) as ReturnType<typeof createS1Runtime> & { status(): { running: boolean; unloads: number } };
+      await rt.run({});
+      expect(rt.status()).toMatchObject({ running: true, unloads: 0 });
+      await vi.advanceTimersByTimeAsync(9 * 60_000);
+      await rt.run({}); // a dictation at minute nine: the ten minutes start again
+      await vi.advanceTimersByTimeAsync(9 * 60_000);
+      expect(rt.status().running).toBe(true);
+      await vi.advanceTimersByTimeAsync(61_000);
+      expect(rt.status()).toMatchObject({ running: false, unloads: 1 });
+      expect(kills).toEqual([1]);
+      await rt.run({}); // the next English dictation starts it again
+      expect(spawns).toBe(2);
+      expect(rt.status().running).toBe(true);
+      rt.stop();
+    } finally { vi.useRealTimers(); }
     expect(MODEL.sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 });

@@ -21,6 +21,8 @@ function serverFile({ platform = process.platform, arch = process.arch, baseDir 
   const file = path.join(baseDir, "native", "llama", `${platform}-${arch}`, name).replace(/([\\/])app\.asar([\\/])/, "$1app.asar.unpacked$2");
   return exists(file) ? file : "";
 }
+/** The runtime holds about 0.9 GB of memory with the model loaded: it is let go after this long without a dictation. */
+const IDLE_UNLOAD_MS = 10 * 60_000;
 const modelFile = (userData) => path.join(userData, "models", "s1-mini", MODEL_FILE);
 
 /** A free port on this computer, picked by the system. */
@@ -49,6 +51,21 @@ function createS1Runtime(deps) {
   let starting = null;
   let lastError = "";
   let startedMs = 0;
+  // Unload when idle: every use (and every start) pushes the moment back.
+  const st = deps.setTimeout || setTimeout;
+  const ct = deps.clearTimeout || clearTimeout;
+  let idleTimer = null;
+  let unloads = 0;
+  function touch() {
+    ct(idleTimer);
+    idleTimer = st(() => {
+      if (!child) return;
+      unloads += 1;
+      log(`s1: no dictation for ${Math.round(IDLE_UNLOAD_MS / 60000)} minutes: the runtime is stopped and its memory given back (it starts again with the next English dictation)`);
+      stop();
+    }, deps.idleMs || IDLE_UNLOAD_MS);
+    if (idleTimer && idleTimer.unref) idleTimer.unref();
+  }
 
   /** Can a dictation be cleaned at all on this PC? Says why not in a few words (for the report). */
   function ready() {
@@ -84,6 +101,7 @@ function createS1Runtime(deps) {
       child = c;
       base = url;
       lastError = "";
+      touch();
       startedMs = Date.now() - t0;
       log(`s1: runtime ready in ${startedMs} ms (llama-server, ${threads} threads, this computer only)`);
     })().catch((e) => { lastError = String((e && e.message) || e).slice(0, 80); log(`s1: runtime did not start (${lastError})`); throw e; }).finally(() => { starting = null; });
@@ -93,6 +111,7 @@ function createS1Runtime(deps) {
   /** The cleaned text for one request body (dictation-cleanup.js buildRequest). Starts the runtime when needed. */
   async function run(body, signal) {
     await start();
+    touch();
     const r = await fetchFn(`${base}/v1/chat/completions`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify(body), signal });
     if (!r.ok) throw new Error(`runtime answered ${r.status}`);
     const j = await r.json();
@@ -138,9 +157,9 @@ function createS1Runtime(deps) {
 
   /** Loads the model ahead of the first dictation, so that one does not pay the start. Errors are kept for the report. */
   function warm() { if (ready().ok) void start().catch(() => {}); }
-  function stop() { const c = child; child = null; base = ""; if (c) { try { c.kill(); } catch { /* gone */ } } }
-  const status = () => ({ runtime: Boolean(exe()), model: hasModel(), running: Boolean(child), startedMs, error: lastError || fetchError, downloading: Boolean(fetching), pct, bytes: MODEL.bytes });
+  function stop() { ct(idleTimer); idleTimer = null; const c = child; child = null; base = ""; if (c) { try { c.kill(); } catch { /* gone */ } } }
+  const status = () => ({ runtime: Boolean(exe()), model: hasModel(), running: Boolean(child), startedMs, error: lastError || fetchError, downloading: Boolean(fetching), pct, bytes: MODEL.bytes, unloads });
   return { ready, run, warm, stop, status, download };
 }
 
-module.exports = { createS1Runtime, serverFile, modelFile, freePort, MODEL, MODEL_URL };
+module.exports = { createS1Runtime, serverFile, modelFile, freePort, MODEL, MODEL_URL, IDLE_UNLOAD_MS };

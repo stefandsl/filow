@@ -590,6 +590,7 @@ function createOkFilow(deps) {
       pressedAt = Date.now() - ago;
       phraseRun = handsFree ? dictation.newPhraseRun() : null;
       dictation.diag.begin(handsFree ? "handsfree" : "hold", ago);
+      dictation.warmCleanup();
     }
     // Read the selection while the user's app still has focus; it goes with the question.
     if (kind === "talk") { clearDrawings(); strokes = []; setOverlayMouse(true); selection = readSelection(); }

@@ -1387,7 +1387,11 @@ function s1Runtime() {
   return s1;
 }
 app.on("will-quit", () => { if (s1) s1.stop(); });
-/** Loads S1-mini ahead of the first dictation, but only for someone who dictates in English (it holds about 0.9 GB of memory). */
+/**
+ * Called when the dictation keys go down: S1-mini is loaded while the person speaks (about a second),
+ * so the words can be cleaned when the keys go up. Only for someone who dictates in English; it holds
+ * about 0.9 GB of memory and s1-runtime.js lets it go after ten minutes without a dictation.
+ */
 function warmS1() {
   try {
     const c = getDictation().cfg();
@@ -1420,6 +1424,7 @@ function getDictation() {
     // s1-runtime.js). Without the model or the runtime the step is skipped and the report says why.
     cleaner: require("./dictation-cleanup").createCleaner({ run: (body, signal) => s1Runtime().run(body, signal), ready: () => s1Runtime().ready(), budgetMs: () => 700 }),
     cleanupStatus: () => s1Runtime().status(),
+    cleanupWarm: () => warmS1(),
     // Ctrl + V (Command + V on macOS) through OK Filow's own keyboard hook: uiohook-napi (MIT) sends it with
     // SendInput on Windows, CGEvent on macOS and XTest on X11. No shell, no PowerShell, no extra native module.
     sendPaste: hook => {
@@ -2193,7 +2198,6 @@ async function main() {
     return { open: pointsWindow.isOpen() };
   });
   startOkFilow();
-  setTimeout(warmS1, 4000); // after the windows are up: never in the way of the start
   win.on("closed", () => okFilow?.dispose());
   const hk = registerHotkey();
   if (!hk.ok) console.warn("Screen Sense hotkey:", hk.error);

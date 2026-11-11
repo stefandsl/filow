@@ -351,7 +351,10 @@ function createDictation(deps) {
     };
   }
 
-  return { cfg, configure, status, activeChord, insert, userMoved, diag, reportFacts, reportText: (o) => reportText(reportFacts(o)), newPhraseRun: core.createPhraseRun, onChange: (fn) => (listeners.add(fn), () => listeners.delete(fn)) };
+  /** The dictation keys went down: get the cleanup ready while the person speaks (main.js decides whether). */
+  function warmCleanup() { try { if (deps.cleanupWarm) deps.cleanupWarm(); } catch { /* the first words go in raw */ } }
+
+  return { cfg, configure, status, activeChord, insert, userMoved, warmCleanup, diag, reportFacts, reportText: (o) => reportText(reportFacts(o)), newPhraseRun: core.createPhraseRun, onChange: (fn) => (listeners.add(fn), () => listeners.delete(fn)) };
 }
 
 module.exports = { createDictation };

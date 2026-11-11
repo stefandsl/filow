@@ -115,6 +115,26 @@ function saidFigures(text) {
   return out;
 }
 
+// A spoken date or time must not change: a month or a weekday in the answer must be one that was said
+// (written out or by its usual short form), and "am" / "pm" only where the speaker said so.
+const CALENDAR = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+/** The first month, weekday or half of the day in the answer that was not said, or "". */
+function strangeDate(raw, cleaned) {
+  const said = new Set((String(raw).toLowerCase().match(/[\p{L}]+/gu) || []));
+  const saidShort = new Set([...said].map((w) => w.slice(0, 3)));
+  for (const w of String(cleaned).toLowerCase().match(/[\p{L}]+/gu) || []) {
+    const full = CALENDAR.find((c) => c === w || (w.length === 3 && c.startsWith(w) && c !== "may"));
+    if (full && !said.has(full) && !(saidShort.has(full.slice(0, 3)) && [...said].some((s) => full.startsWith(s) && s.length >= 3))) return w;
+  }
+  const half = /(\d)\s?(a\.?m\.?|p\.?m\.?)(?![\p{L}])/iu.exec(String(cleaned));
+  if (half) {
+    const which = half[2].toLowerCase().startsWith("a") ? "a" : "p";
+    const heard = which === "a" ? /\ba\.? ?m\b|\bmorning\b/i : /\bp\.? ?m\b|\bafternoon\b|\bevening\b|\btonight\b|\bnight\b/i;
+    if (!heard.test(String(raw))) return half[2];
+  }
+  return "";
+}
+
 /** The first figure in the answer that was not said, or "" when every figure holds. */
 function strangeFigure(raw, cleaned) {
   const said = saidFigures(raw);
@@ -133,6 +153,7 @@ function strangeFigure(raw, cleaned) {
  *   new words    words the speaker did not say (numbers, e-mail addresses and register words excepted)
  *   layout       line breaks where prose was asked for
  *   numbers      a figure that is not one the speaker said
+ *   date or time a month, a weekday or "am"/"pm" that the speaker did not say
  */
 function acceptCleaned(raw, cleaned, { lists = false, email = false } = {}) {
   const out = String(cleaned == null ? "" : cleaned).trim();
@@ -143,6 +164,7 @@ function acceptCleaned(raw, cleaned, { lists = false, email = false } = {}) {
   if (out.length < inp.length * 0.2) return { ok: false, reason: "too short" };
   if (!lists && !email && /\n/.test(out)) return { ok: false, reason: "layout" };
   if (strangeFigure(inp, out)) return { ok: false, reason: "numbers" };
+  if (strangeDate(inp, out)) return { ok: false, reason: "date or time" };
   const said = new Set(words(inp));
   const got = words(out);
   const fresh = got.filter((w) => !said.has(w) && !REGISTER.has(w) && ![...said].some((s) => s.length > 3 && (s.startsWith(w) || w.startsWith(s))));
@@ -158,9 +180,15 @@ function acceptCleaned(raw, cleaned, { lists = false, email = false } = {}) {
  */
 function createCleaner(o) {
   const now = o.now || Date.now;
+  // A computer too slow for the budget would make every English dictation wait for nothing: after three
+  // late answers in a row (the first after a start does not count: the model was loading) the cleanup
+  // rests until Filow is started again, and the report says so.
+  let lateStreak = 0;
+  let answered = 0;
   async function clean(raw, opts = {}) {
     const d = decide({ enabled: opts.enabled !== false, language: opts.language, spokenLanguage: opts.spokenLanguage, text: raw });
     if (!d.clean) return { used: false, reason: d.reason, ms: 0, asked: false };
+    if (lateStreak >= 3) return { used: false, reason: "resting: too slow on this computer", ms: 0, asked: false };
     const state = o.ready ? o.ready() : { ok: true };
     if (!state.ok) return { used: false, reason: state.reason || "not installed", ms: 0, asked: false };
     const budget = Math.max(100, Number(o.budgetMs ? o.budgetMs() : 700) || 700);
@@ -171,7 +199,9 @@ function createCleaner(o) {
       const late = new Promise((resolve) => { timer = setTimeout(() => resolve({ late: true }), budget); });
       const answer = await Promise.race([o.run(buildRequest(raw, opts), abort.signal).then((text) => ({ text })), late]);
       const ms = now() - started;
-      if (answer.late) { abort.abort(); return { used: false, reason: `slower than ${budget} ms`, ms, asked: true }; }
+      if (answer.late) { abort.abort(); if (answered > 0) lateStreak += 1; return { used: false, reason: `slower than ${budget} ms`, ms, asked: true }; }
+      answered += 1;
+      lateStreak = 0;
       const check = acceptCleaned(raw, answer.text, opts);
       if (!check.ok) return { used: false, reason: check.reason, ms, asked: true };
       return { used: true, text: check.text, reason: "", ms, asked: true };
@@ -184,4 +214,4 @@ function createCleaner(o) {
   return { clean };
 }
 
-module.exports = { SYSTEM, STYLES, NAME, controlLine, buildRequest, maxTokens, decide, acceptCleaned, createCleaner, saidFigures, strangeFigure, numberValue };
+module.exports = { SYSTEM, STYLES, NAME, controlLine, buildRequest, maxTokens, decide, acceptCleaned, createCleaner, saidFigures, strangeFigure, strangeDate, numberValue };
