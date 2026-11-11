@@ -178,7 +178,7 @@ export const ro: Record<OkfKey, string> = {
   notchAnswering: "OK Filow răspunde",
   drawFailed: "De data aceasta desenul nu a ieșit. Mai cere-mi o dată.",
   notchNotLooking: "OK Filow nu se uită",
-  eyeClose: "Nu te mai uita la ecranul meu",
+  eyeClose: "Încetează să te uiți la ecranul meu",
   eyeKey: "Scurtătură: {key}",
   pause: "Pauză",
   pauseHint: "Pune răspunsul pe pauză",
