@@ -1021,7 +1021,7 @@ async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
         if (!auto) {
           settings.remoteShare = false;
           saveSettings();
-          dialog.showErrorBox(mt("tunnelFailed"), String(err.message || err));
+          await errorWithReport(win, mt("tunnelFailed"), String(err.message || err));
         }
         // auto: stay "wanted" so the next launch retries; the LAN QR keeps working meanwhile
       }
@@ -1236,7 +1236,7 @@ async function installPowerPointAddin(win, { silent = false } = {}) {
   } catch (err) {
     settings.pptInstalled = false;
     saveSettings();
-    if (!silent) dialog.showErrorBox("PowerPoint", `${mt("pptInstallFailed")}\n\n${String(err.message || err)}`);
+    if (!silent) await errorWithReport(win, mt("pptInstallFailed"), String(err.message || err));
     return false;
   }
 }
@@ -1927,8 +1927,9 @@ function applyOffline(win, value = process.env.FILOW_OFFLINE === "1") {
 
 // ---- Diagnostics: crashes go to startup.log; "Report a problem" makes a file the user saves ----
 const diag = require("./diag");
-// Nothing is sent, ever: the report window (about.js) shows every line of the report and saves it to a
-// file the user picks, to send privately. It no longer opens a public GitHub issue.
+// Filow sends nothing by itself: the report window (about.js) shows every line of the masked report and
+// saves it to a file the user picks. It leaves this PC only when the user presses "Open an issue on
+// GitHub" there, after the notice that issues are public (docs/okfilow/OUTBOUND.md row 16).
 process.on("uncaughtException", (err) => logLine(`CRASH main: ${err && err.stack ? err.stack : err}`));
 process.on("unhandledRejection", (err) => logLine(`CRASH main (promise): ${err && err.stack ? err.stack : err}`));
 app.on("render-process-gone", (_e, _wc, d) => logLine(`CRASH renderer: ${d.reason} (exit ${d.exitCode})`));
@@ -1986,12 +1987,29 @@ function about() {
     docsDir: packaged ? resources : path.join(resources, "..", "docs"),
     crashDir: path.join(userData, "Crashpad"), documentsDir: () => app.getPath("documents"),
     collectReport: reportSections,
+    // QA builds only: the probe points the issue button at its own local page instead of GitHub
+    issuePage: process.env.FILOW_QA_ISSUE_PAGE && require("./qa.js").isQaBuild(app) ? process.env.FILOW_QA_ISSUE_PAGE : undefined,
   });
   return aboutPages;
 }
 
 function reportProblem() {
   return about().open("report");
+}
+/** The two buttons of an error the user cannot fix from its dialog: close it, or open Report a problem. */
+function reportButtons() {
+  const tx = require("./about").TEXT;
+  return [(tx[menuLang()] || tx.en).close, mt("report")];
+}
+/** Such an error: what failed, the reason, and a button that leads to the report window (and from there to a GitHub issue). */
+async function errorWithReport(win, message, detail) {
+  const options = { type: "error", title: "Filow", message, detail, buttons: reportButtons(), defaultId: 0, cancelId: 0, noLink: true };
+  try {
+    const { response } = win && !win.isDestroyed() ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options);
+    if (response === 1) reportProblem();
+  } catch (err) {
+    logLine(`error dialog "${message}" could not be shown: ${err && err.message ? err.message : err}`);
+  }
 }
 
 function buildMenu(win) {
@@ -2283,7 +2301,28 @@ function failStartup(err) {
   const text = String(err && err.stack ? err.stack : err);
   logLine(`startup failed at "${startupStage}": ${text}`);
   closeSplash();
-  dialog.showErrorBox("Filow failed to start", text);
+  // The user cannot fix this one: next to closing, the box offers Report a problem, whose window has the
+  // start-up log with this reason in it and the button that opens a GitHub issue. Filow quits when that
+  // window closes. If the box or the window cannot be made, the plain error box and quit, as before.
+  let report = false;
+  try {
+    const choice = dialog.showMessageBoxSync({ type: "error", title: "Filow", message: "Filow failed to start", detail: text, buttons: reportButtons(), defaultId: 0, cancelId: 0, noLink: true });
+    report = choice === 1;
+  } catch (boxErr) {
+    logLine(`startup failed: the report offer could not be shown: ${boxErr && boxErr.message ? boxErr.message : boxErr}`);
+    dialog.showErrorBox("Filow failed to start", text);
+  }
+  if (report) {
+    try {
+      startupTransition = true; // the splash just closed: its window-all-closed must not quit under the report window
+      const win = reportProblem();
+      win.once("closed", () => app.quit());
+      win.webContents.once("did-fail-load", () => app.quit()); // a window that cannot show must not keep Filow running unseen
+      return;
+    } catch (winErr) {
+      logLine(`startup failed: the report window could not be opened: ${winErr && winErr.message ? winErr.message : winErr}`);
+    }
+  }
   app.quit();
 }
 

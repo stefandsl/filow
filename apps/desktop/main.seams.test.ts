@@ -55,6 +55,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
     "./integrity": { sha256File: async () => "" },
     "./vendor/i18n": { t }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./ui-preferences": {}, "./slideshow": {},
+    "./qa.js": { isQaBuild: (app: { isPackaged: boolean }) => !app.isPackaged }, // a packaged build without the QA marker
     "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
@@ -162,8 +163,8 @@ describe("Step 4 desktop offline seams", () => {
     expect(f.outbound, "offline must not enter the network installer").not.toHaveBeenCalled();
     expect(f.api.localAiStatus()).toMatchObject({ state: "error", error: t("offline.downloadDisabled", "en") });
   });
-  // Contract: "Report a problem" never sends anything (docs/PRIVACY.md); the old path opened a public
-  // GitHub issue with the log in its URL. Online or offline, it now opens the local report window.
+  // Contract: "Report a problem" sends nothing by itself (docs/PRIVACY.md): online or offline it opens the
+  // local report window. The report leaves only when the user presses "Open an issue on GitHub" there.
   it.each([{}, { FILOW_OFFLINE: "1" }])("a report opens the local report window and no browser (env %o)", async (env) => {
     const f = fixture(env); f.api.setLog("synthetic private take log");
     f.api.reportProblem();
@@ -184,6 +185,27 @@ describe("Step 4 desktop offline seams", () => {
     expect(preview).not.toMatch(/trycloudflare|sk-or-v1-0123/);
     await f.ipc("report:copy", f.windows[0], "my words");
     expect(String(f.writeText.mock.calls[0][0])).toMatch(/my words[\s\S]*<public link>/);
+  });
+  it("the GitHub issue button hands the browser one https link holding the masked report, nothing more", async () => {
+    const f = fixture({});
+    f.api.setLog("phone joined via https://drives-pulling-agrees-ambassador.trycloudflare.com/s/1 with sk-or-v1-" + "0123456789abcdef".repeat(2));
+    f.api.reportProblem();
+    await f.ipc("report:data", f.windows[0]);
+    expect(f.openExternal).not.toHaveBeenCalled();
+    expect(await f.ipc("report:issue", f.windows[0], "my words")).toMatchObject({ opened: true });
+    expect(f.openExternal).toHaveBeenCalledOnce();
+    const url = new URL(String(f.openExternal.mock.calls[0][0]));
+    expect(url.origin + url.pathname).toBe("https://github.com/stefandsl/filow/issues/new");
+    expect(url.href.length).toBeLessThanOrEqual(6000);
+    const body = url.searchParams.get("body") || "";
+    expect(body).toMatch(/my words[\s\S]*phone joined via <public link> with <key>/);
+    expect(decodeURIComponent(url.href)).not.toMatch(/trycloudflare|sk-or-v1-0123/);
+  });
+  it("outside a QA build nothing can point the issue button at another page", async () => {
+    const f = fixture({ FILOW_QA_ISSUE_PAGE: "http://127.0.0.1:9/elsewhere" });
+    f.api.reportProblem();
+    await f.ipc("report:issue", f.windows[0], "");
+    expect(String(f.openExternal.mock.calls[0][0])).toMatch(/^https:\/\/github\.com\/stefandsl\/filow\/issues\/new\?/);
   });
   it("answers the report channels only for its own window", async () => {
     const f = fixture({}); f.api.reportProblem();
