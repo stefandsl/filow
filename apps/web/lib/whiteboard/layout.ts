@@ -24,7 +24,7 @@ export type PlacedMark = { key: string; step: number; style: MarkStyle; target: 
 export type PlacedBlock = { key: string; step: number; box: Box } & (
   | { kind: "formula"; tex: string }
   | { kind: "note" | "card"; lines: string[]; font: number; cut: boolean }
-  | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string; more?: string[] }
+  | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string; more?: string[]; xName?: string; yName?: string }
   | { kind: "sketch"; drawing: BuddyDrawing }
   /** `column`: the values are too long for a row and stand one under the other. `cut`: even so, one does not fit. */
   | { kind: "cells"; values: string[]; pointer: number; column: boolean; font: number; cut: boolean }
@@ -532,7 +532,7 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
   const nodesIn: NodeIn[] = [];
   const edgesIn: EdgeIn[] = [];
   const marksIn: Array<{ target: string; style: MarkStyle; step: number }> = [];
-  type BlockIn = { key: string; step: number } & ({ kind: "formula"; tex: string } | { kind: "note" | "card"; text: string } | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string; more?: string[] } | { kind: "sketch"; drawing: BuddyDrawing } | { kind: "cells"; values: string[]; pointer: number });
+  type BlockIn = { key: string; step: number } & ({ kind: "formula"; tex: string } | { kind: "note" | "card"; text: string } | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string; more?: string[]; xName?: string; yName?: string } | { kind: "sketch"; drawing: BuddyDrawing } | { kind: "cells"; values: string[]; pointer: number });
   const blocksIn: BlockIn[] = [];
   lesson.steps.slice(0, upto + 1).forEach((s, step) => {
     if (s.card) blocksIn.push({ key: `c${step}`, step, kind: "card", text: s.say });
@@ -549,7 +549,7 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
         const curves = (b: { expr: string; more?: string[] }) => [b.expr, ...(b.more ?? [])].map((c) => c.replace(/\s+/g, ""));
         const mine = curves(it);
         const grown = blocksIn.findIndex((b) => b.kind === "plot" && curves(b).every((c) => mine.includes(c)));
-        const next = { step, kind: "plot" as const, expr: it.expr, xmin: it.xmin, xmax: it.xmax, text: it.text, more: it.more };
+        const next = { step, kind: "plot" as const, expr: it.expr, xmin: it.xmin, xmax: it.xmax, text: it.text, more: it.more, xName: it.xName, yName: it.yName };
         if (grown >= 0) blocksIn[grown] = { key: blocksIn[grown].key, ...next };
         else blocksIn.push({ key, ...next });
       }
@@ -618,7 +618,7 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
     if (b.kind === "formula") return { ...base, kind: "formula", tex: b.tex, box: { x: notes.x, y: 0, w: notes.w, h: TALL_FORMULA.test(b.tex) ? 92 : 62 } };
     if (b.kind === "plot") {
       const pw = Math.min(notes.w, 400);
-      return { ...base, kind: "plot", expr: b.expr, xmin: b.xmin, xmax: b.xmax, text: b.text, more: b.more, box: { x: notes.x + (notes.w - pw) / 2, y: 0, w: pw, h: Math.min(250, Math.max(170, notes.h * 0.42)) } };
+      return { ...base, kind: "plot", expr: b.expr, xmin: b.xmin, xmax: b.xmax, text: b.text, more: b.more, xName: b.xName, yName: b.yName, box: { x: notes.x + (notes.w - pw) / 2, y: 0, w: pw, h: Math.min(250, Math.max(170, notes.h * 0.42)) } };
     }
     if (b.kind === "cells") {
       // every value is shown in full: a row when it fits, else one value under the other, with a smaller hand if it must

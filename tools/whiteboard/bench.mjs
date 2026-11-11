@@ -46,7 +46,7 @@ const HELD_OUT = [
 const cloud = args.includes("--cloud");
 let consent = "";
 if (cloud) {
-  const who = await (await fetch(`${arg("base", "http://127.0.0.1:4811")}/api/buddy/recipients`)).json();
+  const who = await (await fetch(`${arg("base", "http://127.0.0.1:4811")}/api/buddy/recipients?for=whiteboard`)).json();
   const id = who?.ask?.id;
   if (!id || arg("yes-send-to", "") !== id) {
     console.error(`The cloud run would send ten questions to: ${(who?.ask?.names ?? ["unknown"]).join(", ")} (recipient id "${id}").\nNothing was sent. To run it, repeat the command with: --cloud --yes-send-to ${id}`);
@@ -164,7 +164,7 @@ function finalBoard(lesson) {
     if (it.kind === "node") names.set(it.id, it.text);
     else if (it.kind === "edge") arrows.push(it);
     else if (it.kind === "formula") other.push(`formula $${it.tex}$`);
-    else if (it.kind === "plot") other.push(`one plot with ${1 + (it.more?.length ?? 0)} curve(s): y = ${[it.expr, ...(it.more ?? [])].join(" and y = ")}, for x from ${it.xmin} to ${it.xmax}${it.more?.length ? " (the crossing of the first two is marked)" : ""}`);
+    else if (it.kind === "plot") other.push(`one plot with ${1 + (it.more?.length ?? 0)} curve(s): y = ${[it.expr, ...(it.more ?? [])].join(" and y = ")}, for x from ${it.xmin} to ${it.xmax}${it.more?.length ? " (the crossing of the first two is marked)" : ""}; axes ${it.xName || it.yName ? `named "${it.xName || "x"}" (across) and "${it.yName || "y"}" (up)` : "not named"}`);
     else if (it.kind === "cells") other.push(`row of cells [${it.values.join(", ")}]${it.pointer >= 0 ? ` with a pointer under ${it.values[it.pointer]}` : ""}`);
     else if (it.kind === "note") other.push(`note "${it.text}"`);
   }

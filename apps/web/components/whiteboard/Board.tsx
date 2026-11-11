@@ -154,7 +154,8 @@ function Plot({ block, palette, draw }: { block: Extract<PlacedBlock, { kind: "p
         <text x={inner.x + inner.w} y={box.y + box.h - 6} textAnchor="middle">{num(curve.xmax)}</text>
         <text x={inner.x - 6} y={inner.y + inner.h} textAnchor="end">{num(curve.ymin)}</text>
         <text x={inner.x - 6} y={inner.y + 10} textAnchor="end">{num(curve.ymax)}</text>
-        <text x={inner.x + inner.w + 2} y={axisY - 6} textAnchor="end">x</text>
+        <text x={inner.x + inner.w + 2} y={axisY - 6} textAnchor="end" data-axis="x">{block.xName || "x"}</text>
+        {block.yName && <text x={axisX + 6} y={inner.y - 4} textAnchor="start" data-axis="y">{block.yName}</text>}
       </g>
     </g>
   );

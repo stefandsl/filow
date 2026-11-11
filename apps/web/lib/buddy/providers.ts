@@ -31,7 +31,8 @@ export type BuddyAskRequest = {
  * prompt, a JSON schema for the answer and a length limit. Set by server code only, never read from
  * a request body. The consent lock and the provider choice in askBuddy apply unchanged.
  */
-export type AskShape = { system: string; format?: unknown; maxTokens?: number; temperature?: number };
+/** `model`: the cloud model for this call when it is not OK Filow's own (the whiteboard may name its own); consent is then asked for that model's maker. */
+export type AskShape = { system: string; format?: unknown; maxTokens?: number; temperature?: number; model?: string };
 
 /** What OK Filow runs on "Answers from: Local": the model, and whether it is shown the screenshot. */
 export type LocalHelper = { model: string; pictures: boolean };
@@ -216,7 +217,7 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal, shape?
       "X-Title": "Filow",
     },
     body: JSON.stringify({
-      model: BUDDY_CLOUD_MODEL(),
+      model: shape?.model || BUDDY_CLOUD_MODEL(),
       stream: true,
       temperature: 0.3,
       // 500 cut a photosynthesis drawing off mid-JSON (953 chars); a spoken answer plus a drawing is about 500-900 tokens.
@@ -231,7 +232,7 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal, shape?
         },
       ],
       // Only the company the notice named runs the model (lib/openrouter.ts, openRouterProvider).
-      ...withProvider([BUDDY_CLOUD_MODEL()]),
+      ...withProvider([shape?.model || BUDDY_CLOUD_MODEL()]),
     }),
   });
   if (!res.ok || !res.body) throw new Error(`OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`);
@@ -278,6 +279,9 @@ export class ConsentRequiredError extends Error {
 
 /** Who a cloud question goes to right now: OpenRouter, then the maker of BUDDY_CLOUD_MODEL. */
 export const buddyCloudRecipient = (): Recipient => askRecipient(BUDDY_CLOUD_MODEL());
+/** The online model of the whiteboard: OK Filow's unless WHITEBOARD_CLOUD_MODEL names another (so that two can be measured without a code change). */
+export const WHITEBOARD_CLOUD_MODEL = () => process.env.WHITEBOARD_CLOUD_MODEL || BUDDY_CLOUD_MODEL();
+export const whiteboardCloudRecipient = (): Recipient => askRecipient(WHITEBOARD_CLOUD_MODEL());
 
 /**
  * The only door to a provider. Cloud needs the consent key for the recipient in use; without it this
@@ -292,7 +296,8 @@ export function askBuddy(provider: BuddyProviderId, req: BuddyAskRequest, signal
     return askFreeLlm(req, signal, shape);
   }
   if (provider !== "cloud") return askOllama(req, signal, helper, shape);
-  const recipient = buddyCloudRecipient();
+  // the yes must be for the maker of the model that is actually called
+  const recipient = shape?.model ? askRecipient(shape.model) : buddyCloudRecipient();
   if (req.consent !== consentKey("ask", recipient)) throw new ConsentRequiredError(recipient);
   return askOpenRouter(req, signal, shape);
 }

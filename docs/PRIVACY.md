@@ -123,6 +123,12 @@ check the terms of the providers behind it before using it.
 **Offline mode** (Filow menu) stops every request that would leave your computer, including the
 update check and the public link.
 
+**Names in whiteboard questions.** Some online accounts hide names in what you send before the
+model sees it, so a lesson about "the Krebs cycle" would be written about something else. When
+Filow sees that, it sends the same whiteboard question once more with the name spelled out letter
+by letter, to the same service, and tells you under the lesson. Only the text of that question is
+changed: never your script, your screen, your OK Filow questions or any answer. (Decided by the
+owner on 11 November 2026.)
 ## The public link
 
 To let a phone on another network follow your talk, Filow opens a public link through Cloudflare

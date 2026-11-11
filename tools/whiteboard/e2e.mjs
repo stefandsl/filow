@@ -211,7 +211,9 @@ try {
     await page.evaluate(`document.querySelector("dialog.okf-notice-modal .okf-notice-send").click(); true`);
     const cloud = await lessonDone(90_000);
     check("after the yes the lesson comes from the cloud model", cloud && cloud.phase === "done" && cloud.source === "cloud" && cloud.sketches === 1, JSON.stringify(cloud && { phase: cloud.phase, source: cloud.source, sketches: cloud.sketches, alert: cloud.alert }));
-    check("one cloud call was made (the lesson), with the question and no picture", cloudCalls().length === 1 && cloudCalls().every((c) => !c.hasImage) && cloudCalls()[0].user.includes("Ohm"), JSON.stringify(cloudCalls().map((c) => ({ url: c.url, hasImage: c.hasImage, user: c.user.slice(0, 60) }))));
+    check("two cloud calls were made (the lesson, then its legend), with the question and no picture", cloudCalls().length === 2 && cloudCalls().every((c) => !c.hasImage) && cloudCalls()[0].user.includes("Ohm"), JSON.stringify(cloudCalls().map((c) => ({ url: c.url, hasImage: c.hasImage, user: c.user.slice(0, 60) }))));
+    const legendShown = await page.evaluate(`({ x: document.querySelector('svg.wb-board [data-axis="x"]')?.textContent, y: document.querySelector('svg.wb-board [data-axis="y"]')?.textContent, note: [...document.querySelectorAll('svg.wb-board [data-block="note"] text')].map((x) => x.textContent).join(" ") })`);
+    check("the plot has its axes named and the letters of the formula are named on the board", legendShown.x === "Current (A)" && legendShown.y === "Voltage (V)" && /V = voltage/.test(legendShown.note), JSON.stringify(legendShown));
     // a worked example is written in full (cells used to be cut at 6 characters: "I = 2...")
     const cellTexts = await page.evaluate(`[...document.querySelectorAll('svg.wb-board [data-block="cells"] text')].map((x) => x.textContent).join("|")`);
     check("the cells of a worked example are readable in full", cellTexts === "V = 12 V|I = 2 A|R = 6 ohm", cellTexts);
@@ -252,20 +254,32 @@ try {
     const bytes = Number(/bytes=(\d+)/.exec(video || "")?.[1] ?? 0);
     check("the lesson is saved as a WebM video made in the app, with the sentences as captions when no voice can be recorded", /^video\/webm/.test(video || "") && frames >= 30 && bytes > 40_000 && /sound=false/.test(video) && (await page.evaluate(`window.__video.length`)) === 1 && videoNote.length > 20, `${video} | ${videoNote.slice(0, 80)}`);
     // 8. A cloud account that hides names: no lesson, the reason, and the way back to this PC.
-    const sentBefore = cloudCalls().length;
+    // First the work-around the owner asked for: the name is spelled out, the lesson is about it, and the page says what was done.
+    const beforeSpell = cloudCalls().length;
     await setInput(0, "The Krebs cycle");
+    await submit(0);
+    const spelledLesson = await waitFor(async () => { if (await page.evaluate(`Boolean(document.querySelector("dialog.okf-notice-modal[open]"))`)) await page.evaluate(`document.querySelector("dialog.okf-notice-modal .okf-notice-send").click(); true`); const st = await state(); return st && st.phase === "done" && st.source === "cloud" && (await page.evaluate(`Boolean(document.querySelector("main.wb-page [data-spelled]"))`)) ? st : null; }, 90_000);
+    const spelledNote = await page.evaluate(`document.querySelector("main.wb-page [data-spelled]")?.textContent ?? ""`);
+    const spelledTitle = await page.evaluate(`document.querySelector("svg.wb-board > text")?.textContent ?? ""`);
+    const spelledSent = cloudCalls().slice(beforeSpell).map((c) => c.user);
+    check("an account that hides names: the question is asked again with the name spelled out, the lesson is titled normally, and the page says so", Boolean(spelledLesson) && spelledTitle === "The Krebs cycle" && /Krebs/.test(spelledNote) && spelledSent.length >= 2 && /Krebs/.test(spelledSent[0]) && /K r e b s/.test(spelledSent[1]) && !/Krebs/.test(spelledSent[1]), `${spelledTitle} | ${spelledNote.slice(0, 90)} | ${spelledSent.length} calls`);
+    await shot("spelled-dark-1264", 1264, 800);
+    // A name the account hides however it is written: no lesson, the reason, and the way back to this PC.
+    const sentBefore = cloudCalls().length;
+    await setInput(0, "The Hodgkin cycle");
     await submit(0);
     const hid = await waitFor(async () => { if (await page.evaluate(`Boolean(document.querySelector("dialog.okf-notice-modal[open]"))`)) await page.evaluate(`document.querySelector("dialog.okf-notice-modal .okf-notice-send").click(); true`); return page.evaluate(`Boolean(document.querySelector('main.wb-page .wb-alert [data-action="use-local"]'))`); }, 60_000);
     const alertText = await page.evaluate(`document.querySelector("main.wb-page .wb-alert p")?.textContent ?? ""`);
-    check("a name hidden by the cloud service shows no lesson, says why and where the setting is", hid && /OpenRouter/.test(alertText) && alertText.includes("[PERSON_NAME]") && cloudCalls().length === sentBefore + 1 && (await page.evaluate(`document.querySelectorAll("main.wb-page svg.wb-board [data-node]").length`)) === 0, `${alertText.slice(0, 120)} | calls ${cloudCalls().length - sentBefore}`);
+    check("a name hidden by the cloud service shows no lesson, says why and where the setting is", hid && /OpenRouter/.test(alertText) && alertText.includes("[PERSON_NAME]") && cloudCalls().length >= sentBefore + 1 && (await page.evaluate(`document.querySelectorAll("main.wb-page svg.wb-board [data-node]").length`)) === 0, `${alertText.slice(0, 120)} | calls ${cloudCalls().length - sentBefore}`);
     await shot("redacted-dark-1264", 1264, 800);
     await shot("redacted-dark-360", 360, 740);
     const hidAxe = await axe();
     check("the message passes axe at 360 px", Array.isArray(hidAxe) && hidAxe.length === 0, (hidAxe || []).join("; "));
+    const sentAtRefusal = cloudCalls().length;
     await page.evaluate(`document.querySelector('main.wb-page .wb-alert [data-action="use-local"]').click(); true`);
     await sleep(800);
     const onPc = await lessonDone(120_000);
-    check("Explain it on this PC asks the local model the same question, and nothing more leaves", onPc && onPc.phase === "done" && onPc.source === "local" && cloudCalls().length === sentBefore + 1, JSON.stringify(onPc && { phase: onPc.phase, source: onPc.source, alert: onPc.alert }));
+    check("Explain it on this PC asks the local model the same question, and nothing more leaves", onPc && onPc.phase === "done" && onPc.source === "local" && cloudCalls().length === sentAtRefusal, JSON.stringify(onPc && { phase: onPc.phase, source: onPc.source, alert: onPc.alert }));
 
     // 9. "No" keeps the lesson on this PC: a different maker needs its own yes, and a no sends nothing.
     check("no local call carried a picture", fake.seen.filter((x) => x.url.startsWith("/api/chat")).every((x) => !x.hasImage));

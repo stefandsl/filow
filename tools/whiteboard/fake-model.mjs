@@ -99,7 +99,13 @@ export function startFakeModel(port = 4812) {
           ? { topic: true, answers: true, issues: "", must: "current", sentences: Array.from({ length: count("Sentences:", "Boxes:") }, (_, i) => ({ n: i + 1, true: true })) }
           : judging
             ? { arrows: (asked.match(/^\d+\. /gm) ?? []).map((_, i) => ({ n: i + 1, verdict: "true" })) }
-            : /Krebs/.test(asked)
+            : text(messages[0]).includes("leaves some things unnamed")
+              ? // the legend: the letters of the formula and the axes of the plot, named
+                { symbols: [{ symbol: "V", means: "voltage" }, { symbol: "I", means: "current" }, { symbol: "R", means: "resistance" }], axes: [{ plot: 1, x: "Current (A)", y: "Voltage (V)" }] }
+            : /K r e b s/.test(asked)
+              ? // the same account, asked again with the name spelled out: the filter lets it through and the model can answer
+                { ...CLOUD, topic: "The K r e b s cycle is a loop of reactions in the cell.", title: "The K r e b s cycle" }
+            : /Krebs|H ?o ?d ?g ?k ?i ?n/.test(asked)
               ? // a provider that hides names before the model sees them: the model answers about a placeholder
                 { ...CLOUD, topic: "The [PERSON_NAME] cycle is a cycle.", title: "The [PERSON_NAME] cycle" }
               : CLOUD;

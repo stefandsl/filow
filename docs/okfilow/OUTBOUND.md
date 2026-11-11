@@ -119,6 +119,31 @@ Filow's own windows never uses the clipboard.
   The pill has its own colour (never the ink of listening, thinking or speaking), its arrow moves
   only without `prefers-reduced-motion`, and it sits in a polite live region.
 
+## Names in whiteboard questions (owner decision, 11/11/2026)
+
+The owner's OpenRouter account hides personal data in every prompt before a model sees it: "the
+Krebs cycle" reaches the model as "the [PERSON_NAME] cycle", and the model then teaches some other
+cycle. The owner keeps that filter on and asked Filow to get the topic through for whiteboard
+questions only.
+
+What Filow does, and only this:
+
+- When the answer to a whiteboard question carries a placeholder the question did not contain, or
+  never uses a proper name of the question, the same question is sent once more to the same
+  recipient with that name spelled out letter by letter ("K r e b s"), followed by one line that
+  tells the model a privacy filter hides names and that the letters are one word. From then on
+  this profile spells the names of whiteboard questions out from the first call.
+- In the answer, a name written spelled out is written normally again. Nothing else is altered.
+- The page says so under the lesson, in the five languages: the account hides names, Filow spelled
+  the name out, only the question was changed.
+- If the spelled question is hidden too, the lesson is refused as before, with the reason and
+  "Explain it on this PC".
+
+Scope: the text of a whiteboard question, sent under the consent already given for that
+recipient. Never the user's script, the text of the screen, a screenshot, an OK Filow question or
+any answer. Filow's own name masking (Rizzo-PII and the regex layer, for takes and scripts) is not
+touched. The spelling is `WHITEBOARD_NAME_SPELLING` (`spaced`, `hyphen`, `dots`); which of them the
+account's filter lets through is measured with `tools/whiteboard/echo.mjs`.
 ## Open (owner decisions)
 
 - Row 13: the public link is on by default and starts without asking. Script, transcript and slide
