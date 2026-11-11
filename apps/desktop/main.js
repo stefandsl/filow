@@ -239,7 +239,7 @@ async function computeWelcomeOffer() {
   const rec = withCleanup(info.recommended, s1Runtime().status(), localAi.CATALOG);
   welcomeSetup.rec = rec;
   welcomeSetup.installed = installed;
-  return setupOffer({ hw: info, rec, catalog: localAi.CATALOG, installed, online: !offline && net.isOnline(), installerChose: installChoicesFound });
+  return setupOffer({ hw: info, rec, catalog: localAi.CATALOG, installed, online: !offline && net.isOnline() });
 }
 
 function uiSender(event, welcomeOnly = false) {
@@ -330,7 +330,7 @@ ipcMain.handle("dictation:punctuation:download", event => {
   ipcMain.handle("welcome:context", event => {
     if (!uiSender(event, true)) throw new Error("Denied");
     const firstRun = settings.welcomeCompleted !== true;
-    return { firstRun, askSetup: firstRun && !installChoicesFound && !settings.localAiOffered };
+    return { firstRun, askSetup: firstRun && !settings.localAiOffered };
   });
   ipcMain.handle("welcome:setupOffer", event => { if (!uiSender(event, true)) throw new Error("Denied"); return welcomeOfferForStep(); });
   ipcMain.handle("welcome:chooseSetup", (event, accept, cleanup) => {
@@ -1303,7 +1303,7 @@ async function checkForUpdates({ manual = false } = {}) {
 }
 
 
-// ---- Splash screen and first-start choices from the installer ----
+// ---- Splash screen ----
 let splash = null;
 let splashShownAt = 0;
 const SPLASH_MIN_MS = Number(process.env.FILOW_SPLASH_MIN_MS || 1800);
@@ -1378,19 +1378,17 @@ function closeSplash() {
 }
 const st = (key) => sharedText(`shell.splash.${key}`, menuLang());
 
-/** install-choices.json is written by the Windows installer (build/installer.nsh): language and models to fetch. */
-let installChoicesFound = false;
-function readInstallChoices() {
-  const file = path.join(userData, "install-choices.json");
+/**
+ * Until 0.9.34 the Windows installer had a page of model names and wrote its ticks to
+ * install-choices.json; the app then skipped its own setup. The installer no longer asks: what to
+ * download is decided here, by the one rule the app uses (localai.js recommend). A file left by an
+ * older installer is removed unread, so its list (made by another rule) is never followed.
+ */
+function dropInstallerChoices() {
   try {
-    if (!fs.existsSync(file)) return null;
-    const choices = JSON.parse(fs.readFileSync(file, "utf8"));
-    fs.rmSync(file, { force: true });
-    installChoicesFound = true; // the welcome then skips its speech-setup step: the installer already asked
-    // Installer locale is inferred, not an explicit UI language preference.
-    return choices;
+    fs.rmSync(path.join(userData, "install-choices.json"), { force: true });
   } catch {
-    return null;
+    /* read-only profile: the file is never read anyway */
   }
 }
 
@@ -1412,7 +1410,7 @@ function s1Runtime() {
 }
 app.on("will-quit", () => { if (s1) s1.stop(); });
 /**
- * The installer's components page, the welcome's setup step and Settings all end here: one download path
+ * The welcome's setup step, the first-start dialog and Settings all end here: one download path
  * (s1-runtime.js fetchModel: resumable, pinned SHA-256). The wish is kept in settings.json until the file
  * is on this computer, so a setup done without a network is finished at a later start.
  */
@@ -1695,7 +1693,7 @@ function startOllamaIfWanted(why, { needed = false } = {}) {
   logLine(`local AI: start check (${why})`);
   void startOllamaInstall({ startOnly: true });
 }
-/** First start without installer choices (macOS, Linux, portable): offer the hardware-based setup. */
+/** First start, on every platform and for every kind of install: offer the setup chosen for this hardware. */
 async function offerLocalAi() {
   // V2 onboarding: the welcome asked in its "This computer" step (or the user skipped it); no second question.
   // The answer may come from an earlier launch that quit before getting here (settings.welcomeSetupAnswer).
@@ -2184,7 +2182,8 @@ function installCsp() {
 async function main() {
   killStaleTunnels();
   installCsp();
-  let choices;
+  /** What the user accepted in the first-run setup (the welcome's step, or the dialog after it): models to fetch. */
+  let choices = null;
   try {
     seed(scriptFile, "script.md");
     const migrated = migrateLegacyProfile();
@@ -2195,7 +2194,7 @@ async function main() {
     loadSettings();
     freeLlm().apply(); // FreeLLMAPI: the address and model saved in Settings win over .env
     if (migrated) settings.profileMigrated = true;
-    choices = readInstallChoices();
+    dropInstallerChoices();
     initializeUiPreferences();
     if (settings.welcomeCompleted !== true) {
       startupTransition = true;

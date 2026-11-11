@@ -35,7 +35,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   const openExternal = vi.fn(async () => {}), checkForUpdates = vi.fn(async () => null);
   const writeText = vi.fn(), showMessageBox = vi.fn(async () => ({ response: 0 }));
   const updaterHandlers: Record<string, (info: { version: string }) => void> = {}, notificationShow = vi.fn();
-  const writeFileSync = vi.fn(), appendFileSync = vi.fn();
+  const writeFileSync = vi.fn(), appendFileSync = vi.fn(), rmSync = vi.fn(), fsRead = vi.fn((..._args: unknown[]) => "FILOW_OFFLINE=1");
   const modules: Record<string, any> = {
     electron: {
       crashReporter: { start() {} },
@@ -51,7 +51,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
       net: { isOnline: () => true }, nativeTheme: { shouldUseDarkColors: true },
     },
     "node:path": path, "node:url": { pathToFileURL },
-    "node:fs": { readFileSync: () => "FILOW_OFFLINE=1", appendFileSync, existsSync: (file: string) => updateFeed && String(file).endsWith("app-update.yml"), mkdirSync() {}, rmSync() {}, writeFileSync, renameSync() {} },
+    "node:fs": { readFileSync: fsRead, appendFileSync, existsSync: (file: string) => updateFeed && String(file).endsWith("app-update.yml"), mkdirSync() {}, rmSync, writeFileSync, renameSync() {} },
     "node:os": { homedir: () => "G:/fake", cpus: () => [{ model: "fake" }], totalmem: () => 0, release: () => "fake", networkInterfaces: () => ({}) },
     "node:http": { get: () => { const req = new EventEmitter(); queueMicrotask(() => req.emit("error", new Error("Ollama absent"))); return req; } },
     "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": childProcess,
@@ -75,7 +75,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   modules["./tunnels.js"] = createRequire(import.meta.url)("./tunnels.js");
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
     ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
-       startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, setLog: text => { lastTakeLog = text; },
+       startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, dropInstallerChoices, setLog: text => { lastTakeLog = text; },
        setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
        offerLocalAi, offerFirewall, welcomeSetup, settings: () => settings, patchSettings: patch => Object.assign(settings, patch),
@@ -89,7 +89,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     __dirname: "G:/fake", process: { env, platform, arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {} },
     URL, URLSearchParams, console, setTimeout, clearTimeout,
   });
-  return { api, env, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync,
+  return { api, env, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync, rmSync, fsReads: fsRead,
     calls, appHandlers, appExit, whenReady, windows, asked, catalog: Object.keys(modules["./localai"].CATALOG),
     ipc: async (channel: string, win: { webContents: unknown }, ...args: unknown[]) => ipcHandlers[channel]({ sender: win.webContents }, ...args),
     blocked: (url: string) => { let result: any; requestFilter({ url }, r => { result = r; }); return result.cancel === true; } };
@@ -296,6 +296,23 @@ describe("the phone link starts when pairing, not at launch", () => {
     expect(/useEffect\(\(\) => \{\s*if \(open\) announcePairing\(bridge\);/.test(panel)).toBe(true);
   });
 });
+// Easy settings: the Windows installer no longer has a page of model names. A choices file left by an
+// older installer is removed without being read, so the app's own first-run setup always decides.
+describe("choices from an older installer", () => {
+  it("are removed unread", () => {
+    const f = fixture();
+    f.fsReads.mockClear();
+    f.api.dropInstallerChoices();
+    expect(f.rmSync.mock.calls.map((c: unknown[]) => [String(c[0]).replace(/\\/g, "/").split("/").pop(), c[1]])).toEqual([["install-choices.json", { force: true }]]);
+    expect(f.fsReads).not.toHaveBeenCalled();
+  });
+  it("a profile that cannot be written to does not stop the start", () => {
+    const f = fixture();
+    f.rmSync.mockImplementation(() => { throw new Error("EPERM"); });
+    expect(() => f.api.dropInstallerChoices()).not.toThrow();
+  });
+});
+
 // SIGN-04: an update never interrupts a live session.
 describe("update ready during a take", () => {
   const withWindow = () => {
