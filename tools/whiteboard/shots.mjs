@@ -73,9 +73,14 @@ try {
   await page.call("Page.enable");
   await page.call("Emulation.setDeviceMetricsOverride", { width: 1264, height: 900, deviceScaleFactor: 1, mobile: false });
   for (const item of lessons) {
-    await page.evaluate(`window.sessionStorage.setItem("filow.whiteboard.replay", ${JSON.stringify(JSON.stringify(item.lesson))}); window.location.reload(); true`);
     const last = item.lesson.steps.length - 1;
-    const shown = await waitFor(() => page.evaluate(`(() => { const svg = document.querySelector("svg.wb-board"); return svg && Number(svg.dataset.step) === ${last} ? true : false; })()`), 30_000, 300);
+    let shown = null;
+    // the first load of the window can still be settling: a lesson that did not come up is handed over once more
+    for (let attempt = 0; attempt < 2 && !shown; attempt++) {
+      await sleep(attempt ? 1500 : 300);
+      await page.evaluate(`window.sessionStorage.setItem("filow.whiteboard.replay", ${JSON.stringify(JSON.stringify(item.lesson))}); window.location.reload(); true`);
+      shown = await waitFor(() => page.evaluate(`(() => { const svg = document.querySelector("svg.wb-board"); return svg && Number(svg.dataset.step) === ${last} ? true : false; })()`), 25_000, 300);
+    }
     if (!shown) { console.log(`lesson ${item.n}: the board did not reach its last step`); continue; }
     await page.evaluate('document.documentElement.dataset.theme = "light"; true');
     await sleep(2200); // strokes finish drawing, formulas are set

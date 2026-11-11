@@ -98,6 +98,72 @@ a price), an arrow with a vague verb. These are limits of an 8B model checking i
   questions and stops; adding `--yes-send-to <recipient id>` runs it and saves the boards for
   strict scoring.
 
+## Round 3: the drawing has to show the concept
+
+The rubric gained a third clause: the board at the end must show the main things AND how they
+relate; a list of unconnected boxes fails. Reviewers get the final board in words (`summary.md`,
+"Final board"). Under this rubric the round 2 result does not stand.
+
+Local model, round 3 code (every step draws from the checked plan, relations drawn as soon as both
+ends are on the board, row of cells for worked examples, formulas and plots):
+
+| Run | Strict, new rubric | Steps that draw something | Checked relations on the final boards | Layout check | Seconds per lesson (first step) |
+|---|---|---|---|---|---|
+| t-run1 | 4/10 | 40 of 45 (5 text cards) | 12 of 12 | 9/10 | 112.7 (87.8) |
+| t-run2 | 5/10 | 46 of 48 (2 text cards) | 24 of 24 | 10/10 | 89.2 (66.7) |
+| t-run3 | 3/10 | 40 of 43 (3 text cards) | 19 of 19 | 9/10 | 82.5 (66.5) |
+| held-out | 3/10 | 39 of 41 (2 text cards) | 18 of 18 | 10/10 | 33.5 (26.3) |
+
+**The target (8/10 on three runs, 7/10 held-out) is not met, and this is where the local model
+stops:** its sentences are right and its arrows are true, but there are too few of them. The
+drawing plan plus its fact check leaves one to two confirmed relations per lesson (12 to 24 in ten
+lessons). Everything confirmed is drawn (coverage 100%), and nearly every step draws something, yet
+the relation that carries the mechanism (the loop of the Krebs cycle closing, light plus water plus
+carbon dioxide becoming sugar, the compare-and-discard of binary search) is usually not among the
+confirmed ones. Loosening the check brings back false arrows (round 1: 3/10 for that reason).
+Not tried for lack of time: asking the model to repair a refused relation instead of dropping it.
+The page keeps its advice under every local lesson; it never switches source by itself.
+
+The layout score is after the round 3 layout changes, recomputed on the saved lessons
+(`bench.mjs --rescore`); at bench time it was 6, 7, 7 and 8 of 10, all from cut titles and labels
+on the phone-shaped board. The times of the three first-set runs are two to four times those of
+every other run on this machine (the held-out run right after took 33.5 s): the graphics card was
+almost certainly busy with other work, but that was not verified. Against round 2 (25 to 29 s) the
+held-out run is about 5 to 8 s slower per lesson, which is the larger pick call (cells, pointer).
+
+Pictures of the best run (t-run2), final boards in the light theme: `G:\FILOW\tmp\wb-shots\r3`
+(`lesson-01.png` .. `lesson-10.png`, `contact-sheet.png`), made with `tools/whiteboard/shots.mjs`.
+
+### The online path (Cloud, FreeLLMAPI)
+
+Measured by the coordinator on the real model before these changes (google/gemini-2.5-flash, one
+call per lesson, 4 to 9 s): strict 3/10 and 5/10, layout 6/10 and 6/10. Failures: arrows labelled
+from the wrong end, a lesson on another topic, loops never closed, plots contradicting each other,
+no worked example, crowded phone-shaped boards.
+
+What the online path does now, not yet measured on a real model (no paid call was made here):
+1. the lesson in one call, with the kinds of explanation and their recipes, a row of cells for
+   algorithms, a rule that every arrow has a label read from its start to its end, and a limit of
+   8 boxes and 10 arrows;
+2. one examiner call (same recipient, same consent; only the question and the lesson's own text):
+   topic, every sentence, every arrow with its direction (ok, reversed, false), and whether the
+   lesson does what was asked with a board that shows it;
+3. a reversed arrow is turned, a false or unjudged one dropped, a step with a false sentence left
+   out; a lesson off topic or not doing what was asked is written again once with the examiner's
+   reason and examined again; a lesson still off topic is refused with an error.
+Cost: two calls for a lesson that passes (about twice the 4 to 9 s measured), four at most.
+
+Layout of the two measured cloud runs recomputed with the round 3 layout: 7/10 and 5/10. On the
+wide board 9/10 and 8/10 are clean; the phone-shaped board with eight to ten boxes and ten or more
+labelled arrows still has arrows through boxes or labels. The new limit of 8 boxes and 10 arrows
+is meant to keep boards under that; whether it does is for the next cloud run to show.
+
+To measure it (a paid call, the owner's decision): start Filow or `next dev` with
+`OPENROUTER_API_KEY` set, then
+`node tools/whiteboard/bench.mjs --base http://127.0.0.1:<port> --cloud --out <dir>` prints the
+recipient and stops; the same command with `--yes-send-to <recipient id>` (for the default model:
+`openrouter/google`) runs the ten questions, each now two to four calls.
+
 ## How to repeat
 
 1. Start Filow (or `next dev`) with Ollama running.

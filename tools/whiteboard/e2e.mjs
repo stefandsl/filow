@@ -190,7 +190,8 @@ try {
     await submit(0);
     await sleep(800);
     const broken = await lessonDone(120_000);
-    check("a step the model writes wrongly is shown as a text card, and the lesson still ends", broken && broken.phase === "done" && broken.cards === 1 && /text|testo/i.test(await page.evaluate(`[...document.querySelectorAll("main.wb-page .wb-note")].map((p) => p.textContent).join(" ")`)), JSON.stringify(broken && { phase: broken.phase, cards: broken.cards }));
+    // the step whose answer is broken twice is drawn from the checked plan (no text card), and the lesson ends
+    check("a step the model writes wrongly is still drawn from the checked plan, and the lesson ends", broken && broken.phase === "done" && broken.cards === 0 && broken.nodes === 6 && broken.edges === 5, JSON.stringify(broken && { phase: broken.phase, cards: broken.cards, nodes: broken.nodes, edges: broken.edges }));
     await shot("card-dark-1264", 1264, 800);
 
     // 7. Cloud: nothing leaves before the yes; after it, one call with the question and no picture.
