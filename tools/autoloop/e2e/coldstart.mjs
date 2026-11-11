@@ -20,7 +20,9 @@ const exeDir = process.argv[2] || newestBuild();
 const runs = Number(process.argv[3] || 5);
 // Ports can be moved when another session is using the defaults (FILOW_E2E_PORT).
 const PORT = Number(process.env.FILOW_E2E_PORT || 4787);
-// The default start, public link included (a11y.mjs turns it off in the same profile).
+// The default start: the public link is switched on as in a new profile (a11y.mjs turns it off in the
+// same profile). Since the Easy settings it is not started at launch, only when "Pair a phone" is
+// opened, so these runs make no tunnel and linkFailedRuns stays 0.
 const profile = seedProfile(ROOT, { remoteShare: true });
 const log = path.join(profile, "startup.log");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

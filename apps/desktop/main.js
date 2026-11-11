@@ -516,6 +516,10 @@ function wireScreenSense() {
   appOn("remote:set", (_e, on) => {
     if (mainWin && !mainWin.isDestroyed()) void setRemoteShare(mainWin, Boolean(on));
   });
+  // The pairing dialog was opened: the public link starts now, not at launch.
+  appOn("remote:pairing", () => {
+    if (mainWin && !mainWin.isDestroyed()) linkForPairing(mainWin);
+  });
   appHandle("update:status", () => ({ ...updateState, current: app.getVersion() }));
   appOn("update:check", () => void checkForUpdates({ manual: true }));
   appOn("update:install", () => loadUpdater() && updateState.status === "downloaded" && updater.quitAndInstall());
@@ -893,9 +897,24 @@ function stopTunnels({ wait = false } = {}) {
 }
 
 /**
+ * "Pair a phone" was opened: bring the public link up when the user has it on and it is not up yet.
+ * It comes up in about 6 s (bound by trycloudflare.com issuing the address) and stays for the rest of
+ * this run. The window is not reloaded: the page gets the new addresses with the "remote:status"
+ * event and redraws the pairing QR in place (docs/OWNER-DECISIONS.md D2, third option); until then
+ * the QR carries the address on this network. Returns whether a start was made.
+ */
+function linkForPairing(win) {
+  const { linkStartsForPairing } = require("./tunnels.js");
+  if (!linkStartsForPairing({ wanted: settings.remoteShare, offline, hosted: Boolean(process.env.FILOW_SESSION_URL), state: tunnels.state })) return false;
+  void setRemoteShare(win, true, { auto: true, reload: false });
+  return true;
+}
+
+/**
  * The public link is on by default (WhatsApp-style pairing: the QR works from any network).
- * `auto` = at start-up: no dialogs, failures only show in the pairing dialog and the app keeps
- * working on the LAN. From the menu or the dialog the user gets the download question and errors.
+ * `auto` = started by opening the pairing panel: no dialogs, failures only show in the pairing dialog
+ * and the app keeps working on the LAN. From the menu or the dialog's own button the user gets the
+ * download question and errors.
  */
 let remoteBusy = false;
 async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
@@ -936,7 +955,7 @@ async function setRemoteShare(win, on, { auto = false, reload = true } = {}) {
           saveSettings();
           await errorWithReport(win, mt("tunnelFailed"), String(err.message || err));
         }
-        // auto: stay "wanted" so the next launch retries; the LAN QR keeps working meanwhile
+        // auto: stay "wanted" so opening the pairing panel again retries; the LAN QR keeps working meanwhile
       }
     } else {
       remoteStatus("off");
@@ -2263,12 +2282,10 @@ async function main() {
   }
   guardNavigation(win);
 
-  // The public link starts now and comes up while the app opens: about 6 s, bound by trycloudflare.com
-  // issuing the address. The window does not wait for it and is not reloaded when it arrives: the page
-  // gets the new addresses with the "remote:status" event and redraws the pairing QR in place
-  // (docs/OWNER-DECISIONS.md D2, third option). Until then the QR carries the address on this network.
-  const wantLink = settings.remoteShare && !offline && !process.env.FILOW_SESSION_URL;
-  if (wantLink) void setRemoteShare(win, true, { auto: true, reload: false });
+  // The public link is not started here: it comes up the first time "Pair a phone" is opened
+  // (linkForPairing). Nothing is kept of a pairing between two starts (the relay's sessions live in
+  // memory, codes are single use and the trycloudflare address is new each time), so no phone waits
+  // for a link at launch.
 
   try {
     stage("waiting for servers");

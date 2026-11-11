@@ -24,4 +24,17 @@ function staleTunnelPids(listing, ports, selfPid = process.pid) {
   return out;
 }
 
-module.exports = { staleTunnelPids };
+/**
+ * Does the public link start now that "Pair a phone" was opened? Yes when the user has it switched on
+ * (the default), Filow may use the internet, the relay is this PC's own, and no link is up or coming
+ * up. The link is never started at launch: nothing leaves the PC and no tool is fetched for a phone
+ * nobody is pairing. A link that failed is tried again the next time the panel opens.
+ *
+ * @param {{ wanted: boolean, offline: boolean, hosted: boolean, state: string }} now
+ *   wanted: settings.remoteShare; hosted: FILOW_SESSION_URL is set; state: off | downloading | connecting | on | error
+ */
+function linkStartsForPairing({ wanted, offline, hosted, state }) {
+  return wanted === true && !offline && !hosted && (state === "off" || state === "error");
+}
+
+module.exports = { staleTunnelPids, linkStartsForPairing };
