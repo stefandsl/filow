@@ -1,6 +1,6 @@
 import type { ServerDecisionProviderId } from "@filow/core";
 
-const SERVER_PROVIDERS: ServerDecisionProviderId[] = ["openrouter", "clef-local", "clef-cloudflare"];
+const SERVER_PROVIDERS: ServerDecisionProviderId[] = ["openrouter", "clef-local", "clef-cloudflare", "freellm"];
 
 /**
  * The decision provider /api/decide uses: the one the request names, else DECISION_PROVIDER, else

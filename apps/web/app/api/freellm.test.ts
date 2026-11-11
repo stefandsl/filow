@@ -1,6 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { startFakeFreeLlm } from "../../../../tools/autoloop/e2e/fake-freellm.mjs";
 import { POST as ask } from "./buddy/ask/route";
+import { POST as decide } from "./decide/route";
+import { POST as translate } from "./script/translate/route";
+import { POST as generate } from "./script/generate/route";
 import { GET as recipients } from "./buddy/recipients/route";
 import { FREELLM_NAME } from "@/lib/buddy/outbound";
 
@@ -82,5 +85,65 @@ describe("OK Filow through FreeLLMAPI: /api/buddy/ask", () => {
     vi.stubEnv("FREELLMAPI_BASE_URL", "http://127.0.0.1:9/v1");
     expect(await (await ask(post(askBody, YES))).text()).toContain("[ERROR] [freellm:not_running]");
     expect(elsewhere).toEqual(["http://127.0.0.1:9/v1/chat/completions"]);
+  });
+});
+
+const decideBody = { transcript: "and then we look at the numbers", sectionTitle: "Numbers", bullets: [{ id: "a", text: "Revenue grew" }], provider: "freellm" };
+const script = { text: "# Intro\n- Hello everyone", to: "it" };
+const deck = { slides: [{ index: 0, title: "Intro", text: "Hello everyone" }] };
+
+describe("take tracking through FreeLLMAPI: /api/decide", () => {
+  it("the spoken words go to the router only with the yes for FreeLLMAPI", async () => {
+    for (const consent of [undefined, "transcript:openrouter/google", "ask:freellmapi"]) expect((await decide(post(decideBody, consent))).status).toBe(403);
+    expect(fake.log).toEqual([]);
+    const res = await decide(post(decideBody, "transcript:freellmapi"));
+    expect(res.status).toBe(200);
+    expect((await res.json()).model).toBe("FreeLLMAPI: fakeprovider/fake-model-1");
+    expect(chats()).toHaveLength(1);
+    expect(elsewhere).toEqual([]);
+  });
+  it("a failure is the router's own reason, never an answer from OpenRouter", async () => {
+    fake.setMode("quota");
+    const res = await decide(post(decideBody, "transcript:freellmapi"));
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toMatch(/^\[freellm:quota\]/);
+    expect(elsewhere).toEqual([]);
+  });
+});
+
+describe("scripts through FreeLLMAPI: /api/script/translate and /api/script/generate", () => {
+  it("OpenRouter stays the script cloud until the user picks FreeLLMAPI", async () => {
+    expect((await (await recipients()).json()).script.id).toBe("openrouter/google");
+    vi.stubEnv("SCRIPT_CLOUD", "freellm");
+    const rec = await (await recipients()).json();
+    expect(rec.script.id).toBe("freellmapi");
+    expect(rec.defaults.generate).toBe("freellm");
+  });
+  it("once picked, a script is translated by the router with the yes for it, and not with OpenRouter's", async () => {
+    vi.stubEnv("SCRIPT_CLOUD", "freellm");
+    expect((await translate(post(script, "script:openrouter/google"))).status).toBe(403);
+    expect(fake.log).toEqual([]);
+    const res = await translate(post(script, "script:freellmapi"));
+    expect(await res.json()).toMatchObject({ text: expect.stringContaining("Hello everyone"), model: "FreeLLMAPI: fakeprovider/fake-model-1", structureKept: true });
+    expect(chats()).toHaveLength(1);
+    expect(elsewhere).toEqual([]);
+  });
+  it("slides are written by the router with the yes, and a used-up quota is said as such", async () => {
+    vi.stubEnv("SCRIPT_CLOUD", "freellm");
+    expect((await generate(post(deck))).status).toBe(403);
+    const ok = await (await generate(post(deck, "script:freellmapi"))).text();
+    expect(ok).toContain('"provider":"freellm"');
+    expect(chats()).toHaveLength(1);
+    fake.setMode("quota");
+    expect((await (await translate(post(script, "script:freellmapi"))).json()).error).toMatch(/^\[freellm:quota\]/);
+    expect(elsewhere).toEqual([]);
+  });
+  it("offline nothing goes to the router", async () => {
+    vi.stubEnv("SCRIPT_CLOUD", "freellm");
+    vi.stubEnv("FILOW_OFFLINE", "1");
+    expect(await (await translate(post(script, "script:freellmapi"))).json()).toMatchObject({ unavailable: "disabled" });
+    await decide(post(decideBody, "transcript:freellmapi")).then((r) => r.text());
+    await generate(post({ ...deck, provider: "freellm" }, "script:freellmapi")).then((r) => r.text());
+    expect(fake.log).toEqual([]);
   });
 });

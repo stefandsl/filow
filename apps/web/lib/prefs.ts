@@ -57,7 +57,7 @@ const KEY = "prefs:decisionProvider";
 export function getDecisionProvider(): DecisionProviderId | undefined {
   try {
     const v = localStorage.getItem(KEY);
-    return v === "openrouter" || v === "clef-local" || v === "clef-cloudflare" || v === "matcher" ? v : undefined;
+    return v === "openrouter" || v === "clef-local" || v === "clef-cloudflare" || v === "matcher" || v === "freellm" ? v : undefined;
   } catch {
     return undefined;
   }

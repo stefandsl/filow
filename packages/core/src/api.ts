@@ -43,7 +43,8 @@ export type DecideRequest = {
 };
 
 /** "matcher" runs inside the page (packages/core/src/matcher.ts) and is never sent to /api/decide. */
-export type DecisionProviderId = "openrouter" | "clef-local" | "clef-cloudflare" | "matcher";
+/** "freellm": the user's own FreeLLMAPI router, which passes the words on to a free provider it picks. */
+export type DecisionProviderId = "openrouter" | "clef-local" | "clef-cloudflare" | "matcher" | "freellm";
 export type ServerDecisionProviderId = Exclude<DecisionProviderId, "matcher">;
 
 export type DecideResponse = {

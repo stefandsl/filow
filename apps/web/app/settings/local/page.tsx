@@ -28,6 +28,8 @@ type Status = {
   offline: boolean;
   defaultProvider: string;
   openrouterKey: boolean;
+  /** FreeLLMAPI has an address and a key (not whether the router is running) */
+  freellmReady?: boolean;
   cloudflareKey: boolean;
   recommendation: string | null;
   /** the hardware the setup profiles are chosen from (P3) */
@@ -373,7 +375,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     return text === key ? m.description : text;
   };
 
-  const providerLabel = (id: string) => (id === "openrouter" || id === "clef-local" || id === "clef-cloudflare" || id === "matcher" ? t(`provider.${id}`) : id);
+  const providerLabel = (id: string) => (id === "openrouter" || id === "clef-local" || id === "clef-cloudflare" || id === "matcher" || id === "freellm" ? t(`provider.${id}`) : id);
 
   return (
     <div className="app settings">
@@ -523,9 +525,10 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               <div className="label">{t("settings.provider")}</div>
               <div className="hint">{t("settings.providerHint")}</div>
               <div className="row">
-                {(["matcher", "clef-local", "openrouter", "clef-cloudflare"] as DecisionProviderId[]).map((id) => {
+                {(["matcher", "clef-local", "openrouter", "freellm", "clef-cloudflare"] as DecisionProviderId[]).map((id) => {
                   const disabled =
                     (id === "openrouter" && (!status.openrouterKey || status.offline)) ||
+                    (id === "freellm" && (!status.freellmReady || status.offline)) ||
                     (id === "clef-cloudflare" && (!status.cloudflareKey || status.offline));
                   return (
                     <label key={id} className={`btn choice ${provider === id ? "primary" : ""}`} title={disabled ? t("settings.notConfigured") : ""}>

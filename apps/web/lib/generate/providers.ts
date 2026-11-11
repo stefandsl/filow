@@ -3,14 +3,19 @@
 import { buildGenerateUserPrompt, GENERATE_SYSTEM_PROMPT, parseGenerated, type GeneratedSlide, type SlideInput } from "@filow/core";
 import { OLLAMA_URL } from "@/lib/decide/clef";
 import { openRouterChat } from "@/lib/openrouter";
-import { routerRecipient } from "@/lib/buddy/outbound";
+import { freellmRecipient, routerRecipient } from "@/lib/buddy/outbound";
+import { freellmChat, scriptCloud } from "@/lib/freellm";
 
 export type SlideResult = { generated: GeneratedSlide; cost: number | null; model: string };
 
 export const GENERATE_TEXT_MODEL = () => process.env.OPENROUTER_GENERATE_MODEL || "google/gemini-2.5-flash-lite";
 export const GENERATE_VISION_MODEL = () => process.env.OPENROUTER_GENERATE_VISION_MODEL || "google/gemini-2.5-flash";
-/** Who receives a script that is written or translated in the cloud: OpenRouter and the makers of both models. */
-export const scriptRecipient = () => routerRecipient([GENERATE_TEXT_MODEL(), GENERATE_VISION_MODEL()]);
+/**
+ * Who receives a script that is written or translated outside this PC: OpenRouter and the makers of
+ * both models, or FreeLLMAPI when the user chose it for scripts (SCRIPT_CLOUD=freellm, Settings).
+ */
+export const scriptRecipient = (cloud: "openrouter" | "freellm" = scriptCloud()) =>
+  cloud === "freellm" ? freellmRecipient() : routerRecipient([GENERATE_TEXT_MODEL(), GENERATE_VISION_MODEL()]);
 /** Gemma 4 E2B: text + image, Italian included, ~5-7 GB, fits 8 GB RAM. E4B on 16 GB, qwen3-vl:2b as the light fallback. */
 export const GENERATE_LOCAL_MODEL = () => process.env.GENERATE_LOCAL_MODEL || "gemma4:e2b";
 
@@ -69,15 +74,38 @@ export async function generateSlideOllama(slide: SlideInput, opts: { language?: 
   return { generated: parseGenerated(json.message?.content ?? "", fallbackTitle(slide)), cost: 0, model: `${model} (local)` };
 }
 
-export type GenerateProviderId = "openrouter" | "ollama";
+/** Through the user's FreeLLMAPI router; a slide with a picture needs a model with vision there. */
+export async function generateSlideFreeLlm(slide: SlideInput, opts: { language?: string; total: number }): Promise<SlideResult> {
+  const text = buildGenerateUserPrompt(slide, opts);
+  const content: unknown = slide.imageBase64
+    ? [
+        { type: "text", text },
+        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${slide.imageBase64}` } },
+      ]
+    : text;
+  const { content: answer, model } = await freellmChat({
+    temperature: 0.3,
+    max_tokens: 500,
+    messages: [
+      { role: "system", content: GENERATE_SYSTEM_PROMPT },
+      { role: "user", content },
+    ],
+  });
+  return { generated: parseGenerated(answer, fallbackTitle(slide)), cost: 0, model };
+}
 
-/** Offline switch forces Ollama; otherwise the request's choice, else GENERATE_PROVIDER, else OpenRouter. */
+export type GenerateProviderId = "openrouter" | "ollama" | "freellm";
+
+/**
+ * Offline switch forces Ollama; otherwise the request's choice, else GENERATE_PROVIDER, else the
+ * cloud the user chose for scripts in Settings (`scriptCloud`: OpenRouter unless they picked FreeLLMAPI).
+ */
 export function resolveGenerateProvider(requested?: string): GenerateProviderId {
   if (process.env.FILOW_OFFLINE === "1") return "ollama";
-  if (requested === "ollama" || requested === "openrouter") return requested;
+  if (requested === "ollama" || requested === "openrouter" || requested === "freellm") return requested;
   const env = process.env.GENERATE_PROVIDER;
-  if (env === "ollama" || env === "openrouter") return env;
+  if (env === "ollama" || env === "openrouter" || env === "freellm") return env;
   // A local decision provider implies a local-first user: generate locally too.
   if ((process.env.DECISION_PROVIDER || "").startsWith("clef-local")) return "ollama";
-  return "openrouter";
+  return scriptCloud();
 }

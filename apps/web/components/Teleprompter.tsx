@@ -23,7 +23,8 @@ import {
 } from "@filow/core";
 import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
 import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, sherpaUsable, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
-import { getSetupPreference, getSpeechLang, getStartMode, setDecisionProvider, setStartMode } from "@/lib/prefs";
+import { getLang, getSetupPreference, getSpeechLang, getStartMode, setDecisionProvider, setStartMode } from "@/lib/prefs";
+import { localizeFreeLlmError } from "@/lib/freellm";
 import { loadGate } from "@/lib/gate/client";
 import { useEngine } from "./useEngine";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
@@ -914,7 +915,7 @@ export function ScriptEditor({
           : t("editor.translateMismatch", { got: j.got?.points ?? 0, expected: j.expected?.points ?? 0 }),
       );
     } catch (err) {
-      setNote(t("editor.translateFailed", { error: (err as Error).message }));
+      setNote(t("editor.translateFailed", { error: localizeFreeLlmError((err as Error).message, getLang()) }));
     } finally {
       setBusy(false);
     }

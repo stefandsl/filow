@@ -4,6 +4,7 @@ import { requireEngine } from "@/lib/engineAuth";
 import { decideOpenRouter, OPENROUTER_DECISION_MODEL } from "@/lib/decide/openrouter";
 import { CLEF_CLOUDFLARE_MODEL, decideClefCloudflare, decideClefLocal } from "@/lib/decide/clef";
 import { consentDenied, decisionRecipient } from "@/lib/buddy/outbound";
+import { decideFreeLlm } from "@/lib/decide/freellm";
 import { anonymizeRequest, piiMode, restore } from "@/lib/pii/guard";
 import { resolveDecisionProvider } from "@/lib/decide/resolve";
 
@@ -17,6 +18,8 @@ const PROVIDERS: Record<ServerDecisionProviderId, { run: (b: DecideRequest, sign
   openrouter: { run: decideOpenRouter, cloud: true },
   "clef-local": { run: decideClefLocal, cloud: false },
   "clef-cloudflare": { run: decideClefCloudflare, cloud: true },
+  // the user's own router, but it passes the words on to a provider on the internet: gated like a cloud
+  freellm: { run: decideFreeLlm, cloud: true },
 };
 
 const resolveProvider = resolveDecisionProvider;
