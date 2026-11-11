@@ -103,33 +103,66 @@ language writes one. After a key or a click, in another window, or in Japanese, 
 the Windows helper to know the window; on macOS and Linux the behaviour is unchanged. Tests in
 `dictation-target.test.ts`.
 
-## Measurements: NOT DONE
+## Measurements (2026-11-11, this PC)
 
-Nothing was measured: neither the model file nor the server program is on this PC. Downloading them was
-asked for by the coordinating agent, but a download and the running of a downloaded program need the
-owner's own go-ahead, which this session did not have. Ready to run as soon as both are there:
+PC: Core i9-13900KF, 128 GB RAM, Windows 11, busy with other work (56 to 76 % CPU load during the runs).
+Runtime: llama.cpp release b12284, the Windows CPU build (no GPU code in it), 4 threads, the Q4_K_M file.
+Both downloads were approved by the owner; their hashes match the pinned ones.
 
-- `tools/dictation/s1-samples.json`: 40 English samples with exact expected text (fillers,
-  self-corrections, numbers, dates, times, e-mail addresses, code-like words, names, sentences that must
-  not change, a filler-only one), 10 Italian and two each in Russian, Romanian and Japanese.
-- `tools/dictation/s1-measure.mjs <server url>`: sends the English ones through Filow's own request
-  builder and safety net and prints exact / acceptable / changed / refused with times (median, 90th
-  percentile, worst); fails if any sample in another language was sent.
+| What | Value |
+|---|---|
+| Cold start of the runtime (program start to "ready", model loaded) | 1.16 s |
+| Time added to a dictation, warm, 40 samples | median 162 ms, 90th percentile 223 ms, worst 474 ms (a 30-word sentence) |
+| First request after the start | 310 ms |
+| Memory of the runtime with the model loaded | 883 MB working set, 573 MB private |
+| GPU | not measured: the bundled build is CPU only |
+| Standard and Lite tiers (older hardware) | not measured: only this PC was available; 700 ms leaves a factor of about 3 over the 90th percentile here |
 
-What the tests already show without the model: no Italian, Russian, Romanian or Japanese sample is sent
-under any language setting; all 40 expected English outputs pass the safety net; the model card's own six
-examples pass it.
+Quality on Filow's own 40 English samples (`tools/dictation/s1-samples.json`, semi-formal, prose):
 
-Still to measure: time added from release to text on CPU only and with the GPU, memory, cold start of
-the runtime, the quality table, and whether 700 ms holds on the Standard and Lite tiers (if not, the
-feature must be off by default there).
+| Verdict | Count | What |
+|---|---|---|
+| Exact | 31 | the text expected, character for character |
+| Acceptable | 8 | same message, another valid form: "six" for "6", "the 12th of November" for "November 12", "quarter past five" kept in words, a leading "So" kept, "get_user_by_id" for "get user by id", one missing full stop |
+| Harmful, caught | 1 | "it costs nineteen dollars and ninety nine cents" came back as "It costs $1.99." The figures check added after this run refuses it and the raw words are typed |
+| Harmful, typed | 0 | |
+
+By class: fillers 4 exact and 1 acceptable of 5; self-corrections 4 and 1; numbers 4 of 5 and the harmful
+one; dates and times 3 exact and 2 acceptable; e-mail addresses 3 of 3; code-like words 3 exact and 1
+acceptable (underscores added to a function name: a judgement call, kept); names 4 of 4; sentences that
+must not change 3 exact and 1 acceptable; the question and the "ignore your instructions" sentence came
+back as themselves; filler-only input came back empty. No Italian, Russian, Romanian or Japanese sample
+was sent (the script fails if one is).
+
+What the measurement changed in the code: the safety net now checks figures. Every run of digits in the
+answer must be the value of a stretch of the number words that were said (or two stretches side by side,
+as in years and times, or digits said one by one). The expectations were not changed.
+
+## Packaged check (2026-11-11)
+
+Installer built once with the runtime inside: 175.7 MB (0.9.32 was 161.7 MB). In the packaged QA build, with an English recording (Windows speech voice) as the microphone, the Parakeet recognizer and the model placed in the profile: the runtime started ahead of the first dictation in 0.9 s; each dictation logged `cleanup used (S1-mini, 145 to 336 ms)`; release to text was 299 to 633 ms. "...send the report by Friday, no wait, make that Thursday" was typed as "...send the report by Thursday." and "one thousand two hundred and fifty euros" as "€1,250", in hold and in hands-free. The recognizer misheard parts of the synthetic voice ("I need" as "you need", the e-mail address only half), which the cleanup cannot repair. The session had no foreground window, so the words were read from the clipboard path, not from Notepad; the in-app model download button was not run end to end (the file was copied into the profile).
+
+## Platforms
+
+- **Windows x64: built and run.** `npm run vendor` fetches the pinned archive
+  (`llama-b12284-bin-win-cpu-x64.zip`, SHA-256 `6b3d2c70...defa9`), keeps the 23 files the server needs
+  (45 MB unpacked) in `native/llama/win32-x64`, outside app.asar; `after-pack.js` fails the build when
+  `llama-server.exe` is missing.
+- **macOS (arm64, x64) and Linux x64: pinned, not shipped.** The archives and their hashes are in
+  `native/llama/fetch.mjs` (`llama-b12284-bin-macos-arm64.tar.gz`, `-macos-x64.tar.gz`,
+  `-ubuntu-x64.tar.gz`) but are fetched only when asked for by name, because nobody ran them: on those
+  systems Filow says "this build has no runtime for S1-mini by Superwhisper" and dictation keeps the
+  simple cleanup. What they need: a run on each system with the model; on macOS the server and its
+  libraries must be signed with Filow's identity and notarized with the app (upstream ships them
+  unsigned), with the hardened runtime; on Linux the archive is built on Ubuntu and must be tried on the
+  oldest distribution Filow supports; then an after-pack check per platform like the Windows one.
 
 ## Not built yet
 
-- The runtime binaries in the package (download at build time by pinned tag and hash, `asarUnpack`, the
-  after-pack check, signing on macOS). Until then `ready()` answers "runtime not in this build", the step
-  is skipped and dictation behaves as before.
-- The model download in the setup, the installer's components page, the welcome and the SetupPicker.
-- The entry in THIRD_PARTY_NOTICES.md (that file is generated) and a line in About.
-- Warm start (the first English dictation pays the model load; `warm()` exists and is not called yet).
-- The packaged end-to-end check with an English recording.
+- The model in the setup: the installer's components page, the welcome and the SetupPicker (ticked by
+  default, as the owner decided). Today the model is downloaded from Settings > Dictation with one
+  button that shows the real size; the download is resumable and the file is used only after its
+  SHA-256 was checked.
+- THIRD_PARTY_NOTICES.md itself (the generator `scripts/third-party-notices.mjs` has the new section; the
+  file is regenerated at release) and a line in About. The licence texts ship in `licenses/`.
+- The cleanup for other languages (the owner named two more models): not started, see the report.
