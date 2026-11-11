@@ -137,65 +137,232 @@ function ollamaExe() {
   }
 }
 
-function fetchJson(url, ms = 1500) {
+/**
+ * What is at Ollama's address right now: { state, version }.
+ *   up    Ollama answered with its version
+ *   busy  something accepted the connection but has not answered. Ollama opens its port first and
+ *         answers only after it has looked for graphics cards, which can take a while on a first start.
+ *   down  nothing listens there
+ */
+function probeOllama(ms = 1500) {
   return new Promise((resolve) => {
-    const req = require(url.startsWith("https") ? "node:https" : "node:http").get(url, { timeout: ms }, (res) => {
-      let body = "";
-      res.on("data", (d) => (body += d));
-      res.on("end", () => {
-        try {
-          resolve(JSON.parse(body));
-        } catch {
-          resolve(null);
-        }
+    let connected = false;
+    let settled = false;
+    const finish = (state, version = "") => {
+      if (settled) return;
+      settled = true;
+      resolve({ state, version });
+    };
+    const quiet = () => finish(connected ? "busy" : "down");
+    let req;
+    try {
+      const url = OLLAMA_URL();
+      req = require(url.startsWith("https") ? "node:https" : "node:http").get(`${url}/api/version`, { timeout: ms }, (res) => {
+        connected = true;
+        let body = "";
+        res.on("data", (d) => (body += d));
+        res.on("error", quiet);
+        res.on("end", () => {
+          let version = "";
+          try {
+            version = String(JSON.parse(body).version || "");
+          } catch {
+            /* not Ollama's answer */
+          }
+          finish(version ? "up" : "busy", version);
+        });
       });
+    } catch {
+      return finish("down");
+    }
+    req.on("socket", (socket) => {
+      if (socket.connecting === false) connected = true;
+      else socket.once("connect", () => (connected = true));
     });
-    req.on("error", () => resolve(null));
+    req.on("error", quiet);
     req.on("timeout", () => {
       req.destroy();
-      resolve(null);
+      quiet();
     });
   });
 }
 
 async function ollamaVersion() {
-  const v = await fetchJson(`${OLLAMA_URL()}/api/version`);
-  return v && v.version ? String(v.version) : "";
+  return (await probeOllama()).version;
 }
 
-/** Start the Ollama server if it is installed but not answering. */
-function startOllama(exe) {
+/**
+ * Asks Ollama's own desktop app to start in the background (Windows: "ollama app.exe hidden", no
+ * window; macOS: Ollama.app). The app runs the server, keeps Ollama updated and starts with the
+ * computer. True when there is such an app next to exe and it was asked.
+ */
+function launchOllamaApp(exe, platform = process.platform) {
   try {
-    if (process.platform === "win32") {
+    if (platform === "win32") {
       const appExe = path.join(path.dirname(exe), "ollama app.exe");
-      const p = spawn(fs.existsSync(appExe) ? appExe : exe, fs.existsSync(appExe) ? [] : ["serve"], { detached: true, stdio: "ignore", windowsHide: true });
+      if (!fs.existsSync(appExe)) return false;
+      const p = spawn(appExe, ["hidden"], { detached: true, stdio: "ignore", windowsHide: true });
+      p.on("error", () => {});
       p.unref();
-    } else if (process.platform === "darwin" && exe.includes(".app/")) {
-      spawn("open", ["-a", exe.split("/Contents/")[0], "--background"], { detached: true, stdio: "ignore" }).unref();
-    } else {
-      spawn(exe, ["serve"], { detached: true, stdio: "ignore" }).unref();
+      return true;
+    }
+    if (platform === "darwin" && exe.includes(".app/")) {
+      const p = spawn("open", ["-a", exe.split("/Contents/")[0], "--background"], { detached: true, stdio: "ignore" });
+      p.on("error", () => {});
+      p.unref();
+      return true;
     }
   } catch {
-    /* reported by the readiness wait */
+    /* the caller falls back to "ollama serve" */
+  }
+  return false;
+}
+
+/** The address "ollama serve" must listen on to be found at OLLAMA_URL, when that is a port on this computer other than Ollama's own. */
+function serveHost() {
+  try {
+    const u = new URL(OLLAMA_URL());
+    if (!["127.0.0.1", "localhost"].includes(u.hostname) || !u.port || u.port === "11434") return "";
+    return `127.0.0.1:${u.port}`;
+  } catch {
+    return "";
   }
 }
 
-async function waitForOllama(ms = 60_000) {
-  const until = Date.now() + ms;
-  while (Date.now() < until) {
-    const v = await ollamaVersion();
-    if (v) return v;
-    await new Promise((r) => setTimeout(r, 1500));
+/** The "ollama serve" this process started, if any: { pid, exit: null | { code, signal, error }, logFile }. */
+let ownServer = null;
+
+/**
+ * Runs "ollama serve" as our own child, its output in logFile (the reason is there when it stops).
+ * This is what brings Ollama up when its desktop app is missing or does not start the server.
+ */
+function serveOllama(exe, logFile) {
+  const run = { pid: 0, exit: null, logFile, child: null };
+  let fd = null;
+  try {
+    if (logFile) {
+      fs.mkdirSync(path.dirname(logFile), { recursive: true });
+      fd = fs.openSync(logFile, "w");
+    }
+  } catch {
+    fd = null;
   }
-  return "";
+  try {
+    const env = { ...process.env };
+    if (!env.OLLAMA_HOST && serveHost()) env.OLLAMA_HOST = serveHost();
+    const out = fd === null ? "ignore" : fd;
+    const p = spawn(exe, ["serve"], { stdio: ["ignore", out, out], windowsHide: true, env });
+    run.child = p;
+    run.pid = p.pid || 0;
+    p.on("error", (err) => (run.exit = run.exit || { code: null, signal: null, error: String(err && err.message ? err.message : err) }));
+    p.on("exit", (code, signal) => (run.exit = run.exit || { code, signal, error: "" }));
+    p.unref();
+  } catch (err) {
+    run.exit = { code: null, signal: null, error: String(err && err.message ? err.message : err) };
+  }
+  if (fd !== null) {
+    try {
+      fs.closeSync(fd);
+    } catch {
+      /* the child holds its own handle */
+    }
+  }
+  ownServer = run;
+  return run;
+}
+
+/** Stops the "ollama serve" this process started (with the model runners under it). Ollama's own app is never touched. */
+function stopOwnOllama() {
+  const run = ownServer;
+  ownServer = null;
+  if (!run || !run.pid || run.exit) return false;
+  try {
+    if (process.platform === "win32") execFileSync("taskkill", ["/PID", String(run.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true, timeout: 10_000 });
+    else run.child.kill();
+  } catch {
+    /* already gone */
+  }
+  return true;
+}
+
+/** Where Ollama's desktop app writes its logs. */
+function ollamaLogFiles(platform = process.platform) {
+  if (platform === "win32") {
+    const dir = path.join(process.env.LOCALAPPDATA || "", "Ollama");
+    return process.env.LOCALAPPDATA ? [path.join(dir, "server.log"), path.join(dir, "app.log")] : [];
+  }
+  if (platform === "darwin") return [path.join(os.homedir(), ".ollama", "logs", "server.log"), path.join(os.homedir(), ".ollama", "logs", "app.log")];
+  return [];
+}
+
+/** The last lines of a log, each cut short, under a title; nothing when the file is missing or empty. */
+function tailLines(title, file, { lines = 12, width = 300 } = {}) {
+  let text;
+  try {
+    if (!file || fs.statSync(file).size > 16 * 1024 * 1024) return [];
+    text = fs.readFileSync(file, "utf8");
+  } catch {
+    return [];
+  }
+  const last = text.split(/\r?\n/).filter((l) => l.trim()).slice(-lines);
+  if (!last.length) return [`${title}: empty`];
+  return [`${title}, last ${last.length} lines:`, ...last.map((l) => `  ${l.length > width ? `${l.slice(0, width)}...` : l}`)];
+}
+
+/** How long Ollama's desktop app gets before we run the server ourselves, and how long a start may take in all. */
+const START_TIMES = { appGraceMs: 20_000, totalMs: 240_000, pollMs: 1000 };
+
+/**
+ * Brings up an installed Ollama that is not answering, and waits for it.
+ *   1. Ollama's own desktop app is asked to start, hidden. It gets appGraceMs.
+ *   2. Still nothing on the port: we run "ollama serve" ourselves. On some Windows PCs the app starts
+ *      but its server never does, with nothing in its logs (ollama/ollama#18061); the server itself runs.
+ *   3. While the port is open but silent (Ollama is looking for graphics cards) we only wait.
+ * Ends within totalMs whatever happens. Resolves { ok: true, version, by } or
+ * { ok: false, code: "start_exited" | "start_timeout", exitCode, error, minutes, lines } where lines
+ * is the reason for the startup log: the exit code and the end of the server's own output.
+ */
+async function startOllama(exe, deps = {}) {
+  const {
+    platform = process.platform, probe = probeOllama, launchApp = launchOllamaApp, serve = serveOllama, stop = stopOwnOllama,
+    sleep = (ms) => new Promise((r) => setTimeout(r, ms)), now = Date.now, log = () => {},
+    appGraceMs = START_TIMES.appGraceMs, totalMs = START_TIMES.totalMs, pollMs = START_TIMES.pollMs,
+    logFile = "", ollamaLogs = ollamaLogFiles(platform),
+  } = deps;
+  const t0 = now();
+  const seconds = () => Math.round((now() - t0) / 1000);
+  let p = await probe();
+  if (p.state === "up") return { ok: true, version: p.version, by: "running", seconds: 0 };
+  const viaApp = p.state === "down" && launchApp(exe, platform);
+  if (viaApp) log("asked the Ollama app to start in the background");
+  const serveAt = viaApp ? t0 + appGraceMs : t0;
+  let own = null;
+  let goneFor = 0;
+  while (now() - t0 < totalMs) {
+    if (!own && p.state === "down" && now() >= serveAt) {
+      own = serve(exe, logFile);
+      log(`${viaApp ? `the Ollama app did not open its port in ${seconds()} s: ` : ""}started "ollama serve" (pid ${own.pid || "?"})`);
+    }
+    await sleep(pollMs);
+    p = await probe();
+    if (p.state === "up") return { ok: true, version: p.version, by: own && !own.exit ? "serve" : viaApp ? "app" : "other", seconds: seconds() };
+    // our server stopped and nothing else holds the port: waiting longer changes nothing
+    goneFor = own && own.exit && p.state === "down" ? goneFor + 1 : 0;
+    if (goneFor >= 2) break;
+  }
+  const exited = Boolean(own && own.exit);
+  const minutes = Math.max(1, Math.round(totalMs / 60_000));
+  const exitCode = exited && typeof own.exit.code === "number" ? own.exit.code : null;
+  const error = exited
+    ? `Ollama stopped right after it was started (${own.exit.error || (exitCode === null ? `signal ${own.exit.signal || "?"}` : `exit code ${exitCode}`)})`
+    : `Ollama did not answer within ${minutes} minutes (${p.state === "busy" ? "its port is open but it does not answer" : "nothing listens on its port"})`;
+  if (own && !own.exit) stop(); // a server that never answered is not left running; a retry starts clean
+  const lines = [...tailLines('"ollama serve" output', own ? logFile : ""), ...ollamaLogs.flatMap((f) => tailLines(`Ollama ${path.basename(f)}`, f))];
+  return { ok: false, code: exited ? "start_exited" : "start_timeout", exitCode, error, minutes, lines };
 }
 
 /** Ollama's official installers. */
 const OLLAMA_DOWNLOADS = { win32: "https://ollama.com/download/OllamaSetup.exe", darwin: "https://ollama.com/download/Ollama-darwin.zip" };
-/** The shared downloader already removed the partial file; say what failed in plain words. */
-const downloadFailed = (err) => {
-  throw new Error(`Ollama download failed: ${err && err.message ? err.message : err}`);
-};
 
 /** Ollama's Apple Team ID: the subject.OU of its Developer ID certificate (docs/PLATFORMS.md, macOS). */
 const OLLAMA_MAC_TEAM_ID = "3MU9H2V9Y9";
@@ -235,67 +402,92 @@ function installMacApp(zip, staging, appsDir, run = execFileSync) {
   }
 }
 
+/** An install step that failed: `code` picks the sentence the user reads in their language, the message goes to the log. */
+function stepError(code, err) {
+  const e = new Error(String(err && err.message ? err.message : err));
+  e.code = code;
+  return e;
+}
+
 /**
- * Unattended install. onStatus gets {state, pct, error, version, command}:
- * states: checking | downloading | installing | starting | ready | manual | error.
+ * Unattended install, then start. onStatus gets {state, pct, code, error, version, command}:
+ * states: idle | checking | downloading | installing | starting | ready | manual | error.
+ * On "error", `code` says what failed (download_failed, not_signed, installer_failed, exe_missing,
+ * start_exited, start_timeout, unexpected): the page shows its own sentence for it, in the user's
+ * language. `error` is the same in plain English, for the startup log. Always ends in ready, manual,
+ * error or (startOnly, nothing installed) idle: a status can not stay on "starting".
  */
 async function installOllama(binDir, onStatus, deps = {}) {
-  // deps: test seams only (no installed Ollama, a platform, a local download server, a short idle timeout).
-  const { findExe = ollamaExe, version: probeVersion = ollamaVersion, platform = process.platform, urls = OLLAMA_DOWNLOADS, idleMs } = deps;
-  const report = (s) => onStatus({ pct: 0, error: "", version: "", command: "", ...s });
-  report({ state: "checking" });
-  let exe = findExe();
-  let version = await probeVersion();
-  if (version) return report({ state: "ready", version, pct: 100 });
-  if (exe) {
+  // deps: `startOnly` (never download: start what is installed), `log` (lines for the startup log); the rest are
+  // test seams (no installed Ollama, a platform, a local download server, a short idle timeout, a start).
+  const { findExe = ollamaExe, version: probeVersion = ollamaVersion, platform = process.platform, urls = OLLAMA_DOWNLOADS, idleMs, start = startOllama, startOnly = false, log = () => {} } = deps;
+  const report = (s) => onStatus({ pct: 0, code: "", error: "", version: "", command: "", ...s });
+  const bringUp = async (exe) => {
     report({ state: "starting" });
-    startOllama(exe);
-    version = await waitForOllama();
-    return version ? report({ state: "ready", version, pct: 100 }) : report({ state: "error", error: "Ollama is installed but did not start; open it once by hand." });
-  }
-  if (platform === "linux") {
-    return report({ state: "manual", command: "curl -fsSL https://ollama.com/install.sh | sh" });
-  }
-  fs.mkdirSync(binDir, { recursive: true });
+    const r = await start(exe, { ...deps, platform, log, logFile: deps.logFile || path.join(path.dirname(binDir), "ollama-serve.log") });
+    if (r.ok) {
+      log(`Ollama ${r.version} answers (${r.by}, ${r.seconds} s)`);
+      return report({ state: "ready", version: r.version, pct: 100 });
+    }
+    for (const line of r.lines || []) log(line);
+    return report({ state: "error", code: r.code, error: r.error });
+  };
   try {
+    report({ state: "checking" });
+    let exe = findExe();
+    const version = await probeVersion();
+    if (version) return report({ state: "ready", version, pct: 100 });
+    if (exe) return await bringUp(exe);
+    if (startOnly) return report({ state: "idle" });
+    if (platform === "linux") {
+      return report({ state: "manual", command: "curl -fsSL https://ollama.com/install.sh | sh" });
+    }
+    fs.mkdirSync(binDir, { recursive: true });
     if (platform === "win32") {
       const setup = path.join(binDir, "OllamaSetup.exe");
       report({ state: "downloading", pct: 0 });
-      await download(urls.win32, setup, { onPct: (pct) => report({ state: "downloading", pct }), idleMs }).catch(downloadFailed);
+      await download(urls.win32, setup, { onPct: (pct) => report({ state: "downloading", pct }), idleMs }).catch((err) => {
+        throw stepError("download_failed", `Ollama download failed: ${err && err.message ? err.message : err}`);
+      });
       // SEC-15: run the installer only with a valid Windows signature from Ollama Inc.
       try {
         await require("./integrity.js").verifyAuthenticode(setup, "Ollama Inc.");
       } catch (err) {
         fs.rmSync(setup, { force: true });
-        throw err;
+        throw stepError("not_signed", err);
       }
       report({ state: "installing", pct: 0 });
+      // The installer closes any running Ollama, installs for this user only (no administrator
+      // question) and starts Ollama's desktop app itself when it is done.
       await new Promise((resolve, reject) => {
         const p = spawn(setup, ["/VERYSILENT", "/NORESTART", "/SUPPRESSMSGBOXES"], { stdio: "ignore", windowsHide: true });
-        p.on("error", reject);
-        p.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`OllamaSetup exited with code ${code}`))));
+        p.on("error", (err) => reject(stepError("installer_failed", err)));
+        p.on("exit", (code) => (code === 0 ? resolve() : reject(stepError("installer_failed", `OllamaSetup exited with code ${code}`))));
       });
       fs.rmSync(setup, { force: true });
     } else {
       const zip = path.join(binDir, "Ollama-darwin.zip");
       const staging = path.join(binDir, "ollama-staging");
       report({ state: "downloading", pct: 0 });
-      await download(urls.darwin, zip, { onPct: (pct) => report({ state: "downloading", pct }), idleMs }).catch(downloadFailed);
+      await download(urls.darwin, zip, { onPct: (pct) => report({ state: "downloading", pct }), idleMs }).catch((err) => {
+        throw stepError("download_failed", `Ollama download failed: ${err && err.message ? err.message : err}`);
+      });
       report({ state: "installing", pct: 0 });
-      installMacApp(zip, staging, path.join(os.homedir(), "Applications"));
+      try {
+        installMacApp(zip, staging, path.join(os.homedir(), "Applications"));
+      } catch (err) {
+        throw stepError(/not signed/.test(String(err && err.message)) ? "not_signed" : "installer_failed", err);
+      }
     }
+    exe = findExe();
+    if (!exe) throw stepError("exe_missing", "Ollama was installed but its executable was not found.");
+    return await bringUp(exe);
   } catch (err) {
-    return report({ state: "error", error: String(err && err.message ? err.message : err) });
+    return report({ state: "error", code: (err && typeof err.code === "string" && /^[a-z_]+$/.test(err.code) && err.code) || "unexpected", error: String(err && err.message ? err.message : err) });
   }
-  exe = findExe();
-  if (!exe) return report({ state: "error", error: "Ollama was installed but its executable was not found." });
-  report({ state: "starting" });
-  version = await probeVersion();
-  if (!version) {
-    startOllama(exe);
-    version = await waitForOllama(90_000);
-  }
-  return version ? report({ state: "ready", version, pct: 100 }) : report({ state: "error", error: "Ollama did not answer after the install; open it once by hand." });
 }
 
-module.exports = { CATALOG, hardwareScan, profileOf, recommend, ollamaExe, ollamaVersion, installOllama, installMacApp };
+/** OK Filow's answer when Ollama does not answer at all (apps/web/lib/buddy/providers.ts, askOllama). */
+const OLLAMA_STOPPED = /\bOllama\b.*\bis not running\b/;
+
+module.exports = { CATALOG, OLLAMA_STOPPED, hardwareScan, profileOf, recommend, ollamaExe, ollamaVersion, probeOllama, startOllama, stopOwnOllama, installOllama, installMacApp };

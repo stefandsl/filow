@@ -12,6 +12,7 @@ import { getDecisionProvider, getGateMode, getScreenMode, getSetupPreference, ge
 import { loadGate } from "@/lib/gate/client";
 import { screenBridge } from "@/lib/screen/watcher";
 import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/sessionUrl";
+import { localAiBusy, localAiNeedsReport, localAiText } from "@/lib/localAiStatus";
 import { placementText, ResourcesPanel, useResources } from "@/components/ResourcesPanel";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
 import { modelLabel } from "@/lib/router";
@@ -162,8 +163,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     return off;
   }, [refresh]);
 
-  const aiText = (s: LocalAiStatus) =>
-    s.state === "idle" ? "" : t(`settings.ai.${s.state}`, { pct: s.pct, v: s.version, error: s.error });
+  const aiText = (s: LocalAiStatus) => localAiText(s, t);
 
   /** Ask the desktop shell to install Ollama and resolve once it answers (or give up after 30 minutes). */
   const ensureOllama = async (): Promise<boolean> => {
@@ -564,13 +564,23 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               <div className="row">
                 <button
                   className="btn primary"
-                  disabled={Boolean(ai && ["checking", "downloading", "installing", "starting"].includes(ai.state))}
+                  disabled={localAiBusy(ai)}
                   onClick={() => desktopBridge()?.localAi?.install()}
                 >
-                  {t("settings.aiInstallBtn")}
+                  {ai?.state === "error" ? t("settings.ai.retry") : t("settings.aiInstallBtn")}
                 </button>
-                {ai && ai.state !== "idle" && <span className={`chip ${ai.state === "error" ? "err" : ai.state === "ready" ? "live" : "busy"}`}>{aiText(ai)}</span>}
+                {ai && ai.state !== "idle" && ai.state !== "error" && <span className={`chip ${ai.state === "ready" ? "live" : "busy"}`}>{aiText(ai)}</span>}
                 <span className="hint">{t("settings.aiHint")}</span>
+              </div>
+            )}
+            {!status.ollama.ok && ai?.state === "error" && (
+              <div className="row" role="alert" data-testid="ollama-failure">
+                <span className="chip err">{aiText(ai)}</span>
+                {localAiNeedsReport(ai) && desktopBridge()?.reportProblem && (
+                  <button type="button" className="btn small" onClick={() => desktopBridge()?.reportProblem?.()}>
+                    {t("log.report")}
+                  </button>
+                )}
               </div>
             )}
             {ai?.state === "manual" && (
