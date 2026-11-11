@@ -70,6 +70,20 @@ describe("whiteboard lesson: what the model writes is data", () => {
     expect(validateItems(items, ctx)).toHaveLength(3);
     expect(validateItems([{ kind: "formula", tex: "V=IR" }, { kind: "note", text: "r is FIXED" }, { kind: "plot", expr: "2 x" }, { kind: "formula", tex: "I = V / R" }], ctx)).toEqual([{ kind: "formula", tex: "I = V / R" }]);
   });
+  it("keeps an inequality in a sentence and strips only real tags", () => {
+    expect(cleanText("If target < mid go left, if target > mid go right", 80)).toBe("If target < mid go left, if target > mid go right");
+    expect(cleanText("a <b>bold</b> <!-- x --> move", 80)).toBe("a bold move");
+  });
+
+  it("does not repeat a mark, does not label a box from an object, and refuses a plot with no values", () => {
+    const ctx = newContext();
+    validateItems([{ kind: "node", id: "a", text: "A" }, { kind: "mark", target: "a" }], ctx);
+    expect(validateItems([{ kind: "mark", target: "a" }], ctx)).toEqual([]);
+    expect(validateItems([{ kind: "node", id: "a", text: "A" }], ctx)).toEqual([]);
+    expect(validateItems([{ kind: "edge", from: { a: 1 }, to: "a" }, { kind: "node", id: { x: 1 } }], ctx)).toEqual([]);
+    expect(validateItems([{ kind: "plot", expr: "sqrt(0 - x^2 - 1)" }, { kind: "plot", expr: "1/0" }], ctx)).toEqual([]);
+  });
+
   it("caps the items of a step and the nodes of a lesson", () => {
     const ctx = newContext();
     const many = Array.from({ length: 30 }, (_, i) => ({ kind: "node", id: `n${i}`, text: `Node ${i}` }));
@@ -156,7 +170,9 @@ describe("whiteboard lesson: broken JSON from a model", () => {
     expect(parseJsonLoose('{"a":[1,2,],}')).toEqual({ a: [1, 2] });
   });
   it("closes an answer that was cut off, keeping the complete items", () => {
-    expect(parseJsonLoose('{"items":[{"kind":"node","id":"a","text":"Li')).toEqual({ items: [{ kind: "node", id: "a", text: "Li" }] });
+    // half a label is not what the model meant: with nothing complete before it, there is no answer
+    expect(parseJsonLoose('{"items":[{"kind":"node","id":"a","text":"Li')).toBeUndefined();
+    expect(parseJsonLoose('{"items":[{"kind":"node","id":"a","text":"Leaf"},{"kind":"formula","tex":"a^2 + b^2 = ')).toEqual({ items: [{ kind: "node", id: "a", text: "Leaf" }] });
     expect(parseJsonLoose('{"items":[{"kind":"node","id":"a"},{"kind":"edge","fr')).toEqual({ items: [{ kind: "node", id: "a" }] });
     expect(parseJsonLoose('{"items":[{"kind":"node","id":"a"},')).toEqual({ items: [{ kind: "node", id: "a" }] });
   });
@@ -164,7 +180,7 @@ describe("whiteboard lesson: broken JSON from a model", () => {
     expect(parseJsonLoose("I cannot help with that.")).toBeUndefined();
     expect(parseJsonLoose('{"a":]')).toBeUndefined();
     expect(parseJsonLoose(42)).toBeUndefined();
-    expect(parseJsonLoose('{"a":"}')).toEqual({ a: "}" });
+    expect(parseJsonLoose('{"a":"}')).toBeUndefined();
   });
 });
 
@@ -182,10 +198,22 @@ describe("whiteboard lesson: export and follow-up context", () => {
     expect(md).toContain("# Ohm's law");
     expect(md).toContain("## Step 2");
     expect(md).toContain("- Voltage -> Current: pushes");
-    expect(md).toContain("- $V = I R$");
+    expect(md).toContain("- `V = I R`");
     expect(md).toContain("- y = `2x` (x 0 .. 5)");
     expect(md).toContain("R is \\*constant\\* here");
   });
+  it("writes nothing that a Markdown viewer would turn into a link, an image or HTML", () => {
+    const hostile = validateLesson({ title: "See [here](https://evil.example)", scene: "flow", steps: [{ say: "Visit https://evil.example now ![x](http://e/x.png)", items: [{ kind: "formula", tex: "\\text{[click](https://evil.example)}" }, { kind: "note", text: "a < b and [link](javascript:alert(1))" }] }] })!;
+    const md = lessonMarkdown(hostile);
+    // a formula sits in a code span, where it is only text; everything outside one is escaped
+    expect(md).toContain("- `\\text{[click](https://evil.example)}`");
+    const outside = md.replace(/`[^`]*`/g, "");
+    expect(outside).not.toMatch(/(^|[^\\])\]\(/);
+    expect(outside).not.toMatch(/https?:\/\//);
+    expect(outside).not.toMatch(/(^|[^\\])!\[/);
+    expect(outside).not.toMatch(/(^|[^\\])</);
+  });
+
   it("keeps the follow-up context under its size limit", () => {
     const long = { ...lesson, steps: Array.from({ length: 40 }, () => ({ say: "x".repeat(250), items: [], card: true })) };
     expect(new TextEncoder().encode(lessonContextText(long)).length).toBeLessThanOrEqual(LIMITS.contextBytes);

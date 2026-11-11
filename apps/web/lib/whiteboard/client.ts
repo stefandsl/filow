@@ -87,16 +87,19 @@ const TOPIC = [
   // "whiteboard: photosynthesis", "lavagna: la fotosintesi"
   /^\s*(?:on the\s+)?(?:whiteboard|lavagna)\s*[:,-]\s*(.+)$/i,
   // "explain photosynthesis on the whiteboard", "spiegami la fotosintesi alla lavagna"
-  /^\s*(.+?)\s+(?:on|at|with|using)\s+(?:the|a)\s+whiteboard[.!?]*\s*$/i,
-  /^\s*(.+?)\s+(?:alla|sulla|con la)\s+lavagna[.!?]*\s*$/i,
+  // only a request to explain: "what did he write on the whiteboard?" is an ordinary question
+  /^\s*((?:explain|teach|show|draw|walk me through)\b.+?)\s+(?:on|at|with|using)\s+(?:the|a)\s+whiteboard[.!?]*\s*$/i,
+  /^\s*((?:spiega|spiegami|insegnami|mostra|mostrami|disegna|disegnami)\b.+?)\s+(?:alla|sulla|con la)\s+lavagna[.!?]*\s*$/i,
 ];
 /**
  * The topic when a question to OK Filow asks for the whiteboard ("whiteboard: X", "explain X on the
  * whiteboard", "lavagna: X"); null when it is an ordinary question.
  */
 export function whiteboardTopic(question: string): string | null {
+  // a long text is never a topic, and the patterns are not run over one
+  if (question.length > 500) return null;
   for (const re of TOPIC) {
-    const m = re.exec(question);
+    const m = re.exec(question.replace(/\s+/g, " "));
     if (m && m[1].trim().length >= 2) return m[1].trim().slice(0, 400);
   }
   return null;

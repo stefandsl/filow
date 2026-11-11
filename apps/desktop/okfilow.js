@@ -237,11 +237,15 @@ function createOkFilow(deps) {
 
   // ---- Whiteboard tutor window (docs/whiteboard/SPEC.md): one of OK Filow's own pages, in an ordinary window ----
   let boardTopic = "";
+  /** The whiteboard page has loaded and is listening: until then a topic waits for its "ready". */
+  let boardReady = false;
   function showWhiteboard(topic) {
     boardTopic = String(topic || "").slice(0, 400);
     if (boardWin && !boardWin.isDestroyed()) {
-      if (boardTopic) boardWin.webContents.send("okfilow:whiteboard", boardTopic);
-      boardTopic = "";
+      if (boardReady && boardTopic) {
+        boardWin.webContents.send("okfilow:whiteboard", boardTopic);
+        boardTopic = "";
+      }
       boardWin.show();
       boardWin.focus();
       return;
@@ -264,7 +268,8 @@ function createOkFilow(deps) {
     });
     boardWin.setContentProtection(hidden());
     lockDown(boardWin);
-    boardWin.on("closed", () => { boardWin = null; });
+    boardReady = false;
+    boardWin.on("closed", () => { boardWin = null; boardReady = false; });
     boardWin.once("ready-to-show", () => boardWin && !boardWin.isDestroyed() && boardWin.show());
     boardWin.loadURL(`${appUrl}/okfilow/whiteboard`);
   }
@@ -272,6 +277,7 @@ function createOkFilow(deps) {
   /** The whiteboard page finished loading: hand it the topic it was opened for. */
   ipcMain.on("okfilow:whiteboard:ready", (e) => {
     if (!ourSender(e) || !boardWin || boardWin.isDestroyed() || e.sender !== boardWin.webContents) return;
+    boardReady = true;
     if (boardTopic) e.sender.send("okfilow:whiteboard", boardTopic);
     boardTopic = "";
     logLine("okfilow: whiteboard shown");

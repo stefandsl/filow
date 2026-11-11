@@ -95,6 +95,13 @@ describe("whiteboard board", () => {
     expect(svg).not.toContain("<circle");
   });
 
+  it("draws a sketch whose label was cut in the middle of an emoji instead of failing", () => {
+    const emoji = String.fromCodePoint(0x1f600);
+    const cut = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "sketch", title: "S", shapes: [{ type: "text", x: 10, y: 10, text: "a".repeat(59) + emoji }] }] }] }, { sketch: true })!;
+    expect(() => render(cut, 0)).not.toThrow();
+    expect(render(cut, 0)).toContain("<image href=");
+  });
+
   it("uses the palette it is given for both themes", () => {
     expect(render(lesson, 0)).toContain(BOARD_PALETTES.light.board);
     expect(render(lesson, 0, { palette: BOARD_PALETTES.dark })).toContain(BOARD_PALETTES.dark.board);

@@ -3,7 +3,7 @@
 // gives coordinates, markup or code. Everything here treats its output as data: unknown kinds are
 // dropped, text is cut and cleaned, references are checked, and what cannot be repaired is left out.
 import { validateDrawing, type BuddyDrawing } from "@/lib/buddy/visuals";
-import { cleanExpr, parseExpr } from "./plot";
+import { cleanExpr, parseExpr, sampleCurve } from "./plot";
 
 export const SCENES = ["flow", "cycle", "stack"] as const;
 export type Scene = (typeof SCENES)[number];
@@ -56,7 +56,7 @@ const ELLIPSIS = String.fromCharCode(0x2026);
 /** Model text as plain text: no control or direction characters, no tags, one line, cut to `max`. */
 export function cleanText(v: unknown, max: number): string {
   if (typeof v !== "string" && typeof v !== "number") return "";
-  const s = visible(String(v)).replace(/<[^<>]{0,200}>/g, " ").replace(/\s+/g, " ").trim();
+  const s = visible(String(v)).replace(/<\/?[a-zA-Z!][^<>]{0,200}>/g, " ").replace(/\s+/g, " ").trim();
   const chars = Array.from(s);
   return chars.length <= max ? s : chars.slice(0, max - 1).join("").trimEnd() + ELLIPSIS;
 }
@@ -120,7 +120,8 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
   const touched: string[] = [];
   const once = (key: string) => (ctx.seen.has(key) ? false : Boolean(ctx.seen.add(key)));
   const addNode = (idRaw: unknown, textRaw: unknown): string => {
-    const text = cleanText(textRaw, LIMITS.nodeText) || cleanText(String(idRaw ?? "").replace(/[_-]+/g, " "), LIMITS.nodeText);
+    const named = typeof idRaw === "string" || typeof idRaw === "number" ? String(idRaw) : "";
+    const text = cleanText(textRaw, LIMITS.nodeText) || cleanText(named.replace(/[_-]+/g, " "), LIMITS.nodeText);
     if (!text) return "";
     let id = slug(idRaw) || slug(text) || `n${ctx.nodes.size + 1}`;
     if (ctx.nodes.has(id)) {
@@ -174,10 +175,12 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
       if (tex && once(`f:${tex.replace(/\s+/g, "")}`)) out.push({ kind: "formula", tex });
     } else if (kind === "plot") {
       const expr = cleanExpr(q.expr ?? q.fn ?? q.text).slice(0, 80);
-      if (!parseExpr(expr) || !once(`p:${expr.replace(/\s+/g, "")}`)) continue;
+      const tree = parseExpr(expr);
       let xmin = finite(q.xmin) ?? -5;
       let xmax = finite(q.xmax) ?? 5;
       if (!(xmin < xmax) || xmin < -1e4 || xmax > 1e4) { xmin = -5; xmax = 5; }
+      // a function with no value anywhere in the range would draw an empty frame
+      if (!tree || !sampleCurve(tree, xmin, xmax) || !once(`p:${expr.replace(/\s+/g, "")}`)) continue;
       out.push({ kind: "plot", expr, xmin, xmax, text: cleanText(q.label ?? (q.expr ? q.text : ""), LIMITS.edgeText) });
     } else if (kind === "note" || kind === "text" || kind === "list") {
       const text = cleanText(q.text ?? (Array.isArray(q.items) ? q.items.join("; ") : ""), LIMITS.note);
@@ -186,14 +189,16 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
       const target = find(q.target ?? q.id);
       if (!target) continue;
       const style = MARK_STYLES.includes(q.style as MarkStyle) ? (q.style as MarkStyle) : "circle";
-      out.push({ kind: "mark", target, style });
+      // the board shows a mark once: said again, it would be a step that draws nothing
+      if (once(`m:${target}:${style}`)) out.push({ kind: "mark", target, style });
     } else if (kind === "sketch" && ctx.sketch && !out.some((o) => o.kind === "sketch")) {
       const drawing = validateDrawing(q.drawing ?? q);
       if (drawing) out.push({ kind: "sketch", drawing });
     }
   }
   // Nothing new, but the model pointed at something on the board: circle it, as the step prompt asks.
-  if (!out.length && touched.length) out.push({ kind: "mark", target: touched[touched.length - 1], style: "circle" });
+  const pointed = touched[touched.length - 1];
+  if (!out.length && pointed && once(`m:${pointed}:circle`)) out.push({ kind: "mark", target: pointed, style: "circle" });
   return out;
 }
 
@@ -292,10 +297,8 @@ export function parseJsonLoose(text: unknown): unknown {
     const whole = body.slice(0, end + 1);
     return tryParse(whole) ?? tryParse(whole.replace(/,\s*([}\]])/g, "$1"));
   }
-  // Cut off: try closing right where it stops, then at each earlier complete value.
-  const tail = (inString ? '"' : "") + stack.slice().reverse().join("");
-  const direct = tryParse(body.replace(/[,:\s]+$/, "") + tail);
-  if (direct !== undefined) return direct;
+  // Cut off: the unfinished last element is dropped (half a label or half a formula is not what
+  // the model meant), and the text is closed after the last complete value.
   for (let k = cuts.length - 1; k >= 0 && k >= cuts.length - 40; k--) {
     const got = tryParse(body.slice(0, cuts[k].at) + cuts[k].open);
     if (got !== undefined) return got;
@@ -326,6 +329,7 @@ export function contextOf(lesson: Lesson, opts: Omit<LessonContext, "nodes" | "e
       else if (it.kind === "formula") ctx.seen.add(`f:${it.tex.replace(/\s+/g, "")}`);
       else if (it.kind === "plot") ctx.seen.add(`p:${it.expr.replace(/\s+/g, "")}`);
       else if (it.kind === "note") ctx.seen.add(`n:${it.text.toLowerCase()}`);
+      else if (it.kind === "mark") ctx.seen.add(`m:${it.target}:${it.style}`);
     }
   }
   return ctx;
@@ -341,7 +345,8 @@ export function lessonNodes(lesson: Lesson): Map<string, string> {
 /** The steps as Markdown: the export the user keeps next to the picture. */
 export function lessonMarkdown(lesson: Lesson, words: { step: string; drawing: string } = { step: "Step", drawing: "On the board" }): string {
   const names = lessonNodes(lesson);
-  const md = (t: string) => t.replace(/([\\`*_[\]<>|#])/g, "\\$1");
+  // escaped so nothing the model wrote becomes a link, an image or HTML in a Markdown viewer
+  const md = (t: string) => t.replace(/([\\`*_[\]<>|#()!])/g, "\\$1").replace(/:\/\//g, ":\\/\\/");
   const out: string[] = [`# ${md(lesson.title)}`, ""];
   lesson.steps.forEach((s, i) => {
     out.push(`## ${words.step} ${i + 1}`, "", md(s.say), "");
@@ -349,7 +354,7 @@ export function lessonMarkdown(lesson: Lesson, words: { step: string; drawing: s
     for (const it of s.items) {
       if (it.kind === "node") lines.push(`- ${md(it.text)}`);
       else if (it.kind === "edge") lines.push(`- ${md(names.get(it.from) ?? it.from)} -> ${md(names.get(it.to) ?? it.to)}${it.text ? `: ${md(it.text)}` : ""}`);
-      else if (it.kind === "formula") lines.push(`- $${it.tex.replace(/\$/g, "\\$")}$`);
+      else if (it.kind === "formula") lines.push(`- \`${it.tex.replace(/`/g, "")}\``);
       else if (it.kind === "plot") lines.push(`- y = \`${it.expr.replace(/`/g, "")}\` (x ${it.xmin} .. ${it.xmax})`);
       else if (it.kind === "note") lines.push(`- ${md(it.text)}`);
       else if (it.kind === "sketch") lines.push(`- ${md(it.drawing.title)}`);

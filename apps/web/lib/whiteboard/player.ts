@@ -55,7 +55,9 @@ export function playerReducer(s: PlayerState, a: PlayerAction): PlayerState {
       if (s.total === 0) return { ...s, playing: true };
       if (s.phase === "done") return show(s, 0, { playing: true });
       // a paused step is spoken again from its start
-      return s.phase === "waiting" ? { ...s, playing: true } : show(s, Math.max(0, s.index), { playing: true });
+      // waiting, and the step it waited for came while paused: show it
+      if (s.phase === "waiting") return s.index + 1 < s.total ? show(s, s.index + 1, { playing: true }) : { ...s, playing: true };
+      return show(s, Math.max(0, s.index), { playing: true });
     case "pause":
       return { ...s, playing: false };
     case "next":

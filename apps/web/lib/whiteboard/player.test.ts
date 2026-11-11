@@ -60,6 +60,15 @@ describe("whiteboard step player", () => {
     expect(run([{ type: "goto", index: 1 }], run([{ type: "arrived", total: 2 }], s))).toMatchObject({ index: 1, playing: true });
   });
 
+  it("shows the step that arrived while the lesson was paused, as soon as Play is pressed", () => {
+    let s = run([{ type: "reset", expected: 2 }, { type: "arrived", total: 1 }]);
+    s = run([{ type: "spoken", turn: s.turn }], s);
+    expect(s.phase).toBe("waiting");
+    s = run([{ type: "pause" }, { type: "arrived", total: 2 }], s);
+    expect(s).toMatchObject({ index: 0, phase: "waiting", playing: false });
+    expect(run([{ type: "play" }], s)).toMatchObject({ index: 1, phase: "showing", playing: true });
+  });
+
   it("ends a lesson whose last steps never come", () => {
     let s = run([{ type: "reset", expected: 5 }, { type: "arrived", total: 2 }]);
     s = run([{ type: "spoken", turn: s.turn }], s);
@@ -137,6 +146,11 @@ describe("whiteboard entry from OK Filow and its strings", () => {
     expect(whiteboardTopic("Lavagna: la fotosintesi")).toBe("la fotosintesi");
     expect(whiteboardTopic("spiegami il teorema di Pitagora alla lavagna")).toBe("spiegami il teorema di Pitagora");
     expect(whiteboardTopic("Where is the whiteboard button?")).toBeNull();
+    expect(whiteboardTopic("what did he write on the whiteboard?")).toBeNull();
+    expect(whiteboardTopic("cosa ha scritto alla lavagna?")).toBeNull();
+    const started = Date.now();
+    expect(whiteboardTopic("explain " + " ".repeat(30000) + "x on the whiteboard")).toBeNull();
+    expect(Date.now() - started).toBeLessThan(50);
     expect(whiteboardTopic("What is on my screen?")).toBeNull();
     expect(whiteboardTopic("whiteboard:")).toBeNull();
   });

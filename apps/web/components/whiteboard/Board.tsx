@@ -15,6 +15,15 @@ export const BOARD_PALETTES: Record<"light" | "dark", BoardPalette> = {
   light: { board: "#fbfaf6", ink: "#1f2430", soft: "#565d6b", accent: "#1d4ed8", mark: "#c2410c", fill: "#eef2fb", highlight: "#fde68a", curve: "#0f766e" },
   dark: { board: "#14171d", ink: "#f1f3f7", soft: "#aab2c0", accent: "#8ab4ff", mark: "#ffb44a", fill: "#222835", highlight: "#5b4a12", curve: "#5eead4" },
 };
+/** A validated sketch as a picture URL. Text cut in the middle of an emoji must not break the board. */
+function sketchHref(svg: string): string {
+  const whole = (svg as string & { toWellFormed?: () => string }).toWellFormed?.() ?? svg;
+  try {
+    return `data:image/svg+xml;utf8,${encodeURIComponent(whole)}`;
+  } catch {
+    return "";
+  }
+}
 const FONT = '"Segoe UI", system-ui, -apple-system, "Noto Sans", "Hiragino Sans", "Yu Gothic UI", sans-serif';
 
 const generator = rough.generator();
@@ -216,7 +225,7 @@ export function Board({ layout, current, palette, sketchy, label, onPick, pickLa
           return (
             <g key={b.key} className={`wb-fade ${fresh(b.step) ?? ""}`} data-block="sketch">
               {/* our own SVG from validated shapes, shown as a picture: it cannot run anything */}
-              <image href={`data:image/svg+xml;utf8,${encodeURIComponent(drawingSvg(b.drawing))}`} x={box.x} y={box.y} width={box.w} height={box.h} preserveAspectRatio="xMidYMid meet" />
+              <image href={sketchHref(drawingSvg(b.drawing))} x={box.x} y={box.y} width={box.w} height={box.h} preserveAspectRatio="xMidYMid meet" />
               {draw((g, o) => g.rectangle(box.x, box.y, box.w, box.h, o), b.key, p.soft, 1.6)}
             </g>
           );

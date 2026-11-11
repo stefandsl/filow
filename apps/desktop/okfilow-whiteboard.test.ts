@@ -24,7 +24,8 @@ describe("whiteboard window in the desktop app", () => {
   it("has three handlers and each one checks who is calling before it does anything", () => {
     const list = handlers();
     expect(list.map((h) => h.channel).sort()).toEqual(["okfilow:whiteboard:close", "okfilow:whiteboard:ready", "okfilow:whiteboard:show"]);
-    for (const h of list) expect(h.body, h.channel).toMatch(/=> \{\s*if \(!?ourSender\(e\)/);
+    // either "do it only for our sender" or "leave unless it is our sender": an inverted check matches neither
+    for (const h of list) expect(h.body, h.channel).toMatch(/=> \{\s*if \((?:ourSender\(e\) &&|!ourSender\(e\) \|\|)/);
   });
 
   it("counts as one of OK Filow's own windows, so its page may call the bridge and nothing else may", () => {
@@ -40,6 +41,11 @@ describe("whiteboard window in the desktop app", () => {
     expect(block).toContain("sandbox: true");
     expect(block).toContain("lockDown(boardWin)");
     expect(block).toContain("boardWin.loadURL(`${appUrl}/okfilow/whiteboard`)");
+  });
+
+  it("keeps a topic that arrives while the page is still loading", () => {
+    expect(main).toMatch(/if \(boardReady && boardTopic\) \{\s*boardWin\.webContents\.send\("okfilow:whiteboard", boardTopic\);/);
+    expect(main).toMatch(/boardReady = true;\s*if \(boardTopic\) e\.sender\.send\("okfilow:whiteboard", boardTopic\);/);
   });
 
   it("takes only a short text as its topic", () => {

@@ -115,8 +115,8 @@ export default function WhiteboardPage() {
     setNote("");
     arrived.current.clear();
     dispatchLesson({ type: "ask", more });
-    if (more) jumpTo.current = current!.steps.length;
-    else dispatchPlayer({ type: "reset", expected: 0 });
+    jumpTo.current = more ? current!.steps.length : null;
+    if (!more) dispatchPlayer({ type: "reset", expected: 0 });
     try {
       // Offline mode always means this PC; otherwise what was chosen on this page.
       let route: "local" | "cloud" = statusRef.current?.offline ? "local" : from;
@@ -152,8 +152,10 @@ export default function WhiteboardPage() {
         }
         // The server answered from this PC after all (offline switch): nothing went outside.
         if (res.headers.get("X-Buddy-Provider") !== "cloud") quiet?.();
+        let ended = false;
         await readLessonStream(res.body, (event) => {
           if (askSeq.current !== id) return;
+          if (event.type === "done" || event.type === "error") ended = true;
           if (event.type === "step") {
             const p = playerRef.current;
             const index = lsRef.current.base + event.index;
@@ -161,6 +163,8 @@ export default function WhiteboardPage() {
           }
           dispatchLesson({ type: "event", event });
         });
+        // The answer stopped without saying it was done (the server went away): do not wait forever.
+        if (!ended && askSeq.current === id) throw new Error("the answer stopped before the lesson was complete");
       };
       await (to ? out.sending("ask", to, send) : send({}));
     } catch (e) {
