@@ -184,6 +184,8 @@ export const ja: Record<OkfKey, string> = {
   notchWords: "OK Filowが考えています",
   notchAnswering: "OK Filowが回答しています",
   drawFailed: "今回は絵がうまく描けませんでした。もう一度お試しください。",
+  photoHere: "{subject}です。ウィキペディアの写真を表示します。",
+  photoOffline: "オフラインモードがオンのため、ウィキペディアから写真を取得できません。設定でオフにすると表示できます。",
   whiteboard: "ホワイトボード",
   whiteboardHint: "難しい概念を、図を描きながら一歩ずつ説明します。声でも：「ホワイトボード：光合成」。",
 };

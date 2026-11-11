@@ -184,6 +184,8 @@ export const ro: Record<OkfKey, string> = {
   notchWords: "OK Filow se gândește",
   notchAnswering: "OK Filow răspunde",
   drawFailed: "De data aceasta desenul nu a ieșit. Mai cere-mi o dată.",
+  photoHere: "Iată {subject}, cu o fotografie de pe Wikipedia.",
+  photoOffline: "Modul offline este pornit, așa că nu pot lua o fotografie de pe Wikipedia. Oprește-l din Setări ca să vezi una.",
   whiteboard: "Tablă",
   whiteboardHint: "Explică un concept dificil pas cu pas, desenând. Sau spune: \"tablă: fotosinteza\".",
 };

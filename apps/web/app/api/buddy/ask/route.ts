@@ -6,6 +6,7 @@ import { askBuddy, buddyCloudRecipient, resolveBuddyProvider, resolveLocalHelper
 import { answerLanguage } from "@/lib/buddy/lang";
 import { drawnAnswer } from "@/lib/buddy/draw";
 import { wantsDrawing } from "@/lib/buddy/visuals";
+import { photoAnswer, wantsPhoto } from "@/lib/buddy/photo";
 import { okfText } from "@/lib/buddy/text";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
@@ -32,6 +33,18 @@ export async function POST(req: Request) {
   }
   const question = typeof body?.question === "string" ? body.question.trim().slice(0, 2000) : "";
   if (!question) return NextResponse.json({ error: "question is empty" }, { status: 400 });
+  // A plain request for a photo of a thing is answered with a card (lib/buddy/photo.ts): no model, no
+  // screenshot and no provider are needed, so nothing of the question goes anywhere and the answer is
+  // immediate on every computer. The picture itself is fetched by the page from Wikipedia, only after the
+  // user's yes for Wikipedia (the subject's name is all that is sent); in Offline mode the answer says why none comes.
+  const photo = wantsDrawing(question) ? null : wantsPhoto(question);
+  if (photo) {
+    const photoLang = answerLanguage(question, body.language, req.headers.get("accept-language")) ?? "en";
+    const said = process.env.FILOW_OFFLINE === "1" ? okfText(photoLang)("photoOffline") : photoAnswer(photo, okfText(photoLang)("photoHere"));
+    return new Response(said, {
+      headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Buddy-Provider": "local", "X-Buddy-Lang": photoLang, "X-Buddy-Sees": "text" },
+    });
+  }
   // "Look at my screen" in the panel: false = the user's words only, and no screenshot is read or
   // forwarded even if one was sent; true or absent = one screenshot per screen, as before.
   const sees = typeof body.sees === "boolean" ? body.sees : undefined;
@@ -83,8 +96,7 @@ export async function POST(req: Request) {
   if (req.signal?.aborted) abort.abort();
   const ask: BuddyAskRequest = { ...body, question, images, screens, consent, sees, language: known ?? "auto" };
   // A plain request for a drawing or a 3D model is answered with one (lib/buddy/draw.ts): it needs no screenshot.
-  const drawing = wantsDrawing(question);
-  // Made inside the stream: a refused consent throws here and must reach the bubble as an error line.
+  const drawing = wantsDrawing(question);  // Made inside the stream: a refused consent throws here and must reach the bubble as an error line.
   const pieces = () => drawing
     ? drawnAnswer((shape, signal) => askBuddy(provider, ask, signal, helper, shape), { kind: drawing, language: known ?? "auto", lang, signal: abort.signal })
     : askBuddy(provider, ask, abort.signal, helper);

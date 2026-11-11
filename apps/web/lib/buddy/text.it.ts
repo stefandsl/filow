@@ -184,4 +184,6 @@ export const it: Record<OkfKey, string> = {
   notchWords: "OK Filow sta pensando",
   notchAnswering: "OK Filow sta rispondendo",
   drawFailed: "Questa volta il disegno non è riuscito. Chiedimelo di nuovo.",
+  photoHere: "Ecco {subject}, con una foto da Wikipedia.",
+  photoOffline: "La modalità offline è attiva, quindi non posso prendere una foto da Wikipedia. Disattivala nelle Impostazioni per vederne una.",
 };
