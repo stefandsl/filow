@@ -2,60 +2,27 @@
 // privacy policy ships inside the package (docs/PRIVACY.md, docs/PRIVACY.it.md as extraResources) and
 // is read from disk: no remote fetch, so it opens offline and always matches this version of the app.
 // The problem report is made, shown line by line and saved to a file the user picks. Filow sends it
-// nowhere; where the user can send it privately is the owner's to fill in (docs/OWNER-DECISIONS.md D33).
+// nowhere by itself. "Open an issue on GitHub" opens the project's new-issue page in the user's browser
+// with the masked report filled in: a public place, so the page says so before the click, and the text
+// reaches GitHub only through that click (docs/okfilow/OUTBOUND.md row 16).
 
-/** Where users send a saved report. Empty until the owner decides (D33); the page says it is not set. */
-const SUPPORT = { email: "", form: "" };
+/** Where a problem report goes: a public issue on the project's GitHub page (owner, 2026-11-10). */
+const SUPPORT = { issues: "https://github.com/stefandsl/filow/issues", newIssue: "https://github.com/stefandsl/filow/issues/new" };
+/** The longest link handed to the browser, in characters after escaping (GitHub refuses very long ones). */
+const ISSUE_URL_LIMIT = 6000;
 
-const TEXT = {
-  en: {
-    tabAbout: "About and privacy", tabReport: "Report a problem", version: "Version {version}",
-    fact1: "No account. No telemetry: Filow does not tell anyone how you use it.",
-    fact2: "Your script, settings and logs stay in your config folder on this computer.",
-    configFolder: "Your config folder", openFolder: "Open the folder", todo: "not filled in yet",
-    policyMissing: "The privacy policy file is missing from this installation. Reinstall Filow to get it back.",
-    reportIntro: "Filow does not send this report anywhere. Save it to a file, read it, then send it yourself, privately.",
-    whereTo: "Where to send it", supportUnset: "Not set in this version yet.", supportTodo: "support e-mail address or form, added by the publisher",
-    writeMail: "Write an e-mail", openForm: "Open the support form",
-    describe: "What happened? (optional)", describeHint: "What you did, what you expected and what happened instead. It goes at the top of the file.",
-    contents: "Exactly what the file will contain",
-    masked: "Masked before you see it: public links, keys and passwords, e-mail addresses, local network addresses and your user name in folder paths. Other names, such as a microphone's name, stay: read the text before you send it.",
-    crashNone: "No crash files on this computer.",
-    crashSome: "Not included: the crash files on this computer ({count}, {size} MB). They can hold parts of what was on screen, so send them only if support asks for them.",
-    openCrash: "Open the crash files folder",
-    save: "Save to a file…", copy: "Copy the text", close: "Close",
-    saved: "Saved to {file}", copied: "Copied. Paste it into your message.", saveFailed: "Could not save the file: {error}",
-    saveTitle: "Save the problem report", loading: "Collecting the report…",
-    fileTitle: "Filow problem report", fileMade: "Made on {date}. Filow did not send this file anywhere.",
-    fileWhat: "What happened", fileNone: "(not written)", fileCrash: "Crash files not included: {count} ({size} MB).",
-    fileSystem: "This computer and Filow", fileTake: "Log of the last take", fileLog: "Start-up log (last lines)", fileNoTake: "(no take since Filow started)",
-  },
-  it: {
-    tabAbout: "Informazioni e privacy", tabReport: "Segnala un problema", version: "Versione {version}",
-    fact1: "Nessun account. Nessuna telemetria: Filow non dice a nessuno come lo usi.",
-    fact2: "Il tuo copione, le impostazioni e i registri restano nella cartella di configurazione su questo computer.",
-    configFolder: "La tua cartella di configurazione", openFolder: "Apri la cartella", todo: "non ancora compilato",
-    policyMissing: "In questa installazione manca il file dell'informativa sulla privacy. Reinstalla Filow per riaverlo.",
-    reportIntro: "Filow non invia questa segnalazione da nessuna parte. Salvala in un file, leggila, poi inviala tu, in privato.",
-    whereTo: "Dove inviarla", supportUnset: "Non ancora indicato in questa versione.", supportTodo: "indirizzo e-mail o modulo di assistenza, aggiunto dall'editore",
-    writeMail: "Scrivi un'e-mail", openForm: "Apri il modulo di assistenza",
-    describe: "Cosa è successo? (facoltativo)", describeHint: "Cosa hai fatto, cosa ti aspettavi e cosa è successo invece. Va in cima al file.",
-    contents: "Esattamente cosa conterrà il file",
-    masked: "Mascherati prima che tu li veda: link pubblici, chiavi e password, indirizzi e-mail, indirizzi della rete locale e il tuo nome utente nei percorsi delle cartelle. Altri nomi, come quello di un microfono, restano: leggi il testo prima di inviarlo.",
-    crashNone: "Nessun file di crash su questo computer.",
-    crashSome: "Non inclusi: i file di crash su questo computer ({count}, {size} MB). Possono contenere parti di quello che era sullo schermo: inviali solo se l'assistenza li chiede.",
-    openCrash: "Apri la cartella dei file di crash",
-    save: "Salva in un file…", copy: "Copia il testo", close: "Chiudi",
-    saved: "Salvato in {file}", copied: "Copiato. Incollalo nel tuo messaggio.", saveFailed: "Impossibile salvare il file: {error}",
-    saveTitle: "Salva la segnalazione", loading: "Raccolgo la segnalazione…",
-    fileTitle: "Segnalazione di un problema in Filow", fileMade: "Creata il {date}. Filow non ha inviato questo file da nessuna parte.",
-    fileWhat: "Cosa è successo", fileNone: "(non scritto)", fileCrash: "File di crash non inclusi: {count} ({size} MB).",
-    fileSystem: "Questo computer e Filow", fileTake: "Registro dell'ultima sessione", fileLog: "Registro di avvio (ultime righe)", fileNoTake: "(nessuna sessione da quando Filow è partito)",
-  },
-};
+// The page's texts are about.<key> in the shared dictionary (packages/core/src/i18n), so every
+// language and the parity check cover them.
+const { t: sharedText } = require("./vendor/i18n");
+const ABOUT_KEYS = ["tabAbout", "tabReport", "version", "fact1", "fact2", "configFolder", "openFolder", "todo", "policyMissing", "policyEnglish",
+  "issueIntro", "issueHeading", "issuePublic", "issueOpen", "issueOpened", "issueFailed", "issueTitle", "issueTitleBare", "issueCut", "issueEarlier", "describe", "describeHint", "contents", "masked",
+  "crashNone", "crashSome", "openCrash", "save", "copy", "close", "saved", "copied", "saveFailed", "saveTitle", "loading",
+  "fileTitle", "fileMade", "fileWhat", "fileNone", "fileCrash", "fileSystem", "fileTake", "fileLog", "fileNoTake"];
+
 
 const fill = (text, vars = {}) => text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
-const textFor = (lang) => TEXT[lang] || TEXT.en;
+/** Every text of the window in one language, {placeholders} left for the page to fill. */
+const textFor = (lang) => Object.fromEntries(ABOUT_KEYS.map((k) => [k, sharedText(`about.${k}`, lang)]));
 
 // ---- the policy: a small Markdown reader for the subset docs/PRIVACY*.md uses ----
 // It returns plain data (no HTML): the page builds DOM nodes with textContent, so nothing in the file
@@ -169,12 +136,98 @@ function reportFile({ lang, date, description, sections, crash }) {
 
 const reportName = (date) => `filow-report-${date.slice(0, 10)}.txt`;
 
+// ---- the same report as a new issue on GitHub ----
+
+/** Half of a character pair (a lone surrogate) cannot be escaped for a link: it becomes U+FFFD. */
+const wellFormed = (text) => text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, String.fromCharCode(0xfffd));
+/** The first max characters, never ending inside a character pair. */
+const firstChars = (text, max) => text.slice(0, /[\uD800-\uDBFF]/.test(text[max - 1] || "") ? max - 1 : max);
+/** The last max characters, never starting inside a character pair. */
+const lastChars = (text, max) => (max <= 0 ? "" : text.slice(/[\uDC00-\uDFFF]/.test(text[text.length - max] || "") ? 1 - max || text.length : -max));
+/** A code fence longer than any run of backticks in the text, so no log line can close it. */
+const fence = (text) => "`".repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map((m) => m[0].length + 1)));
+/**
+ * The newest part of a log that fits in max characters: whole lines, or the end of the last line when
+ * that line alone is longer than max.
+ */
+function lastLines(text, max) {
+  if (text.length <= max) return text;
+  const tail = lastChars(text, max);
+  if (text[text.length - tail.length - 1] === "\n") return tail;
+  const firstBreak = tail.indexOf("\n");
+  return firstBreak < 0 ? tail : tail.slice(firstBreak + 1);
+}
+
+/** Log characters kept even when the user wrote a lot: the words are shortened before the logs go below this. */
+const ISSUE_LOG_FLOOR = 1500;
+
+/**
+ * The link that opens a new issue with the report filled in. Built only from what the report window
+ * shows: the user's words and the sections main.js collected and masked. The logs go inside code
+ * fences, so nothing in them becomes a mention, a reference or markup on GitHub. Longer than `limit`
+ * (counted after escaping): the oldest log lines go first; the user's words are shortened only to
+ * leave the logs their floor; a line says the full report can be attached from the saved file. The
+ * link never exceeds the limit: at worst it is the title alone, or the bare page.
+ */
+function issueUrl({ lang, description, sections, version, limit = ISSUE_URL_LIMIT, page = SUPPORT.newIssue }) {
+  const tx = textFor(lang);
+  const words = wellFormed(String(description || "").trim().slice(0, 4000));
+  const summary = (words.split("\n").find((l) => l.trim()) || "").trim().replace(/\s+/g, " ");
+  const title = summary
+    ? fill(tx.issueTitle, { summary: summary.length > 80 ? `${firstChars(summary, 79).trimEnd()}…` : summary })
+    : fill(tx.issueTitleBare, { version });
+  const texts = (sections || []).map((s) => ({
+    id: s.id,
+    title: { system: tx.fileSystem, take: tx.fileTake, log: tx.fileLog }[s.id] || s.id,
+    text: wellFormed(String(s.text || "").trimEnd()) || (s.id === "take" ? tx.fileNoTake : tx.fileNone),
+  }));
+  // as the browser will get it: the URL parser escapes a few more characters (an apostrophe is three)
+  const link = (body, cut) => ({ url: new URL(`${page}?title=${encodeURIComponent(title)}${body ? `&body=${encodeURIComponent(body)}` : ""}`).href, title, body, cut });
+  const build = (wordsMax, logMax) => {
+    let cut = words.length > wordsMax;
+    const parts = [`### ${tx.fileWhat}`, (cut ? `${firstChars(words, wordsMax).trimEnd()}…` : words) || tx.fileNone, ""];
+    for (const s of texts) {
+      let text = s.text;
+      if (text.length > logMax) {
+        cut = true;
+        text = [tx.issueEarlier, lastLines(text, logMax)].filter(Boolean).join("\n");
+      }
+      const f = fence(text);
+      parts.push(`### ${s.title}`, f, text, f, "");
+    }
+    if (cut) parts.push(tx.issueCut);
+    return link(parts.join("\n").trimEnd(), cut);
+  };
+  const fits = (r) => r.url.length <= limit;
+  /** The largest n in [0, max] whose link fits (the link only grows with n); 0 when none does. */
+  const largest = (max, make) => {
+    let lo = 0, hi = max;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (fits(make(mid))) lo = mid; else hi = mid - 1;
+    }
+    return lo;
+  };
+  const whole = build(words.length, Infinity);
+  if (fits(whole)) return whole;
+  const longest = Math.max(0, ...texts.map((s) => s.text.length));
+  const floor = Math.min(longest, ISSUE_LOG_FLOOR);
+  // the user's words stay whole unless they would push the logs under their floor
+  const wordsKept = fits(build(words.length, floor)) ? words.length : largest(words.length, (n) => build(n, floor));
+  const fitted = build(wordsKept, largest(longest, (n) => build(wordsKept, n)));
+  if (fitted.url.length <= limit) return fitted;
+  // not even the floor fits (a tiny limit): no logs, then no words, then the title alone, then the bare page
+  for (const last of [build(largest(words.length, (n) => build(n, 0)), 0), link(tx.issueCut, true), link("", true)]) if (fits(last)) return last;
+  return { url: new URL(page).href, title, body: "", cut: true };
+}
+
 // ---- the window ----
 
 /**
  * deps: BrowserWindow, ipcMain, dialog, clipboard, shell, openExternalSafe, logLine, fs, path,
  * pageFile (about.html), preload, lang(), theme(), icon(), info() -> { version, electron, configFolder },
- * docsDir, crashDir, documentsDir, collectReport() -> Promise<[{ title, text }]>.
+ * docsDir, crashDir, documentsDir, collectReport() -> Promise<[{ title, text }]>,
+ * issuePage (QA builds only: a local stand-in for the GitHub new-issue page; undefined otherwise).
  */
 function createAboutPages(deps) {
   const { BrowserWindow, ipcMain, dialog, clipboard, shell, openExternalSafe, logLine, fs, path } = deps;
@@ -201,7 +254,12 @@ function createAboutPages(deps) {
   const crash = () => crashSummary(deps.crashDir, fs, path.join);
   const fileText = (description) => reportFile({ lang: deps.lang(), date: now(), description, sections: sections || [], crash: crash() });
 
-  handle("about:data", () => ({ view, lang: deps.lang(), theme: deps.theme(), text: textFor(deps.lang()), info: deps.info(), policy: policy().blocks, support: SUPPORT }));
+  handle("about:data", () => {
+    const p = policy();
+    // The policy is legal text, kept in English (and Italian); the page says so in the user's language.
+    const policyLang = /PRIVACY\.it\.md$/.test(p.file || "") ? "it" : "en";
+    return { view, lang: deps.lang(), theme: deps.theme(), text: textFor(deps.lang()), info: deps.info(), policy: p.blocks, policyLang, support: SUPPORT };
+  });
   handle("about:openConfigFolder", () => shell.openPath(deps.info().configFolder));
   handle("report:data", async () => {
     sections = await deps.collectReport();
@@ -223,10 +281,19 @@ function createAboutPages(deps) {
   });
   handle("report:copy", (description) => { clipboard.writeText(fileText(description)); return true; });
   handle("report:openCrashFolder", () => shell.openPath(deps.crashDir));
-  handle("report:support", (kind) => {
-    if (kind === "email" && SUPPORT.email) return openExternalSafe(`mailto:${SUPPORT.email}?subject=${encodeURIComponent("Filow problem report")}`);
-    if (kind === "form" && SUPPORT.form) return openExternalSafe(SUPPORT.form);
-    return undefined;
+  // The one way a report leaves this PC: the user's click on "Open an issue on GitHub", after the notice
+  // next to the button. The link carries the sections that were shown (collected and masked once).
+  handle("report:issue", async (description) => {
+    sections ||= await deps.collectReport();
+    const issue = issueUrl({ lang: deps.lang(), description, sections, version: deps.info().version, page: deps.issuePage || SUPPORT.newIssue });
+    try {
+      await openExternalSafe(issue.url);
+      logLine(`report: opened a new GitHub issue in the browser (${issue.url.length} chars${issue.cut ? ", cut to fit" : ""})`);
+      return { opened: true, cut: issue.cut };
+    } catch (err) {
+      logLine(`report: the browser did not open for the GitHub issue: ${err && err.message ? err.message : err}`);
+      return { error: String((err && err.message) || err) };
+    }
   });
   handle("about:close", () => { if (win && !win.isDestroyed()) win.close(); });
 
@@ -263,4 +330,4 @@ function createAboutPages(deps) {
   return { open, close };
 }
 
-module.exports = { createAboutPages, parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, TEXT, SUPPORT };
+module.exports = { createAboutPages, parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, issueUrl, textFor, ABOUT_KEYS, SUPPORT, ISSUE_URL_LIMIT };

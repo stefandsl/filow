@@ -27,7 +27,7 @@ contextBridge.exposeInMainWorld("okFilow", {
   overlayReady: () => ipcRenderer.send("okfilow:overlay:ready"),
   closeModel: () => ipcRenderer.send("okfilow:model:close"),
   askAbout: (text) => ipcRenderer.send("okfilow:askAbout", text),
-  typeText: (text, language) => ipcRenderer.invoke("okfilow:typeText", text, language),
+  typeText: (text, language, phrase) => ipcRenderer.invoke("okfilow:typeText", text, language, phrase === true),
   handsFreeOff: () => ipcRenderer.send("okfilow:handsfreeOff"),
   agents: {
     start: (text, context) => ipcRenderer.invoke("okfilow:agent:start", text, context),

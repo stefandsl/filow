@@ -5,7 +5,7 @@ import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, micActions
 import "./welcome.css";
 
 /** The speech-setup offer from the main process (apps/desktop/welcome-setup.js setupOffer). */
-type SetupOffer = { ask: boolean; ready: boolean; downloadGb: number; needsOllama: boolean; labels: string[]; device: "pc" | "mac"; ramGb: number; online: boolean; profile: string | null; unknown?: boolean };
+type SetupOffer = { ask: boolean; ready: boolean; downloadGb: number; needsOllama: boolean; models: string[]; device: "pc" | "mac"; ramGb: number; online: boolean; profile: string | null; unknown?: boolean };
 type WelcomeBridge = UiBridge & {
   complete: () => Promise<UiResult>;
   context: () => Promise<{ firstRun: boolean; askSetup: boolean }>;
@@ -213,8 +213,8 @@ function renderSetup() {
   $("#setup-ready").hidden = !ready;
   $("#setup-size").textContent = size;
   $("#setup-size").hidden = !size;
-  $("#setup-details").hidden = !download || offer.labels.length === 0;
-  $("#setup-list").replaceChildren(...offer.labels.map(l => { const li = document.createElement("li"); li.textContent = l; return li; }));
+  $("#setup-details").hidden = !download || offer.models.length === 0;
+  $("#setup-list").replaceChildren(...offer.models.map(n => { const li = document.createElement("li"); li.textContent = tr(`catalog.${n}` as I18nKey); return li; }));
   // Nothing to download, offline or unknown: the size line already says so.
   $("#setup-note").hidden = !download;
 }
@@ -233,7 +233,7 @@ function go(to: number) {
   $(`#h-${id}`).focus();
 }
 async function loadOffer() {
-  try { offer = await bridge.setupOffer(); } catch { offer = { ask: true, ready: false, downloadGb: 0, needsOllama: false, labels: [], device: "pc", ramGb: 0, online: true, profile: null, unknown: true }; }
+  try { offer = await bridge.setupOffer(); } catch { offer = { ask: true, ready: false, downloadGb: 0, needsOllama: false, models: [], device: "pc", ramGb: 0, online: true, profile: null, unknown: true }; }
   render();
 }
 async function finish(acceptSetup: boolean) {

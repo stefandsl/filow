@@ -51,6 +51,7 @@ function ReportBody({ report: r, idPrefix, fold = false }: { report: Report; idP
             <dt>{t("report.pace")}</dt>
             {r.pace.value === null ? <dd className="hint">{t("report.paceShort")}</dd> : <dd><strong>{r.pace.value}</strong> {t(r.pace.unit === "cpm" ? "report.cpmUnit" : "report.wpmUnit")}</dd>}
             {r.pace.band && <dd className="hint">{t(`report.band.${r.pace.band}` as I18nKey)}, {t("report.paceRange", { lo: r.pace.range[0], hi: r.pace.range[1] })}</dd>}
+            {r.pace.value !== null && r.pace.basis === "phrases" && <dd className="hint">{t("report.paceFromPhrases")}</dd>}
           </div>
           <div>
             <dt>{t("report.fillers")}</dt>
@@ -67,20 +68,21 @@ function ReportBody({ report: r, idPrefix, fold = false }: { report: Report; idP
       <section aria-labelledby={`${idPrefix}-sections`}>
         <h2 id={`${idPrefix}-sections`}>{t("report.sections")}</h2>
         <div className="report-table-wrap">
-          <table className="report-table">
-            <thead>
-              <tr><th scope="col">{t("report.section")}</th><th scope="col">{t("report.time")}</th><th scope="col">{t("report.targetCol")}</th><th scope="col">{t("report.pointsCol")}</th></tr>
+          {/* explicit roles: on a phone the rows are laid out as blocks (Rehearsal.css), which would drop the table semantics */}
+          <table className="report-table" role="table">
+            <thead role="rowgroup">
+              <tr role="row"><th scope="col" role="columnheader">{t("report.section")}</th><th scope="col" role="columnheader">{t("report.time")}</th><th scope="col" role="columnheader">{t("report.targetCol")}</th><th scope="col" role="columnheader">{t("report.pointsCol")}</th></tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup">
               {r.sections.map((s) => {
                 const extra = s.targetMs !== null && s.visited ? s.spentMs - s.targetMs : null;
                 const pts = POINT_OUTCOMES.filter((k) => s.outcomes[k]).map((k) => `${s.outcomes[k]} ${t(`report.outcome.${k}` as I18nKey)}`).join(", ");
                 return (
-                  <tr key={s.idx}>
-                    <th scope="row">{sectionLabel(s.title).title}</th>
-                    <td>{s.visited ? formatClock(s.spentMs) : t("report.notShown")}{extra !== null && extra >= 30_000 && <span className="hint"> (+{formatClock(extra)})</span>}</td>
-                    <td>{s.targetMs !== null ? formatClock(s.targetMs) : "-"}</td>
-                    <td>{pts || "-"}</td>
+                  <tr key={s.idx} role="row">
+                    <th scope="row" role="rowheader">{sectionLabel(s.title).title}</th>
+                    <td role="cell" data-label={t("report.time")}>{s.visited ? formatClock(s.spentMs) : t("report.notShown")}{extra !== null && extra >= 30_000 && <span className="hint"> (+{formatClock(extra)})</span>}</td>
+                    <td role="cell" data-label={t("report.targetCol")}>{s.targetMs !== null ? formatClock(s.targetMs) : "-"}</td>
+                    <td role="cell" data-label={t("report.pointsCol")}>{pts || "-"}</td>
                   </tr>
                 );
               })}
@@ -105,15 +107,21 @@ function ReportBody({ report: r, idPrefix, fold = false }: { report: Report; idP
   );
 }
 
+/** The saved file: what the report shows, and the take's notes only while the box in the report is ticked. */
+export function reportFile(report: Report, lang: Lang, notes: string | undefined, withNotes: boolean): string {
+  return rehearsalMarkdown(report, lang, withNotes ? notes : undefined);
+}
+
 export function RehearsalReport({ report, notes, onClose, returnFocusRef }: {
   report: Report;
-  /** the live screen notes of the take, as Markdown, appended to the saved file */
+  /** the live screen notes of the take, as Markdown: appended to the saved file unless the presenter unticks the box */
   notes?: string;
   onClose: () => void;
   returnFocusRef?: RefObject<HTMLElement | null>;
 }) {
   const t = useT();
   const lang = useLang() as Lang;
+  const [withNotes, setWithNotes] = useState(true);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   // While the report is open, any print (its button or Ctrl+P) prints the report alone.
@@ -130,10 +138,13 @@ export function RehearsalReport({ report, notes, onClose, returnFocusRef }: {
   }, []);
   return (
     <>
-      <Dialog title={t("report.title")} onClose={onClose} className="rehearsal-report" returnFocusRef={returnFocusRef}>
+      <Dialog heading title={t("report.title")} onClose={onClose} className="rehearsal-report" returnFocusRef={returnFocusRef}>
         <ReportBody report={report} idPrefix="report" fold />
+        <p className="hint">{t("report.keepLast")}</p>
         <div className="controls report-actions">
-          <button type="button" className="btn primary" onClick={() => downloadMarkdown(rehearsalMarkdown(report, lang, notes), "filow-rehearsal")}>{t("report.saveMd")}</button>
+          {/* the saved file holds what this dialog shows; the take's notes go in only while this box says so */}
+          {notes && <label className="report-with-notes"><input type="checkbox" checked={withNotes} onChange={(e) => setWithNotes(e.target.checked)} /> {t("report.withNotes")}</label>}
+          <button type="button" className="btn primary" onClick={() => downloadMarkdown(reportFile(report, lang, notes, withNotes), "filow-rehearsal")}>{t("report.saveMd")}</button>
           <button type="button" className="btn" onClick={printReport}>{t("report.print")}</button>
           <button type="button" className="btn" onClick={onClose}>{t("report.close")}</button>
         </div>

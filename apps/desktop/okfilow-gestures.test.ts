@@ -50,9 +50,57 @@ describe("OK Filow gestures", () => {
     expect(events).toEqual(["dictate:start", "dictate:end"]);
   });
 
-  it("tapping Ctrl+Win twice toggles hands-free", () => {
-    const tap = () => { g.keydown("ctrl"); g.keydown("meta"); vi.advanceTimersByTime(60); g.keyup("meta"); g.keyup("ctrl"); vi.advanceTimersByTime(60); };
-    tap(); tap();
+  const tapChord = (a: string, b: string, gap = 60) => { g.keydown(a); g.keydown(b); vi.advanceTimersByTime(60); g.keyup(b); g.keyup(a); vi.advanceTimersByTime(gap); };
+
+  it("tapping Ctrl+Win twice starts hands-free dictation (issue #2), not OK Filow's questions", () => {
+    tapChord("ctrl", "meta"); tapChord("ctrl", "meta");
+    expect(events).toEqual(["dictate:handsfree"]);
+    expect((g as G & { active: string | null }).active).toBe("dictate");
+  });
+
+  it("hands-free dictation runs with the keys up, and one more press of the keys ends it", () => {
+    tapChord("ctrl", "meta"); tapChord("ctrl", "meta");
+    vi.advanceTimersByTime(20_000);
+    expect(events).toEqual(["dictate:handsfree"]);
+    // However long that press is held: it is a press, not a new hold-to-talk.
+    g.keydown("ctrl"); g.keydown("meta"); vi.advanceTimersByTime(700); g.keyup("meta"); g.keyup("ctrl");
+    expect(events).toEqual(["dictate:handsfree", "dictate:end"]);
+    expect((g as G & { active: string | null }).active).toBeNull();
+    // And hold-to-talk works again right after.
+    g.keydown("ctrl"); g.keydown("meta"); vi.advanceTimersByTime(300); g.keyup("meta"); g.keyup("ctrl");
+    expect(events.slice(2)).toEqual(["dictate:start", "dictate:end"]);
+  });
+
+  it("Escape ends hands-free dictation; the talk keys do nothing while it runs", () => {
+    tapChord("ctrl", "meta"); tapChord("ctrl", "meta");
+    g.keydown("ctrl"); g.keydown("alt"); vi.advanceTimersByTime(400); g.keyup("alt"); g.keyup("ctrl");
+    (g as G & { escape(): void }).escape();
+    expect(events).toEqual(["dictate:handsfree", "dictate:cancel"]);
+  });
+
+  it("two slow taps, a tap with another key, or a tap then a hold are not a double tap", () => {
+    tapChord("ctrl", "meta", 600); tapChord("ctrl", "meta", 600);
+    expect(events).toEqual([]);
+    tapChord("ctrl", "meta");
+    g.keydown("ctrl"); g.keydown("meta"); g.keydown(null); g.keyup("meta"); g.keyup("ctrl"); // Ctrl+Win+D
+    expect(events).toEqual([]);
+    vi.advanceTimersByTime(600);
+    // An added modifier (Ctrl+Win+Shift) is another shortcut, not a tap.
+    tapChord("ctrl", "meta");
+    g.keydown("ctrl"); g.keydown("meta"); g.keydown("shift"); g.keyup("shift"); g.keyup("meta"); g.keyup("ctrl");
+    expect(events).toEqual([]);
+    vi.advanceTimersByTime(600);
+    tapChord("ctrl", "meta");
+    g.keydown("ctrl"); g.keydown("meta"); vi.advanceTimersByTime(300); g.keyup("meta"); g.keyup("ctrl");
+    expect(events).toEqual(["dictate:start", "dictate:end"]);
+  });
+
+  it("OK Filow's hands-free questions are on its own keys: tapping the talk keys twice", () => {
+    tapChord("ctrl", "alt"); tapChord("ctrl", "alt");
+    expect(events).toEqual(["handsfree:toggle"]);
+    vi.advanceTimersByTime(600);
+    // One tap of each chord is not a double tap of either.
+    tapChord("ctrl", "alt"); tapChord("ctrl", "meta");
     expect(events).toEqual(["handsfree:toggle"]);
   });
 
@@ -108,11 +156,11 @@ describe("dictation in toggle mode", () => {
     g.keydown("ctrl"); g.keydown("meta"); vi.advanceTimersByTime(800);
     expect(events).toEqual([]);
     g.keyup("meta"); g.keyup("ctrl");
-    expect(events).toEqual(["dictate:start"]);
+    expect(events).toEqual(["dictate:handsfree"]);
     expect(g.active).toBe("dictate");
     vi.advanceTimersByTime(5000);
     tap(g, "ctrl", "meta");
-    expect(events).toEqual(["dictate:start", "dictate:end"]);
+    expect(events).toEqual(["dictate:handsfree", "dictate:end"]);
     expect(g.active).toBeNull();
   });
 
@@ -124,11 +172,11 @@ describe("dictation in toggle mode", () => {
     expect(events).toEqual([]);
   });
 
-  it("no hands-free double tap in toggle mode: two taps are start then stop", () => {
+  it("in toggle mode one press starts hands-free dictation; two taps are start then stop", () => {
     const events: string[] = [];
     const g = make(events);
     tap(g, "ctrl", "meta"); tap(g, "ctrl", "meta");
-    expect(events).toEqual(["dictate:start", "dictate:end"]);
+    expect(events).toEqual(["dictate:handsfree", "dictate:end"]);
   });
 
   it("Escape and a lock screen cancel; the talk chord is ignored while dictating", () => {
@@ -137,10 +185,10 @@ describe("dictation in toggle mode", () => {
     tap(g, "ctrl", "meta");
     g.keydown("ctrl"); g.keydown("alt"); vi.advanceTimersByTime(400); g.keyup("alt"); g.keyup("ctrl");
     g.escape();
-    expect(events).toEqual(["dictate:start", "dictate:cancel"]);
+    expect(events).toEqual(["dictate:handsfree", "dictate:cancel"]);
     tap(g, "ctrl", "meta");
     g.reset();
-    expect(events.slice(2)).toEqual(["dictate:start", "dictate:cancel"]);
+    expect(events.slice(2)).toEqual(["dictate:handsfree", "dictate:cancel"]);
     g.escape();
     expect(events).toHaveLength(4);
   });
@@ -151,7 +199,7 @@ describe("dictation in toggle mode", () => {
     tap(g, "ctrl", "meta");
     g.endToggle();
     tap(g, "ctrl", "meta");
-    expect(events).toEqual(["dictate:start", "dictate:start"]);
+    expect(events).toEqual(["dictate:handsfree", "dictate:handsfree"]);
   });
 
   it("the talk chord still works in toggle mode when no dictation runs", () => {

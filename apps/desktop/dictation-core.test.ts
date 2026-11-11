@@ -10,6 +10,7 @@ const core = require("./dictation-core.js") as {
   chordLabel(c: string, p?: string): string;
   checkChord(c: string, o: { talk?: string; platform?: string }): { ok: boolean; conflict: string | null; warnings: string[] };
   sanitizeConfig(raw: unknown, legacy?: boolean): Record<string, unknown>;
+  nextStored(raw: unknown, patch: Record<string, unknown>): Record<string, unknown>;
   pasteDecision(o: Record<string, unknown>): { action: string; reason: string };
   snapshotClipboard(cb: unknown): Promise<Snap>;
   createClipboardInserter(o: Record<string, unknown>): Inserter;
@@ -61,12 +62,35 @@ describe("dictation shortcut", () => {
 
 describe("dictation settings", () => {
   it("fills defaults, keeps the old OK Filow switch, and refuses unknown values", () => {
-    expect(core.sanitizeConfig(undefined)).toEqual({ enabled: true, chord: "ctrl+meta", mode: "hold", language: "auto", insert: "paste", removeFillers: false, sound: false });
+    expect(core.sanitizeConfig(undefined)).toEqual({ enabled: true, chord: "ctrl+meta", mode: "hold", language: "auto", insert: "paste", removeFillers: true, sound: true });
     expect(core.sanitizeConfig(undefined, false).enabled).toBe(false);
     expect(core.sanitizeConfig({ enabled: true }, false).enabled).toBe(true);
     const c = core.sanitizeConfig({ chord: "Win + Alt", mode: "toggle", language: "ja", insert: "copy", removeFillers: true, sound: true });
     expect(c).toMatchObject({ chord: "alt+meta", mode: "toggle", language: "ja", insert: "copy", removeFillers: true, sound: true });
-    expect(core.sanitizeConfig({ chord: "ctrl", mode: "x", language: "de", insert: "type", removeFillers: "yes" })).toMatchObject({ chord: "ctrl+meta", mode: "hold", language: "auto", insert: "paste", removeFillers: false });
+    expect(core.sanitizeConfig({ v: 2, chord: "ctrl", mode: "x", language: "de", insert: "type", removeFillers: "yes", sound: 0 })).toMatchObject({ chord: "ctrl+meta", mode: "hold", language: "auto", insert: "paste", removeFillers: true, sound: true });
+  });
+
+  it("removes fillers and plays the sound by default; a setting never touched follows the default (issue #3)", () => {
+    // A user who only changed the keys: the other settings were never chosen.
+    expect(core.sanitizeConfig({ v: 2, chord: "alt+meta" })).toMatchObject({ chord: "alt+meta", removeFillers: true, sound: true });
+    // A user who turned them off keeps them off.
+    expect(core.sanitizeConfig({ v: 2, removeFillers: false, sound: false })).toMatchObject({ removeFillers: false, sound: false });
+    // A record saved whole by 0.9.31 (no v): its false for these two was the old default, not a choice.
+    const old = { enabled: true, chord: "ctrl+alt", mode: "toggle", language: "it", insert: "paste", removeFillers: false, sound: false };
+    expect(core.sanitizeConfig(old)).toMatchObject({ chord: "ctrl+alt", mode: "toggle", language: "it", removeFillers: true, sound: true });
+    // ... but an old true stays true, and an old enabled: false stays off.
+    expect(core.sanitizeConfig({ ...old, enabled: false, sound: true })).toMatchObject({ enabled: false, sound: true });
+  });
+
+  it("saves only what the user chose, so later default changes still reach them", () => {
+    const first = core.nextStored(undefined, { chord: "alt+meta" });
+    expect(first).toEqual({ v: 2, chord: "alt+meta" });
+    const second = core.nextStored(first, { sound: false });
+    expect(second).toEqual({ v: 2, chord: "alt+meta", sound: false });
+    expect(core.sanitizeConfig(second)).toMatchObject({ chord: "alt+meta", sound: false, removeFillers: true });
+    // An old whole record becomes sparse on its first save, without the two old-default falses.
+    const old = { enabled: true, chord: "ctrl+alt", mode: "hold", language: "auto", insert: "paste", removeFillers: false, sound: false };
+    expect(core.nextStored(old, { mode: "toggle" })).toEqual({ v: 2, enabled: true, chord: "ctrl+alt", mode: "toggle", language: "auto", insert: "paste" });
   });
 });
 
@@ -221,6 +245,14 @@ describe("text clean-up", () => {
     expect(core.postProcess("Ăăă, bună ziua", { language: "ro", removeFillers: true })).toBe("Bună ziua");
     expect(core.postProcess("えーと、今日は晴れです", { language: "ja", removeFillers: true })).toBe("今日は晴れです");
     expect(core.postProcess("あの人です", { language: "ja", removeFillers: true })).toBe("あの人です");
+    expect(core.postProcess("ええと、今日は晴れです", { language: "ja", removeFillers: true })).toBe("今日は晴れです");
+    expect(core.postProcess("ええ、そうです", { language: "ja", removeFillers: true })).toBe("ええ、そうです"); // "ええ" is yes
+    // Review of this pass: units, letters and numbers are meant words.
+    expect(core.postProcess("Толщина листа 5 мм, ширина 20 мм. Буква э, буква м.", { language: "ru", removeFillers: true })).toBe("Толщина листа 5 мм, ширина 20 мм. Буква э, буква м.");
+    expect(core.postProcess("Clasa a III-a, grosime 5 mm.", { language: "ro", removeFillers: true })).toBe("Clasa a III-a, grosime 5 mm.");
+    // Russian and Romanian: sounds only, never a word that can be meant.
+    expect(core.postProcess("эээ вот это значит типа проект", { language: "ru", removeFillers: true })).toBe("вот это значит типа проект");
+    expect(core.postProcess("ăăă păi adică proiectul", { language: "ro", removeFillers: true })).toBe("păi adică proiectul");
   });
 
   it("with the language unknown, only the sounds no language uses as a word go", () => {

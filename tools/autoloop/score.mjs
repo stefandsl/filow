@@ -131,7 +131,8 @@ if (!quick) {
 
 // QA-1: no em dash in user-facing strings (project rule).
 {
-  const files = ["packages/core/src/i18n.ts", "apps/desktop/main.js", "apps/web/lib/buddy/text.ts"].filter(exists);
+  const i18nFiles = exists("packages/core/src/i18n") ? fs.readdirSync(path.join(ROOT, "packages/core/src/i18n")).filter((f) => f.endsWith(".ts")).map((f) => `packages/core/src/i18n/${f}`) : [];
+  const files = [...i18nFiles, "apps/desktop/main.js", "apps/web/lib/buddy/text.ts"].filter(exists);
   const hits = files.filter((f) => read(f).includes("—"));
   check("QA-1 no em dash in UI text", 1, hits.length === 0, hits.join(", "));
 }

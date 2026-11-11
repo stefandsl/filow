@@ -127,7 +127,8 @@ const spoken = JSON.parse(fs.readFileSync(linesFile, "utf8").replace(/^\uFEFF/, 
 const wavSeconds = Math.round((wavData(fs.readFileSync(wav)).length / 32000) * 10) / 10;
 
 // UI labels, read from the dictionary so the probe follows wording changes in both languages.
-const i18n = fs.readFileSync(path.join(ROOT, "packages", "core", "src", "i18n.ts"), "utf8");
+const i18nDir = path.join(ROOT, "packages", "core", "src", "i18n");
+const i18n = fs.readdirSync(i18nDir).filter((f) => /^[a-z]{2}\.ts$/.test(f)).map((f) => fs.readFileSync(path.join(i18nDir, f), "utf8")).join("\n");
 const labels = (key) => [...i18n.matchAll(new RegExp(`"${key.replace(/\./g, "\\.")}":\\s*"([^"]+)"`, "g"))].map((m) => m[1]);
 const START = labels("ctl.start"), STOP = labels("ctl.stop"), LOG = labels("ctl.logReport"), RESET = labels("ctl.reset"), OFFLINE_CHIP = labels("app.offline");
 

@@ -43,7 +43,7 @@ function requirements(base = root) {
     { what: "welcome window bundle", file: p("apps", "desktop", "vendor", "welcome.js"), fix: "npm run vendor (in apps/desktop)",
       sources: [p("apps", "desktop", "welcome.ts")] },
     { what: "shared texts for the shell", file: p("apps", "desktop", "vendor", "i18n.js"), fix: "npm run vendor (in apps/desktop)",
-      sources: [p("packages", "core", "src", "i18n.ts")] },
+      sources: [p("packages", "core", "src", "i18n")] },
   ];
 }
 

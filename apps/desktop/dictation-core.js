@@ -23,11 +23,38 @@ const DEFAULTS = Object.freeze({
   language: "auto",
   /** "paste": type into the app that has focus. "copy": only put the text on the clipboard. */
   insert: "paste",
-  /** Take out hesitation sounds ("um", "ehm", "эээ", "えーと"). Off by default: what was said is what is typed. */
-  removeFillers: false,
-  /** A short quiet tone when dictation starts and stops (useful with a screen reader). */
-  sound: false,
+  /** Take out hesitation sounds ("um", "ehm", "эээ", "えーと"). On by default (owner, issue #3). */
+  removeFillers: true,
+  /** A short quiet tone when dictation starts and stops (useful with a screen reader). On by default (issue #3). */
+  sound: true,
 });
+
+/**
+ * settings.json keeps only what the user chose (`v: 2` plus the keys they set), so a setting they never
+ * touched follows DEFAULTS even when a default changes later. Before v2 the whole cleaned object was saved
+ * on every change, so a stored `false` for removeFillers or sound was the old default, never a choice
+ * (both started off and that build could not tell them apart): those two are dropped from such a record.
+ */
+const STORE_VERSION = 2;
+const KEYS = ["enabled", "chord", "mode", "language", "insert", "removeFillers", "sound"];
+const OLD_OFF_DEFAULTS = ["removeFillers", "sound"];
+
+/** What settings.json holds -> only the user's own choices (an object with known keys). */
+function storedChoices(raw) {
+  const r = raw && typeof raw === "object" ? raw : {};
+  const out = {};
+  for (const k of KEYS) if (r[k] !== undefined) out[k] = r[k];
+  if (r.v !== STORE_VERSION) for (const k of OLD_OFF_DEFAULTS) if (out[k] === false) delete out[k];
+  return out;
+}
+
+/** Stored choices + a patch from Settings -> the record to save (v2, sparse). */
+function nextStored(raw, patch) {
+  const out = { v: STORE_VERSION, ...storedChoices(raw) };
+  const p = patch && typeof patch === "object" ? patch : {};
+  for (const k of KEYS) if (p[k] !== undefined) out[k] = p[k];
+  return out;
+}
 
 // Names people write for each modifier, on every platform.
 const ALIASES = {
@@ -105,7 +132,7 @@ function checkChord(chord, { talk, platform = "win32" } = {}) {
 
 /** Stored settings (plus the old okFilow.dictation switch) -> clean settings. */
 function sanitizeConfig(raw, legacyEnabled) {
-  const r = raw && typeof raw === "object" ? raw : {};
+  const r = storedChoices(raw);
   const enabled = typeof r.enabled === "boolean" ? r.enabled : legacyEnabled === false ? false : DEFAULTS.enabled;
   return {
     enabled,
@@ -113,8 +140,8 @@ function sanitizeConfig(raw, legacyEnabled) {
     mode: r.mode === "toggle" ? "toggle" : "hold",
     language: LANGS.includes(r.language) ? r.language : "auto",
     insert: r.insert === "copy" ? "copy" : "paste",
-    removeFillers: r.removeFillers === true,
-    sound: r.sound === true,
+    removeFillers: typeof r.removeFillers === "boolean" ? r.removeFillers : DEFAULTS.removeFillers,
+    sound: typeof r.sound === "boolean" ? r.sound : DEFAULTS.sound,
   };
 }
 
@@ -186,12 +213,29 @@ function clipboardWriter({ clipboard, ClipboardItem, platform = "win32" }) {
  * meanwhile. Slow targets (remote desktop, Office) read the clipboard late, hence the wait.
  * When a second dictation comes before the first one's restore, the first snapshot is kept (the user's own
  * clipboard, not the first dictation) and the earlier restore is cancelled.
+ * Two pastes are never closer than `gapMs`: the app with focus reads the clipboard a moment after the
+ * key press, so text written right behind a paste (two phrases of a hands-free dictation closing
+ * together) would be pasted twice and the first one lost.
  */
-function createClipboardInserter({ clipboard, ClipboardItem, platform = "win32", sendPaste, keysUp = async () => true, restoreMs = 1500, setTimeout: st = setTimeout, clearTimeout: ct = clearTimeout }) {
+function createClipboardInserter({ clipboard, ClipboardItem, platform = "win32", sendPaste, keysUp = async () => true, restoreMs = 1500, gapMs = 300, setTimeout: st = setTimeout, clearTimeout: ct = clearTimeout, now = Date.now }) {
   const write = clipboardWriter({ clipboard, ClipboardItem, platform });
   const ours = async (text) => { try { return (await clipboard.readText()) === text; } catch { return false; } };
   let pending = null; // { saved, text, timer, done }
-  async function insert(text) {
+  let pastedAt = -Infinity;
+  let queue = Promise.resolve(); // one insert at a time, in the order they were asked for
+  function insert(text, onPasted) {
+    const turn = queue.then(() => insertNow(text, onPasted));
+    queue = turn.catch(() => {});
+    return turn;
+  }
+  /**
+   * `textOrFn`: the text, or a function that gives it when its turn comes (it may depend on the insert
+   * before). `onPasted` runs as soon as the paste keys went out, before the next insert's turn.
+   */
+  async function insertNow(textOrFn, onPasted) {
+    const wait = pastedAt + gapMs - now();
+    if (wait > 0) await new Promise((r) => st(r, wait));
+    const text = typeof textOrFn === "function" ? textOrFn() : textOrFn;
     let saved;
     const prev = pending;
     pending = null;
@@ -205,6 +249,8 @@ function createClipboardInserter({ clipboard, ClipboardItem, platform = "win32",
       // (losing what was said would be worse than losing the older clipboard content).
       return { pasted: false, reason: "keys", error: String((e && e.message) || e), restored: Promise.resolve(false) };
     }
+    pastedAt = now();
+    if (onPasted) onPasted();
     let done;
     const restored = new Promise((r) => { done = r; });
     const p = { saved, text, done, timer: null };
@@ -235,11 +281,11 @@ const SOUNDS = {
   any: [/^u+h*m+$/, /^u+h{2,}$/, /^e+h*m+$/, /^h+m{2,}$/, /^m{3,}$/, /^э{2,}м*$/, /^э+м+$/, /^м{3,}$/],
   en: [/^u+h+$/, /^e+r+m*$/, /^h*m{2,}$/],
   it: [/^e+h{2,}$/, /^e{2,}h+$/, /^m{2,}$/],
-  ru: [/^э+$/, /^м{2,}$/],
-  ro: [/^a{3,}$/, /^i{3,}$/, /^e{3,}$/, /^h*m{2,}$/],
+  ru: [], // "э" is a letter and "мм" is millimetres: only the longer sounds in `any` are dropped
+  ro: [/^a{3,}$/, /^i{4,}$/, /^e{3,}$/], // "III" is a number, "mm" is millimetres
 };
 // Japanese is written without spaces: the sound must stand alone, before a comma, a space or the end.
-const JA_SOUNDS = /(^|[\s、。，．,.!?！？])(?:え[ーぇ〜]*っ?と|え[ーぇ〜]+|あの[ーう〜]+|う[ー〜]+ん|ま[あー]{2,})(?:[、，,]\s*|\s+|(?=[。．.!?！？]|$))/gu;
+const JA_SOUNDS = /(^|[\s、。，．,.!?！？])(?:え[ーぇえ〜]*っ?と|え[ーぇ〜]+|あの[ーう〜]+|う[ー〜]+ん|ま[あー]{2,})(?:[、，,]\s*|\s+|(?=[。．.!?！？]|$))/gu;
 
 let fillerHook = null;
 /** Lets another module supply the filler patterns: (lang) => RegExp[] (whole folded word). */
@@ -302,8 +348,36 @@ function joinAfter(before, text) {
   return ` ${text}`;
 }
 
+/**
+ * Hands-free dictation (issue #2) types one phrase after another into a field Filow cannot read, so it
+ * keeps what it put there itself: the next phrase gets a space after the last one where the language
+ * writes one. When the words can only be copied, the clipboard must hold everything said since the
+ * start, not just the last phrase, so the copied text grows phrase by phrase.
+ */
+function createPhraseRun() {
+  let tail = ""; // the last character typed or copied in this run
+  let copied = "";
+  return {
+    /** The text to paste for this phrase, given the phrases already typed. */
+    pasteText(text) { return joinAfter(tail, text); },
+    /** The phrase went in (pasted, or typed directly into one of Filow's own fields). */
+    typed(text) { if (text) tail = text.slice(-1); },
+    /**
+     * The user moved on by themselves (Enter, Tab, a mouse click): the caret is no longer right after
+     * the last phrase, so the next one starts without a space (a new chat message, another field).
+     */
+    moved() { tail = ""; },
+    /** Copy only: the whole text said so far, for the clipboard. */
+    copyText(text) {
+      copied += joinAfter(copied.slice(-1), text);
+      if (text) tail = text.slice(-1);
+      return copied;
+    },
+  };
+}
+
 module.exports = {
-  joinAfter,
-  MODS, LANGS, DEFAULTS, CHORDS, parseChord, chordLabel, checkChord, sanitizeConfig, pasteDecision,
+  joinAfter, createPhraseRun,
+  MODS, LANGS, DEFAULTS, CHORDS, parseChord, chordLabel, checkChord, sanitizeConfig, nextStored, pasteDecision,
   snapshotClipboard, restoreClipboard, clipboardWriter, createClipboardInserter, postProcess, removeFillers, setFillerHook, fold,
 };

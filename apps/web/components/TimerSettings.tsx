@@ -74,7 +74,7 @@ export function TimerSettings({ script, text, onSave, onCancel, returnFocusRef }
             );
           })}
         </div>
-        <p className="hint" aria-live="polite">{summary}</p>
+        <p className={typeof talkMin === "number" && planned > talkMin ? "hint timer-warn" : "hint"} aria-live="polite">{summary}</p>
         {invalid && <p className="timer-error" role="alert">{t("timer.invalid")}</p>}
         <div className="controls">
           <button type="submit" className="btn primary" disabled={invalid}>{t("timer.save")}</button>
