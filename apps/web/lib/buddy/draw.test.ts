@@ -50,6 +50,18 @@ describe("a plain request to draw is recognised in the five languages", () => {
     }
     expect(localHelper(best, ["qwen3-vl:2b", "qwen3-vl:8b"], "где кнопка сохранить?", undefined).model).toBe("qwen3-vl:2b");
   });
+
+  it("Gemma 4 E4B draws when it is installed, ahead of Qwen3-VL 8B (measured faster and more reliable); questions about the screen keep the setup's helper", () => {
+    const hw: MachineInfo = { ramGb: 32, cores: 16, gpu: { kind: "discrete", vramGb: 8, ollama: true }, freeDiskGb: 500 };
+    const best = resolveSetup("advanced", hw);
+    const installed = ["qwen3-vl:2b", "qwen3-vl:8b", "gemma4:e4b", "lfm3-vl:latest"];
+    for (const q of ["draw a car", "draw a rocket in 3D", "disegna una macchina"]) expect(localHelper(best, installed, q, undefined).model).toBe("gemma4:e4b");
+    expect(localHelper(best, installed, "where is the Save button?", undefined).model).toBe("qwen3-vl:2b");
+    // an answer that reads the screenshot and may add a diagram stays with the model that points well
+    expect(localHelper(best, installed, "explain this chart with a diagram", undefined).model).toBe("qwen3-vl:8b");
+    // not installed: nothing is asked of Ollama that the user did not download
+    expect(localHelper(best, ["qwen3-vl:2b", "gemma4:e2b"], "draw a car", undefined).model).toBe("qwen3-vl:2b");
+  });
 });
 
 describe('the user\'s "Look at my screen" choice comes before the setup\'s pick on this PC', () => {

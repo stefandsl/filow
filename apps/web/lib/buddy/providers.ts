@@ -49,8 +49,19 @@ export const OLLAMA_TOO_SLOW =
 export const NO_LOCAL_HELPER_DISK =
   'There is not enough free disk space for OK Filow to answer on this PC (it needs about 6 GB free). Free some space, or choose FreeLLMAPI or Cloud under "Answers from" in the OK Filow panel to get answers from online.';
 
-/** Drawings and 3D models: the 2B loops and writes broken JSON (measured), so a bigger picture model the user installed draws. */
-export const BUDDY_DRAW_MODELS = ["qwen3-vl:8b", "qwen3-vl:4b", "gemma4:e4b"];
+/**
+ * Drawings and 3D models: the 2B loops and writes broken JSON (measured), so a bigger model the user
+ * installed draws. Gemma 4 E4B first: on an 8 GB RTX 3070 it drew 16 of 16 pictures in 1.3 to 2.8 s
+ * (9 to 12 s when it had to be loaded first), Qwen3-VL 8B 7 of 8 in 15 to 110 s
+ * (G:/FILOW/tmp/v17-parity/FINDINGS.md, 2026-11-12).
+ */
+export const BUDDY_DRAW_MODELS = ["gemma4:e4b", "qwen3-vl:8b", "qwen3-vl:4b"];
+/**
+ * A question that may end in a drawing but is answered with the screenshot ("explain this with a
+ * diagram"): the model that points best comes first. Gemma 4 E4B reads the screen well but put its
+ * points 40 to 70 pixels off (2 of 22 inside the target, Qwen3-VL 8B 20 of 22, same measurement).
+ */
+export const BUDDY_VISUAL_MODELS = ["qwen3-vl:8b", "qwen3-vl:4b", "gemma4:e4b"];
 /** A question that may end in a drawing or a model: the loose English and Italian words, and a plain request to draw in any of the five languages. */
 export const wantsVisual = (q: string) => /\b(draw|drawing|sketch|diagram|illustrat\w*|3d|model|disegn\w*|schema|modello)\b/i.test(q) || wantsDrawing(q) !== null;
 
@@ -66,7 +77,8 @@ export function localHelper(setup: Pick<ResolvedSetup, "active" | "choices">, in
   if (h.mode === "none" || !h.model) throw new Error(h.lacking === "disk" ? NO_LOCAL_HELPER_DISK : NO_LOCAL_HELPER);
   if (h.mode === "picture" && setup.active === "advanced" && wantsVisual(question)) {
     const names = new Set(installed.flatMap((n) => [n, n.replace(/:latest$/, "")]));
-    const big = BUDDY_DRAW_MODELS.find((m) => names.has(m));
+    // a plain request for a picture (answered without the screenshot, lib/buddy/draw.ts) or an answer that sees the screen
+    const big = (wantsDrawing(question) ? BUDDY_DRAW_MODELS : BUDDY_VISUAL_MODELS).find((m) => names.has(m));
     if (big) return { model: big, pictures: sees ?? true };
   }
   // The user's own choice in the panel ("Look at my screen") comes before what the setup would pick.
