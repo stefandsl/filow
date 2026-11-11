@@ -12,10 +12,10 @@ import { buddyCloudRecipient, whiteboardCloudRecipient } from "@/lib/buddy/provi
  * `whiteboard`: the whiteboard may use an online model of its own (WHITEBOARD_CLOUD_MODEL), and its
  * notice then names that model's maker.
  */
-export function configuredRecipients(whiteboard = false): BuddyRecipients {
+export function configuredRecipients(whiteboard = false, whiteboardModel?: unknown): BuddyRecipients {
   return {
     offline: process.env.FILOW_OFFLINE === "1",
-    ask: whiteboard ? whiteboardCloudRecipient() : buddyCloudRecipient(),
+    ask: whiteboard ? whiteboardCloudRecipient(whiteboardModel) : buddyCloudRecipient(),
     freellm: freellmRecipient(),
     voice: voiceRecipient(),
     photo: photoRecipient(),

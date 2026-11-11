@@ -90,6 +90,7 @@ OK Filow's settings. Cloud features use your own account with that company.
 | Feature | What is sent | To whom |
 |---|---|---|
 | OK Filow, cloud answers | your question and pictures of your screens | OpenRouter, then the maker of the model you chose (for example Google) |
+| Whiteboard, online lessons | your question and, for a follow-up, the lesson so far; never a picture of your screen | OpenRouter, then the maker of the model chosen for the whiteboard: Anthropic by default (Claude Sonnet 5.5), or Google if you pick Gemini 2.5 Flash. Each maker is asked for separately the first time |
 | OK Filow, cloud voice | the text of each answer | ElevenLabs |
 | OK Filow, pictures on answer cards | the name of the card's subject | Wikipedia |
 | OK Filow, coding helper | the task and the last answer | OpenAI (Codex) or Anthropic (Claude Code), through their command-line tools |

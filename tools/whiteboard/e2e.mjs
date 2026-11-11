@@ -203,6 +203,9 @@ try {
     const noticeUp = await waitFor(() => page.evaluate(`Boolean(document.querySelector("dialog.okf-notice-modal[open]"))`), 20_000);
     check("choosing Cloud shows the first-send notice before anything is sent", noticeUp && cloudCalls().length === 0, `cloud calls so far: ${cloudCalls().length}`);
     check("the notice says only the question is sent", /screenshot/i.test(await page.evaluate(`document.querySelector("dialog.okf-notice-modal")?.textContent ?? ""`)));
+    const noticeText = await page.evaluate(`document.querySelector("dialog.okf-notice-modal")?.textContent ?? ""`);
+    const picker = await page.evaluate(`(() => { const s = document.querySelector("main.wb-page .wb-model select"); return s ? { value: s.value, options: [...s.options].map((o) => o.value) } : null; })()`);
+    check("the online whiteboard uses Claude Sonnet 5.5 by default, offers Gemini 2.5 Flash, and its notice names OpenRouter and Anthropic", picker && picker.value === "anthropic/claude-sonnet-5.5" && picker.options.join() === "anthropic/claude-sonnet-5.5,google/gemini-2.5-flash" && /OpenRouter/.test(noticeText) && /Anthropic/.test(noticeText) && !/Google/.test(noticeText), `${JSON.stringify(picker)} | ${noticeText.slice(0, 120)}`);
     await shot("notice-dark-1264", 1264, 800);
     const noticeAxe = await axe();
     check("the notice passes axe", Array.isArray(noticeAxe) && noticeAxe.length === 0, (noticeAxe || []).join("; "));

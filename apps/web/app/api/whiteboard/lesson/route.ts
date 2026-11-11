@@ -19,7 +19,7 @@ const MAX_BODY = 64_000;
 export async function POST(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
-  let body: { question?: unknown; provider?: unknown; setup?: unknown; language?: unknown; lesson?: unknown; audit?: unknown; spell?: unknown };
+  let body: { question?: unknown; provider?: unknown; setup?: unknown; language?: unknown; lesson?: unknown; audit?: unknown; spell?: unknown; model?: unknown };
   try {
     // a question and, for a follow-up, one lesson: anything much larger is not a whiteboard request
     const raw = await req.text();
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     if (refused) return refused;
   }
   if (provider === "cloud") {
-    const refused = consentDenied(req, "ask", whiteboardCloudRecipient());
+    const refused = consentDenied(req, "ask", whiteboardCloudRecipient(body.model));
     if (refused) return refused;
   }
   // Only the header counts: a consent field in the body is never trusted.
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
       const limit = AbortSignal.timeout(timeoutMs);
       let text = "";
       try {
-        for await (const piece of askBuddy(provider, { question: user, images: [], screens: [], consent, language: lang }, AbortSignal.any([abort.signal, limit]), helper, { system, format, maxTokens, temperature, ...(provider === "cloud" ? { model: WHITEBOARD_CLOUD_MODEL() } : {}) })) text += piece;
+        for await (const piece of askBuddy(provider, { question: user, images: [], screens: [], consent, language: lang }, AbortSignal.any([abort.signal, limit]), helper, { system, format, maxTokens, temperature, ...(provider === "cloud" ? { model: WHITEBOARD_CLOUD_MODEL(body.model) } : {}) })) text += piece;
       } catch (e) {
         if (limit.aborted && !abort.signal.aborted) throw new StallError();
         const busy = provider !== "local" && !abort.signal.aborted && /\b(?:429|5\d\d)\b|rate.?limit|overloaded|temporarily/i.test(e instanceof Error ? e.message : String(e));
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
     async start(controller) {
       const emit = (e: LessonEvent) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
       try {
-        emit({ type: "start", provider, model: provider === "cloud" ? WHITEBOARD_CLOUD_MODEL() : provider === "freellm" ? "FreeLLMAPI" : helper!.model, lang, lite, more: Boolean(lesson) });
+        emit({ type: "start", provider, model: provider === "cloud" ? WHITEBOARD_CLOUD_MODEL(body.model) : provider === "freellm" ? "FreeLLMAPI" : helper!.model, lang, lite, more: Boolean(lesson) });
         // audit: the proof bench asks for what the model first wrote and what each guard changed.
       // WHITEBOARD_GUARDS: guards that are off by default, switched on by name for a measured run ("must,links").
       const on = new Set((process.env.WHITEBOARD_GUARDS || "").split(",").map((g) => g.trim()));

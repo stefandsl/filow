@@ -119,6 +119,25 @@ Filow's own windows never uses the clipboard.
   The pill has its own colour (never the ink of listening, thinking or speaking), its arrow moves
   only without `prefers-reduced-motion`, and it sits in a polite live region.
 
+## The whiteboard's online model (owner decision, 11/11/2026)
+
+A whiteboard lesson made online uses a model of its own, apart from OK Filow's answers. Measured
+on the ten proof questions, two paid runs each, strict review: Claude Sonnet 5.5 passed 9 and 9
+of 10, Gemini 2.5 Flash 6 and 6 (`docs/whiteboard/PROOF.md`). The owner chose Claude Sonnet 5.5
+as the default.
+
+- Default: `anthropic/claude-sonnet-5.5`. The user can pick `google/gemini-2.5-flash` in the
+  whiteboard (when Cloud is chosen) or in Settings > Local models; the choice is kept in the
+  profile. The labels say what was measured: "best measured quality" and "cheaper, less reliable".
+- The recipient is derived from the model, as everywhere: OpenRouter and Anthropic
+  (`openrouter/anthropic`), or OpenRouter and Google. Each is its own yes. Someone who has said
+  yes to Google for OK Filow is asked once for Anthropic the first time a whiteboard question is
+  about to go online; before that yes nothing is sent (tested at the route).
+- The server accepts only a model on the whiteboard's list (`lib/whiteboard/models.ts`); any
+  other name falls back to the default, under the default's yes. `WHITEBOARD_CLOUD_MODEL`
+  overrides the choice for a measured run.
+- What is sent is unchanged: the question and, for a follow-up, the lesson so far. No picture.
+- OK Filow's own answers keep their model (`BUDDY_CLOUD_MODEL`) and their notice.
 ## Names in whiteboard questions (owner decision, 11/11/2026)
 
 The owner's OpenRouter account hides personal data in every prompt before a model sees it: "the

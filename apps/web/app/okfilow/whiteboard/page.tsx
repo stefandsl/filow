@@ -14,6 +14,7 @@ import { createSpeaker, webAudioPlayer } from "@/lib/buddy/voice";
 import { freellmCodeOf, localizeFreeLlmError } from "@/lib/freellm";
 import { getSetupPreference } from "@/lib/prefs";
 import { Board, BOARD_PALETTES, type BoardLook } from "@/components/whiteboard/Board";
+import { ModelPicker, useWhiteboardModel } from "@/components/whiteboard/ModelPicker";
 import { initialLesson, lessonReducer, readLessonStream } from "@/lib/whiteboard/client";
 import { boardPng, fileStem, formulaCss, saveBlob } from "@/lib/whiteboard/export";
 import { createRecorder, type LessonRecorder } from "@/lib/whiteboard/video";
@@ -28,6 +29,11 @@ import "../outbound.css";
 import "./whiteboard.css";
 
 const REPLAY_KEY = "filow.whiteboard.replay";
+/** Who receives a whiteboard question with this online model: read from the server each time, never from fixed text. */
+async function boardRecipients(model: string, headers: Record<string, string>): Promise<BuddyRecipients | null> {
+  const res = await fetch(`/api/whiteboard/recipients?model=${encodeURIComponent(model)}`, { headers });
+  return res.ok ? ((await res.json()) as BuddyRecipients) : null;
+}
 const LOOK_KEY = "filow.whiteboard.look";
 // Set once a lesson showed that the online account hides names: later questions spell their names out from the first call.
 const SPELL_KEY = "filow.whiteboard.spell";
@@ -110,7 +116,7 @@ export default function WhiteboardPage() {
         return changesStored(s.consent ?? {}, changes);
       },
       fetchRecipients: async () => {
-        const res = await fetch("/api/whiteboard/recipients", { headers: await engineHeaders() });
+        const res = await fetch(`/api/whiteboard/recipients?model=${encodeURIComponent(modelRef.current)}`, { headers: await engineHeaders() });
         return res.ok ? ((await res.json()) as BuddyRecipients) : null;
       },
       signal: {
@@ -124,6 +130,10 @@ export default function WhiteboardPage() {
 
   const langRef = useRef(lang);
   langRef.current = lang;
+  // The online model of the whiteboard (its own, chosen here or in Settings); each model's maker gets its own yes.
+  const [cloudModel, chooseCloudModel] = useWhiteboardModel();
+  const modelRef = useRef(cloudModel);
+  modelRef.current = cloudModel;
   // The voices of OK Filow (natural on this PC, the system voice). No cloud voice from this page:
   // without `cloudAudio` the speaker falls back to the system voice and sends nothing.
   const speaker = useMemo(() => createSpeaker({ player: () => recorderRef.current?.player() ?? webAudioPlayer(), bridge: okFilowBridge, status: () => statusRef.current, isCurrent: (id) => turnRef.current === id, uiLang: () => langRef.current }), []);
@@ -151,7 +161,8 @@ export default function WhiteboardPage() {
           route = "local";
           setNote(wbText(langRef.current, "cloudNeedsApp"));
         } else {
-          const all = await out.recipients();
+          // the online model of the whiteboard is its own, and may have been changed since the last question: asked for afresh
+          const all = route === "cloud" ? await boardRecipients(modelRef.current, await engineHeaders()) : await out.recipients();
           // who receives the question on this route: OpenRouter and the model's maker, or the user's FreeLLMAPI router
           const target = all ? askRouteRecipient(route, all) : null;
           if (!target) throw new Error(okfT("noticeUnknown"));
@@ -172,7 +183,7 @@ export default function WhiteboardPage() {
           method: "POST",
           signal: abort.signal,
           headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent },
-          body: JSON.stringify({ question: text, provider: route, setup: getSetupPreference(), language: more ? lsRef.current.meta?.lang ?? "auto" : "auto", lesson: more ? current : undefined, spell: route !== "local" && knownToHideNames() }),
+          body: JSON.stringify({ question: text, provider: route, setup: getSetupPreference(), language: more ? lsRef.current.meta?.lang ?? "auto" : "auto", lesson: more ? current : undefined, spell: route !== "local" && knownToHideNames(), model: route === "cloud" ? modelRef.current : undefined }),
         });
         if (!res.ok || !res.body) {
           const j = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
@@ -469,6 +480,7 @@ export default function WhiteboardPage() {
             </label>
           </span>
         </fieldset>
+        {from === "cloud" && desktop && !offline && <ModelPicker className="wb-field wb-model" value={cloudModel} onChange={chooseCloudModel} />}
         <button type="submit" className="wb-btn primary" disabled={!question.trim()}>{t("explain")}</button>
       </form>
       {from !== "local" && !offline && desktop && <p className="wb-note">{t("onlyQuestion")}{from === "freellm" ? ` ${okfT("outFreeWarn")}` : ""}</p>}
