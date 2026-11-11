@@ -76,6 +76,18 @@ describe("whiteboard board", () => {
     expect(live).toContain('tabindex="0"');
   });
 
+  it("names a box with exactly the words written in it, however they are broken into lines", () => {
+    const long = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "node", id: "a", text: "Mitochondrial electron transport" }, { kind: "node", id: "b", text: "Carbon dioxide" }, { kind: "node", id: "c", text: "C" }, { kind: "node", id: "d", text: "D" }, { kind: "note", text: "a note makes the boxes narrower" }] }] })!;
+    const svg = render(long, 0, { onPick: () => {}, pickLabel: (name) => `Explain ${name} again` });
+    for (const id of ["a", "b"]) {
+      const m = new RegExp(`<g[^>]*data-node="${id}"[^>]*aria-label="Explain ([^"]+) again"[^>]*>(.*?)</g>`).exec(svg)!;
+      const words = [...m[2].matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((x) => x[1]);
+      if (id === "a") expect(words.length, id).toBeGreaterThan(1);
+      expect(words.join(""), id).toBe(m[1]);
+      expect(m[1], id).toBe(id === "a" ? "Mitochondrial electron transport" : "Carbon dioxide");
+    }
+    expect(svg).toContain('aria-label="Explain Carbon dioxide again"');
+  });
   it("shows a free sketch as a picture built from validated shapes", () => {
     const withSketch = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "sketch", title: "Sun", shapes: [{ type: "circle", cx: 200, cy: 150, r: 60, fill: "#ffcc33" }] }] }] }, { sketch: true })!;
     const svg = render(withSketch, 0);

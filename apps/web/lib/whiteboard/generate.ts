@@ -102,8 +102,8 @@ export type LessonRequest = {
   lesson?: Lesson | null;
 };
 
-const OUTLINE_MS = 150_000; // includes loading the model into memory the first time
-const STEP_MS = 75_000;
+/** How long one answer may take. The outline includes loading the model into memory the first time. */
+export const TIMEOUTS = { outlineMs: 150_000, stepMs: 75_000, cloudMs: 120_000 };
 
 /** Local path: outline, then each step. Emits events as they are ready. */
 export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: LessonEvent) => void): Promise<void> {
@@ -112,7 +112,7 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
   const outlineUser = more ? `${lessonContextText(req.lesson!)}\n\nFollow-up: ${quoted(req.question)}` : `Concept: ${quoted(req.question)}`;
   let outline = null;
   for (let attempt = 0; attempt < 2 && !outline; attempt++) {
-    const text = await ask({ system: outlineSystem(req.lang, maxSteps, more), user: outlineUser, format: outlineSchema(maxSteps), maxTokens: 120 + maxSteps * 90, timeoutMs: OUTLINE_MS, temperature: attempt ? 0.6 : 0.3 });
+    const text = await ask({ system: outlineSystem(req.lang, maxSteps, more), user: outlineUser, format: outlineSchema(maxSteps), maxTokens: 120 + maxSteps * 90, timeoutMs: TIMEOUTS.outlineMs, temperature: attempt ? 0.6 : 0.3 });
     outline = validateOutline(parseJsonLoose(text), maxSteps);
   }
   if (!outline) {
@@ -139,7 +139,7 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
         `Draw step ${earlier.length + i + 1}: "${outline.says[i]}"`,
       ].join("\n");
       try {
-        const text = await ask({ system: stepSystem(req.lang), user, format: STEP_SCHEMA, maxTokens: 420, timeoutMs: STEP_MS, temperature: attempt ? 0.6 : 0.3 });
+        const text = await ask({ system: stepSystem(req.lang), user, format: STEP_SCHEMA, maxTokens: 420, timeoutMs: TIMEOUTS.stepMs, temperature: attempt ? 0.6 : 0.3 });
         step = makeStep(outline.says[i], parseJsonLoose(text), ctx);
       } catch (e) {
         // A model that stalls is not asked again: the steps left become text cards at once.
@@ -160,7 +160,7 @@ export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: Less
   const user = more ? `${lessonContextText(req.lesson!)}\n\nFollow-up: ${quoted(req.question)}` : `Concept: ${quoted(req.question)}`;
   let lesson: Lesson | null = null;
   for (let attempt = 0; attempt < 2 && !lesson; attempt++) {
-    const text = await ask({ system: cloudSystem(req.lang, maxSteps, more), user, format: { type: "object" }, maxTokens: 3500, timeoutMs: 120_000, temperature: attempt ? 0.6 : 0.3 });
+    const text = await ask({ system: cloudSystem(req.lang, maxSteps, more), user, format: { type: "object" }, maxTokens: 3500, timeoutMs: TIMEOUTS.cloudMs, temperature: attempt ? 0.6 : 0.3 });
     lesson = validateLesson(parseJsonLoose(text), { maxSteps, texOk, sketch: true, continues: more ? req.lesson! : undefined });
   }
   if (!lesson) {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "./lesson/route";
-import { StallError, generateLocal, texOk, type Ask, type LessonEvent } from "@/lib/whiteboard/generate";
+import { StallError, TIMEOUTS, generateLocal, texOk, type Ask, type LessonEvent } from "@/lib/whiteboard/generate";
 
 // The lesson route against a fake model: an Ollama and an OpenRouter that answer what each test
 // queues. No real key, no network, no paid call.
@@ -152,6 +152,45 @@ describe("whiteboard lesson, a model that stalls", () => {
     expect(n).toBe(3);
     expect(got.filter((e) => e.type === "step").map((e) => (e.type === "step" ? e.step.card : null))).toEqual([false, true, true]);
     expect(got[got.length - 1]).toEqual({ type: "done", cards: 2, stalled: true });
+  });
+
+  it("at the route: a model that stops answering is cut off, and the lesson ends as text cards", async () => {
+    const before = { ...TIMEOUTS };
+    TIMEOUTS.stepMs = 60;
+    try {
+      let chat = 0;
+      vi.stubGlobal("fetch", vi.fn((url: string, init?: { signal?: AbortSignal }) => {
+        if (!String(url).includes("/api/chat")) return Promise.resolve(Response.json({}));
+        chat++;
+        if (chat === 1) return Promise.resolve(new Response(`${JSON.stringify({ message: { content: OUTLINE }, done: true })}\n`));
+        // every step call hangs until the route gives up on it
+        return new Promise<Response>((_resolve, reject) => init?.signal?.addEventListener("abort", () => reject(Object.assign(new Error("timed out"), { name: "TimeoutError" }))));
+      }));
+      const started = Date.now();
+      const ev = await events(await post({ question: "photosynthesis" }));
+      expect(Date.now() - started).toBeLessThan(3000);
+      expect(ev.map((e) => e.type)).toEqual(["start", "outline", "step", "step", "step", "done"]);
+      expect(ev.filter((e) => e.type === "step").every((e) => e.type === "step" && e.step.card)).toBe(true);
+      expect(ev[ev.length - 1]).toEqual({ type: "done", cards: 3, stalled: true });
+      // asked once for the outline and once for the step that stalled: not again for the steps left
+      expect(chat).toBe(2);
+    } finally {
+      Object.assign(TIMEOUTS, before);
+    }
+  });
+
+  it("at the route: an outline that never comes is a stalled error, not a hang", async () => {
+    const before = { ...TIMEOUTS };
+    TIMEOUTS.outlineMs = 60;
+    try {
+      vi.stubGlobal("fetch", vi.fn((url: string, init?: { signal?: AbortSignal }) =>
+        String(url).includes("/api/chat") ? new Promise<Response>((_resolve, reject) => init?.signal?.addEventListener("abort", () => reject(Object.assign(new Error("timed out"), { name: "TimeoutError" })))) : Promise.resolve(Response.json({}))));
+      const ev = await events(await post({ question: "photosynthesis" }));
+      expect(ev.map((e) => e.type)).toEqual(["start", "error"]);
+      expect(ev[1]).toMatchObject({ code: "stalled" });
+    } finally {
+      Object.assign(TIMEOUTS, before);
+    }
   });
 
   it("gives a shorter lesson on the Lite tier", async () => {

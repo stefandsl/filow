@@ -179,17 +179,21 @@ export function Board({ layout, current, palette, sketchy, label, onPick, pickLa
         const lineH = nd.font * 1.22;
         const top = (h - nd.lines.length * lineH) / 2;
         const picks = Boolean(onPick);
+        // What is written in the box, as one string: a line that ended at a space gets it back, so the
+        // name a screen reader says contains exactly the words on screen.
+        const shown = nd.lines.map((ln, k) => (k + 1 < nd.lines.length && nd.text.includes(`${ln} ${nd.lines[k + 1].slice(0, 1)}`) ? `${ln} ` : ln));
+        const visible = shown.join("");
         return (
           <g
             key={nd.id}
             className={`wb-node ${fresh(nd.step) ?? ""}`}
             style={{ transform: `translate(${nd.box.x}px, ${nd.box.y}px)` }}
             data-node={nd.id}
-            {...(picks ? { role: "button", tabIndex: 0, "aria-label": pickLabel ? pickLabel(nd.text) : nd.text, onClick: () => onPick?.(nd.id, nd.text), onKeyDown: onKey(nd.id, nd.text) } : {})}
+            {...(picks ? { role: "button", tabIndex: 0, "aria-label": pickLabel ? pickLabel(visible) : visible, onClick: () => onPick?.(nd.id, nd.text), onKeyDown: onKey(nd.id, nd.text) } : {})}
           >
             <rect className="wb-fade wb-node-fill" x={0} y={0} width={w} height={h} rx={10} fill={p.fill} />
             {draw((g, o) => g.rectangle(0, 0, w, h, o), `n-${nd.id}`, p.ink, 2.2)}
-            {nd.lines.map((ln, k) => (
+            {shown.map((ln, k) => (
               <text key={k} className="wb-fade" x={w / 2} y={top + k * lineH + nd.font * 0.92} fontSize={nd.font} textAnchor="middle" fill={p.ink}>{ln}</text>
             ))}
           </g>
