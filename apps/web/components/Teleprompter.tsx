@@ -938,7 +938,7 @@ export function ScriptEditor({
           </button>
           <span className="hint" style={{ marginLeft: "auto" }}>{t("editor.translateTo")}</span>
           <select className="btn" value={to} onChange={(e) => setTo(e.target.value)} disabled={busy} aria-label={t("editor.translateTo")}>
-            {[["en", "English"], ["it", "Italiano"], ["ro", "Română"], ["ru", "Русский"], ["de", "Deutsch"], ["fr", "Français"], ["es", "Español"]].map(([k, l]) => (
+            {[["en", "English"], ["it", "Italiano"], ["ru", "Русский"], ["ro", "Română"], ["ja", "日本語"], ["de", "Deutsch"], ["fr", "Français"], ["es", "Español"]].map(([k, l]) => (
               <option key={k} value={k}>
                 {l}
               </option>

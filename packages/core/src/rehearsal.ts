@@ -54,37 +54,33 @@ export const FILLERS: Record<SpeechLanguage, Filler[]> = {
     { label: "insomma", words: ["insomma"] },
     { label: "come dire", words: ["come", "dire"] },
   ],
+  // Russian, Romanian, Japanese: only hesitation sounds, and phrases that are fillers in nearly every
+  // use. A word that is often meant is left out even when it is a common filler: "вот", "значит",
+  // "типа", "короче" (also "shorter"), "păi" (folds to "pai", straw), "adică", "deci", "practic",
+  // "なんか". "ну" and "как бы" count only when set off by a pause ("ну, ..."; not "как бы ни").
   ru: [
     { label: "э", sound: /^э+м*$/ },
     { label: "мм", sound: /^м{2,}$/ },
-    { label: "ну", words: ["ну"] },
-    { label: "как бы", words: ["как", "бы"] },
+    { label: "ну", words: ["ну"], alone: true },
+    { label: "как бы", words: ["как", "бы"], alone: true },
     { label: "это самое", words: ["это", "самое"], alone: true },
-    { label: "короче", words: ["короче"] },
-    { label: "типа", words: ["типа"], alone: true },
-    { label: "вот", words: ["вот"], alone: true },
-    { label: "значит", words: ["значит"], alone: true },
   ],
   ro: [
     { label: "ă", sound: /^a{2,}$/ },
     { label: "î", sound: /^i{3,}$/ }, // "îi" (him, her) folds to "ii"
     { label: "eee", sound: /^e{2,}$/ },
     { label: "mmm", sound: /^h*m{2,}$/ },
-    { label: "păi", words: ["pai"] },
-    { label: "adică", words: ["adica"] },
-    { label: "practic", words: ["practic"], alone: true },
     { label: "cum să zic", words: ["cum", "sa", "zic"] },
-    { label: "deci", words: ["deci"], alone: true },
   ],
   ja: [
-    { label: "えーと", sound: /^え[ーぇ〜]*(?:っ?と)$/ },
+    { label: "えーと", sound: /^え[ーぇえ〜]*(?:っ?と)$/ }, // えーと, ええと, えっと when the cutter keeps it whole
     { label: "えっと", words: ["えっ", "と"] },
-    { label: "えー", sound: /^え[ーぇ〜]+$/ },
+    { label: "えーと", words: ["ええ", "と"] }, // the word cutter may split "ええと" in two
+    { label: "えー", sound: /^え[ーぇ〜]+$/ }, // not "ええ", which is "yes"
     { label: "あのー", sound: /^あの[ーう〜]+$/ },
     { label: "あのう", words: ["あの", "う"] }, // the word cutter splits "あのう" in two
     { label: "うーん", sound: /^う[ー〜]+ん$/ },
     { label: "まあ", sound: /^ま[あー]+$/ },
-    { label: "なんか", words: ["なんか"], alone: true },
     { label: "あの", words: ["あの"], alone: true },
   ],
 };

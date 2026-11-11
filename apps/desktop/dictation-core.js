@@ -239,7 +239,7 @@ const SOUNDS = {
   ro: [/^a{3,}$/, /^i{3,}$/, /^e{3,}$/, /^h*m{2,}$/],
 };
 // Japanese is written without spaces: the sound must stand alone, before a comma, a space or the end.
-const JA_SOUNDS = /(^|[\s、。，．,.!?！？])(?:え[ーぇ〜]*っ?と|え[ーぇ〜]+|あの[ーう〜]+|う[ー〜]+ん|ま[あー]{2,})(?:[、，,]\s*|\s+|(?=[。．.!?！？]|$))/gu;
+const JA_SOUNDS = /(^|[\s、。，．,.!?！？])(?:え[ーぇえ〜]*っ?と|え[ーぇ〜]+|あの[ーう〜]+|う[ー〜]+ん|ま[あー]{2,})(?:[、，,]\s*|\s+|(?=[。．.!?！？]|$))/gu;
 
 let fillerHook = null;
 /** Lets another module supply the filler patterns: (lang) => RegExp[] (whole folded word). */
