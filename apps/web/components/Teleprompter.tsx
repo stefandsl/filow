@@ -920,7 +920,8 @@ export function ScriptEditor({
           </span>
         ))}
         <div className="hint">{t("editor.hint", { sections: preview.sections.length, points: preview.sections.reduce((n, s) => n + s.bullets.length, 0) })}</div>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} aria-label={title ?? t("editor.title")} />
+        {/* read-only while a translation runs: what is typed meanwhile would be replaced by the result */}
+        <textarea value={text} onChange={(e) => setText(e.target.value)} readOnly={translation.busy} aria-busy={translation.busy} spellCheck={false} aria-label={title ?? t("editor.title")} />
         <div className="controls">
           <button className="btn primary" onClick={() => onSave(text)}>
             {t("common.save")}

@@ -523,6 +523,8 @@ export const ru: Dictionary = {
   "editor.translateWhere": "Где выполняется перевод",
   "editor.whereLocal": "На этом ПК",
   "editor.whereCloud": "Облако: {who}",
+  "editor.whereOwnServer": "Ваш сервер Ollama",
+  "editor.whereOwnServerHint": "Перевод выполняется с помощью {model} на сервере Ollama, который вы настроили ({host}), а не в облаке. Текст выступления отправляется на этот компьютер.",
   "editor.whereLocalHint": "Перевод выполняется на этом ПК с помощью {model}. Ничего не покидает этот компьютер.",
   "editor.whereLocalChecking": "Проверяем локальную модель на этом ПК…",
   "editor.whereCloudHint": "Перевод выполняется в облаке: текст выступления получит {who}. Перед отправкой мы спросим вас.",

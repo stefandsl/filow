@@ -119,6 +119,26 @@ describe("a script is translated on this PC by default", () => {
   });
 });
 
+describe("only the words change: every other line of the script stays as the user wrote it", () => {
+  it("comment lines, transition lines, blank lines and Windows line endings come back in place", async () => {
+    const text = ["<!-- slides -->", "<!-- target: 9 min -->", "# Apertura (2 min)", "<!-- slow down here -->", "- Ogni relatore perde il filo", "", "_Passiamo ora alla demo._", "", "## Demo [3 min]", "* Filow ascolta la tua voce", "<!-- slide: 4 -->"].join("\r\n");
+    const j = await (await translate(post({ text, to: "en" }))).json();
+    expect(j.text.split("\r\n")).toEqual(["<!-- slides -->", "<!-- target: 9 min -->", "# The Apertura (2 min)", "<!-- slow down here -->", "- The Ogni relatore perde il filo", "", "_The Passiamo ora alla demo._", "", "## The Demo [3 min]", "* The Filow ascolta la tua voce", "<!-- slide: 4 -->"]);
+    expect(j).toMatchObject({ structureKept: true, untranslated: 0, expected: { sections: 2, points: 2 }, got: { sections: 2, points: 2 } });
+    // the comments and the time targets never reached the model
+    expect(JSON.stringify(chats)).not.toMatch(/slow down|slide: 4|min\)|3 min/);
+  });
+  it("points before the first heading get no heading that the user did not write", async () => {
+    const j = await (await translate(post({ text: "- primo punto\n- secondo punto\n# Dopo\n- terzo", to: "en" }))).json();
+    expect(j.text).toBe("- The primo punto\n- The secondo punto\n# The Dopo\n- The terzo");
+    expect(JSON.stringify(chats)).not.toContain("Untitled");
+  });
+  it("a good Italian line is not taken for Spanish or English", async () => {
+    answer = () => ({ l1: "Passa al menu e clicca su Salva subito dopo", l2: "Clicca su Avanti, poi su Salva subito", l3: "Apri il menu e scegli Esporta come PDF" });
+    const j = await (await translate(post({ text: "# Go to the second point, then back to the first\n- Click Next, then Save right away\n- Open the menu and pick Export as PDF", to: "it" }))).json();
+    expect(j).toMatchObject({ untranslated: 0 });
+  });
+});
 describe("a chunk that comes back wrong", () => {
   it("is asked once more, and the second answer is used", async () => {
     // first answer of the first chunk lacks a line
@@ -225,10 +245,14 @@ describe("local and cloud are never used one instead of the other", () => {
     expect(net).not.toHaveBeenCalled();
   });
   it("the editor can ask where a translation would run", async () => {
-    expect(await (await where(new Request("http://unit.invalid/api/script/translate"))).json()).toEqual({ local: { ok: true, model: "gemma4:e2b" }, cloud: "openrouter", offline: false });
+    expect(await (await where(new Request("http://unit.invalid/api/script/translate"))).json()).toEqual({ local: { ok: true, model: "gemma4:e2b" }, cloud: "openrouter", offline: false, ollamaHost: null });
     ollamaUp = false;
     expect((await (await where(new Request("http://unit.invalid/api/script/translate"))).json()).local).toEqual({ ok: false, reason: "ollama_down" });
     expect(notOllama()).toEqual([]);
+    // an Ollama on another computer is named, so the editor does not say "on this PC"
+    vi.stubEnv("OLLAMA_URL", "http://192.168.1.50:11434");
+    expect((await (await where(new Request("http://unit.invalid/api/script/translate"))).json()).ollamaHost).toBe("192.168.1.50");
+    vi.stubEnv("OLLAMA_URL", OLLAMA);
   });
 });
 
@@ -269,7 +293,23 @@ describe("a masked value never reaches the editor as a placeholder", () => {
     expect(placeholderLeaks("Who is [PERSON_NAME]? [TODO] [note]", "x [TODO]")).toEqual(["[PERSON_NAME]"]);
     expect(restore("a [fullname_2] b [FULLNAME 1]", new Map([["[FULLNAME_1]", "Ada"], ["[FULLNAME_2]", "Bo"]]))).toBe("a Bo b Ada");
   });
-  it("a script written from slides: a renamed placeholder fails the slide instead of landing in a title or a point", async () => {
+  it("a placeholder in other brackets or other letters is put back or caught; a speaker's own cue in brackets is not one", async () => {
+    const map = new Map([["[EMAIL_1]", "a@b.invalid"]]);
+    expect(restore("\u3010EMAIL_1\u3011 \uFF3BEMAIL_1\uFF3D {email 1} <EMAIL_1>", map)).toBe("a@b.invalid a@b.invalid a@b.invalid a@b.invalid");
+    const caught = ["[PERSON_NAME]", "[Person_Name]", "[\u041F\u041E\u041B\u041D\u041E\u0415_\u0418\u041C\u042F_1]", "\u3010FULLNAME_1\u3011", "<PERSON>", "{FULLNAME_2}", "[EMAIL]", "[PHONE 2]", "[PR\u00C9NOM_1]"];
+    for (const ph of caught) expect(placeholderLeaks(`Chi \u00E8 ${ph}?`, "Chi \u00E8 Ada?"), ph).toEqual([ph]);
+    for (const own of ["[PAUSE]", "[LIVE DEMO]", "[CLIENT NAME]", "[applause]", "<b>", "{x}", "[1]", "(PERSON_NAME)"]) expect(placeholderLeaks(`Now ${own} then`, "x"), own).toEqual([]);
+    // the cloud translating the user's own cue does not cost the line
+    cloudSays("# Intro\n- Greet [CLIENT NAME] and [PAUSE]");
+    const j = await (await translate(post({ text: "# Intro\n- Saluta [NOME CLIENTE] e [PAUSA]", to: "en", provider: "cloud" }, YES))).json();
+    expect(j).toMatchObject({ text: "# Intro\n- Greet [CLIENT NAME] and [PAUSE]", untranslated: 0 });
+  });
+  it("a stage cue the slide writer adds is not a placeholder and does not fail the slide", async () => {
+    cloudSays(JSON.stringify({ title: "Intro", points: ["[PAUSE] Then the [LIVE DEMO]"] }));
+    const ok = await (await generate(post({ provider: "openrouter", slides: [{ index: 0, text: "Benvenuti alla demo" }] }, YES))).text();
+    expect(ok).toContain('"done":true');
+    expect(ok).toContain("[LIVE DEMO]");
+  });  it("a script written from slides: a renamed placeholder fails the slide instead of landing in a title or a point", async () => {
     const deck = { provider: "openrouter", slides: [{ index: 0, text: "Che cos'è? Scrivi a marta@example.invalid per saperlo" }] };
     const generated = (o: unknown) => cloudSays(JSON.stringify(o));
     generated({ title: "PARTE I - Che cos'è [PERSON_NAME]?", points: ["Scrivi a [EMAIL_1]"] });

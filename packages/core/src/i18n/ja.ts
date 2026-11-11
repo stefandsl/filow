@@ -531,6 +531,8 @@ export const ja: Dictionary = {
   "editor.translateWhere": "翻訳を実行する場所",
   "editor.whereLocal": "このPC",
   "editor.whereCloud": "クラウド：{who}",
+  "editor.whereOwnServer": "自分のOllamaサーバー",
+  "editor.whereOwnServerHint": "翻訳は、設定済みのOllamaサーバー（{host}）上の{model}で行います。クラウドは使いません。原稿はそのコンピューターに送信されます。",
   "editor.whereLocalHint": "翻訳はこのPC上の{model}で行います。このコンピューターの外には何も送信されません。",
   "editor.whereLocalChecking": "このPCのローカルモデルを確認しています…",
   "editor.whereCloudHint": "翻訳はクラウドで行います。原稿は{who}に送信されます。送信する前に確認します。",

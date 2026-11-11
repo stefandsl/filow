@@ -531,6 +531,8 @@ export const en = {
   "editor.translateWhere": "Where the translation runs",
   "editor.whereLocal": "On this PC",
   "editor.whereCloud": "Cloud: {who}",
+  "editor.whereOwnServer": "Your Ollama server",
+  "editor.whereOwnServerHint": "The translation runs with {model} on the Ollama server you set up ({host}), not in the cloud. The script goes to that computer.",
   "editor.whereLocalHint": "The translation runs on this PC with {model}. Nothing leaves this computer.",
   "editor.whereLocalChecking": "Checking the local model on this PC…",
   "editor.whereCloudHint": "The translation runs in the cloud: the script goes to {who}. You are asked before anything is sent.",

@@ -47,6 +47,7 @@ export function useScriptTranslate(text: string, setText: (text: string) => void
   /** the local path was tried and could not run: the reason stays on screen with the two ways on */
   const [stuck, setStuck] = useState<string | null>(null);
   const alive = useRef(true);
+  const running = useRef<AbortController | null>(null);
 
   const check = useCallback(async (): Promise<TranslateState | null> => {
     try {
@@ -72,6 +73,7 @@ export function useScriptTranslate(text: string, setText: (text: string) => void
       });
     return () => {
       alive.current = false;
+      running.current?.abort();
     };
     // once, when the editor opens
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -91,7 +93,8 @@ export function useScriptTranslate(text: string, setText: (text: string) => void
     const vars = { model: j.model ?? "", sections: j.got?.sections ?? 0, points: j.got?.points ?? 0 };
     if (!j.structureKept) setNote(t("editor.translateMismatch", { got: j.got?.points ?? 0, expected: j.expected?.points ?? 0 }));
     else if (j.untranslated) setNote(t("editor.translatePartial", { model: vars.model, n: j.untranslated, sections: (j.untranslatedSections ?? []).join(", ") }));
-    else setNote(t(local ? "editor.translatedLocal" : "editor.translated", vars));
+    // "nothing left this computer" is said only when Ollama is on this computer
+    else setNote(t(local && !state?.ollamaHost ? "editor.translatedLocal" : "editor.translated", vars));
   };
 
   /** On this PC. An installed Ollama that is not running is started by the desktop shell first. */
@@ -115,7 +118,9 @@ export function useScriptTranslate(text: string, setText: (text: string) => void
       setNote(null);
       return;
     }
-    const res = await fetch("/api/script/translate", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ text, to, provider: "local" }) });
+    // closing the editor stops the model: the server ends the run when the request goes away
+    running.current = new AbortController();
+    const res = await fetch("/api/script/translate", { method: "POST", signal: running.current.signal, headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ text, to, provider: "local" }) });
     const j = (await res.json()) as Answer;
     if (j.unavailable) {
       setStuck(j.unavailable);
@@ -155,6 +160,7 @@ export function useScriptTranslate(text: string, setText: (text: string) => void
       await ensureEngineToken();
       await (on === "local" ? runLocal() : runCloud());
     } catch (err) {
+      if (!alive.current) return; // the editor was closed: nothing to say, nothing to change
       setNote(t("editor.translateFailed", { error: localizeFreeLlmError((err as Error).message, getLang()) }));
     } finally {
       if (alive.current) setBusy(false);
@@ -178,7 +184,7 @@ export function useScriptTranslate(text: string, setText: (text: string) => void
         ))}
       </select>
       <select className="btn translate-where" value={where} onChange={(e) => choose(e.target.value === "cloud" ? "cloud" : "local")} disabled={busy} aria-label={t("editor.translateWhere")} data-testid="translate-where">
-        <option value="local">{t("editor.whereLocal")}</option>
+        <option value="local">{t(state?.ollamaHost ? "editor.whereOwnServer" : "editor.whereLocal")}</option>
         <option value="cloud">{t("editor.whereCloud", { who })}</option>
       </select>
       <button className="btn" disabled={busy || !text.trim() || (where === "cloud" && cloudOff)} onClick={() => void translate()} data-testid="translate-go">

@@ -525,6 +525,8 @@ export const it: Dictionary = {
   "editor.translateWhere": "Dove viene fatta la traduzione",
   "editor.whereLocal": "Su questo PC",
   "editor.whereCloud": "Cloud: {who}",
+  "editor.whereOwnServer": "Il tuo server Ollama",
+  "editor.whereOwnServerHint": "La traduzione viene fatta con {model} sul server Ollama che hai configurato ({host}), non nel cloud. La scaletta va a quel computer.",
   "editor.whereLocalHint": "La traduzione viene fatta su questo PC con {model}. Niente esce da questo computer.",
   "editor.whereLocalChecking": "Controllo il modello locale su questo PC…",
   "editor.whereCloudHint": "La traduzione viene fatta nel cloud: la scaletta va a {who}. Te lo chiediamo prima di inviare qualsiasi cosa.",

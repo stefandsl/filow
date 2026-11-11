@@ -66,18 +66,28 @@ export function restore(text: string, map: PiiMap): string {
   let out = text;
   for (const [ph, v] of map) out = out.split(ph).join(v);
   // A model does not always copy a placeholder letter for letter: "[fullname_1]", "[FULLNAME 1]",
-  // "[ FULLNAME_1 ]" are still that placeholder.
+  // "[ FULLNAME_1 ]", "【FULLNAME_1】" (Japanese brackets) are still that placeholder.
   for (const [ph, v] of map) {
     const m = ph.match(/^\[(.+?)_(\d+)\]$/);
     if (!m) continue;
     const tag = m[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/_/g, "[\\s_-]*");
-    out = out.replace(new RegExp(`\\[\\s*${tag}[\\s_-]*${m[2]}\\s*\\]`, "gi"), () => v);
+    out = out.replace(new RegExp(`[[\\u3010\\uFF3B<{]\\s*${tag}[\\s_-]*${m[2]}\\s*[\\]\\u3011\\uFF3D>}]`, "gi"), () => v);
   }
   return out;
 }
 
-/** "[FULLNAME_1]", "[PERSON_NAME]", "[EMAIL]": capitals in square brackets, the way the guard and the models write a masked value. */
-const PLACEHOLDER_SHAPE = /\[\s*[A-Z][A-Z]+(?:[ _-][A-Z]+)*(?:[ _-]?\d+)?\s*\]/g;
+/** Anything short in brackets a model may have made of a placeholder: "[FULLNAME_1]", "【FULLNAME_1】", "<PERSON>", "{EMAIL_1}", "[ПОЛНОЕ_ИМЯ_1]". */
+const BRACKETED = /[[【［<{]\s*([\p{L}\p{N}][\p{L}\p{N} _-]{1,40}?)\s*[\]】］>}]/gu;
+/** What the guard's two layers and the models call a masked value (Rizzo-PII's 22 tags, the regex layer's, and the usual English names). */
+const TAG_WORDS = new Set(
+  "FULLNAME NAME PERSON AGE GENDER DATE TIME STREET BUILDINGNUM ZIPCODE CITY PROVINCE EMAIL TELEPHONENUM PHONE CF PIVA IBAN CREDITCARDNUMBER CARD AMOUNT TARGA ORG ORGANIZATION DOCID CATASTO URL ADDRESS LOCATION REDACTED".split(" "),
+);
+/**
+ * Whether the words inside a pair of brackets are a placeholder and not a stage cue: a known tag, with
+ * or without a number ("EMAIL", "PERSON 2"), or words joined by "_" ("PERSON_NAME", "Person_Name",
+ * "ПОЛНОЕ_ИМЯ_1"). "[PAUSE]", "[LIVE DEMO]" and "[CLIENT NAME]" are the speaker's own notes.
+ */
+const isPlaceholder = (inner: string) => /^[\p{L}\p{N}]+(?:_[\p{L}\p{N}]+)+$/u.test(inner) || TAG_WORDS.has(inner.toUpperCase().replace(/[ _-]?\d+$/, ""));
 
 /**
  * Placeholders still in `text` after `restore`: a model renamed one ("[FULLNAME_1]" came back as
@@ -86,7 +96,8 @@ const PLACEHOLDER_SHAPE = /\[\s*[A-Z][A-Z]+(?:[ _-][A-Z]+)*(?:[ _-]?\d+)?\s*\]/g
  * it takes the source line instead, or fails the item.
  */
 export function placeholderLeaks(text: string, source: string): string[] {
-  return [...new Set(text.match(PLACEHOLDER_SHAPE) ?? [])].filter((ph) => !source.includes(ph));
+  const found = [...text.matchAll(BRACKETED)].filter((m) => isPlaceholder(m[1])).map((m) => m[0]);
+  return [...new Set(found)].filter((ph) => !source.includes(ph));
 }
 
 // ---- Rizzo-PII sidecar ----------------------------------------------------------------------

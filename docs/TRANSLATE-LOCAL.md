@@ -21,8 +21,10 @@ only (OpenRouter, or FreeLLMAPI when chosen), behind the outbound notice.
 
 ## How a small model is kept honest
 
-`apps/web/lib/translateLocal.ts`. The outline is parsed, and each section's lines (title, then
-points) are sent in chunks of at most 6 lines. A chunk goes out as a JSON object with one key per line
+`apps/web/lib/translateLocal.ts`. The script text is translated in place: only the words of headings,
+points and the italic transition lines change. Comment lines, time targets, blank lines, markers and
+line endings are the user's own lines and stay exactly as written (they never go to the model), and
+points before the first heading get no heading. Each section's lines are sent in chunks of at most 6. A chunk goes out as a JSON object with one key per line
 (`l1`..`l6`) and must come back as an object with exactly those keys: Ollama's schema-constrained
 output holds the shape, and the code checks it again. A line is refused when it is empty, several
 times longer than its source, a word-for-word copy of a source sentence, in the wrong writing system
@@ -31,9 +33,12 @@ the small words of another language and none of the target's (a model that rewor
 Italian; checked for English, Italian, Romanian, German, French and Spanish), or an HTML comment.
 A chunk with a refused line is asked once more (other temperature and seed) and only the missing lines
 are taken from the second answer. What is still missing stays in the original language, and the
-editor says how many lines and in which section. The result always has the source's sections and
-points one to one: nothing is dropped, merged or invented. Time targets ("<!-- target: 12 min -->",
-"(3 min)") never go to the model; they are taken from the source.
+editor says how many lines and in which section. The result always has the source's lines one to
+one: nothing is dropped, merged or invented.
+
+The cloud path is older and works on the whole text: it still rebuilds the script from its sections
+and points, so comment lines inside sections and transition lines are not carried over there (as
+before this work).
 
 What these checks cannot see: a fluent line with the wrong meaning, a title of one or two words left
 as it was, and a reworded line with fewer than two of its language's small words (3 such lines passed
@@ -44,7 +49,7 @@ Save" for that reason, and the model choice below rests on reading the output.
 
 Fixed input: one Italian outline, 3 sections and 13 points (16 lines with the titles), into English,
 Russian, Romanian and Japanese, and the same outline in English into Italian
-(`tools/translate-bench/bench.mts`, which calls the real code path). This PC: RTX 3070 with 8 GB,
+(`tools/translate-bench/bench.ts`, which calls the real code path). This PC: RTX 3070 with 8 GB,
 Ollama 0.40.13, 2026-11-11. Seconds are for the whole outline with the model already loaded. Outputs
 were read line by line; "wrong" counts lines whose meaning is wrong or that are not in the language
 asked for.
@@ -53,7 +58,7 @@ asked for.
 |---|---|---|---|---|---|---|---|
 | lfm3-vl (1.4 GB), the Lite and Standard screen helper | 9.5 s, 2 wrong | 6.9 s, 7 wrong | 6.5 s, 5 lines left in Italian, 6 wrong | 8.5 s, 6 wrong | 6.7 s, 5 lines with grammar errors | kept | Not acceptable. Invented words in Russian ("Бугионно"), names rewritten ("Филов", "Хелинэкс"), a version line that says something else in Japanese, the e-mail address dropped. |
 | qwen3-vl:2b (1.8 GB), the Best quality screen helper | 7.4 s, 1 wrong | 7.8 s, 5 wrong | 7.6 s, 5 lines left in Italian, 4 wrong | 7.1 s, a whole section in English, 3 wrong | 7.5 s, 2 wrong, 4 lines with grammar errors | kept | Not acceptable outside English. Chinese characters inside a Russian sentence, an English word left in ("chase"). |
-| gemma4:e2b (4.3 GB) | 2.5 s, 2 wrong | 4.6 s, 2 wrong | 7.2 s, 2 wrong, 4 lines with grammar errors | 3.2 s, 3 wrong | 4.3 s, 0 wrong | kept (a second run with the final checks: 1.4 to 2.8 s per pair, no line refused) | Acceptable as a draft to check. The two wrong lines are the same idioms everywhere ("gobbo" for teleprompter, "spunta i punti"). Romanian is its weakest language. Names of people are written in the target script in Russian and Japanese ("Марта Бьянчи"). |
+| gemma4:e2b (4.3 GB) | 2.5 s, 2 wrong | 4.6 s, 2 wrong | 7.2 s, 2 wrong, 4 lines with grammar errors | 3.2 s, 3 wrong | 4.3 s, 0 wrong | kept (two more runs with the final code: 1.3 to 2.8 s per pair, no line refused) | Acceptable as a draft to check. The two wrong lines are the same idioms everywhere ("gobbo" for teleprompter, "spunta i punti"). Romanian is its weakest language. Names of people are written in the target script in Russian and Japanese ("Марта Бьянчи"). |
 | gemma4:e4b (6.1 GB) | 68.6 s, 1 wrong | 68.7 s, 1 wrong | 71.7 s, 1 wrong | 70.4 s, 1 wrong | 49.7 s, 0 wrong | kept | Good. Only "gobbo" is wrong. Names, numbers and the address kept everywhere. The seconds are not its normal speed: the graphics card was held by other work during this run and the model ran almost entirely on the processor. |
 | translategemma:4b (3.1 GB), pulled for this test | 5.4 s, two of three sections still Italian: 6 lines refused by the checks and reported, 3 reworded lines and 2 two-word titles passed | 3.4 s | 4.9 s, 3 lines left in Italian or reworded | 3.3 s | 3.1 s | kept | Not used. Through this prompt (a JSON object of lines) it rewords the source in its own language on whole chunks, and one line says "translation into Japanese" where the source says "local translation". It expects its own prompt format, one text at a time. Its licence is the Gemma Terms of Use, not Apache 2.0. Not read line by line in Russian and Japanese. |
 | qwen3-vl:8b (5.8 GB) | 81.6 s | 146 s | 219 s | 225 s | 221 s | kept | Not used: minutes per outline, names rewritten in Russian and Japanese, and larger than Gemma 4 E4B. |
@@ -93,6 +98,12 @@ returns for `gemma4:e2b`, read 2026-11-11). It allows commercial use and redistr
 not ship the weights: the installer and the app download them from Ollama's registry on the user's
 PC, as before.
 
+## When Ollama is on another computer
+
+`OLLAMA_URL` can point at an Ollama on another machine (a server deployment). The script then goes to
+that machine, so the editor does not say "On this PC" or "nothing leaves this computer": the choice
+reads "Your Ollama server" and the line names the host.
+
 ## Placeholder leak ("[PERSON_NAME]" in a saved title)
 
 The owner's saved script had the title "# PARTE I - Che cos'è [PERSON_NAME]?". Cause: before a cloud
@@ -104,12 +115,26 @@ this PC, so which of the two routes wrote that title is not known; both had the 
 closed:
 
 - `restore()` accepts other case and spacing of a known placeholder;
-- `placeholderLeaks()` finds what still looks like a placeholder and was not in the user's own text;
+- `restore()` also accepts other brackets ("【EMAIL_1】", "{EMAIL_1}");
+- `placeholderLeaks()` finds what still looks like a placeholder and was not in the user's own text:
+  a known tag ("[EMAIL]", "<PERSON>") or words joined by "_" in any alphabet ("[PERSON_NAME]",
+  "[ПОЛНОЕ_ИМЯ_1]"). A speaker's own cue ("[PAUSE]", "[LIVE DEMO]") is not one;
 - translate (cloud): such a line becomes the source line again and is counted as not translated; when
   the structure was lost too, the translation fails and the editor keeps its text;
 - generate: the slide is written once more, and fails with a clear message if it happens again.
 
 The local path masks nothing, so it cannot leak a placeholder.
+
+## Independent review (2026-11-11)
+
+A reviewer with fresh context read the diff against the owner's words. Fixed from it: comment and
+transition lines were dropped and a "Untitled" heading was invented on the local path (now in place);
+placeholders in other brackets or alphabets got through, and stage cues were taken for placeholders;
+good Italian lines could be taken for Spanish; the text could be edited during a run and then
+overwritten (the text is read-only while a translation runs, and closing the editor stops the
+model); an Ollama on another computer was called "this PC". Left for the owner: "Use the cloud"
+makes the cloud the remembered choice (the select shows it; the notice is asked once per recipient,
+as everywhere in Filow). Not changed: the cloud path's handling of comment lines (above).
 
 ## Tests
 

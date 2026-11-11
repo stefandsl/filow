@@ -31,6 +31,10 @@ describe("where the editor's Translate runs", () => {
     expect(whereHint("local", ready, "OpenRouter and Google", t)).toEqual({ text: "The translation runs on this PC with gemma4:e2b. Nothing leaves this computer.", blocked: false });
     expect(whereHint("cloud", ready, "OpenRouter and Google", t)).toEqual({ text: "The translation runs in the cloud: the script goes to OpenRouter and Google. You are asked before anything is sent.", blocked: false });
     expect(whereHint("local", null, "", t).blocked).toBe(false);
+    // Ollama on another computer the user set up: not "on this PC", and not "nothing leaves"
+    const own = whereHint("local", { ...ready, ollamaHost: "192.168.1.50" }, "OpenRouter", t).text;
+    expect(own).toContain("192.168.1.50");
+    expect(own).not.toContain("Nothing leaves");
   });
   it("local not possible: the reason is said and the choice stays local (the editor offers the ways on)", () => {
     const stopped = whereHint("local", down, "OpenRouter", t);

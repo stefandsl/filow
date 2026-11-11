@@ -523,6 +523,8 @@ export const ro: Dictionary = {
   "editor.translateWhere": "Unde rulează traducerea",
   "editor.whereLocal": "Pe acest PC",
   "editor.whereCloud": "Cloud: {who}",
+  "editor.whereOwnServer": "Serverul tău Ollama",
+  "editor.whereOwnServerHint": "Traducerea se face cu {model} pe serverul Ollama pe care l-ai configurat ({host}), nu în cloud. Scriptul ajunge la acel computer.",
   "editor.whereLocalHint": "Traducerea se face pe acest PC cu {model}. Nimic nu pleacă de pe acest computer.",
   "editor.whereLocalChecking": "Se verifică modelul local de pe acest PC…",
   "editor.whereCloudHint": "Traducerea se face în cloud: scriptul ajunge la {who}. Te întrebăm înainte să trimitem ceva.",

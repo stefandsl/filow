@@ -1,14 +1,17 @@
-// Measures local script translation (apps/web/lib/translateLocal.ts) with the models installed in
-// Ollama: one fixed Italian outline (3 sections, 13 points) into en, ru, ro, ja and one English
-// outline into it. Prints one row per model and language and writes every translation to a folder
-// so a person can read them. Results are recorded in docs/TRANSLATE-LOCAL.md.
+// Measures local script translation (apps/web/lib/translateLocal.ts) with models installed in Ollama:
+// one fixed Italian outline (3 sections, 13 points) into en, ru, ro, ja and one English outline into
+// it. Prints one row per model and language and writes every translation to a folder so a person
+// can read them. Results are recorded in docs/TRANSLATE-LOCAL.md. It runs under vitest only because
+// vitest loads the app's TypeScript the way the app does; it is not part of the test suite.
 //
-//   cd apps/web; npx tsx ../../tools/translate-bench/bench.mts <out-dir> [model ...]
+//   $env:TRANSLATE_BENCH_OUT="<out-dir>"; $env:TRANSLATE_BENCH_MODELS="gemma4:e2b,gemma4:e4b"
+//   npx vitest run --config tools/translate-bench/vitest.config.mts
 //
 // OLLAMA_URL picks the Ollama (default http://127.0.0.1:11434). Only /api/chat is called.
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { parseScript, serializeScript } from "../../packages/core/src/script";
+import { it } from "vitest";
+import { parseScript } from "@filow/core";
 import { translateScriptLocal } from "../../apps/web/lib/translateLocal";
 
 export const OUTLINE_IT = `<!-- target: 12 min -->
@@ -62,27 +65,29 @@ const JOBS: Array<{ from: "it" | "en"; to: string }> = [
 /** Things a translation must carry over untouched. */
 const KEEP = ["Marta Bianchi", "Helinext", "2019", "Filow", "Markdown", "PowerPoint", "1.8", "70", "12", "filow.app"];
 
-const [outDir, ...models] = process.argv.slice(2);
-if (!outDir || !models.length) {
-  console.error("usage: bench.mts <out-dir> <model> [model ...]");
-  process.exit(2);
-}
+const outDir = process.env.TRANSLATE_BENCH_OUT ?? "";
+const models = (process.env.TRANSLATE_BENCH_MODELS ?? "").split(",").map((m) => m.trim()).filter(Boolean);
+
+it("translates the fixed outlines with every model named", { timeout: 60 * 60_000 }, async () => {
+if (!outDir || !models.length) throw new Error("set TRANSLATE_BENCH_OUT and TRANSLATE_BENCH_MODELS");
 mkdirSync(outDir, { recursive: true });
 const rows: string[] = ["model | pair | seconds | lines kept in source | chunks retried | same as source | names and numbers lost"];
 for (const model of models) {
   // load the model first so the first pair's seconds are not the load time
   const t0 = Date.now();
-  await translateScriptLocal(parseScript("# Prova\n- Uno"), "English", model).catch((e) => console.error(String(e)));
+  await translateScriptLocal("# Prova\n- Uno", "English", model).catch((e) => console.error(String(e)));
   console.log(`${model}: loaded in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   for (const job of JOBS) {
-    const source = parseScript(job.from === "it" ? OUTLINE_IT : OUTLINE_EN);
+    const sourceText = job.from === "it" ? OUTLINE_IT : OUTLINE_EN;
+    const source = parseScript(sourceText);
     const started = Date.now();
     try {
-      const r = await translateScriptLocal(source, LANG[job.to], model);
+      const r = await translateScriptLocal(sourceText, LANG[job.to], model);
       const seconds = (Date.now() - started) / 1000;
-      const text = serializeScript(r.script);
+      const text = r.text;
+      const translated = parseScript(text);
       const src = source.sections.flatMap((s) => [s.title, ...s.bullets.map((b) => b.text)]);
-      const out = r.script.sections.flatMap((s) => [s.title, ...s.bullets.map((b) => b.text)]);
+      const out = translated.sections.flatMap((s) => [s.title, ...s.bullets.map((b) => b.text)]);
       const same = out.filter((l, i) => l === src[i]).length - r.untranslated;
       const lost = KEEP.filter((k) => !text.includes(k));
       writeFileSync(path.join(outDir, `${model.replace(/[:/]/g, "_")}.${job.from}-${job.to}.md`), text, "utf8");
@@ -94,3 +99,4 @@ for (const model of models) {
   }
 }
 writeFileSync(path.join(outDir, "rows.txt"), rows.join("\n") + "\n", "utf8");
+});

@@ -188,6 +188,7 @@ try {
   await page.call("Page.enable");
   await page.call("Emulation.setDeviceMetricsOverride", { width: 1264, height: 800, deviceScaleFactor: 1, mobile: false });
   check("the editor opens with the translation controls", await openEditor(page));
+  check("the text can be typed in while nothing runs", (await page.evaluate(`document.querySelector("textarea").readOnly`)) === false);
   const hint = await page.until(`(() => { const h = ${Q("translate-where-hint")}; return h && h.dataset.blocked === "0" && /PC/.test(h.innerText) && !/Controllo/.test(h.innerText) ? h.innerText : ""; })()`, 20000);
   const whereValue = await page.evaluate(`${Q("translate-where")}.value`);
   check("before the press the editor says the translation runs on this PC, with the model", whereValue === "local" && /su questo PC con \S+/.test(hint || "") && /Niente esce/.test(hint || ""), `${whereValue} | ${hint}`);
@@ -300,11 +301,16 @@ try {
   await sleep(600);
   await page.evaluate(setSelect("translate-where", "local"));
   await page.until(`(() => { const h = ${Q("translate-where-hint")}; return h && h.dataset.blocked === "0" && /Niente esce/.test(h.innerText) ? 1 : 0; })()`, 20000);
-  await page.evaluate(setTextarea(OUTLINE.split("\n\n")[0]));
+  // with a comment line and a transition line: they are the user's own and must come back in place
+  const first = OUTLINE.split("\n\n")[0];
+  const withNotes = first.replace("- Un gobbo", "<!-- rallenta qui -->\n- Un gobbo") + "\n_Passiamo ora a come funziona._";
+  await page.evaluate(setTextarea(withNotes));
   const off = await pressAndWatch(page, 10 * 60_000);
   const offOut = await page.evaluate(editorText);
   const oc = counts(offOut || "");
-  check("offline mode: the section is translated on this PC", oc.sections === 1 && oc.points === 4 && offOut !== OUTLINE.split("\n\n")[0] && !off.sawNotice && !off.sawPill, `${JSON.stringify(oc)} in ${off.seconds.toFixed(1)} s`);
+  const offLines = (offOut || "").split("\n");
+  check("the comment line is where it was and the transition line is translated in place", offLines.length === withNotes.split("\n").length && offLines[4] === "<!-- rallenta qui -->" && /^_.+_$/.test(offLines[offLines.length - 1]) && offLines[offLines.length - 1] !== "_Passiamo ora a come funziona._", offLines.slice(4).join(" / "));
+  check("offline mode: the section is translated on this PC", oc.sections === 1 && oc.points === 4 && offOut !== withNotes && !off.sawNotice && !off.sawPill, `${JSON.stringify(oc)} in ${off.seconds.toFixed(1)} s`);
   await page.shot("6-offline-translated.png");
   await axePass(page, "light");
   page.close();

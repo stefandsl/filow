@@ -9,6 +9,8 @@ export type TranslateState = {
   local: { ok: true; model: string } | { ok: false; reason: "ollama_down" | "no_model" };
   cloud: "openrouter" | "freellm";
   offline: boolean;
+  /** set when Ollama runs on another computer the user configured: "on this PC" would not be true */
+  ollamaHost?: string | null;
 };
 export type LocalUnavailable = "ollama_down" | "no_model" | "too_slow" | "failed";
 
@@ -53,6 +55,7 @@ export function localUnavailableText(reason: string, t: Translate, error = ""): 
 export function whereHint(where: TranslateWhere, state: TranslateState | null, who: string, t: Translate): { text: string; blocked: boolean } {
   if (where === "cloud") return state?.offline ? { text: t("editor.whereCloudOffline"), blocked: true } : { text: t("editor.whereCloudHint", { who }), blocked: false };
   if (!state) return { text: t("editor.whereLocalChecking"), blocked: false };
+  if (state.local.ok && state.ollamaHost) return { text: t("editor.whereOwnServerHint", { model: state.local.model, host: state.ollamaHost }), blocked: false };
   if (state.local.ok) return { text: t("editor.whereLocalHint", { model: state.local.model }), blocked: false };
   return { text: localUnavailableText(state.local.reason, t), blocked: true };
 }

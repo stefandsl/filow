@@ -4,7 +4,7 @@
 // own lines (a JSON object with one key per line, held by Ollama's schema-constrained output). A
 // chunk that comes back wrong is asked once more; if it is wrong again its lines stay in the
 // original language and the caller is told which. Points are never dropped, merged or invented.
-import type { Script } from "@filow/core";
+import { splitSectionMinutes } from "@filow/core";
 import { OLLAMA_URL } from "./decide/clef";
 
 /** Lines per request: small enough that a 1.5 GB model keeps them apart (docs/TRANSLATE-LOCAL.md). */
@@ -37,6 +37,16 @@ const sameModel = (installed: string, wanted: string) => installed === wanted ||
 export function pickTranslateModel(installed: string[], configured = process.env.TRANSLATE_LOCAL_MODEL): string | null {
   if (configured) return installed.some((i) => sameModel(i, configured)) ? configured : null;
   return LOCAL_TRANSLATE_MODELS.find((m) => installed.some((i) => sameModel(i, m))) ?? null;
+}
+
+/** The computer Ollama runs on when it is not this one (OLLAMA_URL set to another machine); null on this PC. */
+export function ollamaElsewhere(): string | null {
+  try {
+    const host = new URL(OLLAMA_URL()).hostname;
+    return ["127.0.0.1", "localhost", "[::1]", "::1"].includes(host) ? null : host;
+  } catch {
+    return null;
+  }
 }
 
 export type LocalTranslateState = { ok: true; model: string } | { ok: false; reason: "ollama_down" | "no_model" };
@@ -84,6 +94,16 @@ const SMALL_WORDS: Record<string, string[]> = {
   Spanish: ["el", "los", "las", "y", "es", "para", "una", "del", "por", "más", "sin", "cuando", "hay", "al", "su", "nos"],
 };
 
+/** More small words of each language, shared with its neighbours: they show a line IS in the language asked for, never that it is another one. */
+const ALSO_OWN: Record<string, string[]> = {
+  English: ["a", "in", "on", "or", "not", "be", "can", "will", "has", "have", "do", "then", "now", "an"],
+  Italian: ["e", "è", "a", "al", "su", "da", "in", "o", "ha", "si", "mi", "le", "la", "i", "ed", "poi", "come", "un", "se", "alla", "dei", "nei"],
+  Romanian: ["a", "la", "de", "în", "o", "un", "se", "e", "au", "va", "apoi", "sau", "ale", "al"],
+  German: ["in", "an", "es", "im", "von", "sich", "auch", "wie", "oder", "dann", "am", "zum"],
+  French: ["la", "un", "de", "en", "à", "il", "on", "ne", "se", "ce", "ou", "puis", "aux", "que"],
+  Spanish: ["la", "un", "de", "en", "a", "se", "lo", "que", "con", "como", "tu", "o", "luego", "sus"],
+};
+
 /**
  * A sentence in another language than the one asked for: a model that rewords the Italian line in
  * Italian instead of translating it (measured: translategemma:4b through this prompt, lfm3-vl). Kept
@@ -95,8 +115,10 @@ function otherLanguage(line: string, language: string): boolean {
   if (!target) return false;
   const words = line.toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
   if (words.length < 5) return false;
-  const hits = (list: string[]) => words.filter((w) => list.includes(w)).length;
-  if (hits(target) > 0) return false;
+  const said = new Set(words);
+  // each small word counts once: "al ... al" is one word, not two
+  const hits = (list: string[]) => list.filter((w) => said.has(w)).length;
+  if (hits(target) > 0 || hits(ALSO_OWN[language] ?? []) > 0) return false;
   return Object.entries(SMALL_WORDS).some(([name, list]) => name !== language && hits(list) >= 2);
 }
 
@@ -176,7 +198,8 @@ async function translateChunk(lines: string[], language: string, model: string, 
 }
 
 export type LocalTranslation = {
-  script: Script;
+  /** the script text with every title, point and transition line translated in place */
+  text: string;
   model: string;
   /** lines (titles and points) left in the original language because they came back wrong twice */
   untranslated: number;
@@ -186,21 +209,51 @@ export type LocalTranslation = {
   retried: number;
 };
 
+/** A line of the script that holds words to translate: what stands before and after them stays as written. */
+type Piece = { at: number; before: string; words: string; after: string; section: number };
+
+/** The lines of a script that are translated: headings (without their time target), points, and the italic transition lines. */
+function pieces(lines: string[]): Piece[] {
+  const out: Piece[] = [];
+  let section = 0;
+  for (const [at, raw] of lines.entries()) {
+    const line = raw.trim();
+    if (!line || line.startsWith("<!--")) continue;
+    const heading = raw.match(/^(\s*#+\s*)(.+?)\s*$/);
+    if (heading) {
+      section++;
+      const { title } = splitSectionMinutes(heading[2]);
+      // "(3 min)" stays as the presenter wrote it and never goes to the model
+      out.push({ at, before: heading[1], words: title, after: heading[2].slice(heading[2].indexOf(title) + title.length), section });
+      continue;
+    }
+    const point = raw.match(/^(\s*[-*\u2022]\s+)(.+?)\s*$/);
+    const transition = point ? null : raw.match(/^(\s*_)(.+?)(_\s*)$/);
+    // points before the first heading belong to a first section that has no heading line (none is invented)
+    if (point) out.push({ at, before: point[1], words: point[2], after: "", section: section || 1 });
+    else if (transition) out.push({ at, before: transition[1], words: transition[2], after: transition[3], section: section || 1 });
+  }
+  return out;
+}
+
 /**
- * Translates a parsed script into `language` (an English language name) with a local model. The
- * result always has the source's sections and points, one to one: a line is either translated or
- * the source line itself.
+ * Translates script text into `language` (an English language name) with a local model, in place:
+ * only the words of headings, points and transition lines change. Comment lines, time targets,
+ * blank lines, markers and line endings stay exactly as they were, so the result has the source's
+ * lines one to one. A line is either translated or the source line itself.
  */
-export async function translateScriptLocal(source: Script, language: string, model: string, signal?: AbortSignal): Promise<LocalTranslation> {
+export async function translateScriptLocal(text: string, language: string, model: string, signal?: AbortSignal): Promise<LocalTranslation> {
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const lines = text.split(/\r?\n/);
+  const all = pieces(lines);
   let untranslated = 0;
   let retried = 0;
   const untranslatedSections: number[] = [];
-  const sections: Script["sections"] = [];
-  for (const [si, s] of source.sections.entries()) {
-    const lines = [s.title, ...s.bullets.map((b) => b.text)];
-    const done: string[] = [];
-    for (let at = 0; at < lines.length; at += LOCAL_TRANSLATE_CHUNK) {
-      const chunk = lines.slice(at, at + LOCAL_TRANSLATE_CHUNK);
+  for (const section of [...new Set(all.map((p) => p.section))]) {
+    const mine = all.filter((p) => p.section === section);
+    for (let from = 0; from < mine.length; from += LOCAL_TRANSLATE_CHUNK) {
+      const part = mine.slice(from, from + LOCAL_TRANSLATE_CHUNK);
+      const chunk = part.map((p) => p.words);
       let got = (await translateChunk(chunk, language, model, 0, signal)) ?? chunk.map(() => null);
       if (got.includes(null)) {
         // once more, and only for what is still missing: a line that was fine the first time stays
@@ -211,11 +264,12 @@ export async function translateScriptLocal(source: Script, language: string, mod
       const missing = got.filter((line) => line === null).length;
       if (missing) {
         untranslated += missing;
-        if (!untranslatedSections.includes(si + 1)) untranslatedSections.push(si + 1);
+        if (!untranslatedSections.includes(section)) untranslatedSections.push(section);
       }
-      done.push(...got.map((line, i) => line ?? chunk[i]));
+      part.forEach((p, i) => {
+        lines[p.at] = p.before + (got[i] ?? p.words) + p.after;
+      });
     }
-    sections.push({ ...s, title: done[0], bullets: s.bullets.map((b, i) => ({ ...b, text: done[i + 1] })) });
   }
-  return { script: { ...source, sections }, model, untranslated, untranslatedSections, retried };
+  return { text: lines.join(eol), model, untranslated, untranslatedSections, retried };
 }
