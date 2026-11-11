@@ -65,7 +65,28 @@ function placeholderFor(value: string, tag: string, map: PiiMap): string {
 export function restore(text: string, map: PiiMap): string {
   let out = text;
   for (const [ph, v] of map) out = out.split(ph).join(v);
+  // A model does not always copy a placeholder letter for letter: "[fullname_1]", "[FULLNAME 1]",
+  // "[ FULLNAME_1 ]" are still that placeholder.
+  for (const [ph, v] of map) {
+    const m = ph.match(/^\[(.+?)_(\d+)\]$/);
+    if (!m) continue;
+    const tag = m[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/_/g, "[\\s_-]*");
+    out = out.replace(new RegExp(`\\[\\s*${tag}[\\s_-]*${m[2]}\\s*\\]`, "gi"), () => v);
+  }
   return out;
+}
+
+/** "[FULLNAME_1]", "[PERSON_NAME]", "[EMAIL]": capitals in square brackets, the way the guard and the models write a masked value. */
+const PLACEHOLDER_SHAPE = /\[\s*[A-Z][A-Z]+(?:[ _-][A-Z]+)*(?:[ _-]?\d+)?\s*\]/g;
+
+/**
+ * Placeholders still in `text` after `restore`: a model renamed one ("[FULLNAME_1]" came back as
+ * "[PERSON_NAME]"), so its value can not be put back. Brackets the user wrote (they are in `source`,
+ * the text before masking) are not placeholders. A caller that finds any must not hand the text on:
+ * it takes the source line instead, or fails the item.
+ */
+export function placeholderLeaks(text: string, source: string): string[] {
+  return [...new Set(text.match(PLACEHOLDER_SHAPE) ?? [])].filter((ph) => !source.includes(ph));
 }
 
 // ---- Rizzo-PII sidecar ----------------------------------------------------------------------

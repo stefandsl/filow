@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateScript, parseScript, slideNeedsImage, type GenerateRequest, type SlideInput } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
-import { anonymizeRequest, piiMode, restore } from "@/lib/pii/guard";
+import { anonymizeRequest, piiMode, placeholderLeaks, restore } from "@/lib/pii/guard";
 import { generateSlideFreeLlm, generateSlideOllama, generateSlideOpenRouter, resolveGenerateProvider, scriptRecipient } from "@/lib/generate/providers";
 import { consentDenied } from "@/lib/buddy/outbound";
 
@@ -57,16 +57,28 @@ export async function POST(req: Request) {
         const out = await generateScript(
           { ...body, slides },
           async (slide, opts) => {
-            if (!guard) return run(slide, opts);
-            // Reuse the decide guard: title/text/notes travel as a DecideRequest; placeholders are restored in the answer.
-            const { req: safe, map } = await anonymizeRequest({
-              transcript: slide.text,
-              sectionTitle: slide.title ?? "",
-              bullets: slide.notes ? [{ id: "n", text: slide.notes }] : [],
-            });
-            const r = await run({ ...slide, text: safe.transcript, title: safe.sectionTitle || undefined, notes: safe.bullets[0]?.text }, opts);
-            const g = r.generated;
-            return { ...r, generated: { title: restore(g.title, map), points: g.points.map((p) => restore(p, map)), transition: g.transition ? restore(g.transition, map) : undefined } };
+            const once = async () => {
+              if (!guard) return run(slide, opts);
+              // Reuse the decide guard: title/text/notes travel as a DecideRequest; placeholders are restored in the answer.
+              const { req: safe, map } = await anonymizeRequest({
+                transcript: slide.text,
+                sectionTitle: slide.title ?? "",
+                bullets: slide.notes ? [{ id: "n", text: slide.notes }] : [],
+              });
+              const r = await run({ ...slide, text: safe.transcript, title: safe.sectionTitle || undefined, notes: safe.bullets[0]?.text }, opts);
+              const g = r.generated;
+              return { ...r, generated: { title: restore(g.title, map), points: g.points.map((p) => restore(p, map)), transition: g.transition ? restore(g.transition, map) : undefined } };
+            };
+            // A masked value the model renamed ("[FULLNAME_1]" came back as "[PERSON_NAME]") can not be
+            // put back, and a model can also mask a name by itself. Such a title or point never
+            // reaches the script: the slide is written once more, and if it happens again it fails.
+            const own = [slide.title ?? "", slide.text, slide.notes ?? ""].join("\n");
+            const leaks = (g: { title: string; points: string[]; transition?: string }) => placeholderLeaks([g.title, ...g.points, g.transition ?? ""].join("\n"), own);
+            let r = await once();
+            if (leaks(r.generated).length) r = await once();
+            const left = leaks(r.generated);
+            if (left.length) throw new Error(`Slide ${slide.index + 1}: the model wrote ${left[0]} in place of a name or a number, twice. Nothing was saved: try again.`);
+            return r;
           },
           (p) => line({ progress: p }),
         );
