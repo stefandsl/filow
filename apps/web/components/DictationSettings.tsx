@@ -9,6 +9,7 @@ import "./DictationSettings.css";
 type DictationBridge = {
   status(): Promise<DictationStatus | null>;
   configure(patch: Partial<DictationStatus>): Promise<DictationStatus | null>;
+  downloadCleanup?(): Promise<{ started: boolean; reason?: string }>;
 };
 const bridge = () => (globalThis as { filow?: { dictation?: DictationBridge } }).filow?.dictation ?? null;
 
@@ -23,7 +24,7 @@ export function DictationSettings({ lang }: { lang: string }) {
     // back, or a model download change what this section must say.
     const read = () => void bridge()?.status().then((v) => v && setS(v)).catch(() => {});
     read();
-    const timer = setInterval(read, 4000);
+    const timer = setInterval(read, 2000);
     window.addEventListener("focus", read);
     return () => { clearInterval(timer); window.removeEventListener("focus", read); };
   }, []);
@@ -96,7 +97,19 @@ export function DictationSettings({ lang }: { lang: string }) {
         <span>{t("cleanup")}</span>
       </label>
       <div className="hint" id={`${id}-cleanup`}>{t("cleanupHint")}</div>
-      {s.cleanup && !s.cleanupReady && <div className="hint dictation-alert">{t("cleanupMissing")}</div>}
+      {s.cleanup && !s.cleanupReady && s.cleanupState && !s.cleanupState.runtime && <div className="hint">{t("cleanupNoRuntime")}</div>}
+      {s.cleanup && s.cleanupState?.runtime && !s.cleanupState.model && (
+        <div className="row" role="status">
+          {s.cleanupState.downloading
+            ? <span>{t("cleanupDownloading", { pct: String(s.cleanupState.pct) })}</span>
+            : <>
+                <span className="hint dictation-alert">{s.cleanupState.error ? t("cleanupDownloadFailed", { error: s.cleanupState.error }) : t("cleanupMissing")}</span>
+                <button type="button" className="btn" disabled={off} onClick={() => { void b.downloadCleanup?.().then(() => b.status()).then((v) => v && setS(v)).catch(() => {}); }}>
+                  {t("cleanupDownload", { size: `${Math.round(s.cleanupState.bytes / 1024 / 1024)} MB` })}
+                </button>
+              </>}
+        </div>
+      )}
       <label className="row">
         <span>{t("cleanupStyle")}</span>
         <select className="btn" value={s.cleanupStyle} disabled={off || !s.cleanup} onChange={(e) => void set({ cleanupStyle: e.target.value as DictationStatus["cleanupStyle"] })}>

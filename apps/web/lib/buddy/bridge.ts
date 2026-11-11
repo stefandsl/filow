@@ -21,6 +21,7 @@ export type DictationStatus = {
   cleanupLists: boolean;
   /** The model is on this computer and the runtime is in this build. */
   cleanupReady?: boolean;
+  cleanupState?: { runtime: boolean; model: boolean; downloading: boolean; pct: number; bytes: number; error: string } | null;
   sound: boolean;
   platform: string;
   chords: Array<{ value: string; label: string }>;

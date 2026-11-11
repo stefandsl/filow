@@ -15,7 +15,7 @@
     "dist:mac": "electron-builder --mac --publish never",
     "dist:linux": "electron-builder --linux --publish never",
     "icon": "node ../../scripts/make-icon.js",
-    "vendor": "esbuild ../../node_modules/electron-updater/out/main.js --bundle --platform=node --target=node20 --format=cjs --external:electron --outfile=vendor/electron-updater.js && npm run build:welcome",
+    "vendor": "esbuild ../../node_modules/electron-updater/out/main.js --bundle --platform=node --target=node20 --format=cjs --external:electron --outfile=vendor/electron-updater.js && npm run build:welcome && node native/llama/fetch.mjs",
     "predist": "npm run vendor",
     "predist:win": "npm run vendor",
     "predist:mac": "npm run vendor",
@@ -97,6 +97,7 @@
       "s1-runtime.js",
       "licenses/**",
       "native/target/prebuilds/**",
+      "native/llama/*-*/**",
       "native/uiohook/prebuilds/**",
       "okfilow-agents.js",
       "okfilow-selection.js",
@@ -250,7 +251,8 @@
       "node_modules/sherpa-onnx-*/**",
       "node_modules/uiohook-napi/**",
       "native/uiohook/**",
-      "native/target/**"
+      "native/target/**",
+      "native/llama/**"
     ],
     "electronFuses": {
       "runAsNode": false,

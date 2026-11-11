@@ -76,6 +76,30 @@ describe("S1-mini: the answer must be the same message, cleaned", () => {
   });
 });
 
+describe("S1-mini: figures", () => {
+  const ok = (raw: string, out: string) => cleanup.acceptCleaned(raw, out);
+  it("measured on the real model: a wrong amount is refused, the right one is kept", () => {
+    expect(ok("it costs nineteen dollars and ninety nine cents", "It costs $1.99.")).toMatchObject({ ok: false, reason: "numbers" });
+    expect(ok("it costs nineteen dollars and ninety nine cents", "It costs $19.99.").ok).toBe(true);
+  });
+  it("accepts every way a said number is written: amounts, years, times, ordinals, digits one by one, a self-correction", () => {
+    expect(ok("the total is one thousand two hundred and fifty euros", "The total is 1,250 euros.").ok).toBe(true);
+    expect(ok("the deadline is march third twenty twenty seven", "The deadline is March 3, 2027.").ok).toBe(true);
+    expect(ok("i was born on july fourth nineteen ninety", "I was born on July 4, 1990.").ok).toBe(true);
+    expect(ok("the call starts at nine thirty a m", "The call starts at 9:30am.").ok).toBe(true);
+    expect(ok("pick me up at quarter past five", "Pick me up at 5:15.").ok).toBe(true);
+    expect(ok("the invoice number is four five six seven", "The invoice number is 4567.").ok).toBe(true);
+    expect(ok("we need five no six chairs", "We need 6 chairs.").ok).toBe(true);
+    expect(ok("let us meet on the twelfth of november", "Let us meet on the 12th of November.").ok).toBe(true);
+    expect(ok("version 2 is ready", "Version 2 is ready.").ok).toBe(true);
+  });
+  it("refuses a figure nobody said, a dropped digit and a changed one", () => {
+    expect(ok("we sold forty two units last week", "We sold 24 units last week.").reason).toBe("numbers");
+    expect(ok("the total is one thousand two hundred and fifty euros", "The total is 1,205 euros.").reason).toBe("numbers");
+    expect(ok("send the report to maria", "Send the 3 reports to Maria.").reason).toBe("numbers");
+    expect(ok("the meeting is in room twelve", "The meeting is in room 1.").reason).toBe("numbers");
+  });
+});
 describe("S1-mini: the time budget and failures", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());

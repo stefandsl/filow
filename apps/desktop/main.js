@@ -301,6 +301,13 @@ function initializeUiPreferences() {
   ipcMain.handle("freellm:configure", (event, patch) => { if (!uiSender(event)) throw new Error("Denied"); return freeLlm().configure(patch); });
   // Dictation's section in Filow Settings (dictation.js). Status needs OK Filow's talk keys for the conflict check.
   ipcMain.handle("dictation:settings:status", event => { if (!uiSender(event)) throw new Error("Denied"); return dictationStatus(); });
+// The user asked for S1-mini by Superwhisper in Settings: one download from huggingface.co, hash checked.
+ipcMain.handle("dictation:cleanup:download", event => {
+  if (!uiSender(event)) throw new Error("Denied");
+  if (offline) return { started: false, reason: "offline" };
+  void s1Runtime().download();
+  return { started: true };
+});
   ipcMain.handle("dictation:settings:configure", (event, patch) => {
     if (!uiSender(event)) throw new Error("Denied");
     if (patch && typeof patch === "object") getDictation().configure(patch);
@@ -1376,10 +1383,18 @@ function appIcon() {
 let s1 = null;
 /** The local runtime for S1-mini by Superwhisper (s1-runtime.js): started at the first English dictation. */
 function s1Runtime() {
-  s1 ||= require("./s1-runtime").createS1Runtime({ userData, logLine, spawn: require("node:child_process").spawn, threads: () => Math.max(2, Math.min(6, Math.floor(os.cpus().length / 2))) });
+  s1 ||= require("./s1-runtime").createS1Runtime({ userData, logLine, spawn: require("node:child_process").spawn, download: require("./download").download, sha256File: require("./integrity").sha256File, threads: () => Math.max(2, Math.min(6, Math.floor(os.cpus().length / 2))) });
   return s1;
 }
 app.on("will-quit", () => { if (s1) s1.stop(); });
+/** Loads S1-mini ahead of the first dictation, but only for someone who dictates in English (it holds about 0.9 GB of memory). */
+function warmS1() {
+  try {
+    const c = getDictation().cfg();
+    const lang = c.language === "auto" ? sttLanguage() : c.language;
+    if (c.enabled && c.cleanup && lang === "en") s1Runtime().warm();
+  } catch (err) { logLine(`s1: warm start skipped (${err && err.message ? err.message : err})`); }
+}
 let dictation = null;
 function getDictation() {
   if (dictation) return dictation;
@@ -2178,6 +2193,7 @@ async function main() {
     return { open: pointsWindow.isOpen() };
   });
   startOkFilow();
+  setTimeout(warmS1, 4000); // after the windows are up: never in the way of the start
   win.on("closed", () => okFilow?.dispose());
   const hk = registerHotkey();
   if (!hk.ok) console.warn("Screen Sense hotkey:", hk.error);

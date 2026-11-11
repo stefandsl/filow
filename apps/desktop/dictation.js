@@ -78,6 +78,8 @@ function createDictation(deps) {
       modelReady,
       /** S1-mini by Superwhisper: is the model on this computer and the runtime in this build? (Settings says so.) */
       cleanupReady: deps.cleanupStatus ? (() => { const s = deps.cleanupStatus(); return Boolean(s.model && s.runtime); })() : false,
+      /** { runtime, model, downloading, pct, bytes, error }: what Settings needs to offer the download and show it. */
+      cleanupState: deps.cleanupStatus ? deps.cleanupStatus() : null,
       // A screen reader is running (Chromium noticed one): the start and stop tones play even when the
       // sound setting is off, since an announcement from the overlay may not be read out.
       screenReader: Boolean(deps.screenReader && deps.screenReader()),

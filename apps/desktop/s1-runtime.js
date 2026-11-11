@@ -12,6 +12,8 @@ const crypto = require("node:crypto");
 const MODEL_FILE = "s1-mini-q4_k_m.gguf";
 /** The file Filow downloads (superwhisper/s1-mini-GGUF, revision 34add00a): size and SHA-256 are pinned. */
 const MODEL = { file: MODEL_FILE, bytes: 484219808, sha256: "3b41ebe2502cbd03e811d5d16b022f5ab551eda58d62597d152f89535003c634", revision: "34add00a48a2e5d24e5a4ee5405a99620a3a240c" };
+/** Where the model comes from: the pinned revision on Hugging Face (no account, no token). */
+const MODEL_URL = `https://huggingface.co/superwhisper/s1-mini-GGUF/resolve/${MODEL.revision}/${MODEL_FILE}`;
 
 /** Where the server program is inside Filow (next to app.asar when packaged), or "" when this build has none. */
 function serverFile({ platform = process.platform, arch = process.arch, baseDir = __dirname, exists = fs.existsSync } = {}) {
@@ -99,11 +101,46 @@ function createS1Runtime(deps) {
     return text;
   }
 
+  // ---- the model file: downloaded once, resumable, used only when its SHA-256 is the pinned one ----
+  let fetching = null;
+  let pct = 0;
+  let fetchError = "";
+  /**
+   * Downloads the model (462 MiB) into the profile. A broken download continues where it stopped; the
+   * file gets its real name only after its hash was checked, so a half or altered file is never loaded.
+   * deps.download(url, dest, { resume, onPct, fallbackSize }) and deps.sha256File(file) are Filow's own.
+   */
+  function download() {
+    if (hasModel()) return Promise.resolve(true);
+    if (fetching) return fetching;
+    const dest = model();
+    const part = `${dest}.part`;
+    fetchError = "";
+    pct = 0;
+    fetching = (async () => {
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      log(`s1: downloading the model (${Math.round(MODEL.bytes / 1024 / 1024)} MiB) from huggingface.co`);
+      await deps.download(deps.modelUrl || MODEL_URL, part, { resume: true, fallbackSize: MODEL.bytes, onPct: (p) => { pct = p; } });
+      const sha = await deps.sha256File(part);
+      if (sha !== MODEL.sha256) {
+        try { fs.rmSync(part, { force: true }); } catch { /* the next try starts again */ }
+        throw new Error("the downloaded model is not the expected file (hash differs); it was deleted");
+      }
+      fs.renameSync(part, dest);
+      pct = 100;
+      lastError = "";
+      log("s1: model on this computer, hash checked");
+      warm();
+      return true;
+    })().catch((e) => { fetchError = String((e && e.message) || e).slice(0, 120); log(`s1: model download failed (${fetchError})`); return false; }).finally(() => { fetching = null; });
+    return fetching;
+  }
+
   /** Loads the model ahead of the first dictation, so that one does not pay the start. Errors are kept for the report. */
   function warm() { if (ready().ok) void start().catch(() => {}); }
   function stop() { const c = child; child = null; base = ""; if (c) { try { c.kill(); } catch { /* gone */ } } }
-  const status = () => ({ runtime: Boolean(exe()), model: hasModel(), running: Boolean(child), startedMs, error: lastError });
-  return { ready, run, warm, stop, status };
+  const status = () => ({ runtime: Boolean(exe()), model: hasModel(), running: Boolean(child), startedMs, error: lastError || fetchError, downloading: Boolean(fetching), pct, bytes: MODEL.bytes });
+  return { ready, run, warm, stop, status, download };
 }
 
-module.exports = { createS1Runtime, serverFile, modelFile, freePort, MODEL };
+module.exports = { createS1Runtime, serverFile, modelFile, freePort, MODEL, MODEL_URL };
