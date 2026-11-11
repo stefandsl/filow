@@ -108,7 +108,7 @@ export function cleanTex(v: unknown, texOk?: (tex: string) => boolean): string {
 }
 
 /** A formula without what only changes its look (a times sign, spacing, a final full stop): the same formula written twice is one. */
-const texKey = (tex: string) => tex.replace(/\\(?:times|cdot|left|right|[,;!: ])/g, "").replace(/[\s.,;*]+/g, "");
+export const texKey = (tex: string) => tex.replace(/\\(?:times|cdot|left|right|[,;!: ])/g, "").replace(/[\s.,;*]+/g, "");
 
 export type LessonContext = {
   /** The nodes on the board so far: id -> label. Updated as items are accepted. */
@@ -117,6 +117,8 @@ export type LessonContext = {
   edges: Set<string>;
   /** How many boxes the board may hold (a follow-up gets room for a few more than the lesson it continues). */
   nodeCap?: number;
+  /** The step being validated, in a lesson written whole (validateLesson): a formula or a row of cells shown again in a later step is kept. */
+  stepNo?: number;
   /** How many items one step may hold (default LIMITS.itemsPerStep). */
   itemCap?: number;
   /** Formulas, plots and notes already written, so a later step does not write them again. */
@@ -143,6 +145,8 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
   const out: LessonItem[] = [];
   const list = Array.isArray(raw) ? raw : raw && typeof raw === "object" && Array.isArray((raw as { items?: unknown }).items) ? (raw as { items: unknown[] }).items : [];
   const full = () => out.length >= (ctx.itemCap ?? LIMITS.itemsPerStep);
+  // In a lesson written whole, a formula or a row of cells counts as a repeat only inside its own step.
+  const again = ctx.stepNo === undefined ? "" : `@${ctx.stepNo}`;
   /** Nodes the model drew again although they are on the board: what the step is talking about. */
   const touched: string[] = [];
   const once = (key: string) => (ctx.seen.has(key) ? false : Boolean(ctx.seen.add(key)));
@@ -203,7 +207,9 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
       out.push({ kind: "edge", from, to, text });
     } else if (kind === "formula") {
       const tex = cleanTex(q.tex ?? q.latex ?? q.text, ctx.texOk);
-      if (tex && once(`f:${texKey(tex)}`)) out.push({ kind: "formula", tex });
+      // The same formula twice in one step is one. In a later step it is what the step shows (a proof
+      // ends on the formula it set out to prove): kept, and the board draws it anew where it stands.
+      if (tex && once(`f:${texKey(tex)}${again}`)) out.push({ kind: "formula", tex });
     } else if (kind === "plot") {
       const expr = cleanExpr(q.expr ?? q.fn ?? q.text).slice(0, 80);
       const tree = parseExpr(expr);
@@ -228,8 +234,8 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
       const values = (Array.isArray(q.values) ? q.values : []).slice(0, 10).map((v) => cleanText(v, LIMITS.cell)).filter(Boolean);
       const at = finite(q.pointer);
       const pointer = at !== null && Number.isInteger(at) && at >= 0 && at < values.length ? at : -1;
-      // one value is not a row; the same row with the same pointer is not drawn twice
-      if (values.length >= 2 && once(`c:${values.join("|")}:${pointer}`)) out.push({ kind: "cells", values, pointer });
+      // a search narrowed to one value is still a row; the same row with the same pointer is not drawn twice in one step
+      if (values.length >= 1 && once(`c:${values.join("|")}:${pointer}${again}`)) out.push({ kind: "cells", values, pointer });
     } else if (kind === "mark") {
       const target = find(q.target ?? q.id);
       if (!target) continue;
@@ -300,6 +306,7 @@ export function validateLesson(raw: unknown, opts: { maxSteps?: number; texOk?: 
     const say = cleanText(q.say, LIMITS.say);
     // a step is what is said while it is drawn: without a sentence there is no step
     if (!say) continue;
+    ctx.stepNo = steps.length;
     const step = makeStep(say, q.items, ctx);
     steps.push(step);
   }
