@@ -4,7 +4,7 @@
 // Every answer is parsed and validated in lesson.ts before anything is sent to the page.
 import katex from "katex";
 import { BUDDY_LANG_NAMES, type BuddyLang } from "@/lib/buddy/lang";
-import { LIMITS, cleanText, contextOf, lessonContextText, makeStep, newContext, outlineSchema, parseJsonLoose, slug, validateLesson, validateOutline, type Lesson, type LessonStep, type Scene } from "./lesson";
+import { LIMITS, cleanText, contextOf, lessonContextText, makeStep, newContext, outlineSchema, parseJsonLoose, slug, validateLesson, validateOutline, type ExplanationKind, type Lesson, type LessonStep, type Scene } from "./lesson";
 
 export type LessonEvent =
   | { type: "start"; provider: "local" | "cloud"; model: string; lang: BuddyLang; lite: boolean; more: boolean }
@@ -41,6 +41,7 @@ function outlineSystem(lang: BuddyLang, maxSteps: number, more: boolean): string
       ? `The learner is following the lesson below and asks a follow-up. Plan 1 to ${maxSteps} more steps that answer it and build on what is already on the board.`
       : `Plan ${Math.min(3, maxSteps)} to ${maxSteps} steps that explain the concept in order, from what the learner already knows to the new idea. Every step must be true and must follow from the one before.`,
     'Each step has one spoken sentence "say": at most 28 words, plain words, no markdown, no list.',
+    '"kind" is the kind of explanation, and each kind has its recipe. "process": what goes in, what happens in order, what comes out. "proof": what is given, the construction, then each equality with its reason, so the last step follows and is not just stated. "algorithm": take one small example with real values and trace it step by step to the result. "law": name each quantity, state the formula, then one example with numbers. "comparison": each side, then what differs and why.',
     "Say only what you are sure is true: leave a detail out rather than guess. Asked to prove or derive something, make each step one step of the proof, with its reason. When the concept has a formula, one step states it.",
     '"scene" says how the drawing is arranged: "flow" for parts that feed into each other, "cycle" for a loop that returns to its start, "stack" for events in time order, a list of cases or a derivation.',
     `Write the title and every sentence in ${BUDDY_LANG_NAMES[lang]}.`,
@@ -83,6 +84,8 @@ export type LessonRequest = {
   maxSteps: number;
   /** The lesson being continued (a follow-up, or "explain this part again"). */
   lesson?: Lesson | null;
+  /** The Lite tier: fewer steps and no rewrite pass, so the lesson stays short and quick. */
+  lite?: boolean;
 };
 
 /** How long one answer may take. The outline includes loading the model into memory the first time. */
@@ -200,26 +203,58 @@ function pickSystem(lang: BuddyLang): string {
   ].join("\n");
 }
 
-/** Local path: outline, drawing plan, fact check of the plan, then a pick per step. Emits events as they are ready. */
+const judgeSchema = (count: number) => ({
+  type: "object",
+  properties: {
+    sentences: { type: "array", minItems: count, maxItems: count, items: { type: "object", properties: { n: { type: "integer" }, true: { type: "boolean" } }, required: ["n", "true"] } },
+    answers: { type: "boolean" },
+  },
+  required: ["sentences", "answers"],
+});
+const KIND_TEST: Record<ExplanationKind, string> = {
+  process: "the steps name what goes in, what happens in order and what comes out",
+  proof: "the steps give a construction or a starting equality and each next step follows from the one before, so that the last step is proven and not just stated",
+  comparison: "the steps describe each side and then what differs",
+  algorithm: "the steps trace a small concrete example with real values from start to result",
+  law: "the steps name each quantity, state the formula and show what it means",
+};
+function judgeSystem(kind: ExplanationKind): string {
+  return [
+    "You are a strict examiner checking a short lesson for a school textbook. Reply with JSON only.",
+    '"sentences": for each numbered sentence {"n": its number, "true": true or false}. true only when the sentence is correct exactly as written and precise. false when it is wrong, misleading, defines a term wrongly, contradicts an earlier sentence, or you are not sure.',
+    `"answers": true only when the lesson as a whole really does what was asked: ${KIND_TEST[kind]}. A lesson that only restates the result is false.`,
+  ].join("\n");
+}
+/** The examiner's verdict: the sentences it passed (1-based) and whether the lesson answers the question. Null when unreadable. */
+export function readJudgement(raw: unknown, count: number): { kept: Set<number>; answers: boolean } | null {
+  const r = raw as { sentences?: unknown; answers?: unknown } | null;
+  if (!r || !Array.isArray(r.sentences)) return null;
+  const kept = new Set<number>();
+  for (const a of r.sentences) {
+    const q = (a && typeof a === "object" ? a : {}) as { n?: unknown; true?: unknown };
+    if (typeof q.n === "number" && q.n >= 1 && q.n <= count && q.true === true) kept.add(q.n);
+  }
+  return { kept, answers: r.answers === true };
+}
+const rewriteSchema = (count: number) => ({
+  type: "object",
+  properties: { sentences: { type: "array", minItems: count, maxItems: count, items: { type: "object", properties: { n: { type: "integer" }, say: { type: "string", maxLength: 220 } }, required: ["n", "say"] } } },
+  required: ["sentences"],
+});
+function rewriteSystem(lang: BuddyLang, kind: ExplanationKind): string {
+  return [
+    "An examiner refused some sentences of this lesson as wrong or imprecise. Reply with JSON only.",
+    'For each number after "Rewrite:", give {"n": that number, "say": a corrected sentence for that place in the lesson}. At most 28 words, plain words. State only what is certainly true; leave out the doubtful detail rather than guess.',
+    `Keep the lesson's line of thought: ${KIND_TEST[kind]}.`,
+    `Write in ${BUDDY_LANG_NAMES[lang]}.`,
+  ].join("\n");
+}
+
+/** Local path: outline, check of its sentences, drawing plan, fact check of the plan, then a pick per step. */
 export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: LessonEvent) => void): Promise<void> {
   const more = Boolean(req.lesson);
   const maxSteps = more ? Math.min(3, req.maxSteps) : req.maxSteps;
   const outlineUser = more ? `${lessonContextText(req.lesson!)}\n\nFollow-up: ${quoted(req.question)}` : `Concept: ${quoted(req.question)}`;
-  let outline = null;
-  for (let attempt = 0; attempt < 2 && !outline; attempt++) {
-    const text = await ask({ system: outlineSystem(req.lang, maxSteps, more), user: outlineUser, format: outlineSchema(maxSteps), maxTokens: 120 + maxSteps * 90, timeoutMs: TIMEOUTS.outlineMs, temperature: attempt ? 0.6 : 0.3 });
-    outline = validateOutline(parseJsonLoose(text), maxSteps);
-  }
-  if (!outline) {
-    emit({ type: "error", code: "plan", message: "The model did not return a lesson plan." });
-    return;
-  }
-  const title = more ? req.lesson!.title : outline.title;
-  const scene = more ? req.lesson!.scene : outline.scene;
-  emit({ type: "outline", title, scene, says: outline.says });
-
-  const ctx = more ? contextOf(req.lesson!, { texOk }) : newContext({ texOk });
-  const numbered = outline.says.map((s, k) => `${k + 1}. ${s}`).join("\n");
   let stalled = false;
   /** One call that may stall: a stall ends the drawing, the lesson goes on as text. */
   const tryAsk = async (call: Parameters<Ask>[0]): Promise<unknown> => {
@@ -232,6 +267,53 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
       return undefined;
     }
   };
+  // The outline, then its sentences checked one by one. A small model writes fluent sentences that
+  // are sometimes false ("arrays are sorted lists") or a "proof" that proves nothing: the board must
+  // not say them. A refused sentence is rewritten once; refused again, it is replaced by a plain
+  // statement from the checked drawing plan, or left out.
+  let outline = null;
+  let kept: Set<number> | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const text = await ask({ system: outlineSystem(req.lang, maxSteps, more), user: outlineUser, format: outlineSchema(maxSteps), maxTokens: 140 + maxSteps * 90, timeoutMs: TIMEOUTS.outlineMs, temperature: attempt ? 0.6 : 0.3 });
+    const next = validateOutline(parseJsonLoose(text), maxSteps);
+    if (!next) continue;
+    outline = next;
+    const judged = readJudgement(await tryAsk({ system: judgeSystem(next.kind), user: `Asked: ${quoted(req.question)}\nLesson: ${next.title}\n${next.says.map((s, k) => `${k + 1}. ${s}`).join("\n")}`, format: judgeSchema(next.says.length), maxTokens: 60 + next.says.length * 22, timeoutMs: TIMEOUTS.stepMs, temperature: 0 }), next.says.length);
+    kept = judged?.kept ?? null;
+    // A lesson that as a whole does not do what was asked (a proof with no proof) is planned again, once.
+    if (!judged || judged.answers || more || attempt === 1) break;
+  }
+  if (!outline) {
+    emit({ type: "error", code: "plan", message: "The model did not return a lesson plan." });
+    return;
+  }
+  const title = more ? req.lesson!.title : outline.title;
+  const scene = more ? req.lesson!.scene : outline.scene;
+  let says = [...outline.says];
+  /** Sentences the check refused (0-based). An unreadable check refuses nothing. */
+  let refused = kept ? says.map((_, k) => k).filter((k) => !kept!.has(k + 1)) : [];
+  // The full tier rewrites a refused sentence once and checks it again; Lite skips this to stay short.
+  if (refused.length && !req.lite && !stalled) {
+    const raw = (await tryAsk({ system: rewriteSystem(req.lang, outline.kind), user: `Lesson: ${title}\n${says.map((s, k) => `${k + 1}. ${s}`).join("\n")}\nRewrite: ${refused.map((k) => k + 1).join(", ")}`, format: rewriteSchema(refused.length), maxTokens: 60 + refused.length * 80, timeoutMs: TIMEOUTS.stepMs, temperature: 0.3 })) as { sentences?: unknown } | undefined;
+    const tried: number[] = [];
+    for (const item of Array.isArray(raw?.sentences) ? raw.sentences : []) {
+      const q = (item && typeof item === "object" ? item : {}) as { n?: unknown; say?: unknown };
+      const k = typeof q.n === "number" ? q.n - 1 : -1;
+      const say = cleanText(q.say, LIMITS.say);
+      if (refused.includes(k) && say && !tried.includes(k)) {
+        says[k] = say;
+        tried.push(k);
+      }
+    }
+    if (tried.length) {
+      const again = readJudgement(await tryAsk({ system: judgeSystem(outline.kind), user: `Asked: ${quoted(req.question)}\nLesson: ${title}\n${says.map((s, k) => `${k + 1}. ${s}`).join("\n")}`, format: judgeSchema(says.length), maxTokens: 60 + says.length * 22, timeoutMs: TIMEOUTS.stepMs, temperature: 0 }), says.length);
+      // a rewrite counts only when the second check passes it
+      refused = refused.filter((k) => !tried.includes(k) || !again?.kept.has(k + 1));
+    }
+  }
+
+  const ctx = more ? contextOf(req.lesson!, { texOk }) : newContext({ texOk });
+  const numbered = says.filter((_, k) => !refused.includes(k)).map((s, k) => `${k + 1}. ${s}`).join("\n");
 
   // The drawing plan for the whole lesson, then each of its relations checked as a statement.
   const onBoard = [...ctx.nodes].map(([id, text]) => `${id} = ${text}`).join("; ");
@@ -248,17 +330,26 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
     // A relation the checker did not confirm is not drawn; a check that cannot be read confirms nothing.
     plan = { ...plan, relations: plan.relations.filter((_, k) => verdicts?.has(k + 1)) };
   }
+  // What is still refused: a plain statement of a checked relation in its place, else the step is left out.
+  const spare = [...plan.relations];
+  says = says.flatMap((s, k) => {
+    if (!refused.includes(k)) return [s];
+    const r = spare.shift();
+    return r ? [`${label(r.from)} ${r.text} ${label(r.to)}.`] : [];
+  });
+  if (!says.length) says = [outline.says[0]];
+  emit({ type: "outline", title, scene, says });
 
   const thingIds = plan.things.map((t) => t.id);
   let cards = 0;
-  for (let i = 0; i < outline.says.length; i++) {
-    let step: LessonStep = { say: outline.says[i], items: [], card: true };
+  for (let i = 0; i < says.length; i++) {
+    let step: LessonStep = { say: says[i], items: [], card: true };
     for (let attempt = 0; attempt < 2 && step.card && !stalled; attempt++) {
       const user = [
         `Lesson: ${title}`,
         thingIds.length ? `Things: ${plan.things.map((t) => `${t.id} = ${t.text}`).join("; ")}` : "",
         plan.relations.length ? `Relations:\n${plan.relations.map((r, k) => `${k + 1}. ${label(r.from)} ${r.text} ${label(r.to)}`).join("\n")}` : "",
-        `Sentence of this step: "${outline.says[i]}"`,
+        `Sentence of this step: "${says[i]}"`,
       ].filter(Boolean).join("\n");
       const raw = (await tryAsk({ system: pickSystem(req.lang), user, format: pickSchema(thingIds, plan.relations.length), maxTokens: 220, timeoutMs: TIMEOUTS.stepMs, temperature: attempt ? 0.5 : 0.2 })) as { things?: unknown; relations?: unknown; formula?: unknown; plot?: unknown; note?: unknown } | undefined;
       if (!raw || typeof raw !== "object") continue;
@@ -267,6 +358,9 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
       const show = (id: string) => { const t = plan.things.find((x) => x.id === id); if (t) items.push({ kind: "node", id: t.id, text: t.text }); };
       const picked = (Array.isArray(raw.relations) ? raw.relations : []).map((n) => plan.relations[Number(n) - 1]).filter(Boolean).slice(0, 3);
       for (const id of Array.isArray(raw.things) ? raw.things.slice(0, 3) : []) if (typeof id === "string") show(id);
+      // a thing the sentence names is shown with it, picked or not: boxes the lesson talks about are on the board
+      const sentence = says[i].toLowerCase();
+      for (const t of plan.things) if (!ctx.nodes.has(t.id) && t.text.length >= 3 && sentence.includes(t.text.toLowerCase())) show(t.id);
       for (const r of picked) {
         show(r.from);
         show(r.to);
@@ -284,7 +378,7 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
       if (typeof raw.formula === "string" && raw.formula.trim()) items.push({ kind: "formula", tex: raw.formula });
       if (typeof raw.plot === "string" && raw.plot.trim()) items.push({ kind: "plot", expr: raw.plot, xmin: 0, xmax: 10 });
       if (typeof raw.note === "string" && raw.note.trim()) items.push({ kind: "note", text: raw.note });
-      step = makeStep(outline.says[i], items, ctx);
+      step = makeStep(says[i], items, ctx);
     }
     if (step.card) cards++;
     emit({ type: "step", index: i, step });

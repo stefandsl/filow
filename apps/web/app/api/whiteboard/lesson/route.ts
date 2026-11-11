@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       const emit = (e: LessonEvent) => controller.enqueue(encoder.encode(JSON.stringify(e) + "\n"));
       try {
         emit({ type: "start", provider, model: provider === "cloud" ? BUDDY_CLOUD_MODEL() : helper!.model, lang, lite, more: Boolean(lesson) });
-        const request = { question, lang, maxSteps: maxStepsFor(lite), lesson };
+        const request = { question, lang, maxSteps: maxStepsFor(lite), lesson, lite };
         if (provider === "cloud") await generateCloud(ask, request, emit);
         else await generateLocal(ask, request, emit);
       } catch (e) {

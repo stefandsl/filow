@@ -140,7 +140,9 @@ describe("whiteboard lesson: what the model writes is data", () => {
 
   it("reads an outline and caps its steps", () => {
     const o = validateOutline({ title: " Photosynthesis ", scene: "timeline", steps: [{ say: "One." }, "Two.", { say: "" }, { say: "Three." }, { say: "Four." }] }, 3);
-    expect(o).toEqual({ title: "Photosynthesis", scene: "stack", says: ["One.", "Two.", "Three."] });
+    expect(o).toEqual({ title: "Photosynthesis", scene: "stack", kind: "process", says: ["One.", "Two.", "Three."] });
+    expect(validateOutline({ title: "P", kind: "proof", steps: ["a"] })?.kind).toBe("proof");
+    expect(validateOutline({ title: "P", kind: "sermon", steps: ["a"] })?.kind).toBe("process");
     expect(validateOutline({ title: "x", steps: [] })).toBeNull();
     expect(validateOutline("nope")).toBeNull();
   });

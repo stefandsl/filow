@@ -29,7 +29,10 @@ export type LessonStep = {
   card: boolean;
 };
 export type Lesson = { title: string; scene: Scene; steps: LessonStep[] };
-export type Outline = { title: string; scene: Scene; says: string[] };
+export const KINDS = ["process", "proof", "comparison", "algorithm", "law"] as const;
+/** The kind of explanation the outline chose; each has its own recipe (generate.ts). */
+export type ExplanationKind = (typeof KINDS)[number];
+export type Outline = { title: string; scene: Scene; kind: ExplanationKind; says: string[] };
 
 export const LIMITS = {
   steps: 7,
@@ -221,7 +224,8 @@ export function validateOutline(raw: unknown, maxSteps: number = LIMITS.steps): 
     if (say && says.length < maxSteps) says.push(say);
   }
   if (!says.length) return null;
-  return { title: cleanText(r.title, LIMITS.title) || says[0].slice(0, LIMITS.title), scene: sceneOf(r.scene), says };
+  const kind = (KINDS as readonly string[]).includes(String((r as { kind?: unknown }).kind)) ? ((r as { kind: ExplanationKind }).kind) : "process";
+  return { title: cleanText(r.title, LIMITS.title) || says[0].slice(0, LIMITS.title), scene: sceneOf(r.scene), kind, says };
 }
 
 /** One step from its sentence and its items; no usable item makes it a text card. */
@@ -371,9 +375,10 @@ export function outlineSchema(maxSteps: number) {
     properties: {
       title: { type: "string", maxLength: 60 },
       scene: { type: "string", enum: [...SCENES] },
+      kind: { type: "string", enum: [...KINDS] },
       steps: { type: "array", minItems: Math.min(3, maxSteps), maxItems: maxSteps, items: { type: "object", properties: { say: { type: "string", maxLength: 220 } }, required: ["say"] } },
     },
-    required: ["title", "scene", "steps"],
+    required: ["title", "scene", "kind", "steps"],
   };
 }
 export const STEP_SCHEMA = {
