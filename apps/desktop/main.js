@@ -1607,7 +1607,7 @@ async function offerLocalAi() {
   const options = {
     type: "question",
     title: tx("title"),
-    message: tx("message", { device: info.platform === "darwin" ? "Mac" : "PC", gb: rec.downloadGb }),
+    message: tx("message", { device: tx(info.platform === "darwin" ? "mac" : "pc"), gb: rec.downloadGb }),
     detail: [machine, recommended, tx("after")].join("\n\n"),
     buttons: [tx("install"), tx("later")],
     defaultId: 0,

@@ -738,6 +738,8 @@ export const it: Dictionary = {
   "shell.localAi.install": "Installa ora",
   "shell.localAi.later": "Non ora",
   "shell.localAi.message": "Filow può trascrivere e decidere su questo {device} senza alcun cloud. Installare ora i modelli locali consigliati (circa {gb} GB)?",
+  "shell.localAi.pc": "PC",
+  "shell.localAi.mac": "Mac",
   "shell.localAi.machine": "Questo computer: {ram} GB di RAM",
   "shell.localAi.free": "{gb} GB liberi",
   "shell.localAi.recommended": "Consigliati: {models}",

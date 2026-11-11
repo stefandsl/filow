@@ -748,6 +748,8 @@ export const ja: Dictionary = {
   "shell.localAi.install": "今すぐインストール",
   "shell.localAi.later": "あとで",
   "shell.localAi.message": "Filowは、クラウドを使わずにこの{device}で文字起こしと判定ができます。おすすめのローカルモデル（約{gb}GB）を今すぐインストールしますか？",
+  "shell.localAi.pc": "PC",
+  "shell.localAi.mac": "Mac",
   "shell.localAi.machine": "このコンピューター：RAM {ram}GB",
   "shell.localAi.free": "空き{gb}GB",
   "shell.localAi.recommended": "おすすめ：{models}",

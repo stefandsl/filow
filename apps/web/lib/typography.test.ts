@@ -41,3 +41,19 @@ describe("typography of the string tables", () => {
     expect(HALF_STOP.test("はい, そうです")).toBe(true);
   });
 });
+
+// Review finding 9: Russian said "скачать" in one place and "загрузить" in the next for the same
+// download. One word family for a download (скачать, скачивание); "загрузить" stays for loading a
+// script or a model into memory, and "перезагрузить" for a reload.
+describe("Russian wording", () => {
+  it("calls a download скачать or скачивание wherever English says download", () => {
+    const mixed: string[] = [];
+    for (const [name, table] of Object.entries(TABLES)) {
+      for (const [key, en] of Object.entries(table.en)) {
+        const ru = table.ru[key].replace(/перезагру[зж]\p{L}*/giu, "");
+        if (/download/i.test(en.replace(/ollama\.com\/download/g, "")) && /загру[зж]/i.test(ru)) mixed.push(`${name} ${key}`);
+      }
+    }
+    expect(mixed).toEqual([]);
+  });
+});

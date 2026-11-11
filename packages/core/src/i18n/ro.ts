@@ -738,6 +738,8 @@ export const ro: Dictionary = {
   "shell.localAi.install": "Instalează acum",
   "shell.localAi.later": "Nu acum",
   "shell.localAi.message": "Filow poate transcrie și decide pe acest {device}, fără niciun cloud. Instalezi acum modelele locale recomandate (aproximativ {gb} GB)?",
+  "shell.localAi.pc": "PC",
+  "shell.localAi.mac": "Mac",
   "shell.localAi.machine": "Acest computer: {ram} GB RAM",
   "shell.localAi.free": "{gb} GB liberi",
   "shell.localAi.recommended": "Recomandat: {models}",

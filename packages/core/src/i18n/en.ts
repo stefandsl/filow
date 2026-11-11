@@ -748,6 +748,8 @@ export const en = {
   "shell.localAi.install": "Install now",
   "shell.localAi.later": "Not now",
   "shell.localAi.message": "Filow can transcribe and decide on this {device} without any cloud. Install the recommended local models now (about {gb} GB)?",
+  "shell.localAi.pc": "PC",
+  "shell.localAi.mac": "Mac",
   "shell.localAi.machine": "This computer: {ram} GB RAM",
   "shell.localAi.free": "{gb} GB free",
   "shell.localAi.recommended": "Recommended: {models}",
