@@ -150,6 +150,13 @@ does not control: a third-party clipboard manager may still record the text for 
 
 English dictations are written out by S1-mini by Superwhisper on this PC before they are typed (fillers, self-corrections, numbers, dates, e-mail addresses); other languages never go through it. Everything about it, the safety net and what is not built yet: `docs/dictation/S1-MINI.md`. Two dictations in a row into the same window are joined by a space (same file, section 8).
 
+## Punctuation and capitals in Italian, Russian, Romanian and Japanese
+
+Where the recognizer left a sentence open in one of these languages, a small labelling model on this PC
+adds full stops, commas, question marks and capitals before the words are typed
+(`dictation-punctuate.js`, `truecase-text.js`, `truecase-runtime.js`). It only adds; the words are never
+changed. The measurements, the decision per language and what is not built: `docs/dictation/CLEANUP-MULTILINGUAL.md`.
+
 ## Report a problem
 
 The report has a "Dictation and keys" section (`dictation-diag.js`, spec in `docs/dictation/SPEC.md`):
