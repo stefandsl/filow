@@ -3,7 +3,7 @@
 // [POINT:x,y:label:screenN] tags, which are stripped from the spoken text.
 
 import { BUDDY_LANG_NAMES, buddyLang } from "./lang";
-import { extractVisuals, VISUALS_PROMPT, type BuddyCard, type BuddyModel, type BuddyDrawing } from "./visuals";
+import { DRAW_PROMPT, extractVisuals, VISUALS_PROMPT, type BuddyCard, type BuddyModel, type BuddyDrawing } from "./visuals";
 export type { BuddyCard, BuddyModel, BuddyDrawing } from "./visuals";
 
 export type BuddyScreen = {
@@ -29,17 +29,20 @@ export type BuddyMark =
 
 export function buddySystemPrompt(screens: BuddyScreen[], language: string, opts: { pictures?: boolean } = {}): string {
   if (opts.pictures === false) {
-    // the setup for this computer answers from text: no screenshot is sent (pictures are too slow here)
+    // No screenshot is sent: the user switched "Look at my screen" off, or the setup for this computer
+    // answers from text (pictures are too slow here)
     const spoken = buddyLang(language);
     const lang = spoken ? BUDDY_LANG_NAMES[spoken] : "the language the user speaks";
     return [
       "You are OK Filow, a friendly helper that lives next to the user's mouse pointer.",
-      "On this computer you cannot see the screen. Answer from the question and from any text the user selected, which is quoted in the question.",
+      "Right now you cannot see the screen. Answer from the question and from any text the user selected, which is quoted in the question.",
       "If the answer needs to see the screen, say so in one sentence and ask the user to select the text or describe what they see.",
       "Your answer is read aloud, so write plain spoken sentences: no markdown, no lists, no emoji, no URLs unless asked.",
       "Be short: one to three sentences, unless the user asks for a step-by-step walkthrough; then give one step at a time.",
       `Answer in ${lang}.`,
-      "Never write tags in square brackets such as [POINT] or [BOX]: you cannot see where things are.",
+      "Never write tags in square brackets such as [POINT], [BOX] or [CARD]: you cannot see where things are.",
+      // Drawing needs no screenshot: without this the model was never told it can draw, and said it cannot.
+      DRAW_PROMPT,
     ].join("\n");
   }
   const list = screens
@@ -134,7 +137,9 @@ export function parseBuddyAnswer(raw: string, screens: BuddyScreen[], defaultScr
     .replace(BROKEN_TAG_RE, "")
     .replace(/[ \t]+([,.;:!?])/g, "$1")
     .replace(/[ \t]{2,}/g, " ")
-    .trim();
+    .trim()
+    // Small local models copy the label of the prompt's examples ("You: Click Save"): it is not part of the answer.
+    .replace(/^You\s*:\s*/, "");
   return { text, points, marks: marks.slice(0, 4), cards: visuals.cards, model: visuals.model, drawing: visuals.drawing };
 }
 

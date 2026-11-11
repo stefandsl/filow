@@ -10,6 +10,7 @@ import { askRecipient, consentKey, freellmRecipient, type Recipient } from "./ou
 import { freellmStream, requireFreeLlm } from "@/lib/freellm";
 import { gpuInfo, machineInfo } from "@/lib/sysinfo";
 import { buddySystemPrompt, trimHistory, type BuddyScreen, type BuddyTurn } from "./prompt";
+import { wantsDrawing } from "./visuals";
 
 export type BuddyProviderId = "local" | "cloud" | "freellm";
 
@@ -25,6 +26,8 @@ export type BuddyAskRequest = {
   consent?: string;
   /** the setup preference the user chose in Settings ("auto", "lite", ...); absent = "auto" */
   setup?: string;
+  /** "Look at my screen" in the OK Filow panel: true or false is the user's choice; absent, the setup for this computer decides. */
+  sees?: boolean;
 };
 
 /**
@@ -33,7 +36,8 @@ export type BuddyAskRequest = {
  * a request body. The consent lock and the provider choice in askBuddy apply unchanged.
  */
 /** `model`: the cloud model for this call when it is not OK Filow's own (the whiteboard may name its own); consent is then asked for that model's maker. */
-export type AskShape = { system: string; format?: unknown; maxTokens?: number; temperature?: number; model?: string };
+/** `pictures: false`: the screenshots stay out of this call (a drawing needs none). */
+export type AskShape = { system: string; format?: unknown; maxTokens?: number; temperature?: number; model?: string; pictures?: boolean };
 
 /** What OK Filow runs on "Answers from: Local": the model, and whether it is shown the screenshot. */
 export type LocalHelper = { model: string; pictures: boolean };
@@ -47,7 +51,8 @@ export const NO_LOCAL_HELPER_DISK =
 
 /** Drawings and 3D models: the 2B loops and writes broken JSON (measured), so a bigger picture model the user installed draws. */
 export const BUDDY_DRAW_MODELS = ["qwen3-vl:8b", "qwen3-vl:4b", "gemma4:e4b"];
-export const wantsVisual = (q: string) => /\b(draw|drawing|sketch|diagram|illustrat\w*|3d|model|disegn\w*|schema|modello)\b/i.test(q);
+/** A question that may end in a drawing or a model: the loose English and Italian words, and a plain request to draw in any of the five languages. */
+export const wantsVisual = (q: string) => /\b(draw|drawing|sketch|diagram|illustrat\w*|3d|model|disegn\w*|schema|modello)\b/i.test(q) || wantsDrawing(q) !== null;
 
 /**
  * The local model and mode for one question: the setup's screen helper (setupChoices), the same
@@ -55,16 +60,17 @@ export const wantsVisual = (q: string) => /\b(draw|drawing|sketch|diagram|illust
  * nor answers from pictures where the setup chose text. On Best quality a drawing goes to a bigger
  * picture model when the user installed one. BUDDY_LOCAL_MODEL (developers) overrides all of it.
  */
-export function localHelper(setup: Pick<ResolvedSetup, "active" | "choices">, installed: string[], question: string, configured = process.env.BUDDY_LOCAL_MODEL): LocalHelper {
-  if (configured) return { model: configured, pictures: true };
+export function localHelper(setup: Pick<ResolvedSetup, "active" | "choices">, installed: string[], question: string, configured = process.env.BUDDY_LOCAL_MODEL, sees?: boolean): LocalHelper {
+  if (configured) return { model: configured, pictures: sees ?? true };
   const h = setup.choices.screenHelper;
   if (h.mode === "none" || !h.model) throw new Error(h.lacking === "disk" ? NO_LOCAL_HELPER_DISK : NO_LOCAL_HELPER);
   if (h.mode === "picture" && setup.active === "advanced" && wantsVisual(question)) {
     const names = new Set(installed.flatMap((n) => [n, n.replace(/:latest$/, "")]));
     const big = BUDDY_DRAW_MODELS.find((m) => names.has(m));
-    if (big) return { model: big, pictures: true };
+    if (big) return { model: big, pictures: sees ?? true };
   }
-  return { model: h.model, pictures: h.mode === "picture" };
+  // The user's own choice in the panel ("Look at my screen") comes before what the setup would pick.
+  return { model: h.model, pictures: sees ?? h.mode === "picture" };
 }
 
 async function installedModels(): Promise<string[]> {
@@ -83,9 +89,9 @@ export async function serverSetup(preference?: unknown, installed?: string[]): P
 }
 
 /** The local helper for a question under the user's setup preference (throws when none fits, saying why). */
-export async function resolveLocalHelper(preference: unknown, question: string): Promise<LocalHelper> {
+export async function resolveLocalHelper(preference: unknown, question: string, sees?: boolean): Promise<LocalHelper> {
   const installed = process.env.BUDDY_LOCAL_MODEL ? [] : await installedModels();
-  return localHelper(await serverSetup(preference, installed), installed, question);
+  return localHelper(await serverSetup(preference, installed), installed, question, undefined, typeof sees === "boolean" ? sees : undefined);
 }
 
 /** Loads the setup's screen helper and keeps it loaded for 30 minutes (empty prompt: Ollama only loads). */
@@ -154,7 +160,9 @@ async function* lines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> 
 }
 
 export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper, shape?: AskShape): AsyncGenerator<string> {
-  const { model, pictures } = helper ?? (await resolveLocalHelper(req.setup, req.question));
+  const chosen = helper ?? (await resolveLocalHelper(req.setup, req.question, req.sees));
+  const model = chosen.model;
+  const pictures = shape?.pictures ?? chosen.pictures;
   const history = trimHistory(req.history ?? []).map((t) => ({ role: t.role, content: t.text }));
   let res: Response;
   try {
@@ -205,7 +213,11 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
   }
 }
 
+/** Online: the screenshots go unless the user switched "Look at my screen" off or the call needs none. */
+const cloudPictures = (req: BuddyAskRequest, shape?: AskShape) => shape?.pictures ?? req.sees !== false;
+
 async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal, shape?: AskShape): AsyncGenerator<string> {
+  const pictures = cloudPictures(req, shape);
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("No OpenRouter key: add OPENROUTER_API_KEY, or switch the buddy to the local model.");
   const history = trimHistory(req.history ?? []).map((t) => ({ role: t.role, content: t.text }));
@@ -226,11 +238,11 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal, shape?
       max_tokens: shape?.maxTokens ?? 1500,
       ...(shape?.format ? { response_format: { type: "json_object" } } : {}),
       messages: [
-        { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "") },
+        { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures }) },
         ...history,
         {
           role: "user",
-          content: [{ type: "text", text: req.question }, ...req.images.map((url) => ({ type: "image_url", image_url: { url } }))],
+          content: [{ type: "text", text: req.question }, ...(pictures ? req.images : []).map((url) => ({ type: "image_url", image_url: { url } }))],
         },
       ],
       // Only the company the notice named runs the model (lib/openrouter.ts, openRouterProvider).
@@ -260,13 +272,14 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal, shape?
  */
 async function* askFreeLlm(req: BuddyAskRequest, signal?: AbortSignal, shape?: AskShape): AsyncGenerator<string> {
   const history = trimHistory(req.history ?? []).map((t) => ({ role: t.role, content: t.text }));
+  const pictures = cloudPictures(req, shape);
   yield* freellmStream({
     temperature: 0.3,
     max_tokens: shape?.maxTokens ?? 1500,
     messages: [
-      { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "") },
+      { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures }) },
       ...history,
-      { role: "user", content: [{ type: "text", text: req.question }, ...req.images.map((url) => ({ type: "image_url", image_url: { url } }))] },
+      { role: "user", content: [{ type: "text", text: req.question }, ...(pictures ? req.images : []).map((url) => ({ type: "image_url", image_url: { url } }))] },
     ],
   }, signal);
 }
