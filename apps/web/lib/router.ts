@@ -2,7 +2,6 @@
 // call per candidate, pick the lowest-latency setup for each task of a take. Pure function
 // (buildPlan) so it is unit-tested; the probes and the inventory are gathered by /api/local/plan.
 import type { SetupChoices } from "@filow/core";
-import { LOCAL_MODELS } from "./localModels";
 
 export type SttChoice = "sherpa" | "elevenlabs" | "openai" | "whisper" | "browser";
 export type DecisionChoice = "clef-local" | "openrouter" | "clef-cloudflare" | "matcher";
@@ -125,10 +124,4 @@ export function takeModeOf(plan: Pick<Plan, "stt" | "decision">): "local" | "clo
   if (sttLocal && decLocal) return "local";
   if (!sttLocal && !decLocal) return "cloud";
   return null;
-}
-
-/** Labels for the catalogue entries the plan refers to (for the Settings panel). */
-export function modelLabel(tag: string | null): string {
-  if (!tag) return "";
-  return LOCAL_MODELS.find((m) => m.name === tag)?.label ?? tag;
 }

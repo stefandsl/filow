@@ -245,6 +245,14 @@ describe("text clean-up", () => {
     expect(core.postProcess("Ăăă, bună ziua", { language: "ro", removeFillers: true })).toBe("Bună ziua");
     expect(core.postProcess("えーと、今日は晴れです", { language: "ja", removeFillers: true })).toBe("今日は晴れです");
     expect(core.postProcess("あの人です", { language: "ja", removeFillers: true })).toBe("あの人です");
+    expect(core.postProcess("ええと、今日は晴れです", { language: "ja", removeFillers: true })).toBe("今日は晴れです");
+    expect(core.postProcess("ええ、そうです", { language: "ja", removeFillers: true })).toBe("ええ、そうです"); // "ええ" is yes
+    // Review of this pass: units, letters and numbers are meant words.
+    expect(core.postProcess("Толщина листа 5 мм, ширина 20 мм. Буква э, буква м.", { language: "ru", removeFillers: true })).toBe("Толщина листа 5 мм, ширина 20 мм. Буква э, буква м.");
+    expect(core.postProcess("Clasa a III-a, grosime 5 mm.", { language: "ro", removeFillers: true })).toBe("Clasa a III-a, grosime 5 mm.");
+    // Russian and Romanian: sounds only, never a word that can be meant.
+    expect(core.postProcess("эээ вот это значит типа проект", { language: "ru", removeFillers: true })).toBe("вот это значит типа проект");
+    expect(core.postProcess("ăăă păi adică proiectul", { language: "ro", removeFillers: true })).toBe("păi adică proiectul");
   });
 
   it("with the language unknown, only the sounds no language uses as a word go", () => {

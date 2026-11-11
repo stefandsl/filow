@@ -128,7 +128,7 @@ Checks that need a Mac (in order):
    so (UIOHOOK_ERROR_AXAPI_DISABLED: Accessibility; UIOHOOK_ERROR_CREATE_EVENT_PORT: Input Monitoring), hold-to-talk
    stays off, the Cmd+Option+O toggle works, the panel shows the toggle hint with the hotkey list disabled,
    and a plain-words dialog (en, it) opens the right pane (Privacy_Accessibility or Privacy_ListenEvent).
-   The hook is retried every 30 s, so it should start once the permission is given. On a Mac, check: the
+   The hook is retried for as long as Filow runs (at most every 60 s), so it should start once the permission is given. On a Mac, check: the
    dialog shows once per launch; "Open System Settings" lists Filow under Accessibility (prompt=true) and
    opens the right pane; whether macOS needs Input Monitoring too for this tap (it is an active tap,
    kCGEventTapOptionDefault) and whether the retry picks it up without a restart (macOS often asks to

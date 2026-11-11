@@ -155,14 +155,28 @@ describe("whiteboard entry from OK Filow and its strings", () => {
     expect(whiteboardTopic("whiteboard:")).toBeNull();
   });
 
-  it("has every string in English and Italian, with the same placeholders, and falls back to English", () => {
+  it("has every string in the five interface languages, with the same placeholders, and falls back to English", () => {
     const holes = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(",");
-    for (const key of Object.keys(WB_TEXT.en) as Array<keyof typeof WB_TEXT.en>) {
-      expect(WB_TEXT.it[key], key).toBeTruthy();
-      expect(holes(WB_TEXT.it[key]), key).toBe(holes(WB_TEXT.en[key]));
-      expect(WB_TEXT.en[key] + WB_TEXT.it[key], key).not.toContain(String.fromCharCode(0x2014));
+    const keys = Object.keys(WB_TEXT.en) as Array<keyof typeof WB_TEXT.en>;
+    for (const lang of ["it", "ru", "ro", "ja"] as const) {
+      expect(Object.keys(WB_TEXT[lang]).sort(), lang).toEqual([...keys].sort());
+      for (const key of keys) {
+        expect(WB_TEXT[lang][key], `${lang} ${key}`).toBeTruthy();
+        expect(holes(WB_TEXT[lang][key]), `${lang} ${key}`).toBe(holes(WB_TEXT.en[key]));
+        expect(WB_TEXT[lang][key], `${lang} ${key}`).not.toContain(String.fromCharCode(0x2014));
+      }
     }
+    // a translation is not the English left in place (names and "Cloud" aside)
+    for (const lang of ["ru", "ja"] as const) expect(keys.filter((k) => WB_TEXT[lang][k] === WB_TEXT.en[k])).toEqual([]);
     expect(wbText("it", "stepOf", { n: 2, total: 5 })).toBe("Passo 2 di 5");
-    expect(wbText("ja", "stepOf", { n: 2, total: 5 })).toBe("Step 2 of 5");
+    expect(wbText("ja", "from_local")).not.toBe(WB_TEXT.en.from_local);
+    expect(wbText("de", "stepOf", { n: 2, total: 5 })).toBe("Step 2 of 5");
+  });
+
+  it("opens the whiteboard from the short form in each interface language", () => {
+    const d = String.fromCharCode(0x434, 0x43e, 0x441, 0x43a, 0x430);
+    expect(whiteboardTopic(`${d}: abc`)).toBe("abc");
+    expect(whiteboardTopic("tabla: fotosinteza")).toBe("fotosinteza");
+    expect(whiteboardTopic(String.fromCharCode(0x30db, 0x30ef, 0x30a4, 0x30c8, 0x30dc, 0x30fc, 0x30c9, 0xff1a) + "abc")).toBe("abc");
   });
 });

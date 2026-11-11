@@ -13,6 +13,7 @@ import {
   resolveSetup,
   type DecisionProviderId,
   type ImportResponse,
+  type Lang,
   type MachineInfo,
   type ResolvedSetup,
   type ScreenMode,
@@ -23,7 +24,7 @@ import {
 } from "@filow/core";
 import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
 import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, sherpaUsable, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
-import { getSetupPreference, getSpeechLang, getStartMode, setDecisionProvider, setStartMode } from "@/lib/prefs";
+import { getSetupPreference, getStartMode, setDecisionProvider, setStartMode, speechLangFor, syncSpeechLang } from "@/lib/prefs";
 import { loadGate } from "@/lib/gate/client";
 import { useEngine } from "./useEngine";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
@@ -71,7 +72,7 @@ export default function Teleprompter() {
   );
 }
 
-function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it") => void; theme: "system" | "light" | "dark"; onTheme: (t: "system" | "light" | "dark") => void }) {
+function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => void; theme: "system" | "light" | "dark"; onTheme: (t: "system" | "light" | "dark") => void }) {
   const t = useT();
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
@@ -273,11 +274,11 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       fetch("/api/stt/status").then((r) => r.json()).catch(() => ({ elevenlabs: false, openai: false })) as Promise<SttStatus>,
       fetch("/api/local/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null) as Promise<{ openrouterKey?: boolean; ollama?: { ok: boolean }; models?: Array<{ name: string; installed: boolean }>; hardware?: MachineInfo } | null>,
       whisperCached(selectedWhisperModel()).catch(() => false),
-      // The shell picks its model by the spoken language: hand it the one chosen in Settings first.
+      // The shell picks its model by the spoken language it holds; this also refreshes the page's copy.
       (async () => {
         const b = sherpaBridge();
         if (!b) return false;
-        return sherpaUsable(await (b.setLanguage ? b.setLanguage(getSpeechLang()) : b.status()));
+        return sherpaUsable((await syncSpeechLang(b)).status!);
       })().catch(() => false),
     ]);
     return {
@@ -436,7 +437,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       {
         // Explicit backend from the chosen mode: never fall back silently.
         // A cloud engine's token request carries the consent key; the server refuses it otherwise.
-        const b = createBackend(backend, { headers: { ...engineHeaders(), ...outbound.header("audio", sttTo) }, language: backend === "whisper" && getSpeechLang() === "auto" ? lang : getSpeechLang() });
+        const b = createBackend(backend, { headers: { ...engineHeaders(), ...outbound.header("audio", sttTo) }, language: speechLangFor(lang, backend !== "whisper") });
         pendingBackend = b;
         // The signal is on from before the first sound can leave until the take ends.
         if (sttTo) micSignal.current = releaseMic = outbound.hold("audio", sttTo);
@@ -630,7 +631,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       </main>
       </div>
       {displayOpen && <DisplayPanel prefs={display} onChange={setDisplay} onClose={() => setDisplayOpen(false)} pointsWindow={pointsWindow} />}
-      <ActionBar start={<>
+      <ActionBar label={t("ctl.controls")} start={<>
         {eng.recording ? (
           <button className="btn primary" onClick={stopTake}>
             <Icon name="stop" /> {t("ctl.stop")}
@@ -644,10 +645,10 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
           </>
         )}
 </>} mode={<><label className="backend-choice"><span>{t("ctl.mode")}</span>
-        <select className="btn" value={choice} disabled={eng.recording} onChange={(e) => setChoice(e.target.value as BackendChoice)} title={choice === "auto" ? t("ctl.auto") : BACKEND_LABELS[choice]} aria-label={t("ctl.backend")}>
+        <select className="btn" value={choice} disabled={eng.recording} onChange={(e) => setChoice(e.target.value as BackendChoice)} title={choice === "auto" ? t("ctl.auto") : choice === "sherpa" ? t("ctl.backend.sherpa") : BACKEND_LABELS[choice]} aria-label={t("ctl.backend")}>
           <option value="auto" title={t("ctl.auto")}>{t("ctl.auto.short")}</option>
           {availability.map((id) => (
-            <option key={id} value={id} title={BACKEND_LABELS[id]}>
+            <option key={id} value={id} title={id === "sherpa" ? t("ctl.backend.sherpa") : BACKEND_LABELS[id]}>
               {t(`ctl.backend.${id}.short`)}
             </option>
           ))}
@@ -937,7 +938,7 @@ export function ScriptEditor({
           </button>
           <span className="hint" style={{ marginLeft: "auto" }}>{t("editor.translateTo")}</span>
           <select className="btn" value={to} onChange={(e) => setTo(e.target.value)} disabled={busy} aria-label={t("editor.translateTo")}>
-            {[["en", "English"], ["it", "Italiano"], ["ro", "Română"], ["ru", "Русский"], ["de", "Deutsch"], ["fr", "Français"], ["es", "Español"]].map(([k, l]) => (
+            {[["en", "English"], ["it", "Italiano"], ["ru", "Русский"], ["ro", "Română"], ["ja", "日本語"], ["de", "Deutsch"], ["fr", "Français"], ["es", "Español"]].map(([k, l]) => (
               <option key={k} value={k}>
                 {l}
               </option>

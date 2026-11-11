@@ -2,8 +2,8 @@
 ; Pages: welcome, information (build/info_*.txt: what Filow is and what's new), licence (build/license_*.txt),
 ; directory, components (Filow plus the local AI models with sizes and setup types; "recommended" comes
 ; from a quick hardware scan), install, finish with
-; "Run now" and "Create desktop shortcut". Strings are set at run time from $LANGUAGE: Italian and
-; English; other installer languages fall back to English.
+; "Run now" and "Create desktop shortcut". Strings are set at run time from $LANGUAGE (one block per
+; installer language in customInit); a language without a block falls back to English.
 !include nsDialogs.nsh
 !include LogicLib.nsh
 !include FileFunc.nsh
@@ -679,6 +679,36 @@ SectionEnd
     StrCpy $InfoTitle "信息"
     StrCpy $InfoSub "继续之前，请阅读以下重要信息。"
     StrCpy $InfoTop "准备好继续时，请点击“下一步”。"
+  ${ElseIf} $LANGUAGE == 1048
+    StrCpy $WelcomeTitle "Bun venit în Filow"
+    StrCpy $WelcomeText "Vorbește liber. Rămâi la obiect.$\r$\n$\r$\nAcest asistent instalează Filow pe computerul tău: partenerul de prezentare care te ascultă în timp ce vorbești, îți bifează punctele pe măsură ce le spui și îți arată ce ai omis, cu oglindă pe telefon, Screen Sense și programul de completare pentru PowerPoint.$\r$\n$\r$\nÎnchide celelalte aplicații înainte de a continua.$\r$\n$\r$\n© VoidExploit. Apasă pe Înainte pentru a continua."
+    StrCpy $ModelsTitle "AI local pe acest PC"
+    StrCpy $ModelsSub "Scanare rapidă a hardware-ului și modele recomandate"
+    StrCpy $HwLine "Acest PC: $RamGb GB RAM · $GpuName · $FreeGb GB liberi pe $R3"
+    StrCpy $ModelsIntro "Bifează ce să se descarce la prima pornire. '– recomandat' rulează bine pe acest PC; celelalte note spun ce lipsește. Poți schimba totul mai târziu din Setări."
+    StrCpy $LblWhisperBase "Whisper base: recunoaștere vocală pe dispozitiv (150 MB)"
+    StrCpy $LblWhisperSmall "Whisper small: recunoaștere vocală mai precisă (500 MB, necesită GPU)"
+    StrCpy $LblClef "Clef Flash: decizii locale (11 GB, 16 GB RAM)"
+    StrCpy $LblGemmaSmall "Gemma 4 E2B: scenariu din slide-uri (6 GB, 8 GB RAM)"
+    StrCpy $LblGemmaBig "Gemma 4 E4B: scenariu din slide-uri, mai bun (9 GB, 16 GB RAM)"
+    StrCpy $LblOllama "Instalează Ollama în fundal (motorul modelelor locale, 1 GB; necesar pentru Clef și Gemma)"
+    StrCpy $RunText "Pornește Filow"
+    StrCpy $ShortcutText "Creează o comandă rapidă pe desktop"
+    StrCpy $SfxRec " – recomandat"
+    StrCpy $SfxRam8 " – necesită 8 GB RAM"
+    StrCpy $SfxRam16 " – necesită 16 GB RAM"
+    StrCpy $SfxDisk " – spațiu pe disc insuficient"
+    StrCpy $SfxGpu " – necesită GPU"
+    StrCpy $SfxHave " – deja instalat"
+    StrCpy $LblOllamaHave "Ollama este deja instalat pe acest PC: nu mai e nimic de descărcat pentru el"
+    StrCpy $LblApp "Filow (obligatoriu)"
+    StrCpy $LblGroupAI "AI local (descărcat la prima pornire)"
+    StrCpy $TypeRec "Recomandată pentru acest PC"
+    StrCpy $TypeFull "Completă"
+    StrCpy $TypeMin "Minimă (doar Filow)"
+    StrCpy $InfoTitle "Informații"
+    StrCpy $InfoSub "Citește informațiile importante de mai jos înainte de a continua."
+    StrCpy $InfoTop "Când ești gata să continui, apasă pe Înainte."
   ${Else}
     StrCpy $WelcomeTitle "Welcome to Filow"
     StrCpy $WelcomeText "Speak freely. Stay on point.$\r$\n$\r$\nThis wizard installs Filow on your computer: the live speaking companion that listens as you present, checks off your talking points as you cover them and shows what you missed, with a phone mirror, Screen Sense and the PowerPoint add-in.$\r$\n$\r$\nClose other applications before continuing.$\r$\n$\r$\n© VoidExploit. Click Next to continue."
@@ -728,8 +758,9 @@ SectionEnd
   LicenseLangString FilowInfo 1046 "${BUILD_RESOURCES_DIR}\info_en.txt"
   LicenseLangString FilowInfo 1043 "${BUILD_RESOURCES_DIR}\info_en.txt"
   LicenseLangString FilowInfo 1045 "${BUILD_RESOURCES_DIR}\info_en.txt"
-  LicenseLangString FilowInfo 1049 "${BUILD_RESOURCES_DIR}\info_en.txt"
-  LicenseLangString FilowInfo 1041 "${BUILD_RESOURCES_DIR}\info_en.txt"
+  LicenseLangString FilowInfo 1049 "${BUILD_RESOURCES_DIR}\info_ru.txt"
+  LicenseLangString FilowInfo 1041 "${BUILD_RESOURCES_DIR}\info_ja.txt"
+  LicenseLangString FilowInfo 1048 "${BUILD_RESOURCES_DIR}\info_ro.txt"
   LicenseLangString FilowInfo 2052 "${BUILD_RESOURCES_DIR}\info_en.txt"
   !define MUI_PAGE_HEADER_TEXT "$InfoTitle"
   !define MUI_PAGE_HEADER_SUBTEXT "$InfoSub"
@@ -789,6 +820,12 @@ SectionEnd
   ${EndIf}
   ${If} $LANGUAGE == 1040
     StrCpy $2 "it"
+  ${ElseIf} $LANGUAGE == 1049
+    StrCpy $2 "ru"
+  ${ElseIf} $LANGUAGE == 1048
+    StrCpy $2 "ro"
+  ${ElseIf} $LANGUAGE == 1041
+    StrCpy $2 "ja"
   ${Else}
     StrCpy $2 "en"
   ${EndIf}

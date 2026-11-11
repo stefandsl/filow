@@ -8,13 +8,13 @@ import { SherpaLanguageNote } from "@/components/SherpaLanguageNote";
 import { Wordmark, LangProvider, useT } from "@filow/ui";
 import { engineHeaders, ensureEngineToken } from "@/components/useSession";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
-import { getDecisionProvider, getGateMode, getScreenMode, getSetupPreference, getSpeechLang, getStartMode, SPEECH_LANGS, setDecisionProvider, setGateMode, setScreenMode, setSetupPreference, setSpeechLang, setStartMode, type GateMode, type SpeechLang, type StartMode } from "@/lib/prefs";
+import { getDecisionProvider, getGateMode, getScreenMode, getSetupPreference, getSpeechLang, getStartMode, SPEECH_LANGS, setDecisionProvider, setGateMode, setScreenMode, setSetupPreference, chooseSpeechLang, syncSpeechLang, setStartMode, type GateMode, type SpeechLang, type StartMode } from "@/lib/prefs";
 import { loadGate } from "@/lib/gate/client";
 import { screenBridge } from "@/lib/screen/watcher";
 import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/sessionUrl";
+import { localAiBusy, localAiEnsureStep, localAiNeedsReport, localAiText } from "@/lib/localAiStatus";
 import { placementText, ResourcesPanel, useResources } from "@/components/ResourcesPanel";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
-import { modelLabel } from "@/lib/router";
 import { MicrophoneSelect } from "@/components/MicrophoneSelect";
 import { OkFilowSettings } from "@/components/OkFilowSettings";
 import { DictationSettings } from "@/components/DictationSettings";
@@ -122,8 +122,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   useEffect(() => {
     const b = sherpaBridge();
     if (!b) return;
-    // The shell picks its model by the spoken language chosen below.
-    void (b.setLanguage ? b.setLanguage(getSpeechLang()) : b.status()).then(setSherpa);
+    // The shell holds the spoken language (and picks its model by it): read it from there.
+    void syncSpeechLang(b).then(({ lang: spoken, status }) => { setSpeechLangState(spoken); if (status) setSherpa(status); });
     return b.onStatus((s) => setSherpa(s));
   }, []);
 
@@ -163,21 +163,25 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     return off;
   }, [refresh]);
 
-  const aiText = (s: LocalAiStatus) =>
-    s.state === "idle" ? "" : t(`settings.ai.${s.state}`, { pct: s.pct, v: s.version, error: s.error });
+  const aiText = (s: LocalAiStatus) => localAiText(s, t);
 
   /** Ask the desktop shell to install Ollama and resolve once it answers (or give up after 30 minutes). */
   const ensureOllama = async (): Promise<boolean> => {
     const la = desktopBridge()?.localAi;
     if (!la) return false;
-    const now = await la.status();
-    if (now.state !== "downloading" && now.state !== "installing" && now.state !== "starting" && now.state !== "checking") la.install();
+    let asked = false;
+    let fresh = false;
     const until = Date.now() + 30 * 60_000;
     while (Date.now() < until) {
-      const s = await la.status();
-      if (s.state === "ready") return true;
-      if (s.state === "error" || s.state === "manual") return false;
-      await new Promise((r) => setTimeout(r, 2000));
+      const step = localAiEnsureStep(await la.status(), asked, fresh);
+      if (step === "ready") return true;
+      if (step === "failed") return false;
+      if (step === "wait") fresh = true;
+      if (step === "ask") {
+        asked = true;
+        la.install();
+      }
+      await new Promise((r) => setTimeout(r, step === "ask" ? 300 : 2000));
     }
     return false;
   };
@@ -373,11 +377,13 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     setDecisionProvider(id);
   };
 
-  /** Model descriptions live in the dictionary (model.<name>); the catalogue text is the English fallback. */
-  const describe = (m: { name: string; description: string }) => {
-    const key = `model.${m.name}` as I18nKey;
+  /** Model names and descriptions live only in the dictionary (modelLabel.<name>, model.<name>). */
+  const describe = (m: { name: string }) => t(`model.${m.name}` as I18nKey);
+  const label = (name: string | null) => {
+    if (!name) return "";
+    const key = `modelLabel.${name}` as I18nKey;
     const text = t(key);
-    return text === key ? m.description : text;
+    return text === key ? name : text;
   };
 
   const providerLabel = (id: string) => (id === "openrouter" || id === "clef-local" || id === "clef-cloudflare" || id === "matcher" ? t(`provider.${id}`) : id);
@@ -435,7 +441,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               <div className="planrows">
                 <div><strong>{t("plan.task.stt")}</strong> {t(`plan.stt.${plan.stt.backend ?? "none"}`)} <span className="hint">· {t(`plan.reason.${plan.stt.reason}` as I18nKey)}</span></div>
                 <div><strong>{t("plan.task.decision")}</strong> {t(`plan.decision.${plan.decision.provider ?? "none"}`)}{plan.decision.measuredMs ? ` · ${plan.decision.measuredMs} ms` : ""} <span className="hint">· {t(`plan.reason.${plan.decision.reason}` as I18nKey)}</span></div>
-                <div><strong>{t("plan.task.generate")}</strong> {plan.generate.provider === "ollama" ? modelLabel(plan.generate.model) : t(`plan.decision.${plan.generate.provider === "openrouter" ? "openrouter" : "none"}`)} <span className="hint">· {t(`plan.reason.${plan.generate.reason}` as I18nKey)}</span></div>
+                <div><strong>{t("plan.task.generate")}</strong> {plan.generate.provider === "ollama" ? label(plan.generate.model) : t(`plan.decision.${plan.generate.provider === "openrouter" ? "openrouter" : "none"}`)} <span className="hint">· {t(`plan.reason.${plan.generate.reason}` as I18nKey)}</span></div>
                 <div><strong>{t("plan.task.vision")}</strong> {t(`plan.decision.${plan.vision.provider === "openrouter" ? "openrouter" : "none"}`)}</div>
                 {plan.expectedTickMs !== null && <div className="hint">{t("plan.expected", { s: (plan.expectedTickMs / 1000).toFixed(1) })}</div>}
               </div>
@@ -459,8 +465,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                     checked={speechLang === l}
                     onChange={() => {
                       setSpeechLangState(l);
-                      setSpeechLang(l);
-                      void sherpaBridge()?.setLanguage?.(l).then(setSherpa);
+                      void chooseSpeechLang(l, sherpaBridge()).then((s) => { if (s) setSherpa(s); });
                     }}
                   />{" "}
                   {t(`speech.${l}`)}
@@ -563,7 +568,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
             {hw && (
               <div className="hint">
                 {t("settings.hardware", { gpu: hw.gpu || "-", free: hw.freeGb })}
-                {hw.recommended.models.length > 0 && <> · {t("settings.recommendedList", { list: hw.recommended.labels.join(", "), gb: hw.recommended.downloadGb })}</>}
+                {hw.recommended.models.length > 0 && <> · {t("settings.recommendedList", { list: hw.recommended.models.map((n) => t(`catalog.${n}` as I18nKey)).join(", "), gb: hw.recommended.downloadGb })}</>}
               </div>
             )}
             {autoList.length > 0 && <div className="hint">{t("settings.autoSetup", { list: autoList.join(", ") })}</div>}
@@ -571,13 +576,26 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               <div className="row">
                 <button
                   className="btn primary"
-                  disabled={Boolean(ai && ["checking", "downloading", "installing", "starting"].includes(ai.state))}
+                  disabled={localAiBusy(ai)}
                   onClick={() => desktopBridge()?.localAi?.install()}
                 >
-                  {t("settings.aiInstallBtn")}
+                  {ai?.state === "error" ? t("settings.ai.retry") : t("settings.aiInstallBtn")}
                 </button>
-                {ai && ai.state !== "idle" && <span className={`chip ${ai.state === "error" ? "err" : ai.state === "ready" ? "live" : "busy"}`}>{aiText(ai)}</span>}
-                <span className="hint">{t("settings.aiHint")}</span>
+                {/* this row is only there while Ollama is not usable: an old "ready" would contradict the chip above */}
+                {localAiBusy(ai) && ai && <span className="chip busy">{aiText(ai)}</span>}
+                {/* after a failure the line below says what to do; "downloads the installer" would be wrong for an Ollama that is installed */}
+                {ai?.state !== "error" && <span className="hint">{t("settings.aiHint")}</span>}
+              </div>
+            )}
+            {!status.ollama.ok && ai?.state === "error" && (
+              <div className="row" role="alert" data-testid="ollama-failure" style={{ alignItems: "center", gap: 12, margin: "8px 0" }}>
+                {/* full-size text: this is the line the user has to read and act on, not a status chip */}
+                <span style={{ color: "var(--warn)", flex: "1 1 420px" }}>{aiText(ai)}</span>
+                {localAiNeedsReport(ai) && desktopBridge()?.reportProblem && (
+                  <button type="button" className="btn small" onClick={() => desktopBridge()?.reportProblem?.()}>
+                    {t("log.report")}
+                  </button>
+                )}
               </div>
             )}
             {ai?.state === "manual" && (
@@ -601,7 +619,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
             {status.models.map((m) => (
               <div key={m.name} className="model">
                 <div>
-                  <strong>{m.label}</strong> <span className="chip">{m.kind}</span>{" "}
+                  <strong>{label(m.name)}</strong> <span className="chip">{t(`plan.task.${m.kind}` as I18nKey)}</span>{" "}
                   <span className={`chip ${m.fit === "fits" ? "live" : m.fit === "tight" ? "" : "err"}`}>{t(`fit.${m.fit}`)}</span>
                   {m.runtime !== "sherpa" && (m.installed || cached[m.name]) && <span className="chip live">{t("settings.installed")}</span>}
                   {res?.loaded.some((l) => l.name === m.name || l.name.startsWith(`${m.name}:`)) &&
@@ -676,7 +694,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                   {m.status === "available" && m.runtime === "ollama" && !m.installed && (
                     <>
                       <button className="btn primary" disabled={!m.ollamaOk || Boolean(progress[m.name])} onClick={() => void pull(m.name)}>
-                        {progress[m.name] ? progress[m.name] : t("settings.pull")}
+                        {progress[m.name] ? progress[m.name] : t("settings.download")}
                       </button>
                       {progress[m.name] && (
                         <button className="btn danger" title={t("settings.cancelPullHint")} onClick={() => cancelPull(m.name)}>

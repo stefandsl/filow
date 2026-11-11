@@ -476,3 +476,10 @@ Phases 3, 4 and 5 are independent once phase 2 exists and can run in parallel; 6
 
 1. Default vision model and whether Real-time mode is enabled by default (cost).
 2. Whether the hosted server should offer sign-in once more than one presenter shares it (currently a non-goal).
+
+## Names and languages
+
+- **OK Filow** is the name users see for the assistant. In code it is `okfilow` (windows, IPC, pages); `buddy` is the legacy name (`lib/buddy`, `/api/buddy`, `X-Buddy-Lang`) and means the same feature. The rename waits for a moment with no open branch.
+- **Public link** is the name users see for sharing to a phone on another network. In code: `remoteShare` (setting), `tunnels.js` (Cloudflare quick tunnel).
+- Interface languages: en, it, ru, ro, ja. Every user-facing string is a key in `packages/core/src/i18n/<lang>.ts` (web app, shell menu and dialogs, About, splash, welcome, add-in, extension); OK Filow and Dictation keep their tables in `apps/web/lib/buddy/text*.ts` and `apps/web/lib/dictation/text*.ts`. English is the reference; parity tests fail when a language misses a key or a placeholder. The privacy policy (`docs/PRIVACY*.md`) is legal text and stays in English and Italian.
+- Spoken languages (speech-to-text, voice, answers, dictation, rehearsal report) are one list, `SPOKEN_LANGS` in `packages/core/src/spoken.ts`, with the one language detector.

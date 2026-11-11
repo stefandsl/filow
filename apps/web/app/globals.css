@@ -164,8 +164,7 @@ input.btn { text-transform: none; letter-spacing: 0; font-family: var(--font); }
 input.btn.hotkey { width: min(100%, 320px); }
 .keys { display: inline-flex; gap: 4px; align-items: center; }
 .keys kbd { font: var(--type-sm)/1 var(--font); padding: 8px 8px 8px; border-width: 0; border-radius: var(--radius); background: var(--surface-2); color: var(--text); }
-.langswitch { display: inline-flex; gap: 4px; }
-.langswitch .chip { padding: 4px 8px; }
+.langswitch { max-width: 11em; }
 
 /* Presenter overlay (desktop window on top of the slide show) */
 .overlay { display: flex; flex-direction: column; min-height: 100vh; }
@@ -244,7 +243,8 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .section-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 20ch; }
 .section-number { flex-shrink: 0; }
 .nav-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-.prompter-main { min-width: 0; padding: 24px; }
+/* The Screen Sense strip sticks to the bottom of this scroller: a point brought into view (focus, the current point) stops above it (R1). */
+.prompter-main { min-width: 0; padding: 24px; scroll-padding-bottom: 96px; }
 .section-nav { flex-direction: column; padding: 24px 16px; border-right: 1px solid var(--border); background: var(--sidebar); }
 .nav-heading { display: flex; flex-direction: column; gap: 8px; }
 .section-nav-list { flex-direction: column; max-height: calc(100vh - 280px); }
@@ -298,7 +298,11 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .action-bar select { max-width: 200px; }
 .microphone-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; margin-top: 12px; }
 .microphone-picker select { max-width: min(100%, 420px); min-width: 0; text-overflow: ellipsis; }
-.microphone-picker.compact { margin-top: 0; font-size: 13px; max-width: min(100%, 320px); }
+/* One row on one baseline: label, select and the "allow" button; the button keeps its sentence on one line while there is room (R3). */
+.microphone-picker.compact { margin-top: 0; font-size: 13px; max-width: 100%; }
+.action-bar .microphone-picker.compact select { flex: 1 1 auto; width: auto; max-width: min(100%, 280px); }
+.microphone-picker.compact > button { white-space: nowrap; }
+@media (max-width: 900px) { .microphone-picker.compact > button { white-space: normal; text-align: left; } }
 .microphone-note { flex-basis: 100%; }
 .mic-warning { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; white-space: normal; font-size: 14px; line-height: 1.4; border-radius: var(--radius); }
 .status-strip { grid-area: status; min-width: 0; display: grid; grid-template-columns: minmax(180px, 1fr) minmax(0, 2fr); gap: 16px; align-items: start; min-height: 40px; padding: 12px 24px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -471,3 +475,13 @@ dialog.modal-bg.accessible-dialog:has(> .display-panel)::backdrop { background: 
   .prompter .point-row.here, .app.stage .point.here { outline: 2px solid Highlight; }
   .display-option input:checked + span { forced-color-adjust: none; background: Highlight; color: HighlightText; }
 }
+
+/* Japanese has no spaces: break lines by its own rules (never before a small kana or a closing mark),
+   and keep phrases whole in headings, buttons and labels (Inter has no Japanese glyphs: the stack names the system faces). */
+:lang(ja) { line-break: strict; word-break: normal; }
+:lang(ja) :is(h1, h2, h3, button, .btn, .chip, .label, label, summary, option) { word-break: auto-phrase; }
+
+/* R1: the Screen Sense strip sticks to the bottom of the points scroller. A soft edge above it shows the
+   list goes on underneath; on a phone-sized window it would cover the whole list, so there it scrolls with the page. */
+.screen-sense::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 28px; background: linear-gradient(to top, var(--bg), transparent); pointer-events: none; }
+@media (max-width: 700px), (max-height: 620px) { .screen-sense { position: static; } .screen-sense::before { display: none; } }

@@ -19,7 +19,7 @@ export const BACKEND_LABELS: Record<SttBackendId, string> = {
   openai: "OpenAI gpt-live-transcribe",
   browser: "Browser (Web Speech)",
   whisper: "Whisper on this device",
-  sherpa: "Streaming on this device (Nemotron)",
+  sherpa: "Speech model on this device",
 };
 
 export type BackendOptions = {

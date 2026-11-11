@@ -30,7 +30,7 @@ contextBridge.exposeInMainWorld("okFilow", {
   showWhiteboard: (topic) => ipcRenderer.send("okfilow:whiteboard:show", String(topic || "")),
   whiteboardReady: () => ipcRenderer.send("okfilow:whiteboard:ready"),
   closeWhiteboard: () => ipcRenderer.send("okfilow:whiteboard:close"),
-  typeText: (text, language) => ipcRenderer.invoke("okfilow:typeText", text, language),
+  typeText: (text, language, phrase) => ipcRenderer.invoke("okfilow:typeText", text, language, phrase === true),
   handsFreeOff: () => ipcRenderer.send("okfilow:handsfreeOff"),
   agents: {
     start: (text, context) => ipcRenderer.invoke("okfilow:agent:start", text, context),

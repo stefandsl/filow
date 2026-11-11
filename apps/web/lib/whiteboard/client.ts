@@ -85,7 +85,8 @@ export async function readLessonStream(body: ReadableStream<Uint8Array>, onEvent
 
 const TOPIC = [
   // "whiteboard: photosynthesis", "lavagna: la fotosintesi"
-  /^\s*(?:on the\s+)?(?:whiteboard|lavagna)\s*[:,-]\s*(.+)$/i,
+  // the same form in the five interface languages ("доска: фотосинтез", "tablă: fotosinteza", "ホワイトボード：光合成")
+  /^\s*(?:on the\s+)?(?:whiteboard|lavagna|доска|tablă|tabla|ホワイトボード)\s*[:：,、-]\s*(.+)$/i,
   // "explain photosynthesis on the whiteboard", "spiegami la fotosintesi alla lavagna"
   // only a request to explain: "what did he write on the whiteboard?" is an ordinary question
   /^\s*((?:explain|teach|show|draw|walk me through)\b.+?)\s+(?:on|at|with|using)\s+(?:the|a)\s+whiteboard[.!?]*\s*$/i,

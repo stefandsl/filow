@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld("filowAbout", {
   save: (description) => ipcRenderer.invoke("report:save", String(description || "")),
   copy: (description) => ipcRenderer.invoke("report:copy", String(description || "")),
   openCrashFolder: () => ipcRenderer.invoke("report:openCrashFolder"),
-  support: (kind) => ipcRenderer.invoke("report:support", kind),
+  issue: (description) => ipcRenderer.invoke("report:issue", String(description || "")),
   close: () => ipcRenderer.invoke("about:close"),
   onView: (fn) => ipcRenderer.on("about:view", (_e, view) => fn(view)),
 });

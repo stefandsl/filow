@@ -5,11 +5,11 @@ import { openRouterChat } from "@/lib/openrouter";
 import { GENERATE_TEXT_MODEL, scriptRecipient } from "@/lib/generate/providers";
 import { consentDenied } from "@/lib/buddy/outbound";
 import { anonymizeRequest, restore } from "@/lib/pii/guard";
+import { keepTimeTargets, TRANSLATE_LANGS } from "@/lib/translateScript";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const TRANSLATE_LANGS: Record<string, string> = { en: "English", it: "Italian", ro: "Romanian", ru: "Russian", de: "German", fr: "French", es: "Spanish" };
 const MAX_CHARS = 20000;
 
 /**
@@ -42,6 +42,7 @@ export async function POST(req: Request) {
     'The input is Markdown: lines starting with "# " are section titles, lines starting with "- " are points.',
     "Translate every title and every point, keeping the meaning, the tone and any product names, numbers and acronyms as they are.",
     "Keep exactly the same structure: the same number of sections and points, in the same order, one line each, same markers.",
+    "Copy any HTML comment line (<!-- ... -->) and any time in brackets at the end of a title, such as (3 min), unchanged.",
     "Output only the translated Markdown, no commentary, no code fences.",
   ].join(" ");
   try {
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
     const out = parseScript(cleaned);
     const got = { sections: out.sections.length, points: out.sections.reduce((n, s) => n + s.bullets.length, 0) };
     const structureKept = got.sections === counts.sections && got.points === counts.points;
-    return NextResponse.json({ text: serializeScript({ ...out, source: source.source }), model, cost, structureKept, expected: counts, got });
+    return NextResponse.json({ text: serializeScript(keepTimeTargets(source, out)), model, cost, structureKept, expected: counts, got });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 502 });
   }

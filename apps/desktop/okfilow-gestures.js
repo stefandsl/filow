@@ -1,8 +1,10 @@
 // OK Filow keyboard gestures, HeyClicky-style (docs/OKFILOW-GAUNTLET.md rows 1-4):
 //   talk       hold the talk chord (default Ctrl+Alt)            -> talk:start / talk:end / talk:cancel
 //   dictate    hold the dictation chord (default Ctrl+Win)       -> dictate:start / dictate:end / dictate:cancel
-//              or, in toggle mode, press and let go to start, again to stop; Escape cancels
-//   hands-free tap the dictation chord twice (hold mode only)    -> handsfree:toggle
+//   hands-free dictation (issue #2, like Wispr Flow): tap the dictation chord twice, or in toggle mode
+//              press it once and let go                           -> dictate:handsfree
+//              then press it once more -> dictate:end; Escape -> dictate:cancel
+//   hands-free questions: tap the talk chord twice               -> handsfree:toggle
 //   text box   tap Ctrl twice, alone                             -> text:open
 // A chord must be held ARM_MS before it starts, so quick shortcuts never open the mic. Any other key
 // while a chord is down cancels it (Ctrl+Alt is AltGr on many layouts) and nothing fires again until
@@ -34,10 +36,12 @@ function createGestures(o) {
   let arming = null; // { kind, timer, since }
   let suppressed = false;
   let ctrlTap = { since: 0, clean: false, last: 0 };
-  const dictTap = { last: 0 };
+  // When the last short tap of each chord ended: two close together are a double tap.
+  const lastTap = { dictate: 0, talk: 0 };
   // Toggle mode (ported from Handy's transcription_coordinator.rs: a press starts, the next press stops):
   // the chord counts when it is let go cleanly, with no other key in between, so Ctrl+Win+D stays a
   // Windows shortcut. `toggled` is true while such a dictation runs; the talk chord is ignored meanwhile.
+  // A double tap in hold mode starts the same kind of session, so one more press (or Escape) ends it.
   let toggled = false;
   let tapping = false; // the dictation chord is down cleanly in toggle mode
   let tapDirty = false; // another key joined the chord: no toggle until every modifier is up
@@ -62,7 +66,7 @@ function createGestures(o) {
     else if (tapping) {
       tapping = false;
       // Let go cleanly (not another modifier added): that was a press of the dictation chord.
-      if (cause === "up") { toggled = !toggled; o.emit(toggled ? "dictate:start" : "dictate:end"); }
+      if (cause === "up") { toggled = !toggled; o.emit(toggled ? "dictate:handsfree" : "dictate:end"); }
       else tapDirty = true;
     }
     if (active && want !== active) {
@@ -72,10 +76,15 @@ function createGestures(o) {
     if (arming && want !== arming.kind) {
       const a = arming;
       disarm();
-      // A short tap of Ctrl+Win: two of them toggle hands-free.
-      if (a.kind === "dictate" && now() - a.since < TAP_MS) {
-        if (now() - dictTap.last < DOUBLE_MS) { dictTap.last = 0; o.emit("handsfree:toggle"); }
-        else dictTap.last = now();
+      // A short tap (keys let go, not another modifier added). Two taps of the dictation chord start
+      // hands-free dictation; two of the talk chord switch OK Filow's hands-free questions on or off.
+      if (cause !== "up") tapDirty = true; // Ctrl+Win+Shift: no tap until every modifier is up
+      else if (!tapDirty && now() - a.since < TAP_MS) {
+        if (now() - lastTap[a.kind] < DOUBLE_MS) {
+          lastTap[a.kind] = 0;
+          if (a.kind === "dictate") { toggled = true; o.emit("dictate:handsfree"); }
+          else o.emit("handsfree:toggle");
+        } else lastTap[a.kind] = now();
       }
     }
     if (want && want !== "dictate-toggle" && !active && !arming) {
@@ -114,7 +123,7 @@ function createGestures(o) {
     update("up");
   }
 
-  /** Escape stops a toggle-mode dictation without typing anything. */
+  /** Escape stops a hands-free dictation; what was said since the last typed phrase is not typed. */
   function escape() {
     if (!toggled) return;
     toggled = false;
@@ -132,6 +141,8 @@ function createGestures(o) {
     for (const m of MODS) down[m] = false;
     suppressed = false;
     ctrlTap = { since: 0, clean: false, last: 0 };
+    lastTap.dictate = 0;
+    lastTap.talk = 0;
     disarm();
     tapping = false;
     tapDirty = false;

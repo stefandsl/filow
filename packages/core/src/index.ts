@@ -6,6 +6,7 @@ export * from "./clef";
 export * from "./screen";
 export * from "./generate";
 export * from "./i18n";
+export * from "./spoken";
 export * from "./engine";
 export * from "./gauntlet";
 export * from "./gate";

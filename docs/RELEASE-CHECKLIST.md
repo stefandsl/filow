@@ -10,7 +10,7 @@ the owner can take are in docs/OWNER-DECISIONS.md; this file says what each one 
 |---|---|---|
 | Privacy policy in the app (About and privacy, offline) and in the repo (docs/PRIVACY.md, PRIVACY.it.md) | written from the code; the publisher's name, address, contact, report retention and supervisory authority are placeholders `[[...]]` | D33 |
 | Children and classroom section of the policy confirmed by a legal adviser | placeholder in the policy | D33 |
-| Private problem reports | the app saves a masked report to a file and sends nothing; where to send it is a placeholder (`SUPPORT` in apps/desktop/about.js) | D33 |
+| Problem reports | the app shows a masked report and sends nothing by itself; the user saves it to a file or presses "Open an issue on GitHub", which opens a public issue on the project's page (`SUPPORT` in apps/desktop/about.js), after a notice | done (GitHub issue #5) |
 | Public link (Cloudflare) off by default or noticed | on by default, stated plainly in the policy | D31 |
 | Phone mirror server on every network card | unchanged | D3 |
 | One Filow per profile | done: a second launch brings the running window forward and starts nothing | - |

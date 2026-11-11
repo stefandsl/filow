@@ -178,7 +178,8 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
     if (signal?.aborted) return;
     // the 3-minute limit: Ollama is there but busy (on a small graphics card the larger AI may hold it)
     if (e instanceof Error && e.name === "TimeoutError") throw new Error(OLLAMA_TOO_SLOW, { cause: e });
-    throw new Error(`Ollama, which runs OK Filow's answers on this PC, is not running. Install it in Settings > Local models, or set "Answers from" to Cloud in the OK Filow panel.`, { cause: e });
+    // The desktop shell reads "is not running" (localai.js OLLAMA_STOPPED) and starts an installed Ollama in the background.
+    throw new Error(`Ollama, which runs OK Filow's answers on this PC, is not running. If it is installed, Filow is starting it now: ask again in a minute. If not, install it in Settings > Local models, or set "Answers from" to Cloud in the OK Filow panel.`, { cause: e });
   }
   if (res.status === 404) throw new Error(`The screen helper for this computer's setup is not downloaded yet. Get it in Settings > Local models with "Download now", or set "Answers from" to Cloud in the OK Filow panel.`);
   if (!res.ok || !res.body) throw new Error(`Ollama ${res.status}: ${(await res.text()).slice(0, 300)}`);

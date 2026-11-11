@@ -50,7 +50,7 @@ export function DictationSettings({ lang }: { lang: string }) {
         <input type="checkbox" checked={s.enabled} onChange={(e) => void set({ enabled: e.target.checked })} />
         <span>{t("enabled")}</span>
       </label>
-      {s.enabled && s.copyReason === "nohook" && <div className="dictation-alert" role="alert">{t("copyNohook")}</div>}
+      {s.enabled && (s.hookReady === false || s.copyReason === "nohook") && <div className="dictation-alert" role="alert">{t("copyNohook")}</div>}
 
       <label className="row">
         <span>{t("shortcut")}</span>
@@ -71,6 +71,7 @@ export function DictationSettings({ lang }: { lang: string }) {
         <label><input type="radio" name={`${id}-mode`} checked={s.mode === "toggle"} onChange={() => void set({ mode: "toggle" })} /> {t("modeToggle")}</label>
       </fieldset>
       <div className="hint">{s.mode === "toggle" ? t("modeToggleHint") : t("togglesHandsFree")}</div>
+      {s.talkLabel && <div className="hint">{t("handsFreeQuestions", { talk: s.talkLabel })}</div>}
 
       <label className="row">
         <span>{t("language")}</span>

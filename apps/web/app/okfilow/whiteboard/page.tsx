@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type For
 import { useLang } from "@filow/ui";
 import "katex/dist/katex.min.css";
 import { okFilowBridge, type OkFilowStatus } from "@/lib/buddy/bridge";
-import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
+import { okfText, OLLAMA_STOPPED_ANSWER, type OkfKey } from "@/lib/buddy/text";
 import { askRoute, changesStored, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
 import { createSpeaker } from "@/lib/buddy/voice";
@@ -28,7 +28,7 @@ const EXAMPLES: WbKey[] = ["example1", "example2", "example3", "example4"];
 export default function WhiteboardPage() {
   const lang = useLang();
   const t = useCallback((k: WbKey, values?: Record<string, string | number>) => wbText(lang, k, values), [lang]);
-  const okfT = useCallback((k: OkfKey) => OKF_TEXT[lang === "it" ? "it" : "en"][k] ?? OKF_TEXT.en[k], [lang]);
+  const okfT = useCallback((k: OkfKey) => okfText(lang)(k), [lang]);
 
   const [status, setStatus] = useState<OkFilowStatus | null>(null);
   const statusRef = useRef<OkFilowStatus | null>(null);
@@ -323,7 +323,7 @@ export default function WhiteboardPage() {
   };
 
   const status_line = ls.phase === "planning" ? t("planning") : ls.phase === "drawing" && stepCount < ls.expected ? t("drawingStep", { n: stepCount + 1, total: ls.expected }) : "";
-  const errorText = !ls.error ? "" : ls.error.code === "plan" ? t("errPlan") : ls.error.code === "stalled" ? t("errStalled") : ls.error.code === "no_local_helper" ? ls.error.message : t("errGeneric", { message: ls.error.message });
+  const errorText = !ls.error ? "" : ls.error.code === "plan" ? t("errPlan") : ls.error.code === "stalled" ? t("errStalled") : ls.error.code === "no_local_helper" ? ls.error.message : OLLAMA_STOPPED_ANSWER.test(ls.error.message) ? okfT("ollamaStopped") : t("errGeneric", { message: ls.error.message });
 
   return (
     <main className={`wb-page${lite ? " wb-plain" : ""}`} data-phase={ls.phase} data-player={player.phase} data-shown-ms={shownMs ?? undefined}>
@@ -411,6 +411,7 @@ export default function WhiteboardPage() {
               <button type="button" className="wb-btn" onClick={() => void savePng()} disabled={!layout}>{t("exportPng")}</button>
               <button type="button" className="wb-btn" onClick={saveMd} disabled={stepCount === 0}>{t("exportMd")}</button>
             </div>
+            {ls.meta?.provider === "local" && <p className="wb-note" data-advice="cloud">{t("localSimple")}</p>}
             {lite && <p className="wb-note">{t("liteNote")}</p>}
             {ls.stalled && <p className="wb-note">{t("stalledNote")}</p>}
             {!ls.stalled && ls.cards > 0 && <p className="wb-note">{t("cardsNote", { n: ls.cards })}</p>}

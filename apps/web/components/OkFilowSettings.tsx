@@ -2,19 +2,14 @@
 // OK Filow's main switches inside Filow Settings (docs/BUDDY-PLAN.md step 5). The full list stays in
 // the OK Filow panel; this section reads and writes the same settings through the main window's bridge.
 import { useEffect, useState } from "react";
-import type { OkFilowStatus } from "@/lib/buddy/bridge";
-import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
+import { okFilowSettingsBridge, type OkFilowStatus } from "@/lib/buddy/bridge";
+import { okfText } from "@/lib/buddy/text";
 
-type OkFilowSettingsBridge = {
-  status(): Promise<OkFilowStatus | null>;
-  configure(patch: Partial<OkFilowStatus>): Promise<OkFilowStatus | null>;
-  openPanel(): void;
-};
-const bridge = () => (globalThis as { filow?: { okFilow?: OkFilowSettingsBridge } }).filow?.okFilow ?? null;
+const bridge = okFilowSettingsBridge;
 
 export function OkFilowSettings({ lang }: { lang: string }) {
   const [s, setS] = useState<OkFilowStatus | null>(null);
-  const t = (k: OkfKey) => OKF_TEXT[lang === "it" ? "it" : "en"][k];
+  const t = okfText(lang);
   useEffect(() => { void bridge()?.status().then(setS); }, []);
   const b = bridge();
   if (!b || !s) return null; // browser, or OK Filow did not start

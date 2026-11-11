@@ -8,7 +8,7 @@ import { okFilowBridge, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/b
 import { bezierPoint, bubblePlacement } from "@/lib/buddy/motion";
 import { joinNames, type OutboundSnapshot } from "@/lib/buddy/outbound";
 import type { BuddyMark } from "@/lib/buddy/prompt";
-import { OKF_TEXT, type OkfKey } from "@/lib/buddy/text";
+import { okfText, type OkfKey } from "@/lib/buddy/text";
 import { dictationText } from "@/lib/dictation/text";
 import { OutboundIcon } from "../outbound-ui";
 import "../okfilow.css";
@@ -82,7 +82,7 @@ export default function OkFilowOverlay() {
   // Going outside: on while anything carrying the user's content is in flight (main decides).
   const [out, setOut] = useState<OutboundSnapshot>({ active: false, kinds: [], names: [] });
   const lang = useLang();
-  const t = useCallback((k: OkfKey) => (OKF_TEXT[lang === "it" ? "it" : "en"][k] ?? OKF_TEXT.en[k]), [lang]);
+  const t = useCallback((k: OkfKey) => okfText(lang)(k), [lang]);
   const going = out.active && out.names.length > 0;
 
   const pos = useRef({ x: -100, y: -100 });

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { DICTIONARIES, t, type I18nKey } from "./i18n";
+import { DICTIONARIES, LANGS, t, type I18nKey } from "./i18n";
 
 it("keeps speaking labels plain and localized", () => {
   expect(t("stage.section", "en", { n: 1, total: 4 })).toBe("Section 1 of 4");
   expect(t("stage.section", "it", { n: 1, total: 4 })).toBe("Sezione 1 di 4");
   expect(t("stage.next", "en", { title: "Part I" })).toBe("Next: Part I");
   expect(t("stage.next", "it", { title: "Parte I" })).toBe("Prossima: Parte I");
-  for (const lang of ["en", "it"] as const) {
+  for (const lang of LANGS) {
     for (const value of Object.values(DICTIONARIES[lang])) expect(value).not.toMatch(/[—←→]/);
   }
 });

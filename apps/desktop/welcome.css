@@ -142,3 +142,7 @@ button:not(:disabled):active { transform: translateY(1px); }
   .meter i { background: Highlight; forced-color-adjust: none; }
   .primary { outline: 1px solid ButtonText; }
 }
+
+/* Japanese: break lines by its own rules and keep phrases whole in headings and buttons. */
+:lang(ja) { line-break: strict; word-break: normal; }
+:lang(ja) :is(h1, h2, h3, button, label, summary) { word-break: auto-phrase; }

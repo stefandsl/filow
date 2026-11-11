@@ -18,8 +18,10 @@ export function openDialog(dialog: HTMLDialogElement, opener: HTMLElement | null
   };
 }
 
-export function Dialog({ title, onClose, children, className = "", returnFocusRef }: {
+export function Dialog({ title, onClose, children, className = "", returnFocusRef, heading = false }: {
   title: string;
+  /** the title is the dialog's h1: for a dialog that is a document with h2 parts (the rehearsal report) */
+  heading?: boolean;
   onClose(): void;
   children: ReactNode;
   className?: string;
@@ -43,7 +45,7 @@ export function Dialog({ title, onClose, children, className = "", returnFocusRe
     onCancel={event => { event.preventDefault(); onClose(); }}
     onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
     <div className={`modal ${className}`}>
-      <div className="label" id={titleId}>{title}</div>
+      {heading ? <h1 className="dialog-title" id={titleId}>{title}</h1> : <div className="label" id={titleId}>{title}</div>}
       {children}
     </div>
   </dialog>;

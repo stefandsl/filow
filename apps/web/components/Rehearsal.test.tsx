@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildRehearsalReport, Engine, parseScript, t, TakeRecorder, type Lang, type SessionState, type TalkClock } from "@filow/core";
+import { buildRehearsalReport, Engine, parseScript, rehearsalMarkdown, t, TakeRecorder, type Lang, type SessionState, type TalkClock } from "@filow/core";
 import { LangProvider } from "@filow/ui";
 import { TimerCue } from "./TimerCue";
 import { TimerSettings, readMinutes } from "./TimerSettings";
-import { RehearsalReport } from "./RehearsalReport";
-import { TimerMirror } from "./TimerMirror";
+import { RehearsalReport, reportFile } from "./RehearsalReport";
+import { bestArrival, keepArrival, TimerMirror } from "./TimerMirror";
 import { AUTO_OPEN_MS, sameScript, TakeReports } from "./RehearsalPanel";
 import { clockKey, takeRecorder, withClock } from "./TimerClock";
 
@@ -59,6 +59,43 @@ describe("talk timer line", () => {
     const html = renderToStaticMarkup(<LangProvider lang="en"><TimerMirror state={state} /></LangProvider>);
     expect(plain(html)).toContain("1:05 of 6:00");
     expect(html).toContain("timer-cue phone");
+  });
+
+  it("on the phone shows the prompter's time from the first paint, whatever the phone's own clock says", () => {
+    vi.useFakeTimers();
+    try {
+      // the phone's clock runs an hour ahead; the clock message took 50 ms
+      vi.setSystemTime(60 * MIN + 70_050);
+      const clock: TalkClock = { startedAt: 5000, endedAt: null, entries: [{ idx: 0, at: 5000 }], sentAt: 70_000 };
+      const state = { ...new Engine({ decide: async () => ({}) as never }).getState(), script, clock } as SessionState;
+      expect(renderToStaticMarkup(<LangProvider lang="en"><TimerMirror state={state} /></LangProvider>)).toContain('role="timer">1:05</span>');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("on the phone keeps the clock message that travelled least, so a late or slow one cannot move the timer", () => {
+    const stored = { sentAt: 1000, at: 5900 }; // a phone that joins late gets a clock sent up to 5 s before
+    const fresh = { sentAt: 6000, at: 6040 };
+    const slow = { sentAt: 11_000, at: 11_900 };
+    expect(bestArrival([])).toBeNull();
+    let kept = keepArrival([], stored);
+    expect(bestArrival(kept)).toBe(stored);
+    kept = keepArrival(kept, fresh);
+    expect(bestArrival(kept)).toBe(fresh);
+    kept = keepArrival(kept, slow);
+    expect(bestArrival(kept)).toBe(fresh);
+    // one of the two clocks was set anew (no delay is that long): start again from that message
+    const reset = { sentAt: 16_000, at: 16_040 + 20_000 };
+    expect(keepArrival(kept, reset)).toEqual([reset]);
+    // a small change of a clock is followed within a minute: the old messages are forgotten, and a
+    // slow message does not win while a quicker recent one is kept
+    const shifted = (n: number, delay: number) => ({ sentAt: 6000 + n * 5000, at: 6000 + n * 5000 + 3000 + delay });
+    for (let n = 1; n <= 11; n++) kept = keepArrival(kept, shifted(n, n === 11 ? 900 : 40));
+    expect(bestArrival(kept)).toBe(fresh);
+    kept = keepArrival(kept, shifted(13, 900));
+    expect(kept).not.toContain(fresh);
+    expect(bestArrival(kept)).toEqual(shifted(2, 40));
   });
 });
 
@@ -137,6 +174,45 @@ describe("rehearsal report view", () => {
     whole.observe(st(false, 0));
     const text = plain(inLang("en", <RehearsalReport report={buildRehearsalReport(whole.result()!, script, { lang: "en" })} onClose={() => {}} />));
     expect(text).toContain("60 words a minute slow, usual 120-170 approximate: this speech model sends only whole phrases");
+  });
+
+  it("the saved Markdown says what the screen shows: the same section names, times and words", () => {
+    const labelled = parseScript("<!-- target: 6 min -->\n# Intro - Why now (2 min)\n- a\n- b\n# Body (2 min)\n- c\n# End (2 min)\n- d");
+    const r = buildRehearsalReport(rec.result()!, labelled, { lang: "en" });
+    for (const lang of ["en", "it"] as const) {
+      const html = inLang(lang, <RehearsalReport report={r} onClose={() => {}} />);
+      const screen = plain(html);
+      const md = rehearsalMarkdown(r, lang);
+      // the table: head and one row per section, cell for cell
+      const rows = md.split("\n").filter((line) => line.startsWith("| ")).map((row) => row.replace(/\s*\|\s*/g, " ").trim());
+      expect(rows).toHaveLength(4);
+      expect(rows).toEqual([...html.matchAll(/<tr[^>]*>(.*?)<\/tr>/g)].map((m) => plain(m[1]).trim()));
+      const length = md.match(new RegExp(`^- ${t("report.length", lang)}: (.*)$`, "m"))?.[1] ?? "missing";
+      expect(screen).toContain(length.replace(/[()]/g, ""));
+    }
+    expect(rehearsalMarkdown(r, "en")).toContain("| Why now | 7:00 (+5:00) | 2:00 | 1 covered, 1 not reached |");
+    expect(rehearsalMarkdown(r, "en")).toContain("- Length: 7:00 of 6:00 (1:00 over)");
+  });
+
+  it("says on screen that the take's notes go into the saved file, with a box to leave them out", () => {
+    const html = inLang("en", <RehearsalReport report={report} notes={"# Talk notes"} onClose={() => {}} />);
+    expect(html).toMatch(/<label class="report-with-notes"><input type="checkbox" checked=""\/?>\s*Add this take(&#x27;|')s notes to the saved file<\/label>/);
+    expect(plain(inLang("it", <RehearsalReport report={report} notes={"# Talk notes"} onClose={() => {}} />))).toContain("Aggiungi al file salvato le note di questa prova");
+    // no notes in the take: nothing to add, no box
+    expect(inLang("en", <RehearsalReport report={report} onClose={() => {}} />)).not.toContain("report-with-notes");
+    // the file follows the box
+    expect(reportFile(report, "en", "# Talk notes\n\nA note", true)).toContain("## Talk notes\n\nA note");
+    expect(reportFile(report, "en", "# Talk notes\n\nA note", false)).toBe(rehearsalMarkdown(report, "en"));
+    expect(reportFile(report, "en", "# Talk notes\n\nA note", false)).not.toContain("A note");
+  });
+
+  it("has one heading order: the title is the h1 that names the dialog, its parts are h2", () => {
+    const html = inLang("en", <RehearsalReport report={report} onClose={() => {}} />);
+    const id = html.match(/<dialog[^>]*aria-labelledby="([^"]+)"/)?.[1];
+    expect(html).toContain(`<h1 class="dialog-title" id="${id}">Rehearsal report</h1>`);
+    expect([...html.matchAll(/<h(\d)/g)].map((m) => m[1]).join("")).toBe("12222");
+    // other dialogs keep their plain label
+    expect(inLang("en", <TimerSettings script={script} text="" onSave={() => {}} onCancel={() => {}} />)).not.toContain("<h1");
   });
 
   it("speaks Italian when the interface does", () => {

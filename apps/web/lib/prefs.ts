@@ -1,5 +1,5 @@
 // Per-browser preferences (not secrets). Server-side defaults come from env.
-import { isLang, isSetupPreference, langFromLocale, type DecisionProviderId, type Lang, type ScreenMode, type SetupPreference } from "@filow/core";
+import { isLang, isSetupPreference, langFromLocale, SPOKEN_LANGS, type SpokenLang, type DecisionProviderId, type Lang, type ScreenMode, type SetupPreference } from "@filow/core";
 import { acceptUiSnapshot, type UiLanguage, type UiSnapshot, type UiPatch } from "@filow/core";
 import { desktopBridge, type DesktopBridge } from "./sessionUrl";
 
@@ -180,8 +180,8 @@ export type StartMode = "ask" | "auto" | "cloud" | "local";
 const START_KEY = "prefs:startMode";
 
 // ---- Speech language: what the speaker talks, independent of the interface language ----
-export type SpeechLang = "auto" | "en" | "it" | "ru" | "ro" | "ja";
-export const SPEECH_LANGS: SpeechLang[] = ["auto", "en", "it", "ru", "ro", "ja"];
+export type SpeechLang = "auto" | SpokenLang;
+export const SPEECH_LANGS: SpeechLang[] = ["auto", ...SPOKEN_LANGS];
 const SPEECH_KEY = "prefs:speechLang";
 
 export function getSpeechLang(): SpeechLang {
@@ -202,10 +202,38 @@ export function setSpeechLang(l: SpeechLang): void {
   }
 }
 
-/** The hint handed to the transcription backends: the explicit speech language, else the UI language. */
-export function speechLangFor(uiLang: string): string {
+/**
+ * The language handed to a transcription backend: the spoken language the user set. On "auto" a
+ * backend that detects the language itself gets "auto"; one that cannot (Whisper in the browser)
+ * gets the interface language.
+ */
+export function speechLangFor(uiLang: string, detects: boolean): string {
   const s = getSpeechLang();
-  return s === "auto" ? uiLang : s;
+  return s === "auto" && !detects ? uiLang : s;
+}
+
+/** The part of the shell's speech bridge the spoken language needs (packages/stt sherpaBridge()). */
+type SpeechLangBridge<S extends { language?: string }> = { status: () => Promise<S>; setLanguage?: (language: string) => Promise<S> };
+
+/**
+ * One store for the spoken language. In the desktop app it is the shell's settings.json
+ * (speechLanguage: speech-to-text, OK Filow and dictation read it there), and localStorage is a
+ * mirror so the pages can read it without waiting; in the browser-only deploy localStorage is the
+ * store. Call this when a page starts: it copies the shell's value into the mirror.
+ */
+export async function syncSpeechLang<S extends { language?: string }>(bridge: SpeechLangBridge<S> | null): Promise<{ lang: SpeechLang; status: S | null }> {
+  if (!bridge) return { lang: getSpeechLang(), status: null };
+  const before = getSpeechLang();
+  const status = await bridge.status();
+  // A choice made while the shell was answering is newer than its answer: keep it.
+  if (getSpeechLang() === before && (SPEECH_LANGS as string[]).includes(status.language ?? "")) setSpeechLang(status.language as SpeechLang);
+  return { lang: getSpeechLang(), status };
+}
+
+/** Set the spoken language in the one store (and its mirror). Resolves with the shell's new status, if any. */
+export async function chooseSpeechLang<S extends { language?: string }>(l: SpeechLang, bridge: SpeechLangBridge<S> | null): Promise<S | null> {
+  setSpeechLang(l);
+  return bridge?.setLanguage ? bridge.setLanguage(l) : null;
 }
 
 export function getStartMode(): StartMode {

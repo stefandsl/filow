@@ -3,42 +3,17 @@
 // matching one. Detection is by script first (kana/kanji, Cyrillic), then by Romanian letters, then
 // by the commonest short words, which is enough for a spoken question of a few words.
 
-export const BUDDY_LANGS = ["en", "it", "ru", "ro", "ja"] as const;
-export type BuddyLang = (typeof BUDDY_LANGS)[number];
+import { detectLanguage, SPOKEN_LANGS, spokenLang, type SpokenLang } from "@filow/core";
+
+/** The spoken languages and their detector live in packages/core/src/spoken.ts; these are OK Filow's names for them. */
+export const BUDDY_LANGS = SPOKEN_LANGS;
+export type BuddyLang = SpokenLang;
+export { detectLanguage };
 
 export const BUDDY_LANG_NAMES: Record<BuddyLang, string> = { en: "English", it: "Italian", ru: "Russian", ro: "Romanian", ja: "Japanese" };
 
 /** "ja-JP" is "ja"; anything else that is not one of the five is null. */
-export function buddyLang(value: unknown): BuddyLang | null {
-  const code = typeof value === "string" ? value.trim().toLowerCase().slice(0, 2) : "";
-  return (BUDDY_LANGS as readonly string[]).includes(code) ? (code as BuddyLang) : null;
-}
-
-// Short, frequent words that tell the three Latin-script languages apart in a question. Words that
-// two of them share ("a", "e", "in", "la", "un") are left out.
-const WORDS: Record<"en" | "it" | "ro", string[]> = {
-  en: ["the", "what", "where", "how", "is", "are", "do", "does", "can", "this", "that", "i", "you", "my", "to", "of", "and", "it", "why", "which", "with", "on", "for", "should", "click", "button"],
-  it: ["il", "lo", "gli", "che", "cosa", "dove", "come", "perché", "perche", "questo", "questa", "sono", "è", "non", "per", "di", "del", "della", "mi", "posso", "devo", "qui", "qual", "quale", "pulsante", "clicco"],
-  ro: ["ce", "cum", "unde", "este", "sunt", "și", "nu", "pe", "cu", "de", "din", "acest", "aceasta", "asta", "pot", "trebuie", "eu", "meu", "mea", "aici", "care", "butonul", "apăs", "apas", "fac"],
-};
-
-/** The language a question is written in, or null when it cannot tell (empty, numbers, a single shared word). */
-export function detectLanguage(text: string): BuddyLang | null {
-  const s = text.normalize("NFC");
-  if (/[぀-ヿㇰ-ㇿｦ-ﾟ]/.test(s)) return "ja"; // hiragana, katakana
-  // Any Cyrillic or kanji wins over Latin letters: questions name products in Latin script
-  // ("Где кнопка Export в Adobe Premiere Pro?"), while an English, Italian or Romanian question
-  // practically never contains Cyrillic or kanji. Filow knows no other Han-script language.
-  if (/[Ѐ-ӿ]/.test(s)) return "ru";
-  if (/[一-鿿]/.test(s)) return "ja";
-  if (/[ășțşţâî]/i.test(s)) return "ro";
-  const words = s.toLowerCase().match(/[\p{L}']+/gu) ?? [];
-  const score = { en: 0, it: 0, ro: 0 };
-  for (const w of words) for (const l of ["en", "it", "ro"] as const) if (WORDS[l].includes(w)) score[l]++;
-  const best = (["en", "it", "ro"] as const).reduce((a, b) => (score[b] > score[a] ? b : a));
-  const tie = (["en", "it", "ro"] as const).filter((l) => score[l] === score[best]).length > 1;
-  return score[best] > 0 && !tie ? best : null;
-}
+export const buddyLang = spokenLang;
 
 /**
  * The language of the answer: the spoken language the user set, else the language of the question,

@@ -22,6 +22,8 @@ export type DictationStatus = {
   talk: string;
   talkLabel: string;
   check: { ok: boolean; conflict: "same" | "overlap" | "invalid" | null; warnings: Array<"altgr" | "layout"> };
+  /** False while the keyboard hook is not registered, so the dictation keys do nothing (missing on older builds). */
+  hookReady?: boolean;
   canPaste: boolean;
   copyReason: "" | "setting" | "nohook" | "wayland" | "accessibility";
   modelReady: boolean | null;
@@ -143,7 +145,8 @@ export type OkFilowBridge = {
   closeWhiteboard?(): void;
   onWhiteboard?(fn: (topic: string) => void): Off;
   /** Puts dictated text where the focus is (typed, pasted or only copied; see DictationResult). */
-  typeText(text: string, language?: string): Promise<DictationResult>;
+  /** `phrase`: one phrase of a hands-free dictation (it follows the phrases typed before it). */
+  typeText(text: string, language?: string, phrase?: boolean): Promise<DictationResult>;
   handsFreeOff(): void;
   agents: {
     /** Starts a job when the text is an "agent, ..." request; resolves null otherwise, or needsConsent when the user must agree first. */
@@ -173,7 +176,8 @@ export type OkFilowBridge = {
   deleteAnswers(): Promise<number>;
   press(): void;
   release(): void;
-  onPress(fn: (p: { purpose: "talk" | "dictate" } | undefined) => void): Off;
+  /** `handsFree`: a dictation with the keys up, typed phrase by phrase until the keys are pressed once more. */
+  onPress(fn: (p: { purpose: "talk" | "dictate"; handsFree?: boolean } | undefined) => void): Off;
   onRelease(fn: (p: { purpose: "talk" | "dictate" | null } | undefined) => void): Off;
   onCancel(fn: (p: { purpose: "talk" | "dictate" | null } | undefined) => void): Off;
   onConfig(fn: (s: OkFilowStatus) => void): Off;
@@ -223,6 +227,15 @@ export function okFilowBridge(): OkFilowBridge | null {
   return ((window as unknown as { okFilow?: OkFilowBridge }).okFilow) ?? null;
 }
 
+/**
+ * The slice of the same IPC surface the main window gets (window.filow.okFilow, apps/desktop/preload.js):
+ * Filow Settings shows OK Filow's main switches; the full list stays in the panel.
+ */
+export type OkFilowSettingsBridge = Pick<OkFilowBridge, "status" | "configure"> & { openPanel(): void };
+
+export function okFilowSettingsBridge(): OkFilowSettingsBridge | null {
+  return (globalThis as { filow?: { okFilow?: OkFilowSettingsBridge } }).filow?.okFilow ?? null;
+}
 /** Joins the committed sherpa text and the live partial into the question. */
 export function joinTranscript(committed: string[], partial: string): string {
   return [...committed, partial].map((s) => s.trim()).filter(Boolean).join(" ").replace(/\s{2,}/g, " ").trim();

@@ -5,7 +5,9 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { useLang } from "@filow/ui";
 import { okFilowBridge } from "@/lib/buddy/bridge";
+import { okfText } from "@/lib/buddy/text";
 import type { BuddyModel, ModelPart } from "@/lib/buddy/visuals";
 import "../okfilow.css";
 
@@ -28,6 +30,7 @@ export default function OkFilowModel() {
   const [model, setModel] = useState<BuddyModel | null>(null);
   const [hover, setHover] = useState("");
   const [picked, setPicked] = useState("");
+  const t = okfText(useLang());
 
   useEffect(() => {
     const b = okFilowBridge();
@@ -151,7 +154,7 @@ export default function OkFilowModel() {
       </header>
       <div ref={host} className="okf-model-view" />
       <footer className="okf-model-foot" aria-live="polite">
-        {hover ? hover : picked ? `Asking about ${picked}…` : "Drag to turn, scroll to zoom, click a part to ask about it"}
+        {hover ? hover : picked ? t("modelAsking").replace("{part}", picked) : t("modelHint")}
       </footer>
     </main>
   );
