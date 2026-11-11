@@ -463,6 +463,58 @@ cells"):
 Fixture tests from those five saved lessons (`fixtures/cloud-m-dropped.json`): every formula and
 every row of cells the model wrote is in its step, no such step becomes a text card, the theorem
 is on the final board once and drawn in the last step. Not measured on a paid run after the fix.
+Also from those reviews and from the Carbon run, by prompt or mechanically, none of it measured on
+a paid run yet:
+
+- Time: an online answer has four minutes (it had two) and a whole lesson ten; while the lesson is
+  being written the page says how many seconds it has waited. A reasoning model had given no
+  lesson for 3 and 4 of 10 questions at the old limit.
+- A lesson cut short to a single step is asked for once more and never shown (the one-step
+  recursion of the Carbon run).
+- A remark that defines something of its own ("n = the whole number we want") is no longer given
+  the name of the box the model pinned it to (it read "Base case: n = ...").
+- The mark where two curves cross is not drawn where they merely start from the same point (both
+  at 1000 in year 0); a crossing inside the plot is.
+- The prompt asks for the result on the board in the last step.
+- `echo.mjs` reports a spelling the provider did not answer for (a 429) as not tested.
+
+Replayed over the twenty raw lessons of the two Sonnet runs (`fixtures/cloud-sonnet-raw.json`):
+the eighteen on the topic are shown as written, with every formula and row of cells in its step,
+after one call or two (the legend); the two saved first answers about another cycle are refused.
+## Round 9: a bake-off of local models for the whiteboard
+
+The whiteboard sends no picture, yet on this PC it runs on qwen3-vl:8b, a vision model. Six text
+models from the Ollama library were tried in its place (sizes and licences as on their library
+pages on 11/11/2026; pulled with the owner's yes into a folder of their own, deleted afterwards).
+Same local path, same ten questions, RTX 3070 8 GB, drawing rubric, fresh strict reviewers. The
+GPU was idle before each run; another agent kept the CPU 30 to 88 % busy throughout, and a second
+Ollama used the GPU during the third gemma run, so its times are not to be trusted.
+
+| Model | Size | Licence | Strict | Seconds a lesson | First step after | Note |
+|---|---|---|---|---|---|---|
+| qwen3-vl:8b (today) | as installed by Filow | not looked up again | 3, 3, 4, 4, 4, 6 (mean 4.0, round 7) | about 150 | | the baseline |
+| gemma4:12b | 7.5 GB | Apache-2.0 | 4; 5, 5; 5, 5 (mean 4.8) | 40, 44 | 28, 30 s | barely fits 8 GB; much slower when the GPU is shared |
+| qwen3:8b | 4.9 GB | Apache-2.0 | 2 | 18 | 14 s | the text sibling of today's model |
+| qwen3:8b, thinking on | | | not reviewed (machine 2/10) | 161 | 98 s | mostly text cards: the thinking eats the time of each step |
+| qwen3.5:9b | 6.1 GB | Apache-2.0 | 2 | 28 | 20 s | |
+| qwen3:4b | 2.3 GB | Apache-2.0 | 2 | 12 | 10 s | Lite size |
+| granite4:3b | 2.0 GB | Apache-2.0 | 2 | 11 | 7 s | Lite size |
+| deepseek-r1:8b | 4.9 GB | MIT | no lesson | | | thinking off: no plan in 10 of 10; thinking on: 2 of 4 no plan, the others text cards, about 3 minutes each (stopped) |
+
+No model clearly beats today's: the bar was a strict mean two points higher, or 8 of 10, and the
+best, gemma4:12b, is 0.8 higher over five reviews of three runs against six of three. So nothing
+changes in the setup, no model is added to the install list, and neither the held-out run nor the
+A/B of the local checks was made (there is no winner to make them with). What gemma4:12b does
+show is speed: a lesson in about 40 seconds where today's model takes about 150, at no loss. That
+may be worth a decision of its own (it is 7.5 GB and leaves no room on an 8 GB card).
+
+The honest product statement stands: on this hardware the local whiteboard is a sketch, true but
+thin; for a hard concept, use the online model (Claude Sonnet 5.5: 9 of 10).
+
+Two things the bake-off turned up in Filow itself: a local request that leaves thinking to the
+model comes back empty (now a test: the request always says `think: false`), and a LaTeX command
+written with one backslash inside JSON was read as a tab or a form feed ("4 imes (rac{1}{2}ab)"),
+now put back.
 ## How to repeat
 
 1. Start Filow (or `next dev`) with Ollama running.
@@ -473,4 +525,4 @@ is on the final board once and drawn in the last step. Not measured on a paid ru
 
 Saved runs (outside the repo): `G:\FILOW\tmp\wb-tmp\` folders `bench-final-1`, `bench-final-2`,
 `bench-plan-2`, `bench-plan-3`, `r2-run1..3`, `r2-heldout`, `r3-run1..3`, `r3-heldout`, `r4-run1`,
-`r4-run2`, `r4-heldout`, `r5-t1..3`, `r5-heldout`, `r7-on1..3`, `r7-off1..3`.
+`r4-run2`, `r4-heldout`, `r5-t1..3`, `r5-heldout`, `r7-on1..3`, `r7-off1..3`, `r9-*` (the bake-off).
