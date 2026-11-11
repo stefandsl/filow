@@ -13,13 +13,16 @@ import { dictationText, pasteKeys, type DictationKey } from "@/lib/dictation/tex
 import { playCue } from "@/lib/dictation/cue";
 import { createPhraseFlow, type PhraseFlow } from "@/lib/dictation/handsfree";
 import { burnStrokes, createVad, describeMarked } from "@/lib/buddy/listen";
-import { askRoute, askRouteRecipient, changesStored, FREELLM_ID, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
+import { askRoute, askRouteRecipient, changesStored, FREELLM_ID, joinNames, localNames, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
 import { FREELLM_DOWNLOAD_URL, freellmCodeOf, localizeFreeLlmError } from "@/lib/freellm";
 import { FreeLlmPanelNotes } from "./freellm-notes";
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
 import { ConsentList, OutboundNotice, OutboundPill } from "../outbound-ui";
 import { VoiceSettings } from "./voice-settings";
 import { getSetupPreference, getSpeechLang } from "@/lib/prefs";
+import { createAnswerTurn } from "@/lib/buddy/turn";
+import { askSees, screenLeaves, seesScreen, slowToSee, type LocalScreenMode } from "@/lib/buddy/sees";
+import { SeeScreenSwitch, StopButton } from "@/components/okfilow/controls";
 import { whiteboardTopic } from "@/lib/whiteboard/client";
 import "../okfilow.css";
 
@@ -86,6 +89,16 @@ export default function OkFilowPanel() {
   const audio = useRef<{ ctx: AudioContext; stream: MediaStream; node: ScriptProcessorNode } | null>(null);
   const run = useRef(0);
   const asking = useRef<AbortController | null>(null);
+  // The answer in progress, so it can be stopped (lib/buddy/turn.ts), and whether the one on screen was.
+  const turn = useRef(createAnswerTurn());
+  const [stopped, setStopped] = useState(false);
+  const modeRef = useRef<OkFilowMode>("idle");
+  modeRef.current = mode;
+  // "Look at my screen": what the setup for this computer picked (until the user chooses), and whether the question being answered took the screen.
+  const [localScreen, setLocalScreen] = useState<LocalScreenMode>(null);
+  const localScreenRef = useRef<LocalScreenMode>(null);
+  localScreenRef.current = localScreen;
+  const [asksSee, setAsksSee] = useState(true);
   /** The last answer's visuals in global DIP, for "Replay last answer". */
   const lastShown = useRef<{ points: Parameters<OkFilowBridge["point"]>[0]; marks: Parameters<OkFilowBridge["draw"]>[0]; model: BuddyModel | null; cards: OkFilowCard[] } | null>(null);
   const token = useRef<string | null>(null);
@@ -112,6 +125,11 @@ export default function OkFilowPanel() {
       }
     });
     void b.stt.status().then((s) => setSttReady(s.ready)).catch(() => setSttReady(false));
+    // What the setup for this computer picked for looking at the screen (the switch shows it until the user chooses).
+    void (async () => {
+      const res = await fetch(`/api/buddy/screen?setup=${encodeURIComponent(getSetupPreference())}`, { headers: await engineHeadersRef.current() });
+      if (res.ok) setLocalScreen(((await res.json()) as { local?: LocalScreenMode }).local ?? null);
+    })().catch(() => {});
     const offs = [b.onConfig(setStatus), b.onMode((m) => setModeState(m.mode)), b.outbound?.onChange(setOutSnap)];
     b.outbound?.ready();
     return () => {
@@ -277,13 +295,49 @@ export default function OkFilowPanel() {
     return p && d ? { ...pointToDisplay(p, d.bounds), label: p.label } : null;
   }, [engineHeaders, out]);
 
+  /**
+   * Ends the answer in progress for good: the request to the model (the server stops the model when
+   * the request goes), the voice, the notice still waiting. What was already said goes into the
+   * conversation. Returns what was on screen, or null when no answer was being fetched.
+   */
+  const endAnswer = useCallback(() => {
+    run.current++;
+    const was = turn.current.stop(history.current);
+    asking.current?.abort();
+    speaker.stop();
+    window.speechSynthesis?.cancel();
+    if (was && was.history !== history.current) {
+      history.current = was.history;
+      saveHistory(history.current);
+    }
+    return was;
+  }, [speaker]);
+
+  /**
+   * Stop (the button, Escape): the answer ends at once and what was already said stays, marked as
+   * stopped. Not an error. Hands-free goes back to listening, as after any answer.
+   */
+  const stopAnswer = useCallback(() => {
+    const b = okFilowBridge();
+    if (!b || (modeRef.current !== "thinking" && modeRef.current !== "speaking")) return false;
+    const was = endAnswer();
+    // Nothing of the stopped answer may still go out, and the pointer stops flying to places.
+    outRef.current?.dismissAll();
+    b.point([]);
+    setStopped(true);
+    if (was) { setAnswer(was.shown); b.text(was.shown); }
+    setMode("idle", { stopped: true, holdMs: 4000 });
+    if (handsFree.current) listenAgain.current();
+    return true;
+  }, [endAnswer, setMode]);
+
   const ask = useCallback(async (question: string, opts: { typed?: boolean } = {}) => {
     const b = okFilowBridge();
     if (!b) return;
     // A new question cuts the answer being spoken at once, before anything below is awaited
     // (the agent check alone took about half a second in the packaged app).
-    run.current++;
-    speaker.stop();
+    endAnswer();
+    setStopped(false);
     // "agent, ..." goes to a background job instead of the screen helper.
     // A new question drops any notice still waiting for the previous one: nothing of it may go out.
     out.dismissAll();
@@ -332,17 +386,22 @@ export default function OkFilowPanel() {
     asking.current?.abort();
     const abort = new AbortController();
     asking.current = abort;
+    turn.current.begin(id, question, abort);
+    // "Look at my screen" (lib/buddy/sees.ts): off, the question goes with the user's words only.
+    const seeing = seesScreen(statusRef.current?.seeScreen, askRoute(statusRef.current), localScreenRef.current);
+    setAsksSee(seeing);
     setHeard(question);
     setAnswer("");
     setError("");
-    setMode("thinking");
+    setMode("thinking", { sees: seeing });
     b.text("");
     b.clearVisuals();
     try {
       const shot = await b.capture();
+      if (run.current !== id) return;
       // What the user circled goes in two ways: burnt into the screenshot, and as grid boxes in words.
       const marked = shot.marked ?? [];
-      const images = marked.length
+      const images = !seeing ? [] : marked.length
         ? await Promise.all(shot.images.map((img, i) => burnStrokes(img, marked.filter((m) => m.screen === i + 1), statusRef.current?.color ?? "#ffb600")))
         : shot.images;
       const markedNote = [describeMarked(marked), shot.selected ? `(Text I have selected: "${shot.selected}")` : ""].filter(Boolean).join("\n");
@@ -373,7 +432,8 @@ export default function OkFilowPanel() {
           method: "POST",
           signal: abort.signal,
           headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent },
-          body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: getSpeechLang(), provider: route, setup: getSetupPreference() }),
+          // sees: false when this question goes without the screen; else the user's own choice, or nothing so the setup decides
+          body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: getSpeechLang(), provider: route, setup: getSetupPreference(), sees: seeing ? askSees(statusRef.current?.seeScreen) : false }),
         });
         if (!res.ok || !res.body) {
           // Refused before anything was forwarded (no yes on record, Offline mode, FreeLLMAPI without a key): nothing went outside.
@@ -393,6 +453,7 @@ export default function OkFilowPanel() {
           got += decoder.decode(value, { stream: true });
           if (run.current !== id) return null;
           const shown = parseBuddyAnswer(got.split("\n[ERROR]")[0], shot.screens).text;
+          turn.current.progress(id, shown);
           setAnswer(shown);
           b.text(shown);
         }
@@ -404,11 +465,15 @@ export default function OkFilowPanel() {
       const { text, points, marks, cards, model, drawing } = parseBuddyAnswer(body, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1);
       // Answer log (dev builds, or the folder the user picked): exactly what the model produced and saw.
       void b.answerLog({ question, raw: body, visuals: { text, points, marks, cards, model, drawing }, images, svg: drawing ? drawingSvg(drawing) : undefined }).catch(() => "");
-      if (!text && !points.length) throw new Error(t("emptyAnswer"));
+      // A drawing or a model with no sentence is an answer too (it used to be thrown away as "empty").
+      if (!text && !points.length && !marks.length && !cards.length && !model && !drawing) throw new Error(t("emptyAnswer"));
       setAnswer(text);
       b.text(text);
       history.current = [...history.current, { role: "user" as const, text: question }, { role: "assistant" as const, text: body.trim() }].slice(-12);
       saveHistory(history.current);
+      // From here a Stop keeps the conversation as it is: the whole answer is in it.
+      turn.current.progress(id, text);
+      turn.current.kept(id);
       const mapped = points.flatMap((p) => {
         const d = shot.displays.find((x) => x.index === p.screen);
         return d ? [{ ...pointToDisplay(p, d.bounds), label: p.label }] : [];
@@ -470,14 +535,17 @@ export default function OkFilowPanel() {
       setMode("speaking");
       if (!opts.typed || statusRef.current?.typedVoice) await speak(text, id, answerLang);
       await grounding;
+      turn.current.end(id);
       if (run.current === id) setMode("idle");
       if (run.current === id && handsFree.current) listenAgain.current();
     } catch (e) {
+      // A stop or a newer question: not an error, nothing is shown or logged as one.
       if (abort.signal.aborted || run.current !== id) return;
+      turn.current.end(id);
       fail(e instanceof Error ? e.message : String(e));
       if (handsFree.current) setTimeout(() => handsFree.current && listenAgain.current(), 1500);
     }
-  }, [engineHeaders, fail, groundAnswer, out, setMode, speak, speaker, t]);
+  }, [endAnswer, engineHeaders, fail, groundAnswer, out, setMode, speak, t]);
 
   const startListening = useCallback(async (why: Purpose = "talk") => {
     const b = okFilowBridge();
@@ -498,11 +566,10 @@ export default function OkFilowPanel() {
     flow.current = why === "dictate" && dictHandsFree.current ? createPhraseFlow() : null;
     vad.current = why === "handsfree" || flow.current ? createVad() : null;
     if (why !== "dictate") {
-      // A new question interrupts the old answer; dictation leaves the conversation alone.
-      run.current++;
-      asking.current?.abort();
-      speaker.stop();
-      window.speechSynthesis?.cancel();
+      // A new question interrupts the old answer (what it had said so far stays in the conversation);
+      // dictation leaves the conversation alone.
+      endAnswer();
+      setStopped(false);
       setHeard("");
       setAnswer("");
       setError("");
@@ -570,7 +637,7 @@ export default function OkFilowPanel() {
       void b.stt.stop().catch(() => {});
       fail(e instanceof Error ? e.message : String(e));
     }
-  }, [dictT, fail, setMode, speaker, stopAudio]);
+  }, [dictT, endAnswer, fail, setMode, stopAudio]);
   const startRef = useRef(startListening);
   startRef.current = startListening;
 
@@ -759,6 +826,8 @@ export default function OkFilowPanel() {
       }),
       b.onRelease(() => void stopListening(true)),
       b.onCancel(() => void stopListening(false)),
+      // The Stop button next to the pointer, or Escape anywhere (the desktop shell tells us).
+      b.onStop?.(() => { stopAnswer(); }) ?? (() => {}),
       b.onHandsFree((on) => setHandsFree(Boolean(on))),
       b.onQuickAsk(() => setTimeout(() => typeBox.current?.focus(), 30)),
       // A part clicked in the 3D model window: ask about it, like a spoken question.
@@ -782,7 +851,7 @@ export default function OkFilowPanel() {
       }),
     ];
     return () => offs.forEach((o) => o());
-  }, [ask, bridge, dictT, fail, setHandsFree, setMode, speak, startListening, stopListening, t, typePhrase]);
+  }, [ask, bridge, dictT, fail, setHandsFree, setMode, speak, startListening, stopAnswer, stopListening, t, typePhrase]);
 
   if (!bridge) return <main className="okf-panel"><p>{t("desktopOnly")}</p></main>;
   const c = status;
@@ -804,9 +873,15 @@ export default function OkFilowPanel() {
   const hotkey = HOTKEY_LABEL[c?.hotkey ?? "ctrl+alt"] ?? c?.hotkey;
   const ds = c?.dictationStatus;
   const dictHint = ds?.enabled && ds.check.ok ? dictT(ds.mode === "toggle" ? "hintToggle" : "hintHold", { keys: ds.chordLabel }) : "";
+  const answering = mode === "thinking" || mode === "speaking";
+  // "Look at my screen": the one setting (okFilow.seeScreen in the desktop settings), shown as on or off.
+  const route = askRoute(c);
+  const sees = seesScreen(c?.seeScreen, route, localScreen);
+  const seeWho = route === "local" || !recipients ? "" : joinNames(localNames((route === "freellm" ? recipients.freellm?.names : recipients.ask.names) ?? [], t("freeName")), t("outAnd"));
 
   return (
-    <main className="okf-panel">
+    // Escape stops the answer when the panel has the keyboard (the desktop shell does the same from anywhere).
+    <main className="okf-panel" onKeyDown={(e) => { if (e.key === "Escape" && stopAnswer()) e.stopPropagation(); }}>
       <header className="okf-head">
         <span className={`okf-dot okf-dot--${mode}`} aria-hidden />
         <h1>OK Filow</h1>
@@ -816,10 +891,14 @@ export default function OkFilowPanel() {
       {notice && <OutboundNotice notice={notice} t={t} onDecide={(d) => void out.decide(d)} />}
 
       {/* One live region: the mode and, while something is leaving this PC, who receives it. */}
-      <p className="okf-status" role="status">
-        <span>{t(`mode_${mode}` as OkfKey)}</span>
-        <OutboundPill snap={outSnap} t={t} />
-      </p>
+      <div className="okf-status-row">
+        <p className="okf-status" role="status">
+          <span>{t(mode === "thinking" && !asksSee ? "mode_thinkingWords" : (`mode_${mode}` as OkfKey))}</span>
+          <OutboundPill snap={outSnap} t={t} />
+        </p>
+        {/* Only while an answer is in progress; the row keeps its height, so nothing moves. */}
+        <StopButton active={answering} t={t} onStop={() => { if (!stopAnswer()) bridge.stopAnswer?.("panel"); }} />
+      </div>
       <p className="okf-hint">
         {c?.hook === "toggle" ? t("hintToggle") : t("hintHold").replace("{key}", hotkey ?? "")}
       </p>
@@ -835,10 +914,11 @@ export default function OkFilowPanel() {
       )}
       {note && <p className="okf-note" role="status">{note}</p>}
 
-      {(heard || answer || error) && (
+      {(heard || answer || error || stopped) && (
         <section className="okf-convo">
           {heard && <p className="okf-q">{heard}</p>}
           {answer && <p className="okf-a">{answer}</p>}
+          {stopped && <p className="okf-stopped" data-testid="okf-stopped">{t("stopped")}</p>}
           {error && <p className="okf-err">{error}{freeDown && <> <a href={FREELLM_DOWNLOAD_URL} target="_blank" rel="noreferrer">{t("freeGet")}</a></>}</p>}
         </section>
       )}
@@ -849,6 +929,11 @@ export default function OkFilowPanel() {
         <input ref={typeBox} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={t("typePlaceholder")} aria-label={t("typePlaceholder")} />
         <button type="submit" disabled={!typed.trim()}>{t("ask")}</button>
       </form>
+      {/* Always here, in everyday words: whether a question takes the screen with it. */}
+      {c && (
+        <SeeScreenSwitch on={sees} slow={slowToSee(route, localScreen)} leaves={screenLeaves(true, route)} who={seeWho} t={t}
+          onChange={(next) => void configure({ seeScreen: next ? "on" : "off" })} />
+      )}
       {bridge.showWhiteboard && <p className="okf-hint okf-board-link"><button type="button" onClick={() => { bridge.showWhiteboard?.(typed.trim()); setTyped(""); }}>{t("whiteboard")}</button> {t("whiteboardHint")}</p>}
 
       <section className="okf-jobs" aria-label={t("agentsTitle")}>

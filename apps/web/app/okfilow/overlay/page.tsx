@@ -5,7 +5,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { okFilowBridge, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/bridge";
-import { bezierPoint, bubblePlacement } from "@/lib/buddy/motion";
+import { bezierPoint, bubblePlacement, marksStarted } from "@/lib/buddy/motion";
+import { EyeIcon, StopButton } from "@/components/okfilow/controls";
 import { joinNames, localNames, type OutboundSnapshot } from "@/lib/buddy/outbound";
 import type { BuddyMark } from "@/lib/buddy/prompt";
 import { okfText, type OkfKey } from "@/lib/buddy/text";
@@ -68,6 +69,10 @@ export default function OkFilowOverlay() {
   const bubble = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<OkFilowMode>("idle");
   const [purpose, setPurpose] = useState("talk");
+  // This question took the screen with it (the eye on the pill), and the answer on screen was stopped by the user.
+  const [sees, setSees] = useState(true);
+  const [stopped, setStopped] = useState(false);
+  const marksAt = useRef(0);
   const [text, setText] = useState("");
   const [level, setLevel] = useState(0);
   const [label, setLabel] = useState("");
@@ -101,6 +106,16 @@ export default function OkFilowOverlay() {
       b.onState((s) => {
         setMode(s.mode);
         setPurpose(s.purpose ?? "talk");
+        if (typeof s.sees === "boolean") setSees(s.sees);
+        setStopped(s.stopped === true);
+        if (s.stopped === true) {
+          // Stop: the pointer flies nowhere else, and the marks not yet begun are not drawn (the ones on screen stay).
+          queue.current = [];
+          flight.current = null;
+          setLabel("");
+          const elapsed = performance.now() - marksAt.current;
+          setMarks((m) => ({ id: m.id, list: m.list.slice(0, marksStarted(m.list.length, elapsed, STROKE_GAP_MS)) }));
+        }
         if (s.mode !== "listening" && live.current) {
           const l = live.current;
           live.current = null;
@@ -115,6 +130,7 @@ export default function OkFilowOverlay() {
       b.onCursor((p) => { cursor.current = p; }),
       b.onDraw((list) => {
         // Kept until main sends okfilow:clear (Escape, the panel's Clear, or the next question).
+        marksAt.current = performance.now();
         setMarks((m) => ({ id: m.id + 1, list: Array.isArray(list) ? list : [] }));
       }),
       b.onCards((list) => setCards(Array.isArray(list) ? list.slice(0, 2) : [])),
@@ -177,6 +193,7 @@ export default function OkFilowOverlay() {
   }, []);
 
   const bars = [0.55, 0.85, 1, 0.8, 0.5];
+  const answering = mode === "thinking" || mode === "speaking";
   const onDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
@@ -246,10 +263,15 @@ export default function OkFilowOverlay() {
           <strong>{t("outLabel")}</strong>
           <span>{t("outSending").replace("{names}", joinNames(localNames(out.names, t("freeName")), t("outAnd")))}</span>
         </div>
-      ) : here && (mode === "listening" || mode === "thinking") && (
+      ) : here && (mode === "listening" || answering) && (
         <div className="okf-notch">
-          <span className={"okf-notch-dot okf-notch-dot--" + mode} />
-          {t(mode === "thinking" ? "notchLooking" : purpose === "dictate" ? "notchDictating" : purpose === "handsfree" ? "notchHandsFree" : "notchListening")}
+          {/* While asking: an eye when the question took the screen, struck through when it went with words only (said in words too). */}
+          {mode === "thinking" ? <EyeIcon off={!sees} size={15} /> : <span className={"okf-notch-dot okf-notch-dot--" + mode} />}
+          <span>{t(mode === "thinking" ? (sees ? "notchLooking" : "notchWords") : mode === "speaking" ? "notchAnswering" : purpose === "dictate" ? "notchDictating" : purpose === "handsfree" ? "notchHandsFree" : "notchListening")}</span>
+          {/* Stop: the one thing on the overlay that takes the mouse (main lets this window have it while the pointer is on the button). */}
+          <span className="okf-notch-stop" onPointerDown={(e) => e.stopPropagation()} onMouseEnter={() => okFilowBridge()?.overlayHover?.(true)} onMouseLeave={() => okFilowBridge()?.overlayHover?.(false)}>
+            <StopButton pill active={answering} t={t} onStop={() => okFilowBridge()?.stopAnswer?.("button")} />
+          </span>
         </div>
       )}
       <div ref={dot} className={`okf-buddy okf-buddy--${mode}${going ? " okf-buddy--out" : ""}${here ? "" : " okf-hidden"}`}>
@@ -257,12 +279,14 @@ export default function OkFilowOverlay() {
         <svg className="okf-arrow" viewBox="0 0 24 24" width="22" height="22"><path d="M3 2l17 8-7.5 2.2L10.4 20z" /></svg>
         {label && <span className={"okf-label" + flip}>{label}</span>}
       </div>
-      <div ref={bubble} className={`okf-bubble${here && (text || mode === "listening" || mode === "thinking") ? "" : " okf-hidden"}${mode === "error" ? " okf-bubble--error" : ""}`}>
+      <div ref={bubble} className={`okf-bubble${here && (text || stopped || mode === "listening" || mode === "thinking") ? "" : " okf-hidden"}${mode === "error" ? " okf-bubble--error" : ""}`}>
         {mode === "listening" && (
           <span className="okf-wave">{bars.map((b, i) => <i key={i} style={{ height: `${4 + Math.round(level * b * 18)}px` }} />)}</span>
         )}
         {mode === "thinking" && <span className="okf-spin" />}
         {text && <span className="okf-text">{text}</span>}
+        {/* What was said stays, marked: the user stopped it, nothing went wrong. */}
+        {stopped && <span className="okf-bubble-stopped">{t("stopped")}</span>}
       </div>
     </div>
     {/* Dictation's start and end for screen readers (outside the hidden overlay), from the display with the mouse only. */}
