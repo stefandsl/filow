@@ -104,6 +104,15 @@ describe("whiteboard lesson: what the model writes is data", () => {
     expect(alone.steps.flatMap((s) => s.items)).toHaveLength(10);
   });
 
+  it("accepts a row of cells with a pointer, cleans it, and does not repeat the same row", () => {
+    const ctx = newContext();
+    expect(validateItems([{ kind: "cells", values: [1, 3, "5", "<b>7</b>", "", "a very long value"], pointer: 2 }], ctx)).toEqual([{ kind: "cells", values: ["1", "3", "5", "7", `a ver${String.fromCharCode(0x2026)}`], pointer: 2 }]);
+    expect(validateItems([{ kind: "cells", values: ["1", "3"], pointer: 9 }, { kind: "cells", values: ["1"] }, { kind: "cells", values: "x" }], ctx)).toEqual([{ kind: "cells", values: ["1", "3"], pointer: -1 }]);
+    expect(validateItems([{ kind: "cells", values: ["1", "3"], pointer: -1 }, { kind: "cells", values: ["1", "3"], pointer: 1 }], ctx)).toEqual([{ kind: "cells", values: ["1", "3"], pointer: 1 }]);
+    const md = lessonMarkdown({ title: "T", scene: "flow", steps: [{ say: "s", card: false, items: [{ kind: "cells", values: ["1", "3", "5"], pointer: 1 }] }] });
+    expect(md).toContain("- 1 | **3** | 5");
+  });
+
   it("caps the items of a step and the nodes of a lesson", () => {
     const ctx = newContext();
     const many = Array.from({ length: 30 }, (_, i) => ({ kind: "node", id: `n${i}`, text: `Node ${i}` }));

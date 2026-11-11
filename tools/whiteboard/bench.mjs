@@ -117,6 +117,10 @@ async function runOne(question) {
     steps: steps.length,
     drawn,
     stalled: Boolean(done?.stalled),
+    // drawing coverage: steps that draw something, relations of the checked plan that ended on the board, text cards
+    cards: steps.length - drawn,
+    planRelations: done?.relations ?? 0,
+    planDrawn: done?.drawn ?? 0,
     problems: [...new Set(problems)],
     // the machine part of the verdict; a person adds "correct and in order"
     machinePass: !failure && steps.length >= 3 && drawn >= steps.length - 1 && drawn >= 3 && problems.length === 0,
@@ -124,7 +128,29 @@ async function runOne(question) {
 }
 
 const describe = (it) =>
-  it.kind === "node" ? `[${it.text}]` : it.kind === "edge" ? `${it.from}->${it.to}${it.text ? `(${it.text})` : ""}` : it.kind === "formula" ? `$${it.tex}$` : it.kind === "plot" ? `plot(${it.expr}, ${it.xmin}..${it.xmax})` : it.kind === "note" ? `note:"${it.text}"` : it.kind === "mark" ? `mark:${it.target}` : it.kind;
+  it.kind === "node" ? `[${it.text}]` : it.kind === "edge" ? `${it.from}->${it.to}${it.text ? `(${it.text})` : ""}` : it.kind === "formula" ? `$${it.tex}$` : it.kind === "plot" ? `plot(${it.expr}, ${it.xmin}..${it.xmax})` : it.kind === "note" ? `note:"${it.text}"` : it.kind === "mark" ? `mark:${it.target}` : it.kind === "cells" ? `cells[${it.values.map((v, k) => (k === it.pointer ? `>${v}<` : v)).join(" ")}]` : it.kind;
+
+/** The board at the end of the lesson, in words: what a reader of the picture would see. */
+function finalBoard(lesson) {
+  const names = new Map();
+  const arrows = [];
+  const other = [];
+  for (const s of lesson.steps) for (const it of s.items) {
+    if (it.kind === "node") names.set(it.id, it.text);
+    else if (it.kind === "edge") arrows.push(it);
+    else if (it.kind === "formula") other.push(`formula $${it.tex}$`);
+    else if (it.kind === "plot") other.push(`plot of y = ${it.expr} for x from ${it.xmin} to ${it.xmax}`);
+    else if (it.kind === "cells") other.push(`row of cells [${it.values.join(", ")}]${it.pointer >= 0 ? ` with a pointer under ${it.values[it.pointer]}` : ""}`);
+    else if (it.kind === "note") other.push(`note "${it.text}"`);
+  }
+  const cards = lesson.steps.filter((s) => s.card).length;
+  return [
+    `Boxes (${names.size}): ${[...names.values()].join(", ") || "none"}.`,
+    `Arrows (${arrows.length}): ${arrows.map((e) => `${names.get(e.from) ?? e.from} --${e.text || "(no label)"}--> ${names.get(e.to) ?? e.to}`).join("; ") || "none"}.`,
+    `Also on the board: ${other.join("; ") || "nothing else"}.`,
+    `Layout: ${lesson.scene}. Steps shown only as their sentence (text cards): ${cards} of ${lesson.steps.length}.`,
+  ].join("\n");
+}
 
 const rows = [];
 const detail = [];
@@ -137,12 +163,16 @@ for (const [i, question] of list.entries()) {
     rows.push(`| ${n} | ${question} | ${r.model ?? "?"} | - | FAIL | ${r.error} |`);
     detail.push(`## ${n}. ${question}\n\nFAILED: ${r.error}\n`);
   } else {
-    rows.push(`| ${n} | ${question} | ${r.model} | ${r.drawn}/${r.steps} | ${r.machinePass ? "pass" : "FAIL"} | ${r.problems.length ? r.problems.slice(0, 3).join("; ") : r.stalled ? "stalled" : "no layout problem"}; outline ${r.msOutline} ms, first step ${r.msFirstStep} ms, all ${r.msTotal} ms |`);
-    detail.push(`## ${n}. ${question}\n\nTitle: ${r.lesson.title} (${r.lesson.scene}, ${r.lang})\n\n${r.lesson.steps.map((s, k) => `${k + 1}. ${s.say}\n   ${s.card ? "(text card)" : s.items.map(describe).join("  ")}`).join("\n")}\n`);
+    rows.push(`| ${n} | ${question} | ${r.model} | ${r.drawn}/${r.steps}, relations ${r.planDrawn}/${r.planRelations} | ${r.machinePass ? "pass" : "FAIL"} | ${r.problems.length ? r.problems.slice(0, 3).join("; ") : r.stalled ? "stalled" : "no layout problem"}; outline ${r.msOutline} ms, first step ${r.msFirstStep} ms, all ${r.msTotal} ms |`);
+    detail.push(`## ${n}. ${question}\n\nTitle: ${r.lesson.title} (${r.lesson.scene}, ${r.lang})\n\n${r.lesson.steps.map((s, k) => `${k + 1}. ${s.say}\n   ${s.card ? "(text card)" : s.items.map(describe).join("  ")}`).join("\n")}\n\nFinal board:\n${finalBoard(r.lesson)}\n`);
   }
   console.log(rows[rows.length - 1]);
 }
 const passed = rows.filter((r) => r.includes("| pass |")).length;
-const summary = [`# Whiteboard lesson proof (machine checks)`, "", `Server ${base}, setup "${setup}", ${new Date().toISOString()}`, "", "| # | Concept | Model | Steps with a drawing | Machine checks | Notes |", "|---|---|---|---|---|---|", ...rows, "", `Machine pass: ${passed} of ${rows.length}`, "", ...detail].join("\n");
+const results = fs.readdirSync(out).filter((f) => /^lesson-\d+\.json$/.test(f)).map((f) => JSON.parse(fs.readFileSync(path.join(out, f), "utf8"))).filter((r) => r.lesson);
+const sum = (k) => results.reduce((a, r) => a + (r[k] || 0), 0);
+const coverage = `Drawing coverage: ${sum("drawn")} of ${sum("steps")} steps draw something (${sum("cards")} text cards); ${sum("planDrawn")} of ${sum("planRelations")} relations of the checked plans are on the final boards.`;
+console.log(coverage);
+const summary = [`# Whiteboard lesson proof (machine checks)`, "", `Server ${base}, setup "${setup}", ${new Date().toISOString()}`, "", "| # | Concept | Model | Steps with a drawing | Machine checks | Notes |", "|---|---|---|---|---|---|", ...rows, "", `Machine pass: ${passed} of ${rows.length}`, "", coverage, "", ...detail].join("\n");
 fs.writeFileSync(path.join(out, "summary.md"), summary);
 console.log(`machine pass ${passed}/${rows.length}; details in ${path.join(out, "summary.md")}`);

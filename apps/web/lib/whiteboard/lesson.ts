@@ -18,6 +18,8 @@ export type LessonItem =
   | { kind: "formula"; tex: string }
   | { kind: "plot"; expr: string; xmin: number; xmax: number; text: string }
   | { kind: "note"; text: string }
+  /** A row of values with a pointer under one of them (-1: none): the worked example of an algorithm. */
+  | { kind: "cells"; values: string[]; pointer: number }
   | { kind: "mark"; target: string; style: MarkStyle }
   | { kind: "sketch"; drawing: BuddyDrawing };
 
@@ -203,6 +205,12 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
     } else if (kind === "note" || kind === "text" || kind === "list") {
       const text = cleanText(q.text ?? (Array.isArray(q.items) ? q.items.join("; ") : ""), LIMITS.note);
       if (text && once(`n:${text.toLowerCase()}`)) out.push({ kind: "note", text });
+    } else if (kind === "cells" || kind === "array") {
+      const values = (Array.isArray(q.values) ? q.values : []).slice(0, 10).map((v) => cleanText(v, 6)).filter(Boolean);
+      const at = finite(q.pointer);
+      const pointer = at !== null && Number.isInteger(at) && at >= 0 && at < values.length ? at : -1;
+      // one value is not a row; the same row with the same pointer is not drawn twice
+      if (values.length >= 2 && once(`c:${values.join("|")}:${pointer}`)) out.push({ kind: "cells", values, pointer });
     } else if (kind === "mark") {
       const target = find(q.target ?? q.id);
       if (!target) continue;
@@ -361,6 +369,7 @@ export function contextOf(lesson: Lesson, opts: Omit<LessonContext, "nodes" | "e
       else if (it.kind === "plot") ctx.seen.add(`p:${it.expr.replace(/\s+/g, "")}`);
       else if (it.kind === "note") ctx.seen.add(`n:${it.text.toLowerCase()}`);
       else if (it.kind === "mark") ctx.seen.add(`m:${it.target}:${it.style}`);
+      else if (it.kind === "cells") ctx.seen.add(`c:${it.values.join("|")}:${it.pointer}`);
     }
   }
   return ctx;
@@ -388,6 +397,7 @@ export function lessonMarkdown(lesson: Lesson, words: { step: string; drawing: s
       else if (it.kind === "formula") lines.push(`- \`${it.tex.replace(/`/g, "")}\``);
       else if (it.kind === "plot") lines.push(`- y = \`${it.expr.replace(/`/g, "")}\` (x ${it.xmin} .. ${it.xmax})`);
       else if (it.kind === "note") lines.push(`- ${md(it.text)}`);
+      else if (it.kind === "cells") lines.push(`- ${it.values.map((v, k) => (k === it.pointer ? `**${md(v)}**` : md(v))).join(" | ")}`);
       else if (it.kind === "sketch") lines.push(`- ${md(it.drawing.title)}`);
     }
     if (lines.length) out.push(`${words.drawing}:`, "", ...lines, "");

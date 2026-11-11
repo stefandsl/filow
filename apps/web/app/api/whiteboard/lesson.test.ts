@@ -72,7 +72,8 @@ describe("whiteboard lesson, local model: plan, check, then a pick per step", ()
     expect(steps[1].items).toEqual([{ kind: "node", id: "sugar", text: "Glucose" }, { kind: "edge", from: "leaf", to: "sugar", text: "makes" }, { kind: "formula", tex: "6CO_2 + 6H_2O \\rightarrow C_6H_{12}O_6 + 6O_2" }]);
     // after the check the relations are renumbered: "3" is now "Leaf releases Oxygen"
     expect(steps[2].items).toEqual([{ kind: "node", id: "o2", text: "Oxygen" }, { kind: "edge", from: "leaf", to: "o2", text: "releases" }]);
-    expect(ev[5]).toEqual({ type: "done", cards: 0, stalled: false });
+    // coverage: the checked plan had three relations and all three ended on the board
+    expect(ev[5]).toEqual({ type: "done", cards: 0, stalled: false, relations: 3, drawn: 3 });
     expect(outside()).toEqual([]);
   });
 
@@ -112,14 +113,15 @@ describe("whiteboard lesson, local model: plan, check, then a pick per step", ()
     }
   });
 
-  it("asks again for a step that came back broken, then shows it as a text card and goes on", async () => {
+  it("asks again for a step that came back broken, then draws it from the checked plan instead of leaving a text card", async () => {
     localAnswers = [OUTLINE, JUDGE, PLAN, CHECK, PICK1, "I am not JSON", pick([], []), PICK3];
     const ev = await events(await post({ question: "photosynthesis" }));
     const steps = stepsOf(ev);
     expect(steps).toHaveLength(3);
-    expect(steps[1]).toEqual({ say: "It makes sugar.", items: [], card: true });
+    // the next things of the plan, and the checked relations that now have both ends on the board
+    expect(steps[1]).toEqual({ say: "It makes sugar.", card: false, items: [{ kind: "node", id: "sugar", text: "Glucose" }, { kind: "node", id: "o2", text: "Oxygen" }, { kind: "edge", from: "leaf", to: "sugar", text: "makes" }, { kind: "edge", from: "leaf", to: "o2", text: "releases" }] });
     expect(steps[2].card).toBe(false);
-    expect(ev[ev.length - 1]).toEqual({ type: "done", cards: 1, stalled: false });
+    expect(ev[ev.length - 1]).toMatchObject({ type: "done", cards: 0, stalled: false, relations: 3, drawn: 3 });
   });
 
   it("repairs a step that was cut off in the middle, keeping what was complete", async () => {
@@ -134,8 +136,9 @@ describe("whiteboard lesson, local model: plan, check, then a pick per step", ()
     const steps = stepsOf(await events(await post({ question: "photosynthesis" })));
     // "The leaf is green." picked Light: the circle goes on the box the sentence names, not on the one picked
     expect(steps[1].items).toEqual([{ kind: "mark", target: "leaf", style: "circle" }]);
-    // a sentence that names no box circles nothing: it is a text card
-    expect(steps[2]).toMatchObject({ items: [], card: true });
+    // a sentence that names no box circles nothing (it draws what the plan still has)
+    expect(steps[2].items.some((i) => i.kind === "mark")).toBe(false);
+    expect(steps[2].items.map((i) => i.kind)).toEqual(["node", "node", "edge", "edge"]);
   });
 
   it("links two things with their checked relation as soon as both are on the board, even when no step picks it", async () => {
@@ -357,8 +360,9 @@ describe("whiteboard lesson, a model that stalls", () => {
     };
     await generateLocal(ask, { question: "photosynthesis", lang: "en", maxSteps: 7 }, (e) => got.push(e));
     expect(n).toBe(6);
-    expect(stepsOf(got).map((s) => s.card)).toEqual([false, true, true]);
-    expect(got[got.length - 1]).toEqual({ type: "done", cards: 2, stalled: true });
+    // the model is gone, the checked plan is not: the next step still draws from it; only then text cards
+    expect(stepsOf(got).map((s) => s.card)).toEqual([false, false, true]);
+    expect(got[got.length - 1]).toEqual({ type: "done", cards: 1, stalled: true, relations: 3, drawn: 3 });
   });
 
   it("at the route: a model that stops answering is cut off, and the lesson ends as text cards", async () => {
@@ -378,7 +382,7 @@ describe("whiteboard lesson, a model that stalls", () => {
       expect(Date.now() - started).toBeLessThan(3000);
       expect(ev.map((e) => e.type)).toEqual(["start", "outline", "step", "step", "step", "done"]);
       expect(stepsOf(ev).every((s) => s.card)).toBe(true);
-      expect(ev[ev.length - 1]).toEqual({ type: "done", cards: 3, stalled: true });
+      expect(ev[ev.length - 1]).toEqual({ type: "done", cards: 3, stalled: true, relations: 0, drawn: 0 });
       // asked once for the outline and once for the call that stalled: not again for the steps left
       expect(chat).toBe(2);
     } finally {

@@ -10,7 +10,8 @@ export type LessonEvent =
   | { type: "start"; provider: "local" | "cloud" | "freellm"; model: string; lang: BuddyLang; lite: boolean; more: boolean }
   | { type: "outline"; title: string; scene: Scene; says: string[] }
   | { type: "step"; index: number; step: LessonStep }
-  | { type: "done"; cards: number; stalled: boolean }
+  /** `relations`/`drawn`: how many relations the checked plan had and how many of them ended on the board (local path). */
+  | { type: "done"; cards: number; stalled: boolean; relations?: number; drawn?: number }
   | { type: "error"; message: string; code: "plan" | "stalled" | "model" };
 
 /** One question to the model: the answer text, whole. Throws StallError when it ran out of time. */
@@ -194,8 +195,10 @@ function pickSchema(thingIds: string[], relationCount: number) {
       formula: { type: "string", maxLength: 160 },
       plot: { type: "string", maxLength: 60 },
       xmax: { type: "integer" },
+      cells: { type: "array", maxItems: 10, items: { type: "string", maxLength: 6 } },
+      pointer: { type: "integer" },
     },
-    required: ["formula", "plot", "xmax"],
+    required: ["formula", "plot", "xmax", "cells", "pointer"],
   };
 }
 
@@ -205,6 +208,8 @@ function pickSystem(): string {
     '"things": the ids of the things this sentence talks about, from the list. "relations": the numbers of the relations this sentence states, from the list. Choose only what the sentence itself says; leave out the rest (later steps show it). Both may be empty.',
     '"formula": when the sentence states a law or an equation, that formula in LaTeX (for example a^2 + b^2 = c^2); otherwise "".',
     '"plot": when the sentence tells how a quantity grows, falls or meets another, an expression in x for the curve (numbers, x, + - * / ^, sin, cos, exp, ln, sqrt), for example 100 * 1.05^x; otherwise "".',
+    '"cells": when the sentence works on a row of values (a list being searched or sorted, a sequence of numbers, the calls of a recursion), those values in order, for example ["1","3","5","7","9"]; otherwise []. "pointer": the position, counted from 0, of the value the sentence is looking at, or -1 when it looks at none. An algorithm lesson shows its cells in every step that touches them.',
+    "A law or a proof lesson shows its formula in the step that states it, and each step of a derivation as a formula.",
     '"xmax": for a plot, where x should end (x starts at 0): the largest value of x the sentence talks about, for example 5 for a count from 5 down to 0; otherwise 10.',
   ].join("\n");
 }
@@ -378,48 +383,71 @@ export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: Less
   const thingIds = plan.things.map((t) => t.id);
   let cards = 0;
   for (let i = 0; i < says.length; i++) {
-    let step: LessonStep = { say: says[i], items: [], card: true };
-    for (let attempt = 0; attempt < 2 && step.card && !stalled; attempt++) {
-      const user = [
-        `Lesson: ${title}`,
-        thingIds.length ? `Things: ${plan.things.map((t) => `${t.id} = ${t.text}`).join("; ")}` : "",
-        plan.relations.length ? `Relations:\n${plan.relations.map((r, k) => `${k + 1}. ${label(r.from)} ${r.text} ${label(r.to)}`).join("\n")}` : "",
-        `Sentence of this step: "${says[i]}"`,
-      ].filter(Boolean).join("\n");
-      const raw = (await tryAsk({ system: pickSystem(), user, format: pickSchema(thingIds, plan.relations.length), maxTokens: 220, timeoutMs: TIMEOUTS.stepMs, temperature: attempt ? 0.5 : 0.2 })) as { things?: unknown; relations?: unknown; formula?: unknown; plot?: unknown; xmax?: unknown } | undefined;
-      if (!raw || typeof raw !== "object") continue;
+    const sentence = says[i].toLowerCase();
+    /** The items of this step: what the model picked (when its answer can be read), then what the plan itself gives. */
+    const itemsFor = (raw: { things?: unknown; relations?: unknown; formula?: unknown; plot?: unknown; xmax?: unknown; cells?: unknown; pointer?: unknown } | undefined, more: number): unknown[] => {
       // Built from the plan only: an id or a number that is not in it is ignored.
       const items: unknown[] = [];
-      const show = (id: string) => { const t = plan.things.find((x) => x.id === id); if (t) items.push({ kind: "node", id: t.id, text: t.text }); };
-      const picked = (Array.isArray(raw.relations) ? raw.relations : []).map((n) => plan.relations[Number(n) - 1]).filter(Boolean).slice(0, 3);
-      for (const id of Array.isArray(raw.things) ? raw.things.slice(0, 3) : []) if (typeof id === "string") show(id);
+      const shown = new Set<string>();
+      const show = (id: string) => {
+        const t = plan.things.find((x) => x.id === id);
+        if (t && !shown.has(id)) {
+          shown.add(id);
+          items.push({ kind: "node", id: t.id, text: t.text });
+        }
+      };
+      const picked = (Array.isArray(raw?.relations) ? raw.relations : []).map((n) => plan.relations[Number(n) - 1]).filter(Boolean).slice(0, 3);
+      for (const id of Array.isArray(raw?.things) ? raw.things.slice(0, 3) : []) if (typeof id === "string") show(id);
       // a thing the sentence names is shown with it, picked or not: boxes the lesson talks about are on the board
-      const sentence = says[i].toLowerCase();
       for (const t of plan.things) if (!ctx.nodes.has(t.id) && t.text.length >= 3 && sentence.includes(t.text.toLowerCase())) show(t.id);
+      // `more`: a step that would otherwise draw nothing takes the next things of the plan, in the plan's order
+      for (const t of plan.things) {
+        if (more <= 0) break;
+        if (ctx.nodes.has(t.id) || shown.has(t.id)) continue;
+        show(t.id);
+        more--;
+      }
       for (const r of picked) {
         show(r.from);
         show(r.to);
         items.push({ kind: "edge", from: r.from, to: r.to, text: r.text });
       }
-      // A checked relation whose two things are now both on the board is drawn even when the step
-      // did not pick it (at most two): it is true, and boxes left unconnected explain nothing.
-      const here = new Set([...ctx.nodes.keys(), ...items.flatMap((it) => ((it as { kind?: string }).kind === "node" ? [(it as { id: string }).id] : []))]);
+      // A checked relation is drawn as soon as both its things are on the board, picked or not (at most
+      // three in a step): it is true, and boxes left unconnected explain nothing.
+      const here = new Set([...ctx.nodes.keys(), ...shown]);
       let linked = 0;
       for (const r of plan.relations) {
-        if (linked >= 2 || !here.has(r.from) || !here.has(r.to) || picked.includes(r) || ctx.edges.has(`${r.from}>${r.to}>${r.text.toLowerCase()}`)) continue;
+        if (linked >= 3 || !here.has(r.from) || !here.has(r.to) || picked.includes(r) || ctx.edges.has(`${r.from}>${r.to}>${r.text.toLowerCase()}`)) continue;
         items.push({ kind: "edge", from: r.from, to: r.to, text: r.text });
         linked++;
       }
-      if (typeof raw.formula === "string" && raw.formula.trim()) items.push({ kind: "formula", tex: raw.formula });
-      if (typeof raw.plot === "string" && raw.plot.trim()) items.push({ kind: "plot", expr: raw.plot, xmin: 0, xmax: typeof raw.xmax === "number" && raw.xmax >= 1 && raw.xmax <= 1000 ? raw.xmax : 10 });
-      // a circle goes only on a box this sentence names
-      ctx.hint = says[i];
-      step = makeStep(says[i], items, ctx);
+      if (typeof raw?.formula === "string" && raw.formula.trim()) items.push({ kind: "formula", tex: raw.formula });
+      if (typeof raw?.plot === "string" && raw.plot.trim()) items.push({ kind: "plot", expr: raw.plot, xmin: 0, xmax: typeof raw.xmax === "number" && raw.xmax >= 1 && raw.xmax <= 1000 ? raw.xmax : 10 });
+      if (Array.isArray(raw?.cells) && raw.cells.length) items.push({ kind: "cells", values: raw.cells, pointer: raw.pointer });
+      return items;
+    };
+    // a circle goes only on a box this sentence names
+    ctx.hint = says[i];
+    let step: LessonStep = { say: says[i], items: [], card: true };
+    for (let attempt = 0; attempt < 2 && step.card && !stalled; attempt++) {
+      const user = [
+        `Lesson: ${title} (${outline.kind})`,
+        thingIds.length ? `Things: ${plan.things.map((t) => `${t.id} = ${t.text}`).join("; ")}` : "",
+        plan.relations.length ? `Relations:\n${plan.relations.map((r, k) => `${k + 1}. ${label(r.from)} ${r.text} ${label(r.to)}`).join("\n")}` : "",
+        `Sentence of this step: "${says[i]}"`,
+      ].filter(Boolean).join("\n");
+      const raw = (await tryAsk({ system: pickSystem(), user, format: pickSchema(thingIds, plan.relations.length), maxTokens: 260, timeoutMs: TIMEOUTS.stepMs, temperature: attempt ? 0.5 : 0.2 })) as Parameters<typeof itemsFor>[0];
+      if (!raw || typeof raw !== "object") continue;
+      step = makeStep(says[i], itemsFor(raw, 0), ctx);
     }
+    // Nothing drawn (an unreadable pick, a stalled model, or a pick of things already there): the step
+    // still draws from the checked plan while the plan has something left. Only then is it a text card.
+    if (step.card) step = makeStep(says[i], itemsFor(undefined, 2), ctx);
     if (step.card) cards++;
     emit({ type: "step", index: i, step });
   }
-  emit({ type: "done", cards, stalled });
+  const drawn = plan.relations.filter((r) => ctx.edges.has(`${r.from}>${r.to}>${r.text.toLowerCase()}`)).length;
+  emit({ type: "done", cards, stalled, relations: plan.relations.length, drawn });
 }
 
 /** Cloud path: the whole lesson in one answer. */

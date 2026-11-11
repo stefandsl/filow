@@ -102,6 +102,17 @@ describe("whiteboard board", () => {
     expect(render(cut, 0)).toContain("<image href=");
   });
 
+  it("draws a row of cells with the pointer under the value being looked at", () => {
+    const cells = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "cells", values: ["1", "3", "5", "<7>"], pointer: 2 }] }] })!;
+    const svg = render(cells, 0);
+    expect(svg).toContain('data-block="cells" data-pointer="2"');
+    expect([...svg.matchAll(/>(1|3|5|&lt;7&gt;)<\/text>/g)]).toHaveLength(4);
+    // one highlighted cell, and none when the pointer is on nothing
+    expect(svg.split(BOARD_PALETTES.light.highlight).length - 1).toBe(1);
+    const none = validateLesson({ title: "T", scene: "flow", steps: [{ say: "s", items: [{ kind: "cells", values: ["1", "3"], pointer: -1 }] }] })!;
+    expect(render(none, 0)).not.toContain(BOARD_PALETTES.light.highlight);
+  });
+
   it("uses the palette it is given for both themes", () => {
     expect(render(lesson, 0)).toContain(BOARD_PALETTES.light.board);
     expect(render(lesson, 0, { palette: BOARD_PALETTES.dark })).toContain(BOARD_PALETTES.dark.board);
