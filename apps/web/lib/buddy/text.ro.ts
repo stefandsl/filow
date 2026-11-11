@@ -39,7 +39,7 @@ export const ro: Record<OkfKey, string> = {
   clearHistory: "Uită această conversație",
   historyCleared: "Conversație uitată.",
   agentsTitle: "Agenți",
-  agentsHint: "Spune sau scrie „agent, ...” și o sarcină din fundal o rezolvă pentru tine, folosind Codex sau Claude Code pe acest PC.",
+  agentsHint: "Spune sau scrie „agent, …” și o sarcină din fundal o rezolvă pentru tine, folosind Codex sau Claude Code pe acest PC.",
   agentStarted: "Mă ocup. Am pornit un agent: {title}.",
   agentDone: "Agentul tău a terminat: {title}. {summary}",
   agentFailed: "Agentul pentru {title} s-a oprit: {summary}",

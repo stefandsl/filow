@@ -44,7 +44,7 @@ const en = {
   clearHistory: "Forget this conversation",
   historyCleared: "Conversation forgotten.",
   agentsTitle: "Agents",
-  agentsHint: "Say or type \"agent, ...\" and a background job does it for you, using Codex or Claude Code on this PC.",
+  agentsHint: "Say or type \"agent, …\" and a background job does it for you, using Codex or Claude Code on this PC.",
   agentStarted: "On it. I started an agent: {title}.",
   agentDone: "Your agent finished: {title}. {summary}",
   agentFailed: "The agent for {title} stopped: {summary}",

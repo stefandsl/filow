@@ -39,7 +39,7 @@ export const ru: Record<OkfKey, string> = {
   clearHistory: "Забыть этот разговор",
   historyCleared: "Разговор забыт.",
   agentsTitle: "Агенты",
-  agentsHint: "Скажите или напишите «агент, ...», и фоновая задача сделает это за вас с помощью Codex или Claude Code на этом компьютере.",
+  agentsHint: "Скажите или напишите «агент, …», и фоновая задача сделает это за вас с помощью Codex или Claude Code на этом компьютере.",
   agentStarted: "Уже занимаюсь. Запущен агент: {title}.",
   agentDone: "Ваш агент закончил работу: {title}. {summary}",
   agentFailed: "Агент для задачи «{title}» остановился: {summary}",

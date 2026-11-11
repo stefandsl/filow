@@ -39,7 +39,7 @@ export const ja: Record<OkfKey, string> = {
   clearHistory: "この会話を消去",
   historyCleared: "会話を消去しました。",
   agentsTitle: "エージェント",
-  agentsHint: "「エージェント、...」と話すか入力すると、このPCのCodexまたはClaude Codeを使って、バックグラウンドのジョブが代わりに実行します。",
+  agentsHint: "「エージェント、…」と話すか入力すると、このPCのCodexまたはClaude Codeを使って、バックグラウンドのジョブが代わりに実行します。",
   agentStarted: "了解しました。エージェントを開始しました：{title}。",
   agentDone: "エージェントが完了しました：{title}。{summary}",
   agentFailed: "{title}のエージェントが停止しました：{summary}",

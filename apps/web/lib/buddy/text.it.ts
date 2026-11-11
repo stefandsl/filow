@@ -39,7 +39,7 @@ export const it: Record<OkfKey, string> = {
   clearHistory: "Dimentica questa conversazione",
   historyCleared: "Conversazione dimenticata.",
   agentsTitle: "Agenti",
-  agentsHint: "Di' o scrivi \"agente, ...\" e un lavoro in background lo fa per te, con Codex o Claude Code su questo PC.",
+  agentsHint: "Di' o scrivi \"agente, …\" e un lavoro in background lo fa per te, con Codex o Claude Code su questo PC.",
   agentStarted: "Ci penso io. Ho avviato un agente: {title}.",
   agentDone: "Il tuo agente ha finito: {title}. {summary}",
   agentFailed: "L'agente per {title} si è fermato: {summary}",
