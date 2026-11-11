@@ -59,6 +59,11 @@ contextBridge.exposeInMainWorld("okFilow", {
   pickAnswerDir: () => ipcRenderer.invoke("okfilow:pickAnswerDir"),
   openAnswers: () => ipcRenderer.invoke("okfilow:openAnswers"),
   deleteAnswers: () => ipcRenderer.invoke("okfilow:deleteAnswers"),
+  /** Stops the answer in progress; main tells the panel (onStop), which ends the request, the voice and the pointing. */
+  stopAnswer: (source) => ipcRenderer.send("okfilow:stopAnswer", source),
+  onStop: on("okfilow:stop"),
+  /** Overlay -> main: the pointer is on (or off) the Stop button, so this overlay takes the mouse meanwhile. */
+  overlayHover: (on) => ipcRenderer.send("okfilow:overlay:hover", on === true),
   press: () => ipcRenderer.send("okfilow:press"),
   release: () => ipcRenderer.send("okfilow:release"),
   /** Test builds with FILOW_OKF_QA_KEYS=1 only (ignored otherwise): a key press for the gestures. */
