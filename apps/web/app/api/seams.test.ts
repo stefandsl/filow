@@ -108,15 +108,23 @@ describe("Step 4 provider boundaries", () => {
   });
   // Contract: ARCHITECTURE.md §6.10 offline forces local providers; Q4 prohibits offline text upload.
   it("offline translation must not upload the script to OpenRouter", async () => {
-    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it" }, YES.script));
+    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it", provider: "cloud" }, YES.script));
     expect(res.status).toBe(200);
     expect(outbound, "offline translation must make no cloud request").not.toHaveBeenCalled();
     expect(await res.json()).toMatchObject({ unavailable: "disabled", model: "offline" });
   });
+  it("offline translation without a named cloud asks only the Ollama on this PC", async () => {
+    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it" }, YES.script));
+    expect(outbound.mock.calls.length).toBeGreaterThan(0);
+    expect(outbound.mock.calls.filter(c => !String(c[0]).startsWith("http://127.0.0.1:11434/"))).toHaveLength(0);
+    // this fake Ollama lists no models: the answer says so, and is not a translation from somewhere else
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ unavailable: "no_model" });
+  });
   // Contract: guard.ts:1 and ARCHITECTURE.md §6.10: PII guard for text leaving for cloud.
   it("strict PII translation must not send unguarded personal text", async () => {
     vi.stubEnv("FILOW_OFFLINE", "");
-    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it" }, YES.script));
+    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it", provider: "cloud" }, YES.script));
     const cloudCalls = outbound.mock.calls.filter(c => c[0].includes("openrouter.ai"));
     expect(cloudCalls, "strict PII must refuse cloud translation when Rizzo is unavailable").toHaveLength(0);
     expect(res.status).toBe(502);
@@ -127,7 +135,7 @@ describe("Step 4 provider boundaries", () => {
     outbound.mockImplementation(async (url: string) => url.endsWith("/health")
       ? new Response("unavailable", { status: 503 })
       : Response.json({ choices: [{ message: { content: "# A\n- Contatta [EMAIL_1]" } }] }));
-    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it" }, YES.script));
+    const res = await translate(request({ text: `# A\n- ${privateText}`, to: "it", provider: "cloud" }, YES.script));
     expect(res.status).toBe(200);
     expect(JSON.stringify(outbound.mock.calls[1])).not.toContain("audit@example.invalid");
     expect(JSON.stringify(outbound.mock.calls[1])).toContain("[EMAIL_1]");
@@ -141,10 +149,10 @@ describe("Step 4 provider boundaries", () => {
       expect(await res.json()).toMatchObject({ unavailable: "disabled" });
     });
   }
-  it("local decision selection does not select local vision or translation", async () => {
+  it("local decision selection does not turn a cloud vision or translation request into a local one", async () => {
     vi.stubEnv("FILOW_OFFLINE", ""); vi.stubEnv("DECISION_PROVIDER", "clef-local"); vi.stubEnv("PII_GUARD", "off");
     await vision(request({ image: "data:image/png;base64,YQ==" }, YES.screen));
-    await translate(request({ text: "# A\n- B", to: "it" }, YES.script));
+    await translate(request({ text: "# A\n- B", to: "it", provider: "cloud" }, YES.script));
     expect(outbound.mock.calls.map(c => c[0])).toEqual(Array(2).fill("https://openrouter.ai/api/v1/chat/completions"));
   });
   it("a configured remote Ollama receives raw text even with the offline flag", async () => {

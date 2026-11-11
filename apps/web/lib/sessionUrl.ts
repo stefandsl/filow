@@ -53,6 +53,8 @@ export type DesktopBridge = {
     status: () => Promise<LocalAiStatus>;
     hardware: () => Promise<LocalAiHardware>;
     install: () => void;
+    /** Start an installed Ollama that is not running; never downloads. Absent in an older shell. */
+    start?: () => void;
     onStatus: (fn: (s: LocalAiStatus) => void) => () => void;
   };
   accessPassword: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADVANCED_MIN_VRAM_GB, advancedDiskNeedGb, diskNeededGb, DOWNLOAD_SPARE_GB, missingModels, recommendProfile, resolveSetup, setupChoices, SHARED_GPU_FREE_GB, sttThreads, type MachineInfo } from "./profile";
+import { ADVANCED_MIN_VRAM_GB, advancedDiskNeedGb, diskNeededGb, DOWNLOAD_SPARE_GB, missingModels, recommendProfile, resolveSetup, scriptModel, setupChoices, SHARED_GPU_FREE_GB, sttThreads, type MachineInfo } from "./profile";
 
 const machine = (ramGb: number, cores: number, gpu: MachineInfo["gpu"] = { kind: "none", vramGb: null }, freeDiskGb: number | null = 200): MachineInfo => ({ ramGb, cores, gpu, freeDiskGb });
 const igpu = { kind: "integrated" as const, vramGb: 0.5 };
@@ -143,5 +143,29 @@ describe("missingModels", () => {
     const std = setupChoices("standard", machine(16, 8));
     expect(missingModels(std, { ollama: ["lfm3-vl:latest"], sherpa: true })).toEqual([]);
     expect(missingModels(std, { ollama: [], sherpa: true }).map((m) => [m.name, m.use])).toEqual([["lfm3-vl", "screen"]]);
+  });
+});
+
+describe("scriptModel: what writes and translates scripts on this PC", () => {
+  const name = (m: MachineInfo) => scriptModel(m)?.name ?? null;
+  it("Gemma 4 E2B from 8 GB of memory, E4B from 32 GB, nothing under 8 GB", () => {
+    expect([4, 6, 7].map((ram) => name(machine(ram, 4)))).toEqual([null, null, null]);
+    expect([8, 12, 16, 31].map((ram) => name(machine(ram, 8)))).toEqual(Array(4).fill("gemma4:e2b"));
+    expect([32, 64].map((ram) => name(machine(ram, 16, rtx(8))))).toEqual(["gemma4:e4b", "gemma4:e4b"]);
+  });
+  it("it is the same for every setup: the machine decides, not the profile", () => {
+    for (const m of [machine(8, 4), machine(16, 8, igpu), machine(32, 22, rtx(8))]) expect(scriptModel(m)?.use, JSON.stringify(m)).toBe("script");
+  });
+  it("the one already installed wins, and needs no free disk", () => {
+    expect(name({ ...machine(32, 16, rtx(8), 1), installed: ["gemma4:e2b"] })).toBe("gemma4:e2b");
+    expect(name({ ...machine(32, 16, rtx(8), 200), installed: ["gemma4:e2b"] }), "no second download while one is there").toBe("gemma4:e2b");
+    expect(name({ ...machine(32, 16, rtx(8), 1), installed: ["gemma4:e4b", "gemma4:e2b"] })).toBe("gemma4:e4b");
+    expect(name({ ...machine(8, 4, undefined, 1), installed: ["gemma4:e2b"] })).toBe("gemma4:e2b");
+  });
+  it("a download that would not leave the spare free is not offered: the big one gives way to the small one, then to nothing", () => {
+    expect(name(machine(32, 16, rtx(8), 6.1 + DOWNLOAD_SPARE_GB))).toBe("gemma4:e4b");
+    expect(name(machine(32, 16, rtx(8), 6 + DOWNLOAD_SPARE_GB))).toBe("gemma4:e2b");
+    expect(name(machine(32, 16, rtx(8), 4.2 + DOWNLOAD_SPARE_GB))).toBeNull();
+    expect(name(machine(8, 4, undefined, null))).toBe("gemma4:e2b");
   });
 });

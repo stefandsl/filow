@@ -18,7 +18,8 @@ const refusal = (kind: string, id: string, names: string[]) => expect.objectCont
 
 const decideBody = { transcript: "and then we look at the numbers", sectionTitle: "Numbers", bullets: [{ id: "a", text: "Revenue grew" }] };
 const frame = { image: "data:image/jpeg;base64,YQ==", source: "screen" };
-const script = { text: "# Intro\n- Hello everyone", to: "it" };
+// the cloud is asked for by name: without `provider` a script is translated on this PC (translate-local.test.ts)
+const script = { text: "# Intro\n- Hello everyone", to: "it", provider: "cloud" };
 const deck = { slides: [{ index: 0, title: "Intro", text: "Hello everyone" }] };
 
 beforeEach(() => {
