@@ -150,6 +150,10 @@ describe("S1-mini: one name and one size everywhere", () => {
     // installer), so a size at the end would not show.
     for (const l of labels) expect(l).toMatch(/"S1-mini by Superwhisper \(462 (MB|Mo|МБ)\) ?[:：]/);
     expect(new Set(labels.map((l) => l.trim())).size).toBe(12);
+    // the same for every row of the page: name, then the size in brackets, then what it is for
+    const rows = nsh.split(/\r?\n/).filter((l) => /StrCpy \$Lbl(WhisperBase|WhisperSmall|S1Mini|Clef|GemmaSmall|GemmaBig|Ollama) "[^$]/.test(l));
+    expect(rows).toHaveLength(84);
+    for (const l of rows) expect(l, l).toMatch(/StrCpy \$Lbl\w+ "[^"(:：]{5,24} \([^)]*\d[^)]*\) ?[:：]/);
     expect(nsh).toMatch(/StrCpy \$StS1Mini \$\{BST_CHECKED\}\r?\n\s+\$\{If\} \$HaveS1Mini == 1\r?\n\s+StrCpy \$StS1Mini \$\{BST_UNCHECKED\}/);
     expect(nsh).toContain('!insertmacro _FilowSection ${SecS1Mini} $StS1Mini "$LblS1Mini"');
     expect(nsh).toContain("!insertmacro _FilowReadSection ${SecS1Mini} $StS1Mini");
