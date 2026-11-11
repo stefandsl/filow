@@ -23,7 +23,7 @@ import {
 } from "@filow/core";
 import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui";
 import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, sherpaUsable, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
-import { getLang, getSetupPreference, getSpeechLang, getStartMode, setDecisionProvider, setStartMode } from "@/lib/prefs";
+import { getCloudDecision, getLang, getSetupPreference, getSpeechLang, getStartMode, setDecisionProvider, setStartMode } from "@/lib/prefs";
 import { localizeFreeLlmError } from "@/lib/freellm";
 import { loadGate } from "@/lib/gate/client";
 import { useEngine } from "./useEngine";
@@ -272,7 +272,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   const loadReadiness = async (): Promise<Readiness> => {
     const [stt, local, whisper, sherpa] = await Promise.all([
       fetch("/api/stt/status").then((r) => r.json()).catch(() => ({ elevenlabs: false, openai: false })) as Promise<SttStatus>,
-      fetch("/api/local/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null) as Promise<{ openrouterKey?: boolean; ollama?: { ok: boolean }; models?: Array<{ name: string; installed: boolean }>; hardware?: MachineInfo } | null>,
+      fetch("/api/local/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null) as Promise<{ openrouterKey?: boolean; freellmReady?: boolean; ollama?: { ok: boolean }; models?: Array<{ name: string; installed: boolean }>; hardware?: MachineInfo } | null>,
       whisperCached(selectedWhisperModel()).catch(() => false),
       // The shell picks its model by the spoken language: hand it the one chosen in Settings first.
       (async () => {
@@ -283,6 +283,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
     ]);
     return {
       openrouterKey: Boolean(local?.openrouterKey),
+      freellmReady: Boolean(local?.freellmReady),
+      cloudDecision: getCloudDecision(),
       sttKey: Boolean(stt.elevenlabs || stt.openai),
       whisper: whisper || sherpa,
       sherpa,
@@ -329,7 +331,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
         // never a silent cloud take: Auto starts local or asks (the dialog names what is missing)
         mode = localReady(r) ? "local" : "ask";
       }
-      if (mode === "ask" || (mode === "cloud" && !(r.openrouterKey && r.sttKey)) || (mode === "local" && !localReady(r))) {
+      if (mode === "ask" || (mode === "cloud" && !cloudReady(r)) || (mode === "local" && !localReady(r))) {
         setStartDialog(true);
         return;
       }
@@ -355,7 +357,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
       setStarting(true);
       // The mode decides the provider and the transcription backend; no silent fallback to the other side.
       // Local: the setup for this computer picks the decision provider (packages/core/src/profile.ts).
-      const provider: DecisionProviderId = pick?.provider ?? (mode === "local" ? localProvider(r) : "openrouter");
+      // Cloud: OpenRouter, or the user's FreeLLMAPI router when they chose it for takes (Settings > FreeLLMAPI).
+      const provider: DecisionProviderId = pick?.provider ?? (mode === "local" ? localProvider(r) : cloudProvider(r));
       setDecisionProvider(provider);
       setTakeSetup(mode === "local" ? r.setup : null);
       if (mode === "local" && r.setup) pushLog(`${t("setup.inUse", { name: t(`setup.${r.setup.active}`) })} · ${provider}`);
@@ -757,7 +760,21 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: "en" | "it"
   );
 }
 
-type Readiness = { openrouterKey: boolean; sttKey: boolean; whisper: boolean; sherpa: boolean; clef: boolean; stt: SttStatus; setup: ResolvedSetup | null };
+type Readiness = {
+  openrouterKey: boolean; sttKey: boolean; whisper: boolean; sherpa: boolean; clef: boolean; stt: SttStatus; setup: ResolvedSetup | null;
+  /** FreeLLMAPI has an address and a key; and whether the user chose it to track cloud takes (Settings > FreeLLMAPI). */
+  freellmReady?: boolean; cloudDecision?: "openrouter" | "freellm";
+};
+
+/** Who decides in a cloud take: OpenRouter, or the user's FreeLLMAPI router when they chose it. Never one for the other. */
+export function cloudProvider(r: Pick<Readiness, "cloudDecision">): "openrouter" | "freellm" {
+  return r.cloudDecision === "freellm" ? "freellm" : "openrouter";
+}
+
+/** A cloud take can start: the chosen decider is set up, and a cloud speech key is there. */
+export function cloudReady(r: Pick<Readiness, "cloudDecision" | "freellmReady" | "openrouterKey" | "sttKey">): boolean {
+  return (cloudProvider(r) === "freellm" ? r.freellmReady === true : r.openrouterKey) && r.sttKey;
+}
 
 /**
  * Who decides in a local take: the setup's choice; Best quality falls back to the on-device matcher
@@ -783,7 +800,8 @@ function autoPick(r: Readiness): "cloud" | "local" | null {
 export function StartModeDialog({ readiness, onPick, onCancel, returnFocusRef }: { readiness: Readiness; onPick: (mode: "cloud" | "local", remember: boolean, auto?: boolean) => void; onCancel: () => void; returnFocusRef?: RefObject<HTMLElement | null> }) {
   const t = useT();
   const [remember, setRemember] = useState(false);
-  const cloudOk = readiness.openrouterKey && readiness.sttKey;
+  const cloudOk = cloudReady(readiness);
+  const viaFree = cloudProvider(readiness) === "freellm";
   const localOk = localReady(readiness);
   const auto = autoPick(readiness);
   const setupName = readiness.setup ? t(`setup.${readiness.setup.active}`) : "";
@@ -809,9 +827,10 @@ export function StartModeDialog({ readiness, onPick, onCancel, returnFocusRef }:
           <div className={`mode ${cloudOk ? "" : "notready"}`}>
             <h3>☁ {t("start.cloud")}</h3>
             <p className="hint">{t("start.cloudHint")}</p>
-            <Line ok={readiness.openrouterKey} label={t("start.keyOpenRouter")} />
+            {viaFree ? <Line ok={readiness.freellmReady === true} label={t("start.keyFreeLlm")} /> : <Line ok={readiness.openrouterKey} label={t("start.keyOpenRouter")} />}
             <Line ok={readiness.sttKey} label={t("start.keyStt")} />
-            {!cloudOk && <p className="hint">{t("start.notReadyCloud")}</p>}
+            {viaFree && <p className="hint">{t("start.freeLlmHint")}</p>}
+            {!cloudOk && <p className="hint">{t(viaFree ? "start.notReadyFreeLlm" : "start.notReadyCloud")}</p>}
             <button className="btn primary" disabled={!cloudOk} onClick={() => onPick("cloud", remember)}>
               {t("ctl.start")} · {t("start.cloud")}
             </button>

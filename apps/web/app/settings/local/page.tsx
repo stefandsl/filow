@@ -526,10 +526,9 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
               <div className="label">{t("settings.provider")}</div>
               <div className="hint">{t("settings.providerHint")}</div>
               <div className="row">
-                {(["matcher", "clef-local", "openrouter", "freellm", "clef-cloudflare"] as DecisionProviderId[]).map((id) => {
+                {(["matcher", "clef-local", "openrouter", "clef-cloudflare"] as DecisionProviderId[]).map((id) => {
                   const disabled =
                     (id === "openrouter" && (!status.openrouterKey || status.offline)) ||
-                    (id === "freellm" && (!status.freellmReady || status.offline)) ||
                     (id === "clef-cloudflare" && (!status.cloudflareKey || status.offline));
                   return (
                     <label key={id} className={`btn choice ${provider === id ? "primary" : ""}`} title={disabled ? t("settings.notConfigured") : ""}>

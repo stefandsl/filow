@@ -1542,6 +1542,15 @@ function startOkFilow() {
     // macOS: the plain-words prompt that opens the right System Settings pane (mac-permissions.js).
     askKeyboardPermission: require("./mac-permissions").createKeyboardPermissionPrompt({ dialog, systemPreferences, openSystemSettings, menuText: (k) => mt(k), logLine }),
       isOffline: () => offline,
+      // A link from the OK Filow panel to one of Filow's own settings pages opens in the main window, where
+      // the settings can be changed (the system browser has no desktop bridge). Never during a take.
+      openAppPage: (url) => {
+        if (!mainWin || mainWin.isDestroyed() || takeLive || !isAppPage(url)) return false;
+        void mainWin.loadURL(url);
+        mainWin.show();
+        mainWin.focus();
+        return true;
+      },
       sttDownload: () => void sttDownload(),
       dictation: getDictation(),
     });

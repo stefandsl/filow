@@ -1,20 +1,23 @@
 "use client";
 
 // Settings > FreeLLMAPI: the address of the user's own router, its unified key, the model or
-// routing strategy, a connection check, and the switch that sends scripts through it. FreeLLMAPI is
-// a separate app the user installs and runs; Filow only talks to it (lib/freellm.ts). The key goes
-// to the desktop app's encrypted store and never comes back to this page.
+// routing strategy, a connection check, and the two switches that send takes and scripts through
+// it. FreeLLMAPI is a separate app the user installs and runs; Filow only talks to it
+// (lib/freellm.ts). The key goes to the desktop app's encrypted store; this page only ever learns
+// whether one is saved and its last four characters.
 
 import { useEffect, useId, useState } from "react";
 import { useLang, useT } from "@filow/ui";
 import type { I18nKey } from "@filow/core";
 import { engineHeaders, ensureEngineToken } from "@/components/useSession";
 import { FREELLM_DOWNLOAD_URL, normalizeBaseUrl, normalizeModel, type FreeLlmCheck } from "@/lib/freellm";
+import { getCloudDecision, setCloudDecision } from "@/lib/prefs";
 
 type FreeLlmStatus = { baseUrl: string; model: string; scripts: boolean; hasKey: boolean; keyHint?: string; offline: boolean };
+type FreeLlmPatch = { baseUrl?: string; model?: string; scripts?: boolean; key?: string };
 type FreeLlmBridge = {
   status(): Promise<FreeLlmStatus>;
-  configure(patch: { baseUrl?: string; model?: string; scripts?: boolean; key?: string }): Promise<{ ok: boolean; error?: string; status: FreeLlmStatus }>;
+  configure(patch: FreeLlmPatch): Promise<{ ok: boolean; error?: string; status: FreeLlmStatus }>;
 };
 const bridge = () => (globalThis as { filow?: { freeLlm?: FreeLlmBridge } }).filow?.freeLlm ?? null;
 
@@ -30,6 +33,7 @@ export function FreeLlmSettings({ onChange }: { onChange?: () => void }) {
   const [url, setUrl] = useState("");
   const [model, setModel] = useState("auto");
   const [key, setKey] = useState("");
+  const [takes, setTakes] = useState(false);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [models, setModels] = useState<string[]>([]);
@@ -44,6 +48,7 @@ export function FreeLlmSettings({ onChange }: { onChange?: () => void }) {
     };
     const b = bridge();
     setDesktop(Boolean(b));
+    setTakes(getCloudDecision() === "freellm");
     if (b) void b.status().then(take).catch(() => {});
     else {
       void ensureEngineToken()
@@ -55,48 +60,64 @@ export function FreeLlmSettings({ onChange }: { onChange?: () => void }) {
     return () => { live = false; };
   }, []);
 
+  // A link to /settings/local#freellm (OK Filow panel, the Lite setup card): the section renders after its status loads.
+  const loaded = s !== null;
+  useEffect(() => {
+    if (loaded && window.location.hash === "#freellm") document.getElementById("freellm")?.scrollIntoView({ block: "start" });
+  }, [loaded]);
+
   if (!s) return null;
   const urlOk = normalizeBaseUrl(url) !== null;
   const modelOk = normalizeModel(model) !== null;
   const dirty = url !== s.baseUrl || model !== s.model || key !== "";
 
-  /** Saves what changed; false when the desktop app refused a part of it (said in the note). */
-  const save = async (extra: { scripts?: boolean; key?: string } = {}): Promise<boolean> => {
+  /** Sends one change to the desktop app; false when it refused it (the note says why). */
+  const send = async (patch: FreeLlmPatch): Promise<boolean> => {
     const b = bridge();
     if (!b) return true;
-    const patch = { baseUrl: url, model, ...(key ? { key } : {}), ...extra };
     const r = await b.configure(patch);
     setS(r.status);
     if (!r.ok) {
       setNote({ ok: false, text: t(ERRORS[r.error ?? ""] ?? "freellm.badUrl") });
       return false;
     }
-    setUrl(r.status.baseUrl);
-    setModel(r.status.model);
-    setKey("");
     onChange?.();
     return true;
   };
-
-  const check = async () => {
+  /** Saves the address, the model and a newly typed key. */
+  const saveFields = async (): Promise<boolean> => {
+    const ok = await send({ baseUrl: url, model, ...(key ? { key } : {}) });
+    if (ok) {
+      // the desktop app tidies the address ("/v1" added): show what it saved
+      const st = await bridge()?.status().catch(() => null);
+      if (st) { setUrl(st.baseUrl); setModel(st.model); }
+      setKey("");
+    }
+    return ok;
+  };
+  const withBusy = async (run: () => Promise<void>) => {
     setBusy(true);
-    setNote({ ok: true, text: t("freellm.checking") });
     try {
-      // What is typed is saved first, so the check asks the router the user sees here.
-      if (dirty && !(await save())) return;
-      await ensureEngineToken();
-      const res = await fetch("/api/freellm/check", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ lang }) });
-      const r = (await res.json()) as FreeLlmCheck;
-      if (r.ok) {
-        setModels(r.models);
-        setNote({ ok: true, text: t("freellm.ok", { n: r.ready }) });
-      } else setNote({ ok: false, text: r.error });
+      await run();
     } catch (e) {
       setNote({ ok: false, text: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
     }
   };
+
+  const check = () => withBusy(async () => {
+    setNote({ ok: true, text: t("freellm.checking") });
+    // What is typed is saved first, so the check asks the router the user sees here.
+    if (dirty && !(await saveFields())) return;
+    await ensureEngineToken();
+    const res = await fetch("/api/freellm/check", { method: "POST", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify({ lang }) });
+    const r = (await res.json()) as FreeLlmCheck;
+    if (r.ok) {
+      setModels(r.models);
+      setNote({ ok: true, text: t(r.ready === 1 ? "freellm.okOne" : "freellm.ok", { n: r.ready }) });
+    } else setNote({ ok: false, text: r.error });
+  });
 
   const options = [...new Set([...STRATEGIES, ...models, model])].filter(Boolean);
   return (
@@ -115,17 +136,17 @@ export function FreeLlmSettings({ onChange }: { onChange?: () => void }) {
           <div className="hint" id={`${id}-url-hint`}>{urlOk ? t("freellm.urlHint") : t("freellm.badUrl")}</div>
         </div>
 
-        <label htmlFor={`${id}-key`}>{t("freellm.key")}</label>
+        {desktop ? <label htmlFor={`${id}-key`}>{t("freellm.key")}</label> : <span className="freellm-term">{t("freellm.key")}</span>}
         <div>
           {desktop && (
             <div className="row">
               <input id={`${id}-key`} className="btn freellm-input" type="password" spellCheck={false} autoComplete="off" value={key}
                 aria-describedby={`${id}-key-hint`} onChange={(e) => { setKey(e.target.value); setNote(null); }} />
-              {s.hasKey && <button type="button" className="btn" disabled={busy} onClick={() => void save({ key: "" })}>{t("freellm.keyRemove")}</button>}
+              {s.hasKey && <button type="button" className="btn" disabled={busy} onClick={() => void withBusy(async () => { if (await send({ key: "" })) setNote(null); })}>{t("freellm.keyRemove")}</button>}
             </div>
           )}
           <div className="hint" id={`${id}-key-hint`}>
-            {s.hasKey ? t("freellm.keySaved", { hint: s.keyHint || "…" }) : t("freellm.keyNone")} {desktop ? t("freellm.keyHint") : ""}
+            {s.hasKey ? t(s.keyHint ? "freellm.keySaved" : "freellm.keySavedPlain", { hint: s.keyHint ?? "" }) : t("freellm.keyNone")} {desktop ? t("freellm.keyHint") : ""}
           </div>
         </div>
 
@@ -138,9 +159,13 @@ export function FreeLlmSettings({ onChange }: { onChange?: () => void }) {
         </div>
       </div>
 
+      <label className="row freellm-check">
+        <input type="checkbox" checked={takes} disabled={s.offline} onChange={(e) => { setCloudDecision(e.target.checked ? "freellm" : "openrouter"); setTakes(e.target.checked); }} />
+        <span>{t("freellm.takes")}</span>
+      </label>
       {desktop ? (
         <label className="row freellm-check">
-          <input type="checkbox" checked={s.scripts} disabled={s.offline} onChange={(e) => void save({ scripts: e.target.checked })} />
+          <input type="checkbox" checked={s.scripts} disabled={s.offline || busy} onChange={(e) => void withBusy(async () => { await send({ scripts: e.target.checked }); })} />
           <span>{t("freellm.scripts")}</span>
         </label>
       ) : (
@@ -148,7 +173,7 @@ export function FreeLlmSettings({ onChange }: { onChange?: () => void }) {
       )}
 
       <div className="row">
-        {desktop && <button type="button" className="btn" data-act="save" disabled={busy || !dirty || !urlOk || !modelOk} onClick={() => void save().then((ok) => { if (ok) setNote({ ok: true, text: t("freellm.saved") }); })}>{t("freellm.save")}</button>}
+        {desktop && <button type="button" className="btn" data-act="save" disabled={busy || !dirty || !urlOk || !modelOk} onClick={() => void withBusy(async () => { if (await saveFields()) setNote({ ok: true, text: t("freellm.saved") }); })}>{t("freellm.save")}</button>}
         <button type="button" className="btn primary" data-act="check" disabled={busy || s.offline || !urlOk || !modelOk || (!s.hasKey && !key)} onClick={() => void check()}>{t("freellm.check")}</button>
         <a className="btn" href={FREELLM_DOWNLOAD_URL} target="_blank" rel="noreferrer">{t("freellm.get")}</a>
       </div>

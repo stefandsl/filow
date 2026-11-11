@@ -23,7 +23,7 @@ describe("FreeLLMAPI as a recipient", () => {
   });
   it("the signal names FreeLLMAPI and the free provider it chooses, in the window's language", () => {
     expect(signalNames(freellmRecipient())).toEqual([FREELLM_NAME]);
-    expect(localNames(signalNames(freellmRecipient()), it_("freeName"))).toEqual(["FreeLLMAPI (un fornitore gratuito scelto da lui)"]);
+    expect(localNames(signalNames(freellmRecipient()), it_("freeName"))).toEqual(["FreeLLMAPI (un fornitore gratuito scelto dal router)"]);
     expect(localNames(["OpenRouter", "Google"], it_("freeName"))).toEqual(["OpenRouter", "Google"]);
   });
   it("every notice says the content goes on to a provider that may keep or train on it", () => {

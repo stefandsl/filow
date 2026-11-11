@@ -145,5 +145,20 @@ describe("scripts through FreeLLMAPI: /api/script/translate and /api/script/gene
     await decide(post(decideBody, "transcript:freellmapi")).then((r) => r.text());
     await generate(post({ ...deck, provider: "freellm" }, "script:freellmapi")).then((r) => r.text());
     expect(fake.log).toEqual([]);
+    // and not to OpenRouter either: offline, the only requests are to the Ollama on this PC
+    expect(elsewhere.filter((u) => !u.startsWith("http://127.0.0.1:9/"))).toEqual([]);
+  });
+  it("the notice and the writer name the same cloud, whatever GENERATE_PROVIDER says", async () => {
+    vi.stubEnv("SCRIPT_CLOUD", "freellm");
+    vi.stubEnv("GENERATE_PROVIDER", "openrouter");
+    const rec = await (await recipients()).json();
+    expect(rec.script.id).toBe("freellmapi");
+    expect(rec.defaults.generate).toBe("freellm");
+    expect(await (await generate(post(deck, "script:freellmapi"))).text()).toContain('"provider":"freellm"');
+    vi.stubEnv("SCRIPT_CLOUD", "");
+    vi.stubEnv("GENERATE_PROVIDER", "freellm");
+    expect((await (await recipients()).json()).script.id).toBe("freellmapi");
+    expect((await translate(post(script, "script:openrouter/google"))).status).toBe(403);
+    expect(elsewhere).toEqual([]);
   });
 });

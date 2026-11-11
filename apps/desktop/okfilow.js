@@ -126,6 +126,8 @@ function createOkFilow(deps) {
   function openWeb(url) {
     let u;
     try { u = new URL(String(url)); } catch { return; }
+    // Filow's own settings pages belong in the main window (the browser cannot change desktop settings).
+    if (u.origin === appUrl && u.pathname.startsWith("/settings/") && deps.openAppPage?.(u.toString())) return;
     if (u.protocol === "https:" || u.protocol === "http:") void shell.openExternal(u.toString());
   }
   /** OK Filow windows never leave their page; links open in the system browser. */

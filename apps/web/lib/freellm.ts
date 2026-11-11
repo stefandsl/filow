@@ -81,8 +81,13 @@ export const freellmConfigured = () => {
   return Boolean(c.baseUrl && c.key);
 };
 
-/** Scripts written and translated in the cloud go through FreeLLMAPI instead of OpenRouter. */
-export const scriptCloud = (): "openrouter" | "freellm" => (process.env.SCRIPT_CLOUD === "freellm" ? "freellm" : "openrouter");
+/**
+ * The one answer to "which cloud writes and translates scripts": FreeLLMAPI when the user switched
+ * it on in Settings (SCRIPT_CLOUD=freellm) or GENERATE_PROVIDER names it, else OpenRouter. The notice
+ * (`scriptRecipient`), the writer and the translator all read it here, so they cannot disagree.
+ */
+export const scriptCloud = (): "openrouter" | "freellm" =>
+  process.env.SCRIPT_CLOUD === "freellm" || process.env.GENERATE_PROVIDER === "freellm" ? "freellm" : "openrouter";
 
 const EN: Record<FreeLlmCode, string> = {
   offline: "Offline mode is on, so nothing goes to FreeLLMAPI: it passes each request on to a provider on the internet. Switch Offline mode off, or choose This PC.",
@@ -110,7 +115,8 @@ const IT: Record<FreeLlmCode, string> = {
 /** The sentence for a code, in English or Italian, with {url}, {model} and {detail} filled in. */
 export function freellmMessage(code: FreeLlmCode, lang: string, vars: { url?: string; model?: string; detail?: string } = {}): string {
   const text = (lang === "it" ? IT : EN)[code];
-  return text.replace("{url}", vars.url ?? FREELLM_DEFAULT_URL).replace("{model}", vars.model ?? "").replace("{detail}", vars.detail ?? "");
+  // replacer functions: a "$&" inside a router's own message must stay as it is
+  return text.replace("{url}", () => vars.url ?? FREELLM_DEFAULT_URL).replace("{model}", () => vars.model ?? "").replace("{detail}", () => vars.detail ?? "");
 }
 
 const TAG = /^\s*\[freellm:([a-z_]+)\]\s*/;
@@ -169,11 +175,11 @@ export async function freellmReplyError(res: Response, ctx: { model: string }): 
   const { code, message } = replyBody(await res.text().catch(() => ""));
   if (res.status === 401 || res.status === 403) return new FreeLlmError("bad_key");
   if (res.status === 429 || /quota|exhausted|rate.?limit/i.test(code)) return new FreeLlmError("quota");
-  if (code === "no_vision_model" || (res.status === 422 && /vision/i.test(message))) return new FreeLlmError("no_vision");
+  // before "unknown model": a model that cannot take a picture is said as such, not as an unknown name
+  if (code === "no_vision_model" || ((res.status === 422 || res.status === 400) && /vision|image|picture/i.test(`${code} ${message}`))) return new FreeLlmError("no_vision");
   if ((res.status === 400 || res.status === 404) && /model|profile/i.test(`${code} ${message}`)) return new FreeLlmError("bad_model", { model: ctx.model });
-  // 502/503: every provider in the chain failed; usually quotas or providers down
-  if (res.status === 502 || res.status === 503) return new FreeLlmError("quota");
   const short = message.replace(/\s+/g, " ").trim().slice(0, 160);
+  // 502 and 503: every provider the router tried failed (not only quotas), so its own words are shown
   return new FreeLlmError("failed", { detail: `${res.status}${short ? `: ${short}` : ""}` });
 }
 
@@ -184,16 +190,26 @@ export async function freellmReplyError(res: Response, ctx: { model: string }): 
 async function routerFetch(url: string, init: RequestInit, baseUrl: string, ms: number, slowIsDown = false): Promise<Response> {
   const timeout = AbortSignal.timeout(ms);
   const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+  let res: Response;
   try {
-    return await fetch(url, { ...init, signal });
+    // A redirect is never followed: it could carry the question and the screenshot to an address
+    // that was never checked (`normalizeBaseUrl`), on the internet.
+    res = await fetch(url, { ...init, signal, redirect: "manual" });
   } catch (e) {
     if (init.signal?.aborted) throw e;
     if (timeout.aborted && !slowIsDown) throw new FreeLlmError("failed", { detail: `no answer within ${Math.round(ms / 1000)} s` });
     throw new FreeLlmError("not_running", { url: baseUrl.replace(/\/v1$/, "") });
   }
+  if (res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400)) {
+    await res.body?.cancel().catch(() => {});
+    throw new FreeLlmError("failed", { detail: "the address sends Filow on to another address, which Filow does not follow" });
+  }
+  return res;
 }
 
 const headers = (key: string) => ({ Authorization: `Bearer ${key}`, "Content-Type": "application/json" });
+
+const NOT_AN_ANSWER = "the reply was empty or not a FreeLLMAPI answer; check the address";
 
 export type FreeLlmResult = { content: string; model: string };
 
@@ -207,8 +223,11 @@ export async function freellmChat(payload: Record<string, unknown>, opts: { sign
     body: JSON.stringify({ ...payload, model, stream: false }),
   }, baseUrl, opts.timeoutMs ?? 120_000);
   if (!res.ok) throw await freellmReplyError(res, { model });
-  const json = (await res.json().catch(() => ({}))) as { choices?: Array<{ message?: { content?: string } }>; model?: string };
-  return { content: json.choices?.[0]?.message?.content ?? "", model: freellmModelLabel(res, json.model ?? model) };
+  const json = (await res.json().catch(() => null)) as { choices?: Array<{ message?: { content?: unknown } }>; model?: string } | null;
+  const content = Array.isArray(json?.choices) ? json.choices[0]?.message?.content : undefined;
+  // A 200 that is not a chat answer (another program on that port, a reply cut short) is a failure, never an empty success.
+  if (typeof content !== "string" || !content.trim()) throw new FreeLlmError("failed", { detail: NOT_AN_ANSWER });
+  return { content, model: freellmModelLabel(res, typeof json?.model === "string" ? json.model : model) };
 }
 
 /** "FreeLLMAPI: groq/llama-3.3-70b" from X-Routed-Via when the router says which provider answered. */
@@ -238,6 +257,7 @@ export async function* freellmStream(payload: Record<string, unknown>, signal?: 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let events = 0;
   for (;;) {
     let chunk: ReadableStreamReadResult<Uint8Array>;
     try {
@@ -254,13 +274,17 @@ export async function* freellmStream(payload: Record<string, unknown>, signal?: 
       buffer = buffer.slice(nl + 1);
       if (!line.startsWith("data:")) continue;
       const data = line.slice(5).trim();
-      if (data === "[DONE]") return;
+      if (data === "[DONE]") {
+        if (!events) throw new FreeLlmError("failed", { detail: NOT_AN_ANSWER });
+        return;
+      }
       let json: { choices?: Array<{ delta?: { content?: string } }>; error?: { message?: string; code?: string } };
       try {
         json = JSON.parse(data);
       } catch {
         continue;
       }
+      events++;
       if (json.error) {
         const code = String(json.error.code ?? "");
         if (/quota|exhausted|rate.?limit/i.test(code)) throw new FreeLlmError("quota");
@@ -271,6 +295,8 @@ export async function* freellmStream(payload: Record<string, unknown>, signal?: 
       if (piece) yield piece;
     }
   }
+  // the stream ended without a single event: not a streamed chat answer at all
+  if (!events) throw new FreeLlmError("failed", { detail: NOT_AN_ANSWER });
 }
 
 export type FreeLlmCheck =
@@ -288,8 +314,10 @@ export async function checkFreeLlm(lang = "en"): Promise<FreeLlmCheck> {
     const { baseUrl, key, model } = requireFreeLlm();
     const res = await routerFetch(`${baseUrl}/models`, { headers: headers(key) }, baseUrl, 5000, true);
     if (!res.ok) throw await freellmReplyError(res, { model });
-    const json = (await res.json().catch(() => ({}))) as { data?: Array<{ id?: unknown; execution_status?: unknown }> };
-    const rows = Array.isArray(json.data) ? json.data : [];
+    const json = (await res.json().catch(() => null)) as { data?: Array<{ id?: unknown; execution_status?: unknown }> } | null;
+    // any program can answer 200 on that port: only a model list counts as "connected"
+    if (!json || !Array.isArray(json.data) || json.data.length === 0) throw new FreeLlmError("failed", { detail: "this address does not answer like FreeLLMAPI (no model list)" });
+    const rows = json.data;
     const ids = rows.map((r) => (typeof r.id === "string" ? r.id : "")).filter((id) => id && normalizeModel(id) === id);
     const routing = ids.filter((id) => id === "auto" || id.startsWith("auto:"));
     const readyIds = rows.filter((r) => typeof r.id === "string" && r.execution_status === "ready").map((r) => r.id as string);

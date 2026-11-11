@@ -7,8 +7,9 @@ export const dynamic = "force-dynamic";
 /**
  * "Check connection" in Settings > FreeLLMAPI: asks the user's router for its model list
  * (GET <address>/models) with the saved key. No user content is sent, and nothing at all in Offline
- * mode. The answer never contains the key. Engine token required, so another device on the Wi-Fi
- * cannot make this PC call addresses on the network.
+ * mode. The answer never contains the key. Gated like the other spend endpoints (`requireEngine`):
+ * in the desktop app, where the server listens on the Wi-Fi, a caller needs the engine token. The
+ * only address it can reach is the saved one, which was checked to be local (`normalizeBaseUrl`).
  */
 export async function POST(req: Request) {
   const denied = requireEngine(req);

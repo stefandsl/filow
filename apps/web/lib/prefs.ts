@@ -72,6 +72,25 @@ export function setDecisionProvider(id: DecisionProviderId | ""): void {
   }
 }
 
+// ---- Who decides in a Cloud take: OpenRouter, or the user's FreeLLMAPI router (Settings > FreeLLMAPI).
+// Only the user's own switch sets "freellm"; anything else, or no storage, is OpenRouter.
+const CLOUD_DECISION_KEY = "prefs:cloudDecision";
+export function getCloudDecision(): "openrouter" | "freellm" {
+  try {
+    return localStorage.getItem(CLOUD_DECISION_KEY) === "freellm" ? "freellm" : "openrouter";
+  } catch {
+    return "openrouter";
+  }
+}
+export function setCloudDecision(v: "openrouter" | "freellm"): void {
+  try {
+    if (v === "freellm") localStorage.setItem(CLOUD_DECISION_KEY, v);
+    else localStorage.removeItem(CLOUD_DECISION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 // ---- Setup profile (P3): "auto" follows the machine (packages/core/src/profile.ts) ----
 const SETUP_KEY = "prefs:setup";
 

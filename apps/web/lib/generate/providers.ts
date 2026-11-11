@@ -104,7 +104,9 @@ export function resolveGenerateProvider(requested?: string): GenerateProviderId 
   if (process.env.FILOW_OFFLINE === "1") return "ollama";
   if (requested === "ollama" || requested === "openrouter" || requested === "freellm") return requested;
   const env = process.env.GENERATE_PROVIDER;
-  if (env === "ollama" || env === "openrouter" || env === "freellm") return env;
+  if (env === "ollama") return env;
+  // "the cloud" is one choice everywhere (`scriptCloud`): the notice names who really gets the slides
+  if (env === "openrouter" || env === "freellm") return scriptCloud();
   // A local decision provider implies a local-first user: generate locally too.
   if ((process.env.DECISION_PROVIDER || "").startsWith("clef-local")) return "ollama";
   return scriptCloud();

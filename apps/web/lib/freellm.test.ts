@@ -1,3 +1,4 @@
+import http from "node:http";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { startFakeFreeLlm } from "../../../tools/autoloop/e2e/fake-freellm.mjs";
 import { checkFreeLlm, freellmChat, freellmCodeOf, freellmStream, isLocalHost, localizeFreeLlmError, normalizeBaseUrl, normalizeModel, type FreeLlmCode } from "./freellm";
@@ -95,6 +96,56 @@ describe("talking to the router", () => {
     vi.stubEnv("FREELLMAPI_BASE_URL", "https://example.com/v1");
     expect(await codeOf(chat())).toBe("bad_url");
     expect(fake.log).toEqual([]);
+  });
+});
+
+/** A one-off server on 127.0.0.1 that is not FreeLLMAPI. */
+async function oddServer(handler: http.RequestListener) {
+  const hits: string[] = [];
+  const server = http.createServer((req, res) => { hits.push(`${req.method} ${req.url}`); handler(req, res); });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+  const port = (server.address() as { port: number }).port;
+  return { url: `http://127.0.0.1:${port}/v1`, hits, close: () => new Promise<void>((r) => { server.closeAllConnections(); server.close(() => r()); }) };
+}
+
+describe("an address that is not what it seems", () => {
+  it("a redirect is not followed: the question never reaches the address it points to", async () => {
+    const target = await oddServer((_req, res) => { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ choices: [{ message: { content: "stolen" } }] })); });
+    const bouncer = await oddServer((_req, res) => { res.writeHead(307, { Location: `${target.url}/chat/completions` }); res.end(); });
+    vi.stubEnv("FREELLMAPI_BASE_URL", bouncer.url);
+    expect(await codeOf(chat())).toBe("failed");
+    expect(await codeOf(drain(freellmStream(picture)))).toBe("failed");
+    expect((await checkFreeLlm()).ok).toBe(false);
+    expect(bouncer.hits.length).toBe(3);
+    expect(target.hits).toEqual([]);
+    await bouncer.close();
+    await target.close();
+  });
+  it("another program answering 200 on that port is a failure, not an empty answer or a green check", async () => {
+    const other = await oddServer((_req, res) => { res.writeHead(200, { "Content-Type": "text/html" }); res.end("<html>hello</html>"); });
+    vi.stubEnv("FREELLMAPI_BASE_URL", other.url);
+    expect(await codeOf(chat())).toBe("failed");
+    expect(await codeOf(drain(freellmStream({ messages: [] })))).toBe("failed");
+    expect(await checkFreeLlm()).toEqual(expect.objectContaining({ ok: false, code: "failed" }));
+    await other.close();
+    const empty = await oddServer((_req, res) => { res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ choices: [{ message: { content: "" } }], data: [] })); });
+    vi.stubEnv("FREELLMAPI_BASE_URL", empty.url);
+    expect(await codeOf(chat())).toBe("failed");
+    expect((await checkFreeLlm()).ok).toBe(false);
+    await empty.close();
+  });
+  it("a model that cannot take a picture is said as that, and a provider's own words are kept as they are", async () => {
+    const noPics = await oddServer((_req, res) => { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: { message: "model does not support image input" } })); });
+    vi.stubEnv("FREELLMAPI_BASE_URL", noPics.url);
+    expect(await codeOf(chat())).toBe("no_vision");
+    await noPics.close();
+    const down = await oddServer((_req, res) => { res.writeHead(502, { "Content-Type": "application/json" }); res.end(JSON.stringify({ error: { message: "all providers failed: $& timeout" } })); });
+    vi.stubEnv("FREELLMAPI_BASE_URL", down.url);
+    let msg = "";
+    try { await chat(); } catch (e) { msg = (e as Error).message; }
+    expect(msg).toContain("(502: all providers failed: $& timeout)");
+    expect(localizeFreeLlmError(msg, "it")).toContain("(502: all providers failed: $& timeout)");
+    await down.close();
   });
 });
 

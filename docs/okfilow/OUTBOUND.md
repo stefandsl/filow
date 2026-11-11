@@ -65,11 +65,14 @@ of about 34 providers' free tiers, chosen per request, which may keep or train o
   window's language through `localNames`). A yes for OpenRouter never covers it, nor the reverse, and
   the notice adds that the provider is not known in advance and may keep or train on the content
   (`noticeBody`, `outFree` and `outFreeWarn`).
-- It is used only where the user picked it: "Answers from" in the OK Filow panel, the decision
-  provider in Settings, the scripts switch in Settings > FreeLLMAPI. Nothing selects it for them, and
+- It is used only where the user picked it: "Answers from" in the OK Filow panel, the takes
+  switch and the scripts switch in Settings > FreeLLMAPI (a Cloud take is tracked by OpenRouter until
+  the takes switch is on: `cloudProvider` in `components/Teleprompter.tsx`). Nothing selects it for them, and
   a Lite setup only points to it.
 - Offline mode refuses it before anything is sent (`requireFreeLlm`), although the router is on
   localhost: the page-level offline filter lets localhost through, so the server refuses.
+- The router's address is never left: a redirect is refused (`routerFetch`), and a 200 that is not a
+  chat answer or a model list is a failure, not an empty success.
 - A failure (router not running, wrong key, quotas used up, no model with vision) comes back with its
   own reason and next step (`FreeLlmError`); no route falls back from it to OpenRouter or anywhere else.
 - The address must be http(s) on this PC or a private network address (`normalizeBaseUrl`, in the

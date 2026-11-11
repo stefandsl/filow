@@ -97,4 +97,7 @@ describe("the unified key at rest and in a problem report", () => {
     expect(out).not.toContain("0123456789abcdef");
     expect(out).not.toContain("plainsecretvalue123");
   });
+  it("ordinary log lines that only mention a key stay readable", () => {
+    for (const line of ["OPENROUTER_API_KEY missing, cloud disabled", "PRIMARY KEY constraint failed: sessions.id", "no ACCESS TOKEN needed for localhost"]) expect(redact(line)).toBe(line);
+  });
 });

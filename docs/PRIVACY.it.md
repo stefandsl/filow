@@ -107,7 +107,7 @@ poco potente, quando la privacy non è la tua prima preoccupazione. Il router è
 richiesta a uno dei tanti fornitori di AI gratuiti, con le tue chiavi, e Filow non può sapere prima
 quale. I piani gratuiti spesso conservano ciò che ricevono e possono usarlo per addestrare i loro
 modelli. Filow lo tratta come ogni altro cloud: chiede prima del primo invio, mostra "Esce dal PC -
-Invio a FreeLLMAPI (un fornitore gratuito scelto da lui)" ogni volta, non passa mai a FreeLLMAPI da
+Invio a FreeLLMAPI (un fornitore gratuito scelto dal router)" ogni volta, non passa mai a FreeLLMAPI da
 solo e non ripiega mai da FreeLLMAPI su un altro cloud. La sua chiave è salvata cifrata su questo
 computer. La descrizione stessa di FreeLLMAPI dice che è per sperimentazione personale: una scuola o
 un'azienda dovrebbe controllare le condizioni dei fornitori che ci stanno dietro prima di usarlo.
