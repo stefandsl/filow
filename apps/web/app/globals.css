@@ -269,8 +269,7 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .section-nav-list { flex-direction: column; max-height: calc(100vh - 280px); }
 .section-link { border-color: var(--sidebar); background: var(--sidebar); }
 .section-link[aria-current] { border-left: 3px solid var(--accent); background: var(--row-current); }
-.nav-actions { margin: auto 0 0; align-items: stretch; flex-direction: column; }
-@media (max-width: 899px) {
+.nav-actions { margin: auto 0 0; align-items: stretch; flex-direction: column; flex-shrink: 0; }@media (max-width: 899px) {
   .section-nav { padding: 8px 4px; gap: 8px; }
   .section-nav-list { padding: 2px; max-height: calc(100vh - 200px); }
   .section-link { padding: 2px; }
@@ -473,6 +472,10 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 dialog.modal-bg.accessible-dialog:has(> .display-panel) { background: transparent; justify-content: flex-end; align-items: flex-start; margin: 0; padding: 0; width: 100%; height: 100%; max-width: none; max-height: none; border: 0; color: var(--text); }
 dialog.modal-bg.accessible-dialog:has(> .display-panel)::backdrop { background: transparent; }
 .modal.display-panel { width: min(400px, calc(100vw - 32px)); max-height: calc(100dvh - 80px); overflow-y: auto; margin: 64px 16px 16px; gap: 16px; border: 1px solid var(--border); box-shadow: 0 8px 32px rgb(0 0 0 / 0.35); }
+/* Opened from the sidebar's Display button: beside the sidebar (260px wide, 56px in a narrow window), at its foot, next to the button that opened it. */
+dialog.modal-bg.accessible-dialog:has(> .display-panel-sidebar) { justify-content: flex-start; align-items: flex-end; }
+.modal.display-panel.display-panel-sidebar { width: min(400px, calc(100vw - 292px)); margin: 64px 16px 16px 276px; }
+@media (max-width: 899px) { .modal.display-panel.display-panel-sidebar { width: min(400px, calc(100vw - 88px)); margin-left: 72px; } }
 .display-choice { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .display-choice legend { padding: 0; margin-bottom: 4px; font-size: var(--type-sm); font-weight: 700; color: var(--text); }
 .display-hint { margin: 0; color: var(--muted); font-size: var(--type-sm); }
