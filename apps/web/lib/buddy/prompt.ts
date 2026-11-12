@@ -136,8 +136,9 @@ const BROKEN_TAG_RE = /\[(?:POINT|CIRCLE|ARROW|BOX|UNDERLINE|CARD)\b[^[\]]*\]/gi
 export function parseBuddyAnswer(raw: string, screens: BuddyScreen[], defaultScreen = 1): { text: string; points: BuddyPoint[]; marks: BuddyMark[]; cards: BuddyCard[]; model: BuddyModel | null; drawing: BuddyDrawing | null } {
   const visuals = extractVisuals(raw, (n) => screens.some((s) => s.index === n), defaultScreen);
   let body = visuals.body;
-  const open = body.lastIndexOf("[");
-  if (open >= 0 && !body.slice(open).includes("]") && isTagPrefix(body.slice(open))) body = body.slice(0, open);
+  // Every unfinished tag at the end, not only the last one: a tag the model never closed, followed by
+  // the start of the next tag, would otherwise show (and be spoken) until that next tag is complete.
+  for (let open = body.lastIndexOf("["); open >= 0 && !body.slice(open).includes("]") && isTagPrefix(body.slice(open)); open = body.lastIndexOf("[")) body = body.slice(0, open);
   body = body.replace(UNCLOSED_TAG_RE, "");
   const points: BuddyPoint[] = [];
   const marks: BuddyMark[] = [];

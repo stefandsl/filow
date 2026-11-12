@@ -17,11 +17,24 @@ export function createProgressiveSpeech(options: {
     void queue.catch(() => {});
   }
   function update(text: string, final = false) {
-    if (!live() || !text.startsWith(committed)) return;
+    if (!live()) return;
+    if (!text.startsWith(committed)) {
+      // The parser rewrote something already said (a tag the model closed late). Mid-answer, wait.
+      // At the end say what is left: the rest of the answer must never be dropped in silence.
+      if (!final) return;
+      let same = 0;
+      while (same < committed.length && committed[same] === text[same]) same++;
+      const gap = text.slice(same).search(/\s/);
+      committed = text;
+      if (gap >= 0) push(text.slice(same + gap));
+      return;
+    }
     const rest = text.slice(committed.length);
     let end = final ? rest.length : 0;
     if (!final) {
-      for (const match of rest.matchAll(/[.!?。！？]+["'”’)]*(?=\s|$|[\u3000-\u9fff])/gu)) {
+      // A full stop that only ends the network chunk is not a sentence end yet ("example." + "com",
+      // "Wait." + ".."): Latin punctuation counts once the next word has started. 。！？ end at once.
+      for (const match of rest.matchAll(/[.!?。！？]+["'”’)]*(?=\s|[\u3000-\u9fff])|[\u3002\uff01\uff1f]+[\u201d\u2019\u300d\u300f\uff09]*/gu)) {
         const before = rest.slice(0, match.index + 1);
         // A decimal or common title may arrive split across network chunks.
         if (match[0] === "." && /(?:\d|\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St)|\b[A-Z])\.$/i.test(before)) continue;

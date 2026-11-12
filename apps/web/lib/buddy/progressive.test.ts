@@ -8,8 +8,11 @@ describe("progressive answer voice", () => {
     const voice = createProgressiveSpeech({ speak, isCurrent: () => true });
     voice.update("Click Save.");
     await Promise.resolve();
-    expect(speak).toHaveBeenCalledWith("Click Save.");
+    // the chunk may end inside "Save.txt": the sentence counts once the next word has started
+    expect(speak).not.toHaveBeenCalled();
     voice.update("Click Save. Then choose");
+    await Promise.resolve();
+    expect(speak).toHaveBeenCalledWith("Click Save.");
     await voice.finish("Click Save. Then choose a folder.");
     expect(speak.mock.calls.map(c => c[0])).toEqual(["Click Save.", "Then choose a folder."]);
   });
@@ -17,7 +20,7 @@ describe("progressive answer voice", () => {
     let release!: () => void;
     const speak = vi.fn(() => new Promise<void>(r => { release = r; }));
     const voice = createProgressiveSpeech({ speak, isCurrent: () => true });
-    voice.update("First sentence.");
+    voice.update("First sentence. Second");
     await Promise.resolve();
     voice.update("First sentence. Second sentence.");
     const done = voice.finish("First sentence. Second sentence.");
@@ -35,6 +38,13 @@ describe("progressive answer voice", () => {
     current = false;
     await voice.finish("Click Save . Never speak this.");
     expect(speak.mock.calls.flat().join(" ")).not.toMatch(/POINT|POI|Never/);
+  });
+  it("says the rest of the answer when the final text no longer starts with what was said", async () => {
+    const speak = vi.fn(async (_text: string) => {});
+    const voice = createProgressiveSpeech({ speak, isCurrent: () => true });
+    voice.update("Click [POINT:5,5:Save. Then press");
+    await voice.finish("Click now. After that you are done.");
+    expect(speak.mock.calls.map(c => c[0])).toEqual(["Click [POINT:5,5:Save.", "After that you are done."]);
   });
   it("keeps split decimals together and flushes text without final punctuation", async () => {
     const speak = vi.fn(async (_text: string) => {});
