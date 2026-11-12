@@ -21,7 +21,7 @@ import { ConsentList, OutboundNotice, OutboundPill } from "../outbound-ui";
 import { VoiceSettings } from "./voice-settings";
 import { getSetupPreference, getSpeechLang } from "@/lib/prefs";
 import { createAnswerTurn } from "@/lib/buddy/turn";
-import { createProgressiveSpeech } from "@/lib/buddy/progressive";
+import { createProgressiveSpeech, moreFollows } from "@/lib/buddy/progressive";
 import { askSees, screenLeaves, screenYesMissing, seesScreen, slowToSee, wordsOnlyAfterYes, type LocalScreenMode } from "@/lib/buddy/sees";
 import { SeeScreenSwitch, StopButton } from "@/components/okfilow/controls";
 import { whiteboardTopic } from "@/lib/whiteboard/client";
@@ -472,7 +472,7 @@ export default function OkFilowPanel() {
           }));
           lastMarks = marks;
         }
-        voice.update(parsed.text);
+        voice.update(parsed.text, false, moreFollows(raw, parsed.text));
       };
       const send = async (consent: Record<string, string>, quiet?: () => void) => {
         const res = await fetch("/api/buddy/ask", {

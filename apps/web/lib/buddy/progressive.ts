@@ -16,7 +16,8 @@ export function createProgressiveSpeech(options: {
     // Attach immediately: a failed voice must not become an unhandled rejection while reading.
     void queue.catch(() => {});
   }
-  function update(text: string, final = false) {
+  /** `more`: the model already wrote something after `text` that is not shown (moreFollows). */
+  function update(text: string, final = false, more = false) {
     if (!live()) return;
     if (!text.startsWith(committed)) {
       // The parser rewrote something already said (a tag the model closed late). Mid-answer, wait.
@@ -40,6 +41,10 @@ export function createProgressiveSpeech(options: {
         if (match[0] === "." && /(?:\d|\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St)|\b[A-Z])\.$/i.test(before)) continue;
         end = match.index + match[0].length;
       }
+      // The text ends in a full stop and the model has moved on (a line break, a tag or a picture's
+      // block being written): the sentence is over, it must not wait for the whole picture.
+      const tail = more ? /[.!?]+["'”’)]*$/u.exec(rest) : null;
+      if (tail && !(tail[0] === "." && /(?:\d|\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St)|\b[A-Z])\.$/i.test(rest))) end = rest.length;
     }
     if (!end) return;
     committed += rest.slice(0, end);
@@ -50,4 +55,13 @@ export function createProgressiveSpeech(options: {
     finish(text: string) { update(text, true); return queue; },
     cancel() { cancelled = true; },
   };
+}
+
+/**
+ * True when the streamed answer `raw` already goes on after its shown `text`: white space, or
+ * something the parser holds back (a tag or a model3d/drawing2d block still being written). A full
+ * stop at the end of `text` is then a finished sentence, not the middle of "example.com".
+ */
+export function moreFollows(raw: string, text: string): boolean {
+  return text !== "" && !raw.endsWith(text.slice(-12));
 }

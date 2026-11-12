@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createProgressiveSpeech } from "./progressive";
+import { createProgressiveSpeech, moreFollows } from "./progressive";
 import { parseBuddyAnswer } from "./prompt";
 
 const screens = [{ index: 1, width: 1920, height: 1080 }];
@@ -8,15 +8,20 @@ const flat = (s: string) => s.replace(/\s+/g, "");
 /** Feeds the answer the way the panel does: every network chunk is parsed, then the voice is updated. */
 async function stream(chunks: string[]) {
   const spoken: string[] = [];
+  /** How many sentences had started after each chunk. */
+  const heard: number[] = [];
   const voice = createProgressiveSpeech({ speak: vi.fn(async (s: string) => { spoken.push(s); }), isCurrent: () => true });
   let got = "";
   for (const chunk of chunks) {
     got += chunk;
-    voice.update(parseBuddyAnswer(got, screens).text);
+    const text = parseBuddyAnswer(got, screens).text;
+    voice.update(text, false, moreFollows(got, text));
+    await Promise.resolve();
+    heard.push(spoken.length);
   }
   const final = parseBuddyAnswer(got, screens).text;
   await voice.finish(final);
-  return { spoken, final };
+  return { spoken, final, heard };
 }
 const chars = (s: string) => [...s];
 
@@ -40,6 +45,15 @@ describe("progressive voice over a streamed answer", () => {
       }
     });
   }
+  it("says the sentence as soon as the picture's block starts, not after the whole picture", async () => {
+    const { spoken, heard } = await stream(["A sun for you.", "\n```drawing2d\n{\"title\":\"Sun\",", "\"shapes\":[{\"type\":\"circle\",\"cx\":200,\"cy\":150,\"r\":60,\"fill\":\"#ffcc00\"}]}\n```"]);
+    expect(spoken).toEqual(["A sun for you."]);
+    expect(heard).toEqual([0, 1, 1]);
+  });
+  it("says a sentence that is followed by a tag still being written, or by a line break", async () => {
+    expect((await stream(["Click Save.", " [POINT:500,", "500:Save]"])).heard).toEqual([0, 1, 1]);
+    expect((await stream(["Click Save.\n", "Then wait."])).heard).toEqual([1, 1]);
+  });
   it("does not cut a sentence at a full stop that only ends the chunk", async () => {
     const { spoken } = await stream(["Open example.", "com and press Enter. Then", " wait."]);
     expect(spoken).toEqual(["Open example.com and press Enter.", "Then wait."]);
