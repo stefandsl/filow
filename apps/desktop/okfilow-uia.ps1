@@ -3,6 +3,9 @@
 # mouse input, moves no window and changes no focus. Nothing leaves this process except one line of
 # JSON per request on standard output, read by apps/desktop/okfilow-uia.js.
 #
+# One call into an app that does not answer can outlast the allowance (Windows ends it after its own
+# timeout); okfilow-uia.js then stops asking and ends this process after 10 s.
+#
 # Protocol (one line in, one line out):
 #   scan <x> <y> <width> <height> <budgetMs> <ownPid>     rectangle of the display in physical pixels
 #   -> {"ms":123,"partial":false,"elements":[["name","Button",x,y,w,h], ...]}   physical pixels, topmost first
@@ -27,7 +30,7 @@ public static class OkfScan {
   [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
   [DllImport("oleacc.dll")] static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out object acc);
 
-  const int MAX_ELEMENTS = 600, MAX_NODES = 2500, MAX_DEPTH = 12;
+  const int MAX_ELEMENTS = 600, MAX_NODES = 2500, MAX_DEPTH = 12, DESKTOP_EXTRA_MS = 300;
   static readonly HashSet<string> TYPES = new HashSet<string>(new string[] { "Button", "ListItem", "TabItem", "MenuItem", "Edit", "Hyperlink", "CheckBox", "RadioButton", "ComboBox", "SplitButton", "TreeItem", "Text", "Group", "ToolBar", "Document", "Image", "Window", "Pane" });
   static CacheRequest cache;
 
@@ -83,7 +86,10 @@ public static class OkfScan {
       if (win.Pid == (uint)ownPid) continue;
       bool desktop = win.Cls == "Progman" || win.Cls == "WorkerW";
       bool onScreen = win.R.R > sx && win.R.L < sx + sw && win.R.B > sy && win.R.T < sy + sh;
-      if (onScreen && clock.ElapsedMilliseconds >= budget) partial = true;
+      // The desktop is last and cheap (366 icons in 0.15 s measured): a window that used the whole
+      // allowance does not cost the icons, which get a little time of their own.
+      long allowance = desktop ? budget + DESKTOP_EXTRA_MS : budget;
+      if (onScreen && clock.ElapsedMilliseconds >= allowance) partial = true;
       else if (onScreen) {
         try {
           AutomationElement root = AutomationElement.FromHandle(win.H);
@@ -94,7 +100,10 @@ public static class OkfScan {
               Guid iid = new Guid("618736E0-3C3D-11CF-810C-00AA00389B71"); object o;
               if (AccessibleObjectFromWindow(new IntPtr(lv.Current.NativeWindowHandle), 0xFFFFFFFC, ref iid, out o) == 0) {
                 IAccessible a = (IAccessible)o; int n = Math.Min(a.accChildCount, 1500);
-                for (int i = 1; i <= n; i++) { try { int x, y, w, h; a.accLocation(out x, out y, out w, out h, i); keep(a.get_accName(i), "ListItem", x, y, w, h); } catch { } }
+                for (int i = 1; i <= n; i++) {
+                  if (clock.ElapsedMilliseconds >= allowance) { partial = true; break; }
+                  try { int x, y, w, h; a.accLocation(out x, out y, out w, out h, i); keep(a.get_accName(i), "ListItem", x, y, w, h); } catch { }
+                }
               }
             }
           } else {

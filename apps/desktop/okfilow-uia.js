@@ -16,8 +16,12 @@ const MAX_ELEMENTS = 600;
 /** The helper may take this long per display before its answer is given up on (the screenshot itself takes 0.3 to 0.6 s). */
 const SCAN_BUDGET_MS = 600;
 const SCAN_TIMEOUT_MS = 900;
-/** After this many crashes the helper is left alone for the session. */
+/** After this many starts (crashes, or a helper ended because it hung) it is left alone for the session. */
 const MAX_STARTS = 4;
+/** A helper that has not answered a timed-out request after this long is ended. */
+const HUNG_MS = 10_000;
+/** The longest reply: 600 elements of 80 characters, with room to spare. */
+const MAX_LINE_CHARS = 400_000;
 
 /**
  * The helper's rows ([name, type, x, y, width, height] in physical pixels) as elements on the 0-1000
@@ -73,7 +77,9 @@ function createElementReader(opts = {}) {
   let ready = false;
   let starts = 0;
   let stopped = false;
-  let buffer = "";
+  /** When the oldest unanswered request timed out (0: none is outstanding). */
+  let staleSince = 0;
+  const now = opts.now || Date.now;
   /** The request whose answer line is awaited, and how many late answers to throw away (their request timed out). */
   let waiting = null;
   let stale = 0;
@@ -87,7 +93,7 @@ function createElementReader(opts = {}) {
       return;
     }
     if (msg && msg.ready) { ready = true; return; }
-    if (stale > 0) { stale--; return; }
+    if (stale > 0) { stale--; if (!stale) staleSince = 0; return; }
     if (!waiting) return;
     const w = waiting;
     waiting = null;
@@ -106,10 +112,12 @@ function createElementReader(opts = {}) {
       return false;
     }
     const mine = child;
-    buffer = "";
+    let buffer = "";
     mine.stdout.setEncoding("utf8");
     mine.stdout.on("data", (chunk) => {
+      if (child !== mine) return; // a helper that was replaced has nothing more to say
       buffer += chunk;
+      if (buffer.length > MAX_LINE_CHARS && !buffer.includes("\n")) buffer = ""; // never a line this long: not ours
       let at;
       while ((at = buffer.indexOf("\n")) >= 0) {
         const line = buffer.slice(0, at).trim();
@@ -122,6 +130,7 @@ function createElementReader(opts = {}) {
       child = null;
       ready = false;
       stale = 0;
+      staleSince = 0;
       if (waiting) { clearTimeout(waiting.timer); waiting.resolve(null); waiting = null; }
       if (!stopped) log(`okfilow: screen names helper ended (${why}); start ${starts} of ${MAX_STARTS}`);
     };
@@ -141,11 +150,26 @@ function createElementReader(opts = {}) {
     const run = () => new Promise((resolve) => {
       if (!child) start(); // a helper that ended comes back for the next question
       if (!child || !ready || !rect || !(rect.width > 0) || !(rect.height > 0)) return resolve(null);
+      if (stale > 0) {
+        // The helper is still busy with a request that timed out (an app that does not answer Windows):
+        // nothing more is queued behind it, and one stuck this long is ended; the next question starts a new one.
+        if (now() - staleSince >= HUNG_MS) {
+          log("okfilow: screen names helper did not answer, ending it");
+          const hung = child;
+          child = null;
+          ready = false;
+          stale = 0;
+          staleSince = 0;
+          try { hung.kill(); } catch {}
+        }
+        return resolve(null);
+      }
       const budget = Math.max(50, Math.round(o.budgetMs || SCAN_BUDGET_MS));
       const timer = setTimeout(() => {
         if (!waiting || waiting.resolve !== resolve) return;
         waiting = null;
         stale++; // its answer is still on its way: not the next request's
+        if (!staleSince) staleSince = now();
         resolve(null);
       }, Math.max(budget, Math.round(o.timeoutMs || SCAN_TIMEOUT_MS)));
       waiting = { resolve, timer };

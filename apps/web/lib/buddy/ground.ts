@@ -31,26 +31,31 @@ export function sanitizeElements(raw: unknown, screens: number): ScreenElement[]
   return out;
 }
 
-// Words a model adds around a name ("the Start button", "icona di Firefox") that the name itself does not hold.
+// Words a model adds around a name ("the Start button", "icona di Firefox") that say nothing about which
+// thing it is. Words that name another kind of thing ("Search bar", "File menu", "Firefox settings") are
+// not in this list: with them a label is only a partial match, which needs the model's guess nearby.
 const FILLER = new Set([
-  "the", "a", "an", "of", "on", "in", "to", "for", "button", "icon", "tab", "menu", "window", "app", "application", "field", "link", "box", "item", "label", "option", "panel", "bar",
-  "il", "lo", "la", "i", "gli", "le", "di", "del", "della", "pulsante", "bottone", "icona", "scheda", "finestra", "campo", "voce", "collegamento",
-  "кнопка", "кнопку", "значок", "иконка", "иконку", "вкладка", "вкладку", "окно", "поле", "меню", "ссылка",
-  "butonul", "buton", "pictograma", "fila", "fereastra", "campul", "meniul", "meniu",
+  "the", "a", "an", "of", "on", "in", "to", "for", "button", "icon", "app",
+  "il", "lo", "la", "i", "gli", "le", "di", "del", "della", "pulsante", "bottone", "icona",
+  "кнопка", "кнопку", "значок", "иконка", "иконку",
+  "butonul", "buton", "pictograma",
 ]);
-const JA_FILLER = /(ボタン|アイコン|タブ|メニュー|ウィンドウ|の)/g;
+const JA_FILLER = /(ボタン|アイコン|の)/g;
+/** Scripts written without spaces between words. */
+const UNSPACED = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 
-const fold = (s: string): string => s.normalize("NFKC").toLowerCase().replace(JA_FILLER, " ");
-const words = (s: string): string[] => fold(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+const fold = (s: string): string => s.normalize("NFKC").toLowerCase();
+const split = (s: string): string[] => s.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+const words = (s: string): string[] => split(fold(s));
 const core = (s: string): string[] => {
   const w = words(s);
-  const kept = w.filter((x) => !FILLER.has(x));
+  const kept = split(fold(s).replace(JA_FILLER, " ")).filter((x) => !FILLER.has(x));
   return kept.length ? kept : w;
 };
 /** A taskbar button is named "Firefox - 2 running windows": the part before the dash is the thing's name. */
-const head = (name: string): string => name.split(/\s[-–—]\s/)[0];
+const head = (name: string): string => name.split(/\s[-\u2013\u2014]\s/)[0];
 
-/** 0 to 1: how well a spoken label names an element. 1 = the same words; under 0.5 is not a match. */
+/** 0 to 1: how well a spoken label names an element. 1 = the same words; under 0.6 is not a match. */
 export function nameScore(label: string, name: string): number {
   const l = core(label);
   if (!l.length) return 0;
@@ -58,30 +63,23 @@ export function nameScore(label: string, name: string): number {
   for (const candidate of new Set([name, head(name), plainName(name)])) {
     const n = core(candidate);
     if (!n.length) continue;
-    const lj = l.join(" "), nj = n.join(" ");
     let s = 0;
-    if (lj === nj) s = 1;
+    if (l.join(" ") === n.join(" ")) s = 1;
     else {
       const inName = l.filter((w) => n.includes(w)).length;
       const inLabel = n.filter((w) => l.includes(w)).length;
       // every word of the label is in the name ("Firefox" for "Mozilla Firefox"): better the more of the name it covers
       if (inName === l.length) s = 0.6 + 0.3 * (l.length / n.length);
-      // every word of the name is in the label ("Start" for "Start menu button", "Save" for "the blue Save button")
+      // every word of the name is in the label ("Save" for "the blue Save button")
       else if (inLabel === n.length) s = 0.6 + 0.25 * (n.length / l.length);
-      else {
-        const union = new Set([...l, ...n]).size;
-        const jaccard = inName / union;
-        if (jaccard >= 0.5) s = jaccard * 0.7;
-      }
-      // scripts without spaces: one name inside the other
+      // Japanese and Chinese: one name inside the other
       const lc = l.join(""), nc = n.join("");
-      if (!s && lc.length >= 2 && nc.length >= 2 && !/[a-z0-9]/.test(lc + nc) && (nc.includes(lc) || lc.includes(nc))) s = 0.6 + 0.3 * (Math.min(lc.length, nc.length) / Math.max(lc.length, nc.length));
+      if (!s && lc.length >= 2 && nc.length >= 2 && UNSPACED.test(lc) && UNSPACED.test(nc) && (nc.includes(lc) || lc.includes(nc))) s = 0.6 + 0.3 * (Math.min(lc.length, nc.length) / Math.max(lc.length, nc.length));
     }
     best = Math.max(best, s);
   }
   return best;
 }
-
 const MATCH = 0.6;
 /** The elements a label names best on one screen (all those level with the best one), best first. */
 export function matchElements(label: string, elements: ScreenElement[], screen: number): ScreenElement[] {
@@ -94,6 +92,13 @@ export function matchElements(label: string, elements: ScreenElement[], screen: 
   }
   return scored.filter(([s]) => s >= top - 0.02).map(([, e]) => e);
 }
+/** True when the label is the element's name, word for word (not only part of it or more than it). */
+const isExact = (label: string, e: ScreenElement): boolean => nameScore(label, e.name) >= 0.999;
+
+// "How do I start a new document?" holds the word Start and is not about the Start button. Only a
+// question that asks where a thing is, or to find, show, open or click it, is taken to name one.
+const LOCATING = /(?:^|[^\p{L}])(?:where|find|locate|show|point|open|click|press|launch|which|dov[e'’][eè]?|trova|mostra|indica|apri|clicca|premi|quale|где|найди|найти|покажи|укажи|открой|открыть|нажми|unde|găsește|gaseste|arată|arata|deschide|apasă|apasa|care)(?![\p{L}])|どこ|探し|見せ|開い|開き|押し|クリック/iu;
+export const asksWhere = (question: string): boolean => LOCATING.test(question.normalize("NFKC"));
 
 // ---- the thing the question itself names ----
 // "Where is Audacity?" with a 33-pixel Audacity icon in the taskbar: measured, the answering model
@@ -110,16 +115,20 @@ export const plainName = (name: string): string => head(name).replace(STATE, "")
 /**
  * The elements whose whole name stands in the question, longest name first, at most three. A name two
  * elements share is left out (which one?), and so is a name of one short word ("File", "Home"): it
- * is too often just a word of the sentence.
+ * is too often just a word of the sentence. Nothing for a question that does not ask where a thing is
+ * or to find, show, open or click it (asksWhere).
  */
 export function namedInQuestion(question: string, elements: ScreenElement[]): ScreenElement[] {
+  if (!asksWhere(question)) return [];
   const q = ` ${words(question).join(" ")} `;
+  const folded = fold(question), unspaced = UNSPACED.test(question);
   const found = new Map<string, ScreenElement | null>();
   for (const e of elements) {
     const n = words(plainName(e.name));
     const key = n.join(" ");
     if (!n.length || key.length < 3 || /^[\d ]+$/.test(key) || (n.length === 1 && key.length < 5)) continue;
-    if (!q.includes(` ${key} `)) continue;
+    // whole words; in Japanese, where words are not set apart, anywhere in the sentence
+    if (!q.includes(` ${key} `) && !(unspaced && folded.includes(key))) continue;
     const id = `${e.screen}:${key}`;
     found.set(id, found.has(id) ? null : e);
   }
@@ -152,6 +161,8 @@ const away = (x: number, y: number, e: ScreenElement) => Math.hypot(Math.max(e.x
 
 /** A guess this close to an element (on the grid: 30 = 3% of the screen, about 40 pixels on a 1360 screen) was meant for it. */
 export const SNAP_REACH = 30;
+/** A partial name match counts when the guess is within this of the element (a fifth of the screen). */
+export const NAME_REACH = 200;
 /** Things larger than this (a twentieth of the screen) are regions, not targets a point snaps to. */
 const SNAP_MAX_AREA = (GRID * GRID) / 20;
 
@@ -160,17 +171,21 @@ export type Placed = { x: number; y: number; how: "name" | "name-near" | "snap" 
 
 /**
  * Where a point with this label goes. `guess` is the model's own coordinate (grid), if it gave one.
- * - one element carries the name: its centre, whatever the model guessed;
- * - several do (two "Close" buttons): the one nearest the guess, or nothing certain without a guess;
+ * - one element carries exactly that name: its centre, whatever the model guessed;
+ * - one carries part of it, or the label says more ("Search bar" for "Search", "Firefox settings" for
+ *   "Settings"): its centre only when the guess is in its part of the screen (NAME_REACH), since the
+ *   label may mean another thing that Windows does not list;
+ * - several do (two "Close" buttons): the one nearest the guess, on the same terms; nothing certain without a guess;
  * - none does: the guess, moved to the centre of the small element it is in or right beside.
  * Without elements (no list on this system, or an app that exposes nothing) the guess is returned as it is.
  */
 export function placePoint(label: string, guess: { x: number; y: number } | null, elements: ScreenElement[], screen: number): Placed | null {
   const named = matchElements(label, elements, screen);
-  if (named.length === 1) return { ...centre(named[0]), how: "name", on: named[0] };
+  const agrees = (e: ScreenElement) => isExact(label, e) || (guess !== null && away(guess.x, guess.y, e) <= NAME_REACH);
+  if (named.length === 1 && agrees(named[0])) return { ...centre(named[0]), how: "name", on: named[0] };
   if (named.length > 1 && guess) {
     const nearest = named.reduce((a, b) => (away(guess.x, guess.y, b) < away(guess.x, guess.y, a) ? b : a));
-    return { ...centre(nearest), how: "name-near", on: nearest };
+    if (agrees(nearest)) return { ...centre(nearest), how: "name-near", on: nearest };
   }
   if (!guess) return null;
   let best: ScreenElement | null = null;
@@ -193,6 +208,8 @@ export const PICK_SYSTEM = "You match a label to the name of a thing on a comput
 /** The same choice for a whole question (the panel's second, narrow request when an answer pointed at nothing). */
 export const ASKED_SYSTEM = "You are given a user's question and the names of the things on their computer screen. The names may be in another language than the question. If the question asks where one of these things is, or how to find, open or use it, reply with only that item's number. If the question is about anything else, reply 0.";
 export const PICK_MAX_TOKENS = 8;
+/** A choice is one number (0.3 to 1.2 s measured); past this the pointing model looks instead. */
+export const PICK_MS = 4000;
 /** At most this many names go into the question (about 2,000 tokens). */
 export const PICK_MAX_NAMES = 250;
 
@@ -280,15 +297,18 @@ const iou = (a: Box, b: Box): number => {
 
 // "This area", "here", "quest'area": a box that names nothing. In the five languages of OK Filow.
 const VAGUE = /^(?:(?:this|that|the|questa?|quest'|quell[ao']?|la|этот|эта|это|эту|această|acest|この|その)\s*)?(?:area|region|zone|part|section|spot|place|here|there|zona|parte|sezione|punto|qui|qua|область|зона|часть|место|здесь|тут|zonă|parte|aici|エリア|領域|部分|ここ|そこ)$/iu;
-export const isVagueLabel = (label: string): boolean => !label.trim() || VAGUE.test(label.trim());
+export const isVagueLabel = (label: string): boolean => VAGUE.test(label.trim());
+/** A box this many times larger than the element of that name is around something else (the app's window, not its taskbar icon). */
+const BOX_FAR_LARGER = 6;
 
 /** A model's box overlaps a real element this much: it meant that element. */
 export const BOX_AGREES = 0.5;
 
 /**
- * Where a box with this label goes: the rectangle of the element that carries the name; else the
- * element the model's box all but covers; else the model's own box, unless its label names nothing
- * ("This area"), in which case no box is drawn at all (null): an arbitrary rectangle helps nobody.
+ * Where a box with this label goes: the rectangle of the element that carries the name (when the box
+ * overlaps it or is about its size); else the element the model's box all but covers; else the model's
+ * own box, unless its label is one that names nothing ("This area"), in which case no box is drawn at
+ * all (null): an arbitrary rectangle helps nobody. A box without any label is kept.
  * Without elements the box is returned as it is.
  */
 export function placeBox(label: string, box: Box, elements: ScreenElement[], screen: number): (Box & { how: "name" | "overlap" | "guess" }) | null {
@@ -296,8 +316,11 @@ export function placeBox(label: string, box: Box, elements: ScreenElement[], scr
   if (!here.length) return { ...box, how: "guess" };
   const named = matchElements(label, here, screen);
   if (named.length) {
-    const pick = named.reduce((a, b) => (iou(box, b) > iou(box, a) ? b : a));
-    if (named.length === 1 || iou(box, pick) > 0) return { x1: pick.x1, y1: pick.y1, x2: pick.x2, y2: pick.y2, how: "name" };
+    const cx = (box.x1 + box.x2) / 2, cy = (box.y1 + box.y2) / 2;
+    const pick = named.reduce((a, b) => (iou(box, b) > iou(box, a) || (iou(box, b) === iou(box, a) && away(cx, cy, b) < away(cx, cy, a)) ? b : a));
+    // the box overlaps it, or is of its size and (the very name, or drawn in its part of the screen)
+    const sameSize = (box.x2 - box.x1) * (box.y2 - box.y1) <= BOX_FAR_LARGER * area(pick);
+    if (iou(box, pick) >= 0.1 || (sameSize && ((named.length === 1 && isExact(label, pick)) || away(cx, cy, pick) <= NAME_REACH))) return { x1: pick.x1, y1: pick.y1, x2: pick.x2, y2: pick.y2, how: "name" };
   }
   let best: ScreenElement | null = null;
   for (const e of here) if (iou(box, e) >= BOX_AGREES && (!best || iou(box, e) > iou(box, best))) best = e;

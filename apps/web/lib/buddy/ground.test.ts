@@ -69,6 +69,50 @@ describe("a point goes where the thing is", () => {
   });
 });
 
+describe("a name that only partly fits does not pull a point across the screen", () => {
+  const BAR = [el("Search", 34, 938, 66, 1000), el("File Explorer", 94, 938, 118, 1000), el("Settings", 120, 938, 144, 1000), el("Блокнот", 146, 938, 170, 1000), el("Поиск", 172, 938, 196, 1000), el("Firefox - 1 running window", 68, 938, 92, 1000)];
+
+  it("the browser's own Search bar, File menu and Firefox settings stay where the model put them", () => {
+    // "bar", "menu", "settings" say it is another thing than the taskbar icon of that name, and the guess is far from it
+    expect(placePoint("Search bar", { x: 500, y: 80 }, BAR, 1)).toEqual({ x: 500, y: 80, how: "guess" });
+    expect(placePoint("File menu", { x: 20, y: 30 }, BAR, 1)).toEqual({ x: 20, y: 30, how: "guess" });
+    expect(placePoint("Firefox settings", { x: 950, y: 60 }, BAR, 1)).toEqual({ x: 950, y: 60, how: "guess" });
+    // the same partial name with the guess in that corner of the screen is the taskbar icon
+    expect(placePoint("Search bar", { x: 90, y: 900 }, BAR, 1)).toMatchObject({ x: 50, y: 969, how: "name" });
+    // and the exact name wins from anywhere: that is the owner's Start case
+    expect(placePoint("the Search icon", { x: 500, y: 80 }, BAR, 1)).toMatchObject({ x: 50, y: 969, how: "name" });
+    // without a guess only the exact name is certain
+    expect(placePoint("Search bar", null, BAR, 1)).toBeNull();
+    expect(placePoint("Search", null, BAR, 1)).toMatchObject({ how: "name" });
+  });
+
+  it("short Cyrillic words are not found inside longer ones; Japanese names are", () => {
+    expect(nameScore("ОК", "Блокнот")).toBe(0);
+    expect(nameScore("по", "Поиск")).toBe(0);
+    expect(placePoint("ОК", { x: 600, y: 500 }, BAR, 1)).toEqual({ x: 600, y: 500, how: "guess" });
+    expect(nameScore("Блокнот", "Блокнот")).toBe(1);
+    expect(nameScore("значок Блокнот", "Блокнот")).toBe(1);
+    expect(nameScore("設定", "設定メニュー")).toBeGreaterThanOrEqual(0.6);
+    // a label that is only a kind word still matches a thing called that
+    expect(nameScore("メニュー", "メニュー")).toBe(1);
+    expect(nameScore("アイコン", "アイコン")).toBe(1);
+  });
+
+  it("a box around the whole Firefox window is not shrunk to its taskbar icon, and a box with no label is kept", () => {
+    expect(placeBox("Firefox", { x1: 0, y1: 0, x2: 1000, y2: 930 }, BAR, 1)).toMatchObject({ x1: 0, y1: 0, x2: 1000, y2: 930, how: "guess" });
+    expect(placeBox("Firefox", { x1: 60, y1: 930, x2: 100, y2: 1000 }, BAR, 1)).toMatchObject({ x1: 68, y1: 938, x2: 92, y2: 1000, how: "name" });
+    expect(placeBox("", { x1: 100, y1: 100, x2: 500, y2: 500 }, BAR, 1)).toMatchObject({ how: "guess" });
+    expect(placeTags("see [BOX:100,100,500,500] here", BAR)).toBe("see [BOX:100,100,500,500] here");
+  });
+
+  it("numbers in a sentence are not a place", () => {
+    for (const s of ["Screen 1, 420, 880", "I see 2, 3 buttons at 300,400", "about 1,000 px", "[-5,20]", "It is at 300,400."]) expect(lenientPoint(s)).toBeNull();
+    expect(lenientPoint("412, 300")).toEqual({ x: 412, y: 300 });
+    expect(lenientPoint("(412,300)")).toEqual({ x: 412, y: 300 });
+    expect(lenientPoint("[[POINT:921,387:dom:screen1]]")).toEqual({ x: 921, y: 387 });
+  });
+});
+
 describe("a box goes around the thing, or is not drawn", () => {
   it("takes the named element's rectangle, else the element the box all but covers", () => {
     expect(placeBox("Layers panel", { x1: 500, y1: 300, x2: 700, y2: 500 }, DESKTOP, 1)).toMatchObject({ x1: 620, y1: 140, x2: 980, y2: 560, how: "name" });
@@ -129,6 +173,7 @@ describe("with a pointing model", () => {
     expect(lenientPoint("[400, 800:label=Save]")).toEqual({ x: 400, y: 800 });
     expect(lenientPoint("NONE")).toBeNull();
     expect(lenientPoint("None. It is not visible, 12,30 maybe")).toBeNull();
+    expect(lenientPoint("NONE [12,30:nothing there]")).toBeNull();
     expect(lenientPoint("[POINT:1360,700:x]")).toBeNull();
     expect(lenientPoint("it is there")).toBeNull();
   });
@@ -280,8 +325,11 @@ describe("the thing the question itself names", () => {
     expect(namedInQuestion("Where is Audacity?", PINNED).map((e) => e.name)).toEqual(["Audacity bloccato"]);
     expect(namedInQuestion("dov'è esplora file e dove firefox", PINNED).map((e) => plainName(e.name))).toEqual(["Esplora file", "Firefox"]);
     // "file" alone is a word of the sentence, "Start" (5 letters) is a name
-    expect(namedInQuestion("how do I save this file", PINNED)).toEqual([]);
-    expect(namedInQuestion("what does start do", PINNED).map((e) => e.name)).toEqual(["Start"]);
+    expect(namedInQuestion("where is this file", PINNED)).toEqual([]);
+    expect(namedInQuestion("where is start", PINNED).map((e) => e.name)).toEqual(["Start"]);
+    // a sentence that only holds the word is not about the thing: no hint, no point
+    for (const q of ["How do I start a new document in Word?", "what does start do in a for loop", "Come faccio a far partire Firefox più veloce?", "Firefox is slow today", "Как работает Firefox?"]) expect(namedInQuestion(q, PINNED)).toEqual([]);
+    for (const q of ["Dov'è Firefox?", "apri Firefox", "Где Firefox?", "Unde este Firefox?", "Firefoxはどこ", "show me Firefox", "which one is Firefox"]) expect(namedInQuestion(q, PINNED).map((e) => plainName(e.name))).toEqual(["Firefox"]);
     expect(namedInQuestion("open blocco note", PINNED)).toEqual([]);
     // part of a word is not the name
     expect(namedInQuestion("restart the computer", PINNED)).toEqual([]);

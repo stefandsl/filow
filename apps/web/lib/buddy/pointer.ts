@@ -31,19 +31,21 @@ const MAX_TAG_CHARS = 100;
 /** One answer of the pointing model: a tag is about 20 tokens, and it has this long (0.3 s measured once loaded). */
 export const POINTER_MAX_TOKENS = 60;
 export const POINTER_MS = 8000;
+/** All the pointing work after one answer (choosing from names, the pointing model, up to three labels) together. */
+export const POINTING_TOTAL_MS = 16_000;
 
 /**
  * The place a pointing model's reply names, on the grid. A small model often garbles the tag itself
  * ("[IPS:911,62:Share]", "[400, 800:label=Save]": 1 reply in 6 measured with lfm3-vl on real screens)
- * while the two numbers are right, so the first "x,y" pair inside the grid counts. "NONE" is no place.
+ * while the two numbers are right, so the "x,y" pair that opens a bracket counts. "NONE" is no place.
  */
 export function lenientPoint(reply: string): { x: number; y: number } | null {
   if (/^\W*none\b/i.test(reply)) return null;
-  for (const m of reply.matchAll(/(?<![\d.])(\d{1,4}(?:\.\d+)?)\s*,\s*(\d{1,4}(?:\.\d+)?)(?![\d.])/g)) {
-    const [x, y] = [Number(m[1]), Number(m[2])];
-    if (x <= 1000 && y <= 1000) return { x, y };
-  }
-  return null;
+  // Only the pair that opens a bracket ("[XYZ:911,62") or is the whole reply ("911, 62"): numbers in a sentence are not a place.
+  const m = /^\s*\(?\s*(\d{1,4}(?:\.\d+)?)\s*,\s*(\d{1,4}(?:\.\d+)?)\s*\)?\s*$/.exec(reply) ?? /\[[^\]\d-]{0,24}(\d{1,4}(?:\.\d+)?)\s*,\s*(\d{1,4}(?:\.\d+)?)(?![\d.])/.exec(reply);
+  if (!m) return null;
+  const [x, y] = [Number(m[1]), Number(m[2])];
+  return x <= 1000 && y <= 1000 ? { x, y } : null;
 }
 
 /**

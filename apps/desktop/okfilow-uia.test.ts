@@ -94,11 +94,42 @@ describe("the reader", () => {
     const first = r.scan(RECT, { budgetMs: 100, timeoutMs: 300 });
     await vi.advanceTimersByTimeAsync(300);
     await expect(first).resolves.toBeNull();
-    const second = r.scan({ ...RECT, x: 0 }, { budgetMs: 100, timeoutMs: 300 });
-    await vi.advanceTimersByTimeAsync(0);
+    // while that answer is outstanding nothing more is queued behind it: the next question goes on without a list
+    await expect(r.scan({ ...RECT, x: 0 }, { budgetMs: 100, timeoutMs: 300 })).resolves.toBeNull();
+    expect(h.sent).toHaveLength(1);
     h.say('{"ms":400,"partial":false,"elements":[["late","Button",1,1,9,9]]}\n');
+    const third = r.scan({ ...RECT, x: 0 }, { budgetMs: 100, timeoutMs: 300 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.sent).toHaveLength(2);
     h.say('{"ms":50,"partial":true,"elements":[["mine","Button",2,2,9,9]]}\n');
-    await expect(second).resolves.toEqual({ ms: 50, partial: true, elements: [["mine", "Button", 2, 2, 9, 9]] });
+    await expect(third).resolves.toEqual({ ms: 50, partial: true, elements: [["mine", "Button", 2, 2, 9, 9]] });
+  });
+
+  it("a helper stuck in an app that does not answer is ended after ten seconds and a new one starts for a later question", async () => {
+    const h = fakeHelper();
+    const lines: string[] = [];
+    const r = createElementReader({ spawn: h.spawn, platform: "win32", log: (l) => lines.push(l) });
+    r.start();
+    h.say('{"ready":true}\n');
+    const first = r.scan(RECT, { timeoutMs: 900 });
+    await vi.advanceTimersByTimeAsync(900);
+    await expect(first).resolves.toBeNull();
+    await vi.advanceTimersByTimeAsync(5000);
+    await expect(r.scan(RECT)).resolves.toBeNull();
+    expect(h.procs[0].kill).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(5000);
+    await expect(r.scan(RECT)).resolves.toBeNull();
+    expect(h.procs[0].kill).toHaveBeenCalledTimes(1);
+    expect(lines.join("\n")).toContain("did not answer");
+    // the old process's late words are not read by the new one
+    await expect(r.scan(RECT)).resolves.toBeNull();
+    expect(h.spawn).toHaveBeenCalledTimes(2);
+    h.say('{"ready":true}\n', 1);
+    const p = r.scan(RECT);
+    await vi.advanceTimersByTimeAsync(0);
+    h.say('{"ms":9000,"partial":false,"elements":[["old","Button",1,1,9,9]]}\n', 0);
+    h.say('{"ms":40,"partial":false,"elements":[["new","Button",1,1,9,9]]}\n', 1);
+    await expect(p).resolves.toMatchObject({ elements: [["new", "Button", 1, 1, 9, 9]] });
   });
 
   it("runs requests one after the other", async () => {

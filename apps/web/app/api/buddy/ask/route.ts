@@ -7,9 +7,9 @@ import { answerLanguage } from "@/lib/buddy/lang";
 import { drawnAnswer } from "@/lib/buddy/draw";
 import { wantsDrawing } from "@/lib/buddy/visuals";
 import { photoAnswer, wantsPhoto } from "@/lib/buddy/photo";
-import { isPointOnly, pointQuestion, POINTER_MAX_TOKENS, POINTER_MS, withPointer } from "@/lib/buddy/pointer";
+import { isPointOnly, pointQuestion, POINTER_MAX_TOKENS, POINTER_MS, POINTING_TOTAL_MS, withPointer } from "@/lib/buddy/pointer";
 import { buddySystemPrompt } from "@/lib/buddy/prompt";
-import { ASKED_SYSTEM, canPick, namedInQuestion, PICK_MAX_TOKENS, PICK_SYSTEM, pickedIndex, pickNames, pickQuestion, plainName, sanitizeElements, screenHint, withNamedPoint, withPlacedTags } from "@/lib/buddy/ground";
+import { ASKED_SYSTEM, canPick, namedInQuestion, PICK_MAX_TOKENS, PICK_MS, PICK_SYSTEM, pickedIndex, pickNames, pickQuestion, plainName, sanitizeElements, screenHint, withNamedPoint, withPlacedTags } from "@/lib/buddy/ground";
 import { okfText } from "@/lib/buddy/text";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
@@ -105,10 +105,16 @@ export async function POST(req: Request) {
   const drawing = wantsDrawing(question);
   // On this PC a setup may answer with one model and place the points with another (lib/buddy/pointer.ts).
   const pointer = provider === "local" && !drawing && helper?.pictures && !isPointOnly(question) ? helper.pointer : undefined;
+  // Everything that places points after the answer shares one allowance, so three hard labels cannot hold the voice for long.
+  let pointingSince = 0;
+  const pointingLimit = (ms: number) => {
+    pointingSince ||= Date.now();
+    return AbortSignal.any([abort.signal, AbortSignal.timeout(Math.max(1, Math.min(ms, POINTING_TOTAL_MS - (Date.now() - pointingSince))))]);
+  };
   const whereIs = async (label: string) => {
     let reply = "";
     // A tag is short and the answer's voice waits for it: a few tokens and a few seconds, never the answer's own limits.
-    const limit = AbortSignal.any([abort.signal, AbortSignal.timeout(POINTER_MS)]);
+    const limit = pointingLimit(POINTER_MS);
     const shape = { system: buddySystemPrompt(screens, known ?? "auto", { pictures: true }), maxTokens: POINTER_MAX_TOKENS };
     for await (const piece of askBuddy("local", { ...ask, question: pointQuestion(label), history: [] }, limit, { model: pointer!, pictures: true }, shape)) reply += piece;
     return reply;
@@ -117,7 +123,7 @@ export async function POST(req: Request) {
   // picture (lib/buddy/ground.ts). Only here, on this PC: the names never go to an online provider.
   const choose = async (system: string, label: string, names: string[], model: string) => {
     let reply = "";
-    const limit = AbortSignal.any([abort.signal, AbortSignal.timeout(POINTER_MS)]);
+    const limit = pointingLimit(PICK_MS);
     const shape = { system, maxTokens: PICK_MAX_TOKENS, temperature: 0, pictures: false };
     for await (const piece of askBuddy("local", { ...ask, question: pickQuestion(label, names), history: [], images: [] }, limit, { model, pictures: false }, shape)) reply += piece;
     return reply;
