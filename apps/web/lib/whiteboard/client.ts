@@ -2,6 +2,7 @@
 // putting the lesson together as its steps arrive. Pure (no React, no DOM), so it is tested as is.
 import type { LessonEvent } from "./generate";
 import type { Lesson } from "./lesson";
+import type { Diagram } from "./templates";
 
 export type LessonMeta = { provider: "local" | "cloud" | "freellm"; model: string; lang: string; lite: boolean };
 export type LessonState = {
@@ -21,6 +22,8 @@ export type LessonState = {
   doubts: boolean;
   /** Names of the question that were spelled out for an online account that hides names. */
   spelled: string[];
+  /** The lesson's picture, when the model picked a template for it (lib/whiteboard/templates.ts), with the worked example's result. */
+  diagram: { d: Diagram; result: string } | null;
 };
 export type LessonAction =
   | { type: "ask"; more: boolean }
@@ -29,7 +32,7 @@ export type LessonAction =
   | { type: "cancel" }
   | { type: "clear" };
 
-export const initialLesson: LessonState = { lesson: null, base: 0, expected: 0, meta: null, phase: "idle", error: null, stalled: false, cards: 0, unchecked: [], doubts: false, spelled: [] };
+export const initialLesson: LessonState = { lesson: null, base: 0, expected: 0, meta: null, phase: "idle", error: null, stalled: false, cards: 0, unchecked: [], doubts: false, spelled: [], diagram: null };
 
 export function lessonReducer(s: LessonState, a: LessonAction): LessonState {
   const count = s.lesson?.steps.length ?? 0;
@@ -46,6 +49,7 @@ export function lessonReducer(s: LessonState, a: LessonAction): LessonState {
     case "event": {
       const e = a.event;
       if (s.phase !== "planning" && s.phase !== "drawing") return s; // an answer nobody is waiting for
+      if (e.type === "diagram") return s.base > 0 ? s : { ...s, diagram: { d: e.diagram, result: e.result } };
       if (e.type === "start") return { ...s, meta: { provider: e.provider, model: e.model, lang: e.lang, lite: e.lite } };
       if (e.type === "outline") {
         if (s.base > 0 && s.lesson) return { ...s, expected: s.base + e.says.length, phase: "drawing" };
