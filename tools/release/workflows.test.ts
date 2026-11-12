@@ -35,6 +35,26 @@ describe("GitHub workflows pin every action to a commit", () => {
     expect(unpinnedUses(text)).toEqual([]);
   });
 
+  it("the build job records the commit in the desktop package, after typecheck and before the installer build", () => {
+    const lines = fs.readFileSync(path.join(workflowsDir, "desktop.yml"), "utf8").split(/\r?\n/);
+    const runAt = lines.findIndex((l) => l.trim() === "run: npm pkg set sourceSha=$(git rev-parse HEAD) -w apps/desktop");
+    expect(runAt, "the sourceSha step is missing from desktop.yml").toBeGreaterThan(-1);
+    // the step's own keys: from its `- name:` line to the next `- ` item
+    let start = runAt;
+    while (start > 0 && !/^\s*-\s/.test(lines[start]!)) start--;
+    let end = runAt + 1;
+    while (end < lines.length && !/^\s*-\s/.test(lines[end]!)) end++;
+    const step = lines.slice(start, end).map((l) => l.trim());
+    expect(step).toContain("if: env.HERE == 'true'");
+    expect(step).toContain("shell: bash");
+    const typecheckAt = lines.findIndex((l, i) => i > lines.findIndex((x) => x.trim() === "build:") && l.trim() === "- run: npm run typecheck");
+    const buildAt = lines.findIndex((l) => l.trim() === "- run: npm run ${{ matrix.script }}");
+    expect(typecheckAt).toBeGreaterThan(-1);
+    expect(buildAt).toBeGreaterThan(-1);
+    expect(runAt).toBeGreaterThan(typecheckAt);
+    expect(runAt).toBeLessThan(buildAt);
+  });
+
   it("flags a tag, a short SHA, a branch, a missing comment and an unparseable line", () => {
     const sha = "11d5960a326750d5838078e36cf38b85af677262";
     const text = [
