@@ -44,11 +44,13 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
     not applied; `*.sqlite` ignored). Tip: 177 files and 2,201 tests passed, 2 files and 5 tests
     skipped; typecheck, lint and the three builds exit 0.
   - Findings, open items and the merge plan: `tmp/onboarding-review/REVIEW.md` (tmp/ is not tracked:
-    copy it into docs/ if it must travel). Open, medium: account and Stripe traffic is not in the
-    outbound notice; the account origin is an environment variable only, so an installed build has no
-    accounts; no reconciliation against Stripe's current state; the billing plugin's own routes are
-    reachable directly; captions and the sign-in email are English only; the cloud voice sends one
-    request per sentence (not measured).
+    copy it into docs/ if it must travel). The medium items, after S0 of
+    `tmp/openbot-research/PLAN.md` (2026-11-12): closed in S0 are account traffic in the outbound
+    notice and signal (kind `account`, OUTBOUND.md row 21), the account origin set at build time
+    (`-c.extraMetadata.accountOrigin`, `account:configured`) and the billing plugin's own routes
+    (404 except `GET /api/auth/subscription/success`). Moved: reconciliation against Stripe's current
+    state to S4b, the sign-in email languages to S5, captions to F1, the cloud voice's one request per
+    sentence (not measured) to Phase 2.
   - Not verified in this review: nothing was launched (no Electron, no overlay on a real screen, no
     window move or display change, no video playback, no theme inspection), no real Stripe or email,
     no real-model latency. `apps/desktop/vendor/i18n.js` must be rebuilt (`npm run vendor`) before
