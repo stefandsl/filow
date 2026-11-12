@@ -1,9 +1,10 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useT } from "@filow/ui";
 import { sectionLabel } from "./sectionLabel";
-export function SectionNav({ sections, current, onSelect, importAction, reloadAction }: {
+/** `toolActions` (Display, Whiteboard) sit first in the block of buttons at the foot of the sidebar, above Import and Reload. */
+export function SectionNav({ sections, current, onSelect, toolActions, importAction, reloadAction }: {
   sections: { id: string; title: string }[]; current: number; onSelect(index: number): void;
-  importAction: ReactNode; reloadAction?: ReactNode;
+  toolActions?: ReactNode; importAction: ReactNode; reloadAction?: ReactNode;
 }) {
   const t = useT();
   const active = useRef<HTMLButtonElement>(null);
@@ -17,6 +18,6 @@ export function SectionNav({ sections, current, onSelect, importAction, reloadAc
         <span className="section-number">{String(index + 1).padStart(2, "0")}</span><span className="section-name">{sectionLabel(section.title).label || section.title}</span>
       </button>)}
     </div>
-    <div className="nav-actions">{importAction}{reloadAction}</div>
+    <div className="nav-actions">{toolActions}{importAction}{reloadAction}</div>
   </nav>;
 }

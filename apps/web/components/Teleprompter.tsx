@@ -52,6 +52,7 @@ import { LogPanel } from "./prompter/LogPanel";
 import { useReanchor } from "./prompter/useReanchor";
 import { ReanchorNotice } from "./prompter/ReanchorNotice";
 import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useCodesForWindows, useDisplayPrefs, useEyeline, usePointsWindow } from "./prompter/DisplayPanel";
+import { openWhiteboard } from "@/lib/whiteboard/open";
 import { pointState } from "@/lib/pointState";
 import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
 import { decisionRecipient, sttRecipient, takeOutbound } from "@/lib/buddy/outbound";
@@ -102,6 +103,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
   const [lastNotes, setLastNotes] = useState<ScreenNote[]>([]);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  // The Whiteboard button found OK Filow not running in the desktop app (lib/whiteboard/open.ts): said in words, never a dead button.
+  const [boardDown, setBoardDown] = useState(false);
   const [starting, setStarting] = useState(false);
   const [micWarning, setMicWarning] = useState<MicWarning | null>(null);
   const microphoneRef = useRef<HTMLSelectElement>(null);
@@ -512,10 +515,13 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
         <span className="subtitle">{t("app.tagline")}</span><span className="spacer" />
         <PairPanel prompter info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} onNewCode={() => void sessionInfo.newCode()} />
         <LangSwitch lang={lang} onChange={onLang} /><ThemeSwitch pref={theme} onChange={onTheme} />
-        <button type="button" className="btn display-link" onClick={() => setDisplayOpen(true)} title={t("display.openTitle")} aria-haspopup="dialog"><Icon name="sliders" /><span className="action-label">{t("display.open")}</span></button>
         <a className="btn settings-link" href="/settings" aria-label={t("ctl.settings")} title={t("ctl.settingsTitle")}><Icon name="settings" /></a>
       </header>
       <SectionNav sections={script.sections} current={sectionIdx} onSelect={reanchor.toSection}
+        toolActions={<>
+          <button type="button" className="btn display-link" onClick={() => setDisplayOpen(true)} aria-label={t("display.open")} title={t("display.openTitle")} aria-haspopup="dialog"><Icon name="sliders" /><span className="action-label">{t("display.open")}</span></button>
+          <button type="button" className="btn whiteboard-link" onClick={() => { setBoardDown(false); void openWhiteboard().then((went) => setBoardDown(went === "unavailable")); }} aria-label={t("ctl.whiteboard")} title={t("ctl.whiteboardTitle")}><Icon name="board" /><span className="action-label">{t("ctl.whiteboard")}</span></button>
+        </>}
         importAction={<button type="button" className="btn" onClick={() => fileRef.current?.click()} disabled={importing} aria-label={t("ctl.import")} title={t("ctl.importTitle")}><Icon name="up" /><span className="action-label">{importing ? t("ctl.importing") : t("ctl.import")}</span></button>}
         reloadAction={<button type="button" className="btn" onClick={loadScript} aria-label={t("ctl.reload")}><Icon name="reload" /><span className="action-label">{t("ctl.reload")}</span></button>} />
         <input
@@ -544,6 +550,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       )}
       {error && <div className="chip err banner">{error}</div>}
       {importError !== null && <ImportError error={importError} />}
+      {boardDown && <div className="chip err banner" role="alert">{t("ctl.whiteboardDown")}</div>}
 
 
         <div className="section-heading">
@@ -632,7 +639,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
         </ScreenSensePanel>}
       </main>
       </div>
-      {displayOpen && <DisplayPanel prefs={display} onChange={setDisplay} onClose={() => setDisplayOpen(false)} pointsWindow={pointsWindow} />}
+      {displayOpen && <DisplayPanel prefs={display} onChange={setDisplay} onClose={() => setDisplayOpen(false)} pointsWindow={pointsWindow} anchor="sidebar" />}
       <ActionBar label={t("ctl.controls")} start={<>
         {eng.recording ? (
           <button className="btn primary" onClick={stopTake}>
