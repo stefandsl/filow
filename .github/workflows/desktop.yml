@@ -3,6 +3,8 @@ name: Desktop builds
 on:
   push:
     tags: ["v*"]
+    # Every push to main runs the checks only; the build job below runs on tags and manual runs.
+    branches: [main]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -15,25 +17,36 @@ on:
         default: all
 
 jobs:
-  # Lint, types and the unit tests, once, on Windows (where the suite is developed and checked).
-  # No installer is built while they are red.
+  # The same commands as the local merge gate (G:\FILOW\tmp\orchestrator\merge-gate.ps1), once, on
+  # Windows (where the suite is developed and checked). Any red step fails the job, and no installer is
+  # built while it is red. Every external action is pinned to a full commit SHA (the tag in the comment);
+  # tools/release/workflows.test.ts fails on one that is not.
   checks:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ inputs.release_tag || github.ref }} # the same source the build job packages
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci --prefer-offline
+      - run: node node_modules/electron/install.js
+      - run: npm run vendor -w apps/desktop
+      # The tests run without the generated dictionary bundle, as the merge gate does.
+      - name: Remove the generated dictionary bundle
+        shell: pwsh
+        run: if (Test-Path apps\desktop\vendor\i18n.js) { Remove-Item apps\desktop\vendor\i18n.js }
+      - run: npx vitest run
+      - run: npm run build:welcome -w apps/desktop
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
 
+  # Installers only for a pushed tag or a manual run; a push to main stops after the checks.
   build:
     needs: checks
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -59,11 +72,11 @@ jobs:
       # The release this run attaches to: the pushed tag, or a manual run's release_tag (empty: none).
       RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.release_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: env.HERE == 'true'
         with:
           ref: ${{ inputs.release_tag || github.ref }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: env.HERE == 'true'
         with:
           node-version: 22
@@ -99,7 +112,7 @@ jobs:
       # softprops reuses the release that the first job created for the tag.
       - name: Attach installers to the release
         if: env.HERE == 'true' && env.RELEASE_TAG != ''
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           files: |
@@ -116,7 +129,7 @@ jobs:
       # (electron-builder publish config). Needs the RELEASES_TOKEN secret; see README.
       - name: Publish to the public releases repo
         if: env.HERE == 'true' && env.RELEASE_TAG != '' && env.RELEASES_TOKEN != ''
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           repository: stefandsl/filow-releases
           token: ${{ secrets.RELEASES_TOKEN }}
@@ -133,7 +146,7 @@ jobs:
             release/*.zip
             !release/builder-debug.yml
       # Manual runs without a release_tag keep the installers as a short-lived artifact instead.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: env.HERE == 'true' && env.RELEASE_TAG == ''
         continue-on-error: true
         with:
