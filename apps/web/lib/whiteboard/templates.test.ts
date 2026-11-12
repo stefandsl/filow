@@ -143,6 +143,24 @@ describe("raw mathematics", () => {
   });
 });
 
+describe("wording and wiring", () => {
+  it("counts doubled words, tautologies and arrows joined at one end", () => {
+    expect(badWording("Input Layer layer")).toBe(true);
+    expect(badWording("The middle value 23 is 23.")).toBe(true);
+    expect(badWording("The middle value 23 is smaller than 42.")).toBe(false);
+    const l = readDiagram({ template: "layers", layers: ["Input Layer", "Hidden layer", "Output"] }, "n") as Extract<Diagram, { template: "layers" }>;
+    expect(l.layers).toEqual(["Input", "Hidden", "Output"]);
+    const s = sceneFromDiagram(diagrams.circuit, workedExample(diagrams.circuit).facts, 6, "");
+    const box1 = s.elements.find((e) => e.id === "ci-law")!;
+    const loose = { ...s.elements.find((e) => e.type === "arrow")!, id: "loose", startBinding: { elementId: box1.id, focus: 0, gap: 4 }, endBinding: null, customData: { wb: { step: 0, key: "x", role: "edge" as const } } };
+    const t = s.elements.find((e) => e.type === "text" && !e.containerId && e.id !== "wb-title")!;
+    const bad = { ...s, elements: [...s.elements.map((e) => (e.id === t.id ? { ...e, text: "Input layer layer", originalText: "Input layer layer" } : e)), loose] };
+    const c = countProblems(checkScene(bad));
+    expect(c.wording).toBe(1);
+    expect(c.dangling).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe("orphan boxes", () => {
   it("counts a box of a concept map that no arrow joins", () => {
     const l = validateLesson({ title: "T", scene: "flow", steps: [{ say: "A feeds B; C stands alone.", items: [{ kind: "node", id: "a", text: "A" }, { kind: "node", id: "b", text: "B" }, { kind: "edge", from: "a", to: "b", text: "feeds" }, { kind: "node", id: "c", text: "C" }] }] })!;
