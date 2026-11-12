@@ -141,9 +141,12 @@ def perf(name, threads, busy):
         out = WORK / "results" / "asr-perf-busy.jsonl"
         if out.exists():
             out.unlink()
-        asr = subprocess.Popen(["node", str(HERE / "asr.mjs"), "--list", str(lst), "--out", str(out), "--use", "tracking"], stdout=subprocess.DEVNULL)
+        asr = subprocess.Popen(["node", str(HERE / "asr.mjs"), "--list", str(lst), "--out", str(out), "--use", "tracking", "--threads", "3"], stdout=subprocess.DEVNULL)  # 3 + this engine = 4 busy threads
         time.sleep(8)  # model load
-    rss0 = PROC.memory_info().rss
+    # memory added = this process (runtime library, sessions, state) minus a Python that only has numpy, scipy, soundfile
+    base = subprocess.run([sys.executable, "-I", "-c", "import numpy, scipy.signal, soundfile, psutil; print(psutil.Process().memory_info().rss)"],
+                          capture_output=True, text=True)
+    rss0 = int(base.stdout.strip())
     e0 = ONNX_ENGINES[name](threads)
     sr = e0.sr
     hops, audio, cpu = [], 0.0, 0.0

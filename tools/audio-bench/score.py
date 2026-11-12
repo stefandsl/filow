@@ -32,10 +32,10 @@ ENV = ("keyboard", "fan", "traffic")
 COLUMNS = ["run_id", "split", "utterance_id", "speaker_id", "language", "condition", "snr_db", "sir_db", "engine", "model_revision",
            "model_sha256", "runtime_version", "threads", "ref_words", "subs", "dels", "ins", "dsp_p50_ms", "dsp_p95_ms", "dsp_p99_ms",
            "rtf", "added_delay_ms", "cpu_pct", "rss_mib"]
-ARMS = ["raw", "gtcrn", "dtln", "rnnoise", "dfn3", "dfn3_ll", "dpdfnet2", "dpdfnet2_48k"]
+ARMS = ["raw", "gtcrn", "dtln", "rnnoise", "dfn3", "dfn3_ll", "dpdfnet2", "dpdfnet2_48k", "hush"]
 RUNTIME = {"raw": "sherpa-onnx-node 2.0.1", "gtcrn": "onnxruntime 1.30.0", "dtln": "onnxruntime 1.30.0", "dpdfnet2": "onnxruntime 1.30.0",
            "dpdfnet2_48k": "onnxruntime 1.30.0", "rnnoise": "rnnoise 70f1d25 (MSVC 19.2x, AVX2)", "dfn3": "deep-filter 0.5.6 (tract)",
-           "dfn3_ll": "deep-filter 0.5.6 (tract)"}
+           "dfn3_ll": "deep-filter 0.5.6 (tract)", "hush": "weya_nc.dll from pulp-vision/Hush 9f6414e"}
 MODEL_OF = {"dfn3": ("dfn3", "DeepFilterNet3_onnx.tar.gz"), "dfn3_ll": ("dfn3", "DeepFilterNet3_ll_onnx.tar.gz")}
 B = 2000
 

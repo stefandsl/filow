@@ -144,7 +144,7 @@ def perf(name, busy):
         out = WORK / "results" / "asr-perf-busy.jsonl"
         if out.exists():
             out.unlink()
-        asr = subprocess.Popen(["node", str(HERE / "asr.mjs"), "--list", str(lst), "--out", str(out), "--use", "tracking"], stdout=subprocess.DEVNULL)
+        asr = subprocess.Popen(["node", str(HERE / "asr.mjs"), "--list", str(lst), "--out", str(out), "--use", "tracking", "--threads", "3"], stdout=subprocess.DEVNULL)  # 3 + this engine = 4 busy threads
         time.sleep(8)
     psutil.cpu_percent(interval=None)
     if name == "rnnoise":

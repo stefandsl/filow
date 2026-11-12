@@ -16,6 +16,8 @@ if (-not $SkipEnhance) {
   $ext = $Engines | Where-Object { $_ -in 'rnnoise', 'dfn3', 'dfn3_ll' }
   foreach ($group in @(, $onnx) + @(, $ext)) {
     if (-not $group) { continue }
+    $group = @($group | Where-Object { -not (Test-Path "$work\results\enh-$_-$Split.csv") })  # finished engines are kept
+    if (-not $group) { continue }
     $procs = foreach ($e in $group) {
       $script = if ($e -in 'rnnoise', 'dfn3', 'dfn3_ll') { 'external.py' } else { 'enhance.py' }
       Start-Process -FilePath $py -ArgumentList @('-I', $script, 'run', $e, $Split) -NoNewWindow -PassThru -RedirectStandardOutput "$work\logs\enh-$e-$Split.out" -RedirectStandardError "$work\logs\enh-$e-$Split.err"

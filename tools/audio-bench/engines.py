@@ -16,7 +16,19 @@ from common import WORK
 MODELS = WORK / "models"
 
 
+_SESSIONS = {}
+
+
 def session(path, threads):
+    """One onnxruntime session per model file and thread count; the wrappers keep the state, so a
+    new recording only needs a new wrapper (loading the 10 MB graphs again costs about a second)."""
+    key = (str(path), threads)
+    if key not in _SESSIONS:
+        _SESSIONS[key] = _load(path, threads)
+    return _SESSIONS[key]
+
+
+def _load(path, threads):
     opts = ort.SessionOptions()
     opts.intra_op_num_threads = threads
     opts.inter_op_num_threads = 1
@@ -157,7 +169,50 @@ class Dpdfnet48(Dpdfnet):
         super().__init__(threads, "dpdfnet2_48k/dpdfnet2_48khz_hr.onnx")
 
 
-ONNX_ENGINES = {"gtcrn": Gtcrn, "dtln": Dtln, "dpdfnet2": Dpdfnet, "dpdfnet2_48k": Dpdfnet48}
+class Hush(Stream):
+    """pulp-vision/Hush deployment (deployment/README.md, include/weya_nc.h): the repository's own
+    prebuilt weya_nc.dll (a DeepFilterNet-style runtime) loaded with ctypes, the model bundle from
+    Hugging Face passed by path, one 10 ms frame per call at 16 kHz, no attenuation limit."""
+    hop = 160
+    _lib = None
+    _model = None
+
+    def __init__(self, threads=1):
+        super().__init__()
+        import ctypes
+        if Hush._lib is None:
+            lib = ctypes.CDLL(str(MODELS / "src" / "hush" / "deployment" / "lib" / "weya_nc.dll"))
+            lib.weya_nc_model_load_from_path.argtypes = [ctypes.c_char_p]
+            lib.weya_nc_model_load_from_path.restype = ctypes.c_void_p
+            lib.weya_nc_session_create.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_float]
+            lib.weya_nc_session_create.restype = ctypes.c_void_p
+            lib.weya_nc_session_free.argtypes = [ctypes.c_void_p]
+            lib.weya_nc_get_frame_length.argtypes = [ctypes.c_void_p]
+            lib.weya_nc_get_frame_length.restype = ctypes.c_size_t
+            lib.weya_nc_process_frame.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_float)]
+            lib.weya_nc_process_frame.restype = ctypes.c_float
+            Hush._lib = lib
+            Hush._model = lib.weya_nc_model_load_from_path(str(MODELS / "hush" / "advanced_dfnet16k_model_best_onnx.tar.gz").encode("utf-8"))
+            if not Hush._model:
+                raise RuntimeError("weya_nc could not load the model bundle")
+        self._ct = ctypes
+        self.sess = Hush._lib.weya_nc_session_create(Hush._model, 16000, 100.0)
+        assert Hush._lib.weya_nc_get_frame_length(self.sess) == self.hop
+        self.out = np.zeros(self.hop, np.float32)
+
+    def _hop(self, x):
+        frame = np.ascontiguousarray(x, np.float32)
+        fp = self._ct.POINTER(self._ct.c_float)
+        Hush._lib.weya_nc_process_frame(self.sess, frame.ctypes.data_as(fp), self.out.ctypes.data_as(fp))
+        return self.out.copy()
+
+    def __del__(self):
+        if getattr(self, "sess", None):
+            Hush._lib.weya_nc_session_free(self.sess)
+            self.sess = None
+
+
+ONNX_ENGINES = {"gtcrn": Gtcrn, "dtln": Dtln, "dpdfnet2": Dpdfnet, "dpdfnet2_48k": Dpdfnet48, "hush": Hush}
 
 
 def model_files(engine):
