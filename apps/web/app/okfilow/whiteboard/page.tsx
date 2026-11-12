@@ -21,7 +21,8 @@ import { initialLesson, lessonReducer, readLessonStream } from "@/lib/whiteboard
 import { fileStem, saveBlob } from "@/lib/whiteboard/export";
 import { createRecorder, type LessonRecorder } from "@/lib/whiteboard/video";
 import { BOARD_SIZE, layoutBoard, type BoardShape, type Box } from "@/lib/whiteboard/layout";
-import { LIMITS, lessonMarkdown, validateLesson, type Lesson } from "@/lib/whiteboard/lesson";
+import { LIMITS, cleanText, lessonMarkdown, validateLesson, type Lesson } from "@/lib/whiteboard/lesson";
+import { readDiagram, sceneFromDiagram, type Diagram } from "@/lib/whiteboard/templates";
 import { boardLesson, pendingScene, sceneFromLayout, type Scene } from "@/lib/whiteboard/scene";
 import { BOARD_KEY, MAX_SAVED_BYTES, applyEdits, applyOps, cameraFor, changesToOps, diffEdits, excalidrawFile, frameBox, hasEdits, noEdits, parseExcalidrawFile, readScene, withFrame, type SceneEdits, type ToolOp } from "@/lib/whiteboard/doc";
 import type { EditPlan } from "@/lib/whiteboard/edits";
@@ -43,7 +44,7 @@ const BOARD_COLOURS: Record<BoardLook, { page: string; ink: string }> = { light:
 const FIX_ROUNDS = 3;
 /** The vision check waits this long at most; the next step never waits for it. */
 const LOOK_MS = 9000;
-type SavedBoard = { v: 1; lesson: Lesson | null; scene?: Scene; edits: SceneEdits; fixes: SceneEdits };
+type SavedBoard = { v: 1; lesson: Lesson | null; diagram?: { d: Diagram; result: string } | null; scene?: Scene; edits: SceneEdits; fixes: SceneEdits };
 const blobBase64 = (blob: Blob) => new Promise<string>((resolve, reject) => {
   const r = new FileReader();
   r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ""));
@@ -429,9 +430,11 @@ export default function WhiteboardPage() {
   // ---- The board as an Excalidraw scene ----
   const compiled = useMemo<Scene | null>(() => {
     if (imported) return imported;
+    // a lesson drawn as the picture its concept is taught with (lib/whiteboard/templates.ts)
+    if (ls.diagram && ls.lesson && player.index >= 0) return sceneFromDiagram(ls.diagram.d, ls.lesson.steps.map((s) => s.say), player.index, ls.diagram.result);
     if (layout) return sceneFromLayout(layout, { plain: lite });
     return busy && pendingTitle ? pendingScene(pendingTitle, BOARD_SIZE[shape]) : null;
-  }, [imported, layout, lite, busy, pendingTitle, shape]);
+  }, [imported, layout, lite, busy, pendingTitle, shape, ls.diagram, ls.lesson, player.index]);
   // what the user's changes sit on: the lesson as compiled, tidied by the checks
   const fixedBase = useMemo(() => (compiled ? applyEdits(compiled, fixes) : null), [compiled, fixes]);
   const raw = useMemo(() => (fixedBase ? applyEdits(fixedBase, edits) : null), [fixedBase, edits]);
@@ -523,12 +526,12 @@ export default function WhiteboardPage() {
   }, []);
   useEffect(() => {
     if (busy || (!ls.lesson && !imported)) return;
-    const saved: SavedBoard = { v: 1, lesson: imported ? null : ls.lesson, ...(imported ? { scene: imported } : {}), edits, fixes };
+    const saved: SavedBoard = { v: 1, lesson: imported ? null : ls.lesson, diagram: imported ? null : ls.diagram, ...(imported ? { scene: imported } : {}), edits, fixes };
     try {
       const json = JSON.stringify(saved);
       if (json.length <= MAX_SAVED_BYTES) localStorage.setItem(BOARD_KEY, json);
     } catch { /* full or private: the board is not kept */ }
-  }, [busy, ls.lesson, imported, edits, fixes]);
+  }, [busy, ls.lesson, ls.diagram, imported, edits, fixes]);
 
   const chooseLook = (next: BoardLook) => {
     setLook(next);
@@ -638,6 +641,8 @@ export default function WhiteboardPage() {
       dispatchLesson({ type: "ask", more: false });
       dispatchPlayer({ type: "reset", expected: 0 });
       dispatchLesson({ type: "event", event: { type: "start", provider: "local", model: "saved board", lang: buddyLang(lessonLang) ?? "en", lite: false, more: false } });
+      const d = saved.diagram && typeof saved.diagram === "object" ? readDiagram(saved.diagram.d, lesson.title) : null;
+      if (d) dispatchLesson({ type: "event", event: { type: "diagram", diagram: d, result: cleanText(saved.diagram!.result, 120) } });
       dispatchLesson({ type: "event", event: { type: "outline", title: lesson.title, scene: lesson.scene, says: lesson.steps.map((s) => s.say) } });
       lesson.steps.forEach((step, index) => dispatchLesson({ type: "event", event: { type: "step", index, step } }));
       dispatchLesson({ type: "event", event: { type: "done", cards: lesson.steps.filter((s) => s.card).length, stalled: false } });
@@ -736,7 +741,7 @@ export default function WhiteboardPage() {
   const errorText = !ls.error ? "" : ls.error.code === "plan" ? t("errPlan") : ls.error.code === "stalled" ? t("errStalled") : ls.error.code === "busy" ? t("errBusy") : ls.error.code === "topic" ? t("errTopic") : ls.error.code === "redacted" ? t("errRedacted", { what: placeholderLeaks(ls.error.message, "").join(", ") || "[...]" }) : ls.error.code === "no_local_helper" ? ls.error.message : OLLAMA_STOPPED_ANSWER.test(ls.error.message) ? okfT("ollamaStopped") : ls.error.code.startsWith("freellm") || freellmCodeOf(ls.error.message) ? localizeFreeLlmError(ls.error.message, lang) : t("errGeneric", { message: ls.error.message });
 
   return (
-    <main className={`wb-page${lite ? " wb-plain" : ""}`} data-phase={ls.phase} data-player={player.phase} data-recording={recording || undefined} data-video={videoInfo ? `${videoInfo.type};bytes=${videoInfo.bytes};frames=${videoInfo.frames};sound=${videoInfo.sound}` : undefined} data-shown-ms={shownMs ?? undefined} data-first-stroke-ms={firstStroke.any ?? undefined} data-first-model-stroke-ms={firstStroke.model ?? undefined} data-checks={checks ? `${checks.overflow},${checks.overlap},${checks.crossing},${checks.offscreen}` : undefined} data-fixed={fixedCount || undefined} data-vision={vision.looks ? `${vision.looks};${vision.found};${vision.ms.join("/")}` : undefined} data-board={imported ? "file" : prepared ? "lesson" : undefined}>
+    <main className={`wb-page${lite ? " wb-plain" : ""}`} data-phase={ls.phase} data-player={player.phase} data-recording={recording || undefined} data-video={videoInfo ? `${videoInfo.type};bytes=${videoInfo.bytes};frames=${videoInfo.frames};sound=${videoInfo.sound}` : undefined} data-shown-ms={shownMs ?? undefined} data-first-stroke-ms={firstStroke.any ?? undefined} data-first-model-stroke-ms={firstStroke.model ?? undefined} data-checks={checks ? `${checks.overflow},${checks.overlap},${checks.crossing},${checks.offscreen},${checks.math},${checks.orphan}` : undefined} data-fixed={fixedCount || undefined} data-vision={vision.looks ? `${vision.looks};${vision.found};${vision.ms.join("/")}` : undefined} data-board={imported ? "file" : prepared ? "lesson" : undefined}>
       <header className="wb-head">
         <h1>{t("title")}</h1>
         {ls.meta && <span className="wb-chip" data-source={ls.meta.provider}>{t(ls.meta.provider === "cloud" ? "source_cloud" : ls.meta.provider === "freellm" ? "source_free" : "source_local", { model: ls.meta.model })}</span>}

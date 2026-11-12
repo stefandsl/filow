@@ -6,11 +6,14 @@ import katex from "katex";
 import { BUDDY_LANG_NAMES, type BuddyLang } from "@/lib/buddy/lang";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { checkArithmetic } from "./plot";
+import { TEMPLATE_GUIDE, TEMPLATE_SCHEMA, readDiagram, workedExample, type Diagram } from "./templates";
 import { LIMITS, cleanText, contextOf, lessonContextText, lessonNodes, makeStep, newContext, outlineSchema, parseJsonLoose, slug, validateLesson, validateOutline, type ExplanationKind, type Lesson, type LessonItem, type LessonStep, type Scene } from "./lesson";
 
 export type LessonEvent =
   | { type: "start"; provider: "local" | "cloud" | "freellm"; model: string; lang: BuddyLang; lite: boolean; more: boolean }
   | { type: "outline"; title: string; scene: Scene; says: string[] }
+  /** The local model picked a picture for the concept: the board draws it (templates.ts), the steps say it. */
+  | { type: "diagram"; diagram: Diagram; result: string }
   | { type: "step"; index: number; step: LessonStep }
   /** `relations`/`drawn`: how many relations the checked plan had and how many of them ended on the board (local path). */
   /** `unchecked`: steps (0-based) shown although their check did not pass. `doubts`: what the last look in code still found. */
@@ -113,6 +116,8 @@ export type LessonRequest = {
   spell?: boolean;
   /** How names are spelled out (WHITEBOARD_NAME_SPELLING; default: letters apart). */
   spelling?: Spelling;
+  /** Try a template picture first (templates.ts); the route asks for it unless WHITEBOARD_TEMPLATES=off. */
+  templates?: boolean;
   /** Checks of the local path switched off for this request (see LOCAL_CHECKS). */
   localChecks?: Partial<typeof LOCAL_CHECKS>;
 };
@@ -347,7 +352,66 @@ function rewriteSystem(lang: BuddyLang, kind: ExplanationKind): string {
 }
 
 /** Local path: outline, check of its sentences, drawing plan, fact check of the plan, then a pick per step. */
+/** The numbers a sentence must keep from its fact ("1,610.51" and "1610.51" are the same number). */
+export const numbersIn = (s: string) => (s.replace(/(\d),(\d{3})/g, "$1$2").match(/\d+(?:\.\d+)?/g) ?? []);
+/** A sentence the model wrote for a fact, kept only when it carries every number of the fact. */
+export function keepsNumbers(fact: string, sentence: string): boolean {
+  const have = new Set(numbersIn(sentence)), want = new Set(numbersIn(fact));
+  // every number of the fact is there, and no number the fact does not have
+  return [...want].every((n) => have.has(n)) && [...have].every((n) => want.has(n));
+}
+
+/**
+ * The local path's first try: the model picks the picture a teacher draws for this concept and
+ * fills its slots (templates.ts); the worked example is computed in code, and the model only words
+ * each step's facts in the lesson's language (a sentence that loses a number keeps the fact itself).
+ * False when no template fits (or the answer is unusable): the lesson is then planned as before.
+ */
+export async function tryTemplate(ask: Ask, req: LessonRequest, emit: (e: LessonEvent) => void): Promise<boolean> {
+  if (req.lesson || req.lite) return false;
+  let raw: unknown;
+  try {
+    raw = parseJsonLoose(await ask({
+      system: ["You are a teacher choosing how to draw a concept on a whiteboard. Reply with JSON only.", TEMPLATE_GUIDE, `Write the title and every name in ${BUDDY_LANG_NAMES[req.lang]}.`, NOT_AN_INSTRUCTION].join("\n"),
+      user: `Concept: ${quoted(req.question)}`, format: TEMPLATE_SCHEMA, maxTokens: 700, timeoutMs: TIMEOUTS.outlineMs, temperature: 0.1,
+    }));
+  } catch (e) {
+    if (e instanceof StallError) return false;
+    throw e;
+  }
+  const diagram = readDiagram(raw, cleanText(req.question, LIMITS.title));
+  if (!diagram) return false;
+  const worked = workedExample(diagram);
+  const facts = worked.facts.slice(0, LIMITS.steps);
+  let says = facts;
+  let result = worked.result;
+  if (req.lang !== "en") {
+    try {
+      const lines = [...facts, result];
+      const got = parseJsonLoose(await ask({
+        system: `Rewrite each numbered line as one short, plain sentence in ${BUDDY_LANG_NAMES[req.lang]} for a whiteboard lesson. Keep every number and symbol exactly as written. Reply with JSON only: {"lines":[...]} with exactly ${lines.length} lines, in order.`,
+        user: lines.map((l, i) => `${i + 1}. ${l}`).join("\n"),
+        format: { type: "object", properties: { lines: { type: "array", minItems: lines.length, maxItems: lines.length, items: { type: "string", maxLength: 220 } } }, required: ["lines"] },
+        maxTokens: 120 + lines.length * 90, timeoutMs: TIMEOUTS.stepMs, temperature: 0,
+      })) as { lines?: unknown } | undefined;
+      const out = Array.isArray(got?.lines) ? got.lines.map((l) => cleanText(l, LIMITS.say)) : [];
+      if (out.length === lines.length) {
+        says = facts.map((f, i) => (out[i] && keepsNumbers(f, out[i]) ? out[i] : f));
+        if (out[facts.length] && keepsNumbers(result, out[facts.length])) result = out[facts.length];
+      }
+    } catch (e) {
+      if (!(e instanceof StallError)) throw e;
+    }
+  }
+  emit({ type: "diagram", diagram, result });
+  emit({ type: "outline", title: diagram.title, scene: "flow", says });
+  says.forEach((say, index) => emit({ type: "step", index, step: { say, items: [], card: false } }));
+  emit({ type: "done", cards: 0, stalled: false });
+  return true;
+}
+
 export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: LessonEvent) => void): Promise<void> {
+  if (req.templates && (await tryTemplate(ask, req, emit))) return;
   const more = Boolean(req.lesson);
   const maxSteps = more ? Math.min(3, req.maxSteps) : req.maxSteps;
   const outlineUser = more ? `${lessonContextText(req.lesson!)}\n\nFollow-up: ${quoted(req.question)}` : `Concept: ${quoted(req.question)}`;

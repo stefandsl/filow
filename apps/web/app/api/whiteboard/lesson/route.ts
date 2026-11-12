@@ -113,7 +113,7 @@ export async function POST(req: Request) {
       // the question are then spelled out from the first call. WHITEBOARD_NAME_SPELLING picks how (spaced, hyphen, dots).
       const how = process.env.WHITEBOARD_NAME_SPELLING;
       const spelling: Spelling = how === "hyphen" || how === "dots" ? how : "spaced";
-      const request = { spell: body.spell === true, spelling, localChecks, question, lang, maxSteps: maxStepsFor(lite), lesson, lite, audit: body.audit === true, guards: { legend: !on.has("nolegend"), examiner: on.has("examiner"), arrows: on.has("arrows"), sums: on.has("sums"), must: on.has("must"), links: on.has("links"), removeLoneBoxes: on.has("removeLoneBoxes") } };
+      const request = { templates: process.env.WHITEBOARD_TEMPLATES !== "off", spell: body.spell === true, spelling, localChecks, question, lang, maxSteps: maxStepsFor(lite), lesson, lite, audit: body.audit === true, guards: { legend: !on.has("nolegend"), examiner: on.has("examiner"), arrows: on.has("arrows"), sums: on.has("sums"), must: on.has("must"), links: on.has("links"), removeLoneBoxes: on.has("removeLoneBoxes") } };
         // an online model writes the whole lesson in one answer, whichever door it comes through
         if (provider !== "local") await generateCloud(ask, request, emit);
         else await generateLocal(ask, request, emit);

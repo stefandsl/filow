@@ -44,6 +44,23 @@ function script(text: string, table: Record<string, string>, mark: string): stri
 /** A bracket around what has an operator inside, so "\frac{a+b}{c}" stays "(a+b)/c". */
 const wrap = (t: string) => (/^[\w.²³⁰¹⁴-⁹ⁿᵗ]+$|^\(.*\)$/u.test(t) ? t : `(${t})`);
 
+/**
+ * A chemical equation as it is written on a board: "6CO2 + 6H2O -> C6H12O6 + 6O2" becomes
+ * "6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂". The word "arrow" a small model writes for the arrow is an arrow too.
+ */
+export function chemText(s: string): string {
+  return s
+    .replace(/\s*(?:->|=>|\\rightarrow|\\to|\barrow\b|\byields\b)\s*/gi, " → ")
+    .split(/(\s+)/)
+    .map((tok) => {
+      const m = /^(\d*)((?:\(?[A-Z][a-z]?\d*\)?\d*)+)([+-]?)$/.exec(tok);
+      return m ? m[1] + m[2].replace(/\d+/g, (d) => Array.from(d).map((c) => SUB[c]).join("")) + m[3] : tok;
+    })
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function texToText(tex: string): string {
   let out = "";
   const s = tex.replace(/\\left|\\right|\\displaystyle|\\!/g, "").replace(/\\,|\\;|\\:|\\quad|\\qquad/g, " ");

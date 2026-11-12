@@ -7,8 +7,9 @@
 import { boundsOf, keyOf, type ExEl, type Scene } from "./scene";
 import type { Box } from "./layout";
 import type { ToolOp } from "./doc";
+import { chemText, texToText } from "./tex";
 
-export type ProblemKind = "overflow" | "overlap" | "crossing" | "offscreen";
+export type ProblemKind = "overflow" | "overlap" | "crossing" | "offscreen" | "math" | "orphan";
 export type Problem = { kind: ProblemKind; ids: string[]; message: string };
 export type CheckCounts = Record<ProblemKind, number>;
 
@@ -65,10 +66,17 @@ function crossed(a: ExEl, shapes: ExEl[], byId: Map<string, ExEl>): ExEl[] {
 export function brokenWord(t: ExEl): boolean {
   const original = String(t.originalText ?? "");
   if (!original.trim() || /[⺀-￿]/.test(original)) return false;
-  const lines = String(t.text ?? "").split("\n");
+  // a compound broken after its hyphen ("alpha-" / "Ketoglutarate") is broken where it may be
+  const lines = String(t.text ?? "").replace(/-\n/g, "-").split("\n");
   return original.split(/\s+/).filter(Boolean).some((w) => !lines.some((ln) => ln.split(/\s+/).includes(w)));
 }
 
+/** Text that is mathematics left as code or words: a caret or an underscore power, a LaTeX command, the word "arrow" between terms, or a chemical formula whose counts are not subscripts. */
+export function rawMath(s: string): boolean {
+  if (/\w\^\{?\w|\w_\{|\\[a-zA-Z]{2,}|\s(?:arrow|->)\s/.test(s)) return true;
+  // an equation ("+", "=", an arrow) with a formula whose counts are plain digits: "6CO2 + 6H2O"
+  return /[+=→]/.test(s) && /(?:^|[\s(])\d*(?:[A-Z][a-z]?\d*)*[A-Z][a-z]?\d+(?=[\s)+=→,.]|$)/.test(s);
+}
 export function checkScene(scene: Scene): Problem[] {
   const els = scene.elements.filter((e) => !e.isDeleted && (e.opacity ?? 100) > 5);
   const byId = new Map(els.map((e) => [e.id, e]));
@@ -102,6 +110,13 @@ export function checkScene(scene: Scene): Problem[] {
     if (a.type !== "arrow" || !(role(a) === "edge" || (!role(a) && (a.startBinding || a.endBinding)))) continue;
     for (const s of crossed(a, shapes, byId)) problems.push({ kind: "crossing", ids: [a.id, s.id], message: `arrow ${a.id} runs through ${s.id}` });
   }
+  // 5. mathematics left as code or words ("a^2", "\frac", "x_1", "Sunlight arrow", "CO2" in an equation)
+  for (const t of els) if (t.type === "text" && rawMath(String(t.originalText ?? t.text ?? ""))) problems.push({ kind: "math", ids: [t.id], message: `${t.id} shows mathematics as code or words` });
+  // 6. a box of a concept map that no arrow joins to the rest
+  for (const s of els) {
+    if (s.customData?.wb?.role !== "node" || !keyOf(s).startsWith("n:")) continue;
+    if (!els.some((a) => a.type === "arrow" && (a.startBinding?.elementId === s.id || a.endBinding?.elementId === s.id))) problems.push({ kind: "orphan", ids: [s.id], message: `${s.id} is joined to nothing` });
+  }
   // 4. off the board
   if (frame) {
     const board = boxOf(frame);
@@ -115,6 +130,8 @@ export const countProblems = (ps: Problem[]): CheckCounts => ({
   overlap: ps.filter((p) => p.kind === "overlap").length,
   crossing: ps.filter((p) => p.kind === "crossing").length,
   offscreen: ps.filter((p) => p.kind === "offscreen").length,
+  math: ps.filter((p) => p.kind === "math").length,
+  orphan: ps.filter((p) => p.kind === "orphan").length,
 });
 
 /** A label's box when its centre is at `pt`. */
@@ -205,6 +222,15 @@ export function fixOps(scene: Scene, problems: Problem[]): ToolOp[] {
         if (spot) ops.push({ op: "update", id, props: { x: spot.x, y: spot.y } });
         break;
       }
+    } else if (p.kind === "math") {
+      // mathematics written as code or words is written as mathematics
+      const t = byId.get(p.ids[0]);
+      if (!t || done.has(t.id)) continue;
+      done.add(t.id);
+      const fix = (s: string) => chemText(/[\\^_]/.test(s) ? texToText(s) : s);
+      const was = String(t.text ?? "");
+      const now = was.split("\n").map(fix).join("\n");
+      if (now !== was) ops.push({ op: "update", id: t.id, props: { text: now, originalText: fix(String(t.originalText ?? was)) } });
     } else if (p.kind === "offscreen") {
       const e = byId.get(p.ids[0]);
       if (!e || done.has(e.id) || e.containerId) continue;

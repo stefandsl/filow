@@ -85,7 +85,7 @@ function hash(s: string): number {
 export const safeId = (s: string) => s.replace(/[^A-Za-z0-9_-]+/g, "_").slice(0, 64);
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
-function el(id: string, type: string, box: Box, meta: WbMeta, rest: Partial<ExEl> = {}): ExEl {
+export function el(id: string, type: string, box: Box, meta: WbMeta, rest: Partial<ExEl> = {}): ExEl {
   return {
     id, type, x: r1(box.x), y: r1(box.y), width: r1(box.w), height: r1(box.h), angle: 0,
     strokeColor: INK.text, backgroundColor: "transparent", fillStyle: "solid", strokeWidth: 2, strokeStyle: "solid",
@@ -107,7 +107,7 @@ export function handWidth(text: string, size: number): number {
 }
 
 /** A text element. `container`: the shape it is written in (Excalidraw keeps it centred there). */
-function text(id: string, lines: string[], size: number, at: { cx: number; cy: number } | { x: number; y: number }, meta: WbMeta, rest: Partial<ExEl> = {}): ExEl {
+export function text(id: string, lines: string[], size: number, at: { cx: number; cy: number } | { x: number; y: number }, meta: WbMeta, rest: Partial<ExEl> = {}): ExEl {
   const width = Math.max(4, ...lines.map((ln) => handWidth(ln, size)));
   const height = lines.length * size * LINE_HEIGHT;
   const x = "cx" in at ? at.cx - width / 2 : at.x;
@@ -121,13 +121,13 @@ function text(id: string, lines: string[], size: number, at: { cx: number; cy: n
 }
 
 /** A shape with its label bound inside it (Excalidraw keeps the two together when either moves). */
-function labelled(shape: ExEl, label: ExEl): [ExEl, ExEl] {
+export function labelled(shape: ExEl, label: ExEl): [ExEl, ExEl] {
   shape.boundElements = [...(shape.boundElements ?? []), { id: label.id, type: "text" }];
   label.containerId = shape.id;
   return [shape, label];
 }
 
-function arrow(id: string, pts: Array<{ x: number; y: number }>, meta: WbMeta, rest: Partial<ExEl> = {}): ExEl {
+export function arrow(id: string, pts: Array<{ x: number; y: number }>, meta: WbMeta, rest: Partial<ExEl> = {}): ExEl {
   const x0 = pts[0].x;
   const y0 = pts[0].y;
   const rel = pts.map((p) => [r1(p.x - x0), r1(p.y - y0)] as [number, number]);
@@ -139,7 +139,7 @@ function arrow(id: string, pts: Array<{ x: number; y: number }>, meta: WbMeta, r
     ...rest,
   });
 }
-const line = (id: string, pts: Array<{ x: number; y: number }>, meta: WbMeta, rest: Partial<ExEl> = {}) =>
+export const line = (id: string, pts: Array<{ x: number; y: number }>, meta: WbMeta, rest: Partial<ExEl> = {}) =>
   arrow(id, pts, meta, { endArrowhead: null, ...rest, type: "line", polygon: false } as Partial<ExEl>);
 
 const nodeId = (id: string) => `n-${safeId(id)}`;
@@ -148,8 +148,10 @@ const nodeId = (id: string) => `n-${safeId(id)}`;
 export function wrapHand(text: string, max: number, size: number): string[] {
   const lines: string[] = [];
   let line = "";
-  for (const word of text.split(/\s+/).filter(Boolean)) {
-    const next = line ? `${line} ${word}` : word;
+  // a long compound breaks after its hyphen ("alpha-" / "Ketoglutarate"), as Excalidraw breaks it
+  const tokens = text.split(/\s+/).filter(Boolean).flatMap((w) => w.split(/(?<=-)(?=\S{3,})/).map((part, i) => ({ part, glued: i > 0 })));
+  for (const { part: word, glued } of tokens) {
+    const next = line ? `${line}${glued ? "" : " "}${word}` : word;
     if (!line || handWidth(next, size) <= max) line = next;
     else { lines.push(line); line = word; }
   }
@@ -368,7 +370,7 @@ function blockEls(b: PlacedBlock, files: Record<string, BinaryFile>): ExEl[] {
  * written beside the diagram. Every element carries `customData.wb` (its step and its timing key).
  */
 /** The frame and the title of a board: drawn first, before the model has written anything. */
-function head(w: number, h: number, title: { text: string; x: number; y: number; font: number }): ExEl[] {
+export function head(w: number, h: number, title: { text: string; x: number; y: number; font: number }): ExEl[] {
   const size = Math.round(title.font);
   return [
     // An invisible frame the size of the board, so the picture keeps its size while it fills up.
