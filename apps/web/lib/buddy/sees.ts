@@ -18,6 +18,21 @@ export function seesScreen(choice: SeeChoice | undefined, route: AskRoute, local
   return route !== "local" || local !== "text";
 }
 
+/**
+ * The eye (the button on the pill, its shortcut): it flips what the next question would do, and
+ * from then on that is the user's own choice. So a click while the setup decides ("auto") closes
+ * the eye for good when it was looking, and opens it when the setup had left it shut.
+ */
+export const eyeToggle = (choice: SeeChoice | undefined, route: AskRoute, local: LocalScreenMode): "on" | "off" => (seesScreen(choice, route, local) ? "off" : "on");
+
+/**
+ * Whether a screenshot taken for a question may still be used (sent with it, or sent again to find
+ * the point). `took`: the question took one; `now`: the setting at this moment. Closing the eye in
+ * between drops the picture: the question goes with the words only. Opening it changes nothing for
+ * a question that was asked without the screen.
+ */
+export const stillSees = (took: boolean, now: SeeChoice | undefined): boolean => took && now !== "off";
+
 /** What the request carries: the user's own choice, or nothing so the server keeps the setup's pick. */
 export const askSees = (choice: SeeChoice | undefined): boolean | undefined => (choice === "on" ? true : choice === "off" ? false : undefined);
 

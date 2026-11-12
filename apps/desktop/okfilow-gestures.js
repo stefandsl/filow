@@ -87,6 +87,10 @@ function createGestures(o) {
         toggled = true;
         lastTap.dictate = 0;
         o.emit("dictate:handsfree");
+      } else if (kind === "talk" && cause !== "up") {
+        // Another modifier joined the talk keys (Ctrl+Alt, then Shift for Ctrl+Alt+Shift+G): that is a
+        // shortcut, not a question. Nothing is sent to be answered.
+        o.emit("talk:cancel");
       } else {
         o.emit(`${kind}:end`);
         if (brief) lastTap.dictate = now();

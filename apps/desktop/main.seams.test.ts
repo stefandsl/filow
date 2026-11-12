@@ -33,6 +33,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   let requestFilter!: (details: { url: string }, cb: (r: unknown) => void) => void;
   const outbound = vi.fn(() => { throw new Error("fake network boundary: no bytes sent"); });
   const openExternal = vi.fn(async () => {}), checkForUpdates = vi.fn(async () => null);
+  const registerShortcut = vi.fn(() => true);
   const writeText = vi.fn(), showMessageBox = vi.fn(async () => ({ response: 0 }));
   const updaterHandlers: Record<string, (info: { version: string }) => void> = {}, notificationShow = vi.fn();
   const writeFileSync = vi.fn(), appendFileSync = vi.fn(), rmSync = vi.fn(), fsRead = vi.fn((..._args: unknown[]) => "FILOW_OFFLINE=1");
@@ -42,10 +43,10 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
       app: { isPackaged: true, getPath: () => "G:/fake", setPath: (name: string, value: string) => { calls.push(`setPath ${name} ${value}`); },
         on: (event: string, fn: (...args: any[]) => void) => { appHandlers[event] = fn; }, setAppUserModelId() {},
         requestSingleInstanceLock: () => { calls.push("lock"); return !lockHeld; }, exit: appExit,
-        whenReady, getLocale: () => "en", getVersion: () => "test", getGPUInfo: async () => ({}) },
+        whenReady, getLocale: () => "en", getVersion: () => "test", getGPUInfo: async () => ({}), commandLine: { appendSwitch: (...a: string[]) => { calls.push(`switch ${a.join(" ")}`); } } },
       ipcMain: { on() {}, handle: (channel: string, fn: (event: unknown, ...args: unknown[]) => unknown) => { ipcHandlers[channel] = fn; } }, BrowserWindow: FakeBrowserWindow,
       session: { defaultSession: { webRequest: { onBeforeRequest: (_filter: unknown, cb: typeof requestFilter) => { requestFilter = cb; } } } },
-      shell: { openExternal }, dialog: { showMessageBox }, clipboard: { writeText },
+      shell: { openExternal }, dialog: { showMessageBox }, clipboard: { writeText }, globalShortcut: { register: registerShortcut, unregisterAll() {} },
       Menu: { buildFromTemplate: (template: unknown) => template, setApplicationMenu() {} },
       Notification: class { static isSupported() { return true; } on() {} show() { notificationShow(); } },
       net: { isOnline: () => true }, nativeTheme: { shouldUseDarkColors: true },
@@ -63,7 +64,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
-  for (const name of ["model-files", "download", "stt", "localai", "diag", "s1-runtime", "welcome-setup", "single-instance", "about"]) {
+  for (const name of ["global-input", "model-files", "download", "stt", "localai", "diag", "s1-runtime", "welcome-setup", "single-instance", "about"]) {
     const module = { exports: {} };
     runInNewContext(readFileSync(new URL(`./${name}.js`, import.meta.url), "utf8"), {
       require: (id: string) => { if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`); return modules[id]; },
@@ -78,7 +79,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
        startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, dropInstallerChoices, setLog: text => { lastTakeLog = text; },
        setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
-       offerLocalAi, offerFirewall, welcomeSetup, settings: () => settings, patchSettings: patch => Object.assign(settings, patch),
+       offerLocalAi, offerFirewall, welcomeSetup, registerHotkey, permissionFor, copyText: text => clipboard.writeText(text), settings: () => settings, patchSettings: patch => Object.assign(settings, patch),
        onWelcomeReady, welcomeOfferForStep, chooseWelcomeSetup, setWelcomeWin: win => { welcomeWin = win; }, buildMenu, st,
        setLocalAiHardware: hw => { localAiHardware = Promise.resolve(hw); } });`, {
     require: (id: string) => {
@@ -89,7 +90,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     __dirname: "G:/fake", process: { env, platform, arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {} },
     URL, URLSearchParams, console, setTimeout, clearTimeout, AbortController,
   });
-  return { api, env, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync, rmSync, fsReads: fsRead,
+  return { api, env, registerShortcut, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync, rmSync, fsReads: fsRead,
     calls, appHandlers, appExit, whenReady, windows, asked, catalog: Object.keys(modules["./localai"].CATALOG),
     ipc: async (channel: string, win: { webContents: unknown }, ...args: unknown[]) => ipcHandlers[channel]({ sender: win.webContents }, ...args),
     blocked: (url: string) => { let result: any; requestFilter({ url }, r => { result = r; }); return result.cancel === true; } };
@@ -680,5 +681,29 @@ describe("single instance per profile", () => {
     f.appHandlers["second-instance"]({}, ["Filow.exe"], "G:/");
     expect(welcome.focused).toBe(true);
     expect(main.show, "the main window is not shown over the welcome").not.toHaveBeenCalled();
+  });
+});
+
+describe("test isolation: FILOW_QA_NO_GLOBAL_INPUT=1 (global-input.js)", () => {
+  it("registers no global shortcut, refuses the microphone, never writes the clipboard and gives Chromium its fake device", () => {
+    const f = fixture({ FILOW_QA_NO_GLOBAL_INPUT: "1" });
+    f.api.patchSettings({ screenSense: true, screenHotkey: "Control+Alt+S" });
+    f.api.registerHotkey();
+    expect(f.registerShortcut).not.toHaveBeenCalled();
+    expect(f.api.permissionFor("media")).toBe(false);
+    expect(f.api.permissionFor("display-capture")).toBe(true);
+    f.api.copyText("from the test instance");
+    expect(f.writeText).not.toHaveBeenCalled();
+    expect(f.calls).toContain("switch use-fake-device-for-media-stream");
+  });
+  it("control: without the switch the same calls reach Electron", () => {
+    const f = fixture();
+    f.api.patchSettings({ screenSense: true, screenHotkey: "Control+Alt+S" });
+    expect(f.api.registerHotkey()).toEqual({ ok: true });
+    expect(f.registerShortcut).toHaveBeenCalledOnce();
+    expect(f.api.permissionFor("media")).toBe(true);
+    f.api.copyText("from the user");
+    expect(f.writeText).toHaveBeenCalledWith("from the user");
+    expect(f.calls.filter((c: string) => c.startsWith("switch "))).toEqual([]);
   });
 });

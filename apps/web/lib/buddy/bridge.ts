@@ -2,6 +2,7 @@
 import type { ConsentChanges, ConsentMap, OutboundKind, OutboundSnapshot, Recipient } from "./outbound";
 import type { BuddyMark } from "./prompt";
 import type { BuddyModel } from "./visuals";
+import type { PillAction, PillState } from "./pill";
 
 /** A card in global DIP coordinates, with its photo already fetched (data URL or ""). */
 export type OkFilowCard = { x: number; y: number; title: string; text: string; photo: string };
@@ -68,6 +69,14 @@ export type OkFilowStatus = {
   seeScreen?: "auto" | "on" | "off";
   /** Recipients whose yes for questions was given to the notice that said no screenshot is sent (lib/buddy/sees.ts). */
   askWordsOnly?: string[];
+  /** The eye's shortcut and the one for Pause/Resume (lib/buddy/pill.ts), the choices, and whether Windows accepted them. Missing on older builds. */
+  eyeKey?: string;
+  pauseKey?: string;
+  eyeKeys?: string[];
+  pauseKeys?: string[];
+  /** "ok", "none" (no shortcut chosen), "taken" (another app has it), "off" (a test run registers none). */
+  eyeKeyState?: "ok" | "none" | "taken" | "off";
+  pauseKeyState?: "ok" | "none" | "taken" | "off";
   handsFree: boolean;
   dictateChord: string;
   /** Dictation's own settings and checks (apps/desktop/dictation.js). */
@@ -107,7 +116,8 @@ export type OkFilowTtsStatus = {
   level: "standard" | "light" | "";
   reason: "" | "lowMemory" | "fewCores" | "slow";
 };
-export type OkFilowTtsChunk = { id: number; seq: number; last: boolean; samples: Float32Array; sampleRate: number; pause: number };
+/** `text`: the words of the piece (absent on older desktop builds), so the voice can tell how far it got. */
+export type OkFilowTtsChunk = { id: number; seq: number; last: boolean; samples: Float32Array; sampleRate: number; pause: number; text?: string };
 export type OkFilowTtsReply =
   | { ok: true; cancelled: boolean; chunks: number; sent: number; level: string }
   | { ok: false; reason: "notInstalled" | "lowMemory" | "fewCores" | "slow" | "failed"; error?: string };
@@ -140,8 +150,11 @@ export type OkFilowBridge = {
   level(v: number): void;
   text(t: string): void;
   point(points: Array<{ x: number; y: number; label: string }>): void;
-  /** Marks already in global DIP coordinates; each overlay draws the ones on its display. */
-  draw(marks: BuddyMark[]): void;
+  /**
+   * Marks already in global DIP coordinates; each overlay draws the ones on its display. `from`
+   * (Resume after Stop): the first `from` marks were drawn before the stop and are shown as they were.
+   */
+  draw(marks: BuddyMark[], from?: number): void;
   /** Overlay -> main: one finished highlighter stroke, in overlay-local coordinates. */
   stroke(points: Array<[number, number]>): void;
   /** Panel -> overlays: explanation cards (global DIP). */
@@ -193,8 +206,27 @@ export type OkFilowBridge = {
   /** Stop the answer in progress (the Stop button, Escape). Main tells the panel through onStop. Absent in a desktop build older than Stop. */
   stopAnswer?(source?: "button" | "panel"): void;
   onStop?(fn: (p: { source?: string } | undefined) => void): Off;
-  /** Overlay -> main: the pointer is on (or off) the Stop button, so this overlay takes the mouse meanwhile. */
-  overlayHover?(on: boolean): void;
+  /**
+   * Overlay -> main: the pointer is on (or off) a control of the pill or the answer bubble, so this
+   * overlay takes the mouse meanwhile. `onBubble`: it is on the bubble, which then stays.
+   */
+  overlayHover?(on: boolean, onBubble?: boolean): void;
+  /** Overlay -> main: the bubble's close button. Main closes the bubble on every overlay (onBubbleClose). Absent in a desktop build older than it. */
+  closeBubble?(): void;
+  /** Main -> overlays: the bubble goes away now (its time is up, Escape, its close button). */
+  onBubbleClose?(fn: (why: string | undefined) => void): Off;
+  /** Panel -> main -> overlays: the voice is on this sentence of the text in the bubble (lib/buddy/turn.ts sentenceParts). */
+  spoken?(index: number): void;
+  onSpoken?(fn: (index: number) => void): Off;
+  /** A control of the pill was used (a click on an overlay): main passes it to the panel, which acts. Absent in a desktop build older than the pill's controls. */
+  control?(action: PillAction): void;
+  /** Main -> panel: a control of the pill or a shortcut ("key") asks for this. */
+  onControl?(fn: (p: { action: PillAction; source?: string } | undefined) => void): Off;
+  /** Panel -> main -> overlays: what the pill shows now. */
+  pill?(state: PillState): void;
+  onPill?(fn: (s: PillState) => void): Off;
+  /** Test builds only: a key for the gestures, or "eye" / "pause" for the two shortcuts. */
+  qaKey?(type: "down" | "up", key: string): void;
   press(): void;
   release(): void;
   /** `handsFree`: a dictation with the keys up, typed phrase by phrase until the keys are pressed once more. */

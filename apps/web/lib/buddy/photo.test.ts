@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as ask } from "@/app/api/buddy/ask/route";
 import { GET as photo } from "@/app/api/buddy/photo/route";
 import { parseBuddyAnswer } from "./prompt";
-import { parsePhotoLookup, photoAnswer, photoLookup, wantsPhoto } from "./photo";
+import { readFileSync } from "node:fs";
+import { parsePhotoLookup, photoAnswer, photoLookup, photoOnly, wantsPhoto } from "./photo";
 import { OKF_TEXT } from "./text";
 import { wantsDrawing } from "./visuals";
 
@@ -50,6 +51,20 @@ describe("a plain request for a photo is recognised in the five languages", () =
 
   it("a request to draw stays a drawing", () => {
     expect(wantsDrawing("draw a picture of a heart")).toBe("2d");
+  });
+
+  it("the card alone answers a plain photo request, but not a drawing and not a continuation after Stop", () => {
+    expect(photoOnly("show me a picture of a heart")).toEqual({ subject: "heart", lang: "en" });
+    expect(photoOnly("show me a picture of a heart", { drawing: true })).toBeNull();
+    expect(photoOnly("show me a picture of a heart", { resume: true })).toBeNull();
+    expect(photoOnly("what is on my screen?")).toBeNull();
+  });
+
+  it("the panel asks the same rule before it looks at where answers come from, so no cloud notice opens for a photo", () => {
+    const panel = readFileSync(new URL("../../app/okfilow/panel/page.tsx", import.meta.url), "utf8");
+    expect(panel).toContain('let route = photoOnly(question, { drawing: wantsDrawing(question) !== null, resume: !!resume }) ? "local" : askRoute(statusRef.current);');
+    // the reason for a card without its picture is given at every no, not only the first
+    expect(panel).toContain('if (decision === "declined" && run.current === id) setNote(t("kept_photo"));');
   });
 });
 

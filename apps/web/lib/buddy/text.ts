@@ -8,6 +8,7 @@ import { ja } from "./text.ja";
 const en = {
   desktopOnly: "OK Filow runs in the Filow desktop app.",
   close: "Close",
+  closeAnswer: "Close the answer",
   modelHint: "Drag to turn, scroll to zoom, click a part to ask about it",
   modelAsking: "Asking about {part}…",
   ollamaStopped: 'Ollama, which runs OK Filow\'s answers on this PC, is not running. If it is installed, Filow is starting it now: ask again in a minute. If not, install it in Settings > Local models, or choose Cloud under "Answers from" in the OK Filow panel.',
@@ -196,6 +197,19 @@ const en = {
   notchAnswering: "OK Filow is answering",
   // A drawing was asked for and the model made none, twice (lib/buddy/draw.ts)
   drawFailed: "The drawing did not come out this time. Ask me again.",
+  // The eye on the pill is a button, with its own shortcut; Pause and Resume (docs/okfilow/PILL.md)
+  notchNotLooking: "OK Filow is not looking",
+  eyeClose: "Stop looking at my screen",
+  eyeKey: "Shortcut: {key}",
+  pause: "Pause",
+  pauseHint: "Pause the answer",
+  resume: "Resume",
+  resumeHint: "Carry on with the answer",
+  paused: "Paused",
+  eyeKeyLabel: "Open or close the eye",
+  pauseKeyLabel: "Pause and resume the answer",
+  keyNone: "No shortcut",
+  keyTaken: "Windows did not accept {key}: another app is already using it. Choose another one.",
   // A photo was asked for (lib/buddy/photo.ts): the card carries it, this is what is said
   photoHere: "Here is {subject}, with a photo from Wikipedia.",
   photoOffline: "Offline mode is on, so no photo can be fetched from Wikipedia. Turn Offline mode off in Settings to see one.",

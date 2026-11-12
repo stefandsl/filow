@@ -72,6 +72,16 @@ export function wantsPhoto(question: string): PhotoAsk | null {
   return null;
 }
 
+/**
+ * The photo request that the card alone answers: no model and no provider see the question. The ask
+ * route and the panel both decide with this, so the panel never shows the cloud's notice for a
+ * question that stays on this PC. A request to draw is a drawing, and a continuation after Stop
+ * carries on with the answer it was given, so neither is a photo request.
+ */
+export function photoOnly(question: string, o: { drawing?: boolean; resume?: boolean } = {}): PhotoAsk | null {
+  return o.drawing || o.resume ? null : wantsPhoto(question);
+}
+
 /** "it/cuore": the subject with the Wikipedia it is looked up in, as the card carries it. English has no prefix. */
 export const photoLookup = (ask: PhotoAsk): string => (ask.lang === "en" ? ask.subject : `${ask.lang}/${ask.subject}`);
 

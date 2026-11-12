@@ -27,6 +27,14 @@ describe("OK Filow gestures", () => {
     expect(events).toEqual(["talk:start", "talk:end"]);
   });
 
+  it("a third modifier joining the held talk keys is a shortcut (Ctrl+Alt+Shift+G pauses): the question is cancelled, never sent", () => {
+    g.keydown("ctrl"); g.keydown("alt"); vi.advanceTimersByTime(300);
+    g.keydown("shift");
+    expect(events).toEqual(["talk:start", "talk:cancel"]);
+    g.keydown(null); g.keyup("shift"); g.keyup("alt"); g.keyup("ctrl");
+    expect(events).toEqual(["talk:start", "talk:cancel"]);
+  });
+
   it("another key cancels talk (AltGr, shortcuts) and nothing fires until all modifiers are up", () => {
     g.keydown("ctrl"); g.keydown("alt"); vi.advanceTimersByTime(300);
     g.keydown(null);

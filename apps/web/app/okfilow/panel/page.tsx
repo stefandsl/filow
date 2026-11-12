@@ -20,9 +20,13 @@ import { createOutboundController, type OutboundController } from "@/lib/buddy/o
 import { ConsentList, OutboundNotice, OutboundPill } from "../outbound-ui";
 import { VoiceSettings } from "./voice-settings";
 import { getSetupPreference, getSpeechLang } from "@/lib/prefs";
-import { createAnswerTurn } from "@/lib/buddy/turn";
-import { askSees, screenLeaves, screenYesMissing, seesScreen, slowToSee, wordsOnlyAfterYes, type LocalScreenMode } from "@/lib/buddy/sees";
-import { SeeScreenSwitch, StopButton } from "@/components/okfilow/controls";
+import { createAnswerTurn, joinContinuation, resumePlan, splitSentences } from "@/lib/buddy/turn";
+import { askSees, eyeToggle, screenLeaves, screenYesMissing, seesScreen, slowToSee, stillSees, wordsOnlyAfterYes, type LocalScreenMode } from "@/lib/buddy/sees";
+import { keyLabel, type PillAction } from "@/lib/buddy/pill";
+import { createPausableClock, marksStarted, STROKE_GAP_MS } from "@/lib/buddy/motion";
+import { wantsDrawing } from "@/lib/buddy/visuals";
+import { photoOnly } from "@/lib/buddy/photo";
+import { AnswerControls, KeyChoice, SeeScreenSwitch } from "@/components/okfilow/controls";
 import { whiteboardTopic } from "@/lib/whiteboard/client";
 import "../okfilow.css";
 
@@ -94,6 +98,16 @@ export default function OkFilowPanel() {
   const [stopped, setStopped] = useState(false);
   const modeRef = useRef<OkFilowMode>("idle");
   modeRef.current = mode;
+  // Pause and Resume (docs/okfilow/PILL.md): the answer in progress is paused; a stopped one can be carried on.
+  const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
+  const [resumable, setResumable] = useState(false);
+  /** The clock the answer's marks are drawn on: it stands still during a pause, like the overlay's. */
+  const drawClock = useRef(createPausableClock());
+  /** The answer in progress: whether it is read aloud, its language, and its marks (for a Resume after Stop). */
+  const answerCtx = useRef<{ id: number; typed: boolean; lang?: string; speaking: boolean; marks: Parameters<OkFilowBridge["draw"]>[0]; marksAt: number; marksBase: number } | null>(null);
+  /** What a Resume of the stopped answer needs beyond the offer itself (lib/buddy/turn.ts). */
+  const resumeInfo = useRef<{ typed: boolean; lang?: string; left: string; marks: Parameters<OkFilowBridge["draw"]>[0]; from: number } | null>(null);
   // "Look at my screen": what the setup for this computer picked (until the user chooses), and whether the question being answered took the screen.
   const [localScreen, setLocalScreen] = useState<LocalScreenMode>(null);
   const localScreenRef = useRef<LocalScreenMode>(null);
@@ -249,6 +263,8 @@ export default function OkFilowPanel() {
   langRef.current = lang;
   const tRef = useRef(t);
   tRef.current = t;
+  /** How many sentences of the text in the bubble come before the ones the voice is saying (0, or more after a Resume). */
+  const spokenBase = useRef(0);
   const speaker = useMemo(() => createSpeaker({
     bridge: okFilowBridge,
     status: () => statusRef.current,
@@ -257,9 +273,15 @@ export default function OkFilowPanel() {
     cloudAudio: (text) => cloudVoiceRef.current(text),
     onFallback: (reason) => setNote(tRef.current(`voiceWhy_${reason}`)),
     onNoVoice: () => setNote(tRef.current("voiceNoSystem")),
+    // The bubble next to the pointer keeps the sentence being spoken in view.
+    onSentence: (index) => okFilowBridge()?.spoken?.(spokenBase.current + index),
   }), []);
   // lang: the answer's language from the server (X-Buddy-Lang); without it the voice detects it from the text.
-  const speak = useCallback((text: string, id: number, lang?: string) => speaker.speak(text, id, { lang }), [speaker]);
+  // base: how many sentences of the text in the bubble come before what is spoken now (a Resume says only the rest).
+  const speak = useCallback((text: string, id: number, lang?: string, base = 0) => {
+    spokenBase.current = base;
+    return speaker.speak(text, id, { lang });
+  }, [speaker]);
   useEffect(() => speaker.attach(), [speaker]);
 
   // Hands-free: after each answer the mic opens again until it is switched off.
@@ -304,6 +326,10 @@ export default function OkFilowPanel() {
     run.current++;
     const was = turn.current.stop(history.current);
     asking.current?.abort();
+    // A paused answer that ends is no longer paused.
+    pausedRef.current = false;
+    setPaused(false);
+    drawClock.current.resume(performance.now());
     speaker.stop();
     window.speechSynthesis?.cancel();
     if (was && was.history !== history.current) {
@@ -320,30 +346,65 @@ export default function OkFilowPanel() {
   const stopAnswer = useCallback(() => {
     const b = okFilowBridge();
     if (!b || (modeRef.current !== "thinking" && modeRef.current !== "speaking")) return false;
+    const ctx = answerCtx.current;
+    // How many marks had begun to draw (the rest wait for a Resume), on the clock that stood still during a pause.
+    const begun = ctx ? Math.min(ctx.marks.length, ctx.marksBase + marksStarted(ctx.marks.length - ctx.marksBase, drawClock.current.at(performance.now()) - ctx.marksAt, STROKE_GAP_MS)) : 0;
     const was = endAnswer();
     // Nothing of the stopped answer may still go out, and the pointer stops flying to places.
     outRef.current?.dismissAll();
     b.point([]);
     setStopped(true);
     if (was) { setAnswer(was.shown); b.text(was.shown); }
+    // What Resume would do (lib/buddy/turn.ts): the model carries on, the question is asked again,
+    // or (the whole answer was there) the voice says the sentences it has not said and the pen draws the marks not begun.
+    const offer = turn.current.offer();
+    const left = offer?.kind === "speak" && ctx?.speaking ? speaker.left() : "";
+    resumeInfo.current = offer && ctx ? { typed: ctx.typed, lang: ctx.lang, left, marks: ctx.marks, from: begun } : null;
+    // Nothing left to say or draw, or an answer that was not a question to the model: no Resume.
+    if (!resumeInfo.current || (offer?.kind === "speak" && !left && begun >= (ctx?.marks.length ?? 0))) turn.current.discard();
+    setResumable(turn.current.offer() !== null);
+    // The pill is told before the mode, so the stopped pill comes up with its Resume.
+    b.pill?.({ sees: seesScreen(statusRef.current?.seeScreen, askRoute(statusRef.current), localScreenRef.current), paused: false, resumable: turn.current.offer() !== null });
     setMode("idle", { stopped: true, holdMs: 4000 });
     // Hands-free listens again, after a moment: listening clears the bubble, and what was stopped should be seen first.
     if (handsFree.current) setTimeout(() => { if (handsFree.current && modeRef.current === "idle") listenAgain.current(); }, 2500);
     return true;
-  }, [endAnswer, setMode]);
+  }, [endAnswer, setMode, speaker]);
 
-  const ask = useCallback(async (question: string, opts: { typed?: boolean } = {}) => {
+  /** Pause (the button, the key): the text, the voice, the pointer and the pen hold still. False when no answer is in progress. */
+  const pauseAnswer = useCallback(() => {
+    if ((modeRef.current !== "thinking" && modeRef.current !== "speaking") || pausedRef.current) return false;
+    pausedRef.current = true;
+    setPaused(true);
+    // The request goes on being read into a buffer (nothing upstream times out); it is shown on Resume.
+    turn.current.pause();
+    speaker.pause();
+    drawClock.current.pause(performance.now());
+    return true;
+  }, [speaker]);
+
+  /**
+   * `resume`: this question carries on a stopped answer whose first part (`shown`) is on screen and
+   * is the conversation's last answer (Resume after Stop, lib/buddy/turn.ts resumePlan).
+   */
+  const ask = useCallback(async (question: string, opts: { typed?: boolean; resume?: { shown: string } } = {}) => {
     const b = okFilowBridge();
     if (!b) return;
+    const resume = opts.resume;
     // A new question cuts the answer being spoken at once, before anything below is awaited
     // (the agent check alone took about half a second in the packaged app).
     endAnswer();
+    // A new question: the stopped answer can no longer be carried on.
+    turn.current.discard();
+    setResumable(false);
+    resumeInfo.current = null;
+    answerCtx.current = null;
     setStopped(false);
     // "agent, ..." goes to a background job instead of the screen helper.
     // A new question drops any notice still waiting for the previous one: nothing of it may go out.
     out.dismissAll();
     // "whiteboard: ..." opens the whiteboard tutor with that topic (docs/whiteboard/SPEC.md).
-    const boardTopic = whiteboardTopic(question);
+    const boardTopic = resume ? "" : whiteboardTopic(question);
     if (boardTopic && b.showWhiteboard) {
       setHeard(question);
       b.showWhiteboard(boardTopic);
@@ -351,7 +412,8 @@ export default function OkFilowPanel() {
     }
     try {
       const lastAnswer = history.current.at(-1)?.text ?? "";
-      let job = await b.agents.start(question, lastAnswer);
+      // (a continuation is never an agent request: the answer it carries on came from the model)
+      let job = resume ? null : await b.agents.start(question, lastAnswer);
       if (job && "needsConsent" in job) {
         // The task and the last answer would go to the maker of the coding agent: ask first.
         const { recipient, cli } = job.needsConsent;
@@ -387,15 +449,18 @@ export default function OkFilowPanel() {
     asking.current?.abort();
     const abort = new AbortController();
     asking.current = abort;
-    turn.current.begin(id, question, abort);
+    // A drawing request is answered in one piece: a stop of it offers no Resume.
+    turn.current.begin(id, question, abort, { resumable: wantsDrawing(question) === null, continues: resume?.shown });
+    answerCtx.current = { id, typed: opts.typed === true, speaking: false, marks: [], marksAt: 0, marksBase: 0 };
     // "Look at my screen" (lib/buddy/sees.ts): off, the question goes with the user's words only.
+    // A continuation follows the eye as it is now, not as it was when the question was first asked.
     const seeing = seesScreen(statusRef.current?.seeScreen, askRoute(statusRef.current), localScreenRef.current);
     setAsksSee(seeing);
     setHeard(question);
-    setAnswer("");
+    setAnswer(resume?.shown ?? "");
     setError("");
     setMode("thinking", { sees: seeing });
-    b.text("");
+    b.text(resume?.shown ?? "");
     b.clearVisuals();
     try {
       // With "Look at my screen" off no picture of the screen is even taken.
@@ -409,7 +474,9 @@ export default function OkFilowPanel() {
       const markedNote = [describeMarked(marked), shot.selected ? `(Text I have selected: "${shot.selected}")` : ""].filter(Boolean).join("\n");
       // Local or cloud is decided in one place (askRoute). The screenshot above was taken before the
       // notice so it shows the screen as it was when the user asked; nothing is sent until they say yes.
-      let route = askRoute(statusRef.current);
+      // A plain photo request is answered by the card alone, on this PC, whatever "Answers from" says:
+      // no notice for the cloud opens, because nothing of the question goes there.
+      let route = photoOnly(question, { drawing: wantsDrawing(question) !== null, resume: !!resume }) ? "local" : askRoute(statusRef.current);
       let to: Recipient | null = null;
       if (route !== "local") {
         const rec = await out.recipients();
@@ -442,12 +509,19 @@ export default function OkFilowPanel() {
       let seesText = false;
       let answerLang: string | undefined;
       const send = async (consent: Record<string, string>, quiet?: () => void) => {
+        const headers = { "Content-Type": "application/json", ...(await engineHeaders()), ...consent };
+        // The eye was closed after the screenshot was taken (while the notice was open, say): the
+        // picture is dropped here, at the last moment before anything is sent, and the question goes
+        // with the words only. Nothing of the screen leaves.
+        const withScreen = stillSees(seeing, statusRef.current?.seeScreen);
+        if (seeing && !withScreen) setAsksSee(false);
         const res = await fetch("/api/buddy/ask", {
           method: "POST",
           signal: abort.signal,
-          headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent },
+          headers,
           // sees: false when this question goes without the screen; else the user's own choice, or nothing so the setup decides
-          body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images, screens: shot.screens, history: history.current, language: getSpeechLang(), provider: route, setup: getSetupPreference(), sees: seeing ? askSees(statusRef.current?.seeScreen) : false }),
+          // resume: the conversation ends with the part of the answer already shown, and the model carries on from it
+          body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images: withScreen ? images : [], screens: shot.screens, history: history.current, language: getSpeechLang(), provider: route, setup: getSetupPreference(), sees: withScreen ? askSees(statusRef.current?.seeScreen) : false, ...(resume ? { resume: true } : {}) }),
         });
         if (!res.ok || !res.body) {
           // Refused before anything was forwarded (no yes on record, Offline mode, FreeLLMAPI without a key): nothing went outside.
@@ -466,25 +540,37 @@ export default function OkFilowPanel() {
           if (done) return got;
           got += decoder.decode(value, { stream: true });
           if (run.current !== id) return null;
-          const shown = parseBuddyAnswer(got.split("\n[ERROR]")[0], shot.screens).text;
-          turn.current.progress(id, shown);
+          const arrived = parseBuddyAnswer(got.split("\n[ERROR]")[0], shot.screens).text;
+          // A continuation is shown after the part already there, without the sentences the model says again.
+          const shown = resume ? joinContinuation(resume.shown, arrived, { partial: true }) : arrived;
+          // Paused: the text is kept, not shown (Resume shows it).
+          if (!turn.current.progress(id, shown)) continue;
           setAnswer(shown);
           b.text(shown);
         }
       };
       const raw = to ? await out.sending("ask", to, send) : await send({});
       if (raw === null) return;
-      const [body, err] = raw.split("\n[ERROR] ");
+      // Paused: what follows the text (the marks, the pointer, the voice, an error) waits for Resume.
+      if (!(await turn.current.unpaused(id))) return;
+      const [answered, err] = raw.split("\n[ERROR] ");
       if (err) throw new Error(err.trim());
-      const { text, points, marks, cards, model, drawing } = parseBuddyAnswer(body, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1);
+      const body = resume ? joinContinuation(resume.shown, answered.trim()) : answered;
+      const parsed = parseBuddyAnswer(answered, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1);
+      const { points, marks, cards, model, drawing } = parsed;
+      const text = resume ? joinContinuation(resume.shown, parsed.text) : parsed.text;
       // Answer log (dev builds, or the folder the user picked): exactly what the model produced and saw.
       void b.answerLog({ question, raw: body, visuals: { text, points, marks, cards, model, drawing }, images, svg: drawing ? drawingSvg(drawing) : undefined }).catch(() => "");
       // A drawing or a model with no sentence is an answer too (it used to be thrown away as "empty").
       if (!text && !points.length && !marks.length && !cards.length && !model && !drawing) throw new Error(t("emptyAnswer"));
       setAnswer(text);
       b.text(text);
-      history.current = [...history.current, { role: "user" as const, text: question }, { role: "assistant" as const, text: body.trim() }].slice(-12);
+      // A continuation: the conversation's last answer becomes the first part and what followed, with no second question.
+      history.current = resume && history.current.at(-1)?.role === "assistant"
+        ? [...history.current.slice(0, -1), { role: "assistant" as const, text: body.trim() }]
+        : [...history.current, { role: "user" as const, text: question }, { role: "assistant" as const, text: body.trim() }].slice(-12);
       saveHistory(history.current);
+      if (answerCtx.current?.id === id) answerCtx.current.lang = answerLang;
       // From here a Stop keeps the conversation as it is: the whole answer is in it.
       turn.current.progress(id, text);
       turn.current.kept(id);
@@ -497,7 +583,10 @@ export default function OkFilowPanel() {
         const d = shot.displays.find((x) => x.index === m.screen);
         return d ? [markToDisplay(m, d.bounds)] : [];
       });
-      if (drawn.length) b.draw(drawn);
+      if (drawn.length) {
+        b.draw(drawn);
+        if (answerCtx.current?.id === id) Object.assign(answerCtx.current, { marks: drawn, marksAt: drawClock.current.at(performance.now()), marksBase: 0 });
+      }
       if (model) b.showModel(model);
       lastShown.current = { points: mapped, marks: drawn, model, cards: [] };
       if (drawing) {
@@ -524,9 +613,9 @@ export default function OkFilowPanel() {
           void (async () => {
             const rec = await out.recipients();
             if (!rec) return;
-            const first = out.standing("photo", rec.photo) === "ask";
             const decision = await out.allow("photo", rec.photo);
-            if (decision === "declined" && first) setNote(t("kept_photo"));
+            // Said every time, not only at the first no: a card without its picture needs its reason.
+            if (decision === "declined" && run.current === id) setNote(t("kept_photo"));
             if (decision !== "granted" || run.current !== id) return;
             const withPhotos = await out.sending("photo", rec.photo, async (consent) => {
               const headers = { ...(await engineHeaders()), ...consent };
@@ -543,11 +632,15 @@ export default function OkFilowPanel() {
       // HeyClicky always shows you where. Small local models sometimes answer in words only: then ask
       // once more, narrowly, for the point, while the answer is already being spoken.
       // (not when the setup answered from text: the model saw no picture to point at)
-      const grounding = !mapped.length && !drawn.length && !cards.length && !model && text && !seesText
+      // (and not once the eye is closed: the grounding pass would send the screenshot again)
+      const grounding = !mapped.length && !drawn.length && !cards.length && !model && text && !seesText && stillSees(seeing, statusRef.current?.seeScreen)
         ? groundAnswer(question, text, images, shot, abort.signal, to).then((p) => { if (p && run.current === id) b.point([p]); }).catch(() => {})
         : Promise.resolve();
       setMode("speaking");
-      if (!opts.typed || statusRef.current?.typedVoice) await speak(text, id, answerLang);
+      if (!opts.typed || statusRef.current?.typedVoice) {
+        if (answerCtx.current?.id === id) answerCtx.current.speaking = true;
+        await speak(text, id, answerLang);
+      }
       await grounding;
       turn.current.end(id);
       if (run.current === id) setMode("idle");
@@ -555,11 +648,87 @@ export default function OkFilowPanel() {
     } catch (e) {
       // A stop or a newer question: not an error, nothing is shown or logged as one.
       if (abort.signal.aborted || run.current !== id) return;
+      // A request that failed during a pause: the error is held and shown on Resume, never as a bubble during the pause.
+      if (!(await turn.current.unpaused(id))) return;
       turn.current.end(id);
       fail(e instanceof Error ? e.message : String(e));
       if (handsFree.current) setTimeout(() => handsFree.current && listenAgain.current(), 1500);
     }
   }, [endAnswer, engineHeaders, fail, groundAnswer, out, setMode, speak, t]);
+
+  /**
+   * Resume (the button, the key). A paused answer carries on exactly where it paused: the text that
+   * arrived meanwhile appears, the voice says its next sentence, the pen and the pointer move again.
+   * A stopped answer is carried on (lib/buddy/turn.ts): the model continues from the last whole
+   * sentence shown, or the same question is asked again when nothing was shown, or (the whole answer
+   * was there) the voice says the sentences it has not said and the marks not begun are drawn, with
+   * no request to the model. False when there is nothing to resume.
+   */
+  const resumeAnswer = useCallback(() => {
+    const b = okFilowBridge();
+    if (!b) return false;
+    if (pausedRef.current) {
+      pausedRef.current = false;
+      setPaused(false);
+      drawClock.current.resume(performance.now());
+      const text = turn.current.resume();
+      if (text) { setAnswer(text); b.text(text); }
+      speaker.resume();
+      return true;
+    }
+    const offer = turn.current.offer();
+    const info = resumeInfo.current;
+    if (!offer || !info || modeRef.current === "thinking" || modeRef.current === "speaking" || modeRef.current === "listening") return false;
+    const plan = resumePlan(offer, history.current);
+    if (plan.kind === "speak") {
+      // The whole answer is there: say the rest, draw the rest. Stop and Pause work on it as on any answer.
+      turn.current.discard();
+      setResumable(false);
+      setStopped(false);
+      const id = ++run.current;
+      turn.current.begin(id, plan.question);
+      turn.current.progress(id, plan.shown);
+      turn.current.kept(id);
+      answerCtx.current = { id, typed: info.typed, lang: info.lang, speaking: Boolean(info.left), marks: info.marks, marksAt: drawClock.current.at(performance.now()), marksBase: info.from };
+      setAnswer(plan.shown);
+      b.text(plan.shown);
+      // All of them, not only the ones still to draw: the marks went with the stopped answer's bubble,
+      // so the ones drawn before the stop are shown again as they were (`from`), the rest are drawn now.
+      if (info.marks.length) b.draw(info.marks, info.from);
+      setMode("speaking");
+      void (async () => {
+        if (info.left) await speak(info.left, id, info.lang, Math.max(0, splitSentences(plan.shown).length - splitSentences(info.left).length));
+        turn.current.end(id);
+        if (run.current === id) setMode("idle");
+        if (run.current === id && handsFree.current) listenAgain.current();
+      })();
+      return true;
+    }
+    if (plan.history !== history.current) {
+      history.current = plan.history;
+      saveHistory(history.current);
+    }
+    void ask(plan.question, plan.kind === "continue" ? { typed: info.typed, resume: { shown: plan.shown } } : { typed: info.typed });
+    return true;
+  }, [ask, setMode, speak, speaker]);
+
+  /** The eye (its button on the pill, its shortcut): open or closed for the next question, stored as the user's own choice. */
+  const toggleEye = useCallback(async () => {
+    const b = okFilowBridge();
+    const s = statusRef.current;
+    if (!b || !s) return;
+    const got = await b.configure({ seeScreen: eyeToggle(s.seeScreen, askRoute(s), localScreenRef.current) });
+    statusRef.current = got;
+    setStatus(got);
+  }, []);
+
+  /** A control of the pill, a shortcut, or the same button on this panel. */
+  const control = useCallback((action: PillAction) => {
+    if (action === "eye") void toggleEye();
+    else if (action === "pause") pauseAnswer();
+    else if (action === "resume") resumeAnswer();
+    else stopAnswer();
+  }, [pauseAnswer, resumeAnswer, stopAnswer, toggleEye]);
 
   const startListening = useCallback(async (why: Purpose = "talk") => {
     const b = okFilowBridge();
@@ -583,6 +752,9 @@ export default function OkFilowPanel() {
       // A new question interrupts the old answer (what it had said so far stays in the conversation);
       // dictation leaves the conversation alone.
       endAnswer();
+      // A new question is being asked: the stopped answer can no longer be carried on.
+      turn.current.discard();
+      setResumable(false);
       setStopped(false);
       setHeard("");
       setAnswer("");
@@ -842,6 +1014,8 @@ export default function OkFilowPanel() {
       b.onCancel(() => void stopListening(false)),
       // The Stop button next to the pointer, or Escape anywhere (the desktop shell tells us).
       b.onStop?.(() => { stopAnswer(); }) ?? (() => {}),
+      // The eye, Pause and Resume on the pill next to the pointer, and their shortcuts.
+      b.onControl?.((p) => { if (p && (p.action === "eye" || p.action === "pause" || p.action === "resume")) control(p.action); }) ?? (() => {}),
       b.onHandsFree((on) => setHandsFree(Boolean(on))),
       b.onQuickAsk(() => setTimeout(() => typeBox.current?.focus(), 30)),
       // A part clicked in the 3D model window: ask about it, like a spoken question.
@@ -865,7 +1039,21 @@ export default function OkFilowPanel() {
       }),
     ];
     return () => offs.forEach((o) => o());
-  }, [ask, bridge, dictT, fail, setHandsFree, setMode, speak, startListening, stopAnswer, stopListening, t, typePhrase]);
+  }, [ask, bridge, control, dictT, fail, setHandsFree, setMode, speak, startListening, stopAnswer, stopListening, t, typePhrase]);
+
+  // The pill follows: the eye as it is now (the effective setting), paused, and whether a stopped answer can be carried on.
+  const seesNow = seesScreen(status?.seeScreen, askRoute(status), localScreen);
+  useEffect(() => {
+    bridge?.pill?.({ sees: seesNow, paused, resumable });
+  }, [bridge, seesNow, paused, resumable]);
+  // An answer that is over (it ended, a preview took the voice) is not paused.
+  useEffect(() => {
+    if (mode === "thinking" || mode === "speaking" || !pausedRef.current) return;
+    pausedRef.current = false;
+    setPaused(false);
+    drawClock.current.resume(performance.now());
+    speaker.resume();
+  }, [mode, speaker]);
 
   if (!bridge) return <main className="okf-panel"><p>{t("desktopOnly")}</p></main>;
   const c = status;
@@ -907,11 +1095,12 @@ export default function OkFilowPanel() {
       {/* One live region: the mode and, while something is leaving this PC, who receives it. */}
       <div className="okf-status-row">
         <p className="okf-status" role="status">
-          <span>{t(mode === "thinking" && !asksSee ? "mode_thinkingWords" : (`mode_${mode}` as OkfKey))}</span>
+          <span>{t(answering && paused ? "paused" : mode === "thinking" && !asksSee ? "mode_thinkingWords" : (`mode_${mode}` as OkfKey))}</span>
           <OutboundPill snap={outSnap} t={t} />
         </p>
-        {/* Only while an answer is in progress; the row keeps its height, so nothing moves. */}
-        <StopButton active={answering} t={t} onStop={() => {
+        {/* Pause or Resume, and Stop: only while there is an answer to act on; the row keeps its height, so nothing moves. */}
+        <AnswerControls view={{ first: answering ? (paused ? "resume" : "pause") : resumable ? "resume" : null, stop: answering }} t={t} pauseKey={keyLabel(c?.pauseKey)} onAction={(action) => {
+          if (action !== "stop") return control(action);
           // The button goes away once pressed: the keyboard goes to the question box, not nowhere.
           const had = document.activeElement?.getAttribute("data-testid") === "okf-stop";
           if (!stopAnswer()) bridge.stopAnswer?.("panel");
@@ -950,7 +1139,7 @@ export default function OkFilowPanel() {
       </form>
       {/* Always here, in everyday words: whether a question takes the screen with it. */}
       {c && (
-        <SeeScreenSwitch on={sees} slow={slowToSee(route, localScreen)} leaves={screenLeaves(true, route) && Boolean(seeWho)} who={seeWho} t={t}
+        <SeeScreenSwitch on={sees} slow={slowToSee(route, localScreen)} leaves={screenLeaves(true, route) && Boolean(seeWho)} who={seeWho} t={t} keyLabel={keyLabel(c.eyeKey)}
           onChange={(next) => void configure({ seeScreen: next ? "on" : "off" })} />
       )}
       {bridge.showWhiteboard && <p className="okf-hint okf-board-link"><button type="button" onClick={() => { bridge.showWhiteboard?.(typed.trim()); setTyped(""); }}>{t("whiteboard")}</button> {t("whiteboardHint")}</p>}
@@ -992,6 +1181,9 @@ export default function OkFilowPanel() {
               {c.hotkeys.map((h) => <option key={h} value={h}>{HOTKEY_LABEL[h] ?? h}</option>)}
             </select>
           </label>
+          {/* The two shortcuts of the pill: a short list each, like the talk keys; said in plain words when Windows refused one. */}
+          {c.eyeKeys && <KeyChoice label={t("eyeKeyLabel")} value={c.eyeKey ?? c.eyeKeys[0]} choices={c.eyeKeys} state={c.eyeKeyState} t={t} onChange={(eyeKey) => void configure({ eyeKey })} />}
+          {c.pauseKeys && <KeyChoice label={t("pauseKeyLabel")} value={c.pauseKey ?? c.pauseKeys[0]} choices={c.pauseKeys} state={c.pauseKeyState} t={t} onChange={(pauseKey) => void configure({ pauseKey })} />}
           <label className="okf-row">
             <span>{t("brain")}</span>
             <select className="okf-select-wide" value={c.offline ? "local" : c.provider} onChange={(e) => void configure({ provider: e.target.value as OkFilowStatus["provider"] })} disabled={c.offline}>
@@ -1062,7 +1254,7 @@ export default function OkFilowPanel() {
             <button type="button" className="okf-link" disabled={!lastShown.current} onClick={replay}>{t("replay")}</button>
             <button type="button" className="okf-link" onClick={() => void okFilowBridge()?.openAnswers().then((ok) => { if (!ok) setNote(t("answerDirNone")); })}>{t("openAnswers")}</button>
           </div>
-          <button type="button" className="okf-link" onClick={() => { history.current = []; saveHistory([]); setNote(t("historyCleared")); }}>{t("clearHistory")}</button>
+          <button type="button" className="okf-link" onClick={() => { history.current = []; saveHistory([]); turn.current.discard(); setResumable(false); setNote(t("historyCleared")); }}>{t("clearHistory")}</button>
           {askRoute(c) === "cloud" && recipients && <p className="okf-note">{t(sees ? "cloudNote" : "cloudNoteWords").replace("{who}", whoPhrase(recipients.ask, t("outVia"), t("outAnd"), t("outViaPicked")))}</p>}
           {voiceRoute(c) === "cloud" && recipients && <p className="okf-note">{t("voiceNote").replace("{who}", whoPhrase(recipients.voice, t("outVia"), t("outAnd"), t("outViaPicked")))}</p>}
           {c.offline && <p className="okf-note">{t("offlineNote")}</p>}
