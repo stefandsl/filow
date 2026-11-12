@@ -23,5 +23,6 @@ design/
 output/
 tmp/
 release-*/
+apps/desktop/native/uia/bin/
 # per-task model choices of a development run (the desktop app keeps them in its profile folder)
 model-roles.json
