@@ -171,6 +171,7 @@ const en = {
   freeName: "FreeLLMAPI (a free provider it chooses)",
   outFree: "your FreeLLMAPI router and then to a free AI provider it chooses for each request (Filow cannot know which one in advance)",
   outFreeWarn: "That provider may keep what it receives or use it to train its models.",
+  outServer: "your server {name}",
   outRedacted: "A service on the way hid a name or place in your question before the model saw it, so this answer may be about the wrong thing. The setting is in the OpenRouter account, under privacy or guardrails.",
   liteHint: "This PC is modest, so answers on it are slow or read only the text you select. For answers without a strong PC, choose FreeLLMAPI (free, through your own router) or Cloud (OpenRouter, paid) under \"Answers from\". Both send your question and a screenshot outside this PC, and only after you say yes.",
   // Whiteboard tutor (docs/whiteboard/SPEC.md)

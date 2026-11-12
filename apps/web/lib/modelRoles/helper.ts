@@ -2,6 +2,7 @@
 // what the setup for this computer picked (lib/buddy/providers.ts localHelper). Kept out of
 // providers.ts so that file only asks for it.
 import type { LocalHelper } from "@/lib/buddy/providers";
+import { consentKey, serverRecipient } from "@/lib/buddy/outbound";
 import { readRoles, type RolesFile } from "./store";
 import { placeOnly, taskTarget, type Place } from "./resolve";
 
@@ -48,6 +49,15 @@ export async function pinHelper(auto: LocalHelper | Error, o: PinOptions): Promi
   }
   if (helper && pointPinned && helper.pictures && !redirected) helper = { ...helper, pointer: pointing!.model!, pointerAt: placeOnly(pointing!) };
   return orThrow(helper, auto);
+}
+
+/**
+ * A helper that would send to the user's server is used only when the request carries the yes for
+ * that server (the panel's first-send notice). Every server it would reach needs it.
+ */
+export function serverAllowed(helper: LocalHelper | undefined, consent: string | undefined): boolean {
+  const servers = [helper?.at?.server, helper?.pointerAt?.server].filter((s): s is { id: string; name: string } => Boolean(s));
+  return servers.every((s) => consent === consentKey("ask", serverRecipient(s)));
 }
 
 function orThrow(helper: LocalHelper | null, auto: LocalHelper | Error): LocalHelper {

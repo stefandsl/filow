@@ -13,7 +13,7 @@ import { dictationText, pasteKeys, type DictationKey } from "@/lib/dictation/tex
 import { playCue } from "@/lib/dictation/cue";
 import { createPhraseFlow, type PhraseFlow } from "@/lib/dictation/handsfree";
 import { burnStrokes, createVad, describeMarked } from "@/lib/buddy/listen";
-import { askRoute, askRouteRecipient, changesStored, consentKey, FREELLM_ID, joinNames, localNames, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
+import { askRoute, askRouteRecipient, changesStored, consentKey, FREELLM_ID, joinNames, localNames, localServer, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
 import { FREELLM_DOWNLOAD_URL, freellmCodeOf, localizeFreeLlmError } from "@/lib/freellm";
 import { FreeLlmPanelNotes } from "./freellm-notes";
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
@@ -477,13 +477,19 @@ export default function OkFilowPanel() {
       // notice so it shows the screen as it was when the user asked; nothing is sent until they say yes.
       // A plain photo request is answered by the card alone, on this PC, whatever "Answers from" says:
       // no notice for the cloud opens, because nothing of the question goes there.
-      let route = photoOnly(question, { drawing: wantsDrawing(question) !== null, resume: !!resume }) ? "local" : askRoute(statusRef.current);
+      const photo = photoOnly(question, { drawing: wantsDrawing(question) !== null, resume: !!resume });
+      let route = photo ? "local" : askRoute(statusRef.current);
       let to: Recipient | null = null;
-      if (route !== "local") {
+      // "Local" can mean the user's own server (Settings > Advanced, model per task): that leaves this
+      // PC too, so it gets the same notice and signal, naming "your server <name>".
+      const viaServer = !photo && route === "local" ? (await out.recipients())?.server ?? null : null;
+      if (run.current !== id) return;
+      if (route !== "local" || viaServer) {
         const rec = await out.recipients();
         // Stopped while this was looked up: no notice opens for an answer nobody waits for.
         if (run.current !== id) return;
-        const recipient = rec && askRouteRecipient(route, rec);
+        const named = rec && askRouteRecipient(route, rec);
+        const recipient = named && localServer(named, t("outServer"));
         if (!recipient) throw new Error(t("noticeUnknown"));
         // A yes given while the notice said "no picture of your screen is sent" does not cover the
         // screen: with the switch on it is withdrawn, so the full notice comes before any screenshot goes.
@@ -1080,7 +1086,8 @@ export default function OkFilowPanel() {
   // "Look at my screen": the one setting (okFilow.seeScreen in the desktop settings), shown as on or off.
   const route = askRoute(c);
   const sees = seesScreen(c?.seeScreen, route, localScreen);
-  const seeWho = route === "local" || !recipients ? "" : joinNames(localNames((route === "freellm" ? recipients.freellm?.names : recipients.ask.names) ?? [], t("freeName")), t("outAnd"));
+  // on "Local" the screen leaves only for the user's own server (Settings > Advanced)
+  const seeWho = !recipients ? "" : route === "local" ? (recipients.server ? localServer(recipients.server, t("outServer")).names.join("") : "") : joinNames(localNames((route === "freellm" ? recipients.freellm?.names : recipients.ask.names) ?? [], t("freeName")), t("outAnd"));
 
   return (
     // Escape stops the answer when the panel has the keyboard (the desktop shell does the same from anywhere).
@@ -1140,7 +1147,7 @@ export default function OkFilowPanel() {
       </form>
       {/* Always here, in everyday words: whether a question takes the screen with it. */}
       {c && (
-        <SeeScreenSwitch on={sees} slow={slowToSee(route, localScreen)} leaves={screenLeaves(true, route) && Boolean(seeWho)} who={seeWho} t={t} keyLabel={keyLabel(c.eyeKey)}
+        <SeeScreenSwitch on={sees} slow={slowToSee(route, localScreen)} leaves={(screenLeaves(true, route) || (route === "local" && Boolean(recipients?.server))) && Boolean(seeWho)} who={seeWho} t={t} keyLabel={keyLabel(c.eyeKey)}
           onChange={(next) => void configure({ seeScreen: next ? "on" : "off" })} />
       )}
       {bridge.showWhiteboard && <p className="okf-hint okf-board-link"><button type="button" onClick={() => { bridge.showWhiteboard?.(typed.trim()); setTyped(""); }}>{t("whiteboard")}</button> {t("whiteboardHint")}</p>}

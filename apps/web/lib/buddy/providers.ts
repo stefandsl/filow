@@ -121,7 +121,8 @@ export async function serverSetup(preference?: unknown, installed?: string[]): P
  * The local helper for a question under the user's setup preference, with the models the user chose
  * per task in Settings (lib/modelRoles/helper.ts); throws when none fits, saying why.
  */
-export async function resolveLocalHelper(preference: unknown, question: string, sees?: boolean, task: PinOptions["task"] = "okfilowAnswers"): Promise<LocalHelper> {
+/** `pins: false`: the setup's own choice on this PC only (no yes was given for the user's server). */
+export async function resolveLocalHelper(preference: unknown, question: string, sees?: boolean, task: PinOptions["task"] = "okfilowAnswers", pins = true): Promise<LocalHelper> {
   const see = typeof sees === "boolean" ? sees : undefined;
   if (process.env.BUDDY_LOCAL_MODEL) return localHelper(await serverSetup(preference, []), [], question, undefined, see);
   const installed = await installedModels();
@@ -131,6 +132,10 @@ export async function resolveLocalHelper(preference: unknown, question: string, 
     auto = localHelper(setup, installed, question, undefined, see);
   } catch (e) {
     auto = e instanceof Error ? e : new Error(String(e));
+  }
+  if (!pins) {
+    if (auto instanceof Error) throw auto;
+    return auto;
   }
   return pinHelper(auto, { task, pointOnly: isPointOnly(question), setupPointer: setup.choices.screenHelper.pointer ?? null, sees: see });
 }

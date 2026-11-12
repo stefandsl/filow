@@ -164,6 +164,7 @@ export const it: Record<OkfKey, string> = {
   freeName: "FreeLLMAPI (un fornitore gratuito scelto dal router)",
   outFree: "FreeLLMAPI, il tuo router, e poi a un fornitore di AI gratuito che il router sceglie per ogni richiesta (Filow non può sapere prima quale)",
   outFreeWarn: "Quel fornitore può conservare ciò che riceve o usarlo per addestrare i suoi modelli.",
+  outServer: "il tuo server {name}",
   outRedacted: "Un servizio lungo il percorso ha nascosto un nome o un luogo della tua domanda prima che il modello la vedesse: questa risposta potrebbe parlare della cosa sbagliata. L'impostazione si trova nell'account OpenRouter, alla voce privacy o guardrail.",
   liteHint: "Questo PC è modesto, quindi qui le risposte sono lente o leggono solo il testo che selezioni. Per avere risposte senza un PC potente, scegli FreeLLMAPI (gratis, tramite il tuo router) o Cloud (OpenRouter, a pagamento) in \"Risposte da\". Entrambi mandano la domanda e uno screenshot fuori da questo PC, e solo dopo il tuo sì.",
   whiteboard: "Lavagna",
