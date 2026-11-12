@@ -1,5 +1,5 @@
 /* The whiteboard tutor page (docs/whiteboard/SPEC.md). Colours come from the app's theme tokens
-   (theme-tokens.css), so both themes work; the board's own ink is set in components/whiteboard/Board.tsx. */
+   (theme-tokens.css), so both themes work; the board's own ink is set in lib/whiteboard/scene.ts. */
 .wb-page { display: flex; flex-direction: column; gap: 12px; min-height: 100vh; box-sizing: border-box; padding: 14px 18px 20px; max-width: 1320px; margin: 0 auto; color: var(--text); }
 .wb-page *, .wb-page *::before, .wb-page *::after { box-sizing: border-box; }
 .wb-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
@@ -46,38 +46,33 @@
 .wb-progress { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
 .wb-progress > span { display: block; height: 100%; background: var(--text); transition: width 0.3s ease; }
 
-/* A step's new strokes draw on; what was already there stays put. Boxes glide when the layout changes. */
-.wb-node { transition: transform 0.45s ease; }
-.wb-node[role="button"] { cursor: pointer; }
-.wb-node[role="button"]:hover .wb-node-fill { filter: brightness(0.94); }
-.wb-node:focus { outline: none; }
-.wb-node:focus-visible .wb-node-fill { stroke: var(--accent-ring, var(--accent)); stroke-width: 5; }
-.wb-new .wb-stroke, .wb-new.wb-stroke { stroke-dasharray: 1; stroke-dashoffset: 1; animation: wb-draw 0.85s ease-out forwards; }
-.wb-new .wb-fade, .wb-new.wb-fade { animation: wb-fade 0.6s ease-out both; }
+/* The board is an Excalidraw scene drawn as SVG (components/whiteboard/ExcalidrawBoard.tsx): what is
+   already there stays put and only the new strokes draw on, one thing at a time as the voice reaches
+   it (--wb-len, from lib/whiteboard/pace.ts). Dark: Excalidraw's own dark mode of the same scene. */
+.wb-frame:has(.wb-ex), .wb-frame:has(.wb-canvas) { display: block; }
+.wb-ex { position: relative; margin: 0 auto; line-height: 0; }
+.wb-ex-host, .wb-ex-host > svg { display: block; width: 100%; height: 100%; }
+.wb-hot { position: absolute; padding: 0; border: 0; border-radius: 10px; background: transparent; cursor: pointer; }
+.wb-hot:hover { background: rgba(25, 113, 194, 0.07); }
+.wb-ex-dark .wb-hot:hover { background: rgba(165, 216, 255, 0.1); }
+.wb-page .wb-hot:focus-visible { outline: 3px solid var(--accent-ring, var(--accent)); outline-offset: 4px; }
 @keyframes wb-draw { to { stroke-dashoffset: 0; } }
 @keyframes wb-fade { from { opacity: 0; } to { opacity: 1; } }
-.wb-formula .katex-display { margin: 0; }
-/* The voice drives the clock: each new thing of the step is drawn in its own slot of the time the
-   sentence takes (--wb-at, --wb-len, set by the board from lib/whiteboard/pace.ts). The strokes of
-   a thing come first, then what is written in it, left to right. */
 @media (prefers-reduced-motion: no-preference) {
-  .wb-timed .wb-new .wb-stroke, .wb-timed .wb-new.wb-stroke { animation: wb-draw calc(var(--wb-len, 800ms) * 0.6) linear forwards; animation-delay: var(--wb-at, 0ms) !important; }
-  .wb-timed .wb-new .wb-fade, .wb-timed .wb-new.wb-fade { animation: wb-fade calc(var(--wb-len, 800ms) * 0.5) ease-out both; animation-delay: calc(var(--wb-at, 0ms) + var(--wb-len, 800ms) * 0.3); }
-  .wb-timed .wb-new text.wb-fade, .wb-timed .wb-new .wb-fade text { animation: wb-write calc(var(--wb-len, 800ms) * 0.55) linear both; animation-delay: calc(var(--wb-at, 0ms) + var(--wb-len, 800ms) * 0.45); }
+  .wb-ex-animate .wb-in.wb-stroke { stroke-dasharray: 1; stroke-dashoffset: 1; animation: wb-draw calc(var(--wb-len, 600ms) * 0.8) ease-out forwards; }
+  .wb-ex-animate .wb-in.wb-fade { animation: wb-fade calc(var(--wb-len, 600ms) * 0.6) ease-out both; }
+  .wb-ex-animate text.wb-in, .wb-ex-animate .wb-in text { animation: wb-fade calc(var(--wb-len, 600ms) * 0.5) ease-out calc(var(--wb-len, 600ms) * 0.35) both; }
 }
-@keyframes wb-write { from { clip-path: inset(-20% 100% -20% 0); } to { clip-path: inset(-20% -5% -20% 0); } }
-/* The step is over (paused, stepped by hand, or the voice has ended): the board is complete, nothing mid-stroke. */
-.wb-board.wb-rest .wb-new .wb-stroke, .wb-board.wb-rest .wb-new.wb-stroke, .wb-board.wb-rest .wb-new .wb-fade, .wb-board.wb-rest .wb-new.wb-fade, .wb-board.wb-rest .wb-new text { animation: none !important; stroke-dasharray: none; stroke-dashoffset: 0; opacity: 1; clip-path: none; }
-/* Chalk: a softer, slightly broken line. */
-.wb-chalk .wb-stroke { opacity: 0.94; }
 .wb-look { margin-left: 0; }
+.wb-canvas { width: 100%; display: flex; flex-direction: column; gap: 8px; padding: 8px; height: min(80vh, 800px); line-height: normal; }
+.wb-canvas-editor { position: relative; flex: 1 1 auto; min-height: 0; }
+.wb-canvas-done { align-self: flex-end; }
+/* nothing in the editor leads outside: no library browser */
+.wb-canvas .default-sidebar-trigger, .wb-canvas .sidebar-trigger { display: none !important; }
+.wb-canvas .excalidraw { --color-primary: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
-  .wb-node { transition: none; }
-  .wb-new .wb-stroke, .wb-new.wb-stroke, .wb-new .wb-fade, .wb-new.wb-fade, .wb-new text { animation: none; stroke-dasharray: none; stroke-dashoffset: 0; clip-path: none; }
   .wb-progress > span { transition: none; }
 }
-.wb-plain .wb-node { transition: none; }
-.wb-plain .wb-new .wb-stroke, .wb-plain .wb-new.wb-stroke, .wb-plain .wb-new .wb-fade, .wb-plain .wb-new.wb-fade { animation: none; stroke-dasharray: none; stroke-dashoffset: 0; }
 
 .wb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .okf-notice-modal { max-width: min(520px, calc(100vw - 24px)); }

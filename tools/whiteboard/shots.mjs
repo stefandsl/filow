@@ -79,12 +79,13 @@ try {
     for (let attempt = 0; attempt < 2 && !shown; attempt++) {
       await sleep(attempt ? 1500 : 300);
       await page.evaluate(`window.sessionStorage.setItem("filow.whiteboard.replay", ${JSON.stringify(JSON.stringify(item.lesson))}); window.location.reload(); true`);
-      shown = await waitFor(() => page.evaluate(`(() => { const svg = document.querySelector("svg.wb-board"); return svg && Number(svg.dataset.step) === ${last} ? true : false; })()`), 25_000, 300);
+      // the Excalidraw board says which step it shows and when all of it is on the page
+      shown = await waitFor(() => page.evaluate(`(() => { const b = document.querySelector(".wb-ex"); return b && Number(b.dataset.step) === ${last} && b.dataset.complete === "true" && b.querySelector("svg") ? true : false; })()`), 25_000, 300);
     }
     if (!shown) { console.log(`lesson ${item.n}: the board did not reach its last step`); continue; }
     await page.evaluate('document.documentElement.dataset.theme = "light"; true');
-    await sleep(2200); // strokes finish drawing, formulas are set
-    const clip = await page.evaluate('(() => { const r = document.querySelector("svg.wb-board").getBoundingClientRect(); return { x: r.x, y: r.y + window.scrollY, width: r.width, height: r.height, scale: 1 }; })()');
+    await sleep(2200); // strokes finish drawing
+    const clip = await page.evaluate('(() => { const r = document.querySelector(".wb-ex").getBoundingClientRect(); return { x: r.x, y: r.y + window.scrollY, width: r.width, height: r.height, scale: 1 }; })()');
     const shot = await page.call("Page.captureScreenshot", { format: "png", clip, captureBeyondViewport: true });
     if (!shot.result?.data) { console.log(`lesson ${item.n}: no picture`); continue; }
     const file = path.join(outDir, `lesson-${String(item.n).padStart(2, "0")}.png`);

@@ -18,7 +18,7 @@ const chats = () => calls.filter((c) => c.url.endsWith("/api/chat"));
 const userOf = (c: Call) => String(c.body.messages.find((m) => m.role === "user")?.content ?? "");
 
 beforeEach(() => {
-  for (const [key, value] of Object.entries({ ACCESS_PASSWORD: "", FILOW_OFFLINE: "", BUDDY_PROVIDER: "", BUDDY_CLOUD_MODEL: "", BUDDY_LOCAL_MODEL: "fake-local", OPENROUTER_API_KEY: "test-key-not-real", OPENROUTER_BASE_URL: "", OLLAMA_URL: LOCAL })) vi.stubEnv(key, value);
+  for (const [key, value] of Object.entries({ ACCESS_PASSWORD: "", FILOW_OFFLINE: "", BUDDY_PROVIDER: "", BUDDY_CLOUD_MODEL: "", BUDDY_LOCAL_MODEL: "fake-local", OPENROUTER_API_KEY: "test-key-not-real", OPENROUTER_BASE_URL: "", OLLAMA_URL: LOCAL, WHITEBOARD_TEMPLATES: "off" })) vi.stubEnv(key, value);
   // the hardware is a fixed, ordinary PC: no real probe (it takes seconds on a CI runner)
   vi.spyOn(sysinfo, "gpuInfo").mockResolvedValue({ name: "", kind: "none", vramTotalGb: null, vramUsedGb: null, sharedUsedGb: null, utilPct: null, source: "none" });
   vi.spyOn(sysinfo, "machineInfo").mockReturnValue({ ramGb: 32, cores: 8, gpu: { kind: "none", vramGb: null }, freeDiskGb: 500 });
