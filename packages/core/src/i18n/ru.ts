@@ -467,6 +467,8 @@ export const ru: Dictionary = {
   "ctl.import": "Импорт документа",
   "ctl.importing": "Импорт…",
   "ctl.importTitle": "PDF, PPTX, DOCX, TXT или MD > пункты выступления",
+  "ctl.whiteboard": "Доска",
+  "ctl.whiteboardTitle": "Объясняет сложное понятие шаг за шагом и рисует по ходу. Открывается в отдельном окне.",
   "import.failed": "Не удалось импортировать документ: {error}",
   "ctl.settings": "Настройки",
   "ctl.settingsTitle": "Настройки",

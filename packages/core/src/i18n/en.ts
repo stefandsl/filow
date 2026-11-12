@@ -471,6 +471,8 @@ export const en = {
   "ctl.import": "Import document",
   "ctl.importing": "Importing…",
   "ctl.importTitle": "PDF, PPTX, DOCX, TXT or MD > talking points",
+  "ctl.whiteboard": "Whiteboard",
+  "ctl.whiteboardTitle": "Explains a hard concept step by step, drawing as it goes. Opens in its own window.",
   "import.failed": "Could not import the document: {error}",
   "ctl.settings": "Settings",
   "ctl.settingsTitle": "Settings",

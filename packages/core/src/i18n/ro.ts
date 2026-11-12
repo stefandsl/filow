@@ -467,6 +467,8 @@ export const ro: Dictionary = {
   "ctl.import": "Importă document",
   "ctl.importing": "Se importă…",
   "ctl.importTitle": "PDF, PPTX, DOCX, TXT sau MD > puncte de discuție",
+  "ctl.whiteboard": "Tablă",
+  "ctl.whiteboardTitle": "Explică un concept dificil pas cu pas, desenând. Se deschide într-o fereastră separată.",
   "import.failed": "Documentul nu a putut fi importat: {error}",
   "ctl.settings": "Setări",
   "ctl.settingsTitle": "Setări",

@@ -468,6 +468,8 @@ export const it: Dictionary = {
   "ctl.import": "Importa documento",
   "ctl.importing": "Importazione…",
   "ctl.importTitle": "PDF, PPTX, DOCX, TXT o MD > punti da dire",
+  "ctl.whiteboard": "Lavagna",
+  "ctl.whiteboardTitle": "Spiega un concetto difficile passo dopo passo, disegnando. Si apre in una finestra a parte.",
   "import.failed": "Impossibile importare il documento: {error}",
   "ctl.settings": "Impostazioni",
   "ctl.settingsTitle": "Impostazioni",

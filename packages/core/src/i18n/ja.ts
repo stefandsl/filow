@@ -471,6 +471,8 @@ export const ja: Dictionary = {
   "ctl.import": "文書を読み込む",
   "ctl.importing": "読み込み中…",
   "ctl.importTitle": "PDF、PPTX、DOCX、TXT、MD > 話すポイント",
+  "ctl.whiteboard": "ホワイトボード",
+  "ctl.whiteboardTitle": "難しい概念を、図を描きながら一歩ずつ説明します。別のウィンドウで開きます。",
   "import.failed": "文書を読み込めませんでした：{error}",
   "ctl.settings": "設定",
   "ctl.settingsTitle": "設定",
