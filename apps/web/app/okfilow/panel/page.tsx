@@ -301,6 +301,7 @@ export default function OkFilowPanel() {
           question: `${question}\nYou answered: "${answer.slice(0, 300)}". Reply with only the tag [POINT:x,y:label:screenN] for that thing, on the 0-1000 grid, and nothing else. If it is not visible, reply NONE.`,
           images,
           screens: shot.screens,
+          elements: shot.elements,
           history: [],
           language: getSpeechLang(),
           // the same door as the answer: never another cloud than the one the user said yes to
@@ -521,7 +522,7 @@ export default function OkFilowPanel() {
           headers,
           // sees: false when this question goes without the screen; else the user's own choice, or nothing so the setup decides
           // resume: the conversation ends with the part of the answer already shown, and the model carries on from it
-          body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images: withScreen ? images : [], screens: shot.screens, history: history.current, language: getSpeechLang(), provider: route, setup: getSetupPreference(), sees: withScreen ? askSees(statusRef.current?.seeScreen) : false, ...(resume ? { resume: true } : {}) }),
+          body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images: withScreen ? images : [], screens: shot.screens, elements: withScreen ? shot.elements : undefined, history: history.current, language: getSpeechLang(), provider: route, setup: getSetupPreference(), sees: withScreen ? askSees(statusRef.current?.seeScreen) : false, ...(resume ? { resume: true } : {}) }),
         });
         if (!res.ok || !res.body) {
           // Refused before anything was forwarded (no yes on record, Offline mode, FreeLLMAPI without a key): nothing went outside.

@@ -23,3 +23,4 @@ design/
 output/
 tmp/
 release-*/
+apps/desktop/native/uia/bin/
