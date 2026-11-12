@@ -295,7 +295,6 @@ const bind = (a: ExEl, from: ExEl | null, to: ExEl | null) => {
 const note = (o: Out, id: string, words: string, at: { x: number; y: number }, step: number, key: string, size = 17, colour: string = INK.text) =>
   o.els.push(text(id, [words], size, { cx: at.x, cy: at.y }, o.meta(step, key), { strokeColor: colour }));
 
-function stepsOf(facts: string[]): number { return Math.min(7, facts.length); }
 /** The step a part belongs to when `parts` parts are spread over `steps` steps. */
 const spread = (i: number, parts: number, steps: number) => Math.min(steps - 1, Math.floor((i * steps) / Math.max(1, parts)));
 
