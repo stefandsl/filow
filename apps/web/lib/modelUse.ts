@@ -5,6 +5,7 @@
 // (app/api/local/status). What is left for the page is the user's switches: a feature set to the
 // cloud uses no local model.
 import { LANG_LABELS, type I18nKey, type Lang } from "@filow/core";
+import type { SpeechRole } from "./modelRoles/view";
 
 export type UseId = "tracking" | "questions" | "dictation" | "voice" | "cleanup" | "punctuation" | "decision" | "generate" | "translate" | "okfilow" | "whiteboard" | "gate";
 export type ModelUseItem = { use: UseId; language?: string };
@@ -12,7 +13,8 @@ export type ModelUseItem = { use: UseId; language?: string };
 /** One row of the desktop app's list (window.filow.models.status()). */
 /** `downloading`: this model's own download is in flight (its percent and Stop are where it was started). */
 export type DeviceModel = { id: string; kind: "speech" | "voice" | "cleanup" | "punctuation"; name: string; installed: boolean; bytes: number; uses: ModelUseItem[]; loaded: boolean; downloading?: boolean };
-export type DeviceModels = { models: DeviceModel[]; downloading: string[] };
+/** `speechRoles`: per speech task, the automatic pick, the model in use and the user's choice (absent from an older desktop app). */
+export type DeviceModels = { models: DeviceModel[]; downloading: string[]; speechRoles?: Partial<Record<"tracking" | "questions" | "dictation", SpeechRole>> };
 
 export type UseContext = {
   /** The plan a take would start with now; null while it is not known. */

@@ -28,6 +28,7 @@ export function requestParts(url: string): { base: string; headers: Record<strin
 }
 
 const LIST_TTL_MS = 5000;
+const DOWN_TTL_MS = 20_000;
 const lists = new Map<string, { at: number; value: SourceList }>();
 const shows = new Map<string, string[] | null>();
 
@@ -50,7 +51,8 @@ async function capabilitiesOf(base: string, headers: Record<string, string>, nam
 /** The models on one Ollama (this PC or a server) and whether it answers. Reads only: never pulls or deletes. */
 export async function listSource(url: string, fresh = false): Promise<SourceList> {
   const hit = lists.get(url);
-  if (!fresh && hit && Date.now() - hit.at < LIST_TTL_MS) return hit.value;
+  // a server that did not answer is asked again less often: every picker call would wait for its timeout
+  if (!fresh && hit && Date.now() - hit.at < (hit.value.reachable ? LIST_TTL_MS : DOWN_TTL_MS)) return hit.value;
   let value: SourceList = { reachable: false, models: [] };
   try {
     const { base, headers } = requestParts(url);

@@ -134,6 +134,29 @@ select.freellm-input { cursor: pointer; }
 .freellm-input[aria-invalid="true"]:not(:focus-visible) { outline: 1px solid var(--warn); }
 .freellm-note { display: inline-block; border-radius: var(--radius); padding: 4px 0; font-size: var(--type-sm); overflow-wrap: anywhere; }
 @media (max-width: 560px) { .freellm-fields { grid-template-columns: minmax(0, 1fr); gap: 4px; } .freellm-fields > label { padding-top: 8px; } }
+/* Settings > Advanced: which model does each task. Task name beside its list, stacked when narrow. */
+.roles h2.label, .roles h3.label { font-size: var(--type-sm); margin: 0 0 8px; }
+.roles h3.label { margin-top: 20px; }
+.roles-list { display: grid; grid-template-columns: minmax(10rem, max-content) minmax(0, 1fr); gap: 12px 16px; align-items: start; margin: 8px 0; }
+.roles-row { display: contents; }
+.roles-name { padding-top: 8px; font-size: var(--type-base); color: var(--text); }
+.roles-only { padding-top: 8px; margin: 0; }
+.roles-pick { min-width: 0; }
+.roles-select { width: min(100%, 30rem); }
+.roles-now, .roles-note { margin: 4px 0 0; }
+.roles-note { color: var(--warn); }
+.roles-ask { margin-top: 8px; border-radius: var(--radius); padding: 12px; outline: 1px solid var(--accent-ring); background: var(--bg); font-size: var(--type-base); }
+.roles-ask p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.roles-warn { color: var(--warn); }
+.roles-server-list { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
+.roles-server { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.roles-server > div { min-width: 0; }
+.roles-url { display: block; overflow-wrap: anywhere; margin: 2px 0 4px; }
+.roles-server .chip { white-space: nowrap; display: inline-block; }
+.roles-warn.hint { margin: 4px 0 0; }
+.roles-error:empty { display: none; }
+.roles-error { color: var(--warn); margin: 4px 0 0; }
+@media (max-width: 560px) { .roles-list { grid-template-columns: minmax(0, 1fr); gap: 4px; } .roles-pick { margin-bottom: 8px; } }
 a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 
 /* Screen Sense (ARCHITECTURE.md §6) */
