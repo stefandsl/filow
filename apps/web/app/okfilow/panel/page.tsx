@@ -25,6 +25,7 @@ import { askSees, eyeToggle, screenLeaves, screenYesMissing, seesScreen, slowToS
 import { keyLabel, type PillAction } from "@/lib/buddy/pill";
 import { createPausableClock, marksStarted, STROKE_GAP_MS } from "@/lib/buddy/motion";
 import { wantsDrawing } from "@/lib/buddy/visuals";
+import { photoOnly } from "@/lib/buddy/photo";
 import { AnswerControls, KeyChoice, SeeScreenSwitch } from "@/components/okfilow/controls";
 import { whiteboardTopic } from "@/lib/whiteboard/client";
 import "../okfilow.css";
@@ -473,7 +474,9 @@ export default function OkFilowPanel() {
       const markedNote = [describeMarked(marked), shot.selected ? `(Text I have selected: "${shot.selected}")` : ""].filter(Boolean).join("\n");
       // Local or cloud is decided in one place (askRoute). The screenshot above was taken before the
       // notice so it shows the screen as it was when the user asked; nothing is sent until they say yes.
-      let route = askRoute(statusRef.current);
+      // A plain photo request is answered by the card alone, on this PC, whatever "Answers from" says:
+      // no notice for the cloud opens, because nothing of the question goes there.
+      let route = photoOnly(question, { drawing: wantsDrawing(question) !== null, resume: !!resume }) ? "local" : askRoute(statusRef.current);
       let to: Recipient | null = null;
       if (route !== "local") {
         const rec = await out.recipients();
@@ -610,9 +613,9 @@ export default function OkFilowPanel() {
           void (async () => {
             const rec = await out.recipients();
             if (!rec) return;
-            const first = out.standing("photo", rec.photo) === "ask";
             const decision = await out.allow("photo", rec.photo);
-            if (decision === "declined" && first) setNote(t("kept_photo"));
+            // Said every time, not only at the first no: a card without its picture needs its reason.
+            if (decision === "declined" && run.current === id) setNote(t("kept_photo"));
             if (decision !== "granted" || run.current !== id) return;
             const withPhotos = await out.sending("photo", rec.photo, async (consent) => {
               const headers = { ...(await engineHeaders()), ...consent };

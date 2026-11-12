@@ -6,7 +6,7 @@ import { askBuddy, buddyCloudRecipient, resolveBuddyProvider, resolveLocalHelper
 import { answerLanguage } from "@/lib/buddy/lang";
 import { drawnAnswer } from "@/lib/buddy/draw";
 import { wantsDrawing } from "@/lib/buddy/visuals";
-import { photoAnswer, wantsPhoto } from "@/lib/buddy/photo";
+import { photoAnswer, photoOnly } from "@/lib/buddy/photo";
 import { isPointOnly, pointQuestion, POINTER_MAX_TOKENS, POINTER_MS, withPointer } from "@/lib/buddy/pointer";
 import { buddySystemPrompt, resumeQuestion } from "@/lib/buddy/prompt";
 import { okfText } from "@/lib/buddy/text";
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   // screenshot and no provider are needed, so nothing of the question goes anywhere and the answer is
   // immediate on every computer. The picture itself is fetched by the page from Wikipedia, only after the
   // user's yes for Wikipedia (the subject's name is all that is sent); in Offline mode the answer says why none comes.
-  const photo = wantsDrawing(question) ? null : wantsPhoto(question);
+  const photo = photoOnly(question, { drawing: wantsDrawing(question) !== null, resume: body.resume === true });
   if (photo) {
     const photoLang = answerLanguage(question, body.language, req.headers.get("accept-language")) ?? "en";
     const said = process.env.FILOW_OFFLINE === "1" ? okfText(photoLang)("photoOffline") : photoAnswer(photo, okfText(photoLang)("photoHere"));

@@ -52,6 +52,15 @@ describe("Resume after Stop on the request", () => {
     expect(messages.at(-1)?.images).toEqual([]);
   });
 
+  it("a stopped answer to a photo request is carried on by the model, not answered with the card a second time", async () => {
+    fakeOllama("It beats all day.");
+    const history = [{ role: "user", text: "show me a picture of a heart" }, { role: "assistant", text: "Here is heart," }];
+    const res = await post({ question: "show me a picture of a heart", history, resume: true, sees: false });
+    expect(await res.text()).toBe("It beats all day.");
+    expect(res.headers.get("X-Buddy-Resume")).toBe("1");
+    expect(calls).toHaveLength(1);
+  });
+
   it("the instruction says the four things: carry on from where it stopped, repeat nothing, start with the next sentence, same language", () => {
     expect(RESUME_NOTE).toMatch(/from exactly where it stopped/);
     expect(RESUME_NOTE).toMatch(/Do not repeat/);
