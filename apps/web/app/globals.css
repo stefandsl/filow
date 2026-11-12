@@ -504,3 +504,65 @@ dialog.modal-bg.accessible-dialog:has(> .display-panel)::backdrop { background: 
    list goes on underneath; on a phone-sized window it would cover the whole list, so there it scrolls with the page. */
 .screen-sense::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 28px; background: linear-gradient(to top, var(--bg), transparent); pointer-events: none; }
 @media (max-width: 700px), (max-height: 620px) { .screen-sense { position: static; } .screen-sense::before { display: none; } }
+
+/* Easy settings (/settings): eight plain rows in one readable column. A row is its name and sentences
+   on the left and its control on the right; under 600 px the control moves below the text. */
+.easy-main { width: 100%; max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.easy { display: flex; flex-direction: column; gap: 16px; }
+.easy .strip { gap: 8px; padding: 16px 20px; }
+.easy-title { font-size: var(--type-xl); font-weight: 700; margin: 0; letter-spacing: 0; }
+.easy-desc { margin: 0; color: var(--muted); font-size: var(--type-sm); line-height: 1.5; max-width: 60ch; overflow-wrap: anywhere; }
+.easy-note { margin: 0; color: var(--text); font-size: var(--type-sm); line-height: 1.5; max-width: 60ch; overflow-wrap: anywhere; }
+.easy-detail { margin: 0; color: var(--muted); font-size: var(--type-xs); overflow-wrap: anywhere; }
+.easy-headline { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.easy-live { margin: 0; color: var(--text); font-size: var(--type-sm); }
+.easy-confirm { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: var(--radius); background: var(--panel-2); }
+.easy .easy-list { gap: 0; padding: 4px 20px; }
+.easy-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 16px 0; min-width: 0; }
+.easy-row + .easy-row { border-top: 1px solid var(--border); }
+.easy-row.easy-wide { flex-direction: column; gap: 12px; }
+.easy-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 auto; }
+.easy-name { font-size: var(--type-base); font-weight: 700; color: var(--text); padding: 0; }
+.easy-control { display: flex; align-items: center; gap: 12px; flex: none; min-height: 28px; }
+.easy-state { font-size: var(--type-sm); color: var(--muted); min-width: 4.5em; text-align: right; font-variant-numeric: tabular-nums; }
+.easy-switch { appearance: none; -webkit-appearance: none; position: relative; flex: none; width: 48px; height: 28px; margin: 0; border-radius: 999px; background: var(--muted); cursor: pointer; transition: background 150ms ease-out; }
+.easy-switch::before { content: ""; position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; border-radius: 50%; background: var(--bg); transition: transform 150ms ease-out; }
+.easy-switch:checked { background: var(--action-background); }
+.easy-switch:checked::before { transform: translateX(20px); background: var(--action-foreground); }
+.easy-row.custom .easy-switch { background: var(--panel-2); outline: 2px dashed var(--muted); outline-offset: -2px; }
+.easy-row.custom .easy-switch::before { transform: translateX(10px); background: var(--muted); }
+.easy-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.easy-row.custom .easy-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.easy-switch:disabled { opacity: 0.5; cursor: default; }
+.easy-choice { border: 0; margin: 0; padding: 0; min-width: 0; width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.easy-choice legend { margin-bottom: 4px; }
+.easy-choice .setup-options { margin-top: 4px; }
+.easy .hint { font-size: var(--type-sm); line-height: 1.5; margin: 0; }
+.easy-text a, .easy-choice a:not(.btn) { display: inline-block; }
+.easy-choice .setup-option.off { cursor: default; }
+.easy-choice .setup-option.off strong { color: var(--muted); }
+.easy-select { min-width: 12em; max-width: 100%; }
+.easy-downloads { display: flex; flex-direction: column; gap: 8px; width: 100%; min-width: 0; }
+.easy-sub { font-size: var(--type-sm); font-weight: 700; }
+.easy-offers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.easy-offer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px; border-radius: var(--radius); background: var(--panel-2); min-width: 0; }
+.easy-offer-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.easy-offer-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--type-base); font-weight: 700; }
+.easy-offer .btn { flex: none; text-decoration: none; white-space: nowrap; }
+.easy .easy-advanced { flex-direction: row; align-items: center; gap: 16px; flex-wrap: wrap; }
+.easy .easy-advanced .btn { text-decoration: none; }
+.easy-foot { margin: 0; }
+@media (max-width: 600px) {
+  .easy .strip { padding: 12px 16px; }
+  .easy .easy-list { padding: 0 16px; }
+  .easy-row { flex-direction: column; gap: 12px; }
+  .easy-control { width: 100%; justify-content: space-between; min-height: 44px; }
+  .easy-state { text-align: left; }
+  .easy-select { width: 100%; min-height: 44px; }
+  .easy-offer { flex-direction: column; align-items: stretch; }
+  .easy-offer .btn { text-align: center; padding: 12px 16px; white-space: normal; }
+  .easy .easy-advanced { flex-direction: column; align-items: stretch; }
+  .easy .easy-advanced .btn { text-align: center; padding: 12px 16px; }
+  .easy-head .btn { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { .easy-switch, .easy-switch::before { transition: none; } }

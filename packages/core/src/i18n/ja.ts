@@ -145,9 +145,9 @@ export const ja: Dictionary = {
   "easy.voice.custom": "カスタム：オンラインの音声で話しています。オンにすると、このPCの音声を使います。",
   "easy.tidy.custom": "カスタム：整える機能の一部だけがオンです。オンにすると、すべて有効になります。",
   "easy.tidy.needsDictation": "使うには「どのアプリでも音声入力」をオンにしてください。",
-  "easy.quality.chosen.lite": "このPC向けに選択：軽い構成です。このパソコンでも速く動きます。",
-  "easy.quality.chosen.standard": "このPC向けに選択：このようなパソコンにちょうどよいバランスの構成です。",
-  "easy.quality.chosen.advanced": "このPC向けに選択：最高品質の構成です。このパソコンには十分な性能があります。",
+  "easy.quality.chosen.lite": "軽い構成です。このパソコンでも速く動きます。",
+  "easy.quality.chosen.standard": "このようなパソコンにちょうどよいバランスの構成です。",
+  "easy.quality.chosen.advanced": "最高品質の構成です。このパソコンには十分な性能があります。",
   "easy.quality.faster.desc": "軽くて速い構成です。答えはより簡単になります。",
   "easy.quality.best.desc": "いちばん高性能な構成です。性能の高いパソコンが必要です。",
   "easy.quality.best.small": "このパソコンは、最高品質を使うには性能が足りません。",
@@ -470,7 +470,7 @@ export const ja: Dictionary = {
   "ctl.importTitle": "PDF、PPTX、DOCX、TXT、MD > 話すポイント",
   "import.failed": "文書を読み込めませんでした：{error}",
   "ctl.settings": "設定",
-  "ctl.settingsTitle": "ローカルモデル、判定プロバイダー、プライバシー、Screen Sense",
+  "ctl.settingsTitle": "設定",
 
   // footer
   "footer.stats": "呼び出し{calls}回 · 平均{avg}ms · 費用{cost}",
@@ -814,7 +814,7 @@ export const ja: Dictionary = {
   // desktop menu
   "menu.configFolder": "設定フォルダーを開く（キーと台本）",
   "menu.editEnv": "APIキーを編集（.env）",
-  "menu.settings": "ローカルモデルとプライバシーの設定",
+  "menu.settings": "設定",
   "menu.offline": "オフラインモード（ローカルモデルのみ、外部への通信なし）",
   "menu.share": "スマートフォン用の公開リンク（どのネットワークでも）",
   "menu.shareOn": "スマートフォン用の公開リンク（オン：{url}）",

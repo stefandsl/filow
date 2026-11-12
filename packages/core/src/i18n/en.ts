@@ -145,9 +145,9 @@ export const en = {
   "easy.voice.custom": "Custom: an online voice speaks. Turn this on to use the voice on this PC.",
   "easy.tidy.custom": "Custom: only part of the tidy-up is on. Turn this on for all of it.",
   "easy.tidy.needsDictation": "Turn on Dictate into any app to use this.",
-  "easy.quality.chosen.lite": "Chosen for this PC: the light setup, so it stays fast on this computer.",
-  "easy.quality.chosen.standard": "Chosen for this PC: a good balance for a computer like this one.",
-  "easy.quality.chosen.advanced": "Chosen for this PC: the best quality, because this computer is powerful enough for it.",
+  "easy.quality.chosen.lite": "The light setup, so it stays fast on this computer.",
+  "easy.quality.chosen.standard": "A good balance for a computer like this one.",
+  "easy.quality.chosen.advanced": "The best quality, because this computer is powerful enough for it.",
   "easy.quality.faster.desc": "Lighter and quicker. Answers are simpler.",
   "easy.quality.best.desc": "The most capable setup. It needs a powerful computer.",
   "easy.quality.best.small": "This computer is not powerful enough for Best quality.",
@@ -470,7 +470,7 @@ export const en = {
   "ctl.importTitle": "PDF, PPTX, DOCX, TXT or MD > talking points",
   "import.failed": "Could not import the document: {error}",
   "ctl.settings": "Settings",
-  "ctl.settingsTitle": "Local models, decision provider, privacy, Screen Sense",
+  "ctl.settingsTitle": "Settings",
 
   // footer
   "footer.stats": "Calls {calls} · Avg {avg} ms · Cost {cost}",
@@ -814,7 +814,7 @@ export const en = {
   // desktop menu
   "menu.configFolder": "Open config folder (keys + script)",
   "menu.editEnv": "Edit API keys (.env)",
-  "menu.settings": "Local models & privacy settings",
+  "menu.settings": "Settings",
   "menu.offline": "Offline mode (local models only, no outbound requests)",
   "menu.share": "Public link for your phone (any network)",
   "menu.shareOn": "Public link for your phone (on: {url})",
