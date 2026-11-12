@@ -46,6 +46,25 @@ export const SCREEN_NOTE = "\n(Answer this question itself, from what you know. 
 export const withScreenNote = (question: string, pictures: boolean): string =>
   pictures && !question.includes("[POINT:x,y:label:screenN]") ? question + SCREEN_NOTE : question;
 
+/**
+ * Resume after Stop: the last message of the request, after the conversation, whose last turn is the
+ * part of the answer the user already has on screen.
+ */
+export const RESUME_NOTE = "Continue your previous answer from exactly where it stopped. Do not repeat anything you already wrote. Start with the next sentence, in the same language as before.";
+
+/**
+ * What takes the question's place when the user resumes a stopped answer: the instruction to carry
+ * on. Null (the question is asked as usual) unless the request says `resume` and the conversation
+ * really ends with a question and the answer to it that was stopped.
+ */
+export function resumeQuestion(history: BuddyTurn[] | undefined, resume: unknown): string | null {
+  if (resume !== true || !Array.isArray(history)) return null;
+  const last = history[history.length - 1];
+  const prev = history[history.length - 2];
+  const stopped = last?.role === "assistant" && typeof last.text === "string" && last.text.trim() !== "" && prev?.role === "user";
+  return stopped ? RESUME_NOTE : null;
+}
+
 export function buddySystemPrompt(screens: BuddyScreen[], language: string, opts: { pictures?: boolean } = {}): string {
   if (opts.pictures === false) {
     // No screenshot is sent: the user switched "Look at my screen" off, or the setup for this computer

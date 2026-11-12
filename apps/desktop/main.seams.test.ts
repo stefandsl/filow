@@ -12,14 +12,14 @@ import * as profileRules from "../../packages/core/src/profile";
 import * as hardwareRules from "../../packages/core/src/hardware";
 
 /** Evaluate untouched main.js, with startup held and all effects replaced in-process. */
-function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, childProcess = {} as Record<string, unknown>, lockHeld = false, platform = "win32" } = {}) {
+function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, childProcess = {} as Record<string, unknown>, lockHeld = false, platform = "win32", qaBuild = false } = {}) {
   // every dictionary key the shell asks for while it runs, literal or computed (mt(k), tx(key), `catalog.${n}`)
   const asked = new Set<string>();
   const recordingT = (key: string, lang: string, vars?: Record<string, string | number>) => { asked.add(key); return t(key, lang as Parameters<typeof t>[1], vars); };
   const env = { ...initialEnv };
   // single instance: the order of profile and lock calls, the app's event handlers, exit and start
   const calls: string[] = [], appHandlers: Record<string, (...args: any[]) => void> = {};
-  const appExit = vi.fn(), whenReady = vi.fn(() => ({ then() {} }));
+  const appExit = vi.fn(), whenReady = vi.fn(() => ({ then() {} })), processExit = vi.fn((code: number) => { calls.push(`process.exit ${code}`); });
   // windows main.js (and about.js) create, and the ipcMain.handle channels they register
   const windows: any[] = [], ipcHandlers: Record<string, (event: unknown, ...args: unknown[]) => unknown> = {};
   class FakeBrowserWindow extends EventEmitter {
@@ -33,6 +33,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   let requestFilter!: (details: { url: string }, cb: (r: unknown) => void) => void;
   const outbound = vi.fn(() => { throw new Error("fake network boundary: no bytes sent"); });
   const openExternal = vi.fn(async () => {}), checkForUpdates = vi.fn(async () => null);
+  const registerShortcut = vi.fn(() => true);
   const writeText = vi.fn(), showMessageBox = vi.fn(async () => ({ response: 0 }));
   const updaterHandlers: Record<string, (info: { version: string }) => void> = {}, notificationShow = vi.fn();
   const writeFileSync = vi.fn(), appendFileSync = vi.fn(), rmSync = vi.fn(), fsRead = vi.fn((..._args: unknown[]) => "FILOW_OFFLINE=1");
@@ -42,10 +43,10 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
       app: { isPackaged: true, getPath: () => "G:/fake", setPath: (name: string, value: string) => { calls.push(`setPath ${name} ${value}`); },
         on: (event: string, fn: (...args: any[]) => void) => { appHandlers[event] = fn; }, setAppUserModelId() {},
         requestSingleInstanceLock: () => { calls.push("lock"); return !lockHeld; }, exit: appExit,
-        whenReady, getLocale: () => "en", getVersion: () => "test", getGPUInfo: async () => ({}) },
+        whenReady, getLocale: () => "en", getVersion: () => "test", getGPUInfo: async () => ({}), commandLine: { appendSwitch: (...a: string[]) => { calls.push(`switch ${a.join(" ")}`); } } },
       ipcMain: { on() {}, handle: (channel: string, fn: (event: unknown, ...args: unknown[]) => unknown) => { ipcHandlers[channel] = fn; } }, BrowserWindow: FakeBrowserWindow,
       session: { defaultSession: { webRequest: { onBeforeRequest: (_filter: unknown, cb: typeof requestFilter) => { requestFilter = cb; } } } },
-      shell: { openExternal }, dialog: { showMessageBox }, clipboard: { writeText },
+      shell: { openExternal }, dialog: { showMessageBox }, clipboard: { writeText }, globalShortcut: { register: registerShortcut, unregisterAll() {} },
       Menu: { buildFromTemplate: (template: unknown) => template, setApplicationMenu() {} },
       Notification: class { static isSupported() { return true; } on() {} show() { notificationShow(); } },
       net: { isOnline: () => true }, nativeTheme: { shouldUseDarkColors: true },
@@ -59,11 +60,11 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
     "./integrity": { sha256File: async () => "" },
     "./vendor/i18n": { t: recordingT, isLang, langFromLocale }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./ui-preferences": {}, "./slideshow": {},
-    "./qa.js": { isQaBuild: (app: { isPackaged: boolean }) => !app.isPackaged }, // a packaged build without the QA marker
+    "./qa.js": { isQaBuild: (app: { isPackaged: boolean }) => qaBuild || !app.isPackaged }, // a packaged build, without the QA marker unless qaBuild
     "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
-  for (const name of ["model-files", "download", "stt", "localai", "diag", "s1-runtime", "welcome-setup", "single-instance", "about"]) {
+  for (const name of ["global-input", "model-files", "download", "stt", "localai", "diag", "s1-runtime", "welcome-setup", "single-instance", "about"]) {
     const module = { exports: {} };
     runInNewContext(readFileSync(new URL(`./${name}.js`, import.meta.url), "utf8"), {
       require: (id: string) => { if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`); return modules[id]; },
@@ -78,7 +79,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
        startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, dropInstallerChoices, setLog: text => { lastTakeLog = text; },
        setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
-       offerLocalAi, offerFirewall, welcomeSetup, settings: () => settings, patchSettings: patch => Object.assign(settings, patch),
+       offerLocalAi, offerFirewall, welcomeSetup, registerHotkey, permissionFor, copyText: text => clipboard.writeText(text), settings: () => settings, patchSettings: patch => Object.assign(settings, patch),
        onWelcomeReady, welcomeOfferForStep, chooseWelcomeSetup, setWelcomeWin: win => { welcomeWin = win; }, buildMenu, st,
        setLocalAiHardware: hw => { localAiHardware = Promise.resolve(hw); } });`, {
     require: (id: string) => {
@@ -86,11 +87,11 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
       if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`);
       return modules[id];
     },
-    __dirname: "G:/fake", process: { env, platform, arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {} },
+    __dirname: "G:/fake", process: { env, platform, arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {}, exit: processExit },
     URL, URLSearchParams, console, setTimeout, clearTimeout, AbortController,
   });
-  return { api, env, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync, rmSync, fsReads: fsRead,
-    calls, appHandlers, appExit, whenReady, windows, asked, catalog: Object.keys(modules["./localai"].CATALOG),
+  return { api, env, registerShortcut, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync, rmSync, fsReads: fsRead,
+    calls, appHandlers, appExit, processExit, whenReady, windows, asked, catalog: Object.keys(modules["./localai"].CATALOG),
     ipc: async (channel: string, win: { webContents: unknown }, ...args: unknown[]) => ipcHandlers[channel]({ sender: win.webContents }, ...args),
     blocked: (url: string) => { let result: any; requestFilter({ url }, r => { result = r; }); return result.cancel === true; } };
 }
@@ -680,5 +681,46 @@ describe("single instance per profile", () => {
     f.appHandlers["second-instance"]({}, ["Filow.exe"], "G:/");
     expect(welcome.focused).toBe(true);
     expect(main.show, "the main window is not shown over the welcome").not.toHaveBeenCalled();
+  });
+});
+
+describe("test isolation: FILOW_QA_NO_GLOBAL_INPUT=1 (global-input.js)", () => {
+  it("registers no global shortcut, refuses the microphone, never writes the clipboard and gives Chromium its fake device", () => {
+    const f = fixture({ FILOW_QA_NO_GLOBAL_INPUT: "1" }, { qaBuild: true });
+    expect(f.processExit).not.toHaveBeenCalled();
+    f.api.patchSettings({ screenSense: true, screenHotkey: "Control+Alt+S" });
+    f.api.registerHotkey();
+    expect(f.registerShortcut).not.toHaveBeenCalled();
+    expect(f.api.permissionFor("media")).toBe(false);
+    expect(f.api.permissionFor("display-capture")).toBe(true);
+    f.api.copyText("from the test instance");
+    expect(f.writeText).not.toHaveBeenCalled();
+    expect(f.calls).toContain("switch use-fake-device-for-media-stream");
+  });
+  it("control: without the switch the same calls reach Electron", () => {
+    const f = fixture();
+    f.api.patchSettings({ screenSense: true, screenHotkey: "Control+Alt+S" });
+    expect(f.api.registerHotkey()).toEqual({ ok: true });
+    expect(f.registerShortcut).toHaveBeenCalledOnce();
+    expect(f.api.permissionFor("media")).toBe(true);
+    f.api.copyText("from the user");
+    expect(f.writeText).toHaveBeenCalledWith("from the user");
+    expect(f.calls.filter((c: string) => c.startsWith("switch "))).toEqual([]);
+    expect(f.processExit).not.toHaveBeenCalled();
+  });
+  // STANDARDS SEC-13: a released build has no test mode. Started with the switch it cannot run isolated,
+  // so it leaves before it touches a profile, the instance lock, a Chromium switch or a window.
+  it("a released build started with the switch leaves at once, before the profile, the lock and any window", () => {
+    const f = fixture({ FILOW_QA_NO_GLOBAL_INPUT: "1", FILOW_USER_DATA_DIR: "G:/fake/profile" });
+    expect(f.processExit).toHaveBeenCalledWith(1);
+    expect(f.calls[0]).toBe("process.exit 1");
+    // what the stand-in exit lets run afterwards is a normal Filow, never a half isolated one
+    expect(f.calls).not.toContain("switch use-fake-device-for-media-stream");
+  });
+  it("the fake microphone and the socket log stay off in a released build, and work in a QA build", () => {
+    const f = fixture({ FILOW_OKF_FAKE_MIC: "G:/fake/take.wav" });
+    expect(f.calls.filter((c: string) => c.startsWith("switch "))).toEqual([]);
+    const qa = fixture({ FILOW_OKF_FAKE_MIC: "G:/fake/take.wav" }, { qaBuild: true });
+    expect(qa.calls).toContain("switch use-file-for-fake-audio-capture G:/fake/take.wav");
   });
 });

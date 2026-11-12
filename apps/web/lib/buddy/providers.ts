@@ -35,6 +35,8 @@ export type BuddyAskRequest = {
    * the real thing; it is never part of a prompt and is not forwarded to any provider.
    */
   elements?: unknown;
+  /** Resume after Stop: the conversation ends with the part of the answer the user saw, and the model carries on from it (lib/buddy/prompt.ts resumeQuestion). */
+  resume?: boolean;
 };
 
 /**

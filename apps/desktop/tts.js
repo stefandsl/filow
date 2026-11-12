@@ -533,7 +533,7 @@ function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOff
           rate = chunk.sampleRate;
           kept.push(chunk.samples, new Float32Array(chunk.last ? 0 : Math.round((rate * chunk.pause) / 1000)));
         }
-        if (!wc.isDestroyed()) wc.send("okfilow:tts:chunk", { id, seq: chunk.seq, last: chunk.last, samples: chunk.samples, sampleRate: chunk.sampleRate, pause: chunk.pause });
+        if (!wc.isDestroyed()) wc.send("okfilow:tts:chunk", { id, seq: chunk.seq, last: chunk.last, samples: chunk.samples, sampleRate: chunk.sampleRate, pause: chunk.pause, text: chunk.text });
       });
       logLine(`tts: ${lang} voice ${sid} ${used.level} ${out.sent}/${out.chunks} pieces, first audio ${out.firstMs} ms, rtf ${out.rtf.toFixed(2)}${out.cancelled ? ", cut short" : ""}`);
       if (qaDir) {

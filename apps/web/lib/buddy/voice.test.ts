@@ -102,6 +102,8 @@ function fakePlayer() {
     remaining() { return p.stopped ? 0 : p.left; },
     played: () => 1.234,
     stop() { p.stopped++; },
+    pause() {},
+    resume() {},
     state: () => "running",
   };
   return p satisfies ChunkPlayer;

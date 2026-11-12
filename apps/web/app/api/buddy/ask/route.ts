@@ -6,9 +6,9 @@ import { askBuddy, buddyCloudRecipient, resolveBuddyProvider, resolveLocalHelper
 import { answerLanguage } from "@/lib/buddy/lang";
 import { drawnAnswer } from "@/lib/buddy/draw";
 import { wantsDrawing } from "@/lib/buddy/visuals";
-import { photoAnswer, wantsPhoto } from "@/lib/buddy/photo";
+import { photoAnswer, photoOnly } from "@/lib/buddy/photo";
 import { isPointOnly, pointQuestion, POINTER_MAX_TOKENS, POINTER_MS, POINTING_TOTAL_MS, withPointer } from "@/lib/buddy/pointer";
-import { buddySystemPrompt } from "@/lib/buddy/prompt";
+import { buddySystemPrompt, resumeQuestion } from "@/lib/buddy/prompt";
 import { ASKED_SYSTEM, canPick, namedInQuestion, PICK_MAX_TOKENS, PICK_MS, PICK_SYSTEM, pickedIndex, pickNames, pickQuestion, plainName, sanitizeElements, screenHint, withNamedPoint, withPlacedTags } from "@/lib/buddy/ground";
 import { okfText } from "@/lib/buddy/text";
 import { placeholderLeaks } from "@/lib/pii/guard";
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   // screenshot and no provider are needed, so nothing of the question goes anywhere and the answer is
   // immediate on every computer. The picture itself is fetched by the page from Wikipedia, only after the
   // user's yes for Wikipedia (the subject's name is all that is sent); in Offline mode the answer says why none comes.
-  const photo = wantsDrawing(question) ? null : wantsPhoto(question);
+  const photo = photoOnly(question, { drawing: wantsDrawing(question) !== null, resume: body.resume === true });
   if (photo) {
     const photoLang = answerLanguage(question, body.language, req.headers.get("accept-language")) ?? "en";
     const said = process.env.FILOW_OFFLINE === "1" ? okfText(photoLang)("photoOffline") : photoAnswer(photo, okfText(photoLang)("photoHere"));
@@ -100,9 +100,13 @@ export async function POST(req: Request) {
   // What Windows names on each screen (lib/buddy/ground.ts): used below to place points and boxes, and
   // taken out of what the providers get, so the list stays on this PC whatever answers.
   const elements = images.length ? sanitizeElements(body.elements, screens.length) : [];
-  const ask: BuddyAskRequest = { ...body, elements: undefined, question, images, screens, consent, sees, language: known ?? "auto" };
+  // Resume after Stop: the conversation ends with the part of the answer the user saw; the model is
+  // told to carry on from it instead of being asked the question a second time. The language, the
+  // helper and the screenshots above were all chosen from the question itself.
+  const carryOn = resumeQuestion(body.history, body.resume);
+  const ask: BuddyAskRequest = { ...body, elements: undefined, question: carryOn ?? question, images, screens, consent, sees, language: known ?? "auto" };
   // A plain request for a drawing or a 3D model is answered with one (lib/buddy/draw.ts): it needs no screenshot.
-  const drawing = wantsDrawing(question);
+  const drawing = carryOn ? null : wantsDrawing(question);
   // On this PC a setup may answer with one model and place the points with another (lib/buddy/pointer.ts).
   const pointer = provider === "local" && !drawing && helper?.pictures && !isPointOnly(question) ? helper.pointer : undefined;
   // Everything that places points after the answer shares one allowance, so three hard labels cannot hold the voice for long.
@@ -152,7 +156,8 @@ export async function POST(req: Request) {
   }
   // The thing the question itself names, when Windows lists it: the answering model on this PC is told
   // where it is (only names the question already holds), and an answer that still points at nothing gets the point.
-  const named = elements.length && !drawing && !isPointOnly(question) ? namedInQuestion(question, elements) : [];
+  // (not when an answer is carried on after Stop: its question was already asked, hint and all)
+  const named = elements.length && !drawing && !carryOn && !isPointOnly(question) ? namedInQuestion(question, elements) : [];
   const asked: BuddyAskRequest = provider === "local" && named.length ? { ...ask, question: question + screenHint(named, screens.length) } : ask;
   // Made inside the stream: a refused consent throws here and must reach the bubble as an error line.
   const pieces = () => drawing
@@ -185,6 +190,6 @@ export async function POST(req: Request) {
   });
   return new Response(stream, {
     // X-Buddy-Sees "text": no picture went to the model, so the page asks for no point on screen
-    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Buddy-Provider": provider, "X-Buddy-Lang": lang, "X-Buddy-Sees": drawing || sees === false || (helper && !helper.pictures) ? "text" : "screen" },
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Buddy-Provider": provider, "X-Buddy-Lang": lang, "X-Buddy-Resume": carryOn ? "1" : "0", "X-Buddy-Sees": drawing || sees === false || (helper && !helper.pictures) ? "text" : "screen" },
   });
 }

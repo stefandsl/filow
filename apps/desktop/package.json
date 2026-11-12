@@ -26,7 +26,7 @@
   },
   "devDependencies": {
     "@filow/core": "*",
-    "electron": "45.3.0",
+    "electron": "45.3.1",
     "electron-builder": "26.18.0",
     "electron-updater": "^6.8.11",
     "esbuild": "0.28.2"
@@ -34,7 +34,7 @@
   "build": {
     "beforePack": "./before-pack.js",
     "appId": "com.intelliprompter.app",
-    "electronVersion": "45.3.0",
+    "electronVersion": "45.3.1",
     "npmRebuild": false,
     "afterPack": "./after-pack.js",
     "artifactName": "Filow-${version}-${os}-${arch}.${ext}",
@@ -94,6 +94,7 @@
       "okfilow-gestures.js",
       "okfilow-hook-retry.js",
       "uiohook.js",
+      "global-input.js",
       "dictation-target.js",
       "dictation-diag.js",
       "dictation-cleanup.js",

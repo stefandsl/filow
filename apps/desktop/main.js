@@ -5,7 +5,7 @@
 //     the mirror; the spend endpoints are gated by a per-launch random password.
 //   Hosted mode: FILOW_SESSION_URL (+ ACCESS_PASSWORD) in .env points the
 //     engine at a public session server; local servers stay on 127.0.0.1.
-const { app, BrowserWindow, Menu, shell, session, dialog, desktopCapturer, globalShortcut, ipcMain, screen, nativeTheme, systemPreferences, Notification, clipboard } = require("electron");
+const { app, BrowserWindow, Menu, shell, session, dialog, desktopCapturer, globalShortcut: electronShortcuts, ipcMain, screen, nativeTheme, systemPreferences, Notification, clipboard: electronClipboard } = require("electron");
 
 // Links leave the app only as web or mail addresses: never file:, custom protocols or scripts.
 function openExternalSafe(url) {
@@ -43,6 +43,23 @@ function guardNavigation(win) {
     return { action: "deny" };
   });
 }
+// Test isolation (global-input.js): with FILOW_QA_NO_GLOBAL_INPUT=1 this run registers no global shortcut, never
+// writes the clipboard and never opens a real microphone (Chromium uses its fake device instead).
+// A test switch like the others (qa.js): development and QA packages only. A released build started with it
+// leaves before it opens a profile, a window, a hook or a port, rather than run without the isolation.
+const { globalInputOff, refusedInRelease, shortcutsFor, clipboardFor, permissionAllowed, OFF_LINE, REFUSED_LINE } = require("./global-input");
+if (refusedInRelease(process.env, require("./qa.js").isQaBuild(app))) {
+  console.error(REFUSED_LINE);
+  process.exit(1);
+}
+const INPUT_OFF = globalInputOff(process.env, require("./qa.js").isQaBuild(app));
+const globalShortcut = shortcutsFor(electronShortcuts, INPUT_OFF);
+const clipboard = clipboardFor(electronClipboard, INPUT_OFF);
+/** Shows a window at start; with test isolation on, without taking the keyboard from the window the person is using. */
+const showAtStart = (w) => (INPUT_OFF ? w.showInactive() : w.show());
+if (INPUT_OFF) app.commandLine.appendSwitch("use-fake-device-for-media-stream");
+/** Microphone, screen capture and notifications for the app's own pages (the microphone never with test isolation on, unless a test recording stands in). */
+const permissionFor = (permission) => permissionAllowed(permission, { off: INPUT_OFF, fakeMic: Boolean(process.env.FILOW_OKF_FAKE_MIC) && require("./qa.js").isQaBuild(app) });
 // Test builds only: FILOW_OKF_FAKE_MIC=<wav> feeds that file to every microphone, so OK Filow's voice
 // paths can be checked end to end without a person talking.
 // QA builds only (apps/desktop/qa.js): never unlocked by a file next to the exe.
@@ -1373,7 +1390,7 @@ function showSplash() {
   const shown = new Promise((resolve) => {
     const show = () => {
       if (!w.isDestroyed() && !w.isVisible()) {
-        w.show();
+        showAtStart(w);
         logLine(`splash shown (${Math.round(performance.now())} ms after process start)`);
       }
       resolve();
@@ -1488,7 +1505,7 @@ function wantPunctuationModel(why) {
 let dictation = null;
 function getDictation() {
   if (dictation) return dictation;
-  const { clipboard, ClipboardItem, BrowserWindow: BW, systemPreferences, dialog: dlg } = require("electron");
+  const { ClipboardItem, BrowserWindow: BW, systemPreferences, dialog: dlg } = require("electron");
   dictation = require("./dictation").createDictation({
     text: (key) => sharedText(key, menuLang()),
     getSettings: () => settings,
@@ -2166,7 +2183,7 @@ function buildMenu(win) {
         { label: sharedText("menu.welcome", menuLang()), click: () => void showWelcome() },
         { label: mt("configFolder"), click: () => shell.openPath(userData) },
         { label: mt("editEnv"), click: () => shell.openPath(envFile) },
-        { label: mt("settings"), click: () => win.loadURL(APP_URL + "/settings/local") },
+        { label: mt("settings"), click: () => win.loadURL(APP_URL + "/settings") },
         { label: mt("offline"), type: "checkbox", checked: offline, click: (item) => applyOffline(win, item.checked) },
         { type: "separator" },
         {
@@ -2304,9 +2321,9 @@ async function main() {
   }
 
   // Microphone and screen capture for the engine.
-  const allowed = (permission) => permission === "media" || permission === "display-capture" || permission === "notifications";
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(allowed(permission)));
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => allowed(permission));
+  if (INPUT_OFF) logLine(OFF_LINE);
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(permissionFor(permission)));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => permissionFor(permission));
 
   const win = new BrowserWindow({
     width: 1280,
@@ -2322,7 +2339,7 @@ async function main() {
     if (win.isDestroyed() || win.isVisible()) return;
     logLine(`startup watchdog: still at "${startupStage}" after ${STARTUP_WATCHDOG_MS / 1000} s, showing the window`);
     closeSplash();
-    win.show();
+    showAtStart(win);
   }, STARTUP_WATCHDOG_MS);
   win.once("show", () => clearTimeout(watchdog));
   reloadOnCrash(win, "main");
@@ -2409,7 +2426,7 @@ async function main() {
     const wait = Math.max(400, SPLASH_MIN_MS - (Date.now() - splashShownAt));
     setTimeout(() => {
       closeSplash();
-      if (!win.isDestroyed()) win.show();
+      if (!win.isDestroyed()) showAtStart(win);
       logLine(`main window shown (${Math.round(performance.now())} ms after process start)`);
     }, wait);
     setTimeout(() => void checkForUpdates(), 8000); // after the servers and the tunnel; silent unless an update lands
