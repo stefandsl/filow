@@ -1,6 +1,6 @@
 # Filow hand-off
 
-Last updated 2026-11-10 ("Where it stands" header and stale file references only). Written so that
+Last updated 2026-11-12 (faster answers, onboarding and accounts). Written so that
 another agent (Codex, Claude, a human) can continue without the chat history. Update this file at the
 end of every working session: "Where it stands", "Pending" and "Known gaps" are the parts that rot.
 
@@ -14,7 +14,27 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.30)
+## Where it stands (v0.9.35 + current branch)
+
+- Work in progress on `feat/fast-onboarding-account`, based on v0.9.35 / `e6b84c9`:
+  - Assistant speech queues complete sentences while the answer streams; validated screen marks
+    appear immediately. Stop/error cancels queued speech. This improves time to first output, not
+    the model's underlying generation speed.
+  - Welcome includes an original local 18-second MP4, captions and translated transcript. Opt-in
+    practice opens after startup and preserves the model-download settings destination.
+  - `/tour` drives real native overlays around a practice control, then offers a separate real
+    assistant question using existing screen/consent settings. Guided targets are clearly labeled.
+  - `/account` and the separate `apps/cloud` service implement email/device sign-in, OS-encrypted
+    desktop tokens, Stripe checkout/portal and server subscription status. No cloud or merchant
+    account has been deployed/configured. Read `apps/cloud/README.md` before operating it.
+  - Full tests passed: 176 files / 2,185 tests (5 tests skipped). Typecheck and lint passed;
+    production build validation details are in
+    `docs/FAST-ONBOARDING-ACCOUNT.md`. Windows UI was checked in an isolated G: profile with a fake
+    microphone, including video playback and native overlay routing, in dark and light themes.
+  - Still required for public sales: real SMTP/domain, Stripe test acceptance and final price,
+    deployment, production keys/webhooks, paid feature/quota enforcement and signed release testing.
+    No installer was published. The unrelated root `okfilow.js` was present before this work and was
+    left untouched. Test files/caches/profile live on G:.
 
 - Landed after the 0.9.30 release (2026-11-06 to 2026-11-10): OK Filow, the screen helper,
   with the outbound notice (nothing leaves the PC without a yes, every send is shown;
