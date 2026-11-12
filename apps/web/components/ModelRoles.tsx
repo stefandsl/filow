@@ -9,6 +9,7 @@ import { useT } from "@filow/ui";
 import { engineHeaders } from "./useSession";
 import { modelsBridge } from "./ModelControls";
 import type { DeviceModels } from "@/lib/modelUse";
+import { DESKTOP_HEADER } from "@/lib/modelRoles/view";
 import { TASKS, type OllamaTaskId, type SpeechTaskId, type TaskId } from "@/lib/modelRoles/tasks";
 import { missingPin, ollamaGroups, optionValue, parseOption, selectedValue, speechGroup, type RoleGroup, type RolesData, type RolesServer } from "@/lib/modelRoles/view";
 
@@ -17,9 +18,20 @@ type Ask = { task: OllamaTaskId; source: string; model: string; server: RolesSer
 
 const SINGLE_KIND: Record<"cleanup" | "punctuation" | "voice", string> = { cleanup: "cleanup", punctuation: "punctuation", voice: "voice" };
 
+/** This launch's token from the desktop window's bridge: only that window may change where tasks run. */
+async function desktopHeader(): Promise<Record<string, string>> {
+  const bridge = (globalThis as { filow?: { desktopToken?: () => Promise<string> } }).filow;
+  try {
+    const token = bridge?.desktopToken ? await bridge.desktopToken() : "";
+    return token ? { [DESKTOP_HEADER]: token } : {};
+  } catch {
+    return {};
+  }
+}
+
 async function put(body: unknown): Promise<{ ok: boolean; code?: string }> {
   try {
-    const res = await fetch("/api/local/roles", { method: "PUT", headers: { "Content-Type": "application/json", ...engineHeaders() }, body: JSON.stringify(body) });
+    const res = await fetch("/api/local/roles", { method: "PUT", headers: { "Content-Type": "application/json", ...engineHeaders(), ...(await desktopHeader()) }, body: JSON.stringify(body) });
     const json = (await res.json().catch(() => ({}))) as { ok?: boolean; code?: string };
     return res.ok ? { ok: true } : { ok: false, code: json.code ?? "failed" };
   } catch {

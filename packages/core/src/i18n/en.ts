@@ -824,6 +824,7 @@ export const en = {
   "roles.err.offline": "Filow is offline: nothing can go to another computer now.",
   "roles.err.this_pc_only": "This can only be changed in the Filow window on this PC.",
   "roles.err.too_large": "That is too long.",
+  "roles.err.no_secret_store": "This computer cannot keep a password safely here: add the address without one.",
   "roles.onServer": "{model} on {name}",
   "roles.autoPointing": "Automatic (the answering model points)",
   "roles.nowPointing": "Now: {model} answers and places the points itself.",

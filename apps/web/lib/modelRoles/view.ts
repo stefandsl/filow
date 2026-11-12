@@ -21,7 +21,10 @@ export type SpeechRole = { auto: string | null; active: string | null; pin: stri
 export type RoleOption = { value: string; source: string; model: string; label: string; unfit: Unfit | "language" | null };
 export type RoleGroup = { source: string; serverName: string | null; reachable: boolean; options: RoleOption[] };
 
-export const optionValue = (source: string, model: string) => `${source}|${model}`;
+/** The header the desktop window sends its launch token in (desktopAuth.ts checks it on the server). */
+export const DESKTOP_HEADER = "x-filow-desktop";
+
+export const optionValue =(source: string, model: string) => `${source}|${model}`;
 export function parseOption(value: string): { source: string; model: string } | null {
   const i = value.indexOf("|");
   return i > 0 ? { source: value.slice(0, i), model: value.slice(i + 1) } : null;

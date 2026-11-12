@@ -4,7 +4,7 @@
 // do the task, its server answers, and (for a server) the user said yes to sending there. Otherwise
 // the automatic pick on this PC, with the reason, never the cloud.
 import { OLLAMA_URL } from "@/lib/decide/clef";
-import { readRoles, type Pin, type RolesFile } from "./store";
+import { readRoles, serverAddress, type Pin, type RolesFile } from "./store";
 import { redactUrl, type ModelServer } from "./servers";
 import { sameModel, taskDef, unfitFor, type OllamaModelInfo, type OllamaTaskId } from "./tasks";
 
@@ -88,7 +88,7 @@ export function forgetLists() {
 export const localPlace = (): Place => ({ base: OLLAMA_URL(), headers: {}, server: null });
 
 export function placeOf(server: ModelServer): Place {
-  const { base, headers } = requestParts(server.url);
+  const { base, headers } = requestParts(serverAddress(server));
   return { base, headers, server: { id: server.id, name: server.name } };
 }
 
@@ -107,7 +107,7 @@ export async function checkPin(task: OllamaTaskId, pin: Pin, roles: RolesFile): 
     // offline means nothing leaves this PC, the user's own computers included
     if (process.env.FILOW_OFFLINE === "1") return { ok: false, reason: "offline" };
     place = placeOf(server);
-    url = server.url;
+    url = serverAddress(server);
   }
   const list = await listSource(url);
   if (!list.reachable) return { ok: false, reason: "unreachable" };

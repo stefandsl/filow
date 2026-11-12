@@ -814,6 +814,7 @@ export const ro: Dictionary = {
   "roles.err.offline": "Filow este offline: acum nimic nu poate pleca la alt calculator.",
   "roles.err.this_pc_only": "Asta se poate schimba doar în fereastra Filow de pe acest PC.",
   "roles.err.too_large": "Este prea lung.",
+  "roles.err.no_secret_store": "Aici acest calculator nu poate păstra o parolă în siguranță: adaugă adresa fără ea.",
   "roles.onServer": "{model} pe {name}",
   "roles.autoPointing": "Automat (modelul care răspunde indică și el)",
   "roles.nowPointing": "Acum: {model} răspunde și indică singur pe ecran.",

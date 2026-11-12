@@ -3,7 +3,9 @@ import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, PUT } from "@/app/api/local/roles/route";
 import { forgetLists } from "./resolve";
-import { readRoles } from "./store";
+import { createHmac } from "node:crypto";
+import { readRoles, serverAddress } from "./store";
+import { DESKTOP_HEADER } from "./view";
 import { missingPin, ollamaGroups, selectedValue, speechGroup, type RolesData } from "./view";
 
 const DIR = path.join(process.cwd(), "tmp", `model-roles-route-${process.pid}`);
@@ -90,13 +92,25 @@ describe("PUT /api/local/roles", () => {
     await put({ action: "pin", task: "translate", pin: { source: id, model: "qwen3-vl:8b", agreed: true } });
     expect(await localTranslateState()).toMatchObject({ ok: true, model: "qwen3-vl:8b", place: { base: RIG, server: { id, name: "Rig" } } });
   });
-  it("only the desktop window on this PC can change where tasks run: a phone or a tunnel visitor cannot", async () => {
-    const from = (url: string, headers: Record<string, string> = {}) => PUT(new Request(url, { method: "PUT", headers, body: JSON.stringify({ action: "addServer", url: "10.0.0.9" }) }));
-    expect((await from("http://192.168.1.5:4747/api/local/roles")).status).toBe(403);
-    expect((await from("http://127.0.0.1:4747/api/local/roles", { origin: "http://192.168.1.5:4747" })).status).toBe(403);
-    expect((await from("http://127.0.0.1:4747/api/local/roles", { "cf-connecting-ip": "8.8.8.8" })).status).toBe(403);
+  it("only the desktop window, with this launch's token, can change where tasks run", async () => {
+    vi.stubEnv("FILOW_DESKTOP_TOKEN", "launch-token-123");
+    const from = (headers: Record<string, string> = {}) => PUT(new Request("http://127.0.0.1:4747/api/local/roles", { method: "PUT", headers, body: JSON.stringify({ action: "addServer", url: "10.0.0.9" }) }));
+    expect((await from()).status).toBe(403);
+    expect((await from({ [DESKTOP_HEADER]: "launch-token-12" })).status).toBe(403);
+    expect((await from({ [DESKTOP_HEADER]: "launch-token-124" })).status).toBe(403);
     expect(readRoles(FILE).servers).toEqual([]);
-    expect((await from("http://localhost:4747/api/local/roles", { origin: "http://localhost:4747" })).status).toBe(200);
+    expect((await from({ [DESKTOP_HEADER]: "launch-token-123" })).status).toBe(200);
+    // and reading stays open to the page
+    expect((await GET(new Request("http://127.0.0.1:4747/api/local/roles"))).status).toBe(200);
+  });
+  it("a paired client with a valid engine token still cannot: it never has the window's token", async () => {
+    vi.stubEnv("ACCESS_PASSWORD", "pw");
+    const exp = String(Date.now() + 60_000);
+    const mac = createHmac("sha256", "pw").update(`phone.${exp}`).digest("base64url");
+    const engine = { authorization: `Bearer ${Buffer.from("phone").toString("base64url")}.${exp}.${mac}` };
+    const res = await PUT(new Request("http://127.0.0.1:4747/api/local/roles", { method: "PUT", headers: engine, body: JSON.stringify({ action: "addServer", url: "10.0.0.9" }) }));
+    expect(res.status).toBe(403);
+    expect(readRoles(FILE).servers).toEqual([]);
   });
   it("this PC under another spelling is not a server", async () => {
     expect(await (await put({ action: "addServer", url: "http://localhost:11434/" })).json()).toMatchObject({ code: "duplicate" });
@@ -122,11 +136,37 @@ describe("PUT /api/local/roles", () => {
     expect((await saving).status).toBe(200);
     expect(readRoles(FILE)).toEqual({ version: 1, servers: [], pins: { translate: { source: "local", model: "llama3.2:3b" } } });
   });
-  it("GET never shows a password typed into a server address", async () => {
-    await put({ action: "addServer", name: "Proxy", url: "http://me:s3cret@192.168.1.20:11434" });
-    const view = JSON.stringify(await get());
-    expect(view).not.toContain("s3cret");
-    expect(view).toContain('"url":"http://192.168.1.20:11434"');
+  describe("a server's password", () => {
+    /** Stands in for Electron safeStorage: reversible, and never the plain text. */
+    const box = { available: () => true, encrypt: (s: string) => Buffer.from(`sealed|${s}`).toString("base64"), decrypt: (b: string) => Buffer.from(b, "base64").toString().replace(/^sealed\|/, "") };
+    afterEach(() => { delete (globalThis as { __filowSecretBox?: unknown }).__filowSecretBox; });
+
+    it("is kept only encrypted by the key store, used for that server's requests, never shown", async () => {
+      (globalThis as { __filowSecretBox?: unknown }).__filowSecretBox = box;
+      expect((await put({ action: "addServer", name: "Proxy", url: "http://me:s3cret@192.168.1.20:11434" })).status).toBe(200);
+      const file = fs.readFileSync(FILE, "utf8");
+      expect(file).not.toContain("s3cret");
+      const server = readRoles(FILE).servers[0];
+      expect(server).toMatchObject({ url: RIG, secret: box.encrypt("me:s3cret") });
+      expect(serverAddress(server)).toBe("http://me:s3cret@192.168.1.20:11434");
+      const view = JSON.stringify(await get());
+      expect(view).not.toContain("s3cret");
+      expect(view).not.toContain(server.secret!);
+      expect(view).toContain(`"url":"${RIG}"`);
+    });
+    it("an older file with a password in clear text is rewritten encrypted on first read", () => {
+      (globalThis as { __filowSecretBox?: unknown }).__filowSecretBox = box;
+      fs.writeFileSync(FILE, JSON.stringify({ version: 1, servers: [{ id: "rig1", name: "Rig", url: "http://me:s3cret@192.168.1.20:11434" }], pins: {} }));
+      expect(readRoles(FILE).servers[0]).toEqual({ id: "rig1", name: "Rig", url: RIG, secret: box.encrypt("me:s3cret") });
+      expect(fs.readFileSync(FILE, "utf8")).not.toContain("s3cret");
+    });
+    it("without a key store it is refused, never written", async () => {
+      expect(await (await put({ action: "addServer", url: "http://me:s3cret@192.168.1.20:11434" })).json()).toMatchObject({ code: "no_secret_store" });
+      expect(fs.existsSync(FILE) ? fs.readFileSync(FILE, "utf8") : "").not.toContain("s3cret");
+      // and one already in an old file is not used, nor kept on the next write
+      fs.writeFileSync(FILE, JSON.stringify({ version: 1, servers: [{ id: "rig1", name: "Rig", url: "http://me:s3cret@192.168.1.20:11434" }], pins: {} }));
+      expect(readRoles(FILE).servers[0]).toEqual({ id: "rig1", name: "Rig", url: RIG });
+    });
   });
 });
 

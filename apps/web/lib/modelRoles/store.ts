@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { isTaskId, type TaskId } from "./tasks";
-import { MAX_SERVERS, normaliseServerUrl, serverName, type ModelServer } from "./servers";
+import { MAX_SERVERS, normaliseServerUrl, redactUrl, serverName, type ModelServer } from "./servers";
 
 /** "local": this PC (the Ollama Filow talks to anyway, OLLAMA_URL); otherwise a server id. */
 export type Pin = { source: string; model: string; agreed?: true };
@@ -20,16 +20,47 @@ export function rolesPath(): string {
   return path.join(path.dirname(script), "model-roles.json");
 }
 
-/** Anything that is not a valid entry is dropped: an old or hand-edited file never breaks a feature. */
-export function cleanRoles(raw: unknown): RolesFile {
+/**
+ * The OS key store, the one the desktop app keeps its API keys in (apps/desktop/secrets.js: Electron
+ * safeStorage, DPAPI on Windows). main.js hands it to this in-process server; absent in a browser-only
+ * run, where a server password cannot be kept at all.
+ */
+export type SecretBox = { available(): boolean; encrypt(text: string): string; decrypt(base64: string): string };
+export const secretBox = (): SecretBox | null => {
+  const box = (globalThis as { __filowSecretBox?: SecretBox }).__filowSecretBox;
+  try {
+    return box && box.available() ? box : null;
+  } catch {
+    return null;
+  }
+};
+
+/** A user and password typed into an address: what the key store keeps, never the file. */
+function credentialsOf(url: unknown): string | null {
+  try {
+    const u = new URL(String(url));
+    return u.username || u.password ? `${decodeURIComponent(u.username)}:${decodeURIComponent(u.password)}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Anything that is not a valid entry is dropped: an old or hand-edited file never breaks a feature.
+ * A password still written in an address (an older file, a hand edit) is moved into `secret`,
+ * encrypted with the key store; without a key store it is dropped, never kept in clear text.
+ */
+export function cleanRoles(raw: unknown, box: SecretBox | null = secretBox()): RolesFile {
   const r = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const servers: ModelServer[] = [];
   for (const s of Array.isArray(r.servers) ? r.servers : []) {
     if (!s || typeof s !== "object") continue;
-    const { id, name, url } = s as Record<string, unknown>;
+    const { id, name, url, secret } = s as Record<string, unknown>;
     const ok = normaliseServerUrl(url);
     if (typeof id !== "string" || !/^[a-z0-9-]{1,40}$/i.test(id) || id === "local" || !ok.ok || servers.some((x) => x.id === id)) continue;
-    servers.push({ id, name: serverName(name, ok.url), url: ok.url });
+    const plain = credentialsOf(ok.url);
+    const sealed = plain && box ? box.encrypt(plain) : typeof secret === "string" && /^[A-Za-z0-9+/=]{1,4096}$/.test(secret) ? secret : undefined;
+    servers.push({ id, name: serverName(name, ok.url), url: redactUrl(ok.url), ...(sealed ? { secret: sealed } : {}) });
     if (servers.length >= MAX_SERVERS) break;
   }
   const pins: RolesFile["pins"] = {};
@@ -57,12 +88,30 @@ export function readRoles(file = rolesPath()): RolesFile {
   if (cache && cache.file === file && cache.mtime === mtime) return cache.value;
   let value = EMPTY;
   try {
-    value = cleanRoles(JSON.parse(fs.readFileSync(file, "utf8")));
+    const raw = JSON.parse(fs.readFileSync(file, "utf8")) as { servers?: Array<{ url?: unknown }> };
+    value = cleanRoles(raw);
+    // a password found in clear text is rewritten encrypted at once (only when the key store can keep it)
+    if (secretBox() && (raw.servers ?? []).some((s) => credentialsOf(s?.url))) return writeRoles(value, file);
   } catch {
     /* unreadable: as if nothing was chosen */
   }
   cache = { file, mtime, value };
   return value;
+}
+
+/** The address with its password, decrypted for the one request that needs it; never stored or shown. */
+export function serverAddress(server: ModelServer, box: SecretBox | null = secretBox()): string {
+  if (!server.secret || !box) return server.url;
+  try {
+    const plain = box.decrypt(server.secret);
+    const i = plain.indexOf(":");
+    const u = new URL(server.url);
+    u.username = encodeURIComponent(i < 0 ? plain : plain.slice(0, i));
+    u.password = encodeURIComponent(i < 0 ? "" : plain.slice(i + 1));
+    return u.toString().replace(/\/+$/, "");
+  } catch {
+    return server.url;
+  }
 }
 
 /** Writes through a temporary file, so a crash never leaves half a file. */

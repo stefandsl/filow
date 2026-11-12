@@ -8,8 +8,9 @@ import { OLLAMA_URL } from "@/lib/decide/clef";
 import { ollamaElsewhere } from "@/lib/translateLocal";
 import { gpuInfo, machineInfo } from "@/lib/sysinfo";
 import { automatic } from "@/lib/modelRoles/auto";
+import { fromDesktop } from "@/lib/modelRoles/desktopAuth";
 import { listSource, taskTarget, type SourceList } from "@/lib/modelRoles/resolve";
-import { newServerId, readRoles, writeRoles, type Pin } from "@/lib/modelRoles/store";
+import { newServerId, readRoles, secretBox, serverAddress, writeRoles, type Pin } from "@/lib/modelRoles/store";
 import { MAX_SERVERS, normaliseServerUrl, redactUrl, serverName, serverWarnings, whereIs } from "@/lib/modelRoles/servers";
 import { OLLAMA_TASKS, canChat, canSee, isClef, isOllamaTask, isSpeechTask, isTaskId, sameModel, taskDef, unfitFor } from "@/lib/modelRoles/tasks";
 
@@ -29,7 +30,7 @@ export async function GET(req: Request) {
   const roles = readRoles();
   // offline: not even the list of models is asked of another computer
   const offline = process.env.FILOW_OFFLINE === "1";
-  const [here, ...lists] = await Promise.all([listSource(OLLAMA_URL(), fresh), ...roles.servers.map((s) => (offline ? Promise.resolve({ reachable: false, models: [] }) : listSource(s.url, fresh)))]);
+  const [here, ...lists] = await Promise.all([listSource(OLLAMA_URL(), fresh), ...roles.servers.map((s) => (offline ? Promise.resolve({ reachable: false, models: [] }) : listSource(serverAddress(s), fresh)))]);
   const names = here.models.map((m) => m.name);
   const pref = new URL(req.url).searchParams.get("setup");
   const key = `${pref}|${names.join(",")}`;
@@ -52,23 +53,6 @@ type PutBody = { action?: unknown; task?: unknown; pin?: unknown; name?: unknown
 const bad = (code: string, status = 400) => NextResponse.json({ error: code, code }, { status });
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
-/**
- * Where the per-task choices can be changed: the desktop window, which talks to this server on
- * 127.0.0.1. A phone, the PowerPoint pane or a tunnel visitor reaches it by another address (and a
- * browser cannot fake that), so they can read these settings but never send a task elsewhere.
- */
-function fromThisPc(req: Request): boolean {
-  const host = (req.headers.get("host") ?? new URL(req.url).host).toLowerCase();
-  const hostname = host.startsWith("[") ? host.slice(0, host.indexOf("]") + 1) : host.split(":")[0];
-  const origin = req.headers.get("origin");
-  let originOk = true;
-  try {
-    if (origin) originOk = LOOPBACK.has(new URL(origin).hostname);
-  } catch {
-    originOk = false;
-  }
-  return LOOPBACK.has(hostname) && originOk && !req.headers.get("cf-connecting-ip");
-}
 
 /** The same Ollama under another spelling of this PC ("localhost" for "127.0.0.1"). */
 const sameAddress = (a: string, b: string) => {
@@ -86,7 +70,8 @@ const sameAddress = (a: string, b: string) => {
 export async function PUT(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
-  if (!fromThisPc(req)) return bad("this_pc_only", 403);
+  // the desktop window only (lib/modelRoles/desktopAuth.ts): paired clients can read, never redirect a task
+  if (!fromDesktop(req)) return bad("this_pc_only", 403);
   if (Number(req.headers.get("content-length") ?? 0) > 4096) return bad("too_large", 413);
   const raw = await req.text().catch(() => "");
   if (raw.length > 4096) return bad("too_large", 413);
@@ -101,6 +86,10 @@ export async function PUT(req: Request) {
     if (typeof body.url === "string" && body.url.length > 500) return bad("url_invalid");
     const ok = normaliseServerUrl(body.url);
     if (!ok.ok) return bad(`url_${ok.reason}`);
+    // a password is kept only encrypted by the OS key store; without one it is refused, never written
+    if (new URL(ok.url).username || new URL(ok.url).password) {
+      if (!secretBox()) return bad("no_secret_store", 409);
+    }
     if (roles.servers.length >= MAX_SERVERS) return bad("too_many");
     // this PC's own Ollama is already "This PC"
     if (roles.servers.some((s) => sameAddress(s.url, ok.url)) || sameAddress(ok.url, OLLAMA_URL())) return bad("duplicate", 409);
@@ -135,7 +124,7 @@ export async function PUT(req: Request) {
       // sending to a server needs the yes the page asked for when the user chose it
       if (server && p.agreed !== true) return bad("agree_first", 409);
       if (server && process.env.FILOW_OFFLINE === "1") return bad("offline", 409);
-      const list = await listSource(server ? server.url : OLLAMA_URL(), true);
+      const list = await listSource(server ? serverAddress(server) : OLLAMA_URL(), true);
       if (!list.reachable) return bad("unreachable", 409);
       const found = list.models.find((m) => sameModel(m.name, p.model as string));
       if (!found) return bad("missing", 409);

@@ -816,6 +816,7 @@ export const it: Dictionary = {
   "roles.err.offline": "Filow è offline: ora niente può andare a un altro computer.",
   "roles.err.this_pc_only": "Si può cambiare solo nella finestra di Filow su questo PC.",
   "roles.err.too_large": "È troppo lungo.",
+  "roles.err.no_secret_store": "Qui questo computer non può custodire una password in modo sicuro: aggiungi l'indirizzo senza.",
   "roles.onServer": "{model} su {name}",
   "roles.autoPointing": "Automatico (il modello che risponde indica anche)",
   "roles.nowPointing": "Ora: {model} risponde e indica da solo.",

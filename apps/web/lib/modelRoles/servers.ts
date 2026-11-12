@@ -1,7 +1,8 @@
 // The user's own model servers (his rig, his server): Ollama-compatible addresses he adds by hand.
 // Pure: checking an address, saying where it is, and keeping a password out of anything shown or logged.
 
-export type ModelServer = { id: string; name: string; url: string };
+/** `url` never holds a password; `secret` is "user:password" encrypted with the OS key store (store.ts). */
+export type ModelServer = { id: string; name: string; url: string; secret?: string };
 
 export const MAX_SERVERS = 10;
 export const MAX_NAME = 40;

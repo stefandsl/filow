@@ -824,6 +824,7 @@ export const ja: Dictionary = {
   "roles.err.offline": "Filow はオフラインです。今はほかのコンピューターに何も送れません。",
   "roles.err.this_pc_only": "これはこの PC の Filow ウィンドウでのみ変更できます。",
   "roles.err.too_large": "長すぎます。",
+  "roles.err.no_secret_store": "ここではパスワードを安全に保存できません。パスワードなしでアドレスを追加してください。",
   "roles.onServer": "{name} の {model}",
   "roles.autoPointing": "自動（回答するモデルが指し示します）",
   "roles.nowPointing": "現在: {model} が回答し、指し示しも行います。",

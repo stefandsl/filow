@@ -814,6 +814,7 @@ export const ru: Dictionary = {
   "roles.err.offline": "Filow в автономном режиме: сейчас ничего не может уйти на другой компьютер.",
   "roles.err.this_pc_only": "Это можно изменить только в окне Filow на этом ПК.",
   "roles.err.too_large": "Слишком длинно.",
+  "roles.err.no_secret_store": "Здесь этот компьютер не может надёжно хранить пароль: добавьте адрес без него.",
   "roles.onServer": "{model} на {name}",
   "roles.autoPointing": "Автоматически (указывает отвечающая модель)",
   "roles.nowPointing": "Сейчас: {model} отвечает и сама указывает на экране.",
