@@ -9,6 +9,7 @@ import { wantsDrawing } from "@/lib/buddy/visuals";
 import { photoAnswer, wantsPhoto } from "@/lib/buddy/photo";
 import { isPointOnly, pointQuestion, POINTER_MAX_TOKENS, POINTER_MS, withPointer } from "@/lib/buddy/pointer";
 import { buddySystemPrompt } from "@/lib/buddy/prompt";
+import { canPick, PICK_MAX_TOKENS, PICK_SYSTEM, pickQuestion, sanitizeElements, withPlacedTags } from "@/lib/buddy/ground";
 import { okfText } from "@/lib/buddy/text";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
@@ -96,7 +97,10 @@ export async function POST(req: Request) {
   // work here: the provider call below carries this signal, so a local model stops generating.
   req.signal?.addEventListener("abort", () => abort.abort());
   if (req.signal?.aborted) abort.abort();
-  const ask: BuddyAskRequest = { ...body, question, images, screens, consent, sees, language: known ?? "auto" };
+  // What Windows names on each screen (lib/buddy/ground.ts): used below to place points and boxes, and
+  // taken out of what the providers get, so the list stays on this PC whatever answers.
+  const elements = images.length ? sanitizeElements(body.elements, screens.length) : [];
+  const ask: BuddyAskRequest = { ...body, elements: undefined, question, images, screens, consent, sees, language: known ?? "auto" };
   // A plain request for a drawing or a 3D model is answered with one (lib/buddy/draw.ts): it needs no screenshot.
   const drawing = wantsDrawing(question);
   // On this PC a setup may answer with one model and place the points with another (lib/buddy/pointer.ts).
@@ -109,12 +113,22 @@ export async function POST(req: Request) {
     for await (const piece of askBuddy("local", { ...ask, question: pointQuestion(label), history: [] }, limit, { model: pointer!, pictures: true }, shape)) reply += piece;
     return reply;
   };
+  // A label no name on screen has the words of: the answering model chooses from the names, without a
+  // picture (lib/buddy/ground.ts). Only here, on this PC: the names never go to an online provider.
+  const whichOf = async (label: string, names: string[]) => {
+    let reply = "";
+    const limit = AbortSignal.any([abort.signal, AbortSignal.timeout(POINTER_MS)]);
+    const shape = { system: PICK_SYSTEM, maxTokens: PICK_MAX_TOKENS, temperature: 0, pictures: false };
+    for await (const piece of askBuddy("local", { ...ask, question: pickQuestion(label, names), history: [], images: [] }, limit, { model: helper!.model, pictures: false }, shape)) reply += piece;
+    return reply;
+  };
   // Made inside the stream: a refused consent throws here and must reach the bubble as an error line.
   const pieces = () => drawing
     ? drawnAnswer((shape, signal) => askBuddy(provider, ask, signal, helper, shape), { kind: drawing, language: known ?? "auto", lang, signal: abort.signal })
     : pointer
-      ? withPointer(askBuddy(provider, ask, abort.signal, helper), whereIs, () => abort.signal.aborted)
-      : askBuddy(provider, ask, abort.signal, helper);
+      // boxes and circles are placed as they stream; the points wait for the pointing model, which is asked only for what Windows does not name
+      ? withPointer(withPlacedTags(askBuddy(provider, ask, abort.signal, helper), elements, { points: false }), whereIs, () => abort.signal.aborted, elements, helper && canPick(helper.model) ? whichOf : undefined)
+      : withPlacedTags(askBuddy(provider, ask, abort.signal, helper), elements);
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {

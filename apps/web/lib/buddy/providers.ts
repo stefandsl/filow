@@ -29,6 +29,12 @@ export type BuddyAskRequest = {
   setup?: string;
   /** "Look at my screen" in the OK Filow panel: true or false is the user's choice; absent, the setup for this computer decides. */
   sees?: boolean;
+  /**
+   * What Windows says is on each screen (name and rectangle on the 0-1000 grid, lib/buddy/ground.ts),
+   * read by the desktop shell with the screenshot. Used by the ask route to put points and boxes on
+   * the real thing; it is never part of a prompt and is not forwarded to any provider.
+   */
+  elements?: unknown;
 };
 
 /**

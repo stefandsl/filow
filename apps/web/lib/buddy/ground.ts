@@ -1,0 +1,254 @@
+// Where things really are. A picture model guesses coordinates from a 1024-pixel screenshot, and on a
+// real desktop a small target (a 33-pixel taskbar icon) is missed more often than hit: measured on this
+// PC's own screens, see docs/OKF-POINTING.md. Windows already knows the name and the rectangle of most
+// things on screen (UI Automation; apps/desktop/okfilow-uia.js reads them when the screenshot is taken).
+// So a point or a box the answer names is placed on the element with that name, and only when no name
+// fits is the model's own guess used, moved onto the nearest element when it fell just beside one.
+// The list never leaves this PC: it is used here, after the answer, and is not part of any prompt.
+
+import { GRID } from "./prompt";
+
+/** One thing on screen: its accessible name and its rectangle on the 0-1000 grid of screen `screen` (1-based). */
+export type ScreenElement = { name: string; screen: number; x1: number; y1: number; x2: number; y2: number; type?: string };
+
+export const MAX_ELEMENTS = 600;
+const MAX_NAME = 80;
+
+/** The elements of a request body, cleaned: anything malformed is dropped, never trusted. */
+export function sanitizeElements(raw: unknown, screens: number): ScreenElement[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ScreenElement[] = [];
+  for (const e of raw) {
+    if (out.length >= MAX_ELEMENTS) break;
+    if (!e || typeof e !== "object") continue;
+    const { name, screen, x1, y1, x2, y2, type } = e as Record<string, unknown>;
+    if (typeof name !== "string" || !name.trim()) continue;
+    const nums = [x1, y1, x2, y2].map((v) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(GRID, v)) : NaN));
+    if (nums.some(Number.isNaN) || nums[2] <= nums[0] || nums[3] <= nums[1]) continue;
+    if (typeof screen !== "number" || !Number.isInteger(screen) || screen < 1 || screen > Math.max(1, screens)) continue;
+    out.push({ name: name.trim().slice(0, MAX_NAME), screen, x1: nums[0], y1: nums[1], x2: nums[2], y2: nums[3], ...(typeof type === "string" ? { type: type.slice(0, 20) } : {}) });
+  }
+  return out;
+}
+
+// Words a model adds around a name ("the Start button", "icona di Firefox") that the name itself does not hold.
+const FILLER = new Set([
+  "the", "a", "an", "of", "on", "in", "to", "for", "button", "icon", "tab", "menu", "window", "app", "application", "field", "link", "box", "item", "label", "option", "panel", "bar",
+  "il", "lo", "la", "i", "gli", "le", "di", "del", "della", "pulsante", "bottone", "icona", "scheda", "finestra", "campo", "voce", "collegamento",
+  "кнопка", "кнопку", "значок", "иконка", "иконку", "вкладка", "вкладку", "окно", "поле", "меню", "ссылка",
+  "butonul", "buton", "pictograma", "fila", "fereastra", "campul", "meniul", "meniu",
+]);
+const JA_FILLER = /(ボタン|アイコン|タブ|メニュー|ウィンドウ|の)/g;
+
+const fold = (s: string): string => s.normalize("NFKC").toLowerCase().replace(JA_FILLER, " ");
+const words = (s: string): string[] => fold(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+const core = (s: string): string[] => {
+  const w = words(s);
+  const kept = w.filter((x) => !FILLER.has(x));
+  return kept.length ? kept : w;
+};
+/** A taskbar button is named "Firefox - 2 running windows": the part before the dash is the thing's name. */
+const head = (name: string): string => name.split(/\s[-–—]\s/)[0];
+
+/** 0 to 1: how well a spoken label names an element. 1 = the same words; under 0.5 is not a match. */
+export function nameScore(label: string, name: string): number {
+  const l = core(label);
+  if (!l.length) return 0;
+  let best = 0;
+  for (const candidate of new Set([name, head(name)])) {
+    const n = core(candidate);
+    if (!n.length) continue;
+    const lj = l.join(" "), nj = n.join(" ");
+    let s = 0;
+    if (lj === nj) s = 1;
+    else {
+      const inName = l.filter((w) => n.includes(w)).length;
+      const inLabel = n.filter((w) => l.includes(w)).length;
+      // every word of the label is in the name ("Firefox" for "Mozilla Firefox"): better the more of the name it covers
+      if (inName === l.length) s = 0.6 + 0.3 * (l.length / n.length);
+      // every word of the name is in the label ("Start" for "Start menu button", "Save" for "the blue Save button")
+      else if (inLabel === n.length) s = 0.6 + 0.25 * (n.length / l.length);
+      else {
+        const union = new Set([...l, ...n]).size;
+        const jaccard = inName / union;
+        if (jaccard >= 0.5) s = jaccard * 0.7;
+      }
+      // scripts without spaces: one name inside the other
+      const lc = l.join(""), nc = n.join("");
+      if (!s && lc.length >= 2 && nc.length >= 2 && !/[a-z0-9]/.test(lc + nc) && (nc.includes(lc) || lc.includes(nc))) s = 0.6 + 0.3 * (Math.min(lc.length, nc.length) / Math.max(lc.length, nc.length));
+    }
+    best = Math.max(best, s);
+  }
+  return best;
+}
+
+const MATCH = 0.6;
+/** The elements a label names best on one screen (all those level with the best one), best first. */
+export function matchElements(label: string, elements: ScreenElement[], screen: number): ScreenElement[] {
+  let top = 0;
+  const scored: Array<[number, ScreenElement]> = [];
+  for (const e of elements) {
+    if (e.screen !== screen) continue;
+    const s = nameScore(label, e.name);
+    if (s >= MATCH) { scored.push([s, e]); top = Math.max(top, s); }
+  }
+  return scored.filter(([s]) => s >= top - 0.02).map(([, e]) => e);
+}
+
+const centre = (e: ScreenElement) => ({ x: (e.x1 + e.x2) / 2, y: (e.y1 + e.y2) / 2 });
+const area = (e: ScreenElement) => (e.x2 - e.x1) * (e.y2 - e.y1);
+/** Distance from a point to a rectangle, 0 inside it. */
+const away = (x: number, y: number, e: ScreenElement) => Math.hypot(Math.max(e.x1 - x, 0, x - e.x2), Math.max(e.y1 - y, 0, y - e.y2));
+
+/** A guess this close to an element (on the grid: 30 = 3% of the screen, about 40 pixels on a 1360 screen) was meant for it. */
+export const SNAP_REACH = 30;
+/** Things larger than this (a twentieth of the screen) are regions, not targets a point snaps to. */
+const SNAP_MAX_AREA = (GRID * GRID) / 20;
+
+/** `on`: the element the point was put on (absent for a bare guess). */
+export type Placed = { x: number; y: number; how: "name" | "name-near" | "snap" | "guess"; on?: ScreenElement };
+
+/**
+ * Where a point with this label goes. `guess` is the model's own coordinate (grid), if it gave one.
+ * - one element carries the name: its centre, whatever the model guessed;
+ * - several do (two "Close" buttons): the one nearest the guess, or nothing certain without a guess;
+ * - none does: the guess, moved to the centre of the small element it is in or right beside.
+ * Without elements (no list on this system, or an app that exposes nothing) the guess is returned as it is.
+ */
+export function placePoint(label: string, guess: { x: number; y: number } | null, elements: ScreenElement[], screen: number): Placed | null {
+  const named = matchElements(label, elements, screen);
+  if (named.length === 1) return { ...centre(named[0]), how: "name", on: named[0] };
+  if (named.length > 1 && guess) {
+    const nearest = named.reduce((a, b) => (away(guess.x, guess.y, b) < away(guess.x, guess.y, a) ? b : a));
+    return { ...centre(nearest), how: "name-near", on: nearest };
+  }
+  if (!guess) return null;
+  let best: ScreenElement | null = null;
+  for (const e of elements) {
+    if (e.screen !== screen || area(e) > SNAP_MAX_AREA) continue;
+    const d = away(guess.x, guess.y, e);
+    if (d > SNAP_REACH) continue;
+    // the nearest; among those the guess is inside, the smallest (the button, not the toolbar around it)
+    if (!best || d < away(guess.x, guess.y, best) || (d === 0 && away(guess.x, guess.y, best) === 0 && area(e) < area(best))) best = e;
+  }
+  return best ? { ...centre(best), how: "snap", on: best } : { ...guess, how: "guess" };
+}
+
+// ---- when no name fits by its words: a model on this PC chooses from the names ----
+// "File Explorer" for "Esplora file", "the browser" for "Firefox": the same thing in other words.
+// Asked without a picture, of a model that runs on this PC only (the names of open windows and files
+// are the user's own: the ask route never gives them to an online provider).
+
+export const PICK_SYSTEM = "You match a label to the name of a thing on a computer screen. The names may be in another language than the label. Reply with only the number of the item the label means, or 0 if none of them is that thing.";
+export const PICK_MAX_TOKENS = 8;
+/** At most this many names go into the question (about 2,000 tokens). */
+export const PICK_MAX_NAMES = 250;
+
+/**
+ * Models measured good enough to choose (labels reworded by Gemma, 154 real targets): Gemma 4 E4B
+ * found the right name for 86% in 0.34 s; lfm3-vl for 40%, with wrong choices, so it is not asked.
+ */
+export const canPick = (model: string): boolean => /^gemma4:e4b\b/.test(model);
+
+/** The different names on one screen, in the order Windows gave them (topmost first). */
+export const pickNames = (elements: ScreenElement[], screen: number): string[] => [...new Set(elements.filter((e) => e.screen === screen).map((e) => e.name))].slice(0, PICK_MAX_NAMES);
+export const pickQuestion = (label: string, names: string[]): string => `Label: "${label}"\nItems:\n${names.slice(0, PICK_MAX_NAMES).map((n, i) => `${i + 1}. ${n}`).join("\n")}\nNumber:`;
+/** The 0-based index a reply names, or null (0, no number, or a number past the list). */
+export function pickedIndex(reply: string, count: number): number | null {
+  const m = /\d+/.exec(reply);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return n >= 1 && n <= count ? n - 1 : null;
+}
+
+const NUM = String.raw`\s*(-?\d+(?:\.\d+)?)\s*`;
+const TAIL = String.raw`(?::([^[\]]*?))?(?::\s*screen\s*(\d+))?\s*\]`;
+const PLACE_TAG = new RegExp(String.raw`\[(?:(POINT):${NUM},${NUM}|(CIRCLE):${NUM},${NUM},${NUM}|(BOX):${NUM},${NUM},${NUM},${NUM})${TAIL}`, "gi");
+const NAMES = ["POINT", "CIRCLE", "BOX"];
+/** "[", "[BO", "[CIRCLE:12,3": one of these tags that may still be on its way at the end of a piece. */
+const tagOnItsWay = (s: string): boolean => {
+  const m = /^\[([a-z]*)(:[^[\]]*)?$/i.exec(s);
+  if (!m) return false;
+  const word = m[1].toUpperCase();
+  return m[2] === undefined ? NAMES.some((n) => n.startsWith(word)) : NAMES.includes(word);
+};
+const MAX_TAG_CHARS = 120;
+const r1 = (v: number) => String(Math.round(v));
+
+/** One finished answer (or piece of one): its POINT, CIRCLE and BOX tags put where the things really are. */
+export function placeTags(text: string, elements: ScreenElement[], opts: { points?: boolean } = {}): string {
+  if (!elements.length) return text;
+  return text.replace(PLACE_TAG, (tag, point, px, py, circle, cx, cy, cr, _box, x1, y1, x2, y2, label: string | undefined, screen: string | undefined) => {
+    const name = (label ?? "").trim();
+    const on = screen ? Number(screen) : 1;
+    const tail = `${name ? `:${name}` : ""}${screen ? `:screen${screen}` : ""}]`;
+    if (point) {
+      if (opts.points === false) return tag;
+      const p = placePoint(name, { x: Number(px), y: Number(py) }, elements, on);
+      return p && p.how !== "guess" ? `[POINT:${r1(p.x)},${r1(p.y)}${tail}` : tag;
+    }
+    if (circle) {
+      const p = placePoint(name, { x: Number(cx), y: Number(cy) }, elements, on);
+      if (!p || p.how === "guess" || !p.on) return tag;
+      // round the thing itself: half its longer side and a little air, inside the sizes the overlay draws
+      const r = Math.max(15, Math.min(150, Math.max(p.on.x2 - p.on.x1, p.on.y2 - p.on.y1) * 0.6));
+      return `[CIRCLE:${r1(p.x)},${r1(p.y)},${r1(r)}${tail}`;
+    }
+    const b = placeBox(name, { x1: Math.min(Number(x1), Number(x2)), y1: Math.min(Number(y1), Number(y2)), x2: Math.max(Number(x1), Number(x2)), y2: Math.max(Number(y1), Number(y2)) }, elements, on);
+    if (!b) return "";
+    return b.how === "guess" ? tag : `[BOX:${r1(b.x1)},${r1(b.y1)},${r1(b.x2)},${r1(b.y2)}${tail}`;
+  });
+}
+
+/**
+ * A streamed answer with its tags placed as they complete (placeTags). A tag cut in two by the stream
+ * waits for its other half; everything before it goes out at once. `points: false` leaves POINT tags
+ * alone (a pointing model places them afterwards, lib/buddy/pointer.ts).
+ */
+export async function* withPlacedTags(answer: AsyncIterable<string>, elements: ScreenElement[], opts: { points?: boolean } = {}): AsyncGenerator<string> {
+  if (!elements.length) { yield* answer; return; }
+  let held = "";
+  for await (const piece of answer) {
+    held = placeTags(held + piece, elements, opts);
+    const open = held.lastIndexOf("[");
+    const keep = open >= 0 && held.length - open <= MAX_TAG_CHARS && tagOnItsWay(held.slice(open)) ? open : held.length;
+    if (keep > 0) yield held.slice(0, keep);
+    held = held.slice(keep);
+  }
+  if (held) yield held;
+}
+
+export type Box = { x1: number; y1: number; x2: number; y2: number };
+const iou = (a: Box, b: Box): number => {
+  const w = Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1), h = Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1);
+  if (w <= 0 || h <= 0) return 0;
+  const inter = w * h;
+  return inter / ((a.x2 - a.x1) * (a.y2 - a.y1) + (b.x2 - b.x1) * (b.y2 - b.y1) - inter);
+};
+
+// "This area", "here", "quest'area": a box that names nothing. In the five languages of OK Filow.
+const VAGUE = /^(?:(?:this|that|the|questa?|quest'|quell[ao']?|la|этот|эта|это|эту|această|acest|この|その)\s*)?(?:area|region|zone|part|section|spot|place|here|there|zona|parte|sezione|punto|qui|qua|область|зона|часть|место|здесь|тут|zonă|parte|aici|エリア|領域|部分|ここ|そこ)$/iu;
+export const isVagueLabel = (label: string): boolean => !label.trim() || VAGUE.test(label.trim());
+
+/** A model's box overlaps a real element this much: it meant that element. */
+export const BOX_AGREES = 0.5;
+
+/**
+ * Where a box with this label goes: the rectangle of the element that carries the name; else the
+ * element the model's box all but covers; else the model's own box, unless its label names nothing
+ * ("This area"), in which case no box is drawn at all (null): an arbitrary rectangle helps nobody.
+ * Without elements the box is returned as it is.
+ */
+export function placeBox(label: string, box: Box, elements: ScreenElement[], screen: number): (Box & { how: "name" | "overlap" | "guess" }) | null {
+  const here = elements.filter((e) => e.screen === screen);
+  if (!here.length) return { ...box, how: "guess" };
+  const named = matchElements(label, here, screen);
+  if (named.length) {
+    const pick = named.reduce((a, b) => (iou(box, b) > iou(box, a) ? b : a));
+    if (named.length === 1 || iou(box, pick) > 0) return { x1: pick.x1, y1: pick.y1, x2: pick.x2, y2: pick.y2, how: "name" };
+  }
+  let best: ScreenElement | null = null;
+  for (const e of here) if (iou(box, e) >= BOX_AGREES && (!best || iou(box, e) > iou(box, best))) best = e;
+  if (best) return { x1: best.x1, y1: best.y1, x2: best.x2, y2: best.y2, how: "overlap" };
+  return isVagueLabel(label) ? null : { ...box, how: "guess" };
+}

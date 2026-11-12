@@ -89,6 +89,12 @@ export type OkFilowCapture = {
   marked: Array<{ screen: number; points: Array<[number, number]> }>;
   /** Text the user had selected in the focused app when they started talking ("" when none). */
   selected?: string;
+  /**
+   * What Windows names on each captured screen (name, rectangle on the 0-1000 grid, `screen` = index):
+   * apps/desktop/okfilow-uia.js. Sent with the question to Filow's own server only, where points and
+   * boxes are put on the real thing (lib/buddy/ground.ts). Absent off Windows or when the read was too slow.
+   */
+  elements?: Array<{ name: string; type?: string; screen: number; x1: number; y1: number; x2: number; y2: number }>;
 };
 
 type Off = () => void;
