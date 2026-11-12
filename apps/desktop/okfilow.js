@@ -1335,7 +1335,7 @@ function createOkFilow(deps) {
   const voiceModel = () => tts;
   /** The speech model OK Filow's recognizer holds in memory right now, or null. */
   const sttLoaded = () => (stt && stt.worker ? stt.modelKey : null);
-  return { start, dispose, togglePanel, status, applyConfig, releaseStt, voiceModel, sttLoaded };
+  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded };
 }
 
 module.exports = { createOkFilow, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS, nextCfg };

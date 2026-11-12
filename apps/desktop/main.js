@@ -315,6 +315,8 @@ function initializeUiPreferences() {
   ipcMain.handle("okfilow:settings:status", event => { if (!uiSender(event)) throw new Error("Denied"); return okFilow ? okFilow.status() : null; });
   ipcMain.handle("okfilow:settings:configure", (event, patch) => { if (!uiSender(event)) throw new Error("Denied"); return okFilow && patch && typeof patch === "object" ? okFilow.applyConfig(patch) : null; });
   ipcMain.on("okfilow:settings:openPanel", event => { if (uiSender(event)) okFilow?.togglePanel(); });
+  // The "Whiteboard" button in the main window's sidebar: the same window the OK Filow panel opens, with no topic yet.
+  ipcMain.handle("okfilow:settings:showWhiteboard", event => { if (!uiSender(event)) throw new Error("Denied"); if (!okFilow) return false; okFilow.showWhiteboard(""); return true; });
   // FreeLLMAPI's section in Filow Settings (freellm.js). The key travels one way only: page to main.
   ipcMain.handle("freellm:status", event => { if (!uiSender(event)) throw new Error("Denied"); return freeLlm().status(); });
   ipcMain.handle("freellm:configure", (event, patch) => { if (!uiSender(event)) throw new Error("Denied"); return freeLlm().configure(patch); });

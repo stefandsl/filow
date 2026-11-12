@@ -23,6 +23,13 @@ it("keeps the settings already there and only turns the onboarding flags on", ()
   expect(read(profile)).toMatchObject({ remoteShare: true, theme: "light", welcomeCompleted: true, localAiOffered: true });
 });
 
+it("uses the folder it is given (FILOW_E2E_PROFILE) instead of the checkout's", () => {
+  const own = path.join(root, "elsewhere", "profile");
+  const profile = seedProfile(root, NO_PUBLIC_LINK, own);
+  expect(profile).toBe(path.resolve(own));
+  expect(read(own)).toMatchObject({ ...PAST_ONBOARDING, remoteShare: false });
+});
+
 it("turns the public link off for probes that are not about it, and keeps it for those that are", () => {
   const profile = seedProfile(root, NO_PUBLIC_LINK);
   expect(read(profile)).toMatchObject({ remoteShare: false, theme: "light", welcomeCompleted: true });

@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld("filow", {
     status: () => ipcRenderer.invoke("okfilow:settings:status"),
     configure: (patch) => ipcRenderer.invoke("okfilow:settings:configure", patch),
     openPanel: () => ipcRenderer.send("okfilow:settings:openPanel"),
+    /** The "Whiteboard" button of the main window: opens the whiteboard window; false when OK Filow is not running. */
+    showWhiteboard: () => ipcRenderer.invoke("okfilow:settings:showWhiteboard"),
   },
   /** FreeLLMAPI's section in Filow Settings (freellm.js): the key goes in, never comes back. */
   freeLlm: {

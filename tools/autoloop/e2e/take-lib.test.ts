@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain ESM module without types
-import { HeardTracker, classifyConnections, isLoopback, overlap, parseNetstat, passFresh, processTree, socketLogAudit } from "./take-lib.mjs";
+import { HeardTracker, classifyConnections, isLoopback, overlap, parseNetstat, passFresh, processTree, socketLogAudit, sttBackendOf } from "./take-lib.mjs";
 
 const NETSTAT = `
 Connessioni attive
@@ -121,5 +121,21 @@ describe("what was heard", () => {
     for (const a of ["127.0.0.1", "127.5.0.9", "[::1]", "::1", "0.0.0.0", "[::]", "*", "localhost", "[::ffff:127.0.0.1]"]) expect(isLoopback(a)).toBe(true);
     for (const a of ["127.evil.example", "localhost.example.com", "*x.example.com", "10.0.0.1", "[::2]", "1270.0.0.1"]) expect(isLoopback(a)).toBe(false);
     expect(socketLogAudit('{"at":1,"host":"127.evil.example","port":443}\n', own).external).toEqual(["127.evil.example:443"]);
+  });
+});
+
+describe("sttBackendOf: the backend the take log names", () => {
+  const sherpa = ["Speech model on this device", "Modello vocale su questo dispositivo"];
+  it("follows the dictionary's label for the on-device backend, in any language, and the older wordings", () => {
+    expect(sttBackendOf("12:51:32  Speech model on this device: live", sherpa)).toBe("sherpa");
+    expect(sttBackendOf("12:51:32  Modello vocale su questo dispositivo: live", sherpa)).toBe("sherpa");
+    expect(sttBackendOf("10:31:19  Streaming on this device (Nemotron): live", sherpa)).toBe("sherpa");
+  });
+  it("another backend is never taken for the on-device one", () => {
+    expect(sttBackendOf("12:00:00  Whisper: live", sherpa)).toBe("whisper");
+    expect(sttBackendOf("12:00:00  ElevenLabs: live", sherpa)).toBe("other");
+    expect(sttBackendOf("12:51:32  Speech model on this device: live", [])).toBe("other");
+    expect(sttBackendOf("12:00:00  ElevenLabs: live", [""])).toBe("other");
+    expect(sttBackendOf(null, sherpa)).toBe(null);
   });
 });

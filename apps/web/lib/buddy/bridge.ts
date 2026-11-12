@@ -288,7 +288,11 @@ export function okFilowBridge(): OkFilowBridge | null {
  * The slice of the same IPC surface the main window gets (window.filow.okFilow, apps/desktop/preload.js):
  * Filow Settings shows OK Filow's main switches; the full list stays in the panel.
  */
-export type OkFilowSettingsBridge = Pick<OkFilowBridge, "status" | "configure"> & { openPanel(): void };
+export type OkFilowSettingsBridge = Pick<OkFilowBridge, "status" | "configure"> & {
+  openPanel(): void;
+  /** Opens the whiteboard window; false when OK Filow is not running. Absent in a desktop build older than this entry. */
+  showWhiteboard?(): Promise<boolean>;
+};
 
 export function okFilowSettingsBridge(): OkFilowSettingsBridge | null {
   return (globalThis as { filow?: { okFilow?: OkFilowSettingsBridge } }).filow?.okFilow ?? null;
