@@ -5,6 +5,15 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("filow", {
   desktop: true,
+  account: {
+    status: () => ipcRenderer.invoke("account:status"),
+    begin: () => ipcRenderer.invoke("account:begin"),
+    poll: () => ipcRenderer.invoke("account:poll"),
+    cancel: () => ipcRenderer.invoke("account:cancel"),
+    signOut: () => ipcRenderer.invoke("account:signOut"),
+    checkout: () => ipcRenderer.invoke("account:checkout"),
+    portal: () => ipcRenderer.invoke("account:portal"),
+  },
   tour: {
     mark: rect => ipcRenderer.invoke("tour:mark", rect),
     ask: question => ipcRenderer.invoke("tour:ask", question),

@@ -2365,6 +2365,18 @@ async function main() {
     return { open: pointsWindow.isOpen() };
   });
   startOkFilow();
+  const { createAccount, accountOrigin } = require("./account");
+  const account = createAccount({
+    origin: accountOrigin(process.env.FILOW_ACCOUNT_ORIGIN, !app.isPackaged), userData,
+    safeStorage: require("electron").safeStorage, openExternal: url => shell.openExternal(url),
+    offline: () => process.env.FILOW_OFFLINE === "1",
+  });
+  for (const action of ["status", "begin", "poll", "cancel", "signOut", "checkout", "portal"]) {
+    appHandle(`account:${action}`, event => {
+      if (event.sender !== mainWin?.webContents || new URL(event.sender.getURL()).pathname !== "/account") throw new Error("Denied");
+      return action === "checkout" || action === "portal" ? account.billing(action) : account[action]();
+    });
+  }
   appHandle("tour:mark", (event, rect) => {
     if (event.sender !== mainWin?.webContents) throw new Error("Denied");
     if (rect === null) { okFilow.clearPractice(); return true; }

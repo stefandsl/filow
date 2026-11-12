@@ -46,6 +46,7 @@
     },
     "files": [
       "main.js",
+      "account.js",
       "tour.js",
       "media/**",
       "slideshow.js",

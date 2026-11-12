@@ -486,6 +486,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
         </div>
         <span className="subtitle">{t("settings.subtitle")}</span>
         <span className="spacer" />
+        <Link className="btn" href="/tour">{t("tour.step")}</Link>
+        <Link className="btn" href="/account">{t("account.title")}</Link>
         {status?.offline && <span className="chip err">{t("app.offline")}</span>}
         <ThemeSwitch pref={theme} onChange={onTheme} />
         <LangSwitch lang={lang} onChange={onLang} />
