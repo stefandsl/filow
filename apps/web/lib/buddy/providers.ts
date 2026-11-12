@@ -12,6 +12,8 @@ import { gpuInfo, machineInfo } from "@/lib/sysinfo";
 import { buddySystemPrompt, trimHistory, withScreenNote, type BuddyScreen, type BuddyTurn } from "./prompt";
 import { wantsDrawing } from "./visuals";
 import { isPointOnly } from "./pointer";
+import { pinHelper, type PinOptions } from "@/lib/modelRoles/helper";
+import type { Place } from "@/lib/modelRoles/resolve";
 
 export type BuddyProviderId = "local" | "cloud" | "freellm";
 
@@ -44,7 +46,8 @@ export type AskShape = { system: string; format?: unknown; maxTokens?: number; t
 
 /** What OK Filow runs on "Answers from: Local": the model, and whether it is shown the screenshot. */
 /** `pointer`: a second model on this PC that places the points for it (lib/buddy/pointer.ts); only with pictures. */
-export type LocalHelper = { model: string; pictures: boolean; pointer?: string };
+/** `at` / `pointerAt`: the user's server or address the model runs on (Settings, per task); absent = OLLAMA_URL. */
+export type LocalHelper = { model: string; pictures: boolean; pointer?: string; at?: Place; pointerAt?: Place };
 
 export const NO_LOCAL_HELPER =
   'This computer has too little memory for OK Filow to answer on this PC. To get answers from online instead, choose FreeLLMAPI or Cloud under "Answers from" in the OK Filow panel.';
@@ -108,28 +111,42 @@ export async function serverSetup(preference?: unknown, installed?: string[]): P
   return resolveSetup(isSetupPreference(preference) ? preference : "auto", machineInfo(await gpuInfo(), installed));
 }
 
-/** The local helper for a question under the user's setup preference (throws when none fits, saying why). */
-export async function resolveLocalHelper(preference: unknown, question: string, sees?: boolean): Promise<LocalHelper> {
-  const installed = process.env.BUDDY_LOCAL_MODEL ? [] : await installedModels();
-  return localHelper(await serverSetup(preference, installed), installed, question, undefined, typeof sees === "boolean" ? sees : undefined);
+/**
+ * The local helper for a question under the user's setup preference, with the models the user chose
+ * per task in Settings (lib/modelRoles/helper.ts); throws when none fits, saying why.
+ */
+export async function resolveLocalHelper(preference: unknown, question: string, sees?: boolean, task: PinOptions["task"] = "okfilowAnswers"): Promise<LocalHelper> {
+  const see = typeof sees === "boolean" ? sees : undefined;
+  if (process.env.BUDDY_LOCAL_MODEL) return localHelper(await serverSetup(preference, []), [], question, undefined, see);
+  const installed = await installedModels();
+  const setup = await serverSetup(preference, installed);
+  let auto: LocalHelper | Error;
+  try {
+    auto = localHelper(setup, installed, question, undefined, see);
+  } catch (e) {
+    auto = e instanceof Error ? e : new Error(String(e));
+  }
+  return pinHelper(auto, { task, pointOnly: isPointOnly(question), setupPointer: setup.choices.screenHelper.pointer ?? null, sees: see });
 }
 
 /** Loads the setup's screen helper and keeps it loaded for 30 minutes (empty prompt: Ollama only loads). */
 export async function warmLocalModel(preference?: unknown): Promise<{ model: string | null; ok: boolean }> {
   let model: string;
   let pointer: string | undefined;
+  let at: Place | undefined;
+  let pointerAt: Place | undefined;
   try {
-    ({ model, pointer } = await resolveLocalHelper(preference, ""));
+    ({ model, pointer, at, pointerAt } = await resolveLocalHelper(preference, ""));
   } catch {
     return { model: null, ok: false };
   }
   // The small model that places the points is loaded too, so the first point does not wait for it. Its failure is not the answer's.
-  if (pointer) void fetch(`${OLLAMA_URL()}/api/generate`, { method: "POST", signal: AbortSignal.timeout(180_000), headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: pointer, keep_alive: "30m" }) }).catch(() => null);
+  if (pointer) void fetch(`${pointerAt?.base ?? OLLAMA_URL()}/api/generate`, { method: "POST", signal: AbortSignal.timeout(180_000), headers: { "Content-Type": "application/json", ...pointerAt?.headers }, body: JSON.stringify({ model: pointer, keep_alive: "30m" }) }).catch(() => null);
   try {
-    const res = await fetch(`${OLLAMA_URL()}/api/generate`, {
+    const res = await fetch(`${at?.base ?? OLLAMA_URL()}/api/generate`, {
       method: "POST",
       signal: AbortSignal.timeout(180_000),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...at?.headers },
       body: JSON.stringify({ model, keep_alive: "30m" }),
     });
     return { model, ok: res.ok };
@@ -189,11 +206,11 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
   const history = trimHistory(req.history ?? []).map((t) => ({ role: t.role, content: t.text }));
   let res: Response;
   try {
-    res = await fetch(`${OLLAMA_URL()}/api/chat`, {
+    res = await fetch(`${chosen.at?.base ?? OLLAMA_URL()}/api/chat`, {
       method: "POST",
       // A hung Ollama must not leave OK Filow "thinking" forever; 3 min covers a cold load on a CPU.
       signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(180_000)]) : AbortSignal.timeout(180_000),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...chosen.at?.headers },
       body: JSON.stringify({
         model,
         stream: true,
@@ -218,6 +235,8 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
     if (signal?.aborted) return;
     // the 3-minute limit: Ollama is there but busy (on a small graphics card the larger AI may hold it)
     if (e instanceof Error && e.name === "TimeoutError") throw new Error(OLLAMA_TOO_SLOW, { cause: e });
+    // the model the user chose on his own server: that server is the one to check, not this PC
+    if (chosen.at?.server) throw new Error(`Your server ${chosen.at.server.name} does not answer. Check that it is on and Ollama runs there, or choose another model for OK Filow in Settings > Advanced.`, { cause: e });
     // The desktop shell reads "is not running" (localai.js OLLAMA_STOPPED) and starts an installed Ollama in the background.
     throw new Error(`Ollama, which runs OK Filow's answers on this PC, is not running. If it is installed, Filow is starting it now: ask again in a minute. If not, install it in Settings > Local models, or set "Answers from" to FreeLLMAPI or Cloud in the OK Filow panel.`, { cause: e });
   }

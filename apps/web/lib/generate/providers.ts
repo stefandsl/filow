@@ -1,7 +1,7 @@
 // Per-slide generators for /api/script/generate: OpenRouter (cloud) and Ollama (local).
 // Both return the same shape; the route picks one and wraps it with the PII guard.
 import { buildGenerateUserPrompt, GENERATE_SYSTEM_PROMPT, parseGenerated, type GeneratedSlide, type SlideInput } from "@filow/core";
-import { OLLAMA_URL } from "@/lib/decide/clef";
+import { placeText, taskTarget } from "@/lib/modelRoles/resolve";
 import { openRouterChat } from "@/lib/openrouter";
 import { freellmRecipient, routerRecipient } from "@/lib/buddy/outbound";
 import { freellmChat, scriptCloud } from "@/lib/freellm";
@@ -49,14 +49,16 @@ export async function generateSlideOpenRouter(slide: SlideInput, opts: { languag
  * it first) and num_ctx is raised so OCR-like slides keep their visual tokens.
  */
 export async function generateSlideOllama(slide: SlideInput, opts: { language?: string; total: number }): Promise<SlideResult> {
-  const model = GENERATE_LOCAL_MODEL();
+  // the model the user chose for "script from slides" in Settings, when it can be used now
+  const target = await taskTarget("generate", GENERATE_LOCAL_MODEL());
+  const model = target.model!;
   const message: Record<string, unknown> = { role: "user", content: buildGenerateUserPrompt(slide, opts) };
   if (slide.imageBase64) message.images = [slide.imageBase64];
   let res: Response;
   try {
-    res = await fetch(`${OLLAMA_URL()}/api/chat`, {
+    res = await fetch(`${target.base}/api/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...target.headers },
       body: JSON.stringify({
         model,
         stream: false,
@@ -66,12 +68,12 @@ export async function generateSlideOllama(slide: SlideInput, opts: { language?: 
       }),
     });
   } catch {
-    throw new Error(`Ollama not reachable at ${OLLAMA_URL()}. Start Ollama and pull ${model} in Settings > Local models.`);
+    throw new Error(`Ollama not reachable at ${placeText(target)}. Start Ollama and pull ${model} in Settings > Local models.`);
   }
   if (res.status === 404) throw new Error(`Model ${model} not found in Ollama. Pull it in Settings > Local models.`);
   if (!res.ok) throw new Error(`Ollama ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const json = (await res.json()) as { message?: { content?: string } };
-  return { generated: parseGenerated(json.message?.content ?? "", fallbackTitle(slide)), cost: 0, model: `${model} (local)` };
+  return { generated: parseGenerated(json.message?.content ?? "", fallbackTitle(slide)), cost: 0, model: `${model} (${target.server ? target.server.name : "local"})` };
 }
 
 /** Through the user's FreeLLMAPI router; a slide with a picture needs a model with vision there. */

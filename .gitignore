@@ -23,3 +23,5 @@ design/
 output/
 tmp/
 release-*/
+# per-task model choices of a development run (the desktop app keeps them in its profile folder)
+model-roles.json

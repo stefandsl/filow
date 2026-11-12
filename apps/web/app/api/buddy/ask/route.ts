@@ -110,7 +110,7 @@ export async function POST(req: Request) {
     // A tag is short and the answer's voice waits for it: a few tokens and a few seconds, never the answer's own limits.
     const limit = AbortSignal.any([abort.signal, AbortSignal.timeout(POINTER_MS)]);
     const shape = { system: buddySystemPrompt(screens, known ?? "auto", { pictures: true }), maxTokens: POINTER_MAX_TOKENS };
-    for await (const piece of askBuddy("local", { ...ask, question: pointQuestion(label), history: [] }, limit, { model: pointer!, pictures: true }, shape)) reply += piece;
+    for await (const piece of askBuddy("local", { ...ask, question: pointQuestion(label), history: [] }, limit, { model: pointer!, pictures: true, at: helper?.pointerAt }, shape)) reply += piece;
     return reply;
   };
   // Made inside the stream: a refused consent throws here and must reach the bubble as an error line.

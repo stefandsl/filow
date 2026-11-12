@@ -59,7 +59,8 @@ export async function POST(req: Request) {
   if (provider === "local") {
     try {
       // "diagram": on Best quality a bigger picture model the user installed draws, as for OK Filow's drawings
-      helper = await resolveLocalHelper(body.setup, "diagram");
+      // the model the user chose for whiteboard lessons in Settings comes first
+      helper = await resolveLocalHelper(body.setup, "diagram", undefined, "whiteboard");
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : String(e), code: "no_local_helper" }, { status: 409 });
     }
