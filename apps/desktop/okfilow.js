@@ -13,6 +13,7 @@ const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agen
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
 const { answering, overlayMouse, seeChoice, wordsOnlyList } = require("./okfilow-stop");
+const { createPractice } = require("./tour");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 const { trustedUiSender } = require("./ui-preferences");
 
@@ -232,15 +233,17 @@ function createOkFilow(deps) {
     modelWin.loadURL(`${appUrl}/okfilow/model`);
   }
   ipcMain.on("okfilow:model:show", (e, model) => { if (ourSender(e) && model && Array.isArray(model.parts)) showModel(model); });
+  // The tour's practice mark (tour.js): it never clears an answer's drawings, only itself.
+  const practiceState = createPractice({ draw: marks => drawMarks(marks), clear: () => clearDrawings() });
   /** An overlay finished setting up: it missed what was sent while it loaded, so send it now. */
-  let currentPractice = null;
   ipcMain.on("okfilow:overlay:ready", (e) => {
     if (!ourSender(e)) return;
     e.sender.send("okfilow:state", { mode, purpose: purpose || "talk", sees: asksSee });
     e.sender.send("okfilow:outbound", outbound.snapshot());
-    if (currentPractice) {
+    const practiceNow = practiceState.mark();
+    if (practiceNow) {
       const window = BrowserWindow.fromWebContents(e.sender);
-      const mark = window && localMark(currentPractice, window.getBounds());
+      const mark = window && localMark(practiceNow, window.getBounds());
       if (mark) e.sender.send("okfilow:draw", [mark]);
     }
     lastCursor = "";
@@ -562,7 +565,7 @@ function createOkFilow(deps) {
   }
   // Not on any click or key: the user clicks around and presses Win+Shift+S to screenshot the answer.
   function clearDrawings() {
-    currentPractice = null;
+    practiceState.forget();
     if (!pinned) return;
     pinned = false;
     sendOverlays("okfilow:clear", null);
@@ -1012,6 +1015,7 @@ function createOkFilow(deps) {
   /** marks: BuddyMark[] in global DIP. Each overlay gets the ones anchored on its display, in local coordinates. */
   ipcMain.on("okfilow:draw", (e, marks) => {
     if (!ourSender(e) || !Array.isArray(marks)) return;
+    practiceState.forget();
     drawMarks(marks);
   });
   function drawMarks(marks) {
@@ -1172,11 +1176,8 @@ function createOkFilow(deps) {
   const voiceModel = () => tts;
   /** The speech model OK Filow's recognizer holds in memory right now, or null. */
   const sttLoaded = () => (stt && stt.worker ? stt.modelKey : null);
-  const practice = mark => {
-    currentPractice = mark;
-    drawMarks([mark]);
-  };
-  const clearPractice = () => { currentPractice = null; clearDrawings(); };
+  const practice = mark => practiceState.show(mark);
+  const clearPractice = () => practiceState.clear();
   const askPractice = question => {
     if (!panelReady || !panel || panel.isDestroyed() || panel.webContents.isLoading()) return false;
     clearPractice(); panel.show();

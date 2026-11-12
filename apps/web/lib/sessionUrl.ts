@@ -17,7 +17,8 @@ export type DesktopBridge = {
   };
   tour?: {
     mark(rect: { x: number; y: number; width: number; height: number } | null): Promise<boolean>;
-    ask(question: string): Promise<boolean>;
+    /** Asks the real assistant the practice question in that language; the shell owns the sentence. */
+    ask(lang: string): Promise<boolean>;
     done(): Promise<void>;
   };
   getPreferences?: import("@filow/core").UiBridge["getPreferences"];

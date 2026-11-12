@@ -37,7 +37,7 @@ export default function Tour() {
   async function ask() {
     setBusy(true);
     try {
-      const ready = await desktopBridge()?.tour?.ask(tr("tour.question"));
+      const ready = await desktopBridge()?.tour?.ask(lang);
       setMessage(tr(ready ? "tour.askStarted" : "tour.retry"));
     } catch { setMessage(tr("tour.retry")); }
     finally { setBusy(false); }

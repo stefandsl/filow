@@ -5,4 +5,23 @@ function practiceMark(rect, bounds, zoom = 1) {
   return { kind: "box", x1: bounds.x + rect.x * zoom, y1: bounds.y + rect.y * zoom,
     x2: bounds.x + (rect.x + rect.width) * zoom, y2: bounds.y + (rect.y + rect.height) * zoom, label: "" };
 }
-module.exports = { practiceMark };
+/**
+ * The practice mark's lifetime. It owns only its own mark: the tour page clears it when the window
+ * loses focus, scrolls or resizes, the shell when the window moves, hides or navigates, and none of
+ * those may wipe what a real answer drew. `forget` is for that: something else now owns the overlay.
+ */
+function createPractice({ draw, clear }) {
+  let mark = null;
+  return {
+    mark: () => mark,
+    show(next) { mark = next; draw([next]); },
+    forget() { mark = null; },
+    clear() {
+      if (!mark) return false;
+      mark = null;
+      clear();
+      return true;
+    },
+  };
+}
+module.exports = { practiceMark, createPractice };

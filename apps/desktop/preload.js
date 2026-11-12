@@ -16,7 +16,7 @@ contextBridge.exposeInMainWorld("filow", {
   },
   tour: {
     mark: rect => ipcRenderer.invoke("tour:mark", rect),
-    ask: question => ipcRenderer.invoke("tour:ask", question),
+    ask: lang => ipcRenderer.invoke("tour:ask", lang),
     done: () => ipcRenderer.invoke("tour:done"),
   },
   /** OK Filow's section in Filow Settings (same settings as its panel). */

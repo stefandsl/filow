@@ -2386,15 +2386,20 @@ async function main() {
     okFilow.practice(mark);
     return true;
   });
-  appHandle("tour:ask", (event, question) => {
-    if (event.sender !== mainWin?.webContents || new URL(event.sender.getURL()).pathname !== "/tour" || typeof question !== "string" || question.length > 500) throw new Error("Denied");
-    return okFilow.askPractice(question);
+  // The page names a language, the shell picks the sentence: a page of the main window cannot hand the
+  // assistant (which may take a screenshot and send it to the provider the user said yes to) its own words.
+  appHandle("tour:ask", (event, lang) => {
+    if (event.sender !== mainWin?.webContents || new URL(event.sender.getURL()).pathname !== "/tour" || !isLang(lang)) throw new Error("Denied");
+    return okFilow.askPractice(sharedText("tour.question", lang));
   });
   appHandle("tour:done", event => {
     if (event.sender !== mainWin?.webContents) throw new Error("Denied");
     settings.practicePending = false; delete settings.practiceNext; saveSettings(); okFilow.clearPractice();
   });
-  win.on("move", () => okFilow.clearPractice());
+  // The practice mark sits over a button of this window: it goes when the window moves, changes size,
+  // hides or loads another page (a reload never runs the page's own cleanup).
+  for (const gone of ["move", "resize", "hide", "minimize"]) win.on(gone, () => okFilow.clearPractice());
+  win.webContents.on("did-navigate", () => okFilow.clearPractice());
   win.on("closed", () => okFilow?.dispose());
   const hk = registerHotkey();
   if (!hk.ok) console.warn("Screen Sense hotkey:", hk.error);
