@@ -123,7 +123,7 @@ export const it: Record<OkfKey, string> = {
   notice_transcript: "Mentre registri, le parole che dici e i punti del tuo testo vanno a {who}, che decide quando il testo scorre.",
   notice_screen: "Mentre registri, le immagini dello schermo che condividi e i punti della sezione corrente vanno a {who}, che dice a Filow cosa c'è sopra.",
   notice_script: "Il testo delle tue slide o il tuo testo, e le immagini delle slide con poco testo, vanno a {who}, che scrive o traduce il testo.",
-  notice_account: "Per accedere, il codice di accesso di questo dispositivo va a {who}. L'email la scrivi nel tuo browser; i pagamenti sono gestiti da Stripe.",
+  notice_account: "Per accedere, il codice di accesso di questo dispositivo va a {who}, e ogni richiesta dell'account invia a {who} un token di sessione. L'email la scrivi nel tuo browser; i pagamenti sono gestiti da Stripe.",
   noticeRemember: "OK Filow chiede una volta per ogni destinatario. Puoi cambiare idea nelle impostazioni qui sotto.",
   noticeRememberTake: "Filow chiede una volta per ogni destinatario. Puoi cambiare idea nelle impostazioni di OK Filow.",
   noticeSend: "Invia",

@@ -125,7 +125,7 @@ export const ro: Record<OkfKey, string> = {
   notice_transcript: "Cât timp înregistrezi, cuvintele pe care le spui și punctele din scenariul tău ajung la {who}, care decide când avansează scenariul.",
   notice_screen: "Cât timp înregistrezi, imagini ale ecranului pe care îl partajezi și punctele secțiunii curente ajung la {who}, care îi spune lui Filow ce se află pe ecran.",
   notice_script: "Textul slide-urilor sau al scenariului tău și imagini ale slide-urilor cu puțin text ajung la {who}, care scrie sau traduce scenariul.",
-  notice_account: "La conectare, codul de conectare al acestui dispozitiv ajunge la {who}. Adresa de e-mail o scrii în browserul tău; plățile sunt gestionate de Stripe.",
+  notice_account: "La conectare, codul de conectare al acestui dispozitiv ajunge la {who}, iar fiecare cerere a contului trimite la {who} un token de sesiune. Adresa de e-mail o scrii în browserul tău; plățile sunt gestionate de Stripe.",
   noticeRemember: "OK Filow întreabă o singură dată pentru fiecare destinatar. Te poți răzgândi din setările de mai jos.",
   noticeRememberTake: "Filow întreabă o singură dată pentru fiecare destinatar. Te poți răzgândi din setările OK Filow.",
   noticeSend: "Trimite",

@@ -16,6 +16,10 @@ on:
         required: false
         default: all
 
+# Least privilege: every job reads the repository only; the build job below alone gets write access, to attach the release assets.
+permissions:
+  contents: read
+
 jobs:
   # The same commands as the local merge gate (G:\FILOW\tmp\orchestrator\merge-gate.ps1), once, on
   # Windows (where the suite is developed and checked). Any red step fails the job, and no installer is

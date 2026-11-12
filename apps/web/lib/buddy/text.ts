@@ -130,7 +130,7 @@ const en = {
   notice_transcript: "While you record, the words you say and the points of your script go to {who}, which decides when the script moves.",
   notice_screen: "While you record, pictures of the screen you share and the points of the current section go to {who}, which tells Filow what is on it.",
   notice_script: "The text of your slides or your script, and pictures of the slides with little text, go to {who}, which writes or translates the script.",
-  notice_account: "Signing in sends this device's sign-in code to {who}. You type your email in your browser; payments are handled by Stripe.",
+  notice_account: "Signing in sends this device's sign-in code to {who}, and each account request sends a session token to {who}. You type your email in your browser; payments are handled by Stripe.",
   noticeRemember: "OK Filow asks once for each recipient. You can change your mind in the settings below.",
   noticeRememberTake: "Filow asks once for each recipient. You can change your mind in the OK Filow settings.",
   noticeSend: "Send",

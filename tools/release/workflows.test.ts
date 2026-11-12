@@ -3,25 +3,44 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import yaml from "js-yaml";
 import { describe, expect, it } from "vitest";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const workflowsDir = path.join(root, ".github", "workflows");
 
-/** Each `uses:` line of a workflow that is not a local action pinned as `owner/repo[/path]@<40 hex> # <tag>`. */
+/** Every `uses:` value in a parsed workflow, in any shape (block step, inline map, job-level reusable workflow). */
+export function usesRefs(doc: unknown): string[] {
+  const refs: string[] = [];
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) node.forEach(visit);
+    else if (node && typeof node === "object") {
+      for (const [k, v] of Object.entries(node)) {
+        if (k === "uses" && typeof v === "string") refs.push(v);
+        else visit(v);
+      }
+    }
+  };
+  visit(doc);
+  return refs;
+}
+
+/** Each `uses:` of a workflow that is not a local action pinned as `owner/repo[/path]@<40 hex> # <tag>`. The YAML is parsed
+ *  (so `- { uses: x@v4 }` counts); the tag comment is not part of the parsed data, so it is read from the line that holds the ref. */
 export function unpinnedUses(text: string): string[] {
   const bad: string[] = [];
-  text.split(/\r?\n/).forEach((line, i) => {
-    if (!/^\s*(-\s+)?uses\s*:/.test(line)) return;
-    const m = /^\s*(?:-\s+)?uses\s*:\s*(["']?)([^\s"'#]+)\1\s*(#.*)?$/.exec(line);
-    const ref = m?.[2] ?? "";
-    if (ref.startsWith("./")) return; // an action in this repository runs at the checked-out commit
-    const pinned = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]+@[0-9a-f]{40}$/.test(ref) && /^#\s*\S+/.test(m?.[3] ?? "");
-    if (!pinned) bad.push(`line ${i + 1}: ${line.trim()}`);
-  });
+  const lines = text.split(/\r?\n/);
+  for (const ref of usesRefs(yaml.load(text))) {
+    if (ref.startsWith("./")) continue; // an action in this repository runs at the checked-out commit
+    const line = lines.find((l) => l.includes(ref) && /\buses\s*:/.test(l)) ?? ref;
+    const comment = /(?:^|\s)(#\s*\S+)/.exec(line.slice(line.indexOf(ref) + ref.length))?.[1] ?? "";
+    const pinned = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]+@[0-9a-f]{40}$/.test(ref) && comment !== "";
+    if (!pinned) bad.push(`${ref}: ${line.trim()}`);
+  }
   return bad;
 }
 
+const loadWorkflow = (file: string): any => yaml.load(fs.readFileSync(path.join(workflowsDir, file), "utf8"));
 const workflowFiles = () => fs.readdirSync(workflowsDir).filter((f) => /\.ya?ml$/.test(f));
 
 describe("GitHub workflows pin every action to a commit", () => {
@@ -55,26 +74,41 @@ describe("GitHub workflows pin every action to a commit", () => {
     expect(runAt).toBeLessThan(buildAt);
   });
 
-  it("flags a tag, a short SHA, a branch, a missing comment and an unparseable line", () => {
+  it("grants read-only permissions to the workflow and write only to the build job, which waits for the checks", () => {
+    const wf = loadWorkflow("desktop.yml");
+    expect(wf.permissions).toEqual({ contents: "read" });
+    expect(wf.jobs.build.permissions).toEqual({ contents: "write" });
+    expect(wf.jobs.build.needs).toBe("checks");
+    expect(wf.jobs.checks.permissions).toBeUndefined(); // the checks job inherits the read-only default
+  });
+
+  it("flags a tag, a short SHA, a branch, a missing comment, an inline-map step and an unparseable ref", () => {
     const sha = "11d5960a326750d5838078e36cf38b85af677262";
     const text = [
+      "jobs:",
+      "  j:",
+      "    steps:",
       `      - uses: actions/checkout@${sha} # v4.4.0`,
-      `        uses: "actions/setup-node@${sha}" # v4.4.0`,
+      `      - uses: "actions/setup-node@${sha}" # v4.4.0`,
       "      - uses: ./.github/actions/local",
       "      - uses: actions/checkout@v4",
       "      - uses: actions/checkout@11d5960",
-      "        uses: softprops/action-gh-release@main # main",
+      "      - uses: softprops/action-gh-release@main # main",
       `      - uses: actions/upload-artifact@${sha}`,
-      `      - uses: docker://alpine:3`,
+      "      - uses: docker://alpine:3",
       `      - uses: actions/checkout@${sha.toUpperCase()} # v4.4.0`,
+      "      - { uses: actions/cache@v4 }",
+      `      - { uses: actions/cache@${sha}, with: { path: x } }`,
     ].join("\n");
-    expect(unpinnedUses(text)).toEqual([
-      "line 4: - uses: actions/checkout@v4",
-      "line 5: - uses: actions/checkout@11d5960",
-      "line 6: uses: softprops/action-gh-release@main # main",
-      `line 7: - uses: actions/upload-artifact@${sha}`,
-      "line 8: - uses: docker://alpine:3",
-      `line 9: - uses: actions/checkout@${sha.toUpperCase()} # v4.4.0`,
+    expect(unpinnedUses(text).map((b) => b.split(": ")[0])).toEqual([
+      "actions/checkout@v4",
+      "actions/checkout@11d5960",
+      "softprops/action-gh-release@main",
+      `actions/upload-artifact@${sha}`,
+      "docker://alpine:3",
+      `actions/checkout@${sha.toUpperCase()}`,
+      "actions/cache@v4",
+      `actions/cache@${sha}`,
     ]);
   });
 });
