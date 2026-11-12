@@ -78,6 +78,8 @@ html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !import
 .okf-dot--error { background: #ff6b5b; }
 .okf-status { margin: 0; font-weight: 700; }
 .okf-hint, .okf-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+/* A download's percent keeps its width (9% to 10%), so the Stop button next to it does not move. */
+.okf-progress { font-variant-numeric: tabular-nums; }
 .okf-convo { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--panel); }
 .okf-convo p { margin: 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
 .okf-q { color: var(--muted); }

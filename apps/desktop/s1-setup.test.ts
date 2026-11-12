@@ -1,5 +1,6 @@
-// S1-mini by Superwhisper in the setup: the installer's components page, the welcome's setup step and the
-// setup picker in Settings offer it ticked, with one size, and all end in one download path.
+// S1-mini by Superwhisper in the setup: the welcome's setup step and the setup picker in Settings offer it
+// ticked, with one size, and all end in one download path. The Windows installer does not offer it (or
+// any other download) any more: the app's own setup decides for the PC.
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -70,7 +71,7 @@ describe("S1-mini in the setup: one download path, kept until the file is here",
     expect(wantModel(rt, s)).toEqual({ started: false, reason: "no runtime" });
     expect(s.sets).toEqual([]);
   });
-  it("the installer's choice, the welcome's answer and the Settings button all go through wantCleanupModel in main.js", () => {
+  it("the welcome's answer, the first-start dialog and the Settings button all go through wantCleanupModel in main.js", () => {
     const main = here("main.js");
     expect(main).not.toMatch(/\.fetchModel\(/); // only s1-runtime.js wantModel starts the download
     expect(main.match(/wantCleanupModel\(/g)!.length).toBeGreaterThanOrEqual(3); // its definition, Settings, the setup
@@ -138,28 +139,36 @@ describe("S1-mini: one name and one size everywhere", () => {
     expect(CORE_MODEL.bytes).toBe(MODEL.bytes);
     expect(CORE_MODEL.name).toBe(SETUP_ID);
     expect(MB).toBe("462 MB");
-    // the installer's section size is in KB
-    expect(nsh).toMatch(new RegExp(`Section /o "S1-mini by Superwhisper" SecS1Mini\\r?\\n\\s+AddSize ${Math.round(MODEL.bytes / 1024)}\\r?\\n`));
     expect(here("localai.js")).toMatch(/"s1-mini": \{ dl: 0\.46, /);
     expect(CORE_MODEL.downloadGb).toBe(0.46);
   });
-  it("the installer names it exactly, with the size, in all twelve languages, ticked by default and not on updates", () => {
-    const labels = nsh.split(/\r?\n/).filter((l) => /StrCpy \$LblS1Mini "S1-mini/.test(l));
-    expect(labels).toHaveLength(12);
-    // The size comes right after the name: the page's list is narrow and cuts a long line (seen in the built
-    // installer), so a size at the end would not show.
-    for (const l of labels) expect(l).toMatch(/"S1-mini by Superwhisper \(462 (MB|Mo|МБ)\) ?[:：]/);
-    expect(new Set(labels.map((l) => l.trim())).size).toBe(12);
-    // the same for every row of the page: name, then the size in brackets, then what it is for
-    const rows = nsh.split(/\r?\n/).filter((l) => /StrCpy \$Lbl(WhisperBase|WhisperSmall|S1Mini|Clef|GemmaSmall|GemmaBig|Ollama) "[^$]/.test(l));
-    expect(rows).toHaveLength(84);
-    for (const l of rows) expect(l, l).toMatch(/StrCpy \$Lbl\w+ "[^"(:：]{5,24} \([^)]*\d[^)]*\) ?[:：]/);
-    expect(nsh).toMatch(/StrCpy \$StS1Mini \$\{BST_CHECKED\}\r?\n\s+\$\{If\} \$HaveS1Mini == 1\r?\n\s+StrCpy \$StS1Mini \$\{BST_UNCHECKED\}/);
-    expect(nsh).toContain('!insertmacro _FilowSection ${SecS1Mini} $StS1Mini "$LblS1Mini"');
-    expect(nsh).toContain("!insertmacro _FilowReadSection ${SecS1Mini} $StS1Mini");
-    expect(nsh).toMatch(/\$\{If\} \$StS1Mini == \$\{BST_CHECKED\}\r?\n\s+\$\{AndIfNot\} \$\{isUpdated\}\r?\n\s+StrCpy \$1 '\$1"s1-mini",'/);
-    expect(nsh).toContain('"$APPDATA\\@filow\\desktop\\models\\s1-mini\\s1-mini-q4_k_m.gguf"');
+  // Easy settings: the installer's page of model names is gone, and with it the file that made the app
+  // skip its own first-run setup. What to download is decided by the app, with the rule the app uses.
+  it("the installer names no download and writes no choices: the app's own setup decides", () => {
+    for (const word of ["S1-mini", "Superwhisper", "Whisper", "Clef", "Gemma", "Ollama", "GPU", "RAM"]) expect(nsh.includes(word), word).toBe(false);
+    for (const part of ["MUI_PAGE_COMPONENTS", "customPageAfterChangeDir", "InstType", "SectionGroup", "Section /o", "AddSize", "install-choices", "FileWrite", "FileOpen", "$APPDATA"]) expect(nsh.includes(part), part).toBe(false);
+    // what it still does: welcome, information and finish pages, in every installer language
+    for (const page of ["!macro customWelcomePage", "!insertmacro MUI_PAGE_WELCOME", '!insertmacro MUI_PAGE_LICENSE "$(FilowInfo)"', "!macro customFinishPage", "!insertmacro MUI_PAGE_FINISH", "Function CreateDesktopLink", "Function StartAppNow", "!macro customInstall"]) expect(nsh.includes(page), page).toBe(true);
+    for (const name of ["WelcomeTitle", "WelcomeText", "RunText", "ShortcutText", "InfoTitle", "InfoSub", "InfoTop"]) {
+      expect(nsh.split(/\r?\n/).filter((l) => l.trim().startsWith(`StrCpy $${name} "`)), name).toHaveLength(12);
+      expect(nsh).toContain(`Var ${name}\r\n`);
+    }
+    // every variable that is declared is set and used (makensis fails the build on an unused one)
+    const vars = [...nsh.matchAll(/^Var (\w+)\r?$/gm)].map((m) => m[1]);
+    expect(vars).toHaveLength(7);
+    for (const v of vars) expect(nsh.split(`$${v}`).length - 1, v).toBeGreaterThanOrEqual(13);
+    // the Romanian strings NSIS lacks are still supplied
+    expect(nsh.match(/^!define FILOW_Romanian_MULTIUSER_/gm)).toHaveLength(5);
     expect(nsh).not.toMatch(/\r?\n[^\r\n]*[^\r]\n/); // CRLF throughout
+  });
+  it("a file left by an older installer is not followed: main.js never reads it and always asks through its own setup", () => {
+    const main = here("main.js");
+    expect(main.includes("installChoicesFound")).toBe(false);
+    expect(main.includes("readInstallChoices")).toBe(false);
+    expect(main.includes("return { firstRun, askSetup: firstRun && !settings.localAiOffered };")).toBe(true);
+    expect(/function dropInstallerChoices\(\) \{\s*try \{\s*fs\.rmSync\(path\.join\(userData, "install-choices\.json"\), \{ force: true \}\);/.test(main)).toBe(true);
+    expect(/loadSettings\(\);[\s\S]{0,300}dropInstallerChoices\(\);/.test(main)).toBe(true);
+    expect(main.includes("if (!choices && !settings.localAiOffered) choices = await offerLocalAi();")).toBe(true);
   });
   it("five languages name it exactly and state the size where it is offered", () => {
     for (const lang of LANGS) {

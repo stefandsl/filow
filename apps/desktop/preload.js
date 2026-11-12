@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld("filow", {
   remoteShare: Boolean(process.env.FILOW_PUBLIC_WEB),
   /** Turn the public link (Cloudflare tunnel) on or off; the app reloads with new pairing URLs. */
   setRemoteShare: (on) => ipcRenderer.send("remote:set", Boolean(on)),
+  /** "Pair a phone" was opened: the shell brings the public link up now if the user has it on (it is not started at launch). */
+  pairingOpened: () => ipcRenderer.send("remote:pairing"),
   remoteStatus: () => ipcRenderer.invoke("remote:status"),
   /** Auto-update state (installed app only): idle | checking | downloading | downloaded | none | error. */
   updateStatus: () => ipcRenderer.invoke("update:status"),
@@ -123,6 +125,16 @@ contextBridge.exposeInMainWorld("filow", {
       ipcRenderer.on("stt:status", h);
       return () => ipcRenderer.removeListener("stt:status", h);
     },
+  },
+  /**
+   * The models in Filow's profile (model-control.js): what is on disk and in use, Stop for a download
+   * ("speech", "voice", "cleanup", "punctuation", "ollama-installer", "cloudflared") and Delete for a
+   * model ("speech:<key>", "voice", "cleanup", "punctuation").
+   */
+  models: {
+    status: () => ipcRenderer.invoke("models:status"),
+    cancel: (id) => ipcRenderer.invoke("models:cancel", id),
+    remove: (id) => ipcRenderer.invoke("models:delete", id),
   },
   /** Phone on this network: which adapter/IP the QR uses, the Windows Firewall state, and fixes. */
   net: {

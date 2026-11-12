@@ -1174,6 +1174,8 @@ function createOkFilow(deps) {
     ipcMain, ours: ourSender, userData, logLine, isOffline,
     qaDir: QA_ALLOWED ? process.env.FILOW_OKF_QA_TTS_DIR || "" : "",
     onChange: () => { sendPanel("okfilow:config", status()); sendOverlays("okfilow:config", status()); },
+    // main.js's registry of downloads in flight: Stop works from Filow Settings too (model-files.js)
+    ...(deps.downloads ? { downloads: deps.downloads } : {}),
   });
 
   // ---- agents (okfilow-agents.js): "agent, <task>" runs a background job ----
@@ -1284,7 +1286,18 @@ function createOkFilow(deps) {
     stt = null;
     try { tts?.dispose(); } catch { /* quitting */ }
   }
-  return { start, dispose, togglePanel, status, applyConfig };
+  /** Delete of a speech model (main.js): the recognizer for questions and dictation lets go of its files first. */
+  const releaseStt = (key) => {
+    if (!stt || (key !== undefined && stt.modelKey !== key)) return Promise.resolve();
+    const gone = stt.dispose();
+    stt = null;
+    return Promise.resolve(gone);
+  };
+  /** The natural voice for main.js's models list: { installed, usable, loaded, stopDownload, remove }. */
+  const voiceModel = () => tts;
+  /** The speech model OK Filow's recognizer holds in memory right now, or null. */
+  const sttLoaded = () => (stt && stt.worker ? stt.modelKey : null);
+  return { start, dispose, togglePanel, status, applyConfig, releaseStt, voiceModel, sttLoaded };
 }
 
 module.exports = { createOkFilow, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS, nextCfg };

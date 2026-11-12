@@ -1,7 +1,7 @@
 ﻿Filow: partenerul de prezentare care te ascultă în timp ce vorbești.
 Încarcă scenariul și vorbește liber: Filow bifează punctele pe măsură ce le spui și îți arată ce ai omis. Oglindă pe telefon, Screen Sense și programul de completare pentru PowerPoint.
 
-AI local sau în cloud: pe pagina următoare alegi modelele de descărcat la prima pornire. Fără modele locale, Filow folosește cloudul: o cheie API OpenRouter (câțiva cenți pe prezentare), lipită în fișierul .env pe care aplicația îl deschide la prima pornire. Modul offline nu trimite nimic prin rețea.
+Mai întâi pe acest PC: la prima pornire, Filow alege configurația potrivită pentru acest computer și îți propune să descarci ce îi trebuie. Nimic nu ajunge la un serviciu online decât dacă alegi tu unul și îți adaugi propriul cont. Asocierea unui telefon din altă rețea folosește o legătură gratuită Cloudflare (se poate opri). Modul offline nu trimite nimic prin rețea.
 
 
 NOUTĂȚI

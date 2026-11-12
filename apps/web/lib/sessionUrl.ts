@@ -22,6 +22,8 @@ export type DesktopBridge = {
   mirrorServerUrl?: string;
   remoteShare?: boolean;
   setRemoteShare?: (on: boolean) => void;
+  /** "Pair a phone" was opened: the shell starts the public link now if the user has it on. */
+  pairingOpened?: () => void;
   /** The engine page tells the shell its session so local views (PowerPoint pane) can join it. */
   reportSession?: (info: { id: string; code: string }) => void;
   slideshowState?: () => Promise<SlideShowState>;

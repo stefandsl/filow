@@ -1,7 +1,7 @@
 Filow: il compagno di presentazione che ti ascolta.
 Carica il tuo copione, parla liberamente: Filow spunta i punti mentre li dici e ti mostra cosa hai saltato. Mirror sul telefono, Screen Sense e componente per PowerPoint.
 
-AI in locale o nel cloud: nella pagina successiva scegli i modelli da scaricare al primo avvio. Senza modelli locali Filow usa il cloud: serve una chiave OpenRouter (pochi centesimi per intervento), che incolli nel file .env aperto al primo avvio. La modalità offline non invia nulla in rete.
+Prima di tutto su questo PC: al primo avvio Filow sceglie la configurazione adatta a questo computer e propone di scaricare ciò che serve. Nulla viene inviato a un servizio online, a meno che tu non ne scelga uno e aggiunga il tuo account. Abbinare un telefono da un'altra rete usa un collegamento gratuito di Cloudflare (si può disattivare). La modalità offline non invia nulla in rete.
 
 
 NOVITÀ

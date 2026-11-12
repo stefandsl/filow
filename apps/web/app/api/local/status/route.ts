@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
 import os from "node:os";
-import { OLLAMA_URL } from "@/lib/decide/clef";
+import { CLEF_LOCAL_MODEL, OLLAMA_URL } from "@/lib/decide/clef";
 import { LOCAL_MODELS, fits, versionAtLeast } from "@/lib/localModels";
 import { PII_SERVER_URL, piiMode, rizzoReachable } from "@/lib/pii/guard";
-import { recommendProfile } from "@filow/core";
+import { isSetupPreference, recommendProfile, resolveSetup } from "@filow/core";
+import { localHelper } from "@/lib/buddy/providers";
+import { pickTranslateModel } from "@/lib/translateLocal";
 import { gpuInfo, machineInfo } from "@/lib/sysinfo";
 import { freellmConfigured } from "@/lib/freellm";
 
 export const dynamic = "force-dynamic";
 
 /** What is installed and whether the machine can run each local model. */
-export async function GET() {
+export async function GET(req: Request) {
   const ramGb = Math.round(os.totalmem() / 1024 ** 3);
   const base = OLLAMA_URL();
   let version: string | null = null;
@@ -37,7 +39,25 @@ export async function GET() {
   const gpu = await gpuInfo();
   // what is installed needs no free disk: the setup does not flip after its own downloads
   const hardware = machineInfo(gpu, installed.map((i) => i.name));
+  // Which Ollama model each feature would call now, from the feature's own picker: the settings page
+  // shows "in use" from this (lib/modelUse.ts), never from a guess of its own.
+  const names = installed.map((i) => i.name);
+  const wanted = new URL(req.url).searchParams.get("setup");
+  const resolved = resolveSetup(isSetupPreference(wanted) ? wanted : "auto", hardware);
+  const helpers = new Set<string>();
+  // an everyday question and one that asks for a drawing: on "Best quality" they go to different models
+  // (an answer with a diagram and a plain "draw a car" may go to two different ones), and a setup may
+  // have a second model that places the points: every one of them is in use
+  for (const question of ["what is this?", "explain it with a drawing", "draw a car"]) {
+    try {
+      const helper = localHelper(resolved, names, question);
+      helpers.add(helper.model);
+      if (helper.pointer) helpers.add(helper.pointer);
+    } catch { /* this setup has no local helper */ }
+  }
+  const picks = { decision: CLEF_LOCAL_MODEL(), translate: pickTranslateModel(names), okfilow: [...helpers] };
   return NextResponse.json({
+    picks,
     pii,
     ollama: { url: base, reachable: version !== null, version, minimum: "0.35.1", ok: version ? versionAtLeast(version, "0.35.1") : false },
     machine: { ramGb, platform: process.platform, arch: process.arch },

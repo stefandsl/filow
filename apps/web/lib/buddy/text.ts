@@ -90,6 +90,13 @@ const en = {
   voiceGetNote: "One download from GitHub, then it works with no internet. Until then This PC's voice speaks. The voice is Supertonic 3 by Supertone, under the OpenRAIL-M licence: do not use it to pass as a real person.",
   voicePreview: "Listen",
   voiceRemove: "Remove the voice",
+  voiceStop: "Stop",
+  voiceStopLabel: "Stop the download of the voice",
+  voiceRemoveConfirm: "Remove the natural voice ({size}) from this computer?",
+  voiceRemoveInUse: "It is the voice in use: OK Filow will speak with This PC's voice.",
+  voiceRemoved: "Voice removed: {size} freed.",
+  voiceInstalled: "Natural voice installed ({size})",
+  voiceInUse: "in use",
   voiceSample: "Hi, I'm OK Filow. This is how I sound on this PC.",
   voiceLight: "This PC is modest, so the natural voice uses a lighter setting.",
   voiceWhy_notInstalled: "The natural voice is not downloaded yet, so This PC's voice is speaking.",
@@ -203,6 +210,9 @@ const en = {
   pauseKeyLabel: "Pause and resume the answer",
   keyNone: "No shortcut",
   keyTaken: "Windows did not accept {key}: another app is already using it. Choose another one.",
+  // A photo was asked for (lib/buddy/photo.ts): the card carries it, this is what is said
+  photoHere: "Here is {subject}, with a photo from Wikipedia.",
+  photoOffline: "Offline mode is on, so no photo can be fetched from Wikipedia. Turn Offline mode off in Settings to see one.",
 };
 export type OkfKey = keyof typeof en;
 /** A translation: the same keys as English (text.test.ts checks every language). */

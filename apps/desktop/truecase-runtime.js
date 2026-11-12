@@ -6,6 +6,8 @@
 // one download of the model files, which the user starts (the setup or Settings).
 const path = require("node:path");
 const fs = require("node:fs");
+const { cancelError, isCancelled, removeInside } = require("./model-files");
+const { exited } = require("./s1-runtime");
 
 /** The files Filow downloads (revision pinned): each with its size and SHA-256, from the repository's SHA256SUMS. */
 const REVISION = "b18abbd2d30e8167e154df444b37faa4d6f5c2ea";
@@ -133,24 +135,33 @@ function createTruecaseRuntime(deps) {
     throw new Error("a downloaded model file is not the expected one (hash differs); it was deleted");
   }
   let fetching = null;
+  let stopFetch = null;
   let pct = 0;
   let fetchError = "";
-  /** Downloads the model files into the profile. A broken download continues where it stopped; each file gets its name only after its hash was checked. */
+  /**
+   * Downloads the model files into the profile. A broken download continues where it stopped; each file
+   * gets its name only after its hash was checked. cancelFetch() is the user's Stop: the transfer ends
+   * and the whole folder goes (the files already finished too: a model that is not complete is of no use).
+   */
   function fetchModel() {
     if (hasModel()) return Promise.resolve(true);
-    if (fetching) return fetching;
+    // A download that was just stopped is still closing its file: the new one starts when it is gone.
+    if (fetching) return stopFetch ? fetching : fetching.then(() => fetchModel());
+    const ctl = new AbortController();
     fetchError = "";
     pct = 0;
+    stopFetch = () => ctl.abort(cancelError());
     fetching = (async () => {
       fs.mkdirSync(dir(), { recursive: true });
       log(`truecase: downloading the model (${Math.round(BYTES / 1024 / 1024)} MiB) from huggingface.co`);
       let before = 0;
       for (const f of FILES) {
         const dest = path.join(dir(), f.name);
+        if (ctl.signal.aborted) throw cancelError();
         if (!fs.existsSync(dest)) {
           const part = `${dest}.part`;
           const share = (p) => { pct = Math.min(99, Math.round(((before + (f.bytes * p) / 100) / BYTES) * 100)); };
-          await deps.download(deps.fileUrl ? deps.fileUrl(f) : fileUrl(f), part, { resume: true, fallbackSize: f.bytes, onPct: share });
+          await deps.download(deps.fileUrl ? deps.fileUrl(f) : fileUrl(f), part, { resume: true, fallbackSize: f.bytes, onPct: share, signal: ctl.signal });
           await verifyDownload(part, f.sha256);
           fs.renameSync(part, dest);
         }
@@ -160,15 +171,50 @@ function createTruecaseRuntime(deps) {
       lastError = "";
       log("truecase: model on this computer, hashes checked");
       return true;
-    })().catch((e) => { fetchError = String((e && e.message) || e).slice(0, 120); log(`truecase: model download failed (${fetchError})`); return false; }).finally(() => { fetching = null; });
+    })().catch((e) => {
+      if (isCancelled(e) || ctl.signal.aborted) {
+        try { removeInside(path.join(deps.userData, "models"), dir()); } catch { /* the next download starts over anyway */ }
+        pct = 0;
+        log("truecase: model download stopped by the user, nothing kept on disk");
+        return false;
+      }
+      fetchError = String((e && e.message) || e).slice(0, 120); log(`truecase: model download failed (${fetchError})`); return false;
+    }).finally(() => { fetching = null; stopFetch = null; });
     return fetching;
+  }
+  /** Stop: true when a download was running. */
+  function cancelFetch() {
+    if (!stopFetch) return false;
+    const stop = stopFetch;
+    stopFetch = null; // from here on the download counts as ending, not as running
+    stop();
+    return true;
   }
 
   /** Loads the model ahead of the first dictation, so that one does not pay the load. */
   function warm() { if (ready().ok) void start().catch(() => {}); }
   function stop() { ct(idleTimer); idleTimer = null; const c = child; child = null; failAll("stopped"); if (c) { try { c.kill(); } catch { /* gone */ } } }
+  /**
+   * Delete: any download is stopped, the model's process is stopped and waited for (it holds the
+   * files open), then the folder goes. Returns the bytes freed. Dictation carries on without marks
+   * and capitals from the model (ready() says "model not on this computer").
+   */
+  async function remove() {
+    cancelFetch();
+    if (fetching) await fetching;
+    if (starting) await starting.catch(() => {});
+    const c = child;
+    stop();
+    await exited(c);
+    lastError = "";
+    fetchError = "";
+    pct = 0;
+    const freed = removeInside(path.join(deps.userData, "models"), dir());
+    log(`truecase: model deleted by the user (${Math.round(freed / 1024 / 1024)} MB freed)`);
+    return freed;
+  }
   const status = () => ({ runtime: hasRuntime(), model: hasModel(), running: Boolean(child), startedMs, error: lastError || fetchError, downloading: Boolean(fetching), pct, bytes: BYTES, unloads });
-  return { ready, run, warm, stop, status, fetchModel };
+  return { ready, run, warm, stop, status, fetchModel, cancelFetch, remove };
 }
 
 module.exports = { createTruecaseRuntime, runtimeFile, modelDir, FILES, BYTES, REVISION, SETUP_ID, IDLE_UNLOAD_MS };

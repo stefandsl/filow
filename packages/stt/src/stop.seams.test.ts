@@ -42,7 +42,7 @@ function desktopSession() {
   const modules: Record<string, unknown> = {
     "node:fs": { existsSync: () => true }, "node:os": { cpus: () => [0, 1, 2, 3], totalmem: () => 16 * 2 ** 30 },
     "node:path": path, "node:https": {}, "node:child_process": {},
-    "node:worker_threads": { Worker }, "./stt-download": {}, "./download": {}, "./integrity": {},
+    "node:worker_threads": { Worker }, "./stt-download": {}, "./download": {}, "./integrity": {}, "./model-files": {},
   };
   runInNewContext(readFileSync(new URL("../../../apps/desktop/stt.js", import.meta.url), "utf8"), {
     require: (id: string) => modules[id], module, __dirname: "G:/fake",

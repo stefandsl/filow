@@ -3,6 +3,7 @@ import { runInNewContext } from "node:vm";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { EventEmitter } from "node:events";
+import { createRequire } from "node:module";
 import { describe, expect, it, vi } from "vitest";
 import { DICTIONARIES, isLang, langFromLocale, t } from "@filow/core";
 // localai.js reads the setup rules and the card detection from vendor/, a build of these two files
@@ -35,7 +36,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   const registerShortcut = vi.fn(() => true);
   const writeText = vi.fn(), showMessageBox = vi.fn(async () => ({ response: 0 }));
   const updaterHandlers: Record<string, (info: { version: string }) => void> = {}, notificationShow = vi.fn();
-  const writeFileSync = vi.fn(), appendFileSync = vi.fn();
+  const writeFileSync = vi.fn(), appendFileSync = vi.fn(), rmSync = vi.fn(), fsRead = vi.fn((..._args: unknown[]) => "FILOW_OFFLINE=1");
   const modules: Record<string, any> = {
     electron: {
       crashReporter: { start() {} },
@@ -51,7 +52,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
       net: { isOnline: () => true }, nativeTheme: { shouldUseDarkColors: true },
     },
     "node:path": path, "node:url": { pathToFileURL },
-    "node:fs": { readFileSync: () => "FILOW_OFFLINE=1", appendFileSync, existsSync: (file: string) => updateFeed && String(file).endsWith("app-update.yml"), mkdirSync() {}, rmSync() {}, writeFileSync, renameSync() {} },
+    "node:fs": { readFileSync: fsRead, appendFileSync, existsSync: (file: string) => updateFeed && String(file).endsWith("app-update.yml"), mkdirSync() {}, rmSync, writeFileSync, renameSync() {} },
     "node:os": { homedir: () => "G:/fake", cpus: () => [{ model: "fake" }], totalmem: () => 0, release: () => "fake", networkInterfaces: () => ({}) },
     "node:http": { get: () => { const req = new EventEmitter(); queueMicrotask(() => req.emit("error", new Error("Ollama absent"))); return req; } },
     "node:https": { get: outbound }, "node:crypto": {}, "node:net": {}, "node:child_process": childProcess,
@@ -63,17 +64,19 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },
   };
   // Real downloader orchestration, absent installation/model, fake disk and network.
-  for (const name of ["global-input", "download", "stt", "localai", "diag", "s1-runtime", "welcome-setup", "single-instance", "about"]) {
+  for (const name of ["global-input", "model-files", "download", "stt", "localai", "diag", "s1-runtime", "welcome-setup", "single-instance", "about"]) {
     const module = { exports: {} };
     runInNewContext(readFileSync(new URL(`./${name}.js`, import.meta.url), "utf8"), {
       require: (id: string) => { if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`); return modules[id]; },
-      module, process: { env, platform }, URL, setTimeout, clearTimeout, __dirname: "G:/fake",
+      module, process: { env, platform }, URL, setTimeout, clearTimeout, AbortController, __dirname: "G:/fake",
     });
     modules[`./${name}`] = module.exports;
   }
+  // the pure tunnel rules, as main.js asks for them
+  modules["./tunnels.js"] = createRequire(import.meta.url)("./tunnels.js");
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
     ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
-       startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, setLog: text => { lastTakeLog = text; },
+       startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, dropInstallerChoices, setLog: text => { lastTakeLog = text; },
        setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
        offerLocalAi, offerFirewall, welcomeSetup, registerHotkey, permissionFor, copyText: text => clipboard.writeText(text), settings: () => settings, patchSettings: patch => Object.assign(settings, patch),
@@ -85,9 +88,9 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
       return modules[id];
     },
     __dirname: "G:/fake", process: { env, platform, arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {} },
-    URL, URLSearchParams, console, setTimeout, clearTimeout,
+    URL, URLSearchParams, console, setTimeout, clearTimeout, AbortController,
   });
-  return { api, env, registerShortcut, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync,
+  return { api, env, registerShortcut, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync, rmSync, fsReads: fsRead,
     calls, appHandlers, appExit, whenReady, windows, asked, catalog: Object.keys(modules["./localai"].CATALOG),
     ipc: async (channel: string, win: { webContents: unknown }, ...args: unknown[]) => ipcHandlers[channel]({ sender: win.webContents }, ...args),
     blocked: (url: string) => { let result: any; requestFilter({ url }, r => { result = r; }); return result.cancel === true; } };
@@ -221,6 +224,93 @@ describe("Step 4 desktop offline seams", () => {
     expect(f.windows).toHaveLength(1);
     expect(f.windows[0].loaded).toEqual([[path.join("G:/fake", "about.html"), { hash: "about" }]]);
     expect(f.windows[0].webContents.send).toHaveBeenCalledWith("about:view", "report");
+  });
+});
+
+// Easy settings: "Keep it on this PC" is only true if nothing reaches out at launch. The public link
+// for a phone starts when the pairing panel opens. cloudflared is never run here: spawn is a stub.
+describe("the phone link starts when pairing, not at launch", () => {
+  /** A shell with cloudflared "installed" and a spawn that only records: no process, no network. */
+  function shell(env: Record<string, string> = {}) {
+    const execFileSync = vi.fn((cmd: string) => (cmd === "where" ? "G:/bin/cloudflared.exe\r\n" : ""));
+    const spawn = vi.fn(() => { throw new Error("no tunnels in tests"); });
+    const f = fixture(env, { childProcess: { execFile: vi.fn(), execFileSync, spawn } });
+    const linkLines = () => f.appendFileSync.mock.calls.map((c: unknown[]) => String(c[1])).filter((l: string) => l.includes("public link:")).map((l: string) => l.replace(/^\S+ /, "").trim());
+    return { f, spawn, linkLines, win: { reload: vi.fn() } };
+  }
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  it("loading the shell starts nothing; opening the pairing panel starts the link once", async () => {
+    const { f, spawn, linkLines, win } = shell();
+    expect(f.api.settings().remoteShare).toBe(true);
+    await settle();
+    expect(spawn).not.toHaveBeenCalled();
+    expect(linkLines()).toEqual([]);
+    expect(f.api.linkForPairing(win)).toBe(true);
+    await settle();
+    // both tunnels were asked for (the page and the relay), with the fixed arguments; the stub refuses them
+    expect(spawn.mock.calls.map((c: unknown[]) => [c[0], (c[1] as string[]).slice(0, 2)])).toEqual([["G:/bin/cloudflared.exe", ["tunnel", "--url"]], ["G:/bin/cloudflared.exe", ["tunnel", "--url"]]]);
+    expect(linkLines()).toEqual(["public link: connecting", "public link: error no tunnels in tests"]);
+    // started by opening the panel: no window reload, no dialog, and the user's choice stays on
+    expect(win.reload).not.toHaveBeenCalled();
+    expect(f.showMessageBox).not.toHaveBeenCalled();
+    expect(f.api.settings().remoteShare).toBe(true);
+  });
+
+  it("a link that is up or coming up is not started again; a failed one is retried at the next opening", async () => {
+    const { f, spawn, win } = shell();
+    for (const state of ["on", "connecting", "downloading"]) {
+      f.api.tunnels.state = state;
+      expect(f.api.linkForPairing(win), state).toBe(false);
+    }
+    await settle();
+    expect(spawn).not.toHaveBeenCalled();
+    f.api.tunnels.state = "error";
+    expect(f.api.linkForPairing(win)).toBe(true);
+    await settle();
+    expect(spawn).toHaveBeenCalledTimes(2); // one start: the page's tunnel and the relay's
+  });
+
+  it("never starts for a user who switched the link off, in offline mode, or with a hosted relay", async () => {
+    const off = shell();
+    off.f.api.patchSettings({ remoteShare: false });
+    expect(off.f.api.linkForPairing(off.win)).toBe(false);
+    const offline = shell({ FILOW_OFFLINE: "1" });
+    offline.f.api.startupOffline();
+    expect(offline.f.api.linkForPairing(offline.win)).toBe(false);
+    const hosted = shell({ FILOW_SESSION_URL: "https://relay.example" });
+    expect(hosted.f.api.linkForPairing(hosted.win)).toBe(false);
+    await settle();
+    for (const s of [off, offline, hosted]) { expect(s.spawn).not.toHaveBeenCalled(); expect(s.linkLines()).toEqual([]); }
+  });
+
+  it("the only automatic start is the pairing panel's: main.js wires it to the panel's message and the page sends it", () => {
+    const main = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+    // one call site starts the link without the user's own switch, and it is linkForPairing
+    expect(main.match(/setRemoteShare\([^)]*auto: true/g)).toHaveLength(1);
+    const body = main.slice(main.indexOf("function linkForPairing(win) {"), main.indexOf("let remoteBusy"));
+    expect(body.includes("void setRemoteShare(win, true, { auto: true, reload: false });")).toBe(true);
+    expect(main.match(/linkForPairing\(/g)).toHaveLength(2); // its definition and the "remote:pairing" handler
+    expect(/appOn\("remote:pairing", \(\) => \{\s*if \(mainWin && !mainWin\.isDestroyed\(\)\) linkForPairing\(mainWin\);/.test(main)).toBe(true);
+    expect(readFileSync(new URL("./preload.js", import.meta.url), "utf8")).toContain('pairingOpened: () => ipcRenderer.send("remote:pairing")');
+    const panel = readFileSync(new URL("../web/components/PairPanel.tsx", import.meta.url), "utf8");
+    expect(/useEffect\(\(\) => \{\s*if \(open\) announcePairing\(bridge\);/.test(panel)).toBe(true);
+  });
+});
+// Easy settings: the Windows installer no longer has a page of model names. A choices file left by an
+// older installer is removed without being read, so the app's own first-run setup always decides.
+describe("choices from an older installer", () => {
+  it("are removed unread", () => {
+    const f = fixture();
+    f.fsReads.mockClear();
+    f.api.dropInstallerChoices();
+    expect(f.rmSync.mock.calls.map((c: unknown[]) => [String(c[0]).replace(/\\/g, "/").split("/").pop(), c[1]])).toEqual([["install-choices.json", { force: true }]]);
+    expect(f.fsReads).not.toHaveBeenCalled();
+  });
+  it("a profile that cannot be written to does not stop the start", () => {
+    const f = fixture();
+    f.rmSync.mockImplementation(() => { throw new Error("EPERM"); });
+    expect(() => f.api.dropInstallerChoices()).not.toThrow();
   });
 });
 

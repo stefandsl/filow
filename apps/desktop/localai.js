@@ -7,6 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawn, execFile, execFileSync } = require("node:child_process");
 const { download } = require("./download");
+const { isCancelled } = require("./model-files");
 
 const OLLAMA_URL = () => process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 
@@ -463,7 +464,9 @@ function stepError(code, err) {
 async function installOllama(binDir, onStatus, deps = {}) {
   // deps: `startOnly` (never download: start what is installed), `log` (lines for the startup log); the rest are
   // test seams (no installed Ollama, a platform, a local download server, a short idle timeout, a start).
-  const { findExe = ollamaExe, version: probeVersion = ollamaVersion, platform = process.platform, urls = OLLAMA_DOWNLOADS, idleMs, start = startOllama, startOnly = false, log = () => {}, installMs = 15 * 60_000 } = deps;
+  // `signal` is the user's Stop while the installer downloads (model-files.js): the transfer ends, the
+  // partial installer is deleted and the status goes back to idle. It is not an error.
+  const { findExe = ollamaExe, version: probeVersion = ollamaVersion, platform = process.platform, urls = OLLAMA_DOWNLOADS, idleMs, start = startOllama, startOnly = false, log = () => {}, installMs = 15 * 60_000, signal } = deps;
   const report = (s) => onStatus({ pct: 0, code: "", error: "", version: "", command: "", ...s });
   const bringUp = async (exe) => {
     report({ state: "starting" });
@@ -489,8 +492,8 @@ async function installOllama(binDir, onStatus, deps = {}) {
     if (platform === "win32") {
       const setup = path.join(binDir, "OllamaSetup.exe");
       report({ state: "downloading", pct: 0 });
-      await download(urls.win32, setup, { onPct: (pct) => report({ state: "downloading", pct }), idleMs }).catch((err) => {
-        throw stepError("download_failed", `Ollama download failed: ${err && err.message ? err.message : err}`);
+      await download(urls.win32, setup, { onPct: (pct) => report({ state: "downloading", pct }), idleMs, signal }).catch((err) => {
+        throw isCancelled(err) ? err : stepError("download_failed", `Ollama download failed: ${err && err.message ? err.message : err}`);
       });
       // SEC-15: run the installer only with a valid Windows signature from Ollama Inc.
       try {
@@ -526,8 +529,8 @@ async function installOllama(binDir, onStatus, deps = {}) {
       const zip = path.join(binDir, "Ollama-darwin.zip");
       const staging = path.join(binDir, "ollama-staging");
       report({ state: "downloading", pct: 0 });
-      await download(urls.darwin, zip, { onPct: (pct) => report({ state: "downloading", pct }), idleMs }).catch((err) => {
-        throw stepError("download_failed", `Ollama download failed: ${err && err.message ? err.message : err}`);
+      await download(urls.darwin, zip, { onPct: (pct) => report({ state: "downloading", pct }), idleMs, signal }).catch((err) => {
+        throw isCancelled(err) ? err : stepError("download_failed", `Ollama download failed: ${err && err.message ? err.message : err}`);
       });
       report({ state: "installing", pct: 0 });
       try {
@@ -540,6 +543,10 @@ async function installOllama(binDir, onStatus, deps = {}) {
     if (!exe) throw stepError("exe_missing", "Ollama was installed but its executable was not found.");
     return await bringUp(exe);
   } catch (err) {
+    if (isCancelled(err)) {
+      log("Ollama installer download stopped by the user, nothing kept on disk");
+      return report({ state: "idle" });
+    }
     return report({ state: "error", code: (err && typeof err.code === "string" && /^[a-z_]+$/.test(err.code) && err.code) || "unexpected", error: String(err && err.message ? err.message : err) });
   }
 }

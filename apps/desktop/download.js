@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const https = require("node:https");
 const { idleTimeout, contentRangeStart, receiveArchive } = require("./stt-download");
+const { cancelError, isCancelled } = require("./model-files");
 
 /**
  * Downloads url into dest. Options:
@@ -15,12 +16,16 @@ const { idleTimeout, contentRangeStart, receiveArchive } = require("./stt-downlo
  *   a pinned hash before use. Without resume, dest is written from the start and deleted when the
  *   download fails: no partial file is left behind.
  * - idleMs: how long the connection may stay silent (default 30 s).
+ * - signal: an AbortSignal (model-files.js createDownloads). Aborting it is the user's "Stop": the
+ *   connection is closed at once, the promise rejects with err.code "FILOW_CANCELLED", and dest is
+ *   deleted even with resume, so a click by mistake leaves nothing on disk.
  * Only https, or plain http when the first URL is http (local test servers).
  */
 function download(url, dest, opts = {}) {
   const run = fetchInto(url, dest, { hops: 5, ...opts });
-  if (opts.resume) return run;
   return run.catch((err) => {
+    // A resumable part is kept for the next try, unless the user stopped the download.
+    if (opts.resume && !isCancelled(err)) throw err;
     // A fresh file can be held a moment by an antivirus scan: retry, and never let a failed delete
     // hide the download's own error.
     try {
@@ -33,10 +38,23 @@ function download(url, dest, opts = {}) {
 }
 
 function fetchInto(url, dest, opts) {
-  const { onPct = () => {}, fallbackSize = 0, resume = false, idleMs, hops } = opts;
-  return new Promise((resolve, reject) => {
+  const { onPct = () => {}, fallbackSize = 0, resume = false, idleMs, hops, signal } = opts;
+  return new Promise((done, fail) => {
     let response;
     let req;
+    if (signal && signal.aborted) return fail(cancelError());
+    // Stop: closing the request ends the transfer; once writing, the response is destroyed so the
+    // file is closed before the promise settles (Windows can then delete it).
+    const onAbort = () => {
+      const err = cancelError();
+      if (response) response.destroy(err);
+      if (req) req.destroy(err);
+    };
+    const forget = () => { if (signal) signal.removeEventListener("abort", onAbort); };
+    const resolve = (v) => { forget(); done(v); };
+    // Whatever error the closed connection produced, a stopped download says "stopped".
+    const reject = (e) => { forget(); fail(signal && signal.aborted && !isCancelled(e) ? cancelError() : e); };
+    if (signal) signal.addEventListener("abort", onAbort, { once: true });
     const offset = resume && fs.existsSync(dest) ? fs.statSync(dest).size : 0;
     const headers = { "User-Agent": "Filow" };
     if (offset > 0) headers.Range = `bytes=${offset}-`;

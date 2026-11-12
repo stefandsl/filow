@@ -111,6 +111,8 @@ contextBridge.exposeInMainWorld("okFilow", {
     status: () => ipcRenderer.invoke("okfilow:tts:status"),
     download: () => ipcRenderer.invoke("okfilow:tts:download"),
     remove: () => ipcRenderer.invoke("okfilow:tts:remove"),
+    /** Stop the download of the voice; the part on disk is deleted. */
+    stopDownload: () => ipcRenderer.invoke("okfilow:tts:stopDownload"),
     warm: () => ipcRenderer.invoke("okfilow:tts:warm"),
     speak: (req) => ipcRenderer.invoke("okfilow:tts:speak", req),
     cancel: (id) => ipcRenderer.invoke("okfilow:tts:cancel", id),

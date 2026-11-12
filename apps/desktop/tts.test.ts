@@ -561,11 +561,59 @@ describe("okfilow:tts channels", () => {
     await until(() => srv.held());
     const again = (await bus.invoke("okfilow:tts:download", panel)) as Status;
     expect(again.state).toBe("downloading");
-    // Removing while it downloads is ignored.
-    expect(((await bus.invoke("okfilow:tts:remove", panel)) as Status).state).toBe("downloading");
     srv.release();
     await until(() => panel.sent.some((s) => (s.payload as Status).installed));
     expect(srv.requests).toBe(1);
+  });
+
+  it("Stop ends the download: back to 'Download' at once, nothing kept on disk, no error, no retry", async () => {
+    const { bus, userData, log, model } = wire("stop");
+    const panel = sender();
+    srv.mode = "hold-next";
+    await bus.invoke("okfilow:tts:download", panel);
+    await until(() => srv.held());
+    // a part from an earlier try is on disk: Stop removes that too
+    fs.writeFileSync(partFile(userData, model), "earlier bytes");
+    await bus.invoke("okfilow:tts:stopDownload", panel);
+    await until(() => (panel.sent.at(-1)?.payload as Status).state === "idle");
+    const st = (await bus.invoke("okfilow:tts:status", panel)) as Status;
+    expect(st).toMatchObject({ installed: false, state: "idle", pct: 0, error: "" });
+    expect(fs.readdirSync(path.join(userData, "models"))).toEqual([]);
+    expect(panel.sent.some((s) => (s.payload as Status).state === "error")).toBe(false);
+    expect(log.join("\n")).toMatch(/tts: model download stopped by the user/);
+    expect(log.join("\n")).not.toMatch(/failed/);
+    srv.release();
+    await new Promise((r) => setTimeout(r, 200));
+    expect(srv.requests).toBe(1);
+    // nothing to stop any more: the call is harmless
+    expect(((await bus.invoke("okfilow:tts:stopDownload", panel)) as Status).state).toBe("idle");
+  });
+
+  it("Download pressed right after Stop starts a fresh download that finishes", async () => {
+    const { bus, userData } = wire("stop-then-download");
+    const panel = sender();
+    srv.mode = "hold-next";
+    await bus.invoke("okfilow:tts:download", panel);
+    await until(() => srv.held());
+    await bus.invoke("okfilow:tts:stopDownload", panel);
+    // the click lands before the stopped download has settled
+    await bus.invoke("okfilow:tts:download", panel);
+    await until(() => panel.sent.some((s) => (s.payload as Status).installed));
+    expect(srv.requests).toBe(2);
+    expect(fs.existsSync(path.join(userData, "models", "fixture-voice", "voice.bin"))).toBe(true);
+    srv.release();
+  });
+
+  it("Delete while it downloads stops the download first and leaves nothing behind", async () => {
+    const { bus, userData } = wire("delete-while-downloading");
+    const panel = sender();
+    srv.mode = "hold-next";
+    await bus.invoke("okfilow:tts:download", panel);
+    await until(() => srv.held());
+    const st = (await bus.invoke("okfilow:tts:remove", panel)) as Status & { freedBytes: number };
+    expect(st).toMatchObject({ installed: false, state: "idle" });
+    expect(fs.readdirSync(path.join(userData, "models"))).toEqual([]);
+    srv.release();
   });
 
   it("does not download when Filow is offline, and says why", async () => {

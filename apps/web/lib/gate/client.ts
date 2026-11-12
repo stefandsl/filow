@@ -23,9 +23,11 @@ export function loadGate(progress?: (p: GateProgress) => void): Promise<void> {
   worker = new Worker(new URL("./embed.worker.ts", import.meta.url), { type: "module" });
   const total = createDownloadProgress();
   ready = new Promise<void>((resolve, reject) => {
+    // Stop (stopGate) while the model downloads: the worker and its transfers end below, in ready.catch.
+    cancelLoad = () => reject(new DOMException("download stopped by the user", "AbortError"));
     worker!.onmessage = (ev: MessageEvent) => {
       const m = ev.data as { type: string; id?: number; dims?: number; data?: Float32Array; message?: string; status?: string; file?: string; loaded?: number; total?: number };
-      if (m.type === "ready") resolve();
+      if (m.type === "ready") { cancelLoad = null; resolve(); }
       else if (m.type === "progress") onProgress?.({ percent: total.update(m) });
       else if (m.type === "vectors" && m.id !== undefined && m.data && m.dims) {
         const d = m.dims;
@@ -51,11 +53,30 @@ export function loadGate(progress?: (p: GateProgress) => void): Promise<void> {
     worker!.postMessage({ type: "load", model: GATE_MODEL });
   });
   ready.catch(() => {
+    cancelLoad = null;
     worker?.terminate();
     worker = null;
     ready = null;
   });
   return ready;
+}
+
+let cancelLoad: (() => void) | null = null;
+/** The user's Stop while the model downloads: true when a download was running. loadGate's promise rejects with an AbortError. */
+export function stopGate(): boolean {
+  if (!cancelLoad) return false;
+  cancelLoad();
+  return true;
+}
+
+/** Lets go of the model (before its files are deleted from the browser cache); the next loadGate starts over. */
+export function unloadGate(): void {
+  if (stopGate()) return;
+  for (const p of pending.values()) p.reject(new Error("the pre-filter model was removed"));
+  pending.clear();
+  worker?.terminate();
+  worker = null;
+  ready = null;
 }
 
 /** The embedder handed to gatedDecide; it waits for the model when it is still loading. */

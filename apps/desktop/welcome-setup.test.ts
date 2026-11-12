@@ -44,8 +44,10 @@ describe("setup offer", () => {
     const o = setupOffer({ hw, rec, catalog: CATALOG, installed: takeReady, online: true });
     expect(o).toMatchObject({ ready: true, downloadGb: 11.4 }); // Whisper 0.5 + Gemma 9 + Qwen 1.9
   });
-  it("asks nothing when the installer already chose, or there is nothing to recommend", () => {
-    expect(setupOffer({ hw, rec, catalog: CATALOG, installed: none, online: true, installerChose: true }).ask).toBe(false);
+  it("asks whenever there is something to recommend (the installer no longer chooses), and nothing otherwise", () => {
+    expect(setupOffer({ hw, rec, catalog: CATALOG, installed: none, online: true }).ask).toBe(true);
+    // an old caller's "the installer already chose" is not a way to silence the app's own setup any more
+    expect(setupOffer({ hw, rec, catalog: CATALOG, installed: none, online: true, installerChose: true }).ask).toBe(true);
     expect(setupOffer({ hw, rec: { models: [], ollama: false }, catalog: CATALOG, installed: none, online: true }).ask).toBe(false);
   });
   it("says Mac on macOS", () => {

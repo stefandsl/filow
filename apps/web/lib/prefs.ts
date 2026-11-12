@@ -105,6 +105,7 @@ export function getSetupPreference(): SetupPreference {
 
 export function setSetupPreference(p: SetupPreference): void {
   try {
+    migrateStartMode(localStorage);
     if (p === "auto") localStorage.removeItem(SETUP_KEY);
     else localStorage.setItem(SETUP_KEY, p);
   } catch {
@@ -259,19 +260,39 @@ export async function chooseSpeechLang<S extends { language?: string }>(l: Speec
   return bridge?.setLanguage ? bridge.setLanguage(l) : null;
 }
 
+/** Set once the stored start mode follows the rule "nothing stored = Auto" (see migrateStartMode). */
+const START_MIGRATED = "prefs:startModeMigrated";
+
+/**
+ * Until the Easy settings, nothing stored meant "ask": every take opened the Cloud / Local dialog,
+ * whether the user had picked "Ask every time", started without "Remember my choice", or never
+ * touched it (setStartMode removed the key for "ask"). A profile that was used before keeps that
+ * question: "ask" is written down for it. A new profile stores nothing and starts on Auto, which
+ * runs the take on this PC when it can and asks otherwise; it never starts an online take by itself.
+ * Runs once, before the gate's own migration writes its marker (that marker is a sign of earlier use).
+ */
+export function migrateStartMode(s: Pick<Storage, "getItem" | "setItem">): void {
+  if (s.getItem(START_MIGRATED) !== null) return;
+  const usedBefore = [...EARLIER_USE, GATE_MIGRATED, GATE_KEY, SETUP_KEY].some((k) => s.getItem(k) !== null);
+  if (s.getItem(START_KEY) === null && usedBefore) s.setItem(START_KEY, "ask");
+  s.setItem(START_MIGRATED, "1");
+}
+
 export function getStartMode(): StartMode {
   try {
+    migrateStartMode(localStorage);
     const v = localStorage.getItem(START_KEY);
-    return v === "cloud" || v === "local" || v === "auto" ? v : "ask";
+    return v === "cloud" || v === "local" || v === "ask" ? v : "auto";
   } catch {
+    // no storage to tell a new profile from an old one: keep the question
     return "ask";
   }
 }
 
 export function setStartMode(m: StartMode): void {
   try {
-    if (m === "ask") localStorage.removeItem(START_KEY);
-    else localStorage.setItem(START_KEY, m);
+    localStorage.setItem(START_MIGRATED, "1");
+    localStorage.setItem(START_KEY, m);
   } catch {
     /* ignore */
   }
@@ -302,8 +323,17 @@ export function migrateGateMode(s: Pick<Storage, "getItem" | "setItem">): void {
   s.setItem(GATE_MIGRATED, "1");
 }
 
+// A new profile is told from a used one before any page writes its first setting: every page loads
+// this module (UiPreferencesProvider), also OK Filow's windows, which write their history first.
+try {
+  if (typeof window !== "undefined") migrateStartMode(window.localStorage);
+} catch {
+  /* storage blocked: getStartMode keeps the question */
+}
+
 export function getGateMode(): GateMode {
   try {
+    migrateStartMode(localStorage);
     migrateGateMode(localStorage);
     return localStorage.getItem(GATE_KEY) === "off" ? "off" : "on";
   } catch {
@@ -313,6 +343,7 @@ export function getGateMode(): GateMode {
 
 export function setGateMode(m: GateMode): void {
   try {
+    migrateStartMode(localStorage);
     localStorage.setItem(GATE_MIGRATED, "1");
     if (m === "on") localStorage.removeItem(GATE_KEY);
     else localStorage.setItem(GATE_KEY, m);

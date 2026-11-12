@@ -265,7 +265,10 @@ export type OkFilowBridge = {
     status(): Promise<OkFilowTtsStatus>;
     /** The click is the consent: fetches the voice model (resumes a partial download). */
     download(): Promise<OkFilowTtsStatus>;
-    remove(): Promise<OkFilowTtsStatus>;
+    /** Deletes the voice completely (a download in flight is stopped first); `freedBytes` from desktop 0.9.35. */
+    remove(): Promise<OkFilowTtsStatus & { freedBytes?: number }>;
+    /** Stops the download; what was fetched so far is deleted. Absent in desktop builds before 0.9.35. */
+    stopDownload?(): Promise<OkFilowTtsStatus>;
     /** Loads the model ahead of the answer. */
     warm(): Promise<boolean>;
     speak(req: { id: number; text: string; lang: string; voice?: number; speed?: number }): Promise<OkFilowTtsReply>;
