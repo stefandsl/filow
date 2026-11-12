@@ -21,6 +21,7 @@ import { ConsentList, OutboundNotice, OutboundPill } from "../outbound-ui";
 import { VoiceSettings } from "./voice-settings";
 import { getSetupPreference, getSpeechLang } from "@/lib/prefs";
 import { createAnswerTurn } from "@/lib/buddy/turn";
+import { createProgressiveSpeech } from "@/lib/buddy/progressive";
 import { askSees, screenLeaves, screenYesMissing, seesScreen, slowToSee, wordsOnlyAfterYes, type LocalScreenMode } from "@/lib/buddy/sees";
 import { SeeScreenSwitch, StopButton } from "@/components/okfilow/controls";
 import { whiteboardTopic } from "@/lib/whiteboard/client";
@@ -397,6 +398,16 @@ export default function OkFilowPanel() {
     setMode("thinking", { sees: seeing });
     b.text("");
     b.clearVisuals();
+    let answerLang: string | undefined;
+    const voice = createProgressiveSpeech({
+      isCurrent: () => run.current === id && !abort.signal.aborted,
+      speak: async (sentence) => {
+        if (!opts.typed || statusRef.current?.typedVoice) {
+          setMode("speaking");
+          await speak(sentence, id, answerLang);
+        }
+      },
+    });
     try {
       // With "Look at my screen" off no picture of the screen is even taken.
       const shot = await b.capture({ images: seeing });
@@ -440,7 +451,29 @@ export default function OkFilowPanel() {
       // What the server says about the answer: whether the model saw a picture (X-Buddy-Sees) and the
       // language it answered in (X-Buddy-Lang), which the voice uses to pick a matching voice.
       let seesText = false;
-      let answerLang: string | undefined;
+      let lastPoints = "", lastMarks = "";
+      const showProgress = (raw: string) => {
+        const parsed = parseBuddyAnswer(raw, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1);
+        turn.current.progress(id, parsed.text);
+        setAnswer(parsed.text);
+        b.text(parsed.text);
+        const points = JSON.stringify(parsed.points), marks = JSON.stringify(parsed.marks);
+        if (parsed.points.length && points !== lastPoints) {
+          b.point(parsed.points.flatMap(p => {
+            const d = shot.displays.find(x => x.index === p.screen);
+            return d ? [{ ...pointToDisplay(p, d.bounds), label: p.label }] : [];
+          }));
+          lastPoints = points;
+        }
+        if (parsed.marks.length && marks !== lastMarks) {
+          b.draw(parsed.marks.flatMap(m => {
+            const d = shot.displays.find(x => x.index === m.screen);
+            return d ? [markToDisplay(m, d.bounds)] : [];
+          }));
+          lastMarks = marks;
+        }
+        voice.update(parsed.text);
+      };
       const send = async (consent: Record<string, string>, quiet?: () => void) => {
         const res = await fetch("/api/buddy/ask", {
           method: "POST",
@@ -463,13 +496,10 @@ export default function OkFilowPanel() {
         let got = "";
         for (;;) {
           const { done, value } = await reader.read();
-          if (done) return got;
+          if (done) return got + decoder.decode();
           got += decoder.decode(value, { stream: true });
           if (run.current !== id) return null;
-          const shown = parseBuddyAnswer(got.split("\n[ERROR]")[0], shot.screens).text;
-          turn.current.progress(id, shown);
-          setAnswer(shown);
-          b.text(shown);
+          showProgress(got.split("\n[ERROR]")[0]);
         }
       };
       const raw = to ? await out.sending("ask", to, send) : await send({});
@@ -492,12 +522,12 @@ export default function OkFilowPanel() {
         const d = shot.displays.find((x) => x.index === p.screen);
         return d ? [{ ...pointToDisplay(p, d.bounds), label: p.label }] : [];
       });
-      if (mapped.length) b.point(mapped);
+      if (mapped.length && JSON.stringify(points) !== lastPoints) b.point(mapped);
       const drawn = marks.flatMap((m) => {
         const d = shot.displays.find((x) => x.index === m.screen);
         return d ? [markToDisplay(m, d.bounds)] : [];
       });
-      if (drawn.length) b.draw(drawn);
+      if (drawn.length && JSON.stringify(marks) !== lastMarks) b.draw(drawn);
       if (model) b.showModel(model);
       lastShown.current = { points: mapped, marks: drawn, model, cards: [] };
       if (drawing) {
@@ -547,19 +577,22 @@ export default function OkFilowPanel() {
         ? groundAnswer(question, text, images, shot, abort.signal, to).then((p) => { if (p && run.current === id) b.point([p]); }).catch(() => {})
         : Promise.resolve();
       setMode("speaking");
-      if (!opts.typed || statusRef.current?.typedVoice) await speak(text, id, answerLang);
+      await voice.finish(text);
       await grounding;
       turn.current.end(id);
       if (run.current === id) setMode("idle");
       if (run.current === id && handsFree.current) listenAgain.current();
     } catch (e) {
+      voice.cancel();
       // A stop or a newer question: not an error, nothing is shown or logged as one.
       if (abort.signal.aborted || run.current !== id) return;
+      speaker.stop();
+      abort.abort();
       turn.current.end(id);
       fail(e instanceof Error ? e.message : String(e));
       if (handsFree.current) setTimeout(() => handsFree.current && listenAgain.current(), 1500);
     }
-  }, [endAnswer, engineHeaders, fail, groundAnswer, out, setMode, speak, t]);
+  }, [endAnswer, engineHeaders, fail, groundAnswer, out, setMode, speak, speaker, t]);
 
   const startListening = useCallback(async (why: Purpose = "talk") => {
     const b = okFilowBridge();
