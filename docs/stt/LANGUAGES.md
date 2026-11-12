@@ -125,6 +125,15 @@ speaks); (b) OK Filow questions, one short utterance, where a phrase model is fi
   than on whole clips (16.9 %): the cuts still split some words. Three clips per language is a small
   sample.
 
+audio.cpp (0xShug0/audio.cpp, Apache-2.0) was evaluated on 2026-11-12 and not adopted. Filow already runs
+the same best models through sherpa-onnx, which is faster on CPU, and a second ggml runtime would have to
+run as a separate process. The Qwen3-ASR 0.6B bake-off on 48 held-out clean clips per language found no
+candidate: Romanian WER 40.49 against 11.14 for Parakeet v3, Russian 7.69 against 5.34, and Japanese CER
+14.59 against 23.38 for ReazonSpeech, which is better but peaks at 2.0 GB of RAM, over the plan's own
+1.5 GB gate, and its 6-speaker interval (-14.68 to -0.19) is an input to D37. Revisit only if a model or
+voice wins and runs only in audio.cpp. Full report: `tools/audio-bench/BAKEOFF-QWEN3-2026-11.md` on the
+dictation branch.
+
 ## Tracking in each language (packages/core)
 
 - Tokenisation: Russian (Cyrillic, case forms of small numbers), Romanian (comma and cedilla forms of
