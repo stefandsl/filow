@@ -113,7 +113,9 @@
       "okfilow-selection.js",
       "okfilow-answers.js",
       "okfilow-outbound.js",
-      "okfilow-stop.js"
+      "okfilow-stop.js",
+      "okfilow-uia.js",
+      "okfilow-uia.ps1"
     ],
     "asar": true,
     "extraResources": [
@@ -259,6 +261,7 @@
       "stt-worker.js",
       "tts-worker.js",
       "truecase-worker.js",
+      "okfilow-uia.ps1",
       "node_modules/onnxruntime-node/**",
       "node_modules/onnxruntime-common/**",
       "node_modules/@huggingface/tokenizers/**",
