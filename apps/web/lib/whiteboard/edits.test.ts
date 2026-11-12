@@ -143,6 +143,15 @@ describe("edits and restores keep only allowed elements and fields (H2)", () => 
     expect(Object.keys(d.files)).toEqual(["f1"]);
   });
 
+  it("type-checks and cleans restored added elements too", () => {
+    const saved = JSON.parse(JSON.stringify({ ...noEdits(), added: [foreign("embeddable", "emb"), { ...foreign("rectangle", "ok1"), link: "javascript:x" }] }));
+    const els = applyEdits(scene, saved).elements;
+    expect(els.some((e) => e.id === "emb")).toBe(false);
+    const ok = els.find((e) => e.id === "ok1")!;
+    expect(ok.type).toBe("rectangle");
+    expect(ok.link).toBeNull();
+  });
+
   it("renders a restored board whose saved patch says type embeddable without it", () => {
     const saved = JSON.parse(JSON.stringify({ ...noEdits(), patch: { [rect.id]: { type: "embeddable" }, "bad id!": { x: 1 } } }));
     const els = applyEdits(scene, saved).elements;

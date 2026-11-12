@@ -35,7 +35,12 @@ export function applyEdits(base: Scene, edits: SceneEdits): Scene {
     els.push(p ? { ...e, ...p, version: (e.version ?? 1) + 1 } : e);
   }
   const have = new Set(els.map((e) => e.id));
-  for (const a of edits.added) if (!have.has(a.id)) els.push(a);
+  // saved edits may have been tampered with: only types Excalidraw draws, and links and colours cleaned
+  for (const raw of edits.added) {
+    if (!raw || typeof raw !== "object" || !TYPES.has(String(raw.type))) continue;
+    const a = cleanElement(raw);
+    if (!have.has(a.id)) { have.add(a.id); els.push(a); }
+  }
   return { elements: els, files: { ...base.files, ...edits.files } };
 }
 
