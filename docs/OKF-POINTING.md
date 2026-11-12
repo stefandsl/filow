@@ -47,21 +47,50 @@ Small = under 2,400 square pixels (a taskbar icon), large = over 40,000.
 
 ## What ships
 
-1. `okfilow-uia.ps1` + `okfilow-uia.js`: a read-only helper (part of Windows, nothing downloaded) lists
-   the names and rectangles of what is visible on a display, topmost window first, hidden things left
-   out. 0.07 to 0.36 s on this PC, next to a screenshot that takes 0.33 to 0.58 s.
-2. `ground.ts`, used by the ask route after the answer:
+1. `native/uia/okfilow-uia.cs` + `okfilow-uia.js`: a read-only helper program lists the names and
+   rectangles of what is visible on a display, topmost window first, hidden things left out. It is
+   compiled when the package is made (`npm run vendor`, with the C# compiler of the .NET Framework that
+   ships with Windows: no SDK, nothing downloaded) into `native/uia/bin/okfilow-uia.exe`, 12 KB, any
+   CPU, shipped unpacked; `after-pack.js` stops a Windows package without it. It runs as a child process
+   (never elevated, JSON lines over stdio, ready in 0.06 s, about 20 MB), is restarted after a crash (four
+   starts at most) and is ended if it hangs. The earlier PowerShell script compiled C# into the user's
+   temp folder at every start; it is gone. 0.07 to 0.46 s per scan on this PC.
+2. `okfilow.js capture()` starts a scan of each display beside `getSources` and sends the names with the
+   screenshot (`shot.elements`). No picture (the eye closed, "Look at my screen" off, not Windows) means
+   no scan.
+3. `ground.ts`, used by the ask route after the answer:
    - a point, circle or box whose label is a name on screen goes on that element;
    - a label in other words is matched by Gemma from the names alone (86% right, 0.34 s);
    - a near miss moves onto the small element beside it; a box that names nothing is not drawn;
    - the thing a "where is" question names is given to the local model with its position, and an
      answer that still points at nothing gets the point.
-3. The list is used on this PC only. It is never sent to an online provider.
+4. The list is used on this PC only. It is never sent to an online provider.
 
-Without a list (not Windows, helper slow or blocked) everything works as before.
+Without a list (not Windows, helper missing, slow or blocked) everything works as before: the startup log says "screen names helper not in this build" once and points come from the model's coordinates.
 
 ## Limits
 
 - Apps that expose nothing to Windows (games, some canvas apps): 60% instead of 98%, still above 17%.
 - Scaling other than 100% and mixed-scaling monitors were not measured (this PC has two screens at 100%).
-- The helper is not yet called from `okfilow.js capture()`: see the wiring note in the branch report.
+- With "All my screens" on, the follow-up choice now looks at every screen sent; a name on two screens
+  (for example two "Close" buttons) goes to the pointing model.
+- The scan adds about 0.2 s to the capture (0.55 s instead of 0.34 s median) when it is slower than the screenshot.
+
+## Wired, through the real app (12 Nov 2026)
+
+Unpackaged app of this branch with test isolation on (FILOW_QA_NO_GLOBAL_INPUT=1, own profile and ports,
+main window hidden, CDP only), local model, typed questions in the OK Filow panel about a File Explorer
+window opened for the test (11 files and folders, Italian Windows). The point is the one the shell sent
+to the overlay; right when it falls on the rectangle Windows gives for the thing (6 px margin).
+
+| Run | Right | Median time to the point | Median capture |
+|---|---|---|---|
+| With the scan, window on the screen with the mouse (two runs) | 11/13 and 11/13 (85%) | 1.6 s and 1.7 s | 0.54 s, 140 names |
+| Helper removed (model coordinates only) | 7/13 (54%) | 2.0 s | 0.34 s |
+| With the scan, "All my screens", window on the other screen | 10/13 (77%) | 2.8 s | 0.71 s (two screens), 339 names |
+
+Misses with the scan: the address bar answered with a box in its own words (drawn, not a point), and "the
+column that shows how big each file is" pointed into the column instead of its header. 13 questions on one
+window is a small sample; the 98% above is the larger, held-out measure. Machine load during the runs:
+CPU 3 to 51% (another agent was running probes). 125% and 150% scaling: not verified (the owner's display
+settings were not changed).
