@@ -64,7 +64,7 @@ it("keeps every Easy settings text free of technical terms, in all five language
    }
  }
  expect(found).toEqual([]);
- expect(checked).toBe(5 * 25);
+ expect(checked).toBe(5 * 77);
 });
 it("has a label and a one-line description for each of the eight Easy controls, and the shared words", () => {
  const en = DICTIONARIES.en as Record<string, string>;
