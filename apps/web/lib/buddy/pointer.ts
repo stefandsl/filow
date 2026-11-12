@@ -36,7 +36,7 @@ export const POINTING_TOTAL_MS = 16_000;
 
 /**
  * The place a pointing model's reply names, on the grid. A small model often garbles the tag itself
- * ("[IPS:911,62:Share]", "[400, 800:label=Save]": 1 reply in 6 measured with lfm3-vl on real screens)
+ * ("[IPS:911,62:Share]", "[400, 800:label=Save]": 1 reply in 4 measured with lfm3-vl on real screens)
  * while the two numbers are right, so the "x,y" pair that opens a bracket counts. "NONE" is no place.
  */
 export function lenientPoint(reply: string): { x: number; y: number } | null {
