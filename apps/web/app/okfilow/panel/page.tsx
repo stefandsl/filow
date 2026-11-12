@@ -692,7 +692,9 @@ export default function OkFilowPanel() {
       answerCtx.current = { id, typed: info.typed, lang: info.lang, speaking: Boolean(info.left), marks: info.marks, marksAt: drawClock.current.at(performance.now()), marksBase: info.from };
       setAnswer(plan.shown);
       b.text(plan.shown);
-      if (info.from < info.marks.length) b.draw(info.marks, info.from);
+      // All of them, not only the ones still to draw: the marks went with the stopped answer's bubble,
+      // so the ones drawn before the stop are shown again as they were (`from`), the rest are drawn now.
+      if (info.marks.length) b.draw(info.marks, info.from);
       setMode("speaking");
       void (async () => {
         if (info.left) await speak(info.left, id, info.lang, Math.max(0, splitSentences(plan.shown).length - splitSentences(info.left).length));

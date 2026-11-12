@@ -16,7 +16,7 @@ const { loadUiohook } = require("./uiohook");
 const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
-const { createBubble, bubbleText, escapePlan, overlayLive, keepsOverlays, pointsShowMs, answering, overlayMouse, seeChoice, wordsOnlyList, pillState, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
+const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOverlays, pointsShowMs, answering, overlayMouse, seeChoice, wordsOnlyList, pillState, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 const { trustedUiSender } = require("./ui-preferences");
 
@@ -190,6 +190,16 @@ function createOkFilow(deps) {
       bubbleHover.clear();
       if (!overlayLive(mode, pill, false)) stopHover.clear();
       for (const w of overlays.values()) applyMouse(w);
+      // The answer's marks go with its bubble, however it went.
+      answerMarks.drop(`bubble ${why}`);
+      if (mode === "idle" || mode === "error") scheduleFade();
+    },
+  });
+  // ---- an answer's marks (okfilow-stop.js createMarks): they go with the bubble, never stay behind ----
+  const answerMarks = createMarks({
+    clear: (why) => {
+      logLine(`okfilow: marks cleared (${why})`);
+      sendOverlays("okfilow:draw", []);
       if (mode === "idle" || mode === "error") scheduleFade();
     },
   });
@@ -344,7 +354,7 @@ function createOkFilow(deps) {
   /** Cards (global DIP) go to the overlay of the display they sit on, in its local coordinates. */
   ipcMain.on("okfilow:cards", (e, list) => {
     if (!ourSender(e) || !Array.isArray(list)) return;
-    pinned = true;
+    cardsUp = keepsOverlays(list);
     showOverlays();
     for (const w of overlays.values()) {
       if (w.isDestroyed()) continue;
@@ -430,8 +440,10 @@ function createOkFilow(deps) {
     bubble.setHover(false);
     for (const w of overlays.values()) if (!w.isDestroyed()) { applyMouse(w); w.hide(); }
   }
-  /** An answer's marks, cards and drawings stay up until Escape, the panel's Clear or the next question. */
-  let pinned = false;
+  /** An answer's cards (a photo, a drawing) stay up until Escape, the panel's Clear or the next question. */
+  let cardsUp = false;
+  /** Something of an answer is kept on screen: its cards, or its marks while they last (answerMarks above). */
+  const pinned = () => cardsUp || answerMarks.up();
   /** The pointer is still visiting the things an answer points at until then (okfilow-stop.js pointsShowMs). */
   let pointUntil = 0;
   /**
@@ -440,9 +452,9 @@ function createOkFilow(deps) {
    */
   function scheduleFade() {
     clearTimeout(fadeTimer);
-    if (cfg().showAlways || pinned || outbound.active() || bubble.open()) return;
+    if (cfg().showAlways || pinned() || outbound.active() || bubble.open()) return;
     fadeTimer = setTimeout(() => {
-      if (!pinned && !outbound.active() && !bubble.open() && (mode === "idle" || mode === "error")) hideOverlays();
+      if (!pinned() &&!outbound.active() && !bubble.open() && (mode === "idle" || mode === "error")) hideOverlays();
     }, Math.max(FADE_AFTER_MS, pointUntil - Date.now()));
   }
 
@@ -484,6 +496,7 @@ function createOkFilow(deps) {
     if (typeof extra.sees === "boolean") asksSee = extra.sees;
     // The pill's controls take the mouse only while the pill has any (okfilow-stop.js pillLive).
     bubble.setMode(mode, extra);
+    answerMarks.set({ mode, bubbleOpen: bubble.open() });
     if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
     for (const w of overlays.values()) applyMouse(w);
     if (next === "listening" && purpose === "dictate") dictation.diag.mark("listening", {}, { once: true });
@@ -633,8 +646,9 @@ function createOkFilow(deps) {
   }
   // Not on any click or key: the user clicks around and presses Win+Shift+S to screenshot the answer.
   function clearDrawings() {
-    if (!pinned && pointUntil <= Date.now()) return;
-    pinned = false;
+    if (!pinned() && pointUntil <= Date.now()) return;
+    cardsUp = false;
+    answerMarks.forget();
     pointUntil = 0;
     sendOverlays("okfilow:clear", null);
     if (mode === "idle" || mode === "error") scheduleFade();
@@ -1017,6 +1031,7 @@ function createOkFilow(deps) {
     sendOverlays("okfilow:text", t);
     const was = bubble.open();
     bubble.setText(t);
+    answerMarks.set({ bubbleOpen: bubble.open() });
     if (was !== bubble.open()) {
       // The bubble came or went under a pointer that may stand still: the mouse rule follows it.
       if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
@@ -1081,6 +1096,7 @@ function createOkFilow(deps) {
     pill = pillState(v);
     sendOverlays("okfilow:pill", pill);
     bubble.setPaused(pill.paused);
+    answerMarks.set({ paused: pill.paused });
     if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
     for (const w of overlays.values()) applyMouse(w);
   });
@@ -1137,7 +1153,8 @@ function createOkFilow(deps) {
   /** `from` (Resume after Stop): the first `from` marks were drawn before the stop; they are shown as they were, the rest are drawn now. */
   ipcMain.on("okfilow:draw", (e, marks, from) => {
     if (!ourSender(e) || !Array.isArray(marks)) return;
-    pinned = true;
+    // Kept while the answer and its bubble last (answerMarks); an empty list keeps nothing.
+    answerMarks.drawn(marks);
     showOverlays();
     qaShot("draw");
     const drawn = Math.max(0, Math.round(Number(from)) || 0);

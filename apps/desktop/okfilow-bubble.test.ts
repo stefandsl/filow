@@ -6,7 +6,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { keepsOverlays, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, bubbleHold, createBubble, escapePlan, overlayLive, overlayMouse } = require("./okfilow-stop.js");
+const { keepsOverlays, MARKS_ALONE_MS, marksHold, createMarks, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, bubbleHold, createBubble, escapePlan, overlayLive, overlayMouse } = require("./okfilow-stop.js");
 const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 const main = fs.readFileSync(path.join(here, "okfilow.js"), "utf8").replace(/\r\n/g, "\n");
 const preload = fs.readFileSync(path.join(here, "okfilow-preload.js"), "utf8").replace(/\r\n/g, "\n");
@@ -300,7 +300,7 @@ describe("main and the bubble", () => {
   it("kept marks and the always-on pointer keep the overlays, never the bubble: the fade waits for the bubble, the bubble waits for nobody", () => {
     const at = main.indexOf("function scheduleFade(");
     const fade = main.slice(at, main.indexOf("\n  }\n", at));
-    expect(fade).toContain("if (cfg().showAlways || pinned || outbound.active() || bubble.open()) return;");
+    expect(fade).toContain("if (cfg().showAlways || pinned() || outbound.active() || bubble.open()) return;");
     // the bubble's own rule never hears of them
     const rule = fs.readFileSync(path.join(here, "okfilow-stop.js"), "utf8");
     const hold = rule.slice(rule.indexOf("function bubbleHold("), rule.indexOf("function createBubble("));
@@ -322,7 +322,7 @@ describe("main and the bubble", () => {
     const at = main.indexOf('ipcMain.on("okfilow:point"');
     const handler = main.slice(at, main.indexOf("\n  });\n", at));
     expect(handler.indexOf('if (!keepsOverlays(points)) return sendOverlays("okfilow:point", []);')).toBeGreaterThan(0);
-    expect(handler).not.toContain("pinned = true;");
+    expect(handler).not.toMatch(/cardsUp = |answerMarks\.drawn/);
   });
   it("the pointer's visits keep the overlays for as long as they take, not until Escape", () => {
     expect(pointsShowMs(0)).toBe(0);
@@ -340,8 +340,105 @@ describe("main and the bubble", () => {
     expect(page).toContain("now > g.start + FLY_MS + 1800");
     // Escape and Clear still call the pointer back at once
     const clear = main.slice(main.indexOf("function clearDrawings()"), main.indexOf("// ---- keyboard gestures"));
-    expect(clear).toContain("if (!pinned && pointUntil <= Date.now()) return;");
+    expect(clear).toContain("if (!pinned() && pointUntil <= Date.now()) return;");
     expect(clear).toContain("pointUntil = 0;");
+  });
+});
+
+// The owner: "gli box rimangono sullo schermo". A yellow box labelled "This area" and a circle
+// labelled "Start" stayed on the desktop long after the answer, with no bubble: marks were kept
+// until Escape. They belong to the answer and go with it.
+describe("an answer's marks never outlive the answer", () => {
+  const box = [{ kind: "box", x1: 1, y1: 1, x2: 9, y2: 9, label: "This area" }];
+  function marksHarness() {
+    let seq = 0;
+    const timers = new Map<number, { ms: number; fn: () => void }>();
+    const cleared: string[] = [];
+    const marks = createMarks({
+      clear: (why: string) => cleared.push(why),
+      setTimer: (fn: () => void, ms: number) => { timers.set(++seq, { ms, fn }); return seq; },
+      clearTimer: (id: number) => { timers.delete(id); },
+    });
+    /** Runs the one timer that is waiting, and says how long it was set for. */
+    const fire = () => { const [id, t] = [...timers.entries()][0]; timers.delete(id); t.fn(); return t.ms; };
+    return { marks, cleared, timers, fire };
+  }
+
+  it("they stay while the question is heard or answered, while paused and while the bubble is there; else four seconds", () => {
+    for (const mode of ["listening", "thinking", "speaking"]) expect(marksHold({ mode, bubbleOpen: false, paused: false })).toBeNull();
+    expect(marksHold({ mode: "idle", bubbleOpen: true, paused: false })).toBeNull();
+    expect(marksHold({ mode: "idle", bubbleOpen: false, paused: true })).toBeNull();
+    expect(marksHold({ mode: "idle", bubbleOpen: false, paused: false })).toBe(MARKS_ALONE_MS);
+    expect(marksHold({ mode: "error", bubbleOpen: false, paused: false })).toBe(4000);
+  });
+
+  it("the answer ends and its bubble closes by itself: the marks go with it, once", () => {
+    const h = marksHarness();
+    h.marks.set({ mode: "speaking", bubbleOpen: true });
+    h.marks.drawn(box);
+    h.marks.set({ mode: "idle" });
+    expect(h.timers.size).toBe(0); // the bubble is still there: no clock of their own
+    expect(h.marks.drop("bubble timer")).toBe(true);
+    expect(h.cleared).toEqual(["bubble timer"]);
+    expect(h.marks.up()).toBe(false);
+    expect(h.marks.drop("bubble timer")).toBe(false);
+    expect(h.cleared).toHaveLength(1);
+  });
+
+  it("marks with no bubble (an answer with no words, the voice off) go four seconds after the answer ended", () => {
+    const h = marksHarness();
+    h.marks.set({ mode: "thinking", bubbleOpen: false });
+    h.marks.drawn(box);
+    expect(h.timers.size).toBe(0);
+    h.marks.set({ mode: "idle" });
+    expect(h.timers.size).toBe(1);
+    expect(h.fire()).toBe(4000);
+    expect(h.cleared).toEqual(["timer"]);
+  });
+
+  it("a pause, or a bubble that comes back, stops their clock; a new question forgets them without a second wipe", () => {
+    const h = marksHarness();
+    h.marks.drawn(box);
+    expect(h.timers.size).toBe(1);
+    h.marks.set({ paused: true });
+    expect(h.timers.size).toBe(0);
+    h.marks.set({ paused: false });
+    expect(h.timers.size).toBe(1);
+    h.marks.set({ bubbleOpen: true });
+    expect(h.timers.size).toBe(0);
+    h.marks.forget();
+    expect(h.marks.up()).toBe(false);
+    h.marks.set({ bubbleOpen: false });
+    expect(h.timers.size).toBe(0);
+    expect(h.cleared).toEqual([]);
+  });
+
+  it("an empty list draws nothing and keeps nothing", () => {
+    const h = marksHarness();
+    h.marks.drawn([]);
+    expect(h.marks.up()).toBe(false);
+    expect(h.timers.size).toBe(0);
+  });
+
+  it("the shell wires it: the bubble's end (timer, Escape, close button) wipes the marks on every overlay", () => {
+    const at = main.indexOf("const bubble = createBubble({");
+    expect(main.slice(at, main.indexOf("\n  });\n", at))).toContain("answerMarks.drop(`bubble ${why}`);");
+    const made = main.slice(main.indexOf("const answerMarks = createMarks({"), main.indexOf("/** The bubble's close button"));
+    expect(made).toContain('sendOverlays("okfilow:draw", []);');
+    expect(made).toContain('if (mode === "idle" || mode === "error") scheduleFade();');
+    const draw = main.slice(main.indexOf('ipcMain.on("okfilow:draw"'));
+    expect(draw.slice(0, draw.indexOf("\n  });\n"))).toContain("answerMarks.drawn(marks);");
+    // the mode, the bubble and the pause all reach the rule
+    expect(main).toContain("answerMarks.set({ mode, bubbleOpen: bubble.open() });");
+    expect(main).toContain("answerMarks.set({ bubbleOpen: bubble.open() });");
+    expect(main).toContain("answerMarks.set({ paused: pill.paused });");
+    // Escape, Clear and the talk keys wipe everything, cards too
+    const clear = main.slice(main.indexOf("function clearDrawings()"), main.indexOf("// ---- keyboard gestures"));
+    expect(clear).toContain("answerMarks.forget();");
+    expect(clear).toContain('sendOverlays("okfilow:clear", null);');
+    // cards (a photo, a drawing) are the answer itself: an empty list keeps nothing, a full one stays until Escape
+    expect(main).toContain("cardsUp = keepsOverlays(list);");
+    expect(main).toContain("const pinned = () => cardsUp || answerMarks.up();");
   });
   it("the overlay window still never takes the keyboard", () => {
     const at = main.indexOf("function buildOverlays()");

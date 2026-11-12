@@ -167,6 +167,52 @@ const keepsOverlays = (list) => Array.isArray(list) && list.length > 0;
 const POINT = { flyMs: 650, nextMs: 1800, holdMs: 5500 };
 const pointsShowMs = (count) => (count > 0 ? (count - 1) * (POINT.flyMs + POINT.nextMs) + POINT.flyMs + POINT.holdMs : 0);
 
+/**
+ * How long an answer's marks (boxes, circles, arrows, underlines and their labels) stay when no
+ * bubble is there to go with: null while they must stay (a question is being heard or answered, the
+ * answer is paused, or its bubble is still on screen: the marks then go with the bubble).
+ */
+const MARKS_ALONE_MS = 4000;
+const marksHold = ({ mode, bubbleOpen, paused }) => ((mode !== "idle" && mode !== "error") || paused || bubbleOpen ? null : MARKS_ALONE_MS);
+
+/**
+ * The life of an answer's marks, for the main process. They belong to the answer: they go when its
+ * bubble goes (by itself, with Escape or with its close button) and, when there is no bubble, a few
+ * seconds after the answer ended. They used to stay until Escape, so boxes and labels were left on
+ * the desktop long after the answer. `clear(why)` is called once each time they must be wiped.
+ */
+function createMarks({ clear, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
+  let up = false;
+  let timer = null;
+  let state = { mode: "idle", bubbleOpen: false, paused: false };
+  const cancel = () => { if (timer !== null) clearTimer(timer); timer = null; };
+  function drop(why) {
+    cancel();
+    if (!up) return false;
+    up = false;
+    clear(why);
+    return true;
+  }
+  function plan() {
+    cancel();
+    if (!up) return;
+    const ms = marksHold(state);
+    if (ms !== null) timer = setTimer(() => { timer = null; drop("timer"); }, ms);
+  }
+  return {
+    /** Marks are on screen. */
+    up: () => up,
+    /** The panel drew this list (an empty one draws nothing and keeps nothing). */
+    drawn(list) { up = keepsOverlays(list); plan(); },
+    /** The mode, whether the bubble is open, whether the answer is paused: any of them. */
+    set(next) { state = { ...state, ...next }; plan(); },
+    /** The bubble went (`why`), or the marks must go for another reason: wipes them. True when there were any. */
+    drop,
+    /** They were wiped by someone else (Escape, Clear, a new question). */
+    forget() { cancel(); up = false; },
+  };
+}
+
 /** What Escape does: stops the answer in progress; with none, closes the bubble and wipes the marks. */
 const escapePlan = (mode) => (answering(mode) ? ["stop"] : ["bubble", "marks"]);
 
@@ -228,4 +274,4 @@ function bindKey(shortcuts, was, choice, handler, { inputOff = false } = {}) {
   return { choice, accelerator: ok ? acc : null, state: ok ? "ok" : "taken" };
 }
 
-module.exports = { keepsOverlays, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, bubbleHold, createBubble, escapePlan, overlayLive, answering, overlayMouse,seeChoice, wordsOnlyList, pillState, pillLive, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, accelerator, bindKey };
+module.exports = { keepsOverlays, MARKS_ALONE_MS, marksHold, createMarks, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, bubbleHold, createBubble, escapePlan, overlayLive, answering, overlayMouse,seeChoice, wordsOnlyList, pillState, pillLive, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, accelerator, bindKey };

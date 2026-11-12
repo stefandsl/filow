@@ -70,6 +70,11 @@ describe("the panel, Pause and Resume", () => {
     expect(panel).toContain("turn.current.begin(id, question, abort, { resumable: wantsDrawing(question) === null, continues: resume?.shown });");
   });
 
+  it("Resume after Stop shows every mark of the answer again: the marks went with the stopped answer's bubble", () => {
+    expect(panel).toContain("if (info.marks.length) b.draw(info.marks, info.from);");
+    expect(panel).not.toContain("if (info.from < info.marks.length) b.draw(");
+  });
+
   it("a new question, spoken or typed, and a cleared conversation withdraw the offer to resume", () => {
     expect(panel.match(/turn\.current\.discard\(\);/g)!.length).toBeGreaterThanOrEqual(4);
     expect(panel).toMatch(/endAnswer\(\);\n\s*\/\/ A new question: the stopped answer can no longer be carried on\.\n\s*turn\.current\.discard\(\);\n\s*setResumable\(false\);/);

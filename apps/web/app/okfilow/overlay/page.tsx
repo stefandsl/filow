@@ -191,7 +191,7 @@ export default function OkFilowOverlay() {
         tellHover(p);
       }),
       b.onDraw((list) => {
-        // Kept until main sends okfilow:clear (Escape, the panel's Clear, or the next question).
+        // Kept until main wipes them: an empty list when the answer's bubble goes, or okfilow:clear (Escape, the panel's Clear, the next question).
         marksAt.current = clock.current.at(performance.now());
         setMarks((m) => ({ id: m.id + 1, list: Array.isArray(list) ? list : [] }));
       }),

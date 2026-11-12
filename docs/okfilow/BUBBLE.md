@@ -27,7 +27,7 @@ closes it.
 ## When it goes away
 
 The rule is one pure function, `okfilow-stop.js` `bubbleHold`, driven by `createBubble` in the main
-process. Whatever keeps the overlays on screen (marks, cards, "always show the pointer") never
+process. Whatever keeps the overlays on screen (cards, "always show the pointer") never
 keeps the bubble.
 
 | State | The bubble stays |
@@ -45,8 +45,15 @@ replace the old words at once.
 - Esc while an answer runs stops it. Esc with no answer running closes the bubble and wipes the
   marks (`escapePlan`). So a second Esc after a stop closes what the first one left.
 - The close button (top right corner of the bubble, named "Close the answer" in the five languages)
-  closes the bubble on every screen. Marks stay: Esc or the panel's Clear wipes them.
-- When the bubble has gone the overlays go a second later, unless marks or cards are kept or the
+  closes the bubble on every screen, and the answer's marks with it.
+- An answer's marks (boxes, circles, arrows, underlines and their labels) belong to the answer and
+  never outlive it (`okfilow-stop.js` `createMarks`, `marksHold`): they go when the bubble goes,
+  however it went (by itself, Esc, the close button), and when there is no bubble (an answer without
+  words) 4 s after the answer ended. They stay while the answer runs or is paused. A new question,
+  the talk keys, Esc and the panel's Clear wipe them at once. Resume after Stop draws them again.
+  They used to stay until Esc: boxes were left on the desktop long after the answer.
+- Cards (a photo, a drawing) are the answer itself and stay until Esc, Clear or the next question.
+- When the bubble has gone the overlays go a second later, unless cards are kept or the
   pointer is always shown. The pointer's visits to the things an answer points at keep the overlays
   only for as long as they take (`pointsShowMs`), not until Esc.
 
