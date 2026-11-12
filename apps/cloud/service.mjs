@@ -52,6 +52,9 @@ export function createCloud({ database, origin, secret, sendOTP, stripe, webhook
   async function handle(request) {
     const url = new URL(request.url);
     if (billing && url.pathname === '/api/auth/stripe/webhook' && request.method === 'POST') return webhook(request);
+    // The billing plugin's own routes are not reachable from outside: checkout, portal and the plan go through
+    // /v1/* below. Only the return from Stripe's checkout stays open (the plugin has no cancel callback).
+    if (url.pathname.startsWith('/api/auth/subscription/') && !(url.pathname === '/api/auth/subscription/success' && request.method === 'GET')) return json({ error: 'not_found' },404);
     if (url.pathname.startsWith('/api/auth/')) return auth.handler(request);
     if (url.pathname === '/health' && request.method === 'GET') return json({ ok: true });
     if (!['/v1/me','/v1/checkout','/v1/portal'].includes(url.pathname)) return json({ error: 'not_found' },404);

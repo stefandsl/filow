@@ -126,3 +126,23 @@ it('accepts only current, active Pro subscriptions',()=>{
   for(const status of ['incomplete','past_due','unpaid','canceled']) expect(paidSubscription([{...paid,status}])).toBeNull();
   expect(paidSubscription([{...paid,periodEnd:'2000-01-01'}])).toBeNull();
 });
+// The plugin's own billing routes are closed: only /v1/* reaches them, and Stripe's return after checkout.
+describe('billing plugin routes',()=>{
+  it('answer 404 from outside, except the return from checkout; the webhook and /v1/me still work',async()=>{
+    const {call,signin,cloud,origin}=await setup(true);
+    const headers=await signin();
+    for(const route of ['upgrade','cancel','restore','billing-portal']) expect((await call('/api/auth/subscription/'+route,{},headers)).status,route).toBe(404);
+    expect((await call('/api/auth/subscription/list',undefined,headers)).status).toBe(404);
+    expect((await call('/api/auth/subscription/list',{},headers)).status).toBe(404);
+    for(const query of ['','?checkoutSessionId=cs_test&callbackURL=%2F']) {
+      const success=await call('/api/auth/subscription/success'+query,undefined,headers);
+      expect(success.status,query).not.toBe(404);
+      expect([301,302,303,307,308],query).toContain(success.status);
+    }
+    const unsigned=await cloud.handle(new Request(origin+'/api/auth/stripe/webhook',{method:'POST',headers:{'Content-Type':'application/json','stripe-signature':'invalid'},body:'{}'}));
+    expect(unsigned.status).toBe(400);
+    const me=await call('/v1/me',undefined,headers);
+    expect(me.status).toBe(200);
+    expect((await me.json()).billing).toBe(true);
+  });
+});
