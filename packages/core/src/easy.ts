@@ -4,7 +4,7 @@
 // comes from profile.ts (recommendProfile, setupChoices); no hardware rule is repeated here.
 import type { SpokenLang } from "./spoken";
 import type { UiLanguage } from "./ui-preferences";
-import { recommendProfile, resolveSetup, setupChoices, type MachineInfo, type SetupPreference, type SetupProfileId } from "./profile";
+import { bestQualityPairMissing, DOWNLOAD_SPARE_GB, missingModels, recommendProfile, resolveSetup, setupChoices, type MachineInfo, type SetupModel, type SetupPreference, type SetupProfileId } from "./profile";
 
 /** The eight controls, in the order the page shows them. */
 export const EASY_CONTROLS = ["private", "screen", "voice", "dictation", "tidy", "quality", "language", "startup"] as const;
@@ -15,24 +15,28 @@ export type EasyQuality = "auto" | "faster" | "best";
 
 /**
  * What the controls read. Each field is an existing setting:
- * - okFilow: settings.json `okFilow.*` (apps/desktop/okfilow.js). `screen` is the "Look at my screen"
- *   field another track adds there ("auto" follows the setup, "off" sends no picture); until it
- *   exists the caller passes "auto".
+ * - okFilow: settings.json `okFilow.*` (apps/desktop/okfilow.js). `seeScreen` is the "Look at my
+ *   screen" switch of the OK Filow panel: "on" or "off" once the user chose, "auto" until then (the
+ *   setup for this computer decides, apps/web/lib/buddy/sees.ts); a build without it reads "auto".
  * - dictation: settings.json `dictation.*` (apps/desktop/dictation-core.js).
  * - ui: interface language and start with Windows (ui-preferences.ts).
  * - local: the three choices kept in the page's localStorage (apps/web/lib/prefs.ts, translateWhere.ts).
  * - speechLanguage: read only; the Language control never writes it.
  */
 export type EasySnapshot = {
-  okFilow: { provider: "local" | "cloud" | "freellm"; voice: "system" | "natural" | "cloud" | "off"; screen: "auto" | "off" };
+  okFilow: { provider: "local" | "cloud" | "freellm"; voice: "system" | "natural" | "cloud" | "off"; seeScreen: "auto" | "on" | "off" };
   dictation: { enabled: boolean; cleanup: boolean; punctuate: boolean; removeFillers: boolean };
   ui: { lang: UiLanguage; runAtStartup: boolean };
   local: { setup: SetupPreference; startMode: "ask" | "auto" | "cloud" | "local"; translateWhere: "local" | "cloud" };
   speechLanguage: "auto" | SpokenLang;
 };
 
-/** Which online services the user has set up: turning "Keep it on this PC" off needs one. */
-export type EasyCaps = { online: { openrouter: boolean; freellm: boolean } };
+/**
+ * Which online services the user has set up: turning "Keep it on this PC" off needs one.
+ * `naturalVoice`: the natural voice was speaking on this PC, so "Answer out loud" puts it back
+ * (without it the PC's own voice is written and the natural one takes over when it can).
+ */
+export type EasyCaps = { online: { openrouter: boolean; freellm: boolean }; naturalVoice?: boolean };
 
 export type EasyState = {
   private: EasySwitch | "custom";
@@ -61,10 +65,10 @@ export type EasyPatch = {
 };
 
 /**
- * Why an action cannot be done: no online service is set up; this PC answers from text because
- * pictures are too slow here; this PC is not strong enough for Best quality; the disk is too full for it.
+ * Why an action cannot be done: no online service is set up; this PC's graphics memory is too
+ * small for Best quality; the disk is too full for it.
  */
-export type EasyNeeds = "online-service" | "pictures" | "stronger-pc" | "disk";
+export type EasyNeeds = "online-service" | "stronger-pc" | "disk";
 export type EasyPatchResult = { ok: true; patch: EasyPatch } | { ok: false; needs: EasyNeeds };
 
 /** What keeps "Keep it on this PC" from reading On while answers still come from this PC. */
@@ -76,31 +80,82 @@ export type EasyView = {
   /** controls that differ from the recommendation: "Reset to recommended" is shown when not empty */
   changed: EasyControl[];
   private: { differences: EasyPrivateDifference[]; /** false: this PC cannot answer questions by itself */ localAnswers: boolean; /** an online service is set up */ onlineReady: boolean };
-  screen: { /** false: pictures are too slow on this PC and answers stay here, so the switch is shown off and disabled */ available: boolean };
+  screen: { /** looking at the screen is slow on this PC (why the setup leaves it off); the user still chooses */ slow: boolean; /** on, with answers from online: a picture of the screen leaves this PC with each question */ leaves: boolean };
   tidy: { /** false while dictation is off: shown, not usable */ usable: boolean };
-  quality: { options: EasyQuality[]; /** "disk": Best quality is shown but needs free disk first */ bestBlocked: "disk" | null; /** the setup "Chosen for this PC" stands for */ chosen: SetupProfileId; /** the setup in use now */ active: SetupProfileId };
+  quality: {
+    /** every option the page shows, usable or not */
+    options: EasyQuality[];
+    /** Best quality is shown but cannot be chosen: the graphics memory is too small, or the disk is too full */
+    bestBlocked: "stronger-pc" | "disk" | null;
+    /** Best quality can be chosen here, with this said first: answers about the screen can wait while a talk is followed (a card under 12 GB) */
+    bestNote: "shared-card" | null;
+    /** the setup "Chosen for this PC" stands for */
+    chosen: SetupProfileId;
+    /** the setup in use now */
+    active: SetupProfileId;
+    /** the models that answer questions on this PC with the setup in use (a detail line, never a label) */
+    helpers: string[];
+    /** what the user can still fetch for the setup in use; each needs their click */
+    downloads: EasyDownload[];
+  };
   language: { /** set when listening was pinned to a language in Advanced */ listensIn: SpokenLang | null };
 };
+
+/**
+ * One download the Easy page offers for answers on this PC. "helper": the small helper of the setup
+ * in use. "best": the Best quality pair (the larger one, by choice). `preselected` marks the one
+ * Filow suggests for this PC; `room` is false when the disk cannot take it with the spare left over.
+ */
+export type EasyDownload = { id: "helper" | "best"; models: SetupModel[]; gb: number; preselected: boolean; room: boolean };
 
 const QUALITY_OF: Record<SetupPreference, EasyQuality | "custom"> = { auto: "auto", lite: "faster", advanced: "best", standard: "custom" };
 const SETUP_OF: Record<EasyQuality, SetupPreference> = { auto: "auto", faster: "lite", best: "advanced" };
 const sw = (on: boolean): EasySwitch => (on ? "on" : "off");
 
-/** Answers can use the picture of the screen: always online; on this PC only when the setup reads pictures. */
-function picturesAvailable(s: EasySnapshot, m: MachineInfo): boolean {
-  return s.okFilow.provider !== "local" || resolveSetup(s.local.setup, m).choices.screenHelper.mode === "picture";
+/**
+ * What "auto" means for "Look at my screen" (the rule of apps/web/lib/buddy/sees.ts): online answers
+ * always had the screen; on this PC the setup decides, and only a setup that reads the user's words
+ * alone leaves it out.
+ */
+function seesByDefault(s: EasySnapshot, m: MachineInfo): boolean {
+  return s.okFilow.provider !== "local" || resolveSetup(s.local.setup, m).choices.screenHelper.mode !== "text";
+}
+
+/** Whether the next question takes the screen with it: the user's own choice, else the default. */
+function seesScreen(s: EasySnapshot, m: MachineInfo): boolean {
+  return s.okFilow.seeScreen === "auto" ? seesByDefault(s, m) : s.okFilow.seeScreen === "on";
 }
 
 /**
- * Best quality in Easy: the machine's hardware gets the advanced setup (recommendProfile, disk left
- * aside) and its card keeps the point checker and the screen helper loaded together (12 GB, the
- * `waitsForDecisions` rule of setupChoices). Under that, answers about the screen can wait minutes
- * behind the point checker, so Easy does not offer it; Advanced keeps today's rule.
+ * Best quality in Easy (owner decision of 12 Nov 2026: the user decides). It can be chosen where
+ * the hardware gets the advanced setup (recommendProfile, disk left aside: a usable card with 8 GB).
+ * Under 12 GB the card cannot keep the point checker and the screen helper loaded together
+ * (`waitsForDecisions`), so the choice comes with that said (`note`); from 12 GB there is nothing to say.
  */
-function bestQuality(m: MachineInfo): { offered: boolean; blocked: "disk" | null } {
-  const hardware = recommendProfile({ ...m, freeDiskGb: null }).profile === "advanced";
-  const offered = hardware && !setupChoices("advanced", m).screenHelper.waitsForDecisions;
-  return { offered, blocked: offered && recommendProfile(m).profile !== "advanced" ? "disk" : null };
+function bestQuality(m: MachineInfo): { offered: boolean; blocked: "disk" | null; note: "shared-card" | null } {
+  const offered = recommendProfile({ ...m, freeDiskGb: null }).profile === "advanced";
+  const shared = offered && setupChoices("advanced", m).screenHelper.waitsForDecisions;
+  return { offered, blocked: offered && recommendProfile(m).profile !== "advanced" ? "disk" : null, note: shared ? "shared-card" : null };
+}
+
+/**
+ * The downloads for answers on this PC with the setup in use, never started without a click:
+ * the setup's own helper when it is missing, and under Best quality the larger pair while it is
+ * not here. Filow suggests the pair where the card holds everything at once (no `note`), the small
+ * helper otherwise. Unknown when the list of installed models is (the browser without Ollama): none.
+ */
+function downloads(s: EasySnapshot, m: MachineInfo): EasyDownload[] {
+  if (!m.installed) return [];
+  const setup = resolveSetup(s.local.setup, m);
+  const gb = (ms: SetupModel[]) => Math.round(ms.reduce((sum, x) => sum + x.downloadGb, 0) * 10) / 10;
+  const room = (ms: SetupModel[]) => m.freeDiskGb === null || m.freeDiskGb === undefined || m.freeDiskGb >= gb(ms) + DOWNLOAD_SPARE_GB;
+  const out: EasyDownload[] = [];
+  const best = bestQuality(m);
+  const pair = setup.active === "advanced" && best.offered ? bestQualityPairMissing(m) : [];
+  const helper = missingModels(setup.choices, { ollama: m.installed, sherpa: true }).filter((x) => x.use === "screen");
+  if (helper.length) out.push({ id: "helper", models: helper, gb: gb(helper), preselected: !pair.length || best.note !== null, room: room(helper) });
+  if (pair.length) out.push({ id: "best", models: pair, gb: gb(pair), preselected: best.note === null, room: room(pair) });
+  return out;
 }
 
 function privateDifferences(s: EasySnapshot): EasyPrivateDifference[] {
@@ -117,8 +172,8 @@ function privateDifferences(s: EasySnapshot): EasyPrivateDifference[] {
  * - private: On when answers, voice, takes and translation all stay on this PC (takes on "auto" or
  *   "local": Auto never starts an online take). Off when answers come from an online service.
  *   Custom when answers stay here but something else may go online (see privateDifferences).
- * - screen: On when a picture goes with each question; Off when the user turned it off, or when
- *   pictures are too slow on this PC and answers stay here.
+ * - screen: On when a picture goes with each question: the user's own choice, and until they chose,
+ *   what the setup picked (off only where this PC answers from the user's words alone).
  * - voice: On for the PC's or the natural voice, Off for none, Custom for an online voice.
  * - tidy: On or Off when the three tidy-up settings agree, else Custom.
  * - quality: a pinned Balanced reads Custom; so does a pinned Best quality where Easy does not offer it.
@@ -128,7 +183,7 @@ export function easyRead(s: EasySnapshot, m: MachineInfo): EasyState {
   const quality = QUALITY_OF[s.local.setup];
   return {
     private: s.okFilow.provider !== "local" ? "off" : privateDifferences(s).length ? "custom" : "on",
-    screen: sw(s.okFilow.screen !== "off" && picturesAvailable(s, m)),
+    screen: sw(seesScreen(s, m)),
     voice: s.okFilow.voice === "cloud" ? "custom" : sw(s.okFilow.voice !== "off"),
     dictation: sw(s.dictation.enabled),
     tidy: tidy.every(Boolean) ? "on" : tidy.some(Boolean) ? "custom" : "off",
@@ -141,8 +196,8 @@ export function easyRead(s: EasySnapshot, m: MachineInfo): EasyState {
 /** A snapshot with a patch applied (what the settings hold once the writes are done). */
 export function applyEasyPatch(s: EasySnapshot, p: EasyPatch): EasySnapshot {
   // voiceChosen is a write-only instruction to the desktop store, not part of what is read
-  const { provider = s.okFilow.provider, voice = s.okFilow.voice, screen = s.okFilow.screen } = p.okFilow ?? {};
-  return { ...s, okFilow: { provider, voice, screen }, dictation: { ...s.dictation, ...p.dictation }, ui: { ...s.ui, ...p.ui }, local: { ...s.local, ...p.local } };
+  const { provider = s.okFilow.provider, voice = s.okFilow.voice, seeScreen = s.okFilow.seeScreen } = p.okFilow ?? {};
+  return { ...s, okFilow: { provider, voice, seeScreen }, dictation: { ...s.dictation, ...p.dictation }, ui: { ...s.ui, ...p.ui }, local: { ...s.local, ...p.local } };
 }
 
 /** Drop the writes that would not change anything, and the stores left empty. */
@@ -167,11 +222,14 @@ export function easyPatch<C extends EasyControl>(control: C, value: EasyValue[C]
   if ((easyRead(s, m)[control] as string) === value) return { ok: true, patch: {} };
   const done = (patch: EasyPatch): EasyPatchResult => ({ ok: true, patch: onlyChanges(s, patch) });
   const on = value === "on";
+  // back to the voice on this PC: the natural one where it was speaking, else the PC's own; never "chosen",
+  // so the natural voice still takes over once it is on this PC
+  const localVoice = { voice: caps.naturalVoice ? "natural" : "system", voiceChosen: false } as const;
   switch (control as EasyControl) {
     case "private": {
       if (on) {
         return done({
-          okFilow: { provider: "local", ...(s.okFilow.voice === "cloud" ? { voice: "system", voiceChosen: false } : {}) },
+          okFilow: { provider: "local", ...(s.okFilow.voice === "cloud" ? localVoice : {}) },
           local: { startMode: s.local.startMode === "local" ? "local" : "auto", translateWhere: "local" },
         });
       }
@@ -179,10 +237,10 @@ export function easyPatch<C extends EasyControl>(control: C, value: EasyValue[C]
       return provider ? done({ okFilow: { provider } }) : { ok: false, needs: "online-service" };
     }
     case "screen":
-      if (on && !picturesAvailable({ ...s, okFilow: { ...s.okFilow, screen: "auto" } }, m)) return { ok: false, needs: "pictures" };
-      return done({ okFilow: { screen: on ? "auto" : "off" } });
+      // the user's own choice, written as such: it holds when the setup or where answers come from changes later
+      return done({ okFilow: { seeScreen: on ? "on" : "off" } });
     case "voice":
-      return done({ okFilow: on ? { voice: "system", voiceChosen: false } : { voice: "off" } });
+      return done({ okFilow: on ? localVoice : { voice: "off" } });
     case "dictation":
       return done({ dictation: { enabled: on } });
     case "tidy":
@@ -208,7 +266,7 @@ export function easyPatch<C extends EasyControl>(control: C, value: EasyValue[C]
  * language, and no start with Windows. The same on every machine except "Look at my screen".
  */
 export function easyRecommended(m: MachineInfo): EasyState {
-  const pictures = setupChoices(recommendProfile(m).profile, m).screenHelper.mode === "picture";
+  const pictures = setupChoices(recommendProfile(m).profile, m).screenHelper.mode !== "text";
   return { private: "on", screen: sw(pictures), voice: "on", dictation: "on", tidy: "on", quality: "auto", language: "", startup: "off" };
 }
 
@@ -221,15 +279,15 @@ export function easyReset(s: EasySnapshot, m: MachineInfo, caps: EasyCaps): { pa
   const patch: EasyPatch = {};
   let now = s;
   for (const control of EASY_CONTROLS) {
-    // the stored screen choice goes back to "auto" even where the switch reads off because the PC is too slow
-    const step: EasyPatchResult = control === "screen" ? { ok: true, patch: onlyChanges(now, { okFilow: { screen: "auto" } }) } : easyPatch(control, want[control] as never, now, m, caps);
+    // the screen choice goes back to "auto" (the setup decides again), whatever the switch reads now
+    const step: EasyPatchResult = control === "screen" ? { ok: true, patch: onlyChanges(now, { okFilow: { seeScreen: "auto" } }) } : easyPatch(control, want[control] as never, now, m, caps);
     if (!step.ok) continue;
     for (const store of ["okFilow", "dictation", "ui", "local"] as const) if (step.patch[store]) (patch as Record<string, unknown>)[store] = { ...patch[store], ...step.patch[store] };
     now = applyEasyPatch(now, step.patch);
   }
   // what the user will see change: one write can move two controls (an online voice shows on two)
   const before = easyRead(s, m), after = easyRead(now, m);
-  const changes = EASY_CONTROLS.filter((c) => before[c] !== after[c] || (c === "screen" && s.okFilow.screen !== now.okFilow.screen));
+  const changes = EASY_CONTROLS.filter((c) => before[c] !== after[c] || (c === "screen" && s.okFilow.seeScreen !== now.okFilow.seeScreen));
   return { patch, changes };
 }
 
@@ -241,15 +299,26 @@ export function easyView(s: EasySnapshot, m: MachineInfo, caps: EasyCaps): EasyV
   const best = bestQuality(m);
   const options: EasyQuality[] = ["auto"];
   if (setup.recommended !== "lite" || state.quality === "faster") options.unshift("faster");
-  if (best.offered && (setup.recommended !== "advanced" || state.quality === "best")) options.push("best");
+  // Best quality is always shown where it differs from "Chosen for this PC": the user decides, and
+  // where this PC cannot carry it the option stays visible with the reason (bestBlocked)
+  if (setup.recommended !== "advanced" || state.quality === "best") options.push("best");
+  const helper = setup.choices.screenHelper;
   return {
     state,
     recommended,
     changed: easyReset(s, m, caps).changes,
     private: { differences: s.okFilow.provider === "local" ? privateDifferences(s) : [], localAnswers: setup.choices.screenHelper.mode !== "none", onlineReady: caps.online.openrouter || caps.online.freellm },
-    screen: { available: picturesAvailable(s, m) },
+    screen: { slow: s.okFilow.provider === "local" && helper.mode === "text", leaves: state.screen === "on" && s.okFilow.provider !== "local" },
     tidy: { usable: s.dictation.enabled },
-    quality: { options, bestBlocked: best.blocked, chosen: setup.recommended, active: setup.active },
+    quality: {
+      options,
+      bestBlocked: !best.offered ? "stronger-pc" : best.blocked,
+      bestNote: best.note,
+      chosen: setup.recommended,
+      active: setup.active,
+      helpers: [helper.model, helper.pointer].filter((x): x is string => Boolean(x)),
+      downloads: downloads(s, m),
+    },
     language: { listensIn: s.speechLanguage === "auto" ? null : s.speechLanguage },
   };
 }
