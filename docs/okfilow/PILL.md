@@ -94,7 +94,10 @@ Checked on 2026-11-11.
   extra modifier or any other key cancels the chord (`okfilow-gestures.js`). Tested: Ctrl, Alt,
   Shift, H pressed in quick succession emits nothing, with every talk chord. One case to know: with
   Ctrl+Alt as the talk keys, holding Ctrl+Alt for longer than 250 ms before adding Shift starts a
-  question and ends it at once when Shift goes down (`talk:start`, `talk:end`).
+  question and cancels it at once when Shift goes down (`talk:start`, `talk:cancel`): nothing is
+  sent to be answered, but the press has already taken the old answer off the screen and with it
+  the offer to resume. A slow hand can lose a paused answer this way; shortcuts that do not start
+  with the talk keys would avoid it (an owner decision).
 - Windows: there is no Ctrl+Alt+Shift+letter system shortcut. Ctrl+Alt+Del, Ctrl+Shift+Esc,
   Ctrl+Alt+Tab, Ctrl+Alt+arrows (Intel rotate), Alt+Shift and Ctrl+Shift (layout switch), Win+...
   and the Office key (needs Win) do not match.

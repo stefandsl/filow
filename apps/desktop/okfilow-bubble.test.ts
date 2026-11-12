@@ -507,6 +507,9 @@ describe("an answer's marks never outlive the answer", () => {
     expect(main).toContain("if (Number.isInteger(n) && n >= 0) answerMarks.set({ spoken: true });");
     // a click on the bubble or the pill is not a change of the screen
     expect(main).toContain("if (!bubbleHover.size && !stopHover.size) answerMarks.screenChanged();");
+    // a display that goes away with the pointer on its bubble does not hold the bubble for ever
+    expect(main).toContain("if (!w.isDestroyed()) { dropHover(w.webContents.id); w.destroy(); }");
+    expect(main).toContain("if (bubbleHover.delete(senderId)) bubble.setHover(bubbleHover.size > 0);");
     // Escape, Clear and the talk keys wipe everything, cards too
     const clear = main.slice(main.indexOf("function clearDrawings()"), main.indexOf("// ---- keyboard gestures"));
     expect(clear).toContain("answerMarks.forget();");

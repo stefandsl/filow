@@ -205,6 +205,11 @@ function createOkFilow(deps) {
       if (mode === "idle" || mode === "error") scheduleFade();
     },
   });
+  /** An overlay that is no more has the pointer on nothing. */
+  function dropHover(senderId) {
+    stopHover.delete(senderId);
+    if (bubbleHover.delete(senderId)) bubble.setHover(bubbleHover.size > 0);
+  }
   /** The bubble's close button (an overlay). */
   ipcMain.on("okfilow:bubble:close", (e) => { if (ourSender(e)) bubble.close("button"); });
   /** The sentence the voice is on (the panel knows): the overlays keep it in view. */
@@ -379,7 +384,13 @@ function createOkFilow(deps) {
   function buildOverlays() {
     const displays = screen.getAllDisplays();
     const ids = new Set(displays.map((d) => d.id));
-    for (const [id, w] of overlays) if (!ids.has(id)) { if (!w.isDestroyed()) w.destroy(); overlays.delete(id); }
+    for (const [id, w] of overlays) {
+      if (ids.has(id)) continue;
+      // A display went away with the pointer on its bubble or pill: that overlay can never say the
+      // pointer left, so it is taken off the lists here (else the bubble would wait for ever).
+      if (!w.isDestroyed()) { dropHover(w.webContents.id); w.destroy(); }
+      overlays.delete(id);
+    }
     for (const d of displays) {
       let w = overlays.get(d.id);
       if (!w || w.isDestroyed()) {
