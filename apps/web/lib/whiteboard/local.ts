@@ -27,10 +27,11 @@ export function visionModel(installed: string[]): string | null {
 }
 
 /** One JSON answer from a local model, held to `schema`. */
-export async function localJson(model: string, system: string, user: string, schema: unknown, opts: { images?: string[]; timeoutMs: number; maxTokens?: number }): Promise<unknown> {
-  const res = await fetch(`${OLLAMA_URL()}/api/chat`, {
+export async function localJson(model: string, system: string, user: string, schema: unknown, opts: { images?: string[]; timeoutMs: number; maxTokens?: number; at?: { base: string; headers: Record<string, string> } }): Promise<unknown> {
+  // `at`: where the model runs (the user's own server, when chosen for the whiteboard and allowed); else this PC
+  const res = await fetch(`${opts.at?.base ?? OLLAMA_URL()}/api/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...opts.at?.headers },
     signal: AbortSignal.timeout(opts.timeoutMs),
     body: JSON.stringify({
       model,
