@@ -55,7 +55,7 @@ export function nameScore(label: string, name: string): number {
   const l = core(label);
   if (!l.length) return 0;
   let best = 0;
-  for (const candidate of new Set([name, head(name)])) {
+  for (const candidate of new Set([name, head(name), plainName(name)])) {
     const n = core(candidate);
     if (!n.length) continue;
     const lj = l.join(" "), nj = n.join(" ");
@@ -93,6 +93,56 @@ export function matchElements(label: string, elements: ScreenElement[], screen: 
     if (s >= MATCH) { scored.push([s, e]); top = Math.max(top, s); }
   }
   return scored.filter(([s]) => s >= top - 0.02).map(([, e]) => e);
+}
+
+// ---- the thing the question itself names ----
+// "Where is Audacity?" with a 33-pixel Audacity icon in the taskbar: measured, the answering model
+// said "it is not visible" for 3 small targets in 4 and wrote no tag at all. The question's own words
+// are matched against the names; the model is told where those things are, and when its answer still
+// carries no point, the point is added.
+
+const MAX_NAMED = 3;
+/** Windows adds a state to a taskbar button's name ("Audacity pinned", "Audacity bloccato"). */
+const STATE = /\s+(?:pinned|bloccato|bloccata|закреплено|fixat|ピン留め済み)$/iu;
+/** The thing's own name: no window count, no state. */
+export const plainName = (name: string): string => head(name).replace(STATE, "").trim();
+
+/**
+ * The elements whose whole name stands in the question, longest name first, at most three. A name two
+ * elements share is left out (which one?), and so is a name of one short word ("File", "Home"): it
+ * is too often just a word of the sentence.
+ */
+export function namedInQuestion(question: string, elements: ScreenElement[]): ScreenElement[] {
+  const q = ` ${words(question).join(" ")} `;
+  const found = new Map<string, ScreenElement | null>();
+  for (const e of elements) {
+    const n = words(plainName(e.name));
+    const key = n.join(" ");
+    if (!n.length || key.length < 3 || /^[\d ]+$/.test(key) || (n.length === 1 && key.length < 5)) continue;
+    if (!q.includes(` ${key} `)) continue;
+    const id = `${e.screen}:${key}`;
+    found.set(id, found.has(id) ? null : e);
+  }
+  return [...found.values()]
+    .filter((e): e is ScreenElement => e !== null)
+    .sort((a, b) => plainName(b.name).length - plainName(a.name).length)
+    .slice(0, MAX_NAMED);
+}
+
+/** What the answering model is told about them, after the question. Only names the question already holds. */
+export const screenHint = (named: ScreenElement[], screens: number): string =>
+  named.length
+    ? `\n(Found on the screen: ${named.map((e) => `"${plainName(e.name)}" is at ${Math.round((e.x1 + e.x2) / 2)},${Math.round((e.y1 + e.y2) / 2)}${screens > 1 ? ` on screen ${e.screen}` : ""}`).join("; ")}. It is visible: if the question is about it, point at it with exactly that position.)`
+    : "";
+
+const ANY_PLACE_TAG = /\[(?:POINT|CIRCLE|BOX|ARROW|UNDERLINE):/i;
+/** An answer that points at nothing although the question named a thing on screen: the same answer, then the point. */
+export async function* withNamedPoint(answer: AsyncIterable<string>, named: ScreenElement[], screens: number): AsyncGenerator<string> {
+  let all = "";
+  for await (const piece of answer) { all += piece; yield piece; }
+  const e = named[0];
+  if (!e || !all.trim() || ANY_PLACE_TAG.test(all) || all.includes("\n[ERROR]")) return;
+  yield ` [POINT:${Math.round((e.x1 + e.x2) / 2)},${Math.round((e.y1 + e.y2) / 2)}:${plainName(e.name).replace(/[[\]:]/g, " ").slice(0, 60)}${screens > 1 ? `:screen${e.screen}` : ""}]`;
 }
 
 const centre = (e: ScreenElement) => ({ x: (e.x1 + e.x2) / 2, y: (e.y1 + e.y2) / 2 });
@@ -140,6 +190,8 @@ export function placePoint(label: string, guess: { x: number; y: number } | null
 // are the user's own: the ask route never gives them to an online provider).
 
 export const PICK_SYSTEM = "You match a label to the name of a thing on a computer screen. The names may be in another language than the label. Reply with only the number of the item the label means, or 0 if none of them is that thing.";
+/** The same choice for a whole question (the panel's second, narrow request when an answer pointed at nothing). */
+export const ASKED_SYSTEM = "You are given a user's question and the names of the things on their computer screen. The names may be in another language than the question. If the question asks where one of these things is, or how to find, open or use it, reply with only that item's number. If the question is about anything else, reply 0.";
 export const PICK_MAX_TOKENS = 8;
 /** At most this many names go into the question (about 2,000 tokens). */
 export const PICK_MAX_NAMES = 250;

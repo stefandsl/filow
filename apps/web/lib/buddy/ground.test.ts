@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as sysinfo from "@/lib/sysinfo";
 import { POST as ask } from "@/app/api/buddy/ask/route";
-import { canPick, isVagueLabel, matchElements, nameScore, pickedIndex, pickNames, pickQuestion, placeBox, placePoint, placeTags, sanitizeElements, withPlacedTags, type ScreenElement } from "./ground";
+import { canPick, isVagueLabel, matchElements, namedInQuestion, nameScore, pickedIndex, pickNames, pickQuestion, placeBox, placePoint, placeTags, plainName, sanitizeElements, screenHint, withNamedPoint, withPlacedTags, type ScreenElement } from "./ground";
 import { lenientPoint, withPointer } from "./pointer";
 import { parseBuddyAnswer } from "./prompt";
 
@@ -228,11 +228,82 @@ describe("the ask route with the names Windows gives", () => {
     expect(await res.text()).toBe("Press Start [CIRCLE:16,969,37:Start].");
   });
 
+  it("the question names a thing Windows lists: Gemma is told where it is, and its answer without a tag still gets the point", async () => {
+    answer = "Cestino is not visible in the screenshot.";
+    const res = await ask(request({ question: "Where is the Cestino?", ...shot, provider: "local", elements: DESKTOP }));
+    expect(await res.text()).toBe("Cestino is not visible in the screenshot. [POINT:28,55:Cestino]");
+    expect(chats).toHaveLength(1);
+    expect(chats[0].messages.at(-1)?.content).toContain('Where is the Cestino?\n(Found on the screen: "Cestino" is at 28,55.');
+    // only the name the question already held went into the prompt
+    expect(JSON.stringify(chats)).not.toMatch(/Esplora file|Chiudi|Firefox/);
+  });
+
+  it("the panel's follow-up for a point: Gemma says which named thing the question was about, and the pointing model is not asked", async () => {
+    const follow = 'where are my files?\nYou answered: "They are in your folders". Reply with only the tag [POINT:x,y:label:screenN] for that thing, on the 0-1000 grid, and nothing else. If it is not visible, reply NONE.';
+    const res = await ask(request({ question: follow, ...shot, provider: "local", elements: DESKTOP }));
+    expect(await res.text()).toBe("[POINT:106,969:Esplora file:screen1]");
+    expect(chats.map((c) => c.model)).toEqual(["gemma4:e4b"]);
+    // the question alone, not the earlier answer, and no picture
+    expect(chats[0].messages.at(-1)?.content).toMatch(/^Label: "where are my files\?"\nItems:\n1\. Start\n/);
+    expect(chats[0].messages.at(-1)?.images).toEqual([]);
+    expect(parseBuddyAnswer(await (await ask(request({ question: follow, ...shot, provider: "local", elements: DESKTOP }))).text(), shot.screens).points[0]).toMatchObject({ x: 106, y: 969, label: "Esplora file" });
+  });
+
+  it("the follow-up when Gemma says none of them (0), or without the list: the pointing model looks, and its near miss is still corrected", async () => {
+    const follow = "what is 2 plus 2?\nReply with only the tag [POINT:x,y:label:screenN] for that thing.";
+    const fetchMock = vi.mocked(globalThis.fetch);
+    const inner = fetchMock.getMockImplementation() as unknown as (url: string, init?: RequestInit) => Promise<Response>;
+    fetchMock.mockImplementation((async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith("/api/chat") && String(init?.body).includes("Label:")) return new Response(`${JSON.stringify({ message: { content: "0" }, done: true })}\n`);
+      return inner(url, init);
+    }) as unknown as typeof fetch);
+    const res = await ask(request({ question: follow, ...shot, provider: "local", elements: DESKTOP }));
+    // lfm3-vl's [POINT:62,968:Start] is 30 grid units right of Start: put on the Start button
+    expect(await res.text()).toBe("[POINT:16,969:Start:screen1]");
+    expect(chats.map((c) => c.model)).toEqual(["lfm3-vl"]);
+    const bare = await ask(request({ question: follow, ...shot, provider: "local" }));
+    expect(await bare.text()).toBe("[POINT:62,968:Start:screen1]");
+  });
+
   it("a list with no screenshot (Look at my screen off) or a malformed one is ignored", async () => {
     answer = "Press Start [CIRCLE:62,968,40:Start].";
     installed = ["qwen3-vl:8b", "clef-flash:latest"];
     const res = await ask(request({ question: "draw a circle on the Start menu", ...shot, provider: "local", elements: "everything" }));
     expect(await res.text()).toBe(answer);
+  });
+});
+
+describe("the thing the question itself names", () => {
+  const PINNED = [...DESKTOP, el("Audacity bloccato", 314, 938, 338, 1000), el("File", 10, 30, 40, 50), el("Blocco note", 400, 300, 440, 360), el("Blocco note", 500, 300, 540, 360)];
+
+  it("finds whole names in the question, longest first, without the state Windows adds; not short single words, not names two things share", () => {
+    expect(namedInQuestion("Where is Audacity?", PINNED).map((e) => e.name)).toEqual(["Audacity bloccato"]);
+    expect(namedInQuestion("dov'è esplora file e dove firefox", PINNED).map((e) => plainName(e.name))).toEqual(["Esplora file", "Firefox"]);
+    // "file" alone is a word of the sentence, "Start" (5 letters) is a name
+    expect(namedInQuestion("how do I save this file", PINNED)).toEqual([]);
+    expect(namedInQuestion("what does start do", PINNED).map((e) => e.name)).toEqual(["Start"]);
+    expect(namedInQuestion("open blocco note", PINNED)).toEqual([]);
+    // part of a word is not the name
+    expect(namedInQuestion("restart the computer", PINNED)).toEqual([]);
+    expect(namedInQuestion("Where is Audacity?", [])).toEqual([]);
+  });
+
+  it("tells the model where they are, with the screen only when there are several", () => {
+    const [a] = namedInQuestion("Where is Audacity?", PINNED);
+    expect(screenHint([a], 1)).toBe('\n(Found on the screen: "Audacity" is at 326,969. It is visible: if the question is about it, point at it with exactly that position.)');
+    expect(screenHint([a], 2)).toContain('"Audacity" is at 326,969 on screen 1');
+    expect(screenHint([], 1)).toBe("");
+  });
+
+  it("an answer that points at nothing gets the point; one that points or draws, an empty one and an error do not", async () => {
+    const [a] = namedInQuestion("Where is Audacity?", PINNED);
+    const run = async (pieces: string[], named = [a]) => (await all(withNamedPoint(stream(pieces), named, 1))).join("");
+    expect(await run(["Audacity is not ", "visible."])).toBe("Audacity is not visible. [POINT:326,969:Audacity]");
+    expect(await run(["It is here [POINT:326,969:Audacity]."])).toBe("It is here [POINT:326,969:Audacity].");
+    expect(await run(["Look [BOX:1,2,3,4:x]"])).toBe("Look [BOX:1,2,3,4:x]");
+    expect(await run([""])).toBe("");
+    expect(await run(["half\n[ERROR] Ollama is not running"])).toBe("half\n[ERROR] Ollama is not running");
+    expect(await run(["Nothing named."], [])).toBe("Nothing named.");
   });
 });
 
