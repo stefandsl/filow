@@ -2412,7 +2412,7 @@ async function main() {
     origin: accountOriginNow, userData,
     // Every account request shows the "going outside" signal (kind `account`, docs/okfilow/OUTBOUND.md) while it is in flight.
     fetcher: signalledFetch(fetch, () => okFilow?.outboundSignal()),
-    safeStorage: require("electron").safeStorage, openExternal: url => shell.openExternal(url),
+    safeStorage: require("electron").safeStorage, openExternal: url => openExternalSafe(url),
     offline: () => process.env.FILOW_OFFLINE === "1",
   });
   for (const action of ["status", "begin", "poll", "cancel", "signOut", "checkout", "portal"]) {

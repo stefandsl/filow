@@ -6,7 +6,8 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const ALLOWED = new Set(["MIT", "ISC", "BSD-2-Clause", "BSD-3-Clause", "0BSD", "Apache-2.0", "MPL-2.0", "Zlib", "CC0-1.0",
+// MIT-0 (MIT without the attribution clause, nodemailer in apps/cloud) is as permissive as MIT, so GPL-compatible.
+const ALLOWED = new Set(["MIT", "MIT-0", "ISC", "BSD-2-Clause", "BSD-3-Clause", "0BSD", "Apache-2.0", "MPL-2.0", "Zlib", "CC0-1.0",
   "CC-BY-4.0", "Unlicense", "Python-2.0", "BlueOak-1.0.0", "LGPL-2.1-or-later", "LGPL-3.0-or-later", "GPL-3.0-or-later", "GPL-3.0-only"]);
 // Packages whose package.json names no license although they ship one: the license file was read by a person.
 // Pinned to the version that was read, so a new version is checked again.
