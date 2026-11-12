@@ -2177,7 +2177,7 @@ function buildMenu(win) {
         { label: sharedText("menu.welcome", menuLang()), click: () => void showWelcome() },
         { label: mt("configFolder"), click: () => shell.openPath(userData) },
         { label: mt("editEnv"), click: () => shell.openPath(envFile) },
-        { label: mt("settings"), click: () => win.loadURL(APP_URL + "/settings/local") },
+        { label: mt("settings"), click: () => win.loadURL(APP_URL + "/settings") },
         { label: mt("offline"), type: "checkbox", checked: offline, click: (item) => applyOffline(win, item.checked) },
         { type: "separator" },
         {

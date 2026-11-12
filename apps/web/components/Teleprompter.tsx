@@ -513,7 +513,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
         <PairPanel prompter info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} onNewCode={() => void sessionInfo.newCode()} />
         <LangSwitch lang={lang} onChange={onLang} /><ThemeSwitch pref={theme} onChange={onTheme} />
         <button type="button" className="btn display-link" onClick={() => setDisplayOpen(true)} title={t("display.openTitle")} aria-haspopup="dialog"><Icon name="sliders" /><span className="action-label">{t("display.open")}</span></button>
-        <a className="btn settings-link" href="/settings/local" aria-label={t("ctl.settings")} title={t("ctl.settingsTitle")}><Icon name="settings" /></a>
+        <a className="btn settings-link" href="/settings" aria-label={t("ctl.settings")} title={t("ctl.settingsTitle")}><Icon name="settings" /></a>
       </header>
       <SectionNav sections={script.sections} current={sectionIdx} onSelect={reanchor.toSection}
         importAction={<button type="button" className="btn" onClick={() => fileRef.current?.click()} disabled={importing} aria-label={t("ctl.import")} title={t("ctl.importTitle")}><Icon name="up" /><span className="action-label">{importing ? t("ctl.importing") : t("ctl.import")}</span></button>}
@@ -615,7 +615,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
             </select>
             <OverflowMenu items={[
               ...(screen.desktop ? [{id:"region",label:t("screen.region"),onSelect:() => { if (!offline) void screen.captureRegion(); }}] : []),
-              {id:"screenSettings",label:t("ctl.settings"),onSelect:() => { window.location.href = "/settings/local"; }},
+              {id:"screenSettings",label:t("ctl.settings"),onSelect:() => { window.location.href = "/settings"; }},
               ...(state.screen ? [{id:"forget",label:t("screen.forget"),onSelect:screen.forget}] : []),
               ...(lastNotes.length > 0 ? [{id:"export",label:t("screen.exportNotes", {n:lastNotes.length}),onSelect:exportNotes}] : []),
             ]} />
