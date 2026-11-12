@@ -1680,7 +1680,7 @@ function wireStt() {
   });
   appHandle("stt:start", async (e, language) => {
     setSttLanguage(language);
-    if (!sttSession) sttSession = new sttLocal.SttSession(userData, logLine, { use: "tracking", getLanguage: sttLanguage });
+    if (!sttSession) sttSession = new sttLocal.SttSession(userData, logLine, { use: "tracking", getLanguage: sttLanguage, task: () => "tracking" });
     const wc = e.sender;
     sttSession.onResult = (r) => !wc.isDestroyed() && wc.send("stt:result", { partial: r.partial, committed: r.committed });
     sttSession.onError = (m) => !wc.isDestroyed() && wc.send("stt:result", { partial: "", committed: "", error: m });

@@ -12,6 +12,7 @@ const { retryDownload } = require("./stt-download");
 const { download } = require("./download");
 const { sha256File } = require("./integrity");
 const { cancelError, isCancelled, removeInside, sizeOf } = require("./model-files");
+const { speechPin } = require("./model-roles");
 
 /** Spoken languages Filow is measured on; "auto" lets the model decide. */
 const LANGUAGES = ["en", "it", "ru", "ro", "ja"];
@@ -201,14 +202,19 @@ function chooseModels({ language = "auto", use = "tracking", ramGb, cores } = {}
  * be told: "fallback" (the best model is not downloaded, a less suitable one is used) and "phrases"
  * (a talk is followed phrase by phrase, not word by word, because the model is not a streaming one).
  */
-function pickInstalled(choice, installed) {
+function pickInstalled(choice, installed, pin = null) {
   const wanted = choice.models[0];
-  const model = choice.models.find((k) => installed.includes(k)) ?? null;
+  // The model the user chose for this task (Settings > Advanced, model-roles.js) comes first when it
+  // can listen in this language on this machine (it is on the list) and is on disk. Otherwise the
+  // automatic pick, and a note that says why the choice was not used.
+  const pinUsable = Boolean(pin) && choice.models.includes(pin) && installed.includes(pin);
+  const model = pinUsable ? pin : choice.models.find((k) => installed.includes(k)) ?? null;
   const streaming = model ? CATALOGUE[model].kind === "online" : false;
   const notes = [];
-  if (model && model !== wanted) notes.push("fallback");
+  if (model && model !== wanted && !pinUsable) notes.push("fallback");
   if (model && !streaming && choice.use === "tracking") notes.push("phrases");
-  return { model, wanted, streaming, notes };
+  if (pin && !pinUsable) notes.push(choice.models.includes(pin) ? "pinMissing" : "pinUnfit");
+  return { model, wanted, streaming, notes, pinned: pinUsable };
 }
 
 /** Rejects a download whose bytes are not the pinned archive (corrupt, truncated or swapped). */
@@ -416,7 +422,7 @@ function speechStatus(userData, { language = "auto", hardware, job } = {}) {
   const installed = installedKeys(userData);
   const view = (use) => {
     const choice = chooseModels({ language: lang, use, ...hardwareOf(hardware) });
-    const pick = pickInstalled(choice, installed);
+    const pick = pickInstalled(choice, installed, speechPin(userData, use));
     const missing = requiredSpecs(pick.wanted).filter((s) => !specInstalled(userData, s));
     const mine = Boolean(job) && job.key === pick.wanted && ["downloading", "extracting", "error"].includes(job.state);
     return {
@@ -472,6 +478,9 @@ class SttSession {
     this.log = log || (() => {});
     this.use = opts.use === "questions" ? "questions" : "tracking";
     this.getLanguage = opts.getLanguage || (() => "auto");
+    // What this session listens for now ("tracking", "questions" or "dictation"): the model the user
+    // chose for that task in Settings > Advanced comes first (model-roles.js). No task, no choice.
+    this.getTask = opts.task || (() => null);
     this.hardware = opts.hardware;
     this.worker = null;
     this.modelKey = null;
@@ -490,7 +499,8 @@ class SttSession {
     const asked = normaliseLanguage(language);
     const lang = asked !== "auto" ? asked : normaliseLanguage(this.getLanguage());
     const choice = chooseModels({ language: lang, use: this.use, ...hardwareOf(this.hardware) });
-    return { lang, pick: pickInstalled(choice, installedKeys(this.userData)) };
+    const task = this.getTask();
+    return { lang, pick: pickInstalled(choice, installedKeys(this.userData), task ? speechPin(this.userData, task) : null) };
   }
 
   async start(language) {
