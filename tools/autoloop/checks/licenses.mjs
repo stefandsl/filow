@@ -8,6 +8,9 @@ import path from "node:path";
 
 const ALLOWED = new Set(["MIT", "ISC", "BSD-2-Clause", "BSD-3-Clause", "0BSD", "Apache-2.0", "MPL-2.0", "Zlib", "CC0-1.0",
   "CC-BY-4.0", "Unlicense", "Python-2.0", "BlueOak-1.0.0", "LGPL-2.1-or-later", "LGPL-3.0-or-later", "GPL-3.0-or-later", "GPL-3.0-only"]);
+// Packages whose package.json names no license although they ship one: the license file was read by a person.
+// Pinned to the version that was read, so a new version is checked again.
+const READ_FROM_FILE = new Map([["khroma@2.1.0", "MIT"]]); // node_modules/khroma/license, via mermaid in @excalidraw/excalidraw
 const sbomPath = process.argv[2] || "tmp/sbom.cdx.json";
 if (!process.argv[2] && (!fs.existsSync(sbomPath) || Date.now() - fs.statSync(sbomPath).mtimeMs > 24 * 3.6e6)) {
   execSync("npm run sbom --silent", { stdio: "ignore" });
@@ -23,7 +26,8 @@ const ok = (expr) => {
 };
 const walk = (arr) => {
   for (const c of arr || []) {
-    const ls = (c.licenses || []).map((l) => l.license?.id || l.license?.name || l.expression).filter(Boolean);
+    const listed = (c.licenses || []).map((l) => l.license?.id || l.license?.name || l.expression).filter(Boolean);
+    const ls = listed.length ? listed : [READ_FROM_FILE.get(`${c.name}@${c.version}`)].filter(Boolean);
     if (!ls.length || !ls.every(ok)) bad.push(`${c.name}@${c.version}: ${ls.join(" | ") || "no license"}`);
     walk(c.components);
   }
