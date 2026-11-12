@@ -52,11 +52,20 @@ describe("the panel's hands-free reopen after speech goes through the gap", () =
 
   it("no hands-free reopen right after a speak calls listenAgain.current() directly", () => {
     const bad: string[] = [];
+    const REOPEN = /reopenAfterSpeech\(\(\) => listenAgain\.current\(\), \(\) => handsFree\.current && modeRef\.current === "idle" && run\.current === id\)/g;
     lines.forEach((line, i) => {
-      if (!/listenAgain\.current\(\)/.test(line) || /reopenAfterSpeech/.test(line)) return;
-      // the reopen sites of an answer are the ones that follow a `speak` / `voice.finish` within a few lines
+      if (!/listenAgain\.current\(\)/.test(line)) return;
+      if (/reopenAfterSpeech/.test(line)) {
+        // a line with the gap: its speak branch (everything before an `else`) may hold the gap call and
+        // nothing else; a direct listenAgain.current() beside it would still reopen at once
+        const speakBranch = line.replace(REOPEN, "").split(/\belse\b/)[0]!;
+        if (/listenAgain\.current\(\)/.test(speakBranch)) bad.push(`${i + 1}: ${line.trim()}`);
+        return;
+      }
+      // the reopen sites of an answer are the ones that follow a `speak` / `voice.finish` within a few lines;
+      // an `else` here is not an excuse: it is the branch that follows speech that is checked
       const before = lines.slice(Math.max(0, i - 6), i).join("\n");
-      if (/await speak\(|await voice\.finish\(/.test(before) && /handsFree\.current/.test(line) && !/else/.test(line)) bad.push(`${i + 1}: ${line.trim()}`);
+      if (/await speak\(|await voice\.finish\(/.test(before) && /handsFree\.current/.test(line)) bad.push(`${i + 1}: ${line.trim()}`);
     });
     expect(bad).toEqual([]);
   });
