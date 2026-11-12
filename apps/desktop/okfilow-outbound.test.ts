@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
-import { MIN_SIGNAL_MS as WEB_MIN_SIGNAL_MS } from "../web/lib/buddy/outbound";
+import { MIN_SIGNAL_MS as WEB_MIN_SIGNAL_MS, OUTBOUND_KINDS } from "../web/lib/buddy/outbound";
 
 const require = createRequire(import.meta.url);
 type Snapshot = { active: boolean; kinds: string[]; names: string[] };
@@ -177,5 +177,20 @@ describe("coding agents", () => {
     expect(agentGranted({}, "codex")).toBe(false);
     expect(agentGranted(undefined, "codex")).toBe(false);
     expect(agentGranted(consent, null)).toBe(false);
+  });
+});
+
+describe("one list of kinds", () => {
+  const { KINDS } = require("./okfilow-outbound.js") as { KINDS: string[] };
+  it("the main process knows exactly the kinds the pages know (apps/web/lib/buddy/outbound.ts)", () => {
+    expect(KINDS).toEqual(OUTBOUND_KINDS);
+  });
+  it("account requests show the signal, and a stored choice's key is checked against the same list", () => {
+    const changes: Snapshot[] = [];
+    const state = createOutboundState({ onChange: (s: Snapshot) => changes.push(s), setTimer: () => 0, clearTimer: () => {} });
+    expect(state.begin("account:1", "account", ["Filow account"])).toBe(true);
+    expect(state.snapshot()).toEqual({ active: true, kinds: ["account"], names: ["Filow account"] });
+    expect(state.begin("x:1", "nope", ["Somebody"])).toBe(false);
+    expect(Object.keys(sanitizeConsent({ "account:filow": { state: "granted", at: "2026-11-12T00:00:00.000Z", names: ["Filow"] }, "nope:filow": { state: "granted", at: "2026-11-12T00:00:00.000Z", names: ["X"] } }))).toEqual(["account:filow"]);
   });
 });

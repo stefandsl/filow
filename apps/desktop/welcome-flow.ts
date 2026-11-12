@@ -1,7 +1,7 @@
 // Pure logic of the first-run welcome (docs/welcome/ONBOARDING-V2.md): which steps a run shows and how
 // the microphone check reads its input. No DOM here, so it is unit tested; welcome.ts wires it up.
 
-export type StepId = "language" | "mic" | "setup" | "preferences";
+export type StepId = "language" | "intro" | "mic" | "setup" | "preferences";
 
 /**
  * A first run is a guided flow, one decision per step. Reopened later from the menu (Filow > Welcome...)
@@ -9,7 +9,7 @@ export type StepId = "language" | "mic" | "setup" | "preferences";
  */
 export function welcomeSteps({ firstRun, askSetup }: { firstRun: boolean; askSetup: boolean }): StepId[] {
   if (!firstRun) return ["preferences"];
-  return askSetup ? ["language", "mic", "setup"] : ["language", "mic"];
+  return askSetup ? ["language", "intro", "mic", "setup"] : ["language", "intro", "mic"];
 }
 
 /**

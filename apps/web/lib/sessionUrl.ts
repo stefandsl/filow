@@ -6,6 +6,23 @@
  */
 export type DesktopBridge = {
   desktop: true;
+  account?: {
+    status(): Promise<{ configured: boolean; service?: string; user: { email: string; name: string } | null; plan: "local" | "pro"; billing: boolean; paidUntil?: string | null }>;
+    /** Whether this build has accounts (set at build time); no network call. */
+    configured(): Promise<boolean>;
+    begin(): Promise<{ userCode: string; expiresAt: number } | null>;
+    poll(): Promise<{ state: "pending" | "signed-in" | "cancelled" | "expired" | "denied" }>;
+    cancel(): Promise<void>;
+    signOut(): Promise<unknown>;
+    checkout(): Promise<void>;
+    portal(): Promise<void>;
+  };
+  tour?: {
+    mark(rect: { x: number; y: number; width: number; height: number } | null): Promise<boolean>;
+    /** Asks the real assistant the practice question in that language; the shell owns the sentence. */
+    ask(lang: string): Promise<boolean>;
+    done(): Promise<void>;
+  };
   getPreferences?: import("@filow/core").UiBridge["getPreferences"];
   updatePreferences?: import("@filow/core").UiBridge["updatePreferences"];
   onPreferencesChanged?: import("@filow/core").UiBridge["onPreferencesChanged"];

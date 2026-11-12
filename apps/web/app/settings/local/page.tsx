@@ -16,6 +16,7 @@ import { browserUses, deleteQuestion, ollamaUses, sizeText, type UseContext } fr
 import { readTranslateWhere } from "@/lib/translateWhere";
 import { screenBridge } from "@/lib/screen/watcher";
 import { desktopBridge, type LocalAiHardware, type LocalAiStatus } from "@/lib/sessionUrl";
+import { useAccountLink } from "@/lib/accountLink";
 import { localAiBusy, localAiEnsureStep, localAiNeedsReport, localAiText } from "@/lib/localAiStatus";
 import { placementText, ResourcesPanel, useResources } from "@/components/ResourcesPanel";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
@@ -97,6 +98,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const [testResult, setTestResult] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [whisperModel, setWhisperModel] = useState("");
+  const accountLink = useAccountLink();
   const [cached, setCached] = useState<Record<string, boolean>>({});
   const [screenMode, setScreenModeState] = useState<ScreenMode>("balanced");
   const [startMode, setStartModeState] = useState<StartMode>("ask");
@@ -493,6 +495,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
         </div>
         <span className="subtitle">{t("easy.advanced")}</span>
         <span className="spacer" />
+        <Link className="btn" href="/tour">{t("tour.step")}</Link>
+        {accountLink && <Link className="btn" href="/account">{t("account.title")}</Link>}
         {status?.offline && <span className="chip err">{t("app.offline")}</span>}
         <ThemeSwitch pref={theme} onChange={onTheme} />
         <LangSwitch lang={lang} onChange={onLang} />

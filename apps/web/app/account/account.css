@@ -1,0 +1,16 @@
+.account-page { max-width:960px; margin:auto; padding:32px; }
+.account-page header { display:flex; align-items:center; justify-content:space-between; gap:20px; }
+.account-card { max-width:520px; margin:64px auto; padding:36px; border:1px solid var(--border); background:var(--surface); border-radius:16px; }
+.account-eyebrow { font-size:11px; letter-spacing:.18em; color:var(--muted); }
+.account-card h1 { font-size:32px; letter-spacing:-.025em; margin:16px 0; }
+.account-intro,.account-notice,.account-message { color:var(--muted); line-height:1.6; font-size:14px; }
+.account-intro { margin-bottom:28px; }
+.account-notice { padding:16px; border:1px solid var(--border); border-radius:10px; }
+.account-profile { display:grid; gap:8px; margin:24px 0; overflow-wrap:anywhere; }
+.account-profile span { color:var(--muted); font-size:13px; }
+.account-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+.account-code strong { display:block; font:600 30px var(--mono); letter-spacing:.12em; margin:24px 0; }
+.account-message { min-height:24px; }
+.account-card>a { color:var(--text); font-size:13px; text-underline-offset:4px; }
+.account-page :focus-visible { outline:2px solid var(--accent); outline-offset:4px; }
+@media(max-width:560px) { .account-page{padding:24px;} .account-card{padding:24px;margin:32px auto;} }

@@ -138,6 +138,8 @@ the time back as digits, so the score compares digits with digits.
   The light setting is still under RTF 0.25 on 2 threads here, so a PC several times slower than
   this one keeps up. Piper (RTF 0.05, 270-360 MB) would be the lighter neural option for en, it, ru,
   ro, but needs the older runtime and has no Japanese: not shipped, owner decision below.
+- audio.cpp was evaluated as another engine for voices and speech and not adopted; see "The choice" in
+  `docs/stt/LANGUAGES.md`.
 
 ## Licences: what the owner must accept
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; media-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>Filow</title>
   <link rel="stylesheet" href="vendor/welcome.css">
   <script defer src="vendor/welcome.js"></script>
@@ -44,6 +44,17 @@
           <summary><span data-i18n="welcome.moreOptions"></span><span aria-hidden="true" data-icon="chevronDown"></span></summary>
           <div class="rows" data-prefs></div>
         </details>
+      </section>
+
+      <section class="step" data-step="intro" aria-labelledby="progress h-intro" hidden>
+        <h1 id="h-intro" tabindex="-1" data-i18n="tour.title"></h1>
+        <p class="lead" data-i18n="tour.intro"></p>
+        <video id="intro-video" class="intro-video" controls playsinline preload="metadata" poster="media/intro-poster.png" data-i18n-label="tour.videoLabel">
+          <source src="media/intro.mp4" type="video/mp4">
+          <track kind="captions" src="media/intro.en.vtt" srclang="en" label="English" default>
+        </video>
+        <p class="detail" data-i18n="tour.transcript"></p>
+        <label class="setup-check"><input id="live-practice" type="checkbox" checked><span data-i18n="tour.openAfter"></span></label>
       </section>
 
       <section class="step" data-step="mic" aria-labelledby="progress h-mic" hidden>

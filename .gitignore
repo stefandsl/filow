@@ -25,6 +25,10 @@ design/
 output/
 tmp/
 release-*/
+# account service data (apps/cloud): the database lives outside the repo, this is the second lock
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
 apps/web/public/excalidraw
 apps/desktop/native/uia/bin/
 # per-task model choices of a development run (the desktop app keeps them in its profile folder)
