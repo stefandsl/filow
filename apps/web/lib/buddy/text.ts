@@ -196,6 +196,9 @@ const en = {
   notchAnswering: "OK Filow is answering",
   // A drawing was asked for and the model made none, twice (lib/buddy/draw.ts)
   drawFailed: "The drawing did not come out this time. Ask me again.",
+  // A photo was asked for (lib/buddy/photo.ts): the card carries it, this is what is said
+  photoHere: "Here is {subject}, with a photo from Wikipedia.",
+  photoOffline: "Offline mode is on, so no photo can be fetched from Wikipedia. Turn Offline mode off in Settings to see one.",
 };
 export type OkfKey = keyof typeof en;
 /** A translation: the same keys as English (text.test.ts checks every language). */

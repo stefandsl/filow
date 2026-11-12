@@ -46,8 +46,14 @@ export async function GET(req: Request) {
   const resolved = resolveSetup(isSetupPreference(wanted) ? wanted : "auto", hardware);
   const helpers = new Set<string>();
   // an everyday question and one that asks for a drawing: on "Best quality" they go to different models
-  for (const question of ["what is this?", "explain it with a drawing"]) {
-    try { helpers.add(localHelper(resolved, names, question).model); } catch { /* this setup has no local helper */ }
+  // (an answer with a diagram and a plain "draw a car" may go to two different ones), and a setup may
+  // have a second model that places the points: every one of them is in use
+  for (const question of ["what is this?", "explain it with a drawing", "draw a car"]) {
+    try {
+      const helper = localHelper(resolved, names, question);
+      helpers.add(helper.model);
+      if (helper.pointer) helpers.add(helper.pointer);
+    } catch { /* this setup has no local helper */ }
   }
   const picks = { decision: CLEF_LOCAL_MODEL(), translate: pickTranslateModel(names), okfilow: [...helpers] };
   return NextResponse.json({

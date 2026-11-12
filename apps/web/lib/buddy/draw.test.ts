@@ -50,6 +50,18 @@ describe("a plain request to draw is recognised in the five languages", () => {
     }
     expect(localHelper(best, ["qwen3-vl:2b", "qwen3-vl:8b"], "где кнопка сохранить?", undefined).model).toBe("qwen3-vl:2b");
   });
+
+  it("Gemma 4 E4B draws when it is installed, ahead of Qwen3-VL 8B (measured faster and more reliable); questions about the screen keep the setup's helper", () => {
+    const hw: MachineInfo = { ramGb: 32, cores: 16, gpu: { kind: "discrete", vramGb: 8, ollama: true }, freeDiskGb: 500 };
+    const best = resolveSetup("advanced", hw);
+    const installed = ["qwen3-vl:2b", "qwen3-vl:8b", "gemma4:e4b", "lfm3-vl:latest"];
+    for (const q of ["draw a car", "draw a rocket in 3D", "disegna una macchina"]) expect(localHelper(best, installed, q, undefined).model).toBe("gemma4:e4b");
+    expect(localHelper(best, installed, "where is the Save button?", undefined).model).toBe("qwen3-vl:2b");
+    // an answer that reads the screenshot and may add a diagram stays with the model that points well
+    expect(localHelper(best, installed, "explain this chart with a diagram", undefined).model).toBe("qwen3-vl:8b");
+    // not installed: nothing is asked of Ollama that the user did not download
+    expect(localHelper(best, ["qwen3-vl:2b", "gemma4:e2b"], "draw a car", undefined).model).toBe("qwen3-vl:2b");
+  });
 });
 
 describe('the user\'s "Look at my screen" choice comes before the setup\'s pick on this PC', () => {
@@ -207,6 +219,54 @@ describe("a draw request is answered with a picture, never with a refusal", () =
 
   it("a failure of the first try is the answer's error, as for any question", async () => {
     await expect(run([new Error("Ollama, which runs OK Filow's answers on this PC, is not running.")])).rejects.toThrow("is not running");
+  });
+
+  it("the spoken sentence goes out as soon as the picture's block starts, before the picture is finished", async () => {
+    let finish = () => {};
+    const gate = new Promise<void>((res) => { finish = res; });
+    const [head, tail] = [CAR.slice(0, 40), CAR.slice(40)];
+    const ask = () => (async function* () {
+      yield "Here is ";
+      yield "a car. ";
+      yield head;
+      await gate;
+      yield tail;
+    })();
+    const answer = drawnAnswer(ask, { kind: "2d", language: "en", lang: "en", signal: new AbortController().signal });
+    // the model is still writing the picture (the gate is closed) and the sentence is already here
+    expect((await answer.next()).value).toBe("Here is a car. ");
+    finish();
+    expect((await answer.next()).value).toBe(CAR);
+    expect((await answer.next()).done).toBe(true);
+  });
+
+  it("a sentence already said is not said twice: the second try adds only its picture", async () => {
+    const { out, shapes } = await run([`A car. ${SUN}`, `Another sentence. ${CAR}`]);
+    expect(out).toBe(`A car. ${CAR}`);
+    expect(shapes).toHaveLength(2);
+  });
+
+  it("a sentence already said is followed by the plain failure line when no picture comes", async () => {
+    expect((await run([`A car. ${SUN}`, REFUSAL])).out).toBe(`A car. \n${OKF_TEXT.en.drawFailed}`);
+  });
+
+  it("nothing is said early from a reply with tags or with no sentence before the block", async () => {
+    const pieces = async (reply: string) => {
+      const got: string[] = [];
+      const ask = () => (async function* () { for (const p of reply.match(/[\s\S]{1,25}/g) ?? []) yield p; })();
+      for await (const p of drawnAnswer(ask, { kind: "2d", language: "en", lang: "en", signal: new AbortController().signal })) got.push(p);
+      return got;
+    };
+    expect(await pieces(`Look here [POINT:10,10:x]. ${CAR}`)).toEqual([`Look here [POINT:10,10:x]. ${CAR}`]);
+    expect(await pieces(CAR)).toEqual([CAR]);
+    expect(await pieces(`Here is a car. ${CAR}`)).toEqual(["Here is a car. ", CAR]);
+  });
+
+  it("a sentence that says it cannot draw is never said early, even when a block follows it (found in review)", async () => {
+    // the block is broken, so the second try's drawing is the whole answer: the refusal is never read
+    const { out } = await run(["Sorry, I can't draw. ```drawing2d\n{broken", `Ecco. ${CAR}`]);
+    expect(out).toBe(`Ecco. ${CAR}`);
+    expect((await run(["Mi dispiace, non posso disegnare. ```drawing2d\n{broken", REFUSAL], { lang: "it" })).out).toBe(OKF_TEXT.it.drawFailed);
   });
 
   it("after a Stop nothing more is asked and nothing is shown", async () => {
