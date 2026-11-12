@@ -25,6 +25,8 @@ Forward test webhooks to `/api/auth/stripe/webhook`, with at least:
 
 Enable the Stripe customer portal for payment methods, invoices and cancellation. The desktop's Subscribe button creates checkout for the signed-in user and the configured `pro` price. The service ignores client-supplied prices and account IDs. The return page does not unlock anything: Refresh account reads the stored subscription. Only `active`/`trialing` Pro subscriptions with a future period end are treated as paid. `past_due`, `unpaid`, expired and canceled subscriptions are not paid.
 
+Stripe retries events and does not promise their order. Every signed event is recorded in the `filowStripeEvent` table; an event that was already applied, or that is older than the newest event applied to the same subscription, is answered with 200 and not applied. Two different events created in the same second are applied in arrival order. This is not a reconciliation against Stripe's current state: add that before live billing.
+
 Before production, exercise checkout, canceled checkout, repeated callbacks, a failed renewal, cancel-at-period-end and portal cancellation against your own Stripe **test** account. Automated tests use Stripe SDK mocks and signed webhook fixtures; they do not prove a merchant account or webhook endpoint is configured correctly.
 
 ## Deployment

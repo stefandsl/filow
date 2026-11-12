@@ -26,8 +26,32 @@ export function createCloud({ database, origin, secret, sendOTP, stripe, webhook
     ],
   });
   const json = (value, status = 200) => Response.json(value, { status, headers: { 'Cache-Control': 'no-store' } });
+  // Stripe retries events and does not promise their order. The billing plugin applies whatever it is
+  // handed, so an older "active" delivered after "past_due" would give the access back. Every signed
+  // event is therefore recorded, and one that was already applied, or that is older than the newest
+  // event applied to the same subscription, is answered (so Stripe stops retrying) and not applied.
+  if (billing) database.exec('CREATE TABLE IF NOT EXISTS filowStripeEvent (id TEXT PRIMARY KEY, subject TEXT, created INTEGER NOT NULL)');
+  async function webhook(request) {
+    const payload = await request.text();
+    let event;
+    try { event = await stripe.webhooks.constructEventAsync(payload, request.headers.get('stripe-signature') ?? '', webhookSecret); }
+    catch { return json({ error: 'invalid_signature' }, 400); }
+    const subject = event.data?.object?.object === 'subscription' ? String(event.data.object.id) : null;
+    const created = Number.isFinite(event.created) ? event.created : 0;
+    if (database.prepare('SELECT 1 FROM filowStripeEvent WHERE id = ?').get(event.id)) return json({ received: true, applied: false });
+    const newest = subject ? database.prepare('SELECT MAX(created) AS at FROM filowStripeEvent WHERE subject = ?').get(subject)?.at : null;
+    const record = () => database.prepare('INSERT OR IGNORE INTO filowStripeEvent (id, subject, created) VALUES (?, ?, ?)').run(event.id, subject, created);
+    if (newest != null && created < newest) { record(); return json({ received: true, applied: false }); }
+    const headers = new Headers(request.headers);
+    headers.delete('Content-Length');
+    const response = await auth.handler(new Request(request.url, { method: 'POST', headers, body: payload }));
+    // Recorded only once it was applied: a failure is retried by Stripe and must get through then.
+    if (response.ok) record();
+    return response;
+  }
   async function handle(request) {
     const url = new URL(request.url);
+    if (billing && url.pathname === '/api/auth/stripe/webhook' && request.method === 'POST') return webhook(request);
     if (url.pathname.startsWith('/api/auth/')) return auth.handler(request);
     if (url.pathname === '/health' && request.method === 'GET') return json({ ok: true });
     if (!['/v1/me','/v1/checkout','/v1/portal'].includes(url.pathname)) return json({ error: 'not_found' },404);

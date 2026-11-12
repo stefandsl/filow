@@ -88,6 +88,38 @@ describe('hosted account flow',()=>{
     expect((await (await call('/v1/me',undefined,headers)).json()).plan).toBe('local');
   });
 });
+// Stripe retries events and does not promise their order: an older "active" that arrives (again) after
+// the subscription went unpaid must not hand the access back.
+it('ignores a billing event that is older than the one already applied, or was applied before',async()=>{
+  const {call,signin,checkout,cloud,origin,stripe}=await setup(true);
+  const headers=await signin();
+  expect((await call('/v1/checkout',{},headers)).status).toBe(200);
+  const now=Math.floor(Date.now()/1000);
+  const subscription = { id:'sub_order',object:'subscription',customer:'cus_test',metadata:checkout.mock.calls[0][0]?.subscription_data?.metadata,
+    items:{data:[{id:'si_test',quantity:1,price:{id:'price_pro_test',recurring:{interval:'month'}},current_period_start:now,current_period_end:now+86400}]},cancel_at_period_end:false };
+  const deliver = async (id:string,status:string,created:number) => {
+    const payload=JSON.stringify({id,created,type:'customer.subscription.updated',data:{object:{...subscription,status}}});
+    const signature=stripe.webhooks.generateTestHeaderString({payload,secret:'whsec_test_only'});
+    return cloud.handle(new Request(origin+'/api/auth/stripe/webhook',{method:'POST',headers:{'Content-Type':'application/json','stripe-signature':signature},body:payload}));
+  };
+  const plan = async () => (await (await call('/v1/me',undefined,headers)).json()).plan;
+  expect((await deliver('evt_1','active',now-20)).status).toBe(200);
+  expect(await plan()).toBe('pro');
+  expect((await deliver('evt_3','past_due',now-5)).status).toBe(200);
+  expect(await plan()).toBe('local');
+  // the same event once more, and a different one from before the unpaid state: both answered, neither applied
+  expect((await deliver('evt_1','active',now-20)).status).toBe(200);
+  expect(await plan()).toBe('local');
+  expect((await deliver('evt_2','active',now-10)).status).toBe(200);
+  expect(await plan()).toBe('local');
+  // a newer event still applies
+  expect((await deliver('evt_4','active',now)).status).toBe(200);
+  expect(await plan()).toBe('pro');
+  // two events in the same second: the repeat of the first is recognised by its id, not its time
+  expect((await deliver('evt_5','past_due',now)).status).toBe(200);
+  expect((await deliver('evt_4','active',now)).status).toBe(200);
+  expect(await plan()).toBe('local');
+});
 it('accepts only current, active Pro subscriptions',()=>{
   const paid={plan:'pro',status:'active',periodEnd:new Date(Date.now()+60_000).toISOString()};
   expect(paidSubscription([paid])).toEqual(paid);

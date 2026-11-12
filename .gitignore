@@ -23,3 +23,7 @@ design/
 output/
 tmp/
 release-*/
+# account service data (apps/cloud): the database lives outside the repo, this is the second lock
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
