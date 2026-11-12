@@ -157,15 +157,17 @@ function Choice<T extends string>({ name, legend, hint, options, value, onChange
  * glass, high contrast, and (desktop) the points window for calls. Every change shows at once and is
  * remembered on this device.
  */
-export function DisplayPanel({ prefs, onChange, onClose, pointsWindow }: {
+export function DisplayPanel({ prefs, onChange, onClose, pointsWindow, anchor }: {
   prefs: DisplayPrefs;
   onChange(next: DisplayPrefs): void;
   onClose(): void;
   pointsWindow?: { available: boolean; open: boolean; set(on: boolean): void };
+  /** "sidebar": opened from the main window's sidebar button, so it sits beside the sidebar, at its foot. Default: top right. */
+  anchor?: "sidebar";
 }) {
   const t = useT();
   const set = <K extends keyof DisplayPrefs>(k: K, v: DisplayPrefs[K]) => onChange({ ...prefs, [k]: v });
-  return <Dialog title={t("display.title")} onClose={onClose} className="display-panel">
+  return <Dialog title={t("display.title")} onClose={onClose} className={anchor === "sidebar" ? "display-panel display-panel-sidebar" : "display-panel"}>
     <p className="display-hint">{t("display.intro")}</p>
     <Choice name="display-size" legend={t("display.size")} options={DISPLAY_SIZES} value={prefs.size} onChange={(v) => set("size", v)} label={(v) => t(`display.size.${v}`)} />
     <Choice name="display-width" legend={t("display.width")} hint={t("display.widthHint")} options={DISPLAY_WIDTHS} value={prefs.width} onChange={(v) => set("width", v)} label={(v) => t(`display.width.${v}`)} />
