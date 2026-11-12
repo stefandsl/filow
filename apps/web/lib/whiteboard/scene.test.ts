@@ -148,8 +148,8 @@ describe("checkScene and fixOps", () => {
     const a = node;
     const others = base.elements.filter((e) => e.customData?.wb?.role === "node" && e.id !== a.id);
     const target = others[0];
-    // an arrow from far left to far right straight through `a`
-    const through: ExEl = { ...base.elements.find((e) => e.type === "arrow")!, id: "x-arrow", boundElements: null, customData: { wb: { step: 0, key: "x", role: "edge" } }, x: a.x - 60, y: a.y + a.height / 2, points: [[0, 0], [a.width + 120, 0]], roundness: null, startBinding: null, endBinding: { elementId: target.id, focus: 0, gap: 4 } };
+    // an arrow from above to below, straight through `a`
+    const through: ExEl = { ...base.elements.find((e) => e.type === "arrow")!, id: "x-arrow", boundElements: null, customData: { wb: { step: 0, key: "x", role: "edge" } }, x: a.x + a.width / 2, y: a.y - 60, points: [[0, 0], [0, a.height + 120]], roundness: null, startBinding: null, endBinding: { elementId: target.id, focus: 0, gap: 4 } };
     const scene = { ...base, elements: [...base.elements, through] };
     const ps = checkScene(scene).filter((p) => p.kind === "crossing" && p.ids[0] === "x-arrow");
     expect(ps.map((p) => p.ids[1])).toContain(a.id);

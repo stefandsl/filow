@@ -52,7 +52,7 @@ const { checkScene, countProblems } = (await import(pathToFileURL(checkBundle).h
 // ---- the bar's page: excalidraw-mcp's render path, fonts from this disk ----
 const harnessDir = path.join(WORK, "harness");
 fs.mkdirSync(harnessDir, { recursive: true });
-buildSync({ entryPoints: [path.join(ROOT, "tools/whiteboard/bar-harness.js")], bundle: true, format: "iife", platform: "browser", outfile: path.join(harnessDir, "bundle.js"), logLevel: "silent", define: { "process.env.NODE_ENV": '"production"', "process.env.IS_PREACT": '"false"' }, conditions: ["production"], loader: { ".woff2": "file", ".ttf": "file", ".css": "empty" } });
+buildSync({ entryPoints: [path.join(ROOT, "tools/whiteboard/bar-harness.js")], bundle: true, format: "iife", platform: "browser", outfile: path.join(harnessDir, "bundle.js"), logLevel: "silent", define: { "process.env.NODE_ENV": '"production"', "process.env.IS_PREACT": '"false"' }, conditions: ["production"], alias: { "react-dom": path.join(ROOT, "apps/web/node_modules/react-dom") }, loader: { ".woff2": "file", ".ttf": "file", ".css": "empty" } });
 fs.writeFileSync(path.join(harnessDir, "index.html"), `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#fff}#host{width:1024px;height:768px;background:#fff}#host svg{display:block}</style><script>window.EXCALIDRAW_ASSET_PATH=location.origin+"/excalidraw/";</script></head><body><div id="host"></div><script src="/bundle.js"></script></body></html>`);
 const fontsDir = path.join(ROOT, "node_modules/@excalidraw/excalidraw/dist/prod/fonts");
 const server = http.createServer((req, res) => {
@@ -148,12 +148,14 @@ if (!args.includes("--skip-ours")) {
     const d = JSON.parse(data || "{}");
     const shot = await shoot(".wb-frame", path.join(OUT, "ours", `${slug}.png`));
     const saved = await page.evaluate(`localStorage.getItem("filow.whiteboard.board")`);
+    const source = await page.evaluate(`document.querySelector(".wb-chip")?.textContent ?? ""`);
     if (saved) fs.writeFileSync(path.join(OUT, "ours", `${slug}.json`), saved);
     const [overflow, overlap, crossing, offscreen] = (d.checks ?? "").split(",").map(Number);
     metrics.concepts[slug] = {
       ...(metrics.concepts[slug] ?? {}),
       ours: {
         question,
+        source,
         ended: done,
         lessonSeconds: Math.round((Date.now() - started) / 1000),
         firstStrokeMs: d.firstStrokeMs ? Number(d.firstStrokeMs) : null,

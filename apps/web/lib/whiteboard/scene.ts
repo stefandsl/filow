@@ -356,7 +356,39 @@ export function pendingScene(question: string, board: { w: number; h: number }):
 /** Hand-drawn strokes, or exact ones (`plain`: the Lite tier, which draws fast and simply). */
 export type SceneOptions = { plain?: boolean };
 
-export function sceneFromLayout(layout: BoardLayout, opts: SceneOptions = {}): Scene {
+/**
+ * The diagram grown to use its part of the board: layout.ts sizes boxes for a crowded board, and a
+ * board with four boxes would otherwise leave most of its room empty. Positions, boxes, arrows,
+ * labels and type all scale together about the middle of the room (at most 1.45 times, type at most
+ * 28), so nothing that fitted stops fitting and nothing reaches the notes column.
+ */
+export function fitDiagram(layout: BoardLayout): BoardLayout {
+  if (!layout.nodes.length) return layout;
+  const things: Box[] = [...layout.nodes.map((n) => n.box), ...layout.edges.flatMap((e) => [{ x: Math.min(e.x1, e.cx, e.x2), y: Math.min(e.y1, e.cy, e.y2), w: Math.abs(Math.max(e.x1, e.cx, e.x2) - Math.min(e.x1, e.cx, e.x2)), h: Math.abs(Math.max(e.y1, e.cy, e.y2) - Math.min(e.y1, e.cy, e.y2)) }, ...(e.label ? [e.label.box] : [])]), ...layout.marks.map((m) => ({ x: m.box.x - 18, y: m.box.y - 16, w: m.box.w + 36, h: m.box.h + 32 }))];
+  const x0 = Math.min(...things.map((b) => b.x)), y0 = Math.min(...things.map((b) => b.y));
+  const x1 = Math.max(...things.map((b) => b.x + b.w)), y1 = Math.max(...things.map((b) => b.y + b.h));
+  const margin = layout.shape === "tall" ? 14 : 24;
+  const notesLeft = layout.blocks.length && layout.shape === "wide" ? Math.min(...layout.blocks.map((b) => b.box.x)) - 28 : layout.w - margin;
+  const notesTop = layout.blocks.length && layout.shape === "tall" ? Math.min(...layout.blocks.map((b) => b.box.y)) - 24 : layout.h - 20;
+  const room = { x: margin, y: 76, w: notesLeft - margin, h: notesTop - 76 };
+  const maxFont = Math.max(...layout.nodes.map((n) => n.font));
+  const k = Math.min(1.45, room.w / Math.max(1, x1 - x0), room.h / Math.max(1, y1 - y0), 28 / maxFont);
+  if (!(k > 1.04)) return layout;
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const tx = room.x + room.w / 2, ty = room.y + room.h / 2;
+  const px = (x: number) => tx + (x - cx) * k;
+  const py = (y: number) => ty + (y - cy) * k;
+  const box = (b: Box): Box => ({ x: px(b.x), y: py(b.y), w: b.w * k, h: b.h * k });
+  return {
+    ...layout,
+    nodes: layout.nodes.map((n) => ({ ...n, box: box(n.box), font: n.font * k })),
+    edges: layout.edges.map((e) => ({ ...e, x1: px(e.x1), y1: py(e.y1), cx: px(e.cx), cy: py(e.cy), x2: px(e.x2), y2: py(e.y2), label: e.label ? { ...e.label, box: box(e.label.box), font: e.label.font * Math.min(k, 1.25) } : null })),
+    marks: layout.marks.map((m) => ({ ...m, box: box(m.box) })),
+  };
+}
+
+export function sceneFromLayout(source: BoardLayout, opts: SceneOptions = {}): Scene {
+  const layout = fitDiagram(source);
   const files: Record<string, BinaryFile> = {};
   const els: ExEl[] = head(layout.w, layout.h, layout.title);
 

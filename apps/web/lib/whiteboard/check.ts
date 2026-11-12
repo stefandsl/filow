@@ -151,16 +151,26 @@ export function fixOps(scene: Scene, problems: Problem[]): ToolOp[] {
       const m = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
       const len = Math.hypot(end.x - start.x, end.y - start.y) || 1;
       const nx = -(end.y - start.y) / len, ny = (end.x - start.x) / len;
-      for (const off of [50, -50, 90, -90, 140, -140, 200, -200]) {
-        const bend = { x: m.x + nx * off, y: m.y + ny * off };
-        const pts: Array<[number, number]> = [[0, 0], [bend.x - start.x, bend.y - start.y], [end.x - start.x, end.y - start.y]];
+      // a smooth bend to one side, further and further; else round the box it crossed, over or under
+      const tries: Array<Array<{ x: number; y: number }>> = [50, -50, 90, -90, 140, -140, 200, -200, 280, -280].map((off) => [start, { x: m.x + nx * off, y: m.y + ny * off }, end]);
+      const hit = byId.get(p.ids[1]);
+      if (hit) {
+        const hb = boxOf(hit);
+        const l = Math.min(start.x, end.x) < hb.x ? hb.x - 24 : hb.x + hb.w + 24;
+        const r = l === hb.x - 24 ? hb.x + hb.w + 24 : hb.x - 24;
+        for (const y of [hb.y - 28, hb.y + hb.h + 28]) tries.push([start, { x: l, y }, { x: r, y }, end]);
+      }
+      for (const route of tries) {
+        const pts = route.map((pt) => [pt.x - start.x, pt.y - start.y] as [number, number]);
         const trial: ExEl = { ...a, x: start.x, y: start.y, points: pts, roundness: { type: 2 } };
         if (!crossed(trial, shapes, byId).length && contains(board, boxOf(trial), 2)) {
           ops.push({ op: "update", id: a.id, props: { x: start.x, y: start.y, points: pts, roundness: { type: 2 } } });
           const lid = a.boundElements?.find((b) => b.type === "text")?.id;
-          const l = lid ? byId.get(lid) : undefined;
-          // its label goes with the bend
-          if (l) ops.push({ op: "update", id: l.id, props: { x: m.x + nx * off * 0.5 - l.width / 2, y: m.y + ny * off * 0.5 - l.height / 2 } });
+          const lab = lid ? byId.get(lid) : undefined;
+          // its label goes to the middle of the new path
+          const mid = pathPoints(trial, 12);
+          const at = mid[Math.floor(mid.length / 2)];
+          if (lab && at) ops.push({ op: "update", id: lab.id, props: { x: at.x - lab.width / 2, y: at.y - lab.height / 2 } });
           break;
         }
       }
