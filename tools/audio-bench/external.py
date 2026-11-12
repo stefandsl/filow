@@ -22,7 +22,7 @@ from scipy import signal
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import HERE, WORK, resume_rows, write_rows
-from enhance import clips_of, content_delay
+from enhance import clips_of, confine, content_delay
 
 RNNOISE = WORK / "build" / "rnnoise" / "rnnoise_cli.exe"
 DF = WORK / "models" / "dfn3" / "deep-filter-0.5.6-x86_64-pc-windows-msvc.exe"
@@ -147,6 +147,7 @@ def run(name, split):
 
 
 def perf(name, busy):
+    machine_name = confine()
     held = sorted([r for r in clips_of("heldout") if r["condition"] in ("fan", "keyboard", "traffic") and r["snr_db"] == "5"], key=lambda r: r["wav_id"])[:40]
     asr = None
     if busy:
@@ -177,7 +178,7 @@ def perf(name, busy):
     alive = asr is not None and asr.poll() is None
     if asr is not None:
         asr.kill()
-    print(f"PERF,{name},1,{'asr-running' if busy else 'alone'},10.0,{line},{machine:.0f},{audio:.0f},{int(alive)}")
+    print(f"PERF,{name},1,{'asr-running' if busy else 'alone'},10.0,{line},{machine:.0f},{audio:.0f},{int(alive)},{machine_name}")
 
 
 if __name__ == "__main__":

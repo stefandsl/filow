@@ -11,6 +11,7 @@ Engines: gtcrn, dtln, dpdfnet2 (16 kHz), dpdfnet2_48k (48 kHz in, 16 kHz out to 
 The 48 kHz engine reads the 48 kHz master of the same clip; everything else reads the 16 kHz copy.
 """
 import csv
+import os
 import subprocess
 import sys
 import time
@@ -137,7 +138,18 @@ def check(name):
     print(f"input rms {float(np.sqrt(np.mean(x ** 2))):.4f}, output rms {out_rms:.4f} (noisy clip, SNR 5 fan)")
 
 
+def confine():
+    """MIC_BENCH_AFFINITY=16,17,18,19 confines this process and everything it starts (the engine,
+    the recognizer) to those logical processors: the stand-in for a modest PC. Returns its name."""
+    cpus = [int(c) for c in os.environ.get("MIC_BENCH_AFFINITY", "").split(",") if c]
+    if not cpus:
+        return "this PC"
+    PROC.cpu_affinity(cpus)
+    return os.environ.get("MIC_BENCH_MACHINE", f"{len(cpus)} logical processors").replace(",", " ")
+
+
 def perf(name, threads, busy):
+    machine_name = confine()
     held = [r for r in clips_of("heldout") if r["condition"] in ("fan", "keyboard", "traffic") and r["snr_db"] == "5"]
     held = sorted(held, key=lambda r: r["wav_id"])[:40]
     asr = None
@@ -174,7 +186,7 @@ def perf(name, threads, busy):
     h = np.array(hops)
     hop_ms = e0.hop / sr * 1000
     print(f"PERF,{name},{threads},{'asr-running' if busy else 'alone'},{hop_ms:.1f},{np.percentile(h, 50):.3f},{np.percentile(h, 95):.3f},"
-          f"{np.percentile(h, 99):.3f},{h.max():.3f},{h.sum() / 1000 / audio:.4f},{cpu / audio * 100:.1f},{rss:.1f},{machine:.0f},{audio:.0f},{int(alive)}")
+          f"{np.percentile(h, 99):.3f},{h.max():.3f},{h.sum() / 1000 / audio:.4f},{cpu / audio * 100:.1f},{rss:.1f},{machine:.0f},{audio:.0f},{int(alive)},{machine_name}")
 
 
 if __name__ == "__main__":

@@ -101,8 +101,9 @@ Manifests are committed (`tools/audio-bench/manifest/`), audio is not.
   `apps/desktop/stt-worker.js`, fed in the app's block size. Model files: the pinned archives of
   `stt.js`, copied from an earlier test profile on G: (`manifest/asr.json`, sha256 per file).
   Main table: the "questions" models (dictation and OK Filow questions). Same settings for every
-  arm: 2 processes x 2 threads (Filow uses 4 threads on this PC; with 4 instead of 2 threads 2 of
-  870 dev transcripts differed).
+  held-out arm: one recognizer process with 2 threads (Filow uses 4 threads on this PC; with 4
+  instead of 2 threads 2 of 870 dev transcripts differed). Up to four arms were decoded side by
+  side; that changes speed, not text.
 - Scoring (`score.py`, normalisation "norm-v1"): NFKC, case-folded, punctuation and symbols
   removed; Romanian cedilla letters and Russian yo unified; Japanese per character (CER), the
   others per word (WER); substitutions, deletions, insertions per clip. Macro error rate = mean of
@@ -118,12 +119,12 @@ All six starting revisions from the owner's research were found and checked out.
 
 | Candidate | Source and revision | File(s) used | Rate | Code licence | Weight licence evidence | Runtime in this bench |
 |---|---|---|---|---|---|---|
-| RNNoise | xiph/rnnoise `70f1d256` | `rnnoise_data-0a8755f8...tar.gz` from media.xiph.org (hash pinned by `model_version` in the repo; 58.6 MB source, big model compiled in) | 48 kHz | BSD-3-Clause | The tarball carries no licence text of its own; the README calls them "the models distributed with RNNoise" and the build downloads them. Weaker evidence than the others: owner to accept | C, built here with the MSVC 2019 Build Tools (`build_rnnoise.ps1`, AVX2, no CPU dispatch) |
+| RNNoise | xiph/rnnoise `70f1d256` | `rnnoise_data-0a8755f8...tar.gz` from media.xiph.org (hash pinned by `model_version` in the repo; 58.6 MB source, big model compiled in) | 48 kHz | BSD-3-Clause | NOT VERIFIED. The tarball (`src/rnnoise_data.c`, `.h`, `models/*.pth`) carries no licence or copyright text (checked again after unpacking). The only evidence is indirect: the README calls them "the models distributed with RNNoise" and the repository's own script downloads them by hash | C, built here with the MSVC 2019 Build Tools (`build_rnnoise.ps1`, AVX2, no CPU dispatch) |
 | GTCRN | Xiaobin-Rong/gtcrn `502ebfab` | `stream/onnx_models/gtcrn_simple.onnx`, 535,190 bytes (the streaming graph, caches carried) | 16 kHz | MIT | In the MIT repository | onnxruntime 1.30.0 |
-| DeepFilterNet3 | Rikorose/DeepFilterNet `7b14b895` | `models/DeepFilterNet3_onnx.tar.gz` (lookahead 2+2 frames) and `DeepFilterNet3_ll_onnx.tar.gz` (no lookahead), each with its own `config.ini` | 48 kHz | MIT OR Apache-2.0 | In the dual-licensed repository | The project's own `deep-filter` 0.5.6 Windows binary (libDF + tract), official release asset; it is from 2023, not built from the pinned commit |
+| DeepFilterNet3 | Rikorose/DeepFilterNet `7b14b895` | `models/DeepFilterNet3_onnx.tar.gz` (lookahead 2+2 frames) and `DeepFilterNet3_ll_onnx.tar.gz` (no lookahead), each with its own `config.ini` | 48 kHz | MIT OR Apache-2.0 | In the dual-licensed repository | The project's own `deep-filter` 0.5.6 Windows binary (libDF + tract), official release asset; it is from 2023, not built from the pinned commit. One process per clip (see the checks below) |
 | DPDFNet2 | HF Ceva-IP/DPDFNet `dd6818d0`, code ceva-ip/DPDFNet `9bd9844a` | `onnx/dpdfnet2.onnx` (16 kHz), `onnx/dpdfnet2_48khz_hr.onnx` (48 kHz) | 16 / 48 kHz | Apache-2.0 | Model card licence field: Apache-2.0 | onnxruntime 1.30.0, the author's `StreamEnhancer` loop and initial state |
 | DTLN | breizhn/DTLN `1de1f15a` | `pretrained_model/model_1.onnx` + `model_2.onnx` | 16 kHz | MIT | In the MIT repository | onnxruntime 1.30.0, the author's real-time loop (block 512, shift 128) |
-| Hush (speaker suppression, optional) | HF weya-ai/hush `a55d932c`, code pulp-vision/Hush `9f6414e9` | `onnx/advanced_dfnet16k_model_best_onnx.tar.gz` | 16 kHz | Apache-2.0 | Model card and LICENSE: Apache-2.0 | Not run, see section 6 |
+| Hush (speaker suppression, optional) | HF weya-ai/hush `a55d932c`, code pulp-vision/Hush `9f6414e9` | `onnx/advanced_dfnet16k_model_best_onnx.tar.gz` | 16 kHz | Apache-2.0 | Model card (`license: apache-2.0` at the pinned revision) and LICENSE: Apache-2.0 | The repository's prebuilt `deployment/lib/weya_nc.dll` (sha256 `633958ef...fa6a32`, in `manifest/models.json`), 10 ms frames, loaded from Python. The DLL has no third-party notice file: what is compiled into it is NOT VERIFIED. See section 6 |
 
 The onnxruntime candidates ran in Python onnxruntime 1.30.0, the same native library version as the
 `onnxruntime-node` 1.30.0 Filow ships (wrappers in `engines.py`). The Node binding and a JavaScript
@@ -146,7 +147,21 @@ version being available with no processing time: content delay plus filling one 
 p95" in the gates = this latency plus the 95th percentile of the per-hop processing time.
 Not done: a comparison of each wrapper with an independent offline implementation of the same
 network (no offline ONNX graph is published for GTCRN, DTLN needs TensorFlow, DPDFNet's offline
-path uses a centred STFT and is documented by its author as not bit-identical).
+path uses a centred STFT and is documented by its author as not bit-identical). Done for GTCRN
+only: the wrapper's output on the author's own example matches the author's enhanced file
+(difference 2.4e-4 RMS against a signal of 6.4e-2).
+
+Two things found while running, both fixed before any held-out number was read:
+
+- The `deep-filter` binary keeps its internal state from one file to the next when it is given
+  several files at once. The same clip cleaned alone and cleaned as the 2nd of a batch came out
+  only 10 dB apart. Every other engine starts each clip with fresh state, as a new recording
+  would, so DeepFilterNet3 is run as one process per clip (`external.py`). The first held-out
+  output of DeepFilterNet3, made in batches of 40, was thrown away unread.
+- A power cut stopped the first held-out run. `verify_outputs.py` checked everything that had
+  finished before it: inputs against their sha256, every enhanced clip for format and length, and
+  a fresh run of 80 or more clips per engine compared sample by sample (GTCRN, DTLN, DPDFNet2
+  16 kHz, RNNoise, Hush: identical). Unfinished engines were run again from the start.
 
 ## 4. Gates (frozen before the held-out run, applied on the held-out core tier)
 
@@ -169,3 +184,10 @@ path uses a centred STFT and is documented by its author as not bit-identical).
   "noisy speech" gate: none of the noise candidates claims to remove a second voice.
 - Dev is used to rehearse the pipeline and for one decision only: an arm that does not lower the
   noisy macro error rate on dev at all is not run on held-out and is reported as failed on dev.
+
+How this last rule was actually applied (written after the runs, the rule above is unchanged): dev
+was decoded for raw and GTCRN only. GTCRN did not lower the noisy error rate on dev (25.2 -> 32.2),
+so by the rule it is "failed on dev"; it was run on held-out all the same and its held-out numbers
+are shown. The other arms were not decoded on dev (compute time), so the dev rule removed none of
+them and every one faces the held-out gates above, which are untouched. Nothing was tuned on
+either split.
