@@ -2,12 +2,14 @@
 // taken, so a point or a box lands on the real button instead of where a picture model guessed
 // (apps/web/lib/buddy/ground.ts places them; measured in docs/OKF-POINTING.md).
 //
-// A small PowerShell helper (okfilow-uia.ps1, part of Windows: nothing is downloaded) stays running and
-// answers one line of JSON per request. It only reads: no key or mouse input, no focus change. The
+// A small helper program (native/uia/okfilow-uia.cs, built into native/uia/bin/okfilow-uia.exe when the
+// package is made) stays running as a child process, never elevated, and answers one line of JSON per
+// request on its standard output. It only reads: no key or mouse input, no focus change. The
 // list goes to Filow's own local server with the question and is never sent to a model or a service.
 // Windows only; elsewhere, or when the helper is missing, slow or broken, scan() gives null and
 // pointing works as before, from the model's own coordinates.
 
+const fs = require("fs");
 const path = require("path");
 const childProcess = require("child_process");
 
@@ -53,26 +55,27 @@ function toGridElements(rows, rect, screen) {
   return out;
 }
 
-/** Where the helper script is on disk: PowerShell cannot read inside app.asar, so it is unpacked (package.json asarUnpack). */
+/** Where the helper program is on disk: Windows cannot start a program inside app.asar, so it is unpacked (package.json asarUnpack). */
 function helperPath(dir = __dirname) {
-  return path.join(dir, "okfilow-uia.ps1").replace(/app\.asar([\\/])/, "app.asar.unpacked$1");
+  return path.join(dir, "native", "uia", "bin", "okfilow-uia.exe").replace(/app\.asar([\\/])/, "app.asar.unpacked$1");
 }
 
 /**
  * @param {{
  *   spawn?: typeof childProcess.spawn,
- *   script?: string,
+ *   exe?: string,
  *   platform?: string,
  *   log?: (line: string) => void,
- *   powershell?: string,
+ *   exists?: (file: string) => boolean,
+ *   now?: () => number,
  * }} [opts]
  */
 function createElementReader(opts = {}) {
   const spawn = opts.spawn || childProcess.spawn;
   const platform = opts.platform || process.platform;
   const log = opts.log || (() => {});
-  const script = opts.script || helperPath();
-  const exe = opts.powershell || path.join(process.env.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const exe = opts.exe || helperPath();
+  const exists = opts.exists || fs.existsSync;
   let child = null;
   let ready = false;
   let starts = 0;
@@ -103,9 +106,15 @@ function createElementReader(opts = {}) {
 
   function start() {
     if (platform !== "win32" || stopped || child || starts >= MAX_STARTS) return false;
+    if (!exists(exe)) {
+      // a build without the helper: pointing goes on from the model's own coordinates, and this is said once
+      starts = MAX_STARTS;
+      log(`okfilow: screen names helper not in this build (${exe}); pointing uses the model's coordinates`);
+      return false;
+    }
     starts++;
     try {
-      child = spawn(exe, ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script], { windowsHide: true, stdio: ["pipe", "pipe", "ignore"] });
+      child = spawn(exe, [], { windowsHide: true, stdio: ["pipe", "pipe", "ignore"] });
     } catch (e) {
       child = null;
       log(`okfilow: screen names helper did not start (${String((e && e.message) || e)})`);
@@ -200,4 +209,24 @@ function createElementReader(opts = {}) {
   return { start, scan, stop, get ready() { return ready; }, get running() { return child !== null; } };
 }
 
-module.exports = { createElementReader, toGridElements, helperPath, SCAN_BUDGET_MS, SCAN_TIMEOUT_MS, MAX_ELEMENTS };
+/**
+ * The screenshot's companion: when pictures are taken, a scan of each display starts at once (beside
+ * desktopCapturer.getSources, so it costs no extra wait when it is quicker); when they are not (the eye
+ * closed, "Look at my screen" off, not Windows), nothing is scanned at all. `toRect` turns a display's
+ * DIP bounds into physical pixels (screen.dipToScreenRect). The returned function takes the 1-based
+ * index each display got among the screenshots (0: no picture of it) and gives the elements.
+ * @param {{ scan(rect: object, o?: object): Promise<{elements: unknown[]} | null> } | null} reader
+ * @param {Array<{ bounds: {x: number, y: number, width: number, height: number} }>} displays
+ * @param {{ pictures: boolean, toRect?: (bounds: object) => {x: number, y: number, width: number, height: number}, ownPid?: number, platform?: string }} o
+ */
+function scanForShot(reader, displays, o) {
+  const platform = o.platform || process.platform;
+  if (!o.pictures || !reader || platform !== "win32" || typeof o.toRect !== "function") return async () => [];
+  const rects = displays.map((d) => {
+    try { return o.toRect(d.bounds); } catch { return null; }
+  });
+  const scans = rects.map((r) => (r ? reader.scan(r, { ownPid: o.ownPid }).catch(() => null) : Promise.resolve(null)));
+  return async (indexes) => (await Promise.all(scans)).flatMap((s, i) => (s && indexes[i] ? toGridElements(s.elements, rects[i], indexes[i]) : []));
+}
+
+module.exports = { createElementReader, toGridElements, helperPath, scanForShot, SCAN_BUDGET_MS, SCAN_TIMEOUT_MS, MAX_ELEMENTS };

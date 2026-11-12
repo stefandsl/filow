@@ -18,6 +18,7 @@ const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipien
 const { readSelection } = require("./okfilow-selection");
 const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOverlays, pointsShowMs, answering, overlayMouse, seeChoice, wordsOnlyList, pillState, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
+const { createElementReader, scanForShot } = require("./okfilow-uia");
 const { trustedUiSender } = require("./ui-preferences");
 
 /** An IPC event from the main frame of one of OK Filow's windows (`contents`), on an OK Filow page; never a subframe. */
@@ -114,6 +115,8 @@ function nextCfg(was, patch) {
 function createOkFilow(deps) {
   const { appUrl, getSettings, saveSettings, iconPath, logLine, sttLocal, userData, menuText, isOffline, askKeyboardPermission, dictation } = deps;
   const cfg = () => ({ ...DEFAULTS, ...(getSettings().okFilow || {}) });
+  // What Windows names on screen, read beside each screenshot so points land on the real thing (okfilow-uia.js).
+  const uia = deps.elementReader === undefined ? createElementReader({ log: logLine }) : deps.elementReader;
   const setCfg = (patch) => {
     const next = nextCfg(cfg(), patch);
     saveSettings({ ...getSettings(), okFilow: next });
@@ -974,6 +977,12 @@ function createOkFilow(deps) {
     const cursor = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
     const maxW = Math.max(...displays.map((d) => Math.round(d.size.width * d.scaleFactor)));
     const maxH = Math.max(...displays.map((d) => Math.round(d.size.height * d.scaleFactor)));
+    // Cursor display first: the model weighs the first image most.
+    // Only the screen with the mouse, like HeyClicky: one image instead of one per monitor halves the
+    // time a local model needs. Other screens are added only when the setting asks for them.
+    const ordered = (cfg().allScreens ? [cursor, ...displays.filter((d) => d.id !== cursor.id)] : [cursor]).slice(0, 4);
+    // The names on those screens, read while the picture is taken; no picture, no scan (okfilow-uia.js).
+    const named = scanForShot(uia, ordered, { pictures: wantImages, toRect: screen.dipToScreenRect && ((b) => screen.dipToScreenRect(null, b)), ownPid: process.pid });
     const sources = await screenSources(want, async () => {
       if (!hidden()) protectAll(true); // the model never sees OK Filow itself
       try {
@@ -984,12 +993,10 @@ function createOkFilow(deps) {
     });
     const selected = await Promise.race([selection, new Promise((r) => setTimeout(() => r(""), 1200))]);
     selection = Promise.resolve("");
-    const out = { images: [], screens: [], displays: [], marked: [], selected };
-    // Cursor display first: the model weighs the first image most.
-    // Only the screen with the mouse, like HeyClicky: one image instead of one per monitor halves the
-    // time a local model needs. Other screens are added only when the setting asks for them.
-    const ordered = (cfg().allScreens ? [cursor, ...displays.filter((d) => d.id !== cursor.id)] : [cursor]).slice(0, 4);
-    ordered.forEach((d) => {
+    const out = { images: [], screens: [], displays: [], marked: [], selected, elements: [] };
+    /** Each display's place among the screenshots (0: none was taken of it). */
+    const pictured = ordered.map(() => 0);
+    ordered.forEach((d, at) => {
       if (!wantImages) {
         const index = out.screens.length + 1;
         out.screens.push({ index, width: d.bounds.width, height: d.bounds.height, cursor: d.id === cursor.id });
@@ -1003,6 +1010,7 @@ function createOkFilow(deps) {
       if (size.width > IMAGE_MAX_WIDTH) img = img.resize({ width: IMAGE_MAX_WIDTH, quality: "good" });
       const { width, height } = img.getSize();
       const index = out.images.length + 1;
+      pictured[at] = index;
       out.images.push(`data:image/jpeg;base64,${img.toJPEG(72).toString("base64")}`);
       out.screens.push({ index, width, height, cursor: d.id === cursor.id });
       out.displays.push({ index, id: d.id, bounds: d.bounds });
@@ -1016,6 +1024,7 @@ function createOkFilow(deps) {
     });
     strokes = [];
     if (wantImages && !out.images.length) throw new Error(menuText("okfNoCapture"));
+    out.elements = await named(pictured);
     return out;
   }
 
@@ -1040,7 +1049,7 @@ function createOkFilow(deps) {
   ipcMain.handle("okfilow:capture", guard(async (opts) => {
     const t = Date.now();
     const out = await capture(opts && typeof opts === "object" ? { images: opts.images !== false } : {});
-    logLine(`okfilow: captured ${out.images.length} screen(s) in ${Date.now() - t} ms`);
+    logLine(`okfilow: captured ${out.images.length} screen(s) in ${Date.now() - t} ms, ${out.elements.length} named thing(s)`);
     return out;
   }));
   ipcMain.handle("okfilow:setMode", guard((m, extra) => (logLine(`okfilow: mode ${m}${extra && extra.error ? ` (${String(extra.error).slice(0, 200)})` : ""}`), extra && extra.error && deps.onAnswerError && deps.onAnswerError({ error: String(extra.error), code: typeof extra.code === "string" ? extra.code : "" }), setMode(typeof m === "string" ? m : "idle", extra && typeof extra === "object" ? extra : {}))));
@@ -1284,6 +1293,8 @@ function createOkFilow(deps) {
     buildPanel();
     startHook();
     bindPillKeys();
+    // The screen names helper is ready before the first question (about 0.1 s to start; Windows only).
+    if (cfg().enabled && cfg().seeScreen !== "off") uia?.start();
     // Dictation turned off, or its keys changed, while it records: stop without typing.
     dictation.onChange((d) => {
       if (purpose === "dictate" && (!d.enabled || !dictation.activeChord(cfg().hotkey))) cancel();
@@ -1305,6 +1316,7 @@ function createOkFilow(deps) {
   }
   function dispose() {
     try { agents.dispose(); } catch { /* quitting */ }
+    try { uia?.stop(); } catch { /* quitting */ }
     outbound.clear();
     if (modelWin && !modelWin.isDestroyed()) modelWin.destroy();
     if (boardWin && !boardWin.isDestroyed()) boardWin.destroy();

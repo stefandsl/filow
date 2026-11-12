@@ -33,6 +33,8 @@ function missingNative(resourcesDir, platform, arch) {
     // Windows x64: the dictation helper (native/target): which window gets the words, password boxes, administrator windows.
     if (platform === "win32" && a === "x64" && !fs.existsSync(path.join(resourcesDir, "app.asar.unpacked", "native", "target", "prebuilds", "win32-x64", "filow-target.node"))) missing.push("native/target/prebuilds/win32-x64 (dictation: target window and password boxes)");
   }
+  // Windows, any CPU: OK Filow's screen names helper (native/uia, built by `npm run vendor`), so a point lands on the real button.
+  if (platform === "win32" && !fs.existsSync(path.join(resourcesDir, "app.asar.unpacked", "native", "uia", "bin", "okfilow-uia.exe"))) missing.push("native/uia/bin/okfilow-uia.exe (OK Filow pointing: run node apps/desktop/native/uia/build.mjs)");
   return missing;
 }
 

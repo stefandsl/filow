@@ -1,21 +1,32 @@
-# OK Filow: the names and rectangles of what is visible on one display, read from Windows' own
-# accessibility interfaces (UI Automation, and the desktop icon list). Read only: it sends no key or
-# mouse input, moves no window and changes no focus. Nothing leaves this process except one line of
-# JSON per request on standard output, read by apps/desktop/okfilow-uia.js.
-#
-# One call into an app that does not answer can outlast the allowance (Windows ends it after its own
-# timeout); okfilow-uia.js then stops asking and ends this process after 10 s.
-#
-# Protocol (one line in, one line out):
-#   scan <x> <y> <width> <height> <budgetMs> <ownPid>     rectangle of the display in physical pixels
-#   -> {"ms":123,"partial":false,"elements":[["name","Button",x,y,w,h], ...]}   physical pixels, topmost first
-#   quit
-param([switch]$Once)
-$ErrorActionPreference = "SilentlyContinue"
-Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, WindowsBase, Accessibility
-Add-Type -ReferencedAssemblies UIAutomationClient, UIAutomationTypes, WindowsBase, Accessibility -TypeDefinition @"
-using System; using System.Text; using System.Collections.Generic; using System.Diagnostics; using System.Runtime.InteropServices;
-using System.Windows.Automation; using Accessibility;
+// OK Filow: the names and rectangles of what is visible on one display, read from Windows' own
+// accessibility interfaces (UI Automation, and the desktop icon list through MSAA). Read only: it sends
+// no key or mouse input, moves no window and changes no focus. Nothing leaves this process except one
+// line of JSON per request on standard output, read by apps/desktop/okfilow-uia.js.
+//
+// Built at package time by native/uia/build.mjs with the C# compiler of the .NET Framework that ships
+// with Windows (csc.exe, C# 5): no SDK, nothing downloaded, nothing compiled on the user's PC.
+//
+// One call into an app that does not answer can outlast the allowance (Windows ends it after its own
+// timeout); okfilow-uia.js then stops asking and ends this process after 10 s.
+//
+// Protocol (one line in, one line out):
+//   scan <x> <y> <width> <height> <budgetMs> <ownPid>     rectangle of the display in physical pixels
+//   -> {"ms":123,"partial":false,"elements":[["name","Button",x,y,w,h], ...]}   physical pixels, topmost first
+//   quit   (or the end of standard input: the app that started it is gone)
+// The first line it writes is {"ready":true}.
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Windows.Automation;
+using Accessibility;
+
+[assembly: System.Reflection.AssemblyTitle("Filow screen names helper")]
+[assembly: System.Reflection.AssemblyProduct("Filow")]
+
 public static class OkfScan {
   struct RECT { public int L, T, R, B; }
   delegate bool EnumProc(IntPtr hwnd, IntPtr l);
@@ -32,11 +43,12 @@ public static class OkfScan {
 
   const int MAX_ELEMENTS = 600, MAX_NODES = 2500, MAX_DEPTH = 12, DESKTOP_EXTRA_MS = 300;
   static readonly HashSet<string> TYPES = new HashSet<string>(new string[] { "Button", "ListItem", "TabItem", "MenuItem", "Edit", "Hyperlink", "CheckBox", "RadioButton", "ComboBox", "SplitButton", "TreeItem", "Text", "Group", "ToolBar", "Document", "Image", "Window", "Pane" });
+  static readonly Regex SPACES = new Regex("\\s+");
   static CacheRequest cache;
 
   /** Physical pixels on every display, whatever its scaling. */
-  public static void Init() {
-    SetProcessDpiAwarenessContext(new IntPtr(-4));
+  static void Init() {
+    try { SetProcessDpiAwarenessContext(new IntPtr(-4)); } catch { } // per monitor v2; older Windows: the call is missing
     cache = new CacheRequest();
     cache.Add(AutomationElement.NameProperty); cache.Add(AutomationElement.ControlTypeProperty);
     cache.Add(AutomationElement.BoundingRectangleProperty); cache.Add(AutomationElement.IsOffscreenProperty);
@@ -65,7 +77,7 @@ public static class OkfScan {
     return b.ToString();
   }
 
-  public static string Scan(int sx, int sy, int sw, int sh, int budget, int ownPid) {
+  static string Scan(int sx, int sy, int sw, int sh, int budget, int ownPid) {
     var clock = Stopwatch.StartNew();
     var above = new List<RECT>(); // the windows already walked: they cover what comes after
     var json = new StringBuilder("\"elements\":[");
@@ -75,7 +87,7 @@ public static class OkfScan {
       double cx = x + w / 2, cy = y + h / 2;
       if (cx < sx || cx >= sx + sw || cy < sy || cy >= sy + sh) return;
       foreach (RECT a in above) if (cx >= a.L && cx < a.R && cy >= a.T && cy < a.B) return;
-      string n = System.Text.RegularExpressions.Regex.Replace(name.Trim(), "\\s+", " ");
+      string n = SPACES.Replace(name.Trim(), " ");
       if (n.Length == 0) return;
       if (n.Length > 80) n = n.Substring(0, 80);
       if (count++ > 0) json.Append(',');
@@ -137,18 +149,25 @@ public static class OkfScan {
     }
     return "{\"ms\":" + clock.ElapsedMilliseconds + ",\"partial\":" + (partial ? "true" : "false") + "," + json.ToString() + "]}";
   }
-}
-"@
-[OkfScan]::Init()
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
-[Console]::Out.WriteLine('{"ready":true}')
-while ($true) {
-  $line = [Console]::In.ReadLine()
-  if ($null -eq $line -or $line -eq "quit") { break }
-  $a = $line.Trim() -split "\s+"
-  if ($a[0] -ne "scan" -or $a.Count -lt 7) { [Console]::Out.WriteLine('{"error":"bad request"}'); continue }
-  $reply = '{"error":"scan failed"}'
-  try { $reply = [OkfScan]::Scan([int]$a[1], [int]$a[2], [int]$a[3], [int]$a[4], [int]$a[5], [int]$a[6]) } catch {}
-  [Console]::Out.WriteLine($reply)
-  if ($Once) { break }
+
+  public static int Main(string[] args) {
+    Init();
+    var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false));
+    output.AutoFlush = true;
+    output.NewLine = "\n";
+    var input = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
+    output.WriteLine("{\"ready\":true}");
+    while (true) {
+      string line = input.ReadLine();
+      if (line == null || line.Trim() == "quit") return 0;
+      string[] a = line.Trim().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+      int[] n = new int[6];
+      bool ok = a.Length >= 7 && a[0] == "scan";
+      for (int i = 0; ok && i < 6; i++) ok = int.TryParse(a[i + 1], out n[i]);
+      if (!ok) { output.WriteLine("{\"error\":\"bad request\"}"); continue; }
+      string reply = "{\"error\":\"scan failed\"}";
+      try { reply = Scan(n[0], n[1], n[2], n[3], n[4], n[5]); } catch { }
+      output.WriteLine(reply);
+    }
+  }
 }
