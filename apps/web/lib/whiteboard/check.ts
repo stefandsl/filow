@@ -131,7 +131,8 @@ export function fixOps(scene: Scene, problems: Problem[]): ToolOp[] {
     if (p.kind === "overflow") {
       const [tid, cid] = p.ids;
       const t = byId.get(tid), c = byId.get(cid);
-      if (!t || !c || done.has(tid)) continue;
+      // only text in a shape: an arrow's label is moved, never its arrow
+      if (!t || !c || done.has(tid) || c.type === "arrow" || c.type === "line") continue;
       done.add(tid);
       const size = t.fontSize ?? 20;
       const fit = Math.min((c.width - 2 * PAD - 4) / Math.max(1, t.width), (c.height - 2 * PAD - 2) / Math.max(1, t.height));

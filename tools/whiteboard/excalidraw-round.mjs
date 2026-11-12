@@ -146,7 +146,7 @@ if (!args.includes("--skip-ours")) {
     await sleep(2500);
     const data = await page.evaluate(`JSON.stringify(document.querySelector("main")?.dataset ?? {})`);
     const d = JSON.parse(data || "{}");
-    const shot = await shoot(".wb-frame", path.join(OUT, "ours", `${slug}.png`));
+    const shot = await shoot(".wb-ex", path.join(OUT, "ours", `${slug}.png`));
     const saved = await page.evaluate(`localStorage.getItem("filow.whiteboard.board")`);
     const source = await page.evaluate(`document.querySelector(".wb-chip")?.textContent ?? ""`);
     if (saved) fs.writeFileSync(path.join(OUT, "ours", `${slug}.json`), saved);

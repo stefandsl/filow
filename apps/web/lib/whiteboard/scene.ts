@@ -8,6 +8,7 @@
 // (seeds come from the ids), so going back, replaying and exporting show the same picture.
 import { drawingSvg } from "@/lib/buddy/visuals";
 import { CELL_ROW, type BoardLayout, type Box, type PlacedBlock, type PlacedEdge, type PlacedNode } from "./layout";
+import { LIMITS, cleanText, type Lesson } from "./lesson";
 import { evalExpr, parseExpr, sampleCurve } from "./plot";
 import { texToText } from "./tex";
 
@@ -317,11 +318,16 @@ function blockEls(b: PlacedBlock, files: Record<string, BinaryFile>): ExEl[] {
       text(`${base}-t`, b.lines, size, { cx: box.x + box.w / 2, cy: box.y + box.h / 2 }, { ...meta, role: "label" }, { originalText: b.lines.join(" ") }),
     );
   }
-  // a note: a coloured dot and the text beside it (a dot, not a bullet character, as the skill asks)
+  // a note: the number of its step in a filled badge (the skill's numbered badges; the voice says
+  // the same number), then the text beside it
   const lineH = size * LINE_HEIGHT;
+  const badge = { x: box.x, y: box.y + 11 + lineH / 2 - 14, w: 28, h: 28 };
   return [
-    el(`${base}-dot`, "ellipse", { x: box.x + 4, y: box.y + 11 + lineH / 2 - 6, w: 12, h: 12 }, meta, { strokeColor: colour, backgroundColor: colour, roughness: 0 }),
-    text(`${base}-t`, b.lines, size, { x: box.x + 26, y: box.y + 11 }, meta),
+    ...labelled(
+      el(`${base}-dot`, "ellipse", badge, meta, { strokeColor: colour, backgroundColor: colour, roughness: 0 }),
+      text(`${base}-dot-t`, [String(b.step + 1)], 15, { cx: badge.x + 14, cy: badge.y + 14 }, meta, { strokeColor: "#ffffff" }),
+    ),
+    text(`${base}-t`, b.lines, size, { x: box.x + 36, y: box.y + 11 }, meta),
   ];
 }
 
@@ -351,6 +357,30 @@ export function pendingScene(question: string, board: { w: number; h: number }):
   let words = question.trim();
   while (words.length > 4 && handWidth(words, font) > board.w - margin * 2 - 8) words = `${Array.from(words).slice(0, -2).join("").trimEnd()}${String.fromCharCode(0x2026)}`;
   return { elements: head(board.w, board.h, { text: words, x: margin + 4, y: 46, font }), files: {} };
+}
+
+/**
+ * The lesson as the board shows it: a step that draws nothing new to read (it only circles a box
+ * or adds an arrow) gets its own sentence as a numbered note, so a worked example or a conclusion
+ * the voice says ("12 V over 4 ohms gives 3 A") is also on the board, as a teacher would write it.
+ * Only the model's own sentence is used, cut at a clause when it is long.
+ */
+export function boardLesson(lesson: Lesson): Lesson {
+  return {
+    ...lesson,
+    steps: lesson.steps.map((s) => {
+      if (s.card) return s;
+      const writes = s.items.some((it) => it.kind === "node" || it.kind === "note" || it.kind === "formula" || it.kind === "plot" || it.kind === "cells" || it.kind === "sketch");
+      if (writes) return s;
+      return { ...s, items: [...s.items, { kind: "note" as const, text: shortSay(s.say) }] };
+    }),
+  };
+}
+function shortSay(say: string): string {
+  if (Array.from(say).length <= LIMITS.note) return say;
+  const cut = say.slice(0, LIMITS.note);
+  const at = Math.max(cut.lastIndexOf(", "), cut.lastIndexOf("; "), cut.lastIndexOf(": "));
+  return at > 40 ? cut.slice(0, at) : cleanText(say, LIMITS.note);
 }
 
 /** Hand-drawn strokes, or exact ones (`plain`: the Lite tier, which draws fast and simply). */

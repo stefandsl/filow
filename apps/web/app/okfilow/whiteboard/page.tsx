@@ -22,10 +22,10 @@ import { fileStem, saveBlob } from "@/lib/whiteboard/export";
 import { createRecorder, type LessonRecorder } from "@/lib/whiteboard/video";
 import { BOARD_SIZE, layoutBoard, type BoardShape, type Box } from "@/lib/whiteboard/layout";
 import { LIMITS, lessonMarkdown, validateLesson, type Lesson } from "@/lib/whiteboard/lesson";
-import { pendingScene, sceneFromLayout, type Scene } from "@/lib/whiteboard/scene";
-import { BOARD_KEY, MAX_SAVED_BYTES, applyEdits, applyOps, cameraFor, changesToOps, diffEdits, excalidrawFile, frameBox, hasEdits, noEdits, parseExcalidrawFile, readScene, withFrame, type SceneEdits } from "@/lib/whiteboard/doc";
+import { boardLesson, pendingScene, sceneFromLayout, type Scene } from "@/lib/whiteboard/scene";
+import { BOARD_KEY, MAX_SAVED_BYTES, applyEdits, applyOps, cameraFor, changesToOps, diffEdits, excalidrawFile, frameBox, hasEdits, noEdits, parseExcalidrawFile, readScene, withFrame, type SceneEdits, type ToolOp } from "@/lib/whiteboard/doc";
 import type { EditPlan } from "@/lib/whiteboard/edits";
-import { checkScene, countProblems, fixOps, type CheckCounts, type Problem } from "@/lib/whiteboard/check";
+import { checkScene, countProblems, fixOps, type CheckCounts } from "@/lib/whiteboard/check";
 import { fontCss, prepareScene, scenePng } from "@/lib/whiteboard/excalidraw";
 import { PaceMeter, drawMsFor, stepSchedule } from "@/lib/whiteboard/pace";
 import { initialPlayer, playerReducer, readingMs } from "@/lib/whiteboard/player";
@@ -205,6 +205,7 @@ export default function WhiteboardPage() {
       undoStack.current = [];
       setUndoCount(0);
       fixRounds.current.clear();
+      shrunk.current.clear();
       setFixedCount(0);
       setPendingTitle(text);
       strokeClock.current = { start: performance.now(), first: null, firstModel: null };
@@ -411,7 +412,7 @@ export default function WhiteboardPage() {
     speaker.stop();
   }, [speaker]);
 
-  const layout = useMemo(() => (ls.lesson && player.index >= 0 ? layoutBoard(ls.lesson, player.index, shape) : null), [ls.lesson, player.index, shape]);
+  const layout = useMemo(() => (ls.lesson && player.index >= 0 ? layoutBoard(boardLesson(ls.lesson), player.index, shape) : null), [ls.lesson, player.index, shape]);
   const busy = ls.phase === "planning" || ls.phase === "drawing";
   const lite = Boolean(ls.meta?.lite);
   // The drawing of the step being said takes the time of its sentence: measured from this voice, or the reading time with the voice off.
@@ -461,6 +462,7 @@ export default function WhiteboardPage() {
   // is used for the next look; the voice never waits for it.
   const looking = useRef(false);
   const looked = useRef("");
+  const shrunk = useRef(new Set<string>());
   const lookAt = useCallback(async (scene: Scene, base: Scene) => {
     if (looking.current || lite) return;
     looking.current = true;
@@ -472,17 +474,19 @@ export default function WhiteboardPage() {
       if (!res.ok) return;
       const j = (await res.json()) as { problems?: Array<{ id: string; issue: string }> };
       const byId = new Map(scene.elements.map((e) => [e.id, e]));
-      const problems: Problem[] = [];
+      // A small vision model also sees problems that are not there: its word only ever sets the
+      // words of a box a little smaller (never below a readable 15, once per box); it never moves anything.
+      const ops: ToolOp[] = [];
       for (const p of j.problems ?? []) {
         const e = byId.get(p.id);
-        if (!e) continue;
+        if (!e || (p.issue !== "cut" && p.issue !== "unreadable") || shrunk.current.has(p.id)) continue;
         const label = e.type === "text" ? e : scene.elements.find((x) => x.containerId === e.id);
-        // "cut" or "unreadable" inside a box: the type is set a little smaller
-        if (label?.containerId && (p.issue === "cut" || p.issue === "unreadable")) problems.push({ kind: "overflow", ids: [label.id, label.containerId], message: `vision: ${p.issue}` });
-        else if (label && p.issue === "overlap") problems.push({ kind: "overlap", ids: [label.id], message: "vision: overlap" });
+        const box = label?.containerId ? byId.get(label.containerId) : undefined;
+        if (!label || !box || !["rectangle", "ellipse", "diamond"].includes(box.type) || (label.fontSize ?? 0) <= 15) continue;
+        shrunk.current.add(p.id);
+        ops.push({ op: "update", id: label.id, props: { fontSize: Math.max(15, Math.round((label.fontSize ?? 20) * 0.92)) } });
       }
-      setVision((v) => ({ looks: v.looks + 1, found: v.found + problems.length, ms: [...v.ms, Math.round(performance.now() - started)] }));
-      const ops = fixOps(scene, problems);
+      setVision((v) => ({ looks: v.looks + 1, found: v.found + (j.problems?.length ?? 0), ms: [...v.ms, Math.round(performance.now() - started)] }));
       if (ops.length) {
         setFixedCount((c) => c + ops.length);
         setFixes((f) => applyOps(base, f, ops).edits);
@@ -655,7 +659,7 @@ export default function WhiteboardPage() {
     if (!svg || !ls.lesson || !prepared) return;
     const natural = voiceOn && statusRef.current?.voice === "natural" && Boolean(okFilowBridge()?.tts);
     // the copy of the board drawn into each frame carries Excalidraw's fonts, inlined
-    const whole = layoutBoard(ls.lesson, ls.lesson.steps.length - 1, shape);
+    const whole = layoutBoard(boardLesson(ls.lesson), ls.lesson.steps.length - 1, shape);
     const made = createRecorder({
       board: () => frame.current?.querySelector<SVGSVGElement>("svg.wb-board") ?? null,
       caption: () => captionRef.current,
