@@ -1,0 +1,40 @@
+{
+ "item": "V2 of G:/FILOW/tmp/audiocpp-research/PLAN.md: Qwen3-ASR 0.6B (audio.cpp) against Filow's phrase recogniser, questions, held-out clean clips, ro/ru/ja",
+ "written": "2026-11-12",
+ "server_zip": {
+  "path": "G:/caches/audiocpp-bin/audio-v0.9.4-bin-windows-x64-cpu.zip",
+  "url": "https://github.com/0xShug0/audio.cpp/releases/download/v0.9.4/audio-v0.9.4-bin-windows-x64-cpu.zip",
+  "bytes": 32323805,
+  "sha256": "596ef1d6ed5113f3a4f5194c8c00e02be5748d7dfb09e7f270168e6ec5c8e0cf",
+  "note": "matches the sha256 digest GitHub publishes for this release asset"
+ },
+ "model": {
+  "path": "G:/caches/audiocpp-models/Qwen3-ASR-0.6B-GGUF/qwen3-asr-0.6b-q8_0.gguf",
+  "repo": "audio-cpp/audio.cpp-gguf",
+  "file": "Qwen3-ASR-0.6B-GGUF/qwen3-asr-0.6b-q8_0.gguf",
+  "commit": "73ce4162f6cce370dd533c6782b772135c1b2a8e",
+  "url": "https://huggingface.co/audio-cpp/audio.cpp-gguf/resolve/73ce4162f6cce370dd533c6782b772135c1b2a8e/Qwen3-ASR-0.6B-GGUF/qwen3-asr-0.6b-q8_0.gguf",
+  "bytes": 1151279968,
+  "sha256": "5c53bbb9a6b2ade85c16c290c560658ca18b78a23c323378528f1f945683fcbe",
+  "note": "sha256 equals the LFS oid Hugging Face reports for this file at this commit"
+ },
+ "server": {
+  "host": "127.0.0.1",
+  "port": 8091,
+  "backend": "cpu",
+  "threads": 2,
+  "model_id": "qwen3-0.6b",
+  "start_timeout_s": 60,
+  "request_timeout_s": 300
+ },
+ "baseline": {
+  "jsonl": "G:/FILOW/tmp/mic-cleanup/results/asr-questions-raw-heldout-t2.jsonl",
+  "stt_js": "G:/filow-wt/integration-2026-11-10/apps/desktop/stt.js"
+ },
+ "wav_dir": "G:/FILOW/tmp/mic-cleanup/mix/16k",
+ "out_dir": "G:/FILOW/tmp/audiocpp-bakeoff",
+ "languages": {"ro": "Romanian", "ru": "Russian", "ja": "Japanese"},
+ "gates": {"min_gain_points": 2.0, "max_median_rtf": 0.5, "max_peak_ram_gb": 1.5},
+ "bootstrap_draws": 2000,
+ "ram_sample_ms": 20
+}
