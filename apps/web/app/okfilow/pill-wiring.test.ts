@@ -124,4 +124,12 @@ describe("the overlay's pill", () => {
     expect(css).toMatch(/\.okf-slot \{ display: inline-grid;/);
     expect(css).toMatch(/\.okf-slot-off \{ visibility: hidden; \}/);
   });
+
+  it("the pill's buttons keep their dark look under the pointer in the light theme, and the panel's row does not grow when its status wraps", () => {
+    const css = read("okfilow.css");
+    // seen in the real app: the app's own button hover rule (light theme) hid the white words on the dark pill
+    expect(css).toContain(":root .okf-notch .okf-ctl:hover { background: rgba(255, 255, 255, 0.2);");
+    expect(css).toContain(":root .okf-notch .okf-stop:hover { background: rgba(255, 107, 91, 0.28);");
+    expect(css).toContain(".okf-status-row { min-height: 44px; }");
+  });
 });

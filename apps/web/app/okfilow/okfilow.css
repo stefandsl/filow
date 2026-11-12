@@ -274,7 +274,10 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
   height: 24px; padding: 0 9px; margin: 0; border-radius: 999px; border-color: rgba(255, 255, 255, 0.28);
   background: rgba(255, 255, 255, 0.1); color: #f4f4f5; font: 700 12px/1 system-ui, sans-serif; pointer-events: auto;
 }
-.okf-notch .okf-ctl:hover { background: rgba(255, 255, 255, 0.2); border-color: rgba(255, 255, 255, 0.5); }
+/* (:root: stronger than the app's own hover rule for buttons, whose light-theme colour would hide the white words on the dark pill) */
+:root .okf-notch .okf-ctl:hover { background: rgba(255, 255, 255, 0.2); border-color: rgba(255, 255, 255, 0.5); }
+:root .okf-notch .okf-stop:hover { background: rgba(255, 107, 91, 0.28); border-color: #ff6b5b; }
+:root .okf-notch--out .okf-ctl:hover, :root .okf-notch--out .okf-stop:hover { background: rgba(8, 9, 11, 0.24); border-color: rgba(8, 9, 11, 0.7); }
 .okf-notch .okf-ctl:focus-visible, .okf-notch .okf-stop:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 .okf-notch .okf-ctl--eye { margin-left: -8px; gap: 5px; }
 /* Closed: quieter and dashed, on top of the struck-through eye and the word. */
@@ -289,3 +292,6 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
 /* Marks drawn before a stop (Resume after Stop): shown as they were, not drawn a second time. */
 .okf-mark--done path { animation: none; stroke-dashoffset: 0; }
 .okf-mark--done .okf-mark-label { animation: none; opacity: 1; }
+
+/* The panel's status row keeps room for two lines of status beside the controls, so it does not grow when a longer status wraps. */
+.okf-status-row { min-height: 44px; }
