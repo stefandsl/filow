@@ -9,7 +9,9 @@ const require = createRequire(import.meta.url);
 const gi = require("./global-input.js") as {
   SWITCH: string;
   OFF_LINE: string;
-  globalInputOff(env?: Record<string, string | undefined>): boolean;
+  REFUSED_LINE: string;
+  globalInputOff(env?: Record<string, string | undefined>, qaBuild?: boolean): boolean;
+  refusedInRelease(env?: Record<string, string | undefined>, qaBuild?: boolean): boolean;
   shortcutsFor<T>(s: T, off?: boolean): T;
   clipboardFor<T>(c: T, off?: boolean): T;
   inertUiohook(): { uIOhook: Record<string, (...a: unknown[]) => unknown> & { inert: boolean }; UiohookKey: Record<string, number> };
@@ -38,6 +40,30 @@ describe("the switch", () => {
     expect(gi.globalInputOff({ FILOW_QA_NO_GLOBAL_INPUT: "0" })).toBe(false);
     expect(gi.globalInputOff({ FILOW_QA_NO_GLOBAL_INPUT: "true" })).toBe(false);
     expect(gi.OFF_LINE).toContain("global input is off");
+  });
+  // STANDARDS SEC-13: a test switch like the others, so development and QA packages only.
+  it("works in development and in a QA package only; a released build asked for it refuses to run", () => {
+    expect(gi.globalInputOff(ON, true)).toBe(true);
+    expect(gi.globalInputOff(ON, false)).toBe(false);
+    expect(gi.refusedInRelease(ON, false)).toBe(true);
+    expect(gi.refusedInRelease(ON, true)).toBe(false);
+    expect(gi.refusedInRelease({}, false)).toBe(false);
+    expect(gi.refusedInRelease({ FILOW_QA_NO_GLOBAL_INPUT: "0" }, false)).toBe(false);
+    expect(gi.REFUSED_LINE).toContain("FILOW_QA_NO_GLOBAL_INPUT=1");
+    // the build is asked through qa.js, the one place that knows a QA package
+    expect(source("global-input.js")).toContain('require("./qa.js").isQaBuild()');
+  });
+  it("every test switch the desktop shell reads from the environment sits behind the QA build gate", () => {
+    const loose: string[] = [];
+    for (const name of readdirSync(new URL(".", import.meta.url)).filter((n) => n.endsWith(".js"))) {
+      const lines = source(name).split("\n");
+      lines.forEach((l, i) => {
+        if (/^\s*(\/\/|\*|\/\*)/.test(l) || !/process\.env\.FILOW_(QA_|OKF_QA|OKF_FAKE)/.test(l)) return;
+        const near = lines.slice(Math.max(0, i - 2), i + 2).join("\n");
+        if (!/isQaBuild\(|QA_ALLOWED/.test(near)) loose.push(`${name}:${i + 1}`);
+      });
+    }
+    expect(loose).toEqual([]);
   });
 });
 

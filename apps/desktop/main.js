@@ -45,8 +45,14 @@ function guardNavigation(win) {
 }
 // Test isolation (global-input.js): with FILOW_QA_NO_GLOBAL_INPUT=1 this run registers no global shortcut, never
 // writes the clipboard and never opens a real microphone (Chromium uses its fake device instead).
-const { globalInputOff, shortcutsFor, clipboardFor, permissionAllowed, OFF_LINE } = require("./global-input");
-const INPUT_OFF = globalInputOff();
+// A test switch like the others (qa.js): development and QA packages only. A released build started with it
+// leaves before it opens a profile, a window, a hook or a port, rather than run without the isolation.
+const { globalInputOff, refusedInRelease, shortcutsFor, clipboardFor, permissionAllowed, OFF_LINE, REFUSED_LINE } = require("./global-input");
+if (refusedInRelease(process.env, require("./qa.js").isQaBuild(app))) {
+  console.error(REFUSED_LINE);
+  process.exit(1);
+}
+const INPUT_OFF = globalInputOff(process.env, require("./qa.js").isQaBuild(app));
 const globalShortcut = shortcutsFor(electronShortcuts, INPUT_OFF);
 const clipboard = clipboardFor(electronClipboard, INPUT_OFF);
 /** Shows a window at start; with test isolation on, without taking the keyboard from the window the person is using. */

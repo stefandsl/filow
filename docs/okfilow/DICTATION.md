@@ -149,7 +149,9 @@ does not control: a third-party clipboard manager may still record the text for 
   keyboard or mouse hook, register no global shortcut, open no real microphone, and never type, paste or
   copy anything; the log says so in one line at start. Every test launch on a PC somebody is using sets
   it (a test instance once reacted to the owner's dictation keys and pasted into the owner's window).
-  It only takes abilities away, so it works in every build. Keys then go through `FILOW_OKF_QA_KEYS=1`.
+  Like every test switch it works in development and in QA packages only (`-c.extraMetadata.filowQa=true`,
+  STANDARDS SEC-13). A released build started with it does not run without the isolation: it leaves at
+  once with exit code 1, so test a QA build. Keys then go through `FILOW_OKF_QA_KEYS=1`.
 
 ## Cleanup of English dictations: S1-mini by Superwhisper
 
