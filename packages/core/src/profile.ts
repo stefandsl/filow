@@ -197,6 +197,14 @@ export function sttThreads(cores: number): number {
 /** Gemma 4 E4B and lfm3-vl are both on this computer already: Best quality answers with the pair (setupChoices). */
 const gemmaPair = (m: MachineInfo) => isInstalled(GEMMA_E4B.name, m.installed) && isInstalled(LFM.name, m.installed);
 
+/**
+ * The pair Best quality answers with once both are on this computer: the ones still to download
+ * (empty when the pair is here). The Easy page offers them; nothing fetches them by itself.
+ */
+export function bestQualityPairMissing(m: Pick<MachineInfo, "installed">): SetupModel[] {
+  return [GEMMA_E4B, LFM].filter((x) => !isInstalled(x.name, m.installed));
+}
+
 /** The concrete choices of a profile on a machine. */
 export function setupChoices(profile: SetupProfileId, m: MachineInfo): SetupChoices {
   if (profile === "advanced") {
