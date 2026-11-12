@@ -1,0 +1,334 @@
+{
+ "dataset": "Fhrozen/FSD50k",
+ "revision": "ccf1acaff12f3f4a4c10052dddafbb6d22152c9b",
+ "seed": 20261112,
+ "rule": "labels of the type, none of ('speech', 'voice', 'music', 'sing', 'conversation', 'laugh', 'shout', 'child', 'male', 'female', 'chatter', 'crowd', 'yell', 'scream', 'whisper', 'cheer', 'applause', 'siren', 'alarm', 'bell', 'horn'); licence CC0 or CC-BY; >= 12.0 s; hash order",
+ "clips": [
+  {
+   "noise_id": "keyboard-388915",
+   "type": "keyboard",
+   "fsd50k_id": "388915",
+   "fsd50k_part": "dev",
+   "split": "dev",
+   "labels": [
+    "Domestic_sounds_and_home_sounds",
+    "Typing"
+   ],
+   "licence": "http://creativecommons.org/licenses/by/3.0/",
+   "uploader": "Australopithecusman",
+   "title": "calculator typing; fast",
+   "seconds": 18.92,
+   "source_sha256": "87c20803722397590aa6d81728503aaefa5e09d78c956de0f22b2a27f7ce1902",
+   "wav48_sha256": "86a6bf9d3501cc7061935103572429eb216886a13f67a5bf81aef050420b198a"
+  },
+  {
+   "noise_id": "keyboard-63255",
+   "type": "keyboard",
+   "fsd50k_id": "63255",
+   "fsd50k_part": "dev",
+   "split": "dev",
+   "labels": [
+    "Domestic_sounds_and_home_sounds",
+    "Typing"
+   ],
+   "licence": "http://creativecommons.org/licenses/by/3.0/",
+   "uploader": "kijjaz",
+   "title": "20081117kijjaz-PowerBookCDROMandTyping01.wav",
+   "seconds": 23.33,
+   "source_sha256": "adc6cbf04cf43a8783acf3e275a323d15998d4fb6bb0f3ef1b9a86eb652fb580",
+   "wav48_sha256": "04a519d1be4402f80ccf18dde8a6dfe978f4e2dd65e41b082530450cfbcdf80a"
+  },
+  {
+   "noise_id": "keyboard-331656",
+   "type": "keyboard",
+   "fsd50k_id": "331656",
+   "fsd50k_part": "dev",
+   "split": "heldout",
+   "labels": [
+    "Domestic_sounds_and_home_sounds",
+    "Typing"
+   ],
+   "licence": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "uploader": "Trollarch2",
+   "title": "Keyboard Typing",
+   "seconds": 15.53,
+   "source_sha256": "7a209eb7c099f20a19059c8b386262bda06ca264f578e1eeaf320868907eb829",
+   "wav48_sha256": "363784c752febdbeefc2535a2dc82f3f8a7de5256e21e4753a733af59b8318cc"
+  },
+  {
+   "noise_id": "keyboard-346473",
+   "type": "keyboard",
+   "fsd50k_id": "346473",
+   "fsd50k_part": "eval",
+   "split": "heldout",
+   "labels": [
+    "Domestic_sounds_and_home_sounds",
+    "Typewriter",
+    "Typing"
+   ],
+   "licence": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "uploader": "Materjal",
+   "title": "Typewriter_samples.aif",
+   "seconds": 16.88,
+   "source_sha256": "91905f5e83a187cee97d95ca3c72d4beb1ba15d2ff6510bc99fccd6e448d6f13",
+   "wav48_sha256": "6bc190712518c80e22e8a0c38c32707078356fa24b448a14fd2a7626980db786"
+  },
+  {
+   "noise_id": "keyboard-181257",
+   "type": "keyboard",
+   "fsd50k_id": "181257",
+   "fsd50k_part": "eval",
+   "split": "heldout",
+   "labels": [
+    "Domestic_sounds_and_home_sounds",
+    "Typing"
+   ],
+   "licence": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "uploader": "CapsLok",
+   "title": "buttons_calculator.wav",
+   "seconds": 22.2,
+   "source_sha256": "80e482d0b1fcc1d334c096d3156e8397fa237e7f7f99522152d4998a3ac22f6e",
+   "wav48_sha256": "66fb3a846173fe7493a55b11b998d0c6457fe430bf93ea9ca0d4a9d4b7d2e2c2"
+  },
+  {
+   "noise_id": "keyboard-146771",
+   "type": "keyboard",
+   "fsd50k_id": "146771",
+   "fsd50k_part": "eval",
+   "split": "heldout",
+   "labels": [
+    "Computer_keyboard",
+    "Domestic_sounds_and_home_sounds",
+    "Typing"
+   ],
+   "licence": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "uploader": "tgfcoder",
+   "title": "Fast typing on a mechanical keyboard",
+   "seconds": 18.89,
+   "source_sha256": "5444ab435690ee44e8bebbb7a07b40e9e460c5585c46fe135c7e795d71608457",
+   "wav48_sha256": "f94e9da23aca1d5f3a7f8fbe6ec04096a1707c76bb69e9ca1e05c26f814524b5"
+  },
+  {
+   "noise_id": "fan-279043",
+   "type": "fan",
+   "fsd50k_id": "279043",
+   "fsd50k_part": "dev",
+   "split": "dev",
+   "labels": [
+    "Mechanical_fan",
+    "Mechanisms"
+   ],
+   "licence": "http://creativecommons.org/licenses/by/3.0/",
+   "uploader": "2imitk",
+   "title": "Air Ventilation Large Lp mono 01",
+   "seconds": 23.77,
+   "source_sha256": "47235d6739a5e9016d223d2e84840f6e63104b959a7bef1c17e528145ea16c5b",
+   "wav48_sha256": "0adc81ec99d6d59b3c48a215032021781ac46d1640a8bc092a7ec48da0acc9b0"
+  },
+  {
+   "noise_id": "fan-104017",
+   "type": "fan",
+   "fsd50k_id": "104017",
+   "fsd50k_part": "dev",
+   "split": "dev",
+   "labels": [
+    "Mechanical_fan",
+    "Mechanisms"
+   ],
+   "licence": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "uploader": "RutgerMuller",
+   "title": "Big Fan at Hilversum Trainstation.aif",
+   "seconds": 26.0,
+   "source_sha256": "f0a8880ded930e7436110f9c09848189b6c18908f9d4b006387d473fc7a2f13d",
+   "wav48_sha256": "d30b89f1922d073b7f01482034cba2f4c7317874960171552a5b5db4304e9edf"
+  },
+  {
+   "noise_id": "fan-384016",
+   "type": "fan",
+   "fsd50k_id": "384016",
+   "fsd50k_part": "dev",
+   "split": "heldout",
+   "labels": [
+    "Mechanical_fan",
+    "Mechanisms"
+   ],
+   "licence": "http://creativecommons.org/licenses/by/3.0/",
+   "uploader": "ChrisReierson",
+   "title": "bathroom vent at work 2",
+   "seconds": 18.49,
+   "source_sha256": "801aea585962c3c1bad7b42ead986bfca60a8971273a4913431112034deff904",
+   "wav48_sha256": "9d619511e3905eb4377f8e33f933bc3a526e05cda8fb37d5c93adb9e92caf959"
+  },
+  {
+   "noise_id": "fan-35627",
+   "type": "fan",
+   "fsd50k_id": "35627",
+   "fsd50k_part": "eval",
+   "split": "heldout",
+   "labels": [
+    "Mechanical_fan",
+    "Mechanisms"
+   ],
+   "licence": "http://creativecommons.org/licenses/by/3.0/",
+   "uploader": "fresco",
+   "title": "desk ventilator by fresco.wav",
+   "seconds": 14.86,
+   "source_sha256": "96fd9b78fe8d5b99be718e2e0c10ca1487c0044e228ce1610d080e4e0cac34e9",
+   "wav48_sha256": "b418e0fa00a151ae70d7008c6c3dab0e4fbfb64fff75f3ce2cc6650b97ce0590"
+  },
+  {
+   "noise_id": "fan-179245",
+   "type": "fan",
+   "fsd50k_id": "179245",
+   "fsd50k_part": "dev",
+   "split": "heldout",
+   "labels": [
+    "Mechanical_fan",
+    "Mechanisms"
+   ],
+   "licence": "http://creativecommons.org/licenses/by/3.0/",
+   "uploader": "temawas",
+   "title": "FAN 3 (Slow Stop).wav",
+   "seconds": 20.95,
+   "source_sha256": "b1b77683f503b978d15180738679886053645b8cf0eb41a0ac39b1b0d243b14c",
+   "wav48_sha256": "6dff5338d990189c7d91cc09b7fa3709b59ba226cd8ec5d4526c90752c89bdb3"
+  },
+  {
+   "noise_id": "fan-329546",
+   "type": "fan",
+   "fsd50k_id": "329546",
+   "fsd50k_part": "dev",
+   "split": "heldout",
+   "labels": [
+    "Mechanical_fan",
+    "Mechanisms"
+   ],
+   "licence": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "uploader": "ivolipa",
+   "title": "Computer_Tower_Fan_Front.wav",
+   "seconds": 18.77,
+   "source_sha256": "e35c306b96e61a942964258dc38eb550fe03c397e245c2df80c2078ff6b36cba",
+   "wav48_sha256": "e91b1be50c9022d6dd0ff9823a0f60192d21368b36d53e63cf1addc9e1f9feb1"
+  },
+  {
+   "noise_id": "traffic-215178",
+   "type": "traffic",
+   "fsd50k_id": "215178",
+   "fsd50k_part": "eval",
+   "split": "dev",
+   "labels": [
+    "Motor_vehicle_(road)",
+    "Rain",
+    "Stream",
+    "Traffic_noise_and_roadway_noise",
+    "Vehicle",
+    "Water"
+   ],
+   "licence": "http://creativecommons.org/licenses/by/3.0/",
+   "uploader": "john9",
+   "title": "rainy stream 22 sec.wav",
+   "seconds": 22.49,
+   "source_sha256": "f4ed3577b5502e1af65c79f9394733dbab6826c09d8fe27a4113697fb9d5de7d",
+   "wav48_sha256": "5214b47e65eb27a5993f2acfca4d33fdf039249eaec57ea140a94cd151db6967"
+  },
+  {
+   "noise_id": "traffic-103185",
+   "type": "traffic",
+   "fsd50k_id": "103185",
+   "fsd50k_part": "dev",
+   "split": "dev",
+   "labels": [
+    "Motor_vehicle_(road)",
+    "Traffic_noise_and_roadway_noise",
+    "Vehicle"
+   ],
+   "licence": "http://creativecommons.org/licenses/by/3.0/",
+   "uploader": "paubg_pou",
+   "title": "Llambordes Rambla.wav",
+   "seconds": 21.39,
+   "source_sha256": "13e254027f26fe0098e3f051ae2dab589f7f0e4faab253a8786c2b037c9a4e1d",
+   "wav48_sha256": "e7991e6b1a76057aad4079b0866aa681f31e67f097b0053b1a3ac25228381e52"
+  },
+  {
+   "noise_id": "traffic-3186",
+   "type": "traffic",
+   "fsd50k_id": "3186",
+   "fsd50k_part": "dev",
+   "split": "heldout",
+   "labels": [
+    "Motor_vehicle_(road)",
+    "Motorcycle",
+    "Traffic_noise_and_roadway_noise",
+    "Vehicle"
+   ],
+   "licence": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "uploader": "Pingel",
+   "title": "PassingMotorCycle01.wav",
+   "seconds": 26.37,
+   "source_sha256": "d9bdae8f9a251f57a244f291e3dfc7cb10ce03136be876b2cc9cc72e5b4e2e46",
+   "wav48_sha256": "8cb77c97c72c66041549eaa9739c2b0b26e2ccb6ca2afea439153d16cb9e77e1"
+  },
+  {
+   "noise_id": "traffic-244807",
+   "type": "traffic",
+   "fsd50k_id": "244807",
+   "fsd50k_part": "dev",
+   "split": "heldout",
+   "labels": [
+    "Engine",
+    "Motor_vehicle_(road)",
+    "Traffic_noise_and_roadway_noise",
+    "Vehicle"
+   ],
+   "licence": "http://creativecommons.org/licenses/by/3.0/",
+   "uploader": "Meepalicious",
+   "title": "Strong Wind and Moving Cars",
+   "seconds": 25.0,
+   "source_sha256": "d033e30b9036cc4345a9843cd3ebd810d2dd02961838ef639c8540c689abe6c5",
+   "wav48_sha256": "ef93f54d45e239291dd215dde58c2d7c2d2c3fdcb067d5619d1d211573b67435"
+  },
+  {
+   "noise_id": "traffic-69007",
+   "type": "traffic",
+   "fsd50k_id": "69007",
+   "fsd50k_part": "eval",
+   "split": "heldout",
+   "labels": [
+    "Engine",
+    "Motor_vehicle_(road)",
+    "Traffic_noise_and_roadway_noise",
+    "Truck",
+    "Vehicle"
+   ],
+   "licence": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "uploader": "Heigh-hoo",
+   "title": "truck_passes_by.wav",
+   "seconds": 22.0,
+   "source_sha256": "eabe5d79e1fdffbdf20dfcf97465c7404b3e7f74e3edca931b950a767d07590e",
+   "wav48_sha256": "ade166a61026ee26b3f36f449cc057e4bf1f00ec141d6b82fb481970ec24b752"
+  },
+  {
+   "noise_id": "traffic-393655",
+   "type": "traffic",
+   "fsd50k_id": "393655",
+   "fsd50k_part": "dev",
+   "split": "heldout",
+   "labels": [
+    "Animal",
+    "Bird",
+    "Bird_vocalization_and_bird_call_and_bird_song",
+    "Chirp_and_tweet",
+    "Motor_vehicle_(road)",
+    "Traffic_noise_and_roadway_noise",
+    "Vehicle",
+    "Wild_animals"
+   ],
+   "licence": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "uploader": "hmoosher",
+   "title": "Bird Chirp.wav",
+   "seconds": 23.75,
+   "source_sha256": "49ed8e4a4434401ef6f9891b296f73572133ec75bf848c2f33d1b0c748bf7d4d",
+   "wav48_sha256": "167e35e6511471a45570fb7c22ad52c23456e7800f2437658b3d473ef65f04a2"
+  }
+ ]
+}

@@ -1,0 +1,145 @@
+{
+ "pinned_on": "2026-11-12",
+ "candidates": [
+  {
+   "name": "gtcrn",
+   "source": "https://github.com/Xiaobin-Rong/gtcrn",
+   "revision": "502ebfab64da7c4a9af78dcb9c6ceef1ebb01c73",
+   "code_licence": "MIT (LICENSE)",
+   "weight_licence": "MIT: the weights are files of the MIT-licensed repository (stream/onnx_models)",
+   "sample_rate": 16000,
+   "runtime": "onnxruntime",
+   "files": [
+    {
+     "file": "gtcrn_simple.onnx",
+     "origin": "https://github.com/Xiaobin-Rong/gtcrn/blob/502ebfab64da7c4a9af78dcb9c6ceef1ebb01c73/stream/onnx_models/gtcrn_simple.onnx",
+     "bytes": 535190,
+     "sha256": "b4718df6228e7bdf1a8a435cf98f838636eb2fd331acabf86ba87c5192ebcb87"
+    }
+   ]
+  },
+  {
+   "name": "dtln",
+   "source": "https://github.com/breizhn/DTLN",
+   "revision": "1de1f15a8b5b7e1c44905618ff2ef70ca8277fbc",
+   "code_licence": "MIT (LICENSE)",
+   "weight_licence": "MIT: pretrained_model/ is part of the MIT-licensed repository",
+   "sample_rate": 16000,
+   "runtime": "onnxruntime",
+   "files": [
+    {
+     "file": "model_1.onnx",
+     "origin": "https://github.com/breizhn/DTLN/blob/1de1f15a8b5b7e1c44905618ff2ef70ca8277fbc/pretrained_model/model_1.onnx",
+     "bytes": 1458237,
+     "sha256": "22b91cae3855e5a0620e66a917ca6c82c58db0e842c770f58d86751c5e8d4ae3"
+    },
+    {
+     "file": "model_2.onnx",
+     "origin": "https://github.com/breizhn/DTLN/blob/1de1f15a8b5b7e1c44905618ff2ef70ca8277fbc/pretrained_model/model_2.onnx",
+     "bytes": 2510010,
+     "sha256": "e20c92f9233fccf29cddf86970d0d0161a03aebccc26d6f4d5639c4d5ec2e639"
+    }
+   ]
+  },
+  {
+   "name": "dpdfnet2",
+   "source": "https://huggingface.co/Ceva-IP/DPDFNet",
+   "revision": "dd6818d00f50c836fed43a6243ebe49116de5964",
+   "code": "https://github.com/ceva-ip/DPDFNet @ 9bd9844a227bb6aa57e55588d8d0e961fcff1c46",
+   "code_licence": "Apache-2.0 (LICENSE)",
+   "weight_licence": "Apache-2.0 (Hugging Face model card licence field)",
+   "sample_rate": 16000,
+   "runtime": "onnxruntime",
+   "files": [
+    {
+     "file": "dpdfnet2.onnx",
+     "origin": "https://huggingface.co/Ceva-IP/DPDFNet/resolve/dd6818d00f50c836fed43a6243ebe49116de5964/onnx/dpdfnet2.onnx",
+     "bytes": 10178747,
+     "sha256": "4f0ee28935b4a32abecc717d745416976565834d839601acf43031094b4dc94c"
+    }
+   ]
+  },
+  {
+   "name": "dpdfnet2_48k",
+   "source": "https://huggingface.co/Ceva-IP/DPDFNet",
+   "revision": "dd6818d00f50c836fed43a6243ebe49116de5964",
+   "code": "https://github.com/ceva-ip/DPDFNet @ 9bd9844a227bb6aa57e55588d8d0e961fcff1c46",
+   "code_licence": "Apache-2.0 (LICENSE)",
+   "weight_licence": "Apache-2.0 (Hugging Face model card licence field)",
+   "sample_rate": 48000,
+   "runtime": "onnxruntime",
+   "files": [
+    {
+     "file": "dpdfnet2_48khz_hr.onnx",
+     "origin": "https://huggingface.co/Ceva-IP/DPDFNet/resolve/dd6818d00f50c836fed43a6243ebe49116de5964/onnx/dpdfnet2_48khz_hr.onnx",
+     "bytes": 10493337,
+     "sha256": "7f0575a5cec0ba4ffd8f8bd657e06d007e4ccdd955d76faab922b9d3291dc14b"
+    }
+   ]
+  },
+  {
+   "name": "dfn3",
+   "source": "https://github.com/Rikorose/DeepFilterNet",
+   "revision": "7b14b895fe7fc42cab72b4a4c1e49c982bd6404b",
+   "code_licence": "MIT OR Apache-2.0 (LICENSE, LICENSE-MIT, LICENSE-APACHE)",
+   "weight_licence": "MIT OR Apache-2.0: models/ is part of the dual-licensed repository",
+   "sample_rate": 48000,
+   "runtime": "deep-filter 0.5.6 (the project's Rust binary, tract)",
+   "files": [
+    {
+     "file": "DeepFilterNet3_onnx.tar.gz",
+     "origin": "https://github.com/Rikorose/DeepFilterNet/blob/7b14b895fe7fc42cab72b4a4c1e49c982bd6404b/models/DeepFilterNet3_onnx.tar.gz",
+     "bytes": 7983136,
+     "sha256": "c94d91f70911001c946e0fabb4aa9adc37045f45a03b56008cb0c8244cb63616"
+    },
+    {
+     "file": "DeepFilterNet3_ll_onnx.tar.gz",
+     "origin": "https://github.com/Rikorose/DeepFilterNet/blob/7b14b895fe7fc42cab72b4a4c1e49c982bd6404b/models/DeepFilterNet3_ll_onnx.tar.gz",
+     "bytes": 36359660,
+     "sha256": "5998e58e8ba0e09bb76986ef97b84afa065a571ef282d4a1222f341e3251cf3a"
+    },
+    {
+     "file": "deep-filter-0.5.6-x86_64-pc-windows-msvc.exe",
+     "origin": "https://github.com/Rikorose/DeepFilterNet/releases/download/v0.5.6/deep-filter-0.5.6-x86_64-pc-windows-msvc.exe",
+     "bytes": 26912256,
+     "sha256": "75e11fa16445f560cb6b021521ddb89e89270d13b83089705d98776f58fd7915"
+    }
+   ]
+  },
+  {
+   "name": "rnnoise",
+   "source": "https://github.com/xiph/rnnoise",
+   "revision": "70f1d256acd4b34a572f999a05c87bf00b67730d",
+   "code_licence": "BSD-3-Clause (COPYING)",
+   "weight_licence": "BSD-3-Clause header in the generated src/rnnoise_data.c inside the tarball (checked after unpacking); tarball sha256 pinned by model_version in the repository",
+   "sample_rate": 48000,
+   "runtime": "C, built here with MSVC 2019 Build Tools",
+   "files": [
+    {
+     "file": "rnnoise_data-0a8755f8e2d834eff6a54714ecc7d75f9932e845df35f8b59bc52a7cfe6e8b37.tar.gz",
+     "origin": "https://media.xiph.org/rnnoise/models/rnnoise_data-0a8755f8e2d834eff6a54714ecc7d75f9932e845df35f8b59bc52a7cfe6e8b37.tar.gz",
+     "bytes": 58603099,
+     "sha256": "0a8755f8e2d834eff6a54714ecc7d75f9932e845df35f8b59bc52a7cfe6e8b37"
+    }
+   ]
+  },
+  {
+   "name": "hush",
+   "source": "https://huggingface.co/weya-ai/hush",
+   "revision": "a55d932cbf6344d284ac985f21e7f6e5bc4d38a5",
+   "code": "https://github.com/pulp-vision/Hush @ 9f6414e91461a8f4bdf9840c0cdcdcb7da986339",
+   "code_licence": "Apache-2.0 (LICENSE)",
+   "weight_licence": "Apache-2.0 (Hugging Face model card licence field and LICENSE in the model repository)",
+   "sample_rate": 16000,
+   "runtime": "DeepFilterNet-style three-graph bundle (needs libDF processing)",
+   "files": [
+    {
+     "file": "advanced_dfnet16k_model_best_onnx.tar.gz",
+     "origin": "https://huggingface.co/weya-ai/hush/resolve/a55d932cbf6344d284ac985f21e7f6e5bc4d38a5/onnx/advanced_dfnet16k_model_best_onnx.tar.gz",
+     "bytes": 8558968,
+     "sha256": "45632ccaa82b71bb743d6caa7c78e983fe2f2790a3af7f6ec48e6ed7ba085df6"
+    }
+   ]
+  }
+ ]
+}
