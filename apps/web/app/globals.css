@@ -527,6 +527,7 @@ dialog.modal-bg.accessible-dialog:has(> .display-panel)::backdrop { background: 
 .easy-state { font-size: var(--type-sm); color: var(--muted); min-width: 4.5em; text-align: right; font-variant-numeric: tabular-nums; }
 .easy-switch { appearance: none; -webkit-appearance: none; position: relative; flex: none; width: 48px; height: 28px; margin: 0; border-radius: 999px; background: var(--muted); cursor: pointer; transition: background 150ms ease-out; }
 .easy-switch::before { content: ""; position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; border-radius: 50%; background: var(--bg); transition: transform 150ms ease-out; }
+.easy-switch { outline: 1px solid var(--muted); outline-offset: -1px; } /* the track keeps a visible edge where its fill is pale against the page */
 .easy-switch:checked { background: var(--action-background); }
 .easy-switch:checked::before { transform: translateX(20px); background: var(--action-foreground); }
 .easy-row.custom .easy-switch { background: var(--panel-2); outline: 2px dashed var(--muted); outline-offset: -2px; }
@@ -552,6 +553,17 @@ dialog.modal-bg.accessible-dialog:has(> .display-panel)::backdrop { background: 
 .easy .easy-advanced { flex-direction: row; align-items: center; gap: 16px; flex-wrap: wrap; }
 .easy .easy-advanced .btn { text-decoration: none; }
 .easy-foot { margin: 0; }
+.easy-notes { display: flex; flex-direction: column; gap: 4px; }
+.easy-notes:empty { display: none; }
+.easy-title:focus { outline: none; }
+.easy .easy-failed { gap: 12px; }
+@media (forced-colors: active) {
+  .easy-switch { background: Canvas; outline: 1px solid ButtonText; }
+  .easy-switch::before { background: ButtonText; }
+  .easy-switch:checked { background: Highlight; }
+  .easy-switch:checked::before { background: HighlightText; }
+  .easy-row.custom .easy-switch::before { background: GrayText; }
+}
 @media (max-width: 600px) {
   .easy .strip { padding: 12px 16px; }
   .easy .easy-list { padding: 0 16px; }

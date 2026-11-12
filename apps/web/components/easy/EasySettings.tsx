@@ -44,18 +44,25 @@ function SwitchRow({ control, name, state, disabled, desc, notes, busy, onChange
   onChange: (next: "on" | "off") => void; stateWord: string;
 }) {
   const id = useId();
+  const custom = state === "custom";
+  const input = useRef<HTMLInputElement>(null);
+  // Custom is neither on nor off: the native "mixed" checkbox, which a screen reader announces as such
+  useEffect(() => {
+    if (input.current) input.current.indeterminate = custom;
+  }, [custom]);
   return (
-    <div className={`easy-row ${state === "custom" ? "custom" : ""}`} data-easy={control} data-state={state}>
+    <div className={`easy-row ${custom ? "custom" : ""}`} data-easy={control} data-state={state}>
       <div className="easy-text">
         <label className="easy-name" htmlFor={id}>{name}</label>
         <p className="easy-desc" id={`${id}-desc`}>{desc}</p>
-        {notes}
+        {/* the warnings are part of what the control is described by, not only text next to it */}
+        <div className="easy-notes" id={`${id}-notes`}>{notes}</div>
       </div>
       <div className="easy-control">
         <span className="easy-state" aria-hidden="true">{stateWord}</span>
-        {/* Custom is drawn as a switch in the middle; its sentence (which starts with the word Custom) is the description */}
-        <input id={id} type="checkbox" role="switch" className="easy-switch" checked={state === "on"} disabled={disabled || busy} aria-describedby={`${id}-desc`}
-          onChange={(e) => onChange(e.target.checked ? "on" : "off")} />
+        {/* Custom is drawn as a switch in the middle; a switch has no third state, so it is then a mixed checkbox */}
+        <input ref={input} id={id} type="checkbox" role={custom ? undefined : "switch"} aria-checked={custom ? "mixed" : undefined} className="easy-switch" checked={state === "on"} disabled={disabled || busy}
+          aria-describedby={`${id}-desc ${id}-notes`} onChange={(e) => onChange(e.target.checked ? "on" : "off")} />
       </div>
     </div>
   );
@@ -72,18 +79,21 @@ export function EasySettings(p: EasySettingsProps) {
   const [confirming, setConfirming] = useState(Boolean(p.confirming));
   const resetButton = useRef<HTMLButtonElement>(null);
   const cancelButton = useRef<HTMLButtonElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
   const wasConfirming = useRef(confirming);
-  // the question takes the focus when it opens, and gives it back to the button that opened it
+  // The question takes the focus when it opens. Cancel gives it back to the button that opened it;
+  // after Reset that button goes away (nothing is left to put back), so the page title takes it.
   useEffect(() => {
     if (confirming && !wasConfirming.current) cancelButton.current?.focus();
-    if (!confirming && wasConfirming.current) resetButton.current?.focus();
+    if (!confirming && wasConfirming.current && document.activeElement === document.body) (resetButton.current ?? title.current)?.focus();
     wasConfirming.current = confirming;
   }, [confirming]);
   const link = (href: string, text: string) => <a href={href}>{text}</a>;
   const advanced = link(p.advancedHref, t("easy.seeAdvanced"));
+  const join = t("easy.listJoin");
 
   const privateDesc = (): ReactNode => {
-    if (state.private === "custom") return <>{t("easy.private.custom", { list: view.private.differences.map((d) => t(`easy.private.diff.${d}` as I18nKey)).join(", ") })} {advanced}</>;
+    if (state.private === "custom") return <>{t("easy.private.custom", { list: view.private.differences.map((d) => t(`easy.private.diff.${d}` as I18nKey)).join(join) })} {advanced}</>;
     if (state.private === "off") return `${t("easy.private.off.desc")} ${t(state.screen === "on" ? "easy.private.off.screen" : "easy.private.off.noScreen")} ${t("easy.private.off.asks")}`;
     return t("easy.private.desc");
   };
@@ -92,7 +102,8 @@ export function EasySettings(p: EasySettingsProps) {
   const qualityName = (q: EasyQuality) => (q === "auto" ? t("easy.chosen") : t(`easy.quality.${q}` as I18nKey));
   const bestReason = view.quality.bestBlocked === "stronger-pc" ? t("easy.quality.best.small") : view.quality.bestBlocked === "disk" ? t("easy.quality.best.disk") : null;
   const qualityDesc = (q: EasyQuality): ReactNode => {
-    if (q === "auto") return t(`easy.quality.chosen.${view.quality.chosen}` as I18nKey);
+    // what Best quality costs on this PC is said where the PC already gets it, not only where it is a choice
+    if (q === "auto") return `${t(`easy.quality.chosen.${view.quality.chosen}` as I18nKey)}${view.quality.chosen === "advanced" && view.quality.bestNote ? ` ${t("easy.quality.best.shared")}` : ""}`;
     if (q === "faster") return t("easy.quality.faster.desc");
     return <>{bestReason ?? t("easy.quality.best.desc")}{!bestReason && view.quality.bestNote ? ` ${t("easy.quality.best.shared")}` : ""}</>;
   };
@@ -102,7 +113,7 @@ export function EasySettings(p: EasySettingsProps) {
     <div className="easy" aria-busy={p.busy}>
       <div className="strip easy-head">
         <div className="easy-headline">
-          <h1 className="easy-title" id={`${id}-title`}>{t("easy.title")}</h1>
+          <h1 className="easy-title" id={`${id}-title`} ref={title} tabIndex={-1}>{t("easy.title")}</h1>
           <p className="easy-live" role="status" aria-live="polite">{p.message === "saved" ? t("easy.saved") : p.message === "failed" ? t("easy.saveFailed") : ""}</p>
         </div>
         <p className="easy-desc">{t("easy.intro")}</p>
@@ -114,10 +125,10 @@ export function EasySettings(p: EasySettingsProps) {
         {confirming && (
           <div className="easy-confirm" role="group" aria-labelledby={`${id}-reset`}>
             <strong id={`${id}-reset`}>{t("easy.reset.title")}</strong>
-            <p className="easy-desc">{t("easy.reset.list", { list: changed.map((c) => t(`easy.${c}` as I18nKey)).join(", ") })} {t("easy.reset.keeps")}</p>
+            <p className="easy-desc">{t("easy.reset.list", { list: changed.map((c) => t(`easy.${c}` as I18nKey)).join(join) })} {t("easy.reset.keeps")}</p>
             <div className="row">
-              <button type="button" className="btn" ref={cancelButton} onClick={() => setConfirming(false)}>{t("common.cancel")}</button>
-              <button type="button" className="btn primary" disabled={p.busy || changed.length === 0} onClick={() => { setConfirming(false); p.onReset(); }}>{t("easy.reset.confirm")}</button>
+              <button type="button" className="btn" ref={cancelButton} onClick={() => { resetButton.current?.focus(); setConfirming(false); }}>{t("common.cancel")}</button>
+              <button type="button" className="btn primary" disabled={p.busy || changed.length === 0} onClick={() => { title.current?.focus(); setConfirming(false); p.onReset(); }}>{t("easy.reset.confirm")}</button>
             </div>
           </div>
         )}
@@ -127,6 +138,8 @@ export function EasySettings(p: EasySettingsProps) {
         {shown("private") && (
           <SwitchRow control="private" name={t("easy.private")} state={state.private} busy={p.busy} stateWord={word(state.private)} desc={privateDesc()} onChange={(v) => p.onChange("private", v)}
             notes={<>
+              {/* a two-way choice: what Off means is said before the click, not only after it */}
+              {state.private === "on" && <p className="easy-desc" data-easy-other>{t("easy.private.other")}</p>}
               {!view.private.localAnswers && state.private !== "off" && <p className="easy-note">{t("easy.private.tooSmall")}</p>}
               {needsKey && state.private !== "off" && <p className="easy-note" role={p.refused.private ? "alert" : undefined}>{t("easy.private.needsKey")} {link(p.keyHref, t("easy.private.setUp"))}</p>}
             </>} />
@@ -227,7 +240,7 @@ export function EasySettings(p: EasySettingsProps) {
         )}
       </section>
 
-      {visible.length < 8 && <p className="hint easy-foot">{t("easy.desktopOnly")}</p>}
+      {!shown("private") && <p className="hint easy-foot">{t("easy.desktopOnly")}</p>}
 
       <section className="strip easy-advanced" aria-label={t("easy.advanced")}>
         <a className="btn" href={p.advancedHref}>{t("easy.advanced")}</a>

@@ -30,6 +30,11 @@ describe("where Settings opens", () => {
     // it reads and writes through easy.ts only: no setting of its own is stored
     expect(easy).not.toMatch(/localStorage\.setItem|sessionStorage/);
     for (const fn of ["easyView(", "easyPatch(", "easyReset(", "writeEasyPatch("]) expect(easy, fn).toContain(fn);
+    // reset and the list of changes cover the controls this page shows, never a hidden one
+    expect(easy).toContain("easyView(snapshot, machine, caps, visible)");
+    expect(easy).toContain("easyReset(model.snapshot, model.machine, model.caps, visible).patch");
+    // a download is offered only while the installed list is known
+    expect(easy).toContain("installed: status.ollama.reachable ? status.installed.map((i) => i.name) : undefined");
   });
 
   it("Advanced settings says what it is, leads back, and keeps its section links", () => {
@@ -38,10 +43,13 @@ describe("where Settings opens", () => {
     expect(advanced).toMatch(/<Link className="btn" href="\/settings" data-testid="back-to-easy">\s*\{t\("easy\.back"\)\}/);
     // a download started on the Easy page lands on the list that runs it and can stop it
     expect(advanced).toContain('<section className="strip" id="models">');
-    expect(advanced).toContain('window.location.hash === "#models") document.getElementById("models")?.scrollIntoView');
     expect(advanced).toContain('new URLSearchParams(window.location.search).get("auto")');
-    // deep links from the take screen, the translate bar and the OK Filow panel
-    expect(advanced).toContain('window.location.hash === "#setup"');
+    // one start per click: the list leaves the address, so a reload after Stop does not start the downloads again
+    expect(advanced).toMatch(/setAutoDone\(true\);[\s\S]{0,260}here\.searchParams\.delete\("auto"\);\s*window\.history\.replaceState\(window\.history\.state, "", here\);/);
+    // a link to a section (#setup, #models, #freellm) lands on it once the page has its content
+    expect(advanced).toContain('const section = window.location.hash.slice(1);');
+    expect(advanced).toContain('document.getElementById(section)?.scrollIntoView({ block: "start" })');
+    expect(read("apps/web/app/settings/local/SetupPicker.tsx")).toContain('id="setup"');
     expect(read("apps/web/app/settings/local/FreeLlmSettings.tsx")).toContain('id="freellm"');
     expect(read("apps/web/components/Teleprompter.tsx")).toContain('href="/settings/local#setup"');
   });

@@ -52,34 +52,62 @@ function Inner({ theme, onTheme }: { theme: "system" | "light" | "dark"; onTheme
   const [refused, setRefused] = useState<Partial<Record<EasyControl, EasyNeeds>>>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<"" | "saved" | "failed">("");
+  /** the settings could not be read at all: said, with a way to try again, instead of an endless "Loading" */
+  const [loadFailed, setLoadFailed] = useState(false);
   const ui = useSyncExternalStore(subscribeUiPreferences, getDesktopPreferences, () => null);
   const langPref = useSyncExternalStore(subscribeUiPreferences, getLanguagePref, () => "" as const);
-  // The natural voice was heard speaking here: "Answer out loud" puts that one back (easy.ts EasyCaps).
-  const natural = useRef(false);
+  // What this page saw while it was open, for the way back (easy.ts EasyCaps): the natural voice
+  // speaking, and the online service answers came from.
+  const seen = useRef<{ naturalVoice: boolean; lastOnline?: "cloud" | "freellm" }>({ naturalVoice: false });
+  // A read that started before a write must not land after it and show the old values.
+  const epoch = useRef(0);
 
-  /** Everything the desktop app and this browser hold now. Read again after every write and every few seconds (the OK Filow panel changes the same settings). */
+  /**
+   * Everything the desktop app and this browser hold now. Read again after every write and every
+   * few seconds (the OK Filow panel changes the same settings). A read that fails keeps what was
+   * read before: one missed answer does not blank the page.
+   */
   const readStores = useCallback(async () => {
-    const o = await okFilowSettingsBridge()?.status().catch(() => null) ?? null;
-    const d = await dictationBridge()?.status().catch(() => null) ?? null;
-    if (o?.voice === "natural") natural.current = true;
-    setOkf(o);
-    setDict(d);
+    const mine = epoch.current;
+    const ob = okFilowSettingsBridge(), db = dictationBridge();
+    const [o, d] = await Promise.all([ob ? ob.status().catch(() => null) : null, db ? db.status().catch(() => null) : null]);
+    if (mine !== epoch.current) return true;
+    if (o) {
+      if (o.voice === "natural") seen.current.naturalVoice = true;
+      if (o.provider !== "local") seen.current.lastOnline = o.provider;
+      setOkf(o);
+    }
+    if (d) setDict(d);
     setLocal(readLocal());
     setSpeech(getSpeechLang());
+    // false: a desktop app is behind this page and did not answer
+    return (!ob || Boolean(o)) && (!db || Boolean(d));
   }, []);
   const readStatus = useCallback(async () => {
-    await ensureEngineToken();
-    const res = await fetch(`/api/local/status?setup=${encodeURIComponent(getSetupPreference())}`, { cache: "no-store" });
-    if (res.ok) setStatus((await res.json()) as Status);
+    try {
+      await ensureEngineToken();
+      const res = await fetch(`/api/local/status?setup=${encodeURIComponent(getSetupPreference())}`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      setStatus((await res.json()) as Status);
+      setLoadFailed(false);
+      return true;
+    } catch {
+      return false;
+    }
   }, []);
+  const load = useCallback(async () => {
+    setLoadFailed(false);
+    const [answered, ok] = await Promise.all([readStores(), readStatus()]);
+    // a desktop app that did not answer counts too: without it the page has nothing true to show
+    if (!answered || !ok) setLoadFailed(true);
+  }, [readStores, readStatus]);
 
   useEffect(() => {
     setBridges({ okFilow: Boolean(okFilowSettingsBridge()), dictation: Boolean(dictationBridge()), ui: Boolean(desktopBridge()?.updatePreferences) });
-    void readStores();
-    void readStatus().catch(() => undefined);
+    void load();
     const timer = setInterval(() => void readStores(), 4000);
     return () => clearInterval(timer);
-  }, [readStores, readStatus]);
+  }, [load, readStores]);
 
   const startupSupported = Boolean(bridges?.ui && ui?.startup.supported);
   const io = useMemo<EasyIo>(() => {
@@ -98,26 +126,29 @@ function Inner({ theme, onTheme }: { theme: "system" | "light" | "dark"; onTheme
       translateWhere: (w) => saveTranslateWhere(store(), w),
     };
   }, [bridges, startupSupported]);
+  const visible = useMemo(() => easyVisible(io), [io]);
 
   const ready = status && local && bridges && (!bridges.okFilow || okf) && (!bridges.dictation || dict);
   const model = useMemo(() => {
     if (!status || !local) return null;
-    // What is installed is known when Ollama answers, or when the desktop app can install it for a download.
-    const knowsInstalled = status.ollama.reachable || Boolean(desktopBridge()?.localAi);
+    // What is installed is only known while Ollama answers; unknown means no download is offered
+    // (never one for a model that may already be on this PC).
     const base: MachineInfo = status.hardware ?? { ramGb: status.machine.ramGb, cores: typeof navigator === "undefined" ? 4 : navigator.hardwareConcurrency || 4, gpu: { kind: "none", vramGb: null }, freeDiskGb: null };
-    const machine: MachineInfo = { ...base, installed: knowsInstalled ? status.installed.map((i) => i.name) : undefined };
+    const machine: MachineInfo = { ...base, installed: status.ollama.reachable ? status.installed.map((i) => i.name) : undefined };
     const snapshot = easySnapshot({ okFilow: okf, dictation: dict, ui: { lang: langPref, runAtStartup: Boolean(ui?.startup.requested) }, local, speechLanguage: speech });
-    const caps: EasyCaps = { online: { openrouter: status.openrouterKey, freellm: Boolean(status.freellmReady) }, naturalVoice: natural.current };
-    return { machine, snapshot, caps, view: easyView(snapshot, machine, caps) };
-  }, [status, local, okf, dict, langPref, ui, speech]);
+    const caps: EasyCaps = { online: { openrouter: status.openrouterKey, freellm: Boolean(status.freellmReady) }, ...seen.current };
+    return { machine, snapshot, caps, view: easyView(snapshot, machine, caps, visible) };
+  }, [status, local, okf, dict, langPref, ui, speech, visible]);
 
   const write = async (patch: EasyPatch) => {
     setBusy(true);
     setMessage("");
+    epoch.current++;
     const ok = await writeEasyPatch(patch, io);
+    epoch.current++;
     await readStores();
     // the setup decides which helper answers: the server's view follows it
-    if (patch.local?.setup !== undefined) await readStatus().catch(() => undefined);
+    if (patch.local?.setup !== undefined) await readStatus();
     setBusy(false);
     setMessage(ok ? "saved" : "failed");
   };
@@ -125,13 +156,15 @@ function Inner({ theme, onTheme }: { theme: "system" | "light" | "dark"; onTheme
   const onChange = <C extends EasyControl>(control: C, value: EasyValue[C]) => {
     if (!model || busy) return;
     const r = easyPatch(control, value, model.snapshot, model.machine, model.caps);
-    setRefused((now) => ({ ...now, [control]: r.ok ? undefined : r.needs }));
+    // one refusal at a time: a message about an earlier click does not stay under another control
+    setRefused(r.ok ? {} : { [control]: r.needs });
     if (r.ok) void write(r.patch);
   };
   const onReset = () => {
     if (!model || busy) return;
     setRefused({});
-    void write(easyReset(model.snapshot, model.machine, model.caps).patch);
+    // only the controls on this page: a setting behind a control that is not shown is not rewritten
+    void write(easyReset(model.snapshot, model.machine, model.caps, visible).patch);
   };
 
   // "Automatic" names the language it stands for: the desktop app says which one while Automatic is chosen
@@ -157,12 +190,10 @@ function Inner({ theme, onTheme }: { theme: "system" | "light" | "dark"; onTheme
         </Link>
       </header>
       <main className="easy-main">
-        {!ready || !model ? (
-          <div className="hint" role="status">{t("common.loading")}</div>
-        ) : (
+        {ready && model ? (
           <EasySettings
             view={model.view}
-            visible={easyVisible(io)}
+            visible={visible}
             keys={dict?.chordLabel ?? "Ctrl + Win"}
             mac={status.machine.platform === "darwin"}
             systemLang={systemLang}
@@ -178,6 +209,16 @@ function Inner({ theme, onTheme }: { theme: "system" | "light" | "dark"; onTheme
             size={(gb) => sizeText(gb * 1024 ** 3, t)}
             modelName={modelName}
           />
+        ) : loadFailed ? (
+          <div className="strip easy-failed" role="alert">
+            <p className="easy-note">{t("easy.loadFailed")}</p>
+            <div className="row">
+              <button type="button" className="btn primary" onClick={() => void load()}>{t("easy.retry")}</button>
+              <a className="btn" href="/settings/local">{t("easy.advanced")}</a>
+            </div>
+          </div>
+        ) : (
+          <div className="hint" role="status">{t("common.loading")}</div>
         )}
       </main>
     </div>

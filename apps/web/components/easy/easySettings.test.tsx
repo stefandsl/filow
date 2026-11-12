@@ -51,8 +51,14 @@ describe("the Easy page", () => {
       const id = /id="([^"]+)"/.exec(s)![1];
       expect(s).toContain('type="checkbox"');
       expect(html).toContain(`<label class="easy-name" for="${id}">`);
-      expect(html).toContain(`<p class="easy-desc" id="${/aria-describedby="([^"]+)"/.exec(s)![1]}">`);
+      // described by its sentence and by the warnings under it
+      expect(/aria-describedby="([^"]+)"/.exec(s)![1]).toBe(`${id}-desc ${id}-notes`);
+      expect(html).toContain(`<p class="easy-desc" id="${id}-desc">`);
+      expect(html).toContain(`<div class="easy-notes" id="${id}-notes">`);
     }
+    // a warning sits inside what its switch is described by
+    const slow = row(render(fresh(), small), "screen");
+    expect(slow).toMatch(/<div class="easy-notes" id="[^"]+"><p class="easy-note">Looking at the screen is slow/);
     expect(row(html, "quality")).toMatch(/<fieldset[^>]*>\s*<legend class="easy-name">Speed or quality<\/legend>/);
     expect([...row(html, "quality").matchAll(/type="radio"/g)]).toHaveLength(3);
     expect(row(html, "language")).toMatch(/<label class="easy-name" for="([^"]+)">Language<\/label>[\s\S]*<select id="\1"/);
@@ -69,6 +75,9 @@ describe("the Easy page", () => {
     for (const c of ["private", "voice", "tidy"] as const) {
       expect(row(html, c), c).toContain('class="easy-row custom"');
       expect(row(html, c), c).not.toMatch(/<input[^>]*checked=""/);
+      // neither on nor off: a mixed checkbox, not a switch that would be announced as off
+      expect(row(html, c), c).toMatch(/<input[^>]*type="checkbox"[^>]*aria-checked="mixed"/);
+      expect(row(html, c), c).not.toContain('role="switch"');
       expect(plain(row(html, c)), c).toMatch(/ Custom /);
       expect(row(html, c), c).toContain('<a href="/settings/local">See in Advanced settings</a>');
     }
@@ -86,15 +95,27 @@ describe("the Easy page", () => {
     const text = plain(render(s, laptop, NONE, { confirming: true }));
     expect(text).toContain("Reset to recommended?");
     expect(text).toContain("This puts back: Answer out loud, Start with Windows.");
+    // Japanese joins a list with its own comma
+    expect(plain(render(s, laptop, NONE, { confirming: true }, "ja"))).toContain(`${t("easy.voice", "ja")}、${t("easy.startup", "ja")}`);
     expect(text).toContain("What you allowed to be sent online and everything in Advanced settings stay as they are.");
     expect(text).toMatch(/Cancel\s+Reset/);
   });
 
   describe("Keep it on this PC", () => {
-    it("on: says everything stays here; no word about keys while nobody asked", () => {
-      const text = plain(row(render(fresh()), "private"));
+    it("on: says everything stays here, and what turning it off would mean, before any click", () => {
+      const html = row(render(fresh()), "private");
+      const text = plain(html);
       expect(text).toContain("Nothing is sent to an online service.");
-      expect(text).not.toContain("key");
+      expect(text).toContain("Turn this off to let OK Filow answer online instead: quicker, and with better drawings.");
+      expect(text).toContain("Your question then leaves this PC, with a picture of your screen while Look at my screen is on.");
+      expect(text).toContain("It needs a key from an online service.");
+      // no alert and no link to add a key while nobody asked
+      expect(html).not.toContain('role="alert"');
+      expect(html).not.toContain("Add a key");
+      // once answers are online the page says what is happening, not what would
+      const off = fresh();
+      off.okFilow.provider = "cloud";
+      expect(plain(row(render(off, laptop, KEY), "private"))).not.toContain("Turn this off to let");
     });
 
     it("off: says in plain words that the question leaves this PC, and the picture of the screen when Look at my screen is on", () => {
@@ -122,6 +143,9 @@ describe("the Easy page", () => {
       const tiny: MachineInfo = { ramGb: 4, cores: 2, gpu: { kind: "none", vramGb: null }, freeDiskGb: 200, installed: [] };
       expect(plain(row(render(fresh(), tiny), "private"))).toContain("This computer is too small to answer questions by itself.");
       expect(plain(row(render(fresh(), laptop), "private"))).not.toContain("too small");
+      // it needs a key and none is set up: said with the place to add one, as information, not as an alarm
+      expect(row(render(fresh(), tiny), "private")).toContain('<a href="/settings/local#freellm">Add a key</a>');
+      expect(row(render(fresh(), tiny), "private")).not.toContain('role="alert"');
     });
   });
 
@@ -176,6 +200,13 @@ describe("the Easy page", () => {
       expect(html).not.toMatch(/<button|<form/);
     });
 
+    it("an 8 GB card gets Best quality by itself, so the waiting it brings is said under Chosen for this PC", () => {
+      const wait = "answers about your screen can take a few minutes while Filow is following a talk";
+      expect(plain(quality(rtx(8)))).toContain(`Chosen for this PC The best quality, because this computer is powerful enough for it. On this computer, ${wait}.`);
+      expect(plain(quality(rtx(12)))).not.toContain(wait);
+      expect(plain(quality(laptop))).not.toContain(wait);
+    });
+
     it("on an 8 GB card the small helper is the suggestion and the larger download says what waiting it brings", () => {
       const html = quality(rtx(8));
       expect(html).toMatch(/data-download="helper"[\s\S]*Suggested for this PC[\s\S]*<a class="btn primary"[^>]*>Download 1\.9 GB<\/a>/);
@@ -210,6 +241,10 @@ describe("the Easy page", () => {
     expect(html).not.toContain('role="switch"');
     expect(plain(html)).toContain("The other settings are in the Filow app on your computer.");
     expect(plain(render(fresh()))).not.toContain("The other settings are in the Filow app");
+    // the desktop app on a system without a startup setting: seven controls, and no such sentence
+    const seven = EASY_CONTROLS.filter((c) => c !== "startup");
+    expect(easyVisible({ okFilow: async () => {}, dictation: async () => {} })).toEqual(seven);
+    expect(plain(render(fresh(), laptop, NONE, { visible: seven }))).not.toContain("The other settings are in the Filow app");
     // a change in a hidden control is not offered for reset
     const s = fresh();
     s.okFilow.voice = "off";

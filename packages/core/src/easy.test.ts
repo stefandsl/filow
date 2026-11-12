@@ -194,6 +194,27 @@ describe("Keep it on this PC", () => {
     expect(easyRead(after, laptop).private).toBe("off");
   });
 
+  it("off goes back to the service the user had, while it is still set up", () => {
+    expect(easyPatch("private", "off", fresh(), laptop, { ...BOTH, lastOnline: "freellm" })).toEqual({ ok: true, patch: { okFilow: { provider: "freellm" } } });
+    expect(easyPatch("private", "off", fresh(), laptop, { ...BOTH, lastOnline: "cloud" })).toEqual({ ok: true, patch: { okFilow: { provider: "cloud" } } });
+    // the one they had is no longer set up: the one that is
+    expect(easyPatch("private", "off", fresh(), laptop, { online: { openrouter: true, freellm: false }, lastOnline: "freellm" })).toEqual({ ok: true, patch: { okFilow: { provider: "cloud" } } });
+    expect(easyPatch("private", "off", fresh(), laptop, { ...NONE, lastOnline: "cloud" })).toEqual({ ok: false, needs: "online-service" });
+  });
+
+  it("reset touches and lists only the controls the page shows", () => {
+    const s: EasySnapshot = { ...fresh(), ui: { lang: "it", runAtStartup: true }, local: { setup: "lite", startMode: "ask", translateWhere: "cloud" }, okFilow: { provider: "local", voice: "off", seeScreen: "off" } };
+    // the browser shows Speed or quality and Language only
+    expect(easyReset(s, laptop, NONE, ["quality", "language"])).toEqual({ patch: { ui: { lang: "" }, local: { setup: "auto" } }, changes: ["quality", "language"] });
+    expect(easyView(s, laptop, NONE, ["quality", "language"]).changed).toEqual(["quality", "language"]);
+    // all of them by default
+    expect(easyReset(s, laptop, NONE).changes).toEqual(["private", "screen", "voice", "quality", "language", "startup"]);
+    // a hidden control that moves along with a shown one (Faster made the screen switch read off) is not listed
+    const faster: EasySnapshot = { ...fresh(), local: { ...fresh().local, setup: "lite" } };
+    expect(easyReset(faster, laptop, NONE).changes).toEqual(["screen", "quality"]);
+    expect(easyReset(faster, laptop, NONE, ["quality", "language"]).changes).toEqual(["quality"]);
+  });
+
   it("off without an online service set up: says so and writes nothing", () => {
     expect(easyPatch("private", "off", fresh(), laptop, NONE)).toEqual({ ok: false, needs: "online-service" });
     expect(easyView(fresh(), laptop, NONE).private.onlineReady).toBe(false);
@@ -220,8 +241,23 @@ describe("Look at my screen", () => {
     expect(easyView(on, small, NONE).screen.slow).toBe(true);
   });
 
+  it("turning Keep it on this PC off never starts sending the screen: a switch that read off stays off, as the user's choice", () => {
+    // not chosen yet, reading off on this PC: online answers would take the screen by default
+    expect(easyRead({ ...fresh(), okFilow: { ...fresh().okFilow, provider: "cloud" } }, small).screen).toBe("on");
+    expect(easyPatch("private", "off", fresh(), small, BOTH)).toEqual({ ok: true, patch: { okFilow: { provider: "cloud", seeScreen: "off" } } });
+    const online = apply(fresh(), "private", "off", small);
+    expect(easyRead(online, small).screen).toBe("off");
+    expect(easyView(online, small, BOTH).screen.leaves).toBe(false);
+    // the user turns it on with its own switch, and that holds
+    expect(easyRead(apply(online, "screen", "on", small), small).screen).toBe("on");
+    // where the switch already read on, nothing about the screen is written
+    expect(easyPatch("private", "off", fresh(), laptop, BOTH)).toEqual({ ok: true, patch: { okFilow: { provider: "cloud" } } });
+    // and a choice already made is left alone
+    expect(easyPatch("private", "off", apply(fresh(), "screen", "on", small), small, BOTH)).toEqual({ ok: true, patch: { okFilow: { provider: "cloud" } } });
+  });
+
   it("follows where answers come from and a pinned setup while the user has not chosen", () => {
-    const onlineAnswers = apply(fresh(), "private", "off", small);
+    const onlineAnswers: EasySnapshot = { ...fresh(), okFilow: { ...fresh().okFilow, provider: "cloud" } };
     expect(easyRead(onlineAnswers, small).screen).toBe("on");
     expect(easyPatch("screen", "off", onlineAnswers, small, BOTH)).toEqual({ ok: true, patch: { okFilow: { seeScreen: "off" } } });
     // Balanced pinned in Advanced on a small PC reads pictures; Faster pinned on a laptop does not
@@ -379,7 +415,7 @@ describe("the other controls", () => {
 
 describe("a patch stays inside its control's own settings", () => {
   const ALLOWED: Record<EasyControl, string[]> = {
-    private: ["okFilow.provider", "okFilow.voice", "okFilow.voiceChosen", "local.startMode", "local.translateWhere"],
+    private: ["okFilow.provider", "okFilow.voice", "okFilow.voiceChosen", "okFilow.seeScreen", "local.startMode", "local.translateWhere"],
     screen: ["okFilow.seeScreen"],
     voice: ["okFilow.voice", "okFilow.voiceChosen"],
     dictation: ["dictation.enabled"],

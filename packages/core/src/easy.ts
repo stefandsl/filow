@@ -36,7 +36,12 @@ export type EasySnapshot = {
  * `naturalVoice`: the natural voice was speaking on this PC, so "Answer out loud" puts it back
  * (without it the PC's own voice is written and the natural one takes over when it can).
  */
-export type EasyCaps = { online: { openrouter: boolean; freellm: boolean }; naturalVoice?: boolean };
+export type EasyCaps = {
+  online: { openrouter: boolean; freellm: boolean };
+  naturalVoice?: boolean;
+  /** where answers came from the last time they were online: turning "Keep it on this PC" off goes back there */
+  lastOnline?: "cloud" | "freellm";
+};
 
 export type EasyState = {
   private: EasySwitch | "custom";
@@ -233,8 +238,15 @@ export function easyPatch<C extends EasyControl>(control: C, value: EasyValue[C]
           local: { startMode: s.local.startMode === "local" ? "local" : "auto", translateWhere: "local" },
         });
       }
-      const provider = caps.online.openrouter ? "cloud" : caps.online.freellm ? "freellm" : null;
-      return provider ? done({ okFilow: { provider } }) : { ok: false, needs: "online-service" };
+      // the service the user had before, while it is still set up; else the one that is
+      const ready = { cloud: caps.online.openrouter, freellm: caps.online.freellm };
+      const provider = caps.lastOnline && ready[caps.lastOnline] ? caps.lastOnline : ready.cloud ? "cloud" : ready.freellm ? "freellm" : null;
+      if (!provider) return { ok: false, needs: "online-service" };
+      // "Look at my screen" not chosen yet and reading off (this PC answers from the words alone): it
+      // stays off. Online answers would take the screen by default, and one click here must not
+      // start sending pictures of the screen; the user turns that on with its own switch.
+      const keepScreenOff = !seesScreen(s, m);
+      return done({ okFilow: { provider, ...(keepScreenOff ? { seeScreen: "off" as const } : {}) } });
     }
     case "screen":
       // the user's own choice, written as such: it holds when the setup or where answers come from changes later
@@ -273,12 +285,14 @@ export function easyRecommended(m: MachineInfo): EasyState {
 /**
  * "Reset to recommended": the writes that put all eight controls back, and the controls that will
  * change (the page lists them before doing it). Consent, keys and Advanced-only settings are not touched.
+ * `controls`: the ones the page shows; a control it does not show is neither written nor listed.
  */
-export function easyReset(s: EasySnapshot, m: MachineInfo, caps: EasyCaps): { patch: EasyPatch; changes: EasyControl[] } {
+export function easyReset(s: EasySnapshot, m: MachineInfo, caps: EasyCaps, controls: readonly EasyControl[] = EASY_CONTROLS): { patch: EasyPatch; changes: EasyControl[] } {
   const want = easyRecommended(m);
   const patch: EasyPatch = {};
   let now = s;
   for (const control of EASY_CONTROLS) {
+    if (!controls.includes(control)) continue;
     // the screen choice goes back to "auto" (the setup decides again), whatever the switch reads now
     const step: EasyPatchResult = control === "screen" ? { ok: true, patch: onlyChanges(now, { okFilow: { seeScreen: "auto" } }) } : easyPatch(control, want[control] as never, now, m, caps);
     if (!step.ok) continue;
@@ -287,12 +301,12 @@ export function easyReset(s: EasySnapshot, m: MachineInfo, caps: EasyCaps): { pa
   }
   // what the user will see change: one write can move two controls (an online voice shows on two)
   const before = easyRead(s, m), after = easyRead(now, m);
-  const changes = EASY_CONTROLS.filter((c) => before[c] !== after[c] || (c === "screen" && s.okFilow.seeScreen !== now.okFilow.seeScreen));
+  const changes = EASY_CONTROLS.filter((c) => controls.includes(c) && (before[c] !== after[c] || (c === "screen" && s.okFilow.seeScreen !== now.okFilow.seeScreen)));
   return { patch, changes };
 }
 
 /** Everything the Easy page shows: the state, the recommendation, and what each control can do here. */
-export function easyView(s: EasySnapshot, m: MachineInfo, caps: EasyCaps): EasyView {
+export function easyView(s: EasySnapshot, m: MachineInfo, caps: EasyCaps, controls: readonly EasyControl[] = EASY_CONTROLS): EasyView {
   const state = easyRead(s, m);
   const recommended = easyRecommended(m);
   const setup = resolveSetup(s.local.setup, m);
@@ -306,7 +320,7 @@ export function easyView(s: EasySnapshot, m: MachineInfo, caps: EasyCaps): EasyV
   return {
     state,
     recommended,
-    changed: easyReset(s, m, caps).changes,
+    changed: easyReset(s, m, caps, controls).changes,
     private: { differences: s.okFilow.provider === "local" ? privateDifferences(s) : [], localAnswers: setup.choices.screenHelper.mode !== "none", onlineReady: caps.online.openrouter || caps.online.freellm },
     screen: { slow: s.okFilow.provider === "local" && helper.mode === "text", leaves: state.screen === "on" && s.okFilow.provider !== "local" },
     tidy: { usable: s.dictation.enabled },

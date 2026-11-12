@@ -383,6 +383,10 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     const auto = new URLSearchParams(window.location.search).get("auto");
     if (!auto) return;
     setAutoDone(true);
+    // one start per click: the list leaves the address, so a reload or Back after Stop does not start the downloads again
+    const here = new URL(window.location.href);
+    here.searchParams.delete("auto");
+    window.history.replaceState(window.history.state, "", here);
     const wanted = auto.split(",").map((x) => x.trim()).filter(Boolean);
     setAutoList(wanted);
     (async () => {
@@ -459,9 +463,9 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
 
   // Links to /settings/local#setup (start dialog, take chip): the section renders after the status loads.
   useEffect(() => {
-    if (status && window.location.hash === "#setup") document.getElementById("setup")?.scrollIntoView({ block: "start" });
-    // a download started from the Easy page (?auto=...#models): show the list where it runs and can be stopped
-    if (status && window.location.hash === "#models") document.getElementById("models")?.scrollIntoView({ block: "start" });
+    // also #models (a download started from the Easy page: the list where it runs and can be stopped) and #freellm (where a key is added)
+    const section = window.location.hash.slice(1);
+    if (status && /^[a-z]+$/.test(section)) document.getElementById(section)?.scrollIntoView({ block: "start" });
   }, [status]);
 
   const choose = (id: DecisionProviderId | "") => {
