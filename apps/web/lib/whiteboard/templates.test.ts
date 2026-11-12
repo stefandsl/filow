@@ -177,7 +177,15 @@ describe("tryTemplate", () => {
     expect(says[3]).toBe(facts[3]);
     expect((events[0] as Extract<LessonEvent, { type: "diagram" }>).result).toBe("I = 3 A");
     expect(keepsNumbers("1000 at 10%", "1,000 al 10%")).toBe(true);
-  });  it("leaves the lesson to the plan path when no template fits", async () => {
+  });  it("draws a concept it has reference facts for even when the model picks no template", async () => {
+    const events: LessonEvent[] = [];
+    const ok = await tryTemplate(async () => JSON.stringify({ template: "map", title: "The Krebs cycle" }), { question: "The Krebs cycle in outline", lang: "en", maxSteps: 7, templates: true }, (e) => events.push(e));
+    expect(ok).toBe(true);
+    const d = (events[0] as Extract<LessonEvent, { type: "diagram" }>).diagram;
+    expect(d.template).toBe("cycle");
+    expect((d as Extract<Diagram, { template: "cycle" }>).items).toEqual(KREBS.items);
+  });
+  it("leaves the lesson to the plan path when no template fits", async () => {
     const { ok, events } = await run("en", [JSON.stringify({ template: "map", title: "x" })]);
     expect(ok).toBe(false);
     expect(events).toEqual([]);

@@ -6,7 +6,7 @@ import katex from "katex";
 import { BUDDY_LANG_NAMES, type BuddyLang } from "@/lib/buddy/lang";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { checkArithmetic } from "./plot";
-import { TEMPLATE_GUIDE, TEMPLATE_SCHEMA, readDiagram, workedExample, type Diagram } from "./templates";
+import { TEMPLATE_GUIDE, TEMPLATE_SCHEMA, readDiagram, referenceDiagram, workedExample, type Diagram } from "./templates";
 import { LIMITS, cleanText, contextOf, lessonContextText, lessonNodes, makeStep, newContext, outlineSchema, parseJsonLoose, slug, validateLesson, validateOutline, type ExplanationKind, type Lesson, type LessonItem, type LessonStep, type Scene } from "./lesson";
 
 export type LessonEvent =
@@ -379,7 +379,8 @@ export async function tryTemplate(ask: Ask, req: LessonRequest, emit: (e: Lesson
     if (e instanceof StallError) return false;
     throw e;
   }
-  const diagram = readDiagram(raw, cleanText(req.question, LIMITS.title));
+  // a concept the board has reference facts for is drawn from them when the model's pick is unusable
+  const diagram = readDiagram(raw, cleanText(req.question, LIMITS.title)) ?? referenceDiagram(req.question, cleanText((raw as { title?: unknown } | undefined)?.title, LIMITS.title) || cleanText(req.question, LIMITS.title));
   if (!diagram) return false;
   const worked = workedExample(diagram);
   const facts = worked.facts.slice(0, LIMITS.steps);

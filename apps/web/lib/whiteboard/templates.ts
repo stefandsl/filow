@@ -855,3 +855,10 @@ export function sceneFromDiagram(d: Diagram, says: string[], upto: number, _resu
   const all = [...els, ...o.els, ...badges].sort((a, b) => (a.customData?.wb?.step ?? 0) - (b.customData?.wb?.step ?? 0));
   return { elements: all.filter((e) => (e.customData?.wb?.step ?? 0) <= upto), files: {} };
 }
+
+/** The reference picture of a concept the board knows (the Krebs cycle, photosynthesis), from the question alone; null otherwise. */
+export function referenceDiagram(question: string, title: string): Diagram | null {
+  if (isKrebs(question)) return referenceCycle({ template: "cycle", title, items: [], byproducts: [], center: title }, question);
+  if (isPhotosynthesis(question)) return referenceProcess({ template: "process", title, process: title, inputs: [], outputs: [], equation: "" }, question);
+  return null;
+}
