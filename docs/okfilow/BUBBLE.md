@@ -46,12 +46,15 @@ replace the old words at once.
   marks (`escapePlan`). So a second Esc after a stop closes what the first one left.
 - The close button (top right corner of the bubble, named "Close the answer" in the five languages)
   closes the bubble on every screen, and the answer's marks with it.
-- An answer's marks (boxes, circles, arrows, underlines and their labels) belong to the answer and
-  never outlive it (`okfilow-stop.js` `createMarks`, `marksHold`): they go when the bubble goes,
-  however it went (by itself, Esc, the close button), and when there is no bubble (an answer without
-  words) 4 s after the answer ended. They stay while the answer runs or is paused. A new question,
-  the talk keys, Esc and the panel's Clear wipe them at once. Resume after Stop draws them again.
-  They used to stay until Esc: boxes were left on the desktop long after the answer.
+- An answer's marks (boxes, circles, arrows, underlines and their labels) last as long as they are
+  being told, and never outlive the answer (`okfilow-stop.js` `createMarks`, `marksHold`). They stay
+  while the answer is spoken or paused. Then they go after a short hold: 4 s after the voice, 8 s
+  when nothing was spoken. They go sooner: at once on Stop (Resume draws them again) and on an
+  error; when the bubble is closed (Esc, the close button, its own time); at the first click
+  anywhere but on the bubble or the pill once the answer has ended (the screen may have changed
+  under them; this needs the keyboard and mouse hook). A new question, the talk keys, Esc and the
+  panel's Clear wipe them at once. They used to stay until Esc: boxes were left on the desktop long
+  after the answer. A change of the window in front is not watched: Filow has no hook for it.
 - Cards (a photo, a drawing) are the answer itself and stay until Esc, Clear or the next question.
 - When the bubble has gone the overlays go a second later, unless cards are kept or the
   pointer is always shown. The pointer's visits to the things an answer points at keep the overlays

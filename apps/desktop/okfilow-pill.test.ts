@@ -43,6 +43,21 @@ describe("the eye closed means no picture of the screen, whoever asks", () => {
     expect(main).toMatch(/await screenSources\(want, async \(\) => \{[^}]*desktopCapturer\.getSources/);
   });
 
+  it("picking a voice is remembered as the user's pick; only an explicit voiceChosen: false hands the voice back to automatic", () => {
+    expect(DEFAULTS.voiceChosen === true).toBe(false);
+    const picked = nextCfg(DEFAULTS, { voice: "system" });
+    expect(picked.voiceChosen).toBe(true);
+    // other changes, and a patch that does not mention it, keep the pick
+    expect(nextCfg(picked, { color: "#ffffff" }).voiceChosen).toBe(true);
+    expect(nextCfg(picked, { voice: "natural" }).voiceChosen).toBe(true);
+    expect(nextCfg(picked, { voice: "natural", voiceChosen: undefined }).voiceChosen).toBe(true);
+    // the Easy page: "Answer out loud" back on, the voice automatic again
+    expect(nextCfg(picked, { voice: "system", voiceChosen: false }).voiceChosen).toBe(false);
+    expect(nextCfg(picked, { voiceChosen: false }).voiceChosen).toBe(false);
+    // with a voice named, only `false` itself un-picks: any other value is a pick
+    expect(nextCfg(DEFAULTS, { voice: "off", voiceChosen: "no" }).voiceChosen).toBe(true);
+  });
+
   it("the choice is stored, survives every other settings change, and nothing but the user turns it back", () => {
     const closed = nextCfg(DEFAULTS, { seeScreen: "off" });
     expect(closed.seeScreen).toBe("off");
@@ -240,7 +255,7 @@ describe("the shortcuts and the talk keys", () => {
     }
   });
 
-  it("Ctrl+Alt held longer than a quarter of a second before Shift: talk starts, and adding Shift ends it at once", () => {
+  it("Ctrl+Alt held longer than a quarter of a second before Shift: talk starts, and adding Shift cancels it at once", () => {
     g.keydown("ctrl"); g.keydown("alt");
     vi.advanceTimersByTime(300);
     expect(events).toEqual(["talk:start"]);
@@ -249,8 +264,8 @@ describe("the shortcuts and the talk keys", () => {
     g.keydown(null);
     g.keyup(null); g.keyup("shift"); g.keyup("alt"); g.keyup("ctrl");
     vi.advanceTimersByTime(1000);
-    // The question ends there, as if the keys had been let go; the shortcut's own key adds nothing.
-    expect(afterShift).toEqual(["talk:start", "talk:end"]);
+    // The question is cancelled there (a shortcut, not a question: nothing is sent to be answered); the shortcut's own key adds nothing.
+    expect(afterShift).toEqual(["talk:start", "talk:cancel"]);
     expect(events).toEqual(afterShift);
   });
 });

@@ -90,7 +90,9 @@ function nextCfg(was, patch) {
   if (next.provider !== "cloud" && next.provider !== "freellm") next.provider = "local";
   if (!["natural", "cloud", "off"].includes(next.voice)) next.voice = "system";
   // Until the user picks a voice, the natural one speaks as soon as its model is on this PC (status()).
-  next.voiceChosen = next.voiceChosen === true || (!!patch && "voice" in patch);
+  // A patch that says `voiceChosen: false` in so many words hands the voice back to automatic (the
+  // Easy page's "Answer out loud"), even when it names a voice; any other change of voice is a pick.
+  next.voiceChosen = patch && patch.voiceChosen === false ? false : next.voiceChosen === true || (!!patch && "voice" in patch);
   next.naturalVoice = Math.min(9, Math.max(0, Math.round(Number(next.naturalVoice)) || 0));
   if (!/^#[0-9a-f]{6}$/i.test(String(next.color))) next.color = DEFAULTS.color;
   next.speed = Math.min(1.5, Math.max(0.75, Number(next.speed) || 1));
@@ -195,7 +197,7 @@ function createOkFilow(deps) {
       if (mode === "idle" || mode === "error") scheduleFade();
     },
   });
-  // ---- an answer's marks (okfilow-stop.js createMarks): they go with the bubble, never stay behind ----
+  // ---- an answer's marks (okfilow-stop.js createMarks): they last as long as they are told, plus a short hold ----
   const answerMarks = createMarks({
     clear: (why) => {
       logLine(`okfilow: marks cleared (${why})`);
@@ -206,7 +208,12 @@ function createOkFilow(deps) {
   /** The bubble's close button (an overlay). */
   ipcMain.on("okfilow:bubble:close", (e) => { if (ourSender(e)) bubble.close("button"); });
   /** The sentence the voice is on (the panel knows): the overlays keep it in view. */
-  ipcMain.on("okfilow:spoken", (e, n) => { if (ourSender(e)) sendOverlays("okfilow:spoken", Number.isInteger(n) ? n : -1); });
+  ipcMain.on("okfilow:spoken", (e, n) => {
+    if (!ourSender(e)) return;
+    sendOverlays("okfilow:spoken", Number.isInteger(n) ? n : -1);
+    // The voice is telling the answer: its marks get the short hold after it, not the longer one of an answer that is only read.
+    if (Number.isInteger(n) && n >= 0) answerMarks.set({ spoken: true });
+  });
 
   // ---- going outside (okfilow-outbound.js, docs/okfilow/OUTBOUND.md) ----
   // While anything carrying the user's content is in flight, the overlays and the panel say so and
@@ -496,7 +503,7 @@ function createOkFilow(deps) {
     if (typeof extra.sees === "boolean") asksSee = extra.sees;
     // The pill's controls take the mouse only while the pill has any (okfilow-stop.js pillLive).
     bubble.setMode(mode, extra);
-    answerMarks.set({ mode, bubbleOpen: bubble.open() });
+    answerMarks.set({ mode, stopped: extra.stopped === true });
     if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
     for (const w of overlays.values()) applyMouse(w);
     if (next === "listening" && purpose === "dictate") dictation.diag.mark("listening", {}, { once: true });
@@ -881,6 +888,9 @@ function createOkFilow(deps) {
         for (const ev of ["unlock-screen", "resume"]) powerMonitor.on(ev, () => hookRetry.nudge());
       }
       uIOhook.on("mousedown", () => {
+        // A click anywhere but on the bubble or the pill, once the answer has ended: the screen may
+        // have changed under the marks, so they go (while the answer is told they stay).
+        if (!bubbleHover.size && !stopHover.size) answerMarks.screenChanged();
         gestures.mousedown();
         dictation.userMoved();
         if (phraseRun) phraseRun.moved(); // a click may have moved the caret
@@ -1031,7 +1041,6 @@ function createOkFilow(deps) {
     sendOverlays("okfilow:text", t);
     const was = bubble.open();
     bubble.setText(t);
-    answerMarks.set({ bubbleOpen: bubble.open() });
     if (was !== bubble.open()) {
       // The bubble came or went under a pointer that may stand still: the mouse rule follows it.
       if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();

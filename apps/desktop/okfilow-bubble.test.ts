@@ -6,7 +6,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { keepsOverlays, MARKS_ALONE_MS, marksHold, createMarks, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, bubbleHold, createBubble, escapePlan, overlayLive, overlayMouse } = require("./okfilow-stop.js");
+const { keepsOverlays, MARKS_HOLD_MS, MARKS_UNSPOKEN_MS, marksHold, createMarks, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, bubbleHold, createBubble, escapePlan, overlayLive, overlayMouse } = require("./okfilow-stop.js");
 const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 const main = fs.readFileSync(path.join(here, "okfilow.js"), "utf8").replace(/\r\n/g, "\n");
 const preload = fs.readFileSync(path.join(here, "okfilow-preload.js"), "utf8").replace(/\r\n/g, "\n");
@@ -364,39 +364,115 @@ describe("an answer's marks never outlive the answer", () => {
     return { marks, cleared, timers, fire };
   }
 
-  it("they stay while the question is heard or answered, while paused and while the bubble is there; else four seconds", () => {
-    for (const mode of ["listening", "thinking", "speaking"]) expect(marksHold({ mode, bubbleOpen: false, paused: false })).toBeNull();
-    expect(marksHold({ mode: "idle", bubbleOpen: true, paused: false })).toBeNull();
-    expect(marksHold({ mode: "idle", bubbleOpen: false, paused: true })).toBeNull();
-    expect(marksHold({ mode: "idle", bubbleOpen: false, paused: false })).toBe(MARKS_ALONE_MS);
-    expect(marksHold({ mode: "error", bubbleOpen: false, paused: false })).toBe(4000);
+  it("they stay while they are told (heard, answered, paused); then a short hold: 4 s after the voice, 8 s unspoken; none after Stop or an error", () => {
+    for (const mode of ["listening", "thinking", "speaking"]) expect(marksHold({ mode, paused: false, stopped: false, spoken: true })).toBeNull();
+    expect(marksHold({ mode: "idle", paused: true, stopped: false, spoken: true })).toBeNull();
+    expect(marksHold({ mode: "idle", paused: false, stopped: false, spoken: true })).toBe(4000);
+    expect(marksHold({ mode: "idle", paused: false, stopped: false, spoken: false })).toBe(8000);
+    expect(marksHold({ mode: "idle", paused: false, stopped: true, spoken: true })).toBe(0);
+    expect(marksHold({ mode: "error", paused: false, stopped: false, spoken: true })).toBe(0);
+    expect([MARKS_HOLD_MS, MARKS_UNSPOKEN_MS]).toEqual([4000, 8000]);
   });
 
-  it("the answer ends and its bubble closes by itself: the marks go with it, once", () => {
+  it("a spoken answer: the marks stay through the voice and go 4 s after it, once", () => {
     const h = marksHarness();
-    h.marks.set({ mode: "speaking", bubbleOpen: true });
+    h.marks.set({ mode: "thinking" });
     h.marks.drawn(box);
-    h.marks.set({ mode: "idle" });
-    expect(h.timers.size).toBe(0); // the bubble is still there: no clock of their own
-    expect(h.marks.drop("bubble timer")).toBe(true);
-    expect(h.cleared).toEqual(["bubble timer"]);
-    expect(h.marks.up()).toBe(false);
-    expect(h.marks.drop("bubble timer")).toBe(false);
-    expect(h.cleared).toHaveLength(1);
-  });
-
-  it("marks with no bubble (an answer with no words, the voice off) go four seconds after the answer ended", () => {
-    const h = marksHarness();
-    h.marks.set({ mode: "thinking", bubbleOpen: false });
-    h.marks.drawn(box);
+    h.marks.set({ mode: "speaking" });
+    h.marks.set({ spoken: true }); // the voice says its first sentence
     expect(h.timers.size).toBe(0);
     h.marks.set({ mode: "idle" });
     expect(h.timers.size).toBe(1);
     expect(h.fire()).toBe(4000);
     expect(h.cleared).toEqual(["timer"]);
+    expect(h.marks.up()).toBe(false);
+    expect(h.marks.drop("bubble timer")).toBe(false); // the bubble's own end finds nothing left to wipe
+    expect(h.cleared).toHaveLength(1);
   });
 
-  it("a pause, or a bubble that comes back, stops their clock; a new question forgets them without a second wipe", () => {
+  it("an answer that is not spoken (the voice off) keeps them 8 s; the next question starts unspoken again", () => {
+    const h = marksHarness();
+    h.marks.set({ mode: "speaking" });
+    h.marks.set({ spoken: true });
+    h.marks.set({ mode: "idle" });
+    h.marks.set({ mode: "thinking" });
+    h.marks.drawn([]);
+    h.marks.set({ mode: "speaking" }); // shown without the voice: the mode alone does not make it spoken
+    h.marks.drawn(box);
+    h.marks.set({ mode: "idle" });
+    expect(h.fire()).toBe(8000);
+    expect(h.cleared).toEqual(["timer"]);
+  });
+
+  it("Stop wipes them at once; Resume draws them again and they last through the rest", () => {
+    const h = marksHarness();
+    h.marks.set({ mode: "speaking" });
+    h.marks.set({ spoken: true });
+    h.marks.drawn(box);
+    h.marks.set({ mode: "idle", stopped: true });
+    expect(h.cleared).toEqual(["stopped"]);
+    expect(h.timers.size).toBe(0);
+    // Resume: the panel draws first, then says "speaking"
+    h.marks.drawn(box);
+    expect(h.marks.up()).toBe(true);
+    h.marks.set({ mode: "speaking" });
+    expect(h.timers.size).toBe(0);
+    h.marks.set({ mode: "idle" });
+    expect(h.fire()).toBe(4000);
+    expect(h.cleared).toEqual(["stopped", "timer"]);
+  });
+
+  it("an error wipes them at once", () => {
+    const h = marksHarness();
+    h.marks.set({ mode: "thinking" });
+    h.marks.drawn(box);
+    h.marks.set({ mode: "error" });
+    expect(h.cleared).toEqual(["error"]);
+  });
+
+  it("the bubble closed (Escape, its button, its own time) wipes them even inside the hold", () => {
+    const h = marksHarness();
+    h.marks.set({ mode: "thinking" });
+    h.marks.drawn(box);
+    h.marks.set({ mode: "idle" });
+    expect(h.marks.drop("bubble button")).toBe(true);
+    expect(h.cleared).toEqual(["bubble button"]);
+    expect(h.timers.size).toBe(0);
+  });
+
+  it("marks shown again with nothing running (Show again), even after the bubble closed, still get a hold: never for ever", () => {
+    const h = marksHarness();
+    h.marks.set({ mode: "speaking" });
+    h.marks.drawn(box);
+    h.marks.set({ mode: "idle" });
+    h.marks.drop("bubble timer");
+    h.marks.drawn(box);
+    expect(h.timers.size).toBe(1);
+    h.fire();
+    expect(h.cleared).toEqual(["bubble timer", "timer"]);
+    // and after a stopped answer
+    h.marks.set({ mode: "idle", stopped: true });
+    h.marks.drawn(box);
+    expect(h.marks.up()).toBe(true);
+    expect(h.timers.size).toBe(1);
+  });
+
+  it("a click while they are told leaves them; a click after the answer ended wipes them (the screen may have changed)", () => {
+    const h = marksHarness();
+    h.marks.set({ mode: "speaking" });
+    h.marks.drawn(box);
+    expect(h.marks.screenChanged()).toBe(false);
+    h.marks.set({ paused: true });
+    h.marks.set({ mode: "idle" });
+    expect(h.marks.screenChanged()).toBe(false); // paused: still being told
+    h.marks.set({ paused: false });
+    expect(h.marks.screenChanged()).toBe(true);
+    expect(h.cleared).toEqual(["click"]);
+    expect(h.timers.size).toBe(0);
+    expect(h.marks.screenChanged()).toBe(false);
+  });
+
+  it("a pause stops their clock; a new question forgets them without a second wipe", () => {
     const h = marksHarness();
     h.marks.drawn(box);
     expect(h.timers.size).toBe(1);
@@ -404,12 +480,10 @@ describe("an answer's marks never outlive the answer", () => {
     expect(h.timers.size).toBe(0);
     h.marks.set({ paused: false });
     expect(h.timers.size).toBe(1);
-    h.marks.set({ bubbleOpen: true });
-    expect(h.timers.size).toBe(0);
     h.marks.forget();
     expect(h.marks.up()).toBe(false);
-    h.marks.set({ bubbleOpen: false });
     expect(h.timers.size).toBe(0);
+    h.marks.set({ mode: "idle" });
     expect(h.cleared).toEqual([]);
   });
 
@@ -420,7 +494,7 @@ describe("an answer's marks never outlive the answer", () => {
     expect(h.timers.size).toBe(0);
   });
 
-  it("the shell wires it: the bubble's end (timer, Escape, close button) wipes the marks on every overlay", () => {
+  it("the shell wires it: the mode with Stop, the pause, the bubble's end and a click all reach the rule, and a wipe reaches every overlay", () => {
     const at = main.indexOf("const bubble = createBubble({");
     expect(main.slice(at, main.indexOf("\n  });\n", at))).toContain("answerMarks.drop(`bubble ${why}`);");
     const made = main.slice(main.indexOf("const answerMarks = createMarks({"), main.indexOf("/** The bubble's close button"));
@@ -428,10 +502,11 @@ describe("an answer's marks never outlive the answer", () => {
     expect(made).toContain('if (mode === "idle" || mode === "error") scheduleFade();');
     const draw = main.slice(main.indexOf('ipcMain.on("okfilow:draw"'));
     expect(draw.slice(0, draw.indexOf("\n  });\n"))).toContain("answerMarks.drawn(marks);");
-    // the mode, the bubble and the pause all reach the rule
-    expect(main).toContain("answerMarks.set({ mode, bubbleOpen: bubble.open() });");
-    expect(main).toContain("answerMarks.set({ bubbleOpen: bubble.open() });");
+    expect(main).toContain("answerMarks.set({ mode, stopped: extra.stopped === true });");
     expect(main).toContain("answerMarks.set({ paused: pill.paused });");
+    expect(main).toContain("if (Number.isInteger(n) && n >= 0) answerMarks.set({ spoken: true });");
+    // a click on the bubble or the pill is not a change of the screen
+    expect(main).toContain("if (!bubbleHover.size && !stopHover.size) answerMarks.screenChanged();");
     // Escape, Clear and the talk keys wipe everything, cards too
     const clear = main.slice(main.indexOf("function clearDrawings()"), main.indexOf("// ---- keyboard gestures"));
     expect(clear).toContain("answerMarks.forget();");

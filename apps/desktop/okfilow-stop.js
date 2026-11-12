@@ -168,23 +168,31 @@ const POINT = { flyMs: 650, nextMs: 1800, holdMs: 5500 };
 const pointsShowMs = (count) => (count > 0 ? (count - 1) * (POINT.flyMs + POINT.nextMs) + POINT.flyMs + POINT.holdMs : 0);
 
 /**
- * How long an answer's marks (boxes, circles, arrows, underlines and their labels) stay when no
- * bubble is there to go with: null while they must stay (a question is being heard or answered, the
- * answer is paused, or its bubble is still on screen: the marks then go with the bubble).
+ * How long an answer's marks (boxes, circles, arrows, underlines and their labels) stay: null while
+ * they are being told (a question is being heard or answered, or the answer is paused); then a short
+ * hold, 4 s after the voice and 8 s when nothing was spoken (the marks are all there is to look at);
+ * at once when the answer was stopped or failed.
  */
-const MARKS_ALONE_MS = 4000;
-const marksHold = ({ mode, bubbleOpen, paused }) => ((mode !== "idle" && mode !== "error") || paused || bubbleOpen ? null : MARKS_ALONE_MS);
+const MARKS_HOLD_MS = 4000;
+const MARKS_UNSPOKEN_MS = 8000;
+function marksHold({ mode, paused, stopped, spoken }) {
+  if ((mode !== "idle" && mode !== "error") || paused) return null;
+  if (mode === "error" || stopped) return 0;
+  return spoken ? MARKS_HOLD_MS : MARKS_UNSPOKEN_MS;
+}
 
 /**
- * The life of an answer's marks, for the main process. They belong to the answer: they go when its
- * bubble goes (by itself, with Escape or with its close button) and, when there is no bubble, a few
- * seconds after the answer ended. They used to stay until Escape, so boxes and labels were left on
- * the desktop long after the answer. `clear(why)` is called once each time they must be wiped.
+ * The life of an answer's marks, for the main process. They belong to what is being said: they stay
+ * while the answer is spoken, and go a short hold after it ended, or sooner: at once on Stop or an
+ * error, when the bubble is closed (Escape, its close button, its own time), and at the user's first
+ * click once the answer has ended (the screen may have changed under them). They used to stay until
+ * Escape, so boxes and labels were left on the desktop long after the answer. `clear(why)` is called
+ * once each time they must be wiped.
  */
 function createMarks({ clear, setTimer = setTimeout, clearTimer = clearTimeout } = {}) {
   let up = false;
   let timer = null;
-  let state = { mode: "idle", bubbleOpen: false, paused: false };
+  let state = { mode: "idle", paused: false, stopped: false, spoken: false };
   const cancel = () => { if (timer !== null) clearTimer(timer); timer = null; };
   function drop(why) {
     cancel();
@@ -197,15 +205,30 @@ function createMarks({ clear, setTimer = setTimeout, clearTimer = clearTimeout }
     cancel();
     if (!up) return;
     const ms = marksHold(state);
-    if (ms !== null) timer = setTimer(() => { timer = null; drop("timer"); }, ms);
+    if (ms === 0) drop(state.mode === "error" ? "error" : "stopped");
+    else if (ms !== null) timer = setTimer(() => { timer = null; drop("timer"); }, ms);
   }
   return {
     /** Marks are on screen. */
     up: () => up,
-    /** The panel drew this list (an empty one draws nothing and keeps nothing). */
-    drawn(list) { up = keepsOverlays(list); plan(); },
-    /** The mode, whether the bubble is open, whether the answer is paused: any of them. */
-    set(next) { state = { ...state, ...next }; plan(); },
+    /** The panel drew this list (an empty one draws nothing and keeps nothing). Marks shown with nothing running (Show again) get the hold. */
+    drawn(list) {
+      up = keepsOverlays(list);
+      if (state.mode === "idle" || state.mode === "error") state = { ...state, mode: "idle", stopped: false };
+      plan();
+    },
+    /**
+     * The mode with what the panel said about it (`stopped`), the pause, or `spoken: true` when the
+     * voice says a sentence (the mode alone does not tell: an answer shown without the voice passes
+     * through "speaking" too). A new question starts unspoken.
+     */
+    set(next) {
+      const fresh = next.mode === "listening" || next.mode === "thinking";
+      state = { ...state, ...next, spoken: fresh ? false : next.spoken === true || state.spoken, stopped: "mode" in next ? next.stopped === true : state.stopped };
+      plan();
+    },
+    /** The user clicked somewhere: once the answer has ended the screen may have changed, so the marks go. While it is told they stay. */
+    screenChanged() { return marksHold(state) === null ? false : drop("click"); },
     /** The bubble went (`why`), or the marks must go for another reason: wipes them. True when there were any. */
     drop,
     /** They were wiped by someone else (Escape, Clear, a new question). */
@@ -274,4 +297,4 @@ function bindKey(shortcuts, was, choice, handler, { inputOff = false } = {}) {
   return { choice, accelerator: ok ? acc : null, state: ok ? "ok" : "taken" };
 }
 
-module.exports = { keepsOverlays, MARKS_ALONE_MS, marksHold, createMarks, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, bubbleHold, createBubble, escapePlan, overlayLive, answering, overlayMouse,seeChoice, wordsOnlyList, pillState, pillLive, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, accelerator, bindKey };
+module.exports = { keepsOverlays, MARKS_HOLD_MS, MARKS_UNSPOKEN_MS, marksHold, createMarks, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, bubbleHold, createBubble, escapePlan, overlayLive, answering, overlayMouse,seeChoice, wordsOnlyList, pillState, pillLive, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, accelerator, bindKey };
