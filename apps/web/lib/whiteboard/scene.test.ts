@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import cloud from "./fixtures/cloud-r3.json";
 import { layoutBoard } from "./layout";
 import { validateLesson, type Lesson } from "./lesson";
-import { sceneFromLayout, stepOf, type ExEl } from "./scene";
+import { fitLabel, handWidth, sceneFromLayout, stepOf, type ExEl } from "./scene";
 import { texToText } from "./tex";
 import { applyEdits, applyOps, cameraFor, diffEdits, excalidrawFile, noEdits, parseExcalidrawFile, readScene } from "./doc";
-import { checkScene, countProblems, fixOps } from "./check";
+import { brokenWord, checkScene, countProblems, fixOps } from "./check";
 
 const lessons = (cloud as Array<{ question: string; lesson: unknown }>).map((r) => validateLesson(r.lesson, { maxSteps: 12, sketch: true })).filter((l): l is Lesson => Boolean(l));
 const sceneOf = (l: Lesson, upto = l.steps.length - 1) => sceneFromLayout(layoutBoard(l, upto, "wide"));
@@ -62,6 +62,13 @@ describe("sceneFromLayout", () => {
       const steps = elements.map(stepOf);
       for (let i = 1; i < steps.length; i++) expect(steps[i]).toBeGreaterThanOrEqual(steps[i - 1]);
     }
+  });
+
+  it("draws an arrow only after both its boxes, whatever order the model wrote them in", () => {
+    const l = validateLesson({ title: "T", scene: "flow", steps: [{ say: "A feeds B.", items: [{ kind: "node", id: "a", text: "A" }, { kind: "edge", from: "a", to: "b", text: "feeds" }, { kind: "node", id: "b", text: "B" }] }] })!;
+    const ids = sceneOf(l).elements.map((e) => e.id);
+    expect(ids.indexOf("a-a-b")).toBeGreaterThan(ids.indexOf("n-b"));
+    expect(ids.indexOf("a-a-b")).toBeGreaterThan(ids.indexOf("n-b-t"));
   });
 
   it("is deterministic and keeps ids when the lesson grows", () => {
@@ -142,6 +149,9 @@ describe("checkScene and fixOps", () => {
     const ops = fixOps(broken, ps);
     const fixed = applyEdits(broken, applyOps(broken, noEdits(), ops).edits);
     expect(checkScene(fixed).some((p) => p.kind === "overflow" && p.ids[0] === label.id)).toBe(false);
+    // by smaller type, while the box keeps its size
+    expect(fixed.elements.find((e) => e.id === label.id)!.fontSize!).toBeLessThan(label.fontSize!);
+    expect(fixed.elements.find((e) => e.id === node.id)!.width).toBe(node.width);
   });
 
   it("counts an arrow through a box and bends it round", () => {
@@ -168,5 +178,29 @@ describe("checkScene and fixOps", () => {
       const on = { ...base, elements: [...base.elements, { ...twin, id: "twin", customData: { wb: { step: 0, key: "twin", role: "block" as const } } }] };
       expect(countProblems(checkScene(on)).overlap).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("words in boxes", () => {
+  it("sizes a box's words so that no word is wider than the box", () => {
+    const box = { x: 0, y: 0, w: 96, h: 120 };
+    const { size, lines } = fitLabel("Carbon dioxide molecules", box, 26);
+    expect(size).toBeLessThan(26);
+    for (const ln of lines) expect(handWidth(ln, size)).toBeLessThanOrEqual(box.w - 20);
+    expect(lines.join(" ")).toBe("Carbon dioxide molecules");
+    expect(lines.length * size * 1.25).toBeLessThanOrEqual(box.h - 12);
+    expect(fitLabel("Leaf", { x: 0, y: 0, w: 200, h: 60 }, 22).size).toBe(22);
+  });
+
+  it("counts a word Excalidraw broke in two as text that does not fit", () => {
+    const t = { id: "t", type: "text", x: 0, y: 0, width: 10, height: 10, text: "Sunlig\nht", originalText: "Sunlight" } as ExEl;
+    expect(brokenWord(t)).toBe(true);
+    expect(brokenWord({ ...t, text: "Carbon\ndioxide", originalText: "Carbon dioxide" })).toBe(false);
+    expect(brokenWord({ ...t, text: "光合\n成", originalText: "光合成" })).toBe(false);
+    const l = lessons[0];
+    const base = sceneOf(l);
+    const label = base.elements.find((e) => e.containerId && e.customData?.wb?.role === "label" && /\s/.test(String(e.originalText)) === false && String(e.originalText).length > 4)!;
+    const broken = { ...base, elements: base.elements.map((e) => (e.id === label.id ? { ...e, text: `${String(e.originalText).slice(0, 3)}\n${String(e.originalText).slice(3)}` } : e)) };
+    expect(checkScene(broken).some((p) => p.kind === "overflow" && p.ids[0] === label.id)).toBe(true);
   });
 });

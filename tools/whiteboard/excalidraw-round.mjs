@@ -110,7 +110,7 @@ async function shoot(selector, file) {
 }
 
 const metricsFile = path.join(OUT, "metrics.json");
-const metrics = fs.existsSync(metricsFile) ? JSON.parse(fs.readFileSync(metricsFile, "utf8")) : { round, model: "local (Ollama, the route's own choice)", concepts: {} };
+const metrics = fs.existsSync(metricsFile) ? JSON.parse(fs.readFileSync(metricsFile, "utf8").replace(/^\uFEFF/, "")) : { round, model: "local (Ollama, the route's own choice)", concepts: {} };
 
 // ---- the bar ----
 if (!args.includes("--skip-bar")) {
