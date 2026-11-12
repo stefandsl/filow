@@ -42,7 +42,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import HERE, MANIFEST, SEED, read_json, sha256_file, write_json
 from score import edits, normalise
 
-REPORT = HERE / "BAKEOFF-QWEN3-2026-11.md"
+# The committed BAKEOFF-QWEN3-2026-11.md is the frozen record of the 2026-11-12 run; reruns write here.
+REPORT = Path("G:/FILOW/tmp/audiocpp-bakeoff") / "BAKEOFF-QWEN3-latest.md"
 COMMAND = "python -I bakeoff_qwen3.py   (from tools/audio-bench, with G:/FILOW/tmp/mic-cleanup/venv)"
 LANG_ORDER = ["ro", "ru", "ja"]
 
@@ -483,6 +484,7 @@ def write_report(s, speed):
         o.append("")
     o += ["Outputs in `G:/FILOW/tmp/audiocpp-bakeoff/`: hyp-qwen3-heldout-clean.jsonl (hypotheses, status, timing), ram-samples.csv, "
           "summary-qwen3.json, server.json, server.log.", ""]
+    REPORT.parent.mkdir(parents=True, exist_ok=True)
     REPORT.write_text("\n".join(o), encoding="utf-8", newline="\n")
     print(f"report: {REPORT}", flush=True)
 
