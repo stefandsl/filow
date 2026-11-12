@@ -31,6 +31,37 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
     production build validation details are in
     `docs/FAST-ONBOARDING-ACCOUNT.md`. Windows UI was checked in an isolated G: profile with a fake
     microphone, including video playback and native overlay routing, in dark and light themes.
+  - Phase 1 review (2026-11-12, plan in the owner's Filo-Claude-improvement-plan.md): the work is now
+    committed. Checkpoint `32bac05` (progressive answers), `730b5e7` (video and /tour), `befde28`
+    (account), `c2961bf` (apps/cloud), `c3093cd` (docs); the checkpoint reproduced the numbers above
+    exactly (176 files and 2,185 tests passed, 2 files and 5 tests skipped; typecheck, lint,
+    build:welcome, cloud build and `npm run build` all exit 0). Review fixes, each with a test that
+    failed first: `188cb86` and `78f661e` (speech: no sentence cut where a network chunk ends, an
+    unclosed tag is never spoken, the rest of an answer is never dropped, a sentence before a picture's
+    block is said at once), `ed58159` (tour: clearing the practice mark no longer wipes an answer's
+    drawings, the mark goes on resize, hide, minimize and navigation, `tour:ask` takes a language and
+    the shell picks the sentence), `1b8f750` (billing: a repeated or older Stripe event is answered and
+    not applied; `*.sqlite` ignored). Tip: 177 files and 2,201 tests passed, 2 files and 5 tests
+    skipped; typecheck, lint and the three builds exit 0.
+  - Findings, open items and the merge plan: `tmp/onboarding-review/REVIEW.md` (tmp/ is not tracked:
+    copy it into docs/ if it must travel). Open, medium: account and Stripe traffic is not in the
+    outbound notice; the account origin is an environment variable only, so an installed build has no
+    accounts; no reconciliation against Stripe's current state; the billing plugin's own routes are
+    reachable directly; captions and the sign-in email are English only; the cloud voice sends one
+    request per sentence (not measured).
+  - Not verified in this review: nothing was launched (no Electron, no overlay on a real screen, no
+    window move or display change, no video playback, no theme inspection), no real Stripe or email,
+    no real-model latency. `apps/desktop/vendor/i18n.js` must be rebuilt (`npm run vendor`) before
+    the tour's real question works in a dev run.
+  - Merging (nothing merged yet): main `578af0f` and feat-easy-page merge cleanly into this branch;
+    feat-okf-pill conflicts in `apps/web/app/okfilow/panel/page.tsx` (5 places) and
+    `apps/desktop/okfilow.js` (4 places). Merge the pill to main first, then main into this branch,
+    and keep one speech mechanism: the queue in `lib/buddy/progressive.ts`, with the pill's sentence
+    ranges from `turn.ts` and the pill's pause (`turn.unpaused`) as its gate.
+  - Phase 2 (speed) can start from this tip. It needs: a QA build of this branch in its own profile
+    and ports on G:, timing marks (hotkey release, capture done, first token, first sentence handed to
+    the voice, first audio, first mark, end, Stop to silence) written to a local file without screen
+    contents, one documented hardware and model pair, and cold and warm runs through local Ollama only.
   - Still required for public sales: real SMTP/domain, Stripe test acceptance and final price,
     deployment, production keys/webhooks, paid feature/quota enforcement and signed release testing.
     No installer was published. The unrelated root `okfilow.js` was present before this work and was
