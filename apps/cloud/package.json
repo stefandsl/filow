@@ -1,0 +1,20 @@
+{
+  "name": "@filow/cloud",
+  "version": "0.9.35",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "build": "esbuild public/client.mjs --bundle --platform=browser --target=es2022 --outfile=dist/client.js",
+    "prestart": "npm run build",
+    "start": "node --env-file=.env server.mjs",
+    "migrate": "node --env-file=.env migrate.mjs"
+  },
+  "dependencies": {
+    "@better-auth/stripe": "1.7.21",
+    "better-auth": "1.7.21",
+    "better-sqlite3": "12.4.1",
+    "nodemailer": "10.5.0",
+    "stripe": "23.1.0"
+  }
+}

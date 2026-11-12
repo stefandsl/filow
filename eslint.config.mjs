@@ -45,6 +45,7 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.browser } },
   },
   { files: ["**/*.mjs"], languageOptions: { sourceType: "module", globals: { ...globals.node } } },
+  { files: ["apps/cloud/public/*.mjs"], languageOptions: { sourceType: "module", globals: { ...globals.browser } } },
   // The browser extension runs in Chrome.
   { files: ["apps/browser/src/**/*.ts"], languageOptions: { globals: { ...globals.browser, chrome: "readonly" } } },
   // The PowerPoint task pane runs in Office's browser.
