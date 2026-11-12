@@ -162,6 +162,7 @@ def main():
         "voice_same": lambda c: c["condition"] == "voice_same",
         "voice_diff": lambda c: c["condition"] == "voice_diff",
         "echo": lambda c: c["condition"] == "echo",
+        "voice_all": lambda c: c["condition"] in ("voice_same", "voice_diff"),
     }
     for kind in ENV:
         for snr in ("0", "5", "10", "20"):
@@ -223,6 +224,11 @@ def main():
         mark = lambda ok: "PASS" if ok else "FAIL"
         out.append(f"| {arm} | {mark(g1)} {n['rel_reduction_pct']:+.1f} % ({n['diff_lo']:+.2f}..{n['diff_hi']:+.2f} pt) | {mark(g2)} {c['diff']:+.2f} | {mark(g3)} {len(sig)} / {len(a['slices_worse_than_1pt'])} | "
                    f"{mark(g4)} {q['diff']:+.2f} | {mark(g5)} {sum(a['noise_only_tokens'].values())} vs {sum(summary['raw']['noise_only_tokens'].values())} |")
+    out += ["", "Speaker isolation gate (competing voice, same and other language pooled): relative reduction >= 5 % with the interval below 0:", ""]
+    for arm, a in summary["arms"].items():
+        v = a["voice_all"]
+        ok = v["rel_reduction_pct"] >= 5 and v["diff_hi"] < 0
+        out.append(f"- {arm}: {'PASS' if ok else 'FAIL'} raw {v['raw']:.2f} -> {v['arm']:.2f} ({v['rel_reduction_pct']:+.1f} %; {v['diff_lo']:+.2f}..{v['diff_hi']:+.2f} pt)")
     (res / f"summary-{use}-{split}.md").write_text("\n".join(out) + "\n", encoding="utf-8")
     print("\n".join(out))
 

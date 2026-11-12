@@ -185,7 +185,16 @@ Two things found while running, both fixed before any held-out number was read:
 - Dev is used to rehearse the pipeline and for one decision only: an arm that does not lower the
   noisy macro error rate on dev at all is not run on held-out and is reported as failed on dev.
 
-How this last rule was actually applied (written after the runs, the rule above is unchanged): dev
+Speaker isolation gate (Hush), written on 2026-11-12 at 09:10, after the noise candidates' first
+held-out numbers were seen but before any Hush transcript was scored (the commit that adds this
+paragraph has no Hush result in it):
+
+- Competing voice (same and other language, SIR 0 and 12 dB, pooled): macro error rate at least
+  5 % lower than raw, relative, with the 95 % interval of the difference entirely below zero.
+- And the same clean, quiet-words, slice and noise-only gates as above, and the quality-mode
+  resource limits. Speaker isolation stays off by default whatever the result.
+
+How the dev rule was actually applied (written after the runs, the rule above is unchanged): dev
 was decoded for raw and GTCRN only. GTCRN did not lower the noisy error rate on dev (25.2 -> 32.2),
 so by the rule it is "failed on dev"; it was run on held-out all the same and its held-out numbers
 are shown. The other arms were not decoded on dev (compute time), so the dev rule removed none of
