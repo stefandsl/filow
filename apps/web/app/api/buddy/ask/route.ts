@@ -9,7 +9,7 @@ import { wantsDrawing } from "@/lib/buddy/visuals";
 import { photoAnswer, photoOnly } from "@/lib/buddy/photo";
 import { isPointOnly, pointQuestion, POINTER_MAX_TOKENS, POINTER_MS, POINTING_TOTAL_MS, withPointer } from "@/lib/buddy/pointer";
 import { buddySystemPrompt, resumeQuestion } from "@/lib/buddy/prompt";
-import { ASKED_SYSTEM, canPick, namedInQuestion, PICK_MAX_TOKENS, PICK_MS, PICK_SYSTEM, pickedIndex, pickNames, pickQuestion, plainName, sanitizeElements, screenHint, withNamedPoint, withPlacedTags } from "@/lib/buddy/ground";
+import { ASKED_SYSTEM, askedElement, askedNames, canPick, namedInQuestion, PICK_MAX_TOKENS, PICK_MS, PICK_SYSTEM, pickedIndex, pickQuestion, plainName, sanitizeElements, screenHint, withNamedPoint, withPlacedTags } from "@/lib/buddy/ground";
 import { okfText } from "@/lib/buddy/text";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
@@ -140,12 +140,15 @@ export async function POST(req: Request) {
     try {
       const answering = await resolveLocalHelper(body.setup, "", sees);
       const on = screens.find((s) => s.cursor)?.index ?? 1;
-      const names = pickNames(elements, on);
+      // Every screen sent ("All my screens"), the one with the mouse first: a question about a window on
+      // another screen must not be pointed at a namesake on this one (measured 12 Nov: the taskbar's
+      // "Esplora file" was chosen for questions about an Explorer window on the other screen).
+      const names = askedNames(elements, on);
       if (canPick(answering.model) && names.length) {
         const chosen = pickedIndex(await choose(ASKED_SYSTEM, question.split("\n")[0], names, answering.model), names.length);
-        const same = chosen === null ? [] : elements.filter((e) => e.screen === on && e.name === names[chosen]);
-        if (same.length === 1) {
-          yield `[POINT:${Math.round((same[0].x1 + same[0].x2) / 2)},${Math.round((same[0].y1 + same[0].y2) / 2)}:${plainName(same[0].name).replace(/[[\]:]/g, " ").slice(0, 60)}:screen${on}]`;
+        const one = askedElement(elements, chosen === null ? undefined : names[chosen]);
+        if (one) {
+          yield `[POINT:${Math.round((one.x1 + one.x2) / 2)},${Math.round((one.y1 + one.y2) / 2)}:${plainName(one.name).replace(/[[\]:]/g, " ").slice(0, 60)}:screen${one.screen}]`;
           return;
         }
       }

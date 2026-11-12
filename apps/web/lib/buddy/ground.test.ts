@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as sysinfo from "@/lib/sysinfo";
 import { POST as ask } from "@/app/api/buddy/ask/route";
-import { canPick, isVagueLabel, matchElements, namedInQuestion, nameScore, pickedIndex, pickNames, pickQuestion, placeBox, placePoint, placeTags, plainName, sanitizeElements, screenHint, withNamedPoint, withPlacedTags, type ScreenElement } from "./ground";
+import { askedElement, askedNames, canPick, isVagueLabel, matchElements, namedInQuestion, nameScore, pickedIndex, pickNames, pickQuestion, placeBox, placePoint, placeTags, plainName, sanitizeElements, screenHint, withNamedPoint, withPlacedTags, type ScreenElement } from "./ground";
 import { lenientPoint, withPointer } from "./pointer";
 import { parseBuddyAnswer } from "./prompt";
 
@@ -204,6 +204,17 @@ describe("a label in other words than the name: the answering model chooses from
     expect(pickedIndex("3.", 7)).toBe(2);
     expect(pickedIndex("0", 7)).toBeNull();
     expect(pickNames([...DESKTOP, el("Other screen", 0, 0, 9, 9, 2)], 2)).toEqual(["Other screen"]);
+  });
+
+  it("a whole question may be about any screen sent: the mouse's screen first, and a name on two screens is no answer", () => {
+    const two = [el("Chiudi", 900, 0, 1000, 30, 1), el("Esplora file", 100, 960, 130, 1000, 1), el("Chiudi", 950, 0, 1000, 40, 2), el("holiday-photos", 200, 200, 600, 230, 2)];
+    expect(askedNames(two, 1)).toEqual(["Chiudi", "Esplora file", "holiday-photos"]);
+    expect(askedNames(two, 2)).toEqual(["Chiudi", "holiday-photos", "Esplora file"]);
+    // the thing on the other screen is found there, not on the screen with the mouse
+    expect(askedElement(two, "holiday-photos")).toMatchObject({ screen: 2, x1: 200 });
+    expect(askedElement(two, "Chiudi")).toBeNull();
+    expect(askedElement(two, undefined)).toBeNull();
+    expect(askedElement(two, "nothing")).toBeNull();
   });
 
   it("only a model measured good at it is asked", () => {

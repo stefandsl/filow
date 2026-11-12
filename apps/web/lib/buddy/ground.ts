@@ -221,6 +221,17 @@ export const canPick = (model: string): boolean => /^gemma4:e4b\b/.test(model);
 
 /** The different names on one screen, in the order Windows gave them (topmost first). */
 export const pickNames = (elements: ScreenElement[], screen: number): string[] => [...new Set(elements.filter((e) => e.screen === screen).map((e) => e.name))].slice(0, PICK_MAX_NAMES);
+/**
+ * The names a whole question may be about, when "All my screens" sends several: the screen with the
+ * mouse first, then the others. A chosen name counts only when it is on one screen alone (askedElement).
+ */
+export const askedNames = (elements: ScreenElement[], first: number): string[] =>
+  [...new Set([...elements.filter((e) => e.screen === first), ...elements.filter((e) => e.screen !== first)].map((e) => e.name))].slice(0, PICK_MAX_NAMES);
+/** The one element with that name on any screen, or null when there is none or it is on screen more than once (the pointing model looks then). */
+export function askedElement(elements: ScreenElement[], name: string | undefined): ScreenElement | null {
+  const same = name === undefined ? [] : elements.filter((e) => e.name === name);
+  return same.length === 1 ? same[0] : null;
+}
 export const pickQuestion = (label: string, names: string[]): string => `Label: "${label}"\nItems:\n${names.slice(0, PICK_MAX_NAMES).map((n, i) => `${i + 1}. ${n}`).join("\n")}\nNumber:`;
 /** The 0-based index a reply names, or null (0, no number, or a number past the list). */
 export function pickedIndex(reply: string, count: number): number | null {
