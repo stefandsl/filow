@@ -48,7 +48,7 @@ describe("stopping an answer (desktop shell)", () => {
     expect(main).toContain('if (typeof extra.sees === "boolean") asksSee = extra.sees;');
     expect(main.match(/sees: asksSee \}\);/g)).toHaveLength(2);
     // "Look at my screen" off: the screen is not captured at all
-    expect(main).toMatch(/const wantImages = mayCapture\(want\);[\s\S]{0,500}await screenSources\(want, async \(\) => \{[\s\S]{0,200}desktopCapturer\.getSources/);
+    expect(main).toMatch(/const wantImages = mayCapture\(want\);[\s\S]{0,1200}await screenSources\(want, async \(\) => \{[\s\S]{0,200}desktopCapturer\.getSources/);
     expect(main).toContain('if (wantImages && !out.images.length) throw');
     const preload = source("okfilow-preload.js");
     expect(preload).toContain('onStop: on("okfilow:stop")');

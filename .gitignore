@@ -24,3 +24,4 @@ output/
 tmp/
 release-*/
 apps/web/public/excalidraw
+apps/desktop/native/uia/bin/
