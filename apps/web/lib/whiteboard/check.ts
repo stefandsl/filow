@@ -89,7 +89,8 @@ export function checkScene(scene: Scene): Problem[] {
   // 3. arrows through boxes they do not join
   const shapes = els.filter(isShape);
   for (const a of els) {
-    if (a.type !== "arrow" || role(a) !== "edge") continue;
+    // Filow's arrows between boxes; in a board from elsewhere, any arrow bound to a shape
+    if (a.type !== "arrow" || !(role(a) === "edge" || (!role(a) && (a.startBinding || a.endBinding)))) continue;
     for (const s of crossed(a, shapes, byId)) problems.push({ kind: "crossing", ids: [a.id, s.id], message: `arrow ${a.id} runs through ${s.id}` });
   }
   // 4. off the board

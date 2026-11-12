@@ -330,15 +330,35 @@ function blockEls(b: PlacedBlock, files: Record<string, BinaryFile>): ExEl[] {
  * title, then step by step each new box with its label, the arrows of that step, its marks and what is
  * written beside the diagram. Every element carries `customData.wb` (its step and its timing key).
  */
-export function sceneFromLayout(layout: BoardLayout): Scene {
+/** The frame and the title of a board: drawn first, before the model has written anything. */
+function head(w: number, h: number, title: { text: string; x: number; y: number; font: number }): ExEl[] {
+  const size = Math.round(title.font);
+  return [
+    // An invisible frame the size of the board, so the picture keeps its size while it fills up.
+    el("wb-frame", "rectangle", { x: 0, y: 0, w, h }, { step: -1, key: "frame", role: "frame" }, { strokeColor: "transparent", locked: true, roughness: 0 }),
+    text("wb-title", [title.text], size, { x: title.x, y: title.y - size }, { step: -1, key: "title", role: "title" }),
+    line("wb-rule", [{ x: title.x, y: 60 }, { x: w - title.x, y: 60 }], { step: -1, key: "title", role: "title" }, { strokeColor: INK.faint, strokeWidth: 1.5 }),
+  ];
+}
+
+/**
+ * The board while the model is still thinking: the learner's own question as its title, so the
+ * first stroke is on the board at once (the lesson's title replaces it when the outline arrives).
+ */
+export function pendingScene(question: string, board: { w: number; h: number }): Scene {
+  const margin = board.w < 700 ? 14 : 24;
+  const font = board.w < 700 ? 22 : 28;
+  let words = question.trim();
+  while (words.length > 4 && handWidth(words, font) > board.w - margin * 2 - 8) words = `${Array.from(words).slice(0, -2).join("").trimEnd()}${String.fromCharCode(0x2026)}`;
+  return { elements: head(board.w, board.h, { text: words, x: margin + 4, y: 46, font }), files: {} };
+}
+
+/** Hand-drawn strokes, or exact ones (`plain`: the Lite tier, which draws fast and simply). */
+export type SceneOptions = { plain?: boolean };
+
+export function sceneFromLayout(layout: BoardLayout, opts: SceneOptions = {}): Scene {
   const files: Record<string, BinaryFile> = {};
-  const els: ExEl[] = [];
-  // An invisible frame the size of the board, so the picture keeps its size while it fills up.
-  els.push(el("wb-frame", "rectangle", { x: 0, y: 0, w: layout.w, h: layout.h }, { step: -1, key: "frame", role: "frame" }, { strokeColor: "transparent", locked: true, roughness: 0 }));
-  const t = layout.title;
-  const titleSize = Math.round(t.font * 1.0);
-  els.push(text("wb-title", [t.text], titleSize, { x: t.x, y: t.y - titleSize }, { step: -1, key: "title", role: "title" }));
-  els.push(line("wb-rule", [{ x: t.x, y: 60 }, { x: layout.w - t.x, y: 60 }], { step: -1, key: "title", role: "title" }, { strokeColor: INK.faint, strokeWidth: 1.5 }));
+  const els: ExEl[] = head(layout.w, layout.h, layout.title);
 
   const shapes = new Map<string, ExEl>();
   const used = new Set<string>();
@@ -369,6 +389,7 @@ export function sceneFromLayout(layout: BoardLayout): Scene {
     for (const b of layout.blocks.filter((x) => x.step === step)) els.push(...blockEls(b, files));
   }
   // older steps' nodes keep their shape objects: arrows bound later are listed on them too
+  if (opts.plain) for (const e of els) e.roughness = 0;
   return { elements: els, files };
 }
 

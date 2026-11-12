@@ -6,6 +6,7 @@
 // add/update/delete by id, snapshot/restore, camera). Pure: no DOM.
 import { boundsOf, safeId, stepOf, type BinaryFile, type ExEl, type Scene } from "./scene";
 import type { Box } from "./layout";
+import { EDIT_COLOURS, type EditChange } from "./edits";
 
 export type SceneEdits = {
   /** Changed properties of compiled elements, by id. */
@@ -37,7 +38,9 @@ export function applyEdits(base: Scene, edits: SceneEdits): Scene {
   return { elements: els, files: { ...base.files, ...edits.files } };
 }
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+/** Equal up to half a pixel: the canvas measures and rounds on its own, which is not a change by the user. */
+const rounded = (v: unknown) => JSON.stringify(v, (_k, x: unknown) => (typeof x === "number" ? Math.round(x * 2) / 2 : x));
+const same = (a: unknown, b: unknown) => rounded(a) === rounded(b);
 
 /** What the user changed: the canvas's elements compared with the scene as it was before. */
 export function diffEdits(base: Scene, before: SceneEdits, now: ExEl[], files: Record<string, BinaryFile> = {}): SceneEdits {
@@ -187,8 +190,25 @@ export function applyOps(base: Scene, edits: SceneEdits, ops: ToolOp[]): { edits
   return { edits: next, skipped };
 }
 
+/** A board from a file gets the invisible frame Filow's boards have (its bounds and some room), so it keeps its size while edited. */
+export function withFrame(scene: Scene): Scene {
+  if (scene.elements.some((e) => e.id === "wb-frame")) return scene;
+  const b = boundsOf(scene.elements) ?? { x: 0, y: 0, w: 1200, h: 720 };
+  const pad = 40;
+  const frame: ExEl = { id: "wb-frame", type: "rectangle", x: b.x - pad, y: b.y - pad, width: b.w + pad * 2, height: b.h + pad * 2, angle: 0, strokeColor: "transparent", backgroundColor: "transparent", fillStyle: "solid", strokeWidth: 1, strokeStyle: "solid", roughness: 0, opacity: 100, roundness: null, seed: 1, version: 1, versionNonce: 1, isDeleted: false, groupIds: [], frameId: null, boundElements: null, updated: 1, link: null, locked: true, customData: { wb: { step: -1, key: "frame", role: "frame" } } };
+  return { elements: [frame, ...scene.elements], files: scene.files };
+}
+
+/** The board's own size: its frame, or for a file without one the bounds of what is on it. */
+export function frameBox(scene: Scene): { w: number; h: number; x: number; y: number } {
+  const f = scene.elements.find((e) => e.id === "wb-frame");
+  if (f) return { x: f.x, y: f.y, w: f.width, h: f.height };
+  const b = boundsOf(scene.elements) ?? { x: 0, y: 0, w: 1200, h: 720 };
+  return b;
+}
+
 /** set_camera: the part of the board to look at (a step, some elements, or everything), with room around it, 4:3 or wider. */
-export function cameraFor(scene: Scene, target: { step?: number; ids?: string[] } | null, board: { w: number; h: number }): Box | null {
+export function cameraFor(scene: Scene, target: { step?: number; ids?: string[] } | null, board: { w: number; h: number; x?: number; y?: number }): Box | null {
   if (!target) return null;
   const els = scene.elements.filter((e) => e.id !== "wb-frame" && e.id !== "wb-title" && e.id !== "wb-rule" && (target.step !== undefined ? stepOf(e) === target.step : target.ids?.includes(e.id)));
   const b = boundsOf(els);
@@ -202,9 +222,46 @@ export function cameraFor(scene: Scene, target: { step?: number; ids?: string[] 
   else w = h * ratio;
   w = Math.min(w, board.w);
   h = Math.min(h, board.h);
-  const x = Math.max(0, Math.min(board.w - w, b.x + b.w / 2 - w / 2));
-  const y = Math.max(0, Math.min(board.h - h, b.y + b.h / 2 - h / 2));
+  const bx = board.x ?? 0, by = board.y ?? 0;
+  const x = Math.max(bx, Math.min(bx + board.w - w, b.x + b.w / 2 - w / 2));
+  const y = Math.max(by, Math.min(by + board.h - h, b.y + b.h / 2 - h / 2));
   return { x, y, w, h };
+}
+
+/**
+ * A follow-up's changes (lib/whiteboard/local.ts, checked against the board's ids) as tool
+ * operations and a camera: a box recoloured keeps its label's ink, renamed changes its label,
+ * bigger and smaller scale the box and its words around their centre.
+ */
+export function changesToOps(scene: Scene, changes: EditChange[]): { ops: ToolOp[]; camera: { step?: number; ids?: string[]; all?: boolean } | undefined } {
+  const byId = new Map(scene.elements.map((e) => [e.id, e]));
+  const labelOf = (id: string) => scene.elements.find((e) => e.containerId === id);
+  const ops: ToolOp[] = [];
+  let camera: { step?: number; ids?: string[]; all?: boolean } | undefined;
+  for (const c of changes) {
+    const e = byId.get(c.target);
+    if (c.action === "show_all") { camera = { all: true }; continue; }
+    if (c.action === "zoom") { camera = c.step ? { step: c.step } : { ids: [c.target] }; continue; }
+    if (!e) continue;
+    if (c.action === "delete") ops.push({ op: "delete", id: e.id });
+    else if (c.action === "recolor" && c.color) {
+      const colour = EDIT_COLOURS[c.color];
+      ops.push({ op: "update", id: e.id, props: { strokeColor: colour } });
+    } else if (c.action === "rename" && c.text) {
+      const t = e.type === "text" ? e : labelOf(e.id);
+      if (t) ops.push({ op: "update", id: t.id, props: { text: c.text, originalText: c.text } });
+    } else if (c.action === "bigger" || c.action === "smaller") {
+      const k = c.action === "bigger" ? 1.25 : 0.8;
+      if (e.type !== "text" && e.type !== "arrow" && e.type !== "line") {
+        const w = e.width * k, h = e.height * k;
+        ops.push({ op: "update", id: e.id, props: { x: e.x - (w - e.width) / 2, y: e.y - (h - e.height) / 2, width: w, height: h } });
+      }
+      const t = e.type === "text" ? e : labelOf(e.id);
+      if (t) ops.push({ op: "update", id: t.id, props: { fontSize: Math.max(12, Math.round((t.fontSize ?? 20) * k)) } });
+      if (e.type === "arrow" || e.type === "line") ops.push({ op: "update", id: e.id, props: { strokeWidth: Math.max(1, Math.min(6, (e.strokeWidth ?? 2) * k)) } });
+    }
+  }
+  return { ops, camera };
 }
 
 // ---- keeping the last board ----
