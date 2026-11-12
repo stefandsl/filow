@@ -66,6 +66,7 @@ export const it: Record<OkfKey, string> = {
   hotkey: "Tieni premuto per parlare",
   brain: "Risposte da",
   brainLocal: "Questo PC (Ollama)",
+  brainServer: "Il tuo server {name}",
   moreSettings: "Altre impostazioni di OK Filow",
   brainCloud: "Cloud (OpenRouter)",
   voice: "Voce",

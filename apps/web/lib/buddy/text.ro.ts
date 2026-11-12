@@ -67,6 +67,7 @@ export const ro: Record<OkfKey, string> = {
   brain: "Răspunsuri de la",
   moreSettings: "Mai multe setări OK Filow",
   brainLocal: "Acest PC (Ollama)",
+  brainServer: "Serverul tău {name}",
   brainCloud: "Cloud (OpenRouter)",
   voice: "Voce",
   voiceSystem: "Vocea acestui PC",

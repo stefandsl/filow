@@ -72,6 +72,7 @@ const en = {
   brain: "Answers from",
   moreSettings: "More OK Filow settings",
   brainLocal: "This PC (Ollama)",
+  brainServer: "Your server {name}",
   brainCloud: "Cloud (OpenRouter)",
   voice: "Voice",
   voiceSystem: "This PC's voice",

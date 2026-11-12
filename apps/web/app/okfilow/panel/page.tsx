@@ -13,7 +13,7 @@ import { dictationText, pasteKeys, type DictationKey } from "@/lib/dictation/tex
 import { playCue } from "@/lib/dictation/cue";
 import { createPhraseFlow, type PhraseFlow } from "@/lib/dictation/handsfree";
 import { burnStrokes, createVad, describeMarked } from "@/lib/buddy/listen";
-import { askRoute, askRouteRecipient, changesStored, consentKey, FREELLM_ID, joinNames, localNames, localServer, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
+import { askRoute, askRouteRecipient, changesStored, consentKey, FREELLM_ID, joinNames, localAnswersLabel, localNames, localServer, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
 import { FREELLM_DOWNLOAD_URL, freellmCodeOf, localizeFreeLlmError } from "@/lib/freellm";
 import { FreeLlmPanelNotes } from "./freellm-notes";
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
@@ -1195,7 +1195,7 @@ export default function OkFilowPanel() {
           <label className="okf-row">
             <span>{t("brain")}</span>
             <select className="okf-select-wide" value={c.offline ? "local" : c.provider} onChange={(e) => void configure({ provider: e.target.value as OkFilowStatus["provider"] })} disabled={c.offline}>
-              <option value="local">{t("brainLocal")}</option>
+              <option value="local">{localAnswersLabel(recipients?.server, t("brainLocal"), t("brainServer"))}</option>
               <option value="freellm">{t("brainFree")}</option>
               <option value="cloud">{t("brainCloud")}</option>
             </select>

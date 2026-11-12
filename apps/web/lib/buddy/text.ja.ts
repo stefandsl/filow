@@ -67,6 +67,7 @@ export const ja: Record<OkfKey, string> = {
   brain: "回答の提供元",
   moreSettings: "OK Filowのその他の設定",
   brainLocal: "このPC(Ollama)",
+  brainServer: "あなたのサーバー {name}",
   brainCloud: "クラウド（OpenRouter）",
   voice: "音声",
   voiceSystem: "このPCの音声",

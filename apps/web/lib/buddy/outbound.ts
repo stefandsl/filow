@@ -148,6 +148,13 @@ export const isServerRecipient = (r: Recipient | null | undefined): boolean => B
 export const localServer = (r: Recipient, yourServer: string): Recipient =>
   isServerRecipient(r) ? { ...r, names: r.names.map((n) => yourServer.split("{name}").join(n)) } : r;
 
+/**
+ * The "Local" choice of "Answers from", as it really is: "This PC (Ollama)", or "Your server <name>"
+ * when OK Filow's answers go to one of the user's computers (the label must match the signal).
+ */
+export const localAnswersLabel = (server: Recipient | null | undefined, thisPc: string, yourServer: string): string =>
+  server && isServerRecipient(server) ? yourServer.split("{name}").join(server.names[0] ?? "") : thisPc;
+
 /** `local`: the user's own server when he chose a decision model there; absent or null, the local decider stays on this PC. */
 export type DecisionModels = { openrouter: string; cloudflare: string; local?: Recipient | null };
 /** Who reads the spoken words to decide when to scroll; null for the local decider on this PC. */

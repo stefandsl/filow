@@ -67,6 +67,7 @@ export const ru: Record<OkfKey, string> = {
   brain: "Кто отвечает",
   moreSettings: "Другие настройки OK Filow",
   brainLocal: "Этот компьютер (Ollama)",
+  brainServer: "Ваш сервер {name}",
   brainCloud: "Облако (OpenRouter)",
   voice: "Голос",
   voiceSystem: "Голос этого компьютера",

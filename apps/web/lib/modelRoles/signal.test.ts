@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { askRouteRecipient, consentKey, CONSENT_HEADER, decisionRecipient, isServerRecipient, localServer, noticeBody, serverRecipient, takeOutbound } from "@/lib/buddy/outbound";
+import { askRouteRecipient, consentKey, CONSENT_HEADER, decisionRecipient, isServerRecipient, localAnswersLabel, localServer, noticeBody, serverRecipient, takeOutbound } from "@/lib/buddy/outbound";
 import { okfText } from "@/lib/buddy/text";
 import { GET as recipientsGET } from "@/app/api/buddy/recipients/route";
 import { POST as decidePOST } from "@/app/api/decide/route";
@@ -32,6 +32,17 @@ describe("a task on the user's own server leaves this PC, and says so", () => {
     }
     expect(isServerRecipient(rig)).toBe(true);
     expect(localServer({ id: "openrouter", names: ["OpenRouter"] }, "your server {name}").names).toEqual(["OpenRouter"]);
+  });
+  it("\"Answers from\" names the server when the answers go there, never \"This PC\" beside the signal", () => {
+    for (const [lang, label] of [["en", "Your server Rig"], ["it", "Il tuo server Rig"], ["ru", "Ваш сервер Rig"], ["ro", "Serverul tău Rig"], ["ja", "あなたのサーバー Rig"]] as const) {
+      const t = okfText(lang);
+      expect(localAnswersLabel(rig, t("brainLocal"), t("brainServer"))).toBe(label);
+      expect(localAnswersLabel(null, t("brainLocal"), t("brainServer"))).toBe(t("brainLocal"));
+    }
+    expect(localAnswersLabel({ id: "openrouter", names: ["OpenRouter"] }, "This PC (Ollama)", "Your server {name}")).toBe("This PC (Ollama)");
+    // the panel's list uses it
+    const panel = fs.readFileSync(path.join(process.cwd(), "apps/web/app/okfilow/panel/page.tsx"), "utf8");
+    expect(panel).toContain('<option value="local">{localAnswersLabel(recipients?.server, t("brainLocal"), t("brainServer"))}</option>');
   });
   it("a helper that would reach a server is used only with the yes for that server", () => {
     const at = { base: "http://10.0.0.5:11434", headers: {}, server: { id: "rig1", name: "Rig" } };
