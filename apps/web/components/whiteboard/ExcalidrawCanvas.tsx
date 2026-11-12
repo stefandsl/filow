@@ -16,11 +16,14 @@ export type ExcalidrawCanvasProps = {
   dark: boolean;
   lang: string;
   label: string;
+  /** The name of Excalidraw's menu button, which has none of its own. */
+  menuLabel: string;
   doneLabel: string;
   onDone: (elements: ExEl[], files: Record<string, BinaryFile>) => void;
 };
 
-export function ExcalidrawCanvas({ scene, dark, lang, label, doneLabel, onDone }: ExcalidrawCanvasProps) {
+export function ExcalidrawCanvas({ scene, dark, lang, label, menuLabel, doneLabel, onDone }: ExcalidrawCanvasProps) {
+  const host = useRef<HTMLDivElement>(null);
   const [mod, setMod] = useState<ExcalidrawModule | null>(null);
   const latest = useRef<{ elements: ExEl[]; files: Record<string, BinaryFile> }>({ elements: scene.elements, files: scene.files });
   useEffect(() => {
@@ -28,9 +31,18 @@ export function ExcalidrawCanvas({ scene, dark, lang, label, doneLabel, onDone }
     void loadExcalidraw().then((m) => { if (live) setMod(m); });
     return () => { live = false; };
   }, []);
+  // Excalidraw's menu button carries only an icon: it gets a name a screen reader can say
+  useEffect(() => {
+    if (!mod || !host.current) return;
+    const name = () => host.current?.querySelectorAll(".main-menu-trigger").forEach((b) => { if (!b.getAttribute("aria-label")) b.setAttribute("aria-label", menuLabel); });
+    name();
+    const watch = new MutationObserver(name);
+    watch.observe(host.current, { childList: true, subtree: true });
+    return () => watch.disconnect();
+  }, [mod, menuLabel]);
   const Editor = mod?.Excalidraw;
   return (
-    <div className="wb-canvas" role="region" aria-label={label} data-canvas={mod ? "ready" : "loading"}>
+    <div ref={host} className="wb-canvas" role="region" aria-label={label} data-canvas={mod ? "ready" : "loading"}>
       <div className="wb-canvas-editor">
       {Editor && (
         <Editor

@@ -794,7 +794,7 @@ export default function WhiteboardPage() {
       <section className="wb-stage" aria-label={t("title")}>
         <div className="wb-frame" ref={frame} data-look={board} data-step-ms={stepMs || undefined} style={prepared ? { background: BOARD_COLOURS[board].page } : undefined}>
           {prepared && canvasOpen ? (
-            <ExcalidrawCanvas scene={prepared} dark={board === "dark"} lang={lang} label={t("canvasLabel")} doneLabel={t("editDone")} onDone={closeCanvas} />
+            <ExcalidrawCanvas scene={prepared} dark={board === "dark"} lang={lang} label={t("canvasLabel")} menuLabel={t("canvasMenu")} doneLabel={t("editDone")} onDone={closeCanvas} />
           ) : prepared ? (
             <ExcalidrawBoard
               scene={prepared}
