@@ -28,7 +28,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { HeardTracker, VOICE, classifyConnections, created, isLoopback, parseNetstat, passFresh, processTree, socketLogAudit, splitAddr } from "./take-lib.mjs";
+import { HeardTracker, VOICE, classifyConnections, created, isLoopback, parseNetstat, passFresh, processTree, socketLogAudit, splitAddr, sttBackendOf } from "./take-lib.mjs";
 
 const run = promisify(execFile);
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../../..");
@@ -477,9 +477,10 @@ function netLogAudit() {
 
 // ---------- result ----------
 const quant = (xs, q) => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.floor(q * s.length))]; };
-// The take log says "<backend label>: live"; the sherpa label is "Streaming on this device (Nemotron)".
+// The take log says "<backend label>: live". The labels are read from the dictionary (ctl.backend.*):
+// the sherpa one was "Streaming on this device (Nemotron)" and is "Speech model on this device" now.
 const sttLine = logLines.find((l) => /: live$/.test(l.trim())) ?? null;
-const sttBackend = sttLine ? (/sherpa|nemotron/i.test(sttLine) ? "sherpa" : /whisper/i.test(sttLine) ? "whisper" : "other") : null;
+const sttBackend = sttBackendOf(sttLine, labels("ctl.backend.sherpa"));
 const allDone = firstCycle.every((p) => p.doneAtMs != null);
 const result = {
   at: new Date().toISOString(),

@@ -171,3 +171,15 @@ export function passFresh(pass, edges, lineOfPoint = VOICE.lineOfPoint, offTopic
   });
   return { fresh: stale.length === 0 && pass.done.length > 0 && pass.done.every((d) => d != null), stale };
 }
+
+/**
+ * Which speech-to-text backend the take log names in its "<label>: live" line. `sherpaLabels` are the
+ * dictionary's texts for the on-device streaming backend (ctl.backend.sherpa, every language), so a
+ * rewording of the label is followed; the older wordings named sherpa or Nemotron.
+ */
+export function sttBackendOf(line, sherpaLabels = []) {
+  if (!line) return null;
+  const said = line.toLowerCase();
+  if (sherpaLabels.some((l) => l && said.includes(l.toLowerCase())) || /sherpa|nemotron/i.test(line)) return "sherpa";
+  return /whisper/i.test(line) ? "whisper" : "other";
+}
