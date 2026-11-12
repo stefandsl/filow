@@ -38,6 +38,7 @@ export function ExcalidrawCanvas({ scene, dark, lang, label, doneLabel, onDone }
           theme={dark ? "dark" : "light"}
           langCode={LANG_CODES[lang] ?? "en"}
           name={label}
+          excalidrawAPI={(api) => { setTimeout(() => api.scrollToContent(undefined, { fitToContent: true, animate: false }), 60); }}
           onChange={(elements, _state, files) => { latest.current = { elements: elements as unknown as ExEl[], files: files as unknown as Record<string, BinaryFile> }; }}
           UIOptions={{ canvasActions: { loadScene: false, saveToActiveFile: false, export: false, saveAsImage: false, toggleTheme: null } }}
         />

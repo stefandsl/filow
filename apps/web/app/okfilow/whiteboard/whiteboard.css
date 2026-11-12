@@ -49,7 +49,7 @@
 /* The board is an Excalidraw scene drawn as SVG (components/whiteboard/ExcalidrawBoard.tsx): what is
    already there stays put and only the new strokes draw on, one thing at a time as the voice reaches
    it (--wb-len, from lib/whiteboard/pace.ts). Dark: Excalidraw's own dark mode of the same scene. */
-.wb-frame:has(.wb-ex) { display: block; }
+.wb-frame:has(.wb-ex), .wb-frame:has(.wb-canvas) { display: block; }
 .wb-ex { position: relative; margin: 0 auto; line-height: 0; }
 .wb-ex-host, .wb-ex-host > svg { display: block; width: 100%; height: 100%; }
 .wb-hot { position: absolute; padding: 0; border: 0; border-radius: 10px; background: transparent; cursor: pointer; }
@@ -64,7 +64,7 @@
   .wb-ex-animate text.wb-in, .wb-ex-animate .wb-in text { animation: wb-fade calc(var(--wb-len, 600ms) * 0.5) ease-out calc(var(--wb-len, 600ms) * 0.35) both; }
 }
 .wb-look { margin-left: 0; }
-.wb-canvas { display: flex; flex-direction: column; gap: 8px; padding: 8px; height: min(80vh, 800px); line-height: normal; }
+.wb-canvas { width: 100%; display: flex; flex-direction: column; gap: 8px; padding: 8px; height: min(80vh, 800px); line-height: normal; }
 .wb-canvas-editor { position: relative; flex: 1 1 auto; min-height: 0; }
 .wb-canvas-done { align-self: flex-end; }
 /* nothing in the editor leads outside: no library browser */
