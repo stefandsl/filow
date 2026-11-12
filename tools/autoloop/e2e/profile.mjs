@@ -13,10 +13,11 @@ export const NO_PUBLIC_LINK = { remoteShare: false };
 
 /**
  * Creates or updates <root>/tmp/autoloop-profile/settings.json, keeping every other setting; returns the
- * profile folder. `extra` settings (such as NO_PUBLIC_LINK) are written on top.
+ * profile folder. `extra` settings (such as NO_PUBLIC_LINK) are written on top. A session that must keep
+ * its instances apart from another session's moves the folder with FILOW_E2E_PROFILE, like the ports.
  */
-export function seedProfile(root, extra = {}) {
-  const profile = path.join(root, "tmp", "autoloop-profile");
+export function seedProfile(root, extra = {}, dir = process.env.FILOW_E2E_PROFILE) {
+  const profile = dir ? path.resolve(dir) : path.join(root, "tmp", "autoloop-profile");
   const file = path.join(profile, "settings.json");
   fs.mkdirSync(profile, { recursive: true });
   const settings = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {};
