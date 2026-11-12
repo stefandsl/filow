@@ -2173,7 +2173,7 @@ function about() {
     BrowserWindow, ipcMain, dialog, clipboard, shell, openExternalSafe, logLine, fs, path,
     pageFile: path.join(__dirname, "about.html"), preload: path.join(__dirname, "about-preload.js"),
     lang: menuLang, theme: uiTheme, icon: appIcon,
-    info: () => ({ version: app.getVersion(), electron: process.versions.electron, configFolder: userData }),
+    info: () => ({ version: app.getVersion(), electron: process.versions.electron, configFolder: userData, build: require("./package.json").sourceSha }),
     docsDir: packaged ? resources : path.join(resources, "..", "docs"),
     crashDir: path.join(userData, "Crashpad"), documentsDir: () => app.getPath("documents"),
     collectReport: reportSections,

@@ -15,7 +15,7 @@ const ISSUE_URL_LIMIT = 6000;
 // language and the parity check cover them.
 const { t: sharedText } = require("./vendor/i18n");
 const ABOUT_KEYS = ["tabAbout", "tabReport", "version", "fact1", "fact2", "fact3", "fact4", "configFolder", "openFolder", "todo", "policyMissing", "policyEnglish",
-  "issueIntro", "issueHeading", "issuePublic", "issueOpen", "issueOpened", "issueFailed", "issueTitle", "issueTitleBare", "issueCut", "issueEarlier", "describe", "describeHint", "contents", "masked",
+  "issueIntro", "issueHeading", "issuePublic", "issueOpen", "issueOpened", "issueFailed", "issueTitle", "issueTitleBare", "issueCut", "issueEarlier", "describe", "describeHint", "contents", "masked", "build", "devBuild",
   "crashNone", "crashSome", "openCrash", "save", "copy", "close", "saved", "copied", "saveFailed", "saveTitle", "loading",
   "fileTitle", "fileMade", "fileWhat", "fileNone", "fileCrash", "fileSystem", "fileDictation", "fileTake", "fileLog", "fileNoTake"];
 
@@ -23,6 +23,16 @@ const ABOUT_KEYS = ["tabAbout", "tabReport", "version", "fact1", "fact2", "fact3
 const fill = (text, vars = {}) => text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
 /** Every text of the window in one language, {placeholders} left for the page to fill. */
 const textFor = (lang) => Object.fromEntries(ABOUT_KEYS.map((k) => [k, sharedText(`about.${k}`, lang)]));
+
+/**
+ * The line that says which commit this build was made from: "Build 1a2b3c4" (the first 7 characters of
+ * the sha CI wrote into package.json), or "Build: development build" when there is none (a run from
+ * source, or a build made outside CI). `t` is textFor(lang); {sha} in t.build is filled.
+ */
+const buildLabel = (sha, t) => {
+  const s = typeof sha === "string" ? sha.trim() : "";
+  return s ? fill(t.build, { sha: s.slice(0, 7) }) : t.devBuild;
+};
 
 // ---- the policy: a small Markdown reader for the subset docs/PRIVACY*.md uses ----
 // It returns plain data (no HTML): the page builds DOM nodes with textContent, so nothing in the file
@@ -243,7 +253,7 @@ function issueUrl({ lang, description, sections, version, limit = ISSUE_URL_LIMI
 
 /**
  * deps: BrowserWindow, ipcMain, dialog, clipboard, shell, openExternalSafe, logLine, fs, path,
- * pageFile (about.html), preload, lang(), theme(), icon(), info() -> { version, electron, configFolder },
+ * pageFile (about.html), preload, lang(), theme(), icon(), info() -> { version, electron, configFolder, build (commit sha or undefined) },
  * docsDir, crashDir, documentsDir, collectReport() -> Promise<[{ title, text }]>,
  * issuePage (QA builds only: a local stand-in for the GitHub new-issue page; undefined otherwise).
  */
@@ -276,7 +286,7 @@ function createAboutPages(deps) {
     const p = policy();
     // The policy is legal text, kept in English (and Italian); the page says so in the user's language.
     const policyLang = /PRIVACY\.it\.md$/.test(p.file || "") ? "it" : "en";
-    return { view, lang: deps.lang(), theme: deps.theme(), text: textFor(deps.lang()), info: deps.info(), policy: p.blocks, policyLang, support: SUPPORT };
+    return { view, lang: deps.lang(), theme: deps.theme(), text: textFor(deps.lang()), info: deps.info(), buildLabel: buildLabel(deps.info().build, textFor(deps.lang())), policy: p.blocks, policyLang, support: SUPPORT };
   });
   handle("about:openConfigFolder", () => shell.openPath(deps.info().configFolder));
   handle("report:data", async () => {
@@ -348,4 +358,4 @@ function createAboutPages(deps) {
   return { open, close };
 }
 
-module.exports = { createAboutPages, parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, issueUrl, textFor, ABOUT_KEYS, SUPPORT, ISSUE_URL_LIMIT };
+module.exports = { createAboutPages, parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, issueUrl, textFor, buildLabel, ABOUT_KEYS, SUPPORT, ISSUE_URL_LIMIT };
