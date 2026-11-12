@@ -55,7 +55,11 @@ describe("the bubble shows the whole answer", () => {
     // a slim scrollbar without arrows, and a last line that fades out while more text lies below
     expect(css).toMatch(/\.okf-text::-webkit-scrollbar \{ width: 6px; \}/);
     expect(css).toMatch(/\.okf-text::-webkit-scrollbar-button \{ display: none;/);
-    expect(css).not.toMatch(/scrollbar-width|scrollbar-color/); // (they would switch the styled scrollbar off)
+    // scrollbar-color or scrollbar-width with a value switch the styled scrollbar off (the wide one with
+    // arrows comes back), and globals.css sets scrollbar-color on every element: the text sets both back to auto
+    expect(read("../../app/globals.css")).toMatch(/\* \{ scrollbar-color:/);
+    expect(css).toContain(".okf-text { scrollbar-color: auto; scrollbar-width: auto; }");
+    expect(css.replace(".okf-text { scrollbar-color: auto; scrollbar-width: auto; }", "")).not.toMatch(/scrollbar-width\s*:|scrollbar-color\s*:/);
     expect(css).toMatch(/\.okf-text\[data-more="1"\] \{[^}]*mask-image: linear-gradient\(to bottom, #000 calc\(100% - 26px\), transparent 100%\);/);
     // the bubble is a box of its own above the overlay, never wider than the screen
     expect(rule(".okf-bubble")).toMatch(/position:\s*fixed;/);

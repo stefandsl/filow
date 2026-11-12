@@ -40,7 +40,9 @@ html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !import
   position: relative; align-self: stretch; overflow-wrap: anywhere; white-space: pre-line;
   max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding-right: 6px;
 }
-/* Its scrollbar: a slim rounded thumb, no arrows, the same on the dark bubble in both themes. */
+/* Its scrollbar: a slim rounded thumb, no arrows, the same on the dark bubble in both themes.
+   (globals.css sets scrollbar-color on everything, which switches the rules below off: back to auto here.) */
+.okf-text { scrollbar-color: auto; scrollbar-width: auto; }
 .okf-text::-webkit-scrollbar { width: 6px; }
 .okf-text::-webkit-scrollbar-track { background: transparent; }
 .okf-text::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(255, 255, 255, 0.32); }
