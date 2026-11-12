@@ -213,7 +213,8 @@ function pickInstalled(choice, installed, pin = null) {
   const notes = [];
   if (model && model !== wanted && !pinUsable) notes.push("fallback");
   if (model && !streaming && choice.use === "tracking") notes.push("phrases");
-  if (pin && !pinUsable) notes.push(choice.models.includes(pin) ? "pinMissing" : "pinUnfit");
+  // a model that is gone is "missing" whatever it could do; one on disk that cannot listen here is "unfit"
+  if (pin && !pinUsable) notes.push(installed.includes(pin) ? "pinUnfit" : "pinMissing");
   return { model, wanted, streaming, notes, pinned: pinUsable };
 }
 

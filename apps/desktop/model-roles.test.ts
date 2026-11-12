@@ -37,6 +37,10 @@ describe("the speech model the user chose for a task", () => {
     const choice = chooseModels({ language: "it", use: "tracking", ...pc });
     expect(pickInstalled(choice, ["nemotron"], "parakeet-v3")).toMatchObject({ model: "nemotron", pinned: false, notes: ["pinMissing"] });
   });
+  it("a chosen model that was deleted is reported as gone, whatever language it spoke", () => {
+    const choice = chooseModels({ language: "it", use: "tracking", ...pc });
+    expect(pickInstalled(choice, ["nemotron"], "reazonspeech-ja").notes).toContain("pinMissing");
+  });
   it("a model that cannot listen in this language is never used for it", () => {
     const choice = chooseModels({ language: "it", use: "questions", ...pc });
     expect(pickInstalled(choice, ["nemotron", "reazonspeech-ja"], "reazonspeech-ja")).toMatchObject({ model: "nemotron", pinned: false, notes: ["fallback", "pinUnfit"] });
@@ -88,7 +92,8 @@ describe("the in-use badge and the per-task rows follow the choice", () => {
     expect(u.speechRoles.tracking).toMatchObject({ auto: "nemotron", active: "parakeet-v3", pin: "parakeet-v3", note: null });
   });
   it("a choice that cannot be used is reported, and the automatic pick listens", () => {
-    const u = modelUse(input({ tracking: "reazonspeech-ja" }));
+    const on = input({ tracking: "reazonspeech-ja" });
+    const u = modelUse({ ...on, speech: { ...on.speech, installed: [...on.speech.installed, "reazonspeech-ja"] } });
     expect(u.speechRoles.tracking).toMatchObject({ active: "nemotron", pin: "reazonspeech-ja", note: "pinUnfit" });
     expect(u.speechRoles.tracking.can).not.toContain("reazonspeech-ja");
   });

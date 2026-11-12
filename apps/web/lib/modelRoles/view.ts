@@ -6,7 +6,7 @@ import { taskDef, type OllamaTaskId, type Unfit } from "./tasks";
 export type RolesModel = { name: string; sizeBytes: number | null; vision: boolean; chat: boolean; clef: boolean };
 export type RolesSource = { reachable: boolean; models: RolesModel[] };
 export type RolesServer = RolesSource & { id: string; name: string; url: string; where: "this-pc" | "lan" | "internet"; warnings: Array<"plain" | "internet"> };
-export type RolesFallback = "missing" | "unreachable" | "unfit" | "unagreed";
+export type RolesFallback = "missing" | "unreachable" | "unfit" | "unagreed" | "offline";
 export type RolesData = {
   here: RolesSource & { url: string; elsewhere: string | null };
   servers: RolesServer[];

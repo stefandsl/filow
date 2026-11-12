@@ -27,7 +27,9 @@ export async function GET(req: Request) {
   if (denied) return denied;
   const fresh = new URL(req.url).searchParams.get("fresh") === "1";
   const roles = readRoles();
-  const [here, ...lists] = await Promise.all([listSource(OLLAMA_URL(), fresh), ...roles.servers.map((s) => listSource(s.url, fresh))]);
+  // offline: not even the list of models is asked of another computer
+  const offline = process.env.FILOW_OFFLINE === "1";
+  const [here, ...lists] = await Promise.all([listSource(OLLAMA_URL(), fresh), ...roles.servers.map((s) => (offline ? Promise.resolve({ reachable: false, models: [] }) : listSource(s.url, fresh)))]);
   const names = here.models.map((m) => m.name);
   const pref = new URL(req.url).searchParams.get("setup");
   const key = `${pref}|${names.join(",")}`;
@@ -49,18 +51,59 @@ type PutBody = { action?: unknown; task?: unknown; pin?: unknown; name?: unknown
 
 const bad = (code: string, status = 400) => NextResponse.json({ error: code, code }, { status });
 
+const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
+/**
+ * Where the per-task choices can be changed: the desktop window, which talks to this server on
+ * 127.0.0.1. A phone, the PowerPoint pane or a tunnel visitor reaches it by another address (and a
+ * browser cannot fake that), so they can read these settings but never send a task elsewhere.
+ */
+function fromThisPc(req: Request): boolean {
+  const host = (req.headers.get("host") ?? new URL(req.url).host).toLowerCase();
+  const hostname = host.startsWith("[") ? host.slice(0, host.indexOf("]") + 1) : host.split(":")[0];
+  const origin = req.headers.get("origin");
+  let originOk = true;
+  try {
+    if (origin) originOk = LOOPBACK.has(new URL(origin).hostname);
+  } catch {
+    originOk = false;
+  }
+  return LOOPBACK.has(hostname) && originOk && !req.headers.get("cf-connecting-ip");
+}
+
+/** The same Ollama under another spelling of this PC ("localhost" for "127.0.0.1"). */
+const sameAddress = (a: string, b: string) => {
+  const key = (u: string) => {
+    const x = new URL(u);
+    return `${x.protocol}//${LOOPBACK.has(x.hostname) ? "loopback" : x.hostname}:${x.port || (x.protocol === "https:" ? "443" : "80")}${x.pathname.replace(/\/+$/, "")}`;
+  };
+  try {
+    return key(a) === key(b);
+  } catch {
+    return false;
+  }
+};
+
 export async function PUT(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
-  const body = (await req.json().catch(() => ({}))) as PutBody;
+  if (!fromThisPc(req)) return bad("this_pc_only", 403);
+  if (Number(req.headers.get("content-length") ?? 0) > 4096) return bad("too_large", 413);
+  const raw = await req.text().catch(() => "");
+  if (raw.length > 4096) return bad("too_large", 413);
+  let body: PutBody;
+  try {
+    body = JSON.parse(raw || "{}") as PutBody;
+  } catch {
+    body = {};
+  }
   const roles = readRoles();
   if (body.action === "addServer") {
+    if (typeof body.url === "string" && body.url.length > 500) return bad("url_invalid");
     const ok = normaliseServerUrl(body.url);
     if (!ok.ok) return bad(`url_${ok.reason}`);
     if (roles.servers.length >= MAX_SERVERS) return bad("too_many");
-    if (roles.servers.some((s) => s.url === ok.url)) return bad("duplicate", 409);
     // this PC's own Ollama is already "This PC"
-    if (ok.url === OLLAMA_URL()) return bad("duplicate", 409);
+    if (roles.servers.some((s) => sameAddress(s.url, ok.url)) || sameAddress(ok.url, OLLAMA_URL())) return bad("duplicate", 409);
     const server = { id: newServerId(), name: serverName(body.name, ok.url), url: ok.url };
     writeRoles({ ...roles, servers: [...roles.servers, server] });
     return NextResponse.json({ ok: true, id: server.id });
@@ -91,6 +134,7 @@ export async function PUT(req: Request) {
       if (p.source !== "local" && !server) return bad("unknown_server", 404);
       // sending to a server needs the yes the page asked for when the user chose it
       if (server && p.agreed !== true) return bad("agree_first", 409);
+      if (server && process.env.FILOW_OFFLINE === "1") return bad("offline", 409);
       const list = await listSource(server ? server.url : OLLAMA_URL(), true);
       if (!list.reachable) return bad("unreachable", 409);
       const found = list.models.find((m) => sameModel(m.name, p.model as string));
@@ -102,7 +146,11 @@ export async function PUT(req: Request) {
     } else {
       return bad("not_pinnable");
     }
-    writeRoles({ ...roles, pins });
+    // The server was asked above (up to a few seconds): what changed meanwhile (a server removed, another
+    // task chosen) is kept, and only this task's choice is written on top of it.
+    const latest = readRoles();
+    if (pins[task]!.source !== "local" && !latest.servers.some((s) => s.id === pins[task]!.source)) return bad("unknown_server", 404);
+    writeRoles({ ...latest, pins: { ...latest.pins, [task]: pins[task] } });
     return NextResponse.json({ ok: true });
   }
   return bad("unknown_action");

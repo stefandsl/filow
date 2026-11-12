@@ -26,8 +26,8 @@ function fakeOllamas(hosts: Record<string, Array<{ name: string; caps: string[] 
   return calls;
 }
 
-const put = (body: unknown) => PUT(new Request("http://unit.invalid/api/local/roles", { method: "PUT", body: JSON.stringify(body) }));
-const get = async () => (await GET(new Request("http://unit.invalid/api/local/roles"))).json();
+const put = (body: unknown) => PUT(new Request("http://127.0.0.1:4747/api/local/roles", { method: "PUT", body: JSON.stringify(body) }));
+const get = async () => (await GET(new Request("http://127.0.0.1:4747/api/local/roles"))).json();
 
 describe("PUT /api/local/roles", () => {
   beforeEach(() => {
@@ -89,6 +89,38 @@ describe("PUT /api/local/roles", () => {
     const id = readRoles(FILE).servers[0].id;
     await put({ action: "pin", task: "translate", pin: { source: id, model: "qwen3-vl:8b", agreed: true } });
     expect(await localTranslateState()).toMatchObject({ ok: true, model: "qwen3-vl:8b", place: { base: RIG, server: { id, name: "Rig" } } });
+  });
+  it("only the desktop window on this PC can change where tasks run: a phone or a tunnel visitor cannot", async () => {
+    const from = (url: string, headers: Record<string, string> = {}) => PUT(new Request(url, { method: "PUT", headers, body: JSON.stringify({ action: "addServer", url: "10.0.0.9" }) }));
+    expect((await from("http://192.168.1.5:4747/api/local/roles")).status).toBe(403);
+    expect((await from("http://127.0.0.1:4747/api/local/roles", { origin: "http://192.168.1.5:4747" })).status).toBe(403);
+    expect((await from("http://127.0.0.1:4747/api/local/roles", { "cf-connecting-ip": "8.8.8.8" })).status).toBe(403);
+    expect(readRoles(FILE).servers).toEqual([]);
+    expect((await from("http://localhost:4747/api/local/roles", { origin: "http://localhost:4747" })).status).toBe(200);
+  });
+  it("this PC under another spelling is not a server", async () => {
+    expect(await (await put({ action: "addServer", url: "http://localhost:11434/" })).json()).toMatchObject({ code: "duplicate" });
+  });
+  it("offline: no server is asked, chosen or used", async () => {
+    await put({ action: "addServer", name: "Rig", url: RIG });
+    const id = readRoles(FILE).servers[0].id;
+    await put({ action: "pin", task: "translate", pin: { source: id, model: "qwen3-vl:8b", agreed: true } });
+    vi.stubEnv("FILOW_OFFLINE", "1");
+    forgetLists();
+    const calls = fakeOllamas({ [HERE]: [{ name: "qwen3-vl:2b", caps: ["completion", "vision"] }], [RIG]: [{ name: "qwen3-vl:8b", caps: ["completion", "vision"] }] });
+    const view = await get();
+    expect(view.tasks.translate).toMatchObject({ pinned: false, fallback: "offline" });
+    expect(view.servers[0].reachable).toBe(false);
+    expect(await (await put({ action: "pin", task: "okfilowAnswers", pin: { source: id, model: "qwen3-vl:8b", agreed: true } })).json()).toMatchObject({ code: "offline" });
+    expect(calls.some((c) => c.startsWith(RIG))).toBe(false);
+  });
+  it("a choice saved while a server was removed does not bring the server back", async () => {
+    await put({ action: "addServer", name: "Rig", url: RIG });
+    const id = readRoles(FILE).servers[0].id;
+    const saving = put({ action: "pin", task: "translate", pin: { source: "local", model: "llama3.2:3b" } });
+    await put({ action: "removeServer", id });
+    expect((await saving).status).toBe(200);
+    expect(readRoles(FILE)).toEqual({ version: 1, servers: [], pins: { translate: { source: "local", model: "llama3.2:3b" } } });
   });
   it("GET never shows a password typed into a server address", async () => {
     await put({ action: "addServer", name: "Proxy", url: "http://me:s3cret@192.168.1.20:11434" });

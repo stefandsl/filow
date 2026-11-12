@@ -171,7 +171,7 @@ function TaskRow(p: { task: TaskId; engine: "ollama" | "speech" | "single"; data
     <div className="roles-row" data-task={task}>
       <label className="roles-name" htmlFor={`${id}-select`}>{name}</label>
       <div className="roles-pick">
-        <select id={`${id}-select`} className="btn freellm-input roles-select" value={value} disabled={p.busy} aria-describedby={describedBy} onChange={(e) => p.onChoose(task, e.target.value)}>
+        <select id={`${id}-select`} className="btn freellm-input roles-select" value={value} aria-busy={p.busy} aria-describedby={describedBy} onChange={(e) => { if (!p.busy) p.onChoose(task, e.target.value); }}>
           <option value="">{autoLabel ?? (autoName ? t("roles.auto", { model: autoName }) : t("roles.autoNone"))}</option>
           {gone && pin && <option value={optionValue(pin.source, pin.model)} disabled>{t("roles.unavailable", { model: pin.model })}</option>}
           {groups.map((g) => (
@@ -186,26 +186,31 @@ function TaskRow(p: { task: TaskId; engine: "ollama" | "speech" | "single"; data
         </select>
         <p className="hint roles-now" id={`${id}-now`}>{now}</p>
         {notes.length > 0 && <p className="hint roles-note" id={`${id}-note`} data-testid="roles-fallback">{notes.join(" ")}</p>}
-        {p.ask && <ServerNotice ask={p.ask} t={t} busy={p.busy} onAgree={p.onAgree} onCancel={p.onCancel} />}
+        {p.ask && <ServerNotice ask={p.ask} t={t} busy={p.busy} onAgree={p.onAgree} onCancel={p.onCancel} returnTo={`${id}-select`} />}
       </div>
     </div>
   );
 }
 
 /** The first-send notice for a server: what goes, to which of the user's computers, and how it travels. */
-function ServerNotice({ ask, t, busy, onAgree, onCancel }: { ask: Ask; t: T; busy: boolean; onAgree: () => void; onCancel: () => void }) {
-  const first = useRef<HTMLButtonElement>(null);
+function ServerNotice({ ask, t, busy, onAgree, onCancel, returnTo }: { ask: Ask; t: T; busy: boolean; onAgree: () => void; onCancel: () => void; returnTo: string }) {
+  // the safe answer has the focus: a stray Enter keeps everything on this PC
+  const keep = useRef<HTMLButtonElement>(null);
   const id = useId();
-  useEffect(() => first.current?.focus(), []);
+  useEffect(() => keep.current?.focus(), []);
+  const cancel = () => {
+    onCancel();
+    document.getElementById(returnTo)?.focus();
+  };
   return (
-    <div className="roles-ask" role="alertdialog" aria-modal="false" aria-labelledby={`${id}-q`} aria-describedby={`${id}-w`} data-testid="roles-ask" onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}>
+    <div className="roles-ask" role="alertdialog" aria-modal="false" aria-labelledby={`${id}-q`} aria-describedby={`${id}-w`} data-testid="roles-ask" onKeyDown={(e) => { if (e.key === "Escape") cancel(); }}>
       <p id={`${id}-q`}>{t("roles.confirm", { task: t(`roles.task.${ask.task}` as I18nKey), what: t(`roles.what.${ask.task}` as I18nKey), name: ask.server.name, url: ask.server.url })}</p>
       <div id={`${id}-w`}>
         {ask.server.warnings.map((w) => <p key={w} className="roles-warn">{t(`roles.warn.${w}` as I18nKey)}</p>)}
       </div>
       <div className="row">
-        <button ref={first} type="button" className="btn primary" disabled={busy} onClick={onAgree}>{t("roles.confirmYes", { name: ask.server.name })}</button>
-        <button type="button" className="btn" onClick={onCancel}>{t("roles.confirmNo")}</button>
+        <button type="button" className="btn primary" disabled={busy} onClick={() => { onAgree(); document.getElementById(returnTo)?.focus(); }}>{t("roles.confirmYes", { name: ask.server.name })}</button>
+        <button ref={keep} type="button" className="btn" onClick={cancel}>{t("roles.confirmNo")}</button>
       </div>
     </div>
   );
@@ -230,7 +235,10 @@ function Servers({ data, t, onChanged }: { data: RolesData; t: T; onChanged: (r:
     await onChanged(r, t("roles.added", { name: name.trim() || url.trim() }));
   };
   const remove = async (s: RolesServer) => {
+    if (busy) return;
+    setBusy(true);
     await onChanged(await put({ action: "removeServer", id: s.id }), t("roles.removed", { name: s.name }));
+    setBusy(false);
   };
   const count = (s: { reachable: boolean; models: unknown[] }) => (s.reachable ? t("roles.reachable", { n: s.models.length }) : t("roles.unreachableChip"));
   return (

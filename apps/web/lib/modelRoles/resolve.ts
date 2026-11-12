@@ -13,7 +13,7 @@ export type SourceList = { reachable: boolean; models: OllamaModelInfo[] };
 /** Where a call goes: the address, the header a password in it becomes, and the user's server (null on this PC). */
 export type Place = { base: string; headers: Record<string, string>; server: { id: string; name: string } | null };
 
-export type Fallback = "missing" | "unreachable" | "unfit" | "unagreed";
+export type Fallback = "missing" | "unreachable" | "unfit" | "unagreed" | "offline";
 export type TaskTarget = Place & { model: string | null; pinned: boolean; fallback: Fallback | null };
 
 /**
@@ -36,16 +36,17 @@ const shows = new Map<string, string[] | null>();
 async function capabilitiesOf(base: string, headers: Record<string, string>, name: string, digest: string): Promise<string[] | null> {
   const key = `${base}|${name}|${digest}`;
   if (shows.has(key)) return shows.get(key)!;
-  let caps: string[] | null;
   try {
     const res = await fetch(`${base}/api/show`, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify({ model: name }), signal: AbortSignal.timeout(2000) });
-    const json = res.ok ? ((await res.json()) as { capabilities?: unknown }) : {};
-    caps = Array.isArray(json.capabilities) ? json.capabilities.filter((c): c is string => typeof c === "string") : null;
+    if (!res.ok) return null;
+    const json = (await res.json()) as { capabilities?: unknown };
+    const caps = Array.isArray(json.capabilities) ? json.capabilities.filter((c): c is string => typeof c === "string") : null;
+    // only an answer is kept: a busy server that timed out is asked again next time
+    shows.set(key, caps);
+    return caps;
   } catch {
-    caps = null;
+    return null;
   }
-  shows.set(key, caps);
-  return caps;
 }
 
 /** The models on one Ollama (this PC or a server) and whether it answers. Reads only: never pulls or deletes. */
@@ -60,11 +61,15 @@ export async function listSource(url: string, fresh = false): Promise<SourceList
     if (res.ok) {
       const tags = ((await res.json()) as { models?: Array<{ name?: unknown; size?: unknown; digest?: unknown }> }).models ?? [];
       const named = tags.filter((m): m is { name: string; size?: unknown; digest?: unknown } => typeof m.name === "string").slice(0, 200);
-      const models = await Promise.all(named.map(async (m) => ({
-        name: m.name,
-        sizeBytes: typeof m.size === "number" ? m.size : undefined,
-        capabilities: await capabilitiesOf(base, headers, m.name, typeof m.digest === "string" ? m.digest : ""),
-      })));
+      // a few questions at a time: a server with many models is not flooded
+      const models: OllamaModelInfo[] = [];
+      for (let i = 0; i < named.length; i += 6) {
+        models.push(...(await Promise.all(named.slice(i, i + 6).map(async (m) => ({
+          name: m.name,
+          sizeBytes: typeof m.size === "number" ? m.size : undefined,
+          capabilities: await capabilitiesOf(base, headers, m.name, typeof m.digest === "string" ? m.digest : ""),
+        })))));
+      }
       value = { reachable: true, models };
     }
   } catch {
@@ -99,6 +104,8 @@ export async function checkPin(task: OllamaTaskId, pin: Pin, roles: RolesFile): 
     if (!server) return { ok: false, reason: "missing" };
     // the second lock: nothing goes to a server without the yes given when it was chosen
     if (!pin.agreed) return { ok: false, reason: "unagreed" };
+    // offline means nothing leaves this PC, the user's own computers included
+    if (process.env.FILOW_OFFLINE === "1") return { ok: false, reason: "offline" };
     place = placeOf(server);
     url = server.url;
   }
