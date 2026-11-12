@@ -11,6 +11,7 @@ import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/Lan
 import { getDecisionProvider, getGateMode, getScreenMode, getSetupPreference, getSpeechLang, getStartMode, SPEECH_LANGS, setDecisionProvider, setGateMode, setScreenMode, setSetupPreference, chooseSpeechLang, syncSpeechLang, setStartMode, type GateMode, type SpeechLang, type StartMode } from "@/lib/prefs";
 import { loadGate, stopGate, unloadGate } from "@/lib/gate/client";
 import { DeviceModelList, InUseChip, modelsBridge, StopButton } from "@/components/ModelControls";
+import { ModelRoles } from "@/components/ModelRoles";
 import { browserUses, deleteQuestion, ollamaUses, sizeText, type UseContext } from "@/lib/modelUse";
 import { readTranslateWhere } from "@/lib/translateWhere";
 import { screenBridge } from "@/lib/screen/watcher";
@@ -740,6 +741,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
           </section>
 
           <DeviceModelList ctx={useCtx} onChange={() => { readCleanupModel(); void sherpaBridge()?.status().then(setSherpa); }} />
+
+          <ModelRoles setup={setupPref} />
 
           <section className="strip" id="models">
             <div className="label">{t("settings.models")}</div>

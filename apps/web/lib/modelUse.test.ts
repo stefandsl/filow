@@ -41,6 +41,13 @@ describe("speech models from the desktop app's list", () => {
 });
 
 describe("Ollama models", () => {
+  it("a model the user chose for the script or the whiteboard is the one in use for it; one on his server is not in use here", () => {
+    const chosen = { ...local, picks: { ...local.picks!, generate: "gemma4:e2b", whiteboard: "llama3.2:3b" } };
+    expect(names(ollamaUses("gemma4:e2b", chosen))).toEqual(["generate"]);
+    expect(names(ollamaUses("gemma4:e4b", chosen))).toEqual(["translate"]);
+    expect(names(ollamaUses("llama3.2:3b", chosen))).toEqual(["whiteboard"]);
+    expect(names(ollamaUses("gemma4:e4b", { ...local, picks: { ...local.picks!, generate: null } }))).toEqual(["translate"]);
+  });
   it("two installed, one selected: only the one each feature would call is in use, and it says for what", () => {
     expect(names(ollamaUses("gemma4:e4b", local))).toEqual(["generate", "translate"]);
     expect(ollamaUses("gemma4:e2b", local)).toEqual([]); // installed next to it, only taking disk space

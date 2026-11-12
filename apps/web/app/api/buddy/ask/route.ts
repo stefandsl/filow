@@ -3,6 +3,7 @@ import { requireEngine } from "@/lib/engineAuth";
 import { dataUrlBytes, MAX_IMAGE_BYTES } from "@/lib/vision/openrouter";
 import { CONSENT_HEADER, consentDenied } from "@/lib/buddy/outbound";
 import { askBuddy, buddyCloudRecipient, resolveBuddyProvider, resolveLocalHelper, type BuddyAskRequest, type LocalHelper } from "@/lib/buddy/providers";
+import { serverAllowed } from "@/lib/modelRoles/helper";
 import { answerLanguage } from "@/lib/buddy/lang";
 import { drawnAnswer } from "@/lib/buddy/draw";
 import { wantsDrawing } from "@/lib/buddy/visuals";
@@ -86,6 +87,8 @@ export async function POST(req: Request) {
   if (provider === "local") {
     try {
       helper = await resolveLocalHelper(body.setup, question, sees);
+      // The user's own server (Settings > Advanced) only with the yes for it in this request; otherwise this PC answers.
+      if (!serverAllowed(helper, consent)) helper = await resolveLocalHelper(body.setup, question, sees, "okfilowAnswers", false);
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 409 });
     }
@@ -120,7 +123,7 @@ export async function POST(req: Request) {
     // A tag is short and the answer's voice waits for it: a few tokens and a few seconds, never the answer's own limits.
     const limit = pointingLimit(POINTER_MS);
     const shape = { system: buddySystemPrompt(screens, known ?? "auto", { pictures: true }), maxTokens: POINTER_MAX_TOKENS };
-    for await (const piece of askBuddy("local", { ...ask, question: pointQuestion(label), history: [] }, limit, { model: pointer!, pictures: true }, shape)) reply += piece;
+    for await (const piece of askBuddy("local", { ...ask, question: pointQuestion(label), history: [] }, limit, { model: pointer!, pictures: true, at: helper?.pointerAt }, shape)) reply += piece;
     return reply;
   };
   // A label no name on screen has the words of: the answering model chooses from the names, without a

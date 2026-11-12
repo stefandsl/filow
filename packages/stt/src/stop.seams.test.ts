@@ -43,6 +43,8 @@ function desktopSession() {
     "node:fs": { existsSync: () => true }, "node:os": { cpus: () => [0, 1, 2, 3], totalmem: () => 16 * 2 ** 30 },
     "node:path": path, "node:https": {}, "node:child_process": {},
     "node:worker_threads": { Worker }, "./stt-download": {}, "./download": {}, "./integrity": {}, "./model-files": {},
+    // no task is chosen for a model in this fixture (apps/desktop/model-roles.js)
+    "./model-roles": { speechPin: () => null },
   };
   runInNewContext(readFileSync(new URL("../../../apps/desktop/stt.js", import.meta.url), "utf8"), {
     require: (id: string) => modules[id], module, __dirname: "G:/fake",

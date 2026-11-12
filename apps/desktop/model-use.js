@@ -9,7 +9,7 @@ const { wanted } = require("./dictation-punctuate");
 
 /**
  * Pure. input:
- *  - speech: { installed: [catalogue keys that can run], language: the stored spoken language, hardware? }
+ *  - speech: { installed: [catalogue keys that can run], language: the stored spoken language, hardware?, pins?: the user's choice per task }
  *  - okFilow: { enabled, voice: the voice that speaks ("natural" | "system" | "cloud" | "off"), voiceUsable }
  *  - dictation: { enabled, language, cleanup, punctuate }
  *  - cleanup / punctuation: { installed, runtime } (the model file and the program that runs it)
@@ -28,15 +28,22 @@ function modelUse(input = {}) {
   // The same machine the recognizer measures (stt.js hardwareOf): a PC with few cores or little memory gets other models.
   const hw = hardwareOf(speechIn.hardware);
   const speech = {};
-  const add = (use, lang, purpose) => {
-    const key = pickInstalled(chooseModels({ language: lang, use: purpose, ramGb: hw.ramGb, cores: hw.cores }), installed).model;
-    if (key) (speech[key] ||= []).push({ use, language: normaliseLanguage(lang) });
+  // The user's choices per task (Settings > Advanced, model-roles.js): { tracking?, questions?, dictation? }.
+  const pins = speechIn.pins || {};
+  // Per task: the automatic pick, the model used now, the user's choice and why it is not used
+  // ("pinMissing": not on disk, "pinUnfit": cannot listen in this language), and which models can.
+  const speechRoles = {};
+  const add = (use, lang, purpose, on) => {
+    const choice = chooseModels({ language: lang, use: purpose, ramGb: hw.ramGb, cores: hw.cores });
+    const pick = pickInstalled(choice, installed, pins[use] || null);
+    speechRoles[use] = { auto: pickInstalled(choice, installed).model, active: pick.model, pin: pins[use] || null, note: pick.notes.find((n) => n.startsWith("pin")) || null, can: choice.models, language: normaliseLanguage(lang) };
+    if (on && pick.model) (speech[pick.model] ||= []).push({ use, language: normaliseLanguage(lang) });
   };
-  add("tracking", language, "tracking");
-  if (okf.enabled) add("questions", language, "questions");
+  add("tracking", language, "tracking", true);
+  add("questions", language, "questions", Boolean(okf.enabled));
   // Dictation listens with the phrase models, in its own language or, on "auto", the spoken language.
   const dictLang = dict.language && dict.language !== "auto" ? dict.language : language;
-  if (dict.enabled) add("dictation", dictLang, "questions");
+  add("dictation", dictLang, "questions", Boolean(dict.enabled));
 
   const voice = okf.enabled && okf.voice === "natural" && okf.voiceUsable ? [{ use: "voice", language: "auto" }] : [];
   // The same question each dictation asks before it goes through a model (a one-word probe text).
@@ -45,6 +52,7 @@ function modelUse(input = {}) {
   const punctuationOn = Boolean(dict.enabled && input.punctuation && input.punctuation.installed && input.punctuation.runtime && wanted("word", { enabled: dict.punctuate !== false, ...probe }).ok);
   return {
     speech,
+    speechRoles,
     voice,
     cleanup: cleanupOn ? [{ use: "cleanup", language: "en" }] : [],
     punctuation: punctuationOn ? [{ use: "punctuation", language: normaliseLanguage(dictLang) }] : [],

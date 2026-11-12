@@ -1204,7 +1204,8 @@ function createOkFilow(deps) {
     if (!ourSender(event)) throw new Error("Denied");
     // First use on a clean PC: start the download instead of only refusing.
     if (!sttLocal.modelReady(userData)) { deps.sttDownload?.(); throw new Error(menuText("okfNoStt")); }
-    if (!stt) stt = new sttLocal.SttSession(userData, logLine);
+    // the model the user chose (Settings > Advanced) for dictation or for OK Filow's questions, whichever is listening
+    if (!stt) stt = new sttLocal.SttSession(userData, logLine, { task: () => (purpose === "dictate" ? "dictation" : "questions") });
     const wc = event.sender;
     stt.onResult = (r) => !wc.isDestroyed() && wc.send("okfilow:stt:result", { partial: r.partial, committed: r.committed });
     stt.onError = (m) => !wc.isDestroyed() && wc.send("okfilow:stt:result", { partial: "", committed: "", error: m });

@@ -1,11 +1,14 @@
 // Script translation on this PC, through Ollama. Nothing leaves the computer on this path: the only
-// address it talks to is OLLAMA_URL. A small model cannot be trusted to copy a whole outline's shape,
+// address it talks to is OLLAMA_URL, or the user's own server when he chose a translation model there
+// in Settings (lib/modelRoles). A small model cannot be trusted to copy a whole outline's shape,
 // so the outline is cut into small chunks of lines and every chunk must come back with exactly its
 // own lines (a JSON object with one key per line, held by Ollama's schema-constrained output). A
 // chunk that comes back wrong is asked once more; if it is wrong again its lines stay in the
 // original language and the caller is told which. Points are never dropped, merged or invented.
 import { splitSectionMinutes } from "@filow/core";
 import { OLLAMA_URL } from "./decide/clef";
+import { localPlace, placeOnly, placeText, taskTarget, type Place } from "./modelRoles/resolve";
+import { readRoles } from "./modelRoles/store";
 
 /** Lines per request: small enough that a 1.5 GB model keeps them apart (docs/TRANSLATE-LOCAL.md). */
 export const LOCAL_TRANSLATE_CHUNK = 6;
@@ -49,10 +52,19 @@ export function ollamaElsewhere(): string | null {
   }
 }
 
-export type LocalTranslateState = { ok: true; model: string } | { ok: false; reason: "ollama_down" | "no_model" };
+/** `place`: where the model runs when it is the user's own server (absent: this PC's Ollama). */
+export type LocalTranslateState = { ok: true; model: string; place?: Place } | { ok: false; reason: "ollama_down" | "no_model" };
 
-/** Whether this PC can translate now: Ollama answers and one of the translation models is installed. */
+/**
+ * Whether this PC can translate now: Ollama answers and one of the translation models is installed.
+ * The translation model the user chose in Settings comes first, wherever it runs.
+ */
 export async function localTranslateState(): Promise<LocalTranslateState> {
+  const roles = readRoles();
+  if (roles.pins.translate) {
+    const pinned = await taskTarget("translate", null, roles);
+    if (pinned.pinned && pinned.model) return { ok: true, model: pinned.model, ...(pinned.server ? { place: placeOnly(pinned) } : {}) };
+  }
   let installed: string[];
   try {
     const res = await fetch(`${OLLAMA_URL()}/api/tags`, { signal: AbortSignal.timeout(3000) });
@@ -145,7 +157,7 @@ const noThink = (model: string) => (model.startsWith("qwen3-vl") ? [{ role: "ass
  * One request for a few lines. Null: the answer does not have the chunk's shape. Otherwise one entry
  * per line: its translation, or null when that line came back unusable.
  */
-async function translateChunk(lines: string[], language: string, model: string, attempt: number, signal?: AbortSignal): Promise<Array<string | null> | null> {
+async function translateChunk(lines: string[], language: string, model: string, attempt: number, signal?: AbortSignal, place: Place = localPlace()): Promise<Array<string | null> | null> {
   const input: Record<string, string> = {};
   const properties: Record<string, { type: "string" }> = {};
   lines.forEach((l, i) => {
@@ -162,10 +174,10 @@ async function translateChunk(lines: string[], language: string, model: string, 
   const timeout = AbortSignal.timeout(180_000);
   let res: Response;
   try {
-    res = await fetch(`${OLLAMA_URL()}/api/chat`, {
+    res = await fetch(`${place.base}/api/chat`, {
       method: "POST",
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...place.headers },
       body: JSON.stringify({
         model,
         stream: false,
@@ -179,7 +191,7 @@ async function translateChunk(lines: string[], language: string, model: string, 
     });
   } catch (e) {
     if (e instanceof Error && e.name === "TimeoutError") throw new LocalTranslateError("too_slow", `The local model ${model} did not answer within three minutes.`, model);
-    throw new LocalTranslateError("ollama_down", `Ollama is not running at ${OLLAMA_URL()}.`, model);
+    throw new LocalTranslateError("ollama_down", `Ollama is not running at ${placeText(place)}.`, model);
   }
   if (res.status === 404) throw new LocalTranslateError("no_model", `The local model ${model} is not installed.`, model);
   if (!res.ok) throw new LocalTranslateError("failed", `Ollama ${res.status}: ${(await res.text()).slice(0, 200)}`, model);
@@ -242,7 +254,7 @@ function pieces(lines: string[]): Piece[] {
  * blank lines, markers and line endings stay exactly as they were, so the result has the source's
  * lines one to one. A line is either translated or the source line itself.
  */
-export async function translateScriptLocal(text: string, language: string, model: string, signal?: AbortSignal): Promise<LocalTranslation> {
+export async function translateScriptLocal(text: string, language: string, model: string, signal?: AbortSignal, place?: Place): Promise<LocalTranslation> {
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
   const lines = text.split(/\r?\n/);
   const all = pieces(lines);
@@ -254,11 +266,11 @@ export async function translateScriptLocal(text: string, language: string, model
     for (let from = 0; from < mine.length; from += LOCAL_TRANSLATE_CHUNK) {
       const part = mine.slice(from, from + LOCAL_TRANSLATE_CHUNK);
       const chunk = part.map((p) => p.words);
-      let got = (await translateChunk(chunk, language, model, 0, signal)) ?? chunk.map(() => null);
+      let got = (await translateChunk(chunk, language, model, 0, signal, place)) ?? chunk.map(() => null);
       if (got.includes(null)) {
         // once more, and only for what is still missing: a line that was fine the first time stays
         retried++;
-        const again = await translateChunk(chunk, language, model, 1, signal);
+        const again = await translateChunk(chunk, language, model, 1, signal, place);
         if (again) got = got.map((line, i) => line ?? again[i]);
       }
       const missing = got.filter((line) => line === null).length;

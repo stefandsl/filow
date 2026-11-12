@@ -133,6 +133,8 @@ contextBridge.exposeInMainWorld("filow", {
    * ("speech", "voice", "cleanup", "punctuation", "ollama-installer", "cloudflared") and Delete for a
    * model ("speech:<key>", "voice", "cleanup", "punctuation").
    */
+  /** This launch's proof that a request comes from Filow's own window (Settings > Advanced, model per task). */
+  desktopToken: () => ipcRenderer.invoke("desktop:token"),
   models: {
     status: () => ipcRenderer.invoke("models:status"),
     cancel: (id) => ipcRenderer.invoke("models:cancel", id),

@@ -7,7 +7,8 @@ import { consentDenied } from "@/lib/buddy/outbound";
 import { freellmChat, scriptCloud } from "@/lib/freellm";
 import { anonymizeRequest, placeholderLeaks, restore } from "@/lib/pii/guard";
 import { keepTimeTargets, TRANSLATE_LANGS } from "@/lib/translateScript";
-import { LocalTranslateError, localTranslateState, ollamaElsewhere, translateScriptLocal } from "@/lib/translateLocal";
+import { LocalTranslateError, localTranslateState, ollamaElsewhere, translateScriptLocal, type LocalTranslateState } from "@/lib/translateLocal";
+import type { Place } from "@/lib/modelRoles/resolve";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +28,9 @@ export async function GET(req: Request) {
   const denied = requireEngine(req);
   if (denied) return denied;
   // `ollamaHost`: Ollama is on another computer the user set up (OLLAMA_URL); the editor then says so instead of "on this PC"
-  return NextResponse.json({ local: await localTranslateState(), cloud: scriptCloud(), offline: process.env.FILOW_OFFLINE === "1", ollamaHost: ollamaElsewhere() });
+  // A translation model the user chose on his own server (Settings, per task) names that server.
+  const { place, ...local } = (await localTranslateState()) as LocalTranslateState & { place?: Place };
+  return NextResponse.json({ local, cloud: scriptCloud(), offline: process.env.FILOW_OFFLINE === "1", ollamaHost: place?.server?.name ?? ollamaElsewhere() });
 }
 
 /**
@@ -64,7 +67,7 @@ export async function POST(req: Request) {
     try {
       // In place: only the words of titles, points and transition lines change; comments, time
       // targets and blank lines are the user's own lines, untouched (and never sent to the model).
-      const r = await translateScriptLocal(text, TRANSLATE_LANGS[to], state.model, req.signal);
+      const r = await translateScriptLocal(text, TRANSLATE_LANGS[to], state.model, req.signal, state.place);
       const got = lineCount(parseScript(r.text));
       return NextResponse.json({
         text: r.text,
