@@ -137,12 +137,32 @@ export function sttRecipient(backend: string, userAgent = ""): Recipient | null 
   return { id: "browser", names: ["Web Speech"] };
 }
 
-export type DecisionModels = { openrouter: string; cloudflare: string };
-/** Who reads the spoken words to decide when to scroll; null for the local decider. */
+/**
+ * One of the user's own computers, chosen for a task in Settings > Advanced (lib/modelRoles). Its
+ * consent key is its id; its name is the user's, and the page says "your server <name>" (localServer).
+ */
+export const SERVER_PREFIX = "server:";
+export const serverRecipient = (server: { id: string; name: string }): Recipient => ({ id: `${SERVER_PREFIX}${server.id}`, names: [server.name] });
+export const isServerRecipient = (r: Recipient | null | undefined): boolean => Boolean(r?.id.startsWith(SERVER_PREFIX));
+/** The notice and the signal name it in the user's words ("your server {name}"); the consent key does not change. */
+export const localServer = (r: Recipient, yourServer: string): Recipient =>
+  isServerRecipient(r) ? { ...r, names: r.names.map((n) => yourServer.split("{name}").join(n)) } : r;
+
+/**
+ * The "Local" choice of "Answers from", as it really is: "This PC (Ollama)", or "Your server <name>"
+ * when OK Filow's answers go to one of the user's computers (the label must match the signal).
+ */
+export const localAnswersLabel = (server: Recipient | null | undefined, thisPc: string, yourServer: string): string =>
+  server && isServerRecipient(server) ? yourServer.split("{name}").join(server.names[0] ?? "") : thisPc;
+
+/** `local`: the user's own server when he chose a decision model there; absent or null, the local decider stays on this PC. */
+export type DecisionModels = { openrouter: string; cloudflare: string; local?: Recipient | null };
+/** Who reads the spoken words to decide when to scroll; null for the local decider on this PC. */
 export function decisionRecipient(provider: string, models: DecisionModels): Recipient | null {
   if (provider === "openrouter") return askRecipient(models.openrouter);
   if (provider === "freellm") return freellmRecipient();
   if (provider === "clef-cloudflare") return { id: "cloudflare", names: ["Cloudflare"] };
+  if (provider === "clef-local") return models.local ?? null;
   return null;
 }
 
@@ -259,6 +279,8 @@ export type BuddyRecipients = {
   screen: Recipient;
   /** Who reads the script and the slide pictures when a script is written or translated in the cloud. */
   script: Recipient;
+  /** The user's own server that a question on "Answers from: Local" goes to (Settings > Advanced); absent or null: this PC. */
+  server?: Recipient | null;
   /**
    * What the server runs when the client does not choose (the PowerPoint add-in and the browser
    * extension do not): the decision provider and the script writer. Absent on an older server.
@@ -299,11 +321,11 @@ export function askRoute(status: { provider?: string; offline?: boolean } | null
   if (!status || status.offline) return "local";
   return status.provider === "cloud" || status.provider === "freellm" ? status.provider : "local";
 }
-/** Who the route sends a question to; null when it stays on this PC. */
-export function askRouteRecipient(route: AskRoute, rec: Pick<BuddyRecipients, "ask" | "freellm">): Recipient | null {
+/** Who the route sends a question to; null when it stays on this PC ("local" may go to the user's own server). */
+export function askRouteRecipient(route: AskRoute, rec: Pick<BuddyRecipients, "ask" | "freellm" | "server">): Recipient | null {
   if (route === "cloud") return rec.ask;
   if (route === "freellm") return rec.freellm ?? freellmRecipient();
-  return null;
+  return rec.server ?? null;
 }
 /** The same decision for the voice that reads the answers. */
 export function voiceRoute(status: { voice?: string; offline?: boolean } | null | undefined): "local" | "cloud" {

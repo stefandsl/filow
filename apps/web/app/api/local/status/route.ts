@@ -4,7 +4,11 @@ import { CLEF_LOCAL_MODEL, OLLAMA_URL } from "@/lib/decide/clef";
 import { LOCAL_MODELS, fits, versionAtLeast } from "@/lib/localModels";
 import { PII_SERVER_URL, piiMode, rizzoReachable } from "@/lib/pii/guard";
 import { isSetupPreference, recommendProfile, resolveSetup } from "@filow/core";
-import { localHelper } from "@/lib/buddy/providers";
+import { localHelper, type LocalHelper } from "@/lib/buddy/providers";
+import { isPointOnly } from "@/lib/buddy/pointer";
+import { pinHelper } from "@/lib/modelRoles/helper";
+import { taskTarget } from "@/lib/modelRoles/resolve";
+import { readRoles } from "@/lib/modelRoles/store";
 import { pickTranslateModel } from "@/lib/translateLocal";
 import { gpuInfo, machineInfo } from "@/lib/sysinfo";
 import { freellmConfigured } from "@/lib/freellm";
@@ -45,11 +49,41 @@ export async function GET(req: Request) {
   const wanted = new URL(req.url).searchParams.get("setup");
   const resolved = resolveSetup(isSetupPreference(wanted) ? wanted : "auto", hardware);
   const helpers = new Set<string>();
-  // an everyday question and one that asks for a drawing: on "Best quality" they go to different models
-  for (const question of ["what is this?", "explain it with a drawing"]) {
-    try { helpers.add(localHelper(resolved, names, question).model); } catch { /* this setup has no local helper */ }
+  // The models the user chose per task in Settings (lib/modelRoles) come first. Only a model that runs
+  // on this PC is "in use" here; one on the user's own server is shown with that server.
+  const roles = readRoles();
+  const here = (t: { model: string | null; server: unknown }) => (t.server ? null : t.model);
+  const setupPointer = resolved.choices.screenHelper.pointer ?? null;
+  // an everyday question, a "where is it" question and one that asks for a drawing: on "Best quality"
+  // they go to different models (an answer with a diagram and a plain "draw a car" may go to two
+  // different ones), and a setup may have a second model that places the points: every one is in use
+  for (const question of ["what is this?", "where is the save button?", "explain it with a drawing", "draw a car"]) {
+    let auto: LocalHelper | Error;
+    try {
+      auto = localHelper(resolved, names, question);
+    } catch (e) {
+      auto = e instanceof Error ? e : new Error(String(e));
+    }
+    try {
+      const helper = await pinHelper(auto, { task: "okfilowAnswers", pointOnly: isPointOnly(question), setupPointer, roles });
+      if (!helper.at?.server) helpers.add(helper.model);
+      if (helper.pointer && !helper.pointerAt?.server) helpers.add(helper.pointer);
+    } catch { /* this setup has no local helper */ }
   }
-  const picks = { decision: CLEF_LOCAL_MODEL(), translate: pickTranslateModel(names), okfilow: [...helpers] };
+  const [decision, translate, generate, whiteboard] = await Promise.all([
+    taskTarget("decision", CLEF_LOCAL_MODEL(), roles),
+    taskTarget("translate", pickTranslateModel(names), roles),
+    taskTarget("generate", null, roles),
+    taskTarget("whiteboard", null, roles),
+  ]);
+  const picks = {
+    decision: here(decision) ?? "",
+    translate: here(translate),
+    okfilow: [...helpers],
+    // only when the user chose them: otherwise the take's plan and OK Filow's helper say it
+    ...(generate.pinned ? { generate: here(generate) } : {}),
+    ...(whiteboard.pinned ? { whiteboard: here(whiteboard) } : {}),
+  };
   return NextResponse.json({
     picks,
     pii,

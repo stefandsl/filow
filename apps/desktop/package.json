@@ -1,6 +1,6 @@
 {
   "name": "@filow/desktop",
-  "version": "0.9.35",
+  "version": "0.9.36",
   "private": true,
   "description": "Filow: the live speaking companion",
   "author": "VoidExploit",
@@ -15,18 +15,18 @@
     "dist:mac": "electron-builder --mac --publish never",
     "dist:linux": "electron-builder --linux --publish never",
     "icon": "node ../../scripts/make-icon.js",
-    "vendor": "esbuild ../../node_modules/electron-updater/out/main.js --bundle --platform=node --target=node20 --format=cjs --external:electron --outfile=vendor/electron-updater.js && npm run build:welcome && node native/llama/fetch.mjs",
+    "vendor": "esbuild ../../node_modules/electron-updater/out/main.js --bundle --platform=node --target=node20 --format=cjs --external:electron --outfile=vendor/electron-updater.js && npm run build:welcome && node native/llama/fetch.mjs && node native/uia/build.mjs",
     "predist": "npm run vendor",
     "predist:win": "npm run vendor",
     "predist:mac": "npm run vendor",
     "predist:linux": "npm run vendor",
     "build:welcome": "esbuild welcome.ts --bundle --platform=browser --target=chrome130 --outfile=vendor/welcome.js && esbuild i18n=../../packages/core/src/i18n/index.ts ui-preferences=../../packages/core/src/ui-preferences.ts profile=../../packages/core/src/profile.ts hardware=../../packages/core/src/hardware.ts --bundle --platform=node --format=cjs --outdir=vendor && esbuild ../web/app/theme-tokens.css --bundle --outfile=vendor/theme-tokens.css",
-    "prestart": "npm run build:welcome",
+    "prestart": "npm run build:welcome && node native/uia/build.mjs",
     "typecheck": "tsc --noEmit --strict --skipLibCheck --target es2022 --moduleResolution bundler --module esnext --jsx react-jsx welcome.ts"
   },
   "devDependencies": {
     "@filow/core": "*",
-    "electron": "45.3.0",
+    "electron": "45.3.1",
     "electron-builder": "26.18.0",
     "electron-updater": "^6.8.11",
     "esbuild": "0.28.2"
@@ -34,7 +34,7 @@
   "build": {
     "beforePack": "./before-pack.js",
     "appId": "com.intelliprompter.app",
-    "electronVersion": "45.3.0",
+    "electronVersion": "45.3.1",
     "npmRebuild": false,
     "afterPack": "./after-pack.js",
     "artifactName": "Filow-${version}-${os}-${arch}.${ext}",
@@ -61,6 +61,7 @@
       "model-files.js",
       "model-use.js",
       "model-control.js",
+      "model-roles.js",
       "tts.js",
       "tts-worker.js",
       "tunnels.js",
@@ -97,6 +98,7 @@
       "okfilow-gestures.js",
       "okfilow-hook-retry.js",
       "uiohook.js",
+      "global-input.js",
       "dictation-target.js",
       "dictation-diag.js",
       "dictation-cleanup.js",
@@ -116,7 +118,9 @@
       "okfilow-selection.js",
       "okfilow-answers.js",
       "okfilow-outbound.js",
-      "okfilow-stop.js"
+      "okfilow-stop.js",
+      "okfilow-uia.js",
+      "native/uia/bin/okfilow-uia.exe"
     ],
     "asar": true,
     "extraResources": [
@@ -262,6 +266,7 @@
       "stt-worker.js",
       "tts-worker.js",
       "truecase-worker.js",
+      "native/uia/bin/**",
       "node_modules/onnxruntime-node/**",
       "node_modules/onnxruntime-common/**",
       "node_modules/@huggingface/tokenizers/**",

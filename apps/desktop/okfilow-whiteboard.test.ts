@@ -59,4 +59,13 @@ describe("whiteboard window in the desktop app", () => {
     expect(preload).toContain('closeWhiteboard: () => ipcRenderer.send("okfilow:whiteboard:close"),');
     expect(preload).toContain('onWhiteboard: on("okfilow:whiteboard"),');
   });
+
+  // The "Whiteboard" button in the main window's sidebar (apps/web/lib/whiteboard/open.ts): the main window is not
+  // one of OK Filow's windows, so it has a channel of its own that checks the main window's sender.
+  it("opens from the main window through its own checked channel, and says whether it did", () => {
+    const read = (name: string) => fs.readFileSync(path.join(dir, name), "utf8");
+    expect(read("preload.js")).toContain('showWhiteboard: () => ipcRenderer.invoke("okfilow:settings:showWhiteboard"),');
+    expect(read("main.js")).toContain('ipcMain.handle("okfilow:settings:showWhiteboard", event => { if (!uiSender(event)) throw new Error("Denied"); if (!okFilow) return false; okFilow.showWhiteboard(""); return true; });');
+    expect(main).toMatch(/return \{ start, dispose, togglePanel, showWhiteboard, status,/);
+  });
 });

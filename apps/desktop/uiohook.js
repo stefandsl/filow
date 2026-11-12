@@ -5,6 +5,7 @@
 // itself. The JavaScript side stays the published package; only the native file differs.
 const fs = require("node:fs");
 const path = require("node:path");
+const { globalInputOff, inertUiohook } = require("./global-input");
 
 /**
  * The folder holding `prebuilds/<platform>-<arch>/uiohook-napi.node` built by Filow, or "" when there is
@@ -19,13 +20,17 @@ function nativeDir({ platform = process.platform, arch = process.arch, baseDir =
 
 let loaded = null;
 /** uiohook-napi's exports ({ uIOhook, UiohookKey, ... }). Every caller goes through here. */
-function loadUiohook() {
+function loadUiohook({ env = process.env, load = () => require("uiohook-napi") } = {}) {
   if (loaded) return loaded;
+  // Test isolation (global-input.js): the library is not even loaded; callers get a stand-in that does nothing.
+  if (globalInputOff(env)) return (loaded = inertUiohook());
   // node-gyp-build (the library's loader) looks in this folder first when the variable is set.
   const dir = nativeDir();
   if (dir && !process.env.UIOHOOK_NAPI_PREBUILD) process.env.UIOHOOK_NAPI_PREBUILD = dir;
-  loaded = require("uiohook-napi");
+  loaded = load();
   return loaded;
 }
+/** Tests only: forget what was loaded. */
+function forgetUiohook() { loaded = null; }
 
-module.exports = { loadUiohook, nativeDir };
+module.exports = { loadUiohook, nativeDir, forgetUiohook };

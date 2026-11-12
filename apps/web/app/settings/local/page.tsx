@@ -11,6 +11,7 @@ import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/Lan
 import { getDecisionProvider, getGateMode, getScreenMode, getSetupPreference, getSpeechLang, getStartMode, SPEECH_LANGS, setDecisionProvider, setGateMode, setScreenMode, setSetupPreference, chooseSpeechLang, syncSpeechLang, setStartMode, type GateMode, type SpeechLang, type StartMode } from "@/lib/prefs";
 import { loadGate, stopGate, unloadGate } from "@/lib/gate/client";
 import { DeviceModelList, InUseChip, modelsBridge, StopButton } from "@/components/ModelControls";
+import { ModelRoles } from "@/components/ModelRoles";
 import { browserUses, deleteQuestion, ollamaUses, sizeText, type UseContext } from "@/lib/modelUse";
 import { readTranslateWhere } from "@/lib/translateWhere";
 import { screenBridge } from "@/lib/screen/watcher";
@@ -383,6 +384,10 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     const auto = new URLSearchParams(window.location.search).get("auto");
     if (!auto) return;
     setAutoDone(true);
+    // one start per click: the list leaves the address, so a reload or Back after Stop does not start the downloads again
+    const here = new URL(window.location.href);
+    here.searchParams.delete("auto");
+    window.history.replaceState(window.history.state, "", here);
     const wanted = auto.split(",").map((x) => x.trim()).filter(Boolean);
     setAutoList(wanted);
     (async () => {
@@ -459,7 +464,9 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
 
   // Links to /settings/local#setup (start dialog, take chip): the section renders after the status loads.
   useEffect(() => {
-    if (status && window.location.hash === "#setup") document.getElementById("setup")?.scrollIntoView({ block: "start" });
+    // also #models (a download started from the Easy page: the list where it runs and can be stopped) and #freellm (where a key is added)
+    const section = window.location.hash.slice(1);
+    if (status && /^[a-z]+$/.test(section)) document.getElementById(section)?.scrollIntoView({ block: "start" });
   }, [status]);
 
   const choose = (id: DecisionProviderId | "") => {
@@ -484,13 +491,17 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
         <div className="logo">
           <Wordmark height={28} />
         </div>
-        <span className="subtitle">{t("settings.subtitle")}</span>
+        <span className="subtitle">{t("easy.advanced")}</span>
         <span className="spacer" />
         <Link className="btn" href="/tour">{t("tour.step")}</Link>
         <Link className="btn" href="/account">{t("account.title")}</Link>
         {status?.offline && <span className="chip err">{t("app.offline")}</span>}
         <ThemeSwitch pref={theme} onChange={onTheme} />
         <LangSwitch lang={lang} onChange={onLang} />
+        {/* Settings opens on the Easy page; this page is the detail behind it */}
+        <Link className="btn" href="/settings" data-testid="back-to-easy">
+          {t("easy.back")}
+        </Link>
         <Link className="btn" href="/">
           {t("common.back")}
         </Link>
@@ -733,7 +744,9 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
 
           <DeviceModelList ctx={useCtx} onChange={() => { readCleanupModel(); void sherpaBridge()?.status().then(setSherpa); }} />
 
-          <section className="strip">
+          <ModelRoles setup={setupPref} />
+
+          <section className="strip" id="models">
             <div className="label">{t("settings.models")}</div>
             <div className="hint">{t("settings.ramNote")}</div>
             {status.models.map((m) => (

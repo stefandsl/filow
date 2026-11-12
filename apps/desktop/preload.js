@@ -24,6 +24,8 @@ contextBridge.exposeInMainWorld("filow", {
     status: () => ipcRenderer.invoke("okfilow:settings:status"),
     configure: (patch) => ipcRenderer.invoke("okfilow:settings:configure", patch),
     openPanel: () => ipcRenderer.send("okfilow:settings:openPanel"),
+    /** The "Whiteboard" button of the main window: opens the whiteboard window; false when OK Filow is not running. */
+    showWhiteboard: () => ipcRenderer.invoke("okfilow:settings:showWhiteboard"),
   },
   /** FreeLLMAPI's section in Filow Settings (freellm.js): the key goes in, never comes back. */
   freeLlm: {
@@ -145,6 +147,8 @@ contextBridge.exposeInMainWorld("filow", {
    * ("speech", "voice", "cleanup", "punctuation", "ollama-installer", "cloudflared") and Delete for a
    * model ("speech:<key>", "voice", "cleanup", "punctuation").
    */
+  /** This launch's proof that a request comes from Filow's own window (Settings > Advanced, model per task). */
+  desktopToken: () => ipcRenderer.invoke("desktop:token"),
   models: {
     status: () => ipcRenderer.invoke("models:status"),
     cancel: (id) => ipcRenderer.invoke("models:cancel", id),

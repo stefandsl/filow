@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import type { DecideRequest, DecideResponse, ServerDecisionProviderId } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
 import { decideOpenRouter, OPENROUTER_DECISION_MODEL } from "@/lib/decide/openrouter";
-import { CLEF_CLOUDFLARE_MODEL, decideClefCloudflare, decideClefLocal } from "@/lib/decide/clef";
-import { consentDenied, decisionRecipient } from "@/lib/buddy/outbound";
+import { CLEF_CLOUDFLARE_MODEL, clefTarget, decideClefCloudflare, decideClefLocal } from "@/lib/decide/clef";
+import { consentDenied, decisionRecipient, serverRecipient } from "@/lib/buddy/outbound";
 import { decideFreeLlm } from "@/lib/decide/freellm";
 import { anonymizeRequest, piiMode, restore } from "@/lib/pii/guard";
 import { resolveDecisionProvider } from "@/lib/decide/resolve";
@@ -42,6 +42,15 @@ export async function POST(req: Request) {
       const recipient = decisionRecipient(provider, { openrouter: OPENROUTER_DECISION_MODEL(), cloudflare: CLEF_CLOUDFLARE_MODEL() });
       const refused = recipient ? consentDenied(req, "transcript", recipient) : NextResponse.json({ error: "Not sent: Filow cannot tell who would read your words.", code: "consent_required" }, { status: 403 });
       if (refused) return refused;
+    }
+    // The local decider on the user's own server (Settings > Advanced): the words leave this PC, so
+    // only with the yes the take asked for that server.
+    if (provider === "clef-local") {
+      const target = await clefTarget();
+      if (target.server) {
+        const refused = consentDenied(req, "transcript", serverRecipient(target.server));
+        if (refused) return refused;
+      }
     }
     // When the engine gives up on a slow call the page aborts it; the abort is passed on to the model.
     if (!cloud || piiMode() === "off") return NextResponse.json<DecideResponse>(await run(body, req.signal));

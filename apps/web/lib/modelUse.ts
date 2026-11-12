@@ -5,14 +5,16 @@
 // (app/api/local/status). What is left for the page is the user's switches: a feature set to the
 // cloud uses no local model.
 import { LANG_LABELS, type I18nKey, type Lang } from "@filow/core";
+import type { SpeechRole } from "./modelRoles/view";
 
-export type UseId = "tracking" | "questions" | "dictation" | "voice" | "cleanup" | "punctuation" | "decision" | "generate" | "translate" | "okfilow" | "gate";
+export type UseId = "tracking" | "questions" | "dictation" | "voice" | "cleanup" | "punctuation" | "decision" | "generate" | "translate" | "okfilow" | "whiteboard" | "gate";
 export type ModelUseItem = { use: UseId; language?: string };
 
 /** One row of the desktop app's list (window.filow.models.status()). */
 /** `downloading`: this model's own download is in flight (its percent and Stop are where it was started). */
 export type DeviceModel = { id: string; kind: "speech" | "voice" | "cleanup" | "punctuation"; name: string; installed: boolean; bytes: number; uses: ModelUseItem[]; loaded: boolean; downloading?: boolean };
-export type DeviceModels = { models: DeviceModel[]; downloading: string[] };
+/** `speechRoles`: per speech task, the automatic pick, the model in use and the user's choice (absent from an older desktop app). */
+export type DeviceModels = { models: DeviceModel[]; downloading: string[]; speechRoles?: Partial<Record<"tracking" | "questions" | "dictation", SpeechRole>> };
 
 export type UseContext = {
   /** The plan a take would start with now; null while it is not known. */
@@ -28,8 +30,12 @@ export type UseContext = {
   gateMode: "on" | "off";
   /** The Whisper model picked for speech inside the app. */
   whisperModel: string;
-  /** The Ollama models the server's own pickers return (GET /api/local/status, `picks`). */
-  picks: { decision: string; translate: string | null; okfilow: string[] } | null;
+  /**
+   * The Ollama models the server's own pickers return (GET /api/local/status, `picks`), with the
+   * user's per-task choices applied. `generate` and `whiteboard` are there only when the user chose a
+   * model for them (null: it runs on his own server, not on this PC).
+   */
+  picks: { decision: string; translate: string | null; okfilow: string[]; generate?: string | null; whiteboard?: string | null } | null;
 };
 
 /** Ollama reads a name without a tag as ":latest"; another tag of the same family is another model. */
@@ -55,9 +61,11 @@ export function ollamaUses(name: string, ctx: UseContext): ModelUseItem[] {
   const uses: ModelUseItem[] = [];
   const provider = ctx.decisionPref || ctx.plan?.decision.provider || "";
   if (localTake(ctx) && provider === "clef-local" && sameModel(name, ctx.picks?.decision)) uses.push({ use: "decision" });
-  if (ctx.plan?.generate.provider === "ollama" && sameModel(name, ctx.plan.generate.model)) uses.push({ use: "generate" });
+  const generate = ctx.picks && "generate" in ctx.picks ? ctx.picks.generate : ctx.plan?.generate.model;
+  if (ctx.plan?.generate.provider === "ollama" && sameModel(name, generate)) uses.push({ use: "generate" });
   if (ctx.translateWhere === "local" && sameModel(name, ctx.picks?.translate)) uses.push({ use: "translate" });
   if (ctx.okFilow?.enabled && ctx.okFilow.provider === "local" && (ctx.picks?.okfilow ?? []).some((m) => sameModel(name, m))) uses.push({ use: "okfilow" });
+  if (ctx.okFilow?.enabled && ctx.okFilow.provider === "local" && sameModel(name, ctx.picks?.whiteboard)) uses.push({ use: "whiteboard" });
   return uses;
 }
 

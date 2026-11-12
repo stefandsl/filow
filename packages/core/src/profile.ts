@@ -66,6 +66,13 @@ export type SetupChoices = {
      * answers waited 60 to 300 s behind it on the P3 run. The copy says so (owner decision D26 open).
      */
     waitsForDecisions: boolean;
+    /**
+     * A second, small model that places the points on the screen when the answering model reads the
+     * screen well but points badly (Gemma 4 E4B: 2 of 22 points inside the target, with lfm3-vl
+     * placing them 20 of 22; both stay loaded together on 8 GB of video memory). Absent: the answering
+     * model points itself.
+     */
+    pointer?: string;
     /** "none" only: what is missing for a local answer model, too little memory or too little free disk */
     lacking?: "memory" | "disk";
   };
@@ -187,6 +194,17 @@ export function sttThreads(cores: number): number {
   return Math.max(2, Math.min(4, cores - 2));
 }
 
+/** Gemma 4 E4B and lfm3-vl are both on this computer already: Best quality answers with the pair (setupChoices). */
+const gemmaPair = (m: MachineInfo) => isInstalled(GEMMA_E4B.name, m.installed) && isInstalled(LFM.name, m.installed);
+
+/**
+ * The pair Best quality answers with once both are on this computer: the ones still to download
+ * (empty when the pair is here). The Easy page offers them; nothing fetches them by itself.
+ */
+export function bestQualityPairMissing(m: Pick<MachineInfo, "installed">): SetupModel[] {
+  return [GEMMA_E4B, LFM].filter((x) => !isInstalled(x.name, m.installed));
+}
+
 /** The concrete choices of a profile on a machine. */
 export function setupChoices(profile: SetupProfileId, m: MachineInfo): SetupChoices {
   if (profile === "advanced") {
@@ -199,8 +217,12 @@ export function setupChoices(profile: SetupProfileId, m: MachineInfo): SetupChoi
       gate: { on: true, narrow: false },
       // qwen3-vl:2b on the GPU: first word 0.5 s, whole answer 0.7 s with a new screenshot each time
       // (on a card under 12 GB it waits while Clef is loaded: waitsForDecisions)
-      screenHelper: { mode: "picture", model: QWEN_2B.name, waitsForDecisions: shared },
-      models: [SHERPA, MATCHER, CLEF_FLASH, QWEN_2B],
+      // When the user already has Gemma 4 E4B and lfm3-vl (the script model and the Balanced helper), the
+      // pair answers instead: measured on an 8 GB RTX 3070, drawings 8 of 8 in 2 to 4 s, ordinary questions
+      // 10 of 10 in five languages, points 20 of 22, no model reloaded between questions (v17-parity
+      // FINDINGS.md, 2026-11-12). Nothing is downloaded for it: without both, Qwen3-VL 2B stays the helper.
+      screenHelper: gemmaPair(m) ? { mode: "picture", model: GEMMA_E4B.name, pointer: LFM.name, waitsForDecisions: shared } : { mode: "picture", model: QWEN_2B.name, waitsForDecisions: shared },
+      models: gemmaPair(m) ? [SHERPA, MATCHER, CLEF_FLASH, GEMMA_E4B, LFM] : [SHERPA, MATCHER, CLEF_FLASH, QWEN_2B],
       budget: { decisionP95Ms: 2500, sttRtf: 0.25, screenAnswerS: shared ? 300 : 1 },
     };
   }

@@ -8,6 +8,7 @@ const core = require("./dictation-core");
 const { PANES } = require("./mac-permissions");
 const target = require("./dictation-target");
 const { createDictationDiag, reportText } = require("./dictation-diag");
+const { globalInputOff, REFUSED_INSERT } = require("./global-input");
 
 /**
  * deps: { getSettings, saveSettings, logLine, clipboard, BrowserWindow, systemPreferences, dialog,
@@ -46,7 +47,8 @@ function createDictation(deps) {
   /** The chord the hook should watch, or null (dictation off, or the keys clash with OK Filow's). */
   function activeChord(talkHotkey) {
     const c = cfg();
-    if (!c.enabled) return null;
+    // Test isolation (global-input.js): the dictation keys are never watched.
+    if (!c.enabled || globalInputOff(env)) return null;
     return core.checkChord(c.chord, { talk: talkHotkey, platform }).ok ? c.chord : null;
   }
 
@@ -173,6 +175,11 @@ function createDictation(deps) {
    * between phrases and, when the words are only copied, keeps the whole text on the clipboard.
    */
   async function insert(raw, { hook, keysUp, spokenLanguage, run } = {}) {
+    // Test isolation (global-input.js): nothing is typed, pasted or copied, into any window.
+    if (globalInputOff(env)) {
+      logLine("dictation: global input is off (test isolation): nothing typed, nothing pasted, nothing copied");
+      return { ...REFUSED_INSERT };
+    }
     const c = cfg();
     const lang = c.language !== "auto" ? c.language : spokenLanguage || "auto";
     let text = core.postProcess(raw, { language: lang, removeFillers: c.removeFillers });

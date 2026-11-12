@@ -38,7 +38,7 @@ describe("stopping an answer (desktop shell)", () => {
 
   it("the shell wires them: Escape stops an answer before it wipes drawings, the panel is told, the setting is stored and the file ships", () => {
     const main = source("okfilow.js");
-    expect(main).toMatch(/function onEscape\(\) \{\s*if \(!stopAnswer\("escape"\)\) clearDrawings\(\);/);
+    expect(main).toMatch(/function onEscape\(\) \{\s*for \(const step of escapePlan\(mode\)\) \{\s*if \(step === "stop"\) stopAnswer\("escape"\);/);
     expect(main).toContain("if (e.keycode === K.Escape) onEscape();");
     expect(main).toContain('sendPanel("okfilow:stop", { source });');
     expect(main).toMatch(/function stopAnswer\(source\) \{\s*if \(!answering\(mode\)\) return false;/);
@@ -48,7 +48,7 @@ describe("stopping an answer (desktop shell)", () => {
     expect(main).toContain('if (typeof extra.sees === "boolean") asksSee = extra.sees;');
     expect(main.match(/sees: asksSee \}\);/g)).toHaveLength(2);
     // "Look at my screen" off: the screen is not captured at all
-    expect(main).toMatch(/const wantImages = opts\.images !== false;[\s\S]{0,400}if \(wantImages\) \{[\s\S]{0,200}desktopCapturer\.getSources/);
+    expect(main).toMatch(/const wantImages = mayCapture\(want\);[\s\S]{0,1200}await screenSources\(want, async \(\) => \{[\s\S]{0,200}desktopCapturer\.getSources/);
     expect(main).toContain('if (wantImages && !out.images.length) throw');
     const preload = source("okfilow-preload.js");
     expect(preload).toContain('onStop: on("okfilow:stop")');

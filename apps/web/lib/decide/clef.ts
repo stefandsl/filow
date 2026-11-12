@@ -1,30 +1,35 @@
 import { buildClefRequest, parseClefAnswers, type ClefResponse, type DecideRequest, type DecideResponse } from "@filow/core";
+import { placeText, taskTarget } from "@/lib/modelRoles/resolve";
 
 export const OLLAMA_URL = () => (process.env.OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
 export const CLEF_LOCAL_MODEL = () => process.env.CLEF_MODEL || "clef-flash";
 export const CLEF_CLOUDFLARE_MODEL = () => process.env.CLEF_CLOUDFLARE_MODEL || "@cf/cloudflare/clef-flash";
 
-/** Local decisions: Cloudflare Clef through Ollama's System One endpoint. Nothing leaves the machine. */
+/** The decision model and where it runs: the user's choice in Settings when it can be used, else CLEF_LOCAL_MODEL here. */
+export const clefTarget = () => taskTarget("decision", CLEF_LOCAL_MODEL());
+
+/** Local decisions: Cloudflare Clef through Ollama's System One endpoint. Nothing leaves the machine unless the user chose his own server for it. */
 export async function decideClefLocal(body: DecideRequest, signal?: AbortSignal): Promise<DecideResponse> {
-  const model = CLEF_LOCAL_MODEL();
+  const target = await clefTarget();
+  const model = target.model!;
   const started = Date.now();
   let res: Response;
   try {
-    res = await fetch(`${OLLAMA_URL()}/v1/systemone`, {
+    res = await fetch(`${target.base}/v1/systemone`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...target.headers },
       body: JSON.stringify(buildClefRequest(body, model)),
       signal,
     });
   } catch (err) {
     if ((err as Error).name === "AbortError") throw err;
-    throw new Error(`Ollama not reachable at ${OLLAMA_URL()}. Start Ollama (0.35.1+) and pull ${model} in Settings > Local models.`, { cause: err });
+    throw new Error(`Ollama not reachable at ${placeText(target)}. Start Ollama (0.35.1+) and pull ${model} in Settings > Local models.`, { cause: err });
   }
   const latencyMs = Date.now() - started;
   if (res.status === 404) throw new Error(`Model ${model} not found in Ollama, or Ollama is older than 0.35.1. Pull it in Settings > Local models.`);
   if (!res.ok) throw new Error(`Ollama ${res.status}: ${await res.text()}`);
   const { decisions, unmentioned } = parseClefAnswers((await res.json()) as ClefResponse, body);
-  return { decisions, unmentioned, latencyMs, cost: 0, model: `${model} (local)`, canVerify: true };
+  return { decisions, unmentioned, latencyMs, cost: 0, model: target.server ? `${model} (${target.server.name})` : `${model} (local)`, canVerify: true };
 }
 
 /**
@@ -34,12 +39,13 @@ export async function decideClefLocal(body: DecideRequest, signal?: AbortSignal)
  * start (local mode) so the first real decision is not a cold load. Returns the load time.
  */
 export async function warmClefLocal(): Promise<{ ok: boolean; model: string; ms: number; error?: string }> {
-  const model = CLEF_LOCAL_MODEL();
+  const target = await clefTarget();
+  const model = target.model!;
   const started = Date.now();
   try {
-    const res = await fetch(`${OLLAMA_URL()}/v1/systemone`, {
+    const res = await fetch(`${target.base}/v1/systemone`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...target.headers },
       body: JSON.stringify({
         model,
         keep_alive: -1,
