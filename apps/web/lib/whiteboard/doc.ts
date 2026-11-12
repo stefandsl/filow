@@ -27,10 +27,11 @@ type Editable = (typeof EDITABLE)[number];
 /** The scene as it stands: compiled elements with their edits, then the added ones. */
 export function applyEdits(base: Scene, edits: SceneEdits): Scene {
   const gone = new Set(edits.deleted);
+  const patches = cleanPatch(edits.patch);
   const els: ExEl[] = [];
   for (const e of base.elements) {
     if (gone.has(e.id)) continue;
-    const p = edits.patch[e.id];
+    const p = patches[e.id];
     els.push(p ? { ...e, ...p, version: (e.version ?? 1) + 1 } : e);
   }
   const have = new Set(els.map((e) => e.id));
@@ -52,6 +53,8 @@ export function diffEdits(base: Scene, before: SceneEdits, now: ExEl[], files: R
     seen.add(e.id);
     const c = compiled.get(e.id);
     if (!c) {
+      // only what Excalidraw draws: an embeddable, an iframe or an unknown type drawn by hand is not kept
+      if (!TYPES.has(String(e.type))) continue;
       out.added.push(cleanElement(e));
       if (e.fileId && files[e.fileId]) out.files[e.fileId] = files[e.fileId];
       continue;
@@ -71,6 +74,22 @@ const TYPES = new Set(["rectangle", "ellipse", "diamond", "text", "arrow", "line
 const IMAGE_TYPES = /^data:image\/(?:png|jpeg|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+$/;
 const COLOUR = /^(?:#[0-9a-fA-F]{3,8}|transparent|[a-z]{3,20})$/;
 const finite = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) ? Math.max(-1e6, Math.min(1e6, v)) : d);
+
+/**
+ * Saved or asked-for patches kept to what an edit may change: ids that are ids, objects only, the
+ * EDITABLE keys, colours that are colours. A patch can never rewrite an element's type or give it a link.
+ */
+function cleanPatch(patch: SceneEdits["patch"]): Record<string, Partial<ExEl>> {
+  const out: Record<string, Partial<ExEl>> = Object.create(null);
+  for (const [id, p] of Object.entries(patch ?? {})) {
+    if (!id || safeId(id) !== id || !p || typeof p !== "object" || Array.isArray(p)) continue;
+    const kept: Partial<ExEl> = {};
+    for (const k of EDITABLE) if ((p as Record<string, unknown>)[k] !== undefined) (kept as Record<Editable, unknown>)[k] = (p as Record<string, unknown>)[k];
+    for (const k of ["strokeColor", "backgroundColor"] as const) if (kept[k] !== undefined && !(typeof kept[k] === "string" && COLOUR.test(kept[k] as string))) delete kept[k];
+    out[id] = kept;
+  }
+  return out;
+}
 
 /** An element read from a file, kept to what Excalidraw draws: no links (a link can be a script), sane numbers and colours. */
 export function cleanElement(raw: ExEl): ExEl {
@@ -156,7 +175,7 @@ export function applyOps(base: Scene, edits: SceneEdits, ops: ToolOp[]): { edits
     const byId = new Map(scene.elements.map((e) => [e.id, e]));
     if (o.op === "add") {
       const e = cleanElement(o.element);
-      if (byId.has(e.id)) { skipped.push(e.id); continue; }
+      if (!TYPES.has(String(e.type)) || byId.has(e.id)) { skipped.push(e.id); continue; }
       next.added.push(e);
       continue;
     }

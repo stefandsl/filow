@@ -3,7 +3,7 @@ import cloud from "./fixtures/cloud-r3.json";
 import { layoutBoard } from "./layout";
 import { validateLesson, type Lesson } from "./lesson";
 import { sceneFromLayout } from "./scene";
-import { applyEdits, applyOps, changesToOps, noEdits, readScene, withFrame } from "./doc";
+import { applyEdits, applyOps, changesToOps, diffEdits, noEdits, readScene, withFrame } from "./doc";
 import { editPrompt, quickEdit, readEditPlan, readLook } from "./edits";
 import { CDN_HOSTS, guardCdn } from "./excalidraw";
 
@@ -97,5 +97,56 @@ describe("guardCdn", () => {
     await win.fetch("http://127.0.0.1:4747/excalidraw/fonts/Excalifont/a.woff2");
     expect(seen).toEqual(["http://127.0.0.1:4747/excalidraw/fonts/Excalifont/a.woff2"]);
     expect(CDN_HOSTS.test("https://esm.sh.example.com/")).toBe(false);
+  });
+});
+
+describe("edits and restores keep only allowed elements and fields (H2)", () => {
+  const rect = scene.elements.find((e) => e.type === "rectangle" && e.id !== "wb-frame")!;
+  const foreign = (type: string, id: string) => ({ ...rect, id, type, customData: undefined, boundElements: null, link: "https://example.com/x" });
+
+  it("drops an add of an embeddable, an iframe or an unknown type and reports it", () => {
+    const ops = [
+      { op: "add" as const, element: foreign("embeddable", "emb") },
+      { op: "add" as const, element: foreign("iframe", "ifr") },
+      { op: "add" as const, element: foreign("magic", "mag") },
+      { op: "add" as const, element: { ...foreign("rectangle", "ok1") } },
+    ];
+    const { edits, skipped } = applyOps(scene, noEdits(), ops);
+    expect(skipped).toEqual(["emb", "ifr", "mag"]);
+    expect(edits.added.map((e) => e.id)).toEqual(["ok1"]);
+    expect(edits.added[0].link).toBeNull();
+  });
+
+  it("takes the no-edit path for a batch of only such adds", () => {
+    const ops = [{ op: "add" as const, element: foreign("embeddable", "emb") }, { op: "add" as const, element: foreign("iframe", "ifr") }];
+    const { edits, skipped } = applyOps(scene, noEdits(), ops);
+    // the page says "I could not find that on the board" when every operation was skipped
+    expect(skipped.length).toBe(ops.length);
+    expect(edits).toEqual(noEdits());
+  });
+
+  it("ignores a patch that sets type, link or a colour that is not one", () => {
+    const patch = { [rect.id]: { type: "embeddable", link: "javascript:alert(1)", strokeColor: "url(x)", x: rect.x + 10 } } as unknown as Record<string, Partial<typeof rect>>;
+    const out = applyEdits(scene, { ...noEdits(), patch }).elements.find((e) => e.id === rect.id)!;
+    expect(out.type).toBe("rectangle");
+    expect(out.link ?? null).toBeNull();
+    expect(out.strokeColor).toBe(rect.strokeColor);
+    expect(out.x).toBe(rect.x + 10);
+  });
+
+  it("drops a canvas-drawn embeddable", () => {
+    const d = diffEdits(scene, noEdits(), [...scene.elements, foreign("embeddable", "hand-emb"), { ...foreign("image", "hand-img"), fileId: "f1" }, { ...foreign("embeddable", "hand-emb2"), fileId: "f2" }], {
+      f1: { id: "f1", mimeType: "image/png", dataURL: "data:image/png;base64,AA==", created: 1 },
+      f2: { id: "f2", mimeType: "image/png", dataURL: "data:image/png;base64,AA==", created: 1 },
+    });
+    expect(d.added.map((e) => e.id)).toEqual(["hand-img"]);
+    expect(Object.keys(d.files)).toEqual(["f1"]);
+  });
+
+  it("renders a restored board whose saved patch says type embeddable without it", () => {
+    const saved = JSON.parse(JSON.stringify({ ...noEdits(), patch: { [rect.id]: { type: "embeddable" }, "bad id!": { x: 1 } } }));
+    const els = applyEdits(scene, saved).elements;
+    expect(els.some((e) => e.type === "embeddable")).toBe(false);
+    expect(els.find((e) => e.id === rect.id)!.type).toBe("rectangle");
   });
 });
