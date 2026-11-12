@@ -3,6 +3,9 @@ import { binarySearchTrace, growthValues, meeting, readDiagram, recursionValues,
 import { checkScene, countProblems, fixOps, rawMath } from "./check";
 import { applyEdits, applyOps, noEdits } from "./doc";
 import { chemText } from "./tex";
+import { validateLesson } from "./lesson";
+import { layoutBoard } from "./layout";
+import { sceneFromLayout } from "./scene";
 import { keepsNumbers, tryTemplate, type LessonEvent } from "./generate";
 
 const RAW: Record<string, unknown> = {
@@ -91,7 +94,7 @@ describe("sceneFromDiagram", () => {
 
 describe("raw mathematics", () => {
   it("is counted and written as mathematics", () => {
-    for (const s of ["a^2 + b^2", "x_{1}", "\\frac{a}{b}", "Sunlight arrow Glucose", "6CO2 + 6H2O -> C6H12O6"]) expect(rawMath(s), s).toBe(true);
+    for (const s of ["a^2 + b^2", "x_{1}", "\\frac{a}{b}", "Sunlight arrow Glucose", "6CO2 + 6H2O -> C6H12O6", "6CO2 + 6H2O = C6H12O6"]) expect(rawMath(s), s).toBe(true);
     for (const s of ["fact(4) = 24", "I = 9 V / 3 Ω = 3 A", "Client sends SYN-ACK", "CO2", "a² + b² = c²"]) expect(rawMath(s), s).toBe(false);
     const scene = sceneFromDiagram(diagrams.circuit, ["one"], 0, "");
     const t = scene.elements.find((e) => e.type === "text" && !e.containerId && e.id !== "wb-title")!;
@@ -100,6 +103,14 @@ describe("raw mathematics", () => {
     expect(ps.map((p) => p.ids[0])).toEqual([t.id]);
     const fixed = applyEdits(bad, applyOps(bad, noEdits(), fixOps(bad, ps)).edits);
     expect(fixed.elements.find((e) => e.id === t.id)!.text).toBe("6CO₂ + 6H₂O → C₆H₁₂O₆");
+  });
+});
+
+describe("orphan boxes", () => {
+  it("counts a box of a concept map that no arrow joins", () => {
+    const l = validateLesson({ title: "T", scene: "flow", steps: [{ say: "A feeds B; C stands alone.", items: [{ kind: "node", id: "a", text: "A" }, { kind: "node", id: "b", text: "B" }, { kind: "edge", from: "a", to: "b", text: "feeds" }, { kind: "node", id: "c", text: "C" }] }] })!;
+    const ps = checkScene(sceneFromLayout(layoutBoard(l, 0, "wide"))).filter((p) => p.kind === "orphan");
+    expect(ps.map((p) => p.ids[0])).toEqual(["n-c"]);
   });
 });
 
