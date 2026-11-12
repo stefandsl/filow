@@ -460,6 +460,8 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   // Links to /settings/local#setup (start dialog, take chip): the section renders after the status loads.
   useEffect(() => {
     if (status && window.location.hash === "#setup") document.getElementById("setup")?.scrollIntoView({ block: "start" });
+    // a download started from the Easy page (?auto=...#models): show the list where it runs and can be stopped
+    if (status && window.location.hash === "#models") document.getElementById("models")?.scrollIntoView({ block: "start" });
   }, [status]);
 
   const choose = (id: DecisionProviderId | "") => {
@@ -484,11 +486,15 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
         <div className="logo">
           <Wordmark height={28} />
         </div>
-        <span className="subtitle">{t("settings.subtitle")}</span>
+        <span className="subtitle">{t("easy.advanced")}</span>
         <span className="spacer" />
         {status?.offline && <span className="chip err">{t("app.offline")}</span>}
         <ThemeSwitch pref={theme} onChange={onTheme} />
         <LangSwitch lang={lang} onChange={onLang} />
+        {/* Settings opens on the Easy page; this page is the detail behind it */}
+        <Link className="btn" href="/settings" data-testid="back-to-easy">
+          {t("easy.back")}
+        </Link>
         <Link className="btn" href="/">
           {t("common.back")}
         </Link>
@@ -731,7 +737,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
 
           <DeviceModelList ctx={useCtx} onChange={() => { readCleanupModel(); void sherpaBridge()?.status().then(setSherpa); }} />
 
-          <section className="strip">
+          <section className="strip" id="models">
             <div className="label">{t("settings.models")}</div>
             <div className="hint">{t("settings.ramNote")}</div>
             {status.models.map((m) => (
