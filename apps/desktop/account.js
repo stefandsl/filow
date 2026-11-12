@@ -9,6 +9,15 @@ function accountOrigin(value, allowLocal = false) {
     return u.protocol === 'https:' || (allowLocal && local && u.protocol === 'http:') ? u.origin : null;
   } catch { return null; }
 }
+/**
+ * The account origin of this build. A build that should have accounts is packaged with
+ * `-c.extraMetadata.accountOrigin=<https origin>` (written into its own package.json, like filowQa in
+ * qa.js); a normal release has none, so it has no accounts. FILOW_ACCOUNT_ORIGIN overrides it only in a
+ * development run, never in an installed app.
+ */
+function buildAccountOrigin({ packaged, pkgOrigin, envOrigin }) {
+  return accountOrigin(!packaged && envOrigin ? envOrigin : pkgOrigin, !packaged);
+}
 function billingUrl(value) {
   try { const u = new URL(value); return u.protocol === 'https:' && !u.username && !u.password && ['checkout.stripe.com','billing.stripe.com'].includes(u.hostname) ? u.href : null; }
   catch { return null; }
@@ -103,4 +112,4 @@ function createAccount({ origin, userData, safeStorage, openExternal, fetcher = 
   }
   return {status,begin,poll,cancel,signOut,billing};
 }
-module.exports={createAccount,accountOrigin,billingUrl,signalledFetch};
+module.exports={createAccount,accountOrigin,billingUrl,signalledFetch,buildAccountOrigin};

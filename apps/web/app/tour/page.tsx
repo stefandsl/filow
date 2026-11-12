@@ -5,6 +5,7 @@ import { t } from "@filow/core";
 import { Wordmark } from "@filow/ui";
 import { useUiLang } from "@/components/LangSwitch";
 import { desktopBridge } from "@/lib/sessionUrl";
+import { useAccountLink } from "@/lib/accountLink";
 import "./tour.css";
 
 export default function Tour() {
@@ -15,6 +16,7 @@ export default function Tour() {
   const [highlighted, setHighlighted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [next, setNext] = useState("/");
+  const accountLink = useAccountLink();
   useEffect(() => {
     const url = new URL(location.href).searchParams.get("next");
     if (url === "/" || url?.startsWith("/settings/local?auto=")) setNext(url);
@@ -43,7 +45,7 @@ export default function Tour() {
     finally { setBusy(false); }
   }
   return <main className="tour-page">
-    <header className="tour-header"><Wordmark height={30} /><Link className="btn" href="/account">{tr("account.title")}</Link></header>
+    <header className="tour-header"><Wordmark height={30} />{accountLink && <Link className="btn" href="/account">{tr("account.title")}</Link>}</header>
     <div className="tour-layout">
       <section className="tour-copy">
         <p className="tour-eyebrow">{tr("tour.step")}</p>

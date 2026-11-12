@@ -2405,9 +2405,11 @@ async function main() {
     return { open: pointsWindow.isOpen() };
   });
   startOkFilow();
-  const { createAccount, accountOrigin, signalledFetch } = require("./account");
+  const { createAccount, buildAccountOrigin, signalledFetch } = require("./account");
+  // Set at build time (-c.extraMetadata.accountOrigin); FILOW_ACCOUNT_ORIGIN only in a development run.
+  const accountOriginNow = buildAccountOrigin({ packaged: app.isPackaged, pkgOrigin: require("./package.json").accountOrigin, envOrigin: process.env.FILOW_ACCOUNT_ORIGIN });
   const account = createAccount({
-    origin: accountOrigin(process.env.FILOW_ACCOUNT_ORIGIN, !app.isPackaged), userData,
+    origin: accountOriginNow, userData,
     // Every account request shows the "going outside" signal (kind `account`, docs/okfilow/OUTBOUND.md) while it is in flight.
     fetcher: signalledFetch(fetch, () => okFilow?.outboundSignal()),
     safeStorage: require("electron").safeStorage, openExternal: url => shell.openExternal(url),
@@ -2419,6 +2421,12 @@ async function main() {
       return action === "checkout" || action === "portal" ? account.billing(action) : account[action]();
     });
   }
+  // Whether this build has accounts at all (no network call): the pages hide their link to /account when not.
+  const ACCOUNT_LINK_PAGES = ["/tour", "/settings/local", "/account"];
+  appHandle("account:configured", event => {
+    if (event.sender !== mainWin?.webContents || !ACCOUNT_LINK_PAGES.includes(new URL(event.sender.getURL()).pathname)) throw new Error("Denied");
+    return Boolean(accountOriginNow);
+  });
   appHandle("tour:mark", (event, rect) => {
     if (event.sender !== mainWin?.webContents) throw new Error("Denied");
     if (rect === null) { okFilow.clearPractice(); return true; }

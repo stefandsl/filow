@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("filow", {
   desktop: true,
   account: {
     status: () => ipcRenderer.invoke("account:status"),
+    configured: () => ipcRenderer.invoke("account:configured"),
     begin: () => ipcRenderer.invoke("account:begin"),
     poll: () => ipcRenderer.invoke("account:poll"),
     cancel: () => ipcRenderer.invoke("account:cancel"),

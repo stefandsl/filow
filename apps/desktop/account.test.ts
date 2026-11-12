@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
-const { createAccount, accountOrigin, billingUrl, signalledFetch } = createRequire(import.meta.url)('./account.js');
+const { createAccount, accountOrigin, billingUrl, signalledFetch, buildAccountOrigin } = createRequire(import.meta.url)('./account.js');
 const dirs:string[]=[];
 afterEach(()=>{ for(const dir of dirs.splice(0)) fs.rmSync(dir,{recursive:true,force:true}); });
 function setup(fetcher: ReturnType<typeof vi.fn>) {
@@ -92,5 +92,29 @@ describe('the shell wires the account signal',()=>{
     expect(src('main.js')).toContain('fetcher: signalledFetch(fetch, () => okFilow?.outboundSignal()),');
     expect(src('okfilow.js')).toContain('const outboundSignal = () => ({ begin: outbound.begin, end: outbound.end });');
     expect(src('okfilow.js')).toMatch(/return \{[^}]*\boutboundSignal \};/);
+  });
+});
+describe('the account origin is set when the app is built',()=>{
+  it('an installed app uses only its own package.json; the environment overrides only a development run',()=>{
+    expect(buildAccountOrigin({packaged:true,pkgOrigin:undefined,envOrigin:'https://evil.example.test'})).toBeNull();
+    expect(buildAccountOrigin({packaged:true,pkgOrigin:'https://accounts.example.test',envOrigin:'https://evil.example.test'})).toBe('https://accounts.example.test');
+    expect(buildAccountOrigin({packaged:true,pkgOrigin:'http://127.0.0.1:4780'})).toBeNull();
+    expect(buildAccountOrigin({packaged:false,pkgOrigin:'https://accounts.example.test',envOrigin:'http://127.0.0.1:4780'})).toBe('http://127.0.0.1:4780');
+    expect(buildAccountOrigin({packaged:false,pkgOrigin:'https://accounts.example.test'})).toBe('https://accounts.example.test');
+  });
+  it('the shell reads the build-time origin, answers account:configured from three pages without a request, and preload exposes it',()=>{
+    const main=fs.readFileSync(new URL('./main.js',import.meta.url),'utf8'), preload=fs.readFileSync(new URL('./preload.js',import.meta.url),'utf8');
+    expect(main).toContain('buildAccountOrigin({ packaged: app.isPackaged, pkgOrigin: require("./package.json").accountOrigin, envOrigin: process.env.FILOW_ACCOUNT_ORIGIN })');
+    expect(main).toContain('const ACCOUNT_LINK_PAGES = ["/tour", "/settings/local", "/account"];');
+    expect(main).toMatch(/appHandle\("account:configured", event => \{\s*if \(event\.sender !== mainWin\?\.webContents \|\| !ACCOUNT_LINK_PAGES\.includes\([^\n]*\s*return Boolean\(accountOriginNow\);\s*\}\);/);
+    expect(preload).toContain('configured: () => ipcRenderer.invoke("account:configured"),');
+    expect(fs.readFileSync(new URL('./package.json',import.meta.url),'utf8')).not.toContain('accountOrigin');
+  });
+  it('the tour and Settings show the /account link only when the build has accounts',()=>{
+    const tour=fs.readFileSync(new URL('../web/app/tour/page.tsx',import.meta.url),'utf8'), settings=fs.readFileSync(new URL('../web/app/settings/local/page.tsx',import.meta.url),'utf8');
+    const hook=fs.readFileSync(new URL('../web/lib/accountLink.ts',import.meta.url),'utf8');
+    for(const page of [tour,settings]) { expect(page).toMatch(/\{accountLink && <Link className="btn" href="\/account">/); expect(page.match(/href="\/account"/g)).toHaveLength(1); }
+    expect(hook).toContain('const [shown, setShown] = useState(false);');
+    expect(hook).toContain('if (live) setShown(on === true);');
   });
 });
