@@ -22,6 +22,7 @@ import { VoiceSettings } from "./voice-settings";
 import { getSetupPreference, getSpeechLang } from "@/lib/prefs";
 import { createAnswerTurn, joinContinuation, resumePlan, sentenceParts, splitSentences } from "@/lib/buddy/turn";
 import { createProgressiveSpeech, moreFollows, type ProgressiveSpeech } from "@/lib/buddy/progressive";
+import { reopenAfterSpeech } from "@/lib/buddy/reopen";
 import { askSees, eyeToggle, screenLeaves, screenYesMissing, seesScreen, slowToSee, stillSees, wordsOnlyAfterYes, type LocalScreenMode } from "@/lib/buddy/sees";
 import { keyLabel, type PillAction } from "@/lib/buddy/pill";
 import { createPausableClock, marksStarted, STROKE_GAP_MS } from "@/lib/buddy/motion";
@@ -443,9 +444,10 @@ export default function OkFilowPanel() {
         b.text(said);
         setMode("speaking");
         const id = ++run.current;
-        if (!opts.typed || statusRef.current?.typedVoice) await speak(said, id);
+        const spoke = !opts.typed || statusRef.current?.typedVoice;
+        if (spoke) await speak(said, id);
         if (run.current === id) setMode("idle");
-        if (handsFree.current) listenAgain.current();
+        if (handsFree.current) { if (spoke) reopenAfterSpeech(() => listenAgain.current(), () => handsFree.current && modeRef.current === "idle" && run.current === id); else listenAgain.current(); }
         return;
       }
     } catch (e) {
@@ -693,7 +695,7 @@ export default function OkFilowPanel() {
       await grounding;
       turn.current.end(id);
       if (run.current === id) setMode("idle");
-      if (run.current === id && handsFree.current) listenAgain.current();
+      if (run.current === id && handsFree.current) { if (voiced) reopenAfterSpeech(() => listenAgain.current(), () => handsFree.current && modeRef.current === "idle" && run.current === id); else listenAgain.current(); }
     } catch (e) {
       voice.cancel();
       // A stop or a newer question: not an error, nothing is shown or logged as one.
@@ -753,7 +755,7 @@ export default function OkFilowPanel() {
         if (info.left) await speak(info.left, id, info.lang, Math.max(0, splitSentences(plan.shown).length - splitSentences(info.left).length));
         turn.current.end(id);
         if (run.current === id) setMode("idle");
-        if (run.current === id && handsFree.current) listenAgain.current();
+        if (run.current === id && handsFree.current) { if (info.left) reopenAfterSpeech(() => listenAgain.current(), () => handsFree.current && modeRef.current === "idle" && run.current === id); else listenAgain.current(); }
       })();
       return true;
     }
