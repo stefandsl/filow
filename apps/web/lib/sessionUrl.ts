@@ -6,6 +6,20 @@
  */
 export type DesktopBridge = {
   desktop: true;
+  account?: {
+    status(): Promise<{ configured: boolean; user: { email: string; name: string } | null; plan: "local" | "pro"; billing: boolean; paidUntil?: string | null }>;
+    begin(): Promise<{ userCode: string; expiresAt: number } | null>;
+    poll(): Promise<{ state: "pending" | "signed-in" | "cancelled" | "expired" | "denied" }>;
+    cancel(): Promise<void>;
+    signOut(): Promise<unknown>;
+    checkout(): Promise<void>;
+    portal(): Promise<void>;
+  };
+  tour?: {
+    mark(rect: { x: number; y: number; width: number; height: number } | null): Promise<boolean>;
+    ask(question: string): Promise<boolean>;
+    done(): Promise<void>;
+  };
   getPreferences?: import("@filow/core").UiBridge["getPreferences"];
   updatePreferences?: import("@filow/core").UiBridge["updatePreferences"];
   onPreferencesChanged?: import("@filow/core").UiBridge["onPreferencesChanged"];

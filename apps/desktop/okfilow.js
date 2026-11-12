@@ -233,13 +233,22 @@ function createOkFilow(deps) {
   }
   ipcMain.on("okfilow:model:show", (e, model) => { if (ourSender(e) && model && Array.isArray(model.parts)) showModel(model); });
   /** An overlay finished setting up: it missed what was sent while it loaded, so send it now. */
+  let currentPractice = null;
   ipcMain.on("okfilow:overlay:ready", (e) => {
     if (!ourSender(e)) return;
     e.sender.send("okfilow:state", { mode, purpose: purpose || "talk", sees: asksSee });
     e.sender.send("okfilow:outbound", outbound.snapshot());
+    if (currentPractice) {
+      const window = BrowserWindow.fromWebContents(e.sender);
+      const mark = window && localMark(currentPractice, window.getBounds());
+      if (mark) e.sender.send("okfilow:draw", [mark]);
+    }
     lastCursor = "";
   });
-  ipcMain.on("okfilow:panel:ready", (e) => { if (ourSender(e)) e.sender.send("okfilow:outbound", outbound.snapshot()); });
+  let panelReady = false;
+  ipcMain.on("okfilow:panel:ready", (e) => {
+    if (ourSender(e) && e.sender === panel?.webContents) { panelReady = true; e.sender.send("okfilow:outbound", outbound.snapshot()); }
+  });
   ipcMain.on("okfilow:model:ready", (e) => {
     if (!ourSender(e) || !currentModel) return;
     e.sender.send("okfilow:model", currentModel);
@@ -553,6 +562,7 @@ function createOkFilow(deps) {
   }
   // Not on any click or key: the user clicks around and presses Win+Shift+S to screenshot the answer.
   function clearDrawings() {
+    currentPractice = null;
     if (!pinned) return;
     pinned = false;
     sendOverlays("okfilow:clear", null);
@@ -1002,6 +1012,9 @@ function createOkFilow(deps) {
   /** marks: BuddyMark[] in global DIP. Each overlay gets the ones anchored on its display, in local coordinates. */
   ipcMain.on("okfilow:draw", (e, marks) => {
     if (!ourSender(e) || !Array.isArray(marks)) return;
+    drawMarks(marks);
+  });
+  function drawMarks(marks) {
     pinned = true;
     showOverlays();
     qaShot("draw");
@@ -1011,7 +1024,7 @@ function createOkFilow(deps) {
       const mine = marks.filter((m) => m && typeof m === "object").map((m) => localMark(m, b)).filter(Boolean);
       w.webContents.send("okfilow:draw", mine);
     }
-  });
+  }
 
   // Speech-to-text on this PC: its own sherpa session, so it never steals the presenter's.
   ipcMain.handle("okfilow:stt:status", guard(() => ({ ready: sttLocal.modelReady(userData) })));
@@ -1159,7 +1172,18 @@ function createOkFilow(deps) {
   const voiceModel = () => tts;
   /** The speech model OK Filow's recognizer holds in memory right now, or null. */
   const sttLoaded = () => (stt && stt.worker ? stt.modelKey : null);
-  return { start, dispose, togglePanel, status, applyConfig, releaseStt, voiceModel, sttLoaded };
+  const practice = mark => {
+    currentPractice = mark;
+    drawMarks([mark]);
+  };
+  const clearPractice = () => { currentPractice = null; clearDrawings(); };
+  const askPractice = question => {
+    if (!panelReady || !panel || panel.isDestroyed() || panel.webContents.isLoading()) return false;
+    clearPractice(); panel.show();
+    sendPanel("okfilow:askText", question);
+    return true;
+  };
+  return { start, dispose, togglePanel, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice };
 }
 
 module.exports = { createOkFilow, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS };

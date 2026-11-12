@@ -7,7 +7,7 @@ import "./welcome.css";
 /** The speech-setup offer from the main process (apps/desktop/welcome-setup.js setupOffer). */
 type SetupOffer = { ask: boolean; ready: boolean; downloadGb: number; needsOllama: boolean; models: string[]; device: "pc" | "mac"; ramGb: number; online: boolean; profile: string | null; unknown?: boolean; cleanup?: { id: string; bytes: number; gb: number } | null };
 type WelcomeBridge = UiBridge & {
-  complete: () => Promise<UiResult>;
+  complete: (practice?: boolean) => Promise<UiResult>;
   context: () => Promise<{ firstRun: boolean; askSetup: boolean }>;
   setupOffer: () => Promise<SetupOffer>;
   chooseSetup: (accept: boolean, cleanup: boolean) => Promise<{ ok: boolean }>;
@@ -22,7 +22,7 @@ const back = $<HTMLButtonElement>("#back");
 const secondary = $<HTMLButtonElement>("#secondary");
 const start = $<HTMLButtonElement>("#start");
 const error = $("#error");
-const STEP_TITLES: Record<StepId, I18nKey> = { language: "welcome.stepLanguage", mic: "welcome.stepMic", setup: "welcome.stepSetup", preferences: "welcome.preferences" };
+const STEP_TITLES: Record<StepId, I18nKey> = { language: "welcome.stepLanguage", intro: "tour.step", mic: "welcome.stepMic", setup: "welcome.stepSetup", preferences: "welcome.preferences" };
 
 let state: UiSnapshot | null = null;
 let errorKey: I18nKey | null = null;
@@ -230,6 +230,7 @@ function renderSetup() {
 
 // ---- navigation ----
 function go(to: number) {
+  $<HTMLVideoElement>("#intro-video").pause();
   if (steps[index] === "mic" && steps[to] !== "mic") stopMic();
   index = Math.max(0, Math.min(steps.length - 1, to));
   errorKey = null;
@@ -252,7 +253,7 @@ async function finish(acceptSetup: boolean) {
     // A failed answer must not keep the user in the welcome: main() then asks with its own dialog.
     if (steps.includes("setup")) await bridge.chooseSetup(acceptSetup, cleanupTicked).catch(() => undefined);
     stopMic();
-    const result = await bridge.complete();
+    const result = await bridge.complete(steps.includes("intro") && $<HTMLInputElement>("#live-practice").checked);
     if (!result.ok) { errorKey = result.code; render(result.state); }
   } catch { errorKey = "ui.saveError"; }
   finally { busy = false; render(); }
@@ -270,7 +271,7 @@ form.addEventListener("submit", event => { event.preventDefault(); primaryAction
 form.addEventListener("keydown", event => {
   if (event.key !== "Enter" || event.defaultPrevented || event.isComposing) return;
   const el = event.target as HTMLElement;
-  if (el.closest("button, select, summary, a, textarea")) return;
+  if (el.closest("button, select, summary, a, textarea, video")) return;
   if (el instanceof HTMLInputElement && el.type === "checkbox") return;
   event.preventDefault();
   if (event.repeat || start.disabled || steps[index] === "setup") return;

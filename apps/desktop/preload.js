@@ -5,6 +5,11 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("filow", {
   desktop: true,
+  tour: {
+    mark: rect => ipcRenderer.invoke("tour:mark", rect),
+    ask: question => ipcRenderer.invoke("tour:ask", question),
+    done: () => ipcRenderer.invoke("tour:done"),
+  },
   /** OK Filow's section in Filow Settings (same settings as its panel). */
   okFilow: {
     status: () => ipcRenderer.invoke("okfilow:settings:status"),

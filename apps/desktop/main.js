@@ -324,7 +324,11 @@ ipcMain.handle("dictation:punctuation:download", event => {
   for (const key of ["lang", "theme"]) ipcMain.on(`ui:${key}`, (event, value) => {
     if (uiSender(event)) void uiPreferences.update({ [key]: value });
   });
-  ipcMain.handle("welcome:complete", event => { if (!uiSender(event, true)) throw new Error("Denied"); return welcomeController.finish(); });
+  ipcMain.handle("welcome:complete", (event, practice) => {
+    if (!uiSender(event, true)) throw new Error("Denied");
+    if (!settings.welcomeCompleted) { settings.practicePending = practice === true; saveSettings(); }
+    return welcomeController.finish();
+  });
   // First-run guide (docs/welcome/ONBOARDING-V2.md). A first run that reaches the welcome answers the
   // speech-setup question there (or skips it), so offerLocalAi() shows no dialog later.
   ipcMain.handle("welcome:context", event => {
@@ -2361,6 +2365,24 @@ async function main() {
     return { open: pointsWindow.isOpen() };
   });
   startOkFilow();
+  appHandle("tour:mark", (event, rect) => {
+    if (event.sender !== mainWin?.webContents) throw new Error("Denied");
+    if (rect === null) { okFilow.clearPractice(); return true; }
+    if (new URL(event.sender.getURL()).pathname !== "/tour") throw new Error("Denied");
+    const mark = require("./tour").practiceMark(rect, mainWin.getContentBounds(), event.sender.getZoomFactor());
+    if (!mark) throw new Error("Invalid practice target");
+    okFilow.practice(mark);
+    return true;
+  });
+  appHandle("tour:ask", (event, question) => {
+    if (event.sender !== mainWin?.webContents || new URL(event.sender.getURL()).pathname !== "/tour" || typeof question !== "string" || question.length > 500) throw new Error("Denied");
+    return okFilow.askPractice(question);
+  });
+  appHandle("tour:done", event => {
+    if (event.sender !== mainWin?.webContents) throw new Error("Denied");
+    settings.practicePending = false; delete settings.practiceNext; saveSettings(); okFilow.clearPractice();
+  });
+  win.on("move", () => okFilow.clearPractice());
   win.on("closed", () => okFilow?.dispose());
   const hk = registerHotkey();
   if (!hk.ok) console.warn("Screen Sense hotkey:", hk.error);
@@ -2398,10 +2420,16 @@ async function main() {
     if (settings.punctuationModelWanted) wantPunctuationModel("still pending");
     if (choices && choices.ollama) void startOllamaInstall();
     else startOllamaIfWanted("Filow opened");
-    const firstPage =
+    const setupPage =
       choices && Array.isArray(choices.models) && choices.models.length
         ? `${APP_URL}/settings/local?auto=${encodeURIComponent(choices.models.join(","))}${choices.ollama ? "&ollama=1" : ""}`
         : APP_URL;
+    if (settings.practicePending && setupPage !== APP_URL) {
+      settings.practiceNext = setupPage.slice(APP_URL.length);
+      saveSettings();
+    }
+    const practiceNext = typeof settings.practiceNext === "string" && settings.practiceNext.startsWith("/settings/local?auto=") ? settings.practiceNext : "/";
+    const firstPage = settings.practicePending ? `${APP_URL}/tour?next=${encodeURIComponent(practiceNext)}` : setupPage;
     stage("loading first page");
     await win.loadURL(firstPage);
     stage("first page loaded");
@@ -2431,7 +2459,7 @@ async function main() {
         if (response === 0) await installPowerPointAddin(win);
       }
     }
-    if (!process.env.OPENROUTER_API_KEY) {
+    if (!settings.practicePending && process.env.FILOW_OFFLINE !== "1" && !process.env.OPENROUTER_API_KEY) {
       dialog.showMessageBox(win, {
         type: "info",
         title: mt("keyTitle"),

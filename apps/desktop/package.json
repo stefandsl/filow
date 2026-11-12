@@ -46,6 +46,8 @@
     },
     "files": [
       "main.js",
+      "tour.js",
+      "media/**",
       "slideshow.js",
       "points-window.js",
       "localai.js",
