@@ -3,7 +3,8 @@ seconds of normal-level clean speech (a fixed dev clip of the same language, ano
 the engine's state is that of a running session and not of a fresh start. The lead-in is cut off
 before the recognizer sees the clip.
 
-  python -I warm.py run <dpdfnet2|hush|gtcrn|dtln|dfn3> <dev|heldout>
+  python -I warm.py run <dpdfnet2|hush|gtcrn|dtln|dfn3> <dev|heldout> [k n]   (k of n side-by-side shards)
+  python -I warm.py merge <engine> <split> <n>
 
 Added after the first held-out numbers showed DeepFilterNet-style engines deleting quiet speech
 from a fresh start. These arms are reported next to the frozen fresh-start arms; they were not
@@ -33,13 +34,35 @@ def primers(sr):
     return out
 
 
-def run(name, split):
+def merge(name, split, n):
+    """Joins the tables of n finished shards into the arm's table, in clip order."""
+    arm = f"{name}_warm"
+    import csv
+    got = {}
+    for k in range(n):
+        with open(WORK / "results" / f"enh-{arm}-{split}.shard{k}of{n}.csv", "r", encoding="utf-8", newline="") as f:
+            got.update({r["wav_id"]: r for r in csv.DictReader(f)})
+    todo = clips_of(split)
+    missing = [r["wav_id"] for r in todo if r["wav_id"] not in got]
+    if missing:
+        raise SystemExit(f"{len(missing)} clips missing, e.g. {missing[:3]}")
+    write_rows(WORK / "results" / f"enh-{arm}-{split}.csv", [got[r["wav_id"]] for r in todo])
+    for k in range(n):
+        (WORK / "results" / f"enh-{arm}-{split}.shard{k}of{n}.csv").unlink()
+    print("merged", arm, split, len(todo), "clips")
+
+
+def run(name, split, k=None, n=None):
     arm = f"{name}_warm"
     out_dir = WORK / "enh" / arm
     out_dir.mkdir(parents=True, exist_ok=True)
     todo = clips_of(split)
     final = WORK / "results" / f"enh-{arm}-{split}.csv"
     part = WORK / "results" / f"enh-{arm}-{split}.part.csv"
+    if n:  # one of n side-by-side processes: every n-th clip, its own table, joined by "merge"
+        todo = todo[k::n]
+        final = WORK / "results" / f"enh-{arm}-{split}.shard{k}of{n}.csv"
+        part = WORK / "results" / f"enh-{arm}-{split}.shard{k}of{n}.part.csv"
     rows = resume_rows(part, out_dir, [r["wav_id"] for r in todo])
     if name == "dfn3":
         from external import DF, DF_MODEL, TMP, watch
@@ -84,4 +107,9 @@ def run(name, split):
 
 
 if __name__ == "__main__":
-    run(sys.argv[2], sys.argv[3])
+    if sys.argv[1] == "merge":
+        merge(sys.argv[2], sys.argv[3], int(sys.argv[4]))
+    elif len(sys.argv) > 5:
+        run(sys.argv[2], sys.argv[3], int(sys.argv[4]), int(sys.argv[5]))
+    else:
+        run(sys.argv[2], sys.argv[3])
