@@ -23,9 +23,152 @@ const pillLive = (mode, pill) => answering(mode) || mode === "listening" || Bool
  * the pill (`hover`: the overlay page says so from the pointer position main sends it; mouse events
  * forwarded by Electron made the window flap between the two states and lose the click).
  */
-function overlayMouse({ caught, hover, mode, pill }) {
-  return { ignore: !(caught || (hover && pillLive(mode, pill))) };
+function overlayMouse({ caught, hover, mode, pill, bubble }) {
+  return { ignore: !(caught || (hover && overlayLive(mode, pill, bubble))) };
 }
+
+/**
+ * An overlay has something for the mouse: a control of the pill, or the answer bubble (`bubble`: it
+ * is open: its text scrolls under the wheel and it has a close button).
+ */
+const overlayLive = (mode, pill, bubble) => pillLive(mode, pill) || bubble === true;
+
+// ---- the answer bubble (docs/okfilow/BUBBLE.md) ----
+/** The longest text the bubble is given. An answer is never cut to fit: the bubble scrolls. */
+const BUBBLE_TEXT_MAX = 20000;
+const bubbleText = (v) => String(v || "").slice(0, BUBBLE_TEXT_MAX);
+
+/** How long the bubble stays once nothing is running any more. */
+const BUBBLE = {
+  /** After an answer that was spoken to its end (or shown for as long as it takes to read). */
+  lingerMs: 4000,
+  /** A stopped answer, with its pill and Resume. */
+  stoppedMs: 8000,
+  /** After the pointer leaves the bubble. */
+  afterHoverMs: 2500,
+  /** Reading time: per letter, twice that for Japanese, Chinese and Korean letters, between these bounds. */
+  msPerChar: 60,
+  readMinMs: 5000,
+  readMaxMs: 90000,
+  /** A short note with its own time (a dictation's result): kept between these bounds. */
+  noteMinMs: 1000,
+  noteMaxMs: 6000,
+};
+const wideChar = (ch) => {
+  const n = ch.codePointAt(0);
+  return (n >= 0x3000 && n <= 0x9fff) || (n >= 0xac00 && n <= 0xd7af) || (n >= 0xff00 && n <= 0xffef);
+};
+/** The time it takes to read `text`, within sane bounds. */
+function readingMs(text) {
+  let units = 0;
+  for (const ch of String(text || "")) units += /\s/.test(ch) ? 0 : wideChar(ch) ? 2 : 1;
+  return Math.min(BUBBLE.readMaxMs, Math.max(BUBBLE.readMinMs, units * BUBBLE.msPerChar));
+}
+
+/**
+ * When the bubble goes away by itself: milliseconds from now, or null while it must stay (an answer
+ * is running or paused, somebody is talking, or the pointer is on it). Every state in which nothing
+ * runs any more gets a number: no bubble stays for ever. Marks kept on screen and "always show the
+ * pointer" do not count: they keep the overlay, never the bubble.
+ *   shownMs: how long the whole text has been on screen (the voice may have read it meanwhile, or
+ *   said nothing: voice off, no voice for the language, a voice that failed); holdMs: the panel's
+ *   own time for a short note; afterHover: the pointer has just left the bubble.
+ */
+function bubbleHold({ mode, text, stopped, paused, hover, shownMs, holdMs, afterHover } = {}) {
+  if (answering(mode) || mode === "listening" || paused === true || hover === true) return null;
+  if (!text && !stopped) return 0;
+  if (afterHover === true) return BUBBLE.afterHoverMs;
+  if (stopped) return BUBBLE.stoppedMs;
+  if (Number(holdMs) > 0) return Math.min(BUBBLE.noteMaxMs, Math.max(BUBBLE.noteMinMs, Number(holdMs)));
+  return Math.max(BUBBLE.lingerMs, readingMs(text) - Math.max(0, Number(shownMs) || 0));
+}
+
+/**
+ * The bubble's life, for the main process: it is told the text, the mode, the pause and the pointer,
+ * and calls `dismiss(why)` once when the bubble must go ("timer", "escape", "button"). Timers and
+ * the clock are handed in, so every end state can be tested.
+ */
+function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout, onPlan } = {}) {
+  let text = "";
+  let mode = "idle";
+  let stopped = false;
+  let paused = false;
+  let hover = false;
+  let holdMs = 0;
+  let shownAt = 0;
+  let timer = null;
+  const open = () => Boolean(text) || stopped;
+  const cancel = () => { if (timer !== null) clearTimer(timer); timer = null; };
+  function close(why) {
+    cancel();
+    if (!open()) return false;
+    text = "";
+    stopped = false;
+    hover = false;
+    dismiss(why);
+    return true;
+  }
+  function plan(afterHover = false) {
+    cancel();
+    if (!open()) return;
+    const ms = bubbleHold({ mode, text, stopped, paused, hover, shownMs: now() - shownAt, holdMs, afterHover });
+    if (onPlan) onPlan(ms);
+    if (ms === null) return;
+    timer = setTimer(() => { timer = null; close("timer"); }, ms);
+  }
+  return {
+    open,
+    /** The text in the bubble now (an overlay that loads late is given it). */
+    text: () => text,
+    /** What the bubble says now ("" takes it away, unless it marks a stopped answer). */
+    setText(next) {
+      const t = bubbleText(next);
+      if (t && !text) shownAt = now();
+      text = t;
+      plan();
+    },
+    /** The mode, with what the panel said about it (`stopped`, `holdMs`). */
+    setMode(next, extra = {}) {
+      mode = next;
+      stopped = (next === "idle" && extra.stopped === true);
+      holdMs = Number(extra.holdMs) || 0;
+      // The whole answer is on screen from here: its reading time starts.
+      if (next === "speaking") shownAt = now();
+      plan();
+    },
+    setPaused(on) {
+      if (paused === (on === true)) return;
+      paused = on === true;
+      plan();
+    },
+    /** The pointer is on the bubble, or has left it. */
+    setHover(on) {
+      if (hover === (on === true)) return;
+      hover = on === true;
+      plan(!hover);
+    },
+    /** Escape with no answer running, or the bubble's close button. True when there was a bubble. */
+    close,
+  };
+}
+
+/**
+ * Whether a list of points, marks or cards keeps the overlays on screen until Escape, Clear or the
+ * next question: only when there is something in it. (An empty list of points is how the panel calls
+ * the pointer back; it used to keep the overlays, and the bubble with them, for ever.)
+ */
+const keepsOverlays = (list) => Array.isArray(list) && list.length > 0;
+
+/**
+ * How long the pointer takes to visit `count` things an answer points at (the overlay page's
+ * timing: a flight, then a look of 1.8 s when another follows, 5.5 s at the last). The overlays stay
+ * that long for them; unlike marks and cards, points do not keep the overlays until Escape.
+ */
+const POINT = { flyMs: 650, nextMs: 1800, holdMs: 5500 };
+const pointsShowMs = (count) => (count > 0 ? (count - 1) * (POINT.flyMs + POINT.nextMs) + POINT.flyMs + POINT.holdMs : 0);
+
+/** What Escape does: stops the answer in progress; with none, closes the bubble and wipes the marks. */
+const escapePlan = (mode) => (answering(mode) ? ["stop"] : ["bubble", "marks"]);
 
 /** "Look at my screen": "on" or "off" once the user chose, "auto" until then (the setup decides). */
 const seeChoice = (v) => (v === "on" || v === "off" ? v : "auto");
@@ -85,4 +228,4 @@ function bindKey(shortcuts, was, choice, handler, { inputOff = false } = {}) {
   return { choice, accelerator: ok ? acc : null, state: ok ? "ok" : "taken" };
 }
 
-module.exports = { answering, overlayMouse, seeChoice, wordsOnlyList, pillState, pillLive, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, accelerator, bindKey };
+module.exports = { keepsOverlays, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, bubbleHold, createBubble, escapePlan, overlayLive, answering, overlayMouse,seeChoice, wordsOnlyList, pillState, pillLive, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, accelerator, bindKey };

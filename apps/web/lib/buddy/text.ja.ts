@@ -3,6 +3,7 @@ import type { OkfKey } from "./text";
 export const ja: Record<OkfKey, string> = {
   desktopOnly: "OK FilowはFilowのデスクトップアプリで動きます。",
   close: "閉じる",
+  closeAnswer: "回答を閉じる",
   modelHint: "ドラッグで回転、スクロールで拡大、パーツをクリックして質問",
   modelAsking: "{part}について質問中…",
   ollamaStopped: "このPCでOK Filowの回答を動かしているOllamaが起動していません。インストール済みなら、Filowがいま起動しています。1分後にもう一度質問してください。未インストールの場合は「設定」\u003e「ローカルモデル」からインストールするか、OK Filowパネルの「回答の提供元」でクラウドを選んでください。",

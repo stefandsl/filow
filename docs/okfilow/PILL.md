@@ -15,7 +15,8 @@ like any other).
 | Stop | pill and panel, while an answer is in progress | Ends the answer (the request to the model, the voice, the pointing). What was shown stays, marked "Stopped". |
 
 Pill layout: answering `[eye] status [Pause] [Stop Esc]`, paused `[eye] Paused [Resume] [Stop Esc]`,
-stopped `[eye] Stopped [Resume]` (it goes away with the bubble; Resume stays on the panel).
+stopped `[eye] Stopped [Resume]` (it goes away with the bubble, 8 seconds after the stop, sooner
+with Esc or the bubble's close button, see BUBBLE.md; Resume stays on the panel).
 Pause and Resume are one button with room for both words, and the statuses of an answer share one
 room, so the pill has the same width answering and paused.
 

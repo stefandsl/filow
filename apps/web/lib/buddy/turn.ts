@@ -53,6 +53,19 @@ function sentenceRanges(text: string): Array<{ start: number; end: number }> {
 /** The sentences of a text, in order, each trimmed. The last one may be unfinished. */
 export const splitSentences = (text: string): string[] => sentenceRanges(text).map((r) => text.slice(r.start, r.end).trim());
 
+/**
+ * The same sentences as splitSentences, one piece each, with the spacing between them kept: joined,
+ * the pieces are the text again, letter for letter. The answer bubble shows these, so it can keep
+ * the sentence the voice is on in view without losing a character.
+ */
+export function sentenceParts(text: string): string[] {
+  const ranges = sentenceRanges(text);
+  if (!ranges.length) return text ? [text] : [];
+  // Each piece starts at its sentence's first letter: the spacing after a sentence stays with that sentence.
+  const first = ranges.map((r, i) => (i === 0 ? 0 : r.start + (text.slice(r.start, r.end).length - text.slice(r.start, r.end).trimStart().length)));
+  return first.map((at, i) => text.slice(at, i === first.length - 1 ? text.length : first[i + 1]));
+}
+
 /** The text up to the end of its last whole sentence ("" when it has none yet). */
 export function cutToSentence(shown: string): string {
   const ranges = sentenceRanges(shown);

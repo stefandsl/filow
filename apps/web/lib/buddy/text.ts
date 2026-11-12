@@ -8,6 +8,7 @@ import { ja } from "./text.ja";
 const en = {
   desktopOnly: "OK Filow runs in the Filow desktop app.",
   close: "Close",
+  closeAnswer: "Close the answer",
   modelHint: "Drag to turn, scroll to zoom, click a part to ask about it",
   modelAsking: "Asking about {part}…",
   ollamaStopped: 'Ollama, which runs OK Filow\'s answers on this PC, is not running. If it is installed, Filow is starting it now: ask again in a minute. If not, install it in Settings > Local models, or choose Cloud under "Answers from" in the OK Filow panel.',

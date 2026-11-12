@@ -65,11 +65,65 @@ export function bezierPoint(from: P, to: P, k: number): P {
   return { x: a * from.x + b * control.x + c * to.x, y: a * from.y + b * control.y + c * to.y };
 }
 
-/** Puts the bubble to the lower right of the dot, flipping left or up so it stays on screen. */
-export function bubblePlacement(dot: P, size: { width: number; height: number }, view: { width: number; height: number }, gap = 18): P {
+type Rect = { left: number; top: number; right: number; bottom: number };
+/** The bubble never comes closer than this to an edge of the screen, or to the pill. */
+export const BUBBLE_EDGE = 8;
+
+/**
+ * Puts the bubble to the lower right of the dot, flipping left or up when there is no room, and
+ * always wholly on screen. `avoid` is the pill at the top of the screen (null when there is none):
+ * a bubble that would lie over it goes below it instead.
+ */
+export function bubblePlacement(dot: P, size: { width: number; height: number }, view: { width: number; height: number }, gap = 18, avoid: Rect | null = null): P {
+  const edge = BUBBLE_EDGE;
   let x = dot.x + gap + 12;
   let y = dot.y + gap;
-  if (x + size.width > view.width - 8) x = dot.x - gap - size.width;
-  if (y + size.height > view.height - 8) y = dot.y - gap - size.height;
-  return { x: Math.max(8, x), y: Math.max(8, y) };
+  if (x + size.width > view.width - edge) x = dot.x - gap - size.width;
+  if (y + size.height > view.height - edge) y = dot.y - gap - size.height;
+  return bubbleOnScreen({ x, y }, size, view, avoid);
+}
+
+/**
+ * The nearest place to `at` where the bubble is wholly on screen and clear of the pill (`avoid`):
+ * for a bubble that holds still while its text grows, and the last step of every placement.
+ */
+export function bubbleOnScreen(at: P, size: { width: number; height: number }, view: { width: number; height: number }, avoid: Rect | null = null): P {
+  const edge = BUBBLE_EDGE;
+  const x = Math.max(edge, Math.min(at.x, view.width - edge - size.width));
+  let y = Math.max(edge, Math.min(at.y, view.height - edge - size.height));
+  if (avoid && avoid.right > avoid.left && x < avoid.right + edge && x + size.width > avoid.left - edge && y < avoid.bottom + edge && y + size.height > avoid.top - edge) {
+    y = avoid.bottom + edge;
+  }
+  return { x, y };
+}
+
+/** How far from the bubble the pointer may go before the bubble follows it again. */
+export const BUBBLE_REACH = 96;
+/**
+ * Whether an answer's bubble holds still: it does while the pointer is on it or within `reach` of
+ * it, so the pointer can go onto it (to scroll it, to close it) instead of pushing it away; a
+ * pointer that goes further takes the bubble along again. `rect` is where the bubble is now.
+ */
+export function bubbleSticks(pointer: P | null, rect: Rect | null, reach = BUBBLE_REACH): boolean {
+  if (!pointer || !rect || rect.right <= rect.left || rect.bottom <= rect.top) return false;
+  const dx = Math.max(rect.left - pointer.x, 0, pointer.x - rect.right);
+  const dy = Math.max(rect.top - pointer.y, 0, pointer.y - rect.bottom);
+  return Math.hypot(dx, dy) <= reach;
+}
+
+/** Whether the pointer is on the bubble itself (a pixel of margin). */
+export function overBubble(pointer: P | null, rect: Rect | null): boolean {
+  return bubbleSticks(pointer, rect, 1);
+}
+
+/**
+ * Where the bubble's text must be scrolled so the sentence being spoken is in view: the scroll
+ * position unchanged when the sentence is already wholly visible, else the sentence's top a line
+ * below the top edge (a sentence taller than the view starts at its beginning). Never past the ends.
+ */
+export function followScroll(sentence: { top: number; height: number }, view: { scrollTop: number; clientHeight: number; scrollHeight: number }, lead = 20): number {
+  const max = Math.max(0, view.scrollHeight - view.clientHeight);
+  const visible = sentence.top >= view.scrollTop && sentence.top + sentence.height <= view.scrollTop + view.clientHeight;
+  if (visible) return Math.min(max, Math.max(0, view.scrollTop));
+  return Math.min(max, Math.max(0, sentence.top - lead));
 }

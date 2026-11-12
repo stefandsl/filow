@@ -16,7 +16,7 @@ const { loadUiohook } = require("./uiohook");
 const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
-const { answering, overlayMouse, seeChoice, wordsOnlyList, pillState, pillLive, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
+const { createBubble, bubbleText, escapePlan, overlayLive, keepsOverlays, pointsShowMs, answering, overlayMouse, seeChoice, wordsOnlyList, pillState, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 const { trustedUiSender } = require("./ui-preferences");
 
@@ -177,6 +177,27 @@ function createOkFilow(deps) {
     for (const w of overlays.values()) if (!w.isDestroyed()) w.webContents.send(channel, payload);
   }
 
+  // ---- the answer bubble (okfilow-stop.js createBubble, docs/okfilow/BUBBLE.md) ----
+  // It goes away by itself once nothing runs any more, whatever keeps the overlays up (marks, the
+  // always-on pointer): every overlay is told, the mouse is given back, and the overlays may fade.
+  /** The overlays whose bubble has the pointer on it right now (webContents ids). */
+  const bubbleHover = new Set();
+  const bubble = createBubble({
+    onPlan: (ms) => { if (QA_SHOTS) logLine(`okfilow qa bubble ${ms === null ? "stays" : `closes in ${ms} ms`} (mode ${mode})`); },
+    dismiss: (why) => {
+      logLine(`okfilow: bubble closed (${why})`);
+      sendOverlays("okfilow:bubble:close", why);
+      bubbleHover.clear();
+      if (!overlayLive(mode, pill, false)) stopHover.clear();
+      for (const w of overlays.values()) applyMouse(w);
+      if (mode === "idle" || mode === "error") scheduleFade();
+    },
+  });
+  /** The bubble's close button (an overlay). */
+  ipcMain.on("okfilow:bubble:close", (e) => { if (ourSender(e)) bubble.close("button"); });
+  /** The sentence the voice is on (the panel knows): the overlays keep it in view. */
+  ipcMain.on("okfilow:spoken", (e, n) => { if (ourSender(e)) sendOverlays("okfilow:spoken", Number.isInteger(n) ? n : -1); });
+
   // ---- going outside (okfilow-outbound.js, docs/okfilow/OUTBOUND.md) ----
   // While anything carrying the user's content is in flight, the overlays and the panel say so and
   // name who receives it. The overlays cannot fade while it is on.
@@ -258,6 +279,8 @@ function createOkFilow(deps) {
     e.sender.send("okfilow:state", { mode, purpose: purpose || "talk", sees: asksSee });
     e.sender.send("okfilow:pill", pill);
     e.sender.send("okfilow:outbound", outbound.snapshot());
+    // (the first question builds the overlays: the text sent while they loaded is given now)
+    if (bubble.text()) e.sender.send("okfilow:text", bubble.text());
     lastCursor = "";
   });
   ipcMain.on("okfilow:panel:ready", (e) => { if (ourSender(e)) e.sender.send("okfilow:outbound", outbound.snapshot()); });
@@ -385,6 +408,7 @@ function createOkFilow(deps) {
   function showOverlays() {
     if (visible) return;
     visible = true;
+    if (QA_SHOTS) logLine("okfilow qa overlays shown");
     buildOverlays();
     for (const [id, w] of overlays) {
       if (w.isDestroyed()) continue;
@@ -398,20 +422,28 @@ function createOkFilow(deps) {
   function hideOverlays() {
     if (!visible) return;
     visible = false;
+    if (QA_SHOTS) logLine("okfilow qa overlays hidden");
     stopCursor();
     // Hidden overlays have no pill under the pointer: none of them keeps the mouse.
     stopHover.clear();
+    bubbleHover.clear();
+    bubble.setHover(false);
     for (const w of overlays.values()) if (!w.isDestroyed()) { applyMouse(w); w.hide(); }
   }
-  /** An answer's visuals (points, marks, cards, drawings) stay up until Escape, the panel's Clear or the next question. */
+  /** An answer's marks, cards and drawings stay up until Escape, the panel's Clear or the next question. */
   let pinned = false;
-  /** `ms`: how long the bubble stays after the end (a dictation that was only copied says so for longer). */
-  function scheduleFade(ms = FADE_AFTER_MS) {
+  /** The pointer is still visiting the things an answer points at until then (okfilow-stop.js pointsShowMs). */
+  let pointUntil = 0;
+  /**
+   * The overlays go away a moment after the bubble did (the bubble has its own rule and times,
+   * okfilow-stop.js bubbleHold), unless marks are kept or the pointer is always shown.
+   */
+  function scheduleFade() {
     clearTimeout(fadeTimer);
-    if (cfg().showAlways || pinned || outbound.active()) return;
+    if (cfg().showAlways || pinned || outbound.active() || bubble.open()) return;
     fadeTimer = setTimeout(() => {
-      if (!pinned && !outbound.active() && (mode === "idle" || mode === "error")) hideOverlays();
-    }, Math.min(Math.max(Number(ms) || FADE_AFTER_MS, FADE_AFTER_MS), 6000));
+      if (!pinned && !outbound.active() && !bubble.open() && (mode === "idle" || mode === "error")) hideOverlays();
+    }, Math.max(FADE_AFTER_MS, pointUntil - Date.now()));
   }
 
   let lastCursor = "";
@@ -451,7 +483,8 @@ function createOkFilow(deps) {
     // Whether the question being answered took the screen: an overlay that loads later is told too.
     if (typeof extra.sees === "boolean") asksSee = extra.sees;
     // The pill's controls take the mouse only while the pill has any (okfilow-stop.js pillLive).
-    if (!pillLive(mode, pill)) stopHover.clear();
+    bubble.setMode(mode, extra);
+    if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
     for (const w of overlays.values()) applyMouse(w);
     if (next === "listening" && purpose === "dictate") dictation.diag.mark("listening", {}, { once: true });
     sendOverlays("okfilow:state", { mode, ...extra });
@@ -459,7 +492,7 @@ function createOkFilow(deps) {
     if (mode !== "idle" && mode !== "error") {
       clearTimeout(fadeTimer);
       showOverlays();
-    } else scheduleFade(extra.holdMs);
+    } else scheduleFade();
   }
 
   // ---- panel (also the brain) ----
@@ -600,8 +633,9 @@ function createOkFilow(deps) {
   }
   // Not on any click or key: the user clicks around and presses Win+Shift+S to screenshot the answer.
   function clearDrawings() {
-    if (!pinned) return;
+    if (!pinned && pointUntil <= Date.now()) return;
     pinned = false;
+    pointUntil = 0;
     sendOverlays("okfilow:clear", null);
     if (mode === "idle" || mode === "error") scheduleFade();
   }
@@ -692,7 +726,7 @@ function createOkFilow(deps) {
   function applyMouse(w) {
     if (!w || w.isDestroyed()) return;
     const id = w.webContents.id;
-    const m = overlayMouse({ caught: mouseCaught, hover: stopHover.has(id), mode, pill });
+    const m = overlayMouse({ caught: mouseCaught, hover: stopHover.has(id), mode, pill, bubble: bubble.open() });
     w.setIgnoreMouseEvents(m.ignore);
     // Test builds log every change, so an end-to-end run can tell whether Windows would deliver a click.
     if (QA_SHOTS && mouseWas.get(id) !== m.ignore) logLine(`okfilow qa overlay ${id} mouse ${m.ignore ? "click-through" : "takes clicks"} (mode ${mode}, hover ${stopHover.has(id)}, caught ${mouseCaught})`);
@@ -708,9 +742,16 @@ function createOkFilow(deps) {
     sendPanel("okfilow:stop", { source });
     return true;
   }
-  /** Escape: stops the answer in progress; when there is none, wipes the drawings. Always ends a held or hands-free dictation. */
+  /**
+   * Escape: stops the answer in progress; when there is none, closes the bubble and wipes the drawings
+   * (okfilow-stop.js escapePlan). Always ends a held or hands-free dictation.
+   */
   function onEscape() {
-    if (!stopAnswer("escape")) clearDrawings();
+    for (const step of escapePlan(mode)) {
+      if (step === "stop") stopAnswer("escape");
+      else if (step === "bubble") bubble.close("escape");
+      else clearDrawings();
+    }
     gestures?.escape();
   }
   function onGesture(ev) {
@@ -972,8 +1013,16 @@ function createOkFilow(deps) {
   let lastQaText = "";
   ipcMain.on("okfilow:text", (e, text) => {
     if (!ourSender(e)) return;
-    const t = String(text || "").slice(0, 2000);
+    const t = bubbleText(text);
     sendOverlays("okfilow:text", t);
+    const was = bubble.open();
+    bubble.setText(t);
+    if (was !== bubble.open()) {
+      // The bubble came or went under a pointer that may stand still: the mouse rule follows it.
+      if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
+      for (const w of overlays.values()) applyMouse(w);
+    }
+    if (!bubble.open() && (mode === "idle" || mode === "error")) scheduleFade();
     // Test builds log what the bubble shows, so end-to-end runs can be checked from the log.
     if (QA_SHOTS && t && t !== lastQaText) { lastQaText = t; clearTimeout(qaTextTimer); qaTextTimer = setTimeout(() => logLine(`okfilow qa text: ${lastQaText.slice(0, 300)}`), 1500); }
   });
@@ -1031,16 +1080,21 @@ function createOkFilow(deps) {
     if (!ourSender(e) || !panel || panel.isDestroyed() || e.sender !== panel.webContents) return;
     pill = pillState(v);
     sendOverlays("okfilow:pill", pill);
-    if (!pillLive(mode, pill)) stopHover.clear();
+    bubble.setPaused(pill.paused);
+    if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
     for (const w of overlays.values()) applyMouse(w);
   });
   /** The Stop button (the pill next to the pointer, or the panel when the keyboard hook is down). */
   ipcMain.on("okfilow:stopAnswer", (e, source) => { if (ourSender(e)) stopAnswer(source === "panel" ? "panel" : "button"); });
   /** An overlay says the pointer is on (or off) a control of its pill: that overlay takes the mouse meanwhile. */
-  ipcMain.on("okfilow:overlay:hover", (e, on) => {
+  /** `onBubble`: the pointer is on the answer bubble (it then stays, and its text scrolls under the wheel). */
+  ipcMain.on("okfilow:overlay:hover", (e, on, onBubble) => {
     if (!ourSender(e)) return;
-    if (on === true && pillLive(mode, pill)) stopHover.add(e.sender.id);
+    if (on === true && overlayLive(mode, pill, bubble.open())) stopHover.add(e.sender.id);
     else stopHover.delete(e.sender.id);
+    if (on === true && onBubble === true && bubble.open()) bubbleHover.add(e.sender.id);
+    else bubbleHover.delete(e.sender.id);
+    bubble.setHover(bubbleHover.size > 0);
     if (QA_SHOTS) logLine(`okfilow qa stop hover ${on === true} from overlay ${e.sender.id} (mode ${mode}): takes the mouse = ${stopHover.has(e.sender.id)}`);
     for (const w of overlays.values()) applyMouse(w);
   });
@@ -1059,7 +1113,11 @@ function createOkFilow(deps) {
   /** points: [{x, y, label, display: {id, bounds}, image: {width, height}}] already mapped to global DIP by the panel. */
   ipcMain.on("okfilow:point", (e, points) => {
     if (!ourSender(e) || !Array.isArray(points)) return;
-    pinned = true;
+    // An empty list only calls the pointer back (a new question, a stop): it keeps nothing on screen.
+    if (!keepsOverlays(points)) return sendOverlays("okfilow:point", []);
+    // The pointer's visits end by themselves: they keep the overlays for as long as they take, not until Escape.
+    pointUntil = Date.now() + pointsShowMs(points.length);
+    if (mode === "idle" || mode === "error") scheduleFade();
     qaShot("point", 2500);
     if (QA_SHOTS) {
       logLine(`okfilow qa points ${JSON.stringify(points)} overlays ${JSON.stringify([...overlays.entries()].map(([id, w]) => [id, w.getBounds()]))} displays ${JSON.stringify(screen.getAllDisplays().map((d) => [d.id, d.bounds]))}`);

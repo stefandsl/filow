@@ -20,7 +20,7 @@ import { createOutboundController, type OutboundController } from "@/lib/buddy/o
 import { ConsentList, OutboundNotice, OutboundPill } from "../outbound-ui";
 import { VoiceSettings } from "./voice-settings";
 import { getSetupPreference, getSpeechLang } from "@/lib/prefs";
-import { createAnswerTurn, joinContinuation, resumePlan } from "@/lib/buddy/turn";
+import { createAnswerTurn, joinContinuation, resumePlan, splitSentences } from "@/lib/buddy/turn";
 import { askSees, eyeToggle, screenLeaves, screenYesMissing, seesScreen, slowToSee, stillSees, wordsOnlyAfterYes, type LocalScreenMode } from "@/lib/buddy/sees";
 import { keyLabel, type PillAction } from "@/lib/buddy/pill";
 import { createPausableClock, marksStarted, STROKE_GAP_MS } from "@/lib/buddy/motion";
@@ -262,6 +262,8 @@ export default function OkFilowPanel() {
   langRef.current = lang;
   const tRef = useRef(t);
   tRef.current = t;
+  /** How many sentences of the text in the bubble come before the ones the voice is saying (0, or more after a Resume). */
+  const spokenBase = useRef(0);
   const speaker = useMemo(() => createSpeaker({
     bridge: okFilowBridge,
     status: () => statusRef.current,
@@ -270,9 +272,15 @@ export default function OkFilowPanel() {
     cloudAudio: (text) => cloudVoiceRef.current(text),
     onFallback: (reason) => setNote(tRef.current(`voiceWhy_${reason}`)),
     onNoVoice: () => setNote(tRef.current("voiceNoSystem")),
+    // The bubble next to the pointer keeps the sentence being spoken in view.
+    onSentence: (index) => okFilowBridge()?.spoken?.(spokenBase.current + index),
   }), []);
   // lang: the answer's language from the server (X-Buddy-Lang); without it the voice detects it from the text.
-  const speak = useCallback((text: string, id: number, lang?: string) => speaker.speak(text, id, { lang }), [speaker]);
+  // base: how many sentences of the text in the bubble come before what is spoken now (a Resume says only the rest).
+  const speak = useCallback((text: string, id: number, lang?: string, base = 0) => {
+    spokenBase.current = base;
+    return speaker.speak(text, id, { lang });
+  }, [speaker]);
   useEffect(() => speaker.attach(), [speaker]);
 
   // Hands-free: after each answer the mic opens again until it is switched off.
@@ -684,7 +692,7 @@ export default function OkFilowPanel() {
       if (info.from < info.marks.length) b.draw(info.marks, info.from);
       setMode("speaking");
       void (async () => {
-        if (info.left) await speak(info.left, id, info.lang);
+        if (info.left) await speak(info.left, id, info.lang, Math.max(0, splitSentences(plan.shown).length - splitSentences(info.left).length));
         turn.current.end(id);
         if (run.current === id) setMode("idle");
         if (run.current === id && handsFree.current) listenAgain.current();

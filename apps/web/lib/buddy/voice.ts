@@ -186,6 +186,12 @@ export type SpeakerDeps = {
   onFallback?(reason: VoiceFallback): void;
   /** This PC has no voice for the language of the text: nothing was read aloud (once per language). */
   onNoVoice?(lang: VoiceLang): void;
+  /**
+   * The voice is on sentence `index` of the text it was given (splitSentences): told once per
+   * sentence, so the answer bubble can keep that sentence in view. Exact for this PC's voice; worked
+   * out from what was played for the natural and the cloud voice.
+   */
+  onSentence?(index: number): void;
   player?(): ChunkPlayer;
 };
 export type SpeakOptions = {
@@ -233,6 +239,13 @@ export function createSpeaker(deps: SpeakerDeps) {
   let said: { list: string[]; done: number } = { list: [], done: 0 };
   /** How many sentences the voice speaking now has finished, when only it can tell (set by the voice). */
   let measure: (() => number) | null = null;
+  /** The sentence last reported to onSentence (-1: none yet for this text). */
+  let toldAt = -1;
+  const tellAt = (index: number) => {
+    if (index === toldAt || index < 0 || index >= said.list.length) return;
+    toldAt = index;
+    deps.onSentence?.(index);
+  };
   const openGate = () => {
     const list = gate;
     gate = [];
@@ -292,6 +305,8 @@ export function createSpeaker(deps: SpeakerDeps) {
       const look = () => { if (!live()) finish("cut"); else if (settled()) finish("done"); };
       const timer = setInterval(() => {
         look();
+        // The natural and the cloud voice: the sentence after the ones heard whole is the one being spoken.
+        if (!over && measure && live()) tellAt(Math.min(said.list.length - 1, measure()));
         // The end of speech can go missing (device change, Bluetooth sleep): never stay on "speaking".
         // The clock stands still during a pause: a paused answer is not a lost one.
         if (!held && (spent += everyMs) >= deadlineMs) finish("late");
@@ -439,6 +454,7 @@ export function createSpeaker(deps: SpeakerDeps) {
       u.rate = 1.05 * (deps.status()?.speed ?? 1);
       let ended = false;
       u.onend = u.onerror = () => { ended = true; nudge?.(); };
+      tellAt(base + i);
       synth.speak(u);
       const how = await wait(live, speechDeadline(list[i], deps.status()?.speed), 150, () => ended || (!synth.speaking && !synth.pending));
       if (how !== "done") break;
@@ -458,6 +474,7 @@ export function createSpeaker(deps: SpeakerDeps) {
     const s = deps.status();
     const voice = opts.voice ?? s?.voice ?? "system";
     said = { list: [], done: 0 };
+    toldAt = -1;
     if (!text.trim() || voice === "off") return;
     said = { list: splitSentences(text), done: 0 };
     const lang = isLang(opts.lang) ? opts.lang : detectLang(text, deps.uiLang());

@@ -111,7 +111,9 @@ describe("the overlay's pill", () => {
 
   it("takes the mouse while the pointer is on any control, and tells main again whenever the pill changes", () => {
     expect(overlay).toContain('overControls(p, Array.from(pillSpot.current?.querySelectorAll("button") ?? [], (el) => el.getBoundingClientRect()))');
-    expect(overlay).toMatch(/const over = onControl\(cursor\.current\);\n\s*overStop\.current = over;\n\s*okFilowBridge\(\)\?\.overlayHover\?\.\(over\);\n\s*\}, \[mode, going, here, sees, lang, stopped, pill, keys, onControl\]\);/);
+    // (the answer bubble takes the mouse the same way: components/okfilow/bubble.test.tsx)
+    expect(overlay).toContain("const over = overB || onControl(p);");
+    expect(overlay).toMatch(/tellHover\(cursor\.current, true\);\n\s*\}, \[mode, going, here, sees, lang, stopped, pill, keys, text, closed, tellHover\]\);/);
   });
 
   it("a pause freezes the flight and the pen on one clock", () => {

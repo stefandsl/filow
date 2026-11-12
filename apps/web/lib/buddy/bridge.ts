@@ -206,8 +206,18 @@ export type OkFilowBridge = {
   /** Stop the answer in progress (the Stop button, Escape). Main tells the panel through onStop. Absent in a desktop build older than Stop. */
   stopAnswer?(source?: "button" | "panel"): void;
   onStop?(fn: (p: { source?: string } | undefined) => void): Off;
-  /** Overlay -> main: the pointer is on (or off) a control of the pill, so this overlay takes the mouse meanwhile. */
-  overlayHover?(on: boolean): void;
+  /**
+   * Overlay -> main: the pointer is on (or off) a control of the pill or the answer bubble, so this
+   * overlay takes the mouse meanwhile. `onBubble`: it is on the bubble, which then stays.
+   */
+  overlayHover?(on: boolean, onBubble?: boolean): void;
+  /** Overlay -> main: the bubble's close button. Main closes the bubble on every overlay (onBubbleClose). Absent in a desktop build older than it. */
+  closeBubble?(): void;
+  /** Main -> overlays: the bubble goes away now (its time is up, Escape, its close button). */
+  onBubbleClose?(fn: (why: string | undefined) => void): Off;
+  /** Panel -> main -> overlays: the voice is on this sentence of the text in the bubble (lib/buddy/turn.ts sentenceParts). */
+  spoken?(index: number): void;
+  onSpoken?(fn: (index: number) => void): Off;
   /** A control of the pill was used (a click on an overlay): main passes it to the panel, which acts. Absent in a desktop build older than the pill's controls. */
   control?(action: PillAction): void;
   /** Main -> panel: a control of the pill or a shortcut ("key") asks for this. */

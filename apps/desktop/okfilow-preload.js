@@ -63,7 +63,12 @@ contextBridge.exposeInMainWorld("okFilow", {
   stopAnswer: (source) => ipcRenderer.send("okfilow:stopAnswer", source),
   onStop: on("okfilow:stop"),
   /** Overlay -> main: the pointer is on (or off) the Stop button, so this overlay takes the mouse meanwhile. */
-  overlayHover: (on) => ipcRenderer.send("okfilow:overlay:hover", on === true),
+  overlayHover: (on, onBubble) => ipcRenderer.send("okfilow:overlay:hover", on === true, onBubble === true),
+  /** The answer bubble: its close button (overlay -> main), main's word that it goes away now, and the sentence the voice is on. */
+  closeBubble: () => ipcRenderer.send("okfilow:bubble:close"),
+  onBubbleClose: on("okfilow:bubble:close"),
+  spoken: (index) => ipcRenderer.send("okfilow:spoken", index),
+  onSpoken: on("okfilow:spoken"),
   /** A control of the pill: "eye", "pause", "resume" or "stop". Main passes it to the panel (onControl), which acts. */
   control: (action) => ipcRenderer.send("okfilow:control", action),
   onControl: on("okfilow:control"),

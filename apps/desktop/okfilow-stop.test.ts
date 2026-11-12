@@ -38,7 +38,7 @@ describe("stopping an answer (desktop shell)", () => {
 
   it("the shell wires them: Escape stops an answer before it wipes drawings, the panel is told, the setting is stored and the file ships", () => {
     const main = source("okfilow.js");
-    expect(main).toMatch(/function onEscape\(\) \{\s*if \(!stopAnswer\("escape"\)\) clearDrawings\(\);/);
+    expect(main).toMatch(/function onEscape\(\) \{\s*for \(const step of escapePlan\(mode\)\) \{\s*if \(step === "stop"\) stopAnswer\("escape"\);/);
     expect(main).toContain("if (e.keycode === K.Escape) onEscape();");
     expect(main).toContain('sendPanel("okfilow:stop", { source });');
     expect(main).toMatch(/function stopAnswer\(source\) \{\s*if \(!answering\(mode\)\) return false;/);

@@ -19,16 +19,48 @@ html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !import
   background: var(--okf-ink); color: #08090b; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
+/* The answer bubble (docs/okfilow/BUBBLE.md). Dark in both themes, like the pill: it floats over whatever is on screen. */
 .okf-bubble {
-  position: absolute; left: 0; top: 0; max-width: 340px; will-change: transform;
+  position: fixed; left: 0; top: 0; z-index: 2; box-sizing: border-box; max-width: min(380px, calc(100vw - 16px)); will-change: transform;
   display: flex; align-items: center; gap: 10px;
   padding: 9px 13px; border-radius: 14px;
   background: rgba(18, 18, 20, 0.92); color: #f4f4f5; border: 1px solid rgba(255, 182, 0, 0.35);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-  font-size: 14px; line-height: 1.4; transition: opacity 0.25s ease;
+  font-family: var(--font); font-size: 14px; line-height: 1.4; transition: opacity 0.25s ease;
+  user-select: none; cursor: default;
 }
+.okf-bubble.okf-hidden { pointer-events: none; }
+/* An answer's bubble glides when it catches up with a pointer that went away from it. */
+.okf-bubble--answer { transition: opacity 0.25s ease, transform 0.16s ease-out; }
 .okf-bubble--error { border-color: rgba(255, 107, 91, 0.6); }
-.okf-text { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden; }
+.okf-bubble-body { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+/* The whole answer, always: the room grows to half the screen's height, then the text scrolls inside it
+   (the wheel, while the pointer is on the bubble). Never a line clamp, never an ellipsis. */
+.okf-text {
+  position: relative; align-self: stretch; overflow-wrap: anywhere; white-space: pre-line;
+  max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding-right: 6px;
+}
+/* Its scrollbar: a slim rounded thumb, no arrows, the same on the dark bubble in both themes. */
+.okf-text::-webkit-scrollbar { width: 6px; }
+.okf-text::-webkit-scrollbar-track { background: transparent; }
+.okf-text::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(255, 255, 255, 0.32); }
+.okf-text::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.55); }
+.okf-text::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+/* More text below: the last line in view fades out instead of being cut in half. */
+.okf-text[data-more="1"] { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%); mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%); }
+/* The sentence the voice is on. */
+.okf-text .okf-said { border-radius: 3px; background: color-mix(in srgb, var(--okf-ink) 26%, transparent); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+/* Close: a small button at the bubble's top right corner, for the mouse (the keyboard has Esc). */
+.okf-bubble-close {
+  flex: none; align-self: flex-start; display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; margin: -1px -5px 0 -2px; padding: 0; border: 1px solid transparent; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1); color: #f4f4f5; cursor: pointer;
+}
+.okf-bubble-close svg { display: block; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+/* (:root: stronger than the app's own hover rule for buttons, as for the pill's controls) */
+:root .okf-bubble-close:hover { background: rgba(255, 255, 255, 0.22); border-color: rgba(255, 255, 255, 0.5); color: #ffffff; }
+.okf-bubble-close:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .okf-bubble--answer { transition: opacity 0.25s ease; } }
 .okf-wave { display: inline-flex; align-items: center; gap: 3px; height: 24px; flex: none; }
 .okf-wave i { display: block; width: 3px; border-radius: 2px; background: var(--okf-ink); transition: height 0.08s linear; }
 .okf-spin { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--okf-ink) 25%, transparent); border-top-color: var(--okf-ink); animation: okf-rot 0.8s linear infinite; }
@@ -225,7 +257,7 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
   font-size: 12px !important; font-weight: 700; line-height: 1.5 !important;
   color: var(--muted); border: 1px solid color-mix(in srgb, var(--muted) 45%, transparent);
 }
-.okf-bubble-stopped { align-self: center; color: #c9cbd1; border-color: rgba(255, 255, 255, 0.3); white-space: nowrap; }
+.okf-bubble-stopped { align-self: flex-start; color: #c9cbd1; border-color: rgba(255, 255, 255, 0.3); white-space: nowrap; }
 
 /* "Look at my screen": one switch, always in view. */
 .okf-see { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--panel); }
