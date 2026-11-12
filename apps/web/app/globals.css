@@ -269,7 +269,8 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .section-nav-list { flex-direction: column; max-height: calc(100vh - 280px); }
 .section-link { border-color: var(--sidebar); background: var(--sidebar); }
 .section-link[aria-current] { border-left: 3px solid var(--accent); background: var(--row-current); }
-.nav-actions { margin: auto 0 0; align-items: stretch; flex-direction: column; flex-shrink: 0; }@media (max-width: 899px) {
+.nav-actions { margin: auto 0 0; align-items: stretch; flex-direction: column; flex-shrink: 0; }
+@media (max-width: 899px) {
   .section-nav { padding: 8px 4px; gap: 8px; }
   .section-nav-list { padding: 2px; max-height: calc(100vh - 200px); }
   .section-link { padding: 2px; }

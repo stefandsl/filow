@@ -103,6 +103,8 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
   const [lastNotes, setLastNotes] = useState<ScreenNote[]>([]);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  // The Whiteboard button found OK Filow not running in the desktop app (lib/whiteboard/open.ts): said in words, never a dead button.
+  const [boardDown, setBoardDown] = useState(false);
   const [starting, setStarting] = useState(false);
   const [micWarning, setMicWarning] = useState<MicWarning | null>(null);
   const microphoneRef = useRef<HTMLSelectElement>(null);
@@ -518,7 +520,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       <SectionNav sections={script.sections} current={sectionIdx} onSelect={reanchor.toSection}
         toolActions={<>
           <button type="button" className="btn display-link" onClick={() => setDisplayOpen(true)} aria-label={t("display.open")} title={t("display.openTitle")} aria-haspopup="dialog"><Icon name="sliders" /><span className="action-label">{t("display.open")}</span></button>
-          <button type="button" className="btn whiteboard-link" onClick={() => void openWhiteboard()} aria-label={t("ctl.whiteboard")} title={t("ctl.whiteboardTitle")}><Icon name="board" /><span className="action-label">{t("ctl.whiteboard")}</span></button>
+          <button type="button" className="btn whiteboard-link" onClick={() => { setBoardDown(false); void openWhiteboard().then((went) => setBoardDown(went === "unavailable")); }} aria-label={t("ctl.whiteboard")} title={t("ctl.whiteboardTitle")}><Icon name="board" /><span className="action-label">{t("ctl.whiteboard")}</span></button>
         </>}
         importAction={<button type="button" className="btn" onClick={() => fileRef.current?.click()} disabled={importing} aria-label={t("ctl.import")} title={t("ctl.importTitle")}><Icon name="up" /><span className="action-label">{importing ? t("ctl.importing") : t("ctl.import")}</span></button>}
         reloadAction={<button type="button" className="btn" onClick={loadScript} aria-label={t("ctl.reload")}><Icon name="reload" /><span className="action-label">{t("ctl.reload")}</span></button>} />
@@ -548,6 +550,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       )}
       {error && <div className="chip err banner">{error}</div>}
       {importError !== null && <ImportError error={importError} />}
+      {boardDown && <div className="chip err banner" role="alert">{t("ctl.whiteboardDown")}</div>}
 
 
         <div className="section-heading">

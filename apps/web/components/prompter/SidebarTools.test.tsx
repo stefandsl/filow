@@ -30,10 +30,20 @@ describe("Display and Whiteboard buttons in the sidebar", () => {
     const nav = prompter.slice(prompter.indexOf("<SectionNav"), prompter.indexOf("importAction="));
     expect(nav).toContain("toolActions={<>");
     expect(nav).toMatch(/<button type="button" className="btn display-link" onClick=\{\(\) => setDisplayOpen\(true\)\} aria-label=\{t\("display\.open"\)\} title=\{t\("display\.openTitle"\)\} aria-haspopup="dialog"><Icon name="sliders" \/><span className="action-label">\{t\("display\.open"\)\}<\/span><\/button>/);
-    expect(nav).toMatch(/<button type="button" className="btn whiteboard-link" onClick=\{\(\) => void openWhiteboard\(\)\} aria-label=\{t\("ctl\.whiteboard"\)\} title=\{t\("ctl\.whiteboardTitle"\)\}><Icon name="board" \/><span className="action-label">\{t\("ctl\.whiteboard"\)\}<\/span><\/button>/);
+    expect(nav).toMatch(/<button type="button" className="btn whiteboard-link" onClick=\{\(\) => \{ setBoardDown\(false\); void openWhiteboard\(\)\.then\(\(went\) => setBoardDown\(went === "unavailable"\)\); \}\} aria-label=\{t\("ctl\.whiteboard"\)\} title=\{t\("ctl\.whiteboardTitle"\)\}><Icon name="board" \/><span className="action-label">\{t\("ctl\.whiteboard"\)\}<\/span><\/button>/);
     expect(prompter.indexOf("display-link")).toBeLessThan(prompter.indexOf("whiteboard-link"));
     expect(prompter).toContain('import { openWhiteboard } from "@/lib/whiteboard/open";');
     expect(iconPaths.board).toBeTruthy();
+  });
+
+  it("says in words when the desktop app could not open the whiteboard, in all five languages", () => {
+    expect(prompter).toContain('{boardDown && <div className="chip err banner" role="alert">{t("ctl.whiteboardDown")}</div>}');
+    const texts = LANGS.map((lang) => translate(lang, "ctl.whiteboardDown"));
+    expect(new Set(texts).size).toBe(5);
+    for (const text of texts) {
+      expect(text).toContain("OK Filow");
+      expect(text).not.toContain("ctl.");
+    }
   });
 
   it("the header keeps the Settings gear and no second Display button", () => {
