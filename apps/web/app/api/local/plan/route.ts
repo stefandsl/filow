@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import os from "node:os";
-import { OLLAMA_URL, decideClefLocal } from "@/lib/decide/clef";
+import { OLLAMA_URL, clefTarget, decideClefLocal } from "@/lib/decide/clef";
 import { decideOpenRouter } from "@/lib/decide/openrouter";
 import { isSetupPreference, resolveSetup } from "@filow/core";
 import { gpuInfo, machineInfo } from "@/lib/sysinfo";
@@ -53,6 +53,10 @@ export async function POST(req: Request) {
   } catch {
     /* no Ollama */
   }
+  // A decision model the user chose on his own server (Settings, per task) counts as there: the plan
+  // may then tick points locally and decideClefLocal sends them to that server.
+  const decisionPin = await clefTarget();
+  const plannable = decisionPin.pinned && decisionPin.model && !installed.includes(decisionPin.model) ? [...installed, decisionPin.model] : installed;
   const gpu = await gpuInfo();
   const offline = process.env.FILOW_OFFLINE === "1";
   const keys = {
@@ -75,7 +79,7 @@ export async function POST(req: Request) {
   const setup = body.probe ? null : resolveSetup(isSetupPreference(body.setup) ? body.setup : "auto", machineInfo(gpu, ollamaOk ? installed : undefined));
   const plan: Plan = buildPlan({
     setup: setup?.choices ?? null,
-    installed,
+    installed: plannable,
     ollamaOk,
     gpu: { kind: gpu.kind, vramTotalGb: gpu.vramTotalGb, ollama: gpu.ollama },
     ramGb: Math.ceil(os.totalmem() / 1024 ** 3),

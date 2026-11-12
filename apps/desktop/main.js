@@ -1682,7 +1682,7 @@ function wireStt() {
   });
   appHandle("stt:start", async (e, language) => {
     setSttLanguage(language);
-    if (!sttSession) sttSession = new sttLocal.SttSession(userData, logLine, { use: "tracking", getLanguage: sttLanguage });
+    if (!sttSession) sttSession = new sttLocal.SttSession(userData, logLine, { use: "tracking", getLanguage: sttLanguage, task: () => "tracking" });
     const wc = e.sender;
     sttSession.onResult = (r) => !wc.isDestroyed() && wc.send("stt:result", { partial: r.partial, committed: r.committed });
     sttSession.onError = (m) => !wc.isDestroyed() && wc.send("stt:result", { partial: "", committed: "", error: m });
@@ -1728,6 +1728,8 @@ function models() {
 }
 function wireModels() {
   appHandle("models:status", () => models().status());
+  // Settings > Advanced changes where tasks run only with this (apps/web/lib/modelRoles/desktopAuth.ts)
+  appHandle("desktop:token", () => desktopToken());
   appHandle("models:cancel", (_e, id) => models().cancel(String(id)));
   appHandle("models:delete", (_e, id) => models().remove(String(id)));
 }
@@ -1994,6 +1996,19 @@ function applyMirrorHost(win, host) {
 }
 
 
+// One per launch; never written anywhere. Only this app's window gets it (appHandle "desktop:token").
+let desktopTokenValue = "";
+const desktopToken = () => (desktopTokenValue ||= crypto.randomBytes(24).toString("base64url"));
+/** safeStorage in the shape the web server's model-server passwords use (store.ts SecretBox). */
+function secretBox() {
+  const { safeStorage } = require("electron");
+  return {
+    available: () => safeStorage.isEncryptionAvailable(),
+    encrypt: (s) => safeStorage.encryptString(s).toString("base64"),
+    decrypt: (b) => safeStorage.decryptString(Buffer.from(b, "base64")),
+  };
+}
+
 function startServers() {
   const hosted = Boolean(process.env.FILOW_SESSION_URL);
   const bind = hosted ? "127.0.0.1" : "0.0.0.0";
@@ -2010,6 +2025,12 @@ function startServers() {
   process.env.NODE_ENV = "production";
   process.env.FILOW_SCRIPT = scriptFile;
   process.env.PUBLIC_ORIGIN = `http://${process.env.FILOW_LAN_IP || "127.0.0.1"}:${PORT}`;
+  // For the in-process web server only (globalThis, not the environment children inherit): the token
+  // that proves a request comes from this app's own window (apps/web/lib/modelRoles/desktopAuth.ts,
+  // given to the window over "desktop:token"), and the OS key store for the passwords of the user's
+  // model servers (apps/web/lib/modelRoles/store.ts), the same store as the API keys (loadSecrets).
+  globalThis.__filowDesktopToken = desktopToken();
+  globalThis.__filowSecretBox = secretBox();
   const title = process.title;
   require(webServer); // Next's standalone server starts listening when required
   process.title = title; // Next renames the process "next-server"; on Linux and macOS ps, pkill and System Monitor would not find Filow

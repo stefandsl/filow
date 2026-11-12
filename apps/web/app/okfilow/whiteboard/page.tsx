@@ -8,7 +8,7 @@ import { useLang } from "@filow/ui";
 import "katex/dist/katex.min.css";
 import { okFilowBridge, type OkFilowStatus } from "@/lib/buddy/bridge";
 import { okfText, OLLAMA_STOPPED_ANSWER, type OkfKey } from "@/lib/buddy/text";
-import { askRoute, askRouteRecipient, changesStored, type AskRoute, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
+import { askRoute, askRouteRecipient, changesStored, localServer, type AskRoute, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
 import { createSpeaker, webAudioPlayer } from "@/lib/buddy/voice";
 import { freellmCodeOf, localizeFreeLlmError } from "@/lib/freellm";
@@ -158,7 +158,11 @@ export default function WhiteboardPage() {
       // Offline mode always means this PC; otherwise what was chosen on this page.
       let route: AskRoute = statusRef.current?.offline ? "local" : from;
       let to: Recipient | null = null;
-      if (route !== "local") {
+      // "Local" can mean the user's own server (Settings > Advanced): it leaves this PC, so it gets the
+      // notice and the signal like an online model. Without the app there is no notice: this PC draws.
+      const viaServer = route === "local" && okFilowBridge() ? (await out.recipients())?.server ?? null : null;
+      if (askSeq.current !== id) return;
+      if (route !== "local" || viaServer) {
         if (!okFilowBridge()) {
           route = "local";
           setNote(wbText(langRef.current, "cloudNeedsApp"));
@@ -166,7 +170,8 @@ export default function WhiteboardPage() {
           // the online model of the whiteboard is its own, and may have been changed since the last question: asked for afresh
           const all = route === "cloud" ? await boardRecipients(modelRef.current, await engineHeaders()) : await out.recipients();
           // who receives the question on this route: OpenRouter and the model's maker, or the user's FreeLLMAPI router
-          const target = all ? askRouteRecipient(route, all) : null;
+          const named = all ? askRouteRecipient(route, all) : null;
+          const target = named && localServer(named, okfT("outServer"));
           if (!target) throw new Error(okfT("noticeUnknown"));
           const rec = { ask: target };
           if (out.standing("ask", rec.ask) === "ask") setNote(wbText(langRef.current, "noticeWaiting"));

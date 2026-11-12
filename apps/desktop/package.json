@@ -58,6 +58,7 @@
       "model-files.js",
       "model-use.js",
       "model-control.js",
+      "model-roles.js",
       "tts.js",
       "tts-worker.js",
       "tunnels.js",

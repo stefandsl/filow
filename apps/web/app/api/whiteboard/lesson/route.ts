@@ -6,6 +6,7 @@ import { answerLanguage, buddyLang } from "@/lib/buddy/lang";
 import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
 import { BusyError, RETRY, StallError, TIMEOUTS, generateCloud, generateLocal, maxStepsFor, texOk, type Ask, type LessonEvent, type Spelling } from "@/lib/whiteboard/generate";
 import { LIMITS, cleanText, validateLesson } from "@/lib/whiteboard/lesson";
+import { serverAllowed } from "@/lib/modelRoles/helper";
 
 export const dynamic = "force-dynamic";
 const MAX_BODY = 64_000;
@@ -59,7 +60,10 @@ export async function POST(req: Request) {
   if (provider === "local") {
     try {
       // "diagram": on Best quality a bigger picture model the user installed draws, as for OK Filow's drawings
-      helper = await resolveLocalHelper(body.setup, "diagram");
+      // the model the user chose for whiteboard lessons in Settings comes first
+      helper = await resolveLocalHelper(body.setup, "diagram", undefined, "whiteboard");
+      // the user's own server only with the yes for it (the whiteboard page asks); otherwise this PC draws
+      if (!serverAllowed(helper, consent)) helper = await resolveLocalHelper(body.setup, "diagram", undefined, "whiteboard", false);
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : String(e), code: "no_local_helper" }, { status: 409 });
     }

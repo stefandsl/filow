@@ -5,6 +5,7 @@
 const path = require("node:path");
 const { sizeOf } = require("./model-files");
 const { modelUse } = require("./model-use");
+const { speechPins } = require("./model-roles");
 
 /** Ids that are downloads only (nothing to list or delete). */
 const DOWNLOAD_ONLY = ["speech", "ollama-installer", "cloudflared"];
@@ -29,7 +30,7 @@ function createModelControl(deps) {
     const s1 = deps.cleanup().status();
     const tc = deps.punctuation().status();
     const use = modelUse({
-      speech: { installed: deps.stt.installedKeys(deps.userData), language: deps.speech.language() },
+      speech: { installed: deps.stt.installedKeys(deps.userData), language: deps.speech.language(), pins: speechPins(deps.userData) },
       // The voice that speaks: a cloud voice while offline is the system voice (the panel shows it so).
       okFilow: { enabled: Boolean(ok && ok.enabled), voice: ok ? (ok.offline && ok.voice === "cloud" ? "system" : ok.voice) : "off", voiceUsable: Boolean(voice && voice.usable()) },
       dictation: deps.dictation ? deps.dictation() : {},
@@ -50,7 +51,8 @@ function createModelControl(deps) {
       { id: "punctuation", kind: "punctuation", name: "Horizon Labs truecase-small", installed: tc.model, bytes: sizeOf(path.join(models, "truecase-small")), uses: use.punctuation, loaded: tc.running, downloading: Boolean(tc.downloading) },
     ].filter((m) => m.bytes > 0);
     const downloading = [...deps.downloads.ids(), ...(s1.downloading ? ["cleanup"] : []), ...(tc.downloading ? ["punctuation"] : [])];
-    return { models: [...rows, ...others], downloading };
+    // speechRoles: per speech task, what Settings > Advanced shows under "Which model does each task"
+    return { models: [...rows, ...others], downloading, speechRoles: use.speechRoles };
   }
 
   /** Stop the download with this id. { ok, stopped }: stopped is false when nothing was downloading. */

@@ -55,7 +55,7 @@ import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useCodesForWindows, useD
 import { openWhiteboard } from "@/lib/whiteboard/open";
 import { pointState } from "@/lib/pointState";
 import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
-import { decisionRecipient, sttRecipient, takeOutbound } from "@/lib/buddy/outbound";
+import { decisionRecipient, localServer, sttRecipient, takeOutbound } from "@/lib/buddy/outbound";
 import { usePageOutbound } from "./usePageOutbound";
 import { useScriptTranslate } from "./useScriptTranslate";
 import { PageOutboundNotice, PageOutboundSignal, useOkfText } from "./PageOutbound";
@@ -411,7 +411,9 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
         setStarting(false);
         return;
       }
-      const models = known?.decision ?? { openrouter: "", cloudflare: "" };
+      // decisions on the user's own server (Settings > Advanced) leave this PC: named "your server <name>"
+      const decision = known?.decision ?? { openrouter: "", cloudflare: "" };
+      const models = decision.local ? { ...decision, local: localServer(decision.local, okt("outServer")) } : decision;
       const userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent;
       const consent = await attempt.wait(outbound.allowAll(takeOutbound({ backend, provider, models, userAgent })));
       if (!consent.ok) {
