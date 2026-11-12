@@ -60,6 +60,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
     "./integrity": { sha256File: async () => "" },
     "./vendor/i18n": { t: recordingT, isLang, langFromLocale }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./ui-preferences": {}, "./slideshow": {},
+    "./package.json": { sourceSha: "0123456789abcdef0123456789abcdef01234567" }, // what CI writes into the packed package.json
     "./qa.js": { isQaBuild: (app: { isPackaged: boolean }) => qaBuild || !app.isPackaged }, // a packaged build, without the QA marker unless qaBuild
     "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },
   };
@@ -213,6 +214,13 @@ describe("Step 4 desktop offline seams", () => {
     f.api.reportProblem();
     await f.ipc("report:issue", f.windows[0], "");
     expect(String(f.openExternal.mock.calls[0][0])).toMatch(/^https:\/\/github\.com\/stefandsl\/filow\/issues\/new\?/);
+  });
+  it("About carries the commit the build was made from, from sourceSha in package.json", async () => {
+    const f = fixture({}); f.api.openAbout("about");
+    const data: any = await f.ipc("about:data", f.windows[0]);
+    expect(data.info.build).toBe("0123456789abcdef0123456789abcdef01234567");
+    expect(data.buildLabel).toContain("0123456");
+    expect(data.buildLabel).not.toContain("01234567");
   });
   it("answers the report channels only for its own window", async () => {
     const f = fixture({}); f.api.reportProblem();

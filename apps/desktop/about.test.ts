@@ -17,7 +17,7 @@ function loadAbout() {
   wrapped.call(mod.exports, mod.exports, (id: string) => (id === "./vendor/i18n" ? i18n : own(id)), mod, file, path.dirname(file));
   return mod.exports;
 }
-const { parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, issueUrl, createAboutPages, textFor, ABOUT_KEYS, SUPPORT, ISSUE_URL_LIMIT } = loadAbout() as any;
+const { parseMarkdown, parseInline, policyFile, crashSummary, reportFile, reportName, issueUrl, createAboutPages, textFor, buildLabel, ABOUT_KEYS, SUPPORT, ISSUE_URL_LIMIT } = loadAbout() as any;
 const TEXT = { en: textFor("en"), it: textFor("it") };
 
 const docs = path.join(__dirname, "..", "..", "docs");
@@ -95,6 +95,22 @@ describe("the problem report", () => {
     const en = i18n.DICTIONARIES.en as Record<string, string>;
     expect((ABOUT_KEYS as string[]).filter((k) => !en[`about.${k}`])).toEqual([]);
     for (const lang of i18n.LANGS) for (const k of ABOUT_KEYS as string[]) expect(textFor(lang)[k], `${lang} ${k}`).toBe(i18n.t(`about.${k}` as i18n.I18nKey, lang));
+  });
+  it("buildLabel shows the first 7 characters of the commit, or says it is a development build", () => {
+    const sha = "0123456789abcdef0123456789abcdef01234567";
+    expect(buildLabel(sha, TEXT.en)).toBe("Build 0123456");
+    expect(buildLabel(sha, TEXT.it)).toBe("Build 0123456");
+    for (const none of [undefined, null, "", "   ", 42]) expect(buildLabel(none, TEXT.en), String(none)).toBe("Build: development build");
+    for (const lang of i18n.LANGS) {
+      const tx = textFor(lang);
+      expect(buildLabel(sha, tx), lang).toBe(i18n.t("about.build", lang).replace("{sha}", "0123456"));
+      expect(buildLabel(undefined, tx), lang).toBe(i18n.t("about.devBuild", lang));
+      expect(tx.build, lang).toContain("{sha}");
+    }
+  });
+  it("lists both build keys, and every language has them", () => {
+    expect(ABOUT_KEYS).toEqual(expect.arrayContaining(["build", "devBuild"]));
+    for (const lang of i18n.LANGS) for (const k of ["about.build", "about.devBuild"] as const) expect(i18n.t(k, lang), `${lang} ${k}`).toBeTruthy();
   });
   it("sends reports to the project's GitHub issues page", () => {
     expect(SUPPORT).toEqual({ issues: "https://github.com/stefandsl/filow/issues", newIssue: "https://github.com/stefandsl/filow/issues/new" });
@@ -260,6 +276,12 @@ describe("the About and privacy window", () => {
     expect(data.policyLang).toBe("en");
     expect(data.text.policyEnglish).toBe(i18n.t("about.policyEnglish", "ja"));
     expect(data.text.tabAbout).toBe(i18n.t("about.tabAbout", "ja"));
+  });
+  it("sends the build line with the page's data, from the sha in info()", async () => {
+    const s = setup(); const w = s.pages.open("about");
+    expect(((await s.call("about:data", w)) as { buildLabel: string }).buildLabel).toBe("Build: development build");
+    s.deps.info = () => ({ version: "1.0", electron: "45", configFolder: "G:/profile", build: "abcdef1234567890" });
+    expect(((await s.call("about:data", w)) as { buildLabel: string }).buildLabel).toBe("Build abcdef1");
   });
   it("saves exactly the text it showed, with the user's words, to the file the user picked", async () => {
     const s = setup(); const w = s.pages.open("report");

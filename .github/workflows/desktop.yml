@@ -99,6 +99,12 @@ jobs:
           ls node_modules/sherpa-onnx-darwin-x64
       - run: npm run typecheck
         if: env.HERE == 'true'
+      # About shows which commit the installer was made from: the sha is written into the desktop
+      # package.json that electron-builder packs (apps/desktop/main.js reads it as sourceSha).
+      - name: Record the commit in the desktop package
+        if: env.HERE == 'true'
+        shell: bash
+        run: npm pkg set sourceSha=$(git rev-parse HEAD) -w apps/desktop
       - run: npm run ${{ matrix.script }}
         if: env.HERE == 'true'
       # electron-builder's own debug file is not for users. The release action ignores "!" patterns

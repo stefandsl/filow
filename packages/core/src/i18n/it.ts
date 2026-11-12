@@ -1056,6 +1056,8 @@ export const it: Dictionary = {
   "about.tabAbout": "Informazioni e privacy",
   "about.tabReport": "Segnala un problema",
   "about.version": "Versione {version}",
+  "about.build": "Build {sha}",
+  "about.devBuild": "Build: versione di sviluppo",
   "about.fact1": "Nessun account. Nessuna telemetria: Filow non dice a nessuno come lo usi.",
   "about.fact2": "Il tuo copione, le impostazioni e i registri restano nella cartella di configurazione su questo computer.",
   "about.fact3": "Le dettature in inglese sono ripulite su questo computer da S1-mini by Superwhisper (Apache 2.0 con una clausola sul nome), eseguito con llama.cpp (MIT). I testi delle licenze sono nella cartella licenses di Filow.",

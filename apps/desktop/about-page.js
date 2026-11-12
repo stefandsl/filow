@@ -68,7 +68,7 @@
     const policyNote = data.policy.length && policyLang !== data.lang ? el("p", { class: "hint policy-lang", text: tx.policyEnglish }) : null;
     return [
       el("h1", { tabindex: "-1", text: tx.tabAbout }),
-      el("p", { class: "version", text: `${fill(tx.version, { version: data.info.version })} · Electron ${data.info.electron}` }),
+      el("p", { class: "version", text: `${fill(tx.version, { version: data.info.version })} · Electron ${data.info.electron} · ${data.buildLabel}` }),
       facts, folder, ...(policyNote ? [policyNote] : []), policy,
     ];
   }
