@@ -9,7 +9,7 @@ import type { Box } from "./layout";
 import type { ToolOp } from "./doc";
 import { chemText, texToText } from "./tex";
 
-export type ProblemKind = "overflow" | "overlap" | "crossing" | "offscreen" | "math" | "orphan";
+export type ProblemKind = "overflow" | "overlap" | "crossing" | "offscreen" | "math" | "orphan" | "wording" | "dangling";
 export type Problem = { kind: ProblemKind; ids: string[]; message: string };
 export type CheckCounts = Record<ProblemKind, number>;
 
@@ -77,6 +77,11 @@ export function rawMath(s: string): boolean {
   // an equation ("+", "=", an arrow) with a formula whose counts are plain digits: "6CO2 + 6H2O"
   return /[+=→]/.test(s) && /(?:^|[\s(])\d*(?:[A-Z][a-z]?\d*)*[A-Z][a-z]?\d+(?=[\s)+=→,.]|$)/.test(s);
 }
+/** A doubled word ("layer layer") or a tautology ("23 is 23", "the middle value 23 is 23"). */
+export function badWording(s: string): boolean {
+  return /\b(\p{L}{2,})\s+\1\b/iu.test(s) || /(?:^|[\s(])([\p{L}\d][\p{L}\d.,-]*) (?:is|equals) \1(?=[\s.,;:)]|$)/iu.test(s);
+}
+
 export function checkScene(scene: Scene): Problem[] {
   const els = scene.elements.filter((e) => !e.isDeleted && (e.opacity ?? 100) > 5);
   const byId = new Map(els.map((e) => [e.id, e]));
@@ -117,6 +122,10 @@ export function checkScene(scene: Scene): Problem[] {
     if (s.customData?.wb?.role !== "node" || !keyOf(s).startsWith("n:")) continue;
     if (!els.some((a) => a.type === "arrow" && (a.startBinding?.elementId === s.id || a.endBinding?.elementId === s.id))) problems.push({ kind: "orphan", ids: [s.id], message: `${s.id} is joined to nothing` });
   }
+  // 7. words a board must not show: a word doubled ("Input Layer layer"), a sentence that says a thing is itself
+  for (const t of els) if (t.type === "text" && badWording(String(t.originalText ?? t.text ?? ""))) problems.push({ kind: "wording", ids: [t.id], message: `${t.id} doubles a word or says nothing` });
+  // 8. an arrow that leaves one shape and ends on nothing (or starts on nothing and ends on a shape)
+  for (const a of els) if (a.type === "arrow" && Boolean(a.startBinding) !== Boolean(a.endBinding) && a.customData?.wb?.role !== "pointer") problems.push({ kind: "dangling", ids: [a.id], message: `arrow ${a.id} is joined at one end only` });
   // 4. off the board
   if (frame) {
     const board = boxOf(frame);
@@ -132,6 +141,8 @@ export const countProblems = (ps: Problem[]): CheckCounts => ({
   offscreen: ps.filter((p) => p.kind === "offscreen").length,
   math: ps.filter((p) => p.kind === "math").length,
   orphan: ps.filter((p) => p.kind === "orphan").length,
+  wording: ps.filter((p) => p.kind === "wording").length,
+  dangling: ps.filter((p) => p.kind === "dangling").length,
 });
 
 /** A label's box when its centre is at `pt`. */

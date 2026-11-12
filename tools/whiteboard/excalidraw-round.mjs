@@ -150,7 +150,7 @@ if (!args.includes("--skip-ours")) {
     const saved = await page.evaluate(`localStorage.getItem("filow.whiteboard.board")`);
     const source = await page.evaluate(`document.querySelector(".wb-chip")?.textContent ?? ""`);
     if (saved) fs.writeFileSync(path.join(OUT, "ours", `${slug}.json`), saved);
-    const [overflow, overlap, crossing, offscreen, math, orphan] = (d.checks ?? "").split(",").map(Number);
+    const [overflow, overlap, crossing, offscreen, math, orphan, wording, dangling] = (d.checks ?? "").split(",").map(Number);
     metrics.concepts[slug] = {
       ...(metrics.concepts[slug] ?? {}),
       ours: {
@@ -160,7 +160,7 @@ if (!args.includes("--skip-ours")) {
         lessonSeconds: Math.round((Date.now() - started) / 1000),
         firstStrokeMs: d.firstStrokeMs ? Number(d.firstStrokeMs) : null,
         firstModelStrokeMs: d.firstModelStrokeMs ? Number(d.firstModelStrokeMs) : null,
-        checksAfterFix: d.checks ? { overflow, overlap, crossing, offscreen, math, orphan } : null,
+        checksAfterFix: d.checks ? { overflow, overlap, crossing, offscreen, math, orphan, wording, dangling } : null,
         template: await page.evaluate(`(() => { try { return JSON.parse(localStorage.getItem("filow.whiteboard.board") || "{}").diagram?.d?.template ?? "map"; } catch { return null; } })()`),
         fixed: d.fixed ? Number(d.fixed) : 0,
         vision: d.vision ?? null,

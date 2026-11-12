@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { binarySearchTrace, growthValues, meeting, readDiagram, recursionValues, sceneFromDiagram, workedExample, type Diagram } from "./templates";
-import { checkScene, countProblems, fixOps, rawMath } from "./check";
+import { KREBS, binarySearchTrace, explain, growthValues, meeting, readDiagram, recursionValues, sceneFromDiagram, workedExample, type Diagram } from "./templates";
+import { badWording, checkScene, countProblems, fixOps, rawMath } from "./check";
 import { applyEdits, applyOps, noEdits } from "./doc";
 import { chemText } from "./tex";
 import { validateLesson } from "./lesson";
@@ -55,33 +55,49 @@ describe("the worked example is computed in code", () => {
     const m = meeting("10 - x", "2*x", 0, 8)!;
     expect(m.x).toBeCloseTo(10 / 3, 4);
     expect(m.y).toBeCloseTo(20 / 3, 4);
-    expect(workedExample(diagrams.circuit).result).toBe("I = 9 V / 3 Ω = 3 A");
-    expect(workedExample(diagrams.growth).result).toBe("1,000 → 1,610.51 in 5 years");
+    expect(workedExample(diagrams.circuit).result).toBe("I = 3 A");
+    expect(workedExample(diagrams.circuit).facts.join(" ")).toContain("doubles to 6 A");
+    expect(workedExample(diagrams.growth).result).toBe("1,610.51");
+    expect(workedExample(diagrams.growth).facts.join(" ")).toContain("against 1,500 with simple interest");
     expect(workedExample(diagrams.callstack).result).toBe("fact(4) = 24");
-    expect(workedExample(diagrams.triangle).result).toContain("9 + 16 = 25");
-    expect(workedExample(diagrams.array).result).toBe("42 found at position 5 after 2 checks");
-    // no fact shows mathematics as code
-    for (const d of Object.values(diagrams)) for (const f of workedExample(d).facts) expect(rawMath(f), f).toBe(false);
+    expect(workedExample(diagrams.triangle).facts.join(" ")).toContain("9 + 16 = 25");
+    expect(workedExample(diagrams.array).result).toBe("42 found after 2 checks");
+    expect(workedExample(diagrams.array).facts.join(" ")).toContain("1,000,000 values at most 20");
+    // no fact shows mathematics as code, doubles a word or says a thing is itself; every lesson says why and what follows
+    for (const d of Object.values(diagrams)) {
+      const e = explain(d);
+      for (const f of e.steps.map((s) => s.say)) { expect(rawMath(f), f).toBe(false); expect(badWording(f), f).toBe(false); }
+      expect(e.steps.some((s) => s.band === "why"), d.template).toBe(true);
+      expect(e.steps.some((s) => s.band === "so"), d.template).toBe(true);
+      expect(e.steps.length).toBeLessThanOrEqual(7);
+    }
   });
 });
 
 describe("sceneFromDiagram", () => {
-  it("draws each template cleanly, with every step numbered in one column and the result last", () => {
+  it("draws each template cleanly; every step's number is on the board once, the takeaway highlighted", () => {
     for (const [k, d] of Object.entries(diagrams)) {
       const w = workedExample(d);
-      const says = w.facts.slice(0, 7);
+      const says = w.facts;
       const scene = sceneFromDiagram(d, says, says.length - 1, w.result);
-      const counts = countProblems(checkScene(scene));
-      expect(counts, `${k}: ${checkScene(scene).map((p) => p.message).join("; ")}`).toEqual({ overflow: 0, overlap: 0, crossing: 0, offscreen: 0, math: 0, orphan: 0 });
-      const badges = says.map((_, i) => scene.elements.find((e) => e.id === `st-${i}`)!);
-      badges.forEach((b, i) => { expect(b, `${k} step ${i}`).toBeTruthy(); if (i) expect(b.y).toBeGreaterThan(badges[i - 1].y); });
-      expect(scene.elements.find((e) => e.id === "result")?.customData?.wb?.step).toBe(says.length - 1);
+      const ps = checkScene(scene);
+      expect(countProblems(ps), `${k}: ${ps.map((p) => p.message).join("; ")}`).toEqual({ overflow: 0, overlap: 0, crossing: 0, offscreen: 0, math: 0, orphan: 0, wording: 0, dangling: 0 });
+      says.forEach((_, i) => {
+        const n = scene.elements.filter((e) => e.id === `st-${i}-n`);
+        expect(n.length, `${k} step ${i + 1}`).toBe(1);
+        expect(n[0].text).toBe(String(i + 1));
+      });
+      const so = explain(d).steps.findIndex((s) => s.band === "so");
+      expect(scene.elements.find((e) => e.id === `band-${so}`)?.backgroundColor, k).toBe("#fff3bf");
       // drawn step by step: an earlier step shows less, and never a later step's sentence
       const first = sceneFromDiagram(d, says, 0, w.result);
       expect(first.elements.length).toBeLessThan(scene.elements.length);
-      expect(first.elements.some((e) => e.id === "st-1")).toBe(false);
+      expect(first.elements.some((e) => e.id === "st-1-n")).toBe(false);
       const ids = scene.elements.map((e) => e.id);
       expect(new Set(ids).size, k).toBe(ids.length);
+      // nothing is written twice
+      const texts = scene.elements.filter((e) => e.type === "text").map((e) => String(e.originalText ?? e.text).trim()).filter((t) => t.length > 12);
+      expect(new Set(texts).size, k).toBe(texts.length);
     }
   });
   it("sends the tcp messages down the page in their order", () => {
@@ -90,8 +106,29 @@ describe("sceneFromDiagram", () => {
     expect(ys[0]).toBeLessThan(ys[1]);
     expect(ys[1]).toBeLessThan(ys[2]);
   });
+  it("draws the Krebs cycle from the reference, whatever list the model gave", () => {
+    const k = diagrams.cycle as Extract<Diagram, { template: "cycle" }>;
+    expect(k.items).toEqual(KREBS.items);
+    expect(k.entry).toBe("Acetyl-CoA");
+    // isocitrate -> alpha-ketoglutarate gives NADH and CO2; citrate -> isocitrate gives nothing
+    expect(k.byproducts.find((b) => b.after === 1)).toBeUndefined();
+    expect(k.byproducts.find((b) => b.after === 2)?.text).toBe("NADH + CO₂");
+    const s = sceneFromDiagram(k, workedExample(k).facts, 6, "");
+    // the ring closes: malate goes back to oxaloacetate
+    const close = s.elements.find((e) => e.id === "cy-a7")!;
+    expect([close.startBinding?.elementId, close.endBinding?.elementId]).toEqual(["cy-7", "cy-0"]);
+  });
+  it("draws photosynthesis in its two stages", () => {
+    const p = diagrams.process as Extract<Diagram, { template: "process" }>;
+    expect(p.stages?.names).toEqual(["Light reactions", "Calvin cycle"]);
+    const s = sceneFromDiagram(p, workedExample(p).facts, 6, "");
+    // CO2 goes into the Calvin cycle, oxygen comes out of the light reactions
+    const co2 = s.elements.find((e) => e.customData?.wb?.key === "in2" && e.type === "arrow")!;
+    expect(co2.endBinding?.elementId).toBe("pr-s1");
+    const o2 = s.elements.find((e) => e.customData?.wb?.key === "out0" && e.type === "arrow")!;
+    expect(o2.startBinding?.elementId).toBe("pr-s0");
+  });
 });
-
 describe("raw mathematics", () => {
   it("is counted and written as mathematics", () => {
     for (const s of ["a^2 + b^2", "x_{1}", "\\frac{a}{b}", "Sunlight arrow Glucose", "6CO2 + 6H2O -> C6H12O6", "6CO2 + 6H2O = C6H12O6"]) expect(rawMath(s), s).toBe(true);
@@ -126,20 +163,21 @@ describe("tryTemplate", () => {
     const { ok, events, asked } = await run("en", [JSON.stringify(RAW.circuit)]);
     expect(ok).toBe(true);
     expect(asked).toHaveLength(1);
-    expect(events.map((e) => e.type)).toEqual(["diagram", "outline", "step", "step", "step", "step", "done"]);
+    expect(events.map((e) => e.type)).toEqual(["diagram", "outline", "step", "step", "step", "step", "step", "step", "done"]);
     expect((events[1] as Extract<LessonEvent, { type: "outline" }>).says[3]).toContain("= 3 A");
   });
   it("keeps a translated sentence only when it keeps every number", async () => {
-    const lines = ["Una batteria da 9 V spinge la corrente.", "Il resistore da 3 ohm la limita.", "La legge: I = V / R.", "I = 9 V / 3 ohm = 4 A.", "I = 9 V / 3 Ω = 3 A"];
+    const facts = workedExample(diagrams.circuit).facts;
+    const lines = [...facts.map((f) => `IT ${f}`), "I = 3 A"];
+    lines[3] = "Quindi la corrente è I = 9 / 3 = 4 A.";
     const { events } = await run("it", [JSON.stringify(RAW.circuit), JSON.stringify({ lines })]);
     const says = (events[1] as Extract<LessonEvent, { type: "outline" }>).says;
     expect(says[0]).toBe(lines[0]);
-    // "4 A" lost the right number: the computed fact stays
-    expect(says[3]).toBe("I = 9 V / 3 ohms = 3 A.");
-    expect((events[0] as Extract<LessonEvent, { type: "diagram" }>).result).toBe(lines[4]);
+    // "4 A" is not the computed number: the computed fact stays
+    expect(says[3]).toBe(facts[3]);
+    expect((events[0] as Extract<LessonEvent, { type: "diagram" }>).result).toBe("I = 3 A");
     expect(keepsNumbers("1000 at 10%", "1,000 al 10%")).toBe(true);
-  });
-  it("leaves the lesson to the plan path when no template fits", async () => {
+  });  it("leaves the lesson to the plan path when no template fits", async () => {
     const { ok, events } = await run("en", [JSON.stringify({ template: "map", title: "x" })]);
     expect(ok).toBe(false);
     expect(events).toEqual([]);
