@@ -98,6 +98,8 @@ export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, c
   // Render: exportToSvg, then morphdom so only the new nodes are added (and animate).
   const queue = useRef<Promise<void>>(Promise.resolve());
   const latest = useRef(0);
+  const restRef = useRef(rest);
+  restRef.current = rest;
   const onDrawnRef = useRef(onDrawn);
   onDrawnRef.current = onDrawn;
   useEffect(() => {
@@ -137,7 +139,8 @@ export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, c
         host.current.appendChild(svg);
         added.push(...Array.from(svg.querySelectorAll("g, path, text, image")));
       }
-      if (animate) {
+      // a board opened at rest (a saved board, going back a step) is simply there; new strokes draw on
+      if (animate && (existing || !restRef.current)) {
         // the duration of the thing that was revealed last, so a stroke takes the time the voice gives it
         const len = Math.max(250, Math.min(2200, ...[...newKeys].map((k) => lens.current.get(k) ?? 600)));
         for (const n of added) {

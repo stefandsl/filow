@@ -61,6 +61,14 @@ function crossed(a: ExEl, shapes: ExEl[], byId: Map<string, ExEl>): ExEl[] {
   return hits;
 }
 
+/** A word of the label that the wrapped text breaks over two lines ("Sunlig / ht"). Scripts without spaces are broken anywhere by design. */
+export function brokenWord(t: ExEl): boolean {
+  const original = String(t.originalText ?? "");
+  if (!original.trim() || /[⺀-￿]/.test(original)) return false;
+  const lines = String(t.text ?? "").split("\n");
+  return original.split(/\s+/).filter(Boolean).some((w) => !lines.some((ln) => ln.split(/\s+/).includes(w)));
+}
+
 export function checkScene(scene: Scene): Problem[] {
   const els = scene.elements.filter((e) => !e.isDeleted && (e.opacity ?? 100) > 5);
   const byId = new Map(els.map((e) => [e.id, e]));
@@ -73,6 +81,7 @@ export function checkScene(scene: Scene): Problem[] {
     if (!c || c.type === "arrow" || c.type === "line") continue;
     const room = c.type === "rectangle" ? shrink(boxOf(c), PAD) : { x: c.x + c.width * 0.15, y: c.y + c.height * 0.15, w: c.width * 0.7, h: c.height * 0.7 };
     if (!contains(room, boxOf(t), 1)) problems.push({ kind: "overflow", ids: [t.id, c.id], message: `text ${t.id} does not fit in ${c.id}` });
+    else if (brokenWord(t)) problems.push({ kind: "overflow", ids: [t.id, c.id], message: `text ${t.id} has a word broken in two (it is too wide for ${c.id})` });
   }
   // 2. things that overlap: shapes, free text and arrow labels; one thing's parts (same key) may touch
   const solid = els.filter((e) => isShape(e) || (e.type === "text" && (!e.containerId || byId.get(e.containerId)?.type === "arrow")));
@@ -184,7 +193,7 @@ export function fixOps(scene: Scene, problems: Problem[]): ToolOp[] {
         if (t.containerId && host?.type !== "arrow") continue;
         done.add(id);
         const skip = new Set([id, ...(host ? [host.id] : [])]);
-        let spot: Box | null = null;
+        let spot: Box | null;
         if (host) {
           const pts = pathPoints(host, 24);
           const order = pts.map((pt, k) => ({ pt, k })).sort((u, v) => Math.abs(u.k - pts.length / 2) - Math.abs(v.k - pts.length / 2));

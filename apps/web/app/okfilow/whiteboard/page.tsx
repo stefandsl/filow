@@ -620,7 +620,7 @@ export default function WhiteboardPage() {
     setNote(t("openedNote", { name: file.name }));
   };
   const openLast = () => {
-    let saved: SavedBoard | null = null;
+    let saved: SavedBoard | null;
     try { saved = JSON.parse(localStorage.getItem(BOARD_KEY) ?? "null") as SavedBoard | null; } catch { saved = null; }
     if (!saved || saved.v !== 1) return;
     const lesson = saved.lesson ? validateLesson(saved.lesson, { maxSteps: 40, sketch: true }) : null;

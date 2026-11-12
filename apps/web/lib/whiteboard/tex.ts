@@ -77,7 +77,7 @@ export function texToText(tex: string): string {
       out += script(texToText(a.body), ch === "^" ? SUP : SUB, ch);
       i = a.end;
     } else if (ch === "{" || ch === "}") i++;
-    else { out += ch; i++; }
+    else { out += ch === "*" ? "·" : ch; i++; }
   }
   return out.replace(/\s+/g, " ").replace(/\(\s+/g, "(").replace(/\s+\)/g, ")").trim();
 }

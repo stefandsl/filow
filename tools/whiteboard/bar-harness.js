@@ -1,3 +1,4 @@
+/* global window, document */
 // The "bar" of the whiteboard comparison: a scene drawn exactly as the official excalidraw-mcp App
 // (github.com/excalidraw/excalidraw-mcp, MIT) draws the elements a model passes to create_view:
 // convertRawElements (labels to bound text, every text in Excalifont), cameraUpdate as the

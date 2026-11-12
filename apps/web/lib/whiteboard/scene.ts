@@ -144,12 +144,43 @@ const line = (id: string, pts: Array<{ x: number; y: number }>, meta: WbMeta, re
 
 const nodeId = (id: string) => `n-${safeId(id)}`;
 
+/** Lines of `text` no wider than `max` in Excalifont at `size`, broken between words only. */
+export function wrapHand(text: string, max: number, size: number): string[] {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const next = line ? `${line} ${word}` : word;
+    if (!line || handWidth(next, size) <= max) line = next;
+    else { lines.push(line); line = word; }
+  }
+  if (line) lines.push(line);
+  return lines.length ? lines : [""];
+}
+
+/**
+ * The size a box's words are written at: as large as asked, but small enough that no word is wider
+ * than the box (Excalidraw would break it in the middle, "Sunlig / ht") and all lines fit its height.
+ * Never below 13; a script without spaces (Japanese) is broken between any characters, as Excalidraw does.
+ */
+export function fitLabel(text: string, box: Box, want: number): { size: number; lines: string[] } {
+  const maxW = box.w - 2 * 5 - 10;
+  const words = /\s/.test(text) || !/[⺀-￿]/.test(text) ? text.split(/\s+/) : [Array.from(text)[0] ?? ""];
+  const longest = Math.max(1, ...words.map((w) => handWidth(w, 1)));
+  let size = Math.max(13, Math.min(want, Math.floor(maxW / longest)));
+  let lines = wrapHand(text, maxW, size);
+  while (size > 13 && lines.length * size * LINE_HEIGHT > box.h - 12) {
+    size -= 1;
+    lines = wrapHand(text, maxW, size);
+  }
+  return { size, lines };
+}
+
 function nodeEls(nd: PlacedNode): ExEl[] {
   const colour = stepColour(nd.step);
   const meta: WbMeta = { step: nd.step, key: `n:${nd.id}`, role: "node" };
   const shape = el(nodeId(nd.id), "rectangle", nd.box, meta, { strokeColor: colour, roundness: { type: 3 }, strokeWidth: 2 });
-  const size = Math.max(15, Math.round(nd.font * HAND_SCALE));
-  const label = text(`${nodeId(nd.id)}-t`, nd.lines, size, { cx: nd.box.x + nd.box.w / 2, cy: nd.box.y + nd.box.h / 2 }, { ...meta, role: "label" }, { originalText: nd.text });
+  const { size, lines } = fitLabel(nd.text, nd.box, Math.round(nd.font * HAND_SCALE));
+  const label = text(`${nodeId(nd.id)}-t`, lines, size, { cx: nd.box.x + nd.box.w / 2, cy: nd.box.y + nd.box.h / 2 }, { ...meta, role: "label" }, { originalText: nd.text });
   return labelled(shape, label);
 }
 
@@ -409,11 +440,34 @@ export function fitDiagram(layout: BoardLayout): BoardLayout {
   const px = (x: number) => tx + (x - cx) * k;
   const py = (y: number) => ty + (y - cy) * k;
   const box = (b: Box): Box => ({ x: px(b.x), y: py(b.y), w: b.w * k, h: b.h * k });
+  // positions spread by k; a box itself grows less (a list of four boxes must not become four bars)
+  const nodeBox = (b: Box): Box => {
+    const w = Math.min(b.w * k, Math.max(b.w, 260)), h = Math.min(b.h * k, Math.max(b.h, 84));
+    const c = { x: px(b.x + b.w / 2), y: py(b.y + b.h / 2) };
+    return { x: c.x - w / 2, y: c.y - h / 2, w, h };
+  };
+  const nodes = layout.nodes.map((n) => ({ ...n, box: nodeBox(n.box), font: n.font * Math.min(k, nodeBox(n.box).w / n.box.w) }));
+  const at = new Map(nodes.map((n) => [n.id, n.box]));
+  // an arrow starts and ends at the edge of its boxes as they now are
+  const edgePoint = (b: Box | undefined, p: { x: number; y: number }, toward: { x: number; y: number }) => {
+    if (!b) return p;
+    const c = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+    const dx = toward.x - c.x, dy = toward.y - c.y;
+    if (!dx && !dy) return p;
+    const s = Math.min(dx ? (b.w / 2 + 6) / Math.abs(dx) : Infinity, dy ? (b.h / 2 + 6) / Math.abs(dy) : Infinity);
+    return { x: c.x + dx * s, y: c.y + dy * s };
+  };
   return {
     ...layout,
-    nodes: layout.nodes.map((n) => ({ ...n, box: box(n.box), font: n.font * k })),
-    edges: layout.edges.map((e) => ({ ...e, x1: px(e.x1), y1: py(e.y1), cx: px(e.cx), cy: py(e.cy), x2: px(e.x2), y2: py(e.y2), label: e.label ? { ...e.label, box: box(e.label.box), font: e.label.font * Math.min(k, 1.25) } : null })),
-    marks: layout.marks.map((m) => ({ ...m, box: box(m.box) })),
+    nodes,
+    edges: layout.edges.map((e) => {
+      const ctrl = { x: px(e.cx), y: py(e.cy) };
+      const self = e.from === e.to;
+      const a = self ? { x: px(e.x1), y: py(e.y1) } : edgePoint(at.get(e.from), { x: px(e.x1), y: py(e.y1) }, ctrl);
+      const b = self ? { x: px(e.x2), y: py(e.y2) } : edgePoint(at.get(e.to), { x: px(e.x2), y: py(e.y2) }, ctrl);
+      return { ...e, x1: a.x, y1: a.y, cx: ctrl.x, cy: ctrl.y, x2: b.x, y2: b.y, label: e.label ? { ...e.label, box: box(e.label.box), font: e.label.font * Math.min(k, 1.25) } : null };
+    }),
+    marks: layout.marks.map((m) => ({ ...m, box: at.get(m.target) ?? box(m.box) })),
   };
 }
 
