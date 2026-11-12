@@ -2,6 +2,8 @@ node_modules
 .next
 out
 release
+# The release tooling's own tests are source, not build output.
+!/tools/release/
 dist
 .env
 .env.local
