@@ -5,12 +5,15 @@ import { t } from "@filow/core";
 import { Wordmark } from "@filow/ui";
 import { useUiLang } from "@/components/LangSwitch";
 import { desktopBridge, type DesktopBridge } from "@/lib/sessionUrl";
+import { okfText } from "@/lib/buddy/text";
 import "./account.css";
 type Account = NonNullable<DesktopBridge["account"]>;
 type Status = Awaited<ReturnType<Account["status"]>>;
 export default function AccountPage() {
   const [lang] = useUiLang();
   const tr = useCallback((key: Parameters<typeof t>[0]) => t(key, lang), [lang]);
+  // What leaves this PC when signing in, and to whom (docs/okfilow/OUTBOUND.md, kind `account`).
+  const outboundNotice = (who: string) => okfText(lang)("notice_account").replace("{who}", who);
   const [profile, setProfile] = useState<Status | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -56,7 +59,7 @@ export default function AccountPage() {
         <button className="btn primary" disabled={busy || !profile.billing} onClick={() => void act(async a => { await (profile.plan === "pro" ? a.portal() : a.checkout()); setMessage(tr("account.billingPending")); })}>{tr(profile.plan === "pro" ? "account.manage" : "account.subscribe")}</button>
         {!profile.billing && <p className="account-notice">{tr("account.unavailable")}</p>}
         <div className="account-actions"><button className="btn" disabled={busy} onClick={() => void act(refresh)}>{tr("account.refresh")}</button><button className="btn" disabled={busy} onClick={() => void act(async a => { try { await a.signOut(); } finally { await refresh(); } })}>{tr("account.signOut")}</button></div>
-      </> : code ? <div className="account-code"><p>{tr("account.approve")}</p><strong aria-live="polite">{code}</strong><button className="btn" disabled={busy} onClick={() => void act(async a => { await a.cancel(); setCode(null); })}>{tr("account.cancel")}</button></div> : <button className="btn primary" disabled={busy} onClick={() => void act(async a => { const result = await a.begin(); if (result && active.current) setCode(result.userCode); })}>{tr("account.signIn")}</button>}
+      </> : code ? <div className="account-code"><p>{tr("account.approve")}</p><strong aria-live="polite">{code}</strong><button className="btn" disabled={busy} onClick={() => void act(async a => { await a.cancel(); setCode(null); })}>{tr("account.cancel")}</button></div> : <><p className="account-notice" data-testid="account-outbound">{outboundNotice(profile.service ?? "")}</p><button className="btn primary" disabled={busy} onClick={() => void act(async a => { const result = await a.begin(); if (result && active.current) setCode(result.userCode); })}>{tr("account.signIn")}</button></>}
       <p className="account-message" role="status">{message}</p>
       <Link href="/tour">{tr("tour.step")} →</Link>
     </section>

@@ -1384,7 +1384,9 @@ function createOkFilow(deps) {
     sendPanel("okfilow:askText", question);
     return true;
   };
-  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice };
+  /** The live "going outside" signal, for requests made outside OK Filow (the account's, main.js). */
+  const outboundSignal = () => ({ begin: outbound.begin, end: outbound.end });
+  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, outboundSignal };
 }
 
 module.exports = { createOkFilow, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS, nextCfg };

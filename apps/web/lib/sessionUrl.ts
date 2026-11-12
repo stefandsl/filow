@@ -7,7 +7,7 @@
 export type DesktopBridge = {
   desktop: true;
   account?: {
-    status(): Promise<{ configured: boolean; user: { email: string; name: string } | null; plan: "local" | "pro"; billing: boolean; paidUntil?: string | null }>;
+    status(): Promise<{ configured: boolean; service?: string; user: { email: string; name: string } | null; plan: "local" | "pro"; billing: boolean; paidUntil?: string | null }>;
     begin(): Promise<{ userCode: string; expiresAt: number } | null>;
     poll(): Promise<{ state: "pending" | "signed-in" | "cancelled" | "expired" | "denied" }>;
     cancel(): Promise<void>;

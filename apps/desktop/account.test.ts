@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
-const { createAccount, accountOrigin, billingUrl } = createRequire(import.meta.url)('./account.js');
+const { createAccount, accountOrigin, billingUrl, signalledFetch } = createRequire(import.meta.url)('./account.js');
 const dirs:string[]=[];
 afterEach(()=>{ for(const dir of dirs.splice(0)) fs.rmSync(dir,{recursive:true,force:true}); });
 function setup(fetcher: ReturnType<typeof vi.fn>) {
@@ -52,5 +52,45 @@ describe('desktop accounts',()=>{
     await account.begin(); advance(); expect(await account.poll()).toEqual({state:'pending'});
     advance(); expect(await account.poll()).toEqual({state:'pending'}); expect(fetcher).toHaveBeenCalledTimes(2);
     advance(); expect(await account.poll()).toEqual({state:'expired'});
+  });
+});
+
+describe('account requests and the going-outside signal',()=>{
+  it('the signal is on from before the request until its body was read, also when it fails',async()=>{
+    const log:string[]=[];
+    const out={begin:vi.fn((id:string,kind:string,names:string[])=>{log.push(`begin ${id} ${kind} ${names.join()}`);}),end:vi.fn((id:string)=>{log.push(`end ${id}`);})};
+    const body={async text(){ log.push('body read'); return '{"ok":true}'; }};
+    const ok=vi.fn(async()=>{ log.push('request'); return {status:200,statusText:'OK',headers:new Headers({'content-type':'application/json'}),...body}; });
+    const fetcher=signalledFetch(ok,()=>out);
+    const res=await fetcher('https://accounts.example.test/v1/me',{method:'GET'});
+    expect(await res.json()).toEqual({ok:true});
+    expect(log).toEqual(['begin account:1 account Filow account','request','body read','end account:1']);
+    const failing=signalledFetch(vi.fn(async()=>{ throw new Error('offline'); }),()=>out);
+    await expect(failing('https://accounts.example.test/v1/me',{})).rejects.toThrow('offline');
+    expect(out.end).toHaveBeenLastCalledWith('account:1');
+    expect(out.begin).toHaveBeenCalledTimes(2);
+  });
+  it('without OK Filow the request still goes out, with no signal',async()=>{
+    const fetcher=signalledFetch(vi.fn(async()=>Response.json({x:1},{status:401})),()=>undefined);
+    const res=await fetcher('https://accounts.example.test/v1/me',{});
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({x:1});
+  });
+  it('the account sign-in talks through the signalled fetch, and status names who receives it',async()=>{
+    const out={begin:vi.fn(),end:vi.fn()};
+    const {account}=setup(signalledFetch(vi.fn(async()=>Response.json({device_code:'d',user_code:'U',expires_in:600})),()=>out));
+    await account.begin();
+    expect(out.begin).toHaveBeenCalledWith('account:1','account',['Filow account']);
+    expect(out.end).toHaveBeenCalledWith('account:1');
+    expect((await account.status()).service).toBe('accounts.example.test');
+  });
+});
+
+describe('the shell wires the account signal',()=>{
+  it('main gives the account a fetch that shows OK Filow\'s signal, and OK Filow hands out its own state',()=>{
+    const src=(f:string)=>fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/,'$1')),f),'utf8');
+    expect(src('main.js')).toContain('fetcher: signalledFetch(fetch, () => okFilow?.outboundSignal()),');
+    expect(src('okfilow.js')).toContain('const outboundSignal = () => ({ begin: outbound.begin, end: outbound.end });');
+    expect(src('okfilow.js')).toMatch(/return \{[^}]*\boutboundSignal \};/);
   });
 });

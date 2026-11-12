@@ -2405,9 +2405,11 @@ async function main() {
     return { open: pointsWindow.isOpen() };
   });
   startOkFilow();
-  const { createAccount, accountOrigin } = require("./account");
+  const { createAccount, accountOrigin, signalledFetch } = require("./account");
   const account = createAccount({
     origin: accountOrigin(process.env.FILOW_ACCOUNT_ORIGIN, !app.isPackaged), userData,
+    // Every account request shows the "going outside" signal (kind `account`, docs/okfilow/OUTBOUND.md) while it is in flight.
+    fetcher: signalledFetch(fetch, () => okFilow?.outboundSignal()),
     safeStorage: require("electron").safeStorage, openExternal: url => shell.openExternal(url),
     offline: () => process.env.FILOW_OFFLINE === "1",
   });

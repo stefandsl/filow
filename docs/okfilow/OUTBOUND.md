@@ -38,7 +38,7 @@ other than Meta)"); a yes for a pinned model never covers it, and the signal the
 | 1 | OK Filow question, cloud mode (`/api/buddy/ask`, `lib/buddy/providers.ts`) | the question and screenshots of the screens | OpenRouter, then the model's maker (`buddyCloudRecipient`) | `ask` | panel notice; pill in panel and next to the pointer |
 | 2 | OK Filow voice, cloud (`/api/buddy/tts`) | the text of each answer | ElevenLabs | `voice` | panel notice; pill |
 | 3 | OK Filow card pictures (`/api/buddy/photo`) | the name of the card's subject | Wikipedia | `photo` | panel notice; pill. A no is remembered silently (cards show without pictures) |
-| 4 | OK Filow agent (`okfilow.js`, codex / claude CLI) | the task and the last answer | OpenAI (codex) or Anthropic (claude), through the CLI | desktop `agentGranted` before the CLI starts | panel notice; pill while the job runs |
+| 4 | OK Filow agent (`okfilow.js`, codex / claude CLI) | the task and the last answer | OpenAI (codex) or Anthropic (claude), through the CLI | `agent` (desktop `agentGranted` before the CLI starts) | panel notice; pill while the job runs |
 | 5 | Take, cloud speech engine (`/api/stt/elevenlabs-token`, `/api/stt/openai-token`, then a WebSocket from the page) | live microphone audio | ElevenLabs or OpenAI | `audio` on the token route (no token, no stream) | take-page notice before the take starts; pill for the whole take |
 | 6 | Take, Web Speech engine ("browser") | live microphone audio | the browser maker (Google for Chrome and Electron, Microsoft for Edge, Apple for Safari) | none possible (the browser sends it directly) | take-page notice before the take starts (client gate); pill for the whole take |
 | 7 | Take, cloud decider (`/api/decide` with `openrouter` or `clef-cloudflare`) | the words spoken, anonymised by the PII guard | OpenRouter then the maker, or Cloudflare | `transcript` | take-page notice before the take starts; pill during each call |
@@ -55,6 +55,7 @@ other than Meta)"); a yes for a pinned model never covers it, and the signal the
 | 18 | Take, decisions through FreeLLMAPI (`/api/decide` with `freellm`) | the words spoken, anonymised by the PII guard, as row 7 | as row 17 | `transcript` | take-page notice before the take starts; pill during each call |
 | 19 | Script translation and script from slides through FreeLLMAPI (`SCRIPT_CLOUD=freellm`, or `provider: "freellm"`) | the script text, slide text and slide pictures, as rows 9 and 10 | as row 17 | `script` | the same notices as rows 9 and 10, naming FreeLLMAPI; pill |
 | 20 | "Check connection" in Settings > FreeLLMAPI (`/api/freellm/check`) | no user content (a model-list request with the unified key) | the user's FreeLLMAPI router only | none needed; refused in Offline mode | none |
+| 21 | Account page and sign-in (`apps/desktop/account.js`, `/account`) | device sign-in code, session token, subscription status | Filow's account service (the account origin set at build time) | `account` (desktop live signal, no server gate) | notice on `/account` and the live signal |
 
 Row 16 is not an OK Filow request, so it has no pill: Filow hands one link to the browser and the
 browser does the sending. The link holds exactly the masked text the report window shows (shortened

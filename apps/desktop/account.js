@@ -13,6 +13,24 @@ function billingUrl(value) {
   try { const u = new URL(value); return u.protocol === 'https:' && !u.username && !u.password && ['checkout.stripe.com','billing.stripe.com'].includes(u.hostname) ? u.href : null; }
   catch { return null; }
 }
+/**
+ * A fetch whose request shows the live "going outside" signal (okfilow-outbound.js, kind `account`)
+ * from before it starts until its body has been read. `signal()` gives OK Filow's { begin, end }, or
+ * nothing when OK Filow is not running: the request then goes out without a signal.
+ */
+function signalledFetch(fetchImpl, signal) {
+  let n = 0;
+  return async (url, opts) => {
+    const out = signal();
+    const id = `account:${++n}`;
+    out?.begin(id, 'account', ['Filow account']);
+    try {
+      const response = await fetchImpl(url, opts);
+      const body = await response.text();
+      return new Response(body === '' ? null : body, { status: response.status, statusText: response.statusText, headers: response.headers });
+    } finally { out?.end(id); }
+  };
+}
 function createAccount({ origin, userData, safeStorage, openExternal, fetcher = fetch, now = Date.now, offline = () => false }) {
   const file = path.join(userData,'account-session.bin');
   let token = '', pending = null, generation = 0, polling = false;
@@ -32,9 +50,11 @@ function createAccount({ origin, userData, safeStorage, openExternal, fetcher = 
   function forget() { token = ''; try { fs.unlinkSync(file); } catch { /* no saved session */ } }
   async function status() {
     if(!origin) return {configured:false,user:null,plan:'local',billing:false};
-    if(!token) return {configured:true,user:null,plan:'local',billing:false};
-    try { return {configured:true,...await request('/v1/me')}; }
-    catch(error) { if(error.status === 401) { forget(); return {configured:true,user:null,plan:'local',billing:false}; } throw error; }
+    // service: who receives the sign-in (the notice on /account names it)
+    const service = new URL(origin).host;
+    if(!token) return {configured:true,service,user:null,plan:'local',billing:false};
+    try { return {configured:true,service,...await request('/v1/me')}; }
+    catch(error) { if(error.status === 401) { forget(); return {configured:true,service,user:null,plan:'local',billing:false}; } throw error; }
   }
   async function begin() {
     const id = ++generation; pending = null;
@@ -83,4 +103,4 @@ function createAccount({ origin, userData, safeStorage, openExternal, fetcher = 
   }
   return {status,begin,poll,cancel,signOut,billing};
 }
-module.exports={createAccount,accountOrigin,billingUrl};
+module.exports={createAccount,accountOrigin,billingUrl,signalledFetch};

@@ -9,8 +9,8 @@
  *  agent: task + last answer, through a coding CLI. transcript: spoken words, for take decisions.
  *  screen: pictures of the shared screen during a take. script: script text and slide pictures,
  *  for writing or translating a script. */
-export type OutboundKind = "ask" | "voice" | "audio" | "photo" | "agent" | "transcript" | "screen" | "script";
-export const OUTBOUND_KINDS: OutboundKind[] = ["ask", "voice", "audio", "photo", "agent", "transcript", "screen", "script"];
+export type OutboundKind = "ask" | "voice" | "audio" | "photo" | "agent" | "transcript" | "screen" | "script" | "account";
+export const OUTBOUND_KINDS: OutboundKind[] = ["ask", "voice", "audio", "photo", "agent", "transcript", "screen", "script", "account"];
 /**
  * names: who receives it, in order (the router first, then the maker of the model).
  * picked: OpenRouter chooses the company that runs the model, which may not be its maker
