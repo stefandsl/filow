@@ -41,7 +41,8 @@ def main():
                      "cmd": [py, "-I", str(HERE / "run_asr.py"), arm, split, use, "2", "1"]})
     for e in engines:
         jobs.append({"name": f"enh {e}", "w": 1, "done": res / f"enh-{e}-{split}.csv", "needs": None,
-                     "cmd": [py, "-I", str(HERE / ("external.py" if e in EXTERNAL else "enhance.py")), "run", e, split]})
+                     "cmd": [py, "-I", str(HERE / "warm.py"), "run", e[:-5], split] if e.endswith("_warm") else
+                            [py, "-I", str(HERE / ("external.py" if e in EXTERNAL else "enhance.py")), "run", e, split]})
     jobs = [j for j in jobs if not j["done"].exists()]
     say(f"start {split} {use}: {[j['name'] for j in jobs]}")
     running = []

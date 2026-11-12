@@ -200,3 +200,33 @@ so by the rule it is "failed on dev"; it was run on held-out all the same and it
 are shown. The other arms were not decoded on dev (compute time), so the dev rule removed none of
 them and every one faces the held-out gates above, which are untouched. Nothing was tuned on
 either split.
+
+## 8. Where a cleanup stage would plug in, and what it would add to the installer
+
+Nothing in this section was built. It records what a later slice would have to do if a candidate
+ever qualifies.
+
+- Place: point A of section 1.3, `apps/desktop/stt-worker.js` `feed()`, before the voice detector
+  and the recognizer. One flag in the worker's init message turns it off, and off means the audio
+  is passed through untouched (today's path, byte for byte). Audio there is 16 kHz, so only a
+  16 kHz engine fits without changing the capture rate in both renderers.
+- Route 1, no new runtime: `sherpa-onnx-node` 2.0.1, already shipped, exports
+  `OnlineSpeechDenoiser`; its type file lists three model kinds: `gtcrn`, `dpdfnet` and `voxlock`
+  (a target-speaker model with an enrolment step) (`node_modules/sherpa-onnx-node/types.js:636-674`).
+  The engine would run inside the recognizer's worker, no extra process and no extra hop. Not
+  tried: whether sherpa's own loop gives the same output as the reference loops timed here.
+- Route 2: `onnxruntime-node` 1.30.0 in its own `utilityProcess`, as the punctuation model already
+  does (it cannot share a process with sherpa). The runtime is already in the installer
+  (onnxruntime.dll 27.4 MB, DirectML 17.7 MB, dxcompiler 17.2 MB); one more process and one more
+  message hop per block, not timed here.
+- What each candidate would add to the download:
+
+| Candidate | Model file(s) | New runtime needed |
+|---|---|---|
+| GTCRN | 0.5 MB | none (route 1 or 2) |
+| DTLN | 4.0 MB (two graphs) | none (route 2), plus an FFT in JavaScript |
+| DPDFNet2 16 kHz | 10.2 MB | none (route 1 or 2) |
+| DPDFNet2 48 kHz | 10.5 MB | none, but capture at 48 kHz and a resampler |
+| RNNoise | compiled into the library: 15.1 MB with the large model as built here | a native add-on or a WebAssembly build; capture at 48 kHz |
+| DeepFilterNet3 | 8.0 MB (low-latency variant: 36.4 MB) | libDF built as a library (the 26.9 MB `deep-filter` program is a file tool, not a streaming interface); capture at 48 kHz |
+| Hush | 8.6 MB | `weya_nc.dll` 14.6 MB (Windows; the repository also has Linux and macOS builds) and a way to call it from Node |

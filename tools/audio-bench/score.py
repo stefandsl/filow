@@ -32,7 +32,8 @@ ENV = ("keyboard", "fan", "traffic")
 COLUMNS = ["run_id", "split", "utterance_id", "speaker_id", "language", "condition", "snr_db", "sir_db", "engine", "model_revision",
            "model_sha256", "runtime_version", "threads", "ref_words", "subs", "dels", "ins", "dsp_p50_ms", "dsp_p95_ms", "dsp_p99_ms",
            "rtf", "added_delay_ms", "cpu_pct", "rss_mib"]
-ARMS = ["raw", "gtcrn", "dtln", "rnnoise", "dfn3", "dfn3_ll", "dpdfnet2", "dpdfnet2_48k", "hush"]
+ARMS = ["raw", "gtcrn", "dtln", "rnnoise", "dfn3", "dfn3_ll", "dpdfnet2", "dpdfnet2_48k", "hush",
+        "dfn3_warm", "dpdfnet2_warm", "hush_warm"]  # *_warm: diagnostic arms of warm.py, outside the frozen protocol
 RUNTIME = {"raw": "sherpa-onnx-node 2.0.1", "gtcrn": "onnxruntime 1.30.0", "dtln": "onnxruntime 1.30.0", "dpdfnet2": "onnxruntime 1.30.0",
            "dpdfnet2_48k": "onnxruntime 1.30.0", "rnnoise": "rnnoise 70f1d25 (MSVC 19.2x, AVX2)", "dfn3": "deep-filter 0.5.6 (tract)",
            "dfn3_ll": "deep-filter 0.5.6 (tract)", "hush": "weya_nc.dll from pulp-vision/Hush 9f6414e"}
@@ -97,7 +98,8 @@ def main():
         if arm != "raw":
             with open(res / f"enh-{arm}-{split}.csv", "r", encoding="utf-8", newline="") as f:
                 timing = {r["wav_id"]: r for r in csv.DictReader(f)}
-        folder, only = MODEL_OF.get(arm, (arm, None))
+        base = arm[:-5] if arm.endswith("_warm") else arm
+        folder, only = MODEL_OF.get(base, (base, None))
         files = [x for x in models.get(folder, {}).get("files", []) if (only is None or x["file"] == only) and not x["file"].endswith(".exe")]
         per[arm] = {}
         for c in clips:
@@ -108,7 +110,7 @@ def main():
             rows.append({"run_id": f"2026-11-12-{use}-{NORM_VERSION}", "split": split, "utterance_id": c["utterance_id"] or c["wav_id"],
                          "speaker_id": c["speaker_id"], "language": c["language"], "condition": c["condition"], "snr_db": c["snr_db"],
                          "sir_db": c["sir_db"], "engine": arm, "model_revision": models.get(folder, {}).get("revision", ""),
-                         "model_sha256": "+".join(x["sha256"] for x in files), "runtime_version": RUNTIME[arm], "threads": t.get("threads", ""),
+                         "model_sha256": "+".join(x["sha256"] for x in files), "runtime_version": RUNTIME[base], "threads": t.get("threads", ""),
                          "ref_words": len(ref), "subs": s, "dels": d, "ins": i, **{k: t.get(k, "") for k in COLUMNS[17:]}})
     with open(res / f"results-{use}-{split}.csv", "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=COLUMNS, lineterminator="\n")
