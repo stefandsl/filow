@@ -14,10 +14,12 @@ const path = require("path");
 const childProcess = require("child_process");
 
 const GRID = 1000;
+/** The most names a question carries, all screens together (lib/buddy/ground.ts takes no more). */
 const MAX_ELEMENTS = 600;
-/** The helper may take this long per display before its answer is given up on (the screenshot itself takes 0.3 to 0.6 s). */
+/** The helper walks the windows for this long (the screenshot itself takes 0.3 to 0.6 s); the desktop icons get 0.3 s more. */
 const SCAN_BUDGET_MS = 600;
-const SCAN_TIMEOUT_MS = 900;
+/** Its answer is given up on after the budget, the desktop's 0.3 s and a margin. */
+const SCAN_TIMEOUT_MS = 1200;
 /** After this many starts (crashes, or a helper ended because it hung) it is left alone for the session. */
 const MAX_STARTS = 4;
 /** A helper that has not answered a timed-out request after this long is ended. */
@@ -28,14 +30,15 @@ const MAX_LINE_CHARS = 400_000;
 /**
  * The helper's rows ([name, type, x, y, width, height] in physical pixels) as elements on the 0-1000
  * grid of one display. `rect` is that display in the same physical pixels; `screen` its 1-based index
- * in the question (the order of the screenshots). Rows that are malformed or centred off the display are dropped.
+ * in the question (the order of the screenshots). Rows that are malformed or centred off the display are
+ * dropped; at most `max` are kept, topmost first.
  */
-function toGridElements(rows, rect, screen) {
+function toGridElements(rows, rect, screen, max = MAX_ELEMENTS) {
   if (!Array.isArray(rows) || !rect || !(rect.width > 0) || !(rect.height > 0)) return [];
   const out = [];
   const clamp = (v) => Math.max(0, Math.min(GRID, Math.round(v * 10) / 10));
   for (const row of rows) {
-    if (out.length >= MAX_ELEMENTS) break;
+    if (out.length >= max) break;
     if (!Array.isArray(row) || typeof row[0] !== "string" || !row[0].trim()) continue;
     const [x, y, w, h] = row.slice(2, 6).map(Number);
     if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) continue;
@@ -150,10 +153,12 @@ function createElementReader(opts = {}) {
   }
 
   /**
-   * The named things on one display. `rect`: the display in physical pixels (screen.dipToScreenRect).
-   * Resolves null, never rejects, when there is no answer in time. Requests run one after the other.
+   * The named things in a rectangle of the desktop (physical pixels: screen.dipToScreenRect), every
+   * window walked once. `skip`: the handles of windows left out of the screenshot too (OK Filow's
+   * panel and overlays). Resolves null, never rejects, when there is no answer in time. Requests run
+   * one after the other.
    * @param {{x: number, y: number, width: number, height: number}} rect
-   * @param {{budgetMs?: number, timeoutMs?: number, ownPid?: number}} [o]
+   * @param {{budgetMs?: number, timeoutMs?: number, max?: number, skip?: string[]}} [o]
    */
   function scan(rect, o = {}) {
     const run = () => new Promise((resolve) => {
@@ -183,7 +188,9 @@ function createElementReader(opts = {}) {
       }, Math.max(budget, Math.round(o.timeoutMs || SCAN_TIMEOUT_MS)));
       waiting = { resolve, timer };
       try {
-        child.stdin.write(`scan ${Math.round(rect.x)} ${Math.round(rect.y)} ${Math.round(rect.width)} ${Math.round(rect.height)} ${budget} ${Math.round(o.ownPid || 0)}\n`);
+        const skip = (o.skip || []).filter((h) => /^\d{1,20}$/.test(String(h)));
+        const max = Math.max(1, Math.min(4 * MAX_ELEMENTS, Math.round(o.max || MAX_ELEMENTS)));
+        child.stdin.write(`scan ${Math.round(rect.x)} ${Math.round(rect.y)} ${Math.round(rect.width)} ${Math.round(rect.height)} ${budget} ${max} ${skip.length ? skip.join(",") : "-"}\n`);
       } catch {
         clearTimeout(timer);
         waiting = null;
@@ -210,23 +217,46 @@ function createElementReader(opts = {}) {
 }
 
 /**
- * The screenshot's companion: when pictures are taken, a scan of each display starts at once (beside
- * desktopCapturer.getSources, so it costs no extra wait when it is quicker); when they are not (the eye
- * closed, "Look at my screen" off, not Windows), nothing is scanned at all. `toRect` turns a display's
- * DIP bounds into physical pixels (screen.dipToScreenRect). The returned function takes the 1-based
- * index each display got among the screenshots (0: no picture of it) and gives the elements.
+ * The screenshot's companion: when pictures are taken, one scan of the screens starts at once (beside
+ * desktopCapturer.getSources, so it costs no extra wait when it is quicker), every window walked once
+ * whatever the number of screens; when they are not (the eye closed, "Look at my screen" off, not
+ * Windows), nothing is scanned at all. `toRect` turns a display's DIP bounds into physical pixels
+ * (screen.dipToScreenRect). The returned function takes the 1-based index each display got among the
+ * screenshots (0: no picture of it) and gives the elements, each screen its share of the 600.
  * @param {{ scan(rect: object, o?: object): Promise<{elements: unknown[]} | null> } | null} reader
  * @param {Array<{ bounds: {x: number, y: number, width: number, height: number} }>} displays
- * @param {{ pictures: boolean, toRect?: (bounds: object) => {x: number, y: number, width: number, height: number}, ownPid?: number, platform?: string }} o
+ * @param {{ pictures: boolean, toRect?: (bounds: object) => {x: number, y: number, width: number, height: number}, skip?: string[], platform?: string }} o
  */
 function scanForShot(reader, displays, o) {
   const platform = o.platform || process.platform;
-  if (!o.pictures || !reader || platform !== "win32" || typeof o.toRect !== "function") return async () => [];
+  if (!o.pictures || !reader || platform !== "win32" || typeof o.toRect !== "function" || !displays.length) return async () => [];
   const rects = displays.map((d) => {
     try { return o.toRect(d.bounds); } catch { return null; }
   });
-  const scans = rects.map((r) => (r ? reader.scan(r, { ownPid: o.ownPid }).catch(() => null) : Promise.resolve(null)));
-  return async (indexes) => (await Promise.all(scans)).flatMap((s, i) => (s && indexes[i] ? toGridElements(s.elements, rects[i], indexes[i]) : []));
+  const known = rects.filter(Boolean);
+  if (!known.length) return async () => [];
+  const x = Math.min(...known.map((r) => r.x)), y = Math.min(...known.map((r) => r.y));
+  const all = { x, y, width: Math.max(...known.map((r) => r.x + r.width)) - x, height: Math.max(...known.map((r) => r.y + r.height)) - y };
+  const share = Math.floor(MAX_ELEMENTS / displays.length);
+  // several screens: room for a busy one not to crowd the others out before each gets its share
+  const scanned = reader.scan(all, { max: displays.length > 1 ? 4 * MAX_ELEMENTS : MAX_ELEMENTS, skip: o.skip }).catch(() => null);
+  return async (indexes) => {
+    const s = await scanned;
+    if (!s) return [];
+    return rects.flatMap((r, i) => (r && indexes[i] ? toGridElements(s.elements, r, indexes[i], share) : []));
+  };
 }
 
-module.exports = { createElementReader, toGridElements, helperPath, scanForShot, SCAN_BUDGET_MS, SCAN_TIMEOUT_MS, MAX_ELEMENTS };
+/** A window's handle as the helper reads it (decimal), from BrowserWindow.getNativeWindowHandle(); "" when there is none. */
+function windowHandle(win) {
+  try {
+    const b = win.getNativeWindowHandle();
+    if (b.length >= 8) return b.readBigUInt64LE(0).toString();
+    if (b.length >= 4) return String(b.readUInt32LE(0));
+  } catch {
+    // a window that is gone has no handle
+  }
+  return "";
+}
+
+module.exports = { createElementReader, toGridElements, helperPath, scanForShot, windowHandle, SCAN_BUDGET_MS, SCAN_TIMEOUT_MS, MAX_ELEMENTS };

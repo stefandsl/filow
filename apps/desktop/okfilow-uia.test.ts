@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
 type Scan = { elements: unknown[]; ms: number; partial: boolean } | null;
-type Reader = { start(): boolean; scan(rect: { x: number; y: number; width: number; height: number }, o?: { budgetMs?: number; timeoutMs?: number; ownPid?: number }): Promise<Scan>; stop(): void; ready: boolean; running: boolean };
+type Reader = { start(): boolean; scan(rect: { x: number; y: number; width: number; height: number }, o?: { budgetMs?: number; timeoutMs?: number; max?: number; skip?: string[] }): Promise<Scan>; stop(): void; ready: boolean; running: boolean };
 const { createElementReader, toGridElements, helperPath } = require("./okfilow-uia.js") as {
   createElementReader(o: { spawn?: unknown; exe?: string; platform?: string; log?: (l: string) => void; exists?: (f: string) => boolean }): Reader;
   toGridElements(rows: unknown, rect: { x: number; y: number; width: number; height: number }, screen: number): Array<{ name: string; type: string; screen: number; x1: number; y1: number; x2: number; y2: number }>;
@@ -60,6 +60,11 @@ describe("the helper's rows become elements on the display's grid", () => {
 });
 
 describe("the reader", () => {
+  it("waits for the walk, the desktop icons' extra 0.3 s and a margin before it gives an answer up", () => {
+    const { SCAN_BUDGET_MS, SCAN_TIMEOUT_MS } = require("./okfilow-uia.js") as { SCAN_BUDGET_MS: number; SCAN_TIMEOUT_MS: number };
+    expect(SCAN_TIMEOUT_MS).toBeGreaterThanOrEqual(SCAN_BUDGET_MS + 300 + 200);
+  });
+
   it("does nothing off Windows: no process, scan gives null", async () => {
     const h = fakeHelper();
     const r = createElementReader({ spawn: h.spawn, platform: "darwin" });
@@ -79,13 +84,17 @@ describe("the reader", () => {
     await expect(r.scan(RECT)).resolves.toBeNull();
     expect(h.sent).toEqual([]);
     h.say('{"ready":true}\n');
-    const p = r.scan(RECT, { budgetMs: 500, ownPid: 4242 });
+    const p = r.scan(RECT, { budgetMs: 500, skip: ["4242", "not a handle", "77"] });
     await vi.advanceTimersByTimeAsync(0);
-    expect(h.sent).toEqual(["scan 1920 0 1360 768 500 4242\n"]);
+    expect(h.sent).toEqual(["scan 1920 0 1360 768 500 600 4242,77\n"]);
     // the answer may arrive in two chunks
     h.say('{"ms":210,"partial":false,"elements":[["Start","Button",');
     h.say('1920,720,43,48]]}\n');
     await expect(p).resolves.toEqual({ ms: 210, partial: false, elements: [["Start", "Button", 1920, 720, 43, 48]] });
+    // nothing to leave out is "-"; the most names asked for is bounded
+    void r.scan({ x: -1360, y: -200, width: 1360, height: 768 }, { max: 99999 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(h.sent[1]).toBe("scan -1360 -200 1360 768 600 2400 -\n");
   });
 
   it("gives up after the timeout, and the late answer is not taken for the next request's", async () => {
@@ -221,7 +230,12 @@ describe("packaging", () => {
 
   it("the helper only reads: no input, focus, window or network calls in its source", () => {
     const cs = readFileSync(new URL("./native/uia/okfilow-uia.cs", import.meta.url), "utf8");
-    expect(cs).not.toMatch(/SendInput|SendKeys|keybd_event|mouse_event|SetCursorPos|SetForegroundWindow|SetFocus|InvokePattern|PostMessage|SendMessage|ShowWindow|SetWindowPos|Process\.Start|System\.Net|WebClient|HttpClient|File\.Write|Registry/i);
+    expect(cs).not.toMatch(/SendInput|SendKeys|keybd_event|mouse_event|SetCursorPos|SetForegroundWindow|SetFocus|PostMessage|SendMessage|ShowWindow|SetWindowPos|Process\.Start|System\.Net|WebClient|HttpClient|File\.Write|Registry/i);
+    // UI Automation and MSAA only read: no control pattern (Invoke, Value, Toggle, ExpandCollapse, ScrollItem...), no default action or selection
+    expect(cs).not.toMatch(/Pattern\b|GetCurrentPattern|accDoDefaultAction|accSelect|\.Invoke\(|SetValue|Toggle|Expand|ScrollIntoView|SetFocus/);
+    // the only Windows functions it calls: these
+    const imports = [...cs.matchAll(/\[DllImport\("(\w+\.dll)"[^\]]*\]\s*static extern \w+ (\w+)\(/g)].map((m) => `${m[1]} ${m[2]}`);
+    expect([...new Set(imports)].sort()).toEqual(["dwmapi.dll DwmGetWindowAttribute", "oleacc.dll AccessibleObjectFromWindow", "user32.dll EnumWindows", "user32.dll GetClassName", "user32.dll GetWindowLong", "user32.dll GetWindowRect", "user32.dll IsIconic", "user32.dll IsWindowVisible", "user32.dll SetProcessDpiAwarenessContext"]);
   });
 
   it("is compiled by the .NET Framework's own csc.exe, for any CPU, against UI Automation and MSAA only", async () => {
@@ -255,14 +269,14 @@ describe.runIf(process.platform === "win32")("the real helper on Windows", () =>
     expect(got).toMatchObject({ partial: false, elements: [] });
     r.stop();
     const { spawnSync } = require("node:child_process") as typeof import("node:child_process");
-    const run = spawnSync(exe, [], { input: "scan 1 2\nhello\nquit\n", encoding: "utf8", timeout: 10_000 });
-    expect(run.stdout.split("\n").filter(Boolean)).toEqual(['{"ready":true}', '{"error":"bad request"}', '{"error":"bad request"}']);
+    const run = spawnSync(exe, [], { input: "scan 1 2\nhello\nscan 0 0 10 10 300 600\nscan 0 0 10 10 300 600 12,abc\nscan -100000 -100000 10 10 300 600 1,2\nquit\n", encoding: "utf8", timeout: 10_000 });
+    expect(run.stdout.split("\n").filter(Boolean).map((l) => l.replace(/"ms":\d+/, '"ms":0'))).toEqual(['{"ready":true}', '{"error":"bad request"}', '{"error":"bad request"}', '{"error":"bad request"}', '{"error":"bad request"}', '{"ms":0,"partial":false,"elements":[]}']);
     expect(run.status).toBe(0);
   }, 30_000);
 });
 
 describe("the screenshot's companion (scanForShot, wired in okfilow.js capture)", () => {
-  const { scanForShot } = require("./okfilow-uia.js") as { scanForShot(reader: unknown, displays: unknown[], o: { pictures: boolean; toRect?: (b: { x: number; y: number; width: number; height: number }) => { x: number; y: number; width: number; height: number }; ownPid?: number; platform?: string }): (indexes: number[]) => Promise<Array<{ name: string; screen: number }>> };
+  const { scanForShot } = require("./okfilow-uia.js") as { scanForShot(reader: unknown, displays: unknown[], o: { pictures: boolean; toRect?: (b: { x: number; y: number; width: number; height: number }) => { x: number; y: number; width: number; height: number }; skip?: string[]; platform?: string }): (indexes: number[]) => Promise<Array<{ name: string; screen: number }>> };
   const displays = [{ bounds: { x: 0, y: 0, width: 1280, height: 720 } }, { bounds: { x: 1280, y: 0, width: 1360, height: 768 } }];
   const at150 = (b: { x: number; y: number; width: number; height: number }) => ({ x: b.x * 1.5, y: b.y * 1.5, width: b.width * 1.5, height: b.height * 1.5 });
   const reader = () => ({ scan: vi.fn(async (r: { x: number }) => ({ elements: [[r.x === 0 ? "Save" : "Open", "Button", r.x + 15, 15, 30, 30]] })) });
@@ -278,32 +292,53 @@ describe("the screenshot's companion (scanForShot, wired in okfilow.js capture)"
     expect(r.scan).not.toHaveBeenCalled();
   });
 
-  it("scans every display at once in physical pixels, leaves out OK Filow's own windows, and gives each its screenshot's number", async () => {
-    const r = reader();
-    const finish = scanForShot(r, displays, { pictures: true, toRect: at150, ownPid: 77, platform: "win32" });
-    // started before the picture is taken
-    expect(r.scan).toHaveBeenCalledTimes(2);
-    expect(r.scan.mock.calls[1]).toEqual([{ x: 1920, y: 0, width: 2040, height: 1152 }, { ownPid: 77 }]);
+  it("scans every screen in one walk, in physical pixels, leaves out OK Filow's own windows, and gives each screen its share and its screenshot's number", async () => {
+    const rows = [["Save", "Button", 15, 15, 30, 30], ["Open", "Button", 1935, 15, 30, 30], ...Array.from({ length: 700 }, (_, i) => [`busy ${i}`, "Button", 1940, 40, 20, 20])];
+    const r = { scan: vi.fn(async () => ({ elements: rows })) };
+    const finish = scanForShot(r, displays, { pictures: true, toRect: at150, skip: ["77"], platform: "win32" });
+    // started before the picture is taken: one request for both screens, room for a busy one
+    expect(r.scan).toHaveBeenCalledTimes(1);
+    expect(r.scan.mock.calls[0]).toEqual([{ x: 0, y: 0, width: 3960, height: 1152 }, { max: 2400, skip: ["77"] }]);
     const got = await finish([1, 2]);
-    expect(got.map((e) => [e.name, e.screen])).toEqual([["Save", 1], ["Open", 2]]);
-    // a display with no picture (0) names nothing; a failed or missing scan is just no names
-    expect((await scanForShot(r, displays, { pictures: true, toRect: at150, platform: "win32" })([0, 1])).map((e) => [e.name, e.screen])).toEqual([["Open", 1]]);
+    expect(got.filter((e) => e.screen === 1).map((e) => e.name)).toEqual(["Save"]);
+    // the busy screen keeps its share (300 of the 600), the other screen is not crowded out
+    expect(got.filter((e) => e.screen === 2)).toHaveLength(300);
+    expect(got.find((e) => e.screen === 2)?.name).toBe("Open");
+    // one screen: 600 asked for; a display with no picture (0) names nothing
+    const one = { scan: vi.fn(async () => ({ elements: rows })) };
+    expect((await scanForShot(one, [displays[1]], { pictures: true, toRect: at150, platform: "win32" })([1]))).toHaveLength(600);
+    expect(one.scan.mock.calls[0][1]).toEqual({ max: 600, skip: undefined });
+    expect((await scanForShot(r, displays, { pictures: true, toRect: at150, platform: "win32" })([0, 1])).filter((e) => e.name === "Save")).toEqual([]);
+    // a failed or missing scan, or no conversion of a display, is just no names
     const broken = { scan: vi.fn().mockRejectedValueOnce(new Error("x")).mockResolvedValueOnce(null) };
+    await expect(scanForShot(broken, displays, { pictures: true, toRect: at150, platform: "win32" })([1, 2])).resolves.toEqual([]);
     await expect(scanForShot(broken, displays, { pictures: true, toRect: at150, platform: "win32" })([1, 2])).resolves.toEqual([]);
     const badRect = scanForShot(r, displays, { pictures: true, toRect: () => { throw new Error("no"); }, platform: "win32" });
     await expect(badRect([1, 2])).resolves.toEqual([]);
   });
 
+  it("a window handle is read as the helper expects it, and a window that is gone has none", () => {
+    const { windowHandle } = require("./okfilow-uia.js") as { windowHandle(w: unknown): string };
+    const b = Buffer.alloc(8); b.writeBigUInt64LE(4294967297n + 24844110n);
+    expect(windowHandle({ getNativeWindowHandle: () => b })).toBe("4319811407");
+    const b4 = Buffer.alloc(4); b4.writeUInt32LE(4242);
+    expect(windowHandle({ getNativeWindowHandle: () => b4 })).toBe("4242");
+    expect(windowHandle({ getNativeWindowHandle: () => { throw new Error("destroyed"); } })).toBe("");
+  });
+
   it("okfilow.js starts the helper with OK Filow, scans only when pictures are taken, sends the names with the shot, and stops it at quit", () => {
     const main = readFileSync(new URL("./okfilow.js", import.meta.url), "utf8").replace(/\r\n/g, "\n");
     const capture = main.slice(main.indexOf("async function capture("), main.indexOf("function status()"));
-    expect(capture).toMatch(/scanForShot\(uia, ordered, \{ pictures: wantImages, toRect: [^\n]*dipToScreenRect\(null, b\)\), ownPid: process\.pid \}\)/);
+    expect(capture).toMatch(/scanForShot\(uia, ordered, \{ pictures: wantImages, toRect: [^\n]*dipToScreenRect\(null, b\)\), skip: allWindows\(\)\.map\(windowHandle\)\.filter\(Boolean\) \}\)/);
     // the scan starts before getSources, so the two run together
     expect(capture.indexOf("scanForShot(")).toBeLessThan(capture.indexOf("screenSources("));
     expect(capture).toMatch(/pictured\[at\] = index;/);
     expect(capture).toMatch(/out\.elements = await named\(pictured\);\n\s*return out;/);
     const start = main.slice(main.indexOf("  function start() {"), main.indexOf("  function dispose() {"));
     expect(start).toMatch(/if \(cfg\(\)\.enabled && cfg\(\)\.seeScreen !== "off"\) uia\?\.start\(\);/);
+    // turned on later: ready by the next question
+    const apply = main.slice(main.indexOf("  function applyConfig("), main.indexOf("protectAll(hidden());", main.indexOf("  function applyConfig(")));
+    expect(apply).toMatch(/if \(c\.enabled && c\.seeScreen !== "off"\) uia\?\.start\(\);/);
     const dispose = main.slice(main.indexOf("  function dispose() {"), main.indexOf("const releaseStt"));
     expect(dispose).toContain("uia?.stop()");
   });

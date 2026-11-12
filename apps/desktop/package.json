@@ -21,7 +21,7 @@
     "predist:mac": "npm run vendor",
     "predist:linux": "npm run vendor",
     "build:welcome": "esbuild welcome.ts --bundle --platform=browser --target=chrome130 --outfile=vendor/welcome.js && esbuild i18n=../../packages/core/src/i18n/index.ts ui-preferences=../../packages/core/src/ui-preferences.ts profile=../../packages/core/src/profile.ts hardware=../../packages/core/src/hardware.ts --bundle --platform=node --format=cjs --outdir=vendor && esbuild ../web/app/theme-tokens.css --bundle --outfile=vendor/theme-tokens.css",
-    "prestart": "npm run build:welcome",
+    "prestart": "npm run build:welcome && node native/uia/build.mjs",
     "typecheck": "tsc --noEmit --strict --skipLibCheck --target es2022 --moduleResolution bundler --module esnext --jsx react-jsx welcome.ts"
   },
   "devDependencies": {

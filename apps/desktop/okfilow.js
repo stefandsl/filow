@@ -18,7 +18,7 @@ const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipien
 const { readSelection } = require("./okfilow-selection");
 const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOverlays, pointsShowMs, answering, overlayMouse, seeChoice, wordsOnlyList, pillState, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
-const { createElementReader, scanForShot } = require("./okfilow-uia");
+const { createElementReader, scanForShot, windowHandle } = require("./okfilow-uia");
 const { trustedUiSender } = require("./ui-preferences");
 
 /** An IPC event from the main frame of one of OK Filow's windows (`contents`), on an OK Filow page; never a subframe. */
@@ -598,6 +598,8 @@ function createOkFilow(deps) {
     const { dictation: dictationOn, ...rest } = patch || {};
     if (typeof dictationOn === "boolean") dictation.configure({ enabled: dictationOn });
     const c = setCfg(rest);
+    // OK Filow or its eye turned on: the screen names helper is ready by the next question
+    if (c.enabled && c.seeScreen !== "off") uia?.start();
     protectAll(hidden());
     if (c.showAlways && c.enabled) showOverlays();
     else if (mode === "idle" && !outbound.active()) hideOverlays();
@@ -982,7 +984,8 @@ function createOkFilow(deps) {
     // time a local model needs. Other screens are added only when the setting asks for them.
     const ordered = (cfg().allScreens ? [cursor, ...displays.filter((d) => d.id !== cursor.id)] : [cursor]).slice(0, 4);
     // The names on those screens, read while the picture is taken; no picture, no scan (okfilow-uia.js).
-    const named = scanForShot(uia, ordered, { pictures: wantImages, toRect: screen.dipToScreenRect && ((b) => screen.dipToScreenRect(null, b)), ownPid: process.pid });
+    // (OK Filow's own windows, kept out of the picture below, are left out of the names too; the main window is in both)
+    const named = scanForShot(uia, ordered, { pictures: wantImages, toRect: screen.dipToScreenRect && ((b) => screen.dipToScreenRect(null, b)), skip: allWindows().map(windowHandle).filter(Boolean) });
     const sources = await screenSources(want, async () => {
       if (!hidden()) protectAll(true); // the model never sees OK Filow itself
       try {

@@ -10,7 +10,10 @@
 // timeout); okfilow-uia.js then stops asking and ends this process after 10 s.
 //
 // Protocol (one line in, one line out):
-//   scan <x> <y> <width> <height> <budgetMs> <ownPid>     rectangle of the display in physical pixels
+//   scan <x> <y> <width> <height> <budgetMs> <maxElements> <skip>   the screens' rectangle in physical pixels;
+//        skip: the window handles (decimal, comma separated, or "-") that are left out of the screenshot
+//        too (OK Filow's own panel and overlays): they hide nothing and name nothing. Every other
+//        window, the app's main window included, is in the picture and is read like any other.
 //   -> {"ms":123,"partial":false,"elements":[["name","Button",x,y,w,h], ...]}   physical pixels, topmost first
 //   quit   (or the end of standard input: the app that started it is gone)
 // The first line it writes is {"ready":true}.
@@ -19,6 +22,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Automation;
@@ -35,13 +39,13 @@ public static class OkfScan {
   [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT r);
   [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int i);
-  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
   [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int size);
+  [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int a, out RECT v, int size);
   [DllImport("user32.dll")] static extern bool SetProcessDpiAwarenessContext(IntPtr v);
   [DllImport("oleacc.dll")] static extern int AccessibleObjectFromWindow(IntPtr hwnd, uint id, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out object acc);
 
-  const int MAX_ELEMENTS = 600, MAX_NODES = 2500, MAX_DEPTH = 12, DESKTOP_EXTRA_MS = 300;
+  const int MAX_ELEMENTS = 2400, MAX_NODES = 2500, MAX_DEPTH = 12, DESKTOP_EXTRA_MS = 300;
   static readonly HashSet<string> TYPES = new HashSet<string>(new string[] { "Button", "ListItem", "TabItem", "MenuItem", "Edit", "Hyperlink", "CheckBox", "RadioButton", "ComboBox", "SplitButton", "TreeItem", "Text", "Group", "ToolBar", "Document", "Image", "Window", "Pane" });
   static readonly Regex SPACES = new Regex("\\s+");
   static CacheRequest cache;
@@ -54,7 +58,7 @@ public static class OkfScan {
     cache.Add(AutomationElement.BoundingRectangleProperty); cache.Add(AutomationElement.IsOffscreenProperty);
   }
 
-  class Win { public IntPtr H; public uint Pid; public string Cls; public RECT R; }
+  class Win { public IntPtr H; public string Cls; public RECT R; }
   // Top-level windows a person can see, topmost first.
   static List<Win> Windows() {
     var list = new List<Win>();
@@ -62,10 +66,11 @@ public static class OkfScan {
       if (!IsWindowVisible(h) || IsIconic(h)) return true;
       int cloaked = 0; DwmGetWindowAttribute(h, 14, out cloaked, 4); if (cloaked != 0) return true;
       if ((GetWindowLong(h, -20) & 0x20) != 0) return true; // click-through overlays cover nothing a person can use
-      RECT r; if (!GetWindowRect(h, out r) || r.R - r.L < 2 || r.B - r.T < 2) return true;
-      uint pid; GetWindowThreadProcessId(h, out pid);
+      // the frame a person sees (DWM), without the invisible resize borders that reach into the next screen
+      RECT r; if (DwmGetWindowAttribute(h, 9, out r, 16) != 0 && !GetWindowRect(h, out r)) return true;
+      if (r.R - r.L < 2 || r.B - r.T < 2) return true;
       var cls = new StringBuilder(128); GetClassName(h, cls, 128);
-      list.Add(new Win { H = h, Pid = pid, Cls = cls.ToString(), R = r });
+      list.Add(new Win { H = h, Cls = cls.ToString(), R = r });
       return true;
     }, IntPtr.Zero);
     return list;
@@ -77,13 +82,13 @@ public static class OkfScan {
     return b.ToString();
   }
 
-  static string Scan(int sx, int sy, int sw, int sh, int budget, int ownPid) {
+  static string Scan(int sx, int sy, int sw, int sh, int budget, int max, HashSet<long> skip) {
     var clock = Stopwatch.StartNew();
     var above = new List<RECT>(); // the windows already walked: they cover what comes after
     var json = new StringBuilder("\"elements\":[");
     int count = 0; bool partial = false;
     Action<string, string, double, double, double, double> keep = delegate(string name, string type, double x, double y, double w, double h) {
-      if (count >= MAX_ELEMENTS || w < 6 || h < 6 || name == null) return;
+      if (count >= max || w < 6 || h < 6 || name == null) return;
       double cx = x + w / 2, cy = y + h / 2;
       if (cx < sx || cx >= sx + sw || cy < sy || cy >= sy + sh) return;
       foreach (RECT a in above) if (cx >= a.L && cx < a.R && cy >= a.T && cy < a.B) return;
@@ -94,8 +99,8 @@ public static class OkfScan {
       json.Append("[\"").Append(Json(n)).Append("\",\"").Append(type).Append("\",").Append((int)x).Append(',').Append((int)y).Append(',').Append((int)w).Append(',').Append((int)h).Append(']');
     };
     foreach (Win win in Windows()) {
-      // OK Filow's own windows are left out of the screenshot, so they hide nothing and name nothing here.
-      if (win.Pid == (uint)ownPid) continue;
+      // OK Filow's panel and overlays are left out of the screenshot, so they hide nothing and name nothing here.
+      if (skip.Contains(win.H.ToInt64())) continue;
       bool desktop = win.Cls == "Progman" || win.Cls == "WorkerW";
       bool onScreen = win.R.R > sx && win.R.L < sx + sw && win.R.B > sy && win.R.T < sy + sh;
       // The desktop is last and cheap (366 icons in 0.15 s measured): a window that used the whole
@@ -162,11 +167,13 @@ public static class OkfScan {
       if (line == null || line.Trim() == "quit") return 0;
       string[] a = line.Trim().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
       int[] n = new int[6];
-      bool ok = a.Length >= 7 && a[0] == "scan";
-      for (int i = 0; ok && i < 6; i++) ok = int.TryParse(a[i + 1], out n[i]);
+      var skip = new HashSet<long>();
+      bool ok = a.Length >= 8 && a[0] == "scan";
+      for (int i = 0; ok && i < 6; i++) ok = int.TryParse(a[i + 1], NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out n[i]);
+      if (ok && a[7] != "-") foreach (string s in a[7].Split(',')) { long hw; if (long.TryParse(s, NumberStyles.None, CultureInfo.InvariantCulture, out hw)) skip.Add(hw); else ok = false; }
       if (!ok) { output.WriteLine("{\"error\":\"bad request\"}"); continue; }
       string reply = "{\"error\":\"scan failed\"}";
-      try { reply = Scan(n[0], n[1], n[2], n[3], n[4], n[5]); } catch { }
+      try { reply = Scan(n[0], n[1], n[2], n[3], n[4], Math.Max(1, Math.Min(MAX_ELEMENTS, n[5])), skip); } catch { }
       output.WriteLine(reply);
     }
   }

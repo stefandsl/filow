@@ -51,11 +51,13 @@ Small = under 2,400 square pixels (a taskbar icon), large = over 40,000.
    rectangles of what is visible on a display, topmost window first, hidden things left out. It is
    compiled when the package is made (`npm run vendor`, with the C# compiler of the .NET Framework that
    ships with Windows: no SDK, nothing downloaded) into `native/uia/bin/okfilow-uia.exe`, 12 KB, any
-   CPU, shipped unpacked; `after-pack.js` stops a Windows package without it. It runs as a child process
+   CPU, shipped unpacked; `after-pack.js` stops a Windows package without it (`npm start` builds it too). It runs as a child process
    (never elevated, JSON lines over stdio, ready in 0.06 s, about 20 MB), is restarted after a crash (four
    starts at most) and is ended if it hangs. The earlier PowerShell script compiled C# into the user's
    temp folder at every start; it is gone. 0.07 to 0.46 s per scan on this PC.
-2. `okfilow.js capture()` starts a scan of each display beside `getSources` and sends the names with the
+2. `okfilow.js capture()` starts one scan of the screens beside `getSources` (every window walked once,
+   each screen its share of the 600 names; OK Filow's panel and overlays, which the screenshot leaves
+   out, are left out; the main Filow window, which it shows, is read like any other) and sends the names with the
    screenshot (`shot.elements`). No picture (the eye closed, "Look at my screen" off, not Windows) means
    no scan.
 3. `ground.ts`, used by the ask route after the answer:
@@ -75,6 +77,8 @@ Without a list (not Windows, helper missing, slow or blocked) everything works a
 - With "All my screens" on, the follow-up choice now looks at every screen sent; a name on two screens
   (for example two "Close" buttons) goes to the pointing model.
 - The scan adds about 0.2 s to the capture (0.55 s instead of 0.34 s median) when it is slower than the screenshot.
+- With the taskbar on every screen and "All my screens" on, a taskbar button is on screen twice: the direct
+  choice gives way to the pointing model for it.
 
 ## Wired, through the real app (12 Nov 2026)
 
@@ -85,7 +89,7 @@ to the overlay; right when it falls on the rectangle Windows gives for the thing
 
 | Run | Right | Median time to the point | Median capture |
 |---|---|---|---|
-| With the scan, window on the screen with the mouse (two runs) | 11/13 and 11/13 (85%) | 1.6 s and 1.7 s | 0.54 s, 140 names |
+| With the scan, window on the screen with the mouse (three runs, the last after the review fixes) | 11, 11 and 12 of 13 (34/39, 87%) | 1.6, 1.7 and 1.7 s | 0.55 s, 140 names |
 | Helper removed (model coordinates only) | 7/13 (54%) | 2.0 s | 0.34 s |
 | With the scan, "All my screens", window on the other screen | 10/13 (77%) | 2.8 s | 0.71 s (two screens), 339 names |
 
