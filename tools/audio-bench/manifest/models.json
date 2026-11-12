@@ -111,7 +111,7 @@
    "source": "https://github.com/xiph/rnnoise",
    "revision": "70f1d256acd4b34a572f999a05c87bf00b67730d",
    "code_licence": "BSD-3-Clause (COPYING)",
-   "weight_licence": "BSD-3-Clause header in the generated src/rnnoise_data.c inside the tarball (checked after unpacking); tarball sha256 pinned by model_version in the repository",
+   "weight_licence": "NOT VERIFIED. The tarball (src/rnnoise_data.c, rnnoise_data.h, models/*.pth) carries no licence or copyright text (checked 2026-11-12). Evidence is indirect: the BSD-3-Clause repository's own download_model.sh fetches it, by the sha256 in model_version, from the project's server",
    "sample_rate": 48000,
    "runtime": "C, built here with MSVC 2019 Build Tools",
    "files": [
@@ -131,7 +131,7 @@
    "code_licence": "Apache-2.0 (LICENSE)",
    "weight_licence": "Apache-2.0 (Hugging Face model card licence field and LICENSE in the model repository)",
    "sample_rate": 16000,
-   "runtime": "DeepFilterNet-style three-graph bundle (needs libDF processing)",
+   "runtime": "DeepFilterNet-style three-graph bundle; run through the repository's prebuilt deployment/lib/weya_nc.dll (14,645,760 bytes, sha256 633958ef839c94af6f8f5f9f8fb33c4daedaeec0373cb39a03934fdd7efa6a32). The DLL ships without a third-party notice file: the licences of what is compiled into it are NOT VERIFIED",
    "files": [
     {
      "file": "advanced_dfnet16k_model_best_onnx.tar.gz",
@@ -140,6 +140,21 @@
      "sha256": "45632ccaa82b71bb743d6caa7c78e983fe2f2790a3af7f6ec48e6ed7ba085df6"
     }
    ]
+  }
+ ],
+ "looked_at_not_run": [
+  {
+   "name": "clearervoice",
+   "source": "https://github.com/modelscope/ClearerVoice-Studio",
+   "revision": "6b3774dc79c46ae8bed2a4fa5f706f0ac8c75c61",
+   "code_licence": "Apache-2.0 (GitHub licence field; the LICENSE file itself was not read)",
+   "weights": [
+    "https://huggingface.co/alibabasglab/MossFormer2_SS_16K @ 407cb030cd66340918ebb6c8cc63b18f8592cdbe (separation of two voices), licence field apache-2.0",
+    "https://huggingface.co/alibabasglab/AV_MossFormer2_TSE_16K @ f168d2502161cf7ef5d55872d5f01f89e88e4c2e (target speaker, needs the speaker's video), licence field apache-2.0",
+    "https://huggingface.co/alibabasglab/FRCRN_SE_16K @ 3766e6a64b0d8cb58f08d913d617bf129f11ed53 (noise), licence field apache-2.0",
+    "https://huggingface.co/alibabasglab/MossFormer2_SE_48K @ eff8c97925c8bec812af707814b3e5d777fd4503 (noise), licence field apache-2.0"
+   ],
+   "why_not_run": "PyTorch checkpoints only (no ONNX export, no streaming loop published); nothing was downloaded, so no file hashes"
   }
  ]
 }

@@ -7,6 +7,7 @@ Jobs: one enhancement per engine (1 thread each) and one recognizer run per arm 
 on a rerun. Progress goes to WORK/logs/queue-<split>-<use>.log with the machine's CPU load, so a
 busy machine is on record.
 """
+import os
 import subprocess
 import sys
 import time
@@ -17,7 +18,7 @@ import psutil
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import HERE, WORK
 
-CAP = 4
+CAP = int(os.environ.get("MIC_BENCH_CAP", "4"))  # busy threads; 4 while other tracks share the PC
 EXTERNAL = ("rnnoise", "dfn3", "dfn3_ll")
 
 

@@ -33,6 +33,37 @@ def stable_hash(*parts):
     return hashlib.sha256("|".join(str(p) for p in parts).encode("utf-8")).hexdigest()
 
 
+def resume_rows(part, wav_dir, order):
+    """Rows of an interrupted run that can be kept: whole lines of the part table, in clip order,
+    whose wav is on disk. The last 20 are dropped and redone, because what was written in the
+    seconds before a crash or power cut may never have reached the disk."""
+    if not part.exists():
+        return []
+    import csv
+    text = part.read_bytes().replace(b"\x00", b"").decode("utf-8", errors="ignore")
+    rows = list(csv.DictReader(text[:text.rfind("\n") + 1].splitlines()))[:-20]
+    keep = []
+    for row, wav_id in zip(rows, order):
+        wav = wav_dir / f"{wav_id}.wav"
+        if row.get("wav_id") != wav_id or None in row.values() or not wav.exists() or wav.stat().st_size <= 44:
+            break
+        keep.append(row)
+    return keep
+
+
+def write_rows(path, rows, replace=None):
+    """Writes a table through a temporary file and a rename, so a table that exists is whole."""
+    import csv
+    tmp = Path(str(path) + ".tmp")
+    with open(tmp, "w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()), lineterminator="\n")
+        w.writeheader()
+        w.writerows(rows)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, replace or path)
+
+
 def read_json(path):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)

@@ -21,7 +21,7 @@ import soundfile as sf
 from scipy import signal
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import HERE, WORK
+from common import HERE, WORK, resume_rows, write_rows
 from enhance import clips_of, content_delay
 
 RNNOISE = WORK / "build" / "rnnoise" / "rnnoise_cli.exe"
@@ -97,10 +97,16 @@ def run(name, split):
     out_dir = WORK / "enh" / name
     out_dir.mkdir(parents=True, exist_ok=True)
     todo = clips_of(split)
-    rows = []
+    final = WORK / "results" / f"enh-{name}-{split}.csv"
+    part = WORK / "results" / f"enh-{name}-{split}.part.csv"
+    rows = resume_rows(part, out_dir, [r["wav_id"] for r in todo])  # an interrupted run continues
+    if rows:
+        print("resuming after", len(rows), "clips", flush=True)
     latency_ms = (delay + HOP) / SR * 1000  # content delay plus the wait for a full 10 ms frame
     if name == "rnnoise":
         for i, r in enumerate(todo):
+            if i < len(rows):
+                continue
             x = read48(r["wav_id"])
             y, t, cpu, rss = rnnoise_file(x, split)
             y = signal.resample_poly(y[delay:delay + len(x)], 1, 3)
@@ -110,27 +116,33 @@ def run(name, split):
                          "dsp_p95_ms": round(float(np.percentile(t, 95)), 4), "dsp_p99_ms": round(float(np.percentile(t, 99)), 4),
                          "rtf": round(float(t.sum() / 1000 / dur), 5), "added_delay_ms": round(latency_ms + float(np.percentile(t, 95)), 3),
                          "cpu_pct": round(float(t.sum() / 1000 / dur) * 100, 2), "rss_mib": round(rss, 1)})
+            if (i + 1) % 40 == 0:
+                write_rows(part, rows)
             if (i + 1) % 200 == 0:
                 print(i + 1, "of", len(todo), flush=True)
     else:
+        # One deep-filter process per clip. The binary keeps its state from one file to the next
+        # in a batch, so a clip's output depended on the clips before it (up to 10 dB apart from
+        # the same clip run alone). Every other engine starts each clip fresh; so does this one.
+        # rtf and cpu_pct here include the process start and model load of every clip: the speed
+        # figures for the gates come from "perf", not from this table.
         stage = WORK / "enh" / f"{name}-48k"
-        for at in range(0, len(todo), 40):
-            batch = todo[at:at + 40]
-            wall, cpu, rss = df_batch(name, [r["wav_id"] for r in batch], stage)
-            audio = 0.0
-            for r in batch:
-                y, sr = sf.read(str(stage / f"{r['wav_id']}.wav"), dtype="float32")
-                audio += len(y) / sr
-                sf.write(str(out_dir / f"{r['wav_id']}.wav"), np.clip(signal.resample_poly(y, 1, 3), -1, 1), 16000, subtype="PCM_16")
-                (stage / f"{r['wav_id']}.wav").unlink()
-            for r in batch:
-                rows.append({"wav_id": r["wav_id"], "engine": name, "threads": 1, "dsp_p50_ms": "", "dsp_p95_ms": "", "dsp_p99_ms": "",
-                             "rtf": round(wall / audio, 5), "added_delay_ms": round(latency_ms, 3), "cpu_pct": round(cpu / audio * 100, 2), "rss_mib": round(rss, 1)})
-            print(at + len(batch), "of", len(todo), flush=True)
-    with open(WORK / "results" / f"enh-{name}-{split}.csv", "w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()), lineterminator="\n")
-        w.writeheader()
-        w.writerows(rows)
+        for i, r in enumerate(todo):
+            if i < len(rows):
+                continue
+            wall, cpu, rss = df_batch(name, [r["wav_id"]], stage)
+            y, sr = sf.read(str(stage / f"{r['wav_id']}.wav"), dtype="float32")
+            sf.write(str(out_dir / f"{r['wav_id']}.wav"), np.clip(signal.resample_poly(y, 1, 3), -1, 1), 16000, subtype="PCM_16")
+            (stage / f"{r['wav_id']}.wav").unlink()
+            audio = len(y) / sr
+            rows.append({"wav_id": r["wav_id"], "engine": name, "threads": 1, "dsp_p50_ms": "", "dsp_p95_ms": "", "dsp_p99_ms": "",
+                         "rtf": round(wall / audio, 5), "added_delay_ms": round(latency_ms, 3), "cpu_pct": round(cpu / audio * 100, 2), "rss_mib": round(rss, 1)})
+            if (i + 1) % 40 == 0:
+                write_rows(part, rows)
+                print(i + 1, "of", len(todo), flush=True)
+    write_rows(part, rows, replace=final)  # the table appears only when the whole split is done
+    if part.exists():
+        part.unlink()
     print("done", name, split, len(rows), "clips; content delay", delay, "samples at 48 kHz")
 
 

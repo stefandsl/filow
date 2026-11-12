@@ -22,7 +22,7 @@ import soundfile as sf
 from scipy import signal
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import HERE, MANIFEST, SEED, WORK
+from common import HERE, MANIFEST, SEED, WORK, resume_rows, write_rows
 from engines import ONNX_ENGINES
 
 PROC = psutil.Process()
@@ -79,9 +79,15 @@ def run(name, split, threads):
     out_dir = WORK / "enh" / name
     out_dir.mkdir(parents=True, exist_ok=True)
     rss0 = PROC.memory_info().rss
-    rows = []
     todo = clips_of(split)
+    final = WORK / "results" / f"enh-{name}-{split}.csv"
+    part = WORK / "results" / f"enh-{name}-{split}.part.csv"
+    rows = resume_rows(part, out_dir, [r["wav_id"] for r in todo])  # an interrupted run continues
+    if rows:
+        print("resuming after", len(rows), "clips", flush=True)
     for i, r in enumerate(todo):
+        if i < len(rows):
+            continue
         x = read(r["wav_id"], sr)
         e = ONNX_ENGINES[name](threads)  # fresh state per clip, as a new recording would have
         cpu0 = time.process_time()
@@ -98,13 +104,14 @@ def run(name, split, threads):
                      "dsp_p95_ms": round(float(np.percentile(h, 95)), 4), "dsp_p99_ms": round(float(np.percentile(h, 99)), 4),
                      "rtf": round(float(h.sum() / 1000 / dur), 5), "added_delay_ms": round(latency_ms + float(np.percentile(h, 95)), 3),
                      "cpu_pct": round(cpu / dur * 100, 2), "rss_mib": round((PROC.memory_info().rss - rss0) / 2 ** 20, 1)})
+        if (i + 1) % 40 == 0:
+            write_rows(part, rows)
         if (i + 1) % 200 == 0:
             print(i + 1, "of", len(todo), flush=True)
-    with open(WORK / "results" / f"enh-{name}-{split}.csv", "w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()), lineterminator="\n")
-        w.writeheader()
-        w.writerows(rows)
-    print("done", name, split, len(rows), "clips; content delay", delay, "samples; mean RTF", round(float(np.mean([r["rtf"] for r in rows])), 4))
+    write_rows(part, rows, replace=final)  # the table appears only when the whole split is done
+    if part.exists():
+        part.unlink()
+    print("done", name, split, len(rows), "clips; content delay", delay, "samples; mean RTF", round(float(np.mean([float(r["rtf"]) for r in rows])), 4))
 
 
 def check(name):
