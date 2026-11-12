@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld("filowWelcome", {
     ipcRenderer.on("ui:preferencesChanged", listener);
     return () => ipcRenderer.removeListener("ui:preferencesChanged", listener);
   },
-  complete: () => ipcRenderer.invoke("welcome:complete"),
+  complete: practice => ipcRenderer.invoke("welcome:complete", practice === true),
   // First-run guide (docs/welcome/ONBOARDING-V2.md): which steps to show, the speech-setup offer and its answer.
   context: () => ipcRenderer.invoke("welcome:context"),
   setupOffer: () => ipcRenderer.invoke("welcome:setupOffer"),

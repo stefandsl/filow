@@ -343,7 +343,11 @@ ipcMain.handle("dictation:punctuation:download", event => {
   for (const key of ["lang", "theme"]) ipcMain.on(`ui:${key}`, (event, value) => {
     if (uiSender(event)) void uiPreferences.update({ [key]: value });
   });
-  ipcMain.handle("welcome:complete", event => { if (!uiSender(event, true)) throw new Error("Denied"); return welcomeController.finish(); });
+  ipcMain.handle("welcome:complete", (event, practice) => {
+    if (!uiSender(event, true)) throw new Error("Denied");
+    if (!settings.welcomeCompleted) { settings.practicePending = practice === true; saveSettings(); }
+    return welcomeController.finish();
+  });
   // First-run guide (docs/welcome/ONBOARDING-V2.md). A first run that reaches the welcome answers the
   // speech-setup question there (or skips it), so offerLocalAi() shows no dialog later.
   ipcMain.handle("welcome:context", event => {
@@ -2401,6 +2405,51 @@ async function main() {
     return { open: pointsWindow.isOpen() };
   });
   startOkFilow();
+  const { createAccount, buildAccountOrigin, signalledFetch } = require("./account");
+  // Set at build time (-c.extraMetadata.accountOrigin); FILOW_ACCOUNT_ORIGIN only in a development run.
+  const accountOriginNow = buildAccountOrigin({ packaged: app.isPackaged, pkgOrigin: require("./package.json").accountOrigin, envOrigin: process.env.FILOW_ACCOUNT_ORIGIN });
+  const account = createAccount({
+    origin: accountOriginNow, userData,
+    // Every account request shows the "going outside" signal (kind `account`, docs/okfilow/OUTBOUND.md) while it is in flight.
+    fetcher: signalledFetch(fetch, () => okFilow?.outboundSignal()),
+    safeStorage: require("electron").safeStorage, openExternal: url => openExternalSafe(url),
+    offline: () => process.env.FILOW_OFFLINE === "1",
+  });
+  for (const action of ["status", "begin", "poll", "cancel", "signOut", "checkout", "portal"]) {
+    appHandle(`account:${action}`, event => {
+      if (event.sender !== mainWin?.webContents || new URL(event.sender.getURL()).pathname !== "/account") throw new Error("Denied");
+      return action === "checkout" || action === "portal" ? account.billing(action) : account[action]();
+    });
+  }
+  // Whether this build has accounts at all (no network call): the pages hide their link to /account when not.
+  const ACCOUNT_LINK_PAGES = ["/tour", "/settings/local", "/account"];
+  appHandle("account:configured", event => {
+    if (event.sender !== mainWin?.webContents || !ACCOUNT_LINK_PAGES.includes(new URL(event.sender.getURL()).pathname)) throw new Error("Denied");
+    return Boolean(accountOriginNow);
+  });
+  appHandle("tour:mark", (event, rect) => {
+    if (event.sender !== mainWin?.webContents) throw new Error("Denied");
+    if (rect === null) { okFilow.clearPractice(); return true; }
+    if (new URL(event.sender.getURL()).pathname !== "/tour") throw new Error("Denied");
+    const mark = require("./tour").practiceMark(rect, mainWin.getContentBounds(), event.sender.getZoomFactor());
+    if (!mark) throw new Error("Invalid practice target");
+    okFilow.practice(mark);
+    return true;
+  });
+  // The page names a language, the shell picks the sentence: a page of the main window cannot hand the
+  // assistant (which may take a screenshot and send it to the provider the user said yes to) its own words.
+  appHandle("tour:ask", (event, lang) => {
+    if (event.sender !== mainWin?.webContents || new URL(event.sender.getURL()).pathname !== "/tour" || !isLang(lang)) throw new Error("Denied");
+    return okFilow.askPractice(sharedText("tour.question", lang));
+  });
+  appHandle("tour:done", event => {
+    if (event.sender !== mainWin?.webContents) throw new Error("Denied");
+    settings.practicePending = false; delete settings.practiceNext; saveSettings(); okFilow.clearPractice();
+  });
+  // The practice mark sits over a button of this window: it goes when the window moves, changes size,
+  // hides or loads another page (a reload never runs the page's own cleanup).
+  for (const gone of ["move", "resize", "hide", "minimize"]) win.on(gone, () => okFilow.clearPractice());
+  win.webContents.on("did-navigate", () => okFilow.clearPractice());
   win.on("closed", () => okFilow?.dispose());
   const hk = registerHotkey();
   if (!hk.ok) console.warn("Screen Sense hotkey:", hk.error);
@@ -2438,10 +2487,16 @@ async function main() {
     if (settings.punctuationModelWanted) wantPunctuationModel("still pending");
     if (choices && choices.ollama) void startOllamaInstall();
     else startOllamaIfWanted("Filow opened");
-    const firstPage =
+    const setupPage =
       choices && Array.isArray(choices.models) && choices.models.length
         ? `${APP_URL}/settings/local?auto=${encodeURIComponent(choices.models.join(","))}${choices.ollama ? "&ollama=1" : ""}`
         : APP_URL;
+    if (settings.practicePending && setupPage !== APP_URL) {
+      settings.practiceNext = setupPage.slice(APP_URL.length);
+      saveSettings();
+    }
+    const practiceNext = typeof settings.practiceNext === "string" && settings.practiceNext.startsWith("/settings/local?auto=") ? settings.practiceNext : "/";
+    const firstPage = settings.practicePending ? `${APP_URL}/tour?next=${encodeURIComponent(practiceNext)}` : setupPage;
     stage("loading first page");
     await win.loadURL(firstPage);
     stage("first page loaded");
@@ -2471,7 +2526,7 @@ async function main() {
         if (response === 0) await installPowerPointAddin(win);
       }
     }
-    if (!process.env.OPENROUTER_API_KEY) {
+    if (!settings.practicePending && process.env.FILOW_OFFLINE !== "1" && !process.env.OPENROUTER_API_KEY) {
       dialog.showMessageBox(win, {
         type: "info",
         title: mt("keyTitle"),

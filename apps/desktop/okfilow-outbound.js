@@ -2,8 +2,9 @@
 // Pure (no Electron), so it is unit-tested. The inventory of outbound paths is docs/okfilow/OUTBOUND.md;
 // the web side of the same model is apps/web/lib/buddy/outbound.ts.
 
-const KINDS = ["ask", "voice", "audio", "photo", "agent", "transcript", "screen", "script"];
-const KEY = /^(ask|voice|audio|photo|agent|transcript|screen|script):[a-z0-9._/+-]{1,80}$/;
+const KINDS = ["ask", "voice", "audio", "photo", "agent", "transcript", "screen", "script", "account"];
+// Built from KINDS: one list of kinds (the same as OUTBOUND_KINDS in apps/web/lib/buddy/outbound.ts, tested).
+const KEY = new RegExp(`^(${KINDS.join("|")}):[a-z0-9._/+-]{1,80}$`);
 const MAX_ENTRIES = 50;
 
 /** Up to three short display names; anything else is dropped. */

@@ -53,6 +53,17 @@ describe("the panel, Pause and Resume", () => {
     expect(panel).toMatch(/if \(raw === null\) return;\n\s*\/\/[^\n]*\n\s*if \(!\(await turn\.current\.unpaused\(id\)\)\) return;/);
   });
 
+  it("one speech queue: the answer's voice waits for Resume before each chunk and tells the pill each chunk's place", () => {
+    expect(panel).toContain("unpaused: () => turn.current.unpaused(id),");
+    expect(panel).toContain("await speak(sentence, id, answerLang, base);");
+    expect(panel).toContain("voice.update(shown, false, moreFollows(partial, arrived));");
+    // a continuation's voice starts after what the user heard, not at the top
+    expect(panel).toContain("said: resume?.said,");
+    // the voice is created once per answer, and the old whole-answer call is gone
+    expect(panel.match(/createProgressiveSpeech\(/g)).toHaveLength(1);
+    expect(panel).not.toContain("await speak(text, id, answerLang);");
+  });
+
   it("an error that comes during a pause is held until Resume", () => {
     expect(panel).toMatch(/if \(abort\.signal\.aborted \|\| run\.current !== id\) return;\n\s*\/\/[^\n]*\n\s*if \(!\(await turn\.current\.unpaused\(id\)\)\) return;\n\s*turn\.current\.end\(id\);\n\s*fail\(/);
   });

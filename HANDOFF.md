@@ -1,6 +1,6 @@
 # Filow hand-off
 
-Last updated 2026-11-10 ("Where it stands" header and stale file references only). Written so that
+Last updated 2026-11-12 (faster answers, onboarding and accounts). Written so that
 another agent (Codex, Claude, a human) can continue without the chat history. Update this file at the
 end of every working session: "Where it stands", "Pending" and "Known gaps" are the parts that rot.
 
@@ -14,7 +14,60 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Where it stands (v0.9.30)
+## Where it stands (v0.9.35 + current branch)
+
+- Work in progress on `feat/fast-onboarding-account`, based on v0.9.35 / `e6b84c9`:
+  - Assistant speech queues complete sentences while the answer streams; validated screen marks
+    appear immediately. Stop/error cancels queued speech. This improves time to first output, not
+    the model's underlying generation speed.
+  - Welcome includes an original local 18-second MP4, captions and translated transcript. Opt-in
+    practice opens after startup and preserves the model-download settings destination.
+  - `/tour` drives real native overlays around a practice control, then offers a separate real
+    assistant question using existing screen/consent settings. Guided targets are clearly labeled.
+  - `/account` and the separate `apps/cloud` service implement email/device sign-in, OS-encrypted
+    desktop tokens, Stripe checkout/portal and server subscription status. No cloud or merchant
+    account has been deployed/configured. Read `apps/cloud/README.md` before operating it.
+  - Full tests passed: 176 files / 2,185 tests (5 tests skipped). Typecheck and lint passed;
+    production build validation details are in
+    `docs/FAST-ONBOARDING-ACCOUNT.md`. Windows UI was checked in an isolated G: profile with a fake
+    microphone, including video playback and native overlay routing, in dark and light themes.
+  - Phase 1 review (2026-11-12, plan in the owner's Filo-Claude-improvement-plan.md): the work is now
+    committed. Checkpoint `32bac05` (progressive answers), `730b5e7` (video and /tour), `befde28`
+    (account), `c2961bf` (apps/cloud), `c3093cd` (docs); the checkpoint reproduced the numbers above
+    exactly (176 files and 2,185 tests passed, 2 files and 5 tests skipped; typecheck, lint,
+    build:welcome, cloud build and `npm run build` all exit 0). Review fixes, each with a test that
+    failed first: `188cb86` and `78f661e` (speech: no sentence cut where a network chunk ends, an
+    unclosed tag is never spoken, the rest of an answer is never dropped, a sentence before a picture's
+    block is said at once), `ed58159` (tour: clearing the practice mark no longer wipes an answer's
+    drawings, the mark goes on resize, hide, minimize and navigation, `tour:ask` takes a language and
+    the shell picks the sentence), `1b8f750` (billing: a repeated or older Stripe event is answered and
+    not applied; `*.sqlite` ignored). Tip: 177 files and 2,201 tests passed, 2 files and 5 tests
+    skipped; typecheck, lint and the three builds exit 0.
+  - Findings, open items and the merge plan: `tmp/onboarding-review/REVIEW.md` (tmp/ is not tracked:
+    copy it into docs/ if it must travel). The medium items, after S0 of
+    `tmp/openbot-research/PLAN.md` (2026-11-12): closed in S0 are account traffic in the outbound
+    notice and signal (kind `account`, OUTBOUND.md row 21), the account origin set at build time
+    (`-c.extraMetadata.accountOrigin`, `account:configured`) and the billing plugin's own routes
+    (404 except `GET /api/auth/subscription/success`). Moved: reconciliation against Stripe's current
+    state to S4b, the sign-in email languages to S5, captions to F1, the cloud voice's one request per
+    sentence (not measured) to Phase 2.
+  - Not verified in this review: nothing was launched (no Electron, no overlay on a real screen, no
+    window move or display change, no video playback, no theme inspection), no real Stripe or email,
+    no real-model latency. `apps/desktop/vendor/i18n.js` must be rebuilt (`npm run vendor`) before
+    the tour's real question works in a dev run.
+  - Merging (nothing merged yet): main `578af0f` and feat-easy-page merge cleanly into this branch;
+    feat-okf-pill conflicts in `apps/web/app/okfilow/panel/page.tsx` (5 places) and
+    `apps/desktop/okfilow.js` (4 places). Merge the pill to main first, then main into this branch,
+    and keep one speech mechanism: the queue in `lib/buddy/progressive.ts`, with the pill's sentence
+    ranges from `turn.ts` and the pill's pause (`turn.unpaused`) as its gate.
+  - Phase 2 (speed) can start from this tip. It needs: a QA build of this branch in its own profile
+    and ports on G:, timing marks (hotkey release, capture done, first token, first sentence handed to
+    the voice, first audio, first mark, end, Stop to silence) written to a local file without screen
+    contents, one documented hardware and model pair, and cold and warm runs through local Ollama only.
+  - Still required for public sales: real SMTP/domain, Stripe test acceptance and final price,
+    deployment, production keys/webhooks, paid feature/quota enforcement and signed release testing.
+    No installer was published. The unrelated root `okfilow.js` was present before this work and was
+    left untouched. Test files/caches/profile live on G:.
 
 - Landed after the 0.9.30 release (2026-11-06 to 2026-11-10): OK Filow, the screen helper,
   with the outbound notice (nothing leaves the PC without a yes, every send is shown;

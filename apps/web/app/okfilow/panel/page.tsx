@@ -20,7 +20,8 @@ import { createOutboundController, type OutboundController } from "@/lib/buddy/o
 import { ConsentList, OutboundNotice, OutboundPill } from "../outbound-ui";
 import { VoiceSettings } from "./voice-settings";
 import { getSetupPreference, getSpeechLang } from "@/lib/prefs";
-import { createAnswerTurn, joinContinuation, resumePlan, splitSentences } from "@/lib/buddy/turn";
+import { createAnswerTurn, joinContinuation, resumePlan, sentenceParts, splitSentences } from "@/lib/buddy/turn";
+import { createProgressiveSpeech, moreFollows, type ProgressiveSpeech } from "@/lib/buddy/progressive";
 import { askSees, eyeToggle, screenLeaves, screenYesMissing, seesScreen, slowToSee, stillSees, wordsOnlyAfterYes, type LocalScreenMode } from "@/lib/buddy/sees";
 import { keyLabel, type PillAction } from "@/lib/buddy/pill";
 import { createPausableClock, marksStarted, STROKE_GAP_MS } from "@/lib/buddy/motion";
@@ -105,9 +106,10 @@ export default function OkFilowPanel() {
   /** The clock the answer's marks are drawn on: it stands still during a pause, like the overlay's. */
   const drawClock = useRef(createPausableClock());
   /** The answer in progress: whether it is read aloud, its language, and its marks (for a Resume after Stop). */
-  const answerCtx = useRef<{ id: number; typed: boolean; lang?: string; speaking: boolean; marks: Parameters<OkFilowBridge["draw"]>[0]; marksAt: number; marksBase: number } | null>(null);
-  /** What a Resume of the stopped answer needs beyond the offer itself (lib/buddy/turn.ts). */
-  const resumeInfo = useRef<{ typed: boolean; lang?: string; left: string; marks: Parameters<OkFilowBridge["draw"]>[0]; from: number } | null>(null);
+  // `voice`: the answer's speech queue (lib/buddy/progressive.ts), which knows how far the user heard it.
+  const answerCtx = useRef<{ id: number; typed: boolean; lang?: string; speaking: boolean; marks: Parameters<OkFilowBridge["draw"]>[0]; marksAt: number; marksBase: number; voice?: ProgressiveSpeech } | null>(null);
+  /** What a Resume of the stopped answer needs beyond the offer itself (lib/buddy/turn.ts); `heard`: sentences heard whole. */
+  const resumeInfo = useRef<{ typed: boolean; lang?: string; left: string; heard: number; marks: Parameters<OkFilowBridge["draw"]>[0]; from: number } | null>(null);
   // "Look at my screen": what the setup for this computer picked (until the user chooses), and whether the question being answered took the screen.
   const [localScreen, setLocalScreen] = useState<LocalScreenMode>(null);
   const localScreenRef = useRef<LocalScreenMode>(null);
@@ -359,8 +361,10 @@ export default function OkFilowPanel() {
     // What Resume would do (lib/buddy/turn.ts): the model carries on, the question is asked again,
     // or (the whole answer was there) the voice says the sentences it has not said and the pen draws the marks not begun.
     const offer = turn.current.offer();
-    const left = offer?.kind === "speak" && ctx?.speaking ? speaker.left() : "";
-    resumeInfo.current = offer && ctx ? { typed: ctx.typed, lang: ctx.lang, left, marks: ctx.marks, from: begun } : null;
+    // The speech queue knows the chunks not started yet; the voice knows how far into its chunk it got.
+    const where = ctx?.speaking && ctx.voice ? ctx.voice.where(speaker.left()) : { heard: 0, left: ctx?.speaking ? speaker.left() : "" };
+    const left = offer?.kind === "speak" ? where.left : "";
+    resumeInfo.current = offer && ctx ? { typed: ctx.typed, lang: ctx.lang, left, heard: where.heard, marks: ctx.marks, from: begun } : null;
     // Nothing left to say or draw, or an answer that was not a question to the model: no Resume.
     if (!resumeInfo.current || (offer?.kind === "speak" && !left && begun >= (ctx?.marks.length ?? 0))) turn.current.discard();
     setResumable(turn.current.offer() !== null);
@@ -386,9 +390,10 @@ export default function OkFilowPanel() {
 
   /**
    * `resume`: this question carries on a stopped answer whose first part (`shown`) is on screen and
-   * is the conversation's last answer (Resume after Stop, lib/buddy/turn.ts resumePlan).
+   * is the conversation's last answer (Resume after Stop, lib/buddy/turn.ts resumePlan); `said`: the
+   * start of it the user already heard, which the voice does not say again.
    */
-  const ask = useCallback(async (question: string, opts: { typed?: boolean; resume?: { shown: string } } = {}) => {
+  const ask = useCallback(async (question: string, opts: { typed?: boolean; resume?: { shown: string; said?: string } } = {}) => {
     const b = okFilowBridge();
     if (!b) return;
     const resume = opts.resume;
@@ -452,7 +457,21 @@ export default function OkFilowPanel() {
     asking.current = abort;
     // A drawing request is answered in one piece: a stop of it offers no Resume.
     turn.current.begin(id, question, abort, { resumable: wantsDrawing(question) === null, continues: resume?.shown });
-    answerCtx.current = { id, typed: opts.typed === true, speaking: false, marks: [], marksAt: 0, marksBase: 0 };
+    let answerLang: string | undefined;
+    // The one speech queue of this answer: sentence by sentence while the text arrives, each chunk at its
+    // place among the bubble's sentences (the pill keeps that one in view), none started during a pause.
+    const voiced = !opts.typed || statusRef.current?.typedVoice === true;
+    const voice = createProgressiveSpeech({
+      isCurrent: () => run.current === id && !abort.signal.aborted,
+      unpaused: () => turn.current.unpaused(id),
+      said: resume?.said,
+      speak: async (sentence, base) => {
+        if (!voiced) return;
+        setMode("speaking");
+        await speak(sentence, id, answerLang, base);
+      },
+    });
+    answerCtx.current = { id, typed: opts.typed === true, speaking: voiced, marks: [], marksAt: 0, marksBase: 0, voice };
     // "Look at my screen" (lib/buddy/sees.ts): off, the question goes with the user's words only.
     // A continuation follows the eye as it is now, not as it was when the question was first asked.
     const seeing = seesScreen(statusRef.current?.seeScreen, askRoute(statusRef.current), localScreenRef.current);
@@ -514,7 +533,27 @@ export default function OkFilowPanel() {
       // What the server says about the answer: whether the model saw a picture (X-Buddy-Sees) and the
       // language it answered in (X-Buddy-Lang), which the voice uses to pick a matching voice.
       let seesText = false;
-      let answerLang: string | undefined;
+      let lastPoints = "", lastMarks = "";
+      /** The pointer and the pen follow the text as it arrives (never during a pause: the caller holds them). */
+      const showVisuals = (parsed: ReturnType<typeof parseBuddyAnswer>) => {
+        const points = JSON.stringify(parsed.points), marks = JSON.stringify(parsed.marks);
+        if (parsed.points.length && points !== lastPoints) {
+          b.point(parsed.points.flatMap(p => {
+            const d = shot.displays.find(x => x.index === p.screen);
+            return d ? [{ ...pointToDisplay(p, d.bounds), label: p.label }] : [];
+          }));
+          lastPoints = points;
+        }
+        if (parsed.marks.length && marks !== lastMarks) {
+          const list = parsed.marks.flatMap(m => {
+            const d = shot.displays.find(x => x.index === m.screen);
+            return d ? [markToDisplay(m, d.bounds)] : [];
+          });
+          b.draw(list);
+          if (answerCtx.current?.id === id) Object.assign(answerCtx.current, { marks: list, marksAt: drawClock.current.at(performance.now()), marksBase: 0 });
+          lastMarks = marks;
+        }
+      };
       const send = async (consent: Record<string, string>, quiet?: () => void) => {
         const headers = { "Content-Type": "application/json", ...(await engineHeaders()), ...consent };
         // The eye was closed after the screenshot was taken (while the notice was open, say): the
@@ -544,16 +583,20 @@ export default function OkFilowPanel() {
         let got = "";
         for (;;) {
           const { done, value } = await reader.read();
-          if (done) return got;
+          if (done) return got + decoder.decode();
           got += decoder.decode(value, { stream: true });
           if (run.current !== id) return null;
-          const arrived = parseBuddyAnswer(got.split("\n[ERROR]")[0], shot.screens).text;
+          const partial = got.split("\n[ERROR]")[0];
+          const parsedNow = parseBuddyAnswer(partial, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1);
+          const arrived = parsedNow.text;
           // A continuation is shown after the part already there, without the sentences the model says again.
           const shown = resume ? joinContinuation(resume.shown, arrived, { partial: true }) : arrived;
           // Paused: the text is kept, not shown (Resume shows it).
           if (!turn.current.progress(id, shown)) continue;
           setAnswer(shown);
           b.text(shown);
+          showVisuals(parsedNow);
+          voice.update(shown, false, moreFollows(partial, arrived));
         }
       };
       const raw = to ? await out.sending("ask", to, send) : await send({});
@@ -585,12 +628,13 @@ export default function OkFilowPanel() {
         const d = shot.displays.find((x) => x.index === p.screen);
         return d ? [{ ...pointToDisplay(p, d.bounds), label: p.label }] : [];
       });
-      if (mapped.length) b.point(mapped);
+      if (mapped.length && JSON.stringify(points) !== lastPoints) b.point(mapped);
       const drawn = marks.flatMap((m) => {
         const d = shot.displays.find((x) => x.index === m.screen);
         return d ? [markToDisplay(m, d.bounds)] : [];
       });
-      if (drawn.length) {
+      // Drawn already while the text arrived: the pen is not started again.
+      if (drawn.length && JSON.stringify(marks) !== lastMarks) {
         b.draw(drawn);
         if (answerCtx.current?.id === id) Object.assign(answerCtx.current, { marks: drawn, marksAt: drawClock.current.at(performance.now()), marksBase: 0 });
       }
@@ -644,24 +688,26 @@ export default function OkFilowPanel() {
         ? groundAnswer(question, text, images, shot, abort.signal, to).then((p) => { if (p && run.current === id) b.point([p]); }).catch(() => {})
         : Promise.resolve();
       setMode("speaking");
-      if (!opts.typed || statusRef.current?.typedVoice) {
-        if (answerCtx.current?.id === id) answerCtx.current.speaking = true;
-        await speak(text, id, answerLang);
-      }
+      // The sentences not said while the text arrived (the queue says each one once).
+      await voice.finish(text);
       await grounding;
       turn.current.end(id);
       if (run.current === id) setMode("idle");
       if (run.current === id && handsFree.current) listenAgain.current();
     } catch (e) {
+      voice.cancel();
       // A stop or a newer question: not an error, nothing is shown or logged as one.
       if (abort.signal.aborted || run.current !== id) return;
       // A request that failed during a pause: the error is held and shown on Resume, never as a bubble during the pause.
       if (!(await turn.current.unpaused(id))) return;
       turn.current.end(id);
       fail(e instanceof Error ? e.message : String(e));
+      // Nothing of a failed answer goes on: a sentence being said is cut, the request is closed.
+      speaker.stop();
+      abort.abort();
       if (handsFree.current) setTimeout(() => handsFree.current && listenAgain.current(), 1500);
     }
-  }, [endAnswer, engineHeaders, fail, groundAnswer, out, setMode, speak, t]);
+  }, [endAnswer, engineHeaders, fail, groundAnswer, out, setMode, speak, speaker, t]);
 
   /**
    * Resume (the button, the key). A paused answer carries on exactly where it paused: the text that
@@ -715,7 +761,9 @@ export default function OkFilowPanel() {
       history.current = plan.history;
       saveHistory(history.current);
     }
-    void ask(plan.question, plan.kind === "continue" ? { typed: info.typed, resume: { shown: plan.shown } } : { typed: info.typed });
+    // A continuation's voice starts at the first sentence the user did not hear whole, not at the top.
+    const said = sentenceParts(plan.shown).slice(0, info.heard).join("");
+    void ask(plan.question, plan.kind === "continue" ? { typed: info.typed, resume: { shown: plan.shown, said } } : { typed: info.typed });
     return true;
   }, [ask, setMode, speak, speaker]);
 

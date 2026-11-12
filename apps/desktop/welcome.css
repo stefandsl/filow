@@ -150,3 +150,5 @@ button:not(:disabled):active { transform: translateY(1px); }
 /* Japanese: break lines by its own rules and keep phrases whole in headings and buttons. */
 :lang(ja) { line-break: strict; word-break: normal; }
 :lang(ja) :is(h1, h2, h3, button, label, summary) { word-break: auto-phrase; }
+/* The video is local and starts only when Play is pressed. */
+.intro-video { display: block; width: 100%; max-height: 280px; aspect-ratio: 16 / 9; background: #121212; border-radius: 12px; margin: 20px 0 12px; }

@@ -5,6 +5,21 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("filow", {
   desktop: true,
+  account: {
+    status: () => ipcRenderer.invoke("account:status"),
+    configured: () => ipcRenderer.invoke("account:configured"),
+    begin: () => ipcRenderer.invoke("account:begin"),
+    poll: () => ipcRenderer.invoke("account:poll"),
+    cancel: () => ipcRenderer.invoke("account:cancel"),
+    signOut: () => ipcRenderer.invoke("account:signOut"),
+    checkout: () => ipcRenderer.invoke("account:checkout"),
+    portal: () => ipcRenderer.invoke("account:portal"),
+  },
+  tour: {
+    mark: rect => ipcRenderer.invoke("tour:mark", rect),
+    ask: lang => ipcRenderer.invoke("tour:ask", lang),
+    done: () => ipcRenderer.invoke("tour:done"),
+  },
   /** OK Filow's section in Filow Settings (same settings as its panel). */
   okFilow: {
     status: () => ipcRenderer.invoke("okfilow:settings:status"),

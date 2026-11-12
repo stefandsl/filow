@@ -3,10 +3,10 @@ import { welcomeSteps, micErrorKind, levelFromRms, micTick, MIC_HEARD_MS, MIC_SI
 
 describe("welcome steps", () => {
   it("guides a first run through language, microphone and setup", () => {
-    expect(welcomeSteps({ firstRun: true, askSetup: true })).toEqual(["language", "mic", "setup"]);
+    expect(welcomeSteps({ firstRun: true, askSetup: true })).toEqual(["language", "intro", "mic", "setup"]);
   });
   it("leaves the setup step out when the installer already chose the models", () => {
-    expect(welcomeSteps({ firstRun: true, askSetup: false })).toEqual(["language", "mic"]);
+    expect(welcomeSteps({ firstRun: true, askSetup: false })).toEqual(["language", "intro", "mic"]);
   });
   it("reopened from the menu, it is the preferences page only", () => {
     expect(welcomeSteps({ firstRun: false, askSetup: true })).toEqual(["preferences"]);
