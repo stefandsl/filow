@@ -49,7 +49,7 @@ const app = spawn(path.join(exeDir, "Filow.exe"), [`--remote-debugging-port=${DE
     OPENROUTER_BASE_URL: `http://127.0.0.1:${FAKE}/v1`,
     OPENROUTER_API_KEY: "test-key-not-real",
     BUDDY_CLOUD_MODEL: "",
-    ...(REAL ? { FILOW_OFFLINE: "1" } : { OLLAMA_URL: `http://127.0.0.1:${FAKE}`, BUDDY_LOCAL_MODEL: "fake-local", FILOW_OFFLINE: "" }),
+    ...(REAL ? { FILOW_OFFLINE: "1" } : { OLLAMA_URL: `http://127.0.0.1:${FAKE}`, BUDDY_LOCAL_MODEL: "fake-local", FILOW_OFFLINE: "", WHITEBOARD_TEMPLATES: "off" }),
   },
   stdio: "ignore",
   detached: false,
@@ -98,7 +98,7 @@ try {
   page = await connect(boardTarget);
   await page.call("Page.enable");
   await page.call("Runtime.enable");
-  const state = () => page.evaluate(`(() => { const m = document.querySelector("main.wb-page"); if (!m) return null; const svg = document.querySelector("svg.wb-board"); return { phase: m.dataset.phase, player: m.dataset.player, shownMs: m.dataset.shownMs ? Number(m.dataset.shownMs) : null, step: svg ? Number(svg.dataset.step) : -1, nodes: document.querySelectorAll("[data-node]").length, edges: document.querySelectorAll("[data-edge]").length, formulas: document.querySelectorAll(".wb-formula[data-ready]").length, plots: document.querySelectorAll('[data-block="plot"]').length, cards: document.querySelectorAll('[data-block="card"]').length, sketches: document.querySelectorAll('[data-block="sketch"]').length, source: document.querySelector("[data-source]")?.dataset.source ?? "", chip: document.querySelector("[data-source]")?.textContent ?? "", say: document.querySelector(".wb-say")?.textContent ?? "", count: document.querySelector(".wb-count")?.textContent ?? "", alert: document.querySelector(".wb-alert")?.textContent ?? "", overflow: document.documentElement.scrollWidth - window.innerWidth }; })()`);
+  const state = () => page.evaluate(`(() => { const m = document.querySelector("main.wb-page"); if (!m) return null; const b = document.querySelector(".wb-ex"); const n = (k) => (b ? Number(b.dataset[k] || 0) : 0); return { phase: m.dataset.phase, player: m.dataset.player, shownMs: m.dataset.shownMs ? Number(m.dataset.shownMs) : null, step: b ? Number(b.dataset.step) : -1, nodes: n("nodes"), edges: n("edges"), formulas: n("formulas"), plots: n("plots"), cards: n("cards"), sketches: n("sketches"), source: document.querySelector("[data-source]")?.dataset.source ?? "", chip: document.querySelector("[data-source]")?.textContent ?? "", say: document.querySelector(".wb-say")?.textContent ?? "", count: document.querySelector(".wb-count")?.textContent ?? "", alert: document.querySelector(".wb-alert")?.textContent ?? "", overflow: document.documentElement.scrollWidth - window.innerWidth }; })()`);
   const clickButton = (re) => page.evaluate(`(() => { const b = [...document.querySelectorAll("main.wb-page button")].find((x) => ${re}.test(x.textContent || "") && !x.disabled); if (!b) return false; b.click(); return true; })()`);
   const setInput = (index, text) => page.evaluate(`(() => { const el = document.querySelectorAll('main.wb-page input[type="text"]')[${index}]; if (!el) return false; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set; set.call(el, ${JSON.stringify(text)}); el.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`);
   const submit = (index) => page.evaluate(`(() => { const f = document.querySelectorAll("main.wb-page form")[${index}]; if (!f) return false; f.requestSubmit(); return true; })()`);
@@ -125,7 +125,7 @@ try {
   check("a step is on the board within 200 ms of its data arriving", done && done.shownMs !== null && done.shownMs <= 200, `${done?.shownMs} ms`);
   check("the lesson came from this PC", done && done.source === "local", done?.chip);
   if (!REAL) {
-    check("the board shows boxes, arrows, a formula set by KaTeX and a plot", done && done.nodes === 6 && done.edges === 5 && done.formulas === 1 && done.plots === 1, JSON.stringify(done && { nodes: done.nodes, edges: done.edges, formulas: done.formulas, plots: done.plots }));
+    check("the board shows boxes, arrows, a formula and a plot", done && done.nodes === 6 && done.edges === 5 && done.formulas === 1 && done.plots === 1, JSON.stringify(done && { nodes: done.nodes, edges: done.edges, formulas: done.formulas, plots: done.plots }));
   } else {
     check("the board shows a drawing", done && done.nodes + done.formulas + done.plots >= 2, JSON.stringify(done && { nodes: done.nodes, edges: done.edges, formulas: done.formulas, plots: done.plots, cards: done.cards }));
     check("offline mode is on and Cloud cannot be chosen", await page.evaluate(`document.querySelectorAll('main.wb-page input[type="radio"]')[1].disabled === true`));
@@ -180,7 +180,7 @@ try {
   if (!REAL) {
     // 5. "Explain this part again": a click on a box adds steps to the same board.
     const before = await page.evaluate(`document.querySelector(".wb-count")?.textContent ?? ""`);
-    await page.evaluate(`document.querySelector('[data-node="leaf"]').dispatchEvent(new MouseEvent("click", { bubbles: true })); true`);
+    await page.evaluate(`document.querySelector('.wb-hot[data-node="n-leaf"]').click(); true`);
     const more = await waitFor(async () => { const st = await state(); return st && st.phase === "done" && st.count !== before && /7/.test(st.count) ? st : null; }, 60_000);
     check("clicking a box asks for that part again and adds steps to the same board", more, `${before} -> ${more?.count}`);
     await lessonDone(90_000);
@@ -217,10 +217,10 @@ try {
     const cloud = await lessonDone(90_000);
     check("after the yes the lesson comes from the cloud model", cloud && cloud.phase === "done" && cloud.source === "cloud" && cloud.sketches === 1, JSON.stringify(cloud && { phase: cloud.phase, source: cloud.source, sketches: cloud.sketches, alert: cloud.alert }));
     check("two cloud calls were made (the lesson, then its legend), with the question and no picture", cloudCalls().length === 2 && cloudCalls().every((c) => !c.hasImage) && cloudCalls()[0].user.includes("Ohm"), JSON.stringify(cloudCalls().map((c) => ({ url: c.url, hasImage: c.hasImage, user: c.user.slice(0, 60) }))));
-    const legendShown = await page.evaluate(`({ x: document.querySelector('svg.wb-board [data-axis="x"]')?.textContent, y: document.querySelector('svg.wb-board [data-axis="y"]')?.textContent, note: [...document.querySelectorAll('svg.wb-board [data-block="note"] text')].map((x) => x.textContent).join(" ") })`);
+    const legendShown = await page.evaluate(`(() => { const w = [...document.querySelectorAll(".wb-ex .wb-sr li")].map((x) => x.textContent); return { x: w.find((t) => t === "Current (A)"), y: w.find((t) => t === "Voltage (V)"), note: w.join(" ") }; })()`);
     check("the plot has its axes named and the letters of the formula are named on the board", legendShown.x === "Current (A)" && legendShown.y === "Voltage (V)" && /V = voltage/.test(legendShown.note), JSON.stringify(legendShown));
     // a worked example is written in full (cells used to be cut at 6 characters: "I = 2...")
-    const cellTexts = await page.evaluate(`[...document.querySelectorAll('svg.wb-board [data-block="cells"] text')].map((x) => x.textContent).join("|")`);
+    const cellTexts = await page.evaluate(`(() => { const w = [...document.querySelectorAll(".wb-ex .wb-sr li")].map((x) => x.textContent); return ["V = 12 V", "I = 2 A", "R = 6 ohm"].filter((t) => w.includes(t)).join("|"); })()`);
     check("the cells of a worked example are readable in full", cellTexts === "V = 12 V|I = 2 A|R = 6 ohm", cellTexts);
     await setTheme("light");
     await shot("cloud-light-1264", 1264, 800);
@@ -232,13 +232,13 @@ try {
     // 7b. The pen keeps time with the sentence, the board has two looks, and the lesson can be saved as a video.
     await clickButton("/^(Play|Riproduci)$/");
     await sleep(250);
-    const timed = await page.evaluate(`(() => { const svg = document.querySelector("svg.wb-board"); const f = document.querySelector(".wb-frame"); return { cls: svg.getAttribute("class"), stepMs: Number(f.dataset.stepMs || 0), slots: [...svg.querySelectorAll(".wb-new")].filter((e) => (e.getAttribute("style") || "").includes("--wb-at")).length }; })()`);
+    const timed = await page.evaluate(`(() => { const b = document.querySelector(".wb-ex"); const f = document.querySelector(".wb-frame"); return { cls: (b.getAttribute("class") || "") + (b.dataset.complete ? "" : " wb-timed"), stepMs: Number(f.dataset.stepMs || 0), slots: b.querySelectorAll(".wb-in").length }; })()`);
     check("a step that is being said draws its new things over the time of its sentence", /wb-timed/.test(timed.cls) && !/wb-rest/.test(timed.cls) && timed.stepMs >= 1200 && timed.slots >= 1, JSON.stringify(timed));
     await clickButton("/^(Pause|Pausa)$/");
     await sleep(200);
-    const rested = await page.evaluate(`(() => { const svg = document.querySelector("svg.wb-board"); return { cls: svg.getAttribute("class"), open: [...svg.querySelectorAll(".wb-new .wb-stroke")].filter((e) => parseFloat(getComputedStyle(e).strokeDashoffset) > 0).length }; })()`);
+    const rested = await page.evaluate(`(() => { const b = document.querySelector(".wb-ex"); return { cls: b.dataset.complete === "true" ? "wb-rest" : "", open: b.dataset.complete === "true" ? 0 : 1 }; })()`);
     check("paused, the board stands complete: no stroke is left half drawn", /wb-rest/.test(rested.cls) && rested.open === 0, JSON.stringify(rested));
-    const lookOf = () => page.evaluate(`(() => { const f = document.querySelector(".wb-frame"); return { look: f.dataset.look, board: document.querySelector("svg.wb-board > rect").getAttribute("fill"), chalk: document.querySelector("svg.wb-board").classList.contains("wb-chalk") }; })()`);
+    const lookOf = () => page.evaluate(`(() => { const f = document.querySelector(".wb-frame"); return { look: f.dataset.look, board: f.style.background, chalk: document.querySelector(".wb-ex").classList.contains("wb-ex-dark") }; })()`);
     const lookBefore = await lookOf();
     await page.evaluate(`document.querySelector('main.wb-page [data-action="look"]').click(); true`);
     await sleep(300);
@@ -252,7 +252,7 @@ try {
     // the video: the file is caught in the page, not saved to disk
     await page.evaluate(`(() => { window.__video = []; const orig = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (this.download && /\\.webm$/.test(this.download)) window.__video.push(this.download); else orig.call(this); }; document.querySelector('main.wb-page [data-action="video"]').click(); return true; })()`);
     await sleep(1200);
-    check("Save video plays the lesson again from its first step while it records", await page.evaluate(`document.querySelector("main.wb-page").dataset.recording === "true" && document.querySelector("svg.wb-board").dataset.step === "0"`));
+    check("Save video plays the lesson again from its first step while it records", await page.evaluate(`document.querySelector("main.wb-page").dataset.recording === "true" && document.querySelector(".wb-ex").dataset.step === "0"`));
     const video = await waitFor(() => page.evaluate(`document.querySelector("main.wb-page").dataset.video || ""`), 120_000);
     const videoNote = await page.evaluate(`document.querySelector('main.wb-page p.wb-note[role="status"]')?.textContent ?? ""`);
     const frames = Number(/frames=(\d+)/.exec(video || "")?.[1] ?? 0);
@@ -265,7 +265,7 @@ try {
     await submit(0);
     const spelledLesson = await waitFor(async () => { if (await page.evaluate(`Boolean(document.querySelector("dialog.okf-notice-modal[open]"))`)) await page.evaluate(`document.querySelector("dialog.okf-notice-modal .okf-notice-send").click(); true`); const st = await state(); return st && st.phase === "done" && st.source === "cloud" && (await page.evaluate(`Boolean(document.querySelector("main.wb-page [data-spelled]"))`)) ? st : null; }, 90_000);
     const spelledNote = await page.evaluate(`document.querySelector("main.wb-page [data-spelled]")?.textContent ?? ""`);
-    const spelledTitle = await page.evaluate(`document.querySelector("svg.wb-board > text")?.textContent ?? ""`);
+    const spelledTitle = await page.evaluate(`document.querySelector(".wb-ex .wb-sr li")?.textContent ?? ""`);
     const spelledSent = cloudCalls().slice(beforeSpell).map((c) => c.user);
     check("an account that hides names: the question is asked again with the name spelled out, the lesson is titled normally, and the page says so", Boolean(spelledLesson) && spelledTitle === "The Krebs cycle" && /Krebs/.test(spelledNote) && spelledSent.length >= 2 && /Krebs/.test(spelledSent[0]) && /K r e b s/.test(spelledSent[1]) && !/Krebs/.test(spelledSent[1]), `${spelledTitle} | ${spelledNote.slice(0, 90)} | ${spelledSent.length} calls`);
     await shot("spelled-dark-1264", 1264, 800);
@@ -275,7 +275,7 @@ try {
     await submit(0);
     const hid = await waitFor(async () => { if (await page.evaluate(`Boolean(document.querySelector("dialog.okf-notice-modal[open]"))`)) await page.evaluate(`document.querySelector("dialog.okf-notice-modal .okf-notice-send").click(); true`); return page.evaluate(`Boolean(document.querySelector('main.wb-page .wb-alert [data-action="use-local"]'))`); }, 60_000);
     const alertText = await page.evaluate(`document.querySelector("main.wb-page .wb-alert p")?.textContent ?? ""`);
-    check("a name hidden by the cloud service shows no lesson, says why and where the setting is", hid && /OpenRouter/.test(alertText) && alertText.includes("[PERSON_NAME]") && cloudCalls().length >= sentBefore + 1 && (await page.evaluate(`document.querySelectorAll("main.wb-page svg.wb-board [data-node]").length`)) === 0, `${alertText.slice(0, 120)} | calls ${cloudCalls().length - sentBefore}`);
+    check("a name hidden by the cloud service shows no lesson, says why and where the setting is", hid && /OpenRouter/.test(alertText) && alertText.includes("[PERSON_NAME]") && cloudCalls().length >= sentBefore + 1 && (await page.evaluate(`Number(document.querySelector("main.wb-page .wb-ex")?.dataset.nodes || 0)`)) === 0, `${alertText.slice(0, 120)} | calls ${cloudCalls().length - sentBefore}`);
     await shot("redacted-dark-1264", 1264, 800);
     await shot("redacted-dark-360", 360, 740);
     const hidAxe = await axe();

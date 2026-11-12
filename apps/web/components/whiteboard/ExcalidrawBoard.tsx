@@ -166,9 +166,11 @@ export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, c
   const onKey = (id: string, text: string) => (ev: KeyboardEvent<HTMLButtonElement>) => {
     if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onPick?.(id, text); }
   };
+  // what is on the board, counted by kind (the end-to-end test reads these)
+  const count = (f: (e: ExEl) => boolean) => visible.filter(f).length;
   const words = visible.filter((e) => e.type === "text").map((e) => (e.originalText ?? e.text ?? "").replace(/\s+/g, " ").trim()).filter(Boolean);
   return (
-    <div className={`wb-ex${animate ? " wb-ex-animate" : ""}${dark ? " wb-ex-dark" : ""}`} style={{ aspectRatio: `${target.w} / ${target.h}`, width: `min(100%, calc((100vh - 150px) * ${(target.w / target.h).toFixed(4)}))` } as CSSProperties} role="group" aria-label={label} data-step={current} data-elements={visible.length} data-complete={complete || undefined}>
+    <div className={`wb-ex${animate ? " wb-ex-animate" : ""}${dark ? " wb-ex-dark" : ""}`} style={{ aspectRatio: `${target.w} / ${target.h}`, width: `min(100%, calc((100vh - 150px) * ${(target.w / target.h).toFixed(4)}))` } as CSSProperties} role="group" aria-label={label} data-step={current} data-elements={visible.length} data-complete={complete || undefined} data-nodes={count((e) => e.customData?.wb?.role === "node" && e.type !== "text")} data-edges={count((e) => e.customData?.wb?.role === "edge")} data-formulas={count((e) => typeof e.customData?.tex === "string")} data-plots={count((e) => /^b-.*-ax$/.test(e.id))} data-cards={count((e) => e.customData?.wb?.role === "block" && e.strokeStyle === "dashed")} data-sketches={count((e) => e.type === "image")}>
       <div ref={host} className="wb-ex-host" />
       {/* what the board says, for a screen reader (the drawing itself is hidden from it) */}
       <ul className="wb-sr">{words.map((w, i) => <li key={i}>{w}</li>)}</ul>
