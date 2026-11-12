@@ -262,6 +262,13 @@ describe("a draw request is answered with a picture, never with a refusal", () =
     expect(await pieces(`Here is a car. ${CAR}`)).toEqual(["Here is a car. ", CAR]);
   });
 
+  it("a sentence that says it cannot draw is never said early, even when a block follows it (found in review)", async () => {
+    // the block is broken, so the second try's drawing is the whole answer: the refusal is never read
+    const { out } = await run(["Sorry, I can't draw. ```drawing2d\n{broken", `Ecco. ${CAR}`]);
+    expect(out).toBe(`Ecco. ${CAR}`);
+    expect((await run(["Mi dispiace, non posso disegnare. ```drawing2d\n{broken", REFUSAL], { lang: "it" })).out).toBe(OKF_TEXT.it.drawFailed);
+  });
+
   it("after a Stop nothing more is asked and nothing is shown", async () => {
     const stop = new AbortController();
     stop.abort();

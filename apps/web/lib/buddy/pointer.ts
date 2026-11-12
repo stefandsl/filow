@@ -17,6 +17,11 @@ const POINT_TAG = /\[POINT:\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*(?::([^[\]
 /** "[", "[PO", "[POINT:12,3": a POINT tag that may still be on its way at the end of a piece. */
 const POINT_START = /^\[(?:P(?:O(?:I(?:N(?:T(?::[^[\]]*)?)?)?)?)?)?$/i;
 export const MAX_POINTS = 3;
+/** The longest a POINT tag can be: two numbers, a label of 60 characters, a screen. */
+const MAX_TAG_CHARS = 100;
+/** One answer of the pointing model: a tag is about 20 tokens, and it has this long (0.3 s measured once loaded). */
+export const POINTER_MAX_TOKENS = 60;
+export const POINTER_MS = 8000;
 
 /**
  * The answer without its own POINT tags, followed by the pointing model's tag for each thing those
@@ -37,7 +42,8 @@ export async function* withPointer(answer: AsyncIterable<string>, ground: (label
     held = take(held + piece);
     // An unfinished tag at the end waits for the rest of it; everything before it goes out now.
     const open = held.lastIndexOf("[");
-    const keep = open >= 0 && POINT_START.test(held.slice(open)) ? open : held.length;
+    // (A real tag is short: a "[POINT:" that runs on without its "]" is the answer's text and is not kept waiting.)
+    const keep = open >= 0 && held.length - open <= MAX_TAG_CHARS && POINT_START.test(held.slice(open)) ? open : held.length;
     if (keep > 0) yield held.slice(0, keep);
     held = held.slice(keep);
   }

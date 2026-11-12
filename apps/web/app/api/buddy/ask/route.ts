@@ -7,7 +7,8 @@ import { answerLanguage } from "@/lib/buddy/lang";
 import { drawnAnswer } from "@/lib/buddy/draw";
 import { wantsDrawing } from "@/lib/buddy/visuals";
 import { photoAnswer, wantsPhoto } from "@/lib/buddy/photo";
-import { isPointOnly, pointQuestion, withPointer } from "@/lib/buddy/pointer";
+import { isPointOnly, pointQuestion, POINTER_MAX_TOKENS, POINTER_MS, withPointer } from "@/lib/buddy/pointer";
+import { buddySystemPrompt } from "@/lib/buddy/prompt";
 import { okfText } from "@/lib/buddy/text";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
@@ -102,7 +103,10 @@ export async function POST(req: Request) {
   const pointer = provider === "local" && !drawing && helper?.pictures && !isPointOnly(question) ? helper.pointer : undefined;
   const whereIs = async (label: string) => {
     let reply = "";
-    for await (const piece of askBuddy("local", { ...ask, question: pointQuestion(label), history: [] }, abort.signal, { model: pointer!, pictures: true })) reply += piece;
+    // A tag is short and the answer's voice waits for it: a few tokens and a few seconds, never the answer's own limits.
+    const limit = AbortSignal.any([abort.signal, AbortSignal.timeout(POINTER_MS)]);
+    const shape = { system: buddySystemPrompt(screens, known ?? "auto", { pictures: true }), maxTokens: POINTER_MAX_TOKENS };
+    for await (const piece of askBuddy("local", { ...ask, question: pointQuestion(label), history: [] }, limit, { model: pointer!, pictures: true }, shape)) reply += piece;
     return reply;
   };
   // Made inside the stream: a refused consent throws here and must reach the bubble as an error line.

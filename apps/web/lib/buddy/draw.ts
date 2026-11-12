@@ -23,6 +23,8 @@ export function hasPicture(raw: string): boolean {
 }
 
 const FENCE = /```\s*(?:drawing2d|model3d)/i;
+/** A sentence that says it cannot, or is sorry: never said early, even when a block follows it. */
+const CANNOT = /can(?:'|’)?t|cannot|unable|sorry|non posso|non riesco|mi dispiace|scusa|не могу|извин|к сожалению|nu pot|[îi]mi pare r[ăa]u|scuze|できません|すみません|申し訳/i;
 /**
  * Where the picture's block starts, when what comes before it is a sentence fit to be said at once:
  * some words, no tag in square brackets, not a wall of text. -1 otherwise (the reply is then held whole).
@@ -31,7 +33,7 @@ export function spokenBeforeBlock(raw: string): number {
   const at = raw.search(FENCE);
   if (at < 0) return -1;
   const said = raw.slice(0, at);
-  return said.trim().length >= 2 && said.length <= 300 && !/[[\]`]/.test(said) ? at : -1;
+  return said.trim().length >= 2 && said.length <= 300 && !/[[\]`]/.test(said) && !CANNOT.test(said) ? at : -1;
 }
 
 export type DrawAsk = (shape: AskShape, signal: AbortSignal) => AsyncIterable<string>;

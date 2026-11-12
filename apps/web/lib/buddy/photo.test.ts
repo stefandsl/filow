@@ -16,7 +16,12 @@ describe("a plain request for a photo is recognised in the five languages", () =
     ["Show me a rocket photo", "rocket", "en"],
     ["can you show me a photo of the Eiffel Tower?", "Eiffel Tower", "en"],
     ["find me an image of a red panda please", "red panda", "en"],
-    ["a picture of a rocket", "rocket", "en"],
+    // the owner's own wordings: where it is shown or where it comes from is not part of the thing
+    ["show me a heart image on my screen", "heart", "en"],
+    ["pull up a heart image from the web", "heart", "en"],
+    ["I want to see a photo of a rocket", "rocket", "en"],
+    ["show me a picture of a heart, please", "heart", "en"],
+    ["покажи мне, пожалуйста, фото ракеты", "ракеты", "ru"],
     // only the user's own words count: the selected text the panel adds on the next lines does not
     ["show me a picture of a heart\n(Text I have selected: \"click this button here\")", "heart", "en"],
     ["mostrami una foto di un cuore", "cuore", "it"],
@@ -34,6 +39,11 @@ describe("a plain request for a photo is recognised in the five languages", () =
     "", "what is a heart?", "how do I take a photo of my screen?", "show me this picture", "where is the photo of my dog?",
     "show me a picture of this", "mostrami la foto di questo", "come faccio una foto dello schermo?", "покажи фото этого",
     "delete the photo", "open Photos", "is this a picture of a heart?", "この写真を見せて",
+    // found in review: the user's own pictures and files, sets of photos, and words with no request to see anything
+    "a picture of a rocket", "show me the picture", "find photos of cats", "show me the docker images", "find duplicate photos", "find all photos",
+    "photo of the error message", "show me an image of the file on the desktop", "find a picture of me", "show me a photo of yesterday",
+    "картинка не загружается", "фото в папке загрузки", "покажи фото в папке", "foto di ieri", "immagine di sfondo", "mostrami la foto di ieri",
+    "imagine de fundal", "arată-mi o poză de ieri", "昨日の写真", "旅行の写真を探して", "昨日の写真を見せて",
     // the words are in the selected text the panel adds on the next lines, not in what the user said
     "What does it mean?\n(Text I have selected: \"show me a picture of a heart\")",
   ])("%s -> not a photo request", (q) => expect(wantsPhoto(q)).toBeNull());

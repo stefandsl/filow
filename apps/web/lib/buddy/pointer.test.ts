@@ -3,6 +3,7 @@ import { diskNeededGb, resolveSetup, type MachineInfo } from "@filow/core";
 import * as sysinfo from "@/lib/sysinfo";
 import { POST as ask } from "@/app/api/buddy/ask/route";
 import { POST as warm } from "@/app/api/buddy/warm/route";
+import { GET as status } from "@/app/api/local/status/route";
 import { isPointOnly, pointQuestion, withPointer } from "./pointer";
 import { parseBuddyAnswer, withScreenNote } from "./prompt";
 import { localHelper } from "./providers";
@@ -69,6 +70,12 @@ describe("the answer's own points are replaced by the pointing model's", () => {
     expect(stopped.text).toBe("Here ");
   });
 
+  it("a [POINT: that runs on without its end is the answer's text: the rest of the answer is not lost (found in review)", async () => {
+    const long = "Click it [POINT:500,300:Save then click the big green button that says Send and after that close the window, and you are done with all of it.";
+    const { text } = await collect(long.match(/[\s\S]{1,9}/g) ?? [], async () => "NONE");
+    expect(text).toBe(long);
+  });
+
   it("the narrow question says what to reply, so no screen note is added to it", () => {
     expect(isPointOnly(pointQuestion("Save button"))).toBe(true);
     expect(withScreenNote(pointQuestion("Save button"), true)).toBe(pointQuestion("Save button"));
@@ -130,6 +137,7 @@ describe("the ask route, end to end on the server", () => {
     installed = PAIR;
     vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
       if (String(url).endsWith("/api/tags")) return Response.json({ models: installed.map((name) => ({ name })) });
+      if (String(url).endsWith("/api/version")) return Response.json({ version: "0.40.13" });
       if (String(url).endsWith("/api/generate")) { loads.push((JSON.parse(String(init?.body)) as { model: string }).model); return Response.json({}); }
       if (String(url).endsWith("/api/chat")) {
         const body = JSON.parse(String(init?.body)) as (typeof chats)[number];
@@ -152,6 +160,9 @@ describe("the ask route, end to end on the server", () => {
     expect(chats.map((c) => c.model)).toEqual(["gemma4:e4b", "lfm3-vl"]);
     expect(chats[1].messages.at(-1)?.content).toBe(pointQuestion("Save button"));
     expect(chats[1].messages.at(-1)?.images).toEqual(["YQ=="]);
+    // a tag is short: the pointing model gets a small token limit, not the answer's
+    expect((chats[1] as { options?: { num_predict?: number } }).options?.num_predict).toBe(60);
+    expect((chats[0] as { options?: { num_predict?: number } }).options?.num_predict).toBe(1500);
     // the pointing model gets no conversation: only the screenshot and the one thing to find
     expect(chats[1].messages.filter((m) => m.role === "user")).toHaveLength(1);
   });
@@ -173,6 +184,12 @@ describe("the ask route, end to end on the server", () => {
     const res = await ask(request({ question: "where do I save?", ...shot, provider: "local" }));
     expect(await res.text()).toBe("Click Save [POINT:187,152:Save button:screen1].");
     expect(chats.map((c) => c.model)).toEqual(["qwen3-vl:2b"]);
+  });
+
+  it("Settings is told that both models are in use, so neither is offered for deletion as unused", async () => {
+    const res = await status(new Request("http://unit.invalid/api/local/status"));
+    const { picks } = (await res.json()) as { picks: { okfilow: string[] } };
+    expect(picks.okfilow.sort()).toEqual(["gemma4:e4b", "lfm3-vl"]);
   });
 
   it("warming loads both models of the pair", async () => {
