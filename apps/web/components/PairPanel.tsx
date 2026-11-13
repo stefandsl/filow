@@ -7,6 +7,8 @@ import type { SessionInfo } from "./useSession";
 import { desktopBridge, type NetStatus } from "@/lib/sessionUrl";
 import { consumeReopenPairing, markReopenPairing } from "@/lib/pairReopen";
 import { publicLinkOn, useRemoteStatus } from "@/lib/useRemoteStatus";
+import type { PairedDevice } from "@filow/client";
+import { PairedDevices } from "./PairedDevices";
 
 /** Tell the desktop shell the pairing panel is open, so it brings the phone link up (a shell without it started the link at launch). */
 export function announcePairing(bridge: Pick<NonNullable<ReturnType<typeof desktopBridge>>, "pairingOpened"> | null | undefined): void {
@@ -14,7 +16,7 @@ export function announcePairing(bridge: Pick<NonNullable<ReturnType<typeof deskt
 }
 
 /** Shows the pairing code and a QR for the mirror URL. */
-export function PairPanel({ info, status, error, onNewCode, prompter = false }: { info: SessionInfo | null; status: string; error: string | null; onNewCode?: () => void; prompter?: boolean }) {
+export function PairPanel({ info, status, error, onNewCode, prompter = false, devices, onRevoke, onAllowAsk }: { info: SessionInfo | null; status: string; error: string | null; onNewCode?: () => void; prompter?: boolean; devices?: PairedDevice[]; onRevoke?: (id: string) => void; onAllowAsk?: (id: string, allow: boolean) => void }) {
   const t = useT();
   const [now, setNow] = useState(() => Date.now());
   const [qr, setQr] = useState<string | null>(null);
@@ -43,7 +45,9 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false }: 
   const pending = remote?.state === "downloading" || remote?.state === "connecting";
 
   // The QR carries the current code; it is rebuilt whenever the code changes.
-  const mirrorUrl = info ? info.mirrorUrl.replace(/code=\d{6}/, `code=${info.code}`) : "";
+  const mirrorUrl = info ? info.mirrorUrl.replace(/code=[A-Za-z0-9]+/, `code=${info.code}`) : "";
+  // Paired phones and other devices (not the app's own windows): counted on the button, listed in the panel.
+  const others = (devices ?? []).filter((d) => d.peer !== "app");
   useEffect(() => {
     if (!info) return;
     let alive = true;
@@ -91,6 +95,7 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false }: 
         {prompter && <Icon name="system" />} {t(prompter ? "pair.device" : "app.pair")} {!prompter && info && <span className="pair-code">{info.code}</span>} {pending ? "\u2026" : !prompter && <Icon name="circle" />}
       </button>
       {prompter && info && <button className="chip code" onClick={() => setOpen(true)} title={t("pair.showQr")}>{info.code}</button>}
+      {others.length > 0 && <button className="chip live" onClick={() => setOpen(true)} title={t("pair.devices")}>{t("pair.devicesCount", { n: others.length })}</button>}
       {open && (
         <div className="modal-bg" onClick={() => setOpen(false)}>
           <div className="modal pairmodal" role="dialog" aria-label={t("pair.title")} onClick={(e) => e.stopPropagation()}>
@@ -182,6 +187,7 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false }: 
                 </button>
               </div>
             )}
+            {devices && onRevoke && onAllowAsk && <PairedDevices devices={devices} onRevoke={onRevoke} onAllowAsk={onAllowAsk} />}
             <button className="btn" onClick={() => setOpen(false)}>
               {t("common.close")}
             </button>

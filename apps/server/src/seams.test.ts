@@ -41,7 +41,7 @@ class FakeSocket {
   constructor(url: string) {
     runtime.clients.push(this);
     queueMicrotask(() => {
-      runtime.http.emit("upgrade", { url: new URL(url).pathname, headers: {}, socket: { remoteAddress: "127.0.0.1" } }, { peer: this.peer }, null);
+      runtime.http.emit("upgrade", { url: new URL(url).pathname, headers: {}, socket: { remoteAddress: "192.168.1.20" } }, { peer: this.peer }, null);
       this.onopen?.();
     });
   }
@@ -54,7 +54,7 @@ class FakeSocket {
 }
 async function fakeFetch(url: string | URL | Request, init?: RequestInit): Promise<Response> {
   const req = Object.assign(new EventEmitter(), { url: new URL(String(url)).pathname,
-    method: init?.method ?? "GET", headers: {}, socket: { remoteAddress: "127.0.0.1" } });
+    method: init?.method ?? "GET", headers: {}, socket: { remoteAddress: "192.168.1.20" } });
   return new Promise(resolve => {
     let status = 200;
     const res = { writeHead: (s: number) => { status = s; }, end: (body: string) => resolve(new Response(body, { status })) };

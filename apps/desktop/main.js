@@ -342,11 +342,14 @@ function initializeUiPreferences() {
     const window = BrowserWindow.fromWebContents(event.sender);
     return okFilow.openAsk(window ? require("./okfilow").pagePointOnScreen(window.getContentBounds(), event.sender.getZoomFactor(), at) : null);
   });
-  // A question typed on a paired phone: switched off until it is secured. The text is never read and OK Filow is
-  // never touched; an older main window that still passes one on hears "off".
-  ipcMain.handle("okfilow:settings:askFromPhone", event => {
+  // A question typed on a paired phone the presenter allowed to ask: the main window holds the session (useSession.ts)
+  // and passes on what the session server relayed ({ text, device }); OK Filow's gate (okfilow-phone.js) lets it
+  // through only when OK Filow is free, and its panel asks the presenter before anything else. "asked", "off",
+  // "busy", "bad" or "unavailable".
+  ipcMain.handle("okfilow:settings:askFromPhone", (event, payload) => {
     if (!uiSender(event)) throw new Error("Denied");
-    return "off";
+    if (!okFilow) return "unavailable";
+    return okFilow.askFromPhone(payload);
   });
   // FreeLLMAPI's section in Filow Settings (freellm.js). The key travels one way only: page to main.
   ipcMain.handle("freellm:status", event => { if (!uiSender(event)) throw new Error("Denied"); return freeLlm().status(); });
@@ -1154,6 +1157,7 @@ async function ensureCertTrusted() {
 
 /** HTTPS → the local servers. /api/session* and /ws go to the relay; everything else to the web app.
  *  Only 127.0.0.1 can connect, so the LAN access password is added for the pane (it runs the engine). */
+const proxyGuard = require("./proxy-guard");
 function startHttpsProxy() {
   if (httpsProxy || !haveCert()) return false;
   const relay = (url) => url.startsWith("/ws/") || url.startsWith("/api/session");
@@ -1161,16 +1165,18 @@ function startHttpsProxy() {
   const tls = process.platform === "win32" ? { pfx: fs.readFileSync(pfxFile), passphrase: settings.pfxPassword } : { key: fs.readFileSync(pemKey), cert: fs.readFileSync(pemCert) };
   const server = https.createServer(tls, (req, res) => {
     if (req.url === "/api/local/current-session") {
-      // Only reachable from this machine (the proxy listens on 127.0.0.1): the PowerPoint pane joins the app's session.
+      // The PowerPoint pane joins the app's session: only its own pages get the code (proxy-guard.js), never
+      // another program or a page of another site, though both can reach 127.0.0.1.
+      if (!proxyGuard.fromOwnPage(req.headers, HTTPS_PORT)) { res.writeHead(403); res.end(); return; }
       const o = req.headers.origin;
-      if (o && !/^https:\/\/localhost(:\d+)?$/.test(o)) { res.writeHead(403); res.end(); return; }
-      res.writeHead(200, { "Content-Type": "application/json", ...(o ? { "Access-Control-Allow-Origin": o, Vary: "Origin" } : {}) });
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store", ...(o ? { "Access-Control-Allow-Origin": o, Vary: "Origin" } : {}) });
       res.end(JSON.stringify(currentSession ?? {}));
       return;
     }
     const toRelay = relay(req.url) && !hosted;
-    const headers = { ...req.headers, host: `127.0.0.1:${toRelay ? SESSION_PORT : PORT}` };
-    if (toRelay && process.env.ACCESS_PASSWORD && !headers["x-access-password"]) headers["x-access-password"] = process.env.ACCESS_PASSWORD;
+    if (toRelay && !proxyGuard.fromOwnPage(req.headers, HTTPS_PORT)) { res.writeHead(403); res.end(); return; }
+    // X-Forwarded-For always: the relay never takes a request through here for a phone on the Wi-Fi.
+    const headers = proxyGuard.forwardedHeaders(req.headers, { remoteAddress: req.socket.remoteAddress, targetHost: `127.0.0.1:${toRelay ? SESSION_PORT : PORT}`, password: toRelay ? process.env.ACCESS_PASSWORD : "", method: req.method, url: req.url });
     const up = http.request({ host: "127.0.0.1", port: toRelay ? SESSION_PORT : PORT, method: req.method, path: req.url, headers }, (r) => {
       res.writeHead(r.statusCode, r.headers);
       r.pipe(res);
@@ -1182,10 +1188,20 @@ function startHttpsProxy() {
     req.pipe(up);
   });
   server.on("upgrade", (req, socket, head) => {
-    const port = relay(req.url) && !hosted ? SESSION_PORT : PORT;
+    const toRelay = relay(req.url) && !hosted;
+    // A socket to the relay only from the proxy's own pages (browsers always send Origin on a WebSocket).
+    if (toRelay && !proxyGuard.upgradeAllowed(req.headers, HTTPS_PORT)) {
+      socket.end("HTTP/1.1 403 Forbidden\r\n\r\n");
+      return;
+    }
+    const port = toRelay ? SESSION_PORT : PORT;
     const up = net.connect(port, "127.0.0.1", () => {
       let raw = `${req.method} ${req.url} HTTP/1.1\r\n`;
-      for (let i = 0; i < req.rawHeaders.length; i += 2) raw += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
+      for (let i = 0; i < req.rawHeaders.length; i += 2) {
+        if (/^x-forwarded-for$/i.test(req.rawHeaders[i])) continue;
+        raw += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
+      }
+      raw += `X-Forwarded-For: ${proxyGuard.forwardedHeaders(req.headers, { remoteAddress: req.socket.remoteAddress })["x-forwarded-for"]}\r\n`;
       up.write(raw + "\r\n");
       if (head.length) up.write(head);
       socket.pipe(up).pipe(socket);
@@ -1874,7 +1890,7 @@ let stopSlideShowWatch = null;
 let slideShow = { running: false, index: -1, total: 0, title: "" };
 
 function overlayUrl(code = currentSession ? currentSession.code : "") {
-  // The overlay is a compact phone-mirror view of the app's own session: nothing to pair, auto-accepted as a local peer.
+  // The overlay is a compact phone-mirror view of the app's own session: it pairs with the app's per-launch key (preload appPairKey).
   return `${APP_URL}/mirror?compact=1&overlay=1${code ? `&code=${code}` : ""}`;
 }
 
@@ -2046,6 +2062,9 @@ function startServers() {
     // LAN mode: gate the spend endpoints with a per-launch secret that only this window knows.
     process.env.ACCESS_PASSWORD = crypto.randomBytes(16).toString("base64url");
     process.env.AUTO_ACCEPT_LAN = "1"; // phones on this Wi-Fi join without a prompt; tunnel peers are asked
+    // The app's own floating windows (overlay, points window) pair with this key instead (preload appPairKey):
+    // loopback is never auto-accepted, since the HTTPS proxy and the tunnel come from this computer too.
+    process.env.FILOW_APP_PAIR_KEY = crypto.randomBytes(24).toString("base64url");
     process.env.FILOW_LAN_IP = lanIp();
   }
   process.env.PORT = String(PORT);

@@ -259,6 +259,10 @@ export type OkFilowBridge = {
   onCards(fn: (list: OkFilowCard[]) => void): Off;
   onModel(fn: (model: BuddyModel) => void): Off;
   onAskText(fn: (text: string) => void): Off;
+  /** A paired phone's question ({ text, device }) from a device the presenter allowed to ask (lib/buddy/phoneAsk.ts). Absent in an older desktop build. */
+  onPhoneAsk?(fn: (payload: unknown) => void): Off;
+  /** The presenter answered the notice for a phone's question: the desktop app lets the next one come. */
+  phoneAskDone?(): void;
   /** Main -> overlays: wipe the user's highlighter strokes (cancelled ask). */
   onStrokes(fn: (s: unknown[]) => void): Off;
   onHandsFree(fn: (on: boolean) => void): Off;
@@ -314,7 +318,7 @@ export type OkFilowSettingsBridge = Pick<OkFilowBridge, "status" | "configure"> 
    * A question typed on a paired phone (lib/buddy/phoneAsk.ts), for the panel to ask on this computer.
    * "busy": the panel is still loading, or the last phone question came a moment ago.
    */
-  askFromPhone?(text: string): Promise<"asked" | "off" | "busy" | "empty" | "unavailable">;
+  askFromPhone?(payload: { text: string; device: string }): Promise<"asked" | "off" | "busy" | "bad" | "unavailable">;
 };
 
 export function okFilowSettingsBridge(): OkFilowSettingsBridge | null {

@@ -392,7 +392,9 @@ export function createNoticeQueue(onChange: (head: NoticeRequest | null) => void
  * add-in, the browser extension) shows as it is, so the user learns why nothing happened.
  */
 export function consentDenied(req: Request, kind: OutboundKind, recipient: Recipient): Response | null {
-  if (req.headers.get(CONSENT_HEADER) === consentKey(kind, recipient)) return null;
+  // A controller token (a paired device, lib/engineAuth.ts) never carries the presenter's yes: its consent header is not read.
+  const controller = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").startsWith("c.");
+  if (!controller && req.headers.get(CONSENT_HEADER) === consentKey(kind, recipient)) return null;
   const who = whoPhrase(recipient, "{a} and {b}", "and","{a} and then to a company it picks to run the model by {b}");
   const error = `Not sent: this would go to ${who}, and you have not said yes to that here. Use Local mode, or allow it in the Filow window that asks.`;
   return Response.json({ error, code: "consent_required", kind, recipient }, { status: 403 });

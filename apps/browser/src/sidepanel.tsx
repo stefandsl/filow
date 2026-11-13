@@ -1,9 +1,9 @@
-// Side panel: pairs with an Filow session (server URL + 6-digit code), shows the live
+// Side panel: pairs with a Filow session (server URL + 8-character code), shows the live
 // view, and drives the deck tab through the content script: "Generate script from this deck"
 // and "Follow" (slide changes -> slideChanged commands). No keys here: the server runs models.
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { connect, type SessionClient } from "@filow/client";
+import { connect, isPairCode, type SessionClient } from "@filow/client";
 import { isLang, LANG_LABELS, langFromLocale, LANGS, parseScript, slideNeedsImage, type Command, type GenerateProgress, type Lang, type ScreenMode, type SessionState, type SlideInput, type VisionResponse } from "@filow/core";
 import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
 import type { BuddyRecipients } from "@/lib/buddy/outbound";
@@ -319,8 +319,8 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
                   void join();
                 }}
               >
-                <input className="btn code-input" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="123456" />
-                <button className="btn primary" type="submit" disabled={code.length !== 6 || status === "pairing"}>
+                <input className="btn code-input" autoCapitalize="characters" autoComplete="off" spellCheck={false} maxLength={9} value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9 -]/g, ""))} placeholder="ABCD 2345" />
+                <button className="btn primary" type="submit" disabled={!isPairCode(code) || status === "pairing"}>
                   {status === "pairing" ? t("mirror.pairing") : t("mirror.join")}
                 </button>
               </form>

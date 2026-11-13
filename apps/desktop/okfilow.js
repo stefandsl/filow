@@ -22,6 +22,7 @@ const { createPractice } = require("./tour");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 const { createElementReader, scanForShot, windowHandle } = require("./okfilow-uia");
 const { trustedUiSender } = require("./ui-preferences");
+const { createPhoneGate } = require("./okfilow-phone");
 // Measured runs (qa-headless.js): nothing of OK Filow appears on screen with FILOW_QA_HEADLESS=1.
 const { showWindow, trayFor } = require("./qa-headless");
 const { timingsLine } = require("./okfilow-timings");
@@ -933,6 +934,23 @@ function createOkFilow(deps) {
     openQuickAsk(at);
     return "open";
   }
+  /**
+   * A question typed on a paired phone the presenter allowed to ask (okfilow-phone.js has the gate).
+   * It goes to the panel on its own channel, never as a question the presenter typed: the panel asks the
+   * presenter first, labelled with the device, and answers it words only, silently (apps/web/lib/buddy/phoneAsk.ts).
+   * The panel shows without taking the keyboard. "asked", "off", "busy" or "bad".
+   */
+  const phoneGate = createPhoneGate();
+  function askFromPhone(payload) {
+    const live = Boolean(panel && !panel.isDestroyed() && !panel.webContents.isLoading());
+    const r = phoneGate.decide({ enabled: cfg().enabled, panelReady: panelReady && live, mode }, payload);
+    if (r.answer !== "asked") return r.answer;
+    if (!panel.isVisible()) showWindow(panel, "panel", true);
+    sendPanel("okfilow:phoneAsk", { text: r.question, device: r.device });
+    logLine(`okfilow: a question from a paired phone (${Array.from(r.question).length} characters), waiting for the presenter's yes`);
+    return "asked";
+  }
+  ipcMain.on("okfilow:phoneAskDone", (e) => { if (ourSender(e) && e.sender === panel?.webContents) phoneGate.done(); });
   /** Shows the panel next to the mouse (or next to `at`) and gives it the keyboard. */
   function showPanelAtCursor(at) {
     const p = buildPanel();
@@ -1475,7 +1493,7 @@ function createOkFilow(deps) {
   };
   /** The live "going outside" signal, for requests made outside OK Filow (the account's, main.js). */
   const outboundSignal = () => ({ begin: outbound.begin, end: outbound.end });
-  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, outboundSignal };
+  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, askFromPhone, outboundSignal };
 }
 
 /**

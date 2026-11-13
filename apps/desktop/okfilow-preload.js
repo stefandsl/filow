@@ -96,6 +96,10 @@ contextBridge.exposeInMainWorld("okFilow", {
   onCards: on("okfilow:cards"),
   onModel: on("okfilow:model"),
   onAskText: on("okfilow:askText"),
+  /** A paired phone's question ({ text, device }), only from a device the presenter allowed to ask: the panel asks the presenter first. */
+  onPhoneAsk: on("okfilow:phoneAsk"),
+  /** The presenter answered the notice for a phone's question: the next one may come. */
+  phoneAskDone: () => ipcRenderer.send("okfilow:phoneAskDone"),
   onWhiteboard: on("okfilow:whiteboard"),
   onStrokes: on("okfilow:strokes"),
   onHandsFree: on("okfilow:handsfree"),

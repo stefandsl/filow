@@ -122,6 +122,8 @@
       "okfilow-answers.js",
       "okfilow-outbound.js",
       "okfilow-stop.js",
+      "okfilow-phone.js",
+      "proxy-guard.js",
       "okfilow-timings.js",
       "okfilow-uia.js",
       "native/uia/bin/okfilow-uia.exe"

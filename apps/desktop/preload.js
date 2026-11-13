@@ -29,8 +29,8 @@ contextBridge.exposeInMainWorld("filow", {
     showWhiteboard: () => ipcRenderer.invoke("okfilow:settings:showWhiteboard"),
     /** The "OK Filow" button of the main window: "open", "off" (switched off) or "unavailable" (not running). */
     openAsk: (at) => ipcRenderer.invoke("okfilow:settings:openAsk", at),
-    /** A paired phone's question (useSession.ts), for OK Filow's panel: "asked", "off", "busy", "empty" or "unavailable". */
-    askFromPhone: (text) => ipcRenderer.invoke("okfilow:settings:askFromPhone", text),
+    /** A paired phone's question ({ text, device }, useSession.ts), for OK Filow's panel: "asked", "off", "busy", "bad" or "unavailable". */
+    askFromPhone: (payload) => ipcRenderer.invoke("okfilow:settings:askFromPhone", payload),
   },
   /** FreeLLMAPI's section in Filow Settings (freellm.js): the key goes in, never comes back. */
   freeLlm: {
@@ -87,6 +87,8 @@ contextBridge.exposeInMainWorld("filow", {
     return () => ipcRenderer.removeListener("remote:status", h);
   },
   accessPassword: process.env.ACCESS_PASSWORD || "",
+  /** The per-launch key the app's own floating windows pair with (the session server accepts it from this computer only, never through a proxy). */
+  appPairKey: process.env.FILOW_APP_PAIR_KEY || "",
   offline: process.env.FILOW_OFFLINE === "1",
   /** Subscribe to the Offline menu toggle; returns the unsubscribe function (never the ipcRenderer object). */
   onOffline: (fn) => {

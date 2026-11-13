@@ -1,15 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import WebSocket from "ws";
+import { openSocket, type Msg } from "../test/sockets";
 import { createSessionServer, type SessionServer } from "./server";
 import { mintEngineToken, verifyEngineToken } from "./auth";
 
 let server: SessionServer;
 let base: string;
 let clock = 1_000_000;
+/** The socket address the relay sees (a phone on the Wi-Fi unless a test says otherwise). */
+let lanPeer = "192.168.1.20";
 
 beforeEach(async () => {
   clock = 1_000_000;
-  server = createSessionServer({ now: () => clock, pairLimitPerMinute: 3, pingMs: 60_000, autoAcceptLan: true });
+  lanPeer = "192.168.1.20";
+  server = createSessionServer({ now: () => clock, pairLimitPerMinute: 3, pingMs: 60_000, autoAcceptLan: true, remoteAddress: () => lanPeer });
   await new Promise<void>((r) => server.httpServer.listen(0, "127.0.0.1", r));
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -18,22 +21,8 @@ afterEach(() => server.close());
 const post = (path: string, body: unknown = {}, headers: Record<string, string> = {}) =>
   fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
 
-type Msg = Record<string, unknown>;
-function open(id: string, hello: Msg) {
-  const ws = new WebSocket(`${base.replace("http", "ws")}/ws/session/${id}`);
-  const inbox: Msg[] = [];
-  const waiters: Array<(m: Msg) => void> = [];
-  ws.on("message", (d) => {
-    const m = JSON.parse(String(d));
-    const w = waiters.shift();
-    if (w) w(m);
-    else inbox.push(m);
-  });
-  const next = () => new Promise<Msg>((r) => (inbox.length ? r(inbox.shift()!) : waiters.push(r)));
-  const closed = new Promise<{ code: number; reason: string }>((r) => ws.on("close", (code, reason) => r({ code, reason: String(reason) })));
-  ws.on("open", () => ws.send(JSON.stringify({ t: "hello", ...hello })));
-  return { ws, next, closed, send: (m: Msg) => ws.send(JSON.stringify(m)) };
-}
+
+const open = (id: string, hello: Msg) => openSocket(base.replace("http", "ws"), id, hello);
 
 async function createSession() {
   const r = await post("/api/session");
@@ -106,10 +95,13 @@ describe("relay", () => {
     await engine.next();
     engine.send({ t: "state", version: 5, state: { version: 5 } });
     const pair = (await (await post("/api/session/pair", { code })).json()) as { viewToken: string };
+    const paired = await engine.nextMeta("paired");
     const view = open(id, { role: "view", token: pair.viewToken });
     await view.next();
     await view.next();
+    // the engine knows the pairing by its id, never by the device's token: the token does nothing here
     engine.send({ t: "setRole", token: pair.viewToken, role: "viewer" });
+    engine.send({ t: "setRole", id: paired.id, role: "viewer" });
     expect(await view.next()).toMatchObject({ t: "role", role: "viewer" });
     view.send({ t: "cmd", id: "x", cmd: { type: "nextSection" } });
     expect(await view.next()).toMatchObject({ t: "ack", id: "x", ok: false, error: "viewer role" });
@@ -119,18 +111,28 @@ describe("relay", () => {
     view.ws.close();
   });
 
-  it("controllers can mint a short-lived engine token; viewers and strangers cannot", async () => {
+  it("a controller accepted on the PC gets a short controller token, never an engine token; auto-accepted phones, viewers and strangers get none", async () => {
     const { id, code, engineToken } = await createSession();
     const engine = open(id, { role: "engine", token: engineToken });
     await engine.next();
     expect((await post(`/api/session/${id}/engine-token`)).status).toBe(401);
-    const pair = (await (await post("/api/session/pair", { code })).json()) as { viewToken: string };
+    const pair = (await (await post("/api/session/pair", { code })).json()) as { viewToken: string; role: string };
+    expect(pair.role).toBe("controller"); // auto-accepted on the Wi-Fi
+    const paired = await engine.nextMeta("paired");
+    expect((await post(`/api/session/${id}/engine-token`, {}, { Authorization: `Bearer ${pair.viewToken}` })).status).toBe(403);
+    // the presenter accepts it on the PC
+    engine.send({ t: "setRole", id: paired.id, role: "controller" });
+    await new Promise((r) => setTimeout(r, 30));
     const r = await post(`/api/session/${id}/engine-token`, {}, { Authorization: `Bearer ${pair.viewToken}` });
     expect(r.status).toBe(200);
     const { engineToken: minted } = (await r.json()) as { engineToken: string };
-    expect(verifyEngineToken(server.secret, minted, clock)?.sessionId).toBe(id);
-    expect(verifyEngineToken(server.secret, minted, clock + 16 * 60 * 1000)).toBeNull();
-    engine.send({ t: "setRole", token: pair.viewToken, role: "viewer" });
+    expect(minted.startsWith("c.")).toBe(true);
+    expect(verifyEngineToken(server.secret, minted, clock)).toBeNull();
+    expect(verifyEngineToken(server.secret, minted.slice(2), clock)).toBeNull();
+    // the engine itself still gets a real engine token
+    const own = (await (await post(`/api/session/${id}/engine-token`, {}, { Authorization: `Bearer ${engineToken}` })).json()) as { engineToken: string };
+    expect(verifyEngineToken(server.secret, own.engineToken, clock)?.sessionId).toBe(id);
+    engine.send({ t: "setRole", id: paired.id, role: "viewer" });
     await new Promise((r) => setTimeout(r, 30));
     expect((await post(`/api/session/${id}/engine-token`, {}, { Authorization: `Bearer ${pair.viewToken}` })).status).toBe(401);
     engine.ws.close();
@@ -144,7 +146,7 @@ describe("relay", () => {
     const pair = (await (await post("/api/session/pair", { code })).json()) as { viewToken: string };
     const r = await post(`/api/session/${id}/script`, { text: "# A\n- b" }, { Authorization: `Bearer ${pair.viewToken}` });
     expect(r.status).toBe(200);
-    expect(await engine.next()).toMatchObject({ t: "cmd", cmd: { type: "loadScript", text: "# A\n- b" } });
+    expect(await engine.next()).toMatchObject({ t: "cmd", cmd: { type: "loadScript", text: "# A\n- b" }, from: { device: expect.any(String) } });
     engine.ws.close();
   });
 });
@@ -199,35 +201,22 @@ describe("pairing security", () => {
   afterEach(() => strict.close());
   const spost = (path: string, body: unknown = {}, headers: Record<string, string> = {}) =>
     fetch(sbase + path, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
-  const sopen = (id: string, hello: Msg) => {
-    const ws = new WebSocket(`${sbase.replace("http", "ws")}/ws/session/${id}`);
-    const inbox: Msg[] = [];
-    const waiters: Array<(m: Msg) => void> = [];
-    ws.on("message", (d) => {
-      const m = JSON.parse(String(d));
-      const w = waiters.shift();
-      if (w) w(m);
-      else inbox.push(m);
-    });
-    const next = () => new Promise<Msg>((r) => (inbox.length ? r(inbox.shift()!) : waiters.push(r)));
-    const closed = new Promise<{ code: number; reason: string }>((r) => ws.on("close", (code, reason) => r({ code, reason: String(reason) })));
-    ws.on("open", () => ws.send(JSON.stringify({ t: "hello", ...hello })));
-    return { ws, next, closed, send: (m: Msg) => ws.send(JSON.stringify(m)) };
-  };
+  const sopen = (id: string, hello: Msg) => openSocket(sbase.replace("http", "ws"), id, hello);
   const screate = async () => (await (await spost("/api/session")).json()) as { id: string; code: string; codeExpiresAt: number; engineToken: string };
 
-  it("codes are six digits, expire after the window and are single-use; the engine can issue a new one", async () => {
+  it("codes are eight characters without look-alikes, expire after the window and are single-use; the engine can issue a new one", async () => {
     const { id, code, codeExpiresAt, engineToken } = await screate();
-    expect(code).toMatch(/^\d{6}$/);
+    expect(code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/);
     expect(codeExpiresAt).toBe(clock + 300_000);
     clock += 300_001;
     strict.sweep();
     const expired = await spost("/api/session/pair", { code });
     expect(expired.status).toBe(404);
     const fresh = (await (await spost(`/api/session/${id}/code`, {}, { Authorization: `Bearer ${engineToken}` })).json()) as { code: string };
-    expect(fresh.code).toMatch(/^\d{6}$/);
+    expect(fresh.code).toMatch(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/);
     expect(fresh.code).not.toBe(code);
-    expect((await spost("/api/session/pair", { code: fresh.code })).status).toBe(200);
+    // typed in lower case with a space, as people do: the same code
+    expect((await spost("/api/session/pair", { code: `${fresh.code.slice(0, 4).toLowerCase()} ${fresh.code.slice(4)}` })).status).toBe(200);
     expect((await spost("/api/session/pair", { code: fresh.code })).status).toBe(404); // used
     expect((await spost(`/api/session/${id}/code`)).status).toBe(401);
   });
@@ -241,11 +230,15 @@ describe("pairing security", () => {
     expect(pair.role).toBe("pending");
     const view = sopen(id, { role: "view", token: pair.viewToken, device: "iPhone · Safari" });
     expect(await view.next()).toMatchObject({ t: "welcome", role: "pending" });
-    expect(await engine.next()).toMatchObject({ t: "pairRequest", token: pair.viewToken, device: "iPhone · Safari" });
+    const request = await engine.next();
+    expect(request).toMatchObject({ t: "pairRequest", device: "iPhone · Safari" });
+    // the engine is given the pairing's id, never the phone's credential
+    expect(request.token).not.toBe(pair.viewToken);
+    expect(JSON.stringify(request)).not.toContain(pair.viewToken);
     // no state yet, commands refused
     view.send({ t: "cmd", id: "c1", cmd: { type: "nextSection" } });
     expect(await view.next()).toMatchObject({ t: "ack", id: "c1", ok: false });
-    engine.send({ t: "pairDecision", token: pair.viewToken, role: "controller" });
+    engine.send({ t: "pairDecision", token: request.token, role: "controller" });
     expect(await view.next()).toMatchObject({ t: "role", role: "controller" });
     expect(await view.next()).toMatchObject({ t: "state", version: 1 });
     view.send({ t: "cmd", id: "c2", cmd: { type: "nextSection" } });
@@ -255,8 +248,9 @@ describe("pairing security", () => {
     const pair2 = (await (await spost("/api/session/pair", { code: fresh.code })).json()) as { viewToken: string };
     const view2 = sopen(id, { role: "view", token: pair2.viewToken });
     await view2.next();
-    expect(await engine.next()).toMatchObject({ t: "pairRequest", token: pair2.viewToken });
-    engine.send({ t: "pairDecision", token: pair2.viewToken, role: "reject" });
+    const request2 = await engine.next();
+    expect(request2).toMatchObject({ t: "pairRequest" });
+    engine.send({ t: "pairDecision", token: request2.token, role: "reject" });
     expect((await view2.closed).code).toBe(4003);
     engine.ws.close();
     view.ws.close();

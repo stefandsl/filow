@@ -123,7 +123,7 @@ export function resumePlan(offer: ResumeOffer, history: BuddyTurn[]): { kind: Re
 }
 
 export function createAnswerTurn() {
-  let cur: { id: number; question: string; shown: string; continues: boolean; kept: boolean; resumable: boolean; abort?: AbortController; paused: boolean; buffered: string | null; waiting: Array<(go: boolean) => void> } | null = null;
+  let cur: { id: number; question: string; shown: string; continues: boolean; kept: boolean; resumable: boolean; abort?: AbortController; paused: boolean; buffered: string | null; waiting: Array<(go: boolean) => void>; tag?: Pick<BuddyTurn, "source" | "device"> } | null = null;
   let offer: ResumeOffer | null = null;
   /** Lets go of whoever waits for a Resume: `go` false when the answer is over instead. */
   const release = (c: NonNullable<typeof cur>, go: boolean) => {
@@ -138,10 +138,11 @@ export function createAnswerTurn() {
      * answer whose first part (this text) is on screen and in the conversation already. Any earlier
      * offer is gone: a new question was asked, or the offer was taken.
      */
-    begin(id: number, question: string, abort?: AbortController, opts: { resumable?: boolean; continues?: string } = {}) {
+    begin(id: number, question: string, abort?: AbortController, opts: { resumable?: boolean; continues?: string; tag?: Pick<BuddyTurn, "source" | "device"> } = {}) {
       if (cur) release(cur, false);
       offer = null;
-      cur = { id, question, shown: opts.continues ?? "", continues: opts.continues !== undefined, kept: false, resumable: opts.resumable !== false, abort, paused: false, buffered: null, waiting: [] };
+      // `tag`: a paired phone's question; a stop keeps its turns marked as the phone's (lib/buddy/phoneAsk.ts).
+      cur = { id, question, shown: opts.continues ?? "", continues: opts.continues !== undefined, kept: false, resumable: opts.resumable !== false, abort, paused: false, buffered: null, waiting: [], ...(opts.tag ? { tag: opts.tag } : {}) };
     },
     /**
      * The text so far (tags and unfinished blocks already taken out). True when it may be shown now;
@@ -213,7 +214,7 @@ export function createAnswerTurn() {
       const last = history[history.length - 1];
       const next = c.kept || !shown ? history
         : c.continues && last?.role === "assistant" ? [...history.slice(0, -1), { role: "assistant" as const, text: shown }]
-        : [...history, { role: "user" as const, text: c.question }, { role: "assistant" as const, text: shown }].slice(-12);
+        : [...history, { role: "user" as const, text: c.question, ...c.tag }, { role: "assistant" as const, text: shown, ...c.tag }].slice(-12);
       offer = c.resumable ? { kind: c.kept ? "speak" : shown ? "continue" : "again", question: c.question, shown } : null;
       return { question: c.question, shown, history: next };
     },

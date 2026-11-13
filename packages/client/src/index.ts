@@ -5,14 +5,34 @@ import type { Command, SessionState } from "@filow/core";
 export type ClientStatus = "connecting" | "open" | "closed";
 export type Role = "viewer" | "controller" | "engine" | "pending";
 
+/** `token` is the pairing's id (never the device's credential); kept under this name for older engines. */
 export type PairRequest = { token: string; device: string };
 export type PairDecision = "viewer" | "controller" | "reject";
+/** One paired device, as the session server tells the engine (apps/server/src/server.ts sendDevices). */
+export type PairedDevice = {
+  id: string;
+  device: string;
+  role: "viewer" | "controller" | "pending";
+  /** "app": this computer's own windows; "lan": a phone on the local network; "remote": through the tunnel. */
+  peer: "app" | "lan" | "remote";
+  /** The presenter decided on the PC (false: auto-accepted on the local network). */
+  approved: boolean;
+  /** May ask OK Filow (given on the PC, off by default). */
+  canAsk: boolean;
+  connected: boolean;
+  pairedAt: number;
+  expiresAt: number;
+};
+/** Who sent a command, added by the session server (never by the device). */
+export type CommandFrom = { id: string; device: string };
 
 export type ConnectOptions = {
   /** Session server origin, e.g. "http://192.168.1.10:4748" or "https://prompter.example.com" */
   serverUrl: string;
-  /** Pair with a 6-digit code (views) ... */
+  /** Pair with the 8-character code (views) ... */
   code?: string;
+  /** The desktop app's own floating windows: the per-launch key the app gave them (never typed, never shown). */
+  appKey?: string;
   /** ... or connect with an existing token (engine, or a view that already paired). */
   session?: { id: string; token: string; role: Role };
   /** Shown to the presenter when they must accept this device (views). Defaults to the user agent. */
@@ -24,6 +44,14 @@ export type ConnectOptions = {
   onRole?: (role: Role) => void;
   /** Engine: a phone paired and waits for a decision. */
   onPairRequest?: (req: PairRequest) => void;
+  /** Engine: every pairing, accepted or not, and every change to one (the devices list). */
+  onDevices?: (devices: PairedDevice[]) => void;
+  /** Engine: a device just paired (any role), so the code on screen is spent. */
+  onPaired?: (device: { id: string; device: string; role: string; peer: string }) => void;
+  /** Engine: the server replaced the code (too many wrong codes were tried). */
+  onCode?: (code: { code: string; codeExpiresAt: number }) => void;
+  /** Views: whether the presenter allowed this device to ask OK Filow. */
+  onPermissions?: (p: { canAsk: boolean }) => void;
   /** Reconnect with backoff (default true). */
   reconnect?: boolean;
   fetchImpl?: typeof fetch;
@@ -36,6 +64,8 @@ export type SessionClient = {
   readonly token: string;
   status: ClientStatus;
   state: SessionState | null;
+  /** Views: the presenter allowed this device to ask OK Filow. */
+  canAsk: boolean;
   subscribe(fn: (state: SessionState) => void): () => void;
   /** Views: send a command. Resolves with the engine's ack. */
   send(cmd: Command): Promise<{ ok: boolean; error?: string }>;
@@ -43,22 +73,33 @@ export type SessionClient = {
   publishState(state: SessionState): void;
   /** Engine: publish a patch. */
   publishPatch(version: number, ops: Operation[]): void;
-  /** Engine: handle incoming commands. */
-  onCommand(fn: (cmd: Command, ack: (result: { ok: boolean; error?: string }) => void) => void): void;
+  /** Engine: handle incoming commands; `from` is the device the server says sent it (absent: the server itself). */
+  onCommand(fn: (cmd: Command, ack: (result: { ok: boolean; error?: string }) => void, from?: CommandFrom) => void): void;
   /** Engine: send a full state after reconnect or when the server cannot apply a patch. */
   onResync(fn: () => void): void;
-  /** Engine: accept (as viewer or controller) or reject a paired phone. */
+  /** Engine: accept (as viewer or controller) or reject a paired phone (`token`: the pairing's id). */
   decidePair(token: string, decision: PairDecision): void;
+  /** Engine: end a pairing; the device is disconnected and its token stops working. */
+  revoke(id: string): void;
+  /** Engine: let a controller ask OK Filow, or stop it. */
+  allowAsk(id: string, allow: boolean): void;
   /** Engine: ask for a fresh single-use pairing code. */
   requestCode(): Promise<{ code: string; codeExpiresAt: number }>;
   close(): void;
 };
 
-export async function pair(serverUrl: string, code: string, fetchImpl: typeof fetch = fetch) {
+/** What a person typed as a pairing code: upper case, without spaces or dashes (the server reads it the same way). */
+export function normalizeCode(raw: string): string {
+  return raw.toUpperCase().replace(/[\s-]/g, "");
+}
+/** A whole pairing code: 8 characters, no 0/O, 1/I/L. */
+export const isPairCode = (raw: string): boolean => /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/.test(normalizeCode(raw));
+
+export async function pair(serverUrl: string, code: string, fetchImpl: typeof fetch = fetch, extra: { device?: string; appKey?: string } = {}) {
   const res = await fetchImpl(`${serverUrl.replace(/\/$/, "")}/api/session/pair`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({ code: normalizeCode(code), ...(extra.device ? { device: extra.device } : {}), ...(extra.appKey ? { appKey: extra.appKey } : {}) }),
   });
   if (res.status === 404) {
     const { error } = (await res.json().catch(() => ({}))) as { error?: string };
@@ -85,15 +126,16 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
   let session = opts.session;
   if (!session) {
     if (!opts.code) throw new Error("code or session required");
-    const p = await pair(base, opts.code, f);
+    const p = await pair(base, opts.code, f, { device: opts.deviceLabel ?? defaultDeviceLabel(), appKey: opts.appKey });
     session = { id: p.id, token: p.viewToken, role: p.role };
   }
-  const wsUrl = base.replace(/^http/, "ws") + `/ws/session/${session.id}`;
+  // The engine's socket takes large states; a device's takes small commands only (apps/server/src/server.ts).
+  const wsUrl = base.replace(/^http/, "ws") + `/ws/session/${session.id}` + (session.role === "engine" ? "?role=engine" : "");
 
   const subs = new Set<(s: SessionState) => void>();
   const pending = new Map<string, (r: { ok: boolean; error?: string }) => void>();
   const codeWaiters: Array<(c: { code: string; codeExpiresAt: number }) => void> = [];
-  let commandHandler: ((cmd: Command, ack: (r: { ok: boolean; error?: string }) => void) => void) | null = null;
+  let commandHandler: ((cmd: Command, ack: (r: { ok: boolean; error?: string }) => void, from?: CommandFrom) => void) | null = null;
   let resyncHandler: (() => void) | null = null;
   let ws: WebSocket | null = null;
   let closedByUser = false;
@@ -107,6 +149,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
     token: session.token,
     status: "connecting",
     state: null,
+    canAsk: false,
     subscribe(fn) {
       subs.add(fn);
       if (client.state) fn(client.state);
@@ -136,7 +179,13 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
       resyncHandler = fn;
     },
     decidePair(token, decision) {
-      if (ws?.readyState === 1) ws.send(JSON.stringify({ t: "pairDecision", token, role: decision }));
+      if (ws?.readyState === 1) ws.send(JSON.stringify({ t: "pairDecision", id: token, token, role: decision }));
+    },
+    revoke(id) {
+      if (ws?.readyState === 1) ws.send(JSON.stringify({ t: "revoke", id }));
+    },
+    allowAsk(id, allow) {
+      if (ws?.readyState === 1) ws.send(JSON.stringify({ t: "allowAsk", id, allow: allow === true }));
     },
     requestCode() {
       return new Promise((resolve, reject) => {
@@ -197,6 +246,10 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
               client.role = "pending";
               setStatus("open", "pending");
             } else setStatus("open");
+            if (client.role !== "engine") {
+              client.canAsk = msg.canAsk === true;
+              opts.onPermissions?.({ canAsk: client.canAsk });
+            }
             if (client.role === "engine") resyncHandler?.();
             resolve();
             break;
@@ -204,10 +257,25 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
             const role = msg.role as Role;
             client.role = role;
             session = { ...session!, role };
+            client.canAsk = msg.canAsk === true;
             opts.onRole?.(role);
+            opts.onPermissions?.({ canAsk: client.canAsk });
             setStatus("open");
             break;
           }
+          case "permissions":
+            client.canAsk = msg.canAsk === true;
+            opts.onPermissions?.({ canAsk: client.canAsk });
+            break;
+          case "devices":
+            if (Array.isArray(msg.devices)) opts.onDevices?.(msg.devices as PairedDevice[]);
+            break;
+          case "paired":
+            opts.onPaired?.({ id: String(msg.id), device: String(msg.device ?? ""), role: String(msg.role ?? ""), peer: String(msg.peer ?? "") });
+            break;
+          case "codeRotated":
+            opts.onCode?.({ code: String(msg.code), codeExpiresAt: Number(msg.codeExpiresAt) });
+            break;
           case "state":
             emit(msg.state as SessionState);
             break;
@@ -225,7 +293,8 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
           }
           case "cmd": {
             const id = String(msg.id);
-            commandHandler?.(msg.cmd as Command, (r) => sock.send(JSON.stringify({ t: "ack", id, ...r })));
+            const from = msg.from && typeof msg.from === "object" ? { id: String((msg.from as CommandFrom).id ?? ""), device: String((msg.from as CommandFrom).device ?? "") } : undefined;
+            commandHandler?.(msg.cmd as Command, (r) => sock.send(JSON.stringify({ t: "ack", id, ...r })), from);
             break;
           }
           case "resync":

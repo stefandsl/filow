@@ -152,15 +152,13 @@ export type Command =
   | { type: "anchor"; idx: number; pointId?: string; keep?: "recent" | "all" }
   /**
    * A typed question for OK Filow from a paired phone (the mirror's "Ask OK Filow" box). Not the
-   * engine's: the desktop app's main window answers it (components/useSession.ts) and hands it to
-   * OK Filow's panel on the computer, which asks it like any other question (same consent, same
-   * provider). Only a phone the session server accepted as a controller can send it.
+   * engine's: the session server relays it only from a controller the presenter allowed to ask, with
+   * the device it came from; the desktop app's main window hands it to OK Filow's panel, which asks
+   * the presenter on the PC before anything happens (phone-ask.ts has the rules).
    */
   | { type: "askOkFilow"; text: string };
 
-/** The longest question a phone may send to OK Filow, in characters (the panel's own limit for a handed-over question). */
-export const PHONE_QUESTION_MAX = 300;
-/** The answer every phone question gets while asking OK Filow from a phone is switched off (session server, main window). */
-export const PHONE_ASK_OFF = "okfilow:phone-off";
+/** Who sent a command: the session server adds it to every command it relays from a paired device. */
+export type CommandFrom = { id: string; device: string };
 
 export type CommandResult = { ok: true } | { ok: false; error: string };

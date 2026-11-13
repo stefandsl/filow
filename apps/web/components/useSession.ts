@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { connect, type PairDecision, type PairRequest, type SessionClient } from "@filow/client";
+import { connect, type PairDecision, type PairedDevice, type PairRequest, type SessionClient } from "@filow/client";
 import type { Engine, SessionState } from "@filow/core";
 import { CLOCK_REFRESH_MS, clockKey, takeRecorder, withClock } from "./TimerClock";
 import { desktopBridge, sessionServerUrl } from "@/lib/sessionUrl";
 import { loadedTargets, phoneLink, phoneTargets } from "@/lib/phoneLink";
 import { useRemoteStatus } from "@/lib/useRemoteStatus";
 import { sessionCommand } from "@/lib/buddy/phoneAsk";
+import { okFilowSettingsBridge } from "@/lib/buddy/bridge";
 
 export type SessionInfo = {
   id: string;
@@ -65,6 +66,9 @@ export function useSession(engine: Engine) {
   const [status, setStatus] = useState<string>("offline");
   const [error, setError] = useState<string | null>(null);
   const [pairRequests, setPairRequests] = useState<PairRequest[]>([]);
+  // Every pairing, as the session server reports it: the devices list (components/PairedDevices.tsx).
+  const [devices, setDevices] = useState<PairedDevice[]>([]);
+  const devicesRef = useRef<PairedDevice[]>([]);
   const clientRef = useRef<SessionClient | null>(null);
   // The public link comes up after the page: the phone link follows it, the session and its code stay.
   const remote = useRemoteStatus();
@@ -95,6 +99,11 @@ export function useSession(engine: Engine) {
     clientRef.current?.decidePair(token, decision);
     setPairRequests((r) => r.filter((p) => p.token !== token));
   }, []);
+
+  /** End a pairing: the device is disconnected and its token stops working. */
+  const revokeDevice = useCallback((id: string) => clientRef.current?.revoke(id), []);
+  /** Let a controller ask OK Filow, or stop it (off by default; each question still waits for the presenter's yes). */
+  const allowAsk = useCallback((id: string, allow: boolean) => clientRef.current?.allowAsk(id, allow), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,13 +136,29 @@ export function useSession(engine: Engine) {
             setPairRequests((r) => (r.some((p) => p.token === req.token) ? r : [...r, req]));
             void newCode(); // that code is spent; have the next one ready
           },
+          onDevices: (list) => {
+            devicesRef.current = list;
+            setDevices(list);
+            setPairRequests((r) => r.filter((p) => list.some((d) => d.id === p.token && d.role === "pending")));
+          },
+          // A device auto-accepted on the Wi-Fi spent the code too: the next one is ready.
+          onPaired: (d) => { if (d.role !== "pending") void newCode(); },
+          // Too many wrong codes: the server burned the code on screen and sent a new one.
+          onCode: ({ code, codeExpiresAt }) => {
+            setInfo((i) => (i ? { ...i, code, codeExpiresAt } : i));
+            desktopBridge()?.reportSession?.({ id: created.id, code });
+          },
         });
         if (cancelled) return client.close();
         clientRef.current = client;
-        client.onCommand((cmd, ack) => {
-          // A paired phone's question for OK Filow is refused here, never handed on (lib/buddy/phoneAsk.ts sessionCommand).
-          const r = sessionCommand(cmd, (c) => engine.dispatch(c));
-          ack(r.ok ? { ok: true } : { ok: false, error: r.error });
+        client.onCommand((cmd, ack, from) => {
+          // A paired phone's question for OK Filow is checked against the devices list and handed to the desktop app; never to the engine (lib/buddy/phoneAsk.ts).
+          const bridge = okFilowSettingsBridge();
+          void sessionCommand(cmd, from, {
+            dispatch: (c) => engine.dispatch(c),
+            mayAsk: (id) => devicesRef.current.some((d) => d.id === id && d.role === "controller" && d.canAsk),
+            askFromPhone: bridge?.askFromPhone ? (p) => bridge.askFromPhone!(p) : undefined,
+          }).then((r) => ack(r.ok ? { ok: true } : { ok: false, error: r.error }));
         });
         // Full states carry the talk clock (TimerClock.ts) for the phone's timer; a patch keeps it.
         let sentClock = "";
@@ -167,5 +192,5 @@ export function useSession(engine: Engine) {
     };
   }, [engine, newCode]);
 
-  return { info, status, error, pairRequests, decidePair, newCode };
+  return { info, status, error, pairRequests, decidePair, newCode, devices, revokeDevice, allowAsk };
 }

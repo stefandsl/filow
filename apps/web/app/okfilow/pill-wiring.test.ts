@@ -41,9 +41,9 @@ describe("the panel and the eye", () => {
   });
 
   it("a capture is asked for with the eye as it is when the question, or its continuation, starts", () => {
-    expect(panel).toContain("const shot = await b.capture({ images: seeing });");
+    expect(panel).toContain("const shot: OkFilowCapture = plan.capture ? await b.capture({ images: seeing }) : NO_CAPTURE;");
     expect(panel.match(/b\.capture\(/g)).toHaveLength(1);
-    expect(panel).toContain("const seeing = seesScreen(statusRef.current?.seeScreen, askRoute(statusRef.current), localScreenRef.current);");
+    expect(panel).toContain("const seeing = plan.capture && seesScreen(statusRef.current?.seeScreen, askRoute(statusRef.current), localScreenRef.current);");
   });
 });
 
@@ -75,10 +75,10 @@ describe("the panel, Pause and Resume", () => {
 
   it("a continuation carries the flag and the conversation, and is joined to the part shown without repeats", () => {
     expect(panel).toContain("...(resume ? { resume: true } : {}) }),");
-    expect(panel).toContain("history: history.current,");
+    expect(panel).toContain("history: plan.history ? presenterHistory(history.current) : [],");
     expect(panel).toContain("const shown = resume ? joinContinuation(resume.shown, arrived, { partial: true }) : arrived;");
     expect(panel).toContain("const text = resume ? joinContinuation(resume.shown, parsed.text) : parsed.text;");
-    expect(panel).toContain("turn.current.begin(id, question, abort, { resumable: wantsDrawing(question) === null, continues: resume?.shown });");
+    expect(panel).toContain("turn.current.begin(id, question, abort, { resumable: plan.resumable && wantsDrawing(question) === null, continues: resume?.shown,");
   });
 
   it("Resume after Stop shows every mark of the answer again: the marks went with the stopped answer's bubble", () => {

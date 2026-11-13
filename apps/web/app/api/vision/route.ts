@@ -14,7 +14,8 @@ import { anonymizeRequest, piiMode, restore } from "@/lib/pii/guard";
  * /api/decide; the frame itself cannot be anonymised.
  */
 export async function POST(req: Request) {
-  const denied = requireEngine(req);
+  // The PowerPoint pane in View mode and the browser extension call this with a controller token (lib/engineAuth.ts).
+  const denied = requireEngine(req, { controllers: true });
   if (denied) return denied;
   const at = Date.now();
   let body: VisionRequest;
