@@ -134,3 +134,57 @@ describe("Engine: the decision model unloaded mid-take", () => {
     expect(r.calls).toBe(1);
   });
 });
+
+describe("Engine: the take-start warm-up is the model's first load, not an unload", () => {
+  /** A warm-up the test settles by hand. */
+  function warm() {
+    const w = { pending: undefined as Promise<unknown> | undefined, done: () => {} };
+    w.pending = new Promise<unknown>((res) => (w.done = () => ((w.pending = undefined), res(undefined))));
+    return w;
+  }
+
+  it("timeouts while the warm-up loads do not reload, ask nothing, and normal counting resumes after it", async () => {
+    const { r, fn } = manualReload();
+    const w = warm();
+    const { e, model } = setup({ reload: fn, warming: () => w.pending });
+    await e.tick(); // times out during the warm-up
+    expect(e.getState().engine.slowMs).toBe(20);
+    expect(r.calls).toBe(0);
+    for (let i = 0; i < 5; i++) await e.tick(); // waiting for the warm-up: no second load, no call
+    expect(model.calls).toHaveLength(1);
+    expect(r.calls).toBe(0);
+    expect(e.getState().engine.reloading).toBeUndefined();
+    model.gone = false;
+    w.done();
+    await flush();
+    await e.tick(); // the model is loaded: answered
+    expect(model.calls).toHaveLength(2);
+    expect(e.getState().points.s0b0).toMatchObject({ status: "started", confidence: 0.95 });
+  });
+
+  it("after the warm-up settled, two timeouts in a row still reload", async () => {
+    const { r, fn } = manualReload();
+    const w = warm();
+    const { e } = setup({ reload: fn, warming: () => w.pending });
+    await e.tick();
+    w.done();
+    await flush();
+    await e.tick();
+    expect(r.calls).toBe(0);
+    await e.tick();
+    expect(r.calls).toBe(1);
+    expect(e.getState().engine.reloading).toBe(true);
+  });
+
+  it("a failing warm-up releases the wait too", async () => {
+    const { fn } = manualReload();
+    let rej: (e: Error) => void = () => {};
+    const p = new Promise<unknown>((_res, j) => (rej = j));
+    const { e, model } = setup({ reload: fn, warming: () => p });
+    await e.tick();
+    rej(new Error("Ollama not reachable"));
+    await flush();
+    await e.tick();
+    expect(model.calls).toHaveLength(2);
+  });
+});

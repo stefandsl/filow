@@ -39,6 +39,13 @@ export type EngineOptions = {
   reload?: () => Promise<unknown> | undefined;
   /** timeouts in a row that start a reload (default 2) */
   reloadAfter?: number;
+  /**
+   * The take-start warm-up of the decision model while it is still loading (undefined once it settled
+   * or when there is none). A call that times out meanwhile is the model's own first load, not an
+   * unloaded model: it does not count toward `reloadAfter`, and the engine asks nothing until the
+   * warm-up settles instead of starting a second load. Never aborted by the engine.
+   */
+  warming?: () => Promise<unknown> | undefined;
   /** at most this many open points per call; the rest rotate in on later calls (default 4) */
   maxQuestions?: number;
   /**
@@ -85,7 +92,7 @@ const PARTIAL_ACTIVE = 0.5;
 const ANCHOR_RECENT_MS = 6000;
 
 export class Engine {
-  private readonly o: Required<Omit<EngineOptions, "sessionId" | "onGuard" | "onVerify" | "reload">> & Pick<EngineOptions, "onGuard" | "onVerify" | "reload">;
+  private readonly o: Required<Omit<EngineOptions, "sessionId" | "onGuard" | "onVerify" | "reload" | "warming">> & Pick<EngineOptions, "onGuard" | "onVerify" | "reload" | "warming">;
   private state: SessionState;
   private committed = "";
   private partial = "";
@@ -98,6 +105,8 @@ export class Engine {
   private timeouts = 0;
   /** the model reload in progress: no call is made until it settles */
   private reloading: Promise<unknown> | null = null;
+  /** the take-start warm-up a timed-out call waits for: no call is made until it settles */
+  private warmWait: Promise<unknown> | null = null;
   private lastCallAt = -Infinity;
   private qCursor = 0;
   private reasked = false;
@@ -130,6 +139,7 @@ export class Engine {
       costCapUsd: opts.costCapUsd === undefined ? 1 : opts.costCapUsd,
       timeoutMs: opts.timeoutMs ?? 2500,
       reload: opts.reload,
+      warming: opts.warming,
       reloadAfter: opts.reloadAfter ?? 2,
       maxQuestions: opts.maxQuestions ?? 4,
       reaskOnPending: opts.reaskOnPending ?? true,
@@ -497,6 +507,20 @@ export class Engine {
   }
 
   /**
+   * A call timed out while the take-start warm-up is still loading the model: wait for it (no call
+   * meanwhile, nothing counted, no reload banner). True when there was a warm-up to wait for.
+   */
+  private waitForWarmup(): boolean {
+    const w = this.o.warming?.();
+    if (!w) return false;
+    const done = () => {
+      this.warmWait = null;
+    };
+    this.warmWait = w.then(done, done);
+    return true;
+  }
+
+  /**
    * One reload of the decision model (`reload` option), never aborted: no call is made until it
    * settles (tick() returns at once), then the next tick asks again with the current text, whatever
    * the outcome (a failed reload leaves the next timeouts in a row to start another one).
@@ -524,7 +548,7 @@ export class Engine {
    * skips the pacing and the "same text" rule, which exist to stop idle or piled-up calls, not this one.
    */
   async tick(verifyNow = false): Promise<void> {
-    if (this.inFlight || this.reloading) return;
+    if (this.inFlight || this.reloading || this.warmWait) return;
     const s = this.state;
     const section = s.script.sections[s.sectionIdx];
     if (!section) return;
@@ -603,7 +627,7 @@ export class Engine {
           st.engine.slowMs = this.o.timeoutMs;
           st.engine.error = undefined;
         });
-        if (++this.timeouts >= this.o.reloadAfter) this.startReload();
+        if (!this.waitForWarmup() && ++this.timeouts >= this.o.reloadAfter) this.startReload();
       } else {
         this.update((st) => (st.engine.error = (err as Error).message));
       }

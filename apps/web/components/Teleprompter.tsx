@@ -26,7 +26,7 @@ import { Wordmark, LangProvider, OnScreenStrip, useLang, useT } from "@filow/ui"
 import { availableBackends, BACKEND_LABELS, browserSupported, createBackend, selectedWhisperModel, sherpaBridge, sherpaUsable, whisperCached, type SttBackend, preopenMic, releasePreopenedMic } from "@filow/stt";
 import { getCloudDecision, getSetupPreference, getStartMode, setDecisionProvider, setStartMode, speechLangFor, syncSpeechLang, type StartMode } from "@/lib/prefs";
 import { loadGate } from "@/lib/gate/client";
-import { useEngine } from "./useEngine";
+import { useEngine, warmDecisionModel } from "./useEngine";
 import { fetchPlan, type PlanResponse } from "@/lib/plan";
 import { LOCAL_STT, takeModeOf } from "@/lib/router";
 import { engineHeaders, ensureEngineToken, useSession } from "./useSession";
@@ -369,7 +369,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       setDecisionProvider(provider);
       setTakeSetup(mode === "local" ? r.setup : null);
       if (mode === "local" && r.setup) pushLog(`${t("setup.inUse", { name: t(`setup.${r.setup.active}`) })} · ${provider}`);
-      if (provider === "clef-local") void fetch("/api/local/warmup", { method: "POST" }).catch(() => undefined);
+      if (provider === "clef-local") void warmDecisionModel();
       if (provider === "matcher") {
         // the matcher's sentence model (120 MB, downloaded once, then cached) must be ready before the take
         let lastPct = -10;

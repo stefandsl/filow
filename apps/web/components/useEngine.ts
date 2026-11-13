@@ -49,6 +49,22 @@ export function reloadDecisionModel(provider: DecisionProviderId | undefined, po
   return provider === "clef-local" ? post("/api/local/warmup", { method: "POST" }) : undefined;
 }
 
+/**
+ * The take-start warm-up of local Clef (no 2.5 s limit, pinned). Its promise is kept while it is in
+ * flight so the engine can tell its own first load from a model that left memory (warming).
+ */
+let warmup: Promise<unknown> | undefined;
+export function warmDecisionModel(post: typeof fetch = fetch): Promise<unknown> {
+  const p: Promise<unknown> = post("/api/local/warmup", { method: "POST" }).catch(() => undefined);
+  warmup = p;
+  void p.then(() => {
+    if (warmup === p) warmup = undefined;
+  });
+  return p;
+}
+/** The warm-up still loading, or undefined. */
+export const pendingWarmup = (): Promise<unknown> | undefined => warmup;
+
 /** Point vectors are needed by the gate (when on) and by the on-device matcher (always). */
 const wantsPoints = () => gateAvailable() && (getGateMode() === "on" || getDecisionProvider() === "matcher");
 
@@ -78,7 +94,7 @@ export function useEngine() {
       if (getGateMode() !== "on" || !gateAvailable()) return decideViaApi(r, signal);
       return (gateThresholdsFor(provider).narrow === false ? skipOnly : narrowed)(r, signal);
     };
-    return new Engine({ decide, reload: () => reloadDecisionModel(getDecisionProvider()) });
+    return new Engine({ decide, reload: () => reloadDecisionModel(getDecisionProvider()), warming: pendingWarmup });
   }, []);
   const [state, setState] = useState<SessionState>(engine.getState());
   const lang = useLang();
