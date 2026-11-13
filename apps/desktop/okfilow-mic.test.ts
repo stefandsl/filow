@@ -101,6 +101,66 @@ describe("wiring (okfilow.js, the preload, main.js)", () => {
   });
 });
 
+// 13 Nov, installed 0.9.37: talk:end, talk:start 0.75 s later, then the first recording's "I didn't catch
+// that" arrived with the keys down again and ended the new hold; its talk:end was dropped and the
+// microphone stayed open for 14 s with the keys up.
+describe("keys up always ends the capture", () => {
+  const { errorEndsHold, createCaptureWatch, CAPTURE_GRACE_MS } = require("./okfilow-mic.js") as {
+    errorEndsHold(o: { held: boolean; begun: boolean }): boolean;
+    createCaptureWatch(o?: { graceMs?: number; now?: () => number }): { frame(allowed: boolean): boolean; reset(): void };
+    CAPTURE_GRACE_MS: number;
+  };
+  const main = source("okfilow.js");
+
+  it("an error left over from the recording before does not end the hold of the keys that are down now", () => {
+    expect(errorEndsHold({ held: true, begun: false })).toBe(false);
+    // the panel began to listen for this press and failed (no model, microphone refused): the hold ends
+    expect(errorEndsHold({ held: true, begun: true })).toBe(true);
+    expect(errorEndsHold({ held: false, begun: true })).toBe(false);
+  });
+  it("main applies it: a press starts unbegun, opening or listening begins it, and only then an error ends the hold", () => {
+    const press = main.slice(main.indexOf("function press(kind"), main.indexOf("function release()"));
+    expect(press).toMatch(/held = true;\s*listenBegun = false;/);
+    const setMode = main.slice(main.indexOf("function setMode(next, extra = {})"), main.indexOf("// ---- panel (also the brain) ----"));
+    expect(setMode).toMatch(/if \(next === "opening" \|\| next === "listening"\) listenBegun = true;\s*if \(next === "error" && errorEndsHold\(\{ held, begun: listenBegun \}\)\) \{\s*held = false;/);
+    expect(setMode).not.toContain('if (next === "error" && held)');
+  });
+  it("the panel does not say the last recording's error over a press that is already waiting", () => {
+    const panel = readFileSync(new URL("../web/app/okfilow/panel/page.tsx", import.meta.url), "utf8");
+    const stop = panel.slice(panel.indexOf("const stopListening = useCallback("), panel.indexOf("const stopRef = useRef(stopListening);"));
+    expect(stop.indexOf("if (queuedStart.current) return;")).toBeGreaterThan(-1);
+    expect(stop.indexOf("if (queuedStart.current) return;")).toBeLessThan(stop.indexOf('t("notHeard")'));
+  });
+
+  it("the watchdog: sound with no key held and no hands-free mode is stopped after the grace, never before", () => {
+    let t = 0;
+    const w = createCaptureWatch({ now: () => t });
+    for (; t < 60_000; t += 128) expect(w.frame(true)).toBe(false); // keys held, or hands-free: for as long as it lasts
+    const from = t;
+    for (; t < from + CAPTURE_GRACE_MS; t += 128) expect(w.frame(false)).toBe(false);
+    expect(w.frame(false)).toBe(true);
+    // it counts again: a capture that did not stop is stopped again
+    expect(w.frame(false)).toBe(false);
+    t += CAPTURE_GRACE_MS;
+    expect(w.frame(false)).toBe(true);
+  });
+  it("the watchdog: a key held again, or a new press, starts the count over", () => {
+    let t = 0;
+    const w = createCaptureWatch({ graceMs: 1000, now: () => t });
+    w.frame(false); t += 900;
+    expect(w.frame(true)).toBe(false);
+    t += 900;
+    expect(w.frame(false)).toBe(false);
+    t += 900; w.reset(); t += 900;
+    expect(w.frame(false)).toBe(false);
+    t += 1000;
+    expect(w.frame(false)).toBe(true);
+  });
+  it("main runs it on every block of sound and tells the panel to stop", () => {
+    expect(main).toMatch(/if \(captureWatch\.frame\(held \|\| handsFree \|\| releaseTail\.waiting\)\) \{\s*logLine\("okfilow: the microphone was still open with no key held: stopped"\);\s*sendPanel\("okfilow:cancel", \{ purpose: null, watchdog: true \}\);/);
+  });
+});
+
 describe("the opening state in the main process", () => {
   const main = source("okfilow.js");
   it("a dictation's report tells when the microphone was asked for and when it was open", () => {

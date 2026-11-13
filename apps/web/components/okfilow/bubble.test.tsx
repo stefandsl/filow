@@ -259,7 +259,17 @@ describe("while the microphone is still opening", () => {
   });
 
   it("keys up, or Escape, while it opens reach the open", () => {
-    expect(stop).toMatch(/if \(starting\.current\) \{\s*pendingStop\.current = send;\s*(\/\/[^\n]*\n\s*)*if \(send\) micOpening\.current\?\.release\(\);\s*else micOpening\.current\?\.cancel\(\);\s*return;\s*\}/);
+    expect(stop).toMatch(/if \(starting\.current\) \{\s*pendingStop\.current = send;\s*(\/\/[^\n]*\n\s*)*if \(send\) micOpening\.current\?\.release\(\);\s*else micOpening\.current\?\.cancel\(\);/);
+  });
+
+  it("keys up while only the recognizer is still loading close the microphone at once; the words said until then are still heard", () => {
+    // (it used to stay open until the recognizer was ready, 2 s or more on the first use, and what was said after the keys went up was heard)
+    expect(stop).toMatch(/else micOpening\.current\?\.cancel\(\);\s*(\/\/[^\n]*\n\s*)*stopAudio\(\);\s*return;\s*\}/);
+    // the stop that waited for the recognizer still runs, with the microphone already closed
+    expect(stop).toMatch(/if \(!audio\.current && !deferred\) return;/);
+    expect(start).toMatch(/const failed = await loading;\s*if \(failed\) throw failed;\s*starting\.current = false;\s*if \(pendingStop\.current !== null\) \{\s*const send = pendingStop\.current;\s*pendingStop\.current = null;\s*void stopRef\.current\(send, true\);/);
+    // sound that came before the recognizer was ready is handed over when it is
+    expect(start).toMatch(/recognizerReady = true;\s*for \(const s of queued\) b\.stt\.feed\(s\);/);
   });
 
   it("a recording with no words after a slow open is told as the microphone's, for a question and for a dictation", () => {

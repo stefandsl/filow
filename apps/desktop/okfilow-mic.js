@@ -75,4 +75,38 @@ function createMicOpens() {
   };
 }
 
-module.exports = { QA_MIC_DELAY_MAX_MS, qaMicDelay, MIC_SLOW_LOG_MS, micOpenFacts, micOpenLine, createMicOpens };
+/**
+ * An error from the panel ends the hold main is counting (the panel could not start listening, so no
+ * release must be waited for) only when it is about THIS press: the panel has begun to listen for it
+ * (`begun`: it said "opening" or "listening" since the keys went down). An error that belongs to the
+ * recording before ("I didn't catch that", arriving while the keys are down again) used to end the
+ * new hold: the release that followed was dropped and the microphone stayed open with the keys up.
+ */
+const errorEndsHold = ({ held, begun }) => held === true && begun === true;
+
+/** Sound may come this long with no key held before it is stopped (a release waits for the recognizer to load, 2 s on first use). */
+const CAPTURE_GRACE_MS = 4000;
+
+/**
+ * The watchdog: sound from the microphone is expected only while a key is held or a hands-free mode
+ * is on (`allowed`). `frame(allowed)` is called for every block of sound the panel hands over and
+ * returns true once sound has kept coming for `graceMs` with nothing allowing it: the capture must
+ * be stopped. It then starts counting again (so a capture that will not stop is stopped again).
+ */
+function createCaptureWatch({ graceMs = CAPTURE_GRACE_MS, now = Date.now } = {}) {
+  let since = null;
+  return {
+    frame(allowed) {
+      if (allowed) { since = null; return false; }
+      const t = now();
+      if (since === null) { since = t; return false; }
+      if (t - since < graceMs) return false;
+      since = null;
+      return true;
+    },
+    /** The capture ended (or a new one starts): nothing is being counted. */
+    reset() { since = null; },
+  };
+}
+
+module.exports = { errorEndsHold, CAPTURE_GRACE_MS, createCaptureWatch, QA_MIC_DELAY_MAX_MS, qaMicDelay, MIC_SLOW_LOG_MS, micOpenFacts, micOpenLine, createMicOpens };

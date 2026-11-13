@@ -27,7 +27,7 @@ const { createPhoneGate } = require("./okfilow-phone");
 // Measured runs (qa-headless.js): nothing of OK Filow appears on screen with FILOW_QA_HEADLESS=1.
 const { showWindow, trayFor } = require("./qa-headless");
 const { timingsLine } = require("./okfilow-timings");
-const { qaMicDelay, createMicOpens } = require("./okfilow-mic");
+const { qaMicDelay, createMicOpens, errorEndsHold, createCaptureWatch } = require("./okfilow-mic");
 
 /** An IPC event from the main frame of one of OK Filow's windows (`contents`), on an OK Filow page; never a subframe. */
 function okfilowSender(event, contents, appUrl) {
@@ -575,7 +575,10 @@ function createOkFilow(deps) {
   function setMode(next, extra = {}) {
     // The panel could not start listening (no model, microphone refused) while keys are still counted as
     // held: end that session here, or a toggle-mode dictation would eat the user's next press as "stop".
-    if (next === "error" && held) {
+    // Only an error about this press: one left over from the recording before must not end the new
+    // hold, or its release is dropped and the microphone stays open with the keys up (okfilow-mic.js).
+    if (next === "opening" || next === "listening") listenBegun = true;
+    if (next === "error" && errorEndsHold({ held, begun: listenBegun })) {
       held = false;
       clearTimeout(dictateCap);
       if (purpose === "dictate") gestures?.endToggle();
@@ -770,6 +773,10 @@ function createOkFilow(deps) {
   let phraseRun = null; // dictation-core createPhraseRun() while the phrases of one hands-free dictation are typed
   // Issue #7: a held dictation records a moment more after the keys go up (dictation-release.js).
   const releaseTail = createReleaseTail({ send: (payload) => sendPanel("okfilow:release", payload) });
+  /** The panel has begun to listen for the press being held (it said "opening" or "listening" since the keys went down). */
+  let listenBegun = false;
+  /** Sound with no key held and no hands-free mode is stopped (okfilow-mic.js createCaptureWatch). */
+  const captureWatch = createCaptureWatch();
 
   /** `handsFree`: a dictation with the keys up (double tap, or toggle mode): typed phrase by phrase. */
   function press(kind = "talk", handsFree = false) {
@@ -792,6 +799,8 @@ function createOkFilow(deps) {
       return;
     }
     held = true;
+    listenBegun = false;
+    captureWatch.reset();
     purpose = kind;
     // A hands-free dictation nobody stops ends by itself after five minutes.
     clearTimeout(dictateCap);
@@ -1343,7 +1352,14 @@ function createOkFilow(deps) {
     return stt.start(typeof language === "string" ? language : "auto");
   });
   ipcMain.on("okfilow:stt:feed", (e, samples) => {
-    if (!ourSender(e) || !stt) return;
+    if (!ourSender(e)) return;
+    // The watchdog: the microphone never keeps running with the keys up and no hands-free mode on.
+    // (A release still waiting for its tail counts as held.) The panel is told to stop, and nothing of it is used.
+    if (captureWatch.frame(held || handsFree || releaseTail.waiting)) {
+      logLine("okfilow: the microphone was still open with no key held: stopped");
+      sendPanel("okfilow:cancel", { purpose: null, watchdog: true });
+    }
+    if (!stt) return;
     if (held && purpose === "dictate") dictation.diag.mark("audio", {}, { once: true }); // the microphone delivers sound
     stt.feed(samples instanceof Float32Array ? samples : new Float32Array(samples));
   });
@@ -1512,7 +1528,7 @@ function createOkFilow(deps) {
   };
   /** The live "going outside" signal, for requests made outside OK Filow (the account's, main.js). */
   const outboundSignal = () => ({ begin: outbound.begin, end: outbound.end });
-  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, askFromPhone, outboundSignal, micReport: () => micOpens.report() };
+  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, askFromPhone, micReport: () => micOpens.report(), outboundSignal };
 }
 
 /**

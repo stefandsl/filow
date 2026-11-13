@@ -1089,9 +1089,14 @@ export default function OkFilowPanel() {
       // up on and said so; Escape ends the wait at once (lib/buddy/micOpen.ts).
       if (send) micOpening.current?.release();
       else micOpening.current?.cancel();
+      // The microphone is open and only the recognizer is still loading: the keys are up, so the
+      // microphone closes now. What was said until here is kept (`queued`) and heard once the recognizer
+      // is ready; nothing said after the keys went up is recorded.
+      stopAudio();
       return;
     }
-    if (!audio.current) return;
+    // (`deferred`: the stop that waited for the recognizer; its microphone was closed when the keys went up)
+    if (!audio.current && !deferred) return;
     stopping.current = true;
     // Hands-free dictation: from here the rest is typed below, not phrase by phrase.
     const phrases = flow.current;
@@ -1181,6 +1186,9 @@ export default function OkFilowPanel() {
     }
     if (!question) {
       if (why === "handsfree" && handsFree.current) { setMode("idle"); return listenAgain.current(); }
+      // The keys are down again (a press waits in queuedStart and starts in `finally`): this recording's
+      // "I didn't catch that" is not said over the new one.
+      if (queuedStart.current) return;
       // After a microphone that was slow to open the words were lost there: said so, not "hold the keys".
       const line = slowMic ? micNoteText(slowMic, t) : t("notHeard");
       b.text(line);
