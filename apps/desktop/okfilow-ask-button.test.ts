@@ -99,7 +99,7 @@ describe("a paired phone's question in the desktop app", () => {
     expect(okf).toContain("const PHONE_QUESTION_MAX = 300;");
     expect(okf).toContain("const PHONE_ASK_GAP_MS = 3000;");
     // shown without taking the keyboard from what the presenter has in front (a slideshow, say)
-    expect(fn).toContain("if (!panel.isVisible()) panel.showInactive();");
+    expect(fn).toContain("if (!panel.isVisible()) showWindow(panel, \"panel\", true);");
     expect(fn).not.toMatch(/\.focus\(|\.show\(\)|showPanelAtCursor|keyTap/);
     // the panel asks a handed-over question through its one ask(): the same consent and provider as a typed one
     const panel = fs.readFileSync(path.join(dir, "..", "web", "app", "okfilow", "panel", "page.tsx"), "utf8");
