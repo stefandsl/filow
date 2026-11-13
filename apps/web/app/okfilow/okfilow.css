@@ -108,21 +108,64 @@ html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !import
 /* Drawings: pen strokes that draw themselves, one after another (HeyClicky-style teaching marks). */
 :root { --okf-ink: #ffb600; }
 .okf-draw { position: fixed; inset: 0; pointer-events: none; overflow: visible; }
-.okf-mark path {
-  fill: none; stroke: var(--okf-ink); stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round;
-  stroke-dasharray: 1; stroke-dashoffset: 1; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
-  animation: okf-stroke 0.55s cubic-bezier(0.45, 0, 0.25, 1) forwards;
+/* One stroke style for every mark: the ink on a slightly wider dark under-stroke (a halo that reads on
+   white and on dark screens, and costs nothing like a filter). The pen draws both together; its time
+   (--okf-s), start (--okf-d), the label's (--okf-l) and the arrow head's (--okf-h) come from the page. */
+.okf-marks-over { position: fixed; inset: 0; pointer-events: none; }
+.okf-mark path, .okf-mark line { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.okf-mark .okf-mark-ink, .okf-mark .okf-mark-halo {
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: okf-stroke var(--okf-s, 0.5s) var(--okf-ease, ease-out) var(--okf-d, 0s) forwards;
+}
+.okf-mark .okf-mark-ink { stroke: var(--okf-ink); stroke-width: 4.5; }
+.okf-mark .okf-mark-halo { stroke: rgba(0, 0, 0, 0.35); stroke-width: 8; }
+.okf-mark .okf-mark-head {
+  fill: var(--okf-ink); stroke: rgba(0, 0, 0, 0.35); stroke-width: 1.75; paint-order: stroke;
+  opacity: 0; animation: okf-fade-in 0.09s linear var(--okf-h, 0s) forwards;
+}
+/* The leader from the mark's edge (a 4 px dot) to its label. */
+.okf-mark-leader line {
+  stroke: var(--okf-ink); stroke-width: 1.5; stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: okf-stroke 0.12s ease-out var(--okf-l, 0s) forwards;
+}
+.okf-mark-leader circle { fill: var(--okf-ink); stroke: rgba(0, 0, 0, 0.35); stroke-width: 1; opacity: 0; animation: okf-fade-in 0.08s linear var(--okf-l, 0s) forwards; }
+/* The pen tip leads the stroke and fades as it ends. */
+.okf-pen {
+  position: absolute; left: 0; top: 0; width: 7px; height: 7px; margin: 0; border-radius: 50%;
+  background: var(--okf-ink); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  offset-rotate: 0deg; offset-anchor: center; offset-distance: 0%; opacity: 0;
+  animation: okf-pen-move var(--okf-s, 0.5s) var(--okf-ease, ease-out) var(--okf-d, 0s) both, okf-pen-fade var(--okf-s, 0.5s) linear var(--okf-d, 0s) forwards;
 }
 .okf-mark-label {
-  display: inline-block; padding: 3px 9px; border-radius: 999px; font: 700 13px/1.3 system-ui, sans-serif;
-  background: var(--okf-ink); color: #08090b; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-  opacity: 0; animation: okf-pop 0.25s ease-out forwards;
+  position: absolute; box-sizing: border-box; height: 30px; padding: 5px 11px; border-radius: 999px;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 600 15px/20px system-ui, sans-serif;
+  background: var(--okf-ink); color: #08090b; box-shadow: 0 0 0 1px rgba(8, 9, 11, 0.55), 0 4px 14px rgba(0, 0, 0, 0.35);
+  opacity: 0; animation: okf-pop 0.2s ease-out var(--okf-l, 0s) forwards;
 }
 @keyframes okf-stroke { to { stroke-dashoffset: 0; } }
 @keyframes okf-pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes okf-fade-in { to { opacity: 1; } }
+@keyframes okf-pen-move { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+@keyframes okf-pen-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+/* Going away: the labels (and leaders, heads) fade with a small drift first, then the strokes erase backwards. */
+.okf-mark--leaving .okf-mark-label, .okf-mark--leaving .okf-mark-leader, .okf-mark--leaving .okf-mark-head {
+  opacity: 1; animation: okf-out 0.14s linear forwards;
+}
+.okf-mark--leaving .okf-mark-ink, .okf-mark--leaving .okf-mark-halo {
+  stroke-dashoffset: 0; animation: okf-erase 0.2s cubic-bezier(0.3, 0, 0.7, 1) 0.04s forwards;
+}
+.okf-mark--leaving .okf-mark-leader line { stroke-dashoffset: 0; }
+.okf-mark--leaving .okf-mark-leader circle { opacity: 1; }
+@keyframes okf-out { to { opacity: 0; transform: translateY(2px); } }
+@keyframes okf-erase { from { stroke-dashoffset: 0; } to { stroke-dashoffset: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .okf-mark path { animation-duration: 0.01s; }
-  .okf-mark-label { animation-duration: 0.01s; }
+  /* No pen and no animation at all (globals.css stops every animation here): the marks, leaders and
+     labels are simply there, whole, and go at once. Without this they would stay at their hidden start. */
+  .okf-mark .okf-mark-ink, .okf-mark .okf-mark-halo, .okf-mark .okf-mark-leader line { stroke-dashoffset: 0; }
+  .okf-mark .okf-mark-head, .okf-mark .okf-mark-leader circle, .okf-mark .okf-mark-label { opacity: 1; }
+  .okf-pen, .okf-mark--leaving { display: none; }
+  /* The cards had the same trap (opacity 0 until an animation that never runs). */
+  .okf-cards .okf-card { opacity: 1; }
 }
 
 /* The user's highlighter while asking: wide, translucent, like a marker. */
@@ -324,10 +367,12 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
 .okf-notch-status { font-weight: 600; }
 
 /* Paused: the pen holds still where it is; Resume lets it go on. */
-.okf-paused .okf-mark, .okf-paused .okf-mark path, .okf-paused .okf-mark-label, .okf-paused .okf-card { animation-play-state: paused; }
+.okf-paused .okf-mark path, .okf-paused .okf-mark, .okf-paused .okf-mark line, .okf-paused .okf-mark circle, .okf-paused .okf-pen, .okf-paused .okf-mark-label, .okf-paused .okf-card { animation-play-state: paused; }
+/* Marks that go away erase even while the answer is paused (Clear, the bubble went). */
+.okf-paused .okf-mark--leaving path, .okf-paused .okf-mark--leaving .okf-mark-leader, .okf-paused .okf-mark--leaving .okf-mark-label { animation-play-state: running; }
 /* Marks drawn before a stop (Resume after Stop): shown as they were, not drawn a second time. */
-.okf-mark--done path { animation: none; stroke-dashoffset: 0; }
-.okf-mark--done .okf-mark-label { animation: none; opacity: 1; }
+.okf-mark.okf-mark--done:not(.okf-mark--leaving) :is(.okf-mark-ink, .okf-mark-halo, line) { animation: none; stroke-dashoffset: 0; }
+.okf-mark.okf-mark--done:not(.okf-mark--leaving) :is(.okf-mark-head, circle, .okf-mark-label) { animation: none; opacity: 1; }
 
 /* The panel's status row keeps room for two lines of status beside the controls, so it does not grow when a longer status wraps. */
 .okf-status-row { min-height: 44px; }
