@@ -63,7 +63,7 @@ function createMicOpens() {
         lastMs = f.ms;
         maxMs = Math.max(maxMs, f.ms);
         if (f.ms > MIC_SLOW_LOG_MS) slow += 1;
-        if (f.state === "late") late += 1;
+        if (f.state === "late" && f.ms > MIC_SLOW_LOG_MS) late += 1;
         fallback = f.fallback;
       }
       return micOpenLine(f);
@@ -77,12 +77,12 @@ function createMicOpens() {
 
 /**
  * An error from the panel ends the hold main is counting (the panel could not start listening, so no
- * release must be waited for) only when it is about THIS press: the panel has begun to listen for it
- * (`begun`: it said "opening" or "listening" since the keys went down). An error that belongs to the
+ * release must be waited for) only when the panel says it is about listening (`listen`: the microphone
+ * or the recognizer of the recording in progress failed, or its open was given up on). An error that belongs to the
  * recording before ("I didn't catch that", arriving while the keys are down again) used to end the
  * new hold: the release that followed was dropped and the microphone stayed open with the keys up.
  */
-const errorEndsHold = ({ held, begun }) => held === true && begun === true;
+const errorEndsHold = ({ held, listen }) => held === true && listen === true;
 
 /** Sound may come this long with no key held before it is stopped (a release waits for the recognizer to load, 2 s on first use). */
 const CAPTURE_GRACE_MS = 4000;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { MIC_GIVE_UP_MS, MIC_NOTE_MS, MIC_SLOW_MS, abandonedNote, emptyRecordingNote, micSeconds, openMicrophone } from "./micOpen";
+import { MIC_GIVE_UP_MS, MIC_NOTE_MS, MIC_SLOW_MS, abandonedNote, emptyRecordingNote, micSeconds, openMicrophone, type MicAbandoned } from "./micOpen";
 import { OKF_TEXT } from "./text";
 
 /** A microphone that opens when the test says so, on a clock the test moves. */
@@ -78,14 +78,19 @@ describe("opening the microphone", () => {
     expect(f.timers).toEqual([]);
   });
 
-  it("a short tap on a microphone that opens at once is not the microphone's fault: the open is waited for", async () => {
+  it("a short tap: the microphone that opens after the keys went up is closed at once, never listened to, and it is not called slow", async () => {
     const f = fixture();
     await f.advance(60);
     f.opening.release();
     await f.advance(60);
     f.live();
-    expect(await f.opening.done).toEqual({ state: "live", stream: "stream", openMs: 120 });
-    expect(f.calls.closed).toEqual([]);
+    const got = await f.opening.done;
+    expect(got).toEqual({ state: "abandoned", why: "released", waitedMs: 120 });
+    expect(f.calls.closed).toEqual(["stream"]);
+    expect(f.calls.opened).toEqual([[120, false]]);
+    // not the microphone's fault: the usual hint is said, not "the microphone was still not open"
+    expect(abandonedNote(got as MicAbandoned)).toBeNull();
+    expect(f.timers).toEqual([]);
   });
 
   it("a short tap on a microphone that then stays closed is abandoned as soon as the open counts as slow", async () => {

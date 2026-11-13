@@ -577,8 +577,7 @@ function createOkFilow(deps) {
     // held: end that session here, or a toggle-mode dictation would eat the user's next press as "stop".
     // Only an error about this press: one left over from the recording before must not end the new
     // hold, or its release is dropped and the microphone stays open with the keys up (okfilow-mic.js).
-    if (next === "opening" || next === "listening") listenBegun = true;
-    if (next === "error" && errorEndsHold({ held, begun: listenBegun })) {
+    if (next === "error" && errorEndsHold({ held, listen: extra.listen === true })) {
       held = false;
       clearTimeout(dictateCap);
       if (purpose === "dictate") gestures?.endToggle();
@@ -773,8 +772,6 @@ function createOkFilow(deps) {
   let phraseRun = null; // dictation-core createPhraseRun() while the phrases of one hands-free dictation are typed
   // Issue #7: a held dictation records a moment more after the keys go up (dictation-release.js).
   const releaseTail = createReleaseTail({ send: (payload) => sendPanel("okfilow:release", payload) });
-  /** The panel has begun to listen for the press being held (it said "opening" or "listening" since the keys went down). */
-  let listenBegun = false;
   /** Sound with no key held and no hands-free mode is stopped (okfilow-mic.js createCaptureWatch). */
   const captureWatch = createCaptureWatch();
 
@@ -799,7 +796,6 @@ function createOkFilow(deps) {
       return;
     }
     held = true;
-    listenBegun = false;
     captureWatch.reset();
     purpose = kind;
     // A hands-free dictation nobody stops ends by itself after five minutes.

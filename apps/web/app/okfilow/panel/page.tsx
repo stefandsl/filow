@@ -218,7 +218,8 @@ export default function OkFilowPanel() {
     okFilowBridge()?.level(0);
   }, []);
 
-  const fail = useCallback((raw: string) => {
+  /** `listen`: the failure is about the recording in progress (microphone, recognizer), so main stops waiting for its keys to go up. */
+  const fail = useCallback((raw: string, listen = false) => {
     // Electron wraps errors thrown in the main process: "Error invoking remote method 'x': Error: msg".
     // A stopped Ollama: said in the user's language, and the desktop shell starts it in the background.
     const stopped = OLLAMA_STOPPED_ANSWER.test(raw);
@@ -228,7 +229,9 @@ export default function OkFilowPanel() {
     setFreeDown(freellmCodeOf(plain) === "not_running");
     setError(message);
     okFilowBridge()?.text(message);
-    setMode("error", stopped ? { error: message, code: "ollama_stopped" } : { error: message });
+    // A recording this failure closes (below) is over for main too; an error about anything else leaves the keys' hold alone.
+    const ends = listen || Boolean(audio.current);
+    setMode("error", { error: message, ...(stopped ? { code: "ollama_stopped" } : {}), ...(ends ? { listen: true } : {}) });
     // Hands-free dictation: nothing more is typed after an error; words still waiting for a pause are kept in the box below.
     const f = flow.current;
     flow.current = null;
@@ -997,15 +1000,26 @@ export default function OkFilowPanel() {
         vad.current = null;
         void b.stt.stop().catch(() => {});
         const told = abandonedNote(got);
+        // The shell logs a dictation that gave nothing and keeps it for "Report a problem" (an empty text is never typed).
+        if (got.why !== "cancelled" && why === "dictate") void b.typeText("", "", false).catch(() => null);
         if (told) {
           b.micOpened?.({ ms: got.waitedMs, state: "waiting", fallback });
-          // The shell logs a dictation that gave nothing and keeps it for "Report a problem" (an empty text is never typed).
-          if (why === "dictate") void b.typeText("", "", false).catch(() => null);
           const line = micNoteText(told, t);
           if (why === "dictate") setNote(line);
           else setError(line);
           b.text(line);
-          setMode("error", { error: line });
+          // (`listen`: main stops waiting for these keys to go up)
+          setMode("error", { error: line, listen: true });
+        } else if (got.why === "released") {
+          // A tap: the keys were up again before a microphone that was not slow had opened. Nothing was
+          // recorded (the microphone that came was closed at once), and the usual hint is the true one.
+          if (why === "dictate") {
+            b.text(dictT("nothingHint", { keys: dict?.chordLabel ?? "" }));
+            setMode("idle", { holdMs: 5000 });
+          } else {
+            b.text(t("notHeard"));
+            setMode("error", { error: t("notHeard") });
+          }
         } else {
           b.text("");
           setMode("idle");
@@ -1070,7 +1084,7 @@ export default function OkFilowPanel() {
       stopAudio();
       void b.stt.stop().catch(() => {});
       // (a refusal can come without words: its name then says what it was)
-      fail(e instanceof Error ? e.message || e.name : String(e));
+      fail(e instanceof Error ? e.message || e.name : String(e), true);
     }
   }, [dictT, endAnswer, fail, setMode, stopAudio, t]);
   const startRef = useRef(startListening);
@@ -1293,7 +1307,7 @@ export default function OkFilowPanel() {
     if (!b) return;
     const offs = [
       b.stt.onResult((r) => {
-        if (r.error) return fail(r.error);
+        if (r.error) return fail(r.error, true);
         if (r.committed) { committed.current.push(r.committed); partial.current = ""; }
         else partial.current = r.partial;
         // The speed baseline: the last words the recognizer gave before the question was asked.

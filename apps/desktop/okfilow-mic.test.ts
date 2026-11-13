@@ -106,23 +106,30 @@ describe("wiring (okfilow.js, the preload, main.js)", () => {
 // microphone stayed open for 14 s with the keys up.
 describe("keys up always ends the capture", () => {
   const { errorEndsHold, createCaptureWatch, CAPTURE_GRACE_MS } = require("./okfilow-mic.js") as {
-    errorEndsHold(o: { held: boolean; begun: boolean }): boolean;
+    errorEndsHold(o: { held: boolean; listen: boolean }): boolean;
     createCaptureWatch(o?: { graceMs?: number; now?: () => number }): { frame(allowed: boolean): boolean; reset(): void };
     CAPTURE_GRACE_MS: number;
   };
   const main = source("okfilow.js");
 
   it("an error left over from the recording before does not end the hold of the keys that are down now", () => {
-    expect(errorEndsHold({ held: true, begun: false })).toBe(false);
-    // the panel began to listen for this press and failed (no model, microphone refused): the hold ends
-    expect(errorEndsHold({ held: true, begun: true })).toBe(true);
-    expect(errorEndsHold({ held: false, begun: true })).toBe(false);
+    expect(errorEndsHold({ held: true, listen: false })).toBe(false);
+    // the panel says the recording itself failed (no model, microphone refused, its open given up on): the hold ends
+    expect(errorEndsHold({ held: true, listen: true })).toBe(true);
+    expect(errorEndsHold({ held: false, listen: true })).toBe(false);
   });
-  it("main applies it: a press starts unbegun, opening or listening begins it, and only then an error ends the hold", () => {
-    const press = main.slice(main.indexOf("function press(kind"), main.indexOf("function release()"));
-    expect(press).toMatch(/held = true;\s*listenBegun = false;/);
+  it("main applies it, and the panel flags only failures of the recording itself", () => {
     const setMode = main.slice(main.indexOf("function setMode(next, extra = {})"), main.indexOf("// ---- panel (also the brain) ----"));
-    expect(setMode).toMatch(/if \(next === "opening" \|\| next === "listening"\) listenBegun = true;\s*if \(next === "error" && errorEndsHold\(\{ held, begun: listenBegun \}\)\) \{\s*held = false;/);
+    expect(setMode).toMatch(/if \(next === "error" && errorEndsHold\(\{ held, listen: extra\.listen === true \}\)\) \{\s*held = false;/);
+    const panel = readFileSync(new URL("../web/app/okfilow/panel/page.tsx", import.meta.url), "utf8");
+    // the microphone or the recognizer failed, or the open was given up on
+    expect(panel).toContain("fail(e instanceof Error ? e.message || e.name : String(e), true);");
+    expect(panel).toContain("if (r.error) return fail(r.error, true);");
+    expect(panel).toContain('setMode("error", { error: line, listen: true });');
+    expect(panel).toContain("const ends = listen || Boolean(audio.current);");
+    // "I didn't catch that" of a recording that is over is not one of them
+    expect(panel).toContain('return setMode("error", { error: line });');
+    expect(panel).toContain('setMode("error", { error: t("notHeard") });');
     expect(setMode).not.toContain('if (next === "error" && held)');
   });
   it("the panel does not say the last recording's error over a press that is already waiting", () => {

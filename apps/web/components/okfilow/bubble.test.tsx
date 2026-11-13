@@ -250,11 +250,12 @@ describe("while the microphone is still opening", () => {
   it("an abandoned wait is told as the microphone's, closes the late microphone and starts nothing", () => {
     const abandoned = start.slice(at('if (got.state === "abandoned") {'), at("const stream = got.stream;"));
     expect(abandoned).toContain("const told = abandonedNote(got);");
-    expect(abandoned).toContain('setMode("error", { error: line });');
+    expect(abandoned).toContain('setMode("error", { error: line, listen: true });');
     expect(abandoned).toContain("void b.stt.stop().catch(() => {});");
     expect(abandoned).toMatch(/return;\s*\}\s*$/);
-    expect(abandoned).not.toContain("notHeard");
-    expect(abandoned).not.toContain("nothingHint");
+    // the usual hint only for a tap (keys up before a microphone that was not slow), never when the microphone was slow
+    expect(abandoned).toMatch(/if \(told\) \{[\s\S]*?\} else if \(got\.why === "released"\) \{[\s\S]*?nothingHint[\s\S]*?notHeard[\s\S]*?\} else \{/);
+    expect(abandoned.slice(abandoned.indexOf("if (told) {"), abandoned.indexOf('} else if (got.why === "released")'))).not.toMatch(/notHeard|nothingHint/);
     expect(start).toContain("close: (late) => late.getTracks().forEach((tr) => tr.stop()),");
   });
 

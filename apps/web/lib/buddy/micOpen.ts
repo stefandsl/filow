@@ -53,6 +53,7 @@ export function openMicrophone<S>(o: {
   const startedAt = now();
   const waited = () => Math.max(0, Math.round(now() - startedAt));
   let settled = false;
+  let released = false;
   let resolve!: (r: MicOpenResult<S>) => void;
   let reject!: (e: unknown) => void;
   const done = new Promise<MicOpenResult<S>>((res, rej) => { resolve = res; reject = rej; });
@@ -79,9 +80,10 @@ export function openMicrophone<S>(o: {
   o.open().then(
     (stream) => {
       const openMs = waited();
-      const used = !settled;
+      // The keys went up while it opened: it is closed, never listened to (keys up always end the capture).
+      const used = !settled && !released;
       if (used) { end(); resolve({ state: "live", stream, openMs }); }
-      else o.close(stream);
+      else { o.close(stream); abandon("released"); }
       o.onOpened?.(openMs, used);
     },
     (e: unknown) => {
@@ -92,7 +94,6 @@ export function openMicrophone<S>(o: {
     },
   );
 
-  let released = false;
   return {
     done,
     release() {
@@ -119,9 +120,10 @@ export function emptyRecordingNote(openMs: number | null, slowMs = MIC_SLOW_MS):
   return openMs !== null && openMs >= slowMs ? { key: "micSlow", seconds: micSeconds(openMs) } : null;
 }
 
-/** A wait that was abandoned: how long the microphone had been asked for. Null when the user called it off. */
-export function abandonedNote(a: MicAbandoned): MicNote | null {
-  return a.why === "cancelled" ? null : { key: "micNotOpen", seconds: micSeconds(a.waitedMs) };
+/** A wait that was abandoned: how long the microphone had been asked for. Null when the user called it off, or only tapped the keys. */
+export function abandonedNote(a: MicAbandoned, slowMs = MIC_SLOW_MS): MicNote | null {
+  // (keys up within a moment, before a microphone that was not slow: a tap too short to say anything)
+  return a.why === "cancelled" || (a.why === "released" && a.waitedMs < slowMs) ? null : { key: "micNotOpen", seconds: micSeconds(a.waitedMs) };
 }
 
 /** The sentence of a note, in the interface language (`t`). */
