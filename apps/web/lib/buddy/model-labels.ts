@@ -6,7 +6,7 @@
 type P = { x: number; y: number };
 type Size = { width: number; height: number };
 export type LabelSide = "left" | "right";
-export type LabelSlot = { x: number; y: number; width: number; height: number; side: LabelSide; from: P; to: P };
+export type LabelSlot = { x: number; y: number; width: number; height: number; side: LabelSide; from: P; knee: P; elbow: P; to: P };
 
 const DEG = Math.PI / 180;
 
@@ -97,13 +97,52 @@ export function layoutPartLabels(anchors: P[], sizes: Size[], view: Size, centre
       top = ys[i];
     }
   }
+  // Every leader runs level from its anchor out past all the anchors (the knee), straight across to the
+  // column's inner line (the elbow, level with its label), then level into its label. Level runs never
+  // cross (they are parallel and at different heights), and the straight runs of one side lie between
+  // two upright lines with their ends in the same order, so no two leaders ever cross.
+  const xs = anchors.map((a) => a.x);
+  const innerL = Math.max(edge, ...anchors.map((_, i) => (sides[i] === "left" ? edge + sizes[i].width : edge))) + 4;
+  const innerR = Math.min(view.width - edge, ...anchors.map((_, i) => (sides[i] === "right" ? view.width - edge - sizes[i].width : view.width - edge))) - 4;
+  const kneeL = Math.max(innerL, Math.min(...xs) - 10);
+  const kneeR = Math.min(innerR, Math.max(...xs) + 10);
   return anchors.map((a, i) => {
     const { width: w, height: h } = sizes[i];
     const side = sides[i];
-    const x = side === "left" ? edge : view.width - edge - w;
+    const left = side === "left";
+    const x = left ? edge : view.width - edge - w;
     const y = ys[i];
-    return { x, y, width: w, height: h, side, from: { x: a.x, y: a.y }, to: { x: side === "left" ? x + w : x, y: y + h / 2 } };
+    const mid = y + h / 2;
+    return { x, y, width: w, height: h, side, from: { x: a.x, y: a.y }, knee: { x: left ? kneeL : kneeR, y: a.y }, elbow: { x: left ? innerL : innerR, y: mid }, to: { x: left ? x + w : x, y: mid } };
   });
+}
+
+/** The labels' numbers in reading order: down the left column, then down the right one (1, 2, 3... with no gaps). */
+export function readingOrder(slots: LabelSlot[]): number[] {
+  const order = slots.map((s, i) => ({ s, i })).sort((p, q) => (p.s.side === q.s.side ? p.s.y - q.s.y || p.i - q.i : p.s.side === "left" ? -1 : 1));
+  const n = new Array<number>(slots.length);
+  order.forEach(({ i }, k) => { n[i] = k + 1; });
+  return n;
+}
+
+/** A label's leader as a polyline: anchor, knee, elbow, label edge. */
+export const leaderPoints = (s: LabelSlot): P[] => [s.from, s.knee, s.elbow, s.to];
+
+/** Whether two segments cross (touching at a shared end does not count). */
+function segmentsCross(a: P, b: P, c: P, d: P): boolean {
+  const o = (p: P, q: P, r: P) => Math.sign((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x));
+  const same = (p: P, q: P) => Math.abs(p.x - q.x) < 1e-9 && Math.abs(p.y - q.y) < 1e-9;
+  if (same(a, c) || same(a, d) || same(b, c) || same(b, d)) return false;
+  return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
+}
+
+/** Whether any two leaders cross (for the tests and the measurement). */
+export function leadersCross(slots: LabelSlot[]): boolean {
+  const segs = slots.flatMap((s, i) => {
+    const p = leaderPoints(s);
+    return p.slice(1).map((q, k) => [p[k], q, i]) as Array<[P, P, number]>;
+  });
+  return segs.some(([a, b, i], k) => segs.some(([c, d, j], m) => m > k && i !== j && segmentsCross(a, b, c, d)));
 }
 
 /** Whether any two label slots overlap (for the tests and the measurement). */

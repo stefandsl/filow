@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { flightMs } from "../web/lib/buddy/motion";
 
 const require = createRequire(import.meta.url);
 const { keepsOverlays, MARKS_HOLD_MS, MARKS_UNSPOKEN_MS, marksHold, createMarks, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, bubbleHold, createBubble, escapePlan, overlayLive, overlayMouse } = require("./okfilow-stop.js");
@@ -326,8 +327,8 @@ describe("main and the bubble", () => {
   });
   it("the pointer's visits keep the overlays for as long as they take, not until Escape", () => {
     expect(pointsShowMs(0)).toBe(0);
-    expect(pointsShowMs(1)).toBe(650 + 5500);
-    expect(pointsShowMs(3)).toBe(2 * (650 + 1800) + 650 + 5500);
+    expect(pointsShowMs(1)).toBe(900 + 5500);
+    expect(pointsShowMs(3)).toBe(2 * (900 + 1800) + 900 + 5500);
     const at = main.indexOf('ipcMain.on("okfilow:point"');
     const handler = main.slice(at, main.indexOf("\n  });\n", at));
     expect(handler).toContain("pointUntil = Date.now() + pointsShowMs(points.length);");
@@ -335,9 +336,11 @@ describe("main and the bubble", () => {
     expect(fade).toContain("}, Math.max(FADE_AFTER_MS, pointUntil - Date.now()));");
     // the overlay page's own timing, which this mirrors
     const page = fs.readFileSync(path.join(here, "../web/app/okfilow/overlay/page.tsx"), "utf8");
-    expect(page).toContain("const FLY_MS = 650;");
+    // (a flight takes flightMs of its length, at most 900 ms)
+    expect(page).toContain("const dur = flightMs(Math.hypot(to.x - from.x, to.y - from.y));");
+    expect(flightMs(1e6)).toBe(900);
     expect(page).toContain("const HOLD_MS = 5500;");
-    expect(page).toContain("now > g.start + FLY_MS + 1800");
+    expect(page).toContain("now > g.start + g.dur + 1800");
     // Escape and Clear still call the pointer back at once
     const clear = main.slice(main.indexOf("function clearDrawings()"), main.indexOf("// ---- keyboard gestures"));
     expect(clear).toContain("if (!pinned() && pointUntil <= Date.now()) return;");

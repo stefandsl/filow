@@ -13,7 +13,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { useLang } from "@filow/ui";
 import { okFilowBridge } from "@/lib/buddy/bridge";
 import { okfText } from "@/lib/buddy/text";
-import { fitScale, frameDistance, labelledParts, layoutPartLabels, type LabelSide } from "@/lib/buddy/model-labels";
+import { fitScale, frameDistance, labelledParts, layoutPartLabels, leaderPoints, readingOrder, type LabelSide } from "@/lib/buddy/model-labels";
 import type { BuddyModel, ModelPart } from "@/lib/buddy/visuals";
 import "../okfilow.css";
 
@@ -253,10 +253,10 @@ export default function OkFilowModel() {
     };
     window.addEventListener("resize", onResize);
 
-    // The labels: laid out every frame from where their parts are now; a label that changes sides
-    // glides across (its leader's dot never does: it is always on its part).
+    // The labels: laid out every frame from where their parts are now, in two columns inside the frame,
+    // numbered in reading order; each leader runs level out of the model, then to its label, so no two
+    // ever cross (its dot is always on its part). A part turned out of the frame hides its label.
     let sides: LabelSide[] | null = null;
-    let shown: Array<{ x: number; y: number }> | null = null;
     const world = new THREE.Vector3();
     const lines = Array.from(leaders.current?.querySelectorAll("g.okf-part-leader") ?? []);
     const placeLabels = () => {
@@ -271,22 +271,21 @@ export default function OkFilowModel() {
       const mid = project(new THREE.Vector3(0, 0, 0)).x;
       const slots = layoutPartLabels(pts, labelled.map((l) => ({ width: l.width, height: LABEL_HEIGHT })), { width: w, height: h }, mid, sides);
       sides = slots.map((s) => s.side);
-      const k = still || !shown ? 1 : 0.3;
-      // Only a change of side glides (across the model); the height follows the part at once, so a column never overlaps.
-      shown = slots.map((s, i) => (shown ? { x: shown[i].x + (s.x - shown[i].x) * k, y: s.y } : { x: s.x, y: s.y }));
+      const numbers = readingOrder(slots);
       slots.forEach((s, i) => {
-        const at = shown![i];
+        const inside = s.from.x >= 4 && s.from.x <= w - 4 && s.from.y >= 4 && s.from.y <= h - 4;
         const label = labelEls.current[i];
-        if (label) label.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px)`;
+        if (label) {
+          label.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px)`;
+          label.style.visibility = inside ? "" : "hidden";
+          const n = label.firstElementChild;
+          if (n && n.textContent !== String(numbers[i])) n.textContent = String(numbers[i]);
+        }
         const g = lines[i];
         if (!g) return;
-        const to = { x: s.side === "left" ? at.x + s.width : at.x, y: at.y + s.height / 2 };
-        for (const line of g.querySelectorAll("line")) {
-          line.setAttribute("x1", s.from.x.toFixed(1));
-          line.setAttribute("y1", s.from.y.toFixed(1));
-          line.setAttribute("x2", to.x.toFixed(1));
-          line.setAttribute("y2", to.y.toFixed(1));
-        }
+        (g as SVGGElement).style.visibility = inside ? "" : "hidden";
+        const points = leaderPoints(s).map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+        for (const line of g.querySelectorAll("polyline")) line.setAttribute("points", points);
         for (const dot of g.querySelectorAll("circle")) {
           dot.setAttribute("cx", s.from.x.toFixed(1));
           dot.setAttribute("cy", s.from.y.toFixed(1));
@@ -335,8 +334,8 @@ export default function OkFilowModel() {
       <svg ref={leaders} className="okf-model-leaders" width="100%" height="100%" aria-hidden key={model ? model.title + labelled.length : "none"}>
         {labelled.map((l) => (
           <g key={l.part} className="okf-part-leader">
-            <line className="okf-part-halo" x1={-99} y1={-99} x2={-99} y2={-99} />
-            <line className="okf-part-ink" x1={-99} y1={-99} x2={-99} y2={-99} />
+            <polyline className="okf-part-halo" points="-99,-99 -99,-99" />
+            <polyline className="okf-part-ink" points="-99,-99 -99,-99" />
             <circle cx={-99} cy={-99} r={3.5} />
           </g>
         ))}

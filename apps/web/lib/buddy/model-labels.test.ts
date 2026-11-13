@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitScale, frameDistance, labelledParts, layoutPartLabels, slotsOverlap } from "./model-labels";
+import { fitScale, frameDistance, labelledParts, layoutPartLabels, leaderPoints, leadersCross, readingOrder, slotsOverlap } from "./model-labels";
 
 const view = { width: 760, height: 460 };
 const sizes = (n: number, w = 120) => Array.from({ length: n }, () => ({ width: w, height: 28 }));
@@ -58,6 +58,37 @@ describe("the 3D view's part labels", () => {
     }
     // sixteen labels do not fit one column of 460 px: some went to the other side
     expect(new Set(slots.map((s) => s.side)).size).toBe(2);
+  });
+
+  it("never cross each other's leaders, and keep every leader inside the frame", () => {
+    // a fixed pseudo-random walk of anchors, as a turning model gives
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let t = 0; t < 400; t++) {
+      const n = 2 + Math.floor(rnd() * 9);
+      const anchors = Array.from({ length: n }, () => ({ x: 200 + rnd() * 360, y: 60 + rnd() * 340 }));
+      const widths = Array.from({ length: n }, () => ({ width: 70 + Math.floor(rnd() * 100), height: 28 }));
+      const slots = layoutPartLabels(anchors, widths, view, 380);
+      expect(leadersCross(slots), `case ${t}`).toBe(false);
+      for (const s of slots) for (const p of leaderPoints(s)) {
+        expect(p.x).toBeGreaterThanOrEqual(0);
+        expect(p.x).toBeLessThanOrEqual(view.width);
+        expect(p.y).toBeGreaterThanOrEqual(0);
+        expect(p.y).toBeLessThanOrEqual(view.height);
+      }
+    }
+  });
+
+  it("tell a crossing pair of leaders from a clear one", () => {
+    const s = (fy: number, ty: number) => ({ x: 10, y: ty - 14, width: 100, height: 28, side: "left" as const, from: { x: 300, y: fy }, knee: { x: 300, y: fy }, elbow: { x: 110, y: ty }, to: { x: 110, y: ty } });
+    expect(leadersCross([s(100, 100), s(200, 200)])).toBe(false);
+    expect(leadersCross([s(100, 200), s(200, 100)])).toBe(true);
+  });
+
+  it("are numbered in reading order: down the left column, then down the right, with no gaps", () => {
+    const anchors = [{ x: 500, y: 300 }, { x: 250, y: 260 }, { x: 520, y: 120 }, { x: 240, y: 100 }];
+    const slots = layoutPartLabels(anchors, sizes(4), view, 380);
+    expect(readingOrder(slots)).toEqual([4, 2, 3, 1]);
   });
 
   it("keep their side near the middle and change it only once their part is clearly across", () => {

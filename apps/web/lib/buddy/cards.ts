@@ -15,9 +15,9 @@ export const CARD_GAP = 44;
 export const SUBJECT_CLEAR = 40;
 /** Subjects closer than this share one leader (the first card's). */
 export const SAME_SUBJECT = 24;
-/** How long the cards take to go away (the same as the marks: a fade, then the leader erases). */
-export const CARD_EXIT = { cardMs: 140, leaderDelayMs: 40, leaderMs: 200 } as const;
-export const CARD_EXIT_MS = CARD_EXIT.leaderDelayMs + CARD_EXIT.leaderMs;
+/** How long the cards take to go away: like the marks, the cards and their leaders fade together as one piece. */
+export const CARD_EXIT = { fadeMs: 220 } as const;
+export const CARD_EXIT_MS = CARD_EXIT.fadeMs;
 
 export type CardSide = "right" | "left" | "below" | "above";
 export type CardSpot = { x: number; y: number; side: CardSide };

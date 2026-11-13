@@ -52,9 +52,12 @@ export function markTiming(lengthPx: number, labelAt = 0.7): { strokeMs: number;
   return { strokeMs: d, labelMs: Math.round(d * pen.timeFor(labelAt)), headMs: Math.round(d * pen.timeFor(0.92)) };
 }
 
-/** How long the marks take to go away on Clear: the labels fade first, then the strokes erase backwards. */
-export const MARK_EXIT = { labelMs: 140, strokeDelayMs: 40, strokeMs: 200 } as const;
-export const MARK_EXIT_MS = MARK_EXIT.strokeDelayMs + MARK_EXIT.strokeMs;
+/**
+ * How long the marks take to go away on Clear: each mark fades as one piece (stroke, head, leader and
+ * label together), so no frame holds a stub of it.
+ */
+export const MARK_EXIT = { fadeMs: 220 } as const;
+export const MARK_EXIT_MS = MARK_EXIT.fadeMs;
 
 const ease = (k: number) => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
 
@@ -103,6 +106,24 @@ export function createPausableClock() {
   };
 }
 
+/**
+ * How long the pointer flies `distancePx`: longer flights take longer (so the dot never jumps far
+ * in one frame), within 380-900 ms.
+ */
+export function flightMs(distancePx: number): number {
+  const d = Number.isFinite(distancePx) && distancePx > 0 ? distancePx : 0;
+  return Math.round(Math.min(900, Math.max(380, 320 + 0.75 * d)));
+}
+
+/**
+ * Where the pointer's tip stops for a spot: just below and right of it, so the glyph (which points up
+ * and to the left) points at the spot without covering it. The arrival ring is centred on the spot.
+ */
+export const POINT_STANDOFF = { x: 7, y: 9 } as const;
+export function pointerLanding(spot: P): P {
+  return { x: spot.x + POINT_STANDOFF.x, y: spot.y + POINT_STANDOFF.y };
+}
+
 /** How far through its flight the pointer is when its label docks at the tip (it then comes in with the dot). */
 export const POINT_LABEL_AT = 0.7;
 /** The label's room beside the tip (the CSS of .okf-label: 14 px text, at most this wide in practice). */
@@ -122,7 +143,8 @@ export function bezierPoint(from: P, to: P, k: number): P {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const dist = Math.hypot(dx, dy);
-  const lift = Math.min(160, dist * 0.35);
+  // a short, gentle arc: long flights bow a little, never a wide loop across the screen
+  const lift = Math.min(90, dist * 0.22);
   const control = { x: from.x + dx / 2 - (dy / (dist || 1)) * lift * 0.4, y: Math.min(from.y, to.y) - lift };
   const a = (1 - t) * (1 - t);
   const b = 2 * (1 - t) * t;

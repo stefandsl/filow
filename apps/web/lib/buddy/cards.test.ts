@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CARD_EXIT, CARD_EXIT_MS, CARD_GAP, cardLeader, leadersFor, placeCards, sameCards, subjectZone, SUBJECT_CLEAR } from "./cards";
 import type { Rect } from "./marks";
+import { MARK_EXIT_MS } from "./motion";
 
 const view = { width: 1920, height: 1080 };
 const size = { width: 280, height: 420 };
@@ -71,8 +72,9 @@ describe("explanation cards", () => {
     expect(sameCards(a, [...a, ...a])).toBe(false);
   });
 
-  it("leave in the marks' time: a fade, then the leader erases", () => {
-    expect(CARD_EXIT_MS).toBe(CARD_EXIT.leaderDelayMs + CARD_EXIT.leaderMs);
+  it("leave in the marks' time, cards and leaders fading together", () => {
+    expect(CARD_EXIT_MS).toBe(CARD_EXIT.fadeMs);
+    expect(CARD_EXIT_MS).toBe(MARK_EXIT_MS);
     expect(SUBJECT_CLEAR).toBeLessThan(CARD_GAP);
   });
 });

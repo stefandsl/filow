@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { CARD_EXIT, CARD_WIDTH } from "@/lib/buddy/cards";
-import { POINT_LABEL_AT, pointLabelFlip } from "@/lib/buddy/motion";
+import { flightMs, POINT_LABEL_AT, pointerLanding, pointLabelFlip } from "@/lib/buddy/motion";
 
 const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 const read = (p: string) => fs.readFileSync(path.join(here, p), "utf8").replace(/\r\n/g, "\n");
@@ -48,19 +48,16 @@ describe("the cards", () => {
     expect(rule(".okf-card")).toContain("font: 14px/1.45");
   });
 
-  it("go away like the marks: a fade, then the leader erases", () => {
-    expect(rule(".okf-cards--leaving .okf-card")).toContain(`okf-out ${sec(CARD_EXIT.cardMs)}`);
-    const leader = rule(".okf-cards--leaving .okf-card-leader line");
-    expect(leader).toContain(`okf-erase ${sec(CARD_EXIT.leaderMs)}`);
-    expect(leader).toContain(`${sec(CARD_EXIT.leaderDelayMs)} forwards`);
+  it("go away like the marks: cards and leaders fade together as one piece", () => {
+    expect(rule(".okf-cards.okf-cards--leaving, .okf-card-leaders.okf-cards--leaving")).toContain(`okf-fade-out ${sec(CARD_EXIT.fadeMs)}`);
+    expect(rule(".okf-cards--leaving .okf-card-leader line")).toContain("stroke-dashoffset: 0; animation: none;");
   });
 });
 
 describe("the exit", () => {
-  it("fades the ink while it erases, so no full-strength stub is left mid-exit", () => {
-    const erase = keyframes("okf-erase");
-    expect(erase).toMatch(/100% \{ stroke-dashoffset: 1; opacity: 0; \}/);
-    expect(erase).toMatch(/40% \{ opacity: 0\.45; \}/);
+  it("fades whole marks to nothing, with no erase that could leave a stub", () => {
+    expect(keyframes("okf-fade-out")).toBe("@keyframes okf-fade-out { from { opacity: 1; } to { opacity: 0; } }");
+    expect(css).not.toContain("okf-erase");
   });
 });
 
@@ -74,11 +71,25 @@ describe("the pointer", () => {
 
   it("plays one ring per arrival, and docks its label as it lands", () => {
     expect(overlay).toContain("if (k >= 1 && !g.arrived)");
-    expect(overlay).toContain("{arrivals > 0 && <i key={arrivals} className=\"okf-arrival\" />}");
+    expect(overlay).toContain('{arrivals > 0 && <i key={arrivals} className="okf-arrival" style={{ left: -22 - POINT_STANDOFF.x, top: -22 - POINT_STANDOFF.y }} />}');
     expect(overlay).toContain("if (k >= POINT_LABEL_AT)");
     expect(POINT_LABEL_AT).toBeGreaterThan(0.5);
     expect(POINT_LABEL_AT).toBeLessThan(1);
     expect(rule(".okf-label")).toContain("left: 14px; top: -24px");
+  });
+
+  it("flies for longer the further it goes, so no frame jumps far, and stops beside the spot", () => {
+    expect(flightMs(0)).toBe(380);
+    expect(flightMs(400)).toBe(620);
+    expect(flightMs(5000)).toBe(900);
+    // at 60 Hz the ease-in-out peaks at twice the mean speed: a 490 px flight moves at most ~30 px a frame
+    expect((2 * 490 * 16.7) / flightMs(490)).toBeLessThan(30);
+    const at = pointerLanding({ x: 1200, y: 500 });
+    expect(at.x).toBeGreaterThan(1200);
+    expect(at.y).toBeGreaterThan(500);
+    expect(Math.hypot(at.x - 1200, at.y - 500)).toBeLessThan(14);
+    expect(overlay).toContain("const to = { ...spot, ...pointerLanding(spot) };");
+    expect(overlay).toContain("const dur = flightMs(Math.hypot(to.x - from.x, to.y - from.y));");
   });
 
   it("docks its label on the side with room", () => {
@@ -90,10 +101,16 @@ describe("the pointer", () => {
 });
 
 describe("the 3D view", () => {
-  it("has no panel: no title bar, no footer, a transparent page", () => {
+  it("sits in its own opaque rounded frame, with no title bar and no footer", () => {
     expect(model).not.toContain("okf-model-head");
     expect(model).not.toContain("okf-model-foot");
-    expect(rule(".okf-model")).toContain("background: transparent");
+    expect(rule(".okf-model")).toContain("background: rgb(16, 17, 20); border-radius: 16px;");
+  });
+
+  it("draws each leader as anchor, knee, label and numbers the labels in reading order", () => {
+    expect(model).toContain("const numbers = readingOrder(slots);");
+    expect(model).toContain("leaderPoints(s)");
+    expect(model).not.toContain("shown[i].x + (s.x - shown[i].x)");
   });
 
   it("is lit by three lights with filmic tone mapping and an environment", () => {

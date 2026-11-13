@@ -160,18 +160,12 @@ html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !import
 @keyframes okf-fade-in { to { opacity: 1; } }
 @keyframes okf-pen-move { from { offset-distance: 0%; } to { offset-distance: 100%; } }
 @keyframes okf-pen-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
-/* Going away: the labels (and leaders, heads) fade with a small drift first, then the strokes erase backwards. */
-.okf-mark--leaving .okf-mark-label, .okf-mark--leaving .okf-mark-leader, .okf-mark--leaving .okf-mark-head {
-  opacity: 1; animation: okf-out 0.14s linear forwards;
-}
-.okf-mark--leaving .okf-mark-ink, .okf-mark--leaving .okf-mark-halo {
-  stroke-dashoffset: 0; animation: okf-erase 0.2s cubic-bezier(0.3, 0, 0.7, 1) 0.04s forwards;
-}
-.okf-mark--leaving .okf-mark-leader line { stroke-dashoffset: 0; }
-.okf-mark--leaving .okf-mark-leader circle { opacity: 1; }
-@keyframes okf-out { to { opacity: 0; transform: translateY(2px); } }
-/* The ink fades while it erases, so what is left of a stroke mid-exit is faint, never a full-strength stub. */
-@keyframes okf-erase { 0% { stroke-dashoffset: 0; opacity: 1; } 40% { opacity: 0.45; } 100% { stroke-dashoffset: 1; opacity: 0; } }
+/* Going away: each mark fades as one piece (its stroke, head, leader, dot and label together, whole as
+   they are), so no frame ever holds a stub or a crumb of it. */
+.okf-marks g.okf-mark--leaving, .okf-marks-over .okf-mark--leaving { animation: okf-fade-out 0.22s cubic-bezier(0.4, 0, 1, 1) forwards; }
+.okf-mark--leaving :is(.okf-mark-ink, .okf-mark-halo, .okf-mark-leader line) { animation: none; stroke-dashoffset: 0; }
+.okf-mark--leaving :is(.okf-mark-head, .okf-mark-leader circle, .okf-mark-label) { animation: none; opacity: 1; }
+@keyframes okf-fade-out { from { opacity: 1; } to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   /* No pen and no animation at all (globals.css stops every animation here): the marks, leaders and
      labels are simply there, whole, and go at once. Without this they would stay at their hidden start. */
@@ -233,13 +227,14 @@ html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !import
    through fully transparent pixels even then, so it needs a tint the eye cannot see (alpha 1/255). */
 .okf-overlay--catch { background: rgba(0, 0, 0, 0.004); }
 
-/* 3D view: in place beside the pointer, no panel. The model with a soft shadow of its own outline (it
-   reads on light and dark screens), its numbered part labels on leader lines (placed every frame by the page), and a close
+/* 3D view: beside the pointer, in its own opaque rounded frame (never see-through over the page), with
+   no title bar or footer. The model with a soft shadow of its own outline, its numbered part labels on leader lines (placed every frame by the page), and a close
    button and a grip that show while the pointer is on the view or a control has the keyboard. */
 html:has(.okf-model), body:has(.okf-model) { background: transparent !important; overflow: hidden; margin: 0; }
 .okf-model {
   position: relative; box-sizing: border-box; width: 100vw; height: 100vh; overflow: hidden;
-  background: transparent; color: #f4f4f5; font-family: system-ui, sans-serif;
+  background: rgb(16, 17, 20); border-radius: 16px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: #f4f4f5; font-family: system-ui, sans-serif;
   animation: okf-model-in 0.35s cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
 @keyframes okf-model-in { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }
@@ -247,7 +242,7 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
 /* A soft shadow that follows the model's own outline: it stands off a light page, and costs nothing on a dark one. */
 .okf-model-view canvas { display: block; cursor: grab; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.38)); }
 .okf-model-leaders { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
-.okf-part-leader line { stroke-linecap: round; }
+.okf-part-leader polyline { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .okf-part-leader .okf-part-halo { stroke: rgba(0, 0, 0, 0.45); stroke-width: 3.5; }
 .okf-part-leader .okf-part-ink { stroke: var(--okf-ink); stroke-width: 1.5; }
 .okf-part-leader circle { fill: var(--okf-ink); stroke: #08090b; stroke-width: 1.5; }
@@ -304,9 +299,9 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
 .okf-card-leader .okf-card-halo { stroke: rgba(0, 0, 0, 0.4); stroke-width: 4; }
 .okf-card-leader .okf-card-ink { stroke: var(--okf-ink); stroke-width: 1.5; }
 .okf-card-leader circle { fill: var(--okf-ink); stroke: #08090b; stroke-width: 1.5; }
-.okf-cards--leaving .okf-card { visibility: visible; animation: okf-out 0.14s linear forwards; }
-.okf-cards--leaving .okf-card-leader line { stroke-dashoffset: 0; animation: okf-erase 0.2s cubic-bezier(0.3, 0, 0.7, 1) 0.04s forwards; }
-.okf-cards--leaving .okf-card-leader circle { animation: okf-out 0.14s linear forwards; }
+.okf-cards.okf-cards--leaving, .okf-card-leaders.okf-cards--leaving { animation: okf-fade-out 0.22s cubic-bezier(0.4, 0, 1, 1) forwards; }
+.okf-cards--leaving .okf-card { visibility: visible; animation: none; }
+.okf-cards--leaving .okf-card-leader line { stroke-dashoffset: 0; animation: none; }
 
 /* Going outside: the notice, the pill and the list of choices are in outbound.css (shared with the
    take page, the PowerPoint add-in and the browser extension). */
@@ -432,9 +427,9 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
 
 /* Paused: the pen holds still where it is; Resume lets it go on. */
 .okf-paused .okf-mark path, .okf-paused .okf-mark, .okf-paused .okf-mark line, .okf-paused .okf-mark circle, .okf-paused .okf-pen, .okf-paused .okf-mark-label, .okf-paused .okf-card, .okf-paused .okf-card-leader line { animation-play-state: paused; }
-.okf-paused .okf-cards--leaving .okf-card, .okf-paused .okf-cards--leaving .okf-card-leader line, .okf-paused .okf-cards--leaving .okf-card-leader circle { animation-play-state: running; }
+.okf-paused .okf-cards--leaving { animation-play-state: running; }
 /* Marks that go away erase even while the answer is paused (Clear, the bubble went). */
-.okf-paused .okf-mark--leaving path, .okf-paused .okf-mark--leaving .okf-mark-leader, .okf-paused .okf-mark--leaving .okf-mark-label { animation-play-state: running; }
+.okf-paused .okf-mark--leaving { animation-play-state: running; }
 /* Marks drawn before a stop (Resume after Stop): shown as they were, not drawn a second time. */
 .okf-mark.okf-mark--done:not(.okf-mark--leaving) :is(.okf-mark-ink, .okf-mark-halo, line) { animation: none; stroke-dashoffset: 0; }
 .okf-mark.okf-mark--done:not(.okf-mark--leaving) :is(.okf-mark-head, circle, .okf-mark-label) { animation: none; opacity: 1; }

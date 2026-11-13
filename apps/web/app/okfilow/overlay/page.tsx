@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { okFilowBridge, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/bridge";
-import { bezierPoint, bubbleOnScreen, bubblePlacement, bubbleSticks, createPausableClock, followScroll, MARK_EXIT_MS, marksStarted, overBubble, overControls, POINT_LABEL_AT, pointLabelFlip, STROKE_GAP_MS } from "@/lib/buddy/motion";
+import { bezierPoint, bubbleOnScreen, bubblePlacement, bubbleSticks, createPausableClock, flightMs, followScroll, MARK_EXIT_MS, marksStarted, overBubble, overControls, POINT_LABEL_AT, POINT_STANDOFF, pointerLanding, pointLabelFlip, STROKE_GAP_MS } from "@/lib/buddy/motion";
 import { MarksLayer, type DrawnMark, type MarkSet } from "@/components/okfilow/marks-layer";
 import { CardsLayer } from "@/components/okfilow/cards-layer";
 import type { Rect } from "@/lib/buddy/marks";
@@ -21,7 +21,6 @@ import { OutboundIcon } from "../outbound-ui";
 import "../okfilow.css";
 
 const OFFSET = { x: 16, y: 20 };
-const FLY_MS = 650;
 /** The pointer's glyph (its tip at 3,2). */
 const ARROW = "M3 2l17 8-7.5 2.2L10.4 20z";
 const HOLD_MS = 5500;
@@ -97,7 +96,7 @@ export default function OkFilowOverlay() {
   const pos = useRef({ x: -100, y: -100 });
   const cursor = useRef<{ x: number; y: number } | null>(null);
   const queue = useRef<Target[]>([]);
-  const flight = useRef<{ from: { x: number; y: number }; to: Target; start: number; holdUntil: number; arrived: boolean } | null>(null);
+  const flight = useRef<{ from: { x: number; y: number }; to: Target; start: number; dur: number; holdUntil: number; arrived: boolean } | null>(null);
   // Arrivals of the pointer at a spot: each one plays the ring once.
   const [arrivals, setArrivals] = useState(0);
 
@@ -198,14 +197,17 @@ export default function OkFilowOverlay() {
       const now = clock.current.at(real);
       const f = flight.current;
       if (!f && queue.current.length) {
-        const to = queue.current.shift()!;
+        const spot = queue.current.shift()!;
+        // The tip stops beside the spot (pointing at it, not covering it); the flight's time follows its length.
+        const to = { ...spot, ...pointerLanding(spot) };
         const from = pos.current.x < 0 ? { x: to.x - 120, y: to.y - 120 } : { ...pos.current };
-        flight.current = { from, to, start: now, holdUntil: now + FLY_MS + HOLD_MS, arrived: false };
+        const dur = flightMs(Math.hypot(to.x - from.x, to.y - from.y));
+        flight.current = { from, to, start: now, dur, holdUntil: now + dur + HOLD_MS, arrived: false };
       }
       const g = flight.current;
       let next: { x: number; y: number } | null = null;
       if (g) {
-        const k = Math.min(1, (now - g.start) / FLY_MS);
+        const k = Math.min(1, (now - g.start) / g.dur);
         next = bezierPoint(g.from, g.to, k);
         // The label docks at the tip near the end of the flight and comes in with it; a ring marks the arrival.
         if (k >= POINT_LABEL_AT) {
@@ -218,7 +220,7 @@ export default function OkFilowOverlay() {
           g.arrived = true;
           setArrivals((n) => n + 1);
         }
-        if (now > g.holdUntil || (queue.current.length && now > g.start + FLY_MS + 1800)) { flight.current = null; setLabel(""); }
+        if (now > g.holdUntil || (queue.current.length && now > g.start + g.dur + 1800)) { flight.current = null; setLabel(""); }
       } else if (cursor.current) {
         const c = cursor.current;
         const want = { x: c.x + OFFSET.x, y: c.y + OFFSET.y };
@@ -362,7 +364,8 @@ export default function OkFilowOverlay() {
         {going && <span className="okf-out-rings"><i /><i /><i /></span>}
         {/* A 27 px glyph outlined dark inside a light halo: it reads on white and on black. */}
         <svg className="okf-arrow" viewBox="0.5 -0.5 23 23" width="36" height="36"><path className="okf-arrow-halo" d={ARROW} /><path d={ARROW} /></svg>
-        {arrivals > 0 && <i key={arrivals} className="okf-arrival" />}
+        {/* centred on the spot itself (the tip stands just off it) */}
+        {arrivals > 0 && <i key={arrivals} className="okf-arrival" style={{ left: -22 - POINT_STANDOFF.x, top: -22 - POINT_STANDOFF.y }} />}
         {label && <span className={"okf-label" + flip}>{label}</span>}
       </div>
     </div>
