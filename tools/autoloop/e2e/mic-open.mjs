@@ -83,8 +83,7 @@ function makeRecording(file) {
 // ---------- a stand-in for Ollama (this tool's own port; one short answer, no model) ----------
 function fakeOllama() {
   const server = http.createServer((req, res) => {
-    let body = "";
-    req.on("data", (c) => { body += c; });
+    req.resume();
     req.on("end", () => {
       const url = req.url || "";
       if (url.startsWith("/api/chat")) {

@@ -3,7 +3,8 @@
 // screenshots -> /api/buddy/ask streamed -> voice + pointing). Lives in a hidden desktop window.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
-import { getSelectedMic } from "@filow/stt";
+import { openSelectedMic } from "@filow/stt";
+import { abandonedNote, emptyRecordingNote, micNoteText, openMicrophone, type MicOpening } from "@/lib/buddy/micOpen";
 import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture, type OkFilowCard, type OkFilowJob, type OkFilowMode, type OkFilowStatus } from "@/lib/buddy/bridge";
 import { drawingSvg, type BuddyModel } from "@/lib/buddy/visuals";
 import { createSpeaker } from "@/lib/buddy/voice";
@@ -122,6 +123,9 @@ export default function OkFilowPanel() {
   const committed = useRef<string[]>([]);
   const partial = useRef("");
   const audio = useRef<{ ctx: AudioContext; stream: MediaStream; node: ScriptProcessorNode } | null>(null);
+  /** The microphone being opened right now (lib/buddy/micOpen.ts), and how long this recording's took to open. */
+  const micOpening = useRef<MicOpening<MediaStream> | null>(null);
+  const micOpenMs = useRef<number | null>(null);
   const run = useRef(0);
   /** The speed baseline: marks taken before the answer has a run (microphone, release, recognizer), then the answer's own. */
   const pendingMarks = useRef<Record<string, number> | null>(null);
@@ -850,7 +854,7 @@ export default function OkFilowPanel() {
     }
     const offer = turn.current.offer();
     const info = resumeInfo.current;
-    if (!offer || !info || modeRef.current === "thinking" || modeRef.current === "speaking" || modeRef.current === "listening") return false;
+    if (!offer || !info || modeRef.current === "thinking" || modeRef.current === "speaking" || modeRef.current === "listening" || modeRef.current === "opening") return false;
     const plan = resumePlan(offer, history.current);
     if (plan.kind === "speak") {
       // The whole answer is there: say the rest, draw the rest. Stop and Pause work on it as on any answer.
@@ -938,17 +942,21 @@ export default function OkFilowPanel() {
       b.text("");
       b.point([]);
     }
-    setMode("listening", { purpose: why });
+    // The microphone is asked for below and is not open yet: the pointer says "listening" (and a
+    // dictation says "dictating" and plays its cue) only once it is, so nothing is said into a
+    // microphone that is not there (lib/buddy/micOpen.ts; Windows once took 15 s to open one).
+    setMode("opening", { purpose: why });
+    // A dictation's last note goes at the press too; its own words come with the open microphone.
+    if (why === "dictate") b.text("");
     const dict = why === "dictate" ? statusRef.current?.dictationStatus : undefined;
-    if (why === "dictate") {
-      const keys = dict?.chordLabel ?? "";
-      b.text(flow.current ? dictT("dictatingHandsFree", { keys }) : dictT("dictating"));
-      if (dict?.sound || dict?.screenReader) playCue(true);
-    }
+    micOpenMs.current = null;
     // Recognizer and microphone start together, and the sound is kept until the model is loaded, so the
     // first words are not lost while a model loads (it can take a second or two the first time).
     let recognizerReady = false;
     let queued: Float32Array[] = [];
+    /** The microphone saved in Settings is not connected: the default one was opened instead. */
+    let fallback = false;
+    let noted = false;
     try {
       // "auto" here means the spoken language set in Settings (the shell resolves it); only when that is
       // automatic too does the recognizer detect what is spoken. The interface language is never used.
@@ -963,11 +971,65 @@ export default function OkFilowPanel() {
         },
         (e: unknown) => e ?? new Error("speech recognition did not start"),
       );
-      const mic = getSelectedMic();
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { ...(mic ? { deviceId: { exact: mic } } : {}), echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
-      // Test builds only (FILOW_OKF_QA_MIC_DELAY): the microphone is handed over this much later.
-      const qaDelay = statusRef.current?.qaMicDelayMs ?? 0;
-      if (qaDelay > 0) await new Promise((r) => setTimeout(r, qaDelay));
+      const opening = openMicrophone<MediaStream>({
+        open: async () => {
+          // The microphone chosen in Settings, or the default one when that one was unplugged (never an error).
+          const got = await openSelectedMic({ echoCancellation: true, noiseSuppression: true, channelCount: 1 }, () => { fallback = true; });
+          // Test builds only (FILOW_OKF_QA_MIC_DELAY): the microphone is handed over this much later.
+          const qaDelay = statusRef.current?.qaMicDelayMs ?? 0;
+          if (qaDelay > 0) await new Promise((r) => setTimeout(r, qaDelay));
+          return got;
+        },
+        // One that arrives after the wait was given up is closed at once: never open with nobody listening.
+        close: (late) => late.getTracks().forEach((tr) => tr.stop()),
+        onNote: () => { noted = true; b.text(t("micOpening")); },
+        onOpened: (ms, used) => b.micOpened?.({ ms, state: used ? "live" : "late", fallback }),
+      });
+      micOpening.current = opening;
+      const got = await opening.done;
+      micOpening.current = null;
+      if (got.state === "abandoned") {
+        // The keys went up, or the wait ended, with the microphone still not open: nothing was recorded,
+        // and the user is told that (never to hold the keys longer). Escape just ends it.
+        starting.current = false;
+        pendingStop.current = null;
+        flow.current = null;
+        vad.current = null;
+        void b.stt.stop().catch(() => {});
+        const told = abandonedNote(got);
+        if (told) {
+          b.micOpened?.({ ms: got.waitedMs, state: "waiting", fallback });
+          // The shell logs a dictation that gave nothing and keeps it for "Report a problem" (an empty text is never typed).
+          if (why === "dictate") void b.typeText("", "", false).catch(() => null);
+          const line = micNoteText(told, t);
+          if (why === "dictate") setNote(line);
+          else setError(line);
+          b.text(line);
+          setMode("error", { error: line });
+        } else {
+          b.text("");
+          setMode("idle");
+        }
+        // A press that came meanwhile (the user trying again) starts now.
+        const next = queuedStart.current;
+        queuedStart.current = null;
+        if (next) void startRef.current(next);
+        return;
+      }
+      const stream = got.stream;
+      micOpenMs.current = got.openMs;
+      // The microphone is open: from here the pointer says so, and what is said is heard.
+      setMode("listening", { purpose: why });
+      if (why === "dictate") {
+        const keys = dict?.chordLabel ?? "";
+        b.text(flow.current ? dictT("dictatingHandsFree", { keys }) : dictT("dictating"));
+        if (dict?.sound || dict?.screenReader) playCue(true);
+      } else if (noted) b.text("");
+      if (fallback) {
+        // Said in the panel, and on the pointer until the first words come: the default microphone listens.
+        setNote(t("micFallback"));
+        b.text(t("micFallback"));
+      }
       // The speed baseline: a question's marks start with the open microphone (dictation is not measured).
       if (why !== "dictate") {
         const at = Date.now();
@@ -1001,14 +1063,16 @@ export default function OkFilowPanel() {
     } catch (e) {
       starting.current = false;
       pendingStop.current = null;
+      micOpening.current = null;
       // A press queued behind this start must not swallow the next real release (the microphone would
       // stay open with nothing to stop it).
       queuedStart.current = null;
       stopAudio();
       void b.stt.stop().catch(() => {});
-      fail(e instanceof Error ? e.message : String(e));
+      // (a refusal can come without words: its name then says what it was)
+      fail(e instanceof Error ? e.message || e.name : String(e));
     }
-  }, [dictT, endAnswer, fail, setMode, stopAudio]);
+  }, [dictT, endAnswer, fail, setMode, stopAudio, t]);
   const startRef = useRef(startListening);
   startRef.current = startListening;
 
@@ -1019,7 +1083,14 @@ export default function OkFilowPanel() {
     // (before it could start) just drops it. `deferred`: this is the stop that was waiting for the
     // microphone to open, not that press's release, so the recording is stopped and the press starts after.
     if (queuedStart.current && !deferred) { queuedStart.current = null; return; }
-    if (starting.current) { pendingStop.current = send; return; }
+    if (starting.current) {
+      pendingStop.current = send;
+      // The microphone is still opening: a quick open is waited for (a short tap), a slow one is given
+      // up on and said so; Escape ends the wait at once (lib/buddy/micOpen.ts).
+      if (send) micOpening.current?.release();
+      else micOpening.current?.cancel();
+      return;
+    }
     if (!audio.current) return;
     stopping.current = true;
     // Hands-free dictation: from here the rest is typed below, not phrase by phrase.
@@ -1041,6 +1112,8 @@ export default function OkFilowPanel() {
     try {
     const why = purpose.current;
     const sid = session.current;
+    /** This recording's microphone was slow to open: what to say if it gave no words. */
+    const slowMic = emptyRecordingNote(micOpenMs.current);
     stopAudio();
     try { await b.stt.stop(); } catch { /* the error already reached onResult */ }
     if (why !== "dictate" && pendingMarks.current) pendingMarks.current.sttStop = Date.now();
@@ -1079,6 +1152,8 @@ export default function OkFilowPanel() {
         // Issue #7: a press too short to say anything used to end without a word about what to do.
         // The shell logs it and keeps it for "Report a problem" (an empty text is never typed).
         void b.typeText("", spokenIn, false).catch(() => null);
+        // After a microphone that was slow to open the words were lost there: said so, not "hold the keys".
+        if (slowMic) { say(micNoteText(slowMic, t)); return idle({ holdMs: 6000 }); }
         say(phrases ? dictT("nothing") : dictT("nothingHint", { keys: dict?.chordLabel ?? "" }));
         return idle({ holdMs: phrases ? 2500 : 5000 });
       }
@@ -1106,8 +1181,10 @@ export default function OkFilowPanel() {
     }
     if (!question) {
       if (why === "handsfree" && handsFree.current) { setMode("idle"); return listenAgain.current(); }
-      b.text(t("notHeard"));
-      return setMode("error", { error: t("notHeard") });
+      // After a microphone that was slow to open the words were lost there: said so, not "hold the keys".
+      const line = slowMic ? micNoteText(slowMic, t) : t("notHeard");
+      b.text(line);
+      return setMode("error", { error: line });
     }
     if (pendingMarks.current) pendingMarks.current.heard = Date.now();
     void ask(question);

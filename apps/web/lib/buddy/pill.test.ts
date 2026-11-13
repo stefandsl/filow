@@ -97,6 +97,10 @@ describe("what the pill shows", () => {
     expect(pillView({ mode: "listening", purpose: "dictate", pill: pill() })).toEqual({ show: true, eye: false, status: "notchDictating", first: null, stop: false });
   });
 
+  it("while the microphone is still opening the pill does not say Listening or Dictating", () => {
+    for (const purpose of ["talk", "dictate", "handsfree"]) expect(pillView({ mode: "opening", purpose, pill: pill() }).show).toBe(false);
+  });
+
   it("every status it can show is in the list that sizes its room, and has words in the five languages", () => {
     const shown = new Set<string>();
     for (const mode of ["idle", "listening", "thinking", "speaking", "error"] as const) {

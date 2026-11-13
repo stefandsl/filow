@@ -81,6 +81,8 @@ contextBridge.exposeInMainWorld("okFilow", {
   qaKey: (type, key) => ipcRenderer.send("okfilow:qa:key", type, key),
   /** The speed baseline's marks of one answer ({ run, kind, end, marks }): main logs numbers and fixed names only (okfilow-timings.js). */
   timings: (payload) => ipcRenderer.send("okfilow:timings", payload),
+  /** How long the microphone took to open ({ ms, state, fallback }): main logs the slow ones and keeps the numbers for Report a problem (okfilow-mic.js). */
+  micOpened: (payload) => ipcRenderer.send("okfilow:mic", payload),
   onPress: on("okfilow:press"),
   onRelease: on("okfilow:release"),
   onCancel: on("okfilow:cancel"),

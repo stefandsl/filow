@@ -200,9 +200,87 @@ describe("the panel and the bubble", () => {
   });
   it("a new question, spoken or typed, and a dictation replace the old words at once", () => {
     const listen = panel.slice(panel.indexOf("const startListening = useCallback("), panel.indexOf("// Recognizer and microphone start together"));
-    expect(listen).toMatch(/if \(why !== "dictate"\) \{[\s\S]*?b\.text\(""\);[\s\S]*?\}\s*setMode\("listening", \{ purpose: why \}\);/);
-    expect(listen).toMatch(/if \(why === "dictate"\) \{\s*const keys = [^\n]*\n\s*b\.text\(flow\.current \? dictT\("dictatingHandsFree", \{ keys \}\) : dictT\("dictating"\)\);/);
+    // the old words go at the press; the pointer says "listening" only once the microphone is open (below)
+    expect(listen).toMatch(/if \(why !== "dictate"\) \{[\s\S]*?b\.text\(""\);[\s\S]*?\}\s*(\/\/[^\n]*\n\s*)*setMode\("opening", \{ purpose: why \}\);/);
+    // a dictation's last note goes at the press as well
+    expect(listen).toMatch(/setMode\("opening", \{ purpose: why \}\);\s*(\/\/[^\n]*\n\s*)*if \(why === "dictate"\) b\.text\(""\);/);
+    const live = panel.slice(panel.indexOf("// The microphone is open: from here the pointer says so"), panel.indexOf("const startRef = useRef(startListening);"));
+    expect(live).toMatch(/if \(why === "dictate"\) \{\s*const keys = [^\n]*\n\s*b\.text\(flow\.current \? dictT\("dictatingHandsFree", \{ keys \}\) : dictT\("dictating"\)\);/);
     const ask = panel.slice(panel.indexOf("const ask = useCallback("), panel.indexOf("// With \"Look at my screen\" off no picture"));
     expect(ask).toMatch(/setMode\("thinking", \{ sees: seeing \}\);\s*b\.text\(resume\?\.shown \?\? ""\);/);
+  });
+});
+
+// 0.9.37: Windows took 15 s to open the microphone. The pointer said "listening" from the key press,
+// nothing was recorded, and the user was told to hold the keys longer (lib/buddy/micOpen.ts).
+describe("while the microphone is still opening", () => {
+  const start = panel.slice(panel.indexOf("const startListening = useCallback("), panel.indexOf("const startRef = useRef(startListening);"));
+  const stop = panel.slice(panel.indexOf("const stopListening = useCallback("), panel.indexOf("const stopRef = useRef(stopListening);"));
+  const at = (needle: string) => { const i = start.indexOf(needle); expect(i, needle).toBeGreaterThan(-1); return i; };
+
+  it("the bubble says so in words, with no waveform, and is not an answer's bubble", () => {
+    expect(answerInBubble("opening", t("micOpening"), false)).toBe(false);
+    expect(bubbleClosable("opening", t("micOpening"), false)).toBe(false);
+    const html = renderToStaticMarkup(<AnswerBubble mode="opening" text={t("micOpening")} stopped={false} shown t={t} onClose={noop} />);
+    expect(textOf(html)).toContain("Opening the microphone…");
+    expect(html).not.toContain("okf-wave");
+    expect(html).not.toContain("okf-bubble-close");
+    // the pointer pulses only when it listens
+    expect(css).toContain(".okf-buddy--listening .okf-arrow { animation: okf-pulse 1s ease-in-out infinite; }");
+    expect(css).not.toContain("okf-buddy--opening");
+  });
+
+  it("the panel says listening, shows a dictation's words and plays its cue only after the microphone is open", () => {
+    const opening = at('setMode("opening", { purpose: why });');
+    const open = at("const got = await opening.done;");
+    const listening = at('setMode("listening", { purpose: why });');
+    expect(opening).toBeLessThan(open);
+    expect(open).toBeLessThan(listening);
+    expect(listening).toBeLessThan(at('dictT("dictating")'));
+    expect(listening).toBeLessThan(at("playCue(true)"));
+    // once each: nothing says "listening" or plays the cue before the open
+    expect(start.match(/setMode\("listening"/g)?.length).toBe(1);
+    expect(start.match(/playCue\(true\)/g)?.length).toBe(1);
+    expect(start.match(/dictT\("dictating"\)/g)?.length).toBe(1);
+    // the speed baseline's mark is still taken with the open microphone
+    expect(open).toBeLessThan(at('perfSignal("okfMicOpenAt", at);'));
+    expect(start).toContain("onNote: () => { noted = true; b.text(t(\"micOpening\")); },");
+  });
+
+  it("an abandoned wait is told as the microphone's, closes the late microphone and starts nothing", () => {
+    const abandoned = start.slice(at('if (got.state === "abandoned") {'), at("const stream = got.stream;"));
+    expect(abandoned).toContain("const told = abandonedNote(got);");
+    expect(abandoned).toContain('setMode("error", { error: line });');
+    expect(abandoned).toContain("void b.stt.stop().catch(() => {});");
+    expect(abandoned).toMatch(/return;\s*\}\s*$/);
+    expect(abandoned).not.toContain("notHeard");
+    expect(abandoned).not.toContain("nothingHint");
+    expect(start).toContain("close: (late) => late.getTracks().forEach((tr) => tr.stop()),");
+  });
+
+  it("keys up, or Escape, while it opens reach the open", () => {
+    expect(stop).toMatch(/if \(starting\.current\) \{\s*pendingStop\.current = send;\s*(\/\/[^\n]*\n\s*)*if \(send\) micOpening\.current\?\.release\(\);\s*else micOpening\.current\?\.cancel\(\);\s*return;\s*\}/);
+  });
+
+  it("a recording with no words after a slow open is told as the microphone's, for a question and for a dictation", () => {
+    expect(stop).toContain("const slowMic = emptyRecordingNote(micOpenMs.current);");
+    expect(stop).toContain("if (slowMic) { say(micNoteText(slowMic, t)); return idle({ holdMs: 6000 }); }");
+    expect(stop).toContain('const line = slowMic ? micNoteText(slowMic, t) : t("notHeard");');
+    expect(start).toContain("micOpenMs.current = got.openMs;");
+    // a new recording does not inherit the last one's slow open
+    expect(start.indexOf("micOpenMs.current = null;")).toBeLessThan(start.indexOf("const got = await opening.done;"));
+  });
+
+  it("the saved microphone goes through the shared helper, and one that is gone is a note, not an error", () => {
+    expect(panel).not.toContain("getSelectedMic");
+    expect(panel).not.toMatch(/deviceId: \{ exact/);
+    expect(panel).not.toContain("navigator.mediaDevices.getUserMedia");
+    expect(start).toContain("await openSelectedMic({ echoCancellation: true, noiseSuppression: true, channelCount: 1 }, () => { fallback = true; });");
+    expect(start).toMatch(/if \(fallback\) \{\s*(\/\/[^\n]*\n\s*)*setNote\(t\("micFallback"\)\);\s*b\.text\(t\("micFallback"\)\);\s*\}/);
+  });
+
+  it("main is told how long every open took, and whether it was used", () => {
+    expect(start).toContain('onOpened: (ms, used) => b.micOpened?.({ ms, state: used ? "live" : "late", fallback }),');
+    expect(start).toContain('b.micOpened?.({ ms: got.waitedMs, state: "waiting", fallback });');
   });
 });

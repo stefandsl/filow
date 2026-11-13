@@ -6,7 +6,8 @@ import type { PillAction, PillState } from "./pill";
 
 /** A card in global DIP coordinates, with its photo already fetched (data URL or ""). */
 export type OkFilowCard = { x: number; y: number; title: string; text: string; photo: string };
-export type OkFilowMode = "idle" | "listening" | "thinking" | "speaking" | "error";
+/** "opening": the microphone was asked for and is not open yet (lib/buddy/micOpen.ts); "listening" only once it is. */
+export type OkFilowMode = "idle" | "opening" | "listening" | "thinking" | "speaking" | "error";
 
 /** apps/desktop/dictation.js status(): settings, the key choices, and what this PC can do. */
 export type DictationStatus = {
@@ -240,6 +241,13 @@ export type OkFilowBridge = {
    * and fixed names only to the log (apps/desktop/okfilow-timings.js). Absent in a desktop build older than it.
    */
   timings?(payload: { run: number | string; kind: "voice" | "typed" | "warm"; end: string; marks: Record<string, number> }): void;
+  /**
+   * How long the microphone took to open: "live" (open, being listened to), "late" (it opened after the
+   * wait was abandoned and was closed at once), "waiting" (abandoned, still not open). `fallback`: the
+   * saved microphone is not connected, the default one was opened. Main logs the slow ones and keeps the
+   * numbers for Report a problem (apps/desktop/okfilow-mic.js). Absent in a desktop build older than it.
+   */
+  micOpened?(payload: { ms: number; state: "live" | "late" | "waiting"; fallback: boolean }): void;
   press(): void;
   release(): void;
   /** `handsFree`: a dictation with the keys up, typed phrase by phrase until the keys are pressed once more. */

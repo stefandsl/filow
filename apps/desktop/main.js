@@ -2200,6 +2200,8 @@ async function reportSections() {
     const ok = okFilow ? okFilow.status() : null;
     let mic = "unknown";
     try { mic = process.platform === "linux" ? "the system decides (no permission to ask for)" : `access ${systemPreferences.getMediaAccessStatus("microphone")}`; } catch { /* stays unknown */ }
+    // How long OK Filow's microphone took to open in this run (okfilow-mic.js): a slow Windows audio service shows here.
+    if (okFilow) mic = `${mic}; ${okFilow.micReport()}`;
     dictationFacts = getDictation().reportText({
       hook: { ready: Boolean(ok && ok.hook === "hold"), error: ok ? ok.hookError : "OK Filow did not start", failures: ok ? ok.hookFailures : 0, lastTryAt: ok ? ok.hookLastTryAt : 0, permission: ok ? ok.hookPermission : "" },
       mic,

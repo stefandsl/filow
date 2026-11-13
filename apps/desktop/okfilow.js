@@ -27,7 +27,7 @@ const { createPhoneGate } = require("./okfilow-phone");
 // Measured runs (qa-headless.js): nothing of OK Filow appears on screen with FILOW_QA_HEADLESS=1.
 const { showWindow, trayFor } = require("./qa-headless");
 const { timingsLine } = require("./okfilow-timings");
-const { qaMicDelay } = require("./okfilow-mic");
+const { qaMicDelay, createMicOpens } = require("./okfilow-mic");
 
 /** An IPC event from the main frame of one of OK Filow's windows (`contents`), on an OK Filow page; never a subframe. */
 function okfilowSender(event, contents, appUrl) {
@@ -590,7 +590,10 @@ function createOkFilow(deps) {
     answerMarks.set({ mode, stopped: extra.stopped === true });
     if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
     for (const w of overlays.values()) applyMouse(w);
-    if (next === "listening" && purpose === "dictate") dictation.diag.mark("listening", {}, { once: true });
+    // "opening": the panel asked for the microphone; "listening": it is open (okfilow-mic.js, lib/buddy/micOpen.ts).
+    // By what the panel says it is for: the keys of a short press are up again before the microphone is open.
+    if (next === "opening" && extra.purpose === "dictate") dictation.diag.mark("listening", {}, { once: true });
+    if (next === "listening" && extra.purpose === "dictate") dictation.diag.mark("open", {}, { once: true });
     sendOverlays("okfilow:state", { mode, ...extra });
     sendPanel("okfilow:mode", { mode, ...extra });
     if (mode !== "idle" && mode !== "error") {
@@ -673,7 +676,7 @@ function createOkFilow(deps) {
     protectAll(hidden());
     if (c.showAlways && c.enabled) showOverlays();
     else if (mode === "idle" && !outbound.active()) hideOverlays();
-    if (!c.enabled && mode === "listening") release();
+    if (!c.enabled && (mode === "listening" || mode === "opening")) release();
     if (!c.enabled && handsFree) { handsFree = false; sendPanel("okfilow:handsfree", false); }
     refreshTray();
     bindPillKeys();
@@ -1428,6 +1431,16 @@ function createOkFilow(deps) {
     const line = timingsLine(payload, { releaseAt: talkReleasedAt, stopAt });
     if (line) logLine(line);
   });
+  /**
+   * How long the microphone took to open, from the panel (okfilow-mic.js): one line for every slow
+   * open, numbers and fixed words only, and the count for "Report a problem".
+   */
+  const micOpens = createMicOpens();
+  ipcMain.on("okfilow:mic", (e, payload) => {
+    if (!ourSender(e)) return;
+    const line = micOpens.note(payload);
+    if (line) logLine(line);
+  });
 
   // ---- lifecycle ----
   function start() {
@@ -1499,7 +1512,7 @@ function createOkFilow(deps) {
   };
   /** The live "going outside" signal, for requests made outside OK Filow (the account's, main.js). */
   const outboundSignal = () => ({ begin: outbound.begin, end: outbound.end });
-  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, askFromPhone, outboundSignal };
+  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, askFromPhone, outboundSignal, micReport: () => micOpens.report() };
 }
 
 /**

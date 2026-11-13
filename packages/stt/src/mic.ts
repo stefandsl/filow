@@ -3,7 +3,7 @@
  * hands out ~100 ms chunks. Shared by the ElevenLabs and OpenAI backends.
  */
 
-import { audioConstraints } from "./micDevice";
+import { openSelectedMic } from "./micDevice";
 import { detectSilence, type MicWarning } from "./silence";
 
 /**
@@ -20,7 +20,7 @@ export type MicCapture = {
 /** Keep the 0.9.6 open/stop probe and fixed-rate capture graph. Only device selection and
  *  passive health diagnostics are added; no device-rate context or resampling. */
 export async function preopenMic(onLog?: (line: string) => void): Promise<MediaStream> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: await audioConstraints({}, onLog) });
+  const stream = await openSelectedMic({}, onLog);
   for (const t of stream.getTracks()) t.stop();
   return stream;
 }
@@ -33,9 +33,11 @@ export async function startMic(
   onLog?: (line: string) => void,
 ): Promise<MicCapture> {
   onLog?.("microphone capture: 0.9.6 code path");
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: await audioConstraints({ channelCount: 1, echoCancellation: true, noiseSuppression: true }, onLog),
-  });
+  // How long the system took to hand the microphone over: Windows once took 15 s on every open, and
+  // nothing in the log said so.
+  const askedAt = performance.now();
+  const stream = await openSelectedMic({ channelCount: 1, echoCancellation: true, noiseSuppression: true }, onLog);
+  onLog?.(`microphone opened in ${Math.round(performance.now() - askedAt)} ms`);
   const track = stream.getAudioTracks()[0];
   const label = track?.label || "";
   let health = { lastAudioAt: performance.now(), silent: false };

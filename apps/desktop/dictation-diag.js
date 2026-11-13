@@ -3,7 +3,10 @@
 // It records times, counts, the target program's name and window class, and what was done with the
 // words. It never records the words, a window title or anything typed.
 
-const STAGES = ["keys-down", "listening", "audio", "keys-up", "recognised", "cleanup", "punctuation", "target", "done", "clipboard"];
+// "listening": the microphone was asked for; "open": the system handed it over (Windows once took 15 s).
+const STAGES = ["keys-down", "listening", "open", "audio", "keys-up", "recognised", "cleanup", "punctuation", "target", "done", "clipboard"];
+/** A microphone that takes longer than this to open explains a dictation with no words (apps/web/lib/buddy/micOpen.ts MIC_SLOW_MS). */
+const MIC_SLOW_MS = 1000;
 
 /**
  * @param {{ now?: () => number, max?: number }} o
@@ -60,6 +63,7 @@ function stageText(s) {
   switch (s.name) {
     case "keys-down": return "keys down +0 ms";
     case "listening": return `microphone asked ${at}`;
+    case "open": return `microphone open ${at}`;
     case "audio": return `first sound ${at}`;
     case "keys-up": return `keys up ${at}`;
     case "recognised": return `recognised ${s.chars || 0} chars ${at}`;
@@ -73,9 +77,22 @@ function stageText(s) {
 }
 
 /**
+ * The microphone of this run was slow: asked for and not open yet, or open more than a second later.
+ * False when the run has no word about the microphone at all.
+ */
+function slowMic(run) {
+  const asked = run.stages.find((s) => s.name === "listening");
+  if (!asked) return false;
+  // Its first sound says it was open too.
+  const open = run.stages.find((s) => s.name === "open" || s.name === "audio");
+  return !open || open.ms - asked.ms >= MIC_SLOW_MS;
+}
+
+/**
  * A short code the user can quote: FD-<hook><result>.
  *   hook:   H1 the keyboard hook is registered, H0 it is not
- *   result: OK typed or pasted; SHORT nothing recognised and the keys were up again within a second;
+ *   result: OK typed or pasted; MIC nothing recognised and the microphone was slow to open (over a
+ *           second, or still not open); SHORT nothing recognised and the keys were up again within a second;
  *           NOTEXT nothing recognised after a longer hold; COPY-<reason> only copied; PW a password box;
  *           KEYS Windows did not accept the keys; NONE no dictation since Filow started
  */
@@ -86,7 +103,7 @@ function problemCode({ hookReady, run }) {
   const r = run.result || "";
   let code = "OPEN"; // still running, or it never reached an end
   if (/^(pasted|typed|direct)/.test(r)) code = "OK";
-  else if (r === "nothing") code = run.kind === "hold" && up && up.ms < 1000 ? "SHORT" : "NOTEXT";
+  else if (r === "nothing") code = slowMic(run) ? "MIC" : run.kind === "hold" && up && up.ms < 1000 ? "SHORT" : "NOTEXT";
   else if (r.startsWith("refused:password")) code = "PW";
   else if (r === "copied:keys" || r === "copied:blocked") code = "KEYS";
   else if (r.startsWith("copied:")) code = `COPY-${r.slice(7).toUpperCase()}`;
