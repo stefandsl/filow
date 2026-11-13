@@ -257,7 +257,7 @@ export const en = {
   "pair.expires": "Code valid for {t}",
   "pair.expired": "Code expired",
   "pair.newCode": "New code",
-  "pair.singleUse": "Each code works once and for 5 minutes. A second phone needs a new code. After 10 wrong tries the code changes.",
+  "pair.singleUse": "Each code works once and for 5 minutes. A second phone needs a new code.",
   "pair.request": "A phone wants to join",
   "pair.allowControl": "Allow (with remote control)",
   "pair.allowView": "View only",

@@ -644,5 +644,6 @@ dialog.modal-bg.accessible-dialog:has(> .display-panel-sidebar) { justify-conten
 .paired-device-fp { font-size: var(--type-sm); color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
 .paired-device .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); align-self: center; flex: none; }
 .paired-device .dot.live { background: var(--ok); }
-.paired-device-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
-.paired-device-ask { display: inline-flex; align-items: center; gap: 6px; font-size: var(--type-sm); cursor: pointer; }
+.paired-device-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 10px; margin-left: auto; }
+.paired-device-actions .btn { white-space: nowrap; }
+.paired-device-ask { display: inline-flex; align-items: center; gap: 6px; font-size: var(--type-sm); cursor: pointer; white-space: nowrap; }

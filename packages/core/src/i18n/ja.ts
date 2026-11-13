@@ -257,7 +257,7 @@ export const ja: Dictionary = {
   "pair.expires": "コードの有効期限：あと{t}",
   "pair.expired": "コードの期限切れ",
   "pair.newCode": "新しいコード",
-  "pair.singleUse": "コードは1回限り、5分間有効です。2台目のスマートフォンには新しいコードが必要です。10回間違えるとコードが変わります。",
+  "pair.singleUse": "コードは1回限り、5分間有効です。2台目のスマートフォンには新しいコードが必要です。",
   "pair.request": "スマートフォンが参加を求めています",
   "pair.allowControl": "許可（リモート操作あり）",
   "pair.allowView": "表示のみ",

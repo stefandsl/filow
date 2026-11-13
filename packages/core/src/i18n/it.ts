@@ -256,7 +256,7 @@ export const it: Dictionary = {
   "pair.expires": "Codice valido per {t}",
   "pair.expired": "Codice scaduto",
   "pair.newCode": "Nuovo codice",
-  "pair.singleUse": "Ogni codice vale una volta e per 5 minuti. Un secondo telefono ha bisogno di un nuovo codice. Dopo 10 tentativi sbagliati il codice cambia.",
+  "pair.singleUse": "Ogni codice vale una volta e per 5 minuti. Un secondo telefono ha bisogno di un nuovo codice.",
   "pair.request": "Un telefono chiede di entrare",
   "pair.allowControl": "Consenti (con telecomando)",
   "pair.allowView": "Solo vista",

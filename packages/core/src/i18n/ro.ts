@@ -256,7 +256,7 @@ export const ro: Dictionary = {
   "pair.expires": "Cod valabil încă {t}",
   "pair.expired": "Cod expirat",
   "pair.newCode": "Cod nou",
-  "pair.singleUse": "Fiecare cod funcționează o singură dată, timp de 5 minute. Un al doilea telefon are nevoie de un cod nou. După 10 încercări greșite codul se schimbă.",
+  "pair.singleUse": "Fiecare cod funcționează o singură dată, timp de 5 minute. Un al doilea telefon are nevoie de un cod nou.",
   "pair.request": "Un telefon vrea să se conecteze",
   "pair.allowControl": "Permite (cu control de la distanță)",
   "pair.allowView": "Doar vizualizare",
