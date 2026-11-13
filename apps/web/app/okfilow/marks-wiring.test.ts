@@ -30,12 +30,11 @@ describe("the overlay's marks", () => {
     // Clear and an empty drawing both start the exit
     expect(overlay).toMatch(/b\.onClear\(\(\) => \{\s*setCards\(\[\]\);\s*leave\(\);/);
     expect(overlay).toContain("if (!next.length) leave();");
-    const labelOut = rule(".okf-mark--leaving .okf-mark-label, .okf-mark--leaving .okf-mark-leader, .okf-mark--leaving .okf-mark-head");
-    expect(labelOut).toContain(`okf-out ${sec(MARK_EXIT.labelMs)}`);
-    const erase = rule(".okf-mark--leaving .okf-mark-ink, .okf-mark--leaving .okf-mark-halo");
-    expect(erase).toContain(`okf-erase ${sec(MARK_EXIT.strokeMs)}`);
-    expect(erase).toContain(`${sec(MARK_EXIT.strokeDelayMs)} forwards`);
-    expect(MARK_EXIT_MS).toBe(MARK_EXIT.strokeDelayMs + MARK_EXIT.strokeMs);
+    // each mark fades as one piece: the group fades, its parts are held whole (no erase, no stub)
+    expect(rule(".okf-marks g.okf-mark--leaving, .okf-marks-over .okf-mark--leaving")).toContain(`okf-fade-out ${sec(MARK_EXIT.fadeMs)}`);
+    expect(rule(".okf-mark--leaving :is(.okf-mark-ink, .okf-mark-halo, .okf-mark-leader line)")).toContain("animation: none; stroke-dashoffset: 0;");
+    expect(rule(".okf-mark--leaving :is(.okf-mark-head, .okf-mark-leader circle, .okf-mark-label)")).toContain("animation: none; opacity: 1;");
+    expect(MARK_EXIT_MS).toBe(MARK_EXIT.fadeMs);
   });
 
   it("draw with one stroke style: a dark under-stroke, no filter", () => {
@@ -70,6 +69,6 @@ describe("the overlay's marks", () => {
 
   it("hold still while paused, but still go away", () => {
     expect(css).toMatch(/\.okf-paused \.okf-mark path, [^{]*\.okf-paused \.okf-pen, [^{]*\{ animation-play-state: paused; \}/);
-    expect(css).toMatch(/\.okf-paused \.okf-mark--leaving path, [^{]*\{ animation-play-state: running; \}/);
+    expect(css).toContain(".okf-paused .okf-mark--leaving { animation-play-state: running; }");
   });
 });

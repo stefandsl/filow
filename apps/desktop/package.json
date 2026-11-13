@@ -126,6 +126,7 @@
       "proxy-guard.js",
       "okfilow-timings.js",
       "okfilow-uia.js",
+      "okfilow-model-place.js",
       "native/uia/bin/okfilow-uia.exe"
     ],
     "asar": true,

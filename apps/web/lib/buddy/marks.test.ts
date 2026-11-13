@@ -207,6 +207,17 @@ describe("label placement", () => {
     expect(placeLabels([{ ...box, label: "" }], [size("x")], view)[0]).toBeNull();
   });
 
+  it("puts a box's and a line's label on their trailing side, off the badges rows start with", () => {
+    const row: BuddyMark[] = [
+      { kind: "box", x1: 420, y1: 300, x2: 700, y2: 370, label: "Save button", screen: 1 },
+      { kind: "underline", x1: 420, x2: 820, y: 600, label: "Page title", screen: 1 },
+    ];
+    const spots = placeLabels(row, row.map((m) => size(m.label)), view);
+    // the left edge of a row (where its 01, 02... badge sits) stays clear: each label starts right of its mark
+    expect(spots[0]!.x).toBeGreaterThan(700);
+    expect(spots[1]!.x).toBeGreaterThan(820);
+  });
+
   it("tells overlapping labels apart from clear ones", () => {
     const a = { x: 0, y: 0, width: 50, height: 30, from: { x: 0, y: 0 }, to: { x: 0, y: 0 } };
     expect(labelsOverlap([a, { ...a, x: 40 }])).toBe(true);

@@ -218,8 +218,10 @@ function candidates(m: BuddyMark, b: Rect, w: number, h: number, gap: number): A
   switch (m.kind) {
     // Above the circle: the answer bubble usually sits below the buddy.
     case "circle": return [aboveRight, right, above, left, belowRight, below];
-    case "box": return [below, above, right, left, belowEnd, aboveEnd];
-    case "underline": return [below, above, belowEnd, aboveEnd, right, left];
+    // On the trailing side first: rows and lists start with their badges, numbers and icons at the
+    // left, so a label below-left of a box or a line lands on them (the 01 and 03 badges).
+    case "box": return [right, aboveEnd, belowEnd, above, below, left];
+    case "underline": return [right, belowEnd, aboveEnd, below, above, left];
     case "arrow": {
       // Beside the tail, on the side away from the head.
       const tail = { x: m.x1, y: m.y1 };
