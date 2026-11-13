@@ -243,6 +243,8 @@ export const ro: Dictionary = {
   "offline.downloadDisabled": "Modul offline este activat. Dezactivează-l ca să descarci modele sau să instalezi Ollama.",
   "app.slow": "model lent: {ms} ms pe apel",
   "app.slowTitle": "Modelul de decizie răspunde mai încet decât cere motorul. Deciziile întârzie, dar nu se pierde nimic; un model mai rapid sau placa video (GPU) ar rezolva asta.",
+  "app.reloading": "Se reîncarcă modelul local…",
+  "app.reloadingTitle": "Modelul de decizie a ieșit din memorie, de obicei pentru că un alt model avea nevoie de placa video. Se încarcă din nou; când revine, punctele se bifează iar singure.",
   "app.analysing": "se analizează…",
   "app.session": "sesiune…",
   "app.mirrorOff": "oglindă oprită",

@@ -29,6 +29,16 @@ export type EngineOptions = {
   costCapUsd?: number | null;
   /** per-call timeout; the call is aborted and the engine reports "slow" instead of an error */
   timeoutMs?: number;
+  /**
+   * Brings the decision model back when it has gone (a local model Ollama unloaded to make room for
+   * another one). A load takes longer than `timeoutMs`, and aborting the call cancels the load, so
+   * every call would time out for the rest of the take. After `reloadAfter` timeouts in a row the
+   * engine calls this once, asks nothing while it runs (`engine.reloading`), and asks again when it
+   * settles. Never aborted by the engine. Returns undefined when there is nothing to reload (a cloud model).
+   */
+  reload?: () => Promise<unknown> | undefined;
+  /** timeouts in a row that start a reload (default 2) */
+  reloadAfter?: number;
   /** at most this many open points per call; the rest rotate in on later calls (default 4) */
   maxQuestions?: number;
   /**
@@ -75,7 +85,7 @@ const PARTIAL_ACTIVE = 0.5;
 const ANCHOR_RECENT_MS = 6000;
 
 export class Engine {
-  private readonly o: Required<Omit<EngineOptions, "sessionId" | "onGuard" | "onVerify">> & Pick<EngineOptions, "onGuard" | "onVerify">;
+  private readonly o: Required<Omit<EngineOptions, "sessionId" | "onGuard" | "onVerify" | "reload">> & Pick<EngineOptions, "onGuard" | "onVerify" | "reload">;
   private state: SessionState;
   private committed = "";
   private partial = "";
@@ -84,6 +94,10 @@ export class Engine {
   /** Bumped by every command that changes what a decision is about (script, section, points, take). A reply from an older epoch is dropped. */
   private epoch = 0;
   private ctl: AbortController | null = null;
+  /** decision calls that timed out since the last answer */
+  private timeouts = 0;
+  /** the model reload in progress: no call is made until it settles */
+  private reloading: Promise<unknown> | null = null;
   private lastCallAt = -Infinity;
   private qCursor = 0;
   private reasked = false;
@@ -115,6 +129,8 @@ export class Engine {
       window: opts.window ?? 900,
       costCapUsd: opts.costCapUsd === undefined ? 1 : opts.costCapUsd,
       timeoutMs: opts.timeoutMs ?? 2500,
+      reload: opts.reload,
+      reloadAfter: opts.reloadAfter ?? 2,
       maxQuestions: opts.maxQuestions ?? 4,
       reaskOnPending: opts.reaskOnPending ?? true,
       guard: opts.guard ?? true,
@@ -478,12 +494,34 @@ export class Engine {
   }
 
   /**
+   * One reload of the decision model (`reload` option), never aborted: no call is made until it
+   * settles (tick() returns at once), then the next tick asks again with the current text, whatever
+   * the outcome (a failed reload leaves the next timeouts in a row to start another one).
+   */
+  private startReload(): void {
+    this.timeouts = 0;
+    const p = this.o.reload?.();
+    if (!p) return;
+    const done = () => {
+      this.reloading = null;
+      this.update((st) => {
+        delete st.engine.reloading;
+      });
+    };
+    this.reloading = p.then(done, done);
+    this.update((st) => {
+      st.engine.reloading = true;
+      st.engine.slowMs = undefined;
+    });
+  }
+
+  /**
    * One iteration. Public so tests and surfaces can drive it without timers.
    * `verifyNow` is the engine's own follow-up call for a point that just became ready to tick: it
    * skips the pacing and the "same text" rule, which exist to stop idle or piled-up calls, not this one.
    */
   async tick(verifyNow = false): Promise<void> {
-    if (this.inFlight) return;
+    if (this.inFlight || this.reloading) return;
     const s = this.state;
     const section = s.script.sections[s.sectionIdx];
     if (!section) return;
@@ -547,6 +585,7 @@ export class Engine {
     let verifyNext = false;
     try {
       const data = await withTimeout(this.o.decide(req, ctl.signal), this.o.timeoutMs, ctl);
+      this.timeouts = 0; // the model answered: it is loaded
       if (epoch !== this.epoch) return; // stale: the script, section, points or take changed meanwhile
       this.apply(data, req, windowAbs);
       // A point became ready to tick in this answer and waits for its verification: ask now, not on
@@ -561,6 +600,7 @@ export class Engine {
           st.engine.slowMs = this.o.timeoutMs;
           st.engine.error = undefined;
         });
+        if (++this.timeouts >= this.o.reloadAfter) this.startReload();
       } else {
         this.update((st) => (st.engine.error = (err as Error).message));
       }

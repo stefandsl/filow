@@ -551,6 +551,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
         </div>
       )}
       {error && <div className="chip err banner">{error}</div>}
+      {eng.reloading && <div className="chip busy banner" role="status" title={t("app.reloadingTitle")}><Icon name="clock" /> {t("app.reloading")}</div>}
       {importError !== null && <ImportError error={importError} />}
       {boardDown && <div className="chip err banner" role="alert">{t("ctl.whiteboardDown")}</div>}
 

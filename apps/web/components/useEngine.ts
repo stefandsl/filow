@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Engine, gatedDecide, gateThresholdsFor, matcherDecide, type DecideRequest, type DecideResponse, type PointVectors, type SessionState } from "@filow/core";
+import { Engine, gatedDecide, gateThresholdsFor, matcherDecide, type DecideRequest, type DecideResponse, type DecisionProviderId, type PointVectors, type SessionState } from "@filow/core";
 import { useLang } from "@filow/ui";
 import { engineHeaders } from "./useSession";
 import { pageOutbound } from "./usePageOutbound";
@@ -40,6 +40,15 @@ async function decideViaApi(req: DecideRequest, signal?: AbortSignal): Promise<D
   return (await res.json()) as DecideResponse;
 }
 
+/**
+ * The engine's `reload`: local Clef that Ollama unloaded mid-take (another model took the GPU) is
+ * loaded again the way the take start does (no 2.5 s limit, pinned), never replaced by a cloud model.
+ * Other providers have nothing to reload.
+ */
+export function reloadDecisionModel(provider: DecisionProviderId | undefined, post: typeof fetch = fetch): Promise<unknown> | undefined {
+  return provider === "clef-local" ? post("/api/local/warmup", { method: "POST" }) : undefined;
+}
+
 /** Point vectors are needed by the gate (when on) and by the on-device matcher (always). */
 const wantsPoints = () => gateAvailable() && (getGateMode() === "on" || getDecisionProvider() === "matcher");
 
@@ -69,7 +78,7 @@ export function useEngine() {
       if (getGateMode() !== "on" || !gateAvailable()) return decideViaApi(r, signal);
       return (gateThresholdsFor(provider).narrow === false ? skipOnly : narrowed)(r, signal);
     };
-    return new Engine({ decide });
+    return new Engine({ decide, reload: () => reloadDecisionModel(getDecisionProvider()) });
   }, []);
   const [state, setState] = useState<SessionState>(engine.getState());
   const lang = useLang();
