@@ -33,6 +33,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { wavData } from "./launch.mjs";
 import { HeardTracker, VOICE, classifyConnections, created, isLoopback, parseNetstat, passFresh, processTree, socketLogAudit, splitAddr, sttBackendOf } from "./take-lib.mjs";
 
 const run = promisify(execFile);
@@ -109,15 +110,6 @@ for (const l of script.slice(firstHeading + 1)) {
 }
 
 // ---------- the voice ----------
-/** Offset and length of the PCM samples: System.Speech writes an 18-byte fmt chunk, so not always 44. */
-function wavData(buf) {
-  for (let o = 12; o + 8 <= buf.length;) {
-    const id = buf.toString("ascii", o, o + 4), size = buf.readUInt32LE(o + 4);
-    if (id === "data") return { offset: o + 8, length: Math.min(size, buf.length - o - 8) };
-    o += 8 + size + (size % 2);
-  }
-  throw new Error("no data chunk in the WAV");
-}
 const wav = path.join(WORK, "take.wav");
 const linesFile = path.join(WORK, "take-lines.json");
 if (!fs.existsSync(wav) || !fs.existsSync(linesFile)) {

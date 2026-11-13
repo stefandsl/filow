@@ -1,6 +1,6 @@
 {
   "name": "@filow/desktop",
-  "version": "0.9.36",
+  "version": "0.9.37",
   "private": true,
   "description": "Filow: the live speaking companion",
   "author": "VoidExploit",
@@ -70,6 +70,7 @@
       "secrets.js",
       "freellm.js",
       "qa.js",
+      "qa-headless.js",
       "integrity.js",
       "diag.js",
       "single-instance.js",
@@ -121,6 +122,7 @@
       "okfilow-answers.js",
       "okfilow-outbound.js",
       "okfilow-stop.js",
+      "okfilow-timings.js",
       "okfilow-uia.js",
       "okfilow-model-place.js",
       "native/uia/bin/okfilow-uia.exe"

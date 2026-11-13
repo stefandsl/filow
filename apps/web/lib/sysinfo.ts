@@ -5,7 +5,17 @@ import fs from "node:fs";
 import os from "node:os";
 import { execFile } from "node:child_process";
 import path from "node:path";
-import { detectGpu, freeGbAt, ollamaModelsDir, type DetectedGpu, type MachineInfo, type ProbeRunner } from "@filow/core";
+import { detectGpu, freeGbAt, NO_GPU, ollamaModelsDir, parseQaHardware, type DetectedGpu, type MachineInfo, type ProbeRunner, type QaHardware } from "@filow/core";
+
+/**
+ * QA builds only (FILOW_QA_HARDWARE=ramGb=16,cores=8,gpu=none; the desktop shell deletes the variable
+ * in a released build): the laptop a speed baseline pretends to be. Every hardware read below honours it.
+ */
+export const qaHardware = (): QaHardware | null => parseQaHardware(process.env.FILOW_QA_HARDWARE);
+/** Memory in whole GB (rounded up: a "16 GB" laptop that reports 15.7 GB counts as 16). */
+export const machineRamGb = (): number => qaHardware()?.ramGb ?? Math.ceil(os.totalmem() / 1024 ** 3);
+/** Logical processors. */
+export const machineCores = (): number => qaHardware()?.cores ?? os.cpus().length;
 
 export type GpuInfo = {
   name: string;
@@ -64,6 +74,7 @@ let gpuCache: { at: number; info: GpuInfo } | null = null;
 
 /** The graphics card, the same detection as apps/desktop/localai.js. `runner` is for tests. */
 export function detectedGpu(runner: ProbeRunner = run): Promise<DetectedGpu> {
+  if (qaHardware()) return Promise.resolve(NO_GPU);
   if (!detected) detected = detectGpu(runner, { platform: process.platform, cpuModel: os.cpus()[0]?.model || "", totalMemBytes: os.totalmem() });
   return detected;
 }
@@ -143,8 +154,8 @@ export function freeDiskGb(dir = ollamaModelsDir(process.env, os.homedir(), path
  */
 export function machineInfo(gpu: GpuInfo, installed?: string[]): MachineInfo {
   return {
-    ramGb: Math.ceil(os.totalmem() / 1024 ** 3),
-    cores: os.cpus().length,
+    ramGb: machineRamGb(),
+    cores: machineCores(),
     gpu: { kind: gpu.kind, vramGb: gpu.vramTotalGb, ollama: gpu.ollama },
     freeDiskGb: freeDiskGb(),
     installed,

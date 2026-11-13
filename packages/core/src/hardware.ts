@@ -25,6 +25,29 @@ export type ProbeRunner = (cmd: string, args: string[], timeoutMs: number) => Pr
 
 export const NO_GPU: DetectedGpu = { name: "", kind: "none", vramGb: null, ollama: false, source: "none" };
 
+/** The machine a QA run pretends to be (FILOW_QA_HARDWARE): memory, logical processors and no graphics card. */
+export type QaHardware = { ramGb: number; cores: number; gpu: DetectedGpu };
+
+/**
+ * QA builds only (the shells drop the variable otherwise): `ramGb=16,cores=8,gpu=none`, so every
+ * hardware read sees that laptop. Only `gpu=none` is accepted; anything else is null (the real PC).
+ */
+export function parseQaHardware(value?: string): QaHardware | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const fields = new Map<string, string>();
+  for (const part of value.split(",")) {
+    const m = /^\s*([a-zA-Z]+)\s*=\s*([^\s,]+)\s*$/.exec(part);
+    if (!m || fields.has(m[1])) return null;
+    fields.set(m[1], m[2]);
+  }
+  if (fields.size !== 3 || fields.get("gpu") !== "none") return null;
+  const int = (v: string | undefined) => (v !== undefined && /^\d{1,4}$/.test(v) ? Number(v) : NaN);
+  const ramGb = int(fields.get("ramGb"));
+  const cores = int(fields.get("cores"));
+  if (!(ramGb >= 1 && ramGb <= 4096) || !(cores >= 1 && cores <= 1024)) return null;
+  return { ramGb, cores, gpu: NO_GPU };
+}
+
 const gb1 = (bytes: number) => Math.round((bytes / 1024 ** 3) * 10) / 10;
 
 export const NVIDIA_SMI_ARGS = ["--query-gpu=name,memory.total", "--format=csv,noheader,nounits"];

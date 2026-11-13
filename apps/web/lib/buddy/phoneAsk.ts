@@ -1,14 +1,10 @@
-// A question typed on a paired phone (the mirror's "Ask OK Filow" box) on its way to OK Filow.
-// Phone: sends { type: "askOkFilow", text } over the session it paired into; the session server lets
-// only a phone it accepted as a controller send commands (apps/server/src/server.ts). Computer: the
-// main window, which holds the session, hands the question to OK Filow's panel (useSession.ts), which
-// asks it like any other question: the same consent notice, the same provider, the same signal when
-// something leaves the PC. The answer stays on the computer.
-import { PHONE_QUESTION_MAX, type CommandResult, type I18nKey } from "@filow/core";
-import { okFilowSettingsBridge, type OkFilowSettingsBridge } from "@/lib/buddy/bridge";
+// A question typed on a paired phone for OK Filow ({ type: "askOkFilow", text }).
+// Switched off until it is secured (per-question yes on the PC, words only, a devices list with
+// revoke): the session server refuses it (apps/server/src/server.ts), the window holding the session
+// refuses it too (sessionCommand below), the desktop app's handler answers "off" without touching
+// OK Filow, and the panel asks only plain text handed by its own shell (askTextQuestion).
+import { PHONE_ASK_OFF, PHONE_QUESTION_MAX, type Command, type CommandResult, type I18nKey } from "@filow/core";
 
-/** What the desktop app said about a phone's question. */
-export type PhoneAskAnswer = "asked" | "off" | "busy" | "empty" | "unavailable";
 /** The errors a phone can get back, one per reason, so it can say which in words. */
 export const PHONE_ASK_ERRORS = ["okfilow:off", "okfilow:busy", "okfilow:unavailable", "okfilow:empty"] as const;
 export type PhoneAskError = (typeof PHONE_ASK_ERRORS)[number];
@@ -20,23 +16,25 @@ export function phoneQuestion(raw: unknown): string | null {
   return q || null;
 }
 
-/** The computer's side: a phone's question to OK Filow, answered with the ack the phone receives. */
-export async function answerPhoneAsk(
-  raw: unknown,
-  bridge: Pick<OkFilowSettingsBridge, "askFromPhone"> | null = okFilowSettingsBridge(),
-): Promise<CommandResult> {
-  const question = phoneQuestion(raw);
-  if (!question) return { ok: false, error: "okfilow:empty" };
-  if (!bridge?.askFromPhone) return { ok: false, error: "okfilow:unavailable" };
-  let said: unknown;
-  try {
-    said = await bridge.askFromPhone(question);
-  } catch {
-    return { ok: false, error: "okfilow:unavailable" };
-  }
-  if (said === "asked") return { ok: true };
-  if (said === "off" || said === "busy" || said === "empty") return { ok: false, error: `okfilow:${said}` };
-  return { ok: false, error: "okfilow:unavailable" };
+/**
+ * A command a paired device sent over the session, as the window holding the session answers it:
+ * a question for OK Filow is refused (PHONE_ASK_OFF) and never reaches OK Filow or the engine;
+ * everything else is the engine's.
+ */
+export function sessionCommand(cmd: Command, dispatch: (cmd: Command) => CommandResult): CommandResult {
+  if ((cmd as { type?: unknown }).type === "askOkFilow") return { ok: false, error: PHONE_ASK_OFF };
+  return dispatch(cmd);
+}
+
+/**
+ * What the panel asks when its shell hands it a question ("okfilow:askText", today: the selection's
+ * "Ask about this"): plain text only. Anything else, a question tagged as coming from a phone among
+ * them, is ignored.
+ */
+export function askTextQuestion(payload: unknown): string | null {
+  if (typeof payload !== "string") return null;
+  const q = payload.trim();
+  return q || null;
 }
 
 /** The phone's side: the line it shows after sending. Anything else (a viewer phone, no answer) is a plain failure. */

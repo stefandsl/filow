@@ -58,4 +58,19 @@ function installSocketLog(write, { net = require("node:net"), now = () => Date.n
   };
 }
 
-module.exports = { isQaBuild, describeConnect, installSocketLog };
+/**
+ * QA builds only (FILOW_QA_HARDWARE=ramGb=16,cores=8,gpu=none; main.js deletes the variable in a
+ * released build): the laptop a speed baseline pretends to be (packages/core/src/hardware.ts
+ * parseQaHardware). Null otherwise, or when the value is not one the parser accepts.
+ */
+function qaHardware(env = process.env, parse = () => require("./vendor/hardware").parseQaHardware) {
+  const v = env && env.FILOW_QA_HARDWARE;
+  if (!v) return null;
+  try {
+    return parse()(v) || null;
+  } catch {
+    return null;
+  }
+}
+
+module.exports = { isQaBuild, describeConnect, installSocketLog, qaHardware };

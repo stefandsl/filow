@@ -7,7 +7,7 @@ import { CLOCK_REFRESH_MS, clockKey, takeRecorder, withClock } from "./TimerCloc
 import { desktopBridge, sessionServerUrl } from "@/lib/sessionUrl";
 import { loadedTargets, phoneLink, phoneTargets } from "@/lib/phoneLink";
 import { useRemoteStatus } from "@/lib/useRemoteStatus";
-import { answerPhoneAsk } from "@/lib/buddy/phoneAsk";
+import { sessionCommand } from "@/lib/buddy/phoneAsk";
 
 export type SessionInfo = {
   id: string;
@@ -131,9 +131,8 @@ export function useSession(engine: Engine) {
         if (cancelled) return client.close();
         clientRef.current = client;
         client.onCommand((cmd, ack) => {
-          // A paired phone's question for OK Filow: this window hands it to OK Filow's panel (lib/buddy/phoneAsk.ts).
-          if (cmd.type === "askOkFilow") return void answerPhoneAsk(cmd.text).then(ack);
-          const r = engine.dispatch(cmd);
+          // A paired phone's question for OK Filow is refused here, never handed on (lib/buddy/phoneAsk.ts sessionCommand).
+          const r = sessionCommand(cmd, (c) => engine.dispatch(c));
           ack(r.ok ? { ok: true } : { ok: false, error: r.error });
         });
         // Full states carry the talk clock (TimerClock.ts) for the phone's timer; a patch keeps it.

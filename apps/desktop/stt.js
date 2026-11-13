@@ -178,11 +178,14 @@ function tierFor({ ramGb, cores } = {}) {
   return (Number.isFinite(ramGb) && ramGb < 6) || (Number.isFinite(cores) && cores <= 4) ? "light" : "standard";
 }
 
+/** QA builds only (FILOW_QA_HARDWARE, qa.js): the laptop a speed baseline pretends to be; null otherwise. */
+const qaHardware = () => { try { return require("./qa.js")?.qaHardware?.() ?? null; } catch { return null; } };
+
 /** The given hardware, or this PC's where a value is missing. */
 function hardwareOf(hardware) {
   return {
-    ramGb: Number.isFinite(hardware?.ramGb) ? hardware.ramGb : os.totalmem() / 2 ** 30,
-    cores: Number.isFinite(hardware?.cores) ? hardware.cores : os.cpus().length,
+    ramGb: Number.isFinite(hardware?.ramGb) ? hardware.ramGb : qaHardware()?.ramGb ?? os.totalmem() / 2 ** 30,
+    cores: Number.isFinite(hardware?.cores) ? hardware.cores : qaHardware()?.cores ?? os.cpus().length,
   };
 }
 
@@ -492,7 +495,7 @@ class SttSession {
   }
 
   threads() {
-    return Math.max(2, Math.min(4, os.cpus().length - 2));
+    return Math.max(2, Math.min(4, (qaHardware()?.cores ?? os.cpus().length) - 2));
   }
 
   /** The language to listen for (an explicit one wins over the stored one) and the model to run. */

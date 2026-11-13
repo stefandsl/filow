@@ -2,7 +2,6 @@
 import { Icon } from "@/components/icons";
 import { OverlayFrame } from "@/components/OverlayFrame";
 import { TimerMirror } from "@/components/TimerMirror";
-import { MirrorAsk } from "@/components/MirrorAsk";
 
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
@@ -176,7 +175,7 @@ function Mirror({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
     );
   }
   if (compact) return <>{timer}<MirrorKeys state={state} onCommand={onCommand} /><StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact banner={error ?? (offline ? t("stage.engineOffline") : null)} /></>;
-  return <MirrorStage state={state ?? emptyState(client.id)} onCommand={onCommand} ask={(cmd) => client.send(cmd)} timer={timer} banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
+  return <MirrorStage state={state ?? emptyState(client.id)} onCommand={onCommand} timer={timer} banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
 }
 
 /** Clicker keys on the mirror (a Bluetooth clicker paired with the phone, or the overlay window in focus). */
@@ -196,10 +195,10 @@ function OverlayEyeline({ state }: { state: SessionState | null }) {
 }
 
 /**
- * The full phone view: the stage with this phone's own display choice (size, eyeline, mirror for glass, contrast),
- * and the "Ask OK Filow" box under it (only here: not in the desktop's own overlay windows or the compact view).
+ * The full phone view: the stage with this phone's own display choice (size, eyeline, mirror for glass, contrast).
+ * No "Ask OK Filow" box: questions from a phone are switched off until they are secured (lib/buddy/phoneAsk.ts).
  */
-function MirrorStage({ state, onCommand, ask, banner, timer }: { state: SessionState; onCommand: (cmd: Command) => void; ask: (cmd: Command) => Promise<{ ok: boolean; error?: string }>; banner: string | null; timer: ReactNode }) {
+function MirrorStage({ state, onCommand, banner, timer }: { state: SessionState; onCommand: (cmd: Command) => void; banner: string | null; timer: ReactNode }) {
   const t = useT();
   const [display, setDisplay] = useDisplayPrefs(DISPLAY_KEYS.mirror);
   const [open, setOpen] = useState(false);
@@ -212,7 +211,6 @@ function MirrorStage({ state, onCommand, ask, banner, timer }: { state: SessionS
         <Icon name="sliders" /> {t("display.open")}
       </button>
       <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state} onCommand={onCommand} stage banner={banner} />
-      <MirrorAsk send={ask} />
       {open && <DisplayPanel prefs={display} onChange={setDisplay} onClose={() => setOpen(false)} />}
     </main>
   );

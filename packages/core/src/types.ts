@@ -160,5 +160,7 @@ export type Command =
 
 /** The longest question a phone may send to OK Filow, in characters (the panel's own limit for a handed-over question). */
 export const PHONE_QUESTION_MAX = 300;
+/** The answer every phone question gets while asking OK Filow from a phone is switched off (session server, main window). */
+export const PHONE_ASK_OFF = "okfilow:phone-off";
 
 export type CommandResult = { ok: true } | { ok: false; error: string };

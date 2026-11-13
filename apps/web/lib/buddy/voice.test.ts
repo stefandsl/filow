@@ -621,3 +621,82 @@ describe("what the settings show for the natural voice", () => {
     expect(voicePanel({ ...base, pct: -3 })).toMatchObject({ pct: 0, resume: false });
   });
 });
+
+// The speed baseline (docs/perf/LATENCY-2026-11.md): when the first audible sample of an answer is due to play.
+describe("onAudible and onSynth (the speed baseline's voice marks)", () => {
+  function marked(opts: { startsIn?: () => number | null } = {}) {
+    const t = fakeTts();
+    const audible: Array<[number, number]> = [];
+    const synth: Array<[number, number]> = [];
+    const bridge = { tts: t.tts, onMode: () => () => {} } as unknown as OkFilowBridge;
+    const player = { ...fakePlayer(), ...(opts.startsIn ? { startsIn: opts.startsIn } : {}) };
+    const speaker = createSpeaker({
+      bridge: () => bridge,
+      status: () => ({ voice: "natural", speed: 1, offline: false, naturalVoice: 0 }) as OkFilowStatus,
+      isCurrent: (id) => id === 5,
+      uiLang: () => "en",
+      onAudible: (id, at) => audible.push([id, at]),
+      onSynth: (id, at) => synth.push([id, at]),
+      player: () => player,
+    });
+    return { ...t, speaker, audible, synth, player };
+  }
+  const loudAt = (n: number, at: number) => { const s = new Float32Array(n); s[at] = 0.2; return s; };
+
+  it("is the scheduled start of the first piece plus the silence before the first sample above -40 dBFS, for the turn's id", async () => {
+    vi.setSystemTime(1_000_000);
+    const m = marked({ startsIn: () => 0.25 });
+    const done = m.speaker.speak("Open the File menu.", 5);
+    m.chunk({ id: 1, samples: new Float32Array(4410), sampleRate: 44100, pause: 200 });
+    expect(m.audible).toEqual([]);
+    m.chunk({ id: 1, samples: loudAt(4410, 441), sampleRate: 44100, pause: 200, last: true });
+    m.chunk({ id: 1, samples: loudAt(4410, 0), sampleRate: 44100, pause: 0 });
+    expect(m.audible).toEqual([[5, 1_000_000 + 250 + 100 + 200 + 10]]);
+    expect(m.synth).toEqual([[5, 1_000_000]]);
+    m.reply({ ...OK, sent: 3 });
+    await tick(80);
+    await done;
+  });
+
+  it("counts a player that cannot tell its start as starting now", async () => {
+    vi.setSystemTime(2_000_000);
+    const m = marked();
+    const done = m.speaker.speak("Open the File menu.", 5);
+    m.chunk({ id: 1, samples: loudAt(441, 0), sampleRate: 44100, pause: 0, last: true });
+    expect(m.audible).toEqual([[5, 2_000_000]]);
+    m.reply({ ...OK, sent: 1 });
+    await tick(80);
+    await done;
+  });
+
+  it("is not told for an utterance paused before any sound", async () => {
+    const m = marked({ startsIn: () => 0 });
+    const done = m.speaker.speak("Open the File menu.", 5);
+    m.speaker.pause();
+    m.chunk({ id: 1, samples: loudAt(441, 0), sampleRate: 44100, pause: 0, last: true });
+    expect(m.audible).toEqual([]);
+    m.speaker.stop();
+    await tick(200);
+    await done;
+  });
+
+  it("the system voice tells it when its first sentence starts, once", async () => {
+    vi.setSystemTime(3_000_000);
+    const audible: Array<[number, number]> = [];
+    const { spoken } = fakeSynth([{ lang: "en-US", localService: true, name: "David" }]);
+    const speaker = createSpeaker({
+      bridge: () => null, status: () => ({ voice: "system", speed: 1, offline: false }) as OkFilowStatus,
+      isCurrent: (id) => id === 9, uiLang: () => "en", onAudible: (id, at) => audible.push([id, at]),
+    });
+    const done = speaker.speak("One. Two.", 9);
+    await tick(10);
+    (spoken[0] as unknown as { onstart: () => void }).onstart();
+    spoken[0].onend?.();
+    await tick(200);
+    (spoken[1] as unknown as { onstart: () => void })?.onstart?.();
+    spoken[1]?.onend?.();
+    await tick(200);
+    await done;
+    expect(audible).toEqual([[9, 3_000_000 + 10]]);
+  });
+});

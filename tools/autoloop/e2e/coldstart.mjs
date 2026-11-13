@@ -9,6 +9,7 @@ import { spawn, execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { seedProfile } from "./profile.mjs";
+import { lineTime, logLinesSince, waitForLine } from "./launch.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../../..");
 function newestBuild() {
@@ -35,21 +36,19 @@ for (let i = 0; i < runs; i++) {
   const app = spawn(path.join(exeDir, "Filow.exe"), [], {
     env: { ...process.env, FILOW_USER_DATA_DIR: profile, FILOW_PORT: String(PORT), FILOW_SESSION_PORT: String(PORT + 1) }, stdio: "ignore",
   });
-  let s = null, m = null;
-  for (let w = 0; w < 120 && m == null; w++) {
-    await sleep(250);
-    const text = fs.readFileSync(log, "utf8");
-    const at = (needle) => { const line = text.split("\n").find((l) => l.includes(needle)); return line ? Date.parse(line.slice(0, 24)) - t0 : null; };
-    s = s ?? at("splash shown");
-    m = at("main window shown");
+  let m = null;
+  try {
+    const seen = await waitForLine(log, /main window shown|startup failed/, { timeoutMs: 30_000, everyMs: 250 });
     // A start that failed sits behind an error box: stop the whole run with the reason.
-    const failed = text.split(/\r?\n/).find((l) => l.includes("startup failed"));
-    if (failed) {
+    if (seen.line.includes("startup failed")) {
       try { execSync(`taskkill /PID ${app.pid} /T /F`, { stdio: "ignore" }); } catch { /* gone */ }
-      console.error("the app failed to start: " + failed.slice(25, 400));
+      console.error("the app failed to start: " + seen.line.slice(25, 400));
       process.exit(2);
     }
-  }
+    m = seen.at - t0;
+  } catch { /* not shown within 30 s: no number for this run */ }
+  const splashLine = logLinesSince(log).find((l) => l.includes("splash shown"));
+  const s = splashLine ? lineTime(splashLine) - t0 : null;
   try { execSync(`taskkill /PID ${app.pid} /T /F`, { stdio: "ignore" }); } catch { /* gone */ }
   await sleep(3000);
   // Every run counts. The window no longer waits for the public link (owner decision D2), so a link

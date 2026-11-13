@@ -4,7 +4,7 @@ import os from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { recommendProfile } from "@filow/core";
 import { fixtureRunner, GPU_FIXTURES } from "../../../packages/core/src/hardware.fixtures";
-import { detectedGpu, freeDiskGb, machineInfo, resetGpuDetection, type GpuInfo } from "./sysinfo";
+import { detectedGpu, freeDiskGb, gpuInfo, machineInfo, resetGpuDetection, type GpuInfo } from "./sysinfo";
 
 afterEach(() => {
   resetGpuDetection();
@@ -56,5 +56,29 @@ describe("free disk for the setup", () => {
     vi.stubEnv("OLLAMA_MODELS", "");
     // no OLLAMA_MODELS: ~/.ollama/models, which does not exist here, so the home folder is measured
     expect(freeDiskGb()).toBe(30);
+  });
+});
+
+// Phase 2 speed baseline (FILOW_QA_HARDWARE, set only in QA builds): every hardware read sees the laptop it names.
+describe("FILOW_QA_HARDWARE on the server", () => {
+  it("gives no graphics card, the laptop's memory and processors, and never runs a probe", async () => {
+    vi.stubEnv("FILOW_QA_HARDWARE", "ramGb=16,cores=8,gpu=none");
+    const probe = vi.fn(async () => "NVIDIA GeForce RTX 3070, 8192");
+    const g = await detectedGpu(probe);
+    expect(probe).not.toHaveBeenCalled();
+    expect(g).toEqual({ name: "", kind: "none", vramGb: null, ollama: false, source: "none" });
+    const info = await gpuInfo();
+    expect(info).toEqual({ name: "", kind: "none", vramTotalGb: null, ollama: false, vramUsedGb: null, sharedUsedGb: null, utilPct: null, source: "none" });
+    const m = machineInfo(info, ["lfm3-vl"]);
+    expect({ ramGb: m.ramGb, cores: m.cores, gpu: m.gpu, installed: m.installed }).toEqual({ ramGb: 16, cores: 8, gpu: { kind: "none", vramGb: null, ollama: false }, installed: ["lfm3-vl"] });
+    expect(recommendProfile({ ...m, freeDiskGb: 100 }).profile).toBe("standard");
+  });
+  it("leaves the real machine alone without the variable, or with a value the parser refuses", () => {
+    for (const v of ["", "ramGb=16,cores=8,gpu=nvidia"]) {
+      vi.stubEnv("FILOW_QA_HARDWARE", v);
+      const m = machineInfo({ name: "", kind: "none", vramTotalGb: null, vramUsedGb: null, sharedUsedGb: null, utilPct: null, source: "none" });
+      expect(m.cores).toBe(os.cpus().length);
+      expect(m.ramGb).toBe(Math.ceil(os.totalmem() / 1024 ** 3));
+    }
   });
 });
