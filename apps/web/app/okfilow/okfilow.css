@@ -7,17 +7,20 @@ html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !import
 .okf-hidden { opacity: 0 !important; }
 
 .okf-buddy { position: absolute; left: 0; top: 0; will-change: transform; transition: opacity 0.25s ease; }
-/* The pointer: a 27 px glyph, its tip on the spot (the svg's margin puts it there), outlined dark inside
+/* The pointer: a 27 px glyph, its tip at the viewBox origin, outlined dark inside
    a light halo so it reads on white and on black, and on an amber line of its own colour. */
-.okf-arrow { display: block; margin: -4px 0 0 -4px; overflow: visible; filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.4)); }
+.okf-arrow { display: block; margin: 0; overflow: visible; filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.4)); }
 .okf-arrow path { fill: var(--okf-ink); stroke: #08090b; stroke-width: 1.5; stroke-linejoin: round; }
 .okf-arrow .okf-arrow-halo { stroke: rgba(255, 255, 255, 0.92); stroke-width: 4.2; }
-/* The arrival: one ring that opens from the tip and fades. */
+/* The arrival ring opens from the tip and remains legible for the target's hold. */
 .okf-arrival {
-  position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; box-sizing: border-box; border-radius: 50%; pointer-events: none;
-  border: 2.5px solid var(--okf-ink); box-shadow: 0 0 0 1.5px rgba(8, 9, 11, 0.5), inset 0 0 0 1.5px rgba(8, 9, 11, 0.5);
-  opacity: 0; animation: okf-arrive 0.48s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+  position: absolute; left: -10px; top: -10px; width: 20px; height: 20px; box-sizing: border-box; border-radius: 50%; pointer-events: none;
+  border: 2.5px solid #ffcf55; box-shadow: 0 0 0 1.5px #08090b, inset 0 0 0 1.5px #08090b;
+  opacity: 0; animation: none;
 }
+.okf-point-target { display: none; position: absolute; box-sizing: border-box; border-bottom: 2px solid #ffcf55; pointer-events: none; }
+html[data-theme="light"] .okf-arrival { border-color: #684500; box-shadow: 0 0 0 2px #08090b, inset 0 0 0 1.5px #08090b; }
+html[data-theme="light"] .okf-point-target { border-color: #684500; box-shadow: 0 1.5px 0 #08090b; }
 @keyframes okf-arrive { 0% { opacity: 1; transform: scale(0.3); } 60% { opacity: 0.8; } 100% { opacity: 0; transform: scale(1.25); } }
 .okf-buddy--listening .okf-arrow { animation: okf-pulse 1s ease-in-out infinite; }
 .okf-buddy--error .okf-arrow path { fill: #ff6b5b; }
@@ -28,8 +31,8 @@ html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !import
 .okf-label {
   position: absolute; left: 14px; top: -24px; white-space: nowrap;
   padding: 4px 11px; border-radius: 999px; font: 650 14px/20px system-ui, sans-serif;
-  background: var(--okf-ink); color: #08090b; box-shadow: 0 0 0 1px rgba(8, 9, 11, 0.55), 0 4px 14px rgba(0, 0, 0, 0.35);
-  animation: okf-pop 0.18s ease-out both;
+  background: var(--okf-ink); color: #08090b; box-shadow: 0 0 0 1px rgba(8, 9, 11, 0.55), 0 2px 3px rgba(0, 0, 0, 0.22);
+  animation: none;
 }
 
 /* The answer bubble (docs/okfilow/BUBBLE.md). Dark in both themes, like the pill: it floats over whatever is on screen. */
@@ -227,20 +230,20 @@ html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !import
    through fully transparent pixels even then, so it needs a tint the eye cannot see (alpha 1/255). */
 .okf-overlay--catch { background: rgba(0, 0, 0, 0.004); }
 
-/* 3D view: beside the pointer, in its own opaque rounded frame (never see-through over the page), with
+/* 3D view: beside the pointer, in its own opaque stage (never see-through over the page), with
    no title bar or footer. The model with a soft shadow of its own outline, its numbered part labels on leader lines (placed every frame by the page), and a close
    button and a grip that show while the pointer is on the view or a control has the keyboard. */
 html:has(.okf-model), body:has(.okf-model) { background: transparent !important; overflow: hidden; margin: 0; }
 .okf-model {
   position: relative; box-sizing: border-box; width: 100vw; height: 100vh; overflow: hidden;
-  background: rgb(16, 17, 20); border-radius: 16px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  background: rgb(16, 17, 20); border-radius: 0; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
   color: #f4f4f5; font-family: system-ui, sans-serif;
   animation: okf-model-in 0.35s cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
 @keyframes okf-model-in { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }
 .okf-model-view { position: absolute; inset: 0; }
 /* A soft shadow that follows the model's own outline: it stands off a light page, and costs nothing on a dark one. */
-.okf-model-view canvas { display: block; cursor: grab; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.38)); }
+.okf-model-view canvas { display: block; cursor: grab; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.22)); }
 .okf-model-leaders { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
 .okf-part-leader polyline { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .okf-part-leader .okf-part-halo { stroke: rgba(0, 0, 0, 0.45); stroke-width: 3.5; }
@@ -436,3 +439,13 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
 
 /* The panel's status row keeps room for two lines of status beside the controls, so it does not grow when a longer status wraps. */
 .okf-status-row { min-height: 44px; }
+
+/* Keep the measured content independent of the animated outer box. */
+.okf-bubble-content { display: flex; align-items: center; gap: 10px; flex: none; width: max-content; max-width: min(352px, calc(100vw - 44px)); }
+.okf-bubble { overflow: hidden; transition: opacity .25s ease, width 160ms ease-out, height 160ms linear; }
+.okf-bubble--answer { transition: opacity .25s ease, width 160ms ease-out, height 160ms linear, transform .16s ease-out; }
+@media (prefers-reduced-motion: reduce) { .okf-bubble, .okf-bubble--answer { transition: none; } }
+html[data-theme="light"] .okf-model { background: #cbd5e1; color: #18191c; box-shadow: inset 0 0 0 1px #94a3b8; }
+html[data-theme="light"] .okf-part { background: #ffffff; color: #18191c; box-shadow: 0 0 0 1px #8a8c92, 0 4px 14px #0002; }
+html[data-theme="light"] .okf-part-leader .okf-part-ink { stroke: #825700; stroke-width: 2; }
+html[data-theme="light"] .okf-part-leader .okf-part-halo { stroke: #08090b; stroke-width: 4.5; }

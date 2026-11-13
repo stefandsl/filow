@@ -165,8 +165,8 @@ const keepsOverlays = (list) => Array.isArray(list) && list.length > 0;
  * timing: a flight, then a look of 1.8 s when another follows, 5.5 s at the last). The overlays stay
  * that long for them; unlike marks and cards, points do not keep the overlays until Escape.
  */
-// flyMs: the longest flight (lib/buddy/motion.ts flightMs: longer flights take longer, at most 900 ms)
-const POINT = { flyMs: 900, nextMs: 1800, holdMs: 5500 };
+// flyMs: the longest flight (lib/buddy/pointer-flight.ts: text avoidance can lengthen the route, at most 12 s)
+const POINT = { flyMs: 12000, nextMs: 1800, holdMs: 5500 };
 const pointsShowMs = (count) => (count > 0 ? (count - 1) * (POINT.flyMs + POINT.nextMs) + POINT.flyMs + POINT.holdMs : 0);
 
 /**

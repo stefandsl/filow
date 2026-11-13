@@ -158,12 +158,12 @@ export type OkFilowBridge = {
   setMode(mode: OkFilowMode, extra?: Record<string, unknown>): Promise<void>;
   level(v: number): void;
   text(t: string): void;
-  point(points: Array<{ x: number; y: number; label: string }>): void;
+  point(points: Array<{ x: number; y: number; label: string }>, avoid?: { left: number; top: number; right: number; bottom: number }[]): void;
   /**
    * Marks already in global DIP coordinates; each overlay draws the ones on its display. `from`
    * (Resume after Stop): the first `from` marks were drawn before the stop and are shown as they were.
    */
-  draw(marks: BuddyMark[], from?: number): void;
+  draw(marks: BuddyMark[], from?: number, avoid?: { left: number; top: number; right: number; bottom: number }[]): void;
   /** Overlay -> main: one finished highlighter stroke, in overlay-local coordinates. */
   stroke(points: Array<[number, number]>): void;
   /** Panel -> overlays: explanation cards (global DIP). */
@@ -175,6 +175,7 @@ export type OkFilowBridge = {
   /** Overlay -> main: my listeners are registered, send me the current state. */
   overlayReady(): void;
   closeModel(): void;
+  modelHover?(active: boolean): void;
   /** Model window -> panel (through main): ask OK Filow about a clicked part. */
   askAbout(text: string): void;
   /** Whiteboard tutor (docs/whiteboard/SPEC.md). Absent in a desktop build older than the whiteboard. */
@@ -262,8 +263,8 @@ export type OkFilowBridge = {
   onCursor(fn: (p: { x: number; y: number } | null) => void): Off;
   onLevel(fn: (v: number) => void): Off;
   onText(fn: (t: string) => void): Off;
-  onPoint(fn: (points: Array<{ x: number; y: number; label: string }>) => void): Off;
-  onDraw(fn: (marks: BuddyMark[]) => void): Off;
+  onPoint(fn: (points: Array<{ x: number; y: number; label: string }>, avoid?: { left: number; top: number; right: number; bottom: number }[]) => void): Off;
+  onDraw(fn: (marks: (BuddyMark & { done?: boolean })[], avoid?: { left: number; top: number; right: number; bottom: number }[]) => void): Off;
   /** The screen changed under the drawing (click, key, app switch): wipe it. */
   onClear(fn: () => void): Off;
   onCards(fn: (list: OkFilowCard[]) => void): Off;

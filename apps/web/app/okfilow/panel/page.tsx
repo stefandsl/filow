@@ -26,7 +26,9 @@ import { createProgressiveSpeech, moreFollows, type ProgressiveSpeech } from "@/
 import { reopenAfterSpeech } from "@/lib/buddy/reopen";
 import { askSees, eyeToggle, screenLeaves, screenYesMissing, seesScreen, slowToSee, stillSees, wordsOnlyAfterYes, type LocalScreenMode } from "@/lib/buddy/sees";
 import { keyLabel, type PillAction } from "@/lib/buddy/pill";
-import { createPausableClock, marksStarted, STROKE_GAP_MS } from "@/lib/buddy/motion";
+import { createPausableClock, marksBegun } from "@/lib/buddy/motion";
+import { drawingStarts, markSentences, marksReleased } from "@/lib/buddy/marks-sync";
+import { avoidRects, elementRects, snapMarks, type PlainRect } from "@/lib/buddy/snap";
 import { wantsDrawing } from "@/lib/buddy/visuals";
 import { photoOnly } from "@/lib/buddy/photo";
 import { AnswerControls, KeyChoice, SeeScreenSwitch } from "@/components/okfilow/controls";
@@ -151,9 +153,32 @@ export default function OkFilowPanel() {
   const drawClock = useRef(createPausableClock());
   /** The answer in progress: whether it is read aloud, its language, and its marks (for a Resume after Stop). */
   // `voice`: the answer's speech queue (lib/buddy/progressive.ts), which knows how far the user heard it.
-  const answerCtx = useRef<{ id: number; typed: boolean; lang?: string; speaking: boolean; marks: Parameters<OkFilowBridge["draw"]>[0]; marksAt: number; marksBase: number; voice?: ProgressiveSpeech } | null>(null);
+  // `marks`: the marks sent to the overlay, `starts`: when each began on the drawing clock (lib/buddy/marks-sync.ts).
+  // `gate` (an answer read aloud): all its marks, the sentence each belongs to, and the sentence the voice is on;
+  // a mark is sent when the voice starts its sentence.
+  const answerCtx = useRef<{ id: number; typed: boolean; lang?: string; speaking: boolean; marks: Parameters<OkFilowBridge["draw"]>[0]; starts: number[]; spoken?: number; avoid?: PlainRect[]; voice?: ProgressiveSpeech; gate?: { list: Parameters<OkFilowBridge["draw"]>[0]; at: number[]; spoken: number; avoid: PlainRect[] } } | null>(null);
+  /** Sends marks to the overlays for the answer in progress, keeping when each began (a Stop keeps those). */
+  const sendMarks = useCallback((list: Parameters<OkFilowBridge["draw"]>[0], from = 0, avoid?: PlainRect[]) => {
+    okFilowBridge()?.draw(list, from, avoid);
+    const ctx = answerCtx.current;
+    if (!ctx) return;
+    const { starts } = drawingStarts(ctx.marks.length ? { list: ctx.marks, starts: ctx.starts } : null, list, drawClock.current.at(performance.now()), from);
+    ctx.marks = list;
+    ctx.avoid = avoid;
+    ctx.starts = starts;
+  }, []);
+  /** The marks whose sentence the voice has reached go to the overlay (each after the ones before it). */
+  const releaseMarks = useCallback(() => {
+    const ctx = answerCtx.current;
+    const g = ctx?.gate;
+    if (!ctx || !g) return;
+    const n = marksReleased(g.at, g.spoken);
+    if (n > ctx.marks.length) sendMarks(g.list.slice(0, n), 0, g.avoid);
+  }, [sendMarks]);
+  const releaseRef = useRef(releaseMarks);
+  releaseRef.current = releaseMarks;
   /** What a Resume of the stopped answer needs beyond the offer itself (lib/buddy/turn.ts); `heard`: sentences heard whole. */
-  const resumeInfo = useRef<{ typed: boolean; lang?: string; left: string; heard: number; marks: Parameters<OkFilowBridge["draw"]>[0]; from: number } | null>(null);
+  const resumeInfo = useRef<{ typed: boolean; lang?: string; left: string; heard: number; marks: Parameters<OkFilowBridge["draw"]>[0]; from: number; avoid?: PlainRect[] } | null>(null);
   // "Look at my screen": what the setup for this computer picked (until the user chooses), and whether the question being answered took the screen.
   const [localScreen, setLocalScreen] = useState<LocalScreenMode>(null);
   const localScreenRef = useRef<LocalScreenMode>(null);
@@ -327,7 +352,14 @@ export default function OkFilowPanel() {
     onFallback: (reason) => setNote(tRef.current(`voiceWhy_${reason}`)),
     onNoVoice: () => setNote(tRef.current("voiceNoSystem")),
     // The bubble next to the pointer keeps the sentence being spoken in view.
-    onSentence: (index) => okFilowBridge()?.spoken?.(spokenBase.current + index),
+    // The marks of that sentence start drawing now (HeyClicky: a line's drawing starts with its audio).
+    onSentence: (index) => {
+      const n = spokenBase.current + index;
+      okFilowBridge()?.spoken?.(n);
+      if (answerCtx.current) answerCtx.current.spoken = n;
+      const g = answerCtx.current?.gate;
+      if (g && n > g.spoken) { g.spoken = n; releaseRef.current(); }
+    },
     // The speed baseline: the first audible sample of the answer (once per run), and the voice's first piece.
     onAudible: (id, at) => {
       const tm = timing.current;
@@ -427,7 +459,9 @@ export default function OkFilowPanel() {
     markTime(tm, "stopHeard");
     const ctx = answerCtx.current;
     // How many marks had begun to draw (the rest wait for a Resume), on the clock that stood still during a pause.
-    const begun = ctx ? Math.min(ctx.marks.length, ctx.marksBase + marksStarted(ctx.marks.length - ctx.marksBase, drawClock.current.at(performance.now()) - ctx.marksAt, STROKE_GAP_MS)) : 0;
+    const begun = ctx ? marksBegun(ctx.starts, drawClock.current.at(performance.now())) : 0;
+    // The marks the voice had not reached yet are drawn on Resume with the rest.
+    const allMarks = ctx?.gate && ctx.gate.list.length > ctx.marks.length ? ctx.gate.list : ctx?.marks ?? [];
     const was = endAnswer();
     // Nothing of the stopped answer may still go out, and the pointer stops flying to places.
     outRef.current?.dismissAll();
@@ -440,9 +474,9 @@ export default function OkFilowPanel() {
     // The speech queue knows the chunks not started yet; the voice knows how far into its chunk it got.
     const where = ctx?.speaking && ctx.voice ? ctx.voice.where(speaker.left()) : { heard: 0, left: ctx?.speaking ? speaker.left() : "" };
     const left = offer?.kind === "speak" ? where.left : "";
-    resumeInfo.current = offer && ctx ? { typed: ctx.typed, lang: ctx.lang, left, heard: where.heard, marks: ctx.marks, from: begun } : null;
+    resumeInfo.current = offer && ctx ? { typed: ctx.typed, lang: ctx.lang, left, heard: where.heard, marks: allMarks, from: begun, avoid: ctx.gate?.avoid ?? ctx.avoid } : null;
     // Nothing left to say or draw, or an answer that was not a question to the model: no Resume.
-    if (!resumeInfo.current || (offer?.kind === "speak" && !left && begun >= (ctx?.marks.length ?? 0))) turn.current.discard();
+    if (!resumeInfo.current || (offer?.kind === "speak" && !left && begun >= allMarks.length)) turn.current.discard();
     setResumable(turn.current.offer() !== null);
     // The pill is told before the mode, so the stopped pill comes up with its Resume.
     b.pill?.({ sees: seesScreen(statusRef.current?.seeScreen, askRoute(statusRef.current), localScreenRef.current), paused: false, resumable: turn.current.offer() !== null });
@@ -580,7 +614,7 @@ export default function OkFilowPanel() {
         await speak(sentence, id, answerLang, base);
       },
     });
-    answerCtx.current = { id, typed: opts.typed === true, speaking: voiced, marks: [], marksAt: 0, marksBase: 0, voice };
+    answerCtx.current = { id, typed: opts.typed === true, speaking: voiced, marks: [], starts: [], voice };
     // "Look at my screen" (lib/buddy/sees.ts): off, the question goes with the user's words only.
     // A continuation follows the eye as it is now, not as it was when the question was first asked.
     // A phone's question goes with its words only: no screenshot is taken at all (askPlan).
@@ -651,8 +685,29 @@ export default function OkFilowPanel() {
       // language it answered in (X-Buddy-Lang), which the voice uses to pick a matching voice.
       let seesText = false;
       let lastPoints = "", lastMarks = "";
+      // What Windows names on screen (lib/buddy/snap.ts), in the displays' pixels: the marks are fitted to
+      // those things, and the labels and the pointer keep off the text and buttons among them.
+      const rects = elementRects(shot.elements ?? [], shot.displays);
+      const avoid = avoidRects(rects, shot.displays);
+      /** The marks on the displays' pixels, each fitted to the thing it is about. */
+      const placeMarks = (marks: ReturnType<typeof parseBuddyAnswer>["marks"]) => snapMarks(marks.flatMap((m) => {
+        const d = shot.displays.find((x) => x.index === m.screen);
+        return d ? [markToDisplay(m, d.bounds)] : [];
+      }), rects, shot.displays);
+      // Read aloud (and not a continuation, whose sentences the voice counts from elsewhere): each mark
+      // waits for its sentence (lib/buddy/marks-sync.ts). Read silently: drawn as the text arrives.
+      const paced = voiced && !resume;
+      /** The marks of the answer so far: drawn now, or handed to the voice's pace. */
+      const showMarks = (list: ReturnType<typeof placeMarks>, raw: string) => {
+        const ctx = answerCtx.current?.id === id ? answerCtx.current : null;
+        if (paced && ctx) {
+          ctx.gate = { list, at: markSentences(raw, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1), spoken: ctx.spoken ?? ctx.gate?.spoken ?? -1, avoid };
+          releaseMarks();
+        } else if (ctx) sendMarks(list, 0, avoid);
+        else b.draw(list, 0, avoid);
+      };
       /** The pointer and the pen follow the text as it arrives (never during a pause: the caller holds them). */
-      const showVisuals = (parsed: ReturnType<typeof parseBuddyAnswer>) => {
+      const showVisuals = (parsed: ReturnType<typeof parseBuddyAnswer>, raw: string) => {
         if (!plan.visuals) return; // a phone's question: words only (askPlan)
         const points = JSON.stringify(parsed.points), marks = JSON.stringify(parsed.marks);
         if (parsed.points.length && points !== lastPoints) {
@@ -660,18 +715,14 @@ export default function OkFilowPanel() {
             const d = shot.displays.find(x => x.index === p.screen);
             return d ? [{ ...pointToDisplay(p, d.bounds), label: p.label }] : [];
           });
-          b.point(placed);
+          b.point(placed, avoid);
           if (placed.length) noteVisual(id);
           lastPoints = points;
         }
         if (parsed.marks.length && marks !== lastMarks) {
-          const list = parsed.marks.flatMap(m => {
-            const d = shot.displays.find(x => x.index === m.screen);
-            return d ? [markToDisplay(m, d.bounds)] : [];
-          });
-          b.draw(list);
+          const list = placeMarks(parsed.marks);
+          showMarks(list, raw);
           if (list.length) noteVisual(id);
-          if (answerCtx.current?.id === id) Object.assign(answerCtx.current, { marks: list, marksAt: drawClock.current.at(performance.now()), marksBase: 0 });
           lastMarks = marks;
         }
       };
@@ -721,7 +772,7 @@ export default function OkFilowPanel() {
           setAnswer(shown);
           b.text(shown);
           if (shown) markTime(tm, "text");
-          showVisuals(parsedNow);
+          showVisuals(parsedNow, partial);
           voice.update(shown, false, moreFollows(partial, arrived));
         }
       };
@@ -755,16 +806,12 @@ export default function OkFilowPanel() {
         const d = shot.displays.find((x) => x.index === p.screen);
         return d ? [{ ...pointToDisplay(p, d.bounds), label: p.label }] : [];
       });
-      if (mapped.length && JSON.stringify(points) !== lastPoints) { b.point(mapped); noteVisual(id); }
-      const drawn = marks.flatMap((m) => {
-        const d = shot.displays.find((x) => x.index === m.screen);
-        return d ? [markToDisplay(m, d.bounds)] : [];
-      });
-      // Drawn already while the text arrived: the pen is not started again.
+      if (mapped.length && JSON.stringify(points) !== lastPoints) { b.point(mapped, avoid); noteVisual(id); }
+      const drawn = placeMarks(marks);
+      // Drawn (or handed to the voice) already while the text arrived: the pen is not started again.
       if (drawn.length && JSON.stringify(marks) !== lastMarks) {
-        b.draw(drawn);
+        showMarks(drawn, answered);
         noteVisual(id);
-        if (answerCtx.current?.id === id) Object.assign(answerCtx.current, { marks: drawn, marksAt: drawClock.current.at(performance.now()), marksBase: 0 });
       }
       if (model) { b.showModel(model); noteVisual(id); }
       lastShown.current = { points: mapped, marks: drawn, model, cards: [] };
@@ -815,11 +862,15 @@ export default function OkFilowPanel() {
       // (not when the setup answered from text: the model saw no picture to point at)
       // (and not once the eye is closed: the grounding pass would send the screenshot again)
       const grounding = !mapped.length && !drawn.length && !cards.length && !model && text && !seesText && stillSees(seeing, statusRef.current?.seeScreen)
-        ? groundAnswer(question, text, images, shot, abort.signal, to, id).then((p) => { if (p && run.current === id) { b.point([p]); noteVisual(id); } }).catch(() => {})
+        ? groundAnswer(question, text, images, shot, abort.signal, to, id).then((p) => { if (p && run.current === id) { b.point([p], avoid); noteVisual(id); } }).catch(() => {})
         : Promise.resolve();
       setMode("speaking");
       // The sentences not said while the text arrived (the queue says each one once).
       await voice.finish(text);
+      if (run.current === id && answerCtx.current?.gate) {
+        answerCtx.current.gate.spoken = Infinity;
+        releaseMarks();
+      }
       await grounding;
       turn.current.end(id);
       sendTimings(tm, run.current === id ? "done" : "superseded", b);
@@ -839,7 +890,7 @@ export default function OkFilowPanel() {
       abort.abort();
       if (handsFree.current) setTimeout(() => handsFree.current && listenAgain.current(), 1500);
     }
-  }, [endAnswer, engineHeaders, fail, groundAnswer, noteVisual, out, setMode, speak, speaker, t]);
+  }, [endAnswer, engineHeaders, fail, groundAnswer, noteVisual, out, releaseMarks, sendMarks, setMode, speak, speaker, t]);
 
   /**
    * Resume (the button, the key). A paused answer carries on exactly where it paused: the text that
@@ -874,12 +925,12 @@ export default function OkFilowPanel() {
       turn.current.begin(id, plan.question);
       turn.current.progress(id, plan.shown);
       turn.current.kept(id);
-      answerCtx.current = { id, typed: info.typed, lang: info.lang, speaking: Boolean(info.left), marks: info.marks, marksAt: drawClock.current.at(performance.now()), marksBase: info.from };
+      answerCtx.current = { id, typed: info.typed, lang: info.lang, speaking: Boolean(info.left), marks: [], starts: [] };
       setAnswer(plan.shown);
       b.text(plan.shown);
       // All of them, not only the ones still to draw: the marks went with the stopped answer's bubble,
       // so the ones drawn before the stop are shown again as they were (`from`), the rest are drawn now.
-      if (info.marks.length) b.draw(info.marks, info.from);
+      if (info.marks.length) sendMarks(info.marks, info.from, info.avoid);
       setMode("speaking");
       void (async () => {
         if (info.left) await speak(info.left, id, info.lang, Math.max(0, splitSentences(plan.shown).length - splitSentences(info.left).length));
@@ -897,7 +948,7 @@ export default function OkFilowPanel() {
     const said = sentenceParts(plan.shown).slice(0, info.heard).join("");
     void ask(plan.question, plan.kind === "continue" ? { typed: info.typed, resume: { shown: plan.shown, said } } : { typed: info.typed });
     return true;
-  }, [ask, setMode, speak, speaker]);
+  }, [ask, sendMarks, setMode, speak, speaker]);
 
   /** The eye (its button on the pill, its shortcut): open or closed for the next question, stored as the user's own choice. */
   const toggleEye = useCallback(async () => {

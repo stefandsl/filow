@@ -128,6 +128,7 @@
       "okfilow-mic.js",
       "okfilow-uia.js",
       "okfilow-model-place.js",
+      "okfilow-rects.js",
       "native/uia/bin/okfilow-uia.exe"
     ],
     "asar": true,

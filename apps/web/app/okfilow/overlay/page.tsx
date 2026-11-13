@@ -7,8 +7,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { okFilowBridge, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/bridge";
-import { bezierPoint, bubbleOnScreen, bubblePlacement, bubbleSticks, createPausableClock, flightMs, followScroll, MARK_EXIT_MS, marksStarted, overBubble, overControls, POINT_LABEL_AT, POINT_STANDOFF, pointerLanding, pointLabelFlip, STROKE_GAP_MS } from "@/lib/buddy/motion";
-import { MarksLayer, type DrawnMark, type MarkSet } from "@/components/okfilow/marks-layer";
+import { bubbleOnScreen, bubblePlacement, bubbleSticks, createPausableClock, followScroll, MARK_EXIT_MS, marksBegun, overBubble, overControls } from "@/lib/buddy/motion";
+import { planFlight, flightPoint, arrivalPhase, type FlightPlan } from "@/lib/buddy/pointer-flight";
+import { drawingStarts } from "@/lib/buddy/marks-sync";
+import { MarksLayer, type MarkSet } from "@/components/okfilow/marks-layer";
 import { CardsLayer } from "@/components/okfilow/cards-layer";
 import type { Rect } from "@/lib/buddy/marks";
 import { keyLabel, PILL_IDLE, pillView, statusRoom, talkHeld, type PillAction, type PillState } from "@/lib/buddy/pill";
@@ -35,7 +37,7 @@ export default function OkFilowOverlay() {
   // This question took the screen with it (the eye on the pill), and the answer on screen was stopped by the user.
   const [sees, setSees] = useState(true);
   const [stopped, setStopped] = useState(false);
-  const marksAt = useRef(0);
+  const markStarts = useRef<number[]>([]);
   // The pill: its state (the eye now, paused, resumable: the panel says), its shortcuts, and whether the pointer is on one of its controls.
   const [pill, setPill] = useState<PillState>(PILL_IDLE);
   const [keys, setKeys] = useState({ eye: "", pause: "" });
@@ -74,10 +76,13 @@ export default function OkFilowOverlay() {
   const [level, setLevel] = useState(0);
   const [label, setLabel] = useState("");
   // Near the bottom or right edge the label goes above or to the left of the arrow, never off screen.
-  const [flip, setFlip] = useState("");
+  const labelEl = useRef<HTMLSpanElement>(null);
+  const ringEl = useRef<HTMLElement>(null);
+  const targetEl = useRef<HTMLDivElement>(null);
+  const pointAvoid = useRef<Rect[]>([]);
   const [here, setHere] = useState(false);
   // `done`: drawn before a stop (Resume after Stop): shown as it was, not drawn again.
-  const [marks, setMarks] = useState<{ id: number; list: DrawnMark[] }>({ id: 0, list: [] });
+  const [marks, setMarks] = useState<MarkSet>({ id: 0, list: [] });
   const marksNow = useRef(marks);
   marksNow.current = marks;
   // The marks going away (Clear, an empty drawing): kept for one exit, the labels fading and the strokes erasing.
@@ -96,9 +101,9 @@ export default function OkFilowOverlay() {
   const pos = useRef({ x: -100, y: -100 });
   const cursor = useRef<{ x: number; y: number } | null>(null);
   const queue = useRef<Target[]>([]);
-  const flight = useRef<{ from: { x: number; y: number }; to: Target; start: number; dur: number; holdUntil: number; arrived: boolean } | null>(null);
+  const flight = useRef<{ plan: FlightPlan; to: Target; start: number; dur: number; holdUntil: number; arrived: boolean } | null>(null);
   // Arrivals of the pointer at a spot: each one plays the ring once.
-  const [arrivals, setArrivals] = useState(0);
+
 
   useEffect(() => {
     const b = okFilowBridge();
@@ -107,8 +112,7 @@ export default function OkFilowOverlay() {
     const leave = () => {
       const m = marksNow.current;
       if (!m.list.length) return;
-      const before = m.list.filter((x) => x.done).length;
-      const begun = before + marksStarted(m.list.length - before, clock.current.at(performance.now()) - marksAt.current, STROKE_GAP_MS);
+      const begun = marksBegun(markStarts.current, clock.current.at(performance.now()));
       if (leaveTimer.current) clearTimeout(leaveTimer.current);
       setLeaving({ id: m.id, list: begun === m.list.length ? m.list : m.list.slice(0, begun), leaving: true });
       leaveTimer.current = setTimeout(() => { leaveTimer.current = null; setLeaving(null); }, MARK_EXIT_MS + 60);
@@ -133,10 +137,9 @@ export default function OkFilowOverlay() {
           queue.current = [];
           flight.current = null;
           setLabel("");
-          const elapsed = clock.current.at(performance.now()) - marksAt.current;
+          const now = clock.current.at(performance.now());
           setMarks((m) => {
-            const before = m.list.filter((x) => x.done).length;
-            return { id: m.id, list: m.list.slice(0, before + marksStarted(m.list.length - before, elapsed, STROKE_GAP_MS)) };
+            return { ...m, list: m.list.slice(0, marksBegun(markStarts.current, now)) };
           });
         }
         if (s.mode !== "listening" && s.mode !== "opening" && live.current) {
@@ -163,16 +166,22 @@ export default function OkFilowOverlay() {
       b.onLevel(setLevel),
       b.onCursor((p) => {
         cursor.current = p;
+        if (!flight.current && dot.current) dot.current.style.visibility = "";
         // The controls of the pill and the answer bubble are what takes the mouse here: while the pointer
         // is on one (main sends where the pointer is), this overlay asks main for the mouse, and gives it back after.
         tellHover(p);
       }),
-      b.onDraw((list) => {
+      b.onDraw((list, texts = []) => {
         // Kept until main wipes them: an empty list when the answer's bubble goes, or okfilow:clear (Escape, the panel's Clear, the next question).
         const next = Array.isArray(list) ? list : [];
         if (!next.length) leave();
-        marksAt.current = clock.current.at(performance.now());
-        setMarks((m) => ({ id: m.id + 1, list: next }));
+        const now = clock.current.at(performance.now());
+        const m = marksNow.current;
+        const timing = drawingStarts({ list: m.list, starts: markStarts.current }, next, now, next.filter(x => x.done).length);
+        markStarts.current = timing.starts;
+        const value = { id: timing.grew ? m.id : m.id + 1, texts, list: next.map((x, i) => timing.grew && m.list[i] ? m.list[i] : { ...x, delay: Math.max(0, timing.starts[i] - now) }) };
+        marksNow.current = value;
+        setMarks(value);
       }),
       b.onCards((list) => setCards(Array.isArray(list) ? list.slice(0, 2) : [])),
       b.onClear(() => {
@@ -183,7 +192,8 @@ export default function OkFilowOverlay() {
         flight.current = null;
         setLabel("");
       }),
-      b.onPoint((points) => {
+      b.onPoint((points, avoid = []) => {
+        pointAvoid.current = avoid;
         queue.current = [...points];
         flight.current = null;
         setLabel("");
@@ -198,30 +208,35 @@ export default function OkFilowOverlay() {
       const f = flight.current;
       if (!f && queue.current.length) {
         const spot = queue.current.shift()!;
-        // The tip stops beside the spot (pointing at it, not covering it); the flight's time follows its length.
-        const to = { ...spot, ...pointerLanding(spot) };
-        const from = pos.current.x < 0 ? { x: to.x - 120, y: to.y - 120 } : { ...pos.current };
-        const dur = flightMs(Math.hypot(to.x - from.x, to.y - from.y));
-        flight.current = { from, to, start: now, dur, holdUntil: now + dur + HOLD_MS, arrived: false };
+        const plan = planFlight(pos.current.x < 0 ? null : pos.current, spot, pointAvoid.current, { width: window.innerWidth, height: window.innerHeight }, Math.min(260, spot.label.length * 8.5 + 22));
+        if (dot.current) dot.current.style.visibility = plan.overlap > 0 ? "hidden" : "";
+        const dur = plan.duration;
+        flight.current = { plan, to: spot, start: now, dur, holdUntil: now + dur + HOLD_MS, arrived: false };
+        setLabel(spot.label);
       }
       const g = flight.current;
+      if (targetEl.current) {
+        const r = g?.plan.targetRect;
+        targetEl.current.style.display = r && g?.plan.underline && now >= g!.start + g!.dur ? "block" : "none";
+        if (r) Object.assign(targetEl.current.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.right-r.left}px`, height: `${r.bottom-r.top}px` });
+      }
+      if (!g && ringEl.current) ringEl.current.style.opacity = "0";
       let next: { x: number; y: number } | null = null;
       if (g) {
         const k = Math.min(1, (now - g.start) / g.dur);
-        next = bezierPoint(g.from, g.to, k);
-        // The label docks at the tip near the end of the flight and comes in with it; a ring marks the arrival.
-        if (k >= POINT_LABEL_AT) {
-          setLabel((l) => (l === g.to.label ? l : g.to.label));
-          const side = pointLabelFlip(g.to, { width: window.innerWidth, height: window.innerHeight });
-          const f = (side.down ? " okf-label--down" : "") + (side.left ? " okf-label--left" : "");
-          setFlip((v) => (v === f ? v : f));
+        next = flightPoint(g.plan, k);
+        if (labelEl.current) {
+          labelEl.current.style.left = `${g.plan.dock.x}px`;
+          labelEl.current.style.top = `${g.plan.dock.y}px`;
         }
-        if (k >= 1 && !g.arrived) {
-          g.arrived = true;
-          setArrivals((n) => n + 1);
+        if (ringEl.current) {
+          const phase = arrivalPhase(now - g.start, g.dur, window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+          ringEl.current.style.opacity = String(phase.opacity);
+          ringEl.current.style.transform = `scale(${phase.scale})`;
         }
         if (now > g.holdUntil || (queue.current.length && now > g.start + g.dur + 1800)) { flight.current = null; setLabel(""); }
       } else if (cursor.current) {
+        if (ringEl.current) ringEl.current.style.opacity = "0";
         const c = cursor.current;
         const want = { x: c.x + OFFSET.x, y: c.y + OFFSET.y };
         // Ease toward the pointer: snappy, but returning from a point glides back.
@@ -255,7 +270,7 @@ export default function OkFilowOverlay() {
           const want = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px)`;
           if (el.style.transform !== want) {
             // An answer's bubble glides when it catches up with the pointer; a first placement does not glide in from where the last bubble was.
-            el.style.transitionProperty = h.placed && h.answer ? "" : "opacity";
+            el.style.transitionProperty = h.placed && h.answer ? "" : "opacity, width, height";
             el.style.transform = want;
           }
           const moved = at.x !== h.at.x || at.y !== h.at.y;
@@ -362,13 +377,13 @@ export default function OkFilowOverlay() {
       )}
       {/* One drawing layer for the whole life of the overlay: an answer's marks never remount it (no hitch as they arrive). */}
       <MarksLayer sets={markSets} avoid={labelAvoid} />
+      <div ref={targetEl} className="okf-point-target" aria-hidden />
       <div ref={dot} className={`okf-buddy okf-buddy--${mode}${going ? " okf-buddy--out" : ""}${here ? "" : " okf-hidden"}`}>
         {going && <span className="okf-out-rings"><i /><i /><i /></span>}
         {/* A 27 px glyph outlined dark inside a light halo: it reads on white and on black. */}
-        <svg className="okf-arrow" viewBox="0.5 -0.5 23 23" width="36" height="36"><path className="okf-arrow-halo" d={ARROW} /><path d={ARROW} /></svg>
-        {/* centred on the spot itself (the tip stands just off it) */}
-        {arrivals > 0 && <i key={arrivals} className="okf-arrival" style={{ left: -22 - POINT_STANDOFF.x, top: -22 - POINT_STANDOFF.y }} />}
-        {label && <span className={"okf-label" + flip}>{label}</span>}
+        <svg className="okf-arrow" viewBox="3 2 23 23" width="36" height="36"><path className="okf-arrow-halo" d={ARROW} /><path d={ARROW} /></svg>
+        <i ref={ringEl} className="okf-arrival" />
+        {label && <span ref={labelEl} className="okf-label">{label}</span>}
       </div>
     </div>
     {/* The bubble is outside the hidden overlay too: its close button is a real button with a name. */}

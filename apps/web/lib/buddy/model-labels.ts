@@ -1,12 +1,13 @@
 // The 3D view's framing and its numbered part labels, pure so they are unit tested. The labels stand in
 // two columns beside the model (left and right of it), each on a leader line that starts on its
-// part's anchor as the model turns; they never overlap, stay on screen, and only change sides when
-// their part has clearly crossed to the other half (no flicker at the middle).
+// part's anchor as the model turns. Columns are assigned once and remain attached to the part.
 
 type P = { x: number; y: number };
 type Size = { width: number; height: number };
 export type LabelSide = "left" | "right";
 export type LabelSlot = { x: number; y: number; width: number; height: number; side: LabelSide; from: P; knee: P; elbow: P; to: P };
+
+export const LEADER_LANE_GAP = 28;
 
 const DEG = Math.PI / 180;
 
@@ -50,15 +51,13 @@ export function labelledParts(names: string[], sizes: number[], max = MAX_PART_L
 /**
  * Lays out the labels for parts whose anchors are at `anchors` (screen px, this frame): `sizes[i]`
  * is label i's size, `centreX` the model's middle on screen, `prev` the sides of the last frame
- * (null on the first). A label keeps its side until its anchor is `hysteresis` px past the middle;
- * a column that is full gives its labels nearest the middle to the other one.
+ * (null on the first). Columns are immutable after the initial capacity balancing.
  */
-export function layoutPartLabels(anchors: P[], sizes: Size[], view: Size, centreX: number, prev: LabelSide[] | null = null, edge = 10, gap = 6, hysteresis = 18): LabelSlot[] {
+export function layoutPartLabels(anchors: P[], sizes: Size[], view: Size, centreX: number, prev: LabelSide[] | null = null, edge = 10, gap = 6): LabelSlot[] {
   const n = anchors.length;
   const sides: LabelSide[] = anchors.map((a, i) => {
     const was = prev?.[i];
-    if (was === "left") return a.x > centreX + hysteresis ? "right" : "left";
-    if (was === "right") return a.x < centreX - hysteresis ? "left" : "right";
+    if (was) return was;
     return a.x < centreX ? "left" : "right";
   });
   // A column holds as many labels as fit in the view's height.
@@ -71,7 +70,7 @@ export function layoutPartLabels(anchors: P[], sizes: Size[], view: Size, centre
   for (const side of ["left", "right"] as const) {
     const other = side === "left" ? "right" : "left";
     let guard = n;
-    while (!fits(side) && guard-- > 0) {
+    while (!prev && !fits(side) && guard-- > 0) {
       const mine = anchors.map((a, i) => ({ a, i })).filter(({ i }) => sides[i] === side);
       if (!mine.length) break;
       mine.sort((p, q) => Math.abs(p.a.x - centreX) - Math.abs(q.a.x - centreX));
@@ -106,6 +105,36 @@ export function layoutPartLabels(anchors: P[], sizes: Size[], view: Size, centre
   const innerR = Math.min(view.width - edge, ...anchors.map((_, i) => (sides[i] === "right" ? view.width - edge - sizes[i].width : view.width - edge))) - 4;
   const kneeL = Math.max(innerL, Math.min(...xs) - 10);
   const kneeR = Math.min(innerR, Math.max(...xs) + 10);
+  const lanes = anchors.map(a => a.y);
+  // Minimum length matching to ordered lanes prevents intersecting anchor-to-lane segments.
+  // The lanes live outside the model, then fan monotonically into ordered label slots.
+  for (const side of ["left", "right"] as const) {
+    const ids = anchors.map((_, i) => i).filter(i => sides[i] === side).sort((i,j) => anchors[i].y-anchors[j].y);
+    const count = ids.length;
+    if (!count) continue;
+    const laneYs = ids.map(i => anchors[i].y);
+    for (let k=1;k<count;k++) laneYs[k] = Math.max(laneYs[k], laneYs[k-1]+LEADER_LANE_GAP);
+    const shift = Math.max(0, laneYs[count-1]-(view.height-edge));
+    for (let k=0;k<count;k++) laneYs[k] -= shift;
+    const kx = side === "left" ? kneeL : kneeR;
+    const total = 1 << count;
+    const costs = new Float64Array(total).fill(Infinity); costs[0]=0;
+    const chosen = new Int16Array(total).fill(-1);
+    for (let mask=0;mask<total;mask++) {
+      let rank=0; for(let bits=mask;bits;bits>>=1) rank += bits&1;
+      for(let j=0;j<count;j++) if (!(mask&(1<<j))) {
+        const a=anchors[ids[j]], next=mask|(1<<j);
+        const cost=costs[mask]+Math.hypot(a.x-kx,a.y-laneYs[rank]);
+        if(cost<costs[next]) { costs[next]=cost; chosen[next]=j; }
+      }
+    }
+    const labelYs=ids.map(i=>ys[i]);
+    let mask=total-1;
+    for(let rank=count-1;rank>=0;rank--) {
+      const j=chosen[mask], id=ids[j];
+      lanes[id]=laneYs[rank]; ys[id]=labelYs[rank]; mask^=1<<j;
+    }
+  }
   return anchors.map((a, i) => {
     const { width: w, height: h } = sizes[i];
     const side = sides[i];
@@ -113,7 +142,7 @@ export function layoutPartLabels(anchors: P[], sizes: Size[], view: Size, centre
     const x = left ? edge : view.width - edge - w;
     const y = ys[i];
     const mid = y + h / 2;
-    return { x, y, width: w, height: h, side, from: { x: a.x, y: a.y }, knee: { x: left ? kneeL : kneeR, y: a.y }, elbow: { x: left ? innerL : innerR, y: mid }, to: { x: left ? x + w : x, y: mid } };
+    return { x, y, width: w, height: h, side, from: { x: a.x, y: a.y }, knee: { x: left ? kneeL : kneeR, y: lanes[i] }, elbow: { x: left ? innerL : innerR, y: mid }, to: { x: left ? x + w : x, y: mid } };
   });
 }
 
@@ -123,6 +152,23 @@ export function readingOrder(slots: LabelSlot[]): number[] {
   const n = new Array<number>(slots.length);
   order.forEach(({ i }, k) => { n[i] = k + 1; });
   return n;
+}
+
+/** Keep the established row order unless that routing would cross a leader. */
+export function retainLabelOrder(slots: LabelSlot[], previous: LabelSlot[] | null): LabelSlot[] {
+  if (!previous) return slots;
+  const kept = slots.map(s => ({...s, knee:{...s.knee}, elbow:{...s.elbow}, to:{...s.to}}));
+  for (const side of ["left", "right"] as const) {
+    const ids = slots.map((_,i)=>i).filter(i=>slots[i].side===side);
+    const rows = ids.map(i=>previous[i]).sort((a,b)=>a.y-b.y);
+    const lanes = ids.map(i=>slots[i].knee.y).sort((a,b)=>a-b);
+    ids.sort((a,b)=>previous[a].y-previous[b].y);
+    ids.forEach((id,rank)=>{
+      const row=rows[rank], s=kept[id];
+      s.y=row.y; s.knee.y=lanes[rank]; s.elbow.y=row.y+s.height/2; s.to.y=s.elbow.y;
+    });
+  }
+  return leadersCross(kept) ? slots : kept;
 }
 
 /** A label's leader as a polyline: anchor, knee, elbow, label edge. */

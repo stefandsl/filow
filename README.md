@@ -705,6 +705,10 @@ It speaks with a natural voice that runs on this PC, with the system voice as th
 ([docs/okfilow/VOICE.md](docs/okfilow/VOICE.md)). Speech works in English, Italian, Russian, Romanian
 and Japanese ([docs/stt/LANGUAGES.md](docs/stt/LANGUAGES.md)).
 
+Screen marks follow the spoken sentences and keep their earlier positions as an answer grows. The pointer and its label travel together through clear space; a blocked route hides the pointer instead of covering detected text. The answer bubble grows smoothly (without size animation when reduced motion is enabled). The 3D view uses surface anchors and spaced leader lanes, with readable labels in both themes; empty model margins let clicks through.
+
+When a target rectangle is available, the pointer lands on its corner and underlines it, with a visible ring in either theme. Model leaders use wider lanes and prefer anchors inside each visible part. The light model stage has a blue-grey background, stronger shell edges and a compact shadow.
+
 ## PowerPoint add-in
 
 A task pane for PowerPoint lives in [apps/powerpoint](apps/powerpoint/README.md). Your speaker notes become the script (one slide per section, `-` lines are points), the pane follows the selected slide while you edit, and it runs the microphone itself on Windows and PowerPoint for the web or mirrors a session by code elsewhere. PowerPoint hides panes during a slide show and offers no API to follow one, so on stage the phone mirror or the desktop app is the live view. Build with `npm run build -w apps/powerpoint`; the pane is then served by the web app under `/powerpoint/`.
@@ -771,3 +775,5 @@ ARCHITECTURE.md           the design: session protocol, Screen Sense, add-ins, m
 **Port 4747 already in use** – web: change `-p 4747` in `package.json` scripts. Desktop: set the environment variable `FILOW_PORT` before launching.
 
 **Windows SmartScreen / macOS Gatekeeper blocks the app** – the builds are unsigned. See the notes in [Desktop app: install and run](#desktop-app-install-and-run).
+
+Pointer flights take at most 900 ms. Landing labels reserve 8 px around detected text and dividers; an underline is omitted beside a nearby divider. Light-theme arrival accents have dark outlines. Model part numbers, columns and rows stay fixed during rotation and dragging; leader elbows route around neighbouring lines. Pointer flights approach monotonically with a gentle start, and light-theme leaders and the full-size landing ring have dark casings.

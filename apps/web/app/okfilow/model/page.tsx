@@ -13,7 +13,9 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { useLang } from "@filow/ui";
 import { okFilowBridge } from "@/lib/buddy/bridge";
 import { okfText } from "@/lib/buddy/text";
-import { fitScale, frameDistance, labelledParts, layoutPartLabels, leaderPoints, readingOrder, type LabelSide } from "@/lib/buddy/model-labels";
+import { visibleSurfaceAnchor } from "@/lib/buddy/model-surface";
+import { routeLeaders } from "@/lib/buddy/leader-route";
+import { fitScale, frameDistance, labelledParts, layoutPartLabels, leaderPoints, readingOrder, type LabelSlot, type LabelSide } from "@/lib/buddy/model-labels";
 import type { BuddyModel, ModelPart } from "@/lib/buddy/visuals";
 import "../okfilow.css";
 
@@ -124,6 +126,7 @@ export default function OkFilowModel() {
     const group = new THREE.Group();
     const meshes: THREE.Mesh[] = [];
     const extras: Array<THREE.Material | THREE.BufferGeometry> = [];
+    const shellEdges: THREE.LineBasicMaterial[] = [];
     for (const p of model.parts) {
       const mat = new THREE.MeshStandardMaterial({ color: p.color, roughness: 0.42, metalness: 0.2, envMapIntensity: 0.7 });
       const mesh = new THREE.Mesh(geometryFor(p), mat);
@@ -141,6 +144,7 @@ export default function OkFilowModel() {
       const size = boxes[i].getSize(new THREE.Vector3()).length();
       const inside = boxes.some((o, j) => j !== i && boxes[i].containsPoint(o.getCenter(new THREE.Vector3())) && size > o.getSize(new THREE.Vector3()).length());
       if (!inside) return;
+      m.userData.shell = true;
       const mat = m.material as THREE.MeshStandardMaterial;
       mat.transparent = true;
       mat.opacity = 0.14;
@@ -153,9 +157,17 @@ export default function OkFilowModel() {
       const edges = new THREE.EdgesGeometry(m.geometry, 25);
       // a mid grey outline reads on a white page and on a black one
       const lineMat = new THREE.LineBasicMaterial({ color: 0x8b95a7, transparent: true, opacity: 0.95 });
+      shellEdges.push(lineMat);
       m.add(new THREE.LineSegments(edges, lineMat));
       extras.push(shellMat, edges, lineMat);
     });
+    const applyStageTheme = () => {
+      const light = document.documentElement.dataset.theme === "light";
+      shellEdges.forEach(material => material.color.setHex(light ? 0x46576d : 0xaab8cd));
+    };
+    applyStageTheme();
+    const themeObserver = new MutationObserver(applyStageTheme);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     // Centre the model and frame it to ~70% of the view.
     const box = new THREE.Box3().setFromObject(group);
     const centre = box.getCenter(new THREE.Vector3());
@@ -232,8 +244,15 @@ export default function OkFilowModel() {
       labelled.forEach((l, k) => labelEls.current[k]?.classList.toggle("okf-part--on", l.part === at));
     };
     let downAt = { x: 0, y: 0 };
-    const onMove = (ev: PointerEvent) => glow(hit(ev));
-    const onLeave = () => glow(focusPart.current === null ? null : meshes[focusPart.current]);
+    const onMove = (ev: PointerEvent) => {
+      const mesh = hit(ev);
+      glow(mesh);
+      okFilowBridge()?.modelHover?.(Boolean(mesh) || ev.buttons > 0);
+    };
+    const onLeave = () => {
+      glow(focusPart.current === null ? null : meshes[focusPart.current]);
+      okFilowBridge()?.modelHover?.(false);
+    };
     const onDown = (ev: PointerEvent) => { downAt = { x: ev.clientX, y: ev.clientY }; };
     const onUp = (ev: PointerEvent) => {
       if (Math.hypot(ev.clientX - downAt.x, ev.clientY - downAt.y) > 4) return; // that was a drag
@@ -254,9 +273,12 @@ export default function OkFilowModel() {
     window.addEventListener("resize", onResize);
 
     // The labels: laid out every frame from where their parts are now, in two columns inside the frame,
-    // numbered in reading order; each leader runs level out of the model, then to its label, so no two
-    // ever cross (its dot is always on its part). A part turned out of the frame hides its label.
+    // Numbered once in initial reading order. Keep rows fixed and move elbows when routes conflict.
+    // A part turned out of the frame hides its label.
     let sides: LabelSide[] | null = null;
+    let numbers: number[] | null = null;
+    let previousRoutes: Array<Array<{x:number;y:number}>> | null = null;
+    let previousSlots: LabelSlot[] | null = null;
     const world = new THREE.Vector3();
     const lines = Array.from(leaders.current?.querySelectorAll("g.okf-part-leader") ?? []);
     const placeLabels = () => {
@@ -267,11 +289,24 @@ export default function OkFilowModel() {
         world.copy(v).project(camera);
         return { x: ((world.x + 1) / 2) * w, y: ((1 - world.y) / 2) * h };
       };
-      const pts = anchors.map((a, k) => project(meshes[labelled[k].part].localToWorld(world.copy(a)).clone()));
+      const pts = anchors.map((a, k) => {
+        const mesh = meshes[labelled[k].part];
+        // Prefer patches in the established column order before moving a label row.
+        const column = sides && numbers ? labelled.map((_,i)=>i).filter(i=>sides![i]===sides![k]).sort((i,j)=>numbers![i]-numbers![j]) : null;
+        const vertical = column ? (column.indexOf(k)+0.5)/column.length : [0.5, 0.75, 0.25][k % 3];
+        const surface = visibleSurfaceAnchor(mesh, meshes, camera, w, h, vertical);
+        a.copy(surface.anchor);
+        lines[k]?.setAttribute("data-anchor-margin", surface.margin.toFixed(3));
+        return project(mesh.localToWorld(world.copy(a)).clone());
+      });
       const mid = project(new THREE.Vector3(0, 0, 0)).x;
       const slots = layoutPartLabels(pts, labelled.map((l) => ({ width: l.width, height: LABEL_HEIGHT })), { width: w, height: h }, mid, sides);
+      if (previousSlots) slots.forEach((s,i)=>{s.y=previousSlots![i].y;s.elbow.y=s.y+s.height/2;s.to.y=s.elbow.y;});
+      previousSlots = slots.map(s=>({...s}));
       sides = slots.map((s) => s.side);
-      const numbers = readingOrder(slots);
+      numbers ??= readingOrder(slots);
+      const routes = routeLeaders(slots.map(leaderPoints), {width:w,height:h}, previousRoutes);
+      previousRoutes = routes;
       slots.forEach((s, i) => {
         const inside = s.from.x >= 4 && s.from.x <= w - 4 && s.from.y >= 4 && s.from.y <= h - 4;
         const label = labelEls.current[i];
@@ -279,12 +314,12 @@ export default function OkFilowModel() {
           label.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px)`;
           label.style.visibility = inside ? "" : "hidden";
           const n = label.firstElementChild;
-          if (n && n.textContent !== String(numbers[i])) n.textContent = String(numbers[i]);
+          if (n && n.textContent !== String(numbers![i])) n.textContent = String(numbers![i]);
         }
         const g = lines[i];
         if (!g) return;
         (g as SVGGElement).style.visibility = inside ? "" : "hidden";
-        const points = leaderPoints(s).map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+        const points = routes[i].map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
         for (const line of g.querySelectorAll("polyline")) line.setAttribute("points", points);
         for (const dot of g.querySelectorAll("circle")) {
           dot.setAttribute("cx", s.from.x.toFixed(1));
@@ -312,6 +347,7 @@ export default function OkFilowModel() {
       window.removeEventListener("resize", onResize);
       el.removeEventListener("okf-focus-part", onFocusPart);
       controls.dispose();
+      themeObserver.disconnect();
       for (const m of meshes) { m.geometry.dispose(); (m.material as THREE.Material).dispose(); }
       for (const x of extras) x.dispose();
       env.dispose();
@@ -351,7 +387,7 @@ export default function OkFilowModel() {
               onClick={() => ask(l.name)}
               onFocus={() => focus(l.part)}
               onBlur={() => focus(null)}
-              onPointerEnter={() => focus(l.part)}
+              onPointerEnter={() => { focus(l.part); b?.modelHover?.(true); }}
               onPointerLeave={() => focus(null)}
             >
               <span className="okf-part-n" aria-hidden>{l.n}</span>
@@ -360,7 +396,7 @@ export default function OkFilowModel() {
           </li>
         ))}
       </ol>
-      <div className="okf-model-tools">
+      <div className="okf-model-tools" onPointerEnter={() => b?.modelHover?.(true)} onPointerLeave={() => b?.modelHover?.(false)}>
         <span className="okf-model-grip" aria-hidden />
         <button type="button" className="okf-x" aria-label={t("close")} title={t("close")} onClick={() => b?.closeModel()}>×</button>
       </div>

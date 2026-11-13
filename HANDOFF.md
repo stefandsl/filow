@@ -14,6 +14,40 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
+## Overlay round 2B worktree (unreleased, 2026-11-13)
+
+`feat-overlay-r2b` merged main `f5d18e2` in `d89a2fd`, retaining the opening-microphone,
+keys-up closure and phone-question safeguards. Sentence-paced marks now append without
+restarting; avoidance rectangles cross the preload/desktop bridge. Pointer motion uses
+one planned flight and arrival clock, and the measured bubble grows over 160 ms.
+3D labels use visible surface anchors and separate 12 px lanes, with light-theme styles
+and click-through margins. English and Italian manuals describe the changes.
+
+Evidence and limitations: `docs/okfilow/OVERLAY-R2B.md`. The isolated QA driver, raw timing
+records, mutation report and blind sheets live under `G:/FILOW/tmp/overlay-r2b`.
+The first blind critic preferred this build on all eight sheets but rejected the pointer
+landing and light stage. The rework puts the hotspot on the target corner with an underline
+and a contrast-safe ring, widens both leader columns to 28 px, prioritizes interior surface
+patches, and uses a tinted light stage with stronger shell outlines and a compact shadow.
+New evidence is in `docs/okfilow/OVERLAY-R2B-REWORK.md`; the new blind set is `frames/ab2`.
+Second rework: identities and columns stay fixed; safe surface patches follow initial
+column order. Flights now take at most 900 ms (633 ms in the fixture), landing pill clearance
+is 17 px, backtrack is zero, and light ring contrast is 8.039:1. Final model samples have
+zero identity changes, crossings and label overlaps. Tests: 3,089 pass, 5 skipped;
+typecheck, lint and web build pass; 7/7 mutations caught. Evidence:
+`docs/okfilow/OVERLAY-R2B-REWORK3.md`; eight fresh blind sheets: `frames/ab3`.
+Final rework (2026-11-14): final SVG-pixel measurement over 24 full-turn poses plus the
+eight sheet poses exposes up to three crossing pairs on e7db482. Routes now move elbows
+while retaining numbers, columns and rows. All 1,196 captured model frames have zero
+intersections and at least 12.996 px centreline clearance outside 8 px anchor regions.
+Pointer reversals are zero, path ratio 1.156, first-step ratio 0.0532, flight 616.7 ms.
+Light leaders have dark casings; the ring starts at full stroke width. Vitest 3,093 pass,
+5 skipped; typecheck, lint and web build pass; 6/6 mutations caught. Evidence and the
+precise limits supersede the earlier spacing/crossing claims:
+`docs/okfilow/OVERLAY-R2B-REWORK4.md`; fresh blind sheets: `frames/ab4`.
+Pending: a fresh blind verdict and owner-authorized native/live checks. No push, tag,
+merge into main or release.
+
 ## Where it stands (v0.9.35 + current branch)
 
 - Work in progress on `feat/fast-onboarding-account`, based on v0.9.35 / `e6b84c9`:

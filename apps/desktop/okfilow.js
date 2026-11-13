@@ -19,6 +19,7 @@ const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipien
 const { readSelection } = require("./okfilow-selection");
 const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOverlays, pointsShowMs, answering, overlayMouse, seeChoice, wordsOnlyList, pillState, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
 const { createPractice } = require("./tour");
+const { overlayRects } = require("./okfilow-rects");
 const { modelBounds } = require("./okfilow-model-place");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 const { createElementReader, scanForShot, windowHandle } = require("./okfilow-uia");
@@ -339,6 +340,7 @@ function createOkFilow(deps) {
       backgroundColor: "#00000000",
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload, backgroundThrottling: false },
     });
+    modelWin.setIgnoreMouseEvents(true, { forward: true });
     modelWin.setContentProtection(hidden());
     lockDown(modelWin);
     modelWin.on("closed", () => { modelWin = null; });
@@ -382,6 +384,10 @@ function createOkFilow(deps) {
     e.sender.send("okfilow:model", currentModel);
     logLine(`okfilow: 3D model shown (${currentModel.parts.length} parts)`);
     qaShot("model", 3000);
+  });
+  ipcMain.on("okfilow:model:hover", (e, active) => {
+    if (ourSender(e) && modelWin && !modelWin.isDestroyed() && e.sender === modelWin.webContents)
+      modelWin.setIgnoreMouseEvents(active !== true, { forward: true });
   });
   ipcMain.on("okfilow:model:close", (e) => { if (ourSender(e) && modelWin && !modelWin.isDestroyed()) modelWin.close(); });
   ipcMain.on("okfilow:askAbout", (e, text) => { if (ourSender(e) && typeof text === "string") sendPanel("okfilow:askText", text.slice(0, 300)); });
@@ -1327,7 +1333,7 @@ function createOkFilow(deps) {
     if (strokes.length > 6) strokes.shift();
   });
   /** points: [{x, y, label, display: {id, bounds}, image: {width, height}}] already mapped to global DIP by the panel. */
-  ipcMain.on("okfilow:point", (e, points) => {
+  ipcMain.on("okfilow:point", (e, points, avoid) => {
     if (!ourSender(e) || !Array.isArray(points) || QA_SCREEN) return;
     // An empty list only calls the pointer back (a new question, a stop): it keeps nothing on screen.
     if (!keepsOverlays(points)) return sendOverlays("okfilow:point", []);
@@ -1345,21 +1351,21 @@ function createOkFilow(deps) {
       const mine = points
         .filter((p) => p && onRect(p.x, p.y, b))
         .map((p) => ({ x: p.x - b.x, y: p.y - b.y, label: String(p.label || "").slice(0, 60) }));
-      w.webContents.send("okfilow:point", mine);
+      w.webContents.send("okfilow:point", mine, overlayRects(avoid, b));
     }
   });
 
   /** marks: BuddyMark[] in global DIP. Each overlay gets the ones anchored on its display, in local coordinates. */
   /** `from` (Resume after Stop): the first `from` marks were drawn before the stop; they are shown as they were, the rest are drawn now. */
   /** Kept while the answer and its bubble last (answerMarks); an empty list keeps nothing. They replace the practice mark. */
-  ipcMain.on("okfilow:draw", (e, marks, from) => {
+  ipcMain.on("okfilow:draw", (e, marks, from, avoid) => {
     if (!ourSender(e) || !Array.isArray(marks) || QA_SCREEN) return;
     answerMarks.drawn(marks);
     practiceState.forget();
-    drawMarks(marks, from);
+    drawMarks(marks, from, avoid);
   });
   /** Sends `marks` (global DIP) to each overlay; the caller decides how long they are kept. */
-  function drawMarks(marks, from) {
+  function drawMarks(marks, from, avoid) {
     showOverlays();
     qaShot("draw");
     const drawn = Math.max(0, Math.round(Number(from)) || 0);
@@ -1367,7 +1373,7 @@ function createOkFilow(deps) {
       if (w.isDestroyed()) continue;
       const b = w.getBounds();
       const mine = marks.map((m, i) => { const l = m && typeof m === "object" ? localMark(m, b) : null; return l && i < drawn ? { ...l, done: true } : l; }).filter(Boolean);
-      w.webContents.send("okfilow:draw", mine);
+      w.webContents.send("okfilow:draw", mine, overlayRects(avoid, b));
     }
   }
 

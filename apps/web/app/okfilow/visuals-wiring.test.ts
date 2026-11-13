@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { CARD_EXIT, CARD_WIDTH } from "@/lib/buddy/cards";
-import { flightMs, POINT_LABEL_AT, pointerLanding, pointLabelFlip } from "@/lib/buddy/motion";
+import { flightMs, pointerLanding, pointLabelFlip } from "@/lib/buddy/motion";
 
 const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 const read = (p: string) => fs.readFileSync(path.join(here, p), "utf8").replace(/\r\n/g, "\n");
@@ -63,19 +63,17 @@ describe("the exit", () => {
 
 describe("the pointer", () => {
   it("is a bigger outlined glyph with a light halo, its tip on the spot", () => {
-    expect(overlay).toContain('viewBox="0.5 -0.5 23 23" width="36" height="36"');
+    expect(overlay).toContain('viewBox="3 2 23 23" width="36" height="36"');
     expect(overlay).toContain('<path className="okf-arrow-halo" d={ARROW} /><path d={ARROW} />');
     expect(rule(".okf-arrow .okf-arrow-halo")).toContain("stroke: rgba(255, 255, 255, 0.92)");
     expect(rule(".okf-arrow path")).toContain("stroke: #08090b");
   });
 
   it("plays one ring per arrival, and docks its label as it lands", () => {
-    expect(overlay).toContain("if (k >= 1 && !g.arrived)");
-    expect(overlay).toContain('{arrivals > 0 && <i key={arrivals} className="okf-arrival" style={{ left: -22 - POINT_STANDOFF.x, top: -22 - POINT_STANDOFF.y }} />}');
-    expect(overlay).toContain("if (k >= POINT_LABEL_AT)");
-    expect(POINT_LABEL_AT).toBeGreaterThan(0.5);
-    expect(POINT_LABEL_AT).toBeLessThan(1);
-    expect(rule(".okf-label")).toContain("left: 14px; top: -24px");
+    expect(overlay).toContain("arrivalPhase(now - g.start, g.dur,");
+    expect(overlay).toContain('<i ref={ringEl} className="okf-arrival" />');
+    expect(overlay).toContain("labelEl.current.style.left");
+    expect(rule(".okf-label")).toContain("animation: none");
   });
 
   it("flies for longer the further it goes, so no frame jumps far, and stops beside the spot", () => {
@@ -88,8 +86,8 @@ describe("the pointer", () => {
     expect(at.x).toBeGreaterThan(1200);
     expect(at.y).toBeGreaterThan(500);
     expect(Math.hypot(at.x - 1200, at.y - 500)).toBeLessThan(14);
-    expect(overlay).toContain("const to = { ...spot, ...pointerLanding(spot) };");
-    expect(overlay).toContain("const dur = flightMs(Math.hypot(to.x - from.x, to.y - from.y));");
+    expect(overlay).toContain("const plan = planFlight(");
+    expect(overlay).toContain("const dur = plan.duration;");
   });
 
   it("docks its label on the side with room", () => {
@@ -101,15 +99,16 @@ describe("the pointer", () => {
 });
 
 describe("the 3D view", () => {
-  it("sits in its own opaque rounded frame, with no title bar and no footer", () => {
+  it("fills its opaque stage without transparent corner cutouts, title bar or footer", () => {
     expect(model).not.toContain("okf-model-head");
     expect(model).not.toContain("okf-model-foot");
-    expect(rule(".okf-model")).toContain("background: rgb(16, 17, 20); border-radius: 16px;");
+    expect(rule(".okf-model")).toContain("background: rgb(16, 17, 20); border-radius: 0;");
   });
 
-  it("draws each leader as anchor, knee, label and numbers the labels in reading order", () => {
-    expect(model).toContain("const numbers = readingOrder(slots);");
-    expect(model).toContain("leaderPoints(s)");
+  it("routes the final leader polylines and keeps their initial reading-order identities", () => {
+    expect(model).toContain("numbers ??= readingOrder(slots);");
+    expect(model).toContain("routeLeaders(slots.map(leaderPoints)");
+    expect(model).toContain("const points = routes[i].map");
     expect(model).not.toContain("shown[i].x + (s.x - shown[i].x)");
   });
 

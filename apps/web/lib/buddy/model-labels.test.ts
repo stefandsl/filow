@@ -91,12 +91,12 @@ describe("the 3D view's part labels", () => {
     expect(readingOrder(slots)).toEqual([4, 2, 3, 1]);
   });
 
-  it("keep their side near the middle and change it only once their part is clearly across", () => {
+  it("keep their original side even after their part crosses the model", () => {
     const one = (x: number, prev: "left" | "right" | null) => layoutPartLabels([{ x, y: 200 }], sizes(1), view, 380, prev ? [prev] : null)[0].side;
     expect(one(385, null)).toBe("right");
     expect(one(385, "left")).toBe("left");
     expect(one(370, "right")).toBe("right");
-    expect(one(405, "left")).toBe("right");
-    expect(one(350, "right")).toBe("left");
+    expect(one(405, "left")).toBe("left");
+    expect(one(350, "right")).toBe("right");
   });
 });
