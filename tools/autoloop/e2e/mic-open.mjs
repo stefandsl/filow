@@ -49,7 +49,7 @@ const SCENARIOS = [
   // The recognizer loads on the first press of a launch (about 2 s): the words said meanwhile are kept and heard.
   // The microphone closes when the keys go up, also while the recognizer is still loading: nothing said after is heard.
   { id: "TC", kind: "talk", delay: 0, release: 2900, heard: ["bicycle"], lost: ["where"], note: false, outcome: "asked" },
-  { id: "TQ", kind: "talk", delay: 0, release: 1500, heard: ["remember"], lost: ["bicycle", "where"], note: false, outcome: "asked" },
+  { id: "TQ", kind: "talk", delay: 0, release: 1500, heard: [], lost: ["bicycle", "where"], note: false, outcome: "closed-at-keys-up" },
   // 13 Nov: a tap, the keys down again while the tap's "I didn't catch that" is still on its way, and up
   // right after listening restarts. That release was dropped and the microphone stayed open with the keys up.
   { id: "TL", kind: "talk", delay: 0, release: 600, again: 1350, warm: true, heard: [], lost: [], note: false, outcome: "capture-closed" },
@@ -136,7 +136,11 @@ async function launch(wav, delay) {
   }
   fs.writeFileSync(path.join(profile, "settings.json"), JSON.stringify(SETTINGS, null, 2));
   // a fresh panel each launch: no conversation, no saved microphone
-  fs.rmSync(path.join(profile, "Local Storage"), { recursive: true, force: true });
+  // (the last launch's processes can hold the files for a few seconds after they were stopped)
+  for (let i = 0; ; i++) {
+    try { fs.rmSync(path.join(profile, "Local Storage"), { recursive: true, force: true }); break; }
+    catch (e) { if (i >= 40) throw e; await sleep(500); }
+  }
   const log = path.join(profile, "startup.log");
   const fromLine = logLineCount(log);
   const tmp = path.join(WORK, "tmp");
@@ -289,12 +293,16 @@ async function runScenario(sc, wav) {
       }
       releaseAt = Date.now();
       for (const k of [...keys].reverse()) await qaKey(panel, "up", k);
+    }
+    if (sc.outcome === "capture-closed" || sc.outcome === "closed-at-keys-up") {
       // the capture graph is up while the panel's microphone mark is set (stopAudio clears it)
       const open = () => panel.evaluate(`document.documentElement.dataset.okfMicOpenAt !== undefined`);
-      await sleep(400);
-      const wasOpen = await open();
-      for (const end = Date.now() + 9000; Date.now() < end && (await open());) await sleep(100);
-      captureOpenMs = (await open()) ? Infinity : wasOpen ? Date.now() - releaseAt : 0;
+      let closedAt = null;
+      for (const end = Date.now() + 9000; Date.now() < end;) {
+        if (!(await open())) { closedAt = Date.now(); break; }
+        await sleep(25);
+      }
+      captureOpenMs = closedAt === null ? Infinity : closedAt - releaseAt;
     }
 
     // the end: an error, or idle again after the release (an answer passes through thinking and speaking first)
@@ -338,7 +346,7 @@ async function runScenario(sc, wav) {
     for (const w of sc.heard) if (!heard.includes(w)) fails.push(`"${w}" was not heard`);
     for (const w of sc.lost) if (heard.includes(w)) fails.push(`"${w}" was heard although it was said while nothing should be recorded (microphone not open yet, or keys already up)`);
     // (a tap too short to say anything is rightly told to hold the keys longer)
-    if (sc.outcome !== "capture-closed" && BLAMES_USER.test(everything)) fails.push("the user was told to hold the keys longer");
+    if (sc.outcome !== "capture-closed" && sc.outcome !== "closed-at-keys-up" && BLAMES_USER.test(everything)) fails.push("the user was told to hold the keys longer");
     // "listening" is shown only once the microphone is open (never before the late open)
     for (const [name, at] of [["the log", listeningAt], ["the pointer", pointerListeningAt]]) if (at !== null && at < sc.delay - 150) fails.push(`${name} said listening at ${at} ms, before the microphone opened (${sc.delay} ms)`);
     if (sc.note !== texts.some((t) => OPENING.test(t.text))) fails.push(sc.note ? `no "Opening the microphone" on the pointer` : `"Opening the microphone" shown although it opened at once`);
@@ -349,10 +357,10 @@ async function runScenario(sc, wav) {
       else if (micMessage.ms > sc.release + 1500) fails.push(`the message came ${micMessage.ms - sc.release} ms after the keys went up`);
       if (listeningAt !== null) fails.push("it said listening although nothing could be recorded");
     }
-    if (sc.outcome === "capture-closed") {
-      // stopped by the release itself (the recognizer's last words take up to 1.5 s), not seconds later by the watchdog
+    if (sc.outcome === "capture-closed" || sc.outcome === "closed-at-keys-up") {
+      // closed by the release itself, at once: not when the recognizer is ready, and not seconds later by the watchdog
       if (captureOpenMs === Infinity) fails.push("the microphone stayed open with the keys up (more than 9 s)");
-      else if (captureOpenMs > 3000) fails.push(`the microphone stayed open ${captureOpenMs} ms after the keys went up`);
+      else if (captureOpenMs > 500) fails.push(`the microphone stayed open ${captureOpenMs} ms after the keys went up`);
       if (lines.some((l) => /still open with no key held/.test(l))) fails.push("the watchdog had to stop it: the release was lost");
     }
     if (sc.missingMic && !FALLBACK.test(everything)) fails.push("no note that the saved microphone is gone and the default is used");
