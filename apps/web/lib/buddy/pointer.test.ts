@@ -192,9 +192,25 @@ describe("the ask route, end to end on the server", () => {
     expect(picks.okfilow.sort()).toEqual(["gemma4:e4b", "lfm3-vl"]);
   });
 
-  it("warming loads both models of the pair", async () => {
+  it("warming loads both models of the pair on a card with room for them next to Clef", async () => {
+    vi.spyOn(sysinfo, "gpuInfo").mockResolvedValue({ name: "", kind: "discrete", vramTotalGb: 16, vramUsedGb: null, sharedUsedGb: null, utilPct: null, source: "none" });
     const res = await warm(request({}));
     expect(await res.json()).toMatchObject({ model: "gemma4:e4b", ok: true });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(loads.sort()).toEqual(["gemma4:e4b", "lfm3-vl"]);
+  });
+
+  // measured on the owner's 8 GB RTX 3070: the pair loaded at launch pushed Clef out, and every take started "Reloading"
+  it("on the 8 GB card with Clef installed, warming loads neither model of the pair", async () => {
+    const res = await warm(request({}));
+    expect(await res.json()).toEqual({ model: "gemma4:e4b", ok: false, skipped: "decision-model" });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(loads).toEqual([]);
+  });
+
+  it("on the 8 GB card without Clef (no local take can run), warming still loads the pair", async () => {
+    installed = PAIR.filter((n) => !n.startsWith("clef"));
+    await (await warm(request({}))).json();
     await new Promise((r) => setTimeout(r, 0));
     expect(loads.sort()).toEqual(["gemma4:e4b", "lfm3-vl"]);
   });

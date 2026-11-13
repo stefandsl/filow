@@ -24,6 +24,8 @@
 //   --evict-at S  S seconds after Start, unload the decision model from the Ollama at OLLAMA_URL (keep_alive 0),
 //                 as Ollama does when another model needs the GPU: the take must recover (reload, then tick).
 //                 Refused unless OLLAMA_URL names a test Ollama on another port than the user's 11434.
+//   --ask-after Q after Stop, ask OK Filow Q on this PC without the screen and record when its first words
+//                 came and when it ended ("askAfter"): its first answer after a take must still work.
 // Ports: --port (or FILOW_E2E_PORT, default 4801; the relay gets port + 1), --devtools (or
 // FILOW_E2E_DEVTOOLS, default 9351). Profile G:\FILOW\tmp\t1-profile by default. Stops only its own processes.
 import { spawn, execFile, execFileSync } from "node:child_process";
@@ -457,6 +459,19 @@ for (const l of last?.log ?? []) if (!logLines.includes(l)) logLines.push(l);
 // Stop the take like a user would, then the app.
 await evaluate(clickByText(STOP)).catch(() => undefined);
 await sleep(1000);
+// --ask-after "<question>": OK Filow's first answer after the take, asked on this PC without the screen
+// (the user's words only), as the panel asks: when the first words came and when the answer ended.
+const ASK_AFTER = opt("--ask-after", null);
+const askAfter = ASK_AFTER == null || wsClosed ? null : await evaluate(`(async () => {
+  const b = window.filow, t0 = performance.now();
+  const s = await fetch(b.sessionUrl + "/api/session", { method: "POST", headers: b.accessPassword ? { "X-Access-Password": b.accessPassword } : {} }).then((r) => r.json(), () => ({}));
+  const res = await fetch("/api/buddy/ask", { method: "POST", headers: { "Content-Type": "application/json", ...(s.engineToken ? { Authorization: "Bearer " + s.engineToken } : {}) },
+    body: JSON.stringify({ question: ${JSON.stringify(String(ASK_AFTER))}, images: [], screens: [], sees: false, provider: "local", language: "en" }) });
+  let text = "", firstMs = null;
+  if (res.body) { const r = res.body.getReader(), d = new TextDecoder(); for (;;) { const { done, value } = await r.read(); if (done) break; if (firstMs == null) firstMs = Math.round(performance.now() - t0); text += d.decode(value, { stream: true }); } }
+  return { status: res.status, provider: res.headers.get("x-buddy-provider"), firstMs, totalMs: Math.round(performance.now() - t0), answer: text.slice(0, 400) };
+})()`).catch((e) => ({ error: e.message }));
+if (askAfter) console.log(`[take] OK Filow after the take: ${JSON.stringify(askAfter)}`);
 ws.close();
 await shutdown();
 
@@ -542,6 +557,7 @@ const result = {
   takeMs, stillRecording, appExit, devtoolsClosed: closedDuringTake,
   evict: evict ? { ...evict, okAfter: decide.ok - (evict.okBefore ?? 0) } : undefined,
   reloadShownMs: reloadShown,
+  askAfter: askAfter ?? undefined,
   decide: {
     calls: decide.calls, ok: decide.ok, failed: decide.failed, aborted: decide.aborted, models: decide.models, providers: decide.providers,
     allLocal: decide.ok > 0 && Object.keys(decide.models).every((m) => /\(local\)$/.test(m)),
