@@ -88,9 +88,6 @@ const HOTKEYS = ["ctrl+alt", "ctrl+shift", "alt+shift", "ctrl+meta"];
 // 1024 wide keeps buttons readable for the model and answers about twice as fast as 1280 on a local GPU.
 const IMAGE_MAX_WIDTH = 1024;
 const FADE_AFTER_MS = 1000;
-/** A paired phone's question (askFromPhone): its longest length (packages/core PHONE_QUESTION_MAX), and the shortest time between two. */
-const PHONE_QUESTION_MAX = 300;
-const PHONE_ASK_GAP_MS = 3000;
 /** Exactly the hotkey's modifiers are down (extra modifiers cancel, so Ctrl+Alt+Del never triggers it). */
 const hotkeyHeld = chordHeld;
 
@@ -936,26 +933,6 @@ function createOkFilow(deps) {
     openQuickAsk(at);
     return "open";
   }
-  /**
-   * A question typed on a paired phone (apps/web/lib/buddy/phoneAsk.ts; only a phone the session server
-   * accepted as a controller can send one). The panel asks it like any question it is handed (same
-   * consent, same provider, same "going outside" signal); it shows without taking the keyboard from
-   * whatever the presenter has in front. "busy": the panel is not ready, or a phone asked a moment ago.
-   */
-  let phoneAskedAt = 0;
-  function askFromPhone(text) {
-    if (!cfg().enabled) return "off";
-    const question = typeof text === "string" ? text.replace(/\s+/g, " ").trim().slice(0, PHONE_QUESTION_MAX).trim() : "";
-    if (!question) return "empty";
-    if (!panelReady || !panel || panel.isDestroyed() || panel.webContents.isLoading()) return "busy";
-    const now = Date.now();
-    if (now - phoneAskedAt < PHONE_ASK_GAP_MS) return "busy";
-    phoneAskedAt = now;
-    if (!panel.isVisible()) showWindow(panel, "panel", true);
-    sendPanel("okfilow:askText", question);
-    logLine(`okfilow: a question from a paired phone (${question.length} characters)`);
-    return "asked";
-  }
   /** Shows the panel next to the mouse (or next to `at`) and gives it the keyboard. */
   function showPanelAtCursor(at) {
     const p = buildPanel();
@@ -1498,7 +1475,7 @@ function createOkFilow(deps) {
   };
   /** The live "going outside" signal, for requests made outside OK Filow (the account's, main.js). */
   const outboundSignal = () => ({ begin: outbound.begin, end: outbound.end });
-  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, askFromPhone, outboundSignal };
+  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, outboundSignal };
 }
 
 /**

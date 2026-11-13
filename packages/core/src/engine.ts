@@ -7,6 +7,7 @@ import { checkClaim, type ClaimCheck } from "./guard";
 import { sentences } from "./text";
 import { parseScript } from "./script";
 import { isScreenScript, sectionFromSummary, type ScreenNote } from "./screen";
+import { PHONE_ASK_OFF } from "./types";
 import type { Bullet, Command, CommandResult, Evidence, PointState, ScreenSummary, Script, SessionState, SttBackendId } from "./types";
 
 export type TranscriptEvent = { committed?: string; partial?: string };
@@ -373,8 +374,8 @@ export class Engine {
       case "anchor":
         return this.anchor(cmd.idx, cmd.pointId, cmd.keep);
       case "askOkFilow":
-        // Answered by the desktop app before the engine sees it (useSession.ts); reaching here means no OK Filow.
-        return { ok: false, error: "okfilow:unavailable" };
+        // Never the engine's: questions from a phone are switched off (lib/buddy/phoneAsk.ts sessionCommand).
+        return { ok: false, error: PHONE_ASK_OFF };
     }
   }
 

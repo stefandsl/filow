@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import { createSessionServer, type SessionServer } from "./server";
+import { createSessionServer, PHONE_ASK_OFF, type SessionServer } from "./server";
 
-// "Ask OK Filow" on a paired phone (apps/web/components/MirrorAsk.tsx): the question is a command, so it
-// reaches the computer only from a phone this server paired (a code shown on the computer, single use)
-// and accepted as a controller. A viewer, a phone still waiting for the presenter and a stranger
-// without the pairing's token never get a question through.
+// "Ask OK Filow" on a paired phone is switched off until it is secured: the session server refuses
+// the question from every phone, controllers included, and never relays it to the computer. A viewer,
+// a phone still waiting for the presenter and a stranger never get anything through either.
 let server: SessionServer;
 afterEach(() => server.close());
 
@@ -35,7 +34,7 @@ const post = (base: string, path: string, body: unknown = {}) =>
 const ask = { type: "askOkFilow", text: "What is on the slide?" };
 
 describe("a phone's question for OK Filow on the session server", () => {
-  it("reaches the computer from a paired controller, and the computer's answer goes back to that phone", async () => {
+  it("is refused even from a paired controller, while the controller's other commands still reach the computer", async () => {
     const base = await start(true);
     const { id, code, engineToken } = (await (await post(base, "/api/session")).json()) as { id: string; code: string; engineToken: string };
     const engine = open(base, id, { role: "engine", token: engineToken });
@@ -46,12 +45,16 @@ describe("a phone's question for OK Filow on the session server", () => {
     const phone = open(base, id, { role: "view", token: pair.viewToken });
     await phone.next();
     await phone.next();
+    expect(PHONE_ASK_OFF).toBe("okfilow:phone-off");
     phone.send({ t: "cmd", id: "q1", cmd: ask });
-    expect(await engine.next()).toMatchObject({ t: "cmd", id: "q1", cmd: ask });
-    engine.send({ t: "ack", id: "q1", ok: false, error: "okfilow:off" });
-    expect(await phone.next()).toMatchObject({ t: "ack", id: "q1", ok: false, error: "okfilow:off" });
-    // the code was spent: a second phone with it is refused
-    expect((await post(base, "/api/session/pair", { code })).status).toBe(404);
+    expect(await phone.next()).toEqual({ t: "ack", id: "q1", ok: false, error: PHONE_ASK_OFF });
+    // any shape of it: no text, extra fields
+    phone.send({ t: "cmd", id: "q2", cmd: { type: "askOkFilow", text: 42, source: "phone" } });
+    expect(await phone.next()).toEqual({ t: "ack", id: "q2", ok: false, error: PHONE_ASK_OFF });
+    // a stage command after it still goes through, and is the first command the computer sees
+    phone.send({ t: "cmd", id: "n1", cmd: { type: "nextSection" } });
+    expect(await engine.next()).toMatchObject({ t: "cmd", id: "n1", cmd: { type: "nextSection" } });
+    expect(engine.inbox.filter((m) => m.t === "cmd")).toEqual([]);
     engine.ws.close();
     phone.ws.close();
   });
@@ -76,7 +79,7 @@ describe("a phone's question for OK Filow on the session server", () => {
     phone.send({ t: "cmd", id: "v", cmd: ask });
     reply = await phone.next();
     while (reply.t !== "ack") reply = await phone.next();
-    expect(reply).toMatchObject({ t: "ack", id: "v", ok: false, error: "viewer role" });
+    expect(reply).toMatchObject({ t: "ack", id: "v", ok: false, error: PHONE_ASK_OFF });
     const stranger = open(base, id, { role: "view", token: "not-a-pairing" });
     expect((await stranger.closed).code).toBe(4002);
     await new Promise((r) => setTimeout(r, 50));

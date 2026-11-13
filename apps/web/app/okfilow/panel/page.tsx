@@ -30,6 +30,7 @@ import { wantsDrawing } from "@/lib/buddy/visuals";
 import { photoOnly } from "@/lib/buddy/photo";
 import { AnswerControls, KeyChoice, SeeScreenSwitch } from "@/components/okfilow/controls";
 import { whiteboardTopic } from "@/lib/whiteboard/client";
+import { askTextQuestion } from "@/lib/buddy/phoneAsk";
 import "../okfilow.css";
 
 const HISTORY_KEY = "okfilow.history.v1";
@@ -1179,7 +1180,7 @@ export default function OkFilowPanel() {
       b.onHandsFree((on) => setHandsFree(Boolean(on))),
       b.onQuickAsk(() => setTimeout(() => typeBox.current?.focus(), 30)),
       // A part clicked in the 3D model window: ask about it, like a spoken question.
-      b.onAskText((text) => { if (typeof text === "string" && text.trim()) void ask(text.trim()); }),
+      b.onAskText((text) => { const q = askTextQuestion(text); if (q) void ask(q); }),
       b.agents.onChange(setJobs),
       b.onWelcome((tray) => {
         const key = HOTKEY_LABEL[statusRef.current?.hotkey ?? "ctrl+alt"] ?? "Ctrl + Alt";

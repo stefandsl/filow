@@ -66,6 +66,12 @@ export type SessionServer = {
   sweep(): void;
 };
 
+/** The refusal a phone gets for a question to OK Filow (packages/core PHONE_ASK_OFF): the feature is switched off. */
+export const PHONE_ASK_OFF = "okfilow:phone-off";
+/** A phone's question for OK Filow ({ type: "askOkFilow" }), in any shape. */
+export const isPhoneAsk = (cmd: unknown): boolean =>
+  typeof cmd === "object" && cmd !== null && (cmd as { type?: unknown }).type === "askOkFilow";
+
 /** RFC 1918, link-local, loopback (v4 and v4-mapped v6, ::1). */
 export function isPrivateIp(ip: string | undefined): boolean {
   if (!ip) return false;
@@ -384,6 +390,8 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
           return;
         }
         if (msg.t === "cmd") {
+          // Questions for OK Filow from a phone are switched off until they are secured: refused here, never relayed.
+          if (isPhoneAsk(msg.cmd)) return ws.send(JSON.stringify({ t: "ack", id: msg.id, ok: false, error: PHONE_ASK_OFF }));
           if (me.role !== "controller") return ws.send(JSON.stringify({ t: "ack", id: msg.id, ok: false, error: "viewer role" }));
           if (!s.engine || s.engine.readyState !== WebSocket.OPEN)
             return ws.send(JSON.stringify({ t: "ack", id: msg.id, ok: false, error: "engine offline" }));

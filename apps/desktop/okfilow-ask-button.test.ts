@@ -69,40 +69,25 @@ describe("the main window's OK Filow button in the desktop app", () => {
   });
 });
 
-// A question typed on a paired phone (apps/web/lib/buddy/phoneAsk.ts) reaches OK Filow through the main
-// window, which holds the paired session: its own channel, checked against the main window's sender.
-describe("a paired phone's question in the desktop app", () => {
-  it("has its own checked channel from the main window", () => {
-    expect(read("preload.js")).toContain('askFromPhone: (text) => ipcRenderer.invoke("okfilow:settings:askFromPhone", text),');
+// A question typed on a paired phone is switched off until it is secured (apps/web/lib/buddy/phoneAsk.ts):
+// the main window's channel answers "off" without reading the text or touching OK Filow, and OK Filow has
+// no way left to hand a phone's question to its panel.
+describe("a paired phone's question in the desktop app, switched off", () => {
+  it("the channel checks the main window's sender, then answers off and never reaches OK Filow", () => {
     const main = read("main.js");
     const start = main.indexOf('ipcMain.handle("okfilow:settings:askFromPhone"');
     expect(start).toBeGreaterThan(-1);
     const handler = main.slice(start, main.indexOf("\n  });", start));
     expect(handler.split("\n")[1].trim()).toBe('if (!uiSender(event)) throw new Error("Denied");');
-    expect(handler).toContain('if (!okFilow) return "unavailable";');
-    expect(handler).toContain("return okFilow.askFromPhone(text);");
-    expect(okf).toMatch(/return \{[^}]*\baskFromPhone\b[^}]*\};/);
+    expect(handler.split("\n")[2].trim()).toBe('return "off";');
+    expect(handler).not.toMatch(/okFilow\b|text/);
   });
 
-  it("asks it through the panel like any handed-over question, only when OK Filow is on and ready, never twice in a moment", () => {
-    const fn = body("askFromPhone");
-    const order = ['if (!cfg().enabled) return "off";', 'if (!question) return "empty";', 'if (!panelReady || !panel || panel.isDestroyed() || panel.webContents.isLoading()) return "busy";',
-      'if (now - phoneAskedAt < PHONE_ASK_GAP_MS) return "busy";', "phoneAskedAt = now;", 'sendPanel("okfilow:askText", question);', 'return "asked";'];
-    let at = -1;
-    for (const line of order) {
-      const i = fn.indexOf(line);
-      expect(i, line).toBeGreaterThan(at);
-      at = i;
-    }
-    // text only, one line, capped like the panel's own handed-over questions
-    expect(fn).toContain('const question = typeof text === "string" ? text.replace(/\\s+/g, " ").trim().slice(0, PHONE_QUESTION_MAX).trim() : "";');
-    expect(okf).toContain("const PHONE_QUESTION_MAX = 300;");
-    expect(okf).toContain("const PHONE_ASK_GAP_MS = 3000;");
-    // shown without taking the keyboard from what the presenter has in front (a slideshow, say)
-    expect(fn).toContain("if (!panel.isVisible()) showWindow(panel, \"panel\", true);");
-    expect(fn).not.toMatch(/\.focus\(|\.show\(\)|showPanelAtCursor|keyTap/);
-    // the panel asks a handed-over question through its one ask(): the same consent and provider as a typed one
+  it("OK Filow has no phone entry point: nothing hands a phone's question to the panel", () => {
+    expect(okf).not.toMatch(/askFromPhone|phoneAskedAt|PHONE_ASK_GAP_MS/);
+    expect(okf).not.toMatch(/return \{[^}]*\baskFromPhone\b[^}]*\};/);
+    // the panel's handed-over questions go through askTextQuestion (plain text from its own shell only)
     const panel = fs.readFileSync(path.join(dir, "..", "web", "app", "okfilow", "panel", "page.tsx"), "utf8");
-    expect(panel).toContain('b.onAskText((text) => { if (typeof text === "string" && text.trim()) void ask(text.trim()); }),');
+    expect(panel).toContain("b.onAskText((text) => { const q = askTextQuestion(text); if (q) void ask(q); }),");
   });
 });
