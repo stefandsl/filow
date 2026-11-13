@@ -72,7 +72,9 @@ function say(...parts) {
  */
 function ollamaCli(tier, args, { detached = false } = {}) {
   const env = { ...process.env, OLLAMA_HOST: `127.0.0.1:${tier.port}`, OLLAMA_MODELS: tier.store, OLLAMA_NOPRUNE: "1", OLLAMA_KEEP_ALIVE: "30m", TEMP: path.join(LAT, "tmp"), TMP: path.join(LAT, "tmp") };
-  if (!tier.gpu) env.CUDA_VISIBLE_DEVICES = "-1";
+  // No GPU for the standard tier: CUDA_VISIBLE_DEVICES=-1 alone left lfm3-vl on the graphics card (Ollama 0.40
+  // has other GPU backends), so every backend is hidden and the model itself asks for no GPU layer (num_gpu 0).
+  if (!tier.gpu) Object.assign(env, { CUDA_VISIBLE_DEVICES: "-1", HIP_VISIBLE_DEVICES: "-1", ROCR_VISIBLE_DEVICES: "-1", GGML_VK_VISIBLE_DEVICES: "-1", OLLAMA_LLM_LIBRARY: "cpu" });
   else delete env.CUDA_VISIBLE_DEVICES;
   if (detached) {
     const out = fs.openSync(path.join(LAT, `ollama-${tier.name}.log`), "a");
@@ -159,11 +161,11 @@ async function prepare() {
     if (tier.numThread) {
       // lfm3-vl re-created on the standard tier with num_thread 4 (one thread per P-core of the mask)
       const mf = path.join(WORK, "Modelfile-std");
-      fs.writeFileSync(mf, `FROM lfm3-vl:latest\nPARAMETER num_thread ${tier.numThread}\n`);
-      const shown = ollamaCli(tier, ["show", "lfm3-vl:latest", "--parameters"]);
-      if (!new RegExp(`num_thread\\s+${tier.numThread}\\b`).test(shown)) {
+      fs.writeFileSync(mf, `FROM lfm3-vl:latest\nPARAMETER num_thread ${tier.numThread}\nPARAMETER num_gpu 0\n`);
+      const ok = (shown) => new RegExp(`num_thread\\s+${tier.numThread}\\b`).test(shown) && /num_gpu\s+0\b/.test(shown);
+      if (!ok(ollamaCli(tier, ["show", "lfm3-vl:latest", "--parameters"]))) {
         ollamaCli(tier, ["create", "lfm3-vl:latest", "-f", mf]);
-        if (!new RegExp(`num_thread\\s+${tier.numThread}\\b`).test(ollamaCli(tier, ["show", "lfm3-vl:latest", "--parameters"]))) throw new Error("num_thread not set on the standard tier's lfm3-vl");
+        if (!ok(ollamaCli(tier, ["show", "lfm3-vl:latest", "--parameters"]))) throw new Error("num_thread and num_gpu not set on the standard tier's lfm3-vl");
       }
     }
     await assertOnlyTierModels(tier);
@@ -650,7 +652,7 @@ function machineBlock(tier) {
   };
   try { m.gpu = execFileSync("nvidia-smi", ["--query-gpu=name,driver_version,memory.total,memory.used", "--format=csv,noheader"], { encoding: "utf8", windowsHide: true }).trim(); } catch { m.gpu = "none"; }
   try { m.ollamaVersion = ollamaCli(tier, ["--version"]).trim(); } catch { m.ollamaVersion = "?"; }
-  m.instance = { port: tier.port, OLLAMA_MODELS: tier.store, OLLAMA_NOPRUNE: "1", CUDA_VISIBLE_DEVICES: tier.gpu ? "(unset)" : "-1", mask: tier.affinity ? `0x${tier.affinity}` : "none", num_thread: tier.numThread ?? "default", hardware: tier.hardware || "this PC" };
+  m.instance = { port: tier.port, OLLAMA_MODELS: tier.store, OLLAMA_NOPRUNE: "1", CUDA_VISIBLE_DEVICES: tier.gpu ? "(unset)" : "-1 (and HIP, ROCR, GGML_VK hidden, OLLAMA_LLM_LIBRARY=cpu, num_gpu 0)", mask: tier.affinity ? `0x${tier.affinity}` : "none", num_thread: tier.numThread ?? "default", hardware: tier.hardware || "this PC" };
   return m;
 }
 /** The owner's own Ollama (read only, never changed): which models it holds loaded right now, and their VRAM. */
@@ -776,7 +778,7 @@ async function leak() {
   try {
     await withLaunch(ctx, { extraEnv: { FILOW_OKF_QA_SHOTS: path.join(WORK, "shots") } }, async () => {
       await sample(ctx, { kind: "typed", question: 0 });
-      await sleep(2000);
+      await sleep(4000);
     });
   } catch (e) { failed = /run failed/.test(String(e.message)); say(`[leak] ${e.message}`); }
   try { ctx.sampler.kill(); } catch { /* gone */ }

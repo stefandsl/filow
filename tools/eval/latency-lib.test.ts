@@ -108,6 +108,13 @@ describe("the 1000 ms judge", () => {
     expect(v.pass).toBe(true);
   });
 
+  it("judges the mark when the answers have no words", () => {
+    const strip = (s: ReturnType<typeof typed>) => { const marks = { ...s.timings.marks } as Record<string, number>; for (const k of ["text", "sentence", "synth", "voice"]) delete marks[k]; return { ...s, timings: { ...s.timings, marks } }; };
+    const v = judgeVerdict(plain.map(strip), delayed.map(strip), opts);
+    expect(v.checks.voice.span).toBe("t0->mark");
+    expect(v.pass).toBe(true);
+  });
+
   it("fails without the delay", () => {
     const v = judgeVerdict(plain, plain.map((s) => ({ ...s })), opts);
     expect(v.checks.fetch.pass).toBe(false);
@@ -138,6 +145,13 @@ describe("validity", () => {
     expect(invalidReasons({ kind: "typed", timings: null, timedOut: true }, tier)).toEqual(["no timing line in time"]);
     expect(invalidReasons({ kind: "voice", heardOk: false, timings: { end: "superseded", marks: {} }, server: { images: 1, model: "lfm3-vl" } }, tier)[0]).toBe("heard check");
     expect(invalidReasons({ kind: "stop", timings: { end: "stopped", marks: { stopAt: 0, silent: 20 } } }, tier)).toEqual([]);
+    // an answer that is only a point: counted on its mark; words that never become a voice are still missing
+    const wordless = typed(0, {});
+    for (const k of ["text", "sentence", "synth", "voice"]) delete (wordless.timings.marks as Record<string, number>)[k];
+    expect(invalidReasons(wordless, tier)).toEqual([]);
+    const mute = typed(0, {});
+    delete (mute.timings.marks as Record<string, number>).voice;
+    expect(invalidReasons(mute, tier)).toEqual(["missing voice"]);
   });
 });
 
