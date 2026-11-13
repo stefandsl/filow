@@ -967,17 +967,18 @@ function createOkFilow(deps) {
     if (r.withdrawn) sendPanel("okfilow:phoneWithdraw", r.withdrawn);
     publishPhoneCount();
   }
-  const fromPanel = (e) => ourSender(e) && e.sender === panel?.webContents;
+  // Only the panel itself opens, counts and answers phone questions (the check is written out in each
+  // handler: tools/autoloop/checks/ipc-sender-checked.mjs reads it there).
   // The presenter opened the badge: the oldest question, never during a slide show.
   ipcMain.handle("okfilow:phoneOpen", (e) => {
-    if (!fromPanel(e) || slideShowRunning()) return null;
+    if (!ourSender(e) || e.sender !== panel?.webContents || slideShowRunning()) return null;
     const entry = phoneInbox.open();
     publishPhoneCount();
     return entry;
   });
-  ipcMain.handle("okfilow:phoneCount", (e) => (fromPanel(e) ? phoneCount() : 0));
+  ipcMain.handle("okfilow:phoneCount", (e) => (ourSender(e) && e.sender === panel?.webContents ? phoneCount() : 0));
   ipcMain.on("okfilow:phoneAskDone", (e, p) => {
-    if (!fromPanel(e) || !p || typeof p !== "object") return;
+    if (!ourSender(e) || e.sender !== panel?.webContents || !p || typeof p !== "object") return;
     const r = phoneInbox.done(String(p.key ?? ""), p.outcome);
     if (r.askOff) {
       logLine("okfilow: a paired phone's questions were ignored three times in a row; its right to ask is switched off");

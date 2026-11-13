@@ -144,11 +144,12 @@ describe("a phone's question in the desktop app", () => {
     expect(okf).toContain("const phoneCount = () => (slideShowRunning() ? 0 : phoneInbox.count());");
     // opened only by the panel itself, never during a slide show
     const open = block(okf, '  ipcMain.handle("okfilow:phoneOpen", (e) => {', "\n  });\n");
-    expect(open).toContain("if (!fromPanel(e) || slideShowRunning()) return null;");
-    expect(okf).toContain("const fromPanel = (e) => ourSender(e) && e.sender === panel?.webContents;");
+    expect(open).toContain("if (!ourSender(e) || e.sender !== panel?.webContents || slideShowRunning()) return null;");
+    expect(okf).toContain('ipcMain.handle("okfilow:phoneCount", (e) => (ourSender(e) && e.sender === panel?.webContents ? phoneCount() : 0));');
     expect(okf).not.toContain("okfilow:phoneAsk\"");
     // three ignores: the main window is told to switch the right off; a revoked device's question is withdrawn
     const done = block(okf, '  ipcMain.on("okfilow:phoneAskDone", (e, p) => {', "\n  });\n");
+    expect(done).toContain('if (!ourSender(e) || e.sender !== panel?.webContents || !p || typeof p !== "object") return;');
     expect(done).toContain("if (r.askOff) {");
     expect(done).toContain("deps.phoneAskOff?.(r.askOff);");
     const askers = block(okf, "  function phoneAskers(ids) {");
