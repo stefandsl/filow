@@ -101,6 +101,7 @@
       "global-input.js",
       "dictation-target.js",
       "dictation-diag.js",
+      "dictation-release.js",
       "dictation-cleanup.js",
       "s1-runtime.js",
       "dictation-punctuate.js",
