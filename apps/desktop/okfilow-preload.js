@@ -3,7 +3,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 const on = (channel) => (fn) => {
-  const h = (_e, v) => fn(v);
+  const h = (_e, ...args) => fn(...args);
   ipcRenderer.on(channel, h);
   return () => ipcRenderer.removeListener(channel, h);
 };
@@ -18,13 +18,14 @@ contextBridge.exposeInMainWorld("okFilow", {
   setMode: (mode, extra) => ipcRenderer.invoke("okfilow:setMode", mode, extra),
   level: (v) => ipcRenderer.send("okfilow:level", v),
   text: (t) => ipcRenderer.send("okfilow:text", t),
-  point: (points) => ipcRenderer.send("okfilow:point", points),
-  draw: (marks, from) => ipcRenderer.send("okfilow:draw", marks, from),
+  point: (points, avoid) => ipcRenderer.send("okfilow:point", points, avoid),
+  draw: (marks, from, avoid) => ipcRenderer.send("okfilow:draw", marks, from, avoid),
   stroke: (points) => ipcRenderer.send("okfilow:stroke", points),
   cards: (list) => ipcRenderer.send("okfilow:cards", list),
   showModel: (model) => ipcRenderer.send("okfilow:model:show", model),
   modelReady: () => ipcRenderer.send("okfilow:model:ready"),
   overlayReady: () => ipcRenderer.send("okfilow:overlay:ready"),
+  modelHover: (active) => ipcRenderer.send("okfilow:model:hover", active),
   closeModel: () => ipcRenderer.send("okfilow:model:close"),
   askAbout: (text) => ipcRenderer.send("okfilow:askAbout", text),
   showWhiteboard: (topic) => ipcRenderer.send("okfilow:whiteboard:show", String(topic || "")),

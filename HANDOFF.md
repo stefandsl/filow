@@ -14,6 +14,19 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
+## Overlay round 2B worktree (unreleased, 2026-11-13)
+
+`feat-overlay-r2b` merged main `f5d18e2` in `d89a2fd`, retaining the opening-microphone,
+keys-up closure and phone-question safeguards. Sentence-paced marks now append without
+restarting; avoidance rectangles cross the preload/desktop bridge. Pointer motion uses
+one planned flight and arrival clock, and the measured bubble grows over 160 ms.
+3D labels use visible surface anchors and separate 12 px lanes, with light-theme styles
+and click-through margins. English and Italian manuals describe the changes.
+
+Evidence and limitations: `docs/okfilow/OVERLAY-R2B.md`. The isolated QA driver, raw timing
+records, mutation report and blind sheets live under `G:/FILOW/tmp/overlay-r2b`.
+The blind critic has not judged this round. No push, tag, merge into main or release.
+
 ## Where it stands (v0.9.35 + current branch)
 
 - Work in progress on `feat/fast-onboarding-account`, based on v0.9.35 / `e6b84c9`:

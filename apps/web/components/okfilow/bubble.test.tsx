@@ -101,11 +101,15 @@ describe("the bubble's close button", () => {
   });
   it("a click asks to close", () => {
     const onClose = vi.fn();
-    const el = AnswerBubble({ mode: "idle", text: "Done.", stopped: false, shown: true, t, onClose });
-    const kids = (el.props.children as unknown[]).flat().filter(Boolean) as Array<{ type: string; props: { onClick?: () => void } }>;
-    const button = kids.find((k) => k.type === "button");
-    expect(button).toBeTruthy();
-    button!.props.onClick!();
+    function Probe() {
+      const el = AnswerBubble({ mode: "idle", text: "Done.", stopped: false, shown: true, t, onClose });
+      const inner = el.props.children;
+      const kids = (inner.props.children as unknown[]).flat().filter(Boolean) as Array<{ type: string; props: { onClick?: () => void } }>;
+      const button = kids.find(k => k.type === "button");
+      expect(button).toBeTruthy(); button!.props.onClick!();
+      return el;
+    }
+    renderToStaticMarkup(<Probe />);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
   it("is there for an answer, an error and a stopped answer; not while listening, and not while the text is still being written", () => {
@@ -193,7 +197,7 @@ describe("the overlay page and the bubble", () => {
 
 describe("the panel and the bubble", () => {
   it("tells the overlays which sentence the voice is on, counted in the text the bubble shows", () => {
-    expect(panel).toContain("onSentence: (index) => okFilowBridge()?.spoken?.(spokenBase.current + index),");
+    expect(panel).toContain("okFilowBridge()?.spoken?.(n);");
     expect(panel).toMatch(/const speak = useCallback\(\(text: string, id: number, lang\?: string, base = 0\) => \{\s*spokenBase\.current = base;/);
     // a Resume says only the rest: its sentences are counted from where they are in the whole text
     expect(panel).toContain("await speak(info.left, id, info.lang, Math.max(0, splitSentences(plan.shown).length - splitSentences(info.left).length));");

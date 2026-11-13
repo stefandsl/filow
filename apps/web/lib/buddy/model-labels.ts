@@ -8,6 +8,8 @@ type Size = { width: number; height: number };
 export type LabelSide = "left" | "right";
 export type LabelSlot = { x: number; y: number; width: number; height: number; side: LabelSide; from: P; knee: P; elbow: P; to: P };
 
+export const LEADER_LANE_GAP = 12;
+
 const DEG = Math.PI / 180;
 
 /** How far the camera stands so a model of bounding radius `radius` fills `fill` of the view's smaller side. */
@@ -106,6 +108,36 @@ export function layoutPartLabels(anchors: P[], sizes: Size[], view: Size, centre
   const innerR = Math.min(view.width - edge, ...anchors.map((_, i) => (sides[i] === "right" ? view.width - edge - sizes[i].width : view.width - edge))) - 4;
   const kneeL = Math.max(innerL, Math.min(...xs) - 10);
   const kneeR = Math.min(innerR, Math.max(...xs) + 10);
+  const lanes = anchors.map(a => a.y);
+  // Minimum length matching to ordered lanes prevents intersecting anchor-to-lane segments.
+  // The lanes live outside the model, then fan monotonically into ordered label slots.
+  for (const side of ["left", "right"] as const) {
+    const ids = anchors.map((_, i) => i).filter(i => sides[i] === side).sort((i,j) => anchors[i].y-anchors[j].y);
+    const count = ids.length;
+    if (!count) continue;
+    const laneYs = ids.map(i => anchors[i].y);
+    for (let k=1;k<count;k++) laneYs[k] = Math.max(laneYs[k], laneYs[k-1]+LEADER_LANE_GAP);
+    const shift = Math.max(0, laneYs[count-1]-(view.height-edge));
+    for (let k=0;k<count;k++) laneYs[k] -= shift;
+    const kx = side === "left" ? kneeL : kneeR;
+    const total = 1 << count;
+    const costs = new Float64Array(total).fill(Infinity); costs[0]=0;
+    const chosen = new Int16Array(total).fill(-1);
+    for (let mask=0;mask<total;mask++) {
+      let rank=0; for(let bits=mask;bits;bits>>=1) rank += bits&1;
+      for(let j=0;j<count;j++) if (!(mask&(1<<j))) {
+        const a=anchors[ids[j]], next=mask|(1<<j);
+        const cost=costs[mask]+Math.hypot(a.x-kx,a.y-laneYs[rank]);
+        if(cost<costs[next]) { costs[next]=cost; chosen[next]=j; }
+      }
+    }
+    const labelYs=ids.map(i=>ys[i]);
+    let mask=total-1;
+    for(let rank=count-1;rank>=0;rank--) {
+      const j=chosen[mask], id=ids[j];
+      lanes[id]=laneYs[rank]; ys[id]=labelYs[rank]; mask^=1<<j;
+    }
+  }
   return anchors.map((a, i) => {
     const { width: w, height: h } = sizes[i];
     const side = sides[i];
@@ -113,7 +145,7 @@ export function layoutPartLabels(anchors: P[], sizes: Size[], view: Size, centre
     const x = left ? edge : view.width - edge - w;
     const y = ys[i];
     const mid = y + h / 2;
-    return { x, y, width: w, height: h, side, from: { x: a.x, y: a.y }, knee: { x: left ? kneeL : kneeR, y: a.y }, elbow: { x: left ? innerL : innerR, y: mid }, to: { x: left ? x + w : x, y: mid } };
+    return { x, y, width: w, height: h, side, from: { x: a.x, y: a.y }, knee: { x: left ? kneeL : kneeR, y: lanes[i] }, elbow: { x: left ? innerL : innerR, y: mid }, to: { x: left ? x + w : x, y: mid } };
   });
 }
 

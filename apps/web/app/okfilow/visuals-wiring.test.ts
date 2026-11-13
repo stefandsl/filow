@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { CARD_EXIT, CARD_WIDTH } from "@/lib/buddy/cards";
-import { flightMs, POINT_LABEL_AT, pointerLanding, pointLabelFlip } from "@/lib/buddy/motion";
+import { flightMs, pointerLanding, pointLabelFlip } from "@/lib/buddy/motion";
 
 const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 const read = (p: string) => fs.readFileSync(path.join(here, p), "utf8").replace(/\r\n/g, "\n");
@@ -70,12 +70,10 @@ describe("the pointer", () => {
   });
 
   it("plays one ring per arrival, and docks its label as it lands", () => {
-    expect(overlay).toContain("if (k >= 1 && !g.arrived)");
-    expect(overlay).toContain('{arrivals > 0 && <i key={arrivals} className="okf-arrival" style={{ left: -22 - POINT_STANDOFF.x, top: -22 - POINT_STANDOFF.y }} />}');
-    expect(overlay).toContain("if (k >= POINT_LABEL_AT)");
-    expect(POINT_LABEL_AT).toBeGreaterThan(0.5);
-    expect(POINT_LABEL_AT).toBeLessThan(1);
-    expect(rule(".okf-label")).toContain("left: 14px; top: -24px");
+    expect(overlay).toContain("arrivalPhase(now - g.start, g.dur,");
+    expect(overlay).toContain('<i ref={ringEl} className="okf-arrival" />');
+    expect(overlay).toContain("labelEl.current.style.left");
+    expect(rule(".okf-label")).toContain("animation: none");
   });
 
   it("flies for longer the further it goes, so no frame jumps far, and stops beside the spot", () => {
@@ -88,8 +86,8 @@ describe("the pointer", () => {
     expect(at.x).toBeGreaterThan(1200);
     expect(at.y).toBeGreaterThan(500);
     expect(Math.hypot(at.x - 1200, at.y - 500)).toBeLessThan(14);
-    expect(overlay).toContain("const to = { ...spot, ...pointerLanding(spot) };");
-    expect(overlay).toContain("const dur = flightMs(Math.hypot(to.x - from.x, to.y - from.y));");
+    expect(overlay).toContain("const plan = planFlight(");
+    expect(overlay).toContain("const dur = plan.duration;");
   });
 
   it("docks its label on the side with room", () => {

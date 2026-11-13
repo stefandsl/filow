@@ -82,7 +82,7 @@ describe("the panel, Pause and Resume", () => {
   });
 
   it("Resume after Stop shows every mark of the answer again: the marks went with the stopped answer's bubble", () => {
-    expect(panel).toContain("if (info.marks.length) b.draw(info.marks, info.from);");
+    expect(panel).toContain("if (info.marks.length) sendMarks(info.marks, info.from, info.avoid);");
     expect(panel).not.toContain("if (info.from < info.marks.length) b.draw(");
   });
 
@@ -136,7 +136,7 @@ describe("the overlay's pill", () => {
     expect(overlay).toContain("const now = clock.current.at(real);");
     expect(overlay).toMatch(/if \(pill\.paused\) clock\.current\.pause\(performance\.now\(\)\);\n\s*else clock\.current\.resume\(performance\.now\(\)\);/);
     expect(overlay).toContain('(pill.paused ? " okf-paused" : "")');
-    expect(overlay).toContain("marksAt.current = clock.current.at(performance.now());");
+    expect(overlay).toContain("const now = clock.current.at(performance.now());");
     const css = read("okfilow.css");
     expect(css).toMatch(/\.okf-paused \.okf-mark path[^{]*\{ animation-play-state: paused; \}/);
     expect(css).toMatch(/\.okf-slot \{ display: inline-grid;/);

@@ -3,7 +3,8 @@
 // to half the screen's height and scrolls inside itself beyond that; nothing is ever cut with an
 // ellipsis. A close button for the mouse; the keyboard closes it with Esc (the desktop shell's hook),
 // because the overlay window never takes the keyboard from the app in use.
-import { Fragment, type Ref, type UIEvent } from "react";
+import { Fragment, useLayoutEffect, useRef, type Ref, type UIEvent } from "react";
+import { observeBubbleSize } from "@/lib/buddy/bubble-size";
 import type { OkFilowMode } from "@/lib/buddy/bridge";
 import { sentenceParts } from "@/lib/buddy/turn";
 import type { OkfKey } from "@/lib/buddy/text";
@@ -37,6 +38,13 @@ export function AnswerBubble({ mode, text, stopped, shown, level = 0, spoken = -
   bubbleRef?: Ref<HTMLDivElement>;
   textRef?: Ref<HTMLDivElement>;
 }) {
+  const content = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const inner = content.current;
+    const outer = inner?.parentElement;
+    if (!inner || !outer) return;
+    return observeBubbleSize(inner, outer);
+  }, []);
   const answer = answerInBubble(mode, text, stopped);
   return (
     <div
@@ -46,6 +54,7 @@ export function AnswerBubble({ mode, text, stopped, shown, level = 0, spoken = -
       aria-label="OK Filow"
       data-testid="okf-bubble"
     >
+      <div ref={content} className="okf-bubble-content" style={{ width: text.length > 40 ? "min(352px, calc(100vw - 44px))" : undefined }}>
       {mode === "listening" && (
         <span className="okf-wave" aria-hidden>{BARS.map((b, i) => <i key={i} style={{ height: `${4 + Math.round(level * b * 18)}px` }} />)}</span>
       )}
@@ -71,6 +80,7 @@ export function AnswerBubble({ mode, text, stopped, shown, level = 0, spoken = -
           <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" /></svg>
         </button>
       )}
+      </div>
     </div>
   );
 }

@@ -9,14 +9,14 @@ html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !import
 .okf-buddy { position: absolute; left: 0; top: 0; will-change: transform; transition: opacity 0.25s ease; }
 /* The pointer: a 27 px glyph, its tip on the spot (the svg's margin puts it there), outlined dark inside
    a light halo so it reads on white and on black, and on an amber line of its own colour. */
-.okf-arrow { display: block; margin: -4px 0 0 -4px; overflow: visible; filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.4)); }
+.okf-arrow { display: block; margin: -3.913px 0 0 -3.913px; overflow: visible; filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.4)); }
 .okf-arrow path { fill: var(--okf-ink); stroke: #08090b; stroke-width: 1.5; stroke-linejoin: round; }
 .okf-arrow .okf-arrow-halo { stroke: rgba(255, 255, 255, 0.92); stroke-width: 4.2; }
 /* The arrival: one ring that opens from the tip and fades. */
 .okf-arrival {
   position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; box-sizing: border-box; border-radius: 50%; pointer-events: none;
   border: 2.5px solid var(--okf-ink); box-shadow: 0 0 0 1.5px rgba(8, 9, 11, 0.5), inset 0 0 0 1.5px rgba(8, 9, 11, 0.5);
-  opacity: 0; animation: okf-arrive 0.48s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+  opacity: 0; animation: none;
 }
 @keyframes okf-arrive { 0% { opacity: 1; transform: scale(0.3); } 60% { opacity: 0.8; } 100% { opacity: 0; transform: scale(1.25); } }
 .okf-buddy--listening .okf-arrow { animation: okf-pulse 1s ease-in-out infinite; }
@@ -29,7 +29,7 @@ html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !import
   position: absolute; left: 14px; top: -24px; white-space: nowrap;
   padding: 4px 11px; border-radius: 999px; font: 650 14px/20px system-ui, sans-serif;
   background: var(--okf-ink); color: #08090b; box-shadow: 0 0 0 1px rgba(8, 9, 11, 0.55), 0 4px 14px rgba(0, 0, 0, 0.35);
-  animation: okf-pop 0.18s ease-out both;
+  animation: none;
 }
 
 /* The answer bubble (docs/okfilow/BUBBLE.md). Dark in both themes, like the pill: it floats over whatever is on screen. */
@@ -436,3 +436,13 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
 
 /* The panel's status row keeps room for two lines of status beside the controls, so it does not grow when a longer status wraps. */
 .okf-status-row { min-height: 44px; }
+
+/* Keep the measured content independent of the animated outer box. */
+.okf-bubble-content { display: flex; align-items: center; gap: 10px; flex: none; width: max-content; max-width: min(352px, calc(100vw - 44px)); }
+.okf-bubble { overflow: hidden; transition: opacity .25s ease, width 160ms ease-out, height 160ms linear; }
+.okf-bubble--answer { transition: opacity .25s ease, width 160ms ease-out, height 160ms linear, transform .16s ease-out; }
+@media (prefers-reduced-motion: reduce) { .okf-bubble, .okf-bubble--answer { transition: none; } }
+html[data-theme="light"] .okf-model { background: #f4f4f5; color: #18191c; box-shadow: inset 0 0 0 1px #c6c7cb; }
+html[data-theme="light"] .okf-part { background: #ffffff; color: #18191c; box-shadow: 0 0 0 1px #8a8c92, 0 4px 14px #0002; }
+html[data-theme="light"] .okf-part-leader .okf-part-ink { stroke: #825700; }
+html[data-theme="light"] .okf-part-leader .okf-part-halo { stroke: #fff; }

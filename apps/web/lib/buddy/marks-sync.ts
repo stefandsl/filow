@@ -20,7 +20,12 @@ export const extendsMarks = (prev: AnyMark[], next: AnyMark[]): boolean => prev.
  * The panel and the overlay both use it, so a Stop drops the same marks in both.
  */
 export function drawingStarts(prev: { list: AnyMark[]; starts: number[] } | null, next: AnyMark[], now: number, from = 0): { starts: number[]; grew: boolean } {
-  if (prev && from === 0 && extendsMarks(prev.list, next)) return { starts: appendStarts(prev.starts, next.length, now, SENTENCE_GAP_MS), grew: true };
+  if (prev && from === 0 && extendsMarks(prev.list, next)) {
+    // A newly spoken sentence starts its first mark now, without inheriting the previous
+    // sentence's pen gap. Only marks released together are staggered. Keep pending order.
+    const start = Math.max(now, prev.starts.at(-1) ?? now);
+    return { starts: [...prev.starts, ...appendStarts([], next.length - prev.starts.length, start, SENTENCE_GAP_MS)], grew: true };
+  }
   return { starts: appendStarts([], next.length, now, STROKE_GAP_MS, from), grew: false };
 }
 

@@ -50,8 +50,8 @@ describe("start times of a drawing", () => {
     expect(first).toEqual({ starts: [0], grew: false });
     const grown = drawingStarts({ list: [m(1)], starts: first.starts }, [m(1), m(2), m(3)], 5000);
     expect(grown).toEqual({ starts: [0, 5000, 5000 + SENTENCE_GAP_MS], grew: true });
-    // a mark released soon after the one before waits for the short gap only
-    expect(drawingStarts({ list: [m(1)], starts: [0] }, [m(1), m(2)], 100).starts).toEqual([0, SENTENCE_GAP_MS]);
+    // a later sentence starts at once, even while the previous stroke is finishing
+    expect(drawingStarts({ list: [m(1)], starts: [0] }, [m(1), m(2)], 100).starts).toEqual([0, 100]);
   });
   it("another drawing (a mark changed, or a Resume with marks done) starts again", () => {
     expect(extendsMarks([m(1)], [m(1, "b"), m(2)])).toBe(false);
@@ -59,6 +59,6 @@ describe("start times of a drawing", () => {
     expect(drawingStarts({ list: [m(1)], starts: [0] }, [m(9), m(2)], 100).grew).toBe(false);
     expect(drawingStarts({ list: [m(1)], starts: [0] }, [m(1), m(2)], 100, 1)).toEqual({ starts: [-Infinity, 100], grew: false });
     // the same marks again (the answer's end releases what is left): nothing restarts
-    expect(drawingStarts({ list: [m(1), m(2)], starts: [0, 450] }, [{ ...m(1), done: true } as BuddyMark, m(2)], 9000)).toEqual({ starts: [0, 450], grew: true });
+    expect(drawingStarts({ list: [m(1), m(2)], starts: [0, 450] }, [{ ...m(1), done: true } as BuddyMark & { done: boolean }, m(2)], 9000)).toEqual({ starts: [0, 450], grew: true });
   });
 });

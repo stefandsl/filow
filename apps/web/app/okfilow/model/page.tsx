@@ -13,6 +13,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { useLang } from "@filow/ui";
 import { okFilowBridge } from "@/lib/buddy/bridge";
 import { okfText } from "@/lib/buddy/text";
+import { surfaceAnchor } from "@/lib/buddy/model-surface";
 import { fitScale, frameDistance, labelledParts, layoutPartLabels, leaderPoints, readingOrder, type LabelSide } from "@/lib/buddy/model-labels";
 import type { BuddyModel, ModelPart } from "@/lib/buddy/visuals";
 import "../okfilow.css";
@@ -141,6 +142,7 @@ export default function OkFilowModel() {
       const size = boxes[i].getSize(new THREE.Vector3()).length();
       const inside = boxes.some((o, j) => j !== i && boxes[i].containsPoint(o.getCenter(new THREE.Vector3())) && size > o.getSize(new THREE.Vector3()).length());
       if (!inside) return;
+      m.userData.shell = true;
       const mat = m.material as THREE.MeshStandardMaterial;
       mat.transparent = true;
       mat.opacity = 0.14;
@@ -232,8 +234,15 @@ export default function OkFilowModel() {
       labelled.forEach((l, k) => labelEls.current[k]?.classList.toggle("okf-part--on", l.part === at));
     };
     let downAt = { x: 0, y: 0 };
-    const onMove = (ev: PointerEvent) => glow(hit(ev));
-    const onLeave = () => glow(focusPart.current === null ? null : meshes[focusPart.current]);
+    const onMove = (ev: PointerEvent) => {
+      const mesh = hit(ev);
+      glow(mesh);
+      okFilowBridge()?.modelHover?.(Boolean(mesh) || ev.buttons > 0);
+    };
+    const onLeave = () => {
+      glow(focusPart.current === null ? null : meshes[focusPart.current]);
+      okFilowBridge()?.modelHover?.(false);
+    };
     const onDown = (ev: PointerEvent) => { downAt = { x: ev.clientX, y: ev.clientY }; };
     const onUp = (ev: PointerEvent) => {
       if (Math.hypot(ev.clientX - downAt.x, ev.clientY - downAt.y) > 4) return; // that was a drag
@@ -267,7 +276,11 @@ export default function OkFilowModel() {
         world.copy(v).project(camera);
         return { x: ((world.x + 1) / 2) * w, y: ((1 - world.y) / 2) * h };
       };
-      const pts = anchors.map((a, k) => project(meshes[labelled[k].part].localToWorld(world.copy(a)).clone()));
+      const pts = anchors.map((a, k) => {
+        const mesh = meshes[labelled[k].part];
+        a.copy(surfaceAnchor(mesh, camera));
+        return project(mesh.localToWorld(world.copy(a)).clone());
+      });
       const mid = project(new THREE.Vector3(0, 0, 0)).x;
       const slots = layoutPartLabels(pts, labelled.map((l) => ({ width: l.width, height: LABEL_HEIGHT })), { width: w, height: h }, mid, sides);
       sides = slots.map((s) => s.side);
@@ -351,7 +364,7 @@ export default function OkFilowModel() {
               onClick={() => ask(l.name)}
               onFocus={() => focus(l.part)}
               onBlur={() => focus(null)}
-              onPointerEnter={() => focus(l.part)}
+              onPointerEnter={() => { focus(l.part); b?.modelHover?.(true); }}
               onPointerLeave={() => focus(null)}
             >
               <span className="okf-part-n" aria-hidden>{l.n}</span>
@@ -360,7 +373,7 @@ export default function OkFilowModel() {
           </li>
         ))}
       </ol>
-      <div className="okf-model-tools">
+      <div className="okf-model-tools" onPointerEnter={() => b?.modelHover?.(true)} onPointerLeave={() => b?.modelHover?.(false)}>
         <span className="okf-model-grip" aria-hidden />
         <button type="button" className="okf-x" aria-label={t("close")} title={t("close")} onClick={() => b?.closeModel()}>×</button>
       </div>

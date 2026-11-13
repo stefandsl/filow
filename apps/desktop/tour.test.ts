@@ -40,7 +40,7 @@ it("an answer that draws takes the overlay over: a later practice clear leaves i
 });
 it("the shell wires it: answers forget the practice mark, the mark goes when the window moves, hides or navigates, and the real question is the app's own text", () => {
   const okf = source("okfilow.js"), main = source("main.js"), preload = source("preload.js");
-  expect(okf).toMatch(/ipcMain\.on\("okfilow:draw"[\s\S]{0,160}practiceState\.forget\(\);\s*drawMarks\(marks, from\)/);
+  expect(okf).toMatch(/ipcMain\.on\("okfilow:draw"[\s\S]{0,160}practiceState\.forget\(\);\s*drawMarks\(marks, from, avoid\)/);
   expect(okf).toMatch(/const clearPractice = \(\) => practiceState\.clear\(\);/);
   for (const gone of ["move", "resize", "hide", "minimize"]) expect(main).toContain(`"${gone}"`);
   expect(main).toMatch(/for \(const gone of \[[^\]]+\]\) win\.on\(gone, \(\) => okFilow\.clearPractice\(\)\)/);

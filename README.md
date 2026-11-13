@@ -705,6 +705,8 @@ It speaks with a natural voice that runs on this PC, with the system voice as th
 ([docs/okfilow/VOICE.md](docs/okfilow/VOICE.md)). Speech works in English, Italian, Russian, Romanian
 and Japanese ([docs/stt/LANGUAGES.md](docs/stt/LANGUAGES.md)).
 
+Screen marks follow the spoken sentences and keep their earlier positions as an answer grows. The pointer and its label travel together through clear space; a blocked route hides the pointer instead of covering detected text. The answer bubble grows smoothly (without size animation when reduced motion is enabled). The 3D view uses surface anchors and spaced leader lanes, with readable labels in both themes; empty model margins let clicks through.
+
 ## PowerPoint add-in
 
 A task pane for PowerPoint lives in [apps/powerpoint](apps/powerpoint/README.md). Your speaker notes become the script (one slide per section, `-` lines are points), the pane follows the selected slide while you edit, and it runs the microphone itself on Windows and PowerPoint for the web or mirrors a session by code elsewhere. PowerPoint hides panes during a slide show and offers no API to follow one, so on stage the phone mirror or the desktop app is the live view. Build with `npm run build -w apps/powerpoint`; the pane is then served by the web app under `/powerpoint/`.
