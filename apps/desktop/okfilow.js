@@ -11,6 +11,7 @@ const globalShortcut = shortcutsFor(electronShortcuts, INPUT_OFF);
 const { keyboardPermission } = require("./mac-permissions");
 const path = require("node:path");
 const { createGestures, chordHeld, ARM_MS } = require("./okfilow-gestures");
+const { createReleaseTail, RELEASE_TAIL_MS } = require("./dictation-release");
 const { createHookRetry, describeHookError, QUICK_MS } = require("./okfilow-hook-retry");
 const { loadUiohook } = require("./uiohook");
 const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agents");
@@ -714,9 +715,13 @@ function createOkFilow(deps) {
   let pressedAt = 0; // when the last dictation's keys went down, for the "nothing recognised" log line
   let heldMs = 0; // how long they were down
   let phraseRun = null; // dictation-core createPhraseRun() while the phrases of one hands-free dictation are typed
+  // Issue #7: a held dictation records a moment more after the keys go up (dictation-release.js).
+  const releaseTail = createReleaseTail({ send: (payload) => sendPanel("okfilow:release", payload) });
 
   /** `handsFree`: a dictation with the keys up (double tap, or toggle mode): typed phrase by phrase. */
   function press(kind = "talk", handsFree = false) {
+    // The last dictation's release may still wait for its tail: the panel hears it before this press.
+    releaseTail.flush();
     // A second brief press right after the first (okfilow-gestures.js): the dictation that just started
     // goes on hands-free. Nothing restarts: the microphone and the recognizer stay as they are.
     if (held && kind === "dictate" && handsFree && purpose === "dictate" && !phraseRun) {
@@ -753,9 +758,11 @@ function createOkFilow(deps) {
     if (!held) return;
     held = false;
     clearTimeout(dictateCap);
+    // A hold (not hands-free): the words said as the keys go up are still recorded for RELEASE_TAIL_MS.
+    const tail = purpose === "dictate" && !phraseRun ? RELEASE_TAIL_MS : 0;
     if (purpose === "dictate") { releasedAt = Date.now(); heldMs = releasedAt - pressedAt; dictation.diag.mark("keys-up"); gestures?.endToggle(); }
     setOverlayMouse(false);
-    sendPanel("okfilow:release", { purpose });
+    releaseTail.release({ purpose }, tail);
     purpose = null;
   }
   function cancel() {
