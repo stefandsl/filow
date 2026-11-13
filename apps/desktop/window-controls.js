@@ -16,16 +16,16 @@ const STATE_CHANNEL = "window:fullScreen";
  * @param {{ ipcMain: { on: Function, handle: Function }, mainWindow: () => any, trusted: (event: any) => boolean }} deps
  */
 function wireWindowControls({ ipcMain, mainWindow, trusted }) {
-  const own = (event) => {
+  const ourSender = (event) => {
     const win = mainWindow();
     return win && !win.isDestroyed() && event && event.sender === win.webContents && trusted(event) ? win : null;
   };
   for (const [channel, act] of Object.entries(ACTIONS)) {
-    ipcMain.on(channel, (event) => { const win = own(event); if (win) act(win); });
+    ipcMain.on(channel, (event) => { const win = ourSender(event); if (win) act(win); });
   }
   // A page loaded while the window is already in full screen (a reload) asks once.
   ipcMain.handle("window:isFullScreen", (event) => {
-    const win = own(event);
+    const win = ourSender(event);
     if (!win) throw new Error("Denied");
     return win.isFullScreen();
   });
