@@ -216,9 +216,12 @@ export function invalidReasons(sample, tier) {
   if (!t) return sample.timedOut ? ["no timing line in time"] : ["no timing line"];
   if (sample.kind === "voice" && sample.heardOk === false) r.push("heard check");
   if (sample.kind === "stop" ? t.end !== "stopped" : t.end !== "done") r.push(`end ${t.end}`);
+  // An answer without words (the model gave only its point: lfm3-vl on the CPU did, measured 13 Nov) has no
+  // text, sentence or voice: the mark is then the first thing the user gets, and the sample counts on it.
+  const words = Number.isFinite(t.marks.text) ? ["text", "sentence", "synth", "voice"] : [];
   const required = sample.kind === "stop" ? ["stopAt", "silent"]
-    : sample.kind === "voice" ? ["micOpen", "release", "sttStop", "heard", "agentChecked", "captured", "recipients", "fetchStart", "firstToken", "text", "sentence", "synth", "voice", "mark"]
-      : ["asked", "agentChecked", "captured", "recipients", "fetchStart", "firstToken", "text", "sentence", "synth", "voice", "mark"];
+    : sample.kind === "voice" ? ["micOpen", "release", "sttStop", "heard", "agentChecked", "captured", "recipients", "fetchStart", "firstToken", ...words, "mark"]
+      : ["asked", "agentChecked", "captured", "recipients", "fetchStart", "firstToken", ...words, "mark"];
   const missing = required.filter((m) => !Number.isFinite(t.marks[m]));
   if (missing.length) r.push(`missing ${missing.join("+")}`);
   if (sample.kind !== "stop") {
@@ -248,11 +251,13 @@ export function judgeVerdict(plain, delayed, opts = {}) {
   const interval = (name) => bootstrapInterval(cellsOf(delayed, (s) => spanValue(s, byName(name)), cell), cellsOf(plain, (s) => spanValue(s, byName(name)), cell), opts);
   const fetch = interval("fetchStart->firstToken");
   const before = interval("t0->fetchStart");
-  const voice = interval("t0->voice");
+  // the first thing the user gets: the voice, or the mark when the answers have no words
+  const spoken = [...plain, ...delayed].every((s) => Number.isFinite(s.timings?.marks?.voice));
+  const voice = interval(spoken ? "t0->voice" : "t0->mark");
   const checks = {
     fetch: { interval: fetch, pass: fetch[0] >= 850 && fetch[1] <= 1150 },
     before: { interval: before, pass: before[0] <= 0 && before[1] >= 0 && before[0] >= -150 && before[1] <= 150 },
-    voice: { interval: voice, pass: voice[0] >= 850 },
+    voice: { interval: voice, pass: voice[0] >= 850, span: spoken ? "t0->voice" : "t0->mark" },
   };
   return { pass: Object.values(checks).every((c) => c.pass), checks, n: { plain: plain.length, delayed: delayed.length } };
 }
@@ -288,9 +293,11 @@ export function rank2b(samples, extra = {}, fast = []) {
   ];
   const ranked = list.filter((c) => !c.reference && Number.isFinite(c.saving) && c.saving >= 100).sort((a, b) => b.saving - a.saving);
   const dropped = list.filter((c) => !c.reference && !ranked.includes(c));
-  const total = median(samples.map((s) => m(s, "voice") - m(s, "release")));
+  // release -> voice, or release -> mark when the tier's answers have no words
+  const spoken = samples.length > 0 && samples.every((s) => Number.isFinite(m(s, "voice")));
+  const total = median(samples.map((s) => m(s, spoken ? "voice" : "mark") - m(s, "release")));
   const top2 = ranked.slice(0, 2).reduce((a, c) => a + c.saving, 0);
-  return { candidates: list, ranked, dropped, top2, total, share: total > 0 ? top2 / total : NaN, gateToOwner: !(total > 0 && top2 / total >= 0.2) };
+  return { candidates: list, ranked, dropped, top2, total, totalSpan: spoken ? "release->voice" : "release->mark", share: total > 0 ? top2 / total : NaN, gateToOwner: !(total > 0 && top2 / total >= 0.2) };
 }
 
 // ---------- the harness's own source ----------
