@@ -311,7 +311,8 @@ async function until(fn, timeoutMs, everyMs = 20) {
 }
 const isIdle = (page) => page.evaluate("Boolean(document.querySelector('.okf-dot.okf-dot--idle'))");
 async function clearHistory(page) {
-  const clicked = await page.evaluate(`(() => { const b = [...document.querySelectorAll("button.okf-link")].find((x) => x.textContent === ${JSON.stringify(CLEAR_HISTORY)}); if (!b) return false; b.click(); return true; })()`);
+  // the panel renders its settings once it has its status: wait for the button (a fresh launch takes a moment)
+  const clicked = await until(() => page.evaluate(`(() => { const b = [...document.querySelectorAll("button.okf-link")].find((x) => x.textContent === ${JSON.stringify(CLEAR_HISTORY)}); if (!b) return false; b.click(); return true; })()`), 60_000, 200);
   if (!clicked) throw new Error("no clear-history button in the panel");
   if (!(await until(() => isIdle(page), 30_000, 100))) throw new Error("the panel did not come back to idle");
   await sleep(3000);
