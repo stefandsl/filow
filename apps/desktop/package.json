@@ -51,6 +51,7 @@
       "media/**",
       "slideshow.js",
       "points-window.js",
+      "window-controls.js",
       "localai.js",
       "stt-worker.js",
       "stt.js",

@@ -22,6 +22,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   const appExit = vi.fn(), whenReady = vi.fn(() => ({ then() {} })), processExit = vi.fn((code: number) => { calls.push(`process.exit ${code}`); });
   // windows main.js (and about.js) create, and the ipcMain.handle channels they register
   const windows: any[] = [], ipcHandlers: Record<string, (event: unknown, ...args: unknown[]) => unknown> = {};
+  const ipcListeners: Record<string, (event: unknown, ...args: unknown[]) => void> = {};
   class FakeBrowserWindow extends EventEmitter {
     static getAllWindows() { return []; }
     webContents = Object.assign(new EventEmitter(), { send: vi.fn(), setWindowOpenHandler: vi.fn() });
@@ -44,7 +45,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
         on: (event: string, fn: (...args: any[]) => void) => { appHandlers[event] = fn; }, setAppUserModelId() {},
         requestSingleInstanceLock: () => { calls.push("lock"); return !lockHeld; }, exit: appExit,
         whenReady, getLocale: () => "en", getVersion: () => "test", getGPUInfo: async () => ({}), commandLine: { appendSwitch: (...a: string[]) => { calls.push(`switch ${a.join(" ")}`); } } },
-      ipcMain: { on() {}, handle: (channel: string, fn: (event: unknown, ...args: unknown[]) => unknown) => { ipcHandlers[channel] = fn; } }, BrowserWindow: FakeBrowserWindow,
+      ipcMain: { on: (channel: string, fn: (event: unknown, ...args: unknown[]) => void) => { ipcListeners[channel] = fn; }, handle: (channel: string, fn: (event: unknown, ...args: unknown[]) => unknown) => { ipcHandlers[channel] = fn; } }, BrowserWindow: FakeBrowserWindow,
       session: { defaultSession: { webRequest: { onBeforeRequest: (_filter: unknown, cb: typeof requestFilter) => { requestFilter = cb; } } } },
       shell: { openExternal }, dialog: { showMessageBox }, clipboard: { writeText }, globalShortcut: { register: registerShortcut, unregisterAll() {} },
       Menu: { buildFromTemplate: (template: unknown) => template, setApplicationMenu() {} },
@@ -59,7 +60,10 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "node:worker_threads": {}, "node:events": EventEmitter,
     "./stt-download": { idleTimeout: () => ({ stop() {} }), retryDownload: (operation: () => unknown) => operation() },
     "./integrity": { sha256File: async () => "" },
-    "./vendor/i18n": { t: recordingT, isLang, langFromLocale }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./ui-preferences": {}, "./slideshow": {},
+    "./vendor/i18n": { t: recordingT, isLang, langFromLocale }, "./vendor/profile": profileRules, "./vendor/hardware": hardwareRules, "./slideshow": {},
+    // the real sender rule, so the window buttons are checked as in the app
+    "./ui-preferences": { trustedUiSender: createRequire(import.meta.url)("./ui-preferences.js").trustedUiSender },
+    "./window-controls": createRequire(import.meta.url)("./window-controls.js"),
     "./package.json": { sourceSha: "0123456789abcdef0123456789abcdef01234567" }, // what CI writes into the packed package.json
     "./qa.js": { isQaBuild: (app: { isPackaged: boolean }) => qaBuild || !app.isPackaged }, // a packaged build, without the QA marker unless qaBuild
     "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },
@@ -94,6 +98,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   return { api, env, registerShortcut, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync, rmSync, fsReads: fsRead,
     calls, appHandlers, appExit, processExit, whenReady, windows, asked, catalog: Object.keys(modules["./localai"].CATALOG),
     ipc: async (channel: string, win: { webContents: unknown }, ...args: unknown[]) => ipcHandlers[channel]({ sender: win.webContents }, ...args),
+    ipcHandlers, ipcListeners,
     blocked: (url: string) => { let result: any; requestFilter({ url }, r => { result = r; }); return result.cancel === true; } };
 }
 
@@ -730,5 +735,37 @@ describe("test isolation: FILOW_QA_NO_GLOBAL_INPUT=1 (global-input.js)", () => {
     expect(f.calls.filter((c: string) => c.startsWith("switch "))).toEqual([]);
     const qa = fixture({ FILOW_OKF_FAKE_MIC: "G:/fake/take.wav" }, { qaBuild: true });
     expect(qa.calls).toContain("switch use-file-for-fake-audio-capture G:/fake/take.wav");
+  });
+});
+
+// Full screen hides the frame and the menu on Windows: the page's bar at the top asks main to leave it,
+// minimise or close (window-controls.js). main.js wires it with its own sender rule (uiSender).
+describe("the full-screen bar's buttons, as main.js wires them", () => {
+  function setup() {
+    const f = fixture();
+    const page = (url: string) => { const wc: any = { isDestroyed: () => false, send: vi.fn() }; wc.mainFrame = { url }; return wc; };
+    const win = { webContents: page(`${f.api.APP_URL}/`), isDestroyed: () => false, isFullScreen: () => true, setFullScreen: vi.fn(), minimize: vi.fn(), close: vi.fn() };
+    f.api.setMainWin(win);
+    const from = (wc: any) => ({ sender: wc, senderFrame: wc.mainFrame });
+    return { f, win, page, from };
+  }
+  it("the main window's own page leaves full screen, minimises and closes it", async () => {
+    const { f, win, from } = setup();
+    f.ipcListeners["window:exitFullScreen"](from(win.webContents));
+    f.ipcListeners["window:minimize"](from(win.webContents));
+    f.ipcListeners["window:close"](from(win.webContents));
+    expect(win.setFullScreen).toHaveBeenCalledWith(false);
+    expect(win.minimize).toHaveBeenCalledOnce();
+    expect(win.close).toHaveBeenCalledOnce();
+    expect(await f.ipcHandlers["window:isFullScreen"](from(win.webContents))).toBe(true);
+  });
+  it("the main window on another origin, or another page, is refused", async () => {
+    const { f, win, page, from } = setup();
+    const elsewhere = { ...from(win.webContents), senderFrame: { url: "https://example.invalid/" } };
+    f.ipcListeners["window:close"](elsewhere);
+    f.ipcListeners["window:minimize"](from(page(`${f.api.APP_URL}/mirror`)));
+    expect(win.close).not.toHaveBeenCalled();
+    expect(win.minimize).not.toHaveBeenCalled();
+    expect(() => f.ipcHandlers["window:isFullScreen"](elsewhere)).toThrow("Denied");
   });
 });

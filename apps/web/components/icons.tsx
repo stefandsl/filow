@@ -9,6 +9,8 @@ export const iconPaths = {
   settings: "M9 3h6l1 3 3 1 3 5-3 5-3 1-1 3H9l-1-3-3-1-3-5 3-5 3-1ZM16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
   check: "M5 12l4 4L19 6",
   close: "M6 6l12 12M18 6L6 18",
+  minimize: "M5 12h14",
+  exitFullScreen: "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5",
   sun: "M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5",
   moon: "M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10Z",
   system: "M4 4h16v12H4ZM8 20h8m-4-4v4",

@@ -277,6 +277,9 @@ function appHandle(channel, fn) {
 function appOn(channel, fn) {
   ipcMain.on(channel, (event, ...args) => { if (uiSender(event)) fn(event, ...args); });
 }
+// The full-screen bar's buttons act on the main window, asked by the main window's own page only.
+const { wireWindowControls, forwardFullScreen } = require("./window-controls");
+wireWindowControls({ ipcMain, mainWindow: () => mainWin, trusted: (event) => uiSender(event) });
 // Main-process events that must never be reachable from a renderer.
 const internalEvents = new (require("node:events"))();
 function initializeUiPreferences() {
@@ -2373,6 +2376,8 @@ async function main() {
   endTakeWithPage(win);
   win.on("focus", () => uiPreferences?.refresh());
   win.on("closed", () => { mainWin = null; aboutPages?.close(); }); // About must not keep Filow running alone
+  // Full screen hides the frame and the menu: the page's bar at the top leaves it, minimises or closes (window-controls.js).
+  forwardFullScreen(win);
   nativeTheme.themeSource = settings.theme === "light" || settings.theme === "dark" ? settings.theme : "system";
   // §6.2: the window is already filtered out of Screen Sense's own chooser; hiding it from every
   // capture is opt-in (menu) because it also blanks the user's own screenshots.
