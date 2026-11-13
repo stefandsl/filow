@@ -782,3 +782,5 @@ ARCHITECTURE.md           the design: session protocol, Screen Sense, add-ins, m
 **Porta 4747 già in uso** – web: cambia `-p 4747` negli script di `package.json`. Desktop: imposta la variabile d'ambiente `FILOW_PORT` prima dell'avvio.
 
 **Windows SmartScreen / macOS Gatekeeper blocca l'app** – le build non sono firmate. Vedi le note in [App desktop: installazione e avvio](#app-desktop-installazione-e-avvio).
+
+Il volo del puntatore dura al massimo 900 ms. Le etichette in arrivo mantengono 8 px dal testo e dai divisori rilevati; la sottolineatura viene omessa accanto a un divisore vicino. Gli accenti di arrivo nel tema chiaro hanno contorni scuri. Numeri e colonne delle parti del modello restano fissi durante rotazione e trascinamento; i cambi di riga necessari scorrono gradualmente.

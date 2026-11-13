@@ -19,8 +19,8 @@ html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !import
   opacity: 0; animation: none;
 }
 .okf-point-target { display: none; position: absolute; box-sizing: border-box; border-bottom: 2px solid #ffcf55; pointer-events: none; }
-html[data-theme="light"] .okf-arrival { border-color: #825700; box-shadow: 0 0 0 1.5px #fff, inset 0 0 0 1.5px #fff; }
-html[data-theme="light"] .okf-point-target { border-color: #825700; }
+html[data-theme="light"] .okf-arrival { border-color: #684500; box-shadow: 0 0 0 1.5px #08090b, inset 0 0 0 1.5px #08090b; }
+html[data-theme="light"] .okf-point-target { border-color: #684500; box-shadow: 0 1.5px 0 #08090b; }
 @keyframes okf-arrive { 0% { opacity: 1; transform: scale(0.3); } 60% { opacity: 0.8; } 100% { opacity: 0; transform: scale(1.25); } }
 .okf-buddy--listening .okf-arrow { animation: okf-pulse 1s ease-in-out infinite; }
 .okf-buddy--error .okf-arrow path { fill: #ff6b5b; }
@@ -31,7 +31,7 @@ html[data-theme="light"] .okf-point-target { border-color: #825700; }
 .okf-label {
   position: absolute; left: 14px; top: -24px; white-space: nowrap;
   padding: 4px 11px; border-radius: 999px; font: 650 14px/20px system-ui, sans-serif;
-  background: var(--okf-ink); color: #08090b; box-shadow: 0 0 0 1px rgba(8, 9, 11, 0.55), 0 4px 14px rgba(0, 0, 0, 0.35);
+  background: var(--okf-ink); color: #08090b; box-shadow: 0 0 0 1px rgba(8, 9, 11, 0.55), 0 2px 3px rgba(0, 0, 0, 0.22);
   animation: none;
 }
 

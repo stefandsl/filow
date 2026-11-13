@@ -775,3 +775,5 @@ ARCHITECTURE.md           the design: session protocol, Screen Sense, add-ins, m
 **Port 4747 already in use** – web: change `-p 4747` in `package.json` scripts. Desktop: set the environment variable `FILOW_PORT` before launching.
 
 **Windows SmartScreen / macOS Gatekeeper blocks the app** – the builds are unsigned. See the notes in [Desktop app: install and run](#desktop-app-install-and-run).
+
+Pointer flights take at most 900 ms. Landing labels reserve 8 px around detected text and dividers; an underline is omitted beside a nearby divider. Light-theme arrival accents have dark outlines. Model part numbers and columns stay fixed during rotation and dragging; necessary row changes slide smoothly.

@@ -14,7 +14,7 @@ import { useLang } from "@filow/ui";
 import { okFilowBridge } from "@/lib/buddy/bridge";
 import { okfText } from "@/lib/buddy/text";
 import { visibleSurfaceAnchor } from "@/lib/buddy/model-surface";
-import { fitScale, frameDistance, labelledParts, layoutPartLabels, leaderPoints, readingOrder, type LabelSide } from "@/lib/buddy/model-labels";
+import { fitScale, frameDistance, labelledParts, layoutPartLabels, leaderPoints, readingOrder, retainLabelOrder, type LabelSlot, type LabelSide } from "@/lib/buddy/model-labels";
 import type { BuddyModel, ModelPart } from "@/lib/buddy/visuals";
 import "../okfilow.css";
 
@@ -272,9 +272,12 @@ export default function OkFilowModel() {
     window.addEventListener("resize", onResize);
 
     // The labels: laid out every frame from where their parts are now, in two columns inside the frame,
-    // numbered in reading order; each leader runs level out of the model, then to its label, so no two
-    // ever cross (its dot is always on its part). A part turned out of the frame hides its label.
+    // numbered once in initial reading order. Row order is retained unless routing requires a change.
+    // A part turned out of the frame hides its label.
     let sides: LabelSide[] | null = null;
+    let numbers: number[] | null = null;
+    const displayedY: number[] = [];
+    let previousSlots: LabelSlot[] | null = null;
     const world = new THREE.Vector3();
     const lines = Array.from(leaders.current?.querySelectorAll("g.okf-part-leader") ?? []);
     const placeLabels = () => {
@@ -287,23 +290,31 @@ export default function OkFilowModel() {
       };
       const pts = anchors.map((a, k) => {
         const mesh = meshes[labelled[k].part];
-        const surface = visibleSurfaceAnchor(mesh, meshes, camera, w, h, [0.5, 0.75, 0.25][k % 3]);
+        // Prefer patches in the established column order before moving a label row.
+        const column = sides && numbers ? labelled.map((_,i)=>i).filter(i=>sides![i]===sides![k]).sort((i,j)=>numbers![i]-numbers![j]) : null;
+        const vertical = column ? (column.indexOf(k)+0.5)/column.length : [0.5, 0.75, 0.25][k % 3];
+        const surface = visibleSurfaceAnchor(mesh, meshes, camera, w, h, vertical);
         a.copy(surface.anchor);
         lines[k]?.setAttribute("data-anchor-margin", surface.margin.toFixed(3));
         return project(mesh.localToWorld(world.copy(a)).clone());
       });
       const mid = project(new THREE.Vector3(0, 0, 0)).x;
-      const slots = layoutPartLabels(pts, labelled.map((l) => ({ width: l.width, height: LABEL_HEIGHT })), { width: w, height: h }, mid, sides);
+      const slots = retainLabelOrder(layoutPartLabels(pts, labelled.map((l) => ({ width: l.width, height: LABEL_HEIGHT })), { width: w, height: h }, mid, sides), previousSlots);
+      previousSlots = slots.map(s=>({...s}));
       sides = slots.map((s) => s.side);
-      const numbers = readingOrder(slots);
+      numbers ??= readingOrder(slots);
       slots.forEach((s, i) => {
+        // Ease moving slots and their leader endpoints together, including order changes.
+        const y = displayedY[i] === undefined ? s.y : displayedY[i] + (s.y - displayedY[i]) * 0.25;
+        displayedY[i] = y;
+        s.y = y; s.elbow.y = y + s.height / 2; s.to.y = s.elbow.y;
         const inside = s.from.x >= 4 && s.from.x <= w - 4 && s.from.y >= 4 && s.from.y <= h - 4;
         const label = labelEls.current[i];
         if (label) {
           label.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px)`;
           label.style.visibility = inside ? "" : "hidden";
           const n = label.firstElementChild;
-          if (n && n.textContent !== String(numbers[i])) n.textContent = String(numbers[i]);
+          if (n && n.textContent !== String(numbers![i])) n.textContent = String(numbers![i]);
         }
         const g = lines[i];
         if (!g) return;

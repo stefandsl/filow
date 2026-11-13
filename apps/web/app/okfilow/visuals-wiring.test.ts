@@ -106,7 +106,7 @@ describe("the 3D view", () => {
   });
 
   it("draws each leader as anchor, knee, label and numbers the labels in reading order", () => {
-    expect(model).toContain("const numbers = readingOrder(slots);");
+    expect(model).toContain("numbers ??= readingOrder(slots);");
     expect(model).toContain("leaderPoints(s)");
     expect(model).not.toContain("shown[i].x + (s.x - shown[i].x)");
   });

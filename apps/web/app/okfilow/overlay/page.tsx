@@ -217,7 +217,7 @@ export default function OkFilowOverlay() {
       const g = flight.current;
       if (targetEl.current) {
         const r = g?.plan.targetRect;
-        targetEl.current.style.display = r && now >= g!.start + g!.dur ? "block" : "none";
+        targetEl.current.style.display = r && g?.plan.underline && now >= g!.start + g!.dur ? "block" : "none";
         if (r) Object.assign(targetEl.current.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.right-r.left}px`, height: `${r.bottom-r.top}px` });
       }
       if (!g && ringEl.current) ringEl.current.style.opacity = "0";

@@ -30,6 +30,12 @@ landing and light stage. The rework puts the hotspot on the target corner with a
 and a contrast-safe ring, widens both leader columns to 28 px, prioritizes interior surface
 patches, and uses a tinted light stage with stronger shell outlines and a compact shadow.
 New evidence is in `docs/okfilow/OVERLAY-R2B-REWORK.md`; the new blind set is `frames/ab2`.
+Second rework: identities and columns stay fixed; safe surface patches follow initial
+column order. Flights now take at most 900 ms (633 ms in the fixture), landing pill clearance
+is 17 px, backtrack is zero, and light ring contrast is 8.039:1. Final model samples have
+zero identity changes, crossings and label overlaps. Tests: 3,089 pass, 5 skipped;
+typecheck, lint and web build pass; 7/7 mutations caught. Evidence:
+`docs/okfilow/OVERLAY-R2B-REWORK3.md`; eight fresh blind sheets: `frames/ab3`.
 Pending: a fresh blind verdict and owner-authorized native/live checks. No push, tag,
 merge into main or release.
 
