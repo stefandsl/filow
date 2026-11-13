@@ -2,6 +2,7 @@
 // farzaa/clicky (MIT): the model sees one screenshot per display and may point with
 // [POINT:x,y:label:screenN] tags, which are stripped from the spoken text.
 
+import { PHONE_QUOTE_RULE } from "@filow/core";
 import { BUDDY_LANG_NAMES, buddyLang } from "./lang";
 import { DRAW_PROMPT, extractVisuals, VISUALS_PROMPT, type BuddyCard, type BuddyModel, type BuddyDrawing } from "./visuals";
 export type { BuddyCard, BuddyModel, BuddyDrawing } from "./visuals";
@@ -66,7 +67,16 @@ export function resumeQuestion(history: BuddyTurn[] | undefined, resume: unknown
   return stopped ? RESUME_NOTE : null;
 }
 
-export function buddySystemPrompt(screens: BuddyScreen[], language: string, opts: { pictures?: boolean } = {}): string {
+/**
+ * The system prompt. `quoted`: the question is a phone's, quoted from someone else (packages/core
+ * phoneQuestionForModel); the model is told what the quote marks mean, last, so it weighs it most.
+ */
+export function buddySystemPrompt(screens: BuddyScreen[], language: string, opts: { pictures?: boolean; quoted?: boolean } = {}): string {
+  const base = buddySystemPromptBase(screens, language, opts);
+  return opts.quoted ? `${base}\n${PHONE_QUOTE_RULE}` : base;
+}
+
+function buddySystemPromptBase(screens: BuddyScreen[], language: string, opts: { pictures?: boolean }): string {
   if (opts.pictures === false) {
     // No screenshot is sent: the user switched "Look at my screen" off, or the setup for this computer
     // answers from text (pictures are too slow here)

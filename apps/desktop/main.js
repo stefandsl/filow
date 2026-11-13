@@ -343,13 +343,19 @@ function initializeUiPreferences() {
     return okFilow.openAsk(window ? require("./okfilow").pagePointOnScreen(window.getContentBounds(), event.sender.getZoomFactor(), at) : null);
   });
   // A question typed on a paired phone the presenter allowed to ask: the main window holds the session (useSession.ts)
-  // and passes on what the session server relayed ({ text, device }); OK Filow's gate (okfilow-phone.js) lets it
-  // through only when OK Filow is free, and its panel asks the presenter before anything else. "asked", "off",
-  // "busy", "bad" or "unavailable".
+  // and passes on what the session server relayed ({ text, device, id, peer }); it waits in OK Filow's inbox
+  // (okfilow-phone.js), shown only as a count until the presenter opens it in the panel, which asks them before
+  // anything else. "asked", "off", "busy", "bad", "blocked" or "unavailable".
   ipcMain.handle("okfilow:settings:askFromPhone", (event, payload) => {
     if (!uiSender(event)) throw new Error("Denied");
     if (!okFilow) return "unavailable";
     return okFilow.askFromPhone(payload);
+  });
+  // The devices that may ask OK Filow now (the main window's devices list): questions from any other leave
+  // the inbox, and one on screen is withdrawn (revoked, or its right to ask switched off).
+  ipcMain.on("okfilow:settings:phoneAskers", (event, ids) => {
+    if (!uiSender(event)) return;
+    okFilow?.phoneAskers(ids);
   });
   // FreeLLMAPI's section in Filow Settings (freellm.js). The key travels one way only: page to main.
   ipcMain.handle("freellm:status", event => { if (!uiSender(event)) throw new Error("Denied"); return freeLlm().status(); });
@@ -1610,7 +1616,11 @@ function startOkFilow() {
       logLine,
       sttLocal: sttLocal.forUse("questions", sttLanguage),
       userData,
-      menuText: (k) => mt(k),
+      menuText: (k, vars) => mt(k, vars),
+      // Phone questions wait in OK Filow's inbox; during a slide show nothing of them shows (okfilow-phone.js).
+      slideShowRunning: () => slideShow.running,
+      // A phone ignored three times in a row: the main window (it holds the session) switches its right to ask off.
+      phoneAskOff: (id) => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send("okfilow:phoneAskOff", id); },
     // macOS: the plain-words prompt that opens the right System Settings pane (mac-permissions.js).
     askKeyboardPermission: require("./mac-permissions").createKeyboardPermissionPrompt({ dialog, systemPreferences, openSystemSettings, menuText: (k) => mt(k), logLine }),
       isOffline: () => offline,
@@ -2006,6 +2016,8 @@ function startSlideShowWatch() {
     const wasRunning = slideShow.running;
     slideShow = { running: Boolean(s.running), index: typeof s.index === "number" ? s.index : -1, total: Number(s.total || 0), title: String(s.title || "") };
     for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send("slideshow", slideShow);
+    // Phone questions waiting: their count is held at zero while the slide show runs, and comes back after.
+    if (slideShow.running !== wasRunning) okFilow?.publishPhoneCount?.();
     if (slideShow.running && !wasRunning && settings.overlayAuto !== false) showOverlay();
     if (!slideShow.running && wasRunning && settings.overlayAuto !== false) hideOverlay();
   });

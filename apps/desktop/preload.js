@@ -29,8 +29,16 @@ contextBridge.exposeInMainWorld("filow", {
     showWhiteboard: () => ipcRenderer.invoke("okfilow:settings:showWhiteboard"),
     /** The "OK Filow" button of the main window: "open", "off" (switched off) or "unavailable" (not running). */
     openAsk: (at) => ipcRenderer.invoke("okfilow:settings:openAsk", at),
-    /** A paired phone's question ({ text, device }, useSession.ts), for OK Filow's panel: "asked", "off", "busy", "bad" or "unavailable". */
+    /** A paired phone's question ({ text, device, id, peer }, useSession.ts), into OK Filow's inbox: "asked", "off", "busy", "bad", "blocked" or "unavailable". */
     askFromPhone: (payload) => ipcRenderer.invoke("okfilow:settings:askFromPhone", payload),
+    /** The pairing ids that may ask now (the devices list): the others' questions leave OK Filow's inbox. */
+    phoneAskers: (ids) => ipcRenderer.send("okfilow:settings:phoneAskers", Array.isArray(ids) ? ids.map(String) : []),
+    /** OK Filow switched a phone's right to ask off (ignored three times in a row): the page tells the session server. */
+    onPhoneAskOff: (fn) => {
+      const h = (_e, id) => fn(String(id));
+      ipcRenderer.on("okfilow:phoneAskOff", h);
+      return () => ipcRenderer.removeListener("okfilow:phoneAskOff", h);
+    },
   },
   /** FreeLLMAPI's section in Filow Settings (freellm.js): the key goes in, never comes back. */
   freeLlm: {
