@@ -3,12 +3,12 @@
 // only when the user picked it. An explicit choice never falls back to the other provider; errors
 // go back to the bubble.
 import { isSetupPreference, resolveSetup, type ResolvedSetup } from "@filow/core";
-import { OLLAMA_URL } from "@/lib/decide/clef";
+import { OLLAMA_URL, clefTarget } from "@/lib/decide/clef";
 import { openRouterChatUrl, withProvider } from "@/lib/openrouter";
 import { WHITEBOARD_MODELS, isWhiteboardModel } from "@/lib/whiteboard/models";
 import { askRecipient, consentKey, freellmRecipient, type Recipient } from "./outbound";
 import { freellmStream, requireFreeLlm } from "@/lib/freellm";
-import { gpuInfo, machineInfo } from "@/lib/sysinfo";
+import { gpuInfo, machineInfo, type GpuInfo } from "@/lib/sysinfo";
 import { buddySystemPrompt, trimHistory, withScreenNote, type BuddyScreen, type BuddyTurn } from "./prompt";
 import { wantsDrawing } from "./visuals";
 import { isPointOnly } from "./pointer";
@@ -141,8 +141,32 @@ export async function resolveLocalHelper(preference: unknown, question: string, 
   return pinHelper(auto, { task, pointOnly: isPointOnly(question), setupPointer: setup.choices.screenHelper.pointer ?? null, sees: see });
 }
 
-/** Loads the setup's screen helper and keeps it loaded for 30 minutes (empty prompt: Ollama only loads). */
-export async function warmLocalModel(preference?: unknown): Promise<{ model: string | null; ok: boolean }> {
+/**
+ * Below this much graphics memory the local decision model fills the card on its own: Clef Flash is
+ * 14.4 GB, 5.2 GB of it on an 8 GB RTX 3070 (7.1 of 8 GB used, measured). Loading OK Filow's helpers
+ * ahead of a question (Gemma 4 E4B about 4.8 GB, lfm3-vl 1.5 GB) then pushes it out, and the next
+ * take starts with "Reloading the local model" (G:/FILOW/tmp/evict2-ollama, 2026-11-13).
+ */
+export const WARM_MIN_VRAM_GB = 12;
+
+/**
+ * Whether loading OK Filow's helpers on this PC now would push the decision model out of the
+ * graphics card: a card with its own memory under WARM_MIN_VRAM_GB, and the decision model installed
+ * here (a take can run on it) rather than on the user's own server.
+ */
+export function warmEvictsDecision(gpu: Pick<GpuInfo, "kind" | "vramTotalGb">, decision: { model: string | null; server: Place["server"] }, installed: string[]): boolean {
+  if (gpu.kind !== "discrete" || gpu.vramTotalGb == null || gpu.vramTotalGb >= WARM_MIN_VRAM_GB) return false;
+  if (decision.server || !decision.model) return false;
+  const want = decision.model.replace(/:latest$/, "");
+  return installed.some((n) => n.replace(/:latest$/, "") === want);
+}
+
+/**
+ * Loads the setup's screen helper and keeps it loaded for 30 minutes (empty prompt: Ollama only loads).
+ * On a small graphics card that the decision model needs whole (warmEvictsDecision), the models on
+ * this PC are not loaded ahead: the first question loads its own, and the take keeps its model.
+ */
+export async function warmLocalModel(preference?: unknown): Promise<{ model: string | null; ok: boolean; skipped?: "decision-model" }> {
   let model: string;
   let pointer: string | undefined;
   let at: Place | undefined;
@@ -152,8 +176,16 @@ export async function warmLocalModel(preference?: unknown): Promise<{ model: str
   } catch {
     return { model: null, ok: false };
   }
+  // Only a model on this PC shares its graphics card; one on the user's own server is still loaded ahead.
+  const here = (p?: Place) => !p?.server;
+  let keepCard = false;
+  if (here(at) || (pointer && here(pointerAt))) {
+    const [gpu, decision, installed] = await Promise.all([gpuInfo(), clefTarget(), installedModels()]);
+    keepCard = warmEvictsDecision(gpu, decision, installed);
+  }
   // The small model that places the points is loaded too, so the first point does not wait for it. Its failure is not the answer's.
-  if (pointer) void fetch(`${pointerAt?.base ?? OLLAMA_URL()}/api/generate`, { method: "POST", signal: AbortSignal.timeout(180_000), headers: { "Content-Type": "application/json", ...pointerAt?.headers }, body: JSON.stringify({ model: pointer, keep_alive: "30m" }) }).catch(() => null);
+  if (pointer && !(keepCard && here(pointerAt))) void fetch(`${pointerAt?.base ?? OLLAMA_URL()}/api/generate`, { method: "POST", signal: AbortSignal.timeout(180_000), headers: { "Content-Type": "application/json", ...pointerAt?.headers }, body: JSON.stringify({ model: pointer, keep_alive: "30m" }) }).catch(() => null);
+  if (keepCard && here(at)) return { model, ok: false, skipped: "decision-model" };
   try {
     const res = await fetch(`${at?.base ?? OLLAMA_URL()}/api/generate`, {
       method: "POST",

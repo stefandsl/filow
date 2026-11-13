@@ -70,7 +70,12 @@ copied, the bubble says "Copied. Press Ctrl + V to paste it" for a few seconds.
    that were waiting for a pause when an error came are kept in the panel's text box.
 2. **Microphone and indicator.** OK Filow's panel records (the selected microphone, echo cancellation)
    and its overlays show the state. The recognizer and the microphone start together; sound is kept in
-   the panel until the model is loaded, so the first words are not lost on a cold start. A press that
+   the panel until the model is loaded, so the first words are not lost on a cold start. A held
+   dictation keeps recording 300 ms after the keys go up (`dictation-release.js`, issue #7): the
+   microphone hands over sound in 128 ms blocks, and stopping at once threw away the block still filling
+   and the end of the last word (a 1 s press of "Ciao Marco" came out "Chao, Matt.", a 0.7 s press typed
+   nothing). A press during those 300 ms stops the recording first, so the next one starts clean.
+   Hands-free dictations and questions stop at once. A press that
    comes while the last dictation is still being typed waits for it, so two quick dictations neither
    merge nor lose words.
 3. **Speech to text.** `stt.js` with the "questions" catalogue (short utterances). Phrase models run
@@ -138,6 +143,8 @@ does not control: a third-party clipboard manager may still record the text for 
   detector); `apps/desktop/dictation-handsfree.test.ts`: phrase after phrase through the real insert
   and clipboard code (spaces, clipboard put back, history markers on every phrase, copy-only).
 - `packages/stt/src/stop.seams.test.ts`: the silence before the end of a streaming take.
+- `apps/desktop/dictation-release.test.ts`: the 300 ms a held dictation records after the keys go up,
+  a new press sending the waiting stop first, hands-free and questions stopping at once.
 - `apps/desktop/dictation-target.test.ts`: password box, administrator window, terminal, no window,
   refused keys, and "the target is the window that has the keyboard when the keys are up" through the
   real insert; `apps/desktop/dictation-diag.test.ts`: the report section, the problem codes, and that the

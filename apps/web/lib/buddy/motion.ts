@@ -4,6 +4,58 @@ type P = { x: number; y: number };
 /** An answer's marks begin to draw one after another, this far apart. */
 export const STROKE_GAP_MS = 900;
 
+/**
+ * The pen's ease: ink from the first frame, then settling. A gentle ease-out (top speed 1.4x the mean),
+ * so a 400-700 ms stroke never jumps more than ~7% of its length in one 60 Hz frame; a steeper one
+ * (`.2,.7,.3,1`, top speed 3.5x) jumps 12% per frame on a 500 ms stroke.
+ */
+export const PEN_EASE = [0.3, 0.42, 0.5, 1] as const;
+export const PEN_EASE_CSS = `cubic-bezier(${PEN_EASE.join(",")})`;
+
+/** How long the pen takes over a stroke `lengthPx` long: longer strokes take longer, within 300-700 ms. */
+export function strokeMs(lengthPx: number): number {
+  const len = Number.isFinite(lengthPx) && lengthPx > 0 ? lengthPx : 0;
+  return Math.round(Math.min(700, Math.max(300, 260 + 0.5 * len)));
+}
+
+/** A CSS cubic-bezier easing (x1, y1, x2, y2) as a function of time fraction 0..1 to progress 0..1. */
+export function cubicBezier([x1, y1, x2, y2]: readonly [number, number, number, number]) {
+  const bx = (s: number) => 3 * x1 * s * (1 - s) ** 2 + 3 * x2 * s * s * (1 - s) + s ** 3;
+  const by = (s: number) => 3 * y1 * s * (1 - s) ** 2 + 3 * y2 * s * s * (1 - s) + s ** 3;
+  /** The curve's parameter where x (time) is `x`, by bisection (x is monotonic for 0 <= x1, x2 <= 1). */
+  const solve = (x: number, f: (s: number) => number) => {
+    let lo = 0;
+    let hi = 1;
+    for (let i = 0; i < 40; i++) {
+      const mid = (lo + hi) / 2;
+      if (f(mid) < x) lo = mid;
+      else hi = mid;
+    }
+    return (lo + hi) / 2;
+  };
+  return {
+    /** Progress at time fraction `t`. */
+    at: (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : by(solve(t, bx))),
+    /** Time fraction at which progress reaches `p`. */
+    timeFor: (p: number) => (p <= 0 ? 0 : p >= 1 ? 1 : bx(solve(p, by))),
+  };
+}
+
+const pen = cubicBezier(PEN_EASE);
+
+/**
+ * When a mark's parts start, in ms after the mark's own start: the stroke at once, its label when the
+ * pen has drawn ~70% of the line (not after a fixed wait), the arrow head as the shaft ends.
+ */
+export function markTiming(lengthPx: number, labelAt = 0.7): { strokeMs: number; labelMs: number; headMs: number } {
+  const d = strokeMs(lengthPx);
+  return { strokeMs: d, labelMs: Math.round(d * pen.timeFor(labelAt)), headMs: Math.round(d * pen.timeFor(0.92)) };
+}
+
+/** How long the marks take to go away on Clear: the labels fade first, then the strokes erase backwards. */
+export const MARK_EXIT = { labelMs: 140, strokeDelayMs: 40, strokeMs: 200 } as const;
+export const MARK_EXIT_MS = MARK_EXIT.strokeDelayMs + MARK_EXIT.strokeMs;
+
 const ease = (k: number) => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
 
 /**

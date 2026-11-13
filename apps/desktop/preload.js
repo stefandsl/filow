@@ -27,6 +27,10 @@ contextBridge.exposeInMainWorld("filow", {
     openPanel: () => ipcRenderer.send("okfilow:settings:openPanel"),
     /** The "Whiteboard" button of the main window: opens the whiteboard window; false when OK Filow is not running. */
     showWhiteboard: () => ipcRenderer.invoke("okfilow:settings:showWhiteboard"),
+    /** The "OK Filow" button of the main window: "open", "off" (switched off) or "unavailable" (not running). */
+    openAsk: (at) => ipcRenderer.invoke("okfilow:settings:openAsk", at),
+    /** A paired phone's question (useSession.ts), for OK Filow's panel: "asked", "off", "busy", "empty" or "unavailable". */
+    askFromPhone: (text) => ipcRenderer.invoke("okfilow:settings:askFromPhone", text),
   },
   /** FreeLLMAPI's section in Filow Settings (freellm.js): the key goes in, never comes back. */
   freeLlm: {
@@ -103,6 +107,18 @@ contextBridge.exposeInMainWorld("filow", {
     return () => ipcRenderer.removeListener("slideshow", h);
   },
   closeOverlay: () => ipcRenderer.send("overlay:close"),
+  /** Full screen hides the frame and the menu: the page's bar at the top leaves it, minimises or closes the main window (window-controls.js). */
+  windowControls: {
+    isFullScreen: () => ipcRenderer.invoke("window:isFullScreen"),
+    exitFullScreen: () => ipcRenderer.send("window:exitFullScreen"),
+    minimize: () => ipcRenderer.send("window:minimize"),
+    close: () => ipcRenderer.send("window:close"),
+    onFullScreen: (fn) => {
+      const h = (_e, on) => fn(on === true);
+      ipcRenderer.on("window:fullScreen", h);
+      return () => ipcRenderer.removeListener("window:fullScreen", h);
+    },
+  },
   /** The shell is about to open a floating window (overlay, points window): it joins the session with a fresh pairing code (codes are single use). */
   onNeedCode: (fn) => {
     const h = () => fn();

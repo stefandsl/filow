@@ -66,6 +66,7 @@ export const ro: Record<OkfKey, string> = {
   hotkey: "Ține apăsat ca să vorbești",
   brain: "Răspunsuri de la",
   moreSettings: "Mai multe setări OK Filow",
+  setupOff: "OK Filow este oprit. Pornește-l aici, apoi apasă din nou OK Filow în fereastra principală.",
   brainLocal: "Acest PC (Ollama)",
   brainServer: "Serverul tău {name}",
   brainCloud: "Cloud (OpenRouter)",
