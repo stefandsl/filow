@@ -239,14 +239,23 @@ function candidates(m: BuddyMark, b: Rect, w: number, h: number, gap: number): A
  * Places each mark's label (`sizes[i]` its measured size; null for a mark with no label): outside every
  * mark, wholly on screen, off the `avoid` boxes (the pill), and never on another label. Labels that find
  * no free spot among their candidates are pushed down (or up) until they are clear of the other labels.
+ * `texts`: the real text and buttons on screen (UI Automation, lib/buddy/snap.ts): a label keeps off them
+ * when it can (they weigh less than another label, more than a mark's stroke). `keep`: labels already on
+ * screen (the marks drawn before the voice reached this one) stay where they are.
  */
-export function placeLabels(marks: BuddyMark[], sizes: Array<{ width: number; height: number } | null>, view: { width: number; height: number }, avoid: Rect[] = [], gap = 18, edge = 8): Array<LabelSpot | null> {
+export function placeLabels(marks: BuddyMark[], sizes: Array<{ width: number; height: number } | null>, view: { width: number; height: number }, avoid: Rect[] = [], gap = 18, edge = 8, opts: { texts?: Rect[]; keep?: Array<LabelSpot | null> } = {}): Array<LabelSpot | null> {
   const shapes = marks.map(markShape);
   const placed: Rect[] = [];
+  const texts = opts.texts ?? [];
   const clamp = (c: { x: number; y: number }, w: number, h: number) => ({ x: Math.max(edge, Math.min(c.x, view.width - edge - w)), y: Math.max(edge, Math.min(c.y, view.height - edge - h)) });
   return marks.map((m, i) => {
     const size = sizes[i];
     if (!size || !m.label) return null;
+    const kept = opts.keep?.[i];
+    if (kept) {
+      placed.push({ left: kept.x, top: kept.y, right: kept.x + kept.width, bottom: kept.y + kept.height });
+      return kept;
+    }
     const { width: w, height: h } = size;
     const rectAt = (c: { x: number; y: number }): Rect => ({ left: c.x, top: c.y, right: c.x + w, bottom: c.y + h });
     const cost = (c: { x: number; y: number }) => {
@@ -255,9 +264,13 @@ export function placeLabels(marks: BuddyMark[], sizes: Array<{ width: number; he
       for (const p of placed) bad += area(r, p) * 100 + (overlaps(r, p, 6) ? 1000 : 0);
       for (const a of avoid) bad += area(r, a) * 100 + (overlaps(r, a, 6) ? 1000 : 0);
       for (const s of shapes) bad += area(r, s.bounds) + (overlaps(r, s.bounds, 2) ? 10 : 0);
+      for (const t of texts) bad += area(r, t) * 3 + (overlaps(r, t, 2) ? 60 : 0);
       return bad;
     };
-    const cands = candidates(m, shapes[i].bounds, w, h, gap).map((c) => clamp(c, w, h));
+    const base = candidates(m, shapes[i].bounds, w, h, gap);
+    // More places to try when real text is around: the same sides, a little further out or along.
+    const more = texts.length ? base.flatMap((c) => [c, { x: c.x, y: c.y + (c.y < shapes[i].bounds.top ? -h - 8 : h + 8) }, { x: c.x + w * 0.5, y: c.y }, { x: c.x - w * 0.5, y: c.y }]) : base;
+    const cands = more.map((c) => clamp(c, w, h));
     let best = cands[0];
     let bestCost = Infinity;
     for (const c of cands) {

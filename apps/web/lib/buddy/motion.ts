@@ -1,8 +1,10 @@
 // OK Filow motion helpers, pure so they are unit tested.
 type P = { x: number; y: number };
 
-/** An answer's marks begin to draw one after another, this far apart. */
+/** An answer's marks begin to draw one after another, at least this far apart. */
 export const STROKE_GAP_MS = 900;
+/** Marks released together by the voice (two in one sentence) follow each other this closely. */
+export const SENTENCE_GAP_MS = 450;
 
 /**
  * The pen's ease: ink from the first frame, then settling. A gentle ease-out (top speed 1.4x the mean),
@@ -68,6 +70,25 @@ const ease = (k: number) => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) /
 export function marksStarted(count: number, elapsedMs: number, gapMs: number): number {
   if (count <= 0 || !(elapsedMs >= 0)) return 0;
   return Math.min(count, Math.floor(elapsedMs / gapMs) + 1);
+}
+
+/**
+ * When each of an answer's marks starts (on the drawing clock), as marks arrive: those already timed keep
+ * their start; each new one starts `now`, or `gapMs` after the one before it when several come at once
+ * (the marks of one sentence, or every mark of an answer read without a voice). `done` marks (drawn before
+ * a Stop) started long ago.
+ */
+export function appendStarts(prev: number[], total: number, now: number, gapMs = STROKE_GAP_MS, done = 0): number[] {
+  const out = prev.slice(0, total);
+  for (let i = out.length; i < total; i++) out.push(i < done ? -Infinity : Math.max(now, (out[i - 1] ?? -Infinity) + gapMs));
+  return out;
+}
+
+/** How many marks have begun to draw at `now` (a Stop keeps these and drops the rest). */
+export function marksBegun(starts: number[], now: number): number {
+  let n = 0;
+  while (n < starts.length && starts[n] <= now) n++;
+  return n;
 }
 
 /**
