@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import net from "node:net";
 import tls from "node:tls";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
 const { isQaBuild, installSocketLog, describeConnect } = require("./qa.js") as {
@@ -49,4 +49,46 @@ it("the QA socket log records every connection the process opens: net, tls, http
   lines.length = 0;
   await new Promise<void>((r) => net.connect(port, "127.0.0.1").on("error", () => r()).on("close", () => r()).on("connect", function (this: net.Socket) { this.destroy(); }));
   expect(lines).toEqual([]); // uninstalled
+});
+it("FILOW_QA_HARDWARE: every hardware read in the shell sees the laptop it names (speed baseline)", () => {
+  const qa = require("./qa.js") as {
+    qaHardware: (env: Record<string, string>, parse?: () => (v: string) => unknown) => { ramGb: number; cores: number } | null;
+  };
+  const parse = () => (v: string) => (v === "ramGb=16,cores=8,gpu=none" ? { ramGb: 16, cores: 8, gpu: { kind: "none" } } : null);
+  expect(qa.qaHardware({ FILOW_QA_HARDWARE: "ramGb=16,cores=8,gpu=none" }, parse)).toMatchObject({ ramGb: 16, cores: 8 });
+  expect(qa.qaHardware({ FILOW_QA_HARDWARE: "gpu=nvidia" }, parse)).toBeNull();
+  expect(qa.qaHardware({}, parse)).toBeNull();
+  expect(qa.qaHardware({ FILOW_QA_HARDWARE: "ramGb=16,cores=8,gpu=none" }, () => { throw new Error("no vendor bundle"); })).toBeNull();
+  // the shared parser in the vendor bundle (packages/core/src/hardware.ts parseQaHardware)
+  expect(qa.qaHardware({ FILOW_QA_HARDWARE: "ramGb=16,cores=8,gpu=none" })).toEqual({ ramGb: 16, cores: 8, gpu: { name: "", kind: "none", vramGb: null, ollama: false, source: "none" } });
+});
+
+it("FILOW_QA_HARDWARE: the shell's hardware scan reports that laptop without probing the graphics card", async () => {
+  const was = process.env.FILOW_QA_HARDWARE;
+  process.env.FILOW_QA_HARDWARE = "ramGb=16,cores=8,gpu=none";
+  try {
+    const { hardwareScan } = require("./localai.js") as { hardwareScan: (o: { refresh: boolean; run: () => Promise<string> }) => Promise<Record<string, unknown>> };
+    const probe = vi.fn(async () => "NVIDIA GeForce RTX 3070, 8192");
+    const hw = await hardwareScan({ refresh: true, run: probe });
+    expect(probe).not.toHaveBeenCalled();
+    expect({ ramGb: hw.ramGb, cores: hw.cores, gpu: hw.gpu, gpuKind: hw.gpuKind, vramGb: hw.vramGb, gpuOllama: hw.gpuOllama }).toEqual({ ramGb: 16, cores: 8, gpu: "", gpuKind: "none", vramGb: null, gpuOllama: false });
+  } finally {
+    if (was === undefined) delete process.env.FILOW_QA_HARDWARE;
+    else process.env.FILOW_QA_HARDWARE = was;
+  }
+});
+
+it("FILOW_QA_HARDWARE: the voice and the recognizer size themselves for that laptop, not this PC", () => {
+  const was = process.env.FILOW_QA_HARDWARE;
+  // four processors: the light voice on two threads, two recognizer threads (this PC has more)
+  process.env.FILOW_QA_HARDWARE = "ramGb=16,cores=4,gpu=none";
+  try {
+    const { pickProfile } = require("./tts.js") as { pickProfile: () => { level: string; steps: number; threads: number } };
+    expect(pickProfile()).toMatchObject({ level: "light", steps: 4, threads: 2 });
+    const stt = require("./stt.js") as { SttSession: { prototype: { threads: () => number } } };
+    expect(stt.SttSession.prototype.threads()).toBe(2);
+  } finally {
+    if (was === undefined) delete process.env.FILOW_QA_HARDWARE;
+    else process.env.FILOW_QA_HARDWARE = was;
+  }
 });

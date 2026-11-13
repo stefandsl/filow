@@ -215,7 +215,9 @@ const GIB = 1024 ** 3;
  * 8 GB): 4 steps on 2 threads, about a fifth less work and slightly less exact (VOICE.md). Too small
  * for the model (it needs about 420 MB of memory and two cores): the system voice, with the reason.
  */
-function pickProfile({ cores = os.cpus().length, memBytes = os.totalmem() } = {}) {
+/** QA builds only (FILOW_QA_HARDWARE, qa.js): the laptop a speed baseline pretends to be; null otherwise. */
+const qaHardware = () => { try { return require("./qa.js")?.qaHardware?.() ?? null; } catch { return null; } };
+function pickProfile({ cores = qaHardware()?.cores ?? os.cpus().length, memBytes = qaHardware() ? qaHardware().ramGb * 1024 ** 3 : os.totalmem() } = {}) {
   if (!(cores >= 2)) return { mode: "system", reason: "fewCores" };
   if (!(memBytes >= 3.5 * GIB)) return { mode: "system", reason: "lowMemory" };
   if (cores <= 4 || memBytes < 8 * GIB) return { mode: "natural", level: "light", steps: 4, threads: 2 };

@@ -48,6 +48,30 @@ function saveHistory(h: BuddyTurn[]) {
   try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-12))); } catch { /* storage off: memory only */ }
 }
 
+/**
+ * The speed baseline's marks of one answer (docs/perf/LATENCY-2026-11.md): wall times (Date.now(), ms)
+ * handed to the desktop shell once, at the answer's end, which logs numbers and fixed names only
+ * (apps/desktop/okfilow-timings.js). `ended`: the end is claimed (a Stop sends a moment later).
+ */
+type AnswerTiming = { run: number | "-"; kind: "voice" | "typed"; marks: Record<string, number>; ended: string | null };
+/** Live signals for the speed baseline's harness (tools/eval/latency.mjs): numbers or fixed words only. */
+const perfSignal = (name: "okfMicOpenAt" | "okfRun" | "okfFetchAt" | "okfVoiceAt" | "okfEnd", value?: string | number) => {
+  if (typeof document === "undefined") return;
+  if (value === undefined) delete document.documentElement.dataset[name];
+  else document.documentElement.dataset[name] = String(value);
+};
+/** Hands the marks to the shell, once per answer (the first end wins). */
+function sendTimings(tm: AnswerTiming | null, end: string, bridge = okFilowBridge()) {
+  if (!tm || tm.ended) return;
+  tm.ended = end;
+  bridge?.timings?.({ run: tm.run, kind: tm.kind, end, marks: tm.marks });
+  perfSignal("okfEnd", end);
+}
+/** The first time of a mark wins; nothing is marked once the answer has ended. */
+function markTime(tm: AnswerTiming | null, name: string, at = Date.now()) {
+  if (tm && !tm.ended && tm.marks[name] === undefined) tm.marks[name] = at;
+}
+
 const HOTKEY_LABEL: Record<string, string> = { "ctrl+alt": "Ctrl + Alt", "ctrl+shift": "Ctrl + Shift", "alt+shift": "Alt + Shift", "ctrl+meta": "Ctrl + Win" };
 
 export default function OkFilowPanel() {
@@ -94,6 +118,16 @@ export default function OkFilowPanel() {
   const partial = useRef("");
   const audio = useRef<{ ctx: AudioContext; stream: MediaStream; node: ScriptProcessorNode } | null>(null);
   const run = useRef(0);
+  /** The speed baseline: marks taken before the answer has a run (microphone, release, recognizer), then the answer's own. */
+  const pendingMarks = useRef<Record<string, number> | null>(null);
+  const timing = useRef<AnswerTiming | null>(null);
+  /** A visual of turn `id` reached the screen: its first is the `mark`; after a Stop it is counted as one that should not have come. */
+  const noteVisual = useCallback((id: number) => {
+    const tm = timing.current;
+    if (!tm || tm.run !== id) return;
+    if (tm.ended === "stopped") tm.marks.afterStop = (tm.marks.afterStop ?? 0) + 1;
+    else markTime(tm, "mark");
+  }, []);
   const asking = useRef<AbortController | null>(null);
   // The answer in progress, so it can be stopped (lib/buddy/turn.ts), and whether the one on screen was.
   const turn = useRef(createAnswerTurn());
@@ -138,7 +172,10 @@ export default function OkFilowPanel() {
     // Load the local model now, so the first question does not wait for it (local only, no content sent).
     void b.status().then(async (s) => {
       if (s.enabled && (s.provider === "local" || s.offline)) {
-        await fetch("/api/buddy/warm", { method: "POST", headers: { "Content-Type": "application/json", ...(await engineHeadersRef.current()) }, body: JSON.stringify({ setup: getSetupPreference() }) }).catch(() => {});
+        const warmStart = Date.now();
+        const ok = await fetch("/api/buddy/warm", { method: "POST", headers: { "Content-Type": "application/json", ...(await engineHeadersRef.current()) }, body: JSON.stringify({ setup: getSetupPreference() }) }).then((r) => r.ok, () => false);
+        // The speed baseline: whether the warm-up was over before the first question (cold starts).
+        b.timings?.({ run: "-", kind: "warm", end: ok ? "done" : "error", marks: { warmStart, warmEnd: Date.now() } });
       }
     });
     void b.stt.status().then((s) => setSttReady(s.ready)).catch(() => setSttReady(false));
@@ -165,6 +202,7 @@ export default function OkFilowPanel() {
     const a = audio.current;
     audio.current = null;
     if (!a) return;
+    perfSignal("okfMicOpenAt");
     a.node.disconnect();
     a.stream.getTracks().forEach((tr) => tr.stop());
     void a.ctx.close();
@@ -278,6 +316,16 @@ export default function OkFilowPanel() {
     onNoVoice: () => setNote(tRef.current("voiceNoSystem")),
     // The bubble next to the pointer keeps the sentence being spoken in view.
     onSentence: (index) => okFilowBridge()?.spoken?.(spokenBase.current + index),
+    // The speed baseline: the first audible sample of the answer (once per run), and the voice's first piece.
+    onAudible: (id, at) => {
+      const tm = timing.current;
+      if (!tm || tm.run !== id) return;
+      if (tm.ended === "stopped") { tm.marks.afterStop = (tm.marks.afterStop ?? 0) + 1; return; }
+      if (tm.ended || tm.marks.voice !== undefined) return;
+      tm.marks.voice = at;
+      perfSignal("okfVoiceAt", at);
+    },
+    onSynth: (id, at) => { if (timing.current?.run === id) markTime(timing.current, "synth", at); },
   }), []);
   // lang: the answer's language from the server (X-Buddy-Lang); without it the voice detects it from the text.
   // base: how many sentences of the text in the bubble come before what is spoken now (a Resume says only the rest).
@@ -294,12 +342,13 @@ export default function OkFilowPanel() {
    * Second, narrow request: just the point for what the answer described. Null when there is none.
    * `to` is who the question itself went to (null: it stayed on this PC, and so does this one).
    */
-  const groundAnswer = useCallback(async (question: string, answer: string, images: string[], shot: OkFilowCapture, signal: AbortSignal, to: Recipient | null) => {
+  const groundAnswer = useCallback(async (question: string, answer: string, images: string[], shot: OkFilowCapture, signal: AbortSignal, to: Recipient | null, id: number) => {
     const send = async (consent: Record<string, string>) => {
       const res = await fetch("/api/buddy/ask", {
         method: "POST",
         signal,
-        headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent },
+        // the speed baseline: the server measures this grounding request apart from the answer (lib/buddy/timing.ts)
+        headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent, "X-Filow-Run": `${id}g` },
         body: JSON.stringify({
           question: `${question}\nYou answered: "${answer.slice(0, 300)}". Reply with only the tag [POINT:x,y:label:screenN] for that thing, on the 0-1000 grid, and nothing else. If it is not visible, reply NONE.`,
           images,
@@ -350,6 +399,8 @@ export default function OkFilowPanel() {
   const stopAnswer = useCallback(() => {
     const b = okFilowBridge();
     if (!b || (modeRef.current !== "thinking" && modeRef.current !== "speaking")) return false;
+    const tm = timing.current;
+    markTime(tm, "stopHeard");
     const ctx = answerCtx.current;
     // How many marks had begun to draw (the rest wait for a Resume), on the clock that stood still during a pause.
     const begun = ctx ? Math.min(ctx.marks.length, ctx.marksBase + marksStarted(ctx.marks.length - ctx.marksBase, drawClock.current.at(performance.now()) - ctx.marksAt, STROKE_GAP_MS)) : 0;
@@ -372,6 +423,13 @@ export default function OkFilowPanel() {
     // The pill is told before the mode, so the stopped pill comes up with its Resume.
     b.pill?.({ sees: seesScreen(statusRef.current?.seeScreen, askRoute(statusRef.current), localScreenRef.current), paused: false, resumable: turn.current.offer() !== null });
     setMode("idle", { stopped: true, holdMs: 4000 });
+    // The speed baseline: silent now; what still reaches the screen or the speaker for this run is counted for 2 s, then sent.
+    if (tm && !tm.ended) {
+      markTime(tm, "silent");
+      tm.marks.afterStop = 0;
+      tm.ended = "stopped";
+      setTimeout(() => { tm.ended = null; sendTimings(tm, "stopped", b); }, 2000);
+    }
     // Hands-free listens again, after a moment: listening clears the bubble, and what was stopped should be seen first.
     if (handsFree.current) setTimeout(() => { if (handsFree.current && modeRef.current === "idle") listenAgain.current(); }, 2500);
     return true;
@@ -397,6 +455,13 @@ export default function OkFilowPanel() {
   const ask = useCallback(async (question: string, opts: { typed?: boolean; resume?: { shown: string; said?: string } } = {}) => {
     const b = okFilowBridge();
     if (!b) return;
+    // The speed baseline: a spoken question brings the marks taken while it was heard; a typed one starts here.
+    const pending = opts.typed ? null : pendingMarks.current;
+    pendingMarks.current = null;
+    const tm: AnswerTiming = { run: "-", kind: pending ? "voice" : "typed", marks: { ...(pending ?? {}) }, ended: null };
+    if (!pending) tm.marks.asked = Date.now();
+    timing.current = tm;
+    for (const name of ["okfRun", "okfFetchAt", "okfVoiceAt", "okfEnd"] as const) perfSignal(name);
     const resume = opts.resume;
     // A new question cuts the answer being spoken at once, before anything below is awaited
     // (the agent check alone took about half a second in the packaged app).
@@ -415,12 +480,14 @@ export default function OkFilowPanel() {
     if (boardTopic && b.showWhiteboard) {
       setHeard(question);
       b.showWhiteboard(boardTopic);
+      sendTimings(tm, "whiteboard", b);
       return setMode("idle");
     }
     try {
       const lastAnswer = history.current.at(-1)?.text ?? "";
       // (a continuation is never an agent request: the answer it carries on came from the model)
       let job = resume ? null : await b.agents.start(question, lastAnswer);
+      markTime(tm, "agentChecked");
       if (job && "needsConsent" in job) {
         // The task and the last answer would go to the maker of the coding agent: ask first.
         const { recipient, cli } = job.needsConsent;
@@ -428,16 +495,18 @@ export default function OkFilowPanel() {
         b.text(t("noticeWaiting"));
         const decision = await out.allow("agent", recipient, cli);
         b.text("");
-        if (decision === "dismissed") return setMode("idle");
+        if (decision === "dismissed") { sendTimings(tm, "dismissed", b); return setMode("idle"); }
         if (decision === "declined") {
+          sendTimings(tm, "agent", b);
           setAnswer(t("kept_agent"));
           b.text(t("kept_agent"));
           return setMode("idle");
         }
         job = await b.agents.start(question, lastAnswer);
-        if (job && "needsConsent" in job) return fail(t("noticeUnknown"));
+        if (job && "needsConsent" in job) { sendTimings(tm, "error", b); return fail(t("noticeUnknown")); }
       }
       if (job) {
+        sendTimings(tm, "agent", b);
         const said = t("agentStarted").replace("{title}", job.title);
         setHeard(question);
         setAnswer(said);
@@ -451,9 +520,12 @@ export default function OkFilowPanel() {
         return;
       }
     } catch (e) {
+      sendTimings(tm, "error", b);
       return fail(e instanceof Error ? e.message : String(e));
     }
     const id = ++run.current;
+    tm.run = id;
+    perfSignal("okfRun", id);
     asking.current?.abort();
     const abort = new AbortController();
     asking.current = abort;
@@ -468,6 +540,7 @@ export default function OkFilowPanel() {
       unpaused: () => turn.current.unpaused(id),
       said: resume?.said,
       speak: async (sentence, base) => {
+        markTime(tm, "sentence");
         if (!voiced) return;
         setMode("speaking");
         await speak(sentence, id, answerLang, base);
@@ -487,7 +560,8 @@ export default function OkFilowPanel() {
     try {
       // With "Look at my screen" off no picture of the screen is even taken.
       const shot = await b.capture({ images: seeing });
-      if (run.current !== id) return;
+      markTime(tm, "captured");
+      if (run.current !== id) return sendTimings(tm, "superseded", b);
       // What the user circled goes in two ways: burnt into the screenshot, and as grid boxes in words.
       const marked = shot.marked ?? [];
       const images = !seeing ? [] : marked.length
@@ -504,11 +578,12 @@ export default function OkFilowPanel() {
       // "Local" can mean the user's own server (Settings > Advanced, model per task): that leaves this
       // PC too, so it gets the same notice and signal, naming "your server <name>".
       const viaServer = !photo && route === "local" ? (await out.recipients())?.server ?? null : null;
-      if (run.current !== id) return;
+      markTime(tm, "recipients");
+      if (run.current !== id) return sendTimings(tm, "superseded", b);
       if (route !== "local" || viaServer) {
         const rec = await out.recipients();
         // Stopped while this was looked up: no notice opens for an answer nobody waits for.
-        if (run.current !== id) return;
+        if (run.current !== id) return sendTimings(tm, "superseded", b);
         const named = rec && askRouteRecipient(route, rec);
         const recipient = named && localServer(named, t("outServer"));
         if (!recipient) throw new Error(t("noticeUnknown"));
@@ -518,7 +593,7 @@ export default function OkFilowPanel() {
         const asked = out.standing("ask", recipient) === "ask";
         if (asked) b.text(t("noticeWaiting"));
         const decision = await out.allow("ask", recipient, undefined, !seeing);
-        if (run.current !== id) return;
+        if (run.current !== id) return sendTimings(tm, "superseded", b);
         // Which notice the yes was given to is kept, so it is never stretched to cover more later.
         if (asked && decision === "granted") {
           const s = await b.configure({ askWordsOnly: wordsOnlyAfterYes(statusRef.current?.askWordsOnly, recipient.id, seeing) });
@@ -526,7 +601,7 @@ export default function OkFilowPanel() {
           setStatus(s);
         }
         b.text("");
-        if (decision === "dismissed") return setMode("idle");
+        if (decision === "dismissed") { sendTimings(tm, "dismissed", b); return setMode("idle"); }
         if (decision === "declined") {
           route = "local";
           setNote(t("kept_ask"));
@@ -540,10 +615,12 @@ export default function OkFilowPanel() {
       const showVisuals = (parsed: ReturnType<typeof parseBuddyAnswer>) => {
         const points = JSON.stringify(parsed.points), marks = JSON.stringify(parsed.marks);
         if (parsed.points.length && points !== lastPoints) {
-          b.point(parsed.points.flatMap(p => {
+          const placed = parsed.points.flatMap(p => {
             const d = shot.displays.find(x => x.index === p.screen);
             return d ? [{ ...pointToDisplay(p, d.bounds), label: p.label }] : [];
-          }));
+          });
+          b.point(placed);
+          if (placed.length) noteVisual(id);
           lastPoints = points;
         }
         if (parsed.marks.length && marks !== lastMarks) {
@@ -552,17 +629,21 @@ export default function OkFilowPanel() {
             return d ? [markToDisplay(m, d.bounds)] : [];
           });
           b.draw(list);
+          if (list.length) noteVisual(id);
           if (answerCtx.current?.id === id) Object.assign(answerCtx.current, { marks: list, marksAt: drawClock.current.at(performance.now()), marksBase: 0 });
           lastMarks = marks;
         }
       };
       const send = async (consent: Record<string, string>, quiet?: () => void) => {
-        const headers = { "Content-Type": "application/json", ...(await engineHeaders()), ...consent };
+        // X-Filow-Run: the speed baseline's server marks of this answer (lib/buddy/timing.ts); a number, nothing else.
+        const headers = { "Content-Type": "application/json", ...(await engineHeaders()), ...consent, "X-Filow-Run": String(id) };
         // The eye was closed after the screenshot was taken (while the notice was open, say): the
         // picture is dropped here, at the last moment before anything is sent, and the question goes
         // with the words only. Nothing of the screen leaves.
         const withScreen = stillSees(seeing, statusRef.current?.seeScreen);
         if (seeing && !withScreen) setAsksSee(false);
+        markTime(tm, "fetchStart");
+        if (tm.marks.fetchStart !== undefined) perfSignal("okfFetchAt", tm.marks.fetchStart);
         const res = await fetch("/api/buddy/ask", {
           method: "POST",
           signal: abort.signal,
@@ -586,6 +667,7 @@ export default function OkFilowPanel() {
         for (;;) {
           const { done, value } = await reader.read();
           if (done) return got + decoder.decode();
+          if (value && value.length) markTime(tm, "firstToken");
           got += decoder.decode(value, { stream: true });
           if (run.current !== id) return null;
           const partial = got.split("\n[ERROR]")[0];
@@ -597,14 +679,15 @@ export default function OkFilowPanel() {
           if (!turn.current.progress(id, shown)) continue;
           setAnswer(shown);
           b.text(shown);
+          if (shown) markTime(tm, "text");
           showVisuals(parsedNow);
           voice.update(shown, false, moreFollows(partial, arrived));
         }
       };
       const raw = to ? await out.sending("ask", to, send) : await send({});
-      if (raw === null) return;
+      if (raw === null) return sendTimings(tm, "superseded", b);
       // Paused: what follows the text (the marks, the pointer, the voice, an error) waits for Resume.
-      if (!(await turn.current.unpaused(id))) return;
+      if (!(await turn.current.unpaused(id))) return sendTimings(tm, "superseded", b);
       const [answered, err] = raw.split("\n[ERROR] ");
       if (err) throw new Error(err.trim());
       const body = resume ? joinContinuation(resume.shown, answered.trim()) : answered;
@@ -630,7 +713,7 @@ export default function OkFilowPanel() {
         const d = shot.displays.find((x) => x.index === p.screen);
         return d ? [{ ...pointToDisplay(p, d.bounds), label: p.label }] : [];
       });
-      if (mapped.length && JSON.stringify(points) !== lastPoints) b.point(mapped);
+      if (mapped.length && JSON.stringify(points) !== lastPoints) { b.point(mapped); noteVisual(id); }
       const drawn = marks.flatMap((m) => {
         const d = shot.displays.find((x) => x.index === m.screen);
         return d ? [markToDisplay(m, d.bounds)] : [];
@@ -638,9 +721,10 @@ export default function OkFilowPanel() {
       // Drawn already while the text arrived: the pen is not started again.
       if (drawn.length && JSON.stringify(marks) !== lastMarks) {
         b.draw(drawn);
+        noteVisual(id);
         if (answerCtx.current?.id === id) Object.assign(answerCtx.current, { marks: drawn, marksAt: drawClock.current.at(performance.now()), marksBase: 0 });
       }
-      if (model) b.showModel(model);
+      if (model) { b.showModel(model); noteVisual(id); }
       lastShown.current = { points: mapped, marks: drawn, model, cards: [] };
       if (drawing) {
         // The 2D drawing is shown as a card near the cursor; its image is our own SVG from validated shapes.
@@ -660,6 +744,7 @@ export default function OkFilowPanel() {
           if (run.current !== id) return;
           if (lastShown.current) lastShown.current.cards = list;
           b.cards(list);
+          if (list.length) noteVisual(id);
         };
         showCards(placed.map((p) => p.card));
         if (placed.some((p) => p.lookup) && !statusRef.current?.offline) {
@@ -687,29 +772,31 @@ export default function OkFilowPanel() {
       // (not when the setup answered from text: the model saw no picture to point at)
       // (and not once the eye is closed: the grounding pass would send the screenshot again)
       const grounding = !mapped.length && !drawn.length && !cards.length && !model && text && !seesText && stillSees(seeing, statusRef.current?.seeScreen)
-        ? groundAnswer(question, text, images, shot, abort.signal, to).then((p) => { if (p && run.current === id) b.point([p]); }).catch(() => {})
+        ? groundAnswer(question, text, images, shot, abort.signal, to, id).then((p) => { if (p && run.current === id) { b.point([p]); noteVisual(id); } }).catch(() => {})
         : Promise.resolve();
       setMode("speaking");
       // The sentences not said while the text arrived (the queue says each one once).
       await voice.finish(text);
       await grounding;
       turn.current.end(id);
+      sendTimings(tm, run.current === id ? "done" : "superseded", b);
       if (run.current === id) setMode("idle");
       if (run.current === id && handsFree.current) { if (voiced) reopenAfterSpeech(() => listenAgain.current(), () => handsFree.current && modeRef.current === "idle" && run.current === id); else listenAgain.current(); }
     } catch (e) {
       voice.cancel();
       // A stop or a newer question: not an error, nothing is shown or logged as one.
-      if (abort.signal.aborted || run.current !== id) return;
+      if (abort.signal.aborted || run.current !== id) return sendTimings(tm, "superseded", b);
       // A request that failed during a pause: the error is held and shown on Resume, never as a bubble during the pause.
-      if (!(await turn.current.unpaused(id))) return;
+      if (!(await turn.current.unpaused(id))) return sendTimings(tm, "superseded", b);
       turn.current.end(id);
+      sendTimings(tm, "error", b);
       fail(e instanceof Error ? e.message : String(e));
       // Nothing of a failed answer goes on: a sentence being said is cut, the request is closed.
       speaker.stop();
       abort.abort();
       if (handsFree.current) setTimeout(() => handsFree.current && listenAgain.current(), 1500);
     }
-  }, [endAnswer, engineHeaders, fail, groundAnswer, out, setMode, speak, speaker, t]);
+  }, [endAnswer, engineHeaders, fail, groundAnswer, noteVisual, out, setMode, speak, speaker, t]);
 
   /**
    * Resume (the button, the key). A paused answer carries on exactly where it paused: the text that
@@ -800,6 +887,8 @@ export default function OkFilowPanel() {
     pendingStop.current = null;
     session.current++;
     purpose.current = why;
+    // The speed baseline: a new question's marks start clean.
+    if (why !== "dictate") pendingMarks.current = null;
     committed.current = [];
     partial.current = "";
     setNote("");
@@ -846,6 +935,12 @@ export default function OkFilowPanel() {
       );
       const mic = getSelectedMic();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { ...(mic ? { deviceId: { exact: mic } } : {}), echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
+      // The speed baseline: a question's marks start with the open microphone (dictation is not measured).
+      if (why !== "dictate") {
+        const at = Date.now();
+        pendingMarks.current = { ...(pendingMarks.current ?? {}), micOpen: at };
+        perfSignal("okfMicOpenAt", at);
+      }
       const ctx = new AudioContext({ sampleRate: 16000 });
       const src = ctx.createMediaStreamSource(stream);
       const node = ctx.createScriptProcessor(2048, 1, 1);
@@ -915,6 +1010,7 @@ export default function OkFilowPanel() {
     const sid = session.current;
     stopAudio();
     try { await b.stt.stop(); } catch { /* the error already reached onResult */ }
+    if (why !== "dictate" && pendingMarks.current) pendingMarks.current.sttStop = Date.now();
     // The recognizer's last words can land up to about a second after the keys go up: wait for them.
     // Dictation stops waiting as soon as there is text: the worker sends its last phrase before it
     // acknowledges the stop, so the text is complete here and every 50 ms is felt.
@@ -980,6 +1076,7 @@ export default function OkFilowPanel() {
       b.text(t("notHeard"));
       return setMode("error", { error: t("notHeard") });
     }
+    if (pendingMarks.current) pendingMarks.current.heard = Date.now();
     void ask(question);
     } finally {
       startQueued();
@@ -1039,6 +1136,8 @@ export default function OkFilowPanel() {
         if (r.error) return fail(r.error);
         if (r.committed) { committed.current.push(r.committed); partial.current = ""; }
         else partial.current = r.partial;
+        // The speed baseline: the last words the recognizer gave before the question was asked.
+        if ((r.committed || r.partial) && purpose.current !== "dictate" && pendingMarks.current) pendingMarks.current.sttLast = Date.now();
         // Hands-free dictation: the phrase goes to the flow, which hands back what to type now (if anything).
         const f = r.committed ? flow.current : null;
         if (f) { committed.current.pop(); typePhrase(f.committed(r.committed, performance.now())); }
@@ -1067,7 +1166,11 @@ export default function OkFilowPanel() {
         dictHandsFree.current = p?.purpose === "dictate" && Boolean(p.handsFree);
         void startListening(p?.purpose === "dictate" ? "dictate" : "talk");
       }),
-      b.onRelease(() => void stopListening(true)),
+      b.onRelease((p) => {
+        // The speed baseline's t0 for a spoken question: when the keys went up, on main's clock.
+        if (p?.purpose === "talk" && typeof p.at === "number") pendingMarks.current = { ...(pendingMarks.current ?? {}), release: p.at };
+        void stopListening(true);
+      }),
       b.onCancel(() => void stopListening(false)),
       // The Stop button next to the pointer, or Escape anywhere (the desktop shell tells us).
       b.onStop?.(() => { stopAnswer(); }) ?? (() => {}),

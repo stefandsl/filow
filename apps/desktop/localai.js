@@ -60,11 +60,13 @@ function hardwareScan({ refresh = false, run = runProbe } = {}) {
 
 async function scan(run) {
   const { detectGpu, ollamaModelsDir, freeGbAt } = core();
-  const g = await detectGpu(run, { platform: process.platform, cpuModel: os.cpus()[0]?.model || "", totalMemBytes: os.totalmem() });
+  // QA builds only (FILOW_QA_HARDWARE): the laptop a speed baseline pretends to be, without probing the real card
+  const qa = require("./qa.js").qaHardware?.() ?? null;
+  const g = qa ? qa.gpu : await detectGpu(run, { platform: process.platform, cpuModel: os.cpus()[0]?.model || "", totalMemBytes: os.totalmem() });
   // free space where Ollama will keep the models (OLLAMA_MODELS, else ~/.ollama/models)
   const free = freeGbAt(ollamaModelsDir(process.env, os.homedir(), path.sep), (p) => fs.statfsSync(p), path.dirname);
   return {
-    ramGb: Math.ceil(os.totalmem() / 1024 ** 3),
+    ramGb: qa ? qa.ramGb : Math.ceil(os.totalmem() / 1024 ** 3),
     gpu: g.name,
     gpuClass: g.kind === "discrete" || g.kind === "unified" ? "discrete" : g.kind === "integrated" ? "integrated" : "unknown",
     gpuKind: g.kind,
@@ -72,7 +74,7 @@ async function scan(run) {
     gpuOllama: g.ollama,
     freeGb: free === null ? -1 : free,
     cpu: os.cpus()[0]?.model || "",
-    cores: os.cpus().length,
+    cores: qa ? qa.cores : os.cpus().length,
     platform: process.platform,
     arch: process.arch,
   };

@@ -215,7 +215,7 @@ describe("OK Filow's own wiring (okfilow.js)", () => {
     expect(src).toMatch(/async function typeText\(text, spokenLanguage, phrase = false\) \{\s*if \(INPUT_OFF\) return \{ \.\.\.REFUSED_INSERT \};/);
     expect(src).toContain('if (held || (kind === "dictate" && INPUT_OFF) || !(');
     expect(src).toContain('selection = INPUT_OFF ? Promise.resolve("") : readSelection();');
-    expect(src).toMatch(/if \(INPUT_OFF\) \{ p\.showInactive\(\); p\.moveTop\(\); return; \}\s*try \{ if \(hook\) hook\.keyTap/);
+    expect(src).toMatch(/if \(INPUT_OFF\) \{ if \(showWindow\(p, "panel", true\)\) p\.moveTop\(\); return; \}\s*try \{ if \(hook\) hook\.keyTap/);
     // The only raw hook start is inside registerHook, which the switch reaches with the stand-in library.
     expect(src.match(/uIOhook\.start\(\)/g)?.length).toBe(1);
   });

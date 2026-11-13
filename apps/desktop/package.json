@@ -69,6 +69,7 @@
       "secrets.js",
       "freellm.js",
       "qa.js",
+      "qa-headless.js",
       "integrity.js",
       "diag.js",
       "single-instance.js",
@@ -119,6 +120,7 @@
       "okfilow-answers.js",
       "okfilow-outbound.js",
       "okfilow-stop.js",
+      "okfilow-timings.js",
       "okfilow-uia.js",
       "native/uia/bin/okfilow-uia.exe"
     ],

@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import os from "node:os";
 import { OLLAMA_URL, clefTarget, decideClefLocal } from "@/lib/decide/clef";
 import { decideOpenRouter } from "@/lib/decide/openrouter";
 import { isSetupPreference, resolveSetup } from "@filow/core";
-import { gpuInfo, machineInfo } from "@/lib/sysinfo";
+import { gpuInfo, machineInfo, machineRamGb } from "@/lib/sysinfo";
 import { requireEngine } from "@/lib/engineAuth";
 import { buildPlan, type Plan, type PlanInput } from "@/lib/router";
 
@@ -82,7 +81,7 @@ export async function POST(req: Request) {
     installed: plannable,
     ollamaOk,
     gpu: { kind: gpu.kind, vramTotalGb: gpu.vramTotalGb, ollama: gpu.ollama },
-    ramGb: Math.ceil(os.totalmem() / 1024 ** 3),
+    ramGb: machineRamGb(),
     keys,
     offline,
     sherpaReady: Boolean(body.sherpaReady),
@@ -99,5 +98,5 @@ export async function POST(req: Request) {
       process.env.GENERATE_PROVIDER = "openrouter";
     }
   }
-  return NextResponse.json({ ...plan, setup, machine: { gpu: gpu.name, gpuKind: gpu.kind, vramTotalGb: gpu.vramTotalGb, ramGb: Math.ceil(os.totalmem() / 1024 ** 3) }, installed, ollamaOk, keys, offline });
+  return NextResponse.json({ ...plan, setup, machine: { gpu: gpu.name, gpuKind: gpu.kind, vramTotalGb: gpu.vramTotalGb, ramGb: machineRamGb() }, installed, ollamaOk, keys, offline });
 }
