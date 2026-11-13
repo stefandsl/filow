@@ -2,7 +2,7 @@
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { connect, isPairCode, type SessionClient } from "@filow/client";
-import { Engine, isLang, LANG_LABELS, langFromLocale, LANGS, parseScript, type Command, type DecideRequest, type DecideResponse, type Lang, type SessionState, type SttStatus } from "@filow/core";
+import { Engine, isLang, LANG_LABELS, langFromLocale, LANGS, parseScript, remoteErrorKey, type Command, type DecideRequest, type DecideResponse, type Lang, type SessionState, type SttStatus } from "@filow/core";
 import { availableBackends, BACKEND_LABELS, startAuto, type SttBackend } from "@filow/stt";
 import { Wordmark, LangProvider, StageView, useLang, useT } from "@filow/ui";
 import { isGranted, type BuddyRecipients } from "@/lib/buddy/outbound";
@@ -156,6 +156,12 @@ function LoadNotesButton({ onText }: { onText: (text: string) => Promise<void> |
   );
 }
 
+/** What the relay refused, in words when it is one of its own reasons (not accepted on the computer yet, too many at once). */
+function refusalWords(error: string, t: ReturnType<typeof useT>): string {
+  const key = remoteErrorKey(error, true);
+  return key ? t(key) : error;
+}
+
 /**
  * "Generate script from slides" (ARCHITECTURE.md §7.4). Notes win per slide; the server's model
  * writes points for the slides without notes. `getToken` returns an engine token (engine mode) or
@@ -186,7 +192,7 @@ function GenerateButton({ getToken, onText }: { getToken: () => Promise<string>;
       setPreview(out.text);
       setMsg(t("ppt.doneWith", { model: out.model + (out.cost ? ` · $${out.cost.toFixed(4)}` : "") }));
     } catch (err) {
-      setMsg((err as Error).message);
+      setMsg(refusalWords((err as Error).message, t));
     } finally {
       setBusy(false);
     }
@@ -212,7 +218,7 @@ function GenerateButton({ getToken, onText }: { getToken: () => Promise<string>;
                     setMsg(t("ppt.pointsLoaded", { slides: parsed.sections.length, points: parsed.sections.reduce((a, x) => a + x.bullets.length, 0) }));
                     setPreview(null);
                   } catch (err) {
-                    setMsg((err as Error).message);
+                    setMsg(refusalWords((err as Error).message, t));
                   }
                 }}
               >
@@ -461,9 +467,9 @@ function ViewPane() {
 
   const send = useCallback(
     (cmd: Command) => {
-      void client?.send(cmd).then((r) => setError(r.ok ? null : (r.error ?? "command failed")));
+      void client?.send(cmd).then((r) => setError(r.ok ? null : refusalWords(r.error ?? "command failed", t)));
     },
-    [client],
+    [client, t],
   );
   useSlideSync(client ? state : null, send);
 

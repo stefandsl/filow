@@ -98,10 +98,15 @@ contextBridge.exposeInMainWorld("okFilow", {
   onCards: on("okfilow:cards"),
   onModel: on("okfilow:model"),
   onAskText: on("okfilow:askText"),
-  /** A paired phone's question ({ text, device }), only from a device the presenter allowed to ask: the panel asks the presenter first. */
-  onPhoneAsk: on("okfilow:phoneAsk"),
-  /** The presenter answered the notice for a phone's question: the next one may come. */
-  phoneAskDone: () => ipcRenderer.send("okfilow:phoneAskDone"),
+  /** How many paired phones' questions wait in the inbox (0 during a slide show): the badge, never their text. */
+  onPhoneCount: on("okfilow:phoneCount"),
+  phoneCount: () => ipcRenderer.invoke("okfilow:phoneCount"),
+  /** The presenter opened the badge: the oldest question ({ key, text, device, peer, fp }) or null. */
+  phoneOpen: () => ipcRenderer.invoke("okfilow:phoneOpen"),
+  /** The question on screen left the inbox (its device was revoked or lost the right to ask): its key. */
+  onPhoneWithdraw: on("okfilow:phoneWithdraw"),
+  /** The presenter answered the notice: "yes", "no" (Ignore, or it timed out) or "dropped" (closed unseen). */
+  phoneAskDone: (key, outcome) => ipcRenderer.send("okfilow:phoneAskDone", { key: String(key ?? ""), outcome: outcome === "yes" || outcome === "no" ? outcome : "dropped" }),
   onWhiteboard: on("okfilow:whiteboard"),
   onStrokes: on("okfilow:strokes"),
   onHandsFree: on("okfilow:handsfree"),

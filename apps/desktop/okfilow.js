@@ -23,7 +23,7 @@ const { modelBounds } = require("./okfilow-model-place");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 const { createElementReader, scanForShot, windowHandle } = require("./okfilow-uia");
 const { trustedUiSender } = require("./ui-preferences");
-const { createPhoneGate } = require("./okfilow-phone");
+const { createPhoneInbox } = require("./okfilow-phone");
 // Measured runs (qa-headless.js): nothing of OK Filow appears on screen with FILOW_QA_HEADLESS=1.
 const { showWindow, trayFor } = require("./qa-headless");
 const { timingsLine } = require("./okfilow-timings");
@@ -659,8 +659,11 @@ function createOkFilow(deps) {
   function refreshTray() {
     if (!tray) return;
     const c = cfg();
+    // Phone questions waiting: a count only (never their text), none during a slide show.
+    const phones = phoneCount();
     tray.setContextMenu(
       Menu.buildFromTemplate([
+        ...(phones ? [{ label: menuText("okfPhoneWaiting", { n: phones }), click: togglePanel }] : []),
         { label: menuText("okfOpen"), click: togglePanel },
         { label: menuText("okfShowAlways"), type: "checkbox", checked: c.showAlways, click: (i) => applyConfig({ showAlways: i.checked }) },
         { label: menuText("okfEnabled"), type: "checkbox", checked: c.enabled, click: (i) => applyConfig({ enabled: i.checked }) },
@@ -949,22 +952,56 @@ function createOkFilow(deps) {
     return "open";
   }
   /**
-   * A question typed on a paired phone the presenter allowed to ask (okfilow-phone.js has the gate).
-   * It goes to the panel on its own channel, never as a question the presenter typed: the panel asks the
-   * presenter first, labelled with the device, and answers it words only, silently (apps/web/lib/buddy/phoneAsk.ts).
-   * The panel shows without taking the keyboard. "asked", "off", "busy" or "bad".
+   * A question typed on a paired phone the presenter allowed to ask (okfilow-phone.js has the inbox).
+   * It waits there: nothing is shown and no window opens. The presenter sees a count (the panel's badge,
+   * the tray), held at zero during a slide show, and the text only when they open it from the panel; then
+   * the panel asks them, labelled with the device, and answers it words only, silently
+   * (apps/web/lib/buddy/phoneAsk.ts). "asked", "off", "busy", "bad" or "blocked".
    */
-  const phoneGate = createPhoneGate();
+  const phoneInbox = createPhoneInbox();
+  const slideShowRunning = () => Boolean(deps.slideShowRunning?.());
+  /** The count the presenter may see now: none during a slide show. */
+  const phoneCount = () => (slideShowRunning() ? 0 : phoneInbox.count());
+  function publishPhoneCount() {
+    const n = phoneCount();
+    sendPanel("okfilow:phoneCount", n);
+    if (tray) {
+      tray.setToolTip(n ? `OK Filow · ${menuText("okfPhoneWaiting", { n })}` : "OK Filow");
+      refreshTray();
+    }
+  }
   function askFromPhone(payload) {
-    const live = Boolean(panel && !panel.isDestroyed() && !panel.webContents.isLoading());
-    const r = phoneGate.decide({ enabled: cfg().enabled, panelReady: panelReady && live, mode }, payload);
+    const r = phoneInbox.add({ enabled: cfg().enabled }, payload);
     if (r.answer !== "asked") return r.answer;
-    if (!panel.isVisible()) showWindow(panel, "panel", true);
-    sendPanel("okfilow:phoneAsk", { text: r.question, device: r.device });
-    logLine(`okfilow: a question from a paired phone (${Array.from(r.question).length} characters), waiting for the presenter's yes`);
+    publishPhoneCount();
+    logLine("okfilow: a question from a paired phone is waiting in the inbox (not shown until the presenter opens it)");
     return "asked";
   }
-  ipcMain.on("okfilow:phoneAskDone", (e) => { if (ourSender(e) && e.sender === panel?.webContents) phoneGate.done(); });
+  /** The devices that may ask now (the main window's devices list): the others' questions leave, and an open one is withdrawn. */
+  function phoneAskers(ids) {
+    const r = phoneInbox.keep(new Set(Array.isArray(ids) ? ids.filter((x) => typeof x === "string") : []));
+    if (r.withdrawn) sendPanel("okfilow:phoneWithdraw", r.withdrawn);
+    publishPhoneCount();
+  }
+  // Only the panel itself opens, counts and answers phone questions (the check is written out in each
+  // handler: tools/autoloop/checks/ipc-sender-checked.mjs reads it there).
+  // The presenter opened the badge: the oldest question, never during a slide show.
+  ipcMain.handle("okfilow:phoneOpen", (e) => {
+    if (!ourSender(e) || e.sender !== panel?.webContents || slideShowRunning()) return null;
+    const entry = phoneInbox.open();
+    publishPhoneCount();
+    return entry;
+  });
+  ipcMain.handle("okfilow:phoneCount", (e) => (ourSender(e) && e.sender === panel?.webContents ? phoneCount() : 0));
+  ipcMain.on("okfilow:phoneAskDone", (e, p) => {
+    if (!ourSender(e) || e.sender !== panel?.webContents || !p || typeof p !== "object") return;
+    const r = phoneInbox.done(String(p.key ?? ""), p.outcome);
+    if (r.askOff) {
+      logLine("okfilow: a paired phone's questions were ignored three times in a row; its right to ask is switched off");
+      deps.phoneAskOff?.(r.askOff);
+    }
+    publishPhoneCount();
+  });
   /** Shows the panel next to the mouse (or next to `at`) and gives it the keyboard. */
   function showPanelAtCursor(at) {
     const p = buildPanel();
@@ -1524,7 +1561,7 @@ function createOkFilow(deps) {
   };
   /** The live "going outside" signal, for requests made outside OK Filow (the account's, main.js). */
   const outboundSignal = () => ({ begin: outbound.begin, end: outbound.end });
-  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, askFromPhone, micReport: () => micOpens.report(), outboundSignal };
+  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, askFromPhone, phoneAskers, publishPhoneCount, micReport: () => micOpens.report(), outboundSignal };
 }
 
 /**
