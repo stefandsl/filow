@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { UiPreferencesProvider } from "../components/UiPreferencesProvider";
+import { FullScreenBar } from "../components/FullScreenBar";
 
 // The manifest comes from app/manifest.ts (Next.js links it). appleWebApp and the extra meta tag make the
 // phone mirror open full screen from the iOS home screen (iOS before 16.4 ignores the manifest);
@@ -25,7 +26,8 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body><UiPreferencesProvider>{children}</UiPreferencesProvider></body>
+      {/* The full-screen bar comes first, so the first Tab in full screen reaches it. */}
+      <body><UiPreferencesProvider><FullScreenBar />{children}</UiPreferencesProvider></body>
     </html>
   );
 }

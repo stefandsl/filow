@@ -103,6 +103,18 @@ contextBridge.exposeInMainWorld("filow", {
     return () => ipcRenderer.removeListener("slideshow", h);
   },
   closeOverlay: () => ipcRenderer.send("overlay:close"),
+  /** Full screen hides the frame and the menu: the page's bar at the top leaves it, minimises or closes the main window (window-controls.js). */
+  windowControls: {
+    isFullScreen: () => ipcRenderer.invoke("window:isFullScreen"),
+    exitFullScreen: () => ipcRenderer.send("window:exitFullScreen"),
+    minimize: () => ipcRenderer.send("window:minimize"),
+    close: () => ipcRenderer.send("window:close"),
+    onFullScreen: (fn) => {
+      const h = (_e, on) => fn(on === true);
+      ipcRenderer.on("window:fullScreen", h);
+      return () => ipcRenderer.removeListener("window:fullScreen", h);
+    },
+  },
   /** The shell is about to open a floating window (overlay, points window): it joins the session with a fresh pairing code (codes are single use). */
   onNeedCode: (fn) => {
     const h = () => fn();

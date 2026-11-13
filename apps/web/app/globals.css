@@ -605,3 +605,22 @@ dialog.modal-bg.accessible-dialog:has(> .display-panel-sidebar) { justify-conten
   .easy-head .btn { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) { .easy-switch, .easy-switch::before { transition: none; } }
+
+/* Full screen (components/FullScreenBar.tsx): an 8 px hover zone along the top edge; the bar fades in
+   under it on hover or keyboard focus. Hidden, it stays in the tab order but takes no clicks. */
+.fsbar { position: fixed; top: 0; left: 0; right: 0; height: 8px; z-index: 2147483000; display: flex; justify-content: center; }
+.fsbar-panel {
+  position: absolute; top: 8px; display: flex; align-items: center; gap: 2px; padding: 4px;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: calc(var(--radius) + 4px);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.32);
+  opacity: 0; transform: translateY(-6px); pointer-events: none;
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+}
+:root[data-theme="light"] .fsbar-panel { box-shadow: 0 8px 28px rgb(17 19 24 / 0.16); }
+.fsbar[data-shown="true"] .fsbar-panel { opacity: 1; transform: none; pointer-events: auto; }
+.fsbar-btn { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-color: transparent; background: transparent; white-space: nowrap; }
+.fsbar-btn.icon-only { padding: 6px 10px; }
+.fsbar-btn:focus-visible { outline-offset: -2px; } /* inside the panel's rounded edge, not across it */
+/* Close looks like the window caption's close button it stands in for. */
+.fsbar .fsbar-btn[data-action="close"]:not(:disabled):hover { background: #c42b1c; color: #ffffff; }
+@media (prefers-reduced-motion: reduce) { .fsbar-panel { transition: none; transform: none; } }
