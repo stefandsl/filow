@@ -25,7 +25,7 @@ const { loadUiohook, forgetUiohook } = require("./uiohook.js") as {
 const { createDictation } = require("./dictation.js") as {
   createDictation(deps: Record<string, unknown>): {
     insert(raw: string, o: { hook?: unknown; keysUp?: () => Promise<boolean> }): Promise<{ ok: boolean; action: string; reason: string; chars: number }>;
-    activeChord(talk: string): string | null;
+    activeChord(talk: string, o?: { qaKeys?: boolean }): string | null;
   };
 };
 
@@ -184,6 +184,15 @@ describe("dictation: typing, pasting and copying", () => {
     expect(calls).toEqual({ paste: 0, type: 0, write: 0, hookPaste: 0 });
     expect(d.activeChord("ctrl+alt")).toBeNull();
     expect(log.join("\n")).toContain("global input is off");
+  });
+
+  it("with the switch on a test can run its own dictation through the QA key path, and still nothing is typed", async () => {
+    const { d, calls } = make(ON);
+    // the keys the test feeds itself reach the gestures; anything else is as with the switch on
+    expect(d.activeChord("ctrl+alt", { qaKeys: true })).toBe("ctrl+meta");
+    expect(d.activeChord("ctrl+alt", { qaKeys: false })).toBeNull();
+    expect(await d.insert("hello there", { hook: {}, keysUp: async () => true })).toEqual(gi.REFUSED_INSERT);
+    expect(calls).toEqual({ paste: 0, type: 0, write: 0, hookPaste: 0 });
   });
 
   it("control: without the switch the same dictation writes the clipboard and sends the paste keys", async () => {

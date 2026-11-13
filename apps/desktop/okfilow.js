@@ -995,7 +995,7 @@ function createOkFilow(deps) {
       if (!gestures) gestures = createGestures({
         talk: () => cfg().hotkey,
         // Null while dictation is off or its keys clash with the talk keys (Settings says so).
-        dictate: () => dictation.activeChord(cfg().hotkey),
+        dictate: () => dictation.activeChord(cfg().hotkey, { qaKeys: QA_KEYS }),
         dictateMode: () => dictation.cfg().mode,
         emit: onGesture,
       });
@@ -1440,7 +1440,7 @@ function createOkFilow(deps) {
     if (cfg().enabled && cfg().seeScreen !== "off") uia?.start();
     // Dictation turned off, or its keys changed, while it records: stop without typing.
     dictation.onChange((d) => {
-      if (purpose === "dictate" && (!d.enabled || !dictation.activeChord(cfg().hotkey))) cancel();
+      if (purpose === "dictate" && (!d.enabled || !dictation.activeChord(cfg().hotkey, { qaKeys: QA_KEYS }))) cancel();
       sendPanel("okfilow:config", status());
     });
     screen.on("display-added", () => visible && buildOverlays());
