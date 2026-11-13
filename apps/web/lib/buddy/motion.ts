@@ -103,6 +103,19 @@ export function createPausableClock() {
   };
 }
 
+/** How far through its flight the pointer is when its label docks at the tip (it then comes in with the dot). */
+export const POINT_LABEL_AT = 0.7;
+/** The label's room beside the tip (the CSS of .okf-label: 14 px text, at most this wide in practice). */
+export const POINT_LABEL_ROOM = { width: 240, height: 36 } as const;
+
+/**
+ * Which side of the tip the pointer's label docks on: to its right and a little above it, or to its
+ * left near the right edge of the screen, or below the tip near the top edge (never off screen).
+ */
+export function pointLabelFlip(to: P, view: { width: number; height: number }, room: { width: number; height: number } = POINT_LABEL_ROOM): { left: boolean; down: boolean } {
+  return { left: to.x > view.width - room.width, down: to.y < room.height };
+}
+
 /** Quadratic bezier from `from` to `to`, bowing up and to the side like a thrown arc (Clicky's flight). */
 export function bezierPoint(from: P, to: P, k: number): P {
   const t = ease(Math.max(0, Math.min(1, k)));

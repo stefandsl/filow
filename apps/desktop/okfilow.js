@@ -19,6 +19,7 @@ const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipien
 const { readSelection } = require("./okfilow-selection");
 const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOverlays, pointsShowMs, answering, overlayMouse, seeChoice, wordsOnlyList, pillState, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
 const { createPractice } = require("./tour");
+const { modelBounds } = require("./okfilow-model-place");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 const { createElementReader, scanForShot, windowHandle } = require("./okfilow-uia");
 const { trustedUiSender } = require("./ui-preferences");
@@ -275,19 +276,16 @@ function createOkFilow(deps) {
       modelWin.showInactive();
       return;
     }
+    // In place beside the pointer (no panel: the page draws only the model, its labels and a close button on hover).
     const c = screen.getCursorScreenPoint();
-    const wa = screen.getDisplayNearestPoint(c).workArea;
-    const w = 520;
-    const h = 480;
+    const at = modelBounds(c, screen.getDisplayNearestPoint(c).workArea);
     modelWin = new BrowserWindow({
-      width: w,
-      height: h,
-      x: Math.round(Math.min(Math.max(wa.x + 8, c.x + 40), wa.x + wa.width - w - 8)),
-      y: Math.round(Math.min(Math.max(wa.y + 8, c.y - h / 2), wa.y + wa.height - h - 8)),
+      ...at,
       frame: false,
       transparent: true,
+      hasShadow: false,
       resizable: true,
-      minWidth: 320,
+      minWidth: 360,
       minHeight: 300,
       skipTaskbar: true,
       alwaysOnTop: true,

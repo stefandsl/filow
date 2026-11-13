@@ -7,8 +7,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { okFilowBridge, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/bridge";
-import { bezierPoint, bubbleOnScreen, bubblePlacement, bubbleSticks, createPausableClock, followScroll, MARK_EXIT_MS, marksStarted, overBubble, overControls, STROKE_GAP_MS } from "@/lib/buddy/motion";
+import { bezierPoint, bubbleOnScreen, bubblePlacement, bubbleSticks, createPausableClock, followScroll, MARK_EXIT_MS, marksStarted, overBubble, overControls, POINT_LABEL_AT, pointLabelFlip, STROKE_GAP_MS } from "@/lib/buddy/motion";
 import { MarksLayer, type DrawnMark, type MarkSet } from "@/components/okfilow/marks-layer";
+import { CardsLayer } from "@/components/okfilow/cards-layer";
+import type { Rect } from "@/lib/buddy/marks";
 import { keyLabel, PILL_IDLE, pillView, statusRoom, type PillAction, type PillState } from "@/lib/buddy/pill";
 import { AnswerBubble, answerInBubble, markMore } from "@/components/okfilow/bubble";
 import { AnswerControls, EyeButton, Slot } from "@/components/okfilow/controls";
@@ -20,6 +22,8 @@ import "../okfilow.css";
 
 const OFFSET = { x: 16, y: 20 };
 const FLY_MS = 650;
+/** The pointer's glyph (its tip at 3,2). */
+const ARROW = "M3 2l17 8-7.5 2.2L10.4 20z";
 const HOLD_MS = 5500;
 
 type Target = { x: number; y: number; label: string };
@@ -93,7 +97,9 @@ export default function OkFilowOverlay() {
   const pos = useRef({ x: -100, y: -100 });
   const cursor = useRef<{ x: number; y: number } | null>(null);
   const queue = useRef<Target[]>([]);
-  const flight = useRef<{ from: { x: number; y: number }; to: Target; start: number; holdUntil: number } | null>(null);
+  const flight = useRef<{ from: { x: number; y: number }; to: Target; start: number; holdUntil: number; arrived: boolean } | null>(null);
+  // Arrivals of the pointer at a spot: each one plays the ring once.
+  const [arrivals, setArrivals] = useState(0);
 
   useEffect(() => {
     const b = okFilowBridge();
@@ -194,17 +200,23 @@ export default function OkFilowOverlay() {
       if (!f && queue.current.length) {
         const to = queue.current.shift()!;
         const from = pos.current.x < 0 ? { x: to.x - 120, y: to.y - 120 } : { ...pos.current };
-        flight.current = { from, to, start: now, holdUntil: now + FLY_MS + HOLD_MS };
+        flight.current = { from, to, start: now, holdUntil: now + FLY_MS + HOLD_MS, arrived: false };
       }
       const g = flight.current;
       let next: { x: number; y: number } | null = null;
       if (g) {
         const k = Math.min(1, (now - g.start) / FLY_MS);
         next = bezierPoint(g.from, g.to, k);
-        if (k >= 1) {
+        // The label docks at the tip near the end of the flight and comes in with it; a ring marks the arrival.
+        if (k >= POINT_LABEL_AT) {
           setLabel((l) => (l === g.to.label ? l : g.to.label));
-          const f = (g.to.y > window.innerHeight - 56 ? " okf-label--up" : "") + (g.to.x > window.innerWidth - 240 ? " okf-label--left" : "");
+          const side = pointLabelFlip(g.to, { width: window.innerWidth, height: window.innerHeight });
+          const f = (side.down ? " okf-label--down" : "") + (side.left ? " okf-label--left" : "");
           setFlip((v) => (v === f ? v : f));
+        }
+        if (k >= 1 && !g.arrived) {
+          g.arrived = true;
+          setArrivals((n) => n + 1);
         }
         if (now > g.holdUntil || (queue.current.length && now > g.start + FLY_MS + 1800)) { flight.current = null; setLabel(""); }
       } else if (cursor.current) {
@@ -261,6 +273,16 @@ export default function OkFilowOverlay() {
   const labelAvoid = useCallback(() => {
     const r = pillSpot.current?.getBoundingClientRect();
     return r && r.width > 0 ? [{ left: r.left, top: r.top, right: r.right, bottom: r.bottom }] : [];
+  }, []);
+  /** Cards keep off the marks on screen (their strokes and labels), the pill and the answer bubble. */
+  const cardAvoid = useCallback(() => {
+    const out: Rect[] = [];
+    const add = (r: DOMRect | undefined) => { if (r && r.width > 0 && r.height > 0) out.push({ left: r.left, top: r.top, right: r.right, bottom: r.bottom }); };
+    document.querySelectorAll(".okf-marks > g.okf-mark:not(.okf-mark--leaving) :is(.okf-mark-ink, .okf-mark-head)").forEach((el) => add(el.getBoundingClientRect()));
+    document.querySelectorAll(".okf-marks-over .okf-mark:not(.okf-mark--leaving) .okf-mark-label").forEach((el) => add(el.getBoundingClientRect()));
+    add(pillSpot.current?.getBoundingClientRect());
+    if (holds.current.shown) add(bubble.current?.getBoundingClientRect());
+    return out;
   }, []);
   const markSets = useMemo(() => (leaving ? [leaving, marks] : [marks]), [leaving, marks]);
 
@@ -327,27 +349,8 @@ export default function OkFilowOverlay() {
   return (
     <>
     <div className={"okf-overlay" + (mode === "listening" && purpose === "talk" ? " okf-overlay--catch" : "") + (pill.paused ? " okf-paused" : "")} aria-hidden onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-      {cards.length > 0 && (() => {
-        // A column beside the spot the first card explains; the cards stack by their real heights,
-        // and the column is kept on screen (it scrolls inside itself only if it is taller).
-        const w = 260;
-        const est = cards.reduce((sum, c) => sum + (c.photo ? 270 : 130) + 12, 0);
-        const left = Math.min(Math.max(8, cards[0].x + 24), window.innerWidth - w - 8);
-        const top = Math.min(Math.max(8, cards[0].y - 40), Math.max(8, window.innerHeight - est - 8));
-        return (
-          <div className="okf-cards" style={{ left, top, width: w, maxHeight: window.innerHeight - top - 8 }}>
-            {cards.map((c, i) => (
-              <article key={i} className="okf-card" style={{ animationDelay: `${300 + i * 400}ms` }}>
-                {c.photo && <img src={c.photo} alt="" />}
-                <div>
-                  {c.title && <strong>{c.title}</strong>}
-                  {c.text}
-                </div>
-              </article>
-            ))}
-          </div>
-        );
-      })()}
+      {/* Beside the spot they explain, in free space, with a leader to it; opaque from their first frame. */}
+      <CardsLayer cards={cards} avoid={cardAvoid} />
       {ink.length > 0 && (
         <svg className="okf-draw okf-ink" width="100%" height="100%">
           {ink.map((l, i) => <polyline key={i} points={l.map((p) => p.join(",")).join(" ")} />)}
@@ -357,7 +360,9 @@ export default function OkFilowOverlay() {
       <MarksLayer sets={markSets} avoid={labelAvoid} />
       <div ref={dot} className={`okf-buddy okf-buddy--${mode}${going ? " okf-buddy--out" : ""}${here ? "" : " okf-hidden"}`}>
         {going && <span className="okf-out-rings"><i /><i /><i /></span>}
-        <svg className="okf-arrow" viewBox="0 0 24 24" width="22" height="22"><path d="M3 2l17 8-7.5 2.2L10.4 20z" /></svg>
+        {/* A 27 px glyph outlined dark inside a light halo: it reads on white and on black. */}
+        <svg className="okf-arrow" viewBox="0.5 -0.5 23 23" width="36" height="36"><path className="okf-arrow-halo" d={ARROW} /><path d={ARROW} /></svg>
+        {arrivals > 0 && <i key={arrivals} className="okf-arrival" />}
         {label && <span className={"okf-label" + flip}>{label}</span>}
       </div>
     </div>
