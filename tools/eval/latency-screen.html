@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Invoice</title>
+<style>
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; font: 18px "Segoe UI", Arial, sans-serif; }
+  body { background: var(--bg); color: #1d2430; }
+  .bar { height: 56px; display: flex; align-items: center; padding: 0 24px; gap: 28px; background: var(--bar); color: #fff; font-weight: 600; }
+  .bar span { opacity: .85; font-weight: 400; }
+  .side { position: absolute; top: 56px; bottom: 0; width: 240px; background: #eef1f5; padding: 24px 16px; box-sizing: border-box; }
+  .side div { padding: 10px 12px; border-radius: 6px; margin-bottom: 4px; color: #4a5568; }
+  .main { position: absolute; top: 56px; bottom: 0; right: 0; padding: 32px; box-sizing: border-box; }
+  .card { position: absolute; background: #fff; border: 1px solid #d8dee8; border-radius: 10px; padding: 18px 20px; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+  .card h3 { margin: 0 0 12px; font-size: 18px; color: #2d3748; }
+  label { display: block; font-size: 15px; color: #4a5568; margin-bottom: 6px; }
+  input { width: 300px; height: 38px; font: inherit; border: 1px solid #b8c2d0; border-radius: 6px; padding: 0 10px; box-sizing: border-box; }
+  button { position: absolute; height: 44px; padding: 0 22px; font: inherit; font-weight: 600; border-radius: 8px; border: 0; }
+  table { border-collapse: collapse; font-size: 16px; }
+  td, th { padding: 7px 14px; border-bottom: 1px solid #e6eaf0; text-align: left; }
+  .ref { position: absolute; font-size: 15px; color: #718096; }
+</style>
+</head>
+<body>
+<div class="bar">Ledgerly <span>Invoices</span><span>Customers</span><span>Reports</span><span>Settings</span></div>
+<div class="side" id="side"></div>
+<div class="main" id="main"></div>
+<script>
+  // One layout per seed (?seed=N): the same named things in other places, colours and company, so no two
+  // pictures share their image tokens. Every layout shows the canary QUOKKA-4417 (it must never reach a log).
+  const seed = Number(new URLSearchParams(location.search).get("seed") || 1);
+  let s = seed * 9301 + 49297;
+  const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+  const pick = (a) => a[Math.floor(rnd() * a.length)];
+  const root = document.documentElement.style;
+  root.setProperty("--bg", pick(["#f7f8fa", "#fbfaf7", "#f5f8f7", "#f8f6fb"]));
+  root.setProperty("--bar", pick(["#2b4c7e", "#3d5a40", "#5b3a6b", "#7a4b2a", "#234e52"]));
+  const side = document.getElementById("side");
+  for (const n of ["Dashboard", "Invoices", "Quotes", "Payments", "Customers", "Products", "Expenses", "Reports"].slice(0, 5 + Math.floor(rnd() * 4))) {
+    const d = document.createElement("div"); d.textContent = n; side.appendChild(d);
+  }
+  const main = document.getElementById("main");
+  main.style.left = "240px";
+  const company = pick(["Northwind Traders", "Blue Harbor Ltd", "Corvo Studio", "Alpine Parts", "Vela Foods", "Lumen Print"]);
+  // Cards at seeded places on a 3 x 2 grid of slots, none overlapping.
+  const slots = [[40, 40], [620, 40], [1200, 40], [40, 470], [620, 470], [1200, 470]].sort(() => rnd() - 0.5);
+  const card = (i, h, title) => {
+    const [x, y] = slots[i];
+    const c = document.createElement("div");
+    c.className = "card";
+    c.style.left = `${x + Math.floor(rnd() * 30)}px`; c.style.top = `${y + Math.floor(rnd() * 30)}px`;
+    c.style.width = "500px"; c.style.height = `${h}px`;
+    c.innerHTML = `<h3>${title}</h3>`;
+    main.appendChild(c);
+    return c;
+  };
+  const field = (c, name, value) => {
+    const w = document.createElement("div");
+    w.style.marginBottom = "14px";
+    const id = name.replace(/\W/g, "");
+    w.innerHTML = `<label for="${id}">${name}</label><input id="${id}" data-el="${name}" data-type="edit" value="${value}">`;
+    c.appendChild(w);
+  };
+  const a = card(0, 330, "Invoice");
+  field(a, "Customer name", company);
+  field(a, "Invoice total", `${(100 + Math.floor(rnd() * 9000))}.${String(Math.floor(rnd() * 100)).padStart(2, "0")} EUR`);
+  const ref = document.createElement("div"); ref.className = "ref"; ref.style.left = "20px"; ref.style.bottom = "16px";
+  ref.textContent = `Ref QUOKKA-4417 / ${String(seed).padStart(3, "0")}`; a.appendChild(ref);
+  const b = card(1, 300, "Lines");
+  const rows = ["Design work", "Hosting", "Support hours", "Licences", "Travel", "Printing"].sort(() => rnd() - 0.5).slice(0, 4);
+  b.insertAdjacentHTML("beforeend", `<table><tr><th>Item</th><th>Qty</th><th>Amount</th></tr>${rows.map((r) => `<tr><td>${r}</td><td>${1 + Math.floor(rnd() * 9)}</td><td>${(10 + Math.floor(rnd() * 900))}.00</td></tr>`).join("")}</table>`);
+  const c3 = card(2, 220, "Notes");
+  c3.insertAdjacentHTML("beforeend", `<p style="margin:0;color:#4a5568">${pick(["Payment due in 30 days.", "Thank you for your business.", "Bank transfer preferred.", "Late fees apply after 60 days."])}</p>`);
+  // The three buttons: each somewhere else on every layout, in its own colour.
+  const colours = [["#1f6feb", "#fff"], ["#e2e8f0", "#1d2430"], ["#2f855a", "#fff"], ["#c05621", "#fff"], ["#6b46c1", "#fff"]];
+  const spots = [[60, 900], [330, 900], [600, 900], [900, 900], [1180, 900], [1450, 900], [1300, 380], [700, 380]].sort(() => rnd() - 0.5);
+  ["Pay now", "Save draft", "Send reminder"].forEach((name, i) => {
+    const btn = document.createElement("button");
+    btn.textContent = name; btn.dataset.el = name; btn.dataset.type = "button";
+    const [x, y] = spots[i]; const [bg, fg] = pick(colours);
+    btn.style.left = `${x}px`; btn.style.top = `${y}px`; btn.style.background = bg; btn.style.color = fg;
+    main.appendChild(btn);
+  });
+  // What Windows would name on this screen, on the 0-1000 grid (lib/buddy/ground.ts ScreenElement).
+  window.__elements = () => [...document.querySelectorAll("[data-el]")].map((e) => {
+    const r = e.getBoundingClientRect();
+    const g = (v, size) => Math.round((v / size) * 1000);
+    return { name: e.dataset.el, screen: 1, x1: g(r.left, 1920), y1: g(r.top, 1080), x2: g(r.right, 1920), y2: g(r.bottom, 1080), type: e.dataset.type };
+  });
+  window.__ready = true;
+</script>
+</body>
+</html>
