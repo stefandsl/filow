@@ -2252,8 +2252,7 @@ function reportProblem() {
 }
 /** The two buttons of an error the user cannot fix from its dialog: close it, or open Report a problem. */
 function reportButtons() {
-  const tx = require("./about").TEXT;
-  return [(tx[menuLang()] || tx.en).close, mt("report")];
+  return [require("./about").textFor(menuLang()).close, mt("report")];
 }
 /** Such an error: what failed, the reason, and a button that leads to the report window (and from there to a GitHub issue). */
 async function errorWithReport(win, message, detail) {
