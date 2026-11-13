@@ -105,9 +105,10 @@ describe("the 3D view", () => {
     expect(rule(".okf-model")).toContain("background: rgb(16, 17, 20); border-radius: 0;");
   });
 
-  it("draws each leader as anchor, knee, label and numbers the labels in reading order", () => {
+  it("routes the final leader polylines and keeps their initial reading-order identities", () => {
     expect(model).toContain("numbers ??= readingOrder(slots);");
-    expect(model).toContain("leaderPoints(s)");
+    expect(model).toContain("routeLeaders(slots.map(leaderPoints)");
+    expect(model).toContain("const points = routes[i].map");
     expect(model).not.toContain("shown[i].x + (s.x - shown[i].x)");
   });
 

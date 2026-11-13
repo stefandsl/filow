@@ -22,7 +22,7 @@ function rawPoint(p: FlightPlan, progress: number): Point {
 }
 export function flightPoint(p: FlightPlan, progress: number): Point {
   const k = Math.max(0,Math.min(1,progress));
-  const t = 1-(1-k)**2;
+  const t = k*k*(3-2*k);
   if (!p.samples || !p.distances) return rawPoint(p,t);
   const distance = t*p.distances[p.distances.length-1];
   let i=1; while(i<p.distances.length-1 && p.distances[i]<distance) i++;
@@ -43,11 +43,11 @@ export function planFlight(from: Point | null, target: Point, texts: Rect[], vie
   let best: FlightPlan | null = null, bestCost = Infinity;
   for (const to of targets) for (const dock of docks) {
     const start = from ?? { x: Math.max(12, to.x-180), y: Math.max(48, to.y-100) };
-    for (const lift of [-40, -80, -180, -360, 40, 80, 180, 360]) for (const bend of [0]) {
+    for (const lift of [0, 0.25, 0.5, 0.75, 1]) for (const bend of [0]) {
       const control = { x: (start.x+to.x)/2+bend, y: (start.y+to.y)/2+lift };
       const length = Math.hypot(start.x-control.x,start.y-control.y)+Math.hypot(to.x-control.x,to.y-control.y);
       const p: FlightPlan = { from: start, to, control, dock, width, duration: Math.min(900, Math.max(450, 400 + Math.hypot(to.x-start.x,to.y-start.y)*0.4)), overlap: 0, targetRect,
-        approach: { x: to.x, y: Math.min(start.y, (targetRect?.top ?? to.y) - 44) + lift },
+        approach: { x: to.x, y: start.y + (to.y-start.y)*lift },
         underline: !targetRect || !texts.some(r => r !== targetRect && r.bottom-r.top <= 6 && r.left < targetRect.right && r.right > targetRect.left && Math.abs(r.top-targetRect.bottom) <= 6) };
       p.samples = Array.from({length:101},(_,i)=>rawPoint(p,i/100));
       p.distances = [0];
@@ -59,7 +59,7 @@ export function planFlight(from: Point | null, target: Point, texts: Rect[], vie
         for (const r of texts) p.overlap += overlapArea(b,r);
         if (b.left<4 || b.top<4 || b.right>view.width-4 || b.bottom>view.height-4) p.overlap += 10000;
       }
-      const cost = p.overlap*1000 + clearanceCost*100000 + length + Math.hypot(to.x-target.x,to.y-target.y)*3;
+      const cost = p.overlap*1000 + clearanceCost*100000 + p.distances[p.distances.length-1] + length*0.001 + Math.hypot(to.x-target.x,to.y-target.y)*3;
       if (cost<bestCost) { best=p; bestCost=cost; }
     }
   }
@@ -67,5 +67,5 @@ export function planFlight(from: Point | null, target: Point, texts: Rect[], vie
 }
 export function arrivalPhase(elapsed: number, duration: number, reduced = false) {
   const t = (elapsed-duration)/600;
-  return { opacity: t>=0 ? 1 : 0, scale: reduced ? 1 : 0.35+Math.max(0,Math.min(1,t))*0.65 };
+  return { opacity: t>=0 ? 1 : 0, scale: reduced ? 1 : 1+Math.max(0,Math.min(1,t))*0.15 };
 }

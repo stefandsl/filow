@@ -36,6 +36,15 @@ is 17 px, backtrack is zero, and light ring contrast is 8.039:1. Final model sam
 zero identity changes, crossings and label overlaps. Tests: 3,089 pass, 5 skipped;
 typecheck, lint and web build pass; 7/7 mutations caught. Evidence:
 `docs/okfilow/OVERLAY-R2B-REWORK3.md`; eight fresh blind sheets: `frames/ab3`.
+Final rework (2026-11-14): final SVG-pixel measurement over 24 full-turn poses plus the
+eight sheet poses exposes up to three crossing pairs on e7db482. Routes now move elbows
+while retaining numbers, columns and rows. All 1,196 captured model frames have zero
+intersections and at least 12.996 px centreline clearance outside 8 px anchor regions.
+Pointer reversals are zero, path ratio 1.156, first-step ratio 0.0532, flight 616.7 ms.
+Light leaders have dark casings; the ring starts at full stroke width. Vitest 3,093 pass,
+5 skipped; typecheck, lint and web build pass; 6/6 mutations caught. Evidence and the
+precise limits supersede the earlier spacing/crossing claims:
+`docs/okfilow/OVERLAY-R2B-REWORK4.md`; fresh blind sheets: `frames/ab4`.
 Pending: a fresh blind verdict and owner-authorized native/live checks. No push, tag,
 merge into main or release.
 

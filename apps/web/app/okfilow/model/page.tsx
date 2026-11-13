@@ -14,7 +14,8 @@ import { useLang } from "@filow/ui";
 import { okFilowBridge } from "@/lib/buddy/bridge";
 import { okfText } from "@/lib/buddy/text";
 import { visibleSurfaceAnchor } from "@/lib/buddy/model-surface";
-import { fitScale, frameDistance, labelledParts, layoutPartLabels, leaderPoints, readingOrder, retainLabelOrder, type LabelSlot, type LabelSide } from "@/lib/buddy/model-labels";
+import { routeLeaders } from "@/lib/buddy/leader-route";
+import { fitScale, frameDistance, labelledParts, layoutPartLabels, leaderPoints, readingOrder, type LabelSlot, type LabelSide } from "@/lib/buddy/model-labels";
 import type { BuddyModel, ModelPart } from "@/lib/buddy/visuals";
 import "../okfilow.css";
 
@@ -272,11 +273,11 @@ export default function OkFilowModel() {
     window.addEventListener("resize", onResize);
 
     // The labels: laid out every frame from where their parts are now, in two columns inside the frame,
-    // numbered once in initial reading order. Row order is retained unless routing requires a change.
+    // Numbered once in initial reading order. Keep rows fixed and move elbows when routes conflict.
     // A part turned out of the frame hides its label.
     let sides: LabelSide[] | null = null;
     let numbers: number[] | null = null;
-    const displayedY: number[] = [];
+    let previousRoutes: Array<Array<{x:number;y:number}>> | null = null;
     let previousSlots: LabelSlot[] | null = null;
     const world = new THREE.Vector3();
     const lines = Array.from(leaders.current?.querySelectorAll("g.okf-part-leader") ?? []);
@@ -299,15 +300,14 @@ export default function OkFilowModel() {
         return project(mesh.localToWorld(world.copy(a)).clone());
       });
       const mid = project(new THREE.Vector3(0, 0, 0)).x;
-      const slots = retainLabelOrder(layoutPartLabels(pts, labelled.map((l) => ({ width: l.width, height: LABEL_HEIGHT })), { width: w, height: h }, mid, sides), previousSlots);
+      const slots = layoutPartLabels(pts, labelled.map((l) => ({ width: l.width, height: LABEL_HEIGHT })), { width: w, height: h }, mid, sides);
+      if (previousSlots) slots.forEach((s,i)=>{s.y=previousSlots![i].y;s.elbow.y=s.y+s.height/2;s.to.y=s.elbow.y;});
       previousSlots = slots.map(s=>({...s}));
       sides = slots.map((s) => s.side);
       numbers ??= readingOrder(slots);
+      const routes = routeLeaders(slots.map(leaderPoints), {width:w,height:h}, previousRoutes);
+      previousRoutes = routes;
       slots.forEach((s, i) => {
-        // Ease moving slots and their leader endpoints together, including order changes.
-        const y = displayedY[i] === undefined ? s.y : displayedY[i] + (s.y - displayedY[i]) * 0.25;
-        displayedY[i] = y;
-        s.y = y; s.elbow.y = y + s.height / 2; s.to.y = s.elbow.y;
         const inside = s.from.x >= 4 && s.from.x <= w - 4 && s.from.y >= 4 && s.from.y <= h - 4;
         const label = labelEls.current[i];
         if (label) {
@@ -319,7 +319,7 @@ export default function OkFilowModel() {
         const g = lines[i];
         if (!g) return;
         (g as SVGGElement).style.visibility = inside ? "" : "hidden";
-        const points = leaderPoints(s).map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+        const points = routes[i].map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
         for (const line of g.querySelectorAll("polyline")) line.setAttribute("points", points);
         for (const dot of g.querySelectorAll("circle")) {
           dot.setAttribute("cx", s.from.x.toFixed(1));
