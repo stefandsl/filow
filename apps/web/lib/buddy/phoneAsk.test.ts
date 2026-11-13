@@ -130,7 +130,7 @@ describe("the words, on the phone and in the panel", () => {
       .toEqual(["mirror.ask.off", "mirror.ask.busy", "mirror.ask.unavailable", "mirror.ask.notAllowed", "mirror.ask.bad"]);
     expect(phoneAskLine({ ok: false, error: "viewer role" })).toEqual({ key: "mirror.ask.failed", error: "viewer role" });
     const keys: I18nKey[] = ["mirror.ask.label", "mirror.ask.placeholder", "mirror.ask.send", "mirror.ask.sending", "mirror.ask.sent", "mirror.ask.off", "mirror.ask.busy", "mirror.ask.unavailable", "mirror.ask.notAllowed", "mirror.ask.bad", "mirror.ask.failed", "mirror.ask.where",
-      "pair.devices", "pair.devicesNone", "pair.devicesCount", "pair.peerApp", "pair.peerRemote", "pair.roleController", "pair.roleViewer", "pair.rolePending", "pair.connected", "pair.away", "pair.canAsk", "pair.canAskHint", "pair.revoke", "pair.revokeTitle"];
+      "pair.devices", "pair.devicesNone", "pair.devicesCount", "pair.peerApp", "pair.peerRemote", "pair.roleController", "pair.roleViewer", "pair.rolePending", "pair.connected", "pair.away", "pair.canAsk", "pair.canAskHint", "pair.revoke", "pair.revokeTitle", "mirror.revoked", "mirror.expired"];
     for (const key of keys) {
       const texts = LANGS.map((lang) => t(key, lang));
       expect(new Set(texts).size, key).toBe(5);

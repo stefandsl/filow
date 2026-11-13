@@ -175,10 +175,12 @@ describe("the presenter's devices list", () => {
     await phone.closed;
     await new Promise((r) => setTimeout(r, 30));
     clock += 61_000;
-    server.sweep();
-    expect(await engine.devicesNow()).toEqual([]);
+    // refused at once, before any sweep has run
     const back = openSocket(ws(base), id, { role: "view", token: pair.viewToken });
     expect((await back.closed).code).toBe(4002);
+    expect((await post(base, `/api/session/${id}/script`, { text: "# x" }, { Authorization: `Bearer ${pair.viewToken}` })).status).toBe(401);
+    server.sweep();
+    expect(await engine.devicesNow()).toEqual([]);
   });
 });
 

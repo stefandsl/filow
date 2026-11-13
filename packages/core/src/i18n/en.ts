@@ -272,6 +272,8 @@ export const en = {
   "pair.stopPublic": "Stop public link",
   "mirror.waiting": "Waiting for the presenter to accept this phone…",
   "mirror.rejected": "The presenter rejected this phone.",
+  "mirror.revoked": "The presenter disconnected this device. Ask for a new code to pair again.",
+  "mirror.expired": "This pairing has run out. Ask for a new code to pair again.",
   "mirror.foreignServer": "This link connects to {host}, not to the page you opened. Continue?",
   "pair.reachLan": "Wi-Fi only: works for phones on the same network as this computer.",
   "pair.downloading": "Setting up the public link (one-time 20 MB download)…",

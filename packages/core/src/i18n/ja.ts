@@ -272,6 +272,8 @@ export const ja: Dictionary = {
   "pair.stopPublic": "公開リンクを停止",
   "mirror.waiting": "発表者がこのスマートフォンを承認するのを待っています…",
   "mirror.rejected": "発表者がこのスマートフォンを拒否しました。",
+  "mirror.revoked": "発表者がこのデバイスを切断しました。もう一度ペアリングするには新しいコードをもらってください。",
+  "mirror.expired": "このペアリングは期限切れです。もう一度ペアリングするには新しいコードをもらってください。",
   "mirror.foreignServer": "このリンクの接続先は、開いたページではなく{host}です。続けますか？",
   "pair.reachLan": "Wi-Fiのみ：このコンピューターと同じネットワークにあるスマートフォンで使えます。",
   "pair.downloading": "公開リンクを準備中（初回のみ20MBのダウンロード）…",

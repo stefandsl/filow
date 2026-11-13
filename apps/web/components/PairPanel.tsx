@@ -113,6 +113,8 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false, de
                 </button>
               )}
             </div>
+            {/* Every paired device, right under the code: who is connected and what each may do, with Revoke. */}
+            {devices && onRevoke && onAllowAsk && <PairedDevices devices={devices} onRevoke={onRevoke} onAllowAsk={onAllowAsk} />}
             <div className="hint">
               {info && <>{t("pair.hint", { url: mirrorUrl })} {t("pair.singleUse")}</>}
               {status !== "open" && <> {t("pair.relay", { status })}</>}
@@ -187,7 +189,6 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false, de
                 </button>
               </div>
             )}
-            {devices && onRevoke && onAllowAsk && <PairedDevices devices={devices} onRevoke={onRevoke} onAllowAsk={onAllowAsk} />}
             <button className="btn" onClick={() => setOpen(false)}>
               {t("common.close")}
             </button>

@@ -271,6 +271,8 @@ export const ro: Dictionary = {
   "pair.stopPublic": "Oprește linkul public",
   "mirror.waiting": "Se așteaptă ca prezentatorul să accepte acest telefon…",
   "mirror.rejected": "Prezentatorul a respins acest telefon.",
+  "mirror.revoked": "Prezentatorul a deconectat acest dispozitiv. Cere un cod nou ca să îl asociezi din nou.",
+  "mirror.expired": "Această asociere a expirat. Cere un cod nou ca să îl asociezi din nou.",
   "mirror.foreignServer": "Acest link se conectează la {host}, nu la pagina pe care ai deschis-o. Continui?",
   "pair.reachLan": "Doar Wi-Fi: funcționează pentru telefoanele din aceeași rețea cu acest computer.",
   "pair.downloading": "Se pregătește linkul public (o singură descărcare, de 20 MB)…",

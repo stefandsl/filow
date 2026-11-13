@@ -271,6 +271,8 @@ export const it: Dictionary = {
   "pair.stopPublic": "Ferma il link pubblico",
   "mirror.waiting": "In attesa che il relatore accetti questo telefono…",
   "mirror.rejected": "Il relatore ha rifiutato questo telefono.",
+  "mirror.revoked": "Chi presenta ha scollegato questo dispositivo. Chiedi un nuovo codice per abbinarlo di nuovo.",
+  "mirror.expired": "Questo abbinamento è scaduto. Chiedi un nuovo codice per abbinarlo di nuovo.",
   "mirror.foreignServer": "Questo link si collega a {host}, non alla pagina che hai aperto. Continuare?",
   "pair.reachLan": "Solo Wi-Fi: funziona per telefoni sulla stessa rete di questo computer.",
   "pair.downloading": "Preparazione del link pubblico (download unico di 20 MB)…",
