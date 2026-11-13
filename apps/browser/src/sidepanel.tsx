@@ -4,7 +4,7 @@
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { connect, isPairCode, type SessionClient } from "@filow/client";
-import { isLang, LANG_LABELS, langFromLocale, LANGS, parseScript, slideNeedsImage, type Command, type GenerateProgress, type Lang, type ScreenMode, type SessionState, type SlideInput, type VisionResponse } from "@filow/core";
+import { isLang, LANG_LABELS, langFromLocale, LANGS, parseScript, REMOTE, remoteErrorKey, slideNeedsImage, type Command, type GenerateProgress, type Lang, type ScreenMode, type SessionState, type SlideInput, type VisionResponse } from "@filow/core";
 import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
 import type { BuddyRecipients } from "@/lib/buddy/outbound";
 import { createPageOutbound } from "@/lib/buddy/outboundPage";
@@ -46,6 +46,8 @@ const toContent = <T,>(msg: unknown) => bg<T>({ t: "toContent", msg });
 
 async function mintEngineToken(server: string, id: string, viewToken: string): Promise<string> {
   const res = await fetch(`${server}/api/session/${id}/engine-token`, { method: "POST", headers: { Authorization: `Bearer ${viewToken}` } });
+  // 403: paired without the presenter's accept (auto-accepted on the Wi-Fi). The panel says it in words (remoteErrorKey).
+  if (res.status === 403) throw new Error(REMOTE.approveFirst);
   if (!res.ok) throw new Error(res.status === 401 ? "the presenter has not given this extension control" : `token failed (${res.status})`);
   return ((await res.json()) as { engineToken: string }).engineToken;
 }
@@ -70,6 +72,11 @@ function App() {
 
 function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
   const t = useT();
+  /** What the relay refused, in words when it is one of its own reasons (not accepted on the computer yet, too many at once). */
+  const refusalWords = (error: string): string => {
+    const key = remoteErrorKey(error, true);
+    return key ? t(key) : error;
+  };
   const okt = remoteText(lang);
   const [server, setServer] = useState("http://127.0.0.1:4748");
   const [appServer, setAppServer] = useState("http://127.0.0.1:4747");
@@ -261,7 +268,7 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
       setPreview(text);
       setProgress(t("ext.review"));
     } catch (err) {
-      setError((err as Error).message);
+      setError(refusalWords((err as Error).message));
       setProgress(null);
     }
   };
@@ -274,15 +281,16 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cl.token}` },
       body: JSON.stringify({ text }),
     });
-    if (!res.ok) throw new Error(`upload failed (${res.status})`);
+    if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `upload failed (${res.status})`);
     const parsed = parseScript(text);
     setProgress(`${parsed.sections.length} slides, ${parsed.sections.reduce((a, s) => a + s.bullets.length, 0)} points loaded`);
     setPreview(null);
   };
 
   const send = useCallback((cmd: Command) => {
-    void clientRef.current?.send(cmd).then((r) => setError(r.ok ? null : (r.error ?? "command failed")));
-  }, []);
+    void clientRef.current?.send(cmd).then((r) => setError(r.ok ? null : refusalWords(r.error ?? "command failed")));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t]);
 
   return (
     <>
@@ -366,7 +374,7 @@ function Panel({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
                 <div className="eyebrow">{t("ppt.reviewTitle")}</div>
                 <textarea value={preview} onChange={(e) => setPreview(e.target.value)} spellCheck={false} />
                 <div className="controls">
-                  <button className="btn primary" onClick={() => void loadScript(preview).catch((e) => setError((e as Error).message))}>
+                  <button className="btn primary" onClick={() => void loadScript(preview).catch((e) => setError(refusalWords((e as Error).message)))}>
                     {t("ppt.loadIntoSession")}
                   </button>
                   <button className="btn" onClick={() => setPreview(null)}>

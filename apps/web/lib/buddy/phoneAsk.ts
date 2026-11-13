@@ -155,11 +155,7 @@ export function phoneTurns(question: string, device: string, answer: string): Bu
 }
 
 /** The phone's side: a refused command (not a question) in words, or null when the error is not one of the relay's own. */
-export function remoteErrorKey(error: string | undefined): I18nKey | null {
-  if (error === REMOTE.approveFirst) return "mirror.remote.approveFirst";
-  if (error === REMOTE.tooMany) return "mirror.remote.tooMany";
-  return null;
-}
+export { remoteErrorKey } from "@filow/core";
 
 /** The phone's side: the line it shows after sending. Anything else (a viewer phone, no answer) is a plain failure. */
 export function phoneAskLine(r: { ok: boolean; error?: string }): { key: I18nKey; error?: string } {

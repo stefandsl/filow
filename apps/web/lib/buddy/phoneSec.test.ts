@@ -105,7 +105,7 @@ describe("M3 and m1 in the devices list", () => {
     const mirror = read("app", "mirror", "page.tsx");
     expect(mirror).toContain("const refused = r.ok ? null : remoteErrorKey(r.error);");
     expect(mirror).toContain("if (refused) setError(t(refused));");
-    const keys: I18nKey[] = ["mirror.remote.approveFirst", "mirror.remote.tooMany", "pair.approve", "pair.approveTitle", "pair.limited", "pair.fingerprintTitle", "menu.okfPhoneWaiting"];
+    const keys: I18nKey[] = ["mirror.remote.approveFirst", "mirror.remote.tooMany", "pair.approveFirst", "pair.approve", "pair.approveTitle", "pair.limited", "pair.fingerprintTitle", "menu.okfPhoneWaiting"];
     for (const key of keys) {
       const texts = LANGS.map((lang) => t(key, lang));
       expect(new Set(texts).size, key).toBe(5);
@@ -128,6 +128,30 @@ describe("M3 and m1 in the devices list", () => {
   });
 });
 
+describe("M3 in the PowerPoint pane and the browser extension", () => {
+  it("a pane or an extension the presenter has not accepted says so in words, with what to press, instead of an error code", () => {
+    expect(remoteErrorKey(REMOTE.approveFirst, true)).toBe("pair.approveFirst");
+    expect(remoteErrorKey(REMOTE.tooMany, true)).toBe("mirror.remote.tooMany");
+    expect(remoteErrorKey("upload failed (500)", true)).toBeNull();
+    // the words name the button of the devices list, in each language
+    for (const lang of LANGS) expect(t("pair.approveFirst", lang), lang).toContain(t("pair.approve", lang));
+    for (const lang of LANGS) expect(t("pair.approveFirst", lang), lang).toContain(t("pair.devices", lang));
+    const pane = read("..", "powerpoint", "src", "taskpane.tsx");
+    const mint = read("..", "powerpoint", "src", "generate.ts");
+    const ext = read("..", "browser", "src", "sidepanel.tsx");
+    // no token for a device that was not accepted (403): the reason travels as the relay's own code
+    for (const source of [mint, ext]) expect(source).toContain("if (res.status === 403) throw new Error(REMOTE.approveFirst);");
+    // every place that shows a refusal puts it through the words
+    expect(pane.match(/refusalWords\(/g)).toHaveLength(4); // the function, generate, load, a command
+    expect(pane).toContain('setError(r.ok ? null : refusalWords(r.error ?? "command failed", t))');
+    expect(ext.match(/refusalWords\(/g)).toHaveLength(3); // generate, load, a command
+    expect(ext).toContain('setError(r.ok ? null : refusalWords(r.error ?? "command failed"))');
+    for (const source of [pane, ext]) expect(source).toContain("const key = remoteErrorKey(error, true);");
+    // the script upload passes the relay's reason on (it used to say only "upload failed (403)")
+    expect(ext).toContain('.error ?? `upload failed (${res.status})`);');
+  });
+});
+
 describe("m3: the PowerPoint pane and the browser extension ask for their 2-minute token right before each use", () => {
   it("never keep one: it is fetched after the slow steps (the notice, reading the slides) and used once, at once", () => {
     const pane = read("..", "powerpoint", "src", "taskpane.tsx");
@@ -141,6 +165,7 @@ describe("m3: the PowerPoint pane and the browser extension ask for their 2-minu
     const mints = [...ext.matchAll(/const token = await mintEngineToken\(server, cl\.id, cl\.token\);\n\s+(?:\/\/[^\n]*\n\s+)?const (\w+) = /g)].map((m) => m[1]);
     expect(mints).toEqual(["look", "write"]);
     expect(ext.match(/mintEngineToken\(/g)).toHaveLength(3); // the function and its two uses
+    expect(read("..", "powerpoint", "src", "generate.ts")).not.toMatch(/let \w*[tT]oken|cachedToken/);
     expect(ext).not.toMatch(/set\w*Token\(|storage\.set\("token"/);
     // in generate(), after every slide was collected
     expect(ext.indexOf('t("ext.collected"')).toBeLessThan(ext.lastIndexOf("await mintEngineToken("));

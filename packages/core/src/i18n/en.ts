@@ -326,6 +326,7 @@ export const en = {
   "pair.revoke": "Revoke",
   "pair.revokeTitle": "Disconnect {device} now; its link stops working",
   "pair.approve": "Allow full control",
+  "pair.approveFirst": "The presenter has not accepted this device on the computer yet. Ask them to press \"Allow full control\" next to it under Paired devices.",
   "pair.approveTitle": "{device} joined on this Wi-Fi and can only move between sections and mark points. Allow it to also start and stop the take, use Look now and send a script.",
   "pair.limited": "moves and marks only",
   "pair.fingerprintTitle": "Short code of this pairing, also shown with its questions",

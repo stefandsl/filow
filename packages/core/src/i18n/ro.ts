@@ -324,6 +324,7 @@ export const ro: Dictionary = {
   "pair.revoke": "Revocă",
   "pair.revokeTitle": "Deconectează {device} acum; legătura lui nu mai funcționează",
   "pair.approve": "Permite controlul complet",
+  "pair.approveFirst": "Prezentatorul nu a acceptat încă acest dispozitiv pe calculator. Roagă-l să apese „Permite controlul complet” lângă el, la Dispozitive asociate.",
   "pair.approveTitle": "{device} s-a conectat din această rețea Wi-Fi și poate doar să treacă de la o secțiune la alta și să bifeze puncte. Permite-i să și pornească și să oprească înregistrarea, să folosească Privește acum și să trimită un script.",
   "pair.limited": "doar mutări și bifări",
   "pair.fingerprintTitle": "Codul scurt al acestei asocieri, afișat și lângă întrebările ei",

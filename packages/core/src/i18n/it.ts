@@ -324,6 +324,7 @@ export const it: Dictionary = {
   "pair.revoke": "Revoca",
   "pair.revokeTitle": "Disconnetti {device} ora; il suo collegamento smette di funzionare",
   "pair.approve": "Consenti il controllo completo",
+  "pair.approveFirst": "Il relatore non ha ancora accettato questo dispositivo sul computer. Chiedigli di premere \"Consenti il controllo completo\" accanto al suo nome, in Dispositivi abbinati.",
   "pair.approveTitle": "{device} si è collegato da questa rete Wi-Fi e può solo spostarsi tra le sezioni e segnare i punti. Consentigli anche di avviare e fermare la ripresa, usare Guarda ora e inviare un copione.",
   "pair.limited": "solo spostamenti e segni",
   "pair.fingerprintTitle": "Codice breve di questo collegamento, mostrato anche con le sue domande",

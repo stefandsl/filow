@@ -326,6 +326,7 @@ export const ja: Dictionary = {
   "pair.revoke": "解除",
   "pair.revokeTitle": "{device}を今すぐ切断します。そのリンクは使えなくなります",
   "pair.approve": "すべての操作を許可",
+  "pair.approveFirst": "発表者がまだこのデバイスをコンピューターで承認していません。「ペアリング済みのデバイス」でこのデバイスの横にある「すべての操作を許可」を押してもらってください。",
   "pair.approveTitle": "{device}はこのWi-Fiから接続しており、セクションの移動とポイントのマークだけができます。録音の開始と停止、「今すぐ見る」、台本の送信も許可します。",
   "pair.limited": "移動とマークのみ",
   "pair.fingerprintTitle": "この接続の短いコード。質問にも表示されます",

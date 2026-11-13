@@ -35,6 +35,16 @@ export const REMOTE = {
 } as const;
 
 /**
+ * The words for a command the session server refused (REMOTE), as an i18n key; null when the error is
+ * not one of its own. `device`: said to something that is not a phone (the PowerPoint pane, the browser extension).
+ */
+export function remoteErrorKey(error: string | undefined, device = false): "mirror.remote.approveFirst" | "pair.approveFirst" | "mirror.remote.tooMany" | null {
+  if (error === REMOTE.approveFirst) return device ? "pair.approveFirst" : "mirror.remote.approveFirst";
+  if (error === REMOTE.tooMany) return "mirror.remote.tooMany";
+  return null;
+}
+
+/**
  * The question as it is handed on, or null when it is not one: text only, at most PHONE_QUESTION_RAW_MAX
  * units raw; normalised to NFC; whitespace (line breaks included) made one space; control and format
  * characters (\p{Cc}, \p{Cf}: bidi overrides, zero-width joiners) removed; then at most

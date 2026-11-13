@@ -563,7 +563,9 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
     const helloTimer = setTimeout(() => ws.close(4002, "hello timeout"), 5000);
     const ack = (id: string, error: string) => ws.send(JSON.stringify({ t: "ack", id, ok: false, error }));
     // A message over the limit closes the socket (1009); the error that comes with it is not the server's.
-    ws.on("error", () => ws.terminate());
+    // The close frame is on its way when the error is raised: it gets a moment to leave (the device then
+    // reads 1009, not a dropped connection), and the socket is dropped after it whatever the peer does.
+    ws.on("error", () => { setTimeout(() => ws.terminate(), 1000).unref(); });
 
     ws.on("message", (raw) => {
       let msg: Record<string, unknown>;
