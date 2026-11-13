@@ -73,7 +73,8 @@ describe("okfilow.js gives the tail to held dictations only", () => {
   const src = fs.readFileSync(path.join(here, "okfilow.js"), "utf8");
   it("a hold gets the tail; a hands-free dictation or a question stops at once", () => {
     expect(src).toContain('const tail = purpose === "dictate" && !phraseRun ? RELEASE_TAIL_MS : 0;');
-    expect(src).toContain("releaseTail.release({ purpose }, tail);");
+    // `at`: when the keys went up, the speed baseline's t0 (okfilow-timings.js)
+    expect(src).toContain("releaseTail.release({ purpose, at }, tail);");
     // The panel is never told of a release any other way.
     expect(src.match(/sendPanel\("okfilow:release"/g)?.length).toBe(1);
   });

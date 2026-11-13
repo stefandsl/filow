@@ -79,6 +79,8 @@ contextBridge.exposeInMainWorld("okFilow", {
   release: () => ipcRenderer.send("okfilow:release"),
   /** Test builds with FILOW_OKF_QA_KEYS=1 only (ignored otherwise): a key press for the gestures. */
   qaKey: (type, key) => ipcRenderer.send("okfilow:qa:key", type, key),
+  /** The speed baseline's marks of one answer ({ run, kind, end, marks }): main logs numbers and fixed names only (okfilow-timings.js). */
+  timings: (payload) => ipcRenderer.send("okfilow:timings", payload),
   onPress: on("okfilow:press"),
   onRelease: on("okfilow:release"),
   onCancel: on("okfilow:cancel"),

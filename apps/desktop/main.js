@@ -5,7 +5,7 @@
 //     the mirror; the spend endpoints are gated by a per-launch random password.
 //   Hosted mode: FILOW_SESSION_URL (+ ACCESS_PASSWORD) in .env points the
 //     engine at a public session server; local servers stay on 127.0.0.1.
-const { app, BrowserWindow, Menu, shell, session, dialog, desktopCapturer, globalShortcut: electronShortcuts, ipcMain, screen, nativeTheme, systemPreferences, Notification, clipboard: electronClipboard } = require("electron");
+const { app, BrowserWindow, Menu, shell, session, dialog: electronDialog, desktopCapturer, globalShortcut: electronShortcuts, ipcMain, screen, nativeTheme, systemPreferences, Notification, clipboard: electronClipboard } = require("electron");
 
 // Links leave the app only as web or mail addresses: never file:, custom protocols or scripts.
 function openExternalSafe(url) {
@@ -55,8 +55,22 @@ if (refusedInRelease(process.env, require("./qa.js").isQaBuild(app))) {
 const INPUT_OFF = globalInputOff(process.env, require("./qa.js").isQaBuild(app));
 const globalShortcut = shortcutsFor(electronShortcuts, INPUT_OFF);
 const clipboard = clipboardFor(electronClipboard, INPUT_OFF);
+// Measured runs (qa-headless.js): with FILOW_QA_HEADLESS=1 nothing of this run appears on screen. Every
+// window, tray icon, message box and notification goes through these helpers (qa-headless-wiring.test.ts).
+const qaHeadless = require("./qa-headless");
+if (qaHeadless.refusedInRelease(process.env, require("./qa.js").isQaBuild(app))) {
+  console.error(qaHeadless.REFUSED_LINE);
+  process.exit(1);
+}
+const HEADLESS = qaHeadless.headless(process.env, require("./qa.js").isQaBuild(app));
+qaHeadless.setHeadless(HEADLESS, (line) => logLine(line));
+const { showWindow, dialogFor } = qaHeadless;
+const dialog = dialogFor(electronDialog);
+// The other test switches of the speed baseline (OK Filow's synthetic screen, the pretended laptop) never
+// reach a released build's code: gone from the environment before anything reads it.
+if (!require("./qa.js").isQaBuild(app)) for (const k of ["FILOW_OKF_QA_SCREEN", "FILOW_QA_HARDWARE"]) delete process.env[k];
 /** Shows a window at start; with test isolation on, without taking the keyboard from the window the person is using. */
-const showAtStart = (w) => (INPUT_OFF ? w.showInactive() : w.show());
+const showAtStart = (w, name = "main window") => showWindow(w, name, INPUT_OFF);
 if (INPUT_OFF) app.commandLine.appendSwitch("use-fake-device-for-media-stream");
 /** Microphone, screen capture and notifications for the app's own pages (the microphone never with test isolation on, unless a test recording stands in). */
 const permissionFor = (permission) => permissionAllowed(permission, { off: INPUT_OFF, fakeMic: Boolean(process.env.FILOW_OKF_FAKE_MIC) && require("./qa.js").isQaBuild(app) });
@@ -391,7 +405,7 @@ ipcMain.handle("dictation:punctuation:download", event => {
 /** The welcome is hydrated: show it, and only then let the hardware scan behind the setup step start. */
 function onWelcomeReady() {
   clearTimeout(welcomeHydrationTimer);
-  welcomeWin.show();
+  showWindow(welcomeWin, "welcome");
   logLine("welcome: window shown");
   welcomeOffer.open();
 }
@@ -509,8 +523,7 @@ async function pickRegion() {
     pickerWin.setAlwaysOnTop(true, "screen-saver");
     pickerWin.loadFile(path.join(__dirname, "picker.html"), { query: { lang: menuLang(), hint: sharedText("shell.picker.hint", menuLang()) } }).then(() => {
       if (!pickerWin) return;
-      pickerWin.show();
-      pickerWin.focus();
+      if (showWindow(pickerWin, "region picker")) pickerWin.focus();
     });
   });
 }
@@ -1297,12 +1310,9 @@ function loadUpdater() {
         if (Notification.isSupported()) {
           const n = new Notification({ title: mt("updateReady", { version: info.version }), body: mt("updateReadyDetail"), icon: appIcon() });
           n.on("click", () => {
-            if (mainWin && !mainWin.isDestroyed()) {
-              mainWin.show();
-              mainWin.focus();
-            }
+            if (mainWin && !mainWin.isDestroyed() && showWindow(mainWin, "main window")) mainWin.focus();
           });
-          n.show();
+          showWindow(n, "update notification");
         }
       } catch {
         /* no notification support */
@@ -1414,7 +1424,7 @@ function showSplash() {
   const shown = new Promise((resolve) => {
     const show = () => {
       if (!w.isDestroyed() && !w.isVisible()) {
-        showAtStart(w);
+        showAtStart(w, "splash");
         logLine(`splash shown (${Math.round(performance.now())} ms after process start)`);
       }
       resolve();
@@ -1463,7 +1473,7 @@ function appIcon() {
 let s1 = null;
 /** The local runtime for S1-mini by Superwhisper (s1-runtime.js): started at the first English dictation. */
 function s1Runtime() {
-  s1 ||= require("./s1-runtime").createS1Runtime({ userData, logLine, spawn: require("node:child_process").spawn, download: require("./download").download, sha256File: require("./integrity").sha256File, threads: () => Math.max(2, Math.min(6, Math.floor(os.cpus().length / 2))) });
+  s1 ||= require("./s1-runtime").createS1Runtime({ userData, logLine, spawn: require("node:child_process").spawn, download: require("./download").download, sha256File: require("./integrity").sha256File, threads: () => Math.max(2, Math.min(6, Math.floor((require("./qa.js").qaHardware?.()?.cores ?? os.cpus().length) / 2))) });
   return s1;
 }
 app.on("will-quit", () => { if (s1) s1.stop(); });
@@ -1508,7 +1518,7 @@ function truecaseRuntime() {
     userData, logLine,
     fork: (script) => require("electron").utilityProcess.fork(script, [], { serviceName: "Filow punctuation", stdio: "ignore" }),
     download: require("./download").download, sha256File: require("./integrity").sha256File,
-    threads: () => Math.max(2, Math.min(4, Math.floor(os.cpus().length / 2))),
+    threads: () => Math.max(2, Math.min(4, Math.floor((require("./qa.js").qaHardware?.()?.cores ?? os.cpus().length) / 2))),
   });
   return truecase;
 }
@@ -1539,7 +1549,7 @@ function getDictation() {
     ClipboardItem,
     BrowserWindow: BW,
     systemPreferences,
-    dialog: dlg,
+    dialog: dialogFor(dlg),
     openSystemSettings,
     screenReader: () => app.isAccessibilitySupportEnabled(),
     // The phrase models ("questions") are the ones made for short utterances; "auto" follows the speech language.
@@ -1591,8 +1601,7 @@ function startOkFilow() {
       openAppPage: (url) => {
         if (!mainWin || mainWin.isDestroyed() || takeLive || !isAppPage(url)) return false;
         void mainWin.loadURL(url);
-        mainWin.show();
-        mainWin.focus();
+        if (showWindow(mainWin, "main window")) mainWin.focus();
         return true;
       },
       sttDownload: () => void sttDownload(),
@@ -1919,7 +1928,7 @@ function showOverlay() {
 async function openOverlay() {
   const code = await freshSessionCode();
   if (overlayWin && !overlayWin.isDestroyed()) {
-    overlayWin.show();
+    showWindow(overlayWin, "presenter overlay");
     overlayWin.loadURL(overlayUrl(code));
     return;
   }
@@ -2052,6 +2061,8 @@ function startServers() {
   // given to the window over "desktop:token"), and the OS key store for the passwords of the user's
   // model servers (apps/web/lib/modelRoles/store.ts), the same store as the API keys (loadSecrets).
   globalThis.__filowDesktopToken = desktopToken();
+  // The in-process server's timing lines (apps/web/lib/buddy/timing.ts): numbers and fixed names only, into startup.log.
+  globalThis.__filowPerfLog = (line) => logLine(String(line).slice(0, 600));
   globalThis.__filowSecretBox = secretBox();
   const title = process.title;
   require(webServer); // Next's standalone server starts listening when required
@@ -2367,6 +2378,7 @@ async function main() {
 
   // Microphone and screen capture for the engine.
   if (INPUT_OFF) logLine(OFF_LINE);
+  if (HEADLESS) logLine(qaHeadless.HEADLESS_LINE);
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(permissionFor(permission)));
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => permissionFor(permission));
 

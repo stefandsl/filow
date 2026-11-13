@@ -14,6 +14,7 @@ import { ASKED_SYSTEM, askedElement, askedNames, canPick, namedInQuestion, PICK_
 import { okfText } from "@/lib/buddy/text";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
+import { createServerTiming, logServerTiming, mark as markTiming } from "@/lib/buddy/timing";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,8 @@ export const dynamic = "force-dynamic";
  * answer is 403 and nothing is forwarded.
  */
 export async function POST(req: Request) {
+  // The speed baseline (lib/buddy/timing.ts): only a request that carries the panel's run id is measured.
+  const timing = createServerTiming(req.headers.get("x-filow-run"));
   const denied = requireEngine(req);
   if (denied) return denied;
   let body: BuddyAskRequest;
@@ -92,6 +95,11 @@ export async function POST(req: Request) {
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 409 });
     }
+  }
+  markTiming(timing, "helperResolved");
+  if (timing) {
+    timing.images = images.length;
+    timing.model = helper?.model;
   }
   const encoder = new TextEncoder();
   const abort = new AbortController();
@@ -170,10 +178,10 @@ export async function POST(req: Request) {
     ? drawnAnswer((shape, signal) => askBuddy(provider, ask, signal, helper, shape), { kind: drawing, language: known ?? "auto", lang, signal: abort.signal })
     : pointer
       // boxes and circles are placed as they stream; the points wait for the pointing model, which is asked only for what Windows does not name
-      ? withNamedPoint(withPointer(withPlacedTags(askBuddy(provider, asked, abort.signal, helper), elements, { points: false }), whereIs, () => abort.signal.aborted, elements, helper && canPick(helper.model) ? whichOf : undefined), named, screens.length)
+      ? withNamedPoint(withPointer(withPlacedTags(askBuddy(provider, asked, abort.signal, helper, undefined, timing), elements, { points: false }), whereIs, () => abort.signal.aborted, elements, helper && canPick(helper.model) ? whichOf : undefined), named, screens.length)
       : provider === "local" && elements.length && helper?.pictures && isPointOnly(question)
-        ? askedThing(() => withPlacedTags(askBuddy(provider, ask, abort.signal, helper), elements))
-        : withNamedPoint(withPlacedTags(askBuddy(provider, asked, abort.signal, helper), elements), named, screens.length);
+        ? askedThing(() => withPlacedTags(askBuddy(provider, ask, abort.signal, helper, undefined, timing), elements))
+        : withNamedPoint(withPlacedTags(askBuddy(provider, asked, abort.signal, helper, undefined, timing), elements), named, screens.length);
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
@@ -188,6 +196,7 @@ export async function POST(req: Request) {
         if (!abort.signal.aborted) controller.enqueue(encoder.encode(`\n[ERROR] ${e instanceof Error ? e.message : String(e)}`));
       } finally {
         controller.close();
+        logServerTiming(timing);
       }
     },
     cancel() {

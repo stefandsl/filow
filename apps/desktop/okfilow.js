@@ -22,6 +22,9 @@ const { createPractice } = require("./tour");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 const { createElementReader, scanForShot, windowHandle } = require("./okfilow-uia");
 const { trustedUiSender } = require("./ui-preferences");
+// Measured runs (qa-headless.js): nothing of OK Filow appears on screen with FILOW_QA_HEADLESS=1.
+const { showWindow, trayFor } = require("./qa-headless");
+const { timingsLine } = require("./okfilow-timings");
 
 /** An IPC event from the main frame of one of OK Filow's windows (`contents`), on an OK Filow page; never a subframe. */
 function okfilowSender(event, contents, appUrl) {
@@ -71,6 +74,12 @@ const onRect = (x, y, b) => Number.isFinite(x) && Number.isFinite(y) && x >= b.x
 const QA_ALLOWED = require("./qa.js").isQaBuild(require("electron").app);
 const QA_VISIBLE = QA_ALLOWED && process.env.FILOW_OKF_QA === "1";
 const QA_SHOTS = QA_ALLOWED ? process.env.FILOW_OKF_QA_SHOTS || "" : "";
+/**
+ * Test builds only: FILOW_OKF_QA_SCREEN=<folder> (001.png ... with NNN.json beside each) stands in for the
+ * screen. Every capture takes the next picture and its list of named things, the real screen is never
+ * read, and the overlays are never shown (the speed baseline, tools/eval/latency.mjs).
+ */
+const QA_SCREEN = QA_ALLOWED ? process.env.FILOW_OKF_QA_SCREEN || "" : "";
 /** Test builds only: FILOW_OKF_QA_KEYS=1 lets the panel feed the gestures key presses (when Windows refuses the hook). */
 const QA_KEYS = QA_ALLOWED && process.env.FILOW_OKF_QA_KEYS === "1";
 /** The answer log's folder when the user has not picked one (okfilow-answers.js defaultAnswerDir). */
@@ -84,6 +93,36 @@ const PHONE_QUESTION_MAX = 300;
 const PHONE_ASK_GAP_MS = 3000;
 /** Exactly the hotkey's modifiers are down (extra modifiers cancel, so Ctrl+Alt+Del never triggers it). */
 const hotkeyHeld = chordHeld;
+
+/**
+ * The synthetic screen of a measured run (QA_SCREEN): `NNN.png` pictures, each with `NNN.json`
+ * ({ elements: ScreenElement[] }, what Windows would name on it). Each capture takes the next picture,
+ * wrapping, through the same resize and JPEG quality as a real screenshot.
+ */
+function createQaScreen(dir, { nativeImage, fs = require("node:fs"), maxWidth = IMAGE_MAX_WIDTH } = {}) {
+  const files = fs.readdirSync(dir).filter((f) => /^\d{3}\.png$/.test(f)).sort();
+  if (!files.length) throw new Error(`qa screen: no NNN.png pictures in ${dir}`);
+  let next = 0;
+  const display = { index: 1, id: "qa-screen", bounds: { x: 0, y: 0, width: 1920, height: 1080 } };
+  const shown = { width: Math.min(1920, maxWidth), height: Math.round((1080 * Math.min(1920, maxWidth)) / 1920) };
+  return {
+    count: files.length,
+    /** `images: false` (the eye closed): no picture, no names; the same screen and display. */
+    capture(wantImages) {
+      const name = files[next++ % files.length];
+      if (!wantImages) return { images: [], screens: [{ index: 1, ...shown, cursor: true }], displays: [display], marked: [], selected: "", elements: [] };
+      let img = nativeImage.createFromPath(path.join(dir, name));
+      if (img.getSize().width > maxWidth) img = img.resize({ width: maxWidth, quality: "good" });
+      const { width, height } = img.getSize();
+      let elements = [];
+      try {
+        const side = JSON.parse(fs.readFileSync(path.join(dir, name.replace(/\.png$/, ".json")), "utf8"));
+        if (side && Array.isArray(side.elements)) elements = side.elements;
+      } catch { /* a picture without its names: none */ }
+      return { images: [`data:image/jpeg;base64,${img.toJPEG(72).toString("base64")}`], screens: [{ index: 1, width, height, cursor: true }], displays: [display], marked: [], selected: "", elements };
+    },
+  };
+}
 
 /** The stored settings after a change: every field is checked, whatever a window sent. What is not in the patch stays as it was. */
 function nextCfg(was, patch) {
@@ -122,6 +161,8 @@ function createOkFilow(deps) {
   const cfg = () => ({ ...DEFAULTS, ...(getSettings().okFilow || {}) });
   // What Windows names on screen, read beside each screenshot so points land on the real thing (okfilow-uia.js).
   const uia = deps.elementReader === undefined ? createElementReader({ log: logLine }) : deps.elementReader;
+  /** A measured run's synthetic screen (QA_SCREEN), or null. */
+  const qaScreen = QA_SCREEN ? createQaScreen(QA_SCREEN, { nativeImage }) : null;
   const setCfg = (patch) => {
     const next = nextCfg(cfg(), patch);
     saveSettings({ ...getSettings(), okFilow: next });
@@ -272,7 +313,7 @@ function createOkFilow(deps) {
     currentModel = model;
     if (modelWin && !modelWin.isDestroyed()) {
       modelWin.webContents.send("okfilow:model", model);
-      modelWin.showInactive();
+      showWindow(modelWin, "model window", true);
       return;
     }
     const c = screen.getCursorScreenPoint();
@@ -299,7 +340,7 @@ function createOkFilow(deps) {
     modelWin.setContentProtection(hidden());
     lockDown(modelWin);
     modelWin.on("closed", () => { modelWin = null; });
-    modelWin.once("ready-to-show", () => modelWin && !modelWin.isDestroyed() && modelWin.showInactive());
+    modelWin.once("ready-to-show", () => modelWin && !modelWin.isDestroyed() && showWindow(modelWin, "model window", true));
     modelWin.loadURL(`${appUrl}/okfilow/model`);
   }
   ipcMain.on("okfilow:model:show", (e, model) => { if (ourSender(e) && model && Array.isArray(model.parts)) showModel(model); });
@@ -354,8 +395,7 @@ function createOkFilow(deps) {
         boardWin.webContents.send("okfilow:whiteboard", boardTopic);
         boardTopic = "";
       }
-      boardWin.show();
-      boardWin.focus();
+      if (showWindow(boardWin, "whiteboard")) boardWin.focus();
       return;
     }
     const wa = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
@@ -378,7 +418,7 @@ function createOkFilow(deps) {
     lockDown(boardWin);
     boardReady = false;
     boardWin.on("closed", () => { boardWin = null; boardReady = false; });
-    boardWin.once("ready-to-show", () => boardWin && !boardWin.isDestroyed() && boardWin.show());
+    boardWin.once("ready-to-show", () => boardWin && !boardWin.isDestroyed() && showWindow(boardWin, "whiteboard"));
     boardWin.loadURL(`${appUrl}/okfilow/whiteboard`);
   }
   ipcMain.on("okfilow:whiteboard:show", (e, topic) => { if (ourSender(e) && typeof topic === "string") showWhiteboard(topic); });
@@ -462,13 +502,14 @@ function createOkFilow(deps) {
   }
 
   function showOverlays() {
-    if (visible) return;
+    // The synthetic screen of a measured run (QA_SCREEN): no overlay is ever built or shown.
+    if (QA_SCREEN || visible) return;
     visible = true;
     if (QA_SHOTS) logLine("okfilow qa overlays shown");
     buildOverlays();
     for (const [id, w] of overlays) {
       if (w.isDestroyed()) continue;
-      w.showInactive();
+      showWindow(w, "overlay", true);
       const d = screen.getAllDisplays().find((x) => x.id === id);
       if (d) w.setBounds(d.bounds); // after showing: Windows shrinks hidden windows to the work area
       applyMouse(w);
@@ -592,15 +633,15 @@ function createOkFilow(deps) {
     const x = Math.min(Math.max(wa.x, (at ? at.x + at.width / 2 : wa.x + wa.width) - w / 2), wa.x + wa.width - w - 8);
     const y = at && at.y < wa.y + wa.height / 2 ? wa.y + 8 : wa.y + wa.height - h - 8;
     p.setPosition(Math.round(x), Math.round(y));
-    p.show();
-    p.focus();
+    if (showWindow(p, "panel")) p.focus();
   }
 
   function buildTray() {
     if (tray) return;
     try {
       const img = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
-      tray = new Tray(img);
+      const TrayClass = trayFor(Tray);
+      tray = new TrayClass(img);
       tray.setToolTip("OK Filow");
       tray.on("click", togglePanel);
       refreshTray();
@@ -761,15 +802,20 @@ function createOkFilow(deps) {
     if (kind === "talk") { clearDrawings(); strokes = []; setOverlayMouse(true); selection = INPUT_OFF ? Promise.resolve("") : readSelection(); }
     sendPanel("okfilow:press", { purpose: kind, handsFree: kind === "dictate" && handsFree });
   }
+  /** When the talk keys last went up (main's own clock), and when the last Stop came: t0 of the timing lines. */
+  let talkReleasedAt = null;
+  let stopAt = null;
   function release() {
     if (!held) return;
     held = false;
+    const at = Date.now();
+    if (purpose === "talk") talkReleasedAt = at;
     clearTimeout(dictateCap);
     // A hold (not hands-free): the words said as the keys go up are still recorded for RELEASE_TAIL_MS.
     const tail = purpose === "dictate" && !phraseRun ? RELEASE_TAIL_MS : 0;
     if (purpose === "dictate") { releasedAt = Date.now(); heldMs = releasedAt - pressedAt; dictation.diag.mark("keys-up"); gestures?.endToggle(); }
     setOverlayMouse(false);
-    releaseTail.release({ purpose }, tail);
+    releaseTail.release({ purpose, at }, tail);
     purpose = null;
   }
   function cancel() {
@@ -785,6 +831,7 @@ function createOkFilow(deps) {
   }
   /** The overlays catch the mouse only while the talk chord is held, so a drag marks instead of clicking. */
   function setOverlayMouse(capture) {
+    if (QA_SCREEN) return;
     // Remembered: overlays created or shown later (the first press creates them) must get it too.
     mouseCaught = capture;
     for (const w of overlays.values()) applyMouse(w);
@@ -810,6 +857,7 @@ function createOkFilow(deps) {
    */
   function stopAnswer(source) {
     if (!answering(mode)) return false;
+    stopAt = Date.now();
     logLine(`okfilow: answer stopped by the user (${source})`);
     sendPanel("okfilow:stop", { source });
     return true;
@@ -903,7 +951,7 @@ function createOkFilow(deps) {
     const now = Date.now();
     if (now - phoneAskedAt < PHONE_ASK_GAP_MS) return "busy";
     phoneAskedAt = now;
-    if (!panel.isVisible()) panel.showInactive();
+    if (!panel.isVisible()) showWindow(panel, "panel", true);
     sendPanel("okfilow:askText", question);
     logLine(`okfilow: a question from a paired phone (${question.length} characters)`);
     return "asked";
@@ -918,9 +966,9 @@ function createOkFilow(deps) {
     // Windows only lets the process that sent the last input take the foreground: a tap of F24
     // (a key no app uses) from our hook makes that us, so the box really gets the keyboard.
     // Test isolation: the panel shows without taking the keyboard from the window the person is using.
-    if (INPUT_OFF) { p.showInactive(); p.moveTop(); return; }
+    if (INPUT_OFF) { if (showWindow(p, "panel", true)) p.moveTop(); return; }
     try { if (hook) hook.keyTap(loadUiohook().UiohookKey.F24); } catch { /* focus may stay put */ }
-    p.show();
+    if (!showWindow(p, "panel")) return;
     p.moveTop();
     p.focus();
     p.webContents.focus();
@@ -1043,6 +1091,12 @@ function createOkFilow(deps) {
     // The eye closed (the stored setting is "off"): no picture is taken, whoever asks and whatever they ask for.
     const want = { images: opts.images, seeScreen: cfg().seeScreen };
     const wantImages = mayCapture(want);
+    // A measured run's synthetic screen: the real one is never read, and nothing is waited for.
+    if (qaScreen) {
+      selection = Promise.resolve("");
+      strokes = [];
+      return qaScreen.capture(wantImages);
+    }
     const displays = screen.getAllDisplays();
     const cursor = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
     const maxW = Math.max(...displays.map((d) => Math.round(d.size.width * d.scaleFactor)));
@@ -1228,7 +1282,7 @@ function createOkFilow(deps) {
   });
   /** points: [{x, y, label, display: {id, bounds}, image: {width, height}}] already mapped to global DIP by the panel. */
   ipcMain.on("okfilow:point", (e, points) => {
-    if (!ourSender(e) || !Array.isArray(points)) return;
+    if (!ourSender(e) || !Array.isArray(points) || QA_SCREEN) return;
     // An empty list only calls the pointer back (a new question, a stop): it keeps nothing on screen.
     if (!keepsOverlays(points)) return sendOverlays("okfilow:point", []);
     // The pointer's visits end by themselves: they keep the overlays for as long as they take, not until Escape.
@@ -1253,7 +1307,7 @@ function createOkFilow(deps) {
   /** `from` (Resume after Stop): the first `from` marks were drawn before the stop; they are shown as they were, the rest are drawn now. */
   /** Kept while the answer and its bubble last (answerMarks); an empty list keeps nothing. They replace the practice mark. */
   ipcMain.on("okfilow:draw", (e, marks, from) => {
-    if (!ourSender(e) || !Array.isArray(marks)) return;
+    if (!ourSender(e) || !Array.isArray(marks) || QA_SCREEN) return;
     answerMarks.drawn(marks);
     practiceState.forget();
     drawMarks(marks, from);
@@ -1364,8 +1418,19 @@ function createOkFilow(deps) {
     return "";
   }));
 
+  /**
+   * The speed baseline's marks for one answer (okfilow-timings.js): numbers and fixed names only reach
+   * the log. Only from the panel.
+   */
+  ipcMain.on("okfilow:timings", (e, payload) => {
+    if (!ourSender(e) || !panel || panel.isDestroyed() || e.sender !== panel.webContents) return;
+    const line = timingsLine(payload, { releaseAt: talkReleasedAt, stopAt });
+    if (line) logLine(line);
+  });
+
   // ---- lifecycle ----
   function start() {
+    if (qaScreen) logLine(`okfilow: qa screen: ${qaScreen.count} picture(s), overlays off`);
     buildTray();
     buildPanel();
     startHook();
@@ -1427,7 +1492,7 @@ function createOkFilow(deps) {
   const clearPractice = () => practiceState.clear();
   const askPractice = question => {
     if (!panelReady || !panel || panel.isDestroyed() || panel.webContents.isLoading()) return false;
-    clearPractice(); panel.show();
+    clearPractice(); showWindow(panel, "panel");
     sendPanel("okfilow:askText", question);
     return true;
   };
@@ -1451,4 +1516,4 @@ function pagePointOnScreen(content, zoom, at) {
   return { x: Math.round(content.x + px), y: Math.round(content.y + py) };
 }
 
-module.exports = { createOkFilow, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS, nextCfg, pagePointOnScreen };
+module.exports = { createOkFilow, createQaScreen, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS, nextCfg, pagePointOnScreen };

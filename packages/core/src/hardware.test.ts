@@ -59,3 +59,22 @@ describe("free disk where Ollama keeps the models", () => {
     expect(freeGbAt("Q:\\x", statfs, (p) => (p === "Q:\\" ? p : "Q:\\"))).toBeNull();
   });
 });
+
+describe("FILOW_QA_HARDWARE (parseQaHardware): the laptop a QA run pretends to be", () => {
+  it("reads memory, logical processors and no graphics card", async () => {
+    const { parseQaHardware, NO_GPU } = await import("./hardware");
+    expect(parseQaHardware("ramGb=16,cores=8,gpu=none")).toEqual({ ramGb: 16, cores: 8, gpu: NO_GPU });
+    expect(parseQaHardware(" cores=4 , gpu=none, ramGb=8 ")).toEqual({ ramGb: 8, cores: 4, gpu: NO_GPU });
+  });
+  it("accepts only gpu=none, and refuses anything incomplete, repeated or out of range", async () => {
+    const { parseQaHardware } = await import("./hardware");
+    for (const bad of [undefined, "", "ramGb=16,cores=8", "ramGb=16,cores=8,gpu=nvidia", "ramGb=16,cores=8,gpu=none,extra=1", "ramGb=16,ramGb=8,gpu=none", "ramGb=0,cores=8,gpu=none", "ramGb=16,cores=0,gpu=none", "ramGb=1.5,cores=8,gpu=none", "ramGb=16;cores=8;gpu=none", "ramGb=-16,cores=8,gpu=none"]) {
+      expect(parseQaHardware(bad), String(bad)).toBeNull();
+    }
+  });
+  it("gives the standard setup for the 16 GB, 8-processor laptop without a graphics card", async () => {
+    const { parseQaHardware } = await import("./hardware");
+    const q = parseQaHardware("ramGb=16,cores=8,gpu=none")!;
+    expect(recommendProfile({ ramGb: q.ramGb, cores: q.cores, gpu: { kind: q.gpu.kind, vramGb: q.gpu.vramGb, ollama: q.gpu.ollama }, freeDiskGb: 100 }).profile).toBe("standard");
+  });
+});

@@ -10,14 +10,14 @@ import { pinHelper } from "@/lib/modelRoles/helper";
 import { taskTarget } from "@/lib/modelRoles/resolve";
 import { readRoles } from "@/lib/modelRoles/store";
 import { pickTranslateModel } from "@/lib/translateLocal";
-import { gpuInfo, machineInfo } from "@/lib/sysinfo";
+import { gpuInfo, machineInfo, qaHardware } from "@/lib/sysinfo";
 import { freellmConfigured } from "@/lib/freellm";
 
 export const dynamic = "force-dynamic";
 
 /** What is installed and whether the machine can run each local model. */
 export async function GET(req: Request) {
-  const ramGb = Math.round(os.totalmem() / 1024 ** 3);
+  const ramGb = qaHardware()?.ramGb ?? Math.round(os.totalmem() / 1024 ** 3);
   const base = OLLAMA_URL();
   let version: string | null = null;
   let installed: Array<{ name: string; sizeGb: number }> = [];

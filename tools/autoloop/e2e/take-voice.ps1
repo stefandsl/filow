@@ -1,8 +1,10 @@
 # Writes the spoken take used by tools/autoloop/e2e/take.mjs: an English System.Speech voice saying
 # paraphrases (not the script's words) of the 3 points of section 1 of the default script, plus one
 # off-topic sentence, as a 16 kHz mono 16-bit PCM WAV. Offline, no network.
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File take-voice.ps1 -Out <path.wav> [-Lines <path.json>] [-Voice David] [-Rate -1]
-param([Parameter(Mandatory = $true)][string]$Out, [string]$Lines = "", [string]$Voice = "", [int]$Rate = -1)
+# With -Text it says only that text (the speed baseline's questions, tools/eval/latency.mjs) between -LeadMs and
+# -TailMs of silence, in the same format; -Lines is then ignored.
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File take-voice.ps1 -Out <path.wav> [-Lines <path.json>] [-Voice David] [-Rate -1] [-Text <words> [-LeadMs 300] [-TailMs 1500]]
+param([Parameter(Mandatory = $true)][string]$Out, [string]$Lines = "", [string]$Voice = "", [int]$Rate = -1, [string]$Text = "", [int]$LeadMs = 300, [int]$TailMs = 1500)
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Speech
 $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
@@ -21,19 +23,27 @@ $sentences = @(
   "You cannot have a conversation with it, it is not able to use any tools, and it has no way to browse the internet.",
   "Now all the other companies are making their own version of it, and that tells you it has to be really good."
 )
-if ($Lines) { $sentences | ConvertTo-Json | Set-Content -Encoding utf8 -Path $Lines }
+if ($Text) { $sentences = @($Text) }
+elseif ($Lines) { $sentences | ConvertTo-Json | Set-Content -Encoding utf8 -Path $Lines }
 $fmt = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(16000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
 $synth.SetOutputToWaveFile($Out, $fmt)
 $pb = New-Object System.Speech.Synthesis.PromptBuilder
 # A PromptBuilder picks its own voice by culture unless told; SelectVoice alone does not reach it.
 $pb.StartVoice($speaker.VoiceInfo)
-$pb.AppendBreak([TimeSpan]::FromMilliseconds(1500))
-foreach ($s in $sentences) {
-  $pb.AppendText($s)
-  $pb.AppendBreak([TimeSpan]::FromMilliseconds(2500))
+if ($Text) {
+  # One question, nothing else: lead silence, the words, tail silence.
+  $pb.AppendBreak([TimeSpan]::FromMilliseconds($LeadMs))
+  $pb.AppendText($Text)
+  $pb.AppendBreak([TimeSpan]::FromMilliseconds($TailMs))
+} else {
+  $pb.AppendBreak([TimeSpan]::FromMilliseconds(1500))
+  foreach ($s in $sentences) {
+    $pb.AppendText($s)
+    $pb.AppendBreak([TimeSpan]::FromMilliseconds(2500))
+  }
+  # Long tail of silence so the loop restarts after a clear pause, not mid-sentence.
+  $pb.AppendBreak([TimeSpan]::FromMilliseconds(4000))
 }
-# Long tail of silence so the loop restarts after a clear pause, not mid-sentence.
-$pb.AppendBreak([TimeSpan]::FromMilliseconds(4000))
 $pb.EndVoice()
 $synth.Speak($pb)
 $synth.SetOutputToNull()

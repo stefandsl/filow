@@ -73,6 +73,19 @@ export interface ChunkPlayer {
   resume?(): void;
   /** The audio output's state, for the log ("running", "suspended"). */
   state(): string;
+  /**
+   * Seconds from now until the first piece starts to play (0 when it already has), null before any
+   * piece was added. Optional: a player without it counts as starting now (the speed baseline's mark).
+   */
+  startsIn?(): number | null;
+}
+
+/** Above -40 dBFS: the speed baseline's "audible" (docs/perf/LATENCY-2026-11.md). */
+export const AUDIBLE = 0.01;
+/** Seconds into `samples` of the first sample above AUDIBLE, or null when the piece is silent throughout. */
+export function audibleAt(samples: Float32Array, sampleRate: number): number | null {
+  for (let i = 0; i < samples.length; i++) if (Math.abs(samples[i]) > AUDIBLE) return i / sampleRate;
+  return null;
 }
 
 let sharedContext: AudioContext | null = null;
@@ -152,6 +165,7 @@ export function webAudioPlayer(): ChunkPlayer {
       for (const p of list.slice(1)) schedule(p);
     },
     state: () => ctx.state,
+    startsIn: () => (first < 0 ? null : Math.max(0, first - ctx.currentTime)),
   };
 }
 
@@ -192,6 +206,14 @@ export type SpeakerDeps = {
    * out from what was played for the natural and the cloud voice.
    */
   onSentence?(index: number): void;
+  /**
+   * The speed baseline (tools/eval/latency.mjs): the wall time (Date.now()) at which the first sample
+   * above -40 dBFS of the speech for turn `id` is scheduled to play; once per speak() call. Not called
+   * when the voice was paused before any sound (the natural voice).
+   */
+  onAudible?(id: number, at: number): void;
+  /** The speed baseline: the natural voice's first piece with sound for turn `id` arrived (Date.now()). */
+  onSynth?(id: number, at: number): void;
   player?(): ChunkPlayer;
 };
 export type SpeakOptions = {
@@ -317,7 +339,7 @@ export function createSpeaker(deps: SpeakerDeps) {
   }
 
   /** Returns "" when the natural voice spoke (or was cut), else the reason it could not. */
-  async function natural(text: string, lang: VoiceLang, live: () => boolean): Promise<VoiceFallback | ""> {
+  async function natural(text: string, lang: VoiceLang, live: () => boolean, run = 0): Promise<VoiceFallback | ""> {
     const tts = deps.bridge()?.tts;
     if (!tts) return tell("failed");
     const s = deps.status();
@@ -327,6 +349,10 @@ export function createSpeaker(deps: SpeakerDeps) {
     let last = false;
     /** Each piece's words and how long it takes to hear, to tell later how far the voice got. */
     const heard: Array<{ chars: number; seconds: number }> = [];
+    /** The speed baseline's marks: when the first piece starts (ms, null until it is scheduled), what came before the sound. */
+    let firstStart: number | null = null;
+    let before = 0;
+    let audible: "waiting" | "told" | "never" = deps.onAudible ? "waiting" : "never";
     const off = tts.onChunk((c) => {
       if (!c || c.id !== id || !live()) return;
       pieces++;
@@ -335,7 +361,18 @@ export function createSpeaker(deps: SpeakerDeps) {
       const rate = Number(c.sampleRate) || 44100;
       const pauseMs = c.last ? 0 : Number(c.pause) || 0;
       if (!samples.length) return;
+      if (heard.length === 0) deps.onSynth?.(run, Date.now());
+      // Paused before any sound: this utterance has no audible mark (the sample is not counted).
+      if (audible === "waiting" && firstStart === null && held) audible = "never";
       player.add(samples, rate, pauseMs);
+      if (audible === "waiting") {
+        if (firstStart === null) firstStart = Date.now() + (player.startsIn?.() ?? 0) * 1000;
+        const lead = audibleAt(samples, rate);
+        if (lead !== null) {
+          audible = "told";
+          deps.onAudible?.(run, Math.round(firstStart + (before + lead) * 1000));
+        } else before += samples.length / rate + pauseMs / 1000;
+      }
       heard.push({ chars: typeof c.text === "string" ? bare(c.text).length : 0, seconds: samples.length / rate + pauseMs / 1000 });
     });
     hooks = { pause: () => player.pause?.(), resume: () => player.resume?.() };
@@ -389,12 +426,14 @@ export function createSpeaker(deps: SpeakerDeps) {
     return reason;
   }
 
-  async function cloud(text: string, lang: VoiceLang, live: () => boolean) {
+  async function cloud(text: string, lang: VoiceLang, live: () => boolean, run = 0) {
     const got = deps.cloudAudio ? await deps.cloudAudio(text) : "system";
     if (got === null || !live()) return;
-    if (got === "system") return system(text, lang, live);
+    if (got === "system") return system(text, lang, live, run);
     const url = URL.createObjectURL(got);
     const el = new Audio(url);
+    let playing = false;
+    el.onplaying = () => { if (!playing) { playing = true; deps.onAudible?.(run, Date.now()); } };
     let ended = false;
     el.onended = el.onerror = () => { ended = true; };
     el.playbackRate = deps.status()?.speed ?? 1;
@@ -424,7 +463,7 @@ export function createSpeaker(deps: SpeakerDeps) {
     URL.revokeObjectURL(url);
   }
 
-  async function system(text: string, lang: VoiceLang, live: () => boolean) {
+  async function system(text: string, lang: VoiceLang, live: () => boolean, run = 0) {
     const synth = window.speechSynthesis;
     if (!synth) return;
     synth.cancel();
@@ -445,6 +484,7 @@ export function createSpeaker(deps: SpeakerDeps) {
     const list = said.list.slice(base);
     measure = null;
     hooks = {};
+    let started = false;
     for (let i = 0; i < list.length; i++) {
       if (held && !(await resumed(live))) break;
       if (!live()) break;
@@ -454,6 +494,7 @@ export function createSpeaker(deps: SpeakerDeps) {
       u.rate = 1.05 * (deps.status()?.speed ?? 1);
       let ended = false;
       u.onend = u.onerror = () => { ended = true; nudge?.(); };
+      u.onstart = () => { if (!started) { started = true; deps.onAudible?.(run, Date.now()); } };
       tellAt(base + i);
       synth.speak(u);
       const how = await wait(live, speechDeadline(list[i], deps.status()?.speed), 150, () => ended || (!synth.speaking && !synth.pending));
@@ -479,12 +520,12 @@ export function createSpeaker(deps: SpeakerDeps) {
     said = { list: splitSentences(text), done: 0 };
     const lang = isLang(opts.lang) ? opts.lang : detectLang(text, deps.uiLang());
     // One rule decides local or cloud for the voice (lib/buddy/outbound.ts), shared with the notice.
-    if (voiceRoute({ voice, offline: s?.offline }) === "cloud") return cloud(text, lang, live);
+    if (voiceRoute({ voice, offline: s?.offline }) === "cloud") return cloud(text, lang, live, id);
     if (voice === "natural") {
-      const reason = await natural(text, lang, live);
+      const reason = await natural(text, lang, live, id);
       if (!reason || !live()) return;
     }
-    return system(text, lang, live);
+    return system(text, lang, live, id);
   }
 
   /** Loads the natural voice as soon as a question starts, so the answer does not wait for it. */

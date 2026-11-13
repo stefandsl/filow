@@ -233,11 +233,17 @@ export type OkFilowBridge = {
   onPill?(fn: (s: PillState) => void): Off;
   /** Test builds only: a key for the gestures, or "eye" / "pause" for the two shortcuts. */
   qaKey?(type: "down" | "up", key: string): void;
+  /**
+   * The speed baseline's marks of one answer (wall times, ms since 1970, or counts): main writes numbers
+   * and fixed names only to the log (apps/desktop/okfilow-timings.js). Absent in a desktop build older than it.
+   */
+  timings?(payload: { run: number | string; kind: "voice" | "typed" | "warm"; end: string; marks: Record<string, number> }): void;
   press(): void;
   release(): void;
   /** `handsFree`: a dictation with the keys up, typed phrase by phrase until the keys are pressed once more. */
   onPress(fn: (p: { purpose: "talk" | "dictate"; handsFree?: boolean; upgrade?: boolean } | undefined) => void): Off;
-  onRelease(fn: (p: { purpose: "talk" | "dictate" | null } | undefined) => void): Off;
+  /** `at`: when the keys went up, on main's clock (the speed baseline's t0). */
+  onRelease(fn: (p: { purpose: "talk" | "dictate" | null; at?: number } | undefined) => void): Off;
   onCancel(fn: (p: { purpose: "talk" | "dictate" | null } | undefined) => void): Off;
   onConfig(fn: (s: OkFilowStatus) => void): Off;
   onMode(fn: (s: { mode: OkFilowMode; error?: string }) => void): Off;

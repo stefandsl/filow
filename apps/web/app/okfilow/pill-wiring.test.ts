@@ -31,7 +31,7 @@ describe("the panel and the eye", () => {
     expect(panel).toContain("images: withScreen ? images : [],");
     expect(panel).toContain("sees: withScreen ? askSees(statusRef.current?.seeScreen) : false,");
     // decided after the headers were fetched: nothing is awaited between the decision and the request
-    expect(panel).toMatch(/const withScreen = stillSees\(seeing, statusRef\.current\?\.seeScreen\);\n\s*if \(seeing && !withScreen\) setAsksSee\(false\);\n\s*const res = await fetch\("\/api\/buddy\/ask", \{/);
+    expect(panel).toMatch(/const withScreen = stillSees\(seeing, statusRef\.current\?\.seeScreen\);\n\s*if \(seeing && !withScreen\) setAsksSee\(false\);\n(\s*(markTime|if \(tm\.marks\.fetchStart)[^\n]*\n)*\s*const res = await fetch\("\/api\/buddy\/ask", \{/);
   });
 
   it("the second request that finds the point is skipped once the eye is closed", () => {
@@ -50,7 +50,7 @@ describe("the panel and the eye", () => {
 describe("the panel, Pause and Resume", () => {
   it("while paused the text is kept and not shown, and what follows it waits for Resume", () => {
     expect(panel).toContain("if (!turn.current.progress(id, shown)) continue;");
-    expect(panel).toMatch(/if \(raw === null\) return;\n\s*\/\/[^\n]*\n\s*if \(!\(await turn\.current\.unpaused\(id\)\)\) return;/);
+    expect(panel).toMatch(/if \(raw === null\) return sendTimings\(tm, "superseded", b\);\n\s*\/\/[^\n]*\n\s*if \(!\(await turn\.current\.unpaused\(id\)\)\) return sendTimings\(tm, "superseded", b\);/);
   });
 
   it("one speech queue: the answer's voice waits for Resume before each chunk and tells the pill each chunk's place", () => {
@@ -65,7 +65,7 @@ describe("the panel, Pause and Resume", () => {
   });
 
   it("an error that comes during a pause is held until Resume", () => {
-    expect(panel).toMatch(/if \(abort\.signal\.aborted \|\| run\.current !== id\) return;\n\s*\/\/[^\n]*\n\s*if \(!\(await turn\.current\.unpaused\(id\)\)\) return;\n\s*turn\.current\.end\(id\);\n\s*fail\(/);
+    expect(panel).toMatch(/if \(abort\.signal\.aborted \|\| run\.current !== id\) return sendTimings\(tm, "superseded", b\);\n\s*\/\/[^\n]*\n\s*if \(!\(await turn\.current\.unpaused\(id\)\)\) return sendTimings\(tm, "superseded", b\);\n\s*turn\.current\.end\(id\);\n\s*sendTimings\(tm, "error", b\);\n\s*fail\(/);
   });
 
   it("Pause holds the text, the voice and the pen; Resume lets all three go", () => {

@@ -13,6 +13,7 @@ import { buddySystemPrompt, trimHistory, withScreenNote, type BuddyScreen, type 
 import { wantsDrawing } from "./visuals";
 import { isPointOnly } from "./pointer";
 import { pinHelper, type PinOptions } from "@/lib/modelRoles/helper";
+import { mark as markTiming, takeOllamaDone, type ServerTiming } from "./timing";
 import type { Place } from "@/lib/modelRoles/resolve";
 
 export type BuddyProviderId = "local" | "cloud" | "freellm";
@@ -242,13 +243,15 @@ async function* lines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> 
   if (buffer.trim()) yield buffer.trim();
 }
 
-export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper, shape?: AskShape): AsyncGenerator<string> {
+/** `timing`: the speed baseline's marks of the main answer (lib/buddy/timing.ts); only route.ts's main answer calls pass it. */
+export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper, shape?: AskShape, timing?: ServerTiming | null): AsyncGenerator<string> {
   const chosen = helper ?? (await resolveLocalHelper(req.setup, req.question, req.sees));
   const model = chosen.model;
   const pictures = shape?.pictures ?? chosen.pictures;
   const history = trimHistory(req.history ?? []).map((t) => ({ role: t.role, content: t.text }));
   let res: Response;
   try {
+    markTiming(timing, "ollamaSent");
     res = await fetch(`${chosen.at?.base ?? OLLAMA_URL()}/api/chat`, {
       method: "POST",
       // A hung Ollama must not leave OK Filow "thinking" forever; 3 min covers a cold load on a CPU.
@@ -286,6 +289,7 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
   if (res.status === 404) throw new Error(`The screen helper for this computer's setup is not downloaded yet. Get it in Settings > Local models with "Download now", or set "Answers from" to FreeLLMAPI or Cloud in the OK Filow panel.`);
   if (!res.ok || !res.body) throw new Error(`Ollama ${res.status}: ${(await res.text()).slice(0, 300)}`);
   for await (const line of lines(res.body)) {
+    markTiming(timing, "ollamaFirstByte");
     let json: { message?: { content?: string }; error?: string; done?: boolean };
     try {
       json = JSON.parse(line);
@@ -294,7 +298,10 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
     }
     if (json.error) throw new Error(`Ollama: ${json.error}`);
     if (json.message?.content) yield json.message.content;
-    if (json.done) return;
+    if (json.done) {
+      takeOllamaDone(timing, json as Record<string, unknown>);
+      return;
+    }
   }
 }
 
@@ -393,7 +400,7 @@ export const whiteboardCloudRecipient = (chosen?: unknown): Recipient => askReci
  * The only door to a provider. Cloud needs the consent key for the recipient in use; without it this
  * throws before any network call (the panel asks first, this is the second lock).
  */
-export function askBuddy(provider: BuddyProviderId, req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper, shape?: AskShape): AsyncGenerator<string> {
+export function askBuddy(provider: BuddyProviderId, req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper, shape?: AskShape, timing?: ServerTiming | null): AsyncGenerator<string> {
   if (provider === "freellm") {
     // offline, no key or an address outside the user's network: refused before the consent check
     requireFreeLlm();
@@ -401,7 +408,7 @@ export function askBuddy(provider: BuddyProviderId, req: BuddyAskRequest, signal
     if (req.consent !== consentKey("ask", recipient)) throw new ConsentRequiredError(recipient);
     return askFreeLlm(req, signal, shape);
   }
-  if (provider !== "cloud") return askOllama(req, signal, helper, shape);
+  if (provider !== "cloud") return askOllama(req, signal, helper, shape, timing);
   // the yes must be for the maker of the model that is actually called
   const recipient = shape?.model ? askRecipient(shape.model) : buddyCloudRecipient();
   if (req.consent !== consentKey("ask", recipient)) throw new ConsentRequiredError(recipient);

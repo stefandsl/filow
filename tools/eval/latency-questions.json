@@ -1,0 +1,10 @@
+{
+  "note": "The speed baseline's questions (tools/eval/latency.mjs). Each names one element every synthetic screen has (latency-screen.html), so the server can place the point from the names even when the model does not point.",
+  "questions": [
+    { "text": "Where is the Pay now button?", "element": "Pay now" },
+    { "text": "Show me the invoice total field.", "element": "Invoice total" },
+    { "text": "Where is the Save draft button?", "element": "Save draft" },
+    { "text": "Show me the customer name field.", "element": "Customer name" },
+    { "text": "Where is the Send reminder button?", "element": "Send reminder" }
+  ]
+}
