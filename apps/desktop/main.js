@@ -548,6 +548,9 @@ async function captureRegion(display, rect, image) {
 function registerHotkey() {
   globalShortcut.unregisterAll();
   if (!settings.screenSense || !settings.screenHotkey) return { ok: true };
+  // Test isolation (global-input.js): a run with global input off does not even try. The stand-in would
+  // refuse it, and the start log would then blame another app for a key that was never asked for.
+  if (INPUT_OFF) return { ok: true, inputOff: true };
   try {
     const ok = globalShortcut.register(settings.screenHotkey, () => mainWin && !mainWin.isDestroyed() && mainWin.webContents.send("screen:hotkey"));
     return ok ? { ok: true } : { ok: false, error: `hotkey ${settings.screenHotkey} is taken by another app` };
