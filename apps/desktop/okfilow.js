@@ -79,6 +79,9 @@ const HOTKEYS = ["ctrl+alt", "ctrl+shift", "alt+shift", "ctrl+meta"];
 // 1024 wide keeps buttons readable for the model and answers about twice as fast as 1280 on a local GPU.
 const IMAGE_MAX_WIDTH = 1024;
 const FADE_AFTER_MS = 1000;
+/** A paired phone's question (askFromPhone): its longest length (packages/core PHONE_QUESTION_MAX), and the shortest time between two. */
+const PHONE_QUESTION_MAX = 300;
+const PHONE_ASK_GAP_MS = 3000;
 /** Exactly the hotkey's modifiers are down (extra modifiers cancel, so Ctrl+Alt+Del never triggers it). */
 const hotkeyHeld = chordHeld;
 
@@ -325,7 +328,11 @@ function createOkFilow(deps) {
   });
   let panelReady = false;
   ipcMain.on("okfilow:panel:ready", (e) => {
-    if (ourSender(e) && e.sender === panel?.webContents) { panelReady = true; e.sender.send("okfilow:outbound", outbound.snapshot()); }
+    if (ourSender(e) && e.sender === panel?.webContents) {
+      panelReady = true;
+      e.sender.send("okfilow:outbound", outbound.snapshot());
+      if (quickAskWaiting) { quickAskWaiting = false; e.sender.send("okfilow:quickAsk", null); }
+    }
   });
   ipcMain.on("okfilow:model:ready", (e) => {
     if (!ourSender(e) || !currentModel) return;
@@ -864,14 +871,47 @@ function createOkFilow(deps) {
     releasedAt = 0;
     return r;
   }
-  function openQuickAsk() {
-    showPanelAtCursor();
-    sendPanel("okfilow:quickAsk", null);
+  /** A question box asked for before the panel finished loading: given once its page says "ready". */
+  let quickAskWaiting = false;
+  function openQuickAsk(at) {
+    showPanelAtCursor(at);
+    if (panelReady) sendPanel("okfilow:quickAsk", null);
+    else quickAskWaiting = true;
   }
-  /** Shows the panel next to the mouse and gives it the keyboard. */
-  function showPanelAtCursor() {
+  /**
+   * The "OK Filow" button in the main window's sidebar: the panel the type-to-ask key opens, next to the
+   * button (`at`, a screen point), its question box focused. Switched off: nothing opens, the caller
+   * sends the user to the switch instead.
+   */
+  function openAsk(at) {
+    if (!cfg().enabled) return "off";
+    openQuickAsk(at);
+    return "open";
+  }
+  /**
+   * A question typed on a paired phone (apps/web/lib/buddy/phoneAsk.ts; only a phone the session server
+   * accepted as a controller can send one). The panel asks it like any question it is handed (same
+   * consent, same provider, same "going outside" signal); it shows without taking the keyboard from
+   * whatever the presenter has in front. "busy": the panel is not ready, or a phone asked a moment ago.
+   */
+  let phoneAskedAt = 0;
+  function askFromPhone(text) {
+    if (!cfg().enabled) return "off";
+    const question = typeof text === "string" ? text.replace(/\s+/g, " ").trim().slice(0, PHONE_QUESTION_MAX).trim() : "";
+    if (!question) return "empty";
+    if (!panelReady || !panel || panel.isDestroyed() || panel.webContents.isLoading()) return "busy";
+    const now = Date.now();
+    if (now - phoneAskedAt < PHONE_ASK_GAP_MS) return "busy";
+    phoneAskedAt = now;
+    if (!panel.isVisible()) panel.showInactive();
+    sendPanel("okfilow:askText", question);
+    logLine(`okfilow: a question from a paired phone (${question.length} characters)`);
+    return "asked";
+  }
+  /** Shows the panel next to the mouse (or next to `at`) and gives it the keyboard. */
+  function showPanelAtCursor(at) {
     const p = buildPanel();
-    const c = screen.getCursorScreenPoint();
+    const c = at || screen.getCursorScreenPoint();
     const wa = screen.getDisplayNearestPoint(c).workArea;
     const [w, h] = p.getSize();
     p.setPosition(Math.round(Math.min(Math.max(wa.x + 8, c.x + 14), wa.x + wa.width - w - 8)), Math.round(Math.min(Math.max(wa.y + 8, c.y + 18), wa.y + wa.height - h - 8)));
@@ -1393,7 +1433,22 @@ function createOkFilow(deps) {
   };
   /** The live "going outside" signal, for requests made outside OK Filow (the account's, main.js). */
   const outboundSignal = () => ({ begin: outbound.begin, end: outbound.end });
-  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, outboundSignal };
+  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, askFromPhone, outboundSignal };
 }
 
-module.exports = { createOkFilow, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS, nextCfg };
+/**
+ * A point a page sent (its CSS pixels, from the top left of its window's content) on the screen, for
+ * placing the panel next to the button that opened it. Anything that is not two finite numbers inside
+ * the window is ignored (null): the panel then opens next to the mouse, as the key does.
+ */
+function pagePointOnScreen(content, zoom, at) {
+  if (!content || !at || typeof at !== "object") return null;
+  const { x, y } = at;
+  if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const z = typeof zoom === "number" && zoom > 0 && Number.isFinite(zoom) ? zoom : 1;
+  const px = x * z, py = y * z;
+  if (px < 0 || py < 0 || px > content.width || py > content.height) return null;
+  return { x: Math.round(content.x + px), y: Math.round(content.y + py) };
+}
+
+module.exports = { createOkFilow, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS, nextCfg, pagePointOnScreen };

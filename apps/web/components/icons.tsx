@@ -28,6 +28,7 @@ export const iconPaths = {
   phone: "M7 2h10v20H7Zm4 17h2",
   sliders: "M4 6h6m4 0h6M4 12h10m4 0h2M4 18h2m4 0h10M10 3v6m4 0v6m-8 0v6",
   board: "M3 4h18v12H3Zm5 16 4-4 4 4M7 12l3-3 2 2 4-4",
+  ask: "M4 5h16v11h-9l-5 4v-4H4ZM8 9h8M8 12h5",
   grip: "M8 5h.01M16 5h.01M8 12h.01M16 12h.01M8 19h.01M16 19h.01",
 } as const;
 export type IconName = keyof typeof iconPaths;

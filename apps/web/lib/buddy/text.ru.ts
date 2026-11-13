@@ -66,6 +66,7 @@ export const ru: Record<OkfKey, string> = {
   hotkey: "Удерживайте, чтобы говорить",
   brain: "Кто отвечает",
   moreSettings: "Другие настройки OK Filow",
+  setupOff: "OK Filow выключен. Включите его здесь, затем снова нажмите OK Filow в главном окне.",
   brainLocal: "Этот компьютер (Ollama)",
   brainServer: "Ваш сервер {name}",
   brainCloud: "Облако (OpenRouter)",

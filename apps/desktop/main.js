@@ -320,6 +320,21 @@ function initializeUiPreferences() {
   ipcMain.on("okfilow:settings:openPanel", event => { if (uiSender(event)) okFilow?.togglePanel(); });
   // The "Whiteboard" button in the main window's sidebar: the same window the OK Filow panel opens, with no topic yet.
   ipcMain.handle("okfilow:settings:showWhiteboard", event => { if (!uiSender(event)) throw new Error("Denied"); if (!okFilow) return false; okFilow.showWhiteboard(""); return true; });
+  // The "OK Filow" button in the main window's sidebar: the panel the type-to-ask key opens, next to the button, its
+  // question box focused. "off" (switched off: the page opens the switch in Settings) or "unavailable" (not running).
+  ipcMain.handle("okfilow:settings:openAsk", (event, at) => {
+    if (!uiSender(event)) throw new Error("Denied");
+    if (!okFilow) return "unavailable";
+    const window = BrowserWindow.fromWebContents(event.sender);
+    return okFilow.openAsk(window ? require("./okfilow").pagePointOnScreen(window.getContentBounds(), event.sender.getZoomFactor(), at) : null);
+  });
+  // A question typed on a paired phone: the main window holds the session the phone paired into (useSession.ts) and
+  // passes it on; OK Filow's panel asks it on this computer. "asked", "off", "busy", "empty" or "unavailable".
+  ipcMain.handle("okfilow:settings:askFromPhone", (event, text) => {
+    if (!uiSender(event)) throw new Error("Denied");
+    if (!okFilow) return "unavailable";
+    return okFilow.askFromPhone(text);
+  });
   // FreeLLMAPI's section in Filow Settings (freellm.js). The key travels one way only: page to main.
   ipcMain.handle("freellm:status", event => { if (!uiSender(event)) throw new Error("Denied"); return freeLlm().status(); });
   ipcMain.handle("freellm:configure", (event, patch) => { if (!uiSender(event)) throw new Error("Denied"); return freeLlm().configure(patch); });
