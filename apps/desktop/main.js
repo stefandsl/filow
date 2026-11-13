@@ -342,12 +342,11 @@ function initializeUiPreferences() {
     const window = BrowserWindow.fromWebContents(event.sender);
     return okFilow.openAsk(window ? require("./okfilow").pagePointOnScreen(window.getContentBounds(), event.sender.getZoomFactor(), at) : null);
   });
-  // A question typed on a paired phone: the main window holds the session the phone paired into (useSession.ts) and
-  // passes it on; OK Filow's panel asks it on this computer. "asked", "off", "busy", "empty" or "unavailable".
-  ipcMain.handle("okfilow:settings:askFromPhone", (event, text) => {
+  // A question typed on a paired phone: switched off until it is secured. The text is never read and OK Filow is
+  // never touched; an older main window that still passes one on hears "off".
+  ipcMain.handle("okfilow:settings:askFromPhone", event => {
     if (!uiSender(event)) throw new Error("Denied");
-    if (!okFilow) return "unavailable";
-    return okFilow.askFromPhone(text);
+    return "off";
   });
   // FreeLLMAPI's section in Filow Settings (freellm.js). The key travels one way only: page to main.
   ipcMain.handle("freellm:status", event => { if (!uiSender(event)) throw new Error("Denied"); return freeLlm().status(); });
