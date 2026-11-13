@@ -244,6 +244,8 @@ export const ja: Dictionary = {
   "offline.downloadDisabled": "オフラインモードがオンです。モデルのダウンロードやOllamaのインストールをするには、オフにしてください。",
   "app.slow": "モデルが低速：1回{ms}ms",
   "app.slowTitle": "判定モデルの応答が、エンジンの問い合わせに追いついていません。判定は遅れて届きますが、取りこぼしはありません。より速いモデルかGPUを使うと解消します。",
+  "app.reloading": "ローカルモデルを再読み込み中…",
+  "app.reloadingTitle": "判定モデルがメモリから外れました。多くの場合、別のモデルがグラフィックカードを必要としたためです。いま読み込み直しています。戻れば、ポイントはまた自動でチェックされます。",
   "app.analysing": "分析中…",
   "app.session": "セッション…",
   "app.mirrorOff": "ミラーオフ",

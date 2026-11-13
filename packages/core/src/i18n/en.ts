@@ -244,6 +244,8 @@ export const en = {
   "offline.downloadDisabled": "Offline mode is on. Turn it off to download models or install Ollama.",
   "app.slow": "slow model: {ms} ms per call",
   "app.slowTitle": "The decision model answers slower than the engine asks. Decisions arrive late but nothing is lost; a faster model or the GPU would fix it.",
+  "app.reloading": "Reloading the local model…",
+  "app.reloadingTitle": "The decision model left memory, usually because another model needed the graphics card. It is loading again; points tick again by themselves once it is back.",
   "app.analysing": "analysing…",
   "app.session": "session…",
   "app.mirrorOff": "mirror off",

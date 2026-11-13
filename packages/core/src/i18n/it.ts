@@ -243,6 +243,8 @@ export const it: Dictionary = {
   "offline.downloadDisabled": "La modalità offline è attiva. Disattivala per scaricare modelli o installare Ollama.",
   "app.slow": "modello lento: {ms} ms a chiamata",
   "app.slowTitle": "Il modello di decisione risponde più lentamente di quanto il motore chieda. Le decisioni arrivano in ritardo ma nulla va perso; un modello più veloce o la GPU lo risolverebbero.",
+  "app.reloading": "Ricarico il modello locale…",
+  "app.reloadingTitle": "Il modello di decisione è uscito dalla memoria, di solito perché un altro modello aveva bisogno della scheda video. Si sta ricaricando; quando torna, i punti si spuntano di nuovo da soli.",
   "app.analysing": "analisi…",
   "app.session": "sessione…",
   "app.mirrorOff": "mirror spento",

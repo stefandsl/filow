@@ -21,6 +21,9 @@
 //                 bytes of the whole tree every 10 s.
 //   --probe-outbound  the page (after Start) and the server (once it runs) each open a connection to
 //                 another host, to show the audit catches both (a probe run must fail PR-01)
+//   --evict-at S  S seconds after Start, unload the decision model from the Ollama at OLLAMA_URL (keep_alive 0),
+//                 as Ollama does when another model needs the GPU: the take must recover (reload, then tick).
+//                 Refused unless OLLAMA_URL names a test Ollama on another port than the user's 11434.
 // Ports: --port (or FILOW_E2E_PORT, default 4801; the relay gets port + 1), --devtools (or
 // FILOW_E2E_DEVTOOLS, default 9351). Profile G:\FILOW\tmp\t1-profile by default. Stops only its own processes.
 import { spawn, execFile, execFileSync } from "node:child_process";
@@ -48,6 +51,12 @@ const PROFILE = path.resolve(opt("--profile", "G:/FILOW/tmp/t1-profile"));
 const WORK = path.resolve(opt("--work", "G:/FILOW/tmp/t1-work"));
 const SOURCE_PROFILE = path.resolve(opt("--source-profile", "G:/FILOW/tmp/autoloop-profile"));
 const TAKE_TIMEOUT_MS = Number(opt("--timeout", 240)) * 1000; // short take: give up when not all ticked by then
+const EVICT_AT_MS = argv.includes("--evict-at") ? Number(opt("--evict-at", 0)) * 1000 : null;
+const EVICT_OLLAMA = (process.env.OLLAMA_URL || "").replace(/\/$/, "");
+if (EVICT_AT_MS != null && (!EVICT_OLLAMA || new URL(EVICT_OLLAMA).port === "11434" || new URL(EVICT_OLLAMA).port === "")) {
+  console.error("[take] --evict-at needs OLLAMA_URL on a test Ollama (not the user's, port 11434)");
+  process.exit(2);
+}
 const OUT = path.join(ROOT, "tmp", "autoloop", "take.json");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const t0wall = Date.now();
@@ -131,6 +140,7 @@ const i18nDir = path.join(ROOT, "packages", "core", "src", "i18n");
 const i18n = fs.readdirSync(i18nDir).filter((f) => /^[a-z]{2}\.ts$/.test(f)).map((f) => fs.readFileSync(path.join(i18nDir, f), "utf8")).join("\n");
 const labels = (key) => [...i18n.matchAll(new RegExp(`"${key.replace(/\./g, "\\.")}":\\s*"([^"]+)"`, "g"))].map((m) => m[1]);
 const START = labels("ctl.start"), STOP = labels("ctl.stop"), LOG = labels("ctl.logReport"), RESET = labels("ctl.reset"), OFFLINE_CHIP = labels("app.offline");
+const RELOAD_CHIP = labels("app.reloading");
 
 // ---------- netstat ----------
 // This PC's own addresses (how connections to them are counted: classifyConnections in take-lib.mjs).
@@ -310,9 +320,10 @@ const readState = `(() => {
   // Errors on screen; the OFFLINE chip is a status (it is how offline mode shows), read apart.
   const shown = [...document.querySelectorAll(".chip.err, [role=alert]")].map((e) => e.textContent.trim()).filter(Boolean);
   const offlineChip = [...document.querySelectorAll(".chip")].some((e) => ${JSON.stringify(OFFLINE_CHIP)}.includes(e.textContent.trim()));
+  const reloadChip = [...document.querySelectorAll(".chip")].some((e) => ${JSON.stringify(RELOAD_CHIP)}.some((s) => e.textContent.includes(s)));
   const errs = shown.filter((s) => !${JSON.stringify(OFFLINE_CHIP)}.includes(s));
   return { rows, transcript: document.getElementById("prompter-transcript-text")?.textContent ?? "",
-    startEnabled: Boolean(start && !start.disabled), recording: Boolean(stop), dialog: Boolean(document.querySelector(".startmode")), errs, offlineChip,
+    startEnabled: Boolean(start && !start.disabled), recording: Boolean(stop), dialog: Boolean(document.querySelector(".startmode")), errs, offlineChip, reloadChip,
     log: [...document.querySelectorAll(".log > div")].map((d) => d.textContent) };
 })()`;
 
@@ -360,9 +371,38 @@ const transcripts = [];
 let lastTranscript = "", logLines = [];
 const pageErrors = new Set();
 const durationMs = MODE === "memory" ? MINUTES * 60_000 : TAKE_TIMEOUT_MS;
+// --evict-at: the decision model leaves memory mid-take; what the take did before and after.
+const evict = EVICT_AT_MS == null ? null : { atMs: EVICT_AT_MS, done: false, answer: null, loadedAfter: null, okBefore: null, doneAfter: 0 };
+/** [from, to] ms after Start while "Reloading the local model" showed (the decision model left memory). */
+const reloadShown = [];
 while (Date.now() - tClick < durationMs && !appExit && !wsClosed) {
   const now = Date.now() - tClick;
+  // Only once the model has answered at least once: an eviction before it is loaded changes nothing.
+  if (evict && !evict.done && now >= evict.atMs && decide.ok > 0) {
+    evict.done = true;
+    evict.atMs = now;
+    evict.okBefore = decide.ok;
+    const model = process.env.CLEF_MODEL || "clef-flash";
+    const post = (p, body) => fetch(`${EVICT_OLLAMA}${p}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(async (r) => `HTTP ${r.status} ${(await r.text()).slice(0, 100)}`, (e) => `failed: ${e.message}`);
+    const loaded = () => fetch(`${EVICT_OLLAMA}/api/ps`).then((r) => r.json()).then((j) => (j.models ?? []).map((m) => m.name), (e) => `failed: ${e.message}`);
+    // --evict-with <model>: another model takes the GPU, as when the user opens a second AI app; else clef is unloaded directly.
+    evict.with = opt("--evict-with", null);
+    evict.answer = evict.with ? await post("/api/generate", { model: evict.with, keep_alive: "10m", options: { num_ctx: 16384 } }) : await post("/api/generate", { model, keep_alive: 0 });
+    evict.loadedAfter = await loaded();
+    if (evict.with && Array.isArray(evict.loadedAfter) && evict.loadedAfter.some((n) => n.startsWith(model))) evict.answer += `; still loaded, unloaded: ${await post("/api/generate", { model, keep_alive: 0 })}`;
+    console.log(`[take] evicted ${model} at ${Math.round(now / 100) / 10}s (${decide.ok} decisions ok so far)${evict.with ? ` by loading ${evict.with}` : ""}: ${evict.answer}; loaded now ${JSON.stringify(await loaded())}`);
+  }
   st = await evaluate(readState).catch((e) => { errors.push(`read: ${e.message}`); return null; });
+  if (st?.reloadChip) {
+    const last = reloadShown.at(-1);
+    if (!last || now - last[1] > 1500) reloadShown.push([now, now]); else last[1] = now;
+    if (reloadShown.length === 1 && last == null) {
+      await evaluate(`document.querySelector(".chip.banner[role=status]")?.scrollIntoView({ block: "nearest" }); true`).catch(() => false);
+      const shot = await call("Page.captureScreenshot", { format: "png" });
+      if (shot.result?.data) fs.writeFileSync(path.join(WORK, `reloading-${MODE}.png`), Buffer.from(shot.result.data, "base64"));
+    }
+  }
   if (st) {
     if (st.dialog && !dialogSeen) { dialogSeen = true; errors.push("the Cloud/Local dialog opened: local mode was not ready"); }
     if (st.recording && recordingAtMs == null) recordingAtMs = now;
@@ -382,6 +422,7 @@ while (Date.now() - tClick < durationMs && !appExit && !wsClosed) {
       if (r.state !== "waiting" && p.activeAtMs == null) p.activeAtMs = now;
       if (r.state === "done" && p.doneAtMs == null) {
         p.doneAtMs = now; p.transcriptAtDone = st.transcript.slice(-240); p.ownLineHeardAtMs = ownLineHeard(i, cycleStart, now);
+        if (evict?.done) evict.doneAfter++;
         if (points === firstCycle) console.log(`[take] done ${Math.round(now / 100) / 10}s: ${p.text}`);
       }
       p.state = r.state;
@@ -499,6 +540,8 @@ const result = {
   timeToAllDoneMs: allDone ? Math.max(...firstCycle.map((p) => p.doneAtMs)) : null,
   cycles: MODE === "memory" ? cycles : undefined,
   takeMs, stillRecording, appExit, devtoolsClosed: closedDuringTake,
+  evict: evict ? { ...evict, okAfter: decide.ok - (evict.okBefore ?? 0) } : undefined,
+  reloadShownMs: reloadShown,
   decide: {
     calls: decide.calls, ok: decide.ok, failed: decide.failed, aborted: decide.aborted, models: decide.models, providers: decide.providers,
     allLocal: decide.ok > 0 && Object.keys(decide.models).every((m) => /\(local\)$/.test(m)),
@@ -572,6 +615,9 @@ console.log(`[take] ${MODE}: ${firstCycle.filter((p) => p.doneAtMs != null).leng
   `; server sockets ${n.serverSockets.lines ?? n.serverSockets.error} (${n.serverSockets.local ?? 0} local, external ${JSON.stringify(n.serverSockets.external ?? [])}); offline seen ${JSON.stringify(offlineSeen)}; page errors ${pageErrors.size}` +
   `; heard ${heard.edges.length} lines (best ${heard.best.map((b) => b.toFixed(2)).join("/")}), first pass own line before tick: ${firstCycle.map((p) => p.ownLineHeardAtMs != null).join(",")}` +
   `${result.memory ? `; ${result.memory.cycles} cycles (${result.memory.freshCycles} fresh, durations ${cycles.slice(0, 6).map((c) => ((c.allDoneMs - c.startMs) / 1000).toFixed(1)).join(",")} s); working set ${result.memory.startMB} -> ${result.memory.endMB} MB (max ${result.memory.maxMB}), private ${result.memory.privateStartMB} -> ${result.memory.privateEndMB} MB, growth after warm-up ws ${result.memory.wsGrowthAfterWarmupPct}% private ${result.memory.privateGrowthAfterWarmupPct}%` : ""}`);
+const shown = JSON.stringify(reloadShown.map(([a, b]) => `${(a / 1000).toFixed(1)}-${(b / 1000).toFixed(1)} s`));
+if (result.evict) console.log(`[take] after the eviction at ${Math.round(result.evict.atMs / 100) / 10}s: ${result.evict.okAfter} decisions ok, ${result.evict.doneAfter} points ticked, reload status shown ${shown}`);
+else if (reloadShown.length) console.log(`[take] reload status shown ${shown}`);
 if (errors.length) console.log(`[take] errors: ${errors.join(" | ")}`);
 console.log(`[take] wrote ${OUT} (${((Date.now() - t0wall) / 1000).toFixed(0)} s)`);
 process.exit(allDone && !errors.length ? 0 : 1);
