@@ -70,6 +70,9 @@ export function pillView(s: { mode: OkFilowMode; purpose?: string; stopped?: boo
   return { show: false, eye: false, status: "stopped", first: null, stop: false };
 }
 
+/** The talk keys are held for a question: from the press (the microphone may still be opening) until the keys go up. */
+export const talkHeld = (mode: OkFilowMode, purpose?: string): boolean => (mode === "listening" || mode === "opening") && purpose === "talk";
+
 /**
  * What the Pause/Resume key does right now: pause an answer in progress, carry on a paused one or a
  * stopped one that can be continued; nothing otherwise (the same rule as main's, okfilow-stop.js).

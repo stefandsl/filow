@@ -23,10 +23,11 @@ const { modelBounds } = require("./okfilow-model-place");
 const { answerRoot, defaultAnswerDir, writeAnswer, deleteAnswers } = require("./okfilow-answers");
 const { createElementReader, scanForShot, windowHandle } = require("./okfilow-uia");
 const { trustedUiSender } = require("./ui-preferences");
-const { createPhoneGate } = require("./okfilow-phone");
+const { createPhoneInbox } = require("./okfilow-phone");
 // Measured runs (qa-headless.js): nothing of OK Filow appears on screen with FILOW_QA_HEADLESS=1.
 const { showWindow, trayFor } = require("./qa-headless");
 const { timingsLine } = require("./okfilow-timings");
+const { qaMicDelay, createMicOpens, errorEndsHold, createCaptureWatch } = require("./okfilow-mic");
 
 /** An IPC event from the main frame of one of OK Filow's windows (`contents`), on an OK Filow page; never a subframe. */
 function okfilowSender(event, contents, appUrl) {
@@ -84,6 +85,11 @@ const QA_SHOTS = QA_ALLOWED ? process.env.FILOW_OKF_QA_SHOTS || "" : "";
 const QA_SCREEN = QA_ALLOWED ? process.env.FILOW_OKF_QA_SCREEN || "" : "";
 /** Test builds only: FILOW_OKF_QA_KEYS=1 lets the panel feed the gestures key presses (when Windows refuses the hook). */
 const QA_KEYS = QA_ALLOWED && process.env.FILOW_OKF_QA_KEYS === "1";
+/**
+ * Test builds only: FILOW_OKF_QA_MIC_DELAY=<ms> makes the panel wait that long before it gets the
+ * microphone it asked for, like a Windows audio service that takes 15 s to open a device (0.9.37).
+ */
+const QA_MIC_DELAY = qaMicDelay(QA_ALLOWED ? process.env.FILOW_OKF_QA_MIC_DELAY : "");
 /** The answer log's folder when the user has not picked one (okfilow-answers.js defaultAnswerDir). */
 const answersFallback = () => defaultAnswerDir(require("electron").app.getPath("userData"), process.env, QA_ALLOWED);
 const HOTKEYS = ["ctrl+alt", "ctrl+shift", "alt+shift", "ctrl+meta"];
@@ -569,7 +575,9 @@ function createOkFilow(deps) {
   function setMode(next, extra = {}) {
     // The panel could not start listening (no model, microphone refused) while keys are still counted as
     // held: end that session here, or a toggle-mode dictation would eat the user's next press as "stop".
-    if (next === "error" && held) {
+    // Only an error about this press: one left over from the recording before must not end the new
+    // hold, or its release is dropped and the microphone stays open with the keys up (okfilow-mic.js).
+    if (next === "error" && errorEndsHold({ held, listen: extra.listen === true })) {
       held = false;
       clearTimeout(dictateCap);
       if (purpose === "dictate") gestures?.endToggle();
@@ -584,7 +592,10 @@ function createOkFilow(deps) {
     answerMarks.set({ mode, stopped: extra.stopped === true });
     if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
     for (const w of overlays.values()) applyMouse(w);
-    if (next === "listening" && purpose === "dictate") dictation.diag.mark("listening", {}, { once: true });
+    // "opening": the panel asked for the microphone; "listening": it is open (okfilow-mic.js, lib/buddy/micOpen.ts).
+    // By what the panel says it is for: the keys of a short press are up again before the microphone is open.
+    if (next === "opening" && extra.purpose === "dictate") dictation.diag.mark("listening", {}, { once: true });
+    if (next === "listening" && extra.purpose === "dictate") dictation.diag.mark("open", {}, { once: true });
     sendOverlays("okfilow:state", { mode, ...extra });
     sendPanel("okfilow:mode", { mode, ...extra });
     if (mode !== "idle" && mode !== "error") {
@@ -648,8 +659,11 @@ function createOkFilow(deps) {
   function refreshTray() {
     if (!tray) return;
     const c = cfg();
+    // Phone questions waiting: a count only (never their text), none during a slide show.
+    const phones = phoneCount();
     tray.setContextMenu(
       Menu.buildFromTemplate([
+        ...(phones ? [{ label: menuText("okfPhoneWaiting", { n: phones }), click: togglePanel }] : []),
         { label: menuText("okfOpen"), click: togglePanel },
         { label: menuText("okfShowAlways"), type: "checkbox", checked: c.showAlways, click: (i) => applyConfig({ showAlways: i.checked }) },
         { label: menuText("okfEnabled"), type: "checkbox", checked: c.enabled, click: (i) => applyConfig({ enabled: i.checked }) },
@@ -667,7 +681,7 @@ function createOkFilow(deps) {
     protectAll(hidden());
     if (c.showAlways && c.enabled) showOverlays();
     else if (mode === "idle" && !outbound.active()) hideOverlays();
-    if (!c.enabled && mode === "listening") release();
+    if (!c.enabled && (mode === "listening" || mode === "opening")) release();
     if (!c.enabled && handsFree) { handsFree = false; sendPanel("okfilow:handsfree", false); }
     refreshTray();
     bindPillKeys();
@@ -761,6 +775,8 @@ function createOkFilow(deps) {
   let phraseRun = null; // dictation-core createPhraseRun() while the phrases of one hands-free dictation are typed
   // Issue #7: a held dictation records a moment more after the keys go up (dictation-release.js).
   const releaseTail = createReleaseTail({ send: (payload) => sendPanel("okfilow:release", payload) });
+  /** Sound with no key held and no hands-free mode is stopped (okfilow-mic.js createCaptureWatch). */
+  const captureWatch = createCaptureWatch();
 
   /** `handsFree`: a dictation with the keys up (double tap, or toggle mode): typed phrase by phrase. */
   function press(kind = "talk", handsFree = false) {
@@ -775,12 +791,15 @@ function createOkFilow(deps) {
       return;
     }
     // Dictation has its own switch: it works with OK Filow's questions turned off.
-    if (held || (kind === "dictate" && INPUT_OFF) || !(kind === "dictate" ? dictation.cfg().enabled : cfg().enabled)) {
+    // Test isolation: no dictation starts, except one a test asked for through the QA key path (the
+    // owner's keys never get there: no hook; only a test recording is ever heard; nothing is typed).
+    if (held || (kind === "dictate" && INPUT_OFF && !QA_KEYS) || !(kind === "dictate" ? dictation.cfg().enabled : cfg().enabled)) {
       // Not started: the gestures must not count a hands-free dictation as running.
       if (kind === "dictate" && handsFree) gestures?.endToggle();
       return;
     }
     held = true;
+    captureWatch.reset();
     purpose = kind;
     // A hands-free dictation nobody stops ends by itself after five minutes.
     clearTimeout(dictateCap);
@@ -933,22 +952,56 @@ function createOkFilow(deps) {
     return "open";
   }
   /**
-   * A question typed on a paired phone the presenter allowed to ask (okfilow-phone.js has the gate).
-   * It goes to the panel on its own channel, never as a question the presenter typed: the panel asks the
-   * presenter first, labelled with the device, and answers it words only, silently (apps/web/lib/buddy/phoneAsk.ts).
-   * The panel shows without taking the keyboard. "asked", "off", "busy" or "bad".
+   * A question typed on a paired phone the presenter allowed to ask (okfilow-phone.js has the inbox).
+   * It waits there: nothing is shown and no window opens. The presenter sees a count (the panel's badge,
+   * the tray), held at zero during a slide show, and the text only when they open it from the panel; then
+   * the panel asks them, labelled with the device, and answers it words only, silently
+   * (apps/web/lib/buddy/phoneAsk.ts). "asked", "off", "busy", "bad" or "blocked".
    */
-  const phoneGate = createPhoneGate();
+  const phoneInbox = createPhoneInbox();
+  const slideShowRunning = () => Boolean(deps.slideShowRunning?.());
+  /** The count the presenter may see now: none during a slide show. */
+  const phoneCount = () => (slideShowRunning() ? 0 : phoneInbox.count());
+  function publishPhoneCount() {
+    const n = phoneCount();
+    sendPanel("okfilow:phoneCount", n);
+    if (tray) {
+      tray.setToolTip(n ? `OK Filow · ${menuText("okfPhoneWaiting", { n })}` : "OK Filow");
+      refreshTray();
+    }
+  }
   function askFromPhone(payload) {
-    const live = Boolean(panel && !panel.isDestroyed() && !panel.webContents.isLoading());
-    const r = phoneGate.decide({ enabled: cfg().enabled, panelReady: panelReady && live, mode }, payload);
+    const r = phoneInbox.add({ enabled: cfg().enabled }, payload);
     if (r.answer !== "asked") return r.answer;
-    if (!panel.isVisible()) showWindow(panel, "panel", true);
-    sendPanel("okfilow:phoneAsk", { text: r.question, device: r.device });
-    logLine(`okfilow: a question from a paired phone (${Array.from(r.question).length} characters), waiting for the presenter's yes`);
+    publishPhoneCount();
+    logLine("okfilow: a question from a paired phone is waiting in the inbox (not shown until the presenter opens it)");
     return "asked";
   }
-  ipcMain.on("okfilow:phoneAskDone", (e) => { if (ourSender(e) && e.sender === panel?.webContents) phoneGate.done(); });
+  /** The devices that may ask now (the main window's devices list): the others' questions leave, and an open one is withdrawn. */
+  function phoneAskers(ids) {
+    const r = phoneInbox.keep(new Set(Array.isArray(ids) ? ids.filter((x) => typeof x === "string") : []));
+    if (r.withdrawn) sendPanel("okfilow:phoneWithdraw", r.withdrawn);
+    publishPhoneCount();
+  }
+  // Only the panel itself opens, counts and answers phone questions (the check is written out in each
+  // handler: tools/autoloop/checks/ipc-sender-checked.mjs reads it there).
+  // The presenter opened the badge: the oldest question, never during a slide show.
+  ipcMain.handle("okfilow:phoneOpen", (e) => {
+    if (!ourSender(e) || e.sender !== panel?.webContents || slideShowRunning()) return null;
+    const entry = phoneInbox.open();
+    publishPhoneCount();
+    return entry;
+  });
+  ipcMain.handle("okfilow:phoneCount", (e) => (ourSender(e) && e.sender === panel?.webContents ? phoneCount() : 0));
+  ipcMain.on("okfilow:phoneAskDone", (e, p) => {
+    if (!ourSender(e) || e.sender !== panel?.webContents || !p || typeof p !== "object") return;
+    const r = phoneInbox.done(String(p.key ?? ""), p.outcome);
+    if (r.askOff) {
+      logLine("okfilow: a paired phone's questions were ignored three times in a row; its right to ask is switched off");
+      deps.phoneAskOff?.(r.askOff);
+    }
+    publishPhoneCount();
+  });
   /** Shows the panel next to the mouse (or next to `at`) and gives it the keyboard. */
   function showPanelAtCursor(at) {
     const p = buildPanel();
@@ -987,7 +1040,7 @@ function createOkFilow(deps) {
       if (!gestures) gestures = createGestures({
         talk: () => cfg().hotkey,
         // Null while dictation is off or its keys clash with the talk keys (Settings says so).
-        dictate: () => dictation.activeChord(cfg().hotkey),
+        dictate: () => dictation.activeChord(cfg().hotkey, { qaKeys: QA_KEYS }),
         dictateMode: () => dictation.cfg().mode,
         emit: onGesture,
       });
@@ -1152,7 +1205,7 @@ function createOkFilow(deps) {
     // Dictation keeps its own settings (dictation.js); the panel shows its switch and keys from here.
     const d = dictation.status({ talkHotkey: c.hotkey, hook: Boolean(hook) });
     // answerDir: the folder the log writes to, also when the user has not picked one (the panel shows its name).
-    return { ...c, answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, hookFailures, hookLastTryAt, mode, handsFree, eyeKeys: EYE_KEYS, pauseKeys: PAUSE_KEYS, eyeKeyState: eyeBound.state, pauseKeyState: pauseBound.state, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d };
+    return { ...c, answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, hookFailures, hookLastTryAt, mode, handsFree, eyeKeys: EYE_KEYS, pauseKeys: PAUSE_KEYS, eyeKeyState: eyeBound.state, pauseKeyState: pauseBound.state, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d, ...(QA_MIC_DELAY ? { qaMicDelayMs: QA_MIC_DELAY } : {}) };
   }
 
   // ---- IPC (only OK Filow's own windows) ----
@@ -1332,7 +1385,14 @@ function createOkFilow(deps) {
     return stt.start(typeof language === "string" ? language : "auto");
   });
   ipcMain.on("okfilow:stt:feed", (e, samples) => {
-    if (!ourSender(e) || !stt) return;
+    if (!ourSender(e)) return;
+    // The watchdog: the microphone never keeps running with the keys up and no hands-free mode on.
+    // (A release still waiting for its tail counts as held.) The panel is told to stop, and nothing of it is used.
+    if (captureWatch.frame(held || handsFree || releaseTail.waiting)) {
+      logLine("okfilow: the microphone was still open with no key held: stopped");
+      sendPanel("okfilow:cancel", { purpose: null, watchdog: true });
+    }
+    if (!stt) return;
     if (held && purpose === "dictate") dictation.diag.mark("audio", {}, { once: true }); // the microphone delivers sound
     stt.feed(samples instanceof Float32Array ? samples : new Float32Array(samples));
   });
@@ -1420,6 +1480,16 @@ function createOkFilow(deps) {
     const line = timingsLine(payload, { releaseAt: talkReleasedAt, stopAt });
     if (line) logLine(line);
   });
+  /**
+   * How long the microphone took to open, from the panel (okfilow-mic.js): one line for every slow
+   * open, numbers and fixed words only, and the count for "Report a problem".
+   */
+  const micOpens = createMicOpens();
+  ipcMain.on("okfilow:mic", (e, payload) => {
+    if (!ourSender(e)) return;
+    const line = micOpens.note(payload);
+    if (line) logLine(line);
+  });
 
   // ---- lifecycle ----
   function start() {
@@ -1432,7 +1502,7 @@ function createOkFilow(deps) {
     if (cfg().enabled && cfg().seeScreen !== "off") uia?.start();
     // Dictation turned off, or its keys changed, while it records: stop without typing.
     dictation.onChange((d) => {
-      if (purpose === "dictate" && (!d.enabled || !dictation.activeChord(cfg().hotkey))) cancel();
+      if (purpose === "dictate" && (!d.enabled || !dictation.activeChord(cfg().hotkey, { qaKeys: QA_KEYS }))) cancel();
       sendPanel("okfilow:config", status());
     });
     screen.on("display-added", () => visible && buildOverlays());
@@ -1491,7 +1561,7 @@ function createOkFilow(deps) {
   };
   /** The live "going outside" signal, for requests made outside OK Filow (the account's, main.js). */
   const outboundSignal = () => ({ begin: outbound.begin, end: outbound.end });
-  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, askFromPhone, outboundSignal };
+  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, askFromPhone, phoneAskers, publishPhoneCount, micReport: () => micOpens.report(), outboundSignal };
 }
 
 /**

@@ -1,6 +1,6 @@
 {
   "name": "@filow/desktop",
-  "version": "0.9.37",
+  "version": "0.9.38",
   "private": true,
   "description": "Filow: the live speaking companion",
   "author": "VoidExploit",
@@ -125,6 +125,7 @@
       "okfilow-phone.js",
       "proxy-guard.js",
       "okfilow-timings.js",
+      "okfilow-mic.js",
       "okfilow-uia.js",
       "okfilow-model-place.js",
       "native/uia/bin/okfilow-uia.exe"

@@ -3,7 +3,8 @@
 // screenshots -> /api/buddy/ask streamed -> voice + pointing). Lives in a hidden desktop window.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
-import { getSelectedMic } from "@filow/stt";
+import { openSelectedMic } from "@filow/stt";
+import { abandonedNote, emptyRecordingNote, micNoteText, openMicrophone, type MicOpening } from "@/lib/buddy/micOpen";
 import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture, type OkFilowCard, type OkFilowJob, type OkFilowMode, type OkFilowStatus } from "@/lib/buddy/bridge";
 import { drawingSvg, type BuddyModel } from "@/lib/buddy/visuals";
 import { createSpeaker } from "@/lib/buddy/voice";
@@ -32,7 +33,7 @@ import { wantsDrawing } from "@/lib/buddy/visuals";
 import { photoOnly } from "@/lib/buddy/photo";
 import { AnswerControls, KeyChoice, SeeScreenSwitch } from "@/components/okfilow/controls";
 import { whiteboardTopic } from "@/lib/whiteboard/client";
-import { askPlan, askTextQuestion, lastPresenterAnswer, phonePrompt, phoneTurns, presenterHistory, questionForModel, type AskSource } from "@/lib/buddy/phoneAsk";
+import { askPlan, askTextQuestion, lastPresenterAnswer, phoneCount, phoneLabel, phoneNoticeFree, phonePrompt, phoneTurns, presenterHistory, questionForModel, wordsOnly, type AskSource } from "@/lib/buddy/phoneAsk";
 import "../okfilow.css";
 
 const HISTORY_KEY = "okfilow.history.v1";
@@ -49,7 +50,7 @@ function loadHistory(): BuddyTurn[] {
 }
 /** What a phone's question "captures": nothing (askPlan: no screenshot, no screen list, no selection). */
 const NO_CAPTURE: OkFilowCapture = { images: [], screens: [], displays: [], marked: [], selected: "" };
-/** A phone's question nobody answers is dropped after this long (the desktop gate frees the next one at 65 s). */
+/** A phone's question the presenter opened and did not answer counts as ignored after this long. */
 const PHONE_NOTICE_MS = 60_000;
 function saveHistory(h: BuddyTurn[]) {
   try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-12))); } catch { /* storage off: memory only */ }
@@ -124,6 +125,9 @@ export default function OkFilowPanel() {
   const committed = useRef<string[]>([]);
   const partial = useRef("");
   const audio = useRef<{ ctx: AudioContext; stream: MediaStream; node: ScriptProcessorNode } | null>(null);
+  /** The microphone being opened right now (lib/buddy/micOpen.ts), and how long this recording's took to open. */
+  const micOpening = useRef<MicOpening<MediaStream> | null>(null);
+  const micOpenMs = useRef<number | null>(null);
   const run = useRef(0);
   /** The speed baseline: marks taken before the answer has a run (microphone, release, recognizer), then the answer's own. */
   const pendingMarks = useRef<Record<string, number> | null>(null);
@@ -238,7 +242,8 @@ export default function OkFilowPanel() {
     okFilowBridge()?.level(0);
   }, []);
 
-  const fail = useCallback((raw: string) => {
+  /** `listen`: the failure is about the recording in progress (microphone, recognizer), so main stops waiting for its keys to go up. */
+  const fail = useCallback((raw: string, listen = false) => {
     // Electron wraps errors thrown in the main process: "Error invoking remote method 'x': Error: msg".
     // A stopped Ollama: said in the user's language, and the desktop shell starts it in the background.
     const stopped = OLLAMA_STOPPED_ANSWER.test(raw);
@@ -248,7 +253,9 @@ export default function OkFilowPanel() {
     setFreeDown(freellmCodeOf(plain) === "not_running");
     setError(message);
     okFilowBridge()?.text(message);
-    setMode("error", stopped ? { error: message, code: "ollama_stopped" } : { error: message });
+    // A recording this failure closes (below) is over for main too; an error about anything else leaves the keys' hold alone.
+    const ends = listen || Boolean(audio.current);
+    setMode("error", { error: message, ...(stopped ? { code: "ollama_stopped" } : {}), ...(ends ? { listen: true } : {}) });
     // Hands-free dictation: nothing more is typed after an error; words still waiting for a pause are kept in the box below.
     const f = flow.current;
     flow.current = null;
@@ -374,10 +381,14 @@ export default function OkFilowPanel() {
   const listenAgain = useRef<() => void>(() => {});
   // A paired phone's question waiting for the presenter's yes (lib/buddy/phoneAsk.ts): `yesFor` is the
   // recipient the notice names ("local": it stays on this PC), `who` that recipient in words.
-  const [phoneNotice, setPhoneNotice] = useState<{ question: string; device: string; yesFor: string; who: string | null } | null>(null);
+  // `key` names it in the desktop app's inbox; `label` is the device, how it is connected and its short code.
+  const [phoneNotice, setPhoneNotice] = useState<{ key: string; question: string; device: string; label: string; yesFor: string; who: string | null } | null>(null);
   const phoneNoticeRef = useRef(phoneNotice);
   phoneNoticeRef.current = phoneNotice;
-  const offerPhone = useRef<(payload: unknown) => Promise<void>>(async () => {});
+  // How many phone questions wait in the desktop app's inbox: a count on a badge, their text only when the presenter opens it.
+  const [phoneWaiting, setPhoneWaiting] = useState(0);
+  const noticeRef = useRef(notice);
+  noticeRef.current = notice;
   const phoneBox = useRef<HTMLDivElement>(null);
   useEffect(() => { if (phoneNotice) phoneBox.current?.focus(); }, [phoneNotice]);
 
@@ -506,7 +517,7 @@ export default function OkFilowPanel() {
     const plan = askPlan(source, { typed: opts.typed, typedVoice: statusRef.current?.typedVoice });
     if (opts.phone && (modeRef.current !== "idle" || opts.resume)) return;
     // The presenter asks something: a phone's question still waiting for their yes is dropped, never asked after.
-    if (!opts.phone && phoneNoticeRef.current) { setPhoneNotice(null); b.phoneAskDone?.(); }
+    if (!opts.phone && phoneNoticeRef.current) { b.phoneAskDone?.(phoneNoticeRef.current.key, "dropped"); setPhoneNotice(null); }
     // The speed baseline: a spoken question brings the marks taken while it was heard; a typed one starts here.
     const pending = opts.typed ? null : pendingMarks.current;
     pendingMarks.current = null;
@@ -695,6 +706,7 @@ export default function OkFilowPanel() {
       };
       /** The pointer and the pen follow the text as it arrives (never during a pause: the caller holds them). */
       const showVisuals = (parsed: ReturnType<typeof parseBuddyAnswer>, raw: string) => {
+        if (!plan.visuals) return; // Phone questions receive words only.
         const points = JSON.stringify(parsed.points), marks = JSON.stringify(parsed.marks);
         if (parsed.points.length && points !== lastPoints) {
           const placed = parsed.points.flatMap(p => {
@@ -770,7 +782,8 @@ export default function OkFilowPanel() {
       if (err) throw new Error(err.trim());
       const body = resume ? joinContinuation(resume.shown, answered.trim()) : answered;
       const parsed = parseBuddyAnswer(answered, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1);
-      const { points, marks, cards, model, drawing } = parsed;
+      // A phone's question is answered in words only: no pointer, pen, cards, drawing or 3D model (askPlan).
+      const { points, marks, cards, model, drawing } = plan.visuals ? parsed : wordsOnly(parsed);
       const text = resume ? joinContinuation(resume.shown, parsed.text) : parsed.text;
       // Answer log (dev builds, or the folder the user picked): exactly what the model produced and saw.
       void b.answerLog({ question, raw: body, visuals: { text, points, marks, cards, model, drawing }, images, svg: drawing ? drawingSvg(drawing) : undefined }).catch(() => "");
@@ -852,6 +865,10 @@ export default function OkFilowPanel() {
       setMode("speaking");
       // The sentences not said while the text arrived (the queue says each one once).
       await voice.finish(text);
+      if (run.current === id && answerCtx.current?.gate) {
+        answerCtx.current.gate.spoken = Infinity;
+        releaseMarks();
+      }
       await grounding;
       turn.current.end(id);
       sendTimings(tm, run.current === id ? "done" : "superseded", b);
@@ -895,7 +912,7 @@ export default function OkFilowPanel() {
     }
     const offer = turn.current.offer();
     const info = resumeInfo.current;
-    if (!offer || !info || modeRef.current === "thinking" || modeRef.current === "speaking" || modeRef.current === "listening") return false;
+    if (!offer || !info || modeRef.current === "thinking" || modeRef.current === "speaking" || modeRef.current === "listening" || modeRef.current === "opening") return false;
     const plan = resumePlan(offer, history.current);
     if (plan.kind === "speak") {
       // The whole answer is there: say the rest, draw the rest. Stop and Pause work on it as on any answer.
@@ -983,17 +1000,21 @@ export default function OkFilowPanel() {
       b.text("");
       b.point([]);
     }
-    setMode("listening", { purpose: why });
+    // The microphone is asked for below and is not open yet: the pointer says "listening" (and a
+    // dictation says "dictating" and plays its cue) only once it is, so nothing is said into a
+    // microphone that is not there (lib/buddy/micOpen.ts; Windows once took 15 s to open one).
+    setMode("opening", { purpose: why });
+    // A dictation's last note goes at the press too; its own words come with the open microphone.
+    if (why === "dictate") b.text("");
     const dict = why === "dictate" ? statusRef.current?.dictationStatus : undefined;
-    if (why === "dictate") {
-      const keys = dict?.chordLabel ?? "";
-      b.text(flow.current ? dictT("dictatingHandsFree", { keys }) : dictT("dictating"));
-      if (dict?.sound || dict?.screenReader) playCue(true);
-    }
+    micOpenMs.current = null;
     // Recognizer and microphone start together, and the sound is kept until the model is loaded, so the
     // first words are not lost while a model loads (it can take a second or two the first time).
     let recognizerReady = false;
     let queued: Float32Array[] = [];
+    /** The microphone saved in Settings is not connected: the default one was opened instead. */
+    let fallback = false;
+    let noted = false;
     try {
       // "auto" here means the spoken language set in Settings (the shell resolves it); only when that is
       // automatic too does the recognizer detect what is spoken. The interface language is never used.
@@ -1008,8 +1029,76 @@ export default function OkFilowPanel() {
         },
         (e: unknown) => e ?? new Error("speech recognition did not start"),
       );
-      const mic = getSelectedMic();
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { ...(mic ? { deviceId: { exact: mic } } : {}), echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
+      const opening = openMicrophone<MediaStream>({
+        open: async () => {
+          // The microphone chosen in Settings, or the default one when that one was unplugged (never an error).
+          const got = await openSelectedMic({ echoCancellation: true, noiseSuppression: true, channelCount: 1 }, () => { fallback = true; });
+          // Test builds only (FILOW_OKF_QA_MIC_DELAY): the microphone is handed over this much later.
+          const qaDelay = statusRef.current?.qaMicDelayMs ?? 0;
+          if (qaDelay > 0) await new Promise((r) => setTimeout(r, qaDelay));
+          return got;
+        },
+        // One that arrives after the wait was given up is closed at once: never open with nobody listening.
+        close: (late) => late.getTracks().forEach((tr) => tr.stop()),
+        onNote: () => { noted = true; b.text(t("micOpening")); },
+        onOpened: (ms, used) => b.micOpened?.({ ms, state: used ? "live" : "late", fallback }),
+      });
+      micOpening.current = opening;
+      const got = await opening.done;
+      micOpening.current = null;
+      if (got.state === "abandoned") {
+        // The keys went up, or the wait ended, with the microphone still not open: nothing was recorded,
+        // and the user is told that (never to hold the keys longer). Escape just ends it.
+        starting.current = false;
+        pendingStop.current = null;
+        flow.current = null;
+        vad.current = null;
+        void b.stt.stop().catch(() => {});
+        const told = abandonedNote(got);
+        // The shell logs a dictation that gave nothing and keeps it for "Report a problem" (an empty text is never typed).
+        if (got.why !== "cancelled" && why === "dictate") void b.typeText("", "", false).catch(() => null);
+        if (told) {
+          b.micOpened?.({ ms: got.waitedMs, state: "waiting", fallback });
+          const line = micNoteText(told, t);
+          if (why === "dictate") setNote(line);
+          else setError(line);
+          b.text(line);
+          // (`listen`: main stops waiting for these keys to go up)
+          setMode("error", { error: line, listen: true });
+        } else if (got.why === "released") {
+          // A tap: the keys were up again before a microphone that was not slow had opened. Nothing was
+          // recorded (the microphone that came was closed at once), and the usual hint is the true one.
+          if (why === "dictate") {
+            b.text(dictT("nothingHint", { keys: dict?.chordLabel ?? "" }));
+            setMode("idle", { holdMs: 5000 });
+          } else {
+            b.text(t("notHeard"));
+            setMode("error", { error: t("notHeard") });
+          }
+        } else {
+          b.text("");
+          setMode("idle");
+        }
+        // A press that came meanwhile (the user trying again) starts now.
+        const next = queuedStart.current;
+        queuedStart.current = null;
+        if (next) void startRef.current(next);
+        return;
+      }
+      const stream = got.stream;
+      micOpenMs.current = got.openMs;
+      // The microphone is open: from here the pointer says so, and what is said is heard.
+      setMode("listening", { purpose: why });
+      if (why === "dictate") {
+        const keys = dict?.chordLabel ?? "";
+        b.text(flow.current ? dictT("dictatingHandsFree", { keys }) : dictT("dictating"));
+        if (dict?.sound || dict?.screenReader) playCue(true);
+      } else if (noted) b.text("");
+      if (fallback) {
+        // Said in the panel, and on the pointer until the first words come: the default microphone listens.
+        setNote(t("micFallback"));
+        b.text(t("micFallback"));
+      }
       // The speed baseline: a question's marks start with the open microphone (dictation is not measured).
       if (why !== "dictate") {
         const at = Date.now();
@@ -1043,14 +1132,16 @@ export default function OkFilowPanel() {
     } catch (e) {
       starting.current = false;
       pendingStop.current = null;
+      micOpening.current = null;
       // A press queued behind this start must not swallow the next real release (the microphone would
       // stay open with nothing to stop it).
       queuedStart.current = null;
       stopAudio();
       void b.stt.stop().catch(() => {});
-      fail(e instanceof Error ? e.message : String(e));
+      // (a refusal can come without words: its name then says what it was)
+      fail(e instanceof Error ? e.message || e.name : String(e), true);
     }
-  }, [dictT, endAnswer, fail, setMode, stopAudio]);
+  }, [dictT, endAnswer, fail, setMode, stopAudio, t]);
   const startRef = useRef(startListening);
   startRef.current = startListening;
 
@@ -1061,8 +1152,20 @@ export default function OkFilowPanel() {
     // (before it could start) just drops it. `deferred`: this is the stop that was waiting for the
     // microphone to open, not that press's release, so the recording is stopped and the press starts after.
     if (queuedStart.current && !deferred) { queuedStart.current = null; return; }
-    if (starting.current) { pendingStop.current = send; return; }
-    if (!audio.current) return;
+    if (starting.current) {
+      pendingStop.current = send;
+      // The microphone is still opening: a quick open is waited for (a short tap), a slow one is given
+      // up on and said so; Escape ends the wait at once (lib/buddy/micOpen.ts).
+      if (send) micOpening.current?.release();
+      else micOpening.current?.cancel();
+      // The microphone is open and only the recognizer is still loading: the keys are up, so the
+      // microphone closes now. What was said until here is kept (`queued`) and heard once the recognizer
+      // is ready; nothing said after the keys went up is recorded.
+      stopAudio();
+      return;
+    }
+    // (`deferred`: the stop that waited for the recognizer; its microphone was closed when the keys went up)
+    if (!audio.current && !deferred) return;
     stopping.current = true;
     // Hands-free dictation: from here the rest is typed below, not phrase by phrase.
     const phrases = flow.current;
@@ -1083,6 +1186,8 @@ export default function OkFilowPanel() {
     try {
     const why = purpose.current;
     const sid = session.current;
+    /** This recording's microphone was slow to open: what to say if it gave no words. */
+    const slowMic = emptyRecordingNote(micOpenMs.current);
     stopAudio();
     try { await b.stt.stop(); } catch { /* the error already reached onResult */ }
     if (why !== "dictate" && pendingMarks.current) pendingMarks.current.sttStop = Date.now();
@@ -1121,6 +1226,8 @@ export default function OkFilowPanel() {
         // Issue #7: a press too short to say anything used to end without a word about what to do.
         // The shell logs it and keeps it for "Report a problem" (an empty text is never typed).
         void b.typeText("", spokenIn, false).catch(() => null);
+        // After a microphone that was slow to open the words were lost there: said so, not "hold the keys".
+        if (slowMic) { say(micNoteText(slowMic, t)); return idle({ holdMs: 6000 }); }
         say(phrases ? dictT("nothing") : dictT("nothingHint", { keys: dict?.chordLabel ?? "" }));
         return idle({ holdMs: phrases ? 2500 : 5000 });
       }
@@ -1148,8 +1255,13 @@ export default function OkFilowPanel() {
     }
     if (!question) {
       if (why === "handsfree" && handsFree.current) { setMode("idle"); return listenAgain.current(); }
-      b.text(t("notHeard"));
-      return setMode("error", { error: t("notHeard") });
+      // The keys are down again (a press waits in queuedStart and starts in `finally`): this recording's
+      // "I didn't catch that" is not said over the new one.
+      if (queuedStart.current) return;
+      // After a microphone that was slow to open the words were lost there: said so, not "hold the keys".
+      const line = slowMic ? micNoteText(slowMic, t) : t("notHeard");
+      b.text(line);
+      return setMode("error", { error: line });
     }
     if (pendingMarks.current) pendingMarks.current.heard = Date.now();
     void ask(question);
@@ -1161,14 +1273,18 @@ export default function OkFilowPanel() {
   stopRef.current = stopListening;
   listenAgain.current = () => { if (handsFree.current) void startListening("handsfree"); };
   /**
-   * A paired phone's question, handed over by the desktop app: shown to the presenter, labelled with the
-   * device and with where its words would go, and asked only on their yes, this once. Busy (an answer, a
-   * recording, another notice): dropped, never over what the presenter is doing.
+   * The presenter pressed the badge: the oldest waiting phone question comes out of the desktop app's
+   * inbox and is shown, labelled with the device (name, connection, short code) and with where its words
+   * would go; it is asked only on their yes, this once. Never while OK Filow is busy or another notice is
+   * open (phoneNoticeFree): the question then stays in the inbox.
    */
-  offerPhone.current = async (payload) => {
+  const phoneFree = () => phoneNoticeFree({ mode: modeRef.current, noticeOpen: Boolean(noticeRef.current), phoneNoticeOpen: Boolean(phoneNoticeRef.current) });
+  const openPhone = async () => {
     const b = okFilowBridge();
-    const p = phonePrompt(payload);
-    if (!b || !p || modeRef.current !== "idle" || phoneNoticeRef.current) { b?.phoneAskDone?.(); return; }
+    if (!b?.phoneOpen || !phoneFree()) return;
+    const p = phonePrompt(await b.phoneOpen().catch(() => null));
+    if (!p) return;
+    if (!phoneFree()) { b.phoneAskDone?.(p.key, "dropped"); return; }
     // Where it would go: the same choice ask() makes (askRoute), named now, so the yes is for that recipient only.
     let yesFor = "local";
     let who: string | null = null;
@@ -1177,31 +1293,50 @@ export default function OkFilowPanel() {
       const rec = await out.recipients();
       const named = route !== "local" ? rec && askRouteRecipient(route, rec) : rec?.server ?? null;
       const recipient = named && localServer(named, t("outServer"));
-      if (route !== "local" && !recipient) { b.phoneAskDone?.(); return; }
+      if (route !== "local" && !recipient) { b.phoneAskDone?.(p.key, "dropped"); return; }
       if (recipient) {
         yesFor = recipient.id;
         who = whoPhrase(recipient, t("outVia"), t("outAnd"), t("outViaPicked"));
       }
     } catch {
-      b.phoneAskDone?.();
+      b.phoneAskDone?.(p.key, "dropped");
       return;
     }
-    if (modeRef.current !== "idle" || phoneNoticeRef.current) { b.phoneAskDone?.(); return; }
-    setPhoneNotice({ question: p.question, device: p.device, yesFor, who });
+    if (!phoneFree()) { b.phoneAskDone?.(p.key, "dropped"); return; }
+    setPhoneNotice({ key: p.key, question: p.question, device: p.device, label: phoneLabel(p, { lan: t("phonePeerLan"), remote: t("phonePeerRemote") }), yesFor, who });
   };
-  // Unanswered for a minute: dropped (nothing is asked), the next phone question may come.
+  // Unanswered for a minute: counted as ignored (nothing is asked), like the Ignore button.
   useEffect(() => {
     if (!phoneNotice) return;
-    const timer = setTimeout(() => { setPhoneNotice(null); okFilowBridge()?.phoneAskDone?.(); }, PHONE_NOTICE_MS);
+    const timer = setTimeout(() => { okFilowBridge()?.phoneAskDone?.(phoneNotice.key, "no"); setPhoneNotice(null); }, PHONE_NOTICE_MS);
     return () => clearTimeout(timer);
   }, [phoneNotice]);
-  /** The presenter's answer to a phone's question: yes asks it (words only, silently), anything else drops it. */
+  /** The presenter's answer to a phone's question: yes asks it (words only, silently), anything else counts as ignored. */
   const decidePhone = (yes: boolean) => {
     const n = phoneNoticeRef.current;
+    if (!n) return;
     setPhoneNotice(null);
-    okFilowBridge()?.phoneAskDone?.();
-    if (yes && n && modeRef.current === "idle") void ask(n.question, { typed: true, phone: { device: n.device, yesFor: n.yesFor } });
+    okFilowBridge()?.phoneAskDone?.(n.key, yes ? "yes" : "no");
+    if (yes && modeRef.current === "idle") void ask(n.question, { typed: true, phone: { device: n.device, yesFor: n.yesFor } });
   };
+  // Another notice opened (a recipient's, a card picture's): the phone's steps aside, so two never stack.
+  useEffect(() => {
+    const n = phoneNoticeRef.current;
+    if (!notice || !n) return;
+    okFilowBridge()?.phoneAskDone?.(n.key, "dropped");
+    setPhoneNotice(null);
+  }, [notice]);
+  // The badge's count, and a question on screen whose device was revoked or lost the right to ask: closed, nothing asked.
+  useEffect(() => {
+    const b = okFilowBridge();
+    if (!b) return;
+    void b.phoneCount?.().then((n) => setPhoneWaiting(phoneCount(n))).catch(() => {});
+    const offs = [
+      b.onPhoneCount?.((n) => setPhoneWaiting(phoneCount(n))) ?? (() => {}),
+      b.onPhoneWithdraw?.((key) => { if (phoneNoticeRef.current?.key === key) setPhoneNotice(null); }) ?? (() => {}),
+    ];
+    return () => offs.forEach((o) => o());
+  }, []);
 
 
   /** Hands-free dictation: one phrase into the focused field, after the phrases before it; the mic stays open. */
@@ -1250,7 +1385,7 @@ export default function OkFilowPanel() {
     if (!b) return;
     const offs = [
       b.stt.onResult((r) => {
-        if (r.error) return fail(r.error);
+        if (r.error) return fail(r.error, true);
         if (r.committed) { committed.current.push(r.committed); partial.current = ""; }
         else partial.current = r.partial;
         // The speed baseline: the last words the recognizer gave before the question was asked.
@@ -1297,8 +1432,6 @@ export default function OkFilowPanel() {
       b.onQuickAsk(() => setTimeout(() => typeBox.current?.focus(), 30)),
       // A part clicked in the 3D model window: ask about it, like a spoken question.
       b.onAskText((text) => { const q = askTextQuestion(text); if (q) void ask(q); }),
-      // A paired phone's question: never asked from here, only offered to the presenter (offerPhone).
-      b.onPhoneAsk?.((payload) => void offerPhone.current(payload)) ?? (() => {}),
       b.agents.onChange(setJobs),
       b.onWelcome((tray) => {
         const key = HOTKEY_LABEL[statusRef.current?.hotkey ?? "ctrl+alt"] ?? "Ctrl + Alt";
@@ -1367,6 +1500,12 @@ export default function OkFilowPanel() {
       <header className="okf-head">
         <span className={`okf-dot okf-dot--${mode}`} aria-hidden />
         <h1>OK Filow</h1>
+        {/* Phone questions waiting: a count only. Their text shows when the presenter presses this, never by itself. */}
+        {phoneWaiting > 0 && !phoneNotice && (
+          <button type="button" className="okf-phone-badge" data-testid="phone-badge" title={t("phoneBadgeTitle")} disabled={mode !== "idle" || Boolean(notice)} onClick={() => void openPhone()}>
+            {t("phoneBadge").replace("{n}", String(phoneWaiting))}
+          </button>
+        )}
         <button className="okf-x" aria-label={t("close")} title={t("close")} onClick={() => bridge.hidePanel()}>×</button>
       </header>
 
@@ -1374,7 +1513,7 @@ export default function OkFilowPanel() {
       {phoneNotice && (
         <div className="okf-notice okf-phone-notice" role="alertdialog" aria-labelledby="okf-phone-title" aria-describedby="okf-phone-body" tabIndex={-1} data-testid="phone-notice"
           ref={phoneBox} onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); decidePhone(false); } }}>
-          <h2 id="okf-phone-title">{t("phoneTitle").replace("{device}", phoneNotice.device)}</h2>
+          <h2 id="okf-phone-title">{t("phoneTitle").replace("{device}", phoneNotice.label)}</h2>
           <p className="okf-phone-question">{"«"}{phoneNotice.question}{"»"}</p>
           <p id="okf-phone-body">{phoneNotice.who ? t("phoneOut").replace("{who}", phoneNotice.who) : t("phoneLocal")}</p>
           <div className="okf-notice-actions">

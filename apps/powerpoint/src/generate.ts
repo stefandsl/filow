@@ -3,7 +3,7 @@
 // keys), and stream progress. Slides with little text or a picture also get a slide image when
 // the host supports getImageAsBase64 (PowerPointApi 1.8).
 /* global Office, PowerPoint */
-import { slideNeedsImage, type GenerateProgress, type SlideInput } from "@filow/core";
+import { REMOTE, slideNeedsImage, type GenerateProgress, type SlideInput } from "@filow/core";
 import { pickTitle } from "./notes";
 import { readAllSlideShapes, readNotesTexts } from "./shapes";
 
@@ -154,6 +154,8 @@ export async function requestGeneration(
 /** View mode: an accepted controller can ask the relay for a short-lived engine token. */
 export async function mintEngineToken(origin: string, sessionId: string, viewToken: string): Promise<string> {
   const res = await fetch(`${origin}/api/session/${sessionId}/engine-token`, { method: "POST", headers: { Authorization: `Bearer ${viewToken}` } });
+  // 403: paired without the presenter's accept (auto-accepted on the Wi-Fi). The pane says it in words (remoteErrorKey).
+  if (res.status === 403) throw new Error(REMOTE.approveFirst);
   if (!res.ok) throw new Error(res.status === 401 ? "the presenter has not given this pane control" : `token failed (${res.status})`);
   return ((await res.json()) as { engineToken: string }).engineToken;
 }

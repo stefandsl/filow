@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { audioConstraints, getSelectedMic, hasMicrophone, listMicrophones, micPickerState, setSelectedMic } from "./micDevice";
+import { audioConstraints, getSelectedMic, hasMicrophone, listMicrophones, micPickerState, openSelectedMic, setSelectedMic } from "./micDevice";
 
 const device = (deviceId: string, label: string, groupId: string, kind = "audioinput") => ({ deviceId, label, groupId, kind });
 let devices: ReturnType<typeof device>[];
@@ -48,6 +48,82 @@ describe("microphone device preferences", () => {
     devices.push(device("cam-id", "C920", "cam"));
     expect(await audioConstraints()).toEqual({ deviceId: { exact: "cam-id" } });
   });
+  describe("opening the chosen microphone", () => {
+    const base = { channelCount: 1, echoCancellation: true, noiseSuppression: true };
+    const named = (name: string) => Object.assign(new Error(""), { name });
+    /** A getUserMedia that knows which devices are plugged in, like the browser's. */
+    function media() {
+      const getUserMedia = vi.fn(async (c: { audio: MediaTrackConstraints }) => {
+        const want = (c.audio.deviceId as { exact?: string } | undefined)?.exact;
+        if (want && !devices.some(d => d.deviceId === want)) throw named("OverconstrainedError");
+        return { id: want ?? "default" } as unknown as MediaStream;
+      });
+      vi.stubGlobal("navigator", { mediaDevices: { enumerateDevices: vi.fn(async () => devices), getUserMedia } });
+      return getUserMedia;
+    }
+
+    it("opens the saved microphone when it is there, with no note", async () => {
+      const getUserMedia = media();
+      setSelectedMic("cam-id");
+      const note = vi.fn();
+      expect(await openSelectedMic(base, note)).toEqual({ id: "cam-id" });
+      expect(getUserMedia).toHaveBeenCalledTimes(1);
+      expect(getUserMedia).toHaveBeenCalledWith({ audio: { ...base, deviceId: { exact: "cam-id" } } });
+      expect(note).not.toHaveBeenCalled();
+    });
+
+    it("no saved microphone: the default, asked for once, with no device list read", async () => {
+      const getUserMedia = media();
+      expect(await openSelectedMic(base)).toEqual({ id: "default" });
+      expect(getUserMedia).toHaveBeenCalledWith({ audio: base });
+      expect(navigator.mediaDevices.enumerateDevices).not.toHaveBeenCalled();
+    });
+
+    it("a saved microphone that was unplugged: the default opens, with a note, not an error", async () => {
+      const getUserMedia = media();
+      setSelectedMic("cam-id");
+      devices = devices.filter(d => d.deviceId !== "cam-id");
+      const note = vi.fn();
+      expect(await openSelectedMic(base, note)).toEqual({ id: "default" });
+      expect(getUserMedia).toHaveBeenCalledTimes(1);
+      expect(getUserMedia).toHaveBeenCalledWith({ audio: base });
+      expect(note).toHaveBeenCalledTimes(1);
+      expect(note).toHaveBeenCalledWith(expect.stringContaining("system default"));
+      // kept: plugging it back in restores it
+      expect(getSelectedMic()).toBe("cam-id");
+    });
+
+    it("unplugged between the check and the open: the default opens too, with one note", async () => {
+      setSelectedMic("cam-id");
+      const getUserMedia = vi.fn(async (c: { audio: MediaTrackConstraints }) => {
+        if (c.audio.deviceId) throw named("OverconstrainedError");
+        return { id: "default" } as unknown as MediaStream;
+      });
+      vi.stubGlobal("navigator", { mediaDevices: { enumerateDevices: vi.fn(async () => devices), getUserMedia } });
+      const note = vi.fn();
+      expect(await openSelectedMic(base, note)).toEqual({ id: "default" });
+      expect(getUserMedia).toHaveBeenNthCalledWith(1, { audio: { ...base, deviceId: { exact: "cam-id" } } });
+      expect(getUserMedia).toHaveBeenNthCalledWith(2, { audio: base });
+      expect(note).toHaveBeenCalledTimes(1);
+    });
+
+    it("a microphone that is refused or busy is still an error, and is not asked for twice", async () => {
+      setSelectedMic("cam-id");
+      for (const name of ["NotAllowedError", "NotReadableError", "AbortError"]) {
+        const getUserMedia = vi.fn(async () => { throw named(name); });
+        vi.stubGlobal("navigator", { mediaDevices: { enumerateDevices: vi.fn(async () => devices), getUserMedia } });
+        await expect(openSelectedMic(base)).rejects.toMatchObject({ name });
+        expect(getUserMedia).toHaveBeenCalledTimes(1);
+      }
+      // no microphone at all: nothing to fall back to
+      setSelectedMic(null);
+      const none = vi.fn(async () => { throw named("NotFoundError"); });
+      vi.stubGlobal("navigator", { mediaDevices: { enumerateDevices: vi.fn(async () => devices), getUserMedia: none } });
+      await expect(openSelectedMic(base)).rejects.toMatchObject({ name: "NotFoundError" });
+      expect(none).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("tells a PC with no microphone from one whose microphones still need the permission", async () => {
     // Before the permission the browser lists each input with no id and no name.
     devices = [device("", "", ""), device("", "", "", "audiooutput")];

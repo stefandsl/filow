@@ -25,7 +25,7 @@ const { loadUiohook, forgetUiohook } = require("./uiohook.js") as {
 const { createDictation } = require("./dictation.js") as {
   createDictation(deps: Record<string, unknown>): {
     insert(raw: string, o: { hook?: unknown; keysUp?: () => Promise<boolean> }): Promise<{ ok: boolean; action: string; reason: string; chars: number }>;
-    activeChord(talk: string): string | null;
+    activeChord(talk: string, o?: { qaKeys?: boolean }): string | null;
   };
 };
 
@@ -186,6 +186,15 @@ describe("dictation: typing, pasting and copying", () => {
     expect(log.join("\n")).toContain("global input is off");
   });
 
+  it("with the switch on a test can run its own dictation through the QA key path, and still nothing is typed", async () => {
+    const { d, calls } = make(ON);
+    // the keys the test feeds itself reach the gestures; anything else is as with the switch on
+    expect(d.activeChord("ctrl+alt", { qaKeys: true })).toBe("ctrl+meta");
+    expect(d.activeChord("ctrl+alt", { qaKeys: false })).toBeNull();
+    expect(await d.insert("hello there", { hook: {}, keysUp: async () => true })).toEqual(gi.REFUSED_INSERT);
+    expect(calls).toEqual({ paste: 0, type: 0, write: 0, hookPaste: 0 });
+  });
+
   it("control: without the switch the same dictation writes the clipboard and sends the paste keys", async () => {
     vi.useFakeTimers();
     try {
@@ -213,7 +222,11 @@ describe("OK Filow's own wiring (okfilow.js)", () => {
   it("does not start the hook's retry loop, type text, start a dictation, read another window's selection or take the focus", () => {
     expect(src).toMatch(/function startHook\(\) \{\s*if \(!INPUT_OFF\) return hookRetry\.attempt\(\);/);
     expect(src).toMatch(/async function typeText\(text, spokenLanguage, phrase = false\) \{\s*if \(INPUT_OFF\) return \{ \.\.\.REFUSED_INSERT \};/);
-    expect(src).toContain('if (held || (kind === "dictate" && INPUT_OFF) || !(');
+    // A dictation starts under the switch only when a test asks for it through the QA key path
+    // (FILOW_OKF_QA_KEYS=1): the hook is the stand-in, so the keys of the person at the PC never get
+    // there, the microphone is the test recording or nothing, and typeText above still types nothing.
+    expect(src).toContain('if (held || (kind === "dictate" && INPUT_OFF && !QA_KEYS) || !(');
+    expect(src).toContain('const QA_KEYS = QA_ALLOWED && process.env.FILOW_OKF_QA_KEYS === "1";');
     expect(src).toContain('selection = INPUT_OFF ? Promise.resolve("") : readSelection();');
     expect(src).toMatch(/if \(INPUT_OFF\) \{ if \(showWindow\(p, "panel", true\)\) p\.moveTop\(\); return; \}\s*try \{ if \(hook\) hook\.keyTap/);
     // The only raw hook start is inside registerHook, which the switch reaches with the stand-in library.

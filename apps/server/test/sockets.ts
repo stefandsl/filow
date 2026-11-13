@@ -4,8 +4,17 @@ import WebSocket from "ws";
 
 export type Msg = Record<string, unknown>;
 
+/**
+ * `query` "?role=engine" opens the engine's large-message socket: the relay takes it only with the engine
+ * token in the address, so the hello's token is added there (a test of a refusal writes its own query).
+ */
 export function openSocket(wsBase: string, id: string, hello: Msg, query = "") {
-  const ws = new WebSocket(`${wsBase}/ws/session/${id}${query}`);
+  const address = query === "?role=engine" ? `${query}&token=${encodeURIComponent(String(hello.token ?? ""))}` : query;
+  const ws = new WebSocket(`${wsBase}/ws/session/${id}${address}`);
+  // A refused upgrade is an error on the socket, not a close: the test reads it from `closed` as code 0.
+  let refused: (r: { code: number; reason: string }) => void = () => {};
+  ws.on("unexpected-response", (_req, res) => { refused({ code: 0, reason: String(res.statusCode) }); res.resume(); ws.terminate(); });
+  ws.on("error", () => {});
   const inbox: Msg[] = [];
   const waiters: Array<(m: Msg) => void> = [];
   const meta: Msg[] = [];
@@ -42,7 +51,10 @@ export function openSocket(wsBase: string, id: string, hello: Msg, query = "") {
     const lists = meta.filter((x) => x.t === "devices");
     return (lists.at(-1)?.devices ?? []) as Array<Record<string, unknown>>;
   };
-  const closed = new Promise<{ code: number; reason: string }>((r) => ws.on("close", (code, reason) => r({ code, reason: String(reason) })));
+  const closed = new Promise<{ code: number; reason: string }>((r) => {
+    refused = r;
+    ws.on("close", (code, reason) => r({ code, reason: String(reason) }));
+  });
   ws.on("open", () => ws.send(JSON.stringify({ t: "hello", ...hello })));
   return { ws, inbox, next, nextOf, nextMeta, devicesNow, closed, send: (m: Msg) => ws.send(JSON.stringify(m)) };
 }

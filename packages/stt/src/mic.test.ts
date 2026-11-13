@@ -4,12 +4,12 @@ import vm from "node:vm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MIC_WORKLET_URL, preopenMic, startMic } from "./mic";
 
-function fixture(options: { contextMs?: number; workletError?: boolean } = {}) {
+function fixture(options: { contextMs?: number; openMs?: number; workletError?: boolean } = {}) {
   let time = 0;
-  if (options.contextMs) vi.stubGlobal("performance", { now: () => time });
+  if (options.contextMs || options.openMs) vi.stubGlobal("performance", { now: () => time });
   const track = Object.assign(new EventTarget(), { label: "C920", readyState: "live", stop: vi.fn() });
   const stream = { getTracks: () => [track], getAudioTracks: () => [track] };
-  const getUserMedia = vi.fn(async () => stream);
+  const getUserMedia = vi.fn(async () => { time += options.openMs || 0; return stream; });
   vi.stubGlobal("navigator", { mediaDevices: { getUserMedia, enumerateDevices: async () => [{ kind: "audioinput", deviceId: "cam", label: "C920", groupId: "cam" }] } });
   vi.stubGlobal("localStorage", { getItem: () => "cam" });
   const graphNode = () => ({ disconnect: vi.fn(), connect: vi.fn(function(this: unknown) { return this; }) });
@@ -83,6 +83,13 @@ describe("capture health wiring", () => {
     const mic = await startMic(16000, vi.fn(), warn, log);
     expect(warn).toHaveBeenCalledWith({ kind: "slow-context", label: "C920", elapsedMs: 6001 });
     expect(log).toHaveBeenCalledWith("microphone AudioContext opened in 6001 ms");
+    mic.stop();
+  });
+  it("a take logs how long the microphone took to open (0.9.37: Windows took 15 s and nothing said so)", async () => {
+    fixture({ openMs: 15100 });
+    const log = vi.fn();
+    const mic = await startMic(16000, vi.fn(), vi.fn(), log);
+    expect(log).toHaveBeenCalledWith("microphone opened in 15100 ms");
     mic.stop();
   });
   it("loads the worklet from the app's own static file, never from a blob: URL (the desktop CSP has no blob: in script-src)", async () => {

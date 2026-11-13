@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isPhoneQuestionForModel } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
 import { dataUrlBytes, MAX_IMAGE_BYTES } from "@/lib/vision/openrouter";
 import { CONSENT_HEADER, consentDenied } from "@/lib/buddy/outbound";
@@ -44,7 +45,9 @@ export async function POST(req: Request) {
   // screenshot and no provider are needed, so nothing of the question goes anywhere and the answer is
   // immediate on every computer. The picture itself is fetched by the page from Wikipedia, only after the
   // user's yes for Wikipedia (the subject's name is all that is sent); in Offline mode the answer says why none comes.
-  const photo = photoOnly(question, { drawing: wantsDrawing(question) !== null, resume: body.resume === true });
+  // A phone's question (quoted, lib/buddy/phoneAsk.ts) is answered in words only: never a card, a drawing or a 3D model.
+  const quoted = isPhoneQuestionForModel(question);
+  const photo = quoted ? null : photoOnly(question, { drawing: wantsDrawing(question) !== null, resume: body.resume === true });
   if (photo) {
     const photoLang = answerLanguage(question, body.language, req.headers.get("accept-language")) ?? "en";
     const said = process.env.FILOW_OFFLINE === "1" ? okfText(photoLang)("photoOffline") : photoAnswer(photo, okfText(photoLang)("photoHere"));
@@ -117,7 +120,7 @@ export async function POST(req: Request) {
   const carryOn = resumeQuestion(body.history, body.resume);
   const ask: BuddyAskRequest = { ...body, elements: undefined, question: carryOn ?? question, images, screens, consent, sees, language: known ?? "auto" };
   // A plain request for a drawing or a 3D model is answered with one (lib/buddy/draw.ts): it needs no screenshot.
-  const drawing = carryOn ? null : wantsDrawing(question);
+  const drawing = carryOn || quoted ? null : wantsDrawing(question);
   // On this PC a setup may answer with one model and place the points with another (lib/buddy/pointer.ts).
   const pointer = provider === "local" && !drawing && helper?.pictures && !isPointOnly(question) ? helper.pointer : undefined;
   // Everything that places points after the answer shares one allowance, so three hard labels cannot hold the voice for long.

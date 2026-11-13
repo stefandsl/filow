@@ -49,6 +49,29 @@ export async function audioConstraints(
   const id = getSelectedMic();
   if (!id) return constraints;
   if ((await listMicrophones()).some(d => d.deviceId === id)) return { ...constraints, deviceId: { exact: id } };
-  onFallback?.("Selected microphone is unavailable; using the system default.");
+  onFallback?.(MIC_UNAVAILABLE);
   return constraints;
+}
+
+const MIC_UNAVAILABLE = "Selected microphone is unavailable; using the system default.";
+
+/**
+ * Opens the microphone the user chose, or the system default when that one is gone: a saved
+ * microphone that was unplugged is never an error (asked for by its exact id, the browser refuses
+ * with OverconstrainedError and nothing is heard at all). Also when it goes between the check and the
+ * open. `onFallback` is told once. Every other failure (refused, busy, no microphone) is thrown as it is.
+ */
+export async function openSelectedMic(base: MediaTrackConstraints = {}, onFallback?: (line: string) => void): Promise<MediaStream> {
+  let told = false;
+  const fallback = (line: string) => { if (!told) { told = true; onFallback?.(line); } };
+  const audio = await audioConstraints(base, fallback);
+  try {
+    return await navigator.mediaDevices.getUserMedia({ audio });
+  } catch (err) {
+    const name = (err as { name?: string } | null)?.name;
+    if (audio.deviceId === undefined || (name !== "OverconstrainedError" && name !== "NotFoundError")) throw err;
+    fallback(MIC_UNAVAILABLE);
+    const { deviceId: _gone, ...rest } = audio;
+    return navigator.mediaDevices.getUserMedia({ audio: rest });
+  }
 }

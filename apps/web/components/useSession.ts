@@ -7,7 +7,7 @@ import { CLOCK_REFRESH_MS, clockKey, takeRecorder, withClock } from "./TimerCloc
 import { desktopBridge, sessionServerUrl } from "@/lib/sessionUrl";
 import { loadedTargets, phoneLink, phoneTargets } from "@/lib/phoneLink";
 import { useRemoteStatus } from "@/lib/useRemoteStatus";
-import { sessionCommand } from "@/lib/buddy/phoneAsk";
+import { phoneAskers, sessionCommand } from "@/lib/buddy/phoneAsk";
 import { okFilowSettingsBridge } from "@/lib/buddy/bridge";
 
 export type SessionInfo = {
@@ -104,6 +104,13 @@ export function useSession(engine: Engine) {
   const revokeDevice = useCallback((id: string) => clientRef.current?.revoke(id), []);
   /** Let a controller ask OK Filow, or stop it (off by default; each question still waits for the presenter's yes). */
   const allowAsk = useCallback((id: string, allow: boolean) => clientRef.current?.allowAsk(id, allow), []);
+  /**
+   * Accept, on this computer, a phone that was auto-accepted on the Wi-Fi: until then it only moves between
+   * sections and marks points; after, it controls everything a controller may (the take, Look now, a script).
+   */
+  const approveDevice = useCallback((id: string) => clientRef.current?.decidePair(id, "controller"), []);
+  // OK Filow ignored a phone's questions three times in a row: its right to ask goes off (the presenter can give it again).
+  useEffect(() => okFilowSettingsBridge()?.onPhoneAskOff?.((id) => clientRef.current?.allowAsk(id, false)), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,14 +147,12 @@ export function useSession(engine: Engine) {
             devicesRef.current = list;
             setDevices(list);
             setPairRequests((r) => r.filter((p) => list.some((d) => d.id === p.token && d.role === "pending")));
+            // Who may ask OK Filow now: a question from a device revoked or switched off since leaves its inbox,
+            // and one on screen is withdrawn (apps/desktop/okfilow-phone.js keep).
+            okFilowSettingsBridge()?.phoneAskers?.(phoneAskers(list));
           },
           // A device auto-accepted on the Wi-Fi spent the code too: the next one is ready.
           onPaired: (d) => { if (d.role !== "pending") void newCode(); },
-          // Too many wrong codes: the server burned the code on screen and sent a new one.
-          onCode: ({ code, codeExpiresAt }) => {
-            setInfo((i) => (i ? { ...i, code, codeExpiresAt } : i));
-            desktopBridge()?.reportSession?.({ id: created.id, code });
-          },
         });
         if (cancelled) return client.close();
         clientRef.current = client;
@@ -156,7 +161,7 @@ export function useSession(engine: Engine) {
           const bridge = okFilowSettingsBridge();
           void sessionCommand(cmd, from, {
             dispatch: (c) => engine.dispatch(c),
-            mayAsk: (id) => devicesRef.current.some((d) => d.id === id && d.role === "controller" && d.canAsk),
+            mayAsk: (id) => phoneAskers(devicesRef.current).includes(id),
             askFromPhone: bridge?.askFromPhone ? (p) => bridge.askFromPhone!(p) : undefined,
           }).then((r) => ack(r.ok ? { ok: true } : { ok: false, error: r.error }));
         });
@@ -192,5 +197,5 @@ export function useSession(engine: Engine) {
     };
   }, [engine, newCode]);
 
-  return { info, status, error, pairRequests, decidePair, newCode, devices, revokeDevice, allowAsk };
+  return { info, status, error, pairRequests, decidePair, newCode, devices, revokeDevice, allowAsk, approveDevice };
 }

@@ -11,8 +11,8 @@ import type { OkfKey } from "@/lib/buddy/text";
 type T = (k: OkfKey) => string;
 const BARS = [0.55, 0.85, 1, 0.8, 0.5];
 
-/** An answer (or an error, or a note) is in the bubble: it holds still for the pointer and can be closed. Not while listening: that is the waveform, or a dictation's words. */
-export const answerInBubble = (mode: OkFilowMode, text: string, stopped: boolean): boolean => mode !== "listening" && (Boolean(text) || stopped);
+/** An answer (or an error, or a note) is in the bubble: it holds still for the pointer and can be closed. Not while listening (that is the waveform, or a dictation's words) nor while the microphone opens (that is "Opening the microphone…"). */
+export const answerInBubble = (mode: OkFilowMode, text: string, stopped: boolean): boolean => mode !== "listening" && mode !== "opening" && (Boolean(text) || stopped);
 /** The close button is there once the text is whole (while it is still being written, a closed bubble would only come back with the next words). */
 export const bubbleClosable = (mode: OkFilowMode, text: string, stopped: boolean): boolean => mode !== "thinking" && answerInBubble(mode, text, stopped);
 

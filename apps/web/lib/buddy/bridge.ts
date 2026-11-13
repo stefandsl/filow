@@ -6,7 +6,8 @@ import type { PillAction, PillState } from "./pill";
 
 /** A card in global DIP coordinates, with its photo already fetched (data URL or ""). */
 export type OkFilowCard = { x: number; y: number; title: string; text: string; photo: string };
-export type OkFilowMode = "idle" | "listening" | "thinking" | "speaking" | "error";
+/** "opening": the microphone was asked for and is not open yet (lib/buddy/micOpen.ts); "listening" only once it is. */
+export type OkFilowMode = "idle" | "opening" | "listening" | "thinking" | "speaking" | "error";
 
 /** apps/desktop/dictation.js status(): settings, the key choices, and what this PC can do. */
 export type DictationStatus = {
@@ -87,6 +88,8 @@ export type OkFilowStatus = {
   hookError: string;
   /** macOS: the permission hold-to-talk still needs (apps/desktop/mac-permissions.js); absent or "" elsewhere. */
   hookPermission?: "accessibility" | "inputMonitoring" | "";
+  /** Test builds only (FILOW_OKF_QA_MIC_DELAY): the microphone is handed to the panel this many ms late. Absent otherwise. */
+  qaMicDelayMs?: number;
   mode: OkFilowMode;
 };
 
@@ -238,6 +241,13 @@ export type OkFilowBridge = {
    * and fixed names only to the log (apps/desktop/okfilow-timings.js). Absent in a desktop build older than it.
    */
   timings?(payload: { run: number | string; kind: "voice" | "typed" | "warm"; end: string; marks: Record<string, number> }): void;
+  /**
+   * How long the microphone took to open: "live" (open, being listened to), "late" (it opened after the
+   * wait was abandoned and was closed at once), "waiting" (abandoned, still not open). `fallback`: the
+   * saved microphone is not connected, the default one was opened. Main logs the slow ones and keeps the
+   * numbers for Report a problem (apps/desktop/okfilow-mic.js). Absent in a desktop build older than it.
+   */
+  micOpened?(payload: { ms: number; state: "live" | "late" | "waiting"; fallback: boolean }): void;
   press(): void;
   release(): void;
   /** `handsFree`: a dictation with the keys up, typed phrase by phrase until the keys are pressed once more. */
@@ -259,10 +269,15 @@ export type OkFilowBridge = {
   onCards(fn: (list: OkFilowCard[]) => void): Off;
   onModel(fn: (model: BuddyModel) => void): Off;
   onAskText(fn: (text: string) => void): Off;
-  /** A paired phone's question ({ text, device }) from a device the presenter allowed to ask (lib/buddy/phoneAsk.ts). Absent in an older desktop build. */
-  onPhoneAsk?(fn: (payload: unknown) => void): Off;
-  /** The presenter answered the notice for a phone's question: the desktop app lets the next one come. */
-  phoneAskDone?(): void;
+  /** How many paired phones' questions wait in the desktop app's inbox (0 during a slide show): the badge, never their text. Absent in an older desktop build. */
+  onPhoneCount?(fn: (count: unknown) => void): Off;
+  phoneCount?(): Promise<unknown>;
+  /** The presenter opened the badge: the oldest waiting question ({ key, text, device, peer, fp }), or null (lib/buddy/phoneAsk.ts phonePrompt). */
+  phoneOpen?(): Promise<unknown>;
+  /** The question on screen left the inbox (its device was revoked or lost the right to ask): its key. */
+  onPhoneWithdraw?(fn: (key: unknown) => void): Off;
+  /** The presenter answered the notice for a phone's question: yes, no (Ignore or timed out), or dropped unseen. */
+  phoneAskDone?(key: string, outcome: "yes" | "no" | "dropped"): void;
   /** Main -> overlays: wipe the user's highlighter strokes (cancelled ask). */
   onStrokes(fn: (s: unknown[]) => void): Off;
   onHandsFree(fn: (on: boolean) => void): Off;
@@ -315,10 +330,15 @@ export type OkFilowSettingsBridge = Pick<OkFilowBridge, "status" | "configure"> 
    */
   openAsk?(at?: { x: number; y: number }): Promise<"open" | "off" | "unavailable">;
   /**
-   * A question typed on a paired phone (lib/buddy/phoneAsk.ts), for the panel to ask on this computer.
-   * "busy": the panel is still loading, or the last phone question came a moment ago.
+   * A question typed on a paired phone (lib/buddy/phoneAsk.ts), into OK Filow's inbox (shown as a count
+   * until the presenter opens it). "busy": this device already has one waiting, is cooling down after an
+   * ignore, or the inbox is full; "blocked": ignored too often, its right to ask is being switched off.
    */
-  askFromPhone?(payload: { text: string; device: string }): Promise<"asked" | "off" | "busy" | "bad" | "unavailable">;
+  askFromPhone?(payload: { text: string; device: string; id: string; peer: string }): Promise<"asked" | "off" | "busy" | "bad" | "blocked" | "unavailable">;
+  /** The pairing ids that may ask now (the devices list): the others' questions leave the inbox. */
+  phoneAskers?(ids: string[]): void;
+  /** The desktop app switched a phone's right to ask off (ignored three times in a row). */
+  onPhoneAskOff?(fn: (id: string) => void): Off;
 };
 
 export function okFilowSettingsBridge(): OkFilowSettingsBridge | null {
