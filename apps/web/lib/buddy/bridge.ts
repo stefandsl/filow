@@ -298,6 +298,17 @@ export type OkFilowSettingsBridge = Pick<OkFilowBridge, "status" | "configure"> 
   openPanel(): void;
   /** Opens the whiteboard window; false when OK Filow is not running. Absent in a desktop build older than this entry. */
   showWhiteboard?(): Promise<boolean>;
+  /**
+   * The "OK Filow" button of the main window: the panel the type-to-ask key opens, ready for a typed
+   * question, next to `at` (the button, in page pixels). "off": OK Filow is switched off, nothing opened;
+   * "unavailable": OK Filow is not running. Absent in a desktop build older than this entry.
+   */
+  openAsk?(at?: { x: number; y: number }): Promise<"open" | "off" | "unavailable">;
+  /**
+   * A question typed on a paired phone (lib/buddy/phoneAsk.ts), for the panel to ask on this computer.
+   * "busy": the panel is still loading, or the last phone question came a moment ago.
+   */
+  askFromPhone?(text: string): Promise<"asked" | "off" | "busy" | "empty" | "unavailable">;
 };
 
 export function okFilowSettingsBridge(): OkFilowSettingsBridge | null {

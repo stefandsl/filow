@@ -149,6 +149,16 @@ export type Command =
    * speech for the new place (Next: people often start the next part before pressing), "all" keeps
    * everything (going back after a move made by mistake). Engine.anchor() has the rules.
    */
-  | { type: "anchor"; idx: number; pointId?: string; keep?: "recent" | "all" };
+  | { type: "anchor"; idx: number; pointId?: string; keep?: "recent" | "all" }
+  /**
+   * A typed question for OK Filow from a paired phone (the mirror's "Ask OK Filow" box). Not the
+   * engine's: the desktop app's main window answers it (components/useSession.ts) and hands it to
+   * OK Filow's panel on the computer, which asks it like any other question (same consent, same
+   * provider). Only a phone the session server accepted as a controller can send it.
+   */
+  | { type: "askOkFilow"; text: string };
+
+/** The longest question a phone may send to OK Filow, in characters (the panel's own limit for a handed-over question). */
+export const PHONE_QUESTION_MAX = 300;
 
 export type CommandResult = { ok: true } | { ok: false; error: string };

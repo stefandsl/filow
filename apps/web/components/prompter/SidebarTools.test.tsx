@@ -79,3 +79,53 @@ describe("Display and Whiteboard buttons in the sidebar", () => {
     }
   });
 });
+
+// The owner, on the sidebar: "Put OK Filow here so we can ask directly from this interface". The button
+// sits directly above Display, built like Display and Whiteboard (same class, icon and label spans).
+describe("OK Filow button in the sidebar", () => {
+  const nav = prompter.slice(prompter.indexOf("<SectionNav"), prompter.indexOf("importAction="));
+
+  it("is the first tool button, directly above Display, built like its neighbours", () => {
+    expect(nav).toMatch(/\{okfHere && <button type="button" className="btn okfilow-link" onClick=\{\(e\) => \{ setOkfDown\(false\); void openOkFilow\(anchorOf\(e\.currentTarget\)\)\.then\(\(went\) => setOkfDown\(went === "unavailable"\)\); \}\} aria-label=\{t\("ctl\.okfilow"\)\} title=\{t\("ctl\.okfilowTitle"\)\}><Icon name="ask" \/><span className="action-label">\{t\("ctl\.okfilow"\)\}<\/span><\/button>\}/);
+    expect(nav.indexOf("toolActions={<>")).toBeLessThan(nav.indexOf("okfilow-link"));
+    expect(nav.indexOf("okfilow-link")).toBeLessThan(nav.indexOf("display-link"));
+    // nothing between the two buttons
+    expect(nav.slice(nav.indexOf("</button>}", nav.indexOf("okfilow-link")) + "</button>}".length, nav.indexOf("display-link")).trim()).toBe('<button type="button" className="btn');
+    expect(prompter).toContain('import { anchorOf, canAskOkFilow, openOkFilow } from "@/lib/buddy/openAsk";');
+    expect(iconPaths.ask).toBeTruthy();
+    expect(new Set(Object.values(iconPaths)).size).toBe(Object.keys(iconPaths).length);
+  });
+
+  it("is drawn only in the desktop app, where OK Filow lives", () => {
+    expect(prompter).toContain("useEffect(() => setOkfHere(canAskOkFilow()), []);");
+    expect(prompter).toContain("const [okfHere, setOkfHere] = useState(false);");
+  });
+
+  it("rendered in the sidebar, it comes before Display, Whiteboard, Import and Reload", () => {
+    const html = renderToStaticMarkup(<SectionNav sections={[{ id: "a", title: "Intro" }]} current={0} onSelect={() => {}}
+      toolActions={<><button>OK Filow</button><button>Display</button><button>Whiteboard</button></>} importAction={<button>Import</button>} reloadAction={<button>Reload</button>} />);
+    const actions = html.slice(html.indexOf('class="nav-actions"'));
+    expect(actions.match(/<button>([^<]+)<\/button>/g)).toEqual(["<button>OK Filow</button>", "<button>Display</button>", "<button>Whiteboard</button>", "<button>Import</button>", "<button>Reload</button>"]);
+  });
+
+  it("says in words when OK Filow is not running, in all five languages", () => {
+    expect(prompter).toContain('{okfDown && <div className="chip err banner" role="alert">{t("ctl.okfilowDown")}</div>}');
+    const texts = LANGS.map((lang) => translate(lang, "ctl.okfilowDown"));
+    expect(new Set(texts).size).toBe(5);
+    for (const text of texts) {
+      expect(text).toContain("OK Filow");
+      expect(text).not.toContain("ctl.");
+    }
+  });
+
+  it("keeps the product name as its label and explains it in each language", () => {
+    expect(LANGS.map((lang) => translate(lang, "ctl.okfilow"))).toEqual(["OK Filow", "OK Filow", "OK Filow", "OK Filow", "OK Filow"]);
+    const titles = LANGS.map((lang) => translate(lang, "ctl.okfilowTitle"));
+    expect(new Set(titles).size).toBe(5);
+    for (const title of titles) {
+      expect(title).toContain("OK Filow");
+      expect(title.length).toBeGreaterThan(20);
+      expect(title).not.toContain("\u2014");
+    }
+  });
+});

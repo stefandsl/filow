@@ -66,6 +66,7 @@ export const ja: Record<OkfKey, string> = {
   hotkey: "長押しで話す",
   brain: "回答の提供元",
   moreSettings: "OK Filowのその他の設定",
+  setupOff: "OK Filowはオフになっています。ここでオンにしてから、メインウィンドウのOK Filowをもう一度押してください。",
   brainLocal: "このPC(Ollama)",
   brainServer: "あなたのサーバー {name}",
   brainCloud: "クラウド（OpenRouter）",

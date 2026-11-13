@@ -492,6 +492,16 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .display-root { position: relative; background: var(--bg); min-height: 100dvh; }
 .mirror-display-btn { position: absolute; top: 12px; right: 16px; z-index: 5; }
 .display-root > .app.stage { padding-top: 64px; } /* room for the Display button, flipped or not */
+/* "Ask OK Filow" on the phone (components/MirrorAsk.tsx): under the stage, never flipped with it. */
+.mirror-ask { margin: 0 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+.mirror-ask .label { margin: 0; }
+.mirror-ask-row { display: flex; gap: 8px; }
+.mirror-ask-input { flex: 1; min-width: 0; text-align: left; text-transform: none; font-weight: 400; }
+.mirror-ask-line { margin: 0; min-height: 1.4em; font-size: var(--type-sm); color: var(--text); }
+.mirror-ask-line.err { color: var(--warn); }
+.mirror-ask .hint { margin: 0; font-size: var(--type-sm); color: var(--muted); }
+/* OK Filow's section in Settings, opened by the sidebar button while OK Filow is off (components/OkFilowSettings.tsx) */
+.okf-setup-off { margin: 0 0 8px; font-size: var(--type-base); color: var(--text); }
 /* The Display panel sits at the side so the change shows behind it. */
 dialog.modal-bg.accessible-dialog:has(> .display-panel) { background: transparent; justify-content: flex-end; align-items: flex-start; margin: 0; padding: 0; width: 100%; height: 100%; max-width: none; max-height: none; border: 0; color: var(--text); }
 dialog.modal-bg.accessible-dialog:has(> .display-panel)::backdrop { background: transparent; }

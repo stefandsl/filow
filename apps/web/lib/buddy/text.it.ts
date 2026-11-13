@@ -68,6 +68,7 @@ export const it: Record<OkfKey, string> = {
   brainLocal: "Questo PC (Ollama)",
   brainServer: "Il tuo server {name}",
   moreSettings: "Altre impostazioni di OK Filow",
+  setupOff: "OK Filow è spento. Accendilo qui, poi premi di nuovo OK Filow nella finestra principale.",
   brainCloud: "Cloud (OpenRouter)",
   voice: "Voce",
   voiceSystem: "Voce di questo PC",

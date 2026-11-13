@@ -346,6 +346,9 @@ export class Engine {
         return { ok: true };
       case "anchor":
         return this.anchor(cmd.idx, cmd.pointId, cmd.keep);
+      case "askOkFilow":
+        // Answered by the desktop app before the engine sees it (useSession.ts); reaching here means no OK Filow.
+        return { ok: false, error: "okfilow:unavailable" };
     }
   }
 

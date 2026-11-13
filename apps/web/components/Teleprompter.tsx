@@ -53,6 +53,7 @@ import { useReanchor } from "./prompter/useReanchor";
 import { ReanchorNotice } from "./prompter/ReanchorNotice";
 import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useCodesForWindows, useDisplayPrefs, useEyeline, usePointsWindow } from "./prompter/DisplayPanel";
 import { openWhiteboard } from "@/lib/whiteboard/open";
+import { anchorOf, canAskOkFilow, openOkFilow } from "@/lib/buddy/openAsk";
 import { pointState } from "@/lib/pointState";
 import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
 import { decisionRecipient, localServer, sttRecipient, takeOutbound } from "@/lib/buddy/outbound";
@@ -105,6 +106,10 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
   const [importError, setImportError] = useState<string | null>(null);
   // The Whiteboard button found OK Filow not running in the desktop app (lib/whiteboard/open.ts): said in words, never a dead button.
   const [boardDown, setBoardDown] = useState(false);
+  // The OK Filow button (lib/buddy/openAsk.ts): drawn in the desktop app only, and says in words when OK Filow is not running.
+  const [okfHere, setOkfHere] = useState(false);
+  const [okfDown, setOkfDown] = useState(false);
+  useEffect(() => setOkfHere(canAskOkFilow()), []);
   const [starting, setStarting] = useState(false);
   const [micWarning, setMicWarning] = useState<MicWarning | null>(null);
   const microphoneRef = useRef<HTMLSelectElement>(null);
@@ -521,6 +526,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       </header>
       <SectionNav sections={script.sections} current={sectionIdx} onSelect={reanchor.toSection}
         toolActions={<>
+          {okfHere && <button type="button" className="btn okfilow-link" onClick={(e) => { setOkfDown(false); void openOkFilow(anchorOf(e.currentTarget)).then((went) => setOkfDown(went === "unavailable")); }} aria-label={t("ctl.okfilow")} title={t("ctl.okfilowTitle")}><Icon name="ask" /><span className="action-label">{t("ctl.okfilow")}</span></button>}
           <button type="button" className="btn display-link" onClick={() => setDisplayOpen(true)} aria-label={t("display.open")} title={t("display.openTitle")} aria-haspopup="dialog"><Icon name="sliders" /><span className="action-label">{t("display.open")}</span></button>
           <button type="button" className="btn whiteboard-link" onClick={() => { setBoardDown(false); void openWhiteboard().then((went) => setBoardDown(went === "unavailable")); }} aria-label={t("ctl.whiteboard")} title={t("ctl.whiteboardTitle")}><Icon name="board" /><span className="action-label">{t("ctl.whiteboard")}</span></button>
         </>}
@@ -553,6 +559,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       {error && <div className="chip err banner">{error}</div>}
       {importError !== null && <ImportError error={importError} />}
       {boardDown && <div className="chip err banner" role="alert">{t("ctl.whiteboardDown")}</div>}
+      {okfDown && <div className="chip err banner" role="alert">{t("ctl.okfilowDown")}</div>}
 
 
         <div className="section-heading">

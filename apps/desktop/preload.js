@@ -27,6 +27,10 @@ contextBridge.exposeInMainWorld("filow", {
     openPanel: () => ipcRenderer.send("okfilow:settings:openPanel"),
     /** The "Whiteboard" button of the main window: opens the whiteboard window; false when OK Filow is not running. */
     showWhiteboard: () => ipcRenderer.invoke("okfilow:settings:showWhiteboard"),
+    /** The "OK Filow" button of the main window: "open", "off" (switched off) or "unavailable" (not running). */
+    openAsk: (at) => ipcRenderer.invoke("okfilow:settings:openAsk", at),
+    /** A paired phone's question (useSession.ts), for OK Filow's panel: "asked", "off", "busy", "empty" or "unavailable". */
+    askFromPhone: (text) => ipcRenderer.invoke("okfilow:settings:askFromPhone", text),
   },
   /** FreeLLMAPI's section in Filow Settings (freellm.js): the key goes in, never comes back. */
   freeLlm: {

@@ -71,6 +71,7 @@ const en = {
   hotkey: "Hold to talk",
   brain: "Answers from",
   moreSettings: "More OK Filow settings",
+  setupOff: "OK Filow is turned off. Turn it on here, then press OK Filow in the main window again.",
   brainLocal: "This PC (Ollama)",
   brainServer: "Your server {name}",
   brainCloud: "Cloud (OpenRouter)",
