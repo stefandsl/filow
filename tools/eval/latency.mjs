@@ -21,7 +21,7 @@ import path from "node:path";
 import { launchFilow, logLineCount, logLinesSince, processTable, stopTree, treeOf, waitForLine } from "../autoloop/e2e/launch.mjs";
 import {
   addNoiseFloor, canaryHits, grammarBreaks, heardOk, invalidReasons, judgeVerdict, median, medianInterval, message,
-  parseServer, parseTimings, quantile, rank2b, SPANS, spanValue, speechEndMs, voiceSchedule,
+  parseServer, parseTimings, quantile, rank2b, SPANS, spanValue, speechEndMs, voiceSchedule, wordDistance,
 } from "./latency-lib.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "../..");
@@ -99,7 +99,7 @@ async function serve(tier) {
   if (tier.port === 11434) throw new Error("never the owner's Ollama");
   let pid = listener(tier.port);
   if (!pid) {
-    ollamaCli(tier, ["serve"], { detached: true });
+    ollamaCli(tier, ["serve"], { detached: true }).unref();
     for (let i = 0; i < 60 && !pid; i++) { await sleep(500); pid = listener(tier.port); }
     if (!pid) throw new Error(`our ${tier.name} Ollama did not start on ${tier.port}`);
     for (let i = 0; i < 40; i++) { try { await api(tier, "/api/version"); break; } catch { await sleep(250); } }
@@ -355,6 +355,8 @@ function foreignCpu(file, from, to, ours) {
  * until the foreign CPU of the last two sampler readings is under 15%, at most 30 minutes per sample.
  */
 async function waitForQuiet(ctx) {
+  // --no-wait: smoke runs only (the samples still say when the PC was busy)
+  if (argv.includes("--no-wait")) return;
   const ours = () => new Set([...treeOf(processTable(), ctx.run.pid), ...treeOf(processTable(), ctx.ollamaPid), process.pid, ctx.sampler?.pid].filter(Boolean));
   const start = Date.now();
   let told = false;
@@ -383,6 +385,8 @@ async function sample(ctx, { kind, question, offset = 0, speechEnd = 0, hold = 0
   // the GPU before the question, with our model idle: someone else's work on it invalidates the sample
   const gpuBefore = tier.gpu ? gpuUtil() : null;
   const fromLine = logLineCount(launched.log);
+  // the last answer's signals go first: a spoken question's answer starts only after the recognizer is done
+  await page.evaluate("(() => { for (const k of [\"okfEnd\", \"okfRun\", \"okfFetchAt\", \"okfVoiceAt\"]) delete document.documentElement.dataset[k]; return true; })()");
   let t0;
   let heard = null;
   if (kind === "voice") {
@@ -415,7 +419,13 @@ async function sample(ctx, { kind, question, offset = 0, speechEnd = 0, hold = 0
     if (stopKeyAt) { await qaKey(page, "down", "escape"); await qaKey(page, "up", "escape"); }
   }
   const ended = await until(() => signal(page, "okfEnd"), tier.timeoutMs, 50);
-  if (kind === "voice") heard = heardOk(QUESTIONS[question].text, await heardText(page), offset);
+  let heardDistance = null;
+  if (kind === "voice") {
+    // compared in memory: only the number of words off is kept
+    const text = await heardText(page);
+    heard = heardOk(QUESTIONS[question].text, text, offset);
+    heardDistance = wordDistance(QUESTIONS[question].text, text);
+  }
   // the server line comes at the end of the answer's stream; the stopped line 2 s after Stop
   const runId = await signal(page, "okfRun");
   let timings = null, server = null, lines;
@@ -429,7 +439,7 @@ async function sample(ctx, { kind, question, offset = 0, speechEnd = 0, hold = 0
   const msgs = lines.map(message);
   const s = {
     kind: kind.startsWith("stop") ? "stop" : kind, variant: kind, question, offset, t0Harness: t0, timedOut: !ended,
-    timings, server, heardOk: heard, mode: msgs.some((l) => l.startsWith("okfilow: mode error")) ? "error" : "",
+    timings, server, heardOk: heard, heardDistance, mode: msgs.some((l) => l.startsWith("okfilow: mode error")) ? "error" : "",
     ttsLevels: msgs.map((l) => /^tts: \w+ voice \d+ (\w+) \d+\/\d+ pieces/.exec(l)?.[1]).filter(Boolean),
     tooSlow: msgs.some((l) => l.startsWith("tts: this PC is too slow")),
     ground: runId ? lines.map(parseServer).filter((x) => x && x.run === `${runId}g`).map((x) => ({ marks: x.marks, promptEvalMs: x.promptEvalMs })) : [],
@@ -852,7 +862,17 @@ async function report() {
   say(`[report] draft ${draft}`);
 }
 
-const commands = { prepare, judge, measure, cloud, leak, tokens, report };
+/** Diagnostics: launches the fast tier and lists the panel's own buttons (Filow's interface words, no screen content). */
+async function probe() {
+  const ctx = await context("fast", "probe");
+  await withLaunch(ctx, {}, async () => {
+    await sleep(8000);
+    say(`[probe] ${JSON.stringify(await ctx.page.evaluate("({ url: location.pathname, main: Boolean(document.querySelector(\".okf-panel\")), links: [...document.querySelectorAll(\"button.okf-link\")].map((b) => b.textContent), want: " + JSON.stringify(CLEAR_HISTORY) + " })"))}`);
+  });
+  try { ctx.sampler.kill(); } catch { /* gone */ }
+}
+
+const commands = { probe, prepare, judge, measure, cloud, leak, tokens, report };
 const cmd = argv[0];
 if (!commands[cmd]) {
   console.error(`usage: node tools/eval/latency.mjs <${Object.keys(commands).join("|")}> [--exe <win-unpacked>] [--tier standard|fast] [--conditions warm,cold,typed,stop] [--n 40]`);
