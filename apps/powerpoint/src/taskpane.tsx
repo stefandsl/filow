@@ -1,7 +1,7 @@
 /* global Office */
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { connect, type SessionClient } from "@filow/client";
+import { connect, isPairCode, type SessionClient } from "@filow/client";
 import { Engine, isLang, LANG_LABELS, langFromLocale, LANGS, parseScript, type Command, type DecideRequest, type DecideResponse, type Lang, type SessionState, type SttStatus } from "@filow/core";
 import { availableBackends, BACKEND_LABELS, startAuto, type SttBackend } from "@filow/stt";
 import { Wordmark, LangProvider, StageView, useLang, useT } from "@filow/ui";
@@ -479,8 +479,8 @@ function ViewPane() {
             void join(code);
           }}
         >
-          <input className="btn code-input" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="123456" />
-          <button className="btn primary" type="submit" disabled={code.length !== 6 || status === "pairing"}>
+          <input className="btn code-input" autoCapitalize="characters" autoComplete="off" spellCheck={false} maxLength={9} value={code} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9 -]/g, ""))} placeholder="ABCD 2345" />
+          <button className="btn primary" type="submit" disabled={!isPairCode(code) || status === "pairing"}>
             {status === "pairing" ? t("mirror.pairing") : t("mirror.join")}
           </button>
         </form>

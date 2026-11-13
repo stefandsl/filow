@@ -77,6 +77,8 @@ export type DesktopBridge = {
     onStatus: (fn: (s: LocalAiStatus) => void) => () => void;
   };
   accessPassword: string;
+  /** The per-launch key the app's own floating windows pair with (the overlay, the points window). */
+  appPairKey?: string;
 };
 
 export type NetStatus = { ip: string; iface: string; virtual: boolean; firewall: "ok" | "missing" | "n/a"; interfaces: Array<{ name: string; address: string; virtual: boolean }> };

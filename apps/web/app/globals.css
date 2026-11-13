@@ -634,3 +634,14 @@ dialog.modal-bg.accessible-dialog:has(> .display-panel-sidebar) { justify-conten
 /* Close looks like the window caption's close button it stands in for. */
 .fsbar .fsbar-btn[data-action="close"]:not(:disabled):hover { background: #c42b1c; color: #ffffff; }
 @media (prefers-reduced-motion: reduce) { .fsbar-panel { transition: none; transform: none; } }
+
+/* The presenter's paired devices (components/PairedDevices.tsx), inside the pairing panel. */
+.paired-devices { width: 100%; text-align: left; display: flex; flex-direction: column; gap: 8px; }
+.paired-devices ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.paired-device { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); }
+.paired-device-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px; min-width: 0; }
+.paired-device-name { font-weight: 600; overflow-wrap: anywhere; }
+.paired-device .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); align-self: center; flex: none; }
+.paired-device .dot.live { background: var(--ok); }
+.paired-device-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.paired-device-ask { display: inline-flex; align-items: center; gap: 6px; font-size: var(--type-sm); cursor: pointer; }

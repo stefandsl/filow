@@ -16,7 +16,8 @@ export type BuddyScreen = {
   cursor?: boolean;
 };
 
-export type BuddyTurn = { role: "user" | "assistant"; text: string };
+/** One turn of the conversation. `source: "phone"`: a paired phone's question and its answer (lib/buddy/phoneAsk.ts), never sent with later questions. */
+export type BuddyTurn = { role: "user" | "assistant"; text: string; source?: "phone"; device?: string };
 
 export type BuddyPoint = { x: number; y: number; label: string; screen: number };
 

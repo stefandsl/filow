@@ -520,7 +520,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       <header className="topbar">
         <div className="logo"><Wordmark height={28} /></div>
         <span className="subtitle">{t("app.tagline")}</span><span className="spacer" />
-        <PairPanel prompter info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} onNewCode={() => void sessionInfo.newCode()} />
+        <PairPanel prompter info={sessionInfo.info} status={sessionInfo.status} error={sessionInfo.error} onNewCode={() => void sessionInfo.newCode()} devices={sessionInfo.devices} onRevoke={sessionInfo.revokeDevice} onAllowAsk={sessionInfo.allowAsk} />
         <LangSwitch lang={lang} onChange={onLang} /><ThemeSwitch pref={theme} onChange={onTheme} />
         <a className="btn settings-link" href="/settings" aria-label={t("ctl.settings")} title={t("ctl.settingsTitle")}><Icon name="settings" /></a>
       </header>

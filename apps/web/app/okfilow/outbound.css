@@ -26,6 +26,8 @@
 .okf-notice h2 .okf-out-icon { color: var(--okf-out-line); }
 .okf-notice p { margin: 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
 .okf-notice p.okf-notice-more { color: var(--muted); font-size: 13px; }
+/* A paired phone's question (panel page.tsx): the question itself, as a quote. */
+.okf-notice p.okf-phone-question { font-weight: 600; font-style: italic; }
 .okf-notice-actions { display: flex; gap: 8px; margin-top: 2px; }
 .okf-notice-actions button {
   flex: 1 1 0; min-width: 0; min-height: 38px; padding: 8px 10px; border-radius: 10px;

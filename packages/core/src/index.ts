@@ -1,4 +1,5 @@
 export * from "./types";
+export * from "./phone-ask";
 export * from "./api";
 export * from "./script";
 export * from "./prompt";

@@ -68,26 +68,3 @@ describe("the main window's OK Filow button in the desktop app", () => {
     expect(pagePointOnScreen(null, 1, { x: 1, y: 1 })).toBeNull();
   });
 });
-
-// A question typed on a paired phone is switched off until it is secured (apps/web/lib/buddy/phoneAsk.ts):
-// the main window's channel answers "off" without reading the text or touching OK Filow, and OK Filow has
-// no way left to hand a phone's question to its panel.
-describe("a paired phone's question in the desktop app, switched off", () => {
-  it("the channel checks the main window's sender, then answers off and never reaches OK Filow", () => {
-    const main = read("main.js");
-    const start = main.indexOf('ipcMain.handle("okfilow:settings:askFromPhone"');
-    expect(start).toBeGreaterThan(-1);
-    const handler = main.slice(start, main.indexOf("\n  });", start));
-    expect(handler.split("\n")[1].trim()).toBe('if (!uiSender(event)) throw new Error("Denied");');
-    expect(handler.split("\n")[2].trim()).toBe('return "off";');
-    expect(handler).not.toMatch(/okFilow\b|text/);
-  });
-
-  it("OK Filow has no phone entry point: nothing hands a phone's question to the panel", () => {
-    expect(okf).not.toMatch(/askFromPhone|phoneAskedAt|PHONE_ASK_GAP_MS/);
-    expect(okf).not.toMatch(/return \{[^}]*\baskFromPhone\b[^}]*\};/);
-    // the panel's handed-over questions go through askTextQuestion (plain text from its own shell only)
-    const panel = fs.readFileSync(path.join(dir, "..", "web", "app", "okfilow", "panel", "page.tsx"), "utf8");
-    expect(panel).toContain("b.onAskText((text) => { const q = askTextQuestion(text); if (q) void ask(q); }),");
-  });
-});

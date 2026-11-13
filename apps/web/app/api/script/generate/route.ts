@@ -18,7 +18,8 @@ const MAX_IMAGE_CHARS = 2_000_000; // ~1.5 MB per slide image
  * need them (little text or a picture) and only when the caller attached one.
  */
 export async function POST(req: Request) {
-  const denied = requireEngine(req);
+  // The PowerPoint pane in View mode and the browser extension call this with a controller token (lib/engineAuth.ts).
+  const denied = requireEngine(req, { controllers: true });
   if (denied) return denied;
   let body: GenerateRequest;
   try {

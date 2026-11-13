@@ -2,15 +2,16 @@
 import { Icon } from "@/components/icons";
 import { OverlayFrame } from "@/components/OverlayFrame";
 import { TimerMirror } from "@/components/TimerMirror";
+import { MirrorAsk } from "@/components/MirrorAsk";
 
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { connect, type SessionClient } from "@filow/client";
+import { connect, isPairCode, normalizeCode, type SessionClient } from "@filow/client";
 import { currentPoint, DEFAULT_DISPLAY, moveCommand, type Command, type Lang, type SessionState } from "@filow/core";
 import { useClickerKeys } from "@/components/prompter/useReanchor";
 import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useDisplayPrefs, useEyeline } from "@/components/prompter/DisplayPanel";
 import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
-import { sessionServerUrl } from "@/lib/sessionUrl";
+import { desktopBridge, sessionServerUrl } from "@/lib/sessionUrl";
 import { classifyServer } from "@/lib/mirrorServer";
 import { LangSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
 
@@ -41,6 +42,9 @@ function Mirror({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
   const points = params.get("points") === "1";
   const closeOverlay = () => (globalThis as { filow?: { closeOverlay?: () => void } }).filow?.closeOverlay?.();
   const [pending, setPending] = useState(false);
+  // The presenter allowed this device to ask OK Filow (on the PC; off by default): only then is the box shown.
+  const [canAsk, setCanAsk] = useState(false);
+  const [role, setRole] = useState<string>("");
 
   /** ?server= is trusted only where the desktop's own QR code points (this origin, or this host one port up); anything else is confirmed first (never auto-connect elsewhere). */
   const resolveServer = (): string | null => {
@@ -68,9 +72,23 @@ function Mirror({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
           setStatus(d ? `${s}: ${d}` : s);
           if (d === "pending") setPending(true);
           if (s === "closed" && d && /rejected/.test(d)) setError(t("mirror.rejected"));
+          // The presenter revoked this device, or its pairing ran out: the stage and the Ask box go, the code box comes back.
+          if (s === "closed" && d && /revoked|pairing expired|bad token/.test(d)) {
+            setError(t(/revoked/.test(d) ? "mirror.revoked" : "mirror.expired"));
+            setClient(null);
+            setState(null);
+            setCanAsk(false);
+            setRole("");
+            setCode("");
+          }
         },
-        onRole: () => setPending(false),
+        onRole: (r) => { setPending(false); setRole(r); },
+        onPermissions: (p) => setCanAsk(p.canAsk),
+        // The app's own floating windows prove themselves with the app's per-launch key (never typed, never shown).
+        appKey: desktopBridge()?.appPairKey || undefined,
       });
+      setRole(cl.role);
+      setCanAsk(cl.canAsk);
       if (cl.role === "pending") setPending(true);
       setClient(cl);
       // An overlay window of the desktop app just spent the code on screen (codes are single use).
@@ -95,7 +113,7 @@ function Mirror({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
   };
 
   useEffect(() => {
-    if (code.length === 6 && !client) void join(code);
+    if (isPairCode(code) && !client) void join(normalizeCode(code));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -122,21 +140,22 @@ function Mirror({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
           className="controls"
           onSubmit={(e) => {
             e.preventDefault();
-            void join(code);
+            void join(normalizeCode(code));
           }}
         >
           <input
             className="btn code-input"
-            inputMode="numeric"
-            pattern="[0-9]{6}"
-            maxLength={6}
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={9}
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-            placeholder="123456"
+            onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9 -]/g, ""))}
+            placeholder="ABCD 2345"
             aria-label={t("mirror.enterCode")}
             autoFocus
           />
-          <button className="btn primary" type="submit" disabled={code.length !== 6 || status === "pairing"}>
+          <button className="btn primary" type="submit" disabled={!isPairCode(code) || status === "pairing"}>
             {status === "pairing" ? t("mirror.pairing") : t("mirror.join")}
           </button>
         </form>
@@ -175,7 +194,8 @@ function Mirror({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
     );
   }
   if (compact) return <>{timer}<MirrorKeys state={state} onCommand={onCommand} /><StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact banner={error ?? (offline ? t("stage.engineOffline") : null)} /></>;
-  return <MirrorStage state={state ?? emptyState(client.id)} onCommand={onCommand} timer={timer} banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
+  const ask = role === "controller" && canAsk ? (cmd: Command) => client.send(cmd) : null;
+  return <MirrorStage state={state ?? emptyState(client.id)} onCommand={onCommand} ask={ask} timer={timer} banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
 }
 
 /** Clicker keys on the mirror (a Bluetooth clicker paired with the phone, or the overlay window in focus). */
@@ -195,10 +215,11 @@ function OverlayEyeline({ state }: { state: SessionState | null }) {
 }
 
 /**
- * The full phone view: the stage with this phone's own display choice (size, eyeline, mirror for glass, contrast).
- * No "Ask OK Filow" box: questions from a phone are switched off until they are secured (lib/buddy/phoneAsk.ts).
+ * The full phone view: the stage with this phone's own display choice (size, eyeline, mirror for glass, contrast),
+ * and the "Ask OK Filow" box under it, only for a controller the presenter allowed to ask (sk; lib/buddy/phoneAsk.ts).
+ * Never in the desktop's own overlay windows or the compact view.
  */
-function MirrorStage({ state, onCommand, banner, timer }: { state: SessionState; onCommand: (cmd: Command) => void; banner: string | null; timer: ReactNode }) {
+function MirrorStage({ state, onCommand, ask, banner, timer }: { state: SessionState; onCommand: (cmd: Command) => void; ask: ((cmd: Command) => Promise<{ ok: boolean; error?: string }>) | null; banner: string | null; timer: ReactNode }) {
   const t = useT();
   const [display, setDisplay] = useDisplayPrefs(DISPLAY_KEYS.mirror);
   const [open, setOpen] = useState(false);
@@ -211,6 +232,7 @@ function MirrorStage({ state, onCommand, banner, timer }: { state: SessionState;
         <Icon name="sliders" /> {t("display.open")}
       </button>
       <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state} onCommand={onCommand} stage banner={banner} />
+      {ask && <MirrorAsk send={ask} />}
       {open && <DisplayPanel prefs={display} onChange={setDisplay} onClose={() => setOpen(false)} />}
     </main>
   );

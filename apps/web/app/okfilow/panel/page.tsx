@@ -30,7 +30,7 @@ import { wantsDrawing } from "@/lib/buddy/visuals";
 import { photoOnly } from "@/lib/buddy/photo";
 import { AnswerControls, KeyChoice, SeeScreenSwitch } from "@/components/okfilow/controls";
 import { whiteboardTopic } from "@/lib/whiteboard/client";
-import { askTextQuestion } from "@/lib/buddy/phoneAsk";
+import { askPlan, askTextQuestion, lastPresenterAnswer, phonePrompt, phoneTurns, presenterHistory, questionForModel, type AskSource } from "@/lib/buddy/phoneAsk";
 import "../okfilow.css";
 
 const HISTORY_KEY = "okfilow.history.v1";
@@ -45,6 +45,10 @@ function loadHistory(): BuddyTurn[] {
     return Array.isArray(v) ? v.filter((x) => x && (x.role === "user" || x.role === "assistant") && typeof x.text === "string").slice(-12) : [];
   } catch { return []; }
 }
+/** What a phone's question "captures": nothing (askPlan: no screenshot, no screen list, no selection). */
+const NO_CAPTURE: OkFilowCapture = { images: [], screens: [], displays: [], marked: [], selected: "" };
+/** A phone's question nobody answers is dropped after this long (the desktop gate frees the next one at 65 s). */
+const PHONE_NOTICE_MS = 60_000;
 function saveHistory(h: BuddyTurn[]) {
   try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-12))); } catch { /* storage off: memory only */ }
 }
@@ -338,6 +342,14 @@ export default function OkFilowPanel() {
 
   // Hands-free: after each answer the mic opens again until it is switched off.
   const listenAgain = useRef<() => void>(() => {});
+  // A paired phone's question waiting for the presenter's yes (lib/buddy/phoneAsk.ts): `yesFor` is the
+  // recipient the notice names ("local": it stays on this PC), `who` that recipient in words.
+  const [phoneNotice, setPhoneNotice] = useState<{ question: string; device: string; yesFor: string; who: string | null } | null>(null);
+  const phoneNoticeRef = useRef(phoneNotice);
+  phoneNoticeRef.current = phoneNotice;
+  const offerPhone = useRef<(payload: unknown) => Promise<void>>(async () => {});
+  const phoneBox = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (phoneNotice) phoneBox.current?.focus(); }, [phoneNotice]);
 
   /**
    * Second, narrow request: just the point for what the answer described. Null when there is none.
@@ -453,9 +465,16 @@ export default function OkFilowPanel() {
    * is the conversation's last answer (Resume after Stop, lib/buddy/turn.ts resumePlan); `said`: the
    * start of it the user already heard, which the voice does not say again.
    */
-  const ask = useCallback(async (question: string, opts: { typed?: boolean; resume?: { shown: string; said?: string } } = {}) => {
+  const ask = useCallback(async (question: string, opts: { typed?: boolean; resume?: { shown: string; said?: string }; phone?: { device: string; yesFor: string } } = {}) => {
     const b = okFilowBridge();
     if (!b) return;
+    // A paired phone's question (lib/buddy/phoneAsk.ts): asked only after the presenter's yes for this one
+    // question (`yesFor`: the recipient that yes named), and never over an answer, a recording or a notice.
+    const source: AskSource = opts.phone ? "phone" : "presenter";
+    const plan = askPlan(source, { typed: opts.typed, typedVoice: statusRef.current?.typedVoice });
+    if (opts.phone && (modeRef.current !== "idle" || opts.resume)) return;
+    // The presenter asks something: a phone's question still waiting for their yes is dropped, never asked after.
+    if (!opts.phone && phoneNoticeRef.current) { setPhoneNotice(null); b.phoneAskDone?.(); }
     // The speed baseline: a spoken question brings the marks taken while it was heard; a typed one starts here.
     const pending = opts.typed ? null : pendingMarks.current;
     pendingMarks.current = null;
@@ -477,7 +496,8 @@ export default function OkFilowPanel() {
     // A new question drops any notice still waiting for the previous one: nothing of it may go out.
     out.dismissAll();
     // "whiteboard: ..." opens the whiteboard tutor with that topic (docs/whiteboard/SPEC.md).
-    const boardTopic = resume ? "" : whiteboardTopic(question);
+    // (never from a phone: its words are a question, not a command)
+    const boardTopic = resume || !plan.whiteboard ? "" : whiteboardTopic(question);
     if (boardTopic && b.showWhiteboard) {
       setHeard(question);
       b.showWhiteboard(boardTopic);
@@ -485,9 +505,10 @@ export default function OkFilowPanel() {
       return setMode("idle");
     }
     try {
-      const lastAnswer = history.current.at(-1)?.text ?? "";
-      // (a continuation is never an agent request: the answer it carries on came from the model)
-      let job = resume ? null : await b.agents.start(question, lastAnswer);
+      // The presenter's last answer, never a phone's: what a phone was told is not an agent's context.
+      const lastAnswer = lastPresenterAnswer(history.current);
+      // (a continuation is never an agent request: the answer it carries on came from the model; nor is a phone's question)
+      let job = resume || !plan.agents ? null : await b.agents.start(question, lastAnswer);
       markTime(tm, "agentChecked");
       if (job && "needsConsent" in job) {
         // The task and the last answer would go to the maker of the coding agent: ask first.
@@ -531,11 +552,12 @@ export default function OkFilowPanel() {
     const abort = new AbortController();
     asking.current = abort;
     // A drawing request is answered in one piece: a stop of it offers no Resume.
-    turn.current.begin(id, question, abort, { resumable: wantsDrawing(question) === null, continues: resume?.shown });
+    turn.current.begin(id, question, abort, { resumable: plan.resumable && wantsDrawing(question) === null, continues: resume?.shown, ...(opts.phone ? { tag: { source: "phone" as const, device: opts.phone.device } } : {}) });
     let answerLang: string | undefined;
     // The one speech queue of this answer: sentence by sentence while the text arrives, each chunk at its
     // place among the bubble's sentences (the pill keeps that one in view), none started during a pause.
-    const voiced = !opts.typed || statusRef.current?.typedVoice === true;
+    // A phone's question is never read aloud, whatever "Read typed answers aloud" says (askPlan).
+    const voiced = plan.voiced;
     const voice = createProgressiveSpeech({
       isCurrent: () => run.current === id && !abort.signal.aborted,
       unpaused: () => turn.current.unpaused(id),
@@ -550,9 +572,10 @@ export default function OkFilowPanel() {
     answerCtx.current = { id, typed: opts.typed === true, speaking: voiced, marks: [], marksAt: 0, marksBase: 0, voice };
     // "Look at my screen" (lib/buddy/sees.ts): off, the question goes with the user's words only.
     // A continuation follows the eye as it is now, not as it was when the question was first asked.
-    const seeing = seesScreen(statusRef.current?.seeScreen, askRoute(statusRef.current), localScreenRef.current);
+    // A phone's question goes with its words only: no screenshot is taken at all (askPlan).
+    const seeing = plan.capture && seesScreen(statusRef.current?.seeScreen, askRoute(statusRef.current), localScreenRef.current);
     setAsksSee(seeing);
-    setHeard(question);
+    setHeard(opts.phone ? t("phoneHeard").replace("{device}", opts.phone.device).replace("{q}", question) : question);
     setAnswer(resume?.shown ?? "");
     setError("");
     setMode("thinking", { sees: seeing });
@@ -560,7 +583,7 @@ export default function OkFilowPanel() {
     b.clearVisuals();
     try {
       // With "Look at my screen" off no picture of the screen is even taken.
-      const shot = await b.capture({ images: seeing });
+      const shot: OkFilowCapture = plan.capture ? await b.capture({ images: seeing }) : NO_CAPTURE;
       markTime(tm, "captured");
       if (run.current !== id) return sendTimings(tm, "superseded", b);
       // What the user circled goes in two ways: burnt into the screenshot, and as grid boxes in words.
@@ -568,12 +591,12 @@ export default function OkFilowPanel() {
       const images = !seeing ? [] : marked.length
         ? await Promise.all(shot.images.map((img, i) => burnStrokes(img, marked.filter((m) => m.screen === i + 1), statusRef.current?.color ?? "#ffb600")))
         : shot.images;
-      const markedNote = [describeMarked(marked), shot.selected ? `(Text I have selected: "${shot.selected}")` : ""].filter(Boolean).join("\n");
+      const markedNote = plan.capture ? [describeMarked(marked), shot.selected ? `(Text I have selected: "${shot.selected}")` : ""].filter(Boolean).join("\n") : "";
       // Local or cloud is decided in one place (askRoute). The screenshot above was taken before the
       // notice so it shows the screen as it was when the user asked; nothing is sent until they say yes.
       // A plain photo request is answered by the card alone, on this PC, whatever "Answers from" says:
       // no notice for the cloud opens, because nothing of the question goes there.
-      const photo = photoOnly(question, { drawing: wantsDrawing(question) !== null, resume: !!resume });
+      const photo = plan.capture && photoOnly(question, { drawing: wantsDrawing(question) !== null, resume: !!resume });
       let route = photo ? "local" : askRoute(statusRef.current);
       let to: Recipient | null = null;
       // "Local" can mean the user's own server (Settings > Advanced, model per task): that leaves this
@@ -581,6 +604,8 @@ export default function OkFilowPanel() {
       const viaServer = !photo && route === "local" ? (await out.recipients())?.server ?? null : null;
       markTime(tm, "recipients");
       if (run.current !== id) return sendTimings(tm, "superseded", b);
+      // A phone's question: the route must be the one the presenter's yes named (it may have changed since).
+      if (opts.phone && route === "local" && !viaServer && opts.phone.yesFor !== "local") throw new Error(t("noticeUnknown"));
       if (route !== "local" || viaServer) {
         const rec = await out.recipients();
         // Stopped while this was looked up: no notice opens for an answer nobody waits for.
@@ -588,12 +613,15 @@ export default function OkFilowPanel() {
         const named = rec && askRouteRecipient(route, rec);
         const recipient = named && localServer(named, t("outServer"));
         if (!recipient) throw new Error(t("noticeUnknown"));
+        // A phone's question: the presenter's yes for this one question, given to a notice that named this
+        // recipient, is the only yes that counts; a stored one is never read. Anyone else now: nothing goes.
+        if (opts.phone && opts.phone.yesFor !== recipient.id) throw new Error(t("noticeUnknown"));
         // A yes given while the notice said "no picture of your screen is sent" does not cover the
         // screen: with the switch on it is withdrawn, so the full notice comes before any screenshot goes.
-        if (screenYesMissing(seeing, out.standing("ask", recipient) === "granted", statusRef.current?.askWordsOnly, recipient.id)) await out.forget(consentKey("ask", recipient));
-        const asked = out.standing("ask", recipient) === "ask";
+        if (!opts.phone && screenYesMissing(seeing, out.standing("ask", recipient) === "granted", statusRef.current?.askWordsOnly, recipient.id)) await out.forget(consentKey("ask", recipient));
+        const asked = !opts.phone && out.standing("ask", recipient) === "ask";
         if (asked) b.text(t("noticeWaiting"));
-        const decision = await out.allow("ask", recipient, undefined, !seeing);
+        const decision = opts.phone ? "granted" : await out.allow("ask", recipient, undefined, !seeing);
         if (run.current !== id) return sendTimings(tm, "superseded", b);
         // Which notice the yes was given to is kept, so it is never stretched to cover more later.
         if (asked && decision === "granted") {
@@ -651,7 +679,7 @@ export default function OkFilowPanel() {
           headers,
           // sees: false when this question goes without the screen; else the user's own choice, or nothing so the setup decides
           // resume: the conversation ends with the part of the answer already shown, and the model carries on from it
-          body: JSON.stringify({ question: markedNote ? question + "\n" + markedNote : question, images: withScreen ? images : [], screens: shot.screens, elements: withScreen ? shot.elements : undefined, history: history.current, language: getSpeechLang(), provider: route, setup: getSetupPreference(), sees: withScreen ? askSees(statusRef.current?.seeScreen) : false, ...(resume ? { resume: true } : {}) }),
+          body: JSON.stringify({ question: markedNote ? questionForModel(source, question) + "\n" + markedNote : questionForModel(source, question), images: withScreen ? images : [], screens: shot.screens, elements: withScreen ? shot.elements : undefined, history: plan.history ? presenterHistory(history.current) : [], language: getSpeechLang(), provider: route, setup: getSetupPreference(), sees: withScreen ? askSees(statusRef.current?.seeScreen) : false, ...(resume ? { resume: true } : {}) }),
         });
         if (!res.ok || !res.body) {
           // Refused before anything was forwarded (no yes on record, Offline mode, FreeLLMAPI without a key): nothing went outside.
@@ -685,7 +713,7 @@ export default function OkFilowPanel() {
           voice.update(shown, false, moreFollows(partial, arrived));
         }
       };
-      const raw = to ? await out.sending("ask", to, send) : await send({});
+      const raw = to ? (opts.phone ? await out.sendingOnce("ask", to, { recipientId: opts.phone.yesFor }, send) : await out.sending("ask", to, send)) : await send({});
       if (raw === null) return sendTimings(tm, "superseded", b);
       // Paused: what follows the text (the marks, the pointer, the voice, an error) waits for Resume.
       if (!(await turn.current.unpaused(id))) return sendTimings(tm, "superseded", b);
@@ -704,7 +732,7 @@ export default function OkFilowPanel() {
       // A continuation: the conversation's last answer becomes the first part and what followed, with no second question.
       history.current = resume && history.current.at(-1)?.role === "assistant"
         ? [...history.current.slice(0, -1), { role: "assistant" as const, text: body.trim() }]
-        : [...history.current, { role: "user" as const, text: question }, { role: "assistant" as const, text: body.trim() }].slice(-12);
+        : [...history.current, ...(opts.phone ? phoneTurns(question, opts.phone.device, body.trim()) : [{ role: "user" as const, text: question }, { role: "assistant" as const, text: body.trim() }])].slice(-12);
       saveHistory(history.current);
       if (answerCtx.current?.id === id) answerCtx.current.lang = answerLang;
       // From here a Stop keeps the conversation as it is: the whole answer is in it.
@@ -748,7 +776,8 @@ export default function OkFilowPanel() {
           if (list.length) noteVisual(id);
         };
         showCards(placed.map((p) => p.card));
-        if (placed.some((p) => p.lookup) && !statusRef.current?.offline) {
+        // (never for a phone's question: a picture is a send of its own, and a phone's yes covers one send only)
+        if (placed.some((p) => p.lookup) && !statusRef.current?.offline && !opts.phone) {
           void (async () => {
             const rec = await out.recipients();
             if (!rec) return;
@@ -1086,6 +1115,48 @@ export default function OkFilowPanel() {
   const stopRef = useRef(stopListening);
   stopRef.current = stopListening;
   listenAgain.current = () => { if (handsFree.current) void startListening("handsfree"); };
+  /**
+   * A paired phone's question, handed over by the desktop app: shown to the presenter, labelled with the
+   * device and with where its words would go, and asked only on their yes, this once. Busy (an answer, a
+   * recording, another notice): dropped, never over what the presenter is doing.
+   */
+  offerPhone.current = async (payload) => {
+    const b = okFilowBridge();
+    const p = phonePrompt(payload);
+    if (!b || !p || modeRef.current !== "idle" || phoneNoticeRef.current) { b?.phoneAskDone?.(); return; }
+    // Where it would go: the same choice ask() makes (askRoute), named now, so the yes is for that recipient only.
+    let yesFor = "local";
+    let who: string | null = null;
+    try {
+      const route = askRoute(statusRef.current);
+      const rec = await out.recipients();
+      const named = route !== "local" ? rec && askRouteRecipient(route, rec) : rec?.server ?? null;
+      const recipient = named && localServer(named, t("outServer"));
+      if (route !== "local" && !recipient) { b.phoneAskDone?.(); return; }
+      if (recipient) {
+        yesFor = recipient.id;
+        who = whoPhrase(recipient, t("outVia"), t("outAnd"), t("outViaPicked"));
+      }
+    } catch {
+      b.phoneAskDone?.();
+      return;
+    }
+    if (modeRef.current !== "idle" || phoneNoticeRef.current) { b.phoneAskDone?.(); return; }
+    setPhoneNotice({ question: p.question, device: p.device, yesFor, who });
+  };
+  // Unanswered for a minute: dropped (nothing is asked), the next phone question may come.
+  useEffect(() => {
+    if (!phoneNotice) return;
+    const timer = setTimeout(() => { setPhoneNotice(null); okFilowBridge()?.phoneAskDone?.(); }, PHONE_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [phoneNotice]);
+  /** The presenter's answer to a phone's question: yes asks it (words only, silently), anything else drops it. */
+  const decidePhone = (yes: boolean) => {
+    const n = phoneNoticeRef.current;
+    setPhoneNotice(null);
+    okFilowBridge()?.phoneAskDone?.();
+    if (yes && n && modeRef.current === "idle") void ask(n.question, { typed: true, phone: { device: n.device, yesFor: n.yesFor } });
+  };
 
 
   /** Hands-free dictation: one phrase into the focused field, after the phrases before it; the mic stays open. */
@@ -1181,6 +1252,8 @@ export default function OkFilowPanel() {
       b.onQuickAsk(() => setTimeout(() => typeBox.current?.focus(), 30)),
       // A part clicked in the 3D model window: ask about it, like a spoken question.
       b.onAskText((text) => { const q = askTextQuestion(text); if (q) void ask(q); }),
+      // A paired phone's question: never asked from here, only offered to the presenter (offerPhone).
+      b.onPhoneAsk?.((payload) => void offerPhone.current(payload)) ?? (() => {}),
       b.agents.onChange(setJobs),
       b.onWelcome((tray) => {
         const key = HOTKEY_LABEL[statusRef.current?.hotkey ?? "ctrl+alt"] ?? "Ctrl + Alt";
@@ -1253,6 +1326,18 @@ export default function OkFilowPanel() {
       </header>
 
       {notice && <OutboundNotice notice={notice} t={t} onDecide={(d) => void out.decide(d)} />}
+      {phoneNotice && (
+        <div className="okf-notice okf-phone-notice" role="alertdialog" aria-labelledby="okf-phone-title" aria-describedby="okf-phone-body" tabIndex={-1} data-testid="phone-notice"
+          ref={phoneBox} onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); decidePhone(false); } }}>
+          <h2 id="okf-phone-title">{t("phoneTitle").replace("{device}", phoneNotice.device)}</h2>
+          <p className="okf-phone-question">{"«"}{phoneNotice.question}{"»"}</p>
+          <p id="okf-phone-body">{phoneNotice.who ? t("phoneOut").replace("{who}", phoneNotice.who) : t("phoneLocal")}</p>
+          <div className="okf-notice-actions">
+            <button type="button" className="okf-notice-keep" onClick={() => decidePhone(false)}>{t("phoneIgnore")}</button>
+            <button type="button" className="okf-notice-send" onClick={() => decidePhone(true)}>{t("phoneAnswer")}</button>
+          </div>
+        </div>
+      )}
 
       {/* One live region: the mode and, while something is leaving this PC, who receives it. */}
       <div className="okf-status-row">

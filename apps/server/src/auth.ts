@@ -14,6 +14,19 @@ export function mintEngineToken(secret: string, sessionId: string, ttlMs: number
   return `${sid}.${exp}.${mac}`;
 }
 
+/**
+ * A token for an accepted controller (the PowerPoint pane in View mode, the browser extension):
+ * "c." + the same parts, signed over "ctl:" so it never passes as an engine token. The web app takes
+ * it only on the routes that name controllers (apps/web/lib/engineAuth.ts), never on /api/buddy/*,
+ * and never takes a consent header that comes with it.
+ */
+export function mintControllerToken(secret: string, sessionId: string, ttlMs: number, now = Date.now()): string {
+  const exp = String(now + ttlMs);
+  const sid = Buffer.from(sessionId).toString("base64url");
+  const mac = createHmac("sha256", secret).update(`ctl:${sessionId}.${exp}`).digest("base64url");
+  return `c.${sid}.${exp}.${mac}`;
+}
+
 export function verifyEngineToken(secret: string, token: string, now = Date.now()): { sessionId: string } | null {
   const parts = token.split(".");
   if (parts.length !== 3) return null;

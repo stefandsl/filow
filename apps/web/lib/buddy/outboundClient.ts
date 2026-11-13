@@ -121,5 +121,21 @@ export function createOutboundController(deps: OutboundDeps) {
         deps.signal?.end(id, stayed ? { cancel: true } : undefined);
       }
     },
+    /**
+     * A request the user said yes to for this one time only (a paired phone's question, which a stored
+     * yes never covers: lib/buddy/phoneAsk.ts). Nothing is stored; the signal is on as for any send.
+     * `yes` must be the answer to a notice that named this exact recipient.
+     */
+    async sendingOnce<T>(kind: OutboundKind, recipient: Recipient, yes: { recipientId: string }, run: (headers: Record<string, string>, quiet: () => void) => Promise<T>): Promise<T> {
+      if (yes.recipientId !== recipient.id) throw new NoConsentError(kind, recipient);
+      const id = `${kind}-${++seq}`;
+      let stayed = false;
+      deps.signal?.begin(id, kind, signalNames(recipient));
+      try {
+        return await run({ [CONSENT_HEADER]: consentKey(kind, recipient) }, () => { stayed = true; });
+      } finally {
+        deps.signal?.end(id, stayed ? { cancel: true } : undefined);
+      }
+    },
   };
 }

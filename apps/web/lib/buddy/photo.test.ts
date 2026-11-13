@@ -62,7 +62,7 @@ describe("a plain request for a photo is recognised in the five languages", () =
 
   it("the panel asks the same rule before it looks at where answers come from, so no cloud notice opens for a photo", () => {
     const panel = readFileSync(new URL("../../app/okfilow/panel/page.tsx", import.meta.url), "utf8");
-    expect(panel).toContain('const photo = photoOnly(question, { drawing: wantsDrawing(question) !== null, resume: !!resume });');
+    expect(panel).toContain('const photo = plan.capture && photoOnly(question, { drawing: wantsDrawing(question) !== null, resume: !!resume });');
     expect(panel).toContain('let route = photo ? "local" : askRoute(statusRef.current);');
     // nor a notice for the user's own server: a photo is answered by the card alone
     expect(panel).toContain('const viaServer = !photo && route === "local"');
