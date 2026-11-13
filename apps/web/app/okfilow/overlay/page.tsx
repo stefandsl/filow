@@ -4,15 +4,15 @@
 // the dot along a curve to the things the answer points at. The bubble (components/okfilow/bubble.tsx,
 // docs/okfilow/BUBBLE.md) shows the whole answer, holds still when the pointer comes to it, and goes
 // away when main says so (its time is up, Escape, its close button).
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { okFilowBridge, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/bridge";
-import { bezierPoint, bubbleOnScreen, bubblePlacement, bubbleSticks, createPausableClock, followScroll, marksStarted, overBubble, overControls, STROKE_GAP_MS } from "@/lib/buddy/motion";
+import { bezierPoint, bubbleOnScreen, bubblePlacement, bubbleSticks, createPausableClock, followScroll, MARK_EXIT_MS, marksStarted, overBubble, overControls, STROKE_GAP_MS } from "@/lib/buddy/motion";
+import { MarksLayer, type DrawnMark, type MarkSet } from "@/components/okfilow/marks-layer";
 import { keyLabel, PILL_IDLE, pillView, statusRoom, type PillAction, type PillState } from "@/lib/buddy/pill";
 import { AnswerBubble, answerInBubble, markMore } from "@/components/okfilow/bubble";
 import { AnswerControls, EyeButton, Slot } from "@/components/okfilow/controls";
 import { joinNames, localNames, type OutboundSnapshot } from "@/lib/buddy/outbound";
-import type { BuddyMark } from "@/lib/buddy/prompt";
 import { okfText, type OkfKey } from "@/lib/buddy/text";
 import { dictationText } from "@/lib/dictation/text";
 import { OutboundIcon } from "../outbound-ui";
@@ -21,49 +21,6 @@ import "../okfilow.css";
 const OFFSET = { x: 16, y: 20 };
 const FLY_MS = 650;
 const HOLD_MS = 5500;
-
-/** SVG path for one mark, drawn like a quick pen stroke (circles are slightly open ellipses). */
-function markPath(m: BuddyMark): string {
-  switch (m.kind) {
-    case "circle": {
-      const rx = m.r * 1.12;
-      const ry = m.r * 0.92;
-      const pts = Array.from({ length: 41 }, (_, i) => {
-        const a = -2.2 + (i / 40) * Math.PI * 2.12;
-        const wob = 1 + 0.035 * Math.sin(i * 1.7);
-        return `${(m.x + Math.cos(a) * rx * wob).toFixed(1)},${(m.y + Math.sin(a) * ry * wob).toFixed(1)}`;
-      });
-      return "M" + pts.join(" L");
-    }
-    case "underline": {
-      const mid = (m.x1 + m.x2) / 2;
-      return `M${m.x1},${m.y + 2} Q${mid},${m.y - 3} ${m.x2},${m.y + 1}`;
-    }
-    case "box": {
-      const p = 6;
-      return `M${m.x1 - p},${m.y1 - p} L${m.x2 + p},${m.y1 - p + 2} L${m.x2 + p - 1},${m.y2 + p} L${m.x1 - p + 2},${m.y2 + p - 1} Z`;
-    }
-    case "arrow": {
-      const ang = Math.atan2(m.y2 - m.y1, m.x2 - m.x1);
-      const head = 16;
-      const l = { x: m.x2 - head * Math.cos(ang - 0.45), y: m.y2 - head * Math.sin(ang - 0.45) };
-      const r = { x: m.x2 - head * Math.cos(ang + 0.45), y: m.y2 - head * Math.sin(ang + 0.45) };
-      const bend = { x: (m.x1 + m.x2) / 2 - (m.y2 - m.y1) * 0.12, y: (m.y1 + m.y2) / 2 + (m.x2 - m.x1) * 0.12 };
-      return `M${m.x1},${m.y1} Q${bend.x},${bend.y} ${m.x2},${m.y2} M${l.x},${l.y} L${m.x2},${m.y2} L${r.x},${r.y}`;
-    }
-  }
-}
-
-/** Where a mark's label sits: just outside the shape, below-right. */
-function labelAt(m: BuddyMark): { x: number; y: number } {
-  switch (m.kind) {
-    // Above the circle: the answer bubble usually sits below the buddy, so a label below would collide.
-    case "circle": return { x: m.x + m.r * 0.6, y: Math.max(4, m.y - m.r - 30) };
-    case "underline": return { x: m.x1, y: m.y + 10 };
-    case "box": return { x: m.x1, y: Math.max(m.y1, m.y2) + 12 };
-    case "arrow": return { x: m.x1, y: m.y1 + 10 };
-  }
-}
 
 type Target = { x: number; y: number; label: string };
 
@@ -117,7 +74,12 @@ export default function OkFilowOverlay() {
   const [flip, setFlip] = useState("");
   const [here, setHere] = useState(false);
   // `done`: drawn before a stop (Resume after Stop): shown as it was, not drawn again.
-  const [marks, setMarks] = useState<{ id: number; list: Array<BuddyMark & { done?: boolean }> }>({ id: 0, list: [] });
+  const [marks, setMarks] = useState<{ id: number; list: DrawnMark[] }>({ id: 0, list: [] });
+  const marksNow = useRef(marks);
+  marksNow.current = marks;
+  // The marks going away (Clear, an empty drawing): kept for one exit, the labels fading and the strokes erasing.
+  const [leaving, setLeaving] = useState<MarkSet | null>(null);
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [cards, setCards] = useState<OkFilowCard[]>([]);
   // Highlighter: while the talk chord is held the overlay takes the mouse; a drag marks the screen.
   const [ink, setInk] = useState<Array<Array<[number, number]>>>([]);
@@ -136,6 +98,16 @@ export default function OkFilowOverlay() {
   useEffect(() => {
     const b = okFilowBridge();
     if (!b) return;
+    /** The marks on screen go away with an exit (only those the pen has begun; the rest were never seen). */
+    const leave = () => {
+      const m = marksNow.current;
+      if (!m.list.length) return;
+      const before = m.list.filter((x) => x.done).length;
+      const begun = before + marksStarted(m.list.length - before, clock.current.at(performance.now()) - marksAt.current, STROKE_GAP_MS);
+      if (leaveTimer.current) clearTimeout(leaveTimer.current);
+      setLeaving({ id: m.id, list: begun === m.list.length ? m.list : m.list.slice(0, begun), leaving: true });
+      leaveTimer.current = setTimeout(() => { leaveTimer.current = null; setLeaving(null); }, MARK_EXIT_MS + 60);
+    };
     const applyColor = (c?: string) => { if (c && /^#[0-9a-f]{6}$/i.test(c)) document.documentElement.style.setProperty("--okf-ink", c); };
     const applyKeys = (s: { eyeKey?: string; pauseKey?: string }) => setKeys({ eye: keyLabel(s.eyeKey), pause: keyLabel(s.pauseKey) });
     void b.status().then((s) => { applyColor(s.color); applyKeys(s); }).catch(() => {});
@@ -192,12 +164,15 @@ export default function OkFilowOverlay() {
       }),
       b.onDraw((list) => {
         // Kept until main wipes them: an empty list when the answer's bubble goes, or okfilow:clear (Escape, the panel's Clear, the next question).
+        const next = Array.isArray(list) ? list : [];
+        if (!next.length) leave();
         marksAt.current = clock.current.at(performance.now());
-        setMarks((m) => ({ id: m.id + 1, list: Array.isArray(list) ? list : [] }));
+        setMarks((m) => ({ id: m.id + 1, list: next }));
       }),
       b.onCards((list) => setCards(Array.isArray(list) ? list.slice(0, 2) : [])),
       b.onClear(() => {
         setCards([]);
+        leave();
         setMarks((m) => (m.list.length ? { id: m.id + 1, list: [] } : m));
         queue.current = [];
         flight.current = null;
@@ -280,8 +255,14 @@ export default function OkFilowOverlay() {
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => { cancelAnimationFrame(raf); offs.forEach((o) => o()); };
+    return () => { cancelAnimationFrame(raf); offs.forEach((o) => o()); if (leaveTimer.current) clearTimeout(leaveTimer.current); };
   }, [reopen, tellHover]);
+  /** Labels keep off the pill at the top of the screen. */
+  const labelAvoid = useCallback(() => {
+    const r = pillSpot.current?.getBoundingClientRect();
+    return r && r.width > 0 ? [{ left: r.left, top: r.top, right: r.right, bottom: r.bottom }] : [];
+  }, []);
+  const markSets = useMemo(() => (leaving ? [leaving, marks] : [marks]), [leaving, marks]);
 
   // Pause: the pointer's flight and the pen stand still; Resume: they carry on from the same spot.
   useEffect(() => {
@@ -323,7 +304,6 @@ export default function OkFilowOverlay() {
     else b?.control?.(action);
   };
   const controls = <AnswerControls pill view={view} t={t} pauseKey={keys.pause} onAction={act} />;
-  const drawnBefore = marks.list.filter((m) => m.done).length;
   const onDown = (e: React.PointerEvent) => {
     // The highlighter marks only while the talk keys are held (the only other time a click reaches this window is on the Stop button).
     if (e.button !== 0 || !(mode === "listening" && purpose === "talk")) return;
@@ -373,20 +353,8 @@ export default function OkFilowOverlay() {
           {ink.map((l, i) => <polyline key={i} points={l.map((p) => p.join(",")).join(" ")} />)}
         </svg>
       )}
-      {marks.list.length > 0 && (
-        <svg key={marks.id} className="okf-draw" width="100%" height="100%">
-          {marks.list.map((m, i) => (
-            <g key={i} className={"okf-mark" + (m.done ? " okf-mark--done" : "")} style={{ animationDelay: `${(i - drawnBefore) * STROKE_GAP_MS}ms` }}>
-              <path d={markPath(m)} pathLength={1} style={{ animationDelay: `${(i - drawnBefore) * STROKE_GAP_MS}ms` }} />
-              {m.label && (
-                <foreignObject x={labelAt(m).x} y={labelAt(m).y} width="240" height="40">
-                  <span className="okf-mark-label" style={{ animationDelay: `${(i - drawnBefore) * STROKE_GAP_MS + 450}ms` }}>{m.label}</span>
-                </foreignObject>
-              )}
-            </g>
-          ))}
-        </svg>
-      )}
+      {/* One drawing layer for the whole life of the overlay: an answer's marks never remount it (no hitch as they arrive). */}
+      <MarksLayer sets={markSets} avoid={labelAvoid} />
       <div ref={dot} className={`okf-buddy okf-buddy--${mode}${going ? " okf-buddy--out" : ""}${here ? "" : " okf-hidden"}`}>
         {going && <span className="okf-out-rings"><i /><i /><i /></span>}
         <svg className="okf-arrow" viewBox="0 0 24 24" width="22" height="22"><path d="M3 2l17 8-7.5 2.2L10.4 20z" /></svg>
