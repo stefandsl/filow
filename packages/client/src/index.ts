@@ -24,7 +24,7 @@ export type PairedDevice = {
   expiresAt: number;
 };
 /** Who sent a command, added by the session server (never by the device). */
-export type CommandFrom = { id: string; device: string };
+export type CommandFrom = { id: string; device: string; peer?: "app" | "lan" | "remote" };
 
 export type ConnectOptions = {
   /** Session server origin, e.g. "http://192.168.1.10:4748" or "https://prompter.example.com" */
@@ -48,10 +48,11 @@ export type ConnectOptions = {
   onDevices?: (devices: PairedDevice[]) => void;
   /** Engine: a device just paired (any role), so the code on screen is spent. */
   onPaired?: (device: { id: string; device: string; role: string; peer: string }) => void;
-  /** Engine: the server replaced the code (too many wrong codes were tried). */
-  onCode?: (code: { code: string; codeExpiresAt: number }) => void;
-  /** Views: whether the presenter allowed this device to ask OK Filow. */
-  onPermissions?: (p: { canAsk: boolean }) => void;
+  /**
+   * Views: what the presenter allowed this device. `canAsk`: it may ask OK Filow. `approved`: the presenter
+   * accepted it on the computer (false: auto-accepted on the Wi-Fi, it may only move and mark).
+   */
+  onPermissions?: (p: { canAsk: boolean; approved: boolean }) => void;
   /** Reconnect with backoff (default true). */
   reconnect?: boolean;
   fetchImpl?: typeof fetch;
@@ -66,6 +67,8 @@ export type SessionClient = {
   state: SessionState | null;
   /** Views: the presenter allowed this device to ask OK Filow. */
   canAsk: boolean;
+  /** Views: the presenter accepted this device on the computer (false: auto-accepted on the Wi-Fi, moves and marks only). */
+  approved: boolean;
   subscribe(fn: (state: SessionState) => void): () => void;
   /** Views: send a command. Resolves with the engine's ack. */
   send(cmd: Command): Promise<{ ok: boolean; error?: string }>;
@@ -129,8 +132,9 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
     const p = await pair(base, opts.code, f, { device: opts.deviceLabel ?? defaultDeviceLabel(), appKey: opts.appKey });
     session = { id: p.id, token: p.viewToken, role: p.role };
   }
-  // The engine's socket takes large states; a device's takes small commands only (apps/server/src/server.ts).
-  const wsUrl = base.replace(/^http/, "ws") + `/ws/session/${session.id}` + (session.role === "engine" ? "?role=engine" : "");
+  // The engine's socket takes large states and is opened only with the engine token in its address (the
+  // server checks it before it reads a message); a device's takes small commands only (apps/server/src/server.ts).
+  const wsUrl = base.replace(/^http/, "ws") + `/ws/session/${session.id}` + (session.role === "engine" ? `?role=engine&token=${encodeURIComponent(session.token)}` : "");
 
   const subs = new Set<(s: SessionState) => void>();
   const pending = new Map<string, (r: { ok: boolean; error?: string }) => void>();
@@ -150,6 +154,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
     status: "connecting",
     state: null,
     canAsk: false,
+    approved: true,
     subscribe(fn) {
       subs.add(fn);
       if (client.state) fn(client.state);
@@ -212,6 +217,12 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
     client.status = s;
     opts.onStatus?.(s, detail);
   };
+  /** canAsk and approved as the server said them (an older server says nothing of approved: taken as accepted). */
+  const permissions = (msg: Record<string, unknown>) => {
+    client.canAsk = msg.canAsk === true;
+    if ("approved" in msg) client.approved = msg.approved !== false;
+    opts.onPermissions?.({ canAsk: client.canAsk, approved: client.approved });
+  };
   const emit = (s: SessionState) => {
     client.state = s;
     opts.onState?.(s);
@@ -246,10 +257,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
               client.role = "pending";
               setStatus("open", "pending");
             } else setStatus("open");
-            if (client.role !== "engine") {
-              client.canAsk = msg.canAsk === true;
-              opts.onPermissions?.({ canAsk: client.canAsk });
-            }
+            if (client.role !== "engine") permissions(msg);
             if (client.role === "engine") resyncHandler?.();
             resolve();
             break;
@@ -257,24 +265,19 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
             const role = msg.role as Role;
             client.role = role;
             session = { ...session!, role };
-            client.canAsk = msg.canAsk === true;
             opts.onRole?.(role);
-            opts.onPermissions?.({ canAsk: client.canAsk });
+            permissions(msg);
             setStatus("open");
             break;
           }
           case "permissions":
-            client.canAsk = msg.canAsk === true;
-            opts.onPermissions?.({ canAsk: client.canAsk });
+            permissions(msg);
             break;
           case "devices":
             if (Array.isArray(msg.devices)) opts.onDevices?.(msg.devices as PairedDevice[]);
             break;
           case "paired":
             opts.onPaired?.({ id: String(msg.id), device: String(msg.device ?? ""), role: String(msg.role ?? ""), peer: String(msg.peer ?? "") });
-            break;
-          case "codeRotated":
-            opts.onCode?.({ code: String(msg.code), codeExpiresAt: Number(msg.codeExpiresAt) });
             break;
           case "state":
             emit(msg.state as SessionState);
@@ -293,7 +296,10 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
           }
           case "cmd": {
             const id = String(msg.id);
-            const from = msg.from && typeof msg.from === "object" ? { id: String((msg.from as CommandFrom).id ?? ""), device: String((msg.from as CommandFrom).device ?? "") } : undefined;
+            const raw = msg.from && typeof msg.from === "object" ? (msg.from as { id?: unknown; device?: unknown; peer?: unknown }) : null;
+            const from: CommandFrom | undefined = raw
+              ? { id: String(raw.id ?? ""), device: String(raw.device ?? ""), ...(raw.peer === "app" || raw.peer === "lan" || raw.peer === "remote" ? { peer: raw.peer } : {}) }
+              : undefined;
             commandHandler?.(msg.cmd as Command, (r) => sock.send(JSON.stringify({ t: "ack", id, ...r })), from);
             break;
           }

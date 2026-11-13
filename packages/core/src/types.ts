@@ -159,6 +159,6 @@ export type Command =
   | { type: "askOkFilow"; text: string };
 
 /** Who sent a command: the session server adds it to every command it relays from a paired device. */
-export type CommandFrom = { id: string; device: string };
+export type CommandFrom = { id: string; device: string; peer?: "app" | "lan" | "remote" };
 
 export type CommandResult = { ok: true } | { ok: false; error: string };

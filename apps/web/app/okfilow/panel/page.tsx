@@ -30,7 +30,7 @@ import { wantsDrawing } from "@/lib/buddy/visuals";
 import { photoOnly } from "@/lib/buddy/photo";
 import { AnswerControls, KeyChoice, SeeScreenSwitch } from "@/components/okfilow/controls";
 import { whiteboardTopic } from "@/lib/whiteboard/client";
-import { askPlan, askTextQuestion, lastPresenterAnswer, phonePrompt, phoneTurns, presenterHistory, questionForModel, type AskSource } from "@/lib/buddy/phoneAsk";
+import { askPlan, askTextQuestion, lastPresenterAnswer, phoneCount, phoneLabel, phoneNoticeFree, phonePrompt, phoneTurns, presenterHistory, questionForModel, wordsOnly, type AskSource } from "@/lib/buddy/phoneAsk";
 import "../okfilow.css";
 
 const HISTORY_KEY = "okfilow.history.v1";
@@ -47,7 +47,7 @@ function loadHistory(): BuddyTurn[] {
 }
 /** What a phone's question "captures": nothing (askPlan: no screenshot, no screen list, no selection). */
 const NO_CAPTURE: OkFilowCapture = { images: [], screens: [], displays: [], marked: [], selected: "" };
-/** A phone's question nobody answers is dropped after this long (the desktop gate frees the next one at 65 s). */
+/** A phone's question the presenter opened and did not answer counts as ignored after this long. */
 const PHONE_NOTICE_MS = 60_000;
 function saveHistory(h: BuddyTurn[]) {
   try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(-12))); } catch { /* storage off: memory only */ }
@@ -344,10 +344,14 @@ export default function OkFilowPanel() {
   const listenAgain = useRef<() => void>(() => {});
   // A paired phone's question waiting for the presenter's yes (lib/buddy/phoneAsk.ts): `yesFor` is the
   // recipient the notice names ("local": it stays on this PC), `who` that recipient in words.
-  const [phoneNotice, setPhoneNotice] = useState<{ question: string; device: string; yesFor: string; who: string | null } | null>(null);
+  // `key` names it in the desktop app's inbox; `label` is the device, how it is connected and its short code.
+  const [phoneNotice, setPhoneNotice] = useState<{ key: string; question: string; device: string; label: string; yesFor: string; who: string | null } | null>(null);
   const phoneNoticeRef = useRef(phoneNotice);
   phoneNoticeRef.current = phoneNotice;
-  const offerPhone = useRef<(payload: unknown) => Promise<void>>(async () => {});
+  // How many phone questions wait in the desktop app's inbox: a count on a badge, their text only when the presenter opens it.
+  const [phoneWaiting, setPhoneWaiting] = useState(0);
+  const noticeRef = useRef(notice);
+  noticeRef.current = notice;
   const phoneBox = useRef<HTMLDivElement>(null);
   useEffect(() => { if (phoneNotice) phoneBox.current?.focus(); }, [phoneNotice]);
 
@@ -474,7 +478,7 @@ export default function OkFilowPanel() {
     const plan = askPlan(source, { typed: opts.typed, typedVoice: statusRef.current?.typedVoice });
     if (opts.phone && (modeRef.current !== "idle" || opts.resume)) return;
     // The presenter asks something: a phone's question still waiting for their yes is dropped, never asked after.
-    if (!opts.phone && phoneNoticeRef.current) { setPhoneNotice(null); b.phoneAskDone?.(); }
+    if (!opts.phone && phoneNoticeRef.current) { b.phoneAskDone?.(phoneNoticeRef.current.key, "dropped"); setPhoneNotice(null); }
     // The speed baseline: a spoken question brings the marks taken while it was heard; a typed one starts here.
     const pending = opts.typed ? null : pendingMarks.current;
     pendingMarks.current = null;
@@ -642,6 +646,7 @@ export default function OkFilowPanel() {
       let lastPoints = "", lastMarks = "";
       /** The pointer and the pen follow the text as it arrives (never during a pause: the caller holds them). */
       const showVisuals = (parsed: ReturnType<typeof parseBuddyAnswer>) => {
+        if (!plan.visuals) return; // a phone's question: words only (askPlan)
         const points = JSON.stringify(parsed.points), marks = JSON.stringify(parsed.marks);
         if (parsed.points.length && points !== lastPoints) {
           const placed = parsed.points.flatMap(p => {
@@ -721,7 +726,8 @@ export default function OkFilowPanel() {
       if (err) throw new Error(err.trim());
       const body = resume ? joinContinuation(resume.shown, answered.trim()) : answered;
       const parsed = parseBuddyAnswer(answered, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1);
-      const { points, marks, cards, model, drawing } = parsed;
+      // A phone's question is answered in words only: no pointer, pen, cards, drawing or 3D model (askPlan).
+      const { points, marks, cards, model, drawing } = plan.visuals ? parsed : wordsOnly(parsed);
       const text = resume ? joinContinuation(resume.shown, parsed.text) : parsed.text;
       // Answer log (dev builds, or the folder the user picked): exactly what the model produced and saw.
       void b.answerLog({ question, raw: body, visuals: { text, points, marks, cards, model, drawing }, images, svg: drawing ? drawingSvg(drawing) : undefined }).catch(() => "");
@@ -1116,14 +1122,18 @@ export default function OkFilowPanel() {
   stopRef.current = stopListening;
   listenAgain.current = () => { if (handsFree.current) void startListening("handsfree"); };
   /**
-   * A paired phone's question, handed over by the desktop app: shown to the presenter, labelled with the
-   * device and with where its words would go, and asked only on their yes, this once. Busy (an answer, a
-   * recording, another notice): dropped, never over what the presenter is doing.
+   * The presenter pressed the badge: the oldest waiting phone question comes out of the desktop app's
+   * inbox and is shown, labelled with the device (name, connection, short code) and with where its words
+   * would go; it is asked only on their yes, this once. Never while OK Filow is busy or another notice is
+   * open (phoneNoticeFree): the question then stays in the inbox.
    */
-  offerPhone.current = async (payload) => {
+  const phoneFree = () => phoneNoticeFree({ mode: modeRef.current, noticeOpen: Boolean(noticeRef.current), phoneNoticeOpen: Boolean(phoneNoticeRef.current) });
+  const openPhone = async () => {
     const b = okFilowBridge();
-    const p = phonePrompt(payload);
-    if (!b || !p || modeRef.current !== "idle" || phoneNoticeRef.current) { b?.phoneAskDone?.(); return; }
+    if (!b?.phoneOpen || !phoneFree()) return;
+    const p = phonePrompt(await b.phoneOpen().catch(() => null));
+    if (!p) return;
+    if (!phoneFree()) { b.phoneAskDone?.(p.key, "dropped"); return; }
     // Where it would go: the same choice ask() makes (askRoute), named now, so the yes is for that recipient only.
     let yesFor = "local";
     let who: string | null = null;
@@ -1132,31 +1142,50 @@ export default function OkFilowPanel() {
       const rec = await out.recipients();
       const named = route !== "local" ? rec && askRouteRecipient(route, rec) : rec?.server ?? null;
       const recipient = named && localServer(named, t("outServer"));
-      if (route !== "local" && !recipient) { b.phoneAskDone?.(); return; }
+      if (route !== "local" && !recipient) { b.phoneAskDone?.(p.key, "dropped"); return; }
       if (recipient) {
         yesFor = recipient.id;
         who = whoPhrase(recipient, t("outVia"), t("outAnd"), t("outViaPicked"));
       }
     } catch {
-      b.phoneAskDone?.();
+      b.phoneAskDone?.(p.key, "dropped");
       return;
     }
-    if (modeRef.current !== "idle" || phoneNoticeRef.current) { b.phoneAskDone?.(); return; }
-    setPhoneNotice({ question: p.question, device: p.device, yesFor, who });
+    if (!phoneFree()) { b.phoneAskDone?.(p.key, "dropped"); return; }
+    setPhoneNotice({ key: p.key, question: p.question, device: p.device, label: phoneLabel(p, { lan: t("phonePeerLan"), remote: t("phonePeerRemote") }), yesFor, who });
   };
-  // Unanswered for a minute: dropped (nothing is asked), the next phone question may come.
+  // Unanswered for a minute: counted as ignored (nothing is asked), like the Ignore button.
   useEffect(() => {
     if (!phoneNotice) return;
-    const timer = setTimeout(() => { setPhoneNotice(null); okFilowBridge()?.phoneAskDone?.(); }, PHONE_NOTICE_MS);
+    const timer = setTimeout(() => { okFilowBridge()?.phoneAskDone?.(phoneNotice.key, "no"); setPhoneNotice(null); }, PHONE_NOTICE_MS);
     return () => clearTimeout(timer);
   }, [phoneNotice]);
-  /** The presenter's answer to a phone's question: yes asks it (words only, silently), anything else drops it. */
+  /** The presenter's answer to a phone's question: yes asks it (words only, silently), anything else counts as ignored. */
   const decidePhone = (yes: boolean) => {
     const n = phoneNoticeRef.current;
+    if (!n) return;
     setPhoneNotice(null);
-    okFilowBridge()?.phoneAskDone?.();
-    if (yes && n && modeRef.current === "idle") void ask(n.question, { typed: true, phone: { device: n.device, yesFor: n.yesFor } });
+    okFilowBridge()?.phoneAskDone?.(n.key, yes ? "yes" : "no");
+    if (yes && modeRef.current === "idle") void ask(n.question, { typed: true, phone: { device: n.device, yesFor: n.yesFor } });
   };
+  // Another notice opened (a recipient's, a card picture's): the phone's steps aside, so two never stack.
+  useEffect(() => {
+    const n = phoneNoticeRef.current;
+    if (!notice || !n) return;
+    okFilowBridge()?.phoneAskDone?.(n.key, "dropped");
+    setPhoneNotice(null);
+  }, [notice]);
+  // The badge's count, and a question on screen whose device was revoked or lost the right to ask: closed, nothing asked.
+  useEffect(() => {
+    const b = okFilowBridge();
+    if (!b) return;
+    void b.phoneCount?.().then((n) => setPhoneWaiting(phoneCount(n))).catch(() => {});
+    const offs = [
+      b.onPhoneCount?.((n) => setPhoneWaiting(phoneCount(n))) ?? (() => {}),
+      b.onPhoneWithdraw?.((key) => { if (phoneNoticeRef.current?.key === key) setPhoneNotice(null); }) ?? (() => {}),
+    ];
+    return () => offs.forEach((o) => o());
+  }, []);
 
 
   /** Hands-free dictation: one phrase into the focused field, after the phrases before it; the mic stays open. */
@@ -1252,8 +1281,6 @@ export default function OkFilowPanel() {
       b.onQuickAsk(() => setTimeout(() => typeBox.current?.focus(), 30)),
       // A part clicked in the 3D model window: ask about it, like a spoken question.
       b.onAskText((text) => { const q = askTextQuestion(text); if (q) void ask(q); }),
-      // A paired phone's question: never asked from here, only offered to the presenter (offerPhone).
-      b.onPhoneAsk?.((payload) => void offerPhone.current(payload)) ?? (() => {}),
       b.agents.onChange(setJobs),
       b.onWelcome((tray) => {
         const key = HOTKEY_LABEL[statusRef.current?.hotkey ?? "ctrl+alt"] ?? "Ctrl + Alt";
@@ -1322,6 +1349,12 @@ export default function OkFilowPanel() {
       <header className="okf-head">
         <span className={`okf-dot okf-dot--${mode}`} aria-hidden />
         <h1>OK Filow</h1>
+        {/* Phone questions waiting: a count only. Their text shows when the presenter presses this, never by itself. */}
+        {phoneWaiting > 0 && !phoneNotice && (
+          <button type="button" className="okf-phone-badge" data-testid="phone-badge" title={t("phoneBadgeTitle")} disabled={mode !== "idle" || Boolean(notice)} onClick={() => void openPhone()}>
+            {t("phoneBadge").replace("{n}", String(phoneWaiting))}
+          </button>
+        )}
         <button className="okf-x" aria-label={t("close")} title={t("close")} onClick={() => bridge.hidePanel()}>×</button>
       </header>
 
@@ -1329,7 +1362,7 @@ export default function OkFilowPanel() {
       {phoneNotice && (
         <div className="okf-notice okf-phone-notice" role="alertdialog" aria-labelledby="okf-phone-title" aria-describedby="okf-phone-body" tabIndex={-1} data-testid="phone-notice"
           ref={phoneBox} onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); decidePhone(false); } }}>
-          <h2 id="okf-phone-title">{t("phoneTitle").replace("{device}", phoneNotice.device)}</h2>
+          <h2 id="okf-phone-title">{t("phoneTitle").replace("{device}", phoneNotice.label)}</h2>
           <p className="okf-phone-question">{"«"}{phoneNotice.question}{"»"}</p>
           <p id="okf-phone-body">{phoneNotice.who ? t("phoneOut").replace("{who}", phoneNotice.who) : t("phoneLocal")}</p>
           <div className="okf-notice-actions">
