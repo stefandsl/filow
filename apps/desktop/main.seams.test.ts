@@ -702,7 +702,8 @@ describe("test isolation: FILOW_QA_NO_GLOBAL_INPUT=1 (global-input.js)", () => {
     const f = fixture({ FILOW_QA_NO_GLOBAL_INPUT: "1" }, { qaBuild: true });
     expect(f.processExit).not.toHaveBeenCalled();
     f.api.patchSettings({ screenSense: true, screenHotkey: "Control+Alt+S" });
-    f.api.registerHotkey();
+    // it does not try at all: no "taken by another app" in the start log of a test instance
+    expect(f.api.registerHotkey()).toEqual({ ok: true, inputOff: true });
     expect(f.registerShortcut).not.toHaveBeenCalled();
     expect(f.api.permissionFor("media")).toBe(false);
     expect(f.api.permissionFor("display-capture")).toBe(true);
