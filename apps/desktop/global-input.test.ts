@@ -213,7 +213,11 @@ describe("OK Filow's own wiring (okfilow.js)", () => {
   it("does not start the hook's retry loop, type text, start a dictation, read another window's selection or take the focus", () => {
     expect(src).toMatch(/function startHook\(\) \{\s*if \(!INPUT_OFF\) return hookRetry\.attempt\(\);/);
     expect(src).toMatch(/async function typeText\(text, spokenLanguage, phrase = false\) \{\s*if \(INPUT_OFF\) return \{ \.\.\.REFUSED_INSERT \};/);
-    expect(src).toContain('if (held || (kind === "dictate" && INPUT_OFF) || !(');
+    // A dictation starts under the switch only when a test asks for it through the QA key path
+    // (FILOW_OKF_QA_KEYS=1): the hook is the stand-in, so the keys of the person at the PC never get
+    // there, the microphone is the test recording or nothing, and typeText above still types nothing.
+    expect(src).toContain('if (held || (kind === "dictate" && INPUT_OFF && !QA_KEYS) || !(');
+    expect(src).toContain('const QA_KEYS = QA_ALLOWED && process.env.FILOW_OKF_QA_KEYS === "1";');
     expect(src).toContain('selection = INPUT_OFF ? Promise.resolve("") : readSelection();');
     expect(src).toMatch(/if \(INPUT_OFF\) \{ if \(showWindow\(p, "panel", true\)\) p\.moveTop\(\); return; \}\s*try \{ if \(hook\) hook\.keyTap/);
     // The only raw hook start is inside registerHook, which the switch reaches with the stand-in library.

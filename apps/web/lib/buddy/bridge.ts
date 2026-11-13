@@ -87,6 +87,8 @@ export type OkFilowStatus = {
   hookError: string;
   /** macOS: the permission hold-to-talk still needs (apps/desktop/mac-permissions.js); absent or "" elsewhere. */
   hookPermission?: "accessibility" | "inputMonitoring" | "";
+  /** Test builds only (FILOW_OKF_QA_MIC_DELAY): the microphone is handed to the panel this many ms late. Absent otherwise. */
+  qaMicDelayMs?: number;
   mode: OkFilowMode;
 };
 

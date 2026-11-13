@@ -125,6 +125,7 @@
       "okfilow-phone.js",
       "proxy-guard.js",
       "okfilow-timings.js",
+      "okfilow-mic.js",
       "okfilow-uia.js",
       "okfilow-model-place.js",
       "native/uia/bin/okfilow-uia.exe"

@@ -965,6 +965,9 @@ export default function OkFilowPanel() {
       );
       const mic = getSelectedMic();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { ...(mic ? { deviceId: { exact: mic } } : {}), echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
+      // Test builds only (FILOW_OKF_QA_MIC_DELAY): the microphone is handed over this much later.
+      const qaDelay = statusRef.current?.qaMicDelayMs ?? 0;
+      if (qaDelay > 0) await new Promise((r) => setTimeout(r, qaDelay));
       // The speed baseline: a question's marks start with the open microphone (dictation is not measured).
       if (why !== "dictate") {
         const at = Date.now();

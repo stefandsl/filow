@@ -27,6 +27,7 @@ const { createPhoneGate } = require("./okfilow-phone");
 // Measured runs (qa-headless.js): nothing of OK Filow appears on screen with FILOW_QA_HEADLESS=1.
 const { showWindow, trayFor } = require("./qa-headless");
 const { timingsLine } = require("./okfilow-timings");
+const { qaMicDelay } = require("./okfilow-mic");
 
 /** An IPC event from the main frame of one of OK Filow's windows (`contents`), on an OK Filow page; never a subframe. */
 function okfilowSender(event, contents, appUrl) {
@@ -84,6 +85,11 @@ const QA_SHOTS = QA_ALLOWED ? process.env.FILOW_OKF_QA_SHOTS || "" : "";
 const QA_SCREEN = QA_ALLOWED ? process.env.FILOW_OKF_QA_SCREEN || "" : "";
 /** Test builds only: FILOW_OKF_QA_KEYS=1 lets the panel feed the gestures key presses (when Windows refuses the hook). */
 const QA_KEYS = QA_ALLOWED && process.env.FILOW_OKF_QA_KEYS === "1";
+/**
+ * Test builds only: FILOW_OKF_QA_MIC_DELAY=<ms> makes the panel wait that long before it gets the
+ * microphone it asked for, like a Windows audio service that takes 15 s to open a device (0.9.37).
+ */
+const QA_MIC_DELAY = qaMicDelay(QA_ALLOWED ? process.env.FILOW_OKF_QA_MIC_DELAY : "");
 /** The answer log's folder when the user has not picked one (okfilow-answers.js defaultAnswerDir). */
 const answersFallback = () => defaultAnswerDir(require("electron").app.getPath("userData"), process.env, QA_ALLOWED);
 const HOTKEYS = ["ctrl+alt", "ctrl+shift", "alt+shift", "ctrl+meta"];
@@ -775,7 +781,9 @@ function createOkFilow(deps) {
       return;
     }
     // Dictation has its own switch: it works with OK Filow's questions turned off.
-    if (held || (kind === "dictate" && INPUT_OFF) || !(kind === "dictate" ? dictation.cfg().enabled : cfg().enabled)) {
+    // Test isolation: no dictation starts, except one a test asked for through the QA key path (the
+    // owner's keys never get there: no hook; only a test recording is ever heard; nothing is typed).
+    if (held || (kind === "dictate" && INPUT_OFF && !QA_KEYS) || !(kind === "dictate" ? dictation.cfg().enabled : cfg().enabled)) {
       // Not started: the gestures must not count a hands-free dictation as running.
       if (kind === "dictate" && handsFree) gestures?.endToggle();
       return;
@@ -1152,7 +1160,7 @@ function createOkFilow(deps) {
     // Dictation keeps its own settings (dictation.js); the panel shows its switch and keys from here.
     const d = dictation.status({ talkHotkey: c.hotkey, hook: Boolean(hook) });
     // answerDir: the folder the log writes to, also when the user has not picked one (the panel shows its name).
-    return { ...c, answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, hookFailures, hookLastTryAt, mode, handsFree, eyeKeys: EYE_KEYS, pauseKeys: PAUSE_KEYS, eyeKeyState: eyeBound.state, pauseKeyState: pauseBound.state, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d };
+    return { ...c, answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, hookFailures, hookLastTryAt, mode, handsFree, eyeKeys: EYE_KEYS, pauseKeys: PAUSE_KEYS, eyeKeyState: eyeBound.state, pauseKeyState: pauseBound.state, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d, ...(QA_MIC_DELAY ? { qaMicDelayMs: QA_MIC_DELAY } : {}) };
   }
 
   // ---- IPC (only OK Filow's own windows) ----
