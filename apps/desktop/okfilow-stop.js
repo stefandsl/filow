@@ -75,7 +75,8 @@ function readingMs(text) {
  *   own time for a short note; afterHover: the pointer has just left the bubble.
  */
 function bubbleHold({ mode, text, stopped, paused, hover, shownMs, holdMs, afterHover } = {}) {
-  if (answering(mode) || mode === "listening" || paused === true || hover === true) return null;
+  // "opening": the microphone is still being opened, and the bubble says so for as long as that is true.
+  if (answering(mode) || mode === "listening" || mode === "opening" || paused === true || hover === true) return null;
   if (!text && !stopped) return 0;
   if (afterHover === true) return BUBBLE.afterHoverMs;
   if (stopped) return BUBBLE.stoppedMs;

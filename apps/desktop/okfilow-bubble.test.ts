@@ -91,6 +91,8 @@ describe("reading time", () => {
 describe("when the bubble goes away by itself (the rule)", () => {
   it("stays while an answer runs, while it is paused, while somebody talks, and while the pointer is on it", () => {
     for (const mode of ["listening", "thinking", "speaking"]) expect(bubbleHold({ mode, text: "Some text." })).toBeNull();
+    // "Opening the microphone…" stays for as long as it is true (Windows once took 15 s)
+    expect(bubbleHold({ mode: "opening", text: "Opening the microphone…" })).toBeNull();
     expect(bubbleHold({ mode: "idle", text: "Some text.", paused: true })).toBeNull();
     expect(bubbleHold({ mode: "idle", text: "Some text.", hover: true })).toBeNull();
     expect(bubbleHold({ mode: "idle", text: "", stopped: true, hover: true })).toBeNull();

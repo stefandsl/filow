@@ -570,6 +570,13 @@ describe("warming the model", () => {
     expect(s.modeListeners()).toBe(0);
   });
 
+  it("loads it from the key press, while the microphone is still opening", () => {
+    const s = setup();
+    s.speaker.attach();
+    s.mode("opening");
+    expect(s.warmed()).toBe(1);
+  });
+
   it("leaves the model alone when another voice is chosen", () => {
     const s = setup({ voice: "system" });
     s.speaker.attach();

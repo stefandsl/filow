@@ -158,7 +158,16 @@ does not control: a third-party clipboard manager may still record the text for 
   it (a test instance once reacted to the owner's dictation keys and pasted into the owner's window).
   Like every test switch it works in development and in QA packages only (`-c.extraMetadata.filowQa=true`,
   STANDARDS SEC-13). A released build started with it does not run without the isolation: it leaves at
-  once with exit code 1, so test a QA build. Keys then go through `FILOW_OKF_QA_KEYS=1`.
+  once with exit code 1, so test a QA build. Keys then go through `FILOW_OKF_QA_KEYS=1`. With both
+  switches a test can run its own dictation (only the test recording is heard, nothing is typed).
+- The microphone's open (`apps/web/lib/buddy/micOpen.ts`, `tools/autoloop/e2e/mic-open.mjs`): Windows once
+  took 15 s to open it on every press. The pointer says "listening" or "dictating" only once the
+  microphone is open ("Opening the microphone…" after 0.4 s); keys up before a slow open, or an open that
+  never comes (20 s), is said as that, never "hold the keys longer"; a microphone saved in Settings that is
+  unplugged falls back to the default with a note; every open over 1 s is one line in startup.log and the
+  open times are in "Report a problem" (problem code `MIC`). Keys up always close the microphone, at
+  once, and main stops any capture that runs 4 s with no key held and no hands-free mode.
+  `FILOW_OKF_QA_MIC_DELAY=<ms>` (QA packages only) makes the open late for the end-to-end check.
 
 ## Cleanup of English dictations: S1-mini by Superwhisper
 

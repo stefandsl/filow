@@ -32,6 +32,36 @@ describe("dictation: what the report says", () => {
     expect(text).toContain("keyboard hook: registered");
   });
 
+  it("0.9.37, a microphone that is slow to open: the stages say when it opened and the code is FD-H1-MIC, not SHORT or NOTEXT", () => {
+    // the keys went up after 3 s with the microphone still not open
+    const a = clocked();
+    a.d.begin("hold"); a.tick(2); a.d.mark("listening"); a.tick(3000); a.d.mark("keys-up"); a.tick(100); a.d.result("nothing");
+    let text = reportText({ ...FACTS, runs: a.d.runs() });
+    expect(text).toContain("problem code: FD-H1-MIC");
+    expect(text).toContain("hold: keys down +0 ms, microphone asked +2 ms, keys up +3002 ms => nothing");
+    // it opened in the end, far too late: the report shows the 15 s
+    a.tick(12_000); a.d.mark("open", {}, { once: true });
+    text = reportText({ ...FACTS, runs: a.d.runs() });
+    expect(text).toContain("microphone asked +2 ms, keys up +3002 ms, microphone open +15102 ms => nothing");
+    expect(text).toContain("problem code: FD-H1-MIC");
+    // open after 4 s with the keys still down, and then no words
+    const b = clocked();
+    b.d.begin("hold"); b.tick(2); b.d.mark("listening"); b.tick(4000); b.d.mark("open", {}, { once: true }); b.tick(500); b.d.mark("keys-up"); b.tick(900); b.d.result("nothing");
+    expect(problemCode({ hookReady: true, run: b.d.runs()[0] })).toBe("FD-H1-MIC");
+    // a microphone that opens at once keeps the old codes
+    const c = clocked();
+    c.d.begin("hold"); c.tick(2); c.d.mark("listening"); c.tick(90); c.d.mark("open", {}, { once: true }); c.tick(400); c.d.mark("keys-up"); c.tick(900); c.d.result("nothing");
+    expect(problemCode({ hookReady: true, run: c.d.runs()[0] })).toBe("FD-H1-SHORT");
+    expect(reportText({ ...FACTS, runs: c.d.runs() })).toContain("microphone asked +2 ms, microphone open +92 ms, keys up +492 ms => nothing");
+    const e = clocked();
+    e.d.begin("hold"); e.tick(2); e.d.mark("listening"); e.tick(90); e.d.mark("open", {}, { once: true }); e.tick(4000); e.d.mark("keys-up"); e.tick(900); e.d.result("nothing");
+    expect(problemCode({ hookReady: true, run: e.d.runs()[0] })).toBe("FD-H1-NOTEXT");
+    // a run recorded without the microphone stages at all (nothing known): the old codes
+    const f = clocked();
+    f.d.begin("hold"); f.tick(300); f.d.mark("keys-up"); f.tick(900); f.d.result("nothing");
+    expect(problemCode({ hookReady: true, run: f.d.runs()[0] })).toBe("FD-H1-SHORT");
+  });
+
   it("a dictation that was pasted: target program and window class, never the words", () => {
     const { d, tick } = clocked();
     d.begin("hold"); tick(2032); d.mark("keys-up"); tick(600); d.mark("recognised", { chars: 36 }); tick(40);

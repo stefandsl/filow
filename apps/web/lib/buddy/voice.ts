@@ -533,7 +533,8 @@ export function createSpeaker(deps: SpeakerDeps) {
     const b = deps.bridge();
     if (!b?.tts) return () => {};
     return b.onMode((m) => {
-      if ((m.mode === "listening" || m.mode === "thinking") && deps.status()?.voice === "natural") void b.tts?.warm().catch(() => {});
+      // "opening": the key press, before the microphone is open (as early as before there was that state).
+      if ((m.mode === "opening" || m.mode === "listening" || m.mode === "thinking") && deps.status()?.voice === "natural") void b.tts?.warm().catch(() => {});
     });
   }
 

@@ -1,7 +1,7 @@
 // The eye as a button, Pause, Resume and Resume after Stop: the rules behind the pill (docs/okfilow/PILL.md).
 import { describe, expect, it } from "vitest";
 import { createPausableClock, overControls } from "./motion";
-import { EYE_KEYS, PAUSE_KEYS, PILL_STATUSES, isPillAction, keyLabel, pauseKeyAction, pillView, withKey, type PillState } from "./pill";
+import { EYE_KEYS, PAUSE_KEYS, PILL_STATUSES, isPillAction, keyLabel, pauseKeyAction, pillView, talkHeld, withKey, type PillState } from "./pill";
 import type { BuddyTurn } from "./prompt";
 import { eyeToggle, seesScreen, stillSees } from "./sees";
 import { OKF_TEXT } from "./text";
@@ -95,6 +95,18 @@ describe("what the pill shows", () => {
     expect(pillView({ mode: "listening", purpose: "talk", pill: pill() })).toEqual({ show: true, eye: true, status: "notchListening", first: null, stop: false });
     expect(pillView({ mode: "listening", purpose: "handsfree", pill: pill() }).status).toBe("notchHandsFree");
     expect(pillView({ mode: "listening", purpose: "dictate", pill: pill() })).toEqual({ show: true, eye: false, status: "notchDictating", first: null, stop: false });
+  });
+
+  it("a drag marks the screen from the key press of a question, also while the microphone opens; never for a dictation", () => {
+    expect(talkHeld("opening", "talk")).toBe(true);
+    expect(talkHeld("listening", "talk")).toBe(true);
+    expect(talkHeld("opening", "dictate")).toBe(false);
+    expect(talkHeld("listening", "handsfree")).toBe(false);
+    expect(talkHeld("thinking", "talk")).toBe(false);
+  });
+
+  it("while the microphone is still opening the pill does not say Listening or Dictating", () => {
+    for (const purpose of ["talk", "dictate", "handsfree"]) expect(pillView({ mode: "opening", purpose, pill: pill() }).show).toBe(false);
   });
 
   it("every status it can show is in the list that sizes its room, and has words in the five languages", () => {

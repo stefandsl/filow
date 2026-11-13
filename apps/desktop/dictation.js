@@ -45,10 +45,12 @@ function createDictation(deps) {
   }
 
   /** The chord the hook should watch, or null (dictation off, or the keys clash with OK Filow's). */
-  function activeChord(talkHotkey) {
+  function activeChord(talkHotkey, { qaKeys = false } = {}) {
     const c = cfg();
-    // Test isolation (global-input.js): the dictation keys are never watched.
-    if (!c.enabled || globalInputOff(env)) return null;
+    // Test isolation (global-input.js): the dictation keys are never watched. `qaKeys`: the test itself
+    // feeds the keys through the QA key path (okfilow.js QA_KEYS), so its own dictation can be checked;
+    // insert() below still types, pastes and copies nothing.
+    if (!c.enabled || (globalInputOff(env) && qaKeys !== true)) return null;
     return core.checkChord(c.chord, { talk: talkHotkey, platform }).ok ? c.chord : null;
   }
 

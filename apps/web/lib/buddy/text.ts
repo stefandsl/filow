@@ -61,6 +61,12 @@ const en = {
   agentCliAuto: "Automatic",
   welcome: "Hi, I'm OK Filow. Hold {key} and ask me anything about your screen. I live down here in the tray.",
   notHeard: "I didn't catch that. Hold the keys a bit longer while you speak.",
+  mode_opening: "Opening the microphone…",
+  // The microphone can be slow to open (Windows once took 15 s): said while it opens, and told truthfully when nothing could be recorded (lib/buddy/micOpen.ts)
+  micOpening: "Opening the microphone…",
+  micSlow: "The microphone took {n} s to open, so nothing was recorded. Try again; if it keeps happening, restart the PC or pick another microphone in Settings.",
+  micNotOpen: "The microphone was still not open after {n} s, so nothing was recorded. Try again; if it keeps happening, restart the PC or pick another microphone in Settings.",
+  micFallback: "The microphone you chose is not connected, so the default one is used.",
   emptyAnswer: "The model gave an empty answer. Try again or pick another model.",
   noStt: "Speech-to-text on this PC is not installed yet.",
   openSettings: "Open Local models",

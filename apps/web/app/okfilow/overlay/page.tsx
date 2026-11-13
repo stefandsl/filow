@@ -11,7 +11,7 @@ import { bezierPoint, bubbleOnScreen, bubblePlacement, bubbleSticks, createPausa
 import { MarksLayer, type DrawnMark, type MarkSet } from "@/components/okfilow/marks-layer";
 import { CardsLayer } from "@/components/okfilow/cards-layer";
 import type { Rect } from "@/lib/buddy/marks";
-import { keyLabel, PILL_IDLE, pillView, statusRoom, type PillAction, type PillState } from "@/lib/buddy/pill";
+import { keyLabel, PILL_IDLE, pillView, statusRoom, talkHeld, type PillAction, type PillState } from "@/lib/buddy/pill";
 import { AnswerBubble, answerInBubble, markMore } from "@/components/okfilow/bubble";
 import { AnswerControls, EyeButton, Slot } from "@/components/okfilow/controls";
 import { joinNames, localNames, type OutboundSnapshot } from "@/lib/buddy/outbound";
@@ -139,7 +139,7 @@ export default function OkFilowOverlay() {
             return { id: m.id, list: m.list.slice(0, before + marksStarted(m.list.length - before, elapsed, STROKE_GAP_MS)) };
           });
         }
-        if (s.mode !== "listening" && live.current) {
+        if (s.mode !== "listening" && s.mode !== "opening" && live.current) {
           const l = live.current;
           live.current = null;
           if (l.length > 1) b.stroke(l);
@@ -328,9 +328,11 @@ export default function OkFilowOverlay() {
     else b?.control?.(action);
   };
   const controls = <AnswerControls pill view={view} t={t} pauseKey={keys.pause} onAction={act} />;
+  /** The talk keys are held: a drag marks the screen, from the press on (also while the microphone is still opening). */
+  const catching = talkHeld(mode, purpose);
   const onDown = (e: React.PointerEvent) => {
     // The highlighter marks only while the talk keys are held (the only other time a click reaches this window is on the Stop button).
-    if (e.button !== 0 || !(mode === "listening" && purpose === "talk")) return;
+    if (e.button !== 0 || !catching) return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
     live.current = [[e.clientX, e.clientY]];
     setInk((k) => [...k, live.current!]);
@@ -350,7 +352,7 @@ export default function OkFilowOverlay() {
   };
   return (
     <>
-    <div className={"okf-overlay" + (mode === "listening" && purpose === "talk" ? " okf-overlay--catch" : "") + (pill.paused ? " okf-paused" : "")} aria-hidden onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+    <div className={"okf-overlay" + (catching ? " okf-overlay--catch" : "") + (pill.paused ? " okf-paused" : "")} aria-hidden onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
       {/* Beside the spot they explain, in free space, with a leader to it; opaque from their first frame. */}
       <CardsLayer cards={cards} avoid={cardAvoid} />
       {ink.length > 0 && (
