@@ -2,7 +2,7 @@
 // (packages/core/src/profile.ts), in Ollama; nothing leaves the PC. Cloud: OpenRouter multimodal,
 // only when the user picked it. An explicit choice never falls back to the other provider; errors
 // go back to the bubble.
-import { isSetupPreference, resolveSetup, type ResolvedSetup } from "@filow/core";
+import { isPhoneQuestionForModel, isSetupPreference, resolveSetup, type ResolvedSetup } from "@filow/core";
 import { OLLAMA_URL, clefTarget } from "@/lib/decide/clef";
 import { openRouterChatUrl, withProvider } from "@/lib/openrouter";
 import { WHITEBOARD_MODELS, isWhiteboardModel } from "@/lib/whiteboard/models";
@@ -269,7 +269,7 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
         // A JSON schema the answer must follow (Ollama structured output), when the caller has one.
         ...(shape?.format ? { format: shape.format } : {}),
         messages: [
-          { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures }) },
+          { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures, quoted: isPhoneQuestionForModel(req.question) }) },
           ...history,
           // Gemma reads images placed on the message before the text. Text mode sends no picture at all.
           { role: "user", content: shape ? req.question : withScreenNote(req.question, pictures), images: pictures ? req.images.map(base64Of) : [] },
@@ -330,7 +330,7 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal, shape?
       max_tokens: shape?.maxTokens ?? 1500,
       ...(shape?.format ? { response_format: { type: "json_object" } } : {}),
       messages: [
-        { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures }) },
+        { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures, quoted: isPhoneQuestionForModel(req.question) }) },
         ...history,
         {
           role: "user",
@@ -369,7 +369,7 @@ async function* askFreeLlm(req: BuddyAskRequest, signal?: AbortSignal, shape?: A
     temperature: 0.3,
     max_tokens: shape?.maxTokens ?? 1500,
     messages: [
-      { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures }) },
+      { role: "system", content: shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures, quoted: isPhoneQuestionForModel(req.question) }) },
       ...history,
       { role: "user", content: [{ type: "text", text: shape ? req.question : withScreenNote(req.question, pictures) }, ...(pictures ? req.images : []).map((url) => ({ type: "image_url", image_url: { url } }))] },
     ],

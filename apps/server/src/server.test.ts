@@ -12,7 +12,7 @@ let lanPeer = "192.168.1.20";
 beforeEach(async () => {
   clock = 1_000_000;
   lanPeer = "192.168.1.20";
-  server = createSessionServer({ now: () => clock, pairLimitPerMinute: 3, pingMs: 60_000, autoAcceptLan: true, remoteAddress: () => lanPeer });
+  server = createSessionServer({ now: () => clock, pairLimitPerMinute: 3, pingMs: 60_000, autoAcceptLan: true, lanCidr: () => "192.168.1.0/24", remoteAddress: () => lanPeer });
   await new Promise<void>((r) => server.httpServer.listen(0, "127.0.0.1", r));
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -74,8 +74,10 @@ describe("relay", () => {
 
     view.send({ t: "cmd", id: "c1", cmd: { type: "nextSection" } });
     const cmd = await engine.next();
-    expect(cmd).toMatchObject({ t: "cmd", id: "c1" });
-    engine.send({ t: "ack", id: "c1", ok: true });
+    expect(cmd).toMatchObject({ t: "cmd", cmd: { type: "nextSection" }, from: { peer: "lan" } });
+    // the engine answers under the relay's own id; the phone gets the ack under the id it sent
+    expect(cmd.id).not.toBe("c1");
+    engine.send({ t: "ack", id: cmd.id, ok: true });
     expect(await view.next()).toMatchObject({ t: "ack", id: "c1", ok: true });
 
     const second = open(id, { role: "engine", token: engineToken });
@@ -138,12 +140,15 @@ describe("relay", () => {
     engine.ws.close();
   });
 
-  it("script upload is relayed as loadScript and needs a controller token", async () => {
+  it("script upload is relayed as loadScript and needs the token of a controller accepted on the PC", async () => {
     const { id, code, engineToken } = await createSession();
     const engine = open(id, { role: "engine", token: engineToken });
     await engine.next();
     expect((await post(`/api/session/${id}/script`, { text: "# A\n- b" })).status).toBe(401);
     const pair = (await (await post("/api/session/pair", { code })).json()) as { viewToken: string };
+    const paired = await engine.nextMeta("paired");
+    engine.send({ t: "pairDecision", id: paired.id, role: "controller" });
+    await new Promise((r) => setTimeout(r, 30));
     const r = await post(`/api/session/${id}/script`, { text: "# A\n- b" }, { Authorization: `Bearer ${pair.viewToken}` });
     expect(r.status).toBe(200);
     expect(await engine.next()).toMatchObject({ t: "cmd", cmd: { type: "loadScript", text: "# A\n- b" }, from: { device: expect.any(String) } });
@@ -242,7 +247,7 @@ describe("pairing security", () => {
     expect(await view.next()).toMatchObject({ t: "role", role: "controller" });
     expect(await view.next()).toMatchObject({ t: "state", version: 1 });
     view.send({ t: "cmd", id: "c2", cmd: { type: "nextSection" } });
-    expect(await engine.next()).toMatchObject({ t: "cmd", id: "c2" });
+    expect(await engine.next()).toMatchObject({ t: "cmd", cmd: { type: "nextSection" }, from: { peer: "remote" } });
 
     const fresh = (await (await spost(`/api/session/${id}/code`, {}, { Authorization: `Bearer ${engineToken}` })).json()) as { code: string };
     const pair2 = (await (await spost("/api/session/pair", { code: fresh.code })).json()) as { viewToken: string };

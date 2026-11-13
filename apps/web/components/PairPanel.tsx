@@ -16,7 +16,7 @@ export function announcePairing(bridge: Pick<NonNullable<ReturnType<typeof deskt
 }
 
 /** Shows the pairing code and a QR for the mirror URL. */
-export function PairPanel({ info, status, error, onNewCode, prompter = false, devices, onRevoke, onAllowAsk }: { info: SessionInfo | null; status: string; error: string | null; onNewCode?: () => void; prompter?: boolean; devices?: PairedDevice[]; onRevoke?: (id: string) => void; onAllowAsk?: (id: string, allow: boolean) => void }) {
+export function PairPanel({ info, status, error, onNewCode, prompter = false, devices, onRevoke, onAllowAsk, onApprove }: { info: SessionInfo | null; status: string; error: string | null; onNewCode?: () => void; prompter?: boolean; devices?: PairedDevice[]; onRevoke?: (id: string) => void; onAllowAsk?: (id: string, allow: boolean) => void; onApprove?: (id: string) => void }) {
   const t = useT();
   const [now, setNow] = useState(() => Date.now());
   const [qr, setQr] = useState<string | null>(null);
@@ -114,7 +114,7 @@ export function PairPanel({ info, status, error, onNewCode, prompter = false, de
               )}
             </div>
             {/* Every paired device, right under the code: who is connected and what each may do, with Revoke. */}
-            {devices && onRevoke && onAllowAsk && <PairedDevices devices={devices} onRevoke={onRevoke} onAllowAsk={onAllowAsk} />}
+            {devices && onRevoke && onAllowAsk && <PairedDevices devices={devices} onRevoke={onRevoke} onAllowAsk={onAllowAsk} onApprove={onApprove} />}
             <div className="hint">
               {info && <>{t("pair.hint", { url: mirrorUrl })} {t("pair.singleUse")}</>}
               {status !== "open" && <> {t("pair.relay", { status })}</>}

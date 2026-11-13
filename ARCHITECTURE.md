@@ -119,13 +119,15 @@ Desktop sessions are not resumable across app restarts: a new code is issued per
 | `POST /api/session/:id/script` | `engineToken` or `viewToken` with `controller` role | `{text}` | `{ok:true}` → relayed to the engine as `loadScript` | 401, 404 |
 | `DELETE /api/session/:id` | `engineToken` | | `{ok:true}` | |
 
-`id` is a UUID. `code` is 6 digits from `crypto.randomInt`, unique among live sessions. Tokens are 16 random bytes, base64url. Tokens travel only in the first WebSocket message, never in URLs.
+`id` is a UUID. `code` is 8 characters from a 31-letter alphabet (no 0/O, 1/I/L), from `crypto.randomInt`, unique among live sessions; wrong codes burn nothing (the per-address and per-bucket limits make guessing impractical, and burning codes would let anyone stop the presenter from pairing). Tokens are 16 random bytes, base64url. A device's token travels only in the first WebSocket message, never in a URL. The engine's socket (`?role=engine&token=<engineToken>`, large messages) is the one exception: the relay checks the token at the upgrade, before it reads a message, and the engine connects from this computer.
+
+`POST /api/session/pair` from a web page is taken only from the app's own origins (loopback, this computer's addresses, the current public link, browser extensions, the configured origin); a request without `Origin` is taken.
 
 Lifetimes: a session ends on `DELETE`, or 2 hours after the engine socket closes, or 12 hours after creation, whichever comes first. A `code` is valid for 5 minutes and for one pairing; the engine requests a fresh one (`POST /api/session/:id/code` or `{t:"newCode"}`) for the next phone or when the old one ran out.
 
-Roles: `pending` receives nothing; `viewer` receives state only; `controller` may send commands. Pairing yields `pending`, the engine is told `{t:"pairRequest", token, device}` and answers `{t:"pairDecision", token, role:"viewer"|"controller"|"reject"}` (the UI shows the device label with Allow / View only / Reject). With `AUTO_ACCEPT_LAN=1` (desktop LAN mode) a phone whose socket peer is a private address and that did not come through a proxy is admitted as `controller` at once. The engine can change a role later with `setRole`. `loadScript` and `startTake`/`stopTake` are accepted only from the engine's own UI or a `controller`.
+Roles: `pending` receives nothing; `viewer` receives state only; `controller` may send commands. Pairing yields `pending`, the engine is told `{t:"pairRequest", token, device}` and answers `{t:"pairDecision", token, role:"viewer"|"controller"|"reject"}` (the UI shows the device label with Allow / View only / Reject). With `AUTO_ACCEPT_LAN=1` (desktop LAN mode) a phone whose socket peer is in the subnet of this computer's LAN address (`FILOW_LAN_IP`; never a VM, WSL or Docker network) and that did not come through a proxy is admitted as `controller` at once, but not `approved`: until the presenter accepts it on the PC (`pairDecision` / `setRole`, "Allow full control" in the devices list) it may only move between sections and mark points (`REMOTE_BEFORE_APPROVAL`); `loadScript`, `/script`, `startTake`/`stopTake`, `lookNow` and the rest answer `remote:approve-first`. `welcome` and `role` carry `approved`. Every device's commands are rate limited (40 in 10 s, `remote:too-many`). A device's name is fixed when it pairs and is never one of the app's own labels. The engine can change a role later with `setRole`. Asking OK Filow (`askOkFilow`) is a separate right per device (`allowAsk`, off by default); such a question waits in the desktop app's inbox as a count and is shown only when the presenter opens it (apps/web/lib/buddy/phoneAsk.ts).
 
-Client addresses for the rate limiter come from the socket; `cf-connecting-ip` / `x-forwarded-for` are honoured only with `TRUST_PROXY=1` (behind Caddy on the Debian deploy, or while the desktop app runs its own cloudflared). A phone page uses a `?server=` parameter only when it is its own origin; any other host is confirmed by the user first.
+Client addresses for the rate limiter come from the socket; `cf-connecting-ip` / `x-forwarded-for` are honoured only with `TRUST_PROXY=1` (behind Caddy on the Debian deploy, or while the desktop app runs its own cloudflared) and only when the socket itself is loopback, where the proxy and the tunnel run. A phone page uses a `?server=` parameter only when it is its own origin; any other host is confirmed by the user first.
 
 **WebSocket `/ws/session/:id`**, JSON messages:
 
@@ -140,8 +142,8 @@ engine → server   {t:"state", version, state}             full SessionState
 engine → server   {t:"patch", version, ops}               RFC 6902 ops (fast-json-patch), version = previous + 1
 server → views    forwards state and patch unchanged; replays the latest full state to each new view
 view → server     {t:"cmd", id, cmd: Command}
-server → engine   forwards cmd (only from controller role)
-engine → server   {t:"ack", id, ok, error?}  → forwarded to the sender
+server → engine   {t:"cmd", id: <relay id>, cmd, from: {id, device, peer}}   only from controller role
+engine → server   {t:"ack", id: <relay id>, ok, error?}  → sent to that device only, under the id it used
 view → server     {t:"resync"}  when it sees a version gap → server replies with the latest full state
 either            {t:"ping"} / {t:"pong"}  every 15 s, close after 2 missed
 ```

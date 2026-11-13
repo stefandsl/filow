@@ -28,6 +28,14 @@
 .okf-notice p.okf-notice-more { color: var(--muted); font-size: 13px; }
 /* A paired phone's question (panel page.tsx): the question itself, as a quote. */
 .okf-notice p.okf-phone-question { font-weight: 600; font-style: italic; }
+/* Phone questions waiting, in the panel's head: a count only, pressed to show the next one. */
+.okf-phone-badge {
+  -webkit-app-region: no-drag; flex: none; min-height: 28px; padding: 2px 10px; border-radius: 999px;
+  background: transparent; color: var(--text); border: 2px solid var(--okf-out-line);
+  font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.okf-phone-badge:disabled { opacity: 0.55; cursor: default; }
+.okf-phone-badge:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .okf-notice-actions { display: flex; gap: 8px; margin-top: 2px; }
 .okf-notice-actions button {
   flex: 1 1 0; min-width: 0; min-height: 38px; padding: 8px 10px; border-radius: 10px;

@@ -15,6 +15,12 @@ export function mintEngineToken(secret: string, sessionId: string, ttlMs: number
 }
 
 /**
+ * How long a controller token lives. The web app checks it on its own, without asking the session
+ * server, so a device the presenter revokes keeps a token it fetched for at most this long.
+ */
+export const CONTROLLER_TOKEN_TTL_MS = 2 * 60 * 1000;
+
+/**
  * A token for an accepted controller (the PowerPoint pane in View mode, the browser extension):
  * "c." + the same parts, signed over "ctl:" so it never passes as an engine token. The web app takes
  * it only on the routes that name controllers (apps/web/lib/engineAuth.ts), never on /api/buddy/*,

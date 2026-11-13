@@ -13,6 +13,7 @@ import { DISPLAY_KEYS, DisplayPanel, displayAttributes, useDisplayPrefs, useEyel
 import { Wordmark, LangProvider, StageView, useT } from "@filow/ui";
 import { desktopBridge, sessionServerUrl } from "@/lib/sessionUrl";
 import { classifyServer } from "@/lib/mirrorServer";
+import { remoteErrorKey } from "@/lib/buddy/phoneAsk";
 import { LangSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
 
 /** PWA mirror: pair with a code, show the live state, send remote commands. ARCHITECTURE.md §5.8 */
@@ -121,7 +122,10 @@ function Mirror({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
 
   const onCommand = (cmd: Command) => {
     void client?.send(cmd).then((r) => {
-      if (!r.ok) setError(t("mirror.commandError", { error: r.error ?? "" }));
+      // Refused by the relay for a reason the phone can say in words (not accepted on the computer yet, too many taps).
+      const refused = r.ok ? null : remoteErrorKey(r.error);
+      if (refused) setError(t(refused));
+      else if (!r.ok) setError(t("mirror.commandError", { error: r.error ?? "" }));
       else setError(null);
     });
   };
