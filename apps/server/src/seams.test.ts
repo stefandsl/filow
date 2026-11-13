@@ -41,7 +41,7 @@ class FakeSocket {
   constructor(url: string) {
     runtime.clients.push(this);
     queueMicrotask(() => {
-      runtime.http.emit("upgrade", { url: new URL(url).pathname, headers: {}, socket: { remoteAddress: "192.168.1.20" } }, { peer: this.peer }, null);
+      runtime.http.emit("upgrade", { url: new URL(url).pathname + new URL(url).search, headers: {}, socket: { remoteAddress: "192.168.1.20" } }, { peer: this.peer }, null);
       this.onopen?.();
     });
   }
@@ -66,7 +66,7 @@ const settle = async () => { for (let i = 0; i < 40; i++) await Promise.resolve(
 let server: SessionServer;
 beforeEach(() => {
   vi.useFakeTimers(); runtime.clients = []; runtime.effects = [];
-  server = createSessionServer({ autoAcceptLan: true });
+  server = createSessionServer({ autoAcceptLan: true, lanCidr: () => "192.168.1.0/24" });
   vi.stubGlobal("fetch", fakeFetch); vi.stubGlobal("WebSocket", FakeSocket);
 });
 afterEach(async () => {
@@ -157,7 +157,7 @@ describe("Step 4 relay/client seams", () => {
   it("characterizes a fresh relay: the prior process's pairing code no longer exists", async () => {
     const created = await (await fakeFetch("http://relay.invalid/api/session", { method: "POST" })).json();
     await server.close();
-    server = createSessionServer({ autoAcceptLan: true });
+    server = createSessionServer({ autoAcceptLan: true, lanCidr: () => "192.168.1.0/24" });
     const res = await fakeFetch("http://relay.invalid/api/session/pair", { method: "POST", body: JSON.stringify({ code: created.code }) });
     expect(res.status).toBe(404);
   });

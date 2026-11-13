@@ -7,7 +7,7 @@ import { cleanDeviceName, cleanPhoneQuestion, PHONE_ASK, PHONE_QUESTION_MAX, pho
 // "Ask OK Filow" from a paired phone, on the session server: the presenter sees every pairing and can
 // revoke it; asking is a separate right, given on the PC, off by default; the question is checked here
 // (shape, length, characters) before it moves, and the PC is told which device sent it. Codes are long
-// enough not to be guessed, and burned after 10 wrong tries.
+// enough not to be guessed; wrong tries burn nothing (phone-sec.test.ts has the rest of the pairing rules).
 let server: SessionServer;
 let peer = "192.168.1.20";
 afterEach(async () => {
@@ -16,7 +16,7 @@ afterEach(async () => {
 });
 
 async function start(extra: ServerOptions = {}) {
-  server = createSessionServer({ now: () => Date.now(), pairLimitPerMinute: 50, pairGlobalLimitPerMinute: 200, pingMs: 60_000, autoAcceptLan: true, remoteAddress: () => peer, ...extra });
+  server = createSessionServer({ now: () => Date.now(), pairLimitPerMinute: 50, pairGlobalLimitPerMinute: 200, pingMs: 60_000, autoAcceptLan: true, lanCidr: () => "192.168.1.0/24", remoteAddress: () => peer, ...extra });
   await new Promise<void>((r) => server.httpServer.listen(0, "127.0.0.1", r));
   return `http://127.0.0.1:${server.address().port}`;
 }
@@ -88,7 +88,9 @@ describe("a phone's question on the session server", () => {
     engine.send({ t: "allowAsk", id: paired.id, allow: true });
     expect(await phone.next()).toEqual({ t: "permissions", canAsk: true });
     phone.send({ t: "cmd", id: "q2", cmd: { type: "askOkFilow", text: "What is\n on the ‮slide?" }, from: { id: "x", device: "The presenter" } });
-    expect(await engine.nextOf("cmd")).toEqual({ t: "cmd", id: "q2", cmd: { type: "askOkFilow", text: "What is on the slide?" }, from: { id: paired.id, device: "Pixel 8" } });
+    const asked = await engine.nextOf("cmd");
+    expect(asked).toEqual({ t: "cmd", id: expect.any(String), cmd: { type: "askOkFilow", text: "What is on the slide?" }, from: { id: paired.id, device: "Pixel 8", peer: "lan" } });
+    expect(asked.id).not.toBe("q2");
     // and can take it back
     engine.send({ t: "allowAsk", id: paired.id, allow: false });
     expect(await phone.next()).toEqual({ t: "permissions", canAsk: false });
@@ -96,7 +98,7 @@ describe("a phone's question on the session server", () => {
     expect(await ackOf(phone, "q3")).toMatchObject({ error: PHONE_ASK.notAllowed });
     // the phone's own commands still go, with the device the server knows
     phone.send({ t: "cmd", id: "n1", cmd: { type: "nextSection" }, from: { id: "spoof", device: "spoof" } });
-    expect(await engine.nextOf("cmd")).toEqual({ t: "cmd", id: "n1", cmd: { type: "nextSection" }, from: { id: paired.id, device: "Pixel 8" } });
+    expect(await engine.nextOf("cmd")).toEqual({ t: "cmd", id: expect.any(String), cmd: { type: "nextSection" }, from: { id: paired.id, device: "Pixel 8", peer: "lan" } });
     expect(engine.inbox.filter((m) => m.t === "cmd")).toEqual([]);
   });
 
@@ -111,7 +113,7 @@ describe("a phone's question on the session server", () => {
       expect(await ackOf(phone, `b${i}`), JSON.stringify(cmd).slice(0, 40)).toMatchObject({ ok: false, error: PHONE_ASK.bad });
     }
     phone.send({ t: "cmd", id: "ok", cmd: ask("\u{1F600}".repeat(PHONE_QUESTION_MAX)) });
-    expect(await engine.nextOf("cmd")).toMatchObject({ id: "ok" });
+    expect(await engine.nextOf("cmd")).toMatchObject({ cmd: { type: "askOkFilow", text: "\u{1F600}".repeat(PHONE_QUESTION_MAX) } });
     expect(engine.inbox.filter((m) => m.t === "cmd")).toEqual([]);
   });
 
@@ -162,7 +164,7 @@ describe("the presenter's devices list", () => {
 
   it("a token runs out when its device stays away, and is refreshed while it is connected", async () => {
     let clock = 1_000_000;
-    server = createSessionServer({ now: () => clock, pingMs: 60_000, autoAcceptLan: true, remoteAddress: () => peer, viewTokenTtlMs: 60_000 });
+    server = createSessionServer({ now: () => clock, pingMs: 60_000, autoAcceptLan: true, lanCidr: () => "192.168.1.0/24", remoteAddress: () => peer, viewTokenTtlMs: 60_000 });
     await new Promise<void>((r) => server.httpServer.listen(0, "127.0.0.1", r));
     const base = `http://127.0.0.1:${server.address().port}`;
     const { id, engine, phone, pair } = await withPhone(base);
@@ -216,23 +218,8 @@ describe("who is accepted without asking", () => {
 });
 
 describe("pairing codes", () => {
-  it("are burned and replaced after 10 wrong tries, and the PC is sent the new one", async () => {
-    const base = await start();
-    const created = (await (await post(base, "/api/session")).json()) as { id: string; code: string; engineToken: string };
-    const engine = openSocket(ws(base), created.id, { role: "engine", token: created.engineToken }, "?role=engine");
-    await engine.next();
-    for (let i = 0; i < 9; i++) expect((await post(base, "/api/session/pair", { code: "AAAAAAAA" })).status).toBe(404);
-    expect(engine.inbox).toEqual([]);
-    expect((await post(base, "/api/session/pair", { code: "AAAAAAAA" })).status).toBe(404);
-    const rotated = await engine.next();
-    expect(rotated).toMatchObject({ t: "codeRotated" });
-    expect(rotated.code).not.toBe(created.code);
-    expect((await post(base, "/api/session/pair", { code: created.code })).status).toBe(404);
-    expect((await post(base, "/api/session/pair", { code: rotated.code })).status).toBe(200);
-  });
-
   it("the local network and the tunnel have separate limits: one cannot lock the other out", async () => {
-    server = createSessionServer({ now: () => Date.now(), pairLimitPerMinute: 100, pairGlobalLimitPerMinute: 5, pingMs: 60_000, autoAcceptLan: true, remoteAddress: () => peer, trustProxy: true, wrongCodesBeforeRotation: 1000 });
+    server = createSessionServer({ now: () => Date.now(), pairLimitPerMinute: 100, pairGlobalLimitPerMinute: 5, pingMs: 60_000, autoAcceptLan: true, lanCidr: () => "192.168.1.0/24", remoteAddress: () => peer, trustProxy: true });
     await new Promise<void>((r) => server.httpServer.listen(0, "127.0.0.1", r));
     const base = `http://127.0.0.1:${server.address().port}`;
     peer = "127.0.0.1"; // cloudflared, on this computer

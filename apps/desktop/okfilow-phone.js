@@ -77,7 +77,7 @@ function createPhoneInbox({ now = Date.now, max = PHONE_INBOX_MAX, ttlMs = PHONE
       if (now() < d.until) return { answer: "busy" };
       if (waiting.some((e) => e.id === id) || opened?.id === id) return { answer: "busy" };
       if (waiting.length >= max) return { answer: "busy" };
-      const entry = { key: `q${++seq}`, id, question, device: cleanDeviceName(p.device) || "phone", peer: p.peer === "remote" ? "remote" : "lan", at: now() };
+      const entry = { key: `q${++seq}`, id, question, device: cleanDeviceName(p.device) || "phone", peer: p.peer === "lan" ? "lan" : "remote", at: now() };
       waiting.push(entry);
       return { answer: "asked", key: entry.key };
     },
