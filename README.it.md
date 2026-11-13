@@ -714,6 +714,8 @@ rumeno e giapponese ([docs/stt/LANGUAGES.md](docs/stt/LANGUAGES.md)).
 
 I segni sullo schermo seguono le frasi pronunciate e mantengono le posizioni precedenti mentre la risposta cresce. Il puntatore e la sua etichetta si muovono insieme nello spazio libero; se il percorso è occupato, il puntatore viene nascosto per non coprire il testo rilevato. Il fumetto cresce gradualmente (senza animare le dimensioni quando è attiva la riduzione del movimento). La vista 3D usa punti sulle superfici e linee distanziate, con etichette leggibili in entrambi i temi; i margini vuoti lasciano passare i clic.
 
+Quando è disponibile il rettangolo del bersaglio, il puntatore si ferma sul suo angolo e lo sottolinea, con un anello visibile in entrambi i temi. Le linee del modello usano corsie più ampie e preferiscono punti interni alla superficie visibile di ogni parte. Nel tema chiaro il modello ha uno sfondo grigio-azzurro, bordi del rivestimento più definiti e un'ombra compatta.
+
 ## Add-in per PowerPoint
 
 Un riquadro attività per PowerPoint vive in [apps/powerpoint](apps/powerpoint/README.md). Le note del relatore diventano lo script (una slide per sezione, le righe `-` sono i punti), il riquadro segue la slide selezionata mentre modifichi, e gestisce da sé il microfono su Windows e in PowerPoint per il web, oppure altrove rispecchia una sessione tramite codice. PowerPoint nasconde i riquadri durante una presentazione e non offre un'API per seguirla, quindi sul palco la vista dal vivo è il mirror sul telefono o l'app desktop. Compila con `npm run build -w apps/powerpoint`; il riquadro viene poi servito dall'app web sotto `/powerpoint/`.

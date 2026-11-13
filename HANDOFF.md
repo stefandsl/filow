@@ -25,7 +25,13 @@ and click-through margins. English and Italian manuals describe the changes.
 
 Evidence and limitations: `docs/okfilow/OVERLAY-R2B.md`. The isolated QA driver, raw timing
 records, mutation report and blind sheets live under `G:/FILOW/tmp/overlay-r2b`.
-The blind critic has not judged this round. No push, tag, merge into main or release.
+The first blind critic preferred this build on all eight sheets but rejected the pointer
+landing and light stage. The rework puts the hotspot on the target corner with an underline
+and a contrast-safe ring, widens both leader columns to 28 px, prioritizes interior surface
+patches, and uses a tinted light stage with stronger shell outlines and a compact shadow.
+New evidence is in `docs/okfilow/OVERLAY-R2B-REWORK.md`; the new blind set is `frames/ab2`.
+Pending: a fresh blind verdict and owner-authorized native/live checks. No push, tag,
+merge into main or release.
 
 ## Where it stands (v0.9.35 + current branch)
 

@@ -8,7 +8,7 @@ type Size = { width: number; height: number };
 export type LabelSide = "left" | "right";
 export type LabelSlot = { x: number; y: number; width: number; height: number; side: LabelSide; from: P; knee: P; elbow: P; to: P };
 
-export const LEADER_LANE_GAP = 12;
+export const LEADER_LANE_GAP = 28;
 
 const DEG = Math.PI / 180;
 

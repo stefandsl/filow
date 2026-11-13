@@ -32,9 +32,9 @@ describe("round 2B motion contracts", () => {
   it("uses the flight clock for the arrival, including pause and reduced motion", () => {
     expect(arrivalPhase(499,500).opacity).toBe(0);
     expect(arrivalPhase(500,500).opacity).toBe(1);
-    expect(arrivalPhase(800,500).opacity).toBe(0.5);
+    expect(arrivalPhase(800,500).opacity).toBe(1);
     expect(arrivalPhase(800,500,true)).toEqual({opacity:1,scale:1});
-    expect(arrivalPhase(1101,500).opacity).toBe(0);
+    expect(arrivalPhase(1101,500).opacity).toBe(1);
   });
   it("anchors the casing on its visible shell, never its axis", () => {
     const mesh=new THREE.Mesh(new THREE.CylinderGeometry(2,2,5,64),new THREE.MeshBasicMaterial());

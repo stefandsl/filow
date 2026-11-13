@@ -63,7 +63,7 @@ describe("the exit", () => {
 
 describe("the pointer", () => {
   it("is a bigger outlined glyph with a light halo, its tip on the spot", () => {
-    expect(overlay).toContain('viewBox="0.5 -0.5 23 23" width="36" height="36"');
+    expect(overlay).toContain('viewBox="3 2 23 23" width="36" height="36"');
     expect(overlay).toContain('<path className="okf-arrow-halo" d={ARROW} /><path d={ARROW} />');
     expect(rule(".okf-arrow .okf-arrow-halo")).toContain("stroke: rgba(255, 255, 255, 0.92)");
     expect(rule(".okf-arrow path")).toContain("stroke: #08090b");
@@ -99,10 +99,10 @@ describe("the pointer", () => {
 });
 
 describe("the 3D view", () => {
-  it("sits in its own opaque rounded frame, with no title bar and no footer", () => {
+  it("fills its opaque stage without transparent corner cutouts, title bar or footer", () => {
     expect(model).not.toContain("okf-model-head");
     expect(model).not.toContain("okf-model-foot");
-    expect(rule(".okf-model")).toContain("background: rgb(16, 17, 20); border-radius: 16px;");
+    expect(rule(".okf-model")).toContain("background: rgb(16, 17, 20); border-radius: 0;");
   });
 
   it("draws each leader as anchor, knee, label and numbers the labels in reading order", () => {

@@ -13,7 +13,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { useLang } from "@filow/ui";
 import { okFilowBridge } from "@/lib/buddy/bridge";
 import { okfText } from "@/lib/buddy/text";
-import { surfaceAnchor } from "@/lib/buddy/model-surface";
+import { visibleSurfaceAnchor } from "@/lib/buddy/model-surface";
 import { fitScale, frameDistance, labelledParts, layoutPartLabels, leaderPoints, readingOrder, type LabelSide } from "@/lib/buddy/model-labels";
 import type { BuddyModel, ModelPart } from "@/lib/buddy/visuals";
 import "../okfilow.css";
@@ -125,6 +125,7 @@ export default function OkFilowModel() {
     const group = new THREE.Group();
     const meshes: THREE.Mesh[] = [];
     const extras: Array<THREE.Material | THREE.BufferGeometry> = [];
+    const shellEdges: THREE.LineBasicMaterial[] = [];
     for (const p of model.parts) {
       const mat = new THREE.MeshStandardMaterial({ color: p.color, roughness: 0.42, metalness: 0.2, envMapIntensity: 0.7 });
       const mesh = new THREE.Mesh(geometryFor(p), mat);
@@ -155,9 +156,17 @@ export default function OkFilowModel() {
       const edges = new THREE.EdgesGeometry(m.geometry, 25);
       // a mid grey outline reads on a white page and on a black one
       const lineMat = new THREE.LineBasicMaterial({ color: 0x8b95a7, transparent: true, opacity: 0.95 });
+      shellEdges.push(lineMat);
       m.add(new THREE.LineSegments(edges, lineMat));
       extras.push(shellMat, edges, lineMat);
     });
+    const applyStageTheme = () => {
+      const light = document.documentElement.dataset.theme === "light";
+      shellEdges.forEach(material => material.color.setHex(light ? 0x46576d : 0xaab8cd));
+    };
+    applyStageTheme();
+    const themeObserver = new MutationObserver(applyStageTheme);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     // Centre the model and frame it to ~70% of the view.
     const box = new THREE.Box3().setFromObject(group);
     const centre = box.getCenter(new THREE.Vector3());
@@ -278,7 +287,9 @@ export default function OkFilowModel() {
       };
       const pts = anchors.map((a, k) => {
         const mesh = meshes[labelled[k].part];
-        a.copy(surfaceAnchor(mesh, camera));
+        const surface = visibleSurfaceAnchor(mesh, meshes, camera, w, h, [0.5, 0.75, 0.25][k % 3]);
+        a.copy(surface.anchor);
+        lines[k]?.setAttribute("data-anchor-margin", surface.margin.toFixed(3));
         return project(mesh.localToWorld(world.copy(a)).clone());
       });
       const mid = project(new THREE.Vector3(0, 0, 0)).x;
@@ -325,6 +336,7 @@ export default function OkFilowModel() {
       window.removeEventListener("resize", onResize);
       el.removeEventListener("okf-focus-part", onFocusPart);
       controls.dispose();
+      themeObserver.disconnect();
       for (const m of meshes) { m.geometry.dispose(); (m.material as THREE.Material).dispose(); }
       for (const x of extras) x.dispose();
       env.dispose();

@@ -1,5 +1,8 @@
 # Overlay round 2B
 
+The blind-critic rework and current measurements are in [OVERLAY-R2B-REWORK.md](OVERLAY-R2B-REWORK.md).
+The record below describes the first submission at `82c4923`.
+
 This work stays on `feat-overlay-r2b`. Main `f5d18e2` was merged as `d89a2fd`;
 its microphone opening/closing and phone-security behavior remains covered by the suite.
 No push, tag, merge into main or release was performed.

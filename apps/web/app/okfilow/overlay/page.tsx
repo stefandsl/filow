@@ -78,6 +78,7 @@ export default function OkFilowOverlay() {
   // Near the bottom or right edge the label goes above or to the left of the arrow, never off screen.
   const labelEl = useRef<HTMLSpanElement>(null);
   const ringEl = useRef<HTMLElement>(null);
+  const targetEl = useRef<HTMLDivElement>(null);
   const pointAvoid = useRef<Rect[]>([]);
   const [here, setHere] = useState(false);
   // `done`: drawn before a stop (Resume after Stop): shown as it was, not drawn again.
@@ -214,6 +215,11 @@ export default function OkFilowOverlay() {
         setLabel(spot.label);
       }
       const g = flight.current;
+      if (targetEl.current) {
+        const r = g?.plan.targetRect;
+        targetEl.current.style.display = r && now >= g!.start + g!.dur ? "block" : "none";
+        if (r) Object.assign(targetEl.current.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.right-r.left}px`, height: `${r.bottom-r.top}px` });
+      }
       if (!g && ringEl.current) ringEl.current.style.opacity = "0";
       let next: { x: number; y: number } | null = null;
       if (g) {
@@ -371,10 +377,11 @@ export default function OkFilowOverlay() {
       )}
       {/* One drawing layer for the whole life of the overlay: an answer's marks never remount it (no hitch as they arrive). */}
       <MarksLayer sets={markSets} avoid={labelAvoid} />
+      <div ref={targetEl} className="okf-point-target" aria-hidden />
       <div ref={dot} className={`okf-buddy okf-buddy--${mode}${going ? " okf-buddy--out" : ""}${here ? "" : " okf-hidden"}`}>
         {going && <span className="okf-out-rings"><i /><i /><i /></span>}
         {/* A 27 px glyph outlined dark inside a light halo: it reads on white and on black. */}
-        <svg className="okf-arrow" viewBox="0.5 -0.5 23 23" width="36" height="36"><path className="okf-arrow-halo" d={ARROW} /><path d={ARROW} /></svg>
+        <svg className="okf-arrow" viewBox="3 2 23 23" width="36" height="36"><path className="okf-arrow-halo" d={ARROW} /><path d={ARROW} /></svg>
         <i ref={ringEl} className="okf-arrival" />
         {label && <span ref={labelEl} className="okf-label">{label}</span>}
       </div>
