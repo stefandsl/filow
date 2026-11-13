@@ -778,7 +778,7 @@ async function leak() {
   try {
     await withLaunch(ctx, { extraEnv: { FILOW_OKF_QA_SHOTS: path.join(WORK, "shots") } }, async () => {
       await sample(ctx, { kind: "typed", question: 0 });
-      await sleep(2000);
+      await sleep(4000);
     });
   } catch (e) { failed = /run failed/.test(String(e.message)); say(`[leak] ${e.message}`); }
   try { ctx.sampler.kill(); } catch { /* gone */ }
