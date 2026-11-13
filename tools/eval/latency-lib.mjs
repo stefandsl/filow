@@ -279,6 +279,10 @@ export function rank2b(samples, extra = {}, fast = []) {
       formula: `promptEvalMs x (1 - t1 / t0), t1 = ${extra.tokensSmall ?? "?"} tokens${extra.smallWidth ? ` at ${extra.smallWidth} px` : ""}`,
     },
     { id: "firstSentence", name: "Generation to the first sentence (voice may start at the first clause)", saving: Number.isFinite(extra.clauseShare) ? per((s) => (m(s, "sentence") - m(s, "firstToken")) * (1 - extra.clauseShare)) : NaN, formula: `(sentence - firstToken) x (1 - share of the first clause${Number.isFinite(extra.clauseShare) ? ` = ${extra.clauseShare}` : ", not measured"})` },
+    // The panel's warm-up loads the model with another context size than the questions use, so the first
+    // question loads it again (coordinator lead, G:\FILOW\tmp\evict2-ollama): measured as Ollama's load time on
+    // the first question of cold launches whose warm-up was over before t0.
+    { id: "warmContext", name: "Warm-up with the same context as questions (first question loads the model again)", saving: Array.isArray(extra.cold) && extra.cold.length ? median(extra.cold.filter((s) => s.warmBeforeT0).map((s) => s.server?.loadMs).filter(Number.isFinite)) : NaN, formula: "Ollama load on the first question after a finished warm-up (cold launches, median); applies once per launch, not per question" },
     { id: "synth", name: "Synthesis and playback start", saving: per((s) => m(s, "voice") - m(s, "sentence") - synthFloor), formula: `voice - sentence - synth floor (${Math.round(synthFloor)} ms, 10th percentile of sentence -> synth)` },
     { id: "mark", name: "Text to mark (fast tier, reference only)", saving: fast.length ? median(fast.map((s) => m(s, "mark") - m(s, "text")).filter(Number.isFinite)) : NaN, formula: "mark - text (fast tier)", reference: true },
   ];

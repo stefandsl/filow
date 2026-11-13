@@ -156,6 +156,11 @@ describe("Phase 2b ranking", () => {
     expect(r.total).toBe(7604.5);
     expect(r.share).toBeCloseTo(2100 / 7604.5, 6);
     expect(r.gateToOwner).toBe(false);
+    // the warm-up reload: Ollama's load on the first question, only where the warm-up was over before it
+    const cold = [{ warmBeforeT0: true, server: { loadMs: 2400 } }, { warmBeforeT0: true, server: { loadMs: 2600 } }, { warmBeforeT0: false, server: { loadMs: 9000 } }];
+    const w = rank2b(Array.from({ length: 10 }, (_, i) => voice(i)), { tokensSmall: 1200, clauseShare: 0.5, cold });
+    expect(w.candidates.find((c) => c.id === "warmContext")!.saving).toBe(2500);
+    expect(w.ranked[0].id).toBe("warmContext");
     expect(r.gateToOwner).toBe(r.share < 0.2);
     expect(spanValue(voice(0), SPANS.find((s) => s.name === "sttStop->heard")!)).toBe(550);
     expect(cellsOf([{ a: 1, c: "x" }, { a: 2, c: "y" }, { a: 3, c: "x" }], (s) => s.a, (s) => s.c)).toEqual([[1, 3], [2]]);

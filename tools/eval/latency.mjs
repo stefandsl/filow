@@ -196,8 +196,9 @@ async function prepare() {
 }
 
 // ---------- the build ----------
-function buildInfo(exe) {
-  const info = JSON.parse(fs.readFileSync(path.join(path.dirname(exe), "build-info.json"), "utf8"));
+/** build-info.json beside win-unpacked (`exeDir`): a QA build with its source sha, or nothing is run. */
+function buildInfo(exeDir) {
+  const info = JSON.parse(fs.readFileSync(path.join(path.dirname(path.resolve(exeDir)), "build-info.json"), "utf8"));
   if (info.filowQa !== true || !/^[0-9a-f]{40}$/.test(info.sha)) throw new Error("not a QA build with a source sha (build-info.json)");
   return info;
 }
@@ -328,10 +329,11 @@ const heardText = (page) => page.evaluate(`(document.querySelector(".okf-q")?.te
 // ---------- interference ----------
 /** A PowerShell sampler of every process's CPU, every 2 s, into a file: foreign load = all minus our trees. */
 function startCpuSampler(file) {
-  const ps = `$n=[Environment]::ProcessorCount; while ($true) { $t=Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { $_.Name -ne '_Total' -and $_.Name -ne 'Idle' } | Select-Object IDProcess,PercentProcessorTime; $o=@{ at=[DateTimeOffset]::Now.ToUnixTimeMilliseconds(); n=$n; p=@($t | ForEach-Object { @($_.IDProcess, $_.PercentProcessorTime) }) }; ($o | ConvertTo-Json -Compress -Depth 4) | Add-Content -Encoding ascii '${file}'; Start-Sleep -Milliseconds 1500 }`;
+  const ps = `$n=[Environment]::ProcessorCount; while ($true) { $t=Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { $_.Name -ne '_Total' -and $_.Name -ne 'Idle' -and $_.Name -notlike 'WmiPrvSE*' } | Select-Object IDProcess,PercentProcessorTime; $o=@{ at=[DateTimeOffset]::Now.ToUnixTimeMilliseconds(); n=$n; p=@($t | ForEach-Object { @($_.IDProcess, $_.PercentProcessorTime) }) }; ($o | ConvertTo-Json -Compress -Depth 4) | Add-Content -Encoding ascii '${file}'; Start-Sleep -Milliseconds 3000 }`;
   const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], { stdio: "ignore", windowsHide: true });
   return child;
 }
+// (WmiPrvSE is left out: it is the WMI host answering this sampler's own queries.)
 /** Mean foreign CPU (% of the whole machine) between two times, from the sampler's file. */
 function foreignCpu(file, from, to, ours) {
   let lines;
@@ -347,11 +349,22 @@ function foreignCpu(file, from, to, ours) {
   }
   return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 }
-function foreignGpuApps(ours) {
-  try {
-    const out = execFileSync("nvidia-smi", ["--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits"], { encoding: "utf8", windowsHide: true });
-    return out.split(/\r?\n/).filter(Boolean).map((l) => Number(l.split(",")[0])).filter((p) => !ours.has(p));
-  } catch { return []; }
+/**
+ * The harness waits while the PC is busy with others' work (design note section 7: "the harness waits"):
+ * until the foreign CPU of the last two sampler readings is under 15%, at most 30 minutes per sample.
+ */
+async function waitForQuiet(ctx) {
+  const ours = () => new Set([...treeOf(processTable(), ctx.run.pid), ...treeOf(processTable(), ctx.ollamaPid), process.pid, ctx.sampler?.pid].filter(Boolean));
+  const start = Date.now();
+  let told = false;
+  for (;;) {
+    const v = foreignCpu(ctx.cpuFile, Date.now() - 6500, Date.now(), ours());
+    const gpu = ctx.tier.gpu ? gpuUtil() : 0;
+    if (v !== null && v <= 15 && (gpu === null || gpu <= 10)) { if (told) say(`[${ctx.tier.name}] quiet again after ${Math.round((Date.now() - start) / 1000)} s`); return; }
+    if (Date.now() - start > 30 * 60_000) { say(`[${ctx.tier.name}] still busy after 30 min (foreign CPU ${Math.round(v ?? -1)}%, GPU ${gpu}%): asking anyway, the sample will say so`); return; }
+    if (!told) { say(`[${ctx.tier.name}] waiting: the PC is busy with other work (foreign CPU ${Math.round(v ?? -1)}%, GPU ${gpu}%)`); told = true; }
+    await sleep(5000);
+  }
 }
 function gpuUtil() {
   try { return Number(execFileSync("nvidia-smi", ["--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"], { encoding: "utf8", windowsHide: true }).trim().split(/\r?\n/)[0]); } catch { return null; }
@@ -365,6 +378,9 @@ function gpuUtil() {
 async function sample(ctx, { kind, question, offset = 0, speechEnd = 0, hold = 0 }) {
   const { page, run: launched, tier } = ctx;
   await clearHistory(page);
+  await waitForQuiet(ctx);
+  // the GPU before the question, with our model idle: someone else's work on it invalidates the sample
+  const gpuBefore = tier.gpu ? gpuUtil() : null;
   const fromLine = logLineCount(launched.log);
   let t0;
   let heard = null;
@@ -432,9 +448,8 @@ async function sample(ctx, { kind, question, offset = 0, speechEnd = 0, hold = 0
   try { s.split = await processorSplit(tier); } catch { s.split = "unknown"; }
   const ours = new Set([...treeOf(processTable(), launched.pid), ...treeOf(processTable(), ctx.ollamaPid), process.pid, ctx.sampler?.pid].filter(Boolean));
   s.foreignCpu = foreignCpu(ctx.cpuFile, t0 - 2000, Date.now(), ours);
-  const foreignGpu = tier.gpu ? foreignGpuApps(new Set([...ours, ...(ctx.ownerOllama || [])])) : [];
-  const util = tier.gpu ? gpuUtil() : null;
-  s.interference = (s.foreignCpu !== null && s.foreignCpu > 15) || (foreignGpu.length > 0 && util !== null && util > 10);
+  s.gpuBefore = gpuBefore;
+  s.interference = (s.foreignCpu !== null && s.foreignCpu > 15) || (gpuBefore !== null && gpuBefore > 10);
   s.reasons = invalidReasons(s, tier);
   if (s.contentLines) s.reasons.push("content line in the log");
   if (s.grammar) s.reasons.push("grammar");
@@ -531,7 +546,9 @@ async function warmVoice(ctx, n) {
     // one launch per question (the fake microphone file is read at start), one discarded question first
     await withLaunch(ctx, { wav: wavFor(q) }, async () => {
       const warmup = await sample(ctx, { kind: "voice", question: q, offset: 0, speechEnd: ends[q] });
-      say(`[${ctx.tier.name} warm-voice] q${q + 1} discarded first question (${warmup.valid ? "ok" : warmup.reasons.join(", ")})`);
+      // kept apart (not a warm sample): the first question of a launch shows whether the warm-up's load held
+      ctx.samples.push({ ...warmup, condition: "first-of-launch", tier: ctx.tier.name, valid: false, reasons: ["discarded first question"], loadMs: warmup.server?.loadMs ?? null });
+      say(`[${ctx.tier.name} warm-voice] q${q + 1} discarded first question (${warmup.valid ? "ok" : warmup.reasons.join(", ")}; Ollama load ${warmup.server?.loadMs ?? "-"} ms)`);
       const got = await collect(ctx, "warm-voice", cells, (p) => sample(ctx, { kind: "voice", question: p.question, offset: p.offset, speechEnd: ends[p.question] }));
       all.push(...got);
     });
@@ -636,7 +653,7 @@ async function ownerOllama() {
 async function context(tierName, label) {
   const exe = flag("exe");
   if (!exe) throw new Error("--exe <...\\build-<sha7>\\win-unpacked> is required");
-  const info = buildInfo(path.join(exe, "Filow.exe"));
+  const info = buildInfo(exe);
   const tier = TIERS[tierName];
   if (!tier) throw new Error(`no tier ${tierName}`);
   const ollamaPid = await serve(tier);
@@ -810,11 +827,19 @@ async function report() {
       out.push("");
     }
   }
+  // the warm-up's load: Ollama's load time on the first question of each launch (warm launches, cold launches)
+  for (const tier of ["standard", "fast"]) {
+    const firsts = of(tier, "first-of-launch").map((s) => s.server?.loadMs).filter(Number.isFinite);
+    const colds = of(tier, "cold-voice").filter((s) => s.valid);
+    const after = colds.filter((s) => s.warmBeforeT0).map((s) => s.server?.loadMs).filter(Number.isFinite);
+    const before = colds.filter((s) => !s.warmBeforeT0).map((s) => s.server?.loadMs).filter(Number.isFinite);
+    if (firsts.length || colds.length) out.push(`First question of a launch, ${tier} tier: Ollama load ${firsts.map(fmt).join(", ") || "-"} ms (warm launches, after the warm-up); cold launches: median ${fmt(median(after))} ms with the warm-up over (n ${after.length}), ${fmt(median(before))} ms without (n ${before.length})`, "");
+  }
   const stdWarm = of("standard", "warm-voice").filter((s) => s.valid);
   const fastWarm = of("fast", "warm-voice").filter((s) => s.valid);
   let tok = {};
   try { tok = JSON.parse(fs.readFileSync(path.join(LAT, "tokens.json"), "utf8")); } catch { /* not measured */ }
-  const ranking = rank2b(stdWarm, { tokensSmall: tok[768], smallWidth: 768, clauseShare: Number(flag("clause-share", "NaN")) }, fastWarm);
+  const ranking = rank2b(stdWarm, { tokensSmall: tok[768], smallWidth: 768, clauseShare: Number(flag("clause-share", "NaN")), cold: of("standard", "cold-voice").filter((s) => s.valid) }, fastWarm);
   out.push("### Phase 2b ranking (standard tier, warm voice)", "", "| Candidate | Formula | Realistic saving (median, ms) |", "|---|---|---|");
   for (const c of ranking.candidates) out.push(`| ${c.name} | ${c.formula} | ${fmt(c.saving)} |`);
   out.push("", `Top two: ${ranking.ranked.slice(0, 2).map((c) => c.id).join(" + ")} = ${fmt(ranking.top2)} ms of release -> voice median ${fmt(ranking.total)} ms (${Number.isFinite(ranking.share) ? (ranking.share * 100).toFixed(1) : "-"}%); gate: ${ranking.gateToOwner ? "under 20%, the 2b note goes to the owner first" : "at least 20%, 2b proceeds"}`, "");
