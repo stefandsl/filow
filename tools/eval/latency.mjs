@@ -422,8 +422,10 @@ async function sample(ctx, { kind, question, offset = 0, speechEnd = 0, hold = 0
   let stopKeyAt = null;
   if (kind === "stop-speaking" || kind === "stop-thinking") {
     if (kind === "stop-speaking") {
-      const v = await until(() => signal(page, "okfVoiceAt"), tier.timeoutMs, 10);
-      if (v) { await sleep(Math.max(0, Number(v) + 1000 - Date.now())); stopKeyAt = Date.now(); }
+      // A completed mark-only answer cannot start speaking later. Keep the same
+      // invalid no-stop result, without spending four minutes waiting for it.
+      const v = await until(async () => (await signal(page, "okfVoiceAt")) || ((await signal(page, "okfEnd")) ? "ended" : null), tier.timeoutMs, 10);
+      if (v && v !== "ended") { await sleep(Math.max(0, Number(v) + 1000 - Date.now())); stopKeyAt = Date.now(); }
     } else {
       const f = await until(() => signal(page, "okfFetchAt"), tier.timeoutMs, 10);
       if (f) {
@@ -895,7 +897,7 @@ async function images() {
 }
 async function regressions() {
   const { runStopResume } = await import("./latency-stop-resume.mjs");
-  await runStopResume({ context, withLaunch, typeQuestion, qaKey, signal, until, sleep, fs, path, WORK, say });
+  await runStopResume({ context, withLaunch, clearHistory, typeQuestion, qaKey, signal, until, sleep, fs, path, WORK, say, parseTimings });
 }
 const commands = { regressions, images, probe, prepare, judge, measure, cloud, leak, tokens, report };
 const cmd = argv[0];
@@ -907,4 +909,3 @@ commands[cmd]().catch((e) => { say(`[latency] stopped: ${e && e.message}`); proc
   for (const sampler of samplers) { try { sampler.kill(); } catch {} }
   for (const pid of ownedServers) await stopTree(pid);
 });
-

@@ -120,3 +120,14 @@ before 40 minutes, never lowers the foreign-CPU threshold, and avoids even the
 baseline tool's read-only request to the owner's Ollama. Completed samples are
 persisted before another sample starts. The original measurement validity and
 retry limits are unchanged.
+
+## Packaged result
+
+See [LATENCY-2026-11.md](LATENCY-2026-11.md) for the final before/after table,
+exclusions and limits. With 45 valid warm and 31 valid cold samples, first-token
+medians improve 25.4% and 35.2%; both p90 values improve. The standard acceptance
+gates pass. The pointing scorer above credits POINT tags only, not other visual
+tag types. One empty model answer stopped the second warm schedule; it is retained
+as an unresolved reliability observation. GPU measurements were blocked by the
+unchanged idle rule. Real-model speaking-stop remains unmeasured; deterministic
+speech Stop/Resume passes, and eight real-model thinking-stop checks pass.

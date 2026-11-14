@@ -1,10 +1,11 @@
 ﻿// Deterministic hidden Stop/Resume regression. This is not a model-latency sample.
-export async function runStopResume({ context, withLaunch, typeQuestion, qaKey, signal, until, sleep, fs, path, WORK, say }) {
+export async function runStopResume({ context, withLaunch, clearHistory, typeQuestion, qaKey, signal, until, sleep, fs, path, WORK, say, parseTimings }) {
   const ctx = await context("standard", "stop-resume");
   const result = { stopThinking: false, stopSpeaking: false, resumed: false, resumedRequest: false, noOutputAfterStop: false };
   try {
     await withLaunch(ctx, {}, async () => {
       const page = ctx.page;
+      await clearHistory(page);
       await page.evaluate(`(() => {
         const real = window.fetch.bind(window);
         window.__regression = { delay: 2500, resumes: 0 };
@@ -32,7 +33,7 @@ export async function runStopResume({ context, withLaunch, typeQuestion, qaKey, 
       const thinkingStop = Date.now();
       await qaKey(page, "down", "escape"); await qaKey(page, "up", "escape");
       result.stopThinking = await until(() => signal(page, "okfEnd"), 2000) === "stopped";
-      result.thinkingStopMs = Date.now() - thinkingStop;
+      result.thinkingStopTelemetryMs = Date.now() - thinkingStop;
       await page.evaluate("window.__regression.delay = 0; true");
       await typeQuestion(page, "Explain the invoice again.");
       if (!await until(() => signal(page, "okfVoiceAt"), 90000)) throw new Error("no audible sentence");
@@ -40,9 +41,12 @@ export async function runStopResume({ context, withLaunch, typeQuestion, qaKey, 
       const speakingStop = Date.now();
       await qaKey(page, "down", "escape"); await qaKey(page, "up", "escape");
       result.stopSpeaking = await until(() => signal(page, "okfEnd"), 2000) === "stopped";
-      result.speakingStopMs = Date.now() - speakingStop;
+      result.speakingStopTelemetryMs = Date.now() - speakingStop;
       await sleep(2200);
       const lines = fs.readFileSync(ctx.run.log, "utf8").split(/\r?\n/).slice(ctx.run.fromLine).filter(l => l.includes("timings") && l.includes("stopped"));
+      const stopped = lines.map(parseTimings).filter(Boolean).slice(-2);
+      result.thinkingStopMs = stopped[0] ? stopped[0].marks.silent - stopped[0].marks.stopAt : null;
+      result.speakingStopMs = stopped[1] ? stopped[1].marks.silent - stopped[1].marks.stopAt : null;
       result.noOutputAfterStop = lines.length >= 2 && lines.slice(-2).every(l => /afterStop 0/.test(l));
       const resumeAt = Date.now();
       await qaKey(page, "down", "pause"); await qaKey(page, "up", "pause");
@@ -53,7 +57,7 @@ export async function runStopResume({ context, withLaunch, typeQuestion, qaKey, 
     });
   } catch (e) { result.error = String(e.message); }
   finally { ctx.sampler.kill(); }
-  result.pass = result.stopThinking && result.stopSpeaking && result.resumed && result.resumedRequest && result.noOutputAfterStop && result.thinkingStopMs <= 300 && result.speakingStopMs <= 300 && result.resumeVoiceMs <= 3000;
+  result.pass = result.stopThinking && result.stopSpeaking && result.resumed && result.resumedRequest && result.noOutputAfterStop && Number.isFinite(result.thinkingStopMs) && result.thinkingStopMs <= 300 && Number.isFinite(result.speakingStopMs) && result.speakingStopMs <= 300 && result.resumeVoiceMs <= 3000;
   fs.writeFileSync(path.join(WORK, "phase2b-stop-resume.json"), JSON.stringify(result, null, 2));
   say(`[stop-resume] ${JSON.stringify(result)}`);
   if (!result.pass) process.exitCode = 1;
