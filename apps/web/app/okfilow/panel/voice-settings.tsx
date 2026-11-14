@@ -16,13 +16,20 @@ type Props = {
   configure: (patch: Partial<OkFilowStatus>) => Promise<void>;
   /** Says the sample sentence with the natural voice. */
   preview: () => void;
+  /** Says a short sentence in the interface language with the chosen voice at the chosen speed. */
+  previewSpeed?: () => void;
   /** The one question before the voice is deleted (the browser's own dialog; a test passes its own). */
   confirmRemove?: (question: string) => boolean;
   /** The voice's status before the desktop app has answered (tests; the panel reads it from the bridge). */
   initial?: OkFilowTtsStatus | null;
 };
 
-export function VoiceSettings({ bridge, status, t, configure, preview, lang = "en", confirmRemove = (q) => window.confirm(q), initial = null }: Props) {
+/** The speeds offered (the desktop app keeps the setting in this range, okfilow.js nextCfg); 1 is today's voice for each language. */
+export const VOICE_SPEEDS = [0.8, 0.85, 0.9, 0.95, 1, 1.05, 1.1, 1.15, 1.2, 1.25, 1.3];
+/** The offered speed nearest to a stored one (a setting saved by an older version may be 0.75 or 1.5). */
+export const speedChoice = (speed: number | undefined) => VOICE_SPEEDS.reduce((a, b) => (Math.abs(b - (speed || 1)) < Math.abs(a - (speed || 1)) ? b : a));
+
+export function VoiceSettings({ bridge, status, t, configure, preview, previewSpeed, lang = "en", confirmRemove = (q) => window.confirm(q), initial = null }: Props) {
   const [tts, setTts] = useState<OkFilowTtsStatus | null>(initial);
   const api = bridge.tts;
 
@@ -134,6 +141,19 @@ export function VoiceSettings({ bridge, status, t, configure, preview, lang = "e
           </label>
           {panel.light && <p className="okf-hint">{t("voiceLight")}</p>}
         </>
+      )}
+
+      {/* How fast whichever voice speaks (natural, this PC's or online), and a short sentence to hear it. */}
+      {voice !== "off" && (
+        <div className="okf-row">
+          <label className="okf-speed">
+            <span>{t("speed")}</span>
+            <select data-testid="voice-speed" value={String(speedChoice(status.speed))} onChange={(e) => void configure({ speed: Number(e.target.value) })}>
+              {VOICE_SPEEDS.map((v) => <option key={v} value={v}>{v.toFixed(2).replace(/0$/, "")}x</option>)}
+            </select>
+          </label>
+          {previewSpeed && <button type="button" className="okf-link" data-testid="speed-preview" aria-label={t("speedPreviewLabel")} onClick={previewSpeed}>{t("speedPreview")}</button>}
+        </div>
       )}
 
       {/* The voice on disk, whichever voice speaks: its size, whether it is the one in use, and Delete. */}

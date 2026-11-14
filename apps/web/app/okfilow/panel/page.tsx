@@ -1627,13 +1627,13 @@ export default function OkFilowPanel() {
               const id = ++run.current;
               if (mode === "speaking" || mode === "thinking") setMode("idle");
               void speaker.speak(t("voiceSample"), id, { voice: "natural", lang });
+            }}
+            previewSpeed={() => {
+              // The chosen voice at the chosen speed, in the interface language; it takes the turn like the sample above.
+              const id = ++run.current;
+              if (mode === "speaking" || mode === "thinking") setMode("idle");
+              void speaker.speak(t("speedSample"), id, { lang });
             }} />
-          <label className="okf-row">
-            <span>{t("speed")}</span>
-            <select value={String(c.speed)} onChange={(e) => void configure({ speed: Number(e.target.value) })}>
-              {[0.75, 0.9, 1, 1.15, 1.3, 1.5].map((v) => <option key={v} value={v}>{v}x</option>)}
-            </select>
-          </label>
           <label className="okf-row">
             <span>{t("typedVoice")}</span>
             <input type="checkbox" checked={c.typedVoice} onChange={(e) => void configure({ typedVoice: e.target.checked })} />

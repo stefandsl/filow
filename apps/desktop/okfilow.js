@@ -28,6 +28,7 @@ const { createPhoneInbox } = require("./okfilow-phone");
 // Measured runs (qa-headless.js): nothing of OK Filow appears on screen with FILOW_QA_HEADLESS=1.
 const { showWindow, trayFor } = require("./qa-headless");
 const { timingsLine } = require("./okfilow-timings");
+const { voiceSpeed } = require("./tts");
 const { qaMicDelay, createMicOpens, errorEndsHold, createCaptureWatch } = require("./okfilow-mic");
 
 /** An IPC event from the main frame of one of OK Filow's windows (`contents`), on an OK Filow page; never a subframe. */
@@ -45,7 +46,7 @@ const DEFAULTS = {
   // still read there until the user changes a dictation setting.
   /** Buddy, drawing and highlighter colour (HeyClicky's cursor_color_hex). */
   color: "#ffb600",
-  /** Speech rate for the voice, 0.75 to 1.5. */
+  /** Speech rate for the voice, 0.8 to 1.3 in steps of 0.05 (voiceSpeed); 1 is each language's own pace. */
   speed: 1,
   /** -1 chooses the measured speaker for the answer's language; 0-9 keep an explicit choice. */
   naturalVoice: -1,
@@ -150,7 +151,7 @@ function nextCfg(was, patch) {
   const speaker = next.naturalVoice == null ? -1 : Number(next.naturalVoice);
   next.naturalVoice = Number.isFinite(speaker) ? Math.min(9, Math.max(-1, Math.round(speaker))) : -1;
   if (!/^#[0-9a-f]{6}$/i.test(String(next.color))) next.color = DEFAULTS.color;
-  next.speed = Math.min(1.5, Math.max(0.75, Number(next.speed) || 1));
+  next.speed = voiceSpeed(next.speed);
   next.typedVoice = next.typedVoice === true;
   next.onboarded = next.onboarded === true;
   next.allScreens = next.allScreens === true;

@@ -119,6 +119,9 @@ html[data-theme="light"] .okf-point-target { border-color: #684500; box-shadow: 
 .okf-row select { max-width: 190px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line, rgba(255, 255, 255, 0.14)); background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
 /* The voice names are longer than the other choices: "Voce naturale (su questo PC)" must fit whole. */
 .okf-row select.okf-select-wide { max-width: 250px; }
+/* Voice speed: the label and its choice fill the row, Preview sits at the end. */
+.okf-speed { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 12px; }
+.okf-row > .okf-link { align-self: center; }
 .okf-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--okf-ink); cursor: pointer; }
 
 /* Drawings: pen strokes that draw themselves, one after another (HeyClicky-style teaching marks). */

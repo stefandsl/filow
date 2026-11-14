@@ -717,6 +717,8 @@ for smoother continuation. Stop, Resume and the highlighted sentence keep their 
 In the natural voice settings, Automatic chooses a speaker for the answer's language, using
 one owner's blind listening preferences. Japanese keeps its previous speaker and speaks at speed 1.0.
 You can still choose any of the ten speakers; an existing explicit choice is preserved.
+Voice speed (0.8x to 1.3x) works for the natural, the system and the online voice; Preview says
+one short sentence in the interface language at that speed. 1.0x is each language's usual pace.
 The local voice switches common English UI words and quoted English screen labels to English
 with the same speaker. It expands dates, times, years, amounts and versions before speaking,
 and keeps a short quiet ending. Russian, Romanian and Japanese number forms still need native review.

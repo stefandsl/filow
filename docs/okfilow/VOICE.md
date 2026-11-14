@@ -138,6 +138,9 @@ the time back as digits, so the score compares digits with digits.
   would cost a model load (0.7-1.3 s) every time.
 - 10 speakers: 0-4 female (measured pitch 160-197 Hz), 5-9 male (85-135 Hz), chosen in the panel.
   Speed setting 0.75x to 1.5x is applied by the model (measured: 7.8 s, 5.8 s, 3.9 s for the same text).
+  Since 14/11 the panel offers 0.8x to 1.3x in steps of 0.05 next to a Preview button (a short sentence in the
+  interface language, with whichever voice is chosen); it multiplies each language's own pace (liftFor), so 1.0x
+  is the voice as before. Older saved values are brought into the range (tts.js voiceSpeed).
 - Low-spec PCs (pickProfile / nextProfile in tts.js):
   - fewer than 2 cores, or under 3.5 GB of RAM: no natural voice; This PC's voice speaks and the
     panel says why ("This PC has too little memory for the natural voice...");

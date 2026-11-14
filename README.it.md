@@ -724,6 +724,9 @@ per una continuazione più fluida. Stop, Riprendi e la frase evidenziata manteng
 Nelle impostazioni della voce naturale, Automatico sceglie una voce per la lingua della risposta,
 seguendo le preferenze di un solo ascoltatore in un confronto alla cieca. Il giapponese mantiene la voce precedente e parla a velocità 1,0.
 Puoi comunque scegliere una delle dieci voci; una scelta esplicita già salvata viene mantenuta.
+La velocità della voce (da 0,8x a 1,3x) vale per la voce naturale, quella di sistema e quella online;
+Anteprima dice una breve frase nella lingua dell'interfaccia a quella velocità. 1,0x è il ritmo
+abituale di ogni lingua.
 La voce locale pronuncia in inglese i termini comuni dell'interfaccia e le etichette inglesi
 citate dallo schermo, mantenendo la stessa voce. Espande date, orari, anni, importi e versioni
 prima di parlare e conserva una breve coda silenziosa. Le forme numeriche russe, rumene e
