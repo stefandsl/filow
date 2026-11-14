@@ -3,7 +3,7 @@
 // apps/server/src/server.ts): where it came from, its pairing's short code (the same one OK Filow shows
 // with that device's questions), what it may do, whether it is connected, the separate right to ask OK
 // Filow (off by default, given here only) and Revoke, which disconnects it at once. A phone that joined
-// on the Wi-Fi without the presenter's accept only moves between sections and marks points until
+// on the Wi-Fi without the presenter's accept only moves between sections (marks no point) until
 // "Allow full control" is pressed here.
 import type { PairedDevice } from "@filow/client";
 import { useT } from "@filow/ui";
@@ -18,7 +18,7 @@ export function PairedDevices({ devices, onRevoke, onAllowAsk, onApprove }: { de
       <ul>
         {devices.map((d) => {
           const peer = t(d.peer === "app" ? "pair.peerApp" : d.peer === "lan" ? "pair.peerLan" : "pair.peerRemote");
-          // Auto-accepted on the Wi-Fi, not accepted here yet: it moves and marks only (server REMOTE_BEFORE_APPROVAL).
+          // Auto-accepted on the Wi-Fi, not accepted here yet: it moves only (server REMOTE_BEFORE_APPROVAL).
           const limited = d.role === "controller" && d.peer !== "app" && d.approved === false;
           const role = limited ? t("pair.limited") : t(d.role === "controller" ? "pair.roleController" : d.role === "viewer" ? "pair.roleViewer" : "pair.rolePending");
           // Asking is for a phone that controls; the app's own windows never ask.

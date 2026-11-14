@@ -193,13 +193,14 @@ function Mirror({ lang, onLang }: { lang: Lang; onLang: (l: Lang) => void }) {
         {timer}
         <MirrorKeys state={state} onCommand={onCommand} />
         <OverlayEyeline state={state} />
-        <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact banner={error ?? (offline ? t("stage.engineOffline") : null)} />
+        <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact markButton={role === "controller"} banner={error ?? (offline ? t("stage.engineOffline") : null)} />
       </OverlayFrame>
     );
   }
-  if (compact) return <>{timer}<MirrorKeys state={state} onCommand={onCommand} /><StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact banner={error ?? (offline ? t("stage.engineOffline") : null)} /></>;
+  if (compact) return <>{timer}<MirrorKeys state={state} onCommand={onCommand} /><StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state ?? emptyState(client.id)} onCommand={onCommand} stage compact markButton={role === "controller"} banner={error ?? (offline ? t("stage.engineOffline") : null)} /></>;
   const ask = role === "controller" && canAsk ? (cmd: Command) => client.send(cmd) : null;
-  return <MirrorStage state={state ?? emptyState(client.id)} onCommand={onCommand} ask={ask} timer={timer} banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
+  // Only a controller gets the "mark as said" button; a view-only phone sees the points and their state.
+  return <MirrorStage state={state ?? emptyState(client.id)} onCommand={onCommand} markButton={role === "controller"} ask={ask} timer={timer} banner={error ?? (offline ? t("stage.engineOffline") : null)} />;
 }
 
 /** Clicker keys on the mirror (a Bluetooth clicker paired with the phone, or the overlay window in focus). */
@@ -223,7 +224,7 @@ function OverlayEyeline({ state }: { state: SessionState | null }) {
  * and the "Ask OK Filow" box under it, only for a controller the presenter allowed to ask (sk; lib/buddy/phoneAsk.ts).
  * Never in the desktop's own overlay windows or the compact view.
  */
-function MirrorStage({ state, onCommand, ask, banner, timer }: { state: SessionState; onCommand: (cmd: Command) => void; ask: ((cmd: Command) => Promise<{ ok: boolean; error?: string }>) | null; banner: string | null; timer: ReactNode }) {
+function MirrorStage({ state, onCommand, markButton, ask, banner, timer }: { state: SessionState; onCommand: (cmd: Command) => void; markButton: boolean; ask: ((cmd: Command) => Promise<{ ok: boolean; error?: string }>) | null; banner: string | null; timer: ReactNode }) {
   const t = useT();
   const [display, setDisplay] = useDisplayPrefs(DISPLAY_KEYS.mirror);
   const [open, setOpen] = useState(false);
@@ -235,7 +236,7 @@ function MirrorStage({ state, onCommand, ask, banner, timer }: { state: SessionS
       <button type="button" className="btn mirror-display-btn" onClick={() => setOpen(true)} title={t("display.openTitle")} aria-haspopup="dialog">
         <Icon name="sliders" /> {t("display.open")}
       </button>
-      <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state} onCommand={onCommand} stage banner={banner} />
+      <StageView pointMark={<Icon name="check" />} previewMark={<Icon name="circle" />} state={state} onCommand={onCommand} stage markButton={markButton} banner={banner} />
       {ask && <MirrorAsk send={ask} />}
       {open && <DisplayPanel prefs={display} onChange={setDisplay} onClose={() => setOpen(false)} />}
     </main>

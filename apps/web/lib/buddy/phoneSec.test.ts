@@ -73,9 +73,9 @@ describe("M3 and m1 in the devices list", () => {
   const html = (devices: PairedDevice[], onApprove: ((id: string) => void) | undefined = () => {}) =>
     renderToStaticMarkup(createElement(LangProvider, { lang: "en", children: createElement(PairedDevices, { devices, onRevoke: () => {}, onAllowAsk: () => {}, onApprove }) }));
 
-  it("a phone that joined on the Wi-Fi without the presenter's accept is shown as moving and marking only, with Allow full control", () => {
+  it("a phone that joined on the Wi-Fi without the presenter's accept is shown as moving only, with Allow full control", () => {
     const limited = html([device({ approved: false })]);
-    expect(limited).toContain("moves and marks only");
+    expect(limited).toContain("moves only");
     expect(limited).not.toContain("controls ·");
     expect(limited).toContain('data-testid="approve-device"');
     expect(limited).toContain(">Allow full control</button>");
@@ -83,7 +83,7 @@ describe("M3 and m1 in the devices list", () => {
     const accepted = html([device({ approved: true })]);
     expect(accepted).toContain("controls");
     expect(accepted).not.toContain("approve-device");
-    expect(accepted).not.toContain("moves and marks only");
+    expect(accepted).not.toContain("moves only");
     // never for the app's own windows, a viewer or a phone still waiting
     for (const d of [device({ peer: "app", approved: false }), device({ role: "viewer", approved: false }), device({ role: "pending", approved: false })]) expect(html([d])).not.toContain("approve-device");
   });

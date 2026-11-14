@@ -67,7 +67,7 @@ export type SessionClient = {
   state: SessionState | null;
   /** Views: the presenter allowed this device to ask OK Filow. */
   canAsk: boolean;
-  /** Views: the presenter accepted this device on the computer (false: auto-accepted on the Wi-Fi, moves and marks only). */
+  /** Views: the presenter accepted this device on the computer (false: auto-accepted on the Wi-Fi, moves only, marks no point). */
   approved: boolean;
   subscribe(fn: (state: SessionState) => void): () => void;
   /** Views: send a command. Resolves with the engine's ack. */

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { evidenceSummary, explainEvidence, type Evidence } from "@filow/core";
-import { useLang, useT } from "@filow/ui";
+import { MarkSaidButton, useLang, useT } from "@filow/ui";
 import { Icon } from "../icons";
 import type { PointState } from "../../lib/pointState";
 
@@ -35,8 +35,8 @@ export function saidAnnouncement(
 
 /**
  * The points of the current section. Each point is an item: the row (which toggles the point, so it
- * holds no other control), then, for a done point with evidence, the "Why?" link and its panel as
- * siblings of the row. A polite live region, hidden from sight, tells a screen reader which point
+ * holds no other control), the visible "mark as said" button (and its undo), then, for a done point
+ * with evidence, the "Why?" link and its panel, all siblings of the row. A polite live region, hidden from sight, tells a screen reader which point
  * was just ticked. With `onHere`, one click (or H on the focused row) says "I am on this point" and
  * `current` marks the point the presenter is on.
  */
@@ -65,7 +65,8 @@ export function PointsList({ points, onToggle, onHere, current }: {
     const whyId = `why-${point.id}`;
     const isOpen = open === point.id;
     const here = current === point.id;
-    return <div key={point.id} className={`point-item ${point.state}${why ? " has-why" : ""}${here ? " here" : ""}`}>
+    const done = point.state === "done";
+    return <div key={point.id} className={`point-item ${point.state}${why ? " has-why" : ""}${here ? " here" : ""}${onToggle ? " has-mark" : ""}`}>
       <div className={`point point-row ${point.state}${here ? " here" : ""}`} data-state={point.state} data-point-id={point.id}
         role={onToggle ? "button" : undefined} aria-pressed={onToggle ? point.state === "done" : undefined} tabIndex={onToggle ? 0 : undefined}
         aria-current={here ? "step" : undefined}
@@ -79,12 +80,13 @@ export function PointsList({ points, onToggle, onHere, current }: {
           if (onToggle && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onToggle(point.id); }
           else if (onHere && (e.key === "h" || e.key === "H") && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); onHere(point.id); }
         } : undefined}>
-        <span className="point-number">{String(i + 1).padStart(2, "0")}</span>        <span className="point-text">{point.text}</span>
+        <span className="point-number">{String(i + 1).padStart(2, "0")}</span>        <span className="point-text" id={`point-text-${point.id}`}>{point.text}</span>
         <span className="point-state"><span data-icon={icon}><Icon name={icon} /> {label}</span>
           <span className="point-progress" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><i style={{width: `${percent}%`}} /></span>
           <span className="point-percent">{percent}%</span>
         </span>
       </div>
+      {onToggle && <MarkSaidButton done={done} label={t(done ? "point.unmarkSaid" : "point.markSaid")} short={t(done ? "point.unmarkShort" : "point.markShort")} describedBy={`point-text-${point.id}`} onToggle={() => onToggle(point.id)} />}
       {why && <div className="point-why-bar">
         <button type="button" className="point-why-btn" title={evidenceSummary(why, lang)} aria-expanded={isOpen} aria-controls={whyId}
           onClick={() => setOpen(isOpen ? null : point.id)}>{t("why.button")}</button>

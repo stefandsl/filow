@@ -9,7 +9,7 @@ it('keeps a usable presentation area and page scrolling in short zoomed viewport
   const short = sheet.nodes.find(node => node.type === 'atrule' && node.name === 'media' && node.params === '(max-height: 500px)');
   expect(short?.toString()).toContain('height: auto');
   expect(short?.toString()).toContain('min-height: 100dvh');
-  expect(short?.toString()).toContain('grid-template-rows: auto minmax(240px, auto) auto auto;');
+  expect(short?.toString()).toContain('grid-template-rows: auto minmax(240px, auto) auto auto auto;');
   expect(short?.toString()).toContain('.prompter-content { min-height: 240px; overflow: visible; }');
   expect(short?.toString()).toContain('.section-nav-list { max-height: none; }');
 });
@@ -83,12 +83,18 @@ it('shows the done tick in a clearly visible green', () => {
   expect(rule('.point-row.done .point-progress i')).toContain('background: var(--ok)');
 });
 
-it('keeps Screen Sense visible above the action bar and declares it once', () => {
+it('keeps Screen Sense visible above the action bar, in a row of its own that never covers the points, and declares it once', () => {
   const rules = (selector: string) => sheet.nodes.filter(node => node.type === 'rule' && (node as { selector: string }).selector === selector);
   expect(rules('.screen-sense')).toHaveLength(1);
   expect(rules('.screen-heading')).toHaveLength(1);
   const ss = rules('.screen-sense')[0].toString();
-  expect(ss).toContain('position: sticky');
-  expect(ss).toContain('bottom: 0');
+  // its own grid row between the reading area and the action bar: the points scroll above it, not under it
+  expect(ss).toContain('grid-area: sense');
+  expect(ss).not.toMatch(/position:\s*(sticky|fixed|absolute)/);
   expect(ss).toContain('background: var(--surface)');
+  expect(css).toContain('grid-template-areas: "topbar topbar" "nav content" "nav sense" "nav actions" "status status"');
+  expect(css).not.toContain('.screen-sense::before');
+  // and the panel is not inside the scrolling reading area any more
+  const component = readFileSync(new URL('../components/Teleprompter.tsx', import.meta.url), 'utf8');
+  expect(component.indexOf('<ScreenSensePanel')).toBeGreaterThan(component.indexOf('</main>'));
 });

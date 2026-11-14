@@ -6,6 +6,7 @@ export const iconPaths = {
   play: "m8 4 12 8-12 8Z",
   edit: "m4 16 12-12 4 4-12 12H4Zm10-10 4 4",
   reload: "M20 7v5h-5M20 12a8 8 0 1 0-2 5",
+  undo: "M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11",
   settings: "M9 3h6l1 3 3 1 3 5-3 5-3 1-1 3H9l-1-3-3-1-3-5 3-5 3-1ZM16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
   check: "M5 12l4 4L19 6",
   close: "M6 6l12 12M18 6L6 18",
