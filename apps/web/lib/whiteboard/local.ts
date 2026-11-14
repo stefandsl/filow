@@ -1,3 +1,4 @@
+import { withLocalDate } from "../../../desktop/prompt-date";
 // The whiteboard's two small questions to the models on this PC (server side): "what is wrong in
 // this picture of the board" (a vision model, only when one is installed) and "which elements does
 // this follow-up change" (the lesson's own local model). Both go to the local Ollama only; nothing
@@ -40,7 +41,7 @@ export async function localJson(model: string, system: string, user: string, sch
       format: schema,
       keep_alive: "30m",
       options: { temperature: 0, num_predict: opts.maxTokens ?? 400 },
-      messages: [{ role: "system", content: system }, { role: "user", content: user, ...(opts.images?.length ? { images: opts.images } : {}) }],
+      messages: [{ role: "system", content: withLocalDate(system, new Date()) }, { role: "user", content: user, ...(opts.images?.length ? { images: opts.images } : {}) }],
     }),
   });
   if (!res.ok) throw new Error(`Ollama ${res.status}`);

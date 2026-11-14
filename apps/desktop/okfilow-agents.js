@@ -1,3 +1,4 @@
+const { withLocalDate } = require("./prompt-date");
 // OK Filow agents (docs/OKFILOW-GAUNTLET.md row 13), HeyClicky's "agent, ..." background jobs.
 // Saying or typing "agent, <task>" starts a coding-agent CLI the user already has (Codex or Claude
 // Code) in a folder of its own. The job runs in the background; when it ends, OK Filow says so and
@@ -38,14 +39,15 @@ function titleOf(task) {
 }
 
 /** The instructions every job gets, around the user's own words. */
-function jobPrompt(task, context) {
-  return [
+function jobPrompt(task, context, date = new Date()) {
+  return withLocalDate([
     "You are an OK Filow agent running in the background on the user's Windows PC.",
     "Do the task below on your own; do not ask questions unless you truly cannot continue.",
     "Work only inside the current folder. Save every file you make in ./output (create it).",
     "Do not open files or apps yourself; OK Filow opens your results when you finish.",
     "When done, reply with two or three plain sentences saying what you made, then a line",
     "ARTIFACTS: followed by the output file names separated by commas (or none).",
+  ].join("\n"), date) + [
     context ? `\nWhat was on the user's screen when they asked: ${context}` : "",
     `\nTask: ${task}`,
   ].join("\n");

@@ -118,6 +118,7 @@
       "native/llama/*-*/**",
       "native/uiohook/prebuilds/**",
       "okfilow-agents.js",
+      "prompt-date.js",
       "okfilow-selection.js",
       "okfilow-answers.js",
       "okfilow-outbound.js",

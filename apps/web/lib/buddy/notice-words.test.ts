@@ -4,7 +4,13 @@ import { noticeBody, type NoticeRequest, type Recipient } from "./outbound";
 import { createOutboundController } from "./outboundClient";
 import { ANSWER_RULES, buddySystemPrompt, SCREEN_NOTE, withScreenNote } from "./prompt";
 import { screenYesMissing, wordsOnlyAfterYes } from "./sees";
-import { okfText } from "./text";
+import { OKF_TEXT, okfText } from "./text";
+
+describe("English notices speak plainly and kindly", () => {
+  it.each(Object.entries(OKF_TEXT.en).filter(([key]) => /^(notice_|kind_)/.test(key)))("%s", (_key, text) => {
+    expect(text).not.toMatch(/\bthe user\b|\byou must\b|\bthe model\b/i);
+  });
+});
 
 const recipient: Recipient = { id: "openrouter/google", names: ["OpenRouter", "Google"] };
 // The word each language uses for a screenshot in the full notice.

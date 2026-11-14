@@ -776,4 +776,8 @@ ARCHITECTURE.md           the design: session protocol, Screen Sense, add-ins, m
 
 **Windows SmartScreen / macOS Gatekeeper blocks the app** – the builds are unsigned. See the notes in [Desktop app: install and run](#desktop-app-install-and-run).
 
-Pointer flights take at most 900 ms. Landing labels reserve 8 px around detected text and dividers; an underline is omitted beside a nearby divider. Light-theme arrival accents have dark outlines. Model part numbers, columns and rows stay fixed during rotation and dragging; leader elbows route around neighbouring lines. Pointer flights approach monotonically with a gentle start, and light-theme leaders and the full-size landing ring have dark casings.
+Pointer flights take at most 900 ms. Landing labels reserve 8 px around detected text and dividers; an underline is omitted beside a nearby divider. Light-theme arrival accents have dark outlines. Model part numbers and columns stay fixed during rotation and dragging. Rows may move when a fixed row would require a backward hook; rows and leader shapes ease over 160 ms. Routing runs in a worker so it cannot block the animation. Pointer flights approach monotonically with a gentle start, and light-theme leaders and the full-size landing ring have dark casings.
+
+OK Filow answers, whiteboard lessons and agent jobs receive today's local date and weekday. This adds no other information about you or your PC.
+
+At landing, the pointer tip stays on the target corner. The ring leaves the text-facing quadrant empty, the underline stops before it, and the arrow shadow disappears. Acceleration and braking keep pointer travel continuous.

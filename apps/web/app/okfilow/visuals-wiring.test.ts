@@ -107,7 +107,8 @@ describe("the 3D view", () => {
 
   it("routes the final leader polylines and keeps their initial reading-order identities", () => {
     expect(model).toContain("numbers ??= readingOrder(slots);");
-    expect(model).toContain("routeLeaders(slots.map(leaderPoints)");
+    expect(model).toContain("routeWorker.postMessage({lines:proposed");
+    expect(model).toContain("routeWorker.terminate()");
     expect(model).toContain("const points = routes[i].map");
     expect(model).not.toContain("shown[i].x + (s.x - shown[i].x)");
   });
