@@ -736,6 +736,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
             )}
             {!status.ollama.ok && (
               <div className="hint">
+                <p role="alert">{t(status.ollama.reachable ? "local.runtimeOld" : "local.runtimeUnavailable", { v: status.ollama.minimum })}</p>
                 {t("settings.installOllama", { v: status.ollama.minimum })}{" "}
                 <a href="https://ollama.com/download" target="_blank" rel="noreferrer">
                   ollama.com/download

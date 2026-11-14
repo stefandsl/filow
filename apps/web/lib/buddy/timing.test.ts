@@ -65,7 +65,8 @@ describe("askOllama marks the request it sends and what Ollama says", () => {
 
   it("sets ollamaSent before the call, ollamaFirstByte at the first line and the counts from the done line", async () => {
     let calledAt = 0;
-    vi.stubGlobal("fetch", vi.fn(async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url) => {
+      if (String(url).endsWith("/api/version")) return Response.json({ version: "0.40.0" });
       calledAt = Date.now();
       return new Response(stream([JSON.stringify({ message: { content: "Top right." } }), JSON.stringify({ done: true, load_duration: 5_000_000, prompt_eval_duration: 2_000_000_000, prompt_eval_count: 900, eval_count: 12 })]), { status: 200 });
     }));
@@ -79,7 +80,7 @@ describe("askOllama marks the request it sends and what Ollama says", () => {
   });
 
   it("works unmeasured as before", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(stream([JSON.stringify({ message: { content: "Hi" }, done: true })]), { status: 200 })));
+    vi.stubGlobal("fetch", vi.fn(async (url) => String(url).endsWith("/api/version") ? Response.json({ version: "0.40.0" }) : new Response(stream([JSON.stringify({ message: { content: "Hi" }, done: true })]), { status: 200 })));
     let said = "";
     for await (const piece of askOllama(req, undefined, helper)) said += piece;
     expect(said).toBe("Hi");

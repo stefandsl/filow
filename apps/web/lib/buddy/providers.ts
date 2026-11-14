@@ -19,6 +19,8 @@ import type { Place } from "@/lib/modelRoles/resolve";
 import { t } from "@filow/core";
 import { answerLang } from "./lang";
 import { parseBuddyAnswer } from "./prompt";
+import { checkRuntime } from "../../../desktop/ollama-runtime";
+import { LOCAL_MODELS } from "@/lib/localModels";
 
 export type BuddyProviderId = "local" | "cloud" | "freellm";
 
@@ -257,7 +259,10 @@ async function* lines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> 
 export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper, shape?: AskShape, timing?: ServerTiming | null): AsyncGenerator<string> {
   const chosen = helper ?? (await resolveLocalHelper(req.setup, req.question, req.sees));
   const requestDate = new Date();
+  const minimum = LOCAL_MODELS.find(m => m.name === chosen.model.replace(/:latest$/, ""))?.minOllama;
+  const runtime = await checkRuntime(chosen.at?.base ?? OLLAMA_URL(), chosen.at?.headers, signal, minimum);
   if (signal?.aborted) return;
+  if (runtime.state !== "ready") throw new Error(t(runtime.state === "old" ? "local.runtimeOld" : "local.runtimeUnavailable", answerLang(req.question, req.language), { v: runtime.minimum }));
   // Internal structured-output and pointing calls have their own validation. Human answers need words.
   if (shape || isPointOnly(req.question)) { yield* askOllamaOnce(req, signal, chosen, shape, timing, requestDate); return; }
   for (let attempt = 0; attempt < 2; attempt++) {

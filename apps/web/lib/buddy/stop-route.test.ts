@@ -169,3 +169,5 @@ describe("a draw request through the route", () => {
     expect(calls[0].body.messages[0].content).not.toContain("The user asked you for a drawing");
   });
 });
+// Version rejection is covered with real HTTP fakes in ollama-runtime.test.ts.
+vi.mock("@/../desktop/ollama-runtime", async (original) => ({ ...await original<object>(), checkRuntime: async () => ({ state: "ready" }) }));

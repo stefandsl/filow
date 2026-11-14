@@ -13,6 +13,8 @@ import { pickTranslateModel } from "@/lib/translateLocal";
 import { gpuInfo, machineInfo, qaHardware } from "@/lib/sysinfo";
 import { freellmConfigured } from "@/lib/freellm";
 
+import { MIN_OLLAMA_VERSION, runtimeState } from "../../../../../desktop/ollama-runtime";
+
 export const dynamic = "force-dynamic";
 
 /** What is installed and whether the machine can run each local model. */
@@ -87,7 +89,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     picks,
     pii,
-    ollama: { url: base, reachable: version !== null, version, minimum: "0.35.1", ok: version ? versionAtLeast(version, "0.35.1") : false },
+    ollama: { url: base, reachable: version !== null, version, minimum: MIN_OLLAMA_VERSION, ok: runtimeState(version) === "ready" },
     machine: { ramGb, platform: process.platform, arch: process.arch },
     offline: process.env.FILOW_OFFLINE === "1",
     defaultProvider: process.env.DECISION_PROVIDER || "openrouter",

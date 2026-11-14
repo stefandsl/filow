@@ -72,3 +72,21 @@ The auth logger receives only a fixed event, never SDK error arguments. Capturin
 logger tests exercise real handlers, fake SMTP, success, malformed input, denial,
 and payload-bearing exceptions. Deployment proxy/system/mail/crash logs are not
 covered and remain an S4a operational gate.
+
+## Runtime checks
+
+API minimum: Ollama 0.9.0. The versioned
+[API types](https://raw.githubusercontent.com/ollama/ollama/v0.9.0/api/types.go)
+contain chat messages/images, streaming, JSON-schema format, options, keep_alive,
+and the think field. The [0.9.0 release](https://github.com/ollama/ollama/releases/tag/v0.9.0)
+introduces thinking control. Tags/show/pull/delete/version are older endpoints;
+the API floor does not assert that every modern model format loads in that binary.
+Existing catalogue model-specific floors (0.35.1 for Clef) remain enforced before
+answers. Capabilities remain advisory when absent, as in the existing resolver.
+
+Setup checks the responding version; every local answer checks it again before
+chat. Old, malformed and unreachable versions fail before generation with a
+five-language repair message. Existing runtimes are not overwritten. Fake servers
+cover old/new/unknown/unreachable and five-language refusal; setup tests cover
+old and new existing installations. An actual 0.9.0 binary with modern models,
+all supported OSes and native translation review remain unverified.
