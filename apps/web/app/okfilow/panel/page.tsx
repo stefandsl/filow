@@ -349,6 +349,7 @@ export default function OkFilowPanel() {
     status: () => statusRef.current,
     isCurrent: (id) => run.current === id,
     uiLang: () => langRef.current,
+    labels: () => (answerCtx.current?.gate?.list ?? answerCtx.current?.marks ?? []).map(mark => mark.label),
     cloudAudio: (text) => cloudVoiceRef.current(text),
     onFallback: (reason) => setNote(tRef.current(`voiceWhy_${reason}`)),
     onNoVoice: () => setNote(tRef.current("voiceNoSystem")),

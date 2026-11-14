@@ -22,7 +22,7 @@ const LANGS = ["en", "it", "ru", "ro", "ja"];
 /** Speakers in the model: 0-4 are the female voices, 5-9 the male ones (measured pitch, VOICE.md). */
 const VOICES = 10;
 /** Measured language defaults; explicit speaker choices, including 0, always win. VOICE-NATURAL-2026-11.md. */
-const DEFAULT_SPEAKERS = Object.freeze({ en: 9, it: 9, ru: 2, ro: 2, ja: 4 });
+const DEFAULT_SPEAKERS = Object.freeze({ en: 5, it: 0, ru: 0, ro: 9, ja: 0 });
 /** The id of the voice in the downloads registry and in the models list (model-files.js, main.js). */
 const DOWNLOAD_ID = "voice";
 /** Longest answer spoken in one go. */
@@ -39,36 +39,25 @@ function removeModel(userData, spec = MODEL) {
 }
 
 /** Language and speaker for a request; -1 or an absent/invalid choice uses the language default. */
+const chosenSpeaker = (voice) => voice != null && Number.isInteger(Number(voice)) && Number(voice) >= 0 && Number(voice) < VOICES;
 function voiceFor(lang, voice) {
   const l = LANGS.includes(lang) ? lang : "en";
-  const n = Number(voice);
-  return { lang: l, sid: voice != null && Number.isInteger(n) && n >= 0 && n < VOICES ? n : DEFAULT_SPEAKERS[l] };
+  return { lang: l, sid: chosenSpeaker(voice) ? Number(voice) : DEFAULT_SPEAKERS[l] };
+}
+
+/** The small speed lift (1.05, as the system voice). Automatic Japanese speaks at 1.0: the owner picked speed 1.0 in two of three blind trials (VOICE-NATURAL-ROUND2.md). */
+function liftFor(lang, voice) {
+  return voiceFor(lang, voice).lang === "ja" && !chosenSpeaker(voice) ? 1 : 1.05;
 }
 
 // ---- text that reads well aloud ----
 
-const RU_UNITS = ["ноль", "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять", "десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"];
-const RU_TENS = { 2: "двадцать", 3: "тридцать", 4: "сорок", 5: "пятьдесят" };
-const ruNumber = (n) => (n < 20 ? RU_UNITS[n] : RU_TENS[Math.floor(n / 10)] + (n % 10 ? " " + RU_UNITS[n % 10] : ""));
-const KANA_LETTERS = {
-  A: "エー", B: "ビー", C: "シー", D: "ディー", E: "イー", F: "エフ", G: "ジー", H: "エイチ", I: "アイ", J: "ジェー", K: "ケー", L: "エル", M: "エム",
-  N: "エヌ", O: "オー", P: "ピー", Q: "キュー", R: "アール", S: "エス", T: "ティー", U: "ユー", V: "ブイ", W: "ダブリュー", X: "エックス", Y: "ワイ", Z: "ゼット",
-};
-// A clock time such as 9:30 or 21:05, not part of a longer number (1:2:3, 10:30:15).
-const CLOCK = /(?<![\d:.])([01]?\d|2[0-3]):([0-5]\d)(?![\d:])/g;
-
-/** How a clock time is written so the voice reads it right (each form measured, VOICE.md). */
-function clock(h, m, lang) {
-  const hours = Number(h);
-  const minutes = Number(m);
-  if (lang === "ru") return `${ruNumber(hours)} ${minutes < 10 ? "ноль " : ""}${ruNumber(minutes)}`;
-  if (lang === "ja") return minutes ? `${hours}時${minutes}分` : `${hours}時`;
-  if (lang === "en") return `${h}:${m}`;
-  return minutes ? `${hours} ${m}` : String(hours);
-}
+const { normalizeNumbers } = require("./tts-numbers");
+const { languageSpans, crossfade } = require("./tts-spans");
+const { finishAudio } = require("./tts-audio");
 
 /** The answer as plain speech: no markdown, links, emoji; times and acronyms the voice can read. */
-function speakable(text, lang) {
+function speakable(text, lang, normalize = true) {
   let s = String(text ?? "").slice(0, MAX_TEXT).normalize("NFC");
   s = s.replace(/```[^\n]*\n?/g, "\n"); // code fences: keep the lines, drop the markers
   s = s.replace(/!?\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)/g, "$1"); // [text](url) -> text
@@ -77,11 +66,9 @@ function speakable(text, lang) {
   s = s.replace(/(\*\*|__|~~|`)/g, "");
   s = s.replace(/(^|[\s(])[*_]([^*_\n]+)[*_](?=$|[\s).,;:!?])/g, "$1$2"); // *emphasis*
   s = s.replace(/\p{Extended_Pictographic}|‍|️/gu, ""); // emoji, with their joiners and variation marks
-  s = s.replace(CLOCK, (_, h, m) => clock(h, m, lang));
-  if (lang === "ja") s = s.replace(/(?<![A-Za-z])[A-Z]{2,4}(?![A-Za-z])/g, (w) => [...w].map((c) => KANA_LETTERS[c]).join(""));
   // A line with no end mark still ends a thought: let the voice pause there.
   s = s.split(/\n+/).map((line) => line.replace(/[ \t]+/g, " ").trim()).filter(Boolean).join("\n");
-  return s;
+  return normalize ? normalizeNumbers(s, lang) : s;
 }
 
 // ---- cutting the answer into pieces that can be spoken one after another ----
@@ -199,14 +186,7 @@ function splitSentences(text, lang) {
  * margin and let the caller decide the pause.
  */
 function trimSilence(samples, sampleRate, floor = 0.003) {
-  let a = 0;
-  while (a < samples.length && Math.abs(samples[a]) < floor) a++;
-  if (a === samples.length) return new Float32Array(0);
-  let b = samples.length - 1;
-  while (b > a && Math.abs(samples[b]) < floor) b--;
-  const from = Math.max(0, a - Math.round(sampleRate * 0.02));
-  const to = Math.min(samples.length, b + 1 + Math.round(sampleRate * 0.06));
-  return samples.slice(from, to); // a copy: only these samples travel to the window
+  return finishAudio(samples, sampleRate, floor);
 }
 
 // ---- which setting this PC can carry ----
@@ -322,10 +302,13 @@ class TtsSession {
    * Speaks `text` piece by piece: onChunk gets each piece's audio as soon as it exists. A newer
    * speak() or cancel() ends this one at once: nothing more is delivered, { cancelled: true }.
    */
-  async speak({ text, lang, sid, speed, steps, threads }, onChunk) {
+  async speak({ text, lang, sid, speed, steps, threads, labels = [] }, onChunk) {
     const gen = ++this.gen;
     clearTimeout(this.idle);
-    const pieces = splitSentences(speakable(text, lang), lang);
+    const pieces = splitSentences(speakable(text, lang, false), lang).flatMap(piece => {
+      const spans = languageSpans(piece.text, lang, labels);
+      return spans.map((span, i) => ({ ...span, pause: i === spans.length-1 ? piece.pause : 0, end: i === spans.length-1 }));
+    });
     const done = (extra) => {
       if (gen === this.gen) this.idle = setTimeout(() => this.stopWorker(), this.idleMs);
       return { chunks: pieces.length, sent: 0, rtf: 0, firstMs: 0, ...extra };
@@ -339,21 +322,29 @@ class TtsSession {
       if (gen !== this.gen) return done({ cancelled: true });
       throw err;
     }
+    let tail = new Float32Array(0);
     let work = 0;
     let audio = 0;
     let firstMs = 0;
     for (let seq = 0; seq < pieces.length; seq++) {
       if (gen !== this.gen) return done({ cancelled: true, sent: seq, firstMs });
-      const got = await this.say({ text: pieces[seq].text, lang, sid, speed, steps });
+      const piece = pieces[seq];
+      const got = await this.say({ text: normalizeNumbers(piece.text, piece.lang), lang: piece.lang, sid, speed, steps });
       if (gen !== this.gen) return done({ cancelled: true, sent: seq, firstMs });
-      const samples = got.samples ? trimSilence(got.samples, got.sampleRate) : [];
+      let samples = got.samples ? finishAudio(got.samples, got.sampleRate, 0.003, !piece.end) : new Float32Array(0);
+      if (tail.length) samples = crossfade(tail, samples, got.sampleRate);
+      const keep = piece.end ? 0 : Math.min(samples.length, Math.round(got.sampleRate * 0.008));
+      tail = samples.slice(samples.length-keep);
+      samples = samples.slice(0, samples.length-keep);
       const last = seq === pieces.length - 1;
       // A piece with nothing to say still reports the end, so the listener is never left waiting.
       if (!samples.length && !last) continue;
       work += got.ms;
       audio += (samples.length / got.sampleRate) * 1000;
       if (!firstMs && samples.length) firstMs = Date.now() - t0;
-      onChunk({ seq, last, samples, sampleRate: got.sampleRate, pause: pieces[seq].pause, text: pieces[seq].text });
+      // 90 ms more than the player's usual 30 ms lead gives the next short language
+      // span time to finish. This is scheduling headroom, not an inter-word pause.
+      onChunk({ seq, last, samples, sampleRate: got.sampleRate, pause: pieces[seq].pause, text: pieces[seq].text, leadMs: seq === 0 && !piece.end ? 120 : 30 });
     }
     return done({ cancelled: false, sent: pieces.length, rtf: audio ? work / audio : 0, firstMs });
   }
@@ -524,20 +515,20 @@ function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOff
     const r = req && typeof req === "object" ? req : {};
     const id = Number(r.id) || 0;
     const { lang, sid } = voiceFor(r.lang, r.voice);
-    // The same small lift as the system voice (1.05), so "normal" sounds alike in both.
-    const speed = 1.05 * Math.min(1.5, Math.max(0.75, Number(r.speed) || 1));
+    // The same small lift as the system voice (1.05), so "normal" sounds alike in both; Automatic Japanese has none (liftFor).
+    const speed = liftFor(r.lang, r.voice) * Math.min(1.5, Math.max(0.75, Number(r.speed) || 1));
     const used = profile;
     const n = ++spoken;
     current = id;
     const kept = [];
     let rate = 44100;
     try {
-      const out = await tts.speak({ text: String(r.text ?? ""), lang, sid, speed, steps: used.steps, threads: used.threads }, (chunk) => {
+      const out = await tts.speak({ text: String(r.text ?? ""), lang, sid, speed, labels: Array.isArray(r.labels) ? r.labels.filter(x => typeof x === "string").slice(0, 40) : [], steps: used.steps, threads: used.threads }, (chunk) => {
         if (qaDir) {
           rate = chunk.sampleRate;
           kept.push(chunk.samples, new Float32Array(chunk.last ? 0 : Math.round((rate * chunk.pause) / 1000)));
         }
-        if (!wc.isDestroyed()) wc.send("okfilow:tts:chunk", { id, seq: chunk.seq, last: chunk.last, samples: chunk.samples, sampleRate: chunk.sampleRate, pause: chunk.pause, text: chunk.text });
+        if (!wc.isDestroyed()) wc.send("okfilow:tts:chunk", { id, seq: chunk.seq, last: chunk.last, samples: chunk.samples, sampleRate: chunk.sampleRate, pause: chunk.pause, text: chunk.text, leadMs: chunk.leadMs });
       });
       logLine(`tts: ${lang} voice ${sid} ${used.level} ${out.sent}/${out.chunks} pieces, first audio ${out.firstMs} ms, rtf ${out.rtf.toFixed(2)}${out.cancelled ? ", cut short" : ""}`);
       if (qaDir) {
@@ -593,4 +584,4 @@ function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOff
   };
 }
 
-module.exports = { MODEL, LANGS, VOICES, DEFAULT_SPEAKERS, modelDir, modelReady, removeModel, voiceFor, speakable, splitSentences, trimSilence, pickProfile, nextProfile, TtsSession, wireTts, wavBytes };
+module.exports = { MODEL, LANGS, VOICES, DEFAULT_SPEAKERS, modelDir, modelReady, removeModel, voiceFor, liftFor, speakable, splitSentences, trimSilence, pickProfile, nextProfile, TtsSession, wireTts, wavBytes };

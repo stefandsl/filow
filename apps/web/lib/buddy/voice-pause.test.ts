@@ -303,4 +303,18 @@ describe("the player of the natural voice", () => {
     player.resume?.();
     expect(ctx.sources).toHaveLength(6);
   });
+  it("bounds the first-span headroom and adds no pause between language spans", () => {
+    vi.stubGlobal("AudioContext", FakeContext);
+    const player = webAudioPlayer();
+    const ctx = FakeContext.last;
+    ctx.currentTime = 20;
+    const count = ctx.sources.length;
+    player.add(piece(.5),1000,0,120);
+    ctx.currentTime = 20.55;
+    player.add(piece(.4),1000,0,120);
+    const added = ctx.sources.slice(count);
+    expect(added[0].at).toBeCloseTo(20.12);
+    expect(added[1].at).toBeCloseTo(20.62);
+    expect(player.startsIn?.()).toBe(0);
+  });
 });
