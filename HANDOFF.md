@@ -896,3 +896,21 @@ typecheck, lint and web build pass. See `docs/okfilow/SMALL-ITEMS.md`.
 Known gap: row exchanges during abrupt full-turn poses briefly overlap labels
 (55 captured frames per theme). Real model behaviour and native/live integration
 remain unverified. No merge, push, tag or installed-profile changes.
+
+## Gauntlet item 2 builder (feat-g2-lessons, 2026-11-14)
+
+No candidate passed and no model preset or default changed. Qwen Q4 and the LFM
+CPU baseline hit bounded acquisition timeouts; partial weights were never loaded.
+Pinned Bonsai 2 passed its isolated CPU runtime smoke, but is rejected for factual
+and language failures on the ten development topics: 7/10 valid rendered lessons,
+7/10 attempts used a repair, three exhausted the one-repair budget. First-step
+p50/p90 is 18.438/29.123 seconds conditional on eight attempts producing one;
+two produced no meaningful step. Model-only peak working set: 1,194,536,960 bytes.
+This i9-13900KF has about 128 GiB RAM; 8 GB CPU/GPU acceptance is not verified.
+
+Protocol, raw outputs, both themes, licence notices, failed transfers and the
+report are in G:/FILOW/tmp/g2-lessons. FROZEN.json preceded scored generation.
+The supplied held-out topics were not scored or generated (zero topics/arms),
+and no rework round was used. See docs/gauntlet/G2-LESSONS.md for limitations.
+The repair-budget mutation is caught. All work stays on feat-g2-lessons;
+no merge, push, tag, release or installed-profile change. AGENTS.md is unstaged.
