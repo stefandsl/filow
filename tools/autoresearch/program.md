@@ -33,6 +33,17 @@ After github.com/karpathy/autoresearch (MIT). The owner or the orchestrator edit
 | Track | The one editable file | Evaluator |
 |---|---|---|
 | AR-1 local screen prompt, 5 languages | `apps/web/lib/buddy/local-target-prompt.ts` | `node tools/autoresearch/ar1/evaluate.mjs [--split heldout] [--record-baseline]` |
+| AR-3 spoken forms, 5 languages | `apps/desktop/tts-numbers.js` | `node tools/autoresearch/ar3/evaluate.mjs [--split heldout]` |
+
+### AR-3 details
+
+- 60 frozen inputs per language (en, it, ru, ro, ja) with expected spoken forms, inside `ar3/evaluate.mjs`. Item i
+  is held out when i % 3 == 2 (20), the rest are dev (40). Russian, Romanian and Japanese expected forms need a
+  native check.
+- Score: percent exact matches (case-insensitive, whitespace collapsed; Japanese without whitespace), averaged over
+  the five languages. No model, no network, under one second. Dev misses go to `G:/FILOW/tmp/autoresearch/ar3/runs`.
+- `ttft_p50_ms` in `results.tsv` is `-` for this track.
+- Keep `apps/desktop/tts-round2.test.ts` green: a kept experiment that breaks it is a discard.
 
 ### AR-1 details
 
