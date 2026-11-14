@@ -48,7 +48,11 @@ After github.com/karpathy/autoresearch (MIT). The owner or the orchestrator edit
   keep the other overlay tests (`apps/web/lib/buddy/overlay-*.test.ts`) green. `overlay-motion-params.test.ts` pins
   the round 2B values and is expected to fail on a changed value; the orchestrator updates it when a kept result
   is merged.
-- One run takes about 4 to 6 minutes, most of it the web build; `--no-build` reuses the last build (baseline only).
+- One run takes about 3.5 minutes (build about 90 s, driver about 100 s); `--no-build` reuses the last build.
+- Noise: the worst-frame crossing count moves between runs (4 and 6 seen on the same commit, score 53.21 and
+  51.78). Keep an experiment only when the score rises by more than 2 points.
+- Baseline 14/11 on 5d77704: 53.21 (crossings 4, clearance 0 px, label overlaps 3, identity changes 0, text overlap
+  0, max step 20.09 px, flight 616.7 ms, reversals 0, path ratio 1.156, ring offset 0 px).
 
 ### AR-3 details
 
