@@ -1,5 +1,26 @@
 # Filow hand-off
 
+## Pointer-only hardening rework (2026-11-14, unreleased)
+
+Supersedes item 1 and its 59 retry/failure outcome in the historical section below.
+Local commits ef7e0c8 and 08c3ec8 accept valid pointer-only answers, salvage
+two-coordinate BOX tags and provide EN/IT/RU/RO/JA app-built words with provenance.
+Retry now requires no words and no valid mark. No online prompt changes.
+
+Six prompt conditions were measured on 60 warm questions plus 40 pointing screens
+each. Compact-exact alone passed all gates and is adopted only for English,
+single-screen, known-target local lfm3-vl questions. Final 60: 60 model-written
+answers, zero truly empty, retries or failure messages. Core-fix-only run: 60
+app-built answers, zero retries/failures. 3,291 tests pass, 7 skip; typecheck/lint
+pass; 26/26 mutations caught and restored; 10 hidden language/theme QA cases pass.
+One unrelated download timing failure passed an unchanged full rerun.
+
+Evidence, prompt tables, scope and timing limitations:
+`docs/design/paid/HARDENING-2026-11-14.md`. Native microphone/audio/overlay, GPU,
+non-English prompt performance and paid routes are not measured. No merge, push,
+tag, installed profile, real microphone or paid API. Tool-modified AGENTS.md stays
+out of commits. Item 4 native uninstall cleanup remains pending as below.
+
 ## Decision-independent hardening (2026-11-14, unreleased)
 
 `feat-hardening` adds local empty-answer retry with five-language fallback,

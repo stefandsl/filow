@@ -1,58 +1,169 @@
 # Decision-independent hardening
 
-Local branch `feat-hardening`, based on `78830a7`. Four scoped commits; no merge,
+Local branch `feat-hardening`, based on `78830a7`. Initial four scoped commits plus the pointer-only rework; no merge,
 push, tag, provider selection, allowance, price, deployment or new Stripe behavior.
 
-## Empty local answers
+## Empty local answers: pointer-only rework
 
-The historical failure is the last sample in
-`G:/FILOW/tmp/latency/results-a5fcc5c-standard-measure-2026-11-14-run2.json`:
-question index 3, slot 7, run 27, 16 generated tokens, first token received,
-`end=error`, missing mark. The corresponding startup log at
-2026-11-14T07:26:34.189Z says the model gave an empty answer. Neither file retains
-the raw response, so its exact bytes cannot be recovered.
+This section supersedes item 1 of b30b453. That implementation retried every
+wordless answer and then displayed a failure even when the model had supplied a
+valid pointer. The old 60-question run retried 59 times and displayed 59 failures.
 
-The isolated reproduction uses the tool's existing `ollama-std` store on 11435,
-lfm3-vl, CPU, 8192 context, temperature 0.3, 512px synthetic images, the five
-original questions, named-control hints and empty history. Each phase discards one
-warm-up question and counts the next 60. It uses the real provider after the fix
-and the identical API request before it. This is an API reliability experiment,
-not a microphone or latency comparison; it does not repeat the CPU-affinity and
-foreign-load latency judge. `tools/eval/hardening-measure.test.ts` is explicitly
-opt-in and has per-call and whole-run deadlines and process-tree cleanup.
+The retry condition now requires both no words and no valid point or mark. A
+complete BOX with exactly two finite, in-grid coordinates is normalized to a
+POINT with those same coordinates, then goes through the existing UI Automation
+placement. No missing coordinates are guessed. Four-coordinate boxes retain their
+meaning; wrong arities, unknown screens, incomplete tags and out-of-grid values
+are rejected. A bare :screenN suffix without a label identifies the screen rather
+than becoming the label. Tests cover every split of the measured malformed tag.
 
-Reproduced cause: lfm3-vl sometimes emits a two-coordinate BOX, for example
-`[BOX:241,588:Customer name field:screen1]`, with no prose. BOX requires four
-coordinates. The parser correctly drops it, leaving no words or valid mark.
-The stream completes normally. This matches the historical symptom and token
-count, but is not proof of the lost historical bytes. Pointer-only replies are
-much more frequent than completely empty parsed replies.
+A valid mark without prose supplies its label to a short app template in the UI
+language. With no label, the app uses the short localized equivalent of "Right
+here." EN, IT, RU, RO and JA are covered. Labels are preserved, not translated or
+invented. The UI language travels separately from the model's spoken-language
+setting. The stream carries APP_WORDS language metadata, stripped before display
+and speech; the speech queue uses that language. The optional answer log records
+wordsSource=app, and startup.log gets a fixed source=app reason=pointer-only event
+without the label, coordinates or answer. Follow-up history strips the metadata.
+Model-written prose stays unchanged. Stop, structured calls and explicit internal
+tag-only calls retain their existing behavior.
 
-Human local answers now retry once with the same input, model and date prefix.
-Completed marks remain streamed; an unfinished tag is delimited before retry.
-After two words-free attempts, a five-language explanation becomes the answer.
-Internal schema/drawing and explicitly tag-only pointing operations retain their
-own validation. Stop never triggers a retry. Empty streams and a connection cut
-before its first token have real HTTP fake-server tests. Stream readers are
-cancelled/released on early completion.
+### Saved-response audit
 
-Raw measurements and summary: `G:/FILOW/tmp/hardening/warm-samples.json` and
-`warm-summary.json`. No real screen content or owner model store was used.
+Counted actual model calls, including the old retries, in
+G:/FILOW/tmp/hardening/warm-samples.json:
 
-| Outcome | Before (60 warm questions) | After (60 warm questions) |
+| Shape | Original 60 calls | Old post-fix 119 calls | Treatment |
+|---|---:|---:|---|
+| POINT with two coordinates | 56 | 110 | Existing point |
+| BOX with two coordinates | 4 | 7 | Salvaged as a point |
+| BOX with four coordinates | 0 | 2 | Existing box |
+| Unclosed or unknown tags | 0 | 0 | No such sample observed |
+
+The four originally empty baseline answers were all two-coordinate BOX tags,
+including [BOX:241,588:Customer name field:screen1]. All ended normally with
+16 generated tokens and 1,713 prompt tokens, below the 8,192 context. Thus these
+samples contain recoverable pointers, not a stream-cut or context-exhaustion
+failure. Other rejected shapes in the tests are defensive fixtures, not invented
+observations from the saved corpus.
+
+The historical Phase 2b failure at question index 3, slot 7, run 27 in
+G:/FILOW/tmp/latency/results-a5fcc5c-standard-measure-2026-11-14-run2.json has no
+saved response bytes. This reproduces its symptom, not its exact lost response.
+
+### Prompt experiment and fresh outcomes
+
+The isolated server reports Ollama 0.40.16. Its lfm3-vl model is LFM3 1.7B
+Q4_K_M with num_gpu=0 and num_thread=4. The inspected Modelfile has no extra
+SYSTEM instruction and uses RENDERER lfm3 / PARSER lfm3. The versioned
+[renderer source](https://raw.githubusercontent.com/ollama/ollama/v0.40.16/model/renderers/lfm3.go)
+retains the supplied system message, places image content before unmarked user
+text and, with think=false, starts the assistant with an empty think block.
+There is no renderer instruction to answer with only a pointer. The raw content
+records establish that words are absent at generation, before Filow parses tags.
+Model inspection is saved in rework-model-prompt.json and rework-modelfile.txt.
+
+The local system prompt already asks for spoken sentences near its beginning,
+then gives extensive pointing/mark/visual instructions and examples. The date
+line follows that static prefix. The user message ends with the named-control
+coordinate hint and the screen note asking for a tag. This gives competing
+emphasis to speech and tags; the experiment tests instruction placement rather
+than assuming a proven model-internal cause.
+
+The opt-in tools/eval/hardening-rework-measure.test.ts uses only the tool's store
+G:/FILOW/tmp/latency/ollama-std on 11435, lfm3-vl, CPU, 8192 context, temperature
+0.3, 1500 output-token cap, 512px/JPEG-72 synthetic screens, empty history and the
+same five questions and named-control hints. Each prompt variant has a discarded
+warm-up, 60 warm questions, then the 40 pointing screens. First-token time is
+measured from the HTTP request to the first nonempty content token, not release
+of a microphone key. Output token counts come from Ollama's final done record. Medians average the
+two middle observations for even-sized cohorts.
+Strict pointing requires a parsed POINT inside the target rectangle before UIA
+placement; the same repaired parser scores all variants. No named-point fallback
+is credited. A separate placed score uses the existing UIA placement.
+
+The first variants keep the original base system prompt: sentence-last appends an explicit
+sentence-before-tag instruction after the date; examples-date-first moves the
+date before the base and appends that instruction plus two explicit examples;
+user-last keeps the system unchanged and adds the ordering instruction with one
+example at the end of the user message. After its pointing gate failed,
+user-last-exact keeps that order but explicitly requires a POINT tag with the
+exact screen-hint coordinates. The final compact-exact trial replaces the long
+system prompt with rules for this known-target task, one example and the date
+last, while keeping the exact-coordinate user suffix. It removes the unrelated
+generic-answer, drawing and 3D instructions. Exact wording is in
+tools/eval/hardening-prompt-variants.ts and the saved rework-prompts.json. These
+are isolated experimental requests; no online provider calls are made.
+
+Predeclared adoption gates: wordless below 20%, strict pointing loss no greater
+than 2 percentage points, median first-token time increase no greater than 10%.
+A candidate must satisfy the gates on both cohorts. Sequential CPU API samples
+are not a release-to-speech latency claim: CPU affinity, foreign-load filtering,
+physical RAM cap and native microphone/overlay acceptance are not reproduced.
+Some development checks overlapped the early experiment; timing is observational.
+
+| Outcome (60 questions) | Before | Final |
 |---|---:|---:|
-| First model response without words | 59/60 (98.3%) | 59/60 (98.3%) |
-| First response with neither words nor valid marks | 4/60 (6.7%) | 4/60 (6.7%) |
-| Final display without words | 59/60 (98.3%) | 0/60 |
-| Final completely empty display | 4/60 (6.7%) | 0/60 |
-| Retried once / plain fallback shown | 0 / 0 | 59 / 59 |
+| Truly empty first answer | 4 | 0 |
+| Pointer-only first answer | 55 | 0 |
+| Pointer-only with app-built words | 0 | 0 |
+| Model-written words | 1 | 60 |
+| Retries | 59 | 0 |
+| Failure messages | 59 | 0 |
 
-All four malformed baseline replies ended with `done_reason=stop`, 16 output
-tokens and 1,713 prompt tokens, far below 8,192 context. No stream-cut or immediate
-stop-token cause was observed. The model's wordless rate did not improve; the app
-now explains the failure. Repeating these inputs recovered no spoken answer.
-The historical prompt count was 1,720, so this is a matching failure-mode
-reproduction with synthetic inputs, not an exact replay of the lost request.
+The four old empties are recoverable BOX points under the repaired parser. A separate
+core-fix-only 60-question run yielded 60 pointer-only answers with app-built words,
+zero retries and zero failures (rework-initial-samples.json). The final run below
+uses the adopted prompt through the actual provider.
+
+| Prompt | Cohort | Wordless | Valid mark | Strict point | Output tokens median / total | First token median (s) |
+|---|---|---:|---:|---:|---:|---:|
+| baseline | warm (60) | 100.0% | 100.0% | 95.0% | 16 / 980 | 4.951 |
+| baseline | pointing (40) | 100.0% | 100.0% | 97.5% | 16 / 648 | 5.228 |
+| sentence-last | warm (60) | 90.0% | 100.0% | 91.7% | 16 / 1003 | 5.299 |
+| sentence-last | pointing (40) | 97.5% | 100.0% | 90.0% | 16 / 655 | 5.326 |
+| examples-date-first | warm (60) | 100.0% | 100.0% | 100.0% | 16 / 967 | 5.356 |
+| examples-date-first | pointing (40) | 97.5% | 100.0% | 100.0% | 16 / 648 | 6.469 |
+| user-last | warm (60) | 0.0% | 100.0% | 95.0% | 23 / 1374 | 5.475 |
+| user-last | pointing (40) | 0.0% | 100.0% | 90.0% | 23 / 923 | 7.039 |
+| user-last-exact | warm (60) | 0.0% | 100.0% | 98.3% | 23 / 1430 | 6.063 |
+| user-last-exact | pointing (40) | 0.0% | 100.0% | 97.5% | 23 / 942 | 6.119 |
+| compact-exact | warm (60) | 0.0% | 100.0% | 98.3% | 22 / 1385 | 2.641 |
+| compact-exact | pointing (40) | 0.0% | 100.0% | 100.0% | 22 / 922 | 2.693 |
+
+Adopted compact-exact only: 0% wordless in both cohorts, strict pointing 98.3% /
+100% versus 95% / 97.5%, and median first-token time 2.641 / 2.693 s versus
+4.951 / 5.228 s. Median input tokens fell from 1,713 to 446. All three gates pass
+in both cohorts. The other four variants fail at least one gate.
+
+Production scope is deliberately limited to lfm3-vl (or :latest), English, one
+screen indexed 1, and a simple location question with a server-resolved named UIA
+target. HTTP callers cannot assert that target. General questions, explanations,
+other languages/models, multiple screens, structured and internal pointing calls
+keep their existing prompt. Online system/user prompts are unchanged, with mocked
+request assertions; no paid online measurement or call was made.
+
+Final validation: 3,291 tests passed, 7 skipped; typecheck and lint passed; all
+26 protection-removal mutations failed as intended and sources were restored.
+One initial full test run hit the existing download test
+(localai-download.test.ts) idle-timeout versus connection-reset timing race; an
+unchanged full rerun passed. Hidden string/layout QA passed 10 language/theme
+cases, 30 string checks, with no overflow. This is not native panel/audio QA.
+The 600 variant and 60 final answer records all contain done records, no API
+errors and no nonempty hidden thinking. Aggregate evidence and raw-file hashes
+are tracked in HARDENING-POINTER-SUMMARY-2026-11-14.json.
+
+Unverified: physical microphone release-to-speech, live overlay/native audio,
+GPU/8 GB hardware acceptance, non-English model prompt quality, general-question
+quality under a compact prompt, and production online equivalence beyond mocked
+requests. No prompt change was extended to those unmeasured cases.
+
+
+Raw outputs and summary: G:/FILOW/tmp/hardening/rework-samples.json and
+rework-summary.json. The summary is reproducible with
+node tools/eval/hardening-rework-summary.mjs. Original warm-samples.json remains
+unchanged. Final app outcomes are measured through askOllama, not a replacement
+implementation of the retry policy.
 
 ## Account service
 
@@ -115,7 +226,7 @@ was not replaced in a different store. Native cleanup must preserve unknown/shar
 installations and needs a separate executable/store identity and OS-uninstaller
 integration. This portion of item 4 is incomplete, not an uninstall acceptance pass.
 
-## Validation and isolation
+## Initial four-item validation and isolation (before this rework)
 
 Dependencies installed with npm/Electron caches and temp files on G:. The first
 sandbox registry attempt failed EACCES; the network-enabled retry completed. No
@@ -127,7 +238,7 @@ Filow operation, paid API or Stripe network call occurred.
 assertion failures required, restoring each source in finally. Results and full
 check logs are under `G:/FILOW/tmp/hardening`.
 
-Final checks: `npx vitest run --maxWorkers=4`: 3,237 pass, 6 skip, 257 passing
+Initial checks: `npx vitest run --maxWorkers=4`: 3,237 pass, 6 skip, 257 passing
 files and 3 skipped files. The explicit real-model measurement separately passes
 one test with 120 counted questions. `npm run typecheck` and `npm run lint` exit 0.
 All 12 mutations are caught: 3 empty-answer, 5 account limits, 1 runtime version,
