@@ -137,6 +137,7 @@ export default function WhiteboardPage() {
   const [savedBoard, setSavedBoard] = useState(false);
   const [editing, setEditing] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const askInput = useRef<HTMLInputElement>(null);
   const [vision, setVision] = useState<{ looks: number; found: number; ms: number[] }>({ looks: 0, found: 0, ms: [] });
 
   const engineHeaders = useCallback(async (): Promise<Record<string, string>> => {
@@ -783,7 +784,7 @@ export default function WhiteboardPage() {
       <form className="wb-ask" onSubmit={onAsk}>
         <label className="wb-field">
           {t("askLabel")}
-          <input type="text" value={question} maxLength={LIMITS.question} placeholder={t("askPlaceholder")} onChange={(e) => setQuestion(e.target.value)} autoComplete="off" />
+          <input ref={askInput} type="text" value={question} maxLength={LIMITS.question} placeholder={t("askPlaceholder")} onChange={(e) => setQuestion(e.target.value)} autoComplete="off" />
         </label>
         <fieldset className="wb-from">
           <legend>{t("fromLabel")}</legend>
@@ -807,7 +808,8 @@ export default function WhiteboardPage() {
         <div className="wb-try">
           <span>{t("tryLabel")}</span>
           {EXAMPLES.map((k) => (
-            <button key={k} type="button" className="wb-btn small" onClick={() => { setQuestion(t(k)); void ask(t(k), false); }}>{t(k)}</button>
+            // A sample topic only fills the field: nothing is asked (nor sent to an online model) before "Explain".
+            <button key={k} type="button" className="wb-btn small" data-action="sample" onClick={() => { setQuestion(t(k)); askInput.current?.focus(); }}>{t(k)}</button>
           ))}
           {savedBoard && <button type="button" className="wb-btn small" data-action="last-board" onClick={openLast}>{t("lastBoard")}</button>}
           <button type="button" className="wb-btn small" data-action="open" onClick={() => fileInput.current?.click()}>{t("openExcalidraw")}</button>
