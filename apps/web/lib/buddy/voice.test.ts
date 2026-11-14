@@ -541,6 +541,20 @@ describe("the cloud voice", () => {
     await done;
   });
 
+  it("a refused account: told in the caller's words, the online voice is not asked again, a voice of this PC reads", async () => {
+    const { spoken } = fakeSynth();
+    const cloudAudio = vi.fn(async () => { throw new Error('ElevenLabs 401: {"detail":{"status":"invalid_api_key"}}'); });
+    const errors: string[] = [];
+    const speaker = createSpeaker({
+      bridge: () => null, status: () => ({ voice: "cloud", speed: 1, offline: false }) as OkFilowStatus, isCurrent: () => true, uiLang: () => "en",
+      cloudAudio, onCloudError: (e) => { errors.push(e); return true; }, onFallback: (r) => errors.push(`note ${r}`),
+    });
+    for (const s of ["One.", "Two."]) { const done = speaker.speak(s, 1); await tick(200); await done; }
+    expect(cloudAudio).toHaveBeenCalledTimes(1);
+    expect(errors).toEqual(['ElevenLabs 401: {"detail":{"status":"invalid_api_key"}}']);
+    expect(spoken.map((u) => u.text)).toEqual(["One.", "Two."]);
+  });
+
   it("a failed online voice with no natural voice on this PC: this PC's voice reads it, one note only", async () => {
     const { spoken } = fakeSynth();
     const s = setup({ voice: "cloud" }, { cloudAudio: async () => { throw new Error("no credit"); }, tts: false });

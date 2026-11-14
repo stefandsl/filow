@@ -12,6 +12,8 @@ import { askRoute, askRouteRecipient, changesStored, localServer, type AskRoute,
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
 import { createSpeaker, webAudioPlayer } from "@/lib/buddy/voice";
 import { cloudVoiceAudio } from "@/lib/buddy/cloudVoice";
+import { problemText, providerProblem } from "@/lib/buddy/providerError";
+import { t as coreText } from "@filow/core";
 import { boardVoice, recordsSound } from "@/lib/whiteboard/voice";
 import { freellmCodeOf, localizeFreeLlmError } from "@/lib/freellm";
 import { getSetupPreference } from "@/lib/prefs";
@@ -193,6 +195,13 @@ export default function WhiteboardPage() {
     isCurrent: (id) => turnRef.current === id,
     uiLang: () => langRef.current,
     cloudAudio: cloudVoiceAudio({ out, headers: engineHeaders, onKept: () => setNote(okfTRef.current("kept_voice")), unknown: () => okfTRef.current("noticeUnknown") }),
+    // A refused key or a used-up quota: plain words once (this speaker stops asking), details to the log only.
+    onCloudError: (error) => {
+      okFilowBridge()?.logProblem?.(error);
+      const p = providerProblem(error);
+      if (p) setNote(problemText(p, okfTRef.current, coreText("menu.editEnv", langRef.current)));
+      return p !== null;
+    },
     onFallback: (reason) => setNote(okfTRef.current(`voiceWhy_${reason}`)),
     onNoVoice: () => setNote(okfTRef.current("voiceNoSystem")),
   }), [out, engineHeaders]);

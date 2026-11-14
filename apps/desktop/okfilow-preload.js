@@ -60,6 +60,9 @@ contextBridge.exposeInMainWorld("okFilow", {
   pickAnswerDir: () => ipcRenderer.invoke("okfilow:pickAnswerDir"),
   openAnswers: () => ipcRenderer.invoke("okfilow:openAnswers"),
   deleteAnswers: () => ipcRenderer.invoke("okfilow:deleteAnswers"),
+  /** A provider refused the account: open the keys file; write the details to the log file (never shown). */
+  openKeys: () => ipcRenderer.invoke("okfilow:openKeys"),
+  logProblem: (text) => ipcRenderer.send("okfilow:logProblem", String(text ?? "")),
   /** "Remember things about me": the facts kept on this PC (okfilow-memory.js). */
   memory: {
     list: () => ipcRenderer.invoke("okfilow:memory:list"),

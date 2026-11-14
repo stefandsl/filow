@@ -136,6 +136,14 @@ function createQaScreen(dir, { nativeImage, fs = require("node:fs"), maxWidth = 
   };
 }
 
+/** Anything that looks like a key or a credential header is masked before a line reaches the log. */
+function redactSecrets(text) {
+  return String(text ?? "")
+    .replace(/(authorization|xi-api-key|api[_-]?key|x-api-key)(["']?\s*[:=]\s*["']?)(bearer\s+)?[^\s"',}]+/gi, "$1$2$3***")
+    .replace(/\b(sk|pk|rk)-[A-Za-z0-9_-]{8,}/g, "$1-***")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/g, "Bearer ***");
+}
+
 /** The stored settings after a change: every field is checked, whatever a window sent. What is not in the patch stays as it was. */
 function nextCfg(was, patch) {
   const { consentChanges, ...rest } = patch || {};
@@ -1293,6 +1301,13 @@ function createOkFilow(deps) {
   }));
   ipcMain.handle("okfilow:memory:remove", guard((id) => memory.remove(String(id ?? ""))));
   ipcMain.handle("okfilow:memory:clear", guard(() => { logLine("okfilow: memory deleted by the user"); return memory.clear(); }));
+  // A provider refused the account (lib/buddy/providerError.ts): the panel shows a plain sentence and a
+  // button that opens the keys file (the same as the menu's "Edit API keys"); the details go to this log only.
+  ipcMain.handle("okfilow:openKeys", guard(async () => (await shell.openPath(path.join(userData, ".env"))) === ""));
+  ipcMain.on("okfilow:logProblem", (e, text) => {
+    if (!ourSender(e) || typeof text !== "string") return;
+    logLine(`okfilow: provider problem: ${redactSecrets(text).slice(0, 500)}`);
+  });
   ipcMain.handle("okfilow:openAnswers", guard(async () => {
     const dir = lastAnswerDir || answerRoot(cfg().answerDir, answersFallback());
     const fs = require("node:fs");
@@ -1608,4 +1623,4 @@ function pagePointOnScreen(content, zoom, at) {
   return { x: Math.round(content.x + px), y: Math.round(content.y + py) };
 }
 
-module.exports = { createOkFilow, createQaScreen, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS, nextCfg, pagePointOnScreen };
+module.exports = { createOkFilow, createQaScreen, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS, nextCfg, pagePointOnScreen, redactSecrets };

@@ -10,6 +10,8 @@ import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture,
 import { drawingSvg, type BuddyModel } from "@/lib/buddy/visuals";
 import { createSpeaker } from "@/lib/buddy/voice";
 import { cloudVoiceAudio } from "@/lib/buddy/cloudVoice";
+import { createProblemReporter, plainError, problemText, type ProviderProblem } from "@/lib/buddy/providerError";
+import { t as coreText } from "@filow/core";
 import { markToDisplay, parseBuddyAnswer, pointToDisplay, type BuddyTurn } from "@/lib/buddy/prompt";
 import { okfText, OLLAMA_STOPPED_ANSWER, type OkfKey } from "@/lib/buddy/text";
 import { dictationText, pasteKeys, type DictationKey } from "@/lib/dictation/text";
@@ -155,6 +157,18 @@ export default function OkFilowPanel() {
   const [resumable, setResumable] = useState(false);
   /** Goes up when an answer taught OK Filow something ("Remember things about me"): the list is read again. */
   const [learned, setLearned] = useState(0);
+  /** A provider refused the account (lib/buddy/providerError.ts): the plain sentence, shown once per session with the button to the keys. */
+  const [problem, setProblem] = useState("");
+  const problemWords = useRef({ t, lang });
+  problemWords.current = { t, lang };
+  const reportProblem = useRef<(raw: string) => ProviderProblem | null>(null as unknown as (raw: string) => ProviderProblem | null);
+  if (!reportProblem.current) {
+    reportProblem.current = createProblemReporter({
+      log: (raw) => okFilowBridge()?.logProblem?.(raw),
+      show: (text) => setProblem(text),
+      text: (p) => problemText(p, problemWords.current.t, coreText("menu.editEnv", problemWords.current.lang)),
+    });
+  }
   /** The clock the answer's marks are drawn on: it stands still during a pause, like the overlay's. */
   const drawClock = useRef(createPausableClock());
   /** The answer in progress: whether it is read aloud, its language, and its marks (for a Resume after Stop). */
@@ -255,8 +269,11 @@ export default function OkFilowPanel() {
     // A stopped Ollama: said in the user's language, and the desktop shell starts it in the background.
     const stopped = OLLAMA_STOPPED_ANSWER.test(raw);
     const plain = raw.replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, "");
+    // A provider that refused the account (lib/buddy/providerError.ts): plain words and the button to the
+    // keys; never its JSON. The details go to the log file only.
+    const refused = stopped ? null : reportProblem.current(plain);
     // FreeLLMAPI's failures come tagged from the server: shown in the panel's language, with its download link when it is not running
-    const message = stopped ? t("ollamaStopped") : localizeFreeLlmError(plain, lang);
+    const message = stopped ? t("ollamaStopped") : refused ? problemText(refused, t, coreText("menu.editEnv", lang)) : plainError(localizeFreeLlmError(plain, lang));
     setFreeDown(freellmCodeOf(plain) === "not_running");
     setError(message);
     okFilowBridge()?.text(message);
@@ -345,6 +362,8 @@ export default function OkFilowPanel() {
     uiLang: () => langRef.current,
     labels: () => (answerCtx.current?.gate?.list ?? answerCtx.current?.marks ?? []).map(mark => mark.label),
     cloudAudio: (text) => cloudVoiceRef.current(text),
+    // A refused key or a used-up quota: said once in plain words, and this PC's voices read from then on.
+    onCloudError: (error) => reportProblem.current(error) !== null,
     onFallback: (reason) => setNote(tRef.current(`voiceWhy_${reason}`)),
     onNoVoice: () => setNote(tRef.current("voiceNoSystem")),
     // The bubble next to the pointer keeps the sentence being spoken in view.
@@ -1574,6 +1593,12 @@ export default function OkFilowPanel() {
         </p>
       )}
       {note && <p className="okf-note" role="status">{note}</p>}
+      {problem && (
+        <p className="okf-warn" role="alert" data-testid="okf-problem">
+          {problem}{" "}
+          {bridge.openKeys && <button type="button" className="okf-link okf-problem-fix" data-testid="okf-problem-fix" onClick={() => void bridge.openKeys?.()}>{t("providerFix")}</button>}
+        </p>
+      )}
 
       {(heard || answer || error || stopped) && (
         <section className="okf-convo">

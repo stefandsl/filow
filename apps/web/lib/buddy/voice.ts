@@ -200,6 +200,12 @@ export type SpeakerDeps = {
    * never used: this module sends nothing itself.
    */
   cloudAudio?(text: string): Promise<Blob | "system" | null>;
+  /**
+   * The online voice failed with this error. True: the caller has told the user in its own words (a
+   * key that is not valid, a used-up quota): the online voice is not tried again by this speaker, and
+   * no other note is given. False or absent: the "cloudFailed" note follows (onFallback).
+   */
+  onCloudError?(error: string): boolean;
   /** The natural voice could not speak and the system voice took over (once per reason). */
   onFallback?(reason: VoiceFallback): void;
   /** This PC has no voice for the language of the text: nothing was read aloud (once per language). */
@@ -252,6 +258,8 @@ export function createSpeaker(deps: SpeakerDeps) {
   let cut: (() => void) | null = null;
   let utterance = 0;
   const told = new Set<VoiceFallback>();
+  /** The online voice's account was refused (onCloudError): this speaker reads with a voice of this PC from now on. */
+  let cloudDown = false;
   const mute = new Set<VoiceLang>();
   /** Paused: the voice finishes what cannot be cut cleanly (a sentence, a piece) and holds the rest. */
   let held = false;
@@ -444,14 +452,17 @@ export function createSpeaker(deps: SpeakerDeps) {
   }
 
   async function cloud(text: string, lang: VoiceLang, live: () => boolean, run = 0) {
+    // The service refused the account (a key that is not valid, no quota): not asked again this session.
+    if (cloudDown) return onThisPc(text, lang, live, run);
     let got: Blob | "system" | null;
     try {
       got = deps.cloudAudio ? await deps.cloudAudio(text) : "system";
-    } catch {
+    } catch (e) {
       // The online voice failed (0.9.41: ElevenLabs refused the key and the whole answer ended in an
       // error): the answer is still read, by a voice of this PC, and the user is told why once.
       if (!live()) return;
-      tellOnce("cloudFailed");
+      if (deps.onCloudError?.(e instanceof Error ? e.message : String(e)) === true) cloudDown = true;
+      else tellOnce("cloudFailed");
       return onThisPc(text, lang, live, run);
     }
     if (got === null || !live()) return;

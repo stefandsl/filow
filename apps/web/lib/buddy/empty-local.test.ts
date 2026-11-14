@@ -18,11 +18,13 @@ async function fixture(outputs: string[]) {
     res.end(output);
   });
   servers.push(server);
-  await new Promise<void>(r => server.listen(4995, "127.0.0.1", r));
+  // A free port of the system's choosing: a fixed one collided with other test runs on the same PC (a 20 s hang).
+  await new Promise<void>(r => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   const run = async (language = "en", signal?: AbortSignal, uiLanguage?: string, question = "Where?", shape?: AskShape) => {
     let raw = "";
     for await (const piece of askOllama({ question, images: [], screens: [{ index: 1, width: 1000, height: 1000 }], language, uiLanguage }, signal,
-      { model: "fake", pictures: false, at: { base: "http://127.0.0.1:4995", headers: {}, server: null } }, shape)) raw += piece;
+      { model: "fake", pictures: false, at: { base, headers: {}, server: null } }, shape)) raw += piece;
     return parseBuddyAnswer(raw, [{ index: 1, width: 1000, height: 1000 }]);
   };
   return { bodies, run };

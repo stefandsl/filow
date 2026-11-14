@@ -216,6 +216,9 @@ export type OkFilowBridge = {
   pickAnswerDir(): Promise<OkFilowStatus>;
   openAnswers(): Promise<boolean>;
   deleteAnswers(): Promise<number>;
+  /** A provider refused the account (lib/buddy/providerError.ts): open the keys file; log the details. Absent in an older desktop build. */
+  openKeys?(): Promise<boolean>;
+  logProblem?(text: string): void;
   /** "Remember things about me" (apps/desktop/okfilow-memory.js). Absent in an older desktop build. */
   memory?: {
     list(): Promise<MemoryFact[]>;
