@@ -3,6 +3,7 @@ import sharp from 'sharp';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { captions, captionVtt } from './intro-captions.mjs';
 const out = path.resolve('apps/desktop/media');
 const temp = path.resolve('tmp/intro-frames');
 mkdirSync(out,{recursive:true}); mkdirSync(temp,{recursive:true});
@@ -19,5 +20,5 @@ for(const [i,s] of scenes.entries()) {
 writeFileSync(path.join(temp,'frames.txt'),scenes.map((_,i)=>`file '${i}.png'\nduration 6`).join('\n')+"\nfile '2.png'\n");
 const proc=spawnSync('ffmpeg',['-y','-f','concat','-safe','0','-i',path.join(temp,'frames.txt'),'-t','18','-r','24','-c:v','libx264','-pix_fmt','yuv420p','-crf','25','-movflags','+faststart',path.join(out,'intro.mp4')],{stdio:'inherit'});
 if(proc.status!==0) throw new Error('ffmpeg failed');
-writeFileSync(path.join(out,'intro.en.vtt'),`WEBVTT\n\n00:00.000 --> 00:06.000\nHold the talk shortcut and ask a question. You choose screen sharing.\n\n00:06.000 --> 00:12.000\nFollow the highlight. The app underneath stays clickable.\n\n00:12.000 --> 00:18.000\nStop any answer. Local features work without an account.\n`);
+for (const lang of Object.keys(captions)) writeFileSync(path.join(out,`intro.${lang}.vtt`), captionVtt(lang));
 rmSync(temp,{recursive:true,force:true});

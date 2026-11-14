@@ -91,8 +91,9 @@ type Api = { togglePanel: () => void };
 type Shot = { images: string[]; screens: unknown[]; displays: unknown[]; marked: unknown[]; selected: string; elements: unknown[] };
 let api: Api;
 let event: { sender: FakeContents; senderFrame: { url: string } };
-let created: { createQaScreen: (dir: string, deps: Record<string, unknown>) => { count: number; capture: (images: boolean) => Shot } };
+let created: { createQaScreen: (dir: string, deps: Record<string, unknown>) => { count: number; capture: (images: boolean, maxWidth?: number) => Shot } };
 const lines: string[] = [];
+const settings = { okFilow: { enabled: true, seeScreen: "auto", provider: "local" } };
 const loader = Module as unknown as { _load: (r: string, ...rest: unknown[]) => unknown };
 const original = loader._load;
 
@@ -104,7 +105,6 @@ beforeAll(() => {
   process.env.FILOW_OKF_QA_SCREEN = screenDir;
   const okf = require("./okfilow.js") as { createOkFilow: (deps: Record<string, unknown>) => Api } & typeof created;
   created = okf;
-  const settings = { okFilow: { enabled: true, seeScreen: "auto" } };
   api = okf.createOkFilow({
     appUrl: "http://127.0.0.1:4811", getSettings: () => settings, saveSettings: () => {}, iconPath: "", logLine: (l: string) => lines.push(l),
     sttLocal: { modelReady: () => false }, userData: tmp, menuText: (k: string) => k, isOffline: () => true, elementReader: null,
@@ -132,8 +132,8 @@ describe("FILOW_OKF_QA_SCREEN: OK Filow's synthetic screen", () => {
     const c = (await capture(event, { images: true })) as Shot;
     const display1 = { index: 1, id: "qa-screen", bounds: { x: 0, y: 0, width: 1920, height: 1080 } };
     expect(a).toEqual({
-      images: [`data:image/jpeg;base64,${Buffer.from("jpeg1024x576q72").toString("base64")}`],
-      screens: [{ index: 1, width: 1024, height: 576, cursor: true }],
+      images: [`data:image/jpeg;base64,${Buffer.from("jpeg512x288q72").toString("base64")}`],
+      screens: [{ index: 1, width: 512, height: 288, cursor: true }],
       displays: [display1], marked: [], selected: "",
       elements: [{ name: "Pay now 001", screen: 1, x1: 10, y1: 20, x2: 30, y2: 40 }],
     });
@@ -147,7 +147,7 @@ describe("FILOW_OKF_QA_SCREEN: OK Filow's synthetic screen", () => {
 
   it("with the eye closed, takes no picture and no names, on the same screen and display", async () => {
     const d = (await ipcHandle.get("okfilow:capture")!(event, { images: false })) as Shot;
-    expect(d).toEqual({ images: [], screens: [{ index: 1, width: 1024, height: 576, cursor: true }], displays: [{ index: 1, id: "qa-screen", bounds: { x: 0, y: 0, width: 1920, height: 1080 } }], marked: [], selected: "", elements: [] });
+    expect(d).toEqual({ images: [], screens: [{ index: 1, width: 512, height: 288, cursor: true }], displays: [{ index: 1, id: "qa-screen", bounds: { x: 0, y: 0, width: 1920, height: 1080 } }], marked: [], selected: "", elements: [] });
   });
 
   it("builds and shows no overlay, and the pointer and the pen send nothing", async () => {
@@ -162,6 +162,26 @@ describe("FILOW_OKF_QA_SCREEN: OK Filow's synthetic screen", () => {
     expect(counts.windows).toBe(windowsBefore);
     expect(counts.shown).toBe(shownBefore);
     expect(lines.filter((l) => /qa (points|overlays shown)/.test(l))).toEqual([]);
+  });
+
+  it.each(["cloud", "freellm"])("preserves the online %s image and screen dimensions", async (provider) => {
+    settings.okFilow.provider = provider;
+    try {
+      const shot = await ipcHandle.get("okfilow:capture")!(event, { images: true }) as Shot;
+      expect(shot.images).toEqual(["data:image/jpeg;base64," + Buffer.from("jpeg1024x576q72").toString("base64")]);
+      expect(shot.screens).toEqual([{ index: 1, width: 1024, height: 576, cursor: true }]);
+      expect(shot.displays).toEqual([{ index: 1, id: "qa-screen", bounds: { x: 0, y: 0, width: 1920, height: 1080 } }]);
+    } finally { settings.okFilow.provider = "local"; }
+  });
+
+  it("does not enlarge small captures or rescale normalized target rectangles", () => {
+    const reader = created.createQaScreen(screenDir, { nativeImage: { createFromPath: () => fakeImage(320, 180) } });
+    const shot = reader.capture(true, 512);
+    expect(shot.screens).toEqual([{ index: 1, width: 320, height: 180, cursor: true }]);
+    expect(shot.elements[0]).toMatchObject({ x1: 10, y1: 20, x2: 30, y2: 40 });
+    const src = fs.readFileSync(new URL("./okfilow.js", import.meta.url), "utf8");
+    expect(src).toContain('if (size.width > maxWidth) img = img.resize({ width: maxWidth, quality: "good" });');
+    expect(src).toContain('qaScreen.capture(wantImages, maxWidth)');
   });
 
   it("is ignored outside a QA build", () => {

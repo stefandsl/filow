@@ -150,6 +150,10 @@ export async function resolveLocalHelper(preference: unknown, question: string, 
  */
 export const WARM_MIN_VRAM_GB = 12;
 
+// Runner allocation must match between weight-only warm-up and real questions.
+// Keep thread/GPU settings inherited from the user's model on both paths.
+export const LOCAL_CONTEXT = { num_ctx: 8192 };
+
 /**
  * Whether loading OK Filow's helpers on this PC now would push the decision model out of the
  * graphics card: a card with its own memory under WARM_MIN_VRAM_GB, and the decision model installed
@@ -185,14 +189,14 @@ export async function warmLocalModel(preference?: unknown): Promise<{ model: str
     keepCard = warmEvictsDecision(gpu, decision, installed);
   }
   // The small model that places the points is loaded too, so the first point does not wait for it. Its failure is not the answer's.
-  if (pointer && !(keepCard && here(pointerAt))) void fetch(`${pointerAt?.base ?? OLLAMA_URL()}/api/generate`, { method: "POST", signal: AbortSignal.timeout(180_000), headers: { "Content-Type": "application/json", ...pointerAt?.headers }, body: JSON.stringify({ model: pointer, keep_alive: "30m" }) }).catch(() => null);
+  if (pointer && !(keepCard && here(pointerAt))) void fetch(`${pointerAt?.base ?? OLLAMA_URL()}/api/generate`, { method: "POST", signal: AbortSignal.timeout(180_000), headers: { "Content-Type": "application/json", ...pointerAt?.headers }, body: JSON.stringify({ model: pointer, keep_alive: "30m", options: LOCAL_CONTEXT }) }).catch(() => null);
   if (keepCard && here(at)) return { model, ok: false, skipped: "decision-model" };
   try {
     const res = await fetch(`${at?.base ?? OLLAMA_URL()}/api/generate`, {
       method: "POST",
       signal: AbortSignal.timeout(180_000),
       headers: { "Content-Type": "application/json", ...at?.headers },
-      body: JSON.stringify({ model, keep_alive: "30m" }),
+      body: JSON.stringify({ model, keep_alive: "30m", options: LOCAL_CONTEXT }),
     });
     return { model, ok: res.ok };
   } catch {
@@ -266,7 +270,7 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
         think: process.env.BUDDY_LOCAL_THINK === "1",
         keep_alive: "30m",
         // num_predict: a looping small model once ran 5,800 tokens (45 s); a real answer with a drawing is about 500.
-        options: { temperature: shape?.temperature ?? 0.3, num_ctx: 8192, num_predict: (shape?.maxTokens ?? 1500) * (process.env.BUDDY_LOCAL_THINK === "1" ? 4 : 1) },
+        options: { ...LOCAL_CONTEXT, temperature: shape?.temperature ?? 0.3, num_predict: (shape?.maxTokens ?? 1500) * (process.env.BUDDY_LOCAL_THINK === "1" ? 4 : 1) },
         // A JSON schema the answer must follow (Ollama structured output), when the caller has one.
         ...(shape?.format ? { format: shape.format } : {}),
         messages: [

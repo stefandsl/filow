@@ -34,6 +34,70 @@ reproduction and evidence are in `docs/okfilow/WAKE-WORD.md`. Balanced scored
 background (one head). Do not ship on these results. Pending: owner real-voice
 room testing, better near-miss rejection, real STT handoff validation, original
 Google model-card confirmation and cross-platform/low-tier hardware checks.
+## Safe preparation worktree (2026-11-14, unreleased)
+
+`feat-safe-prep`, based on `771ddf1`, implements four owner-independent items:
+package `updates=false` suppresses updater loading/checks/installation; checkout
+returns typed `billing_not_open` while live billing is off, with five-language UI;
+release verification optionally requires an exact allowlisted account origin;
+and first-run captions now ship in EN/IT/RU/RO/JA with UI-language selection.
+No provider, assist endpoint, allowance, price, origin or live billing was enabled.
+
+Validation: npm ci succeeded; `npx vitest run --maxWorkers=4` passed 3,196 tests
+(5 existing skips, 255 files); typecheck and lint passed. Seven of seven mutations
+were caught and restored. Hidden renderer QA passed 10 language/theme combinations
+for both account closure and video captions, with 20 screenshots and no page overflow.
+The QA instance used G:/FILOW/tmp/safe-prep, HTTP 4981/debug 9581, fake bridges,
+NO_GLOBAL_INPUT and HEADLESS. It exited; no installed profile or model was used.
+
+Pending/known gaps: native translation review, packaged pilot update/return-to-public
+acceptance, native menu popup rendering, deployed auth/Stripe, production-origin
+release wrapper wiring, and full F1 clean-VM real-answer acceptance. /tour has no
+video, so it was unchanged. Details: docs/design/paid/SAFE-PREP-2026-11-14.md.
+Four local commits only; no merge, push or tag. Tool-modified AGENTS.md is excluded.
+
+
+## Phase 2b answer latency worktree (2026-11-14, unreleased)
+
+`feat-phase2b` aligns local weight warm-up with the question's 8192 context,
+reduces local screenshot width to 512 after a 40-screen three-size trial, and
+reduces the non-dictation transcript handoff grace from 200 to 50 ms. Online
+screenshots remain 1024. Recognizer startup and date-prefix behavior are unchanged.
+
+Evidence, acceptance results and exact sample counts: `docs/perf/LATENCY-2026-11.md`.
+Design and image choice: `docs/perf/PHASE-2B.md`. Full checks: 3,171 tests pass,
+5 skip, typecheck and lint pass; 4/4 mutations caught, 11/11 hidden microphone
+E2E checks pass, final-package deterministic Stop/Resume passes. QA package and
+raw samples remain under `G:/FILOW/tmp/latency`; no installed profile was used.
+
+Standard acceptance passes: 45 valid warm / 31 cold, first-token medians improve
+25.4% / 35.2%, with both p90 values lower. One empty model answer stopped the
+warm repeat; real-model speaking-stop has no valid sample. These remain limits.
+
+Pending before broader claims: GPU cold-start measurements, real desktop/UIA and
+dense-text pointing, physical microphone/speaker latency, live phone questions.
+Online calls were intentionally skipped. Baseline voice distributions are absent;
+new speech-only samples cannot prove a voice speedup. No merge, push or tag.
+
+## R2 release verification worktree (2026-11-14, unreleased)
+
+`feat-r2-verify` adds the pure release verifier, offline CLI fixtures and mutation runner,
+an owner-only preflight/draft/publish script, explicit no-downgrade updater configuration,
+and a manual-only clean Windows installer smoke job. CI no longer writes to the feed.
+The release checklist includes recall and first-paid-release upgrade checks; EN/IT manuals
+describe the new path. The external orchestrator script is unchanged.
+
+Validation: 3,163 tests pass (5 skipped), typecheck and lint pass, 34 release-focused tests
+pass, 21/21 removed-rule mutations are caught and restored. Read-only 0.9.38 audit: all 17
+assets/manifests, CI jobs, sourceSha and absent accountOrigin pass; the new explicit
+allowDowngrade=false check fails because the old installer does not set it explicitly.
+Evidence and limits: `docs/releases/R2-VERIFY-2026-11-14.md`.
+
+Pending: validate the manual CI smoke and actual PowerShell 7 publication path before use;
+no workflow or GitHub write was run here. Review the production account-origin allowlist
+(empty by default), D6 publisherName when signing lands, and the manual paid-upgrade gate.
+Only Windows installer metadata is extracted; other platform bytes are hash-checked.
+No merge, push, tag, installed-app change or feed change was performed.
 
 Last updated 2026-11-12 (faster answers, onboarding and accounts). Written so that
 another agent (Codex, Claude, a human) can continue without the chat history. Update this file at the

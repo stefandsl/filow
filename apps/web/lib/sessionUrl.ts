@@ -7,14 +7,14 @@
 export type DesktopBridge = {
   desktop: true;
   account?: {
-    status(): Promise<{ configured: boolean; service?: string; user: { email: string; name: string } | null; plan: "local" | "pro"; billing: boolean; paidUntil?: string | null }>;
+    status(): Promise<{ configured: boolean; service?: string; user: { email: string; name: string } | null; plan: "local" | "pro"; billing: boolean; checkout?: "open" | "unconfigured" | "billing_not_open"; paidUntil?: string | null }>;
     /** Whether this build has accounts (set at build time); no network call. */
     configured(): Promise<boolean>;
     begin(): Promise<{ userCode: string; expiresAt: number } | null>;
     poll(): Promise<{ state: "pending" | "signed-in" | "cancelled" | "expired" | "denied" }>;
     cancel(): Promise<void>;
     signOut(): Promise<unknown>;
-    checkout(): Promise<void>;
+    checkout(): Promise<void | { state: "billing_not_open" }>;
     portal(): Promise<void>;
   };
   tour?: {
@@ -91,7 +91,7 @@ export type LocalAiHardware = {
   recommended: { models: string[]; ollama: boolean; downloadGb: number };
 };
 
-export type UpdateStatus = { status: "idle" | "checking" | "downloading" | "downloaded" | "none" | "error"; version: string; error: string; current: string };
+export type UpdateStatus = { status: "disabled" | "idle" | "checking" | "downloading" | "downloaded" | "none" | "error"; version: string; error: string; current: string };
 
 export type SlideShowState = { running: boolean; index: number; total: number; title: string };
 

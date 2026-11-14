@@ -118,3 +118,10 @@ describe('the account origin is set when the app is built',()=>{
     expect(hook).toContain('if (live) setShown(on === true);');
   });
 });
+
+it('returns a typed checkout closure across IPC without opening a billing URL', async () => {
+  const fetcher = vi.fn().mockResolvedValue(Response.json({ error: 'billing_not_open' }, { status: 503 }));
+  const { account, openExternal } = setup(fetcher);
+  expect(await account.billing('checkout')).toEqual({ state: 'billing_not_open' });
+  expect(openExternal).not.toHaveBeenCalled();
+});

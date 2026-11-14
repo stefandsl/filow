@@ -1,0 +1,158 @@
+{
+  "preflight": {
+    "version": "1.2.3",
+    "latestVersion": "1.2.2",
+    "tagSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "onMain": true,
+    "releaseExists": false,
+    "packageVersion": "1.2.3"
+  },
+  "tagSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "run": {
+    "headBranch": "v1.2.3",
+    "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "checks",
+        "conclusion": "success"
+      },
+      {
+        "name": "build (macos-latest, desktop:build:mac)",
+        "conclusion": "success"
+      },
+      {
+        "name": "build (ubuntu-latest, desktop:build:linux)",
+        "conclusion": "success"
+      },
+      {
+        "name": "build (windows-latest, desktop:build:win)",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "assets": {
+    "latest.yml": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "latest-mac.yml": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "latest-linux.yml": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "Filow-extension-1.2.3.zip": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "Filow-1.2.3-win-x64.exe": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "Filow-1.2.3-win-x64.exe.blockmap": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "Filow-1.2.3-win-x64-portable.exe": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "Filow-1.2.3-linux-amd64.deb": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "Filow-1.2.3-linux-x86_64.AppImage": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "Filow-1.2.3-mac-arm64.dmg": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "Filow-1.2.3-mac-arm64.dmg.blockmap": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "Filow-1.2.3-mac-arm64.zip": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "Filow-1.2.3-mac-arm64.zip.blockmap": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "Filow-1.2.3-mac-x64.dmg": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "Filow-1.2.3-mac-x64.dmg.blockmap": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "Filow-1.2.3-mac-x64.zip": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "Filow-1.2.3-mac-x64.zip.blockmap": {
+      "sha512": "fixture-sha512",
+      "size": 123
+    }
+  },
+  "manifests": {
+    "latest.yml": {
+      "version": "1.2.3",
+      "files": [
+        {
+          "url": "Filow-1.2.3-win-x64.exe",
+          "sha512": "fixture-sha512",
+          "size": 123
+        }
+      ],
+      "path": "Filow-1.2.3-win-x64.exe",
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "latest-mac.yml": {
+      "version": "1.2.3",
+      "files": [
+        {
+          "url": "Filow-1.2.3-mac-arm64.zip",
+          "sha512": "fixture-sha512",
+          "size": 123
+        }
+      ],
+      "path": "Filow-1.2.3-mac-arm64.zip",
+      "sha512": "fixture-sha512",
+      "size": 123
+    },
+    "latest-linux.yml": {
+      "version": "1.2.3",
+      "files": [
+        {
+          "url": "Filow-1.2.3-linux-x86_64.AppImage",
+          "sha512": "fixture-sha512",
+          "size": 123
+        }
+      ],
+      "path": "Filow-1.2.3-linux-x86_64.AppImage",
+      "sha512": "fixture-sha512",
+      "size": 123
+    }
+  },
+  "installer": {
+    "version": "1.2.3",
+    "sourceSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "main": "updater.allowDowngrade = false;",
+  "smoke": {
+    "installed": true,
+    "started": true,
+    "exitCode": 0,
+    "sourceSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "installerSha512": "fixture-sha512"
+  }
+}

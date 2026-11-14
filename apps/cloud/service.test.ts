@@ -5,7 +5,7 @@ import { getMigrations } from 'better-auth/db/migration';
 import { createCloud, paidSubscription } from './service.mjs';
 const dbs: Array<ReturnType<typeof Database>> = [];
 afterEach(()=>{ for(const db of dbs.splice(0)) db.close(); });
-async function setup(billing = false) {
+async function setup(billing = false, liveBilling: boolean | null = true) {
   const database = new Database(':memory:'); dbs.push(database);
   let otp = '';
   const origin = 'http://localhost:4780';
@@ -17,7 +17,7 @@ async function setup(billing = false) {
   vi.spyOn(stripe.prices,'retrieve').mockResolvedValue({ id: 'price_pro_test', type:'recurring', recurring:{ usage_type:'licensed', interval:'month' } } as any);
   const checkout = vi.spyOn(stripe.checkout.sessions,'create').mockResolvedValue({id:'cs_test',url:'https://checkout.stripe.com/c/pay/test'} as any);
   vi.spyOn(stripe.billingPortal.sessions,'create').mockResolvedValue({id:'bps_test',url:'https://billing.stripe.com/p/session/test'} as any);
-  const cloud = createCloud({database,origin,secret:'test-only-secret-32-characters-long-12345678', sendOTP: async (message: {otp:string})=>{otp=message.otp;},
+  const cloud = createCloud({database,origin,...(liveBilling === null ? {} : {liveBilling}),secret:'test-only-secret-32-characters-long-12345678', sendOTP: async (message: {otp:string})=>{otp=message.otp;},
     ...(billing ? {stripe,webhookSecret:'whsec_test_only',priceId:'price_pro_test'} : {}) });
   const migrations = await getMigrations(cloud.auth.options); await migrations.runMigrations();
   const call = (route:string,body?:unknown,headers:Record<string,string>={})=>cloud.handle(new Request(origin+route,{method:body?'POST':'GET',headers:{Origin:origin,'Content-Type':'application/json','x-filow-client-ip':'127.0.0.1',...headers},...(body?{body:JSON.stringify(body)}:{})}));
@@ -145,4 +145,20 @@ describe('billing plugin routes',()=>{
     expect(me.status).toBe(200);
     expect((await me.json()).billing).toBe(true);
   });
+});
+
+it.each([false, null])('closes checkout without any Stripe call when liveBilling is %s', async liveBilling => {
+  // Explicit undefined omits the option, exercising the product default.
+  const f = await setup(true, liveBilling);
+  const headers = await f.signin();
+  const methods = [f.stripe.customers.search, f.stripe.customers.list, f.stripe.customers.create,
+    f.stripe.subscriptions.list, f.stripe.prices.retrieve, f.checkout, f.stripe.billingPortal.sessions.create];
+  methods.forEach(method => vi.mocked(method).mockClear());
+  const response = await f.call('/v1/checkout', {}, headers);
+  expect(response.status).toBe(503);
+  expect(await response.json()).toEqual({ error: 'billing_not_open' });
+  methods.forEach(method => expect(method).not.toHaveBeenCalled());
+  const me = await (await f.call('/v1/me', undefined, headers)).json();
+  expect(me.checkout).toBe('billing_not_open');
+  expect(me.plan).toBe('local');
 });

@@ -1,6 +1,7 @@
 import { mountIcons } from "../web/components/icons";
 import { t, LANG_LABELS, acceptUiSnapshot, themeFollowing, resolveUiLanguage, type I18nKey, type UiBridge, type UiPatch, type UiSnapshot, type UiResult } from "../../packages/core/src/index";
 import { applyUiPreferences } from "../web/lib/applyUiPreferences";
+import { selectIntroCaptions } from "./intro-captions";
 import { welcomeSteps, micErrorKind, levelFromRms, micTick, startMic, micActionsShown, micFocusMove, micDeviceChange, offersDownload, offerGb, escapeAction, type MicState, type StepId } from "./welcome-flow";
 import "./welcome.css";
 
@@ -34,6 +35,7 @@ let cleanupTicked = true;
 /** The offer as the step counts it: without the cleanup model's share when its line is unticked. */
 const counted = (o: SetupOffer) => ({ ...o, downloadGb: offerGb(o, cleanupTicked) });
 let busy = false;
+let captionLang = "";
 const tr = (key: I18nKey, vars?: Record<string, string | number>) => t(key, state?.resolvedLang ?? "en", vars);
 
 // ---- preferences rows (startup, theme, accent): one instance, in the step that shows them ----
@@ -55,6 +57,10 @@ function render(next?: UiSnapshot) {
   if (!state) return;
   applyUiPreferences(state);
   document.documentElement.lang = state.resolvedLang;
+  if (captionLang !== state.resolvedLang) {
+    selectIntroCaptions(Array.from($<HTMLVideoElement>("#intro-video").textTracks), state.resolvedLang);
+    captionLang = state.resolvedLang;
+  }
   document.querySelectorAll<HTMLElement>("[data-i18n]").forEach(el => { el.textContent = tr(el.dataset.i18n as I18nKey); });
   document.querySelectorAll<HTMLElement>("[data-i18n-label]").forEach(el => el.setAttribute("aria-label", tr(el.dataset.i18nLabel as I18nKey)));
   const systemLang = resolveUiLanguage("", navigator.language);

@@ -85,6 +85,8 @@ Con zoom elevato o una finestra bassa, la pagina scorre per mantenere punti e co
 
 ## Finestra di benvenuto
 
+Il video iniziale include sottotitoli in inglese, italiano, russo, romeno e giapponese. Seguono la lingua dell’interfaccia, con l’inglese come ripiego; puoi comunque disattivarli dai controlli del video.
+
 L'app desktop apre **Benvenuto** prima di caricare l'app principale o proporre la configurazione
 dell'AI locale. Scegli Automatico (lingua del sistema, italiano oppure inglese come ripiego), English
 o Italiano; il tema di sistema è attivo e il colore principale di sistema è disattivato per
@@ -351,6 +353,8 @@ Il risultato finisce in `release/`.
 
 ## Aggiornamenti automatici
 
+Le versioni di prova create con `-c.extraMetadata.updates=false` non cercano, scaricano o installano aggiornamenti. Il menu indica che gli aggiornamenti sono disattivati; i nuovi installer vengono forniti dal proprietario.
+
 L'app desktop installata controlla se c'è una nuova versione pochi secondi dopo l'avvio e dal menu (*Controlla aggiornamenti…*). L'aggiornamento si scarica in background; ricevi "Riavvia ora / Più tardi", e un aggiornamento rimandato si installa da solo alla prossima chiusura. Windows e Linux (AppImage) si aggiornano sul posto; macOS richiede una build firmata e notarizzata per gli aggiornamenti sul posto, quindi su Mac l'app si limita a dirti che esiste una nuova versione finché quello non è configurato.
 
 Il feed è un repository GitHub **pubblico** separato che contiene solo gli installer. È nato quando questo repository sorgente era privato (un'app installata non può leggere release private senza portarsi dietro un segreto); il sorgente è pubblico dal 2026-11-03, e il feed resta dove le app installate cercano gli aggiornamenti. Configurazione una tantum, da una macchina dove `gh` è autenticato:
@@ -359,13 +363,7 @@ Il feed è un repository GitHub **pubblico** separato che contiene solo gli inst
 gh repo create stefandsl/filow-releases --public --description "Filow installers (auto-update feed)"
 ```
 
-Crea su GitHub un personal access token a grana fine (Settings → Developer settings → Personal access tokens) con **Contents: read and write** solo su `filow-releases`, poi salvalo come secret di questo repository:
-
-```bash
-gh secret set RELEASES_TOKEN --repo stefandsl/filow
-```
-
-Dal tag successivo in poi, il job di release pubblica gli stessi installer più i metadati di aggiornamento (`latest*.yml`, `*.blockmap`) nel repository pubblico, e le app installate li rilevano.
+La CI carica gli installer solo nella release del sorgente. Il proprietario usa `tools/release/release.ps1` per verificare la build, creare una bozza nel feed, richiedere il test di installazione e avvio su Windows pulito e impostare Latest per ultimo. La CI non usa `RELEASES_TOKEN`. Segui [la checklist di release](docs/RELEASE-CHECKLIST.md) per controlli preliminari, pubblicazione e ritiro. L'updater rifiuta esplicitamente i downgrade automatici; il ritiro non annulla un aggiornamento già installato o scaricato.
 
 ## Firma del codice e l'avviso SmartScreen
 
@@ -804,3 +802,18 @@ Il volo del puntatore dura al massimo 900 ms. Le etichette in arrivo mantengono 
 Le risposte di OK Filow, le lezioni sulla lavagna e i lavori degli agenti ricevono la data locale e il giorno della settimana. Non vengono aggiunte altre informazioni su di te o sul PC.
 
 All'arrivo, la punta resta sull'angolo del bersaglio. L'anello lascia libero il quadrante rivolto al testo, la sottolineatura si ferma prima e l'ombra della freccia scompare. Accelerazione e frenata mantengono continuo il movimento del puntatore.
+
+### Tempi di risposta di OK Filow
+
+OK Filow prepara il modello locale delle risposte prima della domanda quando la
+memoria lo consente. Su una scheda grafica piccola può attendere la domanda per
+non rimuovere dalla memoria il modello usato per la presentazione. Il microfono
+si chiude quando rilasci i tasti; Filow completa quindi il riconoscimento delle
+parole prima di rispondere. Il puntatore distingue l'apertura del microfono
+dall'ascolto e dall'elaborazione della risposta.
+Le risposte locali usano un'immagine dello schermo più piccola per ridurre il
+tempo di elaborazione. Le risposte online mantengono la stessa dimensione.
+I controlli riconosciuti sullo schermo conservano le posizioni originali per
+le indicazioni del puntatore.
+
+Quando la fatturazione è disattivata, la pagina account indica che gli abbonamenti non sono ancora disponibili. Le funzioni locali restano disponibili e gli abbonati possono ancora gestire il proprio abbonamento.

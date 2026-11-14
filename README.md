@@ -83,6 +83,8 @@ At high zoom or in a short window, the page scrolls to keep points and controls 
 
 ## First-run welcome
 
+The first-run video includes English, Italian, Russian, Romanian and Japanese captions. Captions follow the interface language, with English as fallback; the video controls still let you turn them off.
+
 The desktop app opens **Welcome** before loading the main app or offering local AI setup.
 Choose Automatic (OS language, Italian or English fallback), English, or Italiano; system theme
 is on and system accent following is off by default. Turning system theme off keeps the current
@@ -346,6 +348,8 @@ Output lands in `release/`.
 
 ## Automatic updates
 
+Test builds packaged with `-c.extraMetadata.updates=false` do not check, download or install updates. The menu says updates are off; the owner supplies replacement installers.
+
 The installed desktop app checks for a new version a few seconds after start-up and from the menu (*Check for updates…*). The update downloads in the background; you get "Restart now / Later", and an update you postpone installs itself the next time you quit. Windows and Linux (AppImage) update in place; macOS needs a signed and notarized build for in-place updates, so on a Mac the app only tells you a new version exists until that is set up.
 
 The feed is a separate **public** GitHub repository that holds only the installers. It was set up while this source repository was private (an installed app cannot read private releases without shipping a secret); the source has been public since 2026-11-03, and the feed stays where installed apps look for updates. One-time setup, from a machine where `gh` is logged in:
@@ -354,13 +358,7 @@ The feed is a separate **public** GitHub repository that holds only the installe
 gh repo create stefandsl/filow-releases --public --description "Filow installers (auto-update feed)"
 ```
 
-Create a fine-grained personal access token on GitHub (Settings → Developer settings → Personal access tokens) with **Contents: read and write** on `filow-releases` only, then store it as a secret of this repository:
-
-```bash
-gh secret set RELEASES_TOKEN --repo stefandsl/filow
-```
-
-From the next tag on, the release job publishes the same installers plus the update metadata (`latest*.yml`, `*.blockmap`) to the public repo, and installed apps pick them up.
+CI uploads installers only to the source release. The owner uses `tools/release/release.ps1` to verify the build, create a feed draft, require a clean Windows install/start smoke test, and set Latest last. No `RELEASES_TOKEN` is used by CI. Follow [the release checklist](docs/RELEASE-CHECKLIST.md) for preflight, publication and recall. The updater explicitly refuses automatic downgrades; a recall does not undo an already installed or downloaded update.
 
 ## Code signing and the SmartScreen warning
 
@@ -795,3 +793,16 @@ Pointer flights take at most 900 ms. Landing labels reserve 8 px around detected
 OK Filow answers, whiteboard lessons and agent jobs receive today's local date and weekday. This adds no other information about you or your PC.
 
 At landing, the pointer tip stays on the target corner. The ring leaves the text-facing quadrant empty, the underline stops before it, and the arrow shadow disappears. Acceleration and braking keep pointer travel continuous.
+
+### OK Filow response timing
+
+OK Filow prepares its local answer model ahead of a question when memory allows.
+On a small graphics card, it may wait until the question to avoid displacing the
+model used for your presentation. The microphone closes when you release the
+keys; Filow then finishes recognising your words before answering. The pointer
+shows microphone opening separately from listening and thinking.
+Local answers use a smaller screen image to reduce processing time. Online
+answers keep the same image size. Named screen controls retain their original
+positions for pointing.
+
+When billing is closed, the account page says subscriptions are not open yet. Local features remain available, and existing subscribers can still manage their subscription.

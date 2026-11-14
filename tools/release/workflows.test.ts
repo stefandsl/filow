@@ -44,6 +44,20 @@ const loadWorkflow = (file: string): any => yaml.load(fs.readFileSync(path.join(
 const workflowFiles = () => fs.readdirSync(workflowsDir).filter((f) => /\.ya?ml$/.test(f));
 
 describe("GitHub workflows pin every action to a commit", () => {
+  it("CI cannot publish to the feed and smoke is manual with a hard timeout", () => {
+    const text = fs.readFileSync(path.join(workflowsDir, "desktop.yml"), "utf8");
+    expect(text).not.toContain("RELEASES_TOKEN");
+    expect(text).not.toContain("repository: stefandsl/filow-releases");
+    const wf = loadWorkflow("desktop.yml");
+    expect(wf.jobs.smoke.if).toContain("github.event_name == 'workflow_dispatch'");
+    expect(wf.jobs.smoke.if).toContain("inputs.smoke_only");
+    expect(wf.jobs.smoke["timeout-minutes"]).toBe(15);
+    expect(wf.jobs.checks.steps.some((s: any) => s.name === "Verify before building a release")).toBe(true);
+    // A manual dispatch can itself use a tag ref. It must not rebuild or rerun prebuild absence checks.
+    expect(wf.jobs.build.if).toMatch(/^\$\{\{ !inputs\.smoke_only && \(/);
+    expect(wf.jobs.checks.steps.find((s: any) => s.name === "Verify before building a release").if)
+      .toMatch(/^\$\{\{ !inputs\.smoke_only && \(/);
+  });
   it("finds the workflows", () => {
     expect(workflowFiles()).toContain("desktop.yml");
   });
@@ -74,11 +88,13 @@ describe("GitHub workflows pin every action to a commit", () => {
     expect(runAt).toBeLessThan(buildAt);
   });
 
-  it("grants read-only permissions to the workflow and write only to the build job, which waits for the checks", () => {
+  it("grants read-only defaults and source-asset write permissions to build and smoke, both after checks", () => {
     const wf = loadWorkflow("desktop.yml");
     expect(wf.permissions).toEqual({ contents: "read" });
     expect(wf.jobs.build.permissions).toEqual({ contents: "write" });
     expect(wf.jobs.build.needs).toBe("checks");
+    expect(wf.jobs.smoke.permissions).toEqual({ contents: "write" });
+    expect(wf.jobs.smoke.needs).toBe("checks");
     expect(wf.jobs.checks.permissions).toBeUndefined(); // the checks job inherits the read-only default
   });
 

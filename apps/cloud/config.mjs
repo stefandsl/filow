@@ -20,7 +20,7 @@ export function configuredCloud(env = process.env) {
   const hasBilling = [env.STRIPE_SECRET_KEY,env.STRIPE_WEBHOOK_SECRET,env.STRIPE_PRICE_ID].filter(Boolean).length;
   if (hasBilling && hasBilling !== 3) throw new Error('Configure all three Stripe values or leave all empty');
   if (hasBilling && !env.STRIPE_SECRET_KEY.startsWith('sk_test_') && env.FILOW_LIVE_BILLING !== '1') throw new Error('Live billing is disabled. Use Stripe test credentials.');
-  const service = createCloud({ database, origin, secret: env.BETTER_AUTH_SECRET,
+  const service = createCloud({ database, origin, liveBilling: env.FILOW_LIVE_BILLING === '1', secret: env.BETTER_AUTH_SECRET,
     stripe: hasBilling ? new Stripe(env.STRIPE_SECRET_KEY) : undefined,
     webhookSecret: env.STRIPE_WEBHOOK_SECRET, priceId: env.STRIPE_PRICE_ID,
     sendOTP: ({ email, otp }) => mail.sendMail({ from: env.MAIL_FROM, to: email, subject: 'Your Filo sign-in code',
