@@ -366,21 +366,22 @@ async function waitForQuiet(ctx) {
   if (argv.includes("--no-wait")) return;
   const ours = () => new Set([...treeOf(processTable(), ctx.run.pid), ...treeOf(processTable(), ctx.ollamaPid), process.pid, ctx.sampler?.pid].filter(Boolean));
   const start = Date.now();
+  const budgetFile = flag("idle-budget-file");
+  const usedBefore = budgetFile && fs.existsSync(budgetFile) ? JSON.parse(fs.readFileSync(budgetFile, "utf8")).ms : 0;
+  const accountWait = () => {
+    const used = usedBefore + Date.now() - start;
+    if (budgetFile) fs.writeFileSync(budgetFile, JSON.stringify({ ms: used }));
+    return used;
+  };
   let told = false;
   for (;;) {
+    if (budgetFile && accountWait() >= 2395000) throw new Error("blocked: not idle (40 minute total budget)");
     const v = foreignCpu(ctx.cpuFile, Date.now() - 6500, Date.now(), ours());
     const gpu = ctx.tier.gpu ? gpuUtil() : 0;
-    if (v !== null && v <= 15 && (gpu === null || gpu <= 10)) { if (told) say(`[${ctx.tier.name}] quiet again after ${Math.round((Date.now() - start) / 1000)} s`); return; }
+    if (v !== null && v <= 15 && (gpu === null || gpu <= 10)) { accountWait(); if (told) say(`[${ctx.tier.name}] quiet again after ${Math.round((Date.now() - start) / 1000)} s`); return; }
     if (!flag("idle-budget-file") && Date.now() - start > 30 * 60_000) { say(`[${ctx.tier.name}] still busy after 30 min (foreign CPU ${Math.round(v ?? -1)}%, GPU ${gpu}%): asking anyway, the sample will say so`); return; }
     if (!told) { say(`[${ctx.tier.name}] waiting: the PC is busy with other work (foreign CPU ${Math.round(v ?? -1)}%, GPU ${gpu}%)`); told = true; }
-    const budgetFile = flag("idle-budget-file");
-    if (budgetFile) {
-      const used = fs.existsSync(budgetFile) ? JSON.parse(fs.readFileSync(budgetFile, "utf8")).ms : 0;
-      if (used >= 2400000) throw new Error("blocked: not idle (40 minute total budget)");
-      const before = Date.now();
-      await sleep(Math.min(5000, 2400000 - used));
-      fs.writeFileSync(budgetFile, JSON.stringify({ ms: used + Date.now() - before }));
-    } else await sleep(5000);
+    await sleep(budgetFile ? Math.max(1, Math.min(5000, 2395000 - accountWait())) : 5000);
   }
 }
 function gpuUtil() {
@@ -892,7 +893,11 @@ async function images() {
   const { measureImages } = await import("./latency-images.mjs");
   await measureImages({ ROOT, LAT, WORK, SCREENS, tier: TIERS.standard, serve, api, assertOnlyTierModels, startCpuSampler, waitForQuiet, foreignCpu, processTable, treeOf, processorSplit, say });
 }
-const commands = { images, probe, prepare, judge, measure, cloud, leak, tokens, report };
+async function regressions() {
+  const { runStopResume } = await import("./latency-stop-resume.mjs");
+  await runStopResume({ context, withLaunch, typeQuestion, qaKey, signal, until, sleep, fs, path, WORK, say });
+}
+const commands = { regressions, images, probe, prepare, judge, measure, cloud, leak, tokens, report };
 const cmd = argv[0];
 if (!commands[cmd]) {
   console.error(`usage: node tools/eval/latency.mjs <${Object.keys(commands).join("|")}> [--exe <win-unpacked>] [--tier standard|fast] [--conditions warm,cold,typed,stop] [--n 40]`);

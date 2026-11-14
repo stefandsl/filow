@@ -86,3 +86,37 @@ Initial validation: 3,168 tests pass, 5 skipped after building the desktop vendo
 hardware module (the initial fresh-checkout run had three QA hardware failures
 before that generated module existed). Typecheck and lint pass. Context removal
 and restoring the 200 ms tail both fail the new assertions and are restored.
+
+## Image experiment and selected size
+
+Forty valid screens per size, CPU-only lfm3-vl on the harness's 11435 store,
+num_ctx 8192, inherited four threads, JPEG 72. Width order rotates per screen;
+only interference-invalid cells are retried. All attempts remain in
+G:/FILOW/tmp/latency/work/phase2b-images/results.json.
+
+| Width | Total prompt tokens (median) | Image token contribution | Prompt evaluation median / p90 ms | Raw point inside | After placement/fallback |
+|---|---:|---:|---:|---:|---:|
+| 1024 | 2152 | 578 | 7221 / 7400 | 27.5% | 85% |
+| 768 | 1912 | 338 | 4916 / 4970 | 42.5% | 90% |
+| 512 | 1720 | 146 | 3189 / 3250 | 100% | 100% |
+
+Image contribution is the difference from the identical first-screen prompt
+without its image (1574 tokens at each width), not a guessed pixel/token ratio.
+The normal product coordinate hint is present in both raw and placed scores.
+UI Automation placement and named-point fallback together recover 57.5 percentage
+points at 1024 and 47.5 at 768; no recovery is needed at 512 on these fixtures.
+This is not a vision-only benchmark. There is no evidence here for dense text,
+unnamed canvas targets, or arbitrary real screens.
+
+Choose 512, the smallest tested size: placed quality improves by 15 points,
+within the allowed 2-point loss. Both real and synthetic local captures use it;
+Cloud and FreeLLMAPI retain 1024 and JPEG 72. Native display bounds and normalized
+UI Automation rectangles are unchanged; small images are not enlarged. Phone
+questions still bypass capture. Image evaluation median falls 55.8% in this
+experiment; packaged release-to-token improvement remains a separate judge.
+
+The optional idle-budget flag counts elapsed waiting across commands, stops
+before 40 minutes, never lowers the foreign-CPU threshold, and avoids even the
+baseline tool's read-only request to the owner's Ollama. Completed samples are
+persisted before another sample starts. The original measurement validity and
+retry limits are unchanged.

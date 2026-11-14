@@ -782,3 +782,16 @@ Il volo del puntatore dura al massimo 900 ms. Le etichette in arrivo mantengono 
 Le risposte di OK Filow, le lezioni sulla lavagna e i lavori degli agenti ricevono la data locale e il giorno della settimana. Non vengono aggiunte altre informazioni su di te o sul PC.
 
 All'arrivo, la punta resta sull'angolo del bersaglio. L'anello lascia libero il quadrante rivolto al testo, la sottolineatura si ferma prima e l'ombra della freccia scompare. Accelerazione e frenata mantengono continuo il movimento del puntatore.
+
+### Tempi di risposta di OK Filow
+
+OK Filow prepara il modello locale delle risposte prima della domanda quando la
+memoria lo consente. Su una scheda grafica piccola può attendere la domanda per
+non rimuovere dalla memoria il modello usato per la presentazione. Il microfono
+si chiude quando rilasci i tasti; Filow completa quindi il riconoscimento delle
+parole prima di rispondere. Il puntatore distingue l'apertura del microfono
+dall'ascolto e dall'elaborazione della risposta.
+Le risposte locali usano un'immagine dello schermo più piccola per ridurre il
+tempo di elaborazione. Le risposte online mantengono la stessa dimensione.
+I controlli riconosciuti sullo schermo conservano le posizioni originali per
+le indicazioni del puntatore.

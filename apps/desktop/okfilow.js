@@ -94,8 +94,9 @@ const QA_MIC_DELAY = qaMicDelay(QA_ALLOWED ? process.env.FILOW_OKF_QA_MIC_DELAY 
 /** The answer log's folder when the user has not picked one (okfilow-answers.js defaultAnswerDir). */
 const answersFallback = () => defaultAnswerDir(require("electron").app.getPath("userData"), process.env, QA_ALLOWED);
 const HOTKEYS = ["ctrl+alt", "ctrl+shift", "alt+shift", "ctrl+meta"];
-// 1024 wide keeps buttons readable for the model and answers about twice as fast as 1280 on a local GPU.
+// Online capture stays unchanged. Local size: 40-screen trial in docs/perf/PHASE-2B.md.
 const IMAGE_MAX_WIDTH = 1024;
+const LOCAL_IMAGE_MAX_WIDTH = 512;
 const FADE_AFTER_MS = 1000;
 /** Exactly the hotkey's modifiers are down (extra modifiers cancel, so Ctrl+Alt+Del never triggers it). */
 const hotkeyHeld = chordHeld;
@@ -110,15 +111,15 @@ function createQaScreen(dir, { nativeImage, fs = require("node:fs"), maxWidth = 
   if (!files.length) throw new Error(`qa screen: no NNN.png pictures in ${dir}`);
   let next = 0;
   const display = { index: 1, id: "qa-screen", bounds: { x: 0, y: 0, width: 1920, height: 1080 } };
-  const shown = { width: Math.min(1920, maxWidth), height: Math.round((1080 * Math.min(1920, maxWidth)) / 1920) };
   return {
     count: files.length,
     /** `images: false` (the eye closed): no picture, no names; the same screen and display. */
-    capture(wantImages) {
+    capture(wantImages, captureWidth = maxWidth) {
+      const shown = { width: Math.min(1920, captureWidth), height: Math.round((1080 * Math.min(1920, captureWidth)) / 1920) };
       const name = files[next++ % files.length];
       if (!wantImages) return { images: [], screens: [{ index: 1, ...shown, cursor: true }], displays: [display], marked: [], selected: "", elements: [] };
       let img = nativeImage.createFromPath(path.join(dir, name));
-      if (img.getSize().width > maxWidth) img = img.resize({ width: maxWidth, quality: "good" });
+      if (img.getSize().width > captureWidth) img = img.resize({ width: captureWidth, quality: "good" });
       const { width, height } = img.getSize();
       let elements = [];
       try {
@@ -1143,11 +1144,12 @@ function createOkFilow(deps) {
     // The eye closed (the stored setting is "off"): no picture is taken, whoever asks and whatever they ask for.
     const want = { images: opts.images, seeScreen: cfg().seeScreen };
     const wantImages = mayCapture(want);
+    const maxWidth = cfg().provider === "local" ? LOCAL_IMAGE_MAX_WIDTH : IMAGE_MAX_WIDTH;
     // A measured run's synthetic screen: the real one is never read, and nothing is waited for.
     if (qaScreen) {
       selection = Promise.resolve("");
       strokes = [];
-      return qaScreen.capture(wantImages);
+      return qaScreen.capture(wantImages, maxWidth);
     }
     const displays = screen.getAllDisplays();
     const cursor = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
@@ -1184,7 +1186,7 @@ function createOkFilow(deps) {
       if (!src || src.thumbnail.isEmpty()) return;
       let img = src.thumbnail;
       const size = img.getSize();
-      if (size.width > IMAGE_MAX_WIDTH) img = img.resize({ width: IMAGE_MAX_WIDTH, quality: "good" });
+      if (size.width > maxWidth) img = img.resize({ width: maxWidth, quality: "good" });
       const { width, height } = img.getSize();
       const index = out.images.length + 1;
       pictured[at] = index;
