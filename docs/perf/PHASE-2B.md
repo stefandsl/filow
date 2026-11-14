@@ -66,3 +66,23 @@ artifacts intact. All processes have hard deadlines and owned-process cleanup.
 Report median and p90 for heard, token, sentence, sound and mark. Pass requires
 at least 20% lower warm AND cold token medians, p90 no worse, pointing loss <=2
 points, Stop and Resume intact. Missing evidence is unverified, never a pass.
+
+## Third small change and recognition decision
+
+The worker posts its final result before `stopped`; the desktop stop promise waits
+for that acknowledgement. The panel nevertheless waited 200 ms when text already
+existed (150 ms floor checked after the next 50 ms tick). Replace this with one
+50 ms IPC grace turn. Preserve the 1,500 ms ceiling for an empty transcript and
+dictation's immediate text/queued-start exits. Audio closes before this wait and
+the session-id check stays after it. This does not claim to remove cold decoding.
+
+Startup recognizer preloading is deferred: questions and dictation share the
+worker, task pins/languages can differ, and a concurrent `start` currently disposes
+a not-yet-ready worker. The existing key-down start buffers audio while loading.
+A safe startup preload would require session ownership/coalescing beyond a small
+third change. No microphone is opened speculatively.
+
+Initial validation: 3,168 tests pass, 5 skipped after building the desktop vendor
+hardware module (the initial fresh-checkout run had three QA hardware failures
+before that generated module existed). Typecheck and lint pass. Context removal
+and restoring the 200 ms tail both fail the new assertions and are restored.

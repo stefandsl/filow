@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { openSelectedMic } from "@filow/stt";
 import { abandonedNote, emptyRecordingNote, micNoteText, openMicrophone, type MicOpening } from "@/lib/buddy/micOpen";
+import { waitForTranscript } from "@/lib/buddy/transcript-tail";
 import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture, type OkFilowCard, type OkFilowJob, type OkFilowMode, type OkFilowStatus } from "@/lib/buddy/bridge";
 import { drawingSvg, type BuddyModel } from "@/lib/buddy/visuals";
 import { createSpeaker } from "@/lib/buddy/voice";
@@ -1193,17 +1194,8 @@ export default function OkFilowPanel() {
     stopAudio();
     try { await b.stt.stop(); } catch { /* the error already reached onResult */ }
     if (why !== "dictate" && pendingMarks.current) pendingMarks.current.sttStop = Date.now();
-    // The recognizer's last words can land up to about a second after the keys go up: wait for them.
-    // Dictation stops waiting as soon as there is text: the worker sends its last phrase before it
-    // acknowledges the stop, so the text is complete here and every 50 ms is felt.
-    const minWait = why === "dictate" ? 0 : 150;
-    for (let waited = 0; waited < 1500; waited += 50) {
-      if (why === "dictate" && waited === 0 && joinTranscript(committed.current, partial.current)) break;
-      await new Promise((r) => setTimeout(r, 50));
-      if (waited >= minWait && joinTranscript(committed.current, partial.current)) break;
-      // The keys were pressed again (the second brief press of a pair): its words must not wait for this.
-      if (why === "dictate" && queuedStart.current) break;
-    }
+    // The worker flushes before acknowledging stop. Allow one turn for final-result IPC.
+    await waitForTranscript(() => Boolean(joinTranscript(committed.current, partial.current)), why === "dictate", () => Boolean(queuedStart.current));
     // A new recording started meanwhile (a press during hands-free): leave its state alone.
     if (session.current !== sid) return;
     const question = joinTranscript(committed.current, partial.current);

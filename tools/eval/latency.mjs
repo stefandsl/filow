@@ -50,6 +50,8 @@ const TIERS = {
   },
 };
 
+const ownedServers = new Set();
+const samplers = new Set();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const argv = process.argv.slice(2);
 const flag = (name, dflt = "") => { const i = argv.indexOf(`--${name}`); return i >= 0 ? argv[i + 1] : dflt; };
@@ -100,10 +102,12 @@ function listener(port) {
 async function serve(tier) {
   if (tier.port === 11434) throw new Error("never the owner's Ollama");
   let pid = listener(tier.port);
+  if (pid && flag("idle-budget-file")) throw new Error(`port ${tier.port} is already owned by another run`);
   if (!pid) {
     ollamaCli(tier, ["serve"], { detached: true }).unref();
     for (let i = 0; i < 60 && !pid; i++) { await sleep(500); pid = listener(tier.port); }
     if (!pid) throw new Error(`our ${tier.name} Ollama did not start on ${tier.port}`);
+    ownedServers.add(pid);
     for (let i = 0; i < 40; i++) { try { await api(tier, "/api/version"); break; } catch { await sleep(250); } }
   }
   const table = processTable();
@@ -334,6 +338,7 @@ const heardText = (page) => page.evaluate(`(document.querySelector(".okf-q")?.te
 function startCpuSampler(file) {
   const ps = `$n=[Environment]::ProcessorCount; while ($true) { $t=Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Where-Object { $_.Name -ne '_Total' -and $_.Name -ne 'Idle' -and $_.Name -notlike 'WmiPrvSE*' } | Select-Object IDProcess,PercentProcessorTime; $o=@{ at=[DateTimeOffset]::Now.ToUnixTimeMilliseconds(); n=$n; p=@($t | ForEach-Object { @($_.IDProcess, $_.PercentProcessorTime) }) }; ($o | ConvertTo-Json -Compress -Depth 4) | Add-Content -Encoding ascii '${file}'; Start-Sleep -Milliseconds 3000 }`;
   const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], { stdio: "ignore", windowsHide: true });
+  samplers.add(child);
   return child;
 }
 // (WmiPrvSE is left out: it is the WMI host answering this sampler's own queries.)
@@ -366,9 +371,16 @@ async function waitForQuiet(ctx) {
     const v = foreignCpu(ctx.cpuFile, Date.now() - 6500, Date.now(), ours());
     const gpu = ctx.tier.gpu ? gpuUtil() : 0;
     if (v !== null && v <= 15 && (gpu === null || gpu <= 10)) { if (told) say(`[${ctx.tier.name}] quiet again after ${Math.round((Date.now() - start) / 1000)} s`); return; }
-    if (Date.now() - start > 30 * 60_000) { say(`[${ctx.tier.name}] still busy after 30 min (foreign CPU ${Math.round(v ?? -1)}%, GPU ${gpu}%): asking anyway, the sample will say so`); return; }
+    if (!flag("idle-budget-file") && Date.now() - start > 30 * 60_000) { say(`[${ctx.tier.name}] still busy after 30 min (foreign CPU ${Math.round(v ?? -1)}%, GPU ${gpu}%): asking anyway, the sample will say so`); return; }
     if (!told) { say(`[${ctx.tier.name}] waiting: the PC is busy with other work (foreign CPU ${Math.round(v ?? -1)}%, GPU ${gpu}%)`); told = true; }
-    await sleep(5000);
+    const budgetFile = flag("idle-budget-file");
+    if (budgetFile) {
+      const used = fs.existsSync(budgetFile) ? JSON.parse(fs.readFileSync(budgetFile, "utf8")).ms : 0;
+      if (used >= 2400000) throw new Error("blocked: not idle (40 minute total budget)");
+      const before = Date.now();
+      await sleep(Math.min(5000, 2400000 - used));
+      fs.writeFileSync(budgetFile, JSON.stringify({ ms: used + Date.now() - before }));
+    } else await sleep(5000);
   }
 }
 function gpuUtil() {
@@ -539,6 +551,8 @@ async function collect(ctx, name, plan, runOne) {
     const s = await runOne(p);
     Object.assign(s, { condition: name, tier: ctx.tier.name, slot: p.slot, attempt: (p.attempt ?? 0) + 1 });
     out.push(s);
+    (ctx.completedSamples ??= []).push(s);
+    saveResults(ctx);
     say(`[${ctx.tier.name} ${name}] #${p.slot + 1} q${p.question + 1}${p.offset !== undefined ? ` off ${p.offset}` : ""}${p.hold ? " held" : ""}: ${s.valid ? `ok t0->voice ${spanValue(s, SPANS.find((x) => x.name === "t0->voice")) ?? "-"} ms` : `invalid (${s.reasons.join(", ")})`}`);
     if (!s.valid) {
       if (++reasks > budget) { say(`[${ctx.tier.name} ${name}] stopped: more than 25% re-asks (last: ${s.reasons.join(", ")})`); ctx.stopped[name] = s.reasons.join(", "); break; }
@@ -623,7 +637,7 @@ function resultsFile(ctx) {
   return path.join(LAT, `results-${ctx.info.sha.slice(0, 7)}-${ctx.tier.name}-${ctx.label}-${new Date(ctx.started).toISOString().slice(0, 10)}.json`);
 }
 function saveResults(ctx) {
-  const body = JSON.stringify({ sha: ctx.info.sha, tier: ctx.tier.name, label: ctx.label, started: ctx.started, machine: ctx.machine, launches: ctx.launches.length, stopped: ctx.stopped, samples: ctx.samples.concat(ctx.current ?? []) }, null, 1);
+  const body = JSON.stringify({ sha: ctx.info.sha, tier: ctx.tier.name, label: ctx.label, started: ctx.started, machine: ctx.machine, launches: ctx.launches.length, stopped: ctx.stopped, samples: ctx.completedSamples ? ctx.samples.filter(s => s.condition === "first-of-launch").concat(ctx.completedSamples) : ctx.samples.concat(ctx.current ?? []) }, null, 1);
   if (body.includes("QUOKKA")) throw new Error("canary in the results");
   fs.writeFileSync(resultsFile(ctx), body);
 }
@@ -673,7 +687,7 @@ async function context(tierName, label) {
   await assertOnlyTierModels(tier);
   const cpuFile = path.join(WORK, `cpu-${tier.name}-${Date.now()}.jsonl`);
   const sampler = startCpuSampler(cpuFile);
-  const owner = await ownerOllama();
+  const owner = flag("idle-budget-file") ? "not queried" : await ownerOllama();
   const ownerPids = processTable().filter((p) => /ollama/i.test(p.name) && p.pid !== ollamaPid && !treeOf(processTable(), ollamaPid).includes(p.pid)).map((p) => p.pid);
   const ctx = { exe, info, tier, label, ollamaPid, cpuFile, sampler, ownerOllama: ownerPids, launches: [], samples: [], stopped: {}, started: Date.now(), machine: { ...machineBlock(tier), ownerOllama: owner } };
   process.on("exit", () => { try { sampler.kill(); } catch { /* gone */ } });
@@ -874,11 +888,18 @@ async function probe() {
   try { ctx.sampler.kill(); } catch { /* gone */ }
 }
 
-const commands = { probe, prepare, judge, measure, cloud, leak, tokens, report };
+async function images() {
+  const { measureImages } = await import("./latency-images.mjs");
+  await measureImages({ ROOT, LAT, WORK, SCREENS, tier: TIERS.standard, serve, api, assertOnlyTierModels, startCpuSampler, waitForQuiet, foreignCpu, processTable, treeOf, processorSplit, say });
+}
+const commands = { images, probe, prepare, judge, measure, cloud, leak, tokens, report };
 const cmd = argv[0];
 if (!commands[cmd]) {
   console.error(`usage: node tools/eval/latency.mjs <${Object.keys(commands).join("|")}> [--exe <win-unpacked>] [--tier standard|fast] [--conditions warm,cold,typed,stop] [--n 40]`);
   process.exit(2);
 }
-commands[cmd]().catch((e) => { say(`[latency] stopped: ${e && e.message}`); process.exitCode = 1; });
+commands[cmd]().catch((e) => { say(`[latency] stopped: ${e && e.message}`); process.exitCode = 1; }).finally(async () => {
+  for (const sampler of samplers) { try { sampler.kill(); } catch {} }
+  for (const pid of ownedServers) await stopTree(pid);
+});
 
