@@ -24,7 +24,8 @@ it("keeps model margins click-through and limits the hover IPC to the model rend
  const main=fs.readFileSync(new URL("../../../desktop/okfilow.js",import.meta.url),"utf8");
  expect(main).toContain('modelWin.setIgnoreMouseEvents(true, { forward: true })');
  expect(main).toContain('e.sender === modelWin.webContents');
- expect(main).toContain('modelWin.setIgnoreMouseEvents(active !== true, { forward: true })');
+ // the page's hover only holds the mouse for a part or a drag; main decides from the real cursor (okfilow-hit.js)
+ expect(main).toContain('modelHit?.hold(active === true)');
 });
 
 it("remembers speech that started before the first mark arrived", () => {
