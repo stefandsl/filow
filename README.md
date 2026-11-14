@@ -702,6 +702,8 @@ every send shows "Going outside" while it lasts ([docs/okfilow/OUTBOUND.md](docs
 It speaks with a natural voice that runs on this PC, with the system voice as the fallback
 ([docs/okfilow/VOICE.md](docs/okfilow/VOICE.md)). Speech works in English, Italian, Russian, Romanian
 and Japanese ([docs/stt/LANGUAGES.md](docs/stt/LANGUAGES.md)).
+The first sentence is sent to the voice immediately; sentences that arrive while it plays are grouped
+for smoother continuation. Stop, Resume and the highlighted sentence keep their positions.
 
 Screen marks follow the spoken sentences and keep their earlier positions as an answer grows. The pointer and its label travel together through clear space; a blocked route hides the pointer instead of covering detected text. The answer bubble grows smoothly (without size animation when reduced motion is enabled). The 3D view uses surface anchors and spaced leader lanes, with readable labels in both themes; empty model margins let clicks through.
 
