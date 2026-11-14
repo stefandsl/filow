@@ -18,7 +18,8 @@ export const MAX_RECALL = 5;
 export const LEARN_SYSTEM = [
   "You read one message a user wrote to a screen assistant.",
   "List at most 3 short facts the user stated about themselves, or preferences about how they want answers, that will still be true next week.",
-  "Write each on its own line, in the language of the message, at most 15 words, starting with ANSWER: for how to answer, or ME: for something about the user.",
+  "Write each on its own line, at most 15 words, starting with ANSWER: for how to answer, or ME: for something about the user.",
+  "Write each fact in the language of the message, addressed to the user: an instruction for how to answer (\"Answer in short sentences\") or a sentence with \"you\" (\"Your presentation is about solar panels\"). Never write \"the user\".",
   "Never list: anything about other people, what is on a screen or a web page, passwords, codes, numbers, addresses, or a request that only concerns this one question.",
   "If there is nothing to list, write NONE.",
 ].join("\n");
@@ -80,5 +81,5 @@ export function sanitizeMemory(value: unknown): string[] {
 export function memoryBlock(facts: string[] | undefined): string {
   const list = sanitizeMemory(facts);
   if (!list.length) return "";
-  return `\n\nThe user asked you to remember these about them (kept on their PC). Follow the ones about how to answer; use the others only when they fit the question, and do not mention that you remember:\n${list.map((f) => `- ${f}`).join("\n")}`;
+  return `\n\nThe user asked you to remember these about them (kept on their PC, written to the user: "you" and "your" mean the user). Follow the ones about how to answer; use the others only when they fit the question, and do not mention that you remember:\n${list.map((f) => `- ${f}`).join("\n")}`;
 }

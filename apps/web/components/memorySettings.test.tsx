@@ -79,6 +79,14 @@ describe("Remember things about me", () => {
     expect(asked).toHaveLength(2);
   });
 
+  it("the panel's styles: Japanese keeps words whole, the white swatch and the warning read in the light theme", async () => {
+    const css = (await import("node:fs")).readFileSync(new URL("../app/okfilow/okfilow.css", import.meta.url), "utf8");
+    expect(css).toContain(".okf-panel:lang(ja) { word-break: auto-phrase; }");
+    expect(css).toMatch(/@supports not \(word-break: auto-phrase\)[^}]*word-break: keep-all; overflow-wrap: anywhere;/);
+    expect(css).toContain(':root[data-theme="light"] .okf-swatch { box-shadow: inset 0 0 0 1px rgba(17, 19, 24, 0.6); }');
+    expect(css).toContain(':root[data-theme="light"] .okf-warn { color: #5c3a00; }');
+  });
+
   it("an older desktop app without memory shows nothing", () => {
     expect(renderToStaticMarkup(<MemorySettings bridge={{} as OkFilowBridge} status={{ memory: true } as OkFilowStatus} t={okfText("en")} configure={async () => {}} initial={FACTS} />)).toBe("");
   });

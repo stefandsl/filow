@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
-import { learnFacts, memoryBlock, parseLearned, type ProposedFact } from "./memory";
+import { LEARN_SYSTEM, learnFacts, memoryBlock, parseLearned, type ProposedFact } from "./memory";
 import { createOutboundController, NoConsentError } from "./outboundClient";
 import { noticeBody, standing, withConsent, type ConsentMap, type Recipient } from "./outbound";
 import { okfText } from "./text";
@@ -20,6 +20,11 @@ describe("the model's reply", () => {
     ]);
     expect(parseLearned("NONE")).toEqual([]);
     expect(parseLearned("The user likes cats")).toEqual([]);
+  });
+  it("facts are asked in the language of the message, addressed to the user, never \"the user\"", () => {
+    expect(LEARN_SYSTEM).toContain("in the language of the message, addressed to the user");
+    expect(LEARN_SYSTEM).toContain('Never write "the user".');
+    expect(memoryBlock(["Your talk is about solar panels"])).toContain('"you" and "your" mean the user');
   });
   it("the prompt block is empty without facts", () => {
     expect(memoryBlock([])).toBe("");
