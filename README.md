@@ -9,6 +9,10 @@ follow-up question window. Audio stays in memory except the five enrollment
 recordings retained in your app profile. **Delete my recordings and trained wake
 word** removes the recordings and personal head. See [evidence and limitations](docs/okfilow/WAKE-WORD.md).
 
+Retraining now includes stored numerical examples of similar non-wake phrases.
+This reduces accidental near-miss detections but increases missed calls in the
+current tests. The experimental branch still fails its accuracy and CPU targets.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="brand/png/filow-primary-light.png" />

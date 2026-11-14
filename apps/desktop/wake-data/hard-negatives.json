@@ -1,0 +1,483 @@
+{
+  "version": 1,
+  "dimensions": 1152,
+  "windows": 298,
+  "sha256": "93991c7ab619038fb936c2575a0dc21d2658e04a92f8e3fc5e603c0922675936",
+  "source": "Synthetic spike near-miss embeddings; no audio. Voices excluded from the 20-voice app QA corpus.",
+  "voices": [
+    [
+      "kokoro_v12",
+      "en"
+    ],
+    [
+      "kokoro_v13",
+      "en"
+    ],
+    [
+      "supertonic_v4",
+      "it"
+    ],
+    [
+      "supertonic_v5",
+      "it"
+    ],
+    [
+      "supertonic_v4",
+      "ru"
+    ],
+    [
+      "supertonic_v5",
+      "ru"
+    ],
+    [
+      "supertonic_v4",
+      "ro"
+    ],
+    [
+      "supertonic_v5",
+      "ro"
+    ],
+    [
+      "supertonic_v4",
+      "ja"
+    ],
+    [
+      "supertonic_v5",
+      "ja"
+    ]
+  ],
+  "clips": [
+    {
+      "id": "supertonic_v4_it_near0_s100",
+      "voice": "supertonic_v4",
+      "lang": "it",
+      "text": "Ok, figlio."
+    },
+    {
+      "id": "supertonic_v4_it_near1_s100",
+      "voice": "supertonic_v4",
+      "lang": "it",
+      "text": "Occhei, fila."
+    },
+    {
+      "id": "supertonic_v4_it_near2_s100",
+      "voice": "supertonic_v4",
+      "lang": "it",
+      "text": "Ehi Filo."
+    },
+    {
+      "id": "supertonic_v4_it_near3_s100",
+      "voice": "supertonic_v4",
+      "lang": "it",
+      "text": "OK Google."
+    },
+    {
+      "id": "supertonic_v5_it_near0_s100",
+      "voice": "supertonic_v5",
+      "lang": "it",
+      "text": "Ok, figlio."
+    },
+    {
+      "id": "supertonic_v5_it_near1_s100",
+      "voice": "supertonic_v5",
+      "lang": "it",
+      "text": "Occhei, fila."
+    },
+    {
+      "id": "supertonic_v5_it_near2_s100",
+      "voice": "supertonic_v5",
+      "lang": "it",
+      "text": "Ehi Filo."
+    },
+    {
+      "id": "supertonic_v5_it_near3_s100",
+      "voice": "supertonic_v5",
+      "lang": "it",
+      "text": "OK Google."
+    },
+    {
+      "id": "supertonic_v4_ru_near0_s100",
+      "voice": "supertonic_v4",
+      "lang": "ru",
+      "text": "Окей, филе."
+    },
+    {
+      "id": "supertonic_v4_ru_near1_s100",
+      "voice": "supertonic_v4",
+      "lang": "ru",
+      "text": "Окей, фильм."
+    },
+    {
+      "id": "supertonic_v4_ru_near2_s100",
+      "voice": "supertonic_v4",
+      "lang": "ru",
+      "text": "Окей, Гугл."
+    },
+    {
+      "id": "supertonic_v4_ru_near3_s100",
+      "voice": "supertonic_v4",
+      "lang": "ru",
+      "text": "Эй, Фило."
+    },
+    {
+      "id": "supertonic_v5_ru_near0_s100",
+      "voice": "supertonic_v5",
+      "lang": "ru",
+      "text": "Окей, филе."
+    },
+    {
+      "id": "supertonic_v5_ru_near1_s100",
+      "voice": "supertonic_v5",
+      "lang": "ru",
+      "text": "Окей, фильм."
+    },
+    {
+      "id": "supertonic_v5_ru_near2_s100",
+      "voice": "supertonic_v5",
+      "lang": "ru",
+      "text": "Окей, Гугл."
+    },
+    {
+      "id": "supertonic_v5_ru_near3_s100",
+      "voice": "supertonic_v5",
+      "lang": "ru",
+      "text": "Эй, Фило."
+    },
+    {
+      "id": "supertonic_v4_ro_near0_s100",
+      "voice": "supertonic_v4",
+      "lang": "ro",
+      "text": "OK, filă."
+    },
+    {
+      "id": "supertonic_v4_ro_near1_s100",
+      "voice": "supertonic_v4",
+      "lang": "ro",
+      "text": "Okei, fulg."
+    },
+    {
+      "id": "supertonic_v4_ro_near2_s100",
+      "voice": "supertonic_v4",
+      "lang": "ro",
+      "text": "OK Google."
+    },
+    {
+      "id": "supertonic_v4_ro_near3_s100",
+      "voice": "supertonic_v4",
+      "lang": "ro",
+      "text": "Hei Filo."
+    },
+    {
+      "id": "supertonic_v5_ro_near0_s100",
+      "voice": "supertonic_v5",
+      "lang": "ro",
+      "text": "OK, filă."
+    },
+    {
+      "id": "supertonic_v5_ro_near1_s100",
+      "voice": "supertonic_v5",
+      "lang": "ro",
+      "text": "Okei, fulg."
+    },
+    {
+      "id": "supertonic_v5_ro_near2_s100",
+      "voice": "supertonic_v5",
+      "lang": "ro",
+      "text": "OK Google."
+    },
+    {
+      "id": "supertonic_v5_ro_near3_s100",
+      "voice": "supertonic_v5",
+      "lang": "ro",
+      "text": "Hei Filo."
+    },
+    {
+      "id": "supertonic_v4_ja_near0_s100",
+      "voice": "supertonic_v4",
+      "lang": "ja",
+      "text": "オーケー、グーグル。"
+    },
+    {
+      "id": "supertonic_v4_ja_near1_s100",
+      "voice": "supertonic_v4",
+      "lang": "ja",
+      "text": "オーケー、ヒーロー。"
+    },
+    {
+      "id": "supertonic_v4_ja_near2_s100",
+      "voice": "supertonic_v4",
+      "lang": "ja",
+      "text": "オーケー、広い。"
+    },
+    {
+      "id": "supertonic_v4_ja_near3_s100",
+      "voice": "supertonic_v4",
+      "lang": "ja",
+      "text": "ねえ、フィロー。"
+    },
+    {
+      "id": "supertonic_v5_ja_near0_s100",
+      "voice": "supertonic_v5",
+      "lang": "ja",
+      "text": "オーケー、グーグル。"
+    },
+    {
+      "id": "supertonic_v5_ja_near1_s100",
+      "voice": "supertonic_v5",
+      "lang": "ja",
+      "text": "オーケー、ヒーロー。"
+    },
+    {
+      "id": "supertonic_v5_ja_near2_s100",
+      "voice": "supertonic_v5",
+      "lang": "ja",
+      "text": "オーケー、広い。"
+    },
+    {
+      "id": "supertonic_v5_ja_near3_s100",
+      "voice": "supertonic_v5",
+      "lang": "ja",
+      "text": "ねえ、フィロー。"
+    },
+    {
+      "id": "kokoro_v12_en_near0_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "OK fellow."
+    },
+    {
+      "id": "kokoro_v12_en_near1_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "Okay, follow."
+    },
+    {
+      "id": "kokoro_v12_en_near2_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "Hey Filow."
+    },
+    {
+      "id": "kokoro_v12_en_near3_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "OK Google."
+    },
+    {
+      "id": "kokoro_v12_en_near4_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "OK, feel low."
+    },
+    {
+      "id": "kokoro_v12_en_near5_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "Okay, hello."
+    },
+    {
+      "id": "kokoro_v12_en_near6_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "OK pillow."
+    },
+    {
+      "id": "kokoro_v12_en_near7_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "Okay yellow."
+    },
+    {
+      "id": "kokoro_v12_en_near8_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "OK below."
+    },
+    {
+      "id": "kokoro_v12_en_near9_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "A fellow told me to follow the flow."
+    },
+    {
+      "id": "kokoro_v12_en_near10_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "Hey Siri."
+    },
+    {
+      "id": "kokoro_v12_en_near11_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "Alexa."
+    },
+    {
+      "id": "kokoro_v12_en_near12_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "OK, fine."
+    },
+    {
+      "id": "kokoro_v12_en_near13_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "Okay Phil, oh well."
+    },
+    {
+      "id": "kokoro_v12_en_near14_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "OK, fill it."
+    },
+    {
+      "id": "kokoro_v12_en_near15_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "Okay, philosophy."
+    },
+    {
+      "id": "kokoro_v12_en_near16_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "OK."
+    },
+    {
+      "id": "kokoro_v12_en_near17_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "Filow."
+    },
+    {
+      "id": "kokoro_v12_en_near18_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "I feel low today, okay?"
+    },
+    {
+      "id": "kokoro_v12_en_near19_s100",
+      "voice": "kokoro_v12",
+      "lang": "en",
+      "text": "Okay, fellows, follow me."
+    },
+    {
+      "id": "kokoro_v13_en_near0_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "OK fellow."
+    },
+    {
+      "id": "kokoro_v13_en_near1_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "Okay, follow."
+    },
+    {
+      "id": "kokoro_v13_en_near2_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "Hey Filow."
+    },
+    {
+      "id": "kokoro_v13_en_near3_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "OK Google."
+    },
+    {
+      "id": "kokoro_v13_en_near4_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "OK, feel low."
+    },
+    {
+      "id": "kokoro_v13_en_near5_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "Okay, hello."
+    },
+    {
+      "id": "kokoro_v13_en_near6_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "OK pillow."
+    },
+    {
+      "id": "kokoro_v13_en_near7_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "Okay yellow."
+    },
+    {
+      "id": "kokoro_v13_en_near8_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "OK below."
+    },
+    {
+      "id": "kokoro_v13_en_near9_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "A fellow told me to follow the flow."
+    },
+    {
+      "id": "kokoro_v13_en_near10_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "Hey Siri."
+    },
+    {
+      "id": "kokoro_v13_en_near11_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "Alexa."
+    },
+    {
+      "id": "kokoro_v13_en_near12_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "OK, fine."
+    },
+    {
+      "id": "kokoro_v13_en_near13_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "Okay Phil, oh well."
+    },
+    {
+      "id": "kokoro_v13_en_near14_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "OK, fill it."
+    },
+    {
+      "id": "kokoro_v13_en_near15_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "Okay, philosophy."
+    },
+    {
+      "id": "kokoro_v13_en_near16_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "OK."
+    },
+    {
+      "id": "kokoro_v13_en_near17_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "Filow."
+    },
+    {
+      "id": "kokoro_v13_en_near18_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "I feel low today, okay?"
+    },
+    {
+      "id": "kokoro_v13_en_near19_s100",
+      "voice": "kokoro_v13",
+      "lang": "en",
+      "text": "Okay, fellows, follow me."
+    }
+  ]
+}

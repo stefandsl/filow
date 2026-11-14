@@ -13,7 +13,12 @@ function background(dir) {
   const bytes = fs.readFileSync(path.join(dir, "background.bin"));
   if (crypto.createHash("sha256").update(bytes).digest("hex") !== meta.sha256) throw new Error("Wake background checksum mismatch");
   const data = Float32Array.from(new Int8Array(bytes.buffer, bytes.byteOffset, bytes.length), (v) => v / 127);
-  return { data, meta };
+  const hardMeta = JSON.parse(fs.readFileSync(path.join(dir, "hard-negatives.json"), "utf8"));
+  const hardBytes = fs.readFileSync(path.join(dir, "hard-negatives.bin"));
+  if (crypto.createHash("sha256").update(hardBytes).digest("hex") !== hardMeta.sha256 || hardBytes.length !== hardMeta.windows * FEATURES * 4) throw new Error("Wake hard-negative checksum mismatch");
+  const hard = new Float32Array(hardBytes.buffer.slice(hardBytes.byteOffset, hardBytes.byteOffset + hardBytes.length));
+  if (!hard.every(Number.isFinite)) throw new Error("Invalid wake hard negatives");
+  return { data, meta, hard, hardMeta };
 }
 function random(seed = 12345) { return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }; }
 // Balanced-class stochastic logistic regression with L2 regularization. Training
@@ -31,8 +36,9 @@ function trainHead(positives, bg) {
     for (let i = 0; i < 2400; i++) {
       const positive = i % 2 === 0;
       const range = ranges[Math.floor(rng() * ranges.length)];
-      const offset = positive ? 0 : (range[0] + Math.floor(rng() * (range[1] - range[0] - WINDOW))) * WIDTH;
-      const x = positive ? positives[Math.floor(rng() * positives.length)] : bg.data;
+      const useHard = !positive && bg.hard?.length && i % 10 === 1;
+      const offset = positive ? 0 : useHard ? Math.floor(rng() * (bg.hard.length / FEATURES)) * FEATURES : (range[0] + Math.floor(rng() * (range[1] - range[0] - WINDOW))) * WIDTH;
+      const x = positive ? positives[Math.floor(rng() * positives.length)] : useHard ? bg.hard : bg.data;
       const error = (positive ? 1 : 0) - 1 / (1 + Math.exp(-Math.max(-30, Math.min(30, dot(w, x, offset) + bias))));
       for (let j = 0; j < FEATURES; j++) w[j] += rate * (error * x[offset + j] - 0.00003 * w[j]);
       bias += rate * error;
@@ -52,7 +58,7 @@ function trainHead(positives, bg) {
   }
   scores.sort((a, b) => b - a);
   const threshold = (budget) => scores[Math.floor(budget * hours)];
-  const result = { version: 1, weights: Array.from(w), bias, thresholds: { loose: threshold(5), sensitive: threshold(0.5), sure: threshold(0.1) }, calibrationHours: hours, background: bg.meta.sha256 };
+  const result = { version: 1, weights: Array.from(w), bias, thresholds: { loose: threshold(5), sensitive: threshold(0.5), sure: threshold(0.1) }, calibrationHours: hours, background: bg.meta.sha256, hardNegatives: bg.hardMeta?.sha256 };
   if (!validateProfile(result)) throw new Error("Wake training failed");
   return result;
 }
@@ -86,19 +92,34 @@ async function createEmbedding(dir) {
 function join(a, b) { const out = new Float32Array(a.length + b.length); out.set(a); out.set(b, a.length); return out; }
 function createStream(embedding, profile) {
   let audio = new Float32Array(), mel = new Float32Array(), history = new Float32Array();
+  let peak = -Infinity, frames = 0;
   return {
-    reset() { audio = new Float32Array(); mel = new Float32Array(); history = new Float32Array(); },
+    reset() { audio = new Float32Array(); mel = new Float32Array(); history = new Float32Array(); peak = -Infinity; frames = 0; },
     async feed(samples) {
       audio = join(audio, samples);
       let score = -Infinity;
       while (audio.length >= 1760) {
-        mel = join(mel, await embedding.spectrogram(audio.subarray(0, 1760)));
+        const next = await embedding.spectrogram(audio.subarray(0, 1760));
+        let nextPeak = peak;
+        for (const value of next) nextPeak = Math.max(nextPeak, value);
+        const changed = nextPeak > peak;
+        peak = nextPeak;
+        // The model clips log-mel to max(input)-80 dB. Normalize the retained
+        // context to the same prefix maximum, not each 110 ms block's maximum.
+        // Rebuild cached vectors when a louder block changes that floor.
+        mel = join(mel, next);
+        for (let i = 0; i < mel.length; i++) mel[i] = Math.max(mel[i], peak - 8);
         audio = audio.slice(1280);
-        if (mel.length >= 76 * 32) {
-          const e = await embedding.vectors(mel.subarray(0, 76 * 32));
-          mel = mel.slice(8 * 32);
-          history = join(history, e).slice(-FEATURES);
+        frames += next.length / 32;
+        if (frames >= 76) {
+          const end = mel.length - ((frames - 76) % 8) * 32;
+          if (changed || !history.length) history = await embedding.vectors(mel.subarray(0, end));
+          else history = join(history, await embedding.vectors(mel.subarray(end - 76 * 32, end)));
+          history = history.slice(-FEATURES);
           if (history.length === FEATURES) score = Math.max(score, dot(profile.weights, history) + profile.bias);
+          // Keep exactly the mel context required by the twelve-vector head,
+          // aligned to the original eight-frame embedding stride.
+          if (mel.length >= (76 + 8 * WINDOW) * 32) mel = mel.slice(8 * 32);
         }
       }
       return score;

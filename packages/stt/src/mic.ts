@@ -31,6 +31,7 @@ export async function startMic(
   onChunk: (pcm16: ArrayBuffer) => void,
   onWarning?: (warning: MicWarning | null) => void,
   onLog?: (line: string) => void,
+  options?: { latencyHint?: AudioContextLatencyCategory },
 ): Promise<MicCapture> {
   onLog?.("microphone capture: 0.9.6 code path");
   // How long the system took to hand the microphone over: Windows once took 15 s on every open, and
@@ -71,7 +72,7 @@ export async function startMic(
   };
   try {
     const openedAt = performance.now();
-    try { ctx = new AudioContext({ sampleRate }); }
+    try { ctx = new AudioContext({ sampleRate, ...(options?.latencyHint ? { latencyHint: options.latencyHint } : {}) }); }
     finally {
       const elapsedMs = Math.round(performance.now() - openedAt);
       onLog?.(`microphone AudioContext opened in ${elapsedMs} ms`);

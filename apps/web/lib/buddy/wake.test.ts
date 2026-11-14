@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import { createWakeCapture } from "./wake";
 import type { OkFilowBridge } from "./bridge";
 describe("wake capture cancellation", () => {
+  it("uses an efficient audio scheduling buffer while keeping 16 kHz PCM", async () => {
+    const open = vi.fn(async () => ({ stop: vi.fn() }));
+    const c = createWakeCapture({} as OkFilowBridge, open);
+    await c.set(true);
+    expect(open).toHaveBeenCalledWith(16000, expect.any(Function), expect.any(Function), undefined, {latencyHint: "playback"});
+    c.stop();
+  });
   it("closes a microphone that opens after off", async () => {
     let resolve!: (v: { stop(): void }) => void;
     const open = vi.fn(() => new Promise<{ stop(): void }>((r) => { resolve = r; }));

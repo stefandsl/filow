@@ -28,7 +28,7 @@ export function createWakeCapture(b: OkFilowBridge, open = startMic) {
           });
         }, (warning) => {
           if (warning?.kind === "ended" && id === generation) { stop(); void b.wakeAction?.("error", "The selected microphone disconnected"); }
-        });
+        }, undefined, { latencyHint: "playback" });
         if (id !== generation || !wanted) got.stop(); else capture = got;
       } catch (e) {
         if (id !== generation) return;

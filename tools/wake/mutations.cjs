@@ -4,6 +4,13 @@ const root=path.resolve(__dirname,'../..'),out=process.argv[2];
 if(!out)throw Error('An evidence output path is required');
 const policy='apps/desktop/wake-policy.js';
 const cases=[
+  ['shared mel floor','apps/desktop/wake-head.js','Math.max(mel[i], peak - 8)','mel[i]'],
+  ['refresh cached vectors','apps/desktop/wake-head.js','if (changed || !history.length)','if (!history.length)'],
+  ['stream frame stride','apps/desktop/wake-head.js','audio = audio.slice(1280);','audio = audio.slice(1600);'],
+  ['hard-negative training','apps/desktop/wake-head.js','const useHard = !positive && bg.hard?.length && i % 10 === 1;','const useHard = false;'],
+  ['hard-negative checksum','apps/desktop/wake-head.js','crypto.createHash("sha256").update(hardBytes).digest("hex") !== hardMeta.sha256','false'],
+  ['wake scheduling buffer','apps/web/lib/buddy/wake.ts','latencyHint: "playback"','latencyHint: "interactive"'],
+  ['audio scheduling option','packages/stt/src/mic.ts','{ latencyHint: options.latencyHint }','{}'],
   ['off by default',policy,'enabled: false','enabled: true'],
   ['one thread',policy,'threads: 1','threads: 2'],
   ['KWS native thread','apps/desktop/wake-worker.js','numThreads: 1','numThreads: 2'],
@@ -34,7 +41,7 @@ for(const [name,file,from,to] of cases){
  if(!original.includes(from))throw Error('Mutation target missing: '+name);
  try{
   fs.writeFileSync(p,original.replace(from,to));
-  const r=spawnSync(process.execPath,[path.join(root,'node_modules/vitest/vitest.mjs'),'run','apps/desktop/wake.test.ts'],{cwd:root,encoding:'utf8',timeout:30000,windowsHide:true,env:{...process.env,FILOW_QA_NO_GLOBAL_INPUT:'1',FILOW_QA_HEADLESS:'1'}});
+  const r=spawnSync(process.execPath,[path.join(root,'node_modules/vitest/vitest.mjs'),'run','apps/desktop/wake.test.ts','apps/desktop/wake-head.test.ts','apps/web/lib/buddy/wake.test.ts','packages/stt/src/mic.test.ts'],{cwd:root,encoding:'utf8',timeout:30000,windowsHide:true,env:{...process.env,FILOW_QA_NO_GLOBAL_INPUT:'1',FILOW_QA_HEADLESS:'1'}});
   const caught=r.status!==0&&!r.error;
   results.push({name,caught,status:r.status});console.log(name,caught?'caught':'SURVIVED');
  }finally{fs.writeFileSync(p,original)}

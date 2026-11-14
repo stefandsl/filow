@@ -10,6 +10,11 @@ la voce e non apre finestre per domande successive. L'audio resta in memoria,
 tranne le cinque registrazioni nel profilo dell'app. Il comando di eliminazione
 rimuove registrazioni e modello personale. Vedi [prove e limiti](docs/okfilow/WAKE-WORD.md).
 
+Il riaddestramento ora include esempi numerici di frasi simili ma diverse dalla
+frase di attivazione. Nei test attuali riduce le attivazioni accidentali ma aumenta
+le chiamate perse. Il ramo sperimentale non raggiunge ancora gli obiettivi di
+precisione e consumo CPU.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="brand/png/filow-primary-light.png" />

@@ -43,9 +43,12 @@ app.whenReady().then(async()=>{
   await okf.wakeAction('train');
   await okf.wakeAction('test',true);await okf.wakeAction('enable');
   const cpuNow=()=>app.getAppMetrics().reduce((n,p)=>n+(p.cpu.cumulativeCPUUsage||0),0);
+  await sleep(5000);
+  const startMetrics=app.getAppMetrics();
   const cpuStart=cpuNow(),wallStart=Date.now();
-  await sleep(15000);console.log('wake status',okf.wakeAction('status'));
+  await sleep(60000);console.log('wake status',okf.wakeAction('status'));
   results.realtimeCpuPercentOneCore=(cpuNow()-cpuStart)/((Date.now()-wallStart)/1000)*100;
+  results.cpuByProcess=app.getAppMetrics().map(p=>({pid:p.pid,type:p.type,name:p.name,cpuPercentOneCore:100*((p.cpu.cumulativeCPUUsage||0)-(startMetrics.find(s=>s.pid===p.pid)?.cpu.cumulativeCPUUsage||0))/((Date.now()-wallStart)/1000)}));
   const status=()=>okf.wakeAction('status');
   if(!status().listening)throw Error('Did not open fake mic: '+JSON.stringify(status()));
   const overlays=BrowserWindow.getAllWindows().filter(w=>w.webContents.getURL().includes('/overlay'));
@@ -59,7 +62,7 @@ app.whenReady().then(async()=>{
   await overlay.webContents.executeJavaScript(`document.querySelectorAll('[data-testid="wake-indicator"] button')[1].click()`);await sleep(500);if(!status().listening)throw Error('resume failed');
   await overlay.webContents.executeJavaScript(`document.querySelector('[data-testid="wake-indicator"] button').click()`);await sleep(300);if(status().enabled)throw Error('one-click off failed');results.checks.push({name:'one-click off',pass:true});
   results.hidden=BrowserWindow.getAllWindows().every(w=>!w.isVisible());if(!results.hidden)throw Error('QA window became visible');results.blockedRequests=blocked;
-  fs.writeFileSync(path.join(root,'../ui-results.json'),JSON.stringify(results,null,2));
+  fs.writeFileSync(path.join(root,'../',process.env.FILOW_WAKE_REPORT || 'round1-ui-results.json'),JSON.stringify(results,null,2));
   if(replayAll){
     const panel=BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().includes('/panel'));
     await panel.loadURL('http://127.0.0.1:4971/okfilow/wake-qa');await sleep(1000);

@@ -35,6 +35,12 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("capture health wiring", () => {
+  it("passes the wake scheduling hint without changing the PCM sample rate", async () => {
+    const f = fixture();
+    const mic = await startMic(16000, vi.fn(), undefined, undefined, {latencyHint: "playback"});
+    expect(f.contextArgs).toHaveBeenCalledWith({sampleRate: 16000, latencyHint: "playback"});
+    mic.stop();
+  });
   it("uses selected constraints for the open/stop probe without creating an AudioContext", async () => {
     const f = fixture();
     await preopenMic();

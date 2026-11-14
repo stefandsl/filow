@@ -2,6 +2,31 @@
 
 ## Experimental branch update, 2026-11-14
 
+Wake-word rework round 1 remains unmerged and not recommended for shipping.
+The identical-WAV comparison found a streaming mel normalization defect:
+the model clips against the maximum of its whole input, while the app used
+independent short blocks. Retained-context normalization and cache rebuilding
+now match final Python reference contexts within 7.90e-7 over 500 WAVs. Shared
+head arithmetic matches within 2.03e-6; keyword times match on all 500 clips.
+Training/calibration parity is still missing. Matched-corpus Python training
+misses 24/256 versus the original app's 52/256 under the same per-clip rule.
+Changing only Python's positive augmentation to the app's raises misses to
+44/256 and near-miss accepts from 76 to 94/144, proving a major augmentation gap.
+
+Numerical hard negatives reduce calibration near-miss accepts from 95/144 to
+62/144 but increase chronological replay misses from 50/256 to 62/256.
+Five genuinely distinct held-out speaker IDs miss 13/48 clean/noisy calls
+(20/64 including pitch shifts) and accept 14/36 near-misses. The 60-second
+hidden fake-microphone CPU run is 9.96% of one core, still above 4%.
+Four hours of background on each of those heads give Balanced 0.40 false
+accepts/hour on average, 1.25/hour worst, also above target.
+Full evidence, per-language counts, four-hour background results and unresolved
+acceptance gates: `docs/okfilow/WAKE-WORD.md` and `wake-round1-results.json`.
+All 40 mutations caught; Vitest 3,170 pass, six skipped; typecheck and lint pass.
+Pending: optimizer/augmentation/calibration parity, target-quality operating
+point, CPU reduction, personal negatives, long-running normalization and the
+original real-room/STT/platform/licence checks. No real microphone was opened.
+
 `feat-wake-word` adds opt-in local OK Filow detection and five-take enrollment.
 This work is intentionally unmerged and unpublished. Defaults, architecture,
 reproduction and evidence are in `docs/okfilow/WAKE-WORD.md`. Balanced scored

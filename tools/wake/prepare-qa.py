@@ -12,7 +12,13 @@ items = pickle.loads((source / 'out/posset.pkl').read_bytes())
 voices = sorted({(x['voice'], x['lang']) for x in items if x['kind'] == 'pos'})
 chosen = []
 for lang in ['en', 'it', 'ru', 'ro', 'ja']:
-    chosen.extend([v for v in voices if v[1] == lang][:4])
+    candidates = [v for v in voices if v[1] == lang]
+    # Round 1: the first four voices are calibration; the next two supply
+    # shipped hard negatives. Held-out speaker IDs also differ across languages.
+    heldout_index = {'en': 6, 'it': 6, 'ru': 7, 'ro': 8, 'ja': 9}[lang]
+    chosen.extend(candidates[heldout_index:heldout_index+1] if '--held-out' in sys.argv else candidates[:4])
+if '--held-out' in sys.argv:
+    assert len(chosen) == 5 and len({v[0] for v in chosen}) == 5, 'Five distinct speaker identities required'
 manifest = []
 for voice, lang in chosen:
     mine = [x for x in items if x['voice'] == voice and x['lang'] == lang]
@@ -38,7 +44,7 @@ for lang in ['en','it','ru','ro','ja']:
     file = dest / f'background-{lang}.wav'
     with wave.open(str(src),'rb') as inp:
         inp.setpos(inp.getnframes()//5 + 16000*5)
-        data = inp.readframes(24*60*16000)
+        data = inp.readframes((48 if '--held-out' in sys.argv else 24)*60*16000)
     with wave.open(str(file),'wb') as out:
         out.setnchannels(1); out.setsampwidth(2); out.setframerate(16000); out.writeframes(data)
     background.append({'file':str(file),'seconds':len(data)/32000})
