@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { tidyTree, TreeNode } from "./tidy-tree";
 
@@ -46,3 +48,18 @@ describe("tidy tree (from Plait)", () => {
   });
 });
 
+describe("copied code", () => {
+  it("keeps its licence notice in the notices source", () => {
+    const notices = fs.readFileSync(path.join("scripts", "third-party-notices.mjs"), "utf8");
+    const dir = path.join("apps", "web", "lib", "whiteboard");
+    const copied = fs.readdirSync(dir).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts")).map((f) => [f, fs.readFileSync(path.join(dir, f), "utf8")] as const).filter(([, t]) => /copied from/i.test(t.slice(0, 1200)));
+    expect(copied.map(([f]) => f)).toContain("tidy-tree.ts");
+    for (const [f, t] of copied) {
+      const repo = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+/.exec(t)?.[0] ?? "no repository named";
+      expect(notices, f).toContain(repo);
+      expect(notices, f).toContain(`apps/web/lib/whiteboard/${f}`);
+    }
+    expect(notices).toContain("Copyright (c) 2018 - 2023 Worktile Inc.");
+    expect(notices).toContain("The above copyright notice and this permission notice shall be included in");
+  });
+});
