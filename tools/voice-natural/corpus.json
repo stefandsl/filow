@@ -1,0 +1,44 @@
+{
+  "it": [
+    "Fai clic sul pulsante blu in alto a destra.",
+    "Apri il menu File, poi scegli Salva con nome.",
+    "La casella si trova sotto il titolo.",
+    "Questo comando salva una copia del documento. Il file originale rimane disponibile.",
+    "Vuoi salvare le modifiche prima di uscire?",
+    "Il documento contiene 27 pagine e 3 immagini.",
+    "La riunione è il 14 marzo 2026 alle 9:30.",
+    "Apri Microsoft PowerPoint e seleziona la presentazione.",
+    "Controlla tre cose: il titolo, la data e il nome del file.",
+    "Se il pulsante è grigio, seleziona prima una diapositiva, poi riprova.",
+    "**Apri le impostazioni** e scegli [Audio](https://example.com/audio).",
+    "Ecco i passaggi:\n1. Apri il PDF.\n2. Controlla l'anteprima.\n3. Premi Stampa."
+  ],
+  "en": [
+    "Click the blue button in the top right corner.",
+    "This command saves a copy of the document. The original file remains available.",
+    "Would you like to save your changes before leaving?",
+    "The meeting is on March 14, 2026 at 9:30. Open Microsoft PowerPoint and check the 27 pages.",
+    "Check three things: the title, the date and the file name."
+  ],
+  "ru": [
+    "Нажмите синюю кнопку в правом верхнем углу.",
+    "Эта команда сохраняет копию документа. Исходный файл остаётся доступным.",
+    "Хотите сохранить изменения перед выходом?",
+    "Встреча состоится 14 марта 2026 года в 9:30. Откройте Microsoft PowerPoint и проверьте 27 страниц.",
+    "Проверьте три вещи: заголовок, дату и имя файла."
+  ],
+  "ro": [
+    "Apasă butonul albastru din colțul din dreapta sus.",
+    "Această comandă salvează o copie a documentului. Fișierul original rămâne disponibil.",
+    "Vrei să salvezi modificările înainte de a ieși?",
+    "Ședința este pe 14 martie 2026 la 9:30. Deschide Microsoft PowerPoint și verifică cele 27 de pagini.",
+    "Verifică trei lucruri: titlul, data și numele fișierului."
+  ],
+  "ja": [
+    "右上の青いボタンをクリックしてください。",
+    "この操作で文書のコピーを保存します。元のファイルはそのまま残ります。",
+    "終了する前に変更を保存しますか？",
+    "会議は2026年3月14日の9時30分です。Microsoft PowerPointを開いて、27ページを確認してください。",
+    "タイトル、日付、ファイル名の三つを確認してください。"
+  ]
+}

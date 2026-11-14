@@ -1,5 +1,10 @@
 # OK Filow natural voice: what was measured and what ships
 
+The [2026-11-14 naturalness investigation](VOICE-NATURAL-2026-11.md) adds a fixed
+multilingual corpus, full precision and ten-speaker comparisons, local quality
+and intelligibility scoring, and a fix for repeated synthesis gaps in streamed
+answers. The measurements below are the earlier 2026-11-10 baseline.
+
 The owner's request (2026-11-09): "la voce e troppo robotica serve che sia piu naturale con possibile
 tipo elevenlabs in locale", in Russian, English, Italian, Romanian and Japanese, with "at least partial
 or the same result for local models on low spec hardware".
