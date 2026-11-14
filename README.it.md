@@ -15,7 +15,7 @@ Filow è un compagno di parola dal vivo: ti ascolta mentre presenti, spunta i tu
   <img alt="Piattaforme" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-desktop-08090B" />
   <img alt="Mirror sul telefono" src="https://img.shields.io/badge/Android%20%7C%20iOS-phone%20mirror-08090B" />
   <img alt="PowerPoint" src="https://img.shields.io/badge/PowerPoint-add--in-b7472a" />
-  <img alt="Lingue" src="https://img.shields.io/badge/UI-English%20%7C%20Italiano-4ad67a" />
+  <img alt="Lingue" src="https://img.shields.io/badge/UI-EN%20%7C%20IT%20%7C%20RU%20%7C%20RO%20%7C%20JA-4ad67a" />
   <a href="LICENSE"><img alt="Licenza" src="https://img.shields.io/badge/license-GPL--3.0-4ad67a" /></a>
 </p>
 
@@ -34,6 +34,13 @@ Filow è un compagno di parola dal vivo: ti ascolta mentre presenti, spunta i tu
 ---
 
 > **Rinominato da Intelliprompter nella 0.8.0.** Le installazioni esistenti continuano a funzionare: al primo avvio l'app sposta il proprio profilo (chiavi, script, certificati, file dell'add-in) nella nuova cartella, accetta i vecchi nomi di variabile `INTELLIPROMPTER_*`, si aggiorna sopra la vecchia installazione e registra di nuovo l'add-in per PowerPoint. I vecchi URL GitHub reindirizzano ai nuovi. Su un server Debian rinomina le unità systemd quando preferisci (vedi la sezione sul deploy); i vecchi nomi delle unità continuano a funzionare.
+
+## Novità della 0.9.40
+
+- **Il modello online migliore per ogni compito.** Misurato su test sintetici fissi (puntamento, lezioni, decisioni): le risposte sullo schermo di OK Filow usano ora `openai/gpt-6-luna` (100% dei punti dentro il bersaglio, contro il 16% del modello precedente), le decisioni durante il discorso `google/gemini-3.1-flash-lite`, le lezioni Claude Sonnet 5.5 (qualità) o Haiku 5.5 (velocità). Un modello scelto da te resta quello. Ogni nuovo fornitore riceve il suo consenso prima di qualsiasi invio.
+- **Risposte locali in cinque lingue.** Con il modello locale OK Filow ora risponde a parole e indica in inglese, italiano, russo, rumeno e giapponese (test su domande mai viste: da 20,7 a 97,3 su 100), e la prima parola arriva circa due volte più in fretta.
+- **Voce più naturale.** Le parole inglesi dentro frasi italiane, russe e rumene sono lette in inglese; date, ore e anni sono pronunciati per intero; le frasi finiscono senza tagli; ogni lingua ha la sua voce predefinita.
+- **Correzioni.** Le lezioni funzionano con i modelli OpenAI; l'app installata riparte dopo le modifiche ai modelli locali; un test ora segnala i file mancanti dall'installer.
 
 ## Il problema: con un copione sembri uno che legge
 
@@ -63,7 +70,10 @@ Con zoom elevato o una finestra bassa, la pagina scorre per mantenere punti e co
 | 🧩 **Estensione per il browser** | reveal.js, Slidev, Marp, Canva, Pitch: genera lo script dal deck e segue la slide dal vivo. |
 | 📄 **Importazione** | PDF, PPTX, DOCX, TXT o Markdown diventano punti, una sezione per slide o pagina. |
 | 🔒 **Modalità privacy** | Whisper sul dispositivo, un modello di decisione locale tramite Ollama, un filtro PII prima di ogni chiamata cloud e una modalità offline completa. |
-| 🌍 **Interfaccia in inglese e italiano** | Automatico / English / Italiano; finestre e menu desktop condividono la preferenza, i browser hanno la propria. |
+| 🗣 **OK Filow** | Tieni premuti i tasti e chiedi dello schermo: risponde a voce e indica o disegna sullo schermo (segni 2D, schede, vista 3D). Stop, pausa e ripresa in ogni momento; il pulsante occhio gli impedisce di guardare. |
+| 🧑‍🏫 **Lavagna** | Una lavagna Excalidraw dove Filow spiega un concetto passo per passo; puoi modificarla e salvarla. |
+| ⌨️ **Dettatura** | Tieni premuti i tasti, parla, e il testo viene scritto nell'app che stai usando. |
+| 🌍 **Cinque lingue d'interfaccia** | English, Italiano, Русский, Română, 日本語; finestre e menu desktop condividono la preferenza, i browser hanno la propria. |
 | 🌗 **Tema chiaro e scuro** | Interruttore ☀ / ◐ / ☾; "sistema" segue Windows o macOS. |
 | 🔄 **Aggiornamento automatico** | L'app desktop controlla GitHub e installa da sola le nuove versioni. |
 
