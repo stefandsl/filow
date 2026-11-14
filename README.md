@@ -775,3 +775,14 @@ Pointer flights take at most 900 ms. Landing labels reserve 8 px around detected
 OK Filow answers, whiteboard lessons and agent jobs receive today's local date and weekday. This adds no other information about you or your PC.
 
 At landing, the pointer tip stays on the target corner. The ring leaves the text-facing quadrant empty, the underline stops before it, and the arrow shadow disappears. Acceleration and braking keep pointer travel continuous.
+
+### OK Filow response timing
+
+OK Filow prepares its local answer model ahead of a question when memory allows.
+On a small graphics card, it may wait until the question to avoid displacing the
+model used for your presentation. The microphone closes when you release the
+keys; Filow then finishes recognising your words before answering. The pointer
+shows microphone opening separately from listening and thinking.
+Local answers use a smaller screen image to reduce processing time. Online
+answers keep the same image size. Named screen controls retain their original
+positions for pointing.

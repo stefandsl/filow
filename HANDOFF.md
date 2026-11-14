@@ -1,5 +1,27 @@
 # Filow hand-off
 
+## Phase 2b answer latency worktree (2026-11-14, unreleased)
+
+`feat-phase2b` aligns local weight warm-up with the question's 8192 context,
+reduces local screenshot width to 512 after a 40-screen three-size trial, and
+reduces the non-dictation transcript handoff grace from 200 to 50 ms. Online
+screenshots remain 1024. Recognizer startup and date-prefix behavior are unchanged.
+
+Evidence, acceptance results and exact sample counts: `docs/perf/LATENCY-2026-11.md`.
+Design and image choice: `docs/perf/PHASE-2B.md`. Full checks: 3,171 tests pass,
+5 skip, typecheck and lint pass; 4/4 mutations caught, 11/11 hidden microphone
+E2E checks pass, final-package deterministic Stop/Resume passes. QA package and
+raw samples remain under `G:/FILOW/tmp/latency`; no installed profile was used.
+
+Standard acceptance passes: 45 valid warm / 31 cold, first-token medians improve
+25.4% / 35.2%, with both p90 values lower. One empty model answer stopped the
+warm repeat; real-model speaking-stop has no valid sample. These remain limits.
+
+Pending before broader claims: GPU cold-start measurements, real desktop/UIA and
+dense-text pointing, physical microphone/speaker latency, live phone questions.
+Online calls were intentionally skipped. Baseline voice distributions are absent;
+new speech-only samples cannot prove a voice speedup. No merge, push or tag.
+
 ## R2 release verification worktree (2026-11-14, unreleased)
 
 `feat-r2-verify` adds the pure release verifier, offline CLI fixtures and mutation runner,
