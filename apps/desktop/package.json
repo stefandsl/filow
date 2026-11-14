@@ -131,6 +131,8 @@
       "okfilow-uia.js",
       "okfilow-model-place.js",
       "okfilow-rects.js",
+      "ollama-runtime.js",
+      "local-ownership.js",
       "native/uia/bin/okfilow-uia.exe"
     ],
     "asar": true,
@@ -272,7 +274,7 @@
       "owner": "stefandsl",
       "repo": "filow-releases"
     },
-    "copyright": "Copyright © 2026 VoidExploit",
+    "copyright": "Copyright Ã‚Â© 2026 VoidExploit",
     "asarUnpack": [
       "stt-worker.js",
       "tts-worker.js",
