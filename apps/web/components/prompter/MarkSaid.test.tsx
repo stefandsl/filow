@@ -59,7 +59,7 @@ describe("the mark as said button", () => {
     expect(row).toContain('aria-keyshortcuts="H"');
   });
 
-  it("says what it does: an outlined check to mark, a filled check that turns into undo on hover and focus", () => {
+  it("says what it does: an outlined check to mark, the undo arrow on a said point (always, not only on hover)", () => {
     const html = renderToStaticMarkup(<PointsList onToggle={() => {}} points={[{ id: "a", text: "A", state: "waiting", confidence: 0 }, { id: "b", text: "B", state: "done", confidence: 1 }]} />);
     const [mark, undo] = html.split('<button type="button" class="point-mark').slice(1);
     expect(mark).not.toContain("point-mark-undo");
@@ -67,11 +67,11 @@ describe("the mark as said button", () => {
     expect(undo).toContain("point-mark-check");
     expect(undo).toContain("point-mark-undo");
     expect(undo).toContain('<span class="point-mark-label">Undo</span>');
-    expect(rule(".point-mark.done, .point-mark.done:not(:disabled):hover")).toMatch(/background: var\(--ok\)/); // filled, also under a touch screen's sticky :hover
     expect(rule(".point-mark")).toMatch(/background: var\(--surface\)/); // outlined
     expect(rule(".point-mark-undo, .point-mark-label")).toContain("display: none");
-    expect(rule(".point-mark.done:focus-visible .point-mark-undo")).toContain("display: flex");
-    expect(css).toMatch(/@media \(hover: hover\) \{\s*\.point-mark\.done:not\(:disabled\):hover \{[^}]*\}\s*\.point-mark\.done:hover \.point-mark-check \{ display: none; \}\s*\.point-mark\.done:hover \.point-mark-undo \{ display: flex; \}/);
+    // a said point shows its action, the undo arrow, at every width and on touch screens (a filled check read as a badge)
+    expect(rule(".point-mark.done .point-mark-check")).toContain("display: none");
+    expect(rule(".point-mark.done .point-mark-undo")).toContain("display: flex");
     // the short word shows only where the row keeps room for it
     expect(css).toMatch(/@media \(min-width: 1100px\) \{\s*\.prompter \.point-item\.has-mark > \.point-row \{ padding-right: 136px; \}[\s\S]*?\.prompter \.point-mark-label \{ display: inline; \}/);
     // WCAG 2.5.3: the visible word is part of the accessible name, in every language
@@ -115,7 +115,6 @@ describe("the mark as said button", () => {
     for (const side of ["width", "height"]) expect(Number(phone.match(new RegExp(`${side}: (\\d+)px`))?.[1]), side).toBeGreaterThanOrEqual(44);
     // the done look stays: struck through, green tick
     expect(css).toContain(".point-row.done .point-text, .next-section .done { text-decoration: line-through; }");
-    expect(rule(".point-mark.done, .point-mark.done:not(:disabled):hover")).toContain("background: var(--ok)");
   });
 });
 
