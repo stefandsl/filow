@@ -493,8 +493,10 @@ html[data-theme="light"] .okf-slide h2 { color: #18191c; }
 @media (prefers-reduced-motion: reduce) { .okf-bubble, .okf-bubble--answer { transition: none; } }
 html[data-theme="light"] .okf-model { background: #cbd5e1; color: #18191c; box-shadow: inset 0 0 0 1px #94a3b8; }
 html[data-theme="light"] .okf-part { background: #ffffff; color: #18191c; box-shadow: 0 0 0 1px #8a8c92, 0 4px 14px #0002; }
-html[data-theme="light"] .okf-part-leader .okf-part-ink { stroke: #825700; stroke-width: 2; }
-html[data-theme="light"] .okf-part-leader .okf-part-halo { stroke: #08090b; stroke-width: 4.5; }
+/* Light theme: a thin leader in the theme's dark amber on a soft white halo (a heavy dark line read as clutter on a light view). */
+html[data-theme="light"] .okf-part-leader .okf-part-ink { stroke: #825700; stroke-width: 1.5; }
+html[data-theme="light"] .okf-part-leader .okf-part-halo { stroke: rgba(255, 255, 255, 0.85); stroke-width: 3.5; }
+html[data-theme="light"] .okf-part-leader circle { fill: #825700; stroke: #ffffff; }
 
 /* The hotspot stays at the bottom-right target corner. The ring's upper-left
    quadrant is cut away so no ink enters the glyph rectangle. The underline
@@ -527,27 +529,35 @@ html[data-theme="light"] .okf-mark .okf-mark-halo { stroke: #2b2100; stroke-widt
    lines in its bottom-right corner resize it. They sit on the item's edge, never on its picture or words. */
 /* At least 24 px to hit, drawn at 3:1 or more against the item (its words' colour at 80%). */
 .okf-move, .okf-resize { position: absolute; z-index: 1; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: color-mix(in srgb, var(--okf-card-text, #ececef) 80%, transparent); pointer-events: auto; touch-action: none; }
-.okf-move { top: 0; left: 50%; transform: translateX(-50%); width: 56px; height: 24px; border-radius: 8px; cursor: grab; }
+/* One handle for every item, the 3D window's: a grid of dots on a small chip of the item's colour. */
+.okf-move { top: 4px; left: 50%; transform: translateX(-50%); width: 28px; height: 24px; border-radius: 7px; cursor: grab; background: radial-gradient(circle, currentColor 1.3px, transparent 1.7px) 3px 2px / 7px 7px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--okf-card-text, #ececef) 35%, transparent); }
+.okf-move svg { display: none; }
 .okf-move:active { cursor: grabbing; }
-.okf-resize { right: 0; bottom: 0; width: 24px; height: 24px; border-radius: 0 0 12px 0; cursor: nwse-resize; }
+/* The corner grip: a chip like the 3D window's, clearly drawn in both themes. */
+.okf-resize { right: 4px; bottom: 4px; width: 24px; height: 24px; border-radius: 7px; cursor: nwse-resize; background: color-mix(in srgb, var(--okf-card-text, #ececef) 8%, var(--okf-card, rgb(20, 21, 24))); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--okf-card-text, #ececef) 45%, transparent); }
 :root .okf-move:hover, :root .okf-resize:hover { color: var(--okf-ink); background: color-mix(in srgb, var(--okf-ink) 14%, transparent); }
 .okf-move:focus-visible, .okf-resize:focus-visible { outline: 2px solid var(--okf-ink); outline-offset: 1px; }
 /* room for them: the picture starts under the handle, the source line stops before the grip */
-.okf-media-tile .okf-media-box { margin-top: 24px; }
-.okf-media-tile:has(.okf-resize) .okf-media-source { padding-right: 20px; }
-.okf-slide .okf-move { top: 3px; }
+.okf-media-tile .okf-media-box { margin-top: 36px; }
+.okf-media-tile:has(.okf-resize) .okf-media-source { padding-right: 32px; }
+.okf-slide:has(> .okf-move) { padding-top: 36px; }
+.okf-slide:has(> .okf-resize) { padding-bottom: 36px; }
 /* the cards' column: a bar to move it by, above the first card */
 .okf-cards-bar { position: relative; flex: none; height: 24px; border-radius: 10px; background: color-mix(in srgb, rgb(20, 21, 24) 86%, transparent); pointer-events: auto; }
-.okf-cards-bar .okf-move { top: 0; color: #c9cbd1; }
-.okf-cards-bar .okf-resize { right: 0; bottom: 0; width: 24px; height: 24px; border-radius: 10px; color: #c9cbd1; }
+.okf-cards-bar .okf-move { top: 0; color: #c9cbd1; box-shadow: none; }
+.okf-cards-bar .okf-resize { right: 0; bottom: 0; width: 24px; height: 24px; border-radius: 10px; color: #c9cbd1; background: transparent; box-shadow: none; }
 /* the bubble: the handle on its top edge, the grip in its corner */
 /* the bubble that can be moved has a top strip for its handle, so the handle never sits on its words */
-.okf-bubble:has(> .okf-bubble-content > .okf-move) { padding-top: 22px; }
-.okf-bubble .okf-move { top: 0; color: color-mix(in srgb, currentColor 80%, transparent); }
-.okf-bubble .okf-resize { right: 0; bottom: 0; color: color-mix(in srgb, currentColor 80%, transparent); }
+/* (on the content, which the bubble's size follows: 24 px handle and grip, 8 px clear of the words) */
+.okf-bubble-content:has(> .okf-move) { padding: 28px 0 24px; }
+.okf-bubble .okf-move { color: color-mix(in srgb, currentColor 80%, transparent); }
+.okf-bubble .okf-resize { color: color-mix(in srgb, currentColor 80%, transparent); }
 /* the 3D window's grip, in its bottom-right corner */
 .okf-model-resize { position: fixed; right: 6px; bottom: 6px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; color: #f4f4f5; background: rgb(18, 19, 22); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3); cursor: nwse-resize; touch-action: none; }
 /* The 3D window's chrome is always there (handle, close, corner grip), in both themes: the window has no frame of its own. */
 html[data-theme="light"] .okf-model-tools, html[data-theme="light"] .okf-model-resize { background: #ffffff; color: #18191c; box-shadow: 0 0 0 1px #6b6e75; }
 html[data-theme="light"] .okf-model-tools .okf-x { color: #18191c; }
 html[data-theme="light"] .okf-model-grip { background-image: radial-gradient(circle, rgba(24, 25, 28, 0.8) 1.4px, transparent 1.8px); }
+/* The bubble's handle and grip take its own colours. */
+.okf-bubble { --okf-card: rgb(18, 18, 20); --okf-card-text: #f4f4f5; }
+html[data-theme="light"] .okf-bubble { --okf-card: #ffffff; --okf-card-text: #18191c; }

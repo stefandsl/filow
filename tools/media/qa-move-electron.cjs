@@ -9,7 +9,7 @@ const path = require("node:path");
 if (process.env.FILOW_QA_HEADLESS !== "1" || process.env.FILOW_QA_NO_GLOBAL_INPUT !== "1") throw new Error("QA isolation required");
 const OUT = process.env.QA_MEDIA_OUT;
 const ROOT = process.env.QA_MEDIA_ROOT;
-const FRAMES = process.env.QA_MEDIA_FRAMES || path.join(OUT, "frames6");
+const FRAMES = process.env.QA_MEDIA_FRAMES || path.join(OUT, "frames7");
 const BASE = "http://127.0.0.1:5031";
 const { insideAny, cleanRects } = require(path.join(ROOT, "apps/desktop/okfilow-hit.js"));
 const { movedBounds } = require(path.join(ROOT, "apps/desktop/okfilow-move.js"));
@@ -173,6 +173,10 @@ app.whenReady().then(async () => {
       moveOk: Math.abs(g1.x - g0.x - 180) <= 1 && Math.abs(g1.y - g0.y + 120) <= 1 && Math.abs(g1.w - g0.w) <= 1,
       resizeOk: Math.abs(g2.w - g1.w - 160) <= 4 && Math.abs(g2.x - g1.x) <= 1 };
     t.bubbleOverMediaPx = await js(`(() => { const b = document.querySelector('.okf-bubble')?.getBoundingClientRect(); if (!b) return null; let a = 0; for (const e of document.querySelectorAll('.okf-media-tile')) { const r = e.getBoundingClientRect(); a += Math.max(0, Math.min(b.right, r.right) - Math.max(b.left, r.left)) * Math.max(0, Math.min(b.bottom, r.bottom) - Math.max(b.top, r.top)); } return a; })()`);
+    // nothing of the pointer shows at the bubble's edge, and every handle keeps 8 px from the words and pictures
+    t.pointerUnderBubblePx = await js(`(() => { const a = document.querySelector(".okf-buddy:not(.okf-hidden) .okf-arrow")?.getBoundingClientRect(); const b = document.querySelector(".okf-bubble")?.getBoundingClientRect(); if (!a || !b) return 0; return Math.round(Math.max(0, Math.min(a.right, b.right + 8) - Math.max(a.left, b.left - 8)) * Math.max(0, Math.min(a.bottom, b.bottom + 8) - Math.max(a.top, b.top - 8))); })()`);
+    t.handleClearancePx = await js(`(() => { let min = Infinity; for (const h of document.querySelectorAll(".okf-move")) { const r = h.getBoundingClientRect(); const item = h.closest(".okf-media-tile, .okf-slide, .okf-bubble, .okf-cards"); if (!item) continue; for (const e of item.querySelectorAll("img, video, h2, li, .okf-text, .okf-media-caption, .okf-media-source")) { const q = e.getBoundingClientRect(); if (q.width === 0 || q.right < r.left || q.left > r.right) continue; const gap = q.top >= r.bottom ? q.top - r.bottom : r.top >= q.bottom ? r.top - q.bottom : -1; min = Math.min(min, gap); } } return min === Infinity ? null : Math.round(min); })()`);
+    t.handleDesigns = await js(`[...new Set([...document.querySelectorAll(".okf-move")].map((e) => { const s = getComputedStyle(e); return Math.round(e.getBoundingClientRect().width) + "x" + Math.round(e.getBoundingClientRect().height) + " " + (s.backgroundImage.includes("radial-gradient") ? "grid" : "other"); }))]`);
     fs.writeFileSync(path.join(FRAMES, `gallery-moved-${theme}.png`), (await win.webContents.capturePage()).toPNG());
     // click-through: the boxes main is told about are the pictures, and only they take the mouse
     await sleep(300);
@@ -192,8 +196,8 @@ app.whenReady().then(async () => {
     t.farDragInside = g3.x >= 0 && g3.y >= 0 && g3.x + g3.w <= W && g3.y + g3.h <= H;
     t.remembered = await js("sessionStorage.getItem('filow.okf.layout')");
     // a slide: moved with its handle, its words reflow when it is made wider
-    await emit("text", "Here is a slide on how the car moves, with a picture; drag its corner to make it wider.");
-    await emit("media", { x: 600, y: 600, gallery: [], slide: { title: "How the car moves", points: ["The engine turns the wheels through the gearbox", "The front wheels steer", "The brakes slow all four wheels"], media: [items[1]] } });
+    await emit("text", "Here is a slide on reading a test card, with two examples; drag its corner to make it wider.");
+    await emit("media", { x: 600, y: 600, gallery: [], slide: { title: "Reading a test card", points: ["Colour bars show whether the colours come through right", "Fine lines and patterns show sharpness and scaling", "A moving element shows dropped or torn frames"], media: [items[0], items[2]] } });
     await sleep(1500);
     const s0 = await box(".okf-slide");
     const lines0 = await js("document.querySelector('.okf-slide ul').getBoundingClientRect().height");
@@ -203,6 +207,7 @@ app.whenReady().then(async () => {
     const s1 = await box(".okf-slide");
     const lines1 = await js("document.querySelector('.okf-slide ul').getBoundingClientRect().height");
     // wider: its points take fewer or as many lines (its picture grows with it)
+    t.slideCloseButtons = await js("document.querySelectorAll('.okf-slide [data-action=close]').length");
     t.slide = { start: s0, wider: s1, pointsHeight: [lines0, lines1], reflowOk: s1.w > s0.w + 150 && lines1 <= lines0 };
     t.bubbleToSlidePx = await js(`(() => { const b = document.querySelector(".okf-bubble").getBoundingClientRect(); const m = document.querySelector(".okf-slide").getBoundingClientRect(); return Math.round(Math.hypot(Math.max(0, m.left - b.right, b.left - m.right), Math.max(0, m.top - b.bottom, b.top - m.bottom))); })()`);
     fs.writeFileSync(path.join(FRAMES, `slide-resized-${theme}.png`), (await win.webContents.capturePage()).toPNG());

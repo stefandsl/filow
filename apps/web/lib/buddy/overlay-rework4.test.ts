@@ -49,10 +49,12 @@ it("cases light leaders and the full-size landing ring with opaque contrast abov
   const css=readFileSync("apps/web/app/okfilow/okfilow.css","utf8");
   const halo=css.match(/light"\] .okf-part-leader .okf-part-halo \{([^}]+)}/)![1];
   const ink=css.match(/light"\] .okf-part-leader .okf-part-ink \{([^}]+)}/)![1];
-  expect(halo).toContain("stroke: #08090b");expect(halo).toContain("stroke-width: 4.5");expect(ink).toContain("stroke-width: 2");
+  // 14/11 review: a thin leader in the theme's dark amber on a soft white halo; the amber line itself stays above 3:1 on the light surfaces
+  expect(halo).toContain("stroke: rgba(255, 255, 255, 0.85)");expect(ink).toContain("stroke: #825700");expect(ink).toContain("stroke-width: 1.5");
   expect(css).toContain("border: 2.5px solid");
   expect(arrivalPhase(500,500).scale*2.5).toBeGreaterThanOrEqual(2);
   expect(css).toContain("box-shadow: 0 0 0 2px #08090b, inset 0 0 0 1.5px #08090b");
   const lum=(hex:string)=>hex.match(/\w\w/g)!.map(n=>parseInt(n,16)/255).map(c=>c<=.04045?c/12.92:((c+.055)/1.055)**2.4).reduce((s,c,i)=>s+c*[.2126,.7152,.0722][i],0);
   for(const bg of ["ffffff","cbd5e1","eeeeee"]) expect((lum(bg)+.05)/(lum("08090b")+.05)).toBeGreaterThanOrEqual(4.5);
+  for(const bg of ["ffffff","cbd5e1","eeeeee"]) expect((lum(bg)+.05)/(lum("825700")+.05)).toBeGreaterThanOrEqual(3);
 });

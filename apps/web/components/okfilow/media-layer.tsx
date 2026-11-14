@@ -17,7 +17,7 @@ export const SLIDE_WIDTH = 560;
 type T = (k: OkfKey) => string;
 
 /** One picture, GIF or video with its play/pause (GIF and video) and close buttons. */
-function MediaView({ item, t, onClose, onBad }: { item: MediaItem; t: T; onClose: () => void; onBad: () => void }) {
+function MediaView({ item, t, onClose, onBad, closable = true }: { item: MediaItem; t: T; onClose: () => void; onBad: () => void; closable?: boolean }) {
   const [paused, setPaused] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
   const img = useRef<HTMLImageElement>(null);
@@ -71,9 +71,10 @@ function MediaView({ item, t, onClose, onBad }: { item: MediaItem; t: T; onClose
             {paused ? <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M4 2.5v11l9-5.5z" fill="currentColor" /></svg> : <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" fill="currentColor" /></svg>}
           </button>
         )}
-        <button type="button" className="okf-media-btn" data-action="close" aria-label={t("close")} title={t("close")} onClick={onClose}>
+        {/* a picture on a slide has no chrome of its own: only the slide closes */}
+        {closable && <button type="button" className="okf-media-btn" data-action="close" aria-label={t("close")} title={t("close")} onClick={onClose}>
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-        </button>
+        </button>}
       </div>
     </figcaption>
     </>
@@ -156,7 +157,7 @@ function ShownMedia({ show, avoid, t, onPlaced, move }: Props & { show: MediaSho
             <div className="okf-slide-media" data-count={slideMedia.length}>
               {slideMedia.map(({ item, key }) => (
                 <figure key={key}>
-                  <MediaView item={item} t={t} onClose={() => close(key)} onBad={() => close(key)} />
+                  <MediaView item={item} t={t} onClose={() => close(key)} onBad={() => close(key)} closable={false} />
                 </figure>
               ))}
             </div>

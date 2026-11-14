@@ -185,7 +185,7 @@ describe("the overlay page and the bubble", () => {
     expect(overlay).toContain("const grew = Math.abs(size.width - h.size.width) >= 1 || Math.abs(size.height - h.size.height) >= 1;");
     // and looks again whether the pointer is on it when it moved or grew
     expect(overlay).toContain("if (moved || grew) tellHover(cursor.current);");
-    expect(overlay).toContain("bubbleClear(hold ? bubbleOnScreen(h.at, size, view, pillRect) : bubblePlacement(h.answer && c ? { x: c.x + OFFSET.x, y: c.y + OFFSET.y } : next, size, view, 18, pillRect), size, view, off)");
+    expect(overlay).toContain("bubbleClear(hold ? bubbleOnScreen(h.at, size, view, pillRect) : bubblePlacement(h.answer && c ? { x: c.x + OFFSET.x, y: c.y + OFFSET.y } : next, size, view, 18, pillRect), size, view, [...off, ...dotBox])");
   });
   it("keeps the sentence being spoken in view, unless the pointer is on the bubble", () => {
     expect(overlay).toContain("b.onSpoken?.((n) => setSpoken(Number.isInteger(n) ? n : -1))");

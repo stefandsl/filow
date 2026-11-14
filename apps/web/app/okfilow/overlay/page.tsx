@@ -296,8 +296,10 @@ export default function OkFilowOverlay() {
           // model), as its caption; else by the pointer. Never on the 3D model or the pictures it belongs to.
           const off = [...keepOff.current.media, ...(keepOff.current.model ? [keepOff.current.model] : [])];
           const item = h.answer ? (boundsOfRects(keepOff.current.media) ?? keepOff.current.model) : null;
-          const beside = item ? bubbleBeside(item, size, view, off, pillRect) : null;
-          const at = placed ? { x: placed.x, y: placed.y } : beside ?? bubbleClear(hold ? bubbleOnScreen(h.at, size, view, pillRect) : bubblePlacement(h.answer && c ? { x: c.x + OFFSET.x, y: c.y + OFFSET.y } : next, size, view, 18, pillRect), size, view, off);
+          // (and never over OK Filow's own pointer by the mouse: the bubble covered it, and its tip showed at the close button)
+          const dotBox = c ? [{ left: c.x + OFFSET.x - 4, top: c.y + OFFSET.y - 4, right: c.x + OFFSET.x + 40, bottom: c.y + OFFSET.y + 40 }] : [];
+          const beside = item ? bubbleBeside(item, size, view, [...off, ...dotBox], pillRect) : null;
+          const at = placed ? { x: placed.x, y: placed.y } : beside ?? bubbleClear(hold ? bubbleOnScreen(h.at, size, view, pillRect) : bubblePlacement(h.answer && c ? { x: c.x + OFFSET.x, y: c.y + OFFSET.y } : next, size, view, 18, pillRect), size, view, [...off, ...dotBox]);
           const want = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px)`;
           if (el.style.transform !== want) {
             // An answer's bubble glides when it catches up with the pointer; a first placement does not glide in from where the last bubble was.
