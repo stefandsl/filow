@@ -152,6 +152,8 @@ function normalizeNumbers(text, lang) {
   };
   s = s.replace(new RegExp(`([€$£₽¥])\\s*(${amount})`, 'g'), (_,c,n)=>hold(money(n,c)));
   s = s.replace(new RegExp(`(${amount})\\s*(EUR|USD|GBP|RUB|RON|JPY|[€$£₽¥])`, 'g'), (_,n,c)=>hold(money(n,c)));
+  // Decades with an apostrophe: "anni '90" is "anni novanta", "anii '90" is "anii nouăzeci".
+  s = s.replace(/\b(anni|anii) ?['’](\d0)\b/giu, (_,a,d) => `${a} ${hold(word(d,l))}`);
   // Japanese words have no spaces: a range before 日 or ページ is still a range.
   s = s.replace(l === 'ja' ? /(?<![A-Za-z\d])(\d+)\s*[-–]\s*(\d+)(?![A-Za-z\d])/gu : /(?<![\p{L}\d])(\d+)\s*[-–]\s*(\d+)(?![\p{L}\d])/gu, (_,a,b)=>hold(l === 'ru' ? `от ${ruGenitive(a)} до ${ruGenitive(b)}` : `${word(a,l)} ${{en:'to',it:'a',ro:'până la',ja:'から'}[l]} ${word(b,l)}`));
   const pattern = l === 'ja'
