@@ -27,6 +27,14 @@ function date(d, m, y, l) {
   const day = l === 'en' ? ordinal(d,l) : l === 'it' && d === 1 ? 'primo' : word(d,l);
   return `${day} ${MONTHS[l][m-1]} ${word(y,l)}`;
 }
+// Currency names: [one, many, one minor, many minor]; Russian: [one, few, many] for major then minor units.
+const CURRENCY = {
+  en: {EUR:['euro','euros','cent','cents'],USD:['dollar','dollars','cent','cents'],GBP:['pound','pounds','penny','pence'],JPY:['yen','yen','',''],RUB:['ruble','rubles','kopeck','kopecks'],RON:['leu','lei','ban','bani']},
+  it: {EUR:['euro','euro','centesimo','centesimi'],USD:['dollaro','dollari','centesimo','centesimi'],GBP:['sterlina','sterline','penny','pence'],JPY:['yen','yen','',''],RUB:['rublo','rubli','copeco','copechi'],RON:['leu','lei','ban','bani']},
+  ro: {EUR:['euro','euro','cent','cenți'],USD:['dolar','dolari','cent','cenți'],GBP:['liră','lire','penny','pence'],JPY:['yen','yeni','',''],RUB:['rublă','ruble','copeică','copeici'],RON:['leu','lei','ban','bani']},
+  ru: {EUR:['евро','евро','евро','цент','цента','центов'],USD:['доллар','доллара','долларов','цент','цента','центов'],GBP:['фунт','фунта','фунтов','пенни','пенни','пенни'],JPY:['иена','иены','иен','','',''],RUB:['рубль','рубля','рублей','копейка','копейки','копеек'],RON:['лей','лея','леев','бань','бани','бань']},
+  ja: {EUR:'ユーロ',USD:'ドル',GBP:'ポンド',JPY:'円',RUB:'ルーブル',RON:'レイ'},
+};
 const pluralRu = (n, forms) => forms[n % 100 >= 11 && n % 100 <= 14 ? 2 : n % 10 === 1 ? 0 : n % 10 >= 2 && n % 10 <= 4 ? 1 : 2];
 function ruGenitive(n) {
   const forms = {
@@ -110,7 +118,23 @@ function normalizeNumbers(text, lang) {
   const money = (n,c) => {
     const decimal = ['en','ja'].includes(l) ? '.' : ',';
     const raw = n.replace(/[\s\u00a0\u202f]/g,'').split(decimal === '.' ? ',' : '.').join('').replace(decimal,'.');
-    try { return converters[l].toCurrency(raw,{currency:currencies[c]}); } catch { return `${numeric(n,l) ?? n} ${c}`; }
+    const code = currencies[c];
+    if (l === 'ja') return `${numeric(n,l) ?? n}${CURRENCY.ja[code]}`;
+    const [whole, cents = ''] = raw.split('.');
+    const major = Number(whole), minor = Number(cents.padEnd(2,'0').slice(0,2));
+    const [one, many, oneMinor, manyMinor] = CURRENCY[l][code];
+    const count = (x, sing, plural, gen, feminine) => {
+      if (l === 'ru') return `${word(x,l,feminine ? {gender:'feminine'} : undefined)} ${pluralRu(x,[sing,plural,gen])}`;
+      const w = x === 1 ? {en:'one',it:'un',ro:'un'}[l] : word(x,l);
+      const de = l === 'ro' && x >= 20 && (x % 100 === 0 || x % 100 >= 20) ? 'de ' : '';
+      return `${w} ${de}${x === 1 ? sing : plural}`;
+    };
+    const ru = l === 'ru';
+    const majorText = ru ? count(major, ...CURRENCY.ru[code].slice(0,3), code === 'JPY') : count(major, one, many);
+    if (!minor) return majorText;
+    const minorText = ru ? count(minor, ...CURRENCY.ru[code].slice(3,6), code === 'RUB') : count(minor, oneMinor, manyMinor);
+    if (!major) return minorText;
+    return `${majorText}${{en:' and ',it:' e ',ro:' \u0219i ',ru:' '}[l]}${minorText}`;
   };
   s = s.replace(new RegExp(`([€$£₽¥])\\s*(${amount})`, 'g'), (_,c,n)=>hold(money(n,c)));
   s = s.replace(new RegExp(`(${amount})\\s*(EUR|USD|GBP|RUB|RON|JPY|[€$£₽¥])`, 'g'), (_,n,c)=>hold(money(n,c)));
