@@ -44,7 +44,7 @@ export const it: Record<OkfKey, string> = {
   memoryHint: "Spento all'inizio. Se lo accendi, dopo ogni risposta OK Filow tiene fino a 3 brevi preferenze o fatti che dici su di te, solo su questo PC, e alle domande successive ne aggiunge fino a 5 pertinenti. Mai contenuti dello schermo, altre persone, password o numeri.",
   memoryListTitle: "Cosa ricorda OK Filow",
   memoryEmpty: "Ancora niente da ricordare.",
-  memoryFrom: "{when}, da \"{question}\"",
+  memoryFrom: "Appreso dalla tua domanda del {when}: \"{question}\"",
   memoryDelete: "Elimina",
   memoryDeleteLabel: "Elimina: {fact}",
   memoryDeleteAll: "Elimina tutto",

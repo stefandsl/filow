@@ -3,7 +3,7 @@
 import { type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { MemorySettings } from "@/app/okfilow/panel/memory-settings";
+import { groupBySource, MemorySettings } from "@/app/okfilow/panel/memory-settings";
 import type { OkFilowBridge, OkFilowStatus } from "@/lib/buddy/bridge";
 import type { MemoryFact } from "@/lib/buddy/memory";
 import { okfText } from "@/lib/buddy/text";
@@ -51,7 +51,9 @@ describe("Remember things about me", () => {
   it("lists each fact with when and from which question, and a Delete a screen reader can name", () => {
     const html = renderToStaticMarkup(view(true, FACTS));
     const day = new Date(FACTS[0].at).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" });
-    expect(plain(html)).toContain(`Answer in short sentences ${day}, from "please answer in short sentences" Delete`);
+    expect(plain(html)).toContain(`Learned from your question on ${day}: "please answer in short sentences" Answer in short sentences Delete`);
+    // the source is one line with the whole question in its tooltip
+    expect(html).toContain(`<p class="okf-memory-from" title="Learned from your question on ${day}: &quot;please answer in short sentences&quot;">`);
     expect(html).toContain('aria-label="Delete: The user&#x27;s talk is about solar panels"');
     expect(html).toContain("Delete all");
     // turned off with facts still kept: the list stays, so they can be deleted
@@ -84,7 +86,19 @@ describe("Remember things about me", () => {
     expect(css).toContain(".okf-panel:lang(ja) { word-break: auto-phrase; }");
     expect(css).toMatch(/@supports not \(word-break: auto-phrase\)[^}]*word-break: keep-all; overflow-wrap: anywhere;/);
     expect(css).toContain(':root[data-theme="light"] .okf-swatch { box-shadow: inset 0 0 0 1px rgba(17, 19, 24, 0.6); }');
-    expect(css).toContain(':root[data-theme="light"] .okf-warn { color: #5c3a00; }');
+    expect(css).toContain(':root[data-theme="light"] .okf-warn { color: #5c3a00; background: #fff3d1;');
+    expect(css).toMatch(/\.okf-warn::before \{ content: "!";/);
+    // a choice is never cut short: rows wrap, selects keep their width
+    expect(css).toContain(".okf-row { display: flex; flex-wrap: wrap;");
+    expect(css).toContain(".okf-row select { appearance: none; flex: none; max-width: 100%;");
+  });
+
+  it("facts learned from the same question share one source line", () => {
+    const same: MemoryFact[] = [FACTS[0], { ...FACTS[1], question: FACTS[0].question, at: FACTS[0].at }, FACTS[1]];
+    expect(groupBySource(same).map((g) => g.facts.map((f) => f.id))).toEqual([["a", "b"], ["b"]]);
+    const html = renderToStaticMarkup(view(true, same));
+    expect(html.match(/data-testid="memory-group"/g)).toHaveLength(2);
+    expect(html.match(/class="okf-memory-from"/g)).toHaveLength(2);
   });
 
   it("an older desktop app without memory shows nothing", () => {

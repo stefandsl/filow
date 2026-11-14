@@ -44,7 +44,7 @@ export const ja: Record<OkfKey, string> = {
   memoryHint: "初期設定はオフです。オンにすると、回答のたびに、あなたが自分について話した短い好みや事実を最大3件、このPCだけに保存し、次の質問に合うものを最大5件添えます。画面の内容、ほかの人のこと、パスワード、番号は保存しません。",
   memoryListTitle: "OK Filowが覚えていること",
   memoryEmpty: "まだ何も覚えていません。",
-  memoryFrom: "{when}、「{question}」から",
+  memoryFrom: "{when}の質問から:「{question}」",
   memoryDelete: "削除",
   memoryDeleteLabel: "削除: {fact}",
   memoryDeleteAll: "すべて削除",

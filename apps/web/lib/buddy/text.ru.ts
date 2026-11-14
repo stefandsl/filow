@@ -44,7 +44,7 @@ export const ru: Record<OkfKey, string> = {
   memoryHint: "По умолчанию выключено. Если включить, после каждого ответа OK Filow сохраняет до 3 коротких предпочтений или фактов, которые вы сказали о себе, только на этом компьютере, и добавляет к следующим вопросам до 5 подходящих. Никогда не сохраняются содержимое экрана, другие люди, пароли и номера.",
   memoryListTitle: "Что запомнил OK Filow",
   memoryEmpty: "Пока ничего не запомнено.",
-  memoryFrom: "{when}, из вопроса «{question}»",
+  memoryFrom: "Из вашего вопроса от {when}: «{question}»",
   memoryDelete: "Удалить",
   memoryDeleteLabel: "Удалить: {fact}",
   memoryDeleteAll: "Удалить всё",

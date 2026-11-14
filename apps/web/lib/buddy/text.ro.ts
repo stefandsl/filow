@@ -44,7 +44,7 @@ export const ro: Record<OkfKey, string> = {
   memoryHint: "Oprit implicit. Când e pornit, după fiecare răspuns OK Filow păstrează până la 3 preferințe sau fapte scurte pe care le spui despre tine, doar pe acest PC, și adaugă la întrebările următoare până la 5 potrivite. Niciodată conținutul ecranului, alte persoane, parole sau numere.",
   memoryListTitle: "Ce reține OK Filow",
   memoryEmpty: "Nimic reținut încă.",
-  memoryFrom: "{when}, din „{question}”",
+  memoryFrom: "Aflat din întrebarea ta din {when}: „{question}”",
   memoryDelete: "Șterge",
   memoryDeleteLabel: "Șterge: {fact}",
   memoryDeleteAll: "Șterge tot",

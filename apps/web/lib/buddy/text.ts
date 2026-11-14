@@ -49,7 +49,7 @@ const en = {
   memoryHint: "Off by default. When on, after each answer OK Filow keeps up to 3 short preferences or facts you said about yourself, only on this PC, and adds up to 5 that fit to your next questions. Never screen content, other people, passwords or numbers.",
   memoryListTitle: "What OK Filow remembers",
   memoryEmpty: "Nothing remembered yet.",
-  memoryFrom: "{when}, from \"{question}\"",
+  memoryFrom: "Learned from your question on {when}: \"{question}\"",
   memoryDelete: "Delete",
   memoryDeleteLabel: "Delete: {fact}",
   memoryDeleteAll: "Delete all",
