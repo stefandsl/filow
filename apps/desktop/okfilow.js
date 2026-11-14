@@ -18,6 +18,10 @@ const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agen
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
 const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOverlays, pointsShowMs, answering, overlayMouse, seeChoice, wordsOnlyList, pillState, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
+const { createHitTarget, insideAny, cleanRects, localPoint } = require("./okfilow-hit");
+const { cleanShow, showFor } = require("./okfilow-media");
+const { clampBounds, movedBounds, localRect } = require("./okfilow-move");
+const { escTarget, createEscKey } = require("./okfilow-esc");
 const { createPractice } = require("./tour");
 const { overlayRects } = require("./okfilow-rects");
 const { modelBounds } = require("./okfilow-model-place");
@@ -331,6 +335,25 @@ function createOkFilow(deps) {
   let modelWin = null;
   let boardWin = null;
   let currentModel = null;
+  /** The model window's mouse (okfilow-hit.js): its tools and labels take clicks whenever the real cursor is on them. */
+  let modelHit = null;
+  let modelCursorTimer = null;
+  /** Where the user put the model window this session (moved or resized), until "reset layout". */
+  let modelMemo = null;
+  const workAreas = () => screen.getAllDisplays().map((d) => d.workArea);
+  /** Each overlay is told where the model window is (its own coordinates), so the answer bubble keeps off it. */
+  function sendModelBounds() {
+    const b = modelWin && !modelWin.isDestroyed() && modelWin.isVisible() ? modelWin.getBounds() : null;
+    for (const w of overlays.values()) if (!w.isDestroyed()) w.webContents.send("okfilow:modelBounds", localRect(b, w.getBounds()));
+  }
+  function watchModelCursor() {
+    clearInterval(modelCursorTimer);
+    modelCursorTimer = setInterval(() => {
+      if (!modelWin || modelWin.isDestroyed()) { clearInterval(modelCursorTimer); modelCursorTimer = null; return; }
+      if (!modelWin.isVisible()) return;
+      modelHit?.at(localPoint(screen.getCursorScreenPoint(), modelWin.getBounds()));
+    }, 30);
+  }
   function showModel(model) {
     currentModel = model;
     if (modelWin && !modelWin.isDestroyed()) {
@@ -340,7 +363,8 @@ function createOkFilow(deps) {
     }
     // In place beside the pointer (no panel: the page draws only the model, its labels and a close button on hover).
     const c = screen.getCursorScreenPoint();
-    const at = modelBounds(c, screen.getDisplayNearestPoint(c).workArea);
+    // Where the user last put it this session (okfilow-move.js), else beside the pointer.
+    const at = modelMemo ? clampBounds(modelMemo, workAreas()) : modelBounds(c, screen.getDisplayNearestPoint(c).workArea);
     modelWin = new BrowserWindow({
       ...at,
       frame: false,
@@ -357,9 +381,14 @@ function createOkFilow(deps) {
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload, backgroundThrottling: false },
     });
     modelWin.setIgnoreMouseEvents(true, { forward: true });
+    const win = modelWin;
+    modelHit = createHitTarget({ setIgnore: (ignore) => { if (!win.isDestroyed()) win.setIgnoreMouseEvents(ignore, { forward: true }); } });
+    watchModelCursor();
     modelWin.setContentProtection(hidden());
     lockDown(modelWin);
-    modelWin.on("closed", () => { modelWin = null; });
+    modelWin.on("closed", () => { modelWin = null; modelHit = null; clearInterval(modelCursorTimer); modelCursorTimer = null; sendModelBounds(); });
+    modelWin.on("show", sendModelBounds);
+    modelWin.on("hide", sendModelBounds);
     modelWin.once("ready-to-show", () => modelWin && !modelWin.isDestroyed() && showWindow(modelWin, "model window", true));
     modelWin.loadURL(`${appUrl}/okfilow/model`);
   }
@@ -401,9 +430,35 @@ function createOkFilow(deps) {
     logLine(`okfilow: 3D model shown (${currentModel.parts.length} parts)`);
     qaShot("model", 3000);
   });
+  // The page says only whether the pointer is on a part of the model or dragging it; its tools and
+  // labels are rectangles it reports, and the real cursor decides (okfilow-hit.js).
   ipcMain.on("okfilow:model:hover", (e, active) => {
-    if (ourSender(e) && modelWin && !modelWin.isDestroyed() && e.sender === modelWin.webContents)
-      modelWin.setIgnoreMouseEvents(active !== true, { forward: true });
+    if (ourSender(e) && modelWin && !modelWin.isDestroyed() && e.sender === modelWin.webContents) modelHit?.hold(active === true);
+  });
+  ipcMain.on("okfilow:model:rects", (e, rects) => {
+    if (!ourSender(e) || !modelWin || modelWin.isDestroyed() || e.sender !== modelWin.webContents) return;
+    modelHit?.rects(rects);
+    modelHit?.at(localPoint(screen.getCursorScreenPoint(), modelWin.getBounds()));
+  });
+  // The model window's handle, grip and arrow keys (okfilow-move.js): moved or resized, kept on the screen it is on.
+  ipcMain.on("okfilow:model:move", (e, d) => {
+    if (!ourSender(e) || !modelWin || modelWin.isDestroyed() || e.sender !== modelWin.webContents) return;
+    const next = movedBounds(modelWin.getBounds(), d, workAreas());
+    if (!next) return;
+    modelWin.setBounds(next);
+    if (d && d.done === true) modelMemo = next;
+    sendModelBounds();
+  });
+  /** "Reset layout" from any OK Filow page: the model window goes back beside the pointer, every overlay forgets what was moved. */
+  ipcMain.on("okfilow:resetLayout", (e) => {
+    if (!ourSender(e)) return;
+    modelMemo = null;
+    if (modelWin && !modelWin.isDestroyed()) {
+      const c = screen.getCursorScreenPoint();
+      modelWin.setBounds(modelBounds(c, screen.getDisplayNearestPoint(c).workArea));
+      sendModelBounds();
+    }
+    sendOverlays("okfilow:resetLayout", null);
   });
   ipcMain.on("okfilow:model:close", (e) => { if (ourSender(e) && modelWin && !modelWin.isDestroyed()) modelWin.close(); });
   ipcMain.on("okfilow:askAbout", (e, text) => { if (ourSender(e) && typeof text === "string") sendPanel("okfilow:askText", text.slice(0, 300)); });
@@ -470,6 +525,28 @@ function createOkFilow(deps) {
       w.webContents.send("okfilow:cards", mine);
     }
     qaShot("cards", 3500);
+  });
+  /** Pictures and the slide (okfilow-media.js): to the overlay of the display the answer is about; null takes them away. */
+  ipcMain.on("okfilow:media", (e, raw) => {
+    if (!ourSender(e)) return;
+    const show = cleanShow(raw);
+    mediaUp = Boolean(show);
+    if (show) showOverlays();
+    for (const w of overlays.values()) {
+      if (w.isDestroyed()) continue;
+      w.webContents.send("okfilow:media", showFor(show, w.getBounds()));
+    }
+    if (show) qaShot("media", 3500);
+    else if (mode === "idle" || mode === "error") scheduleFade();
+  });
+  /** An overlay says where its pictures and slide are: those take clicks under the real cursor, the rest stays click-through. */
+  ipcMain.on("okfilow:overlay:rects", (e, rects) => {
+    if (!ourSender(e)) return;
+    const w = [...overlays.values()].find((x) => !x.isDestroyed() && x.webContents === e.sender);
+    if (!w) return;
+    mediaRects.set(e.sender.id, cleanRects(rects));
+    lastCursor = "";
+    mediaHit(w, localPoint(screen.getCursorScreenPoint(), w.getBounds()));
   });
 
   // ---- overlays ----
@@ -553,8 +630,22 @@ function createOkFilow(deps) {
   }
   /** An answer's cards (a photo, a drawing) stay up until Escape, the panel's Clear or the next question. */
   let cardsUp = false;
-  /** Something of an answer is kept on screen: its cards, or its marks while they last (answerMarks above). */
-  const pinned = () => cardsUp || answerMarks.up();
+  /** An answer's pictures or slide are on screen (until Stop, Escape, Clear, their close buttons or the next question). */
+  let mediaUp = false;
+  /** Where each overlay's pictures and slide are (webContents id -> rects), and whether the cursor is on one now. */
+  const mediaRects = new Map();
+  const mediaOn = new Set();
+  /** Something of an answer is kept on screen: its cards, pictures, or its marks while they last (answerMarks above). */
+  const pinned = () => cardsUp || mediaUp || answerMarks.up();
+  /** The real cursor (overlay coordinates, or null) over this overlay's pictures takes the mouse there (okfilow-hit.js). */
+  function mediaHit(w, p) {
+    const id = w.webContents.id;
+    const on = insideAny(p, mediaRects.get(id) ?? []);
+    if (on === mediaOn.has(id)) return;
+    if (on) mediaOn.add(id);
+    else mediaOn.delete(id);
+    applyMouse(w);
+  }
   /** The pointer is still visiting the things an answer points at until then (okfilow-stop.js pointsShowMs). */
   let pointUntil = 0;
   /**
@@ -583,7 +674,9 @@ function createOkFilow(deps) {
       for (const [id, w] of overlays) {
         if (w.isDestroyed()) continue;
         const b = w.getBounds();
-        w.webContents.send("okfilow:cursor", id === d.id ? { x: p.x - b.x, y: p.y - b.y } : null);
+        const local = id === d.id ? { x: p.x - b.x, y: p.y - b.y } : null;
+        w.webContents.send("okfilow:cursor", local);
+        mediaHit(w, local);
       }
     }, 16);
   }
@@ -773,6 +866,7 @@ function createOkFilow(deps) {
     practiceState.clear();
     if (!pinned() && pointUntil <= Date.now()) return;
     cardsUp = false;
+    mediaUp = false;
     answerMarks.forget();
     pointUntil = 0;
     sendOverlays("okfilow:clear", null);
@@ -882,7 +976,7 @@ function createOkFilow(deps) {
   function applyMouse(w) {
     if (!w || w.isDestroyed()) return;
     const id = w.webContents.id;
-    const m = overlayMouse({ caught: mouseCaught, hover: stopHover.has(id), mode, pill, bubble: bubble.open() });
+    const m = overlayMouse({ caught: mouseCaught, hover: stopHover.has(id), media: mediaOn.has(id), mode, pill, bubble: bubble.open() });
     w.setIgnoreMouseEvents(m.ignore);
     // Test builds log every change, so an end-to-end run can tell whether Windows would deliver a click.
     if (QA_SHOTS && mouseWas.get(id) !== m.ignore) logLine(`okfilow qa overlay ${id} mouse ${m.ignore ? "click-through" : "takes clicks"} (mode ${mode}, hover ${stopHover.has(id)}, caught ${mouseCaught})`);
@@ -896,6 +990,8 @@ function createOkFilow(deps) {
     if (!answering(mode)) return false;
     stopAt = Date.now();
     logLine(`okfilow: answer stopped by the user (${source})`);
+    // Pictures and videos go at once (no round trip through the panel): playback ends now.
+    if (mediaUp) { mediaUp = false; sendOverlays("okfilow:media", null); }
     sendPanel("okfilow:stop", { source });
     return true;
   }
@@ -911,6 +1007,25 @@ function createOkFilow(deps) {
     }
     gestures?.escape();
   }
+
+  // ---- Escape on what OK Filow shows (okfilow-esc.js): a global shortcut only while something is shown ----
+  let escAt = 0;
+  const modelShown = () => Boolean(modelWin && !modelWin.isDestroyed() && modelWin.isVisible());
+  function pressEsc() {
+    const now = Date.now();
+    // an answer in progress: Escape stops it first, as before
+    if (answering(mode)) { escAt = now; return onEscape(); }
+    const what = escTarget({ model: modelShown(), items: pinned(), bubble: bubble.open(), lastAt: escAt, now });
+    escAt = now;
+    logLine(`okfilow: Escape closes ${what || "nothing"}`);
+    if ((what === "model" || what === "all") && modelShown()) modelWin.close();
+    if (what === "items" || what === "all") clearDrawings();
+    if (what === "bubble" || what === "all") bubble.close("escape");
+    gestures?.escape();
+  }
+  const escKey = createEscKey({ shortcuts: globalShortcut, onEsc: pressEsc });
+  const escTimer = setInterval(() => escKey.sync(modelShown() || pinned() || bubble.open() || answering(mode)), 200);
+  escTimer.unref?.();
   function onGesture(ev) {
     logLine(`okfilow: gesture ${ev}`);
     switch (ev) {
@@ -1072,7 +1187,8 @@ function createOkFilow(deps) {
         const k = map[e.keycode] || null;
         gestures.keydown(k);
         if (!k) dictation.userMoved(); // the caret may have moved: no joining space before the next dictation
-        if (e.keycode === K.Escape) onEscape();
+        // (while OK Filow holds Escape as a shortcut, the shortcut acts: not twice)
+        if (e.keycode === K.Escape && !escKey.held()) onEscape();
         // Hands-free dictation: after the user's own Enter or Tab the next phrase starts without a space.
         if (phraseRun && (e.keycode === K.Enter || e.keycode === K.NumpadEnter || e.keycode === K.Tab)) phraseRun.moved();
       });
@@ -1570,6 +1686,8 @@ function createOkFilow(deps) {
     if (modelWin && !modelWin.isDestroyed()) modelWin.destroy();
     if (boardWin && !boardWin.isDestroyed()) boardWin.destroy();
     hookRetry.stop();
+    clearInterval(escTimer);
+    escKey.sync(false);
     for (const k of [eyeBound, pauseBound]) { if (k.accelerator) { try { globalShortcut.unregister(k.accelerator); } catch { /* quitting */ } } }
     try { hook?.stop(); } catch { /* quitting */ }
     stopCursor();

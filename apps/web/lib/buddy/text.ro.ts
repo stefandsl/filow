@@ -240,6 +240,12 @@ export const ro: Record<OkfKey, string> = {
   keyTaken: "Windows nu a acceptat {key}: o folosește deja altă aplicație. Alege alta.",
   photoHere: "Iată {subject}, cu o fotografie de pe Wikipedia.",
   photoOffline: "Modul offline este pornit, așa că nu pot lua o fotografie de pe Wikipedia. Oprește-l din Setări ca să vezi una.",
+  mediaPlay: "Redă",
+  mediaOwn: "Fișierul tău",
+  slideLabel: "Diapozitiv",
+  kept_media: "Rămâne pe acest PC. Imaginile nu au fost aduse.",
+  moveItem: "Mută (dublu clic: pune totul la loc)",
+  resizeItem: "Redimensionează",
   whiteboard: "Tablă",
   whiteboardHint: "Explică un concept dificil pas cu pas, desenând. Sau spune: \"tablă: fotosinteza\".",
 };

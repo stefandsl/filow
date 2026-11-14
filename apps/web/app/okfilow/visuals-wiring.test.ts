@@ -41,7 +41,7 @@ describe("the cards", () => {
   });
 
   it("are placed beside their subject with a leader, by the pure placement", () => {
-    expect(overlay).toContain("<CardsLayer cards={cards} avoid={cardAvoid} />");
+    expect(overlay).toContain("<CardsLayer cards={cards} avoid={cardAvoid} move={moveProps} t={t} />");
     expect(cardsLayer).toContain("placeCards(subjects[0], size, view, avoid(), subjects)");
     expect(cardsLayer).toContain("cardLeader(p, boxes[i])");
     expect(rule(".okf-card")).toContain(`width: ${CARD_WIDTH}px`);

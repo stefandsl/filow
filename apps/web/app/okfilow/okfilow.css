@@ -3,6 +3,8 @@
 html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !important; overflow: hidden; }
 
 .okf-overlay { position: fixed; inset: 0; user-select: none; font-family: var(--font); cursor: crosshair; }
+/* It paints over the pictures (the pointer lands on them) but takes no click unless the highlighter is on: the pictures' buttons get them. */
+.okf-overlay:not(.okf-overlay--catch) { pointer-events: none; }
 /* Mouse reaches the overlay only while the talk chord is held (main sets setIgnoreMouseEvents). */
 .okf-hidden { opacity: 0 !important; }
 
@@ -35,7 +37,8 @@ html[data-theme="light"] .okf-point-target { border-color: #684500; box-shadow: 
   animation: none;
 }
 
-/* The answer bubble (docs/okfilow/BUBBLE.md). Dark in both themes, like the pill: it floats over whatever is on screen. */
+/* The answer bubble (docs/okfilow/BUBBLE.md). It follows the theme, like the pill and the pictures beside it
+   (the light colours are at the end of this file). */
 .okf-bubble {
   position: fixed; left: 0; top: 0; z-index: 2; box-sizing: border-box; max-width: min(380px, calc(100vw - 16px)); will-change: transform;
   display: flex; align-items: center; gap: 10px;
@@ -306,10 +309,9 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
 .okf-model-tools {
   position: absolute; right: 8px; top: 8px; display: flex; align-items: center; gap: 4px; padding: 3px;
   border-radius: 10px; background: rgb(18, 19, 22); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
-  opacity: 0; transition: opacity 0.15s ease;
 }
 .okf-model:hover .okf-model-tools, .okf-model-tools:focus-within { opacity: 1; }
-.okf-model-grip { width: 22px; height: 28px; border-radius: 6px; cursor: move; -webkit-app-region: drag; background: radial-gradient(circle, rgba(244, 244, 245, 0.55) 1.2px, transparent 1.6px) 0 0 / 7px 7px; }
+.okf-model-grip { width: 28px; height: 28px; border-radius: 6px; cursor: move; -webkit-app-region: no-drag; touch-action: none; background: radial-gradient(circle, rgba(244, 244, 245, 0.85) 1.4px, transparent 1.8px) 0 0 / 7px 7px; }
 .okf-model-tools .okf-x { -webkit-app-region: no-drag; color: #f4f4f5; }
 .okf-model-tools .okf-x:hover { background: rgba(255, 255, 255, 0.12); }
 @media (prefers-reduced-motion: reduce) {
@@ -343,6 +345,50 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
 .okf-cards.okf-cards--leaving, .okf-card-leaders.okf-cards--leaving { animation: okf-fade-out 0.22s cubic-bezier(0.4, 0, 1, 1) forwards; }
 .okf-cards--leaving .okf-card { visibility: visible; animation: none; }
 .okf-cards--leaving .okf-card-leader line { stroke-dashoffset: 0; animation: none; }
+
+/* Pictures, animations, videos and the slide (components/okfilow/media-layer.tsx): opaque, in the cards'
+   style, dark and light. A picture is shown whole on the card's own colour (no bars of another colour
+   round it), with nothing on it: its caption, source and buttons are one strip under it. Only they take
+   the mouse (main checks the real cursor against their boxes). */
+.okf-media { position: fixed; inset: 0; pointer-events: none; --okf-card: rgb(20, 21, 24); --okf-card-text: #ececef; --okf-card-soft: #b4b7bf; }
+html[data-theme="light"] .okf-media { --okf-card: #ffffff; --okf-card-text: #18191c; --okf-card-soft: #4a4d55; }
+.okf-media-tile, .okf-slide {
+  position: absolute; box-sizing: border-box; margin: 0; overflow: hidden; border-radius: 14px; pointer-events: auto;
+  background: var(--okf-card); color: var(--okf-card-text); font: 14px/1.4 system-ui, sans-serif;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--okf-ink) 55%, var(--okf-card)), 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+html[data-theme="light"] .okf-media-tile, html[data-theme="light"] .okf-slide { box-shadow: 0 0 0 1px #8a8c92, 0 10px 30px rgba(0, 0, 0, 0.18); }
+.okf-media-tile { display: flex; flex-direction: column; }
+.okf-media-box { position: relative; flex: 1; min-height: 0; margin: 8px 8px 0; background: var(--okf-card); }
+.okf-media-box img, .okf-media-box video, .okf-media-box canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; border-radius: 6px; }
+/* Caption and buttons on one row; the source (author and licence) on its own row, the whole width, on one
+   line: a name is never broken across lines, and a source too long for it ends in an ellipsis (the whole
+   of it in the tooltip). */
+.okf-media-tile figcaption, .okf-slide figcaption { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 8px; row-gap: 2px; padding: 6px 8px 8px 12px; min-width: 0; }
+.okf-media-caption { grid-column: 1; grid-row: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.okf-media-source { grid-column: 1 / -1; grid-row: 2; min-width: 0; font-size: 11.5px; line-height: 1.3; color: var(--okf-card-soft); overflow: hidden; }
+/* Its parts (site, author, licence) wrap only between each other: a name or a licence is never cut or broken. */
+.okf-media-source span { white-space: nowrap; }
+.okf-media-tools { grid-column: 2; grid-row: 1; display: flex; gap: 6px; }
+.okf-media-btn {
+  display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 999px; cursor: pointer;
+  background: color-mix(in srgb, var(--okf-card-text) 10%, var(--okf-card)); color: var(--okf-card-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--okf-card-text) 28%, transparent);
+}
+:root .okf-media-btn:hover { background: color-mix(in srgb, var(--okf-card-text) 18%, var(--okf-card)); box-shadow: inset 0 0 0 2px var(--okf-ink); color: var(--okf-card-text); }
+.okf-media-btn:focus-visible { outline: 2px solid var(--okf-ink); outline-offset: 2px; }
+.okf-slide { padding: 20px 24px 22px; }
+.okf-slide--measuring { visibility: hidden; }
+.okf-slide h2 { margin: 0 40px 10px 0; font: 700 22px/1.25 system-ui, sans-serif; color: var(--okf-ink); }
+html[data-theme="light"] .okf-slide h2 { color: #18191c; }
+.okf-slide ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 16px; line-height: 1.4; }
+.okf-slide-x { position: absolute; top: 16px; right: 16px; }
+.okf-slide-media { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); gap: 12px; margin-top: 16px; }
+.okf-slide-media[data-count="1"] { --n: 1; }
+.okf-slide-media[data-count="2"] { --n: 2; }
+.okf-slide-media figure { margin: 0; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--okf-card-text) 16%, transparent); }
+/* The same fit as the gallery's tiles: a box of the tiles' shape, so a picture fills it the same way. */
+.okf-slide-media .okf-media-box { flex: none; aspect-ratio: 260 / 172; }
 
 /* Going outside: the notice, the pill and the list of choices are in outbound.css (shared with the
    take page, the PowerPoint add-in and the browser extension). */
@@ -485,11 +531,71 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
 @media (prefers-reduced-motion: reduce) { .okf-bubble, .okf-bubble--answer { transition: none; } }
 html[data-theme="light"] .okf-model { background: #cbd5e1; color: #18191c; box-shadow: inset 0 0 0 1px #94a3b8; }
 html[data-theme="light"] .okf-part { background: #ffffff; color: #18191c; box-shadow: 0 0 0 1px #8a8c92, 0 4px 14px #0002; }
-html[data-theme="light"] .okf-part-leader .okf-part-ink { stroke: #825700; stroke-width: 2; }
-html[data-theme="light"] .okf-part-leader .okf-part-halo { stroke: #08090b; stroke-width: 4.5; }
+/* Light theme: a thin leader in the theme's dark amber on a soft white halo (a heavy dark line read as clutter on a light view). */
+html[data-theme="light"] .okf-part-leader .okf-part-ink { stroke: #825700; stroke-width: 1.5; }
+html[data-theme="light"] .okf-part-leader .okf-part-halo { stroke: rgba(255, 255, 255, 0.85); stroke-width: 3.5; }
+html[data-theme="light"] .okf-part-leader circle { fill: #825700; stroke: #ffffff; }
 
 /* The hotspot stays at the bottom-right target corner. The ring's upper-left
    quadrant is cut away so no ink enters the glyph rectangle. The underline
    stops 18 px before this corner. Drop the arrow's shadow when it lands. */
 .okf-buddy[data-landed="true"] .okf-arrow { filter: none; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
 .okf-arrival { clip-path: polygon(50% -20%, 120% -20%, 120% 120%, -20% 120%, -20% 50%, 50% 50%); }
+
+/* Light theme: the bubble and the pill follow it, like the pictures and the slide beside them (the pill that
+   says something is going outside keeps its own amber in both themes). */
+html[data-theme="light"] .okf-bubble { background: rgba(255, 255, 255, 0.97); color: #18191c; border-color: rgba(130, 87, 0, 0.55); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); }
+html[data-theme="light"] .okf-bubble-close { background: rgba(0, 0, 0, 0.06); color: #18191c; }
+:root[data-theme="light"] .okf-bubble-close:hover { background: rgba(0, 0, 0, 0.12); border-color: rgba(0, 0, 0, 0.45); color: #000000; }
+html[data-theme="light"] .okf-bubble-close:focus-visible { outline-color: #18191c; }
+html[data-theme="light"] .okf-bubble-stopped { color: #4a4d55; border-color: rgba(0, 0, 0, 0.3); }
+html[data-theme="light"] .okf-text::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.3); }
+html[data-theme="light"] .okf-text::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.5); }
+html[data-theme="light"] .okf-notch:not(.okf-notch--out) { background: rgba(255, 255, 255, 0.97); color: #18191c; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18), inset 0 0 0 1px rgba(0, 0, 0, 0.14); }
+html[data-theme="light"] .okf-notch:not(.okf-notch--out) :is(.okf-ctl, .okf-stop) { border-color: rgba(0, 0, 0, 0.28); background: rgba(0, 0, 0, 0.05); color: #18191c; }
+:root[data-theme="light"] .okf-notch:not(.okf-notch--out) .okf-ctl:hover { background: rgba(0, 0, 0, 0.1); border-color: rgba(0, 0, 0, 0.5); }
+:root[data-theme="light"] .okf-notch:not(.okf-notch--out) .okf-stop:hover { background: rgba(179, 38, 30, 0.12); border-color: #b3261e; }
+html[data-theme="light"] .okf-notch:not(.okf-notch--out) :is(.okf-ctl, .okf-stop):focus-visible { outline-color: #18191c; }
+html[data-theme="light"] .okf-notch:not(.okf-notch--out) .okf-ctl--shut { color: #4a4d55; }
+html[data-theme="light"] .okf-notch:not(.okf-notch--out) .okf-stop svg { fill: #c4321f; }
+html[data-theme="light"] .okf-notch:not(.okf-notch--out) .okf-stop kbd { background: rgba(0, 0, 0, 0.08); }
+
+/* Light theme: the marks' halo is a crisp dark outline, not a grey band either side of the ink (it read as a muddy double line on a light page). */
+html[data-theme="light"] .okf-mark .okf-mark-halo { stroke: #2b2100; stroke-width: 7; }
+
+/* Moving and resizing (components/okfilow/move-grips.tsx): a row of dots at the top of an item moves it, the
+   lines in its bottom-right corner resize it. They sit on the item's edge, never on its picture or words. */
+/* At least 24 px to hit, drawn at 3:1 or more against the item (its words' colour at 80%). */
+.okf-move, .okf-resize { position: absolute; z-index: 1; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: color-mix(in srgb, var(--okf-card-text, #ececef) 80%, transparent); pointer-events: auto; touch-action: none; }
+/* One handle for every item, the 3D window's: a grid of dots on a small chip of the item's colour. */
+.okf-move { top: 4px; left: 50%; transform: translateX(-50%); width: 28px; height: 24px; border-radius: 7px; cursor: grab; background: radial-gradient(circle, currentColor 1.3px, transparent 1.7px) 3px 2px / 7px 7px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--okf-card-text, #ececef) 35%, transparent); }
+.okf-move svg { display: none; }
+.okf-move:active { cursor: grabbing; }
+/* The corner grip: a chip like the 3D window's, clearly drawn in both themes. */
+.okf-resize { right: 4px; bottom: 4px; width: 24px; height: 24px; border-radius: 7px; cursor: nwse-resize; background: color-mix(in srgb, var(--okf-card-text, #ececef) 8%, var(--okf-card, rgb(20, 21, 24))); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--okf-card-text, #ececef) 45%, transparent); }
+:root .okf-move:hover, :root .okf-resize:hover { color: var(--okf-ink); background: color-mix(in srgb, var(--okf-ink) 14%, transparent); }
+.okf-move:focus-visible, .okf-resize:focus-visible { outline: 2px solid var(--okf-ink); outline-offset: 1px; }
+/* room for them: the picture starts under the handle, the source line stops before the grip */
+.okf-media-tile .okf-media-box { margin-top: 36px; }
+.okf-media-tile:has(.okf-resize) .okf-media-source { padding-right: 32px; }
+.okf-slide:has(> .okf-move) { padding-top: 36px; }
+.okf-slide:has(> .okf-resize) { padding-bottom: 36px; }
+/* the cards' column: a bar to move it by, above the first card */
+.okf-cards-bar { position: relative; flex: none; height: 24px; border-radius: 10px; background: color-mix(in srgb, rgb(20, 21, 24) 86%, transparent); pointer-events: auto; }
+.okf-cards-bar .okf-move { top: 0; color: #c9cbd1; box-shadow: none; }
+.okf-cards-bar .okf-resize { right: 0; bottom: 0; width: 24px; height: 24px; border-radius: 10px; color: #c9cbd1; background: transparent; box-shadow: none; }
+/* the bubble: the handle on its top edge, the grip in its corner */
+/* the bubble that can be moved has a top strip for its handle, so the handle never sits on its words */
+/* (on the content, which the bubble's size follows: 24 px handle and grip, 8 px clear of the words) */
+.okf-bubble-content:has(> .okf-move) { padding: 28px 0 24px; }
+.okf-bubble .okf-move { color: color-mix(in srgb, currentColor 80%, transparent); }
+.okf-bubble .okf-resize { color: color-mix(in srgb, currentColor 80%, transparent); }
+/* the 3D window's grip, in its bottom-right corner */
+.okf-model-resize { position: fixed; right: 6px; bottom: 6px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; color: #f4f4f5; background: rgb(18, 19, 22); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3); cursor: nwse-resize; touch-action: none; }
+/* The 3D window's chrome is always there (handle, close, corner grip), in both themes: the window has no frame of its own. */
+html[data-theme="light"] .okf-model-tools, html[data-theme="light"] .okf-model-resize { background: #ffffff; color: #18191c; box-shadow: 0 0 0 1px #6b6e75; }
+html[data-theme="light"] .okf-model-tools .okf-x { color: #18191c; }
+html[data-theme="light"] .okf-model-grip { background-image: radial-gradient(circle, rgba(24, 25, 28, 0.8) 1.4px, transparent 1.8px); }
+/* The bubble's handle and grip take its own colours. */
+.okf-bubble { --okf-card: rgb(18, 18, 20); --okf-card-text: #f4f4f5; }
+html[data-theme="light"] .okf-bubble { --okf-card: #ffffff; --okf-card-text: #18191c; }

@@ -6,7 +6,7 @@
 // numbered labels on leader lines that follow them as the model turns (lib/buddy/model-labels.ts).
 // Drag to turn, scroll to zoom, hover to see a part, click a part (or its label, also by keyboard) to
 // ask OK Filow about it. Reduced motion: no turning by itself and no entry.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -76,9 +76,26 @@ export default function OkFilowModel() {
     if (!b) return;
     const off = b.onModel((m) => { setModel(m); setPicked(""); });
     b.modelReady();
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") b.closeModel(); };
+    // Escape closes; arrow keys move the window, Shift+arrows resize it (apps/desktop/okfilow-move.js keeps it on screen).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") return b.closeModel();
+      const d = ({ ArrowLeft: [-16, 0], ArrowRight: [16, 0], ArrowUp: [0, -16], ArrowDown: [0, 16] } as Record<string, [number, number]>)[e.key];
+      if (!d || !b.modelMove) return;
+      e.preventDefault();
+      b.modelMove(e.shiftKey ? { dx: 0, dy: 0, dw: d[0], dh: d[1], done: true } : { dx: d[0], dy: d[1], done: true });
+    };
     window.addEventListener("keydown", onKey);
-    return () => { off(); window.removeEventListener("keydown", onKey); };
+    // Where the tools and the labels are: main makes them take clicks whenever the real cursor is on
+    // them (apps/desktop/okfilow-hit.js), so no order of pointer events can lose a click on the close button.
+    let sent = "";
+    const report = setInterval(() => {
+      const rects = Array.from(document.querySelectorAll(".okf-model-tools, .okf-part, .okf-model-resize"), (el) => el.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0)
+        .map((r) => ({ left: Math.floor(r.left), top: Math.floor(r.top), right: Math.ceil(r.right), bottom: Math.ceil(r.bottom) }));
+      const key = JSON.stringify(rects);
+      if (key !== sent) { sent = key; b.modelRects?.(rects); }
+    }, 100);
+    return () => { off(); clearInterval(report); window.removeEventListener("keydown", onKey); };
   }, []);
 
   /** The parts that carry a label (the biggest, one per name), numbered 1.. in the model's order. */
@@ -385,6 +402,32 @@ export default function OkFilowModel() {
     focusPart.current = part;
     host.current?.dispatchEvent(new Event("okf-focus-part"));
   };
+  /**
+   * The handle and the grip move and resize the window itself: the page sends how far the pointer went on
+   * the screen (the window moves under it), main moves the window and keeps it on screen. The system's own
+   * drag region did not work on this click-through window (owner, 14/11).
+   */
+  const windowDrag = (kind: "move" | "size") => (e: ReactPointerEvent<HTMLElement>) => {
+    if (e.button !== 0 || !b?.modelMove) return;
+    e.preventDefault();
+    let last = { x: e.screenX, y: e.screenY };
+    const step = (ev: PointerEvent) => {
+      const dx = ev.screenX - last.x;
+      const dy = ev.screenY - last.y;
+      if (!dx && !dy) return;
+      last = { x: ev.screenX, y: ev.screenY };
+      b.modelMove?.(kind === "move" ? { dx, dy } : { dx: 0, dy: 0, dw: dx, dh: dy });
+    };
+    const end = () => {
+      window.removeEventListener("pointermove", step);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      b.modelMove?.({ dx: 0, dy: 0, done: true });
+    };
+    window.addEventListener("pointermove", step);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+  };
   return (
     <main className="okf-model" aria-label={model?.title ?? "OK Filow"} key={model ? "m-" + model.title : "none"}>
       <div ref={host} className="okf-model-view" title={t("modelHint")} />
@@ -408,7 +451,7 @@ export default function OkFilowModel() {
               onClick={() => ask(l.name)}
               onFocus={() => focus(l.part)}
               onBlur={() => focus(null)}
-              onPointerEnter={() => { focus(l.part); b?.modelHover?.(true); }}
+              onPointerEnter={() => focus(l.part)}
               onPointerLeave={() => focus(null)}
             >
               <span className="okf-part-n" aria-hidden>{l.n}</span>
@@ -417,10 +460,15 @@ export default function OkFilowModel() {
           </li>
         ))}
       </ol>
-      <div className="okf-model-tools" onPointerEnter={() => b?.modelHover?.(true)} onPointerLeave={() => b?.modelHover?.(false)}>
-        <span className="okf-model-grip" aria-hidden />
+      <div className="okf-model-tools">
+        {/* The handle moves the window (a double click puts every OK Filow item back: "reset layout"). */}
+        <span className="okf-model-grip" role="button" tabIndex={-1} aria-label={t("moveItem")} title={t("moveItem")} onPointerDown={windowDrag("move")} onDoubleClick={() => b?.resetLayout?.()} />
         <button type="button" className="okf-x" aria-label={t("close")} title={t("close")} onClick={() => b?.closeModel()}>×</button>
       </div>
+      {/* The grip in the corner resizes the window; the model is drawn again at the new size. */}
+      <span className="okf-model-resize" role="button" tabIndex={-1} aria-label={t("resizeItem")} title={t("resizeItem")} onPointerDown={windowDrag("size")} onDoubleClick={() => b?.resetLayout?.()}>
+        <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden><path d="M11 3L3 11M11 7L7 11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+      </span>
       <p className="okf-sr">{t("modelHint")}</p>
       <p className="okf-sr" aria-live="polite">{hover ? hover : picked ? t("modelAsking").replace("{part}", picked) : ""}</p>
     </main>

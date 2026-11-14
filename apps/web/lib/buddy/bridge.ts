@@ -2,6 +2,7 @@
 import type { ConsentChanges, ConsentMap, OutboundKind, OutboundSnapshot, Recipient } from "./outbound";
 import type { BuddyMark } from "./prompt";
 import type { BuddyModel } from "./visuals";
+import type { MediaShow } from "./media";
 import type { PillAction, PillState } from "./pill";
 import type { MemoryFact, ProposedFact } from "./memory";
 
@@ -171,6 +172,18 @@ export type OkFilowBridge = {
   stroke(points: Array<[number, number]>): void;
   /** Panel -> overlays: explanation cards (global DIP). */
   cards(list: OkFilowCard[]): void;
+  /** Panel -> overlays: pictures, animations, videos and the slide (lib/buddy/media.ts), global DIP; null takes them away. Absent in an older desktop build. */
+  media?(show: MediaShow | null): void;
+  onMedia?(fn: (show: MediaShow | null) => void): Off;
+  /** Any OK Filow page -> main: "reset layout": every moved or resized item back where OK Filow puts it (lib/buddy/layout-move.ts). */
+  resetLayout?(): void;
+  onResetLayout?(fn: () => void): Off;
+  /** Main -> overlays: where the 3D model window is, in this overlay's coordinates (null: none), so the bubble keeps off it. */
+  onModelBounds?(fn: (r: { left: number; top: number; right: number; bottom: number } | null) => void): Off;
+  /** Model window -> main: move the window by dx, dy, or resize it by dw, dh (its drag handle, its grip, arrow keys); kept on screen. */
+  modelMove?(d: { dx: number; dy: number; dw?: number; dh?: number; done?: boolean }): void;
+  /** Overlay -> main: where its pictures and slide are (overlay CSS px); main lets clicks through everywhere else (apps/desktop/okfilow-hit.js). */
+  overlayRects?(rects: Array<{ left: number; top: number; right: number; bottom: number }>): void;
   /** Panel -> main: open the 3D model window with this model. */
   showModel(model: BuddyModel): void;
   /** Model window -> main: loaded, send me the model. */
@@ -178,7 +191,10 @@ export type OkFilowBridge = {
   /** Overlay -> main: my listeners are registered, send me the current state. */
   overlayReady(): void;
   closeModel(): void;
+  /** Model window -> main: on a part of the model or dragging it (main also takes the mouse over modelRects). */
   modelHover?(active: boolean): void;
+  /** Model window -> main: where its tools and labels are (window CSS px); main makes them take clicks under the real cursor (apps/desktop/okfilow-hit.js). */
+  modelRects?(rects: Array<{ left: number; top: number; right: number; bottom: number }>): void;
   /** Model window -> panel (through main): ask OK Filow about a clicked part. */
   askAbout(text: string): void;
   /** Whiteboard tutor (docs/whiteboard/SPEC.md). Absent in a desktop build older than the whiteboard. */

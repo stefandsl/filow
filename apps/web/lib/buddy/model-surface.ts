@@ -45,6 +45,9 @@ export function visibleSurfaceAnchor(mesh:THREE.Mesh, meshes:THREE.Mesh[], camer
     const score=clearance < 8 ? clearance-1000000 : clearance - (mesh.userData.shell ? Math.abs(p.x-preferredX)*0.6 : Math.abs(p.y-(top+(bottom-top)*vertical))*0.9);
     if(score>best) { best=score; margin=clearance; anchor=mesh.worldToLocal(hit.point.clone()); }
   }
+  // Wholly behind another part (a far wheel seen through the body): the leader ends on the middle of the
+  // part itself, where it shows through, not on a rim the ray happens to meet first.
+  if(best===-Infinity) { if(!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox(); anchor=mesh.geometry.boundingBox!.getCenter(new THREE.Vector3()); }
   return {anchor,margin};
 }
 /** A ray from the viewer meets the actual geometry, including an open or transparent shell. */

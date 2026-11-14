@@ -277,7 +277,7 @@ describe("Escape", () => {
     expect(fn).toContain('else if (step === "bubble") bubble.close("escape");');
     expect(fn).toContain("else clearDrawings();");
     // the hardware hook (off under test isolation) and the QA key path call the same function
-    expect(main).toContain("if (e.keycode === K.Escape) onEscape();");
+    expect(main).toContain("if (e.keycode === K.Escape && !escKey.held()) onEscape();");
     expect(main).toMatch(/gestures\.keydown\(mod\); if \(key === "escape"\) onEscape\(\);/);
   });
 });
@@ -316,7 +316,7 @@ describe("main and the bubble", () => {
     expect(overlayMouse({ caught: false, hover: true, mode: "idle", pill: null, bubble: true })).toEqual({ ignore: false });
     expect(overlayMouse({ caught: false, hover: true, mode: "idle", pill: null, bubble: false })).toEqual({ ignore: true });
     expect(overlayMouse({ caught: false, hover: false, mode: "idle", pill: null, bubble: true })).toEqual({ ignore: true });
-    expect(main).toContain("overlayMouse({ caught: mouseCaught, hover: stopHover.has(id), mode, pill, bubble: bubble.open() })");
+    expect(main).toContain("overlayMouse({ caught: mouseCaught, hover: stopHover.has(id), media: mediaOn.has(id), mode, pill, bubble: bubble.open() })");
   });
   it("calling the pointer back (an empty list of points) keeps nothing on screen", () => {
     expect(keepsOverlays([])).toBe(false);
@@ -521,7 +521,7 @@ describe("an answer's marks never outlive the answer", () => {
     expect(clear).toContain('sendOverlays("okfilow:clear", null);');
     // cards (a photo, a drawing) are the answer itself: an empty list keeps nothing, a full one stays until Escape
     expect(main).toContain("cardsUp = keepsOverlays(list);");
-    expect(main).toContain("const pinned = () => cardsUp || answerMarks.up();");
+    expect(main).toContain("const pinned = () => cardsUp || mediaUp || answerMarks.up();");
   });
   it("the overlay window still never takes the keyboard", () => {
     const at = main.indexOf("function buildOverlays()");

@@ -240,6 +240,12 @@ export const ja: Record<OkfKey, string> = {
   keyTaken: "Windowsが{key}を受け付けませんでした。ほかのアプリが使っています。別のものを選んでください。",
   photoHere: "{subject}です。ウィキペディアの写真を表示します。",
   photoOffline: "オフラインモードがオンのため、ウィキペディアから写真を取得できません。設定でオフにすると表示できます。",
+  mediaPlay: "再生",
+  mediaOwn: "あなたのファイル",
+  slideLabel: "スライド",
+  kept_media: "このPCに残しました。画像は取得していません。",
+  moveItem: "移動（ダブルクリックで元の配置に戻す）",
+  resizeItem: "サイズ変更",
   whiteboard: "ホワイトボード",
   whiteboardHint: "難しい概念を、図を描きながら一歩ずつ説明します。声でも：「ホワイトボード：光合成」。",
 };

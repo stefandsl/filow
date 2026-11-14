@@ -37,6 +37,8 @@ import { drawingStarts, markSentences, marksReleased } from "@/lib/buddy/marks-s
 import { avoidRects, elementRects, snapMarks, type PlainRect } from "@/lib/buddy/snap";
 import { wantsDrawing } from "@/lib/buddy/visuals";
 import { photoOnly } from "@/lib/buddy/photo";
+import { MAX_GALLERY, ownMedia, type MediaItem, type MediaShow } from "@/lib/buddy/media";
+import { lookUpMedia } from "@/lib/buddy/mediaClient";
 import { AnswerControls, KeyChoice, SeeScreenSwitch } from "@/components/okfilow/controls";
 import { whiteboardTopic } from "@/lib/whiteboard/client";
 import { askPlan, askTextQuestion, lastPresenterAnswer, phoneCount, phoneLabel, phoneNoticeFree, phonePrompt, phoneTurns, presenterHistory, questionForModel, wordsOnly, type AskSource } from "@/lib/buddy/phoneAsk";
@@ -205,7 +207,7 @@ export default function OkFilowPanel() {
   localScreenRef.current = localScreen;
   const [asksSee, setAsksSee] = useState(true);
   /** The last answer's visuals in global DIP, for "Replay last answer". */
-  const lastShown = useRef<{ points: Parameters<OkFilowBridge["point"]>[0]; marks: Parameters<OkFilowBridge["draw"]>[0]; model: BuddyModel | null; cards: OkFilowCard[] } | null>(null);
+  const lastShown = useRef<{ points: Parameters<OkFilowBridge["point"]>[0]; marks: Parameters<OkFilowBridge["draw"]>[0]; model: BuddyModel | null; cards: OkFilowCard[]; media?: MediaShow } | null>(null);
   const token = useRef<string | null>(null);
   const statusRef = useRef<OkFilowStatus | null>(null);
   statusRef.current = status;
@@ -822,13 +824,15 @@ export default function OkFilowPanel() {
       const body = resume ? joinContinuation(resume.shown, answered.trim()) : answered;
       const parsed = parseBuddyAnswer(answered, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1);
       // A phone's question is answered in words only: no pointer, pen, cards, drawing or 3D model (askPlan).
-      const { points, marks, cards, model, drawing } = plan.visuals ? parsed : wordsOnly(parsed);
+      const { points, marks, cards, model, drawing, media, slide } = plan.visuals ? parsed : wordsOnly(parsed);
+      // The user's own files and links named in the question go in the gallery first (never a phone's: plan.visuals).
+      const gallery = [...(plan.visuals ? ownMedia(question) : []), ...media].slice(0, MAX_GALLERY);
       const text = resume ? joinContinuation(resume.shown, parsed.text) : parsed.text;
       // The raw stream retains app-word provenance; saved visuals identify who supplied the words.
       if (parsed.appWordsLanguage) answerLang = parsed.appWordsLanguage;
       void b.answerLog({ question, raw: body, visuals: { text, points, marks, cards, model, drawing, wordsSource: parsed.appWordsLanguage ? "app" : "model" }, images, svg: drawing ? drawingSvg(drawing) : undefined }).catch(() => "");
       // A drawing or a model with no sentence is an answer too (it used to be thrown away as "empty").
-      if (!text && !points.length && !marks.length && !cards.length && !model && !drawing) throw new Error(t("emptyAnswer"));
+      if (!text && !points.length && !marks.length && !cards.length && !model && !drawing && !gallery.length && !slide) throw new Error(t("emptyAnswer"));
       setAnswer(text);
       b.text(text);
       // A continuation: the conversation's last answer becomes the first part and what followed, with no second question.
@@ -905,11 +909,41 @@ export default function OkFilowPanel() {
           })().catch(() => {});
         }
       }
+      if (gallery.length || slide) {
+        // Pictures, animations and videos, and the slide (lib/buddy/media.ts): the slide's words show at
+        // once; the pictures after one yes for the source the batch goes to, all looked up together.
+        const where = shot.displays.find((d) => d.index === (shot.screens.find((x) => x.cursor)?.index ?? 1)) ?? shot.displays[0];
+        const at = where ? { x: Math.round(where.bounds.x + where.bounds.width / 2), y: Math.round(where.bounds.y + where.bounds.height / 2) } : { x: 0, y: 0 };
+        const showMedia = (g: MediaItem[], s: MediaShow["slide"]) => {
+          if (run.current !== id) return;
+          const value: MediaShow = { ...at, gallery: g, slide: s };
+          if (lastShown.current) lastShown.current.media = value;
+          b.media?.(value);
+          noteVisual(id);
+        };
+        if (slide) showMedia([], { title: slide.title, points: slide.points, media: [] });
+        void (async () => {
+          const asks = [...gallery, ...(slide?.media ?? [])];
+          const headers = await engineHeaders();
+          const { items, declined } = await lookUpMedia(asks, {
+            offline: Boolean(statusRef.current?.offline),
+            allow: (r) => out.allow("photo", r),
+            sending: (r, go) => out.sending("photo", r, (h) => go(h)),
+            get: async (path, h) => { const r = await fetch(path, { headers: { ...headers, ...h } }); return r.ok ? r.json() : null; },
+            ownLabel: t("mediaOwn"),
+            lang: answerLang,
+          });
+          if (declined && run.current === id) setNote(t("kept_media"));
+          const got = (list: Array<MediaItem | null>) => list.filter((x): x is MediaItem => x !== null);
+          const g = got(items.slice(0, gallery.length));
+          if (g.length || slide) showMedia(g, slide ? { title: slide.title, points: slide.points, media: got(items.slice(gallery.length)) } : null);
+        })().catch(() => {});
+      }
       // HeyClicky always shows you where. Small local models sometimes answer in words only: then ask
       // once more, narrowly, for the point, while the answer is already being spoken.
       // (not when the setup answered from text: the model saw no picture to point at)
       // (and not once the eye is closed: the grounding pass would send the screenshot again)
-      const grounding = !mapped.length && !drawn.length && !cards.length && !model && text && !seesText && stillSees(seeing, statusRef.current?.seeScreen)
+      const grounding = !mapped.length && !drawn.length && !cards.length && !model && !gallery.length && !slide && text && !seesText && stillSees(seeing, statusRef.current?.seeScreen)
         ? groundAnswer(question, text, images, shot, abort.signal, to, id).then((p) => { if (p && run.current === id) { b.point([p], avoid); noteVisual(id); } }).catch(() => {})
         : Promise.resolve();
       setMode("speaking");
@@ -1523,6 +1557,7 @@ export default function OkFilowPanel() {
     if (last.points.length) bridge.point(last.points);
     if (last.marks.length) bridge.draw(last.marks);
     if (last.cards.length) bridge.cards(last.cards);
+    if (last.media) bridge.media?.(last.media);
     if (last.model) bridge.showModel(last.model);
   };
   const hotkey = HOTKEY_LABEL[c?.hotkey ?? "ctrl+alt"] ?? c?.hotkey;

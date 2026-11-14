@@ -7,6 +7,7 @@
 import { boundsOf, safeId, stepOf, type BinaryFile, type ExEl, type Scene } from "./scene";
 import type { Box } from "./layout";
 import { EDIT_COLOURS, type EditChange } from "./edits";
+import { boardFileOk, cleanBoardMedia, filesOf, isVideoFile, MAX_BOARD_MEDIA } from "./media";
 
 export type SceneEdits = {
   /** Changed properties of compiled elements, by id. */
@@ -76,7 +77,6 @@ export function diffEdits(base: Scene, before: SceneEdits, now: ExEl[], files: R
 
 export const MAX_FILE_ELEMENTS = 3000;
 const TYPES = new Set(["rectangle", "ellipse", "diamond", "text", "arrow", "line", "freedraw", "image", "frame"]);
-const IMAGE_TYPES = /^data:image\/(?:png|jpeg|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+$/;
 const COLOUR = /^(?:#[0-9a-fA-F]{3,8}|transparent|[a-z]{3,20})$/;
 const finite = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) ? Math.max(-1e6, Math.min(1e6, v)) : d);
 
@@ -108,7 +108,27 @@ export function cleanElement(raw: ExEl): ExEl {
     e.fontSize = Math.max(4, Math.min(200, finite(raw.fontSize, 20)));
   }
   if (Array.isArray(raw.points)) e.points = raw.points.slice(0, 2000).map((p) => [finite(p?.[0]), finite(p?.[1])] as [number, number]);
+  // a GIF or a video (lib/whiteboard/media.ts): only on an image, and only what its note may say
+  if (raw.customData && typeof raw.customData === "object" && "media" in raw.customData) {
+    const media = e.type === "image" ? cleanBoardMedia(raw.customData.media) : undefined;
+    const { media: _drop, ...rest } = raw.customData;
+    void _drop;
+    e.customData = media ? { ...rest, media } : rest;
+  }
   return e;
+}
+
+/** The files kept with a board: allowed types within their caps (lib/whiteboard/media.ts boardFileOk). */
+function cleanFiles(raw: unknown): Record<string, BinaryFile> {
+  const files: Record<string, BinaryFile> = {};
+  if (!raw || typeof raw !== "object") return files;
+  let videos = 0;
+  for (const [id, f] of Object.entries(raw as Record<string, BinaryFile>).slice(0, 200)) {
+    if (!f || !boardFileOk(f.dataURL)) continue;
+    if (isVideoFile(f.dataURL) && ++videos > MAX_BOARD_MEDIA) continue;
+    files[safeId(id)] = { id: safeId(id), mimeType: String(f.mimeType || "image/png").slice(0, 40), dataURL: f.dataURL, created: finite(f.created, 1) };
+  }
+  return files;
 }
 
 /** A board read from a .excalidraw file (or the clipboard JSON Excalidraw writes). Null when it is not one. */
@@ -119,18 +139,13 @@ export function parseExcalidrawFile(text: string): Scene | null {
   const r = raw as { type?: unknown; elements?: unknown; files?: unknown };
   if ((r.type !== "excalidraw" && r.type !== "excalidraw/clipboard") || !Array.isArray(r.elements)) return null;
   const elements = r.elements.slice(0, MAX_FILE_ELEMENTS).filter((x): x is ExEl => Boolean(x) && typeof x === "object" && TYPES.has(String((x as ExEl).type)) && !(x as ExEl).isDeleted).map(cleanElement);
-  const files: Record<string, BinaryFile> = {};
-  if (r.files && typeof r.files === "object") {
-    for (const [id, f] of Object.entries(r.files as Record<string, BinaryFile>).slice(0, 200)) {
-      if (f && typeof f.dataURL === "string" && f.dataURL.length < 8_000_000 && IMAGE_TYPES.test(f.dataURL)) files[safeId(id)] = { id: safeId(id), mimeType: String(f.mimeType || "image/png"), dataURL: f.dataURL, created: finite(f.created, 1) };
-    }
-  }
-  return { elements, files };
+  return { elements, files: cleanFiles(r.files) };
 }
 
 /** The board as a .excalidraw file: Excalidraw opens it as it is, Filow's step notes ride along in customData. */
 export function excalidrawFile(scene: Scene, dark = false): string {
-  const used = new Set(scene.elements.map((e) => e.fileId).filter(Boolean));
+  // an element's image, and a video's own file (lib/whiteboard/media.ts)
+  const used = new Set(scene.elements.flatMap(filesOf));
   const files = Object.fromEntries(Object.entries(scene.files).filter(([id]) => used.has(id)));
   return JSON.stringify({ type: "excalidraw", version: 2, source: "filow", elements: scene.elements.filter((e) => e.id !== "wb-frame"), appState: { viewBackgroundColor: "#ffffff", gridSize: null, theme: dark ? "dark" : "light" }, files }, null, 1);
 }
@@ -160,7 +175,8 @@ export function readScene(scene: Scene): ElementSummary[] {
 export type ToolOp =
   | { op: "update"; id: string; props: Partial<ExEl> }
   | { op: "delete"; id: string }
-  | { op: "add"; element: ExEl };
+  /** `files`: what the element shows (an image, a GIF, a video and its poster: lib/whiteboard/media.ts), checked like a file's. */
+  | { op: "add"; element: ExEl; files?: Record<string, BinaryFile> };
 
 /** The elements that go with `id` when it is deleted or recoloured: its label, and for a box the arrows bound to it. */
 export function companions(scene: Scene, id: string): string[] {
@@ -182,6 +198,8 @@ export function applyOps(base: Scene, edits: SceneEdits, ops: ToolOp[]): { edits
       const e = cleanElement(o.element);
       if (!TYPES.has(String(e.type)) || byId.has(e.id)) { skipped.push(e.id); continue; }
       next.added.push(e);
+      const files = cleanFiles(o.files);
+      for (const id of filesOf(e)) if (files[id]) next.files[id] = files[id];
       continue;
     }
     const target = byId.get(o.id);

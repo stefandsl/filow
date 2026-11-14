@@ -9,8 +9,9 @@ import morphdom from "morphdom";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import type { Box } from "@/lib/whiteboard/layout";
 import type { Slot } from "@/lib/whiteboard/pace";
-import { keyOf, stepOf, type ExEl, type Scene } from "@/lib/whiteboard/scene";
+import { boundsOf, keyOf, stepOf, type ExEl, type Scene } from "@/lib/whiteboard/scene";
 import { sceneSvg } from "@/lib/whiteboard/excalidraw";
+import { cleanBoardMedia, isVideoFile } from "@/lib/whiteboard/media";
 
 export type DrawnInfo = { visible: ExEl[]; complete: boolean; svg: SVGSVGElement };
 export type ExcalidrawBoardProps = {
@@ -32,7 +33,29 @@ export type ExcalidrawBoardProps = {
   pickLabel?: (text: string) => string;
   /** Called after each change is on the screen. */
   onDrawn?: (info: DrawnInfo) => void;
+  /** The play/pause button of a video on the board, in the page's language. */
+  videoLabels?: { play: string; pause: string };
 };
+
+/** A video on the board: muted and looping, over its poster, with one play/pause button. */
+function BoardVideo({ src, label, playLabel, pauseLabel, style }: { src: string; label: string; playLabel: string; pauseLabel: string; style: CSSProperties }) {
+  const v = useRef<HTMLVideoElement>(null);
+  const [paused, setPaused] = useState(false);
+  const toggle = () => {
+    const next = !paused;
+    setPaused(next);
+    if (next) v.current?.pause();
+    else void v.current?.play().catch(() => {});
+  };
+  return (
+    <div className="wb-video" style={style}>
+      <video ref={v} src={src} muted loop autoPlay playsInline disablePictureInPicture aria-label={label} />
+      <button type="button" className="wb-video-btn" aria-label={paused ? playLabel : pauseLabel} title={paused ? playLabel : pauseLabel} onClick={toggle}>
+        {paused ? <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M4 2.5v11l9-5.5z" fill="currentColor" /></svg> : <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" fill="currentColor" /></svg>}
+      </button>
+    </div>
+  );
+}
 
 const frameOf = (els: ExEl[]): Box => {
   const f = els.find((e) => e.id === "wb-frame");
@@ -40,7 +63,7 @@ const frameOf = (els: ExEl[]): Box => {
 };
 const signature = (els: ExEl[]) => els.map((e) => `${e.id}:${e.version ?? 0}:${e.versionNonce ?? 0}:${e.x},${e.y},${e.width},${e.height}:${e.strokeColor}:${e.fontSize ?? ""}`).join("|");
 
-export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, camera, label, onPick, pickLabel, onDrawn }: ExcalidrawBoardProps) {
+export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, camera, label, onPick, pickLabel, onDrawn, videoLabels }: ExcalidrawBoardProps) {
   const host = useRef<HTMLDivElement>(null);
   const els = scene.elements;
   const board = frameOf(els);
@@ -75,11 +98,16 @@ export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, c
   // The camera moves smoothly to where it is asked to look (as excalidraw-mcp's camera does).
   const view = useRef<Box | null>(null);
   const target = camera ?? board;
+  // Excalidraw draws the export from the top-left of what it draws, not from the board's 0,0: the view box
+  // is moved back by that corner, so the board (and what sits over it: boxes to click, GIFs, videos) lines
+  // up for a board with no frame at 0,0 too (a .excalidraw file opened from disk).
+  const origin = useRef({ x: 0, y: 0 });
+  const viewBox = (a: Box) => `${a.x - origin.current.x} ${a.y - origin.current.y} ${a.w} ${a.h}`;
   useEffect(() => {
     const svgOf = () => host.current?.querySelector("svg");
     if (!view.current || !animate || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
       view.current = { ...target };
-      svgOf()?.setAttribute("viewBox", `${target.x} ${target.y} ${target.w} ${target.h}`);
+      svgOf()?.setAttribute("viewBox", viewBox(target));
       return;
     }
     let raf = 0;
@@ -87,7 +115,7 @@ export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, c
       const a = view.current!;
       const k = 0.14;
       a.x += (target.x - a.x) * k; a.y += (target.y - a.y) * k; a.w += (target.w - a.w) * k; a.h += (target.h - a.h) * k;
-      svgOf()?.setAttribute("viewBox", `${a.x} ${a.y} ${a.w} ${a.h}`);
+      svgOf()?.setAttribute("viewBox", viewBox(a));
       if (Math.abs(target.x - a.x) + Math.abs(target.y - a.y) + Math.abs(target.w - a.w) + Math.abs(target.h - a.h) > 0.5) raf = requestAnimationFrame(tick);
       else view.current = { ...target };
     };
@@ -115,9 +143,11 @@ export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, c
       }
       if (ticket !== latest.current || !host.current) return;
       const v = view.current ?? board;
+      const drawn = boundsOf(visible);
+      origin.current = drawn ? { x: drawn.x, y: drawn.y } : { x: 0, y: 0 };
       svg.removeAttribute("width");
       svg.removeAttribute("height");
-      svg.setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`);
+      svg.setAttribute("viewBox", viewBox(v));
       svg.setAttribute("class", "wb-board wb-ex-svg");
       svg.setAttribute("aria-hidden", "true");
       svg.setAttribute("focusable", "false");
@@ -170,10 +200,25 @@ export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, c
   const count = (f: (e: ExEl) => boolean) => visible.filter(f).length;
   const words = visible.filter((e) => e.type === "text").map((e) => (e.originalText ?? e.text ?? "").replace(/\s+/g, " ").trim()).filter(Boolean);
   return (
-    <div className={`wb-ex${animate ? " wb-ex-animate" : ""}${dark ? " wb-ex-dark" : ""}`} style={{ aspectRatio: `${target.w} / ${target.h}`, width: `min(100%, calc((100vh - 150px) * ${(target.w / target.h).toFixed(4)}))` } as CSSProperties} role="group" aria-label={label} data-step={current} data-elements={visible.length} data-complete={complete || undefined} data-nodes={count((e) => e.customData?.wb?.role === "node" && e.type !== "text")} data-edges={count((e) => e.customData?.wb?.role === "edge")} data-formulas={count((e) => typeof e.customData?.tex === "string")} data-plots={count((e) => /^b-.*-ax$/.test(e.id))} data-cards={count((e) => e.customData?.wb?.role === "block" && e.strokeStyle === "dashed")} data-sketches={count((e) => e.type === "image")}>
+    <div className={`wb-ex${animate ? " wb-ex-animate" : ""}${dark ? " wb-ex-dark" : ""}`} style={{ aspectRatio: `${target.w} / ${target.h}`, width: `min(100%, calc((100vh - 150px) * ${(target.w / target.h).toFixed(4)}))` } as CSSProperties} role="group" aria-label={label} data-step={current} data-elements={visible.length} data-complete={complete || undefined} data-nodes={count((e) => e.customData?.wb?.role === "node" && e.type !== "text")} data-edges={count((e) => e.customData?.wb?.role === "edge")} data-formulas={count((e) => typeof e.customData?.tex === "string")} data-plots={count((e) => /^b-.*-ax$/.test(e.id))} data-cards={count((e) => e.customData?.wb?.role === "block" && e.strokeStyle === "dashed")} data-sketches={count((e) => e.type === "image" && !e.customData?.media)} data-media={count((e) => e.type === "image" && Boolean(cleanBoardMedia(e.customData?.media)))}>
       <div ref={host} className="wb-ex-host" />
       {/* what the board says, for a screen reader (the drawing itself is hidden from it) */}
       <ul className="wb-sr">{words.map((w, i) => <li key={i}>{w}</li>)}</ul>
+      {/* A GIF or a video on the board is shown over its element as it is (lib/whiteboard/media.ts): the dark
+          board is Excalidraw's light one inverted, which would invert a picture's colours too. A video is muted,
+          looping, with play/pause. */}
+      {visible.map((e) => {
+        const m = e.type === "image" ? cleanBoardMedia(e.customData?.media) : undefined;
+        if (!m) return null;
+        const box = { left: pct(e.x - target.x, target.w), top: pct(e.y - target.y, target.h), width: pct(e.width, target.w), height: pct(e.height, target.h) };
+        if (m.kind === "gif") {
+          const f = e.fileId ? scene.files[e.fileId] : undefined;
+          return f && /^data:image\/gif;base64,/.test(f.dataURL) ? <img key={e.id} className="wb-gif" src={f.dataURL} alt={m.caption} style={box} /> : null;
+        }
+        const f = m.video ? scene.files[m.video] : undefined;
+        if (!f || !isVideoFile(f.dataURL)) return null;
+        return <BoardVideo key={e.id} src={f.dataURL} label={m.caption} playLabel={videoLabels?.play ?? "Play"} pauseLabel={videoLabels?.pause ?? "Pause"} style={box} />;
+      })}
       {onPick && nodes.map((n) => {
         const text = labelOf(n);
         return (
