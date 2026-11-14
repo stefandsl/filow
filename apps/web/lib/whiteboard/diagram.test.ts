@@ -183,7 +183,7 @@ describe("layout of generated diagrams", () => {
       for (const shape of ["wide", "tall"] as BoardShape[]) {
         for (let k = 0; k < lesson.steps.length; k++) {
           const layout = layoutBoard(lesson, k, shape);
-          const problems = layoutProblems(layout).filter((p) => (p.includes("diagram") || p.includes("off the board")) && !p.includes("too small") && !p.includes("runs through"));
+          const problems = layoutProblems(layout).filter((p) => p.includes("diagram") || p.includes("off the board"));
           if (problems.length) bad.push(`seed ${seed} ${lesson.title} ${shape} step ${k + 1}: ${problems.slice(0, 2).join("; ")}`);          const scene = countProblems(checkScene(sceneFromLayout(layout)));
           if (scene.overlap) bad.push(`seed ${seed} ${shape} step ${k + 1}: ${scene.overlap} overlaps in the scene`);
         }

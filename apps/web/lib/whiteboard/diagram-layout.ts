@@ -9,6 +9,7 @@
 import type { DiagramType, DLink, DNode, DShape } from "./diagram";
 import type { Lesson } from "./lesson";
 import { textWidth, wrapText, type BoardShape, type Box } from "./layout";
+import { tidyTree, TreeNode } from "./tidy-tree";
 
 export type Pt = { x: number; y: number };
 export type DiagramIn = {
@@ -382,6 +383,155 @@ export function treeParents(d: Pick<DiagramIn, "nodes" | "links">): Map<string, 
   return parent;
 }
 
+type Laid = { box: Box; level: number };
+/**
+ * A tree laid out by the tidy tree: `horizontal` grows to the right (a side of a mind map), otherwise
+ * downwards. Returns each box relative to the root's centre at (0, 0).
+ */
+function tidy(rootId: string, kids: Map<string, string[]>, size: (id: string, level: number) => { w: number; h: number }, horizontal: boolean, gapAcross: number, gapAlong: (level: number) => number): Map<string, Laid> {
+  const order: Array<{ id: string; level: number }> = [];
+  // one band per level, as deep as its deepest box: arrows between two levels cross no box
+  const bands: number[] = [];
+  const measure = (id: string, level: number) => {
+    const s = size(id, level);
+    bands[level] = Math.max(bands[level] ?? 0, horizontal ? s.w : s.h);
+    (kids.get(id) ?? []).forEach((c) => measure(c, level + 1));
+  };
+  measure(rootId, 0);
+  const start = bands.map((_, l) => bands.slice(0, l).reduce((s, b, k) => s + b + gapAlong(k), 0));
+  const build = (id: string, level: number): TreeNode => {
+    const s = size(id, level);
+    const breadth = (horizontal ? s.h : s.w) + gapAcross;
+    const index = order.length;
+    order.push({ id, level });
+    const children = (kids.get(id) ?? []).map((c) => build(c, level + 1));
+    return new TreeNode(breadth, bands[level], start[level], children, index);
+  };
+  const root = build(rootId, 0);
+  tidyTree(root);
+  const out = new Map<string, Laid>();
+  const visit = (t: TreeNode) => {
+    const { id, level } = order[t.index];
+    const s = size(id, level);
+    const across = t.x + gapAcross / 2;
+    // in its band, a box stands at the start (a mind map's side) or in the middle (a tree)
+    const along = horizontal ? t.y : t.y + (bands[level] - s.h) / 2;
+    out.set(id, { level, box: horizontal ? { x: along, y: across, w: s.w, h: s.h } : { x: across, y: along, w: s.w, h: s.h } });
+    t.children.forEach(visit);
+  };
+  visit(root);
+  const r = out.get(rootId)!.box;
+  const c = center(r);
+  for (const [id, l] of out) out.set(id, { ...l, box: { ...l.box, x: l.box.x - c.x, y: l.box.y - c.y } });
+  return out;
+}
+
+const MIND_FILL = ["#fff3bf", "#e7f5ff", "#ebfbee", "#f3f0ff", "#fff4e6", "#e3fafc", "#fff0f6"];
+
+function tree(d: DiagramIn, font: number, parents: Map<string, string>, mind: boolean, shape: BoardShape, dir: "TD" | "LR" = "TD"): PlacedDiagram {
+  const kids = new Map<string, string[]>();
+  for (const n of d.nodes) { const p = parents.get(n.id); if (p) kids.set(p, [...(kids.get(p) ?? []), n.id]); }
+  const rootId = d.nodes.find((n) => !parents.has(n.id))!.id;
+  const fontAt = (level: number) => (mind ? (level === 0 ? font * 1.15 : level === 1 ? font : Math.max(13, font * 0.92)) : font);
+  // a mind map's branches are its parents; a flowchart tree keeps its arrows and their labels
+  const treeLinks: Array<DLink & { step: number }> = mind ? d.nodes.flatMap((n) => (parents.has(n.id) ? [{ from: parents.get(n.id)!, to: n.id, text: "", step: n.step }] : [])) : d.links;
+  const byId = new Map(d.nodes.map((n) => [n.id, n]));
+  const sizes = new Map<string, Sized>();
+  const size = (id: string, level: number) => {
+    if (!sizes.has(id)) sizes.set(id, sizeNode(byId.get(id)!.text, mind && level === 0 ? "circle" : byId.get(id)!.shape, fontAt(level), fontAt(level) * (mind ? 8 : 7.5)));
+    return sizes.get(id)!;
+  };
+  const lab = new Map(treeLinks.map((l) => [l as DLink, mind ? null : labelOf(l.text, font * 0.9, font * 7)]));
+  const labelDepth = Math.max(0, ...[...lab.values()].map((s) => (s ? s.h : 0)));
+  let laid: Map<string, Laid>;
+  const twoSided = mind && shape === "wide" && (kids.get(rootId)?.length ?? 0) >= 2;
+  if (!mind || !twoSided) {
+    const horizontal = mind && shape === "wide";
+    const sideways = horizontal || (!mind && dir === "LR");
+    const labelWidth = Math.max(0, ...[...lab.values()].map((s) => (s ? s.w : 0)));
+    laid = tidy(rootId, kids, size, sideways, mind ? font * 0.7 : font * 1.4, () => (horizontal ? font * 3.4 : sideways ? font * 2.4 + labelWidth : font * 2.6 + labelDepth));
+  } else {
+    // a mind map grows on both sides of its root, the branches shared out by size (right first)
+    const weight = (id: string): number => 1 + (kids.get(id) ?? []).reduce((s, c) => s + weight(c), 0);
+    const top = kids.get(rootId)!;
+    const total = top.reduce((s, c) => s + weight(c), 0);
+    const right: string[] = [];
+    let w = 0;
+    for (const c of top) { if (w + weight(c) / 2 <= total / 2 || !right.length) { right.push(c); w += weight(c); } }
+    const left = top.filter((c) => !right.includes(c));
+    const side = (branch: string[]) => tidy(rootId, new Map([...kids, [rootId, branch]]), size, true, font * 0.7, () => font * 3.4);
+    const r = side(right);
+    const l = side(left);
+    laid = new Map(r);
+    // the left side is the same layout mirrored about the root
+    for (const [id, v] of l) if (id !== rootId) laid.set(id, { ...v, box: { ...v.box, x: -v.box.x - v.box.w } });
+  }
+  const nodes: PlacedDNode[] = d.nodes.map((n) => {
+    const l = laid.get(n.id)!;
+    const s = sizes.get(n.id)!;
+    const branch = (() => { let cur = n.id; while (parents.get(cur) && parents.get(cur) !== rootId) cur = parents.get(cur)!; return (kids.get(rootId) ?? []).indexOf(cur); })();
+    return { key: `d:${n.id}`, id: n.id, step: n.step, box: l.box, lines: s.lines, font: fontAt(l.level), shape: mind && l.level === 0 ? "circle" : mind ? "round" : n.shape, level: l.level, ...(mind ? { fill: l.level === 0 ? MIND_FILL[0] : MIND_FILL[1 + (Math.max(0, branch) % (MIND_FILL.length - 1))] } : {}) };
+  });
+  const byNode = new Map(nodes.map((n) => [n.id, n]));
+  // the bend of a branch lies in the free band between the two levels, never across a box
+  const levelEnd = (level: number, vertical: boolean) => Math.max(...nodes.filter((n) => n.level === level).map((n) => (vertical ? n.box.y + n.box.h : n.box.x + n.box.w)));
+  const levelStart = (level: number, vertical: boolean) => Math.min(...nodes.filter((n) => n.level === level).map((n) => (vertical ? n.box.y : n.box.x)));
+  // branches leave the side of the parent that faces the child and bend into the child's near side
+  const links: PlacedDLink[] = treeLinks.map((link, k) => {
+    const pa = byNode.get(link.from)!, ch = byNode.get(link.to)!;
+    const a = pa.box, b = ch.box;
+    const vertical = !(mind && shape === "wide") && !(dir === "LR" && !mind);
+    let pts: Pt[];
+    if (vertical) {
+      const p0 = { x: a.x + a.w / 2, y: a.y + a.h + 4 }, p1 = { x: b.x + b.w / 2, y: b.y - 5 };
+      const my = (levelEnd(pa.level ?? 0, true) + levelStart(ch.level ?? 1, true)) / 2;
+      pts = Math.abs(p0.x - p1.x) < 2 ? [p0, p1] : [p0, { x: p0.x, y: my }, { x: p1.x, y: my }, p1];
+    } else {
+      const toRight = b.x + b.w / 2 >= a.x + a.w / 2;
+      const p0 = { x: toRight ? a.x + a.w + 4 : a.x - 4, y: a.y + a.h / 2 }, p1 = { x: toRight ? b.x - 5 : b.x + b.w + 5, y: b.y + b.h / 2 };
+      // a mind map's two sides: the band of this side only
+      const side = nodes.filter((n) => n.level === (ch.level ?? 1) && (n.box.x >= a.x) === toRight);
+      const mx = mind ? (toRight ? (p0.x + Math.min(...side.map((n) => n.box.x))) / 2 : (p0.x + Math.max(...side.map((n) => n.box.x + n.box.w))) / 2) : (levelEnd(pa.level ?? 0, false) + levelStart(ch.level ?? 1, false)) / 2;
+      pts = Math.abs(p0.y - p1.y) < 2 ? [p0, p1] : [p0, { x: mx, y: p0.y }, { x: mx, y: p1.y }, p1];
+    }
+    const s = lab.get(link) ?? null;
+    const label = s ? labelBox(pts, s, font * 0.9) : null;
+    return { key: `d:${link.from}>${link.to}:${k}`, step: Math.max(link.step, byNode.get(link.from)!.step, byNode.get(link.to)!.step), from: link.from, to: link.to, pts, label, dashed: Boolean(link.dashed), head: !mind, bound: true };
+  });
+  return { type: d.type, layout: mind ? "mind" : "tree", nodes, links, lines: [], font };
+}
+
+/** A tree as an indented outline (Plait's "indent" layout): one box per row, children under and right of their parent. */
+function indented(d: DiagramIn, font: number, parents: Map<string, string>, mind: boolean): PlacedDiagram {
+  const kids = new Map<string, string[]>();
+  for (const n of d.nodes) { const p = parents.get(n.id); if (p) kids.set(p, [...(kids.get(p) ?? []), n.id]); }
+  const rootId = d.nodes.find((n) => !parents.has(n.id))!.id;
+  const byId = new Map(d.nodes.map((n) => [n.id, n]));
+  const links: Array<DLink & { step: number }> = mind ? d.nodes.flatMap((n) => (parents.has(n.id) ? [{ from: parents.get(n.id)!, to: n.id, text: "", step: n.step }] : [])) : d.links;
+  const lab = new Map(links.map((l) => [l as DLink, mind ? null : labelOf(l.text, font * 0.9, font * 7)]));
+  const labelW = Math.max(0, ...[...lab.values()].map((s) => (s ? s.w : 0)));
+  const indent = Math.max(font * 1.8, font * 0.8 + labelW / 2 + 12);
+  const nodes: PlacedDNode[] = [];
+  let y = 0;
+  const visit = (id: string, level: number) => {
+    const n = byId.get(id)!;
+    const s = sizeNode(n.text, n.shape === "diamond" || n.shape === "circle" ? "round" : n.shape, font, font * 12);
+    nodes.push({ key: `d:${id}`, id, step: n.step, box: { x: level * indent, y, w: s.w, h: s.h }, lines: s.lines, font, shape: n.shape === "diamond" || n.shape === "circle" ? "round" : n.shape, level });
+    y += s.h + font * 0.7;
+    (kids.get(id) ?? []).forEach((c) => visit(c, level + 1));
+  };
+  visit(rootId, 0);
+  const at = new Map(nodes.map((n) => [n.id, n]));
+  const placed: PlacedDLink[] = links.map((l, k) => {
+    const a = at.get(l.from)!.box, b = at.get(l.to)!.box;
+    const x = a.x + font * 0.8;
+    const pts = [{ x, y: a.y + a.h + 4 }, { x, y: b.y + b.h / 2 }, { x: b.x - 5, y: b.y + b.h / 2 }];
+    const s = lab.get(l) ?? null;
+    return { key: `d:${l.from}>${l.to}:${k}`, step: Math.max(l.step, at.get(l.from)!.step, at.get(l.to)!.step), from: l.from, to: l.to, pts, label: s ? labelBox(pts, s, font * 0.9) : null, dashed: Boolean(l.dashed), head: !mind, bound: true };
+  });
+  return { type: d.type, layout: "tree", nodes, links: placed, lines: [], font };
+}
+
 // ---------------------------------------------------------------- sequence
 function sequence(d: DiagramIn, font: number): PlacedDiagram {
   const parts = d.nodes;
@@ -486,17 +636,20 @@ export function collectDiagram(lesson: Lesson): DiagramIn | null {
 }
 
 /** The diagram placed in `area`: the largest type at which it fits, centred. */
-export function layoutDiagram(d: DiagramIn, area: Box, _shape: BoardShape): PlacedDiagram {
+export function layoutDiagram(d: DiagramIn, area: Box, shape: BoardShape): PlacedDiagram {
   const loop = d.type === "flowchart" ? loopOrder(d) : null;
   const useRing = loop && loop.length >= 3 && loop.length * 2 >= d.nodes.length;
+  const parents = d.type === "mindmap" ? mindParents(d) : d.type === "flowchart" && !useRing && d.nodes.length >= 4 ? treeParents(d) : null;
   const other = d.dir === "TD" ? "LR" : "TD";
   const aspect = Math.min(1.4, Math.max(0.7, area.w / Math.max(1, area.h)));
   // the arrangement that suits the diagram first; the others when it does not fit the room
   const attempts = (font: number): Array<() => PlacedDiagram> => {
     if (d.type === "sequence") return [() => sequence(d, font)];
     if (d.type === "table") return [() => table(d, font, area.w)];
+    if (parents && d.type === "mindmap") return [() => tree(d, font, parents, true, shape), () => tree(d, font, parents, true, "tall")];
     // a long process that fits neither way is folded into lines, as text is
     const fold = () => layered(d, font, "LR", area.w);
+    if (parents) return [() => tree(d, font, parents, false, shape, d.dir), () => tree(d, font, parents, false, shape, other), () => layered(d, font, d.dir), () => layered(d, font, other), fold];
     if (useRing) return [() => ring(d, font, loop!, aspect), () => ring(d, font, loop!, aspect, true), () => layered(d, font, d.dir), () => layered(d, font, other), fold];
     return [() => layered(d, font, d.dir), () => layered(d, font, other), fold];
   };
@@ -506,7 +659,7 @@ export function layoutDiagram(d: DiagramIn, area: Box, _shape: BoardShape): Plac
   let pick: PlacedDiagram | null = null;
   // Arrangements of the same kind (a tree down or across, layers down or across) compete on size:
   // the one whose type can be larger wins, the diagram's own direction on a tie.
-  const groups = useRing && d.type === "flowchart" ? [[0, 1], [2, 3], [4]] : d.type === "flowchart" ? [[0, 1], [2]] : [[0]];
+  const groups = parents && d.type !== "mindmap" ? [[0, 1], [2, 3], [4]] : useRing && d.type === "flowchart" ? [[0, 1], [2, 3], [4]] : d.type === "flowchart" ? [[0, 1], [2]] : parents ? [[0, 1]] : [[0]];
   const tries = (fonts: number[]) => {
     for (const group of groups) {
       let best: { font: number; p: PlacedDiagram } | null = null;
@@ -517,6 +670,7 @@ export function layoutDiagram(d: DiagramIn, area: Box, _shape: BoardShape): Plac
       }
       if (best) { pick = best.p; return; }
     }
+    if (parents) for (const font of fonts) { const p = indented(d, font, parents, d.type === "mindmap"); if (fits(p)) { pick = p; break; } }
   };
   tries(FONTS.filter((f) => f >= 15));
   if (!pick) tries(FONTS.filter((f) => f < 15));
@@ -525,7 +679,7 @@ export function layoutDiagram(d: DiagramIn, area: Box, _shape: BoardShape): Plac
   else {
     // still too big at the smallest type: the whole drawing is made smaller, so nothing leaves the board
     const smallest = FONTS[FONTS.length - 1];
-    const all = [...attempts(smallest).map((make) => make())];
+    const all = [...attempts(smallest).map((make) => make()), ...(parents ? [indented(d, smallest, parents, d.type === "mindmap")] : [])];
     // the tidiest first (fewest things touching, fewest arrows through boxes), then the largest
     const best = all.sort((p, q) => mess(p) - mess(q) || fitScale(q, area) - fitScale(p, area))[0];
     placed = scaled(best, fitScale(best, area));
@@ -567,3 +721,11 @@ function scaled(d: PlacedDiagram, k: number): PlacedDiagram {
   };
 }
 
+/** A mind map's parents, from its branches; a box with none hangs under the first box (its root). */
+function mindParents(d: DiagramIn): Map<string, string> | null {
+  if (!d.nodes.length) return null;
+  const root = d.nodes[0].id;
+  const parents = new Map<string, string>();
+  for (const n of d.nodes.slice(1)) parents.set(n.id, n.parent && d.nodes.some((x) => x.id === n.parent) ? n.parent : root);
+  return parents;
+}
