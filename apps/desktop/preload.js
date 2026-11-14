@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("filow", {
   },
   /** OK Filow's section in Filow Settings (same settings as its panel). */
   okFilow: {
+    wakeAction: (action, data) => ipcRenderer.invoke("okfilow:settings:wake", action, data),
     status: () => ipcRenderer.invoke("okfilow:settings:status"),
     configure: (patch) => ipcRenderer.invoke("okfilow:settings:configure", patch),
     openPanel: () => ipcRenderer.send("okfilow:settings:openPanel"),

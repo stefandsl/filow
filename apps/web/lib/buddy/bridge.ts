@@ -46,6 +46,9 @@ export type DictationStatus = {
 export type DictationResult = { ok: boolean; action: "paste" | "typed" | "copy" | "direct" | "refused" | "none"; reason: string; chars: number };
 
 export type OkFilowStatus = {
+  wakeWord?: boolean;
+  wakeSensitivity?: "strict" | "balanced" | "sensitive";
+  wake?: WakeStatus;
   enabled: boolean;
   hotkey: string;
   /** Answers from: this PC, OpenRouter, or the user's FreeLLMAPI router (lib/freellm.ts). */
@@ -110,6 +113,9 @@ export type OkFilowCapture = {
 };
 
 type Off = () => void;
+export type WakeStatus = { enabled: boolean; listening: boolean; error: string; phase: string; count: number; testing: boolean; recordings: number; trained: boolean; notice: { bytes: number; source: string; licence: string } };
+export type WakeAction = "status" | "off" | "setup" | "enable" | "sample" | "train" | "delete" | "test" | "error";
+export type WakeApi = { wakeAction?(action: WakeAction, data?: unknown): Promise<WakeStatus> };
 
 /** The natural voice on this PC: is its model here, and can this PC carry it. */
 export type OkFilowTtsStatus = {
@@ -149,6 +155,11 @@ export type OkFilowAgentConsent = { needsConsent: { kind: "agent"; recipient: Re
 /** A settings change. Consent goes as `consentChanges` (merged by main), never as a whole map. */
 export type OkFilowPatch = Partial<Omit<OkFilowStatus, "consent">> & { consentChanges?: ConsentChanges };
 export type OkFilowBridge = {
+  wakeAction?: WakeApi["wakeAction"];
+  wakeFeed?(samples: Float32Array): void | Promise<void>;
+  wakeIndicator?(): void;
+  onWake?(fn: (s: WakeStatus) => void): Off;
+  onWakeDetected?(fn: (carry: Float32Array) => void): Off;
   accessPassword: string;
   sessionUrl: string;
   status(): Promise<OkFilowStatus>;
@@ -320,7 +331,7 @@ export function okFilowBridge(): OkFilowBridge | null {
  * The slice of the same IPC surface the main window gets (window.filow.okFilow, apps/desktop/preload.js):
  * Filow Settings shows OK Filow's main switches; the full list stays in the panel.
  */
-export type OkFilowSettingsBridge = Pick<OkFilowBridge, "status" | "configure"> & {
+export type OkFilowSettingsBridge = Pick<OkFilowBridge, "status" | "configure" | "wakeAction"> & {
   openPanel(): void;
   /** Opens the whiteboard window; false when OK Filow is not running. Absent in a desktop build older than this entry. */
   showWhiteboard?(): Promise<boolean>;

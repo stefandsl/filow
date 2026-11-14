@@ -59,7 +59,7 @@ describe("the keyboard hook library Filow loads", () => {
     expect(stock.includes(Buffer.from("refused the library module"))).toBe(false);
   });
 
-  it.runIf(process.platform === "win32" && process.arch === "x64")("on this Windows PC the hook registers through Filow's loader", () => {
+  it.runIf(process.platform === "win32" && process.arch === "x64" && process.env.FILOW_QA_NO_GLOBAL_INPUT !== "1")("on this Windows PC the hook registers through Filow's loader", () => {
     // In its own process: a real low-level hook for a moment, then stopped. The stock binary fails here with
     // UIOHOOK_ERROR_SET_WINDOWS_HOOK_EX on a PC in the state of issue #6; ours must register either way.
     const script = "const { loadUiohook } = require('./uiohook.js'); const { uIOhook } = loadUiohook(); try { uIOhook.start(); uIOhook.stop(); console.log('HOOK OK'); } catch (e) { console.log('HOOK FAILED ' + e.code); } process.exit(0);";

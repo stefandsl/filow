@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { okFilowSettingsBridge, type OkFilowStatus } from "@/lib/buddy/bridge";
 import { okfText } from "@/lib/buddy/text";
+import { WakeSettings } from "./WakeSettings";
 
 const bridge = okFilowSettingsBridge;
 
@@ -49,6 +50,7 @@ export function OkFilowSettings({ lang }: { lang: string }) {
       </label>
       {toggle("allowScreenshots")}
       {toggle("answerLog")}
+      <WakeSettings lang={lang} />
       <div className="row">
         <button type="button" className="btn" onClick={() => b.openPanel()}>{t("moreSettings")}</button>
       </div>

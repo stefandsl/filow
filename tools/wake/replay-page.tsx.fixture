@@ -1,0 +1,26 @@
+"use client";
+// Temporary task harness; removed before committing.
+import { WakeSettings } from "@/components/WakeSettings";
+import { useEffect } from "react";
+import { createWakeCapture } from "@/lib/buddy/wake";
+import { okFilowBridge } from "@/lib/buddy/bridge";
+export default function WakeQa() {
+  useEffect(() => {
+    const b = okFilowBridge(); if (!b) return;
+    let chunk: ((pcm: ArrayBuffer) => void) | null = null;
+    let pending: Promise<void> = Promise.resolve();
+    const capture = createWakeCapture({ ...b, wakeFeed: (s) => { pending = Promise.resolve(b.wakeFeed?.(s)); return pending; } }, async (_rate, fn) => { chunk = fn; return { stop() { chunk = null; } }; });
+    void capture.set(true);
+    const target = window as unknown as { wakeReplay?: (data: number[]) => Promise<void> };
+    target.wakeReplay = async (data) => {
+      const audio = Int16Array.from(data);
+      for (let at = 0; at < audio.length; at += 1600) {
+        const block = new Int16Array(1600); block.set(audio.subarray(at, at + 1600));
+        if (!chunk) throw new Error("Fake microphone not ready");
+        chunk(block.buffer); await pending;
+      }
+    };
+    return () => { capture.stop(); delete target.wakeReplay; };
+  }, []);
+  return <main style={{ maxWidth: 820, margin: "40px auto" }}><WakeSettings lang="en" /></main>;
+}

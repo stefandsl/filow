@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "licence": "CC0-1.0",
+  "source": "Common Voice 22 dev; first fifth of spike cv embeddings per language",
+  "frameSeconds": 0.08,
+  "dimensions": 96,
+  "scale": 127,
+  "sha256": "cff4a535ac96be3aac5006bb34585c549396b624ece3a16aa6241b4a14687e4a",
+  "segments": [
+    {
+      "language": "en",
+      "frames": 41577,
+      "source_sha256": "e46c11041f531052d4c6bd6481591770fbff843cc506136d3cb6dbb8d188d559"
+    },
+    {
+      "language": "it",
+      "frames": 35392,
+      "source_sha256": "c0217c07572b9ec243b66598eae0f02b9180d57c2cca71214ad31937ed45f37e"
+    },
+    {
+      "language": "ja",
+      "frames": 18307,
+      "source_sha256": "70d50893780482c2d9b0c717728dcc7b8b0398e68873c4c5412f4ed3d064ec6b"
+    },
+    {
+      "language": "ro",
+      "frames": 15122,
+      "source_sha256": "a1bc74371fb00dfbc1125c665d3460732aa9d04d45341e7d8617738687015975"
+    },
+    {
+      "language": "ru",
+      "frames": 30915,
+      "source_sha256": "4ee5af4981ef6634c350913905d6c188788d49b345e443ff3db6e31a168fd746"
+    }
+  ]
+}

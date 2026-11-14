@@ -1,5 +1,15 @@
 # Informativa sulla privacy di Filow
 
+Aggiunta del ramo sperimentale: la parola di attivazione OK Filow, facoltativa,
+elabora l'audio solo in memoria su questo computer. Il microfono non si apre senza
+un indicatore di ascolto visibile e un comando per disattivarlo con un clic.
+Si salvano solo le cinque registrazioni accettate, nel profilo dell'app, insieme
+al modello personale. Le Impostazioni possono eliminare entrambi. Per scaricare
+i modelli serve accettare l'avviso con fonte, dimensioni e licenza; l'ascolto non
+effettua richieste di rete. Dopo il riconoscimento, la domanda ordinaria conserva
+le regole del fornitore e del consenso all'invio già previste.
+Vedi [prove della parola di attivazione](okfilow/WAKE-WORD.md).
+
 Ultimo aggiornamento: 10 novembre 2026. Questo testo descrive quello che l'app Filow fa davvero,
 verificato sul suo codice (l'elenco tecnico completo è docs/okfilow/OUTBOUND.md nel codice sorgente di
 Filow). È disponibile anche in inglese: imposta la lingua di Filow sull'inglese.

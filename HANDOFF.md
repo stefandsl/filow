@@ -1,5 +1,15 @@
 # Filow hand-off
 
+## Experimental branch update, 2026-11-14
+
+`feat-wake-word` adds opt-in local OK Filow detection and five-take enrollment.
+This work is intentionally unmerged and unpublished. Defaults, architecture,
+reproduction and evidence are in `docs/okfilow/WAKE-WORD.md`. Balanced scored
+50/256 misses, 95/144 near-miss accepts and 0 accepts in two hours of held-out
+background (one head). Do not ship on these results. Pending: owner real-voice
+room testing, better near-miss rejection, real STT handoff validation, original
+Google model-card confirmation and cross-platform/low-tier hardware checks.
+
 Last updated 2026-11-12 (faster answers, onboarding and accounts). Written so that
 another agent (Codex, Claude, a human) can continue without the chat history. Update this file at the
 end of every working session: "Where it stands", "Pending" and "Known gaps" are the parts that rot.

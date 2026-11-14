@@ -1,4 +1,14 @@
 <p align="right"><strong>English</strong> · <a href="README.it.md">Italiano</a></p>
+Experimental branch: **OK Filow wake word** is off by default. Settings offers an
+official model download notice (35.3 MB), five recordings with accept/re-record,
+training, a live try-it check, retraining and deletion. Strict requires both local
+detectors; Balanced is the default; Sensitive uses the personal head alone.
+The persistent listening pill has one-click Off. Pause, closing the eye, takes
+and slide shows stop wake listening. It cannot interrupt speech and opens no
+follow-up question window. Audio stays in memory except the five enrollment
+recordings retained in your app profile. **Delete my recordings and trained wake
+word** removes the recordings and personal head. See [evidence and limitations](docs/okfilow/WAKE-WORD.md).
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="brand/png/filow-primary-light.png" />

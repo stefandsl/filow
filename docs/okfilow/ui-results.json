@@ -1,0 +1,32 @@
+{
+  "hidden": true,
+  "blockedRequests": 8,
+  "checks": [
+    {
+      "name": "fake microphone and persistent indicator",
+      "pass": true,
+      "detections": 4
+    },
+    {
+      "name": "take stops wake",
+      "pass": true
+    },
+    {
+      "name": "slideshow stops wake",
+      "pass": true
+    },
+    {
+      "name": "eye stops wake",
+      "pass": true
+    },
+    {
+      "name": "pause stops wake",
+      "pass": true
+    },
+    {
+      "name": "one-click off",
+      "pass": true
+    }
+  ],
+  "realtimeCpuPercentOneCore": 15.712523327112773
+}

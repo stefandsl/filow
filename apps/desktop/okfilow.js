@@ -36,6 +36,8 @@ function okfilowSender(event, contents, appUrl) {
 }
 
 const DEFAULTS = {
+  wakeWord: false,
+  wakeSensitivity: "balanced",
   enabled: true,
   hotkey: "ctrl+alt",
   provider: "local",
@@ -163,6 +165,9 @@ function nextCfg(was, patch) {
 }
 
 function createOkFilow(deps) {
+  let wake = null, wakeTimer = null, wakeQuestion = false, wakeQuestionTimer = null;
+  let wakePaused = false, wakeLocked = false, speechEndedAt = 0;
+  const wakeIndicators = new Set();
   const { appUrl, getSettings, saveSettings, iconPath, logLine, sttLocal, userData, menuText, isOffline, askKeyboardPermission, dictation } = deps;
   const cfg = () => ({ ...DEFAULTS, ...(getSettings().okFilow || {}) });
   // What Windows names on screen, read beside each screenshot so points land on the real thing (okfilow-uia.js).
@@ -525,6 +530,7 @@ function createOkFilow(deps) {
     startCursor();
   }
   function hideOverlays() {
+    if (wake?.status().enabled) return;
     if (!visible) return;
     visible = false;
     if (QA_SHOTS) logLine("okfilow qa overlays hidden");
@@ -579,6 +585,8 @@ function createOkFilow(deps) {
 
   // ---- state ----
   function setMode(next, extra = {}) {
+    if (mode === "speaking" && next !== "speaking") speechEndedAt = Date.now();
+    if (!["opening", "listening"].includes(next)) { wakeQuestion = false; clearTimeout(wakeQuestionTimer); }
     // The panel could not start listening (no model, microphone refused) while keys are still counted as
     // held: end that session here, or a toggle-mode dictation would eat the user's next press as "stop".
     // Only an error about this press: one left over from the recording before must not end the new
@@ -591,6 +599,7 @@ function createOkFilow(deps) {
       purpose = null;
     }
     mode = next;
+    wake?.reconcile();
     // Whether the question being answered took the screen: an overlay that loads later is told too.
     if (typeof extra.sees === "boolean") asksSee = extra.sees;
     // The pill's controls take the mouse only while the pill has any (okfilow-stop.js pillLive).
@@ -656,7 +665,7 @@ function createOkFilow(deps) {
       const TrayClass = trayFor(Tray);
       tray = new TrayClass(img);
       tray.setToolTip("OK Filow");
-      tray.on("click", togglePanel);
+      tray.on("click", () => { if (wake?.status().enabled) wake.stop(); else togglePanel(); });
       refreshTray();
     } catch (e) {
       logLine(`okfilow tray: ${e && e.message}`);
@@ -678,10 +687,13 @@ function createOkFilow(deps) {
   }
 
   function applyConfig(patch) {
+    if (patch?.wakeWord === false || patch?.enabled === false) wake?.stop();
+    if (patch && "wakeWord" in patch) patch = { ...patch, wakeWord: false };
     // The panel's dictation switch writes dictation.js's setting (it used to live in okFilow.dictation).
     const { dictation: dictationOn, ...rest } = patch || {};
     if (typeof dictationOn === "boolean") dictation.configure({ enabled: dictationOn });
     const c = setCfg(rest);
+    wake?.reconcile();
     // OK Filow or its eye turned on: the screen names helper is ready by the next question
     if (c.enabled && c.seeScreen !== "off") uia?.start();
     protectAll(hidden());
@@ -703,6 +715,8 @@ function createOkFilow(deps) {
    */
   function control(action, source) {
     if (!action) return false;
+    if (action === "pause") { wakePaused = true; wake?.reconcile(); }
+    if (action === "resume") { wakePaused = false; wake?.reconcile(); }
     if (action === "stop") return stopAnswer(source === "key" ? "escape" : "button");
     logLine(`okfilow: ${action} (${source})`);
     sendPanel("okfilow:control", { action, source });
@@ -969,6 +983,7 @@ function createOkFilow(deps) {
   /** The count the presenter may see now: none during a slide show. */
   const phoneCount = () => (slideShowRunning() ? 0 : phoneInbox.count());
   function publishPhoneCount() {
+    wake?.reconcile();
     const n = phoneCount();
     sendPanel("okfilow:phoneCount", n);
     if (tray) {
@@ -1211,7 +1226,7 @@ function createOkFilow(deps) {
     // Dictation keeps its own settings (dictation.js); the panel shows its switch and keys from here.
     const d = dictation.status({ talkHotkey: c.hotkey, hook: Boolean(hook) });
     // answerDir: the folder the log writes to, also when the user has not picked one (the panel shows its name).
-    return { ...c, answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, hookFailures, hookLastTryAt, mode, handsFree, eyeKeys: EYE_KEYS, pauseKeys: PAUSE_KEYS, eyeKeyState: eyeBound.state, pauseKeyState: pauseBound.state, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d, ...(QA_MIC_DELAY ? { qaMicDelayMs: QA_MIC_DELAY } : {}) };
+    return { ...c, wakeWord: wake?.status().enabled === true, wake: wake?.status(), answerDir: answerRoot(c.answerDir, answersFallback()), hotkeys: HOTKEYS, offline: isOffline(), hook: hook ? "hold" : "toggle", hookError, hookPermission, hookFailures, hookLastTryAt, mode, handsFree, eyeKeys: EYE_KEYS, pauseKeys: PAUSE_KEYS, eyeKeyState: eyeBound.state, pauseKeyState: pauseBound.state, dictation: d.enabled, dictateChord: d.chord, dictationStatus: d, ...(QA_MIC_DELAY ? { qaMicDelayMs: QA_MIC_DELAY } : {}) };
   }
 
   // ---- IPC (only OK Filow's own windows) ----
@@ -1299,7 +1314,7 @@ function createOkFilow(deps) {
   /** The panel says what the pill shows now; every overlay is told, and the mouse rule follows. */
   ipcMain.on("okfilow:pill", (e, v) => {
     if (!ourSender(e) || !panel || panel.isDestroyed() || e.sender !== panel.webContents) return;
-    pill = pillState(v);
+    pill = { ...pillState(v), hears: wake?.status().enabled === true };
     sendOverlays("okfilow:pill", pill);
     bubble.setPaused(pill.paused);
     answerMarks.set({ paused: pill.paused });
@@ -1394,7 +1409,7 @@ function createOkFilow(deps) {
     if (!ourSender(e)) return;
     // The watchdog: the microphone never keeps running with the keys up and no hands-free mode on.
     // (A release still waiting for its tail counts as held.) The panel is told to stop, and nothing of it is used.
-    if (captureWatch.frame(held || handsFree || releaseTail.waiting)) {
+    if (captureWatch.frame(require("./wake-policy").captureAllowed("question", { held, handsFree, releaseTail: releaseTail.waiting, wakeQuestion }))) {
       logLine("okfilow: the microphone was still open with no key held: stopped");
       sendPanel("okfilow:cancel", { purpose: null, watchdog: true });
     }
@@ -1497,8 +1512,58 @@ function createOkFilow(deps) {
     if (line) logLine(line);
   });
 
+  // Wake audio has its own authorization. No wake audio reaches STT.
+  wake = require("./wake").createWake({
+    userData, utilityProcess: require("electron").utilityProcess,
+    state: () => ({ assistantEnabled: cfg().enabled, take: deps.takeRunning?.() === true,
+      slideshow: slideShowRunning(), eyeClosed: cfg()["seeScreen"] === "off", paused: wakePaused || pill.paused,
+      locked: wakeLocked, handsFree, dictation: held, mode: wakeQuestion ? "opening" : mode, sinceSpeechMs: Date.now() - speechEndedAt,
+      indicator: visible && !outbound.active() && wakeIndicators.size > 0 }),
+    changed: (s) => {
+      pill = { ...pill, hears: s.enabled };
+      if (s.enabled) showOverlays();
+      sendOverlays("okfilow:wake:state", s); sendPanel("okfilow:wake:state", s);
+      if (!s.enabled) { if (wakeQuestion) sendPanel("okfilow:cancel", { purpose: null }); wakeQuestion = false; clearTimeout(wakeQuestionTimer); scheduleFade(); }
+    },
+    detected: (carry) => {
+      wakeQuestion = true;
+      wakeQuestionTimer = setTimeout(() => { wakeQuestion = false; sendPanel("okfilow:cancel", { purpose: null }); }, 35000);
+      sendPanel("okfilow:wake:detected", carry);
+    },
+  });
+  function wakeAction(action, data) {
+    if (action === "status") return wake.status();
+    if (action === "off") { wake.stop(); return wake.status(); }
+    if (action === "setup") { if (isOffline()) { wake.fail(new Error("Offline: wake models cannot download")); return wake.status(); } return wake.setup(data === true); }
+    if (action === "enable") return wake.enable(cfg().wakeSensitivity);
+    if (action === "sample") return wake.sample(data?.index, data?.samples);
+    if (action === "train") return wake.train();
+    if (action === "delete") return wake.remove();
+    if (action === "test") return wake.test(data);
+    if (action === "error") { wake.fail(new Error(String(data).slice(0, 240))); return wake.status(); }
+    throw new Error("Unknown wake action");
+  }
+  ipcMain.handle("okfilow:wake:action", guard(wakeAction));
+  ipcMain.handle("okfilow:wake:feed", (e, samples) => {
+    if (ourSender(e) && e.sender === panel?.webContents) return wake.feed(samples);
+    throw new Error("Denied");
+  });
+  ipcMain.on("okfilow:wake:indicator", (e) => {
+    if (!ourSender(e) || ![...overlays.values()].some((w) => w.webContents === e.sender)) return;
+    if (!wakeIndicators.has(e.sender.id)) {
+      wakeIndicators.add(e.sender.id);
+      e.sender.once("destroyed", () => { wakeIndicators.delete(e.sender.id); wake.reconcile(); });
+    }
+    wake.reconcile();
+  });
+  const lockWake = () => { wakeLocked = true; wake.reconcile(); };
+  const unlockWake = () => { wakeLocked = false; wake.reconcile(); };
   // ---- lifecycle ----
   function start() {
+    wakeTimer = setInterval(() => wake.reconcile(), 100);
+    const power = require("electron").powerMonitor;
+    power.on("lock-screen", lockWake); power.on("suspend", lockWake);
+    power.on("unlock-screen", unlockWake); power.on("resume", unlockWake);
     if (qaScreen) logLine(`okfilow: qa screen: ${qaScreen.count} picture(s), overlays off`);
     buildTray();
     buildPanel();
@@ -1526,6 +1591,10 @@ function createOkFilow(deps) {
     }
   }
   function dispose() {
+    clearInterval(wakeTimer); clearTimeout(wakeQuestionTimer); wake.stop();
+    const power = require("electron").powerMonitor;
+    power.removeListener("lock-screen", lockWake); power.removeListener("suspend", lockWake);
+    power.removeListener("unlock-screen", unlockWake); power.removeListener("resume", unlockWake);
     try { agents.dispose(); } catch { /* quitting */ }
     try { uia?.stop(); } catch { /* quitting */ }
     outbound.clear();
@@ -1567,7 +1636,7 @@ function createOkFilow(deps) {
   };
   /** The live "going outside" signal, for requests made outside OK Filow (the account's, main.js). */
   const outboundSignal = () => ({ begin: outbound.begin, end: outbound.end });
-  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, askFromPhone, phoneAskers, publishPhoneCount, micReport: () => micOpens.report(), outboundSignal };
+  return { start, dispose, togglePanel, showWhiteboard, status, applyConfig, releaseStt, voiceModel, sttLoaded, practice, clearPractice, askPractice, openAsk, askFromPhone, phoneAskers, publishPhoneCount, micReport: () => micOpens.report(), wakeAction, wakeReconcile: () => wake.reconcile(), outboundSignal };
 }
 
 /**

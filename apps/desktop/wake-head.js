@@ -1,0 +1,130 @@
+// Personal logistic head. No network, device access or audio writes.
+const fs = require("node:fs");
+const path = require("node:path");
+const crypto = require("node:crypto");
+const WIDTH = 96, WINDOW = 12, FEATURES = WIDTH * WINDOW;
+const dot = (w, x, start = 0) => { let s = 0; for (let j = 0; j < w.length; j++) s += w[j] * x[start + j]; return s; };
+function validateProfile(p) {
+  return p?.version === 1 && Array.isArray(p.weights) && p.weights.length === FEATURES && p.weights.every(Number.isFinite) && Number.isFinite(p.bias) && p.thresholds &&
+    [p.thresholds.loose, p.thresholds.sensitive, p.thresholds.sure].every(Number.isFinite) && p.thresholds.loose <= p.thresholds.sensitive && p.thresholds.sensitive <= p.thresholds.sure;
+}
+function background(dir) {
+  const meta = JSON.parse(fs.readFileSync(path.join(dir, "background.json"), "utf8"));
+  const bytes = fs.readFileSync(path.join(dir, "background.bin"));
+  if (crypto.createHash("sha256").update(bytes).digest("hex") !== meta.sha256) throw new Error("Wake background checksum mismatch");
+  const data = Float32Array.from(new Int8Array(bytes.buffer, bytes.byteOffset, bytes.length), (v) => v / 127);
+  return { data, meta };
+}
+function random(seed = 12345) { return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }; }
+// Balanced-class stochastic logistic regression with L2 regularization. Training
+// and calibration are separate portions of the bundled background, never QA audio.
+function trainHead(positives, bg) {
+  if (positives.length < 20 || positives.some((x) => x.length !== FEATURES)) throw new Error("Not enough usable enrolment windows");
+  const rng = random();
+  const w = new Float32Array(FEATURES);
+  let bias = 0;
+  const ranges = [];
+  let start = 0;
+  for (const s of bg.meta.segments) { ranges.push([start, start + Math.floor(s.frames / 3)]); start += s.frames; }
+  for (let epoch = 0; epoch < 50; epoch++) {
+    const rate = 0.08 / (1 + epoch / 12);
+    for (let i = 0; i < 2400; i++) {
+      const positive = i % 2 === 0;
+      const range = ranges[Math.floor(rng() * ranges.length)];
+      const offset = positive ? 0 : (range[0] + Math.floor(rng() * (range[1] - range[0] - WINDOW))) * WIDTH;
+      const x = positive ? positives[Math.floor(rng() * positives.length)] : bg.data;
+      const error = (positive ? 1 : 0) - 1 / (1 + Math.exp(-Math.max(-30, Math.min(30, dot(w, x, offset) + bias))));
+      for (let j = 0; j < FEATURES; j++) w[j] += rate * (error * x[offset + j] - 0.00003 * w[j]);
+      bias += rate * error;
+    }
+  }
+  const scores = [];
+  let hours = 0;
+  start = 0;
+  for (const segment of bg.meta.segments) {
+    const cut = start + Math.floor(segment.frames / 3), end = start + segment.frames;
+    for (let at = cut; at + WINDOW + 25 <= end; at += 25) {
+      let best = -Infinity;
+      for (let k = 0; k < 25; k++) best = Math.max(best, dot(w, bg.data, (at + k) * WIDTH) + bias);
+      scores.push(best); hours += 2 / 3600;
+    }
+    start = end;
+  }
+  scores.sort((a, b) => b - a);
+  const threshold = (budget) => scores[Math.floor(budget * hours)];
+  const result = { version: 1, weights: Array.from(w), bias, thresholds: { loose: threshold(5), sensitive: threshold(0.5), sure: threshold(0.1) }, calibrationHours: hours, background: bg.meta.sha256 };
+  if (!validateProfile(result)) throw new Error("Wake training failed");
+  return result;
+}
+async function createEmbedding(dir) {
+  const ort = require("onnxruntime-node");
+  const opts = { intraOpNumThreads: 1, interOpNumThreads: 1, executionMode: "sequential", executionProviders: ["cpu"] };
+  const mel = await ort.InferenceSession.create(path.join(dir, "melspectrogram.onnx"), opts);
+  const emb = await ort.InferenceSession.create(path.join(dir, "embedding_model.onnx"), opts);
+  async function spectrogram(samples) {
+    const scaled = Float32Array.from(samples, (v) => v * 32767);
+    const out = (await mel.run({ input: new ort.Tensor("float32", scaled, [1, scaled.length]) }))[mel.outputNames[0]];
+    return Float32Array.from(out.data, (v) => v / 10 + 2);
+  }
+  async function vectors(spec) {
+    const n = Math.floor((spec.length / 32 - 76) / 8) + 1;
+    if (n <= 0) return new Float32Array();
+    const input = new Float32Array(n * 76 * 32);
+    for (let i = 0; i < n; i++) input.set(spec.subarray(i * 256, i * 256 + 76 * 32), i * 76 * 32);
+    const out = (await emb.run({ input_1: new ort.Tensor("float32", input, [n, 76, 32, 1]) }))[emb.outputNames[0]].data;
+    const result = Float32Array.from(out);
+    for (let i = 0; i < n; i++) {
+      let sum = 1e-18;
+      for (let j = 0; j < WIDTH; j++) sum += result[i * WIDTH + j] ** 2;
+      const norm = Math.sqrt(sum);
+      for (let j = 0; j < WIDTH; j++) result[i * WIDTH + j] /= norm;
+    }
+    return result;
+  }
+  return { spectrogram, vectors, embed: async (samples) => vectors(await spectrogram(samples)), dispose: async () => { await mel.release(); await emb.release(); } };
+}
+function join(a, b) { const out = new Float32Array(a.length + b.length); out.set(a); out.set(b, a.length); return out; }
+function createStream(embedding, profile) {
+  let audio = new Float32Array(), mel = new Float32Array(), history = new Float32Array();
+  return {
+    reset() { audio = new Float32Array(); mel = new Float32Array(); history = new Float32Array(); },
+    async feed(samples) {
+      audio = join(audio, samples);
+      let score = -Infinity;
+      while (audio.length >= 1760) {
+        mel = join(mel, await embedding.spectrogram(audio.subarray(0, 1760)));
+        audio = audio.slice(1280);
+        if (mel.length >= 76 * 32) {
+          const e = await embedding.vectors(mel.subarray(0, 76 * 32));
+          mel = mel.slice(8 * 32);
+          history = join(history, e).slice(-FEATURES);
+          if (history.length === FEATURES) score = Math.max(score, dot(profile.weights, history) + profile.bias);
+        }
+      }
+      return score;
+    },
+  };
+}
+async function enrol(embedding, recordings, bg) {
+  if (recordings.length !== 5) throw new Error("Exactly five recordings required");
+  const positives = [], rng = random();
+  for (const samples of recordings) {
+    let end = samples.length;
+    while (end > 0 && Math.abs(samples[end - 1]) < 0.01) end--;
+    for (let a = 0; a < 16; a++) {
+      const speed = [0.94, 1, 1.06][a % 3], gain = [1, 0.6, 0.35][a % 3];
+      const n = Math.ceil(end / speed), padded = new Float32Array(16000 + n + 9600);
+      for (let i = 0; i < n; i++) {
+        const pos = i * speed, left = Math.floor(pos), frac = pos - left;
+        padded[16000 + i] = gain * ((samples[left] || 0) * (1 - frac) + (samples[left + 1] || 0) * frac) + (a % 4 ? (rng() - 0.5) * 0.006 : 0);
+      }
+      const e = await embedding.embed(padded);
+      for (const dt of [0.08, 0.16, 0.24, 0.32]) {
+        const i = Math.ceil(((1 + n / 16000 + dt - 0.015) / .01 - 76) / 8);
+        if (i >= WINDOW - 1 && (i + 1) * WIDTH <= e.length) positives.push(e.slice((i - WINDOW + 1) * WIDTH, (i + 1) * WIDTH));
+      }
+    }
+  }
+  return trainHead(positives, bg);
+}
+module.exports = { WIDTH, WINDOW, FEATURES, dot, validateProfile, background, trainHead, createEmbedding, createStream, enrol };

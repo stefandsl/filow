@@ -1,5 +1,14 @@
 # Filow privacy policy
 
+Experimental branch addition: the opt-in OK Filow wake word processes audio only
+on this computer, in memory. It never opens the microphone without a visible
+listening indicator and a one-click Off control. Only the five enrollment
+recordings you accept are saved in the app profile, with the trained personal
+head. Settings can delete both. Model downloads require an explicit source,
+size and licence notice; listening makes no network requests. After detection,
+the ordinary question retains its existing provider and outbound consent rules.
+See [wake-word evidence](okfilow/WAKE-WORD.md).
+
 Last updated: 10 November 2026. This text describes what the Filow app really does, checked against
 its code (the full technical list is docs/okfilow/OUTBOUND.md in Filow's source code). It is also
 available in Italian: set Filow's language to Italian.
