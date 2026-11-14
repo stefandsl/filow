@@ -1,5 +1,9 @@
 # Local voice naturalness investigation
 
+Historical round 1. The owner's blind preferences supersede the proxy-based speaker
+recommendations below. See [round 2](VOICE-NATURAL-ROUND2.md) for the current defaults,
+pronunciation, number normalization and tail handling. These tables remain historical evidence.
+
 Worktree: `feat-voice-natural`, 2026-11-14. No release, merge, push or installed
 profile change. Reproduction tools: `tools/voice-natural/`. Generated evidence:
 `G:/FILOW/tmp/voice-natural/`.

@@ -704,8 +704,12 @@ It speaks with a natural voice that runs on this PC, with the system voice as th
 and Japanese ([docs/stt/LANGUAGES.md](docs/stt/LANGUAGES.md)).
 The first sentence is sent to the voice immediately; sentences that arrive while it plays are grouped
 for smoother continuation. Stop, Resume and the highlighted sentence keep their positions.
-In the natural voice settings, Automatic chooses a recommended speaker for the UI language.
+In the natural voice settings, Automatic chooses a speaker for the answer's language, using
+one owner's blind listening preferences. Japanese keeps its previous speaker and speaks at speed 1.0.
 You can still choose any of the ten speakers; an existing explicit choice is preserved.
+The local voice switches common English UI words and quoted English screen labels to English
+with the same speaker. It expands dates, times, years, amounts and versions before speaking,
+and keeps a short quiet ending. Russian, Romanian and Japanese number forms still need native review.
 
 Screen marks follow the spoken sentences and keep their earlier positions as an answer grows. The pointer and its label travel together through clear space; a blocked route hides the pointer instead of covering detected text. The answer bubble grows smoothly (without size animation when reduced motion is enabled). The 3D view uses surface anchors and spaced leader lanes, with readable labels in both themes; empty model margins let clicks through.
 

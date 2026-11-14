@@ -1,5 +1,9 @@
 # OK Filow natural voice: what was measured and what ships
 
+Round 2 follows the owner's blind listening results, overriding the earlier proxy-based
+speaker recommendations. See [pronunciation, numbers and endings](VOICE-NATURAL-ROUND2.md)
+for the measurements, same-speaker language spans, normalizer and remaining limits.
+
 The [2026-11-14 naturalness investigation](VOICE-NATURAL-2026-11.md) adds a fixed
 multilingual corpus, full precision and ten-speaker comparisons, local quality
 and intelligibility scoring, and a fix for repeated synthesis gaps in streamed

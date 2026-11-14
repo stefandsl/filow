@@ -711,8 +711,13 @@ Parla con una voce naturale che gira su questo PC, con la voce di sistema come r
 rumeno e giapponese ([docs/stt/LANGUAGES.md](docs/stt/LANGUAGES.md)).
 La prima frase viene inviata subito alla voce; quelle che arrivano mentre viene letta sono raggruppate
 per una continuazione più fluida. Stop, Riprendi e la frase evidenziata mantengono la loro posizione.
-Nelle impostazioni della voce naturale, Automatico sceglie una voce consigliata per la lingua dell'interfaccia.
+Nelle impostazioni della voce naturale, Automatico sceglie una voce per la lingua della risposta,
+seguendo le preferenze di un solo ascoltatore in un confronto alla cieca. Il giapponese mantiene la voce precedente e parla a velocità 1,0.
 Puoi comunque scegliere una delle dieci voci; una scelta esplicita già salvata viene mantenuta.
+La voce locale pronuncia in inglese i termini comuni dell'interfaccia e le etichette inglesi
+citate dallo schermo, mantenendo la stessa voce. Espande date, orari, anni, importi e versioni
+prima di parlare e conserva una breve coda silenziosa. Le forme numeriche russe, rumene e
+giapponesi richiedono ancora una revisione madrelingua.
 
 I segni sullo schermo seguono le frasi pronunciate e mantengono le posizioni precedenti mentre la risposta cresce. Il puntatore e la sua etichetta si muovono insieme nello spazio libero; se il percorso è occupato, il puntatore viene nascosto per non coprire il testo rilevato. Il fumetto cresce gradualmente (senza animare le dimensioni quando è attiva la riduzione del movimento). La vista 3D usa punti sulle superfici e linee distanziate, con etichette leggibili in entrambi i temi; i margini vuoti lasciano passare i clic.
 
