@@ -21,6 +21,7 @@ import { answerLang } from "./lang";
 import { parseBuddyAnswer } from "./prompt";
 import { checkRuntime } from "../../../desktop/ollama-runtime";
 import { LOCAL_MODELS } from "@/lib/localModels";
+import { localTargetPrompt } from "./local-target-prompt";
 
 export type BuddyProviderId = "local" | "cloud" | "freellm";
 
@@ -33,6 +34,8 @@ export type BuddyAskRequest = {
   language?: string;
   /** Interface language for app-built text, independent of the model's spoken-language setting. */
   uiLanguage?: string;
+  /** Server-only: a simple locator with a named UIA target. HTTP callers cannot set this. */
+  knownTarget?: boolean;
   provider?: string;
   /** Consent key the caller holds for a cloud send ("ask:openrouter/google"); set from the request header. */
   consent?: string;
@@ -300,6 +303,8 @@ async function* askOllamaOnce(req: BuddyAskRequest, signal?: AbortSignal, helper
   const chosen = helper ?? (await resolveLocalHelper(req.setup, req.question, req.sees));
   const model = chosen.model;
   const pictures = shape?.pictures ?? chosen.pictures;
+  const targetPrompt = !shape && !isPointOnly(req.question) && !isPhoneQuestionForModel(req.question)
+    ? localTargetPrompt(req, model, pictures) : null;
   const history = trimHistory(req.history ?? []).map((t) => ({ role: t.role, content: t.text }));
   let res: Response;
   try {
@@ -321,10 +326,10 @@ async function* askOllamaOnce(req: BuddyAskRequest, signal?: AbortSignal, helper
         // A JSON schema the answer must follow (Ollama structured output), when the caller has one.
         ...(shape?.format ? { format: shape.format } : {}),
         messages: [
-          { role: "system", content: withLocalDate(shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures, quoted: isPhoneQuestionForModel(req.question) }), requestDate) },
+          { role: "system", content: withLocalDate(shape?.system ?? targetPrompt?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures, quoted: isPhoneQuestionForModel(req.question) }), requestDate) },
           ...history,
           // Gemma reads images placed on the message before the text. Text mode sends no picture at all.
-          { role: "user", content: shape ? req.question : withScreenNote(req.question, pictures), images: pictures ? req.images.map(base64Of) : [] },
+          { role: "user", content: shape ? req.question : targetPrompt?.question ?? withScreenNote(req.question, pictures), images: pictures ? req.images.map(base64Of) : [] },
           ...(process.env.BUDDY_LOCAL_THINK === "1" ? [] : noThinkPrefill(model)),
         ],
       }),
