@@ -42,6 +42,7 @@ for (const topic of topics) {
   if (fs.existsSync(path.join(out, 'result.json'))) throw new Error('Refusing to replace a sample');
   fs.mkdirSync(out, { recursive: true });
   const start = performance.now();
+  const startedAtMs = Date.now();
   const limit = AbortSignal.timeout(frozen.generation.lessonTimeoutMs);
   const budget = repairBudget();
   const calls = [], events = [];
@@ -74,7 +75,7 @@ for (const topic of topics) {
   const outline = events.find((e) => e.type === 'outline');
   const steps = events.filter((e) => e.type === 'step').map((e) => e.step);
   const lesson = outline ? validateLesson({ title: outline.title, scene: outline.scene, steps }, { maxSteps: 4, texOk }) : null;
-  const result = { lesson, validity: Boolean(lesson && events.some((e) => e.type === 'done') && !error), repairUsed: budget.used > 0, repairMs, firstMeaningfulStepMs, totalMs: performance.now() - start, memoryPeakBytes: null, error };
+  const result = { lesson, validity: Boolean(lesson && events.some((e) => e.type === 'done') && !error), repairUsed: budget.used > 0, repairMs, firstMeaningfulStepMs, totalMs: performance.now() - start, startedAtMs, finishedAtMs: Date.now(), memoryPeakBytes: null, error };
   // Full raw evidence is always outside the blind tree.
   const rawDir = path.join(root, 'raw', split, topic.id);
   fs.mkdirSync(rawDir, { recursive: true });

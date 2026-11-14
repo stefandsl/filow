@@ -1,12 +1,12 @@
 // Builds an isolated page that uses the unchanged application renderer.
-// Run after npm ci: node tools/eval/g2-render.mjs <task-root> <result-tree>
+// Run after npm ci: node tools/eval/g2-render.mjs <task-root> <result-tree> [development-arm]
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { buildSync } from 'esbuild';
 import { requireFrozen } from './g2-protocol.mjs';
-const [root, tree] = process.argv.slice(2);
+const [root, tree, arm] = process.argv.slice(2);
 const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 requireFrozen(root, source);
 const qa = path.join(root, 'qa');
@@ -26,11 +26,11 @@ const main = path.join(qa, 'main.cjs');
 fs.writeFileSync(main, `
 const {app,BrowserWindow,session}=require('electron');
 const fs=require('node:fs'),path=require('node:path'),http=require('node:http');
-const root=${JSON.stringify(root)},qa=${JSON.stringify(qa)},tree=${JSON.stringify(path.resolve(tree))};
+const root=${JSON.stringify(root)},qa=${JSON.stringify(qa)},tree=${JSON.stringify(path.resolve(tree))},arm=${JSON.stringify(arm ?? null)};
 app.setPath('userData',path.join(root,'profile'));app.setPath('sessionData',path.join(root,'profile','session'));
 app.commandLine.appendSwitch('remote-debugging-port','9611');app.disableHardwareAcceleration();
 let server;const deadline=setTimeout(()=>app.exit(2),600000);
-const files=(dir)=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?files(path.join(dir,e.name)):e.name==='lesson.json'?[path.join(dir,e.name)]:[]);
+const files=(dir)=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?files(path.join(dir,e.name)):e.name==='lesson.json'&&(!arm||path.basename(dir)===arm)?[path.join(dir,e.name)]:[]);
 app.whenReady().then(async()=>{
  try {
  session.defaultSession.webRequest.onBeforeRequest((d,cb)=>cb({cancel:!d.url.startsWith('http://127.0.0.1:5012/')&&!d.url.startsWith('data:')&&!d.url.startsWith('blob:')}));

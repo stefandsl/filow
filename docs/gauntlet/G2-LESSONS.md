@@ -89,3 +89,58 @@ The 20 supplied held-out topics remain unscored. No held-out outputs were
 produced: zero topics, zero arms. The random mapping is outside the held-out
 tree in `arm-key.json`. No preset was added for a rejected/unmeasured candidate.
 No rework round was used. No merge, push, tag or release was performed.
+
+## Continuation acquisition and harness changes
+
+Both previously incomplete files were acquired with resumable byte-range
+downloads and verified against the unchanged frozen SHA-256 pins. Qwen is
+2,497,280,448 bytes; the CPU baseline is 1,099,627,808 bytes. Completed chunks
+from the first run were reused. Bonsai was not run again.
+
+The originally pinned Prism runtime rejects the baseline with `unknown model
+architecture: 'lfm3'`. The continuation therefore copies the existing installed
+Ollama CPU runner and licences into the task directory, hashes every copied
+file before baseline scoring, and runs it directly against the pinned GGUF.
+`BASELINE-RUNTIME-CONTINUATION.json` records this explicit protocol deviation:
+version 0.9.0-dev build 1, commit 6c01da627. Qwen retains the original frozen
+runtime. Neither the owner's Ollama service nor its model store is used.
+
+Model verification now hashes bounded chunks: Node's whole-file read cannot
+load the 2.5 GB Qwen file. A regression test checks a multi-chunk input with a
+short final chunk; a deliberate mutation that hashes the unused buffer tail is
+caught. The one-repair mutation is also caught and restored. Generation records
+wall-clock boundaries for sample alignment, and the render CLI can select a
+development arm without touching the existing Bonsai artifacts. Application
+prompts, schemas and rendering functions remain byte-for-byte frozen.
+
+The task's `continue-run.py` supervises the process and saves per-lesson metrics.
+Its initial Windows memory structure omitted a field, leaving baseline memory
+and host-load samples unavailable. Raw zero is an instrumentation failure, not
+zero memory. Baseline samples were not replaced. This was fixed before Qwen
+scoring, with a memory-probe check before generation. Both arms remain warm
+after runtime smoke; no cold distribution or 8 GB hardware acceptance is claimed.
+
+## Continuation development result and decision
+
+Development split, 10 topics, two per language, warm after smoke:
+
+| Arm | Valid rendered | Repair used | First step p50 / p90 | Tokens/s | Model peak |
+| --- | --- | --- | --- | --- | --- |
+| Baseline | 2/10 | 9/10 | 29.9 s / 35.3 s | 22.2 | not measured |
+| Qwen3-4B-Instruct-2507 | 9/10 | 7/10 | 95.8 s / 159.3 s | 5.9 | 5.35 GB |
+
+All Qwen latency samples ran under more than 20 percent foreign CPU load, so
+none is latency-eligible; the numbers are exploratory only. Even so, both
+percentiles are an order of magnitude above the 8 s / 15 s CPU bar.
+
+Qwen is dropped under the item's drop condition "grammar-valid output still
+teaches wrong facts". Two schema-valid, rendered lessons teach wrong facts:
+the Japanese fractions lesson states that one half has numerator 2 and
+denominator 1, and the English spoon lesson draws heat flowing from the metal
+spoon to the hand. The 5.35 GB model-only working set also leaves no credible
+8 GB CPU route once the app is added. The baseline is worse on validity
+(2/10), but the drop conditions are absolute, not relative.
+
+Because Qwen was dropped on the development split, no held-out outputs were
+generated (zero topics, zero arms) and no role preset was added. The baseline
+stays the default. No rework round was used.

@@ -1,7 +1,21 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 
-export const sha256 = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+export function sha256(file) {
+  // GGUFs can exceed Node's readFileSync limit. Bound verification memory too.
+  const hash = crypto.createHash('sha256');
+  const buffer = Buffer.allocUnsafe(1024 * 1024);
+  const fd = fs.openSync(file, 'r');
+  try {
+    let bytes;
+    while ((bytes = fs.readSync(fd, buffer, 0, buffer.length, null)) > 0) {
+      hash.update(buffer.subarray(0, bytes));
+    }
+    return hash.digest('hex');
+  } finally {
+    fs.closeSync(fd);
+  }
+}
 export function requireFrozen(root, sourceRoot) {
   const frozen = JSON.parse(fs.readFileSync(`${root}/FROZEN.json`, 'utf8'));
   for (const [file, hash] of Object.entries(frozen.sources)) {
