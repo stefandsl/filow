@@ -683,6 +683,7 @@ const freeLlm = () => (freeLlmSettings ||= require("./freellm.js").createFreeLlm
 }));
 
 function loadEnv(file) {
+  const { retiredDefault } = require("./env-defaults.js");
   const text = fs.readFileSync(file, "utf8");
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim();
@@ -692,7 +693,8 @@ function loadEnv(file) {
     const key = line.slice(0, eq).trim();
     let val = line.slice(eq + 1).trim();
     if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) val = val.slice(1, -1);
-    if (key && val && !(key in process.env)) process.env[key] = val;
+    // a model id an older .env.example seeded is not a choice: Filow's current default applies (env-defaults.js)
+    if (key && val && !(key in process.env) && !retiredDefault(key, val)) process.env[key] = val;
   }
 }
 

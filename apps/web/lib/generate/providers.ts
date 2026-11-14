@@ -9,7 +9,7 @@ import { freellmChat, scriptCloud } from "@/lib/freellm";
 export type SlideResult = { generated: GeneratedSlide; cost: number | null; model: string };
 
 export const GENERATE_TEXT_MODEL = () => process.env.OPENROUTER_GENERATE_MODEL || "google/gemini-2.5-flash-lite";
-export const GENERATE_VISION_MODEL = () => process.env.OPENROUTER_GENERATE_VISION_MODEL || "google/gemini-2.5-flash";
+export const GENERATE_VISION_MODEL = () => process.env.OPENROUTER_GENERATE_VISION_MODEL || "google/gemini-3.1-flash-lite";
 /**
  * Who receives a script that is written or translated outside this PC: OpenRouter and the makers of
  * both models, or FreeLLMAPI when the user chose it for scripts (SCRIPT_CLOUD=freellm, Settings).

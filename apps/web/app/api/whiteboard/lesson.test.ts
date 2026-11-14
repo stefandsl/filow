@@ -904,8 +904,18 @@ describe("whiteboard lesson, cloud model", () => {
     const forBuddy = await import("../buddy/recipients/route");
     const board = async (query = "") => (await (await forBoard.GET(new Request(`http://unit.invalid/api/whiteboard/recipients${query}`))).json()).ask;
     expect(await board()).toMatchObject({ id: "openrouter/anthropic", names: ["OpenRouter", "Anthropic"] });
-    expect((await (await forBuddy.GET()).json()).ask.id).toBe("openrouter/google");
-    expect(WHITEBOARD_MODELS).toEqual(["anthropic/claude-sonnet-5.5", "google/gemini-2.5-flash"]);
+    expect((await (await forBuddy.GET()).json()).ask.id).toBe("openrouter/openai");
+    // Quality (the default), Speed, and the model chosen before Speed existed
+    expect(WHITEBOARD_MODELS).toEqual(["anthropic/claude-sonnet-5.5", "anthropic/claude-haiku-5.5", "google/gemini-2.5-flash"]);
+  });
+
+  it("Speed is Claude Haiku 5.5: the same maker as the default, so the same yes; sent with thinking off", async () => {
+    cloudAnswers = [CLOUD];
+    const ev = await events(await post({ question: "Ohm's law", provider: "cloud", model: "anthropic/claude-haiku-5.5" }, "ask:openrouter/anthropic"));
+    expect(ev[0]).toMatchObject({ provider: "cloud", model: "anthropic/claude-haiku-5.5" });
+    expect(outside().length).toBeGreaterThan(0);
+    expect(outside().every((c) => c.body.model === "anthropic/claude-haiku-5.5")).toBe(true);
+    expect(outside()[0].body).toMatchObject({ provider: { only: ["anthropic"] }, reasoning: { enabled: false } });
   });
 
   it("lets the user pick the other measured model, with that maker's yes, and never calls a model that is not on its list", async () => {

@@ -68,6 +68,7 @@
       "tunnels.js",
       "csp.js",
       "secrets.js",
+      "env-defaults.js",
       "freellm.js",
       "qa.js",
       "qa-headless.js",

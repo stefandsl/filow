@@ -1,10 +1,12 @@
 /**
  * The online models the whiteboard offers, the default first. Measured on the ten proof questions,
  * two paid runs each, strict review (docs/whiteboard/PROOF.md): Claude Sonnet 5.5 passed 9 and 9
- * of 10, Gemini 2.5 Flash 6 and 6. OK Filow's own answers keep their model (BUDDY_CLOUD_MODEL).
+ * of 10, Gemini 2.5 Flash 6 and 6. Speed: Claude Haiku 5.5, 4.8 of 5 against Sonnet's 5.0 in the
+ * paid P0 run (14/11/2026), 1.7 times faster and 24 times cheaper. Gemini 2.5 Flash stays for whoever
+ * chose it. OK Filow's own answers keep their model (BUDDY_CLOUD_MODEL).
  * Kept apart from the server code so that the page and Settings can list them.
  */
-export const WHITEBOARD_MODELS = ["anthropic/claude-sonnet-5.5", "google/gemini-2.5-flash"] as const;
+export const WHITEBOARD_MODELS = ["anthropic/claude-sonnet-5.5", "anthropic/claude-haiku-5.5", "google/gemini-2.5-flash"] as const;
 export type WhiteboardModel = (typeof WHITEBOARD_MODELS)[number];
 export const isWhiteboardModel = (v: unknown): v is WhiteboardModel => typeof v === "string" && (WHITEBOARD_MODELS as readonly string[]).includes(v);
 

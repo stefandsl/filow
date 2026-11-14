@@ -83,6 +83,8 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   }
   // the pure tunnel rules, as main.js asks for them
   modules["./tunnels.js"] = createRequire(import.meta.url)("./tunnels.js");
+  // the old seeded model ids loadEnv reads as unset
+  modules["./env-defaults.js"] = createRequire(import.meta.url)("./env-defaults.js");
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
     ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, dropInstallerChoices, setLog: text => { lastTakeLog = text; },

@@ -5,7 +5,7 @@ import { withLocalDate } from "../../../desktop/prompt-date";
 // go back to the bubble.
 import { isPhoneQuestionForModel, isSetupPreference, resolveSetup, type ResolvedSetup } from "@filow/core";
 import { OLLAMA_URL, clefTarget } from "@/lib/decide/clef";
-import { openRouterChatUrl, withProvider } from "@/lib/openrouter";
+import { openRouterChatUrl, reasoningFor, withProvider } from "@/lib/openrouter";
 import { WHITEBOARD_MODELS, isWhiteboardModel } from "@/lib/whiteboard/models";
 import { askRecipient, consentKey, freellmRecipient, type Recipient } from "./outbound";
 import { freellmStream, requireFreeLlm } from "@/lib/freellm";
@@ -214,7 +214,12 @@ export async function warmLocalModel(preference?: unknown): Promise<{ model: str
   }
 }
 
-export const BUDDY_CLOUD_MODEL =() => process.env.BUDDY_CLOUD_MODEL || "google/gemini-2.5-flash";
+/**
+ * Online screen answers. Default: GPT-6 Luna, 100% inside the target on the 40 pointing screens in
+ * the paid P0 run (14/11/2026; Gemini 2.5 Flash 16%). A different maker than before: the notice and
+ * the yes are per maker, so a yes given to Google does not cover it (lib/buddy/outbound.ts).
+ */
+export const BUDDY_CLOUD_MODEL =() => process.env.BUDDY_CLOUD_MODEL || "openai/gpt-6-luna";
 
 /**
  * Offline mode means local, except that an explicit FreeLLMAPI request stays FreeLLMAPI so it is
@@ -393,6 +398,8 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal, shape?
       // 500 cut a photosynthesis drawing off mid-JSON (953 chars); a spoken answer plus a drawing is about 500-900 tokens.
       max_tokens: shape?.maxTokens ?? 1500,
       ...(shape?.format ? { response_format: { type: "json_object" } } : {}),
+      // thinking off or minimal, as measured: a model that thinks first speaks later
+      ...reasoningFor(shape?.model || BUDDY_CLOUD_MODEL()),
       messages: [
         { role: "system", content: withLocalDate(shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures, quoted: isPhoneQuestionForModel(req.question) }), new Date()) },
         ...history,

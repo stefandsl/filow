@@ -16,6 +16,7 @@ import {
   photoRecipient,
   routerRecipient,
   sameMaker,
+  signalNames,
   standing,
   sttRecipient,
   takeOutbound,
@@ -28,6 +29,7 @@ import {
   type ConsentMap,
 } from "./outbound";
 import { askBuddy, ConsentRequiredError } from "./providers";
+import { configuredRecipients } from "./recipients";
 import { OKF_TEXT, type OkfKey } from "./text";
 
 afterEach(() => {
@@ -184,6 +186,30 @@ describe("gateOutbound: nothing is sent without a yes", () => {
     expect(ask).toHaveBeenCalledTimes(1);
     expect(send).not.toHaveBeenCalled();
   });
+
+  it("the default screen answer moved from Google to OpenAI: the first question asks first, the notice and the live signal name OpenAI", async () => {
+    vi.stubEnv("BUDDY_CLOUD_MODEL", "");
+    const { ask: recipient } = configuredRecipients();
+    expect(recipient).toEqual({ id: "openrouter/openai", names: ["OpenRouter", "OpenAI"] });
+    // someone who said yes to Google while Gemini was the default
+    const consent = withConsent({}, "ask", google, "granted");
+    const order: string[] = [];
+    let shown = "";
+    await gateOutbound({
+      kind: "ask", recipient, consent,
+      ask: async () => { order.push("ask"); shown = noticeBody({ kind: "ask", recipient }, (k) => OKF_TEXT.en[k]); return "declined"; },
+      send: async () => { order.push("send"); },
+    });
+    expect(order).toEqual(["ask"]);
+    expect(shown).toContain("OpenAI");
+    expect(shown).not.toContain("Google");
+    expect(signalNames(recipient)).toEqual(["OpenRouter", "OpenAI"]);
+    // after the yes for OpenAI it goes, once, and the yes for Google is left as it was
+    const both = withConsent(consent, "ask", recipient, "granted");
+    expect(await gateOutbound({ kind: "ask", recipient, consent: both, ask: async () => "declined", send: async () => "sent" })).toEqual({ sent: true, decision: "granted", value: "sent" });
+    expect(isGranted(both, "ask", google)).toBe(true);
+    vi.unstubAllEnvs();
+  });
 });
 
 describe("the server refuses a cloud send that carries no consent for the recipient in use", () => {
@@ -194,7 +220,8 @@ describe("the server refuses a cloud send that carries no consent for the recipi
     vi.stubGlobal("fetch", fetchMock);
     vi.stubEnv("OPENROUTER_API_KEY", "test-key-not-real");
     expect(() => askBuddy("cloud", req)).toThrow(ConsentRequiredError);
-    expect(() => askBuddy("cloud", { ...req, consent: "ask:openrouter/openai" })).toThrow(ConsentRequiredError);
+    // the yes given to Google while Gemini was the default does not cover the default that moved to OpenAI
+    expect(() => askBuddy("cloud", { ...req, consent: "ask:openrouter/google" })).toThrow(ConsentRequiredError);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

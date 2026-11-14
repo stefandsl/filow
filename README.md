@@ -203,7 +203,7 @@ If the QR shows an address the phone cannot open, check the menu **Mirror addres
 | `OPENROUTER_API_KEY` | **Yes** | https://openrouter.ai/keys |
 | `ELEVENLABS_API_KEY` | Desktop app: one of these two. Web: optional. | https://elevenlabs.io/app/settings/api-keys |
 | `OPENAI_API_KEY` | Desktop app: one of these two. Web: optional. | https://platform.openai.com/api-keys |
-| `OPENROUTER_DECISION_MODEL` | No (default `google/gemini-2.5-flash-lite`) | any model id from https://openrouter.ai/models |
+| `OPENROUTER_DECISION_MODEL` | No (default `google/gemini-3.1-flash-lite`) | any model id from https://openrouter.ai/models |
 
 Cheaper and faster is better for the decision model: it is called twice a second.
 
@@ -628,7 +628,7 @@ With `FILOW_OFFLINE=1`, script translation and cloud speech tokens are unavailab
 
 ## Screen Sense
 
-Screen Sense lets the engine see what the audience sees (ARCHITECTURE.md §6). Press **Watch screen…** and pick a screen or a window (PowerPoint, a browser, a PDF). Once a second a 16×16 thumbnail is compared with the last frame sent; only a real change (new slide, new page) sends one full frame to a multimodal model on OpenRouter (`OPENROUTER_VISION_MODEL`, default `google/gemini-2.5-flash`), at most 20 frames a minute. The answer appears in the **ON SCREEN** strip: what the slide shows, up to three points to make, the numbers and names visible, and a mismatch warning when the slide contradicts your script. Facts you have not said yet are highlighted (the decision model sees them as a fourth list and reports what is still unmentioned). With no script loaded, each slide becomes a section with its points, so you can present from the slides alone.
+Screen Sense lets the engine see what the audience sees (ARCHITECTURE.md §6). Press **Watch screen…** and pick a screen or a window (PowerPoint, a browser, a PDF). Once a second a 16×16 thumbnail is compared with the last frame sent; only a real change (new slide, new page) sends one full frame to a multimodal model on OpenRouter (`OPENROUTER_VISION_MODEL`, default `google/gemini-3.1-flash-lite`), at most 20 frames a minute. The answer appears in the **ON SCREEN** strip: what the slide shows, up to three points to make, the numbers and names visible, and a mismatch warning when the slide contradicts your script. Facts you have not said yet are highlighted (the decision model sees them as a fourth list and reports what is still unmentioned). With no script loaded, each slide becomes a section with its points, so you can present from the slides alone.
 
 - **Cost dial** (dropdown next to the button, or Settings): Off, On slide change, Balanced (also when you say "as you can see", "in questa slide", "en esta diapositiva"…), Real-time (every few seconds while the content keeps changing, for demos). The footer shows the frames sent and their cost; they count against the same $1 session cap as decisions.
 - **Look now** sends the current frame at once. From the phone mirror it does the same.

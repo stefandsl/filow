@@ -7,7 +7,7 @@ import { useLang } from "@filow/ui";
 import { WHITEBOARD_MODELS, WHITEBOARD_MODEL_KEY, chosenWhiteboardModel, type WhiteboardModel } from "@/lib/whiteboard/models";
 import { wbText, type WbKey } from "@/lib/whiteboard/text";
 
-const LABEL: Record<WhiteboardModel, WbKey> = { "anthropic/claude-sonnet-5.5": "model_sonnet", "google/gemini-2.5-flash": "model_flash" };
+const LABEL: Record<WhiteboardModel, WbKey> = { "anthropic/claude-sonnet-5.5": "model_sonnet", "anthropic/claude-haiku-5.5": "model_haiku", "google/gemini-2.5-flash": "model_flash" };
 
 /** The choice kept in this profile, and how to change it. */
 export function useWhiteboardModel(): [WhiteboardModel, (next: WhiteboardModel) => void] {

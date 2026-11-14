@@ -40,21 +40,33 @@ describe("cloud question: /api/buddy/ask", () => {
   it("without the user's yes nothing is forwarded", async () => {
     const res = await ask(post(askBody));
     expect(res.status).toBe(403);
-    expect(await res.json()).toMatchObject({ code: "consent_required", kind: "ask", recipient: { id: "openrouter/google", names: ["OpenRouter", "Google"] } });
+    expect(await res.json()).toMatchObject({ code: "consent_required", kind: "ask", recipient: { id: "openrouter/openai", names: ["OpenRouter", "OpenAI"] } });
     expect(net).not.toHaveBeenCalled();
   });
   it("a yes given for another maker, another kind, or in the body does not count", async () => {
-    vi.stubEnv("BUDDY_CLOUD_MODEL", "openai/gpt-4o-mini");
-    for (const consent of ["ask:openrouter/google", "voice:elevenlabs", "ask:openrouter"]) expect((await ask(post(askBody, consent))).status).toBe(403);
-    expect((await ask(post({ ...askBody, consent: "ask:openrouter/openai" }))).status).toBe(403);
+    vi.stubEnv("BUDDY_CLOUD_MODEL", "anthropic/claude-haiku-5.5");
+    for (const consent of ["ask:openrouter/openai", "voice:elevenlabs", "ask:openrouter"]) expect((await ask(post(askBody, consent))).status).toBe(403);
+    expect((await ask(post({ ...askBody, consent: "ask:openrouter/anthropic" }))).status).toBe(403);
     expect(net).not.toHaveBeenCalled();
   });
-  it("with the yes for the recipient in use the question goes to OpenRouter, once", async () => {
+  it("the default moved from Google to OpenAI: the yes given to Google sends nothing, and the refusal names OpenAI for the notice", async () => {
     const res = await ask(post(askBody, "ask:openrouter/google"));
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: "consent_required", kind: "ask", recipient: { id: "openrouter/openai", names: ["OpenRouter", "OpenAI"] } });
+    expect(net).not.toHaveBeenCalled();
+  });
+  it("with the yes for the recipient in use the question goes to OpenRouter, once, pinned to that maker", async () => {
+    const res = await ask(post(askBody, "ask:openrouter/openai"));
     expect(res.status).toBe(200);
     expect(res.headers.get("X-Buddy-Provider")).toBe("cloud");
     expect(await res.text()).toBe("Hello");
     expect(outside()).toEqual(["https://openrouter.ai/api/v1/chat/completions"]);
+    expect(JSON.parse(String(net.mock.calls[0][1].body))).toMatchObject({ model: "openai/gpt-6-luna", provider: { only: ["openai"] }, reasoning: { effort: "minimal" } });
+  });
+  it("a model the user set is never replaced by the new default", async () => {
+    vi.stubEnv("BUDDY_CLOUD_MODEL", "google/gemini-2.5-flash");
+    expect((await ask(post(askBody, "ask:openrouter/google"))).status).toBe(200);
+    expect(JSON.parse(String(net.mock.calls[0][1].body)).model).toBe("google/gemini-2.5-flash");
   });
   it("a local question needs no consent and never leaves the PC", async () => {
     const res = await ask(post({ ...askBody, provider: "local" }));
@@ -115,13 +127,13 @@ describe("recipient names: /api/buddy/recipients", () => {
   it("come from the models configured on this PC, and the route sends nothing", async () => {
     expect(await (await recipients()).json()).toEqual({
       offline: false,
-      ask: { id: "openrouter/google", names: ["OpenRouter", "Google"] },
+      ask: { id: "openrouter/openai", names: ["OpenRouter", "OpenAI"] },
       freellm: { id: "freellmapi", names: ["FreeLLMAPI (a free provider it chooses)"] },
       voice: { id: "elevenlabs", names: ["ElevenLabs"] },
       photo: { id: "wikipedia", names: ["Wikipedia"] },
       screen: { id: "openrouter/google", names: ["OpenRouter", "Google"] },
       script: { id: "openrouter/google", names: ["OpenRouter", "Google"] },
-      decision: { openrouter: "google/gemini-2.5-flash-lite", cloudflare: "@cf/cloudflare/clef-flash" },
+      decision: { openrouter: "google/gemini-3.1-flash-lite", cloudflare: "@cf/cloudflare/clef-flash" },
       defaults: { decide: "openrouter", generate: "openrouter" },
     });
     // A script that is written by one maker and read by another names both.

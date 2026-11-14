@@ -9,7 +9,25 @@ import { makerHosts, sameMaker } from "@/lib/buddy/outbound";
 export function fallbackModels(kind: "text" | "vision"): string[] {
   const env = process.env.OPENROUTER_FALLBACK_MODELS;
   if (env !== undefined) return env.split(",").map((s) => s.trim()).filter(Boolean);
-  return kind === "vision" ? ["google/gemini-2.5-flash", "openai/gpt-4o-mini"] : ["google/gemini-2.0-flash-001", "openai/gpt-4o-mini"];
+  return kind === "vision" ? ["google/gemini-3.1-flash-lite", "openai/gpt-4o-mini"] : ["google/gemini-2.0-flash-001", "openai/gpt-4o-mini"];
+}
+
+/**
+ * Thinking off or minimal for the default models, exactly as the paid P0 run sent them (14/11/2026,
+ * tmp/best-online-models/p0/or.mjs): a model that thinks first answers later. Claude Sonnet 5.5
+ * refuses thinking off ("reasoning is mandatory"), so it gets the smallest effort. Other models are
+ * sent as before: a reasoning field a model does not know may be refused.
+ */
+const REASONING: Record<string, Record<string, unknown>> = {
+  "openai/gpt-6-luna": { effort: "minimal" },
+  "google/gemini-3.1-flash-lite": { effort: "minimal" },
+  "anthropic/claude-haiku-5.5": { enabled: false },
+  "anthropic/claude-sonnet-5.5": { effort: "minimal" },
+};
+/** `{ reasoning }` to spread into a request body for this model, or nothing. */
+export function reasoningFor(model: string): { reasoning?: Record<string, unknown> } {
+  const reasoning = REASONING[model.trim()];
+  return reasoning ? { reasoning } : {};
 }
 
 /**
@@ -82,6 +100,7 @@ export async function openRouterChat(model: string, kind: "text" | "vision", pay
         model: models[0],
         models,
         usage: { include: true },
+        ...reasoningFor(models[0]),
         ...payload,
         // After the payload: no caller may widen who runs the model.
         ...withProvider(models),
