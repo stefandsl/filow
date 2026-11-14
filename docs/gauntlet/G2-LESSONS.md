@@ -144,3 +144,36 @@ spoon to the hand. The 5.35 GB model-only working set also leaves no credible
 Because Qwen was dropped on the development split, no held-out outputs were
 generated (zero topics, zero arms) and no role preset was added. The baseline
 stays the default. No rework round was used.
+
+## Round 3 (last): Qwen3.5-2B
+
+Pinned before scoring: `unsloth/Qwen3.5-2B-GGUF` at revision
+`f6d5376be1edb4d416d56da11e5397a961aca8ae`, file `Qwen3.5-2B-Q4_K_M.gguf`,
+1,280,835,840 bytes, SHA-256
+`aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223`.
+Upstream `Qwen/Qwen3.5-2B` is Apache-2.0; its LICENSE and the converter card
+(licence apache-2.0, linking the upstream LICENSE) are kept under `notices/qwen35`.
+Text GGUF only, no mmproj. The frozen runtime, arguments, ten development topics,
+prompt, schema, non-thinking mode and one-repair rule are unchanged. FROZEN.json
+after the round 3 entry has SHA-256
+`b969665293514f4793773861330da253e7c3cb46e5f510b3e6611b8f598c4518`.
+
+| Arm | Valid rendered | Repair used | First step p50 / p90 | Tokens/s | Model peak |
+| --- | --- | --- | --- | --- | --- |
+| Qwen3.5-2B Q4_K_M | 10/10 | 8/10 | 52.7 s / 63.0 s | 19.4 | 2.53 GB |
+
+All ten samples ran under more than 20 percent foreign CPU load, so no latency
+sample is eligible; the numbers are exploratory, and still far above 8 s / 15 s.
+
+Builder fact check (`round3-review.json`): 6 factual errors in 4 of 10 lessons.
+The Romanian shadow lesson says shadows are long by day and short at night and
+labels a node "Umbria"; the Romanian salt lesson says an ion is a molecule and a
+molecule is water. English says the spoon becomes colder; Italian says droplets
+"filter" light. Three more lessons do not answer the question (lever, day and
+night, one half equals two quarters). Japanese moon and Russian switch are
+correct; Japanese output has no English mixed in this time.
+
+Decision: dropped under "grammar-valid output still teaches wrong facts". Memory
+alone would allow the low-spec route. No held-out outputs were generated and no
+preset was added. This was the third and last round: the baseline stays the
+default.
