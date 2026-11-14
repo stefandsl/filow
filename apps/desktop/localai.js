@@ -8,6 +8,7 @@ const path = require("node:path");
 const { spawn, execFile, execFileSync } = require("node:child_process");
 const { download } = require("./download");
 const { isCancelled } = require("./model-files");
+const { runtimeState, MIN_OLLAMA_VERSION } = require("./ollama-runtime");
 
 const OLLAMA_URL = () => process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 
@@ -470,12 +471,15 @@ async function installOllama(binDir, onStatus, deps = {}) {
   // partial installer is deleted and the status goes back to idle. It is not an error.
   const { findExe = ollamaExe, version: probeVersion = ollamaVersion, platform = process.platform, urls = OLLAMA_DOWNLOADS, idleMs, start = startOllama, startOnly = false, log = () => {}, installMs = 15 * 60_000, signal } = deps;
   const report = (s) => onStatus({ pct: 0, code: "", error: "", version: "", command: "", ...s });
+  const ready = version => runtimeState(version) === "ready"
+    ? report({ state: "ready", version, pct: 100 })
+    : report({ state: "error", code: "runtime_old", version, minimum: MIN_OLLAMA_VERSION });
   const bringUp = async (exe) => {
     report({ state: "starting" });
     const r = await start(exe, { ...deps, platform, log, logFile: deps.logFile || path.join(path.dirname(binDir), "ollama-serve.log") });
     if (r.ok) {
       log(`Ollama ${r.version} answers (${r.by}, ${r.seconds} s)`);
-      return report({ state: "ready", version: r.version, pct: 100 });
+      return ready(r.version);
     }
     for (const line of r.lines || []) log(line);
     return report({ state: "error", code: r.code, error: r.error });
@@ -484,12 +488,15 @@ async function installOllama(binDir, onStatus, deps = {}) {
     report({ state: "checking" });
     let exe = findExe();
     const version = await probeVersion();
-    if (version) return report({ state: "ready", version, pct: 100 });
+    if (version) return ready(version);
     if (exe) return await bringUp(exe);
     if (startOnly) return report({ state: "idle" });
     if (platform === "linux") {
       return report({ state: "manual", command: "curl -fsSL https://ollama.com/install.sh | sh" });
     }
+    // Existing executables and answering runtimes returned above are never claimed.
+    const installedByUs = require("./local-ownership").ownership(path.dirname(binDir));
+    installedByUs.beginRuntime(platform);
     fs.mkdirSync(binDir, { recursive: true });
     if (platform === "win32") {
       const setup = path.join(binDir, "OllamaSetup.exe");
@@ -543,6 +550,7 @@ async function installOllama(binDir, onStatus, deps = {}) {
     }
     exe = findExe();
     if (!exe) throw stepError("exe_missing", "Ollama was installed but its executable was not found.");
+    installedByUs.completeRuntime(exe);
     return await bringUp(exe);
   } catch (err) {
     if (isCancelled(err)) {

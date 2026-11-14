@@ -1,6 +1,11 @@
 import type { Dictionary } from "./en";
 
 export const ro: Dictionary = {
+  "local.runtimeOld": "Ollama este prea vechi pentru răspunsuri locale. Instalează Ollama {v} sau mai nou de pe ollama.com/download, repornește Ollama și încearcă din nou. Modelele existente vor fi păstrate.",
+  "local.runtimeUnavailable": "Filow nu a putut verifica versiunea Ollama. Pornește Ollama, verifică adresa în Setări și încearcă din nou.",
+  "local.pointerLabel": "{label}: aici.",
+  "local.pointerHere": "Chiar aici.",
+  "local.noAnswer": "Modelul local nu a răspuns după două încercări. Marcajele primite rămân afișate. Încearcă să întrebi din nou.",
   "cloud.title": "Simte-te ca acasă.",
   "cloud.intro": "Conectează-te pentru a asocia aplicația Filo.",
   "cloud.email": "Adresă de email",

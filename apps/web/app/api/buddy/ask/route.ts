@@ -16,6 +16,7 @@ import { okfText } from "@/lib/buddy/text";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { FreeLlmError, freellmRecipient, requireFreeLlm } from "@/lib/freellm";
 import { createServerTiming, logServerTiming, mark as markTiming } from "@/lib/buddy/timing";
+import { isSimpleLocatorQuestion } from "@/lib/buddy/local-target-prompt";
 
 export const dynamic = "force-dynamic";
 
@@ -118,7 +119,7 @@ export async function POST(req: Request) {
   // told to carry on from it instead of being asked the question a second time. The language, the
   // helper and the screenshots above were all chosen from the question itself.
   const carryOn = resumeQuestion(body.history, body.resume);
-  const ask: BuddyAskRequest = { ...body, elements: undefined, question: carryOn ?? question, images, screens, consent, sees, language: known ?? "auto" };
+  const ask: BuddyAskRequest = { ...body, knownTarget: false, elements: undefined, question: carryOn ?? question, images, screens, consent, sees, language: known ?? "auto" };
   // A plain request for a drawing or a 3D model is answered with one (lib/buddy/draw.ts): it needs no screenshot.
   const drawing = carryOn || quoted ? null : wantsDrawing(question);
   // On this PC a setup may answer with one model and place the points with another (lib/buddy/pointer.ts).
@@ -175,7 +176,7 @@ export async function POST(req: Request) {
   // where it is (only names the question already holds), and an answer that still points at nothing gets the point.
   // (not when an answer is carried on after Stop: its question was already asked, hint and all)
   const named = elements.length && !drawing && !carryOn && !isPointOnly(question) ? namedInQuestion(question, elements) : [];
-  const asked: BuddyAskRequest = provider === "local" && named.length ? { ...ask, question: question + screenHint(named, screens.length) } : ask;
+  const asked: BuddyAskRequest = provider === "local" && named.length ? { ...ask, question: question + screenHint(named, screens.length), knownTarget: !quoted && isSimpleLocatorQuestion(question) } : ask;
   // Made inside the stream: a refused consent throws here and must reach the bubble as an error line.
   const pieces = () => drawing
     ? drawnAnswer((shape, signal) => askBuddy(provider, ask, signal, helper, shape), { kind: drawing, language: known ?? "auto", lang, signal: abort.signal })

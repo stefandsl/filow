@@ -11,6 +11,7 @@ it("warms both runners with the answer context, without pre-filling a different 
   vi.stubEnv("BUDDY_LOCAL_MODEL", "");
   const calls: Record<string, unknown>[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url, init) => {
+    if (String(url).endsWith("/api/version")) return Response.json({ version: "0.40.0" });
     if (String(url).endsWith("/api/tags")) return Response.json({ models: [{ name: "lfm3-vl" }] });
     calls.push(JSON.parse(init.body));
     return String(url).endsWith("/api/chat") ? new Response('{"message":{"content":"ok"},"done":true}\n') : Response.json({ done: true });

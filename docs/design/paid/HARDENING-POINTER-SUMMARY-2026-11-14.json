@@ -1,0 +1,252 @@
+{
+  "variants": [
+    {
+      "phase": "baseline",
+      "cohort": "warm",
+      "n": 60,
+      "wordless": 60,
+      "validMarks": 60,
+      "strict": 57,
+      "placedStrict": 58,
+      "medianPromptTokens": 1713,
+      "medianOutputTokens": 16,
+      "totalOutputTokens": 980,
+      "medianFirstTokenMs": 4951.222249999999
+    },
+    {
+      "phase": "baseline",
+      "cohort": "pointing",
+      "n": 40,
+      "wordless": 40,
+      "validMarks": 40,
+      "strict": 39,
+      "placedStrict": 40,
+      "medianPromptTokens": 1713,
+      "medianOutputTokens": 16,
+      "totalOutputTokens": 648,
+      "medianFirstTokenMs": 5227.771199999988
+    },
+    {
+      "phase": "sentence-last",
+      "cohort": "warm",
+      "n": 60,
+      "wordless": 54,
+      "validMarks": 60,
+      "strict": 55,
+      "placedStrict": 58,
+      "medianPromptTokens": 1744,
+      "medianOutputTokens": 16,
+      "totalOutputTokens": 1003,
+      "medianFirstTokenMs": 5299.459600000002
+    },
+    {
+      "phase": "sentence-last",
+      "cohort": "pointing",
+      "n": 40,
+      "wordless": 39,
+      "validMarks": 40,
+      "strict": 36,
+      "placedStrict": 39,
+      "medianPromptTokens": 1744,
+      "medianOutputTokens": 16,
+      "totalOutputTokens": 655,
+      "medianFirstTokenMs": 5326.100999999908
+    },
+    {
+      "phase": "examples-date-first",
+      "cohort": "warm",
+      "n": 60,
+      "wordless": 60,
+      "validMarks": 60,
+      "strict": 60,
+      "placedStrict": 60,
+      "medianPromptTokens": 1797,
+      "medianOutputTokens": 16,
+      "totalOutputTokens": 967,
+      "medianFirstTokenMs": 5356.2949999999255
+    },
+    {
+      "phase": "examples-date-first",
+      "cohort": "pointing",
+      "n": 40,
+      "wordless": 39,
+      "validMarks": 40,
+      "strict": 40,
+      "placedStrict": 40,
+      "medianPromptTokens": 1797,
+      "medianOutputTokens": 16,
+      "totalOutputTokens": 648,
+      "medianFirstTokenMs": 6469.486849999987
+    },
+    {
+      "phase": "user-last",
+      "cohort": "warm",
+      "n": 60,
+      "wordless": 0,
+      "validMarks": 60,
+      "strict": 57,
+      "placedStrict": 59,
+      "medianPromptTokens": 1754,
+      "medianOutputTokens": 23,
+      "totalOutputTokens": 1374,
+      "medianFirstTokenMs": 5475.451449999993
+    },
+    {
+      "phase": "user-last",
+      "cohort": "pointing",
+      "n": 40,
+      "wordless": 0,
+      "validMarks": 40,
+      "strict": 36,
+      "placedStrict": 39,
+      "medianPromptTokens": 1754,
+      "medianOutputTokens": 23,
+      "totalOutputTokens": 923,
+      "medianFirstTokenMs": 7038.899550000002
+    },
+    {
+      "phase": "user-last-exact",
+      "cohort": "warm",
+      "n": 60,
+      "wordless": 0,
+      "validMarks": 60,
+      "strict": 59,
+      "placedStrict": 60,
+      "medianPromptTokens": 1762,
+      "medianOutputTokens": 23,
+      "totalOutputTokens": 1430,
+      "medianFirstTokenMs": 6062.978000000003
+    },
+    {
+      "phase": "user-last-exact",
+      "cohort": "pointing",
+      "n": 40,
+      "wordless": 0,
+      "validMarks": 40,
+      "strict": 39,
+      "placedStrict": 40,
+      "medianPromptTokens": 1762,
+      "medianOutputTokens": 23,
+      "totalOutputTokens": 942,
+      "medianFirstTokenMs": 6119.4592999999295
+    },
+    {
+      "phase": "compact-exact",
+      "cohort": "warm",
+      "n": 60,
+      "wordless": 0,
+      "validMarks": 60,
+      "strict": 59,
+      "placedStrict": 60,
+      "medianPromptTokens": 446,
+      "medianOutputTokens": 22,
+      "totalOutputTokens": 1385,
+      "medianFirstTokenMs": 2640.687150000005
+    },
+    {
+      "phase": "compact-exact",
+      "cohort": "pointing",
+      "n": 40,
+      "wordless": 0,
+      "validMarks": 40,
+      "strict": 40,
+      "placedStrict": 40,
+      "medianPromptTokens": 446,
+      "medianOutputTokens": 22,
+      "totalOutputTokens": 922,
+      "medianFirstTokenMs": 2693.3789000000106
+    }
+  ],
+  "gates": [
+    {
+      "phase": "sentence-last",
+      "complete": true,
+      "wordless": false,
+      "pointing": false,
+      "firstToken": true,
+      "adoptable": false
+    },
+    {
+      "phase": "examples-date-first",
+      "complete": true,
+      "wordless": false,
+      "pointing": true,
+      "firstToken": false,
+      "adoptable": false
+    },
+    {
+      "phase": "user-last",
+      "complete": true,
+      "wordless": true,
+      "pointing": false,
+      "firstToken": false,
+      "adoptable": false
+    },
+    {
+      "phase": "user-last-exact",
+      "complete": true,
+      "wordless": true,
+      "pointing": true,
+      "firstToken": false,
+      "adoptable": false
+    },
+    {
+      "phase": "compact-exact",
+      "complete": true,
+      "wordless": true,
+      "pointing": true,
+      "firstToken": true,
+      "adoptable": true
+    }
+  ],
+  "before": {
+    "n": 60,
+    "trulyEmpty": 4,
+    "pointerOnly": 55,
+    "modelWords": 1,
+    "retries": 59,
+    "failureMessages": 59,
+    "appWords": 0
+  },
+  "beforeWithRepairedParser": {
+    "n": 60,
+    "trulyEmpty": 0,
+    "pointerOnly": 59,
+    "modelWords": 1,
+    "retries": 59,
+    "failureMessages": 59,
+    "appWords": 0
+  },
+  "after": {
+    "n": 60,
+    "trulyEmpty": 0,
+    "pointerOnly": 0,
+    "modelWords": 60,
+    "retries": 0,
+    "failureMessages": 0,
+    "appWords": 0
+  },
+  "integrity": {
+    "rows": 660,
+    "calls": 660,
+    "missingDone": 0,
+    "errors": 0,
+    "nonemptyThinking": 0
+  },
+  "online": {
+    "systemAndUserPromptCodeUnchanged": true,
+    "openRouterFunctionUnchanged": true
+  },
+  "sha256": {
+    "original": "61ec4f3c9fa30decc15d32456fe436b07983014d14f95ce15eebeeeb48eb6639",
+    "samples": "5de882214d8a7b00465277abf7e3c90ca1d3486000a42ec414d05cabdbea0e59"
+  },
+  "validation": {
+    "mutations": 26,
+    "typecheck": 0,
+    "lint": 0,
+    "vitestPassed": 3291,
+    "vitestSkipped": 7,
+    "hiddenUiCases": 10
+  }
+}

@@ -140,3 +140,5 @@ describe("recipient names: /api/buddy/recipients", () => {
     expect(net).not.toHaveBeenCalled();
   });
 });
+// Version rejection is covered with real HTTP fakes in ollama-runtime.test.ts.
+vi.mock("@/../desktop/ollama-runtime", async (original) => ({ ...await original<object>(), checkRuntime: async () => ({ state: "ready" }) }));

@@ -14,6 +14,14 @@ export type ServerTiming = {
 };
 
 const RUN = /^\d{1,9}g?$/;
+
+/** Fixed provenance only, including when no timing run was requested. */
+export function logAppBuiltWords(t: ServerTiming | null | undefined): void {
+  const log = (globalThis as { __filowPerfLog?: (line: string) => void }).__filowPerfLog;
+  if (typeof log !== "function") return;
+  const run = t && RUN.test(t.run) ? t.run : "-";
+  try { log(`okfilow: answer words source=app reason=pointer-only run=${run}`); } catch { /* logging never breaks an answer */ }
+}
 const MODEL = /^[a-z0-9.:_-]{1,40}$/;
 
 /** A timing object for the request, or null when the request carries no run id (nothing is measured). */

@@ -1,6 +1,11 @@
 // English: the reference dictionary. Every other language has exactly these keys
 // (packages/core/src/i18n/i18n.test.ts and tools/autoloop/checks/i18n-parity.mjs).
 export const en = {
+  "local.runtimeOld": "Ollama is too old for local answers. Install Ollama {v} or newer from ollama.com/download, restart Ollama, then try again. Your existing models will be kept.",
+  "local.runtimeUnavailable": "Filow could not check the Ollama version. Start Ollama, check its address in Settings, then try again.",
+  "local.pointerLabel": "{label}: here.",
+  "local.pointerHere": "Right here.",
+  "local.noAnswer": "The local model gave no answer after two attempts. Any marks it gave are still shown. Try asking again.",
   "cloud.title": "Make yourself at home.",
   "cloud.intro": "Sign in to connect your Filo desktop app.",
   "cloud.email": "Email address",

@@ -1,6 +1,11 @@
 import type { Dictionary } from "./en";
 
 export const ja: Dictionary = {
+  "local.runtimeOld": "Ollamaが古いためローカル回答を利用できません。ollama.com/downloadからOllama {v}以降をインストールし、Ollamaを再起動してからもう一度お試しください。既存のモデルは保持されます。",
+  "local.runtimeUnavailable": "Ollamaのバージョンを確認できませんでした。Ollamaを起動し、設定でアドレスを確認してからもう一度お試しください。",
+  "local.pointerLabel": "{label}：ここです。",
+  "local.pointerHere": "ここです。",
+  "local.noAnswer": "ローカルモデルは2回試しても回答しませんでした。表示されたマークはそのまま残ります。もう一度質問してください。",
   "cloud.title": "ようこそ。",
   "cloud.intro": "サインインしてFiloデスクトップアプリを接続します。",
   "cloud.email": "メールアドレス",

@@ -139,20 +139,28 @@ function buddySystemPromptBase(screens: BuddyScreen[], language: string, opts: {
 /** Points use a 0-1000 grid per screen: the native output of Gemma and Gemini, and size-independent. */
 export const GRID = 1000;
 
+/** A complete two-coordinate BOX describes a point, not a rectangle. */
+export function normalizePointBoxes(raw: string): string {
+  return raw.replace(/\[BOX:(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*)(?=[:\]])([^[\]]*)\]/gi, (tag, pair: string, tail: string) => {
+    const values = pair.split(",").map(Number);
+    return values.every(v => Number.isFinite(v) && v >= 0 && v <= GRID) ? `[POINT:${pair}${tail}]` : tag;
+  });
+}
+
 const NUM = String.raw`\s*(-?\d+(?:\.\d+)?)\s*`;
-const MARK_RE = new RegExp(String.raw`\[(CIRCLE|ARROW|BOX|UNDERLINE):${NUM},${NUM}(?:,${NUM})?(?:,${NUM})?(?::([^[\]]*?))?(?::\s*screen\s*(\d+))?\s*\]`, "gi");
+const MARK_RE = new RegExp(String.raw`\[(CIRCLE|ARROW|BOX|UNDERLINE):${NUM},${NUM}(?:,${NUM})?(?:,${NUM})?(?::((?!\s*screen\s*\d+\s*\])[^[\]]*?))?(?::\s*screen\s*(\d+))?\s*\]`, "gi");
 const ARITY: Record<string, number> = { CIRCLE: 3, ARROW: 4, BOX: 4, UNDERLINE: 3 };
-const TAGS = ["POINT", "CIRCLE", "ARROW", "BOX", "UNDERLINE", "CARD"];
+const TAGS = ["POINT", "CIRCLE", "ARROW", "BOX", "UNDERLINE", "CARD", "APP_WORDS"];
 /** True for an unfinished tag at the end of a streamed answer ("[CIR", "[BOX:10,2"). */
 function isTagPrefix(tail: string): boolean {
-  const m = /^\[([A-Z]*)(:[^\]]*)?$/i.exec(tail);
+  const m = /^\[([A-Z_]*)(:[^\]]*)?$/i.exec(tail);
   if (!m) return false;
   const name = m[1].toUpperCase();
   return m[2] !== undefined ? TAGS.includes(name) : TAGS.some((t) => t.startsWith(name));
 }
 
 // Labels may contain ":" ("Photosynthesis: light reactions"); only "[" and "]" end them.
-const POINT_RE = /\[POINT:\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*(?::([^[\]]*?))?(?::\s*screen\s*(\d+))?\s*\]/gi;
+const POINT_RE = /\[POINT:\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*(?::((?!\s*screen\s*\d+\s*\])[^[\]]*?))?(?::\s*screen\s*(\d+))?\s*\]/gi;
 /** A tag the model never closed: cut before the next tag starts, so it cannot swallow that tag. */
 const UNCLOSED_TAG_RE = /\[(?:POINT|CIRCLE|ARROW|BOX|UNDERLINE|CARD)\b[^[\]]*(?=\[)/gi;
 /** A closed tag that did not parse (wrong arity, junk inside): never shown. */
@@ -163,9 +171,11 @@ const BROKEN_TAG_RE = /\[(?:POINT|CIRCLE|ARROW|BOX|UNDERLINE|CARD)\b[^[\]]*\]/gi
  * A trailing unfinished tag ("[POINT:12,3") is held back so it never flashes in the bubble.
  * Points whose screen is unknown fall back to `defaultScreen`; ones outside the image are dropped.
  */
-export function parseBuddyAnswer(raw: string, screens: BuddyScreen[], defaultScreen = 1): { text: string; points: BuddyPoint[]; marks: BuddyMark[]; cards: BuddyCard[]; model: BuddyModel | null; drawing: BuddyDrawing | null } {
+export function parseBuddyAnswer(raw: string, screens: BuddyScreen[], defaultScreen = 1): { text: string; points: BuddyPoint[]; marks: BuddyMark[]; cards: BuddyCard[]; model: BuddyModel | null; drawing: BuddyDrawing | null; appWordsLanguage?: string } {
   const visuals = extractVisuals(raw, (n) => screens.some((s) => s.index === n), defaultScreen);
-  let body = visuals.body;
+  let body = normalizePointBoxes(visuals.body);
+  let appWordsLanguage: string | undefined;
+  body = body.replace(/\[APP_WORDS:(en|it|ru|ro|ja)\]/g, (_tag, language: string) => { appWordsLanguage = language; return ""; });
   // Every unfinished tag at the end, not only the last one: a tag the model never closed, followed by
   // the start of the next tag, would otherwise show (and be spoken) until that next tag is complete.
   for (let open = body.lastIndexOf("["); open >= 0 && !body.slice(open).includes("]") && isTagPrefix(body.slice(open)); open = body.lastIndexOf("[")) body = body.slice(0, open);
@@ -201,7 +211,7 @@ export function parseBuddyAnswer(raw: string, screens: BuddyScreen[], defaultScr
     .replace(/^[ \t]*You\s*:[ \t]*/gm, "")
     .replace(/\n{2,}/g, "\n")
     .trim();
-  return { text, points, marks: marks.slice(0, 4), cards: visuals.cards, model: visuals.model, drawing: visuals.drawing };
+  return { text, points, marks: marks.slice(0, 4), cards: visuals.cards, model: visuals.model, drawing: visuals.drawing, ...(appWordsLanguage ? { appWordsLanguage } : {}) };
 }
 
 export type DisplayRect = { x: number; y: number; width: number; height: number };
@@ -236,7 +246,8 @@ export function trimHistory(history: BuddyTurn[], maxTurns = 6, maxChars = 4000)
     if (!t || (t.role !== "user" && t.role !== "assistant") || typeof t.text !== "string") continue;
     chars += t.text.length;
     if (chars > maxChars) break;
-    out.unshift({ role: t.role, text: t.text.slice(0, 2000) });
+    // App provenance belongs to the saved answer, not to instructions for the next model turn.
+    out.unshift({ role: t.role, text: t.text.replace(/\[APP_WORDS:(?:en|it|ru|ro|ja)\]/g, "").slice(0, 2000) });
   }
   while (out.length && out[0].role !== "user") out.shift();
   return out;
