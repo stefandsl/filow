@@ -108,9 +108,11 @@ describe("rectangles and points", () => {
     expect(cleanRects(Array.from({ length: 100 }, () => TOOLS))).toHaveLength(MAX_RECTS);
     expect(cleanRects("nope")).toEqual([]);
   });
-  it("edges count as inside", () => {
-    expect(insideAny({ x: TOOLS.right, y: TOOLS.bottom }, [TOOLS])).toBe(true);
-    expect(insideAny({ x: TOOLS.right + 1, y: TOOLS.bottom }, [TOOLS])).toBe(false);
+  it("the left and top edges are inside, the right and bottom ones outside (as the page hit-tests)", () => {
+    expect(insideAny({ x: TOOLS.left, y: TOOLS.top }, [TOOLS])).toBe(true);
+    expect(insideAny({ x: TOOLS.right - 0.5, y: TOOLS.bottom - 0.5 }, [TOOLS])).toBe(true);
+    expect(insideAny({ x: TOOLS.right, y: TOOLS.top + 1 }, [TOOLS])).toBe(false);
+    expect(insideAny({ x: TOOLS.left + 1, y: TOOLS.bottom }, [TOOLS])).toBe(false);
     expect(insideAny(null, [TOOLS])).toBe(false);
   });
   it("the cursor in window coordinates, null outside the window", () => {

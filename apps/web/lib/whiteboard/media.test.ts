@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applyEdits, applyOps, excalidrawFile, noEdits, parseExcalidrawFile } from "./doc";
 import { boardFileOk, cleanBoardMedia, filesOf, MEDIA_FILE_CAP, mediaElement, posterSvg } from "./media";
@@ -6,6 +7,18 @@ import type { Scene } from "./scene";
 const GIF = "data:image/gif;base64,R0lGODlhAQABAAAAACw=";
 const WEBM = "data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYEC";
 const empty: Scene = { elements: [], files: {} };
+
+describe("the board page shows them where Excalidraw drew them", () => {
+  const board = readFileSync(new URL("../../components/whiteboard/ExcalidrawBoard.tsx", import.meta.url), "utf8");
+  it("the view box is moved back by the corner Excalidraw draws from (a file with no frame at 0,0 lines up)", () => {
+    expect(board).toMatch(/const drawn = boundsOf\(visible\);\s*origin\.current = drawn \? \{ x: drawn\.x, y: drawn\.y \}/);
+    expect(board).toContain("`${a.x - origin.current.x} ${a.y - origin.current.y} ${a.w} ${a.h}`");
+  });
+  it("a GIF and a video are shown over their element, from the board's own files only", () => {
+    expect(board).toMatch(/className="wb-gif" src=\{f\.dataURL\}/);
+    expect(board).toMatch(/<video ref=\{v\} src=\{src\} muted loop autoPlay playsInline/);
+  });
+});
 
 describe("GIF and video on the board", () => {
   it("a GIF is an image element whose file is the GIF; a video an image of our poster plus its own file", () => {

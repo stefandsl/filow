@@ -22,10 +22,10 @@ function cleanRects(list) {
   return out;
 }
 
-/** True when the point (window coordinates) is inside one of the rectangles (edges included). */
+/** True when the point (window coordinates) is inside one of the rectangles: left and top edges in, right and bottom out, as a page hit-tests. */
 function insideAny(p, rects) {
   if (!p || !finite(p.x) || !finite(p.y)) return false;
-  return rects.some((r) => p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom);
+  return rects.some((r) => p.x >= r.left && p.x < r.right && p.y >= r.top && p.y < r.bottom);
 }
 
 /** The cursor (screen DIP) in a window's own coordinates, or null when it is outside the window. */

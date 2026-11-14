@@ -57,6 +57,7 @@
 .wb-ex-dark .wb-hot:hover { background: rgba(165, 216, 255, 0.1); }
 .wb-page .wb-hot:focus-visible { outline: 3px solid var(--accent-ring, var(--accent)); outline-offset: 4px; }
 /* A video on the board, over its poster (lib/whiteboard/media.ts). */
+.wb-gif { position: absolute; display: block; object-fit: contain; pointer-events: none; }
 .wb-video { position: absolute; border-radius: 10px; overflow: hidden; background: #1f2328; }
 .wb-video video { display: block; width: 100%; height: 100%; object-fit: contain; }
 .wb-video-btn { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: rgba(8, 9, 11, 0.82); color: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35); cursor: pointer; }

@@ -75,7 +75,20 @@ const rectOf = (el: Element): Rect => {
   return { left: Math.floor(r.left), top: Math.floor(r.top), right: Math.ceil(r.right), bottom: Math.ceil(r.bottom) };
 };
 
-export function MediaLayer({ show, avoid, t }: { show: MediaShow | null; avoid: () => Rect[]; t: T }) {
+type Props = { show: MediaShow | null; avoid: () => Rect[]; t: T };
+
+/** Each new show is a new layer: nothing closed, nothing placed. Gone (null): nothing, and no rectangles take the mouse. */
+export function MediaLayer(props: Props) {
+  const seq = useRef(0);
+  const last = useRef<MediaShow | null>(null);
+  if (props.show !== last.current) {
+    last.current = props.show;
+    seq.current++;
+  }
+  return props.show ? <ShownMedia key={seq.current} {...props} show={props.show} /> : null;
+}
+
+function ShownMedia({ show, avoid, t }: Props & { show: MediaShow }) {
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [slideGone, setSlideGone] = useState(false);
   const [slideAt, setSlideAt] = useState<Rect | null>(null);
@@ -83,17 +96,13 @@ export function MediaLayer({ show, avoid, t }: { show: MediaShow | null; avoid: 
   const slideEl = useRef<HTMLElement>(null);
   const host = useRef<HTMLDivElement>(null);
 
-  // A new show starts with nothing closed and nothing placed.
-  useEffect(() => { setGone(new Set()); setSlideGone(false); setSlideAt(null); setTiles([]); }, [show]);
-
-  const gallery = (show?.gallery ?? []).map((item, i) => ({ item, key: `g${i}` })).filter((x) => !gone.has(x.key));
-  const slide = show?.slide && !slideGone ? show.slide : null;
+  const gallery = show.gallery.map((item, i) => ({ item, key: `g${i}` })).filter((x) => !gone.has(x.key));
+  const slide = show.slide && !slideGone ? show.slide : null;
   const slideMedia = (slide?.media ?? []).map((item, i) => ({ item, key: `s${i}` })).filter((x) => !gone.has(x.key));
   const sig = `${gallery.map((g) => g.key).join(",")}|${slide ? slideMedia.map((m) => m.key).join(",") : "-"}`;
 
   // Placed once the slide's real height is known (before it is painted).
   useLayoutEffect(() => {
-    if (!show) return;
     const view = { width: window.innerWidth, height: window.innerHeight };
     const anchor = { x: show.x, y: show.y };
     const others = avoid();
@@ -113,8 +122,7 @@ export function MediaLayer({ show, avoid, t }: { show: MediaShow | null; avoid: 
   }, [tiles, slideAt, sig]);
   useEffect(() => () => okFilowBridge()?.overlayRects?.([]), []);
 
-  if (!show) return null;
-  const close = (key: string) => setGone((g) => new Set(g).add(key));
+  const close =(key: string) => setGone((g) => new Set(g).add(key));
   return (
     <div ref={host} className="okf-media" data-testid="okf-media">
       {slide && (
