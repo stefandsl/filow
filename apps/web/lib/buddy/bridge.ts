@@ -175,7 +175,10 @@ export type OkFilowBridge = {
   /** Overlay -> main: my listeners are registered, send me the current state. */
   overlayReady(): void;
   closeModel(): void;
+  /** Model window -> main: on a part of the model or dragging it (main also takes the mouse over modelRects). */
   modelHover?(active: boolean): void;
+  /** Model window -> main: where its tools and labels are (window CSS px); main makes them take clicks under the real cursor (apps/desktop/okfilow-hit.js). */
+  modelRects?(rects: Array<{ left: number; top: number; right: number; bottom: number }>): void;
   /** Model window -> panel (through main): ask OK Filow about a clicked part. */
   askAbout(text: string): void;
   /** Whiteboard tutor (docs/whiteboard/SPEC.md). Absent in a desktop build older than the whiteboard. */

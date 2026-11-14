@@ -78,7 +78,17 @@ export default function OkFilowModel() {
     b.modelReady();
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") b.closeModel(); };
     window.addEventListener("keydown", onKey);
-    return () => { off(); window.removeEventListener("keydown", onKey); };
+    // Where the tools and the labels are: main makes them take clicks whenever the real cursor is on
+    // them (apps/desktop/okfilow-hit.js), so no order of pointer events can lose a click on the close button.
+    let sent = "";
+    const report = setInterval(() => {
+      const rects = Array.from(document.querySelectorAll(".okf-model-tools, .okf-part"), (el) => el.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0)
+        .map((r) => ({ left: Math.floor(r.left), top: Math.floor(r.top), right: Math.ceil(r.right), bottom: Math.ceil(r.bottom) }));
+      const key = JSON.stringify(rects);
+      if (key !== sent) { sent = key; b.modelRects?.(rects); }
+    }, 100);
+    return () => { off(); clearInterval(report); window.removeEventListener("keydown", onKey); };
   }, []);
 
   /** The parts that carry a label (the biggest, one per name), numbered 1.. in the model's order. */
@@ -408,7 +418,7 @@ export default function OkFilowModel() {
               onClick={() => ask(l.name)}
               onFocus={() => focus(l.part)}
               onBlur={() => focus(null)}
-              onPointerEnter={() => { focus(l.part); b?.modelHover?.(true); }}
+              onPointerEnter={() => focus(l.part)}
               onPointerLeave={() => focus(null)}
             >
               <span className="okf-part-n" aria-hidden>{l.n}</span>
@@ -417,7 +427,7 @@ export default function OkFilowModel() {
           </li>
         ))}
       </ol>
-      <div className="okf-model-tools" onPointerEnter={() => b?.modelHover?.(true)} onPointerLeave={() => b?.modelHover?.(false)}>
+      <div className="okf-model-tools">
         <span className="okf-model-grip" aria-hidden />
         <button type="button" className="okf-x" aria-label={t("close")} title={t("close")} onClick={() => b?.closeModel()}>×</button>
       </div>

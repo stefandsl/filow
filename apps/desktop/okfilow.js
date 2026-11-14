@@ -18,6 +18,7 @@ const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agen
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
 const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOverlays, pointsShowMs, answering, overlayMouse, seeChoice, wordsOnlyList, pillState, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
+const { createHitTarget, localPoint } = require("./okfilow-hit");
 const { createPractice } = require("./tour");
 const { overlayRects } = require("./okfilow-rects");
 const { modelBounds } = require("./okfilow-model-place");
@@ -316,6 +317,17 @@ function createOkFilow(deps) {
   let modelWin = null;
   let boardWin = null;
   let currentModel = null;
+  /** The model window's mouse (okfilow-hit.js): its tools and labels take clicks whenever the real cursor is on them. */
+  let modelHit = null;
+  let modelCursorTimer = null;
+  function watchModelCursor() {
+    clearInterval(modelCursorTimer);
+    modelCursorTimer = setInterval(() => {
+      if (!modelWin || modelWin.isDestroyed()) { clearInterval(modelCursorTimer); modelCursorTimer = null; return; }
+      if (!modelWin.isVisible()) return;
+      modelHit?.at(localPoint(screen.getCursorScreenPoint(), modelWin.getBounds()));
+    }, 30);
+  }
   function showModel(model) {
     currentModel = model;
     if (modelWin && !modelWin.isDestroyed()) {
@@ -342,9 +354,12 @@ function createOkFilow(deps) {
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload, backgroundThrottling: false },
     });
     modelWin.setIgnoreMouseEvents(true, { forward: true });
+    const win = modelWin;
+    modelHit = createHitTarget({ setIgnore: (ignore) => { if (!win.isDestroyed()) win.setIgnoreMouseEvents(ignore, { forward: true }); } });
+    watchModelCursor();
     modelWin.setContentProtection(hidden());
     lockDown(modelWin);
-    modelWin.on("closed", () => { modelWin = null; });
+    modelWin.on("closed", () => { modelWin = null; modelHit = null; clearInterval(modelCursorTimer); modelCursorTimer = null; });
     modelWin.once("ready-to-show", () => modelWin && !modelWin.isDestroyed() && showWindow(modelWin, "model window", true));
     modelWin.loadURL(`${appUrl}/okfilow/model`);
   }
@@ -386,9 +401,15 @@ function createOkFilow(deps) {
     logLine(`okfilow: 3D model shown (${currentModel.parts.length} parts)`);
     qaShot("model", 3000);
   });
+  // The page says only whether the pointer is on a part of the model or dragging it; its tools and
+  // labels are rectangles it reports, and the real cursor decides (okfilow-hit.js).
   ipcMain.on("okfilow:model:hover", (e, active) => {
-    if (ourSender(e) && modelWin && !modelWin.isDestroyed() && e.sender === modelWin.webContents)
-      modelWin.setIgnoreMouseEvents(active !== true, { forward: true });
+    if (ourSender(e) && modelWin && !modelWin.isDestroyed() && e.sender === modelWin.webContents) modelHit?.hold(active === true);
+  });
+  ipcMain.on("okfilow:model:rects", (e, rects) => {
+    if (!ourSender(e) || !modelWin || modelWin.isDestroyed() || e.sender !== modelWin.webContents) return;
+    modelHit?.rects(rects);
+    modelHit?.at(localPoint(screen.getCursorScreenPoint(), modelWin.getBounds()));
   });
   ipcMain.on("okfilow:model:close", (e) => { if (ourSender(e) && modelWin && !modelWin.isDestroyed()) modelWin.close(); });
   ipcMain.on("okfilow:askAbout", (e, text) => { if (ourSender(e) && typeof text === "string") sendPanel("okfilow:askText", text.slice(0, 300)); });

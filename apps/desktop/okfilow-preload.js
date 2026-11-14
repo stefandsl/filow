@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld("okFilow", {
   modelReady: () => ipcRenderer.send("okfilow:model:ready"),
   overlayReady: () => ipcRenderer.send("okfilow:overlay:ready"),
   modelHover: (active) => ipcRenderer.send("okfilow:model:hover", active),
+  modelRects: (rects) => ipcRenderer.send("okfilow:model:rects", rects),
   closeModel: () => ipcRenderer.send("okfilow:model:close"),
   askAbout: (text) => ipcRenderer.send("okfilow:askAbout", text),
   showWhiteboard: (topic) => ipcRenderer.send("okfilow:whiteboard:show", String(topic || "")),
