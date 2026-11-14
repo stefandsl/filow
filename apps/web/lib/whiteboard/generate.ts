@@ -7,6 +7,7 @@ import { BUDDY_LANG_NAMES, type BuddyLang } from "@/lib/buddy/lang";
 import { placeholderLeaks } from "@/lib/pii/guard";
 import { checkArithmetic } from "./plot";
 import { TEMPLATE_GUIDE, TEMPLATE_SCHEMA, readDiagram, referenceDiagram, workedExample, type Diagram } from "./templates";
+import { itemsAsDiagram, newDiagramState } from "./diagram";
 import { LIMITS, cleanText, contextOf, lessonContextText, lessonNodes, makeStep, newContext, outlineSchema, parseJsonLoose, slug, validateLesson, validateOutline, type ExplanationKind, type Lesson, type LessonItem, type LessonStep, type Scene } from "./lesson";
 
 export type LessonEvent =
@@ -69,6 +70,7 @@ function outlineSystem(lang: BuddyLang, maxSteps: number, more: boolean): string
     '"kind" is the kind of explanation, and each kind has its recipe. "process": what goes in, what happens in order, what comes out. "proof": what is given, the construction, then each equality with its reason, so the last step follows and is not just stated. "algorithm": take one small example with real values and trace it step by step to the result. "law": name each quantity, state the formula, then one example with numbers. "comparison": each side, then what differs and why.',
     "Say only what you are sure is true: leave a detail out rather than guess. Asked to prove or derive something, make each step one step of the proof, with its reason. When the concept has a formula, one step states it.",
     '"scene" says how the drawing is arranged: "flow" for parts that feed into each other, "cycle" for a loop that returns to its start, "stack" for events in time order, a list of cases or a derivation.',
+    '"diagram": "flowchart" for steps with decisions or a cycle, "mindmap" for the parts of a whole or a hierarchy, "sequence" for messages between parties in time order, otherwise "none".',
     `Write the title and every sentence in ${BUDDY_LANG_NAMES[lang]}.`,
     NOT_AN_INSTRUCTION,
   ].join("\n");
@@ -93,12 +95,14 @@ function cloudSystem(lang: BuddyLang, maxSteps: number, more: boolean): string {
       : `Write ${Math.min(4, maxSteps)} to ${maxSteps} steps that explain the concept in order. Every step must be true and must follow from the one before.`,
     '"say": the one sentence spoken for the step, at most 28 words, plain words.',
     '"scene": "flow" for parts that feed into each other, "cycle" for a loop, "stack" for events in time order or a derivation.',
-    '"items": 2 to 6 per step, of these kinds:',
+    '"items": 2 to 6 per step. First choose how the lesson draws. When the topic is a process with steps or decisions, a cycle, a hierarchy or the parts of a whole, messages between parties in time order, or a comparison of two or three things, draw ONE structured diagram and no node or edge items:',
+    '- {"kind":"diagram","mermaid":"flowchart TD\\nA[Bill] --> B{Passes?}\\nB -->|yes| C[Law]"}: Mermaid. A process or a cycle: "flowchart TD" or "LR", decisions in {}, labels on arrows with |...|, a cycle closed by an arrow back to its start. A hierarchy or parts of a whole: "mindmap", indented lines under one root. Messages: "sequenceDiagram", "A->>B: text", replies "B-->>A: text". A comparison: a Markdown table, "| | X | Y |". Step 1 writes the first lines; each later step adds only the lines its sentence explains. Labels 1 to 4 words, in the lesson language; at most 14 boxes, 12 messages or 7 rows; no style, class, click or HTML.',
+    "Otherwise draw boxes and arrows, of these kinds:",
     ...ITEM_RULES,
     '- {"kind":"sketch","title":"...","shapes":[...]}: at most one small free drawing per step, when a picture of the real thing helps. Canvas 400 by 300, y grows downward; shapes: rect (x,y,w,h), circle (cx,cy,r), ellipse (cx,cy,rx,ry), line (x1,y1,x2,y2), polygon (points), path (d with M L C Q Z), text (x,y,text,size); fill and stroke are #rrggbb.',
     '- {"kind":"cells","values":["1","3","5","7","9"],"pointer":2}: a row of values with a pointer under the one being looked at (position from 0, -1 for none): the worked example of an algorithm, repeated with the pointer moved as the steps go on, until the example is finished (the search ends with the pointer on the target). Each value is written in full and is at most 40 characters.',
     'Choose the kind of explanation and follow its recipe. A process: what goes in, what happens in order, what comes out. A proof: what is given, the construction, each equality with its reason, the conclusion. An algorithm: one small example with real values traced step by step in a row of cells. A law: each quantity, the formula, one example with numbers, and a plot when it is a curve. A market, a feedback or a cycle: the mechanism that moves it (what pushes the price up or down, what feeds back), drawn as arrows that close the loop.',
-    'Every arrow has a label and reads as a sentence from its start to its end: "Voltage --drives--> Current", never the other way round. An arrow points the way things go: from what gives, sends or causes to what receives ("Input data --feeds--> Network", "Plant --releases--> Oxygen", never "Network --receives--> Input data"). The first step introduces the topic itself. A note about a plot names only curves that plot draws. An arrow is drawn in the step whose sentence states it. Every box that takes part is linked by an arrow; a cycle or a loop is closed by an arrow back to its start. Two plots must not contradict each other: use the same expression for the same curve, and the function the worked example uses. Curves that meet (supply and demand) go on ONE plot, {"kind":"plot","expr":"10 - x","more":["2*x"],"xmin":0,"xmax":8}: the board marks where they cross. A number in a sentence is exact, or the sentence says how it is rounded ("rounded down"). Keep the board readable: at most 8 boxes and 10 arrows in the whole lesson.',
+    'Every arrow has a label and reads as a sentence from its start to its end: "Voltage --drives--> Current", never the other way round. An arrow points the way things go: from what gives, sends or causes to what receives ("Input data --feeds--> Network", "Plant --releases--> Oxygen", never "Network --receives--> Input data"). The first step introduces the topic itself. A note about a plot names only curves that plot draws. An arrow is drawn in the step whose sentence states it. Every box that takes part is linked by an arrow; a cycle or a loop is closed by an arrow back to its start. Two plots must not contradict each other: use the same expression for the same curve, and the function the worked example uses. Curves that meet (supply and demand) go on ONE plot, {"kind":"plot","expr":"10 - x","more":["2*x"],"xmin":0,"xmax":8}: the board marks where they cross. A number in a sentence is exact, or the sentence says how it is rounded ("rounded down"). Keep the board readable: at most 8 boxes and 10 arrows in the whole lesson (a diagram: the limits given for it).',
     "Later steps reuse the ids of earlier nodes. No coordinates outside a sketch, no HTML, no links.",
     "The last step puts the result on the board: the final formula, the value that was found, what comes out. " +
       "Before you answer, check three things: every box is the who or the to of at least one arrow; every arrow reads as a true sentence from who to to; every letter of every formula is named in its step.",
@@ -626,6 +630,8 @@ export async function generateLocal(asked: Ask, req: LessonRequest, emit: (e: Le
     // still draws from the checked plan while the plan has something left. Only then is it a text card.
     if (step.card) step = makeStep(says[i], itemsFor(undefined, 2), ctx);
     if (step.card) cards++;
+    // the outline chose a structured diagram: the checked boxes and arrows of the step are drawn as part of it
+    if (outline.diagram && !step.card) step = { ...step, items: itemsAsDiagram(step.items, outline.diagram, (ctx.diagram ??= newDiagramState())) };
     emit({ type: "step", index: i, step });
   }
   const drawn = plan.relations.filter((r) => ctx.edges.has(`${r.from}>${r.to}>${r.text.toLowerCase()}`)).length;

@@ -5,6 +5,7 @@
 // going back, replaying and exporting all show the same picture.
 import type { BuddyDrawing } from "@/lib/buddy/visuals";
 import { texKey, type Lesson, type MarkStyle } from "./lesson";
+import { collectDiagram, layoutDiagram, type PlacedDiagram } from "./diagram-layout";
 
 export type BoardShape = "wide" | "tall";
 export const BOARD_SIZE: Record<BoardShape, { w: number; h: number }> = { wide: { w: 1200, h: 720 }, tall: { w: 480, h: 800 } };
@@ -40,6 +41,8 @@ export type BoardLayout = {
   blocks: PlacedBlock[];
   /** Older notes taken off to make room (a teacher wiping part of the board). */
   wiped: number;
+  /** The lesson's structured diagram, when it has one (diagram-layout.ts): then `nodes` and `edges` are empty. */
+  diagram?: PlacedDiagram;
 };
 
 const ELLIPSIS = String.fromCharCode(0x2026);
@@ -481,6 +484,8 @@ export const BOARD_HOLDS = { nodes: 7, edges: 9 };
  * points at is drawn again with the first step that needs it; the title carries the board's number).
  */
 export function boardPage(lesson: Lesson, upto: number): { start: number; number: number; lesson: Lesson } {
+  // a structured diagram is laid out to fit one board whatever its size: it is never split
+  if (lesson.steps.some((s) => s.items.some((it) => it.kind === "diagram"))) return { start: 0, number: 1, lesson };
   const touched = (k: number) => new Set(lesson.steps[k].items.flatMap((it) => (it.kind === "node" ? [it.id] : it.kind === "edge" ? [it.from, it.to] : it.kind === "mark" ? [it.target] : [])));
   let start = 0;
   let number = 1;
@@ -519,8 +524,9 @@ export function boardPage(lesson: Lesson, upto: number): { start: number; number
 /** The board with `extra` height for the notes; `short` is how much room the notes still lack. */
 function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number): { layout: BoardLayout; short: number } {
   const { w } = BOARD_SIZE[shape];
+  const dia = collectDiagram(lesson);
   // A phone-shaped board grows downwards with the diagram (the page scrolls); a wide one is fixed.
-  const shown = new Set(lesson.steps.slice(0, upto + 1).flatMap((s) => s.items.flatMap((it) => (it.kind === "node" ? [it.id] : []))));
+  const shown = new Set([...lesson.steps.slice(0, upto + 1).flatMap((s) => s.items.flatMap((it) => (it.kind === "node" ? [it.id] : []))), ...(dia ? dia.nodes.map((n) => n.id) : [])]);
   const h = BOARD_SIZE[shape].h + (shape === "tall" ? Math.max(0, shown.size - 4) * 100 : 0) + extra;
   // a long title is set smaller before it is ever cut
   const titleFont = [shape === "tall" ? 24 : 30, 21, 18, 16].find((f) => textWidth(lesson.title, f) <= w - (shape === "tall" ? 14 : 24) * 2 - 8) ?? 16;
@@ -538,8 +544,9 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
     if (s.card) blocksIn.push({ key: `c${step}`, step, kind: "card", text: s.say });
     s.items.forEach((it, i) => {
       const key = `b${step}_${i}`;
-      if (it.kind === "node") { if (!nodesIn.some((nd) => nd.id === it.id)) nodesIn.push({ id: it.id, text: it.text, step }); }
-      else if (it.kind === "edge") edgesIn.push({ from: it.from, to: it.to, text: it.text, step });
+      // with a structured diagram, boxes and arrows are part of it (collectDiagram)
+      if (it.kind === "node") { if (!dia && !nodesIn.some((nd) => nd.id === it.id)) nodesIn.push({ id: it.id, text: it.text, step }); }
+      else if (it.kind === "edge") { if (!dia) edgesIn.push({ from: it.from, to: it.to, text: it.text, step }); }
       else if (it.kind === "mark") marksIn.push({ target: it.target, style: it.style, step });
       else if (it.kind === "formula") {
         // The same formula shown again in a later step (the conclusion of a proof) is that formula,
@@ -574,7 +581,7 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
   // The diagram and the notes share the board; whichever is absent gives its room to the other.
   let diagram: Box = content;
   let notes: Box = content;
-  if (nodesIn.length && blocksIn.length) {
+  if ((nodesIn.length || dia) && blocksIn.length) {
     if (shape === "wide") {
       const nw = Math.round(content.w * 0.34);
       diagram = { ...content, w: content.w - nw - 24 };
@@ -611,9 +618,16 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
       if (!cost) break;
     }
   }
+  // The lesson's structured diagram (diagram-layout.ts), placed for the whole lesson so nothing moves
+  // as steps are added; this board shows what the steps so far have drawn.
+  let placedDiagram: PlacedDiagram | null = null;
+  if (dia) {
+    const all = layoutDiagram(dia, diagram, shape);
+    placedDiagram = { ...all, nodes: all.nodes.filter((n) => n.step <= upto), links: all.links.filter((l) => l.step <= upto), lines: all.lines.filter((l) => l.step <= upto) };
+  }
   const marks: PlacedMark[] = [];
   marksIn.forEach((mk, i) => {
-    const nd = nodes.find((x) => x.id === mk.target);
+    const nd = nodes.find((x) => x.id === mk.target) ?? placedDiagram?.nodes.find((x) => x.id === mk.target);
     // one mark per node and style: saying it twice does not draw it twice
     if (nd && !marks.some((x) => x.target === mk.target && x.style === mk.style)) marks.push({ key: `m${i}`, step: mk.step, style: mk.style, target: mk.target, box: nd.box });
   });
@@ -662,14 +676,14 @@ function boardAt(lesson: Lesson, upto: number, shape: BoardShape, extra: number)
   while (sized.length - wiped > 1 && total() > notes.h) wiped++;
   const blocks = sized.slice(wiped);
   // A single block taller than the room it has is cut to it (a long card on a small board).
-  let y = notes.y + (nodesIn.length ? 0 : Math.max(0, (notes.h - total()) / 3));
+  let y = notes.y + (nodesIn.length || dia ? 0 : Math.max(0, (notes.h - total()) / 3));
   for (const b of blocks) {
     b.box.h = Math.min(b.box.h, notes.y + notes.h - y);
     b.box.y = y;
     y += b.box.h + gap;
   }
 
-  return { layout: { shape, w, h, title, nodes, edges, marks, blocks, wiped }, short };
+  return { layout: { shape, w, h, title, nodes, edges, marks, blocks, wiped, ...(placedDiagram ? { diagram: placedDiagram } : {}) }, short };
 }
 
 /**
@@ -683,7 +697,20 @@ export function layoutProblems(l: BoardLayout): string[] {
     ...l.nodes.map((nd) => ({ name: `node ${nd.id}`, box: nd.box })),
     ...l.edges.flatMap((e) => (e.label ? [{ name: `label "${e.label.lines.join(" ")}"`, box: e.label.box }] : [])),
     ...l.blocks.map((b) => ({ name: `${b.kind} ${b.key}`, box: b.box })),
+    ...(l.diagram?.nodes ?? []).map((nd) => ({ name: `diagram box ${nd.id}`, box: nd.box })),
+    ...(l.diagram?.links ?? []).flatMap((e) => (e.label ? [{ name: `diagram label "${e.label.lines.join(" ")}"`, box: e.label.box }] : [])),
   ];
+  for (const nd of l.diagram?.nodes ?? []) {
+    // the words are measured in the part of a diamond or an ellipse that lies inside it
+    const room = nd.shape === "box" || nd.shape === "round" ? { w: nd.box.w, h: nd.box.h } : { w: nd.box.w * 0.66 + 8, h: nd.box.h * 0.7 };
+    if (nd.font < 13) problems.push(`diagram box ${nd.id} is set too small to read`);
+    if (nd.lines.some((ln) => textWidth(ln, nd.font) > room.w - 8)) problems.push(`diagram box ${nd.id} text is wider than its box`);
+    if (nd.lines.length * nd.font * 1.22 > room.h) problems.push(`diagram box ${nd.id} text is taller than its box`);
+  }
+  for (const e of l.diagram?.links ?? []) {
+    const hit = l.diagram!.nodes.find((nd) => nd.id !== e.from && nd.id !== e.to && e.pts.slice(1).some((p, i) => Array.from({ length: 9 }, (_, k) => ({ x: e.pts[i].x + ((p.x - e.pts[i].x) * (k + 1)) / 10, y: e.pts[i].y + ((p.y - e.pts[i].y) * (k + 1)) / 10 })).some((q) => overlap(nd.box, { x: q.x, y: q.y, w: 0, h: 0 }))));
+    if (hit && l.diagram!.type !== "sequence") problems.push(`diagram arrow ${e.from} -> ${e.to} runs through ${hit.id}`);
+  }
   for (const t of things) {
     if (!inside(t.box, board)) problems.push(`${t.name} is off the board`);
     if (t.box.w < 8 || t.box.h < 8) problems.push(`${t.name} has no room`);

@@ -4,6 +4,7 @@
 // dropped, text is cut and cleaned, references are checked, and what cannot be repaired is left out.
 import { validateDrawing, type BuddyDrawing } from "@/lib/buddy/visuals";
 import { cleanExpr, parseExpr, sampleCurve } from "./plot";
+import { acceptDiagram, diagramText, newDiagramState, readDiagram, type DiagramItem, type DiagramState } from "./diagram";
 
 export const SCENES = ["flow", "cycle", "stack"] as const;
 export type Scene = (typeof SCENES)[number];
@@ -22,7 +23,9 @@ export type LessonItem =
   /** A row of values with a pointer under one of them (-1: none): the worked example of an algorithm. */
   | { kind: "cells"; values: string[]; pointer: number }
   | { kind: "mark"; target: string; style: MarkStyle }
-  | { kind: "sketch"; drawing: BuddyDrawing };
+  | { kind: "sketch"; drawing: BuddyDrawing }
+  /** Part of the lesson's one structured diagram (diagram.ts): flowchart, mind map, sequence or table. */
+  | DiagramItem;
 
 export type LessonStep = {
   /** The one sentence shown and spoken for this step. */
@@ -35,7 +38,7 @@ export type Lesson = { title: string; scene: Scene; steps: LessonStep[] };
 export const KINDS = ["process", "proof", "comparison", "algorithm", "law"] as const;
 /** The kind of explanation the outline chose; each has its own recipe (generate.ts). */
 export type ExplanationKind = (typeof KINDS)[number];
-export type Outline = { title: string; scene: Scene; kind: ExplanationKind; says: string[] };
+export type Outline = { title: string; scene: Scene; kind: ExplanationKind; says: string[]; /** The structured diagram the local lesson draws its checked boxes and arrows as (diagram.ts), or none. */ diagram?: "flowchart" | "mindmap" | "sequence" };
 
 export const LIMITS = {
   steps: 7,
@@ -132,6 +135,8 @@ export type LessonContext = {
   hint?: string;
   /** Free shapes are accepted (the cloud path). */
   sketch?: boolean;
+  /** The lesson's structured diagram so far (diagram.ts): later steps add to it. */
+  diagram?: DiagramState;
 };
 export const newContext = (opts: Omit<LessonContext, "nodes" | "edges" | "seen"> = {}): LessonContext => ({ nodes: new Map(), edges: new Set(), seen: new Set(), ...opts });
 
@@ -246,6 +251,15 @@ export function validateItems(raw: unknown, ctx: LessonContext): LessonItem[] {
       const style = MARK_STYLES.includes(q.style as MarkStyle) ? (q.style as MarkStyle) : "circle";
       // the board shows a mark once: said again, it would be a step that draws nothing
       if (once(`m:${target}:${style}`)) out.push({ kind: "mark", target, style });
+    } else if (kind === "diagram" || kind === "mermaid" || kind === "table") {
+      // Mermaid or a Markdown table, read as data (diagram.ts); its boxes can be marked like any node
+      ctx.diagram ??= newDiagramState();
+      const source = q.mermaid ?? q.source ?? q.code ?? q.text ?? q.diagram;
+      // the model's text, or a diagram item read back in its own form (checked again just the same)
+      const d = typeof source === "string" ? readDiagram(source, ctx.diagram) : acceptDiagram(q, ctx.diagram);
+      if (!d) continue;
+      out.push({ kind: "diagram", ...d });
+      for (const n of d.nodes) if (!ctx.nodes.has(n.id)) ctx.nodes.set(n.id, n.text);
     } else if (kind === "sketch" && ctx.sketch && !out.some((o) => o.kind === "sketch")) {
       const drawing = validateDrawing(q.drawing ?? q);
       if (drawing) out.push({ kind: "sketch", drawing });
@@ -278,7 +292,8 @@ export function validateOutline(raw: unknown, maxSteps: number = LIMITS.steps): 
   }
   if (!says.length) return null;
   const kind = (KINDS as readonly string[]).includes(String((r as { kind?: unknown }).kind)) ? ((r as { kind: ExplanationKind }).kind) : "process";
-  return { title: cleanText(r.title, LIMITS.title) || says[0].slice(0, LIMITS.title), scene: sceneOf(r.scene), kind, says };
+  const diagram = String((r as { diagram?: unknown }).diagram ?? "").toLowerCase();
+  return { title: cleanText(r.title, LIMITS.title) || says[0].slice(0, LIMITS.title), scene: sceneOf(r.scene), kind, says, ...(diagram === "flowchart" || diagram === "mindmap" || diagram === "sequence" ? { diagram } : {}) };
 }
 
 /** One step from its sentence and its items; no usable item makes it a text card. */
@@ -301,6 +316,7 @@ export function validateLesson(raw: unknown, opts: { maxSteps?: number; texOk?: 
     ctx.edges = before.edges;
     ctx.seen = before.seen;
     ctx.nodeCap = before.nodeCap;
+    ctx.diagram = before.diagram;
   }
   const steps: LessonStep[] = [];
   for (const s of Array.isArray(r.steps) ? r.steps : []) {
@@ -380,7 +396,8 @@ function parseFrom(text: string, start: number): unknown {
 export function lessonContextText(lesson: Lesson): string {
   const ids = new Map<string, string>();
   for (const s of lesson.steps) for (const it of s.items) if (it.kind === "node") ids.set(it.id, it.text);
-  const lines = [`Title: ${lesson.title}`, ...lesson.steps.map((s, i) => `${i + 1}. ${s.say}`), `On the board: ${[...ids].map(([id, text]) => `${id} = ${text}`).join("; ") || "nothing yet"}`];
+  const diagram = diagramText(lesson.steps.flatMap((s) => s.items.filter((it): it is DiagramItem => it.kind === "diagram")));
+  const lines = [`Title: ${lesson.title}`, ...lesson.steps.map((s, i) => `${i + 1}. ${s.say}`), `On the board: ${[...ids].map(([id, text]) => `${id} = ${text}`).join("; ") || "nothing yet"}`, ...(diagram ? [`The diagram so far (add lines to it, do not repeat them):\n${diagram}`] : [])];
   let text = lines.join("\n");
   while (new TextEncoder().encode(text).length > LIMITS.contextBytes && lines.length > 2) {
     lines.splice(1, 1);
@@ -401,6 +418,17 @@ export function contextOf(lesson: Lesson, opts: Omit<LessonContext, "nodes" | "e
       else if (it.kind === "note") ctx.seen.add(`n:${it.text.toLowerCase()}`);
       else if (it.kind === "mark") ctx.seen.add(`m:${it.target}:${it.style}`);
       else if (it.kind === "cells") ctx.seen.add(`c:${it.values.join("|")}:${it.pointer}`);
+      else if (it.kind === "diagram") {
+        const d = (ctx.diagram ??= newDiagramState());
+        d.type = it.type;
+        d.dir = it.dir;
+        for (const n of it.nodes) { d.nodes.set(n.id, n.text); ctx.nodes.set(n.id, n.text); }
+        for (const l of it.links) d.links.add(`${l.from}>${l.to}`);
+        if (it.type === "sequence") { d.messages += it.links.length; d.said.push(...it.links.map((l) => `${l.from}>${l.to}:${l.text.toLowerCase()}`)); }
+        d.rows += it.rows.length;
+        d.cells.push(...it.rows.map((r) => r.join("|")));
+        d.cols ||= it.rows[0]?.length ?? 0;
+      }
     }
   }
   // a follow-up gets room for three more boxes than the board it continues
@@ -432,6 +460,12 @@ export function lessonMarkdown(lesson: Lesson, words: { step: string; drawing: s
       else if (it.kind === "note") lines.push(`- ${md(it.text)}`);
       else if (it.kind === "cells") lines.push(`- ${it.values.map((v, k) => (k === it.pointer ? `**${md(v)}**` : md(v))).join(" | ")}`);
       else if (it.kind === "sketch") lines.push(`- ${md(it.drawing.title)}`);
+      else if (it.kind === "diagram") {
+        const all = new Map(lesson.steps.flatMap((x) => x.items.flatMap((d) => (d.kind === "diagram" ? d.nodes.map((n) => [n.id, n.text] as const) : []))));
+        for (const n of it.nodes) if (!it.links.some((l) => l.to === n.id && it.type === "mindmap")) lines.push(`- ${md(n.text)}`);
+        for (const l of it.links) lines.push(`- ${md(all.get(l.from) ?? l.from)} -> ${md(all.get(l.to) ?? l.to)}${l.text ? `: ${md(l.text)}` : ""}`);
+        for (const r of it.rows) lines.push(`- ${r.map(md).join(" | ")}`);
+      }
     }
     if (lines.length) out.push(`${words.drawing}:`, "", ...lines, "");
   });
@@ -446,6 +480,7 @@ export function outlineSchema(maxSteps: number) {
       title: { type: "string", maxLength: 60 },
       scene: { type: "string", enum: [...SCENES] },
       kind: { type: "string", enum: [...KINDS] },
+      diagram: { type: "string", enum: ["none", "flowchart", "mindmap", "sequence"] },
       steps: { type: "array", minItems: Math.min(3, maxSteps), maxItems: maxSteps, items: { type: "object", properties: { say: { type: "string", maxLength: 220 } }, required: ["say"] } },
     },
     required: ["title", "scene", "kind", "steps"],

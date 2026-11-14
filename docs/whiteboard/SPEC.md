@@ -72,6 +72,32 @@ commas and a cut-off answer are forgiven), then every field is checked:
   it has the same look and exports with the board;
 - a step with no usable item becomes a text card: the sentence on the board, the lesson goes on.
 
+### 2b. Structured diagrams (`diagram.ts`, `diagram-layout.ts`, `diagram-scene.ts`)
+
+A lesson may draw one structured diagram instead of loose boxes and arrows:
+`{"kind":"diagram","mermaid":"flowchart TD\nA[Bill] --> B{Passes?}"}`. Step 1 writes the first
+lines; each later step adds only its own lines (a step that writes the whole sequence or table
+again adds only what is new).
+
+- Types: `flowchart` (TD or LR; a loop is a cycle), `mindmap`, `sequenceDiagram`, and a Markdown
+  table for a comparison. At most 16 boxes, 22 arrows, 6 participants, 14 messages, 8 rows of 4 cells.
+- Filow reads a strict subset of the text as data: shapes (`[]` `()` `{}` `(())`), labels, arrows
+  with labels, participants, messages, rows. Styles, classes, `click`, `%%{init}%%` and HTML are
+  dropped before reading; labels are cleaned like any model text. No Mermaid code runs, and no
+  Mermaid library is loaded: `@excalidraw/mermaid-to-excalidraw` 3.6.0 (MIT) was read and not used,
+  because it needs the browser's DOMParser, is asynchronous, and turns what it cannot convert
+  into an SVG image (not an element Filow allows, and not something a step can reveal part by part).
+- Layout, deterministic and for the whole lesson (what is drawn never moves as steps are added):
+  layered (Sugiyama) for flowcharts, folded into lines like text when a long process fits neither
+  way, a ring for a loop, Plait's non-layered tidy tree (copied with its MIT notice,
+  `tidy-tree.ts`) for trees and mind maps (both sides of the root on a wide board), an indented
+  outline when a tree is too wide, lifelines and rows for a sequence, a grid for a table. The type
+  is set as large as the room allows (22 down to 13); nothing overlaps and no arrow crosses a box.
+- Reveal: each box, arrow, message or row has the step that draws it. A diagram written whole in
+  one step is shown part by part, each part with the first later sentence that names it.
+- The local path does not write Mermaid: its outline chooses `diagram` (flowchart, mindmap,
+  sequence or none) and the checked boxes and arrows of each step are drawn as that diagram.
+
 ## 3. Layout and drawing
 
 - `layout.ts` places everything, deterministically, for the steps shown so far: nodes by scene,
