@@ -48,7 +48,7 @@ type Status = {
   picks?: { decision: string; translate: string | null; okfilow: string[] };
   models: Array<{
     name: string; kind: string; runtime: "ollama" | "browser" | "sherpa"; label: string; description: string; downloadGb: number; loadedGb: number; ramGb: number; vramGb?: number;
-    status: "available" | "planned"; fit: "fits" | "tight" | "too big"; installed: boolean; installedSizeGb: number | null; ollamaOk: boolean;
+    status: "available" | "planned"; fit: "fits" | "tight" | "too big"; installed: boolean; installedSizeGb: number | null; ollamaOk: boolean; owned?: boolean;
   }>;
 };
 
@@ -854,7 +854,7 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                       {t("settings.unload")}
                     </button>
                   )}
-                  {m.installed && m.runtime === "ollama" && (
+                  {m.installed && m.runtime === "ollama" && m.owned && (
                     <button className="btn danger" aria-label={t("settings.deleteLabel", { name: label(m.name) })} onClick={() => void remove(m.name, m.installedSizeGb ?? m.downloadGb)}>
                       {t("settings.delete")}
                     </button>

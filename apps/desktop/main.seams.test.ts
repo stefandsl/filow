@@ -67,6 +67,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     "./ui-preferences": { trustedUiSender: createRequire(import.meta.url)("./ui-preferences.js").trustedUiSender },
     "./window-controls": createRequire(import.meta.url)("./window-controls.js"),
     "./ollama-runtime": createRequire(import.meta.url)("./ollama-runtime.js"),
+    "./local-ownership": { ownership: () => ({ beginRuntime() {}, completeRuntime() {} }) },
     "./package.json": { updates, sourceSha: "0123456789abcdef0123456789abcdef01234567" }, // what CI writes into the packed package.json
     "./qa.js": { isQaBuild: (app: { isPackaged: boolean }) => qaBuild || !app.isPackaged }, // a packaged build, without the QA marker unless qaBuild
     "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },

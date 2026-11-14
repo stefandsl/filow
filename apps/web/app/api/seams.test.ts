@@ -180,10 +180,10 @@ describe("Step 4 provider boundaries", () => {
     expect(JSON.stringify(outbound.mock.calls[1])).not.toContain("audit@example.invalid");
     expect(JSON.stringify(outbound.mock.calls[1])).toContain("[EMAIL_1]");
   });
-  it("offline local model pull still asks Ollama to download a model", async () => {
+  it("refuses a pull when Ollama cannot supply the pre-existing inventory", async () => {
     const res = await pull(request({ name: "clef-flash" }));
     await res.text();
-    expect(outbound.mock.calls.map(c => c[0])).toEqual(["http://127.0.0.1:11434/api/pull"]);
-    expect(JSON.stringify(outbound.mock.calls[0])).toContain("clef-flash");
+    expect(res.status).toBe(503);
+    expect(outbound.mock.calls.map(c => c[0])).toEqual(["http://127.0.0.1:11434/api/tags"]);
   });
 });

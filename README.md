@@ -792,8 +792,11 @@ answers keep the same image size. Named screen controls retain their original
 positions for pointing.
 
 When billing is closed, the account page says subscriptions are not open yet. Local features remain available, and existing subscribers can still manage their subscription.
-# Local answer and removal safeguards
+
+## Local answer and removal safeguards
 
 An empty local answer is tried once more with the same question. If the model still gives no words, Filow explains this and keeps any marks it supplied. Internal drawing and pointing requests retain their separate validation.
 
 Local answers require Ollama 0.9.0 or newer for the API, plus any higher minimum required by the selected model. Setup and answers check the running server; an old or unreachable runtime gets an explanation and a repair step.
+
+Settings offers model deletion only for completed downloads recorded by Filow in the current app profile, with a matching server and model digest. Pre-existing models, changed models and unknown ownership are preserved. The profile also records runtime installation intent and completion; uninstalling Filow continues to preserve the runtime and models by default. Native runtime removal and installer cleanup are not automated by these safeguards.

@@ -12,8 +12,8 @@ import { readRoles } from "@/lib/modelRoles/store";
 import { pickTranslateModel } from "@/lib/translateLocal";
 import { gpuInfo, machineInfo, qaHardware } from "@/lib/sysinfo";
 import { freellmConfigured } from "@/lib/freellm";
-
 import { MIN_OLLAMA_VERSION, runtimeState } from "../../../../../desktop/ollama-runtime";
+import { canonical, localOwnership } from "@/lib/localOwnership";
 
 export const dynamic = "force-dynamic";
 
@@ -22,13 +22,14 @@ export async function GET(req: Request) {
   const ramGb = qaHardware()?.ramGb ?? Math.round(os.totalmem() / 1024 ** 3);
   const base = OLLAMA_URL();
   let version: string | null = null;
-  let installed: Array<{ name: string; sizeGb: number }> = [];
+  let installed: Array<{ name: string; sizeGb: number; digest: string }> = [];
   try {
     const v = await fetch(`${base}/api/version`, { signal: AbortSignal.timeout(1500) }).then((r) => r.json());
     version = String(v.version ?? "");
     const tags = await fetch(`${base}/api/tags`, { signal: AbortSignal.timeout(1500) }).then((r) => r.json());
-    installed = ((tags.models ?? []) as Array<{ name: string; size: number }>).map((m) => ({
+    installed = ((tags.models ?? []) as Array<{ name: string; size: number; digest: string }>).map((m) => ({
       name: m.name,
+      digest: m.digest,
       sizeGb: Math.round((m.size / 1024 ** 3) * 10) / 10,
     }));
   } catch {
@@ -39,6 +40,7 @@ export async function GET(req: Request) {
     fit: fits(ramGb, m),
     installed: m.runtime === "ollama" && installed.some((i) => i.name === m.name || i.name.startsWith(`${m.name}:`)),
     installedSizeGb: installed.find((i) => i.name === m.name || i.name.startsWith(`${m.name}:`))?.sizeGb ?? null,
+    owned: installed.some(i => canonical(i.name) === canonical(m.name) && localOwnership().ownsModel(base, i.name, i.digest)),
     ollamaOk: m.runtime !== "ollama" ? true : m.minOllama && version ? versionAtLeast(version, m.minOllama) : Boolean(version),
   }));
   const pii = { mode: piiMode(), serverUrl: PII_SERVER_URL(), serverReachable: process.env.FILOW_OFFLINE !== "1" && await rizzoReachable() };

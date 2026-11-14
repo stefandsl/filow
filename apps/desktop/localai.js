@@ -494,6 +494,9 @@ async function installOllama(binDir, onStatus, deps = {}) {
     if (platform === "linux") {
       return report({ state: "manual", command: "curl -fsSL https://ollama.com/install.sh | sh" });
     }
+    // Existing executables and answering runtimes returned above are never claimed.
+    const installedByUs = require("./local-ownership").ownership(path.dirname(binDir));
+    installedByUs.beginRuntime(platform);
     fs.mkdirSync(binDir, { recursive: true });
     if (platform === "win32") {
       const setup = path.join(binDir, "OllamaSetup.exe");
@@ -547,6 +550,7 @@ async function installOllama(binDir, onStatus, deps = {}) {
     }
     exe = findExe();
     if (!exe) throw stepError("exe_missing", "Ollama was installed but its executable was not found.");
+    installedByUs.completeRuntime(exe);
     return await bringUp(exe);
   } catch (err) {
     if (isCancelled(err)) {

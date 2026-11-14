@@ -1,5 +1,29 @@
 # Filow hand-off
 
+## Decision-independent hardening (2026-11-14, unreleased)
+
+`feat-hardening` adds local empty-answer retry with five-language fallback,
+persistent account sign-in limits and a desktop device cap, runtime version
+checks, and provenance-based model deletion. No paid-path choice or activation.
+Four local commits only; no merge, push or tag. Evidence and exact limitations:
+`docs/design/paid/HARDENING-2026-11-14.md`.
+
+Validation: npm ci, 3,237 passing tests (6 skips, including opt-in measurement),
+typecheck and lint pass. 12/12 removed-protection mutations caught and restored.
+120 real-model warm questions: completely empty display 4/60 before, 0/60 after;
+words-free model replies remain 59/60 in both phases, with 59 retry/fallbacks after.
+Reproduction: a malformed two-coordinate BOX is dropped by the parser; historical
+raw response bytes were not saved. Hidden string QA passes five languages and
+both themes, with ten screenshots; native/panel flow acceptance remains unverified.
+
+Pending: item 4's native runtime/model uninstall cleanup offer is incomplete.
+The existing native uninstaller preserves everything; ownership records and
+Settings model deletion are implemented, runtime removal is not automated.
+Authoritative running executable/store identity and shared-use detection are
+absent from Ollama's API. Also unverified: deployed logging/auth, old binary with
+modern model formats, native translations, cross-platform clean-VM F1 acceptance.
+No installed profile, owner Ollama, real microphone, desktop input or paid API used.
+
 ## Safe preparation worktree (2026-11-14, unreleased)
 
 `feat-safe-prep`, based on `771ddf1`, implements four owner-independent items:

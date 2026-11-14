@@ -90,3 +90,56 @@ five-language repair message. Existing runtimes are not overwritten. Fake server
 cover old/new/unknown/unreachable and five-language refusal; setup tests cover
 old and new existing installations. An actual 0.9.0 binary with modern models,
 all supported OSes and native translation review remain unverified.
+
+## Ownership and removal
+
+`local-ownership.json` in the app profile records model pull intent, whether the
+model pre-existed, completion and digest, server URL and the configured store hint.
+Runtime installation intent/completion is recorded only after existing-runtime
+and existing-executable checks return no installation. Atomic replacement and an
+exclusive lock protect record updates; missing, partial or corrupt provenance
+never authorizes deletion. No historical ownership is guessed.
+
+Settings offers model Delete only for matching completed ownership; the route
+independently rechecks current inventory/digest and serializes its own pull/delete
+operations. A changed digest, changed configured store, other server, pre-existing
+model or unknown record is preserved. Ollama's API performs model deletion, so
+shared blobs are managed by Ollama, not filesystem recursion.
+
+Remaining implementation boundary: the existing NSIS uninstaller has no model or
+runtime cleanup flow. It still preserves both. Runtime provenance is recorded,
+but this change does not add automated native runtime removal or an NSIS cleanup
+offer. Ollama's HTTP API does not expose an authoritative executable/store identity
+or whether other apps use it; endpoint plus digest cannot prove an identical model
+was not replaced in a different store. Native cleanup must preserve unknown/shared
+installations and needs a separate executable/store identity and OS-uninstaller
+integration. This portion of item 4 is incomplete, not an uninstall acceptance pass.
+
+## Validation and isolation
+
+Dependencies installed with npm/Electron caches and temp files on G:. The first
+sandbox registry attempt failed EACCES; the network-enabled retry completed. No
+dependency versions changed. All fixtures are fake except the explicitly isolated
+local model run. No real microphone, desktop input, owner Ollama request, installed
+Filow operation, paid API or Stripe network call occurred.
+
+`tools/eval/hardening-mutations.mjs` runs 12 removed-protection mutations with
+assertion failures required, restoring each source in finally. Results and full
+check logs are under `G:/FILOW/tmp/hardening`.
+
+Final checks: `npx vitest run --maxWorkers=4`: 3,237 pass, 6 skip, 257 passing
+files and 3 skipped files. The explicit real-model measurement separately passes
+one test with 120 counted questions. `npm run typecheck` and `npm run lint` exit 0.
+All 12 mutations are caught: 3 empty-answer, 5 account limits, 1 runtime version,
+3 ownership. Initial failures exposed stale test fakes that lacked `/api/version`
+or expected catalogue-only deletion; those fixtures were updated, with separate
+real HTTP tests retaining coverage of version failure and ownership enforcement.
+
+Hidden Electron renderer QA checks all 30 messages across five languages and both
+themes, exact text, no horizontal overflow, and hidden windows. Ten screenshots
+use the actual shared theme tokens. RU dark and JA light screenshots were visually
+inspected. HTTP 4991/debug 9591, own G: profile, denied permissions, no global input,
+network blocked outside the fixture, hard deadlines, clean exit. This is string
+and layout QA, not the live Settings/panel flow or a packaged clean-VM journey.
+Native uninstall, real deployed auth, physical microphone, translation review,
+and full F1 acceptance remain unverified. Tool-modified AGENTS.md is excluded.

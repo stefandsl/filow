@@ -801,8 +801,11 @@ I controlli riconosciuti sullo schermo conservano le posizioni originali per
 le indicazioni del puntatore.
 
 Quando la fatturazione è disattivata, la pagina account indica che gli abbonamenti non sono ancora disponibili. Le funzioni locali restano disponibili e gli abbonati possono ancora gestire il proprio abbonamento.
-# Protezioni per risposte locali e rimozione
+
+## Protezioni per risposte locali e rimozione
 
 Una risposta locale vuota viene richiesta una seconda volta con la stessa domanda. Se il modello non produce ancora parole, Filow lo spiega e conserva gli eventuali segni ricevuti. Le richieste interne di disegni e puntamento mantengono la propria verifica separata.
 
 Le risposte locali richiedono Ollama 0.9.0 o successivo per le API, oltre all'eventuale versione minima superiore richiesta dal modello scelto. La configurazione e le risposte controllano il server in esecuzione; una versione vecchia o un runtime irraggiungibile ricevono una spiegazione con le istruzioni per risolvere.
+
+Le Impostazioni offrono la cancellazione dei modelli solo per download completati e registrati da Filow nel profilo corrente, con server e digest corrispondenti. I modelli preesistenti, modificati o di proprietà non verificata vengono conservati. Il profilo registra anche l'avvio e il completamento dell'installazione del runtime; disinstallare Filow continua a conservare runtime e modelli per impostazione predefinita. Queste protezioni non automatizzano la rimozione del runtime o la pulizia tramite il programma di disinstallazione.
