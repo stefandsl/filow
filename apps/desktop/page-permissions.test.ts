@@ -87,6 +87,26 @@ describe("page permissions (SEC-08)", () => {
     }
   });
 
+  it("knows the welcome window whatever the case of the drive letter, on Windows only", () => {
+    const upper = "file:///G:/Filow/resources/app.asar/welcome.html", lower = "file:///g:/Filow/resources/app.asar/welcome.html";
+    const win = createPagePermissions({ isAppPage, filePages: [lower], platform: "win32" });
+    expect(win.allowed("media", upper, ["audio"])).toBe(true); // Electron reports G: for an app started as g:
+    expect(win.allowed("media", "file:///G:/Filow/resources/app.asar/splash.html", ["audio"])).toBe(false);
+    expect(win.allowed("media", upper + "?x=1", ["audio"])).toBe(false);
+    const linux = createPagePermissions({ isAppPage, filePages: ["file:///opt/Filow/welcome.html"], platform: "linux" });
+    expect(linux.allowed("media", "file:///opt/Filow/welcome.html", ["audio"])).toBe(true);
+    expect(linux.allowed("media", "file:///opt/filow/welcome.html", ["audio"])).toBe(false); // another file there
+    // the app server's origin is never compared by this rule
+    expect(win.allowed("media", "HTTP://EVIL.TEST/", ["audio"])).toBe(false);
+  });
+
+  it("refuses, without throwing, when Electron gives no details", () => {
+    expect(request("media", null as unknown as Record<string, unknown>)).toBe(false);
+    expect(request("media", { requestingUrl: app, mediaTypes: "audio" })).toBe(false);
+    expect(policy.check(null, "media", APP_URL, null)).toBe(false);
+    expect(policy.check(null, "notifications", APP_URL, null)).toBe(true);
+  });
+
   it("is only ever narrowed by the shell's own rule, never widened", () => {
     // main.js passes permissionFor: a test instance withholds the real microphone
     const noMic = createPagePermissions({ isAppPage, filePages: [welcome], permitted: (p: string) => p !== "media" });
@@ -118,7 +138,8 @@ describe("main.js wiring of the page permissions", () => {
     expect(main).toContain("createPagePermissions({ isAppPage, filePages: [welcomeUrl], permitted: permissionFor })");
   });
 
-  it("sets them before any window can exist: the welcome window asks for the microphone first", () => {
+  // The welcome window is the first page to ask for the microphone, and it opens before the servers.
+  it("installs the handlers at the top of main(), ahead of the profile seed, the welcome, the first window and the servers (source order)", () => {
     const body = main.slice(main.indexOf("async function main()"));
     const handlers = body.indexOf("setPermissionCheckHandler(pagePermissions.check)");
     expect(handlers).toBeGreaterThan(0);

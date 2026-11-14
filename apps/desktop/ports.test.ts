@@ -43,9 +43,18 @@ describe("ports Filow's servers need (ports.js)", () => {
 
   it("lists the taken ports in the order asked, and none when all are free", async () => {
     const [heldA, heldB, free] = [await hold(), await hold(), await freePort()];
-    expect(await takenPorts([heldA, free, heldB], HOST)).toEqual([heldA, heldB]);
-    expect(await takenPorts([free], HOST)).toEqual([]);
-    expect(await takenPorts([], HOST)).toEqual([]);
+    expect(await takenPorts([heldA, free, heldB], [HOST])).toEqual([heldA, heldB]);
+    expect(await takenPorts([free], [HOST])).toEqual([]);
+    expect(await takenPorts([], [HOST])).toEqual([]);
+  });
+
+  it("finds a program that holds the port on this computer's own address only", async () => {
+    // On Windows a listen on 0.0.0.0 succeeds beside a holder of 127.0.0.1: asked there alone, the port looks free.
+    const held = await hold(); // on 127.0.0.1
+    expect(await takenPorts([held], ["0.0.0.0", HOST])).toEqual([held]);
+    expect(await takenPorts([held, held], ["0.0.0.0", HOST])).toEqual([held, held]); // once per port asked, not per host
+    const free = await freePort();
+    expect(await takenPorts([free], ["0.0.0.0", HOST])).toEqual([]);
   });
 });
 
@@ -53,14 +62,14 @@ describe("main.js asks before it starts the servers", () => {
   const main = readFileSync(path.resolve(__dirname, "main.js"), "utf8").replace(/\r\n/g, "\n");
   const body = main.slice(main.indexOf("async function main()"));
 
-  it("checks the app port and the relay port on the host the servers bind, then stops with the reason", () => {
-    const ask = body.indexOf('require("./ports").takenPorts(process.env.FILOW_SESSION_URL ? [PORT] : [PORT, SESSION_PORT], serverHost())');
+  it("checks the app port and the relay port where the servers bind and on 127.0.0.1, then stops with the reason", () => {
+    const ask = body.indexOf('require("./ports").takenPorts(process.env.FILOW_SESSION_URL ? [PORT] : [PORT, SESSION_PORT], [...new Set([serverHost(), "127.0.0.1"])])');
     const start = body.indexOf("    startServers();");
     expect(ask).toBeGreaterThan(0);
     expect(start).toBeGreaterThan(ask);
     const between = body.slice(ask, start);
     expect(between).toContain("if (taken.length) {");
-    expect(between).toContain('failStartup(sharedText("shell.start.portTaken", menuLang(), { port: taken.join(", ") }));');
+    expect(between).toContain('failStartup(sharedText("shell.start.portTaken", menuLang(), { port: taken[0] }));');
     expect(between).toMatch(/failStartup\([^\n]+\n\s+return;/); // never falls through to startServers
   });
 

@@ -72,7 +72,7 @@ if (!require("./qa.js").isQaBuild(app)) for (const k of ["FILOW_OKF_QA_SCREEN", 
 /** Shows a window at start; with test isolation on, without taking the keyboard from the window the person is using. */
 const showAtStart = (w, name = "main window") => showWindow(w, name, INPUT_OFF);
 if (INPUT_OFF) app.commandLine.appendSwitch("use-fake-device-for-media-stream");
-/** Microphone, screen capture and notifications for the app's own pages (the microphone never with test isolation on, unless a test recording stands in). */
+/** The shell's rule by permission name only; which page may ask is decided in page-permissions.js. Its own job: no microphone with test isolation on, unless a test recording stands in. */
 const permissionFor = (permission) => permissionAllowed(permission, { off: INPUT_OFF, fakeMic: Boolean(process.env.FILOW_OKF_FAKE_MIC) && require("./qa.js").isQaBuild(app) });
 // Test builds only: FILOW_OKF_FAKE_MIC=<wav> feeds that file to every microphone, so OK Filow's voice
 // paths can be checked end to end without a person talking.
@@ -2413,11 +2413,13 @@ async function main() {
     splashStatus(st("servers"));
     stage("loading servers");
     // A port another program holds: the app server would end this whole process without a word, the
-    // relay would leave the splash up for minutes. Say which port instead.
-    const taken = await require("./ports").takenPorts(process.env.FILOW_SESSION_URL ? [PORT] : [PORT, SESSION_PORT], serverHost());
+    // relay would leave the splash up for minutes. Say which port instead. With FILOW_SESSION_URL the
+    // relay runs elsewhere and none is started here, so only the app port is needed. Asked where the
+    // servers bind and on 127.0.0.1, where this window reaches them.
+    const taken = await require("./ports").takenPorts(process.env.FILOW_SESSION_URL ? [PORT] : [PORT, SESSION_PORT], [...new Set([serverHost(), "127.0.0.1"])]);
     if (taken.length) {
-      logLine(`startup: port ${taken.join(" and ")} is held by another program`);
-      failStartup(sharedText("shell.start.portTaken", menuLang(), { port: taken.join(", ") }));
+      logLine(`startup: port ${taken.join(", ")} is held by another program`);
+      failStartup(sharedText("shell.start.portTaken", menuLang(), { port: taken[0] })); // one port, one program: the sentence is singular
       return;
     }
     startServers();
@@ -2426,7 +2428,6 @@ async function main() {
     return;
   }
 
-  // Microphone and screen capture for the engine.
   if (INPUT_OFF) logLine(OFF_LINE);
   if (HEADLESS) logLine(qaHeadless.HEADLESS_LINE);
 
@@ -2631,7 +2632,8 @@ function failStartup(err) {
   // first, or it stays on screen behind the box, still saying that Filow is starting.
   if (splash && !splash.isDestroyed()) splash.hide();
   closeSplash();
-  // The user cannot fix this one: next to closing, the box offers Report a problem, whose window has the
+  // `err` is an error or a ready sentence for the user. Most reasons are not theirs to fix (a taken port
+  // is the exception, and its sentence says what to do): next to closing, the box offers Report a problem, whose window has the
   // start-up log with this reason in it and the button that opens a GitHub issue. Filow quits when that
   // window closes. If the box or the window cannot be made, the plain error box and quit, as before.
   let report = false;
