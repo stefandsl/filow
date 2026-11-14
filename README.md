@@ -15,7 +15,7 @@ Filow is a live speaking companion: it listens as you present, checks off your t
   <img alt="Platforms" src="https://img.shields.io/badge/Windows%20%7C%20macOS%20%7C%20Linux-desktop-08090B" />
   <img alt="Phone mirror" src="https://img.shields.io/badge/Android%20%7C%20iOS-phone%20mirror-08090B" />
   <img alt="PowerPoint" src="https://img.shields.io/badge/PowerPoint-add--in-b7472a" />
-  <img alt="Languages" src="https://img.shields.io/badge/UI-English%20%7C%20Italiano-4ad67a" />
+  <img alt="Languages" src="https://img.shields.io/badge/UI-EN%20%7C%20IT%20%7C%20RU%20%7C%20RO%20%7C%20JA-4ad67a" />
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0-4ad67a" /></a>
 </p>
 
@@ -34,6 +34,13 @@ Filow is a live speaking companion: it listens as you present, checks off your t
 ---
 
 > **Renamed from Intelliprompter in 0.8.0.** Existing installations keep working: the app moves its profile (keys, script, certificates, add-in files) to the new folder on first start, accepts the old `INTELLIPROMPTER_*` environment names, upgrades over the old install, and re-registers the PowerPoint add-in. The old GitHub URLs redirect to the new ones. On a Debian server rename the systemd units at your convenience (see the deploy section); the old unit names keep running.
+
+## What's new in 0.9.40
+
+- **Best online model per task.** Measured on fixed synthetic tests (pointing, lessons, decisions): OK Filow screen answers now default to `openai/gpt-6-luna` (100% of points inside the target, against 16% for the previous default), talk-following decisions to `google/gemini-3.1-flash-lite`, lessons to Claude Sonnet 5.5 (quality) or Haiku 5.5 (speed). A model you chose yourself is kept. A new provider gets its own consent before anything is sent to it.
+- **Local answers in five languages.** With the local model, OK Filow now answers in words and points in English, Italian, Russian, Romanian and Japanese (held-out test: 20.7 to 97.3 out of 100), and the first word comes about twice as fast.
+- **More natural voice.** English words inside Italian, Russian and Romanian sentences are read in English; dates, times and years are spoken in full; sentences end softly; each language has its own default voice.
+- **Fixes.** Lessons work with OpenAI models; the packaged app starts again after the local-model changes; a test now catches files missing from the installer.
 
 ## The problem: scripts make you sound like you are reading
 
@@ -63,7 +70,10 @@ At high zoom or in a short window, the page scrolls to keep points and controls 
 | 🧩 **Browser extension** | reveal.js, Slidev, Marp, Canva, Pitch: generate the script from the deck and follow the live slide. |
 | 📄 **Import** | PDF, PPTX, DOCX, TXT or Markdown become talking points, one section per slide or page. |
 | 🔒 **Privacy modes** | On-device Whisper, a local decision model via Ollama, a PII guard before any cloud call, and a full offline mode. |
-| 🌍 **English and Italian UI** | Automatic / English / Italiano; desktop windows and menus share one preference, browsers keep their own. |
+| 🗣 **OK Filow** | Hold the keys and ask about your screen: it answers by voice and points or draws on the screen (2D marks, cards, a 3D view). Stop, pause and resume at any time; the eye button stops it looking. |
+| 🧑‍🏫 **Whiteboard** | An Excalidraw board where Filow explains a concept step by step; you can edit and save it. |
+| ⌨️ **Dictation** | Hold the keys, speak, and the text is typed into the app you are using. |
+| 🌍 **Five UI languages** | English, Italiano, Русский, Română, 日本語; desktop windows and menus share one preference, browsers keep their own. |
 | 🌗 **Light and dark theme** | ☀ / ◐ / ☾ toggle; "system" follows Windows or macOS. |
 | 🔄 **Self-updating** | The desktop app checks GitHub and installs new versions itself. |
 
