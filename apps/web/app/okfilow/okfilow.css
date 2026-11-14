@@ -449,3 +449,9 @@ html[data-theme="light"] .okf-model { background: #cbd5e1; color: #18191c; box-s
 html[data-theme="light"] .okf-part { background: #ffffff; color: #18191c; box-shadow: 0 0 0 1px #8a8c92, 0 4px 14px #0002; }
 html[data-theme="light"] .okf-part-leader .okf-part-ink { stroke: #825700; stroke-width: 2; }
 html[data-theme="light"] .okf-part-leader .okf-part-halo { stroke: #08090b; stroke-width: 4.5; }
+
+/* The hotspot stays at the bottom-right target corner. The ring's upper-left
+   quadrant is cut away so no ink enters the glyph rectangle. The underline
+   stops 18 px before this corner. Drop the arrow's shadow when it lands. */
+.okf-buddy[data-landed="true"] .okf-arrow { filter: none; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
+.okf-arrival { clip-path: polygon(50% -20%, 120% -20%, 120% 120%, -20% 120%, -20% 50%, 50% 50%); }

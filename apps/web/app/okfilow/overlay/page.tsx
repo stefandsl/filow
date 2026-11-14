@@ -218,13 +218,14 @@ export default function OkFilowOverlay() {
       if (targetEl.current) {
         const r = g?.plan.targetRect;
         targetEl.current.style.display = r && g?.plan.underline && now >= g!.start + g!.dur ? "block" : "none";
-        if (r) Object.assign(targetEl.current.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.right-r.left}px`, height: `${r.bottom-r.top}px` });
+        if (r) Object.assign(targetEl.current.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${Math.max(0, r.right-r.left-18)}px`, height: `${r.bottom-r.top}px` });
       }
       if (!g && ringEl.current) ringEl.current.style.opacity = "0";
       let next: { x: number; y: number } | null = null;
       if (g) {
         const k = Math.min(1, (now - g.start) / g.dur);
         next = flightPoint(g.plan, k);
+        if (dot.current) dot.current.dataset.landed = String(k >= 1);
         if (labelEl.current) {
           labelEl.current.style.left = `${g.plan.dock.x}px`;
           labelEl.current.style.top = `${g.plan.dock.y}px`;
@@ -236,6 +237,7 @@ export default function OkFilowOverlay() {
         }
         if (now > g.holdUntil || (queue.current.length && now > g.start + g.dur + 1800)) { flight.current = null; setLabel(""); }
       } else if (cursor.current) {
+        if (dot.current) dot.current.dataset.landed = "false";
         if (ringEl.current) ringEl.current.style.opacity = "0";
         const c = cursor.current;
         const want = { x: c.x + OFFSET.x, y: c.y + OFFSET.y };

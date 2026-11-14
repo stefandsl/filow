@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import poses from "./leader-poses.fixture.json";
 import { measureLeaders, type Pixel } from "./leader-metrics";
-import { routeLeaders } from "./leader-route";
+import { hookCount, routeLeaders } from "./leader-route";
 import { flightPoint, planFlight, arrivalPhase } from "./pointer-flight";
 
 it("measures final polylines, including touching bends, overlaps and opposite columns",()=>{
@@ -13,7 +13,7 @@ it("measures final polylines, including touching bends, overlaps and opposite co
   expect(measureLeaders([[p(0,0),p(20,0)],[p(0,12),p(20,12)]]).clearance).toBe(12);
 });
 
-it("reproduces e7db482 crossings and routes 24 full-turn plus eight sheet poses without changing endpoints",()=>{
+it("reproduces e7db482 crossings and routes 24 full-turn plus eight sheet poses with fixed anchors and columns, allowing rows to move to avoid hooks",()=>{
   const samples=poses.map(f=>f.lines.map(l=>l.map(([x,y])=>({x,y}))));
   expect(Math.max(...samples.map(p=>measureLeaders(p).intersections))).toBeGreaterThan(0);
   let previous:Pixel[][]|null=null;
@@ -24,8 +24,10 @@ it("reproduces e7db482 crossings and routes 24 full-turn plus eight sheet poses 
     const drawn=routes.map(p=>p.map(q=>({x:+q.x.toFixed(1),y:+q.y.toFixed(1)})));
     const m=measureLeaders(drawn,8);
     expect(m.intersections).toBe(0);
+    expect(hookCount(drawn)).toBe(0);
     expect(m.clearance).toBeGreaterThanOrEqual(12);
-    routes.forEach((p,i)=>{expect(p[0]).toEqual(lines[i][0]);expect(p.at(-1)).toEqual(samples[0][i].at(-1));});
+    routes.forEach((p,i)=>{expect(p[0]).toEqual(lines[i][0]);expect(p.at(-1)!.x).toEqual(samples[0][i].at(-1)!.x);
+      expect(samples[0].map(line=>line.at(-1)!.y)).toContain(p.at(-1)!.y);});
     previous=routes;
   }
 });

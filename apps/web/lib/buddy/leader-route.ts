@@ -2,11 +2,12 @@ import { segmentDistance, measureLeaders, outsideAnchors, type Pixel } from "./l
 
 const distance=(a:Pixel,b:Pixel)=>Math.hypot(a.x-b.x,a.y-b.y);
 /** Route elbows around already reserved screen-space corridors. Identity and columns never change. */
-export function routeLeaders(lines: Pixel[][], view:{width:number;height:number}, previous:Pixel[][]|null=null): Pixel[][] {
+function routeForward(lines: Pixel[][], view:{width:number;height:number}, previous:Pixel[][]|null=null): Pixel[][] {
+  lines=lines.map(forwardLeader);
   if(previous?.length===lines.length) {
     const carried=previous.map((p,i)=>[lines[i][0],...p.slice(1,-1),lines[i][lines[i].length-1]]);
     const m=measureLeaders(carried,8);
-    if(!m.intersections && m.clearance>=13)return carried;
+    if(!hookCount(carried) && !m.intersections && m.clearance>=13)return carried;
   }
   if(measureLeaders(lines,8).clearance>=14 && !measureLeaders(lines).intersections) return lines;
   const step=8, cols=Math.floor(view.width/step), rows=Math.floor(view.height/step);
@@ -22,6 +23,8 @@ export function routeLeaders(lines: Pixel[][], view:{width:number;height:number}
       const start=starts[id], end=ends[id];
       const obstacles=routed.flatMap(p=>p.slice(1).map((q,i)=>[p[i],q,p[0]]));
       const clear=(a:Pixel,b:Pixel) => {
+        const sign=Math.sign(end.x-start.x);
+        if ((b.x-a.x)*sign < -0.001 || (b.x-end.x)*sign > 0.001 || (a.x-start.x)*sign < -0.001) return false;
         for(const [c,d,anchor] of obstacles) {
           if(segmentDistance(a,b,c,d)<0.2) return false;
           const anchors=[start,anchor];
@@ -70,3 +73,42 @@ export function routeLeaders(lines: Pixel[][], view:{width:number;height:number}
   return best;
 }
 
+
+export function hookCount(lines: Pixel[][]): number {
+ return lines.reduce((sum,p)=>sum+p.slice(1).filter((q,i)=>(q.x-p[i].x)*Math.sign(p[p.length-1].x-p[0].x)<-0.01).length,0);
+}
+export function forwardLeader(p:Pixel[]):Pixel[] {
+ const first=p[0],last=p[p.length-1],sign=Math.sign(last.x-first.x);
+ let x=first.x;
+ return p.map(q=>{x=sign>0?Math.max(x,Math.min(last.x,q.x)):Math.min(x,Math.max(last.x,q.x));return {...q,x};});
+}
+
+/** Keep columns and identities, allowing rows to move when fixed rows need a hook. */
+export function routeLeaders(lines:Pixel[][],view:{width:number;height:number},previous:Pixel[][]|null=null):Pixel[][] {
+ const good=(p:Pixel[][])=>{const m=measureLeaders(p,8);return !m.intersections&&m.clearance>=12.2;};
+ if(previous?.length===lines.length) {
+  const carried=previous.map((p,i)=>[lines[i][0],...p.slice(1,-1),lines[i].at(-1)!]);
+  if(!hookCount(carried)&&good(carried))return carried;
+ }
+ const direct=lines.map(p=>[p[0],p[p.length-1]]);
+ if(good(direct))return direct;
+ const groups=[-1,1].map(side=>lines.map((_,i)=>i).filter(i=>Math.sign(lines[i].at(-1)!.x-lines[i][0].x)===side).sort((i,j)=>lines[i][0].y-lines[j][0].y));
+ function* permute(a:number[]):Generator<number[]> {
+  if(a.length<2) { yield a; return; }
+  for(let k=0;k<a.length;k++)for(const rest of permute(a.filter((_,i)=>i!==k)))yield [a[k],...rest];
+ }
+ const candidates:Pixel[][][]=[];
+ let attempts=0;
+ candidatesLoop: for(const left of permute(groups[0]))for(const right of permute(groups[1])) {
+  if(attempts++>=64)break candidatesLoop;
+  const proposed=lines.map(p=>p.map(q=>({...q})));
+  for(const ids of [left,right]) {const rows=ids.map(i=>lines[i].at(-1)!.y).sort((a,b)=>a-b);ids.forEach((id,k)=>{proposed[id][proposed[id].length-1].y=rows[k];});}
+  const straight=proposed.map(p=>[p[0],p[p.length-1]]);
+  if(good(straight))return straight;
+  candidates.push(proposed);
+ }
+ const initial=routeForward(lines,view,previous);
+ if(good(initial))return initial;
+ for(const candidate of candidates){const routes=routeForward(candidate,view,null);if(good(routes))return routes;}
+ return initial;
+}

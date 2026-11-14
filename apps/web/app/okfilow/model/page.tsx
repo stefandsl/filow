@@ -14,7 +14,9 @@ import { useLang } from "@filow/ui";
 import { okFilowBridge } from "@/lib/buddy/bridge";
 import { okfText } from "@/lib/buddy/text";
 import { visibleSurfaceAnchor } from "@/lib/buddy/model-surface";
-import { routeLeaders } from "@/lib/buddy/leader-route";
+import { createLeaderMotion } from "@/lib/buddy/leader-motion";
+import { forwardLeader } from "@/lib/buddy/leader-route";
+import type { Pixel } from "@/lib/buddy/leader-metrics";
 import { fitScale, frameDistance, labelledParts, layoutPartLabels, leaderPoints, readingOrder, type LabelSlot, type LabelSide } from "@/lib/buddy/model-labels";
 import type { BuddyModel, ModelPart } from "@/lib/buddy/visuals";
 import "../okfilow.css";
@@ -273,15 +275,24 @@ export default function OkFilowModel() {
     window.addEventListener("resize", onResize);
 
     // The labels: laid out every frame from where their parts are now, in two columns inside the frame,
-    // Numbered once in initial reading order. Keep rows fixed and move elbows when routes conflict.
+    // Numbered once in initial reading order. Ease row and elbow changes when a fixed row would need a hook.
     // A part turned out of the frame hides its label.
     let sides: LabelSide[] | null = null;
     let numbers: number[] | null = null;
-    let previousRoutes: Array<Array<{x:number;y:number}>> | null = null;
+    let previousRoutes: Pixel[][] | null = null;
+    let pendingRoute = false;
+    let requested: Pixel[][] | null = null;
+    const routeWorker = new Worker(new URL("../../../lib/buddy/leader-worker.ts", import.meta.url));
+    routeWorker.onmessage = (event: MessageEvent<Pixel[][]>) => {
+      previousRoutes = event.data;
+      pendingRoute = false;
+    };
+    routeWorker.onerror = () => { pendingRoute = false; };
     let previousSlots: LabelSlot[] | null = null;
     const world = new THREE.Vector3();
     const lines = Array.from(leaders.current?.querySelectorAll("g.okf-part-leader") ?? []);
-    const placeLabels = () => {
+    const easeRoutes = createLeaderMotion();
+    const placeLabels = (now: number) => {
       const w = el.clientWidth;
       const h = el.clientHeight;
       if (!labelled.length || !w || !h) return;
@@ -302,16 +313,25 @@ export default function OkFilowModel() {
       const mid = project(new THREE.Vector3(0, 0, 0)).x;
       const slots = layoutPartLabels(pts, labelled.map((l) => ({ width: l.width, height: LABEL_HEIGHT })), { width: w, height: h }, mid, sides);
       if (previousSlots) slots.forEach((s,i)=>{s.y=previousSlots![i].y;s.elbow.y=s.y+s.height/2;s.to.y=s.elbow.y;});
-      previousSlots = slots.map(s=>({...s}));
       sides = slots.map((s) => s.side);
       numbers ??= readingOrder(slots);
-      const routes = routeLeaders(slots.map(leaderPoints), {width:w,height:h}, previousRoutes);
-      previousRoutes = routes;
+      const proposed = slots.map(leaderPoints);
+      if (!pendingRoute && (!requested || pts.some((p,i)=>Math.hypot(p.x-requested![i][0].x,p.y-requested![i][0].y)>1))) {
+        requested = proposed;
+        pendingRoute = true;
+        routeWorker.postMessage({lines:proposed,view:{width:w,height:h},previous:previousRoutes});
+      }
+      // Track current surface anchors while the worker searches. Clamp carried
+      // elbows forward; a delayed plan can never reintroduce a backward hook.
+      const planned = (previousRoutes ?? proposed).map((p,i)=>forwardLeader([pts[i],...p.slice(1)]));
+      slots.forEach((s,i)=>{s.y=planned[i][planned[i].length-1].y-s.height/2;});
+      previousSlots = slots.map(s=>({...s}));
+      const routes = easeRoutes(planned, now);
       slots.forEach((s, i) => {
         const inside = s.from.x >= 4 && s.from.x <= w - 4 && s.from.y >= 4 && s.from.y <= h - 4;
         const label = labelEls.current[i];
         if (label) {
-          label.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px)`;
+          label.style.transform = `translate(${s.x.toFixed(1)}px, ${(routes[i][routes[i].length-1].y-s.height/2).toFixed(1)}px)`;
           label.style.visibility = inside ? "" : "hidden";
           const n = label.firstElementChild;
           if (n && n.textContent !== String(numbers![i])) n.textContent = String(numbers![i]);
@@ -322,8 +342,8 @@ export default function OkFilowModel() {
         const points = routes[i].map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
         for (const line of g.querySelectorAll("polyline")) line.setAttribute("points", points);
         for (const dot of g.querySelectorAll("circle")) {
-          dot.setAttribute("cx", s.from.x.toFixed(1));
-          dot.setAttribute("cy", s.from.y.toFixed(1));
+          dot.setAttribute("cx", routes[i][0].x.toFixed(1));
+          dot.setAttribute("cy", routes[i][0].y.toFixed(1));
         }
       });
     };
@@ -338,12 +358,13 @@ export default function OkFilowModel() {
       controls.update();
       lights.quaternion.copy(camera.quaternion);
       renderer.render(scene, camera);
-      placeLabels();
+      placeLabels(now);
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => {
       cancelAnimationFrame(raf);
+      routeWorker.terminate();
       window.removeEventListener("resize", onResize);
       el.removeEventListener("okf-focus-part", onFocusPart);
       controls.dispose();

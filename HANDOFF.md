@@ -822,5 +822,12 @@ C1 checks all English notice/kind keys; its mutation is caught. I1 appends the l
 date and weekday to answer, board and agent instructions using one pure helper.
 Date tests use mocked providers, including midnight and language preservation; the
 date mutation is caught. Design: `docs/okfilow/DATE-IN-PROMPTS.md`.
-Pending: overlay finishing touches and final full validation. Real model behaviour
-is not verified; no merge, push, tag or installed-profile changes.
+Overlay finishing: the landing ring clears the glyph quadrant, the underline stops
+before it, and landing drops the arrow shadow. Forward-only leaders and row changes
+blend over 160 ms; routing is off the rendering thread. Hidden QA has zero hooks in
+1,210 model frames, max route step 27.019 px (was 367.816), max pointer step 3.706%
+(was 4.696%). Six mutations caught. Final checks: 3,134 tests pass, 5 skipped;
+typecheck, lint and web build pass. See `docs/okfilow/SMALL-ITEMS.md`.
+Known gap: row exchanges during abrupt full-turn poses briefly overlap labels
+(55 captured frames per theme). Real model behaviour and native/live integration
+remain unverified. No merge, push, tag or installed-profile changes.
