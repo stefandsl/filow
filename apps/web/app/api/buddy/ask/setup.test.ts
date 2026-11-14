@@ -23,7 +23,10 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
     if (String(url).endsWith("/api/tags")) return Response.json({ models: [{ name: "gemma4:e2b" }, { name: "lfm3-vl:latest" }, { name: "qwen3-vl:2b" }, { name: "qwen3-vl:8b" }] });
     if (String(url).endsWith("/api/generate")) {
-      loads.push((JSON.parse(String(init?.body)) as { model: string }).model);
+      const load = JSON.parse(String(init?.body));
+      expect(load).not.toHaveProperty("prompt");
+      expect(load).not.toHaveProperty("system");
+      loads.push(load.model);
       return Response.json({});
     }
     if (String(url).endsWith("/api/chat")) {

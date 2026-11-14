@@ -815,3 +815,12 @@ original checklist is retained as task context.
 - 15 moderate npm audit findings inside electron-builder's own tree (minimatch < 11): re-check at the
   next electron-builder release.
 - Before ending a session, update "Where it stands" and this section, and commit HANDOFF.md.
+
+## Small items (feat-small-items, 2026-11-14)
+
+C1 checks all English notice/kind keys; its mutation is caught. I1 appends the local
+date and weekday to answer, board and agent instructions using one pure helper.
+Date tests use mocked providers, including midnight and language preservation; the
+date mutation is caught. Design: `docs/okfilow/DATE-IN-PROMPTS.md`.
+Pending: overlay finishing touches and final full validation. Real model behaviour
+is not verified; no merge, push, tag or installed-profile changes.

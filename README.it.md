@@ -784,3 +784,5 @@ ARCHITECTURE.md           the design: session protocol, Screen Sense, add-ins, m
 **Windows SmartScreen / macOS Gatekeeper blocca l'app** – le build non sono firmate. Vedi le note in [App desktop: installazione e avvio](#app-desktop-installazione-e-avvio).
 
 Il volo del puntatore dura al massimo 900 ms. Le etichette in arrivo mantengono 8 px dal testo e dai divisori rilevati; la sottolineatura viene omessa accanto a un divisore vicino. Gli accenti di arrivo nel tema chiaro hanno contorni scuri. Numeri, colonne e righe delle parti del modello restano fissi durante rotazione e trascinamento; i gomiti delle linee evitano le linee vicine. Il puntatore avanza senza inversioni con una partenza graduale; nel tema chiaro le linee e l�anello di arrivo a grandezza piena hanno un contorno scuro.
+
+Le risposte di OK Filow, le lezioni sulla lavagna e i lavori degli agenti ricevono la data locale e il giorno della settimana. Non vengono aggiunte altre informazioni su di te o sul PC.
