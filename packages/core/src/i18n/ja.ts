@@ -55,6 +55,7 @@ export const ja: Dictionary = {
   "account.subscribe": "定期購入",
   "account.manage": "契約を管理",
   "account.refresh": "アカウントを更新",
+  "account.billingNotOpen": "サブスクリプションの受付はまだ始まっていません。Filoは引き続きローカルで使えます。",
   "account.unavailable": "このビルドではアカウント接続が未設定です。Filoはローカルで引き続き使えます。",
   "account.approve": "ブラウザーで次のコードを入力し、サインインを承認してください：",
   "account.cancel": "サインインをキャンセル",

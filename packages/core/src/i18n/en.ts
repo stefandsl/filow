@@ -55,6 +55,7 @@ export const en = {
   "account.subscribe": "Subscribe",
   "account.manage": "Manage subscription",
   "account.refresh": "Refresh account",
+  "account.billingNotOpen": "Subscriptions are not open yet. You can keep using Filo locally.",
   "account.unavailable": "Accounts are not connected in this build yet. You can continue using Filo locally.",
   "account.approve": "Enter this code in your browser to approve sign-in:",
   "account.cancel": "Cancel sign-in",

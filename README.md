@@ -788,3 +788,5 @@ shows microphone opening separately from listening and thinking.
 Local answers use a smaller screen image to reduce processing time. Online
 answers keep the same image size. Named screen controls retain their original
 positions for pointing.
+
+When billing is closed, the account page says subscriptions are not open yet. Local features remain available, and existing subscribers can still manage their subscription.

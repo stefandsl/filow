@@ -55,6 +55,7 @@ export const it: Dictionary = {
   "account.subscribe": "Abbonati",
   "account.manage": "Gestisci abbonamento",
   "account.refresh": "Aggiorna account",
+  "account.billingNotOpen": "Gli abbonamenti non sono ancora disponibili. Puoi continuare a usare Filo in locale.",
   "account.unavailable": "Gli account non sono ancora collegati in questa versione. Puoi continuare a usare Filo in locale.",
   "account.approve": "Inserisci questo codice nel browser per autorizzare l’accesso:",
   "account.cancel": "Annulla accesso",

@@ -55,6 +55,7 @@ export const ro: Dictionary = {
   "account.subscribe": "Abonează-te",
   "account.manage": "Gestionează abonamentul",
   "account.refresh": "Actualizează contul",
+  "account.billingNotOpen": "Abonamentele nu sunt încă disponibile. Poți folosi în continuare Filo local.",
   "account.unavailable": "Conturile nu sunt conectate în această versiune. Poți continua să folosești Filo local.",
   "account.approve": "Introdu acest cod în browser pentru a aproba conectarea:",
   "account.cancel": "Anulează conectarea",

@@ -106,7 +106,13 @@ function createAccount({ origin, userData, safeStorage, openExternal, fetcher = 
     return status();
   }
   async function billing(action) {
-    const result=await request(action === 'portal' ? '/v1/portal':'/v1/checkout',{});
+    let result;
+    try { result=await request(action === 'portal' ? '/v1/portal':'/v1/checkout',{}); }
+    catch (error) {
+      // IPC does not preserve custom Error fields. Return the closed state as data.
+      if (action !== 'portal' && error.status === 503 && error.code === 'billing_not_open') return { state: 'billing_not_open' };
+      throw error;
+    }
     const url=billingUrl(result.url); if(!url) throw new Error('Unexpected billing destination');
     await openExternal(url);
   }

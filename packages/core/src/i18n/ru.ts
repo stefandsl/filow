@@ -55,6 +55,7 @@ export const ru: Dictionary = {
   "account.subscribe": "Подписаться",
   "account.manage": "Управлять подпиской",
   "account.refresh": "Обновить аккаунт",
+  "account.billingNotOpen": "Подписки пока недоступны. Вы можете продолжать пользоваться Filo локально.",
   "account.unavailable": "Аккаунты ещё не подключены в этой сборке. Можно продолжать использовать Filo локально.",
   "account.approve": "Введите этот код в браузере, чтобы разрешить вход:",
   "account.cancel": "Отменить вход",

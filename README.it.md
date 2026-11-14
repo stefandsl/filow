@@ -797,3 +797,5 @@ Le risposte locali usano un'immagine dello schermo più piccola per ridurre il
 tempo di elaborazione. Le risposte online mantengono la stessa dimensione.
 I controlli riconosciuti sullo schermo conservano le posizioni originali per
 le indicazioni del puntatore.
+
+Quando la fatturazione è disattivata, la pagina account indica che gli abbonamenti non sono ancora disponibili. Le funzioni locali restano disponibili e gli abbonati possono ancora gestire il proprio abbonamento.
