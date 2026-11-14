@@ -31,13 +31,20 @@ app.whenReady().then(async () => {
     }
     for (let i = 0; i < 50 && !(await win.webContents.executeJavaScript("window.__ready === true")); i++) await new Promise((r) => setTimeout(r, 50));
     await new Promise((r) => setTimeout(r, 300));
+    // the boxes are on the grid of the viewport, which is what the capture shows (latency-screen.html)
     const elements = await win.webContents.executeJavaScript("window.__elements()");
-    let img = await win.webContents.capturePage({ x: 0, y: 0, width: 1920, height: 1080 });
+    const viewport = await win.webContents.executeJavaScript("({ width: innerWidth, height: innerHeight })");
+    // a thing the picture does not show cannot be a target
+    const off = elements.filter((e) => e.x1 < 0 || e.y1 < 0 || e.x2 > 1000 || e.y2 > 1000);
+    if (off.length) throw new Error(`layout ${n}: ${off.map((e) => e.name).join(", ")} outside the ${viewport.width}x${viewport.height} picture`);
+    let img = await win.webContents.capturePage();
     const size = img.getSize();
+    if (size.width !== viewport.width || size.height !== viewport.height) throw new Error(`layout ${n}: captured ${size.width}x${size.height}, viewport ${viewport.width}x${viewport.height}`);
     if (size.width !== 1920 || size.height !== 1080) img = img.resize({ width: 1920, height: 1080 });
     const name = String(n).padStart(3, "0");
     fs.writeFileSync(path.join(out, `${name}.png`), img.toPNG());
-    fs.writeFileSync(path.join(out, `${name}.json`), JSON.stringify({ elements }));
+    // viewport: the grid's size before the stretch; its presence also marks screens made by this version
+    fs.writeFileSync(path.join(out, `${name}.json`), JSON.stringify({ elements, viewport }));
   }
   win.destroy();
   console.log(`latency screens: ${count} written`);

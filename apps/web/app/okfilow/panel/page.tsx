@@ -351,6 +351,7 @@ export default function OkFilowPanel() {
     status: () => statusRef.current,
     isCurrent: (id) => run.current === id,
     uiLang: () => langRef.current,
+    labels: () => (answerCtx.current?.gate?.list ?? answerCtx.current?.marks ?? []).map(mark => mark.label),
     cloudAudio: (text) => cloudVoiceRef.current(text),
     onFallback: (reason) => setNote(tRef.current(`voiceWhy_${reason}`)),
     onNoVoice: () => setNote(tRef.current("voiceNoSystem")),
@@ -1655,7 +1656,7 @@ export default function OkFilowPanel() {
             </select>
           </label>
           <FreeLlmPanelNotes provider={c.offline ? "local" : c.provider} t={t} />
-          <VoiceSettings bridge={bridge} status={c} t={t} configure={configure}
+          <VoiceSettings bridge={bridge} status={c} t={t} configure={configure} lang={lang}
             preview={() => {
               // The sample takes the turn like a new question: the answer stops for good and hands-free does not reopen the mic over it.
               const id = ++run.current;

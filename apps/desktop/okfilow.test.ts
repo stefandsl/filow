@@ -3,6 +3,16 @@ import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
+const { nextCfg, DEFAULTS } = require("./okfilow.js");
+
+it("keeps automatic and explicit natural speaker choices across unrelated settings changes", () => {
+  expect(DEFAULTS.naturalVoice).toBe(-1);
+  expect(nextCfg({}, {}).naturalVoice).toBe(-1);
+  expect(nextCfg({naturalVoice: -1}, {speed: 1.2}).naturalVoice).toBe(-1);
+  expect(nextCfg({naturalVoice: 0}, {speed: 1.2}).naturalVoice).toBe(0);
+  expect(nextCfg({naturalVoice: 7}, {}).naturalVoice).toBe(7);
+  expect(nextCfg({naturalVoice: 7}, {naturalVoice: -1}).naturalVoice).toBe(-1);
+});
 const { hotkeyHeld, HOTKEYS, okfilowSender } = require("./okfilow.js") as {
   hotkeyHeld: (h: string, d: Record<string, boolean>) => boolean;
   HOTKEYS: string[];

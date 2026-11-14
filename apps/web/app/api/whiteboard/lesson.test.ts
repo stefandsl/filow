@@ -103,7 +103,7 @@ describe("whiteboard lesson, local model: plan, check, then a pick per step", ()
     expect(repair.body.format?.properties?.relations).toBeDefined();
     // the second check saw only the two candidates that are new and join two listed things
     const second = calls.filter((c) => String(c.body.messages?.[0]?.content).includes("You check facts"))[1];
-    expect(String(second.body.messages[1].content)).toBe("Topic: Photosynthesis\n1. Light is stored in Glucose.\n2. Oxygen feeds Glucose.");
+    expect(String(second.body.messages[1].content)).toBe("Topic: Photosynthesis\n1. Light is stored in Glucose.\n2. Oxygen feeds Glucose.\n\nReply with a json object.");
   });
 
   it("asks how a thing no relation touches is linked, and asks nothing on the Lite tier or when the check cannot be read", async () => {
@@ -904,8 +904,47 @@ describe("whiteboard lesson, cloud model", () => {
     const forBuddy = await import("../buddy/recipients/route");
     const board = async (query = "") => (await (await forBoard.GET(new Request(`http://unit.invalid/api/whiteboard/recipients${query}`))).json()).ask;
     expect(await board()).toMatchObject({ id: "openrouter/anthropic", names: ["OpenRouter", "Anthropic"] });
-    expect((await (await forBuddy.GET()).json()).ask.id).toBe("openrouter/google");
-    expect(WHITEBOARD_MODELS).toEqual(["anthropic/claude-sonnet-5.5", "google/gemini-2.5-flash"]);
+    expect((await (await forBuddy.GET()).json()).ask.id).toBe("openrouter/openai");
+    // Quality (the default), Speed, and the model chosen before Speed existed
+    expect(WHITEBOARD_MODELS).toEqual(["anthropic/claude-sonnet-5.5", "anthropic/claude-haiku-5.5", "google/gemini-2.5-flash"]);
+  });
+
+  it("Speed is Claude Haiku 5.5: the same maker as the default, so the same yes; sent with thinking off", async () => {
+    cloudAnswers = [CLOUD];
+    const ev = await events(await post({ question: "Ohm's law", provider: "cloud", model: "anthropic/claude-haiku-5.5" }, "ask:openrouter/anthropic"));
+    expect(ev[0]).toMatchObject({ provider: "cloud", model: "anthropic/claude-haiku-5.5" });
+    expect(outside().length).toBeGreaterThan(0);
+    expect(outside().every((c) => c.body.model === "anthropic/claude-haiku-5.5")).toBe(true);
+    expect(outside()[0].body).toMatchObject({ provider: { only: ["anthropic"] }, reasoning: { enabled: false } });
+  });
+
+  // OpenAI answers HTTP 400 to a JSON answer format when no input message says "json" (every OpenAI lesson
+  // call in P0, although the system prompt said "JSON"): any message must say it, and the user's in lower case.
+  const text = (c: Call, role?: string) => c.body.messages.filter((m) => !role || m.role === role).map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content))).join("\n");
+  const saysJson = (c: Call) => /json/i.test(text(c)) && text(c, "user").includes("json");
+  it("every online lesson call sent with a JSON answer format says \"json\", on every guard's call", async () => {
+    vi.stubEnv("WHITEBOARD_CLOUD_MODEL", "openai/gpt-6-luna");
+    vi.stubEnv("WHITEBOARD_GUARDS", "examiner,arrows,sums,links");
+    cloudAnswers = [CLOUD];
+    await events(await post({ question: "Ohm's law", provider: "cloud" }, "ask:openrouter/openai"));
+    const formatted = outside().filter((c) => c.body.response_format);
+    // the lesson, the definition-free examiner, the arrow check, the links and the legend: more than one kind of call
+    expect(new Set(formatted.map((c) => String(c.body.messages[0].content).slice(0, 30))).size).toBeGreaterThan(1);
+    expect(formatted.filter((c) => !saysJson(c)).map((c) => String(c.body.messages[0].content).slice(0, 60))).toEqual([]);
+    expect(formatted.every((c) => c.body.model === "openai/gpt-6-luna")).toBe(true);
+  });
+
+  it("every local lesson call with an answer format says \"json\" too, template call included", async () => {
+    localAnswers = [OUTLINE, JUDGE, PLAN, CHECK, pick(["sun", "sugar"], ["1", "2", "3"]), pick([], ["4", "9", "x"]), PICK3];
+    await events(await post({ question: "photosynthesis" }));
+    // the template call: photosynthesis has reference facts, so the lesson is drawn from them after this one call
+    vi.stubEnv("WHITEBOARD_TEMPLATES", "on");
+    localAnswers = ["{}"];
+    await events(await post({ question: "photosynthesis" }));
+    const formatted = chats().filter((c) => c.body.format);
+    expect(formatted.length).toBeGreaterThan(5);
+    expect(String(formatted.at(-1)!.body.messages[0].content)).toContain("choosing how to draw");
+    expect(formatted.filter((c) => !saysJson(c)).map((c) => String(c.body.messages[0].content).slice(0, 60))).toEqual([]);
   });
 
   it("lets the user pick the other measured model, with that maker's yes, and never calls a model that is not on its list", async () => {

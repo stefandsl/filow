@@ -944,7 +944,7 @@ export const en = {
   "fit.fits": "fits",
   "fit.tight": "tight",
   "fit.too big": "too big",
-  "settings.screenHint": "Watches the screen, window or region you pick and turns each new slide into cues, facts and a gap check. Frames stay in memory, go once to the vision model on OpenRouter (OPENROUTER_VISION_MODEL, default google/gemini-2.5-flash) and are dropped; only the returned text is kept for the session. Views and phones only ever receive that text. Off in offline mode.",
+  "settings.screenHint": "Watches the screen, window or region you pick and turns each new slide into cues, facts and a gap check. Frames stay in memory, go once to the vision model on OpenRouter (OPENROUTER_VISION_MODEL, default google/gemini-3.1-flash-lite) and are dropped; only the returned text is kept for the session. Views and phones only ever receive that text. Off in offline mode.",
   "settings.screenModes": "On slide change = one call per changed frame (16×16 mean difference, max 20 frames a minute). Balanced adds presenter cues (“as you can see”, “in questa slide”…). Real-time keeps calling every few seconds while the content keeps changing, for demos.",
   "settings.hotkeyEnabled": "Enabled (global hotkey registered)",
   "settings.hotkeyTitle": "Electron accelerator, e.g. CommandOrControl+Shift+Space or Alt+PrintScreen",

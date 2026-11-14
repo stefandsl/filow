@@ -19,11 +19,13 @@ export function createProgressiveSpeech(options: {
   let committed = options.said ?? "";
   /** Sentences handed to the queue so far, and the ones heard whole. */
   let base = splitSentences(committed).length;
+  const firstBase = base;
   let heard = base;
   /** The latest text given to update(), with the part not yet handed to the queue. */
   let latest = committed;
   /** Chunks queued and not started yet, and the one being spoken (its first sentence's index). */
-  const waiting: string[] = [];
+  type Pending = { text: string; at: number; count: number; taken: boolean };
+  const waiting: Pending[] = [];
   let current: { text: string; at: number; count: number } | null = null;
   let cancelled = false;
   let queue = Promise.resolve();
@@ -34,18 +36,33 @@ export function createProgressiveSpeech(options: {
     const at = base;
     const count = splitSentences(chunk).length;
     base += count;
-    waiting.push(chunk);
+    const pending = { text: chunk, at, count, taken: false };
+    waiting.push(pending);
     queue = queue.then(async () => {
-      if (!live()) return;
+      if (!live() || pending.taken) return;
       // Paused: the next chunk waits for Resume, and never starts when the answer ended meanwhile.
       if (options.unpaused && !(await options.unpaused())) return;
       if (!live()) return;
       waiting.shift();
-      current = { text: chunk, at, count };
-      await options.speak(chunk, at);
+      pending.taken = true;
+      let text = chunk;
+      let sentences = count;
+      // Never delay or enlarge the first request. Later sentences that arrived while it
+      // played can share a request: the desktop synthesizes their pieces ahead of playback,
+      // instead of restarting synthesis only after each preceding sentence has finished.
+      // Newlines preserve sentence counts even for list items without punctuation. Stay
+      // inside the desktop's 4000-character text limit, including the inserted separators.
+      while (at !== firstBase && waiting.length && text.length + 1 + waiting[0].text.length <= 4000) {
+        const next = waiting.shift()!;
+        next.taken = true;
+        text += "\n" + next.text;
+        sentences += next.count;
+      }
+      current = { text, at, count: sentences };
+      await options.speak(text, at);
       // Cut by a stop: `current` stays, where() asks the voice how far into it the user heard.
       if (!live()) return;
-      heard = at + count;
+      heard = at + sentences;
       current = null;
     });
     // Attach immediately: a failed voice must not become an unhandled rejection while reading.
@@ -97,7 +114,7 @@ export function createProgressiveSpeech(options: {
      */
     where(chunkLeft: string): { heard: number; left: string } {
       const rest = latest.startsWith(committed) ? latest.slice(committed.length) : "";
-      const tail = [...waiting, rest].map((s) => s.trim()).filter(Boolean);
+      const tail = [...waiting.map((p) => p.text), rest].map((s) => s.trim()).filter(Boolean);
       if (!current) return { heard, left: tail.join(" ") };
       const unsaid = chunkLeft.trim();
       return { heard: current.at + current.count - splitSentences(unsaid).length, left: [unsaid, ...tail].filter(Boolean).join(" ") };

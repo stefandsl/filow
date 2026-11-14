@@ -128,9 +128,11 @@ on the ten proof questions, two paid runs each, strict review: Claude Sonnet 5.5
 of 10, Gemini 2.5 Flash 6 and 6 (`docs/whiteboard/PROOF.md`). The owner chose Claude Sonnet 5.5
 as the default.
 
-- Default: `anthropic/claude-sonnet-5.5`. The user can pick `google/gemini-2.5-flash` in the
+- Default: `anthropic/claude-sonnet-5.5`. The user can pick `anthropic/claude-haiku-5.5` (Speed,
+  added 14/11/2026: same maker, so the same yes) or `google/gemini-2.5-flash` in the
   whiteboard (when Cloud is chosen) or in Settings > Local models; the choice is kept in the
-  profile. The labels say what was measured: "best measured quality" and "cheaper, less reliable".
+  profile. The labels say what was measured: "best measured quality", "faster, almost as good" and
+  "cheaper, less reliable".
 - The recipient is derived from the model, as everywhere: OpenRouter and Anthropic
   (`openrouter/anthropic`), or OpenRouter and Google. Each is its own yes. Someone who has said
   yes to Google for OK Filow is asked once for Anthropic the first time a whiteboard question is
@@ -140,6 +142,27 @@ as the default.
   overrides the choice for a measured run.
 - What is sent is unchanged: the question and, for a follow-up, the lesson so far. No picture.
 - OK Filow's own answers keep their model (`BUDDY_CLOUD_MODEL`) and their notice.
+
+## Online default models (owner decision, 14/11/2026)
+
+From the paid P0 run (tmp/best-online-models/REPORT.md). Only the defaults changed: a model set in
+`.env` or chosen in the whiteboard is kept. Model ids that an older `.env.example` wrote into the
+profile's `.env` (`apps/desktop/env-defaults.js`) are read as unset, so the new defaults reach
+existing installs; the file is not changed.
+
+| Inventory | What | Default before | Default now | Recipient |
+|------|------|----------------|-------------|-----------|
+| row 1 | OK Filow screen answers (`BUDDY_CLOUD_MODEL`), 3D parts ride on it | `google/gemini-2.5-flash` | `openai/gpt-6-luna` | **OpenRouter and OpenAI** (was Google) |
+| rows 7, 11 | take decisions (`OPENROUTER_DECISION_MODEL`) | `google/gemini-2.5-flash-lite` | `google/gemini-3.1-flash-lite` | OpenRouter and Google (unchanged) |
+| rows 8, 12 | Screen Sense (`OPENROUTER_VISION_MODEL`) | `google/gemini-2.5-flash` | `google/gemini-3.1-flash-lite` | OpenRouter and Google (unchanged) |
+| row 10 | script from slide pictures (`OPENROUTER_GENERATE_VISION_MODEL`) | `google/gemini-2.5-flash` | `google/gemini-3.1-flash-lite` | OpenRouter and Google (unchanged) |
+
+- Row 1 changes maker. The yes is per recipient (`ask:openrouter/openai`), so a yes given to Google
+  does not cover it: the first online question after the update shows the notice naming OpenAI and
+  sends nothing before the yes; the server refuses it too (`consent_required`, tested in
+  `app/api/buddy/consent.test.ts` and `lib/buddy/outbound.test.ts`). The pill names OpenRouter and OpenAI.
+- Every new default is pinned to its maker's own hosts (`MAKER_HOSTS`: OpenAI, Google, Anthropic).
+- Thinking is off or minimal for them, as P0 ran them (`reasoningFor` in `lib/openrouter.ts`).
 ## Names in whiteboard questions (owner decision, 11/11/2026)
 
 The owner's OpenRouter account hides personal data in every prompt before a model sees it: "the

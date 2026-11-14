@@ -3,7 +3,8 @@
 import { buildVisionUserPrompt, parseScreenSummary, VISION_SYSTEM_PROMPT, type VisionRequest, type VisionResponse } from "@filow/core";
 import { openRouterChat } from "@/lib/openrouter";
 
-export const DEFAULT_VISION_MODEL = "google/gemini-2.5-flash";
+// Gemini 2.5 Flash is rerouted by Google from 2026-12-01: its successor of the same maker, so the yes for Google still holds.
+export const DEFAULT_VISION_MODEL = "google/gemini-3.1-flash-lite";
 /** The model Screen Sense frames go to. The notice names its maker (lib/buddy/outbound.ts). */
 export const VISION_MODEL = () => process.env.OPENROUTER_VISION_MODEL || DEFAULT_VISION_MODEL;
 

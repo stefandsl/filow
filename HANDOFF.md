@@ -1,5 +1,25 @@
 # Filow hand-off
 
+## Natural voice worktree (2026-11-14, unreleased)
+
+`feat-voice-natural` measured 652 answers across 21 variants, including full
+precision Supertonic, Piper and Kokoro. Automatic speaker recommendations use
+IT/EN 9, RU/RO 2, JA 4 while preserving explicit choices. The progressive voice
+queue combines waiting continuation sentences without delaying the first one.
+Four-sentence queue QA removed about 1.27 seconds of dead air. No new model ships.
+
+Evidence and limitations: `docs/okfilow/VOICE-NATURAL-2026-11.md` and the linked
+full tables. Blind offline listening: `G:/FILOW/tmp/voice-natural/listen/index.html`,
+with a separate `listen-key.json`. Human preference is still unverified; DNSMOS
+is a quality proxy, not a validated multilingual naturalness score. This fast
+desktop is not a mid-range CPU acceptance test. Existing speaker 0 stays selected
+until the owner chooses Automatico or another speaker.
+
+Validation: 3,203 tests passed, 5 skipped; typecheck and lint passed; eight targeted
+mutations killed. Hidden offscreen checks covered five languages and both themes,
+plus the offline listening page. No audio playback, microphone, installed profile,
+global input, or visible test window was used. No merge, push or tag; AGENTS.md
+is excluded from the commits.
 ## Pointer-only hardening rework (2026-11-14, unreleased)
 
 Supersedes item 1 and its 59 retry/failure outcome in the historical section below.

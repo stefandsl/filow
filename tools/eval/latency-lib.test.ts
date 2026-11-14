@@ -2,8 +2,27 @@ import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   addNoiseFloor, bootstrapInterval, canaryHits, cellsOf, grammarBreaks, heardOk, invalidReasons, judgeVerdict, median, medianInterval,
-  ollamaCallsOutsideCli, parseServer, parseTimings, quantile, rank2b, SPANS, spanValue, speechEndMs, voiceSchedule, wordDistance,
+  ollamaCallsOutsideCli, parseServer, parseTimings, pointingScores, quantile, rank2b, SPANS, spanValue, speechEndMs, voiceSchedule, wordDistance,
 } from "./latency-lib.mjs";
+
+describe("the pointing scores of the screen experiment", () => {
+  it("says hinted and vision only as two separate scores, never one", () => {
+    const rows = [
+      { hint: true, valid: true, rawInside: true, placedInside: true },
+      { hint: true, valid: true, rawInside: true, placedInside: true },
+      // from before the split: every question was hinted
+      { valid: true, rawInside: false, placedInside: true },
+      { hint: false, valid: true, rawInside: false, placedInside: true },
+      { hint: false, valid: true, rawInside: true, placedInside: true },
+      { hint: false, valid: false, rawInside: true, placedInside: true },
+    ];
+    expect(pointingScores(rows)).toEqual([
+      "hinted (the model was given the element's position): the model's own point inside the target 2/3 (67%), after Filow places it 3/3 (100%)",
+      "vision only (no position given, the picture alone): the model's own point inside the target 1/2 (50%), after Filow places it 2/2 (100%)",
+    ]);
+    expect(pointingScores([])[1]).toContain("0/0 (-)");
+  });
+});
 
 const T = "2026-11-13T03:00:00.000Z ";
 

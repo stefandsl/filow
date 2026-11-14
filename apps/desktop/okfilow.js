@@ -49,6 +49,8 @@ const DEFAULTS = {
   color: "#ffb600",
   /** Speech rate for the voice, 0.75 to 1.5. */
   speed: 1,
+  /** -1 chooses the measured speaker for the answer's language; 0-9 keep an explicit choice. */
+  naturalVoice: -1,
   /** Typed questions answer silently unless this is on (HeyClicky: typed_turns_respond_with_voice). */
   typedVoice: false,
   /** Which coding agent runs "agent, ..." jobs: auto (Codex, else Claude Code), codex or claude. */
@@ -147,7 +149,8 @@ function nextCfg(was, patch) {
   // A patch that says `voiceChosen: false` in so many words hands the voice back to automatic (the
   // Easy page's "Answer out loud"), even when it names a voice; any other change of voice is a pick.
   next.voiceChosen = patch && patch.voiceChosen === false ? false : next.voiceChosen === true || (!!patch && "voice" in patch);
-  next.naturalVoice = Math.min(9, Math.max(0, Math.round(Number(next.naturalVoice)) || 0));
+  const speaker = next.naturalVoice == null ? -1 : Number(next.naturalVoice);
+  next.naturalVoice = Number.isFinite(speaker) ? Math.min(9, Math.max(-1, Math.round(speaker))) : -1;
   if (!/^#[0-9a-f]{6}$/i.test(String(next.color))) next.color = DEFAULTS.color;
   next.speed = Math.min(1.5, Math.max(0.75, Number(next.speed) || 1));
   next.typedVoice = next.typedVoice === true;

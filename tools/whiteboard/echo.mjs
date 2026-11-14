@@ -7,7 +7,7 @@
 //
 // Usage: node tools/whiteboard/echo.mjs --yes-send "Hans Krebs described the Krebs cycle" "The K r e b s cycle" ...
 //        node tools/whiteboard/echo.mjs --yes-send --name Krebs      (the name in every spelling Filow can use)
-// Reads OPENROUTER_API_KEY; the model is WHITEBOARD_CLOUD_MODEL, else BUDDY_CLOUD_MODEL, else google/gemini-2.5-flash.
+// Reads OPENROUTER_API_KEY; the model is WHITEBOARD_CLOUD_MODEL, else BUDDY_CLOUD_MODEL, else openai/gpt-6-luna.
 const args = process.argv.slice(2);
 const send = args.includes("--yes-send");
 const nameAt = args.indexOf("--name");
@@ -18,7 +18,7 @@ const sentences = name
   : args.filter((a, i) => !a.startsWith("--") && i !== nameAt + 1);
 const key = process.env.OPENROUTER_API_KEY;
 const base = (process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1").replace(/\/$/, "");
-const model = process.env.WHITEBOARD_CLOUD_MODEL || process.env.BUDDY_CLOUD_MODEL || "google/gemini-2.5-flash";
+const model = process.env.WHITEBOARD_CLOUD_MODEL || process.env.BUDDY_CLOUD_MODEL || "openai/gpt-6-luna";
 if (!sentences.length) {
   console.error('usage: node tools/whiteboard/echo.mjs --yes-send "a sentence" ["another"]   or   --yes-send --name Krebs');
   process.exit(2);

@@ -3,11 +3,13 @@
 // natural voice (size shown, resumable), who speaks, and a button to hear it.
 // What to show is decided by voicePanel() in lib/buddy/voice.ts, which is unit tested.
 import { useEffect, useRef, useState } from "react";
+import { t as coreText, type Lang } from "@filow/core";
 import type { OkFilowBridge, OkFilowStatus, OkFilowTtsStatus } from "@/lib/buddy/bridge";
 import type { OkfKey } from "@/lib/buddy/text";
 import { voicePanel } from "@/lib/buddy/voice";
 
 type Props = {
+  lang?: Lang;
   bridge: OkFilowBridge;
   status: OkFilowStatus;
   t: (k: OkfKey) => string;
@@ -20,7 +22,7 @@ type Props = {
   initial?: OkFilowTtsStatus | null;
 };
 
-export function VoiceSettings({ bridge, status, t, configure, preview, confirmRemove = (q) => window.confirm(q), initial = null }: Props) {
+export function VoiceSettings({ bridge, status, t, configure, preview, lang = "en", confirmRemove = (q) => window.confirm(q), initial = null }: Props) {
   const [tts, setTts] = useState<OkFilowTtsStatus | null>(initial);
   const api = bridge.tts;
 
@@ -79,7 +81,7 @@ export function VoiceSettings({ bridge, status, t, configure, preview, confirmRe
     } catch { /* still installed: the row stays as it is */ }
   };
 
-  const who = Math.max(0, Math.min((panel.show === "ready" ? panel.voices : 10) - 1, status.naturalVoice ?? 0));
+  const who = Math.max(-1, Math.min((panel.show === "ready" ? panel.voices : 10) - 1, status.naturalVoice ?? -1));
   const half = panel.show === "ready" ? Math.ceil(panel.voices / 2) : 5;
 
   return (
@@ -121,7 +123,8 @@ export function VoiceSettings({ bridge, status, t, configure, preview, confirmRe
         <>
           <label className="okf-row">
             <span>{t("voiceWho")}</span>
-            <select value={String(who)} onChange={(e) => { picked.current = true; void configure({ naturalVoice: Number(e.target.value) }); }}>
+            <select data-testid="voice-speaker" value={String(who)} onChange={(e) => { picked.current = true; void configure({ naturalVoice: Number(e.target.value) }); }}>
+              <option value="-1">{coreText("ui.automatic", lang)}</option>
               {Array.from({ length: panel.voices }, (_, i) => (
                 <option key={i} value={i}>
                   {(i < half ? t("voiceFemale") : t("voiceMale")).replace("{n}", String(i < half ? i + 1 : i - half + 1))}

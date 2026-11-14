@@ -25,18 +25,35 @@ const GIB = 1024 ** 3;
 const root = tmpRoot("tts");
 
 describe("voice for a language", () => {
+  it("uses the measured language recommendations only in automatic mode", () => {
+    for (const [lang, sid] of Object.entries({en: 5, it: 0, ru: 0, ro: 9, ja: 0})) {
+      expect(tts.voiceFor(lang, -1)).toEqual({lang, sid});
+      expect(tts.voiceFor(lang, undefined)).toEqual({lang, sid});
+      expect(tts.voiceFor(lang, 0)).toEqual({lang, sid: 0});
+    }
+  });
   it("speaks each of the five languages in that language", () => {
     for (const lang of ["en", "it", "ru", "ro", "ja"]) expect(tts.voiceFor(lang, 3)).toEqual({ lang, sid: 3 });
     expect(tts.LANGS).toEqual(["en", "it", "ru", "ro", "ja"]);
   });
 
-  it("falls back to English and the first voice for anything it does not know", () => {
+  it("uses language defaults for automatic choices but preserves every explicit speaker", () => {
     expect(tts.voiceFor("de", 2)).toEqual({ lang: "en", sid: 2 });
-    expect(tts.voiceFor(undefined, undefined)).toEqual({ lang: "en", sid: 0 });
-    expect(tts.voiceFor("ja", 10)).toEqual({ lang: "ja", sid: 0 });
+    expect(tts.voiceFor(undefined, undefined)).toEqual({ lang: "en", sid: 5 });
+    expect(tts.voiceFor("ja", 10)).toEqual({ lang: "ja", sid: tts.DEFAULT_SPEAKERS.ja });
     expect(tts.voiceFor("ru", -1)).toEqual({ lang: "ru", sid: 0 });
     expect(tts.voiceFor("it", "9")).toEqual({ lang: "it", sid: 9 });
-    expect(tts.voiceFor("it", 1.5)).toEqual({ lang: "it", sid: 0 });
+    expect(tts.voiceFor("it", 1.5)).toEqual({ lang: "it", sid: tts.DEFAULT_SPEAKERS.it });
+    for (const lang of tts.LANGS) {
+      for (let sid = 0; sid < 10; sid++) expect(tts.voiceFor(lang, sid)).toEqual({ lang, sid });
+      expect(tts.voiceFor(lang, null)).toEqual(tts.voiceFor(lang, -1));
+    }
+  });
+
+  it("drops the 1.05 lift only for automatic Japanese (owner's blind picks)", () => {
+    for (const voice of [-1, undefined, null, 10, 1.5]) expect(tts.liftFor("ja", voice)).toBe(1);
+    for (const voice of [0, 4, "9"]) expect(tts.liftFor("ja", voice)).toBe(1.05);
+    for (const lang of ["en", "it", "ru", "ro", "de"]) for (const voice of [-1, 0, 5]) expect(tts.liftFor(lang, voice)).toBe(1.05);
   });
 });
 
@@ -47,12 +64,12 @@ describe("text that reads well aloud", () => {
   });
 
   it("writes a clock time the way the voice reads it right in each language", () => {
-    expect(tts.speakable("Встреча в 9:30.", "ru")).toBe("Встреча в девять тридцать.");
-    expect(tts.speakable("В 21:05 и в 0:00.", "ru")).toBe("В двадцать один ноль пять и в ноль ноль ноль.");
-    expect(tts.speakable("会議は9:30です。10:00から。", "ja")).toBe("会議は9時30分です。10時から。");
-    expect(tts.speakable("Alle 9:30, poi alle 10:00.", "it")).toBe("Alle 9 30, poi alle 10.");
-    expect(tts.speakable("La 9:05.", "ro")).toBe("La 9 05.");
-    expect(tts.speakable("At 9:30.", "en")).toBe("At 9:30.");
+    expect(tts.speakable("Встреча в 9:30.", "ru")).toBe("Встреча в девять часов тридцать минут.");
+    expect(tts.speakable("В 21:05 и в 0:00.", "ru")).toBe("В двадцать один час пять минут и в ноль часов ноль минут.");
+    expect(tts.speakable("会議は9:30です。10:00から。", "ja")).toBe("会議は九時三十分です。十時零分から。");
+    expect(tts.speakable("Alle 9:30, poi alle 10:00.", "it")).toBe("Alle nove e trenta, poi alle dieci in punto.");
+    expect(tts.speakable("La 9:05.", "ro")).toBe("La nouă și cinci.");
+    expect(tts.speakable("At 9:30.", "en")).toBe("At nine thirty.");
   });
 
   it("leaves numbers that are not a clock time alone", () => {
@@ -60,8 +77,8 @@ describe("text that reads well aloud", () => {
     expect(tts.speakable("Ratio 25:99.", "it")).toBe("Ratio 25:99.");
   });
 
-  it("spells a Latin acronym in katakana for Japanese only", () => {
-    expect(tts.speakable("PDFとしてエクスポート。", "ja")).toBe("ピーディーエフとしてエクスポート。");
+  it("preserves acronyms for the English span synthesizer", () => {
+    expect(tts.speakable("PDFとしてエクスポート。", "ja")).toBe("PDFとしてエクスポート。");
     expect(tts.speakable("Export as PDF.", "en")).toBe("Export as PDF.");
     // A product name is not an acronym: it stays.
     expect(tts.speakable("Filowを開く。", "ja")).toBe("Filowを開く。");
@@ -138,8 +155,8 @@ describe("silence around a piece", () => {
     const s = new Float32Array(3000);
     for (let i = 1000; i < 2000; i++) s[i] = 0.5;
     const out: Float32Array = tts.trimSilence(s, rate);
-    // 20 ms before, 60 ms after.
-    expect(out.length).toBe(1000 + 20 + 60);
+    // 20 ms before, 20 ms quiet margin, 80 ms silence.
+    expect(out.length).toBe(1000 + 20 + 20 + 80);
     expect(out[19]).toBe(0);
     expect(out[20]).toBe(0.5);
     // A copy, not a view on the big buffer: only these samples travel to the window.
@@ -153,7 +170,7 @@ describe("silence around a piece", () => {
 
   it("does not run past the ends of the audio", () => {
     const s = new Float32Array(10).fill(0.5);
-    expect(tts.trimSilence(s, 1000).length).toBe(10);
+    expect(tts.trimSilence(s, 1000).length).toBe(90);
   });
 });
 
@@ -243,6 +260,27 @@ const REQ = { lang: "en", sid: 0, speed: 1, steps: 5, threads: 2 };
 const THREE = "Open the File menu first. Then choose Export as PDF. That is all you need to do.";
 
 describe("speaking piece by piece", () => {
+  it("streams language spans with one speaker, no interior pause, and original highlighting text", async () => {
+    const {s,workers} = session();
+    const chunks: Chunk[] = [];
+    await s.speak({...REQ,lang:'it',sid:9,text:'Apri File alle 9:05.'},(c:Chunk)=>chunks.push(c));
+    expect(workers[0].said.map(m=>m.lang)).toEqual(['it','en','it']);
+    expect(workers[0].said.every(m=>m.sid===9)).toBe(true);
+    expect(workers[0].said[2].text).toContain('nove e cinque');
+    expect(chunks.map(c=>c.text).join('')).toBe('Apri File alle 9:05.');
+    expect(chunks.slice(0,-1).map(c=>c.pause)).toEqual([0,0]);
+    expect(chunks.at(-1)?.last).toBe(true);
+    s.dispose();
+  });
+  it("Stop discards remaining foreign spans", async () => {
+    const {s,workers} = session();
+    const chunks:Chunk[] = [];
+    const result = await s.speak({...REQ,lang:'it',text:'Apri File e Save.'},(c:Chunk)=>{ chunks.push(c); s.cancel(); });
+    expect(result.cancelled).toBe(true);
+    expect(chunks).toHaveLength(1);
+    expect(workers[0].said).toHaveLength(1);
+    s.dispose();
+  });
   it("delivers each sentence as its own chunk, in order, with the silence trimmed", async () => {
     const { s, workers } = session();
     const chunks: Chunk[] = [];
@@ -251,11 +289,11 @@ describe("speaking piece by piece", () => {
     expect(chunks.map((c) => c.seq)).toEqual([0, 1, 2]);
     expect(chunks.map((c) => c.last)).toEqual([false, false, true]);
     expect(chunks.map((c) => c.text)).toEqual(["Open the File menu first.", "Then choose Export as PDF.", "That is all you need to do."]);
-    for (const c of chunks) expect(c.samples.length).toBe(500 + 20 + 60);
+    for (const c of chunks) expect(c.samples.length).toBe(500 + 20 + 20 + 80);
     // One piece is asked for at a time: the next starts only when the one before has arrived.
     expect(workers[0].said.map((m) => m.text)).toEqual(chunks.map((c) => c.text));
     expect(workers[0].said[0]).toMatchObject({ lang: "en", sid: 0, speed: 1, steps: 5 });
-    expect(out.rtf).toBeCloseTo(50 / 580, 3);
+    expect(out.rtf).toBeCloseTo(50 / 620, 3);
     s.dispose();
   });
 
@@ -667,14 +705,14 @@ describe("okfilow:tts channels", () => {
     expect(log.some((l) => /^tts: it voice 6 standard/.test(l))).toBe(true);
   });
 
-  it("clamps the speed and falls back to English and the first voice", async () => {
+  it("clamps the speed and falls back to English and its recommended voice", async () => {
     const { bus, userData, workers } = wire("clamp");
     install(userData);
     const panel = sender();
     await bus.invoke("okfilow:tts:speak", panel, { id: 1, text: "Short answer here.", lang: "xx", voice: 99, speed: 9 });
     await bus.invoke("okfilow:tts:speak", panel, { id: 2, text: "Short answer here.", speed: 0.1 });
     await bus.invoke("okfilow:tts:speak", panel, null);
-    expect(workers[0].said[0]).toMatchObject({ lang: "en", sid: 0 });
+    expect(workers[0].said[0]).toMatchObject({ lang: "en", sid: 5 });
     expect(workers[0].said[0].speed).toBeCloseTo(1.05 * 1.5, 5);
     expect(workers[0].said[1].speed).toBeCloseTo(1.05 * 0.75, 5);
     expect(workers[0].said.length).toBe(2);
@@ -794,8 +832,8 @@ describe("okfilow:tts channels", () => {
     const wav = fs.readFileSync(path.join(qaDir, "tts-001.wav"));
     expect(wav.subarray(0, 4).toString()).toBe("RIFF");
     expect(wav.readUInt32LE(24)).toBe(1000);
-    // Two pieces of 580 samples and the 220 ms pause between them, 16-bit.
-    expect(wav.readUInt32LE(40)).toBe((580 + 220 + 580) * 2);
+    // Two pieces of 620 samples and the 220 ms pause between them, 16-bit.
+    expect(wav.readUInt32LE(40)).toBe((620 + 220 + 620) * 2);
     expect(JSON.parse(fs.readFileSync(path.join(qaDir, "tts-001.json"), "utf8"))).toMatchObject({ id: 3, lang: "en", chunks: 2, sent: 2, cancelled: false, steps: 5 });
     bus.emit("okfilow:tts:played", panel, { id: 3, seconds: 1.38, interrupted: true, state: "running" });
     expect(fs.readFileSync(path.join(qaDir, "played.log"), "utf8")).toBe("tts: played 1.4 s of id 3 (interrupted), audio running\n");
