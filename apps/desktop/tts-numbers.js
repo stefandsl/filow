@@ -152,7 +152,8 @@ function normalizeNumbers(text, lang) {
   };
   s = s.replace(new RegExp(`([€$£₽¥])\\s*(${amount})`, 'g'), (_,c,n)=>hold(money(n,c)));
   s = s.replace(new RegExp(`(${amount})\\s*(EUR|USD|GBP|RUB|RON|JPY|[€$£₽¥])`, 'g'), (_,n,c)=>hold(money(n,c)));
-  s = s.replace(/(?<![\p{L}\d])(\d+)\s*[-–]\s*(\d+)(?![\p{L}\d])/gu, (_,a,b)=>hold(l === 'ru' ? `от ${ruGenitive(a)} до ${ruGenitive(b)}` : `${word(a,l)} ${{en:'to',it:'a',ro:'până la',ja:'から'}[l]} ${word(b,l)}`));
+  // Japanese words have no spaces: a range before 日 or ページ is still a range.
+  s = s.replace(l === 'ja' ? /(?<![A-Za-z\d])(\d+)\s*[-–]\s*(\d+)(?![A-Za-z\d])/gu : /(?<![\p{L}\d])(\d+)\s*[-–]\s*(\d+)(?![\p{L}\d])/gu, (_,a,b)=>hold(l === 'ru' ? `от ${ruGenitive(a)} до ${ruGenitive(b)}` : `${word(a,l)} ${{en:'to',it:'a',ro:'până la',ja:'から'}[l]} ${word(b,l)}`));
   const pattern = l === 'ja'
     ? /(?<![A-Za-z\d])(-?(?:\d{1,3}(?:[.,\u00a0\u202f ]\d{3})+|\d+)(?:[.,]\d+)?)(\s*%)?(?![A-Za-z\d])/gu
     : /(?<![\p{L}\d])(-?(?:\d{1,3}(?:[.,\u00a0\u202f ]\d{3})+|\d+)(?:[.,]\d+)?)(\s*%)?(?![\p{L}\d])/gu;
