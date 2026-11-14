@@ -22,6 +22,7 @@ import { parseBuddyAnswer } from "./prompt";
 import { checkRuntime } from "../../../desktop/ollama-runtime";
 import { LOCAL_MODELS } from "@/lib/localModels";
 import { localTargetPrompt } from "./local-target-prompt";
+import { memoryBlock } from "./memory";
 
 export type BuddyProviderId = "local" | "cloud" | "freellm";
 
@@ -51,6 +52,12 @@ export type BuddyAskRequest = {
   elements?: unknown;
   /** Resume after Stop: the conversation ends with the part of the answer the user saw, and the model carries on from it (lib/buddy/prompt.ts resumeQuestion). */
   resume?: boolean;
+  /**
+   * "Remember things about me": the facts the desktop app picked for this question (lib/buddy/memory.ts).
+   * Set by the ask route only after its own checks; added to the answer's system prompt, never to a
+   * caller's own task (a shape).
+   */
+  memory?: string[];
 };
 
 /**
@@ -331,7 +338,7 @@ async function* askOllamaOnce(req: BuddyAskRequest, signal?: AbortSignal, helper
         // A JSON schema the answer must follow (Ollama structured output), when the caller has one.
         ...(shape?.format ? { format: shape.format } : {}),
         messages: [
-          { role: "system", content: withLocalDate(shape?.system ?? targetPrompt?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures, quoted: isPhoneQuestionForModel(req.question) }), requestDate) },
+          { role: "system", content: withLocalDate(shape?.system ?? (targetPrompt?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures, quoted: isPhoneQuestionForModel(req.question) })) + memoryBlock(req.memory), requestDate) },
           ...history,
           // Gemma reads images placed on the message before the text. Text mode sends no picture at all.
           { role: "user", content: shape ? req.question : targetPrompt?.question ?? withScreenNote(req.question, pictures), images: pictures ? req.images.map(base64Of) : [] },
@@ -401,7 +408,7 @@ async function* askOpenRouter(req: BuddyAskRequest, signal?: AbortSignal, shape?
       // thinking off or minimal, as measured: a model that thinks first speaks later
       ...reasoningFor(shape?.model || BUDDY_CLOUD_MODEL()),
       messages: [
-        { role: "system", content: withLocalDate(shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures, quoted: isPhoneQuestionForModel(req.question) }), new Date()) },
+        { role: "system", content: withLocalDate(shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures, quoted: isPhoneQuestionForModel(req.question) }) + memoryBlock(req.memory), new Date()) },
         ...history,
         {
           role: "user",
@@ -440,7 +447,7 @@ async function* askFreeLlm(req: BuddyAskRequest, signal?: AbortSignal, shape?: A
     temperature: 0.3,
     max_tokens: shape?.maxTokens ?? 1500,
     messages: [
-      { role: "system", content: withLocalDate(shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures, quoted: isPhoneQuestionForModel(req.question) }), new Date()) },
+      { role: "system", content: withLocalDate(shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures, quoted: isPhoneQuestionForModel(req.question) }) + memoryBlock(req.memory), new Date()) },
       ...history,
       { role: "user", content: [{ type: "text", text: shape ? req.question : withScreenNote(req.question, pictures) }, ...(pictures ? req.images : []).map((url) => ({ type: "image_url", image_url: { url } }))] },
     ],

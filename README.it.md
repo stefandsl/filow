@@ -727,6 +727,10 @@ Puoi comunque scegliere una delle dieci voci; una scelta esplicita già salvata 
 La velocità della voce (da 0,8x a 1,3x) vale per la voce naturale, quella di sistema e quella online;
 Anteprima dice una breve frase nella lingua dell'interfaccia a quella velocità. 1,0x è il ritmo
 abituale di ogni lingua.
+"Ricorda cose su di me" (spento all'inizio) tiene, dopo ogni risposta, fino a 3 brevi preferenze o
+fatti che dici su di te, solo su questo PC, e ne aggiunge fino a 5 pertinenti alle domande successive;
+l'elenco mostra quando e da quale domanda è stato appreso ognuno, con Elimina ed Elimina tutto. Online
+chiede prima, nominando "le tue preferenze salvate" ([docs/okfilow/MEMORY.md](docs/okfilow/MEMORY.md)).
 La voce locale pronuncia in inglese i termini comuni dell'interfaccia e le etichette inglesi
 citate dallo schermo, mantenendo la stessa voce. Espande date, orari, anni, importi e versioni
 prima di parlare e conserva una breve coda silenziosa. Le forme numeriche russe, rumene e

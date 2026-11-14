@@ -122,6 +122,15 @@ html[data-theme="light"] .okf-point-target { border-color: #684500; box-shadow: 
 /* Voice speed: the label and its choice fill the row, Preview sits at the end. */
 .okf-speed { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 12px; }
 .okf-row > .okf-link { align-self: center; }
+/* "Remember things about me": the facts kept on this PC, each with where it came from and Delete. */
+.okf-memory { display: flex; flex-direction: column; gap: 6px; }
+.okf-memory-list { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--text, #fff) 16%, transparent); border-radius: 10px; }
+.okf-memory-list h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.okf-memory-list ul { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.okf-memory-list li { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; row-gap: 2px; align-items: start; font-size: 13px; }
+.okf-memory-text { overflow-wrap: anywhere; }
+.okf-memory-from { grid-column: 1; font-size: 12px; opacity: 0.7; overflow-wrap: anywhere; }
+.okf-memory-list li .okf-link { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
 .okf-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--okf-ink); cursor: pointer; }
 
 /* Drawings: pen strokes that draw themselves, one after another (HeyClicky-style teaching marks). */
@@ -194,8 +203,9 @@ html[data-theme="light"] .okf-point-target { border-color: #684500; box-shadow: 
 .okf-handsfree { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; padding: 8px 10px; border-radius: 10px; font-size: 13px; background: color-mix(in srgb, var(--okf-ink) 14%, transparent); }
 .okf-handsfree button { flex: none; padding: 5px 10px; border: 0; border-radius: 8px; background: var(--okf-ink); color: #08090b; font-weight: 700; cursor: pointer; }
 .okf-swatches { display: flex; gap: 6px; }
-.okf-swatch { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 2px solid transparent; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25); }
-.okf-swatch--on { border-color: #fff; }
+/* The ring and the edge follow the text colour, so the white swatch and the chosen one show in the light theme too. */
+.okf-swatch { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 2px solid transparent; cursor: pointer; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text, #fff) 30%, transparent); }
+.okf-swatch--on { border-color: var(--text, #fff); }
 .okf-swatch:focus-visible, .okf-link:focus-visible { outline: 2px solid var(--okf-ink); outline-offset: 2px; }
 .okf-link { align-self: flex-start; padding: 0; border: 0; background: none; color: inherit; opacity: 0.75; font-size: 13px; text-decoration: underline; cursor: pointer; }
 .okf-link:hover { opacity: 1; }

@@ -15,7 +15,9 @@ import { dictationText, pasteKeys, type DictationKey } from "@/lib/dictation/tex
 import { playCue } from "@/lib/dictation/cue";
 import { createPhraseFlow, type PhraseFlow } from "@/lib/dictation/handsfree";
 import { burnStrokes, createVad, describeMarked } from "@/lib/buddy/listen";
-import { askRoute, askRouteRecipient, changesStored, consentKey, FREELLM_ID, joinNames, localAnswersLabel, localNames, localServer, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
+import { askRoute, askRouteRecipient, changesStored, consentKey, FREELLM_ID, joinNames, localAnswersLabel, localNames, localServer, MEMORY_CONSENT_HEADER, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
+import { learnFacts } from "@/lib/buddy/memory";
+import { MemorySettings } from "./memory-settings";
 import { FREELLM_DOWNLOAD_URL, freellmCodeOf, localizeFreeLlmError } from "@/lib/freellm";
 import { FreeLlmPanelNotes } from "./freellm-notes";
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
@@ -150,6 +152,8 @@ export default function OkFilowPanel() {
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   const [resumable, setResumable] = useState(false);
+  /** Goes up when an answer taught OK Filow something ("Remember things about me"): the list is read again. */
+  const [learned, setLearned] = useState(0);
   /** The clock the answer's marks are drawn on: it stands still during a pause, like the overlay's. */
   const drawClock = useRef(createPausableClock());
   /** The answer in progress: whether it is read aloud, its language, and its marks (for a Resume after Stop). */
@@ -683,6 +687,25 @@ export default function OkFilowPanel() {
           setNote(t("kept_ask"));
         } else to = recipient;
       }
+      // "Remember things about me" (lib/buddy/memory.ts): off by default. The facts that fit this question
+      // come from this PC; with a question that leaves this PC they go only after their own yes
+      // ("your saved preferences"). A no keeps them here and the question goes without them.
+      const remembers = statusRef.current?.memory === true && Boolean(b.memory) && !opts.phone && !resume && !photo;
+      let remembered: string[] = [];
+      let memoryYes = false;
+      if (remembers) {
+        memoryYes = !to;
+        if (to) {
+          const waits = out.standing("memory", to) === "ask";
+          if (waits) b.text(t("noticeWaiting"));
+          const decision = await out.allow("memory", to);
+          if (waits) b.text("");
+          if (run.current !== id) return sendTimings(tm, "superseded", b);
+          memoryYes = decision === "granted";
+          if (waits && decision === "declined") setNote(t("kept_memory"));
+        }
+        if (memoryYes) remembered = (await b.memory!.recall(question).catch(() => [])).map((f) => f.text);
+      }
       // What the server says about the answer: whether the model saw a picture (X-Buddy-Sees) and the
       // language it answered in (X-Buddy-Lang), which the voice uses to pick a matching voice.
       let seesText = false;
@@ -730,7 +753,9 @@ export default function OkFilowPanel() {
       };
       const send = async (consent: Record<string, string>, quiet?: () => void) => {
         // X-Filow-Run: the speed baseline's server marks of this answer (lib/buddy/timing.ts); a number, nothing else.
-        const headers = { "Content-Type": "application/json", ...(await engineHeaders()), ...consent, "X-Filow-Run": String(id) };
+        // The saved preferences' own yes travels in its own header (the server checks both).
+        const memoryHeader: Record<string, string> = remembered.length && to ? { [MEMORY_CONSENT_HEADER]: consentKey("memory", to) } : {};
+        const headers = { "Content-Type": "application/json", ...(await engineHeaders()), ...consent, ...memoryHeader, "X-Filow-Run": String(id) };
         // The eye was closed after the screenshot was taken (while the notice was open, say): the
         // picture is dropped here, at the last moment before anything is sent, and the question goes
         // with the words only. Nothing of the screen leaves.
@@ -744,7 +769,7 @@ export default function OkFilowPanel() {
           headers,
           // sees: false when this question goes without the screen; else the user's own choice, or nothing so the setup decides
           // resume: the conversation ends with the part of the answer already shown, and the model carries on from it
-          body: JSON.stringify({ question: markedNote ? questionForModel(source, question) + "\n" + markedNote : questionForModel(source, question), images: withScreen ? images : [], screens: shot.screens, elements: withScreen ? shot.elements : undefined, history: plan.history ? presenterHistory(history.current) : [], language: getSpeechLang(), uiLanguage: langRef.current, provider: route, setup: getSetupPreference(), sees: withScreen ? askSees(statusRef.current?.seeScreen) : false, ...(resume ? { resume: true } : {}) }),
+          body: JSON.stringify({ question: markedNote ? questionForModel(source, question) + "\n" + markedNote : questionForModel(source, question), images: withScreen ? images : [], screens: shot.screens, elements: withScreen ? shot.elements : undefined, history: plan.history ? presenterHistory(history.current) : [], language: getSpeechLang(), uiLanguage: langRef.current, provider: route, setup: getSetupPreference(), sees: withScreen ? askSees(statusRef.current?.seeScreen) : false, ...(resume ? { resume: true } : {}), ...(remembered.length ? { memory: remembered } : {}) }),
         });
         if (!res.ok || !res.body) {
           // Refused before anything was forwarded (no yes on record, Offline mode, FreeLLMAPI without a key): nothing went outside.
@@ -802,6 +827,16 @@ export default function OkFilowPanel() {
         ? [...history.current.slice(0, -1), { role: "assistant" as const, text: body.trim() }]
         : [...history.current, ...(opts.phone ? phoneTurns(question, opts.phone.device, body.trim()) : [{ role: "user" as const, text: question }, { role: "assistant" as const, text: body.trim() }])].slice(-12);
       saveHistory(history.current);
+      // Learn after the answer, by the same route, only with the yes for it (memoryYes); never waits on it.
+      if (remembers && memoryYes) {
+        void learnFacts({
+          question, route, to,
+          sending: (kind, recipient, send) => out.sending(kind, recipient, send),
+          post: async (headers, payload) => fetch("/api/buddy/memory", { method: "POST", headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...headers }, body: payload }),
+          setup: getSetupPreference(),
+          keep: (q, facts) => b.memory!.learn(q, facts),
+        }).then((facts) => { if (facts.length) setLearned((n) => n + 1); });
+      }
       if (answerCtx.current?.id === id) answerCtx.current.lang = answerLang;
       // From here a Stop keeps the conversation as it is: the whole answer is in it.
       turn.current.progress(id, text);
@@ -1668,6 +1703,7 @@ export default function OkFilowPanel() {
             <span>{t("answerLog")}</span>
             <input type="checkbox" checked={c.answerLog === true} onChange={(e) => void configure({ answerLog: e.target.checked })} />
           </label>
+          <MemorySettings bridge={bridge} status={c} t={t} configure={configure} lang={lang} learned={learned} />
           {c.answerLog && <div className="okf-row">
             <button type="button" className="okf-link" onClick={() => void okFilowBridge()?.deleteAnswers().then((n) => setNote(t("answersDeleted").replace("{n}", String(n))))}>{t("deleteAnswers")}</button>
           </div>}

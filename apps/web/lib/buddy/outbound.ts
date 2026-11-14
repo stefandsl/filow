@@ -8,9 +8,10 @@
 /** ask: question + screenshots. voice: answer text. audio: microphone. photo: a card's subject name.
  *  agent: task + last answer, through a coding CLI. transcript: spoken words, for take decisions.
  *  screen: pictures of the shared screen during a take. script: script text and slide pictures,
- *  for writing or translating a script. */
-export type OutboundKind = "ask" | "voice" | "audio" | "photo" | "agent" | "transcript" | "screen" | "script" | "account";
-export const OUTBOUND_KINDS: OutboundKind[] = ["ask", "voice", "audio", "photo", "agent", "transcript", "screen", "script", "account"];
+ *  for writing or translating a script. memory: the user's saved preferences ("Remember things
+ *  about me") with an online question, and that question read online to find new ones. */
+export type OutboundKind = "ask" | "voice" | "audio" | "photo" | "agent" | "transcript" | "screen" | "script" | "account" | "memory";
+export const OUTBOUND_KINDS: OutboundKind[] = ["ask", "voice", "audio", "photo", "agent", "transcript", "screen", "script", "account", "memory"];
 /**
  * names: who receives it, in order (the router first, then the maker of the model).
  * picked: OpenRouter chooses the company that runs the model, which may not be its maker
@@ -26,6 +27,13 @@ export type OutboundSnapshot = { active: boolean; kinds: OutboundKind[]; names: 
 
 /** Request header carrying the consent key the client holds for this send. */
 export const CONSENT_HEADER = "x-filow-consent";
+/**
+ * The second key a question carries when the user's saved preferences go with it (`memory:<recipient>`):
+ * the question itself still needs its `ask` key in CONSENT_HEADER.
+ */
+export const MEMORY_CONSENT_HEADER = "x-filow-consent-memory";
+/** True when the request carries the yes for the saved preferences to go to this recipient. */
+export const memoryAllowed = (req: Request, recipient: Recipient): boolean => consentDenied(req, "memory", recipient, MEMORY_CONSENT_HEADER) === null;
 
 /**
  * A send shorter than this still shows the signal this long, so it can be seen and read. The OK Filow
@@ -292,13 +300,14 @@ export type BuddyRecipients = {
  * What to do before a send. granted: go. declined: keep it on this PC without asking again.
  * ask: show the notice first.
  *
- * Only an optional extra (a card's picture) stays declined silently. For the others a "no" also
+ * Only an optional extra (a card's picture, the saved preferences) stays declined silently: the
+ * question is answered without it. For the others a "no" also
  * switches the feature to this PC, so finding the cloud selected again means the user chose it
  * again: they get the notice again instead of a send or a silent refusal.
  */
 export function standing(consent: ConsentMap | undefined | null, kind: OutboundKind, recipient: Recipient): "granted" | "declined" | "ask" {
   if (isGranted(consent, kind, recipient)) return "granted";
-  if (kind === "photo" && consent?.[consentKey(kind, recipient)]?.state === "declined") return "declined";
+  if ((kind === "photo" || kind === "memory") && consent?.[consentKey(kind, recipient)]?.state === "declined") return "declined";
   return "ask";
 }
 
@@ -391,10 +400,10 @@ export function createNoticeQueue(onChange: (head: NoticeRequest | null) => void
  * `code` is for programs; `error` is the sentence a client without its own notice (the PowerPoint
  * add-in, the browser extension) shows as it is, so the user learns why nothing happened.
  */
-export function consentDenied(req: Request, kind: OutboundKind, recipient: Recipient): Response | null {
+export function consentDenied(req: Request, kind: OutboundKind, recipient: Recipient, header = CONSENT_HEADER): Response | null {
   // A controller token (a paired device, lib/engineAuth.ts) never carries the presenter's yes: its consent header is not read.
   const controller = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").startsWith("c.");
-  if (!controller && req.headers.get(CONSENT_HEADER) === consentKey(kind, recipient)) return null;
+  if (!controller && req.headers.get(header) === consentKey(kind, recipient)) return null;
   const who = whoPhrase(recipient, "{a} and {b}", "and","{a} and then to a company it picks to run the model by {b}");
   const error = `Not sent: this would go to ${who}, and you have not said yes to that here. Use Local mode, or allow it in the Filow window that asks.`;
   return Response.json({ error, code: "consent_required", kind, recipient }, { status: 403 });

@@ -62,6 +62,8 @@ const DEFAULTS = {
   allowScreenshots: false,
   /** Answer log (question, raw text, visuals, screenshot per answer): opt-in, the only time a screenshot touches disk. */
   answerLog: false,
+  /** "Remember things about me" (okfilow-memory.js): off until the user turns it on. */
+  memory: false,
   /** Its folder; empty means "okfilow-answers" in the app's data folder (see defaultAnswerDir). */
   answerDir: "",
   /** What the user allowed or refused to send outside, per kind and recipient ("ask:openrouter/google"). */
@@ -161,6 +163,7 @@ function nextCfg(was, patch) {
   next.eyeKey = keyChoice(next.eyeKey, EYE_KEYS);
   next.pauseKey = keyChoice(next.pauseKey, PAUSE_KEYS);
   next.answerLog = next.answerLog === true;
+  next.memory = next.memory === true;
   next.answerDir = typeof next.answerDir === "string" ? next.answerDir.slice(0, 500) : "";
   if (!["auto", "codex", "claude"].includes(next.agentCli)) next.agentCli = "auto";
   next.consent = sanitizeConsent(next.consent);
@@ -1276,6 +1279,20 @@ function createOkFilow(deps) {
     logLine(`okfilow: deleted ${n} saved answer(s)`);
     return n;
   }));
+  // "Remember things about me" (okfilow-memory.js): one file in this profile, never synced. Off, a
+  // question gets nothing from it and an answer adds nothing to it; the list and Delete always work.
+  const memory = require("./okfilow-memory").createMemory(userData);
+  ipcMain.handle("okfilow:memory:list", guard(() => memory.list()));
+  ipcMain.handle("okfilow:memory:recall", guard((question) => memory.recall(cfg().memory, typeof question === "string" ? question.slice(0, 2000) : "")));
+  ipcMain.handle("okfilow:memory:learn", guard((req) => {
+    if (!req || typeof req !== "object" || typeof req.question !== "string") return [];
+    const kept = memory.learn(cfg().memory, req.question.slice(0, 2000), Array.isArray(req.facts) ? req.facts.slice(0, 10) : []);
+    // The log says how many, never what: the facts stay in their file.
+    if (kept.length) logLine(`okfilow: memory kept ${kept.length} new fact(s)`);
+    return kept;
+  }));
+  ipcMain.handle("okfilow:memory:remove", guard((id) => memory.remove(String(id ?? ""))));
+  ipcMain.handle("okfilow:memory:clear", guard(() => { logLine("okfilow: memory deleted by the user"); return memory.clear(); }));
   ipcMain.handle("okfilow:openAnswers", guard(async () => {
     const dir = lastAnswerDir || answerRoot(cfg().answerDir, answersFallback());
     const fs = require("node:fs");

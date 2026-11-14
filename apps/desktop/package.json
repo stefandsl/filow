@@ -125,6 +125,7 @@
       "prompt-date.js",
       "okfilow-selection.js",
       "okfilow-answers.js",
+      "okfilow-memory.js",
       "okfilow-outbound.js",
       "okfilow-stop.js",
       "okfilow-phone.js",
