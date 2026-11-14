@@ -120,7 +120,8 @@ function createDictation(deps) {
   /**
    * A text field has the focus in that window's page: null when none does, `{ password: true }` for a
    * password box (dictation never goes into one), else the character just before the caret (so a second
-   * dictation is not glued to the first one's full stop).
+   * dictation is not glued to the first one's full stop) and the few words before it (so a dictation
+   * that goes on in the middle of a sentence gets no capital).
    */
   async function editableFocused(win) {
     try {
@@ -128,13 +129,13 @@ function createDictation(deps) {
         "(() => { const e = document.activeElement; if (!e) return null;" +
         " if (e.tagName === 'INPUT' && /^password$/i.test(e.type || '')) return { password: true };" +
         " if (e.disabled || e.readOnly) return null;" +
-        " if (e.isContentEditable) { const s = getSelection(); const n = s && s.anchorNode; return { before: n && n.nodeType === 3 ? n.textContent.slice(Math.max(0, s.anchorOffset - 1), s.anchorOffset) : '' }; }" +
+        " if (e.isContentEditable) { const s = getSelection(); const n = s && s.anchorNode; const t = n && n.nodeType === 3 ? n.textContent.slice(0, s.anchorOffset) : ''; return { before: t.slice(-1), left: t.slice(-24) }; }" +
         " const field = e.tagName === 'TEXTAREA' || (e.tagName === 'INPUT' && /^(text|search|email|url|tel|)$/i.test(e.type || ''));" +
-        " if (!field) return null; const at = e.selectionStart || 0; return { before: e.value.slice(Math.max(0, at - 1), at) }; })()",
+        " if (!field) return null; const t = e.value.slice(0, e.selectionStart || 0); return { before: t.slice(-1), left: t.slice(-24) }; })()",
         true,
       );
       if (!r || typeof r !== "object") return null;
-      return r.password === true ? { password: true } : { before: String(r.before || "") };
+      return r.password === true ? { password: true } : { before: String(r.before || ""), left: String(r.left || r.before || "") };
     } catch { return null; }
   }
 
@@ -204,7 +205,8 @@ function createDictation(deps) {
     // hook): a password box never gets dictated words, and they never reach the clipboard for it.
     const field = own ? await editableFocused(own) : null;
     if (field && field.password) return refuse();
-    if (!own && (await readTarget()).password) return refuse();
+    const there = own ? null : await readTarget();
+    if (there && there.password) return refuse();
     // English only: S1-mini by Superwhisper writes the words out on this PC (dictation-cleanup.js). An
     // answer that is late or not safely the same message is dropped: the words above go in instead.
     if (deps.cleaner) {
@@ -218,7 +220,12 @@ function createDictation(deps) {
     // PC adds full stops, commas, question marks and capitals (dictation-punctuate.js). It only adds; an
     // answer that is late or not provably the same words is dropped and the words above go in.
     if (deps.punctuator) {
-      const pu = await deps.punctuator.punctuate(text, { enabled: c.punctuate, language: c.language, spokenLanguage });
+      // What stands before the words, where Filow knows it: its own field, the phrase before this one, or
+      // its last dictation into the same window. A dictation that goes on in a sentence gets no capital.
+      // Another program's field with none of these: not known, and the words are taken as a new sentence.
+      const after = lastSpot && there && there.id && lastSpot.id === there.id && Date.now() - lastSpot.at < 10 * 60_000 ? lastSpot.left : undefined;
+      const left = field ? field.left : run && run.left !== undefined ? run.left : after;
+      const pu = await deps.punctuator.punctuate(text, { enabled: c.punctuate, language: c.language, spokenLanguage, left });
       if (pu.used) text = pu.text;
       diag.mark("punctuation", pu.used ? { used: true, took: pu.ms } : { used: false, why: pu.reason, took: pu.ms });
       if (pu.asked) logLine(`dictation: punctuation ${pu.used ? `added (${pu.ms} ms)` : `skipped (${pu.reason}, ${pu.ms} ms)`}`);
@@ -290,7 +297,7 @@ function createDictation(deps) {
     const went = () => {
       if (run) run.typed(text);
       ignoreMovesUntil = Date.now() + 400; // our own Ctrl + V comes back through the keyboard hook
-      lastSpot = seen && seen.id ? { id: seen.id, tail: text.slice(-1), at: Date.now() } : null;
+      lastSpot = seen && seen.id ? { id: seen.id, tail: text.slice(-1), left: text.slice(-24), at: Date.now() } : null;
     };
     // The space before a phrase depends on the phrase before it, so it is decided when this one's turn comes.
     const r = await inserter.insert(() => lead(run ? run.pasteText(text) : text), went, check);

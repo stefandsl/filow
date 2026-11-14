@@ -8,6 +8,10 @@
 // was none, a capital where there was a small letter. The words, their order, every letter and digit and
 // every mark and capital the recognizer wrote stay as they are; if that cannot be shown, the dictation
 // is typed as it was.
+//
+// After the model a rule adds the one capital it sometimes leaves out: the first letter of a sentence
+// (truecase-text.js sentenceStarts). The first word of the dictation gets it only when the text before
+// the caret, where Filow knows it, is empty or ends a sentence.
 const tc = require("./truecase-text");
 
 /** Languages where the numbers support it (CLEANUP-MULTILINGUAL.md). English goes to S1-mini by Superwhisper. */
@@ -29,9 +33,10 @@ function wanted(text, { enabled = true, language = "auto", spokenLanguage = "" }
 /**
  * The dictation with the model's labels applied, or null when it is not provably the same words.
  * `said`: what the recognizer wrote (after Filow's own text step); `pieces`, `labels`: the model's answer
- * for tc.lowerKeepLength(tc.stripMarks(said)).
+ * for tc.lowerKeepLength(tc.stripMarks(said)); `left`: the text just before the caret when it is known
+ * (undefined: the dictation is taken as the start of a text).
  */
-function combine(said, pieces, labels, lang) {
+function combine(said, pieces, labels, lang, left) {
   const original = String(said || "").replace(/\s+/g, " ").trim();
   const restored = tc.applyLabels(tc.stripMarks(original), pieces, labels, lang);
   if (restored === null) return null;
@@ -40,7 +45,7 @@ function combine(said, pieces, labels, lang) {
   if (merged === null || tc.skeleton(merged) !== tc.skeleton(original)) return null;
   // Japanese is written without spaces: the gap the recognizer left between two phrases goes when a mark fills it.
   // The other languages get the capital the model left out at the start of a sentence.
-  return lang === "ja" ? merged.replace(/([。、？]) (?=[぀-ヿ㐀-鿿])/g, "$1") : tc.sentenceStarts(merged, lang);
+  return lang === "ja" ? merged.replace(/([。、？]) (?=[぀-ヿ㐀-鿿])/g, "$1") : tc.sentenceStarts(merged, lang, left);
 }
 
 /**
@@ -70,7 +75,7 @@ function createPunctuator(deps) {
       ]);
       const ms = now() - t0;
       late = 0;
-      const text = combine(said, answer.pieces, answer.labels, w.lang);
+      const text = combine(said, answer.pieces, answer.labels, w.lang, opts.left);
       if (text === null) return keep("not the same words", ms, true);
       return { text, used: true, ms, reason: "", asked: true };
     } catch (err) {

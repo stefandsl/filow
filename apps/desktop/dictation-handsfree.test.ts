@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
-type Run = { pasteText(t: string): string; typed(t: string): void; copyText(t: string): string; moved(): void };
+type Run = { pasteText(t: string): string; typed(t: string): void; copyText(t: string): string; moved(): void; readonly left?: string };
 type Result = { ok: boolean; action: string; reason: string; chars: number };
 const { createDictation } = require("./dictation.js") as {
   createDictation(deps: Record<string, unknown>): {
@@ -157,5 +157,20 @@ describe("hands-free dictation: phrase after phrase", () => {
     a.typed("word");
     expect(a.pasteText("next")).toBe(" next");
     expect(core.createPhraseRun().pasteText("next")).toBe("next");
+  });
+
+  it("a run knows the end of its last phrase, for the capital of the next one", () => {
+    const a = core.createPhraseRun();
+    expect(a.left).toBeUndefined(); // nothing typed yet: what is in the field is not known
+    a.typed("Vado al mare.");
+    expect(a.left).toBe("Vado al mare.");
+    a.typed("e poi torno a casa, forse anche prima di sera");
+    expect(a.left).toBe("orse anche prima di sera");
+    a.typed(""); // only a filler sound: nothing went in
+    expect(a.left).toBe("orse anche prima di sera");
+    a.moved(); // the caret may be anywhere now
+    expect(a.left).toBeUndefined();
+    a.copyText("copiato");
+    expect(a.left).toBe("copiato");
   });
 });
