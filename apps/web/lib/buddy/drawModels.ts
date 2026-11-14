@@ -24,6 +24,15 @@ export const isDrawModel = (task: DrawTask, model: unknown): model is string => 
 export const drawTaskOf = (kind: DrawKind): DrawTask => (kind === "3d" ? "draw3d" : "draw2d");
 
 /**
+ * The answer length of an online drawing call; a normal answer keeps 1500. In the blind run at 1500,
+ * 2D answers used 930 to 1240 tokens (median per model) and up to 1500, 3D 1120 to 1430 and up to 1500,
+ * thinking included (up to 670): most failed answers were cut at the cap. About three times the
+ * longest leaves room for a detailed picture; a 3D model's parts list is longer.
+ * Not on this PC: there a small model that loops would run on (lib/buddy/providers.ts num_predict).
+ */
+export const DRAW_MAX_TOKENS: Record<DrawKind, number> = { "2d": 4000, "3d": 6000 };
+
+/**
  * The drawing task a question asks for, from its words only (no model call), or null for a normal
  * question. The server and the panel use the same rule, so the notice names the maker that is called.
  */

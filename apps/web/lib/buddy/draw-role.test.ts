@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { askRecipient, askRouteRecipient, consentKey } from "./outbound";
-import { DRAW_MODELS, drawTaskFor } from "./drawModels";
+import { DRAW_MAX_TOKENS, DRAW_MODELS, drawTaskFor } from "./drawModels";
 
 // The drawing role against a fake OpenRouter on loopback: which model each kind of question goes to,
 // and whose yes it needs. No real key, no paid call.
@@ -91,6 +91,22 @@ describe("drawing role: each request type goes to its own online model", () => {
     const res = await ask("draw a car", yesFor("openai/gpt-6-luna"), { history, resume: true });
     await res.text();
     expect(seen.map((s) => s.model)).toEqual(["openai/gpt-6-luna"]);
+  });
+});
+
+describe("drawing calls get room for a detailed picture; normal answers keep 1500", () => {
+  it("2D 4000, 3D 6000 online", async () => {
+    await (await ask("draw a car", yesFor("openai/gpt-6-astra"))).text();
+    await (await ask("make a 3D model of a car", yesFor("google/gemini-3.8-flash"))).text();
+    await (await ask("Where is Save?", yesFor("openai/gpt-6-luna"))).text();
+    expect(seen.map((s) => s.max_tokens)).toEqual([DRAW_MAX_TOKENS["2d"], DRAW_MAX_TOKENS["3d"], 1500]);
+    expect(DRAW_MAX_TOKENS).toEqual({ "2d": 4000, "3d": 6000 });
+  });
+
+  it("a retry after a reply with no picture keeps the drawing's model and cap", async () => {
+    reply = () => "I cannot draw.";
+    await (await ask("draw a car", yesFor("openai/gpt-6-astra"))).text();
+    expect(seen.map((s) => [s.model, s.max_tokens])).toEqual([["openai/gpt-6-astra", 4000], ["openai/gpt-6-astra", 4000]]);
   });
 });
 

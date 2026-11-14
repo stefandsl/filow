@@ -4,7 +4,7 @@ import { requireEngine } from "@/lib/engineAuth";
 import { dataUrlBytes, MAX_IMAGE_BYTES } from "@/lib/vision/openrouter";
 import { askRecipient, CONSENT_HEADER, consentDenied, MEMORY_CONSENT_HEADER, memoryAllowed, serverRecipient } from "@/lib/buddy/outbound";
 import { sanitizeMemory } from "@/lib/buddy/memory";
-import { drawTaskOf } from "@/lib/buddy/drawModels";
+import { DRAW_MAX_TOKENS, drawTaskOf } from "@/lib/buddy/drawModels";
 import { askBuddy, buddyCloudRecipient, drawCloudModel, resolveBuddyProvider, resolveLocalHelper, type BuddyAskRequest, type LocalHelper } from "@/lib/buddy/providers";
 import { serverAllowed } from "@/lib/modelRoles/helper";
 import { answerLanguage } from "@/lib/buddy/lang";
@@ -199,7 +199,7 @@ export async function POST(req: Request) {
   const asked: BuddyAskRequest = provider === "local" && named.length ? { ...ask, question: question + screenHint(named, screens.length), knownTarget: !quoted && isSimpleLocatorQuestion(question) } : ask;
   // Made inside the stream: a refused consent throws here and must reach the bubble as an error line.
   const pieces = () => drawing
-    ? drawnAnswer((shape, signal) => askBuddy(provider, ask, signal, helper, shape), { kind: drawing, language: known ?? "auto", lang, signal: abort.signal, model: drawModel })
+    ? drawnAnswer((shape, signal) => askBuddy(provider, ask, signal, helper, shape), { kind: drawing, language: known ?? "auto", lang, signal: abort.signal, model: drawModel, maxTokens: provider === "local" ? undefined : DRAW_MAX_TOKENS[drawing] })
     : pointer
       // boxes and circles are placed as they stream; the points wait for the pointing model, which is asked only for what Windows does not name
       ? withNamedPoint(withPointer(withPlacedTags(askBuddy(provider, asked, abort.signal, helper, undefined, timing), elements, { points: false }), whereIs, () => abort.signal.aborted, elements, helper && canPick(helper.model) ? whichOf : undefined), named, screens.length)
