@@ -407,24 +407,21 @@ function joinAfter(before, text) {
  */
 function createPhraseRun() {
   let tail = ""; // the last character typed or copied in this run
-  let left; // the end of the last phrase, for the capital of the next one; undefined: not known
   let copied = "";
   return {
-    /** What stands before the next phrase, as far as this run knows (dictation-punctuate.js). */
-    get left() { return left; },
     /** The text to paste for this phrase, given the phrases already typed. */
     pasteText(text) { return joinAfter(tail, text); },
     /** The phrase went in (pasted, or typed directly into one of Filow's own fields). */
-    typed(text) { if (text) { tail = text.slice(-1); left = text.slice(-24); } },
+    typed(text) { if (text) tail = text.slice(-1); },
     /**
      * The user moved on by themselves (Enter, Tab, a mouse click): the caret is no longer right after
      * the last phrase, so the next one starts without a space (a new chat message, another field).
      */
-    moved() { tail = ""; left = undefined; },
+    moved() { tail = ""; },
     /** Copy only: the whole text said so far, for the clipboard. */
     copyText(text) {
       copied += joinAfter(copied.slice(-1), text);
-      if (text) { tail = text.slice(-1); left = text.slice(-24); }
+      if (text) tail = text.slice(-1);
       return copied;
     },
   };

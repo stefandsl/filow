@@ -101,42 +101,43 @@ describe("punctuation: a sentence start the model left small gets its capital", 
     [""],
     ["   "],
     ["Domani vado a Roma. torno giovedì sera.", "Domani vado a Roma. Torno giovedì sera."],
-    ["am vorbit cu Ioana Marinescu de la ONU la Geneva.", "Am vorbit cu Ioana Marinescu de la ONU la Geneva."],
-    ["the meeting is at 9.30. we start with the budget.", "The meeting is at 9.30. We start with the budget."],
-    ["pi is about 3.14 and e is about 2.71.", "Pi is about 3.14 and e is about 2.71."],
-    ["ci vediamo alle 9.30 davanti alla stazione.", "Ci vediamo alle 9.30 davanti alla stazione."],
-    ["non so... forse domani.", "Non so... forse domani."],
-    ["aspetta… ci penso io.", "Aspetta… ci penso io."],
-    ["ты придёшь завтра? да, приду! отлично.", "Ты придёшь завтра? Да, приду! Отлично."],
-    ["версия 2.5.1 вышла вчера. обновляюсь сегодня.", "Версия 2.5.1 вышла вчера. Обновляюсь сегодня."],
-    ["это стоит 5 тыс. рублей.", "Это стоит 5 тыс. рублей."],
-    ["șeful a plecat. îl sun mâine. țin legătura.", "Șeful a plecat. Îl sun mâine. Țin legătura."],
-    ["locuiesc la nr. 5 pe strada mare.", "Locuiesc la nr. 5 pe strada mare."],
+    ["am vorbit cu Ioana Marinescu de la ONU la Geneva."], // the first word is the model's, not the rule's
+    ["the meeting is at 9.30. we start with the budget.", "the meeting is at 9.30. We start with the budget."],
+    ["pi is about 3.14 and e is about 2.71."],
+    ["ci vediamo alle 9.30 davanti alla stazione."],
+    ["non so... forse domani."],
+    ["aspetta… ci penso io."],
+    ["ты придёшь завтра? да, приду! отлично.", "ты придёшь завтра? Да, приду! Отлично."],
+    ["версия 2.5.1 вышла вчера. обновляюсь сегодня.", "версия 2.5.1 вышла вчера. Обновляюсь сегодня."],
+    ["это стоит 5 тыс. рублей."],
+    ["șeful a plecat. îl sun mâine. țin legătura.", "șeful a plecat. Îl sun mâine. Țin legătura."],
+    ["locuiesc la nr. 5 pe strada mare."],
     ["今日は会議があります。明日は休みです。"],
     ["wifiがつながりません。"],
-    ['"torno presto." disse lei.', '"Torno presto." disse lei.'],
-    ["he left early. (she stayed until six.)", "He left early. (She stayed until six.)"],
-    ["(forse) vengo anch'io.", "(Forse) vengo anch'io."],
-    ["он ответил. «приходи завтра».", "Он ответил. «Приходи завтра»."],
+    ['"torno presto." disse lei.'],
+    ["he left early. (she stayed until six.)", "he left early. (She stayed until six.)"],
+    ["(forse) vengo anch'io."],
+    ["он ответил. «приходи завтра».", "он ответил. «Приходи завтра»."],
     ["Il dott. rossi arriva domani."],
-    ["we met e.g. yesterday. it was fine.", "We met e.g. yesterday. It was fine."],
-    ["write to mario@example.com. he answers fast.", "Write to mario@example.com. He answers fast."],
-    ["apri example.com/login e accedi.", "Apri example.com/login e accedi."],
-    ["https://example.com non risponde."],
-    ["iPhone costs too much. eBay is cheaper."],
+    ["we met e.g. yesterday. it was fine.", "we met e.g. yesterday. It was fine."],
+    ["write to mario@example.com. he answers fast.", "write to mario@example.com. He answers fast."],
+    ["apri example.com/login e accedi."],
+    ["Guarda qui. https://example.com non risponde."],
+    ["Too much. iPhone costs less. eBay is cheaper."],
     ["Everything is fine here. Nothing needs a change!"],
-    ["what?! no way.", "What?! No way."],
-    ["are you sure? yes! let's go.", "Are you sure? Yes! Let's go."],
-    ["¿vienes mañana? ¡claro que sí!", "¿Vienes mañana? ¡Claro que sí!"],
-    ["prima riga.\nseconda riga.", "Prima riga.\nSeconda riga."],
+    ["what?! no way.", "what?! No way."],
+    ["are you sure? yes! let's go.", "are you sure? Yes! Let's go."],
+    ["¿vienes mañana? ¡claro que sí!", "¿vienes mañana? ¡Claro que sí!"],
+    ["prima riga.\nseconda riga.", "prima riga.\nSeconda riga."],
     ["3 mele e 2 pere. basta così.", "3 mele e 2 pere. Basta così."],
-    ["l'Italia ha vinto. l'allenatore è felice.", "L'Italia ha vinto. L'allenatore è felice."],
+    ["Basta così. 3 mele e 2 pere."],
+    ["l'Italia ha vinto. l'allenatore è felice.", "l'Italia ha vinto. L'allenatore è felice."],
     ["DOMANI PARTO. torno lunedì.", "DOMANI PARTO. Torno lunedì."],
-    ["ho parlato con J. rossi ieri.", "Ho parlato con J. rossi ieri."],
+    ["ho parlato con J. rossi ieri."],
     ["fine.poi vediamo."],
-    ["это был я. потом я ушёл.", "Это был я. Потом я ушёл."],
+    ["это был я. потом я ушёл.", "это был я. Потом я ушёл."],
   ];
-  it("raises only the first letter of a sentence, and only where the start is certain", () => {
+  it("raises only the first letter of a sentence inside the text, and only where the start is certain", () => {
     for (const [text, want = text] of CASES) {
       const out = tc.sentenceStarts(text);
       expect(out, text).toBe(want);
@@ -145,49 +146,57 @@ describe("punctuation: a sentence start the model left small gets its capital", 
       expect(out.toLowerCase(), `only case: ${text}`).toBe(text.toLowerCase());
     }
   });
+  it("never the first word: the dictation may go on in the middle of a sentence", () => {
+    expect(tc.sentenceStarts("am vorbit. apoi am plecat", "ro")).toBe("am vorbit. Apoi am plecat");
+    for (const same of ["e poi torno a casa", "  e poi torno a casa", "(forse) vengo", '"torno presto" disse', "- vieni domani", "¿vienes mañana", "я пришёл"]) {
+      for (const lang of ["it", "ru", "ro", "en", undefined]) expect(tc.sentenceStarts(same, lang), same).toBe(same);
+    }
+  });
   it("leaves Japanese as it is, and what it cannot be sure of", () => {
-    expect(tc.sentenceStarts("apple は高い。", "ja")).toBe("apple は高い。");
-    expect(tc.sentenceStarts("ecco fatto.\u00a0poi basta")).toBe("Ecco fatto.\u00a0Poi basta"); // a no-break space is a space
-    expect(tc.sentenceStarts("- vieni? - forse. resto qui")).toBe("- Vieni? - Forse. Resto qui"); // a dialogue dash
-    expect(tc.sentenceStarts("no. resto qui", "it")).toBe("No. Resto qui"); // "no." is a number only in English
-    expect(tc.sentenceStarts('disse "vengo." poi uscì. fine')).toBe('Disse "vengo." poi uscì. Fine'); // a closing quote: the sentence may go on
-    expect(tc.sentenceStarts("straße. ßa")).toBe("Straße. ßa"); // a capital of two letters would move the rest
-    expect(tc.sentenceStarts("costa 5 euro ecc. poi vediamo")).toBe("Costa 5 euro ecc. poi vediamo");
-    expect(tc.sentenceStarts("la S.p.A. chiude. file_name va bene")).toBe("La S.p.A. chiude. file_name va bene");
-    expect(tc.sentenceStarts("ore 10:30 va bene. 10:30 allora")).toBe("Ore 10:30 va bene. 10:30 allora");
+    expect(tc.sentenceStarts("apple wa. apple は高い。", "ja")).toBe("apple wa. apple は高い。");
+    expect(tc.sentenceStarts("Ecco fatto.\u00a0poi basta")).toBe("Ecco fatto.\u00a0Poi basta"); // a no-break space is a space
+    expect(tc.sentenceStarts("- vieni? - forse. resto qui")).toBe("- vieni? - Forse. Resto qui"); // a dialogue dash
+    expect(tc.sentenceStarts("Dico no. resto qui", "it")).toBe("Dico no. Resto qui"); // "no." is a number only in English
+    expect(tc.sentenceStarts('Disse "vengo." poi uscì. fine')).toBe('Disse "vengo." poi uscì. Fine'); // a closing quote: the sentence may go on
+    expect(tc.sentenceStarts("Die Straße. ßa. straße")).toBe("Die Straße. ßa. Straße"); // a capital of two letters would move the rest
+    expect(tc.sentenceStarts("Costa 5 euro ecc. poi vediamo")).toBe("Costa 5 euro ecc. poi vediamo");
+    expect(tc.sentenceStarts("La S.p.A. chiude. file_name va bene")).toBe("La S.p.A. chiude. file_name va bene");
+    expect(tc.sentenceStarts("Ore 10:30 va bene. 10:30 allora")).toBe("Ore 10:30 va bene. 10:30 allora");
+    expect(tc.sentenceStarts("Aspetta... forse. aspetta… forse")).toBe("Aspetta... forse. Aspetta… forse");
   });
   it("only a full stop, a question mark or an exclamation mark with a space after it ends a sentence", () => {
-    for (const same of ["Bene; poi vediamo", "Bene, poi vediamo", "Nota: poi vediamo", "Bene！ poi vediamo", "Bene？ poi vediamo", "Bene。 poi vediamo"]) expect(tc.sentenceStarts(same), same).toBe(same);
+    for (const same of ["Bene; poi vediamo", "Bene, poi vediamo", "Nota: poi vediamo", "Bene！ poi vediamo", "Bene？ poi vediamo", "Bene。 poi vediamo", "Fine.poi vediamo"]) expect(tc.sentenceStarts(same), same).toBe(same);
     // a dash opens a line of dialogue only with a space after it
-    expect(tc.sentenceStarts("-forse vengo")).toBe("-forse vengo");
     expect(tc.sentenceStarts("Vado. -forse vengo")).toBe("Vado. -forse vengo");
-    expect(tc.sentenceStarts("\u2013 forse. \u2014 vengo")).toBe("\u2013 Forse. \u2014 Vengo");
+    expect(tc.sentenceStarts("Vado. - forse vengo")).toBe("Vado. - Forse vengo");
+    expect(tc.sentenceStarts("Sì. \u2013 forse. \u2014 vengo")).toBe("Sì. \u2013 Forse. \u2014 Vengo");
   });
   it("the capital is the plain one, and only Latin, Cyrillic and Greek letters get it", () => {
-    expect(tc.sentenceStarts("istanbul è bella. io vado")).toBe("Istanbul è bella. Io vado"); // never the Turkish dotted capital
-    expect(tc.sentenceStarts("αύριο φεύγω. γυρίζω την πέμπτη")).toBe("Αύριο φεύγω. Γυρίζω την πέμπτη");
+    expect(tc.sentenceStarts("È bella. istanbul anche")).toBe("È bella. Istanbul anche"); // never the Turkish dotted capital
+    expect(tc.sentenceStarts("Αύριο φεύγω. γυρίζω την πέμπτη")).toBe("Αύριο φεύγω. Γυρίζω την πέμπτη");
     expect(tc.sentenceStarts("բարև ձեզ. բարև")).toBe("բարև ձեզ. բարև"); // Armenian has capitals too; it is not one of ours
   });
   it("a single letter or letters with full stops between them are a short form, not a sentence end", () => {
-    for (const same of ["Ci vediamo al n. civico dodici", "Vedi p. es. il secondo caso", "И т. д. и т. п. всё", "Т. е. завтра", "До н. э. жили", "Ho parlato con J. rossi", "Vedi ab.cd. poi", "We met e.g. yesterday"]) expect(tc.sentenceStarts(same), same).toBe(same);
+    for (const same of ["ci vediamo al n. civico dodici", "vedi p. es. il secondo caso", "и т. д. и т. п. всё", "т. е. завтра", "до н. э. жили", "ho parlato con J. rossi", "vedi ab.cd. poi", "we met e.g. yesterday", "а. с. пушкин", "a. b. c. d"]) expect(tc.sentenceStarts(same), same).toBe(same);
     // parts of three letters or with a digit are a file name or an address: the full stop after it ends the sentence
     expect(tc.sentenceStarts("Il file abc.def. poi basta")).toBe("Il file abc.def. Poi basta");
     expect(tc.sentenceStarts("Vedi a1.b2. poi basta")).toBe("Vedi a1.b2. Poi basta");
-    // the Russian "я" is a word that ends sentences
+    // the Russian "я" is a word that ends sentences, and starts them
     expect(tc.sentenceStarts("Это был я. потом я ушёл", "ru")).toBe("Это был я. Потом я ушёл");
+    expect(tc.sentenceStarts("Я. потом ушёл", "ru")).toBe("Я. Потом ушёл");
   });
   it("decides on the text as it came in, not on the capitals it has just written", () => {
-    expect(tc.sentenceStarts("я. потом ушёл", "ru")).toBe("Я. Потом ушёл"); // the raised "Я" must not turn into an initial
-    expect(tc.sentenceStarts("а. с. пушкин", "ru")).toBe("А. с. пушкин");
-    expect(tc.sentenceStarts("a. b. c. d")).toBe("A. b. c. d");
+    // "я" is raised first; the full stop after it must still be read as the end of the word "я"
+    expect(tc.sentenceStarts("Да. я. потом ушёл", "ru")).toBe("Да. Я. Потом ушёл");
+    expect(tc.sentenceStarts("Sì. a. b. c")).toBe("Sì. A. b. c");
   });
 
   // Every word of every list, as written here: a word taken out of the code fails its own line.
   const SHORT: Record<string, string> = {
     en: "mr mrs ms dr prof st vs etc no inc ltd jr sr approx",
-    it: "sig dott dr prof ing avv ecc etc pag art tel ca es cfr cap fig max nr",
-    ro: "dl dna dvs dv dr prof univ nr str bl ap etc pag art jud ex tel aprox cca",
-    ru: "г гг в вв ул д кв стр рис им др проф руб коп тыс млн млрд см ч мин сек напр ок",
+    it: "sig dott dr prof ing avv ecc etc pag art tel ca es cfr cap fig max nr sec min vol rif",
+    ro: "dl dna dvs dv dr prof univ ing nr str bl ap sc et bd com etc pag art cap fig jud ex tel aprox cca",
+    ru: "г гг в вв ул д кв стр рис им др проф руб коп долл тыс млн млрд см ч мин сек мес нед шт чел ст гр напр ок",
   };
   const table = Object.entries(SHORT).flatMap(([lang, list]) => list.split(" ").map((word) => [lang, word] as [string, string]));
   it.each(table)("%s: no capital after \"%s.\", however it is written", (lang, word) => {
@@ -202,43 +211,22 @@ describe("punctuation: a sentence start the model left small gets its capital", 
     expect(tc.sentenceStarts("Dico no. poi basta", "it")).toBe("Dico no. Poi basta"); // Italian: a whole answer
     expect(tc.sentenceStarts("Vedi art. dodici", "it")).toBe("Vedi art. dodici");
     expect(tc.sentenceStarts("This is art. it is nice", "en")).toBe("This is art. It is nice");
-    expect(tc.sentenceStarts("vă rog pe dvs. să veniți mâine", "ro")).toBe("Vă rog pe dvs. să veniți mâine");
-    expect(tc.sentenceStarts("в 5 ч. вечера", "ru")).toBe("В 5 ч. вечера");
-    expect(tc.sentenceStarts("cfr. il capitolo due", "it")).toBe("Cfr. il capitolo due");
+    expect(tc.sentenceStarts("vă rog pe dvs. să veniți mâine", "ro")).toBe("vă rog pe dvs. să veniți mâine");
+    expect(tc.sentenceStarts("в 5 ч. вечера", "ru")).toBe("в 5 ч. вечера");
+    expect(tc.sentenceStarts("vedi cfr. il capitolo due", "it")).toBe("vedi cfr. il capitolo due");
   });
-
-  it("the first word: only when what stands before it is empty or ends a sentence", () => {
-    const said = "e poi torno a casa. basta così";
-    const on = "E poi torno a casa. Basta così", off = "e poi torno a casa. Basta così"; // the second sentence is certain either way
-    // [what is left of the caret, the result]
-    const LEFT: [string | undefined | null, string][] = [
-      [undefined, on], [null, on], // not known: taken as the start of a text
-      ["", on], ["  \n", on], ["(", on],
-      ["Vado al mare.", on], ["Vado al mare. ", on], ["Vieni?", on], ["Che bello!\n", on], ["Davvero?! ", on],
-      ['Disse: "vengo." ', on], ["(Lui resta.) ", on], ["Va bene. - ", on], ["Это был я. ", on],
-      ["vado al mare", off], ["vado al mare ", off], ["vado al mare, ", off], ["vado al mare; ", off], ["nota: ", off],
-      ["sono le 3 ", off], ["aspetta... ", off], ["aspetta… ", off], ["il dott. ", off], ["al n. ", off], ["vedi p. es. ", off],
-      ["mare - ", off], ["行きます。", off], [".", off],
-    ];
-    for (const [left, want] of LEFT) expect(tc.sentenceStarts(said, "it", left), JSON.stringify(left)).toBe(want);
-    expect(tc.sentenceStarts(said, "it", "il Dott. ")).toBe(off);
-    expect(tc.sentenceStarts(said, "en", "the art. ")).toBe(on); // the list of the language decides here too
+  it("a language name it does not know, whatever it is: all the lists, and no error", () => {
+    for (const lang of ["constructor", "toString", "__proto__", "hasOwnProperty", "xx", "", null, undefined, 5]) {
+      expect(tc.sentenceStarts("Vedi dott. rossi e 5 тыс. рублей. poi basta", lang), String(lang)).toBe("Vedi dott. rossi e 5 тыс. рублей. Poi basta");
+    }
   });
-  it("the dictation gets it after the model's labels", async () => {
+  it("the dictation gets it after the model's labels", () => {
     const said = "domani vado a roma torno giovedì sera";
     const labels = ["0|Cap", "0|lower", "0|lower", ".|Cap", "0|lower", "0|lower", ".|lower"]; // no capital on "torno"
     expect(combine(said, words(said), labels, "it")).toBe("Domani vado a Roma. Torno giovedì sera.");
-    const ro = "am vorbit cu Ioana Marinescu de la ONU la Geneva"; // the recognizer wrote the names, the model raised nothing
-    const plain = (text: string) => words(text).map((_w: string, i: number, a: string[]) => (i === a.length - 1 ? ".|lower" : "0|lower"));
-    expect(combine(ro, words(ro), plain(ro), "ro")).toBe("Am vorbit cu Ioana Marinescu de la ONU la Geneva.");
-    // a dictation that goes on in the middle of a sentence keeps its small letter
-    const more = "e poi torno a casa";
-    expect(combine(more, words(more), plain(more), "it", "vado al mare")).toBe("e poi torno a casa.");
-    expect(combine(more, words(more), plain(more), "it", "Vado al mare.")).toBe("E poi torno a casa.");
-    const p = createPunctuator({ run: async (lower: string) => ({ pieces: words(lower), labels: plain(lower) }), ready: () => ({ ok: true, reason: "" }) });
-    expect((await p.punctuate(more, { language: "it", left: "vado al mare" })).text).toBe("e poi torno a casa.");
-    expect((await p.punctuate(more, { language: "it", left: "" })).text).toBe("E poi torno a casa.");
-    expect((await p.punctuate(more, { language: "it" })).text).toBe("E poi torno a casa.");
+    // The first word stays as the model labelled it: here it raised nothing.
+    const ro = "am vorbit cu Ioana apoi am plecat";
+    expect(combine(ro, words(ro), ["0|lower", "0|lower", "0|lower", ".|lower", "0|lower", "0|lower", ".|lower"], "ro")).toBe("am vorbit cu Ioana. Apoi am plecat.");
   });
 });
 

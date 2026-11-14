@@ -11,12 +11,11 @@ const require = createRequire(import.meta.url);
 type Info = Record<string, unknown>;
 type Helper = { info(): Info; sendPaste(): number; typeText(t: string): number };
 type Result = { ok: boolean; action: string; reason: string; chars: number };
-type Run = { pasteText(t: string): string; typed(t: string): void; copyText(t: string): string; moved(): void; readonly left?: string };
+type Run = { pasteText(t: string): string; typed(t: string): void; copyText(t: string): string; moved(): void };
 const { createDictation } = require("./dictation.js") as {
   createDictation(deps: Record<string, unknown>): {
     insert(raw: string, o: { hook?: unknown; keysUp?: () => Promise<boolean>; run?: Run }): Promise<Result>;
     newPhraseRun(): Run;
-    userMoved(): void;
     reportText(o?: Record<string, unknown>): string;
     diag: { begin(kind: string): void; mark(name: string, facts?: Record<string, unknown>): void };
   };
@@ -37,7 +36,7 @@ class FakeItem {
 
 const NOTEPAD: Info = { hwnd: 100, pid: 5, exe: "Notepad.exe", cls: "Notepad", focusCls: "RichEditD2DPT", elevated: 0, selfElevated: 0, own: false, password: false, passwordChecked: true, remote: false };
 
-function make(first: Info | null, settings: Record<string, unknown> = {}, ownWindow: unknown = null, more: Record<string, unknown> = {}) {
+function make(first: Info | null, settings: Record<string, unknown> = {}, ownWindow: unknown = null) {
   const st = { items: [new FakeItem({ "text/plain": "theirs" })] as FakeItem[], info: first };
   const text = () => String(st.items[0]?.data["text/plain"] ?? "");
   const pasted: string[] = [];
@@ -68,7 +67,6 @@ function make(first: Info | null, settings: Record<string, unknown> = {}, ownWin
     target: () => (st.info === undefined ? null : helper),
     platform: "win32",
     env: {},
-    ...more,
   });
   return { d, st, text, pasted, typed, writes, log, accept };
 }
@@ -145,42 +143,6 @@ describe("dictation target: where the words go", () => {
     expect((await own.d.insert("secret", { hook: {} })).action).toBe("refused");
     expect(own.writes).toEqual([]);
     expect(own.log.join("\n")).not.toContain("secret");
-  });
-
-  it("the punctuation step is told what stands before the words, where Filow knows it", async () => {
-    const lefts: unknown[] = [];
-    const punctuator = { punctuate: async (text: string, o: { left?: string }) => { lefts.push(o.left); return { text, used: false, ms: 0, reason: "test", asked: false }; } };
-    const m = make(NOTEPAD, {}, null, { punctuator });
-    const say = async (text: string, run?: Run) => { const r = m.d.insert(text, { hook: {}, run }); await vi.advanceTimersByTimeAsync(500); return r; };
-    // Another program's field: not known at first, then the end of Filow's own last dictation there.
-    await say("vado al mare");
-    await say("e poi torno a casa, forse anche prima di sera");
-    await say("basta");
-    expect(lefts).toEqual([undefined, "vado al mare", "orse anche prima di sera"]);
-    // The user typed or clicked, or the keyboard is in another window: not known again.
-    m.d.userMoved();
-    await say("ancora");
-    m.st.info = { ...NOTEPAD, hwnd: 200 };
-    await say("altrove");
-    expect(lefts.slice(3)).toEqual([undefined, undefined]);
-    // The phrases of one hands-free dictation: the phrase before, until the user moves on.
-    const run = m.d.newPhraseRun();
-    expect(run.left).toBeUndefined();
-    m.d.userMoved();
-    await say("prima frase.", run);
-    await say("seconda frase", run);
-    run.moved();
-    m.d.userMoved();
-    await say("terza", run);
-    expect(lefts.slice(5)).toEqual([undefined, "prima frase.", undefined]);
-    // One of Filow's own fields: the page says what is left of the caret.
-    const page = { before: "e", left: "vado al mare" };
-    const own = make(NOTEPAD, {}, { isDestroyed: () => false, isVisible: () => true, webContents: { executeJavaScript: async () => page, insertText: async () => {} } }, { punctuator });
-    await own.d.insert("e poi torno", { hook: {} });
-    page.left = "";
-    page.before = "";
-    await own.d.insert("e poi torno", { hook: {} });
-    expect(lefts.slice(8)).toEqual(["vado al mare", ""]);
   });
 
   it("Windows cannot say whether it is a password box: asked once more, then the log says the check was not possible", async () => {
