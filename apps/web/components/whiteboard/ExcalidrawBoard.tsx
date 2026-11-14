@@ -11,6 +11,7 @@ import type { Box } from "@/lib/whiteboard/layout";
 import type { Slot } from "@/lib/whiteboard/pace";
 import { keyOf, stepOf, type ExEl, type Scene } from "@/lib/whiteboard/scene";
 import { sceneSvg } from "@/lib/whiteboard/excalidraw";
+import { cleanBoardMedia, isVideoFile } from "@/lib/whiteboard/media";
 
 export type DrawnInfo = { visible: ExEl[]; complete: boolean; svg: SVGSVGElement };
 export type ExcalidrawBoardProps = {
@@ -32,7 +33,29 @@ export type ExcalidrawBoardProps = {
   pickLabel?: (text: string) => string;
   /** Called after each change is on the screen. */
   onDrawn?: (info: DrawnInfo) => void;
+  /** The play/pause button of a video on the board, in the page's language. */
+  videoLabels?: { play: string; pause: string };
 };
+
+/** A video on the board: muted and looping, over its poster, with one play/pause button. */
+function BoardVideo({ src, label, playLabel, pauseLabel, style }: { src: string; label: string; playLabel: string; pauseLabel: string; style: CSSProperties }) {
+  const v = useRef<HTMLVideoElement>(null);
+  const [paused, setPaused] = useState(false);
+  const toggle = () => {
+    const next = !paused;
+    setPaused(next);
+    if (next) v.current?.pause();
+    else void v.current?.play().catch(() => {});
+  };
+  return (
+    <div className="wb-video" style={style}>
+      <video ref={v} src={src} muted loop autoPlay playsInline disablePictureInPicture aria-label={label} />
+      <button type="button" className="wb-video-btn" aria-label={paused ? playLabel : pauseLabel} title={paused ? playLabel : pauseLabel} onClick={toggle}>
+        {paused ? <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M4 2.5v11l9-5.5z" fill="currentColor" /></svg> : <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" fill="currentColor" /></svg>}
+      </button>
+    </div>
+  );
+}
 
 const frameOf = (els: ExEl[]): Box => {
   const f = els.find((e) => e.id === "wb-frame");
@@ -40,7 +63,7 @@ const frameOf = (els: ExEl[]): Box => {
 };
 const signature = (els: ExEl[]) => els.map((e) => `${e.id}:${e.version ?? 0}:${e.versionNonce ?? 0}:${e.x},${e.y},${e.width},${e.height}:${e.strokeColor}:${e.fontSize ?? ""}`).join("|");
 
-export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, camera, label, onPick, pickLabel, onDrawn }: ExcalidrawBoardProps) {
+export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, camera, label, onPick, pickLabel, onDrawn, videoLabels }: ExcalidrawBoardProps) {
   const host = useRef<HTMLDivElement>(null);
   const els = scene.elements;
   const board = frameOf(els);
@@ -170,10 +193,17 @@ export function ExcalidrawBoard({ scene, current, timing, rest, dark, animate, c
   const count = (f: (e: ExEl) => boolean) => visible.filter(f).length;
   const words = visible.filter((e) => e.type === "text").map((e) => (e.originalText ?? e.text ?? "").replace(/\s+/g, " ").trim()).filter(Boolean);
   return (
-    <div className={`wb-ex${animate ? " wb-ex-animate" : ""}${dark ? " wb-ex-dark" : ""}`} style={{ aspectRatio: `${target.w} / ${target.h}`, width: `min(100%, calc((100vh - 150px) * ${(target.w / target.h).toFixed(4)}))` } as CSSProperties} role="group" aria-label={label} data-step={current} data-elements={visible.length} data-complete={complete || undefined} data-nodes={count((e) => e.customData?.wb?.role === "node" && e.type !== "text")} data-edges={count((e) => e.customData?.wb?.role === "edge")} data-formulas={count((e) => typeof e.customData?.tex === "string")} data-plots={count((e) => /^b-.*-ax$/.test(e.id))} data-cards={count((e) => e.customData?.wb?.role === "block" && e.strokeStyle === "dashed")} data-sketches={count((e) => e.type === "image")}>
+    <div className={`wb-ex${animate ? " wb-ex-animate" : ""}${dark ? " wb-ex-dark" : ""}`} style={{ aspectRatio: `${target.w} / ${target.h}`, width: `min(100%, calc((100vh - 150px) * ${(target.w / target.h).toFixed(4)}))` } as CSSProperties} role="group" aria-label={label} data-step={current} data-elements={visible.length} data-complete={complete || undefined} data-nodes={count((e) => e.customData?.wb?.role === "node" && e.type !== "text")} data-edges={count((e) => e.customData?.wb?.role === "edge")} data-formulas={count((e) => typeof e.customData?.tex === "string")} data-plots={count((e) => /^b-.*-ax$/.test(e.id))} data-cards={count((e) => e.customData?.wb?.role === "block" && e.strokeStyle === "dashed")} data-sketches={count((e) => e.type === "image" && !e.customData?.media)} data-media={count((e) => e.type === "image" && Boolean(cleanBoardMedia(e.customData?.media)))}>
       <div ref={host} className="wb-ex-host" />
       {/* what the board says, for a screen reader (the drawing itself is hidden from it) */}
       <ul className="wb-sr">{words.map((w, i) => <li key={i}>{w}</li>)}</ul>
+      {/* A video on the board plays over its poster (lib/whiteboard/media.ts): muted, looping, with play/pause. */}
+      {visible.map((e) => {
+        const m = e.type === "image" ? cleanBoardMedia(e.customData?.media) : undefined;
+        const f = m?.kind === "video" && m.video ? scene.files[m.video] : undefined;
+        if (!f || !isVideoFile(f.dataURL)) return null;
+        return <BoardVideo key={e.id} src={f.dataURL} label={m!.caption} playLabel={videoLabels?.play ?? "Play"} pauseLabel={videoLabels?.pause ?? "Pause"} style={{ left: pct(e.x - target.x, target.w), top: pct(e.y - target.y, target.h), width: pct(e.width, target.w), height: pct(e.height, target.h) }} />;
+      })}
       {onPick && nodes.map((n) => {
         const text = labelOf(n);
         return (

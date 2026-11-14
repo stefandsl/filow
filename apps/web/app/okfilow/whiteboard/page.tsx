@@ -802,6 +802,7 @@ export default function WhiteboardPage() {
             <ExcalidrawCanvas scene={prepared} dark={board === "dark"} lang={lang} label={t("canvasLabel")} menuLabel={t("canvasMenu")} doneLabel={t("editDone")} onDone={closeCanvas} />
           ) : prepared ? (
             <ExcalidrawBoard
+              videoLabels={{ play: t("play"), pause: t("pause") }}
               scene={prepared}
               current={boardStep}
               timing={imported ? undefined : timing}
