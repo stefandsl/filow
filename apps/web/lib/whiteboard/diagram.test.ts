@@ -1,7 +1,8 @@
-﻿import { describe, expect, it } from "vitest";
-import { newDiagramState, readDiagram, diagramText, type DiagramItem } from "./diagram";
+import { describe, expect, it } from "vitest";
+import { itemsAsDiagram, newDiagramState, readDiagram, diagramText, type DiagramItem } from "./diagram";
+import { generateCloud } from "./generate";
 import { collectDiagram, layoutDiagram, loopOrder, mentions, treeParents, diagramBounds } from "./diagram-layout";
-import { contextOf, lessonContextText, lessonMarkdown, validateLesson, type Lesson } from "./lesson";
+import { contextOf, lessonContextText, lessonMarkdown, outlineSchema, validateLesson, validateOutline, type Lesson } from "./lesson";
 import { boardPage, layoutBoard, layoutProblems, type BoardShape } from "./layout";
 import { sceneFromLayout } from "./scene";
 import { checkScene, countProblems } from "./check";
@@ -251,6 +252,34 @@ describe("each part appears with its sentence", () => {
   it("matches words by their stem, in any language", () => {
     expect(mentions("La crisalide si apre", "Crisalidi")).toBe(true);
     expect(mentions("The leaf makes sugar", "Calvin cycle")).toBe(false);
+  });
+});
+
+describe("the prompts teach the diagram step", () => {
+  it("the online lesson: the system prompt names it, and a lesson that uses it arrives as diagram steps", async () => {
+    let system = "";
+    const answer = { topic: "How a bill becomes a law", title: "How a bill becomes a law", scene: "flow", steps: [
+      { say: "A bill is written and introduced.", items: [{ kind: "diagram", mermaid: "flowchart TD\nA[Bill introduced] --> B{Committee approves?}" }] },
+      { say: "If the committee approves, both chambers vote.", items: [{ kind: "diagram", mermaid: "B -->|yes| C[Both chambers vote]\nB -->|no| D[Bill dies]" }] },
+    ] };
+    const events: Array<{ type: string; step?: { items: Array<{ kind: string }> } }> = [];
+    await generateCloud(async (call) => { system ||= call.system; return JSON.stringify(answer); }, { question: "How does a bill become a law?", lang: "en", maxSteps: 7 }, (e) => events.push(e as never));
+    expect(system).toContain('"kind":"diagram"');
+    expect(system).toContain("sequenceDiagram");
+    const steps = events.filter((e) => e.type === "step");
+    expect(steps.map((e) => e.step!.items.map((i) => i.kind).join(","))).toEqual(["diagram", "diagram"]);
+  });
+
+  it("the local lesson: the outline may choose a diagram, and the checked boxes and arrows are drawn as it", () => {
+    expect(outlineSchema(5).properties.diagram.enum).toContain("mindmap");
+    expect(validateOutline({ title: "T", diagram: "mindmap", steps: ["a"] })?.diagram).toBe("mindmap");
+    expect(validateOutline({ title: "T", diagram: "pie", steps: ["a"] })?.diagram).toBeUndefined();
+    const st = newDiagramState();
+    const items = itemsAsDiagram([{ kind: "node", id: "cell", text: "Cell" }, { kind: "node", id: "nucleus", text: "Nucleus" }, { kind: "edge", from: "cell", to: "nucleus", text: "contains" }, { kind: "note", text: "n" }], "mindmap", st);
+    expect(items[0]).toMatchObject({ kind: "diagram", type: "mindmap", nodes: [{ id: "cell" }, { id: "nucleus", parent: "cell" }], links: [{ from: "cell", to: "nucleus" }] });
+    expect(items.map((i) => i.kind)).toEqual(["diagram", "note"]);
+    // a later step of the same lesson adds to it; another type is left as it was
+    expect(itemsAsDiagram([{ kind: "node", id: "x", text: "X" }], "sequence", st)[0].kind).toBe("node");
   });
 });
 

@@ -1,4 +1,4 @@
-﻿// Where the boxes, arrows, lifelines and cells of a lesson's structured diagram go (diagram.ts reads
+// Where the boxes, arrows, lifelines and cells of a lesson's structured diagram go (diagram.ts reads
 // what the model wrote). Deterministic, no browser: the same lesson always gives the same board.
 // - flowchart: layered (Sugiyama: cycles broken, longest-path ranks, barycentre ordering, aligned
 //   rows), or a ring when the arrows close a loop, or a tidy tree when every box has one parent;

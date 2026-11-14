@@ -377,7 +377,7 @@ describe("whiteboard lesson, every spoken sentence is checked", () => {
     const ev = await events(await post({ question: "prove it" }));
     expect(ev[1]).toMatchObject({ title: "Proof", says: ["Take four equal right triangles.", "Arrange them in a square of side a plus b.", "The inner square has area c squared."] });
     // two outlines, two checks, then the plan: not a third outline
-    expect(chats().slice(0, 5).map((c) => Object.keys(c.body.format?.properties ?? {}).sort().join(","))).toEqual(["kind,scene,steps,title", "answers,sentences", "kind,scene,steps,title", "answers,sentences", "relations,things"]);
+    expect(chats().slice(0, 5).map((c) => Object.keys(c.body.format?.properties ?? {}).sort().join(","))).toEqual(["diagram,kind,scene,steps,title", "answers,sentences", "diagram,kind,scene,steps,title", "answers,sentences", "relations,things"]);
     expect(String(chats()[3].body.messages[0].content)).toContain("the last step is proven and not just stated");
   });
 

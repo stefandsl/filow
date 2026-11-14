@@ -1,4 +1,4 @@
-﻿// The whiteboard lesson: what the model writes and what Filow accepts (docs/whiteboard/SPEC.md).
+// The whiteboard lesson: what the model writes and what Filow accepts (docs/whiteboard/SPEC.md).
 // The model names things and how they relate (node, edge, formula, plot, note, mark); it never
 // gives coordinates, markup or code. Everything here treats its output as data: unknown kinds are
 // dropped, text is cut and cleaned, references are checked, and what cannot be repaired is left out.
@@ -38,7 +38,7 @@ export type Lesson = { title: string; scene: Scene; steps: LessonStep[] };
 export const KINDS = ["process", "proof", "comparison", "algorithm", "law"] as const;
 /** The kind of explanation the outline chose; each has its own recipe (generate.ts). */
 export type ExplanationKind = (typeof KINDS)[number];
-export type Outline = { title: string; scene: Scene; kind: ExplanationKind; says: string[]; };
+export type Outline = { title: string; scene: Scene; kind: ExplanationKind; says: string[]; /** The structured diagram the local lesson draws its checked boxes and arrows as (diagram.ts), or none. */ diagram?: "flowchart" | "mindmap" | "sequence" };
 
 export const LIMITS = {
   steps: 7,
@@ -292,7 +292,8 @@ export function validateOutline(raw: unknown, maxSteps: number = LIMITS.steps): 
   }
   if (!says.length) return null;
   const kind = (KINDS as readonly string[]).includes(String((r as { kind?: unknown }).kind)) ? ((r as { kind: ExplanationKind }).kind) : "process";
-  return { title: cleanText(r.title, LIMITS.title) || says[0].slice(0, LIMITS.title), scene: sceneOf(r.scene), kind, says };
+  const diagram = String((r as { diagram?: unknown }).diagram ?? "").toLowerCase();
+  return { title: cleanText(r.title, LIMITS.title) || says[0].slice(0, LIMITS.title), scene: sceneOf(r.scene), kind, says, ...(diagram === "flowchart" || diagram === "mindmap" || diagram === "sequence" ? { diagram } : {}) };
 }
 
 /** One step from its sentence and its items; no usable item makes it a text card. */
@@ -479,6 +480,7 @@ export function outlineSchema(maxSteps: number) {
       title: { type: "string", maxLength: 60 },
       scene: { type: "string", enum: [...SCENES] },
       kind: { type: "string", enum: [...KINDS] },
+      diagram: { type: "string", enum: ["none", "flowchart", "mindmap", "sequence"] },
       steps: { type: "array", minItems: Math.min(3, maxSteps), maxItems: maxSteps, items: { type: "object", properties: { say: { type: "string", maxLength: 220 } }, required: ["say"] } },
     },
     required: ["title", "scene", "kind", "steps"],

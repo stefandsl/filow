@@ -1,9 +1,9 @@
-﻿// Structured diagrams on the whiteboard (docs/whiteboard/SPEC.md section 2b). The model may write a
+// Structured diagrams on the whiteboard (docs/whiteboard/SPEC.md section 2b). The model may write a
 // step's drawing as a small Mermaid text (flowchart, mindmap, sequenceDiagram) or a Markdown table.
 // Filow reads only a strict subset of that text, as data: shapes, labels, links, participants,
 // messages and rows. Everything else (styles, classes, click handlers, HTML, init directives) is
 // dropped before it is read, and labels are cleaned like any other model text. No Mermaid code runs.
-import { cleanText, LIMITS, slug } from "./lesson";
+import { cleanText, LIMITS, slug, type LessonItem } from "./lesson";
 
 export const DIAGRAM_TYPES = ["flowchart", "mindmap", "sequence", "table"] as const;
 export type DiagramType = (typeof DIAGRAM_TYPES)[number];
@@ -258,6 +258,29 @@ function overlap(keys: string[], said: string[], at: "start" | "end"): number {
   if (at === "start") { let k = 0; while (k < keys.length && k < said.length && keys[k] === said[k]) k++; return k; }
   for (let j = Math.min(keys.length, said.length); j > 0; j--) if (keys.slice(0, j).every((k, i) => k === said[said.length - j + i])) return j;
   return 0;
+}
+
+/**
+ * A step of the local path drawn as part of a structured diagram: its checked boxes and arrows become
+ * the diagram's boxes and links (a mind map's branch, a sequence's message), nothing is added or lost.
+ */
+export function itemsAsDiagram(items: LessonItem[], type: "flowchart" | "mindmap" | "sequence", st: DiagramState): LessonItem[] {
+  if (st.type && st.type !== type) return items;
+  const nodes: DNode[] = [];
+  const links: DLink[] = [];
+  for (const it of items) {
+    if (it.kind === "node" && !st.nodes.has(it.id)) { st.nodes.set(it.id, it.text); nodes.push({ id: it.id, text: it.text, shape: "box" }); }
+  }
+  for (const it of items) {
+    if (it.kind !== "edge") continue;
+    for (const id of [it.from, it.to]) if (!st.nodes.has(id)) { st.nodes.set(id, id); nodes.push({ id, text: labelOfId(id), shape: "box" }); }
+    const child = nodes.find((n) => n.id === it.to);
+    if (type === "mindmap" && child && child.parent === undefined) child.parent = it.from;
+    links.push({ from: it.from, to: it.to, text: it.text });
+  }
+  if (!nodes.length && !links.length) return items;
+  st.type = type;
+  return [{ kind: "diagram", type, dir: "TD", nodes, links, rows: [] }, ...items.filter((it) => it.kind !== "node" && it.kind !== "edge")];
 }
 
 /**

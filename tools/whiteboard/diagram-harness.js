@@ -1,4 +1,4 @@
-﻿/* global window, FileReader */
+/* global window, FileReader */
 // The page of tools/whiteboard/diagram-shots.mjs: a saved lesson drawn by Filow's own layout, scene
 // and Excalidraw export (what the whiteboard page shows and what "Save PNG" writes), with the
 // machine checks of each board. Bundled by that tool; never shipped.

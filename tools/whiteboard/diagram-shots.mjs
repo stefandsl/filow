@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 // Pictures and machine checks of saved lessons (tools/whiteboard/bench.mjs runs): each board of a
 // lesson is drawn by Filow's own layout, scene and Excalidraw export in a headless Edge with its own
 // profile (nothing on the desktop, nothing loaded from the internet), light and dark. Boards of one

@@ -1,4 +1,4 @@
-﻿// The Excalidraw elements of a placed structured diagram (diagram-layout.ts), one step at a time:
+// The Excalidraw elements of a placed structured diagram (diagram-layout.ts), one step at a time:
 // only Filow's own element types (rectangle, diamond, ellipse, text, arrow, line), no HTML, no images.
 import type { PlacedDiagram } from "./diagram-layout";
 import { arrow, el, HAND_SCALE, INK, labelled, line, safeId, stepColour, text, type ExEl, type WbMeta } from "./scene";
