@@ -14,6 +14,24 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
+## Quality score recovery (fix-score, 2026-11-14)
+
+Based on main `12f7c8b`, Electron's two desktop pins and the tracked lockfile move
+from 45.3.1 to 45.3.2. The unchanged quick score is 97.05, gates PASS, above 93.66.
+Fresh fake-audio local and offline takes pass 3/3 points; offline has zero outbound.
+All 3,093 tests pass (5 skipped), typecheck, lint, production build, and one Windows
+installer/portable build pass. The packaged main page and OK Filow panel load hidden
+with global input disabled, using only the task's G: profile and ports.
+
+Pending/known limits: splash median is still 1,321 ms versus 500 ms, measured on a
+contended PC; main median passes at 2,317 ms. The retained 20-minute memory result
+has -1.2% growth but only 20/45 credit; a new 45-minute run remains unverified.
+Stored accessibility/memory evidence expires on November 14 around 13:26/13:29 UTC.
+Fresh evidence lives in this worktree's ignored `tmp/autoloop` and does not travel
+with a merge. Exact commands, before/after rows, first-run failure, isolation and
+remaining verification limits: `docs/autoloop/FIX-SCORE-2026-11-14.md`.
+No merge, push, tag, installed-app change, or visible desktop interaction.
+
 ## Overlay round 2B worktree (unreleased, 2026-11-13)
 
 `feat-overlay-r2b` merged main `f5d18e2` in `d89a2fd`, retaining the opening-microphone,
