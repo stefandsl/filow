@@ -129,8 +129,8 @@ describe("M2: forwarding headers are believed only from this computer", () => {
   });
 });
 
-describe("M3: a phone accepted without a prompt only moves and marks until the presenter accepts it on the PC", () => {
-  it("D: an auto-accepted Wi-Fi controller cannot replace the script, use Look now, or start and stop the take", async () => {
+describe("M3: a phone accepted without a prompt only moves until the presenter accepts it on the PC", () => {
+  it("D: an auto-accepted Wi-Fi controller cannot mark a point, replace the script, use Look now, or start and stop the take", async () => {
     const base = await start();
     const s = await withEngine(base);
     const { pair, phone, welcome } = await join(base, s, s.code, "x");
@@ -141,13 +141,13 @@ describe("M3: a phone accepted without a prompt only moves and marks until the p
     const r = await post(base, `/api/session/${s.id}/script`, { text: big }, { Authorization: `Bearer ${pair.viewToken}` });
     expect(r.status).toBe(403);
     expect(((await r.json()) as { error: string }).error).toBe(REMOTE.approveFirst);
-    for (const type of ["lookNow", "startTake", "stopTake", "loadScript", "reset", "setLanguage", "somethingNew"]) {
+    for (const type of ["markStarted", "reopen", "markMissed", "lookNow", "startTake", "stopTake", "loadScript", "reset", "setLanguage", "somethingNew"]) {
       phone.send({ t: "cmd", id: type, cmd: { type } });
       expect(await ackOf(phone, type), type).toEqual({ t: "ack", id: type, ok: false, error: REMOTE.approveFirst });
     }
-    // moving between sections and marking points still goes through
+    // moving between sections and points still goes through
     const allowed = [...REMOTE_BEFORE_APPROVAL];
-    expect(allowed.sort()).toEqual(["anchor", "goToSection", "markMissed", "markStarted", "nextSection", "prevSection", "reopen"]);
+    expect(allowed.sort()).toEqual(["anchor", "goToSection", "nextSection", "prevSection"]);
     for (const type of allowed) phone.send({ t: "cmd", id: `ok-${type}`, cmd: { type } });
     const seen: string[] = [];
     while (seen.length < allowed.length) {
@@ -172,6 +172,11 @@ describe("M3: a phone accepted without a prompt only moves and marks until the p
     expect((await s.engine.devicesNow()).map((d) => [d.role, d.approved])).toEqual([["controller", true]]);
     phone.send({ t: "cmd", id: "l", cmd: { type: "lookNow" } });
     expect(await s.engine.nextOf("cmd")).toMatchObject({ cmd: { type: "lookNow" } });
+    // the "mark as said" button and its undo now reach the PC, with the device they came from
+    phone.send({ t: "cmd", id: "m", cmd: { type: "markStarted", id: "s0b0" } });
+    expect(await s.engine.nextOf("cmd")).toMatchObject({ cmd: { type: "markStarted", id: "s0b0" }, from: { id: paired.id } });
+    phone.send({ t: "cmd", id: "u", cmd: { type: "reopen", id: "s0b0" } });
+    expect(await s.engine.nextOf("cmd")).toMatchObject({ cmd: { type: "reopen", id: "s0b0" } });
     expect((await post(base, `/api/session/${s.id}/script`, { text: "# A" }, { Authorization: `Bearer ${pair.viewToken}` })).status).toBe(200);
     expect(await s.engine.nextOf("cmd")).toMatchObject({ cmd: { type: "loadScript", text: "# A" } });
     // a phone that waited for the presenter (through the tunnel) is accepted from the start

@@ -18,7 +18,7 @@
 //   local network (the subnet of this computer's LAN address, lanCidr) can be auto-accepted as
 //   controllers (autoAcceptLan, desktop LAN mode); loopback and anything that came through a proxy or
 //   tunnel never are. Auto-accepted is not approved: such a phone may only move between sections and
-//   mark points (REMOTE_BEFORE_APPROVAL) until the presenter accepts it on the PC. The app's own
+//   points (REMOTE_BEFORE_APPROVAL) until the presenter accepts it on the PC. The app's own
 //   floating windows prove themselves with the per-launch app key instead (appPairKey);
 // - a device's name is fixed when it pairs (never the app's own labels) and every command it sends is
 //   rate limited;
@@ -214,10 +214,11 @@ export function defaultPairOriginAllowed(origin: string, configured: string): bo
 }
 /**
  * What a controller the presenter has not accepted on the PC (auto-accepted on the Wi-Fi) may do: move
- * between sections and points, and mark points. Everything else (start or stop the take and with it the
- * microphone, Look now, a new script, a reset) waits for the presenter's accept.
+ * between sections and points. Everything else (marking a point said, missed or not said, start or stop
+ * the take and with it the microphone, Look now, a new script, a reset) waits for the presenter's accept
+ * ("Allow full control").
  */
-export const REMOTE_BEFORE_APPROVAL: ReadonlySet<string> = new Set(["nextSection", "prevSection", "goToSection", "anchor", "markStarted", "markMissed", "reopen"]);
+export const REMOTE_BEFORE_APPROVAL: ReadonlySet<string> = new Set(["nextSection", "prevSection", "goToSection", "anchor"]);
 /** Sockets that have not said hello yet, per address: more are refused at the upgrade. */
 export const UNAUTHENTICATED_PER_ADDRESS = 8;
 const proxied = (req: IncomingMessage) =>
@@ -691,7 +692,7 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
           if (!cmd || typeof cmd !== "object" || typeof cmd.type !== "string") return ack(id, "bad command");
           if (me.pairing.role !== "controller") return ack(id, "viewer role");
           if (!bump(commandAttempts, me.pairing.id, commandLimit, commandWindowMs)) return ack(id, REMOTE.tooMany);
-          // Auto-accepted on the Wi-Fi, not accepted on the PC: moving and marking only. (Asking has its own
+          // Auto-accepted on the Wi-Fi, not accepted on the PC: moving only. (Asking has its own
           // right, given on the PC for this device, checked below.)
           if (!me.pairing.approved && !REMOTE_BEFORE_APPROVAL.has(cmd.type) && cmd.type !== "askOkFilow") return ack(id, REMOTE.approveFirst);
           const from = { id: me.pairing.id, device: me.pairing.device, peer: me.pairing.peer };

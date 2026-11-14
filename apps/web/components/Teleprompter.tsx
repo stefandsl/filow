@@ -608,47 +608,48 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       )}
 
         {nextSection && <NextSection title={nextSection.title} points={nextSection.bullets.map(b => b.text)} completed={nextSection.bullets.map(b => points[b.id]?.status === "started")} />}
-        {screen.status !== "unsupported" && <ScreenSensePanel active={screen.status === "watching"}>
-            {screen.status === "watching" ? (
-              <button className="btn primary" onClick={screen.stopWatching}>
-                {t("screen.stopWatching")}
-              </button>
-            ) : (
-              <button
-                className="btn"
-                onClick={() => void screen.watchScreen()}
-                disabled={offline || !screen.enabled}
-                title={offline ? t("screen.watchOffline") : t("screen.watchTitle")}
-              >
-                {t("screen.watch")}
-              </button>
-            )}
-            <select className="btn" value={screen.mode} onChange={(e) => screen.setMode(e.target.value as ScreenMode)} title={t(`mode.${screen.mode}`)} aria-label={t("screen.modeTitle")}>
-              {(Object.keys(SCREEN_MODE_LABELS) as ScreenMode[]).map((m) => (
-                <option key={m} value={m} title={t(`mode.${m}`)}>
-                  {t(`mode.${m}.short`)}
-                </option>
-              ))}
-            </select>
-            <OverflowMenu items={[
-              ...(screen.desktop ? [{id:"region",label:t("screen.region"),onSelect:() => { if (!offline) void screen.captureRegion(); }}] : []),
-              {id:"screenSettings",label:t("ctl.settings"),onSelect:() => { window.location.href = "/settings"; }},
-              ...(state.screen ? [{id:"forget",label:t("screen.forget"),onSelect:screen.forget}] : []),
-              ...(lastNotes.length > 0 ? [{id:"export",label:t("screen.exportNotes", {n:lastNotes.length}),onSelect:exportNotes}] : []),
-            ]} />
-
-            <button
-              className="btn screen-scan"
-              onClick={screen.lookNow}
-              disabled={offline || (screen.status !== "watching" && !screen.desktop)}
-              title={screen.desktop && screen.status !== "watching" ? t("screen.lookNowRegion") : t("screen.lookNowFrame")}
-            >
-              <Icon name="play" /> {t("screen.scan")}
-            </button>
-          {screen.status === "watching" && <span className="chip rec" title={t("screen.recTitle", {label:screen.label})}><Icon name="circle" /> {t("screen.rec")} {"\u00b7"} {state.screenStats?.analysing ? t("app.analysing") : screen.label}</span>}
-        </ScreenSensePanel>}
       </main>
       </div>
+      {/* Screen Sense: its own row under the reading area (never over the points), above the action bar. */}
+      {screen.status !== "unsupported" && <ScreenSensePanel active={screen.status === "watching"}>
+          {screen.status === "watching" ? (
+            <button className="btn primary" onClick={screen.stopWatching}>
+              {t("screen.stopWatching")}
+            </button>
+          ) : (
+            <button
+              className="btn"
+              onClick={() => void screen.watchScreen()}
+              disabled={offline || !screen.enabled}
+              title={offline ? t("screen.watchOffline") : t("screen.watchTitle")}
+            >
+              {t("screen.watch")}
+            </button>
+          )}
+          <select className="btn" value={screen.mode} onChange={(e) => screen.setMode(e.target.value as ScreenMode)} title={t(`mode.${screen.mode}`)} aria-label={t("screen.modeTitle")}>
+            {(Object.keys(SCREEN_MODE_LABELS) as ScreenMode[]).map((m) => (
+              <option key={m} value={m} title={t(`mode.${m}`)}>
+                {t(`mode.${m}.short`)}
+              </option>
+            ))}
+          </select>
+          <OverflowMenu items={[
+            ...(screen.desktop ? [{id:"region",label:t("screen.region"),onSelect:() => { if (!offline) void screen.captureRegion(); }}] : []),
+            {id:"screenSettings",label:t("ctl.settings"),onSelect:() => { window.location.href = "/settings"; }},
+            ...(state.screen ? [{id:"forget",label:t("screen.forget"),onSelect:screen.forget}] : []),
+            ...(lastNotes.length > 0 ? [{id:"export",label:t("screen.exportNotes", {n:lastNotes.length}),onSelect:exportNotes}] : []),
+          ]} />
+
+          <button
+            className="btn screen-scan"
+            onClick={screen.lookNow}
+            disabled={offline || (screen.status !== "watching" && !screen.desktop)}
+            title={screen.desktop && screen.status !== "watching" ? t("screen.lookNowRegion") : t("screen.lookNowFrame")}
+          >
+            <Icon name="play" /> {t("screen.scan")}
+          </button>
+        {screen.status === "watching" && <span className="chip rec" title={t("screen.recTitle", {label:screen.label})}><Icon name="circle" /> {t("screen.rec")} {"\u00b7"} {state.screenStats?.analysing ? t("app.analysing") : screen.label}</span>}
+      </ScreenSensePanel>}
       {displayOpen && <DisplayPanel prefs={display} onChange={setDisplay} onClose={() => setDisplayOpen(false)} pointsWindow={pointsWindow} anchor="sidebar" />}
       <ActionBar label={t("ctl.controls")} start={<>
         {eng.recording ? (

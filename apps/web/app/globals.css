@@ -391,13 +391,14 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 @media (max-width: 899px) {
   .prompter > .topbar { gap: 8px; padding: 8px 12px; }
   .prompter-main { padding: 16px; }
+  .screen-sense { margin: 0 16px 12px; }
   .action-bar { padding: 12px 16px; }
   .prompter .edit-points { margin: 12px 0 0; }
   .action-bar .btn { padding: 8px 12px; }
 }
 
 /* Keep actions visible while the presentation area scrolls vertically. */
-.prompter { height: 100dvh; min-height: 0; grid-template-columns: 260px minmax(0,1fr); grid-template-areas: "topbar topbar" "nav content" "nav actions" "status status"; grid-template-rows: auto minmax(0,1fr) auto auto; }
+.prompter { height: 100dvh; min-height: 0; grid-template-columns: 260px minmax(0,1fr); grid-template-areas: "topbar topbar" "nav content" "nav sense" "nav actions" "status status"; grid-template-rows: auto minmax(0,1fr) auto auto auto; }
 .prompter-content { grid-area: content; min-width: 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
 .section-nav { min-height: 0; }
 .section-nav-list { min-height: 0; }
@@ -406,7 +407,7 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 
 /* At high zoom, let the page grow instead of squeezing the points out of view. */
 @media (max-height: 500px) {
-  .prompter { height: auto; min-height: 100dvh; grid-template-rows: auto minmax(240px, auto) auto auto; }
+  .prompter { height: auto; min-height: 100dvh; grid-template-rows: auto minmax(240px, auto) auto auto auto; }
   .prompter-content { min-height: 240px; overflow: visible; }
   .section-nav-list { max-height: none; }
 }
@@ -425,7 +426,7 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 .prompter .point-row { grid-template-columns: 40px minmax(0, 1fr) 88px; border-radius: 0; border-width: 0 0 1px; background: transparent; }
 .prompter .point-row.active { border-left: 3px solid var(--accent); background: var(--row-current); }
 .point-state { padding-left: 0; }
-.screen-sense { position: sticky; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.screen-sense { grid-area: sense; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 24px 12px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .screen-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 12px; margin: 0; }
 .screen-controls { flex: 1; gap: 8px; }
 .screen-controls .screen-scan { order: 2; margin-left: auto; }
@@ -459,6 +460,51 @@ button, input, select, textarea { font-family: var(--font); font-variant-numeric
 @media (max-width: 899px) { .point-why-bar { padding: 0 12px 12px 64px; } .point-item > .point-why { margin: 0 12px 12px 64px; } }
 .point-why q { font-style: italic; overflow-wrap: anywhere; }
 .point-why span { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* "Mark as said" and its undo, on every point: a sibling of the row (the row is a button of its own), an
+   icon-only button in the row's right padding, beside the state block and never over it (its words are
+   the tooltip and the accessible name). */
+.point-item.has-mark { position: relative; }
+.prompter .point-item.has-mark > .point-row { padding-right: 52px; }
+.point-mark { position: absolute; top: 12px; right: 12px; display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 28px; height: 28px; padding: 0; font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-badge); cursor: pointer; }
+.point-mark-icon { display: flex; }
+.point-mark svg { width: 18px; height: 18px; stroke-width: 2.5; }
+.point-mark:hover { color: var(--text); border-color: var(--accent); }
+.point-mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Not said: an outlined check. Said: a filled check, which turns into the undo arrow on hover and keyboard focus. */
+.point-mark.done, .point-mark.done:not(:disabled):hover { color: var(--bg); background: var(--ok); border-color: var(--ok); }
+.point-mark.done svg { stroke-width: 3; }
+.point-mark-undo, .point-mark-label { display: none; }
+.point-mark.done:focus-visible { color: var(--text); background: var(--surface); }
+.point-mark.done:focus-visible .point-mark-check { display: none; }
+.point-mark.done:focus-visible .point-mark-undo { display: flex; }
+/* Only where a pointer really hovers: on a touch screen :hover sticks after the tap that marked the point. */
+@media (hover: hover) {
+  .point-mark.done:not(:disabled):hover { color: var(--text); background: var(--surface); }
+  .point-mark.done:hover .point-mark-check { display: none; }
+  .point-mark.done:hover .point-mark-undo { display: flex; }
+}
+/* Wide enough: the short word beside the icon, still inside the row's right padding, clear of the state. */
+@media (min-width: 1100px) {
+  .prompter .point-item.has-mark > .point-row { padding-right: 136px; }
+  .prompter .point-mark { padding: 0 8px; }
+  .prompter .point-mark-label { display: inline; }
+}
+/* A narrow window: the page scrolls as a whole, so the action bar and Screen Sense follow the points instead
+   of covering them, and each point's state goes on a line of its own under the text. */
+@media (max-width: 600px) {
+  .prompter { height: auto; min-height: 100dvh; grid-template-rows: auto auto auto auto auto; }
+  .prompter-content { min-height: 0; overflow: visible; }
+  .prompter .point-row { grid-template-columns: 32px minmax(0, 1fr); }
+  .prompter .point-row .point-state { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .prompter .point-row .point-progress { flex: 1 1 48px; }
+  .point-why-bar { padding: 0 12px 12px 56px; }
+  .point-item > .point-why { margin: 0 12px 12px 56px; }
+}
+/* The phone mirror: a 48 px touch target, centred on the row. */
+.app.stage .point-item.has-mark > .point { padding-right: 72px; }
+.app.stage .point-mark { top: 50%; right: 12px; transform: translateY(-50%); width: 48px; height: 48px; }
+.app.stage .point-mark svg { width: 28px; height: 28px; }
 
 /* ---- Re-anchoring, the Display panel and the points window (feat-prompter) ---- */
 /* The point the presenter is on: a ring and a filled number, on the prompter and on the mirror. */
@@ -539,8 +585,6 @@ dialog.modal-bg.accessible-dialog:has(> .display-panel-sidebar) { justify-conten
 
 /* R1: the Screen Sense strip sticks to the bottom of the points scroller. A soft edge above it shows the
    list goes on underneath; on a phone-sized window it would cover the whole list, so there it scrolls with the page. */
-.screen-sense::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 28px; background: linear-gradient(to top, var(--bg), transparent); pointer-events: none; }
-@media (max-width: 700px), (max-height: 620px) { .screen-sense { position: static; } .screen-sense::before { display: none; } }
 
 /* Easy settings (/settings): eight plain rows in one readable column. A row is its name and sentences
    on the left and its control on the right; under 600 px the control moves below the text. */

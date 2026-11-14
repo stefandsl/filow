@@ -106,7 +106,7 @@ export function useSession(engine: Engine) {
   const allowAsk = useCallback((id: string, allow: boolean) => clientRef.current?.allowAsk(id, allow), []);
   /**
    * Accept, on this computer, a phone that was auto-accepted on the Wi-Fi: until then it only moves between
-   * sections and marks points; after, it controls everything a controller may (the take, Look now, a script).
+   * sections; after, it controls everything a controller may (marking points, the take, Look now, a script).
    */
   const approveDevice = useCallback((id: string) => clientRef.current?.decidePair(id, "controller"), []);
   // OK Filow ignored a phone's questions three times in a row: its right to ask goes off (the presenter can give it again).

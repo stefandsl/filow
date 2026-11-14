@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Icon } from "../../../apps/web/components/icons";
 import type { Command, SessionState } from "@filow/core";
 import { currentPoint, evidenceSummary, missedPoints, moveCommand } from "@filow/core";
+import { MarkSaidButton } from "./MarkSaidButton";
 import { OnScreenStrip } from "./OnScreenStrip";
 import { useLang, useT } from "./lang";
 
@@ -19,10 +20,12 @@ export type StageViewProps = {
   stage?: boolean;
   /** Overlay mode: title, points and the next title only; no controls, no footer. */
   compact?: boolean;
+  /** A visible "mark as said" button (and its undo) beside each point; only where `onCommand` is given. */
+  markButton?: boolean;
 };
 
 /** The live view: section, points, next strip, missed tray, on-screen strip, remote buttons. Uses the app's CSS classes. */
-export function StageView({ state, onCommand, banner, stage, compact, pointMark = <Icon name="check" />, previewMark = <Icon name="circle" /> }: StageViewProps) {
+export function StageView({ state, onCommand, banner, stage, compact, markButton, pointMark = <Icon name="check" />, previewMark = <Icon name="circle" /> }: StageViewProps) {
   const t = useT();
   const lang = useLang();
   const { script, sectionIdx, points, stats, engine, screen } = state;
@@ -64,14 +67,15 @@ export function StageView({ state, onCommand, banner, stage, compact, pointMark 
               const st = points[b.id] ?? { status: "waiting", confidence: 0 };
               const started = st.status === "started";
               const hot = !started && (st.confidence >= 0.3 || st.active === true);
-              return (
+              const toggle = () => send(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id });
+              const row = (
                 <div
                   key={b.id}
                   data-point-id={b.id}
                   className={`point ${i >= 10 && !compact ? "far" : ""} ${started ? "started" : ""} ${hot ? "hot" : ""} ${here === b.id ? "here" : ""}`}
                   // a tap says "I am here"; a click with no pointer (detail 0: a screen reader in browse mode) toggles, as aria-pressed says
-                  onClick={can ? (e) => send(e.detail === 0 ? (started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id }) : { type: "anchor", idx: sectionIdx, pointId: b.id }) : undefined}
-                  onDoubleClick={can ? () => send(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id }) : undefined}
+                  onClick={can ? (e) => (e.detail === 0 ? toggle() : send({ type: "anchor", idx: sectionIdx, pointId: b.id })) : undefined}
+                  onDoubleClick={can ? toggle : undefined}
                   role={can ? "button" : undefined}
                   tabIndex={can ? 0 : undefined}
                   aria-pressed={can ? started : undefined}
@@ -82,7 +86,7 @@ export function StageView({ state, onCommand, banner, stage, compact, pointMark 
                   onKeyDown={can ? (e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      send(started ? { type: "reopen", id: b.id } : { type: "markStarted", id: b.id });
+                      toggle();
                     } else if ((e.key === "h" || e.key === "H") && !e.ctrlKey && !e.altKey && !e.metaKey) {
                       e.preventDefault();
                       send({ type: "anchor", idx: sectionIdx, pointId: b.id });
@@ -94,7 +98,14 @@ export function StageView({ state, onCommand, banner, stage, compact, pointMark 
                     {t(`status.${st.status}`)}
                     {!started && <span className="pct">· {Math.round(st.confidence * 100)}%</span>}
                   </span>
-                  <span className="text">{b.text}</span>
+                  <span className="text" id={markButton ? `point-text-${b.id}` : undefined}>{b.text}</span>
+                </div>
+              );
+              if (!(can && markButton)) return row;
+              return (
+                <div key={b.id} className="point-item has-mark">
+                  {row}
+                  <MarkSaidButton done={started} label={t(started ? "point.unmarkSaid" : "point.markSaid")} describedBy={`point-text-${b.id}`} onToggle={toggle} />
                 </div>
               );
             })}
