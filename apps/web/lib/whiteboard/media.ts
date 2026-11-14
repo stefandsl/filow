@@ -12,8 +12,9 @@
 //
 // Nothing here is HTML: the element is an image, the files are data URLs of the allowed types only,
 // checked again whenever a file is read (lib/whiteboard/doc.ts). An agent places one with
-// mediaElement() + applyOps({ op: "add", element, files }); `step` is the lesson step it appears with.
-import { el, safeId, type BinaryFile, type ExEl } from "./scene";
+// mediaElement() + applyOps({ op: "add", element, files }, { op: "add", element: label }); `step` is the
+// lesson step it appears with.
+import { el, FONT, INK, LINE_HEIGHT, safeId, type BinaryFile, type ExEl } from "./scene";
 
 export type BoardMediaKind = "gif" | "video";
 export type BoardMedia = { kind: BoardMediaKind; video?: string; caption: string; source: string };
@@ -63,7 +64,7 @@ const fnv = (s: string) => { let h = 2166136261; for (let i = 0; i < s.length; i
  * A GIF or a video as a board element and its files. `src` must be a data URL of that kind within its
  * cap (null otherwise). `at`: where it goes on the board (its width; the height keeps `ratio`, 4:3 by default).
  */
-export function mediaElement(item: { kind: BoardMediaKind; src: string; caption: string; source: string }, at: { x: number; y: number; w: number; ratio?: number }, step = 0, key = "media"): { element: ExEl; files: Record<string, BinaryFile> } | null {
+export function mediaElement(item: { kind: BoardMediaKind; src: string; caption: string; source: string }, at: { x: number; y: number; w: number; ratio?: number }, step = 0, key = "media"): { element: ExEl; label: ExEl | null; files: Record<string, BinaryFile> } | null {
   const ok = item.kind === "gif" ? GIF_FILE.test(item.src) && item.src.length <= dataCap("gif") : VIDEO_FILE.test(item.src) && item.src.length <= dataCap("video");
   if (!ok) return null;
   const w = Math.max(80, Math.min(1200, at.w));
@@ -82,7 +83,13 @@ export function mediaElement(item: { kind: BoardMediaKind; src: string; caption:
   }
   const element = el(id, "image", { x: at.x, y: at.y, w, h }, { step, key, role: "block" }, { fileId, status: "saved", scale: [1, 1], crop: null, strokeColor: "transparent" });
   element.customData = { ...element.customData, media };
-  return { element, files };
+  // The caption and where it came from (author, licence) under the picture, as board text: it is saved
+  // with the board and shows in any Excalidraw.
+  const words = [media.caption, media.source].filter(Boolean).join(" · ").slice(0, 160);
+  const label = words
+    ? el(`${id}-src`, "text", { x: at.x, y: at.y + h + 8, w, h: 20 }, { step, key, role: "label" }, { text: words, originalText: words, fontSize: 14, fontFamily: FONT.liberation, textAlign: "left", verticalAlign: "top", strokeColor: INK.soft, lineHeight: LINE_HEIGHT, autoResize: true, roughness: 0 })
+    : null;
+  return { element, label, files };
 }
 
 /** The ids of the files an element needs: its image, and for a video the video itself. */

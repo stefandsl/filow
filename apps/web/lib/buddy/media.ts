@@ -166,7 +166,7 @@ export function batchRecipient(asks: MediaAsk[]): Recipient | null {
 // ---- layout ----
 
 type Size = { width: number; height: number };
-export const TILE = { width: 260, media: 172, text: 50, gap: 12 } as const;
+export const TILE = { width: 260, media: 172, text: 64, gap: 12 } as const;
 
 const overlapArea = (a: Rect, b: Rect) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
 
@@ -208,28 +208,64 @@ export const galleryColumns = (n: number) => (n === 4 ? 2 : Math.min(3, Math.max
  */
 export function galleryLayout(n: number, view: Size, avoid: Rect[], anchor: { x: number; y: number }): { tiles: Rect[]; scale: number; overlap: number } {
   if (n <= 0) return { tiles: [], scale: 1, overlap: 0 };
-  const cols = galleryColumns(n);
-  const rows = Math.ceil(n / cols);
+  // a gap from everything else too, never edge to edge
+  avoid = avoid.map((r) => grow(r, TILE.gap));
   let pick: { tiles: Rect[]; scale: number; overlap: number } | null = null;
-  for (const scale of [1, 0.85, 0.7, 0.55, 0.45]) {
-    const tw = Math.round(TILE.width * scale);
-    const th = Math.round(TILE.media * scale) + TILE.text;
-    const gap = TILE.gap;
-    // never wider or taller than the screen: the tiles shrink to fit it
-    const fit = Math.min(1, (view.width - 24 - (cols - 1) * gap) / cols / tw, (view.height - 24 - (rows - 1) * gap) / rows / th);
-    const w = Math.floor(tw * fit);
-    const h = Math.floor(th * fit);
-    const size = { width: cols * w + (cols - 1) * gap, height: rows * h + (rows - 1) * gap };
-    const { rect, overlap } = placeBlock(size, view, avoid, anchor);
-    const tiles = Array.from({ length: n }, (_, i) => {
-      const c = i % cols;
-      const r = Math.floor(i / cols);
-      const left = rect.left + c * (w + gap);
-      const top = rect.top + r * (h + gap);
-      return { left, top, right: left + w, bottom: top + h };
-    });
-    if (!pick || overlap < pick.overlap) pick = { tiles, scale: scale * fit, overlap };
+  for (const scale of SCALES) {
+    const g = grid(n, scale, view);
+    const { rect, overlap } = placeBlock(g, view, avoid, anchor);
+    const tiles = g.tiles(rect.left, rect.top);
+    if (!pick || overlap < pick.overlap) pick = { tiles, scale: g.scale, overlap };
     if (overlap === 0) break;
   }
   return pick!;
+}
+
+const SCALES = [1, 0.85, 0.7, 0.55, 0.45];
+
+/** The gallery's grid at one size: its whole size, and its tiles once its top-left corner is known. */
+function grid(n: number, scale: number, view: Size) {
+  const cols = galleryColumns(n);
+  const rows = Math.ceil(n / cols);
+  const tw = Math.round(TILE.width * scale);
+  const th = Math.round(TILE.media * scale) + TILE.text;
+  const gap = TILE.gap;
+  // never wider or taller than the screen: the tiles shrink to fit it
+  const fit = Math.min(1, (view.width - 24 - (cols - 1) * gap) / cols / tw, (view.height - 24 - (rows - 1) * gap) / rows / th);
+  const w = Math.floor(tw * fit);
+  const h = Math.floor(th * fit);
+  return {
+    width: cols * w + (cols - 1) * gap,
+    height: rows * h + (rows - 1) * gap,
+    scale: scale * fit,
+    tiles: (x: number, y: number): Rect[] => Array.from({ length: n }, (_, i) => {
+      const left = x + (i % cols) * (w + gap);
+      const top = y + Math.floor(i / cols) * (h + gap);
+      return { left, top, right: left + w, bottom: top + h };
+    }),
+  };
+}
+
+const grow = (r: Rect, by: number): Rect => ({ left: r.left - by, top: r.top - by, right: r.right + by, bottom: r.bottom + by });
+
+/**
+ * A slide and a gallery together: one column on the layout grid, the pictures in a row (or a grid) on top,
+ * the slide under them, both starting at the same left edge, one gap apart. When that column has no free
+ * room, the slide is placed first and the gallery kept a gap away from it.
+ */
+export function showLayout(n: number, slide: Size | null, view: Size, avoid: Rect[], anchor: { x: number; y: number }): { slide: Rect | null; tiles: Rect[] } {
+  if (!slide) return { slide: null, tiles: galleryLayout(n, view, avoid, anchor).tiles };
+  const near = avoid.map((r) => grow(r, TILE.gap));
+  if (n <= 0) return { slide: placeBlock(slide, view, near, anchor).rect, tiles: [] };
+  for (const scale of SCALES) {
+    const g = grid(n, scale, view);
+    const size = { width: Math.max(slide.width, g.width), height: g.height + TILE.gap + slide.height };
+    if (size.width > view.width - 24 || size.height > view.height - 24) continue;
+    const { rect, overlap } = placeBlock(size, view, near, anchor);
+    if (overlap > 0) continue;
+    const top = rect.top + g.height + TILE.gap;
+    return { tiles: g.tiles(rect.left, rect.top), slide: { left: rect.left, top, right: rect.left + slide.width, bottom: top + slide.height } };
+  }
+  const s = placeBlock(slide, view, near, anchor).rect;
+  return { slide: s, tiles: galleryLayout(n, view, [...avoid, grow(s, TILE.gap)], anchor).tiles };
 }

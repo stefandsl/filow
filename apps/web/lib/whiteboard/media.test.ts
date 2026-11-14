@@ -27,6 +27,10 @@ describe("GIF and video on the board", () => {
     expect(g.element.customData?.wb?.step).toBe(2);
     expect(g.files[g.element.fileId!].dataURL).toBe(GIF);
     expect(g.element.height).toBe(240);
+    // its caption and source go under it as board text, with the same step
+    expect(g.label).toMatchObject({ type: "text", text: "Heart beating · Wikimedia Commons · A · CC0", y: 20 + 240 + 8 });
+    expect(g.label?.customData?.wb?.step).toBe(2);
+    expect(mediaElement({ kind: "gif", src: GIF, caption: "", source: "" }, { x: 0, y: 0, w: 100 })?.label).toBeNull();
     const v = mediaElement({ kind: "video", src: WEBM, caption: "Eclipse", source: "Your file" }, { x: 0, y: 0, w: 400, ratio: 16 / 9 })!;
     const m = cleanBoardMedia(v.element.customData?.media)!;
     expect(m.kind).toBe("video");

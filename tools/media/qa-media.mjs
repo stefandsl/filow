@@ -8,7 +8,7 @@
 // Every request off 127.0.0.1:5031-5035 is refused in the window.
 //
 // Usage: node tools/media/qa-media.mjs [--fixtures G:\FILOW\tmp\media\fixtures] [--out G:\FILOW\tmp\media]
-// Writes <out>/frames/*.png (dark and light) and <out>/qa-media.json (the numbers).
+// Writes <out>/<frames>/*.png (dark and light; --frames, default "frames2") and <out>/qa-media.json (the numbers).
 import { spawn } from "node:child_process";
 import { buildSync } from "esbuild";
 import fs from "node:fs";
@@ -23,7 +23,8 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace
 const FIX = arg("fixtures", "G:\\FILOW\\tmp\\media\\fixtures");
 const OUT = arg("out", "G:\\FILOW\\tmp\\media");
 const WORK = path.join(OUT, "work");
-for (const d of [OUT, WORK, path.join(OUT, "frames")]) fs.mkdirSync(d, { recursive: true });
+const FRAMES = path.join(OUT, arg("frames", "frames2"));
+for (const d of [OUT, WORK, FRAMES]) fs.mkdirSync(d, { recursive: true });
 
 // ---- the board file: a GIF placed by the same code an agent uses ----
 const helper = path.join(WORK, "board-helper.cjs");
@@ -31,9 +32,9 @@ fs.writeFileSync(path.join(WORK, "board-entry.ts"), `export { mediaElement, clea
 buildSync({ entryPoints: [path.join(WORK, "board-entry.ts")], bundle: true, platform: "node", format: "cjs", outfile: helper, logLevel: "silent", alias: { "@": path.join(ROOT, "apps/web") } });
 const board = (await import(pathToFileURL(helper).href)).default;
 const gif = `data:image/gif;base64,${fs.readFileSync(path.join(FIX, "heart.gif")).toString("base64")}`;
-const placed = board.mediaElement({ kind: "gif", src: gif, caption: "Beating heart (fixture)", source: "Wikimedia Commons · Fixture author · CC0" }, { x: 60, y: 60, w: 480 }, 0, "heart");
-const title = { id: "t1", type: "text", x: 600, y: 120, width: 420, height: 40, text: "The heart pumps blood", originalText: "The heart pumps blood", fontSize: 32, fontFamily: 5, textAlign: "left", verticalAlign: "top", strokeColor: "#1e1e1e", backgroundColor: "transparent", lineHeight: 1.25, customData: { wb: { step: 0, key: "t1", role: "title" } } };
-const { edits } = board.applyOps({ elements: [], files: {} }, board.noEdits(), [{ op: "add", element: placed.element, files: placed.files }, { op: "add", element: title }]);
+const placed = board.mediaElement({ kind: "gif", src: gif, caption: "Animated test pattern", source: "Wikimedia Commons · Jane Doe · CC BY-SA 4.0" }, { x: 60, y: 60, w: 480 }, 0, "pattern");
+const title = { id: "t1", type: "text", x: 600, y: 120, width: 420, height: 40, text: "How a test pattern moves", originalText: "How a test pattern moves", fontSize: 32, fontFamily: 5, textAlign: "left", verticalAlign: "top", strokeColor: "#1e1e1e", backgroundColor: "transparent", lineHeight: 1.25, customData: { wb: { step: 0, key: "t1", role: "title" } } };
+const { edits } = board.applyOps({ elements: [], files: {} }, board.noEdits(), [{ op: "add", element: placed.element, files: placed.files }, { op: "add", element: placed.label }, { op: "add", element: title }]);
 const boardFile = path.join(WORK, "heart.excalidraw");
 fs.writeFileSync(boardFile, board.excalidrawFile(board.applyEdits({ elements: [], files: {} }, edits)));
 
@@ -53,7 +54,7 @@ const commons = http.createServer((req, res) => {
     const video = /filemime:video/.test(u.searchParams.get("gsrsearch") ?? "");
     const file = video ? "eclipse.webm" : "heart.gif";
     const size = fs.statSync(path.join(FIX, file)).size;
-    const info = { url: `http://127.0.0.1:5032/f/${file}`, ...(video ? {} : { thumburl: `http://127.0.0.1:5032/f/${file}` }), mime: video ? "video/webm" : "image/gif", size, ...(video ? { duration: 4 } : {}), extmetadata: { Artist: { value: "<span>Fixture author</span>" }, LicenseShortName: { value: "CC0" }, ObjectName: { value: video ? "Solar eclipse (fixture)" : "Beating heart (fixture)" } } };
+    const info = { url: `http://127.0.0.1:5032/f/${file}`, ...(video ? {} : { thumburl: `http://127.0.0.1:5032/f/${file}` }), mime: video ? "video/webm" : "image/gif", size, ...(video ? { duration: 4 } : {}), extmetadata: { Artist: { value: video ? "<a href=\"//commons.wikimedia.org/wiki/User:Example\">Ravi Kumar</a>" : "<span>Jane Doe</span>" }, LicenseShortName: { value: video ? "CC BY 4.0" : "CC BY-SA 4.0" }, ObjectName: { value: video ? "Moving colour bars" : "Animated test pattern" } } };
     res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ query: { pages: { 1: { index: 1, title: `File:${file}`, imageinfo: [info] } } } }));
     return;
   }
@@ -70,7 +71,7 @@ const electron = require(path.join(ROOT, "node_modules/electron"));
 const resultFile = path.join(OUT, "qa-media.json");
 if (fs.existsSync(resultFile)) fs.rmSync(resultFile);
 const child = spawn(electron, [path.join(ROOT, "tools/media/qa-media-electron.cjs")], {
-  env: { ...process.env, FILOW_QA_HEADLESS: "1", FILOW_QA_NO_GLOBAL_INPUT: "1", QA_MEDIA_OUT: OUT, QA_MEDIA_BOARD: boardFile, QA_MEDIA_ROOT: ROOT, ELECTRON_ENABLE_LOGGING: "0" },
+  env: { ...process.env, FILOW_QA_HEADLESS: "1", FILOW_QA_NO_GLOBAL_INPUT: "1", QA_MEDIA_OUT: OUT, QA_MEDIA_FRAMES: FRAMES, QA_MEDIA_BOARD: boardFile, QA_MEDIA_ROOT: ROOT, ELECTRON_ENABLE_LOGGING: "0" },
   stdio: ["ignore", "inherit", "inherit"],
 });
 const code = await new Promise((r) => child.on("exit", r));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { batchRecipient, checkMedia, cleanShow, extractMedia, galleryColumns, galleryLayout, isLoopback, MAX_GALLERY, maxDataUrl, MEDIA_PROMPT, ownHost, ownMedia, placeBlock, wikimediaRecipient } from "./media";
+import { batchRecipient, checkMedia, cleanShow, extractMedia, galleryColumns, galleryLayout, isLoopback, MAX_GALLERY, maxDataUrl, MEDIA_PROMPT, ownHost, ownMedia, placeBlock, showLayout, wikimediaRecipient } from "./media";
 import { photoRecipient } from "./outbound";
 import { parseBuddyAnswer, buddySystemPrompt } from "./prompt";
 import { wordsOnly } from "./phoneAsk";
@@ -117,6 +117,20 @@ describe("layout", () => {
     const small = { width: 360, height: 640 };
     const s = galleryLayout(6, small, [], { x: 180, y: 320 });
     for (const t of s.tiles) expect(inside(t, small)).toBe(true);
+  });
+  it("a slide and pictures: one column, same left edge, one gap apart, never touching; a gap from the pill and marks too", () => {
+    const pill: Rect = { left: 860, top: 8, right: 1060, bottom: 44 };
+    const mark: Rect = { left: 900, top: 340, right: 1060, bottom: 500 };
+    const s = showLayout(2, { width: 560, height: 380 }, view, [pill, mark], { x: 960, y: 540 });
+    expect(s.slide).not.toBeNull();
+    expect(s.tiles[0].left).toBe(s.slide!.left);
+    expect(s.slide!.top - Math.max(...s.tiles.map((t) => t.bottom))).toBe(12);
+    for (const r of [...s.tiles, s.slide!]) {
+      expect(inside(r, view)).toBe(true);
+      for (const a of [pill, mark]) expect(area(r, { left: a.left - 11, top: a.top - 11, right: a.right + 11, bottom: a.bottom + 11 })).toBe(0);
+    }
+    const g = galleryLayout(4, view, [pill, mark], { x: 960, y: 540 });
+    for (const t of g.tiles) for (const a of [pill, mark]) expect(area(t, { left: a.left - 11, top: a.top - 11, right: a.right + 11, bottom: a.bottom + 11 })).toBe(0);
   });
   it("placeBlock: off the boxes when there is room, as near the spot as it can", () => {
     const p = placeBlock({ width: 400, height: 300 }, view, [{ left: 760, top: 390, right: 1160, bottom: 690 }], { x: 960, y: 540 });

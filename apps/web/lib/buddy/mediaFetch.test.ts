@@ -61,7 +61,7 @@ describe("the user's own", () => {
       const file = path.join(dir, "loop.gif");
       fs.writeFileSync(file, GIF_BYTES);
       const item = await fromOwn(file, "Your file");
-      expect(item).toMatchObject({ kind: "gif", caption: "loop.gif", source: "Your file" });
+      expect(item).toMatchObject({ kind: "gif", caption: "loop", source: "Your file" });
       fs.writeFileSync(path.join(dir, "notes.txt"), "x");
       expect(await fromOwn(path.join(dir, "notes.txt"), "Your file")).toBeNull();
       expect(await fromOwn(path.join(dir, "missing.gif"), "Your file")).toBeNull();

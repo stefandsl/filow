@@ -92,7 +92,10 @@ export async function fromOwn(subject: string, label: string, f: typeof fetch = 
   const mime = EXT_MIME[ext];
   if (!mime) return null;
   const kind = kindOfExt(ext);
-  const name = subject.split(/[\\/]/).pop()?.split(/[?#]/)[0] ?? subject;
+  // the file's name is its caption, without the extension ("Mandelbrot set.png" -> "Mandelbrot set")
+  const file = subject.split(/[\\/]/).pop()?.split(/[?#]/)[0] ?? subject;
+  let name = file.replace(/\.[a-z0-9]+$/i, "") || file;
+  try { name = decodeURIComponent(name); } catch { /* not encoded */ }
   if (/^[A-Za-z]:\\/.test(subject)) {
     const stat = await fs.stat(subject).catch(() => null);
     if (!stat || !stat.isFile() || stat.size > MAX_BYTES[kind]) return null;

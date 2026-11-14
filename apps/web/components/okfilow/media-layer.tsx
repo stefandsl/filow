@@ -7,7 +7,7 @@
 // of it away at once (the overlay page passes null).
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { okFilowBridge } from "@/lib/buddy/bridge";
-import { galleryLayout, MAX_VIDEO_SECONDS, placeBlock, type MediaItem, type MediaShow } from "@/lib/buddy/media";
+import { MAX_VIDEO_SECONDS, showLayout, type MediaItem, type MediaShow } from "@/lib/buddy/media";
 import type { Rect } from "@/lib/buddy/marks";
 import type { OkfKey } from "@/lib/buddy/text";
 
@@ -35,7 +35,9 @@ function MediaView({ item, t, onClose, onBad }: { item: MediaItem; t: T; onClose
       c.getContext("2d")?.drawImage(img.current, 0, 0);
     }
   };
+  // The picture alone in its box (no button on it), then one strip: caption and source, play/pause and close.
   return (
+    <>
     <div className="okf-media-box" data-kind={item.kind} data-paused={paused || undefined}>
       {item.kind === "video" ? (
         <video
@@ -56,6 +58,9 @@ function MediaView({ item, t, onClose, onBad }: { item: MediaItem; t: T; onClose
           {item.kind === "gif" && <canvas ref={still} aria-hidden style={paused ? undefined : { display: "none" }} />}
         </>
       )}
+    </div>
+    <figcaption>
+      <div className="okf-media-words"><span>{item.caption}</span><small>{item.source}</small></div>
       <div className="okf-media-tools">
         {item.kind !== "photo" && (
           <button type="button" className="okf-media-btn" data-action="play" aria-label={paused ? t("mediaPlay") : t("pause")} title={paused ? t("mediaPlay") : t("pause")} onClick={toggle}>
@@ -66,7 +71,8 @@ function MediaView({ item, t, onClose, onBad }: { item: MediaItem; t: T; onClose
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
         </button>
       </div>
-    </div>
+    </figcaption>
+    </>
   );
 }
 
@@ -105,13 +111,10 @@ function ShownMedia({ show, avoid, t }: Props & { show: MediaShow }) {
   useLayoutEffect(() => {
     const view = { width: window.innerWidth, height: window.innerHeight };
     const anchor = { x: show.x, y: show.y };
-    const others = avoid();
-    let s: Rect | null = null;
-    if (slide && slideEl.current) {
-      s = placeBlock({ width: Math.min(SLIDE_WIDTH, view.width - 24), height: slideEl.current.offsetHeight }, view, others, anchor).rect;
-    }
-    setSlideAt(s);
-    setTiles(galleryLayout(gallery.length, view, s ? [...others, s] : others, anchor).tiles);
+    const size = slide && slideEl.current ? { width: Math.min(SLIDE_WIDTH, view.width - 24), height: slideEl.current.offsetHeight } : null;
+    const placed = showLayout(gallery.length, size, view, avoid(), anchor);
+    setSlideAt(placed.slide);
+    setTiles(placed.tiles);
   }, [show, sig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Where the mouse may land (main lets it in only there).
@@ -142,7 +145,6 @@ function ShownMedia({ show, avoid, t }: Props & { show: MediaShow }) {
               {slideMedia.map(({ item, key }) => (
                 <figure key={key}>
                   <MediaView item={item} t={t} onClose={() => close(key)} onBad={() => close(key)} />
-                  <figcaption><span>{item.caption}</span><small>{item.source}</small></figcaption>
                 </figure>
               ))}
             </div>
@@ -155,7 +157,6 @@ function ShownMedia({ show, avoid, t }: Props & { show: MediaShow }) {
         return (
           <figure key={key} className="okf-media-tile" data-kind={item.kind} style={{ left: r.left, top: r.top, width: r.right - r.left, height: r.bottom - r.top }}>
             <MediaView item={item} t={t} onClose={() => close(key)} onBad={() => close(key)} />
-            <figcaption><span>{item.caption}</span><small>{item.source}</small></figcaption>
           </figure>
         );
       })}
