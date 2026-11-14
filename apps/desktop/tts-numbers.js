@@ -9,6 +9,8 @@ const MONTHS = {
 const word = (n, l, options) => converters[l].toCardinal(String(n), options);
 function ordinal(n, l, form = '') {
   let s = converters[l].toOrdinal(Number(n));
+  // Russian years are said "тысяча девятьсот ...", never "одна тысяча девятьсот ...".
+  if (l === 'ru') s = s.replace(/^одна тысяча/, 'тысяча');
   if (l === 'it' && form === 'ª') s = s.replace(/o$/, 'a');
   if (l === 'ru') {
     if (form === 'gen') s = s.replace(/третий$/, 'третьего').replace(/(?:ый|ой|ий)$/, 'ого');
@@ -26,6 +28,21 @@ function date(d, m, y, l) {
   if (l === 'ru') return `${ordinal(d,l,'gen')} ${MONTHS.ru[m-1]} ${ordinal(y,l,'gen')} года`;
   const day = l === 'en' ? ordinal(d,l) : l === 'it' && d === 1 ? 'primo' : word(d,l);
   return `${day} ${MONTHS[l][m-1]} ${word(y,l)}`;
+}
+// Currency names: [one, many, one minor, many minor]; Russian: [one, few, many] for major then minor units.
+const CURRENCY = {
+  en: {EUR:['euro','euros','cent','cents'],USD:['dollar','dollars','cent','cents'],GBP:['pound','pounds','penny','pence'],JPY:['yen','yen','',''],RUB:['ruble','rubles','kopeck','kopecks'],RON:['leu','lei','ban','bani']},
+  it: {EUR:['euro','euro','centesimo','centesimi'],USD:['dollaro','dollari','centesimo','centesimi'],GBP:['sterlina','sterline','penny','pence'],JPY:['yen','yen','',''],RUB:['rublo','rubli','copeco','copechi'],RON:['leu','lei','ban','bani']},
+  ro: {EUR:['euro','euro','cent','cenți'],USD:['dolar','dolari','cent','cenți'],GBP:['liră','lire','penny','pence'],JPY:['yen','yeni','',''],RUB:['rublă','ruble','copeică','copeici'],RON:['leu','lei','ban','bani']},
+  ru: {EUR:['евро','евро','евро','цент','цента','центов'],USD:['доллар','доллара','долларов','цент','цента','центов'],GBP:['фунт','фунта','фунтов','пенни','пенни','пенни'],JPY:['иена','иены','иен','','',''],RUB:['рубль','рубля','рублей','копейка','копейки','копеек'],RON:['лей','лея','леев','бань','бани','бань']},
+  ja: {EUR:'ユーロ',USD:'ドル',GBP:'ポンド',JPY:'円',RUB:'ルーブル',RON:'レイ'},
+};
+// English years are said in pairs: nineteen ninety-nine, nineteen oh five, twenty twenty-one, two thousand five.
+function yearEn(y) {
+  y = Number(y);
+  const hi = Math.floor(y / 100), lo = y % 100;
+  if (y < 1100 || y > 2099 || (hi === 20 && lo < 10)) return word(y,'en');
+  return `${word(hi,'en')} ${lo === 0 ? 'hundred' : lo < 10 ? 'oh ' + word(lo,'en') : word(lo,'en')}`;
 }
 const pluralRu = (n, forms) => forms[n % 100 >= 11 && n % 100 <= 14 ? 2 : n % 10 === 1 ? 0 : n % 10 >= 2 && n % 10 <= 4 ? 1 : 2];
 function ruGenitive(n) {
@@ -78,7 +95,9 @@ function normalizeNumbers(text, lang) {
   // Protect structured tokens before the broad number pass. Private-use placeholders have no digits.
   const hold = value => { kept.push(value); return String.fromCodePoint(0xF0000 + kept.length - 1); };
   let s = text;
-  s = s.replace(/(?<![\p{L}\d.])\d+(?:\.\d+){2,}(?!\d|\.\d)/gu, v => hold(v.split('.').map(n=>word(n,l)).join(` ${{en:'dot',it:'punto',ru:'точка',ro:'punct',ja:'点'}[l]} `)));
+  // Where the comma is the decimal mark, 2.500.000 is a grouped number, not a version.
+  const grouped = v => !['en','ja'].includes(l) && /^\d{1,3}(?:\.\d{3})+$/.test(v);
+  s = s.replace(/(?<![\p{L}\d.])\d+(?:\.\d+){2,}(?!\d|\.\d)/gu, v => grouped(v) ? v : hold(v.split('.').map(n=>word(n,l)).join(` ${{en:'dot',it:'punto',ru:'точка',ro:'punct',ja:'点'}[l]} `)));
   s = s.replace(/(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)/g, (v,y,m,d) => hold(date(d,m,y,l) ?? v));
   s = s.replace(/(?<!\d)(\d{1,2})\/(\d{1,2})\/(\d{4})(?!\d)/g, (v,d,m,y) => hold(date(d,m,y,l) ?? v));
   if (MONTHS[l]) {
@@ -100,21 +119,47 @@ function normalizeNumbers(text, lang) {
     s = s.replace(/(\d{4}) год(?![а-я])/g, (_,y) => hold(`${ordinal(y,l)} год`));
     s = s.replace(/(\d+) (минут[аыу]?|страниц[аыу]?|секунд[аыу]?)(?![а-я])/g, (_,n,noun) => hold(`${word(n,l,{gender:'feminine'})} ${noun}`));
   }
-  if (l === 'en') s = s.replace(/\b([1-9]\d*)(?:st|nd|rd|th)\b/g, (_,n)=>hold(ordinal(n,l)));
+  if (l === 'en') {
+    // A decade (the 1990s) or a year after a time preposition (in 1999, since 2021) is a year, not a count.
+    s = s.replace(/\b(1[1-9]|20)(\d0)s\b/g, (_,a,b) => hold(yearEn(a + b).replace(/y$/, 'ie') + 's'));
+    s = s.replace(/\b(in|since|from|to|until|by|before|after) (1[1-9]\d\d|20\d\d)\b(?![.,]\d)/gi, (_,p,y) => `${p} ${hold(yearEn(y))}`);
+    s = s.replace(/\b([1-9]\d*)(?:st|nd|rd|th)\b/g, (_,n)=>hold(ordinal(n,l)));
+  }
   if (l === 'it') s = s.replace(/\b([1-9]\d*)([°ºª])/g, (_,n,f)=>hold(ordinal(n,l,f)));
   if (l === 'ru') s = s.replace(/\b([1-9]\d*)-([йяе])/g, (_,n,f)=>hold(ordinal(n,l,f === 'е' ? 'neuter' : f)));
-  if (l === 'ro') s = s.replace(/\bal ([1-9]\d*)-lea\b/g, (_,n)=>hold(ordinal(n,l)));
+  if (l === 'ro') s = s.replace(/\b(al) ([1-9]\d*)-lea\b/gi, (_,a,n)=>hold(ordinal(n,l).replace(/^al/, a)));
   if (l === 'ja') s = s.replace(/第(\d+)/g, (_,n)=>hold(ordinal(n,l)));
   const amount = '(?:\\d{1,3}(?:[., \\u00a0\\u202f]\\d{3})+|\\d+)(?:[.,]\\d{1,2})?';
   const currencies = {'€':'EUR','$':'USD','£':'GBP','₽':'RUB','¥':'JPY',EUR:'EUR',USD:'USD',GBP:'GBP',RUB:'RUB',RON:'RON',JPY:'JPY'};
   const money = (n,c) => {
     const decimal = ['en','ja'].includes(l) ? '.' : ',';
     const raw = n.replace(/[\s\u00a0\u202f]/g,'').split(decimal === '.' ? ',' : '.').join('').replace(decimal,'.');
-    try { return converters[l].toCurrency(raw,{currency:currencies[c]}); } catch { return `${numeric(n,l) ?? n} ${c}`; }
+    const code = currencies[c];
+    if (l === 'ja') return `${numeric(n,l) ?? n}${CURRENCY.ja[code]}`;
+    const [whole, cents = ''] = raw.split('.');
+    const major = Number(whole), minor = Number(cents.padEnd(2,'0').slice(0,2));
+    const [one, many, oneMinor, manyMinor] = CURRENCY[l][code];
+    const count = (x, sing, plural, gen, feminine) => {
+      if (l === 'ru') return `${word(x,l,feminine ? {gender:'feminine'} : undefined)} ${pluralRu(x,[sing,plural,gen])}`;
+      const w = x === 1 ? {en:'one',it:'un',ro:'un'}[l] : word(x,l);
+      const de = l === 'ro' && x >= 20 && (x % 100 === 0 || x % 100 >= 20) ? 'de ' : '';
+      return `${w} ${de}${x === 1 ? sing : plural}`;
+    };
+    const ru = l === 'ru';
+    const majorText = ru ? count(major, ...CURRENCY.ru[code].slice(0,3), code === 'JPY') : count(major, one, many);
+    if (!minor) return majorText;
+    const minorText = ru ? count(minor, ...CURRENCY.ru[code].slice(3,6), code === 'RUB') : count(minor, oneMinor, manyMinor);
+    if (!major) return minorText;
+    return `${majorText}${{en:' and ',it:' e ',ro:' \u0219i ',ru:' '}[l]}${minorText}`;
   };
   s = s.replace(new RegExp(`([€$£₽¥])\\s*(${amount})`, 'g'), (_,c,n)=>hold(money(n,c)));
   s = s.replace(new RegExp(`(${amount})\\s*(EUR|USD|GBP|RUB|RON|JPY|[€$£₽¥])`, 'g'), (_,n,c)=>hold(money(n,c)));
-  s = s.replace(/(?<![\p{L}\d])(\d+)\s*[-–]\s*(\d+)(?![\p{L}\d])/gu, (_,a,b)=>hold(l === 'ru' ? `от ${ruGenitive(a)} до ${ruGenitive(b)}` : `${word(a,l)} ${{en:'to',it:'a',ro:'până la',ja:'から'}[l]} ${word(b,l)}`));
+  // Russian prepositions that take the genitive: около сорока двух, из пяти, для двухсот пятидесяти.
+  if (l === 'ru') s = s.replace(/(?<!\p{L})(около|для|из|без|до|от|после|кроме) (\d+)(?![\d.,:\p{L}]|\s*%)/giu, (_,p,n) => `${p} ${hold(ruGenitive(n))}`);
+  // Decades with an apostrophe: "anni '90" is "anni novanta", "anii '90" is "anii nouăzeci".
+  s = s.replace(/\b(anni|anii) ?['’](\d0)\b/giu, (_,a,d) => `${a} ${hold(word(d,l))}`);
+  // Japanese words have no spaces: a range before 日 or ページ is still a range.
+  s = s.replace(l === 'ja' ? /(?<![A-Za-z\d])(\d+)\s*[-–]\s*(\d+)(?![A-Za-z\d])/gu : /(?<![\p{L}\d])(\d+)\s*[-–]\s*(\d+)(?![\p{L}\d])/gu, (_,a,b)=>hold(l === 'ru' ? `от ${ruGenitive(a)} до ${ruGenitive(b)}` : `${word(a,l)} ${{en:'to',it:'a',ro:'până la',ja:'から'}[l]} ${word(b,l)}`));
   const pattern = l === 'ja'
     ? /(?<![A-Za-z\d])(-?(?:\d{1,3}(?:[.,\u00a0\u202f ]\d{3})+|\d+)(?:[.,]\d+)?)(\s*%)?(?![A-Za-z\d])/gu
     : /(?<![\p{L}\d])(-?(?:\d{1,3}(?:[.,\u00a0\u202f ]\d{3})+|\d+)(?:[.,]\d+)?)(\s*%)?(?![\p{L}\d])/gu;

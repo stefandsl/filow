@@ -2,12 +2,14 @@
 // two columns beside the model (left and right of it), each on a leader line that starts on its
 // part's anchor as the model turns. Columns are assigned once and remain attached to the part.
 
+import { LEADER } from "./overlay-motion-params";
+
 type P = { x: number; y: number };
 type Size = { width: number; height: number };
 export type LabelSide = "left" | "right";
 export type LabelSlot = { x: number; y: number; width: number; height: number; side: LabelSide; from: P; knee: P; elbow: P; to: P };
 
-export const LEADER_LANE_GAP = 28;
+export const LEADER_LANE_GAP = LEADER.laneGap;
 
 const DEG = Math.PI / 180;
 

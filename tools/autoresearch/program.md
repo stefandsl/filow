@@ -33,6 +33,38 @@ After github.com/karpathy/autoresearch (MIT). The owner or the orchestrator edit
 | Track | The one editable file | Evaluator |
 |---|---|---|
 | AR-1 local screen prompt, 5 languages | `apps/web/lib/buddy/local-target-prompt.ts` | `node tools/autoresearch/ar1/evaluate.mjs [--split heldout] [--record-baseline]` |
+| AR-2 overlay motion | `apps/web/lib/buddy/overlay-motion-params.ts` | `node tools/autoresearch/ar2/evaluate.mjs` |
+| AR-3 spoken forms, 5 languages | `apps/desktop/tts-numbers.js` | `node tools/autoresearch/ar3/evaluate.mjs [--split heldout]` |
+
+### AR-2 details
+
+- Every run builds apps/web, starts its standalone server on 127.0.0.1:4961, and drives the hidden Electron
+  `ar2/qa.cjs` (offscreen, permissions denied, no desktop input, only port 4961 reachable): the pointer flight to
+  "Settings" over two text obstacles and the jet-engine model for the sheet plus 24 camera poses, dark and light.
+- Numbers (worst of both themes) as in overlay round 2B: leader crossings, leader clearance outside 8 px anchor
+  discs (lane spacing), label overlaps, label identity changes, glyph and pill overlap with text, pointer max step,
+  flight time, direction reversals, path/straight ratio, arrival ring centre to the landed tip.
+- Score 0..100, weights in `ar2/evaluate.mjs` (`WEIGHTS`). No held-out split: the scene set is fixed. A kept change must
+  keep the other overlay tests (`apps/web/lib/buddy/overlay-*.test.ts`) green. `overlay-motion-params.test.ts` pins
+  the round 2B values and is expected to fail on a changed value; the orchestrator updates it when a kept result
+  is merged.
+- One run takes about 3.5 minutes (build about 90 s, driver about 100 s); `--no-build` reuses the last build.
+- Noise: the worst-frame crossing count moves between runs (4 and 6 seen on the same commit, score 53.21 and
+  51.78). Keep an experiment only when the score rises by more than 2 points.
+- Baseline 14/11 on 21cbe9c (first run as 5d77704, same files): 53.21 (crossings 4, clearance 0 px, label overlaps 3, identity changes 0, text overlap
+  0, max step 20.09 px, flight 616.7 ms, reversals 0, path ratio 1.156, ring offset 0 px).
+
+### AR-3 details
+
+- 60 frozen inputs per language (en, it, ru, ro, ja) with expected spoken forms, inside `ar3/evaluate.mjs`. Item i
+  is held out when i % 3 == 2 (20), the rest are dev (40). Russian, Romanian and Japanese expected forms need a
+  native check.
+- Score: percent exact matches (case-insensitive, whitespace collapsed; Japanese without whitespace), averaged over
+  the five languages. No model, no network, under one second. Dev misses go to `G:/FILOW/tmp/autoresearch/ar3/runs`.
+- `ttft_p50_ms` in `results.tsv` is `-` for this track.
+- Keep `apps/desktop/tts.test.ts` and `apps/desktop/tts-round2.test.ts` green: a kept experiment that breaks either is a
+  discard. They pin some conventions the evaluator does not expect (bare English years, English dates and "dot"
+  versions, Russian "одна тысяча", Italian "tre a cinque", Romanian digit-by-digit decimals, "ноль часов ноль минут").
 
 ### AR-1 details
 
