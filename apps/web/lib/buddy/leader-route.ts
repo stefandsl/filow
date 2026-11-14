@@ -1,4 +1,7 @@
 import { segmentDistance, measureLeaders, outsideAnchors, type Pixel } from "./leader-metrics";
+import { LEADER } from "./overlay-motion-params";
+
+const { anchorRadius: R, corridor: CORRIDOR } = LEADER;
 
 const distance=(a:Pixel,b:Pixel)=>Math.hypot(a.x-b.x,a.y-b.y);
 /** Route elbows around already reserved screen-space corridors. Identity and columns never change. */
@@ -6,17 +9,18 @@ function routeForward(lines: Pixel[][], view:{width:number;height:number}, previ
   lines=lines.map(forwardLeader);
   if(previous?.length===lines.length) {
     const carried=previous.map((p,i)=>[lines[i][0],...p.slice(1,-1),lines[i][lines[i].length-1]]);
-    const m=measureLeaders(carried,8);
-    if(!hookCount(carried) && !m.intersections && m.clearance>=13)return carried;
+    const m=measureLeaders(carried,R);
+    if(!hookCount(carried) && !m.intersections && m.clearance>=LEADER.keepClearance)return carried;
   }
-  if(measureLeaders(lines,8).clearance>=14 && !measureLeaders(lines).intersections) return lines;
-  const step=8, cols=Math.floor(view.width/step), rows=Math.floor(view.height/step);
-  const point=(id:number)=>({x:(id%cols)*step+4,y:Math.floor(id/cols)*step+4});
+  if(measureLeaders(lines,R).clearance>=LEADER.directClearance && !measureLeaders(lines).intersections) return lines;
+  const step=LEADER.gridStep, cols=Math.floor(view.width/step), rows=Math.floor(view.height/step);
+  const point=(id:number)=>({x:(id%cols)*step+step/2,y:Math.floor(id/cols)*step+step/2});
   const ends=lines.map(p=>p[p.length-1]), starts=lines.map(p=>p[0]);
   const order=lines.map((_,i)=>i).sort((a,b)=>distance(starts[a],ends[a])-distance(starts[b],ends[b]));
   let best=lines, bestScore=-Infinity;
-  for(let attempt=0;attempt<12;attempt++) {
-    const ids=attempt<6?order.slice(attempt).concat(order.slice(0,attempt)):order.slice().reverse().slice(attempt-6).concat(order.slice().reverse().slice(0,attempt-6));
+  const half=Math.floor(LEADER.attempts/2);
+  for(let attempt=0;attempt<LEADER.attempts;attempt++) {
+    const ids=attempt<half?order.slice(attempt).concat(order.slice(0,attempt)):order.slice().reverse().slice(attempt-half).concat(order.slice().reverse().slice(0,attempt-half));
     const routed:Pixel[][]=Array.from({length:lines.length},()=>[]);
     let failed=false;
     for(const id of ids) {
@@ -28,12 +32,12 @@ function routeForward(lines: Pixel[][], view:{width:number;height:number}, previ
         for(const [c,d,anchor] of obstacles) {
           if(segmentDistance(a,b,c,d)<0.2) return false;
           const anchors=[start,anchor];
-          for(const [p,q] of outsideAnchors(a,b,anchors,8)) for(const [r,s] of outsideAnchors(c,d,anchors,8)) if(segmentDistance(p,q,r,s)<14) return false;
+          for(const [p,q] of outsideAnchors(a,b,anchors,R)) for(const [r,s] of outsideAnchors(c,d,anchors,R)) if(segmentDistance(p,q,r,s)<CORRIDOR) return false;
         }
         // Reserve exits for the remaining anchors and label endpoints.
         for(let j=0;j<lines.length;j++) if(j!==id && !routed[j].length) {
-          if(distance(start,starts[j])>=28 && segmentDistance(a,b,starts[j],starts[j])<14) return false;
-          if(segmentDistance(a,b,ends[j],ends[j])<14) return false;
+          if(distance(start,starts[j])>=LEADER.exitSpacing && segmentDistance(a,b,starts[j],starts[j])<CORRIDOR) return false;
+          if(segmentDistance(a,b,ends[j],ends[j])<CORRIDOR) return false;
         }
         return true;
       };
@@ -49,7 +53,7 @@ function routeForward(lines: Pixel[][], view:{width:number;height:number}, previ
       while(heap.length) {
         const [,k]=pop();if(closed[k])continue;closed[k]=1;
         const p=point(k);
-        if(distance(p,end)<32&&clear(p,end)){found=k;break;}
+        if(distance(p,end)<LEADER.endReach&&clear(p,end)){found=k;break;}
         const x=k%cols,y=Math.floor(k/cols);
         for(const [dx,dy] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]]) {
           const nx=x+dx,ny=y+dy;if(nx<0||nx>=cols||ny<0||ny>=rows)continue;
@@ -65,9 +69,9 @@ function routeForward(lines: Pixel[][], view:{width:number;height:number}, previ
       routed[id]=simple;
     }
     if(!failed) {
-      const m=measureLeaders(routed,8);const score=m.clearance-m.intersections*10000;
+      const m=measureLeaders(routed,R);const score=m.clearance-m.intersections*10000;
       if(score>bestScore){best=routed;bestScore=score;}
-      if(m.intersections===0 && m.clearance>=12.2)return routed;
+      if(m.intersections===0 && m.clearance>=LEADER.goodClearance)return routed;
     }
   }
   return best;
@@ -85,7 +89,7 @@ export function forwardLeader(p:Pixel[]):Pixel[] {
 
 /** Keep columns and identities, allowing rows to move when fixed rows need a hook. */
 export function routeLeaders(lines:Pixel[][],view:{width:number;height:number},previous:Pixel[][]|null=null):Pixel[][] {
- const good=(p:Pixel[][])=>{const m=measureLeaders(p,8);return !m.intersections&&m.clearance>=12.2;};
+ const good=(p:Pixel[][])=>{const m=measureLeaders(p,R);return !m.intersections&&m.clearance>=LEADER.goodClearance;};
  if(previous?.length===lines.length) {
   const carried=previous.map((p,i)=>[lines[i][0],...p.slice(1,-1),lines[i].at(-1)!]);
   if(!hookCount(carried)&&good(carried))return carried;
@@ -100,7 +104,7 @@ export function routeLeaders(lines:Pixel[][],view:{width:number;height:number},p
  const candidates:Pixel[][][]=[];
  let attempts=0;
  candidatesLoop: for(const left of permute(groups[0]))for(const right of permute(groups[1])) {
-  if(attempts++>=64)break candidatesLoop;
+  if(attempts++>=LEADER.permutations)break candidatesLoop;
   const proposed=lines.map(p=>p.map(q=>({...q})));
   for(const ids of [left,right]) {const rows=ids.map(i=>lines[i].at(-1)!.y).sort((a,b)=>a-b);ids.forEach((id,k)=>{proposed[id][proposed[id].length-1].y=rows[k];});}
   const straight=proposed.map(p=>[p[0],p[p.length-1]]);

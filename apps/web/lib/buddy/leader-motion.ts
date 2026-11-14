@@ -1,6 +1,7 @@
 import type { Pixel } from "./leader-metrics";
+import { LEADER } from "./overlay-motion-params";
 
-export const LEADER_EASE_MS = 160;
+export const LEADER_EASE_MS = LEADER.easeMs;
 
 /** Equal arc-length samples let routes with different bend counts blend continuously. */
 export function sampleLeader(path: Pixel[], count = 65): Pixel[] {
