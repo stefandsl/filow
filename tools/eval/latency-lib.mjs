@@ -322,3 +322,24 @@ export function ollamaCallsOutsideCli(source) {
   }
   return hits;
 }
+
+/**
+ * The pointing scores of the screen experiment, said plainly as two scores that are never mixed:
+ * "hinted", where the question carried the named element's position (screenHint, as the app gives it
+ * from Windows' element list), and "vision only", where the model had only the picture. A hinted hit
+ * can be the hint copied back; only the vision-only score measures the model's eyes. A row without
+ * `hint` is from before this split, when every question was hinted.
+ */
+export function pointingScores(rows) {
+  const pct = (n, of) => (of ? `${Math.round((100 * n) / of)}%` : "-");
+  const line = (hint, label) => {
+    const set = rows.filter((r) => r.valid && (r.hint ?? true) === hint);
+    const raw = set.filter((r) => r.rawInside).length;
+    const placed = set.filter((r) => r.placedInside).length;
+    return `${label}: the model's own point inside the target ${raw}/${set.length} (${pct(raw, set.length)}), after Filow places it ${placed}/${set.length} (${pct(placed, set.length)})`;
+  };
+  return [
+    line(true, "hinted (the model was given the element's position)"),
+    line(false, "vision only (no position given, the picture alone)"),
+  ];
+}
