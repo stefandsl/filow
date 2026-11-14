@@ -748,6 +748,8 @@ function createOkFilow(deps) {
           logLine(`okfilow qa overlay ${id} visible=${w.isVisible()} ${dom}`);
           const img = await w.webContents.capturePage();
           require("node:fs").mkdirSync(dir, { recursive: true });
+    // the whiteboard reads the same settings (its voice, the online model's yes): a change in the panel reaches it at once
+    if (boardWin && !boardWin.isDestroyed()) boardWin.webContents.send("okfilow:config", status());
           require("node:fs").writeFileSync(path.join(dir, `${tag}-${id}-${Date.now()}.png`), img.toPNG());
         } catch (e) { logLine(`okfilow qa shot: ${e.message}`); }
       }

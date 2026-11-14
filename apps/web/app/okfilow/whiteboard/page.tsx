@@ -21,6 +21,7 @@ import { buddyLang } from "@/lib/buddy/lang";
 import { ExcalidrawBoard, type DrawnInfo } from "@/components/whiteboard/ExcalidrawBoard";
 import { ExcalidrawCanvas } from "@/components/whiteboard/ExcalidrawCanvas";
 import { ModelPicker, useWhiteboardModel } from "@/components/whiteboard/ModelPicker";
+import { VideoChoice } from "@/components/whiteboard/VideoChoice";
 import { initialLesson, lessonReducer, readLessonStream } from "@/lib/whiteboard/client";
 import { fileStem, saveBlob } from "@/lib/whiteboard/export";
 import { createRecorder, type LessonRecorder } from "@/lib/whiteboard/video";
@@ -82,6 +83,8 @@ export default function WhiteboardPage() {
   const [follow, setFollow] = useState("");
   const [from, setFrom] = useState<AskRoute>("local");
   const [voiceOn, setVoiceOn] = useState(true);
+  const voiceOnRef = useRef(true);
+  voiceOnRef.current = voiceOn;
   const [note, setNote] = useState("");
   const [notice, setNotice] = useState<NoticeRequest | null>(null);
   const [snap, setSnap] = useState<OutboundSnapshot | null>(null);
@@ -97,6 +100,10 @@ export default function WhiteboardPage() {
   // A lesson being saved as a video (lib/whiteboard/video.ts).
   const recorderRef = useRef<LessonRecorder | null>(null);
   const [recording, setRecording] = useState(false);
+  // The video is recorded with its narration ("with voice"), read even when the lesson's voice is off.
+  const [recordVoice, setRecordVoice] = useState(false);
+  // "Save video" asks first: with voice or without.
+  const [videoAsk, setVideoAsk] = useState(false);
   const [videoInfo, setVideoInfo] = useState<{ bytes: number; frames: number; sound: boolean; type: string } | null>(null);
   const captionRef = useRef("");
   const boardRef = useRef<BoardLook>("dark");
@@ -196,6 +203,8 @@ export default function WhiteboardPage() {
     isCurrent: (id) => turnRef.current === id,
     uiLang: () => langRef.current,
     cloudAudio: cloudVoiceAudio({ out, headers: engineHeaders, onKept: () => setNote(okfTRef.current("kept_voice")), unknown: () => okfTRef.current("noticeUnknown") }),
+    // While a video is recorded with its voice, the online voice's sound goes into it too.
+    cloudElement: (el) => { recorderRef.current?.attach(el); },
     // A refused key or a used-up quota: plain words once (this speaker stops asking), details to the log only.
     onCloudError: (error) => {
       okFilowBridge()?.logProblem?.(error);
@@ -412,10 +421,11 @@ export default function WhiteboardPage() {
     let over = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const finish = () => { if (!over) dispatchPlayer({ type: "spoken", turn }); };
-    if (voiceOn && say) {
+    // A video with its voice is narrated even when the voice is off (then not heard: video.ts).
+    if ((voiceOn || recordVoice) && say) {
       const started = performance.now();
-      // The voice chosen in OK Filow; while a video is recorded, one the recording can hold.
-      const { voice } = boardVoice(statusRef.current, { natural: naturalReady.current, recording: Boolean(recorderRef.current) });
+      // The voice chosen in OK Filow; while a video is recorded with its voice, one the recording can hold.
+      const { voice } = boardVoice(statusRef.current, { natural: naturalReady.current, recording: recordVoice });
       void speaker.speak(say, turn, { lang: lessonLang, voice }).catch(() => {}).then(() => {
         if (over) return;
         // the voice has ended: what is left of the drawing is completed at once, and the clock learns this voice
@@ -430,7 +440,7 @@ export default function WhiteboardPage() {
       clearTimeout(timer);
       speaker.stop();
     };
-  }, [speaking, player.turn, say, voiceOn, lessonLang, speaker, meter]);
+  }, [speaking, player.turn, say, voiceOn, recordVoice, lessonLang, speaker, meter]);
 
   // How long after its data arrived a step was on the board (only when the board was waiting for it).
   useEffect(() => {
@@ -693,12 +703,14 @@ export default function WhiteboardPage() {
   // The lesson as a video: it is played again from its first step while the board is recorded
   // (lib/whiteboard/video.ts). The natural voice of this PC goes into the video; any other voice
   // cannot be recorded by a page, so the video is then silent and carries the sentences as captions.
-  const startVideo = async () => {
+  /** The voice a recording "with voice" would have (lib/whiteboard/voice.ts): `off` when there is none to record. */
+  const videoVoice = () => boardVoice(statusRef.current, { natural: naturalReady.current && Boolean(okFilowBridge()?.tts), recording: true });
+  const startVideo = async (withVoice: boolean) => {
+    setVideoAsk(false);
     const svg = frame.current?.querySelector<SVGSVGElement>("svg.wb-board");
     if (!svg || !ls.lesson || !prepared) return;
-    // The voice that will read the recording (lib/whiteboard/voice.ts): only the natural voice goes into the video.
-    const reads = boardVoice(statusRef.current, { natural: naturalReady.current, recording: true });
-    const natural = voiceOn && recordsSound(reads) && Boolean(okFilowBridge()?.tts);
+    const reads = videoVoice();
+    const sound = withVoice && recordsSound(reads);
     // the copy of the board drawn into each frame carries Excalidraw's fonts, inlined
     const whole = layoutBoard(boardLesson(ls.lesson), ls.lesson.steps.length - 1, shape);
     const made = createRecorder({
@@ -706,15 +718,17 @@ export default function WhiteboardPage() {
       caption: () => captionRef.current,
       colours: () => BOARD_COLOURS[boardRef.current],
       css: () => { const s = sceneFromLayout(whole); return fontCss(s.elements, s.files); },
-      sound: natural,
+      sound,
+      hear: () => voiceOnRef.current,
     });
     if (!made) {
       setNote(t("videoUnsupported"));
       return;
     }
     recorderRef.current = made;
+    setRecordVoice(sound);
     setRecording(true);
-    setNote(voiceOn && reads.note ? `${t("videoRecording")} ${t(reads.note)}` : t("videoRecording"));
+    setNote(sound && reads.note ? `${t("videoRecording")} ${t(reads.note)}` : t("videoRecording"));
     await made.start();
     dispatchPlayer({ type: "goto", index: 0 });
   };
@@ -723,6 +737,7 @@ export default function WhiteboardPage() {
     if (!made) return;
     recorderRef.current = null;
     setRecording(false);
+    setRecordVoice(false);
     const blob = await made.stop();
     if (!save || !ls.lesson) {
       setNote("");
@@ -884,9 +899,10 @@ export default function WhiteboardPage() {
             <button type="button" className="wb-btn" data-action="save-excalidraw" onClick={saveExcalidraw}>{t("exportExcalidraw")}</button>
             <button type="button" className="wb-btn" data-action="open" onClick={() => fileInput.current?.click()}>{t("openExcalidraw")}</button>
             {ls.lesson && !imported && <button type="button" className="wb-btn" onClick={saveMd} disabled={stepCount === 0}>{t("exportMd")}</button>}
-            {ls.lesson && !imported && <button type="button" className="wb-btn" data-action="video" aria-pressed={recording} onClick={() => void (recording ? endVideo(false) : startVideo())} disabled={!layout || busy}>{recording ? t("videoStop") : t("exportVideo")}</button>}
+            {ls.lesson && !imported && <button type="button" className="wb-btn" data-action="video" aria-pressed={recording} aria-expanded={recording ? undefined : videoAsk} onClick={() => (recording ? void endVideo(false) : setVideoAsk((a) => !a))} disabled={!layout || busy}>{recording ? t("videoStop") : t("exportVideo")}</button>}
           </div>
         )}
+        {videoAsk && !recording && ls.lesson && !imported && <VideoChoice t={t} voice={videoVoice()} voiceOn={voiceOn} onPick={(withVoice) => void startVideo(withVoice)} onCancel={() => setVideoAsk(false)} />}
         {ls.lesson && !imported && (
           <>
             {/* The local model explains correctly but its boards miss the main relations too often (docs/whiteboard/PROOF.md, round 3): the page says so. Never a switch: only words. */}

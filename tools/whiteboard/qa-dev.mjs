@@ -17,7 +17,7 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export async function waitFor(fn, ms, every = 300) {
   const until = Date.now() + ms;
   for (;;) {
-    const v = await fn().catch(() => null);
+    const v = await fn().catch((e) => { if (/got no answer/.test(String(e))) throw e; return null; });
     if (v) return v;
     if (Date.now() > until) return null;
     await sleep(every);
@@ -32,7 +32,13 @@ export async function connect(target) {
   let id = 0;
   const pending = new Map();
   ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && pending.has(d.id)) { pending.get(d.id)(d); pending.delete(d.id); } };
-  const call = (method, params = {}) => new Promise((r) => { const i = ++id; pending.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
+  // A window that went away answers nothing: every call gives up after 30 s instead of waiting for ever.
+  const call = (method, params = {}) => new Promise((resolve, reject) => {
+    const i = ++id;
+    const timer = setTimeout(() => { pending.delete(i); reject(new Error(`${method} got no answer in 30 s (${target.url})`)); }, 30_000);
+    pending.set(i, (d) => { clearTimeout(timer); resolve(d); });
+    ws.send(JSON.stringify({ id: i, method, params }));
+  });
   const evaluate = async (expression) => {
     const r = await call("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
     if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || "evaluate failed");
@@ -100,6 +106,22 @@ export async function launch({ profile, settings = {}, env = {}, files = {} }) {
     return page;
   };
   return { fake, okf, openBoard, stop, pid: app.pid };
+}
+
+/**
+ * A picture of the page at width x height into `file`. A hidden window sometimes does not paint for a
+ * while: the capture is tried up to three times. True when a picture was written.
+ */
+export async function shot(page, file, width = 1264, height = 860) {
+  for (let i = 0; i < 3; i++) {
+    try {
+      await page.call("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+      await sleep(400 + i * 600);
+      const r = await page.call("Page.captureScreenshot", { format: "png" });
+      if (r.result?.data) { fs.writeFileSync(file, Buffer.from(r.result.data, "base64")); return true; }
+    } catch { /* not painted yet: once more */ }
+  }
+  return false;
 }
 
 export const cloudCalls = (fake) => fake.seen.filter((x) => x.url.endsWith("/chat/completions"));
