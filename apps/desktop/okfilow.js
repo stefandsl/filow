@@ -1539,6 +1539,7 @@ function createOkFilow(deps) {
     if (action === "setup") { if (isOffline()) { wake.fail(new Error("Offline: wake models cannot download")); return wake.status(); } return wake.setup(data === true); }
     if (action === "enable") return wake.enable(cfg().wakeSensitivity);
     if (action === "sample") return wake.sample(data?.index, data?.samples);
+    if (action === "negative") return wake.negative(data?.index, data?.samples);
     if (action === "train") return wake.train();
     if (action === "delete") return wake.remove();
     if (action === "test") return wake.test(data);

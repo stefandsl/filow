@@ -1,10 +1,15 @@
 import type { OkfKey } from "./text";
 
 export const ja: Record<OkfKey, string> = {
+  wakeNegative: "普通の文を録音（任意）",
+  wakeNegativeHelp: "OK Filowを含まない文を2つ録音できます。例：今日はいい天気です。窓を開けてください。この録音も削除するまでこのPCに保存されます。",
+  wakeSkipNegatives: "スキップして負例の録音を削除",
+  wakeRecognised: "5回中{n}回を認識。負例の誤検出：{b}件中{a}件。",
+  wakeVerifyFirst: "学習後に録音を再生して確認します。有効化には5回中4回以上の認識と負例の誤検出ゼロが必要です。新しい発話ではなく学習用の録音による確認です。",
   wakeLabel: "ウェイクワード（実験的）：OK Filow と話しかける",
   wakeListening: "OK Filow を待ち受け中",
   wakeOff: "ウェイクワードをオフ",
-  wakeNotice: "有効中はマイクが開いたままになります。音声はこのPCだけで処理され、承認した5つの録音以外は保存も送信もしません。Windowsにマイクのアイコンが表示されます。Bluetoothヘッドセットは通話音質に切り替わる場合があります。GitHubのk2-fsa/sherpa-onnxとdscripka/openWakeWord v0.5.1から35.3 MBをダウンロードします。Apache-2.0。キーワードモデルの学習データは非公開です。Googleの元のモデルカードは未確認です。",
+  wakeNotice: "有効中はマイクが開いたままになります。音声はこのPCだけで処理され、任意の負例を含む承認した学習用の録音以外は保存も送信もしません。Windowsにマイクのアイコンが表示されます。Bluetoothヘッドセットは通話音質に切り替わる場合があります。GitHubのk2-fsa/sherpa-onnxとdscripka/openWakeWord v0.5.1から35.3 MBをダウンロードします。Apache-2.0。キーワードモデルの学習データは非公開です。Googleの元のモデルカードは未確認です。",
   wakeDownload: "同意してダウンロード",
   wakeRecord: "OK Filow と言ってください",
   wakeAccept: "この録音を保存",

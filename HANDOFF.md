@@ -1,5 +1,33 @@
 # Filow hand-off
 
+## Wake-word round 3 measured result, 2026-11-14
+
+On feat-wake-word, original stage (a) differs on all 80 augmented clip hashes
+and 55 durations. Portable JS/Python augmentation now matches bit-for-bit;
+embedding max error is 7.45e-8. The explicitly changed reference also adopts
+the app's SGD and bundled quantized negative/calibration split. It agrees on
+500/500 decisions, but is not the original sklearn spike: 34/256 diagnostic
+misses and 91/144 near accepts, versus the old reference's 24 and 76.
+
+Balanced default stays at 20% hard-negative sampling after a calibration curve.
+Five distinct held-out voices miss 3/48 clean/noisy calls, accept 12/26 reserved
+test near phrases, and produce 15 false accepts across 5 x 4 h of background
+(0.75/hour mean, 1.5 worst). Two optional personal negatives reduce near accepts
+to 9/26 with unchanged misses. Five-language Settings now shows own-take replay
+results and requires >=4/5 recognised and zero supplied negative accepts before
+enable. The check uses training takes, not new speech; legacy heads need retraining.
+
+Both native detectors now share a serial utility process. Whole-app 60-second
+fake-mic CPU is 8.89% before and 9.40% after. Item 4 remains incomplete: Chromium
+capture, audio service and per-100-ms IPC remain; the <4% target fails. No ship
+recommendation, including experimental opt-in. Full evidence and round 0-3 table:
+docs/okfilow/WAKE-WORD.md and wake-round3-results.json. Full checks: 3,245 tests
+pass, six skip; typecheck/lint pass; 53 mutations caught. Hidden UI checks cover
+five languages and two themes. No real mic, merge, push, tag or installed profile.
+AGENTS.md is excluded. Remaining work is capture architecture/CPU, background
+false accepts, owner count-only accuracy trial and the original platform/licence
+and real STT handoff limitations. The new parity result does not remove them.
+
 ## Wake-word round 2 partial checkpoint, 2026-11-14
 
 Merged origin/main 78830a7 into feat-wake-word in 041b650, preserving both sides.

@@ -1,10 +1,15 @@
 import type { OkfKey } from "./text";
 
 export const ro: Record<OkfKey, string> = {
+  wakeNegative: "Înregistrează o propoziție obișnuită (opțional)",
+  wakeNegativeHelp: "Poți înregistra două propoziții fără OK Filow: Astăzi este vreme frumoasă. Deschide fereastra, te rog. Și aceste înregistrări rămân pe acest PC până le ștergi.",
+  wakeSkipNegatives: "Omite și șterge exemplele negative",
+  wakeRecognised: "Recunoscute {n} din 5. Exemple negative acceptate: {a} din {b}.",
+  wakeVerifyFirst: "Antrenează pentru a verifica înregistrările. Activarea cere minimum 4 din 5 recunoscute și niciun exemplu negativ acceptat. Se verifică înregistrările de antrenare, nu vorbire nouă.",
   wakeLabel: "Frază de activare (experimentală): spune OK Filow",
   wakeListening: "Ascult după OK Filow",
   wakeOff: "Oprește fraza de activare",
-  wakeNotice: "Microfonul rămâne deschis. Sunetul este procesat numai pe acest PC, niciodată trimis sau salvat, cu excepția celor cinci înregistrări acceptate. Windows afișează pictograma microfonului. Căștile Bluetooth pot trece la calitatea apelurilor. Se descarcă 35,3 MB de pe GitHub: k2-fsa/sherpa-onnx și dscripka/openWakeWord v0.5.1. Apache-2.0; datele de antrenare ale modelului de cuvinte nu sunt declarate. Fișa originală Google nu este încă verificată.",
+  wakeNotice: "Microfonul rămâne deschis. Sunetul este procesat numai pe acest PC, niciodată trimis sau salvat, cu excepția înregistrărilor de antrenare acceptate, inclusiv exemplele negative opționale. Windows afișează pictograma microfonului. Căștile Bluetooth pot trece la calitatea apelurilor. Se descarcă 35,3 MB de pe GitHub: k2-fsa/sherpa-onnx și dscripka/openWakeWord v0.5.1. Apache-2.0; datele de antrenare ale modelului de cuvinte nu sunt declarate. Fișa originală Google nu este încă verificată.",
   wakeDownload: "Acceptă și descarcă",
   wakeRecord: "Spune OK Filow",
   wakeAccept: "Păstrează înregistrarea",

@@ -3,17 +3,44 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
+import {EventEmitter} from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 const require = createRequire(import.meta.url);
 const { DEFAULTS, SPELLINGS, blocked, combine, createCombiner, checkRecording, captureAllowed } = require("./wake-policy");
 const { verify, ensureModels, FILES } = require("./wake-models");
 const { createWake, wav, readSample } = require("./wake");
+const { createDetectors } = require("./wake");
 const { pillLive } = require("./okfilow-stop");
 const thresholds = { loose: 1, sensitive: 3, sure: 5 };
+const verification = { balanced: { total: 5, recognised: 5, negatives: 0, negativeAccepts: 0 } };
 const ready = { enabled: true, assistantEnabled: true, models: true, trained: true, indicator: true, mode: "idle", sinceSpeechMs: 600 };
 const dirs: string[] = [];
 function temp() { const d = fs.mkdtempSync(path.join(os.tmpdir(), "wake-test-")); dirs.push(d); return d; }
 afterEach(() => { vi.restoreAllMocks(); for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true }); });
+it('uses one utility RPC for both scores, reset and cleanup',async()=>{
+ const child=Object.assign(new EventEmitter(),{postMessage:vi.fn((m:{id:number;type:string;at:number})=>queueMicrotask(()=>child.emit('message',{id:m.id,at:m.at,score:6,keyword:true,ms:2}))),kill:vi.fn()});
+ const utilityProcess={fork:vi.fn(()=>child)};
+ const detector=await createDetectors(temp(),{},utilityProcess);
+ expect(utilityProcess.fork).toHaveBeenCalledTimes(1);
+ expect(await detector.feed(new Float32Array(1600),100)).toMatchObject({score:6,keyword:true,at:100});
+ await detector.reset();expect(child.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({type:'reset'}));
+ detector.stop();expect(child.kill).toHaveBeenCalledOnce();
+});
+it('blocks legacy profiles without replay evidence before loading detectors',async()=>{
+ const dir=temp();fs.mkdirSync(path.join(dir,'wake'));
+ fs.writeFileSync(path.join(dir,'wake/profile.json'),JSON.stringify({version:1,weights:Array(1152).fill(0),bias:0,thresholds,models:FILES.map((f:{sha256:string})=>f.sha256).join(':')}));
+ const load=vi.fn();const wake=createWake({userData:dir,state:()=>ready,changed:()=>{},detected:()=>{},verifyModelsFn:async()=>{},createDetectorsFn:load});
+ await wake.enable('balanced');expect(wake.status().enabled).toBe(false);expect(wake.status().error).toContain('Replay check required');expect(load).not.toHaveBeenCalled();
+});
+it('stores only explicitly accepted personal negatives, supports skipping and invalidates the head',()=>{
+ const dir=temp(),wake=createWake({userData:dir,state:()=>ready,changed:()=>{},detected:()=>{}});
+ const audio=Float32Array.from({length:16000},(_,i)=>.1*Math.sin(i/8));
+ expect(()=>wake.negative(2,audio)).toThrow('Invalid personal negative');
+ expect(()=>wake.negative(0,new Float32Array(16000))).toThrow('quiet');
+ wake.negative(0,audio);wake.negative(1,audio);expect(wake.status().negatives).toBe(2);expect(wake.status().trained).toBe(false);
+ wake.negative(0,null);expect(wake.status().negatives).toBe(1);
+ wake.remove();expect(fs.existsSync(path.join(dir,'wake'))).toBe(false);
+});
 describe("wake privacy defaults", () => {
   it("requires opt-in, five recordings and one thread", () => {
     expect(DEFAULTS.enabled).toBe(false); expect(DEFAULTS.recordings).toBe(5); expect(DEFAULTS.threads).toBe(1);
@@ -86,7 +113,7 @@ describe("enrolment and downloads", () => {
   });
   it("listening uses no network and persists no audio; pause clears authorization", async () => {
     const dir = temp(); fs.mkdirSync(path.join(dir, "wake"));
-    fs.writeFileSync(path.join(dir, "wake/profile.json"), JSON.stringify({ version: 1, weights: Array(1152).fill(0), bias: 0, thresholds, models: FILES.map((f: { sha256: string }) => f.sha256).join(":") }));
+    fs.writeFileSync(path.join(dir, "wake/profile.json"), JSON.stringify({ version: 1, weights: Array(1152).fill(0), bias: 0, thresholds, verification, models: FILES.map((f: { sha256: string }) => f.sha256).join(":") }));
     const network = vi.fn(() => { throw new Error("network during listening"); });
     vi.spyOn(globalThis, "fetch").mockImplementation(network);
     vi.spyOn(require("node:https"), "get").mockImplementation(network);
@@ -104,7 +131,7 @@ describe("enrolment and downloads", () => {
   });
   it("discards an inference finishing after pause and resume", async () => {
     const dir = temp(); fs.mkdirSync(path.join(dir, "wake"));
-    fs.writeFileSync(path.join(dir, "wake/profile.json"), JSON.stringify({ version: 1, weights: Array(1152).fill(0), bias: 0, thresholds, models: FILES.map((f: { sha256: string }) => f.sha256).join(":") }));
+    fs.writeFileSync(path.join(dir, "wake/profile.json"), JSON.stringify({ version: 1, weights: Array(1152).fill(0), bias: 0, thresholds, verification, models: FILES.map((f: { sha256: string }) => f.sha256).join(":") }));
     let paused = false, defer = false;
     let complete!: (r: unknown) => void;
     const detected = vi.fn();

@@ -6,12 +6,21 @@ const policy='apps/desktop/wake-policy.js';
 const cases=[
   ['training parity acceptance','tools/wake/training-parity.cjs','disagreements.length <= 10','disagreements.length <= 11'],
   ['relative speech-end label','apps/desktop/wake-head.js','energy[f] > peak * 1e-3','energy[f] > 0.01'],
-  ['preserve enrolment tail','apps/desktop/wake-head.js','Math.ceil(samples.length / speed)','Math.ceil(end / speed)'],
+  ['preserve enrolment tail','apps/desktop/wake-augmentation.js','Math.ceil(samples.length / speed)','Math.ceil(samples.length / speed) - 320'],
   ['speech-end window offset','apps/desktop/wake-head.js','end / speed / 16000 + dt','n / 16000 + dt'],
   ['shared mel floor','apps/desktop/wake-head.js','Math.max(mel[i], peak - 8)','mel[i]'],
   ['refresh cached vectors','apps/desktop/wake-head.js','if (changed || !history.length)','if (!history.length)'],
   ['stream frame stride','apps/desktop/wake-head.js','audio = audio.slice(1280);','audio = audio.slice(1600);'],
-  ['hard-negative training','apps/desktop/wake-head.js','const useHard = !positive && bg.hard?.length && i % 10 === 1;','const useHard = false;'],
+  ['hard-negative training','apps/desktop/wake-head.js','const useHard = !positive && bg.hard?.length && hardRate > 0 && i % (2 * Math.round(1 / hardRate)) === 1;','const useHard = false;'],
+  ['portable noise SNR','apps/desktop/wake-augmentation.js','[20, 15, 10][variant % 3]','[30, 25, 20][variant % 3]'],
+  ['portable reverb','apps/desktop/wake-augmentation.js','.2 * dry[i - 640]','.3 * dry[i - 640]'],
+  ['portable RNG','apps/desktop/wake-augmentation.js','1664525','1664527'],
+  ['personal negative windows','apps/desktop/wake-head.js','if(personal.length) bg =','if(false) bg ='],
+  ['enrolment minimum','apps/desktop/wake-enrolment.js','row.recognised >= 4','row.recognised >= 3'],
+  ['enrolment negative rejection','apps/desktop/wake-enrolment.js','row.negativeAccepts === 0','true'],
+  ['enrolment reset','apps/desktop/wake-enrolment.js','await detectors.reset();','void detectors;'],
+  ['enrolment enable guard','apps/desktop/wake.js','if (!canEnable(saved.verification, sensitivity(mode)))','if (false)'],
+  ['combined detector response','apps/desktop/wake.js','return b.call({ type: "feed", samples, at });','return { at, score: -Infinity };'],
   ['hard-negative checksum','apps/desktop/wake-head.js','crypto.createHash("sha256").update(hardBytes).digest("hex") !== hardMeta.sha256','false'],
   ['wake scheduling buffer','apps/web/lib/buddy/wake.ts','latencyHint: "playback"','latencyHint: "interactive"'],
   ['audio scheduling option','packages/stt/src/mic.ts','{ latencyHint: options.latencyHint }','{}'],
@@ -45,7 +54,7 @@ for(const [name,file,from,to] of cases.filter(c=>!process.env.FILOW_WAKE_MUTATIO
  if(!original.includes(from))throw Error('Mutation target missing: '+name);
  try{
   fs.writeFileSync(p,original.replace(from,to));
-  const r=spawnSync(process.execPath,[path.join(root,'node_modules/vitest/vitest.mjs'),'run','apps/desktop/wake.test.ts','apps/desktop/wake-head.test.ts','apps/web/lib/buddy/wake.test.ts','packages/stt/src/mic.test.ts','tools/wake/training-parity.test.ts'],{cwd:root,encoding:'utf8',timeout:30000,windowsHide:true,env:{...process.env,FILOW_QA_NO_GLOBAL_INPUT:'1',FILOW_QA_HEADLESS:'1'}});
+  const r=spawnSync(process.execPath,[path.join(root,'node_modules/vitest/vitest.mjs'),'run','apps/desktop/wake.test.ts','apps/desktop/wake-head.test.ts','apps/desktop/wake-enrolment.test.ts','apps/desktop/wake-augmentation.test.ts','apps/web/lib/buddy/wake.test.ts','packages/stt/src/mic.test.ts','tools/wake/training-parity.test.ts','--maxWorkers=2'],{cwd:root,encoding:'utf8',timeout:30000,windowsHide:true,env:{...process.env,FILOW_QA_NO_GLOBAL_INPUT:'1',FILOW_QA_HEADLESS:'1'}});
   const caught=r.status!==0&&!r.error;
   results.push({name,caught,status:r.status});console.log(name,caught?'caught':'SURVIVED');
  }finally{fs.writeFileSync(p,original)}

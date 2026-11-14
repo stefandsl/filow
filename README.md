@@ -10,8 +10,12 @@ recordings retained in your app profile. **Delete my recordings and trained wake
 word** removes the recordings and personal head. See [evidence and limitations](docs/okfilow/WAKE-WORD.md).
 
 Retraining now includes stored numerical examples of similar non-wake phrases.
-This reduces accidental near-miss detections but increases missed calls in the
-current tests. The experimental branch still fails its accuracy and CPU targets.
+You can also record two optional non-wake sentences. These accepted recordings
+stay in the same profile and are removed by the delete button. After training,
+Settings replays the five takes and any negatives through both detectors and
+shows "Recognised N of 5". Enabling needs at least four recognised and no accepted
+negative in the chosen sensitivity. This is a training-set check, not a test on
+new speech. The branch still fails its false-accept and whole-app CPU targets.
 
 <p align="center">
   <picture>

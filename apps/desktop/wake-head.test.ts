@@ -7,6 +7,24 @@ import fixture from './wake-data/reference.json';
 const require = createRequire(import.meta.url);
 const { createStream, createEmbedding, trainHead, dot, background } = require('./wake-head');
 const { speechEnd, positiveWindows } = require('./wake-head');
+const { enrol } = require('./wake-head');
+
+it('uses optional personal negatives in training and rejects more than two', async () => {
+  const embedding={embed:async (pcm:Float32Array)=>{
+    const negative=pcm[16000]>.7;
+    const out=new Float32Array(60*96);
+    for(let i=0;i<60;i++){out[i*96]=negative?.8:1;out[i*96+1]=negative?1:0;}
+    return out;
+  }};
+  const takes=Array.from({length:5},()=>new Float32Array(16000).fill(.3));
+  const negative=new Float32Array(16000).fill(.8),data=new Float32Array(3000*96);
+  for(let i=0;i<data.length;i+=96)data[i]=-1;
+  const bg={data,meta:{segments:[{frames:3000}]}};
+  const before=await enrol(embedding,takes,bg),after=await enrol(embedding,takes,bg,[negative,negative]);
+  const feature=(await embedding.embed(Float32Array.from([...new Float32Array(16000),...negative]))).slice(0,1152);
+  expect(dot(after.weights,feature)+after.bias).toBeLessThan(dot(before.weights,feature)+before.bias-1);
+  await expect(enrol(embedding,takes,bg,[negative,negative,negative])).rejects.toThrow('At most two');
+});
 
 it('labels the last energetic complete frame relative to peak energy at any gain', () => {
   const audio = new Float32Array(16000);

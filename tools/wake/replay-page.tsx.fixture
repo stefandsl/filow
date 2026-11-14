@@ -1,10 +1,13 @@
 "use client";
 // Temporary task harness; removed before committing.
 import { WakeSettings } from "@/components/WakeSettings";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { setThemePref } from "@/lib/prefs";
 import { createWakeCapture } from "@/lib/buddy/wake";
 import { okFilowBridge } from "@/lib/buddy/bridge";
 export default function WakeQa() {
+  const [lang,setLang]=useState('en');
+  useEffect(()=>{const params=new URLSearchParams(location.search);setLang(params.get('lang')||'en');setThemePref(params.get('theme')==='dark'?'dark':'light');},[]);
   useEffect(() => {
     const b = okFilowBridge(); if (!b) return;
     let chunk: ((pcm: ArrayBuffer) => void) | null = null;
@@ -22,5 +25,5 @@ export default function WakeQa() {
     };
     return () => { capture.stop(); delete target.wakeReplay; };
   }, []);
-  return <main style={{ maxWidth: 820, margin: "40px auto" }}><WakeSettings lang="en" /></main>;
+  return <main style={{ maxWidth: 820, margin: "40px auto" }}><WakeSettings lang={lang} /></main>;
 }

@@ -46,11 +46,27 @@ app.whenReady().then(async()=>{
   await sleep(5000);
   const startMetrics=app.getAppMetrics();
   const cpuStart=cpuNow(),wallStart=Date.now();
-  await sleep(60000);console.log('wake status',okf.wakeAction('status'));
+  await sleep(process.env.FILOW_QA_WAKE_ENROLMENT_UI==='1'?1000:60000);console.log('wake status',okf.wakeAction('status'));
   results.realtimeCpuPercentOneCore=(cpuNow()-cpuStart)/((Date.now()-wallStart)/1000)*100;
   results.cpuByProcess=app.getAppMetrics().map(p=>({pid:p.pid,type:p.type,name:p.name,cpuPercentOneCore:100*((p.cpu.cumulativeCPUUsage||0)-(startMetrics.find(s=>s.pid===p.pid)?.cpu.cumulativeCPUUsage||0))/((Date.now()-wallStart)/1000)}));
   const status=()=>okf.wakeAction('status');
   if(!status().listening)throw Error('Did not open fake mic: '+JSON.stringify(status()));
+  if(process.env.FILOW_QA_WAKE_ENROLMENT_UI==='1') {
+    results.enrolmentViews=[];
+    for(const lang of ['en','it','ru','ro','ja']) {
+      for(const theme of ['dark','light']) {
+        nativeTheme.themeSource=theme;
+        await window.loadURL('http://127.0.0.1:4971/okfilow/wake-qa?lang='+lang+'&theme='+theme);await sleep(700);
+        const actualTheme=await window.webContents.executeJavaScript(`document.documentElement.dataset.theme`);
+        if(actualTheme!==theme)throw Error('Theme did not apply: '+actualTheme);
+        const text=await window.webContents.executeJavaScript(`document.body.innerText`);
+        const colors=await window.webContents.executeJavaScript(`(()=>{const e=document.querySelector('fieldset .btn');const s=getComputedStyle(e);document.querySelector('fieldset').style.transform='translateZ(0)';return {foreground:s.color,background:s.backgroundColor,theme:document.documentElement.dataset.theme}})()`);
+        window.setSize(1001,1000);window.setSize(1000,1000);await sleep(300);
+        results.enrolmentViews.push({lang,theme,text,colors});
+        fs.writeFileSync(path.join(root,'../round3',`enrolment-${lang}-${theme}.png`),(await window.webContents.capturePage(undefined,{stayHidden:true})).toPNG());
+      }
+    }
+  }
   const overlays=BrowserWindow.getAllWindows().filter(w=>w.webContents.getURL().includes('/overlay'));
   for(const w of overlays){const label=await w.webContents.executeJavaScript(`document.querySelector('[data-testid="wake-indicator"]')?.textContent`);console.log('indicator',label);if(!label?.includes('OK Filow'))throw Error('Missing indicator');}
   results.checks.push({name:'fake microphone and persistent indicator',pass:true,detections:status().count});

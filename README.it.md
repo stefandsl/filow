@@ -11,9 +11,13 @@ tranne le cinque registrazioni nel profilo dell'app. Il comando di eliminazione
 rimuove registrazioni e modello personale. Vedi [prove e limiti](docs/okfilow/WAKE-WORD.md).
 
 Il riaddestramento ora include esempi numerici di frasi simili ma diverse dalla
-frase di attivazione. Nei test attuali riduce le attivazioni accidentali ma aumenta
-le chiamate perse. Il ramo sperimentale non raggiunge ancora gli obiettivi di
-precisione e consumo CPU.
+frase di attivazione. Puoi registrare anche due frasi negative facoltative, salvate
+nello stesso profilo e rimosse dal pulsante di eliminazione. Dopo l'addestramento,
+le Impostazioni riproducono le cinque prove e le frasi negative attraverso entrambi
+i rilevatori e mostrano "Riconosciute N su 5". Per attivare servono almeno quattro
+prove riconosciute e nessuna frase negativa accettata nella sensibilità scelta.
+È una verifica sui dati di addestramento, non su nuove frasi. Il ramo non raggiunge
+ancora gli obiettivi di false attivazioni e consumo CPU dell'intera app.
 
 <p align="center">
   <picture>

@@ -1,10 +1,10 @@
 // Experimental opt-in controller. Audio stays in memory except explicit enrolment.
 const fs = require("node:fs");
 const path = require("node:path");
-const { Worker } = require("node:worker_threads");
 const { SPELLINGS, blocked, checkRecording, createCombiner, sensitivity, captureAllowed } = require("./wake-policy");
 const { createCaptureWatch } = require("./okfilow-mic");
 const { validateProfile } = require("./wake-head");
+const { canEnable, replayEnrolment } = require("./wake-enrolment");
 const { verifyModels, ensureModels, FILES, NOTICE } = require("./wake-models");
 function wav(samples) {
   const b = Buffer.alloc(44 + samples.length * 2);
@@ -41,13 +41,12 @@ function rpc(child) {
 async function createDetectors(dir, profile, utilityProcess) {
   const keywords = path.join(dir, "keywords.txt");
   fs.writeFileSync(keywords, SPELLINGS.map((s, i) => `${s} :2.5 #0.05 @v${i + 1}`).join("\n") + "\n");
-  const kw = new Worker(path.join(__dirname, "wake-worker.js"), { workerData: { dir, keywords } });
   const head = utilityProcess.fork(path.join(__dirname, "wake-head-worker.js"), [], { stdio: "ignore", serviceName: "Filow wake word" });
-  const a = rpc(kw), b = rpc(head);
+  const b = rpc(head);
   try {
     await b.call({ type: "init", dir, profile }, 30000);
-    return { async feed(samples, at) { const [k, h] = await Promise.all([a.call({ type: "feed", samples, at }), b.call({ type: "feed", samples, at })]); return { at, keyword: k.keyword, phraseEndMs: k.phraseEndMs, score: h.score, ms: k.ms + h.ms }; }, reset() { kw.postMessage({ type: "reset" }); return b.call({ type: "reset" }); }, stop() { a.stop(); b.stop(); } };
-  } catch (e) { a.stop(); b.stop(); throw e; }
+    return { feed(samples, at) { return b.call({ type: "feed", samples, at }); }, reset() { return b.call({ type: "reset" }); }, stop() { b.stop(); } };
+  } catch (e) { b.stop(); throw e; }
 }
 function createWake({ userData, utilityProcess, state, changed, detected, verifyModelsFn = verifyModels, ensureModelsFn = ensureModels, createDetectorsFn = createDetectors }) {
   const dir = path.join(userData, "models", "wake"), root = path.join(userData, "wake");
@@ -60,7 +59,7 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
   try { const stored = JSON.parse(fs.readFileSync(profileFile, "utf8")); if (validateProfile(stored)) profile = stored; } catch { /* no trained phrase yet */ }
   const samplesDir = path.join(root, "samples");
   const samplesCount = () => Array.from({ length: 5 }, (_, i) => fs.existsSync(path.join(samplesDir, `${i + 1}.wav`))).filter(Boolean).length;
-  const snapshot = () => ({ enabled, listening, error, phase, count, testing, recordings: samplesCount(), trained: Boolean(profile), notice: NOTICE });
+  const snapshot = () => ({ enabled, listening, error, phase, count, testing, recordings: samplesCount(), negatives: [1,2].filter(i=>fs.existsSync(path.join(samplesDir, `negative-${i}.wav`))).length, verification: profile?.verification, trained: Boolean(profile), notice: NOTICE });
   const publish = () => changed(snapshot());
   function stop() {
     captureWatch.reset();
@@ -102,6 +101,7 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
       await verifyModelsFn(dir);
       const saved = JSON.parse(fs.readFileSync(profileFile, "utf8"));
       if (!validateProfile(saved) || saved.models !== FILES.map((f) => f.sha256).join(":")) throw new Error("Record or retrain your wake word for these models");
+      if (!canEnable(saved.verification, sensitivity(mode))) throw new Error("Replay check required: recognise at least 4 of 5 takes and reject personal negatives");
       profile = saved; phase = "checking"; publish();
       const loaded = await createDetectorsFn(dir, profile, utilityProcess);
       if (token !== epoch) { loaded.stop(); return snapshot(); }
@@ -151,25 +151,40 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
     fs.writeFileSync(path.join(samplesDir, `${index + 1}.wav`), wav(pcm));
     fs.rmSync(profileFile, { force: true }); profile = null; phase = "enrol"; publish(); return snapshot();
   }
+  function negative(index, pcm) {
+    stop();
+    if (!Number.isInteger(index) || index < 0 || index > 1) throw new Error("Invalid personal negative");
+    fs.mkdirSync(samplesDir, { recursive: true });
+    const file = path.join(samplesDir, `negative-${index + 1}.wav`);
+    if (pcm === null) fs.rmSync(file, { force: true });
+    else { const reason = checkRecording(pcm); if(reason) throw new Error(reason); fs.writeFileSync(file,wav(pcm)); }
+    fs.rmSync(profileFile, { force: true }); profile = null; phase = "enrol"; publish(); return snapshot();
+  }
   async function train() {
     stop(); error = ""; phase = "training"; publish(); const token = epoch;
     try {
       await verifyModelsFn(dir);
       const recordings = Array.from({ length: 5 }, (_, i) => readSample(path.join(samplesDir, `${i + 1}.wav`)));
+      const negatives = [1,2].map(i=>path.join(samplesDir,`negative-${i}.wav`)).filter(file=>fs.existsSync(file)).map(readSample);
       for (const recording of recordings) { const reason = checkRecording(recording); if (reason) throw new Error(reason); }
       const child = utilityProcess.fork(path.join(__dirname, "wake-head-worker.js"), [], { stdio: "ignore", serviceName: "Filow wake training" });
       trainer = rpc(child);
       await trainer.call({ type: "init", dir }, 30000);
-      const got = await trainer.call({ type: "train", recordings, background: path.join(__dirname, "wake-data") }, 120000);
+      const got = await trainer.call({ type: "train", recordings, negatives, background: path.join(__dirname, "wake-data") }, 120000);
       if (token !== epoch) return snapshot();
       if (!validateProfile(got.profile)) throw new Error("Invalid trained wake word");
-      profile = { ...got.profile, models: FILES.map((f) => f.sha256).join(":"), createdAt: new Date().toISOString() };
+      const candidate = { ...got.profile, models: FILES.map((f) => f.sha256).join(":"), createdAt: new Date().toISOString() };
+      const replay = await createDetectorsFn(dir, candidate, utilityProcess);
+      try { candidate.verification = await replayEnrolment(replay, candidate, recordings, negatives); }
+      finally { replay.stop(); }
+      if (token !== epoch) return snapshot();
+      profile = candidate;
       fs.writeFileSync(profileFile, JSON.stringify(profile)); phase = "ready"; publish();
     } catch (e) { if (token === epoch) fail(e); }
     finally { if (token === epoch) { trainer?.stop(); trainer = null; } }
     return snapshot();
   }
   function remove() { stop(); fs.rmSync(root, { recursive: true, force: true }); profile = null; error = ""; publish(); return snapshot(); }
-  return { status: snapshot, setup, enable, stop, fail, feed, reconcile, sample, train, remove, test(on) { testing = on === true; count = 0; publish(); return snapshot(); } };
+  return { status: snapshot, setup, enable, stop, fail, feed, reconcile, sample, negative, train, remove, test(on) { testing = on === true; count = 0; publish(); return snapshot(); } };
 }
 module.exports = { createWake, createDetectors, wav, readSample };

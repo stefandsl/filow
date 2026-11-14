@@ -6,14 +6,15 @@ const {createCombiner}=require('../../apps/desktop/wake-policy');
 const {readSample}=require('../../apps/desktop/wake');
 const [root,fixtures,output]=process.argv.slice(2);
 if(!root.replace(/\\/g,'/').toLowerCase().startsWith('g:/filow/tmp/wake-word/'))throw Error('Own G: root required');
-const child=fork(path.join(__dirname,'spotter-child.cjs'),[path.join(root,'models/wake')],{windowsHide:true,serialization:'advanced'});
+const models=process.env.FILOW_WAKE_MODEL_DIR || path.join(root,'models/wake');
+const child=fork(path.join(__dirname,'spotter-child.cjs'),[models],{windowsHide:true,serialization:'advanced'});
 let next=0;const pending=new Map();
 child.on('message',m=>{pending.get(m.id)?.(m);pending.delete(m.id)});
 const request=m=>new Promise(resolve=>{pending.set(++next,resolve);child.send({...m,id:next})});
 const deadline=setTimeout(()=>{child.kill();process.exit(124)},20*60*1000);
 (async()=>{
   const profiles=Array.from({length:5},(_,i)=>JSON.parse(fs.readFileSync(path.join(root,`profile-${i}.json`))));
-  const e=await createEmbedding(path.join(root,'models/wake'));
+  const e=await createEmbedding(models);
   const results=profiles.map((p,i)=>({head:i,thresholds:p.thresholds,seconds:0,strict:0,balanced:0,sensitive:0}));
   for(const bg of JSON.parse(fs.readFileSync(path.join(fixtures,'manifest.json'))).background){
     let history=new Float32Array(),scores=profiles.map(()=>-Infinity);

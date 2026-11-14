@@ -2,7 +2,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { augment } = require("./wake-augmentation");
 const WIDTH = 96, WINDOW = 12, FEATURES = WIDTH * WINDOW;
+const HARD_NEGATIVE_RATE = 0.2;
 const dot = (w, x, start = 0) => { let s = 0; for (let j = 0; j < w.length; j++) s += w[j] * x[start + j]; return s; };
 function validateProfile(p) {
   return p?.version === 1 && Array.isArray(p.weights) && p.weights.length === FEATURES && p.weights.every(Number.isFinite) && Number.isFinite(p.bias) && p.thresholds &&
@@ -23,7 +25,7 @@ function background(dir) {
 function random(seed = 12345) { return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }; }
 // Balanced-class stochastic logistic regression with L2 regularization. Training
 // and calibration are separate portions of the bundled background, never QA audio.
-function trainHead(positives, bg) {
+function trainHead(positives, bg, options = {}) {
   if (positives.length < 20 || positives.some((x) => x.length !== FEATURES)) throw new Error("Not enough usable enrolment windows");
   const rng = random();
   const w = new Float32Array(FEATURES);
@@ -36,12 +38,15 @@ function trainHead(positives, bg) {
     for (let i = 0; i < 2400; i++) {
       const positive = i % 2 === 0;
       const range = ranges[Math.floor(rng() * ranges.length)];
-      const useHard = !positive && bg.hard?.length && i % 10 === 1;
+      const hardRate = options.hardRate ?? HARD_NEGATIVE_RATE;
+      const useHard = !positive && bg.hard?.length && hardRate > 0 && i % (2 * Math.round(1 / hardRate)) === 1;
       const offset = positive ? 0 : useHard ? Math.floor(rng() * (bg.hard.length / FEATURES)) * FEATURES : (range[0] + Math.floor(rng() * (range[1] - range[0] - WINDOW))) * WIDTH;
       const x = positive ? positives[Math.floor(rng() * positives.length)] : useHard ? bg.hard : bg.data;
       const error = (positive ? 1 : 0) - 1 / (1 + Math.exp(-Math.max(-30, Math.min(30, dot(w, x, offset) + bias))));
       for (let j = 0; j < FEATURES; j++) w[j] += rate * (error * x[offset + j] - 0.00003 * w[j]);
       bias += rate * error;
+      const step = epoch * 2400 + i + 1;
+      if (options.trace && [1, 10, 120000].includes(step)) options.trace({ step, weights: Array.from(w), bias, loss: -Math.log(Math.max(1e-15, positive ? 1 - error : 1 + error)) });
     }
   }
   const scores = [];
@@ -145,12 +150,7 @@ async function positiveWindows(embedding, recordings) {
   for (const samples of recordings) {
     const end = speechEnd(samples);
     for (let a = 0; a < 16; a++) {
-      const speed = [0.94, 1, 1.06][a % 3], gain = [1, 0.6, 0.35][a % 3];
-      const n = Math.ceil(samples.length / speed), padded = new Float32Array(16000 + n + 9600);
-      for (let i = 0; i < n; i++) {
-        const pos = i * speed, left = Math.floor(pos), frac = pos - left;
-        padded[16000 + i] = gain * ((samples[left] || 0) * (1 - frac) + (samples[left + 1] || 0) * frac) + (a % 4 ? (rng() - 0.5) * 0.006 : 0);
-      }
+      const { audio: padded, speed } = augment(samples, a, rng);
       const e = await embedding.embed(padded);
       for (const dt of [0.08, 0.16, 0.24, 0.32]) {
         const i = Math.ceil(((1 + end / speed / 16000 + dt - 0.015) / .01 - 76) / 8);
@@ -160,7 +160,15 @@ async function positiveWindows(embedding, recordings) {
   }
   return positives;
 }
-async function enrol(embedding, recordings, bg) {
+async function enrol(embedding, recordings, bg, negatives = []) {
+  if (negatives.length > 2) throw new Error("At most two personal negatives");
+  const personal = [];
+  for (const pcm of negatives) {
+    const padded = new Float32Array(16000 + pcm.length + 9600); padded.set(pcm,16000);
+    const vectors = await embedding.embed(padded);
+    for(let at=0;at+FEATURES<=vectors.length;at+=WIDTH) personal.push(vectors.slice(at,at+FEATURES));
+  }
+  if(personal.length) bg = { ...bg, hard: Float32Array.from([...(bg.hard || []),...personal.flatMap(x=>Array.from(x))]) };
   return trainHead(await positiveWindows(embedding, recordings), bg);
 }
-module.exports = { WIDTH, WINDOW, FEATURES, dot, validateProfile, background, trainHead, createEmbedding, createStream, enrol, speechEnd, positiveWindows };
+module.exports = { WIDTH, WINDOW, FEATURES, HARD_NEGATIVE_RATE, dot, validateProfile, background, trainHead, createEmbedding, createStream, enrol, speechEnd, positiveWindows };

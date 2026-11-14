@@ -6,10 +6,15 @@ import { ro } from "./text.ro";
 import { ja } from "./text.ja";
 
 const en = {
+  wakeNegative: "Record an ordinary sentence (optional)",
+  wakeNegativeHelp: "Optionally record two sentences without OK Filow: The weather is nice today. Please open the window. Accepted negative recordings also stay on this PC until deleted.",
+  wakeSkipNegatives: "Skip and remove personal negatives",
+  wakeRecognised: "Recognised {n} of 5. Negative sentences accepted: {a} of {b}.",
+  wakeVerifyFirst: "Train to replay your takes. Enabling requires at least 4 of 5 recognised and no personal negatives accepted. This checks training recordings, not new speech.",
   wakeLabel: "Wake word (experimental): say OK Filow to ask",
   wakeListening: "Listening for OK Filow",
   wakeOff: "Turn wake word off",
-  wakeNotice: "The microphone stays open while this is on. Sound is checked only on this PC, never sent or saved except the five recordings you accept. Windows shows its microphone icon. Bluetooth headsets may switch to call quality. Download 35.3 MB from GitHub: k2-fsa/sherpa-onnx and dscripka/openWakeWord v0.5.1. Apache-2.0; keyword model training data not stated. The original Google embedding model card is not yet verified.",
+  wakeNotice: "The microphone stays open while this is on. Sound is checked only on this PC, never sent or saved except the enrolment recordings you accept, including optional negatives. Windows shows its microphone icon. Bluetooth headsets may switch to call quality. Download 35.3 MB from GitHub: k2-fsa/sherpa-onnx and dscripka/openWakeWord v0.5.1. Apache-2.0; keyword model training data not stated. The original Google embedding model card is not yet verified.",
   wakeDownload: "Agree and download",
   wakeRecord: "Say OK Filow",
   wakeAccept: "Keep this recording",

@@ -1,10 +1,15 @@
 import type { OkfKey } from "./text";
 
 export const it: Record<OkfKey, string> = {
+  wakeNegative: "Registra una frase comune (facoltativo)",
+  wakeNegativeHelp: "Puoi registrare due frasi senza OK Filow: Oggi il tempo è bello. Apri la finestra, per favore. Anche queste registrazioni restano su questo PC finché non le elimini.",
+  wakeSkipNegatives: "Salta ed elimina le frasi negative",
+  wakeRecognised: "Riconosciute {n} su 5. Frasi negative accettate: {a} su {b}.",
+  wakeVerifyFirst: "Addestra per verificare le registrazioni. Servono almeno 4 su 5 riconosciute e nessuna frase negativa accettata. La verifica usa le registrazioni di addestramento, non nuove frasi.",
   wakeLabel: "Parola di attivazione (sperimentale): di’ OK Filow per chiedere",
   wakeListening: "In ascolto di OK Filow",
   wakeOff: "Disattiva la parola di attivazione",
-  wakeNotice: "Il microfono resta aperto mentre questa funzione è attiva. L’audio viene elaborato solo su questo PC, mai inviato né salvato tranne le cinque registrazioni che accetti. Windows mostra l’icona del microfono. Le cuffie Bluetooth possono passare alla qualità chiamata. Download di 35,3 MB da GitHub: k2-fsa/sherpa-onnx e dscripka/openWakeWord v0.5.1. Apache-2.0; dati di addestramento del modello di parole chiave non dichiarati. La scheda originale del modello Google non è ancora verificata.",
+  wakeNotice: "Il microfono resta aperto mentre questa funzione è attiva. L’audio viene elaborato solo su questo PC, mai inviato né salvato tranne le registrazioni di addestramento che accetti, comprese le frasi negative facoltative. Windows mostra l’icona del microfono. Le cuffie Bluetooth possono passare alla qualità chiamata. Download di 35,3 MB da GitHub: k2-fsa/sherpa-onnx e dscripka/openWakeWord v0.5.1. Apache-2.0; dati di addestramento del modello di parole chiave non dichiarati. La scheda originale del modello Google non è ancora verificata.",
   wakeDownload: "Accetta e scarica",
   wakeRecord: "Di’ OK Filow",
   wakeAccept: "Conserva questa registrazione",

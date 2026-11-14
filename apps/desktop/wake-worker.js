@@ -1,9 +1,9 @@
-// sherpa's native runtime stays separate from onnxruntime-node. No disk writes or network.
+// One-thread spotter, reusable inside the combined detector utility process.
 const { parentPort, workerData } = require("node:worker_threads");
 const path = require("node:path");
 const sherpa = require("sherpa-onnx-node");
 const { SPELLINGS } = require("./wake-policy");
-const dir = workerData.dir;
+function createSpotter(dir, keywords) {
 const kws = new sherpa.KeywordSpotter({
   featConfig: { sampleRate: 16000, featureDim: 80 },
   modelConfig: {
@@ -14,14 +14,14 @@ const kws = new sherpa.KeywordSpotter({
     },
     tokens: path.join(dir, "tokens.txt"), numThreads: 1, provider: "cpu", debug: 0,
   },
-  keywordsFile: workerData.keywords, maxActivePaths: 16, keywordsScore: 2.5, keywordsThreshold: 0.05,
+  keywordsFile: keywords, maxActivePaths: 16, keywordsScore: 2.5, keywordsThreshold: 0.05,
 });
 if (SPELLINGS.length !== 15) throw new Error("Expected 15 wake spellings");
 let stream = kws.createStream();
 let startAt = null;
-parentPort.on("message", (m) => {
-  if (m.type === "reset") { stream = kws.createStream(); startAt = null; return; }
-  if (m.type !== "feed") return;
+return {
+ reset() { stream = kws.createStream(); startAt = null; },
+ feed(m) {
   if (startAt === null) startAt = m.at - 100;
   const started = performance.now();
   stream.acceptWaveform({ samples: m.samples, sampleRate: 16000 });
@@ -36,6 +36,16 @@ parentPort.on("message", (m) => {
       kws.reset(stream);
     }
   }
-  parentPort.postMessage({ id: m.id, at: m.at, keyword, phraseEndMs, ms: performance.now() - started });
+  return { id: m.id, at: m.at, keyword, phraseEndMs, ms: performance.now() - started };
+ }
+};
+}
+if(parentPort && workerData) {
+const spotter = createSpotter(workerData.dir, workerData.keywords);
+parentPort.on("message", (m) => {
+  if(m.type === "reset") spotter.reset();
+  if(m.type === "feed") parentPort.postMessage(spotter.feed(m));
 });
 parentPort.postMessage({ type: "ready" });
+}
+module.exports = { createSpotter };

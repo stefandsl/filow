@@ -12,6 +12,7 @@ export function WakeSettings({ lang }: { lang: string }) {
   const [recording, setRecording] = useState(false);
   const [level, setLevel] = useState(0);
   const [index, setIndex] = useState(0);
+  const [negative, setNegative] = useState(false);
   const [draft, setDraft] = useState<Float32Array | null>(null);
   const [error, setError] = useState("");
   const [playback, setPlayback] = useState("");
@@ -72,7 +73,9 @@ export function WakeSettings({ lang }: { lang: string }) {
     } catch (e) { if (id === generation.current) { stopRecording(); setError(e instanceof Error ? e.message : String(e)); } }
   }
   if (!okFilowSettingsBridge()?.wakeAction) return null;
-  const rawError = status?.error || error;
+  const rawError = (status?.error || error).startsWith("Replay check required") ? t("wakeVerifyFirst") : status?.error || error;
+  const check = status?.verification?.[sensitivity];
+  const verified = check?.total === 5 && check.recognised >= 4 && check.negativeAccepts === 0;
   const reason = rawError.match(/(?:^|: )(short|quiet|clipped)$/)?.[1];
   const shownError = reason === "short" ? t("wakeShort") : reason === "quiet" ? t("wakeQuiet") : reason === "clipped" ? t("wakeClipped") : rawError;
   return <fieldset className="strip" aria-label={t("wakeLabel")}>
@@ -84,12 +87,15 @@ export function WakeSettings({ lang }: { lang: string }) {
       <button className="btn" onClick={() => setNotice(false)}>{t("wakeCancel")}</button>
     </div>}
     <p role="status">{shownError || (status?.phase === "training" ? t("wakeTraining") : busy ? t("wakeWorking") : status?.listening ? t("wakeListening") : status?.enabled ? t("wakePaused") : t("wakeReady"))}</p>
-    <p>{index + 1} / 5 · {t("wakeRecord")}</p>
+    <p>{index + 1} / {negative ? 2 : 5} · {t(negative ? "wakeNegative" : "wakeRecord")}</p>
+    <p>{t("wakeNegativeHelp")}</p>
+    <button className="btn" disabled={recording || busy} onClick={() => { setNegative(!negative); setIndex(0); setDraft(null); }}>{t(negative ? "wakeRecord" : "wakeNegative")}</button>
+    {negative && <button className="btn" disabled={recording || busy} onClick={async () => { await action("negative", {index:0,samples:null}); await action("negative", {index:1,samples:null}); setNegative(false); setIndex(0); setDraft(null); }}>{t("wakeSkipNegatives")}</button>}
     <meter min={0} max={1} value={level} aria-label={t("wakeRecord")} />
     {playback && <div><p>{t("wakeAcceptHint")}</p><audio controls src={playback} aria-label={t("wakeRecord")} /></div>}
     <div className="row">
       <button className="btn" disabled={busy} onClick={() => recording ? stopRecording() : void record()}>{t(recording ? "wakeStop" : "wakeRecord")}</button>
-      {draft && <button className="btn" disabled={busy} onClick={async () => { const s = await action("sample", { index, samples: draft }); if (s && !s.error) { setDraft(null); setIndex(Math.min(4, index + 1)); } }}>{t("wakeAccept")}</button>}
+      {draft && <button className="btn" disabled={busy} onClick={async () => { const s = await action(negative ? "negative" : "sample", { index, samples: draft }); if (s && !s.error) { setDraft(null); setIndex(Math.min(negative ? 1 : 4, index + 1)); } }}>{t("wakeAccept")}</button>}
       <button className="btn" disabled={recording || busy} onClick={() => { setIndex(0); setDraft(null); }}>{t("wakeRedo")}</button>
     </div>
     <button className="btn" disabled={busy || recording || status?.recordings !== 5} onClick={() => void action("train")}>{t("wakeTrain")}</button>
@@ -100,9 +106,10 @@ export function WakeSettings({ lang }: { lang: string }) {
       <option value="strict">{t("wakeStrict")}</option><option value="balanced">{t("wakeBalanced")}</option><option value="sensitive">{t("wakeSensitive")}</option>
     </select></label>
     <p>{t("wakeTradeoff")}</p>
+    <p role="status">{check ? t("wakeRecognised").replace("{n}", String(check.recognised)).replace("{a}", String(check.negativeAccepts)).replace("{b}", String(check.negatives)) : t("wakeVerifyFirst")}</p>
     <div className="row">
-      <button className="btn" disabled={busy || recording || !status?.trained} onClick={async () => { await action("test", true); await action("enable"); }}>{t("wakeTry")}</button>
-      <button className="btn" disabled={busy || recording || !status?.trained} onClick={async () => { await action("test", false); await action("enable"); }}>{t("wakeEnable")}</button>
+      <button className="btn" disabled={busy || recording || !verified} onClick={async () => { await action("test", true); await action("enable"); }}>{t("wakeTry")}</button>
+      <button className="btn" disabled={busy || recording || !verified} onClick={async () => { await action("test", false); await action("enable"); }}>{t("wakeEnable")}</button>
       <button className="btn" disabled={recording} onClick={() => void action("delete")}>{t("wakeDelete")}</button>
       <button className="btn" onClick={() => { if (recording) stopRecording(); void action("off"); }}>{t("wakeOff")}</button>
     </div>

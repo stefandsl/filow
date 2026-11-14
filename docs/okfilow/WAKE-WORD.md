@@ -2,6 +2,192 @@
 
 Branch: `feat-wake-word`, based on `3479560`. Not a release recommendation.
 
+## Round 3 measured result, 14 November 2026
+
+**Do not ship, including as an experimental opt-in.** The changed portable
+training reference reaches 500/500 decision agreement. Held-out clean/noisy
+misses improve to 3/48, but background false accepts average 0.75/hour and
+whole-app CPU is 9.40% of one core. Item 4 is not complete: both detectors now
+share a utility process, but capture remains in Chromium, with 100 ms IPC.
+There is no claim that capture and inference share one worker or meet 4%.
+
+| Measurement | Round 0 | Round 1 | Round 2 | Round 3 |
+| --- | ---: | ---: | ---: | ---: |
+| Training decision agreement, 500 clips | Not measured | 87.8% | 89.2% | 100%, changed reference |
+| Diagnostic misses, no hard negatives, 256 positives | Not isolated | 52/256 | 46/256 | 34/256 |
+| Diagnostic near accepts, no hard negatives, 144 clips | Not isolated | 99/144 | 98/144 | 91/144 |
+| Balanced chronological misses | 50/256, original corpus | 13/48, held-out clean/noisy | Not rerun | 3/48, held-out clean/noisy |
+| Balanced chronological near accepts | 95/144 | 14/36 | Not rerun | 12/26; 9/26 with personal negatives |
+| Background false accepts/hour | 0 observed, one head, 2 h | 0.40 mean, 1.25 worst, 5 x 4 h | Not rerun | 0.75 mean, 1.50 worst, 5 x 4 h |
+| Whole-app real-time CPU, one-core equivalent | 15.71%, 15 s | 9.96%, 60 s | Not rerun | 8.89% before, 9.40% after, 60 s each |
+| Own-take replay gate and optional negatives | Neither | Neither | Neither | Both, en/it/ru/ro/ja |
+
+The chronological and diagnostic rows are different experiments, not a single
+matched accuracy benchmark. Round 3 reserves two near phrases per held-out
+speaker for optional-negative training, removing those ten clips from BOTH
+sides of the 26-clip comparison. Round 0 includes pitch conditions; the 48-clip
+held-out row excludes pitch shifts. Four hours of unique background are shared
+by five independent heads, giving twenty head-hours, not twenty independent
+audio hours. Each language's 48-minute background segment starts with reset
+detectors. This is accelerated replay, not four hours of live microphone capture.
+
+### First differing stages and changed reference
+
+The original app at `d4aac39` and unmodified spike were instrumented on the
+same first five WAVs with seed 12345. Stage (a) already fails: both produce
+80 clips, but 55 sample counts/durations and all 80 sample checksums differ.
+The app uses fixed speed/gain cycles and low uniform noise. The original spike
+uses NumPy choices, duration-preserving pitch shifts, real speech lead-ins and
+recorded noise. It also uses 30,000 unquantized negative windows, sklearn
+LBFGS logistic regression and thresholds drawn from its evaluation background.
+
+**The reference changed.** `wake-augmentation.js` and the independent Python
+implementation in `stage-reference.py` replace the augmentation in the app and
+the experimental reference. They use a 32-bit LCG, identical draw order, linear
+speed resampling, gain, generated white noise at 20/15/10 dB and a two-tap
+40/70 ms synthetic reverb. No noise audio or speech lead-ins are shipped.
+One initial Python reverb comparison differed because of floating-point addition
+grouping; matching the specified grouping fixes the checksum mismatch.
+
+For stages (c) and (e), the new reference explicitly adopts the app's verified
+quantized CC0 background partition and balanced, regularized SGD. The Python
+implementation is independent, uses no fastmath and reproduces float32 weight
+stores with double accumulation. This is NOT parity with the original sklearn
+model or proof that quantization is harmless. Compared with the old reference's
+24/256 misses and 76/144 near accepts, the new no-hard-negative reference has
+34/256 misses and 91/144 near accepts. The higher agreement cannot be presented
+as recovering the original spike's quality.
+
+Stage evidence for the first enrolment, then repeated over all twenty profiles:
+
+- (a) All 80 post-resampling sample hashes, counts, order and durations match
+  exactly. Original and replacement per-clip manifests are in the JSON report.
+- (b) Each full embedding sequence is compared. Maximum absolute component
+  error across all 1,600 augmented clips is 7.45e-8.
+- (c) Both decode the same checksum-verified `background.bin`: 141,313 frames,
+  five Common Voice language segments, float32 conversion of signed bytes / 127.
+  The first third of each segment supplies training windows; the remaining
+  portion supplies calibration. Hard negatives are disabled for this parity test.
+- (d) Both concatenate twelve 96-dimensional frames, with an 80 ms embedding
+  hop, and label four windows at speech-end + 80/160/240/320 ms after a one-second
+  lead. All 320 positive windows' frame indices agree per enrolment.
+- (e) Snapshots after 1, 10 and 120,000 updates include weight SHA-256 and sampled
+  cross-entropy loss. Hashes differ due to tiny native embedding differences;
+  maximum final component error across all heads is 4.17e-7, below the 2e-5 gate.
+  For the first head, app/reference losses are 0.69314718056/0.69314718056,
+  0.74966093777/0.74966094009 and 0.00001445649552/0.00001445649549.
+
+The 500 evaluation clips use common cached reference embeddings and keyword
+decisions to isolate training. Independently trained weights and calibration
+thresholds agree on every Balanced decision. This diagnostic does not replace
+the separate chronological live-path and background tests. Compact generated
+audio, embedding and optimizer fixtures remain in `portable-reference.json`;
+no person's recorded audio is committed.
+
+### Hard negatives, held-out voices and personal negatives
+
+The sampling curve uses five calibration voice-language profiles, separate from
+the five held-out identities. It excludes pitch shifts and uses per-clip scores:
+
+| Fraction of negative updates using hard negatives | Misses | Near accepts |
+| --- | ---: | ---: |
+| 0 | 7/48 | 24/36 |
+| 0.10 | 6/48 | 16/36 |
+| **0.20, retained default** | **6/48** | **10/36** |
+| 0.50 | 7/48 | 8/36 |
+
+Twenty percent is the lowest near-accept count at the minimum observed misses.
+The small calibration set does not establish an optimal population threshold.
+The held-out results below did not select the rate or thresholds.
+
+| Held-out voice | Language | Clean/noisy misses | Near accepts, no personal negatives | Balanced background accepts / 4 h |
+| --- | --- | ---: | ---: | ---: |
+| kokoro_v14 | en | 2/24 | 6/18 | 6 |
+| supertonic_v6 | it | 0/6 | 1/2 | 0 |
+| supertonic_v7 | ru | 0/6 | 2/2 | 6 |
+| supertonic_v8 | ro | 0/6 | 1/2 | 1 |
+| supertonic_v9 | ja | 1/6 | 2/2 | 2 |
+
+Two optional accepted non-wake recordings are stored as `negative-1.wav` and
+`negative-2.wav`, folded into the numerical hard-negative pool, and removed by
+Skip/remove or Delete. Changing them invalidates the head and requires retraining.
+Their effect was measured using two reserved synthetic near phrases per speaker,
+not the ordinary-sentence examples displayed by the UI. On the remaining clips,
+misses stay at 3/48 and near accepts fall from 12/26 to 9/26. This does not establish
+the effect of the owner's ordinary sentences. No new background-rate improvement
+is claimed for personal negatives: the four-hour results use the default heads.
+
+After training, actual detector replay uses one second of leading silence,
+the stored take and one second of trailing silence, resetting both detectors
+and combiners between clips. Settings shows recognised N of 5 and negative
+accepts for the selected sensitivity. Enabling requires at least 4/5 recognised
+and zero accepted supplied negatives. Legacy profiles without replay evidence
+must be retrained. This is explicitly a training-set check, not held-out recall.
+All five languages include the gate, optional-negative instructions and retention
+notice. Hidden fake-audio UI views were captured in both themes.
+
+### CPU result and exact remaining obstacle
+
+An isolated co-load probe successfully loaded and inferred with both native
+runtimes. The previous blanket claim that they cannot share a process does not
+hold for this installed Windows combination. Both now run serially in one
+utility process, with one native inference thread per detector. The main process
+no longer fans each frame out to two workers. Reset, scores and keyword timing
+cross one detector RPC; the indicator is still published on state changes only.
+
+| Process | Before, % one core | After, % one core |
+| --- | ---: | ---: |
+| Main, previously including KWS worker | 2.778 | 1.142 |
+| Detector utility, embedding before / both after | 1.817 | 3.535 |
+| Chromium audio service | 2.013 | 2.202 |
+| Renderer 1 | 1.159 | 1.228 |
+| Renderer 2 | 0.282 | 0.319 |
+| Renderer 3 | 0.146 | 0.168 |
+| Renderer 4 | 0.148 | 0.166 |
+| GPU | 0.531 | 0.595 |
+| Network service | 0.025 | 0.055 |
+| **Total** | **8.890** | **9.404** |
+
+Both runs use 60 seconds of real-time Chromium fake microphone input, all windows
+hidden, isolated G: profiles and the i9-13900KF. These are development-app samples,
+not a statistically significant speed comparison. The consolidation does not
+meet the CPU target and does not demonstrate a reduction. Capture still depends
+on renderer `getUserMedia`/AudioWorklet and `openSelectedMic`; the utility process
+has no browser media-device API. Replacing that capture path, preserving device
+selection, echo cancellation, pause/indicator authorization and failure handling,
+and eliminating its per-100-ms IPC remain undone. The combined inference process
+alone already consumes 3.535%; moving processes cannot by itself establish <4%.
+
+### Verification and reproduction
+
+Measured evidence: `wake-round3-results.json`. Local arrays, full logs and ten
+UI captures: `G:/FILOW/tmp/wake-word/round3`. Full suite: 3,245 passed, six skipped;
+typecheck and lint pass. Focused native fixture tests also pass with the downloaded
+models. All 53 deliberately broken rules are caught and restored. Tests cover
+independent augmentation hashes, embedding vectors, optimizer states, labels,
+negative training/storage/removal, replay/reset, enable rejection, combined RPC
+and the existing privacy/authorization rules. Temporary QA route is not shipped.
+
+With TEMP/TMP and NUMBA_CACHE_DIR on G:, PYTHONDONTWRITEBYTECODE=1, and BLAS/OMP
+threads set to one: run `original-stage.cjs` and `original-stage.py`, then
+`round3-parity.cjs`, `round3-curve.cjs`, `round3-heldout.cjs` and
+`background-heads.cjs` on the five held-out fixtures. The latter accepts
+FILOW_WAKE_MODEL_DIR to reuse the verified models without copying them.
+`round3-report.cjs` creates the committed numerical report. The reference scripts
+do not overwrite the historical spike; their portable Python replacement lives
+alongside the other diagnostic tools. `portable-fixture.py` regenerates the small
+independent test fixture. `ui-qa.cjs` retains the 60-second CPU measurement;
+FILOW_QA_WAKE_ENROLMENT_UI=1 instead runs the separate short visual check.
+
+No merge, push, tag, real microphone, installed profile, paid service or visible
+desktop interaction was used. All new files/caches are on G:. AGENTS.md is excluded.
+Original real-room, live STT handoff, platform, low-tier hardware and model-card
+limitations remain. A single owner count-only trial would settle the real-voice
+accuracy question: five enrollment takes, then 100 unseen calls across quiet,
+distance/noise and immediate-question conditions during at least 24 hours of
+ordinary work. Report misses by condition and false accepts/hour. It cannot
+waive the independently failed CPU target or substitute for fixing item 4.
+
 ## Round 2 partial checkpoint, 14 November 2026
 
 **The requested round is incomplete. Training parity fails; do not ship.**
