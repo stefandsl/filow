@@ -51,7 +51,7 @@ After github.com/karpathy/autoresearch (MIT). The owner or the orchestrator edit
 - One run takes about 3.5 minutes (build about 90 s, driver about 100 s); `--no-build` reuses the last build.
 - Noise: the worst-frame crossing count moves between runs (4 and 6 seen on the same commit, score 53.21 and
   51.78). Keep an experiment only when the score rises by more than 2 points.
-- Baseline 14/11 on 5d77704: 53.21 (crossings 4, clearance 0 px, label overlaps 3, identity changes 0, text overlap
+- Baseline 14/11 on 21cbe9c (first run as 5d77704, same files): 53.21 (crossings 4, clearance 0 px, label overlaps 3, identity changes 0, text overlap
   0, max step 20.09 px, flight 616.7 ms, reversals 0, path ratio 1.156, ring offset 0 px).
 
 ### AR-3 details
@@ -62,7 +62,9 @@ After github.com/karpathy/autoresearch (MIT). The owner or the orchestrator edit
 - Score: percent exact matches (case-insensitive, whitespace collapsed; Japanese without whitespace), averaged over
   the five languages. No model, no network, under one second. Dev misses go to `G:/FILOW/tmp/autoresearch/ar3/runs`.
 - `ttft_p50_ms` in `results.tsv` is `-` for this track.
-- Keep `apps/desktop/tts-round2.test.ts` green: a kept experiment that breaks it is a discard.
+- Keep `apps/desktop/tts.test.ts` and `apps/desktop/tts-round2.test.ts` green: a kept experiment that breaks either is a
+  discard. They pin some conventions the evaluator does not expect (bare English years, English dates and "dot"
+  versions, Russian "одна тысяча", Italian "tre a cinque", Romanian digit-by-digit decimals, "ноль часов ноль минут").
 
 ### AR-1 details
 
