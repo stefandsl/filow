@@ -53,3 +53,22 @@ stop-token cause was observed. The model's wordless rate did not improve; the ap
 now explains the failure. Repeating these inputs recovered no spoken answer.
 The historical prompt count was 1,720, so this is a matching failure-mode
 reproduction with synthetic inputs, not an exact replay of the lost request.
+
+## Account service
+
+Persistent HMAC buckets cover client-address and normalized-email/path code-send
+limits, including alternate email-code send routes, plus device-code requests.
+Typed 429 replies include seconds and Retry-After. The README documents every
+positive integer setting and default. Existing global/OTP verification limits stay.
+
+Desktop grants are serialized in the documented single-process service; active
+desktop session IDs persist separately, and expired/revoked sessions free slots.
+The fourth default device receives typed `device_limit_reached` without evicting
+another session. Existing browser sessions remain usable. Legacy unclassified
+desktop sessions cannot be identified retroactively. Multi-process operation is
+not supported by this process-local grant mutex.
+
+The auth logger receives only a fixed event, never SDK error arguments. Capturing
+logger tests exercise real handlers, fake SMTP, success, malformed input, denial,
+and payload-bearing exceptions. Deployment proxy/system/mail/crash logs are not
+covered and remain an S4a operational gate.

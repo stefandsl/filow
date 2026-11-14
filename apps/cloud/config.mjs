@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import nodemailer from 'nodemailer';
 import Stripe from 'stripe';
 import { createCloud } from './service.mjs';
+import { abuseLimits } from './abuse.mjs';
 
 export function configuredCloud(env = process.env) {
   const origin = new URL(env.FILOW_CLOUD_ORIGIN || 'http://127.0.0.1:4780').origin;
@@ -21,6 +22,7 @@ export function configuredCloud(env = process.env) {
   if (hasBilling && hasBilling !== 3) throw new Error('Configure all three Stripe values or leave all empty');
   if (hasBilling && !env.STRIPE_SECRET_KEY.startsWith('sk_test_') && env.FILOW_LIVE_BILLING !== '1') throw new Error('Live billing is disabled. Use Stripe test credentials.');
   const service = createCloud({ database, origin, liveBilling: env.FILOW_LIVE_BILLING === '1', secret: env.BETTER_AUTH_SECRET,
+    limits: abuseLimits(env),
     stripe: hasBilling ? new Stripe(env.STRIPE_SECRET_KEY) : undefined,
     webhookSecret: env.STRIPE_WEBHOOK_SECRET, priceId: env.STRIPE_PRICE_ID,
     sendOTP: ({ email, otp }) => mail.sendMail({ from: env.MAIL_FROM, to: email, subject: 'Your Filo sign-in code',
