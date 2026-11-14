@@ -6,6 +6,36 @@ import { expect, it } from 'vitest';
 import fixture from './wake-data/reference.json';
 const require = createRequire(import.meta.url);
 const { createStream, createEmbedding, trainHead, dot, background } = require('./wake-head');
+const { speechEnd, positiveWindows } = require('./wake-head');
+
+it('labels the last energetic complete frame relative to peak energy at any gain', () => {
+  const audio = new Float32Array(16000);
+  audio.fill(.5, 3200, 6400);
+  audio.fill(.01, 6400, 9600); // below -30 dB energy
+  audio[15999] = .02; // isolated tail sample is not a speech frame
+  expect(speechEnd(audio)).toBe(6400);
+  expect(speechEnd(Float32Array.from(audio, x => x * .001))).toBe(6400);
+  expect(speechEnd(new Float32Array(16001))).toBe(16001);
+});
+
+it('keeps enrolment tails while locating positive windows at the speech end', async () => {
+  const audio = new Float32Array(32000);
+  audio.fill(.5, 3200, 16000);
+  audio.fill(.001, 16000); // retain context even though this is not speech
+  const lengths: number[] = [];
+  const embedding = { embed: async (pcm: Float32Array) => {
+    lengths.push(pcm.length);
+    // Each feature identifies its vector index, independently of the trainer.
+    return Float32Array.from({length: 60 * 96}, (_, i) => Math.floor(i / 96));
+  }};
+  const windows = await positiveWindows(embedding, Array(5).fill(audio));
+  expect(lengths).toHaveLength(80);
+  expect(lengths[1]).toBe(16000 + 32000 + 9600);
+  expect(windows).toHaveLength(320);
+  // Speed 1, end 1 s, lead 1 s, offset 80 ms: reference index_at is 17.
+  expect(windows[4][0]).toBe(6);
+  expect(windows[4].at(-1)).toBe(17);
+});
 
 it('rejects tampered hard-negative features before training', () => {
   const root = path.resolve(__dirname, '../../tmp/wake-tests');

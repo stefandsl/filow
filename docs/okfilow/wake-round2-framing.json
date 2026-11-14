@@ -1,0 +1,235 @@
+{
+  "scope": "Positive-matrix ablation only: original Python optimizer, negatives and thresholds; no held-out accuracy claim",
+  "before": {
+    "clips": 500,
+    "misses": 44,
+    "nearAccepted": 94
+  },
+  "after": {
+    "clips": 500,
+    "misses": 45,
+    "nearAccepted": 94
+  },
+  "mutations": [
+    {
+      "name": "relative speech-end label",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "preserve enrolment tail",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "speech-end window offset",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "shared mel floor",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "refresh cached vectors",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "stream frame stride",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "hard-negative training",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "hard-negative checksum",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "wake scheduling buffer",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "audio scheduling option",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "off by default",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "one thread",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "KWS native thread",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "embedding native thread",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "five recordings",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "no bundled models",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "keep recordings",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "no follow-up",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "no interruption",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "strict agreement",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "sensitive head",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "balanced sure",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "block off",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "block models",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "block enrol",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "block take",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "block slideshow",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "block eye",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "block paused",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "block locked",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "block busy",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "block speech",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "block indicator",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "short recording",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "quiet recording",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "clipped recording",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "hash verification",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "download opt-in",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "download consent",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "indicator clickable",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "no network listening",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "delete recordings",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "stale inference after pause",
+      "caught": true,
+      "status": 1
+    },
+    {
+      "name": "training parity acceptance",
+      "caught": true,
+      "status": 1
+    }
+  ]
+}

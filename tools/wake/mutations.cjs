@@ -4,6 +4,10 @@ const root=path.resolve(__dirname,'../..'),out=process.argv[2];
 if(!out)throw Error('An evidence output path is required');
 const policy='apps/desktop/wake-policy.js';
 const cases=[
+  ['training parity acceptance','tools/wake/training-parity.cjs','disagreements.length <= 10','disagreements.length <= 11'],
+  ['relative speech-end label','apps/desktop/wake-head.js','energy[f] > peak * 1e-3','energy[f] > 0.01'],
+  ['preserve enrolment tail','apps/desktop/wake-head.js','Math.ceil(samples.length / speed)','Math.ceil(end / speed)'],
+  ['speech-end window offset','apps/desktop/wake-head.js','end / speed / 16000 + dt','n / 16000 + dt'],
   ['shared mel floor','apps/desktop/wake-head.js','Math.max(mel[i], peak - 8)','mel[i]'],
   ['refresh cached vectors','apps/desktop/wake-head.js','if (changed || !history.length)','if (!history.length)'],
   ['stream frame stride','apps/desktop/wake-head.js','audio = audio.slice(1280);','audio = audio.slice(1600);'],
@@ -36,12 +40,12 @@ const cases=[
   ['stale inference after pause','apps/desktop/wake.js','captureToken !== captureEpoch ||',''],
 ];
 const results=[];
-for(const [name,file,from,to] of cases){
+for(const [name,file,from,to] of cases.filter(c=>!process.env.FILOW_WAKE_MUTATION_FILTER || c[0].includes(process.env.FILOW_WAKE_MUTATION_FILTER))){
  const p=path.join(root,file),original=fs.readFileSync(p,'utf8');
  if(!original.includes(from))throw Error('Mutation target missing: '+name);
  try{
   fs.writeFileSync(p,original.replace(from,to));
-  const r=spawnSync(process.execPath,[path.join(root,'node_modules/vitest/vitest.mjs'),'run','apps/desktop/wake.test.ts','apps/desktop/wake-head.test.ts','apps/web/lib/buddy/wake.test.ts','packages/stt/src/mic.test.ts'],{cwd:root,encoding:'utf8',timeout:30000,windowsHide:true,env:{...process.env,FILOW_QA_NO_GLOBAL_INPUT:'1',FILOW_QA_HEADLESS:'1'}});
+  const r=spawnSync(process.execPath,[path.join(root,'node_modules/vitest/vitest.mjs'),'run','apps/desktop/wake.test.ts','apps/desktop/wake-head.test.ts','apps/web/lib/buddy/wake.test.ts','packages/stt/src/mic.test.ts','tools/wake/training-parity.test.ts'],{cwd:root,encoding:'utf8',timeout:30000,windowsHide:true,env:{...process.env,FILOW_QA_NO_GLOBAL_INPUT:'1',FILOW_QA_HEADLESS:'1'}});
   const caught=r.status!==0&&!r.error;
   results.push({name,caught,status:r.status});console.log(name,caught?'caught':'SURVIVED');
  }finally{fs.writeFileSync(p,original)}

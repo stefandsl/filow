@@ -126,26 +126,41 @@ function createStream(embedding, profile) {
     },
   };
 }
-async function enrol(embedding, recordings, bg) {
+// Match wk.speech_end: last complete 20 ms frame within 30 dB of the
+// loudest frame. Absolute sample thresholds move labels when gain changes.
+function speechEnd(samples) {
+  const frames = Math.floor(samples.length / 320);
+  const energy = new Float64Array(frames);
+  let peak = 0;
+  for (let f = 0; f < frames; f++) {
+    for (let j = 0; j < 320; j++) energy[f] += samples[f * 320 + j] ** 2;
+    peak = Math.max(peak, energy[f]);
+  }
+  for (let f = frames - 1; f >= 0; f--) if (energy[f] > peak * 1e-3) return (f + 1) * 320;
+  return samples.length;
+}
+async function positiveWindows(embedding, recordings) {
   if (recordings.length !== 5) throw new Error("Exactly five recordings required");
   const positives = [], rng = random();
   for (const samples of recordings) {
-    let end = samples.length;
-    while (end > 0 && Math.abs(samples[end - 1]) < 0.01) end--;
+    const end = speechEnd(samples);
     for (let a = 0; a < 16; a++) {
       const speed = [0.94, 1, 1.06][a % 3], gain = [1, 0.6, 0.35][a % 3];
-      const n = Math.ceil(end / speed), padded = new Float32Array(16000 + n + 9600);
+      const n = Math.ceil(samples.length / speed), padded = new Float32Array(16000 + n + 9600);
       for (let i = 0; i < n; i++) {
         const pos = i * speed, left = Math.floor(pos), frac = pos - left;
         padded[16000 + i] = gain * ((samples[left] || 0) * (1 - frac) + (samples[left + 1] || 0) * frac) + (a % 4 ? (rng() - 0.5) * 0.006 : 0);
       }
       const e = await embedding.embed(padded);
       for (const dt of [0.08, 0.16, 0.24, 0.32]) {
-        const i = Math.ceil(((1 + n / 16000 + dt - 0.015) / .01 - 76) / 8);
+        const i = Math.ceil(((1 + end / speed / 16000 + dt - 0.015) / .01 - 76) / 8);
         if (i >= WINDOW - 1 && (i + 1) * WIDTH <= e.length) positives.push(e.slice((i - WINDOW + 1) * WIDTH, (i + 1) * WIDTH));
       }
     }
   }
-  return trainHead(positives, bg);
+  return positives;
 }
-module.exports = { WIDTH, WINDOW, FEATURES, dot, validateProfile, background, trainHead, createEmbedding, createStream, enrol };
+async function enrol(embedding, recordings, bg) {
+  return trainHead(await positiveWindows(embedding, recordings), bg);
+}
+module.exports = { WIDTH, WINDOW, FEATURES, dot, validateProfile, background, trainHead, createEmbedding, createStream, enrol, speechEnd, positiveWindows };

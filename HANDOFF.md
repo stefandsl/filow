@@ -1,5 +1,29 @@
 # Filow hand-off
 
+## Wake-word round 2 partial checkpoint, 2026-11-14
+
+Merged origin/main 78830a7 into feat-wake-word in 041b650, preserving both sides.
+The round 2 request is not complete. Relative 20 ms energy-based phrase-end
+labels and preservation of enrolment tails now match the reference convention.
+On the 500-clip diagnostic, app/reference decisions agree on 446 (89.2%), below
+98%; app misses are 46/256 and near accepts 98/144 without hard negatives.
+The positive-matrix-only Python ablation does not improve (45 misses versus 44).
+Do not call this augmentation or training parity. No ship recommendation.
+
+Final checks: 3,237 tests pass, five skip, typecheck and lint pass; 44 mutations
+caught, including the three framing rules and the 98% acceptance boundary.
+Native feature reference tests ran with the existing downloaded ONNX models.
+The new training-parity acceptance command correctly exits 1 on current evidence.
+Full results and all 54 disagreements: docs/okfilow/WAKE-WORD.md and the two
+wake-round2 JSON reports beside it. Test files, matrices and logs are on G:.
+
+Still pending: matching pitch/noise/speech lead-in augmentation, seed semantics,
+unquantized negatives and optimizer; held-out five-head/4-hour reruns and hard
+negative trade-off; optional personal negatives; CPU process consolidation and
+new 60-second measurements; the recognised-N-of-5 enable gate. No real microphone,
+visible UI, installed profile, merge into main, push or tag was used. AGENTS.md
+remains excluded. The round 1 CPU and held-out numbers are not round 2 results.
+
 ## Experimental branch update, 2026-11-14
 
 Wake-word rework round 1 remains unmerged and not recommended for shipping.

@@ -2,6 +2,104 @@
 
 Branch: `feat-wake-word`, based on `3479560`. Not a release recommendation.
 
+## Round 2 partial checkpoint, 14 November 2026
+
+**The requested round is incomplete. Training parity fails; do not ship.**
+Main `78830a7` was merged in `041b650`, keeping both handoff sections and both
+implementations. The merged baseline passed 3,232 tests with six skips,
+typecheck and lint. AGENTS.md was not included in the merge commit.
+
+This checkpoint fixes one additional framing mismatch, not the augmentation
+gap identified in round 1. The app now finds the phrase end from complete
+20 ms frames relative to peak energy, at the spike's -30 dB cutoff. It preserves
+the whole recording, including its tail, during augmentation, and places labels
+relative to the speech end. Previously an absolute sample cutoff trimmed the
+recording and also determined label timing. Gain therefore moved the labels.
+`positiveWindows` exposes the actual app training matrix to the diagnostic
+exporter, replacing source-text interception.
+
+The original spike was rerun with seed 12345 and identical five-take inputs for
+all twenty voice-language profiles. Its output is byte-identical to round 1:
+SHA-256 `fe814a333b021387fb5161465251f251006fbcfc85c1c7d610c737d6efd2abf9`.
+Both comparisons use the same 500 cached Python embeddings and native keyword
+detections. App hard negatives are disabled for this diagnostic comparison.
+Each trainer retains its own background and threshold rule, so this measures
+the remaining end-to-end training/calibration discrepancy, not just weights.
+
+| Diagnostic, identical clips | Round 1 | Round 2 framing checkpoint |
+| --- | ---: | ---: |
+| App/reference Balanced decisions agreeing | 439/500 (87.8%) | 446/500 (89.2%) |
+| App positive misses | 52/256 (20.31%) | 46/256 (17.97%) |
+| App near-miss accepts | 99/144 (68.75%) | 98/144 (68.06%) |
+| Python, only app positive matrix substituted: misses | 44/256 | 45/256 |
+| Python, only app positive matrix substituted: near accepts | 94/144 | 94/144 |
+
+The original Python reference remains 24/256 misses and 76/144 near accepts.
+The isolated positive-matrix ablation does not improve, despite the better
+full-app diagnostic result. Do not infer that this change resolves the known
+augmentation problem. All 54 disagreement IDs, languages, decisions and scores
+are in `wake-round2-training-parity.json`; ablation counts and 44 caught
+mutations are in `wake-round2-framing.json`.
+
+The gate `node tools/wake/training-parity.cjs <comparison.json> <report.json>`
+requires 500 distinct clips and exits 1 below 98% agreement. It currently
+**fails**. Its boundary regression checks 490 versus 489 agreements, and its
+weakened-boundary mutation is caught. These unit tests passing do not mean
+the actual training-parity acceptance gate passes. An initial gate mutation
+survived because tools/wake was absent from Vitest discovery; discovery was
+fixed and the mutation then failed as intended.
+
+Final verification: 3,237 Vitest tests pass, five skip, typecheck and lint pass.
+The downloaded-model feature regression ran rather than skipping. All 44
+mutation cases were caught and restored (43 framing/existing rules plus the
+new acceptance boundary). No UI behavior was changed or inspected this round.
+
+The original spike trainer uses gain, duration-preserving pitch shifts,
+one-second real-speech or silent lead-ins, fan/keyboard/traffic mixtures and
+four end offsets, with sixteen variants per take. Speed and reverberation are
+evaluation conditions, not augmentations in its `lr_train` function. The app
+still uses speed/gain/white noise, its original SGD optimiser and quantized
+background. No noise assets or replacement signals were shipped in this
+checkpoint. Matching pitch/noise/lead-ins, RNG, all 30,000 background windows
+and sklearn's balanced logistic objective remains outstanding.
+
+No new held-out, four-hour background, hard-negative trade-off, personal-negative
+or real-time CPU measurement was performed. The round 1 values below remain
+historical evidence, not round 2 results:
+
+| Held-out or CPU acceptance | Round 1 | Round 2 |
+| --- | ---: | --- |
+| Five-voice clean plus noisy misses | 13/48 (27.08%) | Not measured |
+| Five-voice near accepts | 14/36 (38.89%) | Not measured |
+| Balanced background, 4 h per head | 0.40/h mean, 1.25/h worst | Not measured |
+| Main including KWS, one-core CPU | 2.97% | Not measured |
+| Embedding utility CPU | 1.95% | Not measured |
+| Chromium audio service CPU | 2.31% | Not measured |
+| Renderers CPU | 1.90% | Not measured |
+| GPU CPU | 0.81% | Not measured |
+| Network service CPU | 0.03% | Not measured |
+| Whole app CPU, 60 s | 9.96% | Not measured |
+
+Optional personal negatives, detector/capture process consolidation, state-only
+indicator updates and the required post-training "recognised N of 5" enable
+gate are **not implemented**. There is no new experimental opt-in recommendation.
+Before such a verdict, finish training parity and the five-head synthetic gates.
+Owner acceptance then needs fresh held-out recordings after the five enrolment
+takes: 100 calls across three days (40 close/quiet, 20 distant, 20 noisy,
+20 after speech or with an immediate question), plus at least 24 hours of
+count-only ordinary work. Measure miss rates, background events, ten repetitions
+of each named near-miss, p90 wake latency and 60-second per-process CPU, comparing
+the same head with and without the two personal negatives. The design's real-room
+limits are at most 5% close/quiet misses, 15% in other groups, one Balanced false
+wake per eight hours and p90 latency at most 0.7 seconds. The round 2 synthetic
+limits remain 10% misses, 0.2 false accepts/hour and under 4% total one-core CPU.
+Replay of the five training takes is a self-check, not held-out evidence.
+
+All work used existing synthetic WAVs. No real microphone, visible UI, installed
+profile, push, tag or merge into main was used. The unimplemented work above,
+real rooms, real STT handoff, low-tier hardware, other platforms and licence-card
+confirmation remain unverified.
+
 ## Rework round 1, 14 November 2026
 
 **Incomplete acceptance: would not ship, including as an experimental opt-in.**

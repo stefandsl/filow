@@ -1,0 +1,633 @@
+{
+  "scope": "Per-clip maximum score and Balanced Boolean rule, not chronological live replay; app hard negatives disabled to isolate base training",
+  "seed": 12345,
+  "clips": 500,
+  "agreed": 446,
+  "agreement": 0.892,
+  "target": 0.98,
+  "pass": false,
+  "reference": {
+    "enrol": {
+      "total": 100,
+      "accepted": 4
+    },
+    "test": {
+      "total": 256,
+      "accepted": 232
+    },
+    "near": {
+      "total": 144,
+      "accepted": 76
+    }
+  },
+  "app": {
+    "enrol": {
+      "total": 100,
+      "accepted": 4
+    },
+    "test": {
+      "total": 256,
+      "accepted": 210
+    },
+    "near": {
+      "total": 144,
+      "accepted": 98
+    }
+  },
+  "disagreements": [
+    {
+      "voice": "kokoro_v0",
+      "lang": "en",
+      "stem": "0-test-6",
+      "kind": "test",
+      "keyword": true,
+      "referenceScore": 6.698170185089111,
+      "appScore": -0.12350527516745446,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v0",
+      "lang": "en",
+      "stem": "0-test-22",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 5.169033527374268,
+      "appScore": -0.6854595128451324,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v0",
+      "lang": "en",
+      "stem": "0-test-28",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 5.038177013397217,
+      "appScore": -2.1256425078028913,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v0",
+      "lang": "en",
+      "stem": "0-test-30",
+      "kind": "test",
+      "keyword": true,
+      "referenceScore": 2.9096639156341553,
+      "appScore": -2.610460612690864,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v0",
+      "lang": "en",
+      "stem": "0-near-15",
+      "kind": "near",
+      "keyword": true,
+      "referenceScore": 0.8052141070365906,
+      "appScore": 1.2767327336235537,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "kokoro_v1",
+      "lang": "en",
+      "stem": "1-test-6",
+      "kind": "test",
+      "keyword": true,
+      "referenceScore": 1.6282951831817627,
+      "appScore": -2.1115145854511503,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v1",
+      "lang": "en",
+      "stem": "1-test-9",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 6.724492073059082,
+      "appScore": 2.233266452040887,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v1",
+      "lang": "en",
+      "stem": "1-test-12",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 7.204401969909668,
+      "appScore": 1.7067919113643268,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v1",
+      "lang": "en",
+      "stem": "1-test-22",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 5.798826217651367,
+      "appScore": 0.3210657698720225,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v1",
+      "lang": "en",
+      "stem": "1-near-8",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 4.023962497711182,
+      "appScore": 3.4754553968864457,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "kokoro_v10",
+      "lang": "en",
+      "stem": "2-test-2",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 6.544156551361084,
+      "appScore": 2.4499506732434044,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v10",
+      "lang": "en",
+      "stem": "2-test-10",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 5.8627753257751465,
+      "appScore": 1.548377128835928,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v10",
+      "lang": "en",
+      "stem": "2-test-17",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 6.261679649353027,
+      "appScore": 2.0268133916874493,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v10",
+      "lang": "en",
+      "stem": "2-test-21",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 6.567868709564209,
+      "appScore": 1.4222623135849162,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v10",
+      "lang": "en",
+      "stem": "2-test-29",
+      "kind": "test",
+      "keyword": true,
+      "referenceScore": 3.5408151149749756,
+      "appScore": -0.7498752886870991,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v10",
+      "lang": "en",
+      "stem": "2-test-30",
+      "kind": "test",
+      "keyword": true,
+      "referenceScore": 5.912992477416992,
+      "appScore": -0.28444161162232573,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v11",
+      "lang": "en",
+      "stem": "3-test-9",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 3.1398520469665527,
+      "appScore": 0.9307336126773675,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "kokoro_v11",
+      "lang": "en",
+      "stem": "3-test-17",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 3.954193592071533,
+      "appScore": 0.5062751483831331,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "kokoro_v11",
+      "lang": "en",
+      "stem": "3-near-3",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 3.3599319458007812,
+      "appScore": 1.606648572493886,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "kokoro_v11",
+      "lang": "en",
+      "stem": "3-near-9",
+      "kind": "near",
+      "keyword": true,
+      "referenceScore": -0.19591164588928223,
+      "appScore": 1.020073870908698,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "kokoro_v11",
+      "lang": "en",
+      "stem": "3-near-12",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 0.31899794936180115,
+      "appScore": 1.0483673991750686,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "kokoro_v11",
+      "lang": "en",
+      "stem": "3-near-16",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 2.7577688694000244,
+      "appScore": 3.0045416022716074,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "it",
+      "stem": "4-test-6",
+      "kind": "test",
+      "keyword": true,
+      "referenceScore": 5.420425891876221,
+      "appScore": -0.22680356009273583,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "supertonic_v1",
+      "lang": "it",
+      "stem": "5-near-3",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 2.6468234062194824,
+      "appScore": 2.85563822443837,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v2",
+      "lang": "it",
+      "stem": "6-near-0",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 1.518343448638916,
+      "appScore": 0.5296274809485279,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v3",
+      "lang": "it",
+      "stem": "7-test-2",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 1.4502787590026855,
+      "appScore": 1.9964437251081568,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v3",
+      "lang": "it",
+      "stem": "7-near-3",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 2.065816640853882,
+      "appScore": 3.0526338724135624,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "ru",
+      "stem": "8-test-1",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 4.685668468475342,
+      "appScore": 3.445847117527774,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "ru",
+      "stem": "8-test-2",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 5.423972129821777,
+      "appScore": 3.2202865352285173,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "ru",
+      "stem": "8-test-4",
+      "kind": "test",
+      "keyword": true,
+      "referenceScore": 6.474479675292969,
+      "appScore": 1.0175175173363007,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "ru",
+      "stem": "8-near-1",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 3.46256685256958,
+      "appScore": 4.553886719837784,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "ru",
+      "stem": "8-near-3",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 3.1024749279022217,
+      "appScore": 5.378296688012759,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v1",
+      "lang": "ru",
+      "stem": "9-test-1",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 3.5237650871276855,
+      "appScore": 3.9123349201750313,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v1",
+      "lang": "ru",
+      "stem": "9-test-7",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 4.942915916442871,
+      "appScore": 4.787305098630224,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v1",
+      "lang": "ru",
+      "stem": "9-near-2",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 4.2113165855407715,
+      "appScore": 3.986095032899972,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v1",
+      "lang": "ru",
+      "stem": "9-near-3",
+      "kind": "near",
+      "keyword": true,
+      "referenceScore": 0.5892195105552673,
+      "appScore": 3.3462557498822574,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v2",
+      "lang": "ru",
+      "stem": "10-test-2",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 4.4213128089904785,
+      "appScore": -0.13761515041001993,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "supertonic_v3",
+      "lang": "ru",
+      "stem": "11-test-5",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 4.766312122344971,
+      "appScore": 0.9560059403158887,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "supertonic_v3",
+      "lang": "ru",
+      "stem": "11-test-6",
+      "kind": "test",
+      "keyword": true,
+      "referenceScore": 0.8933837413787842,
+      "appScore": -1.5046037824532008,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "supertonic_v3",
+      "lang": "ru",
+      "stem": "11-near-2",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 0.8300501108169556,
+      "appScore": 1.579963146071793,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "ro",
+      "stem": "12-test-1",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 3.5291216373443604,
+      "appScore": 0.9162400965691038,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "ro",
+      "stem": "12-near-0",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 2.4679150581359863,
+      "appScore": 4.162118418627957,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v1",
+      "lang": "ro",
+      "stem": "13-near-1",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 2.456021308898926,
+      "appScore": 3.447297607353673,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v1",
+      "lang": "ro",
+      "stem": "13-near-2",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 2.63417649269104,
+      "appScore": 3.6890814022693066,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v2",
+      "lang": "ro",
+      "stem": "14-test-1",
+      "kind": "test",
+      "keyword": true,
+      "referenceScore": 1.4840810298919678,
+      "appScore": -0.5597621195224051,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "supertonic_v3",
+      "lang": "ro",
+      "stem": "15-test-2",
+      "kind": "test",
+      "keyword": true,
+      "referenceScore": 0.8645819425582886,
+      "appScore": 2.634951216195654,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v3",
+      "lang": "ro",
+      "stem": "15-test-6",
+      "kind": "test",
+      "keyword": true,
+      "referenceScore": 4.364052772521973,
+      "appScore": -0.5104493243345212,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "supertonic_v3",
+      "lang": "ro",
+      "stem": "15-near-1",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 2.1352736949920654,
+      "appScore": 3.3809018052505215,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v3",
+      "lang": "ro",
+      "stem": "15-near-2",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 0.8439786434173584,
+      "appScore": 2.4962922950616955,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "ja",
+      "stem": "16-test-4",
+      "kind": "test",
+      "keyword": false,
+      "referenceScore": 6.002441883087158,
+      "appScore": 1.92806759730438,
+      "referenceDecision": true,
+      "appDecision": false
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "ja",
+      "stem": "16-near-0",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 5.307873249053955,
+      "appScore": 5.470456364325366,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "ja",
+      "stem": "16-near-3",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 4.0692291259765625,
+      "appScore": 3.929210705892828,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v1",
+      "lang": "ja",
+      "stem": "17-near-3",
+      "kind": "near",
+      "keyword": false,
+      "referenceScore": 1.679321050643921,
+      "appScore": 2.807841844396113,
+      "referenceDecision": false,
+      "appDecision": true
+    },
+    {
+      "voice": "supertonic_v2",
+      "lang": "ja",
+      "stem": "18-test-6",
+      "kind": "test",
+      "keyword": true,
+      "referenceScore": 3.935000419616699,
+      "appScore": 0.1408216965547091,
+      "referenceDecision": true,
+      "appDecision": false
+    }
+  ]
+}
