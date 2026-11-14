@@ -3,6 +3,8 @@
 html:has(.okf-overlay), body:has(.okf-overlay) { background: transparent !important; overflow: hidden; }
 
 .okf-overlay { position: fixed; inset: 0; user-select: none; font-family: var(--font); cursor: crosshair; }
+/* It paints over the pictures (the pointer lands on them) but takes no click unless the highlighter is on: the pictures' buttons get them. */
+.okf-overlay:not(.okf-overlay--catch) { pointer-events: none; }
 /* Mouse reaches the overlay only while the talk chord is held (main sets setIgnoreMouseEvents). */
 .okf-hidden { opacity: 0 !important; }
 
@@ -311,7 +313,7 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
    style, dark and light. A picture is shown whole on the card's own colour (no bars of another colour
    round it), with nothing on it: its caption, source and buttons are one strip under it. Only they take
    the mouse (main checks the real cursor against their boxes). */
-.okf-media { position: fixed; inset: 0; pointer-events: none; z-index: 1; --okf-card: rgb(20, 21, 24); --okf-card-text: #ececef; --okf-card-soft: #b4b7bf; }
+.okf-media { position: fixed; inset: 0; pointer-events: none; --okf-card: rgb(20, 21, 24); --okf-card-text: #ececef; --okf-card-soft: #b4b7bf; }
 html[data-theme="light"] .okf-media { --okf-card: #ffffff; --okf-card-text: #18191c; --okf-card-soft: #4a4d55; }
 .okf-media-tile, .okf-slide {
   position: absolute; box-sizing: border-box; margin: 0; overflow: hidden; border-radius: 14px; pointer-events: auto;
@@ -327,7 +329,9 @@ html[data-theme="light"] .okf-media-tile, html[data-theme="light"] .okf-slide { 
    of it in the tooltip). */
 .okf-media-tile figcaption, .okf-slide figcaption { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 8px; row-gap: 2px; padding: 6px 8px 8px 12px; min-width: 0; }
 .okf-media-caption { grid-column: 1; grid-row: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.okf-media-source { grid-column: 1 / -1; grid-row: 2; min-width: 0; font-size: 11.5px; line-height: 1.3; color: var(--okf-card-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.okf-media-source { grid-column: 1 / -1; grid-row: 2; min-width: 0; font-size: 11.5px; line-height: 1.3; color: var(--okf-card-soft); overflow: hidden; }
+/* Its parts (site, author, licence) wrap only between each other: a name or a licence is never cut or broken. */
+.okf-media-source span { white-space: nowrap; }
 .okf-media-tools { grid-column: 2; grid-row: 1; display: flex; gap: 6px; }
 .okf-media-btn {
   display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 999px; cursor: pointer;
@@ -346,7 +350,8 @@ html[data-theme="light"] .okf-slide h2 { color: #18191c; }
 .okf-slide-media[data-count="1"] { --n: 1; }
 .okf-slide-media[data-count="2"] { --n: 2; }
 .okf-slide-media figure { margin: 0; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--okf-card-text) 16%, transparent); }
-.okf-slide-media .okf-media-box { flex: none; height: 140px; }
+/* The same fit as the gallery's tiles: a box of the tiles' shape, so a picture fills it the same way. */
+.okf-slide-media .okf-media-box { flex: none; aspect-ratio: 260 / 172; }
 
 /* Going outside: the notice, the pill and the list of choices are in outbound.css (shared with the
    take page, the PowerPoint add-in and the browser extension). */

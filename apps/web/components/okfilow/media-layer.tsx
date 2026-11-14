@@ -5,7 +5,7 @@
 // every item and the slide a close button. The overlay stays click-through outside them: it reports
 // their rectangles and main lets the mouse in only there (apps/desktop/okfilow-hit.js). Stop takes all
 // of it away at once (the overlay page passes null).
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { okFilowBridge } from "@/lib/buddy/bridge";
 import { MAX_VIDEO_SECONDS, showLayout, type MediaItem, type MediaShow } from "@/lib/buddy/media";
 import type { Rect } from "@/lib/buddy/marks";
@@ -62,7 +62,8 @@ function MediaView({ item, t, onClose, onBad }: { item: MediaItem; t: T; onClose
     {/* The caption beside the buttons; the source (author, licence) on a row of its own, never broken inside a name. */}
     <figcaption>
       <span className="okf-media-caption" title={item.caption}>{item.caption}</span>
-      <small className="okf-media-source" title={item.source}>{item.source}</small>
+      {/* parts split at " · " (site, author, licence): a line breaks only between them, never inside a name or a licence */}
+      <small className="okf-media-source" title={item.source}>{item.source.split(" · ").map((part, i) => <Fragment key={i}>{i > 0 && " · "}<span>{part}</span></Fragment>)}</small>
       <div className="okf-media-tools">
         {item.kind !== "photo" && (
           <button type="button" className="okf-media-btn" data-action="play" aria-label={paused ? t("mediaPlay") : t("pause")} title={paused ? t("mediaPlay") : t("pause")} onClick={toggle}>
@@ -83,7 +84,7 @@ const rectOf = (el: Element): Rect => {
   return { left: Math.floor(r.left), top: Math.floor(r.top), right: Math.ceil(r.right), bottom: Math.ceil(r.bottom) };
 };
 
-type Props = { show: MediaShow | null; avoid: () => Rect[]; t: T };
+type Props = { show: MediaShow | null; avoid: () => Rect[]; t: T; onPlaced?: (first: Rect, caption: string) => void };
 
 /** Each new show is a new layer: nothing closed, nothing placed. Gone (null): nothing, and no rectangles take the mouse. */
 export function MediaLayer(props: Props) {
@@ -96,7 +97,7 @@ export function MediaLayer(props: Props) {
   return props.show ? <ShownMedia key={seq.current} {...props} show={props.show} /> : null;
 }
 
-function ShownMedia({ show, avoid, t }: Props & { show: MediaShow }) {
+function ShownMedia({ show, avoid, t, onPlaced }: Props & { show: MediaShow }) {
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [slideGone, setSlideGone] = useState(false);
   const [slideAt, setSlideAt] = useState<Rect | null>(null);
@@ -126,6 +127,14 @@ function ShownMedia({ show, avoid, t }: Props & { show: MediaShow }) {
     b?.overlayRects?.(els.map(rectOf));
   }, [tiles, slideAt, sig]);
   useEffect(() => () => okFilowBridge()?.overlayRects?.([]), []);
+  // Once placed, the pointer goes to the first picture (or the slide), once per show.
+  const told = useRef(false);
+  useEffect(() => {
+    const first = tiles[0] ?? slideAt;
+    if (told.current || !first) return;
+    told.current = true;
+    onPlaced?.(first, gallery[0]?.item.caption ?? slide?.title ?? "");
+  }, [tiles, slideAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const close =(key: string) => setGone((g) => new Set(g).add(key));
   return (

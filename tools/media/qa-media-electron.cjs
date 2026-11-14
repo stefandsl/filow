@@ -27,7 +27,7 @@ app.whenReady().then(async () => {
   win.webContents.setAudioMuted(true);
   win.webContents.setFrameRate(30);
   const js = (code) => win.webContents.executeJavaScript(code, true);
-  const FRAMES = process.env.QA_MEDIA_FRAMES || path.join(OUT, "frames2");
+  const FRAMES = process.env.QA_MEDIA_FRAMES || path.join(OUT, "frames4");
   const shot = async (name) => { await sleep(700); fs.writeFileSync(path.join(FRAMES, `${name}.png`), (await win.webContents.capturePage()).toPNG()); };
   const result = { at: new Date().toISOString(), view: { width: W, height: H }, hidden: true, themes: {}, board: {} };
 
@@ -79,6 +79,14 @@ app.whenReady().then(async () => {
     if (slide && tiles.length) { const s = R(slide); out.edgeLeftPx = Math.abs(s.left - Math.min(...tiles.map((t) => t.left))); out.edgeRightPx = Math.abs(s.right - Math.max(...tiles.map((t) => t.right))); }
     const pill = document.querySelector('.okf-notch');
     if (pill) { const p = R(pill); const below = [...tiles, ...(slide ? [R(slide)] : [])].filter((m) => m.left < p.right && m.right > p.left && m.top >= p.bottom); if (below.length) out.toolbarGapPx = Math.round(Math.min(...below.map((m) => m.top - p.bottom)) * 10) / 10; }
+    const bubble = document.querySelector(".okf-bubble");
+    const media = [...document.querySelectorAll(".okf-media-tile, .okf-slide")].map(R);
+    if (bubble && media.length) { const b = R(bubble); const d = (m) => Math.hypot(Math.max(0, m.left - b.right, b.left - m.right), Math.max(0, m.top - b.bottom, b.top - m.bottom)); out.bubbleToMediaPx = Math.round(Math.min(...media.map(d))); }
+    const first = document.querySelector(".okf-media-tile") ?? document.querySelector(".okf-slide");
+    const arrow = document.querySelector(".okf-buddy .okf-arrow");
+    if (first && arrow) { const f = R(first), a = R(arrow); const x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2; out.pointerInFirst = x >= f.left && x <= f.right && y >= f.top && y <= f.bottom; out.pointerPaintedOver = Boolean(document.querySelector(".okf-media")?.compareDocumentPosition(document.querySelector(".okf-overlay")) & Node.DOCUMENT_POSITION_FOLLOWING); }
+    out.sourceClipped = [...document.querySelectorAll(".okf-media-source")].filter((s) => { const box = R(s); return [...s.children].some((p) => { const r = R(p); return r.right > box.right + 0.5 || r.bottom > box.bottom + 0.5; }); }).length;
+    out.sourceLines = Math.max(0, ...[...document.querySelectorAll(".okf-media-source")].map((s) => Math.round(R(s).height / (parseFloat(getComputedStyle(s).lineHeight) || 15))));
     return JSON.stringify(out);
   })()`;
   // A desktop icon for the answer to circle (the real overlay sits over the user's desktop and circles real things).
@@ -92,7 +100,8 @@ app.whenReady().then(async () => {
     await desktopIcon(Boolean(mark));
     await emit("draw", mark ? [{ kind: "circle", x: 980, y: 420, r: 70, label: mark, done: true }] : []);
   };
-  const show = async (s) => { await emit("media", { x: 960, y: 540, gallery: [], slide: null, ...s }); await sleep(1200); };
+  // the pill and the bubble are on screen well before the pictures arrive (the lookup takes a moment): let them settle first
+  const show = async (s) => { await sleep(500); await emit("media", { x: 960, y: 540, gallery: [], slide: null, ...s }); await sleep(1200); };
   const hitTest = async () => {
     const calls = JSON.parse(await js("JSON.stringify(window.__qa.calls().overlayRects)"));
     const rects = cleanRects(calls[calls.length - 1] || []);
@@ -118,7 +127,7 @@ app.whenReady().then(async () => {
     await js(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}; document.documentElement.style.setProperty("background", ${JSON.stringify(desk)}, "important"); document.body.style.setProperty("background", ${JSON.stringify(desk)}, "important"); true`);
     await emit("clear", null);
     // 1. four pictures
-    await answer("Here are the four test images from your folder: a colour test card, the Mandelbrot set, SMPTE colour bars and a Rule 110 pattern.", "Images folder");
+    await answer("Here are the four test images from your folder: a colour test card, the Mandelbrot set, SMPTE colour bars and a Rule 110 pattern.");
     await show({ gallery: items.photos });
     t.gallery4 = { ...JSON.parse(await js(MEASURE)), ...JSON.parse(await js(CHECKS)) };
     if (process.env.QA_MEDIA_DEBUG) await debug(`gallery ${theme}`);
@@ -171,10 +180,12 @@ app.whenReady().then(async () => {
     await wjs(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}; true`);
     await sleep(900);
     // the whole page, not the top of it: the window is made as tall as the page before the frame is taken
-    const tall = await wjs("Math.ceil(document.documentElement.scrollHeight)");
-    wb.setContentSize(1400, Math.max(1000, tall));
+    const tall = await wjs("Math.ceil(document.querySelector(\"main.wb-page\").getBoundingClientRect().bottom + 24)");
+    wb.setContentSize(1400, Math.max(600, tall));
     await sleep(900);
     result.board.clippedPx = await wjs("Math.max(0, document.documentElement.scrollHeight - innerHeight)");
+    // the hairline round a GIF on the board against the board itself (WCAG non-text contrast reads 3:1; asked here: 1.5:1)
+    result.board[`frameContrast_${theme}`] = await wjs("(() => { const g = document.querySelector(\".wb-gif\"); const board = document.querySelector(\".wb-frame\") ?? document.querySelector(\".wb-ex\"); if (!g || !board) return null; const n = (s) => (s.match(/[\\d.]+/g) || []).map(Number); const sh = getComputedStyle(g).boxShadow; if (!sh || sh === \"none\") return 1; const c = n(sh.slice(0, sh.indexOf(\")\") + 1)); let bg = n(getComputedStyle(board).backgroundColor); if (bg.length < 3 || bg[3] === 0) bg = [255, 255, 255]; const a = c.length > 3 ? c[3] : 1; const line = [0, 1, 2].map((i) => c[i] * a + bg[i] * (1 - a)); const lum = (v) => v.map((x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }).reduce((s, x, i) => s + x * [0.2126, 0.7152, 0.0722][i], 0); const p = lum(line), q = lum(bg); return Math.round(((Math.max(p, q) + 0.05) / (Math.min(p, q) + 0.05)) * 100) / 100; })()");
     // the contrast of every button's words on its own background, in this theme (WCAG: 4.5 for normal text)
     result.board[`minButtonContrast_${theme}`] = await wjs("(() => { const rgb = (s) => { const n = (s.match(/[\\d.]+/g) || []).map(Number); return s.startsWith(\"color(srgb\") ? [n[0] * 255, n[1] * 255, n[2] * 255, ...(n.length > 3 ? [n[3]] : [])] : n; }; const lum = ([r, g, b]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); }; const page = rgb(getComputedStyle(document.body).backgroundColor); const ratio = (el) => { const s = getComputedStyle(el); let bg = rgb(s.backgroundColor); if (bg.length === 4 && bg[3] === 0) bg = page; const fg = rgb(s.color); const k = (fg.length === 4 ? fg[3] : 1) * Number(s.opacity); const seen = [0, 1, 2].map((i) => fg[i] * k + bg[i] * (1 - k)); const a = lum(seen), c = lum(bg); return (Math.max(a, c) + 0.05) / (Math.min(a, c) + 0.05); }; const all = [...document.querySelectorAll('main.wb-page button.wb-btn')].filter((b) => b.offsetParent && (b.textContent || '').trim()); const worst = all.map((b) => [ratio(b), b.textContent.trim()]).sort((x, y) => x[0] - y[0])[0]; return worst ? Math.round(worst[0] * 100) / 100 + ' ' + worst[1] : null; })()");
     fs.writeFileSync(path.join(FRAMES, `board-gif-${theme}.png`), (await wb.webContents.capturePage()).toPNG());

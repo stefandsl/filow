@@ -190,7 +190,13 @@ export default function OkFilowOverlay() {
         setMarks(value);
       }),
       b.onCards((list) => setCards(Array.isArray(list) ? list.slice(0, 2) : [])),
-      b.onMedia?.((m) => setMedia(cleanShow(m))) ?? (() => {}),
+      // The pictures go next to the answer's bubble, which is by the mouse pointer on this display: the
+      // spot the panel gave (the middle of the screen) only when the pointer is on another display.
+      b.onMedia?.((m) => {
+        const show = cleanShow(m);
+        const c = cursor.current;
+        setMedia(show && c ? { ...show, x: c.x, y: c.y } : show);
+      }) ?? (() => {}),
       b.onClear(() => {
         setCards([]);
         leave();
@@ -320,6 +326,13 @@ export default function OkFilowOverlay() {
     });
     return out;
   }, [cardAvoid]);
+  /** Placed pictures: the pointer flies to the first one, as it does to a thing the answer points at. */
+  const showMedia = useCallback((first: Rect, caption: string) => {
+    pointAvoid.current = [];
+    queue.current = [{ x: Math.round((first.left + first.right) / 2), y: Math.round((first.top + first.bottom) / 2), label: caption }];
+    flight.current = null;
+    setLabel("");
+  }, []);
   const markSets = useMemo(() => (leaving ? [leaving, marks] : [marks]), [leaving, marks]);
 
   // Pause: the pointer's flight and the pen stand still; Resume: they carry on from the same spot.
@@ -386,6 +399,9 @@ export default function OkFilowOverlay() {
   };
   return (
     <>
+    {/* Before the overlay, which paints the pointer and the marks over them (and lets clicks through to them):
+        outside the hidden overlay, their play, pause and close buttons are real buttons with names. */}
+    <MediaLayer show={media} avoid={mediaAvoid} t={t} onPlaced={showMedia} />
     <div className={"okf-overlay" + (catching ? " okf-overlay--catch" : "") + (pill.paused ? " okf-paused" : "")} aria-hidden onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
       {/* Beside the spot they explain, in free space, with a leader to it; opaque from their first frame. */}
       <CardsLayer cards={cards} avoid={cardAvoid} />
@@ -405,8 +421,6 @@ export default function OkFilowOverlay() {
         {label && <span ref={labelEl} className="okf-label">{label}</span>}
       </div>
     </div>
-    {/* Outside the hidden overlay: their play, pause and close buttons are real buttons with names. */}
-    <MediaLayer show={media} avoid={mediaAvoid} t={t} />
     {/* The bubble is outside the hidden overlay too: its close button is a real button with a name. */}
     <AnswerBubble mode={mode} text={text} stopped={stopped && !closed} shown={bubbleShown} level={level} spoken={spoken} t={t} onClose={() => okFilowBridge()?.closeBubble?.()} bubbleRef={bubble} textRef={textBox} />
     {/* The pill is outside the hidden overlay: its controls are real buttons with names. The window never takes the

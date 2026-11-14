@@ -618,7 +618,8 @@ export default function WhiteboardPage() {
     speaker.stop();
     dispatchLesson({ type: "cancel" });
     dispatchPlayer({ type: "pause" });
-    setImported(scene);
+    // framed to what is on it (as a board opened from "the last board" is), not to a default size with empty room below
+    setImported(withFrame(scene));
     setEdits(noEdits());
     setFixes(noEdits());
     setCamera(null);

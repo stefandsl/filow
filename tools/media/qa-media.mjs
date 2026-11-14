@@ -8,7 +8,7 @@
 // Every request off 127.0.0.1:5031-5035 is refused in the window.
 //
 // Usage: node tools/media/qa-media.mjs [--fixtures G:\FILOW\tmp\media\fixtures] [--out G:\FILOW\tmp\media]
-// Writes <out>/<frames>/*.png (dark and light; --frames, default "frames3") and <out>/qa-media.json (the numbers).
+// Writes <out>/<frames>/*.png (dark and light; --frames, default "frames4") and <out>/qa-media.json (the numbers).
 import { spawn } from "node:child_process";
 import { buildSync } from "esbuild";
 import fs from "node:fs";
@@ -23,7 +23,7 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace
 const FIX = arg("fixtures", "G:\\FILOW\\tmp\\media\\fixtures");
 const OUT = arg("out", "G:\\FILOW\\tmp\\media");
 const WORK = path.join(OUT, "work");
-const FRAMES = path.join(OUT, arg("frames", "frames3"));
+const FRAMES = path.join(OUT, arg("frames", "frames4"));
 for (const d of [OUT, WORK, FRAMES]) fs.mkdirSync(d, { recursive: true });
 
 // ---- the board file: a GIF placed by the same code an agent uses ----
