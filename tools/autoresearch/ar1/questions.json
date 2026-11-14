@@ -1,0 +1,853 @@
+{
+ "seed": 20261114,
+ "languages": [
+  "en",
+  "it",
+  "ru",
+  "ro",
+  "ja"
+ ],
+ "note": "Built by build-questions.mjs. Do not edit by hand.",
+ "items": [
+  {
+   "id": 0,
+   "screen": 1,
+   "element": "Pay now",
+   "kind": "where",
+   "split": "heldout",
+   "text": {
+    "en": "Where is the Pay now button?",
+    "it": "Dov'è il pulsante Pay now?",
+    "ru": "Где кнопка Pay now?",
+    "ro": "Unde este butonul Pay now?",
+    "ja": "Pay now ボタンはどこですか？"
+   }
+  },
+  {
+   "id": 1,
+   "screen": 2,
+   "element": "Save draft",
+   "kind": "show",
+   "split": "heldout",
+   "text": {
+    "en": "Show me the Save draft button.",
+    "it": "Mostrami il pulsante Save draft.",
+    "ru": "Покажи кнопку Save draft.",
+    "ro": "Arată-mi butonul Save draft.",
+    "ja": "Save draft ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 2,
+   "screen": 3,
+   "element": "Pay now",
+   "kind": "what",
+   "split": "dev",
+   "text": {
+    "en": "What does the Pay now button do?",
+    "it": "A cosa serve il pulsante Pay now?",
+    "ru": "Для чего кнопка Pay now?",
+    "ro": "La ce folosește butonul Pay now?",
+    "ja": "Pay now ボタンは何のためのものですか？"
+   }
+  },
+  {
+   "id": 3,
+   "screen": 4,
+   "element": "Send reminder",
+   "kind": "where",
+   "split": "dev",
+   "text": {
+    "en": "Where is the Send reminder button?",
+    "it": "Dov'è il pulsante Send reminder?",
+    "ru": "Где кнопка Send reminder?",
+    "ro": "Unde este butonul Send reminder?",
+    "ja": "Send reminder ボタンはどこですか？"
+   }
+  },
+  {
+   "id": 4,
+   "screen": 5,
+   "element": "Send reminder",
+   "kind": "show",
+   "split": "heldout",
+   "text": {
+    "en": "Show me the Send reminder button.",
+    "it": "Mostrami il pulsante Send reminder.",
+    "ru": "Покажи кнопку Send reminder.",
+    "ro": "Arată-mi butonul Send reminder.",
+    "ja": "Send reminder ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 5,
+   "screen": 6,
+   "element": "Save draft",
+   "kind": "what",
+   "split": "dev",
+   "text": {
+    "en": "What does the Save draft button do?",
+    "it": "A cosa serve il pulsante Save draft?",
+    "ru": "Для чего кнопка Save draft?",
+    "ro": "La ce folosește butonul Save draft?",
+    "ja": "Save draft ボタンは何のためのものですか？"
+   }
+  },
+  {
+   "id": 6,
+   "screen": 7,
+   "element": "Invoice total",
+   "kind": "where",
+   "split": "heldout",
+   "text": {
+    "en": "Where is the Invoice total field?",
+    "it": "Dov'è il campo Invoice total?",
+    "ru": "Где поле Invoice total?",
+    "ro": "Unde este câmpul Invoice total?",
+    "ja": "Invoice total 欄はどこですか？"
+   }
+  },
+  {
+   "id": 7,
+   "screen": 8,
+   "element": "Save draft",
+   "kind": "show",
+   "split": "dev",
+   "text": {
+    "en": "Show me the Save draft button.",
+    "it": "Mostrami il pulsante Save draft.",
+    "ru": "Покажи кнопку Save draft.",
+    "ro": "Arată-mi butonul Save draft.",
+    "ja": "Save draft ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 8,
+   "screen": 9,
+   "element": "Pay now",
+   "kind": "what",
+   "split": "heldout",
+   "text": {
+    "en": "What does the Pay now button do?",
+    "it": "A cosa serve il pulsante Pay now?",
+    "ru": "Для чего кнопка Pay now?",
+    "ro": "La ce folosește butonul Pay now?",
+    "ja": "Pay now ボタンは何のためのものですか？"
+   }
+  },
+  {
+   "id": 9,
+   "screen": 10,
+   "element": "Invoice total",
+   "kind": "where",
+   "split": "dev",
+   "text": {
+    "en": "Where is the Invoice total field?",
+    "it": "Dov'è il campo Invoice total?",
+    "ru": "Где поле Invoice total?",
+    "ro": "Unde este câmpul Invoice total?",
+    "ja": "Invoice total 欄はどこですか？"
+   }
+  },
+  {
+   "id": 10,
+   "screen": 11,
+   "element": "Send reminder",
+   "kind": "show",
+   "split": "heldout",
+   "text": {
+    "en": "Show me the Send reminder button.",
+    "it": "Mostrami il pulsante Send reminder.",
+    "ru": "Покажи кнопку Send reminder.",
+    "ro": "Arată-mi butonul Send reminder.",
+    "ja": "Send reminder ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 11,
+   "screen": 12,
+   "element": "Pay now",
+   "kind": "what",
+   "split": "heldout",
+   "text": {
+    "en": "What does the Pay now button do?",
+    "it": "A cosa serve il pulsante Pay now?",
+    "ru": "Для чего кнопка Pay now?",
+    "ro": "La ce folosește butonul Pay now?",
+    "ja": "Pay now ボタンは何のためのものですか？"
+   }
+  },
+  {
+   "id": 12,
+   "screen": 13,
+   "element": "Customer name",
+   "kind": "where",
+   "split": "dev",
+   "text": {
+    "en": "Where is the Customer name field?",
+    "it": "Dov'è il campo Customer name?",
+    "ru": "Где поле Customer name?",
+    "ro": "Unde este câmpul Customer name?",
+    "ja": "Customer name 欄はどこですか？"
+   }
+  },
+  {
+   "id": 13,
+   "screen": 14,
+   "element": "Invoice total",
+   "kind": "show",
+   "split": "dev",
+   "text": {
+    "en": "Show me the Invoice total field.",
+    "it": "Mostrami il campo Invoice total.",
+    "ru": "Покажи поле Invoice total.",
+    "ro": "Arată-mi câmpul Invoice total.",
+    "ja": "Invoice total 欄を見せてください。"
+   }
+  },
+  {
+   "id": 14,
+   "screen": 15,
+   "element": "Customer name",
+   "kind": "what",
+   "split": "dev",
+   "text": {
+    "en": "What does the Customer name field do?",
+    "it": "A cosa serve il campo Customer name?",
+    "ru": "Для чего поле Customer name?",
+    "ro": "La ce folosește câmpul Customer name?",
+    "ja": "Customer name 欄は何のためのものですか？"
+   }
+  },
+  {
+   "id": 15,
+   "screen": 16,
+   "element": "Customer name",
+   "kind": "where",
+   "split": "heldout",
+   "text": {
+    "en": "Where is the Customer name field?",
+    "it": "Dov'è il campo Customer name?",
+    "ru": "Где поле Customer name?",
+    "ro": "Unde este câmpul Customer name?",
+    "ja": "Customer name 欄はどこですか？"
+   }
+  },
+  {
+   "id": 16,
+   "screen": 17,
+   "element": "Pay now",
+   "kind": "show",
+   "split": "heldout",
+   "text": {
+    "en": "Show me the Pay now button.",
+    "it": "Mostrami il pulsante Pay now.",
+    "ru": "Покажи кнопку Pay now.",
+    "ro": "Arată-mi butonul Pay now.",
+    "ja": "Pay now ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 17,
+   "screen": 18,
+   "element": "Save draft",
+   "kind": "what",
+   "split": "dev",
+   "text": {
+    "en": "What does the Save draft button do?",
+    "it": "A cosa serve il pulsante Save draft?",
+    "ru": "Для чего кнопка Save draft?",
+    "ro": "La ce folosește butonul Save draft?",
+    "ja": "Save draft ボタンは何のためのものですか？"
+   }
+  },
+  {
+   "id": 18,
+   "screen": 19,
+   "element": "Invoice total",
+   "kind": "where",
+   "split": "dev",
+   "text": {
+    "en": "Where is the Invoice total field?",
+    "it": "Dov'è il campo Invoice total?",
+    "ru": "Где поле Invoice total?",
+    "ro": "Unde este câmpul Invoice total?",
+    "ja": "Invoice total 欄はどこですか？"
+   }
+  },
+  {
+   "id": 19,
+   "screen": 20,
+   "element": "Invoice total",
+   "kind": "show",
+   "split": "heldout",
+   "text": {
+    "en": "Show me the Invoice total field.",
+    "it": "Mostrami il campo Invoice total.",
+    "ru": "Покажи поле Invoice total.",
+    "ro": "Arată-mi câmpul Invoice total.",
+    "ja": "Invoice total 欄を見せてください。"
+   }
+  },
+  {
+   "id": 20,
+   "screen": 21,
+   "element": "Invoice total",
+   "kind": "what",
+   "split": "heldout",
+   "text": {
+    "en": "What does the Invoice total field do?",
+    "it": "A cosa serve il campo Invoice total?",
+    "ru": "Для чего поле Invoice total?",
+    "ro": "La ce folosește câmpul Invoice total?",
+    "ja": "Invoice total 欄は何のためのものですか？"
+   }
+  },
+  {
+   "id": 21,
+   "screen": 22,
+   "element": "Save draft",
+   "kind": "where",
+   "split": "dev",
+   "text": {
+    "en": "Where is the Save draft button?",
+    "it": "Dov'è il pulsante Save draft?",
+    "ru": "Где кнопка Save draft?",
+    "ro": "Unde este butonul Save draft?",
+    "ja": "Save draft ボタンはどこですか？"
+   }
+  },
+  {
+   "id": 22,
+   "screen": 23,
+   "element": "Save draft",
+   "kind": "show",
+   "split": "dev",
+   "text": {
+    "en": "Show me the Save draft button.",
+    "it": "Mostrami il pulsante Save draft.",
+    "ru": "Покажи кнопку Save draft.",
+    "ro": "Arată-mi butonul Save draft.",
+    "ja": "Save draft ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 23,
+   "screen": 24,
+   "element": "Send reminder",
+   "kind": "what",
+   "split": "heldout",
+   "text": {
+    "en": "What does the Send reminder button do?",
+    "it": "A cosa serve il pulsante Send reminder?",
+    "ru": "Для чего кнопка Send reminder?",
+    "ro": "La ce folosește butonul Send reminder?",
+    "ja": "Send reminder ボタンは何のためのものですか？"
+   }
+  },
+  {
+   "id": 24,
+   "screen": 25,
+   "element": "Customer name",
+   "kind": "where",
+   "split": "heldout",
+   "text": {
+    "en": "Where is the Customer name field?",
+    "it": "Dov'è il campo Customer name?",
+    "ru": "Где поле Customer name?",
+    "ro": "Unde este câmpul Customer name?",
+    "ja": "Customer name 欄はどこですか？"
+   }
+  },
+  {
+   "id": 25,
+   "screen": 26,
+   "element": "Pay now",
+   "kind": "show",
+   "split": "heldout",
+   "text": {
+    "en": "Show me the Pay now button.",
+    "it": "Mostrami il pulsante Pay now.",
+    "ru": "Покажи кнопку Pay now.",
+    "ro": "Arată-mi butonul Pay now.",
+    "ja": "Pay now ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 26,
+   "screen": 27,
+   "element": "Send reminder",
+   "kind": "what",
+   "split": "heldout",
+   "text": {
+    "en": "What does the Send reminder button do?",
+    "it": "A cosa serve il pulsante Send reminder?",
+    "ru": "Для чего кнопка Send reminder?",
+    "ro": "La ce folosește butonul Send reminder?",
+    "ja": "Send reminder ボタンは何のためのものですか？"
+   }
+  },
+  {
+   "id": 27,
+   "screen": 28,
+   "element": "Customer name",
+   "kind": "where",
+   "split": "heldout",
+   "text": {
+    "en": "Where is the Customer name field?",
+    "it": "Dov'è il campo Customer name?",
+    "ru": "Где поле Customer name?",
+    "ro": "Unde este câmpul Customer name?",
+    "ja": "Customer name 欄はどこですか？"
+   }
+  },
+  {
+   "id": 28,
+   "screen": 29,
+   "element": "Invoice total",
+   "kind": "show",
+   "split": "heldout",
+   "text": {
+    "en": "Show me the Invoice total field.",
+    "it": "Mostrami il campo Invoice total.",
+    "ru": "Покажи поле Invoice total.",
+    "ro": "Arată-mi câmpul Invoice total.",
+    "ja": "Invoice total 欄を見せてください。"
+   }
+  },
+  {
+   "id": 29,
+   "screen": 30,
+   "element": "Pay now",
+   "kind": "what",
+   "split": "dev",
+   "text": {
+    "en": "What does the Pay now button do?",
+    "it": "A cosa serve il pulsante Pay now?",
+    "ru": "Для чего кнопка Pay now?",
+    "ro": "La ce folosește butonul Pay now?",
+    "ja": "Pay now ボタンは何のためのものですか？"
+   }
+  },
+  {
+   "id": 30,
+   "screen": 31,
+   "element": "Pay now",
+   "kind": "where",
+   "split": "heldout",
+   "text": {
+    "en": "Where is the Pay now button?",
+    "it": "Dov'è il pulsante Pay now?",
+    "ru": "Где кнопка Pay now?",
+    "ro": "Unde este butonul Pay now?",
+    "ja": "Pay now ボタンはどこですか？"
+   }
+  },
+  {
+   "id": 31,
+   "screen": 32,
+   "element": "Pay now",
+   "kind": "show",
+   "split": "dev",
+   "text": {
+    "en": "Show me the Pay now button.",
+    "it": "Mostrami il pulsante Pay now.",
+    "ru": "Покажи кнопку Pay now.",
+    "ro": "Arată-mi butonul Pay now.",
+    "ja": "Pay now ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 32,
+   "screen": 33,
+   "element": "Save draft",
+   "kind": "what",
+   "split": "dev",
+   "text": {
+    "en": "What does the Save draft button do?",
+    "it": "A cosa serve il pulsante Save draft?",
+    "ru": "Для чего кнопка Save draft?",
+    "ro": "La ce folosește butonul Save draft?",
+    "ja": "Save draft ボタンは何のためのものですか？"
+   }
+  },
+  {
+   "id": 33,
+   "screen": 34,
+   "element": "Customer name",
+   "kind": "where",
+   "split": "dev",
+   "text": {
+    "en": "Where is the Customer name field?",
+    "it": "Dov'è il campo Customer name?",
+    "ru": "Где поле Customer name?",
+    "ro": "Unde este câmpul Customer name?",
+    "ja": "Customer name 欄はどこですか？"
+   }
+  },
+  {
+   "id": 34,
+   "screen": 35,
+   "element": "Pay now",
+   "kind": "show",
+   "split": "dev",
+   "text": {
+    "en": "Show me the Pay now button.",
+    "it": "Mostrami il pulsante Pay now.",
+    "ru": "Покажи кнопку Pay now.",
+    "ro": "Arată-mi butonul Pay now.",
+    "ja": "Pay now ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 35,
+   "screen": 36,
+   "element": "Invoice total",
+   "kind": "what",
+   "split": "heldout",
+   "text": {
+    "en": "What does the Invoice total field do?",
+    "it": "A cosa serve il campo Invoice total?",
+    "ru": "Для чего поле Invoice total?",
+    "ro": "La ce folosește câmpul Invoice total?",
+    "ja": "Invoice total 欄は何のためのものですか？"
+   }
+  },
+  {
+   "id": 36,
+   "screen": 37,
+   "element": "Customer name",
+   "kind": "where",
+   "split": "heldout",
+   "text": {
+    "en": "Where is the Customer name field?",
+    "it": "Dov'è il campo Customer name?",
+    "ru": "Где поле Customer name?",
+    "ro": "Unde este câmpul Customer name?",
+    "ja": "Customer name 欄はどこですか？"
+   }
+  },
+  {
+   "id": 37,
+   "screen": 38,
+   "element": "Customer name",
+   "kind": "show",
+   "split": "heldout",
+   "text": {
+    "en": "Show me the Customer name field.",
+    "it": "Mostrami il campo Customer name.",
+    "ru": "Покажи поле Customer name.",
+    "ro": "Arată-mi câmpul Customer name.",
+    "ja": "Customer name 欄を見せてください。"
+   }
+  },
+  {
+   "id": 38,
+   "screen": 39,
+   "element": "Pay now",
+   "kind": "what",
+   "split": "heldout",
+   "text": {
+    "en": "What does the Pay now button do?",
+    "it": "A cosa serve il pulsante Pay now?",
+    "ru": "Для чего кнопка Pay now?",
+    "ro": "La ce folosește butonul Pay now?",
+    "ja": "Pay now ボタンは何のためのものですか？"
+   }
+  },
+  {
+   "id": 39,
+   "screen": 40,
+   "element": "Customer name",
+   "kind": "where",
+   "split": "dev",
+   "text": {
+    "en": "Where is the Customer name field?",
+    "it": "Dov'è il campo Customer name?",
+    "ru": "Где поле Customer name?",
+    "ro": "Unde este câmpul Customer name?",
+    "ja": "Customer name 欄はどこですか？"
+   }
+  },
+  {
+   "id": 40,
+   "screen": 1,
+   "element": "Save draft",
+   "kind": "show",
+   "split": "dev",
+   "text": {
+    "en": "Show me the Save draft button.",
+    "it": "Mostrami il pulsante Save draft.",
+    "ru": "Покажи кнопку Save draft.",
+    "ro": "Arată-mi butonul Save draft.",
+    "ja": "Save draft ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 41,
+   "screen": 2,
+   "element": "Invoice total",
+   "kind": "what",
+   "split": "dev",
+   "text": {
+    "en": "What does the Invoice total field do?",
+    "it": "A cosa serve il campo Invoice total?",
+    "ru": "Для чего поле Invoice total?",
+    "ro": "La ce folosește câmpul Invoice total?",
+    "ja": "Invoice total 欄は何のためのものですか？"
+   }
+  },
+  {
+   "id": 42,
+   "screen": 3,
+   "element": "Send reminder",
+   "kind": "where",
+   "split": "dev",
+   "text": {
+    "en": "Where is the Send reminder button?",
+    "it": "Dov'è il pulsante Send reminder?",
+    "ru": "Где кнопка Send reminder?",
+    "ro": "Unde este butonul Send reminder?",
+    "ja": "Send reminder ボタンはどこですか？"
+   }
+  },
+  {
+   "id": 43,
+   "screen": 4,
+   "element": "Send reminder",
+   "kind": "show",
+   "split": "heldout",
+   "text": {
+    "en": "Show me the Send reminder button.",
+    "it": "Mostrami il pulsante Send reminder.",
+    "ru": "Покажи кнопку Send reminder.",
+    "ro": "Arată-mi butonul Send reminder.",
+    "ja": "Send reminder ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 44,
+   "screen": 5,
+   "element": "Send reminder",
+   "kind": "what",
+   "split": "heldout",
+   "text": {
+    "en": "What does the Send reminder button do?",
+    "it": "A cosa serve il pulsante Send reminder?",
+    "ru": "Для чего кнопка Send reminder?",
+    "ro": "La ce folosește butonul Send reminder?",
+    "ja": "Send reminder ボタンは何のためのものですか？"
+   }
+  },
+  {
+   "id": 45,
+   "screen": 6,
+   "element": "Save draft",
+   "kind": "where",
+   "split": "heldout",
+   "text": {
+    "en": "Where is the Save draft button?",
+    "it": "Dov'è il pulsante Save draft?",
+    "ru": "Где кнопка Save draft?",
+    "ro": "Unde este butonul Save draft?",
+    "ja": "Save draft ボタンはどこですか？"
+   }
+  },
+  {
+   "id": 46,
+   "screen": 7,
+   "element": "Send reminder",
+   "kind": "show",
+   "split": "heldout",
+   "text": {
+    "en": "Show me the Send reminder button.",
+    "it": "Mostrami il pulsante Send reminder.",
+    "ru": "Покажи кнопку Send reminder.",
+    "ro": "Arată-mi butonul Send reminder.",
+    "ja": "Send reminder ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 47,
+   "screen": 8,
+   "element": "Send reminder",
+   "kind": "what",
+   "split": "dev",
+   "text": {
+    "en": "What does the Send reminder button do?",
+    "it": "A cosa serve il pulsante Send reminder?",
+    "ru": "Для чего кнопка Send reminder?",
+    "ro": "La ce folosește butonul Send reminder?",
+    "ja": "Send reminder ボタンは何のためのものですか？"
+   }
+  },
+  {
+   "id": 48,
+   "screen": 9,
+   "element": "Invoice total",
+   "kind": "where",
+   "split": "dev",
+   "text": {
+    "en": "Where is the Invoice total field?",
+    "it": "Dov'è il campo Invoice total?",
+    "ru": "Где поле Invoice total?",
+    "ro": "Unde este câmpul Invoice total?",
+    "ja": "Invoice total 欄はどこですか？"
+   }
+  },
+  {
+   "id": 49,
+   "screen": 10,
+   "element": "Pay now",
+   "kind": "show",
+   "split": "heldout",
+   "text": {
+    "en": "Show me the Pay now button.",
+    "it": "Mostrami il pulsante Pay now.",
+    "ru": "Покажи кнопку Pay now.",
+    "ro": "Arată-mi butonul Pay now.",
+    "ja": "Pay now ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 50,
+   "screen": 11,
+   "element": "Invoice total",
+   "kind": "what",
+   "split": "heldout",
+   "text": {
+    "en": "What does the Invoice total field do?",
+    "it": "A cosa serve il campo Invoice total?",
+    "ru": "Для чего поле Invoice total?",
+    "ro": "La ce folosește câmpul Invoice total?",
+    "ja": "Invoice total 欄は何のためのものですか？"
+   }
+  },
+  {
+   "id": 51,
+   "screen": 12,
+   "element": "Customer name",
+   "kind": "where",
+   "split": "dev",
+   "text": {
+    "en": "Where is the Customer name field?",
+    "it": "Dov'è il campo Customer name?",
+    "ru": "Где поле Customer name?",
+    "ro": "Unde este câmpul Customer name?",
+    "ja": "Customer name 欄はどこですか？"
+   }
+  },
+  {
+   "id": 52,
+   "screen": 13,
+   "element": "Save draft",
+   "kind": "show",
+   "split": "dev",
+   "text": {
+    "en": "Show me the Save draft button.",
+    "it": "Mostrami il pulsante Save draft.",
+    "ru": "Покажи кнопку Save draft.",
+    "ro": "Arată-mi butonul Save draft.",
+    "ja": "Save draft ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 53,
+   "screen": 14,
+   "element": "Invoice total",
+   "kind": "what",
+   "split": "dev",
+   "text": {
+    "en": "What does the Invoice total field do?",
+    "it": "A cosa serve il campo Invoice total?",
+    "ru": "Для чего поле Invoice total?",
+    "ro": "La ce folosește câmpul Invoice total?",
+    "ja": "Invoice total 欄は何のためのものですか？"
+   }
+  },
+  {
+   "id": 54,
+   "screen": 15,
+   "element": "Save draft",
+   "kind": "where",
+   "split": "dev",
+   "text": {
+    "en": "Where is the Save draft button?",
+    "it": "Dov'è il pulsante Save draft?",
+    "ru": "Где кнопка Save draft?",
+    "ro": "Unde este butonul Save draft?",
+    "ja": "Save draft ボタンはどこですか？"
+   }
+  },
+  {
+   "id": 55,
+   "screen": 16,
+   "element": "Customer name",
+   "kind": "show",
+   "split": "dev",
+   "text": {
+    "en": "Show me the Customer name field.",
+    "it": "Mostrami il campo Customer name.",
+    "ru": "Покажи поле Customer name.",
+    "ro": "Arată-mi câmpul Customer name.",
+    "ja": "Customer name 欄を見せてください。"
+   }
+  },
+  {
+   "id": 56,
+   "screen": 17,
+   "element": "Save draft",
+   "kind": "what",
+   "split": "heldout",
+   "text": {
+    "en": "What does the Save draft button do?",
+    "it": "A cosa serve il pulsante Save draft?",
+    "ru": "Для чего кнопка Save draft?",
+    "ro": "La ce folosește butonul Save draft?",
+    "ja": "Save draft ボタンは何のためのものですか？"
+   }
+  },
+  {
+   "id": 57,
+   "screen": 18,
+   "element": "Customer name",
+   "kind": "where",
+   "split": "dev",
+   "text": {
+    "en": "Where is the Customer name field?",
+    "it": "Dov'è il campo Customer name?",
+    "ru": "Где поле Customer name?",
+    "ro": "Unde este câmpul Customer name?",
+    "ja": "Customer name 欄はどこですか？"
+   }
+  },
+  {
+   "id": 58,
+   "screen": 19,
+   "element": "Send reminder",
+   "kind": "show",
+   "split": "heldout",
+   "text": {
+    "en": "Show me the Send reminder button.",
+    "it": "Mostrami il pulsante Send reminder.",
+    "ru": "Покажи кнопку Send reminder.",
+    "ro": "Arată-mi butonul Send reminder.",
+    "ja": "Send reminder ボタンを見せてください。"
+   }
+  },
+  {
+   "id": 59,
+   "screen": 20,
+   "element": "Send reminder",
+   "kind": "what",
+   "split": "dev",
+   "text": {
+    "en": "What does the Send reminder button do?",
+    "it": "A cosa serve il pulsante Send reminder?",
+    "ru": "Для чего кнопка Send reminder?",
+    "ro": "La ce folosește butonul Send reminder?",
+    "ja": "Send reminder ボタンは何のためのものですか？"
+   }
+  }
+ ]
+}
