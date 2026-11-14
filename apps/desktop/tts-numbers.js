@@ -95,7 +95,9 @@ function normalizeNumbers(text, lang) {
   // Protect structured tokens before the broad number pass. Private-use placeholders have no digits.
   const hold = value => { kept.push(value); return String.fromCodePoint(0xF0000 + kept.length - 1); };
   let s = text;
-  s = s.replace(/(?<![\p{L}\d.])\d+(?:\.\d+){2,}(?!\d|\.\d)/gu, v => hold(v.split('.').map(n=>word(n,l)).join(` ${{en:'dot',it:'punto',ru:'точка',ro:'punct',ja:'点'}[l]} `)));
+  // Where the comma is the decimal mark, 2.500.000 is a grouped number, not a version.
+  const grouped = v => !['en','ja'].includes(l) && /^\d{1,3}(?:\.\d{3})+$/.test(v);
+  s = s.replace(/(?<![\p{L}\d.])\d+(?:\.\d+){2,}(?!\d|\.\d)/gu, v => grouped(v) ? v : hold(v.split('.').map(n=>word(n,l)).join(` ${{en:'dot',it:'punto',ru:'точка',ro:'punct',ja:'点'}[l]} `)));
   s = s.replace(/(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)/g, (v,y,m,d) => hold(date(d,m,y,l) ?? v));
   s = s.replace(/(?<!\d)(\d{1,2})\/(\d{1,2})\/(\d{4})(?!\d)/g, (v,d,m,y) => hold(date(d,m,y,l) ?? v));
   if (MONTHS[l]) {
