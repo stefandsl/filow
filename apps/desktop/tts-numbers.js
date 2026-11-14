@@ -90,6 +90,7 @@ function normalizeNumbers(text, lang) {
     // "alle 1:30" is "all'una e trenta", "le 1:05" is "l'una e cinque": the article elides before "una".
     s = s.replace(/(?<![\p{L}\d])([Aa]|[Dd]a|[Dd]e|[Ss]u|[Nn]e)lle (0?1):([0-5]\d)(?![\d:])/gu, (_,p,h,m) => hold(`${p}ll'${clock(h,m,l)}`));
     s = s.replace(/(?<![\p{L}\d])([Ll])e (0?1):([0-5]\d)(?![\d:])/gu, (_,p,h,m) => hold(`${p}'${clock(h,m,l)}`));
+    s = s.replace(/(?<![\p{L}\d])([Aa]) (0?1):([0-5]\d)(?![\d:])/gu, (_,p,h,m) => hold(`${p}ll'${clock(h,m,l)}`));
   }
   s = s.replace(/(?<![\d:.])([01]?\d|2[0-3]):([0-5]\d)(?![\d:])/g, (_,h,m) => hold(clock(h,m,l)));
   // Leave malformed clocks, ratios, IP addresses and identifiers intact.
@@ -121,7 +122,7 @@ function normalizeNumbers(text, lang) {
   s = s.replace(pattern, (v,n,pct) => {
     const value = numeric(n,l);
     // After a fraction the noun is genitive singular: 2,5 процента.
-    const percent = l === 'ru' ? (/ цел(?:ая|ых) | запятая /.test(value ?? '') ? 'процента' : pluralRu(Number(n),['процент','процента','процентов'])) : {en:'percent',it:'per cento',ro:'la sută',ja:'パーセント'}[l];
+    const percent = l === 'ru' ? (/ цел(?:ая|ых) | запятая /.test(value ?? '') ? 'процента' : pluralRu(Math.abs(Number(n.replace(/[\s\u00a0\u202f.]/g, ''))) || 0,['процент','процента','процентов'])) : {en:'percent',it:'per cento',ro:'la sută',ja:'パーセント'}[l];
     return value === null ? v : value + (pct ? ` ${percent}` : '');
   });
   return s.replace(/[\u{F0000}-\u{FFFFD}]/gu, c => kept[c.codePointAt(0)-0xF0000] ?? c);
