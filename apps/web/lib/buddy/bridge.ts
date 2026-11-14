@@ -3,6 +3,7 @@ import type { ConsentChanges, ConsentMap, OutboundKind, OutboundSnapshot, Recipi
 import type { BuddyMark } from "./prompt";
 import type { BuddyModel } from "./visuals";
 import type { PillAction, PillState } from "./pill";
+import type { MemoryFact, ProposedFact } from "./memory";
 
 /** A card in global DIP coordinates, with its photo already fetched (data URL or ""). */
 export type OkFilowCard = { x: number; y: number; title: string; text: string; photo: string };
@@ -62,6 +63,8 @@ export type OkFilowStatus = {
   allowScreenshots?: boolean;
   answerDir?: string;
   answerLog?: boolean;
+  /** "Remember things about me": off unless the user turned it on. Missing on older builds. */
+  memory?: boolean;
   agentCli?: string;
   onboarded?: boolean;
   /** What the user allowed or refused to send outside, per kind and recipient. */
@@ -213,6 +216,19 @@ export type OkFilowBridge = {
   pickAnswerDir(): Promise<OkFilowStatus>;
   openAnswers(): Promise<boolean>;
   deleteAnswers(): Promise<number>;
+  /** A provider refused the account (lib/buddy/providerError.ts): open the keys file; log the details. Absent in an older desktop build. */
+  openKeys?(): Promise<boolean>;
+  logProblem?(text: string): void;
+  /** "Remember things about me" (apps/desktop/okfilow-memory.js). Absent in an older desktop build. */
+  memory?: {
+    list(): Promise<MemoryFact[]>;
+    /** Off: an empty list. */
+    recall(question: string): Promise<MemoryFact[]>;
+    /** Off, or nothing allowed: an empty list. The desktop decides what may be kept, whatever is proposed. */
+    learn(question: string, facts: ProposedFact[]): Promise<MemoryFact[]>;
+    remove(id: string): Promise<MemoryFact[]>;
+    clear(): Promise<MemoryFact[]>;
+  };
   /** Stop the answer in progress (the Stop button, Escape). Main tells the panel through onStop. Absent in a desktop build older than Stop. */
   stopAnswer?(source?: "button" | "panel"): void;
   onStop?(fn: (p: { source?: string } | undefined) => void): Off;

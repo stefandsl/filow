@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { isPhoneQuestionForModel } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
 import { dataUrlBytes, MAX_IMAGE_BYTES } from "@/lib/vision/openrouter";
-import { CONSENT_HEADER, consentDenied } from "@/lib/buddy/outbound";
+import { CONSENT_HEADER, consentDenied, MEMORY_CONSENT_HEADER, memoryAllowed, serverRecipient } from "@/lib/buddy/outbound";
+import { sanitizeMemory } from "@/lib/buddy/memory";
 import { askBuddy, buddyCloudRecipient, resolveBuddyProvider, resolveLocalHelper, type BuddyAskRequest, type LocalHelper } from "@/lib/buddy/providers";
 import { serverAllowed } from "@/lib/modelRoles/helper";
 import { answerLanguage } from "@/lib/buddy/lang";
@@ -100,6 +101,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 409 });
     }
   }
+  // "Remember things about me" (lib/buddy/memory.ts): the facts the desktop app picked go only where the
+  // user said yes to them, in the second consent header. Online without it: refused, nothing is sent.
+  // To the user's own server without it: the question goes without them. A phone's question never has them.
+  let memory = quoted ? [] : sanitizeMemory(body.memory);
+  if (memory.length) {
+    const online = provider === "cloud" ? buddyCloudRecipient() : provider === "freellm" ? freellmRecipient() : null;
+    if (online) {
+      const refused = consentDenied(req, "memory", online, MEMORY_CONSENT_HEADER);
+      if (refused) return refused;
+    }
+    const servers = [helper?.at?.server, helper?.pointerAt?.server].filter((s): s is { id: string; name: string } => Boolean(s));
+    if (!servers.every((s) => memoryAllowed(req, serverRecipient(s)))) memory = [];
+  }
   markTiming(timing, "helperResolved");
   if (timing) {
     timing.images = images.length;
@@ -119,7 +133,7 @@ export async function POST(req: Request) {
   // told to carry on from it instead of being asked the question a second time. The language, the
   // helper and the screenshots above were all chosen from the question itself.
   const carryOn = resumeQuestion(body.history, body.resume);
-  const ask: BuddyAskRequest = { ...body, knownTarget: false, elements: undefined, question: carryOn ?? question, images, screens, consent, sees, language: known ?? "auto" };
+  const ask: BuddyAskRequest = { ...body, knownTarget: false, elements: undefined, question: carryOn ?? question, images, screens, consent, sees, language: known ?? "auto", memory: memory.length ? memory : undefined };
   // A plain request for a drawing or a 3D model is answered with one (lib/buddy/draw.ts): it needs no screenshot.
   const drawing = carryOn || quoted ? null : wantsDrawing(question);
   // On this PC a setup may answer with one model and place the points with another (lib/buddy/pointer.ts).

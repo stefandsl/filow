@@ -102,10 +102,14 @@ html[data-theme="light"] .okf-point-target { border-color: #684500; box-shadow: 
 .okf-convo p { margin: 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
 .okf-q { color: var(--muted); }
 .okf-err { color: #ff6b5b; }
-.okf-warn { margin: 0; font-size: 13px; color: var(--okf-ink); }
+/* The warning surface: a tinted panel with an icon, so it stands out from the hints in both themes.
+   A fixed amber, not the user's ink colour (a dark ink would fall under 4.5:1): about 10:1 on its surface. */
+.okf-warn { position: relative; margin: 0; padding: 6px 10px 6px 32px; border-radius: 8px; border: 1px solid rgba(255, 201, 77, 0.35); background: rgba(255, 201, 77, 0.1); font-size: 13px; line-height: 1.45; color: #ffc94d; }
+.okf-warn::before { content: "!"; position: absolute; left: 9px; top: 7px; width: 16px; height: 16px; border-radius: 50%; background: currentColor; color: var(--bg, #121212); font-size: 11px; font-weight: 800; line-height: 16px; text-align: center; }
 .okf-warn a { color: inherit; }
-/* Light theme: the amber ink and the light red are unreadable on a light panel (contrast 1.6 and 2.9). */
-:root[data-theme="light"] .okf-warn { color: #7a4d00; }
+/* Light theme: the amber ink and the light red are unreadable on a light panel (contrast 1.6 and 2.9); this brown is 9:1. */
+:root[data-theme="light"] .okf-warn { color: #5c3a00; background: #fff3d1; border-color: #e6b84a; }
+:root[data-theme="light"] .okf-warn::before { color: #fff3d1; }
 :root[data-theme="light"] .okf-err { color: #b3261e; }
 .okf-err a { color: inherit; }
 .okf-type { display: flex; gap: 8px; }
@@ -115,10 +119,31 @@ html[data-theme="light"] .okf-point-target { border-color: #684500; box-shadow: 
 /* Opens the whiteboard tutor (docs/whiteboard/SPEC.md). */
 .okf-board-link button { margin-right: 6px; padding: 5px 10px; border: 1px solid currentColor; border-radius: 8px; background: transparent; color: inherit; font-weight: 700; cursor: pointer; }
 .okf-settings { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line, rgba(255, 255, 255, 0.1)); }
-.okf-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
-.okf-row select { max-width: 190px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line, rgba(255, 255, 255, 0.14)); background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
-/* The voice names are longer than the other choices: "Voce naturale (su questo PC)" must fit whole. */
-.okf-row select.okf-select-wide { max-width: 250px; }
+/* A row wraps when its label and its choice do not fit side by side: a choice is never cut short. */
+.okf-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; font-size: 14px; }
+/* Our own arrow inside the right padding: the native one overlapped the end of the longest option
+   ("Автоматически", "Ctrl + Alt + Shift + H"), whereas text plus padding is the box's own width. */
+.okf-row select { appearance: none; flex: none; max-width: 100%; margin-left: auto; padding: 5px 28px 5px 9px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23d6d6d6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; border-radius: 8px; border: 1px solid var(--line, rgba(255, 255, 255, 0.14)); background-color: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
+:root[data-theme="light"] .okf-row select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23444a55' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); border-color: rgba(17, 19, 24, 0.25); }
+.okf-row select:disabled { opacity: 0.55; }
+/* A label next to a checkbox takes the room left and wraps inside it: the box never drops to its own line. */
+.okf-row:has(> input[type="checkbox"]) > span:first-child { flex: 1 1 0; min-width: 0; }
+.okf-row > input[type="checkbox"] { flex: none; }
+/* Voice speed: the label and its choice fill the row, Preview sits at the end. */
+.okf-speed { display: flex; flex: 1; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.okf-row > .okf-link { align-self: center; }
+/* "Remember things about me": the facts kept on this PC, each with where it came from and Delete. */
+.okf-memory { display: flex; flex-direction: column; gap: 6px; }
+.okf-memory-list { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--text, #fff) 16%, transparent); border-radius: 10px; }
+.okf-memory-list h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.okf-memory-list ul { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.okf-memory-group { display: flex; flex-direction: column; gap: 4px; }
+.okf-memory-group + .okf-memory-group { padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--text, #fff) 10%, transparent); }
+.okf-memory-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13px; }
+.okf-memory-text { overflow-wrap: anywhere; }
+/* Where a group of facts came from: one line, the whole question in the tooltip. */
+.okf-memory-from { margin: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.okf-memory-list li .okf-link { flex: none; }
 .okf-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--okf-ink); cursor: pointer; }
 
 /* Drawings: pen strokes that draw themselves, one after another (HeyClicky-style teaching marks). */
@@ -191,8 +216,21 @@ html[data-theme="light"] .okf-point-target { border-color: #684500; box-shadow: 
 .okf-handsfree { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; padding: 8px 10px; border-radius: 10px; font-size: 13px; background: color-mix(in srgb, var(--okf-ink) 14%, transparent); }
 .okf-handsfree button { flex: none; padding: 5px 10px; border: 0; border-radius: 8px; background: var(--okf-ink); color: #08090b; font-weight: 700; cursor: pointer; }
 .okf-swatches { display: flex; gap: 6px; }
-.okf-swatch { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 2px solid transparent; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25); }
-.okf-swatch--on { border-color: #fff; }
+/* The ring and the edge follow the text colour, so the white swatch and the chosen one show in the light theme too. */
+.okf-swatch { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 2px solid transparent; cursor: pointer; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text, #fff) 30%, transparent); }
+.okf-swatch--on { border-color: var(--text, #fff); }
+/* Light theme: a clear hairline, so the white swatch is seen on the light panel. */
+:root[data-theme="light"] .okf-swatch { box-shadow: inset 0 0 0 1px rgba(17, 19, 24, 0.6); }
+
+/* Japanese has no spaces: words are kept whole (回答の提供元 never loses 元 to the next line). Chromium
+   breaks by phrase; without it, labels keep their words together and only a word too long for the row breaks. */
+.okf-panel:lang(ja) { word-break: auto-phrase; }
+/* A short label next to a choice keeps its line; the choice gives up the room (it shows its text shortened). */
+.okf-row:has(> select) > span:first-child { flex-shrink: 0; }
+.okf-row:has(> select) > span:first-child { max-width: 100%; }
+@supports not (word-break: auto-phrase) {
+  .okf-panel:lang(ja) :is(.okf-row > span, .okf-row label > span, .okf-chip, button, h2, h3) { word-break: keep-all; overflow-wrap: anywhere; }
+}
 .okf-swatch:focus-visible, .okf-link:focus-visible { outline: 2px solid var(--okf-ink); outline-offset: 2px; }
 .okf-link { align-self: flex-start; padding: 0; border: 0; background: none; color: inherit; opacity: 0.75; font-size: 13px; text-decoration: underline; cursor: pointer; }
 .okf-link:hover { opacity: 1; }

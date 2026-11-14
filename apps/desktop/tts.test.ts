@@ -713,9 +713,22 @@ describe("okfilow:tts channels", () => {
     await bus.invoke("okfilow:tts:speak", panel, { id: 2, text: "Short answer here.", speed: 0.1 });
     await bus.invoke("okfilow:tts:speak", panel, null);
     expect(workers[0].said[0]).toMatchObject({ lang: "en", sid: 5 });
-    expect(workers[0].said[0].speed).toBeCloseTo(1.05 * 1.5, 5);
-    expect(workers[0].said[1].speed).toBeCloseTo(1.05 * 0.75, 5);
+    expect(workers[0].said[0].speed).toBeCloseTo(1.05 * 1.3, 5);
+    expect(workers[0].said[1].speed).toBeCloseTo(1.05 * 0.8, 5);
     expect(workers[0].said.length).toBe(2);
+  });
+
+  it("the speed setting multiplies each language's own pace: Automatic Japanese 1.0, the rest 1.05", async () => {
+    const { bus, userData, workers } = wire("speed-per-lang");
+    install(userData);
+    const panel = sender();
+    await bus.invoke("okfilow:tts:speak", panel, { id: 1, text: "こんにちは。", lang: "ja", voice: -1 });
+    await bus.invoke("okfilow:tts:speak", panel, { id: 2, text: "こんにちは。", lang: "ja", voice: -1, speed: 0.8 });
+    await bus.invoke("okfilow:tts:speak", panel, { id: 3, text: "Ciao a tutti.", lang: "it", voice: -1, speed: 1.25 });
+    const speeds = workers[0].said.map((s) => s.speed);
+    expect(speeds[0]).toBeCloseTo(1, 5); // the default keeps today's voice
+    expect(speeds[1]).toBeCloseTo(0.8, 5);
+    expect(speeds[2]).toBeCloseTo(1.05 * 1.25, 5);
   });
 
   it("cuts the answer short on cancel", async () => {

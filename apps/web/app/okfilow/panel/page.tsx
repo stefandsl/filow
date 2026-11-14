@@ -9,13 +9,18 @@ import { waitForTranscript } from "@/lib/buddy/transcript-tail";
 import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture, type OkFilowCard, type OkFilowJob, type OkFilowMode, type OkFilowStatus } from "@/lib/buddy/bridge";
 import { drawingSvg, type BuddyModel } from "@/lib/buddy/visuals";
 import { createSpeaker } from "@/lib/buddy/voice";
+import { cloudVoiceAudio } from "@/lib/buddy/cloudVoice";
+import { createProblemReporter, plainError, problemText, type ProviderProblem } from "@/lib/buddy/providerError";
+import { t as coreText } from "@filow/core";
 import { markToDisplay, parseBuddyAnswer, pointToDisplay, type BuddyTurn } from "@/lib/buddy/prompt";
 import { okfText, OLLAMA_STOPPED_ANSWER, type OkfKey } from "@/lib/buddy/text";
 import { dictationText, pasteKeys, type DictationKey } from "@/lib/dictation/text";
 import { playCue } from "@/lib/dictation/cue";
 import { createPhraseFlow, type PhraseFlow } from "@/lib/dictation/handsfree";
 import { burnStrokes, createVad, describeMarked } from "@/lib/buddy/listen";
-import { askRoute, askRouteRecipient, changesStored, consentKey, FREELLM_ID, joinNames, localAnswersLabel, localNames, localServer, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
+import { askRoute, askRouteRecipient, changesStored, consentKey, FREELLM_ID, joinNames, localAnswersLabel, localNames, localServer, MEMORY_CONSENT_HEADER, voiceRoute, whoPhrase, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
+import { learnFacts } from "@/lib/buddy/memory";
+import { MemorySettings } from "./memory-settings";
 import { FREELLM_DOWNLOAD_URL, freellmCodeOf, localizeFreeLlmError } from "@/lib/freellm";
 import { FreeLlmPanelNotes } from "./freellm-notes";
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
@@ -150,6 +155,20 @@ export default function OkFilowPanel() {
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   const [resumable, setResumable] = useState(false);
+  /** Goes up when an answer taught OK Filow something ("Remember things about me"): the list is read again. */
+  const [learned, setLearned] = useState(0);
+  /** A provider refused the account (lib/buddy/providerError.ts): the plain sentence, shown once per session with the button to the keys. */
+  const [problem, setProblem] = useState("");
+  const problemWords = useRef({ t, lang });
+  problemWords.current = { t, lang };
+  const reportProblem = useRef<(raw: string) => ProviderProblem | null>(null as unknown as (raw: string) => ProviderProblem | null);
+  if (!reportProblem.current) {
+    reportProblem.current = createProblemReporter({
+      log: (raw) => okFilowBridge()?.logProblem?.(raw),
+      show: (text) => setProblem(text),
+      text: (p) => problemText(p, problemWords.current.t, coreText("menu.editEnv", problemWords.current.lang)),
+    });
+  }
   /** The clock the answer's marks are drawn on: it stands still during a pause, like the overlay's. */
   const drawClock = useRef(createPausableClock());
   /** The answer in progress: whether it is read aloud, its language, and its marks (for a Resume after Stop). */
@@ -250,8 +269,11 @@ export default function OkFilowPanel() {
     // A stopped Ollama: said in the user's language, and the desktop shell starts it in the background.
     const stopped = OLLAMA_STOPPED_ANSWER.test(raw);
     const plain = raw.replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, "");
+    // A provider that refused the account (lib/buddy/providerError.ts): plain words and the button to the
+    // keys; never its JSON. The details go to the log file only.
+    const refused = stopped ? null : reportProblem.current(plain);
     // FreeLLMAPI's failures come tagged from the server: shown in the panel's language, with its download link when it is not running
-    const message = stopped ? t("ollamaStopped") : localizeFreeLlmError(plain, lang);
+    const message = stopped ? t("ollamaStopped") : refused ? problemText(refused, t, coreText("menu.editEnv", lang)) : plainError(localizeFreeLlmError(plain, lang));
     setFreeDown(freellmCodeOf(plain) === "not_running");
     setError(message);
     okFilowBridge()?.text(message);
@@ -321,18 +343,7 @@ export default function OkFilowPanel() {
    * The cloud voice, behind the notice and the signal. A Blob: play it. "system": the user kept the
    * voice on this PC. null: the notice was closed without a choice, say nothing.
    */
-  const cloudVoice = useCallback(async (text: string): Promise<Blob | "system" | null> => {
-    const rec = await out.recipients();
-    if (!rec) throw new Error(t("noticeUnknown"));
-    const decision = await out.allow("voice", rec.voice);
-    if (decision === "declined") { setNote(t("kept_voice")); return "system"; }
-    if (decision !== "granted") return null;
-    return out.sending("voice", rec.voice, async (consent) => {
-      const res = await fetch("/api/buddy/tts", { method: "POST", headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent }, body: JSON.stringify({ text }) });
-      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `voice ${res.status}`);
-      return res.blob();
-    });
-  }, [engineHeaders, out, t]);
+  const cloudVoice = useMemo(() => cloudVoiceAudio({ out, headers: engineHeaders, onKept: () => setNote(t("kept_voice")), unknown: () => t("noticeUnknown") }), [engineHeaders, out, t]);
   const cloudVoiceRef = useRef(cloudVoice);
   cloudVoiceRef.current = cloudVoice;
 
@@ -351,6 +362,8 @@ export default function OkFilowPanel() {
     uiLang: () => langRef.current,
     labels: () => (answerCtx.current?.gate?.list ?? answerCtx.current?.marks ?? []).map(mark => mark.label),
     cloudAudio: (text) => cloudVoiceRef.current(text),
+    // A refused key or a used-up quota: said once in plain words, and this PC's voices read from then on.
+    onCloudError: (error) => reportProblem.current(error) !== null,
     onFallback: (reason) => setNote(tRef.current(`voiceWhy_${reason}`)),
     onNoVoice: () => setNote(tRef.current("voiceNoSystem")),
     // The bubble next to the pointer keeps the sentence being spoken in view.
@@ -683,6 +696,25 @@ export default function OkFilowPanel() {
           setNote(t("kept_ask"));
         } else to = recipient;
       }
+      // "Remember things about me" (lib/buddy/memory.ts): off by default. The facts that fit this question
+      // come from this PC; with a question that leaves this PC they go only after their own yes
+      // ("your saved preferences"). A no keeps them here and the question goes without them.
+      const remembers = statusRef.current?.memory === true && Boolean(b.memory) && !opts.phone && !resume && !photo;
+      let remembered: string[] = [];
+      let memoryYes = false;
+      if (remembers) {
+        memoryYes = !to;
+        if (to) {
+          const waits = out.standing("memory", to) === "ask";
+          if (waits) b.text(t("noticeWaiting"));
+          const decision = await out.allow("memory", to);
+          if (waits) b.text("");
+          if (run.current !== id) return sendTimings(tm, "superseded", b);
+          memoryYes = decision === "granted";
+          if (waits && decision === "declined") setNote(t("kept_memory"));
+        }
+        if (memoryYes) remembered = (await b.memory!.recall(question).catch(() => [])).map((f) => f.text);
+      }
       // What the server says about the answer: whether the model saw a picture (X-Buddy-Sees) and the
       // language it answered in (X-Buddy-Lang), which the voice uses to pick a matching voice.
       let seesText = false;
@@ -730,7 +762,9 @@ export default function OkFilowPanel() {
       };
       const send = async (consent: Record<string, string>, quiet?: () => void) => {
         // X-Filow-Run: the speed baseline's server marks of this answer (lib/buddy/timing.ts); a number, nothing else.
-        const headers = { "Content-Type": "application/json", ...(await engineHeaders()), ...consent, "X-Filow-Run": String(id) };
+        // The saved preferences' own yes travels in its own header (the server checks both).
+        const memoryHeader: Record<string, string> = remembered.length && to ? { [MEMORY_CONSENT_HEADER]: consentKey("memory", to) } : {};
+        const headers = { "Content-Type": "application/json", ...(await engineHeaders()), ...consent, ...memoryHeader, "X-Filow-Run": String(id) };
         // The eye was closed after the screenshot was taken (while the notice was open, say): the
         // picture is dropped here, at the last moment before anything is sent, and the question goes
         // with the words only. Nothing of the screen leaves.
@@ -744,7 +778,7 @@ export default function OkFilowPanel() {
           headers,
           // sees: false when this question goes without the screen; else the user's own choice, or nothing so the setup decides
           // resume: the conversation ends with the part of the answer already shown, and the model carries on from it
-          body: JSON.stringify({ question: markedNote ? questionForModel(source, question) + "\n" + markedNote : questionForModel(source, question), images: withScreen ? images : [], screens: shot.screens, elements: withScreen ? shot.elements : undefined, history: plan.history ? presenterHistory(history.current) : [], language: getSpeechLang(), uiLanguage: langRef.current, provider: route, setup: getSetupPreference(), sees: withScreen ? askSees(statusRef.current?.seeScreen) : false, ...(resume ? { resume: true } : {}) }),
+          body: JSON.stringify({ question: markedNote ? questionForModel(source, question) + "\n" + markedNote : questionForModel(source, question), images: withScreen ? images : [], screens: shot.screens, elements: withScreen ? shot.elements : undefined, history: plan.history ? presenterHistory(history.current) : [], language: getSpeechLang(), uiLanguage: langRef.current, provider: route, setup: getSetupPreference(), sees: withScreen ? askSees(statusRef.current?.seeScreen) : false, ...(resume ? { resume: true } : {}), ...(remembered.length ? { memory: remembered } : {}) }),
         });
         if (!res.ok || !res.body) {
           // Refused before anything was forwarded (no yes on record, Offline mode, FreeLLMAPI without a key): nothing went outside.
@@ -802,6 +836,16 @@ export default function OkFilowPanel() {
         ? [...history.current.slice(0, -1), { role: "assistant" as const, text: body.trim() }]
         : [...history.current, ...(opts.phone ? phoneTurns(question, opts.phone.device, body.trim()) : [{ role: "user" as const, text: question }, { role: "assistant" as const, text: body.trim() }])].slice(-12);
       saveHistory(history.current);
+      // Learn after the answer, by the same route, only with the yes for it (memoryYes); never waits on it.
+      if (remembers && memoryYes) {
+        void learnFacts({
+          question, route, to,
+          sending: (kind, recipient, send) => out.sending(kind, recipient, send),
+          post: async (headers, payload) => fetch("/api/buddy/memory", { method: "POST", headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...headers }, body: payload }),
+          setup: getSetupPreference(),
+          keep: (q, facts) => b.memory!.learn(q, facts),
+        }).then((facts) => { if (facts.length) setLearned((n) => n + 1); });
+      }
       if (answerCtx.current?.id === id) answerCtx.current.lang = answerLang;
       // From here a Stop keeps the conversation as it is: the whole answer is in it.
       turn.current.progress(id, text);
@@ -1549,6 +1593,12 @@ export default function OkFilowPanel() {
         </p>
       )}
       {note && <p className="okf-note" role="status">{note}</p>}
+      {problem && (
+        <p className="okf-warn" role="alert" data-testid="okf-problem">
+          {problem}{" "}
+          {bridge.openKeys && <button type="button" className="okf-link okf-problem-fix" data-testid="okf-problem-fix" onClick={() => void bridge.openKeys?.()}>{t("providerFix")}</button>}
+        </p>
+      )}
 
       {(heard || answer || error || stopped) && (
         <section className="okf-convo">
@@ -1627,13 +1677,13 @@ export default function OkFilowPanel() {
               const id = ++run.current;
               if (mode === "speaking" || mode === "thinking") setMode("idle");
               void speaker.speak(t("voiceSample"), id, { voice: "natural", lang });
+            }}
+            previewSpeed={() => {
+              // The chosen voice at the chosen speed, in the interface language; it takes the turn like the sample above.
+              const id = ++run.current;
+              if (mode === "speaking" || mode === "thinking") setMode("idle");
+              void speaker.speak(t("speedSample"), id, { lang });
             }} />
-          <label className="okf-row">
-            <span>{t("speed")}</span>
-            <select value={String(c.speed)} onChange={(e) => void configure({ speed: Number(e.target.value) })}>
-              {[0.75, 0.9, 1, 1.15, 1.3, 1.5].map((v) => <option key={v} value={v}>{v}x</option>)}
-            </select>
-          </label>
           <label className="okf-row">
             <span>{t("typedVoice")}</span>
             <input type="checkbox" checked={c.typedVoice} onChange={(e) => void configure({ typedVoice: e.target.checked })} />
@@ -1668,6 +1718,7 @@ export default function OkFilowPanel() {
             <span>{t("answerLog")}</span>
             <input type="checkbox" checked={c.answerLog === true} onChange={(e) => void configure({ answerLog: e.target.checked })} />
           </label>
+          <MemorySettings bridge={bridge} status={c} t={t} configure={configure} lang={lang} learned={learned} />
           {c.answerLog && <div className="okf-row">
             <button type="button" className="okf-link" onClick={() => void okFilowBridge()?.deleteAnswers().then((n) => setNote(t("answersDeleted").replace("{n}", String(n))))}>{t("deleteAnswers")}</button>
           </div>}

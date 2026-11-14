@@ -45,6 +45,12 @@ function voiceFor(lang, voice) {
   return { lang: l, sid: chosenSpeaker(voice) ? Number(voice) : DEFAULT_SPEAKERS[l] };
 }
 
+/** The user's speed setting: 0.8 to 1.3 in steps of 0.05; anything else (missing, old 0.75 or 1.5) is brought into that range. */
+function voiceSpeed(speed) {
+  const n = Number(speed);
+  return Number.isFinite(n) && n > 0 ? Math.round(Math.min(1.3, Math.max(0.8, n)) * 20) / 20 : 1;
+}
+
 /** The small speed lift (1.05, as the system voice). Automatic Japanese speaks at 1.0: the owner picked speed 1.0 in two of three blind trials (VOICE-NATURAL-ROUND2.md). */
 function liftFor(lang, voice) {
   return voiceFor(lang, voice).lang === "ja" && !chosenSpeaker(voice) ? 1 : 1.05;
@@ -516,7 +522,7 @@ function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOff
     const id = Number(r.id) || 0;
     const { lang, sid } = voiceFor(r.lang, r.voice);
     // The same small lift as the system voice (1.05), so "normal" sounds alike in both; Automatic Japanese has none (liftFor).
-    const speed = liftFor(r.lang, r.voice) * Math.min(1.5, Math.max(0.75, Number(r.speed) || 1));
+    const speed = liftFor(r.lang, r.voice) * voiceSpeed(r.speed);
     const used = profile;
     const n = ++spoken;
     current = id;
@@ -584,4 +590,4 @@ function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOff
   };
 }
 
-module.exports = { MODEL, LANGS, VOICES, DEFAULT_SPEAKERS, modelDir, modelReady, removeModel, voiceFor, liftFor, speakable, splitSentences, trimSilence, pickProfile, nextProfile, TtsSession, wireTts, wavBytes };
+module.exports = { MODEL, LANGS, VOICES, DEFAULT_SPEAKERS, modelDir, modelReady, removeModel, voiceFor, liftFor, voiceSpeed, speakable, splitSentences, trimSilence, pickProfile, nextProfile, TtsSession, wireTts, wavBytes };

@@ -98,10 +98,34 @@ describe("the natural voice in the OK Filow panel", () => {
     expect(bridge.remove).toHaveBeenCalledTimes(1);
   });
 
+  it("voice speed: 0.8 to 1.3 for every voice that speaks, with a Preview of the chosen voice; none when the voice is off", () => {
+    const withSpeed = (voice: OkFilowStatus["voice"], speed: number, previewSpeed = vi.fn(), configure = vi.fn(async () => {})) => {
+      const base = view(tts({ installed: true, state: "ready" }), voice);
+      return { node: cloneElement(base, { status: { ...base.props.status, speed }, previewSpeed, configure }), previewSpeed, configure };
+    };
+    for (const voice of ["natural", "system", "cloud"] as const) {
+      const html = renderToStaticMarkup(withSpeed(voice, 1).node);
+      expect(html, voice).toContain('data-testid="voice-speed"');
+      expect(html, voice).toContain('<option value="1" selected="">1.0x</option>');
+      expect(html, voice).toContain('<option value="0.8">0.8x</option>');
+      expect(html, voice).toContain('<option value="1.3">1.3x</option>');
+      expect(html, voice).toContain('aria-label="Hear the voice at this speed">Preview</button>');
+    }
+    expect(renderToStaticMarkup(withSpeed("off", 1).node)).not.toContain("voice-speed");
+    // a setting from an older version shows the nearest speed offered
+    expect(renderToStaticMarkup(withSpeed("system", 1.5).node)).toContain('<option value="1.3" selected="">1.3x</option>');
+    expect(renderToStaticMarkup(withSpeed("system", 1.15).node)).toContain('<option value="1.15" selected="">1.15x</option>');
+    const s = withSpeed("system", 1);
+    (handler(s.node, "voice-speed")!.onChange as (e: { target: { value: string } }) => void)({ target: { value: "1.2" } });
+    expect(s.configure).toHaveBeenLastCalledWith({ speed: 1.2 });
+    (handler(s.node, "speed-preview")!.onClick as () => void)();
+    expect(s.previewSpeed).toHaveBeenCalledTimes(1);
+  });
+
   it("speaks the five languages, with no em dash", () => {
     for (const lang of ["en", "it", "ru", "ro", "ja"]) {
       const t = okfText(lang);
-      for (const key of ["voiceStop", "voiceStopLabel", "voiceRemoveConfirm", "voiceRemoveInUse", "voiceRemoved", "voiceInstalled", "voiceInUse"] as const) {
+      for (const key of ["voiceStop", "voiceStopLabel", "voiceRemoveConfirm", "voiceRemoveInUse", "voiceRemoved", "voiceInstalled", "voiceInUse", "speedPreviewLabel", "speedSample"] as const) {
         expect(t(key), `${lang} ${key}`).not.toContain(String.fromCharCode(0x2014));
         if (lang !== "en") expect(t(key), `${lang} ${key}`).not.toBe(okfText("en")(key));
         expect((t(key).match(/\{\w+\}/g) ?? []).join(), `${lang} ${key}`).toBe((okfText("en")(key).match(/\{\w+\}/g) ?? []).join());

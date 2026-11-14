@@ -74,7 +74,7 @@ describe("the panel, Pause and Resume", () => {
   });
 
   it("a continuation carries the flag and the conversation, and is joined to the part shown without repeats", () => {
-    expect(panel).toContain("...(resume ? { resume: true } : {}) }),");
+    expect(panel).toContain("...(resume ? { resume: true } : {}), ...(remembered.length ? { memory: remembered } : {}) }),");
     expect(panel).toContain("history: plan.history ? presenterHistory(history.current) : [],");
     expect(panel).toContain("const shown = resume ? joinContinuation(resume.shown, arrived, { partial: true }) : arrived;");
     expect(panel).toContain("const text = resume ? joinContinuation(resume.shown, parsed.text) : parsed.text;");

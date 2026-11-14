@@ -60,6 +60,17 @@ contextBridge.exposeInMainWorld("okFilow", {
   pickAnswerDir: () => ipcRenderer.invoke("okfilow:pickAnswerDir"),
   openAnswers: () => ipcRenderer.invoke("okfilow:openAnswers"),
   deleteAnswers: () => ipcRenderer.invoke("okfilow:deleteAnswers"),
+  /** A provider refused the account: open the keys file; write the details to the log file (never shown). */
+  openKeys: () => ipcRenderer.invoke("okfilow:openKeys"),
+  logProblem: (text) => ipcRenderer.send("okfilow:logProblem", String(text ?? "")),
+  /** "Remember things about me": the facts kept on this PC (okfilow-memory.js). */
+  memory: {
+    list: () => ipcRenderer.invoke("okfilow:memory:list"),
+    recall: (question) => ipcRenderer.invoke("okfilow:memory:recall", question),
+    learn: (question, facts) => ipcRenderer.invoke("okfilow:memory:learn", { question, facts }),
+    remove: (id) => ipcRenderer.invoke("okfilow:memory:remove", id),
+    clear: () => ipcRenderer.invoke("okfilow:memory:clear"),
+  },
   /** Stops the answer in progress; main tells the panel (onStop), which ends the request, the voice and the pointing. */
   stopAnswer: (source) => ipcRenderer.send("okfilow:stopAnswer", source),
   onStop: on("okfilow:stop"),

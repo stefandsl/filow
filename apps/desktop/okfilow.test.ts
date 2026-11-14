@@ -13,6 +13,18 @@ it("keeps automatic and explicit natural speaker choices across unrelated settin
   expect(nextCfg({naturalVoice: 7}, {}).naturalVoice).toBe(7);
   expect(nextCfg({naturalVoice: 7}, {naturalVoice: -1}).naturalVoice).toBe(-1);
 });
+it("keeps the voice speed between 0.8 and 1.3 in steps of 0.05; missing or broken is 1 (each language's own pace)", () => {
+  expect(DEFAULTS.speed).toBe(1);
+  expect(nextCfg({}, {}).speed).toBe(1);
+  expect(nextCfg({}, {speed: "fast"}).speed).toBe(1);
+  expect(nextCfg({}, {speed: 1.15}).speed).toBe(1.15);
+  expect(nextCfg({}, {speed: 0.8}).speed).toBe(0.8);
+  expect(nextCfg({}, {speed: 1.3}).speed).toBe(1.3);
+  // settings saved by an older version (0.75 to 1.5) come into the new range
+  expect(nextCfg({speed: 0.75}, {}).speed).toBe(0.8);
+  expect(nextCfg({speed: 1.5}, {}).speed).toBe(1.3);
+  expect(nextCfg({}, {speed: 1.12}).speed).toBe(1.1);
+});
 const { hotkeyHeld, HOTKEYS, okfilowSender } = require("./okfilow.js") as {
   hotkeyHeld: (h: string, d: Record<string, boolean>) => boolean;
   HOTKEYS: string[];

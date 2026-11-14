@@ -28,6 +28,7 @@ const { createPhoneInbox } = require("./okfilow-phone");
 // Measured runs (qa-headless.js): nothing of OK Filow appears on screen with FILOW_QA_HEADLESS=1.
 const { showWindow, trayFor } = require("./qa-headless");
 const { timingsLine } = require("./okfilow-timings");
+const { voiceSpeed } = require("./tts");
 const { qaMicDelay, createMicOpens, errorEndsHold, createCaptureWatch } = require("./okfilow-mic");
 
 /** An IPC event from the main frame of one of OK Filow's windows (`contents`), on an OK Filow page; never a subframe. */
@@ -45,7 +46,7 @@ const DEFAULTS = {
   // still read there until the user changes a dictation setting.
   /** Buddy, drawing and highlighter colour (HeyClicky's cursor_color_hex). */
   color: "#ffb600",
-  /** Speech rate for the voice, 0.75 to 1.5. */
+  /** Speech rate for the voice, 0.8 to 1.3 in steps of 0.05 (voiceSpeed); 1 is each language's own pace. */
   speed: 1,
   /** -1 chooses the measured speaker for the answer's language; 0-9 keep an explicit choice. */
   naturalVoice: -1,
@@ -61,6 +62,8 @@ const DEFAULTS = {
   allowScreenshots: false,
   /** Answer log (question, raw text, visuals, screenshot per answer): opt-in, the only time a screenshot touches disk. */
   answerLog: false,
+  /** "Remember things about me" (okfilow-memory.js): off until the user turns it on. */
+  memory: false,
   /** Its folder; empty means "okfilow-answers" in the app's data folder (see defaultAnswerDir). */
   answerDir: "",
   /** What the user allowed or refused to send outside, per kind and recipient ("ask:openrouter/google"). */
@@ -133,6 +136,14 @@ function createQaScreen(dir, { nativeImage, fs = require("node:fs"), maxWidth = 
   };
 }
 
+/** Anything that looks like a key or a credential header is masked before a line reaches the log. */
+function redactSecrets(text) {
+  return String(text ?? "")
+    .replace(/(authorization|xi-api-key|api[_-]?key|x-api-key)(["']?\s*[:=]\s*["']?)(bearer\s+)?[^\s"',}]+/gi, "$1$2$3***")
+    .replace(/\b(sk|pk|rk)-[A-Za-z0-9_-]{8,}/g, "$1-***")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/g, "Bearer ***");
+}
+
 /** The stored settings after a change: every field is checked, whatever a window sent. What is not in the patch stays as it was. */
 function nextCfg(was, patch) {
   const { consentChanges, ...rest } = patch || {};
@@ -150,7 +161,7 @@ function nextCfg(was, patch) {
   const speaker = next.naturalVoice == null ? -1 : Number(next.naturalVoice);
   next.naturalVoice = Number.isFinite(speaker) ? Math.min(9, Math.max(-1, Math.round(speaker))) : -1;
   if (!/^#[0-9a-f]{6}$/i.test(String(next.color))) next.color = DEFAULTS.color;
-  next.speed = Math.min(1.5, Math.max(0.75, Number(next.speed) || 1));
+  next.speed = voiceSpeed(next.speed);
   next.typedVoice = next.typedVoice === true;
   next.onboarded = next.onboarded === true;
   next.allScreens = next.allScreens === true;
@@ -160,6 +171,7 @@ function nextCfg(was, patch) {
   next.eyeKey = keyChoice(next.eyeKey, EYE_KEYS);
   next.pauseKey = keyChoice(next.pauseKey, PAUSE_KEYS);
   next.answerLog = next.answerLog === true;
+  next.memory = next.memory === true;
   next.answerDir = typeof next.answerDir === "string" ? next.answerDir.slice(0, 500) : "";
   if (!["auto", "codex", "claude"].includes(next.agentCli)) next.agentCli = "auto";
   next.consent = sanitizeConsent(next.consent);
@@ -1275,6 +1287,27 @@ function createOkFilow(deps) {
     logLine(`okfilow: deleted ${n} saved answer(s)`);
     return n;
   }));
+  // "Remember things about me" (okfilow-memory.js): one file in this profile, never synced. Off, a
+  // question gets nothing from it and an answer adds nothing to it; the list and Delete always work.
+  const memory = require("./okfilow-memory").createMemory(userData);
+  ipcMain.handle("okfilow:memory:list", guard(() => memory.list()));
+  ipcMain.handle("okfilow:memory:recall", guard((question) => memory.recall(cfg().memory, typeof question === "string" ? question.slice(0, 2000) : "")));
+  ipcMain.handle("okfilow:memory:learn", guard((req) => {
+    if (!req || typeof req !== "object" || typeof req.question !== "string") return [];
+    const kept = memory.learn(cfg().memory, req.question.slice(0, 2000), Array.isArray(req.facts) ? req.facts.slice(0, 10) : []);
+    // The log says how many, never what: the facts stay in their file.
+    if (kept.length) logLine(`okfilow: memory kept ${kept.length} new fact(s)`);
+    return kept;
+  }));
+  ipcMain.handle("okfilow:memory:remove", guard((id) => memory.remove(String(id ?? ""))));
+  ipcMain.handle("okfilow:memory:clear", guard(() => { logLine("okfilow: memory deleted by the user"); return memory.clear(); }));
+  // A provider refused the account (lib/buddy/providerError.ts): the panel shows a plain sentence and a
+  // button that opens the keys file (the same as the menu's "Edit API keys"); the details go to this log only.
+  ipcMain.handle("okfilow:openKeys", guard(async () => (await shell.openPath(path.join(userData, ".env"))) === ""));
+  ipcMain.on("okfilow:logProblem", (e, text) => {
+    if (!ourSender(e) || typeof text !== "string") return;
+    logLine(`okfilow: provider problem: ${redactSecrets(text).slice(0, 500)}`);
+  });
   ipcMain.handle("okfilow:openAnswers", guard(async () => {
     const dir = lastAnswerDir || answerRoot(cfg().answerDir, answersFallback());
     const fs = require("node:fs");
@@ -1590,4 +1623,4 @@ function pagePointOnScreen(content, zoom, at) {
   return { x: Math.round(content.x + px), y: Math.round(content.y + py) };
 }
 
-module.exports = { createOkFilow, createQaScreen, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS, nextCfg, pagePointOnScreen };
+module.exports = { createOkFilow, createQaScreen, hotkeyHeld, okfilowSender, HOTKEYS, DEFAULTS, nextCfg, pagePointOnScreen, redactSecrets };

@@ -11,6 +11,10 @@ import { okfText, OLLAMA_STOPPED_ANSWER, type OkfKey } from "@/lib/buddy/text";
 import { askRoute, askRouteRecipient, changesStored, localServer, type AskRoute, type BuddyRecipients, type NoticeRequest, type OutboundSnapshot, type Recipient } from "@/lib/buddy/outbound";
 import { createOutboundController, type OutboundController } from "@/lib/buddy/outboundClient";
 import { createSpeaker, webAudioPlayer } from "@/lib/buddy/voice";
+import { cloudVoiceAudio } from "@/lib/buddy/cloudVoice";
+import { problemText, providerProblem } from "@/lib/buddy/providerError";
+import { t as coreText } from "@filow/core";
+import { boardVoice, recordsSound } from "@/lib/whiteboard/voice";
 import { freellmCodeOf, localizeFreeLlmError } from "@/lib/freellm";
 import { getSetupPreference } from "@/lib/prefs";
 import { buddyLang } from "@/lib/buddy/lang";
@@ -178,9 +182,29 @@ export default function WhiteboardPage() {
   const [cloudModel, chooseCloudModel] = useWhiteboardModel();
   const modelRef = useRef(cloudModel);
   modelRef.current = cloudModel;
-  // The voices of OK Filow (natural on this PC, the system voice). No cloud voice from this page:
-  // without `cloudAudio` the speaker falls back to the system voice and sends nothing.
-  const speaker = useMemo(() => createSpeaker({ player: () => recorderRef.current?.player() ?? webAudioPlayer(), bridge: okFilowBridge, status: () => statusRef.current, isCurrent: (id) => turnRef.current === id, uiLang: () => langRef.current }), []);
+  // The voice chosen in OK Filow (lib/whiteboard/voice.ts): the online one through the same notice,
+  // yes and signal as the panel (cloudVoiceAudio), else the natural voice of this PC. When another
+  // voice has to speak, the note under the board says why (onFallback, onNoVoice).
+  const naturalReady = useRef(false);
+  const okfTRef = useRef(okfT);
+  okfTRef.current = okfT;
+  const speaker = useMemo(() => createSpeaker({
+    player: () => recorderRef.current?.player() ?? webAudioPlayer(),
+    bridge: okFilowBridge,
+    status: () => statusRef.current,
+    isCurrent: (id) => turnRef.current === id,
+    uiLang: () => langRef.current,
+    cloudAudio: cloudVoiceAudio({ out, headers: engineHeaders, onKept: () => setNote(okfTRef.current("kept_voice")), unknown: () => okfTRef.current("noticeUnknown") }),
+    // A refused key or a used-up quota: plain words once (this speaker stops asking), details to the log only.
+    onCloudError: (error) => {
+      okFilowBridge()?.logProblem?.(error);
+      const p = providerProblem(error);
+      if (p) setNote(problemText(p, okfTRef.current, coreText("menu.editEnv", langRef.current)));
+      return p !== null;
+    },
+    onFallback: (reason) => setNote(okfTRef.current(`voiceWhy_${reason}`)),
+    onNoVoice: () => setNote(okfTRef.current("voiceNoSystem")),
+  }), [out, engineHeaders]);
 
   const ask = useCallback(async (raw: string, more: boolean) => {
     const text = raw.trim().slice(0, LIMITS.question);
@@ -321,6 +345,8 @@ export default function WhiteboardPage() {
       setFrom(askRoute(s));
       if (s.voice === "off") setVoiceOn(false);
     }).catch(() => {});
+    // Whether the natural voice can read here (on this PC and this PC can carry it): the board's fallback and the video's sound.
+    void b.tts?.status().then((v) => { naturalReady.current = v.installed && v.mode === "natural"; }).catch(() => {});
     const offs = [b.onConfig(apply)];
     if (b.outbound) {
       offs.push(b.outbound.onChange(setSnap));
@@ -387,7 +413,9 @@ export default function WhiteboardPage() {
     const finish = () => { if (!over) dispatchPlayer({ type: "spoken", turn }); };
     if (voiceOn && say) {
       const started = performance.now();
-      void speaker.speak(say, turn, { lang: lessonLang }).catch(() => {}).then(() => {
+      // The voice chosen in OK Filow; while a video is recorded, one the recording can hold.
+      const { voice } = boardVoice(statusRef.current, { natural: naturalReady.current, recording: Boolean(recorderRef.current) });
+      void speaker.speak(say, turn, { lang: lessonLang, voice }).catch(() => {}).then(() => {
         if (over) return;
         // the voice has ended: what is left of the drawing is completed at once, and the clock learns this voice
         setSaidTurn(turn);
@@ -667,7 +695,9 @@ export default function WhiteboardPage() {
   const startVideo = async () => {
     const svg = frame.current?.querySelector<SVGSVGElement>("svg.wb-board");
     if (!svg || !ls.lesson || !prepared) return;
-    const natural = voiceOn && statusRef.current?.voice === "natural" && Boolean(okFilowBridge()?.tts);
+    // The voice that will read the recording (lib/whiteboard/voice.ts): only the natural voice goes into the video.
+    const reads = boardVoice(statusRef.current, { natural: naturalReady.current, recording: true });
+    const natural = voiceOn && recordsSound(reads) && Boolean(okFilowBridge()?.tts);
     // the copy of the board drawn into each frame carries Excalidraw's fonts, inlined
     const whole = layoutBoard(boardLesson(ls.lesson), ls.lesson.steps.length - 1, shape);
     const made = createRecorder({
@@ -683,7 +713,7 @@ export default function WhiteboardPage() {
     }
     recorderRef.current = made;
     setRecording(true);
-    setNote(t("videoRecording"));
+    setNote(voiceOn && reads.note ? `${t("videoRecording")} ${t(reads.note)}` : t("videoRecording"));
     await made.start();
     dispatchPlayer({ type: "goto", index: 0 });
   };
