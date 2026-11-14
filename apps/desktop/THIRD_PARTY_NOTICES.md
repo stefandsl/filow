@@ -76,6 +76,36 @@ by the Excalidraw authors, MIT License as its package.json and README state (the
 file; read on 2026-11-12). The comparison tool tools/whiteboard/bar-harness.js (not shipped)
 copies its render helpers.
 
+## Code adapted from Plait
+
+The whiteboard's tree and mind-map layout (apps/web/lib/whiteboard/tidy-tree.ts, the non-layered tidy tree of
+A. van der Ploeg) is copied from Plait, the layout library of the Drawnix whiteboard,
+https://github.com/worktile/plait (packages/layouts, commit e0d76b0, read on 2026-11-14), MIT License:
+
+```
+The MIT License
+
+Copyright (c) 2018 - 2023 Worktile Inc. https://worktile.com
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
 ## npm packages
 
 ### adm-zip 0.6.1
@@ -492,7 +522,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### browser 0.9.41
+### browser 0.9.42
 
 License: GPL-3.0-or-later
 
@@ -1337,7 +1367,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### client 0.9.41
+### client 0.9.42
 
 License: GPL-3.0-or-later
 
@@ -1366,7 +1396,7 @@ WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
 ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-### cloud 0.9.41
+### cloud 0.9.42
 
 License: GPL-3.0-or-later
 
@@ -1637,7 +1667,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### core 0.9.41
+### core 0.9.42
 
 License: GPL-3.0-or-later
 
@@ -3881,7 +3911,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### desktop 0.9.41
+### desktop 0.9.42
 
 License: GPL-3.0-or-later
 
@@ -9758,7 +9788,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### powerpoint 0.9.41
+### powerpoint 0.9.42
 
 License: GPL-3.0-or-later
 
@@ -11777,7 +11807,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### server 0.9.41
+### server 0.9.42
 
 License: GPL-3.0-or-later
 
@@ -12697,7 +12727,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### stt 0.9.41
+### stt 0.9.42
 
 License: GPL-3.0-or-later
 
@@ -14019,7 +14049,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### ui 0.9.41
+### ui 0.9.42
 
 License: GPL-3.0-or-later
 
@@ -17538,7 +17568,7 @@ Repository: git+https://github.com/websockets/ws.git
 > CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### web 0.9.41
+### web 0.9.42
 
 License: GPL-3.0-or-later
 
