@@ -125,7 +125,7 @@ function normalizeNumbers(text, lang) {
   }
   if (l === 'it') s = s.replace(/\b([1-9]\d*)([°ºª])/g, (_,n,f)=>hold(ordinal(n,l,f)));
   if (l === 'ru') s = s.replace(/\b([1-9]\d*)-([йяе])/g, (_,n,f)=>hold(ordinal(n,l,f === 'е' ? 'neuter' : f)));
-  if (l === 'ro') s = s.replace(/\bal ([1-9]\d*)-lea\b/g, (_,n)=>hold(ordinal(n,l)));
+  if (l === 'ro') s = s.replace(/\b(al) ([1-9]\d*)-lea\b/gi, (_,a,n)=>hold(ordinal(n,l).replace(/^al/, a)));
   if (l === 'ja') s = s.replace(/第(\d+)/g, (_,n)=>hold(ordinal(n,l)));
   const amount = '(?:\\d{1,3}(?:[., \\u00a0\\u202f]\\d{3})+|\\d+)(?:[.,]\\d{1,2})?';
   const currencies = {'€':'EUR','$':'USD','£':'GBP','₽':'RUB','¥':'JPY',EUR:'EUR',USD:'USD',GBP:'GBP',RUB:'RUB',RON:'RON',JPY:'JPY'};
