@@ -55,9 +55,10 @@ export function verifySmoke(s, sha, installerSha512) {
   check(s?.installed === true && s?.started === true && s?.exitCode === 0 && s?.sourceSha === sha && s?.installerSha512 === installerSha512,
     'Windows smoke test failed: installer did not install/start or evidence belongs to another build'); // rule:smoke
 }
-export function verifyInstaller(pkg, main, sha, v, origins = allowedOrigins) {
+export function verifyInstaller(pkg, main, sha, v, origins = allowedOrigins, requireAccountOrigin = false) {
   check(pkg.version === v, 'stale version in extracted installer'); // rule:installer-version
   check(pkg.sourceSha === sha, `sourceSha mismatch in extracted installer: ${pkg.sourceSha}, tag ${sha}`); // rule:source-sha
+  check(!requireAccountOrigin || (typeof pkg.accountOrigin === 'string' && pkg.accountOrigin.length > 0), 'accountOrigin is required for this release'); // rule:required-origin
   check(pkg.accountOrigin === undefined || origins.includes(pkg.accountOrigin), `accountOrigin is not allowed: ${pkg.accountOrigin}`); // rule:origin
   // Check the shipped runtime configuration, not electron-builder's publish configuration.
   check(/^\s*updater\.allowDowngrade\s*=\s*false\s*;/m.test(main) && !/^\s*updater\.allowDowngrade\s*=\s*true/m.test(main), 'updater config must explicitly set allowDowngrade: false'); // rule:downgrade
@@ -97,12 +98,12 @@ export function verifyAssets(v, assets, documents) {
     if (doc.size !== undefined) check(doc.size === legacy.size, `${name}: wrong size for path ${doc.path}`); // rule:legacy-size
   }
 }
-export function verifyFixture(e) {
+export function verifyFixture(e, policy = {}) {
   verifyPreflight(e.preflight);
   verifyTag(e.preflight.tagSha, e.tagSha);
   verifyRun(e.run, `v${e.preflight.version}`, e.tagSha);
   verifyAssets(e.preflight.version, e.assets, e.manifests);
-  verifyInstaller(e.installer, e.main, e.tagSha, e.preflight.version);
+  verifyInstaller(e.installer, e.main, e.tagSha, e.preflight.version, policy.origins, policy.requireAccountOrigin);
   verifySmoke(e.smoke, e.tagSha, e.assets[`Filow-${e.preflight.version}-win-x64.exe`].sha512);
 }
 
@@ -152,7 +153,7 @@ export function extractInstaller(installer, work) {
   const archive = path.join(work, 'app', 'resources', 'app.asar');
   return { pkg: JSON.parse(asar.extractFile(archive, 'package.json').toString()), main: asar.extractFile(archive, 'main.js').toString() };
 }
-export async function verifyPublished({ version: v, dir, work, state, audit = false, phase }) {
+export async function verifyPublished({ version: v, dir, work, state, audit = false, phase, origins, requireAccountOrigin }) {
   const sha = remoteTag(v);
   const comparison = api(`repos/${sourceRepo}/compare/${sha}...main`);
   verifyMain(['ahead', 'identical'].includes(comparison.status));
@@ -174,17 +175,30 @@ export async function verifyPublished({ version: v, dir, work, state, audit = fa
   // Audit all extracted properties even when an older release fails one of the new rules.
   console.log(JSON.stringify({ version: v, tagSha: sha, run: run.databaseId, assets: Object.keys(assets).length,
     installer: { version: installer.pkg.version, sourceSha: installer.pkg.sourceSha, accountOrigin: installer.pkg.accountOrigin ?? null }, explicitAllowDowngradeFalse: /^\s*updater\.allowDowngrade\s*=\s*false\s*;/m.test(installer.main) }, null, 2));
-  verifyInstaller(installer.pkg, installer.main, sha, v);
+  verifyInstaller(installer.pkg, installer.main, sha, v, origins, requireAccountOrigin);
   if (!audit && phase !== 'draft') verifySmoke(JSON.parse(fs.readFileSync(path.join(dir, 'smoke-result.json'), 'utf8')), sha, assets[`Filow-${v}-win-x64.exe`].sha512);
   return { sha, assets, audit };
 }
+// An explicit live-release policy, never inferred from credentials or environment.
+// The option takes a comma-separated list of exact production HTTPS origins.
+export function accountOriginPolicy(value) {
+  if (value === undefined) return {};
+  const origins = value.split(',');
+  check(origins.length > 0 && origins.every(origin => {
+    try { const u = new URL(origin); return u.protocol === 'https:' && u.origin === origin; }
+    catch { return false; }
+  }), '--require-account-origin needs exact HTTPS origins separated by commas');
+  return { origins, requireAccountOrigin: true };
+}
 async function cli(args) {
   const [mode, ...rest] = args;
+  check(rest.length % 2 === 0 && rest.every((v, i) => i % 2 ? !v.startsWith('--') : v.startsWith('--')), 'Options require a value');
   const opts = Object.fromEntries(rest.reduce((out, value, i) => i % 2 ? out : [...out, [value.replace(/^--/, ''), rest[i + 1]]], []));
-  if (mode === 'fixture') verifyFixture(JSON.parse(fs.readFileSync(opts.input, 'utf8')));
+  const policy = accountOriginPolicy(opts['require-account-origin']);
+  if (mode === 'fixture') verifyFixture(JSON.parse(fs.readFileSync(opts.input, 'utf8')), policy);
   else if (mode === 'preflight') fs.writeFileSync(opts.state, JSON.stringify(collectPreflight(opts.version, opts.commit), null, 2), { flag: 'wx' });
-  else if (mode === 'verify' || mode === 'audit') await verifyPublished({ ...opts, audit: mode === 'audit', state: mode === 'verify' ? JSON.parse(fs.readFileSync(opts.state, 'utf8')) : undefined });
-  else throw new Error('Usage: release-verify.mjs preflight --version V --state FILE | verify --version V --state FILE --dir ASSETS --work NEWDIR | audit --version V --dir ASSETS --work NEWDIR | fixture --input FILE');
+  else if (mode === 'verify' || mode === 'audit') await verifyPublished({ ...opts, ...policy, audit: mode === 'audit', state: mode === 'verify' ? JSON.parse(fs.readFileSync(opts.state, 'utf8')) : undefined });
+  else throw new Error('Usage: release-verify.mjs preflight --version V --state FILE | verify --version V --state FILE --dir ASSETS --work NEWDIR | audit --version V --dir ASSETS --work NEWDIR | fixture --input FILE [--require-account-origin https://production.example,https://other.example]');
   console.log(mode === 'audit' ? 'PASS: historical audit (prebuild absence, newer version and smoke not asserted)' : 'PASS: release verification');
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
