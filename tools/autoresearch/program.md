@@ -33,7 +33,22 @@ After github.com/karpathy/autoresearch (MIT). The owner or the orchestrator edit
 | Track | The one editable file | Evaluator |
 |---|---|---|
 | AR-1 local screen prompt, 5 languages | `apps/web/lib/buddy/local-target-prompt.ts` | `node tools/autoresearch/ar1/evaluate.mjs [--split heldout] [--record-baseline]` |
+| AR-2 overlay motion | `apps/web/lib/buddy/overlay-motion-params.ts` | `node tools/autoresearch/ar2/evaluate.mjs` |
 | AR-3 spoken forms, 5 languages | `apps/desktop/tts-numbers.js` | `node tools/autoresearch/ar3/evaluate.mjs [--split heldout]` |
+
+### AR-2 details
+
+- Every run builds apps/web, starts its standalone server on 127.0.0.1:4961, and drives the hidden Electron
+  `ar2/qa.cjs` (offscreen, permissions denied, no desktop input, only port 4961 reachable): the pointer flight to
+  "Settings" over two text obstacles and the jet-engine model for the sheet plus 24 camera poses, dark and light.
+- Numbers (worst of both themes) as in overlay round 2B: leader crossings, leader clearance outside 8 px anchor
+  discs (lane spacing), label overlaps, label identity changes, glyph and pill overlap with text, pointer max step,
+  flight time, direction reversals, path/straight ratio, arrival ring centre to the landed tip.
+- Score 0..100, weights in `ar2/evaluate.mjs` (`WEIGHTS`). No held-out split: the scene set is fixed. A kept change must
+  keep the other overlay tests (`apps/web/lib/buddy/overlay-*.test.ts`) green. `overlay-motion-params.test.ts` pins
+  the round 2B values and is expected to fail on a changed value; the orchestrator updates it when a kept result
+  is merged.
+- One run takes about 4 to 6 minutes, most of it the web build; `--no-build` reuses the last build (baseline only).
 
 ### AR-3 details
 
