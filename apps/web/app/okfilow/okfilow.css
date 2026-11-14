@@ -322,12 +322,13 @@ html[data-theme="light"] .okf-media-tile, html[data-theme="light"] .okf-slide { 
 .okf-media-tile { display: flex; flex-direction: column; }
 .okf-media-box { position: relative; flex: 1; min-height: 0; margin: 8px 8px 0; background: var(--okf-card); }
 .okf-media-box img, .okf-media-box video, .okf-media-box canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; border-radius: 6px; }
-.okf-media-tile figcaption, .okf-slide figcaption { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 8px 8px 12px; min-width: 0; }
-.okf-media-words { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.okf-media-words span { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* The source (author and licence) may take two lines: it is never cut to "Jane D...". */
-.okf-media-words small { font-size: 11.5px; line-height: 1.3; max-height: 2.6em; color: var(--okf-card-soft); overflow: hidden; overflow-wrap: anywhere; }
-.okf-media-tools { flex: none; display: flex; gap: 6px; }
+/* Caption and buttons on one row; the source (author and licence) on its own row, the whole width, on one
+   line: a name is never broken across lines, and a source too long for it ends in an ellipsis (the whole
+   of it in the tooltip). */
+.okf-media-tile figcaption, .okf-slide figcaption { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 8px; row-gap: 2px; padding: 6px 8px 8px 12px; min-width: 0; }
+.okf-media-caption { grid-column: 1; grid-row: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.okf-media-source { grid-column: 1 / -1; grid-row: 2; min-width: 0; font-size: 11.5px; line-height: 1.3; color: var(--okf-card-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.okf-media-tools { grid-column: 2; grid-row: 1; display: flex; gap: 6px; }
 .okf-media-btn {
   display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 999px; cursor: pointer;
   background: color-mix(in srgb, var(--okf-card-text) 10%, var(--okf-card)); color: var(--okf-card-text);
@@ -514,3 +515,6 @@ html[data-theme="light"] .okf-notch:not(.okf-notch--out) :is(.okf-ctl, .okf-stop
 html[data-theme="light"] .okf-notch:not(.okf-notch--out) .okf-ctl--shut { color: #4a4d55; }
 html[data-theme="light"] .okf-notch:not(.okf-notch--out) .okf-stop svg { fill: #c4321f; }
 html[data-theme="light"] .okf-notch:not(.okf-notch--out) .okf-stop kbd { background: rgba(0, 0, 0, 0.08); }
+
+/* Light theme: the marks' halo is a crisp dark outline, not a grey band either side of the ink (it read as a muddy double line on a light page). */
+html[data-theme="light"] .okf-mark .okf-mark-halo { stroke: #2b2100; stroke-width: 7; }

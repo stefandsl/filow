@@ -64,12 +64,32 @@ app.whenReady().then(async () => {
     const inside = media.filter((m) => m.left >= 0 && m.top >= 0 && m.right <= innerWidth && m.bottom <= innerHeight).length;
     return JSON.stringify({ media: media.length, others: others.map((o) => o.cls), overlaps, pairs, insidePct: media.length ? Math.round((inside / media.length) * 100) : 100 });
   })()`;
+  // Numeric checks of what the reviewer looks at: the ring on its target, source lines on one line, shared column edges, the margin under the toolbar.
+  const CHECKS = `(() => {
+    const R = (e) => e.getBoundingClientRect();
+    const out = { marks: document.querySelectorAll('.okf-marks g.okf-mark:not(.okf-mark--leaving)').length };
+    const ink = document.querySelector('.okf-marks g.okf-mark:not(.okf-mark--leaving) .okf-mark-ink');
+    const target = document.getElementById('qa-desk-target');
+    if (ink && target) { const a = R(ink), b = R(target); out.ringOffPx = Math.round(Math.hypot((a.left + a.right) / 2 - (b.left + b.right) / 2, (a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) * 10) / 10; }
+    const lines = [...document.querySelectorAll('.okf-media-source, .okf-media-caption')].map((e) => ({ h: R(e).height, lh: parseFloat(getComputedStyle(e).lineHeight) || 16, cut: e.scrollWidth > e.clientWidth }));
+    out.wrappedLines = lines.filter((l) => l.h > l.lh * 1.5).length;
+    out.truncatedWithTooltip = [...document.querySelectorAll('.okf-media-source')].filter((e) => e.scrollWidth > e.clientWidth).every((e) => e.title === e.textContent);
+    const tiles = [...document.querySelectorAll('.okf-media-tile')].map(R);
+    const slide = document.querySelector('.okf-slide');
+    if (slide && tiles.length) { const s = R(slide); out.edgeLeftPx = Math.abs(s.left - Math.min(...tiles.map((t) => t.left))); out.edgeRightPx = Math.abs(s.right - Math.max(...tiles.map((t) => t.right))); }
+    const pill = document.querySelector('.okf-notch');
+    if (pill) { const p = R(pill); const below = [...tiles, ...(slide ? [R(slide)] : [])].filter((m) => m.left < p.right && m.right > p.left && m.top >= p.bottom); if (below.length) out.toolbarGapPx = Math.round(Math.min(...below.map((m) => m.top - p.bottom)) * 10) / 10; }
+    return JSON.stringify(out);
+  })()`;
+  // A desktop icon for the answer to circle (the real overlay sits over the user's desktop and circles real things).
+  const desktopIcon = (on) => js(`(() => { document.getElementById('qa-desk-target')?.remove(); if (${on}) { const d = document.createElement('div'); d.id = 'qa-desk-target'; d.style.cssText = 'position:fixed;left:932px;top:372px;width:96px;height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font:13px system-ui;color:' + (document.documentElement.dataset.theme === 'light' ? '#18191c' : '#eceff3') + ';z-index:0'; d.innerHTML = '<svg width="48" height="40" viewBox="0 0 48 40"><path d="M2 6a4 4 0 0 1 4-4h12l5 5h19a4 4 0 0 1 4 4v23a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z" fill="#e8b23a" stroke="#a87512" stroke-width="2"/></svg><span>Images</span>'; document.body.prepend(d); } return true; })()`);
   const emit = (ch, p) => js(`window.__qa.emit(${JSON.stringify(ch)}, ${JSON.stringify(p)}); true`);
   const answer = async (text, mark = "") => {
     await emit("state", { mode: "speaking", purpose: "talk", sees: true });
     await emit("pill", { sees: true, paused: false, resumable: false });
     await emit("cursor", { x: 980, y: 560 });
     await emit("text", text);
+    await desktopIcon(Boolean(mark));
     await emit("draw", mark ? [{ kind: "circle", x: 980, y: 420, r: 70, label: mark, done: true }] : []);
   };
   const show = async (s) => { await emit("media", { x: 960, y: 540, gallery: [], slide: null, ...s }); await sleep(1200); };
@@ -100,7 +120,7 @@ app.whenReady().then(async () => {
     // 1. four pictures
     await answer("Here are the four test images from your folder: a colour test card, the Mandelbrot set, SMPTE colour bars and a Rule 110 pattern.", "Images folder");
     await show({ gallery: items.photos });
-    t.gallery4 = JSON.parse(await js(MEASURE));
+    t.gallery4 = { ...JSON.parse(await js(MEASURE)), ...JSON.parse(await js(CHECKS)) };
     if (process.env.QA_MEDIA_DEBUG) await debug(`gallery ${theme}`);
     t.gallery4.hit = await hitTest();
     await shot(`gallery4-${theme}`);
@@ -108,19 +128,21 @@ app.whenReady().then(async () => {
     await emit("clear", null);
     await answer("This animation from Wikimedia Commons shows the test pattern moving, frame by frame.");
     await show({ gallery: [items.gif] });
-    t.gif = { ...JSON.parse(await js(MEASURE)), decoded: await js("(() => { const i = document.querySelector('.okf-media-tile img'); return Boolean(i && i.complete && i.naturalWidth > 0); })()") };
+    t.gif = { ...JSON.parse(await js(MEASURE)), ...JSON.parse(await js(CHECKS)), decoded: await js("(() => { const i = document.querySelector('.okf-media-tile img'); return Boolean(i && i.complete && i.naturalWidth > 0); })()") };
     await shot(`gif-${theme}`);
-    // 3. a video: muted, looping, playing; pause works
+    // 3. a video: muted, looping, playing; pause works (each new question clears the screen first, as the app does)
+    await emit("clear", null);
     await answer("Here is a short silent clip of moving colour bars; it loops, and you can pause it.");
     await show({ gallery: [items.video] });
     for (let i = 0; i < 40 && !(await js("(() => { const v = document.querySelector('.okf-media-tile video'); return Boolean(v && v.readyState >= 2 && v.currentTime > 0.3); })()")); i++) await sleep(250);
-    t.video = { ...JSON.parse(await js(MEASURE)), ...JSON.parse(await js("JSON.stringify((() => { const v = document.querySelector('.okf-media-tile video'); return { playing: Boolean(v && !v.paused && v.currentTime > 0.3), muted: Boolean(v && v.muted), loop: Boolean(v && v.loop), seconds: v ? Math.round(v.duration * 10) / 10 : 0 }; })())")) };
+    t.video = { ...JSON.parse(await js(MEASURE)), ...JSON.parse(await js(CHECKS)), ...JSON.parse(await js("JSON.stringify((() => { const v = document.querySelector('.okf-media-tile video'); return { playing: Boolean(v && !v.paused && v.currentTime > 0.3), muted: Boolean(v && v.muted), loop: Boolean(v && v.loop), seconds: v ? Math.round(v.duration * 10) / 10 : 0 }; })())")) };
     await shot(`video-${theme}`);
     t.video.pauseWorks = await js("(async () => { document.querySelector('.okf-media-tile [data-action=play]').click(); await new Promise((r) => setTimeout(r, 300)); return document.querySelector('.okf-media-tile video').paused; })()");
     // 4. a slide with two pictures, and two more pictures beside it
-    await answer("Here is a slide on test patterns, with two examples on it and two more above it.", "Images folder");
+    await emit("clear", null);
+    await answer("Here is a slide on test patterns, with two examples on it and two more above it.");
     await show({ slide: { title: "What a test pattern is for", points: ["A known picture to check a screen or a camera", "Colour bars show if the colours are right", "Moving patterns show dropped or torn frames"], media: [items.gif, items.photos[0]] }, gallery: [items.photos[1], items.video] });
-    t.slide = { ...JSON.parse(await js(MEASURE)), slideMedia: await js("document.querySelectorAll('.okf-slide .okf-media-box').length") };
+    t.slide = { ...JSON.parse(await js(MEASURE)), ...JSON.parse(await js(CHECKS)), slideMedia: await js("document.querySelectorAll('.okf-slide .okf-media-box').length") };
     t.slide.hit = await hitTest();
     await shot(`slide-${theme}`);
     // 5. Stop: everything goes, playback ends
@@ -153,11 +175,13 @@ app.whenReady().then(async () => {
     wb.setContentSize(1400, Math.max(1000, tall));
     await sleep(900);
     result.board.clippedPx = await wjs("Math.max(0, document.documentElement.scrollHeight - innerHeight)");
+    // the contrast of every button's words on its own background, in this theme (WCAG: 4.5 for normal text)
+    result.board[`minButtonContrast_${theme}`] = await wjs("(() => { const rgb = (s) => { const n = (s.match(/[\\d.]+/g) || []).map(Number); return s.startsWith(\"color(srgb\") ? [n[0] * 255, n[1] * 255, n[2] * 255, ...(n.length > 3 ? [n[3]] : [])] : n; }; const lum = ([r, g, b]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); }; const page = rgb(getComputedStyle(document.body).backgroundColor); const ratio = (el) => { const s = getComputedStyle(el); let bg = rgb(s.backgroundColor); if (bg.length === 4 && bg[3] === 0) bg = page; const fg = rgb(s.color); const k = (fg.length === 4 ? fg[3] : 1) * Number(s.opacity); const seen = [0, 1, 2].map((i) => fg[i] * k + bg[i] * (1 - k)); const a = lum(seen), c = lum(bg); return (Math.max(a, c) + 0.05) / (Math.min(a, c) + 0.05); }; const all = [...document.querySelectorAll('main.wb-page button.wb-btn')].filter((b) => b.offsetParent && (b.textContent || '').trim()); const worst = all.map((b) => [ratio(b), b.textContent.trim()]).sort((x, y) => x[0] - y[0])[0]; return worst ? Math.round(worst[0] * 100) / 100 + ' ' + worst[1] : null; })()");
     fs.writeFileSync(path.join(FRAMES, `board-gif-${theme}.png`), (await wb.webContents.capturePage()).toPNG());
   }
-  const clipped = result.board.clippedPx;
-  result.board = JSON.parse(await wjs("JSON.stringify({ media: Number(document.querySelector('.wb-ex')?.dataset.media || 0), gifShown: [...document.querySelectorAll('.wb-gif')].some((i) => i.complete && i.naturalWidth > 0), alignPx: (() => { const a = document.querySelector('.wb-gif')?.getBoundingClientRect(); const b = (document.querySelector('.wb-ex svg use') ?? document.querySelector('.wb-ex svg image'))?.getBoundingClientRect(); return a && b ? Math.round(Math.max(Math.abs(a.left - b.left), Math.abs(a.top - b.top), Math.abs(a.width - b.width), Math.abs(a.height - b.height)) * 10) / 10 : null; })(), gifInSvg: [...document.querySelectorAll('.wb-ex svg image')].some((i) => (i.getAttribute('href') || '').startsWith('data:image/gif')), overflow: document.documentElement.scrollWidth - innerWidth, sourceLine: [...document.querySelectorAll('.wb-ex .wb-sr li')].map((l) => l.textContent).find((x) => /Wikimedia Commons/.test(x || '')) ?? null })"));
-  result.board.clippedPx = clipped;
+  const pre = result.board;
+  result.board = JSON.parse(await wjs("JSON.stringify({ media: Number(document.querySelector('.wb-ex')?.dataset.media || 0), gifShown: [...document.querySelectorAll('.wb-gif')].some((i) => i.complete && i.naturalWidth > 0), alignPx: (() => { const a = document.querySelector('.wb-gif')?.getBoundingClientRect(); const b = (document.querySelector('.wb-ex svg use') ?? document.querySelector('.wb-ex svg image'))?.getBoundingClientRect(); return a && b ? Math.round(Math.max(Math.abs(a.left - b.left), Math.abs(a.top - b.top), Math.abs(a.width - b.width), Math.abs(a.height - b.height)) * 10) / 10 : null; })(), gifInSvg: [...document.querySelectorAll('.wb-ex svg image')].some((i) => (i.getAttribute('href') || '').startsWith('data:image/gif')), overflow: document.documentElement.scrollWidth - innerWidth, primaryContrast: (() => { const b = document.querySelector(\x27main.wb-page button.primary\x27); if (!b) return null; const rgb = (s) => (s.match(/[\\d.]+/g) || []).map(Number); const lum = ([r, g, bl]) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(bl); }; const s = getComputedStyle(b); const fg = rgb(s.color), bg = rgb(s.backgroundColor); const a = lum(fg), c = lum(bg); return Math.round(((Math.max(a, c) + 0.05) / (Math.min(a, c) + 0.05)) * 100) / 100; })(), sourceLine: [...document.querySelectorAll('.wb-ex .wb-sr li')].map((l) => l.textContent).find((x) => /Wikimedia Commons/.test(x || '')) ?? null })"));
+  Object.assign(result.board, pre);
   const saved = await wjs(`(async () => { let text = null; const blobs = new Map(); const make = URL.createObjectURL; URL.createObjectURL = (b) => { const u = make.call(URL, b); blobs.set(u, b); return u; }; const orig = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (this.download) { const b = blobs.get(this.href); if (b) b.text().then((t) => { text = t; }); } else orig.call(this); }; document.querySelector('main.wb-page [data-action=save-excalidraw]')?.click(); for (let i = 0; i < 40 && text === null; i++) await new Promise((r) => setTimeout(r, 100)); HTMLAnchorElement.prototype.click = orig; URL.createObjectURL = make; return text; })()`);
   if (saved) fs.writeFileSync(path.join(path.dirname(BOARD), "saved.excalidraw"), saved);
   result.board.saved = Boolean(saved);

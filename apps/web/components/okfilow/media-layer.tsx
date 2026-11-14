@@ -59,8 +59,10 @@ function MediaView({ item, t, onClose, onBad }: { item: MediaItem; t: T; onClose
         </>
       )}
     </div>
+    {/* The caption beside the buttons; the source (author, licence) on a row of its own, never broken inside a name. */}
     <figcaption>
-      <div className="okf-media-words"><span>{item.caption}</span><small>{item.source}</small></div>
+      <span className="okf-media-caption" title={item.caption}>{item.caption}</span>
+      <small className="okf-media-source" title={item.source}>{item.source}</small>
       <div className="okf-media-tools">
         {item.kind !== "photo" && (
           <button type="button" className="okf-media-btn" data-action="play" aria-label={paused ? t("mediaPlay") : t("pause")} title={paused ? t("mediaPlay") : t("pause")} onClick={toggle}>
@@ -133,7 +135,7 @@ function ShownMedia({ show, avoid, t }: Props & { show: MediaShow }) {
           ref={slideEl}
           className={"okf-slide" + (slideAt ? "" : " okf-slide--measuring")}
           aria-label={t("slideLabel")}
-          style={{ left: slideAt?.left ?? 0, top: slideAt?.top ?? 0, width: Math.min(SLIDE_WIDTH, typeof window === "undefined" ? SLIDE_WIDTH : window.innerWidth - 24) }}
+          style={{ left: slideAt?.left ?? 0, top: slideAt?.top ?? 0, width: slideAt ? slideAt.right - slideAt.left : Math.min(SLIDE_WIDTH, typeof window === "undefined" ? SLIDE_WIDTH : window.innerWidth - 24) }}
         >
           <button type="button" className="okf-media-btn okf-slide-x" data-action="close" aria-label={t("close")} title={t("close")} onClick={() => setSlideGone(true)}>
             <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>

@@ -8,7 +8,7 @@
 // Every request off 127.0.0.1:5031-5035 is refused in the window.
 //
 // Usage: node tools/media/qa-media.mjs [--fixtures G:\FILOW\tmp\media\fixtures] [--out G:\FILOW\tmp\media]
-// Writes <out>/<frames>/*.png (dark and light; --frames, default "frames2") and <out>/qa-media.json (the numbers).
+// Writes <out>/<frames>/*.png (dark and light; --frames, default "frames3") and <out>/qa-media.json (the numbers).
 import { spawn } from "node:child_process";
 import { buildSync } from "esbuild";
 import fs from "node:fs";
@@ -23,7 +23,7 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace
 const FIX = arg("fixtures", "G:\\FILOW\\tmp\\media\\fixtures");
 const OUT = arg("out", "G:\\FILOW\\tmp\\media");
 const WORK = path.join(OUT, "work");
-const FRAMES = path.join(OUT, arg("frames", "frames2"));
+const FRAMES = path.join(OUT, arg("frames", "frames3"));
 for (const d of [OUT, WORK, FRAMES]) fs.mkdirSync(d, { recursive: true });
 
 // ---- the board file: a GIF placed by the same code an agent uses ----
@@ -32,9 +32,11 @@ fs.writeFileSync(path.join(WORK, "board-entry.ts"), `export { mediaElement, clea
 buildSync({ entryPoints: [path.join(WORK, "board-entry.ts")], bundle: true, platform: "node", format: "cjs", outfile: helper, logLevel: "silent", alias: { "@": path.join(ROOT, "apps/web") } });
 const board = (await import(pathToFileURL(helper).href)).default;
 const gif = `data:image/gif;base64,${fs.readFileSync(path.join(FIX, "heart.gif")).toString("base64")}`;
-const placed = board.mediaElement({ kind: "gif", src: gif, caption: "Animated test pattern", source: "Wikimedia Commons · Jane Doe · CC BY-SA 4.0" }, { x: 60, y: 60, w: 480 }, 0, "pattern");
-const title = { id: "t1", type: "text", x: 600, y: 120, width: 420, height: 40, text: "How a test pattern moves", originalText: "How a test pattern moves", fontSize: 32, fontFamily: 5, textAlign: "left", verticalAlign: "top", strokeColor: "#1e1e1e", backgroundColor: "transparent", lineHeight: 1.25, customData: { wb: { step: 0, key: "t1", role: "title" } } };
-const { edits } = board.applyOps({ elements: [], files: {} }, board.noEdits(), [{ op: "add", element: placed.element, files: placed.files }, { op: "add", element: placed.label }, { op: "add", element: title }]);
+const placed = board.mediaElement({ kind: "gif", src: gif, caption: "Animated test pattern", source: "Wikimedia Commons · Jane Doe · CC BY-SA 4.0" }, { x: 60, y: 120, w: 520 }, 0, "pattern");
+const title = { id: "t1", type: "text", x: 660, y: 130, width: 480, height: 40, text: "How a test pattern moves", originalText: "How a test pattern moves", fontSize: 32, fontFamily: 5, textAlign: "left", verticalAlign: "top", strokeColor: "#1e1e1e", backgroundColor: "transparent", lineHeight: 1.25, customData: { wb: { step: 0, key: "t1", role: "title" } } };
+const note = (id, y, text) => ({ ...title, id, y, x: 660, width: 480, height: 30, text, originalText: text, fontSize: 24, customData: { wb: { step: 0, key: id, role: "label" } } });
+const notes = [note("n1", 220, "Each frame moves the pattern a little"), note("n2", 270, "A dropped frame shows as a jump"), note("n3", 320, "Torn frames split the colour bars")];
+const { edits } = board.applyOps({ elements: [], files: {} }, board.noEdits(), [{ op: "add", element: placed.element, files: placed.files }, { op: "add", element: placed.label }, { op: "add", element: title }, ...notes.map((element) => ({ op: "add", element }))]);
 const boardFile = path.join(WORK, "heart.excalidraw");
 fs.writeFileSync(boardFile, board.excalidrawFile(board.applyEdits({ elements: [], files: {} }, edits)));
 

@@ -23,8 +23,12 @@
 
 .wb-btn { min-height: 44px; padding: 8px 16px; border-radius: var(--radius, 10px); border: 1px solid var(--muted); background: var(--surface); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
 .wb-btn:hover:not(:disabled) { background: var(--surface-2); }
-.wb-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Not pressable yet: quieter words and a dashed edge, still readable (fading the whole button left its words near 2:1). */
+.wb-btn:disabled { opacity: 1; color: color-mix(in srgb, var(--text) 74%, transparent); border-style: dashed; cursor: not-allowed; }
 .wb-btn.primary { background: var(--action-background, var(--accent)); color: var(--action-foreground, var(--on-accent)); border-color: transparent; }
+/* A primary button that cannot be pressed yet (nothing asked) stays readable: no fading of the accent, which
+   left its word at about 2:1, but the plain surface with the normal text colour. */
+.wb-btn.primary:disabled { background: var(--surface-2); color: color-mix(in srgb, var(--text) 74%, transparent); border-color: var(--border); }
 .wb-btn.primary:hover:not(:disabled) { filter: brightness(0.94); background: var(--action-background, var(--accent)); }
 .wb-btn.small { min-height: 36px; padding: 4px 12px; font-size: 14px; }
 .wb-page :is(button, input, [role="button"]):focus-visible { outline: 3px solid var(--accent-ring, var(--accent)); outline-offset: 2px; }

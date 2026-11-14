@@ -184,6 +184,11 @@ export function placeBlock(size: Size, view: Size, avoid: Rect[], anchor: { x: n
   for (let y = edge; y <= view.height - edge - h; y += step) ys.push(y);
   xs.push(Math.max(edge, view.width - edge - w));
   ys.push(Math.max(edge, view.height - edge - h));
+  // right beside each box (the boxes come grown by the margin): the margin is then exact, not rounded to the step
+  for (const a of avoid) {
+    for (const x of [a.right, a.left - w]) if (x >= edge && x <= view.width - edge - w) xs.push(x);
+    for (const y of [a.bottom, a.top - h]) if (y >= edge && y <= view.height - edge - h) ys.push(y);
+  }
   for (const x of xs) {
     for (const y of ys) {
       const r: Rect = { left: x, top: y, right: x + w, bottom: y + h };
@@ -195,7 +200,22 @@ export function placeBlock(size: Size, view: Size, avoid: Rect[], anchor: { x: n
       if (!best || cost < best.cost) best = { rect: r, overlap, cost };
     }
   }
-  return best ? { rect: best.rect, overlap: best.overlap } : { rect: { left: edge, top: edge, right: edge + w, bottom: edge + h }, overlap: 0 };
+  if (!best) return { rect: { left: edge, top: edge, right: edge + w, bottom: edge + h }, overlap: 0 };
+  // Less than a step from a box (the toolbar, a mark): moved up to it, so the margin is exactly the one the
+  // boxes were grown by, never the margin plus a few pixels of rounding.
+  let r = best.rect;
+  const cover = (x: Rect) => avoid.reduce((s, a) => s + overlapArea(x, a), 0);
+  for (const a of avoid) {
+    const across = r.left < a.right && r.right > a.left;
+    const along = r.top < a.bottom && r.bottom > a.top;
+    const moves = [across ? [0, -(r.top - a.bottom)] : null, across ? [0, a.top - r.bottom] : null, along ? [-(r.left - a.right), 0] : null, along ? [a.left - r.right, 0] : null];
+    for (const m of moves) {
+      if (!m || Math.abs(m[0] + m[1]) === 0 || Math.abs(m[0] + m[1]) >= step) continue;
+      const moved = { left: r.left + m[0], top: r.top + m[1], right: r.right + m[0], bottom: r.bottom + m[1] };
+      if (moved.left >= edge && moved.top >= edge && moved.right <= view.width - edge && moved.bottom <= view.height - edge && cover(moved) <= best.overlap) r = moved;
+    }
+  }
+  return { rect: r, overlap: best.overlap };
 }
 
 /** Columns of a gallery: one row up to three, two by two for four, three across for five and six. */
@@ -223,8 +243,11 @@ export function galleryLayout(n: number, view: Size, avoid: Rect[], anchor: { x:
 
 const SCALES = [1, 0.85, 0.7, 0.55, 0.45];
 
-/** The gallery's grid at one size: its whole size, and its tiles once its top-left corner is known. */
-function grid(n: number, scale: number, view: Size) {
+/**
+ * The gallery's grid at one size: its whole size, and its tiles once its top-left corner is known. `fill`:
+ * the tiles grow to fill this width exactly (to share the slide's edges).
+ */
+function grid(n: number, scale: number, view: Size, fill?: number) {
   const cols = galleryColumns(n);
   const rows = Math.ceil(n / cols);
   const tw = Math.round(TILE.width * scale);
@@ -232,8 +255,12 @@ function grid(n: number, scale: number, view: Size) {
   const gap = TILE.gap;
   // never wider or taller than the screen: the tiles shrink to fit it
   const fit = Math.min(1, (view.width - 24 - (cols - 1) * gap) / cols / tw, (view.height - 24 - (rows - 1) * gap) / rows / th);
-  const w = Math.floor(tw * fit);
-  const h = Math.floor(th * fit);
+  let w = Math.floor(tw * fit);
+  let h = Math.floor(th * fit);
+  if (fill && fill > cols * w + (cols - 1) * gap) {
+    w = Math.floor((fill - (cols - 1) * gap) / cols);
+    h = Math.round((TILE.media * w) / TILE.width) + TILE.text;
+  }
   return {
     width: cols * w + (cols - 1) * gap,
     height: rows * h + (rows - 1) * gap,
@@ -258,13 +285,14 @@ export function showLayout(n: number, slide: Size | null, view: Size, avoid: Rec
   const near = avoid.map((r) => grow(r, TILE.gap));
   if (n <= 0) return { slide: placeBlock(slide, view, near, anchor).rect, tiles: [] };
   for (const scale of SCALES) {
-    const g = grid(n, scale, view);
-    const size = { width: Math.max(slide.width, g.width), height: g.height + TILE.gap + slide.height };
+    // one width for both: the pictures fill the slide's width, or the slide takes the pictures' width
+    const g = grid(n, scale, view, slide.width);
+    const size = { width: g.width, height: g.height + TILE.gap + slide.height };
     if (size.width > view.width - 24 || size.height > view.height - 24) continue;
     const { rect, overlap } = placeBlock(size, view, near, anchor);
     if (overlap > 0) continue;
     const top = rect.top + g.height + TILE.gap;
-    return { tiles: g.tiles(rect.left, rect.top), slide: { left: rect.left, top, right: rect.left + slide.width, bottom: top + slide.height } };
+    return { tiles: g.tiles(rect.left, rect.top), slide: { left: rect.left, top, right: rect.left + g.width, bottom: top + slide.height } };
   }
   const s = placeBlock(slide, view, near, anchor).rect;
   return { slide: s, tiles: galleryLayout(n, view, [...avoid, grow(s, TILE.gap)], anchor).tiles };

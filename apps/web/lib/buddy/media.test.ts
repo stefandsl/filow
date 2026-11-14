@@ -124,6 +124,18 @@ describe("layout", () => {
     const s = showLayout(2, { width: 560, height: 380 }, view, [pill, mark], { x: 960, y: 540 });
     expect(s.slide).not.toBeNull();
     expect(s.tiles[0].left).toBe(s.slide!.left);
+    expect(Math.max(...s.tiles.map((t) => t.right))).toBe(s.slide!.right);
+    // the slide is never narrower than it was measured at (its words would not fit): the pictures grow instead
+    expect(s.slide!.right - s.slide!.left).toBeGreaterThanOrEqual(558);
+    // under the toolbar: one margin, or clearly apart (never the margin plus a few pixels)
+    const topGap = Math.min(...s.tiles.map((t) => t.top)) - pill.bottom;
+    expect(topGap === 12 || topGap >= 12 + 16).toBe(true);
+    // three pictures are wider than the slide: the slide takes their width
+    const wide = showLayout(3, { width: 560, height: 300 }, view, [], { x: 960, y: 540 });
+    expect(wide.slide!.right - wide.slide!.left).toBe(Math.max(...wide.tiles.map((t) => t.right)) - wide.tiles[0].left);
+    // right under the toolbar: exactly one margin from it
+    const under = galleryLayout(2, view, [pill], { x: 960, y: 0 });
+    expect(Math.min(...under.tiles.map((t) => t.top)) - pill.bottom).toBe(12);
     expect(s.slide!.top - Math.max(...s.tiles.map((t) => t.bottom))).toBe(12);
     for (const r of [...s.tiles, s.slide!]) {
       expect(inside(r, view)).toBe(true);
