@@ -1,5 +1,25 @@
 # Filow hand-off
 
+## R2 release verification worktree (2026-11-14, unreleased)
+
+`feat-r2-verify` adds the pure release verifier, offline CLI fixtures and mutation runner,
+an owner-only preflight/draft/publish script, explicit no-downgrade updater configuration,
+and a manual-only clean Windows installer smoke job. CI no longer writes to the feed.
+The release checklist includes recall and first-paid-release upgrade checks; EN/IT manuals
+describe the new path. The external orchestrator script is unchanged.
+
+Validation: 3,163 tests pass (5 skipped), typecheck and lint pass, 34 release-focused tests
+pass, 21/21 removed-rule mutations are caught and restored. Read-only 0.9.38 audit: all 17
+assets/manifests, CI jobs, sourceSha and absent accountOrigin pass; the new explicit
+allowDowngrade=false check fails because the old installer does not set it explicitly.
+Evidence and limits: `docs/releases/R2-VERIFY-2026-11-14.md`.
+
+Pending: validate the manual CI smoke and actual PowerShell 7 publication path before use;
+no workflow or GitHub write was run here. Review the production account-origin allowlist
+(empty by default), D6 publisherName when signing lands, and the manual paid-upgrade gate.
+Only Windows installer metadata is extracted; other platform bytes are hash-checked.
+No merge, push, tag, installed-app change or feed change was performed.
+
 Last updated 2026-11-12 (faster answers, onboarding and accounts). Written so that
 another agent (Codex, Claude, a human) can continue without the chat history. Update this file at the
 end of every working session: "Where it stands", "Pending" and "Known gaps" are the parts that rot.

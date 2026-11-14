@@ -8,15 +8,19 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Attach to this existing release (for example v0.9.31), built from that tag's source. Empty: build main and keep a short-lived artifact."
+        description: "Tag to build once, or an existing tag to smoke with smoke_only. Empty: build main as an artifact."
         required: false
         default: ""
+      smoke_only:
+        description: "Smoke the existing source installer only (no rebuild). Required before feed publication."
+        type: boolean
+        default: false
       os:
         description: "Build only this runner (macos-latest, windows-latest, ubuntu-latest) or all"
         required: false
         default: all
 
-# Least privilege: every job reads the repository only; the build job below alone gets write access, to attach the release assets.
+# Least privilege: build and manual smoke can attach assets to this source repository only.
 permissions:
   contents: read
 
@@ -27,6 +31,7 @@ jobs:
   # tools/release/workflows.test.ts fails on one that is not.
   checks:
     runs-on: windows-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -36,6 +41,17 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --prefer-offline
+      - name: Verify before building a release
+        if: ${{ !inputs.smoke_only && (startsWith(github.ref, 'refs/tags/') || inputs.release_tag != '') }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Invalid release tag' }
+          $version = $env:RELEASE_TAG.Substring(1)
+          node tools/release/release-verify.mjs preflight --version $version --state "$env:RUNNER_TEMP/preflight.json"
+          if ($LASTEXITCODE -ne 0) { throw 'Release preflight failed' }
       - run: node node_modules/electron/install.js
       - run: npm run vendor -w apps/desktop
       # The tests run without the generated dictionary bundle, as the merge gate does.
@@ -50,7 +66,8 @@ jobs:
   # Installers only for a pushed tag or a manual run; a push to main stops after the checks.
   build:
     needs: checks
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    if: ${{ !inputs.smoke_only && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -65,7 +82,6 @@ jobs:
     permissions:
       contents: write
     env:
-      RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
       # macOS: no Apple identity on the runner. Windows signing happens automatically when the
       # WIN_CSC_LINK (base64 .pfx) and WIN_CSC_KEY_PASSWORD secrets exist; see README "Code signing".
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -135,26 +151,6 @@ jobs:
             release/*.zip
             !release/builder-debug.yml
           generate_release_notes: true
-      # Auto-update feed: the same files on the separate releases repo, which the installed apps read
-      # (electron-builder publish config). Needs the RELEASES_TOKEN secret; see README.
-      - name: Publish to the public releases repo
-        if: env.HERE == 'true' && env.RELEASE_TAG != '' && env.RELEASES_TOKEN != ''
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          repository: stefandsl/filow-releases
-          token: ${{ secrets.RELEASES_TOKEN }}
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: Filow ${{ env.RELEASE_TAG }}
-          body: "Installers for Windows, macOS and Linux. Source: github.com/stefandsl/filow. The desktop app updates itself from here."
-          files: |
-            release/*.exe
-            release/*.dmg
-            release/*.AppImage
-            release/*.deb
-            release/*.yml
-            release/*.blockmap
-            release/*.zip
-            !release/builder-debug.yml
       # Manual runs without a release_tag keep the installers as a short-lived artifact instead.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: env.HERE == 'true' && env.RELEASE_TAG == ''
@@ -172,3 +168,34 @@ jobs:
             !release/builder-debug.yml
           if-no-files-found: error
           retention-days: 1
+
+  # Manual only until validated on a clean runner. Uses the default token, never the feed token.
+  # The publisher compares this installer's digest with the actual draft before making it public.
+  smoke:
+    needs: checks
+    if: github.event_name == 'workflow_dispatch' && inputs.smoke_only && inputs.release_tag != ''
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ inputs.release_tag }}
+      - name: Install and launch Windows installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:RELEASE_TAG -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Invalid release tag' }
+          $v = $env:RELEASE_TAG.Substring(1)
+          $dir = Join-Path $env:RUNNER_TEMP 'release-smoke'
+          New-Item -ItemType Directory $dir | Out-Null
+          gh release download $env:RELEASE_TAG -R stefandsl/filow --pattern "Filow-$v-win-x64.exe" -D $dir
+          if ($LASTEXITCODE -ne 0) { throw 'Download failed' }
+          $sha = git rev-parse HEAD
+          ./tools/release/smoke-windows.ps1 -Installer "$dir/Filow-$v-win-x64.exe" -SourceSha $sha -Result "$dir/smoke-result.json"
+          gh release upload $env:RELEASE_TAG -R stefandsl/filow "$dir/smoke-result.json" --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Smoke evidence upload failed' }
