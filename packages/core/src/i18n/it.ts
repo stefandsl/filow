@@ -1038,6 +1038,7 @@ export const it: Dictionary = {
   "menu.okfNoStt": "Sto scaricando il riconoscimento vocale per questo PC (circa 450 MB). Intanto scrivi la domanda, o riprova tra qualche minuto.",
   "menu.overlayAuto": "Apri l'overlay da solo quando parte una presentazione",
   "menu.overlayHidden": "Nascondi l'overlay da registrazioni e condivisioni dello schermo",
+  "menu.updatesOff": "Gli aggiornamenti sono disattivati in questa versione di prova",
   "menu.updateCheck": "Controlla aggiornamenti…",
   "menu.report": "Segnala un problema…",
   "menu.updateChecking": "Controllo aggiornamenti…",

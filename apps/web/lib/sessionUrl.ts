@@ -91,7 +91,7 @@ export type LocalAiHardware = {
   recommended: { models: string[]; ollama: boolean; downloadGb: number };
 };
 
-export type UpdateStatus = { status: "idle" | "checking" | "downloading" | "downloaded" | "none" | "error"; version: string; error: string; current: string };
+export type UpdateStatus = { status: "disabled" | "idle" | "checking" | "downloading" | "downloaded" | "none" | "error"; version: string; error: string; current: string };
 
 export type SlideShowState = { running: boolean; index: number; total: number; title: string };
 

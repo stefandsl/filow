@@ -12,7 +12,7 @@ import * as profileRules from "../../packages/core/src/profile";
 import * as hardwareRules from "../../packages/core/src/hardware";
 
 /** Evaluate untouched main.js, with startup held and all effects replaced in-process. */
-function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, childProcess = {} as Record<string, unknown>, lockHeld = false, platform = "win32", qaBuild = false } = {}) {
+function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, childProcess = {} as Record<string, unknown>, lockHeld = false, platform = "win32", qaBuild = false, updates = undefined as boolean | undefined } = {}) {
   // every dictionary key the shell asks for while it runs, literal or computed (mt(k), tx(key), `catalog.${n}`)
   const asked = new Set<string>();
   const recordingT = (key: string, lang: string, vars?: Record<string, string | number>) => { asked.add(key); return t(key, lang as Parameters<typeof t>[1], vars); };
@@ -33,6 +33,8 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   }
   let requestFilter!: (details: { url: string }, cb: (r: unknown) => void) => void;
   const outbound = vi.fn(() => { throw new Error("fake network boundary: no bytes sent"); });
+  const menu = vi.fn();
+  const quitAndInstall = vi.fn(), updaterLoad = vi.fn();
   const openExternal = vi.fn(async () => {}), checkForUpdates = vi.fn(async () => null);
   const registerShortcut = vi.fn(() => true);
   const writeText = vi.fn(), showMessageBox = vi.fn(async () => ({ response: 0 }));
@@ -48,7 +50,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
       ipcMain: { on: (channel: string, fn: (event: unknown, ...args: unknown[]) => void) => { ipcListeners[channel] = fn; }, handle: (channel: string, fn: (event: unknown, ...args: unknown[]) => unknown) => { ipcHandlers[channel] = fn; } }, BrowserWindow: FakeBrowserWindow,
       session: { defaultSession: { webRequest: { onBeforeRequest: (_filter: unknown, cb: typeof requestFilter) => { requestFilter = cb; } } } },
       shell: { openExternal }, dialog: { showMessageBox }, clipboard: { writeText }, globalShortcut: { register: registerShortcut, unregisterAll() {} },
-      Menu: { buildFromTemplate: (template: unknown) => template, setApplicationMenu() {} },
+      Menu: { buildFromTemplate: (template: unknown) => template, setApplicationMenu: menu },
       Notification: class { static isSupported() { return true; } on() {} show() { notificationShow(); } },
       net: { isOnline: () => true }, nativeTheme: { shouldUseDarkColors: true },
     },
@@ -64,7 +66,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
     // the real sender rule, so the window buttons are checked as in the app
     "./ui-preferences": { trustedUiSender: createRequire(import.meta.url)("./ui-preferences.js").trustedUiSender },
     "./window-controls": createRequire(import.meta.url)("./window-controls.js"),
-    "./package.json": { sourceSha: "0123456789abcdef0123456789abcdef01234567" }, // what CI writes into the packed package.json
+    "./package.json": { updates, sourceSha: "0123456789abcdef0123456789abcdef01234567" }, // what CI writes into the packed package.json
     "./qa.js": { isQaBuild: (app: { isPackaged: boolean }) => qaBuild || !app.isPackaged }, // a packaged build, without the QA marker unless qaBuild
     "./points-window": { createFloatingWindow() {}, createPointsWindow: () => ({ isOpen: () => false, owns: () => false, webContents: () => null, reload() {}, set() {}, hide() {}, show() {} }) },
   };
@@ -82,20 +84,20 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
     ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, dropInstallerChoices, setLog: text => { lastTakeLog = text; },
-       setTakeLive, loadUpdater, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
+       setTakeLive, loadUpdater, installUpdate, setUpdateState, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
        offerLocalAi, offerFirewall, welcomeSetup, registerHotkey, permissionFor, copyText: text => clipboard.writeText(text), settings: () => settings, patchSettings: patch => Object.assign(settings, patch),
        onWelcomeReady, welcomeOfferForStep, chooseWelcomeSetup, setWelcomeWin: win => { welcomeWin = win; }, buildMenu, st,
        setLocalAiHardware: hw => { localAiHardware = Promise.resolve(hw); } });`, {
     require: (id: string) => {
-      if (id.endsWith("electron-updater.js")) return { autoUpdater: { on(event: string, fn: (info: { version: string }) => void) { updaterHandlers[event] = fn; }, checkForUpdates, quitAndInstall() {} } };
+      if (id.endsWith("electron-updater.js")) { updaterLoad(); return { autoUpdater: { on(event: string, fn: (info: { version: string }) => void) { updaterHandlers[event] = fn; }, checkForUpdates, quitAndInstall } }; }
       if (!(id in modules)) throw new Error(`unexpected dependency: ${id}`);
       return modules[id];
     },
     __dirname: "G:/fake", process: { env, platform, arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {}, exit: processExit },
     URL, URLSearchParams, console, setTimeout, clearTimeout, AbortController,
   });
-  return { api, env, registerShortcut, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync, rmSync, fsReads: fsRead,
+  return { api, env, menu, quitAndInstall, updaterLoad, registerShortcut, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, appendFileSync, rmSync, fsReads: fsRead,
     calls, appHandlers, appExit, processExit, whenReady, windows, asked, catalog: Object.keys(modules["./localai"].CATALOG),
     ipc: async (channel: string, win: { webContents: unknown }, ...args: unknown[]) => ipcHandlers[channel]({ sender: win.webContents }, ...args),
     ipcHandlers, ipcListeners,
@@ -769,4 +771,38 @@ describe("the full-screen bar's buttons, as main.js wires them", () => {
     expect(win.minimize).not.toHaveBeenCalled();
     expect(() => f.ipcHandlers["window:isFullScreen"](elsewhere)).toThrow("Denied");
   });
+});
+
+describe("pilot update isolation", () => {
+  it("never loads or calls the updater for manual, automatic or install requests", async () => {
+    const f = fixture({}, { updateFeed: true, updates: false });
+    await f.api.checkForUpdates();
+    await f.api.checkForUpdates({ manual: true });
+    expect(f.api.loadUpdater()).toBe(false);
+    f.api.setUpdateState({ status: "downloaded", version: "future" });
+    f.api.installUpdate();
+    expect(f.updaterLoad).not.toHaveBeenCalled();
+    expect(f.checkForUpdates).not.toHaveBeenCalled();
+    expect(f.quitAndInstall).not.toHaveBeenCalled();
+    expect(f.showMessageBox).not.toHaveBeenCalled();
+    expect(f.appendFileSync.mock.calls.filter(c => String(c[1]).includes("Updates are off"))).toHaveLength(1);
+  });
+  it.each([undefined, true])("keeps updates working with metadata %s", async updates => {
+    const f = fixture({}, { updateFeed: true, updates });
+    await f.api.checkForUpdates();
+    expect(f.checkForUpdates).toHaveBeenCalledOnce();
+    expect(f.api.loadUpdater().autoInstallOnAppQuit).toBe(true);
+    f.api.setUpdateState({ status: "downloaded", version: "future" });
+    f.api.installUpdate();
+    expect(f.quitAndInstall).toHaveBeenCalledOnce();
+  });
+});
+
+
+it.each(["en", "it", "ru", "ro", "ja"] as const)("shows a disabled pilot update menu in %s", lang => {
+  const f = fixture({}, { updateFeed: true, updates: false });
+  f.api.setLang(lang);
+  f.api.buildMenu({ webContents: new EventEmitter(), isDestroyed: () => false });
+  const items = f.menu.mock.calls[0][0].flatMap((item: any) => item.submenu ?? []);
+  expect(items).toContainEqual({ label: t("menu.updatesOff", lang), enabled: false });
 });

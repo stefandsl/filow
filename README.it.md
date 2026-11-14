@@ -335,6 +335,8 @@ Il risultato finisce in `release/`.
 
 ## Aggiornamenti automatici
 
+Le versioni di prova create con `-c.extraMetadata.updates=false` non cercano, scaricano o installano aggiornamenti. Il menu indica che gli aggiornamenti sono disattivati; i nuovi installer vengono forniti dal proprietario.
+
 L'app desktop installata controlla se c'è una nuova versione pochi secondi dopo l'avvio e dal menu (*Controlla aggiornamenti…*). L'aggiornamento si scarica in background; ricevi "Riavvia ora / Più tardi", e un aggiornamento rimandato si installa da solo alla prossima chiusura. Windows e Linux (AppImage) si aggiornano sul posto; macOS richiede una build firmata e notarizzata per gli aggiornamenti sul posto, quindi su Mac l'app si limita a dirti che esiste una nuova versione finché quello non è configurato.
 
 Il feed è un repository GitHub **pubblico** separato che contiene solo gli installer. È nato quando questo repository sorgente era privato (un'app installata non può leggere release private senza portarsi dietro un segreto); il sorgente è pubblico dal 2026-11-03, e il feed resta dove le app installate cercano gli aggiornamenti. Configurazione una tantum, da una macchina dove `gh` è autenticato:

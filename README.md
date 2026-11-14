@@ -332,6 +332,8 @@ Output lands in `release/`.
 
 ## Automatic updates
 
+Test builds packaged with `-c.extraMetadata.updates=false` do not check, download or install updates. The menu says updates are off; the owner supplies replacement installers.
+
 The installed desktop app checks for a new version a few seconds after start-up and from the menu (*Check for updates…*). The update downloads in the background; you get "Restart now / Later", and an update you postpone installs itself the next time you quit. Windows and Linux (AppImage) update in place; macOS needs a signed and notarized build for in-place updates, so on a Mac the app only tells you a new version exists until that is set up.
 
 The feed is a separate **public** GitHub repository that holds only the installers. It was set up while this source repository was private (an installed app cannot read private releases without shipping a secret); the source has been public since 2026-11-03, and the feed stays where installed apps look for updates. One-time setup, from a machine where `gh` is logged in:

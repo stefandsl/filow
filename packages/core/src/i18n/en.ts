@@ -1048,6 +1048,7 @@ export const en = {
   "menu.okfNoStt": "Downloading speech-to-text for this PC (about 450 MB). Type your question meanwhile, or try again in a few minutes.",
   "menu.overlayAuto": "Open the overlay automatically when a slide show starts",
   "menu.overlayHidden": "Hide the overlay from screen recordings and shares",
+  "menu.updatesOff": "Updates are off in this test build",
   "menu.updateCheck": "Check for updates…",
   "menu.report": "Report a problem…",
   "menu.updateChecking": "Checking for updates…",

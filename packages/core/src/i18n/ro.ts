@@ -1038,6 +1038,7 @@ export const ro: Dictionary = {
   "menu.okfNoStt": "Se descarcă recunoașterea vocală pentru acest PC (aproximativ 450 MB). Între timp, scrie întrebarea sau încearcă din nou peste câteva minute.",
   "menu.overlayAuto": "Deschide automat suprapunerea când pornește o prezentare",
   "menu.overlayHidden": "Ascunde suprapunerea din înregistrările și partajările de ecran",
+  "menu.updatesOff": "Actualizările sunt dezactivate în această versiune de test",
   "menu.updateCheck": "Caută actualizări…",
   "menu.report": "Raportează o problemă…",
   "menu.updateChecking": "Se caută actualizări…",

@@ -1048,6 +1048,7 @@ export const ja: Dictionary = {
   "menu.okfNoStt": "このPC用の音声認識をダウンロード中です（約450MB）。その間は質問を入力するか、数分後にもう一度お試しください。",
   "menu.overlayAuto": "スライドショーの開始時にオーバーレイを自動で開く",
   "menu.overlayHidden": "オーバーレイを画面録画と画面共有から隠す",
+  "menu.updatesOff": "このテスト版ではアップデートが無効になっています",
   "menu.updateCheck": "アップデートを確認…",
   "menu.report": "問題を報告…",
   "menu.updateChecking": "アップデートを確認中…",
