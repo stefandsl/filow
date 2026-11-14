@@ -11,6 +11,7 @@ import { CELL_ROW, type BoardLayout, type Box, type PlacedBlock, type PlacedEdge
 import { LIMITS, cleanText, type Lesson } from "./lesson";
 import { evalExpr, parseExpr, sampleCurve } from "./plot";
 import { texToText } from "./tex";
+import { diagramEls } from "./diagram-scene";
 
 /** One Excalidraw element. Typed loosely on purpose: the board reads files written elsewhere. */
 export type ExEl = {
@@ -480,7 +481,9 @@ export function sceneFromLayout(source: BoardLayout, opts: SceneOptions = {}): S
 
   const shapes = new Map<string, ExEl>();
   const used = new Set<string>();
-  const steps = [...new Set([...layout.nodes.map((n) => n.step), ...layout.edges.map((e) => e.step), ...layout.marks.map((m) => m.step), ...layout.blocks.map((b) => b.step)])].sort((a, b) => a - b);
+  const dia = layout.diagram;
+  const diaShapes = new Map<string, ExEl>();
+  const steps = [...new Set([...layout.nodes.map((n) => n.step), ...layout.edges.map((e) => e.step), ...layout.marks.map((m) => m.step), ...layout.blocks.map((b) => b.step), ...(dia ? [...dia.nodes, ...dia.links, ...dia.lines].map((x) => x.step) : [])])].sort((a, b) => a - b);
   for (const step of steps) {
     // per node: its shape, its label, then the arrows that become possible (the skill's progressive order)
     const pending = layout.edges.filter((e) => e.step === step);
@@ -503,6 +506,7 @@ export function sceneFromLayout(source: BoardLayout, opts: SceneOptions = {}): S
     }
     flush();
     for (const e of pending) els.push(...edgeEls(e, used, shapes));
+    if (dia) els.push(...diagramEls(dia, step, diaShapes));
     for (const m of layout.marks.filter((x) => x.step === step)) els.push(...markEls(m, stepColour(step)));
     for (const b of layout.blocks.filter((x) => x.step === step)) els.push(...blockEls(b, files));
   }
