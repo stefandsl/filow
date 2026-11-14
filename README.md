@@ -69,6 +69,8 @@ At high zoom or in a short window, the page scrolls to keep points and controls 
 
 ## First-run welcome
 
+The first-run video includes English, Italian, Russian, Romanian and Japanese captions. Captions follow the interface language, with English as fallback; the video controls still let you turn them off.
+
 The desktop app opens **Welcome** before loading the main app or offering local AI setup.
 Choose Automatic (OS language, Italian or English fallback), English, or Italiano; system theme
 is on and system accent following is off by default. Turning system theme off keeps the current

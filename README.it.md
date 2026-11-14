@@ -69,6 +69,8 @@ Con zoom elevato o una finestra bassa, la pagina scorre per mantenere punti e co
 
 ## Finestra di benvenuto
 
+Il video iniziale include sottotitoli in inglese, italiano, russo, romeno e giapponese. Seguono la lingua dell’interfaccia, con l’inglese come ripiego; puoi comunque disattivarli dai controlli del video.
+
 L'app desktop apre **Benvenuto** prima di caricare l'app principale o proporre la configurazione
 dell'AI locale. Scegli Automatico (lingua del sistema, italiano oppure inglese come ripiego), English
 o Italiano; il tema di sistema è attivo e il colore principale di sistema è disattivato per
