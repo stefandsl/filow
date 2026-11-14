@@ -9,6 +9,8 @@ const MONTHS = {
 const word = (n, l, options) => converters[l].toCardinal(String(n), options);
 function ordinal(n, l, form = '') {
   let s = converters[l].toOrdinal(Number(n));
+  // Russian years are said "тысяча девятьсот ...", never "одна тысяча девятьсот ...".
+  if (l === 'ru') s = s.replace(/^одна тысяча/, 'тысяча');
   if (l === 'it' && form === 'ª') s = s.replace(/o$/, 'a');
   if (l === 'ru') {
     if (form === 'gen') s = s.replace(/третий$/, 'третьего').replace(/(?:ый|ой|ий)$/, 'ого');
