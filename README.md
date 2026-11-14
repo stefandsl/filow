@@ -792,3 +792,7 @@ answers keep the same image size. Named screen controls retain their original
 positions for pointing.
 
 When billing is closed, the account page says subscriptions are not open yet. Local features remain available, and existing subscribers can still manage their subscription.
+
+# Local answer and removal safeguards
+
+An empty local answer is tried once more with the same question. If the model still gives no words, Filow explains this and keeps any marks it supplied. Internal drawing and pointing requests retain their separate validation.

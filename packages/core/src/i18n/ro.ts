@@ -1,6 +1,7 @@
 import type { Dictionary } from "./en";
 
 export const ro: Dictionary = {
+  "local.noAnswer": "Modelul local nu a răspuns după două încercări. Marcajele primite rămân afișate. Încearcă să întrebi din nou.",
   "cloud.title": "Simte-te ca acasă.",
   "cloud.intro": "Conectează-te pentru a asocia aplicația Filo.",
   "cloud.email": "Adresă de email",

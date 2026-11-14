@@ -801,3 +801,7 @@ I controlli riconosciuti sullo schermo conservano le posizioni originali per
 le indicazioni del puntatore.
 
 Quando la fatturazione è disattivata, la pagina account indica che gli abbonamenti non sono ancora disponibili. Le funzioni locali restano disponibili e gli abbonati possono ancora gestire il proprio abbonamento.
+
+# Protezioni per risposte locali e rimozione
+
+Una risposta locale vuota viene richiesta una seconda volta con la stessa domanda. Se il modello non produce ancora parole, Filow lo spiega e conserva gli eventuali segni ricevuti. Le richieste interne di disegni e puntamento mantengono la propria verifica separata.

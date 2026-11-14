@@ -1,6 +1,7 @@
 import type { Dictionary } from "./en";
 
 export const it: Dictionary = {
+  "local.noAnswer": "Il modello locale non ha risposto dopo due tentativi. Gli eventuali segni restano visibili. Prova a chiedere di nuovo.",
   "cloud.title": "Sentiti a casa.",
   "cloud.intro": "Accedi per collegare la tua app desktop Filo.",
   "cloud.email": "Indirizzo email",

@@ -1,6 +1,7 @@
 import type { Dictionary } from "./en";
 
 export const ja: Dictionary = {
+  "local.noAnswer": "ローカルモデルは2回試しても回答しませんでした。表示されたマークはそのまま残ります。もう一度質問してください。",
   "cloud.title": "ようこそ。",
   "cloud.intro": "サインインしてFiloデスクトップアプリを接続します。",
   "cloud.email": "メールアドレス",

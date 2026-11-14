@@ -1,6 +1,7 @@
 // English: the reference dictionary. Every other language has exactly these keys
 // (packages/core/src/i18n/i18n.test.ts and tools/autoloop/checks/i18n-parity.mjs).
 export const en = {
+  "local.noAnswer": "The local model gave no answer after two attempts. Any marks it gave are still shown. Try asking again.",
   "cloud.title": "Make yourself at home.",
   "cloud.intro": "Sign in to connect your Filo desktop app.",
   "cloud.email": "Email address",
