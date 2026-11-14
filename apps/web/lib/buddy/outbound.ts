@@ -277,6 +277,11 @@ export type BuddyRecipients = {
   offline: boolean;
   /** Who a cloud question goes to, from the cloud model configured on this PC right now. */
   ask: Recipient;
+  /**
+   * Who a cloud question that asks for a drawing, a 3D model or an illustration goes to: the maker of
+   * that task's own model (lib/buddy/drawModels.ts), with its own yes. Absent on an older server.
+   */
+  draw?: Partial<Record<"draw2d" | "draw3d" | "illustration", Recipient>>;
   /** Who a question answered through FreeLLMAPI goes to. Absent on an older server. */
   freellm?: Recipient;
   voice: Recipient;
@@ -331,8 +336,9 @@ export function askRoute(status: { provider?: string; offline?: boolean } | null
   return status.provider === "cloud" || status.provider === "freellm" ? status.provider : "local";
 }
 /** Who the route sends a question to; null when it stays on this PC ("local" may go to the user's own server). */
-export function askRouteRecipient(route: AskRoute, rec: Pick<BuddyRecipients, "ask" | "freellm" | "server">): Recipient | null {
-  if (route === "cloud") return rec.ask;
+/** `draw`: the drawing task the question asks for (lib/buddy/drawModels.ts drawTaskFor); online it has its own model and maker. */
+export function askRouteRecipient(route: AskRoute, rec: Pick<BuddyRecipients, "ask" | "freellm" | "server" | "draw">, draw?: "draw2d" | "draw3d" | "illustration" | null): Recipient | null {
+  if (route === "cloud") return (draw && rec.draw?.[draw]) || rec.ask;
   if (route === "freellm") return rec.freellm ?? freellmRecipient();
   return rec.server ?? null;
 }

@@ -4,7 +4,7 @@ import { askRecipient, freellmRecipient, photoRecipient, voiceRecipient, type Bu
 import { resolveGenerateProvider, scriptRecipient } from "@/lib/generate/providers";
 import { resolveDecisionProvider } from "@/lib/decide/resolve";
 import { VISION_MODEL } from "@/lib/vision/openrouter";
-import { buddyCloudRecipient, whiteboardCloudRecipient } from "@/lib/buddy/providers";
+import { buddyCloudRecipient, drawCloudModel, whiteboardCloudRecipient } from "@/lib/buddy/providers";
 
 /**
  * Who would receive what, from the providers and models actually configured. The notices and the
@@ -16,6 +16,7 @@ export function configuredRecipients(whiteboard = false, whiteboardModel?: unkno
   return {
     offline: process.env.FILOW_OFFLINE === "1",
     ask: whiteboard ? whiteboardCloudRecipient(whiteboardModel) : buddyCloudRecipient(),
+    draw: { draw2d: askRecipient(drawCloudModel("draw2d")), draw3d: askRecipient(drawCloudModel("draw3d")) },
     freellm: freellmRecipient(),
     voice: voiceRecipient(),
     photo: photoRecipient(),

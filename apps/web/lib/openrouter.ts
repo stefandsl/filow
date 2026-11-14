@@ -23,6 +23,10 @@ const REASONING: Record<string, Record<string, unknown>> = {
   "google/gemini-3.1-flash-lite": { effort: "minimal" },
   "anthropic/claude-haiku-5.5": { enabled: false },
   "anthropic/claude-sonnet-5.5": { effort: "minimal" },
+  // the drawing models (lib/buddy/drawModels.ts), as the blind drawing run sent them (tmp/draw-models, 14/11/2026)
+  "openai/gpt-6-astra": { effort: "minimal" },
+  "google/gemini-3.8-flash": { effort: "minimal" },
+  "anthropic/claude-opus-5.5": { effort: "minimal" },
 };
 /** `{ reasoning }` to spread into a request body for this model, or nothing. */
 export function reasoningFor(model: string): { reasoning?: Record<string, unknown> } {

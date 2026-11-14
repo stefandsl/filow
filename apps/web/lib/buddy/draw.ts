@@ -44,11 +44,12 @@ export type DrawAsk = (shape: AskShape, signal: AbortSignal) => AsyncIterable<st
  * prompt; `signal` is the user's Stop (or a closed page): once it fires nothing more is asked and
  * nothing is yielded.
  */
-export async function* drawnAnswer(ask: DrawAsk, opts: { kind: DrawKind; language: string; lang: string; signal: AbortSignal; firstMs?: number; retryMs?: number }): AsyncGenerator<string> {
+/** `model`: the online model of this drawing (lib/buddy/drawModels.ts); absent on this PC and on FreeLLMAPI. */
+export async function* drawnAnswer(ask: DrawAsk, opts: { kind: DrawKind; language: string; lang: string; signal: AbortSignal; firstMs?: number; retryMs?: number; model?: string }): AsyncGenerator<string> {
   const code = buddyLang(opts.language);
   const name = code ? BUDDY_LANG_NAMES[code] : "the language the user speaks";
   // The screenshots stay out: a picture of a thing needs none, and they pull small models off the task.
-  const shape = (again: boolean): AskShape => ({ system: drawOnlyPrompt(opts.kind, name, again), pictures: false });
+  const shape = (again: boolean): AskShape => ({ system: drawOnlyPrompt(opts.kind, name, again), pictures: false, ...(opts.model ? { model: opts.model } : {}) });
   // The first try has a limit too: a small model that loops must not keep the user waiting for minutes.
   const firstLimit = AbortSignal.any([opts.signal, AbortSignal.timeout(opts.firstMs ?? DRAW_FIRST_MS)]);
   let first = "";

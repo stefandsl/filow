@@ -36,6 +36,7 @@ import { createPausableClock, marksBegun } from "@/lib/buddy/motion";
 import { drawingStarts, markSentences, marksReleased } from "@/lib/buddy/marks-sync";
 import { avoidRects, elementRects, snapMarks, type PlainRect } from "@/lib/buddy/snap";
 import { wantsDrawing } from "@/lib/buddy/visuals";
+import { drawTaskFor } from "@/lib/buddy/drawModels";
 import { photoOnly } from "@/lib/buddy/photo";
 import { MAX_GALLERY, ownMedia, type MediaItem, type MediaShow } from "@/lib/buddy/media";
 import { lookUpMedia } from "@/lib/buddy/mediaClient";
@@ -672,7 +673,8 @@ export default function OkFilowPanel() {
         const rec = await out.recipients();
         // Stopped while this was looked up: no notice opens for an answer nobody waits for.
         if (run.current !== id) return sendTimings(tm, "superseded", b);
-        const named = rec && askRouteRecipient(route, rec);
+        // A drawing, a 3D model or an illustration goes online to its own model: the notice names that maker (lib/buddy/drawModels.ts).
+        const named = rec && askRouteRecipient(route, rec, opts.phone || resume ? null : drawTaskFor(question));
         const recipient = named && localServer(named, t("outServer"));
         if (!recipient) throw new Error(t("noticeUnknown"));
         // A phone's question: the presenter's yes for this one question, given to a notice that named this
