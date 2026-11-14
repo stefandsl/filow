@@ -340,13 +340,7 @@ The feed is a separate **public** GitHub repository that holds only the installe
 gh repo create stefandsl/filow-releases --public --description "Filow installers (auto-update feed)"
 ```
 
-Create a fine-grained personal access token on GitHub (Settings → Developer settings → Personal access tokens) with **Contents: read and write** on `filow-releases` only, then store it as a secret of this repository:
-
-```bash
-gh secret set RELEASES_TOKEN --repo stefandsl/filow
-```
-
-From the next tag on, the release job publishes the same installers plus the update metadata (`latest*.yml`, `*.blockmap`) to the public repo, and installed apps pick them up.
+CI uploads installers only to the source release. The owner uses `tools/release/release.ps1` to verify the build, create a feed draft, require a clean Windows install/start smoke test, and set Latest last. No `RELEASES_TOKEN` is used by CI. Follow [the release checklist](docs/RELEASE-CHECKLIST.md) for preflight, publication and recall. The updater explicitly refuses automatic downgrades; a recall does not undo an already installed or downloaded update.
 
 ## Code signing and the SmartScreen warning
 

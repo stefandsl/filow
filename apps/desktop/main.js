@@ -1316,6 +1316,7 @@ function loadUpdater() {
   try {
     const mod = require(path.join(__dirname, "vendor", "electron-updater.js"));
     updater = mod.autoUpdater;
+    updater.allowDowngrade = false;
     updater.autoDownload = true;
     updater.autoInstallOnAppQuit = true;
     updater.logger = null;

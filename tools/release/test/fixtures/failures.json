@@ -1,0 +1,368 @@
+[
+  {
+    "rule": "on-main",
+    "message": "not on main",
+    "patches": [
+      {
+        "path": [
+          "preflight",
+          "onMain"
+        ],
+        "value": false,
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "newer",
+    "message": "not strictly newer",
+    "patches": [
+      {
+        "path": [
+          "preflight",
+          "latestVersion"
+        ],
+        "value": "1.2.3",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "exists",
+    "message": "already exists",
+    "patches": [
+      {
+        "path": [
+          "preflight",
+          "releaseExists"
+        ],
+        "value": true,
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "package-version",
+    "message": "stale version",
+    "patches": [
+      {
+        "path": [
+          "preflight",
+          "packageVersion"
+        ],
+        "value": "1.2.2",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "moved-tag",
+    "message": "moved tag",
+    "patches": [
+      {
+        "path": [
+          "tagSha"
+        ],
+        "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "ci",
+    "message": "CI run",
+    "patches": [
+      {
+        "path": [
+          "run",
+          "conclusion"
+        ],
+        "value": "failure",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "named-assets",
+    "message": "missing named asset: latest-mac.yml",
+    "patches": [
+      {
+        "path": [
+          "assets",
+          "latest-mac.yml"
+        ],
+        "value": null,
+        "remove": true
+      }
+    ]
+  },
+  {
+    "rule": "named-platform-file",
+    "message": "missing named asset: Filow-1.2.3-mac-x64.dmg",
+    "patches": [
+      {
+        "path": [
+          "assets",
+          "Filow-1.2.3-mac-x64.dmg"
+        ],
+        "value": null,
+        "remove": true
+      }
+    ]
+  },
+  {
+    "rule": "stale-file",
+    "message": "stale version file",
+    "patches": [
+      {
+        "path": [
+          "assets",
+          "Filow-1.2.2-win-x64.exe"
+        ],
+        "value": {
+          "sha512": "fixture-sha512",
+          "size": 123
+        },
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "manifest-version",
+    "message": "stale or missing manifest version",
+    "patches": [
+      {
+        "path": [
+          "manifests",
+          "latest.yml",
+          "version"
+        ],
+        "value": "1.2.2",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "bare-name",
+    "message": "bare file name",
+    "patches": [
+      {
+        "path": [
+          "manifests",
+          "latest.yml",
+          "files",
+          0,
+          "url"
+        ],
+        "value": "dir/Filow-1.2.3-win-x64.exe",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "bare-path",
+    "message": "bare file name",
+    "patches": [
+      {
+        "path": [
+          "manifests",
+          "latest.yml",
+          "path"
+        ],
+        "value": "../Filow-1.2.3-win-x64.exe",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "upload-set",
+    "message": "not in upload set",
+    "patches": [
+      {
+        "path": [
+          "manifests",
+          "latest.yml",
+          "files",
+          0,
+          "url"
+        ],
+        "value": "missing.exe",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "sha512",
+    "message": "wrong sha512",
+    "patches": [
+      {
+        "path": [
+          "manifests",
+          "latest.yml",
+          "files",
+          0,
+          "sha512"
+        ],
+        "value": "wrong",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "size",
+    "message": "wrong size",
+    "patches": [
+      {
+        "path": [
+          "manifests",
+          "latest.yml",
+          "files",
+          0,
+          "size"
+        ],
+        "value": 124,
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "legacy-sha512",
+    "message": "wrong sha512 for path",
+    "patches": [
+      {
+        "path": [
+          "manifests",
+          "latest.yml",
+          "sha512"
+        ],
+        "value": "wrong",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "legacy-size",
+    "message": "wrong size for path",
+    "patches": [
+      {
+        "path": [
+          "manifests",
+          "latest.yml",
+          "size"
+        ],
+        "value": 124,
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "installer-version",
+    "message": "stale version in extracted",
+    "patches": [
+      {
+        "path": [
+          "installer",
+          "version"
+        ],
+        "value": "1.2.2",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "source-sha",
+    "message": "sourceSha mismatch",
+    "patches": [
+      {
+        "path": [
+          "installer",
+          "sourceSha"
+        ],
+        "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "origin",
+    "message": "accountOrigin is not allowed",
+    "patches": [
+      {
+        "path": [
+          "installer",
+          "accountOrigin"
+        ],
+        "value": "https://staging.filow.app",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "downgrade",
+    "message": "allowDowngrade: false",
+    "patches": [
+      {
+        "path": [
+          "main"
+        ],
+        "value": "updater.allowDowngrade = true;",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "smoke",
+    "message": "Windows smoke test failed",
+    "patches": [
+      {
+        "path": [
+          "smoke",
+          "started"
+        ],
+        "value": false,
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "smoke-digest",
+    "message": "Windows smoke test failed",
+    "patches": [
+      {
+        "path": [
+          "smoke",
+          "installerSha512"
+        ],
+        "value": "other build",
+        "remove": false
+      }
+    ]
+  },
+  {
+    "rule": "ci-jobs",
+    "message": "every platform",
+    "patches": [
+      {
+        "path": [
+          "run",
+          "jobs",
+          1,
+          "conclusion"
+        ],
+        "value": "skipped"
+      }
+    ]
+  },
+  {
+    "rule": "missing-downgrade",
+    "message": "allowDowngrade: false",
+    "patches": [
+      {
+        "path": [
+          "main"
+        ],
+        "value": "updater.autoDownload = true;"
+      }
+    ]
+  }
+]
