@@ -1,6 +1,6 @@
 ﻿import { describe, expect, it } from "vitest";
 import { newDiagramState, readDiagram, diagramText, type DiagramItem } from "./diagram";
-import { collectDiagram, layoutDiagram, loopOrder, treeParents, diagramBounds } from "./diagram-layout";
+import { collectDiagram, layoutDiagram, loopOrder, mentions, treeParents, diagramBounds } from "./diagram-layout";
 import { contextOf, lessonContextText, lessonMarkdown, validateLesson, type Lesson } from "./lesson";
 import { boardPage, layoutBoard, layoutProblems, type BoardShape } from "./layout";
 import { sceneFromLayout } from "./scene";
@@ -210,6 +210,47 @@ describe("layout of generated diagrams", () => {
     const items = lesson.steps.flatMap((s) => s.items.filter((i): i is DiagramItem => i.kind === "diagram"));
     const again = readDiagram(diagramText(items), newDiagramState());
     expect(again?.nodes.map((n) => n.text)).toEqual(items.flatMap((i) => i.nodes.map((n) => n.text)));
+  });
+});
+
+describe("each part appears with its sentence", () => {
+  it("a diagram written whole in the first step is shown box by box as the sentences name them", () => {
+    const lesson = lessonWith([
+      { say: "Every bill starts as a draft.", items: [{ kind: "diagram", mermaid: "flowchart TD\nA[Draft bill] --> B[Committee]\nB --> C[Floor vote]\nC --> D[President]" }] },
+      { say: "A committee studies it first.", items: [{ kind: "note", text: "Most bills die here" }] },
+      { say: "Then the whole chamber holds a floor vote.", items: [] },
+      { say: "Finally the President signs or vetoes it.", items: [] },
+    ]);
+    const d = collectDiagram(lesson)!;
+    expect(d.nodes.map((n) => `${n.id}@${n.step}`)).toEqual(["a@0", "b@1", "c@2", "d@3"]);
+    expect(layoutBoard(lesson, 1, "wide").diagram?.links.map((l) => `${l.from}>${l.to}`)).toEqual(["a>b"]);
+  });
+
+  it("keeps the model's own order when it spread the diagram over its steps", () => {
+    const lesson = lessonWith([
+      { say: "The President signs at the end.", items: [{ kind: "diagram", mermaid: "flowchart TD\nA[Draft] --> B[Committee]" }] },
+      { say: "Then the President.", items: [{ kind: "diagram", mermaid: "B --> C[President]" }] },
+    ]);
+    expect(collectDiagram(lesson)!.nodes.map((n) => n.step)).toEqual([0, 0, 1]);
+  });
+
+  it("shows messages and rows in order, never earlier than the one before", () => {
+    const seq = lessonWith([
+      { say: "The user signs in.", items: [{ kind: "diagram", mermaid: "sequenceDiagram\nU->>A: Sign in\nA->>G: Redirect\nG-->>A: Token" }] },
+      { say: "Google gives the app a token.", items: [] },
+      { say: "The app is redirected.", items: [] },
+    ]);
+    expect(collectDiagram(seq)!.links.map((l) => l.step)).toEqual([0, 2, 2]);
+    const table = lessonWith([
+      { say: "Compare mitosis and meiosis.", items: [{ kind: "diagram", mermaid: "| | Mitosis | Meiosis |\n| Divisions | 1 | 2 |\n| Daughter cells | 2 | 4 |" }] },
+      { say: "Count the daughter cells.", items: [] },
+    ]);
+    expect(collectDiagram(table)!.rows.map((r) => r.step)).toEqual([0, 0, 1]);
+  });
+
+  it("matches words by their stem, in any language", () => {
+    expect(mentions("La crisalide si apre", "Crisalidi")).toBe(true);
+    expect(mentions("The leaf makes sugar", "Calvin cycle")).toBe(false);
   });
 });
 

@@ -619,7 +619,7 @@ export function collectDiagram(lesson: Lesson): DiagramIn | null {
   });
   const found = d as DiagramIn | null;
   if (!found) return null;
-  if (found.type !== "flowchart" && found.type !== "mindmap") return found;
+  if (found.type !== "flowchart" && found.type !== "mindmap") return revealWithSentences(found, lesson);
   lesson.steps.forEach((s, step) => {
     for (const it of s.items) {
       if (it.kind === "node" && !found.nodes.some((x) => x.id === it.id)) found.nodes.push({ id: it.id, text: it.text, shape: "box", step });
@@ -632,7 +632,52 @@ export function collectDiagram(lesson: Lesson): DiagramIn | null {
   });
   const ids = new Set(found.nodes.map((n) => n.id));
   found.links = found.links.filter((l) => ids.has(l.from) && ids.has(l.to));
-  return found;
+  return revealWithSentences(found, lesson);
+}
+
+const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+/** The sentence names the thing: most of its words (by their first five letters) are in the sentence. */
+export function mentions(say: string, text: string): boolean {
+  const words = plain(say).split(" ");
+  const want = plain(text).split(" ").filter((w) => w.length >= 3);
+  if (!want.length) return false;
+  const found = want.filter((w) => words.some((s) => s.startsWith(w.slice(0, Math.min(5, w.length))) && s.length >= Math.min(w.length, 3)));
+  return found.length >= Math.ceil(want.length * 0.6);
+}
+
+/**
+ * A diagram written whole in one step is shown part by part, each box (message, row) with the first
+ * sentence that names it, so the board follows the voice. A diagram the model already spread over
+ * its steps keeps the model's order. What no later sentence names stays in the step that wrote it.
+ */
+function revealWithSentences(d: DiagramIn, lesson: Lesson): DiagramIn {
+  const written = new Set([...d.nodes.map((n) => n.step), ...d.rows.map((r) => r.step)]);
+  if (written.size !== 1 || lesson.steps.length < 2) return d;
+  const at = [...written][0];
+  const says = lesson.steps.map((s) => s.say);
+  const when = (text: string) => {
+    if (mentions(says[at], text)) return at;
+    const k = says.findIndex((s, i) => i > at && mentions(s, text));
+    return k > at ? k : at;
+  };
+  if (d.type === "table") {
+    let last = at;
+    // the header comes with the first sentence; each row with the sentence that names it, in order
+    const rows = d.rows.map((r, i) => { last = i === 0 ? at : Math.max(last, when(r.cells.find((c) => c) ?? "")); return { ...r, step: last }; });
+    return { ...d, rows };
+  }
+  if (d.type === "sequence") {
+    let last = at;
+    const links = d.links.map((l) => { last = Math.max(last, when(l.text)); return { ...l, step: last }; });
+    const nodes = d.nodes.map((n) => ({ ...n, step: Math.min(...links.filter((l) => l.from === n.id || l.to === n.id).map((l) => l.step), when(n.text)) }));
+    return { ...d, nodes, links };
+  }
+  const nodes = d.nodes.map((n) => ({ ...n, step: when(n.text) }));
+  // the step that wrote the diagram always draws something of it: its first box
+  if (!nodes.some((n) => n.step === at)) nodes[0] = { ...nodes[0], step: at };
+  // a box of a tree or a mind map never appears before the box it hangs from
+  if (d.type === "mindmap") for (const n of nodes) { const p = nodes.find((x) => x.id === n.parent); if (p && p.step > n.step) n.step = p.step; }
+  return { ...d, nodes };
 }
 
 /** The diagram placed in `area`: the largest type at which it fits, centred. */
