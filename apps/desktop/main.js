@@ -2379,6 +2379,11 @@ function installCsp() {
 async function main() {
   killStaleTunnels();
   installCsp();
+  // Before the first window (the welcome tests the microphone): the microphone (audio only), screen
+  // capture and notifications, for the app server's pages and the welcome window only (SEC-08).
+  const pagePermissions = require("./page-permissions").createPagePermissions({ isAppPage, filePages: [welcomeUrl], permitted: permissionFor });
+  session.defaultSession.setPermissionRequestHandler(pagePermissions.request);
+  session.defaultSession.setPermissionCheckHandler(pagePermissions.check);
   /** What the user accepted in the first-run setup (the welcome's step, or the dialog after it): models to fetch. */
   let choices = null;
   try {
@@ -2413,8 +2418,6 @@ async function main() {
   // Microphone and screen capture for the engine.
   if (INPUT_OFF) logLine(OFF_LINE);
   if (HEADLESS) logLine(qaHeadless.HEADLESS_LINE);
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(permissionFor(permission)));
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => permissionFor(permission));
 
   const win = new BrowserWindow({
     width: 1280,
