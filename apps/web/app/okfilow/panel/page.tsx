@@ -9,6 +9,7 @@ import { waitForTranscript } from "@/lib/buddy/transcript-tail";
 import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture, type OkFilowCard, type OkFilowJob, type OkFilowMode, type OkFilowStatus } from "@/lib/buddy/bridge";
 import { drawingSvg, type BuddyModel } from "@/lib/buddy/visuals";
 import { createSpeaker } from "@/lib/buddy/voice";
+import { cloudVoiceAudio } from "@/lib/buddy/cloudVoice";
 import { markToDisplay, parseBuddyAnswer, pointToDisplay, type BuddyTurn } from "@/lib/buddy/prompt";
 import { okfText, OLLAMA_STOPPED_ANSWER, type OkfKey } from "@/lib/buddy/text";
 import { dictationText, pasteKeys, type DictationKey } from "@/lib/dictation/text";
@@ -325,18 +326,7 @@ export default function OkFilowPanel() {
    * The cloud voice, behind the notice and the signal. A Blob: play it. "system": the user kept the
    * voice on this PC. null: the notice was closed without a choice, say nothing.
    */
-  const cloudVoice = useCallback(async (text: string): Promise<Blob | "system" | null> => {
-    const rec = await out.recipients();
-    if (!rec) throw new Error(t("noticeUnknown"));
-    const decision = await out.allow("voice", rec.voice);
-    if (decision === "declined") { setNote(t("kept_voice")); return "system"; }
-    if (decision !== "granted") return null;
-    return out.sending("voice", rec.voice, async (consent) => {
-      const res = await fetch("/api/buddy/tts", { method: "POST", headers: { "Content-Type": "application/json", ...(await engineHeaders()), ...consent }, body: JSON.stringify({ text }) });
-      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || `voice ${res.status}`);
-      return res.blob();
-    });
-  }, [engineHeaders, out, t]);
+  const cloudVoice = useMemo(() => cloudVoiceAudio({ out, headers: engineHeaders, onKept: () => setNote(t("kept_voice")), unknown: () => t("noticeUnknown") }), [engineHeaders, out, t]);
   const cloudVoiceRef = useRef(cloudVoice);
   cloudVoiceRef.current = cloudVoice;
 

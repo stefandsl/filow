@@ -122,6 +122,7 @@ export const ro: Record<OkfKey, string> = {
   voiceWhy_fewCores: "Procesorul acestui PC este prea slab pentru vocea naturală, așa că vorbește vocea acestui PC.",
   voiceWhy_slow: "Vocea naturală a fost prea lentă pe acest PC, așa că vorbește vocea acestui PC.",
   voiceWhy_failed: "Vocea naturală nu a putut porni, așa că vorbește vocea acestui PC.",
+  voiceWhy_cloudFailed: "Vocea online nu a putut vorbi (verifică-i cheia în Setări), așa că citește o voce a acestui PC.",
   voiceNoSystem: "Acest PC nu are o voce pentru această limbă, așa că nu s-a citit nimic cu voce tare. Alege vocea naturală sau adaugă o voce pentru această limbă în setările sistemului.",
   voiceOfflineGet: "Modul offline este activat: dezactivează-l o dată ca să descarci vocea.",
   voiceGetFailed: "Descărcarea s-a oprit. Apasă butonul ca să continui de unde a rămas.",

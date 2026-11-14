@@ -141,6 +141,12 @@ the time back as digits, so the score compares digits with digits.
   Since 14/11 the panel offers 0.8x to 1.3x in steps of 0.05 next to a Preview button (a short sentence in the
   interface language, with whichever voice is chosen); it multiplies each language's own pace (liftFor), so 1.0x
   is the voice as before. Older saved values are brought into the range (tts.js voiceSpeed).
+- Online voice that fails (14/11: ElevenLabs refused the key and the answer ended in an error, unread):
+  the speaker says why once (`voiceWhy_cloudFailed`) and the natural voice of this PC reads it, else the
+  system voice (`lib/buddy/voice.ts`). The whiteboard speaks with the voice chosen in OK Filow
+  (`lib/whiteboard/voice.ts`): online through the same notice, yes and signal as the panel, else the
+  natural voice. A video cannot hold the online voice: the natural voice reads the recording, or the
+  video is silent with the sentences under the board; the page says which.
 - Low-spec PCs (pickProfile / nextProfile in tts.js):
   - fewer than 2 cores, or under 3.5 GB of RAM: no natural voice; This PC's voice speaks and the
     panel says why ("This PC has too little memory for the natural voice...");

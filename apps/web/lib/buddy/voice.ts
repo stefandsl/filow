@@ -16,7 +16,8 @@ export const VOICE_LANGS = SPOKEN_LANGS;
 export type VoiceLang = SpokenLang;
 export type VoiceChoice = OkFilowStatus["voice"];
 /** Why the natural voice did not speak. */
-export type VoiceFallback = "notInstalled" | "lowMemory" | "fewCores" | "slow" | "failed";
+/** `cloudFailed`: the online voice could not speak (a refused key, no network): a voice of this PC read instead. */
+export type VoiceFallback = "notInstalled" | "lowMemory" | "fewCores" | "slow" | "failed" | "cloudFailed";
 
 const isLang = (v: unknown): v is VoiceLang => (VOICE_LANGS as readonly string[]).includes(String(v));
 const BCP47: Record<VoiceLang, string> = { en: "en-US", it: "it-IT", ru: "ru-RU", ro: "ro-RO", ja: "ja-JP" };
@@ -341,8 +342,12 @@ export function createSpeaker(deps: SpeakerDeps) {
     });
   }
 
-  /** Returns "" when the natural voice spoke (or was cut), else the reason it could not. */
-  async function natural(text: string, lang: VoiceLang, live: () => boolean, run = 0): Promise<VoiceFallback | ""> {
+  /**
+   * Returns "" when the natural voice spoke (or was cut), else the reason it could not. `quiet`: it
+   * stands in for another voice, which has said why already; its own reason is not told.
+   */
+  async function natural(text: string, lang: VoiceLang, live: () => boolean, run = 0, quiet = false): Promise<VoiceFallback | ""> {
+    const tell = (reason: VoiceFallback) => (quiet ? reason : tellOnce(reason));
     const tts = deps.bridge()?.tts;
     if (!tts) return tell("failed");
     const s = deps.status();
@@ -420,8 +425,8 @@ export function createSpeaker(deps: SpeakerDeps) {
     return pieces ? "" : r.reason;
   }
 
-  /** Says once per reason why the system voice is speaking instead of the natural one. */
-  function tell(reason: VoiceFallback): VoiceFallback {
+  /** Says once per reason why another voice is speaking instead of the chosen one. */
+  function tellOnce(reason: VoiceFallback): VoiceFallback {
     if (!told.has(reason)) {
       told.add(reason);
       deps.onFallback?.(reason);
@@ -429,8 +434,26 @@ export function createSpeaker(deps: SpeakerDeps) {
     return reason;
   }
 
+  /** A voice of this PC in place of the online one: the natural voice when it can speak, else the system voice. */
+  async function onThisPc(text: string, lang: VoiceLang, live: () => boolean, run = 0) {
+    if (deps.bridge()?.tts) {
+      const reason = await natural(text, lang, live, run, true);
+      if (!reason || !live()) return;
+    }
+    return system(text, lang, live, run);
+  }
+
   async function cloud(text: string, lang: VoiceLang, live: () => boolean, run = 0) {
-    const got = deps.cloudAudio ? await deps.cloudAudio(text) : "system";
+    let got: Blob | "system" | null;
+    try {
+      got = deps.cloudAudio ? await deps.cloudAudio(text) : "system";
+    } catch {
+      // The online voice failed (0.9.41: ElevenLabs refused the key and the whole answer ended in an
+      // error): the answer is still read, by a voice of this PC, and the user is told why once.
+      if (!live()) return;
+      tellOnce("cloudFailed");
+      return onThisPc(text, lang, live, run);
+    }
     if (got === null || !live()) return;
     if (got === "system") return system(text, lang, live, run);
     const url = URL.createObjectURL(got);

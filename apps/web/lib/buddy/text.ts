@@ -128,6 +128,7 @@ const en = {
   voiceWhy_fewCores: "This PC's processor is too small for the natural voice, so This PC's voice is speaking.",
   voiceWhy_slow: "The natural voice was too slow on this PC, so This PC's voice is speaking.",
   voiceWhy_failed: "The natural voice could not start, so This PC's voice is speaking.",
+  voiceWhy_cloudFailed: "The online voice could not speak (check its key in Settings), so a voice of this PC is reading instead.",
   voiceNoSystem: "This PC has no voice for this language, so nothing was read aloud. Choose the natural voice, or add a voice for this language in the system settings.",
   voiceOfflineGet: "Offline mode is on: switch it off once to download the voice.",
   voiceGetFailed: "The download stopped. Press the button to carry on from where it stopped.",

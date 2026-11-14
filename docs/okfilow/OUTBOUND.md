@@ -36,7 +36,7 @@ other than Meta)"); a yes for a pinned model never covers it, and the signal the
 | # | Where | What leaves | To whom | Gate (server) | Notice / signal |
 |---|-------|-------------|---------|---------------|-----------------|
 | 1 | OK Filow question, cloud mode (`/api/buddy/ask`, `lib/buddy/providers.ts`) | the question and screenshots of the screens | OpenRouter, then the model's maker (`buddyCloudRecipient`) | `ask` | panel notice; pill in panel and next to the pointer |
-| 2 | OK Filow voice, cloud (`/api/buddy/tts`) | the text of each answer | ElevenLabs | `voice` | panel notice; pill |
+| 2 | OK Filow voice, cloud (`/api/buddy/tts`), in the panel and the whiteboard (`lib/buddy/cloudVoice.ts`, the same yes) | the text of each answer, and each sentence a whiteboard lesson says | ElevenLabs | `voice` | panel notice; pill |
 | 3 | OK Filow card pictures (`/api/buddy/photo`) | the name of the card's subject | Wikipedia | `photo` | panel notice; pill. A no is remembered silently (cards show without pictures) |
 | 4 | OK Filow agent (`okfilow.js`, codex / claude CLI) | the task and the last answer | OpenAI (codex) or Anthropic (claude), through the CLI | `agent` (desktop `agentGranted` before the CLI starts) | panel notice; pill while the job runs |
 | 5 | Take, cloud speech engine (`/api/stt/elevenlabs-token`, `/api/stt/openai-token`, then a WebSocket from the page) | live microphone audio | ElevenLabs or OpenAI | `audio` on the token route (no token, no stream) | take-page notice before the take starts; pill for the whole take |

@@ -527,12 +527,28 @@ describe("the cloud voice", () => {
     expect(FakeAudio.made).toHaveLength(0);
   });
 
-  it("reports a cloud error instead of quietly speaking with another voice", async () => {
+  // 0.9.41, 14/11: ElevenLabs refused the key and the whole answer ended in an error, unread.
+  it("a failed online voice: says why once, and the natural voice of this PC reads the answer", async () => {
+    fakeSynth();
+    const s = setup({ voice: "cloud", naturalVoice: -1 }, { cloudAudio: async () => { throw new Error("ElevenLabs 401"); } });
+    const done = s.speaker.speak("Ciao a tutti.", 1, { lang: "it" });
+    await tick();
+    expect(s.fallbacks).toEqual(["cloudFailed"]);
+    expect(s.requests).toEqual([{ id: 1, text: "Ciao a tutti.", lang: "it", voice: -1, speed: 1 }]);
+    s.chunk({ id: 1, last: true });
+    s.reply(OK);
+    await tick(80);
+    await done;
+  });
+
+  it("a failed online voice with no natural voice on this PC: this PC's voice reads it, one note only", async () => {
     const { spoken } = fakeSynth();
-    const s = setup({ voice: "cloud" }, { cloudAudio: async () => { throw new Error("no credit"); } });
-    await expect(s.speaker.speak("Hello.", 1)).rejects.toThrow("no credit");
-    expect(spoken).toEqual([]);
-    expect(s.requests).toEqual([]);
+    const s = setup({ voice: "cloud" }, { cloudAudio: async () => { throw new Error("no credit"); }, tts: false });
+    const done = s.speaker.speak("Hello.", 1);
+    await tick(200);
+    await done;
+    expect(spoken.map((u) => u.text)).toEqual(["Hello."]);
+    expect(s.fallbacks).toEqual(["cloudFailed"]);
   });
 
   it("stays on this PC in offline mode", async () => {
