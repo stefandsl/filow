@@ -66,7 +66,7 @@ describe("text that reads well aloud", () => {
   it("writes a clock time the way the voice reads it right in each language", () => {
     expect(tts.speakable("Встреча в 9:30.", "ru")).toBe("Встреча в девять часов тридцать минут.");
     expect(tts.speakable("В 21:05 и в 0:00.", "ru")).toBe("В двадцать один час пять минут и в ноль часов ноль минут.");
-    expect(tts.speakable("会議は9:30です。10:00から。", "ja")).toBe("会議は九時三十分です。十時零分から。");
+    expect(tts.speakable("会議は9:30です。10:00から。", "ja")).toBe("会議は九時三十分です。十時から。");
     expect(tts.speakable("Alle 9:30, poi alle 10:00.", "it")).toBe("Alle nove e trenta, poi alle dieci in punto.");
     expect(tts.speakable("La 9:05.", "ro")).toBe("La nouă și cinci.");
     expect(tts.speakable("At 9:30.", "en")).toBe("At nine thirty.");
