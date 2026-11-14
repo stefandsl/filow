@@ -39,7 +39,7 @@ export function compactTargetSystem(lang: Lang = "en"): string {
   ].join("\n");
 }
 
-const sentenceThenPoint = (lang: Lang) => `\nAnswer in this order: first one short sentence in ${BUDDY_LANG_NAMES[lang]} answering about the target, then a POINT tag with the exact coordinates from the screen hint. Example: ${EXAMPLE[lang]} [POINT:42,31:Save button:screen1]`;
+const sentenceThenPoint = (lang: Lang) => `\nAnswer: one short sentence in ${BUDDY_LANG_NAMES[lang]}, then the POINT tag. Example: ${EXAMPLE[lang]} [POINT:42,31:Save button:screen1]`;
 
 /** Only the model and single-screen known-target case measured in the hardening trial and AR-1. */
 export function localTargetPrompt(req: { question: string; screens: BuddyScreen[]; language?: string; knownTarget?: boolean }, model: string, pictures: boolean): { system: string; question: string } | null {
