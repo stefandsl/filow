@@ -39,7 +39,8 @@ function combine(said, pieces, labels, lang) {
   const merged = tc.merge(original, restored, { sentenceStartsOnly: /\p{Lu}/u.test(original) });
   if (merged === null || tc.skeleton(merged) !== tc.skeleton(original)) return null;
   // Japanese is written without spaces: the gap the recognizer left between two phrases goes when a mark fills it.
-  return lang === "ja" ? merged.replace(/([。、？]) (?=[぀-ヿ㐀-鿿])/g, "$1") : merged;
+  // The other languages get the capital the model left out at the start of a sentence.
+  return lang === "ja" ? merged.replace(/([。、？]) (?=[぀-ヿ㐀-鿿])/g, "$1") : tc.sentenceStarts(merged, lang);
 }
 
 /**
