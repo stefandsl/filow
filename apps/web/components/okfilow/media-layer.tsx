@@ -6,8 +6,9 @@
 // their rectangles and main lets the mouse in only there (apps/desktop/okfilow-hit.js). Stop takes all
 // of it away at once (the overlay page passes null).
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { okFilowBridge } from "@/lib/buddy/bridge";
-import { MAX_VIDEO_SECONDS, showLayout, type MediaItem, type MediaShow } from "@/lib/buddy/media";
+import { boundsOfRects, MAX_VIDEO_SECONDS, showLayout, tilesIn, type MediaItem, type MediaShow } from "@/lib/buddy/media";
+import { LIMITS, type Box, type MovableKind } from "@/lib/buddy/layout-move";
+import { MoveGrips } from "./move-grips";
 import type { Rect } from "@/lib/buddy/marks";
 import type { OkfKey } from "@/lib/buddy/text";
 
@@ -79,12 +80,9 @@ function MediaView({ item, t, onClose, onBad }: { item: MediaItem; t: T; onClose
   );
 }
 
-const rectOf = (el: Element): Rect => {
-  const r = el.getBoundingClientRect();
-  return { left: Math.floor(r.left), top: Math.floor(r.top), right: Math.ceil(r.right), bottom: Math.ceil(r.bottom) };
-};
-
-type Props = { show: MediaShow | null; avoid: () => Rect[]; t: T; onPlaced?: (first: Rect, caption: string) => void };
+/** Moving and resizing (lib/buddy/layout-move.ts): where the user put the gallery and the slide, and how to tell. */
+export type MoveProps = { moved: Partial<Record<MovableKind, Box>>; onBox: (kind: MovableKind, b: Box, done: boolean) => void; onReset: () => void };
+type Props = { show: MediaShow | null; avoid: () => Rect[]; t: T; onPlaced?: (first: Rect, caption: string) => void; move?: MoveProps };
 
 /** Each new show is a new layer: nothing closed, nothing placed. Gone (null): nothing, and no rectangles take the mouse. */
 export function MediaLayer(props: Props) {
@@ -97,7 +95,7 @@ export function MediaLayer(props: Props) {
   return props.show ? <ShownMedia key={seq.current} {...props} show={props.show} /> : null;
 }
 
-function ShownMedia({ show, avoid, t, onPlaced }: Props & { show: MediaShow }) {
+function ShownMedia({ show, avoid, t, onPlaced, move }: Props & { show: MediaShow }) {
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [slideGone, setSlideGone] = useState(false);
   const [slideAt, setSlideAt] = useState<Rect | null>(null);
@@ -120,13 +118,6 @@ function ShownMedia({ show, avoid, t, onPlaced }: Props & { show: MediaShow }) {
     setTiles(placed.tiles);
   }, [show, sig]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Where the mouse may land (main lets it in only there).
-  useEffect(() => {
-    const b = okFilowBridge();
-    const els = host.current ? Array.from(host.current.querySelectorAll(".okf-media-tile, .okf-slide:not(.okf-slide--measuring)")) : [];
-    b?.overlayRects?.(els.map(rectOf));
-  }, [tiles, slideAt, sig]);
-  useEffect(() => () => okFilowBridge()?.overlayRects?.([]), []);
   // Once placed, the pointer goes to the first picture (or the slide), once per show.
   const told = useRef(false);
   useEffect(() => {
@@ -136,7 +127,16 @@ function ShownMedia({ show, avoid, t, onPlaced }: Props & { show: MediaShow }) {
     onPlaced?.(first, gallery[0]?.item.caption ?? slide?.title ?? "");
   }, [tiles, slideAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const close =(key: string) => setGone((g) => new Set(g).add(key));
+  const close = (key: string) => setGone((g) => new Set(g).add(key));
+  // Where the user moved or resized them, else where they were placed.
+  const area = { x: 0, y: 0, width: typeof window === "undefined" ? 1920 : window.innerWidth, height: typeof window === "undefined" ? 1080 : window.innerHeight };
+  const shownTiles = move?.moved.gallery ? tilesIn(gallery.length, move.moved.gallery) : tiles;
+  const slideH = slideAt ? slideAt.bottom - slideAt.top : 0;
+  const shownSlide = slideAt && move?.moved.slide ? { left: move.moved.slide.x, top: move.moved.slide.y, right: move.moved.slide.x + move.moved.slide.w, bottom: move.moved.slide.y + slideH } : slideAt;
+  const galleryBounds = boundsOfRects(shownTiles.slice(0, gallery.length));
+  const galleryBox: Box | null = galleryBounds && { x: galleryBounds.left, y: galleryBounds.top, w: galleryBounds.right - galleryBounds.left, h: galleryBounds.bottom - galleryBounds.top };
+  const grips = (kind: MovableKind, box: Box | null, which: "both" | "move" | "size" = "both") =>
+    move && box ? <MoveGrips box={box} area={area} lim={LIMITS[kind]} show={which} onBox={(b, done) => move.onBox(kind, b, done)} onReset={move.onReset} moveLabel={t("moveItem")} sizeLabel={t("resizeItem")} /> : null;
   return (
     <div ref={host} className="okf-media" data-testid="okf-media">
       {slide && (
@@ -144,11 +144,12 @@ function ShownMedia({ show, avoid, t, onPlaced }: Props & { show: MediaShow }) {
           ref={slideEl}
           className={"okf-slide" + (slideAt ? "" : " okf-slide--measuring")}
           aria-label={t("slideLabel")}
-          style={{ left: slideAt?.left ?? 0, top: slideAt?.top ?? 0, width: slideAt ? slideAt.right - slideAt.left : Math.min(SLIDE_WIDTH, typeof window === "undefined" ? SLIDE_WIDTH : window.innerWidth - 24) }}
+          style={{ left: shownSlide?.left ?? 0, top: shownSlide?.top ?? 0, width: shownSlide ? shownSlide.right - shownSlide.left : Math.min(SLIDE_WIDTH, typeof window === "undefined" ? SLIDE_WIDTH : window.innerWidth - 24) }}
         >
           <button type="button" className="okf-media-btn okf-slide-x" data-action="close" aria-label={t("close")} title={t("close")} onClick={() => setSlideGone(true)}>
             <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
           </button>
+          {grips("slide", shownSlide && { x: shownSlide.left, y: shownSlide.top, w: shownSlide.right - shownSlide.left, h: shownSlide.bottom - shownSlide.top })}
           <h2>{slide.title}</h2>
           <ul>{slide.points.map((p, i) => <li key={i}>{p}</li>)}</ul>
           {slideMedia.length > 0 && (
@@ -163,11 +164,12 @@ function ShownMedia({ show, avoid, t, onPlaced }: Props & { show: MediaShow }) {
         </section>
       )}
       {gallery.map(({ item, key }, i) => {
-        const r = tiles[i];
+        const r = shownTiles[i];
         if (!r) return null;
         return (
           <figure key={key} className="okf-media-tile" data-kind={item.kind} style={{ left: r.left, top: r.top, width: r.right - r.left, height: r.bottom - r.top }}>
             <MediaView item={item} t={t} onClose={() => close(key)} onBad={() => close(key)} />
+            {grips("gallery", galleryBox, i === gallery.length - 1 ? "both" : "move")}
           </figure>
         );
       })}

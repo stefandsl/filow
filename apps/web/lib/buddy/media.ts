@@ -273,6 +273,28 @@ function grid(n: number, scale: number, view: Size, fill?: number) {
   };
 }
 
+/**
+ * The gallery's tiles inside a box the user moved or resized (lib/buddy/layout-move.ts): the same columns,
+ * the tiles as wide as the box allows, their height following the picture's shape.
+ */
+export function tilesIn(n: number, box: { x: number; y: number; w: number }): Rect[] {
+  if (n <= 0) return [];
+  const cols = galleryColumns(n);
+  const w = Math.max(60, Math.floor((box.w - (cols - 1) * TILE.gap) / cols));
+  const h = Math.round((TILE.media * w) / TILE.width) + TILE.text;
+  return Array.from({ length: n }, (_, i) => {
+    const left = Math.round(box.x) + (i % cols) * (w + TILE.gap);
+    const top = Math.round(box.y) + Math.floor(i / cols) * (h + TILE.gap);
+    return { left, top, right: left + w, bottom: top + h };
+  });
+}
+
+/** The box around some rectangles (null for none). */
+export function boundsOfRects(rects: Rect[]): Rect | null {
+  if (!rects.length) return null;
+  return { left: Math.min(...rects.map((r) => r.left)), top: Math.min(...rects.map((r) => r.top)), right: Math.max(...rects.map((r) => r.right)), bottom: Math.max(...rects.map((r) => r.bottom)) };
+}
+
 const grow = (r: Rect, by: number): Rect => ({ left: r.left - by, top: r.top - by, right: r.right + by, bottom: r.bottom + by });
 
 /**

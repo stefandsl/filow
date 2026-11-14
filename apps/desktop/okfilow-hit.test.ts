@@ -132,8 +132,8 @@ describe("wiring", () => {
     expect(main).not.toMatch(/"okfilow:model:hover"[\s\S]{0,160}setIgnoreMouseEvents/);
   });
   it("the page reports its tools and labels and no longer flips the mouse on enter or leave of the tools", () => {
-    expect(page).toMatch(/querySelectorAll\("\.okf-model-tools, \.okf-part"\)/);
+    expect(page).toMatch(/querySelectorAll\("\.okf-model-tools, \.okf-part, \.okf-model-resize"\)/);
     expect(page).not.toMatch(/okf-model-tools"[^>]*onPointer(Enter|Leave)/);
-    expect(page).toMatch(/e\.key === "Escape"\) b\.closeModel\(\)/);
+    expect(page).toMatch(/e\.key === "Escape"\) return b\.closeModel\(\)/);
   });
 });

@@ -4,7 +4,7 @@
 const { contextBridge } = require("electron");
 
 const listeners = {};
-const calls = { overlayRects: [], overlayHover: [] };
+const calls = { overlayRects: [], overlayHover: [], modelHover: [], modelRects: [], modelMove: [], resetLayout: [] };
 const on = (ch) => (fn) => {
   (listeners[ch] = listeners[ch] || []).push(fn);
   return () => { listeners[ch] = (listeners[ch] || []).filter((f) => f !== fn); };
@@ -19,6 +19,13 @@ contextBridge.exposeInMainWorld("okFilow", {
   onCards: on("cards"), onMedia: on("media"), onClear: on("clear"), onPoint: on("point"),
   outbound: { onChange: on("outbound"), begin: noop, end: noop, ready: noop },
   overlayReady: noop, stroke: noop, closeBubble: noop, control: noop, stopAnswer: noop,
+  onModel: on("model"), onResetLayout: on("resetLayout"), onModelBounds: on("modelBounds"),
+  modelReady: () => { (listeners.modelReady || []).forEach((f) => f()); },
+  modelHover: (a) => { calls.modelHover.push(a); },
+  modelRects: (r) => { calls.modelRects.push(r); },
+  modelMove: (d) => { calls.modelMove.push(d); },
+  resetLayout: () => { calls.resetLayout.push(1); },
+  closeModel: noop, askAbout: noop,
   overlayHover: (a, b) => { calls.overlayHover.push([a, b]); },
   overlayRects: (r) => { calls.overlayRects.push(r); },
 });

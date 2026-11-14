@@ -223,6 +223,8 @@ export const ja: Record<OkfKey, string> = {
   mediaOwn: "あなたのファイル",
   slideLabel: "スライド",
   kept_media: "このPCに残しました。画像は取得していません。",
+  moveItem: "移動（ダブルクリックで元の配置に戻す）",
+  resizeItem: "サイズ変更",
   whiteboard: "ホワイトボード",
   whiteboardHint: "難しい概念を、図を描きながら一歩ずつ説明します。声でも：「ホワイトボード：光合成」。",
 };

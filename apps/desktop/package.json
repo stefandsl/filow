@@ -129,6 +129,7 @@
       "okfilow-stop.js",
       "okfilow-hit.js",
       "okfilow-media.js",
+      "okfilow-move.js",
       "okfilow-phone.js",
       "proxy-guard.js",
       "okfilow-timings.js",

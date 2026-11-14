@@ -223,6 +223,8 @@ export const ro: Record<OkfKey, string> = {
   mediaOwn: "Fișierul tău",
   slideLabel: "Diapozitiv",
   kept_media: "Rămâne pe acest PC. Imaginile nu au fost aduse.",
+  moveItem: "Mută (dublu clic: pune totul la loc)",
+  resizeItem: "Redimensionează",
   whiteboard: "Tablă",
   whiteboardHint: "Explică un concept dificil pas cu pas, desenând. Sau spune: \"tablă: fotosinteza\".",
 };

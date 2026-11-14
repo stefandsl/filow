@@ -40,9 +40,10 @@ describe("media layer wiring", () => {
     expect(overlay).toMatch(/b\.onMedia\?\.\(\(m\) => \{\s*const show = cleanShow\(m\);/);
     // next to the bubble (by the pointer), and the pointer flies to the first picture
     expect(overlay).toMatch(/setMedia\(show && c \? \{ \.\.\.show, x: c\.x, y: c\.y \} : show\)/);
-    expect(overlay).toContain("<MediaLayer show={media} avoid={mediaAvoid} t={t} onPlaced={showMedia} />");
+    expect(overlay).toContain("<MediaLayer show={media} avoid={mediaAvoid} t={t} onPlaced={showMedia} move={moveProps} />");
     expect(layer).toMatch(/onPlaced\?\.\(first, gallery\[0\]\?\.item\.caption/);
-    expect(layer).toContain("b?.overlayRects?.(els.map(rectOf));");
-    expect(layer).toContain("useEffect(() => () => okFilowBridge()?.overlayRects?.([]), []);");
+    // the overlay reports every box that takes the mouse (pictures, slide, cards and their bar) and none once they are gone
+    expect(overlay).toContain("if (key !== sent) { sent = key; okFilowBridge()?.overlayRects?.(rects); }");
+    expect(overlay).toContain("return () => { clearInterval(id); okFilowBridge()?.overlayRects?.([]); };");
   });
 });

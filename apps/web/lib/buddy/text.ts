@@ -239,6 +239,8 @@ const en = {
   mediaOwn: "Your file",
   slideLabel: "Slide",
   kept_media: "Kept on this PC. The pictures were not fetched.",
+  moveItem: "Move (double-click: put everything back)",
+  resizeItem: "Resize",
 };
 export type OkfKey = keyof typeof en;
 /** A translation: the same keys as English (text.test.ts checks every language). */

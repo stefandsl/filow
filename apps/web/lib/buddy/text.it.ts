@@ -223,4 +223,6 @@ export const it: Record<OkfKey, string> = {
   mediaOwn: "Il tuo file",
   slideLabel: "Diapositiva",
   kept_media: "Resta su questo PC. Le immagini non sono state prese.",
+  moveItem: "Sposta (doppio clic: rimetti tutto a posto)",
+  resizeItem: "Ridimensiona",
 };

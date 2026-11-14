@@ -10,6 +10,10 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSPropert
 import type { OkFilowCard } from "@/lib/buddy/bridge";
 import { CARD_EXIT_MS, CARD_WIDTH, cardLeader, leadersFor, placeCards, sameCards, type CardSpot, type Leader } from "@/lib/buddy/cards";
 import type { Rect } from "@/lib/buddy/marks";
+import { LIMITS } from "@/lib/buddy/layout-move";
+import type { OkfKey } from "@/lib/buddy/text";
+import { MoveGrips } from "./move-grips";
+import type { MoveProps } from "./media-layer";
 
 type Shown = { id: number; cards: OkFilowCard[]; photos: Array<string | null>; spot: CardSpot | null; leaders: Array<Leader | null>; leaving?: boolean };
 
@@ -29,7 +33,10 @@ function decoded(src: string): Promise<string | null> {
 
 const origin: Record<CardSpot["side"], string> = { right: "0 30%", left: "100% 30%", below: "30% 0", above: "30% 100%" };
 
-export function CardsLayer({ cards, avoid }: { cards: OkFilowCard[]; avoid: () => Rect[] }) {
+export function CardsLayer({ cards, avoid, move, t }: { cards: OkFilowCard[]; avoid: () => Rect[]; move?: MoveProps; t?: (k: OkfKey) => string }) {
+  // Where the user moved the column and how wide they made it (lib/buddy/layout-move.ts), else OK Filow's place.
+  const userBox = move?.moved.cards;
+  const width = userBox ? userBox.w : CARD_WIDTH;
   const [shown, setShown] = useState<Shown | null>(null);
   const [leaving, setLeaving] = useState<Shown | null>(null);
   const now = useRef<Shown | null>(null);
@@ -70,7 +77,7 @@ export function CardsLayer({ cards, avoid }: { cards: OkFilowCard[]; avoid: () =
     const el = col.current;
     if (!shown || !el) return;
     const view = { width: window.innerWidth, height: window.innerHeight };
-    const size = { width: CARD_WIDTH, height: el.offsetHeight };
+    const size = { width, height: el.offsetHeight };
     const subjects = shown.cards.map((c) => ({ x: c.x, y: c.y }));
     const spot = shown.spot
       ? { ...shown.spot, y: Math.max(12, Math.min(shown.spot.y, view.height - 12 - size.height)) }
@@ -83,7 +90,7 @@ export function CardsLayer({ cards, avoid }: { cards: OkFilowCard[]; avoid: () =
     const leaders = subjects.map((p, i) => (own[i] && boxes[i] ? cardLeader(p, boxes[i]) : null));
     const same = shown.spot && spot.x === shown.spot.x && spot.y === shown.spot.y && JSON.stringify(leaders) === JSON.stringify(shown.leaders);
     if (!same) setShown({ ...shown, spot, leaders });
-  }, [shown, avoid]);
+  }, [shown, avoid, userBox?.x, userBox?.y, width]);
 
   const draw = (s: Shown) => {
     const cls = s.leaving ? " okf-cards--leaving" : "";
@@ -103,8 +110,14 @@ export function CardsLayer({ cards, avoid }: { cards: OkFilowCard[]; avoid: () =
         <div
           ref={s.leaving ? undefined : col}
           className={"okf-cards" + (s.spot ? "" : " okf-cards--measuring") + cls}
-          style={{ left: s.spot?.x ?? 0, top: s.spot?.y ?? 0, width: CARD_WIDTH }}
+          style={{ left: s.spot?.x ?? 0, top: s.spot?.y ?? 0, width }}
         >
+          {/* A bar to move the column by, and a grip in its corner to make it wider or narrower (not while it leaves). */}
+          {move && t && s.spot && !s.leaving && (
+            <div className="okf-cards-bar">
+              <MoveGrips box={{ x: s.spot.x, y: s.spot.y, w: width, h: col.current?.offsetHeight ?? 200 }} area={{ x: 0, y: 0, width: window.innerWidth, height: window.innerHeight }} lim={LIMITS.cards} onBox={(b, done) => move.onBox("cards", b, done)} onReset={move.onReset} moveLabel={t("moveItem")} sizeLabel={t("resizeItem")} />
+            </div>
+          )}
           {s.cards.map((c, i) => (
             <article key={i} className="okf-card" style={{ "--okf-cd": `${CARD_DELAY_MS + i * CARD_STAGGER_MS}ms`, transformOrigin: origin[s.spot?.side ?? "right"] } as CSSProperties}>
               {s.photos[i] && <img src={s.photos[i]!} alt="" decoding="sync" />}

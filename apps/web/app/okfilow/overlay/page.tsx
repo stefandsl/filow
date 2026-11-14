@@ -14,6 +14,8 @@ import { MarksLayer, type MarkSet } from "@/components/okfilow/marks-layer";
 import { CardsLayer } from "@/components/okfilow/cards-layer";
 import { MediaLayer } from "@/components/okfilow/media-layer";
 import { cleanShow, type MediaShow } from "@/lib/buddy/media";
+import { bubbleClear, clampBox, LIMITS, readLayout, rememberBox, resetLayout, type Box, type MovableKind } from "@/lib/buddy/layout-move";
+import { MoveGrips } from "@/components/okfilow/move-grips";
 import type { Rect } from "@/lib/buddy/marks";
 import { keyLabel, PILL_IDLE, pillView, statusRoom, talkHeld, type PillAction, type PillState } from "@/lib/buddy/pill";
 import { AnswerBubble, answerInBubble, markMore } from "@/components/okfilow/bubble";
@@ -93,6 +95,12 @@ export default function OkFilowOverlay() {
   const [cards, setCards] = useState<OkFilowCard[]>([]);
   // Pictures, animations, videos and the slide (lib/buddy/media.ts): until Stop, Escape, Clear or the next question.
   const [media, setMedia] = useState<MediaShow | null>(null);
+  // Where the user moved or resized each kind this session (lib/buddy/layout-move.ts).
+  const [moved, setMoved] = useState<Partial<Record<MovableKind, Box>>>({});
+  const movedRef = useRef(moved);
+  movedRef.current = moved;
+  /** The boxes the bubble keeps off: the pictures and slide on this display, and the 3D model window (main says where). */
+  const keepOff = useRef<{ media: Rect[]; model: Rect | null }>({ media: [], model: null });
   // Highlighter: while the talk chord is held the overlay takes the mouse; a drag marks the screen.
   const [ink, setInk] = useState<Array<Array<[number, number]>>>([]);
   const live = useRef<Array<[number, number]> | null>(null);
@@ -282,7 +290,11 @@ export default function OkFilowOverlay() {
           const hold = h.answer && h.placed && (!grew || h.over) && bubbleSticks(cursor.current, { left: h.at.x, top: h.at.y, right: h.at.x + size.width, bottom: h.at.y + size.height });
           const c = cursor.current;
           // A held bubble is only kept on screen and off the pill as its text grows.
-          const at = hold ? bubbleOnScreen(h.at, size, view, pillRect) : bubblePlacement(h.answer && c ? { x: c.x + OFFSET.x, y: c.y + OFFSET.y } : next, size, view, 18, pillRect);
+          const fixed = h.answer ? movedRef.current.bubble : undefined;
+          const placed = fixed ? clampBox({ ...fixed, w: size.width, h: size.height }, { x: 0, y: 0, ...view }, LIMITS.bubble) : null;
+          // Where the user put it, else by the pointer; never on the 3D model or the pictures it belongs to.
+          const off = [...keepOff.current.media, ...(keepOff.current.model ? [keepOff.current.model] : [])];
+          const at = placed ? { x: placed.x, y: placed.y } : bubbleClear(hold ? bubbleOnScreen(h.at, size, view, pillRect) : bubblePlacement(h.answer && c ? { x: c.x + OFFSET.x, y: c.y + OFFSET.y } : next, size, view, 18, pillRect), size, view, off);
           const want = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px)`;
           if (el.style.transform !== want) {
             // An answer's bubble glides when it catches up with the pointer; a first placement does not glide in from where the last bubble was.
@@ -333,6 +345,48 @@ export default function OkFilowOverlay() {
     flight.current = null;
     setLabel("");
   }, []);
+  // ---- moving and resizing (lib/buddy/layout-move.ts) ----
+  const store = () => { try { return window.sessionStorage; } catch { return null; } };
+  useEffect(() => { setMoved(readLayout(store())); }, []);
+  const onBox = useCallback((kind: MovableKind, b: Box, done: boolean) => {
+    setMoved((m) => ({ ...m, [kind]: b }));
+    if (done) rememberBox(store(), kind, b);
+  }, []);
+  /** "Reset layout" (a double click on a handle): every item back where OK Filow puts it, on every display and the 3D window. */
+  const onReset = useCallback(() => {
+    resetLayout(store());
+    setMoved({});
+    okFilowBridge()?.resetLayout?.();
+  }, []);
+  useEffect(() => {
+    const b = okFilowBridge();
+    const offs = [
+      b?.onResetLayout?.(() => { resetLayout(store()); setMoved({}); }) ?? (() => {}),
+      b?.onModelBounds?.((r) => { keepOff.current.model = r && Number.isFinite(r.left) ? r : null; }) ?? (() => {}),
+    ];
+    return () => offs.forEach((o) => o());
+  }, []);
+  // Where the mouse may land besides the pill and the bubble: the pictures, the slide, the cards and their
+  // handles. Main lets clicks in only under the real cursor there (apps/desktop/okfilow-hit.js).
+  useEffect(() => {
+    let sent = "";
+    const report = () => {
+      const rects = Array.from(document.querySelectorAll(".okf-media-tile, .okf-slide:not(.okf-slide--measuring), .okf-cards:not(.okf-cards--measuring):not(.okf-cards--leaving) :is(.okf-card, .okf-cards-bar)"), (el) => {
+        const r = el.getBoundingClientRect();
+        return { left: Math.floor(r.left), top: Math.floor(r.top), right: Math.ceil(r.right), bottom: Math.ceil(r.bottom) };
+      }).filter((r) => r.right > r.left && r.bottom > r.top);
+      keepOff.current.media = Array.from(document.querySelectorAll(".okf-media-tile, .okf-slide:not(.okf-slide--measuring)"), (el) => {
+        const r = el.getBoundingClientRect();
+        return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+      });
+      const key = JSON.stringify(rects);
+      if (key !== sent) { sent = key; okFilowBridge()?.overlayRects?.(rects); }
+    };
+    report();
+    const id = setInterval(report, 100);
+    return () => { clearInterval(id); okFilowBridge()?.overlayRects?.([]); };
+  }, []);
+  const moveProps = useMemo(() => ({ moved, onBox, onReset }), [moved, onBox, onReset]);
   const markSets = useMemo(() => (leaving ? [leaving, marks] : [marks]), [leaving, marks]);
 
   // Pause: the pointer's flight and the pen stand still; Resume: they carry on from the same spot.
@@ -401,10 +455,10 @@ export default function OkFilowOverlay() {
     <>
     {/* Before the overlay, which paints the pointer and the marks over them (and lets clicks through to them):
         outside the hidden overlay, their play, pause and close buttons are real buttons with names. */}
-    <MediaLayer show={media} avoid={mediaAvoid} t={t} onPlaced={showMedia} />
+    <MediaLayer show={media} avoid={mediaAvoid} t={t} onPlaced={showMedia} move={moveProps} />
     <div className={"okf-overlay" + (catching ? " okf-overlay--catch" : "") + (pill.paused ? " okf-paused" : "")} aria-hidden onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
       {/* Beside the spot they explain, in free space, with a leader to it; opaque from their first frame. */}
-      <CardsLayer cards={cards} avoid={cardAvoid} />
+      <CardsLayer cards={cards} avoid={cardAvoid} move={moveProps} t={t} />
       {ink.length > 0 && (
         <svg className="okf-draw okf-ink" width="100%" height="100%">
           {ink.map((l, i) => <polyline key={i} points={l.map((p) => p.join(",")).join(" ")} />)}
@@ -422,7 +476,8 @@ export default function OkFilowOverlay() {
       </div>
     </div>
     {/* The bubble is outside the hidden overlay too: its close button is a real button with a name. */}
-    <AnswerBubble mode={mode} text={text} stopped={stopped && !closed} shown={bubbleShown} level={level} spoken={spoken} t={t} onClose={() => okFilowBridge()?.closeBubble?.()} bubbleRef={bubble} textRef={textBox} />
+    <AnswerBubble mode={mode} text={text} stopped={stopped && !closed} shown={bubbleShown} level={level} spoken={spoken} t={t} onClose={() => okFilowBridge()?.closeBubble?.()} bubbleRef={bubble} textRef={textBox} width={moved.bubble?.w}
+      grips={holds.current.answer && bubbleShown ? <MoveGrips box={{ x: holds.current.at.x, y: holds.current.at.y, w: holds.current.size.width || 320, h: holds.current.size.height || 60 }} area={{ x: 0, y: 0, width: typeof window === "undefined" ? 1920 : window.innerWidth, height: typeof window === "undefined" ? 1080 : window.innerHeight }} lim={LIMITS.bubble} onBox={(b, done) => onBox("bubble", b, done)} onReset={onReset} moveLabel={t("moveItem")} sizeLabel={t("resizeItem")} /> : null} />
     {/* The pill is outside the hidden overlay: its controls are real buttons with names. The window never takes the
         keyboard (it must not take it from the app in use), so keys reach them through the panel and the two shortcuts.
         Going outside wins over the other pills, and shows on every display: it must not be missed. */}

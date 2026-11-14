@@ -7,7 +7,8 @@
 // "user's own" pictures are served on 5033, both from fixture files on this PC: no call to the web.
 // Every request off 127.0.0.1:5031-5035 is refused in the window.
 //
-// Usage: node tools/media/qa-media.mjs [--fixtures G:\FILOW\tmp\media\fixtures] [--out G:\FILOW\tmp\media]
+// --move: the moving and resizing check instead (qa-move-electron.cjs, frames5, qa-move.json).
+// Usage: node tools/media/qa-media.mjs [--move] [--fixtures G:\FILOW\tmp\media\fixtures] [--out G:\FILOW\tmp\media]
 // Writes <out>/<frames>/*.png (dark and light; --frames, default "frames4") and <out>/qa-media.json (the numbers).
 import { spawn } from "node:child_process";
 import { buildSync } from "esbuild";
@@ -23,7 +24,8 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace
 const FIX = arg("fixtures", "G:\\FILOW\\tmp\\media\\fixtures");
 const OUT = arg("out", "G:\\FILOW\\tmp\\media");
 const WORK = path.join(OUT, "work");
-const FRAMES = path.join(OUT, arg("frames", "frames4"));
+const MOVE = args.includes("--move");
+const FRAMES = path.join(OUT, arg("frames", MOVE ? "frames5" : "frames4"));
 for (const d of [OUT, WORK, FRAMES]) fs.mkdirSync(d, { recursive: true });
 
 // ---- the board file: a GIF placed by the same code an agent uses ----
@@ -70,9 +72,9 @@ await new Promise((r) => own.listen(5033, "127.0.0.1", r));
 // ---- the hidden window ----
 const require = createRequire(import.meta.url);
 const electron = require(path.join(ROOT, "node_modules/electron"));
-const resultFile = path.join(OUT, "qa-media.json");
+const resultFile = path.join(OUT, MOVE ? "qa-move.json" : "qa-media.json");
 if (fs.existsSync(resultFile)) fs.rmSync(resultFile);
-const child = spawn(electron, [path.join(ROOT, "tools/media/qa-media-electron.cjs")], {
+const child = spawn(electron, [path.join(ROOT, MOVE ? "tools/media/qa-move-electron.cjs" : "tools/media/qa-media-electron.cjs")], {
   env: { ...process.env, FILOW_QA_HEADLESS: "1", FILOW_QA_NO_GLOBAL_INPUT: "1", QA_MEDIA_OUT: OUT, QA_MEDIA_FRAMES: FRAMES, QA_MEDIA_BOARD: boardFile, QA_MEDIA_ROOT: ROOT, ELECTRON_ENABLE_LOGGING: "0" },
   stdio: ["ignore", "inherit", "inherit"],
 });
@@ -80,7 +82,7 @@ const code = await new Promise((r) => child.on("exit", r));
 commons.close();
 own.close();
 const result = fs.existsSync(resultFile) ? JSON.parse(fs.readFileSync(resultFile, "utf8")) : null;
-if (result) {
+if (result && !MOVE) {
   // the board as saved by the page, read back by the same filter that opens files
   const saved = path.join(WORK, "saved.excalidraw");
   const back = fs.existsSync(saved) ? board.parseExcalidrawFile(fs.readFileSync(saved, "utf8")) : null;

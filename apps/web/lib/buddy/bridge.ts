@@ -172,6 +172,13 @@ export type OkFilowBridge = {
   /** Panel -> overlays: pictures, animations, videos and the slide (lib/buddy/media.ts), global DIP; null takes them away. Absent in an older desktop build. */
   media?(show: MediaShow | null): void;
   onMedia?(fn: (show: MediaShow | null) => void): Off;
+  /** Any OK Filow page -> main: "reset layout": every moved or resized item back where OK Filow puts it (lib/buddy/layout-move.ts). */
+  resetLayout?(): void;
+  onResetLayout?(fn: () => void): Off;
+  /** Main -> overlays: where the 3D model window is, in this overlay's coordinates (null: none), so the bubble keeps off it. */
+  onModelBounds?(fn: (r: { left: number; top: number; right: number; bottom: number } | null) => void): Off;
+  /** Model window -> main: move the window by dx, dy, or resize it by dw, dh (its drag handle, its grip, arrow keys); kept on screen. */
+  modelMove?(d: { dx: number; dy: number; dw?: number; dh?: number; done?: boolean }): void;
   /** Overlay -> main: where its pictures and slide are (overlay CSS px); main lets clicks through everywhere else (apps/desktop/okfilow-hit.js). */
   overlayRects?(rects: Array<{ left: number; top: number; right: number; bottom: number }>): void;
   /** Panel -> main: open the 3D model window with this model. */

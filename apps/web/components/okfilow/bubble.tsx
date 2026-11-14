@@ -3,7 +3,7 @@
 // to half the screen's height and scrolls inside itself beyond that; nothing is ever cut with an
 // ellipsis. A close button for the mouse; the keyboard closes it with Esc (the desktop shell's hook),
 // because the overlay window never takes the keyboard from the app in use.
-import { Fragment, useLayoutEffect, useRef, type Ref, type UIEvent } from "react";
+import { Fragment, useLayoutEffect, useRef, type ReactNode, type Ref, type UIEvent } from "react";
 import { observeBubbleSize } from "@/lib/buddy/bubble-size";
 import type { OkFilowMode } from "@/lib/buddy/bridge";
 import { sentenceParts } from "@/lib/buddy/turn";
@@ -22,7 +22,7 @@ export function markMore(box: HTMLElement | null) {
   if (box) box.dataset.more = box.scrollHeight - box.scrollTop - box.clientHeight > 2 ? "1" : "0";
 }
 
-export function AnswerBubble({ mode, text, stopped, shown, level = 0, spoken = -1, t, onClose, bubbleRef, textRef }: {
+export function AnswerBubble({ mode, text, stopped, shown, level = 0, spoken = -1, t, onClose, bubbleRef, textRef, width, grips }: {
   mode: OkFilowMode;
   text: string;
   /** The answer on screen was stopped by the user. */
@@ -37,6 +37,10 @@ export function AnswerBubble({ mode, text, stopped, shown, level = 0, spoken = -
   onClose: () => void;
   bubbleRef?: Ref<HTMLDivElement>;
   textRef?: Ref<HTMLDivElement>;
+  /** The width the user gave it (lib/buddy/layout-move.ts); its words reflow. */
+  width?: number;
+  /** Its drag handle and resize grip (components/okfilow/move-grips.tsx), for an answer on screen. */
+  grips?: ReactNode;
 }) {
   const content = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -54,7 +58,7 @@ export function AnswerBubble({ mode, text, stopped, shown, level = 0, spoken = -
       aria-label="OK Filow"
       data-testid="okf-bubble"
     >
-      <div ref={content} className="okf-bubble-content" style={{ width: text.length > 40 ? "min(352px, calc(100vw - 44px))" : undefined }}>
+      <div ref={content} className="okf-bubble-content" style={{ width: width ? `${Math.max(120, width - 28)}px` : text.length > 40 ? "min(352px, calc(100vw - 44px))" : undefined, maxWidth: width ? "none" : undefined }}>
       {mode === "listening" && (
         <span className="okf-wave" aria-hidden>{BARS.map((b, i) => <i key={i} style={{ height: `${4 + Math.round(level * b * 18)}px` }} />)}</span>
       )}
@@ -80,6 +84,7 @@ export function AnswerBubble({ mode, text, stopped, shown, level = 0, spoken = -
           <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" /></svg>
         </button>
       )}
+      {grips}
       </div>
     </div>
   );

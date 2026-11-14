@@ -20,6 +20,7 @@ const { readSelection } = require("./okfilow-selection");
 const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOverlays, pointsShowMs, answering, overlayMouse, seeChoice, wordsOnlyList, pillState, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
 const { createHitTarget, insideAny, cleanRects, localPoint } = require("./okfilow-hit");
 const { cleanShow, showFor } = require("./okfilow-media");
+const { clampBounds, movedBounds, localRect } = require("./okfilow-move");
 const { createPractice } = require("./tour");
 const { overlayRects } = require("./okfilow-rects");
 const { modelBounds } = require("./okfilow-model-place");
@@ -324,6 +325,14 @@ function createOkFilow(deps) {
   /** The model window's mouse (okfilow-hit.js): its tools and labels take clicks whenever the real cursor is on them. */
   let modelHit = null;
   let modelCursorTimer = null;
+  /** Where the user put the model window this session (moved or resized), until "reset layout". */
+  let modelMemo = null;
+  const workAreas = () => screen.getAllDisplays().map((d) => d.workArea);
+  /** Each overlay is told where the model window is (its own coordinates), so the answer bubble keeps off it. */
+  function sendModelBounds() {
+    const b = modelWin && !modelWin.isDestroyed() && modelWin.isVisible() ? modelWin.getBounds() : null;
+    for (const w of overlays.values()) if (!w.isDestroyed()) w.webContents.send("okfilow:modelBounds", localRect(b, w.getBounds()));
+  }
   function watchModelCursor() {
     clearInterval(modelCursorTimer);
     modelCursorTimer = setInterval(() => {
@@ -341,7 +350,8 @@ function createOkFilow(deps) {
     }
     // In place beside the pointer (no panel: the page draws only the model, its labels and a close button on hover).
     const c = screen.getCursorScreenPoint();
-    const at = modelBounds(c, screen.getDisplayNearestPoint(c).workArea);
+    // Where the user last put it this session (okfilow-move.js), else beside the pointer.
+    const at = modelMemo ? clampBounds(modelMemo, workAreas()) : modelBounds(c, screen.getDisplayNearestPoint(c).workArea);
     modelWin = new BrowserWindow({
       ...at,
       frame: false,
@@ -363,7 +373,9 @@ function createOkFilow(deps) {
     watchModelCursor();
     modelWin.setContentProtection(hidden());
     lockDown(modelWin);
-    modelWin.on("closed", () => { modelWin = null; modelHit = null; clearInterval(modelCursorTimer); modelCursorTimer = null; });
+    modelWin.on("closed", () => { modelWin = null; modelHit = null; clearInterval(modelCursorTimer); modelCursorTimer = null; sendModelBounds(); });
+    modelWin.on("show", sendModelBounds);
+    modelWin.on("hide", sendModelBounds);
     modelWin.once("ready-to-show", () => modelWin && !modelWin.isDestroyed() && showWindow(modelWin, "model window", true));
     modelWin.loadURL(`${appUrl}/okfilow/model`);
   }
@@ -414,6 +426,26 @@ function createOkFilow(deps) {
     if (!ourSender(e) || !modelWin || modelWin.isDestroyed() || e.sender !== modelWin.webContents) return;
     modelHit?.rects(rects);
     modelHit?.at(localPoint(screen.getCursorScreenPoint(), modelWin.getBounds()));
+  });
+  // The model window's handle, grip and arrow keys (okfilow-move.js): moved or resized, kept on the screen it is on.
+  ipcMain.on("okfilow:model:move", (e, d) => {
+    if (!ourSender(e) || !modelWin || modelWin.isDestroyed() || e.sender !== modelWin.webContents) return;
+    const next = movedBounds(modelWin.getBounds(), d, workAreas());
+    if (!next) return;
+    modelWin.setBounds(next);
+    if (d && d.done === true) modelMemo = next;
+    sendModelBounds();
+  });
+  /** "Reset layout" from any OK Filow page: the model window goes back beside the pointer, every overlay forgets what was moved. */
+  ipcMain.on("okfilow:resetLayout", (e) => {
+    if (!ourSender(e)) return;
+    modelMemo = null;
+    if (modelWin && !modelWin.isDestroyed()) {
+      const c = screen.getCursorScreenPoint();
+      modelWin.setBounds(modelBounds(c, screen.getDisplayNearestPoint(c).workArea));
+      sendModelBounds();
+    }
+    sendOverlays("okfilow:resetLayout", null);
   });
   ipcMain.on("okfilow:model:close", (e) => { if (ourSender(e) && modelWin && !modelWin.isDestroyed()) modelWin.close(); });
   ipcMain.on("okfilow:askAbout", (e, text) => { if (ourSender(e) && typeof text === "string") sendPanel("okfilow:askText", text.slice(0, 300)); });
