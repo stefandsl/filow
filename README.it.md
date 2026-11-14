@@ -804,7 +804,7 @@ Quando la fatturazione è disattivata, la pagina account indica che gli abboname
 
 ## Protezioni per risposte locali e rimozione
 
-Una risposta locale vuota viene richiesta una seconda volta con la stessa domanda. Se il modello non produce ancora parole, Filow lo spiega e conserva gli eventuali segni ricevuti. Le richieste interne di disegni e puntamento mantengono la propria verifica separata.
+Una risposta locale viene riprovata una volta solo se non contiene parole né segni validi sullo schermo. Un puntatore senza testo conta come risposta: Filow aggiunge una breve frase dalla sua etichetta nella lingua dell’interfaccia, oppure "Proprio qui." se manca, e registra che le parole sono state aggiunte dall’app. I tag BOX con due coordinate diventano punti, con il normale allineamento agli elementi dello schermo. Se entrambi i tentativi sono davvero vuoti, Filow spiega il problema. Le richieste interne di disegni e puntamento mantengono la propria verifica separata.
 
 Le risposte locali richiedono Ollama 0.9.0 o successivo per le API, oltre all'eventuale versione minima superiore richiesta dal modello scelto. La configurazione e le risposte controllano il server in esecuzione; una versione vecchia o un runtime irraggiungibile ricevono una spiegazione con le istruzioni per risolvere.
 

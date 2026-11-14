@@ -795,7 +795,7 @@ When billing is closed, the account page says subscriptions are not open yet. Lo
 
 ## Local answer and removal safeguards
 
-An empty local answer is tried once more with the same question. If the model still gives no words, Filow explains this and keeps any marks it supplied. Internal drawing and pointing requests retain their separate validation.
+A local answer is retried once only when it has neither words nor a valid screen mark. A pointer without prose is an answer: Filow adds a short sentence from its label in the interface language, or "Right here." when unlabelled, and records that the app supplied those words. Two-coordinate BOX tags are treated as points and use normal screen-element snapping. If both attempts are truly empty, Filow explains the failure. Internal drawing and pointing requests retain their separate validation.
 
 Local answers require Ollama 0.9.0 or newer for the API, plus any higher minimum required by the selected model. Setup and answers check the running server; an old or unreachable runtime gets an explanation and a repair step.
 

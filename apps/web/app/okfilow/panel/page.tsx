@@ -412,7 +412,7 @@ export default function OkFilowPanel() {
           screens: shot.screens,
           elements: shot.elements,
           history: [],
-          language: getSpeechLang(),
+          language: getSpeechLang(), uiLanguage: langRef.current,
           // the same door as the answer: never another cloud than the one the user said yes to
           provider: to ? (to.id === FREELLM_ID ? "freellm" : "cloud") : "local",
           setup: getSetupPreference(),
@@ -743,7 +743,7 @@ export default function OkFilowPanel() {
           headers,
           // sees: false when this question goes without the screen; else the user's own choice, or nothing so the setup decides
           // resume: the conversation ends with the part of the answer already shown, and the model carries on from it
-          body: JSON.stringify({ question: markedNote ? questionForModel(source, question) + "\n" + markedNote : questionForModel(source, question), images: withScreen ? images : [], screens: shot.screens, elements: withScreen ? shot.elements : undefined, history: plan.history ? presenterHistory(history.current) : [], language: getSpeechLang(), provider: route, setup: getSetupPreference(), sees: withScreen ? askSees(statusRef.current?.seeScreen) : false, ...(resume ? { resume: true } : {}) }),
+          body: JSON.stringify({ question: markedNote ? questionForModel(source, question) + "\n" + markedNote : questionForModel(source, question), images: withScreen ? images : [], screens: shot.screens, elements: withScreen ? shot.elements : undefined, history: plan.history ? presenterHistory(history.current) : [], language: getSpeechLang(), uiLanguage: langRef.current, provider: route, setup: getSetupPreference(), sees: withScreen ? askSees(statusRef.current?.seeScreen) : false, ...(resume ? { resume: true } : {}) }),
         });
         if (!res.ok || !res.body) {
           // Refused before anything was forwarded (no yes on record, Offline mode, FreeLLMAPI without a key): nothing went outside.
@@ -765,6 +765,7 @@ export default function OkFilowPanel() {
           if (run.current !== id) return null;
           const partial = got.split("\n[ERROR]")[0];
           const parsedNow = parseBuddyAnswer(partial, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1);
+          if (parsedNow.appWordsLanguage) answerLang = parsedNow.appWordsLanguage;
           const arrived = parsedNow.text;
           // A continuation is shown after the part already there, without the sentences the model says again.
           const shown = resume ? joinContinuation(resume.shown, arrived, { partial: true }) : arrived;
@@ -788,8 +789,9 @@ export default function OkFilowPanel() {
       // A phone's question is answered in words only: no pointer, pen, cards, drawing or 3D model (askPlan).
       const { points, marks, cards, model, drawing } = plan.visuals ? parsed : wordsOnly(parsed);
       const text = resume ? joinContinuation(resume.shown, parsed.text) : parsed.text;
-      // Answer log (dev builds, or the folder the user picked): exactly what the model produced and saw.
-      void b.answerLog({ question, raw: body, visuals: { text, points, marks, cards, model, drawing }, images, svg: drawing ? drawingSvg(drawing) : undefined }).catch(() => "");
+      // The raw stream retains app-word provenance; saved visuals identify who supplied the words.
+      if (parsed.appWordsLanguage) answerLang = parsed.appWordsLanguage;
+      void b.answerLog({ question, raw: body, visuals: { text, points, marks, cards, model, drawing, wordsSource: parsed.appWordsLanguage ? "app" : "model" }, images, svg: drawing ? drawingSvg(drawing) : undefined }).catch(() => "");
       // A drawing or a model with no sentence is an answer too (it used to be thrown away as "empty").
       if (!text && !points.length && !marks.length && !cards.length && !model && !drawing) throw new Error(t("emptyAnswer"));
       setAnswer(text);

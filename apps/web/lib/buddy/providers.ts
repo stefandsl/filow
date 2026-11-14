@@ -14,7 +14,7 @@ import { buddySystemPrompt, trimHistory, withScreenNote, type BuddyScreen, type 
 import { wantsDrawing } from "./visuals";
 import { isPointOnly } from "./pointer";
 import { pinHelper, type PinOptions } from "@/lib/modelRoles/helper";
-import { mark as markTiming, takeOllamaDone, type ServerTiming } from "./timing";
+import { mark as markTiming, takeOllamaDone, logAppBuiltWords, type ServerTiming } from "./timing";
 import type { Place } from "@/lib/modelRoles/resolve";
 import { t } from "@filow/core";
 import { answerLang } from "./lang";
@@ -31,6 +31,8 @@ export type BuddyAskRequest = {
   screens: BuddyScreen[];
   history?: BuddyTurn[];
   language?: string;
+  /** Interface language for app-built text, independent of the model's spoken-language setting. */
+  uiLanguage?: string;
   provider?: string;
   /** Consent key the caller holds for a cloud send ("ask:openrouter/google"); set from the request header. */
   consent?: string;
@@ -263,7 +265,7 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
   const runtime = await checkRuntime(chosen.at?.base ?? OLLAMA_URL(), chosen.at?.headers, signal, minimum);
   if (signal?.aborted) return;
   if (runtime.state !== "ready") throw new Error(t(runtime.state === "old" ? "local.runtimeOld" : "local.runtimeUnavailable", answerLang(req.question, req.language), { v: runtime.minimum }));
-  // Internal structured-output and pointing calls have their own validation. Human answers need words.
+  // Internal structured-output and pointing calls have their own validation.
   if (shape || isPointOnly(req.question)) { yield* askOllamaOnce(req, signal, chosen, shape, timing, requestDate); return; }
   for (let attempt = 0; attempt < 2; attempt++) {
     let raw = "";
@@ -276,7 +278,16 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
       if (!(error instanceof EmptyLocalStream)) throw error;
     }
     if (signal?.aborted) return;
-    if (/[\p{L}\p{N}]/u.test(parseBuddyAnswer(raw, req.screens).text)) return;
+    const parsed = parseBuddyAnswer(raw, req.screens);
+    if (/[\p{L}\p{N}]/u.test(parsed.text)) return;
+    const marks = [...parsed.points, ...parsed.marks];
+    if (marks.length) {
+      const label = marks.find(mark => mark.label.trim())?.label;
+      const language = answerLang("", req.uiLanguage ?? req.language);
+      logAppBuiltWords(timing);
+      yield `\n[POINT:]\n[APP_WORDS:${language}]` + (label ? t("local.pointerLabel", language, { label }) : t("local.pointerHere", language));
+      return;
+    }
     // Preserve completed marks, but close any unfinished tag before the next response/message.
     yield "\n[POINT:]\n";
   }

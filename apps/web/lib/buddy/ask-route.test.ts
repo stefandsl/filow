@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // The route with its auth and model call faked: what it hands the model and what `lang` it returns.
-const asked: Array<{ language?: string }> = [];
+const asked: Array<{ language?: string; uiLanguage?: string }> = [];
 /** The speed baseline's timing object each model call was given (lib/buddy/timing.ts). */
 const timed: unknown[] = [];
 vi.mock("@/lib/engineAuth", () => ({ requireEngine: () => null }));
@@ -35,6 +35,16 @@ describe("/api/buddy/ask answers in the question's language and says which", () 
     const res = await ask("Where is the save button?", "ja");
     await res.text();
     expect(res.headers.get("X-Buddy-Lang")).toBe("ja");
+  });
+
+  it("carries UI language for app words separately from the model language", async () => {
+    const response = await POST(new Request("http://127.0.0.1/api/buddy/ask", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: "Where is Save?", language: "en", uiLanguage: "it", images: [image], screens: [{index:1,width:10,height:10}] }),
+    }));
+    await response.text();
+    expect(asked[0]).toMatchObject({language:"en",uiLanguage:"it"});
+    expect(response.headers.get("X-Buddy-Lang")).toBe("en");
   });
 
   it("falls back to the interface language, then English for lang while the model mirrors the question", async () => {
