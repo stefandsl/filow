@@ -14,8 +14,14 @@ import { buddySystemPrompt, trimHistory, withScreenNote, type BuddyScreen, type 
 import { wantsDrawing } from "./visuals";
 import { isPointOnly } from "./pointer";
 import { pinHelper, type PinOptions } from "@/lib/modelRoles/helper";
-import { mark as markTiming, takeOllamaDone, type ServerTiming } from "./timing";
+import { mark as markTiming, takeOllamaDone, logAppBuiltWords, type ServerTiming } from "./timing";
 import type { Place } from "@/lib/modelRoles/resolve";
+import { t } from "@filow/core";
+import { answerLang } from "./lang";
+import { parseBuddyAnswer } from "./prompt";
+import { checkRuntime } from "../../../desktop/ollama-runtime";
+import { LOCAL_MODELS } from "@/lib/localModels";
+import { localTargetPrompt } from "./local-target-prompt";
 
 export type BuddyProviderId = "local" | "cloud" | "freellm";
 
@@ -26,6 +32,10 @@ export type BuddyAskRequest = {
   screens: BuddyScreen[];
   history?: BuddyTurn[];
   language?: string;
+  /** Interface language for app-built text, independent of the model's spoken-language setting. */
+  uiLanguage?: string;
+  /** Server-only: a simple locator with a named UIA target. HTTP callers cannot set this. */
+  knownTarget?: boolean;
   provider?: string;
   /** Consent key the caller holds for a cloud send ("ask:openrouter/google"); set from the request header. */
   consent?: string;
@@ -234,6 +244,7 @@ async function* lines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> 
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  try {
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -246,13 +257,54 @@ async function* lines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> 
     }
   }
   if (buffer.trim()) yield buffer.trim();
+  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 
 /** `timing`: the speed baseline's marks of the main answer (lib/buddy/timing.ts); only route.ts's main answer calls pass it. */
 export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper, shape?: AskShape, timing?: ServerTiming | null): AsyncGenerator<string> {
   const chosen = helper ?? (await resolveLocalHelper(req.setup, req.question, req.sees));
+  const requestDate = new Date();
+  const minimum = LOCAL_MODELS.find(m => m.name === chosen.model.replace(/:latest$/, ""))?.minOllama;
+  const runtime = await checkRuntime(chosen.at?.base ?? OLLAMA_URL(), chosen.at?.headers, signal, minimum);
+  if (signal?.aborted) return;
+  if (runtime.state !== "ready") throw new Error(t(runtime.state === "old" ? "local.runtimeOld" : "local.runtimeUnavailable", answerLang(req.question, req.language), { v: runtime.minimum }));
+  // Internal structured-output and pointing calls have their own validation.
+  if (shape || isPointOnly(req.question)) { yield* askOllamaOnce(req, signal, chosen, shape, timing, requestDate); return; }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let raw = "";
+    try {
+      for await (const piece of askOllamaOnce(req, signal, chosen, shape, timing, requestDate)) {
+        raw += piece;
+        yield piece;
+      }
+    } catch (error) {
+      if (!(error instanceof EmptyLocalStream)) throw error;
+    }
+    if (signal?.aborted) return;
+    const parsed = parseBuddyAnswer(raw, req.screens);
+    if (/[\p{L}\p{N}]/u.test(parsed.text)) return;
+    const marks = [...parsed.points, ...parsed.marks];
+    if (marks.length) {
+      const label = marks.find(mark => mark.label.trim())?.label;
+      const language = answerLang("", req.uiLanguage ?? req.language);
+      logAppBuiltWords(timing);
+      yield `\n[POINT:]\n[APP_WORDS:${language}]` + (label ? t("local.pointerLabel", language, { label }) : t("local.pointerHere", language));
+      return;
+    }
+    // Preserve completed marks, but close any unfinished tag before the next response/message.
+    yield "\n[POINT:]\n";
+  }
+  yield t("local.noAnswer", answerLang(req.question, req.language));
+}
+
+class EmptyLocalStream extends Error {}
+
+async function* askOllamaOnce(req: BuddyAskRequest, signal?: AbortSignal, helper?: LocalHelper, shape?: AskShape, timing?: ServerTiming | null, requestDate = new Date()): AsyncGenerator<string> {
+  const chosen = helper ?? (await resolveLocalHelper(req.setup, req.question, req.sees));
   const model = chosen.model;
   const pictures = shape?.pictures ?? chosen.pictures;
+  const targetPrompt = !shape && !isPointOnly(req.question) && !isPhoneQuestionForModel(req.question)
+    ? localTargetPrompt(req, model, pictures) : null;
   const history = trimHistory(req.history ?? []).map((t) => ({ role: t.role, content: t.text }));
   let res: Response;
   try {
@@ -274,10 +326,10 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
         // A JSON schema the answer must follow (Ollama structured output), when the caller has one.
         ...(shape?.format ? { format: shape.format } : {}),
         messages: [
-          { role: "system", content: withLocalDate(shape?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures, quoted: isPhoneQuestionForModel(req.question) }), new Date()) },
+          { role: "system", content: withLocalDate(shape?.system ?? targetPrompt?.system ?? buddySystemPrompt(req.screens, req.language ?? "", { pictures, quoted: isPhoneQuestionForModel(req.question) }), requestDate) },
           ...history,
           // Gemma reads images placed on the message before the text. Text mode sends no picture at all.
-          { role: "user", content: shape ? req.question : withScreenNote(req.question, pictures), images: pictures ? req.images.map(base64Of) : [] },
+          { role: "user", content: shape ? req.question : targetPrompt?.question ?? withScreenNote(req.question, pictures), images: pictures ? req.images.map(base64Of) : [] },
           ...(process.env.BUDDY_LOCAL_THINK === "1" ? [] : noThinkPrefill(model)),
         ],
       }),
@@ -292,7 +344,10 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
     throw new Error(`Ollama, which runs OK Filow's answers on this PC, is not running. If it is installed, Filow is starting it now: ask again in a minute. If not, install it in Settings > Local models, or set "Answers from" to FreeLLMAPI or Cloud in the OK Filow panel.`, { cause: e });
   }
   if (res.status === 404) throw new Error(`The screen helper for this computer's setup is not downloaded yet. Get it in Settings > Local models with "Download now", or set "Answers from" to FreeLLMAPI or Cloud in the OK Filow panel.`);
-  if (!res.ok || !res.body) throw new Error(`Ollama ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) throw new Error(`Ollama ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.body) return;
+  let received = false;
+  try {
   for await (const line of lines(res.body)) {
     markTiming(timing, "ollamaFirstByte");
     let json: { message?: { content?: string }; error?: string; done?: boolean };
@@ -302,11 +357,15 @@ export async function* askOllama(req: BuddyAskRequest, signal?: AbortSignal, hel
       continue;
     }
     if (json.error) throw new Error(`Ollama: ${json.error}`);
-    if (json.message?.content) yield json.message.content;
+    if (json.message?.content) { received = true; yield json.message.content; }
     if (json.done) {
       takeOllamaDone(timing, json as Record<string, unknown>);
       return;
     }
+  }
+  } catch (error) {
+    if (!received && !signal?.aborted && error instanceof TypeError) throw new EmptyLocalStream();
+    throw error;
   }
 }
 

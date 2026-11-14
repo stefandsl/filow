@@ -172,7 +172,7 @@ describe("the server names the models from the features' own pickers", () => {
     expect(s.picks!.translate).toBe("gemma4:e2b");
   });
 
-  it("delete goes to Ollama only for a model Filow offers", async () => {
+  it("catalogue membership alone never permits deletion", async () => {
     env();
     const calls = ollama([]);
     const del = (name: string) => deleteModel(new Request("http://unit.invalid/api/local/pull", { method: "DELETE", body: JSON.stringify({ name }) }));
@@ -180,11 +180,8 @@ describe("the server names the models from the features' own pickers", () => {
     expect((await del("../../etc")).status).toBe(400);
     expect((await del("")).status).toBe(400);
     expect(calls).toEqual([]);
-    expect((await del("gemma4:e2b")).status).toBe(200);
-    expect((await del("clef-flash:latest")).status).toBe(200);
-    expect(calls.map((c) => `${c.method} ${c.url} ${c.body}`)).toEqual([
-      'DELETE http://127.0.0.1:59999/api/delete {"model":"gemma4:e2b"}',
-      'DELETE http://127.0.0.1:59999/api/delete {"model":"clef-flash:latest"}',
-    ]);
+    expect((await del("gemma4:e2b")).status).toBe(403);
+    expect((await del("clef-flash:latest")).status).toBe(403);
+    expect(calls.some(c => c.method === "DELETE")).toBe(false);
   });
 });

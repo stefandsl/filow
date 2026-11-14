@@ -6,7 +6,7 @@
 // fits is the model's own guess used, moved onto the nearest element when it fell just beside one.
 // The list never leaves this PC: it is used here, after the answer, and is not part of any prompt.
 
-import { GRID } from "./prompt";
+import { GRID, normalizePointBoxes } from "./prompt";
 
 /** One thing on screen: its accessible name and its rectangle on the 0-1000 grid of screen `screen` (1-based). */
 export type ScreenElement = { name: string; screen: number; x1: number; y1: number; x2: number; y2: number; type?: string };
@@ -242,7 +242,7 @@ export function pickedIndex(reply: string, count: number): number | null {
 }
 
 const NUM = String.raw`\s*(-?\d+(?:\.\d+)?)\s*`;
-const TAIL = String.raw`(?::([^[\]]*?))?(?::\s*screen\s*(\d+))?\s*\]`;
+const TAIL = String.raw`(?::((?!\s*screen\s*\d+\s*\])[^[\]]*?))?(?::\s*screen\s*(\d+))?\s*\]`;
 const PLACE_TAG = new RegExp(String.raw`\[(?:(POINT):${NUM},${NUM}|(CIRCLE):${NUM},${NUM},${NUM}|(BOX):${NUM},${NUM},${NUM},${NUM})${TAIL}`, "gi");
 const NAMES = ["POINT", "CIRCLE", "BOX"];
 /** "[", "[BO", "[CIRCLE:12,3": one of these tags that may still be on its way at the end of a piece. */
@@ -257,6 +257,7 @@ const r1 = (v: number) => String(Math.round(v));
 
 /** One finished answer (or piece of one): its POINT, CIRCLE and BOX tags put where the things really are. */
 export function placeTags(text: string, elements: ScreenElement[], opts: { points?: boolean } = {}): string {
+  text = normalizePointBoxes(text);
   if (!elements.length) return text;
   return text.replace(PLACE_TAG, (tag, point, px, py, circle, cx, cy, cr, _box, x1, y1, x2, y2, label: string | undefined, screen: string | undefined) => {
     const name = (label ?? "").trim();

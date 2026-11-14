@@ -72,3 +72,5 @@ it("dates local board look/edit instructions", async () => {
   }));
   await localJson("qa", "Inspect the board.", "q", {}, { timeoutMs: 1000 });
 });
+// Version rejection is covered with real HTTP fakes in ollama-runtime.test.ts.
+vi.mock("@/../desktop/ollama-runtime", async (original) => ({ ...await original<object>(), checkRuntime: async () => ({ state: "ready" }) }));

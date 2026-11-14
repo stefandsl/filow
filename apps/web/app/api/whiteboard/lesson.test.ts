@@ -1046,3 +1046,5 @@ describe("whiteboard formulas are checked by the real parser", () => {
     expect(texOk("\\frac{1}{")).toBe(false);
   });
 });
+// Version rejection is covered with real HTTP fakes in ollama-runtime.test.ts.
+vi.mock("@/../desktop/ollama-runtime", async (original) => ({ ...await original<object>(), checkRuntime: async () => ({ state: "ready" }) }));

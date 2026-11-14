@@ -49,6 +49,38 @@ Live Stripe keys are rejected unless `FILOW_LIVE_BILLING=1`. Turn this on only a
 
 ## Scope
 
+### Sign-in abuse controls
+
+These positive integer settings apply to the single serving process and its persistent SQLite database. Defaults preserve ordinary sign-in use; no billing or provider setting is enabled.
+
+| Setting | Default | Meaning |
+|---|---:|---|
+| `FILOW_AUTH_ADDRESS_HOUR` | 20 | Code-send requests per client address per hour |
+| `FILOW_AUTH_EMAIL_QUARTER` | 3 | Code-send requests per normalized email and path per 15 minutes |
+| `FILOW_AUTH_EMAIL_DAY` | 10 | Code-send requests per normalized email and path per day |
+| `FILOW_AUTH_DEVICE_HOUR` | 10 | Device-code requests per client address per hour |
+| `FILOW_AUTH_DEVICES` | 3 | Active desktop sessions per account |
+
+Code-send limits run before the auth handler. They return HTTP 429 with
+`{error:"sign_in_rate_limited",retryAfter:<seconds>}` and a `Retry-After` header.
+Buckets use keyed HMAC identifiers, expire after their window, and have a 100,000-key
+ceiling. No clear email or address is kept in these buckets. The existing database
+auth limiter and five-attempt OTP verification rule remain in place.
+
+Desktop token grants are serialized and recorded in `filowDesktopSession`. A full
+account receives HTTP 409 `{error:"device_limit_reached",limit:3}`; no other device
+is signed out. Expired and revoked sessions stop counting. Browser sign-in sessions
+do not consume desktop slots. Previously issued, unclassified sessions are preserved;
+this is not a retroactive inventory of devices issued by an older service.
+Do not run multiple serving processes against this database: the grant mutex is
+process-local. Multi-instance admission requires a transactional shared grant flow.
+
+Auth SDK diagnostics and caught handler failures emit only the fixed
+`account_handler_error` event through the injectable logger. No request, response,
+exception message, email, token or code is passed to it. Tests exercise the handlers
+with a capturing logger, fake mail failures and canaries. This does not audit a deployed
+reverse proxy, SMTP infrastructure, system logs or crash dumps.
+
 This implements identity, billing and account/plan display. It does **not** sell or enforce metered cloud AI usage yet. Any future hosted inference endpoint must verify the session, entitlement and usage quota on the server; never trust a desktop `plan` value. Existing local features stay available without login.
 
 The desktop and browser screens use Filo's shared five-language dictionary. The intro video is an original, silent, captioned 18-second guide; its transcript is localized. Rebuild it with `node scripts/make-intro.mjs` from the repository root (requires ffmpeg). No competitor media is included.

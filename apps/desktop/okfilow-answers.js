@@ -1,5 +1,5 @@
-// OK Filow answer log: one folder per answer with the question, the raw model text, the parsed
-// visuals and the screenshot the model saw. Local disk only.
+// OK Filow answer log: one folder per answer with the question, the raw answer stream (including
+// app-word provenance), parsed visuals and the screenshot the model saw. Local disk only.
 const fs = require("node:fs");
 const path = require("node:path");
 

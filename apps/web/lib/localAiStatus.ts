@@ -2,6 +2,7 @@
 // localai.js reports a state and, on failure, a code; the words are chosen here, in the user's language).
 import type { I18nKey } from "@filow/core";
 import type { LocalAiStatus } from "@/lib/sessionUrl";
+import { MIN_OLLAMA_VERSION } from "../../desktop/ollama-runtime";
 
 type Translate = (key: I18nKey, vars?: Record<string, string | number>) => string;
 
@@ -19,6 +20,7 @@ const known = (code: string | undefined): code is (typeof LOCAL_AI_ERROR_CODES)[
  * as it is; a code this page does not know gets the general sentence, never the raw English reason.
  */
 export function localAiText(s: LocalAiStatus, t: Translate): string {
+  if (s.code === "runtime_old") return t("local.runtimeOld", { v: MIN_OLLAMA_VERSION });
   if (s.state === "idle") return "";
   if (s.state !== "error") return t(`settings.ai.${s.state}`, { pct: s.pct, v: s.version });
   if (!s.code) return s.error || t("settings.ai.err.unexpected");
@@ -27,6 +29,7 @@ export function localAiText(s: LocalAiStatus, t: Translate): string {
 
 /** Whether "Report a problem" belongs next to the failure. */
 export function localAiNeedsReport(s: LocalAiStatus | null): boolean {
+  if (s?.code === "runtime_old") return false;
   return Boolean(s && s.state === "error" && s.code && (NEEDS_REPORT.has(s.code) || !known(s.code)));
 }
 

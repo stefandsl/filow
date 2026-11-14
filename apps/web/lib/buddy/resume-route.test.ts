@@ -110,3 +110,5 @@ describe("Resume after Stop on the request", () => {
     expect(res.headers.get("X-Buddy-Lang")).toBe("it");
   });
 });
+// Version rejection is covered with real HTTP fakes in ollama-runtime.test.ts.
+vi.mock("@/../desktop/ollama-runtime", async (original) => ({ ...await original<object>(), checkRuntime: async () => ({ state: "ready" }) }));

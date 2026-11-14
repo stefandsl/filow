@@ -1,5 +1,50 @@
 # Filow hand-off
 
+## Pointer-only hardening rework (2026-11-14, unreleased)
+
+Supersedes item 1 and its 59 retry/failure outcome in the historical section below.
+Local commits ef7e0c8 and 08c3ec8 accept valid pointer-only answers, salvage
+two-coordinate BOX tags and provide EN/IT/RU/RO/JA app-built words with provenance.
+Retry now requires no words and no valid mark. No online prompt changes.
+
+Six prompt conditions were measured on 60 warm questions plus 40 pointing screens
+each. Compact-exact alone passed all gates and is adopted only for English,
+single-screen, known-target local lfm3-vl questions. Final 60: 60 model-written
+answers, zero truly empty, retries or failure messages. Core-fix-only run: 60
+app-built answers, zero retries/failures. 3,291 tests pass, 7 skip; typecheck/lint
+pass; 26/26 mutations caught and restored; 10 hidden language/theme QA cases pass.
+One unrelated download timing failure passed an unchanged full rerun.
+
+Evidence, prompt tables, scope and timing limitations:
+`docs/design/paid/HARDENING-2026-11-14.md`. Native microphone/audio/overlay, GPU,
+non-English prompt performance and paid routes are not measured. No merge, push,
+tag, installed profile, real microphone or paid API. Tool-modified AGENTS.md stays
+out of commits. Item 4 native uninstall cleanup remains pending as below.
+
+## Decision-independent hardening (2026-11-14, unreleased)
+
+`feat-hardening` adds local empty-answer retry with five-language fallback,
+persistent account sign-in limits and a desktop device cap, runtime version
+checks, and provenance-based model deletion. No paid-path choice or activation.
+Four local commits only; no merge, push or tag. Evidence and exact limitations:
+`docs/design/paid/HARDENING-2026-11-14.md`.
+
+Validation: npm ci, 3,237 passing tests (6 skips, including opt-in measurement),
+typecheck and lint pass. 12/12 removed-protection mutations caught and restored.
+120 real-model warm questions: completely empty display 4/60 before, 0/60 after;
+words-free model replies remain 59/60 in both phases, with 59 retry/fallbacks after.
+Reproduction: a malformed two-coordinate BOX is dropped by the parser; historical
+raw response bytes were not saved. Hidden string QA passes five languages and
+both themes, with ten screenshots; native/panel flow acceptance remains unverified.
+
+Pending: item 4's native runtime/model uninstall cleanup offer is incomplete.
+The existing native uninstaller preserves everything; ownership records and
+Settings model deletion are implemented, runtime removal is not automated.
+Authoritative running executable/store identity and shared-use detection are
+absent from Ollama's API. Also unverified: deployed logging/auth, old binary with
+modern model formats, native translations, cross-platform clean-VM F1 acceptance.
+No installed profile, owner Ollama, real microphone, desktop input or paid API used.
+
 ## Safe preparation worktree (2026-11-14, unreleased)
 
 `feat-safe-prep`, based on `771ddf1`, implements four owner-independent items:
