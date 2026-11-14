@@ -12,6 +12,8 @@ import { planFlight, flightPoint, arrivalPhase, type FlightPlan } from "@/lib/bu
 import { drawingStarts } from "@/lib/buddy/marks-sync";
 import { MarksLayer, type MarkSet } from "@/components/okfilow/marks-layer";
 import { CardsLayer } from "@/components/okfilow/cards-layer";
+import { MediaLayer } from "@/components/okfilow/media-layer";
+import { cleanShow, type MediaShow } from "@/lib/buddy/media";
 import type { Rect } from "@/lib/buddy/marks";
 import { keyLabel, PILL_IDLE, pillView, statusRoom, talkHeld, type PillAction, type PillState } from "@/lib/buddy/pill";
 import { AnswerBubble, answerInBubble, markMore } from "@/components/okfilow/bubble";
@@ -89,6 +91,8 @@ export default function OkFilowOverlay() {
   const [leaving, setLeaving] = useState<MarkSet | null>(null);
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [cards, setCards] = useState<OkFilowCard[]>([]);
+  // Pictures, animations, videos and the slide (lib/buddy/media.ts): until Stop, Escape, Clear or the next question.
+  const [media, setMedia] = useState<MediaShow | null>(null);
   // Highlighter: while the talk chord is held the overlay takes the mouse; a drag marks the screen.
   const [ink, setInk] = useState<Array<Array<[number, number]>>>([]);
   const live = useRef<Array<[number, number]> | null>(null);
@@ -133,7 +137,9 @@ export default function OkFilowOverlay() {
         if (s.mode === "listening" || s.mode === "thinking" || s.stopped === true) reopen();
         if (s.mode === "listening" || s.mode === "thinking") setSpoken(-1);
         if (s.stopped === true) {
-          // Stop: the pointer flies nowhere else, and the marks not yet begun are not drawn (the ones on screen stay).
+          // Stop: playback ends at once (pictures and videos go); the pointer flies nowhere else, and the
+          // marks not yet begun are not drawn (the ones on screen stay).
+          setMedia(null);
           queue.current = [];
           flight.current = null;
           setLabel("");
@@ -184,9 +190,11 @@ export default function OkFilowOverlay() {
         setMarks(value);
       }),
       b.onCards((list) => setCards(Array.isArray(list) ? list.slice(0, 2) : [])),
+      b.onMedia?.((m) => setMedia(cleanShow(m))) ?? (() => {}),
       b.onClear(() => {
         setCards([]);
         leave();
+        setMedia(null);
         setMarks((m) => (m.list.length ? { id: m.id + 1, list: [] } : m));
         queue.current = [];
         flight.current = null;
@@ -303,6 +311,15 @@ export default function OkFilowOverlay() {
     if (holds.current.shown) add(bubble.current?.getBoundingClientRect());
     return out;
   }, []);
+  /** Pictures and the slide keep off what cards keep off, and off the cards too. */
+  const mediaAvoid = useCallback(() => {
+    const out = cardAvoid();
+    document.querySelectorAll(".okf-cards:not(.okf-cards--leaving):not(.okf-cards--measuring) .okf-card").forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) out.push({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+    });
+    return out;
+  }, [cardAvoid]);
   const markSets = useMemo(() => (leaving ? [leaving, marks] : [marks]), [leaving, marks]);
 
   // Pause: the pointer's flight and the pen stand still; Resume: they carry on from the same spot.
@@ -388,6 +405,8 @@ export default function OkFilowOverlay() {
         {label && <span ref={labelEl} className="okf-label">{label}</span>}
       </div>
     </div>
+    {/* Outside the hidden overlay: their play, pause and close buttons are real buttons with names. */}
+    <MediaLayer show={media} avoid={mediaAvoid} t={t} />
     {/* The bubble is outside the hidden overlay too: its close button is a real button with a name. */}
     <AnswerBubble mode={mode} text={text} stopped={stopped && !closed} shown={bubbleShown} level={level} spoken={spoken} t={t} onClose={() => okFilowBridge()?.closeBubble?.()} bubbleRef={bubble} textRef={textBox} />
     {/* The pill is outside the hidden overlay: its controls are real buttons with names. The window never takes the

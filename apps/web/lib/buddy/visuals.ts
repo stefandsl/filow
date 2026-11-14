@@ -1,6 +1,7 @@
 // OK Filow visuals beyond pen marks (docs/OKFILOW-GAUNTLET.md row 16, HeyClicky 1.1.1 "draws in 2D
 // and 3D"): explanation cards with a real photo, and 3D models of real things the user can turn
 // and click. The model writes them as tags; everything here validates what it wrote.
+import { extractMedia, MEDIA_PROMPT, type BuddySlide, type MediaAsk } from "./media";
 
 /** An explanation card placed next to a spot on screen (0-1000 grid). */
 export type BuddyCard = { x: number; y: number; title: string; text: string; photo: string; screen: number; svg?: string };
@@ -65,6 +66,7 @@ export const VISUALS_PROMPT = [
   "",
   "When a picture explains better than words, you can also show:",
   "[CARD:x,y:Title|one or two sentences|photo subject] a small card next to x,y with a real photo of the photo subject (an English Wikipedia title like Piston or Mitochondrion; leave it empty for no photo). At most two cards.",
+  MEDIA_PROMPT,
   DRAW_PROMPT,
 ].join("\n");
 
@@ -273,8 +275,9 @@ export function validateModel(raw: unknown): BuddyModel | null {
  * Takes cards, a 3D model and a 2D drawing out of an answer. An unfinished block at the end of a
  * streamed answer is held back so its JSON never shows in the bubble.
  */
-export function extractVisuals(raw: string, validScreen: (n: number) => boolean, defaultScreen = 1): { body: string; cards: BuddyCard[]; model: BuddyModel | null; drawing: BuddyDrawing | null } {
-  const m3 = takeBlock(raw, "model3d", validateModel);
+export function extractVisuals(raw: string, validScreen: (n: number) => boolean, defaultScreen = 1): { body: string; cards: BuddyCard[]; model: BuddyModel | null; drawing: BuddyDrawing | null; media: MediaAsk[]; slide: BuddySlide | null } {
+  const shown = extractMedia(raw);
+  const m3 = takeBlock(shown.body, "model3d", validateModel);
   const d2 = takeBlock(m3.body, "drawing2d", validateDrawing);
   // A fence that has only just started ("``", "```mod", "```draw") is held back too.
   let body = d2.body.replace(/`{1,3}\s*([a-z0-9]*)\s*$/i, (t, w: string) => ("model3d".startsWith(w.toLowerCase()) || "drawing2d".startsWith(w.toLowerCase()) ? "" : t));
@@ -288,5 +291,5 @@ export function extractVisuals(raw: string, validScreen: (n: number) => boolean,
     }
     return "";
   });
-  return { body, cards, model: m3.value, drawing: d2.value };
+  return { body, cards, model: m3.value, drawing: d2.value, media: shown.media, slide: shown.slide };
 }

@@ -130,8 +130,8 @@ export function askPlan(source: AskSource, opts: { typed?: boolean; typedVoice?:
 }
 
 /** A parsed answer with its words only: what a phone's question may show (askPlan `visuals`). */
-export function wordsOnly<T extends { points: unknown[]; marks: unknown[]; cards: unknown[]; model: unknown; drawing: unknown }>(parsed: T): T {
-  return { ...parsed, points: [], marks: [], cards: [], model: null, drawing: null };
+export function wordsOnly<T extends { points: unknown[]; marks: unknown[]; cards: unknown[]; model: unknown; drawing: unknown; media?: unknown[]; slide?: unknown }>(parsed: T): T {
+  return { ...parsed, points: [], marks: [], cards: [], model: null, drawing: null, media: [], slide: null };
 }
 
 /** The question as the model receives it: a phone's is a quote from someone else. */

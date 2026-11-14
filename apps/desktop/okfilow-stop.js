@@ -21,10 +21,12 @@ const pillLive = (mode, pill) => answering(mode) || mode === "listening" || Bool
  * What an overlay window does with the mouse. The overlays are click-through, except: while the
  * talk keys are held (`caught`: a drag marks the screen), and while the pointer is on a control of
  * the pill (`hover`: the overlay page says so from the pointer position main sends it; mouse events
- * forwarded by Electron made the window flap between the two states and lose the click).
+ * forwarded by Electron made the window flap between the two states and lose the click), and while
+ * the real cursor is on a picture or the slide (`media`: main checks it against the rectangles the
+ * overlay reports, okfilow-hit.js). Everywhere else clicks go through.
  */
-function overlayMouse({ caught, hover, mode, pill, bubble }) {
-  return { ignore: !(caught || (hover && overlayLive(mode, pill, bubble))) };
+function overlayMouse({ caught, hover, media, mode, pill, bubble }) {
+  return { ignore: !(caught || media === true || (hover && overlayLive(mode, pill, bubble))) };
 }
 
 /**

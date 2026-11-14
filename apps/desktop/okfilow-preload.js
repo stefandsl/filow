@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld("okFilow", {
   overlayReady: () => ipcRenderer.send("okfilow:overlay:ready"),
   modelHover: (active) => ipcRenderer.send("okfilow:model:hover", active),
   modelRects: (rects) => ipcRenderer.send("okfilow:model:rects", rects),
+  media: (show) => ipcRenderer.send("okfilow:media", show),
+  overlayRects: (rects) => ipcRenderer.send("okfilow:overlay:rects", rects),
   closeModel: () => ipcRenderer.send("okfilow:model:close"),
   askAbout: (text) => ipcRenderer.send("okfilow:askAbout", text),
   showWhiteboard: (topic) => ipcRenderer.send("okfilow:whiteboard:show", String(topic || "")),
@@ -98,6 +100,7 @@ contextBridge.exposeInMainWorld("okFilow", {
   onDraw: on("okfilow:draw"),
   onClear: on("okfilow:clear"),
   onCards: on("okfilow:cards"),
+  onMedia: on("okfilow:media"),
   onModel: on("okfilow:model"),
   onAskText: on("okfilow:askText"),
   /** How many paired phones' questions wait in the inbox (0 during a slide show): the badge, never their text. */

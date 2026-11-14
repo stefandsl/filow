@@ -18,7 +18,8 @@ const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agen
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
 const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOverlays, pointsShowMs, answering, overlayMouse, seeChoice, wordsOnlyList, pillState, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
-const { createHitTarget, localPoint } = require("./okfilow-hit");
+const { createHitTarget, insideAny, cleanRects, localPoint } = require("./okfilow-hit");
+const { cleanShow, showFor } = require("./okfilow-media");
 const { createPractice } = require("./tour");
 const { overlayRects } = require("./okfilow-rects");
 const { modelBounds } = require("./okfilow-model-place");
@@ -477,6 +478,28 @@ function createOkFilow(deps) {
     }
     qaShot("cards", 3500);
   });
+  /** Pictures and the slide (okfilow-media.js): to the overlay of the display the answer is about; null takes them away. */
+  ipcMain.on("okfilow:media", (e, raw) => {
+    if (!ourSender(e)) return;
+    const show = cleanShow(raw);
+    mediaUp = Boolean(show);
+    if (show) showOverlays();
+    for (const w of overlays.values()) {
+      if (w.isDestroyed()) continue;
+      w.webContents.send("okfilow:media", showFor(show, w.getBounds()));
+    }
+    if (show) qaShot("media", 3500);
+    else if (mode === "idle" || mode === "error") scheduleFade();
+  });
+  /** An overlay says where its pictures and slide are: those take clicks under the real cursor, the rest stays click-through. */
+  ipcMain.on("okfilow:overlay:rects", (e, rects) => {
+    if (!ourSender(e)) return;
+    const w = [...overlays.values()].find((x) => !x.isDestroyed() && x.webContents === e.sender);
+    if (!w) return;
+    mediaRects.set(e.sender.id, cleanRects(rects));
+    lastCursor = "";
+    mediaHit(w, localPoint(screen.getCursorScreenPoint(), w.getBounds()));
+  });
 
   // ---- overlays ----
   function buildOverlays() {
@@ -559,8 +582,22 @@ function createOkFilow(deps) {
   }
   /** An answer's cards (a photo, a drawing) stay up until Escape, the panel's Clear or the next question. */
   let cardsUp = false;
-  /** Something of an answer is kept on screen: its cards, or its marks while they last (answerMarks above). */
-  const pinned = () => cardsUp || answerMarks.up();
+  /** An answer's pictures or slide are on screen (until Stop, Escape, Clear, their close buttons or the next question). */
+  let mediaUp = false;
+  /** Where each overlay's pictures and slide are (webContents id -> rects), and whether the cursor is on one now. */
+  const mediaRects = new Map();
+  const mediaOn = new Set();
+  /** Something of an answer is kept on screen: its cards, pictures, or its marks while they last (answerMarks above). */
+  const pinned = () => cardsUp || mediaUp || answerMarks.up();
+  /** The real cursor (overlay coordinates, or null) over this overlay's pictures takes the mouse there (okfilow-hit.js). */
+  function mediaHit(w, p) {
+    const id = w.webContents.id;
+    const on = insideAny(p, mediaRects.get(id) ?? []);
+    if (on === mediaOn.has(id)) return;
+    if (on) mediaOn.add(id);
+    else mediaOn.delete(id);
+    applyMouse(w);
+  }
   /** The pointer is still visiting the things an answer points at until then (okfilow-stop.js pointsShowMs). */
   let pointUntil = 0;
   /**
@@ -589,7 +626,9 @@ function createOkFilow(deps) {
       for (const [id, w] of overlays) {
         if (w.isDestroyed()) continue;
         const b = w.getBounds();
-        w.webContents.send("okfilow:cursor", id === d.id ? { x: p.x - b.x, y: p.y - b.y } : null);
+        const local = id === d.id ? { x: p.x - b.x, y: p.y - b.y } : null;
+        w.webContents.send("okfilow:cursor", local);
+        mediaHit(w, local);
       }
     }, 16);
   }
@@ -779,6 +818,7 @@ function createOkFilow(deps) {
     practiceState.clear();
     if (!pinned() && pointUntil <= Date.now()) return;
     cardsUp = false;
+    mediaUp = false;
     answerMarks.forget();
     pointUntil = 0;
     sendOverlays("okfilow:clear", null);
@@ -888,7 +928,7 @@ function createOkFilow(deps) {
   function applyMouse(w) {
     if (!w || w.isDestroyed()) return;
     const id = w.webContents.id;
-    const m = overlayMouse({ caught: mouseCaught, hover: stopHover.has(id), mode, pill, bubble: bubble.open() });
+    const m = overlayMouse({ caught: mouseCaught, hover: stopHover.has(id), media: mediaOn.has(id), mode, pill, bubble: bubble.open() });
     w.setIgnoreMouseEvents(m.ignore);
     // Test builds log every change, so an end-to-end run can tell whether Windows would deliver a click.
     if (QA_SHOTS && mouseWas.get(id) !== m.ignore) logLine(`okfilow qa overlay ${id} mouse ${m.ignore ? "click-through" : "takes clicks"} (mode ${mode}, hover ${stopHover.has(id)}, caught ${mouseCaught})`);
@@ -902,6 +942,8 @@ function createOkFilow(deps) {
     if (!answering(mode)) return false;
     stopAt = Date.now();
     logLine(`okfilow: answer stopped by the user (${source})`);
+    // Pictures and videos go at once (no round trip through the panel): playback ends now.
+    if (mediaUp) { mediaUp = false; sendOverlays("okfilow:media", null); }
     sendPanel("okfilow:stop", { source });
     return true;
   }

@@ -234,6 +234,11 @@ const en = {
   // A photo was asked for (lib/buddy/photo.ts): the card carries it, this is what is said
   photoHere: "Here is {subject}, with a photo from Wikipedia.",
   photoOffline: "Offline mode is on, so no photo can be fetched from Wikipedia. Turn Offline mode off in Settings to see one.",
+  // Pictures, animations and videos on the screen, and the slide (lib/buddy/media.ts)
+  mediaPlay: "Play",
+  mediaOwn: "Your file",
+  slideLabel: "Slide",
+  kept_media: "Kept on this PC. The pictures were not fetched.",
 };
 export type OkfKey = keyof typeof en;
 /** A translation: the same keys as English (text.test.ts checks every language). */

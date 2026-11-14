@@ -223,9 +223,11 @@ describe("m4: a phone's words stay a quote, and its answer stays words", () => {
     expect(words.text).toBe(parsed.text);
     expect(words.text).not.toMatch(/\[POINT/);
     expect(words).toMatchObject({ points: [], marks: [], cards: [], model: null, drawing: null });
-    expect(wordsOnly({ text: "t", points: [1], marks: [2], cards: [3], model: { a: 1 }, drawing: { b: 2 } })).toEqual({ text: "t", points: [], marks: [], cards: [], model: null, drawing: null });
+    expect(wordsOnly({ text: "t", points: [1], marks: [2], cards: [3], model: { a: 1 }, drawing: { b: 2 } })).toEqual({ text: "t", points: [], marks: [], cards: [], model: null, drawing: null, media: [], slide: null });
     const page = read("app", "okfilow", "panel", "page.tsx");
-    expect(page).toContain("const { points, marks, cards, model, drawing } = plan.visuals ? parsed : wordsOnly(parsed);");
+    expect(page).toContain("const { points, marks, cards, model, drawing, media, slide } = plan.visuals ? parsed : wordsOnly(parsed);");
+    // and none of the user's own files named in a phone's words
+    expect(page).toContain("...(plan.visuals ? ownMedia(question) : [])");
     expect(page).toContain("if (!plan.visuals) return; // a phone's question: words only (askPlan)");
     // the only place a 3D model window is opened is fed by that line
     expect(page.match(/b\.showModel\(model\)/g)).toHaveLength(1);

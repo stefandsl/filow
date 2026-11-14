@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireEngine } from "@/lib/engineAuth";
 import { consentDenied, photoRecipient } from "@/lib/buddy/outbound";
 import { parsePhotoLookup } from "@/lib/buddy/photo";
+import { wikimediaRecipient } from "@/lib/buddy/media";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,8 @@ export async function GET(req: Request) {
   if (process.env.FILOW_OFFLINE === "1") return NextResponse.json({ dataUrl: null, reason: "offline" });
   const q = new URL(req.url).searchParams.get("q")?.trim().slice(0, 80) ?? "";
   if (!q) return NextResponse.json({ dataUrl: null });
-  const refused = consentDenied(req, "photo", photoRecipient());
+  // The yes for Wikipedia, or the one for Wikimedia that a gallery with GIFs or videos in it asks for (lib/buddy/media.ts).
+  const refused = consentDenied(req, "photo", wikimediaRecipient()) ? consentDenied(req, "photo", photoRecipient()) : null;
   if (refused) return refused;
   const { wiki, name } = parsePhotoLookup(q);
   if (!name) return NextResponse.json({ dataUrl: null });
@@ -56,7 +58,7 @@ export async function GET(req: Request) {
     if (!img.ok || !/^image\/(jpeg|png|webp|gif)$/.test(type)) return NextResponse.json({ dataUrl: null });
     const buf = Buffer.from(await img.arrayBuffer());
     if (buf.length > MAX_BYTES) return NextResponse.json({ dataUrl: null });
-    return NextResponse.json({ dataUrl: `data:${type};base64,${buf.toString("base64")}` });
+    return NextResponse.json({ dataUrl: `data:${type};base64,${buf.toString("base64")}`, source: wiki === "en" ? "Wikipedia" : `Wikipedia (${wiki})` });
   } catch {
     return NextResponse.json({ dataUrl: null });
   }

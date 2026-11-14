@@ -219,4 +219,8 @@ export const it: Record<OkfKey, string> = {
   keyTaken: "Windows non ha accettato {key}: la usa già un'altra app. Scegline un'altra.",
   photoHere: "Ecco {subject}, con una foto da Wikipedia.",
   photoOffline: "La modalità offline è attiva, quindi non posso prendere una foto da Wikipedia. Disattivala nelle Impostazioni per vederne una.",
+  mediaPlay: "Riproduci",
+  mediaOwn: "Il tuo file",
+  slideLabel: "Diapositiva",
+  kept_media: "Resta su questo PC. Le immagini non sono state prese.",
 };

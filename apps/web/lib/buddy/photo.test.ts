@@ -144,7 +144,7 @@ describe("the routes", () => {
       throw new Error(`unexpected ${url}`);
     });
     const res = await photo(get("it/cuore"));
-    expect(await res.json()).toEqual({ dataUrl: "data:image/jpeg;base64,AQID" });
+    expect(await res.json()).toEqual({ dataUrl: "data:image/jpeg;base64,AQID", source: "Wikipedia (it)" });
     expect(net.mock.calls.map((c) => String(c[0]))).toEqual(["https://it.wikipedia.org/api/rest_v1/page/summary/cuore?redirect=true", "https://upload.wikimedia.org/x/330px-Cuore.jpg"]);
   });
   it("when no page has that title it takes the first page Wikipedia's search finds, and sends only the subject", async () => {
@@ -155,7 +155,7 @@ describe("the routes", () => {
       throw new Error(`unexpected ${url}`);
     });
     const res = await photo(get("ru/сердца"));
-    expect(await res.json()).toEqual({ dataUrl: "data:image/png;base64,AQID" });
+    expect(await res.json()).toEqual({ dataUrl: "data:image/png;base64,AQID", source: "Wikipedia (ru)" });
     // every address asked is Wikipedia's or Wikimedia's
     for (const call of net.mock.calls) expect(String(call[0])).toMatch(/^https:\/\/(ru\.wikipedia\.org|upload\.wikimedia\.org)\//);
   });

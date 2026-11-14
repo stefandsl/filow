@@ -2,6 +2,7 @@
 import type { ConsentChanges, ConsentMap, OutboundKind, OutboundSnapshot, Recipient } from "./outbound";
 import type { BuddyMark } from "./prompt";
 import type { BuddyModel } from "./visuals";
+import type { MediaShow } from "./media";
 import type { PillAction, PillState } from "./pill";
 
 /** A card in global DIP coordinates, with its photo already fetched (data URL or ""). */
@@ -168,6 +169,11 @@ export type OkFilowBridge = {
   stroke(points: Array<[number, number]>): void;
   /** Panel -> overlays: explanation cards (global DIP). */
   cards(list: OkFilowCard[]): void;
+  /** Panel -> overlays: pictures, animations, videos and the slide (lib/buddy/media.ts), global DIP; null takes them away. Absent in an older desktop build. */
+  media?(show: MediaShow | null): void;
+  onMedia?(fn: (show: MediaShow | null) => void): Off;
+  /** Overlay -> main: where its pictures and slide are (overlay CSS px); main lets clicks through everywhere else (apps/desktop/okfilow-hit.js). */
+  overlayRects?(rects: Array<{ left: number; top: number; right: number; bottom: number }>): void;
   /** Panel -> main: open the 3D model window with this model. */
   showModel(model: BuddyModel): void;
   /** Model window -> main: loaded, send me the model. */

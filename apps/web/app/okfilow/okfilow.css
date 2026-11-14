@@ -306,6 +306,42 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
 .okf-cards--leaving .okf-card { visibility: visible; animation: none; }
 .okf-cards--leaving .okf-card-leader line { stroke-dashoffset: 0; animation: none; }
 
+/* Pictures, animations, videos and the slide (components/okfilow/media-layer.tsx): opaque, in the cards'
+   style, dark and light. Only they take the mouse (main checks the real cursor against their boxes). */
+.okf-media { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
+.okf-media-tile, .okf-slide {
+  position: absolute; box-sizing: border-box; margin: 0; overflow: hidden; border-radius: 14px; pointer-events: auto;
+  background: rgb(20, 21, 24); color: #ececef; font: 14px/1.4 system-ui, sans-serif;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--okf-ink) 55%, rgb(20, 21, 24)), 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.okf-media-tile { display: flex; flex-direction: column; }
+.okf-media-box { position: relative; flex: 1; min-height: 0; background: #0b0c0e; }
+.okf-media-box img, .okf-media-box video, .okf-media-box canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+.okf-media-tile figcaption, .okf-slide figcaption { flex: none; padding: 6px 10px 7px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.okf-media-tile figcaption span, .okf-slide figcaption span { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.okf-media-tile figcaption small, .okf-slide figcaption small { font-size: 11.5px; color: #b4b7bf; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.okf-media-tools { position: absolute; top: 6px; right: 6px; display: flex; gap: 6px; }
+.okf-media-btn {
+  display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 999px; cursor: pointer;
+  background: rgba(8, 9, 11, 0.82); color: #fff; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+.okf-media-btn:hover { background: #000; box-shadow: 0 0 0 2px var(--okf-ink); }
+.okf-media-btn:focus-visible { outline: 2px solid var(--okf-ink); outline-offset: 2px; }
+.okf-slide { padding: 20px 24px 22px; }
+.okf-slide--measuring { visibility: hidden; }
+.okf-slide h2 { margin: 0 36px 10px 0; font: 700 22px/1.25 system-ui, sans-serif; color: var(--okf-ink); }
+.okf-slide ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 16px; line-height: 1.4; }
+.okf-slide-x { position: absolute; top: 12px; right: 12px; }
+.okf-slide-media { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); gap: 10px; margin-top: 14px; }
+.okf-slide-media[data-count="1"] { --n: 1; }
+.okf-slide-media[data-count="2"] { --n: 2; }
+.okf-slide-media figure { margin: 0; border-radius: 10px; overflow: hidden; background: #0b0c0e; display: flex; flex-direction: column; }
+.okf-slide-media .okf-media-box { flex: none; height: 140px; }
+html[data-theme="light"] .okf-media-tile, html[data-theme="light"] .okf-slide { background: #ffffff; color: #18191c; box-shadow: 0 0 0 1px #8a8c92, 0 10px 30px rgba(0, 0, 0, 0.22); }
+html[data-theme="light"] .okf-media-box, html[data-theme="light"] .okf-slide-media figure { background: #e8eaee; }
+html[data-theme="light"] .okf-media-tile figcaption small, html[data-theme="light"] .okf-slide figcaption small { color: #4a4d55; }
+html[data-theme="light"] .okf-slide h2 { color: #18191c; }
+
 /* Going outside: the notice, the pill and the list of choices are in outbound.css (shared with the
    take page, the PowerPoint add-in and the browser extension). */
 

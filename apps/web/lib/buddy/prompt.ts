@@ -5,6 +5,7 @@
 import { PHONE_QUOTE_RULE } from "@filow/core";
 import { BUDDY_LANG_NAMES, buddyLang } from "./lang";
 import { DRAW_PROMPT, extractVisuals, VISUALS_PROMPT, type BuddyCard, type BuddyModel, type BuddyDrawing } from "./visuals";
+import { MEDIA_PROMPT, type BuddySlide, type MediaAsk } from "./media";
 export type { BuddyCard, BuddyModel, BuddyDrawing } from "./visuals";
 
 export type BuddyScreen = {
@@ -94,6 +95,8 @@ function buddySystemPromptBase(screens: BuddyScreen[], language: string, opts: {
       "Never write tags in square brackets such as [POINT], [BOX] or [CARD]: you cannot see where things are.",
       // Drawing needs no screenshot: without this the model was never told it can draw, and said it cannot.
       DRAW_PROMPT,
+      // Neither do pictures from the web and slides.
+      MEDIA_PROMPT,
     ].join("\n");
   }
   const list = screens
@@ -150,7 +153,7 @@ export function normalizePointBoxes(raw: string): string {
 const NUM = String.raw`\s*(-?\d+(?:\.\d+)?)\s*`;
 const MARK_RE = new RegExp(String.raw`\[(CIRCLE|ARROW|BOX|UNDERLINE):${NUM},${NUM}(?:,${NUM})?(?:,${NUM})?(?::((?!\s*screen\s*\d+\s*\])[^[\]]*?))?(?::\s*screen\s*(\d+))?\s*\]`, "gi");
 const ARITY: Record<string, number> = { CIRCLE: 3, ARROW: 4, BOX: 4, UNDERLINE: 3 };
-const TAGS = ["POINT", "CIRCLE", "ARROW", "BOX", "UNDERLINE", "CARD", "APP_WORDS"];
+const TAGS = ["POINT", "CIRCLE", "ARROW", "BOX", "UNDERLINE", "CARD", "MEDIA", "SLIDE", "APP_WORDS"];
 /** True for an unfinished tag at the end of a streamed answer ("[CIR", "[BOX:10,2"). */
 function isTagPrefix(tail: string): boolean {
   const m = /^\[([A-Z_]*)(:[^\]]*)?$/i.exec(tail);
@@ -162,16 +165,16 @@ function isTagPrefix(tail: string): boolean {
 // Labels may contain ":" ("Photosynthesis: light reactions"); only "[" and "]" end them.
 const POINT_RE = /\[POINT:\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*(?::((?!\s*screen\s*\d+\s*\])[^[\]]*?))?(?::\s*screen\s*(\d+))?\s*\]/gi;
 /** A tag the model never closed: cut before the next tag starts, so it cannot swallow that tag. */
-const UNCLOSED_TAG_RE = /\[(?:POINT|CIRCLE|ARROW|BOX|UNDERLINE|CARD)\b[^[\]]*(?=\[)/gi;
+const UNCLOSED_TAG_RE = /\[(?:POINT|CIRCLE|ARROW|BOX|UNDERLINE|CARD|MEDIA|SLIDE)\b[^[\]]*(?=\[)/gi;
 /** A closed tag that did not parse (wrong arity, junk inside): never shown. */
-const BROKEN_TAG_RE = /\[(?:POINT|CIRCLE|ARROW|BOX|UNDERLINE|CARD)\b[^[\]]*\]/gi;
+const BROKEN_TAG_RE = /\[(?:POINT|CIRCLE|ARROW|BOX|UNDERLINE|CARD|MEDIA|SLIDE)\b[^[\]]*\]/gi;
 
 /**
  * Splits a (complete or partial) answer into the text to show and speak, and the points.
  * A trailing unfinished tag ("[POINT:12,3") is held back so it never flashes in the bubble.
  * Points whose screen is unknown fall back to `defaultScreen`; ones outside the image are dropped.
  */
-export function parseBuddyAnswer(raw: string, screens: BuddyScreen[], defaultScreen = 1): { text: string; points: BuddyPoint[]; marks: BuddyMark[]; cards: BuddyCard[]; model: BuddyModel | null; drawing: BuddyDrawing | null; appWordsLanguage?: string } {
+export function parseBuddyAnswer(raw: string, screens: BuddyScreen[], defaultScreen = 1): { text: string; points: BuddyPoint[]; marks: BuddyMark[]; cards: BuddyCard[]; model: BuddyModel | null; drawing: BuddyDrawing | null; media: MediaAsk[]; slide: BuddySlide | null; appWordsLanguage?: string } {
   const visuals = extractVisuals(raw, (n) => screens.some((s) => s.index === n), defaultScreen);
   let body = normalizePointBoxes(visuals.body);
   let appWordsLanguage: string | undefined;
@@ -211,7 +214,7 @@ export function parseBuddyAnswer(raw: string, screens: BuddyScreen[], defaultScr
     .replace(/^[ \t]*You\s*:[ \t]*/gm, "")
     .replace(/\n{2,}/g, "\n")
     .trim();
-  return { text, points, marks: marks.slice(0, 4), cards: visuals.cards, model: visuals.model, drawing: visuals.drawing, ...(appWordsLanguage ? { appWordsLanguage } : {}) };
+  return { text, points, marks: marks.slice(0, 4), cards: visuals.cards, model: visuals.model, drawing: visuals.drawing, media: visuals.media, slide: visuals.slide, ...(appWordsLanguage ? { appWordsLanguage } : {}) };
 }
 
 export type DisplayRect = { x: number; y: number; width: number; height: number };
