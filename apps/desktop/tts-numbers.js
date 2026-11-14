@@ -152,6 +152,8 @@ function normalizeNumbers(text, lang) {
   };
   s = s.replace(new RegExp(`([€$£₽¥])\\s*(${amount})`, 'g'), (_,c,n)=>hold(money(n,c)));
   s = s.replace(new RegExp(`(${amount})\\s*(EUR|USD|GBP|RUB|RON|JPY|[€$£₽¥])`, 'g'), (_,n,c)=>hold(money(n,c)));
+  // Russian prepositions that take the genitive: около сорока двух, из пяти, для двухсот пятидесяти.
+  if (l === 'ru') s = s.replace(/(?<!\p{L})(около|для|из|без|до|от|после|кроме) (\d+)(?![\d.,:\p{L}]|\s*%)/giu, (_,p,n) => `${p} ${hold(ruGenitive(n))}`);
   // Decades with an apostrophe: "anni '90" is "anni novanta", "anii '90" is "anii nouăzeci".
   s = s.replace(/\b(anni|anii) ?['’](\d0)\b/giu, (_,a,d) => `${a} ${hold(word(d,l))}`);
   // Japanese words have no spaces: a range before 日 or ページ is still a range.
