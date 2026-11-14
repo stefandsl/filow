@@ -51,7 +51,7 @@ Across an Ollama update: snapshot the chosen path/settings, update only with per
 
 ## Captions and clean-VM judge
 
-`scripts/make-intro.mjs` writes an 18-second video and `intro.en.vtt`. A translated transcript is not five subtitle tracks. Proposed: author en/it/ru/ro/ja VTT from the same three timed segments, language-select the track in welcome and tour, retain a readable translated transcript and a skip button. Verify timing, overflow, keyboard, reduced motion, silent playback and language changes. Do not edit product strings or assets in this documents-only task.
+`scripts/make-intro.mjs` now writes five VTT tracks from `scripts/intro-captions.mjs` on `feat-safe-prep` (2026-11-14). English, Italian, Russian, Romanian and Japanese share the same three six-second cues. The welcome video follows the UI language with English fallback; the translated transcript and navigation remain. `/tour` contains a guided practice surface, not a video, so no caption control was added there. All four new translations were authored from English and **need a native-language check**. Hidden QA checked silent video playback, loaded/active captions, language changes and page overflow for all five languages in dark/light. Native-user readability, keyboard-only/narrow/reduced-motion journeys and clean-VM real-answer acceptance remain unverified.
 
 Extend `tools/autoloop/e2e/onboarding.mjs`, which already requires an empty profile, puts temp/profile files on G: and supports `--no-ollama`, `--offline`, prerecorded mic and keyboard checks. Its existing point-tick/accessibility checks are not the whole F1 judge.
 
@@ -65,4 +65,4 @@ Extend `tools/autoloop/e2e/onboarding.mjs`, which already requires an empty prof
 
 ## Differences from the plan
 
-The reusable tour exists, but it does not establish a first real answer. `capabilitiesOf` still needs export; no numeric minimum Ollama version is verified. Catalogue deletion is not ownership-based uninstall. Five caption tracks are not generated. Standard CPU results are real but are an approximation, not proof for 8 GB machines; GPU/lite targets remain proposals. Existing 180/300 s bounds are incompatible with a quick-answer promise. Owner trial/provider choices must precede a final F1 flow.
+The reusable tour exists, but it does not establish a first real answer. `capabilitiesOf` still needs export; no numeric minimum Ollama version is verified. Catalogue deletion is not ownership-based uninstall. Five caption tracks are now generated and language-selected in this worktree; native-language review is pending. Standard CPU results are real but are an approximation, not proof for 8 GB machines; GPU/lite targets remain proposals. Existing 180/300 s bounds are incompatible with a quick-answer promise. Owner trial/provider choices must precede a final F1 flow.

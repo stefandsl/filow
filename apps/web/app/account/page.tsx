@@ -18,10 +18,11 @@ export default function AccountPage() {
   const [code, setCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [checkoutClosed, setCheckoutClosed] = useState(false);
   const active = useRef(true);
   const refresh = useCallback(async () => {
     const result = await desktopBridge()?.account?.status();
-    if (active.current) setProfile(result ?? { configured: false, user: null, plan: "local", billing: false });
+    if (active.current) { setCheckoutClosed(result?.checkout === "billing_not_open"); setProfile(result ?? { configured: false, user: null, plan: "local", billing: false }); }
   }, []);
   useEffect(() => {
     active.current = true;
@@ -56,8 +57,8 @@ export default function AccountPage() {
     <section className="account-card"><p className="account-eyebrow">FILOW</p><h1>{tr("account.title")}</h1><p className="account-intro">{tr("account.intro")}</p>
       {!profile ? <p role="status">{message || "…"}</p> : !profile.configured ? <p className="account-notice">{tr("account.unavailable")}</p> : profile.user ? <>
         <div className="account-profile"><strong>{profile.user.email}</strong><span>{tr(profile.plan === "pro" ? "account.paid" : "account.free")}</span></div>
-        <button className="btn primary" disabled={busy || !profile.billing} onClick={() => void act(async a => { await (profile.plan === "pro" ? a.portal() : a.checkout()); setMessage(tr("account.billingPending")); })}>{tr(profile.plan === "pro" ? "account.manage" : "account.subscribe")}</button>
-        {!profile.billing && <p className="account-notice">{tr("account.unavailable")}</p>}
+        {profile.plan !== "pro" && checkoutClosed ? <p className="account-notice" role="status">{tr("account.billingNotOpen")}</p> : <button className="btn primary" disabled={busy || !profile.billing} onClick={() => void act(async a => { const result = await (profile.plan === "pro" ? a.portal() : a.checkout()); if (result?.state === "billing_not_open") { setCheckoutClosed(true); return; } setMessage(tr("account.billingPending")); })}>{tr(profile.plan === "pro" ? "account.manage" : "account.subscribe")}</button>}
+        {!profile.billing && !checkoutClosed && <p className="account-notice">{tr("account.unavailable")}</p>}
         <div className="account-actions"><button className="btn" disabled={busy} onClick={() => void act(refresh)}>{tr("account.refresh")}</button><button className="btn" disabled={busy} onClick={() => void act(async a => { try { await a.signOut(); } finally { await refresh(); } })}>{tr("account.signOut")}</button></div>
       </> : code ? <div className="account-code"><p>{tr("account.approve")}</p><strong aria-live="polite">{code}</strong><button className="btn" disabled={busy} onClick={() => void act(async a => { await a.cancel(); setCode(null); })}>{tr("account.cancel")}</button></div> : <><p className="account-notice" data-testid="account-outbound">{outboundNotice(profile.service ?? "")}</p><button className="btn primary" disabled={busy} onClick={() => void act(async a => { const result = await a.begin(); if (result && active.current) setCode(result.userCode); })}>{tr("account.signIn")}</button></>}
       <p className="account-message" role="status">{message}</p>

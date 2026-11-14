@@ -7,7 +7,7 @@ export function paidSubscription(subscriptions, now = Date.now()) {
   return subscriptions.find(s => s.plan === 'pro' && ['active','trialing'].includes(s.status)
     && s.periodEnd && new Date(s.periodEnd).getTime() > now) ?? null;
 }
-export function createCloud({ database, origin, secret, sendOTP, stripe, webhookSecret, priceId }) {
+export function createCloud({ database, origin, secret, sendOTP, stripe, webhookSecret, priceId, liveBilling = false }) {
   const billing = Boolean(stripe && webhookSecret && priceId);
   const auth = betterAuth({
     appName: 'Filo', baseURL: origin, secret, database, trustedOrigins: [origin],
@@ -61,6 +61,7 @@ export function createCloud({ database, origin, secret, sendOTP, stripe, webhook
     if (request.method !== (url.pathname === '/v1/me' ? 'GET' : 'POST')) return json({ error: 'method_not_allowed' },405);
     // A browser must come from this service. Desktop requests carry a bearer token and no cookies.
     if (request.headers.get('origin') && request.headers.get('origin') !== origin) return json({ error: 'forbidden' },403);
+    if (url.pathname === '/v1/checkout' && !liveBilling) return json({ error: 'billing_not_open' },503);
     const session = await auth.api.getSession({ headers: request.headers });
     if (!session) return json({ error: 'sign_in_required' },401);
     if (url.pathname === '/v1/me') {
@@ -72,7 +73,7 @@ export function createCloud({ database, origin, secret, sendOTP, stripe, webhook
       }
       const paid = paidSubscription(Array.isArray(subscriptions) ? subscriptions : []);
       return json({ user: { email: session.user.email, name: session.user.name },
-        plan: paid ? 'pro' : 'local', paidUntil: paid?.periodEnd ?? null, billing });
+        plan: paid ? 'pro' : 'local', paidUntil: paid?.periodEnd ?? null, billing, checkout: liveBilling ? (billing ? 'open' : 'unconfigured') : 'billing_not_open' });
     }
     if (!billing) return json({ error: 'billing_not_configured' },503);
     // Only the configured plan, current user's reference, and our return page. Never client prices.

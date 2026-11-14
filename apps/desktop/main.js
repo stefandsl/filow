@@ -587,7 +587,7 @@ function wireScreenSense() {
   });
   appHandle("update:status", () => ({ ...updateState, current: app.getVersion() }));
   appOn("update:check", () => void checkForUpdates({ manual: true }));
-  appOn("update:install", () => loadUpdater() && updateState.status === "downloaded" && updater.quitAndInstall());
+  appOn("update:install", () => installUpdate());
   appOn("take:live", (_e, on) => setTakeLive(on));
   appHandle("remote:status", () => ({ state: tunnels.state, url: tunnels.web, session: tunnels.session, error: tunnels.error, wanted: Boolean(settings.remoteShare) }));
   wireStt();
@@ -1287,8 +1287,15 @@ async function uninstallPowerPointAddin(win) {
 // the asar otherwise). The feed is a PUBLIC GitHub repo that holds only the installers, because an
 // app cannot read a private repo's releases without shipping a token. Checks run at start-up and
 // from the menu; the download happens in the background and the user chooses when to restart.
+const updatesEnabled = require("./package.json").updates !== false;
+let updatesOffLogged = false;
+function updatesOff() {
+  if (updatesEnabled) return false;
+  if (!updatesOffLogged) { logLine("update: Updates are off in this test build"); updatesOffLogged = true; }
+  return true;
+}
 let updater = null;
-let updateState = { status: "idle", version: "", error: "" }; // idle | checking | available | downloading | downloaded | none | error
+let updateState = { status: updatesEnabled ? "idle" : "disabled", version: "", error: "" };
 // An update never interrupts a talk (SIGN-04). The page reports when a take starts and stops. An
 // update that finishes downloading during a take, or while a PowerPoint slideshow runs, raises no
 // notification and no dialog, and they are not shown later either: the page shows its "restart"
@@ -1311,7 +1318,12 @@ function endTakeWithPage(win) {
   win.on("closed", () => setTakeLive(false));
 }
 
+function installUpdate() {
+  if (loadUpdater() && updateState.status === "downloaded") updater.quitAndInstall();
+}
+
 function loadUpdater() {
+  if (updatesOff()) return false;
   if (updater !== null) return updater;
   try {
     const mod = require(path.join(__dirname, "vendor", "electron-updater.js"));
@@ -1353,7 +1365,7 @@ function loadUpdater() {
             detail: mt("updateReadyDetail"),
           })
           .then(({ response }) => {
-            if (response === 0) updater.quitAndInstall();
+            if (response === 0) installUpdate();
           });
       }
     });
@@ -1374,6 +1386,7 @@ function setUpdateState(next) {
 }
 
 async function checkForUpdates({ manual = false } = {}) {
+  if (updatesOff()) return;
   // Unpacked (--dir) builds ship no update feed: checking would only report an error.
   if (!packaged || !fs.existsSync(path.join(process.resourcesPath, "app-update.yml"))) {
     if (manual) dialog.showMessageBox(mainWin, { type: "info", title: "Filow", message: mt("updateInstalledOnly") });
@@ -2341,8 +2354,8 @@ function buildMenu(win) {
           },
         },
         { type: "separator" },
-        updateState.status === "downloaded"
-          ? { label: mt("updateInstall", { version: updateState.version }), click: () => loadUpdater() && updater.quitAndInstall() }
+        !updatesEnabled ? { label: mt("updatesOff"), enabled: false } : updateState.status === "downloaded"
+          ? { label: mt("updateInstall", { version: updateState.version }), click: () => installUpdate() }
           : updateState.status === "downloading"
             ? { label: mt("updateDownloading", { version: updateState.version }), enabled: false }
             : updateState.status === "checking"
@@ -2575,7 +2588,7 @@ async function main() {
       if (!win.isDestroyed()) showAtStart(win);
       logLine(`main window shown (${Math.round(performance.now())} ms after process start)`);
     }, wait);
-    setTimeout(() => void checkForUpdates(), 8000); // after the servers and the tunnel; silent unless an update lands
+    if (!updatesOff()) setTimeout(() => void checkForUpdates(), 8000); // after startup, unless this build forbids updates
     if (process.platform === "win32" || process.platform === "darwin") {
       if (settings.pptInstalled) {
         startHttpsProxy();

@@ -12,6 +12,12 @@ This is a separate hosted service. The desktop runs without it. Never put the da
 
 The browser asks for an email code, then the code shown in the desktop app, then explicit device approval. Desktop tokens are encrypted by the OS and never exposed to the page. Codes expire; polling obeys the server interval. Signing out clears the local session even if remote revocation fails; an offline failure is shown so it can be investigated. Unused server sessions expire after seven days.
 
+## Checkout availability
+
+Checkout is closed by default, including with test credentials. Unless `FILOW_LIVE_BILLING=1`, `POST /v1/checkout` returns HTTP 503 with `{"error":"billing_not_open"}` before any Stripe call. `/v1/me` includes `checkout: "billing_not_open"`; the desktop explains this in five languages. Existing subscribers can still open the portal. Webhooks, plan selection and prices are unchanged.
+
+Setting the switch requires the owner's live-billing decision. These safety changes do not authorize enabling it. Unit tests inject the flag and use fake Stripe methods; there is no staging bypass.
+
 ## Stripe test mode
 
 Create a **recurring monthly price** in Stripe test mode. Pricing is a business decision; no price or currency is hard-coded in the app. Set `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID` and `STRIPE_WEBHOOK_SECRET` together, then migrate again (the plugin adds billing tables) and restart.

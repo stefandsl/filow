@@ -132,3 +132,15 @@ Options for the owner (D32):
 4. "Report a problem": the report window lists everything, "Save to a file" writes it, and no browser opens.
 5. The release notes say what changed in what Filow sends or keeps; if anything did, docs/PRIVACY*.md and
    docs/okfilow/OUTBOUND.md changed in the same release.
+
+## Explicit account-origin gate
+
+Only after the owner approves a live account release, pass `--require-account-origin <exact-HTTPS-origin>` to `tools/release/release-verify.mjs verify` (and any audit of that policy). Multiple approved origins can be comma-separated. This option requires installer metadata to contain an exact member of that list; absent origin fails. Without the option, existing behavior holds: absent origin passes and origins outside the default empty allowlist fail. An empty list, non-HTTPS URL, credentials, path, query or fragment is rejected. No production origin is configured by this change, and `release.ps1` does not yet forward this policy or set build metadata. Do not treat that wrapper as a live-account release gate until wired.
+
+Offline policy fixture example (test hostname only):
+
+```powershell
+node tools/release/release-verify.mjs fixture --input tools/release/test/fixtures/good.json --require-account-origin https://accounts.example.test
+```
+
+This fixture intentionally fails because its installer has no account origin.

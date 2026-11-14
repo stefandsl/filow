@@ -1,5 +1,28 @@
 # Filow hand-off
 
+## Safe preparation worktree (2026-11-14, unreleased)
+
+`feat-safe-prep`, based on `771ddf1`, implements four owner-independent items:
+package `updates=false` suppresses updater loading/checks/installation; checkout
+returns typed `billing_not_open` while live billing is off, with five-language UI;
+release verification optionally requires an exact allowlisted account origin;
+and first-run captions now ship in EN/IT/RU/RO/JA with UI-language selection.
+No provider, assist endpoint, allowance, price, origin or live billing was enabled.
+
+Validation: npm ci succeeded; `npx vitest run --maxWorkers=4` passed 3,196 tests
+(5 existing skips, 255 files); typecheck and lint passed. Seven of seven mutations
+were caught and restored. Hidden renderer QA passed 10 language/theme combinations
+for both account closure and video captions, with 20 screenshots and no page overflow.
+The QA instance used G:/FILOW/tmp/safe-prep, HTTP 4981/debug 9581, fake bridges,
+NO_GLOBAL_INPUT and HEADLESS. It exited; no installed profile or model was used.
+
+Pending/known gaps: native translation review, packaged pilot update/return-to-public
+acceptance, native menu popup rendering, deployed auth/Stripe, production-origin
+release wrapper wiring, and full F1 clean-VM real-answer acceptance. /tour has no
+video, so it was unchanged. Details: docs/design/paid/SAFE-PREP-2026-11-14.md.
+Four local commits only; no merge, push or tag. Tool-modified AGENTS.md is excluded.
+
+
 ## Phase 2b answer latency worktree (2026-11-14, unreleased)
 
 `feat-phase2b` aligns local weight warm-up with the question's 8192 context,

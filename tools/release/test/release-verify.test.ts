@@ -13,10 +13,10 @@ const cases = JSON.parse(fs.readFileSync(path.join(here, 'fixtures/failures.json
 fs.mkdirSync(path.resolve(here, '../../../tmp'), { recursive: true });
 const scratch = fs.mkdtempSync(path.resolve(here, '../../../tmp/r2-fixtures-'));
 afterAll(() => fs.rmSync(scratch, { recursive: true, force: true }));
-function run(e: any, name: string) {
+function run(e: any, name: string, options: string[] = []) {
   const input = path.join(scratch, `${name}.json`);
   fs.writeFileSync(input, JSON.stringify(e));
-  return spawnSync(process.execPath, [cli, 'fixture', '--input', input], { encoding: 'utf8', timeout: 10000 });
+  return spawnSync(process.execPath, [cli, 'fixture', '--input', input, ...options], { encoding: 'utf8', timeout: 10000 });
 }
 describe('release verification CLI against offline fixtures', () => {
   it('streams actual file hashes and parses all three on-disk manifests', async () => {
@@ -59,5 +59,30 @@ describe('release verification CLI against offline fixtures', () => {
     const result = run(input, c.rule);
     expect(result.status, result.stderr).toBe(1);
     expect(result.stderr).toContain(c.message);
+  });
+});
+
+
+describe('explicit account-origin release policy', () => {
+  const option = ['--require-account-origin', 'https://accounts.example.test'];
+  it('rejects an absent origin only when explicitly required', () => {
+    expect(run(base, 'optional-origin').status).toBe(0);
+    const result = run(base, 'required-origin', option);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('accountOrigin is required');
+  });
+  it('accepts the exact approved origin and refuses other origins', () => {
+    const e = structuredClone(base);
+    e.installer.accountOrigin = 'https://accounts.example.test';
+    expect(run(e, 'approved-origin', option).status).toBe(0);
+    expect(run(e, 'default-denies-origin').status).toBe(1);
+    e.installer.accountOrigin = 'https://staging.example.test';
+    expect(run(e, 'wrong-required-origin', option).status).toBe(1);
+  });
+  it.each(['', 'http://accounts.example.test', 'https://accounts.example.test/path', 'https://user@accounts.example.test'])('rejects invalid allowlist %s', origin => {
+    expect(run(base, 'invalid-policy', ['--require-account-origin', origin]).status).toBe(1);
+  });
+  it('rejects a missing option value', () => {
+    expect(run(base, 'missing-policy', ['--require-account-origin']).status).toBe(1);
   });
 });

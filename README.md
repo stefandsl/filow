@@ -69,6 +69,8 @@ At high zoom or in a short window, the page scrolls to keep points and controls 
 
 ## First-run welcome
 
+The first-run video includes English, Italian, Russian, Romanian and Japanese captions. Captions follow the interface language, with English as fallback; the video controls still let you turn them off.
+
 The desktop app opens **Welcome** before loading the main app or offering local AI setup.
 Choose Automatic (OS language, Italian or English fallback), English, or Italiano; system theme
 is on and system accent following is off by default. Turning system theme off keeps the current
@@ -331,6 +333,8 @@ Output lands in `release/`.
 ---
 
 ## Automatic updates
+
+Test builds packaged with `-c.extraMetadata.updates=false` do not check, download or install updates. The menu says updates are off; the owner supplies replacement installers.
 
 The installed desktop app checks for a new version a few seconds after start-up and from the menu (*Check for updates…*). The update downloads in the background; you get "Restart now / Later", and an update you postpone installs itself the next time you quit. Windows and Linux (AppImage) update in place; macOS needs a signed and notarized build for in-place updates, so on a Mac the app only tells you a new version exists until that is set up.
 
@@ -786,3 +790,5 @@ shows microphone opening separately from listening and thinking.
 Local answers use a smaller screen image to reduce processing time. Online
 answers keep the same image size. Named screen controls retain their original
 positions for pointing.
+
+When billing is closed, the account page says subscriptions are not open yet. Local features remain available, and existing subscribers can still manage their subscription.

@@ -69,6 +69,8 @@ Con zoom elevato o una finestra bassa, la pagina scorre per mantenere punti e co
 
 ## Finestra di benvenuto
 
+Il video iniziale include sottotitoli in inglese, italiano, russo, romeno e giapponese. Seguono la lingua dell’interfaccia, con l’inglese come ripiego; puoi comunque disattivarli dai controlli del video.
+
 L'app desktop apre **Benvenuto** prima di caricare l'app principale o proporre la configurazione
 dell'AI locale. Scegli Automatico (lingua del sistema, italiano oppure inglese come ripiego), English
 o Italiano; il tema di sistema è attivo e il colore principale di sistema è disattivato per
@@ -334,6 +336,8 @@ Il risultato finisce in `release/`.
 ---
 
 ## Aggiornamenti automatici
+
+Le versioni di prova create con `-c.extraMetadata.updates=false` non cercano, scaricano o installano aggiornamenti. Il menu indica che gli aggiornamenti sono disattivati; i nuovi installer vengono forniti dal proprietario.
 
 L'app desktop installata controlla se c'è una nuova versione pochi secondi dopo l'avvio e dal menu (*Controlla aggiornamenti…*). L'aggiornamento si scarica in background; ricevi "Riavvia ora / Più tardi", e un aggiornamento rimandato si installa da solo alla prossima chiusura. Windows e Linux (AppImage) si aggiornano sul posto; macOS richiede una build firmata e notarizzata per gli aggiornamenti sul posto, quindi su Mac l'app si limita a dirti che esiste una nuova versione finché quello non è configurato.
 
@@ -795,3 +799,5 @@ Le risposte locali usano un'immagine dello schermo più piccola per ridurre il
 tempo di elaborazione. Le risposte online mantengono la stessa dimensione.
 I controlli riconosciuti sullo schermo conservano le posizioni originali per
 le indicazioni del puntatore.
+
+Quando la fatturazione è disattivata, la pagina account indica che gli abbonamenti non sono ancora disponibili. Le funzioni locali restano disponibili e gli abbonati possono ancora gestire il proprio abbonamento.
