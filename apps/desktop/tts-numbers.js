@@ -90,7 +90,6 @@ function normalizeNumbers(text, lang) {
     // "alle 1:30" is "all'una e trenta", "le 1:05" is "l'una e cinque": the article elides before "una".
     s = s.replace(/(?<![\p{L}\d])([Aa]|[Dd]a|[Dd]e|[Ss]u|[Nn]e)lle (0?1):([0-5]\d)(?![\d:])/gu, (_,p,h,m) => hold(`${p}ll'${clock(h,m,l)}`));
     s = s.replace(/(?<![\p{L}\d])([Ll])e (0?1):([0-5]\d)(?![\d:])/gu, (_,p,h,m) => hold(`${p}'${clock(h,m,l)}`));
-    s = s.replace(/(?<![\p{L}\d])([Aa]) (0?1):([0-5]\d)(?![\d:])/gu, (_,p,h,m) => hold(`${p}ll'${clock(h,m,l)}`));
   }
   s = s.replace(/(?<![\d:.])([01]?\d|2[0-3]):([0-5]\d)(?![\d:])/g, (_,h,m) => hold(clock(h,m,l)));
   // Leave malformed clocks, ratios, IP addresses and identifiers intact.

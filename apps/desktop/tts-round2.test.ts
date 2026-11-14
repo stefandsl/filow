@@ -128,7 +128,9 @@ describe('clock times and fractional percentages', () => {
     ['it', 'Arrivo alle 1:00.', "Arrivo all'una in punto."],
     ['it', 'Dalle 1:15 siamo aperti.', "Dall'una e quindici siamo aperti."],
     ['it', 'Sono le 1:05.', "Sono l'una e cinque."],
-    ['it', 'Parte a 1:20.', "Parte all'una e venti."],
+    // A bare "a" is left alone: "pari a 1:30" and "a 1:45 dal primo" are not times of day.
+    ['it', 'Parte a 1:20.', 'Parte a una e venti.'],
+    ['it', 'Da 1:30 a 1:45.', 'Da una e trenta a una e quarantacinque.'],
     ['it', 'Mandale 1:30 foto.', 'Mandale una e trenta foto.'],
     ['it', 'Elle 1:30.', 'Elle una e trenta.'],
     ['it', 'Da 1:30 a 2:30.', 'Da una e trenta a due e trenta.'],
