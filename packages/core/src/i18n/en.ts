@@ -1088,6 +1088,7 @@ export const en = {
   "shell.splash.link": "Preparing the public link for your phone…",
   "shell.splash.download": "Downloading the link tool (one time)…",
   "shell.splash.ready": "Ready",
+  "shell.start.portTaken": "Port {port} on this computer is already used by another program, so Filow cannot start. Close that program, or restart the computer, then open Filow again.",
   "shell.localAi.title": "Run AI on this computer?",
   "shell.localAi.install": "Install now",
   "shell.localAi.later": "Not now",

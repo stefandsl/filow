@@ -1078,6 +1078,7 @@ export const it: Dictionary = {
   "shell.splash.link": "Preparazione del link pubblico per il telefono…",
   "shell.splash.download": "Download dello strumento per il link (una tantum)…",
   "shell.splash.ready": "Pronto",
+  "shell.start.portTaken": "La porta {port} di questo computer è già usata da un altro programma, quindi Filow non può avviarsi. Chiudi quel programma, o riavvia il computer, poi riapri Filow.",
   "shell.localAi.title": "Eseguire l'AI su questo computer?",
   "shell.localAi.install": "Installa ora",
   "shell.localAi.later": "Non ora",

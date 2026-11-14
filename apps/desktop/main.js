@@ -1447,7 +1447,8 @@ function showSplash() {
   const w = splash;
   const shown = new Promise((resolve) => {
     const show = () => {
-      if (!w.isDestroyed() && !w.isVisible()) {
+      // `splash === w`: a splash already closed (a start that failed before its first paint) is not shown late
+      if (splash === w && !w.isDestroyed() && !w.isVisible()) {
         showAtStart(w, "splash");
         logLine(`splash shown (${Math.round(performance.now())} ms after process start)`);
       }
@@ -2070,9 +2071,11 @@ function secretBox() {
   };
 }
 
+/** Where Filow's own servers listen: every interface for the phone on the Wi-Fi, this computer only in hosted mode. */
+const serverHost = () => (process.env.FILOW_SESSION_URL ? "127.0.0.1" : "0.0.0.0");
 function startServers() {
   const hosted = Boolean(process.env.FILOW_SESSION_URL);
-  const bind = hosted ? "127.0.0.1" : "0.0.0.0";
+  const bind = serverHost();
   if (!hosted) {
     // LAN mode: gate the spend endpoints with a per-launch secret that only this window knows.
     process.env.ACCESS_PASSWORD = crypto.randomBytes(16).toString("base64url");
@@ -2409,6 +2412,14 @@ async function main() {
     startupTransition = false;
     splashStatus(st("servers"));
     stage("loading servers");
+    // A port another program holds: the app server would end this whole process without a word, the
+    // relay would leave the splash up for minutes. Say which port instead.
+    const taken = await require("./ports").takenPorts(process.env.FILOW_SESSION_URL ? [PORT] : [PORT, SESSION_PORT], serverHost());
+    if (taken.length) {
+      logLine(`startup: port ${taken.join(" and ")} is held by another program`);
+      failStartup(sharedText("shell.start.portTaken", menuLang(), { port: taken.join(", ") }));
+      return;
+    }
     startServers();
   } catch (err) {
     failStartup(err);
@@ -2616,6 +2627,9 @@ async function main() {
 function failStartup(err) {
   const text = String(err && err.stack ? err.stack : err);
   logLine(`startup failed at "${startupStage}": ${text}`);
+  // The box below blocks this thread and a window only closes once the thread is free: hide the splash
+  // first, or it stays on screen behind the box, still saying that Filow is starting.
+  if (splash && !splash.isDestroyed()) splash.hide();
   closeSplash();
   // The user cannot fix this one: next to closing, the box offers Report a problem, whose window has the
   // start-up log with this reason in it and the button that opens a GitHub issue. Filow quits when that
