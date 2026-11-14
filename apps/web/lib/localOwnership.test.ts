@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { createServer, type Server } from "node:http";
 import { ownership } from "../../desktop/local-ownership";
@@ -12,7 +13,7 @@ afterEach(async () => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 function profile() {
-  const root = fs.mkdtempSync("G:/FILOW/tmp/hardening/ownership-"); roots.push(root);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "filow-ownership-")); roots.push(root);
   vi.stubEnv("FILOW_SCRIPT", path.join(root, "script.md")); return root;
 }
 async function fixture(preexisting = false) {

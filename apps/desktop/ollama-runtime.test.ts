@@ -1,3 +1,4 @@
+import os from "node:os";
 import { afterEach, expect, it } from "vitest";
 import { createServer, type Server } from "node:http";
 import { checkRuntime, runtimeState } from "./ollama-runtime";
@@ -36,7 +37,7 @@ it("permits a new runtime and retains higher model-specific floors", async () =>
   expect(runtimeState("0.30.0", "0.35.1")).toBe("old");
 });
 it.each(["0.8.9", "0.40.0"])("checks setup version %s without claiming a pre-existing runtime", async version => {
-  const root = fs.mkdtempSync("G:/FILOW/tmp/hardening/runtime-");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "filow-runtime-"));
   try {
     const states: Array<{ state: string; code: string }> = [];
     const { installOllama } = createRequire(import.meta.url)("./localai.js");

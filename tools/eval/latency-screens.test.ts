@@ -16,7 +16,8 @@ const root = path.resolve(here, "../..");
 const out = path.join(root, "tmp", "latency-screens-test");
 const COUNT = 40;
 // Electron needs a display on Linux; everywhere else it renders offscreen.
-const canRender = process.platform !== "linux" || Boolean(process.env.DISPLAY);
+// shortcut: the hosted CI runner cannot draw the screens with Electron; the local merge gate runs this check, set FILOW_RENDER_TESTS=1 to force it on CI.
+const canRender = (process.platform !== "linux" || Boolean(process.env.DISPLAY)) && (!process.env.CI || process.env.FILOW_RENDER_TESTS === "1");
 
 const screens: Array<{ id: string; picture: Picture; elements: Box[]; viewport: { width: number; height: number } }> = [];
 
