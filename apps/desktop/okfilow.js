@@ -21,6 +21,7 @@ const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOve
 const { createHitTarget, insideAny, cleanRects, localPoint } = require("./okfilow-hit");
 const { cleanShow, showFor } = require("./okfilow-media");
 const { clampBounds, movedBounds, localRect } = require("./okfilow-move");
+const { escTarget, createEscKey } = require("./okfilow-esc");
 const { createPractice } = require("./tour");
 const { overlayRects } = require("./okfilow-rects");
 const { modelBounds } = require("./okfilow-model-place");
@@ -994,6 +995,25 @@ function createOkFilow(deps) {
     }
     gestures?.escape();
   }
+
+  // ---- Escape on what OK Filow shows (okfilow-esc.js): a global shortcut only while something is shown ----
+  let escAt = 0;
+  const modelShown = () => Boolean(modelWin && !modelWin.isDestroyed() && modelWin.isVisible());
+  function pressEsc() {
+    const now = Date.now();
+    // an answer in progress: Escape stops it first, as before
+    if (answering(mode)) { escAt = now; return onEscape(); }
+    const what = escTarget({ model: modelShown(), items: pinned(), bubble: bubble.open(), lastAt: escAt, now });
+    escAt = now;
+    logLine(`okfilow: Escape closes ${what || "nothing"}`);
+    if ((what === "model" || what === "all") && modelShown()) modelWin.close();
+    if (what === "items" || what === "all") clearDrawings();
+    if (what === "bubble" || what === "all") bubble.close("escape");
+    gestures?.escape();
+  }
+  const escKey = createEscKey({ shortcuts: globalShortcut, onEsc: pressEsc });
+  const escTimer = setInterval(() => escKey.sync(modelShown() || pinned() || bubble.open() || answering(mode)), 200);
+  escTimer.unref?.();
   function onGesture(ev) {
     logLine(`okfilow: gesture ${ev}`);
     switch (ev) {
@@ -1155,7 +1175,8 @@ function createOkFilow(deps) {
         const k = map[e.keycode] || null;
         gestures.keydown(k);
         if (!k) dictation.userMoved(); // the caret may have moved: no joining space before the next dictation
-        if (e.keycode === K.Escape) onEscape();
+        // (while OK Filow holds Escape as a shortcut, the shortcut acts: not twice)
+        if (e.keycode === K.Escape && !escKey.held()) onEscape();
         // Hands-free dictation: after the user's own Enter or Tab the next phrase starts without a space.
         if (phraseRun && (e.keycode === K.Enter || e.keycode === K.NumpadEnter || e.keycode === K.Tab)) phraseRun.moved();
       });
@@ -1632,6 +1653,8 @@ function createOkFilow(deps) {
     if (modelWin && !modelWin.isDestroyed()) modelWin.destroy();
     if (boardWin && !boardWin.isDestroyed()) boardWin.destroy();
     hookRetry.stop();
+    clearInterval(escTimer);
+    escKey.sync(false);
     for (const k of [eyeBound, pauseBound]) { if (k.accelerator) { try { globalShortcut.unregister(k.accelerator); } catch { /* quitting */ } } }
     try { hook?.stop(); } catch { /* quitting */ }
     stopCursor();

@@ -271,10 +271,9 @@ html:has(.okf-model), body:has(.okf-model) { background: transparent !important;
 .okf-model-tools {
   position: absolute; right: 8px; top: 8px; display: flex; align-items: center; gap: 4px; padding: 3px;
   border-radius: 10px; background: rgb(18, 19, 22); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
-  opacity: 0; transition: opacity 0.15s ease;
 }
 .okf-model:hover .okf-model-tools, .okf-model-tools:focus-within { opacity: 1; }
-.okf-model-grip { width: 22px; height: 28px; border-radius: 6px; cursor: move; -webkit-app-region: no-drag; touch-action: none; background: radial-gradient(circle, rgba(244, 244, 245, 0.55) 1.2px, transparent 1.6px) 0 0 / 7px 7px; }
+.okf-model-grip { width: 28px; height: 28px; border-radius: 6px; cursor: move; -webkit-app-region: no-drag; touch-action: none; background: radial-gradient(circle, rgba(244, 244, 245, 0.85) 1.4px, transparent 1.8px) 0 0 / 7px 7px; }
 .okf-model-tools .okf-x { -webkit-app-region: no-drag; color: #f4f4f5; }
 .okf-model-tools .okf-x:hover { background: rgba(255, 255, 255, 0.12); }
 @media (prefers-reduced-motion: reduce) {
@@ -526,23 +525,29 @@ html[data-theme="light"] .okf-mark .okf-mark-halo { stroke: #2b2100; stroke-widt
 
 /* Moving and resizing (components/okfilow/move-grips.tsx): a row of dots at the top of an item moves it, the
    lines in its bottom-right corner resize it. They sit on the item's edge, never on its picture or words. */
-.okf-move, .okf-resize { position: absolute; z-index: 1; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: color-mix(in srgb, var(--okf-card-text, #ececef) 55%, transparent); pointer-events: auto; touch-action: none; }
-.okf-move { top: 1px; left: 50%; transform: translateX(-50%); width: 48px; height: 14px; border-radius: 7px; cursor: grab; }
+/* At least 24 px to hit, drawn at 3:1 or more against the item (its words' colour at 80%). */
+.okf-move, .okf-resize { position: absolute; z-index: 1; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: color-mix(in srgb, var(--okf-card-text, #ececef) 80%, transparent); pointer-events: auto; touch-action: none; }
+.okf-move { top: 0; left: 50%; transform: translateX(-50%); width: 56px; height: 24px; border-radius: 8px; cursor: grab; }
 .okf-move:active { cursor: grabbing; }
-.okf-resize { right: 1px; bottom: 1px; width: 18px; height: 18px; border-radius: 0 0 12px 0; cursor: nwse-resize; }
+.okf-resize { right: 0; bottom: 0; width: 24px; height: 24px; border-radius: 0 0 12px 0; cursor: nwse-resize; }
 :root .okf-move:hover, :root .okf-resize:hover { color: var(--okf-ink); background: color-mix(in srgb, var(--okf-ink) 14%, transparent); }
 .okf-move:focus-visible, .okf-resize:focus-visible { outline: 2px solid var(--okf-ink); outline-offset: 1px; }
 /* room for them: the picture starts under the handle, the source line stops before the grip */
-.okf-media-tile .okf-media-box { margin-top: 16px; }
-.okf-media-tile:has(.okf-resize) .okf-media-source { padding-right: 14px; }
+.okf-media-tile .okf-media-box { margin-top: 24px; }
+.okf-media-tile:has(.okf-resize) .okf-media-source { padding-right: 20px; }
 .okf-slide .okf-move { top: 3px; }
 /* the cards' column: a bar to move it by, above the first card */
-.okf-cards-bar { position: relative; flex: none; height: 14px; border-radius: 7px; background: color-mix(in srgb, rgb(20, 21, 24) 86%, transparent); pointer-events: auto; }
+.okf-cards-bar { position: relative; flex: none; height: 24px; border-radius: 10px; background: color-mix(in srgb, rgb(20, 21, 24) 86%, transparent); pointer-events: auto; }
 .okf-cards-bar .okf-move { top: 0; color: #c9cbd1; }
-.okf-cards-bar .okf-resize { right: 0; bottom: 0; width: 14px; height: 14px; border-radius: 7px; color: #c9cbd1; }
+.okf-cards-bar .okf-resize { right: 0; bottom: 0; width: 24px; height: 24px; border-radius: 10px; color: #c9cbd1; }
 /* the bubble: the handle on its top edge, the grip in its corner */
-.okf-bubble .okf-move { top: -1px; color: color-mix(in srgb, currentColor 55%, transparent); }
-.okf-bubble .okf-resize { right: 0; bottom: 0; color: color-mix(in srgb, currentColor 55%, transparent); }
+/* the bubble that can be moved has a top strip for its handle, so the handle never sits on its words */
+.okf-bubble:has(> .okf-bubble-content > .okf-move) { padding-top: 22px; }
+.okf-bubble .okf-move { top: 0; color: color-mix(in srgb, currentColor 80%, transparent); }
+.okf-bubble .okf-resize { right: 0; bottom: 0; color: color-mix(in srgb, currentColor 80%, transparent); }
 /* the 3D window's grip, in its bottom-right corner */
-.okf-model-resize { position: fixed; right: 4px; bottom: 4px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: rgba(244, 244, 245, 0.75); background: rgba(12, 12, 14, 0.55); cursor: nwse-resize; touch-action: none; opacity: 0; transition: opacity 0.15s ease; }
-.okf-model:hover ~ .okf-model-resize, .okf-model-resize:hover, main:hover > .okf-model-resize { opacity: 1; }
+.okf-model-resize { position: fixed; right: 6px; bottom: 6px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; color: #f4f4f5; background: rgb(18, 19, 22); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3); cursor: nwse-resize; touch-action: none; }
+/* The 3D window's chrome is always there (handle, close, corner grip), in both themes: the window has no frame of its own. */
+html[data-theme="light"] .okf-model-tools, html[data-theme="light"] .okf-model-resize { background: #ffffff; color: #18191c; box-shadow: 0 0 0 1px #6b6e75; }
+html[data-theme="light"] .okf-model-tools .okf-x { color: #18191c; }
+html[data-theme="light"] .okf-model-grip { background-image: radial-gradient(circle, rgba(24, 25, 28, 0.8) 1.4px, transparent 1.8px); }

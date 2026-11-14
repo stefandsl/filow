@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { areaFor, bubbleClear, clampBox, dragBox, EDGE, keyBox, LIMITS, readLayout, rememberBox, resetLayout, resizeBox, type Box } from "./layout-move";
+import { areaFor, bubbleBeside, bubbleClear, clampBox, dragBox, EDGE, keyBox, LIMITS, readLayout, rememberBox, resetLayout, resizeBox, type Box } from "./layout-move";
 import { tilesIn } from "./media";
 
 const area = { x: 0, y: 0, width: 1920, height: 1080 };
@@ -76,6 +76,26 @@ describe("the bubble never covers what it belongs to", () => {
     const size = { width: 360, height: 90 };
     const at = bubbleClear({ x: 900, y: 400 }, size, view, [model, tiles]);
     expect(area2(at, size, model) + area2(at, size, tiles)).toBe(0);
+  });
+});
+
+describe("the bubble stands beside what its answer shows", () => {
+  const view = { width: 1920, height: 1080 };
+  const size = { width: 360, height: 80 };
+  it("to the right of the item, top edges level; on the left when the right has no room; never on the item or the pill", () => {
+    const tiles = { left: 76, top: 204, right: 608, bottom: 704 };
+    expect(bubbleBeside(tiles, size, view, [tiles])).toEqual({ x: 620, y: 204 });
+    // room on both sides: the right first
+    const mid = { left: 800, top: 300, right: 1100, bottom: 600 };
+    expect(bubbleBeside(mid, size, view, [mid])).toEqual({ x: 1112, y: 300 });
+    const model = { left: 1180, top: 160, right: 1820, bottom: 640 };
+    expect(bubbleBeside(model, size, view, [model])).toEqual({ x: 1180 - 12 - 360, y: 160 });
+    const pill = { left: 600, top: 190, right: 1000, bottom: 230 };
+    const at = bubbleBeside(tiles, size, view, [tiles], pill)!;
+    expect(at.x < pill.right + 11 && at.x + size.width > pill.left - 11 && at.y < pill.bottom + 11 && at.y + size.height > pill.top - 11).toBe(false);
+  });
+  it("no room anywhere beside it: null (the bubble stays by the pointer)", () => {
+    expect(bubbleBeside({ left: 0, top: 0, right: 1920, bottom: 1080 }, size, view, [{ left: 0, top: 0, right: 1920, bottom: 1080 }])).toBeNull();
   });
 });
 

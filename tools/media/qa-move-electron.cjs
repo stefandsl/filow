@@ -9,7 +9,7 @@ const path = require("node:path");
 if (process.env.FILOW_QA_HEADLESS !== "1" || process.env.FILOW_QA_NO_GLOBAL_INPUT !== "1") throw new Error("QA isolation required");
 const OUT = process.env.QA_MEDIA_OUT;
 const ROOT = process.env.QA_MEDIA_ROOT;
-const FRAMES = process.env.QA_MEDIA_FRAMES || path.join(OUT, "frames5");
+const FRAMES = process.env.QA_MEDIA_FRAMES || path.join(OUT, "frames6");
 const BASE = "http://127.0.0.1:5031";
 const { insideAny, cleanRects } = require(path.join(ROOT, "apps/desktop/okfilow-hit.js"));
 const { movedBounds } = require(path.join(ROOT, "apps/desktop/okfilow-move.js"));
@@ -61,15 +61,32 @@ app.whenReady().then(async () => {
     await mouse(wc, "mouseUp", from.x + dx, from.y + dy);
   };
   const centre = (sel, js) => js(`(() => { const r = document.querySelector(${JSON.stringify(sel)})?.getBoundingClientRect(); return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null; })()`).then((v) => v);
-  const sum = (list, k) => list.reduce((s, d) => s + (Number.isFinite(d[k]) ? d[k] : 0), 0);
+  // the size of a handle or grip, and the contrast of its mark against what is behind it
+  const CHROME = `JSON.stringify([...document.querySelectorAll(".okf-model-grip, .okf-model-resize, .okf-model-tools .okf-x, .okf-move, .okf-resize")].filter((e) => e.offsetParent).map((e) => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e); const bgs = []; for (let p = e; p; p = p.parentElement) bgs.push(getComputedStyle(p).backgroundColor); return { cls: String(e.className.baseVal ?? e.className), w: Math.round(r.width), h: Math.round(r.height), color: s.color, image: s.backgroundImage, bgs, cursor: s.cursor }; }))`;
+  // the contrast of a handle's mark against what is behind it (WCAG), worked out here from the page's colours
+  const rgb = (v) => { const m = (String(v).match(/[\d.]+/g) || []).map(Number); return String(v).startsWith("color(srgb") ? [m[0] * 255, m[1] * 255, m[2] * 255, m.length > 3 ? m[3] : 1] : [m[0], m[1], m[2], m.length > 3 ? m[3] : 1]; };
+  const lum = (v) => v.slice(0, 3).map((x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }).reduce((s, x, i) => s + x * [0.2126, 0.7152, 0.0722][i], 0);
+  const withContrast = (list, desk) => list.map((h) => {
+    const bg = (h.bgs.map(rgb).find((c) => c[3] >= 0.5) ?? rgb(desk)).slice(0, 3);
+    const fgRaw = h.cls.includes("okf-model-grip") ? rgb((String(h.image).match(/rgba?\([^)]*\)/) || ["rgb(0,0,0)"])[0]) : rgb(h.color);
+    const a = fgRaw[3];
+    const fg = [0, 1, 2].map((i) => fgRaw[i] * a + bg[i] * (1 - a));
+    const p = lum(fg), q = lum(bg);
+    return { cls: h.cls, w: h.w, h: h.h, contrast: Math.round(((Math.max(p, q) + 0.05) / (Math.min(p, q) + 0.05)) * 10) / 10, cursor: h.cursor };
+  });  const sum = (list, k) => list.reduce((s, d) => s + (Number.isFinite(d[k]) ? d[k] : 0), 0);
   const calls = () => mjs("JSON.stringify(window.__qa.calls())").then(JSON.parse);
+  const modelShots = {};
   for (const theme of ["dark", "light"]) {
     await mjs(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}; true`);
     await mouse(model.webContents, "mouseMove", 320, 240);
     await sleep(500);
-    fs.writeFileSync(path.join(FRAMES, `model-${theme}.png`), (await model.webContents.capturePage()).toPNG());
+    const shot = await model.webContents.capturePage();
+    fs.writeFileSync(path.join(FRAMES, `model-${theme}.png`), shot.toPNG());
+    modelShots[theme] = shot.toDataURL();
   }
   const before = (await calls()).modelMove.length;
+  // the 3D window's chrome: handle, close and grip, in both themes, at least 24 px, at 3:1 or more against the window
+  result.modelChrome = withContrast(JSON.parse(await mjs(CHROME)), "#1c2027");
   const grip = await centre(".okf-model-grip", mjs);
   await dragIn(model.webContents, grip, 140, 60);
   let moves = (await calls()).modelMove.slice(before);
@@ -98,7 +115,7 @@ app.whenReady().then(async () => {
     arrowKeys: keys, arrowsOk: keys.some((d) => d.dx === 16 && d.dy === 0) && keys.some((d) => d.dw === 0 && d.dh === 16),
     draggedOntoSecondScreen: across, staysOnSecondScreen: across.x >= 1920 + 8 && across.x + across.width <= 1920 + 2560 - 8,
   };
-  const modelShot = (await model.webContents.capturePage()).toDataURL();
+
 
   // ---- the overlay: the pictures and the bubble move and resize; outside them clicks go through ----
   const win = make(W, H);
@@ -118,7 +135,7 @@ app.whenReady().then(async () => {
     await emit("clear", null);
     // the 3D window as it stands on the desktop (its picture behind the overlay), and main saying where it is
     const mb = { left: 1180, top: 160, right: 1180 + 640, bottom: 160 + 480 };
-    await js(`(() => { document.getElementById('qa-model')?.remove(); const i = document.createElement('img'); i.id = 'qa-model'; i.src = ${JSON.stringify(modelShot)}; i.style.cssText = 'position:fixed;left:${mb.left}px;top:${mb.top}px;width:640px;height:480px;z-index:0'; document.body.prepend(i); return true; })()`);
+    await js(`(() => { document.getElementById('qa-model')?.remove(); const i = document.createElement('img'); i.id = 'qa-model'; i.src = ${JSON.stringify(modelShots[theme])}; i.style.cssText = 'position:fixed;left:${mb.left}px;top:${mb.top}px;width:640px;height:480px;z-index:0'; document.body.prepend(i); return true; })()`);
     await emit("modelBounds", mb);
     await emit("state", { mode: "speaking", purpose: "talk", sees: true });
     await emit("pill", { sees: true, paused: false, resumable: false });
@@ -126,16 +143,24 @@ app.whenReady().then(async () => {
     await emit("cursor", { x: 1400, y: 380 });
     await emit("text", "This is the car you asked about: drag the dots to move it, the corner to resize it.");
     await sleep(900);
+    t.bubbleToModelPx = await js(`(() => { const b = document.querySelector(".okf-bubble").getBoundingClientRect(); const m = ${JSON.stringify(mb)}; return Math.round(Math.hypot(Math.max(0, m.left - b.right, b.left - m.right), Math.max(0, m.top - b.bottom, b.top - m.bottom))); })()`);
     const bub = await box(".okf-bubble");
     t.bubbleOverModelPx = bub ? Math.max(0, Math.min(bub.x + bub.w, mb.right) - Math.max(bub.x, mb.left)) * Math.max(0, Math.min(bub.y + bub.h, mb.bottom) - Math.max(bub.y, mb.top)) : null;
     await sleep(300);
     fs.writeFileSync(path.join(FRAMES, `bubble-model-${theme}.png`), (await win.webContents.capturePage()).toPNG());
     // the gallery: drag its handle, resize it from its grip, drag it far (it stays on screen)
     await emit("cursor", { x: 600, y: 700 });
+    await emit("text", "Here are the four test images from your folder. Drag the dots on any of them to move the set, or the corner of the last one to resize it.");
     await sleep(400);
     await emit("media", { x: 600, y: 700, gallery: items, slide: null });
     await sleep(1500);
     const g0 = await box(".okf-media-tile");
+    await sleep(1500);
+    // the pointer's label on the first picture never covers any caption or source line
+    t.labelOverCaptionPx = await js(`(() => { const l = document.querySelector(".okf-label"); if (!l) return 0; const a = l.getBoundingClientRect(); let s = 0; for (const e of document.querySelectorAll(".okf-media-caption, .okf-media-source")) { const r = e.getBoundingClientRect(); s += Math.max(0, Math.min(a.right, r.right) - Math.max(a.left, r.left)) * Math.max(0, Math.min(a.bottom, r.bottom) - Math.max(a.top, r.top)); } return Math.round(s); })()`);
+    t.bubbleToGalleryPx = await js(`(() => { const b = document.querySelector(".okf-bubble").getBoundingClientRect(); const ts = [...document.querySelectorAll(".okf-media-tile")].map((e) => e.getBoundingClientRect()); return Math.round(Math.min(...ts.map((m) => Math.hypot(Math.max(0, m.left - b.right, b.left - m.right), Math.max(0, m.top - b.bottom, b.top - m.bottom))))); })()`);
+    t.chrome = withContrast(JSON.parse(await js(CHROME)), desk);
+    fs.writeFileSync(path.join(FRAMES, `gallery-${theme}.png`), (await win.webContents.capturePage()).toPNG());
     const handle = await centre(".okf-media-tile .okf-move", js);
     await dragIn(win.webContents, handle, 180, -120);
     await sleep(300);
@@ -167,6 +192,7 @@ app.whenReady().then(async () => {
     t.farDragInside = g3.x >= 0 && g3.y >= 0 && g3.x + g3.w <= W && g3.y + g3.h <= H;
     t.remembered = await js("sessionStorage.getItem('filow.okf.layout')");
     // a slide: moved with its handle, its words reflow when it is made wider
+    await emit("text", "Here is a slide on how the car moves, with a picture; drag its corner to make it wider.");
     await emit("media", { x: 600, y: 600, gallery: [], slide: { title: "How the car moves", points: ["The engine turns the wheels through the gearbox", "The front wheels steer", "The brakes slow all four wheels"], media: [items[1]] } });
     await sleep(1500);
     const s0 = await box(".okf-slide");
@@ -178,6 +204,7 @@ app.whenReady().then(async () => {
     const lines1 = await js("document.querySelector('.okf-slide ul').getBoundingClientRect().height");
     // wider: its points take fewer or as many lines (its picture grows with it)
     t.slide = { start: s0, wider: s1, pointsHeight: [lines0, lines1], reflowOk: s1.w > s0.w + 150 && lines1 <= lines0 };
+    t.bubbleToSlidePx = await js(`(() => { const b = document.querySelector(".okf-bubble").getBoundingClientRect(); const m = document.querySelector(".okf-slide").getBoundingClientRect(); return Math.round(Math.hypot(Math.max(0, m.left - b.right, b.left - m.right), Math.max(0, m.top - b.bottom, b.top - m.bottom))); })()`);
     fs.writeFileSync(path.join(FRAMES, `slide-resized-${theme}.png`), (await win.webContents.capturePage()).toPNG());
     // reset layout: a double click on a handle puts it back
     const sh = await centre(".okf-slide .okf-move", js);

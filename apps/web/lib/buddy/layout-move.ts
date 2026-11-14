@@ -88,7 +88,21 @@ export function resetLayout(store: Store | null): void {
   try { store?.removeItem(KEY); } catch { /* nothing kept */ }
 }
 
-// ---- the bubble keeps off what it belongs to ----
+// ---- the bubble keeps off what it belongs to, and stands beside it ----
+
+/**
+ * Where the answer's bubble goes when its answer shows something (pictures, a slide, a 3D model): beside
+ * that item, like its caption: to its right, top edges level; else left, below or above; on screen, off
+ * every box and off the pill. Null when there is no such spot (the bubble then stays by the pointer).
+ */
+export function bubbleBeside(item: Rect, size: { width: number; height: number }, view: { width: number; height: number }, boxes: Rect[], pill: Rect | null = null, gap = 12): { x: number; y: number } | null {
+  const all = pill ? [...boxes, pill] : boxes;
+  const fits = (p: { x: number; y: number }) => p.x >= EDGE && p.y >= EDGE && p.x + size.width <= view.width - EDGE && p.y + size.height <= view.height - EDGE && all.every((b) => !hits({ left: p.x, top: p.y, right: p.x + size.width, bottom: p.y + size.height }, b, gap - 1));
+  const top = fit(item.top, EDGE, view.height - EDGE - size.height);
+  const left = fit(item.left, EDGE, view.width - EDGE - size.width);
+  const spots = [{ x: item.right + gap, y: top }, { x: item.left - gap - size.width, y: top }, { x: left, y: item.bottom + gap }, { x: left, y: item.top - gap - size.height }];
+  return spots.find(fits) ?? null;
+}
 
 const hits = (a: Rect, b: Rect, m: number) => a.left < b.right + m && a.right > b.left - m && a.top < b.bottom + m && a.bottom > b.top - m;
 

@@ -13,8 +13,8 @@ import { drawingStarts } from "@/lib/buddy/marks-sync";
 import { MarksLayer, type MarkSet } from "@/components/okfilow/marks-layer";
 import { CardsLayer } from "@/components/okfilow/cards-layer";
 import { MediaLayer } from "@/components/okfilow/media-layer";
-import { cleanShow, type MediaShow } from "@/lib/buddy/media";
-import { bubbleClear, clampBox, LIMITS, readLayout, rememberBox, resetLayout, type Box, type MovableKind } from "@/lib/buddy/layout-move";
+import { boundsOfRects, cleanShow, TILE, type MediaShow } from "@/lib/buddy/media";
+import { bubbleBeside, bubbleClear, clampBox, LIMITS, readLayout, rememberBox, resetLayout, type Box, type MovableKind } from "@/lib/buddy/layout-move";
 import { MoveGrips } from "@/components/okfilow/move-grips";
 import type { Rect } from "@/lib/buddy/marks";
 import { keyLabel, PILL_IDLE, pillView, statusRoom, talkHeld, type PillAction, type PillState } from "@/lib/buddy/pill";
@@ -292,9 +292,12 @@ export default function OkFilowOverlay() {
           // A held bubble is only kept on screen and off the pill as its text grows.
           const fixed = h.answer ? movedRef.current.bubble : undefined;
           const placed = fixed ? clampBox({ ...fixed, w: size.width, h: size.height }, { x: 0, y: 0, ...view }, LIMITS.bubble) : null;
-          // Where the user put it, else by the pointer; never on the 3D model or the pictures it belongs to.
+          // Where the user put it; else beside what the answer shows (its pictures and slide, else its 3D
+          // model), as its caption; else by the pointer. Never on the 3D model or the pictures it belongs to.
           const off = [...keepOff.current.media, ...(keepOff.current.model ? [keepOff.current.model] : [])];
-          const at = placed ? { x: placed.x, y: placed.y } : bubbleClear(hold ? bubbleOnScreen(h.at, size, view, pillRect) : bubblePlacement(h.answer && c ? { x: c.x + OFFSET.x, y: c.y + OFFSET.y } : next, size, view, 18, pillRect), size, view, off);
+          const item = h.answer ? (boundsOfRects(keepOff.current.media) ?? keepOff.current.model) : null;
+          const beside = item ? bubbleBeside(item, size, view, off, pillRect) : null;
+          const at = placed ? { x: placed.x, y: placed.y } : beside ?? bubbleClear(hold ? bubbleOnScreen(h.at, size, view, pillRect) : bubblePlacement(h.answer && c ? { x: c.x + OFFSET.x, y: c.y + OFFSET.y } : next, size, view, 18, pillRect), size, view, off);
           const want = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px)`;
           if (el.style.transform !== want) {
             // An answer's bubble glides when it catches up with the pointer; a first placement does not glide in from where the last bubble was.
@@ -341,7 +344,9 @@ export default function OkFilowOverlay() {
   /** Placed pictures: the pointer flies to the first one, as it does to a thing the answer points at. */
   const showMedia = useCallback((first: Rect, caption: string) => {
     pointAvoid.current = [];
-    queue.current = [{ x: Math.round((first.left + first.right) / 2), y: Math.round((first.top + first.bottom) / 2), label: caption }];
+    // onto the middle of its picture (above its caption strip), so the pointer's label never covers the caption
+    const pictureBottom = first.bottom - (first.bottom - first.top > TILE.text + 40 ? TILE.text : 0);
+    queue.current = [{ x: Math.round((first.left + first.right) / 2), y: Math.round((first.top + 24 + pictureBottom) / 2), label: caption }];
     flight.current = null;
     setLabel("");
   }, []);
@@ -349,6 +354,10 @@ export default function OkFilowOverlay() {
   const store = () => { try { return window.sessionStorage; } catch { return null; } };
   useEffect(() => { setMoved(readLayout(store())); }, []);
   const onBox = useCallback((kind: MovableKind, b: Box, done: boolean) => {
+    // the user takes it: the pointer stops pointing at where it was
+    queue.current = [];
+    flight.current = null;
+    setLabel("");
     setMoved((m) => ({ ...m, [kind]: b }));
     if (done) rememberBox(store(), kind, b);
   }, []);

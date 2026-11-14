@@ -277,7 +277,7 @@ describe("Escape", () => {
     expect(fn).toContain('else if (step === "bubble") bubble.close("escape");');
     expect(fn).toContain("else clearDrawings();");
     // the hardware hook (off under test isolation) and the QA key path call the same function
-    expect(main).toContain("if (e.keycode === K.Escape) onEscape();");
+    expect(main).toContain("if (e.keycode === K.Escape && !escKey.held()) onEscape();");
     expect(main).toMatch(/gestures\.keydown\(mod\); if \(key === "escape"\) onEscape\(\);/);
   });
 });
