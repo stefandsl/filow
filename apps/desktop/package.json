@@ -65,6 +65,9 @@
       "model-roles.js",
       "tts.js",
       "tts-worker.js",
+      "tts-numbers.js",
+      "tts-spans.js",
+      "tts-audio.js",
       "tunnels.js",
       "csp.js",
       "secrets.js",
@@ -278,6 +281,9 @@
     "asarUnpack": [
       "stt-worker.js",
       "tts-worker.js",
+      "tts-numbers.js",
+      "tts-spans.js",
+      "tts-audio.js",
       "truecase-worker.js",
       "native/uia/bin/**",
       "node_modules/onnxruntime-node/**",
@@ -303,6 +309,7 @@
   },
   "dependencies": {
     "@huggingface/tokenizers": "0.2.0",
+    "n2words": "6.3.0",
     "onnxruntime-node": "1.30.0",
     "sherpa-onnx-node": "^2.0.1",
     "uiohook-napi": "^1.5.5"

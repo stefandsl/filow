@@ -57,7 +57,7 @@ export function voicePanel(tts: OkFilowTtsStatus | null | undefined): VoicePanel
 /** Plays the pieces of one answer back to back. */
 export interface ChunkPlayer {
   /** Queues a piece; `pauseMs` of silence follows it before the next piece. */
-  add(samples: Float32Array, sampleRate: number, pauseMs: number): void;
+  add(samples: Float32Array, sampleRate: number, pauseMs: number, leadMs?: number): void;
   /** Seconds of queued audio still to be heard. */
   remaining(): number;
   /** Seconds heard so far. */
@@ -96,7 +96,7 @@ export function webAudioPlayer(): ChunkPlayer {
   if (ctx.state === "suspended") void ctx.resume().catch(() => {});
   const gain = ctx.createGain();
   gain.connect(ctx.destination);
-  type Piece = { samples: Float32Array; sampleRate: number; pauseMs: number };
+  type Piece = { samples: Float32Array; sampleRate: number; pauseMs: number; leadMs?: number };
   /** On the schedule: begun, or about to. */
   let scheduled: Array<Piece & { at: number; duration: number; source: AudioBufferSourceNode }> = [];
   /** Kept while paused (null when not paused). */
@@ -114,7 +114,8 @@ export function webAudioPlayer(): ChunkPlayer {
     source.buffer = buffer;
     source.connect(gain);
     // A piece that arrives late starts at once; one that arrives early waits for its turn.
-    const at = Math.max(ctx.currentTime + 0.03, next);
+    const lead = first < 0 ? Math.max(30, Math.min(120, p.leadMs ?? 30)) / 1000 : 0.03;
+    const at = Math.max(ctx.currentTime + lead, next);
     source.start(at);
     scheduled.push({ ...p, at, duration: buffer.duration, source });
     if (first < 0) first = at;
@@ -123,10 +124,10 @@ export function webAudioPlayer(): ChunkPlayer {
     return at;
   };
   return {
-    add(samples, sampleRate, pauseMs) {
+    add(samples, sampleRate, pauseMs, leadMs) {
       if (stoppedAt >= 0 || !samples.length) return;
-      if (held) held.push({ samples, sampleRate, pauseMs });
-      else schedule({ samples, sampleRate, pauseMs });
+      if (held) held.push({ samples, sampleRate, pauseMs, leadMs });
+      else schedule({ samples, sampleRate, pauseMs, leadMs });
     },
     remaining: () => (stoppedAt >= 0 ? 0 : Math.max(0, end - ctx.currentTime) + (held ?? []).reduce((sum, p) => sum + p.samples.length / p.sampleRate, 0)),
     played: () => (first < 0 ? 0 : Math.max(0, Math.min(stoppedAt >= 0 ? stoppedAt : ctx.currentTime, end) - first - idle)),
@@ -189,6 +190,8 @@ export type SpeakerDeps = {
   isCurrent(id: number): boolean;
   /** The app language, used when the text itself does not say which language it is in. */
   uiLang(): string;
+  /** Current screen-mark labels, used only when the answer quotes them. */
+  labels?(): string[];
   /**
    * The cloud voice's audio for `text`, fetched behind the outbound notice and signal (the panel's
    * controller, lib/buddy/outboundClient.ts). A Blob: play it. "system": the user kept the voice on
@@ -364,7 +367,7 @@ export function createSpeaker(deps: SpeakerDeps) {
       if (heard.length === 0) deps.onSynth?.(run, Date.now());
       // Paused before any sound: this utterance has no audible mark (the sample is not counted).
       if (audible === "waiting" && firstStart === null && held) audible = "never";
-      player.add(samples, rate, pauseMs);
+      player.add(samples, rate, pauseMs, c.leadMs);
       if (audible === "waiting") {
         if (firstStart === null) firstStart = Date.now() + (player.startsIn?.() ?? 0) * 1000;
         const lead = audibleAt(samples, rate);
@@ -387,7 +390,7 @@ export function createSpeaker(deps: SpeakerDeps) {
       return sentencesWithin(said.list, chars);
     };
     let reply: OkFilowTtsReply | null = null;
-    void tts.speak({ id, text, lang, voice: s?.naturalVoice, speed: s?.speed }).then(
+    void tts.speak({ id, text, lang, voice: s?.naturalVoice, speed: s?.speed, labels: deps.labels?.() }).then(
       (r) => { reply = r; },
       (e) => { reply = { ok: false, reason: "failed", error: String(e instanceof Error ? e.message : e) }; },
     );

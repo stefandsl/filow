@@ -52,7 +52,7 @@ export type OkFilowStatus = {
   provider: "local" | "cloud" | "freellm";
   /** "natural" = the neural voice that runs on this PC (apps/desktop/tts.js). */
   voice: "natural" | "system" | "cloud" | "off";
-  /** Which of the natural voices speaks: 0-4 female, 5-9 male. */
+  /** -1 or absent: automatic by language. Explicit voices: 0-4 female, 5-9 male. */
   naturalVoice?: number;
   showAlways: boolean;
   dictation: boolean;
@@ -126,7 +126,7 @@ export type OkFilowTtsStatus = {
   reason: "" | "lowMemory" | "fewCores" | "slow";
 };
 /** `text`: the words of the piece (absent on older desktop builds), so the voice can tell how far it got. */
-export type OkFilowTtsChunk = { id: number; seq: number; last: boolean; samples: Float32Array; sampleRate: number; pause: number; text?: string };
+export type OkFilowTtsChunk = { id: number; seq: number; last: boolean; samples: Float32Array; sampleRate: number; pause: number; text?: string; leadMs?: number };
 export type OkFilowTtsReply =
   | { ok: true; cancelled: boolean; chunks: number; sent: number; level: string }
   | { ok: false; reason: "notInstalled" | "lowMemory" | "fewCores" | "slow" | "failed"; error?: string };
@@ -303,7 +303,7 @@ export type OkFilowBridge = {
     stopDownload?(): Promise<OkFilowTtsStatus>;
     /** Loads the model ahead of the answer. */
     warm(): Promise<boolean>;
-    speak(req: { id: number; text: string; lang: string; voice?: number; speed?: number }): Promise<OkFilowTtsReply>;
+    speak(req: { id: number; text: string; lang: string; voice?: number; speed?: number; labels?: string[] }): Promise<OkFilowTtsReply>;
     cancel(id?: number): Promise<void>;
     played(info: { id: number; seconds: number; interrupted: boolean; state: string }): void;
     onChunk(fn: (c: OkFilowTtsChunk) => void): Off;

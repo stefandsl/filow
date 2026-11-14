@@ -1,6 +1,6 @@
 // The natural voice's rows in the OK Filow panel: Stop next to the download's percent, and for the
 // voice on disk its size, whether it is the one in use, and Delete after one question.
-import type { ReactElement } from "react";
+import { cloneElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { VoiceSettings } from "@/app/okfilow/panel/voice-settings";
@@ -34,6 +34,21 @@ function handler(node: ReactElement, testid: string): Record<string, unknown> | 
 }
 
 describe("the natural voice in the OK Filow panel", () => {
+  it("offers translated automatic selection without replacing an explicit speaker zero", () => {
+    const base = view(tts({installed: true, state: "ready"}), "natural");
+    const automatic = cloneElement(base, {lang: "it", status: {...base.props.status, naturalVoice: -1}});
+    expect(renderToStaticMarkup(automatic)).toContain('<option value="-1" selected="">Automatico</option>');
+    const unset = cloneElement(base, {status: {...base.props.status, naturalVoice: undefined}});
+    expect(renderToStaticMarkup(unset)).toContain('<option value="-1" selected="">Automatic</option>');
+    expect(renderToStaticMarkup(base)).toContain('<option value="0" selected="">Female 1</option>');
+    const configure = vi.fn(async () => {});
+    const node = cloneElement(base, {configure});
+    const change = handler(node, "voice-speaker")!.onChange as (e: {target: {value: string}}) => void;
+    change({target: {value: "-1"}});
+    expect(configure).toHaveBeenLastCalledWith({naturalVoice: -1});
+    change({target: {value: "0"}});
+    expect(configure).toHaveBeenLastCalledWith({naturalVoice: 0});
+  });
   it("while it downloads: the percent and a Stop button with a name a screen reader can say", () => {
     const html = renderToStaticMarkup(view(tts({ state: "downloading", pct: 4 }), "natural"));
     expect(plain(html)).toContain("Downloading the voice… 4% Stop");
