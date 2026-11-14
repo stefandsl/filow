@@ -43,10 +43,14 @@ function ruGenitive(n) {
 }
 function clock(h, m, l) {
   h = Number(h); m = Number(m);
-  if (l === 'ja') return `${word(h,l)}時${word(m,l)}分`;
+  // A full hour is said without minutes: 3:00 is 三時, not 三時零分.
+  if (l === 'ja') return `${word(h,l)}時${m ? word(m,l) + '分' : ''}`;
   if (l === 'ru') return `${word(h,l)} ${pluralRu(h,['час','часа','часов'])} ${word(m,l,{gender:'feminine'})} ${pluralRu(m,['минута','минуты','минут'])}`;
-  if (l === 'it') return `${word(h,l)}${m ? ' e ' + word(m,l) : ' in punto'}`;
-  if (l === 'ro') return `${word(h,l)}${m ? ' și ' + word(m,l) : ' fix'}`;
+  // One o'clock is feminine in Italian (l'una). The article in front of it is fixed in normalizeNumbers.
+  if (l === 'it') return `${h === 1 ? 'una' : word(h,l)}${m ? ' e ' + word(m,l) : ' in punto'}`;
+  // Romanian hours and minutes take "două" (ora două, douăzeci și două); "unu" stays (ora unu).
+  const ro = n => word(n,l).replace(/doi$/, 'două');
+  if (l === 'ro') return `${ro(h)}${m ? ' și ' + ro(m) : ' fix'}`;
   return `${word(h,l)}${m ? (m < 10 ? ' oh ' : ' ') + word(m,l) : " o'clock"}`;
 }
 function numeric(s, l) {
@@ -82,6 +86,11 @@ function normalizeNumbers(text, lang) {
     s = s.replace(new RegExp(`(\\d{1,2}) (${months}) (\\d{4})(?: года)?`, 'gi'), (v,d,m,y) => hold(date(d,MONTHS[l].findIndex(a=>a.toLowerCase()===m.toLowerCase())+1,y,l) ?? v));
     if (l === 'en') s = s.replace(new RegExp(`(${months}) (\\d{1,2}),? (\\d{4})`, 'gi'), (v,m,d,y) => hold(date(d,MONTHS.en.findIndex(a=>a.toLowerCase()===m.toLowerCase())+1,y,l) ?? v));
   }
+  if (l === 'it') {
+    // "alle 1:30" is "all'una e trenta", "le 1:05" is "l'una e cinque": the article elides before "una".
+    s = s.replace(/(?<![\p{L}\d])([Aa]|[Dd]a|[Dd]e|[Ss]u|[Nn]e)lle (0?1):([0-5]\d)(?![\d:])/gu, (_,p,h,m) => hold(`${p}ll'${clock(h,m,l)}`));
+    s = s.replace(/(?<![\p{L}\d])([Ll])e (0?1):([0-5]\d)(?![\d:])/gu, (_,p,h,m) => hold(`${p}'${clock(h,m,l)}`));
+  }
   s = s.replace(/(?<![\d:.])([01]?\d|2[0-3]):([0-5]\d)(?![\d:])/g, (_,h,m) => hold(clock(h,m,l)));
   // Leave malformed clocks, ratios, IP addresses and identifiers intact.
   s = s.replace(/\d+(?:[.:]\d+)*:\d+(?::\d+)*/g, hold);
@@ -111,7 +120,8 @@ function normalizeNumbers(text, lang) {
     : /(?<![\p{L}\d])(-?(?:\d{1,3}(?:[.,\u00a0\u202f ]\d{3})+|\d+)(?:[.,]\d+)?)(\s*%)?(?![\p{L}\d])/gu;
   s = s.replace(pattern, (v,n,pct) => {
     const value = numeric(n,l);
-    const percent = l === 'ru' ? pluralRu(Number(n),['процент','процента','процентов']) : {en:'percent',it:'per cento',ro:'la sută',ja:'パーセント'}[l];
+    // After a fraction the noun is genitive singular: 2,5 процента.
+    const percent = l === 'ru' ? (/ цел(?:ая|ых) | запятая /.test(value ?? '') ? 'процента' : pluralRu(Math.abs(Number(n.replace(/[\s\u00a0\u202f.]/g, ''))) || 0,['процент','процента','процентов'])) : {en:'percent',it:'per cento',ro:'la sută',ja:'パーセント'}[l];
     return value === null ? v : value + (pct ? ` ${percent}` : '');
   });
   return s.replace(/[\u{F0000}-\u{FFFFD}]/gu, c => kept[c.codePointAt(0)-0xF0000] ?? c);

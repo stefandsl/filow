@@ -55,7 +55,7 @@ const cases: Record<string, string[][]> = {
     ['0','零'],['1','一'],['2','二'],['11','十一'],['21','二十一'],['28','二十八'],['100','百'],['101','百一'],['1000','千'],['2000','二千'],
     ['2026','二千二十六'],['1999','千九百九十九'],['2001','二千一'],['2010','二千十'],['2030','二千三十'],
     ['14/11/2026','二千二十六年十一月十四日'],['1/1/2001','二千一年一月一日'],['2026-11-14','二千二十六年十一月十四日'],
-    ['14:30','十四時三十分'],['9:05','九時五分'],['10:00','十時零分'],
+    ['14:30','十四時三十分'],['9:05','九時五分'],['10:00','十時'],
     ['第1','第一'],['第2','第二'],['第3','第三'],['1.5','一 点 五'],['0.05','零 点 零 五'],['12.75','十二 点 七 五'],
     ['1,000','千'],['2,026','二千二十六'],['12 000','一万二千'],['25%','二十五 パーセント'],['1%','一 パーセント'],
     ['¥1','一円'],['2 JPY','二円'],['¥50','五十円'],['0.9.39','零 点 九 点 三十九'],['1.2.3','一 点 二 点 三'],
@@ -108,4 +108,50 @@ describe('audio tails and joins', () => {
     expect(Math.max(...out.slice(1).map((x:number,i:number)=>Math.abs(x-out[i])))).toBeLessThan(.12);
   });
   it('does not add silence inside a language switch', () => expect(finishAudio(new Float32Array(100).fill(.5),1000,.003,true).length).toBe(100));
+});
+
+// Spoken forms a first review found wrong (2026-11-14). Sources: DOOM-style school grammar for Romanian
+// (ora două, douăzeci și două), Zanichelli "Che ora è?" (l'una, all'una e mezza), standard Japanese
+// time reading (3:00 = 三時), Russian fractional numerals (2,5 процента). RU, RO, JA: needs a native check.
+describe('clock times and fractional percentages', () => {
+  it.each([
+    ['ro', 'Ne vedem la 2:10.', 'Ne vedem la două și zece.'],
+    ['ro', 'Filmul începe la 22:15.', 'Filmul începe la douăzeci și două și cincisprezece.'],
+    ['ro', 'Ajung la 14:02.', 'Ajung la paisprezece și două.'],
+    ['ro', 'Trenul pleacă la 12:30.', 'Trenul pleacă la douăsprezece și treizeci.'],
+    ['ro', 'Vin la 1:00.', 'Vin la unu fix.'],
+    ['ro', 'Ajung la 21:05.', 'Ajung la douăzeci și unu și cinci.'],
+    ['ro', 'Scade cu 2%.', 'Scade cu doi la sută.'],
+    ['ro', 'Am 2 și 22.', 'Am doi și douăzeci și doi.'],
+    ['ro', 'Între 2-3.', 'Între doi până la trei.'],
+    ['it', 'Ci vediamo alle 1:30.', "Ci vediamo all'una e trenta."],
+    ['it', 'Arrivo alle 1:00.', "Arrivo all'una in punto."],
+    ['it', 'Dalle 1:15 siamo aperti.', "Dall'una e quindici siamo aperti."],
+    ['it', 'Sono le 1:05.', "Sono l'una e cinque."],
+    // A bare "a" is left alone: "pari a 1:30" and "a 1:45 dal primo" are not times of day.
+    ['it', 'Parte a 1:20.', 'Parte a una e venti.'],
+    ['it', 'Da 1:30 a 1:45.', 'Da una e trenta a una e quarantacinque.'],
+    ['it', 'Mandale 1:30 foto.', 'Mandale una e trenta foto.'],
+    ['it', 'Elle 1:30.', 'Elle una e trenta.'],
+    ['it', 'Da 1:30 a 2:30.', 'Da una e trenta a due e trenta.'],
+    ['it', 'Dalle 13:00 alle 1:00.', "Dalle tredici in punto all'una in punto."],
+    ['it', 'Parte alle 13:01.', 'Parte alle tredici e uno.'],
+    ['it', 'Sono le 21:00.', 'Sono le ventuno in punto.'],
+    ['it', 'Alle 11:30 chiude.', 'Alle undici e trenta chiude.'],
+    ['ja', '会議は3:00からです。', '会議は三時からです。'],
+    ['ja', '0:00に終わります。', '零時に終わります。'],
+    ['ja', '電車は14:05に出ます。', '電車は十四時五分に出ます。'],
+    ['ru', 'Рост 2,5%.', 'Рост две целых пять десятых процента.'],
+    ['ru', 'Рост 0,5%.', 'Рост ноль целых пять десятых процента.'],
+    ['ru', 'Рост 22,1%.', 'Рост двадцать две целых одна десятая процента.'],
+    ['ru', 'Рост 21%.', 'Рост двадцать один процент.'],
+    ['ru', 'Рост 25%.', 'Рост двадцать пять процентов.'],
+    ['ru', 'Рост 2%.', 'Рост два процента.'],
+    ['ru', 'Рост 2,1234%.', 'Рост два запятая один два три четыре процента.'],
+    ['ru', 'Рост 1.000%.', 'Рост одна тысяча процентов.'],
+    ['ru', 'Спад -1%.', 'Спад минус один процент.'],
+    ['ru', 'Рост 101%.', 'Рост сто один процент.'],
+    ['ru', 'Рост 111%.', 'Рост сто одиннадцать процентов.'],
+    ['en', 'It starts at 1:30.', 'It starts at one thirty.'],
+  ])('%s: %s -> %s', (lang, source, expected) => expect(normalize(source, lang)).toBe(expected));
 });
