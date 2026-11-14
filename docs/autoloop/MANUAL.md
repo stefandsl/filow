@@ -14,7 +14,7 @@ The stop condition needs every row `auto`-passing or `verified`.
 | SEC-05 | auto, passing 48/48 | - |
 | SEC-06 | auto, passing | - |
 | SEC-07 | auto, passing (4 preloads, 140 functions, 94 fixed channels) | open note: `accessPassword` is exposed to the app pages by preload.js and okfilow-preload.js (safe only while SEC-04 keeps those windows on the app origin); `onOffline` returns no unsubscribe |
-| SEC-08 | auto (file-contains, weak) + open | E2E 2026-11-10: geolocation and midi denied, but camera and notifications are granted (the handler allows all of "media"); the standard says only mic and display-capture |
+| SEC-08 | auto (file-contains, weak) + verified 2026-11-14 | packaged probe tools/autoloop/e2e/permissions.mjs: microphone granted, camera, geolocation and MIDI refused, only for the app's own pages and the welcome window (branch autoloop/2026-11-14). Open: notifications are granted although the row lists them among the refused (owner decision); wiring the probe into the score is proposed |
 | SEC-09 | open / needs user | Next server listens on 0.0.0.0 (LAN phone mirror by design): needs Host-header check and token on every route; design decision with the user for the LAN mode |
 | SEC-10 | auto, passing (Electron 45.3.1) | check runs against the npm registry daily |
 | SEC-11 | auto (SEC-4), 6 of 7 fuses | GrantFileProtocolExtraPrivileges needs splash/welcome/picker on a custom protocol first |
@@ -38,8 +38,8 @@ The stop condition needs every row `auto`-passing or `verified`.
 | A11Y-02, 03 | auto, passing | keyboard walk in a11y.mjs: 67 tab stops over 6 pages, ring and name at each, no trap, Enter/Space/Escape work. Not measured: Shift+Tab, "not obscured", logical order, the OK Filow windows themselves |
 | A11Y-05 | auto, passing | the points list announces each tick ("Detto: ..."); Narrator by ear is still open, and the phone mirror and PowerPoint pane (packages/ui StageView) tick silently |
 | PERF-01 | auto, failing | splash ~1.0 s (budget 0.5); main window 8-14 s: servers ~6 s, then the public-link hold ~6 s (user decision pending); start the link in parallel with the servers |
-| PERF-02 | auto (take.mjs --minutes N), partial | 20-minute looped local take measured; credit scales to the 45-minute standard: run `node tools/autoloop/e2e/take.mjs --minutes 45` weekly |
-| PERF-03..04 | open | CPU while idle; bundle size |
+| PERF-02 | auto (take.mjs --minutes N), passing 2026-11-14 | 45-minute looped local take: 52 of 52 passes fresh, growth after warm-up 0.5%; the result expires after 48 hours, run it with each daily score |
+| PERF-03..04 | open, measured 2026-11-14 | idle CPU 8.0% of one core on the main page (budget 1%): renderer 5.3% with idle JavaScript, cause not found (HANDOFF); listening CPU and long tasks not measured; bundle size open |
 | STT-01..05 | open | corpus with word timestamps; WER with a jiwer-equivalent in TS |
 | TRK-01 | auto, passing | 0 false completions (P1 merged 2026-11-09) |
 | TRK-02 | auto, failing (recall 0.80) | raise recall to 0.9 without new false completions |
