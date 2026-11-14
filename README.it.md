@@ -206,7 +206,7 @@ Se il QR mostra un indirizzo che il telefono non riesce ad aprire, controlla il 
 | `OPENROUTER_API_KEY` | **Sì** | https://openrouter.ai/keys |
 | `ELEVENLABS_API_KEY` | App desktop: una di queste due. Web: facoltativa. | https://elevenlabs.io/app/settings/api-keys |
 | `OPENAI_API_KEY` | App desktop: una di queste due. Web: facoltativa. | https://platform.openai.com/api-keys |
-| `OPENROUTER_DECISION_MODEL` | No (predefinito `google/gemini-2.5-flash-lite`) | qualsiasi id di modello da https://openrouter.ai/models |
+| `OPENROUTER_DECISION_MODEL` | No (predefinito `google/gemini-3.1-flash-lite`) | qualsiasi id di modello da https://openrouter.ai/models |
 
 Per il modello di decisione, più economico e veloce è meglio: viene chiamato due volte al secondo.
 
@@ -631,7 +631,7 @@ Con `FILOW_OFFLINE=1`, la traduzione del copione e i token vocali cloud non sono
 
 ## Screen Sense
 
-Screen Sense permette al motore di vedere ciò che vede il pubblico (ARCHITECTURE.md §6). Premi **Osserva schermo…** e scegli uno schermo o una finestra (PowerPoint, un browser, un PDF). Una volta al secondo una miniatura 16×16 viene confrontata con l'ultimo fotogramma inviato; solo un cambiamento reale (nuova slide, nuova pagina) invia un fotogramma completo a un modello multimodale su OpenRouter (`OPENROUTER_VISION_MODEL`, predefinito `google/gemini-2.5-flash`), al massimo 20 fotogrammi al minuto. La risposta compare nella striscia **SULLO SCHERMO**: cosa mostra la slide, fino a tre punti da fare, i numeri e i nomi visibili, e un avviso di incoerenza quando la slide contraddice il tuo script. I fatti che non hai ancora detto sono evidenziati (il modello di decisione li vede come una quarta lista e riferisce cosa manca ancora). Senza uno script caricato, ogni slide diventa una sezione con i suoi punti, così puoi presentare dalle sole slide.
+Screen Sense permette al motore di vedere ciò che vede il pubblico (ARCHITECTURE.md §6). Premi **Osserva schermo…** e scegli uno schermo o una finestra (PowerPoint, un browser, un PDF). Una volta al secondo una miniatura 16×16 viene confrontata con l'ultimo fotogramma inviato; solo un cambiamento reale (nuova slide, nuova pagina) invia un fotogramma completo a un modello multimodale su OpenRouter (`OPENROUTER_VISION_MODEL`, predefinito `google/gemini-3.1-flash-lite`), al massimo 20 fotogrammi al minuto. La risposta compare nella striscia **SULLO SCHERMO**: cosa mostra la slide, fino a tre punti da fare, i numeri e i nomi visibili, e un avviso di incoerenza quando la slide contraddice il tuo script. I fatti che non hai ancora detto sono evidenziati (il modello di decisione li vede come una quarta lista e riferisce cosa manca ancora). Senza uno script caricato, ogni slide diventa una sezione con i suoi punti, così puoi presentare dalle sole slide.
 
 - **Manopola dei costi** (menu a tendina accanto al pulsante, o Impostazioni): Off, Al cambio slide, Bilanciato (anche quando dici "as you can see", "in questa slide", "en esta diapositiva"…), Tempo reale (ogni pochi secondi finché il contenuto continua a cambiare, per le demo). Il piè di pagina mostra i fotogrammi inviati e il loro costo; rientrano nello stesso tetto di 1 $ per sessione delle decisioni.
 - **Guarda ora** invia subito il fotogramma corrente. Dal mirror sul telefono fa lo stesso.

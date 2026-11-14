@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { pointingScores } from "./latency-lib.mjs";
 const require = createRequire(import.meta.url);
 export async function measureImages(h) {
   const { ROOT, WORK, SCREENS, tier, say } = h;
@@ -28,8 +29,10 @@ export async function measureImages(h) {
   const collect = async (s) => { let text=""; for await(const part of s) text+=part; return text; };
   try {
     // Rotate order per screen. Keep a common instruction prefix and vary actual dimensions.
-    for(let n=1;n<=40;n++) for(const w of [1024,768,512].slice((n-1)%3).concat([1024,768,512].slice(0,(n-1)%3))) {
-      if(rows.some(r=>r.screen===n && r.width===w && r.valid)) continue;
+    // Every screen twice: hinted (the element's position in the question, as the app sends it) and vision only
+    // (no position: the picture alone). They are two scores, never one (pointingScores).
+    for(let n=1;n<=40;n++) for(const w of [1024,768,512].slice((n-1)%3).concat([1024,768,512].slice(0,(n-1)%3))) for(const hint of [true,false]) {
+      if(rows.some(r=>r.screen===n && r.width===w && (r.hint ?? true)===hint && r.valid)) continue;
       await h.waitForQuiet(ctx);
       const id=String(n).padStart(3,'0'), q=questions[(n-1)%questions.length];
       const elements=JSON.parse(fs.readFileSync(path.join(SCREENS,id+'.json'))).elements;
@@ -38,17 +41,18 @@ export async function measureImages(h) {
       const screens=[{index:1,width:w,height:Math.round(w*9/16),cursor:true}];
       const named=namedInQuestion(q.text,elements);
       const start=Date.now();
-      const r=await h.api(tier,'/api/chat',{model:tier.model,stream:false,think:false,keep_alive:'30m',options:{num_ctx:8192,temperature:0.3,num_predict:1500},messages:[{role:'system',content:withLocalDate(buddySystemPrompt(screens,'en',{pictures:true}),new Date())},{role:'user',content:withScreenNote(q.text+screenHint(named,1),true),images:[fs.readFileSync(path.join(dir,id+'-'+w+'.jpg')).toString('base64')]}]},180000);
+      const r=await h.api(tier,'/api/chat',{model:tier.model,stream:false,think:false,keep_alive:'30m',options:{num_ctx:8192,temperature:0.3,num_predict:1500},messages:[{role:'system',content:withLocalDate(buddySystemPrompt(screens,'en',{pictures:true}),new Date())},{role:'user',content:withScreenNote(q.text+(hint?screenHint(named,1):''),true),images:[fs.readFileSync(path.join(dir,id+'-'+w+'.jpg')).toString('base64')]}]},180000);
       const raw=r.message?.content || '';
       const placed=await collect(withNamedPoint(withPlacedTags(one(raw),elements),named,1));
       const inside=(text)=>parseBuddyAnswer(text,screens).points.some(p=>p.screen===1 && p.x>=target.x1 && p.x<=target.x2 && p.y>=target.y1 && p.y<=target.y2);
       const ours=new Set([...h.treeOf(h.processTable(),process.pid),...h.treeOf(h.processTable(),ollamaPid),sampler.pid]);
       const cpu=h.foreignCpu(cpuFile,start-2000,Date.now(),ours);
       const split=await h.processorSplit(tier);
-      const row={screen:n,width:w,promptTokens:r.prompt_eval_count,promptEvalMs:r.prompt_eval_duration/1e6,loadMs:r.load_duration/1e6,rawInside:inside(raw),placedInside:inside(placed),foreignCpu:cpu,split,valid:cpu!==null && cpu<=15 && split==='100% CPU'};
+      const row={screen:n,width:w,hint,promptTokens:r.prompt_eval_count,promptEvalMs:r.prompt_eval_duration/1e6,loadMs:r.load_duration/1e6,rawInside:inside(raw),placedInside:inside(placed),foreignCpu:cpu,split,valid:cpu!==null && cpu<=15 && split==='100% CPU'};
       rows.push(row);fs.writeFileSync(file,JSON.stringify(rows,null,2));
-      say(`[images] screen ${n} width ${w}: ${row.valid?'valid':'invalid'} tokens ${row.promptTokens}, eval ${Math.round(row.promptEvalMs)} ms, raw ${+row.rawInside}, placed ${+row.placedInside}`);
+      say(`[images] screen ${n} width ${w} ${hint?'hinted (position given)':'vision only (no position given)'}: ${row.valid?'valid':'invalid'} tokens ${row.promptTokens}, eval ${Math.round(row.promptEvalMs)} ms, raw ${+row.rawInside}, placed ${+row.placedInside}`);
     }
+    for (const w of [1024, 768, 512]) for (const line of pointingScores(rows.filter((r) => r.width === w))) say(`[images] width ${w}, ${line}`);
     // Identical first-screen prompts without the image quantify its token contribution.
     // This is a token diagnostic, not an answer-quality or latency sample.
     const controls = [];

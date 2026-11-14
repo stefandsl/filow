@@ -24,6 +24,15 @@ export type LessonEvent =
 
 /** One question to the model: the answer text, whole. Throws StallError when it ran out of time. */
 export type Ask = (call: { system: string; user: string; format?: unknown; maxTokens: number; timeoutMs: number; temperature?: number }) => Promise<string>;
+/**
+ * A call with a format goes online with a JSON answer format, and OpenAI refuses that (HTTP 400,
+ * "input messages must contain the word 'json'") although the system prompt says "JSON": every
+ * OpenAI lesson call failed so in the paid P0 run (14/11/2026). The system prompt may reach OpenAI
+ * as instructions rather than an input message, so the user's message of every call with a format
+ * says it, in lower case.
+ */
+export const withJsonWord = (ask: Ask): Ask => (call) =>
+  ask(call.format === undefined || call.user.includes("json") ? call : { ...call, user: `${call.user}\n\nReply with a json object.` });
 /** How long to wait before asking a busy online provider again (429 or 5xx): three more tries, then BusyError. */
 export const RETRY = { waitsMs: [2000, 5000, 10000] };
 export class BusyError extends Error {
@@ -367,8 +376,9 @@ export function keepsNumbers(fact: string, sentence: string): boolean {
  * each step's facts in the lesson's language (a sentence that loses a number keeps the fact itself).
  * False when no template fits (or the answer is unusable): the lesson is then planned as before.
  */
-export async function tryTemplate(ask: Ask, req: LessonRequest, emit: (e: LessonEvent) => void): Promise<boolean> {
+export async function tryTemplate(asked: Ask, req: LessonRequest, emit: (e: LessonEvent) => void): Promise<boolean> {
   if (req.lesson || req.lite) return false;
+  const ask = withJsonWord(asked);
   let raw: unknown;
   try {
     raw = parseJsonLoose(await ask({
@@ -411,7 +421,8 @@ export async function tryTemplate(ask: Ask, req: LessonRequest, emit: (e: Lesson
   return true;
 }
 
-export async function generateLocal(ask: Ask, req: LessonRequest, emit: (e: LessonEvent) => void): Promise<void> {
+export async function generateLocal(asked: Ask, req: LessonRequest, emit: (e: LessonEvent) => void): Promise<void> {
+  const ask = withJsonWord(asked);
   if (req.templates && (await tryTemplate(ask, req, emit))) return;
   const more = Boolean(req.lesson);
   const maxSteps = more ? Math.min(3, req.maxSteps) : req.maxSteps;
@@ -1012,7 +1023,8 @@ export function wrongSums(lesson: Lesson): Array<{ step: number; claim: string }
 }
 
 /** Online path: the whole lesson in one answer, read back by an examiner, repaired when it must be. */
-export async function generateCloud(ask: Ask, req: LessonRequest, emit: (e: LessonEvent) => void): Promise<void> {
+export async function generateCloud(asked: Ask, req: LessonRequest, emit: (e: LessonEvent) => void): Promise<void> {
+  const ask = withJsonWord(asked);
   const more = Boolean(req.lesson);
   const guards = { ...GUARDS, ...req.guards };
   const maxSteps = more ? Math.min(3, req.maxSteps) : req.maxSteps;

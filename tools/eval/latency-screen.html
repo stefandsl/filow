@@ -81,11 +81,14 @@
     btn.style.left = `${x}px`; btn.style.top = `${y}px`; btn.style.background = bg; btn.style.color = fg;
     main.appendChild(btn);
   });
-  // What Windows would name on this screen, on the 0-1000 grid (lib/buddy/ground.ts ScreenElement).
+  // What Windows would name on this screen, on the 0-1000 grid (lib/buddy/ground.ts ScreenElement), of the
+  // picture: the grid of the viewport, which the capture stretches to 1920x1080. Windows keeps a window inside
+  // the work area, so above a 48 px taskbar the viewport is 1032 px high; a grid of 1080 put every box about
+  // 44 px above what the picture shows (found by the P0 critic, 14/11/2026).
   window.__elements = () => [...document.querySelectorAll("[data-el]")].map((e) => {
     const r = e.getBoundingClientRect();
     const g = (v, size) => Math.round((v / size) * 1000);
-    return { name: e.dataset.el, screen: 1, x1: g(r.left, 1920), y1: g(r.top, 1080), x2: g(r.right, 1920), y2: g(r.bottom, 1080), type: e.dataset.type };
+    return { name: e.dataset.el, screen: 1, x1: g(r.left, innerWidth), y1: g(r.top, innerHeight), x2: g(r.right, innerWidth), y2: g(r.bottom, innerHeight), type: e.dataset.type };
   });
   window.__ready = true;
 </script>

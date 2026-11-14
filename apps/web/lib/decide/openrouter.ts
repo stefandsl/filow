@@ -1,7 +1,8 @@
 import { SYSTEM_PROMPT, buildUserPrompt, parseDecisions, type DecideRequest, type DecideResponse } from "@filow/core";
 import { openRouterChat } from "@/lib/openrouter";
 
-export const OPENROUTER_DECISION_MODEL = () => process.env.OPENROUTER_DECISION_MODEL || "google/gemini-2.5-flash-lite";
+/** Default: Gemini 3.1 Flash Lite, 95.7% agreement at 1.4 s in the paid P0 run (14/11/2026; 2.5 Flash Lite 78%). Same maker as before. */
+export const OPENROUTER_DECISION_MODEL = () => process.env.OPENROUTER_DECISION_MODEL || "google/gemini-3.1-flash-lite";
 
 /** Cloud decisions through an OpenRouter chat model answering JSON. */
 export async function decideOpenRouter(body: DecideRequest): Promise<DecideResponse> {

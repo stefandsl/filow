@@ -936,7 +936,7 @@ export const it: Dictionary = {
   "fit.fits": "adatto",
   "fit.tight": "al limite",
   "fit.too big": "troppo grande",
-  "settings.screenHint": "Segue lo schermo, la finestra o la zona che scegli e trasforma ogni nuova slide in suggerimenti, dati e un controllo di ciò che manca. I fotogrammi restano in memoria, vanno una sola volta al modello di visione su OpenRouter (OPENROUTER_VISION_MODEL, predefinito google/gemini-2.5-flash) e vengono scartati; della sessione resta solo il testo restituito. Le viste e i telefoni ricevono solo quel testo. Spento in modalità offline.",
+  "settings.screenHint": "Segue lo schermo, la finestra o la zona che scegli e trasforma ogni nuova slide in suggerimenti, dati e un controllo di ciò che manca. I fotogrammi restano in memoria, vanno una sola volta al modello di visione su OpenRouter (OPENROUTER_VISION_MODEL, predefinito google/gemini-3.1-flash-lite) e vengono scartati; della sessione resta solo il testo restituito. Le viste e i telefoni ricevono solo quel testo. Spento in modalità offline.",
   "settings.screenModes": "Al cambio di slide = una chiamata per fotogramma cambiato (differenza media 16×16, massimo 20 fotogrammi al minuto). Bilanciato aggiunge le frasi del relatore (“come vedete”, “in questa slide”…). Tempo reale continua a chiamare ogni pochi secondi finché il contenuto cambia, per le demo.",
   "settings.hotkeyEnabled": "Attivo (scorciatoia globale registrata)",
   "settings.hotkeyTitle": "Acceleratore Electron, es. CommandOrControl+Shift+Space o Alt+PrintScreen",

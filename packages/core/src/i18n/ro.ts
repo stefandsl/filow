@@ -934,7 +934,7 @@ export const ro: Dictionary = {
   "fit.fits": "încape",
   "fit.tight": "la limită",
   "fit.too big": "prea mare",
-  "settings.screenHint": "Urmărește ecranul, fereastra sau zona pe care o alegi și transformă fiecare slide nou în indicii, date și o verificare a ce a rămas nespus. Cadrele rămân în memorie, ajung o singură dată la modelul de viziune de pe OpenRouter (OPENROUTER_VISION_MODEL, implicit google/gemini-2.5-flash) și apoi sunt șterse; pentru sesiune se păstrează doar textul primit înapoi. Vizualizările și telefoanele primesc doar acel text. Oprit în modul offline.",
+  "settings.screenHint": "Urmărește ecranul, fereastra sau zona pe care o alegi și transformă fiecare slide nou în indicii, date și o verificare a ce a rămas nespus. Cadrele rămân în memorie, ajung o singură dată la modelul de viziune de pe OpenRouter (OPENROUTER_VISION_MODEL, implicit google/gemini-3.1-flash-lite) și apoi sunt șterse; pentru sesiune se păstrează doar textul primit înapoi. Vizualizările și telefoanele primesc doar acel text. Oprit în modul offline.",
   "settings.screenModes": "La schimbarea slide-ului = un apel pentru fiecare cadru schimbat (diferență medie pe 16×16, cel mult 20 de cadre pe minut). Echilibrat adaugă indiciile prezentatorului („as you can see”, „in questa slide”…). Timp real continuă apelurile la câteva secunde cât timp conținutul se tot schimbă, pentru demonstrații.",
   "settings.hotkeyEnabled": "Activată (comandă rapidă globală înregistrată)",
   "settings.hotkeyTitle": "Accelerator Electron, de exemplu CommandOrControl+Shift+Space sau Alt+PrintScreen",

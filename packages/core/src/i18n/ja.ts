@@ -944,7 +944,7 @@ export const ja: Dictionary = {
   "fit.fits": "収まる",
   "fit.tight": "ぎりぎり",
   "fit.too big": "大きすぎ",
-  "settings.screenHint": "選んだ画面、ウィンドウ、または範囲を見て、新しいスライドごとに合図、事実、抜けの確認を作ります。フレームはメモリ内にとどまり、OpenRouterのビジョンモデル（OPENROUTER_VISION_MODEL、既定はgoogle/gemini-2.5-flash）に1回送られたあと破棄されます。セッション中に保持されるのは、返ってきたテキストだけです。ビューやスマートフォンが受け取るのも、そのテキストだけです。オフラインモードではオフです。",
+  "settings.screenHint": "選んだ画面、ウィンドウ、または範囲を見て、新しいスライドごとに合図、事実、抜けの確認を作ります。フレームはメモリ内にとどまり、OpenRouterのビジョンモデル（OPENROUTER_VISION_MODEL、既定はgoogle/gemini-3.1-flash-lite）に1回送られたあと破棄されます。セッション中に保持されるのは、返ってきたテキストだけです。ビューやスマートフォンが受け取るのも、そのテキストだけです。オフラインモードではオフです。",
   "settings.screenModes": "「スライド切り替え時」= 変化したフレームごとに1回呼び出し（16×16の平均差分、1分に最大20フレーム）。「バランス」は発表者の合図（“as you can see”、“in questa slide”…）も加えます。「リアルタイム」は、内容が変わり続けている間、数秒ごとに呼び出し続けます。デモ向けです。",
   "settings.hotkeyEnabled": "有効（グローバルホットキー登録済み）",
   "settings.hotkeyTitle": "Electronのアクセラレーター。例：CommandOrControl+Shift+Space、Alt+PrintScreen",

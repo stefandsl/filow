@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fallbackModels, openRouterChat, openRouterProvider, routedModels } from "./openrouter";
+import { fallbackModels, openRouterChat, openRouterProvider, reasoningFor, routedModels } from "./openrouter";
+import { OPENROUTER_DECISION_MODEL } from "./decide/openrouter";
 import { askRecipient, consentKey, noticeBody, routerRecipient } from "./buddy/outbound";
 import { askBuddy, buddyCloudRecipient } from "./buddy/providers";
 import { OKF_TEXT } from "./buddy/text";
@@ -141,7 +142,31 @@ describe("the host that runs the model is the one the notice names", () => {
     }));
     const consent = consentKey("ask", buddyCloudRecipient());
     for await (const piece of askBuddy("cloud", { question: "q", images: [], screens: [], consent })) void piece;
-    expect(calls[0].model).toBe("google/gemini-2.5-flash");
-    expect(calls[0].provider).toEqual({ only: ["google-vertex", "google-ai-studio"], sort: "throughput" });
+    expect(calls[0].model).toBe("openai/gpt-6-luna");
+    expect(calls[0].provider).toEqual({ only: ["openai"], sort: "throughput" });
+    // thinking minimal, as the paid P0 run sent it
+    expect(calls[0].reasoning).toEqual({ effort: "minimal" });
+  });
+
+  it("the new default models are pinned to their makers and sent with thinking off or minimal, as measured", async () => {
+    expect(openRouterProvider(["openai/gpt-6-luna"])).toEqual({ only: ["openai"], sort: "throughput" });
+    expect(openRouterProvider(["google/gemini-3.1-flash-lite"])).toEqual({ only: ["google-vertex", "google-ai-studio"], sort: "throughput" });
+    expect(openRouterProvider(["anthropic/claude-haiku-5.5"])).toEqual({ only: ["anthropic"], sort: "throughput" });
+    expect(reasoningFor("openai/gpt-6-luna")).toEqual({ reasoning: { effort: "minimal" } });
+    expect(reasoningFor("google/gemini-3.1-flash-lite")).toEqual({ reasoning: { effort: "minimal" } });
+    expect(reasoningFor("anthropic/claude-haiku-5.5")).toEqual({ reasoning: { enabled: false } });
+    // Sonnet refuses thinking off: the smallest effort
+    expect(reasoningFor("anthropic/claude-sonnet-5.5")).toEqual({ reasoning: { effort: "minimal" } });
+    // a model that was not measured is sent as before
+    expect(reasoningFor("openai/gpt-4o-mini")).toEqual({});
+    // openRouterChat (decisions, Screen Sense, scripts) sends it too, and no caller can widen the hosts
+    process.env.OPENROUTER_API_KEY = "k";
+    const calls: Array<Record<string, unknown>> = [];
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, init: RequestInit) => {
+      calls.push(JSON.parse(String(init.body)));
+      return Response.json({ choices: [{ message: { content: "{}" } }] });
+    }));
+    await openRouterChat(OPENROUTER_DECISION_MODEL(), "text", { messages: [] });
+    expect(calls[0]).toMatchObject({ model: "google/gemini-3.1-flash-lite", reasoning: { effort: "minimal" }, provider: { only: ["google-vertex", "google-ai-studio"] } });
   });
 });

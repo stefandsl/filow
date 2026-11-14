@@ -184,8 +184,9 @@ async function prepare() {
       if (!fs.existsSync(path.join(dest, m))) { fs.cpSync(src, path.join(dest, m), { recursive: true }); say(`[prepare] ${tier.name}: model ${m}`); }
     }
   }
-  // the synthetic screens
-  if (!fs.existsSync(path.join(SCREENS, "040.png"))) {
+  // the synthetic screens; made again when they come from the generator whose boxes sat 44 px too high (no viewport)
+  const stale = () => { try { return !JSON.parse(fs.readFileSync(path.join(SCREENS, "040.json"), "utf8")).viewport; } catch { return true; } };
+  if (!fs.existsSync(path.join(SCREENS, "040.png")) || stale()) {
     const electron = execFileSync(process.execPath, ["-e", "console.log(require('electron'))"], { cwd: ROOT, encoding: "utf8" }).trim();
     execFileSync(electron, [path.join(ROOT, "tools", "eval", "latency-screens.cjs"), SCREENS, "40"], { stdio: "inherit", env: { ...process.env, TEMP: path.join(LAT, "tmp"), TMP: path.join(LAT, "tmp") } });
   }
