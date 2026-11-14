@@ -25,18 +25,29 @@ const GIB = 1024 ** 3;
 const root = tmpRoot("tts");
 
 describe("voice for a language", () => {
+  it("uses the measured language recommendations only in automatic mode", () => {
+    for (const [lang, sid] of Object.entries({en: 9, it: 9, ru: 2, ro: 2, ja: 4})) {
+      expect(tts.voiceFor(lang, -1)).toEqual({lang, sid});
+      expect(tts.voiceFor(lang, undefined)).toEqual({lang, sid});
+      expect(tts.voiceFor(lang, 0)).toEqual({lang, sid: 0});
+    }
+  });
   it("speaks each of the five languages in that language", () => {
     for (const lang of ["en", "it", "ru", "ro", "ja"]) expect(tts.voiceFor(lang, 3)).toEqual({ lang, sid: 3 });
     expect(tts.LANGS).toEqual(["en", "it", "ru", "ro", "ja"]);
   });
 
-  it("falls back to English and the first voice for anything it does not know", () => {
+  it("uses language defaults for automatic choices but preserves every explicit speaker", () => {
     expect(tts.voiceFor("de", 2)).toEqual({ lang: "en", sid: 2 });
-    expect(tts.voiceFor(undefined, undefined)).toEqual({ lang: "en", sid: 0 });
-    expect(tts.voiceFor("ja", 10)).toEqual({ lang: "ja", sid: 0 });
-    expect(tts.voiceFor("ru", -1)).toEqual({ lang: "ru", sid: 0 });
+    expect(tts.voiceFor(undefined, undefined)).toEqual({ lang: "en", sid: 9 });
+    expect(tts.voiceFor("ja", 10)).toEqual({ lang: "ja", sid: tts.DEFAULT_SPEAKERS.ja });
+    expect(tts.voiceFor("ru", -1)).toEqual({ lang: "ru", sid: 2 });
     expect(tts.voiceFor("it", "9")).toEqual({ lang: "it", sid: 9 });
-    expect(tts.voiceFor("it", 1.5)).toEqual({ lang: "it", sid: 0 });
+    expect(tts.voiceFor("it", 1.5)).toEqual({ lang: "it", sid: tts.DEFAULT_SPEAKERS.it });
+    for (const lang of tts.LANGS) {
+      for (let sid = 0; sid < 10; sid++) expect(tts.voiceFor(lang, sid)).toEqual({ lang, sid });
+      expect(tts.voiceFor(lang, null)).toEqual(tts.voiceFor(lang, -1));
+    }
   });
 });
 
@@ -667,14 +678,14 @@ describe("okfilow:tts channels", () => {
     expect(log.some((l) => /^tts: it voice 6 standard/.test(l))).toBe(true);
   });
 
-  it("clamps the speed and falls back to English and the first voice", async () => {
+  it("clamps the speed and falls back to English and its recommended voice", async () => {
     const { bus, userData, workers } = wire("clamp");
     install(userData);
     const panel = sender();
     await bus.invoke("okfilow:tts:speak", panel, { id: 1, text: "Short answer here.", lang: "xx", voice: 99, speed: 9 });
     await bus.invoke("okfilow:tts:speak", panel, { id: 2, text: "Short answer here.", speed: 0.1 });
     await bus.invoke("okfilow:tts:speak", panel, null);
-    expect(workers[0].said[0]).toMatchObject({ lang: "en", sid: 0 });
+    expect(workers[0].said[0]).toMatchObject({ lang: "en", sid: 9 });
     expect(workers[0].said[0].speed).toBeCloseTo(1.05 * 1.5, 5);
     expect(workers[0].said[1].speed).toBeCloseTo(1.05 * 0.75, 5);
     expect(workers[0].said.length).toBe(2);

@@ -1618,7 +1618,7 @@ export default function OkFilowPanel() {
             </select>
           </label>
           <FreeLlmPanelNotes provider={c.offline ? "local" : c.provider} t={t} />
-          <VoiceSettings bridge={bridge} status={c} t={t} configure={configure}
+          <VoiceSettings bridge={bridge} status={c} t={t} configure={configure} lang={lang}
             preview={() => {
               // The sample takes the turn like a new question: the answer stops for good and hands-free does not reopen the mic over it.
               const id = ++run.current;

@@ -21,6 +21,8 @@ const MODEL = {
 const LANGS = ["en", "it", "ru", "ro", "ja"];
 /** Speakers in the model: 0-4 are the female voices, 5-9 the male ones (measured pitch, VOICE.md). */
 const VOICES = 10;
+/** Measured language defaults; explicit speaker choices, including 0, always win. VOICE-NATURAL-2026-11.md. */
+const DEFAULT_SPEAKERS = Object.freeze({ en: 9, it: 9, ru: 2, ro: 2, ja: 4 });
 /** The id of the voice in the downloads registry and in the models list (model-files.js, main.js). */
 const DOWNLOAD_ID = "voice";
 /** Longest answer spoken in one go. */
@@ -36,11 +38,11 @@ function removeModel(userData, spec = MODEL) {
   return require("./stt").specPaths(userData, spec).reduce((n, p) => n + removeInside(models, p), 0);
 }
 
-/** Language and speaker for a request; anything unknown falls back to English and the first voice. */
+/** Language and speaker for a request; -1 or an absent/invalid choice uses the language default. */
 function voiceFor(lang, voice) {
   const l = LANGS.includes(lang) ? lang : "en";
   const n = Number(voice);
-  return { lang: l, sid: Number.isInteger(n) && n >= 0 && n < VOICES ? n : 0 };
+  return { lang: l, sid: voice != null && Number.isInteger(n) && n >= 0 && n < VOICES ? n : DEFAULT_SPEAKERS[l] };
 }
 
 // ---- text that reads well aloud ----
@@ -591,4 +593,4 @@ function wireTts({ ipcMain, ours: ourSender, userData, logLine = () => {}, isOff
   };
 }
 
-module.exports = { MODEL, LANGS, VOICES, modelDir, modelReady, removeModel, voiceFor, speakable, splitSentences, trimSilence, pickProfile, nextProfile, TtsSession, wireTts, wavBytes };
+module.exports = { MODEL, LANGS, VOICES, DEFAULT_SPEAKERS, modelDir, modelReady, removeModel, voiceFor, speakable, splitSentences, trimSilence, pickProfile, nextProfile, TtsSession, wireTts, wavBytes };

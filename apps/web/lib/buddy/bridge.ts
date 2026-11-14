@@ -52,7 +52,7 @@ export type OkFilowStatus = {
   provider: "local" | "cloud" | "freellm";
   /** "natural" = the neural voice that runs on this PC (apps/desktop/tts.js). */
   voice: "natural" | "system" | "cloud" | "off";
-  /** Which of the natural voices speaks: 0-4 female, 5-9 male. */
+  /** -1 or absent: automatic by language. Explicit voices: 0-4 female, 5-9 male. */
   naturalVoice?: number;
   showAlways: boolean;
   dictation: boolean;

@@ -711,6 +711,8 @@ Parla con una voce naturale che gira su questo PC, con la voce di sistema come r
 rumeno e giapponese ([docs/stt/LANGUAGES.md](docs/stt/LANGUAGES.md)).
 La prima frase viene inviata subito alla voce; quelle che arrivano mentre viene letta sono raggruppate
 per una continuazione più fluida. Stop, Riprendi e la frase evidenziata mantengono la loro posizione.
+Nelle impostazioni della voce naturale, Automatico sceglie una voce consigliata per la lingua dell'interfaccia.
+Puoi comunque scegliere una delle dieci voci; una scelta esplicita già salvata viene mantenuta.
 
 I segni sullo schermo seguono le frasi pronunciate e mantengono le posizioni precedenti mentre la risposta cresce. Il puntatore e la sua etichetta si muovono insieme nello spazio libero; se il percorso è occupato, il puntatore viene nascosto per non coprire il testo rilevato. Il fumetto cresce gradualmente (senza animare le dimensioni quando è attiva la riduzione del movimento). La vista 3D usa punti sulle superfici e linee distanziate, con etichette leggibili in entrambi i temi; i margini vuoti lasciano passare i clic.
 
