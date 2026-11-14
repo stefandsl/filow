@@ -37,6 +37,13 @@ const CURRENCY = {
   ru: {EUR:['евро','евро','евро','цент','цента','центов'],USD:['доллар','доллара','долларов','цент','цента','центов'],GBP:['фунт','фунта','фунтов','пенни','пенни','пенни'],JPY:['иена','иены','иен','','',''],RUB:['рубль','рубля','рублей','копейка','копейки','копеек'],RON:['лей','лея','леев','бань','бани','бань']},
   ja: {EUR:'ユーロ',USD:'ドル',GBP:'ポンド',JPY:'円',RUB:'ルーブル',RON:'レイ'},
 };
+// English years are said in pairs: nineteen ninety-nine, nineteen oh five, twenty twenty-one, two thousand five.
+function yearEn(y) {
+  y = Number(y);
+  const hi = Math.floor(y / 100), lo = y % 100;
+  if (y < 1100 || y > 2099 || (hi === 20 && lo < 10)) return word(y,'en');
+  return `${word(hi,'en')} ${lo === 0 ? 'hundred' : lo < 10 ? 'oh ' + word(lo,'en') : word(lo,'en')}`;
+}
 const pluralRu = (n, forms) => forms[n % 100 >= 11 && n % 100 <= 14 ? 2 : n % 10 === 1 ? 0 : n % 10 >= 2 && n % 10 <= 4 ? 1 : 2];
 function ruGenitive(n) {
   const forms = {
@@ -110,7 +117,12 @@ function normalizeNumbers(text, lang) {
     s = s.replace(/(\d{4}) год(?![а-я])/g, (_,y) => hold(`${ordinal(y,l)} год`));
     s = s.replace(/(\d+) (минут[аыу]?|страниц[аыу]?|секунд[аыу]?)(?![а-я])/g, (_,n,noun) => hold(`${word(n,l,{gender:'feminine'})} ${noun}`));
   }
-  if (l === 'en') s = s.replace(/\b([1-9]\d*)(?:st|nd|rd|th)\b/g, (_,n)=>hold(ordinal(n,l)));
+  if (l === 'en') {
+    // A decade (the 1990s) or a year after a time preposition (in 1999, since 2021) is a year, not a count.
+    s = s.replace(/\b(1[1-9]|20)(\d0)s\b/g, (_,a,b) => hold(yearEn(a + b).replace(/y$/, 'ie') + 's'));
+    s = s.replace(/\b(in|since|from|to|until|by|before|after) (1[1-9]\d\d|20\d\d)\b(?![.,]\d)/gi, (_,p,y) => `${p} ${hold(yearEn(y))}`);
+    s = s.replace(/\b([1-9]\d*)(?:st|nd|rd|th)\b/g, (_,n)=>hold(ordinal(n,l)));
+  }
   if (l === 'it') s = s.replace(/\b([1-9]\d*)([°ºª])/g, (_,n,f)=>hold(ordinal(n,l,f)));
   if (l === 'ru') s = s.replace(/\b([1-9]\d*)-([йяе])/g, (_,n,f)=>hold(ordinal(n,l,f === 'е' ? 'neuter' : f)));
   if (l === 'ro') s = s.replace(/\bal ([1-9]\d*)-lea\b/g, (_,n)=>hold(ordinal(n,l)));
