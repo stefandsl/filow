@@ -24,7 +24,9 @@ export async function POST(req: Request) {
   const refused = consentDenied(req, "voice", voiceRecipient());
   if (refused) return refused;
   const voice = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
-  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_64`, {
+  // ELEVENLABS_BASE_URL points it at a local stand-in for end-to-end checks, like OPENROUTER_BASE_URL.
+  const base = (process.env.ELEVENLABS_BASE_URL || "").trim().replace(/\/+$/, "") || "https://api.elevenlabs.io";
+  const res = await fetch(`${base}/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_64`, {
     method: "POST",
     headers: { "xi-api-key": apiKey, "Content-Type": "application/json", Accept: "audio/mpeg" },
     body: JSON.stringify({ text, model_id: process.env.ELEVENLABS_TTS_MODEL || "eleven_flash_v2_5" }),

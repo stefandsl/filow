@@ -19,21 +19,34 @@ describe("which voice reads the lesson", () => {
     expect(boardVoice({ voice: "cloud", offline: true }, { natural: true, recording: false }).voice).toBe("natural");
   });
   it("none: nothing speaks; the system voice only when it is the choice", () => {
-    expect(boardVoice({ voice: "off", offline: false }, { natural: true, recording: true })).toEqual({ voice: "off", note: "" });
+    expect(boardVoice({ voice: "off", offline: false }, { natural: true, recording: false })).toEqual({ voice: "off", note: "" });
     expect(boardVoice({ voice: "system", offline: false }, { natural: true, recording: false }).voice).toBe("system");
     expect(boardVoice(null, { natural: false, recording: false }).voice).toBe("system");
   });
-  it("recording: the online voice is replaced by the natural one, said so; without it the video is silent, said so", () => {
-    const natural = boardVoice({ voice: "cloud", offline: false }, { natural: true, recording: true });
-    expect(natural).toEqual({ voice: "natural", note: "voiceRecordNatural" });
-    expect(recordsSound(natural)).toBe(true);
-    const none = boardVoice({ voice: "cloud", offline: false }, { natural: false, recording: true });
-    expect(none).toEqual({ voice: "system", note: "voiceRecordSilent" });
-    expect(recordsSound(none)).toBe(false);
-    expect(recordsSound(boardVoice({ voice: "natural", offline: false }, { natural: true, recording: true }))).toBe(true);
+  it("a video with voice: the online voice is recorded as it is (its audio passes through the page)", () => {
+    const cloud = boardVoice({ voice: "cloud", offline: false }, { natural: false, recording: true });
+    expect(cloud).toEqual({ voice: "cloud", note: "" });
+    expect(recordsSound(cloud)).toBe(true);
+    expect(boardVoice({ voice: "cloud", offline: false }, { natural: true, recording: true })).toEqual({ voice: "cloud", note: "" });
+  });
+  it("a video with voice: the system voice (or none, or the online voice offline) is replaced by the natural one, said so", () => {
+    for (const voice of ["system", "off", "cloud"] as const) {
+      const v = boardVoice({ voice, offline: voice === "cloud" }, { natural: true, recording: true });
+      expect(v, voice).toEqual({ voice: "natural", note: "voiceRecordNatural" });
+      expect(recordsSound(v)).toBe(true);
+    }
+    expect(boardVoice({ voice: "natural", offline: false }, { natural: true, recording: true })).toEqual({ voice: "natural", note: "" });
+  });
+  it("a video with voice and no voice to record: none, said so (the choice then offers only the video without voice)", () => {
+    for (const voice of ["system", "off", "natural"] as const) {
+      const v = boardVoice({ voice, offline: false }, { natural: false, recording: true });
+      expect(v, voice).toEqual({ voice: "off", note: "voiceRecordNone" });
+      expect(recordsSound(v)).toBe(false);
+    }
+    expect(recordsSound({ voice: "system", note: "" })).toBe(false);
   });
   it("the notes speak the five languages, with no em dash", () => {
-    for (const lang of ["en", "it", "ru", "ro", "ja"]) for (const key of ["voiceRecordNatural", "voiceRecordSilent"] as const) {
+    for (const lang of ["en", "it", "ru", "ro", "ja"]) for (const key of ["voiceRecordNatural", "voiceRecordNone", "videoVoiceMuted", "videoWithVoice", "videoNoVoice", "videoChoice", "videoCancel", "videoSavedSilent"] as const) {
       expect(wbText(lang, key), `${lang} ${key}`).not.toContain(String.fromCharCode(0x2014));
       if (lang !== "en") expect(wbText(lang, key)).not.toBe(wbText("en", key));
     }

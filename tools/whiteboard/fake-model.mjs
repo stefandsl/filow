@@ -57,6 +57,11 @@ export function startFakeModel(port = 4812) {
       }
       const lastUser = (body.messages ?? []).filter((m) => m.role === "user").pop()?.content;
       seen.push({ url, at: Date.now(), hasImage: /"image_url"|"images":\s*\["/.test(raw), user: (typeof lastUser === "string" ? lastUser : JSON.stringify(lastUser ?? "")).slice(0, 400) });
+      // Filow checks the Ollama version before it asks (an Ollama too old for its models is said so).
+      if (url.startsWith("/api/version")) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({ version: "0.40.16" }));
+      }
       if (url.startsWith("/api/tags")) {
         res.writeHead(200, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({ models: [{ name: "fake-local" }] }));

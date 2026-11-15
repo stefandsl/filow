@@ -201,6 +201,11 @@ export type SpeakerDeps = {
    */
   cloudAudio?(text: string): Promise<Blob | "system" | null>;
   /**
+   * The element that is about to play the online voice's audio, before it plays: a recording
+   * (lib/whiteboard/video.ts) routes its sound into the video. Returns nothing; may do nothing.
+   */
+  cloudElement?(el: HTMLAudioElement): void;
+  /**
    * The online voice failed with this error. True: the caller has told the user in its own words (a
    * key that is not valid, a used-up quota): the online voice is not tried again by this speaker, and
    * no other note is given. False or absent: the "cloudFailed" note follows (onFallback).
@@ -474,6 +479,7 @@ export function createSpeaker(deps: SpeakerDeps) {
     let ended = false;
     el.onended = el.onerror = () => { ended = true; };
     el.playbackRate = deps.status()?.speed ?? 1;
+    deps.cloudElement?.(el);
     void el.play().catch(() => { ended = true; });
     // One recording: nobody knows where its sentences end, so a pause is taken at once, with a short
     // fade (about 40 ms) instead of a click, and resume carries on from the same position.

@@ -5,9 +5,11 @@
 // What plays where, honestly:
 // - the picture is the live board, so the video takes as long to make as the lesson takes to play,
 //   and the window has to stay in front (a hidden window stops drawing);
-// - the narration is in the video only with the natural voice of this PC, whose sound the app
-//   plays itself and can also hand to the recorder. The system voice is spoken by Windows and
-//   cannot be recorded by a page: the video is then silent, with the captions.
+// - "with voice" or "without" is the user's choice (owner, 14/11/2026). With voice, the narration is
+//   the sound that passes through the page: the online voice's audio (its element is routed into the
+//   recording) or the natural voice's samples. The system voice is spoken by Windows and cannot be
+//   recorded by a page: the natural voice reads the recording in its place (lib/whiteboard/voice.ts).
+//   The narration is recorded even when the lesson's voice is off: it is then not heard while it records.
 import type { ChunkPlayer } from "@/lib/buddy/voice";
 
 export const VIDEO = { fps: 12, width: 1280, height: 720, captionH: 96 };
@@ -98,8 +100,10 @@ export type RecorderDeps = {
   colours(): { page: string; ink: string };
   /** The style rules the copy of the board needs (the formulas' fonts): fetched once. */
   css(): Promise<string>;
-  /** Record sound too (the natural voice is in use). */
+  /** Record the narration too ("with voice"). */
   sound: boolean;
+  /** Whether the narration is also heard while it is recorded (the lesson's voice is on). */
+  hear(): boolean;
 };
 
 /** Records the lesson as it plays. `player()` is the voice's output while recording: heard as usual and also written into the video. */
@@ -115,6 +119,11 @@ export function createRecorder(deps: RecorderDeps) {
   const audio = deps.sound ? new AudioContext() : null;
   const tap = audio?.createMediaStreamDestination() ?? null;
   if (tap) for (const track of tap.stream.getAudioTracks()) stream.addTrack(track);
+  // What reaches the speakers: everything recorded passes here, open only while the voice is on.
+  const speakers = audio?.createGain() ?? null;
+  speakers?.connect(audio!.destination);
+  const listen = () => { if (speakers) speakers.gain.value = deps.hear() ? 1 : 0; };
+  const into = (node: AudioNode) => { listen(); node.connect(tap!); node.connect(speakers!); };
   const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 2_500_000 });
   const pieces: Blob[] = [];
   recorder.ondataavailable = (ev) => { if (ev.data.size) pieces.push(ev.data); };
@@ -149,6 +158,7 @@ export function createRecorder(deps: RecorderDeps) {
     sound: Boolean(tap),
     frames: () => frames,
     async start() {
+      if (audio?.state === "suspended") await audio.resume().catch(() => {});
       css = await deps.css().catch(() => "");
       await paint();
       recorder.start(500);
@@ -167,13 +177,22 @@ export function createRecorder(deps: RecorderDeps) {
         else recorder.stop();
       });
     },
-    /** The voice's output while recording (same behaviour as the app's own player, plus the tap into the video). */
+    /**
+     * The online voice's element: its sound goes into the video (and to the speakers while the voice
+     * is on). False when this recording has no sound.
+     */
+    attach(el: HTMLMediaElement): boolean {
+      if (!audio || !tap) return false;
+      if (audio.state === "suspended") void audio.resume().catch(() => {});
+      into(audio.createMediaElementSource(el));
+      return true;
+    },
+    /** The natural voice's output while recording (same behaviour as the app's own player, plus the tap into the video). */
     player(): ChunkPlayer | null {
       if (!audio || !tap) return null;
       if (audio.state === "suspended") void audio.resume().catch(() => {});
       const gain = audio.createGain();
-      gain.connect(audio.destination);
-      gain.connect(tap);
+      into(gain);
       const sources: AudioBufferSourceNode[] = [];
       let next = 0;
       let first = -1;

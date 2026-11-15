@@ -52,6 +52,10 @@
 
 /* The board is an Excalidraw scene drawn as SVG (components/whiteboard/ExcalidrawBoard.tsx): what is
    already there stays put and only the new strokes draw on, one thing at a time as the voice reaches
+/* "Save video": with voice or without */
+.wb-choice { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; border-radius: var(--radius, 10px); border: 1px solid var(--muted); background: var(--surface); }
+.wb-choice-label { font-weight: 600; }
+.wb-choice .wb-note { flex: 1 1 100%; }
    it (--wb-len, from lib/whiteboard/pace.ts). Dark: Excalidraw's own dark mode of the same scene. */
 .wb-frame:has(.wb-ex), .wb-frame:has(.wb-canvas) { display: block; }
 .wb-ex { position: relative; margin: 0 auto; line-height: 0; }
