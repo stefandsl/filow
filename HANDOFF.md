@@ -65,6 +65,96 @@ absent from Ollama's API. Also unverified: deployed logging/auth, old binary wit
 modern model formats, native translations, cross-platform clean-VM F1 acceptance.
 No installed profile, owner Ollama, real microphone, desktop input or paid API used.
 
+## Wake-word round 3 measured result, 2026-11-14
+
+Merged into main on 2026-11-15 at the owner's request, against the branch's own "no ship"
+verdict below. It stays off by default (`wakeWord: false`) and needs personal enrolment to turn
+on. The limits below still hold: treat it as experimental in any release notes.
+
+On feat-wake-word, original stage (a) differs on all 80 augmented clip hashes
+and 55 durations. Portable JS/Python augmentation now matches bit-for-bit;
+embedding max error is 7.45e-8. The explicitly changed reference also adopts
+the app's SGD and bundled quantized negative/calibration split. It agrees on
+500/500 decisions, but is not the original sklearn spike: 34/256 diagnostic
+misses and 91/144 near accepts, versus the old reference's 24 and 76.
+
+Balanced default stays at 20% hard-negative sampling after a calibration curve.
+Five distinct held-out voices miss 3/48 clean/noisy calls, accept 12/26 reserved
+test near phrases, and produce 15 false accepts across 5 x 4 h of background
+(0.75/hour mean, 1.5 worst). Two optional personal negatives reduce near accepts
+to 9/26 with unchanged misses. Five-language Settings now shows own-take replay
+results and requires >=4/5 recognised and zero supplied negative accepts before
+enable. The check uses training takes, not new speech; legacy heads need retraining.
+
+Both native detectors now share a serial utility process. Whole-app 60-second
+fake-mic CPU is 8.89% before and 9.40% after. Item 4 remains incomplete: Chromium
+capture, audio service and per-100-ms IPC remain; the <4% target fails. No ship
+recommendation, including experimental opt-in. Full evidence and round 0-3 table:
+docs/okfilow/WAKE-WORD.md and wake-round3-results.json. Full checks: 3,245 tests
+pass, six skip; typecheck/lint pass; 53 mutations caught. Hidden UI checks cover
+five languages and two themes. No real mic, merge, push, tag or installed profile.
+AGENTS.md is excluded. Remaining work is capture architecture/CPU, background
+false accepts, owner count-only accuracy trial and the original platform/licence
+and real STT handoff limitations. The new parity result does not remove them.
+
+## Wake-word round 2 partial checkpoint, 2026-11-14
+
+Merged origin/main 78830a7 into feat-wake-word in 041b650, preserving both sides.
+The round 2 request is not complete. Relative 20 ms energy-based phrase-end
+labels and preservation of enrolment tails now match the reference convention.
+On the 500-clip diagnostic, app/reference decisions agree on 446 (89.2%), below
+98%; app misses are 46/256 and near accepts 98/144 without hard negatives.
+The positive-matrix-only Python ablation does not improve (45 misses versus 44).
+Do not call this augmentation or training parity. No ship recommendation.
+
+Final checks: 3,237 tests pass, five skip, typecheck and lint pass; 44 mutations
+caught, including the three framing rules and the 98% acceptance boundary.
+Native feature reference tests ran with the existing downloaded ONNX models.
+The new training-parity acceptance command correctly exits 1 on current evidence.
+Full results and all 54 disagreements: docs/okfilow/WAKE-WORD.md and the two
+wake-round2 JSON reports beside it. Test files, matrices and logs are on G:.
+
+Still pending: matching pitch/noise/speech lead-in augmentation, seed semantics,
+unquantized negatives and optimizer; held-out five-head/4-hour reruns and hard
+negative trade-off; optional personal negatives; CPU process consolidation and
+new 60-second measurements; the recognised-N-of-5 enable gate. No real microphone,
+visible UI, installed profile, merge into main, push or tag was used. AGENTS.md
+remains excluded. The round 1 CPU and held-out numbers are not round 2 results.
+
+## Experimental branch update, 2026-11-14
+
+Wake-word rework round 1 remains unmerged and not recommended for shipping.
+The identical-WAV comparison found a streaming mel normalization defect:
+the model clips against the maximum of its whole input, while the app used
+independent short blocks. Retained-context normalization and cache rebuilding
+now match final Python reference contexts within 7.90e-7 over 500 WAVs. Shared
+head arithmetic matches within 2.03e-6; keyword times match on all 500 clips.
+Training/calibration parity is still missing. Matched-corpus Python training
+misses 24/256 versus the original app's 52/256 under the same per-clip rule.
+Changing only Python's positive augmentation to the app's raises misses to
+44/256 and near-miss accepts from 76 to 94/144, proving a major augmentation gap.
+
+Numerical hard negatives reduce calibration near-miss accepts from 95/144 to
+62/144 but increase chronological replay misses from 50/256 to 62/256.
+Five genuinely distinct held-out speaker IDs miss 13/48 clean/noisy calls
+(20/64 including pitch shifts) and accept 14/36 near-misses. The 60-second
+hidden fake-microphone CPU run is 9.96% of one core, still above 4%.
+Four hours of background on each of those heads give Balanced 0.40 false
+accepts/hour on average, 1.25/hour worst, also above target.
+Full evidence, per-language counts, four-hour background results and unresolved
+acceptance gates: `docs/okfilow/WAKE-WORD.md` and `wake-round1-results.json`.
+All 40 mutations caught; Vitest 3,170 pass, six skipped; typecheck and lint pass.
+Pending: optimizer/augmentation/calibration parity, target-quality operating
+point, CPU reduction, personal negatives, long-running normalization and the
+original real-room/STT/platform/licence checks. No real microphone was opened.
+
+`feat-wake-word` adds opt-in local OK Filow detection and five-take enrollment.
+This work was unmerged until 2026-11-15 (see the round 3 note). Defaults, architecture,
+reproduction and evidence are in `docs/okfilow/WAKE-WORD.md`. Balanced scored
+50/256 misses, 95/144 near-miss accepts and 0 accepts in two hours of held-out
+background (one head). Do not ship on these results. Pending: owner real-voice
+room testing, better near-miss rejection, real STT handoff validation, original
+Google model-card confirmation and cross-platform/low-tier hardware checks.
 ## Safe preparation worktree (2026-11-14, unreleased)
 
 `feat-safe-prep`, based on `771ddf1`, implements four owner-independent items:

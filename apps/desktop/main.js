@@ -331,6 +331,7 @@ function initializeUiPreferences() {
   // OK Filow's section in Filow Settings: the main window reads and writes the same settings the panel does.
   ipcMain.handle("okfilow:settings:status", event => { if (!uiSender(event)) throw new Error("Denied"); return okFilow ? okFilow.status() : null; });
   ipcMain.handle("okfilow:settings:configure", (event, patch) => { if (!uiSender(event)) throw new Error("Denied"); return okFilow && patch && typeof patch === "object" ? okFilow.applyConfig(patch) : null; });
+  ipcMain.handle("okfilow:settings:wake", (event, action, data) => { if (!uiSender(event)) throw new Error("Denied"); return okFilow?.wakeAction(action, data); });
   ipcMain.on("okfilow:settings:openPanel", event => { if (uiSender(event)) okFilow?.togglePanel(); });
   // The "Whiteboard" button in the main window's sidebar: the same window the OK Filow panel opens, with no topic yet.
   ipcMain.handle("okfilow:settings:showWhiteboard", event => { if (!uiSender(event)) throw new Error("Denied"); if (!okFilow) return false; okFilow.showWhiteboard(""); return true; });
@@ -1308,6 +1309,7 @@ function setTakeLive(on) {
   const live = on === true; // the value comes from a page: anything else is not a take
   if (live === takeLive) return;
   takeLive = live;
+  okFilow?.wakeReconcile?.();
   logLine(takeLive ? "take: live" : "take: ended");
 }
 // The page that reported the take is gone (another page loaded, it crashed, the window closed): the
@@ -1635,6 +1637,7 @@ function startOkFilow() {
       menuText: (k, vars) => mt(k, vars),
       // Phone questions wait in OK Filow's inbox; during a slide show nothing of them shows (okfilow-phone.js).
       slideShowRunning: () => slideShow.running,
+      takeRunning: () => takeLive,
       // A phone ignored three times in a row: the main window (it holds the session) switches its right to ask off.
       phoneAskOff: (id) => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send("okfilow:phoneAskOff", id); },
     // macOS: the plain-words prompt that opens the right System Settings pane (mac-permissions.js).

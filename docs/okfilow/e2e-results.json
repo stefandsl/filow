@@ -1,0 +1,874 @@
+{
+  "kind": "hidden Electron renderer fake-WAV capture helper -> production IPC -> dual native detectors; accelerated",
+  "positives": 256,
+  "misses": 50,
+  "near": 144,
+  "nearFired": 95,
+  "backgroundSeconds": 7200,
+  "falseAccepts": 0,
+  "cpuSeconds": 278.91080500000004,
+  "voices": [
+    {
+      "voice": "kokoro_v0",
+      "lang": "en",
+      "trainMs": 3611,
+      "positives": 32,
+      "misses": 6,
+      "near": 20,
+      "nearFired": 11,
+      "conditions": {
+        "clean": {
+          "n": 4,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 4,
+          "miss": 0
+        },
+        "pitch-1.5": {
+          "n": 4,
+          "miss": 0
+        },
+        "fan10": {
+          "n": 4,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 4,
+          "miss": 1
+        },
+        "traffic10": {
+          "n": 4,
+          "miss": 2
+        },
+        "traffic5": {
+          "n": 4,
+          "miss": 3
+        },
+        "far": {
+          "n": 4,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "kokoro_v1",
+      "lang": "en",
+      "trainMs": 3015,
+      "positives": 32,
+      "misses": 6,
+      "near": 20,
+      "nearFired": 8,
+      "conditions": {
+        "clean": {
+          "n": 4,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 4,
+          "miss": 1
+        },
+        "pitch-1.5": {
+          "n": 4,
+          "miss": 0
+        },
+        "fan10": {
+          "n": 4,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 4,
+          "miss": 1
+        },
+        "traffic10": {
+          "n": 4,
+          "miss": 1
+        },
+        "traffic5": {
+          "n": 4,
+          "miss": 3
+        },
+        "far": {
+          "n": 4,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "kokoro_v10",
+      "lang": "en",
+      "trainMs": 3225,
+      "positives": 32,
+      "misses": 7,
+      "near": 20,
+      "nearFired": 10,
+      "conditions": {
+        "clean": {
+          "n": 4,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 4,
+          "miss": 3
+        },
+        "pitch-1.5": {
+          "n": 4,
+          "miss": 1
+        },
+        "fan10": {
+          "n": 4,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 4,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 4,
+          "miss": 2
+        },
+        "traffic5": {
+          "n": 4,
+          "miss": 1
+        },
+        "far": {
+          "n": 4,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "kokoro_v11",
+      "lang": "en",
+      "trainMs": 3090,
+      "positives": 32,
+      "misses": 0,
+      "near": 20,
+      "nearFired": 16,
+      "conditions": {
+        "clean": {
+          "n": 4,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 4,
+          "miss": 0
+        },
+        "pitch-1.5": {
+          "n": 4,
+          "miss": 0
+        },
+        "fan10": {
+          "n": 4,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 4,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 4,
+          "miss": 0
+        },
+        "traffic5": {
+          "n": 4,
+          "miss": 0
+        },
+        "far": {
+          "n": 4,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "it",
+      "trainMs": 3048,
+      "positives": 8,
+      "misses": 1,
+      "near": 4,
+      "nearFired": 3,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 1
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v1",
+      "lang": "it",
+      "trainMs": 3089,
+      "positives": 8,
+      "misses": 1,
+      "near": 4,
+      "nearFired": 4,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 0
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v2",
+      "lang": "it",
+      "trainMs": 3347,
+      "positives": 8,
+      "misses": 0,
+      "near": 4,
+      "nearFired": 3,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 0
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v3",
+      "lang": "it",
+      "trainMs": 2979,
+      "positives": 8,
+      "misses": 2,
+      "near": 4,
+      "nearFired": 4,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 1
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "ru",
+      "trainMs": 2992,
+      "positives": 8,
+      "misses": 4,
+      "near": 4,
+      "nearFired": 2,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 1
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 1
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 0
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v1",
+      "lang": "ru",
+      "trainMs": 3046,
+      "positives": 8,
+      "misses": 1,
+      "near": 4,
+      "nearFired": 4,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 0
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v2",
+      "lang": "ru",
+      "trainMs": 3256,
+      "positives": 8,
+      "misses": 1,
+      "near": 4,
+      "nearFired": 3,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 0
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v3",
+      "lang": "ru",
+      "trainMs": 3086,
+      "positives": 8,
+      "misses": 4,
+      "near": 4,
+      "nearFired": 3,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 1
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 1
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "ro",
+      "trainMs": 3132,
+      "positives": 8,
+      "misses": 2,
+      "near": 4,
+      "nearFired": 2,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 0
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v1",
+      "lang": "ro",
+      "trainMs": 3069,
+      "positives": 8,
+      "misses": 2,
+      "near": 4,
+      "nearFired": 4,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 1
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v2",
+      "lang": "ro",
+      "trainMs": 3290,
+      "positives": 8,
+      "misses": 1,
+      "near": 4,
+      "nearFired": 3,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 0
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v3",
+      "lang": "ro",
+      "trainMs": 2951,
+      "positives": 8,
+      "misses": 3,
+      "near": 4,
+      "nearFired": 4,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 1
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v0",
+      "lang": "ja",
+      "trainMs": 3299,
+      "positives": 8,
+      "misses": 4,
+      "near": 4,
+      "nearFired": 3,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 1
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 1
+        },
+        "far": {
+          "n": 1,
+          "miss": 1
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v1",
+      "lang": "ja",
+      "trainMs": 3205,
+      "positives": 8,
+      "misses": 1,
+      "near": 4,
+      "nearFired": 2,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 0
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v2",
+      "lang": "ja",
+      "trainMs": 3408,
+      "positives": 8,
+      "misses": 2,
+      "near": 4,
+      "nearFired": 3,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 1
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 1
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    },
+    {
+      "voice": "supertonic_v3",
+      "lang": "ja",
+      "trainMs": 3182,
+      "positives": 8,
+      "misses": 2,
+      "near": 4,
+      "nearFired": 3,
+      "conditions": {
+        "clean": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch+1.5": {
+          "n": 1,
+          "miss": 0
+        },
+        "pitch-1.5": {
+          "n": 1,
+          "miss": 1
+        },
+        "fan10": {
+          "n": 1,
+          "miss": 0
+        },
+        "keyboard10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic10": {
+          "n": 1,
+          "miss": 0
+        },
+        "traffic5": {
+          "n": 1,
+          "miss": 1
+        },
+        "far": {
+          "n": 1,
+          "miss": 0
+        }
+      }
+    }
+  ],
+  "outboundAttempts": 0,
+  "cpuPercentOneCore": 3.873761180555556
+}

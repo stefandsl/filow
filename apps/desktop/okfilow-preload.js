@@ -13,6 +13,11 @@ contextBridge.exposeInMainWorld("okFilow", {
   /** The session server mints the engine token the spend endpoints need while ACCESS_PASSWORD is set. */
   sessionUrl: process.env.FILOW_SESSION_URL || `http://127.0.0.1:${process.env.SESSION_PORT || 4748}`,
   status: () => ipcRenderer.invoke("okfilow:status"),
+  wakeAction: (action, data) => ipcRenderer.invoke("okfilow:wake:action", action, data),
+  wakeFeed: (samples) => ipcRenderer.invoke("okfilow:wake:feed", samples),
+  wakeIndicator: () => ipcRenderer.send("okfilow:wake:indicator"),
+  onWake: on("okfilow:wake:state"),
+  onWakeDetected: on("okfilow:wake:detected"),
   configure: (patch) => ipcRenderer.invoke("okfilow:configure", patch),
   capture: (opts) => ipcRenderer.invoke("okfilow:capture", opts),
   setMode: (mode, extra) => ipcRenderer.invoke("okfilow:setMode", mode, extra),

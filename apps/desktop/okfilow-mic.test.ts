@@ -164,7 +164,8 @@ describe("keys up always ends the capture", () => {
     expect(w.frame(false)).toBe(true);
   });
   it("main runs it on every block of sound and tells the panel to stop", () => {
-    expect(main).toMatch(/if \(captureWatch\.frame\(held \|\| handsFree \|\| releaseTail\.waiting\)\) \{\s*logLine\("okfilow: the microphone was still open with no key held: stopped"\);\s*sendPanel\("okfilow:cancel", \{ purpose: null, watchdog: true \}\);/);
+    expect(main).toContain('captureWatch.frame(require("./wake-policy").captureAllowed("question", { held, handsFree, releaseTail: releaseTail.waiting, wakeQuestion }))');
+    expect(main).toContain('sendPanel("okfilow:cancel", { purpose: null, watchdog: true });');
   });
 });
 

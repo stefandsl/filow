@@ -6,7 +6,7 @@
 // away when main says so (its time is up, Escape, its close button).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
-import { okFilowBridge, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/bridge";
+import { okFilowBridge, type WakeStatus, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/bridge";
 import { bubbleOnScreen, bubblePlacement, bubbleSticks, createPausableClock, followScroll, MARK_EXIT_MS, marksBegun, overBubble, overControls } from "@/lib/buddy/motion";
 import { planFlight, flightPoint, arrivalPhase, type FlightPlan } from "@/lib/buddy/pointer-flight";
 import { drawingStarts } from "@/lib/buddy/marks-sync";
@@ -43,6 +43,14 @@ export default function OkFilowOverlay() {
   const [stopped, setStopped] = useState(false);
   const markStarts = useRef<number[]>([]);
   // The pill: its state (the eye now, paused, resumable: the panel says), its shortcuts, and whether the pointer is on one of its controls.
+  const [wake, setWake] = useState<WakeStatus | null>(null);
+  useEffect(() => {
+    const b = okFilowBridge();
+    if (!b) return;
+    void b.wakeAction?.("status").then(setWake);
+    return b.onWake?.(setWake);
+  }, []);
+  useEffect(() => { if (wake?.enabled) okFilowBridge()?.wakeIndicator?.(); }, [wake?.enabled]);
   const [pill, setPill] = useState<PillState>(PILL_IDLE);
   const [keys, setKeys] = useState({ eye: "", pause: "" });
   const pillSpot = useRef<HTMLDivElement>(null);
@@ -499,6 +507,13 @@ export default function OkFilowOverlay() {
         <span>{t("outSending").replace("{names}", joinNames(localNames(out.names, t("freeName")), t("outAnd")))}</span>
         {/* An answer from online can be paused and stopped from here too. */}
         {answering && controls}
+      </div>
+    ) : wake?.enabled && !view.show ? (
+      <div ref={pillSpot} className="okf-notch" role="group" aria-label="OK Filow" data-testid="wake-indicator">
+        <button type="button" className="btn" onClick={() => void okFilowBridge()?.wakeAction?.("off")} aria-label={t("wakeOff")}>
+          {t(wake.listening ? "wakeListening" : "wakePaused")} · {t("wakeOff")}
+        </button>
+        <button type="button" className="btn" onClick={() => act(wake.phase === "paused" ? "resume" : "pause")}>{t(wake.phase === "paused" ? "resume" : "pause")}</button>
       </div>
     ) : here && view.show && (
       <div ref={pillSpot} className="okf-notch" role="group" aria-label="OK Filow" data-testid="okf-pill">

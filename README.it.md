@@ -1,4 +1,24 @@
 <p align="right"><a href="README.md">English</a> · <strong>Italiano</strong></p>
+Ramo sperimentale: la **parola di attivazione OK Filow** è disattivata per
+impostazione predefinita. Le Impostazioni offrono l'avviso sui modelli ufficiali
+(35,3 MB), cinque registrazioni da accettare o ripetere, addestramento, prova dal
+vivo, riaddestramento ed eliminazione. Strict richiede entrambi i rilevatori locali;
+Balanced è predefinito; Sensitive usa solo il modello personale. L'indicatore di
+ascolto resta visibile con un comando per disattivare con un clic. Pausa, occhio
+chiuso, sessioni e presentazioni interrompono l'ascolto. La frase non interrompe
+la voce e non apre finestre per domande successive. L'audio resta in memoria,
+tranne le cinque registrazioni nel profilo dell'app. Il comando di eliminazione
+rimuove registrazioni e modello personale. Vedi [prove e limiti](docs/okfilow/WAKE-WORD.md).
+
+Il riaddestramento ora include esempi numerici di frasi simili ma diverse dalla
+frase di attivazione. Puoi registrare anche due frasi negative facoltative, salvate
+nello stesso profilo e rimosse dal pulsante di eliminazione. Dopo l'addestramento,
+le Impostazioni riproducono le cinque prove e le frasi negative attraverso entrambi
+i rilevatori e mostrano "Riconosciute N su 5". Per attivare servono almeno quattro
+prove riconosciute e nessuna frase negativa accettata nella sensibilità scelta.
+È una verifica sui dati di addestramento, non su nuove frasi. Il ramo non raggiunge
+ancora gli obiettivi di false attivazioni e consumo CPU dell'intera app.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="brand/png/filow-primary-light.png" />

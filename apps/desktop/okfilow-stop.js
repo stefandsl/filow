@@ -15,7 +15,7 @@ const pillState = (v) => ({ sees: !v || v.sees !== false, paused: Boolean(v && v
  * while listening (the eye), and on a stopped answer that can be carried on (Resume), although the
  * mode is idle by then.
  */
-const pillLive = (mode, pill) => answering(mode) || mode === "listening" || Boolean(pill && pill.resumable === true);
+const pillLive = (mode, pill) => answering(mode) || mode === "listening" || Boolean(pill && (pill.resumable === true || pill.hears === true));
 
 /**
  * What an overlay window does with the mouse. The overlays are click-through, except: while the
@@ -270,6 +270,7 @@ const pillAction = (v) => (PILL_ACTIONS.includes(v) ? v : null);
  */
 function pauseKeyAction(mode, pill) {
   if (answering(mode)) return pill && pill.paused ? "resume" : "pause";
+  if (pill && pill.hears) return "pause";
   return pill && pill.resumable ? "resume" : null;
 }
 

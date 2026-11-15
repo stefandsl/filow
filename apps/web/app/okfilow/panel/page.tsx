@@ -3,6 +3,7 @@
 // screenshots -> /api/buddy/ask streamed -> voice + pointing). Lives in a hidden desktop window.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
+import { createWakeCapture } from "@/lib/buddy/wake";
 import { openSelectedMic } from "@filow/stt";
 import { abandonedNote, emptyRecordingNote, micNoteText, openMicrophone, type MicOpening } from "@/lib/buddy/micOpen";
 import { waitForTranscript } from "@/lib/buddy/transcript-tail";
@@ -1052,7 +1053,9 @@ export default function OkFilowPanel() {
     else stopAnswer();
   }, [pauseAnswer, resumeAnswer, stopAnswer, toggleEye]);
 
-  const startListening = useCallback(async (why: Purpose = "talk") => {
+  const wakeCapture = useRef<ReturnType<typeof createWakeCapture> | null>(null);
+  const wakeSilenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startListening = useCallback(async (why: Purpose = "talk", carry?: Float32Array) => {
     const b = okFilowBridge();
     if (!b) return;
     if (audio.current || starting.current || stopping.current) {
@@ -1061,6 +1064,7 @@ export default function OkFilowPanel() {
       if (stopping.current || pendingStop.current !== null) queuedStart.current = why;
       return;
     }
+    wakeCapture.current?.stop();
     starting.current = true;
     pendingStop.current = null;
     session.current++;
@@ -1097,7 +1101,7 @@ export default function OkFilowPanel() {
     // Recognizer and microphone start together, and the sound is kept until the model is loaded, so the
     // first words are not lost while a model loads (it can take a second or two the first time).
     let recognizerReady = false;
-    let queued: Float32Array[] = [];
+    let queued: Float32Array[] = carry?.length ? [carry] : [];
     /** The microphone saved in Settings is not connected: the default one was opened instead. */
     let fallback = false;
     let noted = false;
@@ -1346,6 +1350,21 @@ export default function OkFilowPanel() {
       startQueued();
     }
   }, [ask, dictT, setMode, stopAudio, t]);
+  useEffect(() => {
+    const b = okFilowBridge();
+    if (!b?.onWake) return;
+    const capture = createWakeCapture(b);
+    wakeCapture.current = capture;
+    const off = b.onWake((s) => void capture.set(s.listening));
+    const offDetected = b.onWakeDetected?.((carry) => {
+      capture.stop();
+      if (wakeSilenceTimer.current) clearTimeout(wakeSilenceTimer.current);
+      void startListening("handsfree", carry).then(() => {
+        wakeSilenceTimer.current = setTimeout(() => { if (!vad.current?.heardSpeech) void stopListening(false); }, 4000);
+      });
+    });
+    return () => { off(); offDetected?.(); capture.stop(); if (wakeSilenceTimer.current) clearTimeout(wakeSilenceTimer.current); };
+  }, [startListening, stopListening]);
   const stopRef = useRef(stopListening);
   stopRef.current = stopListening;
   listenAgain.current = () => { if (handsFree.current) void startListening("handsfree"); };
