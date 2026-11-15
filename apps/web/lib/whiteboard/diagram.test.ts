@@ -53,6 +53,23 @@ describe("reading a diagram the model wrote", () => {
     ]);
   });
 
+  it("reads names written in Russian or Japanese: each name is one box, the same name the same box", () => {
+    const st = newDiagramState();
+    const m = readDiagram("mindmap\n  Фотосинтез\n    Свет\n    Вода", st);
+    expect(m?.nodes.map((n) => n.text)).toEqual(["Фотосинтез", "Свет", "Вода"]);
+    expect(m?.links.length).toBe(2);
+    const later = readDiagram("    Свет\n      Хлорофилл", st);
+    expect(later?.nodes.map((n) => `${n.text}<${n.parent === m?.nodes[1].id ? "Свет" : n.parent}`)).toEqual(["Хлорофилл<Свет"]);
+    const s = read("sequenceDiagram\n  顧客->>銀行: 依頼\n  銀行-->>顧客: 承認");
+    expect(s?.nodes.map((n) => n.text)).toEqual(["顧客", "銀行"]);
+    expect(s?.links.map((l) => `${l.from === s.nodes[0].id ? "顧客" : "銀行"}>${l.to === s.nodes[0].id ? "顧客" : "銀行"}:${l.text}`)).toEqual(["顧客>銀行:依頼", "銀行>顧客:承認"]);
+    const f = read("flowchart TD\n  Старт --> Шаг_1 --> Этап_1");
+    expect(f?.nodes.map((n) => n.text)).toEqual(["Старт", "Шаг 1", "Этап 1"]);
+    expect(new Set(f?.nodes.map((n) => n.id)).size).toBe(3);
+    expect(f?.links.length).toBe(2);
+    expect(f?.nodes.every((n) => /^[a-z0-9_]+$/.test(n.id))).toBe(true);
+  });
+
   it("reads a table: the separator line is skipped, extra columns and rows are cut", () => {
     const st = newDiagramState();
     const d = readDiagram("| | Mitosis | Meiosis | x | y |\n|---|:---:|---|---|---|\n| Cells made | 2 | 4 | 0 | 0 |", st);

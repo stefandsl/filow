@@ -90,8 +90,21 @@ function readLink(s: string): { text: string; dashed: boolean; arrow: boolean; r
 
 const IGNORED = /^(subgraph|end\b|classDef|class\s|style\s|linkStyle|click\s|direction\s|accTitle|accDescr|title\b)/i;
 
+/**
+ * A box's id from its name. slug keeps only a-z and digits, so a name in Russian or Japanese would
+ * have no id ("Свет") or share one with another ("Шаг 1" and "Этап 1" are both "1"): such a name
+ * gets an id made from the whole name, so the same name is always the same box.
+ */
+function nodeId(raw: string): string {
+  const name = raw.trim().normalize("NFKC").toLowerCase();
+  if (!/(?![a-z])\p{L}/u.test(name.normalize("NFKD"))) return slug(raw);
+  let h = 0x811c9dc5;
+  for (const ch of name) h = Math.imul(h ^ ch.codePointAt(0)!, 0x01000193) >>> 0;
+  return `n${h.toString(36)}`;
+}
+
 function nodeIn(st: DiagramState, out: DNode[], ref: { id: string; text?: string; shape?: DShape }): string {
-  const id = slug(ref.id) || slug(ref.text ?? "");
+  const id = nodeId(ref.id) || nodeId(ref.text ?? "");
   if (!id) return "";
   if (st.nodes.has(id)) {
     // a label given later for a node first named bare is its label
@@ -171,12 +184,12 @@ function sequenceLine(line: string, st: DiagramState, nodes: DNode[], links: DLi
   // a name may have spaces ("Banca negozio"), as in Mermaid; with "as" the id is one word
   const part = /^(participant|actor)\s+(.+?)(?:\s+as\s+(.+))?$/i.exec(line);
   if (part) {
-    if (st.nodes.size < DIAGRAM_LIMITS.participants || st.nodes.has(slug(part[2]))) nodeIn(st, nodes, { id: part[2], text: part[3] ?? part[2], shape: "box" });
+    if (st.nodes.size < DIAGRAM_LIMITS.participants || st.nodes.has(nodeId(part[2]))) nodeIn(st, nodes, { id: part[2], text: part[3] ?? part[2], shape: "box" });
     return;
   }
   const msg = /^([^\-+<>:,;]+?)\s*(--?>>|--?>|--?x|--?\))\s*[+-]?\s*([^\-+<>:,;]+?)\s*(?::\s*(.*))?$/.exec(line);
   if (!msg || st.messages >= DIAGRAM_LIMITS.messages) return;
-  const at = (ref: string) => (st.nodes.has(slug(ref)) ? slug(ref) : st.nodes.size < DIAGRAM_LIMITS.participants ? nodeIn(st, nodes, { id: ref, shape: "box" }) : "");
+  const at = (ref: string) => (st.nodes.has(nodeId(ref)) ? nodeId(ref) :st.nodes.size < DIAGRAM_LIMITS.participants ? nodeIn(st, nodes, { id: ref, shape: "box" }) : "");
   const from = at(msg[1]);
   const to = at(msg[3]);
   if (!from || !to) return;
