@@ -68,6 +68,22 @@ describe("reading a diagram the model wrote", () => {
     expect(new Set(f?.nodes.map((n) => n.id)).size).toBe(3);
     expect(f?.links.length).toBe(2);
     expect(f?.nodes.every((n) => /^[a-z0-9_]+$/.test(n.id))).toBe(true);
+    // the id comes from the name: the same in a fresh lesson, different for names that share a first letter
+    const ids = (src: string) => read(src)?.nodes.map((n) => n.id);
+    expect(ids("flowchart TD\n  Свет --> Сила")).toEqual(ids("flowchart TD\n  Свет --> Сила"));
+    expect(ids("flowchart TD\n  Сила --> Свет")?.reverse()).toEqual(ids("flowchart TD\n  Свет --> Сила"));
+    expect(new Set(ids("flowchart TD\n  Свет --> Сила")).size).toBe(2);
+    // spaces, "_" and "-" are one separator, as slug treats them
+    const v = read("sequenceDiagram\n  Банк клиента->>Шаг_1: a\n  Банк  клиента->>Шаг 1: b\n  Банк_клиента->>Шаг 1: c");
+    expect(v?.nodes.length).toBe(2);
+    expect(v?.links.length).toBe(3);
+    expect(read("flowchart TD\n  Шаг-1 --> Старт\n  Шаг_1 --> Конец")?.nodes.length).toBe(3);
+  });
+
+  it("reads a Mermaid 11 participant with metadata as the name alone", () => {
+    const d = read('sequenceDiagram\n  participant API@{ "type" : "database" }\n  participant U as User\n  U->>API: query');
+    expect(d?.nodes.map((n) => `${n.id}:${n.text}`)).toEqual(["api:API", "u:User"]);
+    expect(d?.links.map((l) => `${l.from}>${l.to}`)).toEqual(["u>api"]);
   });
 
   it("reads a table: the separator line is skipped, extra columns and rows are cut", () => {
