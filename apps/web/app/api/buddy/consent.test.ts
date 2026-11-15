@@ -128,6 +128,8 @@ describe("recipient names: /api/buddy/recipients", () => {
     expect(await (await recipients()).json()).toEqual({
       offline: false,
       ask: { id: "openrouter/openai", names: ["OpenRouter", "OpenAI"] },
+      // drawings online have their own models and makers (lib/buddy/drawModels.ts)
+      draw: { draw2d: { id: "openrouter/openai", names: ["OpenRouter", "OpenAI"] }, draw3d: { id: "openrouter/google", names: ["OpenRouter", "Google"] } },
       freellm: { id: "freellmapi", names: ["FreeLLMAPI (a free provider it chooses)"] },
       voice: { id: "elevenlabs", names: ["ElevenLabs"] },
       photo: { id: "wikipedia", names: ["Wikipedia"] },

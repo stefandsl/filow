@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { isPhoneQuestionForModel } from "@filow/core";
 import { requireEngine } from "@/lib/engineAuth";
 import { dataUrlBytes, MAX_IMAGE_BYTES } from "@/lib/vision/openrouter";
-import { CONSENT_HEADER, consentDenied, MEMORY_CONSENT_HEADER, memoryAllowed, serverRecipient } from "@/lib/buddy/outbound";
+import { askRecipient, CONSENT_HEADER, consentDenied, MEMORY_CONSENT_HEADER, memoryAllowed, serverRecipient } from "@/lib/buddy/outbound";
 import { sanitizeMemory } from "@/lib/buddy/memory";
-import { askBuddy, buddyCloudRecipient, resolveBuddyProvider, resolveLocalHelper, type BuddyAskRequest, type LocalHelper } from "@/lib/buddy/providers";
+import { DRAW_MAX_TOKENS, drawTaskOf } from "@/lib/buddy/drawModels";
+import { askBuddy, buddyCloudRecipient, drawCloudModel, resolveBuddyProvider, resolveLocalHelper, type BuddyAskRequest, type LocalHelper } from "@/lib/buddy/providers";
 import { serverAllowed } from "@/lib/modelRoles/helper";
 import { answerLanguage } from "@/lib/buddy/lang";
 import { drawnAnswer } from "@/lib/buddy/draw";
@@ -68,8 +69,16 @@ export async function POST(req: Request) {
     if (dataUrlBytes(image) > MAX_IMAGE_BYTES) return NextResponse.json({ error: "image too large" }, { status: 413 });
   }
   const provider = resolveBuddyProvider(body.provider);
+  // Resume after Stop: the conversation ends with the part of the answer the user saw (lib/buddy/prompt.ts).
+  const carryOn = resumeQuestion(body.history, body.resume);
+  // A plain request for a drawing or a 3D model is answered with one (lib/buddy/draw.ts): it needs no screenshot.
+  // Known from the question's words alone, before any model is asked, so a normal question waits for nothing more.
+  const drawing = carryOn || quoted ? null : wantsDrawing(question);
+  // Online, a drawing goes to its own model (lib/buddy/drawModels.ts); the yes must be for that model's maker.
+  const drawModel = provider === "cloud" && drawing ? drawCloudModel(drawTaskOf(drawing)) : undefined;
+  const cloudRecipient = () => (drawModel ? askRecipient(drawModel) : buddyCloudRecipient());
   if (provider === "cloud") {
-    const refused = consentDenied(req, "ask", buddyCloudRecipient());
+    const refused = consentDenied(req, "ask", cloudRecipient());
     if (refused) return refused;
   }
   if (provider === "freellm") {
@@ -106,7 +115,7 @@ export async function POST(req: Request) {
   // To the user's own server without it: the question goes without them. A phone's question never has them.
   let memory = quoted ? [] : sanitizeMemory(body.memory);
   if (memory.length) {
-    const online = provider === "cloud" ? buddyCloudRecipient() : provider === "freellm" ? freellmRecipient() : null;
+    const online = provider === "cloud" ? cloudRecipient() : provider === "freellm" ? freellmRecipient() : null;
     if (online) {
       const refused = consentDenied(req, "memory", online, MEMORY_CONSENT_HEADER);
       if (refused) return refused;
@@ -129,13 +138,10 @@ export async function POST(req: Request) {
   // What Windows names on each screen (lib/buddy/ground.ts): used below to place points and boxes, and
   // taken out of what the providers get, so the list stays on this PC whatever answers.
   const elements = images.length ? sanitizeElements(body.elements, screens.length) : [];
-  // Resume after Stop: the conversation ends with the part of the answer the user saw; the model is
-  // told to carry on from it instead of being asked the question a second time. The language, the
-  // helper and the screenshots above were all chosen from the question itself.
-  const carryOn = resumeQuestion(body.history, body.resume);
+  // Resume after Stop (carryOn above): the model is told to carry on from the part the user saw instead
+  // of being asked the question a second time. The language, the helper and the screenshots above were
+  // all chosen from the question itself.
   const ask: BuddyAskRequest = { ...body, knownTarget: false, elements: undefined, question: carryOn ?? question, images, screens, consent, sees, language: known ?? "auto", memory: memory.length ? memory : undefined };
-  // A plain request for a drawing or a 3D model is answered with one (lib/buddy/draw.ts): it needs no screenshot.
-  const drawing = carryOn || quoted ? null : wantsDrawing(question);
   // On this PC a setup may answer with one model and place the points with another (lib/buddy/pointer.ts).
   const pointer = provider === "local" && !drawing && helper?.pictures && !isPointOnly(question) ? helper.pointer : undefined;
   // Everything that places points after the answer shares one allowance, so three hard labels cannot hold the voice for long.
@@ -193,7 +199,7 @@ export async function POST(req: Request) {
   const asked: BuddyAskRequest = provider === "local" && named.length ? { ...ask, question: question + screenHint(named, screens.length), knownTarget: !quoted && isSimpleLocatorQuestion(question) } : ask;
   // Made inside the stream: a refused consent throws here and must reach the bubble as an error line.
   const pieces = () => drawing
-    ? drawnAnswer((shape, signal) => askBuddy(provider, ask, signal, helper, shape), { kind: drawing, language: known ?? "auto", lang, signal: abort.signal })
+    ? drawnAnswer((shape, signal) => askBuddy(provider, ask, signal, helper, shape), { kind: drawing, language: known ?? "auto", lang, signal: abort.signal, model: drawModel, maxTokens: provider === "local" ? undefined : DRAW_MAX_TOKENS[drawing] })
     : pointer
       // boxes and circles are placed as they stream; the points wait for the pointing model, which is asked only for what Windows does not name
       ? withNamedPoint(withPointer(withPlacedTags(askBuddy(provider, asked, abort.signal, helper, undefined, timing), elements, { points: false }), whereIs, () => abort.signal.aborted, elements, helper && canPick(helper.model) ? whichOf : undefined), named, screens.length)

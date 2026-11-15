@@ -12,6 +12,7 @@ import { freellmStream, requireFreeLlm } from "@/lib/freellm";
 import { gpuInfo, machineInfo, type GpuInfo } from "@/lib/sysinfo";
 import { buddySystemPrompt, trimHistory, withScreenNote, type BuddyScreen, type BuddyTurn } from "./prompt";
 import { wantsDrawing } from "./visuals";
+import { drawModelFor, type DrawTask } from "./drawModels";
 import { isPointOnly } from "./pointer";
 import { pinHelper, type PinOptions } from "@/lib/modelRoles/helper";
 import { mark as markTiming, takeOllamaDone, logAppBuiltWords, type ServerTiming } from "./timing";
@@ -227,6 +228,9 @@ export async function warmLocalModel(preference?: unknown): Promise<{ model: str
  * the yes are per maker, so a yes given to Google does not cover it (lib/buddy/outbound.ts).
  */
 export const BUDDY_CLOUD_MODEL =() => process.env.BUDDY_CLOUD_MODEL || "openai/gpt-6-luna";
+
+/** The online model of a drawing task (lib/buddy/drawModels.ts): never BUDDY_CLOUD_MODEL, which stays for screen answers. */
+export const drawCloudModel = (task: DrawTask): string => drawModelFor(task);
 
 /**
  * Offline mode means local, except that an explicit FreeLLMAPI request stays FreeLLMAPI so it is
