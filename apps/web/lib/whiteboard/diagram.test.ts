@@ -45,6 +45,14 @@ describe("reading a diagram the model wrote", () => {
     expect(d?.links.map((l) => `${l.from}>${l.to}:${l.text}${l.dashed ? "~" : ""}`)).toEqual(["u>g:Sign in", "g>u:Code~", "u>u:Store code"]);
   });
 
+  it("reads participants whose names have spaces, as Mermaid does (a real lesson wrote them so)", () => {
+    const d = read("sequenceDiagram\nCliente->>POS: Carta e PIN\nPOS->>Banca negozio: Richiesta\nBanca negozio->>Circuito: Inoltra\nCircuito-->>Banca negozio : Approvato\nBanca negozio-->>+POS: Esito\nparticipant Banca cliente\nBanca cliente->>Banca negozio");
+    expect(d?.nodes.map((n) => `${n.id}:${n.text}`)).toEqual(["cliente:Cliente", "pos:POS", "banca_negozio:Banca negozio", "circuito:Circuito", "banca_cliente:Banca cliente"]);
+    expect(d?.links.map((l) => `${l.from}>${l.to}:${l.text}${l.dashed ? "~" : ""}`)).toEqual([
+      "cliente>pos:Carta e PIN", "pos>banca_negozio:Richiesta", "banca_negozio>circuito:Inoltra", "circuito>banca_negozio:Approvato~", "banca_negozio>pos:Esito~", "banca_cliente>banca_negozio:",
+    ]);
+  });
+
   it("reads a table: the separator line is skipped, extra columns and rows are cut", () => {
     const st = newDiagramState();
     const d = readDiagram("| | Mitosis | Meiosis | x | y |\n|---|:---:|---|---|---|\n| Cells made | 2 | 4 | 0 | 0 |", st);

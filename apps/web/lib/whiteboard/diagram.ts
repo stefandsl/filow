@@ -168,12 +168,13 @@ function mindLine(raw: string, st: DiagramState, nodes: DNode[], links: DLink[])
 }
 
 function sequenceLine(line: string, st: DiagramState, nodes: DNode[], links: DLink[]): void {
-  const part = /^(participant|actor)\s+([^\s]+?)(?:\s+as\s+(.+))?$/i.exec(line);
+  // a name may have spaces ("Banca negozio"), as in Mermaid; with "as" the id is one word
+  const part = /^(participant|actor)\s+(.+?)(?:\s+as\s+(.+))?$/i.exec(line);
   if (part) {
     if (st.nodes.size < DIAGRAM_LIMITS.participants || st.nodes.has(slug(part[2]))) nodeIn(st, nodes, { id: part[2], text: part[3] ?? part[2], shape: "box" });
     return;
   }
-  const msg = /^([^\s\-+>]+?)\s*(--?>>|--?>|--?x|--?\))\s*[+-]?\s*([^\s:]+?)\s*:\s*(.*)$/.exec(line) ?? /^([^\s\-+>]+?)\s*(--?>>|--?>|--?x|--?\))\s*[+-]?\s*([^\s:]+?)\s*$/.exec(line);
+  const msg = /^([^\-+<>:,;]+?)\s*(--?>>|--?>|--?x|--?\))\s*[+-]?\s*([^\-+<>:,;]+?)\s*(?::\s*(.*))?$/.exec(line);
   if (!msg || st.messages >= DIAGRAM_LIMITS.messages) return;
   const at = (ref: string) => (st.nodes.has(slug(ref)) ? slug(ref) : st.nodes.size < DIAGRAM_LIMITS.participants ? nodeIn(st, nodes, { id: ref, shape: "box" }) : "");
   const from = at(msg[1]);
