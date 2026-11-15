@@ -217,7 +217,7 @@ const it: WbTable = {
   editNone: "Non l'ho trovato sulla lavagna. Indica il riquadro o la freccia, oppure fai una nuova domanda.",
   editWorking: "Modifico la lavagna…",
   showAll: "Mostra tutta la lavagna",
-  fixedNote: "Filow ha guardato il suo disegno e lo ha sistemato: {n} correzioni.",
+  fixedNote: "Filow ha guardato il suo disegno e lo ha sistemato. Correzioni: {n}.",
 };
 
 const ru: WbTable = {
@@ -433,7 +433,7 @@ const ro: WbTable = {
   editNone: "Nu am găsit asta pe tablă. Numește caseta sau săgeata ori pune o întrebare nouă.",
   editWorking: "Modific tabla…",
   showAll: "Arată toată tabla",
-  fixedNote: "Filow s-a uitat la desen și l-a aranjat: {n} corecturi.",
+  fixedNote: "Filow s-a uitat la desen și l-a aranjat. Corecturi: {n}.",
 };
 
 const ja: WbTable = {
