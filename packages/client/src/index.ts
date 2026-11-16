@@ -354,7 +354,9 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
         if (!welcomed) reject(new Error("websocket error"));
       };
       sock.onclose = (ev) => {
-        const fatal = ev.code >= 4000 && ev.code < 5000; // protocol refusals: do not retry
+        // Protocol refusals: do not retry. Except 4001 once this engine has had the session: after a break the
+        // relay may still hold our old, half-open socket until its keepalive drops it, so keep trying.
+        const fatal = ev.code >= 4000 && ev.code < 5000 && !(ev.code === 4001 && everWelcomed);
         if (!welcomed) reject(new Error(ev.reason || `closed (${ev.code})`));
         if (closedByUser || fatal || opts.reconnect === false || !everWelcomed) {
           setStatus("closed", ev.reason || undefined);
