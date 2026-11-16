@@ -42,7 +42,7 @@ export function createBackend(id: SttBackendId, opts: BackendOptions = {}): SttB
     case "openai":
       return new OpenAiStt(base, headers);
     case "browser":
-      return new BrowserStt();
+      return new BrowserStt(opts.language);
     case "whisper":
       return new LocalWhisperStt(opts.whisperModel, opts.language);
     case "sherpa":

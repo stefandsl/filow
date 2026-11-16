@@ -33,6 +33,9 @@ export class BrowserStt implements SttBackend {
   private rec: SpeechRecognitionLike | null = null;
   private running = false;
 
+  /** The spoken language, e.g. "it"; "auto" or none listens in the browser's language. */
+  constructor(private readonly language?: string) {}
+
   async start(h: SttHandlers) {
     const Ctor = getCtor();
     if (!Ctor) throw new Error("Web Speech API is not available in this browser. Use Chrome or Edge.");
@@ -45,7 +48,7 @@ export class BrowserStt implements SttBackend {
       this.rec = rec;
       rec.continuous = true;
       rec.interimResults = true;
-      rec.lang = navigator.language || "en-US";
+      rec.lang = (this.language && this.language !== "auto" ? this.language : navigator.language) || "en-US";
       rec.onresult = (ev) => {
         if (!ready) {
           ready = true;
