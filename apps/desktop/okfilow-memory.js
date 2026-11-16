@@ -127,14 +127,18 @@ const valid = (f) => f && typeof f === "object" && typeof f.id === "string" && t
 /** The file in the app profile (`userData`). Nothing here reaches the network. */
 function createMemory(userData) {
   const file = path.join(userData, FILE);
-  const read = () => {
+  // Before a write (strict): only a missing file means "no facts"; a file that cannot be read or parsed
+  // now throws, so remove() and learn() never replace the facts on disk with a partial list.
+  const load = (strict) => {
     try {
       const data = JSON.parse(fs.readFileSync(file, "utf8"));
       return Array.isArray(data?.facts) ? data.facts.filter(valid).map((f) => ({ id: f.id, kind: f.kind, text: f.text, at: f.at, question: String(f.question ?? "") })) : [];
-    } catch {
+    } catch (e) {
+      if (strict && e?.code !== "ENOENT") throw e;
       return [];
     }
   };
+  const read = () => load(false);
   const clear = () => {
     for (const f of [file, `${file}.tmp`]) fs.rmSync(f, { force: true });
     return [];
@@ -154,13 +158,13 @@ function createMemory(userData) {
     /** Off: nothing is kept. Returns the facts kept now. */
     learn(enabled, question, proposed) {
       if (enabled !== true) return [];
-      const known = read();
+      const known = load(true);
       const kept = keepFacts(question, proposed, known);
       if (kept.length) write([...known, ...kept].slice(-MAX_FACTS));
       return kept;
     },
     /** Deletes one fact from the file; returns what is left. */
-    remove: (id) => write(read().filter((f) => f.id !== id)),
+    remove: (id) => write(load(true).filter((f) => f.id !== id)),
     /** Deletes the file. */
     clear,
   };
