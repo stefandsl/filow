@@ -135,6 +135,14 @@ function strangeDate(raw, cleaned) {
   return "";
 }
 
+// A negation must not change: "do not delete the file" typed as "Please delete the file." says the opposite.
+// "not", "never" and "n't" / "cannot" are counted on both sides ("can't" -> "cannot", "don't" -> "do not" keep
+// the count). "no" may be dropped (it marks a self-correction: "five no six") but never added.
+const negations = (text) => {
+  const ws = String(text).toLowerCase().replace(/[’]/g, "'").match(/[\p{L}']+/gu) || [];
+  return { strict: ws.filter((w) => w === "not" || w === "never" || w === "cannot" || /n't$/.test(w) || /^(dont|doesnt|didnt|cant|wont|isnt|arent|wasnt|werent|shouldnt|couldnt|wouldnt|havent|hasnt|hadnt|mustnt|aint)$/.test(w)).length, no: ws.filter((w) => w === "no").length };
+};
+
 /** The first figure in the answer that was not said, or "" when every figure holds. */
 function strangeFigure(raw, cleaned) {
   const said = saidFigures(raw);
@@ -154,6 +162,7 @@ function strangeFigure(raw, cleaned) {
  *   layout       line breaks where prose was asked for
  *   numbers      a figure that is not one the speaker said
  *   date or time a month, a weekday or "am"/"pm" that the speaker did not say
+ *   negation    a "not", "never" or "n't" dropped or added, or a "no" added
  */
 function acceptCleaned(raw, cleaned, { lists = false, email = false } = {}) {
   const out = String(cleaned == null ? "" : cleaned).trim();
@@ -165,6 +174,8 @@ function acceptCleaned(raw, cleaned, { lists = false, email = false } = {}) {
   if (!lists && !email && /\n/.test(out)) return { ok: false, reason: "layout" };
   if (strangeFigure(inp, out)) return { ok: false, reason: "numbers" };
   if (strangeDate(inp, out)) return { ok: false, reason: "date or time" };
+  const nIn = negations(inp), nOut = negations(out);
+  if (nIn.strict !== nOut.strict || nOut.no > nIn.no) return { ok: false, reason: "negation" };
   const said = new Set(words(inp));
   const got = words(out);
   const fresh = got.filter((w) => !said.has(w) && !REGISTER.has(w) && ![...said].some((s) => s.length > 3 && (s.startsWith(w) || w.startsWith(s))));
