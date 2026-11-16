@@ -6,7 +6,9 @@ const ENGLISH = new Set(('file save download settings upload cancel open close p
 function languageSpans(text, lang, labels = []) {
   if (lang === 'en') return [{ text, lang }];
   const hints = new Set(labels.filter(s => typeof s === 'string' && s.length <= 80 && /^[A-Za-z][A-Za-z0-9 -]*$/.test(s) && s.split(/\s+/).some(w => ENGLISH.has(w.toLowerCase()))));
-  const tokens = [...text.matchAll(/[A-Za-z]+(?:[A-Z][a-z]+)*|[^A-Za-z]+/g)];
+  // A word is a run of Latin letters, accented ones included: "Exportă" and "PIÙ" stay whole words
+  // of the answer's language (with [A-Za-z] the English voice read "Export" and "PI").
+  const tokens = [...text.matchAll(/\p{Script=Latin}[\p{Script=Latin}\p{M}]*|[^\p{Script=Latin}]+/gu)];
   const spans = [];
   for (const token of tokens) {
     const word = token[0], at = token.index;
