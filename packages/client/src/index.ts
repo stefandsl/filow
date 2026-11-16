@@ -145,6 +145,7 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
   let closedByUser = false;
   let everWelcomed = false;
   let backoff = 500;
+  let engineGone = false;
   let seq = 0;
 
   const client: SessionClient = {
@@ -289,6 +290,15 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
             break;
           case "state":
             emit(msg.state as SessionState);
+            if (engineGone) {
+              engineGone = false;
+              setStatus("open");
+            }
+            break;
+          case "engineOffline":
+            // The relay is up but the engine is not: keep the last state, say it is not live (the views' "engine offline" banner).
+            engineGone = true;
+            setStatus("connecting", "engine offline");
             break;
           case "patch": {
             const version = msg.version as number;
