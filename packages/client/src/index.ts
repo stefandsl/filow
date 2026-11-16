@@ -256,7 +256,15 @@ export async function connect(opts: ConnectOptions): Promise<SessionClient> {
             if (msg.role === "pending") {
               client.role = "pending";
               setStatus("open", "pending");
-            } else setStatus("open");
+            } else {
+              // A role changed while this device was away (accepted, promoted, demoted): welcome carries the current one.
+              if (client.role !== "engine" && (msg.role === "viewer" || msg.role === "controller") && msg.role !== client.role) {
+                client.role = msg.role;
+                session = { ...session!, role: msg.role };
+                opts.onRole?.(msg.role);
+              }
+              setStatus("open");
+            }
             if (client.role !== "engine") permissions(msg);
             if (client.role === "engine") resyncHandler?.();
             resolve();
