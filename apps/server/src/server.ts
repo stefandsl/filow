@@ -374,6 +374,12 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
   };
   /** One of this computer's own windows, direct (not through the HTTPS proxy or the tunnel). */
   const isDirectLoopback = (req: IncomingMessage): boolean => isLoopbackIp(peerAddress(req)) && !proxied(req);
+  /** This computer, direct: loopback, or its own LAN address (the desktop's windows reach the relay at FILOW_LAN_IP in LAN mode). */
+  const isDirectThisComputer = (req: IncomingMessage): boolean => {
+    const ip = peerAddress(req);
+    const self = (lanCidr() ?? "").split("/")[0];
+    return isDirectLoopback(req) || (Boolean(self) && !proxied(req) && (ip === self || ip === `::ffff:${self}`));
+  };
   const bump = (map: Map<string, { count: number; windowStart: number }>, key: string, limit: number, windowMs = 60000) => {
     const a = map.get(key) ?? { count: 0, windowStart: now() };
     if (now() - a.windowStart > windowMs) {
@@ -434,7 +440,7 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
         return json(res, 404, { error: "code expired" }, allow);
       }
       consumeCode(s); // single use
-      const app = Boolean(appPairKey) && typeof body.appKey === "string" && sameSecret(body.appKey, appPairKey) && isDirectLoopback(req);
+      const app = Boolean(appPairKey) && typeof body.appKey === "string" && sameSecret(body.appKey, appPairKey) && isDirectThisComputer(req);
       const lan = !app && isLanPeer(req);
       const role: Role = app || (autoAcceptLan && lan) ? "controller" : "pending";
       // The name is the device's own, fixed from now on; never one of the app's own labels.
