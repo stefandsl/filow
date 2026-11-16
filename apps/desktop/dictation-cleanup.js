@@ -197,7 +197,7 @@ function createCleaner(o) {
   // late answers in a row (the first after a start does not count: the model was loading) the cleanup
   // rests until Filow is started again, and the report says so.
   let lateStreak = 0;
-  let answered = 0;
+  let asked = 0;
   async function clean(raw, opts = {}) {
     const d = decide({ enabled: opts.enabled !== false, language: opts.language, spokenLanguage: opts.spokenLanguage, text: raw });
     if (!d.clean) return { used: false, reason: d.reason, ms: 0, asked: false };
@@ -211,9 +211,9 @@ function createCleaner(o) {
     try {
       const late = new Promise((resolve) => { timer = setTimeout(() => resolve({ late: true }), budget); });
       const answer = await Promise.race([o.run(buildRequest(raw, opts), abort.signal).then((text) => ({ text })), late]);
+      asked += 1;
       const ms = now() - started;
-      if (answer.late) { abort.abort(); if (answered > 0) lateStreak += 1; return { used: false, reason: `slower than ${budget} ms`, ms, asked: true }; }
-      answered += 1;
+      if (answer.late) { abort.abort(); if (asked > 1) lateStreak += 1; return { used: false, reason: `slower than ${budget} ms`, ms, asked: true }; }
       lateStreak = 0;
       const check = acceptCleaned(raw, answer.text, opts);
       if (!check.ok) return { used: false, reason: check.reason, ms, asked: true };
