@@ -85,7 +85,7 @@ export type OpenRouterResult ={ json: Record<string, unknown>; content: string; 
  * POST /chat/completions with `models: [model, ...fallbacks]`, retrying once or twice on 429 and 5xx
  * (0.8 s, 2 s). Returns the model that actually answered.
  */
-export async function openRouterChat(model: string, kind: "text" | "vision", payload: Record<string, unknown>, opts: { retries?: number } = {}): Promise<OpenRouterResult> {
+export async function openRouterChat(model: string, kind: "text" | "vision", payload: Record<string, unknown>, opts: { retries?: number; signal?: AbortSignal } = {}): Promise<OpenRouterResult> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set.");
   const models = routedModels(model, kind);
@@ -109,6 +109,7 @@ export async function openRouterChat(model: string, kind: "text" | "vision", pay
         // After the payload: no caller may widen who runs the model.
         ...withProvider(models),
       }),
+      signal: opts.signal,
     });
     if (res.ok) {
       const json = (await res.json()) as Record<string, unknown>;
@@ -123,8 +124,13 @@ export async function openRouterChat(model: string, kind: "text" | "vision", pay
     }
     lastError = `OpenRouter ${res.status}: ${(await res.text()).slice(0, 300)}`;
     const retryable = res.status === 429 || res.status === 408 || res.status >= 500;
-    if (!retryable || attempt === retries) break;
-    await new Promise((r) => setTimeout(r, attempt === 0 ? 800 : 2000));
+    if (!retryable || attempt === retries || opts.signal?.aborted) break;
+    await new Promise<void>((r) => {
+      const t = setTimeout(done, attempt === 0 ? 800 : 2000);
+      opts.signal?.addEventListener("abort", done, { once: true });
+      function done() { clearTimeout(t); opts.signal?.removeEventListener("abort", done); r(); }
+    });
+    if (opts.signal?.aborted) break;
   }
   throw new Error(lastError);
 }

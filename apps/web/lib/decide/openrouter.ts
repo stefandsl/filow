@@ -5,7 +5,7 @@ import { openRouterChat } from "@/lib/openrouter";
 export const OPENROUTER_DECISION_MODEL = () => process.env.OPENROUTER_DECISION_MODEL || "google/gemini-3.1-flash-lite";
 
 /** Cloud decisions through an OpenRouter chat model answering JSON. */
-export async function decideOpenRouter(body: DecideRequest): Promise<DecideResponse> {
+export async function decideOpenRouter(body: DecideRequest, signal?: AbortSignal): Promise<DecideResponse> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set. Copy .env.example to .env.local, or pick a local provider in Settings.");
   const model = OPENROUTER_DECISION_MODEL();
@@ -18,7 +18,7 @@ export async function decideOpenRouter(body: DecideRequest): Promise<DecideRespo
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: buildUserPrompt(body) },
     ],
-  });
+  }, { signal });
   const latencyMs = Date.now() - started;
   const { decisions, unmentioned } = parseDecisions(content, body.bullets.map((b) => b.id));
   return { decisions, unmentioned, latencyMs, cost, model: used };

@@ -66,7 +66,7 @@ export async function warmClefLocal(): Promise<{ ok: boolean; model: string; ms:
  * same System One body. Needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.
  * Not verified live; the body shape follows the Ollama/System One contract.
  */
-export async function decideClefCloudflare(body: DecideRequest): Promise<DecideResponse> {
+export async function decideClefCloudflare(body: DecideRequest, signal?: AbortSignal): Promise<DecideResponse> {
   const account = process.env.CLOUDFLARE_ACCOUNT_ID;
   const token = process.env.CLOUDFLARE_API_TOKEN;
   if (!account || !token) throw new Error("CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are not set.");
@@ -76,6 +76,7 @@ export async function decideClefCloudflare(body: DecideRequest): Promise<DecideR
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ ...buildClefRequest(body, model), model: undefined }),
+    signal,
   });
   const latencyMs = Date.now() - started;
   if (!res.ok) throw new Error(`Workers AI ${res.status}: ${await res.text()}`);
