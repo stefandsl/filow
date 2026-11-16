@@ -552,14 +552,17 @@ async function captureRegion(display, rect, image) {
   return "data:image/jpeg;base64," + img.crop(crop).toJPEG(85).toString("base64");
 }
 
+// Only Screen Sense's own key: OK Filow's eye/pause keys and its Escape share the process-wide globalShortcut.
+let screenHotkeyBound = null;
 function registerHotkey() {
-  globalShortcut.unregisterAll();
+  if (screenHotkeyBound) { try { globalShortcut.unregister(screenHotkeyBound); } catch { /* was not registered */ } screenHotkeyBound = null; }
   if (!settings.screenSense || !settings.screenHotkey) return { ok: true };
   // Test isolation (global-input.js): a run with global input off does not even try. The stand-in would
   // refuse it, and the start log would then blame another app for a key that was never asked for.
   if (INPUT_OFF) return { ok: true, inputOff: true };
   try {
     const ok = globalShortcut.register(settings.screenHotkey, () => mainWin && !mainWin.isDestroyed() && mainWin.webContents.send("screen:hotkey"));
+    if (ok) screenHotkeyBound = settings.screenHotkey;
     return ok ? { ok: true } : { ok: false, error: `hotkey ${settings.screenHotkey} is taken by another app` };
   } catch (err) {
     return { ok: false, error: String(err.message || err) };
