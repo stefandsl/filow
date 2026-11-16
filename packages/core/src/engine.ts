@@ -330,9 +330,9 @@ export class Engine {
         // Start the section over: only what is said from now on is asked about. Without the fence the
         // next call sends the same words again and every point ticks back within a second or two.
         // Words still being transcribed at the Reset were said before it: their segment is fenced off
-        // too when it commits.
+        // too when it commits. "(reconnecting…)" is a status, not words: the socket that held them is gone.
         this.fences.set(s.sectionIdx, this.committedTotal);
-        this.fenceNextCommit = this.partial.trim() ? s.sectionIdx : null;
+        this.fenceNextCommit = this.partial.trim() && !/^\s*\(reconnecting\b/.test(this.partial) ? s.sectionIdx : null;
         this.lastSent = "";
         this.invalidate();
         return { ok: true };
