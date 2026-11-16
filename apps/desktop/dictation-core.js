@@ -365,7 +365,7 @@ function removeFillers(text, lang) {
       const startOfSentence = out.length === 0 || SENTENCE_END.test(out[out.length - 1]);
       if (startOfSentence && isUpper(m[1].charAt(0))) capNext = true;
       // "I think, um." -> "I think."  The sentence's end stays; a comma goes with the sound.
-      if (/[.!?…]/u.test(punct) && out.length) out[out.length - 1] = out[out.length - 1].replace(/[,;:]+$/u, "") + punct.replace(/^[,;:]+/u, "");
+      if (/[.!?…]/u.test(punct) && out.length && !SENTENCE_END.test(out[out.length - 1])) out[out.length - 1] = out[out.length - 1].replace(/[,;:]+$/u, "") + punct.replace(/^[,;:]+/u, "");
       continue;
     }
     let w = words[i];
