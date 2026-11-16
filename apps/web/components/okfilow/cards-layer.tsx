@@ -86,7 +86,8 @@ export function CardsLayer({ cards, avoid, move, t }: { cards: OkFilowCard[]; av
       : shown.spot
       ? { ...shown.spot, y: Math.max(12, Math.min(shown.spot.y, view.height - 12 - size.height)) }
       : placeCards(subjects[0], size, view, avoid(), subjects);
-    const boxes = Array.from(el.children, (a) => {
+    // Each card's own box (the move bar above the first card is not a card).
+    const boxes = Array.from(el.children).filter((a) => a.tagName === "ARTICLE").map((a) => {
       const art = a as HTMLElement;
       return { left: spot.x, top: spot.y + art.offsetTop, right: spot.x + CARD_WIDTH, bottom: spot.y + art.offsetTop + art.offsetHeight };
     });
