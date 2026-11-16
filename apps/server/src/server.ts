@@ -429,8 +429,9 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
       if (req.method !== "POST") return json(res, 404, { error: "not found" }, allow);
       // Two buckets, each with its own total: the local network and everything else (the tunnel).
       const bucket = isLanPeer(req) || isDirectLoopback(req) ? "lan" : "remote";
-      if (!bump(globalAttempts, bucket, pairGlobalLimit)) return json(res, 429, { error: "too many attempts" }, allow);
+      // Per address first: a request its own limit refuses does not spend the shared bucket.
       if (!bump(pairAttempts, `${bucket}:${ipOf(req)}`, pairLimit)) return json(res, 429, { error: "too many attempts" }, allow);
+      if (!bump(globalAttempts, bucket, pairGlobalLimit)) return json(res, 429, { error: "too many attempts" }, allow);
       const body = await readBody(req);
       const code = normalizeCode(body.code);
       const s = code.length === CODE_LENGTH ? byCode.get(code) : undefined;
