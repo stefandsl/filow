@@ -138,9 +138,11 @@ function strangeDate(raw, cleaned) {
 // A negation must not change: "do not delete the file" typed as "Please delete the file." says the opposite.
 // "not", "never" and "n't" / "cannot" are counted on both sides ("can't" -> "cannot", "don't" -> "do not" keep
 // the count). "no" may be dropped (it marks a self-correction: "five no six") but never added.
+// Negative words that a rewrite must not turn positive ("nothing" -> "something", "neither" -> "either").
+const NEGATIVE_WORDS = new Set(["nothing", "nobody", "none", "nowhere", "neither", "nor"]);
 const negations = (text) => {
   const ws = String(text).toLowerCase().replace(/[’]/g, "'").match(/[\p{L}']+/gu) || [];
-  return { strict: ws.filter((w) => w === "not" || w === "never" || w === "cannot" || /n't$/.test(w) || /^(dont|doesnt|didnt|cant|wont|isnt|arent|wasnt|werent|shouldnt|couldnt|wouldnt|havent|hasnt|hadnt|mustnt|aint)$/.test(w)).length, no: ws.filter((w) => w === "no").length };
+  return { strict: ws.filter((w) => w === "not" || w === "never" || w === "cannot" || NEGATIVE_WORDS.has(w) || /n't$/.test(w) || /^(dont|doesnt|didnt|cant|wont|isnt|arent|wasnt|werent|shouldnt|couldnt|wouldnt|havent|hasnt|hadnt|mustnt|aint)$/.test(w)).length, no: ws.filter((w) => w === "no").length };
 };
 
 /** The first figure in the answer that was not said, or "" when every figure holds. */
@@ -162,7 +164,7 @@ function strangeFigure(raw, cleaned) {
  *   layout       line breaks where prose was asked for
  *   numbers      a figure that is not one the speaker said
  *   date or time a month, a weekday or "am"/"pm" that the speaker did not say
- *   negation    a "not", "never" or "n't" dropped or added, or a "no" added
+ *   negation    a "not", "never", "n't", "nothing", "nobody", "none", "nowhere", "neither" or "nor" dropped or added, or a "no" added
  */
 function acceptCleaned(raw, cleaned, { lists = false, email = false } = {}) {
   const out = String(cleaned == null ? "" : cleaned).trim();
