@@ -432,7 +432,10 @@ export function createSpeaker(deps: SpeakerDeps) {
     }
     tts.played({ id, seconds: Math.round(player.played() * 100) / 100, interrupted: how === "cut", state: player.state() });
     const r = reply as OkFilowTtsReply | null;
-    if (how === "cut" || !r || r.ok) return "";
+    if (how === "cut") return "";
+    // No reply and nothing heard by the deadline (a model still loading on a slow PC): this PC's voice reads it.
+    if (!r) return pieces ? "" : tell("slow");
+    if (r.ok) return "";
     tell(r.reason);
     // Part of the answer was already heard: do not start it again in another voice.
     return pieces ? "" : r.reason;

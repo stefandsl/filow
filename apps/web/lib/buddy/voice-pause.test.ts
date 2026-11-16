@@ -169,6 +169,7 @@ describe("pausing the natural voice", () => {
   });
 
   it("the clock that gives up on lost speech stands still during a pause", async () => {
+    fakeSynth();
     const s = setup("natural");
     let over = false;
     void s.speaker.speak("One is first.", 1).then(() => { over = true; });

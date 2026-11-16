@@ -278,6 +278,7 @@ describe("the natural voice", () => {
   });
 
   it("gives up on an answer that never comes instead of staying on speaking", async () => {
+    fakeSynth();
     const s = setup();
     let ended = false;
     const done = s.speaker.speak("Hello.", 1).then(() => { ended = true; });
