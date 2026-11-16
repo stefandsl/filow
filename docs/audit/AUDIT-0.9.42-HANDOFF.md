@@ -3,10 +3,11 @@
 For the next agent (or for the owner) picking up this work. Read this first, then `bug-report.md`, then `plan-review.md`.
 
 **In breve (IT):**
-- **Dodici bug dimostrati da prover indipendenti** in tre passate (C1-C12), ognuno con test che fallisce prima e passa dopo, e con patch testata.
+- **Diciassette bug dimostrati da prover indipendenti** in quattro passate (C1-C12, C15-C19), ognuno con test che fallisce prima e passa dopo, e con patch testata.
   - I più gravi: C3, i nomi sbagliati dopo l'anonimizzazione; C2, il dettato che può invertire il senso; C12, il matcher che si blocca su "later" o "alla fine"; C8, le chiamate di decisione a pagamento che continuano dopo il timeout.
   - C13 (seed S2) è stato respinto: è il comportamento voluto e testato, quindi diventa la richiesta di modifica TK-14.
-- **Albero con le patch:** 3791 test passati, gli stessi 23 fallimenti d'ambiente del baseline, typecheck e lint puliti.
+  - C14 (la causa sospetta del seed S1) è inconcludente: serve Windows.
+- **Albero con le patch:** 3808 test passati, gli stessi 23 fallimenti d'ambiente del baseline, typecheck e lint puliti.
 - **Fatto:** le correzioni sono sul branch locale `claude/audit-fixes-0.9.42`, un commit per difetto, scaricabile come bundle o serie di patch (cartella `git/`).
 - **Prossimi passi:** i controlli su Windows con `WINDOWS-CHECKS.md`; poi le prove rimaste (TK-13) e la decisione su TK-14.
 - **Note per l'agente di autoresearch:** nella sezione 6.
@@ -18,7 +19,7 @@ For the next agent (or for the owner) picking up this work. Read this first, the
 | Original source (read-only, never edit) | `filow-70cc3f6.zip`, sha256 `380ff0ab4063be81ac80beb85c127f598cb85a9851c4ae2ffe12a08bdb6f33ae`; extracted at `/workspace/src/filow` in the audit sandbox |
 | Patched tree (the "new zip") | `filow-0.9.42-audit.zip` = original + 12 fixes in 13 files + 13 new test files + `docs/audit/AUDIT-0.9.42-HANDOFF.md` (this file) |
 | The same changes as one patch | `evidence/patches/filow-0.9.42-audit.patch`. Apply from the repo root with `git apply`. It was checked on a fresh extraction of the zip, which has CRLF line endings. On a git checkout with `core.autocrlf=true` on Windows, run `git apply --check` first. If it complains about whitespace, try `git apply --ignore-whitespace`. |
-| Git branch with the fixes | local branch `claude/audit-fixes-0.9.42` in the sandbox repo, not pushed. It holds one commit per defect (C3, C2, C8, C1, C5, C4, C9, C6, C7, C10, C11, C12), then the behaviour tests, then this handoff. Downloadable as `git/filow-audit-fixes.bundle` (`git fetch <bundle> claude/audit-fixes-0.9.42:claude/audit-fixes-0.9.42`) or as `git/patch-series/*.patch` (`git am`). The script that made it is `git/commit_fixes.sh`. Checked on the branch: vitest 3790 passed, 24 failed, where the 24th is `apps/desktop/s1-setup.test.ts`, which fails identically on 70cc3f6 with an LF checkout because it expects CRLF in `installer.nsh`; typecheck and lint clean |
+| Git branch with the fixes | local branch `claude/audit-fixes-0.9.42` in the sandbox repo, not pushed. It holds one commit per defect (C3, C2, C8, C1, C5, C4, C9, C6, C7, C10, C11, C12), the behaviour tests, this handoff, the C2 extension, then C15, C16, C17, C18, C19: 20 commits. Downloadable as `git/filow-audit-fixes.bundle` (`git fetch <bundle> claude/audit-fixes-0.9.42:claude/audit-fixes-0.9.42`) or as `git/patch-series/*.patch` (`git am`). `git/commit_fixes.sh` made the first 13 commits; the later ones were made by the lead directly. The bundle and the series are the source of truth. Checked on the branch: vitest 3807 passed, 24 failed, where the 24th is `apps/desktop/s1-setup.test.ts`, which fails identically on 70cc3f6 with an LF checkout because it expects CRLF in `installer.nsh`; typecheck and lint clean |
 | Windows check guide | `WINDOWS-CHECKS.md` (Italian): C1, C4, C5, C9, C10, C7 by hand, S1 observation, C12 gauntlet before and after |
 | Findings | `bug-report.md` (C1-C12, worst first; C13 rejected), `candidate-ledger.json` (53 entries, three passes, with verdicts) |
 | Plan | `plan-review.md` (trace, capability map, phase verdicts, milestones A-E, tickets TK-01..TK-13, borrow table, benchmark recipe, acceptance tests EN/IT, evaluation design) |
@@ -42,11 +43,16 @@ For the next agent (or for the owner) picking up this work. Read this first, the
 | C1 role lost across a reconnect (`packages/client/src/index.ts:256-259`) | DEMONSTRATED (prover-C1) | tested | Merge (TK-02); lock the phone, press Allow, unlock |
 | C7 cards column ignores the user's position (`apps/web/components/okfilow/cards-layer.tsx:82-84`) | DEMONSTRATED (prover-C7; the test drives React hooks by call order) | tested; lead amended it for lint | Merge (TK-03); replace the test with a DOM test |
 | C6 the guard misses negated synonyms (`packages/core/src/guard.ts:107-126`) | DEMONSTRATED (prover-C6) | tested | Merge (TK-03) |
-| S1 live resize | partly explained: page code resizes live; suspected cause is main's click-through mid-drag (`okfilow.js:436`, `:980`) | none | Prove L4-R2 (TK-13); check on Windows |
+| C15 card leaders point at the wrong card (`cards-layer.tsx:85-90`) | DEMONSTRATED (prover-C15) | tested | Merge (TK-03) |
+| C16 cleanup never rests on a PC that is never in time (`dictation-cleanup.js:186-203`) | DEMONSTRATED (prover-C16) | tested | Merge (TK-03) |
+| C17 natural voice that never replies is silent (`voice.ts:430`) | DEMONSTRATED (prover-C17) | tested | Merge (TK-03) |
+| C18 engine stops reconnecting after a 4001 (`packages/client/src/index.ts:338-343`) | DEMONSTRATED (prover-C18) | tested | Merge (TK-02) |
+| C19 keepalive drops after one missed pong (`server.ts:742-762`) | DEMONSTRATED (prover-C19) | tested | Merge (TK-02) |
+| S1 live resize / C14 | INCONCLUSIVE (prover-C14): main does set click-through while a grip is held; Windows event delivery unverified | none | WINDOWS-CHECKS.md 3.2; if confirmed, an overlay hold from MoveGrips pointerdown/up honoured by overlayMouse |
 | S2 / C13 `[PERSON_NAME]` in titles and drawings | REJECTED as a bug (prover-C13): intended and tested design; `OUTBOUND.md:167-188` limits placeholder handling to the whiteboard | none | Change request TK-14: the owner decides, then the doc, the test and the route change together |
 | S3 whiteboard sample topic notice | design question; the consent gate holds | none | Owner decides; the branch fix ff37b6c exists |
 | S4 "done" button | not present in 0.9.42 (by reading) | none | none |
-| Deferred, worth proving first | L4-R2 (S1 cause), L4-S5 (card leaders off by one), L1-S1 (cleanup never rests on a slow PC), L3-S3 (the engine client gives up after a 4001), L1-S3 (silent natural-voice timeout), L3-R3 (keepalive after one missed pong) | none | TK-13 |
+| Deferred | the lower-ranked pass-2 items (candidate-ledger.json, verdict DEFERRED) | none | TK-13 |
 | L2-R1, L2-R2 (pass 1: streak kept across Next/Prev and Stop/Start) | DEFERRED, design question | none | Owner decides the rule |
 
 ## 3. How to verify (any OS with Node 22)
@@ -58,12 +64,15 @@ npx vitest run packages/client/src/role-on-reconnect.test.ts packages/client/src
   apps/server/src/app-window-lan.test.ts packages/core/src/guard.negsyn.test.ts \
   apps/web/components/okfilow/cards-move.test.tsx packages/core/src/audit-behaviour.test.ts \
   apps/web/app/api/decide-abort.test.ts apps/server/src/pair-buckets.test.ts apps/desktop/okfilow-memory-readfail.test.ts \
-  packages/core/src/resetPlaceholder.test.ts packages/core/src/matcher-unpunctuated.test.ts   # 36 tests, all pass on the patched tree
+  packages/core/src/resetPlaceholder.test.ts packages/core/src/matcher-unpunctuated.test.ts \
+  apps/desktop/dictation-cleanup-negative-words.test.ts apps/web/components/okfilow/cards-layer-leaders.test.tsx \
+  apps/desktop/dictation-cleanup-never-in-time.test.ts apps/web/lib/buddy/voice-late.test.ts \
+  packages/client/src/engine-4001-reconnect.test.ts apps/server/src/keepalive.test.ts   # 52 tests, all pass on the patched tree
 npx vitest run                    # expect the 23 environmental failures of the baseline on Linux, nothing else
 npm run typecheck && npm run lint
 ```
 
-On the unpatched source, every bug test fails for its claimed reason: C1 3/4, C2 2/3, C3 1/1, C4 1/1, C5 1/1, C6 4/5, C7 2/2, C8 3/3, C9 1/1, C10 2/2, C11 1/2, C12 2/3. The other cases are controls. That is fail-before evidence. The behaviour tests pass on both trees, because they guard behaviour that already works.
+On the unpatched source, every bug test fails for its claimed reason: C1 3/4, C2 2/3, C3 1/1, C4 1/1, C5 1/1, C6 4/5, C7 2/2, C8 3/3, C9 1/1, C10 2/2, C11 1/2, C12 2/3, C15 1/1, C16 1/1, C17 1/1, C18 1/1, C19 3/3, C2 extension 6/10. The other cases are controls. That is fail-before evidence. The behaviour tests pass on both trees, because they guard behaviour that already works.
 
 The 23 baseline failures on Linux all come from the environment:
 - better-sqlite3 is not built (apps/cloud);
@@ -79,7 +88,8 @@ Three passes have run.
 - Pass 1 timed out while paused.
 - Pass 2 completed in 13 minutes: 13 agents, 35 suspicions, 5 proven.
 - Pass 3 was prove-only: 6 provers in 2 minutes, 5 proven and 1 rejected.
-- Scripts used: `evidence/workflow/workflow-script.js`, `workflow2-script.js` and `workflow3-script.js`. The pass-3 script is the template for TK-13: a list of claims, one prover each.
+- Pass 4 was prove-only: 6 provers in 3 minutes, 5 proven and 1 inconclusive (C14, needs Windows).
+- Scripts used: `evidence/workflow/workflow-script.js`, `workflow2-script.js`, `workflow3-script.js` and `workflow4-script.js`. The pass-3 script is the template for TK-13: a list of claims, one prover each.
 - Lane lists: `evidence/preflight/lanes/*.txt`.
 - Copy helper: `evidence/preflight/mkcopy.sh`. It gives a writable copy whose `@filow/*` links resolve into the copy.
 
@@ -93,7 +103,7 @@ Lessons from the two runs:
 
 ## 5. Implementation order (from plan-review.md section 5)
 
-TK-01 (C3, C2, C8), TK-02 (C1, C4, C5, C9) and TK-03 (C6, C7, C10, C11, C12, behaviour tests in CI): each one applies the matching hunks of the audit patch. TK-14 (S2) waits for the owner's decision. Then milestone A: TK-04 EN/IT journeys through `packages/core/src/gauntlet.ts`, TK-05 reconnect/resync test, TK-06 evidence shown per covered point. Milestones B and C build the task workspace behind the mutation boundary (TK-07..TK-11). Do not implement the roadmap from this audit; the tickets say what and how to test, and the owner decides when.
+TK-01 (C3, C2, C8), TK-02 (C1, C4, C5, C9, C18, C19) and TK-03 (C6, C7, C10, C11, C12, C15, C16, C17, behaviour tests in CI): the branch already has one commit for each. TK-14 (S2) waits for the owner's decision. Then milestone A: TK-04 EN/IT journeys through `packages/core/src/gauntlet.ts`, TK-05 reconnect/resync test, TK-06 evidence shown per covered point. Milestones B and C build the task workspace behind the mutation boundary (TK-07..TK-11). Do not implement the roadmap from this audit; the tickets say what and how to test, and the owner decides when.
 
 ## 6. Notes for the separate autoresearch agent (owner's plan of 2026-11-16)
 
