@@ -62,6 +62,23 @@ export function pptxNotes(notesXml: string): string[] {
   return out;
 }
 
+/** Relationships of an OPC part, with targets resolved to zip paths. */
+export function pptxRels(relsXml: string, partPath: string): Array<{ id: string; type: string; target: string }> {
+  const out: Array<{ id: string; type: string; target: string }> = [];
+  for (const m of relsXml.match(/<Relationship\b[^>]*>/g) ?? []) {
+    const attr = (name: string) => m.match(new RegExp(`\\b${name}="([^"]*)"`))?.[1] ?? "";
+    if (attr("TargetMode") === "External") continue;
+    const target = decodeEntities(attr("Target"));
+    const parts = target.startsWith("/") ? [] : partPath.split("/").slice(0, -1);
+    for (const seg of target.split("/")) {
+      if (seg === "..") parts.pop();
+      else if (seg && seg !== ".") parts.push(seg);
+    }
+    out.push({ id: attr("Id"), type: attr("Type"), target: parts.join("/") });
+  }
+  return out;
+}
+
 /** Paragraphs of a DOCX body as { style, text }. Headings start sections. */
 export function docxParagraphs(xml: string): Array<{ style: string; text: string }> {
   const out: Array<{ style: string; text: string }> = [];
@@ -181,15 +198,31 @@ export async function importFile(name: string, mime: string, bytes: Uint8Array):
 
   const zip = await JSZip.loadAsync(bytes);
   if (kind === "pptx") {
-    const slideFiles = Object.keys(zip.files)
-      .filter((f) => /^ppt\/slides\/slide\d+\.xml$/.test(f))
-      .sort((a, b) => Number(a.match(/(\d+)\.xml$/)![1]) - Number(b.match(/(\d+)\.xml$/)![1]));
+    const readRels = async (part: string) => {
+      const relsFile = zip.file(part.replace(/([^/]+)$/, "_rels/$1.rels"));
+      return relsFile ? pptxRels(await relsFile.async("string"), part) : null;
+    };
+    // Deck order is ppt/presentation.xml's sldIdLst; the file numbers are only names.
+    const presRels = await readRels("ppt/presentation.xml");
+    const presXml = await zip.file("ppt/presentation.xml")?.async("string");
+    const ordered = [...(presXml?.match(/<p:sldIdLst\b[\s\S]*?<\/p:sldIdLst>/)?.[0] ?? "").matchAll(/<p:sldId\b[^>]*\br:id="([^"]+)"/g)]
+      .map((m) => presRels?.find((r) => r.id === m[1])?.target)
+      .filter((f): f is string => !!f && !!zip.file(f));
+    const slideFiles = ordered.length
+      ? ordered
+      : Object.keys(zip.files)
+          .filter((f) => /^ppt\/slides\/slide\d+\.xml$/.test(f))
+          .sort((a, b) => Number(a.match(/(\d+)\.xml$/)![1]) - Number(b.match(/(\d+)\.xml$/)![1]));
     if (!slideFiles.length) throw new Error("No slides found in this PPTX.");
     const slides: Slide[] = [];
     for (const f of slideFiles) {
-      const n = f.match(/(\d+)\.xml$/)![1];
       const xml = await zip.file(f)!.async("string");
-      const notesFile = zip.file(`ppt/notesSlides/notesSlide${n}.xml`);
+      // Each slide names its own notes part in its relationships.
+      const slideRels = await readRels(f);
+      const notesPath = slideRels
+        ? slideRels.find((r) => r.type.endsWith("/notesSlide"))?.target
+        : `ppt/notesSlides/notesSlide${f.match(/(\d+)\.xml$/)?.[1]}.xml`;
+      const notesFile = notesPath ? zip.file(notesPath) : null;
       const notes = notesFile ? pptxNotes(await notesFile.async("string")) : [];
       slides.push({ title: pptxTitle(xml), body: pptxBody(xml), notes });
     }
