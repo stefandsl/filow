@@ -37,6 +37,8 @@ export function CardsLayer({ cards, avoid, move, t }: { cards: OkFilowCard[]; av
   // Where the user moved the column and how wide they made it (lib/buddy/layout-move.ts), else OK Filow's place.
   const userBox = move?.moved.cards;
   const width = userBox ? userBox.w : CARD_WIDTH;
+  const userX = userBox?.x;
+  const userY = userBox?.y;
   const [shown, setShown] = useState<Shown | null>(null);
   const [leaving, setLeaving] = useState<Shown | null>(null);
   const now = useRef<Shown | null>(null);
@@ -79,7 +81,9 @@ export function CardsLayer({ cards, avoid, move, t }: { cards: OkFilowCard[]; av
     const view = { width: window.innerWidth, height: window.innerHeight };
     const size = { width, height: el.offsetHeight };
     const subjects = shown.cards.map((c) => ({ x: c.x, y: c.y }));
-    const spot = shown.spot
+    const spot = userX !== undefined && userY !== undefined
+      ? { side: shown.spot?.side ?? ("right" as const), x: userX, y: Math.max(12, Math.min(userY, view.height - 12 - size.height)) }
+      : shown.spot
       ? { ...shown.spot, y: Math.max(12, Math.min(shown.spot.y, view.height - 12 - size.height)) }
       : placeCards(subjects[0], size, view, avoid(), subjects);
     const boxes = Array.from(el.children, (a) => {
@@ -90,7 +94,7 @@ export function CardsLayer({ cards, avoid, move, t }: { cards: OkFilowCard[]; av
     const leaders = subjects.map((p, i) => (own[i] && boxes[i] ? cardLeader(p, boxes[i]) : null));
     const same = shown.spot && spot.x === shown.spot.x && spot.y === shown.spot.y && JSON.stringify(leaders) === JSON.stringify(shown.leaders);
     if (!same) setShown({ ...shown, spot, leaders });
-  }, [shown, avoid, userBox?.x, userBox?.y, width]);
+  }, [shown, avoid, userX, userY, width]);
 
   const draw = (s: Shown) => {
     const cls = s.leaving ? " okf-cards--leaving" : "";
