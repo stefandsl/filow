@@ -82,6 +82,16 @@ function commandFor(cli, dir) {
 }
 
 /**
+ * The environment the CLI gets: Filow's own, without its secrets (the keys loadSecrets decrypted,
+ * ACCESS_PASSWORD, FILOW_APP_PAIR_KEY). The CLI signs in with its own login, not with Filow's keys.
+ */
+function agentEnv(env = process.env) {
+  const out = { NO_COLOR: "1" };
+  for (const [k, v] of Object.entries(env)) if (!/(KEY|TOKEN|SECRET|PASSWORD)$/i.test(k)) out[k] = v;
+  return out;
+}
+
+/**
  * @param {{ baseDir: string, logLine: (s: string) => void, onChange: (jobs: object[]) => void,
  *           cli: () => string, which: (name: string) => boolean, openPath: (p: string) => void,
  *           announce: (job: object) => void }} o
@@ -111,7 +121,7 @@ function createAgents(o) {
     const { cmd, args } = commandFor(cli, dir);
     const log = fs.createWriteStream(path.join(dir, "agent.log"));
     let out = "";
-    const child = spawn(cmd, args, { cwd: dir, shell: process.platform === "win32", windowsHide: true, env: { ...process.env, NO_COLOR: "1" } });
+    const child = spawn(cmd, args, { cwd: dir, shell: process.platform === "win32", windowsHide: true, env: agentEnv() });
     procs.set(id, child);
     child.stdout.on("data", (d) => { log.write(d); out = (out + d.toString()).slice(-20000); });
     child.stderr.on("data", (d) => log.write(d));
