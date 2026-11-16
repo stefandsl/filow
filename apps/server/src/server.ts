@@ -59,7 +59,7 @@ type Pairing = {
   pairedAt: number;
   expiresAt: number;
 };
-type View = { ws: WebSocket; pairing: Pairing; alive: boolean; ip: string };
+type View = { ws: WebSocket; pairing: Pairing; missed: number; ip: string };
 type Session = {
   id: string;
   code: string | null;
@@ -67,7 +67,7 @@ type Session = {
   createdAt: number;
   engineClosedAt: number | null;
   engine: WebSocket | null;
-  engineAlive: boolean;
+  engineMissed: number;
   pairings: Map<string, Pairing>;
   byToken: Map<string, Pairing>;
   views: Set<View>;
@@ -411,7 +411,7 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
       }
       const id = randomUUID();
       const s: Session = {
-        id, code: null, codeExpiresAt: 0, createdAt: now(), engineClosedAt: now(), engine: null, engineAlive: false,
+        id, code: null, codeExpiresAt: 0, createdAt: now(), engineClosedAt: now(), engine: null, engineMissed: 0,
         pairings: new Map(), byToken: new Map(), views: new Set(), lastState: null, version: 0, acks: new Map(),
       };
       sessions.set(id, s);
@@ -584,8 +584,8 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
       }
       if (!msg || typeof msg !== "object") return;
       if (msg.t === "pong") {
-        if (me) me.alive = true;
-        if (isEngine) s.engineAlive = true;
+        if (me) me.missed = 0;
+        if (isEngine) s.engineMissed = 0;
         return;
       }
       if (msg.t === "ping") return ws.send(JSON.stringify({ t: "pong" }));
@@ -600,7 +600,7 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
           heard();
           isEngine = true;
           s.engine = ws;
-          s.engineAlive = true;
+          s.engineMissed = 0;
           s.engineClosedAt = null;
           ws.send(JSON.stringify({ t: "welcome", role: "engine", version: s.version, code: s.code, codeExpiresAt: s.codeExpiresAt }));
           sendDevices(s);
@@ -620,7 +620,7 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
           pairing.device = said;
           pairing.named = true;
         }
-        me = { ws, pairing, alive: true, ip };
+        me = { ws, pairing, missed: 0, ip };
         s.views.add(me);
         ws.send(JSON.stringify({ t: "welcome", role: pairing.role, version: s.version, canAsk: pairing.canAsk, approved: pairing.approved, expiresAt: pairing.expiresAt }));
         sendDevices(s);
@@ -749,18 +749,19 @@ export function createSessionServer(opts: ServerOptions = {}): SessionServer {
   const pinger = setInterval(() => {
     for (const s of sessions.values()) {
       for (const v of [...s.views]) {
-        if (!v.alive) {
+        // Closed after 2 pings in a row went unanswered (ARCHITECTURE.md: close after 2 missed).
+        if (v.missed >= 2) {
           v.ws.terminate();
           s.views.delete(v);
           continue;
         }
-        v.alive = false;
+        v.missed++;
         v.ws.send(JSON.stringify({ t: "ping" }));
       }
       if (s.engine) {
-        if (!s.engineAlive) s.engine.terminate();
+        if (s.engineMissed >= 2) s.engine.terminate();
         else {
-          s.engineAlive = false;
+          s.engineMissed++;
           s.engine.send(JSON.stringify({ t: "ping" }));
         }
       }
