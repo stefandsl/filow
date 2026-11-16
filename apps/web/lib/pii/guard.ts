@@ -145,14 +145,17 @@ export async function rizzoAnonymize(text: string, map: PiiMap, timeoutMs = 4000
       if (ph && original) local.set(ph.startsWith("[") ? ph : `[${ph}]`, original);
     }
   }
-  let result = anonymized;
+  // Rename in one pass: a renamed placeholder may be the name of another one still to rename.
+  const rename = new Map<string, string>();
   for (const [ph, v] of local) {
     if (map.get(ph) === v) continue;
     const tag = ph.slice(1, ph.lastIndexOf("_")) || ph.slice(1, -1);
     const fresh = map.has(ph) ? placeholderFor(v, tag, map) : (map.set(ph, v), ph);
-    if (fresh !== ph) result = result.split(ph).join(fresh);
+    if (fresh !== ph) rename.set(ph, fresh);
   }
-  return result;
+  if (!rename.size) return anonymized;
+  const re = new RegExp([...rename.keys()].map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
+  return anonymized.replace(re, (m) => rename.get(m) ?? m);
 }
 
 function firstString(o: Record<string, unknown>, keys: string[]): string | undefined {
