@@ -16,6 +16,10 @@ for (const f of readdirSync(dir)) {
 }
 
 describe("packaged files", () => {
+  it.each(["wake-augmentation.js", "wake-enrolment.js"])("P1: includes the required wake module %s", (module) => {
+    expect(required.has(module)).toBe(true);
+    expect(files).toContain(module);
+  });
   it("include every local module the app requires", () => {
     const missing = [...required].filter((m) => !files.includes(m));
     expect(missing).toEqual([]);

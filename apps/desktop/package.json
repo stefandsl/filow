@@ -53,7 +53,7 @@
       "points-window.js",
       "window-controls.js",
       "localai.js",
-      "wake.js", "wake-policy.js", "wake-models.js", "wake-worker.js", "wake-head.js", "wake-head-worker.js",
+      "wake.js", "wake-policy.js", "wake-models.js", "wake-worker.js", "wake-head.js", "wake-head-worker.js", "wake-augmentation.js", "wake-enrolment.js",
       "wake-data/**",
       "stt-worker.js",
       "stt.js",
