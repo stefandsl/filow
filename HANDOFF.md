@@ -1,5 +1,7 @@
 # Filow hand-off
 
+C6, C12, C23, C27 and C28 are held on `audit/fixes-0.9.42` for an eval-driven track.
+
 ## Natural voice worktree (2026-11-14, unreleased)
 
 `feat-voice-natural` measured 652 answers across 21 variants, including full

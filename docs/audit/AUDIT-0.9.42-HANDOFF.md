@@ -1,5 +1,7 @@
 # Handoff: Filow 0.9.42 audit (2026-11-16)
 
+C6, C12, C23, C27 and C28 are held on `audit/fixes-0.9.42` for an eval-driven track.
+
 For the next agent (or for the owner) picking up this work. Read this first, then `bug-report.md`, then `plan-review.md`.
 
 **In breve (IT):**
