@@ -24,7 +24,7 @@ afterEach(() => {
   }
 });
 
-describe.skipIf(process.platform === "win32")("OK Filow agent child environment", () => {
+describe("OK Filow agent child environment", () => {
   it("does not hand Filow's decrypted keys or LAN secrets to the agent CLI", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "c29-"));
     const bin = path.join(root, "bin");
@@ -32,6 +32,10 @@ describe.skipIf(process.platform === "win32")("OK Filow agent child environment"
     const fake = path.join(bin, "claude");
     fs.writeFileSync(fake, `#!${process.execPath}\nconst fs=require("fs");process.stdin.resume();process.stdin.on("end",()=>{fs.writeFileSync("output/env.json",JSON.stringify(process.env));process.stdout.write("Made it.\\nARTIFACTS: env.json\\n");});\n`);
     fs.chmodSync(fake, 0o755);
+    if (process.platform === "win32") {
+      // cmd.exe cannot execute a shebang; keep the same fake child behind a Windows launcher.
+      fs.writeFileSync(`${fake}.cmd`, `@echo off\r\n"${process.execPath}" "%~dp0claude" %*\r\n`);
+    }
     // What loadSecrets() (main.js:664) and startServers() (main.js:2094-2098) leave in the main process env.
     for (const k of [...Object.keys(SECRETS), "PATH"]) saved[k] = process.env[k];
     Object.assign(process.env, SECRETS);
