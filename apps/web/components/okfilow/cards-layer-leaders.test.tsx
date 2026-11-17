@@ -72,6 +72,39 @@ function fakeDocument() {
 const all = (n: FakeNode, out: FakeNode[] = []) => { out.push(n); n.childNodes.forEach((c) => all(c, out)); return out; };
 
 describe("OK Filow cards: each leader ends at its own card", () => {
+  it("R2: moving then resetting the same visible cards restores automatic placement", async () => {
+    const doc = fakeDocument();
+    const g = globalThis as Record<string, unknown>;
+    g.document = doc;
+    g.window = Object.assign(globalThis, { innerWidth: 1920, innerHeight: 1080, HTMLIFrameElement: class {}, addEventListener() {}, removeEventListener() {} });
+    g.IS_REACT_ACT_ENVIRONMENT = true;
+    const { createRoot } = await import("react-dom/client");
+    const { CardsLayer } = await import("./cards-layer");
+    const container = new FakeNode(1, "div", doc);
+    (doc.body as FakeNode).appendChild(container);
+    const root = createRoot(container as never);
+    const cards = [{ title: "A", text: "first", photo: "", x: 300, y: 300 }];
+    const avoid = () => [];
+    const render = async (moved: import("./media-layer").MoveProps["moved"]) => {
+      await act(async () => root.render(createElement(CardsLayer, {
+        cards, avoid, move: { moved, onBox: () => {}, onReset: () => {} }, t: (k) => k,
+      })));
+    };
+    const position = () => {
+      const col = all(container).find((n) => n.nodeName === "DIV" && n.className.split(" ").includes("okf-cards"))!;
+      return { x: parseFloat(col.style.left), y: parseFloat(col.style.top), width: parseFloat(col.style.width) };
+    };
+    try {
+      await render({});
+      const automatic = position();
+      await render({ cards: { x: 900, y: 500, w: 300, h: 200 } });
+      expect(position()).toEqual({ x: 900, y: 500, width: 300 });
+      await render({}); // Reset layout clears moved, without replacing the cards.
+      expect(position()).toEqual(automatic);
+    } finally {
+      await act(async () => root.unmount());
+    }
+  });
   it("with the move bar shown, card 1's leader ends at card 1's box, not card 0's", async () => {
     const doc = fakeDocument();
     const g = globalThis as Record<string, unknown>;

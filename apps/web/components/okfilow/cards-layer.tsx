@@ -15,7 +15,7 @@ import type { OkfKey } from "@/lib/buddy/text";
 import { MoveGrips } from "./move-grips";
 import type { MoveProps } from "./media-layer";
 
-type Shown = { id: number; cards: OkFilowCard[]; photos: Array<string | null>; spot: CardSpot | null; leaders: Array<Leader | null>; leaving?: boolean };
+type Shown = { id: number; cards: OkFilowCard[]; photos: Array<string | null>; spot: CardSpot | null; autoSpot?: CardSpot; leaders: Array<Leader | null>; leaving?: boolean };
 
 /** How long a picture may take to decode before its card shows without it. */
 const DECODE_MS = 1500;
@@ -79,13 +79,13 @@ export function CardsLayer({ cards, avoid, move, t }: { cards: OkFilowCard[]; av
     const el = col.current;
     if (!shown || !el) return;
     const view = { width: window.innerWidth, height: window.innerHeight };
-    const size = { width, height: el.offsetHeight };
+    const size = { width: CARD_WIDTH, height: el.offsetHeight };
     const subjects = shown.cards.map((c) => ({ x: c.x, y: c.y }));
+    // Remember the automatic position separately so Reset layout can restore it on the same cards.
+    const autoSpot = shown.autoSpot ?? placeCards(subjects[0], size, view, avoid(), subjects);
     const spot = userX !== undefined && userY !== undefined
       ? { side: shown.spot?.side ?? ("right" as const), x: userX, y: Math.max(12, Math.min(userY, view.height - 12 - size.height)) }
-      : shown.spot
-      ? { ...shown.spot, y: Math.max(12, Math.min(shown.spot.y, view.height - 12 - size.height)) }
-      : placeCards(subjects[0], size, view, avoid(), subjects);
+      : { ...autoSpot, y: Math.max(12, Math.min(autoSpot.y, view.height - 12 - size.height)) };
     // Each card's own box (the move bar above the first card is not a card).
     const boxes = Array.from(el.children).filter((a) => a.tagName === "ARTICLE").map((a) => {
       const art = a as HTMLElement;
@@ -93,8 +93,8 @@ export function CardsLayer({ cards, avoid, move, t }: { cards: OkFilowCard[]; av
     });
     const own = leadersFor(subjects);
     const leaders = subjects.map((p, i) => (own[i] && boxes[i] ? cardLeader(p, boxes[i]) : null));
-    const same = shown.spot && spot.x === shown.spot.x && spot.y === shown.spot.y && JSON.stringify(leaders) === JSON.stringify(shown.leaders);
-    if (!same) setShown({ ...shown, spot, leaders });
+    const same = shown.spot && shown.autoSpot === autoSpot && spot.x === shown.spot.x && spot.y === shown.spot.y && JSON.stringify(leaders) === JSON.stringify(shown.leaders);
+    if (!same) setShown({ ...shown, spot, autoSpot, leaders });
   }, [shown, avoid, userX, userY, width]);
 
   const draw = (s: Shown) => {
