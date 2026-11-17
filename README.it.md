@@ -725,6 +725,8 @@ ripetere il confronto: `docs/gauntlet/BASELINE.md`.
 
 ## OK Filow, l'aiutante sullo schermo
 
+I segnaposto inseriti dal filtro privacy del fornitore vengono rimossi dai titoli delle schede e dalle etichette dei disegni, salvo quelli scritti nella domanda. Il testo della risposta e l?avviso sui nomi nascosti restano invariati.
+
 OK Filow è un aiutante dell'app desktop che vede lo schermo sotto il mouse e risponde a voce, con un
 puntino che può indicare ciò di cui parla. Gesti (un altro tasto premuto mentre tieni una
 combinazione la annulla):

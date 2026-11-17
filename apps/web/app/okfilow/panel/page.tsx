@@ -804,7 +804,7 @@ export default function OkFilowPanel() {
           got += decoder.decode(value, { stream: true });
           if (run.current !== id) return null;
           const partial = got.split("\n[ERROR]")[0];
-          const parsedNow = parseBuddyAnswer(partial, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1);
+          const parsedNow = parseBuddyAnswer(partial, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1, question);
           if (parsedNow.appWordsLanguage) answerLang = parsedNow.appWordsLanguage;
           const arrived = parsedNow.text;
           // A continuation is shown after the part already there, without the sentences the model says again.
@@ -825,7 +825,7 @@ export default function OkFilowPanel() {
       const [answered, err] = raw.split("\n[ERROR] ");
       if (err) throw new Error(err.trim());
       const body = resume ? joinContinuation(resume.shown, answered.trim()) : answered;
-      const parsed = parseBuddyAnswer(answered, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1);
+      const parsed = parseBuddyAnswer(answered, shot.screens, shot.screens.find((s) => s.cursor)?.index ?? 1, question);
       // A phone's question is answered in words only: no pointer, pen, cards, drawing or 3D model (askPlan).
       const { points, marks, cards, model, drawing, media, slide } = plan.visuals ? parsed : wordsOnly(parsed);
       // The user's own files and links named in the question go in the gallery first (never a phone's: plan.visuals).

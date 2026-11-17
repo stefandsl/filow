@@ -174,8 +174,8 @@ const BROKEN_TAG_RE = /\[(?:POINT|CIRCLE|ARROW|BOX|UNDERLINE|CARD|MEDIA|SLIDE)\b
  * A trailing unfinished tag ("[POINT:12,3") is held back so it never flashes in the bubble.
  * Points whose screen is unknown fall back to `defaultScreen`; ones outside the image are dropped.
  */
-export function parseBuddyAnswer(raw: string, screens: BuddyScreen[], defaultScreen = 1): { text: string; points: BuddyPoint[]; marks: BuddyMark[]; cards: BuddyCard[]; model: BuddyModel | null; drawing: BuddyDrawing | null; media: MediaAsk[]; slide: BuddySlide | null; appWordsLanguage?: string } {
-  const visuals = extractVisuals(raw, (n) => screens.some((s) => s.index === n), defaultScreen);
+export function parseBuddyAnswer(raw: string, screens: BuddyScreen[], defaultScreen = 1, question = ""): { text: string; points: BuddyPoint[]; marks: BuddyMark[]; cards: BuddyCard[]; model: BuddyModel | null; drawing: BuddyDrawing | null; media: MediaAsk[]; slide: BuddySlide | null; appWordsLanguage?: string } {
+  const visuals = extractVisuals(raw, (n) => screens.some((s) => s.index === n), defaultScreen, question);
   let body = normalizePointBoxes(visuals.body);
   let appWordsLanguage: string | undefined;
   body = body.replace(/\[APP_WORDS:(en|it|ru|ro|ja)\]/g, (_tag, language: string) => { appWordsLanguage = language; return ""; });

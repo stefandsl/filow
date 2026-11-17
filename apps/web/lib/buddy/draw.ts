@@ -18,7 +18,8 @@ export const DRAW_RETRY_MS = 45_000;
 
 /** True when the answer carries a drawing or a model the app can show. */
 export function hasPicture(raw: string): boolean {
-  const v = extractVisuals(raw, () => true);
+  // Check structure before display cleanup; dropping a private label must not trigger another request.
+  const v = extractVisuals(raw, () => true, 1, raw);
   return Boolean(v.model || v.drawing);
 }
 

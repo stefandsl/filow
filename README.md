@@ -716,6 +716,8 @@ rerun the comparison: `docs/gauntlet/BASELINE.md`.
 
 ## OK Filow, the screen helper
 
+Provider privacy placeholders are removed from card titles and drawing labels unless you typed them in your question. Answer text and the notice about hidden names stay unchanged.
+
 OK Filow is a helper in the desktop app that sees the screen under your mouse and answers out loud,
 with a dot that can point at what it talks about. Gestures (any other key while a chord is down
 cancels it):

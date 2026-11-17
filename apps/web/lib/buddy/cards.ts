@@ -3,6 +3,19 @@
 // labels, the pill and the answer bubble, wholly on screen; with a leader line from the subject to
 // the nearest edge of its card.
 import type { Rect } from "./marks";
+import { placeholderLeaks } from "../pii/guard";
+
+/** Display labels only: never guess the name a provider hid, or change a tag the user typed. */
+export function cleanVisualLabel(text: string, question: string): string {
+  const leaks = placeholderLeaks(text, question);
+  if (!leaks.length) return text;
+  let clean = text;
+  for (const token of leaks) clean = clean.split(token).join("");
+  clean = clean.replace(/\(\s*\)|\{\s*\}|\[\s*\]/g, "")
+    .replace(/\s+/g, " ").replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/^[\s,.;:!?|/-]+|[\s,.;:!?|/-]+$/g, "").trim();
+  return /[\p{L}\p{N}]/u.test(clean) ? clean : "";
+}
 
 type P = { x: number; y: number };
 type Size = { width: number; height: number };

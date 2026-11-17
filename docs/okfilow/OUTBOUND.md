@@ -164,7 +164,7 @@ existing installs; the file is not changed.
   `app/api/buddy/consent.test.ts` and `lib/buddy/outbound.test.ts`). The pill names OpenRouter and OpenAI.
 - Every new default is pinned to its maker's own hosts (`MAKER_HOSTS`: OpenAI, Google, Anthropic).
 - Thinking is off or minimal for them, as P0 ran them (`reasoningFor` in `lib/openrouter.ts`).
-## Names in whiteboard questions (owner decision, 11/11/2026)
+## Names in whiteboard questions and OK Filow visuals (owner decisions)
 
 The owner's OpenRouter account hides personal data in every prompt before a model sees it: "the
 Krebs cycle" reaches the model as "the [PERSON_NAME] cycle", and the model then teaches some other
@@ -184,11 +184,18 @@ What Filow does, and only this:
 - If the spelled question is hidden too, the lesson is refused as before, with the reason and
   "Explain it on this PC".
 
-Scope: the text of a whiteboard question, sent under the consent already given for that
+Scope of name spelling: the text of a whiteboard question, sent under the consent already given for that
 recipient. Never the user's script, the text of the screen, a screenshot, an OK Filow question or
 any answer. Filow's own name masking (Rizzo-PII and the regex layer, for takes and scripts) is not
 touched. The spelling is `WHITEBOARD_NAME_SPELLING` (`spaced`, `hyphen`, `dots`); which of them the
 account's filter lets through is measured with `tools/whiteboard/echo.mjs`.
+For OK Filow card titles and drawing labels (including 3D titles and part names), a provider
+placeholder absent from the user's question is removed locally and surrounding spacing and
+punctuation are tidied. Empty labels are omitted. A placeholder the user typed stays. This
+also applies while an answer streams. Answer prose, card descriptions and the existing
+redacted notice remain unchanged; no name is reconstructed, no question is rewritten and
+no additional provider request is made for this cleanup.
+
 ## Open (owner decisions)
 
 - Row 13: the public link is on by default and starts without asking. Script, transcript and slide

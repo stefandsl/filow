@@ -2,6 +2,7 @@
 // and 3D"): explanation cards with a real photo, and 3D models of real things the user can turn
 // and click. The model writes them as tags; everything here validates what it wrote.
 import { extractMedia, MEDIA_PROMPT, type BuddySlide, type MediaAsk } from "./media";
+import { cleanVisualLabel } from "./cards";
 
 /** An explanation card placed next to a spot on screen (0-1000 grid). */
 export type BuddyCard = { x: number; y: number; title: string; text: string; photo: string; screen: number; svg?: string };
@@ -154,7 +155,7 @@ export function isExampleCopy(raw: unknown): boolean {
   return same(r.shapes, (JSON.parse(DRAWING_EXAMPLE) as { shapes: unknown }).shapes) || same(r.parts, (JSON.parse(MODEL_EXAMPLE) as { parts: unknown }).parts);
 }
 
-const CARD_RE = /\[CARD:\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*:([^\]|]*)\|([^\]|]*)(?:\|([^\]|:]*))?(?::\s*screen\s*(\d+))?\s*\]/gi;
+const CARD_RE = /\[CARD:\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*:((?:[^\][|]|\[[^\][|]*\])*)\|((?:[^\][|]|\[[^\][|]*\])*)(?:\|((?:[^\][|:]|\[[^\][|]*\])*))?(?::\s*screen\s*(\d+))?\s*\]/gi;
 
 const num = (v: unknown, lo: number, hi: number): number | null => (typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi ? v : null);
 const vec = (v: unknown, lo: number, hi: number, fill?: number): [number, number, number] | null => {
@@ -167,7 +168,7 @@ const paintColor = (v: unknown, fallback: string): string => (v === "none" ? "no
 const PATH_TOKEN = /[MLCQZ]|-?\d+(?:\.\d+)?/gi;
 
 /** Validates a 2D drawing the AI wrote; drops bad shapes, null when nothing usable is left. */
-export function validateDrawing(raw: unknown): BuddyDrawing | null {
+export function validateDrawing(raw: unknown, question = ""): BuddyDrawing | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as { title?: unknown; shapes?: unknown };
   const shapes: DrawingShape[] = [];
@@ -198,9 +199,11 @@ export function validateDrawing(raw: unknown): BuddyDrawing | null {
       const pts = (Array.isArray(q.points) ? q.points : []).slice(0, 200).map((pt: unknown) => (Array.isArray(pt) ? [c(pt[0]), c(pt[1])] : [null, null]));
       if (pts.length >= 2 && pts.every((pt) => pt[0] !== null && pt[1] !== null)) shapes.push({ kind, points: pts as [number, number][], ...paint });
     } else if (kind === "text" && typeof q.text === "string" && q.text.trim()) {
+      const text = cleanVisualLabel(q.text.trim(), question).slice(0, 60);
+      if (!text) continue;
       const v = n("x", "y");
       // Labels default to dark ink: the model often gives a text a fill meant for a shape.
-      if (v) shapes.push({ kind, x: v[0], y: v[1], text: q.text.trim().slice(0, 60), size: num(q.size, 6, 48) ?? 14, ...paint, fill: paintColor(q.fill ?? q.color, "#222222"), stroke: "none" });
+      if (v) shapes.push({ kind, x: v[0], y: v[1], text, size: num(q.size, 6, 48) ?? 14, ...paint, fill: paintColor(q.fill ?? q.color, "#222222"), stroke: "none" });
     } else if (kind === "path" && typeof q.d === "string" && q.d.length <= 4000) {
       // Only M/L/C/Q/Z and numbers: the path is rebuilt from its tokens, so nothing else reaches the SVG.
       if (q.d.replace(PATH_TOKEN, "").replace(/[\s,]/g, "") !== "") continue;
@@ -210,7 +213,7 @@ export function validateDrawing(raw: unknown): BuddyDrawing | null {
     }
   }
   if (!shapes.length) return null;
-  return { title: String(r.title || "Drawing").trim().slice(0, 80) || "Drawing", shapes };
+  return { title: cleanVisualLabel(String(r.title || "Drawing").trim(), question).slice(0, 80), shapes };
 }
 
 const escapeXml = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -250,7 +253,7 @@ function takeBlock<T>(body: string, name: string, validate: (raw: unknown) => T 
 }
 
 /** Validates a model the AI wrote; drops bad parts, null when nothing usable is left. */
-export function validateModel(raw: unknown): BuddyModel | null {
+export function validateModel(raw: unknown, question = ""): BuddyModel | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as { title?: unknown; parts?: unknown };
   const parts: ModelPart[] = [];
@@ -264,21 +267,21 @@ export function validateModel(raw: unknown): BuddyModel | null {
     const rot = vec(q.rot, -360, 360, 0) ?? [0, 0, 0];
     if (!size || size[0] <= 0) continue;
     const color = /^#[0-9a-f]{6}$/i.test(String(q.color)) ? String(q.color) : "#b8c0cc";
-    const name = String(q.name || "").trim().slice(0, 60) || shape;
+    const name = cleanVisualLabel(String(q.name || "").trim() || shape, question).slice(0, 60);
     parts.push({ name, shape, size, pos, rot, color });
   }
   if (!parts.length) return null;
-  return { title: String(r.title || "Model").trim().slice(0, 80) || "Model", parts };
+  return { title: cleanVisualLabel(String(r.title || "Model").trim(), question).slice(0, 80), parts };
 }
 
 /**
  * Takes cards, a 3D model and a 2D drawing out of an answer. An unfinished block at the end of a
  * streamed answer is held back so its JSON never shows in the bubble.
  */
-export function extractVisuals(raw: string, validScreen: (n: number) => boolean, defaultScreen = 1): { body: string; cards: BuddyCard[]; model: BuddyModel | null; drawing: BuddyDrawing | null; media: MediaAsk[]; slide: BuddySlide | null } {
+export function extractVisuals(raw: string, validScreen: (n: number) => boolean, defaultScreen = 1, question = ""): { body: string; cards: BuddyCard[]; model: BuddyModel | null; drawing: BuddyDrawing | null; media: MediaAsk[]; slide: BuddySlide | null } {
   const shown = extractMedia(raw);
-  const m3 = takeBlock(shown.body, "model3d", validateModel);
-  const d2 = takeBlock(m3.body, "drawing2d", validateDrawing);
+  const m3 = takeBlock(shown.body, "model3d", (raw) => validateModel(raw, question));
+  const d2 = takeBlock(m3.body, "drawing2d", (raw) => validateDrawing(raw, question));
   // A fence that has only just started ("``", "```mod", "```draw") is held back too.
   let body = d2.body.replace(/`{1,3}\s*([a-z0-9]*)\s*$/i, (t, w: string) => ("model3d".startsWith(w.toLowerCase()) || "drawing2d".startsWith(w.toLowerCase()) ? "" : t));
   const cards: BuddyCard[] = [];
@@ -287,9 +290,11 @@ export function extractVisuals(raw: string, validScreen: (n: number) => boolean,
     const py = Number(y);
     const index = screen ? Number(screen) : defaultScreen;
     if (cards.length < 2 && px >= 0 && py >= 0 && px <= 1000 && py <= 1000 && validScreen(index) && (title.trim() || text.trim())) {
-      cards.push({ x: px, y: py, title: title.trim().slice(0, 60), text: text.trim().slice(0, 240), photo: (photo ?? "").trim().slice(0, 80), screen: index });
+      cards.push({ x: px, y: py, title: cleanVisualLabel(title.trim(), question).slice(0, 60), text: text.trim().slice(0, 240), photo: (photo ?? "").trim().slice(0, 80), screen: index });
     }
     return "";
   });
+  // A nested placeholder may already have its closing bracket while the card is still arriving.
+  body = body.replace(/\[CARD:[\s\S]*$/i, "");
   return { body, cards, model: m3.value, drawing: d2.value, media: shown.media, slide: shown.slide };
 }
