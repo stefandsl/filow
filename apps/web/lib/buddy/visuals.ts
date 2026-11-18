@@ -279,11 +279,16 @@ export function validateModel(raw: unknown, question = ""): BuddyModel | null {
  * streamed answer is held back so its JSON never shows in the bubble.
  */
 export function extractVisuals(raw: string, validScreen: (n: number) => boolean, defaultScreen = 1, question = ""): { body: string; cards: BuddyCard[]; model: BuddyModel | null; drawing: BuddyDrawing | null; media: MediaAsk[]; slide: BuddySlide | null } {
-  const shown = extractMedia(raw);
-  const m3 = takeBlock(shown.body, "model3d", (raw) => validateModel(raw, question));
+  const m3 = takeBlock(raw, "model3d", (raw) => validateModel(raw, question));
   const d2 = takeBlock(m3.body, "drawing2d", (raw) => validateDrawing(raw, (text) => cleanVisualLabel(text, question)));
   // A fence that has only just started ("``", "```mod", "```draw") is held back too.
   let body = d2.body.replace(/`{1,3}\s*([a-z0-9]*)\s*$/i, (t, w: string) => ("model3d".startsWith(w.toLowerCase()) || "drawing2d".startsWith(w.toLowerCase()) ? "" : t));
+  // Drop malformed cards before extracting later tags, while their boundaries are still present.
+  // Stop at the card's own close or the next tag; only an unfinished trailing card consumes the tail.
+  // Nested placeholder brackets are not the card's close. Complete valid cards pass through unchanged.
+  body = body.replace(/\[CARD:(?:[^[\]]|\[(?![a-z_]+:)[^[\]]*\])*(?:\]|(?=\[[a-z_]+:)|(?:\[[^[\]]*)?$)/gi, (card) => card.match(CARD_RE)?.[0] ?? "");
+  const shown = extractMedia(body);
+  body = shown.body;
   const cards: BuddyCard[] = [];
   body = body.replace(CARD_RE, (_m, x: string, y: string, title: string, text: string, photo: string | undefined, screen: string | undefined) => {
     const px = Number(x);
@@ -294,7 +299,5 @@ export function extractVisuals(raw: string, validScreen: (n: number) => boolean,
     }
     return "";
   });
-  // A nested placeholder may already have its closing bracket while the card is still arriving.
-  body = body.replace(/\[CARD:[\s\S]*$/i, "");
   return { body, cards, model: m3.value, drawing: d2.value, media: shown.media, slide: shown.slide };
 }

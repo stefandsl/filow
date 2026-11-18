@@ -6,6 +6,15 @@ TK-14 placeholder cleanup is explicitly selected by OK Filow answer extraction.
 Shared drawing validation again preserves whiteboard sketch labels and titles,
 including label-only sketches that contain literal `[EMAIL]` template syntax.
 
+Malformed cards now stop at their own closing bracket or the following tag;
+only unfinished trailing cards consume the answer tail. Regressions cover prose,
+POINT marks, redaction notices, nested placeholders and every stream boundary.
+Cleanup happens before later CARD, MEDIA and SLIDE tags are extracted, preserving
+their following prose too. Final gate: 3,965 tests passed, 12 skipped, only the three
+existing qa.test.ts baseline failures; typecheck and lint passed. All 22 added tests
+pass. Evidence: worktree tmp/review3 and G:/FILOW/tmp/codex/tk14-o2/report-3.md.
+No merge, push, tag, generated-file change or installed-profile change was made.
+
 C6, C12, C23, C27 and C28 are held on `audit/fixes-0.9.42` for an eval-driven track.
 
 ## Natural voice worktree (2026-11-14, unreleased)
