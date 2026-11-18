@@ -240,6 +240,11 @@ describe("while the microphone is still opening", () => {
     const listening = at('setMode("listening", { purpose: why });');
     expect(opening).toBeLessThan(open);
     expect(open).toBeLessThan(listening);
+    // The stream can arrive while the worklet module is still loading.
+    expect(at("floatMicNode(ctx, src,")).toBeLessThan(listening);
+    expect(start.slice(at("floatMicNode(ctx, src,"), listening)).toMatch(/}, \(\) => \{/);
+    const upgrade = panel.slice(panel.indexOf("if (p?.upgrade)"), panel.indexOf("b.onRelease("));
+    expect(upgrade).toMatch(/if \(audio\.current\?\.node\.connected\) \{[\s\S]*?playCue\(true\)/);
     expect(listening).toBeLessThan(at('dictT("dictating")'));
     expect(listening).toBeLessThan(at("playCue(true)"));
     // once each: nothing says "listening" or plays the cue before the open

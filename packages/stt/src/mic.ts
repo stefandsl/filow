@@ -102,7 +102,10 @@ export async function startMic(
  * The same worklet in float mode, for a graph the caller owns (OK Filow's panel): ~100 ms chunks of
  * Float32 samples from `source`. A release can disconnect while the worklet is still loading.
  */
-export function floatMicNode(ctx: AudioContext, source: AudioNode, onSamples: (samples: Float32Array, peak: number) => void) {
+export function floatMicNode(
+  ctx: AudioContext, source: AudioNode, onSamples: (samples: Float32Array, peak: number) => void,
+  onConnected?: () => void,
+) {
   let stopped = false;
   let node: AudioWorkletNode | undefined;
   let mute: GainNode | undefined;
@@ -116,9 +119,11 @@ export function floatMicNode(ctx: AudioContext, source: AudioNode, onSamples: (s
     mute.gain.value = 0;
     source.connect(node);
     node.connect(mute).connect(ctx.destination);
+    onConnected?.();
   };
   return {
     ready: ready(),
+    get connected() { return !stopped && node !== undefined; },
     disconnect() {
       stopped = true;
       if (node) { node.port.onmessage = null; node.disconnect(); }

@@ -35,6 +35,24 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("capture health wiring", () => {
+  it.each([false, true])("signals an active panel press only after the graph connects (released=%s)", async (released) => {
+    const f = fixture();
+    let finish!: () => void;
+    f.addModule.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const ctx = new AudioContext();
+    const source = ctx.createMediaStreamSource({} as MediaStream);
+    const listening = vi.fn(() => expect(source.connect).toHaveBeenCalledOnce());
+    const capture = floatMicNode(ctx, source, vi.fn(), listening);
+    expect(listening).not.toHaveBeenCalled();
+    if (released) {
+      capture.disconnect();
+      expect(source.disconnect).toHaveBeenCalledOnce();
+    }
+    finish();
+    await capture.ready;
+    expect(source.connect).toHaveBeenCalledTimes(released ? 0 : 1);
+    expect(listening).toHaveBeenCalledTimes(released ? 0 : 1);
+  });
   it.each([false, true])("does not attach a released panel microphone when worklet loading settles (error=%s)", async (workletError) => {
     const f = fixture({ workletError });
     const ctx = new AudioContext();

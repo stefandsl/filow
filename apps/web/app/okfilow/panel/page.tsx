@@ -134,7 +134,7 @@ export default function OkFilowPanel() {
   const [jobs, setJobs] = useState<OkFilowJob[]>([]);
   const committed = useRef<string[]>([]);
   const partial = useRef("");
-  const audio = useRef<{ ctx: AudioContext; stream: MediaStream; node: { disconnect(): void } } | null>(null);
+  const audio = useRef<{ ctx: AudioContext; stream: MediaStream; node: ReturnType<typeof floatMicNode> } | null>(null);
   /** The microphone being opened right now (lib/buddy/micOpen.ts), and how long this recording's took to open. */
   const micOpening = useRef<MicOpening<MediaStream> | null>(null);
   const micOpenMs = useRef<number | null>(null);
@@ -1177,24 +1177,6 @@ export default function OkFilowPanel() {
       }
       const stream = got.stream;
       micOpenMs.current = got.openMs;
-      // The microphone is open: from here the pointer says so, and what is said is heard.
-      setMode("listening", { purpose: why });
-      if (why === "dictate") {
-        const keys = dict?.chordLabel ?? "";
-        b.text(flow.current ? dictT("dictatingHandsFree", { keys }) : dictT("dictating"));
-        if (dict?.sound || dict?.screenReader) playCue(true);
-      } else if (noted) b.text("");
-      if (fallback) {
-        // Said in the panel, and on the pointer until the first words come: the default microphone listens.
-        setNote(t("micFallback"));
-        b.text(t("micFallback"));
-      }
-      // The speed baseline: a question's marks start with the open microphone (dictation is not measured).
-      if (why !== "dictate") {
-        const at = Date.now();
-        pendingMarks.current = { ...(pendingMarks.current ?? {}), micOpen: at };
-        perfSignal("okfMicOpenAt", at);
-      }
       const ctx = new AudioContext({ sampleRate: 16000 });
       const src = ctx.createMediaStreamSource(stream);
       const node = floatMicNode(ctx, src, (samples, peak) => {
@@ -1203,6 +1185,25 @@ export default function OkFilowPanel() {
         const level = Math.min(1, peak * 2.5);
         b.level(level);
         micTick.current(level, performance.now());
+      }, () => {
+        // The microphone is open: from here the pointer says so, and what is said is heard.
+        setMode("listening", { purpose: why });
+        if (why === "dictate") {
+          const keys = dict?.chordLabel ?? "";
+          b.text(flow.current ? dictT("dictatingHandsFree", { keys }) : dictT("dictating"));
+          if (dict?.sound || dict?.screenReader) playCue(true);
+        } else if (noted) b.text("");
+        if (fallback) {
+          // Said in the panel, and on the pointer until the first words come: the default microphone listens.
+          setNote(t("micFallback"));
+          b.text(t("micFallback"));
+        }
+        // The speed baseline: a question's marks start with the open microphone (dictation is not measured).
+        if (why !== "dictate") {
+          const at = Date.now();
+          pendingMarks.current = { ...(pendingMarks.current ?? {}), micOpen: at };
+          perfSignal("okfMicOpenAt", at);
+        }
       });
       audio.current = { ctx, stream, node };
       await node.ready;
@@ -1498,10 +1499,12 @@ export default function OkFilowPanel() {
             committed.current = f.pending();
             flow.current = f;
             vad.current = createVad();
-            b.text(dictT("dictatingHandsFree", { keys: statusRef.current?.dictationStatus?.chordLabel ?? "" }));
-            // Heard as well as seen: the microphone now stays open with the keys up.
-            const ds = statusRef.current?.dictationStatus;
-            if (ds?.sound || ds?.screenReader) playCue(true);
+            if (audio.current?.node.connected) {
+              b.text(dictT("dictatingHandsFree", { keys: statusRef.current?.dictationStatus?.chordLabel ?? "" }));
+              // Heard as well as seen: the microphone now stays open with the keys up.
+              const ds = statusRef.current?.dictationStatus;
+              if (ds?.sound || ds?.screenReader) playCue(true);
+            }
           }
           return;
         }
