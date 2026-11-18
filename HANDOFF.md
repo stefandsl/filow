@@ -1,5 +1,11 @@
 # Filow hand-off
 
+## TK-14 review fixes (2026-11-18, unreleased)
+
+TK-14 placeholder cleanup is explicitly selected by OK Filow answer extraction.
+Shared drawing validation again preserves whiteboard sketch labels and titles,
+including label-only sketches that contain literal `[EMAIL]` template syntax.
+
 C6, C12, C23, C27 and C28 are held on `audit/fixes-0.9.42` for an eval-driven track.
 
 ## Natural voice worktree (2026-11-14, unreleased)

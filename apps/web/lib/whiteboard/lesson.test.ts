@@ -3,6 +3,18 @@ import { LIMITS, cleanTex, cleanText, lessonContextText, lessonMarkdown, makeSte
 import { checkArithmetic, evalExpr, parseExpr, sampleCurve } from "./plot";
 
 describe("whiteboard lesson: what the model writes is data", () => {
+  it.each([false, true])("keeps literal sketch placeholders, including a label-only sketch (%s)", (labelOnly) => {
+    const shapes = [
+      ...(!labelOnly ? [{ type: "circle", cx: 100, cy: 100, r: 20 }] : []),
+      { type: "text", x: 100, y: 80, text: "[EMAIL]" },
+    ];
+    const items = validateItems([{ kind: "sketch", drawing: { title: "Schema [EMAIL]", shapes } }], newContext({ sketch: true }));
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ drawing: { title: "Schema [EMAIL]", shapes: [
+      ...(!labelOnly ? [{ kind: "circle" }] : []),
+      { kind: "text", text: "[EMAIL]" },
+    ] } });
+  });
   it("keeps the kinds it knows and drops the rest", () => {
     const ctx = newContext();
     const items = validateItems(

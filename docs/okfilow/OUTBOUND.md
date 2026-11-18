@@ -195,6 +195,8 @@ punctuation are tidied. Empty labels are omitted. A placeholder the user typed s
 also applies while an answer streams. Answer prose, card descriptions and the existing
 redacted notice remain unchanged; no name is reconstructed, no question is rewritten and
 no additional provider request is made for this cleanup.
+This cleanup runs only when extracting OK Filow answer visuals. Shared drawing validation
+preserves whiteboard sketch titles and labels, including literal tokens such as `[EMAIL]`.
 
 ## Open (owner decisions)
 

@@ -168,7 +168,7 @@ const paintColor = (v: unknown, fallback: string): string => (v === "none" ? "no
 const PATH_TOKEN = /[MLCQZ]|-?\d+(?:\.\d+)?/gi;
 
 /** Validates a 2D drawing the AI wrote; drops bad shapes, null when nothing usable is left. */
-export function validateDrawing(raw: unknown, question = ""): BuddyDrawing | null {
+export function validateDrawing(raw: unknown, label: (text: string) => string = (text) => text): BuddyDrawing | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as { title?: unknown; shapes?: unknown };
   const shapes: DrawingShape[] = [];
@@ -199,7 +199,7 @@ export function validateDrawing(raw: unknown, question = ""): BuddyDrawing | nul
       const pts = (Array.isArray(q.points) ? q.points : []).slice(0, 200).map((pt: unknown) => (Array.isArray(pt) ? [c(pt[0]), c(pt[1])] : [null, null]));
       if (pts.length >= 2 && pts.every((pt) => pt[0] !== null && pt[1] !== null)) shapes.push({ kind, points: pts as [number, number][], ...paint });
     } else if (kind === "text" && typeof q.text === "string" && q.text.trim()) {
-      const text = cleanVisualLabel(q.text.trim(), question).slice(0, 60);
+      const text = label(q.text.trim()).slice(0, 60);
       if (!text) continue;
       const v = n("x", "y");
       // Labels default to dark ink: the model often gives a text a fill meant for a shape.
@@ -213,7 +213,7 @@ export function validateDrawing(raw: unknown, question = ""): BuddyDrawing | nul
     }
   }
   if (!shapes.length) return null;
-  return { title: cleanVisualLabel(String(r.title || "Drawing").trim(), question).slice(0, 80), shapes };
+  return { title: label(String(r.title || "Drawing").trim()).slice(0, 80), shapes };
 }
 
 const escapeXml = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -281,7 +281,7 @@ export function validateModel(raw: unknown, question = ""): BuddyModel | null {
 export function extractVisuals(raw: string, validScreen: (n: number) => boolean, defaultScreen = 1, question = ""): { body: string; cards: BuddyCard[]; model: BuddyModel | null; drawing: BuddyDrawing | null; media: MediaAsk[]; slide: BuddySlide | null } {
   const shown = extractMedia(raw);
   const m3 = takeBlock(shown.body, "model3d", (raw) => validateModel(raw, question));
-  const d2 = takeBlock(m3.body, "drawing2d", (raw) => validateDrawing(raw, question));
+  const d2 = takeBlock(m3.body, "drawing2d", (raw) => validateDrawing(raw, (text) => cleanVisualLabel(text, question)));
   // A fence that has only just started ("``", "```mod", "```draw") is held back too.
   let body = d2.body.replace(/`{1,3}\s*([a-z0-9]*)\s*$/i, (t, w: string) => ("model3d".startsWith(w.toLowerCase()) || "drawing2d".startsWith(w.toLowerCase()) ? "" : t));
   const cards: BuddyCard[] = [];
