@@ -24,12 +24,18 @@ function clipRect({ left, top, right, bottom }, bounds) {
 function cleanHitReport(list, bounds, display = bounds, includeBubble = true) {
   const base = [], rects = [];
   let padded = null;
-  for (const r of Array.isArray(list) ? list.slice(0, MAX_RECTS) : []) {
+  for (let r of Array.isArray(list) ? list.slice(0, MAX_RECTS) : []) {
     if (!r || typeof r !== "object" || ![r.left, r.top, r.right, r.bottom].every(finite)) continue;
     if (!includeBubble && r.bubble === true) continue;
     if (r.right <= r.left || r.bottom <= r.top) continue;
-    // The validated Filow renderer supplies item geometry; main limits each reported base to 80% of its display.
-    if (display && (r.right - r.left > display.width * 0.8 || r.bottom - r.top > display.height * 0.8)) continue;
+    // Large or restored items still need their right-side controls and bottom-right grip.
+    // Cap the visible item before adding any grip margin.
+    if (display && (r.right - r.left > display.width * 0.8 || r.bottom - r.top > display.height * 0.8)) {
+      const visible = clipRect(r, bounds);
+      if (!visible) continue;
+      r = { ...r, ...visible, left: Math.max(visible.left, visible.right - display.width * 0.8),
+        top: Math.max(visible.top, visible.bottom - display.height * 0.8) };
+    }
     const ordinary = clipRect(r, bounds);
     if (ordinary) base.push(ordinary);
     let rect = ordinary;

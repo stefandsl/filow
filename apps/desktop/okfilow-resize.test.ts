@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
+import { LIMITS, resizeBox } from "../web/lib/buddy/layout-move";
 
 const require = createRequire(import.meta.url);
 const { cleanHitReport, cleanRects, createHitTarget, insideAny, localPoint } = require("./okfilow-hit.js");
@@ -127,12 +128,40 @@ describe("bounded resize hit rectangles", () => {
   });
 });
 
-it("rejects oversized item bases before padding or clipping", () => {
+it.each([
+  { kind: "gallery", displayWidth: 1280, startWidth: 260, endWidth: 1060 },
+  { kind: "slide", displayWidth: 1024, startWidth: 560, endWidth: 900 },
+] as const)("keeps the resized $kind controls clickable during the drag and after release", ({ kind, displayWidth, startWidth, endWidth }) => {
+  const h = setup();
+  const area = { x: 0, y: 0, width: displayWidth, height: 720 };
+  h.overlay.getBounds = () => area;
+  h.context.screen.getDisplayMatching = () => ({ bounds: area });
+  const box = resizeBox({ x: 40, y: 30, w: startWidth, h: 244 }, "e", endWidth - startWidth, 0, area, LIMITS[kind]);
+  expect(box.w).toBe(endWidth);
+  const rect = { left: box.x, top: box.y, right: box.x + box.w, bottom: box.y + box.h };
+  for (const report of [{ ...rect, hit: { ...rect, right: rect.right + 160 } }, rect]) {
+    h.send(h.overlay, [report]);
+    // Slide Close at the top right, video Pause/Close in the caption, and the bottom-right grip.
+    for (const point of [{ x: rect.right - 30, y: rect.top + 30 }, { x: rect.right - 60, y: rect.bottom - 43 },
+      { x: rect.right - 22, y: rect.bottom - 43 }, { x: rect.right - 16, y: rect.bottom - 16 }]) {
+      h.point(point);
+      expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+    }
+  }
+});
+
+it("caps oversized item bases before padding or clipping", () => {
   const display = { width: 1000, height: 800 };
   const limit = { left: 20, top: 10, right: 820, bottom: 650 };
   expect(cleanRects([limit], display)).toEqual([limit]);
   for (const oversized of [{ ...limit, right: 821 }, { ...limit, bottom: 651 }, { ...limit, left: -900 }]) {
-    expect(cleanRects([oversized, { ...oversized, hit: inflated.hit }, item], display)).toEqual([item]);
+    const [base] = cleanRects([oversized], display);
+    expect(base.right - base.left).toBeLessThanOrEqual(800);
+    expect(base.bottom - base.top).toBeLessThanOrEqual(640);
+    const report = cleanHitReport([{ ...oversized, hit: { left: -5000, top: -5000, right: 5000, bottom: 5000 } }, item], display);
+    expect(report.base).toEqual([base, item]);
+    expect(report.rects).toEqual([{ left: Math.max(0, base.left - 160), top: Math.max(0, base.top - 160),
+      right: Math.min(1000, base.right + 160), bottom: Math.min(800, base.bottom + 160) }, item]);
   }
 });
 
