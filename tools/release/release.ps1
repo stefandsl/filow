@@ -60,6 +60,11 @@ if ($Stage -eq 'verify-main') {
   $pkg = Get-Content -LiteralPath 'apps/desktop/package.json' -Raw | ConvertFrom-Json
   if ($pkg.version -cne $Version) { throw 'Commit the requested version bump before verification' }
 
+  npm run vendor -w apps/desktop
+  if ($LASTEXITCODE -ne 0) { throw 'Desktop bundle preparation failed' }
+  # CI exercises the dictionary fallback during Vitest.
+  $dictionary = 'apps/desktop/vendor/i18n.js'
+  if (Test-Path -LiteralPath $dictionary) { Remove-Item -LiteralPath $dictionary }
   npx vitest run
   if ($LASTEXITCODE -ne 0) { throw 'Vitest failed' }
   npm run typecheck

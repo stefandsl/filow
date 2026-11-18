@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, expect, it } from 'vitest';
 
 const script = fileURLToPath(new URL('../release.ps1', import.meta.url));
+const desktopPackage = fileURLToPath(new URL('../../../apps/desktop/package.json', import.meta.url));
 const temp = fileURLToPath(new URL('../../../tmp/', import.meta.url));
 fs.mkdirSync(temp, { recursive: true });
 const scratch = fs.mkdtempSync(path.join(temp, 'release-source-'));
@@ -12,20 +13,35 @@ const sha = 'a'.repeat(40);
 afterAll(() => fs.rmSync(scratch, { recursive: true, force: true }));
 
 function runStage(work: string, version = '1.2.3', mockGit = '', stage = 'tag') {
+  const checkout = path.join(work, 'checkout');
+  const fixtureScript = path.join(checkout, 'tools/release/release.ps1');
+  fs.mkdirSync(path.dirname(fixtureScript), { recursive: true });
+  fs.copyFileSync(script, fixtureScript);
+  fs.mkdirSync(path.join(checkout, 'apps/desktop/vendor'), { recursive: true });
+  fs.copyFileSync(desktopPackage, path.join(checkout, 'apps/desktop/package.json'));
   // Shadow Git in the child process. Even an unexpected Git command cannot touch a ref.
   const command = `
     $ErrorActionPreference = 'Stop'
     $global:resolved = $false
     function git { Add-Content -LiteralPath (Join-Path $env:TEST_WORK 'git.log') -Value ($args -join ' '); $global:LASTEXITCODE = 0; ${mockGit} }
-    function npx { $global:LASTEXITCODE = 0 }
-    function npm { $global:LASTEXITCODE = 0 }
+    function npm {
+      if (($args -join ' ') -eq 'run vendor -w apps/desktop') {
+        New-Item apps/desktop/vendor/hardware.js,apps/desktop/vendor/i18n.js -ItemType File | Out-Null
+      }
+      $global:LASTEXITCODE = 0
+    }
+    function npx {
+      if (!(Test-Path apps/desktop/vendor/hardware.js)) { throw 'Vitest needs the generated hardware bundle' }
+      if (Test-Path apps/desktop/vendor/i18n.js) { throw 'CI runs Vitest without the generated dictionary' }
+      $global:LASTEXITCODE = 0
+    }
     & $env:TEST_SCRIPT -Stage $env:TEST_STAGE -Version $env:TEST_VERSION -Work $env:TEST_WORK
     exit $LASTEXITCODE
   `;
   const result = spawnSync(process.platform === 'win32' ? 'powershell.exe' : 'pwsh',
     ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command], {
       encoding: 'utf8', timeout: 20000,
-      env: { ...process.env, TEST_WORK: work, TEST_SCRIPT: script, TEST_STAGE: stage, TEST_VERSION: version },
+      env: { ...process.env, TEST_WORK: work, TEST_SCRIPT: fixtureScript, TEST_STAGE: stage, TEST_VERSION: version },
     });
   if (result.error) throw result.error;
   const log = path.join(work, 'git.log');
@@ -75,7 +91,7 @@ it('requires matching local verification and preflight before pushing the tag', 
 
 it.each(['clean', 'moved', 'dirty', 'rejected'])('verifies and pins the main push (%s)', scenario => {
   const work = fs.mkdtempSync(path.join(scratch, 'main-'));
-  const version = JSON.parse(fs.readFileSync(new URL('../../../apps/desktop/package.json', import.meta.url), 'utf8')).version;
+  const version = JSON.parse(fs.readFileSync(desktopPackage, 'utf8')).version;
   const mockGit = `
     if ($args[0] -eq 'status' -and '${scenario}' -eq 'dirty') { ' M file' }
     if ($args[0] -eq 'rev-parse') {
