@@ -46,17 +46,21 @@ function Read-Evidence([string]$Path) {
   if ($evidence.tagSha -isnot [string] -or $evidence.tagSha -cnotmatch '\A[0-9a-f]{40}\z') { throw 'Invalid release evidence SHA' }
   return $evidence
 }
-function Get-CleanCommit {
+function Get-CleanMainCommit {
+  $branch = git symbolic-ref --quiet HEAD
+  if ($LASTEXITCODE -ne 0 -or $branch -cne 'refs/heads/main') { throw 'Release verification requires local branch main' }
   $changes = git status --porcelain=v1 --untracked-files=all
   if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect working tree' }
   if ($changes) { throw 'Release verification requires a clean working tree' }
   $sha = git rev-parse --verify 'HEAD^{commit}'
   if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve release commit' }
   if ($sha -isnot [string] -or $sha -cnotmatch '\A[0-9a-f]{40}\z') { throw 'Invalid release commit SHA' }
+  $main = git rev-parse --verify 'refs/heads/main^{commit}'
+  if ($LASTEXITCODE -ne 0 -or $main -cne $sha) { throw 'Release HEAD differs from local main' }
   return $sha
 }
 if ($Stage -eq 'verify-main') {
-  $sha = Get-CleanCommit
+  $sha = Get-CleanMainCommit
   $pkg = Get-Content -LiteralPath 'apps/desktop/package.json' -Raw | ConvertFrom-Json
   if ($pkg.version -cne $Version) { throw 'Commit the requested version bump before verification' }
 
@@ -71,7 +75,7 @@ if ($Stage -eq 'verify-main') {
   if ($LASTEXITCODE -ne 0) { throw 'Typecheck failed' }
   npm run lint
   if ($LASTEXITCODE -ne 0) { throw 'Lint failed' }
-  if ((Get-CleanCommit) -cne $sha) { throw 'HEAD changed during verification' }
+  if ((Get-CleanMainCommit) -cne $sha) { throw 'HEAD changed during verification' }
 
   $record = @{ version = $Version; tagSha = $sha } | ConvertTo-Json
   New-Item -Path $verified -ItemType File -Value $record | Out-Null

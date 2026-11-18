@@ -89,14 +89,22 @@ it('requires matching local verification and preflight before pushing the tag', 
   expect(result.calls).toEqual([]);
 });
 
-it.each(['clean', 'moved', 'dirty', 'rejected'])('verifies and pins the main push (%s)', scenario => {
+it.each(['clean', 'integration', 'detached', 'different-main', 'switched', 'moved', 'dirty', 'rejected'])('verifies and pins the main push (%s)', scenario => {
   const work = fs.mkdtempSync(path.join(scratch, 'main-'));
   const version = JSON.parse(fs.readFileSync(desktopPackage, 'utf8')).version;
   const mockGit = `
     if ($args[0] -eq 'status' -and '${scenario}' -eq 'dirty') { ' M file' }
+    if ($args[0] -eq 'symbolic-ref') {
+      if ('${scenario}' -eq 'detached') { $global:LASTEXITCODE = 1 }
+      elseif ('${scenario}' -eq 'integration' -or ('${scenario}' -eq 'switched' -and $global:resolved)) { 'refs/heads/integration/2026-11-18' }
+      else { 'refs/heads/main' }
+    }
     if ($args[0] -eq 'rev-parse') {
-      if ($global:resolved -and '${scenario}' -eq 'moved') { '${'b'.repeat(40)}' } else { '${sha}' }
-      $global:resolved = $true
+      $main = $args[-1] -eq 'refs/heads/main^{commit}'
+      if ($main -and '${scenario}' -in 'integration','different-main') { '${'b'.repeat(40)}' }
+      elseif ($global:resolved -and '${scenario}' -eq 'moved') { '${'b'.repeat(40)}' }
+      else { '${sha}' }
+      if ($main) { $global:resolved = $true }
     }
     if ($args[0] -eq 'push' -and '${scenario}' -eq 'rejected') { $global:LASTEXITCODE = 1 }
   `;
