@@ -68,16 +68,17 @@ copied, the bubble says "Copied. Press Ctrl + V to paste it" for a few seconds.
    instead of the last phrase only. Two pastes are kept at least 300 ms apart (the app reads the
    clipboard a moment after Ctrl + V). After Escape or an error no queued phrase is typed; words
    that were waiting for a pause when an error came are kept in the panel's text box.
-2. **Microphone and indicator.** OK Filow's panel records (the selected microphone, echo cancellation)
-   and its overlays show the state. The recognizer and the microphone start together; sound is kept in
-   the panel until the model is loaded, so the first words are not lost on a cold start. A held
-   dictation keeps recording 300 ms after the keys go up (`dictation-release.js`, issue #7): the
-   microphone hands over sound in 128 ms blocks, and stopping at once threw away the block still filling
+2. **Microphone and indicator.** The panel opens the selected microphone with echo cancellation.
+   Merge `4009dd0` integrated the AudioWorklet from `385021f`. The panel uses `floatMicNode` to
+   receive 1,600 mono Float32 samples per block at 16 kHz (100 ms). The listening indicator and start
+   cue wait for the graph to connect. The recognizer starts concurrently and the panel queues audio
+   until the model is ready. See [microphone capture](../../packages/stt/src/mic.ts).
+   A held dictation keeps recording 300 ms after the keys go up (`dictation-release.js`, issue #7).
+   In the [November 12 capture configuration](../dictation/MIC-CLEANUP.md), stopping at once lost the unfinished 128 ms block
    and the end of the last word (a 1 s press of "Ciao Marco" came out "Chao, Matt.", a 0.7 s press typed
    nothing). A press during those 300 ms stops the recording first, so the next one starts clean.
-   Hands-free dictations and questions stop at once. A press that
-   comes while the last dictation is still being typed waits for it, so two quick dictations neither
-   merge nor lose words.
+   Hands-free dictations and questions stop at once. A queued press can start the next recording
+   once the recognizer finishes the previous transcript, even while its words are waiting to be typed.
 3. **Speech to text.** `stt.js` with the "questions" catalogue (short utterances). Phrase models run
    on whole phrases cut by the Silero voice detector; a streaming model gets 0.8 s of silence after the
    last sample so its last word is finished (without it "Friday" came out as "Fri").
@@ -196,6 +197,5 @@ platform's facts and the last five dictations stage by stage with times. Never t
   microphone light on every Ctrl + Win shortcut: an owner decision.
 - Hands-free with the streaming model (Nemotron, used when no phrase model for the language is on the PC or the language is Automatic): on 2026-11-11 a phrase after a pause was lost in three runs out of four, in the app and with the model fed directly (the same file through the phrase model, Parakeet with the Silero detector, gave all three phrases in English and Italian). A fresh stream at each endpoint did not help. Not fixed: it is in how the streaming recognizer goes on after an endpoint. Until then hands-free is reliable with a phrase model only.
 - A press that comes while the last dictation's words are still on their way starts recording at once (the panel no longer waits for the insert), and those words wait for the new press's keys to go up. Not seen in the app: it needs another program in front, and the test session had none.
-- The microphone still runs on a ScriptProcessor node; the AudioWorklet version (commit 385021f, branch ux-fixes) is not merged or measured.
 - The filler sounds follow the rehearsal report's list by hand (`dictation-core.js` SOUNDS); once both
   live where the desktop can import them, `setFillerHook` takes the shared list.

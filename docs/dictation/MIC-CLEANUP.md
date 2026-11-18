@@ -16,6 +16,8 @@ error rate decides. Krisp: rejected, proprietary.
 
 ### 1.1 The three paths
 
+This table records the capture configuration on November 12. The panel then used 2,048-sample ScriptProcessor blocks (128 ms). Since merge `4009dd0`, the panel’s AudioWorklet supplies 1,600 Float32 samples per block at 16 kHz (100 ms).
+
 | Path | Who opens the microphone | Constraints asked | Rate and block | How audio reaches the recognizer |
 |---|---|---|---|---|
 | Dictation into other apps | The hidden OK Filow panel renderer (`apps/desktop/dictation.js:4-5` says so; `dictation.js` never touches audio). `apps/web/app/okfilow/panel/page.tsx:564` `startListening`, dictation is `why === "dictate"` (`:594`) | `page.tsx:619`: `echoCancellation: true, noiseSuppression: true, channelCount: 1`, `deviceId: { exact }` when a microphone is chosen. `autoGainControl` and `sampleRate` are not set (browser defaults) | `page.tsx:620` `new AudioContext({ sampleRate: 16000 })` (Chromium resamples); `page.tsx:622` `createScriptProcessor(2048, 1, 1)`: 2048 Float32 samples, 128 ms | `page.tsx:625` `b.stt.feed(samples)` -> IPC `okfilow:stt:feed` (`apps/desktop/okfilow-preload.js:93-96`) -> `apps/desktop/okfilow.js:1031` `stt.feed(...)` -> `SttSession.feed` (`apps/desktop/stt.js:557`) -> worker `apps/desktop/stt-worker.js:86` `feed()` |
