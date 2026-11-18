@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Draft v2, after one EGM goldfish review round (reports in `docs/reviews/`) |
+| Status | Draft v2 incorporates the October 2026 design review (original reports at commit `c693729`). |
 | Date | 2026-10-31 |
 | Applies to | repository version 0.1.0 |
 | Owner | Stefan Butnaru |
@@ -219,16 +219,7 @@ Model routing (later): the cheap model handles every call; when a point sits at 
 
 ### 5.7 Monorepo layout and migration (phase 1)
 
-```
-packages/core     TS, no DOM: types.ts, script.ts, prompt.ts (SYSTEM_PROMPT, buildUserPrompt, parseDecisions), engine.ts, patch.ts
-packages/stt      browser-only: the three backends, mic.ts, startAuto; createBackend(id, { baseUrl })
-packages/client   connect({serverUrl, code|token}) → { subscribe, send, close, status }; uses global WebSocket (works in RN)
-packages/ui       web-only React: PointList, SectionHeader, NextStrip, MissedTray, OnScreenStrip, StageView
-apps/web          today's Next app (also serves /mirror)
-apps/server       ws relay
-apps/desktop      electron/ + electron-builder config
-apps/powerpoint   phase 3      apps/gslides   phase 5      apps/mobile   phase 4
-```
+See the [repository map](AGENTS.md#repository) for the shipped workspaces and their responsibilities.
 
 Move table:
 

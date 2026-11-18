@@ -803,19 +803,7 @@ La modalità web legge `script.md` nella cartella del progetto. L'app desktop lo
 
 ## Struttura del progetto
 
-```
-apps/web/                 Next.js app: UI, /mirror PWA, API routes (decide, stt tokens, script)
-apps/server/              session relay (ws): pairing codes, roles, fan-out. Bundled to dist/bundle.js
-apps/desktop/             Electron shell: runs both servers in-process, LAN or hosted mode
-packages/core/            types, script parser, decision prompt, Engine class (+ tests)
-packages/stt/             browser transcription backends and Auto selection
-packages/client/          session client for views and engines (browser + React Native)
-packages/ui/              StageView and friends (web only)
-brand/                    brand kit (icon, wordmark, palette); `npm run icon` copies it into the apps
-scripts/                  prepare-standalone.js, make-icon.js
-docs/reviews/             EGM goldfish review reports
-ARCHITECTURE.md           the design: session protocol, Screen Sense, add-ins, mobile, roadmap
-```
+La [mappa del repository](AGENTS.md#repository) elenca le app e i pacchetti condivisi. Il documento di [architettura](ARCHITECTURE.md) descrive il protocollo di sessione e come si collegano le viste.
 
 ---
 
