@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PointerEvent as ReactPointerEvent, ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { LIMITS, type Box, type MovableKind } from "@/lib/buddy/layout-move";
+import { tilesIn } from "@/lib/buddy/media";
 import { GRIP_MARGIN, itemHitRects, watchHitRectChanges, type ItemHitRect } from "./hit-rects";
 
 const h = vi.hoisted(() => ({ cleanup: [] as Array<(() => void) | undefined> }));
@@ -140,4 +141,29 @@ describe("bounded live grip reporting", () => {
     expect(modelMove).toHaveBeenLastCalledWith({ dx: 0, dy: 0, done: true });
     expect(reports.at(-1)![0].hit).toBeUndefined();
   });
+});
+
+it.each([3, 5])("keeps the grip of a %i-tile gallery under a diagonal drag on every frame", (count) => {
+  box = { x: 100, y: 100, w: 804, h: count === 3 ? 244 : 500 };
+  const lastTile = () => tilesIn(count, box)[count - 1];
+  item.getBoundingClientRect = lastTile;
+  const first = lastTile();
+  const x = first.right - 16, y = first.bottom - 16;
+  const cap = capture();
+  h.cleanup.push(watchHitRectChanges(() => reports.push(itemHitRects(elements()))));
+  const tree = MoveGrips({ box, area: { x: 0, y: 0, width: 1920, height: 1080 }, lim: LIMITS.gallery,
+    onBox: (next) => { box = next; }, onReset: vi.fn(), moveLabel: "Move", sizeLabel: "Resize" });
+  tree.props.children[1].props.onPointerDown({ ...down(cap), clientX: x, clientY: y });
+  for (let d = 10; d <= 300; d += 10) {
+    pointer("pointermove", x + d, y + d);
+    vi.advanceTimersByTime(16);
+    const tile = lastTile();
+    const report = reports.at(-1)![0];
+    expect(report).toMatchObject(tile);
+    expect(report.hit).toEqual({ left: tile.left - GRIP_MARGIN, top: tile.top - GRIP_MARGIN,
+      right: tile.right + GRIP_MARGIN, bottom: tile.bottom + GRIP_MARGIN });
+    // Equal columns can leave a couple of pixels of rounding at the outer edge.
+    expect(Math.abs(tile.right - first.right - d)).toBeLessThanOrEqual(2);
+    expect(Math.abs(tile.bottom - first.bottom - d)).toBeLessThanOrEqual(1);
+  }
 });
