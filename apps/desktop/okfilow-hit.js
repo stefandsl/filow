@@ -12,13 +12,15 @@ const GRIP_MARGIN = 160;
 const finite = (v) => typeof v === "number" && Number.isFinite(v);
 
 /** The rectangles a page reported, kept to sane ones: { left, top, right, bottom }, with a size. */
-function cleanRects(list, bounds) {
+function cleanRects(list, bounds, display = bounds) {
   if (!Array.isArray(list)) return [];
   const out = [];
   let padded = false;
   for (const r of list.slice(0, MAX_RECTS)) {
     if (!r || typeof r !== "object" || ![r.left, r.top, r.right, r.bottom].every(finite)) continue;
     if (r.right <= r.left || r.bottom <= r.top) continue;
+    // The validated Filow renderer supplies item geometry; main limits each reported base to 80% of its display.
+    if (display && (r.right - r.left > display.width * 0.8 || r.bottom - r.top > display.height * 0.8)) continue;
     let { left, top, right, bottom } = r;
     // A report carries the normal item box plus an optional hit box. Intersect with
     // the item's fixed margin, never accept a free-standing oversized hit area.

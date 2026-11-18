@@ -61,7 +61,7 @@ describe("bounded resize hit rectangles", () => {
   it("clamps forged padding on every edge and to display bounds, with only one padded item", () => {
     const huge = { left: -1e9, top: -1e9, right: 1e9, bottom: 1e9 };
     expect(cleanRects([{ ...item, hit: huge }], { width: 1000, height: 800 })).toEqual([inflated.hit]);
-    expect(cleanRects([{ left: 10, top: 10, right: 990, bottom: 790, hit: huge }], { width: 1000, height: 800 })).toEqual([{ left: 0, top: 0, right: 1000, bottom: 800 }]);
+    expect(cleanRects([{ left: 10, top: 10, right: 710, bottom: 590, hit: huge }], { width: 1000, height: 800 })).toEqual([{ left: 0, top: 0, right: 870, bottom: 750 }]);
     expect(cleanRects([inflated, inflated], { width: 1000, height: 800 })).toEqual([inflated.hit, item]);
     expect(cleanRects([{ ...item, hit: { ...huge, right: Infinity } }])).toEqual([item]);
   });
@@ -124,4 +124,13 @@ describe("bounded resize hit rectangles", () => {
     expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
     expect(h.model.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
   });
+});
+
+it("rejects oversized item bases before padding or clipping", () => {
+  const display = { width: 1000, height: 800 };
+  const limit = { left: 20, top: 10, right: 820, bottom: 650 };
+  expect(cleanRects([limit], display)).toEqual([limit]);
+  for (const oversized of [{ ...limit, right: 821 }, { ...limit, bottom: 651 }, { ...limit, left: -900 }]) {
+    expect(cleanRects([oversized, { ...oversized, hit: inflated.hit }, item], display)).toEqual([item]);
+  }
 });

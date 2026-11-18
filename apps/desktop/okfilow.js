@@ -569,7 +569,8 @@ function createOkFilow(deps) {
     if (!ourSender(e)) return;
     const w = [...overlays.values()].find((x) => !x.isDestroyed() && x.webContents === e.sender);
     if (!w) return;
-    mediaRects.set(e.sender.id, cleanRects(rects, w.getBounds()));
+    const bounds = w.getBounds();
+    mediaRects.set(e.sender.id, cleanRects(rects, bounds, screen.getDisplayMatching(bounds).bounds));
     lastCursor = "";
     mediaHit(w, localPoint(screen.getCursorScreenPoint(), w.getBounds()));
   });
