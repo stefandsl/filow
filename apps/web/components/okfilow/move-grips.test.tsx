@@ -52,7 +52,7 @@ function pointer(type: string, x = 740, y = 610, pointerId = 7, buttons = 1, rec
 }
 function capture() {
   return Object.assign(new EventTarget(), {
-    closest: vi.fn(() => item), setPointerCapture: vi.fn(), hasPointerCapture: () => true, releasePointerCapture: vi.fn(),
+    closest: vi.fn(() => item), setPointerCapture: vi.fn(), hasPointerCapture: (): boolean => true, releasePointerCapture: vi.fn(),
   });
 }
 function down(cap: ReturnType<typeof capture>) {
@@ -99,7 +99,7 @@ describe("bounded live grip reporting", () => {
     const drag = start("cards", "move");
     pointer("pointermove", 740, 610);
     if (end === "unmount") h.cleanup.at(-1)?.();
-    else if (end === "buttons") pointer("pointermove", 740, 610, 7, 0);
+    else if (end === "buttons") { drag.cap.hasPointerCapture = () => false; pointer("pointermove", 740, 610, 7, 0); }
     else pointer(end, 740, 610, 7, 1, end === "lostpointercapture" ? drag.cap : target);
     expect(reports.at(-1)![0].hit).toBeUndefined();
     const count = drag.onBox.mock.calls.length;
@@ -166,4 +166,17 @@ it.each([3, 5])("keeps the grip of a %i-tile gallery under a diagonal drag on ev
     expect(Math.abs(tile.right - first.right - d)).toBeLessThanOrEqual(2);
     expect(Math.abs(tile.bottom - first.bottom - d)).toBeLessThanOrEqual(1);
   }
+});
+
+it("resumes the captured 3D resize after a forwarded buttonless hover", () => {
+  const tree = Model();
+  const children = tree.props.children as ReactElement<Record<string, unknown>>[];
+  const grip = children.find((c) => c?.props?.className === "okf-model-resize")!;
+  (grip.props.onPointerDown as (event: unknown) => void)(down(capture()));
+  pointer("pointermove", 380, 350, 7, 0);
+  expect(modelMove).not.toHaveBeenCalled();
+  pointer("pointermove", 680, 550, 7, 1);
+  expect(modelMove).toHaveBeenLastCalledWith({ dx: 0, dy: 0, dw: -20, dh: -20 });
+  pointer("pointerup", 680, 550, 7, 0);
+  expect(reports.at(-1)![0].hit).toBeUndefined();
 });

@@ -18,7 +18,11 @@ export function useGripDrag() {
     const report = (phase: "move" | "end" | "start") => window.dispatchEvent(new CustomEvent(HIT_RECTS_CHANGED, { detail: phase }));
     const step = (next: PointerEvent) => {
       if (next.pointerId !== id) return;
-      if ((next.buttons & 1) === 0) { stop(true); return; }
+      if ((next.buttons & 1) === 0) {
+        // Windows can forward a buttonless hover while the physical drag still owns capture.
+        if (!target.hasPointerCapture(id)) stop(true);
+        return;
+      }
       // The next frame must measure the new box even under concurrent rendering.
       flushSync(() => move(next));
       report("move");
