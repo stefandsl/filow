@@ -2,10 +2,10 @@
 
 ## Where it stands (18 November 2026)
 
-The integration candidate at `4e0bb19` includes bounded overlay resizing and the 2D drawing width fix. Eight branches landed on the candidate. Its gate had 4,183 passes, 12 skips and the same three desktop QA failures as main. For the branch decisions, issue 8 reproduction and comparison with main, see `G:/FILOW/tmp/codex/integ/report-1.md`.
+The integration candidate at `4e0bb19` includes bounded overlay resizing and the 2D drawing width fix. Its gate had 4,183 passes, 12 skips and the same three desktop QA failures as main. See the eight merges with `git log --first-parent --merges edc47a4..4e0bb19` and the issue 8 regression with `git show 4e0bb19`.
 
-- **O2.** Photo handles remain reachable after resizing and a moved gallery gives back space as photos close. Native Windows drag and click-through checks remain open. See `G:/FILOW/tmp/codex/o2/report-7.md`.
-- **TK-14.** Main includes placeholder cleanup in OK Filow answers and complete bracketed card fields. The final parser keeps main's behavior for malformed cards and preserves whiteboard labels. See `G:/FILOW/tmp/codex/tk14-o2/report-5.md` for the compatibility cases.
+- **O2.** On a 1280 x 720 display, the handle at (470, 56) accepts a new drag after resizing a photo to 860 x 641. Closing three of six photos exposes the slide’s Close button at (786, 298). Native Windows fast drags, DPI and display edges, capture cancellation and click-through still need checking in both themes. See the O2 sections in `git show 4e0bb19:HANDOFF.md`.
+- **TK-14.** Main includes placeholder cleanup in OK Filow answers and complete bracketed card fields. The final parser keeps main's behavior for malformed cards and preserves whiteboard labels. The “TK-14 final fix round” in `git show 4e0bb19:HANDOFF.md` records the 43 differential cases, nested fields and stream-boundary checks.
 
 C6, C12, C23, C27 and C28 are held on `audit/fixes-0.9.42` for an eval-driven track.
 
@@ -32,7 +32,7 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 ## Historical branch and release notes (through 12 November 2026)
 
-- [Faster answers, first run and accounts](docs/FAST-ONBOARDING-ACCOUNT.md) records the November 12 implementation and its Windows checks. For the checkpoint commits, review fixes and merge findings, see `G:/FILOW/tmp/onboarding-review/REVIEW.md`.
+- [Faster answers, first run and accounts](docs/FAST-ONBOARDING-ACCOUNT.md) records the November 12 implementation and its Windows checks. The “Phase 1 review” in `git show 4e0bb19:HANDOFF.md` records the checkpoint commits, review fixes and merge findings.
 - `/account` and the separate `apps/cloud` service implement email/device sign-in, OS-encrypted
   desktop tokens, Stripe checkout/portal and server subscription status. No cloud or merchant
   account has been deployed/configured. Read `apps/cloud/README.md` before operating it.
