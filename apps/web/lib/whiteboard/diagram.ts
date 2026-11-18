@@ -23,6 +23,7 @@ export type DiagramState = {
   /** Mind map: the open branches (indent, id), so that a later step's lines hang where they belong. */
   stack: Array<{ indent: number; id: string }>;
   links: Set<string>;
+  declaredParticipants: Set<string>;
   messages: number;
   /** The messages so far, in order (a step that writes them all again repeats them). */
   said: string[];
@@ -31,7 +32,7 @@ export type DiagramState = {
   cells: string[];
   cols: number;
 };
-export const newDiagramState = (): DiagramState => ({ type: null, dir: "TD", nodes: new Map(), stack: [], links: new Set(), messages: 0, said: [], rows: 0, cells: [], cols: 0 });
+export const newDiagramState = (): DiagramState => ({ type: null, dir: "TD", nodes: new Map(), stack: [], links: new Set(), declaredParticipants: new Set(), messages: 0, said: [], rows: 0, cells: [], cols: 0 });
 
 /** A label as plain text: Mermaid's quotes, line breaks and markdown marks taken off, then cleaned like any model text. */
 function label(raw: string, max: number): string {
@@ -186,18 +187,38 @@ function sequenceLine(line: string, st: DiagramState, nodes: DNode[], links: DLi
   // Mermaid 11 metadata after a name (participant API@{ "type": "database" }) is not part of it
   const part = /^(participant|actor)\s+(.+?)(?:\s+as\s+(.+))?$/i.exec(line.replace(/\s*@\{.*\}\s*$/, ""));
   if (part) {
-    if (st.nodes.size < DIAGRAM_LIMITS.participants || st.nodes.has(nodeId(part[2]))) nodeIn(st, nodes, { id: part[2], text: part[3] ?? part[2], shape: "box" });
+    if (st.nodes.size < DIAGRAM_LIMITS.participants || st.nodes.has(nodeId(part[2]))) {
+      const id = nodeIn(st, nodes, { id: part[2], text: part[3] ?? part[2], shape: "box" });
+      if (id) st.declaredParticipants.add(id);
+    }
     return;
   }
-  // A hyphen belongs to the participant unless it forms a complete arrow.
-  const msg = /^([^+<>:,;]+?)\s*(--?(?:>>?|x|\)))\s*[+-]?\s*([^+<>:,;]+?)\s*(?::\s*(.*))?$/.exec(line);
-  if (!msg || st.messages >= DIAGRAM_LIMITS.messages) return;
-  const at = (ref: string) => (st.nodes.has(nodeId(ref)) ? nodeId(ref) :st.nodes.size < DIAGRAM_LIMITS.participants ? nodeIn(st, nodes, { id: ref, shape: "box" }) : "");
-  const from = at(msg[1]);
-  const to = at(msg[3]);
+  if (st.messages >= DIAGRAM_LIMITS.messages) return;
+  const colon = line.indexOf(":");
+  const route = colon < 0 ? line : line.slice(0, colon);
+  const text = colon < 0 ? "" : line.slice(colon + 1);
+  // "-x" can be a failure arrow or part of a name. Prefer declared endpoints,
+  // retaining the first valid arrow when declarations cannot distinguish them.
+  let best: { sender: string; recipient: string; dashed: boolean } | undefined;
+  let bestScore = -1;
+  for (const arrow of route.matchAll(/--?(?:>>?|x|\))/g)) {
+    const sender = route.slice(0, arrow.index).trim();
+    const recipient = route.slice(arrow.index + arrow[0].length).trim().replace(/^[+-]\s*/, "");
+    if (!sender || !recipient || /[+<>:,;]/.test(sender) || /[+<>:,;]/.test(recipient)) continue;
+    const score = Number(st.declaredParticipants.has(nodeId(sender))) + Number(st.declaredParticipants.has(nodeId(recipient)));
+    if (score > bestScore) {
+      best = { sender, recipient, dashed: arrow[0].startsWith("--") };
+      bestScore = score;
+      if (score === 2) break;
+    }
+  }
+  if (!best) return;
+  const at = (ref: string) => (st.nodes.has(nodeId(ref)) ? nodeId(ref) : st.nodes.size < DIAGRAM_LIMITS.participants ? nodeIn(st, nodes, { id: ref, shape: "box" }) : "");
+  const from = at(best.sender);
+  const to = at(best.recipient);
   if (!from || !to) return;
   st.messages++;
-  links.push({ from, to, text: label(msg[4] ?? "", LIMITS.edgeText), ...(msg[2].startsWith("--") ? { dashed: true } : {}) });
+  links.push({ from, to, text: label(text, LIMITS.edgeText), ...(best.dashed ? { dashed: true } : {}) });
 }
 
 function tableLine(line: string, st: DiagramState, rows: string[][]): void {

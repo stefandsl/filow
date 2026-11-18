@@ -45,6 +45,12 @@ describe("reading a diagram the model wrote", () => {
     expect(d?.links.map((l) => `${l.from}>${l.to}:${l.text}${l.dashed ? "~" : ""}`)).toEqual(["u>g:Sign in", "g>u:Code~", "u>u:Store code"]);
   });
 
+  it("resolves a dashed failure arrow following an arrow-like part of a declared name", () => {
+    const d = read("sequenceDiagram\nparticipant linux-x64\nparticipant Server\nlinux-x64--xServer: Timeout");
+    expect(d?.nodes.map(n => n.id)).toEqual(["linux_x64", "server"]);
+    expect(d?.links).toEqual([{ from: "linux_x64", to: "server", text: "Timeout", dashed: true }]);
+  });
+
   it("routes both spellings of a hyphenated participant to the same declared box", () => {
     const d = read("sequenceDiagram\nparticipant Client\nparticipant Billing-API\nClient->>Billing-API: Pay\nBilling-API-->>Client: Receipt\nClient->>Billing API: Retry");
     expect(d?.nodes.map((n) => n.id)).toEqual(["client", "billing_api"]);
