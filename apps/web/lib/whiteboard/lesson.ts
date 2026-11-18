@@ -422,7 +422,12 @@ export function contextOf(lesson: Lesson, opts: Omit<LessonContext, "nodes" | "e
         const d = (ctx.diagram ??= newDiagramState());
         d.type = it.type;
         d.dir = it.dir;
-        for (const n of it.nodes) { d.nodes.set(n.id, n.text); ctx.nodes.set(n.id, n.text); }
+        for (const n of it.nodes) {
+          d.nodes.set(n.id, n.text);
+          ctx.nodes.set(n.id, n.text);
+          // diagramText declares every existing sequence node in the follow-up prompt.
+          if (it.type === "sequence") d.declaredParticipants.add(n.id);
+        }
         for (const l of it.links) d.links.add(`${l.from}>${l.to}`);
         if (it.type === "sequence") { d.messages += it.links.length; d.said.push(...it.links.map((l) => `${l.from}>${l.to}:${l.text.toLowerCase()}`)); }
         d.rows += it.rows.length;

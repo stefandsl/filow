@@ -151,6 +151,14 @@ describe("a lesson with a diagram", () => {
     expect(contextOf(lesson).diagram?.nodes.size).toBe(4);
   });
 
+  it("routes a follow-up timeout between the original sequence participants", () => {
+    const original = lessonWith([{ say: "Meet the peers.", items: [{ kind: "diagram", mermaid: "sequenceDiagram\nparticipant linux-x64\nparticipant Server" }] }]);
+    const more = validateLesson({ steps: [{ say: "The request times out.", items: [{ kind: "diagram", mermaid: "linux-x64--xServer: Timeout" }] }] }, { continues: original });
+    expect(more?.steps[0].items).toMatchObject([{
+      kind: "diagram", nodes: [], links: [{ from: "linux_x64", to: "server", text: "Timeout", dashed: true }],
+    }]);
+  });
+
   it("is exported as Markdown without markup from the model", () => {
     const md = lessonMarkdown(lesson);
     expect(md).toContain("Passes House?");
