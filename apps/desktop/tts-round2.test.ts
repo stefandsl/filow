@@ -87,6 +87,16 @@ describe('language spans', () => {
     expect(languageSpans('Premi "Salva tutto".', 'it', ['Salva tutto']).every((p:any)=>p.lang==='it')).toBe(true);
   });
   it('does not infer a language from title case', () => expect(languageSpans('Questo Documento Rimane Disponibile.', 'it')).toEqual([{text:'Questo Documento Rimane Disponibile.',lang:'it'}]));
+  // A word with an accented letter is one word of the answer's language: never half English ("Export" + "ă").
+  it.each([
+    ['Exportă tabelul.', 'ro'], ['Importă datele.', 'ro'], ['Apasă ȘTERGE.', 'ro'], ['CITIȚI aici.', 'ro'],
+    ['Scrivi PIÙ forte.', 'it'], ['PERCHÉ no?', 'it'], ['La CITTÀ è bella.', 'it'], ['NOVITÀ di oggi.', 'it'],
+  ])('keeps the accented word %s whole in %s', (text, lang) => expect(languageSpans(text, lang)).toEqual([{text, lang}]));
+  it('still sends English words next to accented words to English', () => {
+    expect(languageSpans('Exportă în Excel.', 'ro')).toEqual([{text:'Exportă în ',lang:'ro'},{text:'Excel.',lang:'en'}]);
+    expect(languageSpans('Deschide Excel-ul și apasă OK.', 'ro').filter((p:any)=>p.lang==='en').map((p:any)=>p.text.trim())).toEqual(['Excel','OK.']);
+    expect(languageSpans('Windowsを開いて、Excelで保存します。', 'ja').filter((p:any)=>p.lang==='en').map((p:any)=>p.text)).toEqual(['Windows','Excel']);
+  });
 });
 describe('audio tails and joins', () => {
   it('pads a truncated wave and makes the last 20 ms silent', () => {
