@@ -146,9 +146,15 @@ const CASED = /[\p{Script=Latin}\p{Script=Cyrillic}\p{Script=Greek}]/u;
 const NOT_A_WORD = /[\p{N}/\\@_]|[.:][\p{L}\p{N}]|\p{Ll}\p{Lu}/u;
 // Words written with a full stop that does not end the sentence. Short on purpose: everyday dictation.
 // "ecc." and "etc." can also end a sentence; the rule cannot know, so the next word stays as it is.
+const ITALIAN_MONTHS = new Set("gen feb mar apr mag giu lug ago set sett ott nov dic".split(" "));
+const ITALIAN_DATE_DAYS = new Set((
+  "primo uno due tre quattro cinque sei sette otto nove dieci undici dodici tredici quattordici quindici " +
+  "sedici diciassette diciotto diciannove venti ventuno ventidue ventitré ventitre ventiquattro venticinque " +
+  "ventisei ventisette ventotto ventinove trenta trentuno lunedì martedì mercoledì giovedì venerdì sabato domenica"
+).split(" "));
 const ABBREVIATIONS = {
   en: "mr mrs ms dr prof st vs etc no inc ltd jr sr approx",
-  it: "sig dott dr prof ing avv ecc etc pag art tel ca es cfr cap fig max nr sec min vol rif gen feb mar apr mag giu lug ago set sett ott nov dic",
+  it: "sig dott dr prof ing avv ecc etc pag art tel ca es cfr cap fig max nr sec min vol rif " + [...ITALIAN_MONTHS].join(" "),
   ro: "dl dna dvs dv dr prof univ ing nr str bl ap sc et bd com etc pag art cap fig jud ex tel aprox cca",
   ru: "г гг в вв ул д кв стр рис им др проф руб коп долл тыс млн млрд см ч мин сек мес нед шт чел ст гр напр ок",
 };
@@ -164,8 +170,18 @@ function insideSentence(cp, dot, abbreviations) {
   // One letter: an initial ("J. Rossi") or a short form ("n.", "p. es.", "т. е."). Not the Russian "я",
   // the one word of a single letter that often ends a sentence (written "Я" when it starts one).
   if (/^\p{L}$/u.test(token)) return token.toLowerCase() !== "я";
+  const word = token.toLowerCase();
+  if (abbreviations.has(word) && ITALIAN_MONTHS.has(word)) {
+    // Ordinary words such as "ago" (needle) and "set" (tennis) can end a sentence.
+    let end = s;
+    while (end > 0 && SPACE.test(cp[end - 1])) end--;
+    let start = end;
+    while (start > 0 && /[\p{L}\dº°]/u.test(cp[start - 1])) start--;
+    const day = cp.slice(start, end).join("").toLowerCase();
+    return /^(?:0?[1-9]|[12]\d|3[01])[º°]?$/.test(day) || ITALIAN_DATE_DAYS.has(day);
+  }
   // letters with full stops between them ("e.g.", "S.p.A."), or a listed abbreviation
-  return /^\p{L}{1,2}(\.\p{L}{1,2})+$/u.test(token) || abbreviations.has(token.toLowerCase());
+  return /^\p{L}{1,2}(\.\p{L}{1,2})+$/u.test(token) || abbreviations.has(word);
 }
 
 /**

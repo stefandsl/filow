@@ -96,6 +96,15 @@ describe("punctuation: which dictations, and never another word", () => {
 });
 
 describe("punctuation: a sentence start the model left small gets its capital", () => {
+  it.each([
+    ["Ho perso un ago. poi ne ho preso un altro", "Ho perso un ago. Poi ne ho preso un altro"],
+    ["Ho vinto il set. poi ho riposato", "Ho vinto il set. Poi ho riposato"],
+    ["Arrivo il venti ago. alle nove", "Arrivo il venti ago. alle nove"],
+    ["Arrivo lunedì set. alle nove", "Arrivo lunedì set. alle nove"],
+  ])("uses the date context of an ambiguous Italian month: %s", (said, expected) => {
+    const pieces = words(said);
+    expect(combine(said, pieces, pieces.map(() => "0|lower"), "it")).toBe(expected);
+  });
   it("keeps the next word lowercase after an abbreviated Italian date with neutral model labels", () => {
     for (const month of ["nov", "gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "sett", "ott", "dic"]) {
       const said = `Arrivo il 20 ${month}. alle nove. poi riparto`;
