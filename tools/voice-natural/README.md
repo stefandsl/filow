@@ -23,26 +23,14 @@ It does not simulate model/network delay or real-time playback starvation.
 
 The synthesis sweep changes one setting at a time: steps, speaker, speed,
 normalization or chunking. Each process warms the model before measuring.
-`firstMs` is first-piece synthesis time (worker delivery in the worker arm),
-not time to sound from a physical speaker. RTF divides synthesis time by trimmed
-audio including inserted gaps. RSS is a process snapshot, not peak working set.
-Initial measurements overlap dependency downloads; use the repeat baseline for
-decisions. Model inference is stochastic: one take cannot establish significance.
+RTF divides synthesis time by trimmed audio including inserted gaps. See [measurement limits](../../docs/okfilow/VOICE-NATURAL-2026-11.md#measurement-limits) for the repeat baseline, first-piece latency and memory definitions.
 
 `candidates.cjs` isolates sherpa 1.12.40 for Piper and Kokoro. It does not change
 the shipped 2.0.1 runtime. Kokoro Italian uses `lang: it` and speaker 35 (Sara),
 not the export's default English frontend. Japanese requires a suitable frontend;
 Russian and Romanian are not Kokoro languages.
 
-`analyse.py` computes DNSMOS P.808, voiced pYIN F0 spread (60-500 Hz), 10 ms RMS
-silence runs below 0.003 lasting at least 80 ms, and clipping. F0 is summarized
-per answer, with percentile range as an outlier check. DNSMOS is a speech quality
-proxy developed for noise suppression, not a validated Italian naturalness MOS.
-Larger pitch spread is not necessarily better. All retained WAVs need listening.
-
-`asr.cjs` uses local Whisper turbo int8 on four CPU threads. Hypotheses are saved
-verbatim. Japanese needs CER; other languages need word scoring with explicit
-number/punctuation normalization. ASR errors are not proof of synthesis errors.
+`analyse.py` measures pitch, silence, clipping and DNSMOS per answer. `asr.cjs` saves verbatim Whisper hypotheses on four CPU threads. The [measurement report](../../docs/okfilow/VOICE-NATURAL-2026-11.md#measurement-limits) defines the analysis windows, language-specific error rates and interpretation.
 
 ## Sources and licences
 

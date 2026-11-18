@@ -236,158 +236,19 @@ traffic at all four SNR (the gate); `hard_env_snr0_5` = the same at SNR 0 and 5;
 `voice_diff` = a competing voice in the same / another language; `quiet dels` = words lost on
 quiet speech, percent of reference tokens.
 
-| arm | clean | quiet | noisy_env_all | hard_env_snr0_5 | voice_same | voice_diff | echo | quiet dels | noise-only tokens |
-|---|---|---|---|---|---|---|---|---|---|
-| raw | 11.29 | 14.89 | 20.42 | 26.40 | 59.35 | 49.51 | 45.87 | - | 19 |
-| gtcrn | 12.43 (+1.13; -0.26..+2.71) | 16.62 (+1.73; -0.55..+3.92) | 24.63 (+4.22; +2.10..+6.57) | 32.32 (+5.92; +3.21..+8.81) | 66.63 (+7.28; +1.47..+15.79) | 55.77 (+6.26; +2.98..+10.36) | 52.91 (+7.04; +1.52..+13.73) | 7.64 (+0.17) | 24 |
-| dtln | 11.52 (+0.23; -0.77..+1.38) | 18.78 (+3.89; -0.15..+10.23) | 26.87 (+6.46; +4.73..+8.34) | 35.38 (+8.97; +5.90..+12.19) | 64.39 (+5.04; -0.06..+10.59) | 52.07 (+2.56; -1.72..+7.70) | 49.64 (+3.77; -0.54..+8.08) | 10.78 (+3.30) | 55 |
-| rnnoise | 16.63 (+5.33; +1.56..+10.29) | 17.76 (+2.87; -1.54..+7.98) | 27.21 (+6.80; +3.88..+10.31) | 33.29 (+6.88; +4.11..+9.87) | 72.97 (+13.62; +6.44..+22.55) | 64.04 (+14.52; +8.53..+22.72) | 52.57 (+6.70; -0.28..+15.21) | 9.13 (+1.65) | 87 |
-| dfn3 | 13.20 (+1.91; -0.01..+4.67) | 53.51 (+38.62; +30.33..+47.57) | 25.57 (+5.15; +2.48..+8.70) | 32.62 (+6.21; +3.36..+9.41) | 60.21 (+0.86; -4.11..+7.04) | 53.00 (+3.49; -0.68..+8.56) | 46.52 (+0.65; -3.51..+6.40) | 47.62 (+40.14) | 13 |
-| dfn3_ll | 11.75 (+0.45; -1.06..+2.06) | 23.63 (+8.75; +4.03..+14.58) | 23.14 (+2.72; +0.71..+5.06) | 30.05 (+3.64; +1.26..+6.34) | 58.94 (-0.41; -6.24..+5.86) | 50.50 (+0.99; -2.89..+5.63) | 44.41 (-1.46; -5.97..+2.74) | 14.47 (+7.00) | 19 |
-| dpdfnet2 | 12.31 (+1.02; -0.25..+2.57) | 13.76 (-1.13; -3.28..+0.90) | 20.19 (-0.23; -1.94..+1.37) | 25.01 (-1.39; -3.94..+0.72) | 64.16 (+4.81; -1.34..+11.37) | 53.26 (+3.75; +0.10..+8.22) | 46.92 (+1.05; -4.41..+6.99) | 5.93 (-1.55) | 6 |
-| dpdfnet2_48k | 11.53 (+0.24; -0.93..+1.46) | 13.93 (-0.96; -2.58..+0.59) | 19.50 (-0.91; -2.64..+0.77) | 24.04 (-2.36; -4.99..+0.39) | 64.24 (+4.89; -0.78..+11.63) | 52.39 (+2.88; -1.45..+8.17) | 48.18 (+2.31; -2.25..+7.68) | 5.97 (-1.50) | 11 |
-| hush | 14.60 (+3.30; +1.06..+5.87) | 87.71 (+72.82; +66.37..+79.25) | 29.52 (+9.11; +6.57..+11.71) | 36.84 (+10.44; +7.21..+13.79) | 57.54 (-1.81; -7.14..+4.40) | 53.09 (+3.57; -0.85..+8.60) | 47.53 (+1.66; -3.45..+6.15) | 81.43 (+73.96) | 19 |
-| dfn3_warm | 12.54 (+1.25; -0.42..+3.05) | 22.64 (+7.75; +3.94..+13.03) | 24.43 (+4.01; +1.96..+6.21) | 31.58 (+5.18; +3.05..+7.10) | 59.67 (+0.32; -3.27..+4.16) | 49.56 (+0.05; -4.10..+4.20) | 43.01 (-2.86; -6.36..+1.17) | 13.93 (+6.45) | 16 |
-| dpdfnet2_warm | 12.09 (+0.80; -0.27..+2.00) | 14.64 (-0.24; -2.42..+1.90) | 19.95 (-0.47; -2.04..+1.00) | 24.90 (-1.50; -3.44..+0.45) | 58.95 (-0.40; -6.62..+6.59) | 52.07 (+2.56; -0.64..+6.01) | 48.86 (+2.99; -2.82..+9.84) | 6.43 (-1.04) | 5 |
-| hush_warm | 15.95 (+4.66; +0.51..+10.91) | 86.58 (+71.70; +66.61..+77.82) | 31.94 (+11.53; +8.19..+14.81) | 38.73 (+12.32; +8.50..+15.93) | 54.46 (-4.89; -9.95..+0.60) | 52.50 (+2.99; -2.72..+8.63) | 46.77 (+0.90; -3.58..+6.19) | 78.29 (+70.82) | 22 |
-
-Per condition (macro error rate, percent):
-
-| condition | raw | gtcrn | dtln | rnnoise | dfn3 | dfn3_ll | dpdfnet2 | dpdfnet2_48k | hush | dfn3_warm | dpdfnet2_warm | hush_warm |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| keyboard_snr0 | 30.65 | 37.12 | 41.71 | 33.56 | 37.76 | 34.70 | 23.90 | 25.47 | 32.89 | 34.22 | 25.01 | 40.44 |
-| keyboard_snr5 | 29.54 | 35.03 | 36.84 | 37.92 | 34.75 | 27.25 | 24.95 | 24.94 | 36.51 | 32.08 | 24.70 | 37.79 |
-| keyboard_snr10 | 20.63 | 22.44 | 29.26 | 28.30 | 26.23 | 22.44 | 19.50 | 19.21 | 28.76 | 23.24 | 19.86 | 29.08 |
-| keyboard_snr20 | 11.57 | 14.52 | 13.58 | 15.81 | 13.02 | 11.71 | 14.05 | 13.10 | 14.22 | 13.17 | 14.13 | 19.45 |
-| fan_snr0 | 18.25 | 24.74 | 25.64 | 24.44 | 28.40 | 26.71 | 19.06 | 18.91 | 31.27 | 25.10 | 18.63 | 32.96 |
-| fan_snr5 | 19.39 | 21.20 | 24.49 | 20.87 | 20.42 | 23.60 | 20.43 | 18.46 | 28.22 | 21.44 | 18.07 | 29.20 |
-| fan_snr10 | 14.48 | 17.46 | 18.92 | 20.61 | 19.25 | 18.55 | 14.04 | 14.58 | 22.86 | 18.49 | 14.50 | 26.68 |
-| fan_snr20 | 9.73 | 11.51 | 11.33 | 18.39 | 13.41 | 10.22 | 12.60 | 10.89 | 14.97 | 12.75 | 10.65 | 17.05 |
-| traffic_snr0 | 35.13 | 45.37 | 50.89 | 47.66 | 42.09 | 37.47 | 34.28 | 30.35 | 48.75 | 44.75 | 34.67 | 52.70 |
-| traffic_snr5 | 24.02 | 28.61 | 30.62 | 33.80 | 30.82 | 29.34 | 25.90 | 24.62 | 41.99 | 30.59 | 26.82 | 38.06 |
-| traffic_snr10 | 14.84 | 15.38 | 19.70 | 23.81 | 19.34 | 16.87 | 16.39 | 16.99 | 24.39 | 16.14 | 15.67 | 32.48 |
-| traffic_snr20 | 15.21 | 20.61 | 17.53 | 19.66 | 19.86 | 17.46 | 15.76 | 15.15 | 26.89 | 19.75 | 15.19 | 26.60 |
-| voice_same_sir0 | 82.19 | 83.25 | 82.60 | 82.08 | 81.27 | 82.26 | 82.65 | 80.31 | 79.67 | 78.94 | 76.28 | 75.25 |
-| voice_same_sir12 | 34.78 | 48.92 | 44.92 | 62.98 | 37.23 | 33.85 | 44.48 | 47.04 | 33.77 | 38.66 | 40.45 | 32.03 |
-| voice_diff_sir0 | 75.27 | 82.00 | 72.56 | 81.03 | 79.39 | 77.53 | 80.66 | 76.11 | 81.65 | 72.18 | 76.64 | 77.83 |
-| voice_diff_sir12 | 24.45 | 30.44 | 32.27 | 47.95 | 27.34 | 24.30 | 26.60 | 29.35 | 25.30 | 27.53 | 28.21 | 27.97 |
-| echo_sir0 | 61.18 | 66.12 | 66.72 | 60.01 | 62.46 | 64.35 | 63.79 | 65.83 | 68.85 | 57.30 | 68.35 | 66.07 |
-| echo_sir12 | 30.02 | 39.23 | 31.83 | 44.85 | 29.80 | 23.32 | 29.18 | 29.58 | 25.19 | 28.24 | 28.48 | 26.58 |
-
-Gates:
-
-| arm | noisy: rel. reduction (>= 5 %, interval below 0) | clean: diff (<= +0.5) | slices > 1 pt worse (significant / all) | quiet deletions diff (<= +0.5) | noise-only tokens (<= raw) |
-|---|---|---|---|---|---|
-| gtcrn | FAIL -20.7 % (+2.10..+6.57 pt) | FAIL +1.13 | FAIL 26 / 69 | PASS +0.17 | FAIL 24 vs 19 |
-| dtln | FAIL -31.6 % (+4.73..+8.34 pt) | PASS +0.23 | FAIL 31 / 72 | FAIL +3.30 | FAIL 55 vs 19 |
-| rnnoise | FAIL -33.3 % (+3.88..+10.31 pt) | FAIL +5.33 | FAIL 28 / 73 | FAIL +1.65 | FAIL 87 vs 19 |
-| dfn3 | FAIL -25.2 % (+2.48..+8.70 pt) | FAIL +1.91 | FAIL 21 / 70 | FAIL +40.14 | PASS 13 vs 19 |
-| dfn3_ll | FAIL -13.3 % (+0.71..+5.06 pt) | PASS +0.45 | FAIL 15 / 54 | FAIL +7.00 | PASS 19 vs 19 |
-| dpdfnet2 | FAIL +1.1 % (-1.94..+1.37 pt) | FAIL +1.02 | FAIL 9 / 51 | PASS -1.55 | PASS 6 vs 19 |
-| dpdfnet2_48k | FAIL +4.5 % (-2.64..+0.77 pt) | PASS +0.24 | FAIL 11 / 40 | PASS -1.50 | PASS 11 vs 19 |
-| hush | FAIL -44.6 % (+6.57..+11.71 pt) | FAIL +3.30 | FAIL 40 / 72 | FAIL +73.96 | PASS 19 vs 19 |
-| dfn3_warm | FAIL -19.7 % (+1.96..+6.21 pt) | FAIL +1.25 | FAIL 16 / 53 | FAIL +6.45 | PASS 16 vs 19 |
-| dpdfnet2_warm | FAIL +2.3 % (-2.04..+1.00 pt) | FAIL +0.80 | FAIL 7 / 48 | PASS -1.04 | PASS 5 vs 19 |
-| hush_warm | FAIL -56.5 % (+8.19..+14.81 pt) | FAIL +4.66 | FAIL 39 / 72 | FAIL +70.82 | FAIL 22 vs 19 |
-
-Speaker isolation gate (competing voice, same and other language pooled): relative reduction >= 5 % with the interval below 0:
-
-- gtcrn: FAIL raw 54.33 -> 61.19 (-12.6 %; +2.88..+11.76 pt)
-- dtln: FAIL raw 54.33 -> 58.15 (-7.0 %; -0.47..+8.12 pt)
-- rnnoise: FAIL raw 54.33 -> 68.35 (-25.8 %; +8.51..+21.13 pt)
-- dfn3: FAIL raw 54.33 -> 56.56 (-4.1 %; -1.50..+7.12 pt)
-- dfn3_ll: FAIL raw 54.33 -> 54.63 (-0.5 %; -3.85..+4.89 pt)
-- dpdfnet2: FAIL raw 54.33 -> 58.72 (-8.1 %; +0.59..+8.20 pt)
-- dpdfnet2_48k: FAIL raw 54.33 -> 58.27 (-7.2 %; -0.26..+8.71 pt)
-- hush: FAIL raw 54.33 -> 55.36 (-1.9 %; -3.13..+4.84 pt)
-- dfn3_warm: FAIL raw 54.33 -> 54.59 (-0.5 %; -2.55..+3.30 pt)
-- dpdfnet2_warm: FAIL raw 54.33 -> 55.46 (-2.1 %; -2.73..+5.41 pt)
-- hush_warm: FAIL raw 54.33 -> 53.50 (+1.5 %; -5.37..+3.47 pt)
+[Question error rates, condition breakdowns and gate results](../../tools/audio-bench/results/summary-questions-heldout.md).
 
 ### 5.1 Per language
 
 A star marks a difference from raw whose 95 % interval excludes zero. Each language has 6
 held-out speakers (English 16), so the intervals are wide.
 
-Noisy (keyboard, fan, traffic; all four SNR), error rate per language (percent; ja per character):
-
-| language | raw | gtcrn | dtln | rnnoise | dfn3 | dfn3_ll | dpdfnet2 | dpdfnet2_48k | hush | dfn3_warm | dpdfnet2_warm | hush_warm |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| en | 20.5 | 25.4 (+4.9*) | 29.5 (+9.0*) | 30.2 (+9.7*) | 24.9 (+4.4*) | 25.2 (+4.6*) | 20.0 (-0.5) | 20.2 (-0.3) | 33.1 (+12.6*) | 25.7 (+5.2*) | 20.5 (+0.0) | 44.4 (+23.9*) |
-| it | 11.0 | 12.7 (+1.6) | 15.2 (+4.2*) | 13.7 (+2.7) | 13.1 (+2.1) | 12.3 (+1.3) | 10.0 (-1.0) | 8.8 (-2.2*) | 15.2 (+4.1*) | 10.9 (-0.1) | 9.4 (-1.7*) | 15.1 (+4.0*) |
-| ru | 12.8 | 15.8 (+3.0) | 19.0 (+6.2*) | 16.5 (+3.6*) | 15.8 (+3.0*) | 14.8 (+2.0) | 12.1 (-0.8) | 11.3 (-1.6) | 29.7 (+16.8*) | 16.1 (+3.3*) | 12.2 (-0.6) | 23.1 (+10.3*) |
-| ro | 29.7 | 34.8 (+5.0) | 40.5 (+10.7*) | 42.6 (+12.8*) | 38.8 (+9.1*) | 33.9 (+4.1) | 25.7 (-4.0) | 26.1 (-3.7) | 40.1 (+10.4*) | 35.9 (+6.2) | 26.5 (-3.2) | 47.2 (+17.5*) |
-| ja | 27.9 | 34.5 (+6.5*) | 30.2 (+2.2) | 33.1 (+5.2) | 35.1 (+7.2) | 29.5 (+1.6) | 33.1 (+5.2*) | 31.2 (+3.2*) | 29.6 (+1.6) | 33.5 (+5.6*) | 31.1 (+3.2*) | 29.8 (+1.9) |
-
-Clean, error rate per language (percent; ja per character):
-
-| language | raw | gtcrn | dtln | rnnoise | dfn3 | dfn3_ll | dpdfnet2 | dpdfnet2_48k | hush | dfn3_warm | dpdfnet2_warm | hush_warm |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| en | 10.5 | 10.3 (-0.2) | 10.5 (+0.0) | 14.5 (+4.0) | 12.6 (+2.1) | 10.7 (+0.2) | 11.1 (+0.6) | 10.3 (-0.2) | 15.1 (+4.6) | 10.3 (-0.2) | 12.4 (+1.9) | 15.6 (+5.0*) |
-| it | 6.1 | 6.9 (+0.8) | 5.9 (-0.2) | 10.0 (+3.9) | 6.1 (+0.0) | 6.5 (+0.4) | 7.1 (+1.0) | 5.5 (-0.6) | 6.1 (+0.0) | 6.9 (+0.8) | 5.9 (-0.2) | 6.9 (+0.8) |
-| ru | 5.3 | 4.7 (-0.6) | 5.1 (-0.2) | 6.0 (+0.6) | 4.5 (-0.8) | 4.3 (-1.1) | 4.7 (-0.6) | 4.5 (-0.8) | 11.1 (+5.8) | 4.5 (-0.8) | 4.9 (-0.4) | 6.8 (+1.5) |
-| ro | 11.1 | 14.4 (+3.3) | 10.9 (-0.3) | 21.7 (+10.6*) | 13.9 (+2.7) | 13.9 (+2.7) | 12.8 (+1.6) | 13.9 (+2.7) | 17.1 (+6.0*) | 17.9 (+6.8*) | 12.5 (+1.4) | 29.1 (+17.9*) |
-| ja | 23.4 | 25.8 (+2.4*) | 25.2 (+1.8) | 30.9 (+7.6) | 28.9 (+5.6) | 23.4 (+0.0) | 25.8 (+2.4) | 23.5 (+0.1) | 23.5 (+0.1) | 23.1 (-0.3) | 24.8 (+1.4) | 21.4 (-2.0) |
-
-Quiet, error rate per language (percent; ja per character):
-
-| language | raw | gtcrn | dtln | rnnoise | dfn3 | dfn3_ll | dpdfnet2 | dpdfnet2_48k | hush | dfn3_warm | dpdfnet2_warm | hush_warm |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| en | 18.9 | 13.7 (-5.2) | 17.9 (-1.1) | 16.2 (-2.7) | 50.4 (+31.5*) | 25.2 (+6.3) | 10.3 (-8.6*) | 12.2 (-6.7*) | 90.3 (+71.4*) | 19.5 (+0.6) | 11.6 (-7.3*) | 77.3 (+58.4*) |
-| it | 6.7 | 7.9 (+1.2*) | 6.9 (+0.2) | 12.4 (+5.7*) | 43.8 (+37.1*) | 8.6 (+1.8*) | 7.9 (+1.2) | 7.1 (+0.4) | 85.5 (+78.8*) | 7.1 (+0.4) | 8.3 (+1.6) | 89.8 (+83.1*) |
-| ru | 5.3 | 7.0 (+1.7*) | 4.7 (-0.6) | 6.4 (+1.1) | 38.5 (+33.1*) | 8.8 (+3.4*) | 6.2 (+0.8) | 6.6 (+1.3) | 73.1 (+67.7*) | 9.0 (+3.6*) | 7.7 (+2.4*) | 97.7 (+92.3*) |
-| ro | 16.6 | 20.9 (+4.3) | 31.2 (+14.7) | 22.0 (+5.4) | 64.1 (+47.5*) | 41.6 (+25.0*) | 15.5 (-1.1) | 16.6 (+0.0) | 97.8 (+81.2*) | 45.9 (+29.4*) | 19.6 (+3.0) | 100.0 (+83.4*) |
-| ja | 26.9 | 33.5 (+6.7*) | 33.2 (+6.3*) | 31.8 (+4.9) | 70.7 (+43.9*) | 34.1 (+7.2*) | 28.9 (+2.0) | 27.1 (+0.2) | 91.8 (+64.9*) | 31.6 (+4.7*) | 26.1 (-0.8) | 68.1 (+41.2*) |
-
-Slices more than 1 point worse with an interval that excludes zero (language:condition, points):
-
-- gtcrn: 26 of 69. Worst: ja:voice_same_sir12 +24.9, en:voice_same_sir12 +22.6, ro:echo_sir12 +21.4, ru:voice_same_sir12 +19.8
-- dtln: 31 of 72. Worst: ro:traffic_snr0 +27.0, ro:keyboard_snr10 +25.0, ru:keyboard_snr5 +21.8, en:keyboard_snr5 +20.3
-- rnnoise: 28 of 73. Worst: en:voice_diff_sir12 +42.4, ro:voice_diff_sir12 +37.0, ro:echo_sir12 +35.7, ru:voice_same_sir12 +35.2
-- dfn3: 21 of 70. Worst: ro:quiet +47.5, ja:quiet +43.9, it:quiet +37.1, ru:quiet +33.1
-- dfn3_ll: 15 of 54. Worst: ro:quiet +25.0, ro:voice_diff_sir0 +16.3, en:echo_sir0 +13.0, ja:traffic_snr5 +11.7
-- dpdfnet2: 9 of 51. Worst: en:voice_same_sir12 +22.6, ru:voice_diff_sir0 +16.7, ja:fan_snr5 +16.6, ja:echo_sir0 +13.0
-- dpdfnet2_48k: 11 of 40. Worst: ja:traffic_snr10 +14.1, ja:echo_sir0 +12.8, ru:echo_sir12 +10.2, ja:voice_same_sir0 +9.4
-- hush: 40 of 72. Worst: ro:quiet +81.2, it:quiet +78.8, en:quiet +71.4, ru:quiet +67.7
-- dfn3_warm: 16 of 53. Worst: ro:quiet +29.4, ro:traffic_snr5 +19.1, ru:keyboard_snr5 +15.8, ro:voice_diff_sir12 +13.0
-- dpdfnet2_warm: 7 of 48. Worst: en:echo_sir0 +21.7, ja:echo_sir0 +21.5, ja:traffic_snr5 +9.0, ja:voice_diff_sir12 +4.4
-- hush_warm: 39 of 72. Worst: ru:quiet +92.3, ro:quiet +83.4, it:quiet +83.1, en:quiet +58.4
-
-Invented tokens on the noise-only clips per language (en, it, ru, ro words; ja characters):
-
-| arm | en | it | ru | ro | ja | sum |
-|---|---|---|---|---|---|---|
-| raw | 1 | 1 | 1 | 1 | 15 | 19 |
-| gtcrn | 2 | 2 | 2 | 2 | 16 | 24 |
-| dtln | 6 | 6 | 6 | 6 | 31 | 55 |
-| rnnoise | 1 | 1 | 1 | 1 | 83 | 87 |
-| dfn3 | 0 | 0 | 0 | 0 | 13 | 13 |
-| dfn3_ll | 0 | 0 | 0 | 0 | 19 | 19 |
-| dpdfnet2 | 0 | 0 | 0 | 0 | 6 | 6 |
-| dpdfnet2_48k | 1 | 1 | 1 | 1 | 7 | 11 |
-| hush | 1 | 1 | 1 | 1 | 15 | 19 |
-| dfn3_warm | 0 | 0 | 0 | 0 | 16 | 16 |
-| dpdfnet2_warm | 0 | 0 | 0 | 0 | 5 | 5 |
-| hush_warm | 2 | 2 | 2 | 2 | 14 | 22 |
+[Language breakdowns, confidence intervals and tokens invented on noise](../../tools/audio-bench/results/report-questions-heldout.md).
 
 ### 5.2 What the engines do to the sound itself
 
-Output level minus input level in dB, median (lowest..highest) over the held-out clips of each
-kind (`levels.py`):
-
-| engine | noise only | clean speech | quiet speech | quiet clips turned down by more than 20 dB |
-|---|---|---|---|---|
-| gtcrn | -27.0 (-44.7..-17.1) | -0.1 (-6.1..-0.0) | -0.3 (-4.0..-0.1) | 0 of 240 |
-| dtln | -22.3 (-33.9..-13.9) | -0.0 (-11.4..+0.0) | -0.1 (-29.6..-0.0) | 5 of 240 |
-| rnnoise | -41.0 (-56.8..-20.1) | -0.1 (-24.4..-0.0) | -0.1 (-35.4..-0.0) | 1 of 240 |
-| dfn3 | -38.1 (-51.4..-19.2) | -0.3 (-16.7..-0.1) | -1.8 (-72.4..-0.1) | 88 of 240 |
-| dfn3_ll | -28.1 (-49.3..-3.2) | -0.3 (-7.1..-0.0) | -0.5 (-40.5..+0.0) | 5 of 240 |
-| dpdfnet2 | -61.5 (-67.0..-53.4) | -0.1 (-2.0..-0.0) | -0.2 (-2.4..-0.1) | 0 of 240 |
-| dpdfnet2_48k | -60.9 (-67.3..-34.4) | -0.2 (-2.1..-0.0) | -0.1 (-2.2..-0.0) | 0 of 240 |
-| hush | -35.3 (-62.2..-5.0) | -6.6 (-17.2..-0.3) | -28.9 (-47.5..-0.6) | 194 of 240 |
-| dfn3_warm | -21.5 (-39.9..-2.0) | -0.2 (-6.2..-0.1) | -0.4 (-41.5..-0.1) | 8 of 240 |
-| dpdfnet2_warm | -61.7 (-66.8..-51.1) | -0.1 (-2.0..-0.0) | -0.2 (-7.1..-0.1) | 0 of 240 |
-| hush_warm | -33.1 (-41.7..-23.0) | -6.7 (-36.4..-0.7) | -23.4 (-29.3..-10.5) | 183 of 240 |
+The table reports median output minus input in dB, with the lowest and highest values for each kind of clip.
+[Held-out output levels by engine](../../tools/audio-bench/results/levels-heldout.md).
 
 Every engine turns the noise-only clips down by 22 to 62 dB (median): as noise suppressors they
 work. The recognizers still read the cleaned speech worse. The likely reason, not tested here:
@@ -407,27 +268,17 @@ language, four of them with the same Parakeet model, so one invented word counts
 Nemotron streaming for en, it, ru, ja and Parakeet for ro, same clips. Only raw and DPDFNet2
 16 kHz were decoded with it (compute time).
 
-| arm | clean | quiet | noisy_env_all | hard_env_snr0_5 | voice_same | voice_diff | echo | quiet dels | noise-only tokens |
-|---|---|---|---|---|---|---|---|---|---|
-| raw | 12.28 | 14.76 | 22.14 | 28.51 | 63.63 | 48.97 | 45.24 | - | 1 |
-| dpdfnet2 | 13.56 (+1.28; -0.03..+3.09) | 15.77 (+1.01; -0.35..+2.19) | 21.14 (-0.99; -2.81..+0.77) | 25.99 (-2.52; -5.13..+0.00) | 68.18 (+4.56; +0.13..+8.81) | 54.41 (+5.43; +2.03..+9.55) | 51.30 (+6.06; +1.48..+12.11) | 4.85 (+0.30) | 0 |
-
-Gates:
-
-| arm | noisy: rel. reduction (>= 5 %, interval below 0) | clean: diff (<= +0.5) | slices > 1 pt worse (significant / all) | quiet deletions diff (<= +0.5) | noise-only tokens (<= raw) |
-|---|---|---|---|---|---|
-| dpdfnet2 | FAIL +4.5 % (-2.81..+0.77 pt) | FAIL +1.28 | FAIL 8 / 52 | PASS +0.30 | PASS 0 vs 1 |
+[Tracking error rates and gate results](../../tools/audio-bench/results/summary-tracking-heldout.md).
 
 ### 5.4 Fresh start against a running session (diagnostic, not part of the frozen protocol)
 
 Every arm above starts each clip with a fresh engine, as when the microphone has just been opened.
-DeepFilterNet3 and Hush from a fresh start turned whole quiet clips down to nothing (table in
-5.2). A check on dev clips showed why for DeepFilterNet3: the same quiet clip is kept (-0.3 dB)
+DeepFilterNet3 and Hush from a fresh start turned whole quiet clips down to nothing (section 5.2). A check on dev clips showed why for DeepFilterNet3: the same quiet clip is kept (-0.3 dB)
 when the engine has just heard speech at normal level, and can lose up to 61 dB from a fresh
 start. So three extra arms were run after the first held-out numbers were seen: `dfn3_warm`,
 `dpdfnet2_warm`, `hush_warm` (`warm.py`). Each clip is cleaned right after a clean dev clip of the
 same language (another speaker, normal level), and the lead-in is cut off before recognition.
-They are in the tables above. They cannot qualify a candidate: the protocol was not frozen for
+The linked results list these arms separately. They cannot qualify a candidate: the protocol was not frozen for
 them and they were added with held-out numbers already on the table.
 
 What they show:
@@ -455,70 +306,7 @@ faster clock, a larger cache and faster memory, so the stand-in flatters a real 
 The machine was not idle during these runs (other work on the same PC; "machine CPU %" is the
 load of the whole PC during each run), which can only make the timing look worse, not better.
 
-| engine | machine | threads | state | hop ms | p50 / p95 / p99 / max ms per hop | RTF | CPU % of one core | memory added MiB | machine CPU % | recognizer ran to the end |
-|---|---|---|---|---|---|---|---|---|---|---|
-| dfn3 | this PC | 1 | alone | 10.0 | - / - / - / - | 0.1032 | 10.1 | 45.5 | 53 | - |
-| dfn3 | this PC | 1 | asr-running | 10.0 | - / - / - / - | 0.1190 | 11.8 | 38.1 | 70 | yes |
-| dfn3 | 4 efficiency cores | 1 | alone | 10.0 | - / - / - / - | 0.1562 | 15.3 | 38.0 | 56 | - |
-| dfn3 | 4 efficiency cores | 1 | asr-running | 10.0 | - / - / - / - | 0.2008 | 10.3 | 38.9 | 43 | yes |
-| rnnoise | this PC | 1 | alone | 10.0 | 0.307 / 0.448 / 0.818 / 6.128 | 0.0341 | 3.4 | 15.2 | 34 | - |
-| rnnoise | this PC | 1 | asr-running | 10.0 | 0.292 / 0.405 / 0.666 / 4.511 | 0.0320 | 3.2 | 15.0 | 45 | yes |
-| rnnoise | 4 efficiency cores | 1 | alone | 10.0 | 0.625 / 1.266 / 4.184 / 17.149 | 0.0788 | 7.9 | 15.4 | 28 | - |
-| rnnoise | 4 efficiency cores | 1 | asr-running | 10.0 | 0.649 / 1.395 / 18.129 / 157.426 | 0.1221 | 12.2 | 15.4 | 38 | yes |
-| gtcrn | this PC | 1 | alone | 16.0 | 0.653 / 0.910 / 1.324 / 4.611 | 0.0443 | 4.4 | 35.1 | 26 | - |
-| gtcrn | this PC | 2 | alone | 16.0 | 0.687 / 1.299 / 1.590 / 2.593 | 0.0489 | 9.7 | 35.2 | 32 | - |
-| gtcrn | this PC | 1 | asr-running | 16.0 | 0.761 / 1.496 / 1.666 / 2.755 | 0.0602 | 6.0 | 34.1 | 47 | yes |
-| gtcrn | 4 efficiency cores | 1 | alone | 16.0 | 1.218 / 1.849 / 4.469 / 15.691 | 0.0872 | 8.0 | 35.1 | 26 | - |
-| gtcrn | 4 efficiency cores | 1 | asr-running | 16.0 | 1.369 / 7.277 / 11.345 / 24.285 | 0.1678 | 8.5 | 34.6 | 32 | yes |
-| dtln | this PC | 1 | alone | 8.0 | 0.367 / 0.525 / 0.760 / 4.197 | 0.0473 | 4.7 | 35.4 | 23 | - |
-| dtln | this PC | 2 | alone | 8.0 | 0.342 / 0.431 / 0.557 / 2.572 | 0.0426 | 12.9 | 35.7 | 30 | - |
-| dtln | this PC | 1 | asr-running | 8.0 | 0.384 / 0.474 / 0.625 / 2.301 | 0.0509 | 5.2 | 34.4 | 44 | yes |
-| dtln | 4 efficiency cores | 1 | alone | 8.0 | 0.358 / 0.898 / 3.594 / 15.819 | 0.0627 | 5.0 | 34.9 | 22 | - |
-| dtln | 4 efficiency cores | 1 | asr-running | 8.0 | 0.358 / 2.695 / 6.511 / 25.075 | 0.0960 | 5.3 | 35.2 | 29 | yes |
-| hush | this PC | 1 | alone | 10.0 | 0.484 / 0.652 / 0.914 / 21.895 | 0.0504 | 5.1 | 41.8 | 28 | - |
-| hush | this PC | 1 | asr-running | 10.0 | 0.511 / 0.849 / 1.210 / 29.607 | 0.0558 | 5.6 | 40.2 | 49 | yes |
-| hush | 4 efficiency cores | 1 | alone | 10.0 | 0.467 / 1.386 / 3.764 / 28.846 | 0.0639 | 5.4 | 40.9 | 26 | - |
-| hush | 4 efficiency cores | 1 | asr-running | 10.0 | 0.603 / 4.894 / 11.715 / 80.310 | 0.1502 | 7.8 | 40.0 | 49 | yes |
-| dpdfnet2 | this PC | 1 | alone | 10.0 | 2.919 / 3.809 / 4.307 / 13.987 | 0.3003 | 29.8 | 45.3 | 35 | - |
-| dpdfnet2 | this PC | 2 | alone | 10.0 | 2.250 / 3.019 / 3.354 / 5.074 | 0.2352 | 46.9 | 46.5 | 34 | - |
-| dpdfnet2 | this PC | 1 | asr-running | 10.0 | 3.246 / 3.984 / 4.477 / 8.919 | 0.3338 | 33.2 | 45.9 | 50 | yes |
-| dpdfnet2 | 4 efficiency cores | 1 | alone | 10.0 | 2.870 / 4.588 / 6.892 / 53.447 | 0.3116 | 28.8 | 46.1 | 35 | - |
-| dpdfnet2 | 4 efficiency cores | 1 | asr-running | 10.0 | 5.162 / 11.677 / 16.341 / 78.361 | 0.5981 | 32.2 | 44.8 | 47 | yes |
-| dfn3_ll | this PC | 1 | alone | 10.0 | - / - / - / - | 0.2909 | 28.6 | 167.4 | 26 | - |
-| dfn3_ll | this PC | 1 | asr-running | 10.0 | - / - / - / - | 0.4536 | 44.9 | 150.3 | 53 | yes |
-| dfn3_ll | 4 efficiency cores | 1 | alone | 10.0 | - / - / - / - | 0.6038 | 55.4 | 165.9 | 25 | - |
-| dfn3_ll | 4 efficiency cores | 1 | asr-running | 10.0 | - / - / - / - | 1.1007 | 53.2 | 151.1 | 42 | yes |
-| dpdfnet2_48k | this PC | 1 | alone | 10.0 | 2.613 / 4.686 / 5.043 / 6.844 | 0.2977 | 29.6 | 47.0 | 37 | - |
-| dpdfnet2_48k | this PC | 2 | alone | 10.0 | 2.410 / 3.898 / 4.273 / 5.306 | 0.2634 | 52.5 | 47.0 | 42 | - |
-| dpdfnet2_48k | this PC | 1 | asr-running | 10.0 | 4.278 / 5.151 / 5.748 / 12.013 | 0.4171 | 41.3 | 46.8 | 58 | yes |
-| dpdfnet2_48k | 4 efficiency cores | 1 | alone | 10.0 | 3.954 / 4.881 / 5.501 / 18.219 | 0.4089 | 40.0 | 47.3 | 36 | - |
-| dpdfnet2_48k | 4 efficiency cores | 1 | asr-running | 10.0 | 4.596 / 18.023 / 39.719 / 138.315 | 0.7482 | 42.0 | 47.3 | 44 | yes |
-
-Gates on: this PC
-
-| engine | latency ms | added delay p95 ms (worst state) | CPU % (1 thread, alone) | memory MiB | p99 under 80 % of hop | RTF with recognizer | light mode | quality mode |
-|---|---|---|---|---|---|---|---|---|
-| dfn3 | 40 | 40.0 (no per-hop timing: latency only) | 10.1 | 46 | not measured (-) | 0.119 | PASS | PASS |
-| rnnoise | 30 | 30.4 | 3.4 | 15 | yes (0.818) | 0.032 | PASS | PASS |
-| gtcrn | 32 | 33.5 | 4.4 | 35 | yes (1.666) | 0.060 | PASS | PASS |
-| dtln | 32 | 32.5 | 4.7 | 36 | yes (0.76) | 0.051 | PASS | PASS |
-| hush | 20 | 20.8 | 5.1 | 42 | yes (1.21) | 0.056 | PASS | PASS |
-| dpdfnet2 | 60 | 64.0 | 29.8 | 46 | yes (4.477) | 0.334 | FAIL | PASS |
-| dfn3_ll | 20 | 20.0 (no per-hop timing: latency only) | 28.6 | 167 | not measured (-) | 0.454 | FAIL | PASS |
-| dpdfnet2_48k | 60 | 65.2 | 29.6 | 47 | yes (5.748) | 0.417 | FAIL | PASS |
-
-Gates on: 4 efficiency cores
-
-| engine | latency ms | added delay p95 ms (worst state) | CPU % (1 thread, alone) | memory MiB | p99 under 80 % of hop | RTF with recognizer | light mode | quality mode |
-|---|---|---|---|---|---|---|---|---|
-| dfn3 | 40 | 40.0 (no per-hop timing: latency only) | 15.3 | 39 | not measured (-) | 0.201 | PASS | PASS |
-| rnnoise | 30 | 31.4 | 7.9 | 15 | NO (18.129) | 0.122 | FAIL | FAIL |
-| gtcrn | 32 | 39.3 | 8.0 | 35 | yes (11.345) | 0.168 | PASS | PASS |
-| dtln | 32 | 34.7 | 5.0 | 35 | NO (6.511) | 0.096 | FAIL | FAIL |
-| hush | 20 | 24.9 | 5.4 | 41 | NO (11.715) | 0.150 | FAIL | FAIL |
-| dpdfnet2 | 60 | 71.7 | 28.8 | 46 | NO (16.341) | 0.598 | FAIL | FAIL |
-| dfn3_ll | 20 | 20.0 (no per-hop timing: latency only) | 55.4 | 166 | not measured (-) | 1.101 | FAIL | FAIL |
-| dpdfnet2_48k | 60 | 78.0 | 40.0 | 47 | NO (39.719) | 0.748 | FAIL | FAIL |
+[Per-engine timing, CPU, memory and gates on both hardware configurations](../../tools/audio-bench/results/perf-table.md).
 
 Reading the tables:
 

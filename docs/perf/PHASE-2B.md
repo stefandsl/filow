@@ -123,11 +123,4 @@ retry limits are unchanged.
 
 ## Packaged result
 
-See [LATENCY-2026-11.md](LATENCY-2026-11.md) for the final before/after table,
-exclusions and limits. With 45 valid warm and 31 valid cold samples, first-token
-medians improve 25.4% and 35.2%; both p90 values improve. The standard acceptance
-gates pass. The pointing scorer above credits POINT tags only, not other visual
-tag types. One empty model answer stopped the second warm schedule; it is retained
-as an unresolved reliability observation. GPU measurements were blocked by the
-unchanged idle rule. Real-model speaking-stop remains unmeasured; deterministic
-speech Stop/Resume passes, and eight real-model thinking-stop checks pass.
+[Packaged latency results](LATENCY-2026-11.md) give the before/after distributions, exclusions, pointing metric and remaining hardware checks.
