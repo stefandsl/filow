@@ -718,7 +718,8 @@ rerun the comparison: `docs/gauntlet/BASELINE.md`.
 
 Drag an item's corner to resize it live: the 3D view, picture cards, gallery,
 video, slide and answer bubble follow the pointer before release. The dotted
-handle moves the item. Double-click a handle to reset the layout.
+handle moves the item. A gallery's minimum height leaves room for each picture,
+its caption and its controls. Double-click a handle to reset the layout.
 
 Provider privacy placeholders are removed from card titles and drawing labels unless you typed them in your question. Answer text and the notice about hidden names stay unchanged.
 

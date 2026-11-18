@@ -16,6 +16,7 @@ vi.mock("react", async (orig) => ({
 }));
 vi.mock("@filow/ui", () => ({ useLang: () => "en" }));
 const { MoveGrips } = await import("./move-grips");
+const { MediaLayer } = await import("./media-layer");
 const { AnswerBubble } = await import("./bubble");
 const { default: Model } = await import("@/app/okfilow/model/page");
 
@@ -165,6 +166,27 @@ it.each([3, 5])("keeps the grip of a %i-tile gallery under a diagonal drag on ev
     // Equal columns can leave a couple of pixels of rounding at the outer edge.
     expect(Math.abs(tile.right - first.right - d)).toBeLessThanOrEqual(2);
     expect(Math.abs(tile.bottom - first.bottom - d)).toBeLessThanOrEqual(1);
+  }
+});
+
+it("leaves room for media and controls in all six tiles when a gallery is dragged up to its minimum", () => {
+  box = { x: 40, y: 40, w: 804, h: 500 };
+  Object.assign(window, { innerWidth: 1280, innerHeight: 720 });
+  const photo = { kind: "photo" as const, src: "picture.png", caption: "Caption", source: "Source" };
+  const show = { x: 0, y: 0, gallery: Array(6).fill(photo), slide: null };
+  const layer = MediaLayer({ show, avoid: () => [], t: (k) => k,
+    move: { moved: { gallery: box }, onBox: (_kind, next) => { box = next; }, onReset: vi.fn() } })!;
+  const figures = layer.type(layer.props).props.children[1];
+  const grip = figures[5].props.children[1];
+  MoveGrips(grip.props).props.children[1].props.onPointerDown(down(capture()));
+  pointer("pointermove", 700, 0);
+  pointer("pointerup", 700, 0);
+  expect(box.w).toBe(804);
+  const tiles = tilesIn(6, box);
+  expect(tiles).toHaveLength(6);
+  for (const tile of tiles) {
+    // Handle clearance, caption padding, button row, row gap and one source line.
+    expect(tile.bottom - tile.top - (36 + 14 + 28 + 2 + 15)).toBeGreaterThanOrEqual(48);
   }
 });
 

@@ -6,8 +6,8 @@
 // their rectangles and main lets the mouse in only there (apps/desktop/okfilow-hit.js). Stop takes all
 // of it away at once (the overlay page passes null).
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { boundsOfRects, MAX_VIDEO_SECONDS, showLayout, tilesIn, type MediaItem, type MediaShow } from "@/lib/buddy/media";
-import { LIMITS, type Box, type MovableKind } from "@/lib/buddy/layout-move";
+import { boundsOfRects, galleryMinHeight, MAX_VIDEO_SECONDS, showLayout, tilesIn, type MediaItem, type MediaShow } from "@/lib/buddy/media";
+import { clampBox, LIMITS, type Box, type MovableKind } from "@/lib/buddy/layout-move";
 import { MoveGrips } from "./move-grips";
 import type { Rect } from "@/lib/buddy/marks";
 import type { OkfKey } from "@/lib/buddy/text";
@@ -131,13 +131,15 @@ function ShownMedia({ show, avoid, t, onPlaced, move }: Props & { show: MediaSho
   const close = (key: string) => setGone((g) => new Set(g).add(key));
   // Where the user moved or resized them, else where they were placed.
   const area = { x: 0, y: 0, width: typeof window === "undefined" ? 1920 : window.innerWidth, height: typeof window === "undefined" ? 1080 : window.innerHeight };
-  const shownTiles = move?.moved.gallery ? tilesIn(gallery.length, move.moved.gallery) : tiles;
+  const galleryLimits = { ...LIMITS.gallery, minH: galleryMinHeight(gallery.length) };
+  const savedGallery = move?.moved.gallery;
+  const shownTiles = savedGallery ? tilesIn(gallery.length, clampBox(savedGallery, area, galleryLimits)) : tiles;
   const slideH = slideAt ? slideAt.bottom - slideAt.top : 0;
   const shownSlide = slideAt && move?.moved.slide ? { left: move.moved.slide.x, top: move.moved.slide.y, right: move.moved.slide.x + move.moved.slide.w, bottom: move.moved.slide.y + slideH } : slideAt;
   const galleryBounds = boundsOfRects(shownTiles.slice(0, gallery.length));
   const galleryBox: Box | null = galleryBounds && { x: galleryBounds.left, y: galleryBounds.top, w: galleryBounds.right - galleryBounds.left, h: galleryBounds.bottom - galleryBounds.top };
   const grips = (kind: MovableKind, box: Box | null, which: "both" | "move" | "size" = "both") =>
-    move && box ? <MoveGrips box={box} area={area} lim={LIMITS[kind]} show={which} onBox={(b, done) => move.onBox(kind, b, done)} onReset={move.onReset} moveLabel={t("moveItem")} sizeLabel={t("resizeItem")} /> : null;
+    move && box ? <MoveGrips box={box} area={area} lim={kind === "gallery" ? galleryLimits : LIMITS[kind]} show={which} onBox={(b, done) => move.onBox(kind, b, done)} onReset={move.onReset} moveLabel={t("moveItem")} sizeLabel={t("resizeItem")} /> : null;
   return (
     <div ref={host} className="okf-media" data-testid="okf-media">
       {slide && (
@@ -168,7 +170,7 @@ function ShownMedia({ show, avoid, t, onPlaced, move }: Props & { show: MediaSho
         const r = shownTiles[i];
         if (!r) return null;
         return (
-          <figure key={key} className="okf-media-tile" data-kind={item.kind} style={{ left: r.left, top: r.top, width: r.right - r.left, height: r.bottom - r.top }}>
+          <figure key={key} className="okf-media-tile" data-kind={item.kind} data-resized={savedGallery ? true : undefined} style={{ left: r.left, top: r.top, width: r.right - r.left, height: r.bottom - r.top }}>
             <MediaView item={item} t={t} onClose={() => close(key)} onBad={() => close(key)} />
             {grips("gallery", galleryBox, i === gallery.length - 1 ? "both" : "move")}
           </figure>
