@@ -127,7 +127,7 @@ Options for the owner (D32):
 
 ## Windows packaging checks
 
-Before tagging, update the installer’s “What’s new” text in `apps/desktop/build/info_en.txt` and `info_it.txt`, preserving the UTF-8 BOM and CRLF. Run `npm run build`, then `npx electron-builder --win` from `apps/desktop`.
+Before committing the version bump, update the installer’s “What’s new” text in all five files under `apps/desktop/build/`: `info_en.txt`, `info_it.txt`, `info_ru.txt`, `info_ja.txt` and `info_ro.txt`. Preserve the UTF-8 BOM and CRLF. Before tagging, run `npm run desktop:build:win` from the repository root. Its desktop `predist:win` step prepares the vendor bundles, llama runtime and UI Automation helper before packaging.
 
 - Launch `release/win-unpacked/Filow.exe` with a throwaway profile. Confirm its `startup.log` reaches “main window shown” and `release/win-unpacked/resources/app/node_modules/next` exists.
 - Check the installer and portable executable with `ExtractIconEx(path, -1, ...)`. Each must have one icon group. Repeat on the CI artifacts before feed publication.
