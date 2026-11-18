@@ -11,36 +11,47 @@ const GRIP_MARGIN = 160;
 
 const finite = (v) => typeof v === "number" && Number.isFinite(v);
 
-/** The rectangles a page reported, kept to sane ones: { left, top, right, bottom }, with a size. */
-function cleanRects(list, bounds, display = bounds) {
-  if (!Array.isArray(list)) return [];
-  const out = [];
+function clipRect({ left, top, right, bottom }, bounds) {
+  if (bounds) {
+    const x = bounds.left ?? 0, y = bounds.top ?? 0;
+    left = Math.max(x, left); top = Math.max(y, top);
+    right = Math.min(x + bounds.width, right); bottom = Math.min(y + bounds.height, bottom);
+  }
+  return right > left && bottom > top ? { left, top, right, bottom } : null;
+}
+
+/** Keep ordinary hits alongside the active grip so ownership can transfer without another IPC. */
+function cleanHitReport(list, bounds, display = bounds) {
+  const base = [], rects = [];
   let padded = false;
-  for (const r of list.slice(0, MAX_RECTS)) {
+  for (const r of Array.isArray(list) ? list.slice(0, MAX_RECTS) : []) {
     if (!r || typeof r !== "object" || ![r.left, r.top, r.right, r.bottom].every(finite)) continue;
     if (r.right <= r.left || r.bottom <= r.top) continue;
     // The validated Filow renderer supplies item geometry; main limits each reported base to 80% of its display.
     if (display && (r.right - r.left > display.width * 0.8 || r.bottom - r.top > display.height * 0.8)) continue;
-    let { left, top, right, bottom } = r;
+    const ordinary = clipRect(r, bounds);
+    if (ordinary) base.push(ordinary);
+    let rect = ordinary;
     // A report carries the normal item box plus an optional hit box. Intersect with
     // the item's fixed margin, never accept a free-standing oversized hit area.
     // Only one item per report can have padding. All other items retain normal hover.
     const h = r.hit;
     if (!padded && h && [h.left, h.top, h.right, h.bottom].every(finite) && h.right > h.left && h.bottom > h.top) {
-      left = Math.max(left - GRIP_MARGIN, Math.min(left, h.left));
-      top = Math.max(top - GRIP_MARGIN, Math.min(top, h.top));
-      right = Math.min(right + GRIP_MARGIN, Math.max(right, h.right));
-      bottom = Math.min(bottom + GRIP_MARGIN, Math.max(bottom, h.bottom));
-      padded = true;
+      rect = clipRect({
+        left: Math.max(r.left - GRIP_MARGIN, Math.min(r.left, h.left)),
+        top: Math.max(r.top - GRIP_MARGIN, Math.min(r.top, h.top)),
+        right: Math.min(r.right + GRIP_MARGIN, Math.max(r.right, h.right)),
+        bottom: Math.min(r.bottom + GRIP_MARGIN, Math.max(r.bottom, h.bottom)),
+      }, bounds);
+      padded = !!rect && (!ordinary || rect.left < ordinary.left || rect.top < ordinary.top || rect.right > ordinary.right || rect.bottom > ordinary.bottom);
     }
-    if (bounds) {
-      const x = bounds.left ?? 0, y = bounds.top ?? 0;
-      left = Math.max(x, left); top = Math.max(y, top);
-      right = Math.min(x + bounds.width, right); bottom = Math.min(y + bounds.height, bottom);
-    }
-    if (right > left && bottom > top) out.push({ left, top, right, bottom });
+    if (rect) rects.push(rect);
   }
-  return out;
+  return { base, rects, padded };
+}
+
+function cleanRects(list, bounds, display = bounds) {
+  return cleanHitReport(list, bounds, display).rects;
 }
 
 /** True when the point (window coordinates) is inside one of the rectangles: left and top edges in, right and bottom out, as a page hit-tests. */
@@ -84,4 +95,4 @@ function createHitTarget({ setIgnore }) {
   };
 }
 
-module.exports = { MAX_RECTS, GRIP_MARGIN, cleanRects, insideAny, localPoint, createHitTarget };
+module.exports = { MAX_RECTS, GRIP_MARGIN, cleanHitReport, cleanRects, insideAny, localPoint, createHitTarget };

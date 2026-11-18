@@ -18,7 +18,7 @@ const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agen
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
 const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOverlays, pointsShowMs, answering, overlayMouse, seeChoice, wordsOnlyList, pillState, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
-const { createHitTarget, insideAny, cleanRects, localPoint } = require("./okfilow-hit");
+const { createHitTarget, insideAny, cleanHitReport, localPoint } = require("./okfilow-hit");
 const { cleanShow, showFor } = require("./okfilow-media");
 const { clampBounds, movedBounds, localRect } = require("./okfilow-move");
 const { escTarget, createEscKey } = require("./okfilow-esc");
@@ -285,8 +285,19 @@ function createOkFilow(deps) {
       if (mode === "idle" || mode === "error") scheduleFade();
     },
   });
+  let gripOwner = null;
+  function applyGripReport(w, report, apply) {
+    const id = w.webContents.id;
+    if (gripOwner?.id === id) gripOwner = null;
+    if (report.padded) {
+      gripOwner?.restore();
+      gripOwner = { id, restore: () => apply(report.base) };
+    }
+    apply(report.rects);
+  }
   /** An overlay that is no more has the pointer on nothing. */
   function dropHover(senderId) {
+    if (gripOwner?.id === senderId) gripOwner = null;
     stopHover.delete(senderId);
     mediaRects.delete(senderId);
     mediaOn.delete(senderId);
@@ -462,7 +473,8 @@ function createOkFilow(deps) {
     if (!ourSender(e) || !modelWin || modelWin.isDestroyed() || e.sender !== modelWin.webContents) return;
     const bounds = modelWin.getBounds();
     const display = screen.getDisplayMatching(bounds).bounds;
-    modelHit?.rects(cleanRects(rects, { left: display.x - bounds.x, top: display.y - bounds.y, width: display.width, height: display.height }));
+    const report = cleanHitReport(rects, { left: display.x - bounds.x, top: display.y - bounds.y, width: display.width, height: display.height });
+    applyGripReport(modelWin, report, (hits) => modelHit?.rects(hits));
     modelHit?.at(localPoint(screen.getCursorScreenPoint(), bounds, true));
   });
   // The model window's handle, grip and arrow keys (okfilow-move.js): moved or resized, kept on the screen it is on.
@@ -570,9 +582,12 @@ function createOkFilow(deps) {
     const w = [...overlays.values()].find((x) => !x.isDestroyed() && x.webContents === e.sender);
     if (!w) return;
     const bounds = w.getBounds();
-    mediaRects.set(e.sender.id, cleanRects(rects, bounds, screen.getDisplayMatching(bounds).bounds));
-    lastCursor = "";
-    mediaHit(w, localPoint(screen.getCursorScreenPoint(), w.getBounds()));
+    const report = cleanHitReport(rects, bounds, screen.getDisplayMatching(bounds).bounds);
+    applyGripReport(w, report, (hits) => {
+      mediaRects.set(w.webContents.id, hits);
+      lastCursor = "";
+      mediaHit(w, localPoint(screen.getCursorScreenPoint(), w.getBounds()));
+    });
   });
 
   // ---- overlays ----

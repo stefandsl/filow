@@ -6,7 +6,7 @@ import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
-const { cleanRects, createHitTarget, insideAny, localPoint } = require("./okfilow-hit.js");
+const { cleanHitReport, cleanRects, createHitTarget, insideAny, localPoint } = require("./okfilow-hit.js");
 const { overlayMouse } = require("./okfilow-stop.js");
 const source = readFileSync(new URL("./okfilow.js", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const item = { left: 300, top: 250, right: 700, bottom: 570 };
@@ -29,7 +29,7 @@ function setup() {
   let allowed = true;
   const modelHit = createHitTarget({ setIgnore: model.setIgnoreMouseEvents });
   const context = {
-    cleanRects, createHitTarget, insideAny, localPoint, overlayMouse, ipcMain, modelHit, modelWin: model,
+    cleanHitReport, cleanRects, createHitTarget, insideAny, localPoint, overlayMouse, ipcMain, modelHit, modelWin: model,
     overlays: new Map([[1, overlay], [2, second]]), ourSender: () => allowed,
     mediaRects: new Map(), mediaOn: new Set(), stopHover: new Set(), mouseWas: new Map(), bubbleHover: new Set(),
     mouseCaught: false, mode: "idle", pill: {}, bubble: { open: () => false, setHover: vi.fn() }, QA_SHOTS: false,
@@ -38,7 +38,8 @@ function setup() {
     watchHitRects: (_w: typeof overlay, _hit?: unknown) => {},
   };
   runInNewContext([
-    ...["applyMouse", "mediaHit", "dropHover", "watchHitRects"].map((name) => section(`  function ${name}(`, "\n  }")),
+    "let gripOwner = null;",
+    ...["applyGripReport", "applyMouse", "mediaHit", "dropHover", "watchHitRects"].map((name) => section(`  function ${name}(`, "\n  }")),
     section('  ipcMain.on("okfilow:overlay:rects"', "\n  });"),
     section('  ipcMain.on("okfilow:model:rects"', "\n  });"),
   ].join("\n"), context);
@@ -132,5 +133,19 @@ it("rejects oversized item bases before padding or clipping", () => {
   expect(cleanRects([limit], display)).toEqual([limit]);
   for (const oversized of [{ ...limit, right: 821 }, { ...limit, bottom: 651 }, { ...limit, left: -900 }]) {
     expect(cleanRects([oversized, { ...oversized, hit: inflated.hit }, item], display)).toEqual([item]);
+  }
+});
+
+it("transfers the only padded grip across overlays and the model, preserving ordinary hits", () => {
+  const h = setup();
+  for (const [previous, next] of [[h.overlay, h.second], [h.second, h.model], [h.model, h.overlay]]) {
+    h.send(previous, [inflated]);
+    h.send(next, [inflated]);
+    expect(previous.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
+    expect(next.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+    h.point({ x: 500, y: 400 });
+    h.context.mediaHit(previous, { x: 500, y: 400 });
+    expect(previous.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+    h.point({ x: 710, y: 580 });
   }
 });
