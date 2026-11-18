@@ -16,8 +16,17 @@ do not use its publish/finish stages for the new release path.
    It requires the commit on remote main, a matching package version, a version strictly
    above feed Latest, and no existing source or feed release with that tag. Keep this file;
    do not regenerate it after building. CI also checks these conditions before tag builds.
-3. Create/push the tag at that exact commit using the normal release procedure. Wait for
-   Desktop builds to finish successfully on all three platforms. CI attaches assets only
+3. After preflight succeeds, read the version and commit from the evidence saved in step 2.
+   From the source checkout, create the tag and push it to the source remote:
+
+   ```powershell
+   $preflight = Get-Content -Raw 'G:\release-X.Y.Z\preflight.json' | ConvertFrom-Json
+   $tag = "v$($preflight.version)"
+   git tag $tag $preflight.tagSha
+   if ($LASTEXITCODE -eq 0) { git push origin "refs/tags/$tag" }
+   ```
+
+   Continue only after the push succeeds. Wait for Desktop builds to finish successfully on all three platforms. CI attaches assets only
    to `stefandsl/filow`. CI has no feed credential. The owner copies the release assets to
    `stefandsl/filow-releases` through the draft and publish stages below. Include `latest.yml`,
    `latest-mac.yml` and `latest-linux.yml`. Exclude `builder-debug.yml`.
