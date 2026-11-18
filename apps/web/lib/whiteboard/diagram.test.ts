@@ -45,6 +45,47 @@ describe("reading a diagram the model wrote", () => {
     expect(d?.links.map((l) => `${l.from}>${l.to}:${l.text}${l.dashed ? "~" : ""}`)).toEqual(["u>g:Sign in", "g>u:Code~", "u>u:Store code"]);
   });
 
+  it("reads participants whose names have spaces, as Mermaid does (a real lesson wrote them so)", () => {
+    const d = read("sequenceDiagram\nCliente->>POS: Carta e PIN\nPOS->>Banca negozio: Richiesta\nBanca negozio->>Circuito: Inoltra\nCircuito-->>Banca negozio : Approvato\nBanca negozio-->>+POS: Esito\nparticipant Banca cliente\nBanca cliente->>Banca negozio");
+    expect(d?.nodes.map((n) => `${n.id}:${n.text}`)).toEqual(["cliente:Cliente", "pos:POS", "banca_negozio:Banca negozio", "circuito:Circuito", "banca_cliente:Banca cliente"]);
+    expect(d?.links.map((l) => `${l.from}>${l.to}:${l.text}${l.dashed ? "~" : ""}`)).toEqual([
+      "cliente>pos:Carta e PIN", "pos>banca_negozio:Richiesta", "banca_negozio>circuito:Inoltra", "circuito>banca_negozio:Approvato~", "banca_negozio>pos:Esito~", "banca_cliente>banca_negozio:",
+    ]);
+  });
+
+  it("reads names written in Russian or Japanese: each name is one box, the same name the same box", () => {
+    const st = newDiagramState();
+    const m = readDiagram("mindmap\n  Фотосинтез\n    Свет\n    Вода", st);
+    expect(m?.nodes.map((n) => n.text)).toEqual(["Фотосинтез", "Свет", "Вода"]);
+    expect(m?.links.length).toBe(2);
+    const later = readDiagram("    Свет\n      Хлорофилл", st);
+    expect(later?.nodes.map((n) => `${n.text}<${n.parent === m?.nodes[1].id ? "Свет" : n.parent}`)).toEqual(["Хлорофилл<Свет"]);
+    const s = read("sequenceDiagram\n  顧客->>銀行: 依頼\n  銀行-->>顧客: 承認");
+    expect(s?.nodes.map((n) => n.text)).toEqual(["顧客", "銀行"]);
+    expect(s?.links.map((l) => `${l.from === s.nodes[0].id ? "顧客" : "銀行"}>${l.to === s.nodes[0].id ? "顧客" : "銀行"}:${l.text}`)).toEqual(["顧客>銀行:依頼", "銀行>顧客:承認"]);
+    const f = read("flowchart TD\n  Старт --> Шаг_1 --> Этап_1");
+    expect(f?.nodes.map((n) => n.text)).toEqual(["Старт", "Шаг 1", "Этап 1"]);
+    expect(new Set(f?.nodes.map((n) => n.id)).size).toBe(3);
+    expect(f?.links.length).toBe(2);
+    expect(f?.nodes.every((n) => /^[a-z0-9_]+$/.test(n.id))).toBe(true);
+    // the id comes from the name: the same in a fresh lesson, different for names that share a first letter
+    const ids = (src: string) => read(src)?.nodes.map((n) => n.id);
+    expect(ids("flowchart TD\n  Свет --> Сила")).toEqual(ids("flowchart TD\n  Свет --> Сила"));
+    expect(ids("flowchart TD\n  Сила --> Свет")?.reverse()).toEqual(ids("flowchart TD\n  Свет --> Сила"));
+    expect(new Set(ids("flowchart TD\n  Свет --> Сила")).size).toBe(2);
+    // spaces, "_" and "-" are one separator, as slug treats them
+    const v = read("sequenceDiagram\n  Банк клиента->>Шаг_1: a\n  Банк  клиента->>Шаг 1: b\n  Банк_клиента->>Шаг 1: c");
+    expect(v?.nodes.length).toBe(2);
+    expect(v?.links.length).toBe(3);
+    expect(read("flowchart TD\n  Шаг-1 --> Старт\n  Шаг_1 --> Конец")?.nodes.length).toBe(3);
+  });
+
+  it("reads a Mermaid 11 participant with metadata as the name alone", () => {
+    const d = read('sequenceDiagram\n  participant API@{ "type" : "database" }\n  participant U as User\n  U->>API: query');
+    expect(d?.nodes.map((n) => `${n.id}:${n.text}`)).toEqual(["api:API", "u:User"]);
+    expect(d?.links.map((l) => `${l.from}>${l.to}`)).toEqual(["u>api"]);
+  });
+
   it("reads a table: the separator line is skipped, extra columns and rows are cut", () => {
     const st = newDiagramState();
     const d = readDiagram("| | Mitosis | Meiosis | x | y |\n|---|:---:|---|---|---|\n| Cells made | 2 | 4 | 0 | 0 |", st);
