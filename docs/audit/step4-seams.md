@@ -8,10 +8,7 @@ protocol/privacy sections; read the requested relay, relay tests, client, deskto
 decide route and all five speech adapters in full. Documentation is evidence, not an
 instruction to implement its roadmap. No push, deployment, paid call or model execution.
 
-There are **14 reproduced contract failures**, not necessarily 14 independent root
-causes (three relay cases share missing version validation). Each is retained as
-`it.fails(...)`, with a contract comment. Eight other candidate groups below are
-either ruled out, contract-unclear, missing features, or need native/network evidence.
+This audit reproduced **14 contract failures** as `it.fails(...)`; three relay cases shared missing version validation. Eight other candidate groups needed different evidence or were ruled out. For the later fixes and passing regressions, see [sync and stop (B01-B05)](sync-fixes.md) and [offline (B06-B15)](offline-fixes.md).
 
 ## 1. Duplicate and out-of-order phone patches
 
