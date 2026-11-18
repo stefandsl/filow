@@ -48,23 +48,11 @@ To syntax-check `installer.nsh` locally, compile a small Unicode harness with th
 - OpenRouter calls go through `apps/web/lib/openrouter.ts` (fallback models, 429 retry). Do not call
   the API directly from new code.
 - Never commit `.env`, keys, `design/` (ignored), `release/`, `apps/web/public/powerpoint`.
-- Commit messages: imperative title, body with the why; version bumps touch every `package.json`
-  and `apps/browser/manifest.json` (`grep -rl '"0.9.30"'` with the current version).
+- Give commits an imperative title and explain why in the body. When bumping the version,
+  search for the current version (for example, `grep -rl '"0.9.30"'`) and follow the release checklist below.
 - Verify before claiming done: `npm run typecheck && npm run lint && npm test`, and look at the page in a browser
   for UI work (dark and light theme).
 
 ## Release
 
-1. Bump the version in every `package.json` + `apps/browser/manifest.json`, `npm install --package-lock-only --ignore-scripts`.
-2. Commit, `git tag vX.Y.Z`, `git push origin main vX.Y.Z`.
-3. CI (`.github/workflows/desktop.yml`) builds Windows, macOS, Linux and attaches installers to the
-   GitHub release on the source repo `stefandsl/filow` (public since 2026-11-03).
-4. The installed apps update from the PUBLIC repo `stefandsl/filow-releases`. Until the
-   `RELEASES_TOKEN` secret exists, copy the assets by hand:
-   ```bash
-   gh release download vX.Y.Z --repo stefandsl/filow -D /tmp/assets && rm -f /tmp/assets/builder-debug.yml
-   gh release create vX.Y.Z --repo stefandsl/filow-releases --title "Filow vX.Y.Z" --notes "..." /tmp/assets/*
-   curl -sL https://github.com/stefandsl/filow-releases/releases/latest/download/latest.yml | head -1
-   ```
-   `latest.yml` (Windows), `latest-mac.yml`, `latest-linux.yml` must all be there or that platform's
-   updater reports "Not Found".
+Follow the [release checklist](docs/RELEASE-CHECKLIST.md) for version bumps, pushing main and the version tag, all three CI builds, and copying the verified source assets to the public updater feed with all three manifests.

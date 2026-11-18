@@ -7,9 +7,10 @@ Use `tools/release/release.ps1` with PowerShell 7, Node 22, the locked npm depen
 Keep release files, temporary data and caches on G:. The orchestrator copy is not updated;
 do not use its publish/finish stages for the new release path.
 
-1. Run the tests, typecheck and lint. Commit the version bump on main and push main through
-   the normal reviewed process. Do not push the version tag yet. The repository script
-   does not bump versions, commit, merge, push or tag for you.
+1. Update every `package.json` and `apps/browser/manifest.json` to the release version.
+   Run `npm install --package-lock-only --ignore-scripts`, then the tests, typecheck and lint.
+   Commit the bump and lockfile on main and push main through the normal reviewed process.
+   Leave the version tag for step 3. The release script does not bump, commit, merge, push or tag.
 2. Before building, save immutable preflight evidence:
    `pwsh tools/release/release.ps1 -Version X.Y.Z -Stage preflight -Commit <full-main-commit> -Work G:\release-X.Y.Z`.
    It requires the commit on remote main, a matching package version, a version strictly
@@ -17,7 +18,9 @@ do not use its publish/finish stages for the new release path.
    do not regenerate it after building. CI also checks these conditions before tag builds.
 3. Create/push the tag at that exact commit using the normal release procedure. Wait for
    Desktop builds to finish successfully on all three platforms. CI attaches assets only
-   to the source repository. It has no feed credential and cannot publish the feed.
+   to `stefandsl/filow`. CI has no feed credential. The owner copies the release assets to
+   `stefandsl/filow-releases` through the draft and publish stages below. Include `latest.yml`,
+   `latest-mac.yml` and `latest-linux.yml`. Exclude `builder-debug.yml`.
 4. Run `-Stage draft` with the same version/work directory and `-Notes <reviewed-notes.md>`.
    The verifier checks CI identity/success, the unmoved tag, all 17 named assets, all manifest
    references/hashes/sizes, and the extracted Windows installer's version, sourceSha,
@@ -121,6 +124,14 @@ Options for the owner (D32):
    macOS users of the unsigned builds reinstall (they would anyway once builds are signed).
 3. Change it later: same work as option 2 plus a manual reinstall and new permissions for every signed
    macOS user, and impossible for any store listing that already exists.
+
+## Windows packaging checks
+
+Before tagging, update the installer’s “What’s new” text in `apps/desktop/build/info_en.txt` and `info_it.txt`, preserving the UTF-8 BOM and CRLF. Run `npm run build`, then `npx electron-builder --win` from `apps/desktop`.
+
+- Launch `release/win-unpacked/Filow.exe` with a throwaway profile. Confirm its `startup.log` reaches “main window shown” and `release/win-unpacked/resources/app/node_modules/next` exists.
+- Check the installer and portable executable with `ExtractIconEx(path, -1, ...)`. Each must have one icon group. Repeat on the CI artifacts before feed publication.
+- Revert incidental build changes to `apps/desktop/build/license_en.txt`, `apps/desktop/build/license_it.txt` and `apps/powerpoint/manifest.xml`.
 
 ## Release candidate checks (each release)
 

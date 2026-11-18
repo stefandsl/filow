@@ -1,323 +1,24 @@
 # Filow hand-off
 
-## O2 merge blockers (2026-11-18, unreleased)
+## Where it stands (18 November 2026)
 
-The overlay now reports each item's buttons alongside its body. On a 1280 x 720
-display the dotted handle at (470, 56) accepts a new drag after resizing the
-photo to 860 x 641. Moved galleries remember how many rows their height covered.
-Closing three of six photos preserves the tile height and exposes the slide's
-Close button at (786, 298).
+The integration candidate at `4e0bb19` includes bounded overlay resizing and the 2D drawing width fix. Eight branches landed on the candidate. Its gate had 4,183 passes, 12 skips and the same three desktop QA failures as main. For the branch decisions, issue 8 reproduction and comparison with main, see `G:/FILOW/tmp/codex/integ/report-1.md`.
 
-Both regressions failed on 88f1589. Offline Chromium passed both interactions
-in dark and light themes. Vitest passed 4,037 tests with 12 skipped and the same
-three desktop QA baseline failures. Typecheck and lint passed. Native Windows
-click-through remains a manual check. Evidence is in tmp/o2-round7 and
-G:/FILOW/tmp/codex/o2/report-7.md.
-
-## O2 final review fixes (2026-11-18, unreleased)
-
-Oversized overlay items keep a bounded hit area at their control corner. The
-resized gallery reserves 48 px of media per row plus space for its controls
-and caption. Model drags survive capture loss and forwarded buttonless hover.
-A chorded primary release finishes the grip. Closing or replacing an answer
-immediately releases its bubble hover and rectangles while preserving pill and
-media hits.
-
-All five review scenarios failed on 59c3b88. The final suite passed 4,034 tests
-with 12 skipped and the same three desktop QA baseline failures. Typecheck and
-lint passed. The six-picture minimum was checked in offline Chromium in both
-themes. Native Windows input and click-through remain manual checks.
-Evidence is in worktree tmp/o2-round5 and G:/FILOW/tmp/codex/o2/report-5.md.
-
-## O2 bounded live resize (2026-11-18, unreleased)
-
-On feat/o2-hitarea, item grips update size on every pointermove and report a
-160 px hit margin on animation frames through the existing rectangle IPCs.
-Main caps padding to one item per report and clips it to the display. The 3D
-window tests its captured pointer outside native bounds against that same
-bounded rectangle. No grip hold, native button tracking, lease or timer was added.
-Pointer release/cancel/capture loss/unmount removes padding; renderer teardown,
-crash and reload clear main's hit state. The bubble's explicit width can exceed
-its automatic width limit and its transitions are disabled while dragging.
-
-Gates: 4,014 tests passed, 12 skipped, only the three qa.test.ts baseline failures;
-typecheck and lint passed. All 28 new tests pass; eight targeted regressions fail
-with the original renderer and rectangle sanitizer. Evidence: tmp/o2 and
-G:/FILOW/tmp/codex/o2/report-1.md. Both manuals describe the live resize behavior.
-
-Pending: native Windows checks for all six item types in dark/light themes,
-fast corner drags, DPI/display edges and capture cancellation. A pointer jump
-beyond the fixed margin is deliberately not covered by a global hold. No app,
-server, native input, installed profile, merge, push, tag or release was used.
-
-## TK-14 standalone branch (2026-11-18, unreleased)
-
-The four TK-14 commits are isolated on feat/tk14 from main. Handoff conflicts
-were resolved with TK-14 text only; no O2 code or documentation was carried over.
-Standalone gates: 3,986 tests passed, 12 skipped, only the three qa.test.ts
-baseline failures; typecheck and lint passed. All TK-14 tests passed.
-Evidence: tmp/report7/tk14-*.log and G:/FILOW/tmp/codex/tk14-o2/report-7.md.
-No merge, push, tag, app, server, native input or installed-profile change.
-
-## TK-14 final fix round (2026-11-18, unreleased)
-
-Restored main's visual extraction order and removed the malformed-card prepass.
-The only card grammar extension is complete bracketed field text, including
-`[PERSON_NAME]` and `[key:value]`. Title/label cleanup and whiteboard isolation
-remain. Frozen main parser/visuals fixtures drive 43 differential answer cases;
-three nested-card cases and existing stream-boundary cases cover the extension.
-
-This supersedes the malformed-card guarantees in the earlier entry below.
-Main itself discards the tail of an unclosed card before a drawing/model fence
-and can retain literal placeholder fragments from malformed cards. Those known
-behaviors are preserved to honor the final-round main-compatibility requirement.
-
-Final gates: 4,026 tests passed, 12 skipped, only the same three qa.test.ts baseline
-failures; typecheck and lint passed. Focused checks: 227 passed. Fail-before on
-a83a301: 24 failures across review probes and differential cases, 45 passed.
-Evidence: tmp/review5 and G:/FILOW/tmp/codex/tk14-o2/report-5.md. Two local commits;
-no merge, push, tag, server, app, native input, generated-file or profile change.
-
-## TK-14 review fixes (2026-11-18, unreleased)
-
-TK-14 placeholder cleanup is explicitly selected by OK Filow answer extraction.
-Shared drawing validation again preserves whiteboard sketch labels and titles,
-including label-only sketches that contain literal `[EMAIL]` template syntax.
-
-Malformed cards now stop at their own closing bracket or the following tag;
-only unfinished trailing cards consume the answer tail. Regressions cover prose,
-POINT marks, redaction notices, nested placeholders and every stream boundary.
-Cleanup happens before later CARD, MEDIA and SLIDE tags are extracted, preserving
-their following prose too. Final gate: 3,965 tests passed, 12 skipped, only the three
-existing qa.test.ts baseline failures; typecheck and lint passed. All 22 added tests
-pass. Evidence: worktree tmp/review3 and G:/FILOW/tmp/codex/tk14-o2/report-3.md.
-No merge, push, tag, generated-file change or installed-profile change was made.
+- **O2.** Photo handles remain reachable after resizing and a moved gallery gives back space as photos close. Native Windows drag and click-through checks remain open. See `G:/FILOW/tmp/codex/o2/report-7.md`.
+- **TK-14.** Main includes placeholder cleanup in OK Filow answers and complete bracketed card fields. The final parser keeps main's behavior for malformed cards and preserves whiteboard labels. See `G:/FILOW/tmp/codex/tk14-o2/report-5.md` for the compatibility cases.
 
 C6, C12, C23, C27 and C28 are held on `audit/fixes-0.9.42` for an eval-driven track.
 
-## Natural voice worktree (2026-11-14, unreleased)
+## Measurements and open checks
 
-`feat-voice-natural` measured 652 answers across 21 variants, including full
-precision Supertonic, Piper and Kokoro. Automatic speaker recommendations use
-IT/EN 9, RU/RO 2, JA 4 while preserving explicit choices. The progressive voice
-queue combines waiting continuation sentences without delaying the first one.
-Four-sentence queue QA removed about 1.27 seconds of dead air. No new model ships.
-
-Evidence and limitations: `docs/okfilow/VOICE-NATURAL-2026-11.md` and the linked
-full tables. Blind offline listening: `G:/FILOW/tmp/voice-natural/listen/index.html`,
-with a separate `listen-key.json`. Human preference is still unverified; DNSMOS
-is a quality proxy, not a validated multilingual naturalness score. This fast
-desktop is not a mid-range CPU acceptance test. Existing speaker 0 stays selected
-until the owner chooses Automatico or another speaker.
-
-Validation: 3,203 tests passed, 5 skipped; typecheck and lint passed; eight targeted
-mutations killed. Hidden offscreen checks covered five languages and both themes,
-plus the offline listening page. No audio playback, microphone, installed profile,
-global input, or visible test window was used. No merge, push or tag; AGENTS.md
-is excluded from the commits.
-## Pointer-only hardening rework (2026-11-14, unreleased)
-
-Supersedes item 1 and its 59 retry/failure outcome in the historical section below.
-Local commits ef7e0c8 and 08c3ec8 accept valid pointer-only answers, salvage
-two-coordinate BOX tags and provide EN/IT/RU/RO/JA app-built words with provenance.
-Retry now requires no words and no valid mark. No online prompt changes.
-
-Six prompt conditions were measured on 60 warm questions plus 40 pointing screens
-each. Compact-exact alone passed all gates and is adopted only for English,
-single-screen, known-target local lfm3-vl questions. Final 60: 60 model-written
-answers, zero truly empty, retries or failure messages. Core-fix-only run: 60
-app-built answers, zero retries/failures. 3,291 tests pass, 7 skip; typecheck/lint
-pass; 26/26 mutations caught and restored; 10 hidden language/theme QA cases pass.
-One unrelated download timing failure passed an unchanged full rerun.
-
-Evidence, prompt tables, scope and timing limitations:
-`docs/design/paid/HARDENING-2026-11-14.md`. Native microphone/audio/overlay, GPU,
-non-English prompt performance and paid routes are not measured. No merge, push,
-tag, installed profile, real microphone or paid API. Tool-modified AGENTS.md stays
-out of commits. Item 4 native uninstall cleanup remains pending as below.
-
-## Decision-independent hardening (2026-11-14, unreleased)
-
-`feat-hardening` adds local empty-answer retry with five-language fallback,
-persistent account sign-in limits and a desktop device cap, runtime version
-checks, and provenance-based model deletion. No paid-path choice or activation.
-Four local commits only; no merge, push or tag. Evidence and exact limitations:
-`docs/design/paid/HARDENING-2026-11-14.md`.
-
-Validation: npm ci, 3,237 passing tests (6 skips, including opt-in measurement),
-typecheck and lint pass. 12/12 removed-protection mutations caught and restored.
-120 real-model warm questions: completely empty display 4/60 before, 0/60 after;
-words-free model replies remain 59/60 in both phases, with 59 retry/fallbacks after.
-Reproduction: a malformed two-coordinate BOX is dropped by the parser; historical
-raw response bytes were not saved. Hidden string QA passes five languages and
-both themes, with ten screenshots; native/panel flow acceptance remains unverified.
-
-Pending: item 4's native runtime/model uninstall cleanup offer is incomplete.
-The existing native uninstaller preserves everything; ownership records and
-Settings model deletion are implemented, runtime removal is not automated.
-Authoritative running executable/store identity and shared-use detection are
-absent from Ollama's API. Also unverified: deployed logging/auth, old binary with
-modern model formats, native translations, cross-platform clean-VM F1 acceptance.
-No installed profile, owner Ollama, real microphone, desktop input or paid API used.
-
-## Wake-word round 3 measured result, 2026-11-14
-
-Merged into main on 2026-11-15 at the owner's request, against the branch's own "no ship"
-verdict below. It stays off by default (`wakeWord: false`) and needs personal enrolment to turn
-on. The limits below still hold: treat it as experimental in any release notes.
-
-On feat-wake-word, original stage (a) differs on all 80 augmented clip hashes
-and 55 durations. Portable JS/Python augmentation now matches bit-for-bit;
-embedding max error is 7.45e-8. The explicitly changed reference also adopts
-the app's SGD and bundled quantized negative/calibration split. It agrees on
-500/500 decisions, but is not the original sklearn spike: 34/256 diagnostic
-misses and 91/144 near accepts, versus the old reference's 24 and 76.
-
-Balanced default stays at 20% hard-negative sampling after a calibration curve.
-Five distinct held-out voices miss 3/48 clean/noisy calls, accept 12/26 reserved
-test near phrases, and produce 15 false accepts across 5 x 4 h of background
-(0.75/hour mean, 1.5 worst). Two optional personal negatives reduce near accepts
-to 9/26 with unchanged misses. Five-language Settings now shows own-take replay
-results and requires >=4/5 recognised and zero supplied negative accepts before
-enable. The check uses training takes, not new speech; legacy heads need retraining.
-
-Both native detectors now share a serial utility process. Whole-app 60-second
-fake-mic CPU is 8.89% before and 9.40% after. Item 4 remains incomplete: Chromium
-capture, audio service and per-100-ms IPC remain; the <4% target fails. No ship
-recommendation, including experimental opt-in. Full evidence and round 0-3 table:
-docs/okfilow/WAKE-WORD.md and wake-round3-results.json. Full checks: 3,245 tests
-pass, six skip; typecheck/lint pass; 53 mutations caught. Hidden UI checks cover
-five languages and two themes. No real mic, merge, push, tag or installed profile.
-AGENTS.md is excluded. Remaining work is capture architecture/CPU, background
-false accepts, owner count-only accuracy trial and the original platform/licence
-and real STT handoff limitations. The new parity result does not remove them.
-
-## Wake-word round 2 partial checkpoint, 2026-11-14
-
-Merged origin/main 78830a7 into feat-wake-word in 041b650, preserving both sides.
-The round 2 request is not complete. Relative 20 ms energy-based phrase-end
-labels and preservation of enrolment tails now match the reference convention.
-On the 500-clip diagnostic, app/reference decisions agree on 446 (89.2%), below
-98%; app misses are 46/256 and near accepts 98/144 without hard negatives.
-The positive-matrix-only Python ablation does not improve (45 misses versus 44).
-Do not call this augmentation or training parity. No ship recommendation.
-
-Final checks: 3,237 tests pass, five skip, typecheck and lint pass; 44 mutations
-caught, including the three framing rules and the 98% acceptance boundary.
-Native feature reference tests ran with the existing downloaded ONNX models.
-The new training-parity acceptance command correctly exits 1 on current evidence.
-Full results and all 54 disagreements: docs/okfilow/WAKE-WORD.md and the two
-wake-round2 JSON reports beside it. Test files, matrices and logs are on G:.
-
-Still pending: matching pitch/noise/speech lead-in augmentation, seed semantics,
-unquantized negatives and optimizer; held-out five-head/4-hour reruns and hard
-negative trade-off; optional personal negatives; CPU process consolidation and
-new 60-second measurements; the recognised-N-of-5 enable gate. No real microphone,
-visible UI, installed profile, merge into main, push or tag was used. AGENTS.md
-remains excluded. The round 1 CPU and held-out numbers are not round 2 results.
-
-## Experimental branch update, 2026-11-14
-
-Wake-word rework round 1 remains unmerged and not recommended for shipping.
-The identical-WAV comparison found a streaming mel normalization defect:
-the model clips against the maximum of its whole input, while the app used
-independent short blocks. Retained-context normalization and cache rebuilding
-now match final Python reference contexts within 7.90e-7 over 500 WAVs. Shared
-head arithmetic matches within 2.03e-6; keyword times match on all 500 clips.
-Training/calibration parity is still missing. Matched-corpus Python training
-misses 24/256 versus the original app's 52/256 under the same per-clip rule.
-Changing only Python's positive augmentation to the app's raises misses to
-44/256 and near-miss accepts from 76 to 94/144, proving a major augmentation gap.
-
-Numerical hard negatives reduce calibration near-miss accepts from 95/144 to
-62/144 but increase chronological replay misses from 50/256 to 62/256.
-Five genuinely distinct held-out speaker IDs miss 13/48 clean/noisy calls
-(20/64 including pitch shifts) and accept 14/36 near-misses. The 60-second
-hidden fake-microphone CPU run is 9.96% of one core, still above 4%.
-Four hours of background on each of those heads give Balanced 0.40 false
-accepts/hour on average, 1.25/hour worst, also above target.
-Full evidence, per-language counts, four-hour background results and unresolved
-acceptance gates: `docs/okfilow/WAKE-WORD.md` and `wake-round1-results.json`.
-All 40 mutations caught; Vitest 3,170 pass, six skipped; typecheck and lint pass.
-Pending: optimizer/augmentation/calibration parity, target-quality operating
-point, CPU reduction, personal negatives, long-running normalization and the
-original real-room/STT/platform/licence checks. No real microphone was opened.
-
-`feat-wake-word` adds opt-in local OK Filow detection and five-take enrollment.
-This work was unmerged until 2026-11-15 (see the round 3 note). Defaults, architecture,
-reproduction and evidence are in `docs/okfilow/WAKE-WORD.md`. Balanced scored
-50/256 misses, 95/144 near-miss accepts and 0 accepts in two hours of held-out
-background (one head). Do not ship on these results. Pending: owner real-voice
-room testing, better near-miss rejection, real STT handoff validation, original
-Google model-card confirmation and cross-platform/low-tier hardware checks.
-## Safe preparation worktree (2026-11-14, unreleased)
-
-`feat-safe-prep`, based on `771ddf1`, implements four owner-independent items:
-package `updates=false` suppresses updater loading/checks/installation; checkout
-returns typed `billing_not_open` while live billing is off, with five-language UI;
-release verification optionally requires an exact allowlisted account origin;
-and first-run captions now ship in EN/IT/RU/RO/JA with UI-language selection.
-No provider, assist endpoint, allowance, price, origin or live billing was enabled.
-
-Validation: npm ci succeeded; `npx vitest run --maxWorkers=4` passed 3,196 tests
-(5 existing skips, 255 files); typecheck and lint passed. Seven of seven mutations
-were caught and restored. Hidden renderer QA passed 10 language/theme combinations
-for both account closure and video captions, with 20 screenshots and no page overflow.
-The QA instance used G:/FILOW/tmp/safe-prep, HTTP 4981/debug 9581, fake bridges,
-NO_GLOBAL_INPUT and HEADLESS. It exited; no installed profile or model was used.
-
-Pending/known gaps: native translation review, packaged pilot update/return-to-public
-acceptance, native menu popup rendering, deployed auth/Stripe, production-origin
-release wrapper wiring, and full F1 clean-VM real-answer acceptance. /tour has no
-video, so it was unchanged. Details: docs/design/paid/SAFE-PREP-2026-11-14.md.
-Four local commits only; no merge, push or tag. Tool-modified AGENTS.md is excluded.
-
-
-## Phase 2b answer latency worktree (2026-11-14, unreleased)
-
-`feat-phase2b` aligns local weight warm-up with the question's 8192 context,
-reduces local screenshot width to 512 after a 40-screen three-size trial, and
-reduces the non-dictation transcript handoff grace from 200 to 50 ms. Online
-screenshots remain 1024. Recognizer startup and date-prefix behavior are unchanged.
-
-Evidence, acceptance results and exact sample counts: `docs/perf/LATENCY-2026-11.md`.
-Design and image choice: `docs/perf/PHASE-2B.md`. Full checks: 3,171 tests pass,
-5 skip, typecheck and lint pass; 4/4 mutations caught, 11/11 hidden microphone
-E2E checks pass, final-package deterministic Stop/Resume passes. QA package and
-raw samples remain under `G:/FILOW/tmp/latency`; no installed profile was used.
-
-Standard acceptance passes: 45 valid warm / 31 cold, first-token medians improve
-25.4% / 35.2%, with both p90 values lower. One empty model answer stopped the
-warm repeat; real-model speaking-stop has no valid sample. These remain limits.
-
-Pending before broader claims: GPU cold-start measurements, real desktop/UIA and
-dense-text pointing, physical microphone/speaker latency, live phone questions.
-Online calls were intentionally skipped. Baseline voice distributions are absent;
-new speech-only samples cannot prove a voice speedup. No merge, push or tag.
-
-## R2 release verification worktree (2026-11-14, unreleased)
-
-`feat-r2-verify` adds the pure release verifier, offline CLI fixtures and mutation runner,
-an owner-only preflight/draft/publish script, explicit no-downgrade updater configuration,
-and a manual-only clean Windows installer smoke job. CI no longer writes to the feed.
-The release checklist includes recall and first-paid-release upgrade checks; EN/IT manuals
-describe the new path. The external orchestrator script is unchanged.
-
-Validation: 3,163 tests pass (5 skipped), typecheck and lint pass, 34 release-focused tests
-pass, 21/21 removed-rule mutations are caught and restored. Read-only 0.9.38 audit: all 17
-assets/manifests, CI jobs, sourceSha and absent accountOrigin pass; the new explicit
-allowDowngrade=false check fails because the old installer does not set it explicitly.
-Evidence and limits: `docs/releases/R2-VERIFY-2026-11-14.md`.
-
-Pending: validate the manual CI smoke and actual PowerShell 7 publication path before use;
-no workflow or GitHub write was run here. Review the production account-origin allowlist
-(empty by default), D6 publisherName when signing lands, and the manual paid-upgrade gate.
-Only Windows installer metadata is extracted; other platform bytes are hash-checked.
-No merge, push, tag, installed-app change or feed change was performed.
-
-Last updated 2026-11-12 (faster answers, onboarding and accounts). Written so that
-another agent (Codex, Claude, a human) can continue without the chat history. Update this file at the
-end of every working session: "Where it stands", "Pending" and "Known gaps" are the parts that rot.
+- **Local voice.** [Speaker selection and queue measurements](docs/okfilow/VOICE-NATURAL-2026-11.md) and [pronunciation and endings](docs/okfilow/VOICE-NATURAL-ROUND2.md) include the listening sets and the owner’s first-round choices. Acceptance of round 2 remains open.
+- **Local answers and install cleanup.** [Hardening evidence](docs/design/paid/HARDENING-2026-11-14.md) covers pointer-only answers, prompt scope, account limits and model ownership. Native runtime removal remains open.
+- **Wake word.** Merged on 15 November at the owner's request, off by default and gated by personal enrolment. The [wake-word evaluation](docs/okfilow/WAKE-WORD.md) records the no-ship recommendation, false accepts, CPU target and outstanding owner trial.
+- **Paid preparation.** [Safe preparation](docs/design/paid/SAFE-PREP-2026-11-14.md) records the packaged updater, billing and captions checks. [Paid readiness](docs/design/paid/STATUS.md) tracks the remaining acceptance gates.
+- **Answer latency.** [Phase 2b measurements](docs/perf/LATENCY-2026-11.md) cover standard CPU results, sample exclusions and outstanding GPU, microphone and phone checks.
+- **Releases.** [R2 verification evidence](docs/releases/R2-VERIFY-2026-11-14.md) covers the installer audit and outstanding manual smoke and publication checks.
+- **Scorecard.** See [score recovery](docs/autoloop/FIX-SCORE-2026-11-14.md) for the measurements and evidence expiry.
+- **Overlay motion.** The [final 2B rework](docs/okfilow/OVERLAY-R2B-REWORK4.md) records the sampled frame results. Owner visual and native checks remain open.
 
 ## What Filow is
 
@@ -329,112 +30,14 @@ network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues f
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
 OpenRouter with a PII guard (Rizzo-PII) in front.
 
-## Quality score recovery (fix-score, 2026-11-14)
+## Historical branch and release notes (through 12 November 2026)
 
-Based on main `12f7c8b`, Electron's two desktop pins and the tracked lockfile move
-from 45.3.1 to 45.3.2. The unchanged quick score is 97.05, gates PASS, above 93.66.
-Fresh fake-audio local and offline takes pass 3/3 points; offline has zero outbound.
-All 3,093 tests pass (5 skipped), typecheck, lint, production build, and one Windows
-installer/portable build pass. The packaged main page and OK Filow panel load hidden
-with global input disabled, using only the task's G: profile and ports.
-
-Pending/known limits: splash median is still 1,321 ms versus 500 ms, measured on a
-contended PC; main median passes at 2,317 ms. The retained 20-minute memory result
-has -1.2% growth but only 20/45 credit; a new 45-minute run remains unverified.
-Stored accessibility/memory evidence expires on November 14 around 13:26/13:29 UTC.
-Fresh evidence lives in this worktree's ignored `tmp/autoloop` and does not travel
-with a merge. Exact commands, before/after rows, first-run failure, isolation and
-remaining verification limits: `docs/autoloop/FIX-SCORE-2026-11-14.md`.
-No merge, push, tag, installed-app change, or visible desktop interaction.
-
-## Overlay round 2B worktree (unreleased, 2026-11-13)
-
-`feat-overlay-r2b` merged main `f5d18e2` in `d89a2fd`, retaining the opening-microphone,
-keys-up closure and phone-question safeguards. Sentence-paced marks now append without
-restarting; avoidance rectangles cross the preload/desktop bridge. Pointer motion uses
-one planned flight and arrival clock, and the measured bubble grows over 160 ms.
-3D labels use visible surface anchors and separate 12 px lanes, with light-theme styles
-and click-through margins. English and Italian manuals describe the changes.
-
-Evidence and limitations: `docs/okfilow/OVERLAY-R2B.md`. The isolated QA driver, raw timing
-records, mutation report and blind sheets live under `G:/FILOW/tmp/overlay-r2b`.
-The first blind critic preferred this build on all eight sheets but rejected the pointer
-landing and light stage. The rework puts the hotspot on the target corner with an underline
-and a contrast-safe ring, widens both leader columns to 28 px, prioritizes interior surface
-patches, and uses a tinted light stage with stronger shell outlines and a compact shadow.
-New evidence is in `docs/okfilow/OVERLAY-R2B-REWORK.md`; the new blind set is `frames/ab2`.
-Second rework: identities and columns stay fixed; safe surface patches follow initial
-column order. Flights now take at most 900 ms (633 ms in the fixture), landing pill clearance
-is 17 px, backtrack is zero, and light ring contrast is 8.039:1. Final model samples have
-zero identity changes, crossings and label overlaps. Tests: 3,089 pass, 5 skipped;
-typecheck, lint and web build pass; 7/7 mutations caught. Evidence:
-`docs/okfilow/OVERLAY-R2B-REWORK3.md`; eight fresh blind sheets: `frames/ab3`.
-Final rework (2026-11-14): final SVG-pixel measurement over 24 full-turn poses plus the
-eight sheet poses exposes up to three crossing pairs on e7db482. Routes now move elbows
-while retaining numbers, columns and rows. All 1,196 captured model frames have zero
-intersections and at least 12.996 px centreline clearance outside 8 px anchor regions.
-Pointer reversals are zero, path ratio 1.156, first-step ratio 0.0532, flight 616.7 ms.
-Light leaders have dark casings; the ring starts at full stroke width. Vitest 3,093 pass,
-5 skipped; typecheck, lint and web build pass; 6/6 mutations caught. Evidence and the
-precise limits supersede the earlier spacing/crossing claims:
-`docs/okfilow/OVERLAY-R2B-REWORK4.md`; fresh blind sheets: `frames/ab4`.
-Pending: a fresh blind verdict and owner-authorized native/live checks. No push, tag,
-merge into main or release.
-
-## Where it stands (v0.9.35 + current branch)
-
-- Work in progress on `feat/fast-onboarding-account`, based on v0.9.35 / `e6b84c9`:
-  - Assistant speech queues complete sentences while the answer streams; validated screen marks
-    appear immediately. Stop/error cancels queued speech. This improves time to first output, not
-    the model's underlying generation speed.
-  - Welcome includes an original local 18-second MP4, captions and translated transcript. Opt-in
-    practice opens after startup and preserves the model-download settings destination.
-  - `/tour` drives real native overlays around a practice control, then offers a separate real
-    assistant question using existing screen/consent settings. Guided targets are clearly labeled.
-  - `/account` and the separate `apps/cloud` service implement email/device sign-in, OS-encrypted
-    desktop tokens, Stripe checkout/portal and server subscription status. No cloud or merchant
-    account has been deployed/configured. Read `apps/cloud/README.md` before operating it.
-  - Full tests passed: 176 files / 2,185 tests (5 tests skipped). Typecheck and lint passed;
-    production build validation details are in
-    `docs/FAST-ONBOARDING-ACCOUNT.md`. Windows UI was checked in an isolated G: profile with a fake
-    microphone, including video playback and native overlay routing, in dark and light themes.
-  - Phase 1 review (2026-11-12, plan in the owner's Filo-Claude-improvement-plan.md): the work is now
-    committed. Checkpoint `32bac05` (progressive answers), `730b5e7` (video and /tour), `befde28`
-    (account), `c2961bf` (apps/cloud), `c3093cd` (docs); the checkpoint reproduced the numbers above
-    exactly (176 files and 2,185 tests passed, 2 files and 5 tests skipped; typecheck, lint,
-    build:welcome, cloud build and `npm run build` all exit 0). Review fixes, each with a test that
-    failed first: `188cb86` and `78f661e` (speech: no sentence cut where a network chunk ends, an
-    unclosed tag is never spoken, the rest of an answer is never dropped, a sentence before a picture's
-    block is said at once), `ed58159` (tour: clearing the practice mark no longer wipes an answer's
-    drawings, the mark goes on resize, hide, minimize and navigation, `tour:ask` takes a language and
-    the shell picks the sentence), `1b8f750` (billing: a repeated or older Stripe event is answered and
-    not applied; `*.sqlite` ignored). Tip: 177 files and 2,201 tests passed, 2 files and 5 tests
-    skipped; typecheck, lint and the three builds exit 0.
-  - Findings, open items and the merge plan: `tmp/onboarding-review/REVIEW.md` (tmp/ is not tracked:
-    copy it into docs/ if it must travel). The medium items, after S0 of
-    `tmp/openbot-research/PLAN.md` (2026-11-12): closed in S0 are account traffic in the outbound
-    notice and signal (kind `account`, OUTBOUND.md row 21), the account origin set at build time
-    (`-c.extraMetadata.accountOrigin`, `account:configured`) and the billing plugin's own routes
-    (404 except `GET /api/auth/subscription/success`). Moved: reconciliation against Stripe's current
-    state to S4b, the sign-in email languages to S5, captions to F1, the cloud voice's one request per
-    sentence (not measured) to Phase 2.
-  - Not verified in this review: nothing was launched (no Electron, no overlay on a real screen, no
-    window move or display change, no video playback, no theme inspection), no real Stripe or email,
-    no real-model latency. `apps/desktop/vendor/i18n.js` must be rebuilt (`npm run vendor`) before
-    the tour's real question works in a dev run.
-  - Merging (nothing merged yet): main `578af0f` and feat-easy-page merge cleanly into this branch;
-    feat-okf-pill conflicts in `apps/web/app/okfilow/panel/page.tsx` (5 places) and
-    `apps/desktop/okfilow.js` (4 places). Merge the pill to main first, then main into this branch,
-    and keep one speech mechanism: the queue in `lib/buddy/progressive.ts`, with the pill's sentence
-    ranges from `turn.ts` and the pill's pause (`turn.unpaused`) as its gate.
-  - Phase 2 (speed) can start from this tip. It needs: a QA build of this branch in its own profile
-    and ports on G:, timing marks (hotkey release, capture done, first token, first sentence handed to
-    the voice, first audio, first mark, end, Stop to silence) written to a local file without screen
-    contents, one documented hardware and model pair, and cold and warm runs through local Ollama only.
-  - Still required for public sales: real SMTP/domain, Stripe test acceptance and final price,
-    deployment, production keys/webhooks, paid feature/quota enforcement and signed release testing.
-    No installer was published. The unrelated root `okfilow.js` was present before this work and was
-    left untouched. Test files/caches/profile live on G:.
+- [Faster answers, first run and accounts](docs/FAST-ONBOARDING-ACCOUNT.md) records the November 12 implementation and its Windows checks. For the checkpoint commits, review fixes and merge findings, see `G:/FILOW/tmp/onboarding-review/REVIEW.md`.
+- `/account` and the separate `apps/cloud` service implement email/device sign-in, OS-encrypted
+  desktop tokens, Stripe checkout/portal and server subscription status. No cloud or merchant
+  account has been deployed/configured. Read `apps/cloud/README.md` before operating it.
+- For the account notice and signal, see the [outbound inventory](docs/okfilow/OUTBOUND.md). The [paid readiness record](docs/design/paid/STATUS.md) tracks the deployment gates.
+- A dev tour that asks a real question needs the desktop translation bundle rebuilt with `npm run vendor`.
 
 - Landed after the 0.9.30 release (2026-11-06 to 2026-11-10): OK Filow, the screen helper,
   with the outbound notice (nothing leaves the PC without a yes, every send is shown;
@@ -443,12 +46,7 @@ merge into main or release.
   hardening (single instance, offline privacy policy and About, private problem report, macOS
   permission prompts, `docs/RELEASE-CHECKLIST.md`). Platform notes: `docs/PLATFORMS.md`.
 
-- Sync/stop audit fixes (2026-11-05, `fix/sync-and-stop`): B01-B05 fixed in five
-  separate commits. Relay and phone drop old/duplicate patches; gaps request full state;
-  engine reconnect invokes its full-state callback. Sherpa keeps the result subscription
-  until the worker's flush acknowledgement crosses IPC, including asynchronous stop/restart.
-  Ordinary-test failure/pass output is in `docs/audit/sync-fixes.md`. No push or release;
-  real phone/network and native microphone/Sherpa acceptance remain pending.
+- For B01 through B05, including the native checks still open, see [Sync and stop fixes](docs/audit/sync-fixes.md).
 
 - Offline audit fixes (2026-11-05, `audit/baseline`): B06-B14 from Step 4 are fixed
   in seven commits, with ordinary-test failure/pass output for each bug. Translation
@@ -456,8 +54,6 @@ merge into main or release.
   Desktop preserves profile offline state, stops existing tunnels, refuses setup downloads,
   and offers a local clipboard report. An additional status-route PII health probe leak
   is fixed separately (B15). See `docs/audit/offline-fixes.md` and its output directory.
-  Full test run: 277 passed, 5 out-of-scope expected failures, 1 existing opt-in skip;
-  all six typechecks passed (both commands exit 0). README EN/IT updated; no release/push.
 
 - Audit Step 3 (2026-11-05, `audit/baseline`): added synthetic EN/IT presentation
   journeys under `docs/gauntlet/corpus/journey-en` and `journey-it`, using the existing
@@ -474,139 +70,15 @@ merge into main or release.
   No contract failures or `it.fails` added. No push or release; real speech/model and
   native/UI acceptance remain separate work.
 
-- Unreleased microphone/download fixes (2026-11-05): shared Settings/action-bar microphone
-  picker, `prefs:micDeviceId`, real-default marking, devicechange refresh and logged fallback
-  when a saved input disappears. Every PCM backend and the permission probe use the selection;
-  Web Speech explicitly uses the system default. The 0.9.6 fixed-rate graph/conversion remains.
-  Worklet peaks and track-ended events drive a recoverable inline alert; four seconds at or
-  below 1e-4 warns, audio clears it, and AudioContext construction over five seconds logs its
-  measured duration. No capture-health event automatically stops a take.
-  Streaming downloads have a 30 s idle deadline (including waiting for headers), response/error
-  and size checks, partial-archive cleanup, and three retries after 5/15/45 s. Attempt messages
-  reach startup.log. Typecheck, 230 tests (1 existing skip), production web build and mocked
-  browser capture checks pass. Evidence/limits: `docs/microphone-fixes-2026-11-05.md`.
-  No version bump, tag or release.
-
-- Unreleased single layout (2026-11-05, owner's reversal): both themes now use the left
-  sidebar with identical controls. Layout switching, right panel, width splitter and obsolete
-  plumbing/tests/strings removed. Next-section card height uses a bottom pointer/keyboard
-  handle, 120 px to 70 percent of content height, default 240 px, `prefs:nextHeight`, and
-  saved-preference re-clamping. Green done tick/progress and pairing reopen retained.
-  Typecheck, 204 tests (1 existing skip), standalone web build and production browser checks
-  pass at 1280x820 and 760x540 in both themes. Two-click function inventory and limits:
-  `docs/superpowers/plans/2026-11-05-one-layout-evidence.md`. Welcome/mirror out of scope.
-  No version bump, tag or release.
-
-- Unreleased release-review fixes (2026-11-04): all six findings in
-  `tmp/codex/run-13-last.md` addressed. Short viewports scroll without collapsing points;
-  the dark Screen Sense menu opens inward; cancelled startup cannot resume; Start/source/editor
-  dialogs contain and restore keyboard focus; import failures are visible alerts; log close
-  returns focus to the action overflow. Typecheck, 200 tests (1 existing skip) and web build
-  pass. Production browser checks cover both themes, minimum and zoom-equivalent viewports,
-  dialog traversal, log focus, failed import and delayed model-plan cancellation. Evidence:
-  `docs/superpowers/plans/2026-11-04-flat-layout-review-fixes.md`. No tag or release.
-
-- Flat mockup corrections (2026-11-04): visible overflow dots, bilingual short mode
-  labels/tooltips, clean transcript label, single-line tabs, pairing button and one
-  cycling theme button. Light sidebar, points, next card and Screen Sense row aligned.
-  Production Chromium captures inspected in both themes at 1280x820, 760x540 and
-  1920x1080, including scrolled minimum-size controls and three-state renderer fixtures.
-  Typecheck, 186 tests (one existing skip), and web build pass. Evidence:
-  `docs/superpowers/plans/2026-11-04-flat-layout-redesign-evidence.md`.
-  Live speech/vision, phone pairing and native packaged acceptance remain unverified.
-
-- Independent flat review (2026-11-04): restored two-click reporting and model unload even with
-  saved resource-collapse preferences; constrained the Italian Screen Sense select to its rail;
-  added missing ctl.mode bilingual test coverage. Full action inventory and file/line evidence:
-  `docs/superpowers/plans/2026-11-04-flat-layout-redesign-review.md`. All three requested mutations
-  fail their assertions and were restored; typecheck, 186 tests (1 skip) and web build pass.
-  Static contrast passes in both themes; the detector's two accent-rule warnings match the spec.
-  Browser theme/system/menu/point checks and mocked report/resources checks pass. Owner screenshot
-  comparison and native/package acceptance remain pending; relay pairing requires a password.
-
-- Unreleased flat prompter (2026-11-04): Tasks 1-5 of
-  `docs/superpowers/plans/2026-11-04-flat-layout-redesign.md` implemented test-first in five commits.
-  Shared component tree uses resolved-theme `data-layout`: dark tabs/right rail, light sidebar.
-  Flat tokens replace glass; main and welcome native materials removed; mirror layout retained.
-  Three point states preserve point size/weight, full text, double-click and keyboard toggles.
-  All original callbacks retained, including pairing, import/editor, start/cancel/stop, screen
-  controls, notes export, reset/reload, update, resources/unload and log/report.
-  Final workspace typecheck, 186 tests (1 existing skip), web and welcome builds passed.
-  Browser smoke verified theme switching and menu Escape/focus return without screenshots.
-  Local relay pairing returned 401 (access password required), so pairing was source-checked only.
-  Detector run once: two side-tab warnings for the specified sidebar/current-point accent rules;
-  retained as intentional design. Task 6 screenshot comparison belongs to the owner and was not run.
-  Retired glass-specific tests explain the changed test count from the 198-test baseline.
-
-- Independent polish review (2026-11-03): fixed keyboard access/ring precedence, shared glyph
-  fallback, state/action contrast, hover/selection pairing, native-control numeric typography,
-  residual pairing label and unintended topbar wrapping. Both source mutations fail as expected;
-  typecheck, 198 tests (1 existing skip), web and welcome builds pass. Baseline/final SSR fixtures
-  preserve content element order in EN/IT and both themes; computed focus/spacing checks pass.
-  Exact requested detector path is absent; installed `.agents` detector reports no findings.
-  Evidence and owner-only native/visual limits: `docs/superpowers/plans/2026-11-03-liquid-glass-polish-review.md`.
-
-- Operate polish (2026-11-03): plain EN/IT labels, shared SVG icons, consistent control states,
-  fixed rem scale and tabular numerals, 4px spacing and token browser surfaces across prompter,
-  settings, welcome and mirror/overlay. Point size/weight preserved. Typecheck, 196 tests
-  (1 existing skip), web and welcome builds pass. Dark/light browser checks cover all surfaces;
-  dock has no orphan at 1024/1280 in EN/IT. Detector returned no findings using the installed
-  `.agents` copy because the requested `.claude` path is absent. Rule evidence and limitations:
-  `docs/superpowers/plans/2026-11-03-liquid-glass-polish.md`. Native/package/FPS acceptance remains pending.
-
-- Independent remaining-glass review (2026-11-03): fixed splash motion/opacity/token duplication and restored border space with padding. Both border mutations failed; typecheck, 193 tests and web/welcome builds passed. Isolated Electron welcome loaded without captured errors; review processes killed. See docs/superpowers/plans/2026-11-03-liquid-glass-rest-review.md. Native visual, layout and FPS acceptance remain pending.
-
-- Remaining liquid-glass surfaces (2026-11-03): settings panels/resources/Automatic setup
-  use raised layers, fields use sheets, model rows/keycaps use flat layers. Mirror pairing
-  and overlay drag bar use sheets; the shared StageView preview uses the existing preview
-  material. Full mirror rows after ten go flat; compact overlay rows retain the protected
-  point material without extra page opacity. Welcome panes and controls now use the same
-  tokens, with opaque fallbacks; splash badge uses the shared sheet tint. The welcome
-  native acrylic/vibrancy condition was already present; its fallback background now
-  exactly matches the main window. Shared splash tokens are bundled into vendor CSS.
-  Verification: workspace typecheck, 192 tests passed / 1 skipped, welcome bundle and
-  production web build passed. Browser screenshots in `output/playwright/` cover dark/light
-  settings, model lists, paired phone, compact overlay, welcome and splash. Welcome used
-  a test preferences bridge; mirror used a synthetic local session. Native material,
-  window opacity, packaged launch and hardware FPS acceptance remain unverified.
-
-- Independent liquid-glass review (2026-11-03): fixed literal border shorthand, accent text,
-  exposed metadata/log text, sheet highlights/blur and excess blurred strips/modal layers;
-  strengthened CSS and foreground-token tests. Independent contrast calculations and all three
-  requested source mutations passed their gates. See
-  `docs/superpowers/plans/2026-11-03-liquid-glass-ui-review.md` for rule-by-rule evidence.
-  Owner-only on-screen, package and FPS acceptance remains pending (Task 4).
-
-- Unreleased liquid-glass prompter Tasks 1-3 (2026-11-03): contrast-gated raised/sheet/flat
-  tokens in both themes, borderless material layers, flat rows from index 10, and an in-flow
-  controls dock with background-only sheen/refraction. Reduced motion disables the effects
-  and pointer listener; raised/sheet surfaces retain opaque fallbacks. Automated checks:
-  185 tests passed, 1 skipped; all workspace typechecks passed. Task 4 (visual, package,
-  wallpaper and FPS acceptance) is explicitly reserved for the owner and was not run.
-
-- Independent Welcome review (2026-11-03, no commit): fixed false success when Windows leaves
-  an externally disabled startup entry registered after an off request; added the desktop check
-  to root typecheck. Final checks: 166 tests passed, 1 skipped; typecheck and web build passed.
-  Five representative source mutations made tests fail. Manual acceptance is still blocked by
-  Electron computer-use access; see `docs/welcome/REVIEW.md` for evidence and limitations.
-
-- Unreleased Welcome implementation (2026-11-03, Codex, no commit): local packaged two-pane
-  onboarding now precedes splash/servers/setup, with Automatic/EN/IT, installed-build startup,
-  system/explicit theme and optional OS accent. Durable key is `welcomeCompleted` (not
-  `welcomeSeen`); normal X/Get started completes, menu reopen is nonmodal and cannot rerun setup.
-  `ui-preferences.js` serializes profile changes, validates IPC senders and reads OS startup truth;
-  shared core helpers/strings and root React subscription keep desktop windows synchronized.
-  Welcome assets are generated by `npm run build:welcome -w apps/desktop`, automatically before
-  desktop start/vendor/predist. CSS tokens are shared; add-in/extension theme-copy scripts inline
-  the extracted tokens. Installer language no longer overrides Automatic or existing choices.
-  `FILOW_USER_DATA_DIR` is an absolute-path QA override for userData/sessionData, with legacy
-  profile import disabled under that override. Production paths are unchanged.
-  Automated checks and runtime QA details: see `docs/welcome/IMPLEMENTATION.md`.
+- [Microphone and download recovery](docs/microphone-fixes-2026-11-05.md) records the USB/C920 diagnosis, timeout handling and native checks.
+- [One-layout evidence](docs/superpowers/plans/2026-11-05-one-layout-evidence.md) records the final sidebar decision, captures and remaining acceptance checks.
+- For the earlier designs, see the [flat review](docs/superpowers/plans/2026-11-04-flat-layout-redesign-review.md), [release fixes](docs/superpowers/plans/2026-11-04-flat-layout-review-fixes.md), [glass review](docs/superpowers/plans/2026-11-03-liquid-glass-ui-review.md), [remaining surfaces](docs/superpowers/plans/2026-11-03-liquid-glass-rest-review.md) and [polish review](docs/superpowers/plans/2026-11-03-liquid-glass-polish-review.md).
+- For first-run behavior, QA isolation and remaining OS checks, see the [Welcome implementation](docs/welcome/IMPLEMENTATION.md) and [independent review](docs/welcome/REVIEW.md).
 
 - Repos: source `stefandsl/filow` (PUBLIC since 2026-11-03: the owner made it public so CI runs on free Actions minutes after a billing block; never commit keys, `.env` stays ignored; branch `main`), update feed `stefandsl/filow-releases`
   (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
   (folder still has the old name on purpose).
-- v0.9.30 (installer Information + Select Components pages) is the current public release (2026-11-06,
+- v0.9.30 (installer Information + Select Components pages) was the public release (2026-11-06,
   CI run 42211883754, feed manifests say 0.9.30). Before it: v0.9.29 (phone sync fixes + stop flush + overlay close button) (2026-11-05,
   CI run 42098611434, feed manifests say 0.9.29). Before it: v0.9.28 (mic picker + offline leak fixes + audit steps 1-4) (2026-11-05,
   CI run 42067234678, all three platforms first try, feed manifests say 0.9.28). Before it: v0.9.27
@@ -626,70 +98,14 @@ merge into main or release.
   v0.8.5 release was deleted (no Windows assets: its installer script failed on CI, which made
   installed apps show "Cannot find latest.yml ... 404"). Never publish a release to the feed
   without `latest.yml`, `latest-mac.yml` and `latest-linux.yml`.
-- Recent work, newest first:
-  - 0.9.29: the four phone-sync bugs from audit step 4 fixed (507023a, 92b97b0, a61fdbc, 0a5b569:
-    version-checked patches, duplicates dropped, full resend on engine reconnect, full-state request
-    on a version gap), the Sherpa stop flush (f1d716c), and the presenter overlay can be closed and
-    moved before pairing (f43f0dc, OverlayFrame). Evidence in docs/audit/sync-fixes.md. No expected
-    failures left in the suite. Next audit step: 5 (manual local tasks).
-  - 0.9.28: microphone picker + silence warning + model download timeout/retry (dfb5597, 94a784c;
-    diagnosis: this PC's default USB mic 0d8c:016c delivers digital silence, the C920 works), and the
-    audit branch merged: steps 1-4 (docs/audit/) plus eight offline-mode leak fixes (b6df634..d21f834).
-    Still open from step 4: 4 phone-sync bugs and the Sherpa stop flush, kept as it.fails in
-    apps/server/src/seams.test.ts and packages/stt/src/stop.seams.test.ts. Next audit step: 5.
-  - 0.9.27: ONE layout for both themes (owner's call 2026-11-05, reversing "one
-    layout per theme"): the left-sidebar layout in dark and light (Codex 9fbbbc0, rail code and the
-    rail splitter removed); the next-section card is resizable in height (drag its bottom edge,
-    arrows, double click resets, saved in `prefs:nextHeight`); Screen Sense row sticky above the
-    action bar. Checked on screen in both themes at 1280 x 820; packaged Windows build launched before the tag.
+- Release history:
+  - 0.9.27 to 0.9.29 shipped the single-sidebar, microphone, offline and sync fixes documented above. The Windows package was launched before the layout tag.
   - 0.9.26: large green tick + green "Detto" label and bar on done points
     (8ef6679); pairing panel reopens after the reload that switching the public link triggers
     (e47bae1, sessionStorage flag in apps/web/lib/pairReopen.ts); resizable next-section rail in the
     dark layout (114c943; that rail and its saved width were removed in 0.9.27, which moved both themes
     to the sidebar layout). Packaged Windows build launched before the tag.
-  - 0.9.25: six fixes from a high-reasoning read-only Codex review of 0.9.24 (c9e8b69): short
-    viewports and 200 percent zoom scroll instead of clipping, Screen Sense menus open inward at
-    760 px, cancelling a start invalidates the pending async steps, dialogs trap focus / close on
-    Escape / restore focus, import failures show as an EN/IT error (not only in the log), closing the
-    log returns focus to the overflow button. 200 tests; packaged Windows build launched before the tag.
-  - 0.9.24: flat layout redesign of the prompter to the owner's two
-    mockups (`docs/superpowers/specs/mockups/2026-11-04-prompter-{dark,light}.webp`). Owner's calls:
-    BOTH layouts, one per theme (dark = section tabs on top + right rail with next section and Screen
-    Sense; light = left sidebar), and FLAT material (glass and window acrylic retired). Design
-    `docs/superpowers/specs/2026-11-04-flat-layout-redesign-design.md`, plan
-    `docs/superpowers/plans/2026-11-04-flat-layout-redesign.md`. Tasks 1-5 done by Codex
-    (adc4cad..0801b69) + review fixes 2d8b764: 186 tests, every old action reachable in two clicks,
-    contrast passes. Fixes acfa66e (overflow icon, short select labels, transcript label, one-line
-    tabs, Abbina dispositivo button, single theme toggle, light layout to its mockup); both layouts
-    checked on screen against the mockups and the packaged Windows build launched before the tag.
-  - 0.9.23: polish pass in "Operate" mode from the impeccable / ui-ux-pro-max /
-    taste rules (Codex 9c123e6..c9eff8d + review 8e56101; 198 tests; detector clean). Decorative
-    uppercase-tracked labels removed ("Section 1 of 4" plain, "Next: ..." plain), accent reserved for
-    primary action and real state, unified hover/focus-visible/active/disabled states, SVG icon set in
-    apps/web/components/icons.tsx replacing unicode glyphs, tabular numerals on live numbers,
-    ::selection / caret / scrollbar per theme, EN+IT copy audited (no em dashes), no layout change.
-    Checked in the browser (no native material) in dark and light at 1280 px; packaged Windows build
-    launched on a clean profile and icon groups counted before the tag.
-  - 0.9.22, glass on the rest: settings page, mirror/overlay, welcome window and
-    splash on the same tokens (Codex 9878589, 03ec21e, 92aa91e + review 1004355; 193 tests); the welcome
-    window gets the main window's acrylic/vibrancy options. Checked on screen in dark: prompter, settings,
-    welcome. Open question: a fresh dev profile (FILOW_USER_DATA_DIR) ended with welcomeCompleted=true
-    without the welcome being shown or clicked (startup.log has no welcome line); only
-    ui-preferences.js complete() writes that flag and only the Start click calls it (no automatic path), so it was an interaction, not code. The "Run at startup" row is
-    hidden in dev on purpose (startupSupported needs app.isPackaged). Still to do before a tag:
-    wallpaper-matrix screenshots, fps check during a take, packaged build.
-  - 0.9.22: liquid glass UI on the prompter page. Design
-    `docs/superpowers/specs/2026-11-03-liquid-glass-ui-design.md`, plan and reviewer's evidence under
-    `docs/superpowers/plans/`. Three depths (raised / sheet / flat) as tokens in `theme-tokens.css`,
-    no borders on glass layers, the controls row is one pill dock with a pointer sheen and a light SVG
-    refraction on `::before` only, rows from the eleventh go flat, reduced-motion turns sheen and
-    refraction off. The glass was retired in 0.9.24; today's readability gate is
-    `apps/web/lib/contrast.test.ts` (`contrastRatio` in `apps/web/lib/contrast.ts`): on the flat surfaces
-    of both themes it fails below 7:1 (text) / 4.5:1 (muted).
-    Built by Codex from the plan (3 commits) + review fixes; checked on screen in dark and light over the
-    owner's wallpaper. Settings pages, overlay, phone mirror, welcome and splash now share
-    the tokens (see above). Still pending: native wallpaper-matrix screenshots, fps check,
-    packaged build.
+  - 0.9.22 to 0.9.25 moved the prompter from glass to the two flat mockups, then fixed the release review findings. The [flat-layout evidence](docs/superpowers/plans/2026-11-04-flat-layout-redesign-evidence.md) records the captures before the single-sidebar change.
   - 0.9.21: the NSIS installer and the portable exe of 0.9.19/0.9.20 had NO icon resource (generic
     icon in the browser's download list and in Explorer; the installed Filow.exe was fine). The NSIS
     bundled with electron-builder 26 silently drops a PNG-compressed .ico entry, and build/icon.ico
@@ -892,12 +308,9 @@ merge into main or release.
   - CI attaches installers straight to the release from each OS job (artifact storage quota hit
     twice before); artifacts only for manual runs.
 
-## Field-tested so far: Windows only
+## Platform acceptance
 
-Every real-machine test to date (Wi-Fi pairing, installer, Ollama install, PowerPoint add-in, updates)
-was done on Windows. macOS and Linux builds exist and pass CI but nobody has run them end to end:
-the first-start local-AI dialog, the Ollama.app unzip, the adapter ranking (`route -n get default`),
-notifications and the region picker on those platforms are unverified.
+See [platform status](docs/PLATFORMS.md) for the Windows, WSLg and phone-browser checks and the remaining real-device tests.
 
 ## Pending (ask the owner before starting the big ones)
 
@@ -909,21 +322,7 @@ notifications and the region picker on those platforms are unverified.
   stalled model download there. Browser QA uses simulated devices/capture; download tests use
   fake streams, not the network. Source fixes are complete, native acceptance remains pending.
 
-- The 2026-11-05 single-sidebar change is ready in source. Native/live acceptance and any
-  release remain separate work; the browser evidence includes mock desktop callbacks, not
-  real inference, phone pairing, tunnel changes or update installation.
-
-- The six release-review findings are closed in source. Native/live acceptance remains pending;
-  the new evidence document distinguishes mocked browser checks from hardware verification.
-
-- Flat redesign acceptance: owner to run Task 6 of
-  `docs/superpowers/plans/2026-11-04-flat-layout-redesign.md` (mockup comparison and window-size
-  screenshots). Independent review fixes and evidence are recorded in the sibling
-  `2026-11-04-flat-layout-redesign-review.md`; no screenshot or packaged/native acceptance claims.
-
-- Liquid-glass acceptance: owner to execute Task 4 of
-  `docs/superpowers/plans/2026-11-03-liquid-glass-ui.md`; no on-screen or FPS claims yet.
-
+- The owner’s visual review, native behavior, live pairing and hardware FPS checks remain open. See the [single-sidebar acceptance record](docs/superpowers/plans/2026-11-05-one-layout-evidence.md) and the [glass test plan](docs/superpowers/plans/2026-11-03-liquid-glass-ui.md).
 - Welcome acceptance: Windows visual controls/maximize/acrylic QA is pending computer-access
   approval for Electron. Packaged Windows startup registration/sign-in/update/path-with-spaces,
   Windows 10 fallback/high contrast/scaling/Narrator and macOS/Linux device checks are unverified.
@@ -933,11 +332,8 @@ notifications and the region picker on those platforms are unverified.
    were checked with a standalone makensis build, the page itself was not opened); Ollama silent
    install on a PC without Ollama; the macOS first-start dialog and `Ollama.app` unzip; the
    presenter overlay and slideshow follow; the browser extension against a reveal.js deck.
-2. **`RELEASES_TOKEN` secret** on `stefandsl/filow` (a PAT with `contents: write` on
-   `filow-releases`) so CI publishes to the public feed by itself. Owner's task.
-3. **Code signing**: SmartScreen warns on every install. Secrets `WIN_CSC_LINK` (base64 .pfx) and
-   `WIN_CSC_KEY_PASSWORD` are wired in `.github/workflows/desktop.yml`; the certificate has to be
-   bought. macOS builds are unsigned (README tells users the `xattr` command).
+2. Follow the [release checklist](docs/RELEASE-CHECKLIST.md) for the owner publication and clean-runner smoke checks.
+3. See the [owner decision register](docs/OWNER-DECISIONS.md) for the signing certificate and publisher identity.
 4. **Screen Sense on a local vision model** (`qwen3-vl` is listed as "planned" in
    `apps/web/lib/localModels.ts`): today frames go to the OpenRouter vision model only.
 5. **Public link default**: tunnels are on by default in code (`settings.remoteShare`), the owner's
@@ -945,12 +341,6 @@ notifications and the region picker on those platforms are unverified.
 6. **Mascot icon**: a mascot variant was explored (`design/`, git-ignored); the brand kit icon won.
    Nothing to do unless the owner asks.
 7. **Ollama on Linux** is manual (the official script needs sudo); fine for now.
-7b. **Microphone diagnosis updated (2026-11-05):** the default USB Advanced Audio Device
-   (0d8c:016c) gives digital silence and AudioContext opening blocks 10 to 15 s, while selecting
-   the C920 by deviceId gives real audio and opens immediately. The earlier stale-install-files
-   theory was not confirmed; do not change installer deletion behavior on that basis. The new
-   microphone picker and capture-health warnings address this diagnosis without changing the
-   0.9.6 capture graph. Native owner verification remains pending.
 8. **Plan steps not done yet** (owner's "piano operativo", in its order): pipeline timing marks at
    each boundary (audio → text → engine wait → model → UI) with one shared id; a corpus with real
    recordings (demo-it is synthetic); segments with ids/revisions so an STT correction can retract a
@@ -970,26 +360,7 @@ notifications and the region picker on those platforms are unverified.
   An external memory hook appended to AGENTS.md during the fix pass; it was left unstaged
   and untouched. Existing tmp files were preserved; all new test logs/cache/temp are on G:.
 
-- Web Speech exposes no PCM graph or input track to Filow, so device selection and level/track
-  diagnostics apply to PCM backends only. Its system-default limitation is shown in the picker.
-  AudioContext construction is synchronous: if the driver blocks JavaScript, the duration
-  warning can only render after the constructor returns. It does not interrupt that driver call.
-
-- Prompter theme now changes tokens only. Do not restore the historical dark right panel
-  from the 2026-11-04 instructions below. The owner's 2026-11-05 amendment and one-layout
-  evidence supersede that layout decision. Very short content areas prioritize the 120 px
-  next-card minimum; its contents and the presentation remain independently scrollable.
-
-- Release-review focus checks use Chromium and native HTML dialogs with explicit Tab wrapping.
-  OS screen-reader speech, packaged Electron and real microphone/backend cancellation were not
-  exercised; startup identity guards and delayed-plan browser checks cover the reported race.
-
-- Flat layout screenshot comparison is now recorded in the 2026-11-04 evidence document.
-  Native/package and live microphone/vision acceptance remain pending; renderer state
-  fixtures are explicitly separate from a live take.
-
-- The flat redesign has automated checks, browser interactions and screenshot comparison.
-  Live pairing with the existing password-protected relay remains unverified.
+- Web Speech uses the system default. For PCM device selection and synchronous AudioContext startup delays, see the [microphone diagnosis](docs/microphone-fixes-2026-11-05.md).
 
 - `npm run desktop:build:win` on the owner's PC fails in electron-builder's winCodeSign extraction
   (symbolic links need Developer Mode); CI is the way to build installers.
@@ -1023,7 +394,7 @@ Unicode true
 !define SHORTCUT_NAME "Filow"
 !define APP_EXECUTABLE_FILENAME "Filow.exe"
 Var launchLink
-OutFile "C:\Temp\nsis-check.exe"
+OutFile "G:\FILOW\tmp\nsis-check.exe"
 !include "<repo>\apps\desktop\build\installer.nsh"
 Function .onInit
   !insertmacro customInit
@@ -1040,7 +411,7 @@ SectionEnd
 
 ```bash
 N=%LOCALAPPDATA%/electron-builder/Cache/nsis/nsis-3.0.4.1
-"$N/Bin/makensis.exe" //NOCD "//X!addincludedir $N\Include" "//X!addplugindir $N\Plugins\x86-unicode" C:/Temp/nsis-check.nsi
+"$N/Bin/makensis.exe" //NOCD "//X!addincludedir $N\Include" "//X!addplugindir $N\Plugins\x86-unicode" G:/FILOW/tmp/nsis-check.nsi
 ```
 
 ## Continuing with Codex (owner's OpenAI subscription)
@@ -1064,103 +435,21 @@ they wrote (usually Italian), outcome first, short.
 - Briefs and logs live in `G:/FILOW/tmp/codex/` (gitignored). Disk policy: nothing on C:, temp files
   under `G:/FILOW/tmp`, npm cache `--cache G:/caches/npm`.
 
-### Codex: next task (finish the flat redesign, plan Task 6)
+### Codex: next task
 
-Historical task: superseded for layout by the owner's 2026-11-05 single-sidebar request.
-The two required themes and window sizes have now been inspected in production Chromium;
-see `docs/superpowers/plans/2026-11-05-one-layout-evidence.md` for the current acceptance record.
+The [single-sidebar acceptance record](docs/superpowers/plans/2026-11-05-one-layout-evidence.md) supersedes the November 4 flat-layout task. Owner acceptance and native/live checks remain pending.
 
-Follow-up 2026-11-04: all six findings from the final read-only release review are fixed and
-tested; see `2026-11-04-flat-layout-review-fixes.md` in the plans directory. Next work remains
-owner acceptance and native/live verification, with release only when explicitly requested.
+### Release gate
 
-Update 2026-11-04: the corrections and browser screenshot work listed below are complete.
-See the evidence document above for final captures and limits. Next: owner acceptance,
-then native/live verification before any explicitly requested release. The following
-original checklist is retained as task context.
-
-1. `npm run build -w apps/web`, then launch the desktop app on a throwaway profile:
-   `cd apps/desktop && FILOW_USER_DATA_DIR=G:/FILOW/tmp/pkg-qa FILOW_PORT=4797 FILOW_SESSION_PORT=4798 FILOW_OFFLINE=1 npx electron .`
-   (that profile has `welcomeCompleted: true`). Or serve the web build alone:
-   `set PORT=4790&& set FILOW_SCRIPT=G:/FILOW/tmp/pkg-qa/script.md&& node apps/web/.next/standalone/apps/web/server.js`
-2. Compare 1280 x 820 captures with the two mockups and fix. Differences already seen in the DARK
-   layout on 2026-11-04 (fix these first):
-   - the overflow "..." button at the right of the action bar renders EMPTY (icon missing);
-   - the Screen Sense mode select in the right rail is clipped ("Bilanciato (cambio slide + frasi...")
-     and the action-bar "Modalita" select is truncated ("Automatico (il piu ve"): show the short
-     label (e.g. "Bilanciato", "Automatico") in the control, full description in the option list or
-     a tooltip;
-   - the transcript toggle reads "Trascrizione /" with a stray slash;
-   - section tabs wrap long titles onto two lines; the mockup shows one line per tab: one line with
-     ellipsis on the TAB only (never on points), full title in `title`;
-   - the top bar shows a "mirror spento" chip where the mockup has an "Abbina dispositivo" button
-     with a monitor icon; the theme control is three buttons where the mockup has one sun/moon
-     toggle; keep every function, match the mockup's form.
-3. The LIGHT layout was NOT verified: the page's saved theme preference ("dark") overrides the
-   browser's colour-scheme emulation. Switch with the in-app theme control (or clear localStorage
-   key used by `getThemePref` in `apps/web/lib/prefs.ts`) and compare with the light mockup: left
-   sidebar 260 px with "Il copione / 4 sezioni", current section on a tinted row with a 3 px accent
-   rule, Importa documento and Ricarica copione at the bottom of the sidebar, next-section card under
-   the points (two columns above 1100 px), Screen Sense as one row above the action bar.
-4. Also capture 760 x 540 and 1920 x 1080 in both themes: nothing clipped, no truncated points, all
-   actions reachable. Capture the three point states (waiting, active, done).
-5. Write `docs/superpowers/plans/2026-11-04-flat-layout-redesign-evidence.md` (captures + remaining
-   differences), commit. Keep: typecheck, `npx vitest run --root G:/FILOW`, web build green.
-6. Release only when the owner says so, with the gate below.
-
-### Release gate (paid for twice on 2026-11-03: never skip)
-
-1. `npm run build`, then `cd apps/desktop && npx electron-builder --win`.
-2. Launch `release/win-unpacked/Filow.exe` on the throwaway profile; `startup.log` in that profile
-   must reach "main window shown"; `release/win-unpacked/resources/app/node_modules/next` must exist.
-3. Count icon groups (PowerShell `ExtractIconEx(path, -1, ...)`) on the installer and the portable:
-   both must be 1.
-4. Revert build side effects: `git checkout -- apps/desktop/build/license_en.txt apps/desktop/build/license_it.txt apps/powerpoint/manifest.xml`.
-5. Add the release to the "What's new" list in `apps/desktop/build/info_en.txt` and `info_it.txt` (the
-   installer's Information page; keep the UTF-8 BOM and CRLF). Bump every `package.json` + `apps/browser/manifest.json`, `npm install --package-lock-only --ignore-scripts`,
-   commit, `git tag vX.Y.Z`, `git push origin main vX.Y.Z`, wait for CI (all three platforms).
-6. `gh release download vX.Y.Z --repo stefandsl/filow -D tmp/assets`, delete `builder-debug.yml`,
-   count icons again on the CI files, then `gh release create vX.Y.Z --repo stefandsl/filow-releases ...`
-   and check that `latest.yml`, `latest-mac.yml`, `latest-linux.yml` on the feed say the new version.
+Release only on the owner's request. Follow the [release checklist](docs/RELEASE-CHECKLIST.md) for Windows package checks, all three platform manifests and feed publication.
 
 ### Other open items
 
-- Code signing (SmartScreen / Gatekeeper warnings): needs an Azure Trusted Signing account or a
-  certificate from the owner; then add signing to `.github/workflows/desktop.yml` gated on secrets.
 - 15 moderate npm audit findings inside electron-builder's own tree (minimatch < 11): re-check at the
   next electron-builder release.
 - Before ending a session, update "Where it stands" and this section, and commit HANDOFF.md.
 
-## Small items (feat-small-items, 2026-11-14)
+## Additional evaluations
 
-C1 checks all English notice/kind keys; its mutation is caught. I1 appends the local
-date and weekday to answer, board and agent instructions using one pure helper.
-Date tests use mocked providers, including midnight and language preservation; the
-date mutation is caught. Design: `docs/okfilow/DATE-IN-PROMPTS.md`.
-Overlay finishing: the landing ring clears the glyph quadrant, the underline stops
-before it, and landing drops the arrow shadow. Forward-only leaders and row changes
-blend over 160 ms; routing is off the rendering thread. Hidden QA has zero hooks in
-1,210 model frames, max route step 27.019 px (was 367.816), max pointer step 3.706%
-(was 4.696%). Six mutations caught. Final checks: 3,134 tests pass, 5 skipped;
-typecheck, lint and web build pass. See `docs/okfilow/SMALL-ITEMS.md`.
-Known gap: row exchanges during abrupt full-turn poses briefly overlap labels
-(55 captured frames per theme). Real model behaviour and native/live integration
-remain unverified. No merge, push, tag or installed-profile changes.
-
-## Gauntlet item 2 builder (feat-g2-lessons, 2026-11-14)
-
-No candidate passed and no model preset or default changed. Qwen Q4 and the LFM
-CPU baseline hit bounded acquisition timeouts; partial weights were never loaded.
-Pinned Bonsai 2 passed its isolated CPU runtime smoke, but is rejected for factual
-and language failures on the ten development topics: 7/10 valid rendered lessons,
-7/10 attempts used a repair, three exhausted the one-repair budget. First-step
-p50/p90 is 18.438/29.123 seconds conditional on eight attempts producing one;
-two produced no meaningful step. Model-only peak working set: 1,194,536,960 bytes.
-This i9-13900KF has about 128 GiB RAM; 8 GB CPU/GPU acceptance is not verified.
-
-Protocol, raw outputs, both themes, licence notices, failed transfers and the
-report are in G:/FILOW/tmp/g2-lessons. FROZEN.json preceded scored generation.
-The supplied held-out topics were not scored or generated (zero topics/arms),
-and no rework round was used. See docs/gauntlet/G2-LESSONS.md for limitations.
-The repair-budget mutation is caught. All work stays on feat-g2-lessons;
-no merge, push, tag, release or installed-profile change. AGENTS.md is unstaged.
+- [Small items](docs/okfilow/SMALL-ITEMS.md) covers notice copy, local dates and overlay finishing, including the observed label overlap during abrupt turns.
+- [Local lesson gauntlet](docs/gauntlet/G2-LESSONS.md) records the rejected and incomplete candidates, the frozen protocol and the held-out topics left unscored.
