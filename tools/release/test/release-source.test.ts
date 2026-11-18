@@ -40,3 +40,17 @@ it.each([
   expect(result.status).toBe(1);
   expect(result.calls).toEqual([]);
 });
+
+it.each([false, true])('pushes the recorded commit despite a moved local tag (rejected=%s)', rejected => {
+  const work = fs.mkdtempSync(path.join(scratch, 'tag-'));
+  fs.writeFileSync(path.join(work, 'preflight.json'), JSON.stringify({ version: '1.2.3', tagSha: sha }));
+  // A source ref resolves to a different commit. Only the literal verified SHA is safe.
+  const mockGit = `
+    if ($args[-1] -ne '${sha}:refs/tags/v1.2.3') { throw 'Moved local tag' }
+    $global:LASTEXITCODE = ${rejected ? 1 : 0}
+  `;
+  const result = runStage(work, '1.2.3', mockGit);
+  expect(result.calls).toEqual([`push --no-follow-tags origin ${sha}:refs/tags/v1.2.3`]);
+  expect(result.status).toBe(rejected ? 1 : 0);
+  if (rejected) expect(result.stderr).toContain('Tag push failed');
+});

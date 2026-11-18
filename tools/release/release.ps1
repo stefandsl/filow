@@ -47,9 +47,7 @@ function Read-Evidence([string]$Path) {
 }
 if ($Stage -eq 'tag') {
   $saved = Read-Evidence $state
-  git tag "v$Version" $saved.tagSha
-  if ($LASTEXITCODE -ne 0) { throw 'Tag creation failed' }
-  git push --no-follow-tags origin "refs/tags/v$Version"
+  git push --no-follow-tags origin "$($saved.tagSha):refs/tags/v$Version"
   if ($LASTEXITCODE -ne 0) { throw 'Tag push failed' }
   exit 0
 }
