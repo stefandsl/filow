@@ -217,6 +217,20 @@ it.each([false, true])("resumes the 3D resize after a forwarded buttonless hover
   expect(reports.at(-1)![0].hit).toBeUndefined();
 });
 
+it.each(["pointermove", "pointerup"])("ends the resize on a chorded primary release delivered as %s", (release) => {
+  const drag = start("gallery");
+  pointer("pointermove", 720, 570);
+  const mouse = (type: string, button: number, buttons: number, x: number) =>
+    target.dispatchEvent(Object.assign(new Event(type), { pointerId: 7, button, buttons, clientX: x, clientY: 570 }));
+  mouse("pointermove", 2, 3, 720); // Right pressed while left is held.
+  mouse(release, 0, 2, 720);
+  expect(drag.onBox).toHaveBeenLastCalledWith({ ...box, w: 420 }, true);
+  expect(reports.at(-1)![0].hit).toBeUndefined();
+  mouse("pointermove", -1, 2, 790);
+  mouse("pointermove", 0, 3, 800); // A second left press while right is still held.
+  expect(box.w).toBe(420);
+});
+
 it("identifies only the laid-out bubble in a mixed media report", () => {
   const picture = makeItem() as unknown as Element;
   const bubble = item as unknown as Element;

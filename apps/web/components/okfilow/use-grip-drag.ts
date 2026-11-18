@@ -19,8 +19,10 @@ export function useGripDrag({ forwardedHover = false } = {}) {
     const step = (next: PointerEvent) => {
       if (next.pointerId !== id) return;
       if ((next.buttons & 1) === 0) {
-        // The model can receive a forwarded Windows hover after Chromium drops capture.
-        if (!forwardedHover && !target.hasPointerCapture(id)) stop(true);
+        // A chorded left release is a pointermove while another button is down.
+        // A buttonless forwarded model hover can follow capture loss without a release.
+        const primaryReleased = next.button === 0 && next.buttons !== 0;
+        if (primaryReleased || (!forwardedHover && !target.hasPointerCapture(id))) stop(true);
         return;
       }
       // The next frame must measure the new box even under concurrent rendering.
