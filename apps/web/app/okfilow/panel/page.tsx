@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { createWakeCapture } from "@/lib/buddy/wake";
-import { openSelectedMic } from "@filow/stt";
+import { floatMicNode, openSelectedMic } from "@filow/stt";
 import { abandonedNote, emptyRecordingNote, micNoteText, openMicrophone, type MicOpening } from "@/lib/buddy/micOpen";
 import { waitForTranscript } from "@/lib/buddy/transcript-tail";
 import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture, type OkFilowCard, type OkFilowJob, type OkFilowMode, type OkFilowStatus } from "@/lib/buddy/bridge";
@@ -134,7 +134,7 @@ export default function OkFilowPanel() {
   const [jobs, setJobs] = useState<OkFilowJob[]>([]);
   const committed = useRef<string[]>([]);
   const partial = useRef("");
-  const audio = useRef<{ ctx: AudioContext; stream: MediaStream; node: ScriptProcessorNode } | null>(null);
+  const audio = useRef<{ ctx: AudioContext; stream: MediaStream; node: { disconnect(): void } } | null>(null);
   /** The microphone being opened right now (lib/buddy/micOpen.ts), and how long this recording's took to open. */
   const micOpening = useRef<MicOpening<MediaStream> | null>(null);
   const micOpenMs = useRef<number | null>(null);
@@ -1197,20 +1197,15 @@ export default function OkFilowPanel() {
       }
       const ctx = new AudioContext({ sampleRate: 16000 });
       const src = ctx.createMediaStreamSource(stream);
-      const node = ctx.createScriptProcessor(2048, 1, 1);
-      node.onaudioprocess = (ev) => {
-        const samples = new Float32Array(ev.inputBuffer.getChannelData(0));
+      const node = floatMicNode(ctx, src, (samples, peak) => {
         if (recognizerReady) b.stt.feed(samples);
-        else if (queued.length < 400) queued.push(samples); // at most ~50 s while a model loads
-        let peak = 0;
-        for (let i = 0; i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]));
+        else if (queued.length < 512) queued.push(samples); // 51.2 s while a model loads
         const level = Math.min(1, peak * 2.5);
         b.level(level);
         micTick.current(level, performance.now());
-      };
-      src.connect(node);
-      node.connect(ctx.destination);
+      });
       audio.current = { ctx, stream, node };
+      await node.ready;
       const failed = await loading;
       if (failed) throw failed;
       starting.current = false;

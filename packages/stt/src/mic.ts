@@ -98,6 +98,36 @@ export async function startMic(
   } catch (err) { stop(); throw err; }
 }
 
+/**
+ * The same worklet in float mode, for a graph the caller owns (OK Filow's panel): ~100 ms chunks of
+ * Float32 samples from `source`. A release can disconnect while the worklet is still loading.
+ */
+export function floatMicNode(ctx: AudioContext, source: AudioNode, onSamples: (samples: Float32Array, peak: number) => void) {
+  let stopped = false;
+  let node: AudioWorkletNode | undefined;
+  let mute: GainNode | undefined;
+  const ready = async () => {
+    try { await ctx.audioWorklet.addModule(MIC_WORKLET_URL); }
+    catch (error) { if (stopped) return; throw error; }
+    if (stopped) return;
+    node = new AudioWorkletNode(ctx, "pcm-chunker", { processorOptions: { format: "f32" } });
+    node.port.onmessage = (ev: MessageEvent<{ samples: ArrayBuffer; peak: number }>) => onSamples(new Float32Array(ev.data.samples), ev.data.peak);
+    mute = ctx.createGain();
+    mute.gain.value = 0;
+    source.connect(node);
+    node.connect(mute).connect(ctx.destination);
+  };
+  return {
+    ready: ready(),
+    disconnect() {
+      stopped = true;
+      if (node) { node.port.onmessage = null; node.disconnect(); }
+      source.disconnect();
+      mute?.disconnect();
+    },
+  };
+}
+
 export function toBase64(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf);
   let bin = "";
