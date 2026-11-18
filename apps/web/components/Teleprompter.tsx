@@ -56,6 +56,7 @@ import { openWhiteboard } from "@/lib/whiteboard/open";
 import { anchorOf, canAskOkFilow, openOkFilow } from "@/lib/buddy/openAsk";
 import { pointState } from "@/lib/pointState";
 import { CancelledStart, StartAttempts, type StartAttempt } from "@/lib/startAttempt";
+import { refocusIfLost } from "@/lib/focusHandoff";
 import { decisionRecipient, localServer, sttRecipient, takeOutbound } from "@/lib/buddy/outbound";
 import { usePageOutbound } from "./usePageOutbound";
 import { useScriptTranslate } from "./useScriptTranslate";
@@ -114,6 +115,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
   const [micWarning, setMicWarning] = useState<MicWarning | null>(null);
   const microphoneRef = useRef<HTMLSelectElement>(null);
   const startButtonRef = useRef<HTMLButtonElement>(null);
+  const stopButtonRef = useRef<HTMLButtonElement>(null);
   const [publicLink, setPublicLink] = useState(false);
   const [show, setShow] = useState<{ running: boolean; index: number; total: number } | null>(null);
   const [update, setUpdate] = useState<UpdateStatus | null>(null);
@@ -177,6 +179,15 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
   useEffect(() => {
     desktopBridge()?.setTakeLive?.(eng.recording);
     return () => desktopBridge()?.setTakeLive?.(false); // leaving the page ends the take
+  }, [eng.recording]);
+
+  // Start becomes Stop when a take begins, and back when it ends: the keyboard focus follows to the
+  // button that took its place instead of falling to the top of the page (A11Y-02/03).
+  const wasRecording = useRef(eng.recording);
+  useEffect(() => {
+    if (wasRecording.current === eng.recording) return;
+    wasRecording.current = eng.recording;
+    refocusIfLost(eng.recording ? stopButtonRef.current : startButtonRef.current, document);
   }, [eng.recording]);
 
   const pushLog = useCallback((line: string) => {
@@ -653,7 +664,7 @@ function TeleprompterInner({ onLang, theme, onTheme }: { onLang: (l: Lang) => vo
       {displayOpen && <DisplayPanel prefs={display} onChange={setDisplay} onClose={() => setDisplayOpen(false)} pointsWindow={pointsWindow} anchor="sidebar" />}
       <ActionBar label={t("ctl.controls")} start={<>
         {eng.recording ? (
-          <button className="btn primary" onClick={stopTake}>
+          <button ref={stopButtonRef} className="btn primary" onClick={stopTake}>
             <Icon name="stop" /> {t("ctl.stop")}
           </button>
         ) : (

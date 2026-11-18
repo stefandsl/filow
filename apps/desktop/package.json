@@ -107,6 +107,8 @@
       "okfilow-hook-retry.js",
       "uiohook.js",
       "global-input.js",
+      "page-permissions.js",
+      "ports.js",
       "dictation-target.js",
       "dictation-diag.js",
       "dictation-release.js",

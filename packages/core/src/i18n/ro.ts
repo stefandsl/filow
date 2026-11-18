@@ -1089,6 +1089,7 @@ export const ro: Dictionary = {
   "shell.splash.link": "Se pregătește linkul public pentru telefonul tău…",
   "shell.splash.download": "Se descarcă instrumentul pentru link (o singură dată)…",
   "shell.splash.ready": "Gata",
+  "shell.start.portTaken": "Portul {port} de pe acest computer este deja folosit de alt program, așa că Filow nu poate porni. Închide acel program sau repornește computerul, apoi deschide Filow din nou.",
   "shell.localAi.title": "Rulezi AI pe acest computer?",
   "shell.localAi.install": "Instalează acum",
   "shell.localAi.later": "Nu acum",

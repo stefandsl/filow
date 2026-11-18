@@ -72,7 +72,7 @@ if (!require("./qa.js").isQaBuild(app)) for (const k of ["FILOW_OKF_QA_SCREEN", 
 /** Shows a window at start; with test isolation on, without taking the keyboard from the window the person is using. */
 const showAtStart = (w, name = "main window") => showWindow(w, name, INPUT_OFF);
 if (INPUT_OFF) app.commandLine.appendSwitch("use-fake-device-for-media-stream");
-/** Microphone, screen capture and notifications for the app's own pages (the microphone never with test isolation on, unless a test recording stands in). */
+/** The shell's rule by permission name only; which page may ask is decided in page-permissions.js. Its own job: no microphone with test isolation on, unless a test recording stands in. */
 const permissionFor = (permission) => permissionAllowed(permission, { off: INPUT_OFF, fakeMic: Boolean(process.env.FILOW_OKF_FAKE_MIC) && require("./qa.js").isQaBuild(app) });
 // Test builds only: FILOW_OKF_FAKE_MIC=<wav> feeds that file to every microphone, so OK Filow's voice
 // paths can be checked end to end without a person talking.
@@ -1468,7 +1468,8 @@ function showSplash() {
   const w = splash;
   const shown = new Promise((resolve) => {
     const show = () => {
-      if (!w.isDestroyed() && !w.isVisible()) {
+      // `splash === w`: a splash already closed (a start that failed before its first paint) is not shown late
+      if (splash === w && !w.isDestroyed() && !w.isVisible()) {
         showAtStart(w, "splash");
         logLine(`splash shown (${Math.round(performance.now())} ms after process start)`);
       }
@@ -2092,9 +2093,11 @@ function secretBox() {
   };
 }
 
+/** Where Filow's own servers listen: every interface for the phone on the Wi-Fi, this computer only in hosted mode. */
+const serverHost = () => (process.env.FILOW_SESSION_URL ? "127.0.0.1" : "0.0.0.0");
 function startServers() {
   const hosted = Boolean(process.env.FILOW_SESSION_URL);
-  const bind = hosted ? "127.0.0.1" : "0.0.0.0";
+  const bind = serverHost();
   if (!hosted) {
     // LAN mode: gate the spend endpoints with a per-launch secret that only this window knows.
     process.env.ACCESS_PASSWORD = crypto.randomBytes(16).toString("base64url");
@@ -2274,8 +2277,7 @@ function reportProblem() {
 }
 /** The two buttons of an error the user cannot fix from its dialog: close it, or open Report a problem. */
 function reportButtons() {
-  const tx = require("./about").TEXT;
-  return [(tx[menuLang()] || tx.en).close, mt("report")];
+  return [require("./about").textFor(menuLang()).close, mt("report")];
 }
 /** Such an error: what failed, the reason, and a button that leads to the report window (and from there to a GitHub issue). */
 async function errorWithReport(win, message, detail) {
@@ -2402,6 +2404,11 @@ function installCsp() {
 async function main() {
   killStaleTunnels();
   installCsp();
+  // Before the first window (the welcome tests the microphone): the microphone (audio only), screen
+  // capture and notifications, for the app server's pages and the welcome window only (SEC-08).
+  const pagePermissions = require("./page-permissions").createPagePermissions({ isAppPage, filePages: [welcomeUrl], permitted: permissionFor });
+  session.defaultSession.setPermissionRequestHandler(pagePermissions.request);
+  session.defaultSession.setPermissionCheckHandler(pagePermissions.check);
   /** What the user accepted in the first-run setup (the welcome's step, or the dialog after it): models to fetch. */
   let choices = null;
   try {
@@ -2427,17 +2434,24 @@ async function main() {
     startupTransition = false;
     splashStatus(st("servers"));
     stage("loading servers");
+    // A port another program holds: the app server would end this whole process without a word, the
+    // relay would leave the splash up for minutes. Say which port instead. With FILOW_SESSION_URL the
+    // relay runs elsewhere and none is started here, so only the app port is needed. Asked where the
+    // servers bind and on 127.0.0.1, where this window reaches them.
+    const taken = await require("./ports").takenPorts(process.env.FILOW_SESSION_URL ? [PORT] : [PORT, SESSION_PORT], [...new Set([serverHost(), "127.0.0.1"])]);
+    if (taken.length) {
+      logLine(`startup: port ${taken.join(", ")} is held by another program`);
+      failStartup(sharedText("shell.start.portTaken", menuLang(), { port: taken[0] })); // one port, one program: the sentence is singular
+      return;
+    }
     startServers();
   } catch (err) {
     failStartup(err);
     return;
   }
 
-  // Microphone and screen capture for the engine.
   if (INPUT_OFF) logLine(OFF_LINE);
   if (HEADLESS) logLine(qaHeadless.HEADLESS_LINE);
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => callback(permissionFor(permission)));
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => permissionFor(permission));
 
   const win = new BrowserWindow({
     width: 1280,
@@ -2636,8 +2650,12 @@ async function main() {
 function failStartup(err) {
   const text = String(err && err.stack ? err.stack : err);
   logLine(`startup failed at "${startupStage}": ${text}`);
+  // The box below blocks this thread and a window only closes once the thread is free: hide the splash
+  // first, or it stays on screen behind the box, still saying that Filow is starting.
+  if (splash && !splash.isDestroyed()) splash.hide();
   closeSplash();
-  // The user cannot fix this one: next to closing, the box offers Report a problem, whose window has the
+  // `err` is an error or a ready sentence for the user. Most reasons are not theirs to fix (a taken port
+  // is the exception, and its sentence says what to do): next to closing, the box offers Report a problem, whose window has the
   // start-up log with this reason in it and the button that opens a GitHub issue. Filow quits when that
   // window closes. If the box or the window cannot be made, the plain error box and quit, as before.
   let report = false;

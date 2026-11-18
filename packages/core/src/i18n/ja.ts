@@ -1099,6 +1099,7 @@ export const ja: Dictionary = {
   "shell.splash.link": "スマートフォン用の公開リンクを準備中…",
   "shell.splash.download": "リンク用ツールをダウンロード中（初回のみ）…",
   "shell.splash.ready": "準備完了",
+  "shell.start.portTaken": "このコンピューターのポート {port} は別のプログラムがすでに使用しているため、Filow を起動できません。そのプログラムを終了するか、コンピューターを再起動してから、もう一度 Filow を開いてください。",
   "shell.localAi.title": "このコンピューターでAIを動かしますか？",
   "shell.localAi.install": "今すぐインストール",
   "shell.localAi.later": "あとで",

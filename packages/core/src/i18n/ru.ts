@@ -1087,6 +1087,7 @@ export const ru: Dictionary = {
   "shell.splash.link": "Подготовка публичной ссылки для телефона…",
   "shell.splash.download": "Скачивание утилиты для ссылки (один раз)…",
   "shell.splash.ready": "Готово",
+  "shell.start.portTaken": "Порт {port} на этом компьютере уже занят другой программой, поэтому Filow не может запуститься. Закройте эту программу или перезагрузите компьютер, затем снова откройте Filow.",
   "shell.localAi.title": "Запускать ИИ на этом компьютере?",
   "shell.localAi.install": "Установить",
   "shell.localAi.later": "Не сейчас",

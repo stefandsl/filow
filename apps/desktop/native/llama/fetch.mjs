@@ -43,7 +43,7 @@ export async function fetchRuntime({ platform = process.platform, arch = process
   const stamp = path.join(out, "FETCHED-FROM.txt");
   const want = `llama.cpp ${TAG} ${a.name} sha256 ${a.sha256}\n`;
   if (fs.existsSync(stamp) && fs.readFileSync(stamp, "utf8") === want) { log(`llama runtime: ${id} already in place`); return out; }
-  // Unpacked beside its destination, not in the system temp folder (which is on the full C: drive here).
+  // Unpacked beside its destination, not in the system temp folder (which may be on a full system drive).
   fs.mkdirSync(outRoot, { recursive: true });
   const work = fs.mkdtempSync(path.join(outRoot, ".fetch-"));
   try {
@@ -60,7 +60,7 @@ export async function fetchRuntime({ platform = process.platform, arch = process
     if (sha !== a.sha256) throw new Error(`${a.name}: SHA-256 is ${sha}, expected ${a.sha256}. Nothing was unpacked.`);
     const unpacked = path.join(work, "x");
     fs.mkdirSync(unpacked);
-    execFileSync(tarCommand(), ["-xf", archive, "-C", unpacked]); // bsdtar on Windows 10 and later reads zip too
+    execFileSync(tarCommand(), ["-xf", archive, "-C", unpacked]); // the tar of the machine doing the fetch, not of the target platform; bsdtar on Windows 10 and later reads zip too
     fs.rmSync(out, { recursive: true, force: true });
     fs.mkdirSync(out, { recursive: true });
     let n = 0;

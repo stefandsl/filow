@@ -336,3 +336,21 @@ describe("the About and privacy window", () => {
     expect(Object.keys(s.handlers).sort()).toEqual(["about:close", "about:data", "about:openConfigFolder", "report:copy", "report:data", "report:issue", "report:openCrashFolder", "report:preview", "report:save"]);
   });
 });
+
+// main.js reads about.js lazily (require("./about").name inside a function), so a name about.js no
+// longer exports fails only when that code runs: the "Filow failed to start" box with Report a problem
+// threw on an undefined TEXT table and fell back to the plain box without the report button.
+describe("what main.js takes from about.js", () => {
+  it("is exported by about.js", () => {
+    const main = readFileSync(path.resolve(__dirname, "main.js"), "utf8");
+    const used = [...main.matchAll(/require\("\.\/about"\)\.(\w+)/g)].map((m) => m[1]);
+    for (const m of main.matchAll(/(?:const|let)\s*\{([^}]+)\}\s*=\s*require\("\.\/about"\)/g)) used.push(...m[1].split(",").map((s) => s.trim().split(":")[0].trim()).filter(Boolean));
+    expect(used.length).toBeGreaterThan(0);
+    const exported = Object.keys(loadAbout());
+    expect(used.filter((name) => !exported.includes(name))).toEqual([]);
+  });
+
+  it("gives the error box a Close label in every language", () => {
+    for (const lang of ["en", "it", "ru", "ro", "ja"]) expect(textFor(lang).close, lang).toMatch(/\S/);
+  });
+});
