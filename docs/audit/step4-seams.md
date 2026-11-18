@@ -10,6 +10,8 @@ instruction to implement its roadmap. No push, deployment, paid call or model ex
 
 This audit reproduced **14 contract failures** as `it.fails(...)`; three relay cases shared missing version validation. Eight other candidate groups needed different evidence or were ruled out. For the later fixes and passing regressions, see [sync and stop (B01-B05)](sync-fixes.md) and [offline (B06-B15)](offline-fixes.md).
 
+The November 5 dependency baseline used `audit/baseline` from `a8be80f`, with Node 22.13.0 and npm 11.15.0. The November 3 `npm ci` had run install scripts, and later `npm install` runs updated that tree in place. The audit skipped a clean `npm ci --ignore-scripts` because the local speech dependencies needed their install steps. Eight lockfile entries had `hasInstallScript`. Typecheck passed, with 230 tests passing and one skipped. The exact dependency versions and commands are in `git show 4e0bb19:docs/audit/baseline.md`.
+
 ## 1. Duplicate and out-of-order phone patches
 
 The mirror uses the shared client (`apps/web/app/mirror/page.tsx:64`). At
