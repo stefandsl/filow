@@ -288,7 +288,24 @@ function createOkFilow(deps) {
   /** An overlay that is no more has the pointer on nothing. */
   function dropHover(senderId) {
     stopHover.delete(senderId);
+    mediaRects.delete(senderId);
+    mediaOn.delete(senderId);
+    mouseWas.delete(senderId);
     if (bubbleHover.delete(senderId)) bubble.setHover(bubbleHover.size > 0);
+  }
+  /** Rectangle state belongs to this renderer only, including after a crash or reload. */
+  function watchHitRects(w, hit = null) {
+    const id = w.webContents.id;
+    const clear = () => {
+      dropHover(id);
+      if (hit) { hit.rects([]); hit.hold(false); }
+      else if (!w.isDestroyed()) applyMouse(w);
+      mouseWas.delete(id);
+    };
+    w.on("closed", clear);
+    w.webContents.on("destroyed", clear);
+    w.webContents.on("render-process-gone", clear);
+    w.webContents.on("did-start-loading", clear);
   }
   /** The bubble's close button (an overlay). */
   ipcMain.on("okfilow:bubble:close", (e) => { if (ourSender(e)) bubble.close("button"); });
@@ -356,7 +373,7 @@ function createOkFilow(deps) {
     modelCursorTimer = setInterval(() => {
       if (!modelWin || modelWin.isDestroyed()) { clearInterval(modelCursorTimer); modelCursorTimer = null; return; }
       if (!modelWin.isVisible()) return;
-      modelHit?.at(localPoint(screen.getCursorScreenPoint(), modelWin.getBounds()));
+      modelHit?.at(localPoint(screen.getCursorScreenPoint(), modelWin.getBounds(), true));
     }, 30);
   }
   function showModel(model) {
@@ -388,6 +405,7 @@ function createOkFilow(deps) {
     modelWin.setIgnoreMouseEvents(true, { forward: true });
     const win = modelWin;
     modelHit = createHitTarget({ setIgnore: (ignore) => { if (!win.isDestroyed()) win.setIgnoreMouseEvents(ignore, { forward: true }); } });
+    watchHitRects(win, modelHit);
     watchModelCursor();
     modelWin.setContentProtection(hidden());
     lockDown(modelWin);
@@ -442,8 +460,10 @@ function createOkFilow(deps) {
   });
   ipcMain.on("okfilow:model:rects", (e, rects) => {
     if (!ourSender(e) || !modelWin || modelWin.isDestroyed() || e.sender !== modelWin.webContents) return;
-    modelHit?.rects(rects);
-    modelHit?.at(localPoint(screen.getCursorScreenPoint(), modelWin.getBounds()));
+    const bounds = modelWin.getBounds();
+    const display = screen.getDisplayMatching(bounds).bounds;
+    modelHit?.rects(cleanRects(rects, { left: display.x - bounds.x, top: display.y - bounds.y, width: display.width, height: display.height }));
+    modelHit?.at(localPoint(screen.getCursorScreenPoint(), bounds, true));
   });
   // The model window's handle, grip and arrow keys (okfilow-move.js): moved or resized, kept on the screen it is on.
   ipcMain.on("okfilow:model:move", (e, d) => {
@@ -549,7 +569,7 @@ function createOkFilow(deps) {
     if (!ourSender(e)) return;
     const w = [...overlays.values()].find((x) => !x.isDestroyed() && x.webContents === e.sender);
     if (!w) return;
-    mediaRects.set(e.sender.id, cleanRects(rects));
+    mediaRects.set(e.sender.id, cleanRects(rects, w.getBounds()));
     lastCursor = "";
     mediaHit(w, localPoint(screen.getCursorScreenPoint(), w.getBounds()));
   });
@@ -586,6 +606,7 @@ function createOkFilow(deps) {
           webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload, backgroundThrottling: false },
         });
         applyMouse(w);
+        watchHitRects(w);
         w.setAlwaysOnTop(true, "screen-saver");
         w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
         w.setContentProtection(hidden()); // out of the user's recordings unless they allow it

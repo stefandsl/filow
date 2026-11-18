@@ -725,6 +725,11 @@ ripetere il confronto: `docs/gauntlet/BASELINE.md`.
 
 ## OK Filow, l'aiutante sullo schermo
 
+Trascina l'angolo di un elemento per ridimensionarlo in tempo reale: vista 3D,
+schede con immagini, galleria, video, slide e fumetto della risposta seguono il
+puntatore prima del rilascio. La maniglia a puntini sposta l'elemento.
+Fai doppio clic su una maniglia per ripristinare la disposizione.
+
 I segnaposto inseriti dal filtro privacy del fornitore vengono rimossi dai titoli delle schede e dalle etichette dei disegni, salvo quelli scritti nella domanda. Il testo della risposta e l?avviso sui nomi nascosti restano invariati.
 
 OK Filow è un aiutante dell'app desktop che vede lo schermo sotto il mouse e risponde a voce, con un

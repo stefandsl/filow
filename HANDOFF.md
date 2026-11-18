@@ -1,5 +1,26 @@
 # Filow hand-off
 
+## O2 bounded live resize (2026-11-18, unreleased)
+
+On feat/o2-hitarea, item grips update size on every pointermove and report a
+160 px hit margin on animation frames through the existing rectangle IPCs.
+Main caps padding to one item per report and clips it to the display. The 3D
+window tests its captured pointer outside native bounds against that same
+bounded rectangle. No grip hold, native button tracking, lease or timer was added.
+Pointer release/cancel/capture loss/unmount removes padding; renderer teardown,
+crash and reload clear main's hit state. The bubble's explicit width can exceed
+its automatic width limit and its transitions are disabled while dragging.
+
+Gates: 4,014 tests passed, 12 skipped, only the three qa.test.ts baseline failures;
+typecheck and lint passed. All 28 new tests pass; eight targeted regressions fail
+with the original renderer and rectangle sanitizer. Evidence: tmp/o2 and
+G:/FILOW/tmp/codex/o2/report-1.md. Both manuals describe the live resize behavior.
+
+Pending: native Windows checks for all six item types in dark/light themes,
+fast corner drags, DPI/display edges and capture cancellation. A pointer jump
+beyond the fixed margin is deliberately not covered by a global hold. No app,
+server, native input, installed profile, merge, push, tag or release was used.
+
 ## TK-14 standalone branch (2026-11-18, unreleased)
 
 The four TK-14 commits are isolated on feat/tk14 from main. Handoff conflicts

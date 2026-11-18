@@ -7,17 +7,36 @@
 
 /** At most this many rectangles per window (labels, tools, media items). */
 const MAX_RECTS = 64;
+const GRIP_MARGIN = 160;
 
 const finite = (v) => typeof v === "number" && Number.isFinite(v);
 
 /** The rectangles a page reported, kept to sane ones: { left, top, right, bottom }, with a size. */
-function cleanRects(list) {
+function cleanRects(list, bounds) {
   if (!Array.isArray(list)) return [];
   const out = [];
+  let padded = false;
   for (const r of list.slice(0, MAX_RECTS)) {
     if (!r || typeof r !== "object" || ![r.left, r.top, r.right, r.bottom].every(finite)) continue;
     if (r.right <= r.left || r.bottom <= r.top) continue;
-    out.push({ left: r.left, top: r.top, right: r.right, bottom: r.bottom });
+    let { left, top, right, bottom } = r;
+    // A report carries the normal item box plus an optional hit box. Intersect with
+    // the item's fixed margin, never accept a free-standing oversized hit area.
+    // Only one item per report can have padding. All other items retain normal hover.
+    const h = r.hit;
+    if (!padded && h && [h.left, h.top, h.right, h.bottom].every(finite) && h.right > h.left && h.bottom > h.top) {
+      left = Math.max(left - GRIP_MARGIN, Math.min(left, h.left));
+      top = Math.max(top - GRIP_MARGIN, Math.min(top, h.top));
+      right = Math.min(right + GRIP_MARGIN, Math.max(right, h.right));
+      bottom = Math.min(bottom + GRIP_MARGIN, Math.max(bottom, h.bottom));
+      padded = true;
+    }
+    if (bounds) {
+      const x = bounds.left ?? 0, y = bounds.top ?? 0;
+      left = Math.max(x, left); top = Math.max(y, top);
+      right = Math.min(x + bounds.width, right); bottom = Math.min(y + bounds.height, bottom);
+    }
+    if (right > left && bottom > top) out.push({ left, top, right, bottom });
   }
   return out;
 }
@@ -28,12 +47,12 @@ function insideAny(p, rects) {
   return rects.some((r) => p.x >= r.left && p.x < r.right && p.y >= r.top && p.y < r.bottom);
 }
 
-/** The cursor (screen DIP) in a window's own coordinates, or null when it is outside the window. */
-function localPoint(cursor, bounds) {
+/** Window coordinates; the model's captured grip can visit its padded rect outside native bounds. */
+function localPoint(cursor, bounds, outside = false) {
   if (!cursor || !bounds) return null;
   const x = cursor.x - bounds.x;
   const y = cursor.y - bounds.y;
-  return x >= 0 && y >= 0 && x <= bounds.width && y <= bounds.height ? { x, y } : null;
+  return outside || (x >= 0 && y >= 0 && x <= bounds.width && y <= bounds.height) ? { x, y } : null;
 }
 
 /**
@@ -63,4 +82,4 @@ function createHitTarget({ setIgnore }) {
   };
 }
 
-module.exports = { MAX_RECTS, cleanRects, insideAny, localPoint, createHitTarget };
+module.exports = { MAX_RECTS, GRIP_MARGIN, cleanRects, insideAny, localPoint, createHitTarget };

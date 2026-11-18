@@ -57,6 +57,7 @@ export function AnswerBubble({ mode, text, stopped, shown, level = 0, spoken = -
       role="group"
       aria-label="OK Filow"
       data-testid="okf-bubble"
+      style={{ width: width ? `${width}px` : undefined, maxWidth: width ? "calc(100vw - 16px)" : undefined }}
     >
       <div ref={content} className="okf-bubble-content" style={{ width: width ? `${Math.max(120, width - 28)}px` : text.length > 40 ? "min(352px, calc(100vw - 44px))" : undefined, maxWidth: width ? "none" : undefined }}>
       {mode === "listening" && (

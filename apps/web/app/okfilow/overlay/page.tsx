@@ -16,6 +16,7 @@ import { MediaLayer } from "@/components/okfilow/media-layer";
 import { boundsOfRects, cleanShow, TILE, type MediaShow } from "@/lib/buddy/media";
 import { bubbleBeside, bubbleClear, clampBox, LIMITS, readLayout, rememberBox, resetLayout, type Box, type MovableKind } from "@/lib/buddy/layout-move";
 import { MoveGrips } from "@/components/okfilow/move-grips";
+import { itemHitRects, watchHitRectChanges } from "@/components/okfilow/hit-rects";
 import type { Rect } from "@/lib/buddy/marks";
 import { keyLabel, PILL_IDLE, pillView, statusRoom, talkHeld, type PillAction, type PillState } from "@/lib/buddy/pill";
 import { AnswerBubble, answerInBubble, markMore } from "@/components/okfilow/bubble";
@@ -390,10 +391,7 @@ export default function OkFilowOverlay() {
   useEffect(() => {
     let sent = "";
     const report = () => {
-      const rects = Array.from(document.querySelectorAll(".okf-media-tile, .okf-slide:not(.okf-slide--measuring), .okf-cards:not(.okf-cards--measuring):not(.okf-cards--leaving) :is(.okf-card, .okf-cards-bar)"), (el) => {
-        const r = el.getBoundingClientRect();
-        return { left: Math.floor(r.left), top: Math.floor(r.top), right: Math.ceil(r.right), bottom: Math.ceil(r.bottom) };
-      }).filter((r) => r.right > r.left && r.bottom > r.top);
+      const rects = itemHitRects(document.querySelectorAll('.okf-media-tile, .okf-slide:not(.okf-slide--measuring), .okf-cards:not(.okf-cards--measuring):not(.okf-cards--leaving) :is(.okf-card, .okf-cards-bar), .okf-cards[data-okf-grip-active="true"], .okf-bubble--answer:not(.okf-hidden)'));
       keepOff.current.media = Array.from(document.querySelectorAll(".okf-media-tile, .okf-slide:not(.okf-slide--measuring)"), (el) => {
         const r = el.getBoundingClientRect();
         return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
@@ -402,8 +400,9 @@ export default function OkFilowOverlay() {
       if (key !== sent) { sent = key; okFilowBridge()?.overlayRects?.(rects); }
     };
     report();
+    const unwatch = watchHitRectChanges(report);
     const id = setInterval(report, 100);
-    return () => { clearInterval(id); okFilowBridge()?.overlayRects?.([]); };
+    return () => { unwatch(); clearInterval(id); okFilowBridge()?.overlayRects?.([]); };
   }, []);
   const moveProps = useMemo(() => ({ moved, onBox, onReset }), [moved, onBox, onReset]);
   const markSets = useMemo(() => (leaving ? [leaving, marks] : [marks]), [leaving, marks]);

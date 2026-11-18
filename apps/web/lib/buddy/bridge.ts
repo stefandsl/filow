@@ -194,7 +194,7 @@ export type OkFilowBridge = {
   /** Model window -> main: move the window by dx, dy, or resize it by dw, dh (its drag handle, its grip, arrow keys); kept on screen. */
   modelMove?(d: { dx: number; dy: number; dw?: number; dh?: number; done?: boolean }): void;
   /** Overlay -> main: where its pictures and slide are (overlay CSS px); main lets clicks through everywhere else (apps/desktop/okfilow-hit.js). */
-  overlayRects?(rects: Array<{ left: number; top: number; right: number; bottom: number }>): void;
+  overlayRects?(rects: Array<{ left: number; top: number; right: number; bottom: number; hit?: { left: number; top: number; right: number; bottom: number } }>): void;
   /** Panel -> main: open the 3D model window with this model. */
   showModel(model: BuddyModel): void;
   /** Model window -> main: loaded, send me the model. */
@@ -205,7 +205,7 @@ export type OkFilowBridge = {
   /** Model window -> main: on a part of the model or dragging it (main also takes the mouse over modelRects). */
   modelHover?(active: boolean): void;
   /** Model window -> main: where its tools and labels are (window CSS px); main makes them take clicks under the real cursor (apps/desktop/okfilow-hit.js). */
-  modelRects?(rects: Array<{ left: number; top: number; right: number; bottom: number }>): void;
+  modelRects?(rects: Array<{ left: number; top: number; right: number; bottom: number; hit?: { left: number; top: number; right: number; bottom: number } }>): void;
   /** Model window -> panel (through main): ask OK Filow about a clicked part. */
   askAbout(text: string): void;
   /** Whiteboard tutor (docs/whiteboard/SPEC.md). Absent in a desktop build older than the whiteboard. */
