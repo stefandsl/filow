@@ -379,12 +379,20 @@ function createOkFilow(deps) {
     const b = modelWin && !modelWin.isDestroyed() && modelWin.isVisible() ? modelWin.getBounds() : null;
     for (const w of overlays.values()) if (!w.isDestroyed()) w.webContents.send("okfilow:modelBounds", localRect(b, w.getBounds()));
   }
+  function updateModelCursor() {
+    const bounds = modelWin.getBounds();
+    const display = screen.getDisplayMatching(bounds).bounds;
+    const cursor = screen.getCursorScreenPoint();
+    const onDisplay = cursor.x >= display.x && cursor.x < display.x + display.width
+      && cursor.y >= display.y && cursor.y < display.y + display.height;
+    modelHit?.at(onDisplay ? localPoint(cursor, bounds, true) : null);
+  }
   function watchModelCursor() {
     clearInterval(modelCursorTimer);
     modelCursorTimer = setInterval(() => {
       if (!modelWin || modelWin.isDestroyed()) { clearInterval(modelCursorTimer); modelCursorTimer = null; return; }
       if (!modelWin.isVisible()) return;
-      modelHit?.at(localPoint(screen.getCursorScreenPoint(), modelWin.getBounds(), true));
+      updateModelCursor();
     }, 30);
   }
   function showModel(model) {
@@ -473,9 +481,11 @@ function createOkFilow(deps) {
     if (!ourSender(e) || !modelWin || modelWin.isDestroyed() || e.sender !== modelWin.webContents) return;
     const bounds = modelWin.getBounds();
     const display = screen.getDisplayMatching(bounds).bounds;
-    const report = cleanHitReport(rects, { left: display.x - bounds.x, top: display.y - bounds.y, width: display.width, height: display.height });
-    applyGripReport(modelWin, report, (hits) => modelHit?.rects(hits));
-    modelHit?.at(localPoint(screen.getCursorScreenPoint(), bounds, true));
+    const report = cleanHitReport(rects, null, display);
+    applyGripReport(modelWin, report, (hits) => {
+      modelHit?.rects(hits);
+      updateModelCursor();
+    });
   });
   // The model window's handle, grip and arrow keys (okfilow-move.js): moved or resized, kept on the screen it is on.
   ipcMain.on("okfilow:model:move", (e, d) => {

@@ -39,7 +39,7 @@ function setup() {
   };
   runInNewContext([
     "let gripOwner = null;",
-    ...["applyGripReport", "applyMouse", "mediaHit", "dropHover", "watchHitRects"].map((name) => section(`  function ${name}(`, "\n  }")),
+    ...["updateModelCursor", "applyGripReport", "applyMouse", "mediaHit", "dropHover", "watchHitRects"].map((name) => section(`  function ${name}(`, "\n  }")),
     section('  ipcMain.on("okfilow:overlay:rects"', "\n  });"),
     section('  ipcMain.on("okfilow:model:rects"', "\n  });"),
   ].join("\n"), context);
@@ -147,5 +147,24 @@ it("transfers the only padded grip across overlays and the model, preserving ord
     h.context.mediaHit(previous, { x: 500, y: 400 });
     expect(previous.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
     h.point({ x: 710, y: 580 });
+  }
+});
+
+it("rechecks the current display edge after native translation without a new report", () => {
+  const h = setup();
+  const bounds = { x: 1000, y: 200, width: 400, height: 300 };
+  h.model.getBounds = () => bounds;
+  const tool = { left: 330, top: 8, right: 392, bottom: 42 };
+  h.send(h.model, [{ ...tool, hit: { left: 170, top: -152, right: 552, bottom: 202 } }]);
+  let tick = () => {};
+  Object.assign(h.model, { isVisible: () => true });
+  Object.assign(h.context, { modelCursorTimer: null, clearInterval: vi.fn(),
+    setInterval: (callback: () => void) => { tick = callback; } });
+  runInNewContext(section("  function watchModelCursor(", "\n  }") + "\nwatchModelCursor();", h.context);
+  bounds.x = 1512;
+  for (const [x, ignores] of [[1919, false], [1920, true], [1950, true]] as const) {
+    h.context.screen.getCursorScreenPoint = () => ({ x, y: 240 });
+    tick();
+    expect(h.model.setIgnoreMouseEvents).toHaveBeenLastCalledWith(ignores);
   }
 });
