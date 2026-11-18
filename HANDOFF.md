@@ -1,5 +1,33 @@
 # Filow hand-off
 
+## TK-14 standalone branch (2026-11-18, unreleased)
+
+The four TK-14 commits are isolated on feat/tk14 from main. Handoff conflicts
+were resolved with TK-14 text only; no O2 code or documentation was carried over.
+Standalone gates: 3,986 tests passed, 12 skipped, only the three qa.test.ts
+baseline failures; typecheck and lint passed. All TK-14 tests passed.
+Evidence: tmp/report7/tk14-*.log and G:/FILOW/tmp/codex/tk14-o2/report-7.md.
+No merge, push, tag, app, server, native input or installed-profile change.
+
+## TK-14 final fix round (2026-11-18, unreleased)
+
+Restored main's visual extraction order and removed the malformed-card prepass.
+The only card grammar extension is complete bracketed field text, including
+`[PERSON_NAME]` and `[key:value]`. Title/label cleanup and whiteboard isolation
+remain. Frozen main parser/visuals fixtures drive 43 differential answer cases;
+three nested-card cases and existing stream-boundary cases cover the extension.
+
+This supersedes the malformed-card guarantees in the earlier entry below.
+Main itself discards the tail of an unclosed card before a drawing/model fence
+and can retain literal placeholder fragments from malformed cards. Those known
+behaviors are preserved to honor the final-round main-compatibility requirement.
+
+Final gates: 4,026 tests passed, 12 skipped, only the same three qa.test.ts baseline
+failures; typecheck and lint passed. Focused checks: 227 passed. Fail-before on
+a83a301: 24 failures across review probes and differential cases, 45 passed.
+Evidence: tmp/review5 and G:/FILOW/tmp/codex/tk14-o2/report-5.md. Two local commits;
+no merge, push, tag, server, app, native input, generated-file or profile change.
+
 ## TK-14 review fixes (2026-11-18, unreleased)
 
 TK-14 placeholder cleanup is explicitly selected by OK Filow answer extraction.

@@ -3,6 +3,7 @@ import * as outbound from "@/lib/buddy/outbound";
 import * as providers from "@/lib/buddy/providers";
 import { OKF_TEXT } from "@/lib/buddy/text";
 import { parseBuddyAnswer } from "@/lib/buddy/prompt";
+import { parseBuddyAnswer as main } from "@/lib/buddy/fixtures/main-prompt";
 import { drawingSvg } from "@/lib/buddy/visuals";
 import { POST as ask } from "./route";
 
@@ -25,13 +26,13 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
 describe("OK Filow says when a service on the way hid a name of the question", () => {
-  it("cleans 3D names before truncation and hides unfinished card tags at every stream boundary", () => {
+  it("cleans 3D names before truncation and preserves main cleanup at incomplete card boundaries", () => {
     const title = "x".repeat(55) + " [PERSON_NAME]";
     const raw = `[CARD:100,100:${title}|Description|]`;
     for (let i = 1; i < raw.length; i++) {
       const parsed = parseBuddyAnswer(raw.slice(0, i), shot.screens, 1, "Ada");
       expect(parsed.cards).toEqual([]);
-      expect(parsed.text).toBe("");
+      expect(parsed).toEqual(main(raw.slice(0, i), shot.screens));
     }
     expect(parseBuddyAnswer(raw, shot.screens, 1, "Ada").cards[0].title).toBe("x".repeat(55));
     const model = { title: "[PERSON_NAME]", parts: [{ name: "Body [EMAIL]", shape: "sphere", size: [1] }] };

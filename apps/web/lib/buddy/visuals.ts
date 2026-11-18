@@ -155,7 +155,8 @@ export function isExampleCopy(raw: unknown): boolean {
   return same(r.shapes, (JSON.parse(DRAWING_EXAMPLE) as { shapes: unknown }).shapes) || same(r.parts, (JSON.parse(MODEL_EXAMPLE) as { parts: unknown }).parts);
 }
 
-const CARD_RE = /\[CARD:\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*:((?:[^\][|]|\[[^\][|]*\])*)\|((?:[^\][|]|\[[^\][|]*\])*)(?:\|((?:[^\][|:]|\[[^\][|]*\])*))?(?::\s*screen\s*(\d+))?\s*\]/gi;
+// Keep the legacy field grammar, adding complete bracketed literals before its single characters.
+const CARD_RE = /\[CARD:\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*:((?:\[[^\][|]*\]|[^\]|])*)\|((?:\[[^\][|]*\]|[^\]|])*)(?:\|((?:\[[^\][|]*\]|[^\]|:])*))?(?::\s*screen\s*(\d+))?\s*\]/gi;
 
 const num = (v: unknown, lo: number, hi: number): number | null => (typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi ? v : null);
 const vec = (v: unknown, lo: number, hi: number, fill?: number): [number, number, number] | null => {
@@ -279,16 +280,11 @@ export function validateModel(raw: unknown, question = ""): BuddyModel | null {
  * streamed answer is held back so its JSON never shows in the bubble.
  */
 export function extractVisuals(raw: string, validScreen: (n: number) => boolean, defaultScreen = 1, question = ""): { body: string; cards: BuddyCard[]; model: BuddyModel | null; drawing: BuddyDrawing | null; media: MediaAsk[]; slide: BuddySlide | null } {
-  const m3 = takeBlock(raw, "model3d", (raw) => validateModel(raw, question));
+  const shown = extractMedia(raw);
+  const m3 = takeBlock(shown.body, "model3d", (raw) => validateModel(raw, question));
   const d2 = takeBlock(m3.body, "drawing2d", (raw) => validateDrawing(raw, (text) => cleanVisualLabel(text, question)));
   // A fence that has only just started ("``", "```mod", "```draw") is held back too.
   let body = d2.body.replace(/`{1,3}\s*([a-z0-9]*)\s*$/i, (t, w: string) => ("model3d".startsWith(w.toLowerCase()) || "drawing2d".startsWith(w.toLowerCase()) ? "" : t));
-  // Drop malformed cards before extracting later tags, while their boundaries are still present.
-  // Stop at the card's own close or the next tag; only an unfinished trailing card consumes the tail.
-  // Nested placeholder brackets are not the card's close. Complete valid cards pass through unchanged.
-  body = body.replace(/\[CARD:(?:[^[\]]|\[(?![a-z_]+:)[^[\]]*\])*(?:\]|(?=\[[a-z_]+:)|(?:\[[^[\]]*)?$)/gi, (card) => card.match(CARD_RE)?.[0] ?? "");
-  const shown = extractMedia(body);
-  body = shown.body;
   const cards: BuddyCard[] = [];
   body = body.replace(CARD_RE, (_m, x: string, y: string, title: string, text: string, photo: string | undefined, screen: string | undefined) => {
     const px = Number(x);

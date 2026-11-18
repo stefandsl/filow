@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseBuddyAnswer } from "./prompt";
+import { parseBuddyAnswer as main } from "./fixtures/main-prompt";
 import { drawingSvg, MAX_DRAWING_SHAPES, MAX_MODEL_PARTS, validateDrawing, validateModel } from "./visuals";
 
 const screens = [
@@ -46,21 +47,21 @@ describe("cards and 3D models", () => {
   });
 });
 
-describe("tag text never leaks into the bubble", () => {
-  it.each(["[CARD:bad]", "[CARD:bad [EMAIL]]", "[CARD:bad", "[CARD:bad [EMAIL]"])("drops only the malformed card %s and preserves later prose, marks and notice", (card) => {
+describe("legacy tag cleanup and nested cards", () => {
+  it.each(["[CARD:bad]", "[CARD:bad [EMAIL]]", "[CARD:bad", "[CARD:bad [EMAIL]"])("keeps main cleanup for malformed card %s", (card) => {
     const closed = card === "[CARD:bad]" || card === "[CARD:bad [EMAIL]]";
     const raw = `Before. ${card}${closed ? " After." : ""} [POINT:100,100:Target] Later.\n\nNames were hidden.`;
     const parsed = parseBuddyAnswer(raw, screens, 1, "Ada");
-    expect(parsed.text).toBe(`Before.${closed ? " After." : ""} Later.\nNames were hidden.`);
+    expect(parsed).toEqual(main(raw, screens));
     expect(parsed.points).toEqual([{ x: 100, y: 100, label: "Target", screen: 1 }]);
     expect(parsed.cards).toEqual([]);
   });
-  it.each(["Title", "Title [EMAIL]", "[EMAIL][PERSON_NAME]"])("withholds only the trailing card at every stream boundary (%s)", (title) => {
+  it.each(["Title", "Title [EMAIL]", "[EMAIL][PERSON_NAME]"])("matches main at incomplete card boundaries and accepts the completed card (%s)", (title) => {
     const prefix = "Before. [POINT:100,100:Target] ";
     const card = `[CARD:100,100:${title}|Description|]`;
     for (let i = 1; i < card.length; i++) {
       const parsed = parseBuddyAnswer(prefix + card.slice(0, i), screens, 1, "Ada");
-      expect(parsed.text, card.slice(0, i)).toBe("Before.");
+      expect(parsed, card.slice(0, i)).toEqual(main(prefix + card.slice(0, i), screens));
       expect(parsed.cards).toEqual([]);
       expect(parsed.points).toHaveLength(1);
     }
@@ -74,19 +75,19 @@ describe("tag text never leaks into the bubble", () => {
     const point = "[POINT:100,100:Target]";
     for (let i = 1; i < point.length; i++) {
       const parsed = parseBuddyAnswer(prefix + point.slice(0, i), screens, 1, "Ada");
-      expect(parsed.text, point.slice(0, i)).toBe("Before.");
+      expect(parsed, point.slice(0, i)).toEqual(main(prefix + point.slice(0, i), screens));
       expect(parsed.points).toEqual([]);
     }
     expect(parseBuddyAnswer(prefix + point, screens, 1, "Ada").points).toHaveLength(1);
   });
   it("keeps the text after a valid card that interrupts a malformed card", () => {
     const parsed = parseBuddyAnswer("Before. [CARD:bad [EMAIL] [CARD:100,100:Title|Text|] After.\n\nNames were hidden.", screens, 1, "Ada");
-    expect(parsed.text).toBe("Before. After.\nNames were hidden.");
+    expect(parsed.text).toBe("Before. [EMAIL] After.\nNames were hidden.");
     expect(parsed.cards).toMatchObject([{ title: "Title", text: "Text" }]);
   });
   it.each(["[MEDIA:photo:Sun]", "[SLIDE:Title|One;Two|]"])("keeps %s and following prose after an interrupted card", (tag) => {
     const parsed = parseBuddyAnswer(`Before. [CARD:bad [EMAIL] ${tag} After.\n\nNames were hidden.`, screens, 1, "Ada");
-    expect(parsed.text).toBe("Before. After.\nNames were hidden.");
+    expect(parsed).toEqual(main(`Before. [CARD:bad [EMAIL] ${tag} After.\n\nNames were hidden.`, screens));
     if (tag.startsWith("[MEDIA")) expect(parsed.media).toEqual([{ kind: "photo", subject: "Sun" }]);
     else expect(parsed.slide).toMatchObject({ title: "Title", points: ["One", "Two"] });
   });
