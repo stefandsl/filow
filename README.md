@@ -716,6 +716,11 @@ rerun the comparison: `docs/gauntlet/BASELINE.md`.
 
 ## OK Filow, the screen helper
 
+Drag an item's corner to resize it live: the 3D view, picture cards, gallery,
+video, slide and answer bubble follow the pointer before release. The dotted
+handle moves the item. A gallery's minimum height leaves room for each picture,
+its caption and its controls. Double-click a handle to reset the layout.
+
 Provider privacy placeholders are removed from card titles and drawing labels unless you typed them in your question. Answer text and the notice about hidden names stay unchanged.
 
 OK Filow is a helper in the desktop app that sees the screen under your mouse and answers out loud,

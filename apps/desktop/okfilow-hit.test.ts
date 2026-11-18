@@ -127,7 +127,7 @@ describe("wiring", () => {
   const main = fs.readFileSync(path.join(__dirname, "okfilow.js"), "utf8");
   const page = fs.readFileSync(path.join(__dirname, "../web/app/okfilow/model/page.tsx"), "utf8");
   it("main decides the model window's mouse from the real cursor, not from the page's hover events", () => {
-    expect(main).toMatch(/modelHit\?\.at\(localPoint\(screen\.getCursorScreenPoint\(\), modelWin\.getBounds\(\)\)\)/);
+    expect(main).toMatch(/modelHit\?\.at\(onDisplay \? localPoint\(cursor, bounds, true\) : null\)/);
     expect(main).toMatch(/"okfilow:model:hover"[\s\S]{0,200}modelHit\?\.hold\(active === true\)/);
     expect(main).not.toMatch(/"okfilow:model:hover"[\s\S]{0,160}setIgnoreMouseEvents/);
   });

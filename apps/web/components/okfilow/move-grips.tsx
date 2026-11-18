@@ -3,10 +3,10 @@
 // a row of dots at the top that moves the item, lines in the bottom-right corner that resize it. Both take
 // the mouse (the overlay reports the item's box, main lets clicks in only there), arrow keys move a focused
 // handle's item and Shift+arrows resize it, and a double click on a handle puts every item back where OK
-// Filow puts it ("reset layout"). A drag follows the pointer through the whole page (the item moves with
-// it, so the pointer stays on the handle and the window keeps the mouse).
-import { useRef, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+// Filow puts it ("reset layout"). A held grip reports a bounded hit margin around its item on each animation frame.
+import { type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { dragBox, keyBox, resizeBox, type Area, type Box, type Limits } from "@/lib/buddy/layout-move";
+import { useGripDrag } from "./use-grip-drag";
 
 type Props = {
   box: Box;
@@ -23,12 +23,8 @@ type Props = {
 };
 
 export function MoveGrips({ box, area, lim, onBox, onReset, moveLabel, sizeLabel, show = "both", style }: Props) {
-  const busy = useRef(false);
+  const drag = useGripDrag();
   const down = (kind: "move" | "size") => (e: PointerEvent<HTMLElement>) => {
-    if (e.button !== 0 || busy.current) return;
-    e.preventDefault();
-    e.stopPropagation();
-    busy.current = true;
     const start = { x: e.clientX, y: e.clientY, box };
     let last = box;
     const move = (ev: globalThis.PointerEvent) => {
@@ -37,16 +33,7 @@ export function MoveGrips({ box, area, lim, onBox, onReset, moveLabel, sizeLabel
       last = kind === "move" ? dragBox(start.box, dx, dy, area, lim) : resizeBox(start.box, "se", dx, dy, area, lim);
       onBox(last, false);
     };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", up);
-      busy.current = false;
-      onBox(last, true);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", up);
+    drag(e, move, () => onBox(last, true));
   };
   const key = (kind: "move" | "size") => (e: KeyboardEvent<HTMLElement>) => {
     const next = keyBox(box, e.key, kind === "size" || e.shiftKey, area, lim);

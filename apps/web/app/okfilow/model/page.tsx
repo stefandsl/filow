@@ -12,6 +12,8 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { useLang } from "@filow/ui";
 import { okFilowBridge } from "@/lib/buddy/bridge";
+import { useGripDrag } from "@/components/okfilow/use-grip-drag";
+import { itemHitRects, watchHitRectChanges } from "@/components/okfilow/hit-rects";
 import { okfText } from "@/lib/buddy/text";
 import { visibleSurfaceAnchor } from "@/lib/buddy/model-surface";
 import { createLeaderMotion } from "@/lib/buddy/leader-motion";
@@ -61,6 +63,7 @@ const reducedMotion = () => typeof window !== "undefined" && window.matchMedia("
 const easeOut = (k: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, k)), 3);
 
 export default function OkFilowModel() {
+  const gripDrag = useGripDrag({ forwardedHover: true });
   const host = useRef<HTMLDivElement>(null);
   const leaders = useRef<SVGSVGElement>(null);
   const labelEls = useRef<Array<HTMLButtonElement | null>>([]);
@@ -88,14 +91,14 @@ export default function OkFilowModel() {
     // Where the tools and the labels are: main makes them take clicks whenever the real cursor is on
     // them (apps/desktop/okfilow-hit.js), so no order of pointer events can lose a click on the close button.
     let sent = "";
-    const report = setInterval(() => {
-      const rects = Array.from(document.querySelectorAll(".okf-model-tools, .okf-part, .okf-model-resize"), (el) => el.getBoundingClientRect())
-        .filter((r) => r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0)
-        .map((r) => ({ left: Math.floor(r.left), top: Math.floor(r.top), right: Math.ceil(r.right), bottom: Math.ceil(r.bottom) }));
+    const report = () => {
+      const rects = itemHitRects(document.querySelectorAll(".okf-model-tools, .okf-part, .okf-model-resize"));
       const key = JSON.stringify(rects);
       if (key !== sent) { sent = key; b.modelRects?.(rects); }
-    }, 100);
-    return () => { off(); clearInterval(report); window.removeEventListener("keydown", onKey); };
+    };
+    const unwatch = watchHitRectChanges(report);
+    const interval = setInterval(report, 100);
+    return () => { off(); unwatch(); clearInterval(interval); b.modelRects?.([]); window.removeEventListener("keydown", onKey); };
   }, []);
 
   /** The parts that carry a label (the biggest, one per name), numbered 1.. in the model's order. */
@@ -409,7 +412,6 @@ export default function OkFilowModel() {
    */
   const windowDrag = (kind: "move" | "size") => (e: ReactPointerEvent<HTMLElement>) => {
     if (e.button !== 0 || !b?.modelMove) return;
-    e.preventDefault();
     let last = { x: e.screenX, y: e.screenY };
     const step = (ev: PointerEvent) => {
       const dx = ev.screenX - last.x;
@@ -418,15 +420,7 @@ export default function OkFilowModel() {
       last = { x: ev.screenX, y: ev.screenY };
       b.modelMove?.(kind === "move" ? { dx, dy } : { dx: 0, dy: 0, dw: dx, dh: dy });
     };
-    const end = () => {
-      window.removeEventListener("pointermove", step);
-      window.removeEventListener("pointerup", end);
-      window.removeEventListener("pointercancel", end);
-      b.modelMove?.({ dx: 0, dy: 0, done: true });
-    };
-    window.addEventListener("pointermove", step);
-    window.addEventListener("pointerup", end);
-    window.addEventListener("pointercancel", end);
+    gripDrag(e, step, () => b.modelMove?.({ dx: 0, dy: 0, done: true }));
   };
   return (
     <main className="okf-model" aria-label={model?.title ?? "OK Filow"} key={model ? "m-" + model.title : "none"}>

@@ -1,5 +1,55 @@
 # Filow hand-off
 
+## O2 merge blockers (2026-11-18, unreleased)
+
+The overlay now reports each item's buttons alongside its body. On a 1280 x 720
+display the dotted handle at (470, 56) accepts a new drag after resizing the
+photo to 860 x 641. Moved galleries remember how many rows their height covered.
+Closing three of six photos preserves the tile height and exposes the slide's
+Close button at (786, 298).
+
+Both regressions failed on 88f1589. Offline Chromium passed both interactions
+in dark and light themes. Vitest passed 4,037 tests with 12 skipped and the same
+three desktop QA baseline failures. Typecheck and lint passed. Native Windows
+click-through remains a manual check. Evidence is in tmp/o2-round7 and
+G:/FILOW/tmp/codex/o2/report-7.md.
+
+## O2 final review fixes (2026-11-18, unreleased)
+
+Oversized overlay items keep a bounded hit area at their control corner. The
+resized gallery reserves 48 px of media per row plus space for its controls
+and caption. Model drags survive capture loss and forwarded buttonless hover.
+A chorded primary release finishes the grip. Closing or replacing an answer
+immediately releases its bubble hover and rectangles while preserving pill and
+media hits.
+
+All five review scenarios failed on 59c3b88. The final suite passed 4,034 tests
+with 12 skipped and the same three desktop QA baseline failures. Typecheck and
+lint passed. The six-picture minimum was checked in offline Chromium in both
+themes. Native Windows input and click-through remain manual checks.
+Evidence is in worktree tmp/o2-round5 and G:/FILOW/tmp/codex/o2/report-5.md.
+
+## O2 bounded live resize (2026-11-18, unreleased)
+
+On feat/o2-hitarea, item grips update size on every pointermove and report a
+160 px hit margin on animation frames through the existing rectangle IPCs.
+Main caps padding to one item per report and clips it to the display. The 3D
+window tests its captured pointer outside native bounds against that same
+bounded rectangle. No grip hold, native button tracking, lease or timer was added.
+Pointer release/cancel/capture loss/unmount removes padding; renderer teardown,
+crash and reload clear main's hit state. The bubble's explicit width can exceed
+its automatic width limit and its transitions are disabled while dragging.
+
+Gates: 4,014 tests passed, 12 skipped, only the three qa.test.ts baseline failures;
+typecheck and lint passed. All 28 new tests pass; eight targeted regressions fail
+with the original renderer and rectangle sanitizer. Evidence: tmp/o2 and
+G:/FILOW/tmp/codex/o2/report-1.md. Both manuals describe the live resize behavior.
+
+Pending: native Windows checks for all six item types in dark/light themes,
+fast corner drags, DPI/display edges and capture cancellation. A pointer jump
+beyond the fixed margin is deliberately not covered by a global hold. No app,
+server, native input, installed profile, merge, push, tag or release was used.
+
 ## TK-14 standalone branch (2026-11-18, unreleased)
 
 The four TK-14 commits are isolated on feat/tk14 from main. Handoff conflicts

@@ -18,7 +18,7 @@ const { createAgents, agentTask, safeToOpen, pickCli } = require("./okfilow-agen
 const { createOutboundState, sanitizeConsent, applyConsentChanges, agentRecipient, agentGranted } = require("./okfilow-outbound");
 const { readSelection } = require("./okfilow-selection");
 const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOverlays, pointsShowMs, answering, overlayMouse, seeChoice, wordsOnlyList, pillState, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, bindKey } = require("./okfilow-stop");
-const { createHitTarget, insideAny, cleanRects, localPoint } = require("./okfilow-hit");
+const { createHitTarget, insideAny, cleanHitReport, localPoint } = require("./okfilow-hit");
 const { cleanShow, showFor } = require("./okfilow-media");
 const { clampBounds, movedBounds, localRect } = require("./okfilow-move");
 const { escTarget, createEscKey } = require("./okfilow-esc");
@@ -269,9 +269,7 @@ function createOkFilow(deps) {
     dismiss: (why) => {
       logLine(`okfilow: bubble closed (${why})`);
       sendOverlays("okfilow:bubble:close", why);
-      bubbleHover.clear();
-      if (!overlayLive(mode, pill, false)) stopHover.clear();
-      for (const w of overlays.values()) applyMouse(w);
+      refreshBubbleMouse();
       // The answer's marks go with its bubble, however it went.
       answerMarks.drop(`bubble ${why}`);
       if (mode === "idle" || mode === "error") scheduleFade();
@@ -285,10 +283,65 @@ function createOkFilow(deps) {
       if (mode === "idle" || mode === "error") scheduleFade();
     },
   });
+  let gripOwner = null;
+  function applyGripReport(w, report, apply) {
+    const id = w.webContents.id;
+    if (gripOwner?.id === id) gripOwner = null;
+    if (report.padded) {
+      gripOwner?.restore();
+      gripOwner = { id, report, restore: () => apply(report.base) };
+    }
+    apply(report.rects);
+  }
+  function refreshBubbleMouse() {
+    const open = bubble.open();
+    if (!open) {
+      for (const id of bubbleHover) stopHover.delete(id);
+      bubbleHover.clear();
+      bubble.setHover(false);
+    }
+    if (!overlayLive(mode, pill, open)) stopHover.clear();
+    for (const w of overlays.values()) {
+      if (w.isDestroyed()) continue;
+      if (!open) dropBubbleRects(w);
+      applyMouse(w);
+    }
+  }
+  function dropBubbleRects(w) {
+    const id = w.webContents.id;
+    const hits = mediaRects.get(id);
+    if (!hits?.some((r) => r.bubble)) return;
+    if (gripOwner?.id === id) {
+      const report = gripOwner.report;
+      report.base = report.base.filter((r) => !r.bubble);
+      if (report.padded.bubble) gripOwner = null;
+    }
+    mediaRects.set(id, hits.filter((r) => !r.bubble));
+    mediaHit(w, localPoint(screen.getCursorScreenPoint(), w.getBounds()));
+  }
   /** An overlay that is no more has the pointer on nothing. */
   function dropHover(senderId) {
+    if (gripOwner?.id === senderId) gripOwner = null;
     stopHover.delete(senderId);
+    mediaRects.delete(senderId);
+    mediaOn.delete(senderId);
+    mouseWas.delete(senderId);
     if (bubbleHover.delete(senderId)) bubble.setHover(bubbleHover.size > 0);
+  }
+  /** Rectangle state belongs to this renderer only, including after a crash or reload. */
+  function watchHitRects(w, hit = null) {
+    const id = w.webContents.id;
+    const clear = () => {
+      dropHover(id);
+      if (hit) { hit.rects([]); hit.hold(false); }
+      else if (!w.isDestroyed()) applyMouse(w);
+      mouseWas.delete(id);
+    };
+    w.on("closed", clear);
+    w.webContents.on("destroyed", clear);
+    w.webContents.on("render-process-gone", clear);
+    w.webContents.on("did-start-loading", clear);
+    w.webContents.on("did-navigate", clear); // main-frame commit also discards any final outgoing report
   }
   /** The bubble's close button (an overlay). */
   ipcMain.on("okfilow:bubble:close", (e) => { if (ourSender(e)) bubble.close("button"); });
@@ -351,12 +404,20 @@ function createOkFilow(deps) {
     const b = modelWin && !modelWin.isDestroyed() && modelWin.isVisible() ? modelWin.getBounds() : null;
     for (const w of overlays.values()) if (!w.isDestroyed()) w.webContents.send("okfilow:modelBounds", localRect(b, w.getBounds()));
   }
+  function updateModelCursor() {
+    const bounds = modelWin.getBounds();
+    const display = screen.getDisplayMatching(bounds).bounds;
+    const cursor = screen.getCursorScreenPoint();
+    const onDisplay = cursor.x >= display.x && cursor.x < display.x + display.width
+      && cursor.y >= display.y && cursor.y < display.y + display.height;
+    modelHit?.at(onDisplay ? localPoint(cursor, bounds, true) : null);
+  }
   function watchModelCursor() {
     clearInterval(modelCursorTimer);
     modelCursorTimer = setInterval(() => {
       if (!modelWin || modelWin.isDestroyed()) { clearInterval(modelCursorTimer); modelCursorTimer = null; return; }
       if (!modelWin.isVisible()) return;
-      modelHit?.at(localPoint(screen.getCursorScreenPoint(), modelWin.getBounds()));
+      updateModelCursor();
     }, 30);
   }
   function showModel(model) {
@@ -388,6 +449,7 @@ function createOkFilow(deps) {
     modelWin.setIgnoreMouseEvents(true, { forward: true });
     const win = modelWin;
     modelHit = createHitTarget({ setIgnore: (ignore) => { if (!win.isDestroyed()) win.setIgnoreMouseEvents(ignore, { forward: true }); } });
+    watchHitRects(win, modelHit);
     watchModelCursor();
     modelWin.setContentProtection(hidden());
     lockDown(modelWin);
@@ -442,8 +504,13 @@ function createOkFilow(deps) {
   });
   ipcMain.on("okfilow:model:rects", (e, rects) => {
     if (!ourSender(e) || !modelWin || modelWin.isDestroyed() || e.sender !== modelWin.webContents) return;
-    modelHit?.rects(rects);
-    modelHit?.at(localPoint(screen.getCursorScreenPoint(), modelWin.getBounds()));
+    const bounds = modelWin.getBounds();
+    const display = screen.getDisplayMatching(bounds).bounds;
+    const report = cleanHitReport(rects, null, display);
+    applyGripReport(modelWin, report, (hits) => {
+      modelHit?.rects(hits);
+      updateModelCursor();
+    });
   });
   // The model window's handle, grip and arrow keys (okfilow-move.js): moved or resized, kept on the screen it is on.
   ipcMain.on("okfilow:model:move", (e, d) => {
@@ -549,9 +616,13 @@ function createOkFilow(deps) {
     if (!ourSender(e)) return;
     const w = [...overlays.values()].find((x) => !x.isDestroyed() && x.webContents === e.sender);
     if (!w) return;
-    mediaRects.set(e.sender.id, cleanRects(rects));
-    lastCursor = "";
-    mediaHit(w, localPoint(screen.getCursorScreenPoint(), w.getBounds()));
+    const bounds = w.getBounds();
+    const report = cleanHitReport(rects, bounds, screen.getDisplayMatching(bounds).bounds, bubble.open());
+    applyGripReport(w, report, (hits) => {
+      mediaRects.set(w.webContents.id, hits);
+      lastCursor = "";
+      mediaHit(w, localPoint(screen.getCursorScreenPoint(), w.getBounds()));
+    });
   });
 
   // ---- overlays ----
@@ -586,6 +657,7 @@ function createOkFilow(deps) {
           webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload, backgroundThrottling: false },
         });
         applyMouse(w);
+        watchHitRects(w);
         w.setAlwaysOnTop(true, "screen-saver");
         w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
         w.setContentProtection(hidden()); // out of the user's recordings unless they allow it
@@ -714,8 +786,7 @@ function createOkFilow(deps) {
     // The pill's controls take the mouse only while the pill has any (okfilow-stop.js pillLive).
     bubble.setMode(mode, extra);
     answerMarks.set({ mode, stopped: extra.stopped === true });
-    if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
-    for (const w of overlays.values()) applyMouse(w);
+    refreshBubbleMouse();
     // "opening": the panel asked for the microphone; "listening": it is open (okfilow-mic.js, lib/buddy/micOpen.ts).
     // By what the panel says it is for: the keys of a short press are up again before the microphone is open.
     if (next === "opening" && extra.purpose === "dictate") dictation.diag.mark("listening", {}, { once: true });
@@ -1388,11 +1459,7 @@ function createOkFilow(deps) {
     sendOverlays("okfilow:text", t);
     const was = bubble.open();
     bubble.setText(t);
-    if (was !== bubble.open()) {
-      // The bubble came or went under a pointer that may stand still: the mouse rule follows it.
-      if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
-      for (const w of overlays.values()) applyMouse(w);
-    }
+    if (was !== bubble.open()) refreshBubbleMouse();
     if (!bubble.open() && (mode === "idle" || mode === "error")) scheduleFade();
     // Test builds log what the bubble shows, so end-to-end runs can be checked from the log.
     if (QA_SHOTS && t && t !== lastQaText) { lastQaText = t; clearTimeout(qaTextTimer); qaTextTimer = setTimeout(() => logLine(`okfilow qa text: ${lastQaText.slice(0, 300)}`), 1500); }
@@ -1483,6 +1550,7 @@ function createOkFilow(deps) {
   /** `onBubble`: the pointer is on the answer bubble (it then stays, and its text scrolls under the wheel). */
   ipcMain.on("okfilow:overlay:hover", (e, on, onBubble) => {
     if (!ourSender(e)) return;
+    if (onBubble === true && !bubble.open()) return; // Late report from the closed answer.
     if (on === true && overlayLive(mode, pill, bubble.open())) stopHover.add(e.sender.id);
     else stopHover.delete(e.sender.id);
     if (on === true && onBubble === true && bubble.open()) bubbleHover.add(e.sender.id);

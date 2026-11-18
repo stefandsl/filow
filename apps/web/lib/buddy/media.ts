@@ -220,6 +220,22 @@ export function placeBlock(size: Size, view: Size, avoid: Rect[], anchor: { x: n
 
 /** Columns of a gallery: one row up to three, two by two for four, three across for five and six. */
 export const galleryColumns = (n: number) => (n === 4 ? 2 : Math.min(3, Math.max(1, n)));
+export const galleryRows = (count: number) => Math.ceil(count / galleryColumns(count));
+
+/** A resized tile needs handle clearance, caption padding, buttons, source line and visible media. */
+export function galleryMinHeight(count: number): number {
+  const rows = galleryRows(count);
+  const tileHeight = 36 + 14 + 28 + 2 + 15 + 48;
+  return rows * tileHeight + Math.max(0, rows - 1) * TILE.gap;
+}
+
+// Right-align an incomplete last row so the final tile carries the gallery's outer resize corner.
+function tileColumn(index: number, count: number, cols: number) {
+  const column = index % cols;
+  const rowStart = index - column;
+  const rowLength = Math.min(cols, count - rowStart);
+  return cols - rowLength + column;
+}
 
 /**
  * The gallery's tiles: a grid (never two tiles on each other), placed off the `avoid` boxes (marks, their
@@ -266,7 +282,7 @@ function grid(n: number, scale: number, view: Size, fill?: number) {
     height: rows * h + (rows - 1) * gap,
     scale: scale * fit,
     tiles: (x: number, y: number): Rect[] => Array.from({ length: n }, (_, i) => {
-      const left = x + (i % cols) * (w + gap);
+      const left = x + tileColumn(i, n, cols) * (w + gap);
       const top = y + Math.floor(i / cols) * (h + gap);
       return { left, top, right: left + w, bottom: top + h };
     }),
@@ -275,15 +291,17 @@ function grid(n: number, scale: number, view: Size, fill?: number) {
 
 /**
  * The gallery's tiles inside a box the user moved or resized (lib/buddy/layout-move.ts): the same columns,
- * the tiles as wide as the box allows, their height following the picture's shape.
+ * dividing the requested width and height among the columns and rows.
  */
-export function tilesIn(n: number, box: { x: number; y: number; w: number }): Rect[] {
+export function tilesIn(n: number, box: { x: number; y: number; w: number; h?: number }): Rect[] {
   if (n <= 0) return [];
   const cols = galleryColumns(n);
-  const w = Math.max(60, Math.floor((box.w - (cols - 1) * TILE.gap) / cols));
-  const h = Math.round((TILE.media * w) / TILE.width) + TILE.text;
+  const rows = Math.ceil(n / cols);
+  const w = Math.max(1, Math.floor((box.w - (cols - 1) * TILE.gap) / cols));
+  const h = box.h === undefined ? Math.round((TILE.media * w) / TILE.width) + TILE.text
+    : Math.max(1, Math.floor((box.h - (rows - 1) * TILE.gap) / rows));
   return Array.from({ length: n }, (_, i) => {
-    const left = Math.round(box.x) + (i % cols) * (w + TILE.gap);
+    const left = Math.round(box.x) + tileColumn(i, n, cols) * (w + TILE.gap);
     const top = Math.round(box.y) + Math.floor(i / cols) * (h + TILE.gap);
     return { left, top, right: left + w, bottom: top + h };
   });

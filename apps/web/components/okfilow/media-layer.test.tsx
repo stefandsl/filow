@@ -44,6 +44,7 @@ describe("media layer wiring", () => {
     expect(layer).toMatch(/onPlaced\?\.\(first, gallery\[0\]\?\.item\.caption/);
     // the overlay reports every box that takes the mouse (pictures, slide, cards and their bar) and none once they are gone
     expect(overlay).toContain("if (key !== sent) { sent = key; okFilowBridge()?.overlayRects?.(rects); }");
-    expect(overlay).toContain("return () => { clearInterval(id); okFilowBridge()?.overlayRects?.([]); };");
+    expect(overlay).toContain("const unwatch = watchHitRectChanges(report);");
+    expect(overlay).toContain("return () => { unwatch(); clearInterval(id); okFilowBridge()?.overlayRects?.([]); };");
   });
 });
