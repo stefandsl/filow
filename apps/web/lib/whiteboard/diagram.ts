@@ -189,7 +189,8 @@ function sequenceLine(line: string, st: DiagramState, nodes: DNode[], links: DLi
     if (st.nodes.size < DIAGRAM_LIMITS.participants || st.nodes.has(nodeId(part[2]))) nodeIn(st, nodes, { id: part[2], text: part[3] ?? part[2], shape: "box" });
     return;
   }
-  const msg = /^([^\-+<>:,;]+?)\s*(--?>>|--?>|--?x|--?\))\s*[+-]?\s*([^\-+<>:,;]+?)\s*(?::\s*(.*))?$/.exec(line);
+  // A hyphen belongs to the participant unless it forms a complete arrow.
+  const msg = /^([^+<>:,;]+?)\s*(--?(?:>>?|x|\)))\s*[+-]?\s*([^+<>:,;]+?)\s*(?::\s*(.*))?$/.exec(line);
   if (!msg || st.messages >= DIAGRAM_LIMITS.messages) return;
   const at = (ref: string) => (st.nodes.has(nodeId(ref)) ? nodeId(ref) :st.nodes.size < DIAGRAM_LIMITS.participants ? nodeIn(st, nodes, { id: ref, shape: "box" }) : "");
   const from = at(msg[1]);

@@ -45,6 +45,16 @@ describe("reading a diagram the model wrote", () => {
     expect(d?.links.map((l) => `${l.from}>${l.to}:${l.text}${l.dashed ? "~" : ""}`)).toEqual(["u>g:Sign in", "g>u:Code~", "u>u:Store code"]);
   });
 
+  it("routes both spellings of a hyphenated participant to the same declared box", () => {
+    const d = read("sequenceDiagram\nparticipant Client\nparticipant Billing-API\nClient->>Billing-API: Pay\nBilling-API-->>Client: Receipt\nClient->>Billing API: Retry");
+    expect(d?.nodes.map((n) => n.id)).toEqual(["client", "billing_api"]);
+    expect(d?.links).toEqual([
+      { from: "client", to: "billing_api", text: "Pay" },
+      { from: "billing_api", to: "client", text: "Receipt", dashed: true },
+      { from: "client", to: "billing_api", text: "Retry" },
+    ]);
+  });
+
   it("reads participants whose names have spaces, as Mermaid does (a real lesson wrote them so)", () => {
     const d = read("sequenceDiagram\nCliente->>POS: Carta e PIN\nPOS->>Banca negozio: Richiesta\nBanca negozio->>Circuito: Inoltra\nCircuito-->>Banca negozio : Approvato\nBanca negozio-->>+POS: Esito\nparticipant Banca cliente\nBanca cliente->>Banca negozio");
     expect(d?.nodes.map((n) => `${n.id}:${n.text}`)).toEqual(["cliente:Cliente", "pos:POS", "banca_negozio:Banca negozio", "circuito:Circuito", "banca_cliente:Banca cliente"]);
