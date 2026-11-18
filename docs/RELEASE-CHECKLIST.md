@@ -7,21 +7,23 @@ Use `tools/release/release.ps1` with PowerShell 7, Node 22, the locked npm depen
 Keep release files, temporary data and caches on G:. The orchestrator copy is not updated;
 do not use its publish/finish stages for the new release path.
 
-1. Update every `package.json` and `apps/browser/manifest.json` to the release version.
-   Run `npm install --package-lock-only --ignore-scripts`, then the tests, typecheck and lint.
-   Commit the bump and lockfile on main and push main through the normal reviewed process.
-   Leave the version tag for step 3. The script handles the release tag in step 3.
-2. Before building, save immutable preflight evidence:
-   `pwsh tools/release/release.ps1 -Version X.Y.Z -Stage preflight -Commit <full-main-commit> -Work G:\release-X.Y.Z`.
-   It requires the commit on remote main, a matching package version, a version strictly
-   above feed Latest, and no existing source or feed release with that tag. Keep this file;
-   do not regenerate it after building. CI also checks these conditions before tag builds.
-3. Push the preflighted version tag with the same version and evidence directory:
+1. Update the package versions, browser manifest and installer notes. From the source checkout,
+   run `npm install --package-lock-only --ignore-scripts` and commit the reviewed bump and lockfile on main. Use a fresh evidence directory on G:.
+2. Run the following block with the committed version. The first stage checks the clean commit,
+   runs Vitest, typecheck and lint, rechecks HEAD and the tree, and records the full SHA in
+   `verified.json` before pushing that SHA to main. Preflight checks the same SHA on remote
+   main, the package version, feed Latest and the absence of a source or feed release.
+3. The final stage compares both evidence files and pushes the verified SHA to the exact
+   remote version tag. Keep both files for the rest of the release.
 
    ~~~powershell
    $ErrorActionPreference = 'Stop'
-   pwsh tools/release/release.ps1 -Version X.Y.Z -Stage tag -Work G:\release-X.Y.Z
-   if ($LASTEXITCODE -ne 0) { throw 'Release tag stage failed' }
+   $version = 'X.Y.Z'
+   $work = "G:\release-$version"
+   foreach ($stage in 'verify-main', 'preflight', 'tag') {
+     pwsh tools/release/release.ps1 -Version $version -Stage $stage -Work $work
+     if ($LASTEXITCODE -ne 0) { throw "Release stage $stage failed" }
+   }
    ~~~
 
    Continue only after the push succeeds. Wait for Desktop builds to finish successfully on all three platforms. CI attaches assets only

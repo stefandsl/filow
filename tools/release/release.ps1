@@ -1,9 +1,9 @@
 # Repository successor of tmp/orchestrator/release.ps1.
 # Preflight BEFORE pushing the tag. Draft AFTER CI. Smoke the draft on a clean runner. Publish LAST.
 param([Parameter(Mandatory)][string]$Version,
-      [Parameter(Mandatory)][ValidateSet('preflight','tag','draft','publish')][string]$Stage,
+      [Parameter(Mandatory)][ValidateSet('verify-main','preflight','tag','draft','publish')][string]$Stage,
       [Parameter(Mandatory)][string]$Work,
-      [string]$Commit = 'main', [string]$Notes)
+      [string]$Notes)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
@@ -16,6 +16,7 @@ $env:TEMP = Join-Path $Work 'temp'
 $env:TMP = $env:TEMP
 New-Item -ItemType Directory -Force $env:TEMP | Out-Null
 $state = Join-Path $Work 'preflight.json'
+$verified = Join-Path $Work 'verified.json'
 $assets = Join-Path $Work 'assets'
 Set-Location $root
 # Bound every external command, including uploads; kill only its process tree on timeout.
@@ -45,8 +46,38 @@ function Read-Evidence([string]$Path) {
   if ($evidence.tagSha -isnot [string] -or $evidence.tagSha -cnotmatch '\A[0-9a-f]{40}\z') { throw 'Invalid release evidence SHA' }
   return $evidence
 }
+function Get-CleanCommit {
+  $changes = git status --porcelain=v1 --untracked-files=all
+  if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect working tree' }
+  if ($changes) { throw 'Release verification requires a clean working tree' }
+  $sha = git rev-parse --verify 'HEAD^{commit}'
+  if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve release commit' }
+  if ($sha -isnot [string] -or $sha -cnotmatch '\A[0-9a-f]{40}\z') { throw 'Invalid release commit SHA' }
+  return $sha
+}
+if ($Stage -eq 'verify-main') {
+  $sha = Get-CleanCommit
+  $pkg = Get-Content -LiteralPath 'apps/desktop/package.json' -Raw | ConvertFrom-Json
+  if ($pkg.version -cne $Version) { throw 'Commit the requested version bump before verification' }
+
+  npx vitest run
+  if ($LASTEXITCODE -ne 0) { throw 'Vitest failed' }
+  npm run typecheck
+  if ($LASTEXITCODE -ne 0) { throw 'Typecheck failed' }
+  npm run lint
+  if ($LASTEXITCODE -ne 0) { throw 'Lint failed' }
+  if ((Get-CleanCommit) -cne $sha) { throw 'HEAD changed during verification' }
+
+  $record = @{ version = $Version; tagSha = $sha } | ConvertTo-Json
+  New-Item -Path $verified -ItemType File -Value $record | Out-Null
+  git push --no-follow-tags origin "${sha}:refs/heads/main"
+  if ($LASTEXITCODE -ne 0) { throw 'Main push failed' }
+  exit 0
+}
 if ($Stage -eq 'tag') {
   $saved = Read-Evidence $state
+  $local = Read-Evidence $verified
+  if ($saved.tagSha -cne $local.tagSha) { throw 'Preflight differs from the locally verified commit' }
   git push --no-follow-tags origin "$($saved.tagSha):refs/tags/v$Version"
   if ($LASTEXITCODE -ne 0) { throw 'Tag push failed' }
   exit 0
@@ -57,7 +88,8 @@ if ($env:GH_TOKEN -or $env:GITHUB_TOKEN) { throw 'Unset GH_TOKEN/GITHUB_TOKEN; u
 $login = (Invoke-Bounded 'gh' @('api','user','--jq','.login')).Trim()
 if ($login -ne 'stefandsl') { throw "Expected owner gh login stefandsl, got $login" }
 if ($Stage -eq 'preflight') {
-  Invoke-Bounded 'node' @($verify,'preflight','--version',$Version,'--commit',$Commit,'--state',$state)
+  $local = Read-Evidence $verified
+  Invoke-Bounded 'node' @($verify,'preflight','--version',$Version,'--commit',$local.tagSha,'--state',$state)
   exit 0
 }
 $saved = Read-Evidence $state
