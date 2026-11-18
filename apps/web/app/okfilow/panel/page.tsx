@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { createWakeCapture } from "@/lib/buddy/wake";
 import { floatMicNode, openSelectedMic } from "@filow/stt";
-import { abandonedNote, emptyRecordingNote, micNoteText, openMicrophone, type MicOpening } from "@/lib/buddy/micOpen";
+import { abandonedNote, createHoldRelease, emptyRecordingNote, micNoteText, openMicrophone, type MicOpening } from "@/lib/buddy/micOpen";
 import { waitForTranscript } from "@/lib/buddy/transcript-tail";
 import { joinTranscript, okFilowBridge, type OkFilowBridge, type OkFilowCapture, type OkFilowCard, type OkFilowJob, type OkFilowMode, type OkFilowStatus } from "@/lib/buddy/bridge";
 import { drawingSvg, type BuddyModel } from "@/lib/buddy/visuals";
@@ -128,6 +128,7 @@ export default function OkFilowPanel() {
   /** A stop is finishing (decoding, typing); a press meanwhile waits in queuedStart. */
   const stopping = useRef(false);
   const queuedStart = useRef<Purpose | null>(null);
+  const shouldStopOnRelease = useMemo(createHoldRelease, []);
   const session = useRef(0);
   const typeBox = useRef<HTMLInputElement>(null);
   const [note, setNote] = useState("");
@@ -1513,6 +1514,7 @@ export default function OkFilowPanel() {
         void startListening(p?.purpose === "dictate" ? "dictate" : "talk");
       }),
       b.onRelease((p) => {
+        if (!shouldStopOnRelease(p?.phase, !queuedStart.current && audio.current?.node.connected === true)) return;
         // The speed baseline's t0 for a spoken question: when the keys went up, on main's clock.
         if (p?.purpose === "talk" && typeof p.at === "number") pendingMarks.current = { ...(pendingMarks.current ?? {}), release: p.at };
         void stopListening(true);
@@ -1545,7 +1547,7 @@ export default function OkFilowPanel() {
       }),
     ];
     return () => offs.forEach((o) => o());
-  }, [ask, bridge, control, dictT, fail, setHandsFree, setMode, speak, startListening, stopAnswer, stopListening, t, typePhrase]);
+  }, [shouldStopOnRelease, ask, bridge, control, dictT, fail, setHandsFree, setMode, speak, startListening, stopAnswer, stopListening, t, typePhrase]);
 
   // The pill follows: the eye as it is now (the effective setting), paused, and whether a stopped answer can be carried on.
   const seesNow = seesScreen(status?.seeScreen, askRoute(status), localScreen);

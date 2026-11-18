@@ -2,7 +2,7 @@
 // sound in blocks of 128 ms (2048 samples at 16 kHz) and stopped the moment it heard of the release, so
 // the block still filling and the end of the last word were thrown away: a 1 s press of "Ciao Marco"
 // came out as "Chao, Matt." and presses under about 0.8 s typed nothing at all. A held dictation now
-// keeps recording RELEASE_TAIL_MS after the keys are up before the panel is told to stop.
+// gets key-up immediately. Only a panel already recording waits for the end of RELEASE_TAIL_MS.
 // A press that comes meanwhile sends the waiting release first, so the panel always hears release,
 // then press, in the order the keys were used.
 // Hands-free dictations and questions stop at once (the user has finished speaking when they press).
@@ -26,11 +26,13 @@ function createReleaseTail(o) {
     o.send(p.payload);
   }
 
-  /** The keys went up: tell the panel after `tailMs` (0: at once). An earlier waiting release goes first. */
+  /** Tell the panel immediately. An active held dictation also gets an end-of-tail notification. */
   function release(payload, tailMs) {
     flush();
     if (!(tailMs > 0)) return void o.send(payload);
-    pending = { payload, timer: st(() => { pending = null; o.send(payload); }, tailMs) };
+    o.send({ ...payload, phase: "keyUp" });
+    const end = { ...payload, phase: "tailEnd" };
+    pending = { payload: end, timer: st(flush, tailMs) };
   }
 
   return { release, flush, get waiting() { return pending !== null; } };

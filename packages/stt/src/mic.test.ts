@@ -1,6 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+import { createRequire } from "node:module";
+import { createHoldRelease } from "../../../apps/web/lib/buddy/micOpen";
+
+const { createReleaseTail, RELEASE_TAIL_MS } = createRequire(import.meta.url)("../../../apps/desktop/dictation-release.js");
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { floatMicNode, MIC_WORKLET_URL, preopenMic, startMic } from "./mic";
 
@@ -35,6 +39,25 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("capture health wiring", () => {
+  it.each([false, true])("delivers desktop key-up before the tail expires (already recording=%s)", async (recording) => {
+    const f = fixture();
+    let finish!: () => void;
+    f.addModule.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    const ctx = new AudioContext();
+    const cues: string[] = [];
+    const capture = floatMicNode(ctx, ctx.createMediaStreamSource({} as MediaStream), vi.fn(), () => cues.push("listening"));
+    const shouldStop = createHoldRelease();
+    const tail = createReleaseTail({ send: ({ phase }: { phase: "keyUp" | "tailEnd" }) => {
+      if (shouldStop(phase, capture.connected)) { capture.disconnect(); cues.push("stop"); }
+    } });
+    if (recording) { finish(); await capture.ready; }
+    tail.release({ purpose: "dictate" }, RELEASE_TAIL_MS);
+    if (!recording) { finish(); await capture.ready; }
+    expect(cues).toEqual(recording ? ["listening"] : ["stop"]);
+    vi.advanceTimersByTime(RELEASE_TAIL_MS);
+    expect(cues).toEqual(recording ? ["listening", "stop"] : ["stop"]);
+  });
+
   it.each([false, true])("signals an active panel press only after the graph connects (released=%s)", async (released) => {
     const f = fixture();
     let finish!: () => void;

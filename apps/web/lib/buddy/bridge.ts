@@ -297,7 +297,7 @@ export type OkFilowBridge = {
   /** `handsFree`: a dictation with the keys up, typed phrase by phrase until the keys are pressed once more. */
   onPress(fn: (p: { purpose: "talk" | "dictate"; handsFree?: boolean; upgrade?: boolean } | undefined) => void): Off;
   /** `at`: when the keys went up, on main's clock (the speed baseline's t0). */
-  onRelease(fn: (p: { purpose: "talk" | "dictate" | null; at?: number } | undefined) => void): Off;
+  onRelease(fn: (p: { purpose: "talk" | "dictate" | null; at?: number; phase?: "keyUp" | "tailEnd" } | undefined) => void): Off;
   onCancel(fn: (p: { purpose: "talk" | "dictate" | null } | undefined) => void): Off;
   onConfig(fn: (s: OkFilowStatus) => void): Off;
   onMode(fn: (s: { mode: OkFilowMode; error?: string }) => void): Off;

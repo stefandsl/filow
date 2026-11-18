@@ -128,3 +128,17 @@ export function abandonedNote(a: MicAbandoned, slowMs = MIC_SLOW_MS): MicNote | 
 
 /** The sentence of a note, in the interface language (`t`). */
 export const micNoteText = (note: MicNote, t: (k: OkfKey) => string): string => t(note.key).replace("{n}", String(note.seconds));
+
+/** The desktop flushes the tail before sending a new press. Stop exactly once per key-up. */
+export function createHoldRelease() {
+  let waiting = false;
+  return (phase: "keyUp" | "tailEnd" | undefined, recording: boolean) => {
+    if (phase === "keyUp") {
+      waiting = recording;
+      return !recording;
+    }
+    const stop = phase !== "tailEnd" || waiting;
+    waiting = false;
+    return stop;
+  };
+}

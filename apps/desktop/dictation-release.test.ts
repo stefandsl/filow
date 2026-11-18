@@ -32,15 +32,15 @@ describe("a held dictation keeps recording a moment after the keys go up (issue 
 
   it("the panel is told to stop only when the tail is over", () => {
     tail.release({ purpose: "dictate" }, RELEASE_TAIL_MS);
-    expect(sent).toEqual([]);
+    expect(sent).toEqual([{ purpose: "dictate", phase: "keyUp" }]);
     expect(tail.waiting).toBe(true);
     vi.advanceTimersByTime(RELEASE_TAIL_MS - 1);
-    expect(sent).toEqual([]);
+    expect(sent).toEqual([{ purpose: "dictate", phase: "keyUp" }]);
     vi.advanceTimersByTime(1);
-    expect(sent).toEqual([{ purpose: "dictate" }]);
+    expect(sent).toEqual([{ purpose: "dictate", phase: "keyUp" }, { purpose: "dictate", phase: "tailEnd" }]);
     expect(tail.waiting).toBe(false);
     vi.advanceTimersByTime(5000);
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(2);
   });
 
   it("with no tail (hands-free, a question) the panel is told at once", () => {
@@ -53,19 +53,19 @@ describe("a held dictation keeps recording a moment after the keys go up (issue 
     tail.release({ purpose: "dictate" }, RELEASE_TAIL_MS);
     vi.advanceTimersByTime(100);
     tail.flush(); // okfilow.js press(): before the panel hears the new press
-    expect(sent).toEqual([{ purpose: "dictate" }]);
+    expect(sent).toEqual([{ purpose: "dictate", phase: "keyUp" }, { purpose: "dictate", phase: "tailEnd" }]);
     vi.advanceTimersByTime(RELEASE_TAIL_MS);
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(2);
     tail.flush();
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(2);
   });
 
   it("a second release while one waits keeps their order", () => {
     tail.release({ n: 1 }, RELEASE_TAIL_MS);
     tail.release({ n: 2 }, 0);
-    expect(sent).toEqual([{ n: 1 }, { n: 2 }]);
+    expect(sent).toEqual([{ n: 1, phase: "keyUp" }, { n: 1, phase: "tailEnd" }, { n: 2 }]);
     vi.advanceTimersByTime(RELEASE_TAIL_MS);
-    expect(sent).toEqual([{ n: 1 }, { n: 2 }]);
+    expect(sent).toEqual([{ n: 1, phase: "keyUp" }, { n: 1, phase: "tailEnd" }, { n: 2 }]);
   });
 });
 
