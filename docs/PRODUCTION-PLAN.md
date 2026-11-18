@@ -64,4 +64,4 @@ Follows docs/OKFILOW-GAUNTLET.md milestones M1-M6 (owned by the OK Filow session
 
 ## 3. Rules
 Local first, no silent cloud fallback, no paid calls in tests, nothing written to C:, no secrets
-committed, no push or release without the user.
+Follow the [project quality bar](GOAL.md#quality-bar-non-negotiable) and [repository conventions for secrets and commits](../AGENTS.md#conventions).

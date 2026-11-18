@@ -122,11 +122,7 @@ Rules added 2026-11-09 from the review of Kun Chen's and Matt Pocock's repos (do
 
 ## What only the owner can do (listed, never faked)
 
-Code-signing certificates (Windows, Apple), Apple developer and Google Play accounts, a Mac and
-real phones for native checks, store listings, the LAN-mode security decision (SEC-09), and product
-choices such as which Microsoft 365 integration comes next. Also: anything that changes the
-machine outside this repo (git hooks, global tools, installers, settings) and any skill whose
-scan is above LOW. The current list, with what each one blocks, is docs/OWNER-DECISIONS.md.
+See [Owner decisions](OWNER-DECISIONS.md) for outstanding choices, hardware, accounts and the work each blocks. Changes to the machine outside this repo and skills whose scan is above LOW also require the owner.
 
 ## Maintaining this file
 

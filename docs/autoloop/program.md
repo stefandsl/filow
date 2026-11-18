@@ -64,7 +64,7 @@ Untracked state is seeded from the main checkout and never written back, except 
 - Files a track owns (table in `docs/GOAL.md`) are off limits while that track's worktree or unmerged branch exists (`git -C G:/FILOW worktree list`, `git branch --no-merged main`). Put what you find there into `docs/autoloop/HANDOFF.md`.
 - Never commit on main, merge, push, tag or release. The orchestrating session or the owner merges your branch after reviewing it.
 - Local first: no paid API calls; Ollama models only for AI-assisted checks; never call `/api/local/plan` (it can make a paid call). Use Claude subagents for reviews, never `codex exec`.
-- Never write to C:. Never commit `.env` or keys. No co-author lines. No em dashes.
+- Follow the [project quality bar](../GOAL.md#quality-bar-non-negotiable) for disk usage and commit text, and the [repository conventions](../../AGENTS.md#conventions) for secrets.
 - Never edit `tools/autoloop/score.mjs`, `tools/autoloop/checks/` or `STANDARDS.md` during an experiment. Gaming the metric is a failure.
 - Never start a server from `apps/web/.next`: it makes `next build` hang.
 
