@@ -168,3 +168,15 @@ it("rechecks the current display edge after native translation without a new rep
     expect(h.model.setIgnoreMouseEvents).toHaveBeenLastCalledWith(ignores);
   }
 });
+
+it.each(["overlay", "model"] as const)("drops the outgoing %s document's last report at navigation commit", (kind) => {
+  const h = setup(), w = h[kind];
+  h.send(w, [item]);
+  w.webContents.emit("did-start-loading");
+  h.send(w, [inflated]);
+  expect(w.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+  w.webContents.emit("did-navigate");
+  expect(w.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
+  h.send(w, [inflated]);
+  expect(w.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+});

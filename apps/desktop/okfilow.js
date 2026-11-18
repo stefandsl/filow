@@ -317,6 +317,7 @@ function createOkFilow(deps) {
     w.webContents.on("destroyed", clear);
     w.webContents.on("render-process-gone", clear);
     w.webContents.on("did-start-loading", clear);
+    w.webContents.on("did-navigate", clear); // main-frame commit also discards any final outgoing report
   }
   /** The bubble's close button (an overlay). */
   ipcMain.on("okfilow:bubble:close", (e) => { if (ourSender(e)) bubble.close("button"); });
