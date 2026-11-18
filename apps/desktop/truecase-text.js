@@ -148,7 +148,7 @@ const NOT_A_WORD = /[\p{N}/\\@_]|[.:][\p{L}\p{N}]|\p{Ll}\p{Lu}/u;
 // "ecc." and "etc." can also end a sentence; the rule cannot know, so the next word stays as it is.
 const ABBREVIATIONS = {
   en: "mr mrs ms dr prof st vs etc no inc ltd jr sr approx",
-  it: "sig dott dr prof ing avv ecc etc pag art tel ca es cfr cap fig max nr sec min vol rif",
+  it: "sig dott dr prof ing avv ecc etc pag art tel ca es cfr cap fig max nr sec min vol rif gen feb mar apr mag giu lug ago set sett ott nov dic",
   ro: "dl dna dvs dv dr prof univ ing nr str bl ap sc et bd com etc pag art cap fig jud ex tel aprox cca",
   ru: "г гг в вв ул д кв стр рис им др проф руб коп долл тыс млн млрд см ч мин сек мес нед шт чел ст гр напр ок",
 };

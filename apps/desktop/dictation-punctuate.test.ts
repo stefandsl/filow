@@ -96,6 +96,13 @@ describe("punctuation: which dictations, and never another word", () => {
 });
 
 describe("punctuation: a sentence start the model left small gets its capital", () => {
+  it("keeps the next word lowercase after an abbreviated Italian date with neutral model labels", () => {
+    for (const month of ["nov", "gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "sett", "ott", "dic"]) {
+      const said = `Arrivo il 20 ${month}. alle nove. poi riparto`;
+      const pieces = words(said);
+      expect(combine(said, pieces, pieces.map(() => "0|lower"), "it")).toBe(said.replace("poi", "Poi"));
+    }
+  });
   // [what comes in, what goes out]; one entry: it comes back as it was
   const CASES: [string, string?][] = [
     [""],
