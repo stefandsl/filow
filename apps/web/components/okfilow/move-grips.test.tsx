@@ -180,3 +180,11 @@ it("resumes the captured 3D resize after a forwarded buttonless hover", () => {
   pointer("pointerup", 680, 550, 7, 0);
   expect(reports.at(-1)![0].hit).toBeUndefined();
 });
+
+it("identifies only the laid-out bubble in a mixed media report", () => {
+  const picture = makeItem() as unknown as Element;
+  const bubble = item as unknown as Element;
+  const [pictureRect, bubbleRect] = itemHitRects([picture, bubble], bubble);
+  expect(pictureRect.bubble).toBeUndefined();
+  expect(bubbleRect.bubble).toBe(true);
+});

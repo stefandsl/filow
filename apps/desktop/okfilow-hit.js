@@ -21,11 +21,12 @@ function clipRect({ left, top, right, bottom }, bounds) {
 }
 
 /** Keep ordinary hits alongside the active grip so ownership can transfer without another IPC. */
-function cleanHitReport(list, bounds, display = bounds) {
+function cleanHitReport(list, bounds, display = bounds, includeBubble = true) {
   const base = [], rects = [];
-  let padded = false;
+  let padded = null;
   for (const r of Array.isArray(list) ? list.slice(0, MAX_RECTS) : []) {
     if (!r || typeof r !== "object" || ![r.left, r.top, r.right, r.bottom].every(finite)) continue;
+    if (!includeBubble && r.bubble === true) continue;
     if (r.right <= r.left || r.bottom <= r.top) continue;
     // The validated Filow renderer supplies item geometry; main limits each reported base to 80% of its display.
     if (display && (r.right - r.left > display.width * 0.8 || r.bottom - r.top > display.height * 0.8)) continue;
@@ -43,7 +44,11 @@ function cleanHitReport(list, bounds, display = bounds) {
         right: Math.min(r.right + GRIP_MARGIN, Math.max(r.right, h.right)),
         bottom: Math.min(r.bottom + GRIP_MARGIN, Math.max(r.bottom, h.bottom)),
       }, bounds);
-      padded = !!rect && (!ordinary || rect.left < ordinary.left || rect.top < ordinary.top || rect.right > ordinary.right || rect.bottom > ordinary.bottom);
+      if (rect && (!ordinary || rect.left < ordinary.left || rect.top < ordinary.top || rect.right > ordinary.right || rect.bottom > ordinary.bottom)) padded = rect;
+    }
+    if (r.bubble === true) {
+      if (ordinary) ordinary.bubble = true;
+      if (rect) rect.bubble = true;
     }
     if (rect) rects.push(rect);
   }

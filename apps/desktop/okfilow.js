@@ -271,7 +271,11 @@ function createOkFilow(deps) {
       sendOverlays("okfilow:bubble:close", why);
       bubbleHover.clear();
       if (!overlayLive(mode, pill, false)) stopHover.clear();
-      for (const w of overlays.values()) applyMouse(w);
+      for (const w of overlays.values()) {
+        if (w.isDestroyed()) continue;
+        dropBubbleRects(w);
+        applyMouse(w);
+      }
       // The answer's marks go with its bubble, however it went.
       answerMarks.drop(`bubble ${why}`);
       if (mode === "idle" || mode === "error") scheduleFade();
@@ -291,9 +295,21 @@ function createOkFilow(deps) {
     if (gripOwner?.id === id) gripOwner = null;
     if (report.padded) {
       gripOwner?.restore();
-      gripOwner = { id, restore: () => apply(report.base) };
+      gripOwner = { id, report, restore: () => apply(report.base) };
     }
     apply(report.rects);
+  }
+  function dropBubbleRects(w) {
+    const id = w.webContents.id;
+    const hits = mediaRects.get(id);
+    if (!hits?.some((r) => r.bubble)) return;
+    if (gripOwner?.id === id) {
+      const report = gripOwner.report;
+      report.base = report.base.filter((r) => !r.bubble);
+      if (report.padded.bubble) gripOwner = null;
+    }
+    mediaRects.set(id, hits.filter((r) => !r.bubble));
+    mediaHit(w, localPoint(screen.getCursorScreenPoint(), w.getBounds()));
   }
   /** An overlay that is no more has the pointer on nothing. */
   function dropHover(senderId) {
@@ -593,7 +609,7 @@ function createOkFilow(deps) {
     const w = [...overlays.values()].find((x) => !x.isDestroyed() && x.webContents === e.sender);
     if (!w) return;
     const bounds = w.getBounds();
-    const report = cleanHitReport(rects, bounds, screen.getDisplayMatching(bounds).bounds);
+    const report = cleanHitReport(rects, bounds, screen.getDisplayMatching(bounds).bounds, bubble.open());
     applyGripReport(w, report, (hits) => {
       mediaRects.set(w.webContents.id, hits);
       lastCursor = "";

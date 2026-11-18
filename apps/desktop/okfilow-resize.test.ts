@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
 const { cleanHitReport, cleanRects, createHitTarget, insideAny, localPoint } = require("./okfilow-hit.js");
-const { overlayMouse } = require("./okfilow-stop.js");
+const { overlayMouse, overlayLive } = require("./okfilow-stop.js");
 const source = readFileSync(new URL("./okfilow.js", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const item = { left: 300, top: 250, right: 700, bottom: 570 };
 const inflated = { ...item, hit: { left: 140, top: 90, right: 860, bottom: 730 } };
@@ -39,7 +39,7 @@ function setup() {
   };
   runInNewContext([
     "let gripOwner = null;",
-    ...["updateModelCursor", "applyGripReport", "applyMouse", "mediaHit", "dropHover", "watchHitRects"].map((name) => section(`  function ${name}(`, "\n  }")),
+    ...["dropBubbleRects", "updateModelCursor", "applyGripReport", "applyMouse", "mediaHit", "dropHover", "watchHitRects"].map((name) => section(`  function ${name}(`, "\n  }")),
     section('  ipcMain.on("okfilow:overlay:rects"', "\n  });"),
     section('  ipcMain.on("okfilow:model:rects"', "\n  });"),
   ].join("\n"), context);
@@ -179,4 +179,33 @@ it.each(["overlay", "model"] as const)("drops the outgoing %s document's last re
   expect(w.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
   h.send(w, [inflated]);
   expect(w.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+});
+
+it.each(["idle", "bubble grip", "picture grip"])("releases a dismissed bubble immediately and preserves adjacent media (%s)", (active) => {
+  const h = setup();
+  const dismiss = runInNewContext(
+    section("  const bubble = createBubble(", "\n  });").replace("const bubble = ", ""),
+    Object.assign(h.context, { createBubble: (options: unknown) => options, overlayLive,
+      logLine: vi.fn(), sendOverlays: vi.fn(), answerMarks: { drop: vi.fn() }, scheduleFade: vi.fn() }),
+  ).dismiss;
+  h.context.bubble.open = () => true;
+  h.point({ x: 500, y: 400 });
+  h.context.stopHover.add(1);
+  h.context.bubbleHover.add(1);
+  const picture = { left: 10, top: 10, right: 250, bottom: 170 };
+  const rects = [
+    active === "picture grip" ? { ...picture, hit: { ...picture, right: 290 } } : picture,
+    { ...(active === "bubble grip" ? inflated : item), bubble: true },
+  ];
+  h.send(h.overlay, rects);
+  expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+  h.context.bubble.open = () => false;
+  dismiss("button");
+  expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
+  h.send(h.model, [inflated]); // Transferring the picture's grip must also preserve the dismissal.
+  expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
+  h.send(h.overlay, rects); // The old renderer can still have a poll in flight.
+  expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
+  h.point({ x: 50, y: 50 });
+  expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
 });

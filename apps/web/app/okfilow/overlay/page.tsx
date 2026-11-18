@@ -391,7 +391,7 @@ export default function OkFilowOverlay() {
   useEffect(() => {
     let sent = "";
     const report = () => {
-      const rects = itemHitRects(document.querySelectorAll('.okf-media-tile, .okf-slide:not(.okf-slide--measuring), .okf-cards:not(.okf-cards--measuring):not(.okf-cards--leaving) :is(.okf-card, .okf-cards-bar), .okf-cards[data-okf-grip-active="true"], .okf-bubble--answer:not(.okf-hidden)'));
+      const rects = itemHitRects(document.querySelectorAll('.okf-media-tile, .okf-slide:not(.okf-slide--measuring), .okf-cards:not(.okf-cards--measuring):not(.okf-cards--leaving) :is(.okf-card, .okf-cards-bar), .okf-cards[data-okf-grip-active="true"], .okf-bubble--answer:not(.okf-hidden)'), bubble.current);
       keepOff.current.media = Array.from(document.querySelectorAll(".okf-media-tile, .okf-slide:not(.okf-slide--measuring)"), (el) => {
         const r = el.getBoundingClientRect();
         return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };

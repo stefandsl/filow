@@ -194,7 +194,7 @@ export type OkFilowBridge = {
   /** Model window -> main: move the window by dx, dy, or resize it by dw, dh (its drag handle, its grip, arrow keys); kept on screen. */
   modelMove?(d: { dx: number; dy: number; dw?: number; dh?: number; done?: boolean }): void;
   /** Overlay -> main: where its pictures and slide are (overlay CSS px); main lets clicks through everywhere else (apps/desktop/okfilow-hit.js). */
-  overlayRects?(rects: Array<{ left: number; top: number; right: number; bottom: number; hit?: { left: number; top: number; right: number; bottom: number } }>): void;
+  overlayRects?(rects: Array<{ bubble?: true; left: number; top: number; right: number; bottom: number; hit?: { left: number; top: number; right: number; bottom: number } }>): void;
   /** Panel -> main: open the 3D model window with this model. */
   showModel(model: BuddyModel): void;
   /** Model window -> main: loaded, send me the model. */
