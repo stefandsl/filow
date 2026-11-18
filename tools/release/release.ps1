@@ -1,14 +1,14 @@
-# Repository successor of tmp/orchestrator/release.ps1. No version bump, merge, push or tag side effects.
+# Repository successor of tmp/orchestrator/release.ps1.
 # Preflight BEFORE pushing the tag. Draft AFTER CI. Smoke the draft on a clean runner. Publish LAST.
 param([Parameter(Mandatory)][string]$Version,
-      [Parameter(Mandatory)][ValidateSet('preflight','draft','publish')][string]$Stage,
+      [Parameter(Mandatory)][ValidateSet('preflight','tag','draft','publish')][string]$Stage,
       [Parameter(Mandatory)][string]$Work,
       [string]$Commit = 'main', [string]$Notes)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $verify = Join-Path $PSScriptRoot 'release-verify.mjs'
-if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Expected a stable version' }
+if ($Version -notmatch '\A(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\z') { throw 'Expected a stable version' }
 $Work = [IO.Path]::GetFullPath($Work)
 if ($Work.StartsWith('C:', [StringComparison]::OrdinalIgnoreCase)) { throw 'Release data must not be on C:' }
 New-Item -ItemType Directory -Force $Work | Out-Null
@@ -39,6 +39,20 @@ function Invoke-Bounded([string]$Exe, [string[]]$Arguments, [int]$Seconds = 300)
   if ($p.ExitCode -ne 0) { throw "$Exe failed: $($stderr.Result) $($stdout.Result)" }
   return $stdout.Result
 }
+function Read-Evidence([string]$Path) {
+  $evidence = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+  if ($evidence.version -isnot [string] -or $evidence.version -cne $Version) { throw 'Release evidence version mismatch' }
+  if ($evidence.tagSha -isnot [string] -or $evidence.tagSha -cnotmatch '\A[0-9a-f]{40}\z') { throw 'Invalid release evidence SHA' }
+  return $evidence
+}
+if ($Stage -eq 'tag') {
+  $saved = Read-Evidence $state
+  git tag "v$Version" $saved.tagSha
+  if ($LASTEXITCODE -ne 0) { throw 'Tag creation failed' }
+  git push --no-follow-tags origin "refs/tags/v$Version"
+  if ($LASTEXITCODE -ne 0) { throw 'Tag push failed' }
+  exit 0
+}
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Use PowerShell 7 (pwsh)' }
 # Force the owner's stored gh login; do not accept a CI/token override accidentally.
 if ($env:GH_TOKEN -or $env:GITHUB_TOKEN) { throw 'Unset GH_TOKEN/GITHUB_TOKEN; use the owner gh login' }
@@ -48,9 +62,7 @@ if ($Stage -eq 'preflight') {
   Invoke-Bounded 'node' @($verify,'preflight','--version',$Version,'--commit',$Commit,'--state',$state)
   exit 0
 }
-if (-not (Test-Path $state)) { throw 'Missing saved prebuild preflight.json' }
-$saved = Get-Content $state -Raw | ConvertFrom-Json
-if ($saved.version -ne $Version) { throw 'Preflight version mismatch' }
+$saved = Read-Evidence $state
 if ($Stage -eq 'draft') {
   if (-not $Notes -or -not (Test-Path $Notes)) { throw 'Provide the reviewed release notes' }
   if (Test-Path $assets) { throw 'Assets directory already exists; use a fresh work directory with saved preflight' }

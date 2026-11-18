@@ -10,21 +10,19 @@ do not use its publish/finish stages for the new release path.
 1. Update every `package.json` and `apps/browser/manifest.json` to the release version.
    Run `npm install --package-lock-only --ignore-scripts`, then the tests, typecheck and lint.
    Commit the bump and lockfile on main and push main through the normal reviewed process.
-   Leave the version tag for step 3. The release script does not bump, commit, merge, push or tag.
+   Leave the version tag for step 3. The script handles the release tag in step 3.
 2. Before building, save immutable preflight evidence:
    `pwsh tools/release/release.ps1 -Version X.Y.Z -Stage preflight -Commit <full-main-commit> -Work G:\release-X.Y.Z`.
    It requires the commit on remote main, a matching package version, a version strictly
    above feed Latest, and no existing source or feed release with that tag. Keep this file;
    do not regenerate it after building. CI also checks these conditions before tag builds.
-3. After preflight succeeds, read the version and commit from the evidence saved in step 2.
-   From the source checkout, create the tag and push it to the source remote:
+3. Push the preflighted version tag with the same version and evidence directory:
 
-   ```powershell
-   $preflight = Get-Content -Raw 'G:\release-X.Y.Z\preflight.json' | ConvertFrom-Json
-   $tag = "v$($preflight.version)"
-   git tag $tag $preflight.tagSha
-   if ($LASTEXITCODE -eq 0) { git push origin "refs/tags/$tag" }
-   ```
+   ~~~powershell
+   $ErrorActionPreference = 'Stop'
+   pwsh tools/release/release.ps1 -Version X.Y.Z -Stage tag -Work G:\release-X.Y.Z
+   if ($LASTEXITCODE -ne 0) { throw 'Release tag stage failed' }
+   ~~~
 
    Continue only after the push succeeds. Wait for Desktop builds to finish successfully on all three platforms. CI attaches assets only
    to `stefandsl/filow`. CI has no feed credential. The owner copies the release assets to
