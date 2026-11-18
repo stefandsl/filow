@@ -11,13 +11,13 @@ to reset, 120 px minimum and 70 percent of content height maximum, with `prefs:n
 stored per viewer and re-clamped on window resize. Welcome and mirror are out of scope.
 The remainder records the original 2026-11-04 design; this amendment takes precedence.
 
-Date: 2026-11-04. Owner: Stefan Butnaru. Source: the owner's brief and two mockup images he supplied, kept at `docs/superpowers/specs/mockups/2026-11-04-prompter-dark.webp` and `...-light.webp`; his two decisions in conversation are marked "owner's call". Everything marked "my call" is the author's and can be overruled.
+The 2026-11-04 design used the tracked dark and light mockups in `mockups/`.
 
 ## Intent
 
-Rebuild the prompter page's layout to the two mockups while preserving every existing function and the stack (Next.js app in `apps/web`, Electron shell in `apps/desktop`, shared packages). The mockups are flat: opaque surfaces, 1px subtle borders, one restrained accent. The frosted-glass material shipped in 0.9.23 is retired for the prompter (owner's call: "flat like the mockups"), and the window's acrylic/vibrancy is turned off.
+Rebuild the prompter page's layout to the two mockups while preserving every existing function and the stack (Next.js app in `apps/web`, Electron shell in `apps/desktop`, shared packages). The mockups are flat: opaque surfaces, 1px subtle borders, one restrained accent. The frosted-glass material shipped in 0.9.23 is retired for the prompter, and the window's acrylic/vibrancy is turned off.
 
-## Owner's calls
+## Original design decisions
 
 1. **Two layouts, one per theme.** Dark theme = mockup 1: section tabs across the top, a right rail with "next section" and Screen Sense, a bottom action bar. Light theme = mockup 2: a left sidebar with the section list, "next section" under the points, Screen Sense as a row above the action bar. System theme follows the OS and gets the matching layout.
 2. **Flat material.** No blur, no translucency, no acrylic. Surfaces separated by 1px borders and one tone step.

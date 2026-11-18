@@ -1,7 +1,6 @@
 # S1-mini by Superwhisper in Filow's dictation (2026-11-11)
 
-Owner: "install the superwhisper as default in our architecture ... so it comes baked in filow to clean
-the transcribing locally". This file says what is built, what is decided and why, and what is still open.
+This record describes the choice of S1-mini for on-device cleanup of English dictation and the remaining checks.
 
 ## What it is, and the limit to know first
 
@@ -168,7 +167,7 @@ Installer built once with the runtime inside: 175.7 MB (0.9.32 was 161.7 MB). In
 
 ### The in-app download, run in the packaged build
 
-Started from the page (the same call the Settings button makes), with the model absent. The app was killed at 14 % (66.9 MB on disk); after a restart the download went on from 14 %, not from zero, and the part on disk was checked to be byte for byte the start of the real file. To spare the wait (the download ran at about 0.3 MB/s through Filow's downloader that evening, against about 2 MB/s with curl: not looked into), the part was then filled from the copy already on this PC up to 3 MB before the end; Filow fetched the last 3 MB, checked the SHA-256, gave the file its name and logged `model on this computer, hash checked`. A file with another hash is deleted and never loaded (unit test). Log: G:\FILOW\tmp\dict-logs\startup-s1-b-download.log.
+Started from the page (the same call the Settings button makes), with the model absent. The app was killed at 14 % (66.9 MB on disk); after a restart the download went on from 14 %, not from zero, and the part on disk was checked to be byte for byte the start of the real file. To spare the wait (the download ran at about 0.3 MB/s through Filow's downloader that evening, against about 2 MB/s with curl: not looked into), the part was then filled from the copy already on this PC up to 3 MB before the end; Filow fetched the last 3 MB, checked the SHA-256, gave the file its name and logged `model on this computer, hash checked`. A file with another hash is deleted and never loaded (unit test).
 
 ## Platforms
 
@@ -185,7 +184,7 @@ Started from the page (the same call the Settings button makes), with the model 
   unsigned), with the hardened runtime; on Linux the archive is built on Ubuntu and must be tried on the
   oldest distribution Filow supports; then an after-pack check per platform like the Windows one.
 
-## The model in the setup (2026-11-11, owner's decision: "Setup downloads it", ticked by default)
+## The model in the setup (selected by default since 2026-11-11)
 
 The same line, "S1-mini by Superwhisper" with its size (462 MB: 484,219,808 bytes), ticked on every
 tier, in three places:

@@ -1,13 +1,10 @@
 # Dictation cleanup beyond English (2026-11-11)
 
-Owner: "one caveat is only for english but
-https://huggingface.co/Horizon-Labs/multilingual-punctuation-truecase-small add this for multilanguage
-purpose" and "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507 or this one".
+The evaluation compared multilingual punctuation and instruction-tuned models for local dictation cleanup.
 
 English dictations are cleaned by S1-mini by Superwhisper (`S1-MINI.md`). This file is about Italian,
 Russian, Romanian and Japanese: what the speech engines write by themselves, whether the first model
-helps, and what was built. Everything was decided by measurement on this PC (Core i9-13900KF, 128 GB
-RAM, Windows 11, busy with other work).
+helps, and what was built. Measurements used a Windows 11 test system with a Core i9-13900KF and 128 GB RAM under concurrent load.
 
 ## The decision per language
 

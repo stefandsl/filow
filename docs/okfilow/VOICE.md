@@ -9,9 +9,7 @@ multilingual corpus, full precision and ten-speaker comparisons, local quality
 and intelligibility scoring, and a fix for repeated synthesis gaps in streamed
 answers. The measurements below are the earlier 2026-11-10 baseline.
 
-The owner's request (2026-11-09): "la voce e troppo robotica serve che sia piu naturale con possibile
-tipo elevenlabs in locale", in Russian, English, Italian, Romanian and Japanese, with "at least partial
-or the same result for local models on low spec hardware".
+The goal was natural on-device speech in Russian, English, Italian, Romanian and Japanese, including on lower-spec hardware. The comparison used cloud voice quality as a reference.
 
 **Choice: Supertonic 3 (Supertone, int8 export by sherpa-onnx), through the sherpa-onnx runtime Filow
 already ships for speech-to-text.** It is the only candidate found that speaks all five languages with
@@ -25,12 +23,9 @@ Intelligibility was checked objectively: every sample was transcribed by a local
 
 ## How it was measured (2026-11-10)
 
-Every `G:/FILOW/tmp/...` path in this file (bench and WER scripts, the Ollama stand-in, raw results,
-logs and the samples below) is a local bench script or raw data kept on the measuring machine, not in
-the repo. The paths are kept so the owner can find them there.
+The measurement record refers to local benchmark scripts, raw results, logs and listening samples. The published repository contains the summary.
 
-- This PC: Windows 11, shared with two other agent tracks building and testing at the same time, so
-  every number is noisy. Each figure is 5 runs: median and worst are both given.
+- Windows 11 test system under concurrent build and test load, which can introduce timing noise. Each figure is 5 runs: median and worst are both given.
 - Same three sentences per language: a short one, one with a time, a date, a number and an acronym
   ("The meeting starts at 9:30 on March 14, and the PDF has 27 pages."), and a long instruction.
 - First audio = time to synthesize the first piece the app would speak (the first sentence, 11 to 31
@@ -39,7 +34,7 @@ the repo. The paths are kept so the owner can find them there.
   (Node plus the model) after the runs.
 - The shipped voice was measured through the app's own text path (`speakable()` then `splitSentences()`
   from tts.js), at the two settings the app uses: standard (5 synthesis steps) and light (4 steps).
-- Scripts and raw results: G:/FILOW/tmp/t7-work/bench.cjs, bench2/*.json, wer.cjs, wer2.json.
+- Scripts and raw results: t7-work/bench.cjs, bench2/*.json, wer.cjs, wer2.json.
 
 ## Coverage and licences
 
@@ -52,7 +47,7 @@ the repo. The paths are kept so the owner can find them there.
 
 (1) The sherpa-onnx export of Kokoro v1.0 reads English and Chinese only. Fed Italian and Japanese it
 produced English-sounding noise: WER 84.8% (it) and CER 93% (ja) in the first measuring run
-(G:/FILOW/tmp/t7-work/wer-1.json). Kokoro has no Russian or Romanian voice at all.
+(t7-work/wer-1.json). Kokoro has no Russian or Romanian voice at all.
 
 Two findings that decide the shortlist:
 - **sherpa-onnx 2.0 removed the espeak-ng text front end.** With the runtime Filow ships (sherpa-onnx-node
@@ -84,7 +79,7 @@ Japanese (needs the Python misaki front end, not shippable inside Electron).
 
 - Target "first audio under 800 ms on 2 threads for a short sentence": met for all five languages in
   this run (worst 654 ms). An earlier run of the same command, while another track was building,
-  gave a Russian worst of 1836 ms and median 1168 ms (G:/FILOW/tmp/t7-work/bench2-s5-t2-run1.json):
+  gave a Russian worst of 1836 ms and median 1168 ms (t7-work/bench2-s5-t2-run1.json):
   on a loaded PC the first sentence can take over a second.
 - 4 threads is not faster than 2 for a single short sentence on this machine; the app uses 2 to 4
   threads (cores minus two) for the standard setting and 2 for the light one.
@@ -94,7 +89,7 @@ Japanese (needs the Python misaki front end, not shippable inside Electron).
   here including Node). That is the reason for the memory floor below.
 
 Synthesis steps (first measuring run, raw text before the time and acronym rules in `speakable()`,
-G:/FILOW/tmp/t7-work/wer-1.json): 2 steps garbled Italian (WER 91%) and Romanian (45%), 3 steps still
+t7-work/wer-1.json): 2 steps garbled Italian (WER 91%) and Romanian (45%), 3 steps still
 lost words (WER 9-18%), 5 steps was clean, 8 steps was no better and 2x slower. Hence 5 (standard)
 and 4 (light).
 
@@ -171,13 +166,13 @@ resources/). Filow's own terms of use should carry the restrictions too: owner d
 
 ## End to end on the packaged QA build
 
-release-t7-c (electron-builder --dir, filowQa), profile G:/FILOW/tmp/t7-profile, ports 4851/4852,
+release-t7-c (electron-builder --dir, filowQa), profile t7-profile, ports 4851/4852,
 CDP 9356. Answers came from OK Filow's real local path (/api/buddy/ask to Ollama /api/chat), with
-Ollama replaced by a local stand-in (G:/FILOW/tmp/t7-work/mock-ollama.mjs, OLLAMA_URL) because this PC
+Ollama replaced by a local stand-in (t7-work/mock-ollama.mjs, OLLAMA_URL) because this PC
 has no local model. Questions typed into the panel over CDP; the QA hook wrote the audio the main
-process sent to the panel (G:/FILOW/tmp/t7-qa-tts-c/results.json, e2e.log). The final build,
+process sent to the panel (t7-qa-tts-c/results.json, e2e.log). The final build,
 release-t7-d (after the review fixes), repeated the whole run: five languages at 0% WER/CER, warm first
-audio 460-717 ms, cut median 2 ms, worst 5 ms (G:/FILOW/tmp/t7-qa-tts-d).
+audio 460-717 ms, cut median 2 ms, worst 5 ms (t7-qa-tts-d).
 
 - All five languages answered with the natural voice (44.1 kHz Supertonic audio, standard setting,
   4 threads), every piece sent, and the captured audio transcribed with 0% WER/CER in each language.
@@ -196,7 +191,7 @@ audio 460-717 ms, cut median 2 ms, worst 5 ms (G:/FILOW/tmp/t7-qa-tts-d).
   tts-worker.js, sherpa-onnx-node, and sherpa-onnx-win-x64 with sherpa-onnx.node, onnxruntime.dll,
   onnxruntime_providers_shared.dll, sherpa-onnx-c-api.dll and sherpa-onnx-cxx-api.dll; the model loaded
   and spoke from that layout (no missing DLL).
-- Download on a fresh profile (G:/FILOW/tmp/t7-qa-dl-c/dl.log, dl-results.json): the panel offered
+- Download on a fresh profile (t7-qa-dl-c/dl.log, dl-results.json): the panel offered
   "Download the natural voice (129 MB)" with the source and licence note; a click started it; at 40%
   (16.5 s) the app was killed, leaving a 54,375,912-byte .part file; after a restart the panel offered
   "Resume the download (42% done)"; one click finished it (39.5 s including the hash check and
@@ -207,8 +202,8 @@ audio 460-717 ms, cut median 2 ms, worst 5 ms (G:/FILOW/tmp/t7-qa-tts-d).
 
 ## Samples to listen to
 
-- Shipped voice, standard: G:/FILOW/tmp/t7-samples/supertonic3-s5/<en|it|ru|ro|ja>.wav
-- Shipped voice, light: G:/FILOW/tmp/t7-samples/supertonic3-s4/<lang>.wav
-- The ten speakers (English): G:/FILOW/tmp/t7-samples/supertonic3-voices/voice-<0..9>-en.wav
-- Captured from the packaged app: G:/FILOW/tmp/t7-qa-tts-c/real-<lang>.wav
-- For comparison: G:/FILOW/tmp/t7-samples/piper-*/<lang>.wav, G:/FILOW/tmp/t7-samples/kokoro-int8/en.wav
+- Shipped voice, standard: t7-samples/supertonic3-s5/<en|it|ru|ro|ja>.wav
+- Shipped voice, light: t7-samples/supertonic3-s4/<lang>.wav
+- The ten speakers (English): t7-samples/supertonic3-voices/voice-<0..9>-en.wav
+- Captured from the packaged app: t7-qa-tts-c/real-<lang>.wav
+- For comparison: t7-samples/piper-*/<lang>.wav, t7-samples/kokoro-int8/en.wav

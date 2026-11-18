@@ -1,5 +1,7 @@
 # Filow hand-off
 
+See the [delivery plan](docs/PLAN.md) for the current baseline, priorities and owner checkpoints.
+
 ## Where it stands (18 November 2026)
 
 The integration candidate at `4e0bb19` includes bounded overlay resizing and the 2D drawing width fix. Its gate had 4,183 passes, 12 skips and the same three desktop QA failures as main. See the eight merges with `git log --first-parent --merges edc47a4..4e0bb19` and the issue 8 regression with `git show 4e0bb19`.
@@ -22,9 +24,9 @@ C6, C12, C23, C27 and C28 are held on `audit/fixes-0.9.42` for an eval-driven tr
 
 ## What Filow is
 
-A live speaking companion, not a scrolling teleprompter: it listens while you present, ticks off your
+A speaking companion for live presentations. Filow it listens while you present, ticks off your
 talking points as you cover them and shows what you skipped. Tagline "Speak freely. Stay on point." /
-"Parla liberamente. Resta sul punto." GPL-3.0-or-later since 0.9.18 (was proprietary), © VoidExploit (Stefan Butnaru). Surfaces: Windows /
+"Parla liberamente. Resta sul punto." GPL-3.0-or-later since 0.9.18 (was proprietary), © VoidExploit. Surfaces: Windows /
 macOS / Linux desktop app (Electron), phone mirror (QR pairing, Cloudflare quick tunnel for any
 network), PowerPoint add-in, browser extension, Screen Sense (slide-aware cues from the screen),
 slide-to-script generator, on-device Whisper, local decisions through Ollama (Clef), cloud through
@@ -35,7 +37,7 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 - [Faster answers, first run and accounts](docs/FAST-ONBOARDING-ACCOUNT.md) records the November 12 implementation and its Windows checks. The “Phase 1 review” in `git show 4e0bb19:HANDOFF.md` records the checkpoint commits, review fixes and merge findings.
 - `/account` and the separate `apps/cloud` service implement email/device sign-in, OS-encrypted
   desktop tokens, Stripe checkout/portal and server subscription status. No cloud or merchant
-  account has been deployed/configured. Read `apps/cloud/README.md` before operating it.
+  deployment was verified at this checkpoint. Read `apps/cloud/README.md` before operating it.
 - For the account notice and signal, see the [outbound inventory](docs/okfilow/OUTBOUND.md). The [paid readiness record](docs/design/paid/STATUS.md) tracks the deployment gates.
 - A dev tour that asks a real question needs the desktop translation bundle rebuilt with `npm run vendor`.
 
@@ -64,7 +66,7 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
   the tests drive Engine commands and its injected clock/interval directly; automatic
   semantic correction/retraction remains unverified. `npm.cmd test -- packages/core/src/gauntlet.test.ts`:
   5 passed; `npm.cmd test`: 241 passed, 1 existing opt-in skip; `npm.cmd run typecheck`:
-  all six checks passed. All exit 0, with `GAUNTLET=0` and temp/npm cache paths on G:.
+  all six checks passed. All exit 0, with `GAUNTLET=0` and temp and npm caches on the workspace volume.
   The initial `npm test -- packages/core/src/gauntlet.test.ts` exited 1 before running
   tests because PowerShell blocks npm.ps1; npm.cmd used without changing execution policy.
   No contract failures or `it.fails` added. No push or release; real speech/model and
@@ -75,9 +77,7 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 - For the earlier designs, see the [flat review](docs/superpowers/plans/2026-11-04-flat-layout-redesign-review.md), [release fixes](docs/superpowers/plans/2026-11-04-flat-layout-review-fixes.md), [glass review](docs/superpowers/plans/2026-11-03-liquid-glass-ui-review.md), [remaining surfaces](docs/superpowers/plans/2026-11-03-liquid-glass-rest-review.md) and [polish review](docs/superpowers/plans/2026-11-03-liquid-glass-polish-review.md).
 - For first-run behavior, QA isolation and remaining OS checks, see the [Welcome implementation](docs/welcome/IMPLEMENTATION.md) and [independent review](docs/welcome/REVIEW.md).
 
-- Repos: source `stefandsl/filow` (PUBLIC since 2026-11-03: the owner made it public so CI runs on free Actions minutes after a billing block; never commit keys, `.env` stays ignored; branch `main`), update feed `stefandsl/filow-releases`
-  (public releases only). Local checkout: `C:\Users\stefan.butnaru\Desktop\Intelliprompter`
-  (folder still has the old name on purpose).
+- Public repositories are `stefandsl/filow` (source branch `main`) and `stefandsl/filow-releases` (update feed).
 - v0.9.30 (installer Information + Select Components pages) was the public release (2026-11-06,
   CI run 42211883754, feed manifests say 0.9.30). Before it: v0.9.29 (phone sync fixes + stop flush + overlay close button) (2026-11-05,
   CI run 42098611434, feed manifests say 0.9.29). Before it: v0.9.28 (mic picker + offline leak fixes + audit steps 1-4) (2026-11-05,
@@ -111,7 +111,7 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
     bundled with electron-builder 26 silently drops a PNG-compressed .ico entry, and build/icon.ico
     had its 256 px entry as PNG. `scripts/make-icon.js` now writes every entry as a DIB (381 KB
     .ico) and icon.ico is regenerated; checked with ExtractIconEx: installer, portable and app all
-    report one icon group and the extracted icon is the mark. RULE (paid twice today): before tagging,
+    report one icon group and the extracted icon is the mark. Before tagging,
     build the Windows package locally (`electron-builder --win`), count icon groups and launch the
     packaged Filow.exe on a throwaway profile with welcomeCompleted=true; the dev launch proves nothing
     about packaging.
@@ -135,11 +135,9 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
     sets through `ui:theme`). Also: `build.executableName: "Filow"` (electron-builder 26 derived
     `@filowdesktop` from the package name and refused the Linux AppImage: v0.9.18 has Windows and
     macOS assets only and was NOT copied to filow-releases; the next tag supersedes it), and the
-    installer calls SHChangeNotify(SHCNE_ASSOCCHANGED) after install because the owner's desktop
-    shortcut showed a blank icon after the 0.9.15 icon change (stale Explorer icon cache; the exe's
-    icon extracts fine). Wanted next (owner): a ShareX-style first-run welcome window (language,
-    run at Windows start, follow system theme, follow system accent colour), to be built by Codex.
-  - 0.9.18, licence: relicensed from proprietary to GPL-3.0-or-later at the owner's request
+    installer calls SHChangeNotify(SHCNE_ASSOCCHANGED) after install to refresh stale shortcut icons.
+    The first-run design covers language, startup, system theme and system accent color.
+  - 0.9.18, licence: relicensed from proprietary to GPL-3.0-or-later
     (LICENSE = SPDX text, package.json `license` fields, README badges, installer licence pages
     `apps/desktop/build/license_*.txt` = short notice + privacy paragraph + full GPL text).
   - 0.9.18, dependencies: `npm audit` went from 40 findings (4 critical) to 15
@@ -185,14 +183,13 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
     the take log (the page sends it to main over `diag:takeLog`) and the tail of startup.log; the
     user reviews and submits in the browser, nothing is sent automatically. Over ~7800 chars the
     body goes to the clipboard instead (browser URL limit). Not tested in a packaged build yet.
-  - 0.9.13: ROLLBACK of the microphone capture to the 0.9.6 code (owner: "roll back to the last time
-    it worked") and the Electron audio switch removed; everything else (gate, unload, ElevenLabs
+  - 0.9.13: restored microphone capture from 0.9.6 and removed the Electron audio switch; everything else (gate, unload, ElevenLabs
     error reporting, glass CSS) stays. The 0.9.7–0.9.12 capture is in git history (`git show
-    v0.9.12:packages/stt/src/mic.ts`). Open question: on the owner's PC the mic track ends 4 s after
+    v0.9.12:packages/stt/src/mic.ts`). Open question: on the Windows test system the mic track ends 4 s after
     start in every backend; the capture code was identical from 0.9.1 (when it transcribed) to 0.9.6,
     so the cause may be on that PC (exclusive-mode app, driver, Windows privacy). Next step there:
     test with "Browser (Web Speech)" (no AudioContext) and check Windows Sound > mic > Advanced.
-  - 0.9.12: owner's PC: capture starts after 14 s whatever the sample rate, then "no audio ... track
+  - 0.9.12: on the Windows test system, capture starts after 14 s whatever the sample rate, then "no audio ... track
     ended" (also in local mode). Diagnosis: Chromium's out-of-process audio service hangs and restarts,
     ending every capture track. `main.js` now passes `--disable-features=AudioServiceOutOfProcess`;
     mic.ts logs the peak level after 3 s and reports a track "ended" event at once. To verify on that PC.
@@ -201,7 +198,7 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
     longer passed, so `data-glass` is never set (the CSS rule is harmless and kept).
   - 0.9.10: the audio context opens at the device's own rate and the worklet resamples to 16 kHz
     (linear interpolation, checked in Node: 48 kHz → exactly 16000 samples/s, pitch kept). Asking
-    Windows for a 16 kHz context on the owner's USB mic (C-Media 0d8c:016c, native 48 kHz) blocked
+    Windows for a 16 kHz context on the test USB mic (C-Media 0d8c:016c, native 48 kHz) blocked
     the whole app for 14 s (take log 21:46). The desktop log file is `%APPDATA%\@filow\desktop\startup.log`.
   - 0.9.9: frosted-glass look. `globals.css`: glass tokens (`--glass*`, `--glow-*`), a soft brand glow
     on the page, translucent blurred panels/buttons/modals in both themes (`@supports backdrop-filter`).
@@ -210,18 +207,18 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
     which makes its background transparent. Checked in the browser (dark/light); the acrylic window
     itself is not verified on a Windows 11 PC yet (this laptop was not rebuilt): if it looks wrong, drop
     `backgroundMaterial` and the transparent backgroundColor in `apps/desktop/main.js`.
-  - 0.9.8: the take hung in "Starting" after "transcription ready" on the owner's PC: the mic probe
+  - 0.9.8: the take hung in "Starting" after "transcription ready" on the Windows test system: the mic probe
     opened and closed the device, then the capture opened it again and that second open never
     returned. `preopenMic()` (packages/stt/src/mic.ts) opens once at the check and the capture reuses
     the stream; every step (open, audio context resume, worklet load) has a timeout with a message.
     Not reproduced here (no such driver); verify on the 3070 PC. The frosted-glass wish shipped in 0.9.9.
   - 0.9.7: "Unload from memory" for a loaded Ollama model (`/api/local/unload`, keep_alive 0) in
-    Settings and as a cross on the dashboard chip (the owner's 3070 PC sat at 7.5/8 GB VRAM).
+    Settings and as a cross on the dashboard chip (the RTX 3070 test system sat at 7.5/8 GB VRAM).
     ElevenLabs: every error/warning message (`message` field: auth_error, quota_exceeded_error,
     input_error, insufficient_audio_activity_error, ...) now reaches the take log; before, they were
     dropped and a take looked live with no transcript. Mic capture resumes a suspended AudioContext,
     logs device + setup time, and reports "no audio from the microphone" after 4 s without PCM.
-    The owner's report (ElevenLabs live after 33 s, nothing transcribed) is not reproduced here:
+    The reported 33 s connection without transcription still needs reproduction:
     the next take log on that PC will say which of the two it was.
   - Step 3 + state validity (0.9.6): embedding gate `packages/core/src/gate.ts` (pattern from
     Priler/jarvis, no code copied; MiniLM multilingual through transformers.js: Node embedder
@@ -234,8 +231,7 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
     section change, reset, manual mark or start/stop are dropped and the in-flight call aborted
     (`engine.ts`, six tests). `docs/gauntlet/REUSE.md`: licence/strategy table for the reference
     repos (Jarvis, VoiceCue (unlicensed), my-prompter, moves-cli, prompter, promptme-ai,
-    SallyZhou9527/prompter, STT-Presentation-Review). The owner's two plan documents (Nov 2 2026)
-    set the order: measures and state correctness → less redundant work → EN/IT quality → hardware
+    SallyZhou9527/prompter, STT-Presentation-Review). The November 2 plan set the order: measures and state correctness → less redundant work → EN/IT quality → hardware
     profiles; ro/ru stay roadmap (the Spoken-language setting already lists them for the STT only).
   - 0.9.4–0.9.5: Windows .ico fix (DIB entries below 256 px), hotkey shown as key caps.
   - Model router (0.9.3): `apps/web/lib/router.ts` (pure, unit-tested) + `/api/local/plan` (inventory,
@@ -287,7 +283,7 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
     shown as they are.
   - Installer page: intro gets three lines (it overlapped the list), detects an existing Ollama
     (`%LOCALAPPDATA%\Programs\Ollama`, Program Files) and already-pulled models
-    (`~/.ollama/models/manifests/.../library/<model>/<tag>`): those lines say "already installed",
+    (`the Ollama model store's manifests directory`): those lines say "already installed",
     are unticked, and the Ollama box is greyed out with a "nothing to download" label.
   - Installer custom pages in all 11 installer languages (auto-detected from Windows, no chooser),
     a reason on every model line (recommended / RAM / disk / GPU), cumulative disk rule.
@@ -312,13 +308,17 @@ OpenRouter with a PII guard (Rizzo-PII) in front.
 
 See [platform status](docs/PLATFORMS.md) for the Windows, WSLg and phone-browser checks and the remaining real-device tests.
 
-## Pending (ask the owner before starting the big ones)
+## Upcoming work
+
+See [PLAN.md](docs/PLAN.md) for product tickets, owner decisions and release acceptance.
+
+## Native acceptance evidence
 
 - Offline fixes still need native acceptance: real tunnel termination, download refusal,
   and the EN/IT clipboard report dialog. Phone-sync and Sherpa-stop seam failures are
   fixed in source; real phone/network, native audio and packet inspection remain unverified.
 
-- Verify the new picker on the owner's USB/C920 setup in packaged Electron and exercise a
+- Verify the new picker on the USB/C920 test setup in packaged Electron and exercise a
   stalled model download there. Browser QA uses simulated devices/capture; download tests use
   fake streams, not the network. Source fixes are complete, native acceptance remains pending.
 
@@ -328,41 +328,26 @@ See [platform status](docs/PLATFORMS.md) for the Windows, WSLg and phone-browser
   Windows 10 fallback/high contrast/scaling/Narrator and macOS/Linux device checks are unverified.
   No startup registration has been created by source QA. Keep these separate from unit-test claims.
 
-1. **Verify on real machines**: the installer page with the hardware scan (compiled and the values
-   were checked with a standalone makensis build, the page itself was not opened); Ollama silent
-   install on a PC without Ollama; the macOS first-start dialog and `Ollama.app` unzip; the
-   presenter overlay and slideshow follow; the browser extension against a reveal.js deck.
-2. Follow the [release checklist](docs/RELEASE-CHECKLIST.md) for the owner publication and clean-runner smoke checks.
-3. See the [owner decision register](docs/OWNER-DECISIONS.md) for the signing certificate and publisher identity.
-4. **Screen Sense on a local vision model** (`qwen3-vl` is listed as "planned" in
-   `apps/web/lib/localModels.ts`): today frames go to the OpenRouter vision model only.
-5. **Public link default**: tunnels are on by default in code (`settings.remoteShare`), the owner's
-   own settings have it off. Decide the product default.
-6. **Mascot icon**: a mascot variant was explored (`design/`, git-ignored); the brand kit icon won.
-   Nothing to do unless the owner asks.
-7. **Ollama on Linux** is manual (the official script needs sudo); fine for now.
-8. **Plan steps not done yet** (owner's "piano operativo", in its order): pipeline timing marks at
-   each boundary (audio → text → engine wait → model → UI) with one shared id; a corpus with real
-   recordings (demo-it is synthetic); segments with ids/revisions so an STT correction can retract a
-   provisional mark (VoiceCue's partial-vs-final pattern, see REUSE.md); a provisional ("possible
-   match") state in the UI before the confirmed tick; measuring the 4-question rotation delay.
-   From Priler's two Jarvis videos (`docs/gauntlet/VIDEO-NOTES.md`): per-point alias lists for names,
-   acronyms and loanwords generated at prep time and scored lexically next to the embedding; a short
-   follow-up window after a hit that keeps the next point in every call.
-   Then the gate vs direct comparison with Clef on the RTX 3070 PC
-   (`GAUNTLET=1 GAUNTLET_GATE=1 GAUNTLET_PROVIDERS=clef-local npx vitest run apps/web/lib/gauntlet`).
+- A standalone makensis build checked the hardware-scan values. Native checks remain open for
+  the installer page, Ollama silent install, the Mac first-start dialog and `Ollama.app` unzip,
+  the presenter overlay and slideshow follow, and the browser extension on a reveal.js deck.
+
+- Screen Sense lists `qwen3-vl` as planned in `apps/web/lib/localModels.ts`. At this baseline frames go through OpenRouter.
+- The public-link default at this baseline is on in `settings.remoteShare`.
+- The brand kit icon won over the mascot explored in the ignored `design/` folder.
+- Ollama installation on Linux is manual and the official script needs sudo.
+- The previous tracking plan, including the Jarvis notes and the RTX 3070 gate comparison command, is preserved in `git show 368f019:HANDOFF.md` under Pending.
 
 ## Known gaps and traps
 
 - The offline audit uses local `OLLAMA_URL`; configured remote Ollama remains an explicit
   destination, and the local daemon's own model-pull networking is not intercepted by Filow.
   In-flight cloud requests/downloads and already-open sockets were not cancellation-tested.
-  An external memory hook appended to AGENTS.md during the fix pass; it was left unstaged
-  and untouched. Existing tmp files were preserved; all new test logs/cache/temp are on G:.
+  Temporary test output was stored on the workspace volume.
 
 - Web Speech uses the system default. For PCM device selection and synchronous AudioContext startup delays, see the [microphone diagnosis](docs/microphone-fixes-2026-11-05.md).
 
-- `npm run desktop:build:win` on the owner's PC fails in electron-builder's winCodeSign extraction
+- `npm run desktop:build:win` on the Windows test system fails in electron-builder's winCodeSign extraction
   (symbolic links need Developer Mode); CI is the way to build installers.
 - `next dev` and `next build` must not run at the same time in `apps/web` (shared `.next`):
   "Cannot find module for page: /_document".
@@ -372,8 +357,6 @@ See [platform status](docs/PLATFORMS.md) for the Windows, WSLg and phone-browser
   `FILOW_USER_DATA_DIR` override for QA (also relocates sessionData). Without it, source runs share
   the real profile (`%APPDATA%\@filow\desktop`). `install-choices.json` there triggers the first-start
   model downloads and is deleted after reading.
-- Bash heredocs in the Claude Code shell mangled JS/NSIS quoting more than once; writing patch
-  scripts to a file (Python) and running them was reliable.
 - NSIS: define page functions inside `customPageAfterChangeDir`, finish-page functions inside
   `customFinishPage`, variables inside `!ifndef BUILD_UNINSTALLER`; `${Using:StrFunc}` is not
   accepted by the NSIS 3.0.4 that electron-builder uses (hence `FilowContains`). The System plugin
@@ -381,9 +364,11 @@ See [platform status](docs/PLATFORMS.md) for the Windows, WSLg and phone-browser
 - Office caches add-in manifests; after changing `manifest.xml`, clear
   `%LOCALAPPDATA%\Microsoft\Office\16.0\Wef\` or bump the manifest version.
 - Tests: `apps/web/lib/pii/*.test.ts` pin `PII_SERVER_URL` to an unused port because Rizzo-PII really
-  runs on the owner's PC.
+  may already be running locally.
 
 ## How to syntax-check the installer page locally
+
+Save this harness as `tmp/nsis-check.nsi` in the checkout. Run the compiler from the repository root.
 
 ```
 Unicode true
@@ -394,8 +379,8 @@ Unicode true
 !define SHORTCUT_NAME "Filow"
 !define APP_EXECUTABLE_FILENAME "Filow.exe"
 Var launchLink
-OutFile "G:\FILOW\tmp\nsis-check.exe"
-!include "<repo>\apps\desktop\build\installer.nsh"
+OutFile "tmp\nsis-check.exe"
+!include "apps\desktop\build\installer.nsh"
 Function .onInit
   !insertmacro customInit
 FunctionEnd
@@ -411,43 +396,21 @@ SectionEnd
 
 ```bash
 N=%LOCALAPPDATA%/electron-builder/Cache/nsis/nsis-3.0.4.1
-"$N/Bin/makensis.exe" //NOCD "//X!addincludedir $N\Include" "//X!addplugindir $N\Plugins\x86-unicode" G:/FILOW/tmp/nsis-check.nsi
+"$N/Bin/makensis.exe" //NOCD "//X!addincludedir $N\Include" "//X!addplugindir $N\Plugins\x86-unicode" tmp/nsis-check.nsi
 ```
 
-## Continuing with Codex (owner's OpenAI subscription)
+## Continuing development
 
-From 2026-11-04 the owner's Claude credits are low: Codex does the work. Start every Codex session
-with: "Read AGENTS.md and HANDOFF.md, then do 'Codex: next task'." Answer the owner in the language
-they wrote (usually Italian), outcome first, short.
+See [METHODOLOGY.md](docs/METHODOLOGY.md) for factory commands, model routing and review.
 
-### How Codex is run on this PC
+### Package and release
 
-- Binary `~/.local/bin/codex.exe` (codex-cli 0.156.1, ChatGPT account). Model `gpt-6-astra` (from
-  `~/.codex/config.toml`). The Miniconda `codex` on PATH is the wrong one.
-- Non-interactive run that works (prompt from a file on stdin, workspace-write sandbox with automatic
-  approval review, final message to a file):
-  `~/.local/bin/codex.exe exec -m gpt-6-astra --approve-for-me -C G:/FILOW --output-last-message G:/FILOW/tmp/codex/run-N-last.md - < G:/FILOW/tmp/codex/brief-N.md`
-  `--full-auto` and `-s workspace-write --approve-for-me` together are rejected by this version.
-- One run at a time (parallel runs hit 429). Pattern that worked all day: brief -> implement agent ->
-  independent review agent that re-checks and fixes -> a human look at the screen.
-- Every Codex run appends a `claude-mem` block to `AGENTS.md`: always `git checkout -- AGENTS.md`
-  after a run and never commit that file's change.
-- Briefs and logs live in `G:/FILOW/tmp/codex/` (gitignored). Disk policy: nothing on C:, temp files
-  under `G:/FILOW/tmp`, npm cache `--cache G:/caches/npm`.
-
-### Codex: next task
-
-The [single-sidebar acceptance record](docs/superpowers/plans/2026-11-05-one-layout-evidence.md) supersedes the November 4 flat-layout task. Owner acceptance and native/live checks remain pending.
-
-### Release gate
-
-Release only on the owner's request. Follow the [release checklist](docs/RELEASE-CHECKLIST.md) for Windows package checks, all three platform manifests and feed publication.
+Follow [PLAN.md](docs/PLAN.md) and the [release checklist](docs/RELEASE-CHECKLIST.md) for owner-approved packaging and publication.
 
 ### Other open items
 
 - 15 moderate npm audit findings inside electron-builder's own tree (minimatch < 11): re-check at the
   next electron-builder release.
-- Before ending a session, update "Where it stands" and this section, and commit HANDOFF.md.
 
 ## Additional evaluations
 

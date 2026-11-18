@@ -1,6 +1,8 @@
 # Working on Filow (for Codex, Claude Code or any coding agent)
 
-Read `HANDOFF.md` first: it says where the project stands, what is pending and how a release is made.
+Read `docs/VISION.md`, `docs/PLAN.md` and `docs/REVIEW.md` first. Work only on a ticket in `docs/PLAN.md`. Start every commit subject with its ticket ID. Follow `docs/METHODOLOGY.md`.
+
+Then read `HANDOFF.md` for the project status, operating notes and release evidence.
 `ARCHITECTURE.md` explains the engine, the session relay and the views. `README.md` / `README.it.md`
 are the user manuals (English and Italian; keep both in sync when you change behaviour).
 
@@ -32,8 +34,8 @@ npm run build          # powerpoint, web (standalone), server, browser extension
 npm run desktop        # build + start the Electron app from source
 ```
 
-Local Windows installer builds (`npm run desktop:build:win`) usually fail on this PC at the
-winCodeSign cache extraction (symlink privilege); let CI build installers (see Release below).
+Local Windows installer builds (`npm run desktop:build:win`) can fail during winCodeSign cache
+extraction when Windows denies symlink creation. Use CI to build installers (see Release below).
 To syntax-check `installer.nsh` locally, compile a small Unicode harness with the cached
 `makensis.exe` under `%LOCALAPPDATA%\electron-builder\Cache\nsis\` (see `HANDOFF.md`).
 
@@ -47,7 +49,8 @@ To syntax-check `installer.nsh` locally, compile a small Unicode harness with th
   `ensureEngineToken()` in `apps/web/components/useSession.ts`.
 - OpenRouter calls go through `apps/web/lib/openrouter.ts` (fallback models, 429 retry). Do not call
   the API directly from new code.
-- Never commit `.env`, keys, `design/` (ignored), `release/`, `apps/web/public/powerpoint`.
+- Keep `.env`, secrets and private planning material out of Git. Do not commit `design/`, `release/`, or
+  `apps/web/public/powerpoint`.
 - Give commits an imperative title and explain why in the body. When bumping the version,
   search for the current version (for example, `grep -rl '"0.9.30"'`) and follow the release checklist below.
 - Verify before claiming done: `npm run typecheck && npm run lint && npm test`, and look at the page in a browser

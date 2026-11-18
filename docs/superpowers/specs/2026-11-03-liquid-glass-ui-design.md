@@ -1,10 +1,10 @@
 # Liquid glass UI for Filow: design
 
-Date: 2026-11-03. Owner: Stefan Butnaru. Written from a conversation with the owner; the "owner's call" items are his words, the "my call" items are the author's and he can overrule them.
+Design recorded on 2026-11-03.
 
 ## Intent
 
-Filow's window is already frosted glass (acrylic on Windows 11, vibrancy on macOS, see `backgroundMaterial` in `apps/desktop/main.js` and `[data-glass]` in `apps/web/app/globals.css`). Everything drawn on it is still opaque: in dark mode the points and buttons are near-black slabs with drawn borders, in light mode flat white cards. The glass stops at the window edge and the content looks pasted on top. The owner wants the content to be part of the same material, in the spirit of three references he sent:
+Filow's window is already frosted glass (acrylic on Windows 11, vibrancy on macOS, see `backgroundMaterial` in `apps/desktop/main.js` and `[data-glass]` in `apps/web/app/globals.css`). Everything drawn on it is still opaque: in dark mode the points and buttons are near-black slabs with drawn borders, in light mode flat white cards. The glass stops at the window edge and the content looks pasted on top. The design uses the same material for window and content surfaces. Three public references informed it.
 
 - oraoraoraaa/liquid-glass (no licence): tokens, frosted panels, a pointer-tracked "lens" sheen on controls, custom glass selects.
 - SamirYMeshram/liquid-glass-ui-Portfolio-2 (no licence): glass built from an SVG displacement filter (refraction), a floating "liquid dock".
@@ -14,7 +14,7 @@ None of the three becomes a dependency and no file is copied from the two unlice
 
 ## Goals
 
-1. **Readable first** (owner's call, the one non-negotiable): the points are read from a metre away while speaking. Text contrast on every layer must stay at or above today's in both themes, over any wallpaper. Where glass and readability conflict, readability wins.
+1. **Readable first**: the points are read from a metre away while speaking. Text contrast on every layer must stay at or above today's in both themes, over any wallpaper. Where glass and readability conflict, readability wins.
 2. One material: points, the "next" preview, buttons, selects, chips, the Screen Sense bar, the status strip and modals are translucent layers of the window's glass, with no drawn 1 px borders. Depth, not contrast, carries hierarchy.
 3. Both themes from one token set: milky glass on light, smoked glass on dark, system theme follows the OS as today.
 4. Still works without the native material: in a browser, the phone mirror and the PowerPoint pane there is no acrylic behind the page, so the page keeps its own soft brand-glow backdrop and the same layers read as glass over it.
