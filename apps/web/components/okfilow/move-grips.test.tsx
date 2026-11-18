@@ -29,6 +29,7 @@ function makeItem() {
   const attrs = new Map<string, string>();
   return {
     getBoundingClientRect: () => ({ left: box.x, top: box.y, right: box.x + box.w, bottom: box.y + box.h }),
+    querySelectorAll: (): Element[] => [],
     getAttribute: (k: string) => attrs.get(k),
     setAttribute: (k: string, v: string) => attrs.set(k, v),
     removeAttribute: (k: string) => attrs.delete(k),
@@ -234,7 +235,9 @@ it.each(["pointermove", "pointerup"])("ends the resize on a chorded primary rele
 it("identifies only the laid-out bubble in a mixed media report", () => {
   const picture = makeItem() as unknown as Element;
   const bubble = item as unknown as Element;
-  const [pictureRect, bubbleRect] = itemHitRects([picture, bubble], bubble);
+  item.querySelectorAll = () => [makeItem() as unknown as Element];
+  const [pictureRect, bubbleRect, bubbleControl] = itemHitRects([picture, bubble], bubble);
   expect(pictureRect.bubble).toBeUndefined();
   expect(bubbleRect.bubble).toBe(true);
+  expect(bubbleControl.bubble).toBe(true);
 });

@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 import { LIMITS, resizeBox } from "../web/lib/buddy/layout-move";
+import { itemHitRects } from "../web/components/okfilow/hit-rects";
 
 const require = createRequire(import.meta.url);
 const { cleanHitReport, cleanRects, createHitTarget, insideAny, localPoint } = require("./okfilow-hit.js");
@@ -149,6 +150,24 @@ it.each([
       expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
     }
   }
+});
+
+it("accepts a new drag on the top handle after releasing a tall photo's corner", () => {
+  const h = setup();
+  const display = { x: 0, y: 0, width: 1280, height: 720 };
+  h.overlay.getBounds = () => display;
+  h.context.screen.getDisplayMatching = () => ({ bounds: display });
+  const handle = { getBoundingClientRect: () => ({ left: 456, top: 44, right: 484, bottom: 68 }) };
+  const photo = {
+    getBoundingClientRect: () => ({ left: 40, top: 40, right: 900, bottom: 681 }),
+    getAttribute: () => null,
+    querySelectorAll: () => [handle],
+  };
+  h.send(h.overlay, itemHitRects([photo as unknown as Element]));
+  h.point({ x: 470, y: 56 });
+  expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+  h.point({ x: 450, y: 56 });
+  expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
 });
 
 it("caps oversized item bases before padding or clipping", () => {

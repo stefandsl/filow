@@ -6,16 +6,26 @@ export const HIT_RECTS_CHANGED = "okf-hit-rects-changed";
 export type ItemHitRect = Rect & { hit?: Rect; bubble?: true };
 export const GRIP_ITEM = ".okf-media-tile, .okf-slide, .okf-cards, .okf-bubble, .okf-model-tools, .okf-model-resize";
 
+function measuredRect(el: Element, inBubble: boolean): ItemHitRect {
+  const r = el.getBoundingClientRect();
+  return { left: Math.floor(r.left), top: Math.floor(r.top), right: Math.ceil(r.right), bottom: Math.ceil(r.bottom),
+    ...(inBubble && { bubble: true }) };
+}
+
 export function itemHitRects(elements: Iterable<Element>, bubble?: Element | null): ItemHitRect[] {
-  return Array.from(elements, (el) => {
-    const r = el.getBoundingClientRect();
-    const item: ItemHitRect = { left: Math.floor(r.left), top: Math.floor(r.top), right: Math.ceil(r.right), bottom: Math.ceil(r.bottom) };
-    if (el === bubble) item.bubble = true;
+  const rects: ItemHitRect[] = [];
+  for (const el of elements) {
+    const item = measuredRect(el, el === bubble);
     if (el.getAttribute("data-okf-grip-active") === "true") {
       item.hit = { left: item.left - GRIP_MARGIN, top: item.top - GRIP_MARGIN, right: item.right + GRIP_MARGIN, bottom: item.bottom + GRIP_MARGIN };
     }
-    return item;
-  }).filter((r) => r.right > r.left && r.bottom > r.top);
+    rects.push(item);
+    // Main may cap the body at its bottom-right corner. Each control keeps its own hit area.
+    for (const control of el.querySelectorAll('button, [role="button"]')) {
+      rects.push(measuredRect(control, el === bubble));
+    }
+  }
+  return rects.filter((r) => r.right > r.left && r.bottom > r.top);
 }
 
 /** One report after React's move update has committed. End/cancel reports synchronously. */
