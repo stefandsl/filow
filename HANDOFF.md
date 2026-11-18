@@ -1,5 +1,19 @@
 # Filow hand-off
 
+## O2 merge blockers (2026-11-18, unreleased)
+
+The overlay now reports each item's buttons alongside its body. On a 1280 x 720
+display the dotted handle at (470, 56) accepts a new drag after resizing the
+photo to 860 x 641. Moved galleries remember how many rows their height covered.
+Closing three of six photos preserves the tile height and exposes the slide's
+Close button at (786, 298).
+
+Both regressions failed on 88f1589. Offline Chromium passed both interactions
+in dark and light themes. Vitest passed 4,037 tests with 12 skipped and the same
+three desktop QA baseline failures. Typecheck and lint passed. Native Windows
+click-through remains a manual check. Evidence is in tmp/o2-round7 and
+G:/FILOW/tmp/codex/o2/report-7.md.
+
 ## O2 final review fixes (2026-11-18, unreleased)
 
 Oversized overlay items keep a bounded hit area at their control corner. The

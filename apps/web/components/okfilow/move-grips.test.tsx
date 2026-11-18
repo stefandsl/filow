@@ -2,14 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PointerEvent as ReactPointerEvent, ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { LIMITS, type Box, type MovableKind } from "@/lib/buddy/layout-move";
-import { tilesIn } from "@/lib/buddy/media";
+import { showLayout, tilesIn } from "@/lib/buddy/media";
 import { GRIP_MARGIN, itemHitRects, watchHitRectChanges, type ItemHitRect } from "./hit-rects";
 
-const h = vi.hoisted(() => ({ cleanup: [] as Array<(() => void) | undefined> }));
+const h = vi.hoisted(() => ({ cleanup: [] as Array<(() => void) | undefined>, gone: new Set<string>() }));
 vi.mock("react", async (orig) => ({
   ...await orig<typeof import("react")>(),
   useRef: (current: unknown) => ({ current }),
-  useState: (value: unknown) => [value, vi.fn()],
+  useState: (value: unknown) => value instanceof Set
+    ? [h.gone, (update: (gone: Set<string>) => Set<string>) => { h.gone = update(h.gone); }]
+    : [value, vi.fn()],
   useMemo: (fn: () => unknown) => fn(),
   useLayoutEffect: () => {},
   useEffect: (fn: () => (() => void) | undefined) => { h.cleanup.push(fn()); },
@@ -38,6 +40,7 @@ function makeItem() {
 const elements = () => [item as unknown as Element];
 beforeEach(() => {
   vi.useFakeTimers(); h.cleanup = []; reports = []; modelMove.mockReset();
+  h.gone = new Set();
   box = { x: 300, y: 250, w: 400, h: 320 }; item = makeItem();
   target = new EventTarget();
   vi.stubGlobal("window", Object.assign(target, { okFilow: { modelMove, modelRects: (r: ItemHitRect[]) => reports.push(r), onModel: () => () => {}, modelReady() {} } }));
@@ -168,6 +171,39 @@ it.each([3, 5])("keeps the grip of a %i-tile gallery under a diagonal drag on ev
     expect(Math.abs(tile.right - first.right - d)).toBeLessThanOrEqual(2);
     expect(Math.abs(tile.bottom - first.bottom - d)).toBeLessThanOrEqual(1);
   }
+});
+
+it.each(["moved", "restored"])("uncovers the slide Close button when three photos close in a %s six-photo gallery", (layout) => {
+  const view = { width: 1920, height: 1080 };
+  Object.assign(window, { innerWidth: view.width, innerHeight: view.height });
+  const photo = { kind: "photo" as const, src: "photo.png", caption: "Photo", source: "Source" };
+  const show = { x: 12, y: 12, gallery: Array(6).fill(photo), slide: { title: "Slide", points: ["One", "Two"], media: [] } };
+  box = { x: 20, y: 12, w: 804, h: 500 };
+  const figures = () => {
+    const layer = MediaLayer({ show, avoid: () => [], t: (k) => k,
+      move: { moved: { gallery: box }, onBox: (_kind, next) => { box = next; }, onReset: vi.fn() } })!;
+    return layer.type(layer.props).props.children[1];
+  };
+  if (layout === "moved") figures()[0].props.children[1].props.onBox(box, true);
+  for (const count of [6, 5, 4]) {
+    const tiles = figures();
+    expect(tiles).toHaveLength(count);
+    tiles.at(-1).props.children[0].props.onClose();
+  }
+  const slide = showLayout(3, { width: 560, height: 120 }, view, [], show).slide!;
+  expect(slide.top).toBe(268);
+  const close = { x: slide.right - 30, y: slide.top + 30 };
+  expect(close).toEqual({ x: 786, y: 298 });
+  const remaining = figures();
+  expect(remaining).toHaveLength(3);
+  for (const tile of remaining) {
+    const { left, top, width, height } = tile.props.style;
+    expect(close.x >= left && close.x < left + width && close.y >= top && close.y < top + height).toBe(false);
+  }
+  expect(remaining[2].props.style).toMatchObject({ top: 12, height: 244 });
+  // A resize with one remaining row sets the new tile height for subsequent renders.
+  remaining[2].props.children[1].props.onBox({ ...box, h: 280 }, true);
+  expect(figures()[2].props.style.height).toBe(280);
 });
 
 it("leaves room for media and controls in all six tiles when a gallery is dragged up to its minimum", () => {

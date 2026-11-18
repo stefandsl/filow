@@ -220,10 +220,11 @@ export function placeBlock(size: Size, view: Size, avoid: Rect[], anchor: { x: n
 
 /** Columns of a gallery: one row up to three, two by two for four, three across for five and six. */
 export const galleryColumns = (n: number) => (n === 4 ? 2 : Math.min(3, Math.max(1, n)));
+export const galleryRows = (count: number) => Math.ceil(count / galleryColumns(count));
 
 /** A resized tile needs handle clearance, caption padding, buttons, source line and visible media. */
 export function galleryMinHeight(count: number): number {
-  const rows = Math.ceil(count / galleryColumns(count));
+  const rows = galleryRows(count);
   const tileHeight = 36 + 14 + 28 + 2 + 15 + 48;
   return rows * tileHeight + Math.max(0, rows - 1) * TILE.gap;
 }
