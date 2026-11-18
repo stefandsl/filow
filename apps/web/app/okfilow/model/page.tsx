@@ -63,7 +63,7 @@ const reducedMotion = () => typeof window !== "undefined" && window.matchMedia("
 const easeOut = (k: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, k)), 3);
 
 export default function OkFilowModel() {
-  const gripDrag = useGripDrag();
+  const gripDrag = useGripDrag({ forwardedHover: true });
   const host = useRef<HTMLDivElement>(null);
   const leaders = useRef<SVGSVGElement>(null);
   const labelEls = useRef<Array<HTMLButtonElement | null>>([]);

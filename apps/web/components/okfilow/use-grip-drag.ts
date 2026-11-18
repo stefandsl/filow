@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 import { GRIP_ITEM, HIT_RECTS_CHANGED } from "./hit-rects";
 
 /** Capture the pointer and pad only this grip's item through the existing rectangle report. */
-export function useGripDrag() {
+export function useGripDrag({ forwardedHover = false } = {}) {
   const cancel = useRef<(() => void) | null>(null);
   useEffect(() => () => cancel.current?.(), []);
 
@@ -19,8 +19,8 @@ export function useGripDrag() {
     const step = (next: PointerEvent) => {
       if (next.pointerId !== id) return;
       if ((next.buttons & 1) === 0) {
-        // Windows can forward a buttonless hover while the physical drag still owns capture.
-        if (!target.hasPointerCapture(id)) stop(true);
+        // The model can receive a forwarded Windows hover after Chromium drops capture.
+        if (!forwardedHover && !target.hasPointerCapture(id)) stop(true);
         return;
       }
       // The next frame must measure the new box even under concurrent rendering.
@@ -34,20 +34,23 @@ export function useGripDrag() {
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
       window.removeEventListener("blur", blur);
-      target.removeEventListener("lostpointercapture", end);
+      if (forwardedHover) window.removeEventListener("pointerdown", newGesture, true);
+      else target.removeEventListener("lostpointercapture", end);
       if (target.hasPointerCapture(id)) target.releasePointerCapture(id);
       item?.removeAttribute("data-okf-grip-active");
       if (commit) flushSync(finish);
       report("end");
     };
     const end = (next: PointerEvent) => { if (next.pointerId === id) stop(true); };
+    const newGesture = (next: PointerEvent) => { if (next.button === 0 && next.isPrimary !== false) stop(true); };
     const blur = () => stop(true);
     cancel.current = () => stop(false);
     window.addEventListener("pointermove", step);
     window.addEventListener("pointerup", end);
     window.addEventListener("pointercancel", end);
     window.addEventListener("blur", blur);
-    target.addEventListener("lostpointercapture", end);
+    if (forwardedHover) window.addEventListener("pointerdown", newGesture, true);
+    else target.addEventListener("lostpointercapture", end);
     try { target.setPointerCapture(id); } catch { stop(false); return; }
     item?.setAttribute("data-okf-grip-active", "true");
     report("start");

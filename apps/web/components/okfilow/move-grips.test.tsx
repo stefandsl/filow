@@ -190,15 +190,29 @@ it("leaves room for media and controls in all six tiles when a gallery is dragge
   }
 });
 
-it("resumes the captured 3D resize after a forwarded buttonless hover", () => {
+it.each([false, true])("resumes the 3D resize after a forwarded buttonless hover (lost capture: %s)", (lostCapture) => {
   const tree = Model();
   const children = tree.props.children as ReactElement<Record<string, unknown>>[];
   const grip = children.find((c) => c?.props?.className === "okf-model-resize")!;
-  (grip.props.onPointerDown as (event: unknown) => void)(down(capture()));
+  const cap = capture();
+  const begin = grip.props.onPointerDown as (event: unknown) => void;
+  begin(down(cap));
+  if (lostCapture) {
+    cap.hasPointerCapture = () => false;
+    pointer("lostpointercapture", 380, 350, 7, 0, cap);
+  }
   pointer("pointermove", 380, 350, 7, 0);
   expect(modelMove).not.toHaveBeenCalled();
   pointer("pointermove", 680, 550, 7, 1);
   expect(modelMove).toHaveBeenLastCalledWith({ dx: 0, dy: 0, dw: -20, dh: -20 });
+  if (lostCapture) {
+    // A fresh press reaches the window before the grip's React handler starts the next gesture.
+    target.dispatchEvent(Object.assign(new Event("pointerdown"), { pointerId: 7, button: 0, buttons: 1 }));
+    expect(modelMove).toHaveBeenLastCalledWith({ dx: 0, dy: 0, done: true });
+    begin(down(capture()));
+    pointer("pointermove", 705, 575);
+    expect(modelMove).toHaveBeenLastCalledWith({ dx: 0, dy: 0, dw: 5, dh: 5 });
+  }
   pointer("pointerup", 680, 550, 7, 0);
   expect(reports.at(-1)![0].hit).toBeUndefined();
 });
