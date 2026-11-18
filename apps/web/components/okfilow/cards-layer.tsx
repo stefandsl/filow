@@ -89,7 +89,7 @@ export function CardsLayer({ cards, avoid, move, t }: { cards: OkFilowCard[]; av
     // Each card's own box (the move bar above the first card is not a card).
     const boxes = Array.from(el.children).filter((a) => a.tagName === "ARTICLE").map((a) => {
       const art = a as HTMLElement;
-      return { left: spot.x, top: spot.y + art.offsetTop, right: spot.x + CARD_WIDTH, bottom: spot.y + art.offsetTop + art.offsetHeight };
+      return { left: spot.x, top: spot.y + art.offsetTop, right: spot.x + width, bottom: spot.y + art.offsetTop + art.offsetHeight };
     });
     const own = leadersFor(subjects);
     const leaders = subjects.map((p, i) => (own[i] && boxes[i] ? cardLeader(p, boxes[i]) : null));

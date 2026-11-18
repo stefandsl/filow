@@ -97,6 +97,12 @@ describe("OK Filow cards: each leader ends at its own card", () => {
     try {
       await render({});
       const automatic = position();
+      const { CARD_WIDTH } = await import("@/lib/buddy/cards");
+      expect(automatic.width).toBe(CARD_WIDTH);
+      // With the subject to the right, its leader must meet the resized right edge.
+      await render({ cards: { x: 40, y: 240, w: 220, h: 200 } });
+      const leader = all(container).find((n) => n.attrs.class === "okf-card-ink")!;
+      expect(Number(leader.attrs.x2)).toBe(260);
       await render({ cards: { x: 900, y: 500, w: 300, h: 200 } });
       expect(position()).toEqual({ x: 900, y: 500, width: 300 });
       await render({}); // Reset layout clears moved, without replacing the cards.

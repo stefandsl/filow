@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { CARD_EXIT, CARD_WIDTH } from "@/lib/buddy/cards";
+import { CARD_EXIT } from "@/lib/buddy/cards";
 import { flightMs, pointerLanding, pointLabelFlip } from "@/lib/buddy/motion";
 
 const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
@@ -24,6 +24,12 @@ const keyframes = (name: string) => {
 const sec = (n: number) => `${+(n / 1000).toFixed(3)}s`;
 
 describe("the cards", () => {
+  it("lets an SVG drawing resize with its gripped column and keeps the whole drawing visible", () => {
+    expect(rule(".okf-card")).toMatch(/\bwidth:\s*100%/);
+    expect(rule(".okf-card img")).toMatch(/\bwidth:\s*100%/);
+    expect(rule('.okf-card img[src^="data:image/svg"]')).toContain("object-fit: contain");
+  });
+
   it("are opaque from their first frame: an opaque body, an entry that moves only size and position", () => {
     const card = rule(".okf-card");
     expect(card).toMatch(/background: rgb\(/);
@@ -44,7 +50,6 @@ describe("the cards", () => {
     expect(overlay).toContain("<CardsLayer cards={cards} avoid={cardAvoid} move={moveProps} t={t} />");
     expect(cardsLayer).toContain("placeCards(subjects[0], size, view, avoid(), subjects)");
     expect(cardsLayer).toContain("cardLeader(p, boxes[i])");
-    expect(rule(".okf-card")).toContain(`width: ${CARD_WIDTH}px`);
     expect(rule(".okf-card")).toContain("font: 14px/1.45");
   });
 

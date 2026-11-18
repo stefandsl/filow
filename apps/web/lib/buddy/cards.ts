@@ -20,7 +20,7 @@ export function cleanVisualLabel(text: string, question: string): string {
 type P = { x: number; y: number };
 type Size = { width: number; height: number };
 
-/** The column's width (the CSS of .okf-cards says the same). */
+/** The column's default width before the user resizes it. */
 export const CARD_WIDTH = 280;
 /** How far the column stands off its subject. */
 export const CARD_GAP = 44;
