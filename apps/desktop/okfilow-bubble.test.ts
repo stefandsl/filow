@@ -297,7 +297,7 @@ describe("main and the bubble", () => {
     const at = main.indexOf("const bubble = createBubble({");
     const made = main.slice(at, main.indexOf("\n  });\n", at));
     expect(made).toContain('sendOverlays("okfilow:bubble:close", why);');
-    expect(made).toContain("bubbleHover.clear();");
+    expect(made).toContain("refreshBubbleMouse();");
     expect(made).toContain("scheduleFade();");
   });
   it("kept marks and the always-on pointer keep the overlays, never the bubble: the fade waits for the bubble, the bubble waits for nobody", () => {

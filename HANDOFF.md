@@ -1,5 +1,20 @@
 # Filow hand-off
 
+## O2 final review fixes (2026-11-18, unreleased)
+
+Oversized overlay items keep a bounded hit area at their control corner. The
+resized gallery reserves 48 px of media per row plus space for its controls
+and caption. Model drags survive capture loss and forwarded buttonless hover.
+A chorded primary release finishes the grip. Closing or replacing an answer
+immediately releases its bubble hover and rectangles while preserving pill and
+media hits.
+
+All five review scenarios failed on 59c3b88. The final suite passed 4,034 tests
+with 12 skipped and the same three desktop QA baseline failures. Typecheck and
+lint passed. The six-picture minimum was checked in offline Chromium in both
+themes. Native Windows input and click-through remain manual checks.
+Evidence is in worktree tmp/o2-round5 and G:/FILOW/tmp/codex/o2/report-5.md.
+
 ## O2 bounded live resize (2026-11-18, unreleased)
 
 On feat/o2-hitarea, item grips update size on every pointermove and report a

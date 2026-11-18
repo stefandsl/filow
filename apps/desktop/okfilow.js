@@ -269,13 +269,7 @@ function createOkFilow(deps) {
     dismiss: (why) => {
       logLine(`okfilow: bubble closed (${why})`);
       sendOverlays("okfilow:bubble:close", why);
-      bubbleHover.clear();
-      if (!overlayLive(mode, pill, false)) stopHover.clear();
-      for (const w of overlays.values()) {
-        if (w.isDestroyed()) continue;
-        dropBubbleRects(w);
-        applyMouse(w);
-      }
+      refreshBubbleMouse();
       // The answer's marks go with its bubble, however it went.
       answerMarks.drop(`bubble ${why}`);
       if (mode === "idle" || mode === "error") scheduleFade();
@@ -298,6 +292,20 @@ function createOkFilow(deps) {
       gripOwner = { id, report, restore: () => apply(report.base) };
     }
     apply(report.rects);
+  }
+  function refreshBubbleMouse() {
+    const open = bubble.open();
+    if (!open) {
+      for (const id of bubbleHover) stopHover.delete(id);
+      bubbleHover.clear();
+      bubble.setHover(false);
+    }
+    if (!overlayLive(mode, pill, open)) stopHover.clear();
+    for (const w of overlays.values()) {
+      if (w.isDestroyed()) continue;
+      if (!open) dropBubbleRects(w);
+      applyMouse(w);
+    }
   }
   function dropBubbleRects(w) {
     const id = w.webContents.id;
@@ -778,8 +786,7 @@ function createOkFilow(deps) {
     // The pill's controls take the mouse only while the pill has any (okfilow-stop.js pillLive).
     bubble.setMode(mode, extra);
     answerMarks.set({ mode, stopped: extra.stopped === true });
-    if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
-    for (const w of overlays.values()) applyMouse(w);
+    refreshBubbleMouse();
     // "opening": the panel asked for the microphone; "listening": it is open (okfilow-mic.js, lib/buddy/micOpen.ts).
     // By what the panel says it is for: the keys of a short press are up again before the microphone is open.
     if (next === "opening" && extra.purpose === "dictate") dictation.diag.mark("listening", {}, { once: true });
@@ -1452,11 +1459,7 @@ function createOkFilow(deps) {
     sendOverlays("okfilow:text", t);
     const was = bubble.open();
     bubble.setText(t);
-    if (was !== bubble.open()) {
-      // The bubble came or went under a pointer that may stand still: the mouse rule follows it.
-      if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
-      for (const w of overlays.values()) applyMouse(w);
-    }
+    if (was !== bubble.open()) refreshBubbleMouse();
     if (!bubble.open() && (mode === "idle" || mode === "error")) scheduleFade();
     // Test builds log what the bubble shows, so end-to-end runs can be checked from the log.
     if (QA_SHOTS && t && t !== lastQaText) { lastQaText = t; clearTimeout(qaTextTimer); qaTextTimer = setTimeout(() => logLine(`okfilow qa text: ${lastQaText.slice(0, 300)}`), 1500); }
@@ -1547,6 +1550,7 @@ function createOkFilow(deps) {
   /** `onBubble`: the pointer is on the answer bubble (it then stays, and its text scrolls under the wheel). */
   ipcMain.on("okfilow:overlay:hover", (e, on, onBubble) => {
     if (!ourSender(e)) return;
+    if (onBubble === true && !bubble.open()) return; // Late report from the closed answer.
     if (on === true && overlayLive(mode, pill, bubble.open())) stopHover.add(e.sender.id);
     else stopHover.delete(e.sender.id);
     if (on === true && onBubble === true && bubble.open()) bubbleHover.add(e.sender.id);

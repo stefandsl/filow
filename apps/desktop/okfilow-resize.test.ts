@@ -8,7 +8,7 @@ import { LIMITS, resizeBox } from "../web/lib/buddy/layout-move";
 
 const require = createRequire(import.meta.url);
 const { cleanHitReport, cleanRects, createHitTarget, insideAny, localPoint } = require("./okfilow-hit.js");
-const { overlayMouse, overlayLive } = require("./okfilow-stop.js");
+const { overlayMouse, overlayLive, bubbleText, createBubble } = require("./okfilow-stop.js");
 const source = readFileSync(new URL("./okfilow.js", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 const item = { left: 300, top: 250, right: 700, bottom: 570 };
 const inflated = { ...item, hit: { left: 140, top: 90, right: 860, bottom: 730 } };
@@ -40,7 +40,8 @@ function setup() {
   };
   runInNewContext([
     "let gripOwner = null;",
-    ...["dropBubbleRects", "updateModelCursor", "applyGripReport", "applyMouse", "mediaHit", "dropHover", "watchHitRects"].map((name) => section(`  function ${name}(`, "\n  }")),
+    section("  function applyGripReport(", "  /** An overlay that is no more has the pointer on nothing. */"),
+    ...["updateModelCursor", "applyMouse", "mediaHit", "dropHover", "watchHitRects"].map((name) => section(`  function ${name}(`, "\n  }")),
     section('  ipcMain.on("okfilow:overlay:rects"', "\n  });"),
     section('  ipcMain.on("okfilow:model:rects"', "\n  });"),
   ].join("\n"), context);
@@ -234,6 +235,38 @@ it.each(["idle", "bubble grip", "picture grip"])("releases a dismissed bubble im
   h.send(h.model, [inflated]); // Transferring the picture's grip must also preserve the dismissal.
   expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
   h.send(h.overlay, rects); // The old renderer can still have a poll in flight.
+  expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
+  h.point({ x: 50, y: 50 });
+  expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+});
+
+it.each(["close stopped answer", "new question"])("immediately releases only the old bubble's hits on %s", (action) => {
+  const h = setup();
+  const context = Object.assign(h.context, { overlayLive, bubbleText,
+    createBubble: (options: object) => createBubble({ ...options, setTimer: vi.fn(), clearTimer: vi.fn() }),
+    logLine: vi.fn(), sendOverlays: vi.fn(), answerMarks: { drop: vi.fn() }, scheduleFade: vi.fn() });
+  const bubble = runInNewContext(section("  const bubble = createBubble(", "\n  });").replace("const bubble = ", ""), context);
+  context.bubble = bubble;
+  context.pill = { resumable: true };
+  runInNewContext([section('  ipcMain.on("okfilow:text"', "\n  });"),
+    section('  ipcMain.on("okfilow:overlay:hover"', "\n  });")].join("\n"), context);
+  const hover = (w: typeof h.overlay, onBubble: boolean) =>
+    context.ipcMain.emit("okfilow:overlay:hover", { sender: w.webContents }, true, onBubble);
+  bubble.setText("Previous answer");
+  if (action === "close stopped answer") bubble.setMode("idle", { stopped: true });
+  const rects = [{ ...inflated, bubble: true }, { left: 10, top: 10, right: 130, bottom: 90 }];
+  h.point({ x: 500, y: 400 });
+  h.send(h.overlay, rects);
+  hover(h.overlay, true);
+  hover(h.second, false); // Genuine pill hover on another overlay.
+  if (action === "close stopped answer") bubble.close("button");
+  else context.ipcMain.emit("okfilow:text", { sender: h.panel.webContents }, "");
+  expect(bubble.open()).toBe(false);
+  expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
+  expect(context.bubbleHover.size).toBe(0);
+  expect(h.second.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+  h.send(h.overlay, rects);
+  hover(h.overlay, true); // Outgoing hover and rectangle reports can arrive after closure.
   expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
   h.point({ x: 50, y: 50 });
   expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
