@@ -79,6 +79,12 @@ How Filow uses it (`apps/desktop/truecase-text.js`, `dictation-punctuate.js`):
 - its colon and dash are not written (its own card calls them much less reliable);
 - no capital right after a comma (the model's known "comma, Capital" weak spot);
 - when the recognizer writes capitals itself, the model may only raise the first letter of a sentence;
+- after the model, a rule raises the first letter of a sentence that starts inside the dictation and
+  that the model left small: the word after a full stop, question or exclamation mark and a space. It
+  leaves the word alone when the start is not certain: after an abbreviation ("dott.", "nr.", "тыс."),
+  a single letter ("n.", "т. е.", an initial), "...", a closing quote, and for a number, an address, a
+  file name or a name like "iPhone". The first word of the dictation is never the rule's: it stays as
+  the model labelled it. Not in Japanese;
 - in Japanese the comma is "、" and the gap the recognizer leaves between two phrases is closed.
 
 ### On real engine output (what the user would get)
@@ -121,7 +127,7 @@ the model's own limits. 15 per language, 4 threads:
 
 | Language | Exact | Acceptable | Incomplete | Harmful | What the harmful ones were |
 |---|---|---|---|---|---|
-| Italian | 8 | 2 | 3 | 2 | "Sala Grande"; a question mark on "Ricordati di comprare..." |
+| Italian | 9 | 2 | 2 | 2 | "Sala Grande"; a question mark on "Ricordati di comprare..." |
 | Russian | 11 | 2 | 2 | 0 | |
 | Romanian | 7 | 4 | 3 | 1 | "Sala Mare" |
 | Japanese | 14 | 0 | 1 | 0 | ("nhk" stayed lower case) |
@@ -132,6 +138,11 @@ missing but nothing wrong was added (a question written as a statement, an acron
 Harmful: something wrong was added. The verdict is computed by the script and was read line by line; one
 Romanian line the script calls harmful ("Cluj, mă întorc": a comma for a full stop) is counted as
 incomplete here.
+
+With the rule for the first letter of a sentence (2026-11-14). Before it the model alone gave Italian
+8, 2, 3, 2: "Domani vado a Roma. torno giovedì sera." was incomplete and is exact now. The Romanian
+"am vorbit cu Ioana Marinescu de la ONU la Geneva." stays incomplete: its missing capital is on the
+first word, which the rule does not touch. No other line changed.
 
 ### Time and memory (CPU only)
 

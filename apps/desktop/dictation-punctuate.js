@@ -8,6 +8,10 @@
 // was none, a capital where there was a small letter. The words, their order, every letter and digit and
 // every mark and capital the recognizer wrote stay as they are; if that cannot be shown, the dictation
 // is typed as it was.
+//
+// After the model a rule adds the one capital it sometimes leaves out: the first letter of a sentence
+// that starts inside the dictation, after a full stop, question mark or exclamation mark
+// (truecase-text.js sentenceStarts). The first word of the dictation is left to the model.
 const tc = require("./truecase-text");
 
 /** Languages where the numbers support it (CLEANUP-MULTILINGUAL.md). English goes to S1-mini by Superwhisper. */
@@ -39,7 +43,8 @@ function combine(said, pieces, labels, lang) {
   const merged = tc.merge(original, restored, { sentenceStartsOnly: /\p{Lu}/u.test(original) });
   if (merged === null || tc.skeleton(merged) !== tc.skeleton(original)) return null;
   // Japanese is written without spaces: the gap the recognizer left between two phrases goes when a mark fills it.
-  return lang === "ja" ? merged.replace(/([。、？]) (?=[぀-ヿ㐀-鿿])/g, "$1") : merged;
+  // The other languages get the capital the model left out at the start of a sentence inside the dictation.
+  return lang === "ja" ? merged.replace(/([。、？]) (?=[぀-ヿ㐀-鿿])/g, "$1") : tc.sentenceStarts(merged, lang);
 }
 
 /**

@@ -130,4 +130,90 @@ function merge(original, restored, { sentenceStartsOnly = false } = {}) {
 /** The letters and digits of a text, in order, lower case: what must be the same before and after. */
 const skeleton = (text) => lowerKeepLength(String(text || "")).replace(/[^\p{L}\p{N}]/gu, "");
 
-module.exports = { stripMarks, lowerKeepLength, hasMarks, applyCase, markFor, pieceEnds, applyLabels, merge, skeleton, CJK };
+// ---- the first letter of a sentence ----
+// The model sometimes ends a sentence and leaves the next word small. This raises that one letter, by
+// rule, and only where the sentence start is certain: a missed capital is acceptable, a wrong one is not.
+// Only inside the text, after a sentence end: the first word of the dictation is the model's alone (it may
+// go on in the middle of a sentence already in the field, and the rule cannot see that). Nothing else
+// changes: no letter is lowered, no mark or space is added, moved or removed, every character stays
+// where it was.
+const SPACE = /[ \u00a0\u202f\t\r\n]/;
+const SENTENCE_MARK = /[.?!…]/; // the full-width marks of Japanese and Chinese start no capital
+const OPENING = /["'([{«„“‘‹¿¡]/;
+const DASH = /[-\u2013\u2014]/; // opens a line of dialogue when a space follows it
+const CASED = /[\p{Script=Latin}\p{Script=Cyrillic}\p{Script=Greek}]/u;
+// A word that is not plain text: a number, an address, a path, a file name, a time, a name like "iPhone".
+const NOT_A_WORD = /[\p{N}/\\@_]|[.:][\p{L}\p{N}]|\p{Ll}\p{Lu}/u;
+// Words written with a full stop that does not end the sentence. Short on purpose: everyday dictation.
+// "ecc." and "etc." can also end a sentence; the rule cannot know, so the next word stays as it is.
+const ABBREVIATIONS = {
+  en: "mr mrs ms dr prof st vs etc no inc ltd jr sr approx",
+  it: "sig dott dr prof ing avv ecc etc pag art tel ca es cfr cap fig max nr sec min vol rif",
+  ro: "dl dna dvs dv dr prof univ ing nr str bl ap sc et bd com etc pag art cap fig jud ex tel aprox cca",
+  ru: "г гг в вв ул д кв стр рис им др проф руб коп долл тыс млн млрд см ч мин сек мес нед шт чел ст гр напр ок",
+};
+// Any other language name (also one that is a property of every object, like "constructor"): all the lists.
+const abbreviationsOf = (lang) => new Set((Object.hasOwn(ABBREVIATIONS, lang) ? ABBREVIATIONS[lang] : Object.values(ABBREVIATIONS).join(" ")).split(" "));
+
+/** Is the single full stop at `cp[dot]` one that does not end a sentence? Says yes when it cannot tell. */
+function insideSentence(cp, dot, abbreviations) {
+  let s = dot;
+  while (s > 0 && !SPACE.test(cp[s - 1])) s--;
+  const token = cp.slice(s, dot).join("").replace(/^["'([{«„“‘‹¿¡]+/, "");
+  if (!token) return true;
+  // One letter: an initial ("J. Rossi") or a short form ("n.", "p. es.", "т. е."). Not the Russian "я",
+  // the one word of a single letter that often ends a sentence (written "Я" when it starts one).
+  if (/^\p{L}$/u.test(token)) return token.toLowerCase() !== "я";
+  // letters with full stops between them ("e.g.", "S.p.A."), or a listed abbreviation
+  return /^\p{L}{1,2}(\.\p{L}{1,2})+$/u.test(token) || abbreviations.has(token.toLowerCase());
+}
+
+/**
+ * The text with a capital on each sentence start that has a small letter. `lang`: the language when it is
+ * known; it picks the list of abbreviations (all of them when it is not known), and Japanese comes back
+ * as it is. The first word is never touched. Works on whole characters, so the text keeps its length.
+ */
+function sentenceStarts(text, lang) {
+  const t = String(text || "");
+  if (lang === "ja") return t;
+  const cp = [...t]; // read for every decision; the capitals go into `out`
+  const out = cp.slice();
+  const abbreviations = abbreviationsOf(lang);
+  const space = (i) => i < cp.length && SPACE.test(cp[i]);
+  /** Where the sentence would start from `i` on: after the spaces and the marks that open it. */
+  const start = (i) => {
+    while (space(i)) i++;
+    for (;;) {
+      if (i < cp.length && OPENING.test(cp[i])) i++;
+      else if (i < cp.length && DASH.test(cp[i]) && space(i + 1)) { i++; while (space(i)) i++; }
+      else return i;
+    }
+  };
+  /** A digit, a capital, a letter without case or a symbol there: nothing, and no looking further along. */
+  const raise = (i) => {
+    const ch = cp[i];
+    if (ch === undefined || !CASED.test(ch) || !/\p{Ll}/u.test(ch)) return;
+    const up = ch.toUpperCase(); // not the locale's: the Turkish i must not touch other languages
+    if ([...up].length !== 1) return; // "ß" would become two letters
+    let end = i;
+    while (end < cp.length && !space(end)) end++;
+    const word = cp.slice(i, end).join("");
+    if (NOT_A_WORD.test(word) || CJK.test(word)) return;
+    out[i] = up;
+  };
+  for (let i = 0; i < cp.length; i++) {
+    if (!SENTENCE_MARK.test(cp[i])) continue;
+    const first = i;
+    while (i + 1 < cp.length && SENTENCE_MARK.test(cp[i + 1])) i++;
+    // No space after it: inside a number, an address or a file name, or a closing quote follows and the
+    // sentence may go on ('"Vengo." disse lei').
+    if (!space(i + 1)) continue;
+    const run = cp.slice(first, i + 1).join("");
+    // "..." and "…" are a pause more often than an end; "?" and "!" always end.
+    if (!/[?!]/.test(run) && (run !== "." || insideSentence(cp, first, abbreviations))) continue;
+    raise(start(i + 1));
+  }
+  return out.join("");
+}
+
+module.exports = { stripMarks, lowerKeepLength, hasMarks, applyCase, markFor, pieceEnds, applyLabels, merge, skeleton, sentenceStarts, CJK };
