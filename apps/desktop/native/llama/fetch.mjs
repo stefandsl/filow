@@ -9,7 +9,6 @@
 import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,6 +26,15 @@ const KEEP = /^(llama\.dll|llama-common\.dll|llama-server\.exe|llama-server-impl
 const here = path.dirname(fileURLToPath(import.meta.url));
 const arg = (name, fallback) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : fallback; };
 
+/**
+ * The tar that unpacks the archive. On Windows it is the system's bsdtar by its full path: a plain "tar"
+ * run from Git Bash finds GNU tar first, which reads "C:\..." as a remote host ("Cannot connect to C:
+ * resolve failed") and cannot read a zip.
+ */
+export function tarCommand(platform = process.platform, env = process.env) {
+  return platform === "win32" ? path.win32.join(env.SystemRoot || env.windir || "C:\\Windows", "System32", "tar.exe") : "tar";
+}
+
 export async function fetchRuntime({ platform = process.platform, arch = process.arch, from = "", outRoot = here, log = console.log } = {}) {
   const id = `${platform}-${arch}`;
   const a = ARCHIVES[id];
@@ -35,7 +43,9 @@ export async function fetchRuntime({ platform = process.platform, arch = process
   const stamp = path.join(out, "FETCHED-FROM.txt");
   const want = `llama.cpp ${TAG} ${a.name} sha256 ${a.sha256}\n`;
   if (fs.existsSync(stamp) && fs.readFileSync(stamp, "utf8") === want) { log(`llama runtime: ${id} already in place`); return out; }
-  const work = fs.mkdtempSync(path.join(process.env.TEMP || os.tmpdir(), "filow-llama-"));
+  // Unpacked beside its destination, not in the system temp folder (which is on the full C: drive here).
+  fs.mkdirSync(outRoot, { recursive: true });
+  const work = fs.mkdtempSync(path.join(outRoot, ".fetch-"));
   try {
     let archive = from;
     if (!archive) {
@@ -50,7 +60,7 @@ export async function fetchRuntime({ platform = process.platform, arch = process
     if (sha !== a.sha256) throw new Error(`${a.name}: SHA-256 is ${sha}, expected ${a.sha256}. Nothing was unpacked.`);
     const unpacked = path.join(work, "x");
     fs.mkdirSync(unpacked);
-    execFileSync("tar", ["-xf", archive, "-C", unpacked]); // bsdtar on Windows 10 and later reads zip too
+    execFileSync(tarCommand(), ["-xf", archive, "-C", unpacked]); // bsdtar on Windows 10 and later reads zip too
     fs.rmSync(out, { recursive: true, force: true });
     fs.mkdirSync(out, { recursive: true });
     let n = 0;
