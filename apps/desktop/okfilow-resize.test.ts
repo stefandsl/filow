@@ -53,6 +53,19 @@ function setup() {
 }
 
 describe("bounded resize hit rectangles", () => {
+  it("clips a GIF Close button where its narrow tile ends and the desktop gap starts", () => {
+    const h = setup();
+    const tile = {
+      getBoundingClientRect: () => ({ left: 40, top: 40, right: 92, bottom: 220 }),
+      getAttribute: () => null,
+      querySelectorAll: () => [{ getBoundingClientRect: () => ({ left: 86, top: 160, right: 114, bottom: 188 }) }],
+    };
+    const report = itemHitRects([tile as unknown as Element]);
+    h.send(h.overlay, report);
+    h.point({ x: 98, y: 170 });
+    expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
+    expect(report[1]).toEqual({ left: 86, top: 160, right: 92, bottom: 188 });
+  });
   it.each(["overlay", "model"] as const)("%s stays interactive just beyond the old box, then restores click-through", (kind) => {
     const h = setup(), w = h[kind];
     h.send(w, [item]); expect(w.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);

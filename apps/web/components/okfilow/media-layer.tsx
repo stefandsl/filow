@@ -6,7 +6,7 @@
 // their rectangles and main lets the mouse in only there (apps/desktop/okfilow-hit.js). Stop takes all
 // of it away at once (the overlay page passes null).
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { boundsOfRects, galleryMinHeight, galleryRows, MAX_VIDEO_SECONDS, showLayout, TILE, tilesIn, type MediaItem, type MediaShow } from "@/lib/buddy/media";
+import { boundsOfRects, galleryMinHeight, galleryMinWidth, galleryRows, MAX_VIDEO_SECONDS, showLayout, TILE, tilesIn, type MediaItem, type MediaShow } from "@/lib/buddy/media";
 import { clampBox, LIMITS, type Box, type MovableKind } from "@/lib/buddy/layout-move";
 import { MoveGrips } from "./move-grips";
 import type { Rect } from "@/lib/buddy/marks";
@@ -132,7 +132,7 @@ function ShownMedia({ show, avoid, t, onPlaced, move }: Props & { show: MediaSho
   const close = (key: string) => setGone((g) => new Set(g).add(key));
   // Where the user moved or resized them, else where they were placed.
   const area = { x: 0, y: 0, width: typeof window === "undefined" ? 1920 : window.innerWidth, height: typeof window === "undefined" ? 1080 : window.innerHeight };
-  const galleryLimits = { ...LIMITS.gallery, minH: galleryMinHeight(gallery.length) };
+  const galleryLimits = { ...LIMITS.gallery, minW: Math.max(LIMITS.gallery.minW, galleryMinWidth(gallery.length)), minH: galleryMinHeight(gallery.length) };
   const rows = galleryRows(gallery.length);
   const savedGallery = move?.moved.gallery;
   let shownTiles = tiles;

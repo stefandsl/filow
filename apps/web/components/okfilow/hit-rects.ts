@@ -22,7 +22,9 @@ export function itemHitRects(elements: Iterable<Element>, bubble?: Element | nul
     rects.push(item);
     // Main may cap the body at its bottom-right corner. Each control keeps its own hit area.
     for (const control of el.querySelectorAll('button, [role="button"]')) {
-      rects.push(measuredRect(control, el === bubble));
+      const r = measuredRect(control, el === bubble);
+      rects.push({ ...r, left: Math.max(r.left, item.left), top: Math.max(r.top, item.top),
+        right: Math.min(r.right, item.right), bottom: Math.min(r.bottom, item.bottom) });
     }
   }
   return rects.filter((r) => r.right > r.left && r.bottom > r.top);

@@ -222,6 +222,13 @@ export function placeBlock(size: Size, view: Size, avoid: Rect[], anchor: { x: n
 export const galleryColumns = (n: number) => (n === 4 ? 2 : Math.min(3, Math.max(1, n)));
 export const galleryRows = (count: number) => Math.ceil(count / galleryColumns(count));
 
+/** Caption padding and grid gap around a GIF's Play and Close buttons. */
+export function galleryMinWidth(count: number): number {
+  const cols = galleryColumns(count);
+  const tileWidth = 12 + 8 + 28 + 6 + 28 + 8;
+  return cols * tileWidth + (cols - 1) * TILE.gap;
+}
+
 /** A resized tile needs handle clearance, caption padding, buttons, source line and visible media. */
 export function galleryMinHeight(count: number): number {
   const rows = galleryRows(count);

@@ -206,6 +206,22 @@ it.each(["moved", "restored"])("uncovers the slide Close button when three photo
   expect(figures()[2].props.style.height).toBe(280);
 });
 
+it("fits both GIF controls in each column of a narrow restored gallery and after a resize", () => {
+  box = { x: 40, y: 40, w: 180, h: 244 };
+  Object.assign(window, { innerWidth: 1280, innerHeight: 720 });
+  const gif = { kind: "gif" as const, src: "clip.gif", caption: "Clip", source: "Source" };
+  const show = { x: 0, y: 0, gallery: [gif, gif, gif], slide: null };
+  const layer = MediaLayer({ show, avoid: () => [], t: (k) => k,
+    move: { moved: { gallery: box }, onBox: (_kind, next) => { box = next; }, onReset: vi.fn() } })!;
+  const figures = layer.type(layer.props).props.children[1];
+  const minTile = 12 + 8 + 28 + 6 + 28 + 8; // caption padding, grid gap and both buttons
+  expect(figures[0].props.style.width).toBeGreaterThanOrEqual(minTile);
+  MoveGrips(figures[2].props.children[1].props).props.children[1].props.onPointerDown(down(capture()));
+  pointer("pointermove", 0, 570);
+  pointer("pointerup", 0, 570);
+  for (const tile of tilesIn(3, box)) expect(tile.right - tile.left).toBeGreaterThanOrEqual(minTile);
+});
+
 it("leaves room for media and controls in all six tiles when a gallery is dragged up to its minimum", () => {
   box = { x: 40, y: 40, w: 804, h: 500 };
   Object.assign(window, { innerWidth: 1280, innerHeight: 720 });
