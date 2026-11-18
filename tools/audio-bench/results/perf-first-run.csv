@@ -1,0 +1,37 @@
+engine,threads,state,hop_ms,p50_ms,p95_ms,p99_ms,max_ms,rtf,cpu_pct_of_one_core,rss_added_mib,machine_cpu_pct,audio_s,recognizer_still_running,machine
+dfn3,1,alone,10.0,,,,,0.1032,10.1,45.5,53,274,0,this PC
+dfn3,1,asr-running,10.0,,,,,0.1190,11.8,38.1,70,274,1,this PC
+dfn3,1,alone,10.0,,,,,0.1562,15.3,38.0,56,274,0,4 efficiency cores
+dfn3,1,asr-running,10.0,,,,,0.2008,10.3,38.9,43,274,1,4 efficiency cores
+dfn3_ll,1,alone,10.0,,,,,0.2639,26.2,167.9,24,274,0,this PC
+dfn3_ll,1,asr-running,10.0,,,,,0.6129,52.5,152.7,97,274,1,this PC
+dfn3_ll,1,alone,10.0,,,,,0.6292,57.0,172.2,29,274,0,4 efficiency cores
+dfn3_ll,1,asr-running,10.0,,,,,1.0555,52.9,176.3,42,274,1,4 efficiency cores
+rnnoise,1,alone,10.0,0.307,0.448,0.818,6.128,0.0341,3.4,15.2,34,274,0,this PC
+rnnoise,1,asr-running,10.0,0.292,0.405,0.666,4.511,0.0320,3.2,15.0,45,274,1,this PC
+rnnoise,1,alone,10.0,0.625,1.266,4.184,17.149,0.0788,7.9,15.4,28,274,0,4 efficiency cores
+rnnoise,1,asr-running,10.0,0.649,1.395,18.129,157.426,0.1221,12.2,15.4,38,274,1,4 efficiency cores
+gtcrn,1,alone,16.0,0.653,0.910,1.324,4.611,0.0443,4.4,35.1,26,274,0,this PC
+gtcrn,2,alone,16.0,0.687,1.299,1.590,2.593,0.0489,9.7,35.2,32,274,0,this PC
+gtcrn,1,asr-running,16.0,0.761,1.496,1.666,2.755,0.0602,6.0,34.1,47,274,1,this PC
+gtcrn,1,alone,16.0,1.218,1.849,4.469,15.691,0.0872,8.0,35.1,26,274,0,4 efficiency cores
+gtcrn,1,asr-running,16.0,1.369,7.277,11.345,24.285,0.1678,8.5,34.6,32,274,1,4 efficiency cores
+dtln,1,alone,8.0,0.367,0.525,0.760,4.197,0.0473,4.7,35.4,23,274,0,this PC
+dtln,2,alone,8.0,0.342,0.431,0.557,2.572,0.0426,12.9,35.7,30,274,0,this PC
+dtln,1,asr-running,8.0,0.384,0.474,0.625,2.301,0.0509,5.2,34.4,44,274,1,this PC
+dtln,1,alone,8.0,0.358,0.898,3.594,15.819,0.0627,5.0,34.9,22,274,0,4 efficiency cores
+dtln,1,asr-running,8.0,0.358,2.695,6.511,25.075,0.0960,5.3,35.2,29,274,1,4 efficiency cores
+hush,1,alone,10.0,0.484,0.652,0.914,21.895,0.0504,5.1,41.8,28,274,0,this PC
+hush,1,asr-running,10.0,0.511,0.849,1.210,29.607,0.0558,5.6,40.2,49,274,1,this PC
+hush,1,alone,10.0,0.467,1.386,3.764,28.846,0.0639,5.4,40.9,26,274,0,4 efficiency cores
+hush,1,asr-running,10.0,0.603,4.894,11.715,80.310,0.1502,7.8,40.0,49,274,1,4 efficiency cores
+dpdfnet2,1,alone,10.0,2.919,3.809,4.307,13.987,0.3003,29.8,45.3,35,274,0,this PC
+dpdfnet2,2,alone,10.0,2.250,3.019,3.354,5.074,0.2352,46.9,46.5,34,274,0,this PC
+dpdfnet2,1,asr-running,10.0,3.246,3.984,4.477,8.919,0.3338,33.2,45.9,50,274,1,this PC
+dpdfnet2,1,alone,10.0,2.870,4.588,6.892,53.447,0.3116,28.8,46.1,35,274,0,4 efficiency cores
+dpdfnet2,1,asr-running,10.0,5.162,11.677,16.341,78.361,0.5981,32.2,44.8,47,274,1,4 efficiency cores
+dpdfnet2_48k,1,alone,10.0,5.190,7.443,8.198,16.815,0.5537,55.0,48.6,79,274,0,this PC
+dpdfnet2_48k,2,alone,10.0,4.059,6.154,7.519,27.155,0.4535,89.5,48.4,81,274,0,this PC
+dpdfnet2_48k,1,asr-running,10.0,5.823,14.163,27.614,121.483,0.6898,57.0,47.7,94,274,1,this PC
+dpdfnet2_48k,1,alone,10.0,4.118,5.932,8.099,104.239,0.4408,40.1,48.3,32,274,0,4 efficiency cores
+dpdfnet2_48k,1,asr-running,10.0,4.394,22.506,39.947,130.080,0.7348,41.7,47.3,42,274,1,4 efficiency cores
