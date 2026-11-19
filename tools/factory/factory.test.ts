@@ -872,6 +872,10 @@ it.runIf(process.platform === 'win32')('names the file and live process on a Win
   try {
     await new Promise<void>((resolve,reject)=>{holder.stdout.once('data',()=>resolve()); holder.once('error',reject);});
     expect(installLock('npm error code EPERM\nnpm error syscall unlink\nnpm error path ' + file,lab)).toContain(String(holder.pid));
+    const neighbor = path.join(lab,'unused','held runtime.exe');
+    fs.mkdirSync(path.dirname(neighbor));
+    fs.writeFileSync(neighbor,'unused fixture');
+    expect(installLock('npm error code EPERM\nnpm error path ' + neighbor,lab)).toContain('No live lock owner identified');
     expect(installLock('npm error path ' + file,lab)).toBe('');
   } finally { const done = new Promise(resolve=>holder.once('exit',resolve)); holder.kill(); await done; }
 },30000); // Query the real Restart Manager while a run-owned executable is mapped.
