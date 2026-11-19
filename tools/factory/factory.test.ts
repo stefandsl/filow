@@ -9,6 +9,7 @@ import { parse, stakes, ticketCard } from './plan.mjs';
 import { checkWindowsVolumes, hash, inspect, json, save, withLock } from './worktree.mjs';
 import { observeSlice, select } from './factory.mjs';
 import { actor, checkPackage, getReport, reserve, review } from './review.mjs';
+import { reviewerKey, startProgress } from './dispatch.mjs';
 import { packet, ready, route } from './brief.mjs';
 import { ensureDependencies, gateNames, privateEnv, runGates } from './gates.mjs';
 import { tmpRoot } from '../../apps/desktop/test-tmp';
@@ -114,8 +115,8 @@ it('locks simultaneous writers and reuses a dispatch slot across restarts', asyn
 it('rejects missing providers and reused sessions without exposing their credentials', () => {
   expect(ready('OpenAI',{})).toBe(false);
   expect(ready('OpenAI',{CODEX_API_KEY:marker},process.execPath,path.join(lab,'probe'))).toBe(true);
-  expect(ready('Anthropic',{OPENAI_API_KEY:marker})).toBe(false);
-  expect(ready('Anthropic',{OPENROUTER_API_KEY:marker})).toBe(true);
+  expect(ready('Google',{OPENAI_API_KEY:marker})).toBe(false);
+  expect(ready('Google',{OPENROUTER_API_KEY:marker})).toBe(true);
   expect(privateEnv(lab)).not.toHaveProperty('GH_TOKEN');
   const identity = {...route('Light','Judge'),session:'same'};
   expect(()=>actor(identity,identity,[identity])).toThrow(/fresh/);
@@ -123,20 +124,66 @@ it('rejects missing providers and reused sessions without exposing their credent
 it('checks only the reviewer credential from the explicitly named dotenv file', () => {
   const file = path.join(lab,'operator environment');
   const env = { FILOW_FACTORY_ENV:file };
-  expect(ready('Anthropic',env)).toBe(false);
+  expect(ready('Google',env)).toBe(false);
   fs.writeFileSync(file,'OPENAI_API_KEY=irrelevant\nOPENROUTER_API_KEY="   "');
-  expect(ready('Anthropic',env)).toBe(false);
+  expect(ready('Google',env)).toBe(false);
   fs.writeFileSync(file,'export OPENROUTER_API_KEY="fixture#key" # reviewer\nEXTRA=ignored');
-  expect(ready('Anthropic',env)).toBe(true);
+  expect(ready('Google',env)).toBe(true);
   fs.unlinkSync(file);
-  expect(ready('Anthropic',{...env, OPENROUTER_API_KEY:marker})).toBe(true);
+  expect(ready('Google',{...env, OPENROUTER_API_KEY:marker})).toBe(true);
+});
+
+it('reads each dotenv assignment independently and ignores malformed overrides', () => {
+  const file = path.join(lab,'messy.env');
+  for (const quote of ["'", '"']) {
+    fs.writeFileSync(file, ["\uFEFF# operator's file", "BAD='unterminated", 'not an assignment',
+      'export OPENROUTER_API_KEY=' + quote + 'quoted#fixture' + quote + ' # current',
+      'OPENROUTER_API_KEY="incomplete', 'OPENROUTER_API_KEY="bad" trailing junk'].join('\r\n'));
+    expect(reviewerKey({FILOW_FACTORY_ENV:file})).toBe('quoted#fixture');
+    fs.writeFileSync(file,'\uFEFFexport OPENROUTER_API_KEY=first # comment');
+    expect(reviewerKey({FILOW_FACTORY_ENV:file})).toBe('first');
+  }
+});
+
+it('announces the live log and records elapsed dispatch time every 30 seconds', () => {
+  vi.useFakeTimers();
+  const log = vi.spyOn(console,'log').mockImplementation(()=>{});
+  try {
+    const file = path.join(lab,'heartbeat.log');
+    const finish = startProgress('Coordinator',file);
+    expect(log.mock.calls.flat().join('\n')).toContain(file);
+    vi.advanceTimersByTime(29999);
+    expect(log.mock.calls).toHaveLength(1);
+    vi.advanceTimersByTime(30001);
+    finish(17);
+    for (const elapsed of ['30s','60s']) {
+      expect(log.mock.calls.flat().some(line=>String(line).includes('Coordinator') && String(line).includes(elapsed))).toBe(true);
+      expect(fs.readFileSync(file,'utf8')).toContain(elapsed);
+    }
+    const count = log.mock.calls.length;
+    vi.advanceTimersByTime(30000);
+    expect(log.mock.calls.length).toBe(count);
+  } finally { vi.useRealTimers(); log.mockRestore(); }
+});
+
+it('describes a configured rehearsal packet without issuing a dispatch', () => {
+  const folder = path.join(lab,'configured rehearsal');
+  vi.stubEnv('CODEX_API_KEY',marker);
+  const log = vi.spyOn(console,'log').mockImplementation(()=>{});
+  try {
+    packet(packetState(),'Builder',folder,'Practice.',path.join(folder,'report.json'),()=>process.execPath);
+    const lines = log.mock.calls.flat().join('\n');
+    expect(lines).toMatch(/DRY RUN.*would.*Builder/i);
+    expect(lines).not.toMatch(/powershell\.exe|dispatch\.ps1/i);
+    expect(fs.existsSync(path.join(folder,'dispatch.ps1'))).toBe(false);
+  } finally { log.mockRestore(); }
 });
 
 it('generates a read-only coordinator dispatch with an active Windows sandbox', () => {
   const folder = path.join(lab,'coordinator sandbox');
   vi.stubEnv('CODEX_API_KEY',marker);
   onTestFinished(()=>vi.unstubAllEnvs());
-  packet(packetState(),'Coordinator',folder,'Check the worktree HEAD.',path.join(folder,'card.json'),()=>process.execPath);
+  packet(packetState(false),'Coordinator',folder,'Check the worktree HEAD.',path.join(folder,'card.json'),()=>process.execPath);
   const script = fs.readFileSync(path.join(folder,'dispatch.ps1'),'utf8');
   expect(script).toContain("'-s' 'read-only'");
   expect(script).toContain("'-c' 'windows.sandbox=unelevated'");
@@ -245,7 +292,7 @@ it('seals the blind case before exposing the candidate and refuses a stale repla
     const root = path.join(dir,state.round.id);
     const brief = fs.readFileSync(path.join(root,'blind','brief.md'),'utf8');
     expect(brief).not.toContain(t.head); expect(brief).not.toContain(tree); expect(brief).not.toContain(marker);
-    const reviewer = {provider:'Anthropic',model:'claude-opus-4-7',effort:'high'};
+    const reviewer = {provider:'Google',model:'google/gemini-4-carbon',effort:'high'};
     save(path.join(root,'blind','report.json'),{...reviewer,session:'blind',assignment:state.round.packets.blind,case:'Double press Enter.',expected:'One confirmation.'});
     await expect(verify()).rejects.toThrow(/Awaiting replay/);
     const file = path.join(root,'replay','report.json');
@@ -279,6 +326,7 @@ it('takes all three public verbs through a dry run, repeats build in another pro
   const before = inspect(tree);
   const plan = command('plan',fixture,'--dry-run');
   expect(plan.status,plan.stderr).toBe(0);
+  expect(plan.stdout).toMatch(/Reviewer Google.*google\/gemini-4-carbon.*OpenRouter/);
   const file = plan.stdout.match(/State: ([^\r\n]+)/)![1];
   const id = json(file).run;
   expect(command('build',fixture,'--dry-run').status).toBe(0);
@@ -338,10 +386,10 @@ it('a stale green plus a failed launch holds and stops before the next gate', ()
   expect(interrupted.gate.receipts[0]).toEqual(completed);
 });
 
-function packetState() {
+function packetState(dry = true) {
   const t = inspect(tree);
   return {root:tree, branch:t.branch, base:t.head, candidate:t.head, run:'round-one', ticket:fixture,
-    card:ticketCard(tree,fixture), risk:{level:'Light',reason:'Practice'}, dry:true};
+    card:ticketCard(tree,fixture), risk:{level:'Light',reason:'Practice'}, dry};
 }
 
 it('prints the isolated Windows command and preserves both native exit codes after stderr', () => {
@@ -373,6 +421,7 @@ class Fake {
     } else if (key == login) return 39;
     Console.InputEncoding = new System.Text.UTF8Encoding(false);
     Console.Error.WriteLine("synthetic private progress");
+    Console.WriteLine(@"{""type"":""turn.started"",""private"":""private-file-marker""}");
     int schema = Array.IndexOf(args, "--output-schema");
     if (schema < 0 || !File.Exists(args[schema + 1])) return 23;
     string output = args[Array.IndexOf(args, "-o") + 1];
@@ -386,18 +435,21 @@ class Fake {
     vi.stubEnv('CODEX_API_KEY',''); vi.stubEnv('OPENAI_API_KEY','');
     vi.stubEnv('CODEX_HOME',folder); vi.stubEnv('UNRELATED_SECRET',marker);
     fs.writeFileSync(path.join(folder,'synthetic-login'),'');
-    packet(packetState(),'Builder',folder,'A synthetic assignment.',out,()=>exe);
+    packet(packetState(false),'Builder',folder,'A synthetic assignment.',out,()=>exe);
     const commandLine = log.mock.calls.map(args=>String(args[0])).find(line=>line.startsWith('powershell.exe '));
     const script = path.join(folder,'dispatch.ps1');
     expect(commandLine).toBe("powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '" + script.replaceAll("'","''") + "'");
     const body = fs.readFileSync(script,'utf8');
+    expect(body).toContain("'--json'");
     expect(body).toContain(exe.replaceAll("'","''"));
-    expect(body).toMatch(/\$ErrorActionPreference = 'Continue'\r?\n[^\n]+\*> \$null\r?\n\$code = \$LASTEXITCODE/);
     expect(fs.existsSync(path.join(folder,'probed'))).toBe(true);
     const launch = () => spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',commandLine + '\nexit $LASTEXITCODE'],{
       cwd:folder,encoding:'utf8',env:process.env,timeout:30000,windowsHide:true});
     const success = launch();
     expect(success.status,success.stderr).toBe(0);
+    expect(success.stdout).toContain('dispatch.log');
+    expect(fs.readFileSync(path.join(folder,'dispatch.log'),'utf8')).toContain('turn.started');
+    expect(fs.readFileSync(path.join(folder,'dispatch.log'),'utf8')).toMatch(/Builder.*exit 0/);
     expect(fs.readFileSync(out,'utf8')).toContain("dispatch d'été");
     const profile = path.join(lab,'operator profile'), defaultHome = path.join(profile,'.codex');
     fs.mkdirSync(defaultHome,{recursive:true});
@@ -426,10 +478,11 @@ class Fake {
     vi.stubEnv('OPENROUTER_API_KEY','');
     vi.stubEnv('FILOW_FACTORY_ENV',dotenv);
     log.mockClear();
-    const state = {...packetState(),risk:{level:'Heavy',reason:'Independent review'}};
+    const state = {...packetState(false),risk:{level:'Heavy',reason:'Independent review'}};
     packet(state,'Reviewer, blind case',reviewer,'Independent case.',reply,()=>exe);
     const reviewerCommand = log.mock.calls.flat().find(line=>String(line).startsWith('powershell.exe '));
     expect(reviewerCommand).toBeTruthy();
+    expect(fs.readFileSync(path.join(reviewer,'dispatch.ps1'),'utf8')).toContain("'-m' 'google/gemini-4-carbon'");
     fs.writeFileSync(dotenv,'OPENROUTER_API_KEY="rotated#fixture" # new value\nUNRELATED_FILE_VALUE=private-file-marker');
     const dispatched = spawnSync('powershell.exe',['-NoProfile','-Command',reviewerCommand+'\nexit $LASTEXITCODE'],
       {encoding:'utf8',cwd:lab,timeout:30000,windowsHide:true});
@@ -478,7 +531,7 @@ it('accepts a tracked GitHub workflow as an N-01 caller while protecting reposit
 });
 
 it('dispatches each JSON packet with the schema that accepts its receipt', () => {
-  const state = packetState();
+  const state = packetState(false);
   const actor = {provider:'OpenAI',model:'gpt-6.2-astra',effort:'high',session:'test'};
   const common = {assignment:'sealed',candidate:state.candidate,verdict:'PASS'};
   const report = {...actor,...common,caseDigest:'digest',findings:[],observations:['Matched the receipt.'],

@@ -7,8 +7,7 @@ import { reviewerFix } from './dispatch.mjs';
 import { editGrant, packetReply, safeText } from './plan.mjs';
 
 export function actor(report, expected, others = []) {
-  ensure(report.provider === expected.provider && (expected.provider === 'Anthropic' ?
-    /^claude[- ]opus[- ][\w.-]+$/i.test(report.model) : report.model === expected.model) && report.effort === expected.effort,
+  ensure(report.provider === expected.provider && report.model === expected.model && report.effort === expected.effort,
   'Report must identify the assigned flagship provider, actual model and reasoning effort.');
   safeText(report.session);
   ensure(others.every(a => a.session !== report.session), 'Independent review needs a fresh session distinct from the author and prior packets.');

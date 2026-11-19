@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import Ajv from 'ajv';
-import { desktopCodex, route, writeDispatch } from '../factory/brief.mjs';
+import { desktopCodex, writeDispatch } from '../factory/brief.mjs';
 import { ensure, hash, json, read } from '../factory/worktree.mjs';
 
 const schema = path.join(import.meta.dirname, 'replay.schema.json');
@@ -11,7 +11,8 @@ export function prepareReplay(folder, brief, resolveCodex = desktopCodex) {
   const exe = resolveCodex();
   ensure(exe, 'The bundled desktop Codex CLI is required.');
   ensure(!fs.existsSync(path.join(folder, 'report.json')), 'Preserve the previous receipt and use a fresh output folder.');
-  return writeDispatch({ exe, model: route('Heavy', 'Reviewer, replay'), cwd: folder, folder, brief,
+  return writeDispatch({ exe, role: 'Release reviewer',
+    model: { provider:'Anthropic', model:'anthropic/claude-opus-5.5', via:'OpenRouter', effort:'high' }, cwd: folder, folder, brief,
     output: path.join(folder, 'report.json'), schema });
 }
 

@@ -6,7 +6,7 @@ import { providerEnv, reviewerFix, reviewerKey } from './dispatch.mjs';
 import { editGrant } from './plan.mjs';
 
 export function route(level, role) {
-  if (role.startsWith('Reviewer') && level !== 'Light') return { provider: 'Anthropic', model: 'Claude Opus', effort: 'high' };
+  if (role.startsWith('Reviewer') && level !== 'Light') return { provider: 'Google', model: 'google/gemini-4-carbon', via: 'OpenRouter', effort: 'high' };
   return role === 'Builder' && level !== 'Heavy' ? { provider: 'OpenAI', model: 'gpt-6.2-sol', effort: 'medium' }
     : { provider: 'OpenAI', model: 'gpt-6.2-astra', effort: level === 'Heavy' ? 'xhigh' : 'high' };
 }
@@ -38,24 +38,24 @@ const schemas = {
   Coordinator: 'card', Builder: 'builder', 'Reviewer, blind case': 'blind', 'Reviewer, replay': 'replay', Judge: 'replay',
 };
 
-export function writeDispatch({ exe, model, cwd, folder, brief, output, schema, builder = false }) {
+export function writeDispatch({ exe, model, cwd, folder, brief, output, schema, role, builder = false }) {
   ensure(fs.existsSync(schema), 'Missing packet schema: ' + schema);
-  const independent = model.provider === 'Anthropic';
+  const independent = model.via === 'OpenRouter';
   const providerArgs = independent ? ['-c','model_provider=openrouter',
     '--disable','multi_agent','-c','web_search=disabled',
     '-c','model_providers.openrouter.name=OpenRouter','-c','model_providers.openrouter.base_url=https://openrouter.ai/api/v1',
     '-c','model_providers.openrouter.env_key=OPENROUTER_API_KEY','-c','model_providers.openrouter.wire_api=responses',
     '-c','model_providers.openrouter.request_max_retries=0','-c','model_providers.openrouter.stream_max_retries=0'] : [];
-  const args = ['exec','--ephemeral','--ignore-user-config','--skip-git-repo-check','-C',cwd,
+  const args = ['exec','--json','--ephemeral','--ignore-user-config','--skip-git-repo-check','-C',cwd,
     '-c','windows.sandbox=unelevated',
-    '-s',builder ? 'workspace-write' : 'read-only',...providerArgs,'-m',independent ? 'anthropic/claude-opus-5.5' : model.model,'-c','model_reasoning_effort=' + model.effort,
+    '-s',builder ? 'workspace-write' : 'read-only',...providerArgs,'-m',model.model,'-c','model_reasoning_effort=' + model.effort,
     '-c','log_dir=' + path.join(folder,'runtime','logs'),'-c','shell_environment_policy.inherit=all','-c',"shell_environment_policy.exclude=['*KEY*','*TOKEN*','*SECRET*','*PASSWORD*','*AUTH*','*CREDENTIAL*','CODEX_HOME']",'--output-schema',schema,'-o',output,'-'];
   // Resolve credentials in the launcher process each time the printed command runs.
-  const launchArgs = [path.join(import.meta.dirname,'dispatch.mjs'),model.provider,path.join(folder,'runtime'),exe,...args];
+  const launchArgs = [path.join(import.meta.dirname,'dispatch.mjs'),model.provider,path.join(folder,'runtime'),'--step',role,exe,...args];
   const script = ["$ErrorActionPreference = 'Stop'", "$OutputEncoding = [Text.UTF8Encoding]::new($false)",
     '$briefText = Get-Content -Raw -Encoding UTF8 -LiteralPath ' + quote(brief),
     // Windows PowerShell 5.1 routes redirected native stderr through its error stream.
-    "$ErrorActionPreference = 'Continue'", '$briefText | & ' + quote(process.execPath) + ' ' + launchArgs.map(quote).join(' ') + ' *> $null',
+    "$ErrorActionPreference = 'Continue'", '$briefText | & ' + quote(process.execPath) + ' ' + launchArgs.map(quote).join(' '),
     '$code = $LASTEXITCODE', "$ErrorActionPreference = 'Stop'", 'if ($null -eq $code) { $code = 1 }',
     "if ($code) { Write-Output 'HOLD: Codex dispatch failed. Check provider setup and the private brief.' }", 'exit $code'];
   const scriptPath = path.join(folder,'dispatch.ps1');
@@ -105,10 +105,12 @@ export function packet(state, role, folder, instructions, output, resolveCodex =
   fs.mkdirSync(folder, { recursive: true, mode: 0o700 });
   fs.writeFileSync(brief, contents, { mode: 0o600 });
   console.log(role + ' brief: ' + brief + '\n' + model.provider + ' ' + model.model + ' ' + model.effort + ' | ' + (readyNow ? 'configured' : 'missing credential'));
-  if (readyNow) {
+  if (state.dry) {
+    console.log('DRY RUN: would dispatch the ' + role + ' packet to ' + model.provider + ' ' + model.model + '.');
+  } else if (readyNow) {
     const schema = path.join(import.meta.dirname, schemas[role] + '.schema.json');
-    writeDispatch({ exe, model, cwd, folder, brief, output, schema, builder });
-  } else if (!state.dry) {
+    writeDispatch({ exe, model, cwd, folder, brief, output, schema, role, builder });
+  } else {
     const fix = !exe ? desktopFix : model.provider === 'OpenAI' ? loginFix + '.' : reviewerFix + '.';
     ensure(false, role + ' dispatch unavailable. ' + fix);
   }

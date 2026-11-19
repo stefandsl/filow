@@ -203,14 +203,19 @@ export async function run(options, resolveCodex = desktopCodex) {
         if (!state.card.paths) {
           const folder = path.join(dir,'plan'), out = path.join(folder,'card.json');
           const coordinator = packet(state,'Coordinator',folder,coordinatorInstructions(state),out,resolveCodex);
+          if (state.dry) {
+            console.log('DRY RUN: a live plan would wait for the coordinator card before build.');
+            return;
+          }
           ensure(coordinator.configured, 'Coordinator dispatch needs the desktop CLI and OpenAI authentication. Repeat ' + next(state,'plan') + '.');
           ensure(false, 'Run the coordinator dispatch to create the scoped card, then repeat ' + next(state,'plan') + ' --card "' + out + '".');
         }
         const exe = resolveCodex();
-        const reviewer = route(state.risk.level,'Reviewer, replay').provider;
+        const reviewer = route(state.risk.level,'Reviewer, replay');
         const builder = ready('OpenAI',process.env,exe,path.join(dir,'runtime'));
-        state.readiness = { builder, reviewer:reviewer === 'OpenAI' ? builder : Boolean(exe) && ready(reviewer) };
-        console.log('Builder OpenAI ' + (builder ? 'configured' : 'missing') + '. Reviewer ' + reviewer + ' ' +
+        state.readiness = { builder, reviewer:reviewer.provider === 'OpenAI' ? builder : Boolean(exe) && ready(reviewer.provider) };
+        console.log('Builder OpenAI ' + (builder ? 'configured' : 'missing') + '. Reviewer ' + reviewer.provider + ' ' + reviewer.model +
+          (reviewer.via ? ' via ' + reviewer.via : '') + ' ' +
           (state.readiness.reviewer ? 'configured' : 'missing') + '.');
         if (!state.dry) {
           const fix = !exe ? desktopFix : !builder ? loginFix + '.' : reviewerFix + '.';

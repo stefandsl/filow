@@ -54,7 +54,7 @@ npm.cmd run filow:verify -- N-08-PRACTICE --dry-run
 
 **Plan.** For live work, use a provider account approved for this ticket and its spend. For OpenAI assignments, plan checks the bundled desktop CLI with `codex login status`. It uses `CODEX_API_KEY` or `OPENAI_API_KEY` when set, otherwise it uses your existing ChatGPT login. Sign in with `codex login` if needed. For a subscription login, the factory uses `CODEX_HOME` if set, or the `.codex` directory in your user profile. Set `$env:FILOW_CODEX_HOME` to the absolute path of an existing signed-in home to override both. On a host with disk restrictions, select a home on an allowed volume. Each printed dispatch runs the desktop Codex CLI with the receipt schema for its role. Live plan runs dependency setup after the scoped card and its providers are ready. Repeating plan reuses the worktree's successful install when its lockfile hash matches.
 
-Claude Opus reviews need an OpenRouter key. If it is already in the main checkout's private dotenv file, set the file path in the terminal where you run plan and the reviewer dispatch. Set it again after opening a fresh terminal.
+Gemini 4 Carbon reviews need an OpenRouter key. If it is already in the main checkout's private dotenv file, set the file path in the terminal where you run plan and the reviewer dispatch. Set it again after opening a fresh terminal.
 
 ```powershell
 $env:FILOW_FACTORY_ENV = 'G:\FILOW\.env'
@@ -68,7 +68,7 @@ if ($LASTEXITCODE) { throw 'Follow the plan HOLD before starting build.' }
 npm.cmd run filow:build -- N-08-PRACTICE
 ```
 
-Copy the run ID and state path. A missing provider pauses live plan. Restore the credential and repeat plan with the saved ID. The first build saves the edit intent, writes the builder brief and prints the desktop Codex command. Run the printed `powershell.exe ... dispatch.ps1` line for an approved dispatch. It starts Codex with an isolated environment. Subscription dispatches use your existing Codex home for login. You can close the terminal at this point and repeat the same build command in another one.
+Copy the run ID and state path. A missing provider pauses live plan. Restore the credential and repeat plan with the saved ID. The first build saves the edit intent, writes the builder brief and prints the desktop Codex command. Run the printed `powershell.exe ... dispatch.ps1` line for an approved dispatch. It prints the private live log path and reports the packet step and elapsed time every 30 seconds. Subscription dispatches use your existing Codex home for login. You can close the terminal at this point and repeat the same build command in another one.
 
 **Make and observe the edit.** In a second PowerShell terminal, paste the Worktree path printed by plan when prompted. Use an unused port, for example 4799 or 4800.
 

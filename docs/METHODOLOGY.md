@@ -87,11 +87,11 @@ The agent who encounters a failure records the smallest reproducible input, expe
 
 ## Workflow helpers
 
-The runner uses the repository's existing CI commands and the desktop app's bundled Codex CLI. A clean linked worktree is the input to all three verbs. A completed build freezes the candidate used by verify. An explicit `--candidate` checks a supplied full SHA. Use the private packet launch script in PowerShell for an approved OpenAI assignment. A consequential review receives its own Claude Opus packet. Each reviewer and judge returns an actual session ID and a reply for the current assignment.
+The runner uses the repository's existing CI commands and the desktop app's bundled Codex CLI. A clean linked worktree is the input to all three verbs. A completed build freezes the candidate used by verify. An explicit `--candidate` checks a supplied full SHA. Use the private packet launch script in PowerShell for an approved OpenAI assignment. A consequential review receives its own Gemini 4 Carbon packet. Each reviewer and judge returns an actual session ID and a reply for the current assignment.
 
 Plan polls the daily offline schedule. Its receipt gives the next date and the private location for an optional AR-3 proposal. Prepare two clean, dependency-installed `autoresearch/` worktrees from the same clone under that offline directory. In `proposal.json` record `baselineTree`, `candidateTree`, full `base` and `candidate` SHAs, `hypothesis`, `builder`, `labelJudge` and `heldout` set to `reused` for the existing split. Commit only the proposed spoken-forms change there. The runner checks the pinned evaluator and guard blobs, measures dev noise, replays guards and records both held-out scores. Read the dated receipt and `results.tsv`. A new scoring revision needs separate qualification.
 
-Run each printed packet dispatch with its assigned provider. The desktop CLI applies the role's JSON schema. Consequential reviewer packets use Claude Opus through OpenRouter. The verifier checks the assignment, independence and evidence after receiving the structured reply.
+Run each printed packet dispatch with its assigned provider. The desktop CLI applies the role's JSON schema. Consequential reviewer packets use Gemini 4 Carbon through OpenRouter. The verifier checks the assignment, independence and evidence after receiving the structured reply.
 
 Use scoped helpers for tasks that benefit from an independent benchmark, a primary-source check or a review of affected callers. Incorporate reusable checks into the three commands. Pin and review external dependencies, and record the revision, safety assessment and successful invocation from a clean clone before enabling them. Put larger ideas in the backlog for a separate decision.
 
