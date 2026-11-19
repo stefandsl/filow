@@ -4,7 +4,7 @@ import path from 'node:path';
 import Ajv from 'ajv';
 import { prepareReplay, verifyReplay } from '../release/review-packet.mjs';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { afterAll, beforeAll, expect, it, onTestFinished, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it, onTestFinished, vi } from 'vitest';
 import { parse, stakes, ticketCard } from './plan.mjs';
 import { checkWindowsVolumes, hash, inspect, json, save, withLock } from './worktree.mjs';
 import { observeSlice, select } from './factory.mjs';
@@ -37,6 +37,12 @@ const command = (verb: string, ...args: string[]) => spawnSync(process.execPath,
     NODE_ENV:'test', FILOW_FACTORY_ALLOW_ANY_VOLUME:'1',npm_execpath:path.join(lab,'install.cjs'),
     CODEX_API_KEY:process.env.FACTORY_TEST_CREDENTIAL || '',OPENROUTER_API_KEY:process.env.FACTORY_TEST_CREDENTIAL || ''},
 });
+
+beforeEach(() => {
+  vi.stubEnv('FILOW_FACTORY_ENV','');
+  vi.stubEnv('FILOW_CODEX_HOME','');
+});
+afterEach(()=>vi.unstubAllEnvs());
 
 beforeAll(() => {
   fs.mkdirSync(clone);
@@ -114,6 +120,28 @@ it('rejects missing providers and reused sessions without exposing their credent
   const identity = {...route('Light','Judge'),session:'same'};
   expect(()=>actor(identity,identity,[identity])).toThrow(/fresh/);
 });
+it('checks only the reviewer credential from the explicitly named dotenv file', () => {
+  const file = path.join(lab,'operator environment');
+  const env = { FILOW_FACTORY_ENV:file };
+  expect(ready('Anthropic',env)).toBe(false);
+  fs.writeFileSync(file,'OPENAI_API_KEY=irrelevant\nOPENROUTER_API_KEY="   "');
+  expect(ready('Anthropic',env)).toBe(false);
+  fs.writeFileSync(file,'export OPENROUTER_API_KEY="fixture#key" # reviewer\nEXTRA=ignored');
+  expect(ready('Anthropic',env)).toBe(true);
+  fs.unlinkSync(file);
+  expect(ready('Anthropic',{...env, OPENROUTER_API_KEY:marker})).toBe(true);
+});
+
+it('generates a read-only coordinator dispatch with an active Windows sandbox', () => {
+  const folder = path.join(lab,'coordinator sandbox');
+  vi.stubEnv('CODEX_API_KEY',marker);
+  onTestFinished(()=>vi.unstubAllEnvs());
+  packet(packetState(),'Coordinator',folder,'Check the worktree HEAD.',path.join(folder,'card.json'),()=>process.execPath);
+  const script = fs.readFileSync(path.join(folder,'dispatch.ps1'),'utf8');
+  expect(script).toContain("'-s' 'read-only'");
+  expect(script).toContain("'-c' 'windows.sandbox=unelevated'");
+});
+
 it('preflights the coordinator and withholds its command when login status fails', () => {
   const folder = path.join(lab,'blocked coordinator');
   const log = vi.spyOn(console,'log').mockImplementation(()=>{});
@@ -210,7 +238,7 @@ it('seals the blind case before exposing the candidate and refuses a stale repla
   const verify = () => review(state,dir,ledger,{},()=>{},()=>process.execPath);
   try {
     vi.stubEnv('OPENROUTER_API_KEY','');
-    await expect(verify()).rejects.toThrow(/reviewer unavailable/);
+    await expect(verify()).rejects.toThrow(/reviewer unavailable[^\n]*OPENROUTER_API_KEY[^\n]*FILOW_FACTORY_ENV/);
     expect(fs.existsSync(ledger)).toBe(false);
     vi.stubEnv('OPENROUTER_API_KEY',marker);
     await expect(verify()).rejects.toThrow(/Awaiting blind/);
@@ -337,7 +365,12 @@ class Fake {
       if (login) File.WriteAllText(Path.Combine(home, "probed"), "yes");
       return login ? 0 : 1;
     }
-    if (key == login) return 39;
+    string reviewer = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
+    if (Environment.GetEnvironmentVariable("FILOW_FACTORY_ENV") != null ||
+        Environment.GetEnvironmentVariable("UNRELATED_FILE_VALUE") != null) return 41;
+    if (reviewer != null) {
+      if (key || login || reviewer != "rotated#fixture") return 42;
+    } else if (key == login) return 39;
     Console.InputEncoding = new System.Text.UTF8Encoding(false);
     Console.Error.WriteLine("synthetic private progress");
     int schema = Array.IndexOf(args, "--output-schema");
@@ -366,6 +399,20 @@ class Fake {
     const success = launch();
     expect(success.status,success.stderr).toBe(0);
     expect(fs.readFileSync(out,'utf8')).toContain("dispatch d'été");
+    const profile = path.join(lab,'operator profile'), defaultHome = path.join(profile,'.codex');
+    fs.mkdirSync(defaultHome,{recursive:true});
+    fs.writeFileSync(path.join(defaultHome,'synthetic-login'),'');
+    vi.stubEnv('USERPROFILE',profile);
+    vi.stubEnv('CODEX_HOME','');
+    expect(ready('OpenAI',process.env,exe,path.join(lab,'default probe'))).toBe(true);
+    expect(fs.existsSync(path.join(defaultHome,'probed'))).toBe(true);
+    fs.unlinkSync(out);
+    expect(launch().status).toBe(0);
+    vi.stubEnv('FILOW_CODEX_HOME',folder);
+    vi.stubEnv('CODEX_HOME',path.join(lab,'wrong home'));
+    expect(ready('OpenAI',process.env,exe,path.join(lab,'override probe'))).toBe(true);
+    fs.unlinkSync(out);
+    expect(launch().status).toBe(0);
     vi.stubEnv('OPENAI_API_KEY',marker);
     fs.unlinkSync(out);
     expect(launch().status).toBe(0);
@@ -373,6 +420,26 @@ class Fake {
     expect(failure.status,failure.stderr).toBe(17);
     expect(failure.stdout).toContain('HOLD');
     expect(success.stderr + success.stdout + failure.stderr + failure.stdout).not.toContain('synthetic private progress');
+    const dotenv = path.join(lab,'credentials outside the packet.env');
+    const reviewer = path.join(lab,'reviewer dispatch'), reply = path.join(reviewer,'reply.json');
+    fs.writeFileSync(dotenv,'OPENROUTER_API_KEY=original-reviewer-marker');
+    vi.stubEnv('OPENROUTER_API_KEY','');
+    vi.stubEnv('FILOW_FACTORY_ENV',dotenv);
+    log.mockClear();
+    const state = {...packetState(),risk:{level:'Heavy',reason:'Independent review'}};
+    packet(state,'Reviewer, blind case',reviewer,'Independent case.',reply,()=>exe);
+    const reviewerCommand = log.mock.calls.flat().find(line=>String(line).startsWith('powershell.exe '));
+    expect(reviewerCommand).toBeTruthy();
+    fs.writeFileSync(dotenv,'OPENROUTER_API_KEY="rotated#fixture" # new value\nUNRELATED_FILE_VALUE=private-file-marker');
+    const dispatched = spawnSync('powershell.exe',['-NoProfile','-Command',reviewerCommand+'\nexit $LASTEXITCODE'],
+      {encoding:'utf8',cwd:lab,timeout:30000,windowsHide:true});
+    expect(dispatched.status,dispatched.stderr).toBe(0);
+    expect(fs.existsSync(reply)).toBe(true);
+    const saved = fs.readdirSync(reviewer,{recursive:true,encoding:'utf8'})
+      .map(name=>path.join(reviewer,name)).filter(file=>fs.statSync(file).isFile())
+      .map(file=>fs.readFileSync(file,'utf8')).join('\n');
+    expect(saved+dispatched.stdout+dispatched.stderr+log.mock.calls.flat().join('\n'))
+      .not.toMatch(/original-reviewer-marker|rotated#fixture|private-file-marker|synthetic-secret-value/);
   } finally { log.mockRestore(); vi.unstubAllEnvs(); }
 },60000); // Compiles and runs a native Windows CLI fixture.
 

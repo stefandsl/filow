@@ -3,6 +3,7 @@ import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { ensure, hash, json, now, read, save } from './worktree.mjs';
 import { desktopCodex, desktopFix, loginFix, ready, route, packet } from './brief.mjs';
+import { reviewerFix } from './dispatch.mjs';
 import { editGrant, packetReply, safeText } from './plan.mjs';
 
 export function actor(report, expected, others = []) {
@@ -56,7 +57,7 @@ export async function review(state, dir, ledger, options, checkpoint, resolveCod
   const exe = openAI ? resolveCodex() : null;
   ensure(!openAI || exe, desktopFix);
   ensure(ready(expected.provider,process.env,exe,path.join(dir,'runtime')), 'Required independent reviewer unavailable. ' +
-    (openAI ? loginFix : 'Set OPENROUTER_API_KEY') + ' and repeat verify.');
+    (openAI ? loginFix : reviewerFix) + ' and repeat verify.');
   if (!state.round || options.newRound && state.round.closed) {
     state.dispatch ??= randomUUID();
     checkpoint();

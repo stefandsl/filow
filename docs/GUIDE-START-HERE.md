@@ -52,7 +52,15 @@ npm.cmd run filow:build -- N-08-PRACTICE --dry-run
 npm.cmd run filow:verify -- N-08-PRACTICE --dry-run
 ```
 
-**Plan.** For live work, use a provider account approved for this ticket and its spend. For OpenAI assignments, plan checks the bundled desktop CLI with `codex login status`. It uses `CODEX_API_KEY` or `OPENAI_API_KEY` when set, otherwise it uses your existing ChatGPT login. Sign in with `codex login` if needed. Claude Opus reviews use `OPENROUTER_API_KEY`. Each printed dispatch runs the desktop Codex CLI with the receipt schema for its role. Live plan runs dependency setup after the scoped card and its providers are ready. Repeating plan reuses the worktree's successful install when its lockfile hash matches.
+**Plan.** For live work, use a provider account approved for this ticket and its spend. For OpenAI assignments, plan checks the bundled desktop CLI with `codex login status`. It uses `CODEX_API_KEY` or `OPENAI_API_KEY` when set, otherwise it uses your existing ChatGPT login. Sign in with `codex login` if needed. For a subscription login, the factory uses `CODEX_HOME` if set, or the `.codex` directory in your user profile. Set `$env:FILOW_CODEX_HOME` to the absolute path of an existing signed-in home to override both. On a host with disk restrictions, select a home on an allowed volume. Each printed dispatch runs the desktop Codex CLI with the receipt schema for its role. Live plan runs dependency setup after the scoped card and its providers are ready. Repeating plan reuses the worktree's successful install when its lockfile hash matches.
+
+Claude Opus reviews need an OpenRouter key. If it is already in the main checkout's private dotenv file, set the file path in the terminal where you run plan and the reviewer dispatch. Set it again after opening a fresh terminal.
+
+```powershell
+$env:FILOW_FACTORY_ENV = 'G:\FILOW\.env'
+```
+
+An existing `OPENROUTER_API_KEY` environment variable takes precedence. Otherwise, preflight checks that key in the named file and the reviewer launcher reads it again at dispatch. Only the reviewer receives the key. The file stays in its original location.
 
 ```powershell
 npm.cmd run filow:plan -- N-08-PRACTICE

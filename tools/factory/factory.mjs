@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { Hold, ensure, git, gitOutput, hash, inspect, json, now, read, save, storage, withLock, writer } from './worktree.mjs';
 import { editGrant, parse, safeText, stakes, ticketCard } from './plan.mjs';
 import { desktopCodex, desktopFix, loginFix, packet, ready, route } from './brief.mjs';
+import { reviewerFix } from './dispatch.mjs';
 import { ensureDependencies, gateNames, runGates } from './gates.mjs';
 import { actor, checkAllowance, getReport, review } from './review.mjs';
 import { daily } from './offline.mjs';
@@ -212,7 +213,7 @@ export async function run(options, resolveCodex = desktopCodex) {
         console.log('Builder OpenAI ' + (builder ? 'configured' : 'missing') + '. Reviewer ' + reviewer + ' ' +
           (state.readiness.reviewer ? 'configured' : 'missing') + '.');
         if (!state.dry) {
-          const fix = !exe ? desktopFix : !builder ? loginFix + '.' : 'Set OPENROUTER_API_KEY for the independent reviewer.';
+          const fix = !exe ? desktopFix : !builder ? loginFix + '.' : reviewerFix + '.';
           ensure(builder && state.readiness.reviewer, 'Provider preflight incomplete. ' + fix + ' Repeat ' + next(state,'plan'));
           ensureDependencies(tree.root,dir);
           state.offline = await daily(home,tree.common);
