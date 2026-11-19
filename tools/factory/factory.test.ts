@@ -18,8 +18,12 @@ const clone = path.join(lab,'clone'), tree = path.join(lab,'ticket tree');
 const git = (cwd: string, ...args: string[]) => execFileSync('git',args,{cwd,encoding:'utf8',windowsHide:true}).trim();
 const fixture = 'N-08-PRACTICE';
 const marker = 'synthetic-secret-value-123456';
+// The synthetic CLI needs Git. Keep host PowerShell app discovery off its Windows PATH.
+const cliPath = process.platform === 'win32'
+  ? process.env.PATH!.split(path.delimiter).filter(dir => fs.existsSync(path.join(dir,'git.exe'))).join(path.delimiter)
+  : process.env.PATH;
 const command = (verb: string, ...args: string[]) => spawnSync(process.execPath,['tools/factory/factory.mjs',verb,...args],{
-  cwd: tree, encoding:'utf8',timeout:30000,windowsHide:true,env:{...childEnv(), ...privateEnv(path.join(lab,'runtime')), GH_TOKEN:marker,
+  cwd: tree, encoding:'utf8',timeout:30000,windowsHide:true,env:{...childEnv(), ...privateEnv(path.join(lab,'runtime')), PATH:cliPath, GH_TOKEN:marker,
     NODE_ENV:'test', FILOW_FACTORY_ALLOW_ANY_VOLUME:'1',
     CODEX_API_KEY:process.env.FACTORY_TEST_CREDENTIAL || '',ANTHROPIC_API_KEY:process.env.FACTORY_TEST_CREDENTIAL || ''},
 });
@@ -123,7 +127,7 @@ it('seals the blind case before exposing the candidate and refuses a stale repla
   const t = inspect(tree), card = ticketCard(tree,fixture);
   const state:any = {run:'test-run',ticket:fixture,root:tree,branch:t.branch,base:t.head,candidate:t.head,card,
     risk:{level:'Medium',reason:card.reason},builder:{session:'builder'},gate:{receipts:[]}};
-  const verify = () => review(state,dir,ledger,{},()=>{});
+  const verify = () => review(state,dir,ledger,{},()=>{},()=>path.join(lab,'codex.exe'));
   try {
     vi.stubEnv('ANTHROPIC_API_KEY','');
     await expect(verify()).rejects.toThrow(/reviewer unavailable/);
@@ -145,8 +149,6 @@ it('seals the blind case before exposing the candidate and refuses a stale repla
     expect(json(ledger)).toHaveLength(1);
     expect(state.failedCandidate).toBeUndefined();
     vi.stubEnv('CODEX_API_KEY',marker);
-    // A synthetic packet needs no installed Codex binary.
-    state.dry = true;
     await expect(verify()).rejects.toThrow(/Awaiting judge/);
     save(path.join(root,'judge','report.json'),{...route('Medium','Judge'),session:'judge',
       assignment:state.round.packets.judge,candidate:t.head,caseDigest:state.round.blind.digest,
@@ -177,7 +179,7 @@ it('takes all three public verbs through a dry run, repeats build in another pro
   expect(brief.indexOf('R16 (')).toBeLessThan(brief.indexOf('# Factory brief'));
   expect(brief).toContain('gpt-6.2-sol'); expect(brief).not.toContain('<PLAN ticket ID>');
   expect(brief).not.toContain('**Reviewer, replay.**');
-},120000);
+},120000); // Exercises all three CLI verbs and a real process restart.
 it('reconciles an already committed slice once and preserves unexplained effects', () => {
   const base = inspect(tree), card = ticketCard(tree,fixture);
   const state = {base:base.head,card,ticket:fixture,run:'run-test'};
@@ -345,7 +347,7 @@ it.each(['tracked','ignored','absent'])('runs the generation gate workers with a
     expect(fs.readFileSync(welcome,'utf8')).toBe('tracked welcome');
     if (kind !== 'absent') expect(fs.readFileSync(dictionary,'utf8')).toBe('original dictionary');
   } finally { vi.unstubAllEnvs(); }
-},120000);
+},120000); // Each dictionary case launches the seven real gate workers.
 
 it('enforces Windows volume limits except for explicitly opted-in test processes', () => {
   const disk = vi.spyOn(fs,'statfsSync');
@@ -428,7 +430,7 @@ it.each([1,3])('checks the new-round allowance before touching a completed verif
       expect(json(ledger)).toHaveLength(2);
     }
   } finally { vi.unstubAllEnvs(); }
-},120000);
+},120000); // Resumes the saved verify through separate CLI processes.
 
 it('starts the tour relative to the worktree from plan', () => {
   const guide = fs.readFileSync(path.join(source,'docs/GUIDE-START-HERE.md'),'utf8');

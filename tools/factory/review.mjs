@@ -50,7 +50,7 @@ export async function checkPackage(file,digest) {
   ensure(typeof file === 'string' && path.isAbsolute(file) && /^[a-f0-9]{128}$/.test(digest) &&
     fs.existsSync(file) && await packageDigest(file) === digest, 'Package evidence is missing or changed.');
 }
-export async function review(state, dir, ledger, options, checkpoint) {
+export async function review(state, dir, ledger, options, checkpoint, resolveCodex) {
   const expected = route(state.risk.level, 'Reviewer, blind case');
   ensure(ready(expected.provider), 'Required independent reviewer unavailable. Configure ' + expected.provider + ' and repeat verify.');
   if (!state.round || options.newRound && state.round.closed) {
@@ -88,7 +88,7 @@ export async function review(state, dir, ledger, options, checkpoint) {
         round.packets[stage] = randomUUID();
         checkpoint();
       }
-      packet(state, role, folder, detail + '\nEcho this assignment ID in field "assignment": ' + round.packets[stage], file);
+      packet(state, role, folder, detail + '\nEcho this assignment ID in field "assignment": ' + round.packets[stage], file, resolveCodex);
       const report = getReport(file);
       ensure(report, 'Awaiting ' + stage + ' evidence. Save the requested JSON at ' + file + ' and repeat verify.');
       ensure(report.assignment === round.packets[stage], 'Report belongs to another dispatch. Replay this assignment.');
