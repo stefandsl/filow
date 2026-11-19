@@ -12,7 +12,9 @@ import { daily } from './offline.mjs';
 export function select(runs, target, branch, verb) {
   const exact = runs.find(r => r.run === target);
   if (exact) return exact;
-  const found = runs.filter(r => r.ticket === target && (verb !== 'plan' || r.branch === branch));
+  let found = runs.filter(r => r.ticket === target && (verb !== 'plan' || r.branch === branch));
+  const active = found.filter(r => !['complete','rehearsed'].includes(r.step));
+  if (active.length) found = active;
   ensure(found.length <= 1, 'Several runs match. Repeat with an exact run ID: ' + found.map(r => r.run).join(', '));
   return found[0];
 }
@@ -118,6 +120,7 @@ async function run(options) {
   const ticket = runId ? select(lookup(),target,tree.branch,options.verb)?.ticket : target;
   ensure(ticket, 'Run ID missing. Use the same clone and dry-run setting as plan.');
   await withLock(tree.common + '/change/' + ticket, () => withLock(tree.common + '/branch/' + tree.branch, async () => {
+    await withLock(tree.common + '/gate/' + tree.branch, () => {});
     const current = inspect(tree.root);
     ensure(current.branch === tree.branch && current.head === tree.head, 'Checkout moved while acquiring the branch lock.');
     let state = select(lookup(),target,tree.branch,options.verb);
@@ -147,11 +150,16 @@ async function run(options) {
           state.offline = await daily(home,tree.common);
           console.log('Standing offline experiment: ' + state.offline.status + '. ' + state.offline.reason);
         }
+        const reviewer = route(state.risk.level,'Reviewer, replay').provider;
+        state.readiness = { builder:ready('OpenAI'), reviewer:ready(reviewer) };
         checkpoint(); printPlan(state);
-        console.log('Builder provider ' + (ready('OpenAI') ? 'configured' : 'missing') + '. Reviewer ' + route(state.risk.level,'Reviewer, replay').provider + ' ' +
-          (ready(route(state.risk.level,'Reviewer, replay').provider) ? 'configured' : 'missing') + '.');
+        console.log('Builder OpenAI ' + (state.readiness.builder ? 'configured' : 'missing') + '. Reviewer ' + reviewer + ' ' +
+          (state.readiness.reviewer ? 'configured' : 'missing') + '.');
+        ensure(state.dry || state.readiness.builder && state.readiness.reviewer,
+          'Provider preflight incomplete. Configure the missing provider and repeat ' + next(state,'plan'));
       } else if (options.verb === 'build') {
         ensure(state.card.paths, 'Complete plan with a scoped card before build.');
+        ensure(state.dry || state.readiness?.builder && state.readiness?.reviewer, 'Complete the provider preflight with the same plan ID.');
         build(state,tree,dir,options,checkpoint);
       } else {
         ensure(state.candidate && tree.head === state.candidate && (!options.candidate || options.candidate === state.candidate),

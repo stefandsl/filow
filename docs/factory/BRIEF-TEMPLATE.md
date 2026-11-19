@@ -15,7 +15,7 @@ Read `docs/REVIEW.md` first. The coordinator fills in one private copy per assig
 
 Act without questions. Stop the affected step and report HOLD if a path or grant is unclear, setup fails, a secret appears, a required check stays red or a limit expires. Keep secrets out of briefs, command lines, logs and reports. Give checkout scripts and tests no provider or publish credentials.
 
-**Builder.** Inspect the entry point, callers and nearby tests. Reproduce a bug on the base, make the scoped fix and replay both examples. Record changed files and the applicable checks. Include the new review rule in the fix commit.
+**Builder.** Inspect the entry point, callers and nearby tests. Reproduce a bug on the base, make the scoped fix and replay both examples. Record changed files and the applicable checks. Include the new review rule in the fix commit. After interruption, compare the saved gate intent with the receipt before repeating a command. Check both the recovered case and a fresh successful invocation.
 
 **Reviewer, blind case.** Start outside the candidate with the pre-change review rules, goal, examples and limits. Write a different failure case with its input and expected result. End the assignment. The coordinator records the case digest and time before sharing any candidate paths, revisions, tests or findings.
 

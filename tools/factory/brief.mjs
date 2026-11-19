@@ -33,10 +33,10 @@ export function packet(state, role, folder, instructions, output) {
   const template = git(state.root, 'show', state.base + ':docs/factory/BRIEF-TEMPLATE.md');
   const sections = template.split(/(?=^\*\*(?:Builder|Reviewer, blind case|Reviewer, replay|Judge|Report)\.\*\*)/m);
   const fields = [state.ticket + '. ' + state.card.goal,
-    [role, state.run, model.provider, model.model, model.effort, 'record the actual session ID in your report'].join(' | '),
-    blind ? folder : [state.root, state.branch, state.base, state.candidate].filter(Boolean).join(' | '),
+    [role, state.run, model.provider, model.model, model.effort, 'record the actual session ID in your report'].join(', '),
+    blind ? folder : [state.root, state.branch, state.base, state.candidate].filter(Boolean).join(', '),
     folder, [output, ...(builder ? state.card.paths.map(f => path.join(state.root, f)) : [])].join(', '),
-    'Local ticket only. 25 minutes per command, one setup retry. No publish grants. Spend unknown.',
+    'Write only the listed paths. Protect other worktrees and processes. Local ticket only. 25 minutes per command, one setup retry. No publish grants. Spend unknown.',
     [state.card.initial,state.card.action,state.card.positive,state.card.negative,...(state.card.checks || []),
       state.risk.level, state.risk.reason, 'Run every matching Check in REVIEW.md.', state.round ? 'Round ' + state.round.number + '/3.' : ''].join(' '),
     'Use the assigned private profile. Provider ' + (readyNow ? 'configured.' : 'missing.') + ' Record observations in ' + output];
@@ -53,7 +53,7 @@ export function packet(state, role, folder, instructions, output) {
     if (exe) {
       const args = ['exec','--ephemeral','--ignore-user-config','--skip-git-repo-check','-C',cwd,
         '-s',builder ? 'workspace-write' : 'read-only','-m',model.model,'-c','model_reasoning_effort=' + model.effort,
-        '-c','shell_environment_policy.inherit=none','-o',output,'-'];
+        '-c','shell_environment_policy.inherit=all','-c',"shell_environment_policy.exclude=['*KEY*','*TOKEN*','*SECRET*','*PASSWORD*','*AUTH*','*CREDENTIAL*']",'-o',output,'-'];
       const command = 'Get-Content -Raw -Encoding UTF8 -LiteralPath ' + quote(brief) + ' | & ' + quote(exe) + ' ' + args.map(quote).join(' ');
       console.log(command);
       // Use a child process so that credential isolation never modifies the parent shell.

@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { childEnv, ensure, hash, inspect, json, now, read, save } from './worktree.mjs';
+import { fileURLToPath } from 'node:url';
+import { childEnv, ensure, hash, inspect, json, now, read, save, withLock } from './worktree.mjs';
 
 export function privateEnv(folder) {
   const env = { ...childEnv(), CI: 'true', NEXT_TELEMETRY_DISABLED: '1', GIT_TERMINAL_PROMPT: '0',
@@ -20,6 +21,9 @@ export function privateEnv(folder) {
 }
 
 export const gateNames = ['electron install','desktop vendor','remove generated dictionary','vitest','build welcome','typecheck','lint'];
+const commands = ['node node_modules/electron/install.js','npm run vendor -w apps/desktop',
+  'remove apps/desktop/vendor/i18n.js if present','npx vitest run','npm run build:welcome -w apps/desktop','npm run typecheck','npm run lint'];
+const worker = fileURLToPath(import.meta.url);
 function execute(name, root, env) {
   const npm = process.env.npm_execpath;
   const node = (...args) => spawnSync(process.execPath, args, {
@@ -37,8 +41,25 @@ function execute(name, root, env) {
   return node(npm, 'run', name);
 }
 
+function writeReceipt(intent, env, run) {
+  if (fs.existsSync(intent.destination)) return;
+  const start = now();
+  const exit = run(intent.name,intent.cwd,env);
+  save(intent.destination,{...intent, command:commands[gateNames.indexOf(intent.name)], start, end:now(), exit, node:process.version});
+}
+
+// The child owns the branch gate lock and writes its receipt even if the coordinator disappears.
+if (process.argv[1] && path.resolve(process.argv[1]) === worker) {
+  try {
+    const intent = JSON.parse(process.argv[2]);
+    const tree = inspect(process.cwd());
+    ensure(gateNames.includes(intent.name) && tree.head === intent.sha && tree.root === intent.cwd, 'Invalid gate intent.');
+    await withLock(tree.common + '/gate/' + tree.branch, () => writeReceipt(intent,process.env,execute));
+  } catch { process.exitCode = 1; }
+}
+
 // Only metadata crosses the child boundary. A child can print credentials even on an ordinary failure.
-export function runGates(state, dir, phase, checkpoint, retry, run = execute) {
+export function runGates(state, dir, phase, checkpoint, retry, run) {
   ensure(fs.existsSync(path.join(state.root, 'node_modules/electron/install.js')), 'Install dependencies with npm ci in the assigned worktree, then repeat this command.');
   const env = privateEnv(path.join(dir, 'runtime'));
   if (!state.gate || state.gate.phase !== phase || state.gate.sha !== state.candidate) {
@@ -47,7 +68,7 @@ export function runGates(state, dir, phase, checkpoint, retry, run = execute) {
   }
   const g = state.gate;
   ensure(!g.failure || retry && !g.retried, 'The gate is red. Inspect the failing command. After correcting setup, use --retry once or prepare a corrected candidate.');
-  if (g.failure) { g.retried = true; delete g.failure; }
+  if (g.failure) { g.retried = true; g.receipts = []; state.intent = null; delete g.failure; }
   for (const name of gateNames) {
     const old = g.receipts.find(r => r.name === name);
     if (old) {
@@ -55,19 +76,29 @@ export function runGates(state, dir, phase, checkpoint, retry, run = execute) {
         'Gate receipt changed. Preserve evidence and start a fresh gate.');
       continue;
     }
-    const file = path.join(dir, 'receipts', randomUUID() + '.json');
-    state.intent = { id: randomUUID(), command: name, destination: file, sha: state.candidate };
+    const pending = state.intent?.phase === phase && state.intent.name === name && state.intent.sha === state.candidate;
+    if (!pending) {
+      const id = randomUUID();
+      state.intent = { id, name, phase, cwd:state.root, destination:path.join(dir,'receipts',id + '.json'),
+        run:state.run, sha:state.candidate, npm:process.env.npm_config_user_agent?.split(' ')[0] || 'unknown' };
+    }
+    const intent = state.intent, file = intent.destination;
     state.verdict = 'HOLD';
     checkpoint();
-    const start = now();
-    console.log('Running ' + name);
-    const exit = run(name, state.root, env);
-    const commands = ['node node_modules/electron/install.js','npm run vendor -w apps/desktop',
-      'remove apps/desktop/vendor/i18n.js if present','npx vitest run','npm run build:welcome -w apps/desktop','npm run typecheck','npm run lint'];
-    const receipt = { ...state.intent, command: commands[gateNames.indexOf(name)], name, sha: state.candidate, cwd: state.root, start, end: now(), exit,
-      node: process.version, npm: process.env.npm_config_user_agent?.split(' ')[0] || 'unknown' };
-    save(file, receipt);
-    if (exit !== 0) {
+    if (!fs.existsSync(file)) {
+      ensure(!intent.retried, 'An interrupted gate has already been retried. Inspect the private intent and process.');
+      if (pending) { intent.retried = true; checkpoint(); }
+      console.log('Running ' + name);
+      if (run) writeReceipt(intent,env,run);
+      else {
+        const child = spawnSync(process.execPath,[worker,JSON.stringify(intent)],{cwd:state.root,
+          env:{...env,npm_execpath:process.env.npm_execpath},timeout:26*60000,windowsHide:true,stdio:'ignore'});
+        ensure(child.status === 0 && fs.existsSync(file), 'Gate worker failed or is busy. Inspect the saved intent and repeat the same verb.');
+      }
+    }
+    const receipt = json(file);
+    ensure(['id','name','phase','cwd','destination','run','sha'].every(k=>receipt[k] === intent[k]), 'Receipt does not match the saved gate intent.');
+    if (receipt.exit !== 0) {
       g.status = 'failed'; g.failure = name; state.firstFailure ??= receipt;
       checkpoint();
       ensure(false, 'Gate failed: ' + name + '. Inspect the receipt at ' + file);

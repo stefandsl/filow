@@ -18,7 +18,8 @@ const git = (cwd: string, ...args: string[]) => execFileSync('git',args,{cwd,enc
 const fixture = 'N-08-PRACTICE';
 const marker = 'synthetic-secret-value-123456';
 const command = (verb: string, ...args: string[]) => spawnSync(process.execPath,['tools/factory/factory.mjs',verb,...args],{
-  cwd: tree, encoding:'utf8',timeout:30000,windowsHide:true,env:{...childEnv(), ...privateEnv(path.join(lab,'runtime')), GH_TOKEN:marker},
+  cwd: tree, encoding:'utf8',timeout:30000,windowsHide:true,env:{...childEnv(), ...privateEnv(path.join(lab,'runtime')), GH_TOKEN:marker,
+    CODEX_API_KEY:process.env.FACTORY_TEST_CREDENTIAL || '',ANTHROPIC_API_KEY:process.env.FACTORY_TEST_CREDENTIAL || ''},
 });
 
 beforeAll(() => {
@@ -66,6 +67,7 @@ it('refuses plain clones, detached trees, untracked and staged edits', () => {
 it('resolves practice, plan titles and two competing run IDs', () => {
   expect(ticketCard(tree,'save practice').ticket).toBe(fixture);
   expect(ticketCard(tree,'Use tomorrow’s list for real').ticket).toBe('N-05');
+  expect(ticketCard(tree,'Let me sort tomorrow by classroom').ticket).toMatch(/^REQUEST-/);
   const runs = ['1','2'].map(run=>({run,ticket:'N-05',branch:run}));
   expect(()=>select(runs,'N-05','1','build')).toThrow(/1, 2/);
   expect(select(runs,'2','2','build')).toBe(runs[1]);
@@ -92,6 +94,19 @@ it('withholds noise, guard failures and overfit in a bounded offline trial', () 
   expect(decideTrial(80,82,1,false,2)).toBe('discard');
   expect(decideTrial(80,82,1,true,-1)).toBe('overfit');
   expect(decideTrial(80,82,1,true,0)).toBe('keep');
+});
+it('resumes the exact live plan after a missing-provider hold without saving the configured secret', () => {
+  try {
+    vi.stubEnv('FACTORY_TEST_CREDENTIAL','');
+    const missing = command('plan',fixture);
+    expect(missing.status).toBe(1); expect(missing.stderr).toContain('Provider preflight incomplete');
+    const file = missing.stdout.match(/State: ([^\r\n]+)/)![1];
+    vi.stubEnv('FACTORY_TEST_CREDENTIAL',marker);
+    const configured = command('plan',json(file).run);
+    expect(configured.status,configured.stderr).toBe(0);
+    expect(json(file).readiness).toEqual({builder:true,reviewer:true});
+    expect(configured.stdout + fs.readFileSync(file,'utf8')).not.toContain(marker);
+  } finally { vi.unstubAllEnvs(); }
 });
 it('seals the blind case before exposing the candidate and refuses a stale replay or missing judge', async () => {
   const dir = path.join(lab,'independent'), ledger = path.join(dir,'ledger.json');
@@ -166,4 +181,11 @@ it('a stale green plus a failed launch holds and stops before the next gate', ()
   expect(()=>runGates(state,dir,'verify',()=>{},false,launch)).toThrow(/gate is red/);
   runGates(state,dir,'verify',()=>save(disk,state),true,()=>0);
   expect(json(disk).gate.receipts).toHaveLength(gateNames.length);
+  const completed = json(disk).gate.receipts[0];
+  const saved = json(completed.path);
+  const interrupted = {...json(disk),intent:saved,gate:{phase:'verify',sha:head,status:'running',receipts:[]}};
+  const resumed:string[] = [];
+  runGates(interrupted,dir,'verify',()=>{},false,(name:string)=>{resumed.push(name);return 0;});
+  expect(resumed).toEqual(gateNames.slice(1));
+  expect(interrupted.gate.receipts[0]).toEqual(completed);
 });

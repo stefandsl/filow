@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ensure, json, read } from './worktree.mjs';
+import { ensure, hash, json, read } from './worktree.mjs';
 
 const levels = ['Light', 'Medium', 'Heavy'];
 export function parse(args) {
@@ -38,7 +38,7 @@ export function stakes(description, files = [], diff = '', floor = 'Light') {
   return levels.indexOf(floor) > levels.indexOf(level) ? { level: floor, reason: 'Frozen plan requires this level.' } : { level, reason };
 }
 export function safeText(value) {
-  ensure(typeof value === 'string' && value.trim() && value.length < 12000 && !/[\x00-\x08]/.test(value), 'Invalid or empty card or evidence field.');
+  ensure(typeof value === 'string' && value.trim() && value.length < 12000 && !Array.from(value).some(c => c.charCodeAt(0) < 9), 'Invalid or empty card or evidence field.');
   const secrets = Object.entries(process.env).filter(([k,v]) => /token|password|secret|api_key/i.test(k) && v.length >= 8);
   ensure(!secrets.some(([,v]) => value.includes(v)) && !/(?:sk-(?:proj-|ant-)?[\w-]{12,}|gh[pousr]_[\w]{12,}|-----BEGIN .*PRIVATE KEY-----)/i.test(value),
     'Sensitive material detected. Supply sanitized ticket data.');
@@ -52,10 +52,11 @@ export function ticketCard(root, target, file) {
   const normalize = s => s.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   const match = sections.filter(m => m[1] === target || normalize(m[2]).includes(normalize(target)));
   const isPractice = target === practice.ticket || /save practice|practice (?:button|tour|ticket)/i.test(target);
-  ensure(isPractice || match.length === 1 || file && !/^[NXL]-\d/.test(target), 'No unique plan ticket. Use its ID, title, or a scoped --card for a new request.');
-  const ticket = isPractice ? practice.ticket : match[0]?.[1];
+  ensure(isPractice || match.length <= 1 && (match.length || !/^[NXL]-\d/.test(target)), 'No unique plan ticket. Use an existing ID or describe the new request.');
+  const requestId = 'REQUEST-' + hash(target).slice(0,10).toUpperCase();
+  const ticket = isPractice ? practice.ticket : match[0]?.[1] || (/^REQUEST-[0-9A-F]{10}$/.test(target) ? target : requestId);
   const card = file ? json(file) : isPractice ? practice : null;
-  if (!card) return { ticket, goal: match[0][2], text: match[0][3].trim() };
+  if (!card) return { ticket, goal: match[0]?.[2] || target, text: match[0]?.[3].trim() || target };
   ensure(/^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/.test(card.ticket) && (!ticket || ticket === card.ticket), 'Card ticket does not match the request.');
   for (const key of ['goal', 'initial', 'action', 'positive', 'negative', 'reason']) safeText(card[key]);
   ensure(levels.includes(card.stakes), 'Card stakes must be Light, Medium or Heavy.');

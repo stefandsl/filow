@@ -61,7 +61,7 @@ npm.cmd run filow:plan -- N-08-PRACTICE
 npm.cmd run filow:build -- N-08-PRACTICE
 ```
 
-Copy the run ID and state path. The first build saves the edit intent, writes the builder brief and prints the desktop Codex command. Run the printed `powershell.exe ... dispatch.ps1` line for an approved dispatch. It starts Codex with a private profile and only its own provider credential. You can close the terminal at this point and repeat the same build command in another one. When a credential is missing, restore it in the new terminal and repeat the saved command.
+Copy the run ID and state path. A missing provider pauses live plan. Restore the credential and repeat plan with the saved ID. The first build saves the edit intent, writes the builder brief and prints the desktop Codex command. Run the printed `powershell.exe ... dispatch.ps1` line for an approved dispatch. It starts Codex with a private profile and only its own provider credential. You can close the terminal at this point and repeat the same build command in another one.
 
 **Make and observe the edit.** Start the tour on the assigned checkout in a second terminal. Replace the path below with the worktree path printed by plan. Use an unused port, for example 4799 or 4800.
 
