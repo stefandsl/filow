@@ -76,7 +76,7 @@ Give the owner the matching Windows installer or private package, full source SH
 
 ### N-08 Make the factory work from a clean clone
 
-Register the three verbs, qualify the pinned helpers and ship the runner fixture for the tracked [sanitized practice ticket `N-08-PRACTICE`](GUIDE-START-HERE.md#practice-ticket-n-08-practice). Use existing tools while this runs in parallel. Let an unaided junior make a visible edit, stop mid-run, resume in a new session and show evidence. Record time, outside help and duplicate effects. Enforce flagship routing, independent review, the standing offline experiment and a skill correction on every agent failure. Prove stale green evidence produces a red verdict. Show measured spend or unknown. [Command contracts and rules](METHODOLOGY.md) · [First exercise](GUIDE-START-HERE.md)
+Register the three verbs, qualify the pinned helpers and ship the runner fixture for the tracked [sanitized practice ticket `N-08-PRACTICE`](../tools/factory/N-08-PRACTICE.json). Use existing tools while this runs in parallel. Let an unaided junior make a visible edit, stop mid-run, resume in a new session and show evidence. Record time, outside help and duplicate effects. Enforce flagship routing, independent review, the standing offline experiment and a skill correction on every agent failure. Prove stale green evidence produces a red verdict. Show measured spend or unknown. [Command contracts and rules](METHODOLOGY.md) · [First exercise](GUIDE-START-HERE.md)
 
 - **Requests** R-057, R-064, R-141, R-165, R-166, R-167, R-168, R-169, R-170, R-171, R-172, R-173, R-174, R-175
 

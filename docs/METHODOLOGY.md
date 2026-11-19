@@ -1,6 +1,6 @@
 # How the Filow code factory works
 
-A ticket starts with something the owner wants to see. A run ends with evidence that someone else could reproduce. The factory exposes three public commands. Their names below are the interface to implement in N-08. At the verified baseline the npm scripts are absent. The tour exercise in the guide works with the existing repo. [Delivery ticket](PLAN.md#n-08-make-the-factory-work-from-a-clean-clone) · [Guide](GUIDE-START-HERE.md)
+A ticket starts with something the owner wants to see. A run ends with evidence that someone else could reproduce. The factory exposes three public commands. Run them from the assigned linked worktree. Add `--dry-run` to rehearse using private state. The guide includes the clean-clone practice run. [Delivery ticket](PLAN.md#n-08-make-the-factory-work-from-a-clean-clone) · [Guide](GUIDE-START-HERE.md)
 
 ## Three commands
 
@@ -86,6 +86,10 @@ The agent who encounters a failure records the smallest reproducible input, expe
 | “The checker passed.” | Show the owner the tick, lesson, or download promised by that ticket. |
 
 ## Workflow helpers
+
+The runner uses the repository's existing CI commands and the desktop app's bundled Codex CLI. A clean linked worktree is the input to all three verbs. A completed build freezes the candidate used by verify. An explicit `--candidate` checks a supplied full SHA. Use the private packet launch script in PowerShell for an approved OpenAI assignment. A consequential review receives its own Claude Opus packet. Each reviewer and judge returns an actual session ID and a reply for the current assignment.
+
+Plan polls the daily offline schedule. Its receipt gives the next date and the private location for an optional AR-3 proposal. Prepare two clean, dependency-installed `autoresearch/` worktrees from the same clone under that offline directory. In `proposal.json` record `baselineTree`, `candidateTree`, full `base` and `candidate` SHAs, `hypothesis`, `builder`, `labelJudge` and `heldout` set to `reused` for the existing split. Commit only the proposed spoken-forms change there. The runner checks the pinned evaluator and guard blobs, measures dev noise, replays guards and records both held-out scores. Read the dated receipt and `results.tsv`. A new scoring revision needs separate qualification.
 
 Use scoped helpers for tasks that benefit from an independent benchmark, a primary-source check or a review of affected callers. Incorporate reusable checks into the three commands. Pin and review external dependencies, and record the revision, safety assessment and successful invocation from a clean clone before enabling them. Put larger ideas in the backlog for a separate decision.
 

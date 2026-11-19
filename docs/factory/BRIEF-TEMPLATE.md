@@ -19,7 +19,7 @@ Act without questions. Stop the affected step and report HOLD if a path or grant
 
 **Reviewer, blind case.** Start outside the candidate with the pre-change review rules, goal, examples and limits. Write a different failure case with its input and expected result. End the assignment. The coordinator records the case digest and time before sharing any candidate paths, revisions, tests or findings.
 
-**Reviewer, replay.** Open the pinned diff read-only, check the case digest and run it along with the frozen examples and applicable rules. For each finding give severity, file and line, steps, expected result and observation. List missing proof.
+**Reviewer, replay.** Open the pinned diff read-only, check the case digest and run it along with the frozen examples and applicable rules. Record this packet's assignment ID, the exact candidate and the sealed case digest in the reply. If a reply belongs to an earlier dispatch, preserve it and replay the current assignment. For each finding give severity, file and line, steps, expected result and observation. List missing proof.
 
 **Judge.** Use a fresh, read-only session and the [verification rules](../METHODOLOGY.md#who-builds-and-who-reviews). Check independence, the actual risk and each receipt. Replay disputed findings. Give local PASS only for a candidate with every required check satisfied. Otherwise give HOLD and the next action. Stop after three review rounds, including rechecks.
 

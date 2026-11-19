@@ -1,0 +1,21 @@
+{
+  "ticket": "N-08-PRACTICE",
+  "goal": "A junior opens the English /tour and learns how to finish setup after saving practice.",
+  "initial": "Fresh local practice tour, English, empty confirmation. Keep the existing local privacy hint visible.",
+  "action": "Click Save practice, then reload the tour.",
+  "positive": "The click shows exactly: Practice complete. Choose Continue to finish setup. The click writes no practice data.",
+  "negative": "After reload the live status is empty until another click. The privacy hint is still visible.",
+  "paths": [
+    "packages/core/src/i18n/en.ts",
+    "apps/web/app/tour/page.tsx"
+  ],
+  "callers": [
+    "apps/web/app/tour/page.tsx"
+  ],
+  "stakes": "Medium",
+  "reason": "A reversible local status change through the real tour button.",
+  "checks": [
+    "Observe before and after in both themes, record the serving worktree, port and SHA.",
+    "Activate by keyboard. Check the visible privacy hint, empty live status on reload and zero practice-data writes."
+  ]
+}

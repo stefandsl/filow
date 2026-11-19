@@ -1,6 +1,6 @@
 # Start here | Make one button answer you
 
-**Owner,** start with the practice button or jump to the two rehearsal cards below. **Junior developer,** use the practice button to make your first visible change. The first exercise works on the 18 November source. Day-by-day, the permitted stage action and the three factory commands are milestones in the plan.
+**Owner,** start with the practice button or jump to the two rehearsal cards below. **Junior developer,** use the practice button to make your first visible change. The first exercise works on the 18 November source. The factory walkthrough below starts from a clean linked worktree.
 
 ## First win | Click Save practice
 
@@ -12,87 +12,89 @@ The practice ticket asks for a confirmation that tells the user what to do next.
 
 ### Junior | Open your own copy
 
-Use PowerShell on Windows with Git, Node 22 and npm. Start in a writable directory on a volume with room for the clone, dependencies and browser profile. A separate practice clone keeps your changes isolated from the installed app. On a prepared practice checkout, use its existing dependencies.
+Use PowerShell, Git and Node 22. Choose a writable project volume outside C: with at least 20 GB free. Start in its project directory. The practice uses the revision containing these commands. The historical manual tour exercise starts at `368f019`.
 
 ```powershell
 $practiceRoot = Join-Path (Get-Location).Path 'filow-practice'
 $lab = Join-Path $practiceRoot 'checkout'
+$tree = Join-Path $practiceRoot 'tour worktree'
 $cache = Join-Path $practiceRoot 'cache'
 $env:TEMP = Join-Path $cache 'temp'
 $env:TMP = $env:TEMP
 $env:npm_config_cache = Join-Path $cache 'npm'
+$env:electron_config_cache = Join-Path $cache 'electron'
+$env:ELECTRON_CACHE = $env:electron_config_cache
 $env:XDG_CACHE_HOME = $cache
 $env:NEXT_TELEMETRY_DISABLED = '1'
 New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
 git --version
 node --version
 npm.cmd --version
-```
-
-Look for a Node version starting with `v22.`. For a new practice copy run the next block once. If the checkout already exists, continue there.
-
-```powershell
 git clone https://github.com/stefandsl/filow.git $lab
-if ($LASTEXITCODE -ne 0) { throw 'Clone failed. Check the destination and network connection.' }
-Set-Location $lab
-git switch --detach 368f019
-if ($LASTEXITCODE -ne 0) { throw 'The lesson commit is missing.' }
-git switch -c practice/tour-copy
-npm.cmd ci --ignore-scripts --no-audit --no-fund
-if ($LASTEXITCODE -ne 0) { throw 'Dependency setup failed. Read the first npm error.' }
+if ($LASTEXITCODE) { throw 'Clone failed. Check the destination and connection.' }
+git -C $lab worktree add -b practice/tour-copy $tree HEAD
+if ($LASTEXITCODE) { throw 'Use the existing assigned practice worktree or choose an unused branch.' }
+Set-Location $tree
+npm.cmd ci --prefer-offline
+if ($LASTEXITCODE) { throw 'Dependency setup failed. Read the first npm error.' }
+npm.cmd run
 ```
 
-Start the web tour in this terminal. Keep it open. Port 4799 lets the installed app keep its usual port.
+Look for all three factory verbs. Always invoke them from the root of the linked ticket worktree. For another run on the same ticket use another clean linked branch. If several runs match, copy the exact run ID from the list.
+
+### Practice ticket N-08-PRACTICE
+
+A junior opens the synthetic English tour, clicks **Save practice** and sees **Practice complete. Choose Continue to finish setup.** The click writes zero practice data. Reload clears the live status. The baseline displays a privacy hint inside the status before the first click. Keep the hint visible when you move it outside the live confirmation. The fixture names both writable files. [Practice card](../tools/factory/N-08-PRACTICE.json)
+
+Start with an offline rehearsal. Each invocation opens the same private rehearsal. It writes a brief and a receipt, leaves the checkout clean and spends nothing.
 
 ```powershell
-Set-Location (Join-Path $lab 'apps\web')
+npm.cmd run filow:plan -- N-08-PRACTICE --dry-run
+npm.cmd run filow:build -- N-08-PRACTICE --dry-run
+npm.cmd run filow:verify -- N-08-PRACTICE --dry-run
+```
+
+**Plan.** For live work, use a provider account approved for this ticket and its spend. The runner checks the current process for `CODEX_API_KEY` or `OPENAI_API_KEY` for Codex and `ANTHROPIC_API_KEY` for a consequential review. Load them through your provider credential setup. The printed status describes configuration. Authentication and availability are established by the actual assignment. Keep credentials out of command arguments and files.
+
+```powershell
+npm.cmd run filow:plan -- N-08-PRACTICE
+npm.cmd run filow:build -- N-08-PRACTICE
+```
+
+Copy the run ID and state path. The first build saves the edit intent, writes the builder brief and prints the desktop Codex command. Run the printed `powershell.exe ... dispatch.ps1` line for an approved dispatch. It starts Codex with a private profile and only its own provider credential. You can close the terminal at this point and repeat the same build command in another one. When a credential is missing, restore it in the new terminal and repeat the saved command.
+
+**Make and observe the edit.** Start the tour on the assigned checkout in a second terminal. Replace the path below with the worktree path printed by plan. Use an unused port, for example 4799 or 4800.
+
+```powershell
+Set-Location 'G:\your-projects\filow-practice\tour worktree\apps\web'
 & '..\..\node_modules\.bin\next.cmd' dev --hostname 127.0.0.1 --port 4799
 ```
 
-Wait for **Ready**, then open `http://127.0.0.1:4799/tour` in a test browser. For a separate Edge test profile, open a second PowerShell window in the same starting directory and repeat the first setup block to define `$lab` and `$cache`. Then run the following commands.
+Wait for **Ready**. Open `http://127.0.0.1:4799/tour` in a test browser. For an isolated Edge profile run the following in the setup terminal.
 
 ```powershell
 $edge = Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'
 & $edge "--user-data-dir=$(Join-Path $cache 'edge')" '--no-first-run' 'http://127.0.0.1:4799/tour'
 ```
 
-Click **Save practice** and read the status. If your practice tour opens in another language, visit `http://127.0.0.1:4799/`, choose English in the language selector, then return to `/tour`. In the second terminal, open the English dictionary from the practice clone.
+Choose English at `/` if needed, then return to `/tour`. Check the click before and after the change in dark and light themes. The new English `tour.saved` value belongs in `packages/core/src/i18n/en.ts`. The initial live region belongs to the tour component. Reach Save and Continue with Tab and Enter, reload, and inspect network and storage for practice writes. Record the serving path, port, commit and observations. Stop your server with Ctrl+C. The builder report must name the real provider, model, effort and session, base observation, candidate observation and full candidate commit. Each green commit carries the ticket prefix, its reason and the printed `Factory-Run` trailer. [Tour component](../apps/web/app/tour/page.tsx) · [English dictionary](../packages/core/src/i18n/en.ts)
+
+**Resume and verify.** In a fresh PowerShell session open the same clean worktree. Restore the environment from setup. Run build with the saved ID. It inspects the actual commits, runs the desktop preparation and gates and prints the changed files and candidate. Keep unexplained files and commits for inspection.
 
 ```powershell
-Set-Location $lab
-Select-String -Path 'packages\core\src\i18n\en.ts' -Pattern '"tour.saved"'
-notepad.exe 'packages\core\src\i18n\en.ts'
+$run = 'run-REPLACE-WITH-YOUR-ID'
+npm.cmd run filow:build -- $run
+if ($LASTEXITCODE) { throw 'Read the HOLD and resume instruction.' }
+$sha = git rev-parse HEAD
+npm.cmd run filow:verify -- $run --candidate $sha
 ```
 
-Change only the English value for `tour.saved` to **Practice complete. Choose Continue to finish setup.** Save. Refresh the practice page and click **Save practice** again. The button now answers with your sentence. Press Tab until **Continue to Filo** has focus. You just tested the instruction you wrote. Compare the two lines in your terminal:
+Verify saves **HOLD** while a packet awaits a reply. Give the blind packet alone to a fresh reviewer in the indicated folder. Save its distinct case as the requested JSON. Repeat the same verify line to obtain a read-only replay packet, then the independent judge packet. Use a fresh session at each step and the provider named in the brief. The judge receives the replay evidence. Each packet includes the output path and exact fields. A completed run prints **Local PASS** and its evidence path. A red gate stops immediately. Correct the documented cause before using `--retry` once. An unresolved review gets another dispatch only with `--new-round`, within the shared three-round limit.
 
-```powershell
-git diff -- packages/core/src/i18n/en.ts
-```
+Record elapsed time, people who helped, commit count before and after repeating build, and the state path. Release is the owner's separate fourth action. [Factory rules](METHODOLOGY.md)
 
-The removed line starts with a minus. The new line starts with a plus. Keep the experiment in this practice copy. Product copy changes follow the normal language and review checks. Use **Ctrl+C** in the server terminal when finished. [Tour component](../apps/web/app/tour/page.tsx) · [English dictionary](../packages/core/src/i18n/en.ts)
+For another plan ticket use its ID or quote its title or request. Supply a scoped JSON `--card` with the practice card's fields to freeze exact examples, callers and writable paths. Plan can prepare a coordinator brief for an existing ticket that lacks a card. Keep the filled card private. Private state lives in `.filow-factory` beside the primary clone, grouped by repository, live or rehearsal, and run ID. Only the runner writes `run.json`.
 
-## Use the three commands when N-08 lands
-
-A run receipt is a **luggage tag**. It tells the next person which ticket, worktree, commit and result belong together. Run the preflight from the root of a clean clone containing the N-08 scripts. List the scripts with `npm.cmd run`. At the November baseline the manual button exercise above works without them.
-
-### Clean-clone preflight
-
-Confirm that `npm.cmd run` lists `filow:plan`, `filow:build` and `filow:verify`. Set up the providers required by your factory configuration through their supported sign-in or credential setup. The launcher checks readiness in memory and reports a pass or the missing prerequisite without displaying secrets.
-
-### Practice ticket N-08-PRACTICE
-
-From a practice copy, change the English Save practice confirmation to **Practice complete. Choose Continue to finish setup.** A click must show the new sentence and leave files untouched. Reloading before a click must leave the status empty. Use the local `/tour` page and the synthetic practice workspace. Keep the change in the isolated practice worktree.
-
-```powershell
-npm.cmd run filow:plan -- N-08-PRACTICE
-npm.cmd run filow:build -- N-08-PRACTICE
-npm.cmd run filow:verify -- N-08-PRACTICE
-```
-
-1. **Plan.** Read the first card. It should name the button, the expected sentence and the empty status before the click.
-2. **Build.** Look for the run ID, the isolated worktree, the first failing check and the green result on the changed version. Stop at a saved step. In a fresh session repeat the build line. It should reopen the same worktree. If two runs are listed, use the saved run ID in place of `N-08-PRACTICE`.
-3. **Verify.** A fresh reviewer tries the click and the reload. Check the new sentence, empty initial status and absence of file writes. Look for **PASS** or **HOLD** and the evidence path. An owner release has its own receipt and public URL. [Command contracts](METHODOLOGY.md#three-commands)
 
 ## Owner | Try the package at your desk and on stage
 

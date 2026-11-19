@@ -10,6 +10,9 @@
     "packages/*"
   ],
   "scripts": {
+    "filow:plan": "node tools/factory/factory.mjs plan",
+    "filow:build": "node tools/factory/factory.mjs build",
+    "filow:verify": "node tools/factory/factory.mjs verify",
     "dev": "concurrently -n web,session -c cyan,magenta \"npm run dev -w apps/web\" \"npm run dev -w apps/server\"",
     "dev:web": "npm run dev -w apps/web",
     "dev:server": "npm run dev -w apps/server",
