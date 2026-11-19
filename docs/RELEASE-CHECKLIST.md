@@ -157,6 +157,19 @@ Before committing the version bump, update the installer’s “What’s new” 
 5. The release notes say what changed in what Filow sends or keeps; if anything did, docs/PRIVACY*.md and
    docs/okfilow/OUTBOUND.md changed in the same release.
 
+Run checks 2 and 4 on an interactive Windows desktop with Node 22 and the candidate checkout's locked dependencies.
+Set `$candidate` to the verified full SHA and `$packageDir` to the exact unpacked directory containing `Filow.exe`.
+Keep the G: work directory private. Each run creates its own Windows profile and saves its logs, report and result there.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/release/about-and-save.ps1 `
+  -Checkout (Get-Location).Path -PackageDir $packageDir -Work $work -Version $version -SourceSha $candidate
+if ($LASTEXITCODE -ne 0) { throw 'Packaged About and Save acceptance failed' }
+```
+
+Use `-BasePort` to select five consecutive free ports (default 17443 through 17447). Keep other browser windows
+and tabs idle during Save so the before/after accessibility inventories can be compared.
+
 ## Explicit account-origin gate
 
 Only after the owner approves a live account release, pass `--require-account-origin <exact-HTTPS-origin>` to `tools/release/release-verify.mjs verify` (and any audit of that policy). Multiple approved origins can be comma-separated. This option requires installer metadata to contain an exact member of that list; absent origin fails. Without the option, existing behavior holds: absent origin passes and origins outside the default empty allowlist fail. An empty list, non-HTTPS URL, credentials, path, query or fragment is rejected. No production origin is configured by this change, and `release.ps1` does not yet forward this policy or set build metadata. Do not treat that wrapper as a live-account release gate until wired.
