@@ -149,6 +149,10 @@ Before committing the version bump, update the installer’s “What’s new” 
 3. Launch the packaged app twice on the same profile (same FILOW_USER_DATA_DIR and ports): the second
    process exits within a second or two with code 0, the ports stay with the first one, and the first
    window comes to the front.
+   On Windows, record the main window handle after startup and verify it is minimized. Reopen Filow
+   from a foreground launcher. Record visibility, minimized state and whether `GetForegroundWindow()`
+   equals that same handle. Repeat with the main window hidden. For a background automation failure,
+   repeat from a verified foreground launcher before judging activation.
 4. "Report a problem": the report window lists everything, "Save to a file" writes it, and no browser opens.
 5. The release notes say what changed in what Filow sends or keeps; if anything did, docs/PRIVACY*.md and
    docs/okfilow/OUTBOUND.md changed in the same release.

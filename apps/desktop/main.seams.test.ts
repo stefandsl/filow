@@ -88,7 +88,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
   const api = runInNewContext(readFileSync(new URL("./main.js", import.meta.url), "utf8") + `
     ;({ applyOffline, loadEnv, aliasLegacyEnv, sttDownload, sttStatus, startOllamaInstall, localAiStatus: () => localAiState, reportProblem, openAbout: view => about().open(view), checkForUpdates,
        startupOffline: () => applyOffline(null), tunnels, stopTunnels, setRemoteShare, linkForPairing, dropInstallerChoices, setLog: text => { lastTakeLog = text; },
-       setTakeLive, loadUpdater, installUpdate, setUpdateState, setMainWin: win => { mainWin = win; }, setLang: lang => { settings.lang = lang; },
+       setTakeLive, loadUpdater, installUpdate, setUpdateState, setMainWin: (win, shown = false) => { mainWin = win; mainWasShown = shown; }, setLang: lang => { settings.lang = lang; },
        guardNavigation, endTakeWithPage, APP_URL, setSlideShowRunning: running => { slideShow = { ...slideShow, running }; },
        offerLocalAi, offerFirewall, welcomeSetup, registerHotkey, permissionFor, copyText: text => clipboard.writeText(text), settings: () => settings, patchSettings: patch => Object.assign(settings, patch),
        onWelcomeReady, welcomeOfferForStep, chooseWelcomeSetup, setWelcomeWin: win => { welcomeWin = win; }, buildMenu, st,
@@ -667,7 +667,7 @@ describe("window background colours", () => {
 describe("single instance per profile", () => {
   const fakeWindow = (state: { visible?: boolean; minimized?: boolean } = {}) => {
     const w = { visible: state.visible ?? true, minimized: state.minimized ?? false, focused: false,
-      isDestroyed: () => false, isVisible: () => w.visible, isMinimized: () => w.minimized,
+      isDestroyed: () => false, isVisible: () => w.visible, isMinimized: () => w.minimized, isFocused: () => w.focused,
       restore: vi.fn(() => { w.minimized = false; }), show: vi.fn(() => { w.visible = true; }), focus: vi.fn(() => { w.focused = true; }) };
     return w;
   };
@@ -700,6 +700,15 @@ describe("single instance per profile", () => {
     f.appHandlers["second-instance"]({}, ["Filow.exe"], "G:/");
     expect(welcome.focused).toBe(true);
     expect(main.show, "the main window is not shown over the welcome").not.toHaveBeenCalled();
+  });
+  it("reopens a previously shown main window on the second-instance event", () => {
+    const f = fixture();
+    const main = fakeWindow({ visible: false });
+    f.api.setMainWin(main, true);
+    f.appHandlers["second-instance"]({}, ["Filow.exe"], "G:/");
+    expect(main.visible).toBe(true);
+    expect(main.focused).toBe(true);
+    expect(main.restore).not.toHaveBeenCalled();
   });
 });
 

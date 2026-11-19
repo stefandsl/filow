@@ -120,8 +120,9 @@ const userData = app.getPath("userData");
 // window forward instead of fighting for the ports. Keyed on userData, so test profiles still coexist.
 const { claimSingleInstance, windowToFront, bringToFront } = require("./single-instance");
 const firstInstance = claimSingleInstance(app, () => {
+  if (HEADLESS) return;
   logLine("second launch on this profile: bringing the running window forward");
-  bringToFront(windowToFront({ welcome: welcomeWin, main: mainWin, splash }));
+  bringToFront(windowToFront({ welcome: welcomeWin, main: mainWin, mainWasShown, splash }));
 });
 if (!firstInstance) {
   logLine("second launch on this profile: Filow already runs, leaving");
@@ -236,6 +237,7 @@ function saveSettings(candidate = settings) {
 }
 
 let mainWin = null;
+let mainWasShown = false;
 
 const { createUiPreferences, trustedUiSender, createWelcomeController } = require("./ui-preferences");
 const { pathToFileURL } = require("node:url");
@@ -2463,13 +2465,17 @@ async function main() {
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, "preload.js") },
   });
   mainWin = win;
+  mainWasShown = false;
   const watchdog = setTimeout(() => {
     if (win.isDestroyed() || win.isVisible()) return;
     logLine(`startup watchdog: still at "${startupStage}" after ${STARTUP_WATCHDOG_MS / 1000} s, showing the window`);
     closeSplash();
     showAtStart(win);
   }, STARTUP_WATCHDOG_MS);
-  win.once("show", () => clearTimeout(watchdog));
+  win.once("show", () => {
+    mainWasShown = true;
+    clearTimeout(watchdog);
+  });
   reloadOnCrash(win, "main");
   endTakeWithPage(win);
   win.on("focus", () => uiPreferences?.refresh());

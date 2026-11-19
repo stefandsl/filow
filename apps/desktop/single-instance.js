@@ -25,20 +25,29 @@ const alive = (w) => Boolean(w && !w.isDestroyed());
  * it is on screen, else the splash while the app is still starting. A main window still loading
  * behind the splash is not shown early (the startup watchdog decides that).
  */
-function windowToFront({ welcome, main, splash }) {
+function windowToFront({ welcome, main, mainWasShown, splash }) {
   if (alive(welcome)) return welcome;
-  if (alive(main) && main.isVisible()) return main;
+  if (alive(main) && (mainWasShown || main.isVisible())) return main;
   if (alive(splash)) return splash;
   if (alive(main) && main.isMinimized()) return main;
   return null;
 }
 
 /** Restores a minimized window, shows it and gives it the keyboard. */
-function bringToFront(win) {
+function bringToFront(win, platform = process.platform) {
   if (!alive(win)) return false;
   if (win.isMinimized()) win.restore();
   win.show();
   win.focus();
+  // Windows can restore the window but keep keyboard focus in another application.
+  if (platform === "win32" && !win.isFocused() && !win.isAlwaysOnTop()) {
+    win.setAlwaysOnTop(true);
+    try {
+      win.focus();
+    } finally {
+      win.setAlwaysOnTop(false);
+    }
+  }
   return true;
 }
 
