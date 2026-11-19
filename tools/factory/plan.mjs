@@ -3,6 +3,9 @@ import path from 'node:path';
 import { ensure, hash, json, read } from './worktree.mjs';
 
 const levels = ['Light', 'Medium', 'Heavy'];
+export function editGrant(card) {
+  return { paths: [...new Set([...(card.paths || []), 'docs/REVIEW.md'])], appendOnly: ['docs/REVIEW.md'] };
+}
 export function parse(args) {
   const [verb, ...rest] = args;
   ensure(['plan', 'build', 'verify'].includes(verb), 'Choose filow:plan, filow:build or filow:verify.');
@@ -55,7 +58,7 @@ export function ticketCard(root, target, file) {
   ensure(isPractice || match.length <= 1 && (match.length || !/^[NXL]-\d/.test(target)), 'No unique plan ticket. Use an existing ID or describe the new request.');
   const requestId = 'REQUEST-' + hash(target).slice(0,10).toUpperCase();
   const ticket = isPractice ? practice.ticket : match[0]?.[1] || (/^REQUEST-[0-9A-F]{10}$/.test(target) ? target : requestId);
-  const card = file ? json(file) : isPractice ? practice : null;
+  const card = file ? packetReply(file) : isPractice ? practice : null;
   if (!card) return { ticket, goal: match[0]?.[2] || target, text: match[0]?.[3].trim() || target };
   ensure(/^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/.test(card.ticket) && (!ticket || ticket === card.ticket), 'Card ticket does not match the request.');
   for (const key of ['goal', 'initial', 'action', 'positive', 'negative', 'reason']) safeText(card[key]);
@@ -68,6 +71,17 @@ export function ticketCard(root, target, file) {
     }
   }
   ensure(card.callers.every(f => fs.existsSync(path.join(root, f))), 'A frozen caller is missing from this checkout.');
-  if (card.bugFix) ensure(card.bugFix === true && card.paths.includes('docs/REVIEW.md'), 'Grant docs/REVIEW.md for a bug fix.');
+  if (card.bugFix !== undefined) ensure(typeof card.bugFix === 'boolean', 'Set bugFix to true or false.');
   return Object.fromEntries(['ticket','goal','initial','action','positive','negative','reason','stakes','checks','paths','callers','bugFix'].map(k => [k,card[k]]));
+}
+
+export function packetReply(file, contents = read(file)) {
+  const text = contents.trim();
+  const fenced = /^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```$/i.exec(text);
+  const reason = 'Expected one JSON object in ' + file + '. Remove surrounding prose or extra fences.';
+  let reply;
+  try { reply = JSON.parse(fenced ? fenced[1] : text); }
+  catch { ensure(false, reason); }
+  ensure(reply && typeof reply === 'object' && !Array.isArray(reply), reason);
+  return reply;
 }

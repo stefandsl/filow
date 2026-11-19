@@ -100,6 +100,7 @@ export function runGates(state, dir, phase, checkpoint, retry, run) {
     ensure(['id','name','phase','cwd','destination','run','sha'].every(k=>receipt[k] === intent[k]), 'Receipt does not match the saved gate intent.');
     if (receipt.exit !== 0) {
       g.status = 'failed'; g.failure = name; state.firstFailure ??= receipt;
+      state.failedCandidate = state.candidate;
       checkpoint();
       ensure(false, 'Gate failed: ' + name + '. Inspect the receipt at ' + file);
     }

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { ensure, hash, json, now, read, save } from './worktree.mjs';
 import { ready, route, packet } from './brief.mjs';
-import { safeText } from './plan.mjs';
+import { editGrant, packetReply, safeText } from './plan.mjs';
 
 export function actor(report, expected, others = []) {
   ensure(report.provider === expected.provider && (expected.provider === 'Anthropic' ?
@@ -16,8 +16,10 @@ export function actor(report, expected, others = []) {
 export function getReport(file) {
   if (!fs.existsSync(file)) return null;
   ensure(fs.statSync(file).size < 64000, 'Report exceeds the private evidence limit.');
-  safeText(read(file));
-  try { return json(file); } catch { ensure(false, 'Save one JSON object in the requested output file.'); }
+  const text = read(file);
+  const reply = packetReply(file, text);
+  safeText(text);
+  return reply;
 }
 export function reserve(file, dispatch, candidate) {
   const rounds = fs.existsSync(file) ? json(file) : [];
@@ -47,7 +49,10 @@ export async function checkPackage(file,digest) {
 export async function review(state, dir, ledger, options, checkpoint) {
   const expected = route(state.risk.level, 'Reviewer, blind case');
   ensure(ready(expected.provider), 'Required independent reviewer unavailable. Configure ' + expected.provider + ' and repeat verify.');
-  if (options.newRound && state.round?.closed) state.round = null;
+  if (options.newRound && state.round?.closed) {
+    state.failedCandidate = state.round.candidate;
+    state.round = null;
+  }
   if (!state.round) {
     state.dispatch ??= randomUUID();
     checkpoint();
@@ -70,7 +75,7 @@ export async function review(state, dir, ledger, options, checkpoint) {
     let detail = identity + 'Supply a distinct case and expected result in string fields "case" and "expected". End this session after recording them.';
     if (stage !== 'blind') detail = identity + 'Replay the pinned candidate. Record candidate, caseDigest, verdict (PASS or HOLD), findings (array) and observations (one nonempty string per check, in order).\n' +
       JSON.stringify({ candidate: state.candidate, caseDigest: round.blind.digest, expected: round.blind.expected, checks,
-        requiredGates: state.gate.receipts, writableFiles: state.card.paths }) +
+        requiredGates: state.gate.receipts, builderGrant: editGrant(state.card) }) +
       '\nFor Heavy include packagePath, packageSha512, os and device for the tested artifact. Include skillRevision after an agent failure.';
     if (stage === 'judge') detail += '\nAssess the independent replay report at ' + round.replay.file + ' with digest ' + round.replay.digest +
       '\nBuilder identity and evidence: ' + JSON.stringify({actor:state.builder,report:state.builderEvidence});
@@ -98,6 +103,7 @@ export async function review(state, dir, ledger, options, checkpoint) {
         ensure(Array.isArray(report.findings) && ['PASS','HOLD'].includes(report.verdict), 'Supply a review verdict and the findings array.');
         if (report.verdict !== 'PASS' || report.findings.length) {
           finishRound(ledger,round.id,{verdict:'HOLD',file,digest:receipt.digest});
+          state.failedCandidate = state.candidate;
           round.closed = true; round.findings = report.findings; checkpoint();
           ensure(false, 'Review is on HOLD. Reconcile the findings before requesting another round.');
         }

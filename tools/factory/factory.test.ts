@@ -1,13 +1,13 @@
 import fs from 'node:fs';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { afterAll, beforeAll, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, expect, it, onTestFinished, vi } from 'vitest';
 import { parse, stakes, ticketCard } from './plan.mjs';
 import { childEnv, inspect, json, save, withLock } from './worktree.mjs';
 import { observeSlice, select } from './factory.mjs';
-import { actor, checkPackage, reserve, review } from './review.mjs';
-import { ready, route } from './brief.mjs';
+import { actor, checkPackage, getReport, reserve, review } from './review.mjs';
+import { packet, ready, route } from './brief.mjs';
 import { gateNames, privateEnv, runGates } from './gates.mjs';
 import { tmpRoot } from '../../apps/desktop/test-tmp';
 import { decideTrial } from './offline.mjs';
@@ -197,4 +197,183 @@ it('a stale green plus a failed launch holds and stops before the next gate', ()
   runGates(interrupted,dir,'verify',()=>{},false,(name:string)=>{resumed.push(name);return 0;});
   expect(resumed).toEqual(gateNames.slice(1));
   expect(interrupted.gate.receipts[0]).toEqual(completed);
+});
+
+function packetState() {
+  const t = inspect(tree);
+  return {root:tree, branch:t.branch, base:t.head, candidate:t.head, run:'round-one', ticket:fixture,
+    card:ticketCard(tree,fixture), risk:{level:'Light',reason:'Practice'}, dry:true};
+}
+
+it('prints the isolated Windows command and preserves both native exit codes after stderr', () => {
+  const folder = path.join(lab,"dispatch d'été"), out = path.join(folder,'reply.json');
+  fs.mkdirSync(folder);
+  const exe = path.join(folder,'codex.exe');
+  const log = vi.spyOn(console,'log').mockImplementation(()=>{});
+  try {
+    packet(packetState(),'Builder',folder,'A synthetic assignment.',out,()=>exe);
+    const commandLine = log.mock.calls.map(args=>String(args[0])).find(line=>line.startsWith('powershell.exe '));
+    const script = path.join(folder,'dispatch.ps1');
+    expect(commandLine).toBe("powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '" + script.replaceAll("'","''") + "'");
+    const body = fs.readFileSync(script,'utf8');
+    expect(body).toContain(exe.replaceAll("'","''"));
+    expect(body).toMatch(/\$ErrorActionPreference = 'Continue'\r?\n[^\n]+\*> \$null\r?\n\$code = \$LASTEXITCODE/);
+    if (process.platform !== 'win32') return;
+    const cs = path.join(folder,'Fake.cs');
+    fs.writeFileSync(cs, `using System;
+using System.IO;
+class Fake {
+  static int Main(string[] args) {
+    Console.InputEncoding = new System.Text.UTF8Encoding(false);
+    Console.Error.WriteLine("synthetic private progress");
+    string output = args[Array.IndexOf(args, "-o") + 1];
+    if (File.Exists(output)) return 17;
+    File.WriteAllText(output, Console.In.ReadToEnd());
+    return 0;
+  }
+}`);
+    const compiler = path.join(process.env.SystemRoot!,'Microsoft.NET','Framework','v4.0.30319','csc.exe');
+    execFileSync(compiler,['/nologo','/out:'+exe,cs],{cwd:folder});
+    const launch = () => spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',commandLine + '\nexit $LASTEXITCODE'],{
+      cwd:folder,encoding:'utf8',env:{...process.env,CODEX_API_KEY:marker},timeout:30000,windowsHide:true});
+    const success = launch();
+    expect(success.status,success.stderr).toBe(0);
+    expect(fs.readFileSync(out,'utf8')).toContain("dispatch d'été");
+    const failure = launch();
+    expect(failure.status,failure.stderr).toBe(17);
+    expect(failure.stdout).toContain('HOLD');
+    expect(success.stderr + success.stdout + failure.stderr + failure.stdout).not.toContain('synthetic private progress');
+  } finally { log.mockRestore(); }
+});
+
+it('gives each role its own section and the single raw object reply contract', () => {
+  const roles = ['Coordinator','Builder','Reviewer, blind case','Reviewer, replay','Judge'];
+  for (const role of roles) {
+    const folder = path.join(lab,'packets',role);
+    const result = packet(packetState(),role,folder,'Assignment fields.',path.join(folder,'reply.json'),()=>null);
+    const brief = fs.readFileSync(result.brief,'utf8');
+    expect(brief).toContain('**' + role + '.**');
+    expect(brief.slice(brief.indexOf('Assignment fields.'))).toMatch(/exactly one raw JSON object and nothing else/i);
+    for (const other of roles.filter(r=>r!==role)) expect(brief).not.toContain('**' + other + '.**');
+    expect(brief).not.toContain('60 words');
+  }
+});
+
+it.each(['report','card'])('reads one optionally fenced %s object and gives a specific HOLD for other replies', kind => {
+  const file = path.join(lab,kind+'.json');
+  const practice = ticketCard(tree,fixture);
+  const object = kind==='card' ? practice : {session:'test'};
+  const parseFile = () => kind==='card' ? ticketCard(tree,fixture,file) : getReport(file);
+  for (const fence of ['json','','JSON']) {
+    fs.writeFileSync(file,['\ufeff```'+fence,JSON.stringify(object),'```',''].join('\r\n'));
+    expect(parseFile()).toEqual(object);
+  }
+  for (const invalid of ['', 'null','[]','3','{} {}','preface\n{}','```json\n{}\n```\nextra','```\n```\n{}\n```\n```']) {
+    fs.writeFileSync(file,invalid);
+    expect(parseFile).toThrow(/one JSON object/i);
+  }
+});
+
+it('accepts a bug-fix card with an implicit append-only grant', () => {
+  const file = path.join(lab,'bug-card.json');
+  save(file,{...ticketCard(tree,fixture),bugFix:true});
+  expect(ticketCard(tree,fixture,file).bugFix).toBe(true);
+});
+
+function changeSlice(state:ReturnType<typeof packetState>, subject:string, rules?:string) {
+  fs.appendFileSync(path.join(tree,state.card.paths[0]),'\n// Practice slice\n');
+  if (rules !== undefined) fs.writeFileSync(path.join(tree,'docs/REVIEW.md'),rules);
+  git(tree,'commit','-qam',fixture+' '+subject,'-m','Factory-Run: '+state.run);
+  return inspect(tree);
+}
+
+function freshSlice() {
+  const branch = git(tree,'branch','--show-current');
+  git(tree,'switch','-qc','practice/'+randomUUID());
+  onTestFinished(()=>{ git(tree,'switch','-q',branch); });
+  return packetState();
+}
+
+it('resumes a frozen pre-Coordinator template with the JSON reply contract', () => {
+  const state = freshSlice();
+  const file = path.join(tree,'docs/factory/BRIEF-TEMPLATE.md');
+  const old = fs.readFileSync(file,'utf8').replace(/^\*\*Coordinator\.\*\*.*\r?\n/m,'')
+    .replace(/^\*\*Report\.\*\*[\s\S]*/m,'**Report.** Reply in 60 words or fewer with the result, receipt location and any unverified claim.\n');
+  fs.writeFileSync(file,old);
+  git(tree,'commit','-qam','Freeze earlier template');
+  state.base = git(tree,'rev-parse','HEAD');
+  const folder = path.join(lab,'legacy-plan');
+  const {brief} = packet(state,'Coordinator',folder,'Fill the card.',path.join(folder,'card.json'),()=>null);
+  const contents = fs.readFileSync(brief,'utf8');
+  expect(contents).toContain('**Coordinator.**');
+  expect(contents).toMatch(/exactly one raw JSON object and nothing else/i);
+  expect(contents).not.toContain('60 words');
+});
+
+it('accepts Fix in an ordinary feature subject and requires a rule only on the corrective slice', () => {
+  const state = freshSlice();
+  const first = changeSlice(state,'Fix practice wording');
+  expect(observeSlice(first,state)).toEqual([state.card.paths[0]]);
+  const corrected = changeSlice(state,'Handle the replay');
+  for (const fault of [{round:{candidate:first.head,closed:true,findings:['Missing cue']}},
+    {gate:{sha:first.head,status:'failed',failure:'vitest'}},
+    {failedCandidate:first.head,round:{number:2,candidate:first.head}}]) {
+    const failed = {...state,candidate:first.head,...fault};
+    expect(()=>observeSlice(corrected,failed)).toThrow(/rule/i);
+  }
+});
+
+it('checks new rule numbers and the exact prior text even with an explicit REVIEW grant', () => {
+  const state = freshSlice(), file = path.join(tree,'docs/REVIEW.md');
+  state.card.paths.push('docs/REVIEW.md');
+  const previous = fs.readFileSync(file,'utf8');
+  const number = 1 + Math.max(...Array.from(previous.matchAll(/^- R(\d+) /gm), m=>Number(m[1])));
+  const rule = '- R'+number+' (2026-11-19, test): Keep receipt. Check: Repeat.\n';
+  const changed = changeSlice(state,'Correct first finding',previous.replace('Every reviewer','Some reviewers') + rule);
+  expect(()=>observeSlice(changed,{...state,card:{...state.card,bugFix:true}})).toThrow(/append/i);
+  const other = packetState();
+  const duplicate = changeSlice(other,'Correct second finding',fs.readFileSync(file,'utf8') + rule);
+  expect(()=>observeSlice(duplicate,{...other,card:{...state.card,bugFix:true}})).toThrow(/R\d+/);
+  const incomplete = packetState();
+  const noCheck = changeSlice(incomplete,'Preserve progress',fs.readFileSync(file,'utf8') + '- R'+(number+1)+' (test): Preserve progress.\n');
+  expect(()=>observeSlice(noCheck,incomplete)).toThrow(/Check/);
+});
+
+it('permits a same-commit rule outside the card and gives the candidate rules only to exposed roles', () => {
+  const state = freshSlice(), first = changeSlice(state,'Show confirmation');
+  const file = path.join(tree,'docs/REVIEW.md'), previous = fs.readFileSync(file,'utf8');
+  const number = 1 + Math.max(...Array.from(previous.matchAll(/^- R(\d+) /gm), m=>Number(m[1])));
+  const rule = '- R'+number+' (2026-11-19, test): Check the late click. Check: Replay the late click.';
+  const head = changeSlice(state,'Preserve confirmation',previous + rule + '\n');
+  const failed = {...state,candidate:first.head,round:{candidate:first.head,closed:true,findings:['Late click']}};
+  expect(observeSlice(head,failed)).toContain('docs/REVIEW.md');
+  for (const role of ['Reviewer, blind case','Reviewer, replay','Judge','Builder']) {
+    const folder = path.join(lab,'candidate',role);
+    const {brief} = packet({...state,candidate:head.head},role,folder,'Replay.',path.join(folder,'report.json'),()=>null);
+    const contents = fs.readFileSync(brief,'utf8');
+    expect(contents.includes(rule)).toBe(role!=='Reviewer, blind case');
+    if (role==='Builder') expect(contents).toContain(file);
+  }
+});
+
+it('reissues a builder packet on a closed review and holds a ruleless correction on resume', () => {
+  const state = freshSlice();
+  const plan = command('plan',fixture);
+  const file = plan.stdout.match(/State: ([^\r\n]+)/)![1];
+  const saved = json(file);
+  state.run = saved.run;
+  const first = changeSlice(state,'Show practice result');
+  save(file,{...saved,...state,dry:false,step:'verify',candidate:first.head,readiness:{builder:true,reviewer:true},
+    round:{number:1,closed:true,candidate:first.head,findings:['Duplicate practice confirmation.']}});
+  command('build',state.run);
+  const brief = fs.readFileSync(path.join(path.dirname(file),'builder',first.head,'brief.md'),'utf8');
+  expect(brief).toContain('Duplicate practice confirmation.');
+  const rules = fs.readFileSync(path.join(tree,'docs/REVIEW.md'),'utf8');
+  const next = 1 + Math.max(...Array.from(rules.matchAll(/^- R(\d+) /gm), m=>Number(m[1])));
+  expect(brief).toContain('include R' + next + ' and its Check');
+  const corrected = changeSlice(state,'Debounce practice confirmation');
+  const resume = command('build',state.run);
+  expect(resume.status).toBe(1);
+  expect(resume.stderr).toMatch(/HOLD: .*rule.*same commit/i);
+  expect(inspect(tree).head).toBe(corrected.head);
 });

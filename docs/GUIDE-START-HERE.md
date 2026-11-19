@@ -91,6 +91,8 @@ npm.cmd run filow:verify -- $run --candidate $sha
 
 Verify saves **HOLD** while a packet awaits a reply. Give the blind packet alone to a fresh reviewer in the indicated folder. Save its distinct case as the requested JSON. Repeat the same verify line to obtain a read-only replay packet, then the independent judge packet. Use a fresh session at each step and the provider named in the brief. The judge receives the replay evidence. Each packet includes the output path and exact fields. A completed run prints **Local PASS** and its evidence path. A red gate stops immediately. Correct the documented cause before using `--retry` once. An unresolved review gets another dispatch only with `--new-round`, within the shared three-round limit.
 
+When a failed gate or review requires a code change, repeat `npm.cmd run filow:build -- $run` on the failed candidate for a fresh builder packet. Commit the correction and its next numbered rule together. The builder may append that rule and its check to `docs/REVIEW.md` even when the card lists only feature files. Repeat build on the new commit, then verify its SHA.
+
 Record elapsed time, people who helped, commit count before and after repeating build, and the state path. Release is the owner's separate fourth action. [Factory rules](METHODOLOGY.md)
 
 For another plan ticket use its ID or quote its title or request. Supply a scoped JSON `--card` with the practice card's fields to freeze exact examples, callers and writable paths. Plan can prepare a coordinator brief for an existing ticket that lacks a card. Keep the filled card private. Private state lives in `.filow-factory` beside the primary clone, grouped by repository, live or rehearsal, and run ID. Only the runner writes `run.json`.

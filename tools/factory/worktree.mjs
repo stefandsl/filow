@@ -25,12 +25,15 @@ export function childEnv() {
     /^(path|pathext|systemroot|windir|comspec|programfiles(?:\(x86\))?|processor_architecture|number_of_processors|os|lang)$/i.test(k)));
 }
 export function git(cwd, ...args) {
+  return gitOutput(cwd, ...args).trimEnd();
+}
+export function gitOutput(cwd, ...args) {
   const result = spawnSync('git', ['--no-optional-locks', '-c', 'core.fsmonitor=false', ...args], {
     cwd, encoding: 'utf8', windowsHide: true, timeout: 30000, maxBuffer: 16 * 1024 * 1024,
     env: { ...childEnv(), GIT_TERMINAL_PROMPT: '0' }, stdio: ['ignore', 'pipe', 'pipe'],
   });
   ensure(result.status === 0, 'Git check failed. Open the root of the assigned linked worktree on its ticket branch.');
-  return result.stdout.trimEnd();
+  return result.stdout;
 }
 export function inspect(cwd) {
   const root = fs.realpathSync(cwd);

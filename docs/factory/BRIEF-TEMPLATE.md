@@ -15,6 +15,8 @@ Read `docs/REVIEW.md` first. The coordinator fills in one private copy per assig
 
 Act without questions. Stop the affected step and report HOLD if a path or grant is unclear, setup fails, a secret appears, a required check stays red or a limit expires. Keep secrets out of briefs, command lines, logs and reports. Give checkout scripts and tests no provider or publish credentials.
 
+**Coordinator.** Trace the real callers and return the scoped ticket card. Freeze the exact writable paths, the user action, its positive and negative examples, the stakes and the checks.
+
 **Builder.** Inspect the entry point, callers and nearby tests. Reproduce a bug on the base, make the scoped fix and replay both examples. Record changed files and the applicable checks. Include the new review rule in the fix commit. After interruption, compare the saved gate intent with the receipt before repeating a command. Check both the recovered case and a fresh successful invocation.
 
 **Reviewer, blind case.** Start outside the candidate with the pre-change review rules, goal, examples and limits. Write a different failure case with its input and expected result. End the assignment. The coordinator records the case digest and time before sharing any candidate paths, revisions, tests or findings.
@@ -23,4 +25,4 @@ Act without questions. Stop the affected step and report HOLD if a path or grant
 
 **Judge.** Use a fresh, read-only session and the [verification rules](../METHODOLOGY.md#who-builds-and-who-reviews). Check independence, the actual risk and each receipt. Rehash any package at its recorded path, including after a restart, and match the reviewer's digest. Replay disputed findings. Give local PASS only for a candidate with every required check satisfied. Otherwise give HOLD and the next action. Stop after three review rounds, including rechecks.
 
-**Report.** Record the assignment identity. For each executed gate give the tested SHA, command, working directory, times, exit code and expected and observed results. The blind report contains only the independent case and its receipt. For native claims include the package digest, device and OS. Keep full evidence private. Reply in 60 words or fewer with the result, receipt location and any unverified claim.
+**Report.** Use the fields requested for this assignment. For each executed gate record the tested SHA, command, working directory, times, exit code and expected and observed results. For native claims include the package digest, device and OS. Keep full evidence private. Reply with exactly one raw JSON object and nothing else. Omit Markdown fences and surrounding prose.
