@@ -20,6 +20,12 @@ export function daily(home, common) {
     const dir = path.join(home,'offline'), last = path.join(dir,'schedule.json');
     const today = now().slice(0,10), file = path.join(dir,today + '.json');
     const next = new Date(Date.now() + 86400000).toISOString().slice(0,10);
+    function pause(receipt, reason, receiptFile) {
+      const schedule = {status:'paused',track:'AR-3',last:receipt.ended ?? null,next,reason};
+      if (receiptFile) schedule.receipt = receiptFile;
+      save(last,schedule);
+      return schedule;
+    }
     const grant = path.join(dir,'proposal.json');
     if (!fs.existsSync(grant)) {
       const schedule = { status:'blocked', track:'AR-3', last:fs.existsSync(last) ? json(last).last : null, next,
@@ -29,12 +35,14 @@ export function daily(home, common) {
     if (fs.existsSync(file)) {
       const result = json(file);
       ensure(result.result && !['running','invalid','crash'].includes(result.result), 'Offline trial interrupted or invalid. Inspect its receipt: ' + file);
-      return json(last);
+      return pause(result,'Today\'s trial is complete. Review its receipt before integration.',file);
     }
     const p = json(grant);
     const prior = fs.readdirSync(dir).filter(f=>/^\d{4}-\d\d-\d\d\.json$/.test(f)).sort().map(f=>json(path.join(dir,f)));
-    if (prior.some(r=>r.candidate === p.candidate) || prior.length >= 12 ||
-        prior.length >= 4 && prior.slice(-4).every(r=>r.result === 'discard')) return json(last);
+    const latest = prior.at(-1);
+    if (prior.length >= 12) return pause(latest,'Track stopped at the 12-trial cap.');
+    if (prior.length >= 4 && prior.slice(-4).every(r=>r.result === 'discard')) return pause(latest,'Track stopped after four consecutive discards.');
+    if (prior.some(r=>r.candidate === p.candidate)) return pause(latest,'Proposal already evaluated. Supply a new proposal.');
     const kept = prior.filter(r=>r.result === 'keep').at(-1);
     ensure(!kept || p.base === kept.candidate, 'Continue the offline track from its last kept commit.');
     const initial = inspect(p.baselineTree), proposed = inspect(p.candidateTree);
@@ -79,7 +87,7 @@ export function daily(home, common) {
       const rows = fs.readdirSync(dir).filter(f=>/^\d{4}-\d\d-\d\d\.json$/.test(f)).sort().map(f=>json(path.join(dir,f)));
       fs.writeFileSync(path.join(dir,'results.tsv'),['date\tbase\tcandidate\tbaseline\tdev\tnoise\tguards\tstatus',
         ...rows.map(r=>[r.started,r.base,r.candidate,r.baseline,r.dev,r.noise,r.guards,r.result].join('\t'))].join('\n') + '\n');
-      save(last,{status:'paused',last:receipt.ended,next,track:'AR-3',receipt:file,reason:'One trial per prepared proposal. Review before integration.'});
+      pause(receipt,'One trial per prepared proposal. Review before integration.',file);
     }
     return json(last);
   });

@@ -6,7 +6,7 @@ import { Hold, ensure, git, gitOutput, hash, inspect, json, now, read, save, sto
 import { editGrant, parse, safeText, stakes, ticketCard } from './plan.mjs';
 import { packet, ready, route } from './brief.mjs';
 import { gateNames, runGates } from './gates.mjs';
-import { actor, getReport, review } from './review.mjs';
+import { actor, checkAllowance, getReport, review } from './review.mjs';
 import { daily } from './offline.mjs';
 
 export function select(runs, target, branch, verb) {
@@ -167,6 +167,11 @@ async function run(options) {
     ensure(state.schema === 1 && state.root === tree.root && state.branch === tree.branch, 'Resume in the assigned worktree: ' + state.root);
     const dir = path.join(baseDir,state.run), file = path.join(dir,'run.json');
     const checkpoint = () => save(file,state);
+    const ledger = path.join(home,'reviews',state.ticket + '.json');
+    const replaceRound = options.newRound && (state.step === 'complete' || state.round?.closed);
+    if (options.verb === 'verify' && !state.dry && (replaceRound || !state.round)) {
+      checkAllowance(ledger,replaceRound ? null : state.dispatch);
+    }
     state.writer = writer();
     console.log((state.dry ? 'DRY RUN | ' : '') + state.run + '\nState: ' + file);
     checkpoint();
@@ -206,12 +211,11 @@ async function run(options) {
         }
         ensure(state.buildEvidence?.sha === state.candidate && state.buildEvidence.status === 'green' && state.step !== 'build', 'Complete the green build first.');
         ensure(hash(read(state.builderEvidence.file)) === state.builderEvidence.digest, 'The builder report changed. Reconcile the evidence and repeat build.');
-        if (state.step === 'complete' && (options.retry || options.newRound)) {
-          state.gate = null; state.round = null; state.verdict = 'HOLD';
-        }
+        if (replaceRound) state.round = null;
+        state.verdict = 'HOLD';
         state.step = 'verify'; checkpoint();
         runGates(state, dir, 'verify', checkpoint, options.retry);
-        await review(state,dir,path.join(home,'reviews',state.ticket + '.json'),options,checkpoint);
+        await review(state,dir,ledger,options,checkpoint);
         ensure(inspect(tree.root).head === state.candidate,'Candidate moved during verification.');
         delete state.failedCandidate;
         state.verdict = 'PASS'; state.step = 'complete'; checkpoint();

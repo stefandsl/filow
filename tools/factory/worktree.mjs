@@ -22,7 +22,7 @@ export function save(file, value) {
 
 export function childEnv() {
   return Object.fromEntries(Object.entries(process.env).filter(([k]) =>
-    /^(path|pathext|systemroot|windir|comspec|programfiles(?:\(x86\))?|processor_architecture|number_of_processors|os|lang)$/i.test(k)));
+    /^(path|pathext|systemdrive|systemroot|computername|windir|comspec|programfiles(?:\(x86\))?|processor_architecture|number_of_processors|os|lang)$/i.test(k)));
 }
 export function git(cwd, ...args) {
   return gitOutput(cwd, ...args).trimEnd();
@@ -46,6 +46,14 @@ export function inspect(cwd) {
     'Dirty worktree. Inspect git status. Preserve existing edits and commit only the intended slice before resuming.');
   return { root, branch, common: resolveGit('--git-common-dir'), head: git(root, 'rev-parse', 'HEAD') };
 }
+export function checkWindowsVolumes(dir, root) {
+  if (process.env.NODE_ENV === 'test' && process.env.FILOW_FACTORY_ALLOW_ANY_VOLUME === '1') return;
+  for (const drive of new Set(['C:\\', path.win32.parse(dir).root, path.win32.parse(root).root])) {
+    const disk = fs.statfsSync(drive);
+    ensure(disk.bavail * disk.bsize >= 20e9, 'A required volume has less than 20 GB free. Stop and free workspace capacity.');
+  }
+  ensure(!/^c:/i.test(dir) && !/^c:/i.test(root), 'Use a workspace volume outside C: for the clone and worktree.');
+}
 export function storage(tree) {
   // One shared index per clone, across all its linked worktrees and sessions.
   const primary = path.dirname(tree.common);
@@ -54,13 +62,7 @@ export function storage(tree) {
     const rel = path.relative(root.slice(9).trimEnd(), dir);
     ensure(rel.startsWith('..' + path.sep) || path.isAbsolute(rel), 'Private factory storage must be outside all checkouts.');
   }
-  if (process.platform === 'win32') {
-    for (const drive of new Set(['C:\\', path.parse(dir).root, path.parse(tree.root).root])) {
-      const disk = fs.statfsSync(drive);
-      ensure(disk.bavail * disk.bsize >= 20e9, 'A required volume has less than 20 GB free. Stop and free workspace capacity.');
-    }
-    ensure(!/^c:/i.test(dir) && !/^c:/i.test(tree.root), 'Use a workspace volume outside C: for the clone and worktree.');
-  }
+  if (process.platform === 'win32') checkWindowsVolumes(dir,tree.root);
   return dir;
 }
 

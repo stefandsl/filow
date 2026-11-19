@@ -63,10 +63,11 @@ npm.cmd run filow:build -- N-08-PRACTICE
 
 Copy the run ID and state path. A missing provider pauses live plan. Restore the credential and repeat plan with the saved ID. The first build saves the edit intent, writes the builder brief and prints the desktop Codex command. Run the printed `powershell.exe ... dispatch.ps1` line for an approved dispatch. It starts Codex with a private profile and only its own provider credential. You can close the terminal at this point and repeat the same build command in another one.
 
-**Make and observe the edit.** Start the tour on the assigned checkout in a second terminal. Replace the path below with the worktree path printed by plan. Use an unused port, for example 4799 or 4800.
+**Make and observe the edit.** In a second PowerShell terminal, paste the Worktree path printed by plan when prompted. Use an unused port, for example 4799 or 4800.
 
 ```powershell
-Set-Location 'G:\your-projects\filow-practice\tour worktree\apps\web'
+$tree = Read-Host 'Worktree path printed by plan'
+Set-Location -LiteralPath (Join-Path $tree 'apps\web')
 & '..\..\node_modules\.bin\next.cmd' dev --hostname 127.0.0.1 --port 4799
 ```
 

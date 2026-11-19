@@ -3,7 +3,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { childEnv, ensure, hash, inspect, json, now, read, save, withLock } from './worktree.mjs';
+import { childEnv, ensure, git, hash, inspect, json, now, read, save, withLock } from './worktree.mjs';
 
 export function privateEnv(folder) {
   const env = { ...childEnv(), CI: 'true', NEXT_TELEMETRY_DISABLED: '1', GIT_TERMINAL_PROMPT: '0',
@@ -24,6 +24,29 @@ export const gateNames = ['electron install','desktop vendor','remove generated 
 const commands = ['node node_modules/electron/install.js','npm run vendor -w apps/desktop',
   'remove apps/desktop/vendor/i18n.js if present','npx vitest run','npm run build:welcome -w apps/desktop','npm run typecheck','npm run lint'];
 const worker = fileURLToPath(import.meta.url);
+
+// Give each gate sequence its own copy of the candidate. Even tracked bundles and
+// pre-existing ignored files in the ticket checkout survive a killed generator.
+function gateCheckout(root, sha, dir) {
+  const checkout = fs.mkdtempSync(path.join(dir,'ci-'));
+  git(root,'clone','--quiet','--shared','--no-checkout','--',root,checkout);
+  git(checkout,'checkout','--quiet','--detach',sha);
+  // Use the dependencies already installed for this candidate, including nested
+  // workspace installs. Generated desktop and native bundles live in the copy.
+  const manifests = git(checkout,'ls-files','-z','--','package.json','apps/*/package.json','packages/*/package.json');
+  for (const manifest of manifests.split('\0').filter(Boolean)) {
+    const modules = path.join(path.dirname(manifest),'node_modules');
+    const installed = path.join(root,modules);
+    if (fs.existsSync(installed)) fs.symlinkSync(installed,path.join(checkout,modules),'junction');
+  }
+  // Vendor validates the pinned runtime stamp and may replace this whole directory.
+  const runtime = path.join('apps/desktop/native/llama',process.platform+'-'+process.arch);
+  if (fs.existsSync(path.join(root,runtime,'FETCHED-FROM.txt')) && !fs.existsSync(path.join(checkout,runtime))) {
+    fs.cpSync(path.join(root,runtime),path.join(checkout,runtime),{recursive:true});
+  }
+  return checkout;
+}
+
 function execute(name, root, env) {
   const npm = process.env.npm_execpath;
   const node = (...args) => spawnSync(process.execPath, args, {
@@ -44,7 +67,7 @@ function execute(name, root, env) {
 function writeReceipt(intent, env, run) {
   if (fs.existsSync(intent.destination)) return;
   const start = now();
-  const exit = run(intent.name,intent.cwd,env);
+  const exit = run(intent.name,intent.checkout ?? intent.cwd,env);
   save(intent.destination,{...intent, command:commands[gateNames.indexOf(intent.name)], start, end:now(), exit, node:process.version});
 }
 
@@ -54,6 +77,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === worker) {
     const intent = JSON.parse(process.argv[2]);
     const tree = inspect(process.cwd());
     ensure(gateNames.includes(intent.name) && tree.head === intent.sha && tree.root === intent.cwd, 'Invalid gate intent.');
+    ensure(intent.checkout && git(intent.checkout,'rev-parse','HEAD') === intent.sha, 'Gate checkout does not match the candidate.');
     await withLock(tree.common + '/gate/' + tree.branch, () => writeReceipt(intent,process.env,execute));
   } catch { process.exitCode = 1; }
 }
@@ -68,21 +92,28 @@ export function runGates(state, dir, phase, checkpoint, retry, run) {
   }
   const g = state.gate;
   ensure(!g.failure || retry && !g.retried, 'The gate is red. Inspect the failing command. After correcting setup, use --retry once or prepare a corrected candidate.');
-  if (g.failure) { g.retried = true; g.receipts = []; state.intent = null; delete g.failure; }
+  if (g.failure) {
+    g.status = 'running'; g.retried = true;
+    state.intent = null; delete g.failure;
+  }
   for (const name of gateNames) {
     const old = g.receipts.find(r => r.name === name);
     if (old) {
-      ensure(hash(read(old.path)) === old.digest && json(old.path).sha === state.candidate && json(old.path).exit === 0,
+      const receipt = json(old.path);
+      ensure(hash(read(old.path)) === old.digest && receipt.name === name && receipt.phase === phase &&
+        receipt.sha === state.candidate && receipt.exit === 0,
         'Gate receipt changed. Preserve evidence and start a fresh gate.');
       continue;
     }
     const pending = state.intent?.phase === phase && state.intent.name === name && state.intent.sha === state.candidate;
+    if (!run && !g.checkout) g.checkout = gateCheckout(state.root,state.candidate,dir);
     if (!pending) {
       const id = randomUUID();
       state.intent = { id, name, phase, cwd:state.root, destination:path.join(dir,'receipts',id + '.json'),
         run:state.run, sha:state.candidate, npm:process.env.npm_config_user_agent?.split(' ')[0] || 'unknown' };
     }
     const intent = state.intent, file = intent.destination;
+    if (!run) intent.checkout = g.checkout;
     state.verdict = 'HOLD';
     checkpoint();
     if (!fs.existsSync(file)) {
@@ -100,7 +131,6 @@ export function runGates(state, dir, phase, checkpoint, retry, run) {
     ensure(['id','name','phase','cwd','destination','run','sha'].every(k=>receipt[k] === intent[k]), 'Receipt does not match the saved gate intent.');
     if (receipt.exit !== 0) {
       g.status = 'failed'; g.failure = name; state.firstFailure ??= receipt;
-      state.failedCandidate = state.candidate;
       checkpoint();
       ensure(false, 'Gate failed: ' + name + '. Inspect the receipt at ' + file);
     }

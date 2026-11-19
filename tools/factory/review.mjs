@@ -21,12 +21,16 @@ export function getReport(file) {
   safeText(text);
   return reply;
 }
-export function reserve(file, dispatch, candidate) {
+export function checkAllowance(file, dispatch) {
   const rounds = fs.existsSync(file) ? json(file) : [];
+  const lastPass = rounds.filter(r => r.verdict === 'PASS').at(-1)?.candidate || 'none';
+  ensure(rounds.length < 3 || rounds.some(r => r.id === dispatch), 'Three review rounds used for this change. Last independent pass: ' + lastPass + '. Send open findings and preserved evidence to the owner.');
+  return rounds;
+}
+export function reserve(file, dispatch, candidate) {
+  const rounds = checkAllowance(file,dispatch);
   const old = rounds.find(r => r.id === dispatch);
   if (old) return old;
-  const lastPass = rounds.filter(r => r.verdict === 'PASS').at(-1)?.candidate || 'none';
-  ensure(rounds.length < 3, 'Three review rounds used for this change. Last independent pass: ' + lastPass + '. Send open findings and preserved evidence to the owner.');
   const round = { number: rounds.length + 1, id: dispatch, candidate, reserved: now() };
   save(file, [...rounds, round]);
   return round;
@@ -49,11 +53,7 @@ export async function checkPackage(file,digest) {
 export async function review(state, dir, ledger, options, checkpoint) {
   const expected = route(state.risk.level, 'Reviewer, blind case');
   ensure(ready(expected.provider), 'Required independent reviewer unavailable. Configure ' + expected.provider + ' and repeat verify.');
-  if (options.newRound && state.round?.closed) {
-    state.failedCandidate = state.round.candidate;
-    state.round = null;
-  }
-  if (!state.round) {
+  if (!state.round || options.newRound && state.round.closed) {
     state.dispatch ??= randomUUID();
     checkpoint();
     state.round = reserve(ledger, state.dispatch, state.candidate);

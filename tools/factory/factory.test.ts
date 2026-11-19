@@ -4,13 +4,13 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { afterAll, beforeAll, expect, it, onTestFinished, vi } from 'vitest';
 import { parse, stakes, ticketCard } from './plan.mjs';
-import { childEnv, inspect, json, save, withLock } from './worktree.mjs';
+import { checkWindowsVolumes, childEnv, hash, inspect, json, save, withLock } from './worktree.mjs';
 import { observeSlice, select } from './factory.mjs';
 import { actor, checkPackage, getReport, reserve, review } from './review.mjs';
 import { packet, ready, route } from './brief.mjs';
 import { gateNames, privateEnv, runGates } from './gates.mjs';
 import { tmpRoot } from '../../apps/desktop/test-tmp';
-import { decideTrial } from './offline.mjs';
+import { daily, decideTrial } from './offline.mjs';
 
 const source = process.cwd();
 const lab = tmpRoot('factory');
@@ -20,6 +20,7 @@ const fixture = 'N-08-PRACTICE';
 const marker = 'synthetic-secret-value-123456';
 const command = (verb: string, ...args: string[]) => spawnSync(process.execPath,['tools/factory/factory.mjs',verb,...args],{
   cwd: tree, encoding:'utf8',timeout:30000,windowsHide:true,env:{...childEnv(), ...privateEnv(path.join(lab,'runtime')), GH_TOKEN:marker,
+    NODE_ENV:'test', FILOW_FACTORY_ALLOW_ANY_VOLUME:'1',
     CODEX_API_KEY:process.env.FACTORY_TEST_CREDENTIAL || '',ANTHROPIC_API_KEY:process.env.FACTORY_TEST_CREDENTIAL || ''},
 });
 
@@ -142,6 +143,16 @@ it('seals the blind case before exposing the candidate and refuses a stale repla
     vi.stubEnv('CODEX_API_KEY',''); vi.stubEnv('OPENAI_API_KEY','');
     save(file,{...replay,candidate:t.head}); await expect(verify()).rejects.toThrow(/Judge unavailable/);
     expect(json(ledger)).toHaveLength(1);
+    expect(state.failedCandidate).toBeUndefined();
+    vi.stubEnv('CODEX_API_KEY',marker);
+    // A synthetic packet needs no installed Codex binary.
+    state.dry = true;
+    await expect(verify()).rejects.toThrow(/Awaiting judge/);
+    save(path.join(root,'judge','report.json'),{...route('Medium','Judge'),session:'judge',
+      assignment:state.round.packets.judge,candidate:t.head,caseDigest:state.round.blind.digest,
+      verdict:'HOLD',findings:['A second click duplicates the confirmation.']});
+    await expect(verify()).rejects.toThrow(/Review is on HOLD/);
+    expect(state).toMatchObject({failedCandidate:t.head,round:{closed:true}});
   } finally { vi.unstubAllEnvs(); }
 });
 it('takes all three public verbs through a dry run, repeats build in another process and leaves one private run', () => {
@@ -188,7 +199,15 @@ it('a stale green plus a failed launch holds and stops before the next gate', ()
   expect(json(disk)).toMatchObject({verdict:'HOLD',firstFailure:{exit:null,sha:head},gate:{status:'failed'}});
   expect(calls).toEqual(gateNames.slice(0,4));
   expect(()=>runGates(state,dir,'verify',()=>{},false,launch)).toThrow(/gate is red/);
-  runGates(state,dir,'verify',()=>save(disk,state),true,()=>0);
+  const green = structuredClone(state.gate.receipts);
+  const retried:string[] = [];
+  runGates(state,dir,'verify',()=>save(disk,state),true,(name:string)=>{
+    expect(json(disk).gate.status).toBe('running');
+    retried.push(name); return 0;
+  });
+  expect(retried).toEqual(gateNames.slice(3));
+  expect(state.gate.receipts.slice(0,3)).toEqual(green);
+  expect(state.failedCandidate).toBeUndefined();
   expect(json(disk).gate.receipts).toHaveLength(gateNames.length);
   const completed = json(disk).gate.receipts[0];
   const saved = json(completed.path);
@@ -293,6 +312,128 @@ function freshSlice() {
   onTestFinished(()=>{ git(tree,'switch','-q',branch); });
   return packetState();
 }
+
+it.each(['tracked','ignored','absent'])('runs the generation gate workers with a %s dictionary and keeps the checkout clean', kind => {
+  const root = path.join(lab,'bundles-'+kind);
+  git(clone,'worktree','add','-qb','bundles/'+kind,root);
+  save(path.join(root,'package.json'),{private:true});
+  git(root,'add','package.json');
+  fs.copyFileSync(path.join(source,'.gitignore'),path.join(root,'.gitignore'));
+  const vendor = path.join(root,'apps/desktop/vendor');
+  fs.mkdirSync(vendor,{recursive:true});
+  const dictionary = path.join(vendor,'i18n.js');
+  const welcome = path.join(vendor,'welcome.js');
+  fs.writeFileSync(welcome,'tracked welcome');
+  if (kind !== 'absent') fs.writeFileSync(dictionary,'original dictionary');
+  git(root,'add','-f','apps/desktop/vendor/welcome.js');
+  if (kind === 'tracked') git(root,'add','-f','apps/desktop/vendor/i18n.js');
+  git(root,'commit','-qam','Track fixture output');
+  const before = inspect(root);
+  const dir = path.join(lab,'bundle receipts '+kind);
+  const install = path.join(root,'node_modules/electron/install.js');
+  const vitest = path.join(root,'node_modules/vitest/vitest.mjs');
+  for (const file of [install,vitest]) fs.mkdirSync(path.dirname(file),{recursive:true});
+  fs.writeFileSync(install,'');
+  fs.writeFileSync(vitest,"import fs from 'node:fs'; process.exitCode = Number(fs.existsSync('apps/desktop/vendor/i18n.js') || fs.readFileSync('apps/desktop/vendor/welcome.js','utf8') !== 'generated')");
+  const npm = path.join(lab,'fixture-npm.cjs');
+  fs.writeFileSync(npm,"if (['vendor','build:welcome'].includes(process.argv[3])) for (const file of ['i18n.js','welcome.js','profile.js']) require('node:fs').writeFileSync('apps/desktop/vendor/'+file,'generated')");
+  vi.stubEnv('npm_execpath',npm);
+  try {
+    const state = {root,candidate:before.head};
+    runGates(state,dir,'verify',()=>{},false);
+    expect(inspect(root)).toEqual(before);
+    expect(fs.readFileSync(welcome,'utf8')).toBe('tracked welcome');
+    if (kind !== 'absent') expect(fs.readFileSync(dictionary,'utf8')).toBe('original dictionary');
+  } finally { vi.unstubAllEnvs(); }
+},120000);
+
+it('enforces Windows volume limits except for explicitly opted-in test processes', () => {
+  const disk = vi.spyOn(fs,'statfsSync');
+  try {
+    vi.stubEnv('NODE_ENV','production');
+    vi.stubEnv('FILOW_FACTORY_ALLOW_ANY_VOLUME','1');
+    disk.mockReturnValue({bavail:21e9,bsize:1} as ReturnType<typeof fs.statfsSync>);
+    const onC = () => checkWindowsVolumes('G:/factory','C:/worktree');
+    expect(onC).toThrow(/outside C:/);
+    expect(()=>checkWindowsVolumes('C:/factory','G:/worktree')).toThrow(/outside C:/);
+    disk.mockReturnValue({bavail:19e9,bsize:1} as ReturnType<typeof fs.statfsSync>);
+    expect(()=>checkWindowsVolumes('G:/factory','G:/worktree')).toThrow(/20 GB/);
+    vi.stubEnv('NODE_ENV','test');
+    vi.stubEnv('FILOW_FACTORY_ALLOW_ANY_VOLUME','');
+    expect(onC).toThrow(/20 GB/);
+    vi.stubEnv('FILOW_FACTORY_ALLOW_ANY_VOLUME','1');
+    expect(onC).not.toThrow();
+    expect(privateEnv(lab)).not.toHaveProperty('FILOW_FACTORY_ALLOW_ANY_VOLUME');
+  } finally {
+    disk.mockRestore(); vi.unstubAllEnvs();
+  }
+});
+
+it('passes the Windows drive and machine name into isolated children', () => {
+  try {
+    vi.stubEnv('SystemDrive','C:');
+    vi.stubEnv('COMPUTERNAME','FACTORY-TEST');
+    const env = Object.fromEntries(Object.entries(privateEnv(lab)).map(([k,v])=>[k.toUpperCase(),v]));
+    expect(env).toMatchObject({SYSTEMDRIVE:'C:',COMPUTERNAME:'FACTORY-TEST'});
+  } finally { vi.unstubAllEnvs(); }
+});
+
+it.each(['duplicate','12 trials','four discards','today'])('persists the paused offline schedule for %s', async reason => {
+  const home = path.join(lab,'schedule '+reason), dir = path.join(home,'offline');
+  const file = path.join(dir,'schedule.json'), ended = '2026-01-15T10:00:00Z';
+  const count = reason==='12 trials' ? 12 : reason==='four discards' ? 4 : 1;
+  const today = new Date().toISOString().slice(0,10);
+  for (let i=1;i<=count;i++) {
+    const date = reason==='today' ? today : '2000-01-'+String(i).padStart(2,'0');
+    save(path.join(dir,date+'.json'),{candidate:String(i),ended,result:reason==='four discards' ? 'discard' : 'keep'});
+  }
+  save(path.join(dir,'proposal.json'),{candidate:reason==='duplicate' ? '1' : 'next'});
+  if (reason==='12 trials') save(file,{status:'blocked',next:'2000-01-01'});
+  const schedule = await daily(home,clone);
+  expect(schedule).toMatchObject({status:'paused',track:'AR-3',last:ended,reason:expect.any(String),
+    next:new Date(Date.now()+86400000).toISOString().slice(0,10)});
+  expect(json(file)).toEqual(schedule);
+});
+
+it.each([1,3])('checks the new-round allowance before touching a completed verify with %i slots used', used => {
+  const state = freshSlice();
+  vi.stubEnv('FACTORY_TEST_CREDENTIAL',marker);
+  try {
+    const plan = command('plan',fixture);
+    const file = plan.stdout.match(/State: ([^\r\n]+)/)![1], dir = path.dirname(file);
+    const saved = json(file), candidate = state.candidate;
+    const ledger = path.join(path.dirname(path.dirname(dir)),'reviews',fixture+'.json');
+    const rounds = Array.from({length:used},(_,i)=>({number:i+1,id:randomUUID(),candidate,verdict:'PASS'}));
+    save(ledger,rounds);
+    const builder = path.join(dir,'builder.json'); save(builder,{session:'author'});
+    const gateState:any = {root:tree,candidate};
+    const install = path.join(tree,'node_modules/electron/install.js');
+    fs.mkdirSync(path.dirname(install),{recursive:true}); fs.writeFileSync(install,'');
+    runGates(gateState,dir,'verify',()=>{},false,()=>0);
+    const gate = gateState.gate;
+    save(file,{...saved,step:'complete',candidate,verdict:'PASS',gate,buildEvidence:{...gate,phase:'build'},
+      builder:{session:'author'},builderEvidence:{file:builder,digest:hash(fs.readFileSync(builder))},round:rounds.at(-1)});
+    const result = command('verify',saved.run,'--new-round');
+    expect(result.stderr).toContain(used===3 ? 'Three review rounds' : 'Awaiting blind');
+    expect(result.stdout).not.toContain('Running ');
+    expect(json(file).gate).toEqual(gate);
+    expect(json(file).failedCandidate).toBeUndefined();
+    if (used===3) {
+      expect(json(file)).toMatchObject({step:'complete',verdict:'PASS',round:rounds.at(-1)});
+      expect(json(ledger)).toEqual(rounds);
+    } else {
+      const reserved = json(file).round.id;
+      expect(command('verify',saved.run,'--new-round').stderr).toContain('Awaiting blind');
+      expect(json(file).round.id).toBe(reserved);
+      expect(json(ledger)).toHaveLength(2);
+    }
+  } finally { vi.unstubAllEnvs(); }
+},120000);
+
+it('starts the tour relative to the worktree from plan', () => {
+  const guide = fs.readFileSync(path.join(source,'docs/GUIDE-START-HERE.md'),'utf8');
+  expect(guide).toContain("Set-Location -LiteralPath (Join-Path $tree 'apps\\web')");
+});
 
 it('resumes a frozen pre-Coordinator template with the JSON reply contract', () => {
   const state = freshSlice();
