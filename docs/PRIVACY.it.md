@@ -14,8 +14,6 @@ Ultimo aggiornamento: 10 novembre 2026. Questo testo descrive quello che l'app F
 verificato sul suo codice (l'elenco tecnico completo è docs/okfilow/OUTBOUND.md nel codice sorgente di
 Filow). È disponibile anche in inglese: imposta la lingua di Filow sull'inglese.
 
-> Le parti tra doppie parentesi quadre, come [[questa]], non sono ancora compilate. Solo l'editore può compilarle, prima del rilascio.
-
 ## In breve
 
 - Filow funziona sul tuo computer. Non c'è nessun account e nessuna registrazione.
@@ -31,9 +29,8 @@ Filow). È disponibile anche in inglese: imposta la lingua di Filow sull'inglese
 L'editore di Filow è il titolare del trattamento per le poche cose che arrivano all'editore (vedi
 "Cosa arriva a noi").
 
-- Nome: [[ragione sociale o nome dell'editore]]
-- Indirizzo: [[indirizzo postale]]
-- Contatto per la privacy: [[indirizzo e-mail]]
+- Editore: VoidExploit, Italia (codice postale 30034)
+- Contatto per la privacy: [stefandsl@outlook.com](mailto:stefandsl@outlook.com)
 
 Per i servizi cloud che scegli di usare (elencati sotto), è l'azienda che gestisce il servizio a
 decidere cosa fa dei dati che riceve. Vale la sua informativa sulla privacy.
@@ -179,7 +176,7 @@ computer, quindi:
 - Negli Stati Uniti, Filow di per sé non raccoglie informazioni personali da minori di 13 anni;
   vale lo stesso consiglio sulle funzioni cloud.
 
-[[Il consulente legale dell'editore deve confermare questa sezione per i Paesi in cui Filow è offerto.]]
+Questa sezione non è ancora stata verificata da un consulente legale per tutti i Paesi in cui Filow è offerto.
 
 ## Come cancellare i tuoi dati
 
@@ -195,9 +192,10 @@ I dati già inviati a un servizio cloud sono conservati da quell'azienda: chiedi
 ## I tuoi diritti
 
 Puoi chiederci cosa conserviamo su di te (di solito niente, oppure una segnalazione che hai
-pubblicato su GitHub), chiederci di correggerlo o cancellarlo e opporti al suo uso. Scrivi a [[indirizzo e-mail]].
-Puoi anche presentare reclamo all'autorità per la protezione dei dati ([[l'autorità del Paese in cui
-l'editore ha sede, per esempio il Garante per la protezione dei dati personali in Italia]]).
+pubblicato su GitHub), chiederci di correggerlo o cancellarlo e opporti al suo uso.
+Scrivi a [stefandsl@outlook.com](mailto:stefandsl@outlook.com).
+Puoi anche presentare reclamo al [Garante per la protezione dei dati personali](https://www.garanteprivacy.it) in Italia.
+Se ti trovi in un altro Paese dell'UE, puoi presentare reclamo alla tua autorità locale per la protezione dei dati.
 
 ## Modifiche
 

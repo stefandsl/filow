@@ -13,8 +13,6 @@ Last updated: 10 November 2026. This text describes what the Filow app really do
 its code (the full technical list is docs/okfilow/OUTBOUND.md in Filow's source code). It is also
 available in Italian: set Filow's language to Italian.
 
-> Parts in double square brackets, like [[this]], are not filled in yet. Only the publisher can fill them in, before release.
-
 ## In short
 
 - Filow works on your computer. There is no account and no sign-up.
@@ -30,9 +28,8 @@ available in Italian: set Filow's language to Italian.
 The publisher of Filow is the data controller for the few things that reach the publisher (see
 "What reaches us").
 
-- Name: [[publisher's legal name]]
-- Address: [[postal address]]
-- Contact for privacy questions: [[e-mail address]]
+- Publisher: VoidExploit, Italy (postal code 30034)
+- Contact for privacy questions: [stefandsl@outlook.com](mailto:stefandsl@outlook.com)
 
 For the cloud services you choose to use (listed below), the company running that service decides
 what it does with the data it receives. Its own privacy policy applies.
@@ -174,7 +171,7 @@ computer, so:
 - In the United States, Filow collects no personal information from children under 13 itself;
   the same advice about cloud features applies.
 
-[[The publisher's legal adviser should confirm this section for the countries where Filow is offered.]]
+This section has not yet been reviewed by legal counsel for every country where Filow is offered.
 
 ## How to delete your data
 
@@ -190,9 +187,9 @@ service is held by that company: ask it to delete it.
 ## Your rights
 
 You can ask us what we hold about you (normally nothing, or an issue you posted on GitHub), ask us to correct
-or delete it, and object to its use. Write to [[e-mail address]]. You can also complain to your data
-protection authority ([[the authority where the publisher is established, for example the Garante
-per la protezione dei dati personali in Italy]]).
+or delete it, and object to its use. Write to [stefandsl@outlook.com](mailto:stefandsl@outlook.com).
+You can also complain to Italy's [Garante per la protezione dei dati personali](https://www.garanteprivacy.it).
+If you are in another EU country, you may complain to your local data protection authority.
 
 ## Changes
 

@@ -33,18 +33,16 @@ describe("the privacy policy shipped in the app", () => {
     for (const b of blocks.filter((x) => x.type === "table")) {
       for (const row of b.rows!) expect(row, `a row of a table in ${name} has a different number of cells`).toHaveLength(b.head!.length);
     }
+    expect(spans(blocks).filter((s) => s.t === "todo")).toEqual([]);
     const text = spans(blocks).filter((s) => s.t === "text").map((s) => s.v).join("\n");
     // Markdown that the reader did not understand would show as raw characters on the page.
     expect(text).not.toMatch(/\*\*|`|\[\[|\]\]|^#|^\|/m);
     for (const link of spans(blocks).filter((s) => s.t === "link")) expect(link.href).toMatch(/^(https:\/\/|mailto:)/);
   });
-  it("English and Italian have the same sections, tables and placeholders", () => {
+  it("English and Italian have the same sections and tables", () => {
     const shape = (blocks: Block[]) => blocks.map((b) => (b.type === "table" ? `table ${b.head!.length}x${b.rows!.length}` : b.type === "h" ? `h${b.level}` : b.type === "ul" || b.type === "ol" ? `${b.type} ${b.items!.length}` : b.type));
     const en: Block[] = policy("PRIVACY.md"), it: Block[] = policy("PRIVACY.it.md");
     expect(shape(it)).toEqual(shape(en));
-    const todos = (blocks: Block[]) => spans(blocks).filter((s) => s.t === "todo").length;
-    expect(todos(it)).toBe(todos(en));
-    expect(todos(en), "the controller's name, address and contact are the owner's to fill").toBeGreaterThanOrEqual(3);
   });
   it("states plainly that the public link is on by default and that there is no telemetry", () => {
     const en = readFileSync(path.join(docs, "PRIVACY.md"), "utf8");
