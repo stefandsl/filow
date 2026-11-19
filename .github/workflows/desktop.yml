@@ -35,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: ${{ inputs.release_tag || github.ref }} # the same source the build job packages
+          ref: ${{ inputs.smoke_only && github.sha || inputs.release_tag || github.ref }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
@@ -181,7 +181,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: ${{ inputs.release_tag }}
+          ref: ${{ github.sha }} # use the harness that passed checks
       - name: Install and launch Windows installer
         shell: pwsh
         env:
@@ -195,7 +195,22 @@ jobs:
           New-Item -ItemType Directory $dir | Out-Null
           gh release download $env:RELEASE_TAG -R stefandsl/filow --pattern "Filow-$v-win-x64.exe" -D $dir
           if ($LASTEXITCODE -ne 0) { throw 'Download failed' }
-          $sha = git rev-parse HEAD
+          git fetch --no-tags --depth=1 origin "refs/tags/$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { throw 'Installer tag fetch failed' }
+          $sha = git rev-parse --verify 'FETCH_HEAD^{commit}'
+          if ($LASTEXITCODE -ne 0 -or $sha -cnotmatch '^[0-9a-f]{40}$') { throw 'Invalid installer source SHA' }
+          if ($env:GITHUB_REF -ceq "refs/tags/$env:RELEASE_TAG" -and $sha -cne $env:GITHUB_SHA) { throw 'Installer tag moved after dispatch' }
+          Write-Host "Testing installer from $sha with harness $env:GITHUB_SHA"
           ./tools/release/smoke-windows.ps1 -Installer "$dir/Filow-$v-win-x64.exe" -SourceSha $sha -Result "$dir/smoke-result.json"
+          Get-Content -LiteralPath "$dir/smoke-result.json"
+      - name: Attach smoke evidence to the source release
+        if: github.ref == format('refs/tags/{0}', inputs.release_tag)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'release-smoke'
+          if ($env:GITHUB_REF -cne "refs/tags/$env:RELEASE_TAG") { throw 'Release evidence requires the exact tag dispatch' }
           gh release upload $env:RELEASE_TAG -R stefandsl/filow "$dir/smoke-result.json" --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Smoke evidence upload failed' }

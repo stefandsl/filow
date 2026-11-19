@@ -58,6 +58,29 @@ describe("GitHub workflows pin every action to a commit", () => {
     expect(wf.jobs.checks.steps.find((s: any) => s.name === "Verify before building a release").if)
       .toMatch(/^\$\{\{ !inputs\.smoke_only && \(/);
   });
+  it("runs the dispatched smoke harness against the requested installer and attaches evidence only on its tag", () => {
+    const { checks, smoke } = loadWorkflow("desktop.yml").jobs;
+    expect(checks.steps[0].with.ref).toBe("${{ inputs.smoke_only && github.sha || inputs.release_tag || github.ref }}");
+    expect(smoke.steps[0].with.ref).toBe("${{ github.sha }}");
+    const launch = smoke.steps.find((step: any) => step.run?.includes("./tools/release/smoke-windows.ps1"));
+    expect(launch.env.RELEASE_TAG).toBe("${{ inputs.release_tag }}");
+    expect(launch.run).toContain('git fetch --no-tags --depth=1 origin "refs/tags/$env:RELEASE_TAG"');
+    expect(launch.run).toContain("git rev-parse --verify 'FETCH_HEAD^{commit}'");
+    expect(launch.run).toContain("-SourceSha $sha");
+    const uploads = smoke.steps.filter((step: any) => step.run?.includes("gh release upload"));
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0].if).toBe("github.ref == format('refs/tags/{0}', inputs.release_tag)");
+    expect(smoke.steps.indexOf(uploads[0])).toBeGreaterThan(smoke.steps.indexOf(launch));
+  });
+  it("silently installs Windows Filow and launches its first window normally", () => {
+    const harness = fs.readFileSync(path.join(root, "tools/release/smoke-windows.ps1"), "utf8");
+    const installer = harness.match(/^\s*\$setup = Start-Process\b[^\r\n]+/m)?.[0];
+    const launch = harness.match(/^\s*\$app = Start-Process\b[^\r\n]+/m)?.[0];
+    expect(installer).toContain("'/S'");
+    expect(installer).toContain("-WindowStyle Hidden");
+    expect(launch).toContain("(Join-Path $install 'Filow.exe')");
+    expect(launch).toContain("-WindowStyle Normal");
+  });
   it("finds the workflows", () => {
     expect(workflowFiles()).toContain("desktop.yml");
   });
