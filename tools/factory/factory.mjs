@@ -4,8 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Hold, ensure, git, gitOutput, hash, inspect, json, now, read, save, storage, withLock, writer } from './worktree.mjs';
 import { editGrant, parse, safeText, stakes, ticketCard } from './plan.mjs';
-import { packet, ready, route } from './brief.mjs';
-import { gateNames, runGates } from './gates.mjs';
+import { desktopCodex, desktopFix, loginFix, packet, ready, route } from './brief.mjs';
+import { ensureDependencies, gateNames, runGates } from './gates.mjs';
 import { actor, checkAllowance, getReport, review } from './review.mjs';
 import { daily } from './offline.mjs';
 
@@ -80,6 +80,21 @@ export function observeSlice(tree, state) {
   }
   return [...changed];
 }
+function coordinatorInstructions(state) {
+  const instructions = ['Use the assigned worktree to trace callers. Return a plan for ' + state.ticket +
+    '. Give literal repository-relative files for callers and writable paths. For a baseline evidence ticket, HANDOFF.md can hold the builder\'s observations.',
+    'Ticket excerpt from docs/PLAN.md:', state.card.text];
+  // A baseline coordinator can scope the evidence even when read-only shell commands are unavailable.
+  if (state.card.text.includes('.github/workflows/desktop.yml')) {
+    const workflow = git(state.root,'show',state.base + ':.github/workflows/desktop.yml');
+    const checks = workflow.split('\n  build:')[0].split(/\r?\n/).filter(line =>
+      line.startsWith('      - run: ') || line.startsWith('        run: if (Test-Path'));
+    instructions.push('Pinned .github/workflows/desktop.yml checks:', ...checks,
+      'Baseline notes in HANDOFF.md:', git(state.root,'show',state.base + ':HANDOFF.md').split(/\r?\n/).slice(0,9).join('\n'));
+  }
+  return instructions.join('\n');
+}
+
 function printPlan(state) {
   console.log([state.ticket, state.card.goal,'Base ' + state.base,'Worktree ' + state.root,
     'Stakes ' + state.risk.level + ' | ' + state.risk.reason,
@@ -109,7 +124,6 @@ function build(state, tree, dir, options, checkpoint) {
     checkpoint();
     packet(state,'Builder',path.dirname(file), detail,file);
     if (!state.dry) {
-      ensure(ready('OpenAI'), 'Builder credential missing. Configure OpenAI and repeat build with this run ID.');
       console.log('Commit the assigned change, then resume: ' + next(state,'build')); return;
     }
     state.candidate = state.base;
@@ -141,7 +155,7 @@ function build(state, tree, dir, options, checkpoint) {
   console.log('Candidate ' + tree.head + '\nChanged: ' + changed.join(', ') + '\nGreen: ' + gateNames.join(', ') + '\nNext: ' + next(state,'verify'));
 }
 
-async function run(options) {
+export async function run(options, resolveCodex = desktopCodex) {
   const tree = inspect(process.cwd());
   const home = storage(tree);
   const baseDir = path.join(home, options.dry ? 'rehearsals' : 'runs');
@@ -169,13 +183,17 @@ async function run(options) {
     const checkpoint = () => save(file,state);
     const ledger = path.join(home,'reviews',state.ticket + '.json');
     const replaceRound = options.newRound && (state.step === 'complete' || state.round?.closed);
-    if (options.verb === 'verify' && !state.dry && (replaceRound || !state.round)) {
+    if (options.verb === 'verify' && state.card.paths && !state.dry && (replaceRound || !state.round)) {
       checkAllowance(ledger,replaceRound ? null : state.dispatch);
     }
     state.writer = writer();
     console.log((state.dry ? 'DRY RUN | ' : '') + state.run + '\nState: ' + file);
     checkpoint();
     try {
+      if (options.verb !== 'plan') {
+        ensure(state.card.paths, state.planHold || 'Resume the coordinator dispatch with ' + next(state,'plan') + ' to create and freeze the scoped card.');
+        ensure(state.step !== 'plan' && !state.planHold, state.planHold || 'Complete provider preflight with ' + next(state,'plan') + '.');
+      }
       if (options.verb === 'plan') {
         if (!state.card.paths && options.card) {
           ensure(tree.head === state.base, 'The plan base changed before the card was frozen.');
@@ -183,23 +201,28 @@ async function run(options) {
         }
         if (!state.card.paths) {
           const folder = path.join(dir,'plan'), out = path.join(folder,'card.json');
-          packet(state,'Coordinator',folder,'Read the plan and HANDOFF. Trace the real callers. Fill the card using the fields in tools/factory/N-08-PRACTICE.json. Ticket excerpt:\n' + state.card.text,out);
-          ensure(false, 'Freeze the scoped card, then repeat ' + next(state,'plan') + ' --card "' + out + '".');
+          const coordinator = packet(state,'Coordinator',folder,coordinatorInstructions(state),out,resolveCodex);
+          ensure(coordinator.configured, 'Coordinator dispatch needs the desktop CLI and OpenAI authentication. Repeat ' + next(state,'plan') + '.');
+          ensure(false, 'Run the coordinator dispatch to create the scoped card, then repeat ' + next(state,'plan') + ' --card "' + out + '".');
         }
-        if (state.step === 'plan') state.step = 'build';
+        const exe = resolveCodex();
+        const reviewer = route(state.risk.level,'Reviewer, replay').provider;
+        const builder = ready('OpenAI',process.env,exe,path.join(dir,'runtime'));
+        state.readiness = { builder, reviewer:reviewer === 'OpenAI' ? builder : Boolean(exe) && ready(reviewer) };
+        console.log('Builder OpenAI ' + (builder ? 'configured' : 'missing') + '. Reviewer ' + reviewer + ' ' +
+          (state.readiness.reviewer ? 'configured' : 'missing') + '.');
         if (!state.dry) {
+          const fix = !exe ? desktopFix : !builder ? loginFix + '.' : 'Set OPENROUTER_API_KEY for the independent reviewer.';
+          ensure(builder && state.readiness.reviewer, 'Provider preflight incomplete. ' + fix + ' Repeat ' + next(state,'plan'));
+          ensureDependencies(tree.root,dir);
           state.offline = await daily(home,tree.common);
           console.log('Standing offline experiment: ' + state.offline.status + '. ' + state.offline.reason);
         }
-        const reviewer = route(state.risk.level,'Reviewer, replay').provider;
-        state.readiness = { builder:ready('OpenAI'), reviewer:ready(reviewer) };
+        if (state.step === 'plan') state.step = 'build';
+        delete state.planHold;
+        delete state.diagnostic;
         checkpoint(); printPlan(state);
-        console.log('Builder OpenAI ' + (state.readiness.builder ? 'configured' : 'missing') + '. Reviewer ' + reviewer + ' ' +
-          (state.readiness.reviewer ? 'configured' : 'missing') + '.');
-        ensure(state.dry || state.readiness.builder && state.readiness.reviewer,
-          'Provider preflight incomplete. Configure the missing provider and repeat ' + next(state,'plan'));
       } else if (options.verb === 'build') {
-        ensure(state.card.paths, 'Complete plan with a scoped card before build.');
         ensure(state.dry || state.readiness?.builder && state.readiness?.reviewer, 'Complete the provider preflight with the same plan ID.');
         build(state,tree,dir,options,checkpoint);
       } else {
@@ -224,6 +247,7 @@ async function run(options) {
       }
     } catch (error) {
       state.verdict = 'HOLD'; state.diagnostic = error instanceof Hold ? error.message : 'Factory input or filesystem error.';
+      if (options.verb === 'plan') state.planHold = state.diagnostic;
       checkpoint(); throw error;
     }
   }));

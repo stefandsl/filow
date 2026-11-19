@@ -18,15 +18,24 @@
     },
     "checks": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": { "type": "string" },
+      "minItems": 1
     },
     "paths": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string",
+        "pattern": "^[\\w.@-]+(?:/[\\w.@-]+)*$"
+      },
+      "minItems": 1
     },
     "callers": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string",
+        "pattern": "^[\\w.@-]+(?:/[\\w.@-]+)*$"
+      },
+      "minItems": 1
     },
     "bugFix": {
       "type": "boolean"

@@ -6,11 +6,11 @@ import { prepareReplay, verifyReplay } from '../release/review-packet.mjs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { afterAll, beforeAll, expect, it, onTestFinished, vi } from 'vitest';
 import { parse, stakes, ticketCard } from './plan.mjs';
-import { checkWindowsVolumes, childEnv, hash, inspect, json, save, withLock } from './worktree.mjs';
+import { checkWindowsVolumes, hash, inspect, json, save, withLock } from './worktree.mjs';
 import { observeSlice, select } from './factory.mjs';
 import { actor, checkPackage, getReport, reserve, review } from './review.mjs';
 import { packet, ready, route } from './brief.mjs';
-import { gateNames, privateEnv, runGates } from './gates.mjs';
+import { ensureDependencies, gateNames, privateEnv, runGates } from './gates.mjs';
 import { tmpRoot } from '../../apps/desktop/test-tmp';
 import { daily, decideTrial } from './offline.mjs';
 
@@ -24,9 +24,17 @@ const marker = 'synthetic-secret-value-123456';
 const cliPath = process.platform === 'win32'
   ? process.env.PATH!.split(path.delimiter).filter(dir => fs.existsSync(path.join(dir,'git.exe'))).join(path.delimiter)
   : process.env.PATH;
-const command = (verb: string, ...args: string[]) => spawnSync(process.execPath,['tools/factory/factory.mjs',verb,...args],{
-  cwd: tree, encoding:'utf8',timeout:30000,windowsHide:true,env:{...childEnv(), ...privateEnv(path.join(lab,'runtime')), PATH:cliPath, GH_TOKEN:marker,
-    NODE_ENV:'test', FILOW_FACTORY_ALLOW_ANY_VOLUME:'1',
+// Only the live keyed-plan fixture needs a stand-in for the installed desktop package.
+const keyedPlanEntry = ['--input-type=module','-e',`
+    import {run} from './tools/factory/factory.mjs';
+    import {parse} from './tools/factory/plan.mjs';
+    try { await run(parse(process.argv.slice(1)), () => process.execPath); }
+    catch (error) { console.error('HOLD: ' + error.message); process.exitCode = 1; }
+  `,'--'];
+const command = (verb: string, ...args: string[]) => spawnSync(process.execPath,[
+  ...(verb === 'plan' && process.env.FACTORY_TEST_CREDENTIAL ? keyedPlanEntry : ['tools/factory/factory.mjs']),verb,...args],{
+  cwd: tree, encoding:'utf8',timeout:30000,windowsHide:true,env:{...privateEnv(path.join(lab,'runtime')), PATH:cliPath, GH_TOKEN:marker,
+    NODE_ENV:'test', FILOW_FACTORY_ALLOW_ANY_VOLUME:'1',npm_execpath:path.join(lab,'install.cjs'),
     CODEX_API_KEY:process.env.FACTORY_TEST_CREDENTIAL || '',OPENROUTER_API_KEY:process.env.FACTORY_TEST_CREDENTIAL || ''},
 });
 
@@ -35,7 +43,7 @@ beforeAll(() => {
   git(clone,'init','-b','main');
   git(clone,'config','user.name','Practice');
   git(clone,'config','user.email','practice@example.invalid');
-  const files = ['docs/factory/BRIEF-TEMPLATE.md','docs/REVIEW.md','docs/PLAN.md','docs/METHODOLOGY.md','HANDOFF.md',
+  const files = ['.github/workflows/desktop.yml','docs/factory/BRIEF-TEMPLATE.md','docs/REVIEW.md','docs/PLAN.md','docs/METHODOLOGY.md','HANDOFF.md',
     'packages/core/src/i18n/en.ts','apps/web/app/tour/page.tsx','tools/factory/N-08-PRACTICE.json',
     ...fs.readdirSync(path.join(source,'tools/factory')).filter(f=>f.endsWith('.mjs') || f.endsWith('.schema.json')).map(f=>'tools/factory/'+f)];
   for (const f of files) {
@@ -43,6 +51,15 @@ beforeAll(() => {
     fs.copyFileSync(path.join(source,f),path.join(clone,f));
   }
   fs.writeFileSync(path.join(clone,'.gitignore'),'node_modules/\n');
+  save(path.join(clone,'package-lock.json'),{});
+  fs.writeFileSync(path.join(lab,'install.cjs'),`
+    const fs = require('node:fs');
+    for (const file of ['electron/install.js','vitest/vitest.mjs']) {
+      const target = 'node_modules/' + file;
+      fs.mkdirSync(require('node:path').dirname(target),{recursive:true}); fs.writeFileSync(target,'');
+    }
+    fs.appendFileSync('node_modules/install-count','1');
+  `);
   git(clone,'add','.'); git(clone,'commit','-qm','Synthetic base');
   git(clone,'worktree','add','-qb','practice/tour',tree);
 });
@@ -90,13 +107,70 @@ it('locks simultaneous writers and reuses a dispatch slot across restarts', asyn
 });
 it('rejects missing providers and reused sessions without exposing their credentials', () => {
   expect(ready('OpenAI',{})).toBe(false);
-  expect(ready('OpenAI',{CODEX_API_KEY:marker})).toBe(true);
+  expect(ready('OpenAI',{CODEX_API_KEY:marker},process.execPath,path.join(lab,'probe'))).toBe(true);
   expect(ready('Anthropic',{OPENAI_API_KEY:marker})).toBe(false);
   expect(ready('Anthropic',{OPENROUTER_API_KEY:marker})).toBe(true);
   expect(privateEnv(lab)).not.toHaveProperty('GH_TOKEN');
   const identity = {...route('Light','Judge'),session:'same'};
   expect(()=>actor(identity,identity,[identity])).toThrow(/fresh/);
 });
+it('preflights the coordinator and withholds its command when login status fails', () => {
+  const folder = path.join(lab,'blocked coordinator');
+  const log = vi.spyOn(console,'log').mockImplementation(()=>{});
+  try {
+    vi.stubEnv('CODEX_API_KEY',''); vi.stubEnv('OPENAI_API_KEY','');
+    vi.stubEnv('CODEX_HOME',path.join(lab,'signed out'));
+    expect(()=>packet({...packetState(),dry:false},'Coordinator',folder,'Scope N-01.',
+      path.join(folder,'card.json'),()=>process.execPath)).toThrow(/codex login/i);
+    expect(log.mock.calls.flat().join('\n')).not.toContain('dispatch.ps1');
+    expect(fs.existsSync(path.join(folder,'dispatch.ps1'))).toBe(false);
+  } finally { log.mockRestore(); vi.unstubAllEnvs(); }
+});
+
+it('points both later verbs back to the blocked coordinator dispatch', () => {
+  const plan = command('plan','N-01');
+  const file = plan.stdout.match(/State: ([^\r\n]+)/)![1];
+  for (const verb of ['build','verify']) {
+    const result = command(verb,json(file).run);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/HOLD: .*coordinator dispatch/i);
+    expect(json(file).diagnostic).toMatch(/coordinator dispatch/i);
+  }
+},60000); // Three separate invocations acquire the real run locks.
+
+it('sets up dependencies after a green preflight and reuses only a matching install', () => {
+  const root = path.join(lab,'setup'), lock = path.join(root,'package-lock.json');
+  fs.mkdirSync(root);
+  const install = vi.fn(()=>{
+    for (const name of ['electron/install.js','vitest/vitest.mjs']) {
+      const file = path.join(root,'node_modules',name);
+      fs.mkdirSync(path.dirname(file),{recursive:true}); fs.writeFileSync(file,'');
+    }
+    return 0;
+  });
+  fs.writeFileSync(lock,'first');
+  const setup = () => ensureDependencies(root,lab,install);
+  setup(); setup();
+  expect(install).toHaveBeenCalledTimes(1);
+  fs.writeFileSync(lock,'second');
+  install.mockImplementationOnce(()=>1);
+  expect(setup).toThrow(/npm ci/i);
+  setup(); setup();
+  expect(install).toHaveBeenCalledTimes(3);
+  const guide = fs.readFileSync(path.join(source,'docs/GUIDE-START-HERE.md'),'utf8');
+  expect(guide.slice(0,guide.indexOf('### Practice ticket'))).not.toMatch(/^\s*npm\.cmd ci/m);
+});
+
+it('walks N-01 from the coordinator dispatch to the scoped card in the same run', () => {
+  const guide = fs.readFileSync(path.join(source,'docs/GUIDE-START-HERE.md'),'utf8');
+  const example = guide.match(/^### [^\n]*N-01[^\n]*\n([\s\S]*?)(?=\n## |(?![\s\S]))/m)?.[1];
+  expect(example).toBeDefined();
+  expect(example).toContain('filow:plan -- N-01');
+  expect(example).toMatch(/coordinator/i);
+  expect(example).toContain('dispatch.ps1');
+  expect(example).toMatch(/filow:plan -- \$run --card/);
+});
+
 it('withholds noise, guard failures and overfit in a bounded offline trial', () => {
   expect(decideTrial(80,81,1,true,2)).toBe('discard');
   expect(decideTrial(80,82,1,false,2)).toBe('discard');
@@ -118,18 +192,22 @@ it('resumes the exact live plan after a missing-provider hold without saving the
     expect(missing.status).toBe(1); expect(missing.stderr).toContain('Provider preflight incomplete');
     const file = missing.stdout.match(/State: ([^\r\n]+)/)![1];
     vi.stubEnv('FACTORY_TEST_CREDENTIAL',marker);
+    const installs = path.join(tree,'node_modules/install-count');
+    expect(fs.existsSync(installs)).toBe(false);
     const configured = command('plan',json(file).run);
     expect(configured.status,configured.stderr).toBe(0);
+    expect(command('plan',json(file).run).status).toBe(0);
+    expect(fs.readFileSync(installs,'utf8')).toBe('1');
     expect(json(file).readiness).toEqual({builder:true,reviewer:true});
     expect(configured.stdout + fs.readFileSync(file,'utf8')).not.toContain(marker);
   } finally { vi.unstubAllEnvs(); }
-});
+},60000); // Runs a blocked plan and resumes twice across process boundaries.
 it('seals the blind case before exposing the candidate and refuses a stale replay or missing judge', async () => {
   const dir = path.join(lab,'independent'), ledger = path.join(dir,'ledger.json');
   const t = inspect(tree), card = ticketCard(tree,fixture);
   const state:any = {run:'test-run',ticket:fixture,root:tree,branch:t.branch,base:t.head,candidate:t.head,card,
     risk:{level:'Medium',reason:card.reason},builder:{session:'builder'},gate:{receipts:[]}};
-  const verify = () => review(state,dir,ledger,{},()=>{},()=>path.join(lab,'codex.exe'));
+  const verify = () => review(state,dir,ledger,{},()=>{},()=>process.execPath);
   try {
     vi.stubEnv('OPENROUTER_API_KEY','');
     await expect(verify()).rejects.toThrow(/reviewer unavailable/);
@@ -147,7 +225,7 @@ it('seals the blind case before exposing the candidate and refuses a stale repla
       candidate:'a'.repeat(40),verdict:'PASS',findings:[],observations:Array(4+card.checks.length).fill('Recorded fixture observation.')};
     save(file,replay); await expect(verify()).rejects.toThrow(/stale/);
     vi.stubEnv('CODEX_API_KEY',''); vi.stubEnv('OPENAI_API_KEY','');
-    save(file,{...replay,candidate:t.head}); await expect(verify()).rejects.toThrow(/Judge unavailable/);
+    save(file,{...replay,candidate:t.head}); await expect(verify()).rejects.toThrow(/Judge dispatch unavailable/);
     expect(json(ledger)).toHaveLength(1);
     expect(state.failedCandidate).toBeUndefined();
     vi.stubEnv('CODEX_API_KEY',marker);
@@ -159,6 +237,16 @@ it('seals the blind case before exposing the candidate and refuses a stale repla
     expect(state).toMatchObject({failedCandidate:t.head,round:{closed:true}});
   } finally { vi.unstubAllEnvs(); }
 });
+it('keeps a Light review slot available when the Codex login is missing', async () => {
+  const dir = path.join(lab,'light-signed-out'), ledger = path.join(dir,'ledger.json');
+  vi.stubEnv('CODEX_API_KEY',''); vi.stubEnv('OPENAI_API_KEY','');
+  try {
+    const state = {...packetState(),dry:false,gate:{receipts:[]}};
+    await expect(review(state,dir,ledger,{},()=>{},()=>process.execPath)).rejects.toThrow(/codex login/i);
+    expect(fs.existsSync(ledger)).toBe(false);
+  } finally { vi.unstubAllEnvs(); }
+});
+
 it('takes all three public verbs through a dry run, repeats build in another process and leaves one private run', () => {
   const before = inspect(tree);
   const plan = command('plan',fixture,'--dry-run');
@@ -234,19 +322,22 @@ it('prints the isolated Windows command and preserves both native exit codes aft
   const exe = path.join(folder,'codex.exe');
   const log = vi.spyOn(console,'log').mockImplementation(()=>{});
   try {
-    packet(packetState(),'Builder',folder,'A synthetic assignment.',out,()=>exe);
-    const commandLine = log.mock.calls.map(args=>String(args[0])).find(line=>line.startsWith('powershell.exe '));
-    const script = path.join(folder,'dispatch.ps1');
-    expect(commandLine).toBe("powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '" + script.replaceAll("'","''") + "'");
-    const body = fs.readFileSync(script,'utf8');
-    expect(body).toContain(exe.replaceAll("'","''"));
-    expect(body).toMatch(/\$ErrorActionPreference = 'Continue'\r?\n[^\n]+\*> \$null\r?\n\$code = \$LASTEXITCODE/);
     if (process.platform !== 'win32') return;
     const cs = path.join(folder,'Fake.cs');
     fs.writeFileSync(cs, `using System;
 using System.IO;
 class Fake {
   static int Main(string[] args) {
+    string home = Environment.GetEnvironmentVariable("CODEX_HOME");
+    bool key = !String.IsNullOrEmpty(Environment.GetEnvironmentVariable("CODEX_API_KEY"));
+    bool login = File.Exists(Path.Combine(home, "synthetic-login"));
+    if (Environment.GetEnvironmentVariable("UNRELATED_SECRET") != null) return 38;
+    if (args[0] == "login" && args[1] == "status") {
+      Console.Error.WriteLine(login ? "Logged in using ChatGPT" : "Not logged in");
+      if (login) File.WriteAllText(Path.Combine(home, "probed"), "yes");
+      return login ? 0 : 1;
+    }
+    if (key == login) return 39;
     Console.InputEncoding = new System.Text.UTF8Encoding(false);
     Console.Error.WriteLine("synthetic private progress");
     int schema = Array.IndexOf(args, "--output-schema");
@@ -259,17 +350,31 @@ class Fake {
 }`);
     const compiler = path.join(process.env.SystemRoot!,'Microsoft.NET','Framework','v4.0.30319','csc.exe');
     execFileSync(compiler,['/nologo','/out:'+exe,cs],{cwd:folder});
+    vi.stubEnv('CODEX_API_KEY',''); vi.stubEnv('OPENAI_API_KEY','');
+    vi.stubEnv('CODEX_HOME',folder); vi.stubEnv('UNRELATED_SECRET',marker);
+    fs.writeFileSync(path.join(folder,'synthetic-login'),'');
+    packet(packetState(),'Builder',folder,'A synthetic assignment.',out,()=>exe);
+    const commandLine = log.mock.calls.map(args=>String(args[0])).find(line=>line.startsWith('powershell.exe '));
+    const script = path.join(folder,'dispatch.ps1');
+    expect(commandLine).toBe("powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '" + script.replaceAll("'","''") + "'");
+    const body = fs.readFileSync(script,'utf8');
+    expect(body).toContain(exe.replaceAll("'","''"));
+    expect(body).toMatch(/\$ErrorActionPreference = 'Continue'\r?\n[^\n]+\*> \$null\r?\n\$code = \$LASTEXITCODE/);
+    expect(fs.existsSync(path.join(folder,'probed'))).toBe(true);
     const launch = () => spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',commandLine + '\nexit $LASTEXITCODE'],{
-      cwd:folder,encoding:'utf8',env:{...process.env,CODEX_API_KEY:marker},timeout:30000,windowsHide:true});
+      cwd:folder,encoding:'utf8',env:process.env,timeout:30000,windowsHide:true});
     const success = launch();
     expect(success.status,success.stderr).toBe(0);
     expect(fs.readFileSync(out,'utf8')).toContain("dispatch d'été");
+    vi.stubEnv('OPENAI_API_KEY',marker);
+    fs.unlinkSync(out);
+    expect(launch().status).toBe(0);
     const failure = launch();
     expect(failure.status,failure.stderr).toBe(17);
     expect(failure.stdout).toContain('HOLD');
     expect(success.stderr + success.stdout + failure.stderr + failure.stdout).not.toContain('synthetic private progress');
-  } finally { log.mockRestore(); }
-});
+  } finally { log.mockRestore(); vi.unstubAllEnvs(); }
+},60000); // Compiles and runs a native Windows CLI fixture.
 
 it('gives each role its own section and the single raw object reply contract', () => {
   const roles = ['Coordinator','Builder','Reviewer, blind case','Reviewer, replay','Judge'];
@@ -282,6 +387,27 @@ it('gives each role its own section and the single raw object reply contract', (
     for (const other of roles.filter(r=>r!==role)) expect(brief).not.toContain('**' + other + '.**');
     expect(brief).not.toContain('60 words');
   }
+});
+
+it('requires a usable coordinator card even for a ticket that only records evidence', () => {
+  const validate = new Ajv().compile(json(path.join(source,'tools/factory/card.schema.json')));
+  const card = {...ticketCard(tree,fixture),ticket:'N-01',bugFix:false,paths:['HANDOFF.md'],callers:['.github/workflows/desktop.yml']};
+  expect(validate(card)).toBe(true);
+  expect(validate({...card,paths:[]})).toBe(false);
+  expect(validate({...card,callers:['The workflow calls Vitest.']})).toBe(false);
+});
+
+it('accepts a tracked GitHub workflow as an N-01 caller while protecting repository metadata', () => {
+  const file = path.join(lab,'n01-card.json'), workflow = '.github/workflows/desktop.yml';
+  const card = {...ticketCard(tree,fixture),ticket:'N-01',paths:['HANDOFF.md'],callers:[workflow]};
+  save(file,card);
+  expect(ticketCard(tree,'N-01',file).callers).toEqual([workflow]);
+  for (const entry of ['.git/config','.github/../.git/config','.github/.env','.Git/config']) {
+    save(file,{...card,callers:[entry]});
+    expect(()=>ticketCard(tree,'N-01',file)).toThrow(/literal repository file paths/);
+  }
+  save(file,{...card,paths:[workflow]});
+  expect(()=>ticketCard(tree,'N-01',file)).toThrow(/literal repository file paths/);
 });
 
 it('dispatches each JSON packet with the schema that accepts its receipt', () => {
@@ -297,7 +423,9 @@ it('dispatches each JSON packet with the schema that accepts its receipt', () =>
     ['Reviewer, blind case','blind',{...actor,assignment:'sealed',case:'input',expected:'result'}],
     ['Reviewer, replay','replay',report], ['Judge','replay',report],
   ] as const;
-  const exe = () => path.join(lab,'codex.exe');
+  const exe = () => process.execPath;
+  vi.stubEnv('CODEX_API_KEY',marker); vi.stubEnv('OPENROUTER_API_KEY',marker);
+  onTestFinished(()=>vi.unstubAllEnvs());
   const validateDispatch = (folder:string, schema:string, receipt:object, independent:boolean) => {
     const script = fs.readFileSync(path.join(folder,'dispatch.ps1'),'utf8');
     expect(script).toContain("'--output-schema' '" + schema.replaceAll("'","''") + "'");
@@ -550,7 +678,10 @@ it('permits a same-commit rule outside the card and gives the candidate rules on
 
 it('reissues a builder packet on a closed review and holds a ruleless correction on resume', () => {
   const state = freshSlice();
+  vi.stubEnv('FACTORY_TEST_CREDENTIAL',marker);
+  onTestFinished(()=>vi.unstubAllEnvs());
   const plan = command('plan',fixture);
+  expect(plan.status,plan.stderr).toBe(0);
   const file = plan.stdout.match(/State: ([^\r\n]+)/)![1];
   const saved = json(file);
   state.run = saved.run;

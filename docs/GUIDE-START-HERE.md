@@ -35,8 +35,6 @@ if ($LASTEXITCODE) { throw 'Clone failed. Check the destination and connection.'
 git -C $lab worktree add -b practice/tour-copy $tree HEAD
 if ($LASTEXITCODE) { throw 'Use the existing assigned practice worktree or choose an unused branch.' }
 Set-Location $tree
-npm.cmd ci --prefer-offline
-if ($LASTEXITCODE) { throw 'Dependency setup failed. Read the first npm error.' }
 npm.cmd run
 ```
 
@@ -54,14 +52,15 @@ npm.cmd run filow:build -- N-08-PRACTICE --dry-run
 npm.cmd run filow:verify -- N-08-PRACTICE --dry-run
 ```
 
-**Plan.** For live work, use a provider account approved for this ticket and its spend. The runner checks the current process for `CODEX_API_KEY` or `OPENAI_API_KEY` for OpenAI assignments and `OPENROUTER_API_KEY` for Claude Opus reviews through OpenRouter. Each printed dispatch runs the desktop Codex CLI with the receipt schema for its role. Load the assigned credential through your provider setup. Keep credentials out of command arguments and files.
+**Plan.** For live work, use a provider account approved for this ticket and its spend. For OpenAI assignments, plan checks the bundled desktop CLI with `codex login status`. It uses `CODEX_API_KEY` or `OPENAI_API_KEY` when set, otherwise it uses your existing ChatGPT login. Sign in with `codex login` if needed. Claude Opus reviews use `OPENROUTER_API_KEY`. Each printed dispatch runs the desktop Codex CLI with the receipt schema for its role. Live plan runs dependency setup after the scoped card and its providers are ready. Repeating plan reuses the worktree's successful install when its lockfile hash matches.
 
 ```powershell
 npm.cmd run filow:plan -- N-08-PRACTICE
+if ($LASTEXITCODE) { throw 'Follow the plan HOLD before starting build.' }
 npm.cmd run filow:build -- N-08-PRACTICE
 ```
 
-Copy the run ID and state path. A missing provider pauses live plan. Restore the credential and repeat plan with the saved ID. The first build saves the edit intent, writes the builder brief and prints the desktop Codex command. Run the printed `powershell.exe ... dispatch.ps1` line for an approved dispatch. It starts Codex with a private profile and only its own provider credential. You can close the terminal at this point and repeat the same build command in another one.
+Copy the run ID and state path. A missing provider pauses live plan. Restore the credential and repeat plan with the saved ID. The first build saves the edit intent, writes the builder brief and prints the desktop Codex command. Run the printed `powershell.exe ... dispatch.ps1` line for an approved dispatch. It starts Codex with an isolated environment. Subscription dispatches use your existing Codex home for login. You can close the terminal at this point and repeat the same build command in another one.
 
 **Make and observe the edit.** In a second PowerShell terminal, paste the Worktree path printed by plan when prompted. Use an unused port, for example 4799 or 4800.
 
@@ -96,8 +95,30 @@ When a failed gate or review requires a code change, repeat `npm.cmd run filow:b
 
 Record elapsed time, people who helped, commit count before and after repeating build, and the state path. Release is the owner's separate fourth action. [Factory rules](METHODOLOGY.md)
 
-For another plan ticket use its ID or quote its title or request. Supply a scoped JSON `--card` with the practice card's fields to freeze exact examples, callers and writable paths. Plan can prepare a coordinator brief for an existing ticket that lacks a card. Keep the filled card private. Private state lives in `.filow-factory` beside the primary clone, grouped by repository, live or rehearsal, and run ID. Only the runner writes `run.json`.
+### Real ticket N-01 | Create the scoped card
 
+N-01 is listed in the plan. Its first run needs a coordinator to turn the ticket into a scoped card. From the setup terminal, create a separate linked worktree from the clone and open it.
+
+```powershell
+$n01 = Join-Path $practiceRoot 'n01 worktree'
+git -C $lab worktree add -b ticket/n01 $n01 HEAD
+if ($LASTEXITCODE) { throw 'Check the assigned N-01 branch and worktree.' }
+Set-Location -LiteralPath $n01
+npm.cmd run filow:plan -- N-01
+```
+
+Copy the run ID and State path. If plan reports a login or CLI problem, follow its fix and repeat plan with that ID. Once ready, plan prints the coordinator's PowerShell command and pauses for the card. Run that exact `dispatch.ps1` command in the same terminal. The coordinator reads the ticket and callers and saves its reply to the private `plan/card.json`. Review its examples, checks and writable paths before freezing it.
+
+```powershell
+$run = Read-Host 'Run ID printed by N-01 plan'
+$state = Read-Host 'State path printed by N-01 plan'
+$card = Join-Path (Split-Path -LiteralPath $state) 'plan/card.json'
+npm.cmd run filow:plan -- $run --card "$card"
+if ($LASTEXITCODE) { throw 'Follow the plan HOLD and repeat with the same run ID and card.' }
+npm.cmd run filow:build -- $run
+```
+
+Continue with the printed builder packet and the same-ID build and verify steps above. Private state lives in `.filow-factory` beside the primary clone, grouped by repository, live or rehearsal, and run ID. Only the runner writes `run.json`. Plan also accepts a quoted ticket title or request.
 
 ## Owner | Try the package at your desk and on stage
 

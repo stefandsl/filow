@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { childEnv, ensure, git } from './worktree.mjs';
 import { privateEnv } from './gates.mjs';
@@ -10,8 +11,20 @@ export function route(level, role) {
   return role === 'Builder' && level !== 'Heavy' ? { provider: 'OpenAI', model: 'gpt-6.2-sol', effort: 'medium' }
     : { provider: 'OpenAI', model: 'gpt-6.2-astra', effort: level === 'Heavy' ? 'xhigh' : 'high' };
 }
-export function ready(provider, env = process.env) {
-  return Boolean((provider === 'OpenAI' ? env.CODEX_API_KEY || env.OPENAI_API_KEY : env.OPENROUTER_API_KEY)?.trim());
+export const loginFix = 'Run codex login with ChatGPT or set OPENAI_API_KEY';
+export const desktopFix = 'Install the Codex desktop app on Windows to resolve its bundled CLI.';
+export function ready(provider, env = process.env, exe, folder) {
+  if (provider !== 'OpenAI') return Boolean(env.OPENROUTER_API_KEY?.trim());
+  const key = env.CODEX_API_KEY?.trim() || env.OPENAI_API_KEY?.trim();
+  if (!exe) return false;
+  const probeEnv = privateEnv(folder);
+  if (!key) probeEnv.CODEX_HOME = env.CODEX_HOME || path.join(os.homedir(), '.codex');
+  // An explicit exec API key works even when the private CLI home is signed out.
+  // Status can write to stderr and can identify credentials. Keep both streams in memory.
+  const probe = spawnSync(exe, ['login','status'], { env: probeEnv, cwd: folder, windowsHide: true,
+    timeout: 15000, maxBuffer: 16384, encoding: 'utf8', stdio: ['ignore','pipe','pipe'] });
+  return !probe.error && probe.status !== null && (Boolean(key) || probe.status === 0 &&
+    /^Logged in using ChatGPT\s*$/im.test(probe.stdout + '\n' + probe.stderr));
 }
 export function desktopCodex() {
   if (process.platform !== 'win32') return null;
@@ -38,16 +51,21 @@ export function writeDispatch({ exe, model, cwd, folder, brief, output, schema, 
     '-c','model_providers.openrouter.request_max_retries=0','-c','model_providers.openrouter.stream_max_retries=0'] : [];
   const args = ['exec','--ephemeral','--ignore-user-config','--skip-git-repo-check','-C',cwd,
     '-s',builder ? 'workspace-write' : 'read-only',...providerArgs,'-m',independent ? 'anthropic/claude-opus-5.5' : model.model,'-c','model_reasoning_effort=' + model.effort,
-    '-c','shell_environment_policy.inherit=all','-c',"shell_environment_policy.exclude=['*KEY*','*TOKEN*','*SECRET*','*PASSWORD*','*AUTH*','*CREDENTIAL*']",'--output-schema',schema,'-o',output,'-'];
+    '-c','log_dir=' + path.join(folder,'runtime','logs'),'-c','shell_environment_policy.inherit=all','-c',"shell_environment_policy.exclude=['*KEY*','*TOKEN*','*SECRET*','*PASSWORD*','*AUTH*','*CREDENTIAL*','CODEX_HOME']",'--output-schema',schema,'-o',output,'-'];
   // Use a child process so that credential isolation never modifies the parent shell.
   const env = privateEnv(path.join(folder,'runtime'));
   const key = independent ? 'OPENROUTER_API_KEY' : 'CODEX_API_KEY';
   const script = ["$ErrorActionPreference = 'Stop'", '$providerKey = $env:' + key,
-    ...(!independent ? ["if (!$providerKey) { $providerKey = $env:OPENAI_API_KEY }"] : []),
-    "if (!$providerKey) { throw 'Configure the assigned provider first.' }",
+    ...(independent ? ["if ([string]::IsNullOrWhiteSpace($providerKey)) { throw 'Set OPENROUTER_API_KEY for this dispatch.' }"] : [
+      "if ([string]::IsNullOrWhiteSpace($providerKey)) { $providerKey = $env:OPENAI_API_KEY }",
+      '$loginHome = $env:CODEX_HOME',
+      "if (!$loginHome) { $loginHome = Join-Path $env:USERPROFILE '.codex' }",
+    ]),
     "Get-ChildItem Env: | ForEach-Object { [Environment]::SetEnvironmentVariable($_.Name, $null, 'Process') }",
     ...Object.entries(env).map(([k,v]) => '[Environment]::SetEnvironmentVariable(' + quote(k) + ', ' + quote(v) + ", 'Process')"),
-    '$env:' + key + ' = $providerKey', "$OutputEncoding = [Text.UTF8Encoding]::new($false)",
+    ...(independent ? ['$env:' + key + ' = $providerKey'] : [
+      "if ([string]::IsNullOrWhiteSpace($providerKey)) { $env:CODEX_HOME = $loginHome } else { $env:CODEX_API_KEY = $providerKey }",
+    ]), "$OutputEncoding = [Text.UTF8Encoding]::new($false)",
     '$briefText = Get-Content -Raw -Encoding UTF8 -LiteralPath ' + quote(brief),
     // Windows PowerShell 5.1 routes redirected native stderr through its error stream.
     "$ErrorActionPreference = 'Continue'", '$briefText | & ' + quote(exe) + ' ' + args.map(quote).join(' ') + ' *> $null',
@@ -62,9 +80,10 @@ export function writeDispatch({ exe, model, cwd, folder, brief, output, schema, 
 export function packet(state, role, folder, instructions, output, resolveCodex = desktopCodex) {
   const blind = role === 'Reviewer, blind case';
   const builder = role === 'Builder';
-  const cwd = builder ? state.root : folder;
+  const cwd = builder || role === 'Coordinator' ? state.root : folder;
   const model = route(state.risk.level, role);
-  const readyNow = ready(model.provider);
+  const exe = resolveCodex();
+  const readyNow = Boolean(exe) && ready(model.provider,process.env,exe,path.join(folder,'runtime'));
   const revision = blind || role === 'Coordinator' ? state.base : state.candidate || state.base;
   const rules = git(state.root, 'show', revision + ':docs/REVIEW.md');
   const template = git(state.root, 'show', state.base + ':docs/factory/BRIEF-TEMPLATE.md');
@@ -99,14 +118,12 @@ export function packet(state, role, folder, instructions, output, resolveCodex =
   fs.mkdirSync(folder, { recursive: true, mode: 0o700 });
   fs.writeFileSync(brief, contents, { mode: 0o600 });
   console.log(role + ' brief: ' + brief + '\n' + model.provider + ' ' + model.model + ' ' + model.effort + ' | ' + (readyNow ? 'configured' : 'missing credential'));
-  const exe = resolveCodex();
-  if (exe) {
+  if (readyNow) {
     const schema = path.join(import.meta.dirname, schemas[role] + '.schema.json');
     writeDispatch({ exe, model, cwd, folder, brief, output, schema, builder });
-  } else {
-    const message = 'Install the Codex desktop app on Windows to resolve its bundled CLI.';
-    console.log(message);
-    ensure(state.dry, message);
+  } else if (!state.dry) {
+    const fix = !exe ? desktopFix : model.provider === 'OpenAI' ? loginFix + '.' : 'Set OPENROUTER_API_KEY.';
+    ensure(false, role + ' dispatch unavailable. ' + fix);
   }
   return { ...model, configured: readyNow, brief };
 }

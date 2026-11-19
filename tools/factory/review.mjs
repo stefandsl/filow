@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import { ensure, hash, json, now, read, save } from './worktree.mjs';
-import { ready, route, packet } from './brief.mjs';
+import { desktopCodex, desktopFix, loginFix, ready, route, packet } from './brief.mjs';
 import { editGrant, packetReply, safeText } from './plan.mjs';
 
 export function actor(report, expected, others = []) {
@@ -50,9 +50,13 @@ export async function checkPackage(file,digest) {
   ensure(typeof file === 'string' && path.isAbsolute(file) && /^[a-f0-9]{128}$/.test(digest) &&
     fs.existsSync(file) && await packageDigest(file) === digest, 'Package evidence is missing or changed.');
 }
-export async function review(state, dir, ledger, options, checkpoint, resolveCodex) {
+export async function review(state, dir, ledger, options, checkpoint, resolveCodex = desktopCodex) {
   const expected = route(state.risk.level, 'Reviewer, blind case');
-  ensure(ready(expected.provider), 'Required independent reviewer unavailable. Configure ' + expected.provider + ' and repeat verify.');
+  const openAI = expected.provider === 'OpenAI';
+  const exe = openAI ? resolveCodex() : null;
+  ensure(!openAI || exe, desktopFix);
+  ensure(ready(expected.provider,process.env,exe,path.join(dir,'runtime')), 'Required independent reviewer unavailable. ' +
+    (openAI ? loginFix : 'Set OPENROUTER_API_KEY') + ' and repeat verify.');
   if (!state.round || options.newRound && state.round.closed) {
     state.dispatch ??= randomUUID();
     checkpoint();
@@ -80,8 +84,6 @@ export async function review(state, dir, ledger, options, checkpoint, resolveCod
     if (stage === 'judge') detail += '\nAssess the independent replay report at ' + round.replay.file + ' with digest ' + round.replay.digest +
       '\nBuilder identity and evidence: ' + JSON.stringify({actor:state.builder,report:state.builderEvidence});
     if (!round[stage]) {
-      const provider = route(state.risk.level,role).provider;
-      ensure(ready(provider), 'Required ' + role + ' unavailable. Configure ' + provider + ' and repeat verify.');
       round.packets ??= {};
       if (!round.packets[stage]) {
         ensure(!fs.existsSync(file), 'Unexpected pre-existing review output. Preserve the packet and inspect its origin.');

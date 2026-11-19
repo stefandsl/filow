@@ -67,7 +67,12 @@ export function ticketCard(root, target, file) {
     ensure(Array.isArray(card[key]) && card[key].length > 0, 'List the checks, callers and exact writable files on the card.');
     for (const value of card[key]) {
       safeText(value);
-      if (key !== 'checks') ensure(/^[\w.@-]+(?:\/[\w.@-]+)*$/.test(value) && !value.split('/').some(p => p === '.' || p === '..' || p.startsWith('.git') || p.startsWith('.env')), 'Use literal repository file paths on the card.');
+      if (key !== 'checks') {
+        const parts = value.split('/');
+        if (key === 'callers' && parts[0] === '.github') parts.shift();
+        ensure(/^[\w.@-]+(?:\/[\w.@-]+)*$/.test(value) && parts.length &&
+          !parts.some(p => p === '.' || p === '..' || /^\.(git|env)/i.test(p)), 'Use literal repository file paths on the card.');
+      }
     }
   }
   ensure(card.callers.every(f => fs.existsSync(path.join(root, f))), 'A frozen caller is missing from this checkout.');

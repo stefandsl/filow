@@ -12,12 +12,31 @@ export function privateEnv(folder) {
     LOCALAPPDATA: 'local', APPDATA: 'roaming', npm_config_cache: 'npm', XDG_CACHE_HOME: 'cache',
     npm_config_devdir: 'gyp', ELECTRON_CACHE: 'electron', electron_config_cache: 'electron',
     HF_HOME: 'models', PLAYWRIGHT_BROWSERS_PATH: 'browsers', FILOW_USER_DATA_DIR: 'filow', FILOW_TEST_TMP: 'tests',
-    DOTNET_CLI_HOME: 'dotnet', NUGET_PACKAGES: 'nuget', CODEX_HOME: 'codex' };
+    DOTNET_CLI_HOME: 'dotnet', NUGET_PACKAGES: 'nuget', CODEX_HOME: 'codex', CODEX_SQLITE_HOME: 'sqlite' };
   for (const [key, sub] of Object.entries(dirs)) {
     env[key] = path.join(folder, sub);
     fs.mkdirSync(env[key], { recursive: true, mode: 0o700 });
   }
   return env;
+}
+
+function installDependencies(root, dir) {
+  const npm = process.env.npm_execpath;
+  ensure(npm && fs.existsSync(npm), 'Start dependency setup through the documented npm command.');
+  return spawnSync(process.execPath,[npm,'ci','--prefer-offline'],{ cwd:root, env:privateEnv(path.join(dir,'runtime')),
+    windowsHide:true, stdio:'ignore', timeout:25*60000 }).status;
+}
+
+export function ensureDependencies(root, dir, install = installDependencies) {
+  const modules = path.join(root,'node_modules');
+  const stamp = path.join(modules,'.filow-lock-sha256');
+  const digest = hash(fs.readFileSync(path.join(root,'package-lock.json')));
+  const installed = () => ['electron/install.js','vitest/vitest.mjs'].every(file => fs.existsSync(path.join(modules,file)));
+  if (installed() && fs.existsSync(stamp) && read(stamp) === digest) return;
+  fs.rmSync(stamp,{force:true});
+  console.log('Installing worktree dependencies with npm ci --prefer-offline.');
+  ensure(install(root,dir) === 0 && installed(), 'Dependency setup failed. Check npm ci --prefer-offline in the assigned worktree and repeat plan.');
+  fs.writeFileSync(stamp,digest);
 }
 
 export const gateNames = ['electron install','desktop vendor','remove generated dictionary','vitest','build welcome','typecheck','lint'];
