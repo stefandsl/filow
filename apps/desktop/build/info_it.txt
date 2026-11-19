@@ -1,4 +1,4 @@
-Filow: il compagno di presentazione che ti ascolta.
+﻿Filow: il compagno di presentazione che ti ascolta.
 Carica il tuo copione, parla liberamente: Filow spunta i punti mentre li dici e ti mostra cosa hai saltato. Mirror sul telefono, Screen Sense e componente per PowerPoint.
 
 Prima di tutto su questo PC: al primo avvio Filow sceglie la configurazione adatta a questo computer e propone di scaricare ciò che serve. Nulla viene inviato a un servizio online, a meno che tu non ne scelga uno e aggiunga il tuo account. Abbinare un telefono da un'altra rete usa un collegamento gratuito di Cloudflare (si può disattivare). La modalità offline non invia nulla in rete.
@@ -8,6 +8,14 @@ NOVITÀ
 
 Tutte le versioni: https://github.com/stefandsl/filow-releases/releases
 Segnalazioni: in Filow, apri il menu Filow > Segnala un problema. Filow salva un file di segnalazione che invii tu in privato; da solo non invia nulla.
+
+# Filow 0.9.43 (Anteprima)
+
+* Trascina l’angolo di una scheda di OK Filow per ridimensionarla in tempo reale. Funziona anche con i disegni (#8).
+* Titoli e disegni nascondono [PERSON_NAME]. Dopo l’avvio funzionano anche le scorciatoie per mostrare o nascondere le schede e mettere in pausa.
+* Il segnale per iniziare a dettare arriva quando il microfono è pronto. L’abbinamento e la riconnessione del telefono sono più affidabili.
+* La lavagna applica le modifiche alle impostazioni anche mentre è aperta. Filow protegge le proprie chiavi API quando avvia un assistente da riga di comando.
+* I controlli sui download verificano il contenuto del programma di installazione e i file di aggiornamento.
 
 # Filow 0.9.30
 

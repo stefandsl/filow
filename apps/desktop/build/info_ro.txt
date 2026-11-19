@@ -9,6 +9,14 @@ NOUTĂȚI
 Toate versiunile: https://github.com/stefandsl/filow-releases/releases
 Raportează o problemă: în Filow, deschide meniul Filow > Raportează o problemă. Filow salvează un fișier de raport pe care îl trimiți tu, în privat; aplicația nu trimite nimic singură.
 
+# Filow 0.9.43 (Versiune preliminară)
+
+* Trage de colțul unui card OK Filow pentru a-i schimba dimensiunea în timp real. Funcționează și pentru cardurile cu desene (#8).
+* Titlurile cardurilor și desenele ascund [PERSON_NAME]. După pornire funcționează tastele pentru afișare, ascundere și pauză.
+* Semnalul pentru dictare se aude când microfonul este pregătit. Asocierea și reconectarea telefonului sunt mai fiabile.
+* Tabla aplică modificările de setări cât timp este deschisă. Filow își protejează cheile API când lansează un asistent din linia de comandă.
+* Verificările pentru descărcări acoperă acum conținutul programului de instalare și fișierele de actualizare.
+
 # Filow 0.9.30
 
 * Program de instalare: o pagină Informații cu noutățile și o pagină Selectare componente, cu dimensiuni și tipuri de instalare (recomandată pentru acest PC, completă, minimă).

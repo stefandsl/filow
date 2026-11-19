@@ -2,6 +2,12 @@
 
 Use the [PLAN Defaults Sheet](PLAN.md#defaults-sheet) for current product and release decisions and [METHODOLOGY.md](METHODOLOGY.md) for decisions about agent work.
 
+## Release decision, 19 November 2026
+
+D33 exception for 0.9.43: published as a preview before legal review of the children and classroom section; the policy states that this review is pending.
+
+D33 applies to subsequent releases.
+
 ## Measurements and implementation facts
 
 - **D23.** Six alternating packaged launches per variant measured a 0.33 s first visible splash window instead of about 1.1 s. The change delayed the logo and main window by about 0.15 s. The main window still appeared in 2.6 to 2.9 s. Chromium took about 780 ms to paint the 3.8 KB page. In the dark theme, Windows initially used `#202020` before the page painted `#121212`.
