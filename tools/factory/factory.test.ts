@@ -808,7 +808,8 @@ it('reissues a builder packet on a closed review and holds a ruleless correction
   const first = changeSlice(state,'Show practice result');
   save(file,{...saved,...state,dry:false,step:'verify',candidate:first.head,readiness:{builder:true,reviewer:true},
     round:{number:1,closed:true,candidate:first.head,findings:['Duplicate practice confirmation.']}});
-  command('build',state.run);
+  const issued = command('build',state.run);
+  expect(issued.stdout,issued.stderr).toContain('Builder brief:');
   const brief = fs.readFileSync(path.join(path.dirname(file),'builder',first.head,'brief.md'),'utf8');
   expect(brief).toContain('Duplicate practice confirmation.');
   const rules = fs.readFileSync(path.join(tree,'docs/REVIEW.md'),'utf8');

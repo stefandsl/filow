@@ -11,7 +11,7 @@ export function builderCheckout(state, dir, start) {
   if (fs.existsSync(path.join(copy,'.git'))) return copy;
   fs.mkdirSync(dir,{recursive:true});
   // A private object database and index let the sandbox commit without write access to the primary clone.
-  git(state.root,'clone','--quiet','--shared','--no-checkout','--separate-git-dir',path.join(dir,'git-data'),'--',state.root,copy);
+  git(state.root,'clone','--quiet','--shared','--no-checkout','--config','core.longpaths=true','--separate-git-dir',path.join(dir,'git-data'),'--',state.root,copy);
   git(copy,'checkout','-q','-B',state.branch,start);
   git(copy,'remote','remove','origin');
   const identity = /^(.*) <([^>]+)> /.exec(git(state.root,'var','GIT_AUTHOR_IDENT'));

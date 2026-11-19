@@ -17,6 +17,9 @@ export function privateEnv(folder) {
     env[key] = path.join(folder, sub);
     fs.mkdirSync(env[key], { recursive: true, mode: 0o700 });
   }
+  if (process.platform === 'win32') Object.assign(env,{
+    GIT_CONFIG_COUNT:'1',GIT_CONFIG_KEY_0:'core.longpaths',GIT_CONFIG_VALUE_0:'true',
+  });
   env.PSModuleAnalysisCachePath = path.join(env.LOCALAPPDATA,'ModuleAnalysisCache');
   return env;
 }

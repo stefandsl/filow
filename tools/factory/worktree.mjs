@@ -28,7 +28,7 @@ export function git(cwd, ...args) {
   return gitOutput(cwd, ...args).trimEnd();
 }
 export function gitOutput(cwd, ...args) {
-  const result = spawnSync('git', ['--no-optional-locks', '-c', 'core.fsmonitor=false', ...args], {
+  const result = spawnSync('git', ['--no-optional-locks', '-c', 'core.fsmonitor=false', '-c', 'core.longpaths=true', ...args], {
     cwd, encoding: 'utf8', windowsHide: true, timeout: 30000, maxBuffer: 16 * 1024 * 1024,
     env: { ...childEnv(), GIT_TERMINAL_PROMPT: '0' }, stdio: ['ignore', 'pipe', 'pipe'],
   });
