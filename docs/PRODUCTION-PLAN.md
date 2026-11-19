@@ -6,8 +6,7 @@ milestones pass. Input: the user's ChatGPT conversation on NLP/NLU/NLI and Omi
 (Documents/Codex/2026-11-08/.../conversazione-philo-flow-trascrizione-disponibile.md), checked
 against what Filow already does.
 
-Work is done with Claude (subagents and reviews) and local models. Codex credits are nearly used
-up, so no `codex exec` and no Codex reviewers.
+Follow the [factory methodology](METHODOLOGY.md) when assigning a builder and an independent reviewer.
 
 ## 1. What the conversation proposes vs what Filow already has
 

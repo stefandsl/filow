@@ -19,6 +19,13 @@ Use these defaults for planning. Data transfer, paid usage and publication each 
 | Extensions | Pilot local CLI/MCP from subscribed clients. Enable personal recipes by choice. Leave Microsoft sync, plugin discovery, schedules and billing off initially. |
 | Distribution and identity | Keep `com.intelliprompter.app`. Use CI installer builds. Prepare trust and policy evidence early. Only the owner promotes a specific verified version. Keep paid service a separate decision. |
 
+### Limits for recording a website action
+
+- Never ship reverse-engineered third-party endpoints as a Filow feature for all users. Exclude private Google endpoints. Never share a user's generated clients or personal recipes with another user.
+- Require per-site opt-in for the user's own account and permission from the site operator or its terms. Before capture, show “This site's terms may forbid automation. Continue only if the site permits this use.” Show the target and a visible signal during capture and replay. Get separate permission to replay. Bind each run to the approved account, action and turn. Provide Stop and revoke.
+- Never capture passwords, login or MFA exchanges, payment, checkout or bank flows. Observe only explicitly permitted screens and operations. Stop observation before unknown pages, frames or redirects. Never record a raw HAR.
+- Keep all recording-derived data on this PC. Leave credentials and cookies under browser control for normal authentication with the approved site. Exclude them and all capture data from models, relay, telemetry, sync, Filow-managed backups and exports. One-click **Delete site data** stops work, revokes grants and removes the local clients, recipes, derived data and dedicated recording partition.
+
 ## Now
 
 Nine tickets. N-01 pins the build. N-02 protects both paths. N-03 and N-04 deliver the stage trial. N-05 and the text part of N-06 deliver the daily trial. N-07 records each verdict as it arrives. N-08 runs alongside product work. Start the trust work in N-09 immediately. Release the tested feature set and label any held capability.
@@ -133,11 +140,41 @@ Test hands-free and hold-to-talk in four real apps. Preserve the full phrase and
 
 - **Requests** R-039, R-044, R-068, R-083, R-084, R-085, R-100
 
-### X-09 Use Google's free and high-quality voice and AI services
+### X-09 Pilot Google voices and translated captions
 
-Evaluate Gemini Flash TTS as a replacement for ElevenLabs and assess NotebookLM for suitable workflows. Verify free-tier eligibility, voice quality and data-handling terms before selecting providers. Keep the provider consent checks from N-02.
+Pilot Gemini Flash-Lite TTS for short answers and Flash TTS for whiteboard narration. A Gemini API key is required for this pilot. Compare both voices with Cloud Chirp 3 HD, ElevenLabs and the local voice on the same scripts. Blind-rate intelligibility, lost words, names, numbers and units. Measure time to first audible speech and cost per finished minute on the packaged app. Keep ElevenLabs as a fallback until the comparison is complete. Test a missing key, quota exhaustion, Stop and offline use. Keep each provider subject to its own N-02 consent.
+
+Pilot Cloud Translation Advanced through its EU endpoint for finalized captions on the paired phone. Check IT and EN in both directions with X-01. The owner can use NotebookLM to draft lessons from cleared sources and review the result before teaching. Defer Gemini Live to a separately approved live-audio trial. Use documented Google APIs only and exclude private Google endpoints. Verify current quota, pricing and terms for the intended audience before rollout.
 
 - **Requests** R-176
+
+### X-10 Follow the message as Filow explains a diagram
+
+Bring Super Board's motion to Filow's whiteboard so a learner can follow a transfer, replay it or identify its direction with reduced motion. Work in the lesson player, Excalidraw renderer, scene and sequence metadata, pacing, CSS and screenshot harness. Reuse the lesson voice, reading clock and board themes.
+
+**First slice.** Animate explicitly identified directed lesson edges and sequence-template messages. Draw a small signal along the prepared arrow from sender to receiver once in the current step's time slot. Briefly outline the receiver on arrival. For multiple eligible edges, use their reveal order. Use the template's actor and message identities for a sequence. Keep the stroke, label and static direction legible on completion. The effect is presentation state. On pause, step change, edit or replay, cancel the old cue before showing the next state.
+
+**Acceptance.** Open the whiteboard and play “How does the TCP three-way handshake work?” Watch SYN travel Client → Server, SYN-ACK travel Server → Client, and ACK travel Client → Server as each message is explained. The receiving end visibly responds. Both participant names and earlier arrows stay legible. Go back to the reply and replay it. Only the reply travels. Pause mid-reply and wait. The board settles with its arrowhead and label visible. Switch the board look and repeat. In reduced motion and Lite, the reply, direction and recipient remain identifiable without a moving signal. A formula or plot-only step shows its normal drawing.
+
+**Verification.** Use a fake provider with record 3 from `apps/web/lib/whiteboard/fixtures/cloud-r3.json` and run the local sequence-template case as a second path. Exercise the actual lesson page at 1280 × 720 with a controlled clock. Capture the start, midpoint and arrival of the same SYN-ACK in light and dark, six PNGs named `x10-{light,dark}-reply-{start,mid,arrival}.png`. Show the owner the two three-frame sequences side by side. Also check replay cancellation, static reduced motion, a note-only step, a moved endpoint and reopen/export. Opening an older board without relationship metadata must still work. Compare PNG and Excalidraw exports for stable positions and a clean final board. Check the WebM path explicitly because the recorder samples live SVG styling. Use the live-page harness for motion evidence. The standalone diagram screenshot harness can check static layout in both themes. Run the existing whiteboard tests, typecheck and lint.
+
+Use an existing fixture or saved lesson. Approve the slice when the reply's reversal is clear both in motion and in the static frame. Node inspection and nested views can follow separately.
+
+**License.** Implement the effect in Filow with its own artwork. If Super Board code is copied, identify the file and pinned revision. Keep its source attribution and include the full MIT copyright and permission notice and applicable third-party notices in Filow's distribution. Use original assets where rights are unclear. [Super Board license](https://github.com/EricTechPro/super-board/blob/d0b7d5a6850614ca809477c1af43d5d7da408726/LICENSE) · [Bundled notices](https://github.com/EricTechPro/super-board/blob/d0b7d5a6850614ca809477c1af43d5d7da408726/skills/visual/THIRD_PARTY_NOTICES.md)
+
+- **Requests** R-062, R-120 (whiteboard foundations)
+
+### X-11 Repeat one owner-approved lesson lookup by voice
+
+**Goal.** In a packaged Windows build, let a presenter demonstrate “show the next exercise” on a Filow-controlled lesson site, name the lookup and repeat it by voice after restart. Use one operator-approved, read-only lookup, local recognition and a recipe checked by the desktop host. In a dedicated browser partition, store only the approved operation ID and its permitted fields. Run after N-04 provides scoped approval and Stop. Apply the [recording limits](#limits-for-recording-a-website-action).
+
+**Acceptance test.** On a synthetic loopback lesson site, opt in with the teacher account after sign-in. Record the lookup, review its site, account and result field, and save it. Change the exercise on the server and move its button. Restart Filow and invoke the saved name in EN and IT. The current title must appear exactly once, with Recording and Running visible at their respective stages. The slide position and daily list must stay unchanged. Decline, account switch, revoke, changed schema, forbidden screen, Stop before dispatch and one-click deletion followed by restart must each prevent an unauthorized result. A classmate's speech must not authorize dispatch.
+
+**Verification.** On the same machine and site, run ten paired trials with the approved click workflow and the voice shortcut. Measure from the end of the command to the correct visible title, including approval time on both paths. Report success count, median latency, requests and wrong targets. Pass the pilot with ten correct voice results, zero wrong targets and a lower median than the click path. X-04 owns any wider HeyClicky parity claim. Use synthetic cookie, password and payment markers to test the boundary. Assert the observer is detached on forbidden flows and markers never reach recorder callbacks, files, logs or agent messages. Block all non-loopback traffic during the trial. Verify Stop before and after dispatch, expiry, deletion after restart and zero calls from a second profile. Save only synthetic results and timings on the project drive.
+
+**Risks.** A layout change may be harmless while a server change alters meaning. Pin the operation contract and stop on drift. A stale account or queued request can use an old grant. Bind the host check to the live account and turn immediately before dispatch and invalidate pending results on Stop. Prompts can leak session data into generated code. Keep the stock generator outside the signed-in path.
+
+- **Requests** R-154, R-162 (related lesson and personal workflow requests)
 
 ## Later/Icebox
 
@@ -404,7 +441,7 @@ Request statuses come from the owner's private request register (not in the repo
 | R-173 | Open | [N-08](#n-08-make-the-factory-work-from-a-clean-clone) |
 | R-174 | Open | [N-08](#n-08-make-the-factory-work-from-a-clean-clone) |
 | R-175 | Open | [N-08](#n-08-make-the-factory-work-from-a-clean-clone) |
-| R-176 | Open | [X-09](#x-09-use-googles-free-and-high-quality-voice-and-ai-services) |
+| R-176 | Open | [X-09](#x-09-pilot-google-voices-and-translated-captions) |
 
 </details>
 
