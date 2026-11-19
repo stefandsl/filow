@@ -1,0 +1,75 @@
+{
+  "type": "object",
+  "properties": {
+    "provider": { "type": "string" },
+    "model": { "type": "string" },
+    "effort": { "type": "string" },
+    "session": { "type": "string" },
+    "assignment": { "type": "string" },
+    "candidate": { "type": "string" },
+    "verdict": {
+      "enum": [
+        "PASS",
+        "HOLD"
+      ],
+      "type": "string"
+    },
+    "caseDigest": { "type": "string" },
+    "findings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "observations": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "skillRevision": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "packagePath": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "packageSha512": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "os": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "device": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "provider",
+    "model",
+    "effort",
+    "session",
+    "assignment",
+    "candidate",
+    "verdict",
+    "caseDigest",
+    "findings",
+    "observations",
+    "skillRevision",
+    "packagePath",
+    "packageSha512",
+    "os",
+    "device"
+  ],
+  "additionalProperties": false
+}

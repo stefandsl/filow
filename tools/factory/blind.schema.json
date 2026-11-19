@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "properties": {
+    "provider": { "type": "string" },
+    "model": { "type": "string" },
+    "effort": { "type": "string" },
+    "session": { "type": "string" },
+    "assignment": { "type": "string" },
+    "case": { "type": "string" },
+    "expected": { "type": "string" }
+  },
+  "required": [
+    "provider",
+    "model",
+    "effort",
+    "session",
+    "assignment",
+    "case",
+    "expected"
+  ],
+  "additionalProperties": false
+}

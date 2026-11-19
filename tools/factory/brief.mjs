@@ -11,7 +11,7 @@ export function route(level, role) {
     : { provider: 'OpenAI', model: 'gpt-6.2-astra', effort: level === 'Heavy' ? 'xhigh' : 'high' };
 }
 export function ready(provider, env = process.env) {
-  return Boolean((provider === 'OpenAI' ? env.CODEX_API_KEY || env.OPENAI_API_KEY : env.ANTHROPIC_API_KEY)?.trim());
+  return Boolean((provider === 'OpenAI' ? env.CODEX_API_KEY || env.OPENAI_API_KEY : env.OPENROUTER_API_KEY)?.trim());
 }
 export function desktopCodex() {
   if (process.platform !== 'win32') return null;
@@ -24,6 +24,41 @@ export function desktopCodex() {
   return fs.existsSync(exe) ? exe : null;
 }
 const quote = s => "'" + String(s).replaceAll("'", "''") + "'";
+const schemas = {
+  Coordinator: 'card', Builder: 'builder', 'Reviewer, blind case': 'blind', 'Reviewer, replay': 'replay', Judge: 'replay',
+};
+
+export function writeDispatch({ exe, model, cwd, folder, brief, output, schema, builder = false }) {
+  ensure(fs.existsSync(schema), 'Missing packet schema: ' + schema);
+  const independent = model.provider === 'Anthropic';
+  const providerArgs = independent ? ['-c','model_provider=openrouter',
+    '--disable','multi_agent','-c','web_search=disabled',
+    '-c','model_providers.openrouter.name=OpenRouter','-c','model_providers.openrouter.base_url=https://openrouter.ai/api/v1',
+    '-c','model_providers.openrouter.env_key=OPENROUTER_API_KEY','-c','model_providers.openrouter.wire_api=responses',
+    '-c','model_providers.openrouter.request_max_retries=0','-c','model_providers.openrouter.stream_max_retries=0'] : [];
+  const args = ['exec','--ephemeral','--ignore-user-config','--skip-git-repo-check','-C',cwd,
+    '-s',builder ? 'workspace-write' : 'read-only',...providerArgs,'-m',independent ? 'anthropic/claude-opus-5.5' : model.model,'-c','model_reasoning_effort=' + model.effort,
+    '-c','shell_environment_policy.inherit=all','-c',"shell_environment_policy.exclude=['*KEY*','*TOKEN*','*SECRET*','*PASSWORD*','*AUTH*','*CREDENTIAL*']",'--output-schema',schema,'-o',output,'-'];
+  // Use a child process so that credential isolation never modifies the parent shell.
+  const env = privateEnv(path.join(folder,'runtime'));
+  const key = independent ? 'OPENROUTER_API_KEY' : 'CODEX_API_KEY';
+  const script = ["$ErrorActionPreference = 'Stop'", '$providerKey = $env:' + key,
+    ...(!independent ? ["if (!$providerKey) { $providerKey = $env:OPENAI_API_KEY }"] : []),
+    "if (!$providerKey) { throw 'Configure the assigned provider first.' }",
+    "Get-ChildItem Env: | ForEach-Object { [Environment]::SetEnvironmentVariable($_.Name, $null, 'Process') }",
+    ...Object.entries(env).map(([k,v]) => '[Environment]::SetEnvironmentVariable(' + quote(k) + ', ' + quote(v) + ", 'Process')"),
+    '$env:' + key + ' = $providerKey', "$OutputEncoding = [Text.UTF8Encoding]::new($false)",
+    '$briefText = Get-Content -Raw -Encoding UTF8 -LiteralPath ' + quote(brief),
+    // Windows PowerShell 5.1 routes redirected native stderr through its error stream.
+    "$ErrorActionPreference = 'Continue'", '$briefText | & ' + quote(exe) + ' ' + args.map(quote).join(' ') + ' *> $null',
+    '$code = $LASTEXITCODE', "$ErrorActionPreference = 'Stop'", 'if ($null -eq $code) { $code = 1 }',
+    "if ($code) { Write-Output 'HOLD: Codex dispatch failed. Check provider setup and the private brief.' }", 'exit $code'];
+  const scriptPath = path.join(folder,'dispatch.ps1');
+  fs.writeFileSync(scriptPath,'\ufeff' + script.join('\r\n') + '\r\n', { mode: 0o600 });
+  console.log('powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + quote(scriptPath));
+  return scriptPath;
+}
+
 export function packet(state, role, folder, instructions, output, resolveCodex = desktopCodex) {
   const blind = role === 'Reviewer, blind case';
   const builder = role === 'Builder';
@@ -64,33 +99,14 @@ export function packet(state, role, folder, instructions, output, resolveCodex =
   fs.mkdirSync(folder, { recursive: true, mode: 0o700 });
   fs.writeFileSync(brief, contents, { mode: 0o600 });
   console.log(role + ' brief: ' + brief + '\n' + model.provider + ' ' + model.model + ' ' + model.effort + ' | ' + (readyNow ? 'configured' : 'missing credential'));
-  if (model.provider === 'OpenAI') {
-    const exe = resolveCodex();
-    if (exe) {
-      const args = ['exec','--ephemeral','--ignore-user-config','--skip-git-repo-check','-C',cwd,
-        '-s',builder ? 'workspace-write' : 'read-only','-m',model.model,'-c','model_reasoning_effort=' + model.effort,
-        '-c','shell_environment_policy.inherit=all','-c',"shell_environment_policy.exclude=['*KEY*','*TOKEN*','*SECRET*','*PASSWORD*','*AUTH*','*CREDENTIAL*']",'-o',output,'-'];
-      // Use a child process so that credential isolation never modifies the parent shell.
-      const env = privateEnv(path.join(folder,'runtime'));
-      const script = ["$ErrorActionPreference = 'Stop'", "$providerKey = $env:CODEX_API_KEY",
-        "if (!$providerKey) { $providerKey = $env:OPENAI_API_KEY }",
-        "if (!$providerKey) { throw 'Configure the OpenAI provider first.' }",
-        "Get-ChildItem Env: | ForEach-Object { [Environment]::SetEnvironmentVariable($_.Name, $null, 'Process') }",
-        ...Object.entries(env).map(([k,v]) => '[Environment]::SetEnvironmentVariable(' + quote(k) + ', ' + quote(v) + ", 'Process')"),
-        "$env:CODEX_API_KEY = $providerKey", "$OutputEncoding = [Text.UTF8Encoding]::new($false)",
-        '$briefText = Get-Content -Raw -Encoding UTF8 -LiteralPath ' + quote(brief),
-        // Windows PowerShell 5.1 routes redirected native stderr through its error stream.
-        "$ErrorActionPreference = 'Continue'", '$briefText | & ' + quote(exe) + ' ' + args.map(quote).join(' ') + ' *> $null',
-        '$code = $LASTEXITCODE', "$ErrorActionPreference = 'Stop'", 'if ($null -eq $code) { $code = 1 }',
-        "if ($code) { Write-Output 'HOLD: Codex dispatch failed. Check provider setup and the private brief.' }", 'exit $code'];
-      const scriptPath = path.join(folder,'dispatch.ps1');
-      fs.writeFileSync(scriptPath,'\ufeff' + script.join('\r\n') + '\r\n', { mode: 0o600 });
-      console.log('powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + quote(scriptPath));
-    } else {
-      const message = 'Install the Codex desktop app on Windows to resolve its bundled CLI.';
-      console.log(message);
-      ensure(state.dry, message);
-    }
-  } else console.log('Give only this packet to a fresh Claude Opus session. Save its JSON reply to ' + output);
+  const exe = resolveCodex();
+  if (exe) {
+    const schema = path.join(import.meta.dirname, schemas[role] + '.schema.json');
+    writeDispatch({ exe, model, cwd, folder, brief, output, schema, builder });
+  } else {
+    const message = 'Install the Codex desktop app on Windows to resolve its bundled CLI.';
+    console.log(message);
+    ensure(state.dry, message);
+  }
   return { ...model, configured: readyNow, brief };
 }

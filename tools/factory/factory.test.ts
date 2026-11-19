@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
+import Ajv from 'ajv';
+import { prepareReplay, verifyReplay } from '../release/review-packet.mjs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { afterAll, beforeAll, expect, it, onTestFinished, vi } from 'vitest';
 import { parse, stakes, ticketCard } from './plan.mjs';
@@ -25,7 +27,7 @@ const cliPath = process.platform === 'win32'
 const command = (verb: string, ...args: string[]) => spawnSync(process.execPath,['tools/factory/factory.mjs',verb,...args],{
   cwd: tree, encoding:'utf8',timeout:30000,windowsHide:true,env:{...childEnv(), ...privateEnv(path.join(lab,'runtime')), PATH:cliPath, GH_TOKEN:marker,
     NODE_ENV:'test', FILOW_FACTORY_ALLOW_ANY_VOLUME:'1',
-    CODEX_API_KEY:process.env.FACTORY_TEST_CREDENTIAL || '',ANTHROPIC_API_KEY:process.env.FACTORY_TEST_CREDENTIAL || ''},
+    CODEX_API_KEY:process.env.FACTORY_TEST_CREDENTIAL || '',OPENROUTER_API_KEY:process.env.FACTORY_TEST_CREDENTIAL || ''},
 });
 
 beforeAll(() => {
@@ -35,7 +37,7 @@ beforeAll(() => {
   git(clone,'config','user.email','practice@example.invalid');
   const files = ['docs/factory/BRIEF-TEMPLATE.md','docs/REVIEW.md','docs/PLAN.md','docs/METHODOLOGY.md','HANDOFF.md',
     'packages/core/src/i18n/en.ts','apps/web/app/tour/page.tsx','tools/factory/N-08-PRACTICE.json',
-    ...fs.readdirSync(path.join(source,'tools/factory')).filter(f=>f.endsWith('.mjs')).map(f=>'tools/factory/'+f)];
+    ...fs.readdirSync(path.join(source,'tools/factory')).filter(f=>f.endsWith('.mjs') || f.endsWith('.schema.json')).map(f=>'tools/factory/'+f)];
   for (const f of files) {
     fs.mkdirSync(path.dirname(path.join(clone,f)),{recursive:true});
     fs.copyFileSync(path.join(source,f),path.join(clone,f));
@@ -90,7 +92,7 @@ it('rejects missing providers and reused sessions without exposing their credent
   expect(ready('OpenAI',{})).toBe(false);
   expect(ready('OpenAI',{CODEX_API_KEY:marker})).toBe(true);
   expect(ready('Anthropic',{OPENAI_API_KEY:marker})).toBe(false);
-  expect(ready('Anthropic',{ANTHROPIC_API_KEY:marker})).toBe(true);
+  expect(ready('Anthropic',{OPENROUTER_API_KEY:marker})).toBe(true);
   expect(privateEnv(lab)).not.toHaveProperty('GH_TOKEN');
   const identity = {...route('Light','Judge'),session:'same'};
   expect(()=>actor(identity,identity,[identity])).toThrow(/fresh/);
@@ -129,10 +131,10 @@ it('seals the blind case before exposing the candidate and refuses a stale repla
     risk:{level:'Medium',reason:card.reason},builder:{session:'builder'},gate:{receipts:[]}};
   const verify = () => review(state,dir,ledger,{},()=>{},()=>path.join(lab,'codex.exe'));
   try {
-    vi.stubEnv('ANTHROPIC_API_KEY','');
+    vi.stubEnv('OPENROUTER_API_KEY','');
     await expect(verify()).rejects.toThrow(/reviewer unavailable/);
     expect(fs.existsSync(ledger)).toBe(false);
-    vi.stubEnv('ANTHROPIC_API_KEY',marker);
+    vi.stubEnv('OPENROUTER_API_KEY',marker);
     await expect(verify()).rejects.toThrow(/Awaiting blind/);
     const root = path.join(dir,state.round.id);
     const brief = fs.readFileSync(path.join(root,'blind','brief.md'),'utf8');
@@ -247,6 +249,8 @@ class Fake {
   static int Main(string[] args) {
     Console.InputEncoding = new System.Text.UTF8Encoding(false);
     Console.Error.WriteLine("synthetic private progress");
+    int schema = Array.IndexOf(args, "--output-schema");
+    if (schema < 0 || !File.Exists(args[schema + 1])) return 23;
     string output = args[Array.IndexOf(args, "-o") + 1];
     if (File.Exists(output)) return 17;
     File.WriteAllText(output, Console.In.ReadToEnd());
@@ -278,6 +282,49 @@ it('gives each role its own section and the single raw object reply contract', (
     for (const other of roles.filter(r=>r!==role)) expect(brief).not.toContain('**' + other + '.**');
     expect(brief).not.toContain('60 words');
   }
+});
+
+it('dispatches each JSON packet with the schema that accepts its receipt', () => {
+  const state = packetState();
+  const actor = {provider:'OpenAI',model:'gpt-6.2-astra',effort:'high',session:'test'};
+  const common = {assignment:'sealed',candidate:state.candidate,verdict:'PASS'};
+  const report = {...actor,...common,caseDigest:'digest',findings:[],observations:['Matched the receipt.'],
+    skillRevision:null,packagePath:null,packageSha512:null,os:null,device:null};
+  const cases = [
+    ['Coordinator','card',{...state.card,bugFix:false}], ['Builder','builder',{...actor,candidate:state.candidate,
+      baseObservation:'Before',candidateObservation:'After',incident:null,expected:null,observed:null,affectedCommand:null,
+      skillRevision:null,neighboringReplay:null}],
+    ['Reviewer, blind case','blind',{...actor,assignment:'sealed',case:'input',expected:'result'}],
+    ['Reviewer, replay','replay',report], ['Judge','replay',report],
+  ] as const;
+  const exe = () => path.join(lab,'codex.exe');
+  const validateDispatch = (folder:string, schema:string, receipt:object, independent:boolean) => {
+    const script = fs.readFileSync(path.join(folder,'dispatch.ps1'),'utf8');
+    expect(script).toContain("'--output-schema' '" + schema.replaceAll("'","''") + "'");
+    expect(script.includes('model_provider=openrouter')).toBe(independent);
+    const check = new Ajv().compile(json(schema));
+    expect(check(receipt),JSON.stringify(check.errors)).toBe(true);
+    expect(check({})).toBe(false);
+  };
+  state.risk.level = 'Heavy';
+  for (const [role,name,sample] of cases) {
+    const folder = path.join(lab,'schema',role);
+    packet(state,role,folder,'Receipt test.',path.join(folder,'reply.json'),exe);
+    validateDispatch(folder,path.join(source,'tools/factory',name+'.schema.json'),sample,role.startsWith('Reviewer'));
+  }
+  const folder = path.join(lab,'release-review');
+  fs.mkdirSync(folder);
+  const brief = path.join(folder,'brief.md'), blind = path.join(folder,'blind.json'), file = path.join(folder,'report.json');
+  fs.writeFileSync(brief,'Release replay'); save(blind,{case:'sealed'});
+  const digest = hash(fs.readFileSync(blind));
+  const receipt = {...common,blindDigest:digest,findings:[],missingEvidence:[]};
+  prepareReplay(folder,brief,exe);
+  validateDispatch(folder,path.join(source,'tools/release/replay.schema.json'),receipt,true);
+  const verify = () => verifyReplay(file,common.assignment,common.candidate,blind,digest);
+  save(file,receipt); expect(verify).not.toThrow();
+  save(file,{...receipt,assignment:'stale'}); expect(verify).toThrow(/another assignment/);
+  save(file,{...receipt,verdict:'HOLD'}); expect(verify).toThrow(/HOLD/);
+  fs.writeFileSync(file,'Markdown preamble\n'+JSON.stringify(receipt)); expect(verify).toThrow();
 });
 
 it.each(['report','card'])('reads one optionally fenced %s object and gives a specific HOLD for other replies', kind => {
@@ -416,7 +463,9 @@ it.each([1,3])('checks the new-round allowance before touching a completed verif
     save(file,{...saved,step:'complete',candidate,verdict:'PASS',gate,buildEvidence:{...gate,phase:'build'},
       builder:{session:'author'},builderEvidence:{file:builder,digest:hash(fs.readFileSync(builder))},round:rounds.at(-1)});
     const result = command('verify',saved.run,'--new-round');
-    expect(result.stderr).toContain(used===3 ? 'Three review rounds' : 'Awaiting blind');
+    // The synthetic CLI PATH intentionally excludes desktop app discovery.
+    const missingCli = 'Install the Codex desktop app';
+    expect(result.stderr).toContain(used===3 ? 'Three review rounds' : missingCli);
     expect(result.stdout).not.toContain('Running ');
     expect(json(file).gate).toEqual(gate);
     expect(json(file).failedCandidate).toBeUndefined();
@@ -425,7 +474,7 @@ it.each([1,3])('checks the new-round allowance before touching a completed verif
       expect(json(ledger)).toEqual(rounds);
     } else {
       const reserved = json(file).round.id;
-      expect(command('verify',saved.run,'--new-round').stderr).toContain('Awaiting blind');
+      expect(command('verify',saved.run,'--new-round').stderr).toContain(missingCli);
       expect(json(file).round.id).toBe(reserved);
       expect(json(ledger)).toHaveLength(2);
     }

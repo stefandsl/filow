@@ -144,6 +144,8 @@ Before committing the version bump, update the installer’s “What’s new” 
 
 ## Release candidate checks (each release)
 
+For an independent release replay, place the authorized brief and its sealed-case and candidate identifiers in a fresh private G: folder as `brief.md`. Run `node tools/release/review-packet.mjs prepare <folder>`, then run the printed dispatch. Verify its receipt with `node tools/release/review-packet.mjs verify <folder> <assignment> <full-sha> <blind-file> <seal-file>`. Preserve a failed receipt with its packet.
+
 1. `npx vitest run`, `npm run typecheck`, `npm run lint` clean.
 2. Package for Windows, launch it, open "About and privacy" with the network off: the policy shows.
 3. Launch the packaged app twice on the same profile (same FILOW_USER_DATA_DIR and ports): the second

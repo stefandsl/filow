@@ -1,0 +1,50 @@
+{
+  "type": "object",
+  "properties": {
+    "ticket": { "type": "string" },
+    "goal": { "type": "string" },
+    "initial": { "type": "string" },
+    "action": { "type": "string" },
+    "positive": { "type": "string" },
+    "negative": { "type": "string" },
+    "reason": { "type": "string" },
+    "stakes": {
+      "enum": [
+        "Light",
+        "Medium",
+        "Heavy"
+      ],
+      "type": "string"
+    },
+    "checks": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "paths": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "callers": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "bugFix": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "ticket",
+    "goal",
+    "initial",
+    "action",
+    "positive",
+    "negative",
+    "reason",
+    "stakes",
+    "checks",
+    "paths",
+    "callers",
+    "bugFix"
+  ],
+  "additionalProperties": false
+}

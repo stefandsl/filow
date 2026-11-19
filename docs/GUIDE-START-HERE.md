@@ -54,7 +54,7 @@ npm.cmd run filow:build -- N-08-PRACTICE --dry-run
 npm.cmd run filow:verify -- N-08-PRACTICE --dry-run
 ```
 
-**Plan.** For live work, use a provider account approved for this ticket and its spend. The runner checks the current process for `CODEX_API_KEY` or `OPENAI_API_KEY` for Codex and `ANTHROPIC_API_KEY` for a consequential review. Load them through your provider credential setup. The printed status describes configuration. Authentication and availability are established by the actual assignment. Keep credentials out of command arguments and files.
+**Plan.** For live work, use a provider account approved for this ticket and its spend. The runner checks the current process for `CODEX_API_KEY` or `OPENAI_API_KEY` for OpenAI assignments and `OPENROUTER_API_KEY` for Claude Opus reviews through OpenRouter. Each printed dispatch runs the desktop Codex CLI with the receipt schema for its role. Load the assigned credential through your provider setup. Keep credentials out of command arguments and files.
 
 ```powershell
 npm.cmd run filow:plan -- N-08-PRACTICE

@@ -1,0 +1,64 @@
+{
+  "type": "object",
+  "properties": {
+    "provider": { "type": "string" },
+    "model": { "type": "string" },
+    "effort": { "type": "string" },
+    "session": { "type": "string" },
+    "candidate": { "type": "string" },
+    "baseObservation": { "type": "string" },
+    "candidateObservation": { "type": "string" },
+    "incident": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expected": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "observed": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "affectedCommand": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "skillRevision": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "neighboringReplay": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "provider",
+    "model",
+    "effort",
+    "session",
+    "candidate",
+    "baseObservation",
+    "candidateObservation",
+    "incident",
+    "expected",
+    "observed",
+    "affectedCommand",
+    "skillRevision",
+    "neighboringReplay"
+  ],
+  "additionalProperties": false
+}
