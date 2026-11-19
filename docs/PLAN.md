@@ -176,6 +176,34 @@ Use an existing fixture or saved lesson. Approve the slice when the reply's reve
 
 - **Requests** R-154, R-162 (related lesson and personal workflow requests)
 
+### X-12 Give speech fixes a reproducible EN/IT scorecard
+
+**Goal.** Give the R1 reviewer a same-case comparison for [held fixes C6, C12, C23, C27 and C28](audit/AUDIT-0.9.42-HANDOFF.md). Start with C12 and reuse Filow's production matcher, guard, parser and navigation paths as each fix enters review. Build the offline comparator and speech suite in Filow's Node toolchain. N-06, X-04 and autoresearch can reuse the report format.
+
+**Acceptance test.** An independent labeller freezes versioned EN/IT development and reviewer-held talk groups with positives, negatives and ordinary controls, keeping paraphrases from the same talk together. Start with unpunctuated C12 cases where “later” or “alla fine” genuinely postpones a point and cases where the presenter has moved on to it. Replay identical events on the pinned base and isolated candidate. Produce a paired scorecard with expected and observed states for each case, counts and denominators by language and defect, false ticks, misses, section moves and development case IDs that flipped. List the status of all five fixes. A fix advances only with improvement on its target, no loss in either language, no new prohibited tick or section move, and passing ordinary controls. The comparator can pass its pilot while a patch receives HOLD.
+
+**Verification.** Run focused Vitest coverage for the comparator and replay, then use the Node comparator on frozen baseline and candidate results. A baseline self-comparison must report no flips. Inject a forbidden tick and a compensating fix and require a named regression and nonzero exit even if aggregate accuracy stays flat. Reject missing case IDs and stale candidate digests. An independent reviewer runs the reserved split once per frozen arm and checks the receipt against the candidate, manifest, scorer and comparison digests. Add the replay check to [R1](REVIEW.md), run the existing gates and attach an independent PASS or HOLD with EN and IT counts. Keep each patch isolated until its own evidence passes.
+
+**License.** Implement the comparator in Filow. If substantial upstream code is copied or vendored, pin the source revision and retain the full MIT copyright and permission notice. [Eval Harness license](https://github.com/lxlynx/eval-harness/blob/2a73972c6af2cb2b302e7571d0bed91ab2c97fd5/LICENSE)
+
+- **Requests** R-177
+
+### X-13 Continue a decision or factory assignment when an approved model runs out of quota
+
+**Goal.** In a Cloud take, apply ordered routing rules to a pending decision. Check task fit, context, spend and consent, then try the configured primary and the user's ordered, eligible fallbacks on quota or availability failures. Include a qualified route already on this PC. Private mode uses only on-device routes. Pilot FreeLLMAPI as an optional fallback gateway when it can enforce the approved destinations before dispatch and identify the provider that actually answered. Require consent for the data kind and named recipient before each send, including to each serving provider behind a gateway. Show the destination before each attempt and visibly name the provider that answered. Let the factory resume an exhausted role on an approved flagship with its grants, checkpoint and independent review intact. Build on N-02, N-06, N-08 and X-03. Keep X-09 voice grants separate.
+
+**Acceptance test.**
+
+1. Start a packaged Cloud take with a synthetic transcript, local speech and one expected tick. With only the primary approved, force a 429, then repeat with a 503. A ready local route completes once and the unapproved provider receives zero requests. Approve the second cloud recipient and rank it ahead of local. Repeat through a pinned FreeLLMAPI route and check that the second provider completes once. The outbound signal names each destination and the final signal names the provider that answered.
+2. Repeat with a legacy gateway grant, a revoked secondary grant, an opaque route and Stop during retry. Count zero sends to unapproved destinations and zero new attempts after Stop. In private mode, disconnect the network and repeat with local weights present, then missing. Observe a qualified local result or a visible manual choice, zero off-device requests and zero automatic weight downloads.
+3. Inject quota exhaustion in a synthetic factory packet. Resume on a role-approved flagship from the last verified checkpoint. Record the actual provider, model, effort and fresh session. Observe one completed effect and a different underlying reviewer vendor for consequential work. When only an ineligible alternate remains, verification returns HOLD.
+
+**Verification.** Use two counting provider mocks, a pinned gateway fixture and a local adapter. Correlate order, grant, destination, reason, timing, result and visible signal by request ID. Check absent or mismatched gateway receipts, retryable and terminal errors, shared retry limits, cooldowns, cancellation and a late first answer. FreeLLMAPI quota-exhaustion fallback remains unverified. The earlier fallback used an invalid-model error. Verify actual quota exhaustion on an approved route before claiming support. Replay N-06's held-out EN/IT decisions and record false ticks, clarification rate and cold/warm p50 and p95 per route. Attach redacted counts, packaged Windows evidence for Cloud and private modes, and the factory checkpoint, replacement assignment and verifier result. Qualify Responses streaming, tool results and interrupted continuation before enabling a factory gateway. Run the existing gates and exclude payloads and keys from evidence.
+
+**License.** Implement the routing rules in Filow's TypeScript. If substantial upstream code is copied or vendored, pin the revision and retain the full MIT copyright and permission notice. Check FreeLLMAPI's pinned license and applicable notices before distributing it. [Model Router license](https://github.com/lxlynx/model-router/blob/80ba22fb777e0aaf4092942bfc7e8e5bf598ee8c/LICENSE)
+
+- **Requests** R-178
+
 ## Later/Icebox
 
 Return to these for the named decision or evidence.
@@ -442,6 +470,8 @@ Request statuses come from the owner's private request register (not in the repo
 | R-174 | Open | [N-08](#n-08-make-the-factory-work-from-a-clean-clone) |
 | R-175 | Open | [N-08](#n-08-make-the-factory-work-from-a-clean-clone) |
 | R-176 | Open | [X-09](#x-09-pilot-google-voices-and-translated-captions) |
+| R-177 | Open | [X-12](#x-12-give-speech-fixes-a-reproducible-enit-scorecard) |
+| R-178 | Open | [X-13](#x-13-continue-a-decision-or-factory-assignment-when-an-approved-model-runs-out-of-quota) |
 
 </details>
 
