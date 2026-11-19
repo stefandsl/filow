@@ -1,11 +1,12 @@
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { parse, stakes, ticketCard } from './plan.mjs';
 import { childEnv, inspect, json, save, withLock } from './worktree.mjs';
 import { observeSlice, select } from './factory.mjs';
-import { actor, reserve, review } from './review.mjs';
+import { actor, checkPackage, reserve, review } from './review.mjs';
 import { ready, route } from './brief.mjs';
 import { gateNames, privateEnv, runGates } from './gates.mjs';
 import { tmpRoot } from '../../apps/desktop/test-tmp';
@@ -94,6 +95,14 @@ it('withholds noise, guard failures and overfit in a bounded offline trial', () 
   expect(decideTrial(80,82,1,false,2)).toBe('discard');
   expect(decideTrial(80,82,1,true,-1)).toBe('overfit');
   expect(decideTrial(80,82,1,true,0)).toBe('keep');
+});
+it('rechecks the actual package bytes when an approved receipt is resumed', async () => {
+  const file = path.join(lab,'fixture-package');
+  fs.writeFileSync(file,'original');
+  const digest = createHash('sha512').update('original').digest('hex');
+  await checkPackage(file,digest);
+  fs.writeFileSync(file,'replacement');
+  await expect(checkPackage(file,digest)).rejects.toThrow(/changed/);
 });
 it('resumes the exact live plan after a missing-provider hold without saving the configured secret', () => {
   try {

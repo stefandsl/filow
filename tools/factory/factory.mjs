@@ -89,6 +89,7 @@ function build(state, tree, dir, options, checkpoint) {
   ensure(report && report.candidate === tree.head, 'Save the builder report for the exact commit at ' + file + ' and repeat build.');
   safeText(report.baseObservation); safeText(report.candidateObservation);
   state.builder = actor(report,state.builderRoute);
+  state.builderEvidence = { file, digest:hash(read(file)) };
   if (report.incident) {
     for (const key of ['incident','expected','observed','affectedCommand','skillRevision','neighboringReplay']) safeText(report[key]);
     state.firstFailure ??= report;
@@ -169,6 +170,7 @@ async function run(options) {
           state.step = 'rehearsed'; checkpoint(); return;
         }
         ensure(state.buildEvidence?.sha === state.candidate && state.buildEvidence.status === 'green' && state.step !== 'build', 'Complete the green build first.');
+        ensure(hash(read(state.builderEvidence.file)) === state.builderEvidence.digest, 'The builder report changed. Reconcile the evidence and repeat build.');
         if (state.step === 'complete' && (options.retry || options.newRound)) {
           state.gate = null; state.round = null; state.verdict = 'HOLD';
         }

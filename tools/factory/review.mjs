@@ -40,6 +40,10 @@ async function packageDigest(file) {
   for await (const chunk of fs.createReadStream(file)) sum.update(chunk);
   return sum.digest('hex');
 }
+export async function checkPackage(file,digest) {
+  ensure(typeof file === 'string' && path.isAbsolute(file) && /^[a-f0-9]{128}$/.test(digest) &&
+    fs.existsSync(file) && await packageDigest(file) === digest, 'Package evidence is missing or changed.');
+}
 export async function review(state, dir, ledger, options, checkpoint) {
   const expected = route(state.risk.level, 'Reviewer, blind case');
   ensure(ready(expected.provider), 'Required independent reviewer unavailable. Configure ' + expected.provider + ' and repeat verify.');
@@ -68,7 +72,8 @@ export async function review(state, dir, ledger, options, checkpoint) {
       JSON.stringify({ candidate: state.candidate, caseDigest: round.blind.digest, expected: round.blind.expected, checks,
         requiredGates: state.gate.receipts, writableFiles: state.card.paths }) +
       '\nFor Heavy include packagePath, packageSha512, os and device for the tested artifact. Include skillRevision after an agent failure.';
-    if (stage === 'judge') detail += '\nAssess the independent replay report at ' + round.replay.file + ' with digest ' + round.replay.digest;
+    if (stage === 'judge') detail += '\nAssess the independent replay report at ' + round.replay.file + ' with digest ' + round.replay.digest +
+      '\nBuilder identity and evidence: ' + JSON.stringify({actor:state.builder,report:state.builderEvidence});
     if (!round[stage]) {
       const provider = route(state.risk.level,role).provider;
       ensure(ready(provider), 'Required ' + role + ' unavailable. Configure ' + provider + ' and repeat verify.');
@@ -100,8 +105,10 @@ export async function review(state, dir, ledger, options, checkpoint) {
         if (state.firstFailure) safeText(report.skillRevision);
         if (state.risk.level === 'Heavy') {
           safeText(report.device); safeText(report.os);
-          ensure(path.isAbsolute(report.packagePath) && /^[a-f0-9]{128}$/.test(report.packageSha512) &&
-            await packageDigest(report.packagePath) === report.packageSha512, 'Package evidence is missing or changed.');
+          await checkPackage(report.packagePath,report.packageSha512);
+          ensure(stage !== 'judge' || round.replay.packageHash === report.packageSha512, 'Judge must verify the package that the reviewer replayed.');
+          receipt.packageHash = report.packageSha512;
+          receipt.packagePath = report.packagePath;
           state.packageHash = report.packageSha512;
         }
       }
@@ -109,6 +116,7 @@ export async function review(state, dir, ledger, options, checkpoint) {
       checkpoint();
     }
     ensure(hash(read(file)) === round[stage].digest, 'A recorded review packet changed. Preserve it and request independent review.');
+    if (round[stage].packageHash) await checkPackage(round[stage].packagePath,round[stage].packageHash);
     sources.push(round[stage].who);
   }
   state.lastIndependentPass = state.candidate;

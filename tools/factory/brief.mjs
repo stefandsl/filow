@@ -63,7 +63,8 @@ export function packet(state, role, folder, instructions, output) {
         "if (!$providerKey) { throw 'Configure the OpenAI provider first.' }",
         "Get-ChildItem Env: | ForEach-Object { [Environment]::SetEnvironmentVariable($_.Name, $null, 'Process') }",
         ...Object.entries(env).map(([k,v]) => '[Environment]::SetEnvironmentVariable(' + quote(k) + ', ' + quote(v) + ", 'Process')"),
-        "$env:CODEX_API_KEY = $providerKey", "$OutputEncoding = [Text.UTF8Encoding]::new($false)",command, 'exit $LASTEXITCODE'];
+        "$env:CODEX_API_KEY = $providerKey", "$OutputEncoding = [Text.UTF8Encoding]::new($false)",command + ' *> $null',
+        "if ($LASTEXITCODE) { Write-Output 'HOLD: Codex dispatch failed. Check provider setup and the private brief.' }", 'exit $LASTEXITCODE'];
       fs.writeFileSync(path.join(folder,'dispatch.ps1'),script.join('\r\n') + '\r\n', { mode: 0o600 });
       console.log('For a credential-isolated dispatch use powershell.exe -NoProfile -File ' + quote(path.join(folder,'dispatch.ps1')));
     } else {
