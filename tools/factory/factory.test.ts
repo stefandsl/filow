@@ -877,5 +877,7 @@ it.runIf(process.platform === 'win32')('names the file and live process on a Win
     fs.writeFileSync(neighbor,'unused fixture');
     expect(installLock('npm error code EPERM\nnpm error path ' + neighbor,lab)).toContain('No live lock owner identified');
     expect(installLock('npm error path ' + file,lab)).toBe('');
+    vi.stubEnv('SystemRoot',path.join(lab,'missing Windows installation'));
+    expect(installLock('npm error code EPERM\nnpm error path ' + file,lab)).toContain('Lock probe compilation failed (ENOENT)');
   } finally { const done = new Promise(resolve=>holder.once('exit',resolve)); holder.kill(); await done; }
-},30000); // Query the real Restart Manager while a run-owned executable is mapped.
+},90000); // Includes two compilations and the native process and Restart Manager queries on Windows CI.

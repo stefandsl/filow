@@ -28,11 +28,22 @@ export function installLock(stderr,runtime) {
   if (process.platform !== 'win32' || !/^npm (?:error|ERR!) code EPERM\s*$/im.test(stderr)) return '';
   const file = /^npm (?:error|ERR!) path (.+)$/im.exec(stderr)?.[1].trim();
   if (!file || !path.isAbsolute(file)) return 'npm reported EPERM without an absolute path.';
-  const probe = spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
-    path.join(import.meta.dirname,'install-lock.ps1')],{encoding:'utf8',windowsHide:true,timeout:15000,
-    env:{...privateEnv(runtime),FILOW_INSTALL_LOCK_PATH:file}});
-  const owners = (probe.stdout || '').split(/\r?\n/).filter(s=>/^PID [0-9]+ /.test(s));
-  return 'EPERM at ' + file + '. ' + (owners.join(', ') || 'No live lock owner identified.');
+  const env = privateEnv(runtime);
+  const scratch = fs.mkdtempSync(path.join(env.TEMP,'lock-'));
+  const options = {cwd:scratch,env,encoding:'utf8',windowsHide:true,timeout:30000};
+  const prefix = 'EPERM at ' + file + '. ';
+  try {
+    const compiler = path.join(process.env.SystemRoot,'Microsoft.NET','Framework','v4.0.30319','csc.exe');
+    const exe = path.join(scratch,'InstallLock.exe');
+    const compile = spawnSync(compiler,['/nologo','/out:' + exe,path.join(import.meta.dirname,'InstallLock.cs')],options);
+    if (compile.status !== 0) return prefix + 'Lock probe compilation failed (' + (compile.error?.code || compile.status) + ').';
+    const probe = spawnSync(exe,[file],options);
+    if (probe.status !== 0) return prefix + 'Lock query failed (' + (probe.error?.code || probe.status) + ').';
+    const owners = probe.stdout.split(/\r?\n/).filter(s=>/^PID [0-9]+ /.test(s));
+    return prefix + (owners.join(', ') || 'No live lock owner identified.');
+  } finally {
+    fs.rmSync(scratch,{recursive:true,force:true});
+  }
 }
 
 function installDependencies(root, dir) {
