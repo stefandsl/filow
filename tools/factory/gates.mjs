@@ -17,14 +17,32 @@ export function privateEnv(folder) {
     env[key] = path.join(folder, sub);
     fs.mkdirSync(env[key], { recursive: true, mode: 0o700 });
   }
+  env.PSModuleAnalysisCachePath = path.join(env.LOCALAPPDATA,'ModuleAnalysisCache');
   return env;
+}
+
+export function installLock(stderr,runtime) {
+  if (process.platform !== 'win32' || !/^npm (?:error|ERR!) code EPERM\s*$/im.test(stderr)) return '';
+  const file = /^npm (?:error|ERR!) path (.+)$/im.exec(stderr)?.[1].trim();
+  if (!file || !path.isAbsolute(file)) return 'npm reported EPERM without an absolute path.';
+  const probe = spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
+    path.join(import.meta.dirname,'install-lock.ps1')],{encoding:'utf8',windowsHide:true,timeout:15000,
+    env:{...privateEnv(runtime),FILOW_INSTALL_LOCK_PATH:file}});
+  const owners = (probe.stdout || '').split(/\r?\n/).filter(s=>/^PID [0-9]+ /.test(s));
+  return 'EPERM at ' + file + '. ' + (owners.join(', ') || 'No live lock owner identified.');
 }
 
 function installDependencies(root, dir) {
   const npm = process.env.npm_execpath;
   ensure(npm && fs.existsSync(npm), 'Start dependency setup through the documented npm command.');
-  return spawnSync(process.execPath,[npm,'ci','--prefer-offline'],{ cwd:root, env:privateEnv(path.join(dir,'runtime')),
-    windowsHide:true, stdio:'ignore', timeout:25*60000 }).status;
+  const runtime = path.join(dir,'runtime');
+  const result = spawnSync(process.execPath,[npm,'ci','--prefer-offline'],{ cwd:root, env:privateEnv(runtime),
+    windowsHide:true, encoding:'utf8', stdio:['ignore','ignore','pipe'],timeout:25*60000 });
+  if (result.status !== 0) {
+    const diagnostic = installLock(result.stderr || '',runtime);
+    ensure(!diagnostic,diagnostic + ' Inspect the file and repeat plan after release.');
+  }
+  return result.status;
 }
 
 export function ensureDependencies(root, dir, install = installDependencies) {
@@ -50,20 +68,23 @@ function gateCheckout(root, sha, dir) {
   const checkout = fs.mkdtempSync(path.join(dir,'ci-'));
   git(root,'clone','--quiet','--shared','--no-checkout','--',root,checkout);
   git(checkout,'checkout','--quiet','--detach',sha);
-  // Use the dependencies already installed for this candidate, including nested
-  // workspace installs. Generated desktop and native bundles live in the copy.
-  const manifests = git(checkout,'ls-files','-z','--','package.json','apps/*/package.json','packages/*/package.json');
-  for (const manifest of manifests.split('\0').filter(Boolean)) {
-    const modules = path.join(path.dirname(manifest),'node_modules');
-    const installed = path.join(root,modules);
-    if (fs.existsSync(installed)) fs.symlinkSync(installed,path.join(checkout,modules),'junction');
-  }
+  linkDependencies(root,checkout);
   // Vendor validates the pinned runtime stamp and may replace this whole directory.
   const runtime = path.join('apps/desktop/native/llama',process.platform+'-'+process.arch);
   if (fs.existsSync(path.join(root,runtime,'FETCHED-FROM.txt')) && !fs.existsSync(path.join(checkout,runtime))) {
     fs.cpSync(path.join(root,runtime),path.join(checkout,runtime),{recursive:true});
   }
   return checkout;
+}
+
+// Link the prepared install into private replays without running npm ci over live native binaries.
+export function linkDependencies(root,checkout) {
+  const manifests = git(checkout,'ls-files','-z','--','package.json','apps/*/package.json','packages/*/package.json');
+  for (const manifest of manifests.split('\0').filter(Boolean)) {
+    const modules = path.join(path.dirname(manifest),'node_modules');
+    const installed = path.join(root,modules);
+    if (fs.existsSync(installed)) fs.symlinkSync(installed,path.join(checkout,modules),'junction');
+  }
 }
 
 function execute(name, root, env) {

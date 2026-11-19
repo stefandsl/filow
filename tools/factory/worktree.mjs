@@ -43,7 +43,7 @@ export function inspect(cwd) {
   const branch = git(root, 'branch', '--show-current');
   ensure(branch && !/^(main|master)$/i.test(branch), 'Switch to the assigned ticket branch.');
   ensure(!git(root, 'status', '--porcelain=v1', '--untracked-files=all', '--ignore-submodules=none'),
-    'Dirty worktree. Inspect git status. Preserve existing edits and commit only the intended slice before resuming.');
+    "Dirty worktree. Preserve existing edits. Run git -C '" + root.replaceAll("'","''") + "' status --short");
   return { root, branch, common: resolveGit('--git-common-dir'), head: git(root, 'rev-parse', 'HEAD') };
 }
 export function checkWindowsVolumes(dir, root) {

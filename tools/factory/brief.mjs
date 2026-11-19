@@ -38,7 +38,7 @@ const schemas = {
   Coordinator: 'card', Builder: 'builder', 'Reviewer, blind case': 'blind', 'Reviewer, replay': 'replay', Judge: 'replay',
 };
 
-export function writeDispatch({ exe, model, cwd, folder, brief, output, schema, role, builder = false }) {
+export function writeDispatch({ exe, model, cwd, folder, brief, output, schema, role, builder = false, runFile }) {
   ensure(fs.existsSync(schema), 'Missing packet schema: ' + schema);
   const independent = model.via === 'OpenRouter';
   const providerArgs = independent ? ['-c','model_provider=openrouter',
@@ -48,7 +48,7 @@ export function writeDispatch({ exe, model, cwd, folder, brief, output, schema, 
     '-c','model_providers.openrouter.request_max_retries=0','-c','model_providers.openrouter.stream_max_retries=0'] : [];
   const args = ['exec','--json','--ephemeral','--ignore-user-config','--skip-git-repo-check','-C',cwd,
     '-c','windows.sandbox=unelevated',
-    '-s',builder ? 'workspace-write' : 'read-only',...providerArgs,'-m',model.model,'-c','model_reasoning_effort=' + model.effort,
+    '-s',builder ? 'workspace-write' : 'read-only',...(builder && runFile ? ['--add-dir',path.join(folder,'git-data')] : []),...providerArgs,'-m',model.model,'-c','model_reasoning_effort=' + model.effort,
     '-c','log_dir=' + path.join(folder,'runtime','logs'),'-c','shell_environment_policy.inherit=all','-c',"shell_environment_policy.exclude=['*KEY*','*TOKEN*','*SECRET*','*PASSWORD*','*AUTH*','*CREDENTIAL*','CODEX_HOME']",'--output-schema',schema,'-o',output,'-'];
   // Resolve credentials in the launcher process each time the printed command runs.
   const launchArgs = [path.join(import.meta.dirname,'dispatch.mjs'),model.provider,path.join(folder,'runtime'),'--step',role,exe,...args];
@@ -57,7 +57,7 @@ export function writeDispatch({ exe, model, cwd, folder, brief, output, schema, 
     // Windows PowerShell 5.1 routes redirected native stderr through its error stream.
     "$ErrorActionPreference = 'Continue'", '$briefText | & ' + quote(process.execPath) + ' ' + launchArgs.map(quote).join(' '),
     '$code = $LASTEXITCODE', "$ErrorActionPreference = 'Stop'", 'if ($null -eq $code) { $code = 1 }',
-    "if ($code) { Write-Output 'HOLD: Codex dispatch failed. Check provider setup and the private brief.' }", 'exit $code'];
+    "if ($code) { Write-Output 'HOLD: Codex dispatch failed. Check provider setup and the private brief.' }", ...(builder && runFile ? ['if ($code -eq 0) {', '  & ' + [process.execPath,path.join(import.meta.dirname,'builder.mjs'),runFile,folder].map(quote).join(' '), '  $code = $LASTEXITCODE','}'] : []),'exit $code'];
   const scriptPath = path.join(folder,'dispatch.ps1');
   fs.writeFileSync(scriptPath,'\ufeff' + script.join('\r\n') + '\r\n', { mode: 0o600 });
   console.log('powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + quote(scriptPath));
@@ -67,7 +67,7 @@ export function writeDispatch({ exe, model, cwd, folder, brief, output, schema, 
 export function packet(state, role, folder, instructions, output, resolveCodex = desktopCodex) {
   const blind = role === 'Reviewer, blind case';
   const builder = role === 'Builder';
-  const cwd = builder || role === 'Coordinator' ? state.root : folder;
+  const cwd = builder ? state.builderRoot || state.root : role === 'Coordinator' ? state.root : folder;
   const model = route(state.risk.level, role);
   const exe = resolveCodex();
   const readyNow = Boolean(exe) && ready(model.provider,process.env,exe,path.join(folder,'runtime'));
@@ -86,12 +86,12 @@ export function packet(state, role, folder, instructions, output, resolveCodex =
   const writable = [output];
   if (builder) {
     const grant = editGrant(state.card);
-    for (const file of grant.paths) writable.push(path.join(state.root,file) +
+    for (const file of grant.paths) writable.push(path.join(cwd,file) +
       (grant.appendOnly.includes(file) ? ' (append numbered rules and checks for fixes only)' : ''));
   }
   const fields = [state.ticket + '. ' + state.card.goal,
     [role, state.run, model.provider, model.model, model.effort, 'record the actual session ID in your report'].join(', '),
-    blind ? folder : [state.root, state.branch, state.base, state.candidate].filter(Boolean).join(', '),
+    blind ? folder : [builder ? cwd : state.root, state.branch, state.base, state.candidate].filter(Boolean).join(', '),
     folder, writable.join(', '),
     'Write only the listed paths. Protect other worktrees and processes. Local ticket only. 25 minutes per command, one setup retry. No publish grants. Spend unknown.',
     [state.card.initial,state.card.action,state.card.positive,state.card.negative,...(state.card.checks || []),
@@ -109,7 +109,7 @@ export function packet(state, role, folder, instructions, output, resolveCodex =
     console.log('DRY RUN: would dispatch the ' + role + ' packet to ' + model.provider + ' ' + model.model + '.');
   } else if (readyNow) {
     const schema = path.join(import.meta.dirname, schemas[role] + '.schema.json');
-    writeDispatch({ exe, model, cwd, folder, brief, output, schema, role, builder });
+    writeDispatch({ exe, model, cwd, folder, brief, output, schema, role, builder, runFile:state.runFile });
   } else {
     const fix = !exe ? desktopFix : model.provider === 'OpenAI' ? loginFix + '.' : reviewerFix + '.';
     ensure(false, role + ' dispatch unavailable. ' + fix);

@@ -58,3 +58,10 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R48 (2026-11-19, N-08): announce the private dispatch log at launch and report elapsed time and packet step every 30 seconds until exit. Check: advance a silent dispatch through two heartbeats and confirm a native failure retains its exit code.
 - R49 (2026-11-19, N-08): describe packet dispatches in an offline rehearsal. Check: rehearse with a configured provider and verify the preview names the role and emits no runnable launcher.
 - R50 (2026-11-19, N-08): derive the plan label, dispatched model and accepted reviewer identity from the assigned route. Check: trace a consequential review from the Google Gemini 4 Carbon preflight through the OpenRouter launch and receipt validation.
+
+- R51 (2026-11-19, N-08): run baseline gates from the factory's hash-matched installation and supply their receipts to the builder. Check: replay N-01 from a clean clone and count installs across plan, baseline and candidate.
+- R52 (2026-11-19, N-08): isolate builder Git metadata and validate its clean, ticketed commit before advancing the assigned branch. Check: submit a dirty draft and a stale SHA, inspect the recovery command, then submit a clean commit and compare both branches.
+- R53 (2026-11-19, N-08): resolve remote main on the operator side and inventory original history inputs before authoring evidence. Check: use a local remote with a valid backup, then remove the bundle or its archived ref and inspect the HOLD.
+
+- R54 (2026-11-19, N-08): diagnose Windows install EPERM at the reported path and preserve unknown lock ownership. Check: hold a run-owned executable open and match the Restart Manager PID to the test child.
+- R55 (2026-11-19, N-08): include a quoted redispatch command on a rejected private commit and restrict operator Git probes to their authentication environment. Check: reject a wrong ticket subject and inspect the command and remote probe environment.

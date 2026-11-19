@@ -115,6 +115,8 @@ Set-Location -LiteralPath $n01
 npm.cmd run filow:plan -- N-01
 ```
 
+For N-01, set `FILOW_FACTORY_BRANCH_BUNDLE` in the plan terminal to the absolute path of the original branch backup. Plan verifies the bundle, records its SHA-256 and checks the archived `refs/heads/audit/fixes-0.9.42` head. It also reads `refs/heads/main` from origin using the operator's Git login. A missing input appears in the packet and blocks the scoped plan until supplied.
+
 Copy the run ID and State path. If plan reports a login or CLI problem, follow its fix and repeat plan with that ID. Once ready, plan prints the coordinator's PowerShell command and pauses for the card. Run that exact `dispatch.ps1` command in the same terminal. The coordinator reads the ticket and callers and saves its reply to the private `plan/card.json`. Review its examples, checks and writable paths before freezing it.
 
 ```powershell
@@ -125,6 +127,8 @@ npm.cmd run filow:plan -- $run --card "$card"
 if ($LASTEXITCODE) { throw 'Follow the plan HOLD and repeat with the same run ID and card.' }
 npm.cmd run filow:build -- $run
 ```
+
+N-01 build prepares baseline gate receipts from the frozen SHA before dispatching the builder. The builder works on a private copy of the ticket branch with its own Git metadata and the prepared dependencies. A clean ticket-prefixed commit and matching report allow the next build to fast-forward the assigned worktree and run candidate gates. A dirty reply prints the inspection command and preserves the draft in the private copy.
 
 Continue with the printed builder packet and the same-ID build and verify steps above. Private state lives in `.filow-factory` beside the primary clone, grouped by repository, live or rehearsal, and run ID. Only the runner writes `run.json`. Plan also accepts a quoted ticket title or request.
 

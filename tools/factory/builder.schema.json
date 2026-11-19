@@ -1,6 +1,7 @@
 {
   "type": "object",
   "properties": {
+    "verdict": { "type": "string", "enum": ["COMMITTED", "HOLD"] },
     "provider": { "type": "string" },
     "model": { "type": "string" },
     "effort": { "type": "string" },
@@ -46,6 +47,7 @@
     }
   },
   "required": [
+    "verdict",
     "provider",
     "model",
     "effort",

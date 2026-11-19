@@ -537,7 +537,7 @@ it('dispatches each JSON packet with the schema that accepts its receipt', () =>
   const report = {...actor,...common,caseDigest:'digest',findings:[],observations:['Matched the receipt.'],
     skillRevision:null,packagePath:null,packageSha512:null,os:null,device:null};
   const cases = [
-    ['Coordinator','card',{...state.card,bugFix:false}], ['Builder','builder',{...actor,candidate:state.candidate,
+    ['Coordinator','card',{...state.card,bugFix:false}], ['Builder','builder',{...actor,verdict:'COMMITTED',candidate:state.candidate,
       baseObservation:'Before',candidateObservation:'After',incident:null,expected:null,observed:null,affectedCommand:null,
       skillRevision:null,neighboringReplay:null}],
     ['Reviewer, blind case','blind',{...actor,assignment:'sealed',case:'input',expected:'result'}],
@@ -820,3 +820,57 @@ it('reissues a builder packet on a closed review and holds a ruleless correction
   expect(resume.stderr).toMatch(/HOLD: .*rule.*same commit/i);
   expect(inspect(tree).head).toBe(corrected.head);
 });
+
+it('rejects a dirty builder reply, preserves the ticket and accepts only the ticketed private commit', async () => {
+  const { builderCheckout, builderResult } = await import('./builder.mjs');
+  const state = {root:tree,branch:git(tree,'branch','--show-current'),base:git(tree,'rev-parse','HEAD'),ticket:'N-01',
+    run:'run-private',card:{paths:['HANDOFF.md']},builderRoute:route('Heavy','Builder')};
+  const dir = path.join(lab,'builder handoff');
+  const copy = builderCheckout(state,dir,state.base);
+  const file = path.join(copy,'HANDOFF.md');
+  fs.appendFileSync(file,'\nSpecific baseline check\n');
+  const report = {verdict:'COMMITTED',candidate:state.base};
+  expect(()=>builderResult(state,dir,report)).toThrow(/git -C .* diff HEAD/);
+  expect(git(tree,'status','--porcelain')).toBe('');
+  expect(()=>builderResult(state,dir,{...report,verdict:'HOLD'})).toThrow(/uncommitted/);
+  git(copy,'add','HANDOFF.md');
+  git(copy,'commit','-qm','Unprefixed draft','-m','Factory-Run: run-private');
+  expect(()=>builderResult(state,dir,{...report,candidate:git(copy,'rev-parse','HEAD')})).toThrow(/Unexplained commit[\s\S]*dispatch\.ps1/);
+  git(copy,'commit','--amend','-qm','N-01 Record the baseline','-m','Factory-Run: run-private');
+  report.candidate = git(copy,'rev-parse','HEAD');
+  expect(()=>builderResult(state,dir,{...report,candidate:state.base})).toThrow(/candidate/i);
+  expect(builderResult(state,dir,report)).toBe(report.candidate);
+  expect(git(tree,'rev-parse','HEAD')).toBe(state.base);
+},30000); // Two isolated checkouts and the real commit validation.
+
+it('inventories operator remote and archive inputs, including an absent archived head', async () => {
+  const { baselineInputs } = await import('./baseline.mjs');
+  const archived = 'refs/heads/audit/fixes-0.9.42';
+  const bundle = path.join(lab,'original.bundle');
+  git(clone,'branch','audit/fixes-0.9.42','HEAD');
+  git(clone,'bundle','create',bundle,archived);
+  git(tree,'remote','add','origin',clone);
+  try {
+    const evidence = baselineInputs(tree,bundle);
+    expect(evidence.remote).toBe(git(clone,'rev-parse','main'));
+    expect(evidence.archive).toBe(git(clone,'rev-parse',archived));
+    expect(evidence.bundleSha256).toBe(hash(fs.readFileSync(bundle)));
+    expect(baselineInputs(tree,path.join(lab,'missing')).missing.join(' ')).toMatch(/bundle.*audit/i);
+    git(clone,'bundle','create',bundle,'main');
+    expect(baselineInputs(tree,bundle).missing.join(' ')).toContain(archived);
+  } finally { git(tree,'remote','remove','origin'); }
+},30000); // Uses real local upload-pack and bundle verification.
+
+
+it.runIf(process.platform === 'win32')('names the file and live process on a Windows install lock', async () => {
+  const { installLock } = await import('./gates.mjs');
+  const file = path.join(lab,'held runtime.exe');
+  fs.copyFileSync(process.execPath,file);
+  const { spawn } = await import('node:child_process');
+  const holder = spawn(file,['-e',"console.log('ready');setInterval(()=>{},1000)"],{windowsHide:true});
+  try {
+    await new Promise<void>((resolve,reject)=>{holder.stdout.once('data',()=>resolve()); holder.once('error',reject);});
+    expect(installLock('npm error code EPERM\nnpm error syscall unlink\nnpm error path ' + file,lab)).toContain(String(holder.pid));
+    expect(installLock('npm error path ' + file,lab)).toBe('');
+  } finally { const done = new Promise(resolve=>holder.once('exit',resolve)); holder.kill(); await done; }
+},30000); // Query the real Restart Manager while a run-owned executable is mapped.
