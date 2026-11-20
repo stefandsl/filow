@@ -41,16 +41,17 @@ $data = Join-Path $run 'filow'
 $roaming = Join-Path $profileDir 'AppData\Roaming'
 $local = Join-Path $profileDir 'AppData\Local'
 $tempDir = Join-Path $local 'Temp'
-foreach ($dir in @($roaming, $tempDir, (Join-Path $profileDir 'Documents'), $data)) {
+foreach ($dir in @($roaming, $tempDir, (Join-Path $profileDir 'Documents'), (Join-Path $profileDir 'Desktop'), $data)) {
     [IO.Directory]::CreateDirectory($dir) | Out-Null
 }
 $inputs = @{version=$Version; sourceSha=$SourceSha; checkout=$Checkout; packageDir=$PackageDir; basePort=$BasePort}
 [IO.File]::WriteAllText((Join-Path $run 'inputs.json'), ($inputs | ConvertTo-Json))
-$settings = @{welcomeCompleted=$true; localAiOffered=$true; firewallOffered=$true; pptAsked=$true; remoteShareChosen=$true; remoteShare=$false; lang='en'; theme='light'}
+$settings = @{welcomeCompleted=$true; localAiOffered=$true; firewallOffered=$true; pptAsked=$true; remoteShareChosen=$true; remoteShare=$false; okFilow=@{enabled=$false; wakeWord=$false}; lang='en'; theme='light'}
 [IO.File]::WriteAllText((Join-Path $data 'settings.json'), ($settings | ConvertTo-Json))
 $log = Join-Path $data 'startup.log'
 $helper = Join-Path $PSScriptRoot 'acceptance-ui.mjs'
 $ports = $BasePort..($BasePort + 4)
+if ($ports | Where-Object { $_ -in 4747,4748,11434 }) { throw 'Choose dedicated acceptance ports' }
 
 # Use a separate PowerShell process so a blocked Windows UI Automation provider also has a deadline.
 $uiChecks = {
@@ -88,15 +89,28 @@ $uiChecks = {
     $until = [DateTime]::UtcNow.AddSeconds(15)
     do {
         $dialog = $root.FindFirst($scope::Children,$condition)
+        if (!$dialog) {
+            foreach ($window in $root.FindAll($scope::Children,$owner)) {
+                $dialog = $window.FindFirst($scope::Descendants,$condition)
+                if ($dialog) { break }
+            }
+        }
         if (!$dialog) { Start-Sleep -Milliseconds 150 }
     } until ($dialog -or [DateTime]::UtcNow -gt $until)
     if (!$dialog) { throw 'Native report Save dialog missing' }
-    $edit = $dialog.FindFirst($scope::Descendants, (Property $a::AutomationIdProperty '1001'))
     $save = $dialog.FindFirst($scope::Descendants, (Property $a::AutomationIdProperty '1'))
-    if (!$edit -or !$save) { throw 'Save dialog controls missing' }
-    $file = Join-Path $work 'saved-report.txt'
-    $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($file)
-    $save.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    if (!$save -or !$save.Current.NativeWindowHandle) { throw 'Save dialog button missing' }
+    # Accept the suggested file in the new profile's Documents directory.
+    # Native shell buttons can expose an HWND without the UIA Invoke pattern.
+    Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class SaveDialogInput {
+    [DllImport("user32.dll")]
+    public static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr param, IntPtr data);
+}
+"@
+    if (![SaveDialogInput]::PostMessage([IntPtr]$save.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)) { throw 'Could not click Save' }
     PageAction saved
     $after = @(BrowserInventory | Sort-Object)
     [IO.File]::WriteAllLines((Join-Path $work 'browser-after.txt'), [string[]]$after)
@@ -136,7 +150,7 @@ try {
     $result.asarSha256 = (Get-FileHash -LiteralPath $asar -Algorithm SHA256).Hash
     $listeners = [Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners()
     if ($listeners | Where-Object { $_.Port -in $ports }) { throw 'One or more acceptance ports are in use' }
-    $app = Start-Process -FilePath $exe -WorkingDirectory $run -PassThru -WindowStyle Hidden `
+    $app = Start-Process -FilePath $exe -WorkingDirectory $run -PassThru `
         -ArgumentList @('--enable-logging=file', "--remote-debugging-port=$($ports[3])") -RedirectStandardOutput (Join-Path $run 'app.stdout.log') -RedirectStandardError (Join-Path $run 'app.stderr.log')
     $result.pid = $app.Id
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
@@ -158,12 +172,20 @@ try {
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($uiChecks.ToString()))
     $ui = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -WorkingDirectory $run -PassThru -WindowStyle Hidden `
         -ArgumentList "-NoProfile -NonInteractive -STA -EncodedCommand $encoded" -RedirectStandardOutput (Join-Path $run 'ui.stdout.log') -RedirectStandardError (Join-Path $run 'ui.stderr.log')
+    # Retain the process handle before waiting so Windows PowerShell can read ExitCode.
+    $null = $ui.Handle
     if (!$ui.WaitForExit(120000)) { throw 'Packaged UI or native dialog timed out' }
+    $result.uiExit = $ui.ExitCode
     if ($ui.ExitCode -ne 0) { throw 'About or Save failed. See stage.txt and ui.stderr.log in the evidence directory.' }
     $startup = Get-Content -LiteralPath $log -Raw
     if ($app.HasExited -or $startup -notmatch 'report: saved to a file the user picked' -or $startup -match 'startup failed|report: .*GitHub issue') {
         throw 'Unexpected startup, Save or external browser activity in packaged log'
     }
+    $result.savedReport = [IO.File]::ReadAllText((Join-Path $run 'saved-path.txt'))
+    $result.savedReportSha256 = (Get-FileHash -LiteralPath $result.savedReport -Algorithm SHA256).Hash
+    $result.screenshot = Join-Path $run 'saved.png'
+    $result.screenshotSha256 = (Get-FileHash -LiteralPath $result.screenshot -Algorithm SHA256).Hash
+    $result.startupLog = $log
     $result.passed = $true
 } finally {
     try {

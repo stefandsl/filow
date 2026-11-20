@@ -79,7 +79,7 @@ export async function review(state, dir, ledger, options, checkpoint, resolveCod
     let detail = identity + 'Supply a distinct case and expected result in string fields "case" and "expected". End this session after recording them.';
     if (stage !== 'blind') detail = identity + 'Replay the pinned candidate. Record candidate, caseDigest, verdict (PASS or HOLD), findings (array) and observations (one nonempty string per check, in order).\n' +
       JSON.stringify({ candidate: state.candidate, caseDigest: round.blind.digest, expected: round.blind.expected, checks,
-        requiredGates: state.gate.receipts, builderGrant: editGrant(state.card) }) +
+        requiredGates: state.gate.receipts, builderGrant: editGrant(state.card), scopeReceipt: state.scopeReceipt }) +
       '\nFor Heavy include packagePath, packageSha512, os and device for the tested artifact. Include skillRevision after an agent failure.';
     if (stage === 'judge') detail += '\nAssess the independent replay report at ' + round.replay.file + ' with digest ' + round.replay.digest +
       '\nBuilder identity and evidence: ' + JSON.stringify({actor:state.builder,report:state.builderEvidence});

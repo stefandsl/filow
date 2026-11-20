@@ -12,7 +12,7 @@ A ticket starts with something the owner wants to see. A run ends with evidence 
 
 On Windows use `npm.cmd` in PowerShell. These verbs end locally. One ticket can have several runs. If there are two active runs for a ticket, the runner lists their IDs and requires an exact one. One approved plan is enough for all its in-scope slices.
 
-**Review rules.** In `filow:plan`, `filow:build` and `filow:verify`, pass [REVIEW.md](REVIEW.md) first to every builder and reviewer. They read it before their brief and run the `Check:` step for every matching rule (including newly appended rules). When a review or test catches a bug, append one new `R<n>` rule with its check to `REVIEW.md` in the same fix commit. Preserve prior rules and mark superseded rules with their replacement.
+**Review rules.** In `filow:plan`, `filow:build` and `filow:verify`, pass [REVIEW.md](REVIEW.md) first to every builder and reviewer. They read it before their brief and run the `Check:` step for every matching rule (including newly appended rules). When a review or test catches a bug, append one new `R<n>` rule with its check to `REVIEW.md` in the same fix commit. Every frozen file-list check includes this exception. Build and verify validate the append against its parent commit and record both the full diff file list and the ticket files in the scope receipt.
 
 **Plan.** Name the person, initial state, action, visible result and one way it could be wrong. For a task completion, freeze the two tasks, the expected tick and the effect of replaying the report. Include the run limits, affected interfaces and recovery steps. Keep new ideas in the plan backlog. The coordinator dispatches the next ready ticket and records any reorder. Freeze the grants, base, examples and required gates in the plan. Send each worker one private [role brief](factory/BRIEF-TEMPLATE.md) with a named output folder, an exhaustive write list and the relevant trusted excerpts. Assign each path to one writer. Reserve the next review-rule number for the fix builder. Give an authorized skill writer any workflow correction.
 
@@ -93,7 +93,7 @@ Plan polls the daily offline schedule. Its receipt gives the next date and the p
 
 Run each printed packet dispatch with its assigned provider. The desktop CLI applies the role's JSON schema. Consequential reviewer packets use Gemini 4 Carbon through OpenRouter. The verifier checks the assignment, independence and evidence after receiving the structured reply.
 
-Use scoped helpers for tasks that benefit from an independent benchmark, a primary-source check or a review of affected callers. Incorporate reusable checks into the three commands. Pin and review external dependencies, and record the revision, safety assessment and successful invocation from a clean clone before enabling them. Put larger ideas in the backlog for a separate decision.
+Use scoped helpers for tasks that benefit from an independent benchmark, a primary-source check or a review of affected callers. Incorporate reusable checks into the three commands. For a Windows packaged report replay, run the About and Save command in [the release checklist](RELEASE-CHECKLIST.md) against the candidate package and include its result.json in the replay evidence. Pin and review external dependencies, and record the revision, safety assessment and successful invocation from a clean clone before enabling them. Put larger ideas in the backlog for a separate decision.
 
 ## Factory rule status
 

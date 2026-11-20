@@ -7,7 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 const [task, work] = process.argv.slice(2);
 const { version, sourceSha, checkout, packageDir, basePort } = JSON.parse(fs.readFileSync(path.join(work, 'inputs.json'), 'utf8'));
 const marker = 'Filow release acceptance ' + sourceSha.slice(0, 7);
-const targetFile = path.join(work, 'saved-report.txt');
+const documents = path.join(work, 'home', 'Documents');
 const visibleReport = '(() => { const p = document.querySelector("#preview"); return p?.getClientRects().length && p.textContent; })()';
 
 async function waitFor(read, description) {
@@ -34,22 +34,24 @@ async function openPage(matches) {
     socket.onerror = () => reject(Error('Could not connect to packaged page'));
   });
   let id = 0;
+  // Commands run sequentially. CDP may also send unsolicited events.
+  function command(method, params) {
+    const key = ++id;
+    return new Promise((resolve, reject) => {
+      socket.onclose = () => reject(Error('Packaged page disconnected'));
+      socket.onmessage = ({ data }) => {
+        const reply = JSON.parse(data);
+        if (reply.id !== key) return;
+        if (reply.error || reply.result?.exceptionDetails) reject(Error('Packaged page evaluation failed'));
+        else resolve(reply.result);
+      };
+      socket.send(JSON.stringify({ id: key, method, params }));
+    });
+  }
   return {
     close: () => socket.close(),
-    // Evaluations run sequentially. CDP may also send unsolicited events.
-    evaluate(expression) {
-      const key = ++id;
-      return new Promise((resolve, reject) => {
-        socket.onclose = () => reject(Error('Packaged page disconnected'));
-        socket.onmessage = ({ data }) => {
-          const reply = JSON.parse(data);
-          if (reply.id !== key) return;
-          if (reply.error || reply.result.exceptionDetails) reject(Error('Packaged page evaluation failed'));
-          else resolve(reply.result.result.value);
-        };
-        socket.send(JSON.stringify({ id: key, method: 'Runtime.evaluate', params: { expression, returnByValue: true } }));
-      });
-    },
+    evaluate: async expression => (await command('Runtime.evaluate', { expression, returnByValue: true })).result.value,
+    screenshot: async () => Buffer.from((await command('Page.captureScreenshot', { format: 'png' })).data, 'base64'),
   };
 }
 
@@ -109,16 +111,21 @@ async function checkUI() {
       }
       assert(body.includes('\n' + marker + '\n') && body.includes('Filow ' + version + ' · Electron ') && body.includes('offline on'), 'Report contents mismatch');
       fs.writeFileSync(path.join(work, 'report-preview.txt'), preview);
-      fs.writeFileSync(path.join(work, 'packaged-pages.json'), JSON.stringify((await pages()).map(t => t.id).sort()));
+      fs.writeFileSync(path.join(work, 'packaged-pages.json'), JSON.stringify((await pages()).map(t => t.id + ' ' + t.url).sort()));
       await page.evaluate('Array.from(document.querySelectorAll(".actions button")).find(b => b.textContent.startsWith("Save to a file")).click()');
     } else {
       const status = await waitFor(() => page.evaluate('document.querySelector("#status")?.innerText'), 'save confirmation');
-      assert(status === 'Saved to ' + targetFile, 'Report save confirmation mismatch');
+      const targetFile = status.slice('Saved to '.length);
+      assert(status.startsWith('Saved to ') && path.dirname(targetFile) === documents &&
+        /^filow-report-\d{4}-\d{2}-\d{2}\.txt$/.test(path.basename(targetFile)), 'Report save confirmation mismatch');
       const visible = await page.evaluate(visibleReport);
       const saved = fs.readFileSync(targetFile, 'utf8');
       const before = fs.readFileSync(path.join(work, 'report-preview.txt'), 'utf8');
       assert(reportBody(saved) === reportBody(visible) && reportBody(saved) === reportBody(before), 'Saved file differs from the visible report');
-      assert(JSON.stringify((await pages()).map(t => t.id).sort()) === fs.readFileSync(path.join(work, 'packaged-pages.json'), 'utf8'), 'Packaged windows changed during Save');
+      fs.writeFileSync(path.join(work, 'packaged-pages-after.json'), JSON.stringify((await pages()).map(t => t.id + ' ' + t.url).sort()));
+      assert(fs.readFileSync(path.join(work, 'packaged-pages-after.json'), 'utf8') === fs.readFileSync(path.join(work, 'packaged-pages.json'), 'utf8'), 'Packaged windows changed during Save');
+      fs.writeFileSync(path.join(work, 'saved-path.txt'), targetFile);
+      fs.writeFileSync(path.join(work, 'saved.png'), await page.screenshot());
       console.log('Saved file matches the visible report, allowing for the generated report time.');
     }
   } finally { page.close(); }

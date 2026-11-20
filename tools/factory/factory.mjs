@@ -77,10 +77,17 @@ export function observeSlice(tree, state) {
     ensure(files.every(f => grant.paths.includes(f)), 'Commit exceeds the frozen file list. Preserve the worktree and inspect the slice.');
     files.forEach(f => changed.add(f));
     const corrective = state.card.bugFix || (repair && index > previousIndex);
-    if (files.includes('docs/REVIEW.md')) checkRuleAppend(tree.root,parents[0],sha);
+    if (grant.appendOnly.some(file => files.includes(file))) checkRuleAppend(tree.root,parents[0],sha);
     else ensure(!corrective, 'A bug fix needs a numbered rule and check in the same commit.');
   }
   return [...changed];
+}
+export function scopeReceipt(tree, state) {
+  const changed = observeSlice(tree,state);
+  const grant = editGrant(state.card);
+  const finalFiles = git(tree.root,'diff','--no-renames','--name-only',state.base,tree.head).split('\n').filter(Boolean);
+  return { base:state.base, candidate:tree.head, grant, changed, finalFiles,
+    ticketFiles:finalFiles.filter(file => !grant.appendOnly.includes(file)) };
 }
 function coordinatorInstructions(state) {
   const instructions = ['Use the assigned worktree to trace callers. Return a plan for ' + state.ticket +
@@ -101,7 +108,7 @@ function printPlan(state) {
   console.log([state.ticket, state.card.goal,'Base ' + state.base,'Worktree ' + state.root,
     'Stakes ' + state.risk.level + ' | ' + state.risk.reason,
     'Action: ' + state.card.action, 'Positive: ' + state.card.positive, 'Negative: ' + state.card.negative,
-    'Checks: ' + state.card.checks.join(' '), 'Spend unknown. Release authority: owner.',
+    'Checks: ' + state.card.checks.join(' ') + ' ' + editGrant(state.card).fileListRule, 'Spend unknown. Release authority: owner.',
     'Next: ' + next(state,'build')].join('\n'));
 }
 function build(state, tree, dir, options, checkpoint) {
@@ -170,7 +177,8 @@ function build(state, tree, dir, options, checkpoint) {
     console.log('DRY RUN: preview only. Planned gates: ' + gateNames.join(', ') + '\nNext: ' + next(state,'verify')); return;
   }
   ensure(state.intent?.command === 'ticket commits' || state.candidate, 'Build did not issue this edit. Preserve the commit and inspect the run.');
-  const changed = observeSlice(tree,state);
+  const scope = scopeReceipt(tree,state);
+  const changed = scope.changed;
   const report = getReport(file);
   ensure(report && report.candidate === tree.head, 'Save the builder report for the exact commit at ' + file + ' and repeat build.');
   safeText(report.baseObservation); safeText(report.candidateObservation);
@@ -184,7 +192,7 @@ function build(state, tree, dir, options, checkpoint) {
     state.round = null; state.gate = null; state.candidate = tree.head;
     delete state.failedCandidate;
   }
-  state.step = 'build'; state.verdict = 'HOLD'; state.changed = changed;
+  state.step = 'build'; state.verdict = 'HOLD'; state.changed = changed; state.scopeReceipt = scope;
   const diff = git(tree.root,'diff','--no-ext-diff','--unified=0',state.base,tree.head);
   state.risk = stakes(state.card.reason,changed,diff.split('\n').filter(s => /^[+-](?![+-])/.test(s)).join('\n'),state.card.stakes);
   checkpoint();
@@ -304,6 +312,7 @@ export async function run(options, resolveCodex = desktopCodex) {
         }
         ensure(state.buildEvidence?.sha === state.candidate && state.buildEvidence.status === 'green' && state.step !== 'build', 'Complete the green build first.');
         ensure(hash(read(state.builderEvidence.file)) === state.builderEvidence.digest, 'The builder report changed. Reconcile the evidence and repeat build.');
+        state.scopeReceipt = scopeReceipt(tree,state);
         if (replaceRound) state.round = null;
         state.verdict = 'HOLD';
         state.step = 'verify'; checkpoint();

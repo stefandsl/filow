@@ -2,9 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ensure, hash, json, read } from './worktree.mjs';
 
+import cardSchema from './card.schema.json' with { type: 'json' };
+
 const levels = ['Light', 'Medium', 'Heavy'];
 export function editGrant(card) {
-  return { paths: [...new Set([...(card.paths || []), 'docs/REVIEW.md'])], appendOnly: ['docs/REVIEW.md'] };
+  return { paths: [...new Set([...(card.paths || []), 'docs/REVIEW.md'])], appendOnly: ['docs/REVIEW.md'], fileListRule: cardSchema.properties.checks.description };
 }
 export function parse(args) {
   const [verb, ...rest] = args;

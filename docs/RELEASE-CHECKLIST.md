@@ -161,7 +161,7 @@ For an independent release replay, place the authorized brief and its sealed-cas
 
 Run checks 2 and 4 on an interactive Windows desktop with Node 22 and the candidate checkout's locked dependencies.
 Set `$candidate` to the verified full SHA and `$packageDir` to the exact unpacked directory containing `Filow.exe`.
-Keep the G: work directory private. Each run creates its own Windows profile and saves its logs, report and result there.
+Keep the G: work directory private. Each run creates its own Windows profile and saves its logs, saved report and screenshot there. The result.json receipt identifies the candidate, records the report and screenshot hashes, and points to the startup log.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/release/about-and-save.ps1 `

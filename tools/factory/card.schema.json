@@ -17,6 +17,7 @@
       "type": "string"
     },
     "checks": {
+      "description": "Every frozen file-list check, including a final diff limited to named files, applies to the ticket paths after excluding a validated docs/REVIEW.md rule append for a fix. Validate each commit against its parent. Preserve every prior byte and append sequential numbered rules with their Checks. Reject any other REVIEW.md change.",
       "type": "array",
       "items": { "type": "string" },
       "minItems": 1

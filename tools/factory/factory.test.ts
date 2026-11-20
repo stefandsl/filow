@@ -5,9 +5,9 @@ import Ajv from 'ajv';
 import { prepareReplay, verifyReplay } from '../release/review-packet.mjs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, onTestFinished, vi } from 'vitest';
-import { parse, stakes, ticketCard } from './plan.mjs';
+import { editGrant, parse, stakes, ticketCard } from './plan.mjs';
 import { checkRunPaths, reserveRun, checkWindowsVolumes, hash, inspect, json, save, withLock } from './worktree.mjs';
-import { observeSlice, select } from './factory.mjs';
+import { observeSlice, scopeReceipt, select } from './factory.mjs';
 import { actor, checkPackage, getReport, reserve, review } from './review.mjs';
 import { reviewerKey, startProgress } from './dispatch.mjs';
 import { packet, ready, route } from './brief.mjs';
@@ -752,7 +752,9 @@ it.each([1,3])('checks the new-round allowance before touching a completed verif
   try {
     const plan = command('plan',fixture);
     const file = plan.stdout.match(/State: ([^\r\n]+)/)![1], dir = path.dirname(file);
-    const saved = json(file), candidate = state.candidate;
+    const saved = json(file);
+    state.run = saved.run;
+    const candidate = changeSlice(state,'Complete the rehearsal').head;
     const ledger = path.join(path.dirname(path.dirname(dir)),'reviews',fixture+'.json');
     const rounds = Array.from({length:used},(_,i)=>({number:i+1,id:randomUUID(),candidate,verdict:'PASS'}));
     save(ledger,rounds);
@@ -775,6 +777,7 @@ it.each([1,3])('checks the new-round allowance before touching a completed verif
       expect(json(file)).toMatchObject({step:'complete',verdict:'PASS',round:rounds.at(-1)});
       expect(json(ledger)).toEqual(rounds);
     } else {
+      expect(json(file).scopeReceipt).toMatchObject({candidate,ticketFiles:[state.card.paths[0]]});
       const reserved = json(file).round.id;
       expect(command('verify',saved.run,'--new-round').stderr).toContain(missingCli);
       expect(json(file).round.id).toBe(reserved);
@@ -833,6 +836,21 @@ it('checks new rule numbers and the exact prior text even with an explicit REVIE
   expect(()=>observeSlice(noCheck,incomplete)).toThrow(/Check/);
 });
 
+it('freezes the same file-list exception in the card schema, run grant and every role packet', () => {
+  const state = freshSlice();
+  state.card.checks = ['The final diff contains only HANDOFF.md.'];
+  state.card.paths = ['HANDOFF.md'];
+  const policy = editGrant(state.card).fileListRule;
+  expect(policy).toMatch(/every.*file.list.*docs\/REVIEW\.md/i);
+  const schema = json(path.join(source,'tools/factory/card.schema.json'));
+  expect(schema.properties.checks.description).toBe(policy);
+  for (const role of ['Coordinator','Builder','Reviewer, blind case','Reviewer, replay','Judge']) {
+    const folder = path.join(lab,'file-scope',role);
+    const {brief} = packet(state,role,folder,'Scope rehearsal.',path.join(folder,'report.json'),()=>null);
+    expect(fs.readFileSync(brief,'utf8')).toContain(policy);
+  }
+});
+
 it('permits a same-commit rule outside the card and gives the candidate rules only to exposed roles', () => {
   const state = freshSlice(), first = changeSlice(state,'Show confirmation');
   const file = path.join(tree,'docs/REVIEW.md'), previous = fs.readFileSync(file,'utf8');
@@ -840,7 +858,8 @@ it('permits a same-commit rule outside the card and gives the candidate rules on
   const rule = '- R'+number+' (2026-11-19, test): Check the late click. Check: Replay the late click.';
   const head = changeSlice(state,'Preserve confirmation',previous + rule + '\n');
   const failed = {...state,candidate:first.head,round:{candidate:first.head,closed:true,findings:['Late click']}};
-  expect(observeSlice(head,failed)).toContain('docs/REVIEW.md');
+  expect(scopeReceipt(head,failed)).toMatchObject({candidate:head.head, base:state.base,
+    finalFiles:expect.arrayContaining(['docs/REVIEW.md',state.card.paths[0]]), ticketFiles:[state.card.paths[0]]});
   for (const role of ['Reviewer, blind case','Reviewer, replay','Judge','Builder']) {
     const folder = path.join(lab,'candidate',role);
     const {brief} = packet({...state,candidate:head.head},role,folder,'Replay.',path.join(folder,'report.json'),()=>null);

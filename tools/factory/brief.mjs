@@ -94,8 +94,8 @@ export function packet(state, role, folder, instructions, output, resolveCodex =
   const roleSection = sections.find(s => s.startsWith('**' + role + '.**'));
   ensure(roleSection, 'Missing role section in the factory brief template.');
   const writable = [output];
+  const grant = editGrant(state.card);
   if (builder) {
-    const grant = editGrant(state.card);
     for (const file of grant.paths) writable.push(path.join(cwd,file) +
       (grant.appendOnly.includes(file) ? ' (append numbered rules and checks for fixes only)' : ''));
   }
@@ -104,7 +104,7 @@ export function packet(state, role, folder, instructions, output, resolveCodex =
     blind ? folder : [builder ? cwd : state.root, state.branch, state.base, state.candidate].filter(Boolean).join(', '),
     folder, writable.join(', '),
     'Write only the listed paths. Protect other worktrees and processes. Local ticket only. 25 minutes per command, one setup retry. No publish grants. Spend unknown.',
-    [state.card.initial,state.card.action,state.card.positive,state.card.negative,...(state.card.checks || []),
+    [state.card.initial,state.card.action,state.card.positive,state.card.negative,...(state.card.checks || []), grant.fileListRule,
       state.risk.level, state.risk.reason, 'Run every matching Check in REVIEW.md.', state.round ? 'Round ' + state.round.number + '/3.' : ''].join(' '),
     'Use the assigned private profile. Provider ' + (readyNow ? 'configured.' : 'missing.') + ' Record observations in ' + output];
   let i = 0;
