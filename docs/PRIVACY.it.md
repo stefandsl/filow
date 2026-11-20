@@ -1,6 +1,6 @@
 # Informativa sulla privacy di Filow
 
-Aggiunta del ramo sperimentale: la parola di attivazione OK Filow, facoltativa,
+Aggiunta del ramo sperimentale: la parola di attivazione Filow, facoltativa,
 elabora l'audio solo in memoria su questo computer. Il microfono non si apre senza
 un indicatore di ascolto visibile e un comando per disattivarlo con un clic.
 Si salvano solo le cinque registrazioni accettate, nel profilo dell'app, insieme

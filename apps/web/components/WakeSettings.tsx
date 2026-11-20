@@ -87,6 +87,7 @@ export function WakeSettings({ lang }: { lang: string }) {
       <button className="btn" onClick={() => setNotice(false)}>{t("wakeCancel")}</button>
     </div>}
     <p role="status">{shownError || (status?.phase === "training" ? t("wakeTraining") : busy ? t("wakeWorking") : status?.listening ? t("wakeListening") : status?.enabled ? t("wakePaused") : t("wakeReady"))}</p>
+    {status?.legacyPhrase && <p>{t("wakeLegacy")}</p>}
     <p>{index + 1} / {negative ? 2 : 5} · {t(negative ? "wakeNegative" : "wakeRecord")}</p>
     <p>{t("wakeNegativeHelp")}</p>
     <button className="btn" disabled={recording || busy} onClick={() => { setNegative(!negative); setIndex(0); setDraft(null); }}>{t(negative ? "wakeRecord" : "wakeNegative")}</button>

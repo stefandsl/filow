@@ -20,7 +20,11 @@ afterEach(() => { vi.restoreAllMocks(); for (const d of dirs.splice(0)) fs.rmSyn
 it('uses one utility RPC for both scores, reset and cleanup',async()=>{
  const child=Object.assign(new EventEmitter(),{postMessage:vi.fn((m:{id:number;type:string;at:number})=>queueMicrotask(()=>child.emit('message',{id:m.id,at:m.at,score:6,keyword:true,ms:2}))),kill:vi.fn()});
  const utilityProcess={fork:vi.fn(()=>child)};
- const detector=await createDetectors(temp(),{},utilityProcess);
+ const dir = temp();
+ const detector=await createDetectors(dir,{},utilityProcess);
+ const legacy = fs.readFileSync(path.join(dir, "keywords.txt"), "utf8");
+ expect(legacy).toContain("OW2 K EY1 F IY1 L OW0 :");
+ expect(legacy).not.toMatch(/^F IY1 L OW0 :/m);
  expect(utilityProcess.fork).toHaveBeenCalledTimes(1);
  expect(await detector.feed(new Float32Array(1600),100)).toMatchObject({score:6,keyword:true,at:100});
  await detector.reset();expect(child.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({type:'reset'}));
@@ -46,7 +50,11 @@ describe("wake privacy defaults", () => {
     expect(DEFAULTS.enabled).toBe(false); expect(DEFAULTS.recordings).toBe(5); expect(DEFAULTS.threads).toBe(1);
     expect(DEFAULTS.bundleModels).toBe(false); expect(DEFAULTS.retainRecordings).toBe(true);
     expect(DEFAULTS.followUpMs).toBe(0); expect(DEFAULTS.interruptSpeech).toBe(false);
-    expect(SPELLINGS).toHaveLength(15);
+    expect(DEFAULTS.phrase).toBe("Filow");
+    expect(SPELLINGS).toEqual(expect.arrayContaining([
+      "F IY1 L OW0", "F IH1 L AO1", "F IY0 L OW1", "OW2 K EY1 F IY1 L OW0", "HH EY1 F IY1 L OW0",
+    ]));
+    expect(new Set(SPELLINGS).size).toBe(SPELLINGS.length);
     const worker = fs.readFileSync(path.join(__dirname, "wake-worker.js"), "utf8");
     const head = fs.readFileSync(path.join(__dirname, "wake-head.js"), "utf8");
     expect(worker).toContain("numThreads: 1");

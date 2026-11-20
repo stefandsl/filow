@@ -1,18 +1,27 @@
 // Experimental wake word policy. No device, disk or network access in this module.
 const DEFAULTS = Object.freeze({
-  enabled: false, phrase: "OK Filow", longerPhrase: false, sensitivity: "balanced",
+  enabled: false, phrase: "Filow", longerPhrase: false, sensitivity: "balanced",
   followUpMs: 0, interruptSpeech: false, offDuringTake: true, offDuringSlideshow: true,
   eyeStopsWake: true, pauseStopsWake: true, bundleModels: false, retainRecordings: true,
   recordings: 5, threads: 1, reopenMs: 600, agreementMs: 1200, cooldownMs: 2000,
   sampleRate: 16000, blockSamples: 1600, ringSamples: 32000,
 });
-const SPELLINGS = Object.freeze([
+const LEGACY_SPELLINGS = Object.freeze([
   "OW2 K EY1 F IY1 L OW0", "OW1 K EY1 F IY1 L OW1", "OW2 K EY1 F IH1 L OW0",
   "OW2 K EY1 F AY1 L OW0", "OW2 K EY1 F IY1 L AO1", "AO1 K EY1 F IY1 L AO0",
   "AO1 K EH1 F IY1 L AO1", "OW2 K EY1 F IY0 L OW1", "OW2 K EY1 F IY1 R OW0",
   "OW2 K EY1 HH IY1 R OW0", "OW2 K EY1 F IY1 L UW0", "AH0 K EY1 F IY1 L OW0",
   "OW2 K EY1 F IH1 L AO1", "AO1 K EY1 F IY1 L OW0", "K EY1 F IY1 L OW0",
 ]);
+// Stress, vowel and liquid variants used by the multilingual enrolment corpus.
+const BARE_SPELLINGS = [...new Set(LEGACY_SPELLINGS.map(s => s.replace(/^.*?K (?:EY|EH)1 /, "")))];
+const SPELLINGS = Object.freeze([...LEGACY_SPELLINGS, ...BARE_SPELLINGS,
+  ...BARE_SPELLINGS.map(s => `HH EY1 ${s}`),
+]);
+function keywordText(profile) {
+  const spellings = profile.phrase === DEFAULTS.phrase ? SPELLINGS : LEGACY_SPELLINGS;
+  return spellings.map((s, i) => `${s} :2.5 #0.05 @v${i + 1}`).join("\n") + "\n";
+}
 const sensitivity = (v) => ["strict", "balanced", "sensitive"].includes(v) ? v : DEFAULTS.sensitivity;
 function blocked(s) {
   if (!s.enabled || !s.assistantEnabled) return "off";
@@ -75,4 +84,4 @@ function captureAllowed(channel, s) {
   if (channel === "question") return s.held === true || s.handsFree === true || s.releaseTail === true || s.wakeQuestion === true;
   return false;
 }
-module.exports = { DEFAULTS, SPELLINGS, sensitivity, blocked, combine, createCombiner, checkRecording, captureAllowed };
+module.exports = { DEFAULTS, SPELLINGS, keywordText, sensitivity, blocked, combine, createCombiner, checkRecording, captureAllowed };

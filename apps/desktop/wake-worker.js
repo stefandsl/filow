@@ -2,7 +2,6 @@
 const { parentPort, workerData } = require("node:worker_threads");
 const path = require("node:path");
 const sherpa = require("sherpa-onnx-node");
-const { SPELLINGS } = require("./wake-policy");
 function createSpotter(dir, keywords) {
 const kws = new sherpa.KeywordSpotter({
   featConfig: { sampleRate: 16000, featureDim: 80 },
@@ -16,7 +15,6 @@ const kws = new sherpa.KeywordSpotter({
   },
   keywordsFile: keywords, maxActivePaths: 16, keywordsScore: 2.5, keywordsThreshold: 0.05,
 });
-if (SPELLINGS.length !== 15) throw new Error("Expected 15 wake spellings");
 let stream = kws.createStream();
 let startAt = null;
 return {

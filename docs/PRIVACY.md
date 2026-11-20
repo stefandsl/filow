@@ -1,6 +1,6 @@
 # Filow privacy policy
 
-Experimental branch addition: the opt-in OK Filow wake word processes audio only
+Experimental branch addition: the opt-in Filow wake word processes audio only
 on this computer, in memory. It never opens the microphone without a visible
 listening indicator and a one-click Off control. Only the five enrollment
 recordings you accept are saved in the app profile, with the trained personal

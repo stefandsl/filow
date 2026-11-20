@@ -1,5 +1,5 @@
 <p align="right"><strong>English</strong> · <a href="README.it.md">Italiano</a></p>
-Experimental branch: **OK Filow wake word** is off by default. Settings offers an
+Experimental branch: **Filow wake word** is off by default. Settings offers an
 official model download notice (35.3 MB), five recordings with accept/re-record,
 training, a live try-it check, retraining and deletion. Strict requires both local
 detectors; Balanced is the default; Sensitive uses the personal head alone.

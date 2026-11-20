@@ -1,5 +1,5 @@
 <p align="right"><a href="README.md">English</a> · <strong>Italiano</strong></p>
-Ramo sperimentale: la **parola di attivazione OK Filow** è disattivata per
+Ramo sperimentale: la **parola di attivazione Filow** è disattivata per
 impostazione predefinita. Le Impostazioni offrono l'avviso sui modelli ufficiali
 (35,3 MB), cinque registrazioni da accettare o ripetere, addestramento, prova dal
 vivo, riaddestramento ed eliminazione. Strict richiede entrambi i rilevatori locali;

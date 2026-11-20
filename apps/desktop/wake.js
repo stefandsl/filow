@@ -1,7 +1,7 @@
 // Experimental opt-in controller. Audio stays in memory except explicit enrolment.
 const fs = require("node:fs");
 const path = require("node:path");
-const { SPELLINGS, blocked, checkRecording, createCombiner, sensitivity, captureAllowed } = require("./wake-policy");
+const { DEFAULTS, keywordText, blocked, checkRecording, createCombiner, sensitivity, captureAllowed } = require("./wake-policy");
 const { createCaptureWatch } = require("./okfilow-mic");
 const { validateProfile } = require("./wake-head");
 const { canEnable, replayEnrolment } = require("./wake-enrolment");
@@ -40,7 +40,7 @@ function rpc(child) {
 }
 async function createDetectors(dir, profile, utilityProcess) {
   const keywords = path.join(dir, "keywords.txt");
-  fs.writeFileSync(keywords, SPELLINGS.map((s, i) => `${s} :2.5 #0.05 @v${i + 1}`).join("\n") + "\n");
+  fs.writeFileSync(keywords, keywordText(profile));
   const head = utilityProcess.fork(path.join(__dirname, "wake-head-worker.js"), [], { stdio: "ignore", serviceName: "Filow wake word" });
   const b = rpc(head);
   try {
@@ -59,7 +59,7 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
   try { const stored = JSON.parse(fs.readFileSync(profileFile, "utf8")); if (validateProfile(stored)) profile = stored; } catch { /* no trained phrase yet */ }
   const samplesDir = path.join(root, "samples");
   const samplesCount = () => Array.from({ length: 5 }, (_, i) => fs.existsSync(path.join(samplesDir, `${i + 1}.wav`))).filter(Boolean).length;
-  const snapshot = () => ({ enabled, listening, error, phase, count, testing, recordings: samplesCount(), negatives: [1,2].filter(i=>fs.existsSync(path.join(samplesDir, `negative-${i}.wav`))).length, verification: profile?.verification, trained: Boolean(profile), notice: NOTICE });
+  const snapshot = () => ({ enabled, listening, error, phase, count, testing, recordings: samplesCount(), negatives: [1,2].filter(i=>fs.existsSync(path.join(samplesDir, `negative-${i}.wav`))).length, verification: profile?.verification, trained: Boolean(profile), legacyPhrase: Boolean(profile && !profile.phrase), notice: NOTICE });
   const publish = () => changed(snapshot());
   function stop() {
     captureWatch.reset();
@@ -173,7 +173,7 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
       const got = await trainer.call({ type: "train", recordings, negatives, background: path.join(__dirname, "wake-data") }, 120000);
       if (token !== epoch) return snapshot();
       if (!validateProfile(got.profile)) throw new Error("Invalid trained wake word");
-      const candidate = { ...got.profile, models: FILES.map((f) => f.sha256).join(":"), createdAt: new Date().toISOString() };
+      const candidate = { ...got.profile, phrase: DEFAULTS.phrase, models: FILES.map((f) => f.sha256).join(":"), createdAt: new Date().toISOString() };
       const replay = await createDetectorsFn(dir, candidate, utilityProcess);
       try { candidate.verification = await replayEnrolment(replay, candidate, recordings, negatives); }
       finally { replay.stop(); }
