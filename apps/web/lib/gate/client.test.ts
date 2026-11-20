@@ -69,3 +69,20 @@ it("keeps an ungranted embedding request private and declines a named download",
   expect(confirm).toHaveBeenCalledWith(expect.stringContaining("Hugging Face"));
   expect(FakeWorker.made).toHaveLength(0);
 });
+
+it("shows the Settings grant note once for previous pre-filter use", async () => {
+  const { takeGateUpgradeNotice } = await import("./client");
+  const values: Record<string, string> = {};
+  vi.stubGlobal("localStorage", Object.assign(values, {
+    getItem: (k: string) => values[k] ?? null,
+    setItem: (k: string, v: string) => { values[k] = v; },
+  }));
+  expect(takeGateUpgradeNotice(false)).toBe(false);
+  for (const previous of ["cached", "vectors", "explicit"]) {
+    if (previous === "vectors") values["gate:points:old"] = "{}";
+    if (previous === "explicit") values["prefs:gate"] = "on";
+    expect(takeGateUpgradeNotice(previous === "cached")).toBe(true);
+    expect(takeGateUpgradeNotice(true)).toBe(false);
+    for (const k of Object.keys(values)) if (typeof values[k] === "string") delete values[k];
+  }
+});

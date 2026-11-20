@@ -428,7 +428,7 @@ export const ro: Dictionary = {
   "gate.on": "Pornit: modelul e întrebat doar despre punctele cu care seamănă vorbirea",
   "gate.hint": "Un model mic și multilingv de propoziții, pe acest PC (120 MB, descărcat o singură dată), compară fiecare punct deschis cu ce tocmai ai spus; modelul de decizie primește doar punctele plauzibile și nu mai este apelat deloc când nimic nu se potrivește. Măsurat pe corpusul demo (câte două rulări, model în cloud): 3 din 17 apeluri la model evitate, recall de 0,78-0,89 cu prefiltru față de 0,56-0,78 fără, niciun început fals în ambele cazuri, latență în limitele variației proprii a furnizorului (docs/gauntlet/BASELINE.md).",
   "gate.allowDownload": "Permiți browserului să descarce de pe Hugging Face fișierele lipsă ale modelului de potrivire (circa 120 MB)? Textul rămâne pe dispozitiv. Anulează pentru a continua fără descărcare.",
-  "gate.optionalDownload": "Model opțional de potrivire de pe Hugging Face: setări de descărcare",
+  "gate.upgradeNotice": "Prefiltrul așteaptă acum acordul tău pentru a descărca fișierele lipsă ale modelului.",
   "gate.download": "Descarcă modelul de prefiltrare",
   "gate.ready": "Modelul de prefiltrare este gata",
   "start.modeAsk": "Întreabă de fiecare dată",

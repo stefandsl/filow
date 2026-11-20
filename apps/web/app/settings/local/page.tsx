@@ -9,7 +9,7 @@ import { Wordmark, LangProvider, useT } from "@filow/ui";
 import { engineHeaders, ensureEngineToken } from "@/components/useSession";
 import { LangSwitch, ThemeSwitch, useUiLang, useUiTheme } from "@/components/LangSwitch";
 import { getDecisionProvider, getGateMode, getScreenMode, getSetupPreference, getSpeechLang, getStartMode, SPEECH_LANGS, setDecisionProvider, setGateMode, setScreenMode, setSetupPreference, chooseSpeechLang, syncSpeechLang, setStartMode, type GateMode, type SpeechLang, type StartMode } from "@/lib/prefs";
-import { loadGate, stopGate, unloadGate } from "@/lib/gate/client";
+import { loadGate, stopGate, takeGateUpgradeNotice, unloadGate } from "@/lib/gate/client";
 import { DeviceModelList, InUseChip, modelsBridge, StopButton } from "@/components/ModelControls";
 import { ModelRoles } from "@/components/ModelRoles";
 import { browserUses, deleteQuestion, ollamaUses, sizeText, type UseContext } from "@/lib/modelUse";
@@ -104,6 +104,11 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
   const [startMode, setStartModeState] = useState<StartMode>("ask");
   const [speechLang, setSpeechLangState] = useState<SpeechLang>("auto");
   const [gateMode, setGateModeState] = useState<GateMode>("off");
+  const gateOptions = useRef<HTMLDetailsElement>(null);
+  const [gateNotice, setGateNotice] = useState(false);
+  useEffect(() => {
+    if (gateNotice && gateOptions.current) gateOptions.current.open = true;
+  }, [gateNotice]);
   const [gateStatus, setGateStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [gatePct, setGatePct] = useState<number | null>(null);
   const [hotkey, setHotkey] = useState<{ hotkey: string; enabled: boolean } | null>(null);
@@ -160,7 +165,9 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
     const c: Record<string, boolean> = {};
     for (const m of s.models) if (m.runtime === "browser") c[m.name] = await whisperCached(m.name);
     setCached(c);
-    setGateCached(await whisperCached(GATE_MODEL));
+    const modelCached = await whisperCached(GATE_MODEL);
+    setGateCached(modelCached);
+    if (takeGateUpgradeNotice(modelCached)) setGateNotice(true);
   }, []);
 
   // What "in use" is worked out from (lib/modelUse.ts): the plan, the user's switches, OK Filow's own status.
@@ -603,10 +610,11 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
             </div>
           </section>
 
-          <details className="strip more-options">
+          <details className="strip more-options" ref={gateOptions}>
             <summary className="label">{t("settings.moreOptions")}</summary>
             <section className="strip">
               <div className="label">{t("gate.label")}</div>
+              {gateNotice && <p className="hint" id="gate-notice" role="status">{t("gate.upgradeNotice")}</p>}
               <div className="row">
                 {(["off", "on"] as GateMode[]).map((m) => (
                   <label key={m} className={`btn choice ${gateMode === m ? "primary" : ""}`}>
@@ -624,8 +632,10 @@ function SettingsInner({ lang, onLang, theme, onTheme }: { lang: Lang; onLang: (
                 ))}
                 <button
                   className="btn"
+                  aria-describedby={gateNotice ? "gate-notice" : undefined}
                   disabled={gateStatus === "loading" || gateStatus === "ready"}
                   onClick={() => {
+                    setGateNotice(false);
                     setGateStatus("loading");
                     // a model that was here before this click (loaded again after a restart) stays when the load is stopped
                     const hadIt = gateCached;

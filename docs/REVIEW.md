@@ -77,3 +77,7 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R64 (2026-11-20, N-08): Apply the validated rule append exception to every frozen file-list check. Check: freeze HANDOFF.md alone, verify a corrective rule append through the judge packet and refuse a rewritten prior rule.
 - R65 (2026-11-20, N-08): Exercise the packaged Save button and its owned Windows dialog in a fresh profile with a Desktop folder. Check: compare the saved file with the displayed preview and record the screenshot, file hash and startup log on two launches.
 - R66 (2026-11-20, N-02): Require a grant for the named model repository before starting an embedding worker. Check: open a fresh and upgraded script with missing model files, decline the download and count workers and outbound requests.
+- R67 (0.9.44): Keep optional model downloads in Settings. Check the idle prompter and a live take for unsolicited download controls.
+- R68 (0.9.44): Explain the new grant once beside the download button for previous pre-filter users. Check a fresh profile, a legacy profile and a second Settings visit.
+- R69 (0.9.44): Date both privacy policies when model download behavior changes. Compare the sentences in the outbound sections and both revision dates.
+- R70 (0.9.44): Record the packaged grant action and embedding worker starts alongside model requests. Check both counts before and after acceptance on fresh and upgraded profiles.

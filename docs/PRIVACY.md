@@ -9,7 +9,7 @@ size and licence notice; listening makes no network requests. After detection,
 the ordinary question retains its existing provider and outbound consent rules.
 See [wake-word evidence](okfilow/WAKE-WORD.md).
 
-Last updated: 10 November 2026. This text describes what the Filow app really does, checked against
+Last updated: 20 November 2026. This text describes what the Filow app really does, checked against
 its code (the full technical list is docs/okfilow/OUTBOUND.md in Filow's source code). It is also
 available in Italian: set Filow's language to Italian.
 
@@ -113,6 +113,8 @@ OK Filow's settings. Cloud features use your own account with that company.
 | FreeLLMAPI, when you chose it (OK Filow answers, take tracking, script writing and translation) | the same content as the cloud feature it replaces: your question and pictures of your screens, the words you spoke (masked as above), your script or slides | your own FreeLLMAPI router, then a free AI provider the router picks for each request |
 | "Check connection" in Settings > FreeLLMAPI (no notice: nothing of yours is in it) | a request for the router's list of models | your FreeLLMAPI router only |
 
+The matching model requests missing files from Hugging Face only with your permission.
+
 OpenRouter passes your request to a company that runs the model. For Google's models that is Google;
 for other models it can be another company that OpenRouter picks.
 
@@ -195,5 +197,3 @@ If you are in another EU country, you may complain to your local data protection
 
 When what Filow sends or keeps changes, this policy changes with the same app version, and the date
 at the top changes. The policy shipped inside the app always matches that version of the app.
-
-The optional matching model requests missing files from Hugging Face only after you approve that download. Private practice works without it.

@@ -11,7 +11,7 @@ Raportează o problemă: în Filow, deschide meniul Filow > Raportează o proble
 
 # Filow 0.9.44 (Versiune preliminară)
 
-Filow cere permisiunea înainte de a contacta Hugging Face pentru a descărca modelul care identifică punctele prezentării.
+Filow cere permisiunea înainte de a contacta Hugging Face pentru a descărca modelul care identifică punctele prezentării. Dacă ai folosit prefiltrul, permite o singură dată descărcarea în Setări.
 
 # Filow 0.9.43 (Versiune preliminară)
 

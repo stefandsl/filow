@@ -11,7 +11,7 @@ Segnalazioni: in Filow, apri il menu Filow > Segnala un problema. Filow salva un
 
 # Filow 0.9.44 (Anteprima)
 
-Filow chiede il permesso prima di contattare Hugging Face per scaricare il modello che riconosce i punti del copione.
+Filow chiede il permesso prima di contattare Hugging Face per scaricare il modello che riconosce i punti del copione. Se usavi il pre-filtro, autorizza il download una volta nelle Impostazioni.
 
 # Filow 0.9.43 (Anteprima)
 

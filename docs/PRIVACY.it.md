@@ -10,7 +10,7 @@ effettua richieste di rete. Dopo il riconoscimento, la domanda ordinaria conserv
 le regole del fornitore e del consenso all'invio già previste.
 Vedi [prove della parola di attivazione](okfilow/WAKE-WORD.md).
 
-Ultimo aggiornamento: 10 novembre 2026. Questo testo descrive quello che l'app Filow fa davvero,
+Ultimo aggiornamento: 20 novembre 2026. Questo testo descrive quello che l'app Filow fa davvero,
 verificato sul suo codice (l'elenco tecnico completo è docs/okfilow/OUTBOUND.md nel codice sorgente di
 Filow). È disponibile anche in inglese: imposta la lingua di Filow sull'inglese.
 
@@ -117,6 +117,8 @@ sì nelle impostazioni di OK Filow. Le funzioni cloud usano il tuo account press
 | FreeLLMAPI, quando lo hai scelto (risposte di OK Filow, tracciamento della ripresa, scrittura e traduzione dei copioni) | gli stessi contenuti della funzione cloud che sostituisce: la domanda e le immagini dei tuoi schermi, le parole pronunciate (mascherate come sopra), il copione o le slide | il tuo router FreeLLMAPI, poi un fornitore di AI gratuito che il router sceglie per ogni richiesta |
 | "Verifica la connessione" in Impostazioni > FreeLLMAPI (senza avviso: non contiene nulla di tuo) | una richiesta dell'elenco dei modelli del router | solo il tuo router FreeLLMAPI |
 
+Il modello di confronto richiede i file mancanti a Hugging Face solo con il tuo consenso.
+
 OpenRouter passa la tua richiesta a un'azienda che fa girare il modello. Per i modelli di Google è
 Google; per altri modelli può essere un'altra azienda scelta da OpenRouter.
 
@@ -202,5 +204,3 @@ Se ti trovi in un altro Paese dell'UE, puoi presentare reclamo alla tua autorit�
 Quando cambia cosa Filow invia o conserva, questa informativa cambia con la stessa versione dell'app
 e cambia la data in alto. L'informativa inclusa nell'app corrisponde sempre a quella versione
 dell'app.
-
-Il modello di confronto facoltativo richiede i file mancanti a Hugging Face solo dopo la tua autorizzazione. La prova privata funziona anche senza il modello.
