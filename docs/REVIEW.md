@@ -93,3 +93,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R79 (2026-11-20, N-02): Use the established Russian download terminology in setup disclosures. Check: compare every English download string to the Russian dictionary through the typography gate.
 - R80 (2026-11-20, N-02): Keep ordinary capture failures and permission denials on the recording-error path. Check: inspect both callers, exercise denial recovery and verify that a recognizer failure ends the active hold.
 - R81 (2026-11-20, N-02): Start recognizer shutdown as soon as capture closes, then await its acknowledgement before consuming final words. Check: stop a live recording with a delayed recognizer acknowledgement and check the idle indicator and transcript tail.
+- R82 (2026-11-20, N-02): A failed private UI replay must return a nonzero status and keep sensitive assertion details out of its console. Check: fail a UI assertion, inspect the receipt and run lint on the harness.

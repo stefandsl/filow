@@ -436,7 +436,8 @@ async function main() {
     record.exit = 1;
     // Assertion values may contain a usable pairing link. Keep only the failing call site.
     record.failureSite = String(err.stack).split("\n").find(line => line.includes("n02-windows.mjs:"))?.trim();
-    throw new Error("UI replay failed. See the private evidence directory.");
+    console.error("UI replay failed. See the private evidence directory.");
+    process.exitCode = 1;
   } finally {
     if (router) { record.providerRequests = router.requests; await router.close(); }
     peer?.close();
