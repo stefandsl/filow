@@ -91,6 +91,7 @@ contextBridge.exposeInMainWorld("okFilow", {
   /** The answer bubble: its close button (overlay -> main), main's word that it goes away now, and the sentence the voice is on. */
   bubbleOpen: () => ipcRenderer.invoke("okfilow:bubble:open"),
   closeBubbleByVoice: () => ipcRenderer.send("okfilow:bubble:voice"),
+  detachBubble: () => ipcRenderer.send("okfilow:bubble:detach"),
   bubbleFocus: on => ipcRenderer.send("okfilow:bubble:focus", on),
   closeBubble: () => ipcRenderer.send("okfilow:bubble:close"),
   onBubbleClose: on("okfilow:bubble:close"),

@@ -35,7 +35,7 @@ it("remembers speech that started before the first mark arrived", () => {
 });
 it("keeps size transitions enabled during the first bubble placement", () => {
  const page=fs.readFileSync(new URL("../../app/okfilow/overlay/page.tsx",import.meta.url),"utf8");
- expect(page).toContain('h.placed && h.answer ? "" : "opacity, width, height"');
+ expect(page).toContain('h.placed && h.answer && !h.detached ? "" : "opacity, width, height"');
 });
 
 it("keeps light model labels above 4.5 to 1 text contrast", () => {

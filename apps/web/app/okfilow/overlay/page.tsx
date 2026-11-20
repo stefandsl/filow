@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { okFilowBridge, type WakeStatus, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/bridge";
-import { bubblePlacement, bubbleSticks, createPausableClock, followScroll, MARK_EXIT_MS, marksBegun, overBubble, overControls } from "@/lib/buddy/motion";
+import { bubbleOnScreen, bubblePlacement, bubbleSticks, createPausableClock, followScroll, MARK_EXIT_MS, marksBegun, overBubble, overControls } from "@/lib/buddy/motion";
 import { planFlight, flightPoint, arrivalPhase, type FlightPlan } from "@/lib/buddy/pointer-flight";
 import { drawingStarts } from "@/lib/buddy/marks-sync";
 import { MarksLayer, type MarkSet } from "@/components/okfilow/marks-layer";
@@ -120,6 +120,7 @@ export default function OkFilowOverlay() {
   const going = out.active && out.names.length > 0;
 
   const pos = useRef({ x: -100, y: -100 });
+  const detachedHere = useRef<boolean | null>(null);
   const cursor = useRef<{ x: number; y: number } | null>(null);
   const queue = useRef<Target[]>([]);
   const flight = useRef<{ plan: FlightPlan; to: Target; start: number; dur: number; holdUntil: number; arrived: boolean } | null>(null);
@@ -187,7 +188,8 @@ export default function OkFilowOverlay() {
       b.onSpoken?.((n) => setSpoken(Number.isInteger(n) ? n : -1)) ?? (() => {}),
       b.outbound?.onChange(setOut) ?? (() => {}),
       b.onLevel(setLevel),
-      b.onCursor((p) => {
+      b.onCursor((p, owner) => {
+        detachedHere.current = owner ?? null;
         cursor.current = p;
         if (!flight.current && dot.current) dot.current.style.visibility = "";
         // The controls of the pill and the answer bubble are what takes the mouse here: while the pointer
@@ -276,7 +278,8 @@ export default function OkFilowOverlay() {
         const p = pos.current.x < 0 ? want : { x: pos.current.x + (want.x - pos.current.x) * 0.35, y: pos.current.y + (want.y - pos.current.y) * 0.35 };
         next = p;
       }
-      const showing = Boolean(g || cursor.current);
+      const showing = detachedHere.current ?? Boolean(g || cursor.current);
+      if (!next && detachedHere.current) next = pos.current;
       setHere((h) => (h === showing ? h : showing));
       if (next) {
         const el = bubble.current;
@@ -291,6 +294,7 @@ export default function OkFilowOverlay() {
           const grew = Math.abs(size.width - h.size.width) >= 1 || Math.abs(size.height - h.size.height) >= 1;
           if (h.answer && h.shown && h.placed && !h.detached && bubbleSticks(cursor.current, r)) {
             h.detached = true;
+            b.detachBubble?.();
             // Snapshot the visible position, including a glide that is still in progress.
             h.at = { x: r.left, y: r.top };
             el.style.transitionProperty = "opacity, width, height";
@@ -306,7 +310,7 @@ export default function OkFilowOverlay() {
           // (and never over OK Filow's own pointer by the mouse: the bubble covered it, and its tip showed at the close button)
           const dotBox = c ? [{ left: c.x + OFFSET.x - 4, top: c.y + OFFSET.y - 4, right: c.x + OFFSET.x + 40, bottom: c.y + OFFSET.y + 40 }] : [];
           const beside = item ? bubbleBeside(item, size, view, [...off, ...dotBox], pillRect) : null;
-          const at = placed ? { x: placed.x, y: placed.y } : h.detached ? h.at : beside ?? bubbleClear(bubblePlacement(h.answer && c ? { x: c.x + OFFSET.x, y: c.y + OFFSET.y } : next, size, view, 18, pillRect), size, view, [...off, ...dotBox]);
+          const at = placed ? { x: placed.x, y: placed.y } : h.detached ? bubbleOnScreen(h.at, size, view) : beside ?? bubbleClear(bubblePlacement(h.answer && c ? { x: c.x + OFFSET.x, y: c.y + OFFSET.y } : next, size, view, 18, pillRect), size, view, [...off, ...dotBox]);
           const want = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px)`;
           if (el.style.transform !== want) {
             // An answer's bubble glides when it catches up with the pointer; a first placement does not glide in from where the last bubble was.

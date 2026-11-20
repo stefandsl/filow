@@ -77,3 +77,6 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R64 (2026-11-20, N-08): Apply the validated rule append exception to every frozen file-list check. Check: freeze HANDOFF.md alone, verify a corrective rule append through the judge packet and refuse a rewritten prior rule.
 - R65 (2026-11-20, N-08): Exercise the packaged Save button and its owned Windows dialog in a fresh profile with a Desktop folder. Check: compare the saved file with the displayed preview and record the screenshot, file hash and startup log on two launches.
 - R66 (2026-11-20, bubble-evade): Detach at the rendered bubble rectangle before moving the buddy or applying collision avoidance. Check: approach the close button with native mouse input, compare both rectangles, then click the original target.
+- R67 (2026-11-20, bubble-evade): Keep a detached bubble on its original display until dismissal or replacement. Check: cross a display boundary and return to the original X.
+- R68 (2026-11-20, bubble-evade): Clamp a detached bubble as its content grows. Check: grow a short message at the bottom right and verify its controls stay in bounds.
+- R69 (2026-11-20, bubble-evade): Enable shake dismissal when the bubble has a close control. Check: a streaming segment cannot revive a dismissal during generation.

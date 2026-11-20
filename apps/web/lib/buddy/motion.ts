@@ -205,13 +205,10 @@ export function bubbleOnScreen(at: P, size: { width: number; height: number }, v
   return { x, y };
 }
 
-/** How far from the bubble the pointer may go before the bubble follows it again. */
+/** Approach distance measured in Electron's device-independent coordinates. */
 export const BUBBLE_REACH = 120;
-/**
- * Whether an answer's bubble holds still: it does while the pointer is on it or within `reach` of
- * it, so the pointer can go onto it (to scroll it, to close it) instead of pushing it away; a
- * pointer that goes further takes the bubble along again. `rect` is where the bubble is now.
- */
+
+/** Test the real cursor against the visible rectangle, including its rounded reach at corners. */
 export function bubbleSticks(pointer: P | null, rect: Rect | null, reach = BUBBLE_REACH): boolean {
   if (!pointer || !rect || rect.right <= rect.left || rect.bottom <= rect.top) return false;
   const dx = Math.max(rect.left - pointer.x, 0, pointer.x - rect.right);

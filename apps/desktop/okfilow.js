@@ -265,6 +265,7 @@ function createOkFilow(deps) {
   // always-on pointer): every overlay is told, the mouse is given back, and the overlays may fade.
   /** The overlays whose bubble has the pointer on it right now (webContents ids). */
   let shakeSamples = [];
+  let detachedDisplay = null;
   const bubbleFocus = new Set();
   const bubbleHover = new Set();
   const bubble = createBubble({
@@ -301,6 +302,8 @@ function createOkFilow(deps) {
     if (!open) {
       for (const id of bubbleHover) stopHover.delete(id);
       shakeSamples = [];
+      detachedDisplay = null;
+      lastCursor = "";
       bubbleFocus.clear();
       bubble.setFocus(false);
       bubbleHover.clear();
@@ -352,6 +355,14 @@ function createOkFilow(deps) {
   }
   /** The bubble's close button (an overlay). */
   ipcMain.on("okfilow:bubble:close", (e) => { if (ourSender(e)) bubble.close("button"); });
+  ipcMain.on("okfilow:bubble:detach", (e) => {
+    if (!ourSender(e) || !bubble.open() || detachedDisplay !== null) return;
+    const id = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id;
+    if (overlays.get(id)?.webContents === e.sender) {
+      detachedDisplay = id;
+      lastCursor = "";
+    }
+  });
   ipcMain.on("okfilow:bubble:focus", (e, focused) => {
     if (!ourSender(e)) return;
     if (focused && bubble.open()) bubbleFocus.add(e.sender.id);
@@ -771,7 +782,7 @@ function createOkFilow(deps) {
         if (w.isDestroyed()) continue;
         const b = w.getBounds();
         const local = id === d.id ? { x: p.x - b.x, y: p.y - b.y } : null;
-        w.webContents.send("okfilow:cursor", local);
+        w.webContents.send("okfilow:cursor", local, detachedDisplay === null ? null : id === detachedDisplay);
         mediaHit(w, local);
       }
     }, 16);
@@ -797,6 +808,7 @@ function createOkFilow(deps) {
       setOverlayMouse(false);
       purpose = null;
     }
+    if (next === "opening" || next === "thinking") { detachedDisplay = null; lastCursor = ""; }
     mode = next;
     wake?.reconcile();
     // Whether the question being answered took the screen: an overlay that loads later is told too.
@@ -1310,7 +1322,7 @@ function createOkFilow(deps) {
         for (const ev of ["unlock-screen", "resume"]) powerMonitor.on(ev, () => hookRetry.nudge());
       }
       const buttons = new Set();
-      const shakeEnabled = () => bubble.open() && mode !== "opening" && mode !== "listening" && cfg().shakeToClose !== false;
+      const shakeEnabled = () => bubble.open() && mode !== "opening" && mode !== "listening" && mode !== "thinking" && cfg().shakeToClose !== false;
       uIOhook.on("mouseup", e => buttons.delete(e.button));
       uIOhook.on("wheel", () => { shakeSamples = []; });
       uIOhook.on("mousemove", e => {

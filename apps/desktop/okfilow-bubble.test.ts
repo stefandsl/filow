@@ -82,7 +82,11 @@ describe("reading and dismissing a bubble", () => {
     h.pass(2240);
     h.bubble.setHover(true);
     h.pass(50000);
+    h.bubble.setFocus(true);
     h.bubble.setHover(false);
+    h.pass(50000);
+    expect(h.closed).toEqual([]);
+    h.bubble.setFocus(false);
     expect(h.due()).toBe(4000);
     h.pass(4000);
     expect(h.closed).toEqual(["timer"]);
