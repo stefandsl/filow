@@ -97,3 +97,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R83 (2026-11-20, N-02): Expire local crash dumps and dated diagnostic records at startup and during long sessions. Check: seed eight-day and six-day files and multiline log entries, repeat after startup and inspect disk.
 - R84 (2026-11-20, N-02): Clear diagnostic files and in-memory dictation history through the report window. Check: delete a fresh dump and log, inspect the profile and reopen the report with unrelated settings and script intact.
 - R85 (2026-11-20, N-02): Supply startup timer dependencies to every VM fixture that loads the desktop main process. Check: run both the main seams and hotkey scope suites after changing launch scheduling.
+- R86 (2026-11-21, N-02): Include the Windows Crashpad report index in diagnostic file expiry and deletion. Check: age the metadata file, clear a fresh real crash and verify the index and dump are gone while settings.dat remains.

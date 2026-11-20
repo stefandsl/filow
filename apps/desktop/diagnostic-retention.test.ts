@@ -50,3 +50,19 @@ it("forgets the active dictation as well as completed history", () => {
   expect(history.current).toBeNull();
   expect(history.runs()).toEqual([]);
 });
+
+it("expires and erases Crashpad report history, retaining its separate settings", () => {
+  const index = file("Crashpad/metadata");
+  fs.writeFileSync(file("Crashpad/settings.dat"), "settings");
+  fs.writeFileSync(index, "expired report history");
+  const old = new Date(Date.now() - 8 * day);
+  fs.utimesSync(index, old, old);
+  sweepDiagnostics(profile);
+  expect(fs.existsSync(index)).toBe(false);
+  fs.writeFileSync(index, "current report history");
+  sweepDiagnostics(profile);
+  expect(fs.existsSync(index)).toBe(true);
+  sweepDiagnostics(profile, { clear: true });
+  expect(fs.existsSync(index)).toBe(false);
+  expect(fs.readFileSync(file("Crashpad/settings.dat"), "utf8")).toBe("settings");
+});

@@ -35,7 +35,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const retentionMs = 7 * 24 * 60 * 60 * 1000;
 
-/** Only touch Filow's technical log and Crashpad dumps. Leave links and Crashpad's own database alone. */
+/** Only touch Filow's technical log and Crashpad dumps. Skip symbolic links and preserve Crashpad settings. */
 function sweepDiagnostics(profile, { clear = false } = {}) {
   const cutoff = Date.now() - retentionMs;
   const errors = [];
@@ -67,17 +67,18 @@ function sweepDiagnostics(profile, { clear = false } = {}) {
       }
     }
   });
+  const crashDir = path.join(profile, "Crashpad");
   function visit(dir) {
     if (!fs.lstatSync(dir).isDirectory()) return;
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const file = path.join(dir, entry.name);
       attempt(() => {
         if (entry.isDirectory()) visit(file);
-        else if (entry.isFile() && /\.dmp$/i.test(entry.name) && (clear || fs.lstatSync(file).mtimeMs < cutoff)) fs.unlinkSync(file);
+        else if (entry.isFile() && ((dir === crashDir && entry.name === "metadata") || /\.dmp$/i.test(entry.name)) && (clear || fs.lstatSync(file).mtimeMs < cutoff)) fs.unlinkSync(file);
       });
     }
   }
-  attempt(() => visit(path.join(profile, "Crashpad")));
+  attempt(() => visit(crashDir));
   if (errors.length) throw new AggregateError(errors, "Diagnostic cleanup incomplete");
 }
 
