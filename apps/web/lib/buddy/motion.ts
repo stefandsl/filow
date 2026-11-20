@@ -216,6 +216,17 @@ export function bubbleSticks(pointer: P | null, rect: Rect | null, reach = BUBBL
   return Math.hypot(dx, dy) <= reach;
 }
 
+/** A detached bubble follows its rendered position during a glide and stays on screen as it grows. */
+export function detachedPosition(
+  state: { answer: boolean; shown: boolean; placed: boolean; detached: boolean; at: P },
+  cursor: P | null, rendered: Rect, size: { width: number; height: number }, view: { width: number; height: number },
+): P | null {
+  if (!state.answer || !state.shown || !state.placed) return null;
+  if (state.detached) return bubbleOnScreen(state.at, size, view);
+  if (!bubbleSticks(cursor, rendered)) return null;
+  return bubbleOnScreen({ x: rendered.left, y: rendered.top }, size, view);
+}
+
 /** Whether the pointer is on the bubble itself (a pixel of margin). */
 export function overBubble(pointer: P | null, rect: Rect | null): boolean {
   return bubbleSticks(pointer, rect, 1);

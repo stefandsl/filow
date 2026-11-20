@@ -190,7 +190,6 @@ const SHAKE = { legDip: 40, reversals: 3, windowMs: 700 };
 
 /** Native hook coordinates are physical pixels. Only unpressed horizontal moves count. */
 function shakeStep(history, event, scale) {
-  if (event.kind !== "move") return { samples: [], close: false };
   const samples = history.filter(p => event.at - p.at <= SHAKE.windowMs);
   samples.push(event);
   const leg = SHAKE.legDip * scale;
@@ -208,4 +207,21 @@ function shakeStep(history, event, scale) {
   return { samples, close: false };
 }
 
-module.exports = { shakeStep, createGestures, chordHeld, ARM_MS, TAP_MS, DOUBLE_MS, SHORT_MS, DOUBLE_GAP_MS };
+function createShakeInput({ enabled, scale, close, now = () => performance.now() }) {
+  let samples = [];
+  const buttons = new Set();
+  return {
+    reset() { buttons.clear(); samples = []; },
+    down(e) { buttons.add(e.button); samples = []; },
+    up(e) { buttons.delete(e.button); },
+    wheel() { samples = []; },
+    move(e) {
+      if (!enabled() || buttons.size) { samples = []; return; }
+      const result = shakeStep(samples, { x: e.x, y: e.y, at: now() }, scale());
+      samples = result.samples;
+      if (result.close) close();
+    },
+  };
+}
+
+module.exports = { createShakeInput, shakeStep, createGestures, chordHeld, ARM_MS, TAP_MS, DOUBLE_MS, SHORT_MS, DOUBLE_GAP_MS };

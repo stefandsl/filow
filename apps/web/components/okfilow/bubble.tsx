@@ -54,6 +54,7 @@ export function AnswerBubble({ mode, text, stopped, shown, level = 0, spoken = -
     <div
       ref={bubbleRef}
       className={"okf-bubble" + (shown ? "" : " okf-hidden") + (mode === "error" ? " okf-bubble--error" : "") + (answer ? " okf-bubble--answer" : "")}
+      tabIndex={-1}
       onFocus={() => okFilowBridge()?.bubbleFocus?.(true)}
       onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) okFilowBridge()?.bubbleFocus?.(false); }}
       role="group"

@@ -23,6 +23,7 @@ function setup() {
     webContents: Object.assign(new EventEmitter(), { id }), destroyed: false,
     isDestroyed() { return this.destroyed; },
     getBounds: () => ({ x: 0, y: 0, width: 1000, height: 800 }),
+    isFocused: () => false, isFocusable: () => false, setFocusable: vi.fn(),
     setIgnoreMouseEvents: vi.fn(),
   });
   const overlay = window(1), second = window(2), model = window(3), panel = window(4);
@@ -33,7 +34,7 @@ function setup() {
   const context = {
     cleanHitReport, cleanRects, createHitTarget, insideAny, localPoint, overlayMouse, ipcMain, modelHit, modelWin: model,
     overlays: new Map([[1, overlay], [2, second]]), ourSender: () => allowed,
-    mediaRects: new Map(), mediaOn: new Set(), stopHover: new Set(), mouseWas: new Map(), bubbleHover: new Set(), bubbleFocus: new Set(), shakeSamples: [], detachedDisplay: null, bubbleGeneration: 0,
+    mediaRects: new Map(), mediaOn: new Set(), stopHover: new Set(), mouseWas: new Map(), bubbleHover: new Set(), bubbleFocus: new Set(), shake: { reset: vi.fn() }, detachedDisplay: null, bubbleGeneration: 0,
     mouseCaught: false, mode: "idle", pill: {}, bubble: { open: () => false, setHover: vi.fn(), setFocus: vi.fn() }, QA_SHOTS: false,
     lastCursor: "", screen: { getCursorScreenPoint: () => cursor, getDisplayMatching: () => ({ bounds: { x: 0, y: 0, width: 1920, height: 1080 } }) },
     applyMouse: (_w: typeof overlay) => {}, mediaHit: (_w: typeof overlay, _p: unknown) => {},
@@ -315,4 +316,33 @@ it.each(["close stopped answer", "new question"])("immediately releases only the
   expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(true);
   h.point({ x: 50, y: 50 });
   expect(h.overlay.setIgnoreMouseEvents).toHaveBeenLastCalledWith(false);
+});
+
+it("runs native shake handlers with the live setting and cached display scale", () => {
+  const uIOhook = new EventEmitter();
+  const settings = { shakeToClose: true };
+  const close = vi.fn();
+  const { createShakeInput } = require("./okfilow-gestures.js");
+  const context = {
+    uIOhook, createShakeInput, cfg: () => settings, mode: "idle", bubble: { open: () => true, close },
+    bubbleHover: new Set([1]), stopHover: new Set(), gestures: { mousedown: vi.fn() },
+    dictation: { userMoved: vi.fn() }, phraseRun: null,
+  };
+  runInNewContext([
+    section("  let cursorScale =", "  let detachedDisplay = null;"),
+    section('      uIOhook.on("mouseup", shake.up);', '      uIOhook.start();').replace("uIOhook.start();", ""),
+  ].join("\n"), context);
+  const move = (...xs: number[]) => xs.forEach(x => uIOhook.emit("mousemove", { x, y: 0 }));
+  uIOhook.emit("mousedown", { button: 1 });
+  move(0, 50, 0, 50, 0);
+  uIOhook.emit("mouseup", { button: 1 });
+  move(0, 50, 0);
+  uIOhook.emit("wheel");
+  move(0, 50, 0);
+  settings.shakeToClose = false;
+  move(0, 50, 0, 50, 0);
+  expect(close).not.toHaveBeenCalled();
+  settings.shakeToClose = true;
+  move(0, 50, 0, 50, 0);
+  expect(close).toHaveBeenCalledExactlyOnceWith("shake");
 });

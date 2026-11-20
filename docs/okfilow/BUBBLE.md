@@ -24,21 +24,24 @@ listens, the waveform or a dictation's words). Use X, Esc, a horizontal mouse sh
 ## When it goes away
 
 The rule is one pure function, `okfilow-stop.js` `bubbleHold`, driven by `createBubble` in the main
-process. Whatever keeps the overlays on screen (cards, "always show the pointer") never
-keeps the bubble.
+process. Cards, media and Resume keep their answer available. The always-visible pointer has its own lifetime.
 
 | State | The bubble stays |
 | --- | --- |
 | Listening, thinking, speaking, paused | as long as that lasts |
-| Hovered or focused | the notice timer pauses until both end |
-| Answer or stopped answer | until dismissed or replaced |
-| Information or error | 6 seconds plus 60 ms per character, up to 20 seconds |
+| Hovered or focused | the reading timer resumes with its remaining time once both end (replaces the old 2.5 s after hover) |
+| Finished or stopped answer with text | 60 ms per unit, bounded to 5-90 s, less time already shown with a minimum 4 s linger |
+| Stopped before text arrived | 8 s |
+| Answer with cards, media or Resume | until dismissed or replaced |
+| Dictation note | the panel requests 2.5, 4.5, 5 or 6 seconds, bounded to 1-6 s |
+| Information or error | 6 seconds plus 60 ms per unit, up to 20 seconds |
+
+Whitespace counts as zero units. Japanese, Chinese and Korean wide characters count as two. Other characters count as one.
 
 Ways out at any time: Esc, the close button, a new question (spoken or typed) or a dictation, which
 replace the old words at once.
 
-- Esc while an answer runs stops it. Esc with no answer running closes the bubble and wipes the
-  marks (`escapePlan`). So a second Esc after a stop closes what the first one left.
+- Esc in the focused overlay dismisses the bubble and stops an active answer.
 - The close button (top right corner of the bubble, named "Close the answer" in the five languages)
   closes the bubble on every screen, and the answer's marks with it.
 - An answer's marks (boxes, circles, arrows, underlines and their labels) last as long as they are
@@ -57,11 +60,7 @@ replace the old words at once.
 
 ## Keyboard
 
-The overlay window is never focusable: it must not take the keyboard from the app in use. So the
-close button cannot be reached with Tab. The keyboard's way is Esc, which reaches OK Filow through
-the keyboard hook from any app, and the panel, which shows the whole answer in an ordinary window.
-If Windows refuses the hook (the panel says so), Esc works only while the panel has the keyboard:
-the bubble then still goes by itself, and the close button works with the mouse.
+The overlay appears without activation. Click the bubble to give it keyboard focus. Escape then closes it. While another app has focus, that app receives Escape.
 
 ## Where it lives
 

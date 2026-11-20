@@ -1,5 +1,6 @@
 import { it, expect } from "vitest";
 import { observeBubbleSize } from "./bubble-size";
+import { detachedPosition } from "./motion";
 import fs from "node:fs";
 it("measures initial and streamed sizes and disconnects on unmount", () => {
   let resize=()=>{}, disconnected=false;
@@ -33,9 +34,15 @@ it("remembers speech that started before the first mark arrived", () => {
  expect(page).toContain('if (answerCtx.current) answerCtx.current.spoken = n;');
  expect(page).toContain('spoken: ctx.spoken ?? ctx.gate?.spoken ?? -1');
 });
-it("keeps size transitions enabled during the first bubble placement", () => {
- const page=fs.readFileSync(new URL("../../app/okfilow/overlay/page.tsx",import.meta.url),"utf8");
- expect(page).toContain('h.placed && h.answer && !h.detached ? "" : "opacity, width, height"');
+it("detaches only on approach, snapshots a glide and clamps subsequent growth", () => {
+ const rect = { left: 300, top: 200, right: 380, bottom: 240 };
+ const view = { width: 400, height: 300 };
+ const state = { shown: true, answer: true, placed: true, detached: false, at: { x: 20, y: 20 } };
+ const size = { width: 80, height: 40 };
+ expect(detachedPosition(state, { x: 0, y: 0 }, rect, size, view)).toBeNull();
+ const at = detachedPosition(state, { x: 290, y: 240 }, rect, size, view);
+ expect(at).toEqual({ x: 300, y: 200 });
+ expect(detachedPosition({ ...state, at: at!, detached: true }, null, rect, { width: 180, height: 150 }, view)).toEqual({ x: 212, y: 142 });
 });
 
 it("keeps light model labels above 4.5 to 1 text contrast", () => {

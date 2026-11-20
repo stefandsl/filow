@@ -40,15 +40,42 @@ const overlayLive = (mode, pill, bubble) => pillLive(mode, pill) || bubble === t
 const BUBBLE_TEXT_MAX = 20000;
 const bubbleText = (v) => String(v || "").slice(0, BUBBLE_TEXT_MAX);
 
-const BUBBLE = { baseMs: 6000, msPerChar: 60, maxMs: 20000 };
+const BUBBLE = {
+  /** After an answer that was spoken to its end (or shown for as long as it takes to read). */
+  lingerMs: 4000,
+  /** The stopped indicator when there is no text to read. */
+  stoppedMs: 8000,
+  /** Reading time: per letter, twice that for Japanese, Chinese and Korean letters, between these bounds. */
+  msPerChar: 60,
+  readMinMs: 5000,
+  readMaxMs: 90000,
+  /** A short note with its own time (a dictation's result): kept between these bounds. */
+  noteMinMs: 1000,
+  noteMaxMs: 6000,
+};
+const wideChar = (ch) => {
+  const n = ch.codePointAt(0);
+  return (n >= 0x3000 && n <= 0x9fff) || (n >= 0xac00 && n <= 0xd7af) || (n >= 0xff00 && n <= 0xffef);
+};
+/** The time it takes to read `text`, within sane bounds. */
+function readingUnits(text) {
+  let units = 0;
+  for (const ch of text || "") units += /\s/.test(ch) ? 0 : wideChar(ch) ? 2 : 1;
+  return units;
+}
 function readingMs(text) {
-  return Math.min(BUBBLE.maxMs, BUBBLE.baseMs + Array.from(text).length * BUBBLE.msPerChar);
+  return Math.min(BUBBLE.readMaxMs, Math.max(BUBBLE.readMinMs, readingUnits(text) * BUBBLE.msPerChar));
+}
+function noticeMs(text) {
+  return Math.min(20000, 6000 + readingUnits(text) * BUBBLE.msPerChar);
 }
 
-function bubbleHold({ mode, answer, stopped, paused, hover, focus, text }) {
-  if (paused || hover || focus || stopped || answering(mode) || mode === "opening" || mode === "listening") return null;
-  if (answer && mode !== "error") return null;
-  return readingMs(text);
+function bubbleHold({ mode, text, answer, stopped, actions, paused, hover, focus, holdMs, shownMs = 0 }) {
+  if ((actions && (answer || stopped)) || paused || hover || focus || answering(mode) || mode === "opening" || mode === "listening") return null;
+  if (!text) return stopped ? BUBBLE.stoppedMs : 0;
+  if (answer || stopped) return Math.max(BUBBLE.lingerMs, readingMs(text) - shownMs);
+  if (holdMs > 0) return Math.min(BUBBLE.noteMaxMs, Math.max(BUBBLE.noteMinMs, holdMs));
+  return noticeMs(text);
 }
 
 function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout, onPlan } = {}) {
@@ -60,6 +87,11 @@ function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTim
   let paused = false;
   let hover = false;
   let focus = false;
+  let actions = false;
+  let holdMs = 0;
+  let shownMs = 0;
+  let lastPlan = now();
+  let counting = false;
   let remaining = null;
   let deadline = 0;
   let timer = null;
@@ -83,9 +115,13 @@ function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTim
   }
   function plan(reset = false) {
     cancel();
+    const at = now();
+    if (counting) shownMs += at - lastPlan;
+    lastPlan = at;
+    counting = open() && answer && !paused && !hover && !focus && !actions;
     if (reset) remaining = null;
     if (!open()) return;
-    const duration = bubbleHold({ mode, answer, stopped, paused, hover, focus, text });
+    const duration = bubbleHold({ mode, answer, stopped, paused, hover, focus, text, holdMs, shownMs, actions });
     const ms = duration === null ? null : remaining ?? duration;
     onPlan?.(ms);
     if (ms === null) return;
@@ -100,17 +136,23 @@ function createBubble({ dismiss, now = Date.now, setTimer = setTimeout, clearTim
       const value = bubbleText(next);
       const changed = text !== value;
       text = value;
-      if (!text) answer = false;
+      if (!text && !answering(mode)) answer = false;
+      if (changed) { counting = false; shownMs = 0; }
       plan(changed);
     },
     setMode(next, extra = {}) {
+      const nextHold = Number(extra.holdMs) || 0;
+      const reset = mode !== next || holdMs !== nextHold || stopped !== (next === "idle" && extra.stopped === true);
+      holdMs = nextHold;
+      if (next === "speaking" && mode !== next) { counting = false; shownMs = 0; }
       if (next !== "speaking") dismissedAnswer = false;
       if (answering(next)) answer = true;
       if (next === "opening" || next === "listening" || next === "error" || extra.holdMs) answer = false;
       stopped = next === "idle" && extra.stopped === true;
       mode = next;
-      plan();
+      plan(reset);
     },
+    setActions(on) { if (actions !== on) { actions = on; plan(); } },
     setHover(on) { if (hover !== on) { hover = on; plan(); } },
     setFocus(on) { if (focus !== on) { focus = on; plan(); } },
     setPaused(on) { if (paused !== on) { paused = on; plan(); } },
@@ -264,4 +306,4 @@ function bindKey(shortcuts, was, choice, handler, { inputOff = false } = {}) {
   return { choice, accelerator: ok ? acc : null, state: ok ? "ok" : "taken" };
 }
 
-module.exports = { keepsOverlays, MARKS_HOLD_MS, MARKS_UNSPOKEN_MS, marksHold, createMarks, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, bubbleHold, createBubble, escapePlan, overlayLive, answering, overlayMouse,seeChoice, wordsOnlyList, pillState, pillLive, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, accelerator, bindKey };
+module.exports = { keepsOverlays, MARKS_HOLD_MS, MARKS_UNSPOKEN_MS, marksHold, createMarks, pointsShowMs, BUBBLE, BUBBLE_TEXT_MAX, bubbleText, readingMs, noticeMs, bubbleHold, createBubble, escapePlan, overlayLive, answering, overlayMouse,seeChoice, wordsOnlyList, pillState, pillLive, mayCapture, screenSources, pillAction, pauseKeyAction, EYE_KEYS, PAUSE_KEYS, keyChoice, accelerator, bindKey };

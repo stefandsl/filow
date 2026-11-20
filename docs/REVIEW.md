@@ -82,3 +82,14 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R69 (2026-11-20, bubble-evade): Enable shake dismissal when the bubble has a close control. Check: a streaming segment cannot revive a dismissal during generation.
 - R70 (2026-11-20, bubble-evade): Bind a display claim to its sending overlay and bubble generation. Check: cross the monitor boundary during the claim and reject a claim delayed past dismissal.
 - R71 (2026-11-20, bubble-evade): Preserve a dismissal while speech and answer streaming overlap. Check: close after the first spoken sentence, deliver another segment, then start a new question.
+
+- R72 (2026-11-20, bubble-evade): Time finished and stopped text unless its answer has an action. Check: expire both, hold with Resume, remove the last action and observe dismissal.
+- R73 (2026-11-20, bubble-evade): Handle overlay Escape only in its focused window. Check: open Notepad's menu over a packaged answer and press Escape. The menu closes and the bubble remains.
+- R74 (2026-11-20, bubble-evade): Preserve fade and hit-area cleanup when changing a bubble timer. Check: observe an idle answer expire and the unpinned overlays hide.
+- R75 (2026-11-20, bubble-evade): Preserve reading units and separate dictation durations from notices. Check: time Japanese, spaced text, long text and panel holds at both bounds.
+- R76 (2026-11-20, bubble-evade): Retain lifecycle regressions across timer changes. Check: replay late text, replacement, pause, overlapping hover and focus, and a second close.
+- R77 (2026-11-20, bubble-evade): Score close commands and nearby ordinary questions for each supported language. Check: run each labelled set including object forms and a different object.
+- R78 (2026-11-20, bubble-evade): Exercise shake through native input handlers. Check: interleave moves with a held button, wheel, disabled setting and dismissal after a missed release.
+- R79 (2026-11-20, bubble-evade): Verify detachment by position. Check: approach during a glide, leave, then grow the detached rectangle at a display edge.
+- R80 (2026-11-20, bubble-evade): Reuse cursor display scale in high-frequency hook callbacks. Check: inspect the move handler for native display queries and replay scaled shake thresholds.
+- R81 (2026-11-20, bubble-evade): Record intentional lifetime changes alongside preserved timing bounds. Check: compare the bubble timing table with the clock tests for each end state.

@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "@filow/ui";
 import { okFilowBridge, type WakeStatus, type OkFilowCard, type OkFilowMode } from "@/lib/buddy/bridge";
-import { bubbleOnScreen, bubblePlacement, bubbleSticks, createPausableClock, followScroll, MARK_EXIT_MS, marksBegun, overBubble, overControls } from "@/lib/buddy/motion";
+import { detachedPosition, bubblePlacement, createPausableClock, followScroll, MARK_EXIT_MS, marksBegun, overBubble, overControls } from "@/lib/buddy/motion";
 import { planFlight, flightPoint, arrivalPhase, type FlightPlan } from "@/lib/buddy/pointer-flight";
 import { drawingStarts } from "@/lib/buddy/marks-sync";
 import { MarksLayer, type MarkSet } from "@/components/okfilow/marks-layer";
@@ -295,11 +295,11 @@ export default function OkFilowOverlay() {
           const view = { width: window.innerWidth, height: window.innerHeight };
           const pillRect = pillSpot.current?.getBoundingClientRect() ?? null;
           const grew = Math.abs(size.width - h.size.width) >= 1 || Math.abs(size.height - h.size.height) >= 1;
-          if (h.answer && h.shown && h.placed && !h.detached && bubbleSticks(cursor.current, r)) {
+          const detached = detachedPosition(h, cursor.current, r, size, view);
+          if (detached && !h.detached) {
             h.detached = true;
             b.detachBubble?.(bubbleGeneration.current);
             // Snapshot the visible position, including a glide that is still in progress.
-            h.at = { x: r.left, y: r.top };
             el.style.transitionProperty = "opacity, width, height";
           }
           const c = cursor.current;
@@ -313,7 +313,7 @@ export default function OkFilowOverlay() {
           // (and never over OK Filow's own pointer by the mouse: the bubble covered it, and its tip showed at the close button)
           const dotBox = c ? [{ left: c.x + OFFSET.x - 4, top: c.y + OFFSET.y - 4, right: c.x + OFFSET.x + 40, bottom: c.y + OFFSET.y + 40 }] : [];
           const beside = item ? bubbleBeside(item, size, view, [...off, ...dotBox], pillRect) : null;
-          const at = placed ? { x: placed.x, y: placed.y } : h.detached ? bubbleOnScreen(h.at, size, view) : beside ?? bubbleClear(bubblePlacement(h.answer && c ? { x: c.x + OFFSET.x, y: c.y + OFFSET.y } : next, size, view, 18, pillRect), size, view, [...off, ...dotBox]);
+          const at = placed ? { x: placed.x, y: placed.y } : detached ?? beside ?? bubbleClear(bubblePlacement(h.answer && c ? { x: c.x + OFFSET.x, y: c.y + OFFSET.y } : next, size, view, 18, pillRect), size, view, [...off, ...dotBox]);
           const want = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px)`;
           if (el.style.transform !== want) {
             // An answer's bubble glides when it catches up with the pointer; a first placement does not glide in from where the last bubble was.

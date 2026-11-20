@@ -143,7 +143,7 @@ describe("an answer's bubble and the waveform", () => {
     expect(answerInBubble("listening", "dictated words", false)).toBe(false);
     expect(answerInBubble("thinking", "", false)).toBe(false);
     expect(renderToStaticMarkup(<AnswerBubble mode="speaking" text="Text." stopped={false} shown t={t} onClose={noop} />)).toContain('class="okf-bubble okf-bubble--answer"');
-    expect(renderToStaticMarkup(<AnswerBubble mode="listening" text="" stopped={false} shown level={0.5} t={t} onClose={noop} />)).toContain('<div class="okf-bubble" role="group"');
+    expect(renderToStaticMarkup(<AnswerBubble mode="listening" text="" stopped={false} shown level={0.5} t={t} onClose={noop} />)).toContain('<div class="okf-bubble"');
   });
   it("hidden, error and the spinner as before", () => {
     expect(renderToStaticMarkup(<AnswerBubble mode="error" text="It failed." stopped={false} shown={false} t={t} onClose={noop} />)).toContain('class="okf-bubble okf-hidden okf-bubble--error okf-bubble--answer"');
@@ -178,12 +178,6 @@ describe("the overlay page and the bubble", () => {
     expect(overlay).toContain("okFilowBridge()?.overlayHover?.(over, overB);");
     // again whenever what is shown changes under a pointer that stands still
     expect(overlay).toMatch(/tellHover\(cursor\.current, true\);\s*\}, \[mode, going, here, sees, lang, stopped, pill, keys, text, closed, tellHover\]\);/);
-  });
-  it("places it clear of the pill, holds it still near the pointer, and keeps a held one on screen", () => {
-    expect(overlay).toContain("const pillRect = pillSpot.current?.getBoundingClientRect() ?? null;");
-    expect(overlay).toContain("bubbleSticks(cursor.current, r)");
-    expect(overlay).toContain("h.detached");
-    expect(overlay).toContain("if (moved || grew) tellHover(cursor.current);");
   });
   it("keeps the sentence being spoken in view, unless the pointer is on the bubble", () => {
     expect(overlay).toContain("b.onSpoken?.((n) => setSpoken(Number.isInteger(n) ? n : -1))");

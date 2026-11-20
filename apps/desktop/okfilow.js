@@ -10,7 +10,7 @@ const INPUT_OFF = globalInputOff();
 const globalShortcut = shortcutsFor(electronShortcuts, INPUT_OFF);
 const { keyboardPermission } = require("./mac-permissions");
 const path = require("node:path");
-const { shakeStep, createGestures, chordHeld, ARM_MS } = require("./okfilow-gestures");
+const { createShakeInput, createGestures, chordHeld, ARM_MS } = require("./okfilow-gestures");
 const { createReleaseTail, RELEASE_TAIL_MS } = require("./dictation-release");
 const { createHookRetry, describeHookError, QUICK_MS } = require("./okfilow-hook-retry");
 const { loadUiohook } = require("./uiohook");
@@ -21,7 +21,7 @@ const { createBubble, createMarks, bubbleText, escapePlan, overlayLive, keepsOve
 const { createHitTarget, insideAny, cleanHitReport, localPoint } = require("./okfilow-hit");
 const { cleanShow, showFor } = require("./okfilow-media");
 const { clampBounds, movedBounds, localRect } = require("./okfilow-move");
-const { escTarget, createEscKey } = require("./okfilow-esc");
+const { escTarget, overlayEscape } = require("./okfilow-esc");
 const { createPractice } = require("./tour");
 const { overlayRects } = require("./okfilow-rects");
 const { modelBounds } = require("./okfilow-model-place");
@@ -264,7 +264,12 @@ function createOkFilow(deps) {
   // It goes away by itself once nothing runs any more, whatever keeps the overlays up (marks, the
   // always-on pointer): every overlay is told, the mouse is given back, and the overlays may fade.
   /** The overlays whose bubble has the pointer on it right now (webContents ids). */
-  let shakeSamples = [];
+  let cursorScale = 1;
+  const shake = createShakeInput({
+    enabled: () => bubble.open() && mode !== "opening" && mode !== "listening" && mode !== "thinking" && cfg().shakeToClose !== false,
+    scale: () => cursorScale,
+    close: () => bubble.close("shake"),
+  });
   let detachedDisplay = null;
   let bubbleGeneration = 0;
   const bubbleFocus = new Set();
@@ -302,7 +307,7 @@ function createOkFilow(deps) {
     const open = bubble.open();
     if (!open) {
       for (const id of bubbleHover) stopHover.delete(id);
-      shakeSamples = [];
+      shake.reset();
       detachedDisplay = null;
       bubbleGeneration++;
       lastCursor = "";
@@ -370,7 +375,7 @@ function createOkFilow(deps) {
   });
   ipcMain.on("okfilow:bubble:focus", (e, focused) => {
     if (!ourSender(e)) return;
-    if (focused && bubble.open()) bubbleFocus.add(e.sender.id);
+    if (focused && bubble.open() && [...overlays.values()].some(w => !w.isDestroyed() && w.webContents === e.sender && w.isFocused())) bubbleFocus.add(e.sender.id);
     else bubbleFocus.delete(e.sender.id);
     bubble.setFocus(bubbleFocus.size > 0);
   });
@@ -620,6 +625,7 @@ function createOkFilow(deps) {
   ipcMain.on("okfilow:cards", (e, list) => {
     if (!ourSender(e) || !Array.isArray(list)) return;
     cardsUp = keepsOverlays(list);
+    syncBubbleActions();
     showOverlays();
     for (const w of overlays.values()) {
       if (w.isDestroyed()) continue;
@@ -630,6 +636,7 @@ function createOkFilow(deps) {
         .map((c) => ({ x: c.x - b.x, y: c.y - b.y, title: String(c.title || "").slice(0, 60), text: String(c.text || "").slice(0, 240), photo: /^data:image\/(jpeg|png|webp|gif|svg\+xml);base64,/.test(String(c.photo || "")) ? String(c.photo) : "" }));
       w.webContents.send("okfilow:cards", mine);
     }
+    if (!cardsUp && (mode === "idle" || mode === "error")) scheduleFade();
     qaShot("cards", 3500);
   });
   /** Pictures and the slide (okfilow-media.js): to the overlay of the display the answer is about; null takes them away. */
@@ -637,6 +644,7 @@ function createOkFilow(deps) {
     if (!ourSender(e)) return;
     const show = cleanShow(raw);
     mediaUp = Boolean(show);
+    syncBubbleActions();
     if (show) showOverlays();
     for (const w of overlays.values()) {
       if (w.isDestroyed()) continue;
@@ -689,6 +697,10 @@ function createOkFilow(deps) {
           title: "OK Filow",
           backgroundColor: "#00000000",
           webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload, backgroundThrottling: false },
+        });
+        w.webContents.on("before-input-event", (event, input) => overlayEscape(w.isFocused(), event, input, pressEsc));
+        w.on("blur", () => {
+          if (bubbleFocus.delete(w.webContents.id)) bubble.setFocus(bubbleFocus.size > 0);
         });
         applyMouse(w);
         watchHitRects(w);
@@ -748,6 +760,7 @@ function createOkFilow(deps) {
   const mediaRects = new Map();
   const mediaOn = new Set();
   /** Something of an answer is kept on screen: its cards, pictures, or its marks while they last (answerMarks above). */
+  const syncBubbleActions = () => bubble.setActions(cardsUp || mediaUp || pill.resumable);
   const pinned = () => cardsUp || mediaUp || answerMarks.up();
   /** The real cursor (overlay coordinates, or null) over this overlay's pictures takes the mouse there (okfilow-hit.js). */
   function mediaHit(w, p) {
@@ -780,6 +793,7 @@ function createOkFilow(deps) {
     cursorTimer = setInterval(() => {
       const p = screen.getCursorScreenPoint();
       const d = screen.getDisplayNearestPoint(p);
+      if (cursorScale !== d.scaleFactor) { cursorScale = d.scaleFactor; shake.wheel(); }
       const key = `${d.id}:${p.x}:${p.y}`;
       if (key === lastCursor) return;
       lastCursor = key;
@@ -994,6 +1008,7 @@ function createOkFilow(deps) {
     cardsUp = false;
     mediaUp = false;
     answerMarks.forget();
+    syncBubbleActions();
     pointUntil = 0;
     sendOverlays("okfilow:clear", null);
     if (mode === "idle" || mode === "error") scheduleFade();
@@ -1103,6 +1118,8 @@ function createOkFilow(deps) {
     if (!w || w.isDestroyed()) return;
     const id = w.webContents.id;
     const m = overlayMouse({ caught: mouseCaught, hover: stopHover.has(id), media: mediaOn.has(id), mode, pill, bubble: bubble.open() });
+    const focusable = bubble.open() && (bubbleHover.has(id) || w.isFocused());
+    if (w.isFocusable() !== focusable) w.setFocusable(focusable);
     w.setIgnoreMouseEvents(m.ignore);
     // Test builds log every change, so an end-to-end run can tell whether Windows would deliver a click.
     if (QA_SHOTS && mouseWas.get(id) !== m.ignore) logLine(`okfilow qa overlay ${id} mouse ${m.ignore ? "click-through" : "takes clicks"} (mode ${mode}, hover ${stopHover.has(id)}, caught ${mouseCaught})`);
@@ -1117,7 +1134,7 @@ function createOkFilow(deps) {
     stopAt = Date.now();
     logLine(`okfilow: answer stopped by the user (${source})`);
     // Pictures and videos go at once (no round trip through the panel): playback ends now.
-    if (mediaUp) { mediaUp = false; sendOverlays("okfilow:media", null); }
+    if (mediaUp) { mediaUp = false; syncBubbleActions(); sendOverlays("okfilow:media", null); }
     sendPanel("okfilow:stop", { source });
     return true;
   }
@@ -1134,13 +1151,18 @@ function createOkFilow(deps) {
     gestures?.escape();
   }
 
-  // ---- Escape on what OK Filow shows (okfilow-esc.js): a global shortcut only while something is shown ----
+  // ---- Escape on what OK Filow shows (okfilow-esc.js): handled by the focused overlay ----
   let escAt = 0;
   const modelShown = () => Boolean(modelWin && !modelWin.isDestroyed() && modelWin.isVisible());
   function pressEsc() {
     const now = Date.now();
     // an answer in progress: Escape stops it first, as before
-    if (answering(mode)) { escAt = now; return onEscape(); }
+    if (answering(mode) || bubble.open()) {
+      escAt = now;
+      onEscape();
+      if (answering(mode)) bubble.close("escape");
+      return;
+    }
     const what = escTarget({ model: modelShown(), items: pinned(), bubble: bubble.open(), lastAt: escAt, now });
     escAt = now;
     logLine(`okfilow: Escape closes ${what || "nothing"}`);
@@ -1149,9 +1171,6 @@ function createOkFilow(deps) {
     if (what === "bubble" || what === "all") bubble.close("escape");
     gestures?.escape();
   }
-  const escKey = createEscKey({ shortcuts: globalShortcut, onEsc: pressEsc });
-  const escTimer = setInterval(() => escKey.sync(modelShown() || pinned() || bubble.open() || answering(mode)), 200);
-  escTimer.unref?.();
   function onGesture(ev) {
     logLine(`okfilow: gesture ${ev}`);
     switch (ev) {
@@ -1314,8 +1333,6 @@ function createOkFilow(deps) {
         const k = map[e.keycode] || null;
         gestures.keydown(k);
         if (!k) dictation.userMoved(); // the caret may have moved: no joining space before the next dictation
-        // (while OK Filow holds Escape as a shortcut, the shortcut acts: not twice)
-        if (e.keycode === K.Escape && !escKey.held()) onEscape();
         // Hands-free dictation: after the user's own Enter or Tab the next phrase starts without a space.
         if (phraseRun && (e.keycode === K.Enter || e.keycode === K.NumpadEnter || e.keycode === K.Tab)) phraseRun.moved();
       });
@@ -1330,20 +1347,11 @@ function createOkFilow(deps) {
         // After an unlock or a wake-up Windows often allows the hook again: do not wait out the retry delay.
         for (const ev of ["unlock-screen", "resume"]) powerMonitor.on(ev, () => hookRetry.nudge());
       }
-      const buttons = new Set();
-      const shakeEnabled = () => bubble.open() && mode !== "opening" && mode !== "listening" && mode !== "thinking" && cfg().shakeToClose !== false;
-      uIOhook.on("mouseup", e => buttons.delete(e.button));
-      uIOhook.on("wheel", () => { shakeSamples = []; });
-      uIOhook.on("mousemove", e => {
-        if (buttons.size || !shakeEnabled()) { shakeSamples = []; return; }
-        const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-        const result = shakeStep(shakeSamples, { x: e.x, y: e.y, at: performance.now(), kind: "move" }, display.scaleFactor);
-        shakeSamples = result.samples;
-        if (result.close) bubble.close("shake");
-      });
+      uIOhook.on("mouseup", shake.up);
+      uIOhook.on("wheel", shake.wheel);
+      uIOhook.on("mousemove", shake.move);
       uIOhook.on("mousedown", (e) => {
-        buttons.add(e.button);
-        shakeSamples = [];
+        shake.down(e);
         // A click anywhere but on the bubble or the pill, once the answer has ended: the screen may
         // have changed under the marks, so they go (while the answer is told they stay).
         if (!bubbleHover.size && !stopHover.size) answerMarks.screenChanged();
@@ -1582,7 +1590,7 @@ function createOkFilow(deps) {
     if (type === "down" && key === "eye") return void control("eye", "key");
     if (type === "down" && key === "pause") return void control(pauseKeyAction(mode, pill), "key");
     if (key === "eye" || key === "pause") return;
-    if (type === "down") { gestures.keydown(mod); if (key === "escape") onEscape(); }
+    if (type === "down") gestures.keydown(mod);
     else if (type === "up") gestures.keyup(mod);
   });
   /** A click on a control of the pill (an overlay), or the same from the panel's row. */
@@ -1593,6 +1601,7 @@ function createOkFilow(deps) {
     pill = { ...pillState(v), hears: wake?.status().enabled === true };
     sendOverlays("okfilow:pill", pill);
     bubble.setPaused(pill.paused);
+    syncBubbleActions();
     answerMarks.set({ paused: pill.paused });
     if (!overlayLive(mode, pill, bubble.open())) stopHover.clear();
     for (const w of overlays.values()) applyMouse(w);
@@ -1879,8 +1888,6 @@ function createOkFilow(deps) {
     if (modelWin && !modelWin.isDestroyed()) modelWin.destroy();
     if (boardWin && !boardWin.isDestroyed()) boardWin.destroy();
     hookRetry.stop();
-    clearInterval(escTimer);
-    escKey.sync(false);
     for (const k of [eyeBound, pauseBound]) { if (k.accelerator) { try { globalShortcut.unregister(k.accelerator); } catch { /* quitting */ } } }
     try { hook?.stop(); } catch { /* quitting */ }
     stopCursor();
