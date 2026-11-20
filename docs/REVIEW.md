@@ -90,3 +90,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 - R77 (2026-11-20, N-02): A cloud-answer failure must identify the recovery without exposing the provider response or silently retrying. Check: remove the key and return 402, 429 and 503 from a loopback receiver. Count sends and exercise typing, installed local answers and model-free practice.
 
 - R78 (2026-11-20, N-02): Require a grant for the named model repository before starting an embedding worker. Check: open a fresh and upgraded script with missing model files, decline the download and count workers and outbound requests.
+- R79 (2026-11-20, N-02): Use the established Russian download terminology in setup disclosures. Check: compare every English download string to the Russian dictionary through the typography gate.
