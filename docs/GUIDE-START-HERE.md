@@ -12,10 +12,10 @@ The practice ticket asks for a confirmation that tells the user what to do next.
 
 ### Junior | Open your own copy
 
-Use PowerShell, Git and Node 22. In the operator checkout, verify that `git config user.name` and `git config user.email` return your commit name and email. Set them for this clone with `git config user.name "Your Name"` and `git config user.email "you@example.com"` before planning. The builder uses this identity for its commits. Choose a writable project volume outside C: with at least 20 GB free. Start in its project directory. The practice uses the revision containing these commands. The historical manual tour exercise starts at `368f019`.
+Use PowerShell, Git and Node 22. In the operator checkout, verify that `git config user.name` and `git config user.email` return your commit name and email. Set them for this clone with `git config user.name "Your Name"` and `git config user.email "you@example.com"` before planning. The builder uses this identity for its commits. Choose a writable project volume outside C: with at least 20 GB free. Use a short workspace root such as `G:\ff`. Enabling Windows long paths with `LongPathsEnabled` requires administrator access and is optional. The factory works with the default Windows limit. The practice uses the revision containing these commands. The historical manual tour exercise starts at `368f019`.
 
 ```powershell
-$practiceRoot = Join-Path (Get-Location).Path 'filow-practice'
+$practiceRoot = 'G:\ff'
 $lab = Join-Path $practiceRoot 'checkout'
 $tree = Join-Path $practiceRoot 'tour worktree'
 $cache = Join-Path $practiceRoot 'cache'
@@ -30,9 +30,9 @@ New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
 git --version
 node --version
 npm.cmd --version
-git clone https://github.com/stefandsl/filow.git $lab
+git -c core.longpaths=true clone -c core.longpaths=true https://github.com/stefandsl/filow.git $lab
 if ($LASTEXITCODE) { throw 'Clone failed. Check the destination and connection.' }
-git -C $lab worktree add -b practice/tour-copy $tree HEAD
+git -C $lab -c core.longpaths=true worktree add -b practice/tour-copy $tree HEAD
 if ($LASTEXITCODE) { throw 'Use the existing assigned practice worktree or choose an unused branch.' }
 Set-Location $tree
 npm.cmd run
@@ -109,7 +109,7 @@ N-01 is listed in the plan. Its first run needs a coordinator to turn the ticket
 
 ```powershell
 $n01 = Join-Path $practiceRoot 'n01 worktree'
-git -C $lab worktree add -b ticket/n01 $n01 HEAD
+git -C $lab -c core.longpaths=true worktree add -b ticket/n01 $n01 HEAD
 if ($LASTEXITCODE) { throw 'Check the assigned N-01 branch and worktree.' }
 Set-Location -LiteralPath $n01
 npm.cmd run filow:plan -- N-01
@@ -130,7 +130,7 @@ npm.cmd run filow:build -- $run
 
 N-01 build prepares baseline gate receipts from the frozen SHA before dispatching the builder. The builder works on a private copy of the ticket branch with its own Git metadata and the prepared dependencies. A clean ticket-prefixed commit and matching report allow the next build to fast-forward the assigned worktree and run candidate gates. A dirty reply prints the inspection command and preserves the draft in the private copy.
 
-Continue with the printed builder packet and the same-ID build and verify steps above. Private state lives in `.filow-factory` beside the primary clone, grouped by repository, live or rehearsal, and run ID. Only the runner writes `run.json`. Plan also accepts a quoted ticket title or request.
+Continue with the printed builder packet and the same-ID build and verify steps above. Private state lives in a short `.f-*` directory beside the primary clone, grouped by repository, live or rehearsal, and run ID. Only the runner writes `run.json`. Plan also accepts a quoted ticket title or request.
 
 ## Owner | Try the package at your desk and on stage
 

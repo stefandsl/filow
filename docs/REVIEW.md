@@ -71,3 +71,4 @@ Limit: at most 3 rounds of review, critic, devil's advocate, council or arena pe
 
 - R59 (2026-11-20, N-08): resolve the operator's configured Git identity before planning and forward author and committer values to the builder. Check: use a global name and repository email, then remove the effective name and verify a single actionable HOLD.
 - R60 (2026-11-20, N-08): verify private Git metadata, assigned branch, clean base or authorized slice and linked dependency stamp on resume. Check: interrupt setup before linking dependencies, dirty the checkout, switch branches and replay a valid committed slice.
+- R61 (2026-11-20, N-08): budget Windows factory paths before creating a run and persist Git long paths in private clones. Check: exercise the 240-character boundary, reserve colliding IDs, and run the nested repair checkout through baseline Vitest.

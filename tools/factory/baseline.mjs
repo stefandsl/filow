@@ -10,7 +10,7 @@ export function baselineInputs(root, bundle = process.env.FILOW_FACTORY_BRANCH_B
   const missing = [];
   const auth = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
     /^(?:HOME|USERPROFILE|HOMEDRIVE|HOMEPATH|APPDATA|LOCALAPPDATA|XDG_CONFIG_HOME|SSH_AUTH_SOCK|GIT_SSH(?:_COMMAND)?|GIT_ASKPASS|GIT_CONFIG_(?:GLOBAL|SYSTEM)|GCM_CREDENTIAL_STORE|TMP|TEMP)$/i.test(key)));
-  const query = spawnSync('git',['ls-remote','--exit-code','origin','refs/heads/main'],{
+  const query = spawnSync('git',['-c','core.longpaths=true','ls-remote','--exit-code','origin','refs/heads/main'],{
     cwd:root, encoding:'utf8', windowsHide:true, timeout:30000, stdio:['ignore','pipe','ignore'],
     env:{...childEnv(),...auth,GIT_TERMINAL_PROMPT:'0',GCM_INTERACTIVE:'never'},
   });

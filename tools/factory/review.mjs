@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
-import { ensure, hash, json, now, read, save } from './worktree.mjs';
+import { compactRun, ensure, hash, json, now, read, save } from './worktree.mjs';
 import { desktopCodex, desktopFix, loginFix, ready, route, packet } from './brief.mjs';
 import { reviewerFix } from './dispatch.mjs';
 import { editGrant, packetReply, safeText } from './plan.mjs';
@@ -55,7 +55,7 @@ export async function review(state, dir, ledger, options, checkpoint, resolveCod
   const openAI = expected.provider === 'OpenAI';
   const exe = openAI ? resolveCodex() : null;
   ensure(!openAI || exe, desktopFix);
-  ensure(ready(expected.provider,process.env,exe,path.join(dir,'runtime')), 'Required independent reviewer unavailable. ' +
+  ensure(ready(expected.provider,process.env,exe,path.join(dir,'rt')), 'Required independent reviewer unavailable. ' +
     (openAI ? loginFix : reviewerFix) + ' and repeat verify.');
   if (!state.round || options.newRound && state.round.closed) {
     state.dispatch ??= randomUUID();
@@ -66,7 +66,7 @@ export async function review(state, dir, ledger, options, checkpoint, resolveCod
   }
   const round = state.round;
   ensure(round.candidate === state.candidate && !round.closed, 'Open findings or changed candidate. Use --new-round for a fresh review.');
-  const root = path.join(dir, round.id);
+  const root = path.join(dir, compactRun(state.run) ? 'v' + round.number : round.id);
   const sources = [state.builder];
   for (const [stage, role] of [['blind','Reviewer, blind case'],['replay','Reviewer, replay'],['judge','Judge']]) {
     const folder = path.join(root, stage);

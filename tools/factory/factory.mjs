@@ -1,8 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { Hold, ensure, git, gitOutput, hash, inspect, json, now, operatorIdentity, read, save, storage, withLock, writer } from './worktree.mjs';
+import { Hold, checkRunPaths, compactRun, reserveRun, ensure, git, gitOutput, hash, inspect, json, now, operatorIdentity, read, save, storage, withLock, writer } from './worktree.mjs';
 import { editGrant, parse, safeText, stakes, ticketCard } from './plan.mjs';
 import { desktopCodex, desktopFix, loginFix, packet, ready, route } from './brief.mjs';
 import { reviewerFix } from './dispatch.mjs';
@@ -24,9 +23,9 @@ export function select(runs, target, branch, verb) {
 function next(state, verb) {
   return 'npm.cmd run filow:' + verb + ' -- ' + state.run + (state.dry ? ' --dry-run' : '');
 }
-function create(tree, card, dry) {
+function create(tree, card, dry, run) {
   const rules = read(path.join(tree.root,'docs/REVIEW.md'));
-  return { schema: 1, run: 'run-' + randomUUID(), dry, ticket: card.ticket, root: tree.root,
+  return { schema: 1, run, dry, ticket: card.ticket, root: tree.root,
     branch: tree.branch, base: tree.head, candidate: null, packageHash: null, card,
     planInputs: Object.fromEntries(['docs/PLAN.md','HANDOFF.md','docs/METHODOLOGY.md','docs/REVIEW.md',...(card.callers || [])].map(f => [f,hash(read(path.join(tree.root,f)))])),
     risk: stakes(card.reason || card.goal, card.paths, '', card.stakes), step: 'plan', lastCheck: null,
@@ -111,7 +110,13 @@ function build(state, tree, dir, options, checkpoint) {
     state.reservedRule = nextRule(git(tree.root,'show',state.candidate + ':docs/REVIEW.md'));
     state.repairPacketBase = state.candidate;
   }
-  const file = path.join(dir,'builder',state.repairPacketBase || '', 'report.json');
+  let repair = state.repairPacketBase || '';
+  if (repair && compactRun(state.run)) {
+    state.repairBases ??= [];
+    if (!state.repairBases.includes(repair)) state.repairBases.push(repair);
+    repair = state.repairBases.indexOf(repair).toString(16).padStart(8,'0');
+  }
+  const file = path.join(dir,compactRun(state.run) ? 'b' : 'builder',repair,'report.json');
   const folder = path.dirname(file);
   const privateTree = path.join(folder,'checkout');
   if (!state.dry && fs.existsSync(file)) {
@@ -192,14 +197,15 @@ function build(state, tree, dir, options, checkpoint) {
 export async function run(options, resolveCodex = desktopCodex) {
   const tree = inspect(process.cwd());
   const home = storage(tree);
-  const baseDir = path.join(home, options.dry ? 'rehearsals' : 'runs');
+  const legacy = path.basename(path.dirname(home)) === '.filow-factory';
+  const baseDir = path.join(home, options.dry ? (legacy ? 'rehearsals' : 'd') : (legacy ? 'runs' : 'r'));
   // The ticket lock covers the change-wide review ledger; the branch lock covers all runs targeting that checkout.
-  const runId = /^run-[a-f0-9-]{36}$/.test(options.target);
+  const runId = /^run-(?:[a-f0-9]{8}|[a-f0-9-]{36})$/.test(options.target);
   let card;
   if (options.verb === 'plan' && !runId) card = ticketCard(tree.root,options.target,options.card);
   const target = card?.ticket || options.target;
   ensure(runId || /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/.test(target), 'Use a ticket ID or an exact saved run ID.');
-  const lookup = () => (fs.existsSync(baseDir) ? fs.readdirSync(baseDir) : []).filter(n => /^run-[a-f0-9-]{36}$/.test(n))
+  const lookup = () => (fs.existsSync(baseDir) ? fs.readdirSync(baseDir) : []).filter(n => /^run-(?:[a-f0-9]{8}|[a-f0-9-]{36})$/.test(n))
     .map(n => path.join(baseDir,n,'run.json')).filter(f => fs.existsSync(f)).map(json);
   const ticket = runId ? select(lookup(),target,tree.branch,options.verb)?.ticket : target;
   ensure(ticket, 'Run ID missing. Use the same clone and dry-run setting as plan.');
@@ -210,7 +216,20 @@ export async function run(options, resolveCodex = desktopCodex) {
     let state = select(lookup(),target,tree.branch,options.verb);
     if (!state) {
       ensure(options.verb === 'plan' && card, 'Plan the ticket first, then use its saved run ID.');
-      state = create(tree,card,options.dry);
+      if (process.platform === 'win32') {
+        const dir = path.join(baseDir,'run-ffffffff');
+        const files = git(tree.root,'ls-files','-z').split('\0').filter(Boolean);
+        const branches = git(tree.root,'for-each-ref','--format=%(refname:strip=2)','refs/heads').split('\n');
+        const extra = [path.join(home,'reviews',ticket + '.json')];
+        // npm's content-addressed cache stores the remaining 124 SHA-512 digits as its leaf.
+        const packages = json(path.join(tree.root,'package-lock.json')).packages || {};
+        if (Object.keys(packages).length) {
+          extra.push(path.join(dir,'rt','n','_cacache','content-v2','sha512','ff','ff','f'.repeat(124)));
+          for (const pkg of Object.keys(packages)) extra.push(path.join(tree.root,pkg,'package.json'));
+        }
+        checkRunPaths(dir,tree.root,tree.branch,files,branches,extra);
+      }
+      state = create(tree,card,options.dry,reserveRun(baseDir));
     }
     ensure(state.schema === 1 && state.root === tree.root && state.branch === tree.branch, 'Resume in the assigned worktree: ' + state.root);
     const dir = path.join(baseDir,state.run), file = path.join(dir,'run.json');
@@ -235,7 +254,7 @@ export async function run(options, resolveCodex = desktopCodex) {
         if (!state.dry) operatorIdentity(tree.root);
         if (!state.card.paths && options.card) {
           ensure(tree.head === state.base, 'The plan base changed before the card was frozen.');
-          state = { ...create(tree,ticketCard(tree.root,state.ticket,options.card),options.dry), run: state.run, writer: writer() };
+          state = { ...create(tree,ticketCard(tree.root,state.ticket,options.card),options.dry,state.run), writer: writer() };
         }
         const needsHistory = state.ticket === 'N-01' || /branch (?:backup|bundle)|archived (?:audit )?ref/i.test(
           [state.card.text,state.card.goal,...(state.card.checks || [])].join(' '));
@@ -252,7 +271,7 @@ export async function run(options, resolveCodex = desktopCodex) {
         }
         const exe = resolveCodex();
         const reviewer = route(state.risk.level,'Reviewer, replay');
-        const builder = ready('OpenAI',process.env,exe,path.join(dir,'runtime'));
+        const builder = ready('OpenAI',process.env,exe,path.join(dir,'rt'));
         state.readiness = { builder, reviewer:reviewer.provider === 'OpenAI' ? builder : Boolean(exe) && ready(reviewer.provider) };
         console.log('Builder OpenAI ' + (builder ? 'configured' : 'missing') + '. Reviewer ' + reviewer.provider + ' ' + reviewer.model +
           (reviewer.via ? ' via ' + reviewer.via : '') + ' ' +

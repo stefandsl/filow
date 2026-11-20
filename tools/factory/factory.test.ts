@@ -6,7 +6,7 @@ import { prepareReplay, verifyReplay } from '../release/review-packet.mjs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, onTestFinished, vi } from 'vitest';
 import { parse, stakes, ticketCard } from './plan.mjs';
-import { checkWindowsVolumes, hash, inspect, json, save, withLock } from './worktree.mjs';
+import { checkRunPaths, reserveRun, checkWindowsVolumes, hash, inspect, json, save, withLock } from './worktree.mjs';
 import { observeSlice, select } from './factory.mjs';
 import { actor, checkPackage, getReport, reserve, review } from './review.mjs';
 import { reviewerKey, startProgress } from './dispatch.mjs';
@@ -72,6 +72,22 @@ beforeAll(() => {
   git(clone,'worktree','add','-qb','practice/tour',tree);
 });
 afterAll(() => fs.rmSync(lab,{recursive:true,force:true}));
+
+it('reserves a short run directory atomically and retries a collision', () => {
+  const dir = path.join(lab,'ids');
+  const ids = ['01234567','01234567','89abcdef'];
+  const next = () => ids.shift()!;
+  expect(reserveRun(dir,next)).toBe('run-01234567');
+  expect(reserveRun(dir,next)).toBe('run-89abcdef');
+});
+
+it('checks the longest checkout path at the 240 character boundary', () => {
+  const dir = path.join(lab,'r');
+  const prefix = path.join(dir,'b','ffffffff','old-XXXXXX','checkout');
+  const leaf = 'x'.repeat(240 - prefix.length - 1);
+  expect(() => checkRunPaths(dir,tree,'topic',[leaf])).not.toThrow();
+  expect(() => checkRunPaths(dir,tree,'topic',[leaf+'x'])).toThrow(/241.*240.*G:.*ff/);
+});
 
 it('parses a quoted request, exact SHA and strict verb-specific options', () => {
   expect(parse(['plan','Save practice','--dry-run'])).toMatchObject({target:'Save practice',dry:true});
@@ -340,7 +356,7 @@ it('takes all three public verbs through a dry run, repeats build in another pro
   expect(state).toMatchObject({candidate:before.head,verdict:'HOLD',step:'rehearsed',run:id});
   expect(fs.readdirSync(path.dirname(path.dirname(file)))).toEqual([id]);
   expect(inspect(tree)).toEqual(before);
-  const files = [file,path.join(path.dirname(file),'builder','brief.md')];
+  const files = [file,path.join(path.dirname(file),'b','brief.md')];
   for (const f of files) expect(fs.readFileSync(f,'utf8')).not.toContain(marker);
   const brief = fs.readFileSync(files[1],'utf8');
   expect(brief.indexOf('R16 (')).toBeLessThan(brief.indexOf('# Factory brief'));
@@ -639,6 +655,7 @@ it.each(['tracked','ignored','absent'])('runs the generation gate workers with a
   try {
     const state = {root,candidate:before.head};
     runGates(state,dir,'verify',()=>{},false);
+    expect(git(state.gate.checkout,'config','--local','core.longpaths')).toBe('true');
     expect(inspect(root)).toEqual(before);
     expect(fs.readFileSync(welcome,'utf8')).toBe('tracked welcome');
     if (kind !== 'absent') expect(fs.readFileSync(dictionary,'utf8')).toBe('original dictionary');
@@ -811,7 +828,7 @@ it('reissues a builder packet on a closed review and holds a ruleless correction
     round:{number:1,closed:true,candidate:first.head,findings:['Duplicate practice confirmation.']}});
   const issued = command('build',state.run);
   expect(issued.stdout,issued.stderr).toContain('Builder brief:');
-  const brief = fs.readFileSync(path.join(path.dirname(file),'builder',first.head,'brief.md'),'utf8');
+  const brief = fs.readFileSync(path.join(path.dirname(file),'b','00000000','brief.md'),'utf8');
   expect(brief).toContain('Duplicate practice confirmation.');
   const rules = fs.readFileSync(path.join(tree,'docs/REVIEW.md'),'utf8');
   const next = 1 + Math.max(...Array.from(rules.matchAll(/^- R(\d+) /gm), m=>Number(m[1])));

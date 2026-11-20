@@ -33,7 +33,7 @@ export function builderCheckout(state, dir, start) {
   const metadata = path.join(dir,'git-data');
   if (fs.existsSync(copy) || fs.existsSync(metadata) || fs.existsSync(path.join(dir,'report.json'))) {
     if (reusable(state,dir,copy,start)) return copy;
-    const backup = fs.mkdtempSync(path.join(dir,'incomplete-'));
+    const backup = fs.mkdtempSync(path.join(dir,'old-'));
     for (const item of ['checkout','git-data','report.json']) {
       const from = path.join(dir,item);
       if (fs.existsSync(from)) fs.renameSync(from,path.join(backup,item));

@@ -55,7 +55,7 @@ export function daily(home, common) {
       ensure(p.base === initial.head && p.candidate === proposed.head && git(proposed.root,'rev-parse','HEAD^') === initial.head &&
         git(proposed.root,'diff','--name-only',initial.head,proposed.head) === editable, 'Freeze one AR-3 hypothesis and one changed file.');
       ensure(safeText(p.labelJudge) !== safeText(p.builder) && p.heldout === 'reused', 'Record independent label ownership and the reused split.');
-      const env = privateEnv(path.join(dir,'runtime'));
+      const env = privateEnv(path.join(dir,'rt'));
       const deadline = Date.now() + 600000;
       const launch = (cwd,args) => {
         const remaining = deadline - Date.now(); ensure(remaining > 0, 'Offline trial exceeded ten minutes.');

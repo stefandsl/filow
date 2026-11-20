@@ -1,17 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { childEnv, ensure, git, hash, inspect, json, now, read, save, withLock } from './worktree.mjs';
+import { childEnv, ensure, git, hash, inspect, json, now, read, save, shortId, withLock } from './worktree.mjs';
 
 export function privateEnv(folder) {
   const env = { ...childEnv(), CI: 'true', NEXT_TELEMETRY_DISABLED: '1', GIT_TERMINAL_PROMPT: '0',
     DOTNET_CLI_TELEMETRY_OPTOUT: '1', npm_config_audit: 'false', npm_config_fund: 'false' };
-  const dirs = { TMP: 'temp', TEMP: 'temp', TMPDIR: 'temp', HOME: 'profile', USERPROFILE: 'profile',
-    LOCALAPPDATA: 'local', APPDATA: 'roaming', npm_config_cache: 'npm', XDG_CACHE_HOME: 'cache',
-    npm_config_devdir: 'gyp', ELECTRON_CACHE: 'electron', electron_config_cache: 'electron',
-    HF_HOME: 'models', PLAYWRIGHT_BROWSERS_PATH: 'browsers', FILOW_USER_DATA_DIR: 'filow', FILOW_TEST_TMP: 'tests',
+  const dirs = { TMP: 't', TEMP: 't', TMPDIR: 't', HOME: 'h', USERPROFILE: 'h',
+    LOCALAPPDATA: 'l', APPDATA: 'a', npm_config_cache: 'n', XDG_CACHE_HOME: 'x',
+    npm_config_devdir: 'gyp', ELECTRON_CACHE: 'e', electron_config_cache: 'e',
+    HF_HOME: 'models', PLAYWRIGHT_BROWSERS_PATH: 'browsers', FILOW_USER_DATA_DIR: 'filow', FILOW_TEST_TMP: 's',
     DOTNET_CLI_HOME: 'dotnet', NUGET_PACKAGES: 'nuget', CODEX_HOME: 'codex', CODEX_SQLITE_HOME: 'sqlite' };
   for (const [key, sub] of Object.entries(dirs)) {
     env[key] = path.join(folder, sub);
@@ -49,7 +48,7 @@ export function installLock(stderr,runtime) {
 function installDependencies(root, dir) {
   const npm = process.env.npm_execpath;
   ensure(npm && fs.existsSync(npm), 'Start dependency setup through the documented npm command.');
-  const runtime = path.join(dir,'runtime');
+  const runtime = path.join(dir,'rt');
   const result = spawnSync(process.execPath,[npm,'ci','--prefer-offline'],{ cwd:root, env:privateEnv(runtime),
     windowsHide:true, encoding:'utf8', stdio:['ignore','ignore','pipe'],timeout:25*60000 });
   if (result.status !== 0) {
@@ -80,7 +79,7 @@ const worker = fileURLToPath(import.meta.url);
 // pre-existing ignored files in the ticket checkout survive a killed generator.
 function gateCheckout(root, sha, dir) {
   const checkout = fs.mkdtempSync(path.join(dir,'ci-'));
-  git(root,'clone','--quiet','--shared','--no-checkout','--',root,checkout);
+  git(root,'clone','--quiet','--shared','--no-checkout','--config','core.longpaths=true','--',root,checkout);
   git(checkout,'checkout','--quiet','--detach',sha);
   linkDependencies(root,checkout);
   // Vendor validates the pinned runtime stamp and may replace this whole directory.
@@ -139,7 +138,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === worker) {
 // Only metadata crosses the child boundary. A child can print credentials even on an ordinary failure.
 export function runGates(state, dir, phase, checkpoint, retry, run) {
   ensure(fs.existsSync(path.join(state.root, 'node_modules/electron/install.js')), 'Install dependencies with npm ci in the assigned worktree, then repeat this command.');
-  const env = privateEnv(path.join(dir, 'runtime'));
+  const env = privateEnv(path.join(dir, 'rt'));
   if (!state.gate || state.gate.phase !== phase || state.gate.sha !== state.candidate) {
     state.gate = { phase, sha: state.candidate, receipts: [], status: 'running' };
     checkpoint();
@@ -162,8 +161,9 @@ export function runGates(state, dir, phase, checkpoint, retry, run) {
     const pending = state.intent?.phase === phase && state.intent.name === name && state.intent.sha === state.candidate;
     if (!run && !g.checkout) g.checkout = gateCheckout(state.root,state.candidate,dir);
     if (!pending) {
-      const id = randomUUID();
-      state.intent = { id, name, phase, cwd:state.root, destination:path.join(dir,'receipts',id + '.json'),
+      let id;
+      do { id = shortId(); } while (fs.existsSync(path.join(dir,'rc',id + '.json')));
+      state.intent = { id, name, phase, cwd:state.root, destination:path.join(dir,'rc',id + '.json'),
         run:state.run, sha:state.candidate, npm:process.env.npm_config_user_agent?.split(' ')[0] || 'unknown' };
     }
     const intent = state.intent, file = intent.destination;

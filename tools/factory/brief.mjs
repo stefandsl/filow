@@ -49,9 +49,9 @@ export function writeDispatch({ exe, model, cwd, folder, brief, output, schema, 
   const args = ['exec','--json','--ephemeral','--ignore-user-config','--skip-git-repo-check','-C',cwd,
     '-c','windows.sandbox=unelevated',
     '-s',builder ? 'workspace-write' : 'read-only',...(builder && runFile ? ['--add-dir',path.join(folder,'git-data')] : []),...providerArgs,'-m',model.model,'-c','model_reasoning_effort=' + model.effort,
-    '-c','log_dir=' + path.join(folder,'runtime','logs'),'-c','shell_environment_policy.inherit=all','-c',"shell_environment_policy.exclude=['*KEY*','*TOKEN*','*SECRET*','*PASSWORD*','*AUTH*','*CREDENTIAL*','CODEX_HOME']",'--output-schema',schema,'-o',output,'-'];
+    '-c','log_dir=' + path.join(folder,'rt','logs'),'-c','shell_environment_policy.inherit=all','-c',"shell_environment_policy.exclude=['*KEY*','*TOKEN*','*SECRET*','*PASSWORD*','*AUTH*','*CREDENTIAL*','CODEX_HOME']",'--output-schema',schema,'-o',output,'-'];
   // Resolve credentials in the launcher process each time the printed command runs.
-  const launchArgs = [path.join(import.meta.dirname,'dispatch.mjs'),model.provider,path.join(folder,'runtime'),'--step',role,...(builder && operatorRoot ? ['--operator-root',operatorRoot] : []),exe,...args];
+  const launchArgs = [path.join(import.meta.dirname,'dispatch.mjs'),model.provider,path.join(folder,'rt'),'--step',role,...(builder && operatorRoot ? ['--operator-root',operatorRoot] : []),exe,...args];
   const script = ["$ErrorActionPreference = 'Stop'", "$OutputEncoding = [Text.UTF8Encoding]::new($false)",
     '$briefText = Get-Content -Raw -Encoding UTF8 -LiteralPath ' + quote(brief),
     // Windows PowerShell 5.1 routes redirected native stderr through its error stream.
@@ -70,7 +70,7 @@ export function packet(state, role, folder, instructions, output, resolveCodex =
   const cwd = builder ? state.builderRoot || state.root : role === 'Coordinator' ? state.root : folder;
   const model = route(state.risk.level, role);
   const exe = resolveCodex();
-  const readyNow = Boolean(exe) && ready(model.provider,process.env,exe,path.join(folder,'runtime'));
+  const readyNow = Boolean(exe) && ready(model.provider,process.env,exe,path.join(folder,'rt'));
   const revision = blind || role === 'Coordinator' ? state.base : state.candidate || state.base;
   const rules = git(state.root, 'show', revision + ':docs/REVIEW.md');
   const template = git(state.root, 'show', state.base + ':docs/factory/BRIEF-TEMPLATE.md');
