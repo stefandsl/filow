@@ -22,7 +22,11 @@ const ABOUT_KEYS = ["tabAbout", "tabReport", "version", "fact1", "fact2", "fact3
 
 const fill = (text, vars = {}) => text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
 /** Every text of the window in one language, {placeholders} left for the page to fill. */
-const textFor = (lang) => Object.fromEntries(ABOUT_KEYS.map((k) => [k, sharedText(`about.${k}`, lang)]));
+const textFor = (lang) => ({
+  ...Object.fromEntries(ABOUT_KEYS.map((k) => [k, sharedText(`about.${k}`, lang)])),
+  deleteLog: sharedText("settings.deleteLabel", lang, { name: [sharedText("about.fileLog", lang), sharedText("about.fileDictation", lang)].join(" / ") }),
+  retry: sharedText("easy.retry", lang),
+});
 
 /**
  * The line that says which commit this build was made from: "Build 1a2b3c4" (the first 7 characters of
@@ -292,6 +296,11 @@ function createAboutPages(deps) {
   handle("report:data", async () => {
     sections = await deps.collectReport();
     return { preview: fileText(""), crash: crash() };
+  });
+  handle("report:clear", () => {
+    sections = null;
+    deps.clearDiagnostics();
+    return true;
   });
   handle("report:preview", (description) => fileText(description));
   handle("report:save", async (description) => {

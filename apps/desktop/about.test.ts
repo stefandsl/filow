@@ -333,7 +333,7 @@ describe("the About and privacy window", () => {
   });
   it("has no other channel that could send the report", () => {
     const s = setup(); s.pages.open("report");
-    expect(Object.keys(s.handlers).sort()).toEqual(["about:close", "about:data", "about:openConfigFolder", "report:copy", "report:data", "report:issue", "report:openCrashFolder", "report:preview", "report:save"]);
+    expect(Object.keys(s.handlers).sort()).toEqual(["about:close", "about:data", "about:openConfigFolder", "report:clear", "report:copy", "report:data", "report:issue", "report:openCrashFolder", "report:preview", "report:save"]);
   });
 });
 

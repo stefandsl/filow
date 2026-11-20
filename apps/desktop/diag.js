@@ -31,4 +31,54 @@ function escapeRe(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-module.exports = { redact };
+const fs = require("node:fs");
+const path = require("node:path");
+const retentionMs = 7 * 24 * 60 * 60 * 1000;
+
+/** Only touch Filow's technical log and Crashpad dumps. Leave links and Crashpad's own database alone. */
+function sweepDiagnostics(profile, { clear = false } = {}) {
+  const cutoff = Date.now() - retentionMs;
+  const errors = [];
+  function attempt(action) {
+    try { action(); } catch (err) { if (err.code !== "ENOENT") errors.push(err); }
+  }
+  const log = path.join(profile, "startup.log");
+  attempt(() => {
+    const stat = fs.lstatSync(log);
+    if (!stat.isFile()) return;
+    if (clear || stat.mtimeMs < cutoff) return fs.unlinkSync(log);
+    // A new launch appends to the same file. Continuation lines belong to their preceding timestamp.
+    const original = fs.readFileSync(log, "utf8");
+    let keep = true;
+    const retained = original.split(/(?<=\n)/).filter((line) => {
+      const stamp = line.match(/^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z) /);
+      if (stamp) keep = Date.parse(stamp[1]) >= cutoff;
+      return keep;
+    }).join("");
+    if (retained !== original) {
+      if (!retained) return fs.unlinkSync(log);
+      const temp = fs.mkdtempSync(path.join(profile, ".log-prune-"));
+      try {
+        const replacement = path.join(temp, "startup.log");
+        fs.writeFileSync(replacement, retained, { mode: stat.mode });
+        fs.renameSync(replacement, log);
+      } finally {
+        fs.rmSync(temp, { recursive: true, force: true });
+      }
+    }
+  });
+  function visit(dir) {
+    if (!fs.lstatSync(dir).isDirectory()) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      attempt(() => {
+        if (entry.isDirectory()) visit(file);
+        else if (entry.isFile() && /\.dmp$/i.test(entry.name) && (clear || fs.lstatSync(file).mtimeMs < cutoff)) fs.unlinkSync(file);
+      });
+    }
+  }
+  attempt(() => visit(path.join(profile, "Crashpad")));
+  if (errors.length) throw new AggregateError(errors, "Diagnostic cleanup incomplete");
+}
+
+module.exports = { redact, sweepDiagnostics };

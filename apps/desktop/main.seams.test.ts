@@ -100,7 +100,7 @@ function fixture(initialEnv: Record<string, string> = {}, { updateFeed = false, 
       return modules[id];
     },
     __dirname: "G:/fake", process: { env, platform, arch: "x64", resourcesPath: "G:/fake", versions: {}, on() {}, exit: processExit },
-    URL, URLSearchParams, console, setTimeout, clearTimeout, AbortController,
+    URL, URLSearchParams, console, setTimeout, clearTimeout, setInterval: () => ({ unref() {} }), clearInterval, AbortController,
   });
   return { api, env, menu, quitAndInstall, updaterLoad, registerShortcut, outbound, openExternal, checkForUpdates, writeText, showMessageBox, updaterHandlers, notificationShow, writeFileSync, renameSync, appendFileSync, rmSync, fsReads: fsRead,
     calls, appHandlers, appExit, processExit, whenReady, windows, asked, catalog: Object.keys(modules["./localai"].CATALOG),

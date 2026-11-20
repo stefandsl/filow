@@ -132,6 +132,15 @@ if (!firstInstance) {
 // is uploaded. "Report a problem" lists them but never includes them; nothing is sent by Filow.
 app.setPath("crashDumps", path.join(userData, "Crashpad"));
 require("electron").crashReporter.start({ uploadToServer: false });
+if (firstInstance) {
+  const expireDiagnostics = () => {
+    try { require("./diag").sweepDiagnostics(userData); } catch { /* retry on the next sweep */ }
+  };
+  expireDiagnostics();
+  const timer = setInterval(expireDiagnostics, 60_000);
+  timer.unref();
+  app.on("will-quit", () => clearInterval(timer));
+}
 const envFile = path.join(userData, ".env");
 const scriptFile = path.join(userData, "script.md");
 const settingsFile = path.join(userData, "settings.json");
@@ -2268,6 +2277,11 @@ function about() {
     docsDir: packaged ? resources : path.join(resources, "..", "docs"),
     crashDir: path.join(userData, "Crashpad"), documentsDir: () => app.getPath("documents"),
     collectReport: reportSections,
+    clearDiagnostics: () => {
+      lastTakeLog = "";
+      getDictation().diag.clear();
+      diag.sweepDiagnostics(userData, { clear: true });
+    },
     // QA builds only: the probe points the issue button at its own local page instead of GitHub
     issuePage: process.env.FILOW_QA_ISSUE_PAGE && require("./qa.js").isQaBuild(app) ? process.env.FILOW_QA_ISSUE_PAGE : undefined,
   });

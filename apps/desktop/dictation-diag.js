@@ -51,7 +51,9 @@ function createDictationDiag(o = {}) {
   }
   const last = () => (runs.length ? runs[runs.length - 1] : null);
 
-  return { begin, handsFree, mark, result, nothing, last, runs: () => runs.slice(), get current() { return cur; } };
+  function clear() { runs.length = 0; cur = null; }
+
+  return { clear, begin, handsFree, mark, result, nothing, last, runs: () => runs.slice(), get current() { return cur; } };
 }
 
 const p2 = (n) => String(n).padStart(2, "0");

@@ -111,6 +111,17 @@
       else if (r.error) say(fill(tx.saveFailed, { error: r.error }), true);
     } });
     const copy = el("button", { type: "button", class: "btn", text: tx.copy, disabled: true, onclick: async () => { await api.copy(description); say(tx.copied); } });
+    const clear = el("button", { type: "button", id: "clear-diagnostics", class: "btn", text: tx.deleteLog, disabled: true, onclick: async () => {
+      clear.disabled = true;
+      clearTimeout(previewTimer);
+      try {
+        await api.clearDiagnostics();
+        render("report", true);
+      } catch {
+        clear.disabled = false;
+        say(tx.retry, true);
+      }
+    } });
     void api.report().then((r) => {
       preview.textContent = description ? preview.textContent : r.preview;
       if (description) void api.preview(description).then((t) => { preview.textContent = t; });
@@ -121,6 +132,7 @@
       issue.disabled = false;
       save.disabled = false;
       copy.disabled = false;
+      clear.disabled = false;
     });
     return [
       el("h1", { tabindex: "-1", text: tx.tabReport }),
@@ -133,7 +145,7 @@
       preview, crash,
       el("h2", { text: tx.issueHeading }),
       el("div", { class: "note", id: "issue-notice" }, el("p", { text: tx.issuePublic })),
-      el("div", { class: "actions" }, issue, save, copy, el("button", { type: "button", class: "btn", text: tx.close, onclick: () => void api.close() })),
+      el("div", { class: "actions" }, issue, save, copy, clear, el("button", { type: "button", class: "btn", text: tx.close, onclick: () => void api.close() })),
       status,
     ];
   }

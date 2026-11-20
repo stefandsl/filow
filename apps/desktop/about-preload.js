@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("filowAbout", {
   report: () => ipcRenderer.invoke("report:data"),
   preview: (description) => ipcRenderer.invoke("report:preview", String(description || "")),
   save: (description) => ipcRenderer.invoke("report:save", String(description || "")),
+  clearDiagnostics: () => ipcRenderer.invoke("report:clear"),
   copy: (description) => ipcRenderer.invoke("report:copy", String(description || "")),
   openCrashFolder: () => ipcRenderer.invoke("report:openCrashFolder"),
   issue: (description) => ipcRenderer.invoke("report:issue", String(description || "")),
