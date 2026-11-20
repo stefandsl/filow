@@ -1,11 +1,11 @@
-// Usage: node tools/wake/phrase-eval.cjs MODEL CLIPS BACKGROUND_DIR OUTPUT_DIR [minutes per language] [language] [start minute]
+// Usage: node tools/wake/phrase-eval.cjs MODEL CLIPS BACKGROUND_DIR OUTPUT_DIR [minutes per language] [language] [start minute] [ok|bare]
 const fs = require("node:fs");
 const path = require("node:path");
 const { keywordText, createCombiner } = require("../../apps/desktop/wake-policy");
 const { createEmbedding, createStream, enrol, background } = require("../../apps/desktop/wake-head");
 const { replayEnrolment, canEnable } = require("../../apps/desktop/wake-enrolment");
 const { readSample } = require("../../apps/desktop/wake");
-const [models, clips, speech, out, minutes = 6, language, offset = 0] = process.argv.slice(2);
+const [models, clips, speech, out, minutes = 6, language, offset = 0, variant] = process.argv.slice(2);
 const modes = ["strict", "balanced", "sensitive"];
 
 async function run() {
@@ -19,7 +19,7 @@ async function run() {
       const clip = (name, i) => readSample(path.join(clips, lang, `${name}-${i}.wav`));
       // Common Voice files exported by prepare-qa.py (16 kHz mono PCM).
       const normal = readSample(path.join(speech, `background-${lang}.wav`)).subarray(Number(offset)*60*16000, (Number(offset)+Number(minutes))*60*16000);
-      for (const phrase of ["ok", "bare"]) {
+      for (const phrase of variant ? [variant] : ["ok", "bare"]) {
         const recordings = Array.from({length:5}, (_, i) => clip(phrase, i));
         const profile = await enrol(embedding, recordings, background(data, phrase === "bare"));
         if (phrase === "bare") profile.phrase = "Filow";

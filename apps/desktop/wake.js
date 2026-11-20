@@ -83,7 +83,7 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
     } catch (e) { if (token === epoch) fail(e); }
     return snapshot();
   }
-  async function enable(mode) {
+  async function enable(mode, allowBare = true) {
     stop(); error = ""; const token = epoch;
     try {
       await verifyModelsFn(dir);
@@ -91,7 +91,8 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
       if (!validateProfile(saved) || saved.models !== FILES.map((f) => f.sha256).join(":")) throw new Error("Record or retrain your wake word for these models");
       if (!canEnable(saved.verification, sensitivity(mode))) throw new Error("Replay check required: recognise at least 4 of 5 takes and reject personal negatives");
       profile = saved; phase = "checking"; publish();
-      const loaded = await createDetectorsFn(dir, profile, utilityProcess);
+      const requirePrefix = profile.phrase === DEFAULTS.phrase && !allowBare;
+      const loaded = await createDetectorsFn(dir, { ...profile, requirePrefix }, utilityProcess);
       if (token !== epoch) { loaded.stop(); return snapshot(); }
       detectors = loaded;
       const times = [];
@@ -101,7 +102,7 @@ function createWake({ userData, utilityProcess, state, changed, detected, verify
       }
       times.sort((a, b) => a - b);
       if (times[94] > 30) throw new Error(`Wake detector too slow: ${Math.round(times[94])} ms per 100 ms block (limit 30 ms)`);
-      await detectors.reset(); combiner = createCombiner(profile.thresholds, sensitivity(mode));
+      await detectors.reset(); combiner = createCombiner(profile.thresholds, sensitivity(mode), requirePrefix);
       enabled = true; phase = "ready"; publish(); await reconcile();
     } catch (e) { if (token === epoch) fail(e); }
     return snapshot();

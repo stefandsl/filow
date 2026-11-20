@@ -49,6 +49,7 @@ export type DictationResult = { ok: boolean; action: "paste" | "typed" | "copy" 
 
 export type OkFilowStatus = {
   wakeWord?: boolean;
+  wakeBare?: boolean;
   wakeSensitivity?: "strict" | "balanced" | "sensitive";
   wake?: WakeStatus;
   enabled: boolean;

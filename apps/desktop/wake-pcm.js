@@ -10,6 +10,8 @@ function wav(samples) {
 function readSample(file) {
   const b = fs.readFileSync(file);
   if (b.toString("ascii", 0, 4) !== "RIFF" || b.readUInt32LE(24) !== 16000 || b.readUInt16LE(22) !== 1 || b.readUInt16LE(34) !== 16 || b.toString("ascii", 36, 40) !== "data") throw new Error("Invalid enrolment WAV");
-  return Float32Array.from({ length: (b.length - 44) / 2 }, (_, i) => b.readInt16LE(44 + i * 2) / 32768);
+  const samples = new Float32Array((b.length - 44) / 2);
+  for (let i = 0; i < samples.length; i++) samples[i] = b.readInt16LE(44 + i * 2) / 32768;
+  return samples;
 }
 module.exports = { readSample, wav };

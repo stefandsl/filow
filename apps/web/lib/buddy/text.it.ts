@@ -1,6 +1,7 @@
 import type { OkfKey } from "./text";
 
 export const it: Record<OkfKey, string> = {
+  wakeBare: "Consenti Filow da solo (disattiva per richiedere OK o Hey prima di Filow)",
   wakeLegacy: "La frase precedente funziona ancora. Per cambiarla, registra Filow cinque volte e ripeti l’addestramento.",
   wakeNegative: "Registra una frase comune (facoltativo)",
   wakeNegativeHelp: "Puoi registrare due frasi senza Filow: Oggi il tempo è bello. Apri la finestra, per favore. Anche queste registrazioni restano su questo PC finché non le elimini.",

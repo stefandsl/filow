@@ -23,12 +23,16 @@ const SPELLINGS = Object.freeze([...LEGACY_SPELLINGS, ...BARE_SPELLINGS,
   ...BARE_SPELLINGS.map(s => `HH EY1 ${s}`),
 ]);
 function keywordText(profile) {
-  const spellings = profile.phrase === DEFAULTS.phrase ? SPELLINGS : LEGACY_SPELLINGS;
+  let spellings = profile.phrase === DEFAULTS.phrase ? SPELLINGS : LEGACY_SPELLINGS;
+  if (profile.requirePrefix) spellings = spellings.filter(s => !BARE_SPELLINGS.includes(s));
   if (!spellings.length || new Set(spellings).size !== spellings.length ||
       !spellings.every(s => /^[A-Z]+[012]?( [A-Z]+[012]?)+$/.test(s))) {
     throw new Error("Invalid wake phoneme list");
   }
-  return spellings.map((s, i) => `${s} :2.5 #0.05 @v${i + 1}`).join("\n") + "\n";
+  return spellings.map((s, i) => {
+    const tuning = BARE_SPELLINGS.includes(s) ? ":2.35 #0.12" : ":2.5 #0.05";
+    return `${s} ${tuning} @v${i + 1}`;
+  }).join("\n") + "\n";
 }
 const sensitivity = (v) => ["strict", "balanced", "sensitive"].includes(v) ? v : DEFAULTS.sensitivity;
 function blocked(s) {
@@ -54,7 +58,7 @@ function combine(mode, score, kws, thresholds) {
   return score > thresholds.sure || (kws === true && score > thresholds.loose);
 }
 // Both workers report on the AUDIO clock, never their wall-clock completion order.
-function createCombiner(thresholds, mode = "balanced") {
+function createCombiner(thresholds, mode = "balanced", requirePrefix = false) {
   let last = -Infinity;
   let heads = [], spots = [];
   return {
@@ -66,7 +70,10 @@ function createCombiner(thresholds, mode = "balanced") {
       heads = heads.filter((h) => h.at >= at - DEFAULTS.agreementMs);
       spots = spots.filter((t) => t >= at - DEFAULTS.agreementMs);
       if (at - last < DEFAULTS.cooldownMs) return false;
-      const hit = heads.some((h) => combine(mode, h.score, spots.some((t) => Math.abs(t - h.at) <= DEFAULTS.agreementMs), thresholds));
+      const hit = heads.some((h) => {
+        const matched = spots.some((t) => Math.abs(t - h.at) <= DEFAULTS.agreementMs);
+        return (!requirePrefix || matched) && combine(mode, h.score, matched, thresholds);
+      });
       if (hit) { last = at; heads = []; spots = []; }
       return hit;
     },

@@ -8,7 +8,7 @@ and slide shows stop wake listening. It cannot interrupt speech and opens no
 follow-up question window. Audio stays in memory except the five enrollment
 recordings retained in your app profile. **Delete my recordings and trained wake
 word** removes the recordings and personal head. See [evidence and limitations](docs/okfilow/WAKE-WORD.md).
-Say **Filow** on its own. OK Filow and Hey Filow are also supported. Existing profiles keep their previous phrase until you record five new takes and retrain.
+Say **Filow** on its own. OK Filow and Hey Filow are also supported. Existing profiles keep their previous phrase until you record five new takes and retrain. Switch off **Allow Filow alone** to require OK or Hey before the name.
 
 Retraining now includes stored numerical examples of similar non-wake phrases.
 You can also record two optional non-wake sentences. These accepted recordings

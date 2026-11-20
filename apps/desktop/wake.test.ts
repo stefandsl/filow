@@ -66,6 +66,14 @@ describe("wake privacy defaults", () => {
     expect(combine(mode, NaN, true, thresholds)).toBe(false);
     expect(combine(mode, 50, true, { loose: 7, sensitive: 3, sure: 5 })).toBe(false);
   });
+  it.each(["strict", "balanced", "sensitive"])("requires a prefix even for a confident %s head when opted out", mode => {
+    const keywords = require("./wake-policy").keywordText({ phrase: "Filow", requirePrefix: true });
+    expect(keywords).not.toMatch(/^F /m);
+    expect(keywords).toMatch(/^HH EY1 F IY1 L OW0 :/m);
+    const combiner = createCombiner(thresholds, mode, true);
+    expect(combiner.push({ at: 100, score: 99 })).toBe(false);
+    expect(combiner.push({ at: 200, keyword: true })).toBe(true);
+  });
   it("matches by audio time, expires agreement, resets and debounces", () => {
     const c = createCombiner(thresholds, "strict");
     expect(c.push({ at: 100, score: 2 })).toBe(false);

@@ -72,10 +72,12 @@ function trainHead(positives, bg, options = {}) {
     // Short keywords resemble ordinary words. Require the enrolled speaker's
     // score to move toward the lower tail of their positive training windows.
     const own = positives.map(x => dot(w, x) + bias).sort((a, b) => a - b);
-    for (const [key, fraction] of [["loose", .05], ["sensitive", .1], ["sure", .2]]) {
+    for (const [key, fraction, weight] of [["loose", .05, .3], ["sure", .2, .4]]) {
       const floor = own[Math.floor(fraction * own.length)];
-      result.thresholds[key] += .3 * Math.max(0, floor - result.thresholds[key]);
+      result.thresholds[key] += weight * Math.max(0, floor - result.thresholds[key]);
     }
+    result.thresholds.sensitive = Math.max(threshold(1), result.thresholds.loose);
+    result.thresholds.sure = Math.max(result.thresholds.sure, result.thresholds.sensitive);
   }
   if (!validateProfile(result)) throw new Error("Wake training failed");
   return result;

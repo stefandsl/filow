@@ -16,6 +16,7 @@ export function WakeSettings({ lang }: { lang: string }) {
   const [draft, setDraft] = useState<Float32Array | null>(null);
   const [error, setError] = useState("");
   const [playback, setPlayback] = useState("");
+  const [bare, setBare] = useState(true);
   const [sensitivity, setSensitivity] = useState("balanced");
   const capture = useRef<{ stop(): void } | null>(null);
   const chunks = useRef<Float32Array[]>([]);
@@ -36,7 +37,7 @@ export function WakeSettings({ lang }: { lang: string }) {
   }, [draft]);
   useEffect(() => {
     mounted.current = true;
-    void okFilowSettingsBridge()?.status().then((s) => { if (mounted.current) setSensitivity(s.wakeSensitivity ?? "balanced"); });
+    void okFilowSettingsBridge()?.status().then((s) => { if (mounted.current) { setSensitivity(s.wakeSensitivity ?? "balanced"); setBare(s.wakeBare !== false); } });
     const sessionGeneration = generation;
     const refresh = () => { void okFilowSettingsBridge()?.wakeAction?.("status").then((s) => { if (mounted.current) setStatus(s); }).catch(() => {}); };
     refresh(); const poll = setInterval(refresh, 500);
@@ -106,6 +107,12 @@ export function WakeSettings({ lang }: { lang: string }) {
     }}>
       <option value="strict">{t("wakeStrict")}</option><option value="balanced">{t("wakeBalanced")}</option><option value="sensitive">{t("wakeSensitive")}</option>
     </select></label>
+    {!status?.legacyPhrase && <label className="row"><input type="checkbox" checked={bare} disabled={busy || recording}
+      onChange={async e => {
+        const value = e.target.checked;
+        const updated = await okFilowSettingsBridge()?.configure({ wakeBare: value });
+        if (updated && mounted.current) setBare(updated.wakeBare !== false);
+      }} />{t("wakeBare")}</label>}
     <p>{t("wakeTradeoff")}</p>
     <p role="status">{check ? t("wakeRecognised").replace("{n}", String(check.recognised)).replace("{a}", String(check.negativeAccepts)).replace("{b}", String(check.negatives)) : t("wakeVerifyFirst")}</p>
     <div className="row">

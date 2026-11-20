@@ -43,6 +43,7 @@ function okfilowSender(event, contents, appUrl) {
 const DEFAULTS = {
   wakeWord: false,
   wakeSensitivity: "balanced",
+  wakeBare: true,
   enabled: true,
   hotkey: "ctrl+alt",
   provider: "local",
@@ -867,7 +868,7 @@ function createOkFilow(deps) {
   }
 
   function applyConfig(patch) {
-    if (patch?.wakeWord === false || patch?.enabled === false) wake?.stop();
+    if (patch?.wakeWord === false || patch?.enabled === false || typeof patch?.wakeBare === "boolean") wake?.stop();
     if (patch && "wakeWord" in patch) patch = { ...patch, wakeWord: false };
     // The panel's dictation switch writes dictation.js's setting (it used to live in okFilow.dictation).
     const { dictation: dictationOn, ...rest } = patch || {};
@@ -1759,7 +1760,7 @@ function createOkFilow(deps) {
     if (action === "status") return wake.status();
     if (action === "off") { wake.stop(); return wake.status(); }
     if (action === "setup") { if (isOffline()) { wake.fail(new Error("Offline: wake models cannot download")); return wake.status(); } return wake.setup(data === true); }
-    if (action === "enable") return wake.enable(cfg().wakeSensitivity);
+    if (action === "enable") return wake.enable(cfg().wakeSensitivity, cfg().wakeBare);
     if (action === "sample") return wake.sample(data?.index, data?.samples);
     if (action === "negative") return wake.negative(data?.index, data?.samples);
     if (action === "train") return wake.train(cfg().wakeSensitivity);

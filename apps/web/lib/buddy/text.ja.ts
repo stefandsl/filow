@@ -1,6 +1,7 @@
 import type { OkfKey } from "./text";
 
 export const ja: Record<OkfKey, string> = {
+  wakeBare: "Filow だけで起動する（オフにすると Filow の前に OK または Hey が必要です）",
   wakeLegacy: "以前のフレーズも使えます。切り替えるには、Filow を5回録音して再学習してください。",
   wakeNegative: "普通の文を録音（任意）",
   wakeNegativeHelp: "Filowを含まない文を2つ録音できます。例：今日はいい天気です。窓を開けてください。この録音も削除するまでこのPCに保存されます。",

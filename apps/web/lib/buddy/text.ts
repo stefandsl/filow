@@ -6,6 +6,7 @@ import { ro } from "./text.ro";
 import { ja } from "./text.ja";
 
 const en = {
+  wakeBare: "Allow Filow alone (turn off to require OK or Hey before Filow)",
   wakeLegacy: "Your previous phrase still works. To switch, record Filow five times and retrain.",
   wakeNegative: "Record an ordinary sentence (optional)",
   wakeNegativeHelp: "Optionally record two sentences without Filow: The weather is nice today. Please open the window. Accepted negative recordings also stay on this PC until deleted.",
